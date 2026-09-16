@@ -39,7 +39,7 @@ class HangoutState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: ChairState }) chairs = new MapSchema<ChairState>();
   @type({ map: ToggleableState }) toggleables = new MapSchema<ToggleableState>();
-  @type("string") currentMap: MapId = "cozy_bedroom";
+  @type("string") currentMap: MapId = "cozy_lounge";
   @type("boolean") mapTransitioning = false;
 }
 

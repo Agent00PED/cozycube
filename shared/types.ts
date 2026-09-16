@@ -16,9 +16,9 @@ export interface PlayerState {
   connected: boolean;
 }
 
-export type MapId = "cozy_bedroom" | "cyber_lounge" | "chill_lounge";
+export type MapId = "cozy_lounge" | "campfire_night";
 
-export type ToggleableKind = "tv" | "lamp";
+export type ToggleableKind = "tv" | "lamp" | "campfire";
 
 // Runtime (synced) state of an interactive prop — mirrors the server's ChairState/ToggleableState schema.
 export interface ChairSyncState {

@@ -20,13 +20,11 @@ export interface ToggleableConfig {
 }
 
 export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
-  cozy_bedroom: [{ propId: "reading_chair", x: -2, z: -3, rotationY: 0 }],
-  cyber_lounge: [{ propId: "neon_stool", x: 2, z: -1, rotationY: Math.PI }],
-  chill_lounge: [{ propId: "bar_stool", x: -1.6, z: 0, rotationY: -Math.PI / 2 }],
+  cozy_lounge: [{ propId: "gaming_chair", x: 3.2, z: -2.4, rotationY: Math.PI }],
+  campfire_night: [{ propId: "log_seat", x: 0, z: 1.6, rotationY: Math.PI }],
 };
 
 export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
-  cozy_bedroom: [{ propId: "bedside_lamp", x: -3.6, z: 1.6, kind: "lamp", color: "#ffb37a", defaultOn: true }],
-  cyber_lounge: [{ propId: "wall_tv", x: 0, z: -3.55, kind: "tv", color: "#22e6ff", defaultOn: true }],
-  chill_lounge: [{ propId: "hanging_lamp", x: 3, z: -2, kind: "lamp", color: "#ff2ee6", defaultOn: true }],
+  cozy_lounge: [{ propId: "wall_tv", x: -3, z: -4.6, kind: "tv", color: "#9ad1e8", defaultOn: true }],
+  campfire_night: [{ propId: "campfire", x: 0, z: 0, kind: "campfire", color: "#ff8a3d", defaultOn: true }],
 };

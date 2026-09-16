@@ -8,9 +8,8 @@ import { ProceduralRoom } from "./ProceduralRoom";
 // load it (with the Draco decoder at /draco/, copied per client/public/draco/README.md)
 // instead of the procedural placeholder — no other code needs to change.
 const MAP_MODEL_URLS: Partial<Record<MapId, string>> = {
-  // cozy_bedroom: "/models/cozy_bedroom.glb",
-  // cyber_lounge: "/models/cyber_lounge.glb",
-  // chill_lounge: "/models/chill_lounge.glb",
+  // cozy_lounge: "/models/cozy_lounge.glb",
+  // campfire_night: "/models/campfire_night.glb",
 };
 
 interface DioramaRoomProps {

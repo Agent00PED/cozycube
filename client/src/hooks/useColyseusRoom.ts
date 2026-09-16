@@ -29,7 +29,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [chairs, setChairs] = useState<Record<string, ChairSyncState>>({});
   const [toggleables, setToggleables] = useState<Record<string, ToggleableSyncState>>({});
   const [localSessionId, setLocalSessionId] = useState<string | null>(null);
-  const [currentMap, setCurrentMap] = useState<MapId>("cozy_bedroom");
+  const [currentMap, setCurrentMap] = useState<MapId>("cozy_lounge");
   const [mapTransitioning, setMapTransitioning] = useState(false);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);

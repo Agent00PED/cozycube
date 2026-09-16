@@ -64,7 +64,9 @@ export function useLocalPlayerMovement(
   onNearbyChange: (nearby: NearbyInteractable | null) => void,
   // Written to by the floor's onPointerDown handler (see ProceduralRoom.tsx) — the shared
   // "walk here" target, lifted up to WorldScene so the click marker can read the same state.
-  targetPosRef: React.MutableRefObject<MoveTarget | null>
+  targetPosRef: React.MutableRefObject<MoveTarget | null>,
+  // Read by Character3D's walk-cycle wobble/bob animation — 0 when stationary, 1 when moving.
+  speedRef: React.MutableRefObject<number>
 ) {
   const posRef = useRef({ x: player.x, z: player.z });
   const sendTimerRef = useRef(0);
@@ -122,6 +124,8 @@ export function useLocalPlayerMovement(
         }
       }
     }
+
+    speedRef.current = Math.hypot(dirX, dirZ);
 
     if (groupRef.current) {
       groupRef.current.position.set(posRef.current.x, 0, posRef.current.z);

@@ -8,7 +8,7 @@ import { ToggleableProp } from "./ToggleableProp";
 import { InteractPrompt } from "./InteractPrompt";
 import { ClickMarker } from "./ClickMarker";
 import { DioramaRoom } from "../scene/DioramaRoom";
-import { ROOM_THEMES } from "../scene/roomThemes";
+import { ROOM_THEMES, type RoomTheme } from "../scene/roomThemes";
 import { useLocalPlayerMovement, type MoveTarget, type NearbyInteractable } from "../systems/useLocalPlayerMovement";
 import type { ChairSyncState, MapId, PlayerState, ToggleableSyncState } from "@shared/types";
 
@@ -35,7 +35,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
 
   return (
     <>
-      <RoomLighting ambient={theme.ambient} directional={theme.directional} />
+      <RoomLighting theme={theme} />
       {/* key={mapId} forces a full unmount of the old room's meshes/geometries before the new
           one mounts, instead of React diffing/reusing nodes across themes — guarantees no
           overlap between rooms and lets R3F's default dispose-on-unmount reclaim GPU memory. */}
@@ -43,13 +43,12 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
 
       <ClickMarker targetRef={moveTargetRef} />
 
-      {/* TEMP: disabled to keep the scene minimal while validating click-to-move. */}
-      {/* {Object.values(chairs).map((chair) => (
+      {Object.values(chairs).map((chair) => (
         <ChairProp key={chair.propId} chair={chair} />
       ))}
       {Object.values(toggleables).map((prop) => (
         <ToggleableProp key={prop.propId} prop={prop} />
-      ))} */}
+      ))}
 
       {Object.entries(players).map(([sessionId, player]) =>
         sessionId === localSessionId ? (
@@ -67,20 +66,19 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         )
       )}
 
-      {/* TEMP: disabled to keep the scene minimal while validating click-to-move. */}
-      {/* {nearby && localPlayer && <InteractPrompt nearby={nearby} sitting={localPlayer.sitting} />} */}
+      {nearby && localPlayer && <InteractPrompt nearby={nearby} sitting={localPlayer.sitting} />}
     </>
   );
 }
 
-function RoomLighting({ ambient, directional }: { ambient: string; directional: string }) {
+function RoomLighting({ theme }: { theme: RoomTheme }) {
   return (
     <>
-      <ambientLight intensity={0.45} color={ambient} />
+      <ambientLight intensity={theme.ambientIntensity} color={theme.ambient} />
       <directionalLight
         position={[5, 10, 5]}
-        intensity={1.1}
-        color={directional}
+        intensity={theme.directionalIntensity}
+        color={theme.directional}
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
@@ -104,14 +102,24 @@ function LocalPlayerAvatar({
   targetPosRef: React.MutableRefObject<MoveTarget | null>;
 }) {
   const groupRef = useRef<Group>(null);
-  useLocalPlayerMovement(groupRef, room, player, chairs, toggleables, onNearbyChange, targetPosRef);
-  return <Character3D ref={groupRef} color={player.color} username={player.username} sitting={player.sitting} />;
+  const speedRef = useRef(0);
+  useLocalPlayerMovement(groupRef, room, player, chairs, toggleables, onNearbyChange, targetPosRef, speedRef);
+  return (
+    <Character3D
+      ref={groupRef}
+      color={player.color}
+      username={player.username}
+      sitting={player.sitting}
+      speedRef={speedRef}
+    />
+  );
 }
 
 const REMOTE_LERP_FACTOR = 0.2;
 
 function RemotePlayerAvatar({ player }: { player: PlayerState }) {
   const groupRef = useRef<Group>(null);
+  const speedRef = useRef(0);
   const targetRef = useRef({ x: player.x, z: player.z, rotationY: player.sitRotationY });
 
   useEffect(() => {
@@ -121,10 +129,21 @@ function RemotePlayerAvatar({ player }: { player: PlayerState }) {
   useFrame(() => {
     const g = groupRef.current;
     if (!g) return;
-    g.position.x += (targetRef.current.x - g.position.x) * REMOTE_LERP_FACTOR;
-    g.position.z += (targetRef.current.z - g.position.z) * REMOTE_LERP_FACTOR;
+    const dx = targetRef.current.x - g.position.x;
+    const dz = targetRef.current.z - g.position.z;
+    speedRef.current = Math.hypot(dx, dz) > 0.02 ? 1 : 0;
+    g.position.x += dx * REMOTE_LERP_FACTOR;
+    g.position.z += dz * REMOTE_LERP_FACTOR;
     if (player.sitting) g.rotation.y = targetRef.current.rotationY;
   });
 
-  return <Character3D ref={groupRef} color={player.color} username={player.username} sitting={player.sitting} />;
+  return (
+    <Character3D
+      ref={groupRef}
+      color={player.color}
+      username={player.username}
+      sitting={player.sitting}
+      speedRef={speedRef}
+    />
+  );
 }
