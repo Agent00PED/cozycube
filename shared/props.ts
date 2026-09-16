@@ -20,11 +20,13 @@ export interface ToggleableConfig {
 }
 
 export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
-  cozy_lounge: [{ propId: "gaming_chair", x: 3.2, z: -2.4, rotationY: Math.PI }],
+  // sits just in front of the desk on the back-left wall, facing -X into the monitors
+  cozy_lounge: [{ propId: "gaming_chair", x: -3.1, z: 1.4, rotationY: -Math.PI / 2 }],
   campfire_night: [{ propId: "log_seat", x: 0, z: 1.6, rotationY: Math.PI }],
 };
 
 export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
-  cozy_lounge: [{ propId: "wall_tv", x: -3, z: -4.6, kind: "tv", color: "#9ad1e8", defaultOn: true }],
+  // mounted on the back-right wall, directly in the sofa's line of sight
+  cozy_lounge: [{ propId: "wall_tv", x: -2.5, z: -4.85, kind: "tv", color: "#9ad1e8", defaultOn: true }],
   campfire_night: [{ propId: "campfire", x: 0, z: 0, kind: "campfire", color: "#ff8a3d", defaultOn: true }],
 };

@@ -1,16 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Group } from "three";
 import type { Room } from "colyseus.js";
 import { Character3D } from "./Character3D";
 import { ChairProp } from "./ChairProp";
 import { ToggleableProp } from "./ToggleableProp";
-import { InteractPrompt } from "./InteractPrompt";
 import { ClickMarker } from "./ClickMarker";
 import { DioramaRoom } from "../scene/DioramaRoom";
 import { ROOM_THEMES, type RoomTheme } from "../scene/roomThemes";
 import { useLocalPlayerMovement, type MoveTarget, type NearbyInteractable } from "../systems/useLocalPlayerMovement";
 import type { ChairSyncState, MapId, PlayerState, ToggleableSyncState } from "@shared/types";
+
+// The on-screen "PRESS E TO SIT" prompt is gone — the game is click-to-move only, so there is
+// no key to press. The proximity scan itself stays wired up (it still feeds the server's sit
+// logic) but no longer drives any UI.
+const NOOP_NEARBY = (_nearby: NearbyInteractable | null) => {};
 
 interface WorldSceneProps {
   room: Room | null;
@@ -22,8 +26,6 @@ interface WorldSceneProps {
 }
 
 export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId }: WorldSceneProps) {
-  const [nearby, setNearby] = useState<NearbyInteractable | null>(null);
-  const localPlayer = localSessionId ? players[localSessionId] : null;
   const theme = ROOM_THEMES[mapId];
 
   // Click-to-move target, shared between the floor's click handler, the movement hook, and
@@ -58,7 +60,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
             player={player}
             chairs={chairs}
             toggleables={toggleables}
-            onNearbyChange={setNearby}
+            onNearbyChange={NOOP_NEARBY}
             targetPosRef={moveTargetRef}
           />
         ) : (
@@ -66,7 +68,6 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         )
       )}
 
-      {nearby && localPlayer && <InteractPrompt nearby={nearby} sitting={localPlayer.sitting} />}
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Text } from "@react-three/drei";
+import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 
 interface Character3DProps {
@@ -87,10 +87,13 @@ export const Character3D = forwardRef<THREE.Group, Character3DProps>(
           <mesh castShadow position={[0, 1.32, 0]} geometry={headGeometry} material={material} />
         </group>
 
+        {/* Billboard cancels out the character's facing rotation — without it the nametag is a
+            child of the turning body and renders mirrored whenever the player walks away from
+            the camera. */}
+        <Billboard position={[0, 1.85, 0]}>
         {/* `font` MUST stay set: without it, troika-three-text calls out to a CDN font resolver
             blocked by Discord's Activity iframe CSP, which silently broke rendering entirely. */}
         <Text
-          position={[0, 1.85, 0]}
           scale={[1, 1, 1]}
           font="/fonts/kenpixel.ttf"
           fontSize={0.2}
@@ -105,6 +108,7 @@ export const Character3D = forwardRef<THREE.Group, Character3DProps>(
         >
           {username}
         </Text>
+        </Billboard>
       </group>
     );
   }

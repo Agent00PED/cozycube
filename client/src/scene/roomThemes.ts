@@ -20,11 +20,13 @@ export const ROOM_THEMES: Record<MapId, RoomTheme> = {
     directionalIntensity: 1.2,
   },
   campfire_night: {
-    floor: "#1c2e2a", // dark grass
-    wall: "#0c1420", // night sky void beyond the tree line
-    ambient: "#1a2540", // deep blue night ambient
-    directional: "#2a3a5c", // faint moonlight, warmth comes from the campfire's own point light
-    ambientIntensity: 0.35,
-    directionalIntensity: 0.3,
+    floor: "#41684f", // grass — light enough to still read as ground under a night grade
+    wall: "#0c1420", // unused outdoors (the clearing has a tree/rock ring instead of walls)
+    // Light COLOR multiplies light INTENSITY, so a dark navy hex here cannot be rescued by
+    // turning intensity up; the hue has to stay midnight-navy while the value stays high.
+    ambient: "#9db4e8",
+    directional: "#b9cbf0", // moonlight; the warm key light still comes from the campfire itself
+    ambientIntensity: 1.25,
+    directionalIntensity: 1,
   },
 };

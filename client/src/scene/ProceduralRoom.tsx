@@ -5,15 +5,7 @@ import type { MapId } from "@shared/types";
 import { ROOM_THEMES } from "./roomThemes";
 
 const HALF = 5; // room spans -5..5 on both X and Z
-const CHAMFER = 1.5; // corner cut size, on the two back corners
 const WALL_HEIGHT = 3;
-
-// The four points that trace the back edge of the chamfered floor, left to right:
-// leftWall corner -> backLeft chamfer -> backRight chamfer -> rightWall corner.
-const CORNER_A: [number, number] = [-HALF, -HALF + CHAMFER];
-const CORNER_B: [number, number] = [-HALF + CHAMFER, -HALF];
-const CORNER_C: [number, number] = [HALF - CHAMFER, -HALF];
-const CORNER_D: [number, number] = [HALF, -HALF + CHAMFER];
 
 // Decorative meshes never receive pointer events, so click-to-move always reaches the floor
 // underneath/behind them regardless of how much furniture is scattered around the room.
@@ -30,17 +22,7 @@ interface ProceduralRoomProps {
 export function ProceduralRoom({ mapId, onFloorClick }: ProceduralRoomProps) {
   const theme = ROOM_THEMES[mapId];
 
-  const floorGeometry = useMemo(() => {
-    const shape = new THREE.Shape();
-    shape.moveTo(...CORNER_A);
-    shape.lineTo(...CORNER_B);
-    shape.lineTo(...CORNER_C);
-    shape.lineTo(...CORNER_D);
-    shape.lineTo(HALF, HALF);
-    shape.lineTo(-HALF, HALF);
-    shape.closePath();
-    return new THREE.ShapeGeometry(shape);
-  }, []);
+  const floorGeometry = useMemo(() => new THREE.PlaneGeometry(HALF * 2, HALF * 2), []);
 
   const handleFloorClick = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
@@ -80,7 +62,11 @@ function WallSegment({
   const length = Math.hypot(dx, dz);
   const midX = (from[0] + to[0]) / 2;
   const midZ = (from[1] + to[1]) / 2;
-  const angle = Math.atan2(dx, dz);
+  // The plane's local +X must lie along the segment. Rotating (1,0,0) by angle around Y gives
+  // (cos, 0, -sin), so we need cos = dx/len and sin = -dz/len. Using atan2(dx, dz) here instead
+  // (the previous form) rotated every wall 90 degrees off, standing it up perpendicular to its
+  // own footprint — which is what was slicing a "partition" through the middle of the lounge.
+  const angle = Math.atan2(-dz, dx);
 
   return (
     <mesh
@@ -99,10 +85,12 @@ function WallSegment({
 function CozyLoungeShell({ wallColor }: { wallColor: string }) {
   return (
     <>
-      <WallSegment from={CORNER_A} to={CORNER_B} color={wallColor} />
-      <WallSegment from={CORNER_B} to={CORNER_C} color={wallColor} />
-      <WallSegment from={CORNER_C} to={CORNER_D} color={wallColor} />
-      {/* window on the straight back wall, warm daylight glow */}
+      {/* Isometric "open box": only the two walls behind the camera's viewing direction exist.
+          No front walls, no side-front walls and no partitions, so the sofa and the desk are
+          never occluded from the fixed iso angle. */}
+      <WallSegment from={[-HALF, -HALF]} to={[HALF, -HALF]} color={wallColor} /> {/* back-right */}
+      <WallSegment from={[-HALF, HALF]} to={[-HALF, -HALF]} color={wallColor} /> {/* back-left */}
+      {/* window on the back-right wall, warm daylight glow */}
       <mesh position={[2.2, 1.9, -4.97]} raycast={noRaycast}>
         <planeGeometry args={[1.4, 1.1]} />
         <meshStandardMaterial color="#fff6d9" emissive="#fff1c2" emissiveIntensity={0.6} />
@@ -173,8 +161,9 @@ function Rock({ x, z, scale = 1 }: { x: number; z: number; scale?: number }) {
 function CozyLoungeFurniture() {
   return (
     <>
-      {/* --- Living zone (back-left): sofa, coffee table, rug --- */}
-      <group position={[-3, 0, -3.9]} raycast={noRaycast}>
+      {/* --- Living zone (against the back-right wall): TV on the wall, sofa facing it --- */}
+      {/* rotated 180deg so the backrest lands on the +Z side and the seat opens toward the TV */}
+      <group position={[-2.5, 0, -2.25]} rotation={[0, Math.PI, 0]} raycast={noRaycast}>
         <mesh castShadow receiveShadow position={[0, 0.35, 0]} raycast={noRaycast}>
           <boxGeometry args={[3, 0.5, 1.1]} />
           <meshStandardMaterial color="#c17a4d" roughness={0.85} />
@@ -191,12 +180,12 @@ function CozyLoungeFurniture() {
         ))}
       </group>
 
-      <mesh position={[-3, 0.02, -2.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow raycast={noRaycast}>
-        <circleGeometry args={[1.4, 24]} />
+      <mesh position={[-2.5, 0.02, -3.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow raycast={noRaycast}>
+        <circleGeometry args={[1.3, 24]} />
         <meshStandardMaterial color="#f2e2c4" roughness={0.95} />
       </mesh>
 
-      <group position={[-3, 0, -2.1]} raycast={noRaycast}>
+      <group position={[-2.5, 0, -3.5]} raycast={noRaycast}>
         <mesh castShadow receiveShadow position={[0, 0.32, 0]} raycast={noRaycast}>
           <boxGeometry args={[1.4, 0.08, 0.8]} />
           <meshStandardMaterial color="#8a5a3a" roughness={0.7} />
@@ -214,8 +203,8 @@ function CozyLoungeFurniture() {
         ))}
       </group>
 
-      {/* floor lamp */}
-      <group position={[4.6, 0, 1.7]} raycast={noRaycast}>
+      {/* floor lamp — back-right corner, out of the walking lane */}
+      <group position={[4.2, 0, -3.6]} raycast={noRaycast}>
         <mesh castShadow position={[0, 0.75, 0]} raycast={noRaycast}>
           <cylinderGeometry args={[0.04, 0.04, 1.5, 8]} />
           <meshStandardMaterial color="#3a3a3a" />
@@ -232,8 +221,8 @@ function CozyLoungeFurniture() {
         <pointLight position={[0, 1.5, 0]} intensity={1} color="#ffdb8a" distance={4} decay={2} />
       </group>
 
-      {/* monstera plant */}
-      <group position={[-4.5, 0, 3.8]} raycast={noRaycast}>
+      {/* monstera plant — tucked into the corner where the two walls meet */}
+      <group position={[-4.4, 0, -4.4]} raycast={noRaycast}>
         <mesh castShadow position={[0, 0.25, 0]} raycast={noRaycast}>
           <cylinderGeometry args={[0.28, 0.22, 0.5, 12]} />
           <meshStandardMaterial color="#8a5a3a" roughness={0.8} />
@@ -253,8 +242,9 @@ function CozyLoungeFurniture() {
         ))}
       </group>
 
-      {/* --- Battlestation zone (back-right): desk, monitors, PC --- */}
-      <group position={[3.2, 0, -3.9]} raycast={noRaycast}>
+      {/* --- Battlestation zone: desk pushed flat against the back-left wall, monitors facing
+              into the room so the screens stay readable from the iso angle --- */}
+      <group position={[-4.05, 0, 1.4]} rotation={[0, Math.PI / 2, 0]} raycast={noRaycast}>
         <mesh castShadow receiveShadow position={[0, 0.45, 0]} raycast={noRaycast}>
           <boxGeometry args={[2.4, 0.08, 0.9]} />
           <meshStandardMaterial color="#2b2b30" roughness={0.5} />

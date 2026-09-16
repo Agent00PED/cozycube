@@ -5,10 +5,13 @@ import * as THREE from "three";
 
 const ISO_ANGLE = Math.atan(1 / Math.sqrt(2)); // ~35.264 deg
 const DISTANCE = 20;
-const BASE_ZOOM = 27;
-const BASE_WIDTH = 1280;
-const MIN_ZOOM = 18;
-const MAX_ZOOM = 50;
+const BASE_ZOOM = 48; // framed so the room fills the viewport instead of floating as a small island
+// Reference width at which BASE_ZOOM applies. Orthographic zoom has to track viewport pixels
+// to keep the room the same fraction of the screen, and 850 is what makes the 10x10 room fill
+// a typical Discord Activity iframe rather than sitting as an island in the middle.
+const BASE_WIDTH = 850;
+const MIN_ZOOM = 30;
+const MAX_ZOOM = 70;
 const PAN_LIMIT = 3.5; // world units — keeps the look-around confined near the room, not infinite
 
 const ISO_DIR = new THREE.Vector3(

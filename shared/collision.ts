@@ -16,12 +16,12 @@ export interface AABB {
 // (see ProceduralRoom.tsx), so they never block click-to-move even without a collision box.
 export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   cozy_lounge: [
-    { minX: -4.6, maxX: -1.6, minZ: -4.6, maxZ: -3.2 }, // sofa (living zone, back-left)
-    { minX: -3.6, maxX: -2, minZ: -2.6, maxZ: -1.6 }, // coffee table
-    { minX: -3.2, maxX: -1.8, minZ: -4.9, maxZ: -4.5 }, // wall_tv stand footprint
-    { minX: 1.8, maxX: 4.6, minZ: -4.6, maxZ: -3.4 }, // gaming desk (battlestation zone, back-right)
-    { minX: 4.3, maxX: 4.8, minZ: 1.5, maxZ: 2 }, // floor lamp
-    { minX: -4.8, maxX: -4.2, minZ: 3.5, maxZ: 4.1 }, // monstera plant pot
+    { minX: -4, maxX: -1, minZ: -2.85, maxZ: -1.65 }, // sofa (living zone, facing the wall TV)
+    { minX: -3.25, maxX: -1.75, minZ: -3.95, maxZ: -3.05 }, // coffee table
+    { minX: -3.3, maxX: -1.7, minZ: -5, maxZ: -4.6 }, // wall_tv footprint
+    { minX: -4.6, maxX: -3.5, minZ: 0.1, maxZ: 2.7 }, // gaming desk (against the back-left wall)
+    { minX: 3.95, maxX: 4.45, minZ: -3.85, maxZ: -3.35 }, // floor lamp
+    { minX: -4.7, maxX: -4.1, minZ: -4.7, maxZ: -4.1 }, // monstera plant pot
   ],
   campfire_night: [
     { minX: -0.7, maxX: 0.7, minZ: -0.7, maxZ: 0.7 }, // campfire pit

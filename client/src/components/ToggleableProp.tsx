@@ -56,6 +56,10 @@ export function ToggleableProp({ prop }: ToggleablePropProps) {
   );
 }
 
+// Reaches the whole seating ring (log benches sit ~1.7 units out) rather than only the pit.
+const FIRE_INTENSITY = 3.5;
+const FIRE_DISTANCE = 14;
+
 const EMBERS = Array.from({ length: 6 }, (_, i) => ({
   angle: (i / 6) * Math.PI * 2,
   radius: 0.05 + (i % 3) * 0.05,
@@ -75,7 +79,8 @@ function Campfire({ prop }: { prop: ToggleableSyncState }) {
 
     // gentle flicker: base intensity plus small randomized wobble
     if (lightRef.current) {
-      lightRef.current.intensity = 1.6 + Math.sin(clockRef.current * 14) * 0.25 + Math.sin(clockRef.current * 31) * 0.15;
+      lightRef.current.intensity =
+        FIRE_INTENSITY + Math.sin(clockRef.current * 14) * 0.4 + Math.sin(clockRef.current * 31) * 0.25;
     }
     if (flameRef.current) {
       const s = 1 + Math.sin(clockRef.current * 16) * 0.08;
@@ -112,7 +117,14 @@ function Campfire({ prop }: { prop: ToggleableSyncState }) {
           </mesh>
         ))}
       {prop.on && (
-        <pointLight ref={lightRef} position={[0, 0.5, 0]} intensity={1.6} color={prop.color} distance={6} decay={2} />
+        <pointLight
+          ref={lightRef}
+          position={[0, 0.6, 0]}
+          intensity={FIRE_INTENSITY}
+          color={prop.color}
+          distance={FIRE_DISTANCE}
+          decay={2}
+        />
       )}
     </group>
   );
