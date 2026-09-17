@@ -22,11 +22,15 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -4.6, maxX: -3.5, minZ: 0.1, maxZ: 2.7 }, // gaming desk (against the back-left wall)
     { minX: 3.95, maxX: 4.45, minZ: -3.85, maxZ: -3.35 }, // floor lamp
     { minX: -4.7, maxX: -4.1, minZ: -4.7, maxZ: -4.1 }, // monstera plant pot
+    { minX: -0.5, maxX: 1.1, minZ: -5, maxZ: -4.5 }, // low bookshelf
+    { minX: -0.75, maxX: -0.35, minZ: -2.5, maxZ: -2.1 }, // reading lamp base
+    { minX: 0.74, maxX: 1.66, minZ: 0.04, maxZ: 0.96 }, // floor cushion / beanbag
   ],
   campfire_night: [
     { minX: -0.7, maxX: 0.7, minZ: -0.7, maxZ: 0.7 }, // campfire pit
     { minX: -4.2, maxX: -2, minZ: -4.5, maxZ: -2.6 }, // tent 1
     { minX: 2, maxX: 4.2, minZ: -4.5, maxZ: -2.6 }, // tent 2
+    { minX: 1.82, maxX: 2.48, minZ: -1.83, maxZ: -1.17 }, // lantern stump
   ],
 };
 

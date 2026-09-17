@@ -77,11 +77,30 @@ function RoomLighting({ theme }: { theme: RoomTheme }) {
     <>
       <ambientLight intensity={theme.ambientIntensity} color={theme.ambient} />
       <directionalLight
-        position={[5, 10, 5]}
+        // Deliberately OFF the camera's azimuth. The iso camera sits at roughly (11,11,11), so
+        // a light at (6,11,6) shares its bearing exactly — every shadow then falls directly
+        // behind its own caster and is completely hidden from view, which looks identical to
+        // having no shadows at all. Swinging the light toward +X separates the two bearings so
+        // shadows are thrown across the floor where the camera can actually see them, while
+        // staying on the open side of the room so the back walls never shadow the interior.
+        position={[11, 13, 3]}
         intensity={theme.directionalIntensity}
         color={theme.directional}
         castShadow
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={[2048, 2048]}
+        // Negative bias pushes the depth comparison away from the surface, killing the
+        // self-shadowing "acne" you otherwise get on the large flat floor plane.
+        shadow-bias={-0.0001}
+        shadow-normalBias={0.02}
+        // A directional light's shadow camera is orthographic and defaults to a 10-unit box,
+        // which would clip the 10x10 room. These bounds cover the whole slab with margin so
+        // shadows never cut off partway across the floor.
+        shadow-camera-left={-10}
+        shadow-camera-right={10}
+        shadow-camera-top={10}
+        shadow-camera-bottom={-10}
+        shadow-camera-near={0.5}
+        shadow-camera-far={40}
       />
     </>
   );

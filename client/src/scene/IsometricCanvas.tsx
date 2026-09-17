@@ -26,7 +26,7 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <Canvas
-        shadows
+        shadows="soft"
         dpr={[1, 1.5]}
         // "low-power" was a plausible contributor to a black screen with zero errors: on a
         // multi-GPU machine (very common — laptop with integrated + discrete graphics) inside
