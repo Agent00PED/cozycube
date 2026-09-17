@@ -62,7 +62,7 @@ function FirePit({ mats }: { mats: Materials }) {
   );
   return (
     <>
-      <Instanced geo={GEO.sphereLow} m={mats.stone} items={stones} cast recv />
+      <Instanced geo={GEO.sphereLow} m={mats.stone} items={stones} recv />
       <Cyl p={[0, 0.005, 0]} s={[1.3, 0.01, 1.3]} m={mats.dirt} />
       {[0.5, -0.5, 1.6].map((r) => (
         <Cyl key={r} p={[0, 0.1, 0]} s={[0.12, 0.8, 0.12]} r={[0, r, Math.PI / 2.4]} m={mats.darkWood} cast />
@@ -73,18 +73,26 @@ function FirePit({ mats }: { mats: Materials }) {
 
 // ~220 pines as three InstancedMeshes (trunk + two canopy tiers) = 3 draw calls for a whole forest.
 function Forest({ mats }: { mats: Materials }) {
-  const { trunks, lower, upper, boulders } = useMemo(() => {
+  const { trunks, lower, upper, nearTrunks, nearLower, nearUpper, boulders } = useMemo(() => {
     const rand = seeded(2024);
     const trunks: InstanceSpec[] = [];
     const lower: InstanceSpec[] = [];
     const upper: InstanceSpec[] = [];
+    // Only the trees near the clearing cast shadows. The dense outer band is a backdrop — its
+    // shadows fall on other trees, out of sight, while still costing the shadow pass a full
+    // pass over every one of them. Three extra draw calls buys most of the forest back.
+    const nearTrunks: InstanceSpec[] = [];
+    const nearLower: InstanceSpec[] = [];
+    const nearUpper: InstanceSpec[] = [];
     const boulders: InstanceSpec[] = [];
+    const SHADOW_RADIUS = 11.5;
 
     const addPine = (x: number, z: number, scale: number) => {
       const rot = rand() * Math.PI;
-      trunks.push({ p: [x, 0.45 * scale, z], s: [0.26 * scale, 0.9 * scale, 0.26 * scale], r: [0, rot, 0] });
-      lower.push({ p: [x, 1.3 * scale, z], s: [1.25 * scale, 1.3 * scale, 1.25 * scale], r: [0, rot, 0] });
-      upper.push({ p: [x, 2.05 * scale, z], s: [0.9 * scale, 1.05 * scale, 0.9 * scale], r: [0, rot + 0.4, 0] });
+      const near = Math.hypot(x, z) < SHADOW_RADIUS;
+      (near ? nearTrunks : trunks).push({ p: [x, 0.45 * scale, z], s: [0.26 * scale, 0.9 * scale, 0.26 * scale], r: [0, rot, 0] });
+      (near ? nearLower : lower).push({ p: [x, 1.3 * scale, z], s: [1.25 * scale, 1.3 * scale, 1.25 * scale], r: [0, rot, 0] });
+      (near ? nearUpper : upper).push({ p: [x, 2.05 * scale, z], s: [0.9 * scale, 1.05 * scale, 0.9 * scale], r: [0, rot + 0.4, 0] });
     };
 
     // Dense outer band on a jittered grid, thinning toward the clearing.
@@ -104,15 +112,18 @@ function Forest({ mats }: { mats: Materials }) {
         }
       }
     }
-    return { trunks, lower, upper, boulders };
+    return { trunks, lower, upper, nearTrunks, nearLower, nearUpper, boulders };
   }, []);
 
   return (
     <>
-      <Instanced geo={GEO.cylLow} m={mats.bark} items={trunks} cast />
-      <Instanced geo={GEO.coneLow} m={mats.pine} items={lower} cast />
-      <Instanced geo={GEO.coneLow} m={mats.pineLight} items={upper} cast />
-      <Instanced geo={GEO.sphereLow} m={mats.stone} items={boulders} cast recv />
+      <Instanced geo={GEO.cylLow} m={mats.bark} items={trunks} />
+      <Instanced geo={GEO.coneLow} m={mats.pine} items={lower} />
+      <Instanced geo={GEO.coneLow} m={mats.pineLight} items={upper} />
+      <Instanced geo={GEO.cylLow} m={mats.bark} items={nearTrunks} cast />
+      <Instanced geo={GEO.coneLow} m={mats.pine} items={nearLower} cast />
+      <Instanced geo={GEO.coneLow} m={mats.pineLight} items={nearUpper} cast />
+      <Instanced geo={GEO.sphereLow} m={mats.stone} items={boulders} recv />
     </>
   );
 }
@@ -249,7 +260,7 @@ function StoneTrail({ mats }: { mats: Materials }) {
       // stones crossing the water are bigger and sit proud of the surface
       const inStream = Math.abs(z - streamZ(x)) < 1.1;
       const s = inStream ? 0.75 : 0.5 + rand() * 0.15;
-      out.push({ p: [x, inStream ? 0.07 : 0.025, z], s: [s, inStream ? 0.1 : 0.05, s * 0.8], r: [0, rand() * 3, 0] });
+      out.push({ p: [x, inStream ? 0.09 : 0.04, z], s: [s, inStream ? 0.1 : 0.05, s * 0.8], r: [0, rand() * 3, 0] });
     }
     return out;
   }, []);
@@ -335,12 +346,12 @@ function StargazingSpot({ mats }: { mats: Materials }) {
   return (
     <>
       {/* plaid picnic blanket — the "blanket_N" seats lie down here */}
-      <B p={[6.5, 0.02, 3.55]} s={[2.4, 0.02, 1.9]} m={mats.rust} recv />
+      <B p={[6.5, 0.06, 3.55]} s={[2.4, 0.02, 1.9]} m={mats.rust} recv />
       {[-0.7, 0, 0.7].map((dx) => (
-        <B key={`v${dx}`} p={[6.5 + dx, 0.032, 3.55]} s={[0.12, 0.01, 1.9]} m={mats.cream} />
+        <B key={`v${dx}`} p={[6.5 + dx, 0.075, 3.55]} s={[0.12, 0.01, 1.9]} m={mats.cream} />
       ))}
       {[-0.55, 0.3].map((dz) => (
-        <B key={`h${dz}`} p={[6.5, 0.034, 3.55 + dz]} s={[2.4, 0.01, 0.12]} m={mats.mustard} />
+        <B key={`h${dz}`} p={[6.5, 0.08, 3.55 + dz]} s={[2.4, 0.01, 0.12]} m={mats.mustard} />
       ))}
       {[6.0, 7.0].map((x) => (
         <Sph key={x} p={[x, 0.09, 2.85]} s={[0.55, 0.16, 0.34]} m={mats.cream} cast />

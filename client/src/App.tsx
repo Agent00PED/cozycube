@@ -7,6 +7,8 @@ import { EmoteBar } from "./components/hud/EmoteBar";
 import { ActivityBar } from "./components/hud/ActivityBar";
 import { VoiceChip } from "./components/hud/VoiceChip";
 import { PlayerRoster } from "./components/hud/PlayerRoster";
+import { RecenterButton } from "./components/hud/RecenterButton";
+import { TimeOfDayBar } from "./components/hud/TimeOfDayBar";
 import { useDiscordAuth } from "./hooks/useDiscordAuth";
 import { useColyseusRoom } from "./hooks/useColyseusRoom";
 import { useVoiceActivity } from "./hooks/useVoiceActivity";
@@ -48,6 +50,11 @@ const GLOBAL_CSS = `
 @media (max-width: 480px) {
   .cozy-bottom-stack { left: 12px; transform: none; align-items: flex-start; }
 }
+/* The time-of-day labels are the first thing to drop when the HUD gets tight — the sun and
+   moon emoji still say which is which. */
+@media (max-width: 640px) {
+  .cozy-time-label { display: none; }
+}
 `;
 
 export default function App() {
@@ -59,11 +66,13 @@ export default function App() {
     toggleables,
     localSessionId,
     currentMap,
+    timeOfDay,
     mapTransitioning,
     connected,
     error: roomError,
     setColor,
     changeMap,
+    setTimeOfDay,
     sendEmote,
     setSpeaking,
     roast,
@@ -98,6 +107,7 @@ export default function App() {
           toggleables={toggleables}
           localSessionId={localSessionId}
           mapId={currentMap}
+          timeOfDay={timeOfDay}
           speakingUserIds={voice.speakingUserIds}
           subscribeEmotes={subscribeEmotes}
         />
@@ -110,6 +120,8 @@ export default function App() {
       </div>
       <div style={topRightStyle}>
         <VoiceChip mode={voice.mode} active={voice.simulatedActive} onPressChange={voice.setSimulatedActive} />
+        <TimeOfDayBar current={timeOfDay} onSelect={setTimeOfDay} />
+        <RecenterButton />
       </div>
 
       {localPlayer && localSessionId && (
@@ -170,4 +182,13 @@ const rootStyle: CSSProperties = {
 // Below the map switcher's row, so the three never collide on narrow screens.
 const HUD_TOP = "calc(max(16px, env(safe-area-inset-top)) + 58px)";
 const topLeftStyle: CSSProperties = { position: "absolute", top: HUD_TOP, left: 12, zIndex: 10 };
-const topRightStyle: CSSProperties = { position: "absolute", top: HUD_TOP, right: 12, zIndex: 10 };
+const topRightStyle: CSSProperties = {
+  position: "absolute",
+  top: HUD_TOP,
+  right: 12,
+  zIndex: 10,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-end",
+  gap: 8,
+};

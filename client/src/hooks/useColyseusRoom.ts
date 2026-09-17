@@ -10,6 +10,7 @@ import type {
   PlayerState,
   SeatStyle,
   SitPose,
+  TimeOfDay,
   ToggleableKind,
   ToggleableSyncState,
 } from "@shared/types";
@@ -26,11 +27,13 @@ interface UseColyseusRoomResult {
   toggleables: Record<string, ToggleableSyncState>;
   localSessionId: string | null;
   currentMap: MapId;
+  timeOfDay: TimeOfDay;
   mapTransitioning: boolean;
   connected: boolean;
   error: string | null;
   setColor: (color: string) => void;
   changeMap: (mapId: MapId) => void;
+  setTimeOfDay: (timeOfDay: TimeOfDay) => void;
   sendEmote: (emoji: string) => void;
   setSpeaking: (speaking: boolean) => void;
   roast: () => void;
@@ -48,6 +51,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [toggleables, setToggleables] = useState<Record<string, ToggleableSyncState>>({});
   const [localSessionId, setLocalSessionId] = useState<string | null>(null);
   const [currentMap, setCurrentMap] = useState<MapId>("cozy_lounge");
+  const [timeOfDay, setTimeOfDayState] = useState<TimeOfDay>("day");
   const [mapTransitioning, setMapTransitioning] = useState(false);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +203,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       });
 
       room.state.listen("currentMap", (map: MapId) => setCurrentMap(map));
+      room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
       room.state.listen("mapTransitioning", (val: boolean) => setMapTransitioning(val));
 
       room.onLeave((code) => {
@@ -252,11 +257,13 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     toggleables,
     localSessionId,
     currentMap,
+    timeOfDay,
     mapTransitioning,
     connected,
     error,
     setColor: (color) => send("setColor", { color }),
     changeMap: (mapId) => send("changeMap", { mapId }),
+    setTimeOfDay: (t) => send("setTimeOfDay", { timeOfDay: t }),
     sendEmote: (emoji) => send("emote", { emoji }),
     setSpeaking,
     roast: () => send("roast"),

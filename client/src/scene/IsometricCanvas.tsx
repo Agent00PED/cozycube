@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrthographicCamera, PerformanceMonitor } from "@react-three/drei";
 import { useEffect, useRef, useState } from "react";
-import { cameraFocus } from "./cameraFocus";
+import { cameraFocus, isFreeLook, setFreeLook } from "./cameraFocus";
 import * as THREE from "three";
 
 const ISO_ANGLE = Math.atan(1 / Math.sqrt(2)); // ~35.264 deg
@@ -19,7 +19,9 @@ const BASE_WIDTH = 900; // reference viewport width at which BASE_ZOOM applies
 const MIN_ZOOM = 13;
 const DEFAULT_ZOOM_FLOOR = 32;
 const MAX_ZOOM = 85;
-const PAN_LIMIT = 7; // world units of right-drag look-around, relative to the followed player
+// Free look roams the whole diorama (a bit past its lip, so corner furniture can be centred)
+// rather than a small window around the player.
+const FREE_LOOK_LIMIT = 15;
 
 // Per-60fps-frame blend toward the focus point. Kept low so the camera trails the player
 // gently instead of feeling glued to them; converted to a frame-rate-independent factor below.
@@ -129,10 +131,12 @@ function IsoCamera() {
 const SCREEN_RIGHT = new THREE.Vector2(Math.SQRT1_2, -Math.SQRT1_2);
 const SCREEN_DOWN = new THREE.Vector2(Math.SQRT1_2, Math.SQRT1_2).multiplyScalar(1 / Math.sin(ISO_ANGLE));
 
-function applyScreenPan(pan: { x: number; z: number }, dx: number, dy: number, zoom: number) {
+// Dragging moves the CAMERA's own look-at point around the world (absolute), not an offset from
+// the player: the whole point of free look is that it stops depending on where the player is.
+function applyScreenPan(center: THREE.Vector3, dx: number, dy: number, zoom: number) {
   const worldPerPixel = 1 / zoom; // orthographic: zoom is pixels per world unit
-  pan.x = THREE.MathUtils.clamp(pan.x - (dx * SCREEN_RIGHT.x + dy * SCREEN_DOWN.x) * worldPerPixel, -PAN_LIMIT, PAN_LIMIT);
-  pan.z = THREE.MathUtils.clamp(pan.z - (dx * SCREEN_RIGHT.y + dy * SCREEN_DOWN.y) * worldPerPixel, -PAN_LIMIT, PAN_LIMIT);
+  center.x = THREE.MathUtils.clamp(center.x - (dx * SCREEN_RIGHT.x + dy * SCREEN_DOWN.x) * worldPerPixel, -FREE_LOOK_LIMIT, FREE_LOOK_LIMIT);
+  center.z = THREE.MathUtils.clamp(center.z - (dx * SCREEN_RIGHT.y + dy * SCREEN_DOWN.y) * worldPerPixel, -FREE_LOOK_LIMIT, FREE_LOOK_LIMIT);
 }
 
 function touchDistance(touches: TouchList): number {
@@ -147,7 +151,9 @@ function touchDistance(touches: TouchList): number {
 function CameraRig() {
   const { camera, gl, size } = useThree();
   const targetZoomRef = useRef(BASE_ZOOM);
-  const panRef = useRef({ x: 0, z: 0 });
+  // The smoothed point the camera is centred on. While following it chases the player; while
+  // free-looking the drag writes straight into it and the follow code leaves it alone.
+  const centerRef = useRef(new THREE.Vector3());
   const isPanningRef = useRef(false);
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
   const lastPanTouchRef = useRef<{ x: number; y: number } | null>(null);
@@ -183,7 +189,8 @@ function CameraRig() {
       const dx = e.clientX - lastPointerRef.current.x;
       const dy = e.clientY - lastPointerRef.current.y;
       lastPointerRef.current = { x: e.clientX, y: e.clientY };
-      applyScreenPan(panRef.current, dx, dy, targetZoomRef.current);
+      setFreeLook(true); // a drag releases the camera from the player until you recenter
+      applyScreenPan(centerRef.current, dx, dy, targetZoomRef.current);
     };
     const onPointerUp = () => {
       isPanningRef.current = false;
@@ -214,7 +221,8 @@ function CameraRig() {
       if (lastPanTouchRef.current) {
         const dx = midX - lastPanTouchRef.current.x;
         const dy = midY - lastPanTouchRef.current.y;
-        applyScreenPan(panRef.current, dx, dy, targetZoomRef.current);
+        if (Math.hypot(dx, dy) > 0.5) setFreeLook(true);
+        applyScreenPan(centerRef.current, dx, dy, targetZoomRef.current);
       }
       lastPanTouchRef.current = { x: midX, y: midY };
     };
@@ -246,8 +254,6 @@ function CameraRig() {
     };
   }, [gl]);
 
-  // The smoothed point the camera is actually centred on (before the user's pan offset).
-  const centerRef = useRef(new THREE.Vector3());
   const snappedRef = useRef(false);
 
   useFrame((_, delta) => {
@@ -267,15 +273,18 @@ function CameraRig() {
       // First known player position: start there instead of gliding in from the world origin.
       center.set(goalX, 0, goalZ);
       snappedRef.current = true;
-    } else {
+    } else if (!isFreeLook()) {
+      // Following: ease toward the player (or whoever is being glanced at). Free look skips
+      // this entirely, so the view stays exactly where it was dragged, and recentring is just
+      // this same lerp taking over again — which is what makes the snap-back smooth.
       const t = frameLerp(FOLLOW_LERP, delta);
       center.x = THREE.MathUtils.lerp(center.x, goalX, t);
       center.z = THREE.MathUtils.lerp(center.z, goalZ, t);
     }
 
     // Same isometric angle as ever — only the point it orbits moves.
-    const lookX = center.x + panRef.current.x;
-    const lookZ = center.z + panRef.current.z;
+    const lookX = center.x;
+    const lookZ = center.z;
     camera.position.set(ISO_DIR.x + lookX, ISO_DIR.y, ISO_DIR.z + lookZ);
     camera.lookAt(lookX, 0, lookZ);
   });

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 // Building blocks for the procedural world.
 //
@@ -67,17 +68,22 @@ function Prim({ geo, p, s, m, r, cast = false, recv = false }: PrimitiveProps & 
       position={p}
       rotation={r}
       scale={s}
-      castShadow={cast && !isSmall(s)}
+      castShadow={cast && castsUsefulShadow(s)}
       receiveShadow={recv}
       raycast={noRaycast}
     />
   );
 }
 
-// Small clutter (cups, books, knobs) adds shadow-pass draws for shadows nobody can see.
-const SMALL_PROP = 0.6;
-function isSmall(s: V3 | number) {
-  return Array.isArray(s) ? Math.max(s[0], s[1], s[2]) < SMALL_PROP : s < SMALL_PROP;
+// Whether a shape is worth a shadow-pass draw. The test is the SECOND largest dimension, not
+// the largest: a table leg is 0.7 long but 4cm thick, and its shadow is a hairline nobody will
+// ever notice — while every caster costs the shadow pass a full extra draw call. Only shapes
+// with a real silhouette (both of their two biggest dimensions chunky) cast.
+const SILHOUETTE_MIN = 0.45;
+export function castsUsefulShadow(s: V3 | number): boolean {
+  if (!Array.isArray(s)) return s >= SILHOUETTE_MIN;
+  const [, mid] = [...s].sort((a, b) => b - a);
+  return mid >= SILHOUETTE_MIN;
 }
 
 /** Box by centre `p` and full size `s`. */
@@ -271,3 +277,94 @@ export function useSharedMaterials() {
 }
 
 export type Materials = ReturnType<typeof useSharedMaterials>;
+
+// ---------------------------------------------------------------------------------------
+// Static batching
+// ---------------------------------------------------------------------------------------
+
+/** Mark a subtree as animated/interactive so StaticBatch leaves it alone. */
+export const noMerge = { noMerge: true };
+
+function collectMergeable(root: THREE.Object3D): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  root.traverse((o) => {
+    if (o.userData.noMerge) return; // (traverse can't prune, so children re-check below)
+    if (!(o as THREE.Mesh).isMesh) return;
+    if ((o as THREE.InstancedMesh).isInstancedMesh) return; // already one draw call
+    const mesh = o as THREE.Mesh;
+    if (Array.isArray(mesh.material)) return;
+    if (mesh.userData.merged) return;
+    // Anything under a node the author marked, or anything that owns click handlers, stays.
+    for (let p: THREE.Object3D | null = mesh; p && p !== root; p = p.parent) {
+      if (p.userData.noMerge) return;
+    }
+    out.push(mesh);
+  });
+  return out;
+}
+
+// The penthouse is ~550 individually-authored little meshes, and every visible one is its own
+// draw call — which is what made a big room lag on modest hardware. The geometry never moves
+// after mount, so this bakes each group of same-material, same-shadow-flag meshes into ONE
+// merged buffer at startup: same pixels, a fraction of the calls. The originals are only
+// hidden (never removed), so React still owns them and a re-render can't fight this.
+export function StaticBatch({ children }: { children: React.ReactNode }) {
+  const groupRef = useRef<THREE.Group>(null);
+
+  useLayoutEffect(() => {
+    const root = groupRef.current;
+    if (!root) return;
+    root.updateWorldMatrix(false, true);
+    const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
+
+    const buckets = new Map<string, { material: THREE.Material; cast: boolean; recv: boolean; geos: THREE.BufferGeometry[]; sources: THREE.Mesh[] }>();
+    for (const mesh of collectMergeable(root)) {
+      const material = mesh.material as THREE.Material;
+      const key = `${material.uuid}|${mesh.castShadow}|${mesh.receiveShadow}`;
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = { material, cast: mesh.castShadow, recv: mesh.receiveShadow, geos: [], sources: [] };
+        buckets.set(key, bucket);
+      }
+      const geo = mesh.geometry.clone();
+      geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, mesh.matrixWorld));
+      // Merging needs identical attribute sets; the kit's unit shapes all carry position/normal/uv.
+      geo.deleteAttribute("uv1");
+      bucket.geos.push(geo);
+      bucket.sources.push(mesh);
+    }
+
+    const created: THREE.Mesh[] = [];
+    const hidden: THREE.Mesh[] = [];
+    buckets.forEach((bucket) => {
+      if (bucket.geos.length < 2) {
+        bucket.geos.forEach((g) => g.dispose());
+        return;
+      }
+      const merged = mergeGeometries(bucket.geos);
+      bucket.geos.forEach((g) => g.dispose());
+      if (!merged) return;
+      const mesh = new THREE.Mesh(merged, bucket.material);
+      mesh.castShadow = bucket.cast;
+      mesh.receiveShadow = bucket.recv;
+      mesh.raycast = noRaycast;
+      mesh.userData.merged = true;
+      root.add(mesh);
+      created.push(mesh);
+      bucket.sources.forEach((source) => {
+        source.visible = false;
+        hidden.push(source);
+      });
+    });
+
+    return () => {
+      created.forEach((mesh) => {
+        root.remove(mesh);
+        mesh.geometry.dispose();
+      });
+      hidden.forEach((mesh) => (mesh.visible = true));
+    };
+  });
+
+  return <group ref={groupRef}>{children}</group>;
+}

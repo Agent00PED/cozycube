@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { cameraFocus } from "../scene/cameraFocus";
 
@@ -7,7 +7,8 @@ export type RetroProgram = "invaders" | "pong";
 
 const W = 96;
 const H = 64;
-const PAUSE_DISTANCE = 5;
+// Nobody reads a 96x64 screen from across a 28x28 room, so past this the loop simply stops.
+const PAUSE_DISTANCE = 6;
 const FPS = 20; // chunky retro motion, and only 20 small texture uploads a second per screen
 
 // A tiny procedurally-drawn canvas texture for arcade cabinets and the TV. Pixel-art sized on
@@ -27,6 +28,11 @@ export function useRetroScreen(program: RetroProgram, accent: string, on: boolea
 
   const clockRef = useRef(0);
   const accRef = useRef(0);
+  // Off-screen screens stop too: panning the camera away from the arcade should cost nothing.
+  const camera = useThree((s) => s.camera);
+  const frustum = useMemo(() => new THREE.Frustum(), []);
+  const projScreen = useMemo(() => new THREE.Matrix4(), []);
+  const point = useMemo(() => new THREE.Vector3(), []);
 
   // Blank the screen once when it's switched off, rather than redrawing black every frame.
   useEffect(() => {
@@ -40,6 +46,9 @@ export function useRetroScreen(program: RetroProgram, accent: string, on: boolea
     if (!on) return;
     // Nobody close enough to watch: freeze the last frame instead of redrawing + re-uploading.
     if (Math.hypot(cameraFocus.x - x, cameraFocus.z - z) > PAUSE_DISTANCE) return;
+    projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    frustum.setFromProjectionMatrix(projScreen);
+    if (!frustum.containsPoint(point.set(x, 1, z))) return;
     clockRef.current += delta;
     accRef.current += delta;
     if (accRef.current < 1 / FPS) return;

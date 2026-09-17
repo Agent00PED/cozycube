@@ -3,6 +3,7 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ToggleableSyncState } from "@shared/types";
 import { GEO, noRaycast } from "../scene/kit";
+import { useLampBoost } from "../scene/timeOfDay";
 import { useRetroScreen } from "./useRetroScreen";
 
 interface ToggleablePropProps {
@@ -55,13 +56,19 @@ function HitPad({ size, position, onUse }: { size: [number, number, number]; pos
   );
 }
 
-/** A light whose intensity eases toward on/off instead of popping. */
+/** A light whose intensity eases toward on/off instead of popping, scaled by the hour. */
 function SoftLight({ on, intensity, ...rest }: { on: boolean; intensity: number } & JSX.IntrinsicElements["pointLight"]) {
   const ref = useRef<THREE.PointLight>(null);
+  const boost = useLampBoost();
+  const boostRef = useRef(boost);
+  boostRef.current = boost;
   useFrame(() => {
-    if (ref.current) ref.current.intensity = THREE.MathUtils.lerp(ref.current.intensity, on ? intensity : 0, LIGHT_LERP);
+    if (ref.current) {
+      const goal = on ? intensity * boostRef.current : 0;
+      ref.current.intensity = THREE.MathUtils.lerp(ref.current.intensity, goal, LIGHT_LERP);
+    }
   });
-  return <pointLight ref={ref} intensity={on ? intensity : 0} decay={2} {...rest} />;
+  return <pointLight ref={ref} intensity={on ? intensity * boost : 0} decay={2} {...rest} />;
 }
 
 /** An emissive material per prop instance, so its glow can follow its own on/off state. */
@@ -235,6 +242,9 @@ const EMBER_COUNT = 14;
 
 function Campfire({ prop, onUse }: PropViewProps) {
   const lightRef = useRef<THREE.PointLight>(null);
+  const boost = useLampBoost();
+  const boostRef = useRef(boost);
+  boostRef.current = boost;
   const flameRef = useRef<THREE.Group>(null);
   const embersRef = useRef<THREE.InstancedMesh>(null);
   const flareRef = useRef(0);
@@ -258,7 +268,7 @@ function Campfire({ prop, onUse }: PropViewProps) {
 
     if (lightRef.current) {
       const flicker = Math.sin(t * 14) * 0.35 + Math.sin(t * 31) * 0.2;
-      lightRef.current.intensity = prop.on ? FIRE_INTENSITY + flicker + flare * 3.5 : 0;
+      lightRef.current.intensity = prop.on ? (FIRE_INTENSITY + flicker + flare * 3.5) * boostRef.current : 0;
     }
     if (flameRef.current) {
       const s = 1 + Math.sin(t * 16) * 0.08;

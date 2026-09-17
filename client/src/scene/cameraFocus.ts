@@ -15,4 +15,35 @@ export const cameraFocus = {
 
 export function lookAtTemporarily(x: number, z: number, ms = 2600) {
   cameraFocus.override = { x, z, until: performance.now() + ms };
+  setFreeLook(false); // glancing at a friend takes the camera back off free look
+}
+
+// --- free look ----------------------------------------------------------------------------
+//
+// Right-drag (or a two-finger drag) releases the camera from the player so you can go and watch
+// what your friends are doing in the kitchen. The HUD needs to know about that to show the
+// recenter button, and the HUD is outside the Canvas, so this is a tiny subscribable store
+// rather than part of the per-frame object above — it changes on gestures, not every frame.
+let freeLook = false;
+const listeners = new Set<(free: boolean) => void>();
+
+export function isFreeLook(): boolean {
+  return freeLook;
+}
+
+export function setFreeLook(value: boolean) {
+  if (freeLook === value) return;
+  freeLook = value;
+  listeners.forEach((l) => l(value));
+}
+
+/** Snap back to following the player (the recenter button, or starting a new walk). */
+export function requestRecenter() {
+  cameraFocus.override = null;
+  setFreeLook(false);
+}
+
+export function subscribeFreeLook(listener: (free: boolean) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }

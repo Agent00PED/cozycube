@@ -32,6 +32,13 @@ export interface PlayerState {
 
 export type MapId = "cozy_lounge" | "campfire_night";
 
+/** Shared lighting mood. Purely presentational, but synced so the room reads the same for everyone. */
+export type TimeOfDay = "sunrise" | "day" | "sunset" | "night";
+export const TIMES_OF_DAY: TimeOfDay[] = ["sunrise", "day", "sunset", "night"];
+export function isTimeOfDay(v: unknown): v is TimeOfDay {
+  return typeof v === "string" && (TIMES_OF_DAY as string[]).includes(v);
+}
+
 export type ToggleableKind = "tv" | "lamp" | "desk_lamp" | "lantern" | "campfire" | "arcade" | "espresso";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
@@ -117,6 +124,10 @@ export interface UsePropMessage {
 
 export interface EmoteMessage {
   emoji: string;
+}
+
+export interface SetTimeOfDayMessage {
+  timeOfDay: TimeOfDay;
 }
 
 export interface SpeakingMessage {

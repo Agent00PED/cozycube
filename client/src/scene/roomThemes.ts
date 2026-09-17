@@ -1,4 +1,4 @@
-import type { MapId } from "@shared/types";
+import type { MapId, TimeOfDay } from "@shared/types";
 
 // Visual-only palette per theme — purely client-side, unrelated to shared/ game data.
 export interface RoomTheme {
@@ -36,5 +36,76 @@ export const ROOM_THEMES: Record<MapId, RoomTheme> = {
     directional: "#b9cbf0", // moonlight; the warm key light still comes from the campfire itself
     ambientIntensity: 1.25,
     directionalIntensity: 1,
+  },
+};
+
+// --- time of day -------------------------------------------------------------------------
+//
+// One shared preset drives the sun's colour, angle and strength, the sky behind the diorama,
+// and the haze. The sun must stay OFF the camera's azimuth (the iso camera looks along 1,1,1):
+// a light on the same bearing throws every shadow directly behind its own caster, which looks
+// exactly like having no shadows at all. Every preset below keeps that separation.
+export interface TimePreset {
+  label: string;
+  /** Sun/moon position. Low and slanted at the edges of the day, high and short at noon. */
+  sun: [number, number, number];
+  sunColor: string;
+  sunIntensity: number;
+  ambientColor: string;
+  ambientIntensity: number;
+  /** Background behind the floating diorama. */
+  sky: string;
+  /** Linear haze as [near, far] in view distance, or null for none. The camera sits ~60 units
+   *  back (orthographic), so these are distances FROM THE CAMERA, not from the room. */
+  fog: [number, number] | null;
+  /** Multiplies every lamp, bulb and fire — lights read as decorative by day, as the only
+   *  source of light after dark. */
+  lampBoost: number;
+}
+
+export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
+  sunrise: {
+    label: "🌅 Sunrise",
+    sun: [34, 14, 16], // low and raking, so everything throws a long shadow
+    sunColor: "#ffc9a3",
+    sunIntensity: 1.35,
+    ambientColor: "#ffd9d2", // soft rose fill in the shadows
+    ambientIntensity: 0.72,
+    sky: "#f3c3ab",
+    fog: [52, 118], // thin morning haze on the far side of the room
+    lampBoost: 0.8,
+  },
+  day: {
+    label: "☀️ Day",
+    sun: [30, 36, 8],
+    sunColor: "#fff6e2",
+    sunIntensity: 1.5,
+    ambientColor: "#eef2ff",
+    ambientIntensity: 0.62,
+    sky: "#bfe0f2",
+    fog: null,
+    lampBoost: 0.55,
+  },
+  sunset: {
+    label: "🌇 Sunset",
+    sun: [30, 12, 20],
+    sunColor: "#ff9f5e", // golden hour, pushed amber
+    sunIntensity: 1.3,
+    ambientColor: "#c4a0d8", // the violet counter-light on the shadow side
+    ambientIntensity: 0.7,
+    sky: "#e08a63",
+    fog: [54, 124],
+    lampBoost: 1.0,
+  },
+  night: {
+    label: "🌙 Night",
+    sun: [26, 30, 14],
+    sunColor: "#8fa8d8", // moonlight
+    sunIntensity: 0.42,
+    ambientColor: "#6d81b8",
+    ambientIntensity: 0.42,
+    sky: "#141d33",
+    fog: [50, 120],
+    lampBoost: 1.6, // lamps, festoon bulbs and the campfire carry the scene
   },
 };

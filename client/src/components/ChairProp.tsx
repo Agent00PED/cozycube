@@ -2,7 +2,7 @@ import { memo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ChairSyncState, SeatStyle } from "@shared/types";
-import { GEO, noRaycast } from "../scene/kit";
+import { GEO, noRaycast, castsUsefulShadow } from "../scene/kit";
 
 interface ChairPropProps {
   chair: ChairSyncState;
@@ -44,11 +44,13 @@ const PAD: Record<SeatStyle, { size: [number, number, number]; y: number }> = {
   blanket: { size: [0.9, 0.4, 1.4], y: 0.1 },
 };
 
+// Seat frames and legs go through the same silhouette test as the rest of the furniture, so a
+// chair contributes one or two shadow draws instead of one per strut.
 const Box = ({ p, s, m, r, cast = true }: { p: [number, number, number]; s: [number, number, number]; m: THREE.Material; r?: [number, number, number]; cast?: boolean }) => (
-  <mesh geometry={GEO.box} material={m} position={p} scale={s} rotation={r} castShadow={cast} receiveShadow raycast={noRaycast} />
+  <mesh geometry={GEO.box} material={m} position={p} scale={s} rotation={r} castShadow={cast && castsUsefulShadow(s)} receiveShadow raycast={noRaycast} />
 );
 const Cylinder = ({ p, s, m, r }: { p: [number, number, number]; s: [number, number, number]; m: THREE.Material; r?: [number, number, number] }) => (
-  <mesh geometry={GEO.cyl} material={m} position={p} scale={s} rotation={r} castShadow receiveShadow raycast={noRaycast} />
+  <mesh geometry={GEO.cyl} material={m} position={p} scale={s} rotation={r} castShadow={castsUsefulShadow(s)} receiveShadow raycast={noRaycast} />
 );
 
 // memo: seats only change when someone sits or stands, not on every movement patch.

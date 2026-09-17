@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { B, Cone, Cyl, FloorPatch, GEO, Instanced, Rug, Sph, arcGeo, noRaycast, ringGeo, seeded, type InstanceSpec, type Materials } from "./kit";
+import { B, Cone, Cyl, FloorPatch, GEO, Instanced, Rug, Sph, arcGeo, noMerge, noRaycast, ringGeo, seeded, type InstanceSpec, type Materials } from "./kit";
 
 // 28x28 luxury penthouse. Coordinates match shared/collision.ts and shared/props.ts — when
 // something moves here, its obstacle box and any approach point that passes it must move too.
@@ -112,8 +112,9 @@ function WallClock({ x, y, z, mats }: { x: number; y: number; z: number; mats: M
     if (minuteRef.current) minuteRef.current.rotation.z = -(minutes / 60) * Math.PI * 2;
     if (hourRef.current) hourRef.current.rotation.z = -(hours / 12) * Math.PI * 2;
   });
+  // The hands turn every frame, so the clock stays out of the static batch.
   return (
-    <group position={[x, y, z]} rotation={[0, Math.PI / 2, 0]}>
+    <group position={[x, y, z]} rotation={[0, Math.PI / 2, 0]} userData={noMerge}>
       <Cyl p={[0, 0, 0.03]} s={[0.62, 0.05, 0.62]} r={[Math.PI / 2, 0, 0]} m={mats.walnut} />
       <Cyl p={[0, 0, 0.06]} s={[0.52, 0.02, 0.52]} r={[Math.PI / 2, 0, 0]} m={mats.cream} />
       <mesh ref={hourRef} position={[0, 0, 0.08]} raycast={noRaycast}>
@@ -184,7 +185,7 @@ function GrandLiving({ mats }: { mats: Materials }) {
     <>
       <Rug x={-2.0} z={-8.8} radius={4.3} y={0.06} m={mats.cream} />
       {[1.6, 2.8, 3.9].map((r, i) => (
-        <mesh key={r} geometry={ringGeo(r - 0.06, r)} material={i === 1 ? mats.blush : mats.white} position={[-2.0, 0.013, -8.8]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} />
+        <mesh key={r} geometry={ringGeo(r - 0.06, r)} material={i === 1 ? mats.blush : mats.white} position={[-2.0, 0.072, -8.8]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} />
       ))}
 
       {/* media console under the TV (the screen itself is the "tv" prop) */}
@@ -438,7 +439,7 @@ function Library({ mats }: { mats: Materials }) {
   return (
     <>
       <Rug x={-10.2} z={7.2} radius={2.7} y={0.06} m={mats.libraryRug} />
-      <mesh geometry={ringGeo(2.35, 2.45)} material={mats.cream} position={[-10.2, 0.013, 7.2]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} />
+      <mesh geometry={ringGeo(2.35, 2.45)} material={mats.cream} position={[-10.2, 0.072, 7.2]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} />
 
       {/* floor-to-ceiling shelving: back panel, uprights, shelves */}
       <B p={[-13.92, SHELF_HEIGHT / 2, 7.9]} s={[0.06, SHELF_HEIGHT, 8.9]} m={mats.darkWood} />
@@ -554,7 +555,7 @@ function BalconyGarden({ mats }: { mats: Materials }) {
       <B p={[(BALCONY.x0 + BALCONY.x1) / 2, 0.03, BALCONY.z0]} s={[BALCONY.x1 - BALCONY.x0, 0.06, 0.08]} m={mats.walnut} />
 
       {/* glass railing along the island's edge */}
-      <Instanced geo={GEO.box} m={mats.walnut} items={railPosts} cast />
+      <Instanced geo={GEO.box} m={mats.walnut} items={railPosts} />
       <B p={[13.85, 1.02, (BALCONY.z0 + BALCONY.z1) / 2]} s={[0.12, 0.06, BALCONY.z1 - BALCONY.z0]} m={mats.walnut} cast />
       <B p={[13.85, 0.52, (BALCONY.z0 + BALCONY.z1) / 2]} s={[0.02, 0.9, BALCONY.z1 - BALCONY.z0]} m={mats.glass} />
 
@@ -612,8 +613,8 @@ function Foyer({ mats }: { mats: Materials }) {
   return (
     <>
       {/* welcome mat */}
-      <B p={[10.4, 0.015, 11.4]} s={[2.0, 0.012, 1.15]} m={mats.rust} recv />
-      <B p={[10.4, 0.022, 11.4]} s={[1.7, 0.012, 0.85]} m={mats.mustard} />
+      <B p={[10.4, 0.06, 11.4]} s={[2.0, 0.012, 1.15]} m={mats.rust} recv />
+      <B p={[10.4, 0.072, 11.4]} s={[1.7, 0.012, 0.85]} m={mats.mustard} />
 
       {/* entrance door frame out at the island's corner, door ajar with warm light spilling in */}
       <group position={[13.75, 0, 11.2]} rotation={[0, -Math.PI / 2, 0]}>
@@ -694,7 +695,7 @@ function SocialCircle({ mats }: { mats: Materials }) {
   return (
     <>
       <Rug x={0} z={6} radius={3.1} y={0.06} m={mats.blush} />
-      <mesh geometry={ringGeo(2.7, 2.82)} material={mats.cream} position={[0, 0.013, 6]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} />
+      <mesh geometry={ringGeo(2.7, 2.82)} material={mats.cream} position={[0, 0.072, 6]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} />
       {/* pouf table with a checkers game mid-play */}
       <Cyl p={[0, 0.25, 6]} s={[1.1, 0.5, 1.1]} m={mats.cream} cast recv />
       <B p={[0, 0.52, 6]} s={[0.56, 0.03, 0.56]} m={mats.walnut} />

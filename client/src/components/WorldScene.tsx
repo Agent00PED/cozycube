@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
+import * as THREE from "three";
 import type { Group } from "three";
 import type { Room } from "colyseus.js";
 import { Character3D, type CharacterPose, type FloatingEmote } from "./Character3D";
@@ -7,11 +8,20 @@ import { ChairProp } from "./ChairProp";
 import { ToggleableProp } from "./ToggleableProp";
 import { ClickMarker } from "./ClickMarker";
 import { DioramaRoom } from "../scene/DioramaRoom";
-import { ROOM_THEMES, type RoomTheme } from "../scene/roomThemes";
+import { ROOM_THEMES, TIME_PRESETS, type RoomTheme, type TimePreset } from "../scene/roomThemes";
+import { TimeOfDayContext } from "../scene/timeOfDay";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
 import type { EmoteListener } from "../hooks/useColyseusRoom";
+import { requestRecenter } from "../scene/cameraFocus";
 import { APPROACH_POINTS } from "@shared/props";
-import { isWalkUpProp, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
+import {
+  isWalkUpProp,
+  type ChairSyncState,
+  type MapId,
+  type PlayerState,
+  type TimeOfDay,
+  type ToggleableSyncState,
+} from "@shared/types";
 
 const EMOTE_LIFETIME_MS = 1900; // matches the .cozy-emote CSS animation in App.tsx
 const MAX_EMOTES_PER_PLAYER = 4;
@@ -24,6 +34,7 @@ interface WorldSceneProps {
   toggleables: Record<string, ToggleableSyncState>;
   localSessionId: string | null;
   mapId: MapId;
+  timeOfDay: TimeOfDay;
   /** Discord user ids the SDK reports as speaking (unioned with the relayed `player.speaking`). */
   speakingUserIds: ReadonlySet<string>;
   subscribeEmotes: (listener: EmoteListener) => () => void;
@@ -36,6 +47,7 @@ export function WorldScene({
   toggleables,
   localSessionId,
   mapId,
+  timeOfDay,
   speakingUserIds,
   subscribeEmotes,
 }: WorldSceneProps) {
@@ -57,6 +69,9 @@ export function WorldScene({
 
   const pingRipple = (x: number, z: number) => {
     rippleRef.current = { x, z, id: rippleRef.current.id + 1 };
+    // Any order you give the character pulls the camera back onto them — otherwise you would
+    // walk off the edge of a panned-away view and lose yourself.
+    requestRecenter();
   };
   const standUpIfSeated = () => {
     if (localSittingRef.current) roomRef.current?.send("standUp");
@@ -128,8 +143,8 @@ export function WorldScene({
   const anyoneBrewing = useMemo(() => Object.values(players).some((p) => p.action === "brew"), [players]);
 
   return (
-    <>
-      <RoomLighting theme={theme} />
+    <TimeOfDayContext.Provider value={timeOfDay}>
+      <RoomLighting theme={theme} preset={TIME_PRESETS[timeOfDay]} />
       {/* key={mapId} forces a full unmount of the old world before the new one mounts, instead of
           React diffing/reusing nodes across themes. */}
       <DioramaRoom key={mapId} mapId={mapId} onFloorClick={handleFloorClick} />
@@ -157,28 +172,49 @@ export function WorldScene({
             targetPosRef={moveTargetRef}
             speaking={speaking}
             emotes={playerEmotes}
+            mapId={mapId}
           />
         ) : (
           <RemotePlayerAvatar key={sessionId} player={player} speaking={speaking} emotes={playerEmotes} />
         );
       })}
-    </>
+    </TimeOfDayContext.Provider>
   );
 }
 
-const RoomLighting = memo(function RoomLighting({ theme }: { theme: RoomTheme }) {
+const RoomLighting = memo(function RoomLighting({ theme, preset }: { theme: RoomTheme; preset: TimePreset }) {
+  const { scene } = useThree();
+  // Sky and haze live on the scene itself rather than on a mesh, so they cost nothing to draw
+  // and the floating diorama reads against an actual horizon colour instead of flat black.
+  useEffect(() => {
+    const sky = new THREE.Color(preset.sky);
+    scene.background = sky;
+    scene.fog = preset.fog ? new THREE.Fog(sky.getHex(), preset.fog[0], preset.fog[1]) : null;
+    return () => {
+      scene.background = null;
+      scene.fog = null;
+    };
+  }, [scene, preset]);
+
+  // The theme sets the ROOM's own character (a warm penthouse, a cold clearing); the time
+  // preset sets the hour. Multiplying the two keeps the campfire night blue at noon rather
+  // than washing both maps to the same grade.
+  const ambientIntensity = theme.ambientIntensity * preset.ambientIntensity * 1.6;
+  const sunIntensity = theme.directionalIntensity * preset.sunIntensity;
+
   return (
     <>
-      <ambientLight intensity={theme.ambientIntensity} color={theme.ambient} />
+      <ambientLight intensity={ambientIntensity} color={preset.ambientColor} />
+      <hemisphereLight intensity={ambientIntensity * 0.35} color={preset.sky} groundColor={theme.floor} />
       <directionalLight
         // Deliberately OFF the camera's azimuth. The iso camera looks along (1,1,1); a light on
         // the same bearing throws every shadow directly behind its own caster, hidden from view,
         // which looks identical to having no shadows at all. Swinging it toward +X separates the
         // two bearings, and keeping it on the open side of the room means the back walls never
         // shadow the interior.
-        position={[30, 36, 8]}
-        intensity={theme.directionalIntensity}
-        color={theme.directional}
+        position={preset.sun}
+        intensity={sunIntensity}
+        color={preset.sunColor}
         castShadow
         shadow-mapSize={[2048, 2048]}
         // Negative bias pushes the depth comparison away from the surface, killing the
@@ -208,16 +244,18 @@ function LocalPlayerAvatar({
   targetPosRef,
   speaking,
   emotes,
+  mapId,
 }: {
   room: Room | null;
   player: PlayerState;
   targetPosRef: React.MutableRefObject<MoveTarget | null>;
   speaking: boolean;
   emotes: FloatingEmote[];
+  mapId: MapId;
 }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
-  useLocalPlayerMovement(groupRef, room, player, targetPosRef, speedRef);
+  useLocalPlayerMovement(groupRef, room, player, targetPosRef, speedRef, mapId);
   return (
     <Character3D
       ref={groupRef}

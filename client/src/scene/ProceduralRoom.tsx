@@ -3,7 +3,7 @@ import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { MapId } from "@shared/types";
 import { ROOM_THEMES, type RoomTheme } from "./roomThemes";
-import { GEO, Instanced, noRaycast, seeded, useSharedMaterials, type InstanceSpec, type Materials } from "./kit";
+import { GEO, Instanced, StaticBatch, noRaycast, seeded, useSharedMaterials, type InstanceSpec, type Materials } from "./kit";
 import { HALF, LoungeWorld } from "./LoungeWorld";
 import { CampfireWorld } from "./CampfireWorld";
 
@@ -52,7 +52,11 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
 
       <DioramaSlab theme={theme} mats={mats} outdoor={mapId === "campfire_night"} />
 
-      {mapId === "cozy_lounge" ? <LoungeWorld mats={mats} wallColor={theme.wall} /> : <CampfireWorld mats={mats} />}
+      {/* Everything inside a world is static after mount, so it is baked down to a handful of
+          merged draw calls. Animated pieces opt out with userData={noMerge}. */}
+      <StaticBatch>
+        {mapId === "cozy_lounge" ? <LoungeWorld mats={mats} wallColor={theme.wall} /> : <CampfireWorld mats={mats} />}
+      </StaticBatch>
     </group>
   );
 });

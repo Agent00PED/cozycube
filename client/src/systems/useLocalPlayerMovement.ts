@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type { Group } from "three";
-import type { PlayerState } from "@shared/types";
+import type { MapId, PlayerState } from "@shared/types";
+import { isBlocked } from "@shared/collision";
 import { cameraFocus } from "../scene/cameraFocus";
 
 const MOVE_SPEED = 3; // units/sec — must match MOVE_SPEED_PER_SEC in server/src/rooms/HangoutRoom.ts
@@ -19,6 +20,26 @@ const SEAT_HEIGHT_LERP = 0.2;
 // Integrating that raw would move the player many units in a single step and send one huge,
 // implausible report. Capping the step means a hitch just pauses the walk briefly instead.
 const MAX_FRAME_DELTA = 0.1;
+// The client used to walk straight through furniture and let the server quietly refuse the
+// move, which read as "I'm stuck in the sofa". It now runs the SAME collision test the server
+// does. Long steps are split into sub-steps no longer than this, because a single big step can
+// start outside a box and end outside it while passing clean through the corner in between.
+const COLLIDE_SUBSTEP = 0.12;
+const PLAYER_RADIUS = 0.3; // must match the default in shared/collision.ts isBlocked
+
+// Axis-separated so walking into a wall at an angle slides along it instead of stopping dead —
+// the same rule the server applies, so prediction and validation agree and never fight.
+function slideStep(pos: { x: number; z: number }, dx: number, dz: number, mapId: MapId) {
+  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / COLLIDE_SUBSTEP));
+  const sx = dx / steps;
+  const sz = dz / steps;
+  for (let i = 0; i < steps; i++) {
+    const nx = pos.x + sx;
+    if (!isBlocked(nx, pos.z, mapId, PLAYER_RADIUS)) pos.x = nx;
+    const nz = pos.z + sz;
+    if (!isBlocked(pos.x, nz, mapId, PLAYER_RADIUS)) pos.z = nz;
+  }
+}
 
 export interface MoveTarget {
   x: number;
@@ -54,7 +75,8 @@ export function useLocalPlayerMovement(
   // lifted up so the click marker can read the same state.
   targetPosRef: React.MutableRefObject<MoveTarget | null>,
   // Read by Character3D's gait animation — 0 when stationary, 1 when moving.
-  speedRef: React.MutableRefObject<number>
+  speedRef: React.MutableRefObject<number>,
+  mapId: MapId
 ) {
   const posRef = useRef({ x: player.x, z: player.z });
   const facingRef = useRef(0);
@@ -117,8 +139,13 @@ export function useLocalPlayerMovement(
           dirZ = dz / distance;
           // Never overshoot the target on a long frame.
           const step = Math.min(MOVE_SPEED * delta, distance);
-          posRef.current.x += dirX * step;
-          posRef.current.z += dirZ * step;
+          const before = { x: posRef.current.x, z: posRef.current.z };
+          slideStep(posRef.current, dirX * step, dirZ * step, mapId);
+          // Wedged into a corner with nowhere to slide: drop the target rather than grinding
+          // against the furniture forever (and spamming identical move reports).
+          if (Math.hypot(posRef.current.x - before.x, posRef.current.z - before.z) < step * 0.05) {
+            targetPosRef.current = null;
+          }
           facingRef.current = lerpAngle(facingRef.current, Math.atan2(dirX, dirZ), TURN_LERP);
         } else if (target.propId && room) {
           // Arrived at a walk-up prop. The arrival position rides along with the request: the
@@ -170,6 +197,7 @@ export function useLocalPlayerMovement(
       groupRef.current.rotation.y = facingRef.current;
     }
 
+    // A new walk always takes the camera back to the player, even if it was panned away.
     // Hand the camera the predicted position (not the server's), so it follows what you SEE.
     cameraFocus.x = posRef.current.x;
     cameraFocus.z = posRef.current.z;

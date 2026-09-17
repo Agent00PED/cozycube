@@ -9,9 +9,11 @@ import {
   INTERACT_RADIUS,
   ROAST_SECONDS,
   TOAST_MAX,
+  isTimeOfDay,
   isWalkUpProp,
   poseForSeat,
   type MapId,
+  type TimeOfDay,
   type SeatStyle,
   type ToggleableKind,
 } from "../../../shared/types";
@@ -63,6 +65,7 @@ class HangoutState extends Schema {
   @type({ map: ChairState }) chairs = new MapSchema<ChairState>();
   @type({ map: ToggleableState }) toggleables = new MapSchema<ToggleableState>();
   @type("string") currentMap: MapId = "cozy_lounge";
+  @type("string") timeOfDay: TimeOfDay = "day";
   @type("boolean") mapTransitioning = false;
 }
 
@@ -127,6 +130,11 @@ export class HangoutRoom extends Room<HangoutState> {
       const player = this.state.players.get(client.sessionId);
       if (player && !player.sitting) this.applyReportedPosition(player, msg.x, msg.z);
       this.handleUseProp(client.sessionId, msg.propId);
+    });
+
+    // Time of day is shared ambience, like the lights: anyone can set it, everyone sees it.
+    this.onMessage("setTimeOfDay", (_client, msg: { timeOfDay: TimeOfDay }) => {
+      if (isTimeOfDay(msg?.timeOfDay)) this.state.timeOfDay = msg.timeOfDay;
     });
 
     this.onMessage("emote", (client, msg: { emoji: string }) => this.handleEmote(client.sessionId, msg.emoji));
@@ -219,10 +227,10 @@ export class HangoutRoom extends Room<HangoutState> {
       goalZ = player.z + (dz / dist) * MAX_REPORT_STEP;
     }
 
-    const obstacles = MAP_OBSTACLES[this.state.currentMap];
+    const mapId = this.state.currentMap;
     // Axis-separated so sliding along a wall still works instead of stopping dead.
-    if (!isBlocked(goalX, player.z, obstacles)) player.x = goalX;
-    if (!isBlocked(player.x, goalZ, obstacles)) player.z = goalZ;
+    if (!isBlocked(goalX, player.z, mapId)) player.x = goalX;
+    if (!isBlocked(player.x, goalZ, mapId)) player.z = goalZ;
   }
 
   private handleChangeMap(mapId: MapId) {
