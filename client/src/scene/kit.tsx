@@ -67,11 +67,17 @@ function Prim({ geo, p, s, m, r, cast = false, recv = false }: PrimitiveProps & 
       position={p}
       rotation={r}
       scale={s}
-      castShadow={cast}
+      castShadow={cast && !isSmall(s)}
       receiveShadow={recv}
       raycast={noRaycast}
     />
   );
+}
+
+// Small clutter (cups, books, knobs) adds shadow-pass draws for shadows nobody can see.
+const SMALL_PROP = 0.6;
+function isSmall(s: V3 | number) {
+  return Array.isArray(s) ? Math.max(s[0], s[1], s[2]) < SMALL_PROP : s < SMALL_PROP;
 }
 
 /** Box by centre `p` and full size `s`. */
@@ -87,7 +93,7 @@ export const Sph = (props: PrimitiveProps & { low?: boolean }) => (
 export const Cone = (props: PrimitiveProps) => <Prim geo={GEO.cone} {...props} />;
 
 /** A flat disc/rug lying on the floor. `y` should differ between overlapping rugs to avoid z-fighting. */
-export function Rug({ x, z, radius, y = 0.01, m, sx = 1 }: { x: number; z: number; radius: number; y?: number; m: THREE.Material; sx?: number }) {
+export function Rug({ x, z, radius, y = 0.06, m, sx = 1 }: { x: number; z: number; radius: number; y?: number; m: THREE.Material; sx?: number }) {
   return (
     <mesh
       geometry={GEO.circle}

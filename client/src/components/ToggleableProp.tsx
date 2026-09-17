@@ -97,7 +97,7 @@ export function ToggleableProp({ prop, onUse, brewing = false }: ToggleablePropP
 type PropViewProps = { prop: ToggleableSyncState; onUse: () => void };
 
 function WallTV({ prop, onUse }: PropViewProps) {
-  const screen = useRetroScreen("pong", prop.color, prop.on);
+  const screen = useRetroScreen("pong", prop.color, prop.on, prop.x, prop.z);
   const screenMat = useMemo(() => new THREE.MeshBasicMaterial({ map: screen, toneMapped: false }), [screen]);
   useEffect(() => () => screenMat.dispose(), [screenMat]);
   // 75" at this world scale: a 3.2 x 1.8 panel.
@@ -115,9 +115,9 @@ function FloorLamp({ prop, onUse }: PropViewProps) {
   const glow = useGlow(prop.color, prop.on, 1.2);
   return (
     <group position={[prop.x, prop.y, prop.z]}>
-      <mesh geometry={GEO.cyl} material={M.walnut} position={[0, 0.03, 0]} scale={[0.36, 0.06, 0.36]} castShadow raycast={noRaycast} />
+      <mesh geometry={GEO.cyl} material={M.walnut} position={[0, 0.03, 0]} scale={[0.36, 0.06, 0.36]} raycast={noRaycast} />
       <mesh geometry={GEO.cyl} material={M.brass} position={[0, 0.8, 0]} scale={[0.04, 1.55, 0.04]} castShadow raycast={noRaycast} />
-      <mesh geometry={GEO.cylTaper} material={glow} position={[0, 1.62, 0]} scale={[0.5, 0.36, 0.5]} castShadow raycast={noRaycast} />
+      <mesh geometry={GEO.cylTaper} material={glow} position={[0, 1.62, 0]} scale={[0.5, 0.36, 0.5]} raycast={noRaycast} />
       <SoftLight on={prop.on} intensity={1.6} color={prop.color} position={[0, 1.5, 0]} distance={5.5} />
       <HitPad size={[0.7, 1.9, 0.7]} position={[0, 0.95, 0]} onUse={onUse} />
     </group>
@@ -147,10 +147,10 @@ function Lantern({ prop, onUse }: PropViewProps) {
   });
   return (
     <group position={[prop.x, prop.y, prop.z]}>
-      <mesh geometry={GEO.cyl} material={M.black} position={[0, 0.03, 0]} scale={[0.26, 0.06, 0.26]} castShadow raycast={noRaycast} />
+      <mesh geometry={GEO.cyl} material={M.black} position={[0, 0.03, 0]} scale={[0.26, 0.06, 0.26]} raycast={noRaycast} />
       <mesh geometry={GEO.cyl} material={glow} position={[0, 0.22, 0]} scale={[0.2, 0.32, 0.2]} raycast={noRaycast} />
       <mesh ref={flameRef} geometry={GEO.sphereLow} material={M.flameInner} position={[0, 0.22, 0]} raycast={noRaycast} />
-      <mesh geometry={GEO.cone} material={M.black} position={[0, 0.44, 0]} scale={[0.28, 0.12, 0.28]} castShadow raycast={noRaycast} />
+      <mesh geometry={GEO.cone} material={M.black} position={[0, 0.44, 0]} scale={[0.28, 0.12, 0.28]} raycast={noRaycast} />
       <mesh geometry={GEO.torus} material={M.black} position={[0, 0.55, 0]} scale={[0.14, 0.14, 0.3]} raycast={noRaycast} />
       <SoftLight on={prop.on} intensity={1.5} color={prop.color} position={[0, 0.3, 0]} distance={5} />
       <HitPad size={[0.6, 0.8, 0.6]} position={[0, 0.3, 0]} onUse={onUse} />
@@ -159,7 +159,7 @@ function Lantern({ prop, onUse }: PropViewProps) {
 }
 
 function ArcadeCabinet({ prop, onUse }: PropViewProps) {
-  const screen = useRetroScreen("invaders", prop.color, prop.on);
+  const screen = useRetroScreen("invaders", prop.color, prop.on, prop.x, prop.z);
   const screenMat = useMemo(() => new THREE.MeshBasicMaterial({ map: screen, toneMapped: false }), [screen]);
   useEffect(() => () => screenMat.dispose(), [screenMat]);
   const marquee = useGlow(prop.color, prop.on, 2.4);

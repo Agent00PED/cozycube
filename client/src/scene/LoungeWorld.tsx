@@ -182,7 +182,7 @@ function PottedPlant({
 function GrandLiving({ mats }: { mats: Materials }) {
   return (
     <>
-      <Rug x={-2.0} z={-8.8} radius={4.3} y={0.01} m={mats.cream} />
+      <Rug x={-2.0} z={-8.8} radius={4.3} y={0.06} m={mats.cream} />
       {[1.6, 2.8, 3.9].map((r, i) => (
         <mesh key={r} geometry={ringGeo(r - 0.06, r)} material={i === 1 ? mats.blush : mats.white} position={[-2.0, 0.013, -8.8]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} />
       ))}
@@ -437,7 +437,7 @@ function Library({ mats }: { mats: Materials }) {
 
   return (
     <>
-      <Rug x={-10.2} z={7.2} radius={2.7} y={0.01} m={mats.libraryRug} />
+      <Rug x={-10.2} z={7.2} radius={2.7} y={0.06} m={mats.libraryRug} />
       <mesh geometry={ringGeo(2.35, 2.45)} material={mats.cream} position={[-10.2, 0.013, 7.2]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} />
 
       {/* floor-to-ceiling shelving: back panel, uprights, shelves */}
@@ -508,7 +508,7 @@ function BalconyGarden({ mats }: { mats: Materials }) {
         const x1 = Math.min(x + len, BALCONY.x1);
         if (x1 - x0 > 0.1) {
           out.push({
-            p: [(x0 + x1) / 2, 0.012, z],
+            p: [(x0 + x1) / 2, 0.03, z],
             s: [x1 - x0 - 0.02, 0.012, rowDepth - 0.02],
             color: rand() < 0.5 ? "#b98552" : "#a8743f",
           });
@@ -570,9 +570,9 @@ function BalconyGarden({ mats }: { mats: Materials }) {
       <Instanced geo={GEO.sphereLow} m={mats.bulb} items={bulbs} />
 
       {/* striped outdoor rug under the deck chairs */}
-      <B p={[9.5, 0.03, 2.5]} s={[3.2, 0.01, 4.6]} m={mats.cream} />
+      <B p={[9.5, 0.06, 2.5]} s={[3.2, 0.01, 4.6]} m={mats.cream} />
       {[-1.6, -0.8, 0, 0.8, 1.6].map((dz) => (
-        <B key={dz} p={[9.5, 0.036, 2.5 + dz]} s={[3.2, 0.01, 0.18]} m={mats.navy} />
+        <B key={dz} p={[9.5, 0.066, 2.5 + dz]} s={[3.2, 0.01, 0.18]} m={mats.navy} />
       ))}
       {/* side table with lemonade */}
       <Cyl p={[9.6, 0.5, 2.5]} s={[0.56, 0.04, 0.56]} m={mats.white} cast />
@@ -693,7 +693,7 @@ function SocialCircle({ mats }: { mats: Materials }) {
 
   return (
     <>
-      <Rug x={0} z={6} radius={3.1} y={0.01} m={mats.blush} />
+      <Rug x={0} z={6} radius={3.1} y={0.06} m={mats.blush} />
       <mesh geometry={ringGeo(2.7, 2.82)} material={mats.cream} position={[0, 0.013, 6]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} />
       {/* pouf table with a checkers game mid-play */}
       <Cyl p={[0, 0.25, 6]} s={[1.1, 0.5, 1.1]} m={mats.cream} cast recv />

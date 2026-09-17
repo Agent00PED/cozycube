@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { cameraFocus } from "../scene/cameraFocus";
 
 export type RetroProgram = "invaders" | "pong";
 
 const W = 96;
 const H = 64;
+const PAUSE_DISTANCE = 5;
 const FPS = 20; // chunky retro motion, and only 20 small texture uploads a second per screen
 
 // A tiny procedurally-drawn canvas texture for arcade cabinets and the TV. Pixel-art sized on
 // purpose (96x64, nearest-neighbour filtering): it's cheap to upload, and it looks right.
-export function useRetroScreen(program: RetroProgram, accent: string, on: boolean): THREE.CanvasTexture {
+export function useRetroScreen(program: RetroProgram, accent: string, on: boolean, x: number, z: number): THREE.CanvasTexture {
   const { ctx, texture } = useMemo(() => {
     const canvas = document.createElement("canvas");
     canvas.width = W;
@@ -36,6 +38,8 @@ export function useRetroScreen(program: RetroProgram, accent: string, on: boolea
 
   useFrame((_, delta) => {
     if (!on) return;
+    // Nobody close enough to watch: freeze the last frame instead of redrawing + re-uploading.
+    if (Math.hypot(cameraFocus.x - x, cameraFocus.z - z) > PAUSE_DISTANCE) return;
     clockRef.current += delta;
     accRef.current += delta;
     if (accRef.current < 1 / FPS) return;
