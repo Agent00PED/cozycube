@@ -9,25 +9,33 @@ const ISO_ANGLE = Math.atan(1 / Math.sqrt(2)); // ~35.264 deg
 // the whole world in FRONT of the camera. With a follow-cam over a 28x28 world, the focus can be
 // in one corner while the opposite corner is ~30 units nearer the camera along the view axis.
 // At the old distance of 20 that corner fell behind the near plane and was clipped away.
-const DISTANCE = 60;
-const CAMERA_FAR = 250;
+const DISTANCE = 46;
+const CAMERA_FAR = 180;
 
-// Framing for a follow-cam: a comfortable neighbourhood around the player rather than the
-// whole island. Zooming all the way out (MIN_ZOOM) still shows the entire 28x28 diorama.
-const BASE_ZOOM = 40;
+// Framing for an 18x18 diorama: the default sits just inside the whole island, so you can see
+// the room you are in AND who is coming. MIN_ZOOM frames all 18x18 with margin on a phone;
+// MAX_ZOOM goes right down to a character portrait.
+const BASE_ZOOM = 52;
 const BASE_WIDTH = 900; // reference viewport width at which BASE_ZOOM applies
-const MIN_ZOOM = 13;
-const DEFAULT_ZOOM_FLOOR = 32;
-const MAX_ZOOM = 85;
+const MIN_ZOOM = 22;
+const DEFAULT_ZOOM_FLOOR = 38;
+const MAX_ZOOM = 160;
 // Free look roams the whole diorama (a bit past its lip, so corner furniture can be centred)
 // rather than a small window around the player.
-const FREE_LOOK_LIMIT = 15;
+const FREE_LOOK_LIMIT = 10;
 
 // Per-60fps-frame blend toward the focus point. Kept low so the camera trails the player
 // gently instead of feeling glued to them; converted to a frame-rate-independent factor below.
 const FOLLOW_LERP = 0.065;
 const ZOOM_LERP = 0.15;
-const MAX_DPR = 1.5;
+// Discord's webview reports the device pixel ratio of a Retina laptop or a modern phone (2-3),
+// and rendering this scene at 3x is 9x the fill of 1x — the single biggest cause of the lag
+// inside Discord. r3f treats a [min, max] dpr as a range it may adapt within, and
+// PerformanceMonitor below drives it: it never exceeds 1.5, whatever the display claims.
+const DPR_CEILING = 1.5;
+// ...and never above what the display actually has, or a 1.25x screen would be rendered at
+// 1.5x for nothing.
+const DPR_RANGE: [number, number] = [1, Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio, DPR_CEILING)];
 
 const ISO_DIR = new THREE.Vector3(
   DISTANCE * Math.cos(ISO_ANGLE) * Math.cos(Math.PI / 4),
@@ -42,20 +50,18 @@ function frameLerp(factor: number, delta: number): number {
 
 export function IsometricCanvas({ children }: { children: React.ReactNode }) {
   const [glLostMessage, setGlLostMessage] = useState<string | null>(null);
-  // Start sharp on capable screens; PerformanceMonitor below backs off if a device can't keep up.
-  const [dpr, setDpr] = useState(() => Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio, MAX_DPR));
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <Canvas
         shadows="soft"
-        dpr={dpr}
+        dpr={DPR_RANGE}
         // "low-power" was a plausible contributor to a black screen with zero errors: on a
         // multi-GPU machine (very common — laptop with integrated + discrete graphics) inside
         // a sandboxed iframe, requesting only the low-power context can fail silently or
         // route to a GPU that can't actually satisfy it. "default" lets the browser pick
         // whatever context it can actually create.
-        gl={{ antialias: true, powerPreference: "default", failIfMajorPerformanceCaveat: false }}
+        gl={{ antialias: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false }}
         onCreated={({ gl }) => {
           console.log("[IsometricCanvas] WebGL context created:", gl.getContextAttributes());
           const canvas = gl.domElement;
@@ -70,17 +76,11 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
           });
         }}
       >
-        {/* Adaptive quality for "runs on every device": the fully zoomed-out 28x28 lounge peaks
-            around 530 draw calls (the shadow pass redraws every caster). If the frame rate sags,
-            drop to 1x resolution — the single biggest fill-rate saving, and invisible on most
-            phones — and restore it when there's headroom again. After repeated flip-flopping it
+        {/* Adaptive quality on top of the clamp above: if the frame rate sags, fall to the
+            bottom of DPR_RANGE — the single biggest fill-rate saving, and barely visible on a
+            phone — and climb back when there is headroom. After repeated flip-flopping it
             settles on the safe setting rather than oscillating. */}
-        <PerformanceMonitor
-          onDecline={() => setDpr(1)}
-          onIncline={() => setDpr(Math.min(window.devicePixelRatio, MAX_DPR))}
-          flipflops={3}
-          onFallback={() => setDpr(1)}
-        />
+        <AdaptiveResolution />
         <IsoCamera />
         <CameraRig />
         {children}
@@ -107,6 +107,20 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
         </div>
       )}
     </div>
+  );
+}
+
+// drei's PerformanceMonitor has to live INSIDE the Canvas to reach r3f's setDpr, which is what
+// actually re-sizes the drawing buffer within the dpr range the Canvas was given.
+function AdaptiveResolution() {
+  const setDpr = useThree((state) => state.setDpr);
+  return (
+    <PerformanceMonitor
+      onDecline={() => setDpr(DPR_RANGE[0])}
+      onIncline={() => setDpr(DPR_RANGE[1])}
+      flipflops={3}
+      onFallback={() => setDpr(DPR_RANGE[0])}
+    />
   );
 }
 

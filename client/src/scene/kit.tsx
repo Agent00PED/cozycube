@@ -252,6 +252,17 @@ export function useSharedMaterials() {
         opacity: 0.9,
       }),
       mud: make("#2c3a2c", { roughness: 1 }),
+      // beach
+      sand: make("#f2ddb6", { roughness: 1 }),
+      wetSand: make("#d9c194", { roughness: 0.95 }),
+      seaShallow: new THREE.MeshStandardMaterial({ color: "#5fc6d8", roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.88 }),
+      seaDeep: new THREE.MeshStandardMaterial({ color: "#1f7fa8", roughness: 0.12, metalness: 0.15, transparent: true, opacity: 0.95 }),
+      foam: make("#f4fbfb", { roughness: 0.8 }),
+      thatch: make("#c79a4e", { roughness: 1, flatShading: true }),
+      palmLeaf: make("#3f8f5a", { roughness: 0.8 }),
+      coral: make("#e8705f", { roughness: 0.7 }),
+      shell: make("#f6e6d8", { roughness: 0.7 }),
+      tikiFlame: new THREE.MeshBasicMaterial({ color: "#ff9a3d", toneMapped: false }),
       mushroom: make("#c9423a", { roughness: 0.6 }),
       // Multiplied by per-instance colour (setColorAt), so one material serves every book/flower.
       tintable: make("#ffffff"),
@@ -284,6 +295,9 @@ export type Materials = ReturnType<typeof useSharedMaterials>;
 
 /** Mark a subtree as animated/interactive so StaticBatch leaves it alone. */
 export const noMerge = { noMerge: true };
+
+/** Half the world's width: the diorama slab spans -HALF..HALF on both axes. */
+export const HALF = 9;
 
 function collectMergeable(root: THREE.Object3D): THREE.Mesh[] {
   const out: THREE.Mesh[] = [];

@@ -219,16 +219,17 @@ const RoomLighting = memo(function RoomLighting({ theme, preset }: { theme: Room
         shadow-mapSize={[2048, 2048]}
         // Negative bias pushes the depth comparison away from the surface, killing the
         // self-shadowing "acne" you otherwise get on large flat floors.
-        shadow-bias={-0.0001}
+        shadow-bias={-0.0005}
         shadow-normalBias={0.03}
-        // Sized for the 28x28 slab (half-diagonal ~19.8) with margin for tall trees. At 2048 px
-        // over 44 units that is still ~46 texels per world unit — plenty for soft contact shadows.
-        shadow-camera-left={-22}
-        shadow-camera-right={22}
-        shadow-camera-top={22}
-        shadow-camera-bottom={-22}
+        // Tight to the 18x18 slab (half-diagonal ~12.7). At 2048 px over 24 units that is
+        // ~85 texels per world unit, so contact shadows stay crisp instead of blocky — and a
+        // smaller frustum is also less for the shadow pass to cover.
+        shadow-camera-left={-12}
+        shadow-camera-right={12}
+        shadow-camera-top={12}
+        shadow-camera-bottom={-12}
         shadow-camera-near={1}
-        shadow-camera-far={110}
+        shadow-camera-far={90}
       />
     </>
   );

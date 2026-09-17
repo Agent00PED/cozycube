@@ -30,7 +30,7 @@ export interface PlayerState {
   connected: boolean;
 }
 
-export type MapId = "cozy_lounge" | "campfire_night";
+export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach";
 
 /** Shared lighting mood. Purely presentational, but synced so the room reads the same for everyone. */
 export type TimeOfDay = "sunrise" | "day" | "sunset" | "night";

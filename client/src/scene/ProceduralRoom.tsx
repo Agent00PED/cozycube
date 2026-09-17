@@ -3,11 +3,12 @@ import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { MapId } from "@shared/types";
 import { ROOM_THEMES, type RoomTheme } from "./roomThemes";
-import { GEO, Instanced, StaticBatch, noRaycast, seeded, useSharedMaterials, type InstanceSpec, type Materials } from "./kit";
-import { HALF, LoungeWorld } from "./LoungeWorld";
+import { GEO, HALF, Instanced, StaticBatch, noRaycast, seeded, useSharedMaterials, type InstanceSpec, type Materials } from "./kit";
+import { LoungeWorld } from "./LoungeWorld";
 import { CampfireWorld } from "./CampfireWorld";
+import { BeachWorld } from "./BeachWorld";
 
-const SLAB_HEIGHT = 1.45; // a chunky island — the diorama base reads as a model on a table
+const SLAB_HEIGHT = 1.25; // a chunky island — the diorama base reads as a model on a table
 
 interface ProceduralRoomProps {
   mapId: MapId;
@@ -50,12 +51,14 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
         onPointerDown={handleFloorClick}
       />
 
-      <DioramaSlab theme={theme} mats={mats} outdoor={mapId === "campfire_night"} />
+      <DioramaSlab theme={theme} mats={mats} outdoor={mapId !== "cozy_lounge"} />
 
       {/* Everything inside a world is static after mount, so it is baked down to a handful of
           merged draw calls. Animated pieces opt out with userData={noMerge}. */}
       <StaticBatch>
-        {mapId === "cozy_lounge" ? <LoungeWorld mats={mats} wallColor={theme.wall} /> : <CampfireWorld mats={mats} />}
+        {mapId === "cozy_lounge" && <LoungeWorld mats={mats} wallColor={theme.wall} />}
+        {mapId === "campfire_night" && <CampfireWorld mats={mats} />}
+        {mapId === "sunset_beach" && <BeachWorld mats={mats} />}
       </StaticBatch>
     </group>
   );
@@ -79,7 +82,7 @@ function DioramaSlab({ theme, mats, outdoor }: { theme: RoomTheme; mats: Materia
     const rand = seeded(5);
     const out: InstanceSpec[] = [];
     const edge = HALF - 0.02;
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 70; i++) {
       const side = i % 4;
       const f = (rand() * 2 - 1) * (HALF - 0.3);
       const y = -0.25 - rand() * (SLAB_HEIGHT - 0.4);

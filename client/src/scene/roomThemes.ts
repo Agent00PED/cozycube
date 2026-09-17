@@ -37,6 +37,16 @@ export const ROOM_THEMES: Record<MapId, RoomTheme> = {
     ambientIntensity: 1.25,
     directionalIntensity: 1,
   },
+  sunset_beach: {
+    floor: "#f2ddb6", // warm white sand
+    wall: "#f6e2c4", // unused outdoors
+    edge: "#c2a173", // packed sand cross-section
+    edgeTop: "#d8bd8e",
+    ambient: "#ffe0c8",
+    directional: "#fff0d8",
+    ambientIntensity: 0.85,
+    directionalIntensity: 1.15,
+  },
 };
 
 // --- time of day -------------------------------------------------------------------------

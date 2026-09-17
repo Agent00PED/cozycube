@@ -10,6 +10,7 @@ interface MapSwitcherUIProps {
 const MAP_LABELS: Record<MapId, string> = {
   cozy_lounge: "🛋️ Cozy Lounge",
   campfire_night: "🔥 Campfire",
+  sunset_beach: "🏖️ Beach Bar",
 };
 
 const MAP_IDS = Object.keys(MAP_LABELS) as MapId[];

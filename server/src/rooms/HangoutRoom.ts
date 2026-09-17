@@ -77,6 +77,10 @@ const MOVE_SPEED_PER_SEC = 3;
 const MAX_REPORT_STEP = MOVE_SPEED_PER_SEC * 0.75;
 const TICK_MS = 100; // timed activities only need 10 Hz; state patches still go out at the default rate
 const EMOTE_COOLDOWN_MS = 600;
+const MAP_SIGNATURE_TIME: Partial<Record<MapId, TimeOfDay>> = {
+  sunset_beach: "sunset",
+  campfire_night: "night",
+};
 const ALLOWED_EMOTES = new Set<string>(EMOTES);
 
 export class HangoutRoom extends Room<HangoutState> {
@@ -238,6 +242,12 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!MAP_OBSTACLES[mapId]) return;
 
     this.state.mapTransitioning = true;
+    // Each map has an hour it was built for. Arriving at the Sunset Beach Bar at midday would
+    // throw away the whole point of it, so the move sets the mood — anyone can change it back
+    // from the time bar straight afterwards.
+    const signatureTime = MAP_SIGNATURE_TIME[mapId];
+    if (signatureTime) this.state.timeOfDay = signatureTime;
+
     this.state.players.forEach((p) => {
       p.sitting = false;
       this.clearAction(p);
