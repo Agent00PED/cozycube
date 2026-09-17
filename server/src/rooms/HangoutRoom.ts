@@ -1,6 +1,6 @@
 import { Room, Client } from "colyseus";
 import { Schema, type, MapSchema } from "@colyseus/schema";
-import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked } from "../../../shared/collision";
+import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToWorld, isBlocked } from "../../../shared/collision";
 import { MAP_CHAIRS, MAP_TOGGLEABLES } from "../../../shared/props";
 import type { MapId } from "../../../shared/types";
 
@@ -23,6 +23,7 @@ class ChairState extends Schema {
   @type("number") x = 0;
   @type("number") z = 0;
   @type("number") rotationY = 0;
+  @type("string") style = "pad";
   @type("string") occupiedBy = ""; // sessionId, or "" if free
 }
 
@@ -44,7 +45,14 @@ class HangoutState extends Schema {
 }
 
 const MOVE_SPEED_PER_SEC = 3;
-const INTERACT_RADIUS = 1.5;
+// How far a client may legitimately have travelled between two move reports. Reports are
+// throttled to ~48ms, but a tab that stalls (GC, backgrounded, a slow frame) can legitimately
+// batch up more ground than that, so this is deliberately generous — it is an anti-teleport
+// sanity check, not a precise speed limit.
+const MAX_REPORT_STEP = MOVE_SPEED_PER_SEC * 0.75;
+// Players walk to a seat's approach point themselves before asking to sit, so this only has to
+// be loose enough to tolerate prediction drift on arrival.
+const INTERACT_RADIUS = 2.5;
 
 export class HangoutRoom extends Room<HangoutState> {
   maxClients = 25;
@@ -59,14 +67,15 @@ export class HangoutRoom extends Room<HangoutState> {
     this.channelId = options.channelId;
     this.loadMapProps(this.state.currentMap);
 
-    this.setSimulationInterval((dt) => this.update(dt / 1000), 1000 / 20);
-
-    this.onMessage("move", (client, msg: { dirX: number; dirZ: number }) => {
+    this.onMessage("move", (client, msg: { dirX: number; dirZ: number; x?: number; z?: number }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || player.sitting) return;
       player.dirX = Math.max(-1, Math.min(1, msg.dirX));
       player.dirZ = Math.max(-1, Math.min(1, msg.dirZ));
+      this.applyReportedPosition(player, msg.x, msg.z);
     });
+
+    this.onMessage("standUp", (client) => this.handleStandUp(client.sessionId));
 
     this.onMessage("setColor", (client, msg: { color: string }) => {
       const player = this.state.players.get(client.sessionId);
@@ -78,7 +87,12 @@ export class HangoutRoom extends Room<HangoutState> {
       this.handleChangeMap(msg.mapId);
     });
 
-    this.onMessage("interactChair", (client, msg: { chairId: string }) => {
+    this.onMessage("interactChair", (client, msg: { chairId: string; x?: number; z?: number }) => {
+      const player = this.state.players.get(client.sessionId);
+      // Fold in the arrival position the client reports alongside the request. Proximity is
+      // checked against the server's copy of the player position, which is only as fresh as the
+      // last throttled move report — without this the sit loses that race and is rejected.
+      if (player && !player.sitting) this.applyReportedPosition(player, msg.x, msg.z);
       this.handleInteractChair(client, msg.chairId);
     });
 
@@ -95,6 +109,7 @@ export class HangoutRoom extends Room<HangoutState> {
       state.x = chair.x;
       state.z = chair.z;
       state.rotationY = chair.rotationY;
+      state.style = chair.style;
       this.state.chairs.set(chair.propId, state);
     }
 
@@ -111,18 +126,24 @@ export class HangoutRoom extends Room<HangoutState> {
     }
   }
 
-  private update(dt: number) {
+  // The authoritative position now comes from the client's own prediction, validated here,
+  // instead of a second server-side integration running on a different clock. Two integrations
+  // inevitably diverge (different dt, different message timing), and that divergence was what
+  // the client had to reconcile away as a visible snap. Validating one stream keeps the server
+  // in charge of collisions and bounds while leaving the walk perfectly smooth.
+  private applyReportedPosition(player: Player, x?: number, z?: number) {
     if (this.state.mapTransitioning) return;
-    const obstacles = MAP_OBSTACLES[this.state.currentMap];
+    if (typeof x !== "number" || typeof z !== "number") return;
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+    // Reject implausible jumps (teleport/speed hacks, or a stale message after a map change).
+    if (Math.hypot(x - player.x, z - player.z) > MAX_REPORT_STEP) return;
 
-    this.state.players.forEach((player) => {
-      if (player.sitting) return;
-      const speed = MOVE_SPEED_PER_SEC * dt;
-      const nextX = player.x + player.dirX * speed;
-      const nextZ = player.z + player.dirZ * speed;
-      if (!isBlocked(nextX, player.z, obstacles)) player.x = nextX;
-      if (!isBlocked(player.x, nextZ, obstacles)) player.z = nextZ;
-    });
+    const obstacles = MAP_OBSTACLES[this.state.currentMap];
+    const nextX = clampToWorld(x);
+    const nextZ = clampToWorld(z);
+    // Axis-separated so sliding along a wall still works instead of stopping dead.
+    if (!isBlocked(nextX, player.z, obstacles)) player.x = nextX;
+    if (!isBlocked(player.x, nextZ, obstacles)) player.z = nextZ;
   }
 
   private handleChangeMap(mapId: MapId) {
@@ -146,6 +167,34 @@ export class HangoutRoom extends Room<HangoutState> {
     this.clock.setTimeout(() => {
       this.state.mapTransitioning = false;
     }, 1500);
+  }
+
+  // Seats deliberately sit INSIDE their furniture's collision box (you sit on the sofa, not
+  // beside it). If we just flipped `sitting` off and left the player there, every position they
+  // reported while walking away would be rejected by isBlocked, the server position would stay
+  // pinned to the seat, and the client would snap backwards once the delta crossed its
+  // threshold. So standing up also returns the player to the seat's approach point.
+  private handleStandUp(sessionId: string) {
+    const player = this.state.players.get(sessionId);
+    if (!player || !player.sitting) return;
+
+    let vacatedId = "";
+    this.state.chairs.forEach((chair) => {
+      if (chair.occupiedBy === sessionId) {
+        chair.occupiedBy = "";
+        vacatedId = chair.propId;
+      }
+    });
+
+    const config = MAP_CHAIRS[this.state.currentMap].find((c) => c.propId === vacatedId);
+    if (config?.approachX !== undefined && config.approachZ !== undefined) {
+      player.x = config.approachX;
+      player.z = config.approachZ;
+    }
+
+    player.sitting = false;
+    player.dirX = 0;
+    player.dirZ = 0;
   }
 
   private handleInteractChair(client: Client, chairId: string) {
@@ -193,7 +242,10 @@ export class HangoutRoom extends Room<HangoutState> {
     player.userId = options.userId;
     player.username = options.username;
     player.avatarUrl = options.avatarUrl;
-    const spawn = MAP_SPAWN_POINTS[this.state.currentMap][0];
+    // Cycle through the spawn points instead of always using the first one, otherwise every
+    // player in the room materialises inside everybody else.
+    const spawns = MAP_SPAWN_POINTS[this.state.currentMap];
+    const spawn = spawns[this.state.players.size % spawns.length];
     player.x = spawn.x;
     player.z = spawn.z;
     this.state.players.set(client.sessionId, player);

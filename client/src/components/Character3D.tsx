@@ -39,6 +39,19 @@ const ARM_SPLAY = 0.14; // radians — arms hang with a natural outward drift, n
 const SHOULDER_RADIUS = 0.265;
 const SHOULDER_PIVOT_Y = 1.02;
 
+// The rig above is authored at ~1.76 units tall (head crown at 1.5 + 0.26). Scaling the whole
+// body group by this factor lands it at ~1.37, which reads correctly against the furniture.
+// Scaling the GROUP rather than editing each constant matters: the group's origin is the floor
+// contact point, so y=0 maps to y=0 and the soles stay exactly on the floor at any scale.
+const BODY_SCALE = 0.78;
+const RIG_HEIGHT = 1.76;
+const NAMETAG_Y = RIG_HEIGHT * BODY_SCALE + 0.18;
+
+// --- Seated pose ---
+const SIT_LEG_ROTATION = -Math.PI / 2; // thighs forward, horizontal
+const SIT_ARM_ROTATION = -0.75; // hands resting toward the lap
+const SIT_POSE_LERP = 0.18;
+
 // Organic "clay doll" figure. Every limb is a capsule (rounded caps, no hard-cut cylinder
 // ends), every joint is buried inside the neighbouring mass (shoulder spheres swallow the arm
 // tops, the torso capsule swallows the leg tops) so nothing reads as a separate floating part.
@@ -100,45 +113,44 @@ export const Character3D = forwardRef<THREE.Group, Character3DProps>(
       // gait works — that contralateral pairing is most of what sells it as walking.
       const swing = walking ? Math.sin(phase) : 0;
 
+      // Seated pose and walk cycle share the same joints, so they resolve into one target per
+      // limb and a single lerp gets a smooth stand<->sit transition for free.
+      const armTarget = sitting ? SIT_ARM_ROTATION : swing * ARM_SWING;
+      const armTargetOpposite = sitting ? SIT_ARM_ROTATION : -swing * ARM_SWING;
+      const legTarget = sitting ? SIT_LEG_ROTATION : -swing * LEG_SWING;
+      const legTargetOpposite = sitting ? SIT_LEG_ROTATION : swing * LEG_SWING;
+      const poseLerp = sitting ? SIT_POSE_LERP : LIMB_LERP;
+
       if (leftArmRef.current && rightArmRef.current) {
-        leftArmRef.current.rotation.x = THREE.MathUtils.lerp(
-          leftArmRef.current.rotation.x,
-          swing * ARM_SWING,
-          LIMB_LERP
-        );
+        leftArmRef.current.rotation.x = THREE.MathUtils.lerp(leftArmRef.current.rotation.x, armTarget, poseLerp);
         rightArmRef.current.rotation.x = THREE.MathUtils.lerp(
           rightArmRef.current.rotation.x,
-          -swing * ARM_SWING,
-          LIMB_LERP
+          armTargetOpposite,
+          poseLerp
         );
       }
       if (leftLegRef.current && rightLegRef.current) {
-        leftLegRef.current.rotation.x = THREE.MathUtils.lerp(
-          leftLegRef.current.rotation.x,
-          -swing * LEG_SWING,
-          LIMB_LERP
-        );
+        leftLegRef.current.rotation.x = THREE.MathUtils.lerp(leftLegRef.current.rotation.x, legTarget, poseLerp);
         rightLegRef.current.rotation.x = THREE.MathUtils.lerp(
           rightLegRef.current.rotation.x,
-          swing * LEG_SWING,
-          LIMB_LERP
+          legTargetOpposite,
+          poseLerp
         );
       }
 
       if (bodyRef.current) {
-        // Two bobs per stride (one per footfall), hence the doubled phase on the vertical.
         const bob = walking ? Math.abs(Math.sin(phase)) * BOB_HEIGHT : 0;
         const tilt = walking ? Math.sin(phase) * WOBBLE_TILT : 0;
-        bodyRef.current.position.y = THREE.MathUtils.lerp(bodyRef.current.position.y, bob, LIMB_LERP);
-        bodyRef.current.rotation.z = THREE.MathUtils.lerp(bodyRef.current.rotation.z, tilt, LIMB_LERP);
+        bodyRef.current.position.y = THREE.MathUtils.lerp(bodyRef.current.position.y, bob, poseLerp);
+        bodyRef.current.rotation.z = THREE.MathUtils.lerp(bodyRef.current.rotation.z, tilt, poseLerp);
       }
     });
 
     return (
       <group ref={ref}>
-        {/* The sitting squash lives on the body group, not the outer one, so it never distorts
-            the nametag hanging above the character. */}
-        <group ref={bodyRef} scale={sitting ? [1, 0.8, 1] : [1, 1, 1]}>
+        {/* Uniform scale keeps the soles pinned to y=0 and never distorts the nametag, which
+            lives outside this group. Sitting is a real limb pose now, not a vertical squash. */}
+        <group ref={bodyRef} scale={BODY_SCALE}>
           {/* --- legs: pivot at the hip so the whole leg swings from the body --- */}
           <group ref={leftLegRef} position={[-LEG_OFFSET_X, HIP_Y, 0]}>
             <mesh
@@ -202,14 +214,14 @@ export const Character3D = forwardRef<THREE.Group, Character3DProps>(
         {/* Billboard cancels out the character's facing rotation — without it the nametag is a
             child of the turning body and renders mirrored whenever the player walks away from
             the camera. */}
-        <Billboard position={[0, 1.98, 0]}>
+        <Billboard position={[0, NAMETAG_Y, 0]}>
           {/* `font` MUST stay set: without it, troika-three-text calls out to a CDN font resolver
               blocked by Discord's Activity iframe CSP, which silently broke rendering entirely. */}
           <Text
             scale={[1, 1, 1]}
             font="/fonts/kenpixel.ttf"
-            fontSize={0.2}
-            maxWidth={2}
+            fontSize={0.155}
+            maxWidth={1.6}
             overflowWrap="break-word"
             textAlign="center"
             color="#ffffff"

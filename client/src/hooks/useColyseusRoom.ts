@@ -126,6 +126,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
               x: chair.x,
               z: chair.z,
               rotationY: chair.rotationY,
+              style: chair.style,
               occupiedBy: chair.occupiedBy,
             },
           }));

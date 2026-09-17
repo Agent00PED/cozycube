@@ -5,11 +5,15 @@ import type { Group } from "three";
 import type { ChairSyncState, PlayerState, ToggleableSyncState } from "@shared/types";
 
 const MOVE_SPEED = 3; // units/sec — must match MOVE_SPEED_PER_SEC in server/src/rooms/HangoutRoom.ts
-const SEND_INTERVAL = 1 / 20; // 20 ticks/sec input throttle
-const SNAP_THRESHOLD = 1.5; // authoritative drift beyond this snaps instead of drifting back
-const ARRIVE_THRESHOLD = 0.05; // world units from target counted as "arrived"
-const INTERACT_RADIUS = 1.5; // must match INTERACT_RADIUS in server/src/rooms/HangoutRoom.ts
-const NEARBY_CHECK_INTERVAL = 1 / 10; // recompute the "Press E" target 10x/sec, not every frame
+const SEND_INTERVAL = 0.048; // ~48ms network throttle (plus an immediate send on direction change)
+const DIR_CHANGE_EPSILON = 0.2; // how much the heading must change to justify an off-schedule send
+// Only a genuinely broken desync snaps. Normal prediction drift is left alone and converges on
+// its own; snapping on small deltas is what made walking look like it was stuttering backwards.
+const DESYNC_SNAP_THRESHOLD = 1.2;
+const ARRIVE_THRESHOLD = 0.06; // world units from target counted as "arrived"
+const TURN_LERP = 0.25; // eases the facing direction instead of snapping it on a new click
+const INTERACT_RADIUS = 1.5;
+const NEARBY_CHECK_INTERVAL = 1 / 10;
 
 export interface NearbyInteractable {
   kind: "chair" | "toggleable";
@@ -21,6 +25,12 @@ export interface NearbyInteractable {
 export interface MoveTarget {
   x: number;
   z: number;
+  /** When set, the player sits on this seat once they arrive. */
+  seatId?: string;
+  /** Guard against re-sending the sit every frame while standing on the arrival spot. Lives on
+   *  the target object (not a ref) so a fresh click always gets a fresh attempt — a latched ref
+   *  would make a seat permanently unclickable after a single failed sit. */
+  sitSent?: boolean;
 }
 
 function findNearest(
@@ -51,10 +61,19 @@ function findNearest(
   return best;
 }
 
-// Click-to-move: predicts local movement toward targetPosRef.current every frame, throttles
-// the network "move" message to SEND_INTERVAL, and clears the target (sending a final stop)
-// on arrival. Reconciles softly against the server's authoritative position whenever it
-// changes (e.g. after a collision correction, a sit snap, or a map change).
+// Shortest-path angle lerp — without the wrap, turning across the -PI/+PI seam spins the
+// character the long way round.
+function lerpAngle(from: number, to: number, t: number): number {
+  let delta = (to - from) % (Math.PI * 2);
+  if (delta > Math.PI) delta -= Math.PI * 2;
+  if (delta < -Math.PI) delta += Math.PI * 2;
+  return from + delta * t;
+}
+
+// Click-to-move with the CLIENT as the visual authority. Local prediction runs every frame and
+// is what you see; the server validates the reported position and only ever yanks it back if
+// the two have diverged past DESYNC_SNAP_THRESHOLD (a real desync, e.g. a map change or a
+// rejected move), never for ordinary drift.
 export function useLocalPlayerMovement(
   groupRef: React.RefObject<Group>,
   room: Room | null,
@@ -62,17 +81,21 @@ export function useLocalPlayerMovement(
   chairs: Record<string, ChairSyncState>,
   toggleables: Record<string, ToggleableSyncState>,
   onNearbyChange: (nearby: NearbyInteractable | null) => void,
-  // Written to by the floor's onPointerDown handler (see ProceduralRoom.tsx) — the shared
-  // "walk here" target, lifted up to WorldScene so the click marker can read the same state.
+  // Written to by the floor's onPointerDown handler (see ProceduralRoom.tsx) and by seat
+  // clicks — the shared "walk here" target, lifted up to WorldScene so the click marker can
+  // read the same state.
   targetPosRef: React.MutableRefObject<MoveTarget | null>,
   // Read by Character3D's walk-cycle wobble/bob animation — 0 when stationary, 1 when moving.
   speedRef: React.MutableRefObject<number>
 ) {
   const posRef = useRef({ x: player.x, z: player.z });
+  const facingRef = useRef(0);
   const sendTimerRef = useRef(0);
+  const lastSentDirRef = useRef({ x: 0, z: 0 });
   const nearbyTimerRef = useRef(0);
   const seqRef = useRef(0);
   const initializedRef = useRef(false);
+  const sitWaitRef = useRef(0);
 
   useEffect(() => {
     if (player.sitting) {
@@ -85,12 +108,29 @@ export function useLocalPlayerMovement(
       return;
     }
     const drift = Math.hypot(player.x - posRef.current.x, player.z - posRef.current.z);
-    if (drift > SNAP_THRESHOLD) {
-      posRef.current = { x: player.x, z: player.z }; // large desync (map change, sit snap) -> snap
+    if (drift > DESYNC_SNAP_THRESHOLD) {
+      posRef.current = { x: player.x, z: player.z }; // real desync (map change, rejected move) -> snap
     }
-    // small drift is left alone — local prediction stays visually smooth and
-    // converges naturally as new inputs keep syncing with the server.
+    // Anything smaller is deliberately ignored: the client's own prediction stays on screen.
   }, [player.x, player.z, player.sitting]);
+
+  // Sitting down and standing up are both server-authored teleports (onto the seat, and back
+  // out to the seat's approach point — see handleStandUp, which exists because seats live
+  // inside their furniture's collision box). Adopt the server position verbatim on either
+  // transition; the usual drift tolerance must NOT swallow these, or the client would keep
+  // walking out of a spot the server has already vacated.
+  const prevSittingRef = useRef(player.sitting);
+  useEffect(() => {
+    if (prevSittingRef.current !== player.sitting) {
+      prevSittingRef.current = player.sitting;
+      posRef.current = { x: player.x, z: player.z };
+      // Standing up must NOT clear the target: it is normally triggered BY a floor click that
+      // has already queued the walk the player wants, and clearing it would eat that click.
+      if (player.sitting) targetPosRef.current = null; // seated — nothing left to walk to
+      sitWaitRef.current = 0;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.sitting]);
 
   useFrame((_, delta) => {
     let dirX = 0;
@@ -106,21 +146,56 @@ export function useLocalPlayerMovement(
         if (distance > ARRIVE_THRESHOLD) {
           dirX = dx / distance;
           dirZ = dz / distance;
-          if (groupRef.current) {
-            groupRef.current.rotation.y = Math.atan2(dirX, dirZ);
-          }
-          posRef.current.x += dirX * MOVE_SPEED * delta;
-          posRef.current.z += dirZ * MOVE_SPEED * delta;
+          // Never overshoot the target on a long frame.
+          const step = Math.min(MOVE_SPEED * delta, distance);
+          posRef.current.x += dirX * step;
+          posRef.current.z += dirZ * step;
+          facingRef.current = lerpAngle(facingRef.current, Math.atan2(dirX, dirZ), TURN_LERP);
+        } else if (target.seatId && room && !target.sitSent) {
+          // Arrived at a seat's approach point. Send the arrival position WITH the sit request:
+          // the server's copy of our position is only as fresh as the last throttled report, and
+          // proximity is checked against it, so relying on that alone loses the race and the sit
+          // is silently rejected. Keep the target alive until the server confirms `sitting`.
+          target.sitSent = true;
+          room.send("interactChair", {
+            chairId: target.seatId,
+            x: posRef.current.x,
+            z: posRef.current.z,
+          });
+        } else if (!target.seatId) {
+          targetPosRef.current = null; // plain walk finished; dirX/dirZ stay 0, sent as the stop below
         } else {
-          targetPosRef.current = null; // arrived — dirX/dirZ stay 0, sent as the stop below
+          // Sit already requested; give the server a moment to confirm. If it never does (seat
+          // taken in the meantime, request dropped) give up rather than pulsing the marker
+          // forever.
+          sitWaitRef.current += delta;
+          if (sitWaitRef.current > 1.5) {
+            sitWaitRef.current = 0;
+            targetPosRef.current = null;
+          }
         }
       }
 
       if (room) {
         sendTimerRef.current += delta;
-        if (sendTimerRef.current >= SEND_INTERVAL) {
-          sendTimerRef.current -= SEND_INTERVAL;
-          room.send("move", { dirX, dirZ, seq: seqRef.current++ });
+        const last = lastSentDirRef.current;
+        const dirChanged =
+          Math.abs(dirX - last.x) > DIR_CHANGE_EPSILON || Math.abs(dirZ - last.z) > DIR_CHANGE_EPSILON;
+        // Send on the throttle tick while actually moving, or immediately when the heading
+        // changes (including the stop at the end of a walk) so remote players see turns without
+        // a throttle delay. A standing-still player sends the stop once and then goes quiet
+        // instead of heartbeating an unchanged position forever.
+        const moving = dirX !== 0 || dirZ !== 0;
+        if (dirChanged || (moving && sendTimerRef.current >= SEND_INTERVAL)) {
+          sendTimerRef.current = 0;
+          lastSentDirRef.current = { x: dirX, z: dirZ };
+          room.send("move", {
+            dirX,
+            dirZ,
+            x: posRef.current.x,
+            z: posRef.current.z,
+            seq: seqRef.current++,
+          });
         }
       }
     }
@@ -129,14 +204,13 @@ export function useLocalPlayerMovement(
 
     if (groupRef.current) {
       groupRef.current.position.set(posRef.current.x, 0, posRef.current.z);
-      if (player.sitting) groupRef.current.rotation.y = player.sitRotationY;
+      groupRef.current.rotation.y = player.sitting ? player.sitRotationY : facingRef.current;
     }
 
     nearbyTimerRef.current += delta;
     if (nearbyTimerRef.current >= NEARBY_CHECK_INTERVAL) {
       nearbyTimerRef.current -= NEARBY_CHECK_INTERVAL;
-      const nearest = findNearest(posRef.current.x, posRef.current.z, player.sessionId, chairs, toggleables);
-      onNearbyChange(nearest);
+      onNearbyChange(findNearest(posRef.current.x, posRef.current.z, player.sessionId, chairs, toggleables));
     }
   });
 }

@@ -9,7 +9,19 @@ import { ClickMarker } from "./ClickMarker";
 import { DioramaRoom } from "../scene/DioramaRoom";
 import { ROOM_THEMES, type RoomTheme } from "../scene/roomThemes";
 import { useLocalPlayerMovement, type MoveTarget, type NearbyInteractable } from "../systems/useLocalPlayerMovement";
+import { MAP_CHAIRS } from "@shared/props";
 import type { ChairSyncState, MapId, PlayerState, ToggleableSyncState } from "@shared/types";
+
+// Seat -> where to stand before sitting. Flattened once from the author-time config; approach
+// points are level design, not synced runtime state, so they never go over the wire.
+const SEAT_APPROACH: Record<string, { x: number; z: number }> = {};
+for (const chairs of Object.values(MAP_CHAIRS)) {
+  for (const c of chairs) {
+    if (c.approachX !== undefined && c.approachZ !== undefined) {
+      SEAT_APPROACH[c.propId] = { x: c.approachX, z: c.approachZ };
+    }
+  }
+}
 
 // The on-screen "PRESS E TO SIT" prompt is gone — the game is click-to-move only, so there is
 // no key to press. The proximity scan itself stays wired up (it still feeds the server's sit
@@ -31,8 +43,34 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   // Click-to-move target, shared between the floor's click handler, the movement hook, and
   // the marker's visual — lifted here so all three read/write the exact same object.
   const moveTargetRef = useRef<MoveTarget | null>(null);
+  // Separate from the target: the ripple fires on the click itself, including clicks that set
+  // no target at all, and must retrigger when the same spot is clicked twice.
+  const rippleRef = useRef({ x: 0, z: 0, id: 0 });
+
+  const pingRipple = (x: number, z: number) => {
+    rippleRef.current = { x, z, id: rippleRef.current.id + 1 };
+  };
+
   const handleFloorClick = (x: number, z: number) => {
     moveTargetRef.current = { x, z };
+    pingRipple(x, z);
+    // Clicking open ground always releases the seat first, so the walk can start immediately.
+    if (localSessionId && players[localSessionId]?.sitting) room?.send("standUp");
+  };
+
+  const handleSeatClick = (chair: ChairSyncState) => {
+    // Taken by somebody else — fall back to walking next to it rather than doing nothing.
+    const taken = chair.occupiedBy !== "" && chair.occupiedBy !== localSessionId;
+    const approach = SEAT_APPROACH[chair.propId];
+    const walkTo = approach ?? { x: chair.x, z: chair.z };
+
+    if (localSessionId && players[localSessionId]?.sitting) room?.send("standUp");
+
+    // Always walk to the APPROACH point, never to the seat coordinate itself: seats on the
+    // sofa sit inside the sofa's own collision box, so a straight walk onto them would be
+    // rejected by the server. The server snaps the player onto the seat when the sit lands.
+    moveTargetRef.current = { x: walkTo.x, z: walkTo.z, seatId: taken ? undefined : chair.propId };
+    pingRipple(walkTo.x, walkTo.z);
   };
 
   return (
@@ -43,10 +81,10 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           overlap between rooms and lets R3F's default dispose-on-unmount reclaim GPU memory. */}
       <DioramaRoom key={mapId} mapId={mapId} onFloorClick={handleFloorClick} />
 
-      <ClickMarker targetRef={moveTargetRef} />
+      <ClickMarker targetRef={moveTargetRef} rippleRef={rippleRef} />
 
       {Object.values(chairs).map((chair) => (
-        <ChairProp key={chair.propId} chair={chair} />
+        <ChairProp key={chair.propId} chair={chair} onSeatClick={handleSeatClick} />
       ))}
       {Object.values(toggleables).map((prop) => (
         <ToggleableProp key={prop.propId} prop={prop} />
@@ -83,7 +121,7 @@ function RoomLighting({ theme }: { theme: RoomTheme }) {
         // having no shadows at all. Swinging the light toward +X separates the two bearings so
         // shadows are thrown across the floor where the camera can actually see them, while
         // staying on the open side of the room so the back walls never shadow the interior.
-        position={[11, 13, 3]}
+        position={[15, 18, 4]}
         intensity={theme.directionalIntensity}
         color={theme.directional}
         castShadow
@@ -95,12 +133,13 @@ function RoomLighting({ theme }: { theme: RoomTheme }) {
         // A directional light's shadow camera is orthographic and defaults to a 10-unit box,
         // which would clip the 10x10 room. These bounds cover the whole slab with margin so
         // shadows never cut off partway across the floor.
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-10}
+        // Sized for the 14x14 slab (half-diagonal ~9.9) plus margin for tall props.
+        shadow-camera-left={-14}
+        shadow-camera-right={14}
+        shadow-camera-top={14}
+        shadow-camera-bottom={-14}
         shadow-camera-near={0.5}
-        shadow-camera-far={40}
+        shadow-camera-far={60}
       />
     </>
   );
@@ -135,8 +174,19 @@ function LocalPlayerAvatar({
   );
 }
 
-const REMOTE_LERP_FACTOR = 0.2;
+const REMOTE_LERP_FACTOR = 0.22;
+const REMOTE_MOVING_EPSILON = 0.02;
 
+function lerpAngle(from: number, to: number, t: number): number {
+  let delta = (to - from) % (Math.PI * 2);
+  if (delta > Math.PI) delta -= Math.PI * 2;
+  if (delta < -Math.PI) delta += Math.PI * 2;
+  return from + delta * t;
+}
+
+// Remote players arrive as discrete state snapshots at the sender's ~48ms report rate. Lerping
+// BOTH position and facing every frame turns that into continuous motion instead of a visible
+// warp on each packet.
 function RemotePlayerAvatar({ player }: { player: PlayerState }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
@@ -151,10 +201,18 @@ function RemotePlayerAvatar({ player }: { player: PlayerState }) {
     if (!g) return;
     const dx = targetRef.current.x - g.position.x;
     const dz = targetRef.current.z - g.position.z;
-    speedRef.current = Math.hypot(dx, dz) > 0.02 ? 1 : 0;
+    const moving = Math.hypot(dx, dz) > REMOTE_MOVING_EPSILON;
+    speedRef.current = moving ? 1 : 0;
     g.position.x += dx * REMOTE_LERP_FACTOR;
     g.position.z += dz * REMOTE_LERP_FACTOR;
-    if (player.sitting) g.rotation.y = targetRef.current.rotationY;
+
+    // Face the seat while sitting, otherwise face the direction of travel.
+    const desiredY = player.sitting
+      ? targetRef.current.rotationY
+      : moving
+        ? Math.atan2(dx, dz)
+        : g.rotation.y;
+    g.rotation.y = lerpAngle(g.rotation.y, desiredY, REMOTE_LERP_FACTOR);
   });
 
   return (

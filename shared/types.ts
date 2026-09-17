@@ -20,12 +20,18 @@ export type MapId = "cozy_lounge" | "campfire_night";
 
 export type ToggleableKind = "tv" | "lamp" | "campfire";
 
+// How a seat draws itself. "pad" seats have no geometry of their own — the visible furniture
+// is already drawn by ProceduralRoom (sofa cushions, beanbag), so the seat contributes only an
+// invisible click target and a snap point.
+export type SeatStyle = "gaming" | "log" | "pad";
+
 // Runtime (synced) state of an interactive prop — mirrors the server's ChairState/ToggleableState schema.
 export interface ChairSyncState {
   propId: string;
   x: number;
   z: number;
   rotationY: number;
+  style: SeatStyle;
   occupiedBy: string; // sessionId, or "" if free
 }
 
@@ -39,9 +45,15 @@ export interface ToggleableSyncState {
 }
 
 // --- client -> server messages ---
+// The client is visually authoritative while walking, so it reports the position its own
+// prediction arrived at. The server validates that position (reachable since the last report,
+// not inside an obstacle, inside the world bounds) rather than re-integrating movement on its
+// own clock — two independent integrations is exactly what produced the rollback jitter.
 export interface MoveMessage {
   dirX: number;
   dirZ: number;
+  x: number;
+  z: number;
   seq: number;
 }
 
@@ -55,6 +67,11 @@ export interface ChangeMapMessage {
 
 export interface InteractChairMessage {
   chairId: string;
+}
+
+// Sent when the player clicks open floor while seated — stand up, then walk to the click.
+export interface StandUpMessage {
+  _?: never;
 }
 
 export interface TogglePropMessage {

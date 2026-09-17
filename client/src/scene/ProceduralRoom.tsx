@@ -4,7 +4,7 @@ import * as THREE from "three";
 import type { MapId } from "@shared/types";
 import { ROOM_THEMES, type RoomTheme } from "./roomThemes";
 
-const HALF = 5; // room spans -5..5 on both X and Z
+const HALF = 7; // room spans -7..7 on both X and Z (14x14 diorama)
 const WALL_HEIGHT = 3;
 const SLAB_HEIGHT = 1.1; // thickness of the floating diorama block under the floor
 
@@ -237,24 +237,25 @@ function CozyLoungeShell({ wallColor, mats }: { wallColor: string; mats: Materia
       </mesh>
 
       {/* window on the back-right wall, warm daylight glow */}
-      <group position={[2.2, 1.9, -4.95]} raycast={noRaycast}>
+      <group position={[1.9, 2, -6.95]} raycast={noRaycast}>
         <mesh material={mats.warmGlow} raycast={noRaycast}>
-          <planeGeometry args={[1.4, 1.1]} />
+          <planeGeometry args={[1.7, 1.3]} />
         </mesh>
         <mesh position={[0, 0, 0.02]} material={mats.white} raycast={noRaycast}>
-          <boxGeometry args={[0.05, 1.12, 0.03]} />
+          <boxGeometry args={[0.05, 1.32, 0.03]} />
         </mesh>
         <mesh position={[0, 0, 0.02]} material={mats.white} raycast={noRaycast}>
-          <boxGeometry args={[1.42, 0.05, 0.03]} />
+          <boxGeometry args={[1.72, 0.05, 0.03]} />
         </mesh>
       </group>
 
-      {/* two canvas frames on the back-left wall */}
-      <WallArt x={-4.93} z={-1.6} width={0.7} height={0.9} mat={mats.terracotta} mats={mats} />
-      <WallArt x={-4.93} z={-0.4} width={0.6} height={0.6} mat={mats.sage} mats={mats} />
+      {/* canvas frames on the back-left wall */}
+      <WallArt x={-6.93} z={-2.6} width={0.8} height={1} mat={mats.terracotta} mats={mats} />
+      <WallArt x={-6.93} z={-1.2} width={0.65} height={0.65} mat={mats.sage} mats={mats} />
+      <WallArt x={-6.93} z={3.6} width={0.7} height={0.85} mat={mats.mustard} mats={mats} />
 
       {/* floating shelf with a small potted plant, back-right wall */}
-      <group position={[0.9, 1.75, -4.88]} raycast={noRaycast}>
+      <group position={[-0.4, 1.85, -6.88]} raycast={noRaycast}>
         <mesh material={mats.wood} castShadow raycast={noRaycast}>
           <boxGeometry args={[1, 0.06, 0.24]} />
         </mesh>
@@ -348,71 +349,99 @@ function BookStack({
 function CozyLoungeFurniture({ mats }: { mats: Materials }) {
   return (
     <>
-      {/* --- Living zone: sage sofa facing the wall TV, over a braided cream rug --- */}
-      <group position={[-2.5, 0, -2.25]} rotation={[0, Math.PI, 0]} raycast={noRaycast}>
-        <mesh castShadow receiveShadow position={[0, 0.35, 0]} material={mats.sage} raycast={noRaycast}>
-          <boxGeometry args={[3, 0.5, 1.1]} />
+      {/* ===== Zone 1: Living area — L-shape sage sofa facing the wall TV ===== */}
+      {/* long run, backrest on the +Z side so the seat opens toward the TV */}
+      <group position={[-2.95, 0, -3.0]} raycast={noRaycast}>
+        <mesh castShadow receiveShadow position={[0, 0.21, 0]} material={mats.sage} raycast={noRaycast}>
+          <boxGeometry args={[3.3, 0.42, 1.1]} />
         </mesh>
-        <mesh castShadow receiveShadow position={[0, 0.75, -0.45]} material={mats.sageDark} raycast={noRaycast}>
-          <boxGeometry args={[3, 0.6, 0.2]} />
+        <mesh castShadow receiveShadow position={[0, 0.52, 0.47]} material={mats.sageDark} raycast={noRaycast}>
+          <boxGeometry args={[3.3, 0.62, 0.18]} />
         </mesh>
-        {/* armrests close the silhouette so the sofa stops reading as a bare slab */}
-        {[-1.45, 1.45].map((ax) => (
-          <mesh key={ax} castShadow receiveShadow position={[ax, 0.52, 0]} material={mats.sageDark} raycast={noRaycast}>
-            <boxGeometry args={[0.2, 0.36, 1.1]} />
-          </mesh>
-        ))}
-        {[-0.85, 0, 0.85].map((cx) => (
+        <mesh castShadow receiveShadow position={[1.65, 0.38, 0]} material={mats.sageDark} raycast={noRaycast}>
+          <boxGeometry args={[0.2, 0.34, 1.1]} />
+        </mesh>
+        {[-0.9, 0.55].map((cx) => (
           <mesh
             key={cx}
             castShadow
-            position={[cx, 0.7, -0.2]}
-            rotation={[0.25, 0, cx * 0.12]}
+            position={[cx, 0.48, 0.3]}
+            rotation={[-0.25, 0, cx * 0.12]}
             scale={[1, 1, 0.45]}
             material={mats.mustard}
             raycast={noRaycast}
           >
-            <boxGeometry args={[0.34, 0.34, 0.34]} />
+            <boxGeometry args={[0.36, 0.36, 0.36]} />
           </mesh>
         ))}
       </group>
-
-      {/* braided round rug */}
-      <group position={[-2.5, 0, -3.5]} raycast={noRaycast}>
-        <mesh position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow material={mats.cream} raycast={noRaycast}>
-          <circleGeometry args={[1.35, 28]} />
+      {/* return leg running toward the camera, closing the L */}
+      <group position={[-5.0, 0, -1.9]} rotation={[0, Math.PI / 2, 0]} raycast={noRaycast}>
+        <mesh castShadow receiveShadow position={[0, 0.21, 0]} material={mats.sage} raycast={noRaycast}>
+          <boxGeometry args={[2.1, 0.42, 1.1]} />
         </mesh>
-        {/* concentric braid rings */}
-        {[0.55, 0.95, 1.25].map((r) => (
+        <mesh castShadow receiveShadow position={[0, 0.52, -0.47]} material={mats.sageDark} raycast={noRaycast}>
+          <boxGeometry args={[2.1, 0.62, 0.18]} />
+        </mesh>
+        <mesh castShadow receiveShadow position={[-1.05, 0.38, 0]} material={mats.sageDark} raycast={noRaycast}>
+          <boxGeometry args={[0.2, 0.34, 1.1]} />
+        </mesh>
+        <mesh
+          castShadow
+          position={[0.5, 0.48, -0.3]}
+          rotation={[0.25, 0, 0.1]}
+          scale={[1, 1, 0.45]}
+          material={mats.mustard}
+          raycast={noRaycast}
+        >
+          <boxGeometry args={[0.36, 0.36, 0.36]} />
+        </mesh>
+      </group>
+
+      {/* large braided round rug tying the living zone together */}
+      <group position={[-2.9, 0, -4.4]} raycast={noRaycast}>
+        <mesh
+          position={[0, 0.015, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
+          material={mats.cream}
+          raycast={noRaycast}
+        >
+          <circleGeometry args={[1.95, 32]} />
+        </mesh>
+        {[0.8, 1.35, 1.8].map((r) => (
           <mesh key={r} position={[0, 0.022, 0]} rotation={[-Math.PI / 2, 0, 0]} material={mats.white} raycast={noRaycast}>
-            <ringGeometry args={[r - 0.04, r, 32]} />
+            <ringGeometry args={[r - 0.05, r, 36]} />
           </mesh>
         ))}
       </group>
 
       {/* coffee table + tabletop clutter */}
-      <group position={[-2.5, 0, -3.5]} raycast={noRaycast}>
-        <mesh castShadow receiveShadow position={[0, 0.32, 0]} material={mats.wood} raycast={noRaycast}>
-          <boxGeometry args={[1.4, 0.08, 0.8]} />
+      <group position={[-2.8, 0, -4.4]} raycast={noRaycast}>
+        <mesh castShadow receiveShadow position={[0, 0.3, 0]} material={mats.wood} raycast={noRaycast}>
+          <boxGeometry args={[1.6, 0.08, 0.9]} />
         </mesh>
         {[
-          [-0.6, -0.35],
-          [0.6, -0.35],
-          [-0.6, 0.35],
-          [0.6, 0.35],
+          [-0.7, -0.35],
+          [0.7, -0.35],
+          [-0.7, 0.35],
+          [0.7, 0.35],
         ].map(([lx, lz], i) => (
-          <mesh key={i} castShadow position={[lx, 0.14, lz]} material={mats.darkWood} raycast={noRaycast}>
-            <cylinderGeometry args={[0.04, 0.04, 0.28, 6]} />
+          <mesh key={i} castShadow position={[lx, 0.13, lz]} material={mats.darkWood} raycast={noRaycast}>
+            <cylinderGeometry args={[0.04, 0.04, 0.26, 6]} />
           </mesh>
         ))}
-        <CoffeeMug x={-0.35} y={0.36} z={0.05} mats={mats} />
-        <BookStack x={0.35} y={0.36} z={-0.05} mats={mats} count={3} lying />
+        <CoffeeMug x={-0.4} y={0.34} z={0.05} mats={mats} />
+        <BookStack x={0.4} y={0.34} z={-0.05} mats={mats} count={3} lying />
       </group>
+
+      {/* ===== Zone 3: Kitchenette & coffee bar (back-right) ===== */}
+      <Kitchenette mats={mats} />
 
       {/* low bookshelf against the back wall — built as an open carcass (back panel, sides,
           top/bottom, one middle shelf) rather than a solid block, so the books actually sit in
           a visible opening instead of being swallowed by the box */}
-      <group position={[0.3, 0, -4.7]} raycast={noRaycast}>
+      <group position={[0.3, 0, -6.7]} raycast={noRaycast}>
         <mesh castShadow receiveShadow position={[0, 0.45, -0.18]} material={mats.darkWood} raycast={noRaycast}>
           <boxGeometry args={[1.6, 0.9, 0.04]} />
         </mesh>
@@ -435,7 +464,7 @@ function CozyLoungeFurniture({ mats }: { mats: Materials }) {
       </group>
 
       {/* reading lamp beside the sofa, warm orange pool of light */}
-      <group position={[-0.55, 0, -2.3]} raycast={noRaycast}>
+      <group position={[-0.8, 0, -2.8]} raycast={noRaycast}>
         <mesh castShadow position={[0, 0.04, 0]} material={mats.darkWood} raycast={noRaycast}>
           <cylinderGeometry args={[0.16, 0.18, 0.08, 12]} />
         </mesh>
@@ -448,8 +477,8 @@ function CozyLoungeFurniture({ mats }: { mats: Materials }) {
         <pointLight position={[0, 1.15, 0]} intensity={1.4} color="#ffb765" distance={4.5} decay={2} />
       </group>
 
-      {/* floor lamp — back-right corner, out of the walking lane */}
-      <group position={[4.2, 0, -3.6]} raycast={noRaycast}>
+      {/* floor lamp — right side, out of the walking lane */}
+      <group position={[6.25, 0, -3.35]} raycast={noRaycast}>
         <mesh castShadow position={[0, 0.75, 0]} material={mats.charcoal} raycast={noRaycast}>
           <cylinderGeometry args={[0.04, 0.04, 1.5, 8]} />
         </mesh>
@@ -459,18 +488,30 @@ function CozyLoungeFurniture({ mats }: { mats: Materials }) {
         <pointLight position={[0, 1.5, 0]} intensity={1} color="#ffdb8a" distance={4} decay={2} />
       </group>
 
-      {/* floor cushion / beanbag, keeps the middle of the room from reading as empty */}
-      <group position={[1.2, 0, 0.5]} raycast={noRaycast}>
-        <mesh castShadow receiveShadow position={[0, 0.22, 0]} scale={[1, 0.62, 1]} material={mats.mustard} raycast={noRaycast}>
-          <sphereGeometry args={[0.46, 14, 12]} />
+      {/* floor cushion / beanbag — a seat (see MAP_CHAIRS "beanbag"), bridging the living zone
+          and the middle of the room. Seat top sits at ~0.42 to match the character's hips. */}
+      <group position={[1.0, 0, -0.5]} raycast={noRaycast}>
+        <mesh castShadow receiveShadow position={[0, 0.2, 0]} scale={[1, 0.58, 1]} material={mats.mustard} raycast={noRaycast}>
+          <sphereGeometry args={[0.52, 14, 12]} />
         </mesh>
-        <mesh position={[0, 0.4, 0]} scale={[1, 0.3, 1]} material={mats.terracotta} raycast={noRaycast}>
-          <sphereGeometry args={[0.3, 12, 10]} />
+        <mesh position={[0, 0.36, 0]} scale={[1, 0.3, 1]} material={mats.terracotta} raycast={noRaycast}>
+          <sphereGeometry args={[0.32, 12, 10]} />
         </mesh>
       </group>
 
+      {/* small round rug softening the join between the living zone and the beanbag */}
+      <mesh
+        position={[1.6, 0.012, 1.1]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+        material={mats.cream}
+        raycast={noRaycast}
+      >
+        <circleGeometry args={[1.15, 28]} />
+      </mesh>
+
       {/* monstera plant — tucked into the corner where the two walls meet */}
-      <group position={[-4.4, 0, -4.4]} raycast={noRaycast}>
+      <group position={[-6.5, 0, -6.5]} raycast={noRaycast}>
         <mesh castShadow receiveShadow position={[0, 0.25, 0]} material={mats.terracotta} raycast={noRaycast}>
           <cylinderGeometry args={[0.28, 0.22, 0.5, 12]} />
         </mesh>
@@ -489,45 +530,112 @@ function CozyLoungeFurniture({ mats }: { mats: Materials }) {
         ))}
       </group>
 
-      {/* --- Battlestation zone: desk flat against the back-left wall, monitors facing in --- */}
-      <group position={[-4.05, 0, 1.4]} rotation={[0, Math.PI / 2, 0]} raycast={noRaycast}>
-        <mesh castShadow receiveShadow position={[0, 0.45, 0]} material={mats.charcoal} raycast={noRaycast}>
-          <boxGeometry args={[2.4, 0.08, 0.9]} />
+      {/* ===== Zone 2: Battlestation — long desk flat against the back-left wall ===== */}
+      {/* Desk surface at 0.62 rather than the old 0.45: the character shrank, but a desk still
+          has to clear a seated player's knees, so it moved the other way. */}
+      <group position={[-6.1, 0, 1.8]} rotation={[0, Math.PI / 2, 0]} raycast={noRaycast}>
+        <mesh castShadow receiveShadow position={[0, 0.62, 0]} material={mats.charcoal} raycast={noRaycast}>
+          <boxGeometry args={[2.8, 0.08, 1.1]} />
         </mesh>
-        {[-1.1, 1.1].map((lx) => (
-          <mesh key={lx} castShadow position={[lx, 0.22, 0.3]} material={mats.black} raycast={noRaycast}>
-            <boxGeometry args={[0.08, 0.44, 0.08]} />
+        {[-1.3, 1.3].map((lx) => (
+          <mesh key={lx} castShadow position={[lx, 0.31, 0.35]} material={mats.black} raycast={noRaycast}>
+            <boxGeometry args={[0.08, 0.62, 0.08]} />
           </mesh>
         ))}
         {/* glowing desk mat under the keyboard */}
-        <mesh position={[0, 0.5, 0.12]} rotation={[-Math.PI / 2, 0, 0]} material={mats.neon} raycast={noRaycast}>
-          <planeGeometry args={[1.1, 0.42]} />
+        <mesh position={[0, 0.67, 0.18]} rotation={[-Math.PI / 2, 0, 0]} material={mats.neon} raycast={noRaycast}>
+          <planeGeometry args={[1.3, 0.5]} />
         </mesh>
-        <mesh castShadow position={[0, 0.54, 0.12]} material={mats.black} raycast={noRaycast}>
-          <boxGeometry args={[0.85, 0.05, 0.28]} />
+        <mesh castShadow position={[0, 0.71, 0.18]} material={mats.black} raycast={noRaycast}>
+          <boxGeometry args={[1, 0.05, 0.32]} />
         </mesh>
-        {[-0.5, 0.5].map((mx) => (
-          <mesh key={mx} castShadow position={[mx, 0.75, -0.25]} material={mats.screenGlow} raycast={noRaycast}>
-            <boxGeometry args={[0.6, 0.36, 0.04]} />
+        {[-0.58, 0.58].map((mx) => (
+          <mesh key={mx} castShadow position={[mx, 0.96, -0.3]} material={mats.screenGlow} raycast={noRaycast}>
+            <boxGeometry args={[0.7, 0.42, 0.04]} />
           </mesh>
         ))}
         {/* soft backlight strip behind the monitors */}
-        <mesh position={[0, 0.75, -0.33]} material={mats.neon} raycast={noRaycast}>
-          <boxGeometry args={[1.5, 0.03, 0.02]} />
+        <mesh position={[0, 0.96, -0.38]} material={mats.neon} raycast={noRaycast}>
+          <boxGeometry args={[1.8, 0.03, 0.02]} />
         </mesh>
-        <pointLight position={[0, 0.8, -0.3]} intensity={0.7} color="#7a5ee6" distance={2.2} decay={2} />
-        <mesh castShadow position={[1, 0.28, -0.3]} material={mats.black} raycast={noRaycast}>
-          <boxGeometry args={[0.35, 0.55, 0.5]} />
+        <pointLight position={[0, 1, -0.35]} intensity={0.7} color="#7a5ee6" distance={2.4} decay={2} />
+        <mesh castShadow position={[1.15, 0.3, -0.35]} material={mats.black} raycast={noRaycast}>
+          <boxGeometry args={[0.38, 0.6, 0.54]} />
         </mesh>
-        <mesh position={[1, 0.28, -0.06]} material={mats.neon} raycast={noRaycast}>
-          <boxGeometry args={[0.02, 0.5, 0.02]} />
+        <mesh position={[1.15, 0.3, -0.07]} material={mats.neon} raycast={noRaycast}>
+          <boxGeometry args={[0.02, 0.54, 0.02]} />
         </mesh>
         {/* small trash bin under the desk */}
-        <mesh castShadow position={[-1.05, 0.16, 0.05]} material={mats.metal} raycast={noRaycast}>
+        <mesh castShadow position={[-1.2, 0.16, 0.1]} material={mats.metal} raycast={noRaycast}>
           <cylinderGeometry args={[0.13, 0.1, 0.32, 10]} />
         </mesh>
       </group>
     </>
+  );
+}
+
+// Zone 3 — a small coffee bar filling the back-right quarter of the 14x14 room.
+function Kitchenette({ mats }: { mats: Materials }) {
+  return (
+    <group position={[3.7, 0, -6.5]} raycast={noRaycast}>
+      {/* counter carcass + wooden worktop */}
+      <mesh castShadow receiveShadow position={[0, 0.42, 0]} material={mats.cream} raycast={noRaycast}>
+        <boxGeometry args={[3.8, 0.84, 0.9]} />
+      </mesh>
+      <mesh castShadow receiveShadow position={[0, 0.87, 0]} material={mats.wood} raycast={noRaycast}>
+        <boxGeometry args={[3.95, 0.07, 1] } />
+      </mesh>
+      {/* cabinet doors */}
+      {[-1.25, -0.42, 0.42, 1.25].map((dx) => (
+        <mesh key={dx} position={[dx, 0.42, 0.46]} material={mats.white} raycast={noRaycast}>
+          <boxGeometry args={[0.72, 0.68, 0.03]} />
+        </mesh>
+      ))}
+
+      {/* espresso machine */}
+      <group position={[-1.3, 0.9, 0]} raycast={noRaycast}>
+        <mesh castShadow position={[0, 0.26, 0]} material={mats.metal} raycast={noRaycast}>
+          <boxGeometry args={[0.6, 0.52, 0.5]} />
+        </mesh>
+        <mesh position={[0, 0.44, 0.26]} material={mats.black} raycast={noRaycast}>
+          <boxGeometry args={[0.34, 0.14, 0.03]} />
+        </mesh>
+        <mesh castShadow position={[0, 0.12, 0.2]} material={mats.black} raycast={noRaycast}>
+          <cylinderGeometry args={[0.05, 0.05, 0.18, 8]} />
+        </mesh>
+        <mesh position={[0.22, 0.44, 0.26]} material={mats.warmGlow} raycast={noRaycast}>
+          <sphereGeometry args={[0.03, 6, 6]} />
+        </mesh>
+      </group>
+
+      {/* a row of mugs waiting on the worktop */}
+      {[-0.25, 0.1, 0.45].map((mx, i) => (
+        <mesh
+          key={mx}
+          castShadow
+          position={[mx, 0.97, i % 2 === 0 ? -0.12 : 0.1]}
+          material={i === 1 ? mats.terracotta : mats.white}
+          raycast={noRaycast}
+        >
+          <cylinderGeometry args={[0.06, 0.05, 0.12, 10]} />
+        </mesh>
+      ))}
+      <CoffeeMug x={1.15} y={0.91} z={0} mats={mats} />
+      <BookStack x={1.6} y={0.91} z={0} mats={mats} count={2} lying />
+
+      {/* minimalist mini fridge at the end of the run */}
+      <group position={[2.4, 0, 0.35]} raycast={noRaycast}>
+        <mesh castShadow receiveShadow position={[0, 0.6, 0]} material={mats.white} raycast={noRaycast}>
+          <boxGeometry args={[0.85, 1.2, 0.85]} />
+        </mesh>
+        <mesh position={[0, 0.78, 0.43]} material={mats.metal} raycast={noRaycast}>
+          <boxGeometry args={[0.05, 0.3, 0.03]} />
+        </mesh>
+        <mesh position={[0, 0.6, 0.43]} material={mats.metal} raycast={noRaycast}>
+          <boxGeometry args={[0.8, 0.02, 0.02]} />
+        </mesh>
+      </group>
+    </group>
   );
 }
 
@@ -574,26 +682,31 @@ function CoffeeMug({ x, y, z, mats }: { x: number; y: number; z: number; mats: M
 function CampfireClearingBoundary({ mats }: { mats: Materials }) {
   const perimeter = useMemo(() => {
     const points: { x: number; z: number; scale: number; kind: "tree" | "rock" }[] = [];
-    const count = 16;
+    // inner ring, right at the edge of the clearing
+    const count = 22;
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2;
-      const radius = 4.35 + (i % 2) * 0.35;
+      const radius = 5.9 + (i % 2) * 0.4;
       points.push({
         x: Math.cos(angle) * radius,
         z: Math.sin(angle) * radius,
-        scale: 0.8 + ((i * 37) % 5) * 0.08,
+        scale: 0.85 + ((i * 37) % 5) * 0.08,
         kind: i % 4 === 0 ? "rock" : "tree",
       });
     }
-    // extra back-row pines, pushed out and scaled up for a layered treeline
-    for (let i = 0; i < 6; i++) {
-      const angle = Math.PI + ((i / 5) - 0.5) * 1.5;
-      points.push({
-        x: Math.cos(angle) * 4.8,
-        z: Math.sin(angle) * 4.8 - 0.4,
-        scale: 1.1 + ((i * 29) % 3) * 0.12,
-        kind: "tree",
-      });
+    // two staggered back rows, pushed out and scaled up so the treeline reads as depth
+    for (let ring = 0; ring < 2; ring++) {
+      const radius = 6.5 + ring * 0.55;
+      const n = 12 + ring * 2;
+      for (let i = 0; i < n; i++) {
+        const angle = Math.PI + ((i / (n - 1)) - 0.5) * (2.6 + ring * 0.4);
+        points.push({
+          x: Math.cos(angle) * radius,
+          z: Math.sin(angle) * radius - 0.3,
+          scale: 1.05 + ((i * 29) % 3) * 0.14 + ring * 0.1,
+          kind: "tree",
+        });
+      }
     }
     return points;
   }, []);
@@ -643,29 +756,39 @@ function Rock({ x, z, scale = 1, mats }: { x: number; z: number; scale?: number;
 }
 
 function CampfireFurniture({ mats }: { mats: Materials }) {
-  const decorativeLogs = useMemo(() => {
-    const positions: { x: number; z: number; angle: number }[] = [];
-    const seatOccupiedAngle = Math.PI / 2; // matches log_seat chair at (0, 1.6) — south side
-    const count = 5;
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      if (Math.abs(angle - seatOccupiedAngle) < 0.4) continue; // leave room for the interactive seat
-      positions.push({ x: Math.cos(angle) * 1.7, z: Math.sin(angle) * 1.7, angle });
-    }
-    return positions;
-  }, []);
+  // The four cardinal spots around the fire are real seats (MAP_CHAIRS "log_seat_*"), rendered
+  // by ChairProp. These decorative logs fill the diagonals so the ring still looks complete.
+  const decorativeLogs = useMemo(
+    () =>
+      [0.25, 0.75, 1.25, 1.75].map((t) => {
+        const angle = t * Math.PI;
+        return { x: Math.cos(angle) * 2.6, z: Math.sin(angle) * 2.6, angle };
+      }),
+    []
+  );
+
+  // Stepping-stone path leading in from the south spawn toward the fire.
+  const steppingStones = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, i) => ({
+        x: Math.sin(i * 0.9) * 0.45,
+        z: 5.6 - i * 0.62,
+        scale: 0.42 + ((i * 23) % 3) * 0.06,
+      })),
+    []
+  );
 
   // Wildflower clumps and loose stones, scattered deterministically so the layout is stable
   // across renders and never lands on the fire pit or the seating ring.
   const groundCover = useMemo(() => {
     const out: { x: number; z: number; kind: "flower" | "stone"; scale: number; tint: number }[] = [];
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < 52; i++) {
       const angle = i * 2.399; // golden angle — even, non-repeating spread
-      const radius = 2.4 + ((i * 41) % 17) * 0.11;
+      const radius = 3.4 + ((i * 41) % 17) * 0.16;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
-      if (Math.hypot(x, z) < 2.2) continue; // keep the fire + seats clear
-      if (Math.abs(x) > 4.2 || Math.abs(z) > 4.2) continue; // stay on the slab
+      if (Math.hypot(x, z) < 3.2) continue; // keep the fire + the seating ring clear
+      if (Math.abs(x) > 5.9 || Math.abs(z) > 5.9) continue; // stay on the slab
       out.push({
         x,
         z,
@@ -711,18 +834,32 @@ function CampfireFurniture({ mats }: { mats: Materials }) {
         ))}
       </group>
 
-      {/* decorative log benches around the fire (the interactive log_seat renders via ChairProp) */}
+      {/* decorative log benches filling the diagonals of the seating ring */}
       {decorativeLogs.map((log, i) => (
         <mesh
           key={i}
           castShadow
           receiveShadow
-          position={[log.x, 0.16, log.z]}
+          position={[log.x, 0.19, log.z]}
           rotation={[0, log.angle, Math.PI / 2]}
           material={mats.bark}
           raycast={noRaycast}
         >
-          <cylinderGeometry args={[0.16, 0.16, 0.8, 10]} />
+          <cylinderGeometry args={[0.2, 0.2, 1, 12]} />
+        </mesh>
+      ))}
+
+      {/* stepping stones leading in from the spawn side */}
+      {steppingStones.map((s, i) => (
+        <mesh
+          key={i}
+          receiveShadow
+          position={[s.x, 0.03, s.z]}
+          scale={[s.scale, 0.35, s.scale * 0.8]}
+          material={mats.stone}
+          raycast={noRaycast}
+        >
+          <cylinderGeometry args={[1, 1, 0.22, 7]} />
         </mesh>
       ))}
 
@@ -760,7 +897,7 @@ function CampfireFurniture({ mats }: { mats: Materials }) {
       )}
 
       {/* backpack leaning against a log */}
-      <group position={[-1.75, 0, 1.1]} rotation={[0, 0.6, 0.2]} raycast={noRaycast}>
+      <group position={[-2.5, 0, 2.1]} rotation={[0, 0.6, 0.2]} raycast={noRaycast}>
         <mesh castShadow receiveShadow position={[0, 0.26, 0]} material={mats.pine} raycast={noRaycast}>
           <capsuleGeometry args={[0.18, 0.24, 4, 10]} />
         </mesh>
@@ -770,7 +907,7 @@ function CampfireFurniture({ mats }: { mats: Materials }) {
       </group>
 
       {/* acoustic guitar propped against a log bench */}
-      <group position={[1.55, 0, 1.35]} rotation={[0.42, -0.5, 0.1]} raycast={noRaycast}>
+      <group position={[2.35, 0, 2.2]} rotation={[0.42, -0.5, 0.1]} raycast={noRaycast}>
         <mesh castShadow position={[0, 0.3, 0]} scale={[1, 1, 0.34]} material={mats.wood} raycast={noRaycast}>
           <sphereGeometry args={[0.24, 12, 10]} />
         </mesh>
@@ -786,7 +923,7 @@ function CampfireFurniture({ mats }: { mats: Materials }) {
       </group>
 
       {/* lantern on a tree stump */}
-      <group position={[2.15, 0, -1.5]} raycast={noRaycast}>
+      <group position={[3.35, 0, -1.85]} raycast={noRaycast}>
         <mesh castShadow receiveShadow position={[0, 0.2, 0]} material={mats.bark} raycast={noRaycast}>
           <cylinderGeometry args={[0.3, 0.33, 0.4, 12]} />
         </mesh>
@@ -805,16 +942,16 @@ function CampfireFurniture({ mats }: { mats: Materials }) {
         <pointLight position={[0, 0.72, 0]} intensity={1.6} color="#ffc46b" distance={4} decay={2} />
       </group>
 
-      {/* two tents */}
-      <Tent x={-3.1} z={-3.5} color="#d97a4a" mats={mats} />
-      <Tent x={3.1} z={-3.5} color="#4a8ad9" mats={mats} />
+      {/* two tents, spread out into a proper campsite */}
+      <Tent x={-4.5} z={-4.5} color="#d97a4a" mats={mats} />
+      <Tent x={4.5} z={-4.2} color="#4a8ad9" mats={mats} />
 
       <Fireflies mats={mats} />
     </>
   );
 }
 
-const FIREFLY_COUNT = 18;
+const FIREFLY_COUNT = 26;
 
 // Slow-drifting fireflies with an independent blink phase each, so the clearing feels alive
 // without needing a particle system.
@@ -824,7 +961,7 @@ function Fireflies({ mats }: { mats: Materials }) {
   const seeds = useMemo(
     () =>
       Array.from({ length: FIREFLY_COUNT }, (_, i) => ({
-        radius: 1.8 + ((i * 31) % 11) * 0.26,
+        radius: 2.4 + ((i * 31) % 11) * 0.34,
         angle: (i / FIREFLY_COUNT) * Math.PI * 2,
         baseY: 0.5 + ((i * 17) % 7) * 0.2,
         driftSpeed: 0.08 + ((i * 13) % 5) * 0.03,
@@ -864,8 +1001,8 @@ function Fireflies({ mats }: { mats: Materials }) {
 
 function TentDoor({ mats }: { mats: Materials }) {
   return (
-    <mesh position={[0, 0.35, 0.68]} material={mats.black} raycast={noRaycast}>
-      <planeGeometry args={[0.45, 0.6]} />
+    <mesh position={[0, 0.42, 0.9]} material={mats.black} raycast={noRaycast}>
+      <planeGeometry args={[0.55, 0.78]} />
     </mesh>
   );
 }
@@ -879,12 +1016,12 @@ function Tent({ x, z, color, mats }: { x: number; z: number; color: string; mats
       <mesh
         castShadow
         receiveShadow
-        position={[0, 0.55, 0]}
+        position={[0, 0.72, 0]}
         rotation={[0, Math.PI / 4, 0]}
         material={material}
         raycast={noRaycast}
       >
-        <coneGeometry args={[0.95, 1.1, 4]} />
+        <coneGeometry args={[1.25, 1.45, 4]} />
       </mesh>
       <TentDoor mats={mats} />
     </group>
