@@ -1,32 +1,21 @@
-import { useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Group } from "three";
 import type { Room } from "colyseus.js";
-import { Character3D } from "./Character3D";
+import { Character3D, type CharacterPose, type FloatingEmote } from "./Character3D";
 import { ChairProp } from "./ChairProp";
 import { ToggleableProp } from "./ToggleableProp";
 import { ClickMarker } from "./ClickMarker";
 import { DioramaRoom } from "../scene/DioramaRoom";
 import { ROOM_THEMES, type RoomTheme } from "../scene/roomThemes";
-import { useLocalPlayerMovement, type MoveTarget, type NearbyInteractable } from "../systems/useLocalPlayerMovement";
-import { MAP_CHAIRS } from "@shared/props";
-import type { ChairSyncState, MapId, PlayerState, ToggleableSyncState } from "@shared/types";
+import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
+import type { EmoteListener } from "../hooks/useColyseusRoom";
+import { APPROACH_POINTS } from "@shared/props";
+import { isWalkUpProp, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
 
-// Seat -> where to stand before sitting. Flattened once from the author-time config; approach
-// points are level design, not synced runtime state, so they never go over the wire.
-const SEAT_APPROACH: Record<string, { x: number; z: number }> = {};
-for (const chairs of Object.values(MAP_CHAIRS)) {
-  for (const c of chairs) {
-    if (c.approachX !== undefined && c.approachZ !== undefined) {
-      SEAT_APPROACH[c.propId] = { x: c.approachX, z: c.approachZ };
-    }
-  }
-}
-
-// The on-screen "PRESS E TO SIT" prompt is gone — the game is click-to-move only, so there is
-// no key to press. The proximity scan itself stays wired up (it still feeds the server's sit
-// logic) but no longer drives any UI.
-const NOOP_NEARBY = (_nearby: NearbyInteractable | null) => {};
+const EMOTE_LIFETIME_MS = 1900; // matches the .cozy-emote CSS animation in App.tsx
+const MAX_EMOTES_PER_PLAYER = 4;
+const NO_EMOTES: FloatingEmote[] = [];
 
 interface WorldSceneProps {
   room: Room | null;
@@ -35,50 +24,114 @@ interface WorldSceneProps {
   toggleables: Record<string, ToggleableSyncState>;
   localSessionId: string | null;
   mapId: MapId;
+  /** Discord user ids the SDK reports as speaking (unioned with the relayed `player.speaking`). */
+  speakingUserIds: ReadonlySet<string>;
+  subscribeEmotes: (listener: EmoteListener) => () => void;
 }
 
-export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId }: WorldSceneProps) {
+export function WorldScene({
+  room,
+  players,
+  chairs,
+  toggleables,
+  localSessionId,
+  mapId,
+  speakingUserIds,
+  subscribeEmotes,
+}: WorldSceneProps) {
   const theme = ROOM_THEMES[mapId];
 
-  // Click-to-move target, shared between the floor's click handler, the movement hook, and
-  // the marker's visual — lifted here so all three read/write the exact same object.
+  // Click-to-move target, shared between click handlers, the movement hook, and the marker.
   const moveTargetRef = useRef<MoveTarget | null>(null);
   // Separate from the target: the ripple fires on the click itself, including clicks that set
   // no target at all, and must retrigger when the same spot is clicked twice.
   const rippleRef = useRef({ x: 0, z: 0, id: 0 });
 
+  // Click handlers read the latest room/players through refs so their identities never change.
+  // That stability is what lets ProceduralRoom, ChairProp and ToggleableProp skip re-rendering
+  // on the ~20 state patches per second a walking player generates.
+  const roomRef = useRef(room);
+  roomRef.current = room;
+  const localSittingRef = useRef(false);
+  localSittingRef.current = !!(localSessionId && players[localSessionId]?.sitting);
+
   const pingRipple = (x: number, z: number) => {
     rippleRef.current = { x, z, id: rippleRef.current.id + 1 };
   };
+  const standUpIfSeated = () => {
+    if (localSittingRef.current) roomRef.current?.send("standUp");
+  };
 
-  const handleFloorClick = (x: number, z: number) => {
+  const handleFloorClick = useCallback((x: number, z: number) => {
     moveTargetRef.current = { x, z };
     pingRipple(x, z);
     // Clicking open ground always releases the seat first, so the walk can start immediately.
-    if (localSessionId && players[localSessionId]?.sitting) room?.send("standUp");
-  };
+    standUpIfSeated();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleSeatClick = (chair: ChairSyncState) => {
-    // Taken by somebody else — fall back to walking next to it rather than doing nothing.
-    const taken = chair.occupiedBy !== "" && chair.occupiedBy !== localSessionId;
-    const approach = SEAT_APPROACH[chair.propId];
-    const walkTo = approach ?? { x: chair.x, z: chair.z };
+  const handleSeatClick = useCallback((chair: ChairSyncState) => {
+    const approach = APPROACH_POINTS[chair.propId] ?? { x: chair.x, z: chair.z };
+    // Somebody else is sitting there — walk over next to them rather than doing nothing.
+    const taken = chair.occupiedBy !== "" && chair.occupiedBy !== roomRef.current?.sessionId;
+    standUpIfSeated();
+    // Always walk to the APPROACH point, never onto the seat itself: seats sit inside their
+    // furniture's collision box, so a straight walk onto them would be rejected by the server.
+    moveTargetRef.current = { x: approach.x, z: approach.z, seatId: taken ? undefined : chair.propId };
+    pingRipple(approach.x, approach.z);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    if (localSessionId && players[localSessionId]?.sitting) room?.send("standUp");
+  const handleUseProp = useCallback((prop: ToggleableSyncState) => {
+    if (isWalkUpProp(prop.kind)) {
+      const approach = APPROACH_POINTS[prop.propId] ?? { x: prop.x, z: prop.z + 1 };
+      standUpIfSeated();
+      moveTargetRef.current = { x: approach.x, z: approach.z, propId: prop.propId };
+      pingRipple(approach.x, approach.z);
+    } else {
+      // Lights, TV and campfire respond instantly from anywhere — shared ambience.
+      roomRef.current?.send("useProp", { propId: prop.propId });
+      pingRipple(prop.x, prop.z);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    // Always walk to the APPROACH point, never to the seat coordinate itself: seats on the
-    // sofa sit inside the sofa's own collision box, so a straight walk onto them would be
-    // rejected by the server. The server snaps the player onto the seat when the sit lands.
-    moveTargetRef.current = { x: walkTo.x, z: walkTo.z, seatId: taken ? undefined : chair.propId };
-    pingRipple(walkTo.x, walkTo.z);
-  };
+  // --- floating emotes (one-shot broadcasts, not synced state) ---
+  const [emotes, setEmotes] = useState<Record<string, FloatingEmote[]>>({});
+  const emoteIdRef = useRef(0);
+  useEffect(() => {
+    const timers = new Set<number>();
+    const unsubscribe = subscribeEmotes(({ sessionId, emoji }) => {
+      const id = ++emoteIdRef.current;
+      setEmotes((prev) => ({
+        ...prev,
+        [sessionId]: [...(prev[sessionId] ?? []), { id, emoji }].slice(-MAX_EMOTES_PER_PLAYER),
+      }));
+      const timer = window.setTimeout(() => {
+        timers.delete(timer);
+        setEmotes((prev) => {
+          const remaining = (prev[sessionId] ?? []).filter((e) => e.id !== id);
+          const next = { ...prev };
+          if (remaining.length) next[sessionId] = remaining;
+          else delete next[sessionId];
+          return next;
+        });
+      }, EMOTE_LIFETIME_MS);
+      timers.add(timer);
+    });
+    return () => {
+      unsubscribe();
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [subscribeEmotes]);
+
+  const anyoneBrewing = useMemo(() => Object.values(players).some((p) => p.action === "brew"), [players]);
 
   return (
     <>
       <RoomLighting theme={theme} />
-      {/* key={mapId} forces a full unmount of the old room's meshes/geometries before the new
-          one mounts, instead of React diffing/reusing nodes across themes — guarantees no
-          overlap between rooms and lets R3F's default dispose-on-unmount reclaim GPU memory. */}
+      {/* key={mapId} forces a full unmount of the old world before the new one mounts, instead of
+          React diffing/reusing nodes across themes. */}
       <DioramaRoom key={mapId} mapId={mapId} onFloorClick={handleFloorClick} />
 
       <ClickMarker targetRef={moveTargetRef} rippleRef={rippleRef} />
@@ -87,89 +140,97 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         <ChairProp key={chair.propId} chair={chair} onSeatClick={handleSeatClick} />
       ))}
       {Object.values(toggleables).map((prop) => (
-        <ToggleableProp key={prop.propId} prop={prop} />
+        <ToggleableProp key={prop.propId} prop={prop} onUse={handleUseProp} brewing={prop.kind === "espresso" && anyoneBrewing} />
       ))}
 
-      {Object.entries(players).map(([sessionId, player]) =>
-        sessionId === localSessionId ? (
+      {Object.entries(players).map(([sessionId, player]) => {
+        // A dropped player is held server-side for 30s in case they reconnect. Don't leave their
+        // avatar standing frozen in the room meanwhile — the roster already hides them too.
+        if (!player.connected) return null;
+        const speaking = player.speaking || speakingUserIds.has(player.userId);
+        const playerEmotes = emotes[sessionId] ?? NO_EMOTES;
+        return sessionId === localSessionId ? (
           <LocalPlayerAvatar
             key={sessionId}
             room={room}
             player={player}
-            chairs={chairs}
-            toggleables={toggleables}
-            onNearbyChange={NOOP_NEARBY}
             targetPosRef={moveTargetRef}
+            speaking={speaking}
+            emotes={playerEmotes}
           />
         ) : (
-          <RemotePlayerAvatar key={sessionId} player={player} />
-        )
-      )}
-
+          <RemotePlayerAvatar key={sessionId} player={player} speaking={speaking} emotes={playerEmotes} />
+        );
+      })}
     </>
   );
 }
 
-function RoomLighting({ theme }: { theme: RoomTheme }) {
+const RoomLighting = memo(function RoomLighting({ theme }: { theme: RoomTheme }) {
   return (
     <>
       <ambientLight intensity={theme.ambientIntensity} color={theme.ambient} />
       <directionalLight
-        // Deliberately OFF the camera's azimuth. The iso camera sits at roughly (11,11,11), so
-        // a light at (6,11,6) shares its bearing exactly — every shadow then falls directly
-        // behind its own caster and is completely hidden from view, which looks identical to
-        // having no shadows at all. Swinging the light toward +X separates the two bearings so
-        // shadows are thrown across the floor where the camera can actually see them, while
-        // staying on the open side of the room so the back walls never shadow the interior.
-        position={[15, 18, 4]}
+        // Deliberately OFF the camera's azimuth. The iso camera looks along (1,1,1); a light on
+        // the same bearing throws every shadow directly behind its own caster, hidden from view,
+        // which looks identical to having no shadows at all. Swinging it toward +X separates the
+        // two bearings, and keeping it on the open side of the room means the back walls never
+        // shadow the interior.
+        position={[30, 36, 8]}
         intensity={theme.directionalIntensity}
         color={theme.directional}
         castShadow
         shadow-mapSize={[2048, 2048]}
         // Negative bias pushes the depth comparison away from the surface, killing the
-        // self-shadowing "acne" you otherwise get on the large flat floor plane.
+        // self-shadowing "acne" you otherwise get on large flat floors.
         shadow-bias={-0.0001}
-        shadow-normalBias={0.02}
-        // A directional light's shadow camera is orthographic and defaults to a 10-unit box,
-        // which would clip the 10x10 room. These bounds cover the whole slab with margin so
-        // shadows never cut off partway across the floor.
-        // Sized for the 14x14 slab (half-diagonal ~9.9) plus margin for tall props.
-        shadow-camera-left={-14}
-        shadow-camera-right={14}
-        shadow-camera-top={14}
-        shadow-camera-bottom={-14}
-        shadow-camera-near={0.5}
-        shadow-camera-far={60}
+        shadow-normalBias={0.03}
+        // Sized for the 28x28 slab (half-diagonal ~19.8) with margin for tall trees. At 2048 px
+        // over 44 units that is still ~46 texels per world unit — plenty for soft contact shadows.
+        shadow-camera-left={-22}
+        shadow-camera-right={22}
+        shadow-camera-top={22}
+        shadow-camera-bottom={-22}
+        shadow-camera-near={1}
+        shadow-camera-far={110}
       />
     </>
   );
+});
+
+function poseOf(player: PlayerState): CharacterPose {
+  return player.sitting ? player.sitPose : "stand";
 }
 
 function LocalPlayerAvatar({
   room,
   player,
-  chairs,
-  toggleables,
-  onNearbyChange,
   targetPosRef,
+  speaking,
+  emotes,
 }: {
   room: Room | null;
   player: PlayerState;
-  chairs: Record<string, ChairSyncState>;
-  toggleables: Record<string, ToggleableSyncState>;
-  onNearbyChange: (nearby: NearbyInteractable | null) => void;
   targetPosRef: React.MutableRefObject<MoveTarget | null>;
+  speaking: boolean;
+  emotes: FloatingEmote[];
 }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
-  useLocalPlayerMovement(groupRef, room, player, chairs, toggleables, onNearbyChange, targetPosRef, speedRef);
+  useLocalPlayerMovement(groupRef, room, player, targetPosRef, speedRef);
   return (
     <Character3D
       ref={groupRef}
       color={player.color}
       username={player.username}
-      sitting={player.sitting}
+      pose={poseOf(player)}
       speedRef={speedRef}
+      holding={player.holding}
+      action={player.action}
+      actionProgress={player.actionProgress}
+      toast={player.toast}
+      speaking={speaking}
+      emotes={emotes}
     />
   );
 }
@@ -185,33 +246,33 @@ function lerpAngle(from: number, to: number, t: number): number {
 }
 
 // Remote players arrive as discrete state snapshots at the sender's ~48ms report rate. Lerping
-// BOTH position and facing every frame turns that into continuous motion instead of a visible
-// warp on each packet.
-function RemotePlayerAvatar({ player }: { player: PlayerState }) {
+// position, height and facing every frame turns that into continuous motion instead of a warp
+// on each packet.
+function RemotePlayerAvatar({ player, speaking, emotes }: { player: PlayerState; speaking: boolean; emotes: FloatingEmote[] }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
-  const targetRef = useRef({ x: player.x, z: player.z, rotationY: player.sitRotationY });
+  const targetRef = useRef({ x: player.x, z: player.z });
+  targetRef.current = { x: player.x, z: player.z };
 
-  useEffect(() => {
-    targetRef.current = { x: player.x, z: player.z, rotationY: player.sitRotationY };
-  }, [player.x, player.z, player.sitRotationY]);
+  // Place newcomers where they actually are, instead of gliding in from the world origin.
+  useLayoutEffect(() => {
+    groupRef.current?.position.set(player.x, player.sitting ? player.sitY : 0, player.z);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useFrame(() => {
     const g = groupRef.current;
     if (!g) return;
     const dx = targetRef.current.x - g.position.x;
     const dz = targetRef.current.z - g.position.z;
-    const moving = Math.hypot(dx, dz) > REMOTE_MOVING_EPSILON;
+    const moving = !player.sitting && Math.hypot(dx, dz) > REMOTE_MOVING_EPSILON;
     speedRef.current = moving ? 1 : 0;
     g.position.x += dx * REMOTE_LERP_FACTOR;
     g.position.z += dz * REMOTE_LERP_FACTOR;
+    g.position.y += ((player.sitting ? player.sitY : 0) - g.position.y) * REMOTE_LERP_FACTOR;
 
     // Face the seat while sitting, otherwise face the direction of travel.
-    const desiredY = player.sitting
-      ? targetRef.current.rotationY
-      : moving
-        ? Math.atan2(dx, dz)
-        : g.rotation.y;
+    const desiredY = player.sitting ? player.sitRotationY : moving ? Math.atan2(dx, dz) : g.rotation.y;
     g.rotation.y = lerpAngle(g.rotation.y, desiredY, REMOTE_LERP_FACTOR);
   });
 
@@ -220,8 +281,14 @@ function RemotePlayerAvatar({ player }: { player: PlayerState }) {
       ref={groupRef}
       color={player.color}
       username={player.username}
-      sitting={player.sitting}
+      pose={poseOf(player)}
       speedRef={speedRef}
+      holding={player.holding}
+      action={player.action}
+      actionProgress={player.actionProgress}
+      toast={player.toast}
+      speaking={speaking}
+      emotes={emotes}
     />
   );
 }

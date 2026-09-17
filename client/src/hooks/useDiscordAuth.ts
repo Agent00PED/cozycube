@@ -1,12 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { DiscordSDK, DiscordSDKMock } from "@discord/embedded-app-sdk";
 
+export type DiscordSdkInstance = DiscordSDK | DiscordSDKMock;
+
 export interface DiscordAuthInfo {
   userId: string;
   username: string;
   avatarUrl: string;
   channelId: string;
+  /** The live SDK, so feature hooks (voice activity) can subscribe to events after login. */
+  sdk: DiscordSdkInstance;
+  /** True only inside a real Discord Activity iframe. */
+  embedded: boolean;
+  /** Whether Discord actually granted rpc.voice.read, which SPEAKING_START/STOP require. */
+  voiceScopeGranted: boolean;
 }
+
+const BASE_SCOPES = ["identify"] as const;
+const VOICE_SCOPES = ["identify", "rpc.voice.read"] as const;
 
 interface AuthState {
   auth: DiscordAuthInfo | null;
@@ -118,13 +129,25 @@ export function useDiscordAuth(): AuthState {
         console.log("[useDiscordAuth] sdk.ready() resolved");
 
         console.log("[useDiscordAuth] calling sdk.commands.authorize()...");
-        const { code } = await sdk.commands.authorize({
-          client_id: clientId,
-          response_type: "code",
-          state: "",
-          prompt: "none",
-          scope: ["identify"],
-        });
+        const authorize = (scope: readonly (typeof VOICE_SCOPES)[number][]) =>
+          sdk.commands.authorize({
+            client_id: clientId,
+            response_type: "code",
+            state: "",
+            prompt: "none",
+            scope: [...scope],
+          });
+
+        // Ask for voice-read so we can show who's talking. If Discord refuses that scope for this
+        // app (not enabled for it, or the user declines), fall back to identify-only instead of
+        // failing: a missing speaking indicator must never cost anyone the ability to log in.
+        let code: string;
+        try {
+          ({ code } = await authorize(VOICE_SCOPES));
+        } catch (voiceErr) {
+          console.warn("[useDiscordAuth] authorize with rpc.voice.read failed, retrying identify-only:", voiceErr);
+          ({ code } = await authorize(BASE_SCOPES));
+        }
 
         console.log("[useDiscordAuth] authorize() resolved, got code");
 
@@ -154,12 +177,17 @@ export function useDiscordAuth(): AuthState {
           ? `https://cdn.discordapp.com/avatars/${authResult.user.id}/${authResult.user.avatar}.png`
           : `https://cdn.discordapp.com/embed/avatars/${Number(authResult.user.discriminator ?? "0") % 5}.png`;
 
+        const grantedScopes = (authResult.scopes ?? []) as string[];
+
         setState({
           auth: {
             userId: authResult.user.id,
             username: authResult.user.global_name ?? authResult.user.username,
             avatarUrl,
             channelId: sdk.channelId ?? mockChannelId,
+            sdk,
+            embedded,
+            voiceScopeGranted: embedded && grantedScopes.includes("rpc.voice.read"),
           },
           loading: false,
           error: null,

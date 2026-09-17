@@ -1,10 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
 import type { DiscordAuthInfo } from "./useDiscordAuth";
-import type { ChairSyncState, MapId, PlayerState, ToggleableSyncState } from "@shared/types";
+import type {
+  ChairSyncState,
+  EmoteBroadcast,
+  HeldItem,
+  MapId,
+  PlayerAction,
+  PlayerState,
+  SeatStyle,
+  SitPose,
+  ToggleableKind,
+  ToggleableSyncState,
+} from "@shared/types";
 
 const RECONNECT_KEY_PREFIX = "hangout_reconnect_";
 const NORMAL_CLOSE_CODE = 1000;
+
+export type EmoteListener = (emote: EmoteBroadcast) => void;
 
 interface UseColyseusRoomResult {
   room: Room | null;
@@ -18,8 +31,13 @@ interface UseColyseusRoomResult {
   error: string | null;
   setColor: (color: string) => void;
   changeMap: (mapId: MapId) => void;
-  interactChair: (chairId: string) => void;
-  toggleProp: (propId: string) => void;
+  sendEmote: (emoji: string) => void;
+  setSpeaking: (speaking: boolean) => void;
+  roast: () => void;
+  eat: () => void;
+  dropHeld: () => void;
+  /** Emotes are one-shot broadcasts rather than state, so they are delivered by subscription. */
+  subscribeEmotes: (listener: EmoteListener) => () => void;
 }
 
 export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomResult {
@@ -33,6 +51,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [mapTransitioning, setMapTransitioning] = useState(false);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const emoteListenersRef = useRef(new Set<EmoteListener>());
 
   useEffect(() => {
     if (!auth) return;
@@ -49,6 +68,12 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       const client = new Client(`${protocol}//${window.location.host}${wsPath}`);
       const reconnectKey = `${RECONNECT_KEY_PREFIX}${auth!.channelId}`;
       const savedToken = localStorage.getItem(reconnectKey);
+      const joinOptions = {
+        channelId: auth!.channelId,
+        userId: auth!.userId,
+        username: auth!.username,
+        avatarUrl: auth!.avatarUrl,
+      };
 
       let room: Room;
       if (savedToken) {
@@ -56,20 +81,10 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
           room = await client.reconnect(savedToken);
         } catch {
           localStorage.removeItem(reconnectKey);
-          room = await client.joinOrCreate("hangout_room", {
-            channelId: auth!.channelId,
-            userId: auth!.userId,
-            username: auth!.username,
-            avatarUrl: auth!.avatarUrl,
-          });
+          room = await client.joinOrCreate("hangout_room", joinOptions);
         }
       } else {
-        room = await client.joinOrCreate("hangout_room", {
-          channelId: auth!.channelId,
-          userId: auth!.userId,
-          username: auth!.username,
-          avatarUrl: auth!.avatarUrl,
-        });
+        room = await client.joinOrCreate("hangout_room", joinOptions);
       }
 
       if (disposed) {
@@ -83,6 +98,10 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       setConnected(true);
       setError(null);
       localStorage.setItem(reconnectKey, room.reconnectionToken);
+
+      room.onMessage("emote", (msg: EmoteBroadcast) => {
+        emoteListenersRef.current.forEach((listener) => listener(msg));
+      });
 
       room.state.players.onAdd((player: any, sessionId: string) => {
         const sync = () => {
@@ -101,6 +120,13 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
               color: player.color,
               sitting: player.sitting,
               sitRotationY: player.sitRotationY,
+              sitY: player.sitY,
+              sitPose: player.sitPose as SitPose,
+              holding: player.holding as HeldItem,
+              action: player.action as PlayerAction,
+              actionProgress: player.actionProgress,
+              toast: player.toast,
+              speaking: player.speaking,
               connected: player.connected,
             },
           }));
@@ -126,7 +152,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
               x: chair.x,
               z: chair.z,
               rotationY: chair.rotationY,
-              style: chair.style,
+              style: chair.style as SeatStyle,
+              sitY: chair.sitY,
               occupiedBy: chair.occupiedBy,
             },
           }));
@@ -150,10 +177,12 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             [propId]: {
               propId,
               x: prop.x,
+              y: prop.y,
               z: prop.z,
-              kind: prop.kind,
+              kind: prop.kind as ToggleableKind,
               color: prop.color,
               on: prop.on,
+              boost: prop.boost,
             },
           }));
         };
@@ -201,10 +230,20 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.channelId, auth?.userId]);
 
-  const setColor = (color: string) => roomRef.current?.send("setColor", { color });
-  const changeMap = (mapId: MapId) => roomRef.current?.send("changeMap", { mapId });
-  const interactChair = (chairId: string) => roomRef.current?.send("interactChair", { chairId });
-  const toggleProp = (propId: string) => roomRef.current?.send("toggleProp", { propId });
+  const send = (type: string, payload?: unknown) => roomRef.current?.send(type, payload);
+
+  const subscribeEmotes = useCallback((listener: EmoteListener) => {
+    emoteListenersRef.current.add(listener);
+    return () => {
+      emoteListenersRef.current.delete(listener);
+    };
+  }, []);
+
+  // Stable identity: useVoiceActivity keeps this in a ref, but a stable function also keeps it
+  // from being a hidden effect dependency anywhere else.
+  const setSpeaking = useCallback((speaking: boolean) => {
+    roomRef.current?.send("speaking", { speaking });
+  }, []);
 
   return {
     room: roomRef.current,
@@ -216,9 +255,13 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     mapTransitioning,
     connected,
     error,
-    setColor,
-    changeMap,
-    interactChair,
-    toggleProp,
+    setColor: (color) => send("setColor", { color }),
+    changeMap: (mapId) => send("changeMap", { mapId }),
+    sendEmote: (emoji) => send("emote", { emoji }),
+    setSpeaking,
+    roast: () => send("roast"),
+    eat: () => send("eat"),
+    dropHeld: () => send("dropHeld"),
+    subscribeEmotes,
   };
 }

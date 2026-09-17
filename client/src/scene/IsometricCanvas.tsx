@@ -1,19 +1,31 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrthographicCamera } from "@react-three/drei";
+import { OrthographicCamera, PerformanceMonitor } from "@react-three/drei";
 import { useEffect, useRef, useState } from "react";
+import { cameraFocus } from "./cameraFocus";
 import * as THREE from "three";
 
 const ISO_ANGLE = Math.atan(1 / Math.sqrt(2)); // ~35.264 deg
-const DISTANCE = 20;
-// The world grew from 10x10 to 14x14, so the framing zoom comes down proportionally (48 * 10/14)
-// to keep the same "room fills the viewport" composition. The user-facing zoom RANGE stays wide.
-const BASE_ZOOM = 34;
-// Reference width at which BASE_ZOOM applies. Orthographic zoom has to track viewport pixels to
-// keep the room the same fraction of the screen.
-const BASE_WIDTH = 850;
-const MIN_ZOOM = 22;
-const MAX_ZOOM = 70;
-const PAN_LIMIT = 5; // world units — keeps the look-around confined near the room, not infinite
+// Orthographic, so this distance never changes how big anything looks — it only has to keep
+// the whole world in FRONT of the camera. With a follow-cam over a 28x28 world, the focus can be
+// in one corner while the opposite corner is ~30 units nearer the camera along the view axis.
+// At the old distance of 20 that corner fell behind the near plane and was clipped away.
+const DISTANCE = 60;
+const CAMERA_FAR = 250;
+
+// Framing for a follow-cam: a comfortable neighbourhood around the player rather than the
+// whole island. Zooming all the way out (MIN_ZOOM) still shows the entire 28x28 diorama.
+const BASE_ZOOM = 40;
+const BASE_WIDTH = 900; // reference viewport width at which BASE_ZOOM applies
+const MIN_ZOOM = 13;
+const DEFAULT_ZOOM_FLOOR = 32;
+const MAX_ZOOM = 85;
+const PAN_LIMIT = 7; // world units of right-drag look-around, relative to the followed player
+
+// Per-60fps-frame blend toward the focus point. Kept low so the camera trails the player
+// gently instead of feeling glued to them; converted to a frame-rate-independent factor below.
+const FOLLOW_LERP = 0.065;
+const ZOOM_LERP = 0.15;
+const MAX_DPR = 1.5;
 
 const ISO_DIR = new THREE.Vector3(
   DISTANCE * Math.cos(ISO_ANGLE) * Math.cos(Math.PI / 4),
@@ -21,14 +33,21 @@ const ISO_DIR = new THREE.Vector3(
   DISTANCE * Math.cos(ISO_ANGLE) * Math.sin(Math.PI / 4)
 );
 
+/** Turns a "per 60fps frame" lerp factor into the equivalent for an arbitrary frame delta. */
+function frameLerp(factor: number, delta: number): number {
+  return 1 - Math.pow(1 - factor, delta * 60);
+}
+
 export function IsometricCanvas({ children }: { children: React.ReactNode }) {
   const [glLostMessage, setGlLostMessage] = useState<string | null>(null);
+  // Start sharp on capable screens; PerformanceMonitor below backs off if a device can't keep up.
+  const [dpr, setDpr] = useState(() => Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio, MAX_DPR));
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <Canvas
         shadows="soft"
-        dpr={[1, 1.5]}
+        dpr={dpr}
         // "low-power" was a plausible contributor to a black screen with zero errors: on a
         // multi-GPU machine (very common — laptop with integrated + discrete graphics) inside
         // a sandboxed iframe, requesting only the low-power context can fail silently or
@@ -49,6 +68,17 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
           });
         }}
       >
+        {/* Adaptive quality for "runs on every device": the fully zoomed-out 28x28 lounge peaks
+            around 530 draw calls (the shadow pass redraws every caster). If the frame rate sags,
+            drop to 1x resolution — the single biggest fill-rate saving, and invisible on most
+            phones — and restore it when there's headroom again. After repeated flip-flopping it
+            settles on the safe setting rather than oscillating. */}
+        <PerformanceMonitor
+          onDecline={() => setDpr(1)}
+          onIncline={() => setDpr(Math.min(window.devicePixelRatio, MAX_DPR))}
+          flipflops={3}
+          onFallback={() => setDpr(1)}
+        />
         <IsoCamera />
         <CameraRig />
         {children}
@@ -87,9 +117,22 @@ function IsoCamera() {
       position={[ISO_DIR.x, ISO_DIR.y, ISO_DIR.z]}
       zoom={BASE_ZOOM}
       near={0.1}
-      far={100}
+      far={CAMERA_FAR}
     />
   );
+}
+
+// Screen-space drag -> ground-plane pan, so the world follows the pointer ("grab" feel).
+// In this isometric view, screen-right is the ground diagonal (+x, -z) and screen-down is
+// (+x, +z) — foreshortened by sin(ISO_ANGLE), because the ground plane is tilted away from the
+// camera. Mapping screen X/Y straight onto world X/Z (as this used to) drags diagonally.
+const SCREEN_RIGHT = new THREE.Vector2(Math.SQRT1_2, -Math.SQRT1_2);
+const SCREEN_DOWN = new THREE.Vector2(Math.SQRT1_2, Math.SQRT1_2).multiplyScalar(1 / Math.sin(ISO_ANGLE));
+
+function applyScreenPan(pan: { x: number; z: number }, dx: number, dy: number, zoom: number) {
+  const worldPerPixel = 1 / zoom; // orthographic: zoom is pixels per world unit
+  pan.x = THREE.MathUtils.clamp(pan.x - (dx * SCREEN_RIGHT.x + dy * SCREEN_DOWN.x) * worldPerPixel, -PAN_LIMIT, PAN_LIMIT);
+  pan.z = THREE.MathUtils.clamp(pan.z - (dx * SCREEN_RIGHT.y + dy * SCREEN_DOWN.y) * worldPerPixel, -PAN_LIMIT, PAN_LIMIT);
 }
 
 function touchDistance(touches: TouchList): number {
@@ -112,7 +155,10 @@ function CameraRig() {
   const pinchStartZoomRef = useRef(BASE_ZOOM);
 
   useEffect(() => {
-    const scaledBase = THREE.MathUtils.clamp(BASE_ZOOM * (size.width / BASE_WIDTH), MIN_ZOOM, MAX_ZOOM);
+    // The camera follows the player, so a narrow phone screen doesn't need to fit the whole room
+    // the way the old fixed camera did. Floor the default so characters stay readable on phones;
+    // pinch-out still reaches MIN_ZOOM for the full-island overview.
+    const scaledBase = THREE.MathUtils.clamp(BASE_ZOOM * (size.width / BASE_WIDTH), DEFAULT_ZOOM_FLOOR, MAX_ZOOM);
     targetZoomRef.current = scaledBase;
   }, [size.width]);
 
@@ -137,9 +183,7 @@ function CameraRig() {
       const dx = e.clientX - lastPointerRef.current.x;
       const dy = e.clientY - lastPointerRef.current.y;
       lastPointerRef.current = { x: e.clientX, y: e.clientY };
-      const scale = 1.2 / targetZoomRef.current;
-      panRef.current.x = THREE.MathUtils.clamp(panRef.current.x - dx * scale, -PAN_LIMIT, PAN_LIMIT);
-      panRef.current.z = THREE.MathUtils.clamp(panRef.current.z - dy * scale, -PAN_LIMIT, PAN_LIMIT);
+      applyScreenPan(panRef.current, dx, dy, targetZoomRef.current);
     };
     const onPointerUp = () => {
       isPanningRef.current = false;
@@ -170,9 +214,7 @@ function CameraRig() {
       if (lastPanTouchRef.current) {
         const dx = midX - lastPanTouchRef.current.x;
         const dy = midY - lastPanTouchRef.current.y;
-        const scale = 1.2 / targetZoomRef.current;
-        panRef.current.x = THREE.MathUtils.clamp(panRef.current.x - dx * scale, -PAN_LIMIT, PAN_LIMIT);
-        panRef.current.z = THREE.MathUtils.clamp(panRef.current.z - dy * scale, -PAN_LIMIT, PAN_LIMIT);
+        applyScreenPan(panRef.current, dx, dy, targetZoomRef.current);
       }
       lastPanTouchRef.current = { x: midX, y: midY };
     };
@@ -204,14 +246,38 @@ function CameraRig() {
     };
   }, [gl]);
 
-  useFrame(() => {
+  // The smoothed point the camera is actually centred on (before the user's pan offset).
+  const centerRef = useRef(new THREE.Vector3());
+  const snappedRef = useRef(false);
+
+  useFrame((_, delta) => {
     if ("zoom" in camera) {
       const cam = camera as THREE.OrthographicCamera;
-      cam.zoom = THREE.MathUtils.lerp(cam.zoom, targetZoomRef.current, 0.15);
+      cam.zoom = THREE.MathUtils.lerp(cam.zoom, targetZoomRef.current, frameLerp(ZOOM_LERP, delta));
       cam.updateProjectionMatrix();
     }
-    camera.position.set(ISO_DIR.x + panRef.current.x, ISO_DIR.y, ISO_DIR.z + panRef.current.z);
-    camera.lookAt(panRef.current.x, 0, panRef.current.z);
+
+    const override = cameraFocus.override;
+    if (override && performance.now() > override.until) cameraFocus.override = null;
+    const goalX = cameraFocus.override?.x ?? cameraFocus.x;
+    const goalZ = cameraFocus.override?.z ?? cameraFocus.z;
+
+    const center = centerRef.current;
+    if (cameraFocus.hasTarget && !snappedRef.current) {
+      // First known player position: start there instead of gliding in from the world origin.
+      center.set(goalX, 0, goalZ);
+      snappedRef.current = true;
+    } else {
+      const t = frameLerp(FOLLOW_LERP, delta);
+      center.x = THREE.MathUtils.lerp(center.x, goalX, t);
+      center.z = THREE.MathUtils.lerp(center.z, goalZ, t);
+    }
+
+    // Same isometric angle as ever — only the point it orbits moves.
+    const lookX = center.x + panRef.current.x;
+    const lookZ = center.z + panRef.current.z;
+    camera.position.set(ISO_DIR.x + lookX, ISO_DIR.y, ISO_DIR.z + lookZ);
+    camera.lookAt(lookX, 0, lookZ);
   });
 
   return null;
