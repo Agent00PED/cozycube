@@ -277,6 +277,8 @@ function Kitchen({ mats }: { mats: Materials }) {
       <B p={[6.2, 0.95, -9.25]} s={[0.9, 0.03, 0.5]} m={mats.metal} />
       <Cyl p={[6.2, 1.14, -9.55]} s={[0.05, 0.38, 0.05]} m={mats.brass} />
       <mesh geometry={GEO.torus} material={mats.brass} position={[6.2, 1.33, -9.43]} rotation={[0, Math.PI / 2, 0]} scale={[0.24, 0.24, 0.5]} raycast={noRaycast} />
+      <CoffeeStation mats={mats} />
+
       {/* fridge at the end of the run */}
       <B p={[8.5, 1.0, -9.25]} s={[1.3, 2.0, 0.9]} m={mats.white} cast recv />
       <B p={[8.5, 1.3, -8.79]} s={[1.26, 0.02, 0.02]} m={mats.metal} />
@@ -332,6 +334,51 @@ function Kitchen({ mats }: { mats: Materials }) {
         </group>
       ))}
     </>
+  );
+}
+
+function CoffeeStation({ mats }: { mats: Materials }) {
+  const steamRef = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    const g = steamRef.current;
+    if (!g) return;
+    const t = clock.elapsedTime;
+    g.children.forEach((puff, i) => {
+      const mug = i < 3 ? 0 : 1;
+      const p = (t * 0.45 + (i % 3) / 3) % 1;
+      puff.position.set(mug * 0.36 + Math.sin(p * 5 + i) * 0.03, 0.12 + p * 0.38, Math.cos(p * 4 + i) * 0.02);
+      puff.scale.setScalar(0.035 + p * 0.07);
+    });
+  });
+  return (
+    <group position={[4.5, 0.96, -9.35]}>
+      {/* drip brewer: base, carafe, filter hood */}
+      <B p={[0, 0.03, 0]} s={[0.36, 0.06, 0.3]} m={mats.black} />
+      <B p={[0, 0.3, -0.1]} s={[0.36, 0.56, 0.12]} m={mats.black} />
+      <B p={[0, 0.54, 0.02]} s={[0.36, 0.1, 0.3]} m={mats.black} />
+      <Cyl p={[0, 0.14, 0.04]} s={[0.2, 0.2, 0.2]} m={mats.glass} />
+      <Cyl p={[0, 0.1, 0.04]} s={[0.18, 0.1, 0.18]} m={mats.darkWood} />
+      <B p={[0.13, 0.36, 0.06]} s={[0.04, 0.04, 0.02]} m={mats.warmGlow} />
+      {/* teapot */}
+      <group position={[-0.48, 0, 0.02]}>
+        <Sph p={[0, 0.13, 0]} s={[0.26, 0.22, 0.26]} m={mats.terracotta} />
+        <Cyl p={[0, 0.25, 0]} s={[0.1, 0.03, 0.1]} m={mats.terracotta} />
+        <Cyl p={[0.14, 0.15, 0]} s={[0.04, 0.16, 0.04]} r={[0, 0, -0.9]} m={mats.terracotta} />
+      </group>
+      {/* two mugs, steaming */}
+      <group position={[0.36, 0, 0.1]}>
+        <Cyl p={[0, 0.06, 0]} s={[0.14, 0.12, 0.14]} m={mats.white} />
+        <Cyl p={[0.36, 0.06, 0]} s={[0.14, 0.12, 0.14]} m={mats.sage} />
+        <group ref={steamRef} userData={noMerge}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <mesh key={i} geometry={GEO.sphereLow} material={mats.foam} raycast={noRaycast} />
+          ))}
+        </group>
+      </group>
+      {/* a jar of tea tins and a sugar pot */}
+      <Cyl p={[-0.9, 0.1, 0.05]} s={[0.14, 0.2, 0.14]} m={mats.mustard} />
+      <Cyl p={[-1.08, 0.08, 0.05]} s={[0.12, 0.16, 0.12]} m={mats.sage} />
+    </group>
   );
 }
 
@@ -451,12 +498,7 @@ function VinylNook({ mats }: { mats: Materials }) {
       <B p={[-9.35, 1.08, 3.8]} s={[0.66, 0.05, 2.84]} m={mats.darkWood} />
       <Instanced geo={GEO.box} m={mats.tintable} items={sleeves} />
 
-      {/* turntable on top of the shelf, lid open */}
-      <B p={[-9.3, 1.78, 3.8]} s={[0.55, 0.12, 0.7]} m={mats.charcoal} cast />
-      <Cyl p={[-9.3, 1.85, 3.8]} s={[0.42, 0.02, 0.42]} m={mats.black} />
-      <Cyl p={[-9.3, 1.87, 3.8]} s={[0.14, 0.01, 0.14]} m={mats.mustard} />
-      <B p={[-9.1, 1.87, 3.55]} s={[0.04, 0.02, 0.3]} r={[0, 0.5, 0]} m={mats.metal} />
-      <B p={[-9.3, 2.05, 4.16]} s={[0.55, 0.36, 0.02]} r={[0.5, 0, 0]} m={mats.glass} />
+      {/* the record player on top of the shelf is the interactive "turntable" prop */}
 
       {/* acoustic guitar on a proper A-frame stand, resting on the floor */}
       <group position={[-6.2, 0, 3.1]} rotation={[0, 0.6, 0]}>

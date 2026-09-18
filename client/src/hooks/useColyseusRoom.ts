@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
 import type { DiscordAuthInfo } from "./useDiscordAuth";
 import type {
+  BallSyncState,
   ChairSyncState,
   EmoteBroadcast,
   HeldItem,
@@ -19,6 +20,11 @@ const RECONNECT_KEY_PREFIX = "hangout_reconnect_";
 const NORMAL_CLOSE_CODE = 1000;
 
 export type EmoteListener = (emote: EmoteBroadcast) => void;
+
+export interface BallSnapshot extends BallSyncState {
+  /** performance.now() when this snapshot arrived. */
+  receivedAt: number;
+}
 
 interface UseColyseusRoomResult {
   room: Room | null;
@@ -39,6 +45,11 @@ interface UseColyseusRoomResult {
   roast: () => void;
   eat: () => void;
   dropHeld: () => void;
+  kickBall: (dirX: number, dirZ: number) => void;
+  castLine: () => void;
+  reelIn: () => void;
+  /** Latest server snapshot of the beach volleyball (null until the first patch). */
+  ballRef: React.MutableRefObject<BallSnapshot | null>;
   /** Emotes are one-shot broadcasts rather than state, so they are delivered by subscription. */
   subscribeEmotes: (listener: EmoteListener) => () => void;
 }
@@ -56,6 +67,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const emoteListenersRef = useRef(new Set<EmoteListener>());
+  const ballRef = useRef<BallSnapshot | null>(null);
 
   useEffect(() => {
     if (!auth) return;
@@ -187,6 +199,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
               color: prop.color,
               on: prop.on,
               boost: prop.boost,
+              track: prop.track ?? 0,
             },
           }));
         };
@@ -201,6 +214,19 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
           return next;
         });
       });
+
+      // The volleyball changes 20 times a second. Routing that through React state would
+      // re-render the whole scene for a single sphere, so it lands in a ref the ball component
+      // reads each frame, stamped with when it arrived (for extrapolation between patches).
+      const syncBall = () => {
+        const b = room.state.ball;
+        if (!b) return;
+        ballRef.current = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, receivedAt: performance.now() };
+      };
+      if (room.state.ball) {
+        room.state.ball.onChange(syncBall);
+        syncBall();
+      }
 
       room.state.listen("currentMap", (map: MapId) => setCurrentMap(map));
       room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
@@ -269,6 +295,10 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     roast: () => send("roast"),
     eat: () => send("eat"),
     dropHeld: () => send("dropHeld"),
+    kickBall: (dirX: number, dirZ: number) => send("kickBall", { dirX, dirZ }),
+    castLine: () => send("castLine"),
+    reelIn: () => send("reelIn"),
+    ballRef,
     subscribeEmotes,
   };
 }

@@ -18,6 +18,15 @@ import { cameraFocus } from "./cameraFocus";
 
 export const noRaycast = () => null;
 
+// Click targets (seat and prop hit pads) live on their own layer. The raycaster is told to test
+// it; the camera never renders it. A pad drawn with colorWrite: false is invisible but still
+// costs a full draw call — 11 to 20 of them per map, for nothing — so they are kept off the
+// render layer entirely instead.
+export const HIT_LAYER = 1;
+export const onHitLayer = (object: THREE.Object3D | null) => {
+  object?.layers.set(HIT_LAYER);
+};
+
 export const GEO = {
   box: new THREE.BoxGeometry(1, 1, 1),
   cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 14),
@@ -410,7 +419,7 @@ function collectMergeable(root: THREE.Object3D): THREE.Mesh[] {
 // after mount, so this bakes each group of same-material, same-shadow-flag meshes into ONE
 // merged buffer at startup: same pixels, a fraction of the calls. The originals are only
 // hidden (never removed), so React still owns them and a re-render can't fight this.
-export function StaticBatch({ children }: { children: React.ReactNode }) {
+export function StaticBatch({ children, version }: { children: React.ReactNode; version?: string }) {
   const groupRef = useRef<THREE.Group>(null);
 
   useLayoutEffect(() => {
@@ -420,6 +429,20 @@ export function StaticBatch({ children }: { children: React.ReactNode }) {
     const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
 
     const buckets = new Map<string, { material: THREE.Material; cast: boolean; recv: boolean; geos: THREE.BufferGeometry[]; sources: THREE.Mesh[] }>();
+    // World-validator companion (see scripts/validate-world.ts): in development, flag any
+    // hand-placed mesh whose bottom has sunk through the slab. Cheap, and it catches the typo
+    // that puts a prop at y = -0.4 before anyone sees it on screen.
+    if (import.meta.env.DEV) {
+      const box = new THREE.Box3();
+      for (const mesh of collectMergeable(root)) {
+        box.setFromObject(mesh);
+        if (box.min.y < -0.02) {
+          const c = box.getCenter(new THREE.Vector3());
+          console.warn(`[validate-world] mesh sinks ${(-box.min.y).toFixed(3)} below the slab at world (${c.x.toFixed(2)}, ${c.y.toFixed(2)}, ${c.z.toFixed(2)})`);
+        }
+      }
+    }
+
     for (const mesh of collectMergeable(root)) {
       const material = mesh.material as THREE.Material;
       const key = `${material.uuid}|${mesh.castShadow}|${mesh.receiveShadow}`;
@@ -466,7 +489,7 @@ export function StaticBatch({ children }: { children: React.ReactNode }) {
       });
       hidden.forEach((mesh) => (mesh.visible = true));
     };
-  });
+    }, version === undefined ? undefined : [version]);
 
   return <group ref={groupRef}>{children}</group>;
 }

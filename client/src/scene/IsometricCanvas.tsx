@@ -2,6 +2,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrthographicCamera, PerformanceMonitor } from "@react-three/drei";
 import { useEffect, useRef, useState } from "react";
 import { cameraFocus, isFreeLook, setFreeLook } from "./cameraFocus";
+import { HIT_LAYER } from "./kit";
 import * as THREE from "three";
 
 const ISO_ANGLE = Math.atan(1 / Math.sqrt(2)); // ~35.264 deg
@@ -64,7 +65,9 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
         // route to a GPU that can't actually satisfy it. "default" lets the browser pick
         // whatever context it can actually create.
         gl={{ antialias: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false }}
-        onCreated={({ gl }) => {
+        onCreated={({ gl, raycaster }) => {
+          // Seat and prop click pads are on HIT_LAYER only (see kit.tsx): raycast, never drawn.
+          raycaster.layers.enable(HIT_LAYER);
           console.log("[IsometricCanvas] WebGL context created:", gl.getContextAttributes());
           const canvas = gl.domElement;
           canvas.addEventListener("webglcontextlost", (e) => {

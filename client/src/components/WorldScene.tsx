@@ -9,10 +9,12 @@ import { ToggleableProp } from "./ToggleableProp";
 import { ClickMarker } from "./ClickMarker";
 import { DioramaRoom } from "../scene/DioramaRoom";
 import { Footprints } from "../scene/Footprints";
+import { StaticBatch } from "../scene/kit";
+import { Volleyball } from "./Volleyball";
 import { ROOM_THEMES, TIME_PRESETS, type RoomTheme, type TimePreset } from "../scene/roomThemes";
 import { TimeOfDayContext } from "../scene/timeOfDay";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
-import type { EmoteListener } from "../hooks/useColyseusRoom";
+import type { BallSnapshot, EmoteListener } from "../hooks/useColyseusRoom";
 import { requestRecenter } from "../scene/cameraFocus";
 import { APPROACH_POINTS } from "@shared/props";
 import {
@@ -39,6 +41,8 @@ interface WorldSceneProps {
   /** Discord user ids the SDK reports as speaking (unioned with the relayed `player.speaking`). */
   speakingUserIds: ReadonlySet<string>;
   subscribeEmotes: (listener: EmoteListener) => () => void;
+  ballRef: React.MutableRefObject<BallSnapshot | null>;
+  onKickBall: (dirX: number, dirZ: number) => void;
 }
 
 export function WorldScene({
@@ -51,6 +55,8 @@ export function WorldScene({
   timeOfDay,
   speakingUserIds,
   subscribeEmotes,
+  ballRef,
+  onKickBall,
 }: WorldSceneProps) {
   const theme = ROOM_THEMES[mapId];
 
@@ -141,6 +147,7 @@ export function WorldScene({
     };
   }, [subscribeEmotes]);
 
+  const chairSetKey = useMemo(() => Object.keys(chairs).sort().join(","), [chairs]);
   const anyoneBrewing = useMemo(() => Object.values(players).some((p) => p.action === "brew"), [players]);
 
   return (
@@ -152,10 +159,15 @@ export function WorldScene({
 
       <ClickMarker targetRef={moveTargetRef} rippleRef={rippleRef} />
       {mapId === "sunset_beach" && <Footprints />}
+      {mapId === "sunset_beach" && <Volleyball ballRef={ballRef} onKick={onKickBall} />}
 
-      {Object.values(chairs).map((chair) => (
-        <ChairProp key={chair.propId} chair={chair} onSeatClick={handleSeatClick} />
-      ))}
+      {/* Seats are static furniture once a map is loaded, so their meshes are merged into a
+          handful of draw calls — re-merged only when the set of seats changes (a map change). */}
+      <StaticBatch version={chairSetKey}>
+        {Object.values(chairs).map((chair) => (
+          <ChairProp key={chair.propId} chair={chair} onSeatClick={handleSeatClick} />
+        ))}
+      </StaticBatch>
       {Object.values(toggleables).map((prop) => (
         <ToggleableProp key={prop.propId} prop={prop} onUse={handleUseProp} brewing={prop.kind === "espresso" && anyoneBrewing} />
       ))}
@@ -278,6 +290,7 @@ function LocalPlayerAvatar({
   return (
     <Character3D
       ref={groupRef}
+      userId={player.userId}
       color={player.color}
       username={player.username}
       pose={poseOf(player)}
@@ -292,8 +305,25 @@ function LocalPlayerAvatar({
   );
 }
 
-const REMOTE_LERP_FACTOR = 0.22;
+// --- Remote players: snapshot interpolation with dead reckoning ---
+//
+// Remote positions arrive as discrete snapshots (~16 Hz, with network jitter on top). Instead
+// of chasing the latest one — which stutters whenever a packet is late and lurches when two
+// arrive together — each remote player is drawn a fixed moment in the PAST, between the two
+// snapshots that bracket that moment. Late packets are covered by dead reckoning: carrying on
+// along the last known velocity for a short while before easing to a stop.
+const INTERP_DELAY_MS = 110; // how far behind real time remote players are shown
+const MAX_EXTRAPOLATE_MS = 250; // how long to keep moving on dead reckoning when packets stop
+const SNAPSHOT_BUFFER = 12;
 const REMOTE_MOVING_EPSILON = 0.02;
+const REMOTE_TURN_LERP = 0.2;
+const REMOTE_Y_LERP = 0.2;
+
+interface Snapshot {
+  t: number;
+  x: number;
+  z: number;
+}
 
 function lerpAngle(from: number, to: number, t: number): number {
   let delta = (to - from) % (Math.PI * 2);
@@ -302,14 +332,56 @@ function lerpAngle(from: number, to: number, t: number): number {
   return from + delta * t;
 }
 
-// Remote players arrive as discrete state snapshots at the sender's ~48ms report rate. Lerping
-// position, height and facing every frame turns that into continuous motion instead of a warp
-// on each packet.
+/** Where a remote player should be drawn at `renderTime`, from their snapshot history. */
+function sampleSnapshots(buffer: Snapshot[], renderTime: number): { x: number; z: number; vx: number; vz: number } {
+  const newest = buffer[buffer.length - 1];
+  if (buffer.length === 1) return { x: newest.x, z: newest.z, vx: 0, vz: 0 };
+
+  // Interpolate between the two snapshots that bracket renderTime.
+  for (let i = buffer.length - 1; i > 0; i--) {
+    const a = buffer[i - 1];
+    const b = buffer[i];
+    if (renderTime >= a.t && renderTime <= b.t) {
+      const span = Math.max(1, b.t - a.t);
+      const k = (renderTime - a.t) / span;
+      return { x: a.x + (b.x - a.x) * k, z: a.z + (b.z - a.z) * k, vx: (b.x - a.x) / span, vz: (b.z - a.z) / span };
+    }
+  }
+
+  const prev = buffer[buffer.length - 2];
+  const span = Math.max(1, newest.t - prev.t);
+  const vx = (newest.x - prev.x) / span;
+  const vz = (newest.z - prev.z) / span;
+  if (renderTime < buffer[0].t) return { x: buffer[0].x, z: buffer[0].z, vx: 0, vz: 0 };
+
+  // renderTime is past the newest snapshot: the next packet is late. Dead-reckon along the
+  // last velocity, fading it out so a player who really did stop settles instead of drifting.
+  const ahead = Math.min(renderTime - newest.t, MAX_EXTRAPOLATE_MS);
+  const fade = 1 - ahead / MAX_EXTRAPOLATE_MS;
+  const carried = ahead * (0.5 + 0.5 * fade);
+  return { x: newest.x + vx * carried, z: newest.z + vz * carried, vx: vx * fade, vz: vz * fade };
+}
+
 function RemotePlayerAvatar({ player, speaking, emotes }: { player: PlayerState; speaking: boolean; emotes: FloatingEmote[] }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
-  const targetRef = useRef({ x: player.x, z: player.z });
-  targetRef.current = { x: player.x, z: player.z };
+  const bufferRef = useRef<Snapshot[]>([{ t: performance.now(), x: player.x, z: player.z }]);
+
+  // Record every position change as a timestamped snapshot.
+  useEffect(() => {
+    const buffer = bufferRef.current;
+    const last = buffer[buffer.length - 1];
+    const jump = Math.hypot(player.x - last.x, player.z - last.z);
+    const now = performance.now();
+    if (jump > 4 || player.sitting) {
+      // A teleport (map change, onto a seat, back to its approach point) must not be
+      // interpolated across the room — start a fresh history there.
+      bufferRef.current = [{ t: now - INTERP_DELAY_MS, x: player.x, z: player.z }];
+      return;
+    }
+    buffer.push({ t: now, x: player.x, z: player.z });
+    if (buffer.length > SNAPSHOT_BUFFER) buffer.shift();
+  }, [player.x, player.z, player.sitting]);
 
   // Place newcomers where they actually are, instead of gliding in from the world origin.
   useLayoutEffect(() => {
@@ -320,22 +392,25 @@ function RemotePlayerAvatar({ player, speaking, emotes }: { player: PlayerState;
   useFrame(() => {
     const g = groupRef.current;
     if (!g) return;
-    const dx = targetRef.current.x - g.position.x;
-    const dz = targetRef.current.z - g.position.z;
-    const moving = !player.sitting && Math.hypot(dx, dz) > REMOTE_MOVING_EPSILON;
-    speedRef.current = moving ? 1 : 0;
-    g.position.x += dx * REMOTE_LERP_FACTOR;
-    g.position.z += dz * REMOTE_LERP_FACTOR;
-    g.position.y += ((player.sitting ? player.sitY : 0) - g.position.y) * REMOTE_LERP_FACTOR;
+    const sample = sampleSnapshots(bufferRef.current, performance.now() - INTERP_DELAY_MS);
+    g.position.x = sample.x;
+    g.position.z = sample.z;
+    g.position.y += ((player.sitting ? player.sitY : 0) - g.position.y) * REMOTE_Y_LERP;
 
-    // Face the seat while sitting, otherwise face the direction of travel.
-    const desiredY = player.sitting ? player.sitRotationY : moving ? Math.atan2(dx, dz) : g.rotation.y;
-    g.rotation.y = lerpAngle(g.rotation.y, desiredY, REMOTE_LERP_FACTOR);
+    // Gait speed from the actual velocity (units/ms -> fraction of walking speed).
+    const speed = Math.hypot(sample.vx, sample.vz) * 1000;
+    const moving = !player.sitting && speed > REMOTE_MOVING_EPSILON * 10;
+    speedRef.current = moving ? Math.min(1, speed / 3) : 0;
+
+    // Face the seat while sitting, otherwise the direction of travel.
+    const desiredY = player.sitting ? player.sitRotationY : moving ? Math.atan2(sample.vx, sample.vz) : g.rotation.y;
+    g.rotation.y = lerpAngle(g.rotation.y, desiredY, REMOTE_TURN_LERP);
   });
 
   return (
     <Character3D
       ref={groupRef}
+      userId={player.userId}
       color={player.color}
       username={player.username}
       pose={poseOf(player)}

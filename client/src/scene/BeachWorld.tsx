@@ -390,10 +390,7 @@ function VolleyballCourt({ mats }: { mats: Materials }) {
       ))}
       <Instanced geo={GEO.box} m={mats.cream} items={net} />
       <Instanced geo={GEO.box} m={mats.white} items={court} />
-      {/* the ball, half-buried where someone left it */}
-      <Sph p={[-3.4, 0.17, -1.6]} s={0.36} m={mats.white} cast recv />
-      <B p={[-3.4, 0.3, -1.6]} s={[0.36, 0.02, 0.06]} r={[0, 0.4, 0]} m={mats.seaShallow} />
-      <B p={[-3.4, 0.28, -1.6]} s={[0.06, 0.02, 0.36]} r={[0, 0.4, 0]} m={mats.coral} />
+      {/* the ball itself is live — see components/Volleyball.tsx */}
     </>
   );
 }
@@ -469,8 +466,8 @@ function BeachClutter({ mats }: { mats: Materials }) {
           [0.26, mats.seaShallow, 0.34],
         ].map(([dx, m, lean], i) => (
           <group key={i} position={[dx as number, 0, 0]} rotation={[-0.12, 0, lean as number]}>
-            <B p={[0, 1.0, 0]} s={[0.44, 2.0, 0.1]} m={m as THREE.Material} cast />
-            <B p={[0, 1.0, 0.055]} s={[0.07, 1.7, 0.01]} m={mats.white} />
+            <B p={[0, 1.1, 0]} s={[0.44, 2.0, 0.1]} m={m as THREE.Material} cast />
+            <B p={[0, 1.1, 0.055]} s={[0.07, 1.7, 0.01]} m={mats.white} />
           </group>
         ))}
       </group>
@@ -499,7 +496,7 @@ function BeachClutter({ mats }: { mats: Materials }) {
         <B p={[0.1, 0.72, 0]} s={[0.2, 0.12, 0.01]} m={mats.coral} />
         {/* a bucket and spade beside it */}
         <Cyl p={[0.8, 0.14, 0.3]} s={[0.3, 0.28, 0.3]} m={mats.coral} cast />
-        <Cyl p={[1.05, 0.2, 0.1]} s={[0.03, 0.5, 0.03]} r={[0.2, 0, 0.5]} m={mats.mustard} />
+        <Cyl p={[1.05, 0.24, 0.1]} s={[0.03, 0.5, 0.03]} r={[0.2, 0, 0.5]} m={mats.mustard} />
       </group>
     </>
   );
@@ -523,7 +520,7 @@ function BonfireRing({ mats }: { mats: Materials }) {
       <Instanced geo={GEO.sphereLow} m={mats.stone} items={stones} recv />
       <Cyl p={[5.0, 0.02, -1.0]} s={[1.5, 0.01, 1.5]} m={mats.wetSand} />
       {[0.5, -0.5, 1.6].map((r) => (
-        <Cyl key={r} p={[5.0, 0.1, -1.0]} s={[0.12, 0.8, 0.12]} r={[0, r, Math.PI / 2.4]} m={mats.darkWood} cast />
+        <Cyl key={r} p={[5.0, 0.17, -1.0]} s={[0.12, 0.8, 0.12]} r={[0, r, Math.PI / 2.4]} m={mats.darkWood} cast />
       ))}
       <B p={[6.9, 0.22, -2.0]} s={[0.7, 0.44, 0.45]} r={[0, 0.3, 0]} m={mats.seaShallow} cast />
       <B p={[6.9, 0.46, -2.0]} s={[0.74, 0.06, 0.49]} r={[0, 0.3, 0]} m={mats.white} />

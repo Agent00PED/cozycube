@@ -2,7 +2,7 @@ import { memo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ChairSyncState, SeatStyle } from "@shared/types";
-import { GEO, noRaycast, castsUsefulShadow } from "../scene/kit";
+import { GEO, noRaycast, castsUsefulShadow, onHitLayer } from "../scene/kit";
 
 interface ChairPropProps {
   chair: ChairSyncState;
@@ -18,10 +18,8 @@ const mat = (color: string, roughness = 0.75, metalness = 0) => new THREE.MeshSt
 const M = {
   black: mat("#1a1a1e", 0.5, 0.4),
   seat: mat("#38383f", 0.6),
-  seatTaken: mat("#2a2a30", 0.6),
   neon: new THREE.MeshStandardMaterial({ color: "#7a2ee6", emissive: "#7a2ee6", emissiveIntensity: 1.2 }),
   log: mat("#4a3320", 0.95),
-  logTaken: mat("#3a2717", 0.95),
   logEnd: mat("#b58a5a", 0.9),
   oak: mat("#c89a5e", 0.7),
   walnut: mat("#4a2f1d", 0.8),
@@ -55,7 +53,6 @@ const Cylinder = ({ p, s, m, r }: { p: [number, number, number]; s: [number, num
 
 // memo: seats only change when someone sits or stands, not on every movement patch.
 export const ChairProp = memo(function ChairProp({ chair, onSeatClick }: ChairPropProps) {
-  const occupied = chair.occupiedBy !== "";
   const pad = PAD[chair.style] ?? PAD.pad;
 
   const handleClick = (e: ThreeEvent<PointerEvent>) => {
@@ -66,10 +63,11 @@ export const ChairProp = memo(function ChairProp({ chair, onSeatClick }: ChairPr
 
   return (
     <group position={[chair.x, 0, chair.z]} rotation={[0, chair.rotationY, 0]}>
-      <mesh geometry={GEO.box} material={HIT_PAD_MATERIAL} position={[0, pad.y, 0]} scale={pad.size} onPointerDown={handleClick} />
+      {/* noMerge: the click target must stay its own visible mesh, or it can't be raycast */}
+      <mesh ref={onHitLayer} geometry={GEO.box} material={HIT_PAD_MATERIAL} position={[0, pad.y, 0]} scale={pad.size} onPointerDown={handleClick} userData={{ noMerge: true }} />
 
-      {chair.style === "gaming" && <GamingChair occupied={occupied} />}
-      {chair.style === "log" && <LogSeat occupied={occupied} />}
+      {chair.style === "gaming" && <GamingChair />}
+      {chair.style === "log" && <LogSeat />}
       {chair.style === "stool" && <BarStool />}
       {chair.style === "armchair" && <Armchair />}
       {chair.style === "wood" && <WoodChair />}
@@ -81,8 +79,8 @@ export const ChairProp = memo(function ChairProp({ chair, onSeatClick }: ChairPr
 
 // All seats face local +Z; backrests therefore sit on local -Z.
 
-function GamingChair({ occupied }: { occupied: boolean }) {
-  const seat = occupied ? M.seatTaken : M.seat;
+function GamingChair() {
+  const seat = M.seat;
   return (
     <>
       <Cylinder p={[0, 0.04, 0]} s={[0.5, 0.05, 0.5]} m={M.black} />
@@ -94,11 +92,11 @@ function GamingChair({ occupied }: { occupied: boolean }) {
   );
 }
 
-function LogSeat({ occupied }: { occupied: boolean }) {
+function LogSeat() {
   // Lies across the seat (perpendicular to where the sitter faces), log ends showing the grain.
   return (
     <>
-      <Cylinder p={[0, 0.21, 0]} s={[0.44, 1.2, 0.44]} r={[0, 0, Math.PI / 2]} m={occupied ? M.logTaken : M.log} />
+      <Cylinder p={[0, 0.21, 0]} s={[0.44, 1.2, 0.44]} r={[0, 0, Math.PI / 2]} m={M.log} />
       {[-0.6, 0.6].map((x) => (
         <Cylinder key={x} p={[x, 0.21, 0]} s={[0.4, 0.01, 0.4]} r={[0, 0, Math.PI / 2]} m={M.logEnd} />
       ))}

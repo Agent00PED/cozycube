@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useContext, useEffect, useMemo, useRef } from "react";
+import { TimeOfDayContext } from "./timeOfDay";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { B, Cyl, GEO, HALF, Instanced, Sph, noMerge, noRaycast, seeded, type InstanceSpec, type Materials } from "./kit";
@@ -69,7 +70,7 @@ function FirePit({ mats }: { mats: Materials }) {
       <Instanced geo={GEO.sphereLow} m={mats.stone} items={stones} recv />
       <Cyl p={[0, 0.005, 0]} s={[1.3, 0.01, 1.3]} m={mats.dirt} />
       {[0.5, -0.5, 1.6].map((r) => (
-        <Cyl key={r} p={[0, 0.1, 0]} s={[0.12, 0.8, 0.12]} r={[0, r, Math.PI / 2.4]} m={mats.darkWood} cast />
+        <Cyl key={r} p={[0, 0.17, 0]} s={[0.12, 0.8, 0.12]} r={[0, r, Math.PI / 2.4]} m={mats.darkWood} cast />
       ))}
       {/* cooking tripod with a billy can hanging over the flames */}
       {[0, 1, 2].map((i) => {
@@ -77,7 +78,7 @@ function FirePit({ mats }: { mats: Materials }) {
         return (
           <Cyl
             key={i}
-            p={[Math.cos(a) * 0.5, 0.85, Math.sin(a) * 0.5]}
+            p={[Math.cos(a) * 0.5, 0.9, Math.sin(a) * 0.5]}
             s={[0.06, 1.85, 0.06]}
             r={[Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3]}
             m={mats.bark}
@@ -297,7 +298,7 @@ function StoneTrail({ mats }: { mats: Materials }) {
       {[-0.85, 0.85].map((dx) => (
         <group key={dx}>
           {[-1.5, 1.5].map((dz) => (
-            <Cyl key={dz} p={[dx, 0.12, bridgeZ + dz]} s={[0.12, 0.5, 0.12]} m={mats.darkWood} />
+            <Cyl key={dz} p={[dx, 0.13, bridgeZ + dz]} s={[0.12, 0.26, 0.12]} m={mats.darkWood} />
           ))}
           {[-1.5, 1.5].map((dz) => (
             <Cyl key={`r${dz}`} p={[dx, 0.52, bridgeZ + dz]} s={[0.1, 0.62, 0.1]} m={mats.darkWood} cast />
@@ -373,7 +374,7 @@ function CampProps({ mats }: { mats: Materials }) {
 
       {/* backpack leaning on the orange tent */}
       <group position={[-4.5, 0, -3.4]} rotation={[0, 0.8, 0.15]}>
-        <Sph p={[0, 0.32, 0]} s={[0.46, 0.64, 0.34]} m={mats.pine} cast />
+        <Sph p={[0, 0.37, 0]} s={[0.46, 0.64, 0.34]} m={mats.pine} cast />
         <B p={[0, 0.24, 0.17]} s={[0.26, 0.2, 0.08]} m={mats.bark} />
       </group>
 
@@ -436,6 +437,9 @@ const FIREFLY_COUNT = 30;
 // per frame (30 matrix writes) instead of 30 separate draw calls.
 function Fireflies({ mats }: { mats: Materials }) {
   const ref = useRef<THREE.InstancedMesh>(null);
+  // Fireflies are a dusk-and-dark thing; by day they simply aren't out.
+  const time = useContext(TimeOfDayContext);
+  const out = time === "night" || time === "sunset";
   const tmp = useMemo(() => new THREE.Object3D(), []);
   const seeds = useMemo(() => {
     const rand = seeded(31);
@@ -472,5 +476,5 @@ function Fireflies({ mats }: { mats: Materials }) {
   });
 
   // frustumCulled off: instances move every frame, so a stale bounding sphere would cull them.
-  return <instancedMesh ref={ref} args={[GEO.sphereLow, mats.bulb, FIREFLY_COUNT]} frustumCulled={false} raycast={noRaycast} />;
+  return <instancedMesh ref={ref} args={[GEO.sphereLow, mats.bulb, FIREFLY_COUNT]} frustumCulled={false} visible={out} raycast={noRaycast} userData={{ noMerge: true }} />;
 }

@@ -2,7 +2,7 @@
 
 export type SitPose = "sit" | "lie";
 export type HeldItem = "" | "coffee" | "marshmallow";
-export type PlayerAction = "" | "brew" | "roast";
+export type PlayerAction = "" | "brew" | "roast" | "fish";
 
 export interface PlayerState {
   sessionId: string;
@@ -39,7 +39,7 @@ export function isTimeOfDay(v: unknown): v is TimeOfDay {
   return typeof v === "string" && (TIMES_OF_DAY as string[]).includes(v);
 }
 
-export type ToggleableKind = "tv" | "lamp" | "desk_lamp" | "lantern" | "campfire" | "arcade" | "espresso";
+export type ToggleableKind = "tv" | "lamp" | "desk_lamp" | "lantern" | "campfire" | "arcade" | "espresso" | "turntable";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -67,6 +67,17 @@ export interface ToggleableSyncState {
   on: boolean;
   /** Seconds of campfire flare-up remaining after someone throws on firewood. */
   boost: number;
+  /** Turntable only: which record is on (index into LOFI_TRACKS). */
+  track: number;
+}
+
+export interface BallSyncState {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
 }
 
 // --- gameplay tuning shared by both sides ---
@@ -77,6 +88,38 @@ export const TOAST_MAX = 1.7; // keep roasting past golden and it chars
 export const CAMPFIRE_BOOST_SECONDS = 3;
 
 export const EMOTES = ["☕", "🍢", "🔥", "❤️", "😂", "👋"] as const;
+
+/** The records on the lounge turntable. The music itself is synthesised client-side. */
+export const LOFI_TRACKS = ["Rainy Window", "Late Night Study", "Sunday Coffee"] as const;
+
+/** What a fishing line can bring up, and how often (weights). */
+export const CATCHES: { emoji: string; weight: number }[] = [
+  { emoji: "🐟", weight: 50 },
+  { emoji: "🐠", weight: 25 },
+  { emoji: "🦀", weight: 12 },
+  { emoji: "🐙", weight: 6 },
+  { emoji: "👢", weight: 7 },
+];
+
+// --- avatar identity ---
+// Head accessories are derived from the player's Discord user id rather than stored: every
+// client computes the same answer, it survives reconnects and map changes, and it costs the
+// room state nothing.
+export type Accessory = "beret" | "beanie" | "flower" | "headphones" | "none";
+const ACCESSORIES: Accessory[] = ["beret", "beanie", "flower", "headphones", "none"];
+
+export function hashString(value: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+export function accessoryFor(userId: string): Accessory {
+  return ACCESSORIES[hashString(userId) % ACCESSORIES.length];
+}
 export type Emote = (typeof EMOTES)[number];
 
 /** Seat styles you lie down on rather than sit on. */
@@ -128,6 +171,11 @@ export interface EmoteMessage {
 
 export interface SetTimeOfDayMessage {
   timeOfDay: TimeOfDay;
+}
+
+export interface KickBallMessage {
+  dirX: number;
+  dirZ: number;
 }
 
 export interface SpeakingMessage {

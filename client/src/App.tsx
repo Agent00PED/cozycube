@@ -36,6 +36,23 @@ const GLOBAL_CSS = `
   75%  { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -70px) scale(0.9); }
 }
+/* The note that bobs over a player's head while they talk. */
+.cozy-speaking {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  transform: translate(-50%, 0);
+  font-size: 20px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
+  animation: cozy-speaking-bob 0.9s ease-in-out infinite;
+  pointer-events: none;
+  user-select: none;
+}
+@keyframes cozy-speaking-bob {
+  0%, 100% { transform: translate(-50%, 0) rotate(-8deg); }
+  50% { transform: translate(-50%, -7px) rotate(8deg); }
+}
 .cozy-bottom-stack {
   position: absolute;
   left: 50%;
@@ -80,11 +97,18 @@ export default function App() {
     roast,
     eat,
     dropHeld,
+    kickBall,
+    castLine,
+    reelIn,
+    ballRef,
     subscribeEmotes,
   } = useColyseusRoom(auth);
 
   const voice = useVoiceActivity(auth, setSpeaking);
-  const ambience = useAmbience(currentMap);
+  // The lounge's turntable decides what the room plays (null while it is off).
+  const turntable = Object.values(toggleables).find((t) => t.kind === "turntable");
+  const record = turntable?.on ? turntable.track : null;
+  const ambience = useAmbience(currentMap, record);
 
   // EmoteBar registers a keydown listener keyed on this callback; keep its identity stable.
   const sendEmoteRef = useRef(sendEmote);
@@ -113,6 +137,8 @@ export default function App() {
           timeOfDay={timeOfDay}
           speakingUserIds={voice.speakingUserIds}
           subscribeEmotes={subscribeEmotes}
+          ballRef={ballRef}
+          onKickBall={kickBall}
         />
       </IsometricCanvas>
 
@@ -142,6 +168,8 @@ export default function App() {
             onEat={eat}
             onSip={() => handleEmote("☕")}
             onPutDown={dropHeld}
+            onCastLine={castLine}
+            onReelIn={reelIn}
           />
           <EmoteBar onEmote={handleEmote} />
         </div>

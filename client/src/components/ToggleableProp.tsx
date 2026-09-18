@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ToggleableSyncState } from "@shared/types";
-import { GEO, noRaycast } from "../scene/kit";
+import { GEO, noRaycast, onHitLayer } from "../scene/kit";
 import { useLampBoost } from "../scene/timeOfDay";
 import { useOcclusionFade } from "../scene/occlusion";
+import { TOGGLEABLE_CONFIG } from "@shared/props";
 import { useRetroScreen } from "./useRetroScreen";
 
 interface ToggleablePropProps {
@@ -45,6 +46,7 @@ function HitPad({ size, position, onUse }: { size: [number, number, number]; pos
   return (
     <mesh
       geometry={GEO.box}
+      ref={onHitLayer}
       material={HIT_PAD_MATERIAL}
       position={position}
       scale={size}
@@ -69,7 +71,9 @@ function SoftLight({ on, intensity, ...rest }: { on: boolean; intensity: number 
       ref.current.intensity = THREE.MathUtils.lerp(ref.current.intensity, goal, LIGHT_LERP);
     }
   });
-  return <pointLight ref={ref} intensity={on ? intensity * boost : 0} decay={2} {...rest} />;
+  // castShadow stays false on every point light: a shadow-casting point light renders the
+  // scene six more times (a cube map), which no Discord webview GPU can afford.
+  return <pointLight ref={ref} intensity={on ? intensity * boost : 0} decay={2} {...rest} castShadow={false} />;
 }
 
 /** An emissive material per prop instance, so its glow can follow its own on/off state. */
@@ -95,6 +99,8 @@ export function ToggleableProp({ prop, onUse, brewing = false }: ToggleablePropP
       return <EspressoMachine prop={prop} onUse={use} brewing={brewing} />;
     case "desk_lamp":
       return <DeskLamp prop={prop} onUse={use} />;
+    case "turntable":
+      return <Turntable prop={prop} onUse={use} />;
     case "lantern":
       return <Lantern prop={prop} onUse={use} />;
     default:
@@ -147,6 +153,43 @@ function DeskLamp({ prop, onUse }: PropViewProps) {
   );
 }
 
+// Record labels, one per LOFI_TRACKS entry, so you can tell which record is on at a glance.
+const LABEL_COLORS = ["#e0a93b", "#7d9471", "#c4714a"];
+const RECORD = new THREE.MeshStandardMaterial({ color: "#16161a", roughness: 0.35, metalness: 0.2 });
+const PLINTH = new THREE.MeshStandardMaterial({ color: "#6b452b", roughness: 0.6 });
+const labelMaterials = LABEL_COLORS.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6 }));
+
+// The vinyl corner's record player. Clicking it cycles off -> record 1 -> 2 -> 3 -> off; the
+// room's ambience plays whichever record is on (see hooks/useAmbience).
+function Turntable({ prop, onUse }: PropViewProps) {
+  const platterRef = useRef<THREE.Group>(null);
+  const armRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (platterRef.current && prop.on) platterRef.current.rotation.y -= delta * 3.5; // ~33 rpm
+    if (armRef.current) {
+      // the tonearm swings onto the record when it plays, and back to its rest when it stops
+      armRef.current.rotation.y = THREE.MathUtils.lerp(armRef.current.rotation.y, prop.on ? 0.55 : 0, 0.08);
+    }
+  });
+  const label = labelMaterials[prop.track % labelMaterials.length];
+  return (
+    <group position={[prop.x, prop.y, prop.z]}>
+      <mesh geometry={GEO.box} material={PLINTH} position={[0, 0.06, 0]} scale={[0.55, 0.12, 0.7]} castShadow raycast={noRaycast} />
+      <group ref={platterRef} position={[0, 0.135, 0]}>
+        <mesh geometry={GEO.cyl} material={RECORD} scale={[0.46, 0.02, 0.46]} raycast={noRaycast} />
+        <mesh geometry={GEO.cyl} material={label} position={[0, 0.012, 0]} scale={[0.15, 0.01, 0.15]} raycast={noRaycast} />
+        {/* an off-centre highlight, so the spin is actually visible */}
+        <mesh geometry={GEO.box} material={M.metal} position={[0.14, 0.013, 0]} scale={[0.1, 0.004, 0.012]} raycast={noRaycast} />
+      </group>
+      <group ref={armRef} position={[0.2, 0.15, -0.26]}>
+        <mesh geometry={GEO.cyl} material={M.metal} position={[0, 0, 0]} scale={[0.05, 0.06, 0.05]} raycast={noRaycast} />
+        <mesh geometry={GEO.box} material={M.metal} position={[-0.02, 0.03, 0.17]} rotation={[0, 0.25, 0]} scale={[0.02, 0.02, 0.34]} raycast={noRaycast} />
+      </group>
+      <HitPad size={[0.7, 0.4, 0.8]} position={[0, 0.12, 0]} onUse={onUse} />
+    </group>
+  );
+}
+
 function Lantern({ prop, onUse }: PropViewProps) {
   const glow = useGlow(prop.color, prop.on, 2.2);
   const flameRef = useRef<THREE.Mesh>(null);
@@ -162,7 +205,7 @@ function Lantern({ prop, onUse }: PropViewProps) {
       <mesh ref={flameRef} geometry={GEO.sphereLow} material={M.flameInner} position={[0, 0.22, 0]} raycast={noRaycast} />
       <mesh geometry={GEO.cone} material={M.black} position={[0, 0.44, 0]} scale={[0.28, 0.12, 0.28]} raycast={noRaycast} />
       <mesh geometry={GEO.torus} material={M.black} position={[0, 0.55, 0]} scale={[0.14, 0.14, 0.3]} raycast={noRaycast} />
-      <SoftLight on={prop.on} intensity={1.5} color={prop.color} position={[0, 0.3, 0]} distance={5} />
+      <SoftLight on={prop.on} intensity={1.5 * (TOGGLEABLE_CONFIG[prop.propId]?.intensity ?? 1)} color={prop.color} position={[0, 0.3, 0]} distance={5} />
       <HitPad size={[0.6, 0.8, 0.6]} position={[0, 0.3, 0]} onUse={onUse} />
     </group>
   );
@@ -321,7 +364,7 @@ function Campfire({ prop, onUse }: PropViewProps) {
         <mesh geometry={GEO.cone} material={M.flameInner} position={[0, 0.2, 0]} scale={[0.24, 0.4, 0.24]} raycast={noRaycast} />
       </group>
       <instancedMesh ref={embersRef} args={[GEO.sphereLow, M.ember, EMBER_COUNT]} frustumCulled={false} raycast={noRaycast} />
-      <pointLight ref={lightRef} position={[0, 0.7, 0]} intensity={FIRE_INTENSITY} color={prop.color} distance={FIRE_DISTANCE} decay={2} />
+      <pointLight ref={lightRef} castShadow={false} position={[0, 0.7, 0]} intensity={FIRE_INTENSITY} color={prop.color} distance={FIRE_DISTANCE} decay={2} />
       <HitPad size={[1.7, 1.4, 1.7]} position={[0, 0.6, 0]} onUse={onUse} />
     </group>
   );

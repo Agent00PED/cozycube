@@ -25,10 +25,10 @@ export function RecenterButton() {
     >
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
         {/* a reticle around a little figure */}
-        <circle cx="12" cy="12" r="6.2" stroke="#c4713a" strokeWidth="1.6" />
-        <path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2" stroke="#c4713a" strokeWidth="1.8" strokeLinecap="round" />
-        <circle cx="12" cy="10.1" r="1.7" fill="#c4713a" />
-        <path d="M9.2 15.4c0-1.7 1.3-2.9 2.8-2.9s2.8 1.2 2.8 2.9z" fill="#c4713a" />
+        <circle cx="12" cy="12" r="6.2" stroke="#ffffff" strokeWidth="1.8" />
+        <path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="12" cy="10.1" r="1.7" fill="#ffffff" />
+        <path d="M9.2 15.4c0-1.7 1.3-2.9 2.8-2.9s2.8 1.2 2.8 2.9z" fill="#ffffff" />
       </svg>
     </button>
   );
@@ -42,9 +42,9 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     borderRadius: "50%",
-    border: "1px solid rgba(255,255,255,0.7)",
-    background: "rgba(255,255,255,0.92)",
-    boxShadow: "0 6px 18px rgba(80,60,40,0.28)",
+    border: "2px solid rgba(255,255,255,0.85)",
+    background: "#ec7fa3",
+    boxShadow: "0 6px 18px rgba(236,127,163,0.45)",
     cursor: "pointer",
     transition: "opacity 160ms ease, transform 160ms ease",
     padding: 0,

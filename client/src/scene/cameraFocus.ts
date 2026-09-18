@@ -9,6 +9,10 @@ export const cameraFocus = {
   x: 0,
   z: 0,
   hasTarget: false,
+  /** The local player's current walking direction (0,0 when standing) — the volleyball uses it
+   *  to decide which way a bump sends the ball. */
+  dirX: 0,
+  dirZ: 0,
   /** Temporary "look over there" (e.g. clicking a friend in the roster), then back to the player. */
   override: null as { x: number; z: number; until: number } | null,
 };

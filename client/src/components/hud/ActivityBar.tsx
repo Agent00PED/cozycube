@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { TOAST_MAX, type ChairSyncState, type PlayerState } from "@shared/types";
+import { isFishingSeat } from "@shared/props";
 import { glass, hudText, pillButton } from "./glass";
 
 interface ActivityBarProps {
@@ -10,6 +11,8 @@ interface ActivityBarProps {
   onEat: () => void;
   onSip: () => void;
   onPutDown: () => void;
+  onCastLine: () => void;
+  onReelIn: () => void;
 }
 
 function doneness(toast: number): { label: string; color: string } {
@@ -21,19 +24,35 @@ function doneness(toast: number): { label: string; color: string } {
 }
 
 // Context-sensitive actions: only what you can do right now, right here.
-export function ActivityBar({ player, chairs, localSessionId, onRoast, onEat, onSip, onPutDown }: ActivityBarProps) {
+export function ActivityBar({ player, chairs, localSessionId, onRoast, onEat, onSip, onPutDown, onCastLine, onReelIn }: ActivityBarProps) {
   const onLog = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "log");
   const roasting = player.holding === "marshmallow";
   const holdingCoffee = player.holding === "coffee";
   const brewing = player.action === "brew";
+  const onPier = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && isFishingSeat(c.propId));
+  const fishing = player.action === "fish";
 
-  if (!onLog && !roasting && !holdingCoffee && !brewing) return null;
+  if (!onLog && !roasting && !holdingCoffee && !brewing && !onPier) return null;
 
   const d = doneness(player.toast);
 
   return (
     <div style={styles.bar}>
       {brewing && <span style={styles.status}>☕ Brewing… {Math.round(player.actionProgress * 100)}%</span>}
+
+      {onPier && !fishing && (
+        <button type="button" style={styles.primary} onClick={onCastLine}>
+          🎣 Cast a line
+        </button>
+      )}
+      {fishing && (
+        <>
+          <span style={styles.status}>🎣 Waiting for a bite…</span>
+          <button type="button" style={styles.ghost} onClick={onReelIn}>
+            Reel in
+          </button>
+        </>
+      )}
 
       {onLog && !roasting && (
         <button type="button" style={styles.primary} onClick={onRoast}>

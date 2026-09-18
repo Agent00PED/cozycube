@@ -33,6 +33,9 @@ export interface ToggleableConfig {
   /** Only needed for walk-up props (see isWalkUpProp). */
   approachX?: number;
   approachZ?: number;
+  /** Light strength multiplier for this one prop (default 1) — static art direction, so it is
+   *  read from here by the client rather than synced. */
+  intensity?: number;
 }
 
 /** Direction a seat at (x, z) should face to look at (cx, cz). */
@@ -164,14 +167,17 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
     { propId: "arcade_2", x: -6.1, z: -9.3, kind: "arcade", color: "#4fd8ff", defaultOn: false, approachX: -6.1, approachZ: -8.2 },
     { propId: "desk_lamp_den", x: -9.0, y: 0.66, z: -7.8, kind: "desk_lamp", color: "#b18cff", defaultOn: true },
     { propId: "lamp_vinyl", x: -8.4, z: 6.0, kind: "lamp", color: "#ffc47a", defaultOn: true },
+    // The record player on top of the vinyl shelf: click to change the record (or stop it).
+    { propId: "turntable", x: -9.3, y: 1.7, z: 3.8, kind: "turntable", color: "#e0a93b", defaultOn: true },
     { propId: "lantern_balcony", x: 8.9, z: 5.4, kind: "lantern", color: "#ffbe6b", defaultOn: true },
   ],
 
   campfire_night: [
     { propId: "campfire", x: 0, z: 0, kind: "campfire", color: "#ff8a3d", defaultOn: true },
     // Warm lantern gold, never the greenish white it used to read as against the night grade.
-    { propId: "lantern_east", x: 4.4, y: 0.42, z: -2.2, kind: "lantern", color: "#ffa64d", defaultOn: true },
-    { propId: "lantern_west", x: -4.4, y: 0.42, z: 2.2, kind: "lantern", color: "#ffa64d", defaultOn: true },
+    // Dimmed so they read as lanterns round a campfire rather than competing with it.
+    { propId: "lantern_east", x: 4.4, y: 0.42, z: -2.2, kind: "lantern", color: "#ffa64d", defaultOn: true, intensity: 0.55 },
+    { propId: "lantern_west", x: -4.4, y: 0.42, z: 2.2, kind: "lantern", color: "#ffa64d", defaultOn: true, intensity: 0.55 },
   ],
 
   sunset_beach: [
@@ -197,3 +203,15 @@ export const APPROACH_POINTS: Record<string, { x: number; z: number }> = (() => 
   }
   return out;
 })();
+
+/** Static per-prop art direction (intensity etc.), keyed by propId. */
+export const TOGGLEABLE_CONFIG: Record<string, ToggleableConfig> = (() => {
+  const out: Record<string, ToggleableConfig> = {};
+  for (const list of Object.values(MAP_TOGGLEABLES)) for (const t of list) out[t.propId] = t;
+  return out;
+})();
+
+/** Seats you can fish from once you are sitting on them. */
+export function isFishingSeat(propId: string): boolean {
+  return propId.startsWith("pier_seat");
+}
