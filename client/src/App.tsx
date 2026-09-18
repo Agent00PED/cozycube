@@ -2,16 +2,17 @@ import { useCallback, useRef, type CSSProperties } from "react";
 import { IsometricCanvas } from "./scene/IsometricCanvas";
 import { WorldScene } from "./components/WorldScene";
 import { ColorPickerUI } from "./components/ColorPickerUI";
-import { MapSwitcherUI } from "./components/MapSwitcherUI";
+import { TopBar } from "./components/hud/TopBar";
+import { SoundToggle } from "./components/hud/SoundToggle";
 import { EmoteBar } from "./components/hud/EmoteBar";
 import { ActivityBar } from "./components/hud/ActivityBar";
 import { VoiceChip } from "./components/hud/VoiceChip";
 import { PlayerRoster } from "./components/hud/PlayerRoster";
 import { RecenterButton } from "./components/hud/RecenterButton";
-import { TimeOfDayBar } from "./components/hud/TimeOfDayBar";
 import { useDiscordAuth } from "./hooks/useDiscordAuth";
 import { useColyseusRoom } from "./hooks/useColyseusRoom";
 import { useVoiceActivity } from "./hooks/useVoiceActivity";
+import { useAmbience } from "./hooks/useAmbience";
 
 // Global styles the inline-style HUD can't express: the floating-emote keyframes (used by the
 // <Html> overlays in Character3D) and the narrow-screen layout of the bottom HUD stack.
@@ -50,10 +51,11 @@ const GLOBAL_CSS = `
 @media (max-width: 480px) {
   .cozy-bottom-stack { left: 12px; transform: none; align-items: flex-start; }
 }
-/* The time-of-day labels are the first thing to drop when the HUD gets tight — the sun and
-   moon emoji still say which is which. */
-@media (max-width: 640px) {
-  .cozy-time-label { display: none; }
+/* Text labels are the first thing to drop when the HUD gets tight — the emoji still say which
+   is which, and the bar keeps fitting one row on a phone-width Discord panel. */
+@media (max-width: 720px) {
+  .cozy-hud-label { display: none; }
+  .cozy-topbar { gap: 2px; padding: 4px; }
 }
 `;
 
@@ -82,6 +84,7 @@ export default function App() {
   } = useColyseusRoom(auth);
 
   const voice = useVoiceActivity(auth, setSpeaking);
+  const ambience = useAmbience(currentMap);
 
   // EmoteBar registers a keydown listener keyed on this callback; keep its identity stable.
   const sendEmoteRef = useRef(sendEmote);
@@ -113,15 +116,20 @@ export default function App() {
         />
       </IsometricCanvas>
 
-      <MapSwitcherUI currentMap={currentMap} disabled={mapTransitioning} onSelect={changeMap} />
+      <TopBar
+        currentMap={currentMap}
+        mapDisabled={mapTransitioning}
+        onSelectMap={changeMap}
+        timeOfDay={timeOfDay}
+        onSelectTime={setTimeOfDay}
+      />
 
       <div style={topLeftStyle}>
         <PlayerRoster players={players} localSessionId={localSessionId} speakingUserIds={voice.speakingUserIds} />
       </div>
       <div style={topRightStyle}>
         <VoiceChip mode={voice.mode} active={voice.simulatedActive} onPressChange={voice.setSimulatedActive} />
-        <TimeOfDayBar current={timeOfDay} onSelect={setTimeOfDay} />
-        <RecenterButton />
+        <SoundToggle enabled={ambience.enabled} onToggle={ambience.toggle} />
       </div>
 
       {localPlayer && localSessionId && (
@@ -141,7 +149,10 @@ export default function App() {
 
       {mapTransitioning && <StatusScreen text="Changing scene..." overlay />}
 
-      {localPlayer && <ColorPickerUI currentColor={localPlayer.color} onSelect={setColor} />}
+      <div style={bottomRightStyle}>
+        <RecenterButton />
+        {localPlayer && <ColorPickerUI currentColor={localPlayer.color} onSelect={setColor} inline />}
+      </div>
     </div>
   );
 }
@@ -179,8 +190,8 @@ const rootStyle: CSSProperties = {
   overflow: "hidden",
 };
 
-// Below the map switcher's row, so the three never collide on narrow screens.
-const HUD_TOP = "calc(max(16px, env(safe-area-inset-top)) + 58px)";
+// Below the single top bar, so nothing collides on a narrow Discord window.
+const HUD_TOP = "calc(max(12px, env(safe-area-inset-top)) + 54px)";
 const topLeftStyle: CSSProperties = { position: "absolute", top: HUD_TOP, left: 12, zIndex: 10 };
 const topRightStyle: CSSProperties = {
   position: "absolute",
@@ -191,4 +202,15 @@ const topRightStyle: CSSProperties = {
   flexDirection: "column",
   alignItems: "flex-end",
   gap: 8,
+};
+// The two round corner buttons: recenter sits above the colour puck so neither covers the other.
+const bottomRightStyle: CSSProperties = {
+  position: "absolute",
+  right: "max(16px, env(safe-area-inset-right))",
+  bottom: "max(16px, env(safe-area-inset-bottom))",
+  zIndex: 12,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 10,
 };

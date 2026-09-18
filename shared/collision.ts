@@ -7,8 +7,8 @@ export interface AABB {
   maxZ: number;
 }
 
-/** The diorama slab spans -9..9 on both axes; players are kept a little inside its lip. */
-export const WORLD_LIMIT = 8.4;
+/** The diorama slab spans -10..10 on both axes; players are kept a little inside its lip. */
+export const WORLD_LIMIT = 9.4;
 
 // Static furniture obstacles per map, on the X-Z floor plane.
 //
@@ -18,91 +18,97 @@ export const WORLD_LIMIT = 8.4;
 // larger boxes is directly less server work.
 //
 // Seats are intentionally NOT obstacles (you have to be able to reach them), and purely
-// decorative meshes (books, mugs, plants, shells) never appear here at all.
+// decorative meshes (books, mugs, shells) never appear here at all.
 export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   cozy_lounge: [
-    // --- Zone 1: Living room ---
-    { minX: -3.9, maxX: -0.3, minZ: -8.95, maxZ: -8.15 }, // media console under the TV
-    { minX: -4.3, maxX: 0.1, minZ: -4.8, maxZ: -3.6 }, // L-sofa, long run
-    { minX: -5.3, maxX: -4.1, minZ: -6.9, maxZ: -4.8 }, // L-sofa, return leg
-    { minX: -3.3, maxX: -0.9, minZ: -6.8, maxZ: -5.8 }, // coffee table
-    { minX: 0.6, maxX: 1.0, minZ: -4.6, maxZ: -4.2 }, // floor lamp
-    // --- Zone 2: Kitchen bar ---
-    { minX: 0.9, maxX: 8.4, minZ: -9, maxZ: -8.0 }, // back counter run, sink and fridge grouped
-    { minX: 3.0, maxX: 6.6, minZ: -6.3, maxZ: -5.1 }, // bar island
-    // --- Zone 3: Gamer corner ---
-    { minX: -9, maxX: -7.7, minZ: -7.9, maxZ: -4.9 }, // streamer desk against the left wall
-    { minX: -7.3, maxX: -4.5, minZ: -9, maxZ: -7.7 }, // both arcade cabinets, grouped
-    { minX: -8.8, maxX: -8.0, minZ: -8.8, maxZ: -8.0 }, // corner plant
-    // --- Zone 4: Balcony deck ---
-    { minX: 8.1, maxX: 9, minZ: -0.6, maxZ: 8.4 }, // glass railing along the deck edge
-    { minX: 7.6, maxX: 8.2, minZ: 4.3, maxZ: 4.9 }, // floor lantern
-    { minX: 4.6, maxX: 5.2, minZ: -0.4, maxZ: 0.2 }, // potted fig by the deck step
-    { minX: 7.4, maxX: 8.1, minZ: 0.2, maxZ: 0.9 }, // olive tree
-    // --- Shared middle ---
-    { minX: -3.95, maxX: -2.85, minZ: 3.05, maxZ: 4.15 }, // pouf table in the cushion circle
-    { minX: 6.4, maxX: 7.4, minZ: -3.2, maxZ: -2.2 }, // console table by the entry
+    // --- Living room ---
+    { minX: -6.0, maxX: -2.4, minZ: -9.8, maxZ: -9.0 }, // media console under the TV
+    { minX: -6.4, maxX: -2.0, minZ: -5.2, maxZ: -4.0 }, // L-sofa, long run
+    { minX: -7.6, maxX: -6.4, minZ: -7.2, maxZ: -5.2 }, // L-sofa, return leg
+    { minX: -5.6, maxX: -3.0, minZ: -7.4, maxZ: -6.4 }, // coffee table
+    { minX: -1.5, maxX: -1.1, minZ: -5.1, maxZ: -4.7 }, // floor lamp
+    // --- Kitchen ---
+    { minX: 0.8, maxX: 9.4, minZ: -9.8, maxZ: -8.8 }, // back counter run, sink and fridge grouped
+    { minX: 3.3, maxX: 6.9, minZ: -6.8, maxZ: -5.6 }, // bar island
+    // --- Dining set ---
+    { minX: 2.9, maxX: 4.7, minZ: -2.2, maxZ: -0.6 }, // table (chairs tuck under, so they are not boxes)
+    // --- Gamer corner ---
+    { minX: -9.8, maxX: -8.4, minZ: -8.7, maxZ: -5.7 }, // streamer desk against the left wall
+    { minX: -8.1, maxX: -5.4, minZ: -9.8, maxZ: -8.7 }, // both arcade cabinets, grouped
+    { minX: -9.6, maxX: -8.8, minZ: -9.6, maxZ: -8.8 }, // corner plant
+    // --- Vinyl nook ---
+    { minX: -9.8, maxX: -8.9, minZ: 2.4, maxZ: 5.2 }, // record shelf against the left wall
+    { minX: -8.7, maxX: -8.1, minZ: 5.7, maxZ: 6.3 }, // floor lamp
+    { minX: -6.6, maxX: -5.8, minZ: 2.7, maxZ: 3.5 }, // guitar on its stand
+    // --- Balcony deck ---
+    { minX: 8.6, maxX: 9.2, minZ: 5.1, maxZ: 5.7 }, // floor lantern
+    { minX: 5.2, maxX: 5.8, minZ: 0.7, maxZ: 1.3 }, // potted fig by the deck step
+    { minX: 8.5, maxX: 9.2, minZ: 1.4, maxZ: 2.1 }, // olive tree
+    { minX: 6.0, maxX: 7.0, minZ: -3.6, maxZ: -2.6 }, // console table by the entry
   ],
 
   campfire_night: [
-    { minX: -0.9, maxX: 0.9, minZ: -0.9, maxZ: 0.9 }, // fire pit
-    { minX: -6.6, maxX: -4.8, minZ: -6.2, maxZ: -4.4 }, // tent 1
-    { minX: 4.8, maxX: 6.6, minZ: -6.4, maxZ: -4.6 }, // tent 2
-    { minX: -7.4, maxX: -5.6, minZ: 1.2, maxZ: 3.0 }, // tent 3
-    { minX: 3.7, maxX: 4.3, minZ: -2.3, maxZ: -1.7 }, // lantern stump east
-    { minX: -4.3, maxX: -3.7, minZ: 1.7, maxZ: 2.3 }, // lantern stump west
-    { minX: -3.3, maxX: -2.3, minZ: -4.6, maxZ: -3.6 }, // firewood stack
-    { minX: 6.2, maxX: 6.8, minZ: 2.6, maxZ: 3.2 }, // telescope
+    { minX: -0.9, maxX: 0.9, minZ: -0.9, maxZ: 0.9 }, // fire pit and its tripod
+    { minX: -6.6, maxX: -4.6, minZ: -5.6, maxZ: -3.6 }, // tent 1, out on the open grass
+    { minX: 4.4, maxX: 6.4, minZ: -6.0, maxZ: -4.0 }, // tent 2
+    { minX: -7.2, maxX: -5.2, minZ: 1.6, maxZ: 3.6 }, // tent 3
+    { minX: 4.1, maxX: 4.7, minZ: -2.5, maxZ: -1.9 }, // lantern stump east
+    { minX: -4.7, maxX: -4.1, minZ: 1.9, maxZ: 2.5 }, // lantern stump west
+    { minX: -3.4, maxX: -2.4, minZ: -4.8, maxZ: -3.8 }, // firewood stack
+    { minX: 7.0, maxX: 7.6, minZ: -3.0, maxZ: -2.4 }, // telescope
+    { minX: 1.6, maxX: 3.0, minZ: -6.4, maxZ: -5.6 }, // camp table and cooler
   ],
 
   sunset_beach: [
-    { minX: -3.6, maxX: 2.4, minZ: -6.0, maxZ: -4.7 }, // tiki bar counter and its back shelf
-    { minX: -7.5, maxX: -6.9, minZ: -1.7, maxZ: -1.1 }, // west tiki torch
-    { minX: 6.1, maxX: 6.7, minZ: 3.1, maxZ: 3.7 }, // east tiki torch
-    { minX: 3.5, maxX: 5.3, minZ: -1.5, maxZ: 0.3 }, // bonfire and its stone ring
-    { minX: -6.5, maxX: -5.9, minZ: 2.0, maxZ: 2.6 }, // parasol post between the loungers
-    { minX: -8.2, maxX: -7.4, minZ: -7.0, maxZ: -6.2 }, // palm by the bar
-    { minX: 6.8, maxX: 7.6, minZ: -5.6, maxZ: -4.8 }, // palm at the top of the beach
-    { minX: -1.6, maxX: -0.8, minZ: 3.4, maxZ: 4.2 }, // surfboard rack at the head of the pier
+    { minX: -3.6, maxX: 2.4, minZ: -6.6, maxZ: -5.3 }, // tiki bar counter and its back shelf
+    { minX: -8.3, maxX: -7.7, minZ: -1.9, maxZ: -1.3 }, // west tiki torch
+    { minX: 7.1, maxX: 7.7, minZ: 2.7, maxZ: 3.3 }, // east tiki torch
+    { minX: 4.1, maxX: 5.9, minZ: -1.9, maxZ: -0.1 }, // bonfire and its stone ring
+    { minX: -7.3, maxX: -6.7, minZ: 1.8, maxZ: 2.4 }, // parasol post between the loungers
+    { minX: -8.6, maxX: -7.8, minZ: -7.4, maxZ: -6.6 }, // palm by the bar
+    { minX: 7.4, maxX: 8.2, minZ: -6.2, maxZ: -5.4 }, // palm at the top of the beach
+    { minX: -5.2, maxX: -4.6, minZ: -3.9, maxZ: -3.3 }, // volleyball post
+    { minX: -5.2, maxX: -4.6, minZ: -0.3, maxZ: 0.3 }, // volleyball post
+    { minX: -3.7, maxX: -1.5, minZ: -0.1, maxZ: 2.1 }, // rowboat pulled up on the sand
   ],
 };
 
-// Where players arrive: the lounge entry, the end of the campfire trail, the top of the beach.
+// Where players arrive: the lounge deck, the end of the campfire trail, the top of the beach.
 export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
   cozy_lounge: [
-    { x: 6.2, z: 7.2 },
-    { x: 5.0, z: 7.8 },
-    { x: 7.0, z: 6.2 },
-    { x: 4.2, z: 6.8 },
-    { x: 6.6, z: 8.0 },
+    { x: 7.0, z: 8.4 },
+    { x: 5.8, z: 8.8 },
+    { x: 8.0, z: 7.6 },
+    { x: 5.2, z: 7.6 },
+    { x: 7.4, z: 9.0 },
   ],
   campfire_night: [
-    { x: 0, z: 7.4 },
-    { x: 1.4, z: 7.9 },
-    { x: -1.4, z: 7.9 },
-    { x: 0.7, z: 8.2 },
-    { x: -0.7, z: 8.2 },
+    { x: 0, z: 8.4 },
+    { x: 1.4, z: 8.9 },
+    { x: -1.4, z: 8.9 },
+    { x: 0.7, z: 9.2 },
+    { x: -0.7, z: 9.2 },
   ],
   sunset_beach: [
-    { x: -3.4, z: -2.0 },
-    { x: -2.2, z: -1.4 },
-    { x: -4.4, z: -1.2 },
-    { x: -1.2, z: -2.2 },
+    { x: -3.4, z: -2.4 },
+    { x: -2.2, z: -1.6 },
+    { x: -4.6, z: -1.4 },
+    { x: -1.2, z: -2.6 },
     { x: -3.0, z: -0.6 },
   ],
 };
 
-// The outdoor maps are ringed by scenery rather than walls: dense pines round the campfire
-// clearing, open sea past the beach. Enumerating the seeded trees as boxes would be absurd, so
-// each is one rule instead — with the ways in (the stone trail, the pier) carved out of it.
-const FOREST_RADIUS = 7.2;
-const TRAIL_HALF_WIDTH = 2.4;
-const TRAIL_START_Z = 4.6;
+// The outdoor maps are ringed by scenery rather than walls: pines round the campfire clearing,
+// open sea past the beach. Enumerating the seeded trees as boxes would be absurd, so each is
+// one rule instead — with the ways in (the stone trail, the pier) carved out of it.
+const FOREST_RADIUS = 8.3;
+const TRAIL_HALF_WIDTH = 2.6;
+const TRAIL_START_Z = 5.0;
 /** Past this the beach becomes sea; the pier is the only way out over the water. */
-const SHORELINE_Z = 4.4;
-const PIER_MIN_X = 1.0;
-const PIER_MAX_X = 3.4;
-const PIER_END_Z = 7.2;
+export const SHORELINE_Z = 4.8;
+export const PIER_MIN_X = 1.0;
+export const PIER_MAX_X = 3.4;
+export const PIER_END_Z = 8.0;
 
 function inScenery(mapId: MapId, x: number, z: number): boolean {
   if (mapId === "campfire_night") {

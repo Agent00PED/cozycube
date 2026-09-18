@@ -69,104 +69,118 @@ function seatRing(
 
 const FACE_NEG_Z = Math.PI;
 const FACE_POS_X = Math.PI / 2;
+const FACE_NEG_X = -Math.PI / 2;
 const FACE_POS_Z = 0;
 
-// The world is 18x18 (HALF = 9). Indoors, the two back walls run along x = -9 and z = -9, and
-// the open sides are +X and +Z (the camera looks from that corner).
+// The world is 20x20 (HALF = 10). Indoors the two back walls run along x = -10 and z = -10
+// (inner faces at -9.8), and the open sides are +X and +Z — the camera looks from that corner.
 export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   cozy_lounge: [
-    // --- Zone 1: Living room — L-sofa facing the wall TV ---
-    ...[-3.5, -2.1, -0.7].map((x, i) => ({
+    // --- Living room: L-sofa opening onto the middle of the room ---
+    ...[-5.6, -4.2, -2.8].map((x, i) => ({
       propId: `sofa_${i + 1}`,
       x,
-      z: -4.2,
+      z: -4.6,
       rotationY: FACE_NEG_Z,
       style: "pad" as const,
       approachX: x,
-      approachZ: -2.6,
+      approachZ: -3.0,
     })),
-    { propId: "sofa_4", x: -4.7, z: -5.6, rotationY: FACE_POS_X, style: "pad", approachX: -3.7, approachZ: -7.2 },
+    { propId: "sofa_4", x: -7.0, z: -6.0, rotationY: FACE_POS_X, style: "pad", approachX: -7.0, approachZ: -3.2 },
 
-    // --- Zone 2: Kitchen bar — three stools along the island ---
-    ...[3.6, 4.8, 6.0].map((x, i) => ({
+    // --- Kitchen bar: three stools along the island ---
+    ...[3.9, 5.1, 6.3].map((x, i) => ({
       propId: `stool_${i + 1}`,
       x,
-      z: -4.5,
+      z: -5.0,
       rotationY: FACE_NEG_Z,
       style: "stool" as const,
       sitY: 0.34,
       approachX: x,
-      approachZ: -3.2,
+      approachZ: -4.2,
     })),
 
-    // --- Zone 3: Gamer corner — desk chair at the streamer setup ---
-    { propId: "gamer_chair_1", x: -7.4, z: -6.4, rotationY: FACE_POS_Z, style: "gaming", approachX: -7.4, approachZ: -5.2 },
+    // --- Dining set: four chairs round the table, bridging kitchen and living room ---
+    { propId: "dining_1", x: 2.6, z: -1.4, rotationY: FACE_POS_X, style: "wood", sitY: 0.04, approachX: 1.4, approachZ: -1.4 },
+    { propId: "dining_2", x: 5.0, z: -1.4, rotationY: FACE_NEG_X, style: "wood", sitY: 0.04, approachX: 6.2, approachZ: -1.4 },
+    { propId: "dining_3", x: 3.8, z: -2.6, rotationY: FACE_POS_Z, style: "wood", sitY: 0.04, approachX: 3.8, approachZ: -3.7 },
+    { propId: "dining_4", x: 3.8, z: -0.2, rotationY: FACE_NEG_Z, style: "wood", sitY: 0.04, approachX: 3.8, approachZ: 0.9 },
 
-    // --- Zone 4: Balcony deck — loungers looking out over the edge ---
-    { propId: "deckchair_1", x: 6.3, z: 3.4, rotationY: FACE_POS_X, style: "deckchair", sitY: -0.06, approachX: 5.0, approachZ: 3.4 },
-    { propId: "deckchair_2", x: 6.3, z: 5.8, rotationY: FACE_POS_X, style: "deckchair", sitY: -0.06, approachX: 5.0, approachZ: 5.8 },
+    // --- Gamer corner ---
+    { propId: "gamer_chair_1", x: -8.1, z: -7.2, rotationY: FACE_POS_Z, style: "gaming", approachX: -8.1, approachZ: -5.9 },
 
-    // --- Floor cushions around the pouf, between the zones ---
-    ...seatRing("cushion", -3.4, 3.6, 1.7, 2.9, 4, "pad", Math.PI / 4),
+    // --- Vinyl nook: an armchair and two floor cushions by the record player ---
+    { propId: "armchair_1", x: -7.6, z: 4.2, rotationY: FACE_POS_X, style: "armchair", sitY: 0.03, approachX: -6.2, approachZ: 4.2 },
+    { propId: "cushion_1", x: -5.4, z: 5.9, rotationY: -2.2, style: "pad", approachX: -4.4, approachZ: 6.7 },
+    { propId: "cushion_2", x: -4.6, z: 4.3, rotationY: -1.9, style: "pad", approachX: -3.6, approachZ: 4.8 },
+
+    // --- Balcony deck: loungers looking out over the edge ---
+    { propId: "deckchair_1", x: 7.6, z: 4.2, rotationY: FACE_POS_X, style: "deckchair", sitY: -0.06, approachX: 6.3, approachZ: 4.2 },
+    { propId: "deckchair_2", x: 7.6, z: 6.6, rotationY: FACE_POS_X, style: "deckchair", sitY: -0.06, approachX: 6.3, approachZ: 6.6 },
   ],
 
   campfire_night: [
     // Six log benches ringing the fire.
-    ...seatRing("log", 0, 0, 2.6, 3.9, 6, "log"),
+    ...seatRing("log", 0, 0, 2.8, 4.1, 6, "log"),
+    // Camp chairs a little further back, out of the smoke.
+    { propId: "camp_chair_1", x: -3.6, z: 3.4, rotationY: facing(-3.6, 3.4, 0, 0), style: "deckchair", sitY: -0.06, approachX: -4.6, approachZ: 4.4 },
+    { propId: "camp_chair_2", x: 3.6, z: 3.4, rotationY: facing(3.6, 3.4, 0, 0), style: "deckchair", sitY: -0.06, approachX: 4.6, approachZ: 4.4 },
     // Stargazing blanket: you lie down here instead of sitting.
-    { propId: "blanket_1", x: 4.6, z: 3.2, rotationY: FACE_POS_Z, style: "blanket", approachX: 4.6, approachZ: 4.4 },
-    { propId: "blanket_2", x: 5.6, z: 3.2, rotationY: FACE_POS_Z, style: "blanket", approachX: 5.6, approachZ: 4.4 },
+    { propId: "blanket_1", x: 5.2, z: -3.4, rotationY: FACE_POS_Z, style: "blanket", approachX: 5.2, approachZ: -2.1 },
+    { propId: "blanket_2", x: 6.2, z: -3.4, rotationY: FACE_POS_Z, style: "blanket", approachX: 6.2, approachZ: -2.1 },
   ],
 
   sunset_beach: [
-    // --- Tiki bar — four stools along the counter, facing the bartender's side ---
+    // --- Tiki bar: four stools along the counter ---
     ...[-2.4, -1.2, 0, 1.2].map((x, i) => ({
       propId: `bar_stool_${i + 1}`,
       x,
-      z: -4.0,
+      z: -4.6,
       rotationY: FACE_NEG_Z,
       style: "stool" as const,
       sitY: 0.34,
       approachX: x,
-      approachZ: -2.7,
+      approachZ: -3.3,
     })),
-    // --- Sun loungers under the parasols, facing the sea ---
-    { propId: "lounger_1", x: -5.6, z: 1.2, rotationY: FACE_POS_Z, style: "deckchair", sitY: -0.06, approachX: -4.3, approachZ: 1.2 },
-    { propId: "lounger_2", x: -5.6, z: 3.4, rotationY: FACE_POS_Z, style: "deckchair", sitY: -0.06, approachX: -4.3, approachZ: 3.4 },
+    // --- Sun loungers under the striped parasol ---
+    { propId: "lounger_1", x: -6.4, z: 1.0, rotationY: FACE_POS_Z, style: "deckchair", sitY: -0.06, approachX: -5.1, approachZ: 1.0 },
+    { propId: "lounger_2", x: -6.4, z: 3.2, rotationY: FACE_POS_Z, style: "deckchair", sitY: -0.06, approachX: -5.1, approachZ: 3.2 },
     // --- Driftwood logs round the beach bonfire (marshmallows work here too) ---
-    // NOTE: propIds are the key of the global APPROACH_POINTS table, so they must be unique
-    // across ALL maps — hence "driftwood" rather than reusing the campfire's "log".
-    ...seatRing("driftwood", 4.4, -0.6, 1.9, 3.1, 3, "log"),
+    // NOTE: propIds key the global APPROACH_POINTS table, so they must be unique across ALL
+    // maps — hence "driftwood" rather than reusing the campfire's "log".
+    ...seatRing("driftwood", 5.0, -1.0, 1.9, 3.1, 3, "log"),
     // --- The end of the pier: sit with your feet over the water ---
-    { propId: "pier_seat_1", x: 1.6, z: 6.6, rotationY: FACE_POS_Z, style: "pad", approachX: 1.6, approachZ: 5.4 },
-    { propId: "pier_seat_2", x: 2.8, z: 6.6, rotationY: FACE_POS_Z, style: "pad", approachX: 2.8, approachZ: 5.4 },
+    { propId: "pier_seat_1", x: 1.6, z: 7.4, rotationY: FACE_POS_Z, style: "pad", approachX: 1.6, approachZ: 6.2 },
+    { propId: "pier_seat_2", x: 2.8, z: 7.4, rotationY: FACE_POS_Z, style: "pad", approachX: 2.8, approachZ: 6.2 },
   ],
 };
 
 export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
   cozy_lounge: [
-    { propId: "tv", x: -2.1, y: 1.85, z: -8.88, kind: "tv", color: "#9ad1e8", defaultOn: true },
-    { propId: "lamp_living", x: 0.8, z: -4.4, kind: "lamp", color: "#ffcf8a", defaultOn: true },
-    { propId: "espresso", x: 3.0, y: 0.95, z: -8.35, kind: "espresso", color: "#ffb36b", defaultOn: true, approachX: 3.0, approachZ: -7.1 },
-    { propId: "arcade_1", x: -6.6, z: -8.35, kind: "arcade", color: "#ff4fd8", defaultOn: true, approachX: -6.6, approachZ: -6.9 },
-    { propId: "arcade_2", x: -5.2, z: -8.35, kind: "arcade", color: "#4fd8ff", defaultOn: false, approachX: -5.2, approachZ: -7.35 },
-    { propId: "desk_lamp_den", x: -8.3, y: 0.66, z: -7.0, kind: "desk_lamp", color: "#b18cff", defaultOn: true },
-    { propId: "lantern_balcony", x: 7.9, z: 4.6, kind: "lantern", color: "#ffbe6b", defaultOn: true },
+    { propId: "tv", x: -4.2, y: 1.62, z: -9.72, kind: "tv", color: "#9ad1e8", defaultOn: true },
+    { propId: "lamp_living", x: -1.3, z: -4.9, kind: "lamp", color: "#ffcf8a", defaultOn: true },
+    { propId: "espresso", x: 2.4, y: 0.95, z: -9.25, kind: "espresso", color: "#ffb36b", defaultOn: true, approachX: 2.4, approachZ: -8.0 },
+    { propId: "arcade_1", x: -7.4, z: -9.3, kind: "arcade", color: "#ff4fd8", defaultOn: true, approachX: -7.4, approachZ: -8.2 },
+    { propId: "arcade_2", x: -6.1, z: -9.3, kind: "arcade", color: "#4fd8ff", defaultOn: false, approachX: -6.1, approachZ: -8.2 },
+    { propId: "desk_lamp_den", x: -9.0, y: 0.66, z: -7.8, kind: "desk_lamp", color: "#b18cff", defaultOn: true },
+    { propId: "lamp_vinyl", x: -8.4, z: 6.0, kind: "lamp", color: "#ffc47a", defaultOn: true },
+    { propId: "lantern_balcony", x: 8.9, z: 5.4, kind: "lantern", color: "#ffbe6b", defaultOn: true },
   ],
 
   campfire_night: [
     { propId: "campfire", x: 0, z: 0, kind: "campfire", color: "#ff8a3d", defaultOn: true },
-    { propId: "lantern_east", x: 4.0, y: 0.42, z: -2.0, kind: "lantern", color: "#ffc46b", defaultOn: true },
-    { propId: "lantern_west", x: -4.0, y: 0.42, z: 2.0, kind: "lantern", color: "#ffc46b", defaultOn: true },
+    // Warm lantern gold, never the greenish white it used to read as against the night grade.
+    { propId: "lantern_east", x: 4.4, y: 0.42, z: -2.2, kind: "lantern", color: "#ffa64d", defaultOn: true },
+    { propId: "lantern_west", x: -4.4, y: 0.42, z: 2.2, kind: "lantern", color: "#ffa64d", defaultOn: true },
   ],
 
   sunset_beach: [
     // The bonfire the driftwood logs ring — same fire, so roasting works on the beach too.
-    { propId: "bonfire", x: 4.4, z: -0.6, kind: "campfire", color: "#ff8a3d", defaultOn: true },
-    { propId: "lamp_bar", x: 0, y: 2.55, z: -5.3, kind: "lamp", color: "#ffd08a", defaultOn: true },
-    { propId: "beach_bar_tap", x: -1.1, y: 1.05, z: -5.35, kind: "espresso", color: "#ffb36b", defaultOn: true, approachX: -1.1, approachZ: -2.7 },
-    { propId: "tiki_east", x: 6.4, y: 0.5, z: 3.4, kind: "lantern", color: "#ff9a4a", defaultOn: true },
-    { propId: "tiki_west", x: -7.2, y: 0.5, z: -1.4, kind: "lantern", color: "#ff9a4a", defaultOn: true },
+    { propId: "bonfire", x: 5.0, z: -1.0, kind: "campfire", color: "#ff8a3d", defaultOn: true },
+    { propId: "lamp_bar", x: 0, y: 2.62, z: -5.9, kind: "lamp", color: "#ffd08a", defaultOn: true },
+    { propId: "beach_bar_tap", x: -1.1, y: 1.05, z: -5.95, kind: "espresso", color: "#ffb36b", defaultOn: true, approachX: -1.1, approachZ: -3.3 },
+    { propId: "tiki_east", x: 7.4, y: 0.5, z: 3.0, kind: "lantern", color: "#ff9a4a", defaultOn: true },
+    { propId: "tiki_west", x: -8.0, y: 0.5, z: -1.6, kind: "lantern", color: "#ff9a4a", defaultOn: true },
   ],
 };
 

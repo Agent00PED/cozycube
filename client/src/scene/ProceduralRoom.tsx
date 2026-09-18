@@ -2,28 +2,34 @@ import { memo, useEffect, useMemo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { MapId } from "@shared/types";
+import { SHORELINE_Z } from "@shared/collision";
 import { ROOM_THEMES, type RoomTheme } from "./roomThemes";
-import { GEO, HALF, Instanced, StaticBatch, noRaycast, seeded, useSharedMaterials, type InstanceSpec, type Materials } from "./kit";
+import { GEO, HALF, StaticBatch, noRaycast, useSharedMaterials, type Materials } from "./kit";
 import { LoungeWorld } from "./LoungeWorld";
 import { CampfireWorld } from "./CampfireWorld";
-import { BeachWorld } from "./BeachWorld";
+import { BASIN_Y, BeachWorld } from "./BeachWorld";
 
-const SLAB_HEIGHT = 1.25; // a chunky island — the diorama base reads as a model on a table
+const SLAB_HEIGHT = 1.3; // a chunky island — the diorama base reads as a model on a table
+
+// The hidden click target over the beach's water. Walking there is refused by collision, but
+// the pier runs over it, and without a target the pier would be unclickable.
+const CLICK_CATCHER = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 
 interface ProceduralRoomProps {
   mapId: MapId;
   onFloorClick: (x: number, z: number) => void;
 }
 
-// The diorama: a floating slab, the clickable floor on top, and the map's world.
+// The diorama: a solid slab, the clickable floor on top, and the map's world.
 //
 // memo matters here more than anywhere else in the app. WorldScene re-renders on every player
 // state patch (roughly 20 per second per moving player), and without memo React would
-// re-reconcile the entire furnished 28x28 world each time. onFloorClick must therefore be a
-// stable callback (it is — see WorldScene).
+// re-reconcile the entire furnished world each time. onFloorClick must therefore be a stable
+// callback (it is — see WorldScene).
 export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick }: ProceduralRoomProps) {
   const theme = ROOM_THEMES[mapId];
   const mats = useSharedMaterials();
+  const isBeach = mapId === "sunset_beach";
 
   const floorMaterial = useMemo(
     () => new THREE.MeshStandardMaterial({ color: theme.floor, roughness: 0.9 }),
@@ -37,6 +43,12 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
     onFloorClick(e.point.x, e.point.z);
   };
 
+  // On the beach the visible floor stops at the shoreline — past it the slab is moulded into a
+  // basin that the sea sits in — so the walkable floor is split into a sand plane and an
+  // invisible catcher over the water.
+  const sandDepth = isBeach ? SHORELINE_Z + HALF : HALF * 2;
+  const sandCenter = isBeach ? (SHORELINE_Z - HALF) / 2 : 0;
+
   return (
     <group>
       {/* The floor is its own thin single-sided plane rather than the top face of the slab box:
@@ -45,26 +57,40 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
       <mesh
         geometry={GEO.plane}
         material={floorMaterial}
+        position={[0, 0, sandCenter]}
         rotation={[-Math.PI / 2, 0, 0]}
-        scale={[HALF * 2, HALF * 2, 1]}
+        scale={[HALF * 2, sandDepth, 1]}
         receiveShadow
         onPointerDown={handleFloorClick}
       />
+      {isBeach && (
+        <mesh
+          geometry={GEO.plane}
+          material={CLICK_CATCHER}
+          position={[0, 0, (SHORELINE_Z + HALF) / 2]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          scale={[HALF * 2, HALF - SHORELINE_Z, 1]}
+          onPointerDown={handleFloorClick}
+        />
+      )}
 
-      <DioramaSlab theme={theme} mats={mats} outdoor={mapId !== "cozy_lounge"} />
+      <DioramaSlab theme={theme} mats={mats} mapId={mapId} />
 
       {/* Everything inside a world is static after mount, so it is baked down to a handful of
           merged draw calls. Animated pieces opt out with userData={noMerge}. */}
       <StaticBatch>
         {mapId === "cozy_lounge" && <LoungeWorld mats={mats} wallColor={theme.wall} />}
         {mapId === "campfire_night" && <CampfireWorld mats={mats} />}
-        {mapId === "sunset_beach" && <BeachWorld mats={mats} />}
+        {isBeach && <BeachWorld mats={mats} />}
       </StaticBatch>
     </group>
   );
 });
 
-function DioramaSlab({ theme, mats, outdoor }: { theme: RoomTheme; mats: Materials; outdoor: boolean }) {
+// A solid 20x20 cube with clean edges. Nothing is scattered along the cut face any more: the
+// pebbles that used to be embedded there stuck out past the sides and gave the island a
+// serrated, chewed-looking rim.
+function DioramaSlab({ theme, mats, mapId }: { theme: RoomTheme; mats: Materials; mapId: MapId }) {
   const edgeMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: theme.edge, roughness: 0.95 }), [theme.edge]);
   const edgeTopMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: theme.edgeTop, roughness: 1 }), [theme.edgeTop]);
   useEffect(
@@ -75,55 +101,89 @@ function DioramaSlab({ theme, mats, outdoor }: { theme: RoomTheme; mats: Materia
     [edgeMaterial, edgeTopMaterial]
   );
 
-  // Stones embedded in the cut face of the earth, so the outdoor edge reads as a soil
-  // cross-section rather than a painted box. Indoors, a second walnut trim band instead.
-  const pebbles = useMemo<InstanceSpec[]>(() => {
-    if (!outdoor) return [];
-    const rand = seeded(5);
-    const out: InstanceSpec[] = [];
-    const edge = HALF - 0.02;
-    for (let i = 0; i < 70; i++) {
-      const side = i % 4;
-      const f = (rand() * 2 - 1) * (HALF - 0.3);
-      const y = -0.25 - rand() * (SLAB_HEIGHT - 0.4);
-      const p: [number, number, number] =
-        side === 0 ? [f, y, edge] : side === 1 ? [edge, y, f] : side === 2 ? [f, y, -edge] : [-edge, y, f];
-      const s = 0.14 + rand() * 0.22;
-      out.push({ p, s: [s, s * 0.75, s], r: [rand(), rand(), rand()] });
-    }
-    return out;
-  }, [outdoor]);
+  const isBeach = mapId === "sunset_beach";
+  const indoor = mapId === "cozy_lounge";
+
+  // The beach slab is built in two blocks so the sea sits in a real recess with solid walls all
+  // round it: the sand block runs up to y=0, the sea block stops at BASIN_Y. Underneath, one
+  // full-size block keeps the island solid, so there is no hollow to see beneath the pier.
+  const seaDepth = HALF - SHORELINE_Z;
+  const sandDepth = HALF + SHORELINE_Z;
 
   return (
     <group raycast={noRaycast}>
-      {/* main block, tucked a hair below y=0 so it never z-fights with the floor plane */}
-      <mesh
-        geometry={GEO.box}
-        material={edgeMaterial}
-        position={[0, -SLAB_HEIGHT / 2 - 0.005, 0]}
-        scale={[HALF * 2, SLAB_HEIGHT, HALF * 2]}
-        castShadow
-        receiveShadow
-        raycast={noRaycast}
-      />
-      {/* top band: topsoil outdoors, a lighter wood lip indoors — slightly proud of the block */}
-      <mesh
-        geometry={GEO.box}
-        material={edgeTopMaterial}
-        position={[0, -0.09, 0]}
-        scale={[HALF * 2 + 0.03, 0.16, HALF * 2 + 0.03]}
-        raycast={noRaycast}
-      />
-      {!outdoor && (
+      {isBeach ? (
+        <>
+          {/* the body of the island, below the basin floor */}
+          <mesh
+            geometry={GEO.box}
+            material={edgeMaterial}
+            position={[0, BASIN_Y - (SLAB_HEIGHT - Math.abs(BASIN_Y)) / 2, 0]}
+            scale={[HALF * 2, SLAB_HEIGHT - Math.abs(BASIN_Y), HALF * 2]}
+            castShadow
+            receiveShadow
+            raycast={noRaycast}
+          />
+          {/* the sand shelf, which stands BASIN_Y proud of the basin floor */}
+          <mesh
+            geometry={GEO.box}
+            material={edgeMaterial}
+            position={[0, BASIN_Y / 2 - 0.003, (SHORELINE_Z - HALF) / 2]}
+            scale={[HALF * 2, Math.abs(BASIN_Y), sandDepth]}
+            castShadow
+            receiveShadow
+            raycast={noRaycast}
+          />
+          {/* the basin floor: wet sand you can see through the water */}
+          <mesh
+            geometry={GEO.plane}
+            material={mats.wetSand}
+            position={[0, BASIN_Y + 0.002, SHORELINE_Z + seaDepth / 2]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            scale={[HALF * 2, seaDepth, 1]}
+            receiveShadow
+            raycast={noRaycast}
+          />
+          {/* the shore wall of the basin, so the sand shelf reads as a cut bank */}
+          <mesh
+            geometry={GEO.box}
+            material={edgeTopMaterial}
+            position={[0, BASIN_Y / 2, SHORELINE_Z]}
+            scale={[HALF * 2, Math.abs(BASIN_Y), 0.12]}
+            raycast={noRaycast}
+          />
+        </>
+      ) : (
+        <mesh
+          geometry={GEO.box}
+          material={edgeMaterial}
+          position={[0, -SLAB_HEIGHT / 2 - 0.005, 0]}
+          scale={[HALF * 2, SLAB_HEIGHT, HALF * 2]}
+          castShadow
+          receiveShadow
+          raycast={noRaycast}
+        />
+      )}
+
+      {/* A clean band around the top of the cut — topsoil outdoors, a wood lip indoors. */}
+      {!isBeach && (
+        <mesh
+          geometry={GEO.box}
+          material={edgeTopMaterial}
+          position={[0, -0.1, 0]}
+          scale={[HALF * 2 + 0.02, 0.18, HALF * 2 + 0.02]}
+          raycast={noRaycast}
+        />
+      )}
+      {indoor && (
         <mesh
           geometry={GEO.box}
           material={edgeTopMaterial}
           position={[0, -SLAB_HEIGHT + 0.12, 0]}
-          scale={[HALF * 2 + 0.03, 0.1, HALF * 2 + 0.03]}
+          scale={[HALF * 2 + 0.02, 0.1, HALF * 2 + 0.02]}
           raycast={noRaycast}
         />
       )}
-      <Instanced geo={GEO.sphereLow} m={mats.stone} items={pebbles} />
     </group>
   );
 }

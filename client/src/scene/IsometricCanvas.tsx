@@ -9,20 +9,22 @@ const ISO_ANGLE = Math.atan(1 / Math.sqrt(2)); // ~35.264 deg
 // the whole world in FRONT of the camera. With a follow-cam over a 28x28 world, the focus can be
 // in one corner while the opposite corner is ~30 units nearer the camera along the view axis.
 // At the old distance of 20 that corner fell behind the near plane and was clipped away.
-const DISTANCE = 46;
-const CAMERA_FAR = 180;
+const DISTANCE = 52;
+const CAMERA_FAR = 200;
 
 // Framing for an 18x18 diorama: the default sits just inside the whole island, so you can see
 // the room you are in AND who is coming. MIN_ZOOM frames all 18x18 with margin on a phone;
 // MAX_ZOOM goes right down to a character portrait.
-const BASE_ZOOM = 52;
+const BASE_ZOOM = 46;
 const BASE_WIDTH = 900; // reference viewport width at which BASE_ZOOM applies
-const MIN_ZOOM = 22;
-const DEFAULT_ZOOM_FLOOR = 38;
+// 20 units across map to (20 + 20)/sqrt(2) ~= 28 screen units per zoom step, so ~32 fits the
+// whole island in a 900px viewport; MIN_ZOOM leaves a margin round it even on a phone.
+const MIN_ZOOM = 20;
+const DEFAULT_ZOOM_FLOOR = 34;
 const MAX_ZOOM = 160;
 // Free look roams the whole diorama (a bit past its lip, so corner furniture can be centred)
 // rather than a small window around the player.
-const FREE_LOOK_LIMIT = 10;
+const FREE_LOOK_LIMIT = 11;
 
 // Per-60fps-frame blend toward the focus point. Kept low so the camera trails the player
 // gently instead of feeling glued to them; converted to a frame-rate-independent factor below.

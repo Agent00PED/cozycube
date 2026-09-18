@@ -71,6 +71,11 @@ export interface TimePreset {
   /** Multiplies every lamp, bulb and fire — lights read as decorative by day, as the only
    *  source of light after dark. */
   lampBoost: number;
+  /** Shadow-free fill from the camera side, which keeps material colours honest. */
+  fillColor: string;
+  /** Cold edge light from behind, so silhouettes stay readable after dark. */
+  rimColor: string;
+  rimIntensity: number;
 }
 
 export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
@@ -84,6 +89,9 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     sky: "#f3c3ab",
     fog: [52, 118], // thin morning haze on the far side of the room
     lampBoost: 0.8,
+    fillColor: "#ffe9dd",
+    rimColor: "#8fa6e8",
+    rimIntensity: 0.18,
   },
   day: {
     label: "☀️ Day",
@@ -95,17 +103,27 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     sky: "#bfe0f2",
     fog: null,
     lampBoost: 0.55,
+    fillColor: "#ffffff",
+    rimColor: "#cfe3ff",
+    rimIntensity: 0.12,
   },
   sunset: {
     label: "🌇 Sunset",
     sun: [30, 12, 20],
-    sunColor: "#ff9f5e", // golden hour, pushed amber
-    sunIntensity: 1.3,
-    ambientColor: "#c4a0d8", // the violet counter-light on the shadow side
-    ambientIntensity: 0.7,
-    sky: "#e08a63",
-    fog: [54, 124],
-    lampBoost: 1.0,
+    sunColor: "#ffab73", // golden hour, amber but no longer neon
+    sunIntensity: 1.2,
+    // A cool violet fill rather than more orange: the old warm-on-warm grade turned sand,
+    // wood and skin into one flat peach, and the island vanished into its own backdrop.
+    ambientColor: "#b9b2e8",
+    ambientIntensity: 0.62,
+    // Twilight sky BEHIND the island, deliberately far from the sand's hue so the diorama
+    // reads as a solid object floating in front of it.
+    sky: "#4a3d78",
+    fog: [58, 130],
+    lampBoost: 1.1,
+    fillColor: "#ffe4cf",
+    rimColor: "#7f7de0",
+    rimIntensity: 0.3,
   },
   night: {
     label: "🌙 Night",
@@ -117,5 +135,8 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     sky: "#141d33",
     fog: [50, 120],
     lampBoost: 1.6, // lamps, festoon bulbs and the campfire carry the scene
+    fillColor: "#b9c8ee",
+    rimColor: "#7fa6ff",
+    rimIntensity: 0.55,
   },
 };

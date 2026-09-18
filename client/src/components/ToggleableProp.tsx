@@ -4,6 +4,7 @@ import * as THREE from "three";
 import type { ToggleableSyncState } from "@shared/types";
 import { GEO, noRaycast } from "../scene/kit";
 import { useLampBoost } from "../scene/timeOfDay";
+import { useOcclusionFade } from "../scene/occlusion";
 import { useRetroScreen } from "./useRetroScreen";
 
 interface ToggleablePropProps {
@@ -107,13 +108,15 @@ function WallTV({ prop, onUse }: PropViewProps) {
   const screen = useRetroScreen("pong", prop.color, prop.on, prop.x, prop.z);
   const screenMat = useMemo(() => new THREE.MeshBasicMaterial({ map: screen, toneMapped: false }), [screen]);
   useEffect(() => () => screenMat.dispose(), [screenMat]);
-  // 75" at this world scale: a 3.2 x 1.8 panel.
+  // Scaled to the characters rather than to a real living room: a 2.5 x 1.45 panel.
   return (
     <group position={[prop.x, prop.y, prop.z]}>
-      <mesh geometry={GEO.box} material={M.black} scale={[3.35, 1.95, 0.08]} castShadow raycast={noRaycast} />
-      <mesh geometry={GEO.plane} material={screenMat} position={[0, 0, 0.045]} scale={[3.2, 1.8, 1]} raycast={noRaycast} />
+      <mesh geometry={GEO.box} material={M.black} scale={[2.5, 1.45, 0.08]} castShadow raycast={noRaycast} />
+      <mesh geometry={GEO.plane} material={screenMat} position={[0, 0, 0.045]} scale={[2.38, 1.34, 1]} raycast={noRaycast} />
+      {/* wall bracket, so the panel is visibly attached to something */}
+      <mesh geometry={GEO.box} material={M.black} position={[0, 0, -0.08]} scale={[0.5, 0.36, 0.1]} raycast={noRaycast} />
       <SoftLight on={prop.on} intensity={1.4} color={prop.color} position={[0, 0, 1.2]} distance={6} />
-      <HitPad size={[3.4, 2.0, 0.5]} position={[0, 0, 0.2]} onUse={onUse} />
+      <HitPad size={[2.6, 1.6, 0.5]} position={[0, 0, 0.2]} onUse={onUse} />
     </group>
   );
 }
@@ -167,23 +170,44 @@ function Lantern({ prop, onUse }: PropViewProps) {
 
 function ArcadeCabinet({ prop, onUse }: PropViewProps) {
   const screen = useRetroScreen("invaders", prop.color, prop.on, prop.x, prop.z);
-  const screenMat = useMemo(() => new THREE.MeshBasicMaterial({ map: screen, toneMapped: false }), [screen]);
+  const screenMat = useMemo(() => new THREE.MeshBasicMaterial({ map: screen, toneMapped: false, transparent: true }), [screen]);
   useEffect(() => () => screenMat.dispose(), [screenMat]);
   const marquee = useGlow(prop.color, prop.on, 2.4);
+  // Instance-owned copies of the shared cabinet materials, so this cabinet can fade out when
+  // the player walks behind it without taking every other dark prop in the room with it.
+  const body = useMemo(() => {
+    const clone = M.cabinet.clone();
+    clone.transparent = true;
+    return clone;
+  }, []);
+  const bezel = useMemo(() => {
+    const clone = M.black.clone();
+    clone.transparent = true;
+    return clone;
+  }, []);
+  useEffect(
+    () => () => {
+      body.dispose();
+      bezel.dispose();
+    },
+    [body, bezel]
+  );
+  useOcclusionFade(prop.x, prop.z, 1.1, [body, bezel, screenMat]);
   // Neon edge trim is lit even when the game is off, just dimmer — cabinets never look dead.
   const trim = useGlow(prop.color, true, prop.on ? 2 : 0.5);
 
-  // Faces +Z (out from the back wall).
+  // Faces +Z (out from the back wall). The whole cabinet is drawn at 0.75 scale so it reads as
+  // arcade furniture next to a 1.4-unit character rather than as a monolith.
   return (
-    <group position={[prop.x, prop.y, prop.z]}>
-      <mesh geometry={GEO.box} material={M.cabinet} position={[0, 0.95, 0]} scale={[0.95, 1.9, 0.8]} castShadow receiveShadow raycast={noRaycast} />
+    <group position={[prop.x, prop.y, prop.z]} scale={0.75}>
+      <mesh geometry={GEO.box} material={body} position={[0, 0.95, 0]} scale={[0.95, 1.9, 0.8]} castShadow receiveShadow raycast={noRaycast} />
       {[-0.48, 0.48].map((x) => (
         <mesh key={x} geometry={GEO.box} material={trim} position={[x, 0.95, 0.38]} scale={[0.03, 1.9, 0.03]} raycast={noRaycast} />
       ))}
       <mesh geometry={GEO.box} material={marquee} position={[0, 1.78, 0.37]} scale={[0.85, 0.22, 0.08]} raycast={noRaycast} />
       {/* screen bezel, tilted back */}
       <group position={[0, 1.33, 0.38]} rotation={[-0.22, 0, 0]}>
-        <mesh geometry={GEO.box} material={M.black} scale={[0.82, 0.62, 0.04]} raycast={noRaycast} />
+        <mesh geometry={GEO.box} material={bezel} scale={[0.82, 0.62, 0.04]} raycast={noRaycast} />
         <mesh geometry={GEO.plane} material={screenMat} position={[0, 0, 0.022]} scale={[0.72, 0.5, 1]} raycast={noRaycast} />
       </group>
       {/* control deck: joystick + buttons */}

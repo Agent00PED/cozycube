@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 interface ColorPickerUIProps {
   currentColor: string;
   onSelect: (color: string) => void;
+  /** Laid out by a parent stack (the bottom-right corner group) rather than positioning itself. */
+  inline?: boolean;
 }
 
 // Pastel + warm earth tones — matches the clay-doll character material better than saturated
@@ -23,7 +25,7 @@ const PRESET_COLORS = [
 // A single floating puck in the bottom-right corner instead of a wide palette bar, so the
 // 3D scene stays unobstructed. Tapping it opens a compact swatch grid that closes again as
 // soon as a color is chosen or anything outside it is clicked.
-export function ColorPickerUI({ currentColor, onSelect }: ColorPickerUIProps) {
+export function ColorPickerUI({ currentColor, onSelect, inline = false }: ColorPickerUIProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +48,7 @@ export function ColorPickerUI({ currentColor, onSelect }: ColorPickerUIProps) {
   }, [open]);
 
   return (
-    <div ref={rootRef} style={styles.root}>
+    <div ref={rootRef} style={inline ? styles.inlineRoot : styles.root}>
       {open && (
         <div style={styles.popover} role="listbox" aria-label="Character color">
           {PRESET_COLORS.map((color) => {
@@ -106,6 +108,13 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "flex-end",
     gap: 10,
     zIndex: 10,
+  },
+  inlineRoot: {
+    position: "relative",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 10,
   },
   popover: {
     ...glass,

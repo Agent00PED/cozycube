@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { cameraFocus } from "./cameraFocus";
 
 // Building blocks for the procedural world.
 //
@@ -145,12 +147,19 @@ export function Instanced({
   items,
   cast = false,
   recv = false,
+  fadeRadius = 0,
 }: {
   geo: THREE.BufferGeometry;
   m: THREE.Material;
   items: InstanceSpec[];
   cast?: boolean;
   recv?: boolean;
+  /**
+   * When set, instances standing between the camera and the local player dissolve away so the
+   * character never disappears behind scenery. This is the radius (world units across the view
+   * diagonal) within which an instance counts as "in the way".
+   */
+  fadeRadius?: number;
 }) {
   const ref = useRef<THREE.InstancedMesh>(null);
 
@@ -172,16 +181,91 @@ export function Instanced({
     mesh.computeBoundingSphere();
   }, [items]);
 
+  const fadeMaterial = useOccluderDither(m, items, fadeRadius, ref);
+
   if (items.length === 0) return null;
   return (
     <instancedMesh
       ref={ref}
-      args={[geo, m, items.length]}
+      args={[geo, fadeMaterial, items.length]}
       castShadow={cast}
       receiveShadow={recv}
       raycast={noRaycast}
     />
   );
+}
+
+// Screen-door (dithered) transparency for instanced scenery.
+//
+// Real alpha on a forest would need depth sorting per tree and would sparkle horribly through
+// itself. Discarding a hashed share of each fragment instead keeps the material opaque — depth
+// writes, shadows and sort order all stay exactly as they were — while the tree visibly
+// dissolves. The per-instance fade rides along as an instanced attribute, so the whole forest
+// is still ONE draw call.
+function useOccluderDither(
+  base: THREE.Material,
+  items: InstanceSpec[],
+  fadeRadius: number,
+  meshRef: React.RefObject<THREE.InstancedMesh>
+): THREE.Material {
+  const material = useMemo(() => {
+    if (fadeRadius <= 0) return base;
+    const clone = base.clone();
+    clone.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", ["#include <common>", "attribute float aFade;", "varying float vFade;"].join("\n"))
+        .replace("#include <begin_vertex>", ["#include <begin_vertex>", "vFade = aFade;"].join("\n"));
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <common>", ["#include <common>", "varying float vFade;"].join("\n"))
+        .replace(
+          "#include <dithering_fragment>",
+          `#include <dithering_fragment>
+           if (vFade < 0.999) {
+             vec2 p = mod(gl_FragCoord.xy, 4.0);
+             float threshold = (mod(p.x + p.y * 2.0 + floor(p.y / 2.0) * 3.0, 8.0) + 0.5) / 8.0;
+             if (vFade < threshold) discard;
+           }`
+        );
+    };
+    clone.needsUpdate = true;
+    return clone;
+  }, [base, fadeRadius]);
+
+  // The attribute has to exist before the first frame, and it lives on the geometry the mesh
+  // was given, so it is attached once the mesh mounts.
+  const fades = useMemo(() => new Float32Array(items.length).fill(1), [items.length]);
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh || fadeRadius <= 0) return;
+    mesh.geometry.setAttribute("aFade", new THREE.InstancedBufferAttribute(fades, 1));
+  }, [meshRef, fades, fadeRadius]);
+
+  useFrame(() => {
+    const mesh = meshRef.current;
+    if (!mesh || fadeRadius <= 0 || !cameraFocus.hasTarget) return;
+    const attribute = mesh.geometry.getAttribute("aFade") as THREE.InstancedBufferAttribute | undefined;
+    if (!attribute) return;
+    const px = cameraFocus.x;
+    const pz = cameraFocus.z;
+    let changed = false;
+    for (let i = 0; i < items.length; i++) {
+      const [x, , z] = items[i].p;
+      // "In front of the player" along the camera's (1,1) view diagonal, and near the line of
+      // sight across it.
+      const depth = x + z - (px + pz);
+      const across = Math.abs(x - z - (px - pz)) / Math.SQRT2;
+      const inTheWay = depth > 0.8 && depth < 9 && across < fadeRadius;
+      const goal = inTheWay ? 0.25 : 1;
+      const current = fades[i];
+      if (Math.abs(goal - current) > 0.004) {
+        fades[i] = current + (goal - current) * 0.18;
+        changed = true;
+      }
+    }
+    if (changed) attribute.needsUpdate = true;
+  });
+
+  return material;
 }
 
 /** Deterministic PRNG so procedural layouts (forests, book colours) are identical on every client. */
@@ -252,6 +336,10 @@ export function useSharedMaterials() {
         opacity: 0.9,
       }),
       mud: make("#2c3a2c", { roughness: 1 }),
+      // Pot soil: MeshBasicMaterial on purpose. A lit, shadow-receiving disc sunk inside a pot
+      // rim is the classic recipe for shimmering moire at this camera angle; unlit flat brown
+      // simply cannot shimmer.
+      soil: new THREE.MeshBasicMaterial({ color: "#2b1e16" }),
       // beach
       sand: make("#f2ddb6", { roughness: 1 }),
       wetSand: make("#d9c194", { roughness: 0.95 }),
@@ -297,7 +385,7 @@ export type Materials = ReturnType<typeof useSharedMaterials>;
 export const noMerge = { noMerge: true };
 
 /** Half the world's width: the diorama slab spans -HALF..HALF on both axes. */
-export const HALF = 9;
+export const HALF = 10;
 
 function collectMergeable(root: THREE.Object3D): THREE.Mesh[] {
   const out: THREE.Mesh[] = [];

@@ -8,6 +8,7 @@ import { ChairProp } from "./ChairProp";
 import { ToggleableProp } from "./ToggleableProp";
 import { ClickMarker } from "./ClickMarker";
 import { DioramaRoom } from "../scene/DioramaRoom";
+import { Footprints } from "../scene/Footprints";
 import { ROOM_THEMES, TIME_PRESETS, type RoomTheme, type TimePreset } from "../scene/roomThemes";
 import { TimeOfDayContext } from "../scene/timeOfDay";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
@@ -144,12 +145,13 @@ export function WorldScene({
 
   return (
     <TimeOfDayContext.Provider value={timeOfDay}>
-      <RoomLighting theme={theme} preset={TIME_PRESETS[timeOfDay]} />
+      <RoomLighting theme={theme} preset={TIME_PRESETS[timeOfDay]} mapId={mapId} />
       {/* key={mapId} forces a full unmount of the old world before the new one mounts, instead of
           React diffing/reusing nodes across themes. */}
       <DioramaRoom key={mapId} mapId={mapId} onFloorClick={handleFloorClick} />
 
       <ClickMarker targetRef={moveTargetRef} rippleRef={rippleRef} />
+      {mapId === "sunset_beach" && <Footprints />}
 
       {Object.values(chairs).map((chair) => (
         <ChairProp key={chair.propId} chair={chair} onSeatClick={handleSeatClick} />
@@ -182,7 +184,7 @@ export function WorldScene({
   );
 }
 
-const RoomLighting = memo(function RoomLighting({ theme, preset }: { theme: RoomTheme; preset: TimePreset }) {
+const RoomLighting = memo(function RoomLighting({ theme, preset, mapId }: { theme: RoomTheme; preset: TimePreset; mapId: MapId }) {
   const { scene } = useThree();
   // Sky and haze live on the scene itself rather than on a mesh, so they cost nothing to draw
   // and the floating diorama reads against an actual horizon colour instead of flat black.
@@ -202,17 +204,33 @@ const RoomLighting = memo(function RoomLighting({ theme, preset }: { theme: Room
   const ambientIntensity = theme.ambientIntensity * preset.ambientIntensity * 1.6;
   const sunIntensity = theme.directionalIntensity * preset.sunIntensity;
 
+  // Indoors the sun has to come from the OPEN corner (+X/+Z). The lounge's two walls stand on
+  // the far side, and a sun from behind them laid a slab of shadow across most of the floor.
+  // It still has to stay off the camera's own (1,1,1) bearing or every shadow hides behind its
+  // caster, so this leans the light toward +X and lifts it rather than matching the camera.
+  const indoors = mapId === "cozy_lounge";
+  const sun: [number, number, number] = indoors
+    ? [Math.abs(preset.sun[0]) + 6, preset.sun[1] + 10, Math.abs(preset.sun[2]) + 8]
+    : preset.sun;
+
   return (
     <>
       <ambientLight intensity={ambientIntensity} color={preset.ambientColor} />
       <hemisphereLight intensity={ambientIntensity * 0.35} color={preset.sky} groundColor={theme.floor} />
+      {/* Shadow-free fill from the camera side. It costs one more light for the whole scene and
+          it is what keeps wood, sand and skin their own colour inside the shadows instead of
+          taking the grade's tint. */}
+      <directionalLight position={[16, 14, 22]} intensity={sunIntensity * 0.28} color={preset.fillColor} />
+      {/* Cold rim light from behind, so pines, tents and characters keep an edge after dark
+          instead of silhouetting into one black mass. */}
+      <directionalLight position={[-18, 9, -16]} intensity={preset.rimIntensity} color={preset.rimColor} />
       <directionalLight
         // Deliberately OFF the camera's azimuth. The iso camera looks along (1,1,1); a light on
         // the same bearing throws every shadow directly behind its own caster, hidden from view,
         // which looks identical to having no shadows at all. Swinging it toward +X separates the
         // two bearings, and keeping it on the open side of the room means the back walls never
         // shadow the interior.
-        position={preset.sun}
+        position={sun}
         intensity={sunIntensity}
         color={preset.sunColor}
         castShadow
@@ -221,13 +239,13 @@ const RoomLighting = memo(function RoomLighting({ theme, preset }: { theme: Room
         // self-shadowing "acne" you otherwise get on large flat floors.
         shadow-bias={-0.0005}
         shadow-normalBias={0.03}
-        // Tight to the 18x18 slab (half-diagonal ~12.7). At 2048 px over 24 units that is
-        // ~85 texels per world unit, so contact shadows stay crisp instead of blocky — and a
+        // Tight to the 20x20 slab (half-diagonal ~14). At 2048 px over 26 units that is ~79
+        // texels per world unit, so contact shadows stay crisp instead of blocky — and a
         // smaller frustum is also less for the shadow pass to cover.
-        shadow-camera-left={-12}
-        shadow-camera-right={12}
-        shadow-camera-top={12}
-        shadow-camera-bottom={-12}
+        shadow-camera-left={-13}
+        shadow-camera-right={13}
+        shadow-camera-top={13}
+        shadow-camera-bottom={-13}
         shadow-camera-near={1}
         shadow-camera-far={90}
       />

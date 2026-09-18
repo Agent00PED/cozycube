@@ -77,6 +77,19 @@ const MOVE_SPEED_PER_SEC = 3;
 const MAX_REPORT_STEP = MOVE_SPEED_PER_SEC * 0.75;
 const TICK_MS = 100; // timed activities only need 10 Hz; state patches still go out at the default rate
 const EMOTE_COOLDOWN_MS = 600;
+// Everybody used to arrive as the same white figure, which made a busy room unreadable. New
+// players get a pastel at random (the colour picker still overrides it), spread round the hue
+// circle so two people rarely land on near-identical shades.
+const PASTEL_COLORS = [
+  "#f2a3a3", // blush
+  "#f6c48a", // apricot
+  "#f2e09a", // butter
+  "#b8e0a0", // pistachio
+  "#9adfd0", // seafoam
+  "#a3c9f2", // sky
+  "#b8b0ec", // lilac
+  "#e8a8dd", // orchid
+];
 const MAP_SIGNATURE_TIME: Partial<Record<MapId, TimeOfDay>> = {
   sunset_beach: "sunset",
   campfire_night: "night",
@@ -411,6 +424,7 @@ export class HangoutRoom extends Room<HangoutState> {
     player.userId = options.userId;
     player.username = options.username;
     player.avatarUrl = options.avatarUrl;
+    player.color = PASTEL_COLORS[Math.floor(Math.random() * PASTEL_COLORS.length)];
     // Cycle through the spawn points instead of always using the first one, otherwise every
     // player in the room materialises inside everybody else.
     const spawns = MAP_SPAWN_POINTS[this.state.currentMap];
