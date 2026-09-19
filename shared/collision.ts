@@ -32,21 +32,25 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: 0.8, maxX: 9.4, minZ: -9.8, maxZ: -8.8 }, // back counter run, sink and fridge grouped
     { minX: 3.3, maxX: 6.9, minZ: -6.8, maxZ: -5.6 }, // bar island
     // --- Dining set ---
-    { minX: -4.5, maxX: -2.7, minZ: -1.8, maxZ: -0.2 }, // table (chairs tuck under, so they are not boxes)
+    { minX: -4.5, maxX: -2.7, minZ: 0.7, maxZ: 2.3 }, // table (chairs tuck under, so they are not boxes)
     // --- Gamer corner ---
     { minX: -9.8, maxX: -8.4, minZ: -8.7, maxZ: -5.7 }, // streamer desk against the left wall
-    { minX: -8.1, maxX: -5.4, minZ: -9.8, maxZ: -8.7 }, // both arcade cabinets, grouped
+    { minX: -9.8, maxX: -9.05, minZ: -4.45, maxZ: -2.35 }, // both arcade cabinets, on the left wall
+    { minX: -7.95, maxX: -7.25, minZ: -9.65, maxZ: -8.95 }, // fern where the cabinets used to stand
+    { minX: -6.9, maxX: -5.9, minZ: -9.6, maxZ: -8.7 }, // beanbag
     { minX: -9.6, maxX: -8.8, minZ: -9.6, maxZ: -8.8 }, // corner plant
     // --- Vinyl nook ---
     { minX: -9.8, maxX: -8.9, minZ: 2.4, maxZ: 5.2 }, // record shelf against the left wall
-    { minX: -8.7, maxX: -8.1, minZ: 5.7, maxZ: 6.3 }, // floor lamp
-    { minX: -6.6, maxX: -5.8, minZ: 2.7, maxZ: 3.5 }, // guitar on its stand
+    { minX: -8.7, maxX: -8.1, minZ: 5.2, maxZ: 5.8 }, // floor lamp
+    { minX: -7.7, maxX: -6.9, minZ: 5.2, maxZ: 6.0 }, // guitar on its stand, beside the armchair
     { minX: -7.95, maxX: -7.25, minZ: 2.85, maxZ: 3.55 }, // round side table by the armchair
     // --- Balcony deck ---
     { minX: 8.6, maxX: 9.2, minZ: 5.1, maxZ: 5.7 }, // floor lantern
     { minX: 5.2, maxX: 5.8, minZ: 0.7, maxZ: 1.3 }, // potted fig by the deck step
     { minX: 8.5, maxX: 9.2, minZ: 1.4, maxZ: 2.1 }, // olive tree
     { minX: 6.0, maxX: 7.0, minZ: -3.6, maxZ: -2.6 }, // console table by the entry
+    { minX: 8.75, maxX: 9.45, minZ: 6.85, maxZ: 7.55 }, // monstera on the deck
+    { minX: 8.8, maxX: 9.4, minZ: 2.9, maxZ: 3.5 }, // fern on its plant stool
   ],
 
   campfire_night: [
@@ -76,7 +80,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -5.2, maxX: -4.6, minZ: -3.9, maxZ: -3.3 }, // volleyball post
     { minX: -5.2, maxX: -4.6, minZ: -0.3, maxZ: 0.3 }, // volleyball post
     { minX: -3.7, maxX: -1.5, minZ: -0.1, maxZ: 2.1 }, // rowboat pulled up on the sand
-    { minX: 8.5, maxX: 9.3, minZ: -3.2, maxZ: -2.4 }, // palm, moved well clear of the bonfire
+    { minX: 8.8, maxX: 9.6, minZ: -9.2, maxZ: -8.4 }, // palm, up in the back corner of the beach
     { minX: 3.5, maxX: 5.4, minZ: 3.5, maxZ: 4.6 }, // Fisherman Bob and his bait stall beside him
   ],
 

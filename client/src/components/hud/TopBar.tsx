@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { TIMES_OF_DAY, type MapId, type TimeOfDay } from "@shared/types";
 import { TIME_PRESETS } from "../../scene/roomThemes";
 import { glass } from "./glass";
-import { playClick, playCoin } from "../../audio/sfx";
+import { playChime, playClick, playCoin } from "../../audio/sfx";
 
 interface TopBarProps {
   currentMap: MapId;
@@ -103,7 +103,13 @@ export function TopBar({ currentMap, mapDisabled, onSelectMap, timeOfDay, onSele
 
       <div style={styles.group}>
         <CoinCounter coins={coins} />
-        <button type="button" onClick={onOpenWardrobe} title="Wardrobe" style={{ ...styles.button, ...styles.wardrobe }}>
+        <button
+          type="button"
+          onClick={() => {
+            playChime();
+            onOpenWardrobe();
+          }}
+          title="Wardrobe" style={{ ...styles.button, ...styles.wardrobe }}>
           <span style={styles.icon}>👗</span>
           <span className="cozy-hud-label">Wardrobe</span>
         </button>

@@ -209,6 +209,7 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
   const bodyRef = useRef<THREE.Mesh>(null);
   const headRef = useRef<THREE.Group>(null);
   const tailRef = useRef<THREE.Group>(null);
+  const earRef = useRef<THREE.Mesh>(null);
   const petted = prop.boost > 0;
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -218,6 +219,11 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
       headRef.current.rotation.z = petted ? Math.sin(t * 3) * 0.15 : 0;
     }
     if (tailRef.current) tailRef.current.rotation.y = Math.sin(t * (petted ? 4 : 0.8)) * (petted ? 0.5 : 0.15);
+    // One ear flicks back for a moment every ~3.7 s, like a cat half-listening in its sleep.
+    if (earRef.current) {
+      const phase = t % 3.7;
+      earRef.current.rotation.x = phase < 0.25 ? Math.sin((phase / 0.25) * Math.PI) * 0.7 : 0;
+    }
   });
   return (
     <group position={[prop.x, 0, prop.z]} rotation={[0, 0.6, 0]}>
@@ -229,9 +235,8 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
       ))}
       <group ref={headRef} position={[0.2, 0.14, 0.08]}>
         <mesh geometry={GEO.sphere} material={M.catOrange} scale={[0.19, 0.16, 0.17]} raycast={noRaycast} />
-        {[-0.05, 0.05].map((z) => (
-          <mesh key={z} geometry={GEO.cone} material={M.catOrange} position={[-0.01, 0.09, z]} scale={[0.07, 0.08, 0.06]} raycast={noRaycast} />
-        ))}
+        <mesh geometry={GEO.cone} material={M.catOrange} position={[-0.01, 0.09, -0.05]} scale={[0.07, 0.08, 0.06]} raycast={noRaycast} />
+        <mesh ref={earRef} geometry={GEO.cone} material={M.catOrange} position={[-0.01, 0.09, 0.05]} scale={[0.07, 0.08, 0.06]} raycast={noRaycast} />
         <mesh geometry={GEO.sphereLow} material={M.nose} position={[0.09, -0.01, 0]} scale={0.022} raycast={noRaycast} />
         {/* closed sleepy eyes */}
         {[-0.035, 0.035].map((z) => (

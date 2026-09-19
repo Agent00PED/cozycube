@@ -434,7 +434,8 @@ function CoffeeStation({ mats }: { mats: Materials }) {
 // Authored around (3.8, -1.4) and moved as a group; shared/props.ts places its four chairs.
 // ---------------------------------------------------------------------------------------
 
-const DINING_OFFSET: [number, number, number] = [-7.4, 0, 0.4]; // table centre (-3.6, -1.0)
+// Pulled 2.5 units forward into the true middle of the room, on the kitchen island's axis.
+const DINING_OFFSET: [number, number, number] = [-7.4, 0, 2.9]; // table centre (-3.6, 1.5)
 
 function DiningSet({ mats }: { mats: Materials }) {
   return (
@@ -506,6 +507,10 @@ function GamerCorner({ mats }: { mats: Materials }) {
       </group>
 
       <WallFrame x={-7.4} y={2.2} z={-INNER + 0.01} w={0.55} h={0.38} art={mats.neonCyan} mats={mats} />
+      {/* where the arcade cabinets used to stand: a fern and a slouchy beanbag */}
+      <PottedPlant x={-7.6} z={-9.3} mats={mats} kind="fern" scale={0.9} />
+      <Sph p={[-6.4, 0.22, -9.1]} s={[0.9, 0.45, 0.8]} m={mats.mustard} cast />
+      <Sph p={[-6.4, 0.46, -9.35]} s={[0.7, 0.35, 0.3]} m={mats.mustard} />
       <WallFrame x={-6.1} y={2.2} z={-INNER + 0.01} w={0.55} h={0.38} art={mats.neonPink} mats={mats} />
 
       {/* snack table between the cabinets and the sofa */}
@@ -543,7 +548,8 @@ function VinylNook({ mats }: { mats: Materials }) {
 
   return (
     <>
-      <Rug x={-6.4} z={4.8} radius={2.6} y={0.06} m={mats.libraryRug} />
+      {/* a smaller rug (radius 2.6 -> 1.9) gathering chair, lamp, guitar and side table into one nook */}
+      <Rug x={-7.3} z={4.4} radius={1.9} y={0.06} m={mats.libraryRug} />
 
       {/* record shelf against the wall, packed with sleeves */}
       <B p={[-9.35, 0.85, 3.8]} s={[0.62, 1.7, 2.8]} m={mats.walnut} cast recv />
@@ -554,7 +560,7 @@ function VinylNook({ mats }: { mats: Materials }) {
       {/* the record player on top of the shelf is the interactive "turntable" prop */}
 
       {/* acoustic guitar on a proper A-frame stand, resting on the floor */}
-      <group position={[-6.2, 0, 3.1]} rotation={[0, 0.6, 0]}>
+      <group position={[-7.3, 0, 5.6]} rotation={[0, 1.2, 0]}>
         {[-0.18, 0.18].map((dx) => (
           <Cyl key={dx} p={[dx, 0.28, 0]} s={[0.05, 0.56, 0.05]} r={[0.18, 0, dx > 0 ? -0.2 : 0.2]} m={mats.black} />
         ))}
@@ -606,38 +612,15 @@ function BalconyDeck({ mats }: { mats: Materials }) {
     return out;
   }, []);
 
-  // Festoon lights: four short corner posts with cables sagging between them, nothing else.
-  // The previous version added a square of beams across the top, which from this camera read
-  // as the bars of a cage over the whole terrace.
+  // Four low posts at the deck's corners, each crowned with its own lantern. Nothing runs
+  // between them overhead — no beams, no cables — so from the camera the terrace is open sky.
   const POSTS: [number, number][] = [
     [4.8, 0.8],
     [9.2, 0.8],
     [9.2, 9.2],
     [4.8, 9.2],
   ];
-  const { bulbs, cables } = useMemo(() => {
-    const bulbs: InstanceSpec[] = [];
-    const cables: InstanceSpec[] = [];
-    const TOP = 2.45; // clears every head, and low enough to feel like a terrace not a hangar
-    for (let i = 0; i < POSTS.length; i++) {
-      const [ax, az] = POSTS[i];
-      const [bx, bz] = POSTS[(i + 1) % POSTS.length];
-      const n = 11;
-      const at = (t: number): [number, number, number] => [ax + (bx - ax) * t, TOP - Math.sin(t * Math.PI) * 0.3, az + (bz - az) * t];
-      for (let k = 1; k < n; k++) bulbs.push({ p: at(k / n), s: [0.1, 0.13, 0.1] });
-      for (let k = 0; k < n; k++) {
-        const a = at(k / n);
-        const b = at((k + 1) / n);
-        const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
-        cables.push({
-          p: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + 0.06, (a[2] + b[2]) / 2],
-          s: [0.022, 0.022, len],
-          r: [Math.asin((b[1] - a[1]) / len), Math.atan2(b[0] - a[0], b[2] - a[2]), 0],
-        });
-      }
-    }
-    return { bulbs, cables };
-  }, []);
+  const POST_H = 1.1;
 
   return (
     <>
@@ -651,10 +634,13 @@ function BalconyDeck({ mats }: { mats: Materials }) {
       <B p={[(DECK.x0 + DECK.x1) / 2, 0.015, DECK.z0 - 0.16]} s={[DECK.x1 - DECK.x0, 0.03, 0.34]} m={mats.oak} recv />
 
       {POSTS.map(([x, z]) => (
-        <Cyl key={String(x) + ":" + String(z)} p={[x, 1.24, z]} s={[0.08, 2.48, 0.08]} m={mats.darkWood} cast />
+        <group key={String(x) + ":" + String(z)} position={[x, 0, z]}>
+          <B p={[0, POST_H / 2, 0]} s={[0.16, POST_H, 0.16]} m={mats.darkWood} cast />
+          <B p={[0, POST_H + 0.02, 0]} s={[0.24, 0.04, 0.24]} m={mats.walnut} />
+          <Sph p={[0, POST_H + 0.17, 0]} s={[0.17, 0.22, 0.17]} m={mats.bulb} />
+          <Cone p={[0, POST_H + 0.34, 0]} s={[0.24, 0.12, 0.24]} m={mats.black} />
+        </group>
       ))}
-      <Instanced geo={GEO.box} m={mats.black} items={cables} />
-      <Instanced geo={GEO.sphereLow} m={mats.bulb} items={bulbs} />
 
       {/* striped outdoor rug between the loungers */}
       <B p={[7.4, 0.06, 5.4]} s={[2.4, 0.01, 3.4]} m={mats.cream} />
@@ -669,6 +655,10 @@ function BalconyDeck({ mats }: { mats: Materials }) {
       <PottedPlant x={5.5} z={1.0} mats={mats} kind="fig" scale={1.1} />
       <PottedPlant x={8.85} z={1.75} mats={mats} kind="olive" />
       <PottedPlant x={8.4} z={8.6} mats={mats} kind="fern" scale={0.9} />
+      {/* an indoor-garden edge at mixed heights: a big monstera, and a fern up on a plant stool */}
+      <PottedPlant x={9.1} z={7.2} mats={mats} kind="monstera" scale={1.2} />
+      <Cyl p={[9.1, 0.22, 3.2]} s={[0.5, 0.44, 0.5]} m={mats.walnut} cast />
+      <PottedPlant x={9.1} z={3.2} mats={mats} kind="fern" scale={0.75} y={0.44} />
 
       {/* console table by the entry, where everyone spawns */}
       <B p={[6.5, 0.42, -3.1]} s={[1.0, 0.05, 0.36]} m={mats.oak} cast />

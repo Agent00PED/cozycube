@@ -300,7 +300,7 @@ function ArcadeCabinet({ prop, onUse }: PropViewProps) {
   // Faces +Z (out from the back wall). The whole cabinet is drawn at 0.75 scale so it reads as
   // arcade furniture next to a 1.4-unit character rather than as a monolith.
   return (
-    <group position={[prop.x, prop.y, prop.z]} scale={0.75}>
+    <group position={[prop.x, prop.y, prop.z]} rotation={[0, TOGGLEABLE_CONFIG[prop.propId]?.rotationY ?? 0, 0]} scale={0.75}>
       <mesh geometry={GEO.box} material={body} position={[0, 0.95, 0]} scale={[0.95, 1.9, 0.8]} castShadow receiveShadow raycast={noRaycast} />
       {[-0.48, 0.48].map((x) => (
         <mesh key={x} geometry={GEO.box} material={trim} position={[x, 0.95, 0.38]} scale={[0.03, 1.9, 0.03]} raycast={noRaycast} />

@@ -57,6 +57,7 @@ interface WorldSceneProps {
 
 type ActiveGesture = { kind: Gesture; at: number };
 
+import { interactBridge } from "../scene/interactBridge";
 export function WorldScene({
   room,
   players,
@@ -132,6 +133,31 @@ export function WorldScene({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The HUD's proximity action dock triggers these same handlers by id.
+  const syncedRef = useRef({ chairs, toggleables });
+  syncedRef.current = { chairs, toggleables };
+  useEffect(() => {
+    interactBridge.current = {
+      useProp: (id) => {
+        const prop = syncedRef.current.toggleables[id];
+        if (prop) handleUseProp(prop);
+      },
+      sit: (id) => {
+        const chair = syncedRef.current.chairs[id];
+        if (chair) handleSeatClick(chair);
+      },
+      walkTo: (x, z) => {
+        standUpIfSeated();
+        moveTargetRef.current = { x, z };
+        pingRipple(x, z);
+      },
+    };
+    return () => {
+      interactBridge.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleUseProp, handleSeatClick]);
 
   // --- floating emotes (one-shot broadcasts, not synced state) ---
   const [emotes, setEmotes] = useState<Record<string, FloatingEmote[]>>({});

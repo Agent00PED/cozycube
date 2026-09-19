@@ -446,7 +446,9 @@ const PALMS: { x: number; z: number; h: number; lean: number }[] = [
   // Once at (8.4, 0.6) with its crown over the bonfire. From this camera a tall crown projects
   // up-screen onto whatever lies in the same screen column (x - z), so it now stands well off
   // the fire's column as well as 4+ units away from it.
-  { x: 8.9, z: -2.8, h: 3.4, lean: -0.08 },
+  // Then (8.9, -2.8), still too close; now up in the back corner, six units further off, so
+  // neither its crown nor its shadow comes anywhere near the fire circle.
+  { x: 9.2, z: -8.8, h: 3.4, lean: -0.08 },
   { x: 3.4, z: -8.2, h: 3.0, lean: 0.22 },
   { x: -2.0, z: 2.6, h: 3.3, lean: 0.14 },
 ];

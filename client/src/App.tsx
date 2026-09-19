@@ -7,6 +7,7 @@ import { loadSavedLook } from "./components/hud/lookStorage";
 import { playWinBell, setSfxMuted } from "./audio/sfx";
 import { defaultLook, parseLook } from "@shared/types";
 import { EmoteBar } from "./components/hud/EmoteBar";
+import { ActionDock } from "./components/hud/ActionDock";
 import { ActivityBar } from "./components/hud/ActivityBar";
 import { VoiceChip } from "./components/hud/VoiceChip";
 import { PlayerRoster } from "./components/hud/PlayerRoster";
@@ -96,7 +97,16 @@ const GLOBAL_CSS = `
   0%, 100% { transform: translate(-50%, 0) rotate(-8deg); }
   50% { transform: translate(-50%, -7px) rotate(8deg); }
 }
+/* Speech bubbles and toasts never swallow a click meant for the world under them. */
+.cozy-bubble { pointer-events: none; }
+/* Proximity action buttons pop in and breathe so they are impossible to miss. */
+.cozy-action { animation: cozy-action-in 220ms cubic-bezier(0.3, 1.5, 0.5, 1), cozy-action-glow 1.6s ease-in-out 220ms infinite alternate; }
+.cozy-action:hover { transform: translateY(-2px) scale(1.04); }
+.cozy-action:active { transform: scale(0.96); }
+@keyframes cozy-action-in { from { opacity: 0; transform: translateY(10px) scale(0.8); } }
+@keyframes cozy-action-glow { to { box-shadow: 0 4px 24px rgba(255, 190, 60, 0.85), inset 0 -2px 0 rgba(160, 90, 10, 0.25); } }
 .cozy-bottom-stack {
+  pointer-events: none;
   position: absolute;
   left: 50%;
   bottom: max(18px, env(safe-area-inset-bottom));
@@ -107,6 +117,7 @@ const GLOBAL_CSS = `
   gap: 8px;
   z-index: 10;
 }
+.cozy-bottom-stack > * { pointer-events: auto; }
 /* On phones, keep the emote bar clear of the colour-picker puck in the bottom-right corner. */
 @media (max-width: 480px) {
   .cozy-bottom-stack { left: 12px; transform: none; align-items: flex-start; }
@@ -271,6 +282,7 @@ export default function App() {
             onCastLine={castLine}
             onReelIn={reelIn}
           />
+          <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onCastLine={castLine} />
           <EmoteBar onEmote={handleEmote} onGesture={sendGesture} />
         </div>
       )}
