@@ -1,4 +1,5 @@
 import type { MapId, SeatStyle, ToggleableKind } from "./types";
+import { SPARKLE_SPOTS } from "./types";
 
 // Author-time config for each map's interactive furniture. The server loads this into
 // ChairState/ToggleableState schema instances on room create and on every map change;
@@ -236,6 +237,8 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
     { propId: "tiki_east", x: 7.4, y: 0.5, z: 3.0, kind: "lantern", color: "#ff9a4a", defaultOn: true },
     { propId: "tiki_west", x: -8.0, y: 0.5, z: -1.6, kind: "lantern", color: "#ff9a4a", defaultOn: true },
     // Fisherman Bob buys your catch at his stall by the pier.
+    // Glints in the sand: beachcombing spots. The server moves each one after it is picked.
+    ...SPARKLE_SPOTS.slice(0, 3).map((s, i) => ({ propId: `sparkle_${i + 1}`, x: s.x, z: s.z, kind: "sparkle" as const, color: "#fff3b0", defaultOn: true, approachX: s.x, approachZ: s.z })),
     { propId: "npc_bob", x: 5.0, z: 4.0, kind: "npc", color: "#3f6d8c", defaultOn: true, approachX: 5.0, approachZ: 2.9 },
   ],
 

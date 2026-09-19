@@ -63,7 +63,8 @@ interface UseColyseusRoomResult {
   eat: () => void;
   dropHeld: () => void;
   kickBall: (dirX: number, dirZ: number) => void;
-  castLine: () => void;
+  castLine: (afk?: boolean) => void;
+  setStatus: (status: string) => void;
   reelIn: () => void;
   /** Latest server snapshot of the beach volleyball (null until the first patch). */
   ballRef: React.MutableRefObject<BallSnapshot | null>;
@@ -172,6 +173,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
               coins: player.coins ?? 0,
               bag: player.bag ?? "",
               owned: player.owned ?? "",
+              status: player.status ?? "",
             },
           }));
         };
@@ -361,7 +363,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     eat: () => send("eat"),
     dropHeld: () => send("dropHeld"),
     kickBall: (dirX: number, dirZ: number) => send("kickBall", { dirX, dirZ }),
-    castLine: () => send("castLine"),
+    castLine: (afk = false) => send("castLine", { afk }),
+    setStatus: (status) => send("setStatus", { status }),
     reelIn: () => send("reelIn"),
     ballRef,
     subscribeEmotes,

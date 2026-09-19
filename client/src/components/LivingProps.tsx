@@ -203,6 +203,40 @@ export function ForageBush({ prop, onUse }: { prop: ToggleableSyncState; onUse: 
   );
 }
 
+// --- Beachcombing sparkles --------------------------------------------------------------------
+
+const GLINT = new THREE.MeshBasicMaterial({ color: "#fff6c8", toneMapped: false, transparent: true, depthWrite: false });
+// Both blades and the core as one geometry: one draw per sparkle.
+const GLINT_GEO = bake([
+  { geo: GEO.box, p: [0, 0, 0], s: [0.34, 0.035, 0.035] },
+  { geo: GEO.box, p: [0, 0, 0], s: [0.035, 0.34, 0.035] },
+  { geo: GEO.sphereLow, p: [0, 0, 0], s: [0.07, 0.07, 0.07] },
+]);
+
+/** A glint on the sand: two crossed star blades that twinkle and turn. Nothing when picked. */
+export function Sparkle({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => void }) {
+  const ref = useRef<THREE.Group>(null);
+  const seed = useMemo(() => prop.propId.length * 1.7, [prop.propId]);
+  useFrame(({ clock }) => {
+    const g = ref.current;
+    if (!g) return;
+    const t = clock.elapsedTime + seed;
+    g.rotation.y = t * 1.2;
+    const pulse = 0.55 + 0.45 * Math.max(0, Math.sin(t * 3.1));
+    g.scale.setScalar(0.8 + pulse * 0.5);
+    g.position.y = 0.18 + Math.sin(t * 2) * 0.04;
+  });
+  if (!prop.on) return null;
+  return (
+    <group position={[prop.x, 0, prop.z]}>
+      <group ref={ref}>
+        <mesh geometry={GLINT_GEO} material={GLINT} raycast={noRaycast} />
+      </group>
+      <HitPad size={[0.9, 0.6, 0.9]} position={[0, 0.3, 0]} onUse={onUse} />
+    </group>
+  );
+}
+
 // --- Mochi the cat -----------------------------------------------------------------------------
 
 export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => void }) {
@@ -254,6 +288,56 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
         </Html>
       )}
       <HitPad size={[0.8, 0.6, 0.7]} position={[0, 0.25, 0]} onUse={onUse} />
+    </group>
+  );
+}
+
+// --- The roulette dealer -------------------------------------------------------------------------
+
+const DEALER_LOOK = "#e8c29c,bob,#2a1c14,#1d1d24,#1d1d24,bunny";
+const BOW_TIE = new THREE.MeshStandardMaterial({ color: "#b3202e", roughness: 0.5 });
+const SHIRT_FRONT = new THREE.MeshStandardMaterial({ color: "#f4efe6", roughness: 0.7 });
+
+/** A chibi croupier in a black tux and bunny ears, behind the wheel. Calls the phases. */
+export function Dealer({ phase }: { phase: string }) {
+  const speedRef = useRef(0);
+  const [line, setLine] = useState<string | null>(null);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const text = phase === "betting" ? "Place your bets! 🎲" : phase === "spinning" ? "No more bets!" : "";
+    if (!text) return;
+    setLine(text);
+    const t = window.setTimeout(() => setLine(null), 2600);
+    return () => window.clearTimeout(t);
+  }, [phase]);
+  return (
+    <group position={[2.4, 0, -1.3]}>
+      <Character3D
+        userId="dealer"
+        look={DEALER_LOOK}
+        color="#1d1d24"
+        username="Dealer"
+        pose="stand"
+        speedRef={speedRef}
+        holding=""
+        action=""
+        actionProgress={0}
+        toast={0}
+        speaking={false}
+        emotes={NO_EMOTES}
+      />
+      {/* white shirt front and a red bow tie over the tux */}
+      <mesh geometry={GEO.box} material={SHIRT_FRONT} position={[0, 0.56, 0.225]} rotation={[-0.3, 0, 0]} scale={[0.14, 0.18, 0.02]} raycast={noRaycast} />
+      <mesh geometry={GEO.box} material={BOW_TIE} position={[0, 0.69, 0.25]} scale={[0.15, 0.06, 0.04]} raycast={noRaycast} />
+      {line && (
+        <Html position={[0, 2.25, 0]} center zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
+          <div className="cozy-bubble">{line}</div>
+        </Html>
+      )}
     </group>
   );
 }

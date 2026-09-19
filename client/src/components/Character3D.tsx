@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { Billboard, Html, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { GESTURE_SECONDS, TOAST_MAX, defaultLook, hashString, parseLook, type Accessory, type Gesture, type HairStyle, type HeldItem, type PlayerAction, type SitPose } from "@shared/types";
+import { ACTIVITY_STATUSES, GESTURE_SECONDS, isActivityStatus, TOAST_MAX, defaultLook, hashString, parseLook, type Accessory, type Gesture, type HairStyle, type HeldItem, type PlayerAction, type SitPose } from "@shared/types";
 import { GEO, arcGeo, noRaycast, ringGeo } from "../scene/kit";
 
 export type CharacterPose = "stand" | SitPose;
@@ -30,6 +30,8 @@ interface Character3DProps {
   emotes: FloatingEmote[];
   /** A social gesture in progress (wave, dance, cheers, nap) and when it started (performance.now). */
   gesture?: { kind: Gesture; at: number } | null;
+  /** Activity status badge (an ActivityStatusId), "" for none. "afk" also naps. */
+  status?: string;
 }
 
 // --- Proportions -------------------------------------------------------------------------
@@ -160,7 +162,7 @@ const ROD_LENGTH = 1.3;
 // RemotePlayerAvatar in WorldScene) owns the forwarded outer group and drives its position.
 export const Character3D = memo(
   forwardRef<THREE.Group, Character3DProps>(
-    ({ userId, look, color, username, pose, speedRef, holding, action, actionProgress, toast, speaking, emotes, gesture }, ref) => {
+    ({ userId, look, color, username, pose, speedRef, holding, action, actionProgress, toast, speaking, emotes, gesture, status = "" }, ref) => {
       const bodyRef = useRef<THREE.Group>(null);
       const torsoRef = useRef<THREE.Mesh>(null);
       const headRef = useRef<THREE.Group>(null);
@@ -232,7 +234,9 @@ export const Character3D = memo(
         const swing = walking ? Math.sin(phase) * Math.min(1, speed * 1.4) : 0;
         const roasting = holding === "marshmallow";
         const holdingCup = holding === "coffee";
-        const fishing = action === "fish";
+        const fishing = action === "fish" || action === "afkfish";
+        // AFK and standing about: curl up for a nap where you are until you're back.
+        const afkNap = status === "afk" && !walking && pose === "stand";
 
         // --- limbs ---
         let leftArm = swing * ARM_SWING;
@@ -281,7 +285,7 @@ export const Character3D = memo(
         // --- body: waddle when walking, breathe when still, lie flat on a blanket ---
         const body = bodyRef.current;
         if (body) {
-          const lying = pose === "lie" || g === "nap";
+          const lying = pose === "lie" || g === "nap" || afkNap;
           const danceBob = g === "dance" ? Math.abs(Math.sin(gAge * 7)) * 0.08 : 0;
           const bob = walking ? Math.abs(Math.sin(phase)) * BOB_HEIGHT : danceBob;
           body.position.y = L(body.position.y, lying ? LIE_LIFT : bob, lerp);
@@ -524,8 +528,24 @@ export const Character3D = memo(
           {/* Emoji (emotes, and the bouncing note while talking) need the platform colour-emoji
               font, which WebGL text can't use, so they're DOM overlays. No distanceFactor:
               under an OrthographicCamera it scales runaway. */}
+          {isActivityStatus(status) && (
+            <Html position={[0, (lying ? 0.72 : NAMETAG_Y) + 0.32, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
+              <div style={{ position: "relative" }}>
+                <span className="cozy-status">
+                  {ACTIVITY_STATUSES[status].emoji} {ACTIVITY_STATUSES[status].label}
+                </span>
+                {status === "afk" && (
+                  <>
+                    <span className="cozy-zzz">z</span>
+                    <span className="cozy-zzz">z</span>
+                    <span className="cozy-zzz">Z</span>
+                  </>
+                )}
+              </div>
+            </Html>
+          )}
           {(emotes.length > 0 || speaking) && (
-            <Html position={[0, NAMETAG_Y + 0.3, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
+            <Html position={[0, NAMETAG_Y + (isActivityStatus(status) ? 0.5 : 0.3), 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
               <div style={{ position: "relative", width: 0, height: 0 }}>
                 {speaking && <span className="cozy-speaking">🎵</span>}
                 {emotes.map((e) => (

@@ -40,6 +40,11 @@ import {
   ROAST_SECONDS,
   TOAST_MAX,
   isTimeOfDay,
+  isActivityStatus,
+  AFK_FISH_MIN_S,
+  AFK_FISH_MAX_S,
+  SPARKLE_SPOTS,
+  SPARKLE_RESPAWN_S,
   isWalkUpProp,
   encodeLook,
   parseLook,
@@ -73,6 +78,7 @@ class Player extends Schema {
   @type("number") coins = STARTING_COINS;
   @type("string") bag = "";
   @type("string") owned = "";
+  @type("string") status = "";
 }
 
 // The shared roulette wheel in the casino. One loop for the whole room: 25 s of betting, a 6 s
@@ -196,6 +202,8 @@ export class HangoutRoom extends Room<HangoutState> {
   private fishBiteAt = new Map<string, number>();
   /** When the current bite escapes, per fishing player (absent = no bite on the line). */
   private biteUntil = new Map<string, number>();
+  /** Length of the current AFK-fishing wait, per player, so progress can be shown. */
+  private afkTotal = new Map<string, number>();
   private lastTipAt = new Map<string, number>();
   private lastGestureAt = new Map<string, number>();
   private regrowAt = new Map<string, number>();
@@ -288,7 +296,12 @@ export class HangoutRoom extends Room<HangoutState> {
 
     this.onMessage("roast", (client) => this.handleRoast(client.sessionId));
     this.onMessage("kickBall", (client, msg: { dirX: number; dirZ: number }) => this.handleKick(client.sessionId, msg));
-    this.onMessage("castLine", (client) => this.handleCastLine(client.sessionId));
+    this.onMessage("castLine", (client, msg: { afk?: boolean }) => this.handleCastLine(client.sessionId, !!msg?.afk));
+    this.onMessage("setStatus", (client, msg: { status: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      player.status = isActivityStatus(msg?.status) ? msg.status : "";
+    });
     this.onMessage("reelIn", (client) => this.handleReelIn(client.sessionId));
     this.onMessage("eat", (client) => this.handleEat(client.sessionId));
     this.onMessage("dropHeld", (client) => {
@@ -335,6 +348,7 @@ export class HangoutRoom extends Room<HangoutState> {
       if (regrow !== undefined && now >= regrow) {
         prop.on = true;
         this.regrowAt.delete(prop.propId);
+        if (prop.kind === "sparkle") this.moveSparkle(prop);
       }
     });
 
@@ -351,6 +365,24 @@ export class HangoutRoom extends Room<HangoutState> {
             this.addCoins(player, ESPRESSO_TIP);
             this.broadcast("emote", { sessionId, emoji: "🪙" });
           }
+        }
+      } else if (player.action === "afkfish") {
+        // Chill mode: no bites to watch for, a little haul now and then while you chat.
+        const at = this.fishBiteAt.get(sessionId) ?? now;
+        const total = this.afkTotal.get(sessionId) ?? AFK_FISH_MIN_S * 1000;
+        player.actionProgress = Math.max(0, Math.min(1, 1 - (at - now) / total));
+        if (now >= at) {
+          const roll = Math.random();
+          if (roll < 0.4) {
+            this.addCoins(player, 5 + Math.floor(Math.random() * 11));
+            this.broadcast("emote", { sessionId, emoji: "🪙" });
+          } else {
+            const fish: ItemId = roll < 0.8 ? "sardine" : "clownfish";
+            this.addItem(player, fish);
+            this.broadcast("emote", { sessionId, emoji: ITEMS[fish].emoji });
+          }
+          this.scheduleAfkCatch(sessionId, now);
+          player.actionProgress = 0;
         }
       } else if (player.action === "roast") {
         player.toast = Math.min(TOAST_MAX, player.toast + dt / ROAST_SECONDS);
@@ -493,8 +525,8 @@ export class HangoutRoom extends Room<HangoutState> {
 
   private handleReelIn(sessionId: string) {
     const player = this.state.players.get(sessionId);
-    if (!player || player.action !== "fish") return;
-    if (!this.biteUntil.has(sessionId)) {
+    if (!player || (player.action !== "fish" && player.action !== "afkfish")) return;
+    if (player.action === "afkfish" || !this.biteUntil.has(sessionId)) {
       // nothing on the line: this is "stop fishing"
       this.clearAction(player);
       this.fishBiteAt.delete(sessionId);
@@ -739,6 +771,19 @@ export class HangoutRoom extends Room<HangoutState> {
         this.broadcast("emote", { sessionId, emoji: ITEMS[item].emoji });
         break;
       }
+      case "sparkle": {
+        if (!prop.on) return; // already picked; another turns up soon
+        if (Math.random() < 0.6) {
+          this.addItem(player, "shell");
+          this.broadcast("emote", { sessionId, emoji: ITEMS.shell.emoji });
+        } else {
+          this.addCoins(player, 3 + Math.floor(Math.random() * 8));
+          this.broadcast("emote", { sessionId, emoji: "🪙" });
+        }
+        prop.on = false;
+        this.regrowAt.set(prop.propId, Date.now() + SPARKLE_RESPAWN_S * 1000);
+        break;
+      }
       case "cat":
         prop.boost = 2.5; // hearts float up and she purrs while this runs down
         this.broadcast("emote", { sessionId, emoji: "💕" });
@@ -845,16 +890,41 @@ export class HangoutRoom extends Room<HangoutState> {
     this.ballIdle = 0;
   }
 
-  private handleCastLine(sessionId: string) {
+  private scheduleAfkCatch(sessionId: string, now: number) {
+    const total = (AFK_FISH_MIN_S + Math.random() * (AFK_FISH_MAX_S - AFK_FISH_MIN_S)) * 1000;
+    this.afkTotal.set(sessionId, total);
+    this.fishBiteAt.set(sessionId, now + total);
+  }
+
+  /** A picked sparkle reappears somewhere else on the sand, never on top of another one. */
+  private moveSparkle(prop: ToggleableState) {
+    const taken = new Set<string>();
+    this.state.toggleables.forEach((t) => {
+      if (t.kind === "sparkle" && t !== prop) taken.add(`${t.x},${t.z}`);
+    });
+    const free = SPARKLE_SPOTS.filter((s) => !taken.has(`${s.x},${s.z}`));
+    const spot = free[Math.floor(Math.random() * free.length)];
+    if (spot) {
+      prop.x = spot.x;
+      prop.z = spot.z;
+    }
+  }
+
+  private handleCastLine(sessionId: string, afk = false) {
     const player = this.state.players.get(sessionId);
-    if (!player || !player.sitting || player.action === "fish") return;
+    if (!player || !player.sitting || player.action !== "") return;
     let onPier = false;
     this.state.chairs.forEach((chair) => {
       if (chair.occupiedBy === sessionId && isFishingSeat(chair.propId)) onPier = true;
     });
     if (!onPier) return;
-    player.action = "fish";
     player.actionProgress = 0;
+    if (afk) {
+      player.action = "afkfish";
+      this.scheduleAfkCatch(sessionId, Date.now());
+      return;
+    }
+    player.action = "fish";
     this.fishBiteAt.set(sessionId, Date.now() + randomBiteDelay());
   }
 

@@ -217,18 +217,20 @@ export function Leaderboard({ players }: { players: Record<string, PlayerState> 
   }, [players]);
 
   return (
-    <group position={[8.7, 0, -5.8]} rotation={[0, Math.PI / 4, 0]}>
+    <group position={[8.0, 0, -4.7]} rotation={[0, Math.PI / 4, 0]} scale={1.25}>
       {[-0.7, 0.7].map((x) => (
         <mesh key={x} geometry={GEO.box} material={M.wood} position={[x, 0.9, -0.05]} rotation={[0.08, 0, 0]} scale={[0.08, 1.8, 0.08]} castShadow raycast={noRaycast} />
       ))}
-      <mesh geometry={GEO.box} material={M.gold} position={[0, 1.5, 0]} scale={[1.8, 1.2, 0.06]} castShadow raycast={noRaycast} />
-      <mesh geometry={GEO.box} material={M.board} position={[0, 1.5, 0.035]} scale={[1.66, 1.06, 0.02]} raycast={noRaycast} />
-      <Text font="/fonts/kenpixel.ttf" position={[0, 1.93, 0.05]} fontSize={0.13} color="#f2cf73" anchorX="center">
-        HIGH ROLLERS
-      </Text>
-      <Text font="/fonts/kenpixel.ttf" position={[-0.72, 1.78, 0.05]} fontSize={0.085} lineHeight={1.5} color="#fff3dc" anchorX="left" anchorY="top">
-        {lines}
-      </Text>
+      <group position={[0, 1.5, 0]} rotation={[-0.35, 0, 0]}>
+        <mesh geometry={GEO.box} material={M.gold} scale={[1.8, 1.2, 0.06]} castShadow raycast={noRaycast} />
+        <mesh geometry={GEO.box} material={M.board} position={[0, 0, 0.035]} scale={[1.66, 1.06, 0.02]} raycast={noRaycast} />
+        <Text font="/fonts/kenpixel.ttf" position={[0, 0.43, 0.05]} fontSize={0.14} color="#f2cf73" anchorX="center">
+          HIGH ROLLERS
+        </Text>
+        <Text font="/fonts/kenpixel.ttf" position={[-0.74, 0.28, 0.05]} fontSize={0.095} lineHeight={1.45} color="#fff3dc" anchorX="left" anchorY="top">
+          {lines}
+        </Text>
+      </group>
     </group>
   );
 }

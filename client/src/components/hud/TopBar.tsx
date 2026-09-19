@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { TIMES_OF_DAY, type MapId, type TimeOfDay } from "@shared/types";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, TIMES_OF_DAY, isActivityStatus, type MapId, type TimeOfDay } from "@shared/types";
 import { TIME_PRESETS } from "../../scene/roomThemes";
 import { glass } from "./glass";
 import { playChime, playClick, playCoin } from "../../audio/sfx";
@@ -16,6 +16,8 @@ interface TopBarProps {
   coins: number;
   autoCycle: boolean;
   onToggleAutoCycle: () => void;
+  status: string;
+  onSetStatus: (status: string) => void;
 }
 
 const MAP_LABELS: Record<MapId, { icon: string; name: string }> = {
@@ -26,107 +28,189 @@ const MAP_LABELS: Record<MapId, { icon: string; name: string }> = {
 };
 const MAP_IDS = Object.keys(MAP_LABELS) as MapId[];
 
-// One bar for both the place and the hour. They used to be two stacked bars that overlapped
-// the roster and each other on a narrow Discord window; as one row with icon-only labels
-// below 720px they fit a phone.
-export function TopBar({ currentMap, mapDisabled, onSelectMap, timeOfDay, onSelectTime, onOpenWardrobe, soundOn, onToggleSound, coins, autoCycle, onToggleAutoCycle }: TopBarProps) {
+function timeLabel(time: TimeOfDay) {
+  const [icon, ...rest] = TIME_PRESETS[time].label.split(" ");
+  return { icon, name: rest.join(" ") };
+}
+
+// Three small frosted capsules instead of one twelve-button bar: where you are, what the sky is
+// doing, and you (coins, status, wardrobe, sound). The first two open as dropdowns. Labels drop
+// to icons under 768px (.cozy-hud-label in App.tsx).
+export function TopBar(props: TopBarProps) {
+  const { currentMap, mapDisabled, onSelectMap, timeOfDay, onSelectTime, onOpenWardrobe, soundOn, onToggleSound, coins, autoCycle, onToggleAutoCycle, status, onSetStatus } = props;
+  const [open, setOpen] = useState<"map" | "time" | "status" | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Any click outside the bar folds an open menu back up.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(null);
+    };
+    window.addEventListener("pointerdown", onDown);
+    return () => window.removeEventListener("pointerdown", onDown);
+  }, [open]);
+
+  const toggle = (menu: "map" | "time" | "status") => {
+    playClick();
+    setOpen((o) => (o === menu ? null : menu));
+  };
+  const time = timeLabel(timeOfDay);
+  const st = isActivityStatus(status) ? ACTIVITY_STATUSES[status] : null;
+
   return (
-    <div className="cozy-topbar" style={styles.bar}>
-      <div style={styles.group} role="group" aria-label="Place">
-        {MAP_IDS.map((mapId) => {
-          const active = mapId === currentMap;
-          return (
-            <button
-              key={mapId}
-              type="button"
-              disabled={mapDisabled || active}
-              onClick={() => {
-                playClick();
-                onSelectMap(mapId);
-              }}
-              aria-pressed={active}
-              title={MAP_LABELS[mapId].name}
-              style={{
-                ...styles.button,
-                ...(active ? styles.activeMap : null),
-                cursor: mapDisabled || active ? "default" : "pointer",
-              }}
-            >
-              <span style={styles.icon}>{MAP_LABELS[mapId].icon}</span>
-              <span className="cozy-hud-label">{MAP_LABELS[mapId].name}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <span style={styles.divider} aria-hidden />
-
-      <div style={styles.group} role="group" aria-label="Time of day">
-        {TIMES_OF_DAY.map((time) => {
-          const preset = TIME_PRESETS[time];
-          const [icon, ...rest] = preset.label.split(" ");
-          const name = rest.join(" ");
-          const active = time === timeOfDay && !autoCycle;
-          return (
-            <button
-              key={time}
-              type="button"
-              onClick={() => {
-                playClick();
-                onSelectTime(time);
-              }}
-              aria-pressed={active}
-              title={name}
-              style={{ ...styles.button, ...(active ? styles.activeTime : null) }}
-            >
-              <span style={styles.icon}>{icon}</span>
-              <span className="cozy-hud-label">{name}</span>
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => {
-            playClick();
-            onToggleAutoCycle();
-          }}
-          aria-pressed={autoCycle}
-          title="Auto Cycle: the hours roll by on their own"
-          style={{ ...styles.button, ...(autoCycle ? styles.activeTime : null) }}
-        >
-          <span style={styles.icon}>⏱️</span>
-          <span className="cozy-hud-label">Auto</span>
+    <div ref={rootRef} className="cozy-topbar" style={styles.row}>
+      {/* where */}
+      <div style={styles.anchor}>
+        <button type="button" style={{ ...styles.capsule, ...styles.mapPill }} onClick={() => toggle("map")} disabled={mapDisabled} aria-expanded={open === "map"}>
+          <span style={styles.icon}>{MAP_LABELS[currentMap].icon}</span>
+          <span className="cozy-hud-label">{MAP_LABELS[currentMap].name}</span>
+          <span style={styles.caret}>▾</span>
         </button>
+        {open === "map" && (
+          <Menu>
+            {MAP_IDS.map((id) => (
+              <MenuItem
+                key={id}
+                active={id === currentMap}
+                onClick={() => {
+                  setOpen(null);
+                  if (id !== currentMap) {
+                    playChime();
+                    onSelectMap(id);
+                  }
+                }}
+              >
+                {MAP_LABELS[id].icon} {MAP_LABELS[id].name}
+              </MenuItem>
+            ))}
+          </Menu>
+        )}
       </div>
 
-      <span style={styles.divider} aria-hidden />
+      {/* sky */}
+      <div style={styles.anchor}>
+        <button type="button" style={styles.capsule} onClick={() => toggle("time")} aria-expanded={open === "time"}>
+          <span style={styles.icon}>{time.icon}</span>
+          <span className="cozy-hud-label">{autoCycle ? `${time.name} · Auto` : time.name}</span>
+          <span style={styles.caret}>▾</span>
+        </button>
+        {open === "time" && (
+          <Menu>
+            {TIMES_OF_DAY.map((t) => {
+              const l = timeLabel(t);
+              return (
+                <MenuItem
+                  key={t}
+                  active={t === timeOfDay && !autoCycle}
+                  onClick={() => {
+                    playClick();
+                    onSelectTime(t);
+                    setOpen(null);
+                  }}
+                >
+                  {l.icon} {l.name}
+                </MenuItem>
+              );
+            })}
+            <div style={styles.sep} />
+            <button
+              type="button"
+              style={styles.switchRow}
+              onClick={() => {
+                playClick();
+                onToggleAutoCycle();
+              }}
+              aria-pressed={autoCycle}
+            >
+              <span>⏱️ Auto Cycle</span>
+              <span style={{ ...styles.switchTrack, background: autoCycle ? "#f4a15c" : "rgba(90,74,58,0.25)" }}>
+                <span style={{ ...styles.switchKnob, transform: autoCycle ? "translateX(14px)" : "none" }} />
+              </span>
+            </button>
+          </Menu>
+        )}
+      </div>
 
-      <div style={styles.group}>
+      {/* you */}
+      <div style={{ ...styles.capsule, ...styles.mine }}>
         <CoinCounter coins={coins} />
+        <div style={styles.anchor}>
+          <button type="button" style={styles.inner} onClick={() => toggle("status")} title="Set your status" aria-expanded={open === "status"}>
+            <span style={styles.icon}>{st ? st.emoji : "🟢"}</span>
+            <span className="cozy-hud-label">{st ? st.label : "Status"}</span>
+            <span style={styles.caret}>▾</span>
+          </button>
+          {open === "status" && (
+            <Menu alignRight>
+              <MenuItem
+                active={!st}
+                onClick={() => {
+                  playClick();
+                  onSetStatus("");
+                  setOpen(null);
+                }}
+              >
+                🟢 Just hanging out
+              </MenuItem>
+              {ACTIVITY_STATUS_IDS.map((id) => (
+                <MenuItem
+                  key={id}
+                  active={status === id}
+                  onClick={() => {
+                    playClick();
+                    onSetStatus(id);
+                    setOpen(null);
+                  }}
+                >
+                  {ACTIVITY_STATUSES[id].emoji} {ACTIVITY_STATUSES[id].label}
+                </MenuItem>
+              ))}
+            </Menu>
+          )}
+        </div>
         <button
           type="button"
+          style={{ ...styles.inner, color: "#9c3f62" }}
           onClick={() => {
             playChime();
             onOpenWardrobe();
           }}
-          title="Wardrobe" style={{ ...styles.button, ...styles.wardrobe }}>
+          title="Wardrobe"
+        >
           <span style={styles.icon}>👗</span>
           <span className="cozy-hud-label">Wardrobe</span>
         </button>
         <button
           type="button"
+          style={styles.inner}
           onClick={() => {
             onToggleSound();
             playClick();
           }}
           aria-pressed={soundOn}
           title={soundOn ? "Mute the room" : "Play this room's ambience"}
-          style={{ ...styles.button, ...(soundOn ? styles.activeTime : null) }}
         >
           <span style={styles.icon}>{soundOn ? "🔊" : "🔇"}</span>
         </button>
       </div>
     </div>
+  );
+}
+
+function Menu({ children, alignRight = false }: { children: ReactNode; alignRight?: boolean }) {
+  return (
+    <div className="cozy-menu" style={{ ...styles.menu, ...(alignRight ? { right: 0 } : { left: 0 }) }} role="menu">
+      {children}
+    </div>
+  );
+}
+
+function MenuItem({ children, active, onClick }: { children: ReactNode; active: boolean; onClick: () => void }) {
+  return (
+    <button type="button" role="menuitem" style={{ ...styles.item, ...(active ? styles.itemActive : null) }} onClick={onClick}>
+      {children}
+    </button>
   );
 }
 
@@ -149,55 +233,65 @@ function CoinCounter({ coins }: { coins: number }) {
   );
 }
 
+const text: CSSProperties = { color: "#5a4a3a", fontFamily: "system-ui, sans-serif", fontSize: 12.5, fontWeight: 650, lineHeight: 1, whiteSpace: "nowrap" };
+
 const styles: Record<string, CSSProperties> = {
-  bar: {
-    ...glass,
+  row: {
     position: "absolute",
     top: "max(12px, env(safe-area-inset-top))",
     left: "50%",
     transform: "translateX(-50%)",
     display: "flex",
     alignItems: "center",
-    gap: 4,
-    padding: 5,
-    borderRadius: 999,
-    zIndex: 10,
+    gap: 8,
+    zIndex: 15,
     maxWidth: "calc(100vw - 20px)",
   },
-  group: { display: "flex", gap: 2 },
-  divider: { width: 1, alignSelf: "stretch", margin: "4px 4px", background: "rgba(90,74,58,0.22)" },
-  button: {
+  anchor: { position: "relative" },
+  capsule: {
+    ...glass,
+    ...text,
     display: "flex",
     alignItems: "center",
-    gap: 5,
-    border: "none",
-    background: "transparent",
+    gap: 6,
     borderRadius: 999,
-    padding: "7px 11px",
+    padding: "8px 13px",
     cursor: "pointer",
-    color: "#5a4a3a",
-    fontFamily: "sans-serif",
-    fontSize: 12.5,
-    fontWeight: 600,
-    lineHeight: 1,
-    whiteSpace: "nowrap",
   },
-  activeMap: { background: "#f4a15c", color: "#3a2415", fontWeight: 700, boxShadow: "0 2px 8px rgba(244,161,92,0.45)" },
-  activeTime: { background: "rgba(255,255,255,0.85)", boxShadow: "0 2px 6px rgba(80,60,40,0.16)" },
+  mapPill: { background: "rgba(255, 226, 196, 0.72)", color: "#6b3a14", fontWeight: 750 },
+  mine: { padding: 4, gap: 2, cursor: "default" },
+  inner: { ...text, display: "flex", alignItems: "center", gap: 5, border: "none", background: "transparent", borderRadius: 999, padding: "6px 9px", cursor: "pointer" },
   icon: { fontSize: 14 },
-  wardrobe: { background: "rgba(236,127,163,0.16)", color: "#9c3f62" },
+  caret: { fontSize: 10, opacity: 0.6 },
+  menu: {
+    ...glass,
+    background: "rgba(255, 250, 240, 0.9)",
+    position: "absolute",
+    top: "calc(100% + 8px)",
+    minWidth: 170,
+    padding: 6,
+    borderRadius: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    zIndex: 30,
+  },
+  item: { ...text, textAlign: "left", border: "none", background: "transparent", borderRadius: 10, padding: "9px 11px", cursor: "pointer", fontSize: 13 },
+  itemActive: { background: "#f4a15c", color: "#3a2415", fontWeight: 750 },
+  sep: { height: 1, margin: "4px 6px", background: "rgba(90,74,58,0.18)" },
+  switchRow: { ...text, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, border: "none", background: "transparent", padding: "9px 11px", cursor: "pointer", fontSize: 13 },
+  switchTrack: { width: 30, height: 16, borderRadius: 999, position: "relative", transition: "background 150ms" },
+  switchKnob: { position: "absolute", top: 2, left: 2, width: 12, height: 12, borderRadius: "50%", background: "#fff", transition: "transform 150ms", boxShadow: "0 1px 3px rgba(0,0,0,0.25)" },
   coins: {
+    ...text,
     display: "flex",
     alignItems: "center",
     gap: 5,
     padding: "6px 11px",
     borderRadius: 999,
-    background: "rgba(255, 214, 102, 0.35)",
+    background: "rgba(255, 214, 102, 0.4)",
     color: "#6b4a10",
-    fontFamily: "sans-serif",
-    fontSize: 12.5,
     fontWeight: 800,
     fontVariantNumeric: "tabular-nums",
-    whiteSpace: "nowrap",
   },
 };

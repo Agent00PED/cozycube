@@ -12,6 +12,7 @@ import { Footprints } from "../scene/Footprints";
 import { StaticBatch } from "../scene/kit";
 import { Volleyball } from "./Volleyball";
 import { BetChips, Leaderboard, RouletteWheel } from "./Casino";
+import { Dealer } from "./LivingProps";
 import { Critters } from "../scene/Critters";
 import { RoomEventsContext } from "../scene/roomEvents";
 import { ROOM_THEMES, TIME_PRESETS, type RoomTheme, type TimePreset } from "../scene/roomThemes";
@@ -122,7 +123,8 @@ export function WorldScene({
 
   const handleUseProp = useCallback((prop: ToggleableSyncState) => {
     if (isWalkUpProp(prop.kind)) {
-      const approach = APPROACH_POINTS[prop.propId] ?? { x: prop.x, z: prop.z + 1 };
+      // Sparkles wander (the server moves them), so walk right onto wherever one is now.
+      const approach = prop.kind === "sparkle" ? { x: prop.x, z: prop.z } : APPROACH_POINTS[prop.propId] ?? { x: prop.x, z: prop.z + 1 };
       standUpIfSeated();
       moveTargetRef.current = { x: approach.x, z: approach.z, propId: prop.propId };
       pingRipple(approach.x, approach.z);
@@ -237,6 +239,7 @@ export function WorldScene({
           <RouletteWheel roulette={roulette} />
           <BetChips bets={bets} players={players} />
           <Leaderboard players={players} />
+          <Dealer phase={roulette.phase} />
         </>
       )}
 
@@ -388,6 +391,7 @@ function LocalPlayerAvatar({
       speaking={speaking}
       emotes={emotes}
       gesture={gesture}
+      status={player.status}
     />
   );
 }
@@ -510,6 +514,7 @@ function RemotePlayerAvatar({ player, speaking, emotes, gesture }: { player: Pla
       speaking={speaking}
       emotes={emotes}
       gesture={gesture}
+      status={player.status}
     />
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { B, Cone, Cyl, GEO, HALF, Instanced, Sph, noMerge, noRaycast, seeded, type InstanceSpec, type Materials } from "./kit";
 import { PIER_MAX_X, PIER_MIN_X, PIER_END_Z, SHORELINE_Z } from "@shared/collision";
 
@@ -31,6 +32,18 @@ export function BeachWorld({ mats }: { mats: Materials }) {
 // ---------------------------------------------------------------------------------------
 // Sea: a single graded surface filling the basin, with a foam line along the shore
 // ---------------------------------------------------------------------------------------
+
+const SEA_SIDE = new THREE.MeshStandardMaterial({ color: "#1c7aa6", roughness: 0.3 });
+/** All three rim walls as one geometry (one draw). */
+const SEA_RIM = (() => {
+  const h = WATER_Y - BASIN_Y;
+  const y = (BASIN_Y + WATER_Y) / 2;
+  const wall = (x: number, z: number, sx: number, sz: number) =>
+    new THREE.BoxGeometry(1, 1, 1).applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion(), new THREE.Vector3(sx, h, sz)));
+  const zMid = (SHORELINE_Z + HALF) / 2;
+  const depth = HALF - SHORELINE_Z;
+  return mergeGeometries([wall(0, HALF - 0.01, HALF * 2, 0.02), wall(-(HALF - 0.01), zMid, 0.02, depth), wall(HALF - 0.01, zMid, 0.02, depth)])!;
+})();
 
 function Sea({ mats }: { mats: Materials }) {
   const surfaceRef = useRef<THREE.Mesh>(null);
@@ -84,10 +97,14 @@ function Sea({ mats }: { mats: Materials }) {
     if (!mesh) return;
     const t = clock.elapsedTime;
     const pos = mesh.geometry.attributes.position;
+    const halfDepth = (HALF - SHORELINE_Z + 0.4) / 2;
     for (let i = 0; i < pos.count; i++) {
       const x = basePositions[i * 3];
       const z = basePositions[i * 3 + 2];
-      pos.setY(i, Math.sin(x * 0.55 + t * 0.9) * 0.035 + Math.sin(z * 0.9 - t * 1.3) * 0.022);
+      // The swell dies away over the last unit before the slab's outer edges, so the surface
+      // meets the rim walls exactly instead of bobbing above and below them.
+      const edge = Math.min(1, HALF - Math.abs(x), halfDepth - z);
+      pos.setY(i, (Math.sin(x * 0.55 + t * 0.9) * 0.035 + Math.sin(z * 0.9 - t * 1.3) * 0.022) * Math.max(0, edge));
     }
     pos.needsUpdate = true;
   });
@@ -125,6 +142,10 @@ function Sea({ mats }: { mats: Materials }) {
   });
 
   return (
+    <>
+      {/* Rim walls: the sea's cut faces along the slab's south, east and west edges, from the
+          basin floor up to the waterline, so the water sits flush with the diorama base. */}
+      <mesh geometry={SEA_RIM} material={SEA_SIDE} raycast={noRaycast} />
     <group userData={noMerge}>
       <mesh
         ref={surfaceRef}
@@ -136,6 +157,7 @@ function Sea({ mats }: { mats: Materials }) {
       <Instanced geo={GEO.box} m={mats.foam} items={foam} />
       <instancedMesh ref={sparkleRef} args={[GEO.box, mats.foam, sparkles.length]} frustumCulled={false} raycast={noRaycast} />
     </group>
+    </>
   );
 }
 

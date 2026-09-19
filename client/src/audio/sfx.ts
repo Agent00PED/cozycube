@@ -60,3 +60,28 @@ export function playReelTick() {
 export function playWinBell() {
   [1318.5, 1568, 2093].forEach((f, i) => blip(f, i * 0.09, 0.6, 0.05));
 }
+
+/** A soft water "plip": a falling sine drop, for fish coming in while chill-fishing. */
+export function playSplash() {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime;
+  const osc = a.createOscillator();
+  const g = a.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(1400, t);
+  osc.frequency.exponentialRampToValueAtTime(380, t + 0.16);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.07, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+  osc.connect(g).connect(a.destination);
+  osc.start(t);
+  osc.stop(t + 0.25);
+  blip(2200, 0.09, 0.08, 0.02);
+}
+
+/** The clack of a casino chip landing on the felt. */
+export function playChip() {
+  blip(3100, 0, 0.04, 0.05, "square");
+  blip(2400, 0.035, 0.05, 0.035, "square");
+}

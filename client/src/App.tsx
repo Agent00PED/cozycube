@@ -124,7 +124,18 @@ const GLOBAL_CSS = `
 }
 /* Text labels are the first thing to drop when the HUD gets tight — the emoji still say which
    is which, and the bar keeps fitting one row on a phone-width Discord panel. */
-@media (max-width: 720px) {
+/* The emote tray slides up out of its button, and folds away again. */
+.cozy-tray { transform-origin: bottom left; transform: translateY(12px) scale(0.92); opacity: 0; pointer-events: none; transition: transform 200ms cubic-bezier(0.3, 1.4, 0.5, 1), opacity 150ms ease; }
+.cozy-tray-open { transform: none; opacity: 1; pointer-events: auto; }
+.cozy-menu { animation: cozy-menu-in 160ms ease-out; }
+@keyframes cozy-menu-in { from { opacity: 0; transform: translateY(-6px) scale(0.97); } }
+/* Status badge over a head, and the Zzz of anyone AFK. */
+.cozy-status { transform: translate(-50%, -50%); background: rgba(40, 30, 22, 0.62); color: #fff6e6; font: 700 11px system-ui, sans-serif; padding: 3px 8px; border-radius: 999px; white-space: nowrap; pointer-events: none; user-select: none; }
+.cozy-zzz { position: absolute; left: 10px; bottom: 8px; font: 800 13px system-ui, sans-serif; color: #dfe8ff; text-shadow: 0 1px 3px rgba(0,0,0,0.5); animation: cozy-zzz 2.4s ease-out infinite; pointer-events: none; }
+.cozy-zzz:nth-child(2) { animation-delay: 0.8s; }
+.cozy-zzz:nth-child(3) { animation-delay: 1.6s; }
+@keyframes cozy-zzz { 0% { opacity: 0; transform: translate(0, 0) scale(0.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(14px, -34px) scale(1.2); } }
+@media (max-width: 768px) {
   .cozy-hud-label { display: none; }
   .cozy-topbar { gap: 2px; padding: 4px; }
 }
@@ -162,6 +173,7 @@ export default function App() {
     dropHeld,
     kickBall,
     castLine,
+    setStatus,
     reelIn,
     ballRef,
     subscribeEmotes,
@@ -254,6 +266,8 @@ export default function App() {
         coins={localPlayer?.coins ?? 0}
         autoCycle={autoCycle}
         onToggleAutoCycle={() => setAutoCycle(!autoCycle)}
+        status={localPlayer?.status ?? ""}
+        onSetStatus={setStatus}
       />
       {toast && <div className="cozy-toast">{toast}</div>}
 
@@ -283,9 +297,10 @@ export default function App() {
             onReelIn={reelIn}
           />
           <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onCastLine={castLine} />
-          <EmoteBar onEmote={handleEmote} onGesture={sendGesture} />
         </div>
       )}
+
+      {localPlayer && <EmoteBar onEmote={handleEmote} onGesture={sendGesture} />}
 
       {mapTransitioning && <StatusScreen text="Changing scene..." overlay />}
 

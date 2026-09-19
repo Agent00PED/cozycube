@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
-import { B, Cone, Cyl, FloorPatch, GEO, HALF, Instanced, Sph, seeded, type InstanceSpec, type Materials } from "./kit";
+import { B, noRaycast, Cone, Cyl, FloorPatch, GEO, HALF, Instanced, Sph, seeded, type InstanceSpec, type Materials } from "./kit";
 
 // The Cozy Velvet Casino: a 20x20 retro casino in warm gold and burgundy. Same shell as the
 // lounge — solid walls along x = -HALF and z = -HALF, open toward the camera — so the camera,
@@ -45,6 +45,9 @@ export function CasinoWorld({ mats, wallColor }: { mats: Materials; wallColor: s
       <BlackjackTable mats={mats} c={c} />
       <VipLounge mats={mats} c={c} />
       <Plants mats={mats} />
+      <RoulettePendant c={c} />
+      <CocktailTable x={5.6} z={3.6} mats={mats} c={c} />
+      <CocktailTable x={5.2} z={-4.5} mats={mats} c={c} />
     </>
   );
 }
@@ -96,9 +99,6 @@ function Shell({ mats, c, wallColor }: { mats: Materials; c: CasinoMats; wallCol
       <FloorPatch x0={-3.8} x1={7.2} z0={6.4} z1={6.45} y={0.012} m={c.gold} />
       <FloorPatch x0={-3.85} x1={-3.8} z0={-7.25} z1={6.45} y={0.012} m={c.gold} />
       <FloorPatch x0={7.2} x1={7.25} z0={-7.25} z1={6.45} y={0.012} m={c.gold} />
-      {/* a round medallion rug under the roulette table, ringed in gold */}
-      <Cyl p={[0.6, 0.013, 0.4]} s={[5.6, 0.01, 5.6]} m={c.gold} recv />
-      <Cyl p={[0.6, 0.016, 0.4]} s={[5.4, 0.01, 5.4]} m={c.velvetDeep} recv />
 
       {/* entrance doormat and brass stanchions where people arrive */}
       <B p={[6.4, 0.012, 7.8]} s={[2.5, 0.01, 1.5]} m={c.gold} recv />
@@ -163,6 +163,49 @@ function RouletteTableBase({ mats, c }: { mats: Materials; c: CasinoMats }) {
       {["#e0453a", "#2f5fd0", "#f2f2f2", "#2d9a5a", "#e8b53c"].map((col, i) => (
         <Cyl key={col} p={[0.98 + i * 0.16, 0.95, -0.48]} s={[0.12, 0.08, 0.12]} m={chipMat(col)} />
       ))}
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// A brass pendant over the roulette table, pouring a soft amber cone onto the felt. The cone is
+// a painted-on glow (additive, unlit), not a light: no extra lights, no shadows.
+// ---------------------------------------------------------------------------------------
+
+const CONE_GLOW = new THREE.MeshBasicMaterial({ color: "#ffc46b", transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false });
+const POOL_GLOW = new THREE.MeshBasicMaterial({ color: "#ffb34d", transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+const BULB_GLOW = new THREE.MeshBasicMaterial({ color: "#fff0c8", toneMapped: false });
+
+function RoulettePendant({ c }: { c: CasinoMats }) {
+  const x = 0.6;
+  const z = 0.4;
+  return (
+    <group position={[x, 0, z]}>
+      <Cyl p={[0, 3.9, 0]} s={[0.03, 1.4, 0.03]} m={c.gold} />
+      <Cone p={[0, 3.05, 0]} s={[0.62, 0.3, 0.62]} m={c.gold} cast />
+      <Cyl p={[0, 2.9, 0]} s={[0.64, 0.03, 0.64]} m={c.gold} />
+      <mesh geometry={GEO.sphereLow} material={BULB_GLOW} position={[0, 2.84, 0]} scale={0.16} raycast={noRaycast} />
+      {/* the light cone and the warm pool it leaves on the felt */}
+      <mesh geometry={GEO.cone} material={CONE_GLOW} position={[0, 1.86, 0]} scale={[2.6, 1.95, 2.6]} raycast={noRaycast} />
+      <mesh geometry={GEO.cyl} material={POOL_GLOW} position={[0, 0.9, 0]} scale={[2.7, 0.01, 2.2]} raycast={noRaycast} />
+    </group>
+  );
+}
+
+/** A round cocktail high-top with two drinks on it. */
+function CocktailTable({ x, z, mats, c }: { x: number; z: number; mats: Materials; c: CasinoMats }) {
+  return (
+    <group position={[x, 0, z]}>
+      <Cyl p={[0, 0.03, 0]} s={[0.55, 0.06, 0.55]} m={c.gold} />
+      <Cyl p={[0, 0.55, 0]} s={[0.07, 1.05, 0.07]} m={c.gold} cast />
+      <Cyl p={[0, 1.08, 0]} s={[0.8, 0.05, 0.8]} m={mats.darkWood} cast recv />
+      <Cyl p={[0, 1.1, 0]} s={[0.72, 0.02, 0.72]} m={c.felt} />
+      {/* a martini and a tumbler */}
+      <Cyl p={[0.16, 1.19, 0.06]} s={[0.018, 0.16, 0.018]} m={mats.glass} />
+      <Cone p={[0.16, 1.3, 0.06]} s={[0.14, 0.1, 0.14]} r={[Math.PI, 0, 0]} m={mats.glass} />
+      <Sph p={[0.16, 1.3, 0.06]} s={0.025} m={mats.olive} />
+      <Cyl p={[-0.14, 1.17, -0.08]} s={[0.1, 0.12, 0.1]} m={mats.glass} />
+      <Cyl p={[-0.14, 1.15, -0.08]} s={[0.085, 0.07, 0.085]} m={mats.mustard} />
     </group>
   );
 }

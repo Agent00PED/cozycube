@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import type { PlayerState } from "@shared/types";
+import { ACTIVITY_STATUSES, isActivityStatus, type PlayerState } from "@shared/types";
 import { lookAtTemporarily } from "../../scene/cameraFocus";
 import { glass, hudText } from "./glass";
 
@@ -12,6 +12,8 @@ interface PlayerRosterProps {
 const COMPACT_BELOW = 640;
 
 function statusIcon(p: PlayerState): string {
+  if (isActivityStatus(p.status)) return ACTIVITY_STATUSES[p.status].emoji;
+  if (p.action === "fish" || p.action === "afkfish") return "🎣";
   if (p.holding === "marshmallow") return "🍡";
   if (p.action === "brew") return "⏳";
   if (p.holding === "coffee") return "☕";

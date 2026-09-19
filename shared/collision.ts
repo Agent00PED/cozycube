@@ -90,7 +90,10 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -9.8, maxX: -3.0, minZ: -9.8, maxZ: -8.8 }, // bar counter along the back wall
     { minX: 0.9, maxX: 5.7, minZ: -9.8, maxZ: -8.9 }, // three slot machines
     { minX: 6.4, maxX: 9.8, minZ: -9.8, maxZ: -7.6 }, // cashier cage
-    { minX: 8.1, maxX: 9.3, minZ: -6.4, maxZ: -5.2 }, // High Roller leaderboard easel
+    { minX: 7.3, maxX: 8.7, minZ: -5.4, maxZ: -4.0 }, // High Roller leaderboard easel
+    { minX: 2.05, maxX: 2.75, minZ: -1.65, maxZ: -0.95 }, // roulette dealer, at the far end of the layout
+    { minX: 5.15, maxX: 6.05, minZ: 3.15, maxZ: 4.05 }, // cocktail high-top
+    { minX: 4.75, maxX: 5.65, minZ: -4.95, maxZ: -4.05 }, // cocktail high-top
     { minX: -6.9, maxX: -4.1, minZ: -5.3, maxZ: -3.9 }, // blackjack table
     { minX: -9.8, maxX: -8.8, minZ: 2.8, maxZ: 7.2 }, // VIP chesterfield against the left wall
     { minX: -8.2, maxX: -6.8, minZ: 4.3, maxZ: 5.7 }, // VIP coffee table

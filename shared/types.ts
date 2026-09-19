@@ -2,7 +2,7 @@
 
 export type SitPose = "sit" | "lie";
 export type HeldItem = "" | "coffee" | "marshmallow";
-export type PlayerAction = "" | "brew" | "roast" | "fish";
+export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish";
 
 export interface PlayerState {
   sessionId: string;
@@ -36,7 +36,40 @@ export interface PlayerState {
   bag: string;
   /** Comma-separated premium hats bought in the coin shop. */
   owned: string;
+  /** What the player is up to away from the game (an ActivityStatusId), "" = just here. */
+  status: string;
 }
+
+// --- activity status: a badge over your head saying what you're up to IRL ---
+export type ActivityStatusId = "afk" | "gaming" | "eating" | "shower" | "study" | "music" | "chat";
+export const ACTIVITY_STATUSES: Record<ActivityStatusId, { emoji: string; label: string }> = {
+  afk: { emoji: "💤", label: "AFK" },
+  gaming: { emoji: "🎮", label: "Gaming" },
+  eating: { emoji: "🍜", label: "Eating" },
+  shower: { emoji: "🚿", label: "Showering" },
+  study: { emoji: "📚", label: "Study / Work" },
+  music: { emoji: "🎵", label: "Listening" },
+  chat: { emoji: "💬", label: "Chatting" },
+};
+export const ACTIVITY_STATUS_IDS = Object.keys(ACTIVITY_STATUSES) as ActivityStatusId[];
+export function isActivityStatus(v: unknown): v is ActivityStatusId {
+  return typeof v === "string" && v in ACTIVITY_STATUSES;
+}
+
+/** AFK fishing: a catch (or a few coins) every AFK_FISH_MIN_S..AFK_FISH_MAX_S seconds. */
+export const AFK_FISH_MIN_S = 35;
+export const AFK_FISH_MAX_S = 45;
+/** Sparkles on the sand: where they can turn up, and how long before a picked one reappears. */
+export const SPARKLE_SPOTS: { x: number; z: number }[] = [
+  { x: -1.0, z: -3.6 },
+  { x: 2.6, z: -2.6 },
+  { x: -6.3, z: -4.6 },
+  { x: 0.4, z: 2.8 },
+  { x: 3.2, z: 1.6 },
+  { x: 6.5, z: -3.5 },
+  { x: -2.2, z: -4.4 },
+];
+export const SPARKLE_RESPAWN_S = 30;
 
 export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino";
 export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "velvet_casino"];
@@ -61,7 +94,8 @@ export type ToggleableKind =
   | "slot"
   | "npc"
   | "forage"
-  | "cat";
+  | "cat"
+  | "sparkle";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -134,7 +168,7 @@ export const FORAGE_REGROW_S = 25;
 /** How long a bite lasts: reel in within this window or the fish slips the hook. */
 export const BITE_WINDOW_S = 2.6;
 
-export type ItemId = "sardine" | "clownfish" | "octopus" | "goldray" | "berry" | "firefly";
+export type ItemId = "sardine" | "clownfish" | "octopus" | "goldray" | "berry" | "firefly" | "shell";
 export const ITEMS: Record<ItemId, { emoji: string; name: string; value: number; buyer: "bob" | "oak" }> = {
   sardine: { emoji: "🐟", name: "Sardine", value: 10, buyer: "bob" },
   clownfish: { emoji: "🐠", name: "Clownfish", value: 25, buyer: "bob" },
@@ -142,6 +176,7 @@ export const ITEMS: Record<ItemId, { emoji: string; name: string; value: number;
   goldray: { emoji: "🌟", name: "Golden Ray", value: 150, buyer: "bob" },
   berry: { emoji: "🫐", name: "Wild Berries", value: 5, buyer: "oak" },
   firefly: { emoji: "✨", name: "Firefly Jar", value: 12, buyer: "oak" },
+  shell: { emoji: "🐚", name: "Pretty Shell", value: 8, buyer: "bob" },
 };
 export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];
 
@@ -330,7 +365,7 @@ export function poseForSeat(style: SeatStyle): SitPose {
 
 /** Props you must walk up to before using; everything else (lights, TV, campfire) works from anywhere. */
 export function isWalkUpProp(kind: ToggleableKind): boolean {
-  return kind === "espresso" || kind === "arcade" || kind === "slot" || kind === "npc" || kind === "forage" || kind === "cat";
+  return kind === "espresso" || kind === "arcade" || kind === "slot" || kind === "npc" || kind === "forage" || kind === "cat" || kind === "sparkle";
 }
 
 // --- client -> server messages ---

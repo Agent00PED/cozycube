@@ -41,6 +41,8 @@ function propLabel(p: ToggleableSyncState): string | null {
       return p.on ? "🫐 Forage" : null; // picked bushes have nothing to give yet
     case "cat":
       return "🐱 Pet Mochi";
+    case "sparkle":
+      return p.on ? "🐚 Pick it up" : null;
     default:
       return null;
   }
@@ -52,7 +54,7 @@ interface ActionDockProps {
   chairs: Record<string, ChairSyncState>;
   toggleables: Record<string, ToggleableSyncState>;
   localSessionId: string;
-  onCastLine: () => void;
+  onCastLine: (afk?: boolean) => void;
 }
 
 export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onCastLine }: ActionDockProps) {
@@ -60,7 +62,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
   const latest = useRef({ chairs, toggleables, mapId, localSessionId });
   latest.current = { chairs, toggleables, mapId, localSessionId };
   // Pressing "Fish" walks you onto a pier seat; the line is cast by itself once you sit.
-  const castPending = useRef(false);
+  const castPending = useRef<null | "manual" | "afk">(null);
 
   useEffect(() => {
     let lastKey = "";
@@ -84,27 +86,29 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
 
       // Seats that are an activity: the pier (fishing) and the logs round the fire (roasting).
       const free = (c: ChairSyncState) => c.occupiedBy === "" || c.occupiedBy === localSessionId;
-      let fish: (Action & { d: number }) | null = null;
+      let fish: { id: string; d: number } | null = null;
       let fire: (Action & { d: number }) | null = null;
       for (const c of Object.values(chairs)) {
         if (!free(c)) continue;
         const d = dist(c.x, c.z, c.propId);
         if (d > REACH + 0.6) continue;
         if (isFishingSeat(c.propId) && (!fish || d < fish.d)) {
-          fish = {
-            key: "fish",
-            label: "🎣 Go fishing",
-            d,
-            run: () => {
-              castPending.current = true;
-              interactBridge.current?.sit(c.propId);
-            },
-          };
+          fish = { id: c.propId, d };
         } else if (c.style === "log" && (!fire || d < fire.d)) {
           fire = { key: "fire", label: "🔥 Sit by the fire", d, run: () => interactBridge.current?.sit(c.propId) };
         }
       }
-      if (fish) found.push(fish);
+      // The pier offers both ways to fish: the bite-and-reel game, or chill mode that keeps
+      // bringing in a little something while you just hang out on voice.
+      if (fish) {
+        const seat = fish.id;
+        const go = (mode: "manual" | "afk") => () => {
+          castPending.current = mode;
+          interactBridge.current?.sit(seat);
+        };
+        found.push({ key: "fish", label: "🎣 Manual Fishing", d: fish.d, run: go("manual") });
+        found.push({ key: "afkfish", label: "☕ AFK Fishing (chill)", d: fish.d + 0.01, run: go("afk") });
+      }
       if (fire) found.push(fire);
 
       // The roulette table: from anywhere near it, step up to the rail and the board opens.
@@ -138,10 +142,11 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
 
   const onPier = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && isFishingSeat(c.propId));
   useEffect(() => {
-    if (!castPending.current) return;
+    const mode = castPending.current;
+    if (!mode) return;
     if (onPier && player.action === "") {
-      castPending.current = false;
-      onCastLine();
+      castPending.current = null;
+      onCastLine(mode === "afk");
     }
   }, [onPier, player.action, onCastLine]);
 

@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   CHIP_VALUES,
   ITEMS,
@@ -16,7 +16,7 @@ import {
 } from "@shared/types";
 import { isFishingSeat } from "@shared/props";
 import { glass, hudText, pillButton } from "./glass";
-import { playClick } from "../../audio/sfx";
+import { playChip, playClick, playSplash } from "../../audio/sfx";
 
 interface ActivityBarProps {
   player: PlayerState;
@@ -29,7 +29,7 @@ interface ActivityBarProps {
   onEat: () => void;
   onSip: () => void;
   onPutDown: () => void;
-  onCastLine: () => void;
+  onCastLine: (afk?: boolean) => void;
   onReelIn: () => void;
   onPlaceBet: (kind: string, amount: number) => void;
   onClearBets: () => void;
@@ -53,6 +53,7 @@ export function ActivityBar(props: ActivityBarProps) {
   const brewing = player.action === "brew";
   const onPier = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && isFishingSeat(c.propId));
   const fishing = player.action === "fish";
+  const afkFishing = player.action === "afkfish";
   const bite = fishing && player.actionProgress >= 1;
   const bag = parseBag(player.bag);
   const bagCount = Object.values(bag).reduce((a, b) => a + (b ?? 0), 0);
@@ -60,6 +61,14 @@ export function ActivityBar(props: ActivityBarProps) {
     mapId === "velvet_casino" && Math.hypot(player.x - ROULETTE_CENTER.x, player.z - ROULETTE_CENTER.z) < ROULETTE_BET_RADIUS && !player.sitting;
 
   const hasActions = onLog || roasting || holdingCoffee || brewing || onPier;
+
+  // A soft splash whenever chill-mode fishing brings something in.
+  const haul = player.coins + bagCount;
+  const lastHaul = useRef(haul);
+  useEffect(() => {
+    if (afkFishing && haul > lastHaul.current) playSplash();
+    lastHaul.current = haul;
+  }, [haul, afkFishing]);
   if (!hasActions && bagCount === 0 && !atRoulette) return null;
 
   const d = doneness(player.toast);
@@ -71,10 +80,28 @@ export function ActivityBar(props: ActivityBarProps) {
         <div style={styles.bar}>
           {brewing && <span style={styles.status}>☕ Brewing… {Math.round(player.actionProgress * 100)}%</span>}
 
-          {onPier && !fishing && (
-            <button type="button" style={styles.primary} onClick={onCastLine}>
-              🎣 Cast a line
-            </button>
+          {onPier && !fishing && !afkFishing && (
+            <>
+              <button type="button" style={styles.primary} onClick={() => onCastLine(false)}>
+                🎣 Cast a line
+              </button>
+              <button type="button" style={styles.secondary} onClick={() => onCastLine(true)}>
+                ☕ AFK Fishing
+              </button>
+            </>
+          )}
+          {afkFishing && (
+            <>
+              <div style={styles.meterWrap} aria-label="Chill fishing">
+                <span style={styles.status}>☕ Chill fishing — something every ~40 s</span>
+                <div style={styles.meterTrack}>
+                  <div style={{ ...styles.meterFill, width: `${player.actionProgress * 100}%`, background: "#7fc6d9" }} />
+                </div>
+              </div>
+              <button type="button" style={styles.ghost} onClick={onReelIn}>
+                Stop
+              </button>
+            </>
           )}
           {fishing && !bite && (
             <>
@@ -198,6 +225,7 @@ function BettingBoard({
   const place = (kind: string) => {
     if (!canBet) return;
     playClick();
+    playChip();
     onPlaceBet(kind, chip);
   };
 
