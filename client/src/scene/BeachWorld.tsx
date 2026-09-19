@@ -249,16 +249,16 @@ function TikiBar({ mats }: { mats: Materials }) {
         [-3.3, -5.2],
         [2.1, -5.2],
       ].map(([x, z]) => (
-        <Cyl key={String(x) + ":" + String(z)} p={[x, 1.45, z]} s={[0.17, 2.9, 0.17]} m={mats.bark} cast />
+        <Cyl key={String(x) + ":" + String(z)} p={[x, 1.25, z]} s={[0.17, 2.5, 0.17]} m={mats.bark} cast />
       ))}
       <Cone p={[0, 2.95, -5.9]} s={[7.0, 0.95, 5.4]} m={thatchMat} cast />
       <Cone p={[0, 3.5, -5.9]} s={[3.6, 0.7, 2.8]} m={thatchMat} cast />
-      {/* a woven lantern at the apex, in scale with the hut (it used to be a giant glowing orb) */}
-      <group position={[0, 2.62, -5.9]}>
-        <Cyl p={[0, 0, 0]} s={[0.34, 0.36, 0.34]} m={mats.thatch} />
-        <Cyl p={[0, 0, 0]} s={[0.26, 0.3, 0.26]} m={mats.bulb} />
-        <Cyl p={[0, 0.2, 0]} s={[0.05, 0.16, 0.05]} m={mats.darkWood} />
-      </group>
+      {/* The apex is a tied-off thatch point bound with natural rope — no lamp up here; the
+          woven lantern hangs under the front eave instead (the "lamp_bar" pendant prop). */}
+      <Cone p={[0, 4.02, -5.9]} s={[0.5, 0.5, 0.42]} m={thatchMat} cast />
+      {[3.8, 3.9].map((y) => (
+        <mesh key={y} geometry={GEO.torus} material={mats.darkWood} position={[0, y, -5.9]} rotation={[Math.PI / 2, 0, 0]} scale={[y > 3.85 ? 0.38 : 0.52, y > 3.85 ? 0.32 : 0.44, 0.9]} />
+      ))}
       {/* painted sign hanging off the front beam */}
       <B p={[-0.6, 2.5, -5.15]} s={[5.6, 0.14, 0.14]} m={mats.darkWood} />
       <B p={[-0.6, 2.14, -5.1]} s={[1.9, 0.48, 0.06]} m={mats.oak} />
@@ -315,17 +315,48 @@ function Pier({ mats }: { mats: Materials }) {
 // Sun loungers under a striped parasol
 // ---------------------------------------------------------------------------------------
 
+// An octagonal canvas parasol: eight triangular panels alternating red and white, pitched like
+// a tent, with ribs underneath running from a runner on the pole out to each corner.
+const PARASOL_R = 1.45;
+const PARASOL_RISE = 0.5;
+function parasolPanels(odd: boolean): THREE.BufferGeometry {
+  const pos: number[] = [];
+  for (let i = odd ? 1 : 0; i < 8; i += 2) {
+    const a0 = (i / 8) * Math.PI * 2;
+    const a1 = ((i + 1) / 8) * Math.PI * 2;
+    pos.push(0, PARASOL_RISE, 0, Math.cos(a1) * PARASOL_R, 0, Math.sin(a1) * PARASOL_R, Math.cos(a0) * PARASOL_R, 0, Math.sin(a0) * PARASOL_R);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+const PARASOL_RED = parasolPanels(false);
+const PARASOL_WHITE = parasolPanels(true);
+
 function LoungerSpot({ mats }: { mats: Materials }) {
-  const canopy = useMemo<InstanceSpec[]>(
+  const canvasMats = useMemo(
+    () => ({
+      red: new THREE.MeshStandardMaterial({ color: "#e0584a", roughness: 0.9, side: THREE.DoubleSide }),
+      white: new THREE.MeshStandardMaterial({ color: "#f7f3ea", roughness: 0.9, side: THREE.DoubleSide }),
+    }),
+    []
+  );
+  useEffect(() => () => Object.values(canvasMats).forEach((m) => m.dispose()), [canvasMats]);
+  const TOP = 2.2;
+  const ribs = useMemo<InstanceSpec[]>(
     () =>
-      Array.from({ length: 10 }, (_, i) => {
-        const a = (i / 10) * Math.PI * 2;
-        return {
-          p: [Math.cos(a) * 0.95, 2.28, Math.sin(a) * 0.95] as [number, number, number],
-          s: [1.3, 0.06, 0.78] as [number, number, number],
-          r: [0.24, -a, 0] as [number, number, number],
-          color: i % 2 ? "#f7f3ea" : "#e8705f",
-        };
+      Array.from({ length: 8 }, (_, i) => {
+        const a = (i / 8) * Math.PI * 2;
+        // from the runner (on the pole, below the peak) out to the canopy corner
+        const from = new THREE.Vector3(0, TOP - 0.25, 0);
+        const to = new THREE.Vector3(Math.cos(a) * PARASOL_R * 0.97, TOP - 0.02, Math.sin(a) * PARASOL_R * 0.97);
+        const mid = from.clone().add(to).multiplyScalar(0.5);
+        const len = from.distanceTo(to);
+        const dir = to.clone().sub(from).normalize();
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        const e = new THREE.Euler().setFromQuaternion(q);
+        return { p: [mid.x, mid.y, mid.z] as [number, number, number], s: [0.025, len, 0.025] as [number, number, number], r: [e.x, e.y, e.z] as [number, number, number] };
       }),
     []
   );
@@ -333,18 +364,27 @@ function LoungerSpot({ mats }: { mats: Materials }) {
   return (
     <>
       <group position={[-7.0, 0, 2.1]}>
-        <Cyl p={[0, 1.15, 0]} s={[0.1, 2.3, 0.1]} m={mats.oak} cast />
-        <Instanced geo={GEO.box} m={mats.tintable} items={canopy} cast />
-        <Cone p={[0, 2.46, 0]} s={[0.3, 0.2, 0.3]} m={mats.coral} />
+        <Cyl p={[0, 1.2, 0]} s={[0.08, 2.4, 0.08]} m={mats.oak} cast />
+        <mesh geometry={PARASOL_RED} material={canvasMats.red} position={[0, TOP, 0]} castShadow />
+        <mesh geometry={PARASOL_WHITE} material={canvasMats.white} position={[0, TOP, 0]} castShadow />
+        <Instanced geo={GEO.cylLow} m={mats.darkWood} items={ribs} />
+        <Cyl p={[0, TOP - 0.25, 0]} s={[0.14, 0.08, 0.14]} m={mats.darkWood} />
+        <Sph p={[0, TOP + PARASOL_RISE + 0.05, 0]} s={0.1} m={mats.darkWood} />
       </group>
       {/* a towel spread on the sand and a drink beside it */}
       <B p={[-4.8, 0.045, 4.0]} s={[1.5, 0.02, 1.0]} r={[0, 0.3, 0]} m={mats.seaShallow} recv />
       <B p={[-4.8, 0.06, 4.0]} s={[1.2, 0.01, 0.2]} r={[0, 0.3, 0]} m={mats.white} />
       <Cyl p={[-4.0, 0.18, 3.3]} s={[0.18, 0.36, 0.18]} m={mats.glass} />
       <Cyl p={[-4.0, 0.14, 3.3]} s={[0.15, 0.24, 0.15]} m={mats.mustard} />
-      {[-0.18, 0.18].map((dx) => (
-        <B key={dx} p={[-7.6 + dx, 0.04, 3.7]} s={[0.22, 0.05, 0.5]} r={[0, 0.4 + dx, 0]} m={mats.coral} />
-      ))}
+      {/* a long beach towel, folded in three and set down neatly by the parasol */}
+      <group position={[-7.7, 0, 3.85]} rotation={[0, 0.35, 0]}>
+        {[0, 1, 2].map((i) => (
+          <B key={i} p={[0, 0.025 + i * 0.03, 0]} s={[0.95 - i * 0.01, 0.028, 0.46]} m={i % 2 ? mats.white : mats.coral} />
+        ))}
+        {[-0.3, 0, 0.3].map((x) => (
+          <B key={x} p={[x, 0.1, 0]} s={[0.08, 0.004, 0.46]} m={mats.white} />
+        ))}
+      </group>
     </>
   );
 }
@@ -403,8 +443,10 @@ const PALMS: { x: number; z: number; h: number; lean: number }[] = [
   { x: -8.2, z: -7.0, h: 3.6, lean: 0.16 },
   { x: 7.8, z: -5.8, h: 4.0, lean: -0.13 },
   { x: -8.4, z: -0.4, h: 3.2, lean: 0.1 },
-  // was at z 0.6 with its crown over the bonfire; moved 3 units toward the shore
-  { x: 9.05, z: 3.65, h: 3.4, lean: -0.08 },
+  // Once at (8.4, 0.6) with its crown over the bonfire. From this camera a tall crown projects
+  // up-screen onto whatever lies in the same screen column (x - z), so it now stands well off
+  // the fire's column as well as 4+ units away from it.
+  { x: 8.9, z: -2.8, h: 3.4, lean: -0.08 },
   { x: 3.4, z: -8.2, h: 3.0, lean: 0.22 },
   { x: -2.0, z: 2.6, h: 3.3, lean: 0.14 },
 ];

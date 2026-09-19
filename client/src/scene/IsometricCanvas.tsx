@@ -65,7 +65,11 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
         // route to a GPU that can't actually satisfy it. "default" lets the browser pick
         // whatever context it can actually create.
         gl={{ antialias: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false }}
-        onCreated={({ gl, raycaster }) => {
+        onCreated={(state) => {
+          const { gl, raycaster } = state;
+          // Dev builds only: expose the r3f state for debugging and automated checks from the
+          // console (draw calls, camera, projecting world points). Stripped from production.
+          if (import.meta.env.DEV) (window as unknown as { __r3f?: unknown }).__r3f = state;
           // Seat and prop click pads are on HIT_LAYER only (see kit.tsx): raycast, never drawn.
           raycaster.layers.enable(HIT_LAYER);
           console.log("[IsometricCanvas] WebGL context created:", gl.getContextAttributes());

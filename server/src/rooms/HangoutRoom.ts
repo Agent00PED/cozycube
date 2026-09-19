@@ -4,8 +4,35 @@ import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToWorld, isBlocked } from "../../
 import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat } from "../../../shared/props";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
 import {
+  BITE_WINDOW_S,
   BREW_SECONDS,
-  CATCHES,
+  ESPRESSO_TIP,
+  ESPRESSO_TIP_COOLDOWN_S,
+  FORAGE_REGROW_S,
+  GESTURE_EMOJI,
+  ITEMS,
+  MAX_BET_TOTAL,
+  NPCS,
+  PREMIUM_HATS,
+  ROULETTE_BET_RADIUS,
+  ROULETTE_CENTER,
+  ROULETTE_PHASE_SECONDS,
+  SLOT_COST,
+  SLOT_SYMBOLS,
+  SLOT_TRIPLE,
+  STARTING_COINS,
+  TIMES_OF_DAY,
+  CHIP_VALUES,
+  betReturn,
+  encodeBag,
+  encodeBets,
+  isBetKind,
+  isGesture,
+  isPremiumHat,
+  parseBag,
+  parseBets,
+  type ItemId,
+  type RoulettePhase,
   LOFI_TRACKS,
   CAMPFIRE_BOOST_SECONDS,
   EMOTES,
@@ -43,6 +70,19 @@ class Player extends Schema {
   @type("number") toast = 0;
   @type("boolean") speaking = false;
   @type("boolean") connected = true;
+  @type("number") coins = STARTING_COINS;
+  @type("string") bag = "";
+  @type("string") owned = "";
+}
+
+// The shared roulette wheel in the casino. One loop for the whole room: 25 s of betting, a 6 s
+// spin everyone watches together, then 4 s of payouts. Only the phase, a whole-second countdown
+// and the result are synced; the wheel's motion is animated client-side from spinId + result.
+class RouletteSchema extends Schema {
+  @type("string") phase: RoulettePhase = "betting";
+  @type("number") timeLeft = ROULETTE_PHASE_SECONDS.betting;
+  @type("number") result = -1;
+  @type("number") spinId = 0;
 }
 
 class ChairState extends Schema {
@@ -86,6 +126,16 @@ class HangoutState extends Schema {
   @type("string") timeOfDay: TimeOfDay = "day";
   @type("boolean") mapTransitioning = false;
   @type(BallSchema) ball = new BallSchema();
+  @type(RouletteSchema) roulette = new RouletteSchema();
+  /** Roulette bets on the table this round, per sessionId, as encodeBets() strings. */
+  @type({ map: "string" }) bets = new MapSchema<string>();
+  @type("boolean") autoCycle = false;
+}
+
+interface Wallet {
+  coins: number;
+  bag: string;
+  owned: string;
 }
 
 const MOVE_SPEED_PER_SEC = 3;
@@ -122,7 +172,19 @@ const PASTEL_COLORS = [
 const MAP_SIGNATURE_TIME: Partial<Record<MapId, TimeOfDay>> = {
   sunset_beach: "sunset",
   campfire_night: "night",
+  velvet_casino: "night",
 };
+const AUTO_CYCLE_SECONDS = 45; // each hour of the day lasts this long when Auto Cycle is on
+const GESTURE_COOLDOWN_MS = 1200;
+const COIN_CAP = 99999;
+/** What a line brings up. "boot" is a dud that goes back in the sea. */
+const FISH_TABLE: { item: ItemId | "boot"; weight: number }[] = [
+  { item: "sardine", weight: 50 },
+  { item: "clownfish", weight: 25 },
+  { item: "boot", weight: 12 },
+  { item: "octopus", weight: 10 },
+  { item: "goldray", weight: 3 },
+];
 const ALLOWED_EMOTES = new Set<string>(EMOTES);
 
 export class HangoutRoom extends Room<HangoutState> {
@@ -132,6 +194,15 @@ export class HangoutRoom extends Room<HangoutState> {
   private lastReportAt = new Map<string, number>();
   private lastKickAt = new Map<string, number>();
   private fishBiteAt = new Map<string, number>();
+  /** When the current bite escapes, per fishing player (absent = no bite on the line). */
+  private biteUntil = new Map<string, number>();
+  private lastTipAt = new Map<string, number>();
+  private lastGestureAt = new Map<string, number>();
+  private regrowAt = new Map<string, number>();
+  /** Wallets of players who left, by Discord user id, so coming back restores them. */
+  private wallets = new Map<string, Wallet>();
+  private phaseClock = ROULETTE_PHASE_SECONDS.betting;
+  private cycleClock = 0;
   private ballIdle = 0;
 
   onCreate(options: { channelId: string }) {
@@ -161,6 +232,8 @@ export class HangoutRoom extends Room<HangoutState> {
       const player = this.state.players.get(client.sessionId);
       const look = parseLook(msg?.look);
       if (!player || !look) return;
+      // Premium hats have to have been bought.
+      if (isPremiumHat(look.hat) && !player.owned.split(",").includes(look.hat)) return;
       player.look = encodeLook(look);
       player.color = look.shirt;
     });
@@ -192,8 +265,19 @@ export class HangoutRoom extends Room<HangoutState> {
 
     // Time of day is shared ambience, like the lights: anyone can set it, everyone sees it.
     this.onMessage("setTimeOfDay", (_client, msg: { timeOfDay: TimeOfDay }) => {
-      if (isTimeOfDay(msg?.timeOfDay)) this.state.timeOfDay = msg.timeOfDay;
+      if (!isTimeOfDay(msg?.timeOfDay)) return;
+      this.state.timeOfDay = msg.timeOfDay;
+      this.state.autoCycle = false; // picking an hour by hand stops the clock
     });
+    this.onMessage("setAutoCycle", (_client, msg: { on: boolean }) => {
+      this.state.autoCycle = msg?.on === true;
+      this.cycleClock = 0;
+    });
+
+    this.onMessage("gesture", (client, msg: { gesture: string }) => this.handleGesture(client.sessionId, msg?.gesture));
+    this.onMessage("buyHat", (client, msg: { hat: string }) => this.handleBuyHat(client.sessionId, msg?.hat));
+    this.onMessage("placeBet", (client, msg: { kind: string; amount: number }) => this.handlePlaceBet(client.sessionId, msg));
+    this.onMessage("clearBets", (client) => this.handleClearBets(client.sessionId));
 
     this.onMessage("emote", (client, msg: { emoji: string }) => this.handleEmote(client.sessionId, msg.emoji));
 
@@ -205,11 +289,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("roast", (client) => this.handleRoast(client.sessionId));
     this.onMessage("kickBall", (client, msg: { dirX: number; dirZ: number }) => this.handleKick(client.sessionId, msg));
     this.onMessage("castLine", (client) => this.handleCastLine(client.sessionId));
-    this.onMessage("reelIn", (client) => {
-      const player = this.state.players.get(client.sessionId);
-      if (player?.action === "fish") this.clearAction(player);
-      this.fishBiteAt.delete(client.sessionId);
-    });
+    this.onMessage("reelIn", (client) => this.handleReelIn(client.sessionId));
     this.onMessage("eat", (client) => this.handleEat(client.sessionId));
     this.onMessage("dropHeld", (client) => {
       const player = this.state.players.get(client.sessionId);
@@ -247,8 +327,15 @@ export class HangoutRoom extends Room<HangoutState> {
   // Timed activities: the brew gauge, marshmallow toasting, and campfire flare-ups all advance
   // here so every client sees the same progress instead of each running its own clock.
   private tick(dt: number) {
+    const now = Date.now();
     this.state.toggleables.forEach((prop) => {
       if (prop.boost > 0) prop.boost = Math.max(0, prop.boost - dt);
+      // picked bushes grow back
+      const regrow = this.regrowAt.get(prop.propId);
+      if (regrow !== undefined && now >= regrow) {
+        prop.on = true;
+        this.regrowAt.delete(prop.propId);
+      }
     });
 
     this.state.players.forEach((player, sessionId) => {
@@ -258,19 +345,171 @@ export class HangoutRoom extends Room<HangoutState> {
           player.holding = "coffee";
           this.clearAction(player);
           this.broadcast("emote", { sessionId, emoji: "☕" });
+          // A barista tip, at most once every ESPRESSO_TIP_COOLDOWN_S so it can't be farmed.
+          if (now - (this.lastTipAt.get(sessionId) ?? 0) > ESPRESSO_TIP_COOLDOWN_S * 1000) {
+            this.lastTipAt.set(sessionId, now);
+            this.addCoins(player, ESPRESSO_TIP);
+            this.broadcast("emote", { sessionId, emoji: "🪙" });
+          }
         }
       } else if (player.action === "roast") {
         player.toast = Math.min(TOAST_MAX, player.toast + dt / ROAST_SECONDS);
       } else if (player.action === "fish") {
-        const biteAt = this.fishBiteAt.get(sessionId) ?? 0;
-        if (Date.now() >= biteAt) {
-          this.broadcast("emote", { sessionId, emoji: pickCatch() });
-          this.fishBiteAt.set(sessionId, Date.now() + randomBiteDelay());
+        const until = this.biteUntil.get(sessionId);
+        if (until !== undefined) {
+          if (now > until) {
+            // too slow: it got away
+            this.biteUntil.delete(sessionId);
+            player.actionProgress = 0;
+            this.broadcast("emote", { sessionId, emoji: "💨" });
+            this.fishBiteAt.set(sessionId, now + randomBiteDelay());
+          }
+        } else if (now >= (this.fishBiteAt.get(sessionId) ?? 0)) {
+          // Bite! actionProgress = 1 tells every client the float has gone under.
+          this.biteUntil.set(sessionId, now + BITE_WINDOW_S * 1000);
+          player.actionProgress = 1;
         }
       }
     });
 
     if (this.state.currentMap === "sunset_beach") this.tickBall(dt);
+    if (this.state.currentMap === "velvet_casino") this.tickRoulette(dt);
+
+    if (this.state.autoCycle) {
+      this.cycleClock += dt;
+      if (this.cycleClock >= AUTO_CYCLE_SECONDS) {
+        this.cycleClock = 0;
+        const i = TIMES_OF_DAY.indexOf(this.state.timeOfDay);
+        this.state.timeOfDay = TIMES_OF_DAY[(i + 1) % TIMES_OF_DAY.length];
+      }
+    }
+  }
+
+  // --- roulette ---
+  private tickRoulette(dt: number) {
+    const r = this.state.roulette;
+    this.phaseClock -= dt;
+    const shown = Math.max(0, Math.ceil(this.phaseClock));
+    if (r.timeLeft !== shown) r.timeLeft = shown;
+    if (this.phaseClock > 0) return;
+
+    if (r.phase === "betting") {
+      r.result = Math.floor(Math.random() * 37);
+      r.spinId += 1;
+      this.setPhase("spinning");
+    } else if (r.phase === "spinning") {
+      this.payRoulette(r.result);
+      this.setPhase("payout");
+    } else {
+      this.state.bets.clear();
+      this.setPhase("betting");
+    }
+  }
+
+  private setPhase(phase: RoulettePhase) {
+    this.state.roulette.phase = phase;
+    this.phaseClock = ROULETTE_PHASE_SECONDS[phase];
+    this.state.roulette.timeLeft = ROULETTE_PHASE_SECONDS[phase];
+  }
+
+  private payRoulette(result: number) {
+    const winners: { sessionId: string; username: string; amount: number }[] = [];
+    this.state.bets.forEach((raw, sessionId) => {
+      const player = this.state.players.get(sessionId);
+      if (!player) return;
+      let won = 0;
+      for (const [kind, amount] of Object.entries(parseBets(raw))) won += betReturn(kind, amount, result);
+      if (won > 0) {
+        this.addCoins(player, won);
+        winners.push({ sessionId, username: player.username, amount: won });
+        this.broadcast("emote", { sessionId, emoji: won >= 100 ? "💰" : "🪙" });
+      }
+    });
+    this.broadcast("rouletteResult", { result, winners });
+  }
+
+  private handlePlaceBet(sessionId: string, msg: { kind: string; amount: number }) {
+    if (this.state.currentMap !== "velvet_casino" || this.state.roulette.phase !== "betting") return;
+    const player = this.state.players.get(sessionId);
+    if (!player || !isBetKind(msg?.kind)) return;
+    const amount = Number(msg.amount);
+    if (!(CHIP_VALUES as readonly number[]).includes(amount)) return;
+    if (Math.hypot(player.x - ROULETTE_CENTER.x, player.z - ROULETTE_CENTER.z) > ROULETTE_BET_RADIUS + 0.6) return;
+    if (player.coins < amount) return;
+    const bets = parseBets(this.state.bets.get(sessionId) ?? "");
+    const staked = Object.values(bets).reduce((a, b) => a + b, 0);
+    if (staked + amount > MAX_BET_TOTAL) return;
+    bets[msg.kind] = (bets[msg.kind] ?? 0) + amount;
+    player.coins -= amount;
+    this.state.bets.set(sessionId, encodeBets(bets));
+  }
+
+  private handleClearBets(sessionId: string) {
+    if (this.state.roulette.phase !== "betting") return;
+    this.refundBets(sessionId);
+  }
+
+  private refundBets(sessionId: string) {
+    const raw = this.state.bets.get(sessionId);
+    if (raw === undefined) return;
+    const player = this.state.players.get(sessionId);
+    if (player) this.addCoins(player, Object.values(parseBets(raw)).reduce((a, b) => a + b, 0));
+    this.state.bets.delete(sessionId);
+  }
+
+  // --- wallet helpers ---
+  private addCoins(player: Player, amount: number) {
+    player.coins = Math.max(0, Math.min(COIN_CAP, player.coins + amount));
+  }
+
+  private addItem(player: Player, item: ItemId) {
+    const bag = parseBag(player.bag);
+    bag[item] = Math.min(99, (bag[item] ?? 0) + 1);
+    player.bag = encodeBag(bag);
+  }
+
+  private handleGesture(sessionId: string, gesture: unknown) {
+    if (!isGesture(gesture)) return;
+    const player = this.state.players.get(sessionId);
+    if (!player) return;
+    const now = Date.now();
+    if (now - (this.lastGestureAt.get(sessionId) ?? 0) < GESTURE_COOLDOWN_MS) return;
+    this.lastGestureAt.set(sessionId, now);
+    this.broadcast("gesture", { sessionId, gesture });
+    this.broadcast("emote", { sessionId, emoji: GESTURE_EMOJI[gesture] });
+  }
+
+  private handleBuyHat(sessionId: string, hat: unknown) {
+    const player = this.state.players.get(sessionId);
+    if (!player || !isPremiumHat(hat)) return;
+    const owned = player.owned ? player.owned.split(",") : [];
+    if (owned.includes(hat)) return;
+    const price = PREMIUM_HATS[hat].price;
+    if (player.coins < price) return;
+    player.coins -= price;
+    player.owned = [...owned, hat].join(",");
+    this.broadcast("emote", { sessionId, emoji: PREMIUM_HATS[hat].emoji });
+  }
+
+  private handleReelIn(sessionId: string) {
+    const player = this.state.players.get(sessionId);
+    if (!player || player.action !== "fish") return;
+    if (!this.biteUntil.has(sessionId)) {
+      // nothing on the line: this is "stop fishing"
+      this.clearAction(player);
+      this.fishBiteAt.delete(sessionId);
+      return;
+    }
+    this.biteUntil.delete(sessionId);
+    player.actionProgress = 0;
+    const caught = pickFish();
+    if (caught === "boot") {
+      this.broadcast("emote", { sessionId, emoji: "👢" });
+    } else {
+      this.addItem(player, caught);
+      this.broadcast("emote", { sessionId, emoji: ITEMS[caught].emoji });
+    }
+    this.fishBiteAt.set(sessionId, Date.now() + randomBiteDelay());
   }
 
   private tickBall(dt: number) {
@@ -363,6 +602,12 @@ export class HangoutRoom extends Room<HangoutState> {
       }
     });
     this.loadMapProps(mapId); // clears + repopulates chairs/toggleables, implicitly releasing all occupants
+    // Leaving the casino mid-round hands every stake back.
+    this.state.players.forEach((_p, sessionId) => this.refundBets(sessionId));
+    this.state.bets.clear();
+    this.setPhase("betting");
+    this.regrowAt.clear();
+    this.biteUntil.clear();
     this.fishBiteAt.clear();
     this.lastReportAt.clear();
     Object.assign(this.state.ball, BALL_HOME);
@@ -413,6 +658,7 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     this.clearAction(player);
     this.fishBiteAt.delete(sessionId);
+    this.biteUntil.delete(sessionId);
     this.lastReportAt.delete(sessionId);
     player.sitting = false;
     player.sitY = 0;
@@ -478,6 +724,25 @@ export class HangoutRoom extends Room<HangoutState> {
           prop.on = false;
         }
         break;
+      case "slot":
+        this.spinSlot(sessionId, player, prop.propId);
+        break;
+      case "npc":
+        this.sellTo(sessionId, player, prop.propId);
+        break;
+      case "forage": {
+        if (!prop.on) return; // already picked; it grows back
+        const item: ItemId = this.state.timeOfDay === "night" ? "firefly" : "berry";
+        this.addItem(player, item);
+        prop.on = false;
+        this.regrowAt.set(prop.propId, Date.now() + FORAGE_REGROW_S * 1000);
+        this.broadcast("emote", { sessionId, emoji: ITEMS[item].emoji });
+        break;
+      }
+      case "cat":
+        prop.boost = 2.5; // hearts float up and she purrs while this runs down
+        this.broadcast("emote", { sessionId, emoji: "💕" });
+        break;
       case "espresso":
         if (player.action === "brew") return;
         if (player.holding === "marshmallow") player.toast = 0;
@@ -488,6 +753,49 @@ export class HangoutRoom extends Room<HangoutState> {
       default:
         prop.on = !prop.on;
     }
+  }
+
+  private spinSlot(sessionId: string, player: Player, propId: string) {
+    if (player.coins < SLOT_COST) return;
+    player.coins -= SLOT_COST;
+    const reels: [number, number, number] = [rollSymbol(), rollSymbol(), rollSymbol()];
+    let win = 0;
+    if (reels[0] === reels[1] && reels[1] === reels[2]) win = SLOT_COST * SLOT_TRIPLE[reels[0]];
+    else if (reels[0] === reels[1] || reels[1] === reels[2] || reels[0] === reels[2]) win = SLOT_COST * 2;
+    // The reels spin for ~1.6 s on screen; pay out when they land.
+    this.broadcast("slotSpin", { propId, sessionId, reels, win });
+    if (win > 0) {
+      this.clock.setTimeout(() => {
+        const p = this.state.players.get(sessionId);
+        if (!p) return;
+        this.addCoins(p, win);
+        this.broadcast("emote", { sessionId, emoji: win >= SLOT_COST * 12 ? "💰" : "🪙" });
+      }, 1700);
+    }
+  }
+
+  private sellTo(sessionId: string, player: Player, propId: string) {
+    const npc = NPCS[propId];
+    if (!npc) return;
+    const bag = parseBag(player.bag);
+    let earned = 0;
+    for (const [id, count] of Object.entries(bag) as [ItemId, number][]) {
+      if (ITEMS[id].buyer !== npc.npc) continue;
+      earned += ITEMS[id].value * count;
+      delete bag[id];
+    }
+    if (earned === 0) {
+      this.sendTo(sessionId, "npcSay", { propId, text: npc.npc === "bob" ? "Bring me some fish, matey! 🎣" : "Berries by day, fireflies by night. 🌲" });
+      return;
+    }
+    player.bag = encodeBag(bag);
+    this.addCoins(player, earned);
+    this.broadcast("emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
+    this.sendTo(sessionId, "npcSay", { propId, text: `Thanks! Here's ${earned} 🪙` });
+  }
+
+  private sendTo(sessionId: string, type: string, payload: unknown) {
+    this.clients.find((c) => c.sessionId === sessionId)?.send(type, payload);
   }
 
   private handleRoast(sessionId: string) {
@@ -575,7 +883,25 @@ export class HangoutRoom extends Room<HangoutState> {
     const spawn = spawns[this.state.players.size % spawns.length];
     player.x = spawn.x;
     player.z = spawn.z;
+    // Coming back to the same room restores your wallet, catch and shop hats.
+    const wallet = this.wallets.get(player.userId);
+    if (wallet) {
+      player.coins = wallet.coins;
+      player.bag = wallet.bag;
+      player.owned = wallet.owned;
+    }
     this.state.players.set(client.sessionId, player);
+  }
+
+  private removePlayer(sessionId: string) {
+    const player = this.state.players.get(sessionId);
+    if (!player) return;
+    this.refundBets(sessionId);
+    if (player.userId) this.wallets.set(player.userId, { coins: player.coins, bag: player.bag, owned: player.owned });
+    this.state.players.delete(sessionId);
+    this.lastEmoteAt.delete(sessionId);
+    this.lastGestureAt.delete(sessionId);
+    this.lastTipAt.delete(sessionId);
   }
 
   async onLeave(client: Client, consented: boolean) {
@@ -590,10 +916,10 @@ export class HangoutRoom extends Room<HangoutState> {
     this.clearAction(player);
 
     this.fishBiteAt.delete(client.sessionId);
+    this.biteUntil.delete(client.sessionId);
     this.lastReportAt.delete(client.sessionId);
     if (consented) {
-      this.state.players.delete(client.sessionId);
-      this.lastEmoteAt.delete(client.sessionId);
+      this.removePlayer(client.sessionId);
       return;
     }
 
@@ -602,8 +928,7 @@ export class HangoutRoom extends Room<HangoutState> {
       await this.allowReconnection(client, 30);
       player.connected = true;
     } catch {
-      this.state.players.delete(client.sessionId);
-      this.lastEmoteAt.delete(client.sessionId);
+      this.removePlayer(client.sessionId);
     }
   }
 
@@ -612,14 +937,25 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 }
 
-function pickCatch(): string {
-  const total = CATCHES.reduce((sum, c) => sum + c.weight, 0);
+function pickFish(): ItemId | "boot" {
+  const total = FISH_TABLE.reduce((sum, c) => sum + c.weight, 0);
   let roll = Math.random() * total;
-  for (const c of CATCHES) {
+  for (const c of FISH_TABLE) {
     roll -= c.weight;
-    if (roll <= 0) return c.emoji;
+    if (roll <= 0) return c.item;
   }
-  return CATCHES[0].emoji;
+  return "sardine";
+}
+
+/** Weighted so jackpots stay rare: cherries common, sevens scarce. */
+const SYMBOL_WEIGHTS = [34, 26, 20, 13, 7];
+function rollSymbol(): number {
+  let roll = Math.random() * SYMBOL_WEIGHTS.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < SLOT_SYMBOLS.length; i++) {
+    roll -= SYMBOL_WEIGHTS[i];
+    if (roll <= 0) return i;
+  }
+  return 0;
 }
 
 /** 5-12 seconds between bites: long enough to feel like fishing, short enough to stay fun. */

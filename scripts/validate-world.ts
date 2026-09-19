@@ -15,7 +15,7 @@
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, WORLD_LIMIT, isBlocked } from "../shared/collision";
 import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES } from "../shared/props";
 import { isReachable } from "../shared/pathfinding";
-import { isWalkUpProp, type MapId } from "../shared/types";
+import { ROULETTE_BET_RADIUS, ROULETTE_CENTER, isWalkUpProp, type MapId } from "../shared/types";
 
 const maps = Object.keys(MAP_OBSTACLES) as MapId[];
 const failures: string[] = [];
@@ -77,6 +77,23 @@ for (const mapId of maps) {
 
   checks += mapChecks;
   console.log(`  ${mapId.padEnd(15)} ${MAP_CHAIRS[mapId].length} seats, ${MAP_TOGGLEABLES[mapId].length} props, ${spawns.length} spawns, ${MAP_OBSTACLES[mapId].length} obstacles`);
+}
+
+// --- casino: every side of the roulette table must be somewhere you can stand and bet ---
+{
+  const home = MAP_SPAWN_POINTS.velvet_casino[0];
+  for (const [dx, dz] of [
+    [0, 2.0],
+    [0, -1.9],
+    [2.6, 0],
+    [-2.6, 0],
+  ]) {
+    checks++;
+    const spot = { x: ROULETTE_CENTER.x + dx, z: ROULETTE_CENTER.z + dz };
+    if (Math.hypot(dx, dz) > ROULETTE_BET_RADIUS) fail(`velvet_casino: roulette spot ${fmt(spot)} is outside the betting radius`);
+    else if (isBlocked(spot.x, spot.z, "velvet_casino")) fail(`velvet_casino: roulette spot ${fmt(spot)} is blocked`);
+    else if (!isReachable("velvet_casino", home, spot)) fail(`velvet_casino: roulette spot ${fmt(spot)} is unreachable`);
+  }
 }
 
 if (failures.length === 0) {

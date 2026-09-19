@@ -30,9 +30,16 @@ export interface PlayerState {
   toast: number;
   speaking: boolean;
   connected: boolean;
+  /** Wallet. Starts at STARTING_COINS; lives in the room (kept across reconnects, not restarts). */
+  coins: number;
+  /** Carried catches and forage, encoded by encodeBag(). */
+  bag: string;
+  /** Comma-separated premium hats bought in the coin shop. */
+  owned: string;
 }
 
-export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach";
+export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino";
+export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "velvet_casino"];
 
 /** Shared lighting mood. Purely presentational, but synced so the room reads the same for everyone. */
 export type TimeOfDay = "sunrise" | "day" | "sunset" | "night";
@@ -41,7 +48,20 @@ export function isTimeOfDay(v: unknown): v is TimeOfDay {
   return typeof v === "string" && (TIMES_OF_DAY as string[]).includes(v);
 }
 
-export type ToggleableKind = "tv" | "lamp" | "desk_lamp" | "lantern" | "campfire" | "arcade" | "espresso" | "turntable";
+export type ToggleableKind =
+  | "tv"
+  | "lamp"
+  | "desk_lamp"
+  | "lantern"
+  | "pendant"
+  | "campfire"
+  | "arcade"
+  | "espresso"
+  | "turntable"
+  | "slot"
+  | "npc"
+  | "forage"
+  | "cat";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -90,25 +110,153 @@ export const TOAST_MAX = 1.7; // keep roasting past golden and it chars
 export const CAMPFIRE_BOOST_SECONDS = 3;
 
 export const EMOTES = ["☕", "🍢", "🔥", "❤️", "😂", "👋"] as const;
+/** Emoji the server itself sends (rewards, reactions) — never accepted from a client. */
+export const SYSTEM_EMOJI = ["🥂", "💤", "💃", "🪙", "💰", "🎰", "✨", "💕", "🫐", "💨"] as const;
+
+/** Full-body social gestures (the emote bar's second row). */
+export const GESTURES = ["wave", "dance", "cheers", "nap"] as const;
+export type Gesture = (typeof GESTURES)[number];
+export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 2.2, dance: 5, cheers: 2.4, nap: 7 };
+export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤" };
+export function isGesture(v: unknown): v is Gesture {
+  return typeof v === "string" && (GESTURES as readonly string[]).includes(v);
+}
+export interface GestureBroadcast {
+  sessionId: string;
+  gesture: Gesture;
+}
+
+// --- economy ---
+export const STARTING_COINS = 100;
+export const ESPRESSO_TIP = 6;
+export const ESPRESSO_TIP_COOLDOWN_S = 30;
+export const FORAGE_REGROW_S = 25;
+/** How long a bite lasts: reel in within this window or the fish slips the hook. */
+export const BITE_WINDOW_S = 2.6;
+
+export type ItemId = "sardine" | "clownfish" | "octopus" | "goldray" | "berry" | "firefly";
+export const ITEMS: Record<ItemId, { emoji: string; name: string; value: number; buyer: "bob" | "oak" }> = {
+  sardine: { emoji: "🐟", name: "Sardine", value: 10, buyer: "bob" },
+  clownfish: { emoji: "🐠", name: "Clownfish", value: 25, buyer: "bob" },
+  octopus: { emoji: "🐙", name: "Giant Octopus", value: 60, buyer: "bob" },
+  goldray: { emoji: "🌟", name: "Golden Ray", value: 150, buyer: "bob" },
+  berry: { emoji: "🫐", name: "Wild Berries", value: 5, buyer: "oak" },
+  firefly: { emoji: "✨", name: "Firefly Jar", value: 12, buyer: "oak" },
+};
+export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];
+
+export type Bag = Partial<Record<ItemId, number>>;
+export function parseBag(raw: string): Bag {
+  const bag: Bag = {};
+  if (!raw) return bag;
+  for (const part of raw.split(",")) {
+    const [id, n] = part.split(":");
+    if (id in ITEMS && Number(n) > 0) bag[id as ItemId] = Math.floor(Number(n));
+  }
+  return bag;
+}
+export function encodeBag(bag: Bag): string {
+  return ITEM_IDS.filter((id) => (bag[id] ?? 0) > 0)
+    .map((id) => `${id}:${bag[id]}`)
+    .join(",");
+}
+
+// --- casino: roulette ---
+export type RoulettePhase = "betting" | "spinning" | "payout";
+export const ROULETTE_PHASE_SECONDS: Record<RoulettePhase, number> = { betting: 25, spinning: 6, payout: 4 };
+/** European wheel order, clockwise. */
+export const WHEEL_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+const RED_NUMBERS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+export function pocketColor(n: number): "green" | "red" | "black" {
+  return n === 0 ? "green" : RED_NUMBERS.has(n) ? "red" : "black";
+}
+/** A bet target: "red" | "black" | "odd" | "even" | "n<0-36>". */
+export type BetKind = string;
+export const CHIP_VALUES = [5, 10, 25] as const;
+export const MAX_BET_TOTAL = 200;
+export function isBetKind(kind: unknown): kind is BetKind {
+  if (typeof kind !== "string") return false;
+  if (kind === "red" || kind === "black" || kind === "odd" || kind === "even") return true;
+  const m = /^n(\d{1,2})$/.exec(kind);
+  return !!m && Number(m[1]) <= 36;
+}
+/** Total returned (stake included) for a winning bet, or 0. */
+export function betReturn(kind: BetKind, amount: number, result: number): number {
+  if (kind === "red" || kind === "black") return pocketColor(result) === kind ? amount * 2 : 0;
+  if (kind === "odd") return result !== 0 && result % 2 === 1 ? amount * 2 : 0;
+  if (kind === "even") return result !== 0 && result % 2 === 0 ? amount * 2 : 0;
+  return kind === `n${result}` ? amount * 36 : 0;
+}
+/** Bets travel as "kind:amount,kind:amount". */
+export function parseBets(raw: string): Record<BetKind, number> {
+  const out: Record<BetKind, number> = {};
+  if (!raw) return out;
+  for (const part of raw.split(",")) {
+    const [k, n] = part.split(":");
+    if (isBetKind(k) && Number(n) > 0) out[k] = Math.floor(Number(n));
+  }
+  return out;
+}
+export function encodeBets(bets: Record<BetKind, number>): string {
+  return Object.entries(bets)
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => `${k}:${n}`)
+    .join(",");
+}
+export interface RouletteSyncState {
+  phase: RoulettePhase;
+  timeLeft: number;
+  result: number;
+  spinId: number;
+}
+export interface RouletteResultBroadcast {
+  result: number;
+  winners: { sessionId: string; username: string; amount: number }[];
+}
+export const ROULETTE_CENTER = { x: 0.6, z: 0.4 };
+export const ROULETTE_BET_RADIUS = 4.4;
+
+// --- casino: slots ---
+export const SLOT_COST = 5;
+export const SLOT_SYMBOLS = ["🍒", "🍋", "🔔", "⭐", "7"] as const;
+/** Payout multipliers for three of a kind, by symbol index; any pair pays 2x. */
+export const SLOT_TRIPLE = [5, 8, 12, 20, 50];
+export interface SlotBroadcast {
+  propId: string;
+  sessionId: string;
+  reels: [number, number, number];
+  win: number;
+}
+
+// --- NPC traders ---
+export type NpcId = "bob" | "oak";
+export const NPCS: Record<string, { npc: NpcId; name: string }> = {
+  npc_bob: { npc: "bob", name: "Fisherman Bob" },
+  npc_oak: { npc: "oak", name: "Ranger Oak" },
+};
 
 /** The records on the lounge turntable. The music itself is synthesised client-side. */
 export const LOFI_TRACKS = ["Rainy Window", "Late Night Study", "Sunday Coffee"] as const;
-
-/** What a fishing line can bring up, and how often (weights). */
-export const CATCHES: { emoji: string; weight: number }[] = [
-  { emoji: "🐟", weight: 50 },
-  { emoji: "🐠", weight: 25 },
-  { emoji: "🦀", weight: 12 },
-  { emoji: "🐙", weight: 6 },
-  { emoji: "👢", weight: 7 },
-];
 
 // --- avatar identity ---
 // Head accessories are derived from the player's Discord user id rather than stored: every
 // client computes the same answer, it survives reconnects and map changes, and it costs the
 // room state nothing.
-export type Accessory = "beret" | "beanie" | "flower" | "headphones" | "none";
-const ACCESSORIES: Accessory[] = ["beret", "beanie", "flower", "headphones", "none"];
+export type FreeAccessory = "beret" | "beanie" | "flower" | "headphones" | "none";
+export type PremiumHat = "straw" | "bunny" | "tophat" | "crown";
+export type Accessory = FreeAccessory | PremiumHat;
+const ACCESSORIES: FreeAccessory[] = ["beret", "beanie", "flower", "headphones", "none"];
+/** The coin shop: premium hats and their prices. */
+export const PREMIUM_HATS: Record<PremiumHat, { name: string; price: number; emoji: string }> = {
+  straw: { name: "Straw Sunhat", price: 80, emoji: "👒" },
+  bunny: { name: "Bunny Ears", price: 120, emoji: "🐰" },
+  tophat: { name: "Top Hat", price: 200, emoji: "🎩" },
+  crown: { name: "High Roller Crown", price: 400, emoji: "👑" },
+};
+export const PREMIUM_HAT_IDS = Object.keys(PREMIUM_HATS) as PremiumHat[];
+export function isPremiumHat(v: unknown): v is PremiumHat {
+  return typeof v === "string" && v in PREMIUM_HATS;
+}
 
 export function hashString(value: string): number {
   let h = 2166136261;
@@ -119,7 +267,7 @@ export function hashString(value: string): number {
   return h >>> 0;
 }
 
-export function accessoryFor(userId: string): Accessory {
+export function accessoryFor(userId: string): FreeAccessory {
   return ACCESSORIES[hashString(userId) % ACCESSORIES.length];
 }
 
@@ -135,7 +283,7 @@ export const OUTFIT_COLORS = [
   "#e8a598", "#f4b6c2", "#f0c290", "#f6e3a1", "#e8d5a8", "#a8c8a0", "#bfe3c8", "#8fb8b0",
   "#9ab8d8", "#c4d7f2", "#b8a8d0", "#d8a8c0", "#c8b090", "#f5ede0", "#7a8aa6", "#5c6b5a",
 ];
-export const HATS: Accessory[] = ACCESSORIES;
+export const HATS: FreeAccessory[] = ACCESSORIES;
 
 export interface Look {
   skin: string;
@@ -170,7 +318,7 @@ export function parseLook(raw: string | null | undefined): Look | null {
   if (!SKIN_TONES.includes(skin)) return null;
   if (!(HAIR_STYLES as readonly string[]).includes(hairStyle)) return null;
   if (!HAIR_COLORS.includes(hair) || !OUTFIT_COLORS.includes(shirt) || !OUTFIT_COLORS.includes(pants)) return null;
-  if (!ACCESSORIES.includes(hat as Accessory)) return null;
+  if (!ACCESSORIES.includes(hat as FreeAccessory) && !isPremiumHat(hat)) return null;
   return { skin, hairStyle: hairStyle as HairStyle, hair, shirt, pants, hat: hat as Accessory };
 }
 export type Emote = (typeof EMOTES)[number];
@@ -182,7 +330,7 @@ export function poseForSeat(style: SeatStyle): SitPose {
 
 /** Props you must walk up to before using; everything else (lights, TV, campfire) works from anywhere. */
 export function isWalkUpProp(kind: ToggleableKind): boolean {
-  return kind === "espresso" || kind === "arcade";
+  return kind === "espresso" || kind === "arcade" || kind === "slot" || kind === "npc" || kind === "forage" || kind === "cat";
 }
 
 // --- client -> server messages ---

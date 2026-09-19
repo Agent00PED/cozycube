@@ -80,6 +80,8 @@ const FACE_POS_Z = 0;
 export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   cozy_lounge: [
     // --- Living room: L-sofa opening onto the middle of the room ---
+    // Approached from the FRONT (the strip between sofa and coffee table): the low bookshelf
+    // now closes off the sofa's back.
     ...[-5.6, -4.2, -2.8].map((x, i) => ({
       propId: `sofa_${i + 1}`,
       x,
@@ -87,9 +89,9 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
       rotationY: FACE_NEG_Z,
       style: "pad" as const,
       approachX: x,
-      approachZ: -3.0,
+      approachZ: -5.8,
     })),
-    { propId: "sofa_4", x: -7.0, z: -6.0, rotationY: FACE_POS_X, style: "pad", approachX: -7.0, approachZ: -3.2 },
+    { propId: "sofa_4", x: -7.0, z: -6.0, rotationY: FACE_POS_X, style: "pad", approachX: -6.0, approachZ: -6.1 },
 
     // --- Kitchen bar: three stools along the island ---
     ...[3.9, 5.1, 6.3].map((x, i) => ({
@@ -106,7 +108,7 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     // --- Dining set: four chairs round the table, bridging kitchen and living room ---
     { propId: "dining_1", x: -4.8, z: -1.0, rotationY: FACE_POS_X, style: "wood", sitY: 0.04, approachX: -6.0, approachZ: -1.0 },
     { propId: "dining_2", x: -2.4, z: -1.0, rotationY: FACE_NEG_X, style: "wood", sitY: 0.04, approachX: -1.2, approachZ: -1.0 },
-    { propId: "dining_3", x: -3.6, z: -2.2, rotationY: FACE_POS_Z, style: "wood", sitY: 0.04, approachX: -3.6, approachZ: -3.3 },
+    { propId: "dining_3", x: -3.6, z: -2.2, rotationY: FACE_POS_Z, style: "wood", sitY: 0.04, approachX: -3.6, approachZ: -2.9 },
     { propId: "dining_4", x: -3.6, z: 0.2, rotationY: FACE_NEG_Z, style: "wood", sitY: 0.04, approachX: -3.6, approachZ: 1.3 },
 
     // --- Gamer corner ---
@@ -156,6 +158,40 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     { propId: "pier_seat_1", x: 1.6, z: 7.4, rotationY: FACE_POS_Z, style: "pad", approachX: 1.6, approachZ: 6.2 },
     { propId: "pier_seat_2", x: 2.8, z: 7.4, rotationY: FACE_POS_Z, style: "pad", approachX: 2.8, approachZ: 6.2 },
   ],
+
+  velvet_casino: [
+    // --- Bar: three stools along the back counter ---
+    ...[-7.8, -6.2, -4.6].map((x, i) => ({
+      propId: `casino_bar_${i + 1}`,
+      x,
+      z: -8.4,
+      rotationY: FACE_NEG_Z,
+      style: "stool" as const,
+      sitY: 0.34,
+      approachX: x,
+      approachZ: -7.3,
+    })),
+    // --- Blackjack: three stools round the player side of the half-moon table ---
+    ...[-0.7, 0, 0.7].map((a, i) => {
+      const x = -5.5 + Math.sin(a) * 1.55;
+      const z = -4.6 + Math.cos(a) * 1.55;
+      return {
+        propId: `blackjack_${i + 1}`,
+        x,
+        z,
+        rotationY: facing(x, z, -5.5, -4.6),
+        style: "stool" as const,
+        sitY: 0.34,
+        approachX: -5.5 + Math.sin(a) * 2.5,
+        approachZ: -4.6 + Math.cos(a) * 2.5,
+      };
+    }),
+    // --- VIP lounge: the chesterfield and two club armchairs ---
+    { propId: "vip_sofa_1", x: -9.0, z: 4.3, rotationY: FACE_POS_X, style: "pad", approachX: -7.7, approachZ: 3.4 },
+    { propId: "vip_sofa_2", x: -9.0, z: 5.7, rotationY: FACE_POS_X, style: "pad", approachX: -7.7, approachZ: 6.6 },
+    { propId: "vip_chair_1", x: -5.5, z: 3.3, rotationY: facing(-5.5, 3.3, -7.5, 5), style: "armchair", sitY: 0.03, approachX: -6.3, approachZ: 2.6 },
+    { propId: "vip_chair_2", x: -5.5, z: 6.7, rotationY: facing(-5.5, 6.7, -7.5, 5), style: "armchair", sitY: 0.03, approachX: -6.3, approachZ: 7.5 },
+  ],
 };
 
 export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
@@ -170,6 +206,8 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
     // The record player on top of the vinyl shelf: click to change the record (or stop it).
     { propId: "turntable", x: -9.3, y: 1.7, z: 3.8, kind: "turntable", color: "#e0a93b", defaultOn: true },
     { propId: "lantern_balcony", x: 8.9, z: 5.4, kind: "lantern", color: "#ffbe6b", defaultOn: true },
+    // Mochi the cat, asleep on the rug. Walk up and pet her.
+    { propId: "cat_mochi", x: -2.4, z: -6.9, kind: "cat", color: "#f0a860", defaultOn: true, approachX: -1.7, approachZ: -6.3 },
   ],
 
   campfire_night: [
@@ -178,15 +216,39 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
     // Dimmed so they read as lanterns round a campfire rather than competing with it.
     { propId: "lantern_east", x: 4.4, y: 0.42, z: -2.2, kind: "lantern", color: "#ffb25e", defaultOn: true, intensity: 0.5 },
     { propId: "lantern_west", x: -4.4, y: 0.42, z: 2.2, kind: "lantern", color: "#ffb25e", defaultOn: true, intensity: 0.5 },
+    // Berry bushes to forage (fireflies instead after dark), and the ranger who buys them.
+    { propId: "bush_west", x: -6.8, z: -1.2, kind: "forage", color: "#5b6fd6", defaultOn: true, approachX: -5.8, approachZ: -1.0 },
+    { propId: "bush_north", x: -1.0, z: -7.2, kind: "forage", color: "#5b6fd6", defaultOn: true, approachX: -0.9, approachZ: -6.2 },
+    { propId: "bush_east", x: 6.8, z: 0.0, kind: "forage", color: "#5b6fd6", defaultOn: true, approachX: 5.8, approachZ: 0.3 },
+    { propId: "npc_oak", x: 6.4, z: 2.2, kind: "npc", color: "#5f7d4a", defaultOn: true, approachX: 5.4, approachZ: 2.6 },
   ],
 
   sunset_beach: [
     // The bonfire the driftwood logs ring — same fire, so roasting works on the beach too.
     { propId: "bonfire", x: 5.0, z: -1.0, kind: "campfire", color: "#ff8a3d", defaultOn: true },
-    { propId: "lamp_bar", x: 0, y: 2.62, z: -5.9, kind: "lamp", color: "#ffd08a", defaultOn: true },
+    // A woven lantern hanging under the front eave (it used to be a floor lamp on the roof).
+    { propId: "lamp_bar", x: -0.6, y: 2.02, z: -5.25, kind: "pendant", color: "#ffd08a", defaultOn: true },
     { propId: "beach_bar_tap", x: -1.1, y: 1.05, z: -5.95, kind: "espresso", color: "#ffb36b", defaultOn: true, approachX: -1.1, approachZ: -3.3 },
     { propId: "tiki_east", x: 7.4, y: 0.5, z: 3.0, kind: "lantern", color: "#ff9a4a", defaultOn: true },
     { propId: "tiki_west", x: -8.0, y: 0.5, z: -1.6, kind: "lantern", color: "#ff9a4a", defaultOn: true },
+    // Fisherman Bob buys your catch at his stall by the pier.
+    { propId: "npc_bob", x: 5.0, z: 4.0, kind: "npc", color: "#3f6d8c", defaultOn: true, approachX: 5.0, approachZ: 2.9 },
+  ],
+
+  velvet_casino: [
+    ...[1.6, 3.3, 5.0].map((x, i) => ({
+      propId: `slot_${i + 1}`,
+      x,
+      z: -9.35,
+      kind: "slot" as const,
+      color: ["#ff5d73", "#ffc94d", "#5de0ff"][i],
+      defaultOn: true,
+      approachX: x,
+      approachZ: -8.1,
+    })),
+    { propId: "casino_lamp_vip", x: -8.6, z: 7.9, kind: "lamp", color: "#ffc27a", defaultOn: true },
+    { propId: "casino_lamp_bj", x: -3.2, z: -6.4, kind: "lamp", color: "#ffc27a", defaultOn: true },
+    { propId: "casino_lamp_door", x: 8.9, z: 3.4, kind: "lamp", color: "#ffc27a", defaultOn: true },
   ],
 };
 

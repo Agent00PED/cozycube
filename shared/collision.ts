@@ -27,6 +27,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -7.6, maxX: -6.4, minZ: -7.2, maxZ: -5.2 }, // L-sofa, return leg
     { minX: -5.6, maxX: -3.0, minZ: -7.4, maxZ: -6.4 }, // coffee table
     { minX: -1.5, maxX: -1.1, minZ: -5.1, maxZ: -4.7 }, // floor lamp
+    { minX: -6.3, maxX: -2.3, minZ: -3.95, maxZ: -3.5 }, // low bookshelf behind the sofa
     // --- Kitchen ---
     { minX: 0.8, maxX: 9.4, minZ: -9.8, maxZ: -8.8 }, // back counter run, sink and fridge grouped
     { minX: 3.3, maxX: 6.9, minZ: -6.8, maxZ: -5.6 }, // bar island
@@ -40,6 +41,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -9.8, maxX: -8.9, minZ: 2.4, maxZ: 5.2 }, // record shelf against the left wall
     { minX: -8.7, maxX: -8.1, minZ: 5.7, maxZ: 6.3 }, // floor lamp
     { minX: -6.6, maxX: -5.8, minZ: 2.7, maxZ: 3.5 }, // guitar on its stand
+    { minX: -7.95, maxX: -7.25, minZ: 2.85, maxZ: 3.55 }, // round side table by the armchair
     // --- Balcony deck ---
     { minX: 8.6, maxX: 9.2, minZ: 5.1, maxZ: 5.7 }, // floor lantern
     { minX: 5.2, maxX: 5.8, minZ: 0.7, maxZ: 1.3 }, // potted fig by the deck step
@@ -57,6 +59,10 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -3.4, maxX: -2.4, minZ: -4.8, maxZ: -3.8 }, // firewood stack
     { minX: 7.0, maxX: 7.6, minZ: -3.0, maxZ: -2.4 }, // telescope
     { minX: 1.6, maxX: 3.0, minZ: -6.4, maxZ: -5.6 }, // camp table and cooler
+    { minX: 6.1, maxX: 6.7, minZ: 1.9, maxZ: 2.5 }, // Ranger Oak
+    { minX: -7.15, maxX: -6.45, minZ: -1.55, maxZ: -0.85 }, // berry bush west
+    { minX: -1.35, maxX: -0.65, minZ: -7.55, maxZ: -6.85 }, // berry bush north
+    { minX: 6.45, maxX: 7.15, minZ: -0.35, maxZ: 0.35 }, // berry bush east
   ],
 
   sunset_beach: [
@@ -70,7 +76,25 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -5.2, maxX: -4.6, minZ: -3.9, maxZ: -3.3 }, // volleyball post
     { minX: -5.2, maxX: -4.6, minZ: -0.3, maxZ: 0.3 }, // volleyball post
     { minX: -3.7, maxX: -1.5, minZ: -0.1, maxZ: 2.1 }, // rowboat pulled up on the sand
-    { minX: 8.7, maxX: 9.4, minZ: 3.3, maxZ: 4.0 }, // palm moved off the bonfire, out by the shore
+    { minX: 8.5, maxX: 9.3, minZ: -3.2, maxZ: -2.4 }, // palm, moved well clear of the bonfire
+    { minX: 3.5, maxX: 5.4, minZ: 3.5, maxZ: 4.6 }, // Fisherman Bob and his bait stall beside him
+  ],
+
+  // A 20x20 retro casino: walls on x = -10 and z = -10 like the lounge, open toward the camera.
+  velvet_casino: [
+    { minX: -1.3, maxX: 2.5, minZ: -0.9, maxZ: 1.7 }, // the grand roulette table
+    { minX: -9.8, maxX: -3.0, minZ: -9.8, maxZ: -8.8 }, // bar counter along the back wall
+    { minX: 0.9, maxX: 5.7, minZ: -9.8, maxZ: -8.9 }, // three slot machines
+    { minX: 6.4, maxX: 9.8, minZ: -9.8, maxZ: -7.6 }, // cashier cage
+    { minX: 8.1, maxX: 9.3, minZ: -6.4, maxZ: -5.2 }, // High Roller leaderboard easel
+    { minX: -6.9, maxX: -4.1, minZ: -5.3, maxZ: -3.9 }, // blackjack table
+    { minX: -9.8, maxX: -8.8, minZ: 2.8, maxZ: 7.2 }, // VIP chesterfield against the left wall
+    { minX: -8.2, maxX: -6.8, minZ: 4.3, maxZ: 5.7 }, // VIP coffee table
+    { minX: -5.9, maxX: -5.1, minZ: 2.9, maxZ: 3.7 }, // VIP armchair
+    { minX: -5.9, maxX: -5.1, minZ: 6.3, maxZ: 7.1 }, // VIP armchair
+    { minX: -4.6, maxX: -4.2, minZ: 1.8, maxZ: 8.2 }, // velvet rope round the VIP lounge
+    { minX: 8.8, maxX: 9.6, minZ: -2.6, maxZ: -1.8 }, // potted palm
+    { minX: -9.6, maxX: -8.8, minZ: -2.4, maxZ: -1.6 }, // potted palm
   ],
 };
 
@@ -89,6 +113,13 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
     { x: -1.4, z: 8.9 },
     { x: 0.7, z: 9.2 },
     { x: -0.7, z: 9.2 },
+  ],
+  velvet_casino: [
+    { x: 6.6, z: 7.6 },
+    { x: 5.4, z: 8.2 },
+    { x: 7.6, z: 6.6 },
+    { x: 4.6, z: 7.0 },
+    { x: 7.0, z: 8.8 },
   ],
   sunset_beach: [
     { x: -3.4, z: -2.4 },

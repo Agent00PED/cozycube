@@ -69,7 +69,12 @@ function Shell({ mats, wallColor }: { mats: Materials; wallColor: string }) {
       {/* Kitchen tiles mark that zone off from the living room's wood floor. */}
       <FloorPatch x0={0.4} x1={HALF} z0={-INNER} z1={-4.4} y={0.006} m={mats.tile} />
       <KitchenTileGrid mats={mats} />
-      <FloorPatch x0={-INNER} x1={-5.0} z0={-INNER} z1={-5.2} y={0.006} m={mats.denCarpet} />
+      {/* A warm cream, hand-woven rug under the sofa and coffee table, with a darker border
+          and a woven stripe, instead of the near-black slab that used to fill this corner. */}
+      <FloorPatch x0={-7.9} x1={-1.7} z0={-8.3} z1={-3.8} y={0.008} m={mats.rugBorder} />
+      <FloorPatch x0={-7.7} x1={-1.9} z0={-8.1} z1={-4.0} y={0.012} m={mats.denCarpet} />
+      <FloorPatch x0={-7.7} x1={-1.9} z0={-7.75} z1={-7.6} y={0.014} m={mats.rugBorder} />
+      <FloorPatch x0={-7.7} x1={-1.9} z0={-4.5} z1={-4.35} y={0.014} m={mats.rugBorder} />
 
       {/* gallery wall + a clock with real hands */}
       <WallFrame x={-INNER + 0.01} y={2.0} z={-1.4} w={0.8} h={1.0} art={mats.terracotta} mats={mats} onLeftWall />
@@ -161,15 +166,18 @@ export function PottedPlant({
   mats,
   kind = "fig",
   scale = 1,
+  y = 0,
 }: {
   x: number;
   z: number;
   mats: Materials;
   kind?: "fig" | "snake" | "olive" | "fern" | "monstera";
   scale?: number;
+  /** Height of whatever the pot stands on (0 = the floor). */
+  y?: number;
 }) {
   return (
-    <group position={[x, 0, z]} scale={scale}>
+    <group position={[x, y, z]} scale={scale}>
       <Cyl p={[0, 0.26, 0]} s={[0.62, 0.52, 0.62]} m={mats.terracotta} cast recv />
       {/* Soil is a solid unlit cylinder with shadows off both ways — see mats.soil. */}
       <Cyl p={[0, 0.48, 0]} s={[0.54, 0.1, 0.54]} m={mats.soil} />
@@ -235,12 +243,20 @@ function LivingRoom({ mats }: { mats: Materials }) {
       ))}
       <B p={[-7.0, 0.46, -6.1]} s={[0.92, 0.1, 1.24]} m={mats.sage} />
       {[
-        [-5.9, -4.35, mats.mustard],
-        [-2.6, -4.35, mats.terracotta],
+        [-5.9, -4.5, mats.mustard],
+        [-2.6, -4.5, mats.terracotta],
       ].map(([x, z, m], i) => (
-        <B key={i} p={[x as number, 0.64, z as number]} s={[0.38, 0.38, 0.13]} r={[-0.2, 0, (i - 0.5) * 0.2]} m={m as THREE.Material} cast />
+        <B key={i} p={[x as number, 0.68, z as number]} s={[0.38, 0.36, 0.13]} r={[0.12, 0, (i - 0.5) * 0.14]} m={m as THREE.Material} cast />
       ))}
-      <B p={[-7.2, 0.6, -5.0]} s={[0.45, 0.05, 0.8]} r={[0, 0.4, 0.5]} m={mats.rust} />
+      {/* a throw blanket folded flat on the return leg's seat */}
+      <B p={[-6.95, 0.53, -6.5]} s={[0.7, 0.04, 0.5]} r={[0, 0.2, 0]} m={mats.rust} />
+
+      {/* a low bookshelf along the sofa's back: a soft partition between lounge and walkway */}
+      <B p={[-4.3, 0.36, -3.72]} s={[3.9, 0.72, 0.4]} m={mats.oak} cast recv />
+      <B p={[-4.3, 0.73, -3.72]} s={[4.0, 0.04, 0.44]} m={mats.walnut} />
+      <LowShelfBooks mats={mats} />
+      <PottedPlant x={-5.6} z={-3.72} mats={mats} kind="snake" scale={0.45} y={0.75} />
+      <Cyl p={[-3.2, 0.84, -3.72]} s={[0.16, 0.18, 0.16]} m={mats.terracotta} />
 
       {/* marble coffee table + tabletop styling */}
       <B p={[-4.3, 0.4, -6.9]} s={[2.2, 0.08, 0.9]} m={mats.marble} cast recv />
@@ -264,6 +280,28 @@ function LivingRoom({ mats }: { mats: Materials }) {
       <Sph p={[-5.36, 0.92, -9.35]} s={[0.26, 0.12, 0.18]} m={mats.olive} />
     </>
   );
+}
+
+/** Books along the low shelf behind the sofa, one instanced draw. */
+function LowShelfBooks({ mats }: { mats: Materials }) {
+  const books = useMemo<InstanceSpec[]>(() => {
+    const rand = seeded(88);
+    const colors = ["#c4714a", "#2f3f5c", "#e0a93b", "#7d9471", "#a8553a", "#f0e6d2"];
+    const out: InstanceSpec[] = [];
+    let x = -6.1;
+    while (x < -2.6) {
+      const w = 0.06 + rand() * 0.05;
+      const h = 0.22 + rand() * 0.1;
+      if (x > -5.9 && x < -5.3) {
+        x += 0.1; // leave room for the plant
+        continue;
+      }
+      out.push({ p: [x + w / 2, 0.75 + h / 2, -3.72], s: [w, h, 0.28], r: [0, 0, rand() < 0.1 ? 0.15 : 0], color: colors[Math.floor(rand() * colors.length)] });
+      x += w + 0.01;
+    }
+    return out;
+  }, []);
+  return <Instanced geo={GEO.box} m={mats.tintable} items={books} />;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -530,10 +568,14 @@ function VinylNook({ mats }: { mats: Materials }) {
         </group>
       </group>
 
-      {/* a low stack of art books and a mug, so the nook looks used */}
-      <B p={[-5.2, 0.06, 3.4]} s={[0.42, 0.06, 0.32]} m={mats.rust} />
-      <B p={[-5.2, 0.12, 3.4]} s={[0.4, 0.06, 0.3]} r={[0, 0.2, 0]} m={mats.navy} />
-      <Cyl p={[-4.9, 0.09, 3.7]} s={[0.16, 0.18, 0.16]} m={mats.white} />
+      {/* a round wooden side table by the armchair, with a coffee and a little stack of books */}
+      <Cyl p={[-7.6, 0.56, 3.2]} s={[0.66, 0.05, 0.66]} m={mats.oak} cast recv />
+      <Cyl p={[-7.6, 0.28, 3.2]} s={[0.08, 0.52, 0.08]} m={mats.walnut} cast />
+      <Cyl p={[-7.6, 0.03, 3.2]} s={[0.4, 0.05, 0.4]} m={mats.walnut} />
+      <B p={[-7.7, 0.61, 3.12]} s={[0.3, 0.05, 0.22]} m={mats.rust} />
+      <B p={[-7.7, 0.66, 3.12]} s={[0.28, 0.05, 0.2]} r={[0, 0.25, 0]} m={mats.navy} />
+      <Cyl p={[-7.45, 0.64, 3.35]} s={[0.12, 0.13, 0.12]} m={mats.white} />
+      <Cyl p={[-7.45, 0.7, 3.35]} s={[0.1, 0.01, 0.1]} m={mats.darkWood} />
     </>
   );
 }

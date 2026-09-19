@@ -9,6 +9,8 @@ import type {
   MapId,
   PlayerAction,
   PlayerState,
+  RoulettePhase,
+  RouletteSyncState,
   SeatStyle,
   SitPose,
   TimeOfDay,
@@ -20,6 +22,10 @@ const RECONNECT_KEY_PREFIX = "hangout_reconnect_";
 const NORMAL_CLOSE_CODE = 1000;
 
 export type EmoteListener = (emote: EmoteBroadcast) => void;
+
+/** One-shot server messages other than emotes (gesture, slotSpin, rouletteResult, npcSay). */
+export type RoomMessageListener = (type: string, payload: any) => void;
+const RELAYED_MESSAGES = ["gesture", "slotSpin", "rouletteResult", "npcSay"] as const;
 
 export interface BallSnapshot extends BallSyncState {
   /** performance.now() when this snapshot arrived. */
@@ -37,6 +43,16 @@ interface UseColyseusRoomResult {
   mapTransitioning: boolean;
   connected: boolean;
   error: string | null;
+  roulette: RouletteSyncState;
+  /** Roulette bets on the table this round, by sessionId (encodeBets strings). */
+  bets: Record<string, string>;
+  autoCycle: boolean;
+  setAutoCycle: (on: boolean) => void;
+  sendGesture: (gesture: string) => void;
+  buyHat: (hat: string) => void;
+  placeBet: (kind: string, amount: number) => void;
+  clearBets: () => void;
+  subscribeMessages: (listener: RoomMessageListener) => () => void;
   setColor: (color: string) => void;
   setLook: (look: string) => void;
   changeMap: (mapId: MapId) => void;
@@ -68,6 +84,10 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const emoteListenersRef = useRef(new Set<EmoteListener>());
+  const messageListenersRef = useRef(new Set<RoomMessageListener>());
+  const [roulette, setRoulette] = useState<RouletteSyncState>({ phase: "betting", timeLeft: 25, result: -1, spinId: 0 });
+  const [bets, setBets] = useState<Record<string, string>>({});
+  const [autoCycle, setAutoCycleState] = useState(false);
   const ballRef = useRef<BallSnapshot | null>(null);
 
   useEffect(() => {
@@ -119,6 +139,9 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       room.onMessage("emote", (msg: EmoteBroadcast) => {
         emoteListenersRef.current.forEach((listener) => listener(msg));
       });
+      for (const type of RELAYED_MESSAGES) {
+        room.onMessage(type, (msg: unknown) => messageListenersRef.current.forEach((listener) => listener(type, msg)));
+      }
 
       room.state.players.onAdd((player: any, sessionId: string) => {
         const sync = () => {
@@ -146,6 +169,9 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
               toast: player.toast,
               speaking: player.speaking,
               connected: player.connected,
+              coins: player.coins ?? 0,
+              bag: player.bag ?? "",
+              owned: player.owned ?? "",
             },
           }));
         };
@@ -230,6 +256,26 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
         syncBall();
       }
 
+      const r = room.state.roulette;
+      if (r) {
+        const syncRoulette = () =>
+          setRoulette({ phase: r.phase as RoulettePhase, timeLeft: r.timeLeft, result: r.result, spinId: r.spinId });
+        r.onChange(syncRoulette);
+        syncRoulette();
+      }
+      if (room.state.bets) {
+        room.state.bets.onAdd((value: string, sessionId: string) => setBets((prev) => ({ ...prev, [sessionId]: value })));
+        room.state.bets.onChange((value: string, sessionId: string) => setBets((prev) => ({ ...prev, [sessionId]: value })));
+        room.state.bets.onRemove((_v: string, sessionId: string) =>
+          setBets((prev) => {
+            const next = { ...prev };
+            delete next[sessionId];
+            return next;
+          })
+        );
+      }
+      room.state.listen("autoCycle", (v: boolean) => setAutoCycleState(v));
+
       room.state.listen("currentMap", (map: MapId) => setCurrentMap(map));
       room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
       room.state.listen("mapTransitioning", (val: boolean) => setMapTransitioning(val));
@@ -272,6 +318,13 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     };
   }, []);
 
+  const subscribeMessages = useCallback((listener: RoomMessageListener) => {
+    messageListenersRef.current.add(listener);
+    return () => {
+      messageListenersRef.current.delete(listener);
+    };
+  }, []);
+
   // Stable identity: useVoiceActivity keeps this in a ref, but a stable function also keeps it
   // from being a hidden effect dependency anywhere else.
   const setSpeaking = useCallback((speaking: boolean) => {
@@ -289,6 +342,15 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     mapTransitioning,
     connected,
     error,
+    roulette,
+    bets,
+    autoCycle,
+    setAutoCycle: (on) => send("setAutoCycle", { on }),
+    sendGesture: (gesture) => send("gesture", { gesture }),
+    buyHat: (hat) => send("buyHat", { hat }),
+    placeBet: (kind, amount) => send("placeBet", { kind, amount }),
+    clearBets: () => send("clearBets"),
+    subscribeMessages,
     setColor: (color) => send("setColor", { color }),
     setLook: (look) => send("setLook", { look }),
     changeMap: (mapId) => send("changeMap", { mapId }),

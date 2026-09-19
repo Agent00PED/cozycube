@@ -8,6 +8,8 @@ import type { MapId } from "@shared/types";
 //              the window when it is off, with a coffee machine bubbling now and then.
 //   Campfire – a bed of fire hiss, crackles and pops, and crickets.
 //   Beach    – surf that breathes in and out, and a sea breeze.
+//   Casino   – a dim little jazz trio (walking bass, brushed snare, ride, soft keys), a low
+//              murmur of the room, and the odd clink of chips.
 //
 // It starts muted. Browsers block audio until a gesture anyway, and an Activity that starts
 // making noise the moment it opens is the kind of thing people close the tab over.
@@ -310,8 +312,101 @@ function coffeeBubbles(ctx: AudioContext, out: GainNode): Bed {
   return scope;
 }
 
+// ii-V-I-VI in F, the oldest trick in the lounge-jazz book: Gm7, C7, Fmaj7, D7
+const JAZZ_CHANGES: { chord: number[]; walk: number[] }[] = [
+  { chord: [55, 58, 62, 65], walk: [43, 46, 50, 49] },
+  { chord: [52, 55, 58, 62], walk: [48, 52, 55, 54] },
+  { chord: [53, 57, 60, 64], walk: [41, 45, 48, 49] },
+  { chord: [54, 57, 60, 62], walk: [50, 54, 57, 44] },
+];
+
+function casinoBed(ctx: AudioContext, out: GainNode): Bed {
+  const scope = bedScope();
+  const beat = 60 / 112;
+  const swing = 0.16;
+
+  const warm = ctx.createBiquadFilter();
+  warm.type = "lowpass";
+  warm.frequency.value = 1800;
+  const mix = ctx.createGain();
+  mix.gain.value = 0.5;
+  warm.connect(mix).connect(out);
+
+  // the room: a low band of murmuring voices
+  const murmur = scope.keep(noiseSource(ctx));
+  const mf = ctx.createBiquadFilter();
+  mf.type = "bandpass";
+  mf.frequency.value = 420;
+  mf.Q.value = 0.8;
+  const mg = ctx.createGain();
+  mg.gain.value = 0.02;
+  murmur.connect(mf).connect(mg).connect(out);
+  murmur.start();
+
+  const hit = (t: number, freq: number, dur: number, gain: number, type: OscillatorType, dest: AudioNode) => {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(dest);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  };
+  const noiseHit = (t: number, hp: number, dur: number, gain: number) => {
+    const n = noiseSource(ctx);
+    const f = ctx.createBiquadFilter();
+    f.type = "highpass";
+    f.frequency.value = hp;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.connect(f).connect(g).connect(out);
+    n.start(t);
+    n.stop(t + dur + 0.02);
+  };
+
+  let nextBar = ctx.currentTime + 0.1;
+  let bar = 0;
+  const scheduleBar = (t: number, change: (typeof JAZZ_CHANGES)[number]) => {
+    for (let b = 0; b < 4; b++) {
+      const bt = t + b * beat;
+      hit(bt, midi(change.walk[b]), beat * 0.9, 0.16, "sine", warm); // walking bass
+      noiseHit(bt, 6000, 0.12, 0.018); // ride
+      noiseHit(bt + beat * (0.5 + swing), 7000, 0.06, 0.012); // ride skip note
+      if (b % 2 === 1) noiseHit(bt, 1800, 0.18, 0.02); // brushed snare on 2 and 4
+    }
+    // soft keys: the chord on 1, a comp on the "and" of 2
+    for (const at of [0, 1.5 + swing]) {
+      for (const note of change.chord) hit(t + at * beat, midi(note), beat * 1.3, 0.022, "sine", warm);
+    }
+  };
+  scope.every(
+    () => 100,
+    () => {
+      while (nextBar < ctx.currentTime + 0.3) {
+        scheduleBar(nextBar, JAZZ_CHANGES[bar % JAZZ_CHANGES.length]);
+        nextBar += beat * 4;
+        bar++;
+      }
+    }
+  );
+  // now and then, chips clicking together somewhere in the room
+  scope.every(
+    () => 2500 + Math.random() * 5000,
+    () => {
+      const t = ctx.currentTime;
+      for (let i = 0; i < 3; i++) hit(t + i * 0.05 + Math.random() * 0.02, 2600 + Math.random() * 600, 0.05, 0.012, "triangle", out);
+    }
+  );
+  return scope;
+}
+
 function startBeds(ctx: AudioContext, out: GainNode, mapId: MapId, record: number | null): Bed[] {
   if (mapId === "sunset_beach") return [beachBed(ctx, out)];
+  if (mapId === "velvet_casino") return [casinoBed(ctx, out)];
   if (mapId === "campfire_night") return [campfireBed(ctx, out)];
   return [record === null ? rainBed(ctx, out) : recordBed(ctx, out, record), coffeeBubbles(ctx, out)];
 }

@@ -2,7 +2,8 @@ import { forwardRef, memo, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Html, Text } from "@react-three/drei";
 import * as THREE from "three";
-import { TOAST_MAX, defaultLook, hashString, parseLook, type Accessory, type HairStyle, type HeldItem, type PlayerAction, type SitPose } from "@shared/types";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { GESTURE_SECONDS, TOAST_MAX, defaultLook, hashString, parseLook, type Accessory, type Gesture, type HairStyle, type HeldItem, type PlayerAction, type SitPose } from "@shared/types";
 import { GEO, arcGeo, noRaycast, ringGeo } from "../scene/kit";
 
 export type CharacterPose = "stand" | SitPose;
@@ -27,6 +28,8 @@ interface Character3DProps {
   toast: number;
   speaking: boolean;
   emotes: FloatingEmote[];
+  /** A social gesture in progress (wave, dance, cheers, nap) and when it started (performance.now). */
+  gesture?: { kind: Gesture; at: number } | null;
 }
 
 // --- Proportions -------------------------------------------------------------------------
@@ -80,8 +83,11 @@ const G = {
   arm: new THREE.CapsuleGeometry(ARM_RADIUS, ARM_LENGTH, 4, 10),
   body: new THREE.SphereGeometry(1, 18, 14),
   head: new THREE.SphereGeometry(HEAD_R, 24, 18),
-  // hair: the top part of a slightly larger sphere, so it sits on the skull like a cap
-  hair: new THREE.SphereGeometry(HEAD_R * 1.05, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.46),
+  // Hair is a real shell standing ~0.07 off the skull (not a swim-cap hugging it), tipped back
+  // so the forehead shows, with separate bangs and per-style volumes on top.
+  hairShell: new THREE.SphereGeometry(HEAD_R + 0.07, 26, 14, 0, Math.PI * 2, 0, Math.PI * 0.56),
+  beanieShell: new THREE.SphereGeometry(HEAD_R + 0.11, 26, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
+  collar: new THREE.TorusGeometry(0.19, 0.055, 8, 22),
   eye: new THREE.SphereGeometry(0.048, 10, 8),
   glint: new THREE.SphereGeometry(0.016, 6, 5),
   blush: new THREE.CircleGeometry(0.06, 16),
@@ -116,6 +122,15 @@ const M = {
   petalCenter: new THREE.MeshStandardMaterial({ color: "#f2c94c", roughness: 0.7 }),
   headphone: new THREE.MeshStandardMaterial({ color: "#2f3f5c", roughness: 0.4, metalness: 0.2 }),
   headphonePad: new THREE.MeshStandardMaterial({ color: "#7d9471", roughness: 0.9 }),
+  collar: new THREE.MeshStandardMaterial({ color: "#fbf6ea", roughness: 0.85 }),
+  straw: new THREE.MeshStandardMaterial({ color: "#e8cf8a", roughness: 1 }),
+  ribbon: new THREE.MeshStandardMaterial({ color: "#e0707a", roughness: 0.8 }),
+  topHat: new THREE.MeshStandardMaterial({ color: "#1d1b22", roughness: 0.5 }),
+  bunny: new THREE.MeshStandardMaterial({ color: "#fbf6f2", roughness: 0.9 }),
+  bunnyInner: new THREE.MeshStandardMaterial({ color: "#f5b3c3", roughness: 0.9 }),
+  crown: new THREE.MeshStandardMaterial({ color: "#f2c23a", roughness: 0.25, metalness: 0.85 }),
+  gem: new THREE.MeshStandardMaterial({ color: "#d6334a", roughness: 0.2, emissive: "#6a0a18", emissiveIntensity: 0.6 }),
+  flute: new THREE.MeshStandardMaterial({ color: "#f6e7b0", roughness: 0.1, transparent: true, opacity: 0.8 }),
 };
 
 const skinCache = new Map<string, THREE.MeshStandardMaterial>();
@@ -145,7 +160,7 @@ const ROD_LENGTH = 1.3;
 // RemotePlayerAvatar in WorldScene) owns the forwarded outer group and drives its position.
 export const Character3D = memo(
   forwardRef<THREE.Group, Character3DProps>(
-    ({ userId, look, color, username, pose, speedRef, holding, action, actionProgress, toast, speaking, emotes }, ref) => {
+    ({ userId, look, color, username, pose, speedRef, holding, action, actionProgress, toast, speaking, emotes, gesture }, ref) => {
       const bodyRef = useRef<THREE.Group>(null);
       const torsoRef = useRef<THREE.Mesh>(null);
       const headRef = useRef<THREE.Group>(null);
@@ -160,6 +175,7 @@ export const Character3D = memo(
       const rodRef = useRef<THREE.Group>(null);
       const bobberRef = useRef<THREE.Group>(null);
       const steamRef = useRef<THREE.Group>(null);
+      const fluteRef = useRef<THREE.Group>(null);
       const auraRef = useRef<THREE.Mesh>(null);
       const aura2Ref = useRef<THREE.Mesh>(null);
       const targetColor = useRef(new THREE.Color(color));
@@ -234,6 +250,23 @@ export const Character3D = memo(
           leftArm = idle;
           rightArm = -idle;
         }
+        // --- social gestures (only while standing still) ---
+        const gAge = gesture ? (performance.now() - gesture.at) / 1000 : Infinity;
+        const g = gesture && gAge < GESTURE_SECONDS[gesture.kind] && !walking && pose === "stand" ? gesture.kind : null;
+        let waveZ = 0.35;
+        if (g === "wave") {
+          rightArm = -2.75;
+          waveZ = 0.35 + Math.sin(gAge * 11) * 0.4;
+        } else if (g === "dance") {
+          leftArm = -2.3 + Math.sin(gAge * 7) * 0.6;
+          rightArm = -2.3 - Math.sin(gAge * 7) * 0.6;
+          legs = [Math.max(0, Math.sin(gAge * 7)) * -0.4, Math.max(0, -Math.sin(gAge * 7)) * -0.4];
+        } else if (g === "cheers") {
+          rightArm = -2.45 + Math.sin(gAge * 3) * 0.1;
+        }
+        if (rightArmRef.current) rightArmRef.current.rotation.z = THREE.MathUtils.lerp(rightArmRef.current.rotation.z, waveZ, 0.3);
+        if (fluteRef.current) fluteRef.current.visible = g === "cheers";
+
         if (roasting) leftArm = rightArm = ROAST_ARM;
         if (fishing) rightArm = FISH_ARM + Math.sin(t * 1.1) * 0.04;
         if (holdingCup && pose !== "lie" && !fishing) rightArm = CUP_ARM + swing * 0.1;
@@ -248,11 +281,13 @@ export const Character3D = memo(
         // --- body: waddle when walking, breathe when still, lie flat on a blanket ---
         const body = bodyRef.current;
         if (body) {
-          const lying = pose === "lie";
-          const bob = walking ? Math.abs(Math.sin(phase)) * BOB_HEIGHT : 0;
+          const lying = pose === "lie" || g === "nap";
+          const danceBob = g === "dance" ? Math.abs(Math.sin(gAge * 7)) * 0.08 : 0;
+          const bob = walking ? Math.abs(Math.sin(phase)) * BOB_HEIGHT : danceBob;
           body.position.y = L(body.position.y, lying ? LIE_LIFT : bob, lerp);
           body.rotation.x = L(body.rotation.x, lying ? LIE_ROLL : walking ? 0.06 * speed : 0, lerp);
           body.rotation.z = L(body.rotation.z, walking ? Math.sin(phase) * WADDLE_ROLL : 0, lerp);
+          body.rotation.y = L(body.rotation.y, g === "dance" ? Math.sin(gAge * 3.5) * 0.6 : 0, 0.2);
         }
         const torso = torsoRef.current;
         if (torso) {
@@ -289,7 +324,7 @@ export const Character3D = memo(
               blink.next = 2.5 + Math.random() * 3.5;
             }
           }
-          eyesRef.current.scale.y = Math.max(0.1, open);
+          eyesRef.current.scale.y = g === "nap" ? 0.1 : Math.max(0.1, open);
         }
 
         // --- held items, counter-rotated so a cup stays upright whatever the arm does ---
@@ -366,22 +401,31 @@ export const Character3D = memo(
               [rightLegRef, LEG_X],
             ].map(([legRef, x], i) => (
               <group key={i} ref={legRef as React.RefObject<THREE.Group>} position={[x as number, HIP_Y, 0]}>
-                <mesh castShadow geometry={G.leg} material={identity.pants} position={[0, -HIP_Y / 2, 0]} raycast={noRaycast} />
-                <mesh castShadow geometry={G.foot} material={M.shoe} position={[0, -HIP_Y + 0.045, 0.035]} scale={[0.1, 0.06, 0.13]} raycast={noRaycast} />
+                <mesh geometry={G.leg} material={identity.pants} position={[0, -HIP_Y / 2, 0]} raycast={noRaycast} />
+                <mesh geometry={G.foot} material={M.shoe} position={[0, -HIP_Y + 0.045, 0.035]} scale={[0.1, 0.06, 0.13]} raycast={noRaycast} />
               </group>
             ))}
 
             {/* a round, slightly pear-shaped body */}
             <mesh ref={torsoRef} castShadow receiveShadow geometry={G.body} material={clothes} position={[0, BODY_Y, 0]} scale={[BODY_R, BODY_R * 1.06, BODY_R * 0.92]} raycast={noRaycast} />
 
+            {/* a little collar, so the head doesn't just sit on the egg of the body */}
+            <mesh geometry={G.collar} material={M.collar} position={[0, 0.73, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 0.92, 1]} raycast={noRaycast} />
+
             {/* arms pivot at the shoulder */}
             <group ref={leftArmRef} position={[-SHOULDER_X, SHOULDER_Y, 0]} rotation={[0, 0, -0.35]}>
-              <mesh castShadow geometry={G.arm} material={clothes} position={[0, -ARM_TOTAL / 2, 0]} raycast={noRaycast} />
+              <mesh geometry={G.arm} material={clothes} position={[0, -ARM_TOTAL / 2, 0]} raycast={noRaycast} />
               <mesh geometry={G.hand} material={identity.skin} position={[0, -ARM_TOTAL, 0]} raycast={noRaycast} />
             </group>
             <group ref={rightArmRef} position={[SHOULDER_X, SHOULDER_Y, 0]} rotation={[0, 0, 0.35]}>
-              <mesh castShadow geometry={G.arm} material={clothes} position={[0, -ARM_TOTAL / 2, 0]} raycast={noRaycast} />
+              <mesh geometry={G.arm} material={clothes} position={[0, -ARM_TOTAL / 2, 0]} raycast={noRaycast} />
               <mesh geometry={G.hand} material={identity.skin} position={[0, -ARM_TOTAL, 0]} raycast={noRaycast} />
+
+              {/* a champagne flute for cheers */}
+              <group ref={fluteRef} position={[0, -ARM_TOTAL - 0.02, 0.06]} visible={false}>
+                <mesh geometry={GEO.cyl} material={M.flute} position={[0, 0.02, 0]} scale={[0.02, 0.12, 0.02]} raycast={noRaycast} />
+                <mesh geometry={GEO.cone} material={M.flute} position={[0, 0.16, 0]} rotation={[Math.PI, 0, 0]} scale={[0.09, 0.2, 0.09]} raycast={noRaycast} />
+              </group>
 
               {/* coffee mug, steaming */}
               <group ref={mugRef} position={[0, -ARM_TOTAL, 0.05]} visible={false}>
@@ -420,24 +464,16 @@ export const Character3D = memo(
             {/* --- the head: big, round, with a face --- */}
             <group ref={headRef} position={[0, HEAD_Y, 0]}>
               <mesh castShadow receiveShadow geometry={G.head} material={identity.skin} raycast={noRaycast} />
-              {/* hair cap, tipped back a touch so a fringe shows */}
-              <mesh castShadow geometry={G.hair} material={identity.hair} position={[0, 0.03, -0.035]} rotation={[-0.32, 0, 0]} raycast={noRaycast} />
+              <Hair style={identity.hairStyle} mat={identity.hair} hidden={identity.accessory === "beanie" || identity.accessory === "tophat"} />
               {/* eyes (the group squashes to blink), with a glint each */}
               <group ref={eyesRef} position={[0, 0.0, HEAD_R * 0.9]}>
-                {[-0.12, 0.12].map((x) => (
-                  <group key={x} position={[x, 0, 0]}>
-                    <mesh geometry={G.eye} material={M.eye} scale={[1, 1.25, 0.6]} raycast={noRaycast} />
-                    <mesh geometry={G.glint} material={M.glint} position={[0.015, 0.022, 0.03]} raycast={noRaycast} />
-                  </group>
-                ))}
+                <mesh geometry={EYES_GEO} material={M.eye} raycast={noRaycast} />
+                <mesh geometry={GLINTS_GEO} material={M.glint} raycast={noRaycast} />
               </group>
               {/* blush and a small smile */}
-              {[-0.2, 0.2].map((x) => (
-                <mesh key={x} geometry={G.blush} material={M.blush} position={[x, -0.075, HEAD_R * 0.86]} rotation={[0, x * 0.9, 0]} raycast={noRaycast} />
-              ))}
+              <mesh geometry={BLUSH_GEO} material={M.blush} raycast={noRaycast} />
               <mesh geometry={arcGeo(0.05, 0.012, Math.PI)} material={M.mouth} position={[0, -0.075, HEAD_R * 0.96]} rotation={[0, 0, Math.PI]} raycast={noRaycast} />
 
-              <HairExtras style={identity.hairStyle} mat={identity.hair} />
               <HeadAccessory kind={identity.accessory} />
             </group>
           </group>
@@ -508,72 +544,227 @@ export const Character3D = memo(
 
 Character3D.displayName = "Character3D";
 
-/** Deterministic per-user headwear. Everything sits on the head group, so it follows the head. */
-// Hair styles are the shared cap plus a few extra shapes each — a handful of meshes, no textures.
-function HairExtras({ style, mat }: { style: HairStyle; mat: THREE.Material }) {
-  switch (style) {
-    case "bob":
-      return (
-        <>
-          {[-1, 1].map((s) => (
-            <mesh key={s} castShadow geometry={GEO.sphereLow} material={mat} position={[s * HEAD_R * 0.82, -0.06, -0.04]} scale={[0.13, 0.26, 0.26]} raycast={noRaycast} />
-          ))}
-        </>
-      );
-    case "bun":
-      return <mesh castShadow geometry={GEO.sphereLow} material={mat} position={[0, HEAD_R * 0.95, -HEAD_R * 0.45]} scale={0.16} raycast={noRaycast} />;
-    case "spiky":
-      return (
-        <>
-          {[-0.14, 0, 0.14].map((x, i) => (
-            <mesh key={x} castShadow geometry={GEO.cone} material={mat} position={[x, HEAD_R * 0.95, -0.06]} rotation={[-0.35, 0, -x * 2.2]} scale={[0.14, 0.2 + (i === 1 ? 0.06 : 0), 0.14]} raycast={noRaycast} />
-          ))}
-        </>
-      );
-    case "long":
-      return <mesh castShadow geometry={GEO.sphereLow} material={mat} position={[0, -0.14, -HEAD_R * 0.55]} scale={[0.36, 0.42, 0.2]} raycast={noRaycast} />;
-    default:
-      return null;
-  }
+// --- Merged part geometry ------------------------------------------------------------------------
+// Bangs, spikes, petals and crown points are several shapes that never move relative to each
+// other, so each set is baked into ONE geometry at load: one draw call per set instead of up to
+// eleven, per avatar. That matters with a full room of players.
+
+type Part = { geo: THREE.BufferGeometry; p: [number, number, number]; r?: [number, number, number] | [number, number, number, string]; s: number | [number, number, number] };
+function bake(parts: Part[]): THREE.BufferGeometry {
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const geos = parts.map(({ geo, p, r, s }) => {
+    const g = geo.index ? geo.toNonIndexed() : geo.clone();
+    for (const name of Object.keys(g.attributes)) if (name !== "position" && name !== "normal") g.deleteAttribute(name);
+    if (r) e.set(r[0], r[1], r[2], (r[3] as THREE.EulerOrder) ?? "XYZ");
+    else e.set(0, 0, 0);
+    q.setFromEuler(e);
+    const sc = typeof s === "number" ? new THREE.Vector3(s, s, s) : new THREE.Vector3(...s);
+    m.compose(new THREE.Vector3(...p), q, sc);
+    g.applyMatrix4(m);
+    return g;
+  });
+  return mergeGeometries(geos) ?? geos[0];
 }
+
+// --- Hair --------------------------------------------------------------------------------------
+// Every style is the same volumetric shell plus a fringe of bangs, with its own extra volumes.
+// The shell is tipped back so its front edge sits just above the eyes and its back edge falls
+// to the nape.
+
+const BANGS: [number, number, number, number][] = [
+  // x, y, z, tilt
+  [-0.21, 0.13, 0.3, 0.5],
+  [-0.08, 0.17, 0.35, 0.18],
+  [0.06, 0.17, 0.35, -0.12],
+  [0.19, 0.13, 0.31, -0.45],
+];
+
+/** Direction on the head for a spike: polar angle from +y, azimuth from +z toward +x. */
+function spike(polar: number, azimuth: number, r: number): { p: [number, number, number]; rot: [number, number, number, "YXZ"] } {
+  const d = [Math.sin(azimuth) * Math.sin(polar), Math.cos(polar), Math.cos(azimuth) * Math.sin(polar)];
+  return { p: [d[0] * r, d[1] * r + 0.02, d[2] * r - 0.03], rot: [polar, azimuth, 0, "YXZ"] };
+}
+const SPIKES = [
+  spike(0.2, 0, 0.4),
+  spike(0.6, 0.9, 0.4),
+  spike(0.6, -0.9, 0.4),
+  spike(0.7, 2.2, 0.38),
+  spike(0.7, -2.2, 0.38),
+  spike(0.75, Math.PI, 0.38),
+  spike(1.0, 1.6, 0.36),
+  spike(1.0, -1.6, 0.36),
+];
+
+// The face: both eyes, both glints and both blush marks are one geometry each.
+const EYES_GEO = bake([-0.12, 0.12].map((x) => ({ geo: G.eye, p: [x, 0, 0] as [number, number, number], s: [1, 1.25, 0.6] as [number, number, number] })));
+const GLINTS_GEO = bake([-0.12, 0.12].map((x) => ({ geo: G.glint, p: [x + 0.015, 0.022, 0.03] as [number, number, number], s: 1 })));
+const BLUSH_GEO = bake([-0.2, 0.2].map((x) => ({ geo: G.blush, p: [x, -0.075, HEAD_R * 0.86] as [number, number, number], r: [0, x * 0.9, 0] as [number, number, number], s: 1 })));
+
+const BANGS_GEO = bake(BANGS.map(([x, y, z, tilt]) => ({ geo: GEO.sphereLow, p: [x, y, z], r: [0.35, 0, tilt], s: [0.17, 0.12, 0.1] })));
+const SPIKES_GEO = bake([
+  ...SPIKES.map((sp) => ({ geo: GEO.coneLow, p: sp.p, r: sp.rot, s: [0.16, 0.24, 0.16] as [number, number, number] })),
+  ...[-0.14, 0, 0.14].map((x) => ({ geo: GEO.coneLow, p: [x, 0.16, 0.33] as [number, number, number], r: [2.5, 0, -x * 1.4] as [number, number, number], s: [0.12, 0.2, 0.1] as [number, number, number] })),
+]);
+const PETALS_GEO = bake([
+  ...[0, 1, 2, 3, 4].map((i) => {
+    const a = (i / 5) * Math.PI * 2;
+    return { geo: GEO.sphere, p: [Math.cos(a) * 0.075, Math.sin(a) * 0.075, 0] as [number, number, number], r: [0, 0, a] as [number, number, number], s: [0.13, 0.09, 0.04] as [number, number, number] };
+  }),
+  ...[0, 1, 2, 3, 4].map((i) => {
+    const a = ((i + 0.5) / 5) * Math.PI * 2;
+    return { geo: GEO.sphere, p: [Math.cos(a) * 0.045, Math.sin(a) * 0.045, 0.015] as [number, number, number], r: [0, 0, a] as [number, number, number], s: [0.08, 0.06, 0.03] as [number, number, number] };
+  }),
+]);
+const CROWN_GEO = bake([
+  { geo: GEO.cyl, p: [0, 0.06, 0], s: [0.52, 0.14, 0.52] },
+  ...[0, 1, 2, 3, 4].map((i) => {
+    const a = (i / 5) * Math.PI * 2;
+    return { geo: GEO.cone, p: [Math.sin(a) * 0.23, 0.2, Math.cos(a) * 0.23] as [number, number, number], s: [0.1, 0.16, 0.1] as [number, number, number] };
+  }),
+]);
+const GEMS_GEO = bake(
+  [0, 1, 2, 3, 4].map((i) => {
+    const a = (i / 5) * Math.PI * 2;
+    return { geo: GEO.sphereLow, p: [Math.sin(a) * 0.265, 0.06, Math.cos(a) * 0.265] as [number, number, number], s: 0.05 };
+  })
+);
+
+// Each hairstyle — shell, bangs and its own volumes, all one colour — is ONE baked geometry, in
+// two variants: the full cut, and just the parts that show under a beanie or top hat.
+type P = Part[];
+const SHELL: Part = { geo: G.hairShell, p: [0, 0.02, -0.03], r: [-0.42, 0, 0], s: 1 };
+const BANGS_PART: Part = { geo: BANGS_GEO, p: [0, 0, 0], s: 1 };
+const STYLE_EXTRAS: Record<HairStyle, { covered: P; visible: P }> = {
+  // short layered cut: tufts over the ears and a layer at the crown (all under a hat)
+  cap: {
+    covered: [
+      ...[-1, 1].map((s) => ({ geo: GEO.sphereLow, p: [s * 0.37, 0.02, -0.06] as [number, number, number], r: [0, 0, s * 0.3] as [number, number, number], s: [0.12, 0.2, 0.22] as [number, number, number] })),
+      { geo: GEO.sphereLow, p: [0, 0.3, -0.12], r: [-0.5, 0, 0], s: [0.46, 0.14, 0.36] },
+    ],
+    visible: [],
+  },
+  // rounded bob: side volumes that curve in at the cheeks, and a full back
+  bob: {
+    covered: [],
+    visible: [
+      ...[-1, 1].map((s) => ({ geo: GEO.sphere, p: [s * 0.36, -0.08, 0.02] as [number, number, number], r: [0, 0, s * 0.12] as [number, number, number], s: [0.2, 0.4, 0.4] as [number, number, number] })),
+      { geo: GEO.sphere, p: [0, -0.08, -0.18], s: [0.78, 0.44, 0.44] },
+    ],
+  },
+  bun: { covered: [], visible: [{ geo: GEO.sphere, p: [0, 0.47, -0.14], s: 0.3 }] },
+  // anime spikes radiating from the crown, plus a pointed fringe
+  spiky: { covered: [{ geo: SPIKES_GEO, p: [0, 0, 0], s: 1 }], visible: [] },
+  // a thick curtain down the back to the shoulders, and two locks falling in front
+  long: {
+    covered: [],
+    visible: [
+      { geo: GEO.sphere, p: [0, -0.28, -0.2], s: [0.72, 0.8, 0.36] },
+      ...[-1, 1].map((s) => ({ geo: GEO.sphere, p: [s * 0.33, -0.3, 0.06] as [number, number, number], r: [0.1, 0, s * 0.08] as [number, number, number], s: [0.16, 0.56, 0.18] as [number, number, number] })),
+    ],
+  },
+};
+const HAIR_GEO = Object.fromEntries(
+  (Object.keys(STYLE_EXTRAS) as HairStyle[]).map((style) => {
+    const { covered, visible } = STYLE_EXTRAS[style];
+    const full = bake([SHELL, ...(style === "spiky" ? [] : [BANGS_PART]), ...covered, ...visible]);
+    const underHat = visible.length ? bake(visible) : null;
+    return [style, { full, underHat }];
+  })
+) as Record<HairStyle, { full: THREE.BufferGeometry; underHat: THREE.BufferGeometry | null }>;
+
+function Hair({ style, mat, hidden }: { style: HairStyle; mat: THREE.Material; hidden: boolean }) {
+  const geo = hidden ? HAIR_GEO[style].underHat : HAIR_GEO[style].full;
+  return (
+    <group>
+      {geo && <mesh castShadow geometry={geo} material={mat} raycast={noRaycast} />}
+      {style === "bun" && !hidden && (
+        <mesh geometry={GEO.torus} material={M.ribbon} position={[0, 0.39, -0.1]} rotation={[Math.PI / 2 - 0.35, 0, 0]} scale={[0.22, 0.22, 0.5]} raycast={noRaycast} />
+      )}
+    </group>
+  );
+}
+
+// --- Headwear -----------------------------------------------------------------------------------
+// Sized to sit on the hair shell (HEAD_R + 0.07), not on the bare skull.
+
+const HAT_TOP = HEAD_R + 0.06;
 
 function HeadAccessory({ kind }: { kind: Accessory }) {
   switch (kind) {
     case "beret":
+      // a soft flattened dome worn at a tilt, with a band and the little stalk on top
       return (
-        <group position={[0.04, HEAD_R * 0.86, -0.02]} rotation={[-0.15, 0, -0.32]}>
-          <mesh castShadow geometry={GEO.cyl} material={M.beret} scale={[0.62, 0.09, 0.62]} raycast={noRaycast} />
-          <mesh geometry={GEO.cyl} material={M.beret} position={[0, 0.07, 0]} scale={[0.04, 0.07, 0.04]} raycast={noRaycast} />
+        <group position={[0.05, HAT_TOP - 0.02, -0.02]} rotation={[-0.18, 0, -0.32]}>
+          <mesh geometry={GEO.sphere} material={M.beret} scale={[0.9, 0.24, 0.9]} raycast={noRaycast} />
+          <mesh geometry={GEO.torus} material={M.beret} position={[0, -0.04, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.72, 0.72, 0.9]} raycast={noRaycast} />
+          <mesh geometry={GEO.cyl} material={M.beret} position={[0, 0.13, 0]} scale={[0.04, 0.08, 0.04]} raycast={noRaycast} />
         </group>
       );
     case "beanie":
+      // knit shell down to the brow, a folded cuff, and a pom-pom
       return (
-        <group position={[0, 0.07, -0.02]}>
-          <mesh castShadow geometry={G.hair} material={M.beanie} scale={1.04} rotation={[-0.2, 0, 0]} raycast={noRaycast} />
-          <mesh geometry={arcGeo(HEAD_R * 1.02, 0.05, Math.PI * 2)} material={M.beanieBand} position={[0, 0.03, -0.01]} rotation={[Math.PI / 2 - 0.2, 0, 0]} raycast={noRaycast} />
-          <mesh castShadow geometry={GEO.sphereLow} material={M.pom} position={[0, HEAD_R + 0.05, -0.1]} scale={0.14} raycast={noRaycast} />
+        <group position={[0, 0.03, -0.02]} rotation={[-0.22, 0, 0]}>
+          <mesh geometry={G.beanieShell} material={M.beanie} raycast={noRaycast} />
+          <mesh geometry={arcGeo(HEAD_R + 0.1, 0.07, Math.PI * 2)} material={M.beanieBand} position={[0, 0.02, 0]} rotation={[Math.PI / 2, 0, 0]} raycast={noRaycast} />
+          <mesh geometry={GEO.sphereLow} material={M.pom} position={[0, HEAD_R + 0.15, 0]} scale={0.18} raycast={noRaycast} />
         </group>
       );
     case "flower":
+      // a real five-petal bloom, two layers deep, tucked above the ear
       return (
-        <group position={[HEAD_R * 0.78, 0.14, 0.12]} rotation={[0, 0.9, 0.2]}>
-          {[0, 1, 2, 3, 4].map((i) => {
-            const a = (i / 5) * Math.PI * 2;
-            return <mesh key={i} geometry={GEO.sphereLow} material={M.petal} position={[Math.cos(a) * 0.06, Math.sin(a) * 0.06, 0]} scale={[0.07, 0.07, 0.03]} raycast={noRaycast} />;
-          })}
-          <mesh geometry={GEO.sphereLow} material={M.petalCenter} position={[0, 0, 0.02]} scale={0.05} raycast={noRaycast} />
+        <group position={[HEAD_R + 0.04, 0.16, 0.08]} rotation={[0, 1.25, 0.25]}>
+          <mesh geometry={PETALS_GEO} material={M.petal} raycast={noRaycast} />
+          <mesh geometry={GEO.sphere} material={M.petalCenter} position={[0, 0, 0.03]} scale={[0.07, 0.07, 0.04]} raycast={noRaycast} />
         </group>
       );
     case "headphones":
+      // a headband over the crown and a cup with a cushion over each ear
       return (
         <group>
-          <mesh castShadow geometry={arcGeo(HEAD_R * 1.08, 0.03, Math.PI)} material={M.headphone} position={[0, 0.0, -0.02]} raycast={noRaycast} />
+          <mesh geometry={arcGeo(HEAD_R + 0.1, 0.035, Math.PI)} material={M.headphone} position={[0, 0.0, -0.02]} raycast={noRaycast} />
           {[-1, 1].map((side) => (
-            <group key={side} position={[side * HEAD_R * 0.98, -0.02, -0.01]}>
-              <mesh castShadow geometry={GEO.cyl} material={M.headphone} rotation={[0, 0, Math.PI / 2]} scale={[0.2, 0.08, 0.2]} raycast={noRaycast} />
-              <mesh geometry={GEO.cyl} material={M.headphonePad} position={[-side * 0.045, 0, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.16, 0.03, 0.16]} raycast={noRaycast} />
+            <group key={side} position={[side * (HEAD_R + 0.1), -0.02, -0.02]}>
+              <mesh geometry={GEO.cyl} material={M.headphone} rotation={[0, 0, Math.PI / 2]} scale={[0.24, 0.09, 0.24]} raycast={noRaycast} />
+              <mesh geometry={GEO.cyl} material={M.headphonePad} position={[-side * 0.05, 0, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.2, 0.04, 0.2]} raycast={noRaycast} />
             </group>
           ))}
+        </group>
+      );
+    case "straw":
+      return (
+        <group position={[0, HAT_TOP - 0.04, -0.02]} rotation={[-0.15, 0, 0.08]}>
+          <mesh geometry={GEO.cyl} material={M.straw} scale={[1.3, 0.03, 1.3]} raycast={noRaycast} />
+          <mesh geometry={GEO.sphere} material={M.straw} position={[0, 0.06, 0]} scale={[0.62, 0.36, 0.62]} raycast={noRaycast} />
+          <mesh geometry={GEO.cyl} material={M.ribbon} position={[0, 0.05, 0]} scale={[0.64, 0.06, 0.64]} raycast={noRaycast} />
+        </group>
+      );
+    case "tophat":
+      return (
+        <group position={[0, HAT_TOP - 0.08, -0.02]} rotation={[-0.12, 0, -0.06]}>
+          <mesh geometry={GEO.cyl} material={M.topHat} scale={[0.95, 0.03, 0.95]} raycast={noRaycast} />
+          <mesh geometry={GEO.cyl} material={M.topHat} position={[0, 0.3, 0]} scale={[0.6, 0.58, 0.6]} raycast={noRaycast} />
+          <mesh geometry={GEO.cyl} material={M.ribbon} position={[0, 0.08, 0]} scale={[0.62, 0.08, 0.62]} raycast={noRaycast} />
+        </group>
+      );
+    case "bunny":
+      return (
+        <group position={[0, HAT_TOP, -0.04]}>
+          {[-1, 1].map((s) => (
+            <group key={s} position={[s * 0.14, 0.2, 0]} rotation={[-0.1, 0, -s * 0.2]}>
+              <mesh geometry={GEO.sphere} material={M.bunny} scale={[0.14, 0.5, 0.08]} raycast={noRaycast} />
+              <mesh geometry={GEO.sphere} material={M.bunnyInner} position={[0, 0, 0.03]} scale={[0.08, 0.38, 0.03]} raycast={noRaycast} />
+            </group>
+          ))}
+          <mesh geometry={arcGeo(HEAD_R + 0.08, 0.025, Math.PI)} material={M.bunnyInner} position={[0, -HAT_TOP + 0.02, 0.02]} raycast={noRaycast} />
+        </group>
+      );
+    case "crown":
+      return (
+        <group position={[0, HAT_TOP - 0.02, -0.02]} rotation={[-0.1, 0, 0.1]}>
+          <mesh geometry={CROWN_GEO} material={M.crown} raycast={noRaycast} />
+          <mesh geometry={GEMS_GEO} material={M.gem} raycast={noRaycast} />
         </group>
       );
     default:

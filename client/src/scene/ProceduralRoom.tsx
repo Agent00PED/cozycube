@@ -8,6 +8,7 @@ import { GEO, HALF, StaticBatch, noRaycast, useSharedMaterials, type Materials }
 import { LoungeWorld } from "./LoungeWorld";
 import { CampfireWorld } from "./CampfireWorld";
 import { BASIN_Y, BeachWorld } from "./BeachWorld";
+import { CasinoWorld } from "./CasinoWorld";
 
 const SLAB_HEIGHT = 1.3; // a chunky island — the diorama base reads as a model on a table
 
@@ -82,6 +83,7 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
         {mapId === "cozy_lounge" && <LoungeWorld mats={mats} wallColor={theme.wall} />}
         {mapId === "campfire_night" && <CampfireWorld mats={mats} />}
         {isBeach && <BeachWorld mats={mats} />}
+        {mapId === "velvet_casino" && <CasinoWorld mats={mats} wallColor={theme.wall} />}
       </StaticBatch>
     </group>
   );
@@ -102,7 +104,7 @@ function DioramaSlab({ theme, mats, mapId }: { theme: RoomTheme; mats: Materials
   );
 
   const isBeach = mapId === "sunset_beach";
-  const indoor = mapId === "cozy_lounge";
+  const indoor = mapId === "cozy_lounge" || mapId === "velvet_casino";
 
   // The beach slab is built in two blocks so the sea sits in a real recess with solid walls all
   // round it: the sand block runs up to y=0, the sea block stops at BASIN_Y. Underneath, one

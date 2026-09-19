@@ -11,14 +11,21 @@ import { DioramaRoom } from "../scene/DioramaRoom";
 import { Footprints } from "../scene/Footprints";
 import { StaticBatch } from "../scene/kit";
 import { Volleyball } from "./Volleyball";
+import { BetChips, Leaderboard, RouletteWheel } from "./Casino";
+import { Critters } from "../scene/Critters";
+import { RoomEventsContext } from "../scene/roomEvents";
 import { ROOM_THEMES, TIME_PRESETS, type RoomTheme, type TimePreset } from "../scene/roomThemes";
 import { TimeOfDayContext } from "../scene/timeOfDay";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
-import type { BallSnapshot, EmoteListener } from "../hooks/useColyseusRoom";
+import type { BallSnapshot, EmoteListener, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { requestRecenter } from "../scene/cameraFocus";
 import { APPROACH_POINTS } from "@shared/props";
 import {
+  GESTURE_SECONDS,
   isWalkUpProp,
+  type Gesture,
+  type GestureBroadcast,
+  type RouletteSyncState,
   type ChairSyncState,
   type MapId,
   type PlayerState,
@@ -43,7 +50,12 @@ interface WorldSceneProps {
   subscribeEmotes: (listener: EmoteListener) => () => void;
   ballRef: React.MutableRefObject<BallSnapshot | null>;
   onKickBall: (dirX: number, dirZ: number) => void;
+  roulette: RouletteSyncState;
+  bets: Record<string, string>;
+  subscribeMessages: (listener: RoomMessageListener) => () => void;
 }
+
+type ActiveGesture = { kind: Gesture; at: number };
 
 export function WorldScene({
   room,
@@ -57,6 +69,9 @@ export function WorldScene({
   subscribeEmotes,
   ballRef,
   onKickBall,
+  roulette,
+  bets,
+  subscribeMessages,
 }: WorldSceneProps) {
   const theme = ROOM_THEMES[mapId];
 
@@ -147,10 +162,40 @@ export function WorldScene({
     };
   }, [subscribeEmotes]);
 
+  // --- social gestures (wave, dance, cheers, nap): one-shot broadcasts, held for their duration ---
+  const [gestures, setGestures] = useState<Record<string, ActiveGesture>>({});
+  useEffect(() => {
+    const timers = new Set<number>();
+    const unsubscribe = subscribeMessages((type, payload) => {
+      if (type !== "gesture") return;
+      const { sessionId, gesture } = payload as GestureBroadcast;
+      const entry = { kind: gesture, at: performance.now() };
+      setGestures((prev) => ({ ...prev, [sessionId]: entry }));
+      const timer = window.setTimeout(() => {
+        timers.delete(timer);
+        setGestures((prev) => {
+          if (prev[sessionId] !== entry) return prev;
+          const next = { ...prev };
+          delete next[sessionId];
+          return next;
+        });
+      }, GESTURE_SECONDS[gesture] * 1000 + 200);
+      timers.add(timer);
+    });
+    return () => {
+      unsubscribe();
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [subscribeMessages]);
+
+  const roomEvents = useMemo(() => ({ subscribeMessages, localSessionId }), [subscribeMessages, localSessionId]);
+  const isCasino = mapId === "velvet_casino";
+
   const chairSetKey = useMemo(() => Object.keys(chairs).sort().join(","), [chairs]);
   const anyoneBrewing = useMemo(() => Object.values(players).some((p) => p.action === "brew"), [players]);
 
   return (
+    <RoomEventsContext.Provider value={roomEvents}>
     <TimeOfDayContext.Provider value={timeOfDay}>
       <RoomLighting theme={theme} preset={TIME_PRESETS[timeOfDay]} mapId={mapId} />
       {/* key={mapId} forces a full unmount of the old world before the new one mounts, instead of
@@ -160,6 +205,14 @@ export function WorldScene({
       <ClickMarker targetRef={moveTargetRef} rippleRef={rippleRef} />
       {mapId === "sunset_beach" && <Footprints />}
       {mapId === "sunset_beach" && <Volleyball ballRef={ballRef} onKick={onKickBall} />}
+      <Critters mapId={mapId} />
+      {isCasino && (
+        <>
+          <RouletteWheel roulette={roulette} />
+          <BetChips bets={bets} players={players} />
+          <Leaderboard players={players} />
+        </>
+      )}
 
       {/* Seats are static furniture once a map is loaded, so their meshes are merged into a
           handful of draw calls — re-merged only when the set of seats changes (a map change). */}
@@ -187,12 +240,14 @@ export function WorldScene({
             speaking={speaking}
             emotes={playerEmotes}
             mapId={mapId}
+            gesture={gestures[sessionId] ?? null}
           />
         ) : (
-          <RemotePlayerAvatar key={sessionId} player={player} speaking={speaking} emotes={playerEmotes} />
+          <RemotePlayerAvatar key={sessionId} player={player} speaking={speaking} emotes={playerEmotes} gesture={gestures[sessionId] ?? null} />
         );
       })}
     </TimeOfDayContext.Provider>
+    </RoomEventsContext.Provider>
   );
 }
 
@@ -220,14 +275,16 @@ const RoomLighting = memo(function RoomLighting({ theme, preset, mapId }: { them
   // the far side, and a sun from behind them laid a slab of shadow across most of the floor.
   // It still has to stay off the camera's own (1,1,1) bearing or every shadow hides behind its
   // caster, so this leans the light toward +X and lifts it rather than matching the camera.
-  const indoors = mapId === "cozy_lounge";
+  const indoors = mapId === "cozy_lounge" || mapId === "velvet_casino";
+  // The casino has no windows: its own warm gold replaces the hour's sky-tinted fill.
+  const ambientColor = mapId === "velvet_casino" ? theme.ambient : preset.ambientColor;
   const sun: [number, number, number] = indoors
     ? [Math.abs(preset.sun[0]) + 6, preset.sun[1] + 10, Math.abs(preset.sun[2]) + 8]
     : preset.sun;
 
   return (
     <>
-      <ambientLight intensity={ambientIntensity} color={preset.ambientColor} />
+      <ambientLight intensity={ambientIntensity} color={ambientColor} />
       <hemisphereLight intensity={ambientIntensity * 0.35} color={preset.sky} groundColor={theme.floor} />
       {/* Shadow-free fill from the camera side. It costs one more light for the whole scene and
           it is what keeps wood, sand and skin their own colour inside the shadows instead of
@@ -276,6 +333,7 @@ function LocalPlayerAvatar({
   speaking,
   emotes,
   mapId,
+  gesture,
 }: {
   room: Room | null;
   player: PlayerState;
@@ -283,6 +341,7 @@ function LocalPlayerAvatar({
   speaking: boolean;
   emotes: FloatingEmote[];
   mapId: MapId;
+  gesture: ActiveGesture | null;
 }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
@@ -302,6 +361,7 @@ function LocalPlayerAvatar({
       toast={player.toast}
       speaking={speaking}
       emotes={emotes}
+      gesture={gesture}
     />
   );
 }
@@ -363,7 +423,7 @@ function sampleSnapshots(buffer: Snapshot[], renderTime: number): { x: number; z
   return { x: newest.x + vx * carried, z: newest.z + vz * carried, vx: vx * fade, vz: vz * fade };
 }
 
-function RemotePlayerAvatar({ player, speaking, emotes }: { player: PlayerState; speaking: boolean; emotes: FloatingEmote[] }) {
+function RemotePlayerAvatar({ player, speaking, emotes, gesture }: { player: PlayerState; speaking: boolean; emotes: FloatingEmote[]; gesture: ActiveGesture | null }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
   const bufferRef = useRef<Snapshot[]>([{ t: performance.now(), x: player.x, z: player.z }]);
@@ -423,6 +483,7 @@ function RemotePlayerAvatar({ player, speaking, emotes }: { player: PlayerState;
       toast={player.toast}
       speaking={speaking}
       emotes={emotes}
+      gesture={gesture}
     />
   );
 }

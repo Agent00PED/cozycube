@@ -310,7 +310,8 @@ export function useSharedMaterials() {
       velvetGreen: make("#3f6b52", { roughness: 0.7 }),
       rust: make("#a8553a"),
       plum: make("#5b3a63"),
-      denCarpet: make("#2f2b45", { roughness: 1 }),
+      denCarpet: make("#e2d2b4", { roughness: 1 }), // warm beige woven rug (was a near-black slab)
+      rugBorder: make("#c9a77a", { roughness: 1 }),
       libraryRug: make("#3f5a47", { roughness: 1 }),
       // hard surfaces
       marble: make("#ece8e1", { roughness: 0.3 }),

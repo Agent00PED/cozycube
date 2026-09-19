@@ -37,6 +37,16 @@ export const ROOM_THEMES: Record<MapId, RoomTheme> = {
     ambientIntensity: 1.25,
     directionalIntensity: 1,
   },
+  velvet_casino: {
+    floor: "#7a4a2c", // polished dark oak between the carpets
+    wall: "#5a3324", // mahogany panelling
+    edge: "#3a2016",
+    edgeTop: "#c9a24a", // a gilded lip round the slab
+    ambient: "#ffd9a8", // warm gold; indoors this replaces the hour's sky-tinted ambient
+    directional: "#ffe6c4",
+    ambientIntensity: 1.9,
+    directionalIntensity: 1.1,
+  },
   sunset_beach: {
     floor: "#f2ddb6", // warm white sand
     wall: "#f6e2c4", // unused outdoors

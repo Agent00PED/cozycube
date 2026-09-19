@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { ToggleableSyncState } from "@shared/types";
 import { GEO, noRaycast, onHitLayer } from "../scene/kit";
 import { useLampBoost } from "../scene/timeOfDay";
 import { useOcclusionFade } from "../scene/occlusion";
 import { TOGGLEABLE_CONFIG } from "@shared/props";
 import { useRetroScreen } from "./useRetroScreen";
+import { SlotMachine } from "./Casino";
+import { Cat, ForageBush, NpcTrader } from "./LivingProps";
 
 interface ToggleablePropProps {
   prop: ToggleableSyncState;
@@ -103,6 +106,16 @@ export function ToggleableProp({ prop, onUse, brewing = false }: ToggleablePropP
       return <Turntable prop={prop} onUse={use} />;
     case "lantern":
       return <Lantern prop={prop} onUse={use} />;
+    case "pendant":
+      return <PendantLantern prop={prop} onUse={use} />;
+    case "slot":
+      return <SlotMachine prop={prop} onUse={use} />;
+    case "npc":
+      return <NpcTrader prop={prop} onUse={use} />;
+    case "forage":
+      return <ForageBush prop={prop} onUse={use} />;
+    case "cat":
+      return <Cat prop={prop} onUse={use} />;
     default:
       return <FloorLamp prop={prop} onUse={use} />;
   }
@@ -190,6 +203,16 @@ function Turntable({ prop, onUse }: PropViewProps) {
   );
 }
 
+// A lantern's black ironwork (base, cap and handle) baked into one geometry.
+const LANTERN_IRON = (() => {
+  const part = (g: THREE.BufferGeometry, p: [number, number, number], s: [number, number, number]) => {
+    const n = g.index ? g.toNonIndexed() : g.clone();
+    for (const k of Object.keys(n.attributes)) if (k !== "position" && k !== "normal") n.deleteAttribute(k);
+    return n.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion(), new THREE.Vector3(...s)));
+  };
+  return mergeGeometries([part(GEO.cyl, [0, 0.03, 0], [0.26, 0.06, 0.26]), part(GEO.cone, [0, 0.44, 0], [0.28, 0.12, 0.28]), part(GEO.torus, [0, 0.55, 0], [0.14, 0.14, 0.3])])!;
+})();
+
 function Lantern({ prop, onUse }: PropViewProps) {
   const glow = useGlow(prop.color, prop.on, 2.2);
   const flameRef = useRef<THREE.Mesh>(null);
@@ -200,13 +223,48 @@ function Lantern({ prop, onUse }: PropViewProps) {
   });
   return (
     <group position={[prop.x, prop.y, prop.z]}>
-      <mesh geometry={GEO.cyl} material={M.black} position={[0, 0.03, 0]} scale={[0.26, 0.06, 0.26]} raycast={noRaycast} />
+      <mesh geometry={LANTERN_IRON} material={M.black} raycast={noRaycast} />
       <mesh geometry={GEO.cyl} material={glow} position={[0, 0.22, 0]} scale={[0.2, 0.32, 0.2]} raycast={noRaycast} />
       <mesh ref={flameRef} geometry={GEO.sphereLow} material={M.flameInner} position={[0, 0.22, 0]} raycast={noRaycast} />
-      <mesh geometry={GEO.cone} material={M.black} position={[0, 0.44, 0]} scale={[0.28, 0.12, 0.28]} raycast={noRaycast} />
-      <mesh geometry={GEO.torus} material={M.black} position={[0, 0.55, 0]} scale={[0.14, 0.14, 0.3]} raycast={noRaycast} />
       <SoftLight on={prop.on} intensity={1.5 * (TOGGLEABLE_CONFIG[prop.propId]?.intensity ?? 1)} color={prop.color} position={[0, 0.3, 0]} distance={5} />
       <HitPad size={[0.6, 0.8, 0.6]} position={[0, 0.3, 0]} onUse={onUse} />
+    </group>
+  );
+}
+
+const WICKER = mat("#c79a4e", { roughness: 1 });
+// The lantern's wicker ribs and cap as one geometry.
+const WICKER_GEO = (() => {
+  const parts: THREE.BufferGeometry[] = [0, 1, 2, 3].map((i) =>
+    GEO.torus.clone().applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, (i * Math.PI) / 4, 0)), new THREE.Vector3(0.36, 0.4, 0.36)))
+  );
+  const cap = GEO.cone.clone().applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(0, 0.2, 0), new THREE.Quaternion(), new THREE.Vector3(0.26, 0.12, 0.26)));
+  const strip = (g: THREE.BufferGeometry) => {
+    const n = g.index ? g.toNonIndexed() : g;
+    for (const k of Object.keys(n.attributes)) if (k !== "position" && k !== "normal") n.deleteAttribute(k);
+    return n;
+  };
+  return mergeGeometries([...parts, cap].map(strip))!;
+})();
+const ROPE = mat("#8a6a45", { roughness: 1 });
+
+/** A woven lantern hanging on a rope from the tiki bar's eave. */
+function PendantLantern({ prop, onUse }: PropViewProps) {
+  const glow = useGlow(prop.color, prop.on, 2.0);
+  const swayRef = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (swayRef.current) swayRef.current.rotation.z = Math.sin(clock.elapsedTime * 0.9) * 0.05;
+  });
+  return (
+    <group position={[prop.x, prop.y, prop.z]}>
+      <group ref={swayRef}>
+        <mesh geometry={GEO.cyl} material={ROPE} position={[0, 0.32, 0]} scale={[0.02, 0.5, 0.02]} raycast={noRaycast} />
+        <mesh geometry={GEO.sphere} material={glow} position={[0, 0, 0]} scale={[0.3, 0.34, 0.3]} raycast={noRaycast} />
+        {/* wicker ribs and cap round the glowing core */}
+        <mesh geometry={WICKER_GEO} material={WICKER} raycast={noRaycast} />
+      </group>
+      <SoftLight on={prop.on} intensity={1.3} color={prop.color} position={[0, -0.1, 0]} distance={5} />
+      <HitPad size={[0.6, 0.8, 0.6]} position={[0, 0.1, 0]} onUse={onUse} />
     </group>
   );
 }

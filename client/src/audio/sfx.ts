@@ -44,3 +44,19 @@ export function playClick() {
 export function playChime() {
   [880, 1108.7, 1318.5].forEach((f, i) => blip(f, i * 0.07, 0.45, 0.05));
 }
+
+/** A bright two-note coin "ting". */
+export function playCoin() {
+  blip(1976, 0, 0.18, 0.06, "square");
+  blip(2637, 0.07, 0.35, 0.05, "square");
+}
+
+/** The ratchet of a slot reel going round. */
+export function playReelTick() {
+  blip(420, 0, 0.03, 0.025, "triangle");
+}
+
+/** A little bell for roulette wins. */
+export function playWinBell() {
+  [1318.5, 1568, 2093].forEach((f, i) => blip(f, i * 0.09, 0.6, 0.05));
+}

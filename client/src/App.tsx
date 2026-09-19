@@ -4,7 +4,7 @@ import { WorldScene } from "./components/WorldScene";
 import { TopBar } from "./components/hud/TopBar";
 import { Wardrobe } from "./components/hud/Wardrobe";
 import { loadSavedLook } from "./components/hud/lookStorage";
-import { setSfxMuted } from "./audio/sfx";
+import { playWinBell, setSfxMuted } from "./audio/sfx";
 import { defaultLook, parseLook } from "@shared/types";
 import { EmoteBar } from "./components/hud/EmoteBar";
 import { ActivityBar } from "./components/hud/ActivityBar";
@@ -37,6 +37,42 @@ const GLOBAL_CSS = `
   25%  { transform: translate(-50%, -14px) scale(1); }
   75%  { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -70px) scale(0.9); }
+}
+/* Speech bubbles over the NPC traders. */
+.cozy-bubble {
+  transform: translate(-50%, -100%);
+  background: rgba(255, 250, 242, 0.95);
+  color: #4a3a2c;
+  font: 600 12.5px system-ui, sans-serif;
+  padding: 7px 11px;
+  border-radius: 14px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(60, 40, 20, 0.25);
+  animation: cozy-bubble-in 180ms ease-out;
+}
+@keyframes cozy-bubble-in { from { opacity: 0; transform: translate(-50%, -80%) scale(0.9); } }
+/* The wallet pops when coins come in. */
+.cozy-coin-bump { animation: cozy-coin-bump 420ms cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes cozy-coin-bump { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+/* A fish on the line: the reel button throbs. */
+.cozy-bite { animation: cozy-bite 0.5s ease-in-out infinite alternate; }
+@keyframes cozy-bite { from { transform: scale(1); } to { transform: scale(1.08); } }
+/* Room-wide announcements (roulette winners). */
+.cozy-toast {
+  position: absolute;
+  top: calc(max(12px, env(safe-area-inset-top)) + 58px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: rgba(58, 36, 21, 0.88);
+  color: #ffe8b0;
+  font: 700 13.5px system-ui, sans-serif;
+  padding: 9px 16px;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+  animation: cozy-bubble-in 220ms ease-out;
+  pointer-events: none;
+  white-space: nowrap;
 }
 /* Wardrobe stacks preview over pickers on a phone-width window. */
 @media (max-width: 560px) {
@@ -97,6 +133,15 @@ export default function App() {
     connected,
     error: roomError,
     setLook,
+    roulette,
+    bets,
+    autoCycle,
+    setAutoCycle,
+    sendGesture,
+    buyHat,
+    placeBet,
+    clearBets,
+    subscribeMessages,
     changeMap,
     setTimeOfDay,
     sendEmote,
@@ -119,6 +164,28 @@ export default function App() {
   setSfxMuted(!ambience.enabled);
 
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
+
+  // Roulette results: a toast for the room, and a bell if you won.
+  const [toast, setToast] = useState<string | null>(null);
+  const localIdRef = useRef(localSessionId);
+  localIdRef.current = localSessionId;
+  useEffect(
+    () =>
+      subscribeMessages((type, payload) => {
+        if (type !== "rouletteResult") return;
+        const { winners } = payload as { result: number; winners: { sessionId: string; username: string; amount: number }[] };
+        if (winners.length === 0) return;
+        if (winners.some((w) => w.sessionId === localIdRef.current)) playWinBell();
+        const best = [...winners].sort((a, b) => b.amount - a.amount)[0];
+        setToast(`🎉 ${best.username} won ${best.amount} 🪙${winners.length > 1 ? ` (+${winners.length - 1} more)` : ""}`);
+      }),
+    [subscribeMessages]
+  );
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
   const closeWardrobe = useCallback(() => setWardrobeOpen(false), []);
   // Put the remembered outfit back on once per connection (the room forgets it on leave).
   const restoredLookRef = useRef<unknown>(null);
@@ -158,6 +225,9 @@ export default function App() {
           subscribeEmotes={subscribeEmotes}
           ballRef={ballRef}
           onKickBall={kickBall}
+          roulette={roulette}
+          bets={bets}
+          subscribeMessages={subscribeMessages}
         />
       </IsometricCanvas>
 
@@ -170,7 +240,11 @@ export default function App() {
         onOpenWardrobe={() => setWardrobeOpen(true)}
         soundOn={ambience.enabled}
         onToggleSound={ambience.toggle}
+        coins={localPlayer?.coins ?? 0}
+        autoCycle={autoCycle}
+        onToggleAutoCycle={() => setAutoCycle(!autoCycle)}
       />
+      {toast && <div className="cozy-toast">{toast}</div>}
 
       <div style={topLeftStyle}>
         <PlayerRoster players={players} localSessionId={localSessionId} speakingUserIds={voice.speakingUserIds} />
@@ -185,6 +259,11 @@ export default function App() {
             player={localPlayer}
             chairs={chairs}
             localSessionId={localSessionId}
+            mapId={currentMap}
+            roulette={roulette}
+            myBets={bets[localSessionId] ?? ""}
+            onPlaceBet={placeBet}
+            onClearBets={clearBets}
             onRoast={roast}
             onEat={eat}
             onSip={() => handleEmote("☕")}
@@ -192,7 +271,7 @@ export default function App() {
             onCastLine={castLine}
             onReelIn={reelIn}
           />
-          <EmoteBar onEmote={handleEmote} />
+          <EmoteBar onEmote={handleEmote} onGesture={sendGesture} />
         </div>
       )}
 
@@ -207,6 +286,9 @@ export default function App() {
           userId={localPlayer.userId}
           username={localPlayer.username}
           initial={parseLook(localPlayer.look) ?? defaultLook(localPlayer.userId || localPlayer.username, localPlayer.color)}
+          coins={localPlayer.coins}
+          owned={localPlayer.owned}
+          onBuy={buyHat}
           onApply={setLook}
           onClose={closeWardrobe}
         />
