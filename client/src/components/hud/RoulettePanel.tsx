@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { CHIP_VALUES, MAX_BET_TOTAL, ROULETTE_PHASE_SECONDS, parseBets, pocketColor, type RouletteResultBroadcast, type RouletteSyncState } from "@shared/types";
 import { glass, hudText } from "./glass";
-import { playChip, playClick } from "../../audio/sfx";
+import { playChip, playClick, playConfetti } from "../../audio/sfx";
+
+const CONFETTI = Array.from({ length: 18 }, (_, i) => ({
+  dx: `${Math.cos(i * 0.35 + 0.2) * (90 + (i % 4) * 30)}px`,
+  dy: `${-60 - (i % 5) * 28 + (i % 3) * 20}px`,
+  color: ["#f2cf73", "#e0453a", "#6fd08c", "#7fb6f2", "#ec7fa3"][i % 5],
+}));
 
 type Subscribe = (listener: (type: string, payload: unknown) => void) => () => void;
 
@@ -51,7 +57,10 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
         if (type !== "rouletteResult") return;
         const { result, winners } = payload as RouletteResultBroadcast;
         const mine = winners.find((w) => w.sessionId === localSessionId);
-        if (mine) setOutcome({ result, text: `You won ${mine.amount} 🪙!`, win: true });
+        if (mine) {
+          setOutcome({ result, text: `You won ${mine.amount} 🪙!`, win: true });
+          playConfetti();
+        }
         else if (ridingRef.current > 0) setOutcome({ result, text: `No luck — ${ridingRef.current} 🪙 to the house`, win: false });
         else setOutcome({ result, text: "Place a chip next round!", win: false });
       }),
@@ -104,6 +113,13 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
         <div style={{ ...styles.fill, width: `${frac * 100}%`, background: open ? "#6fd08c" : "#f2cf73" }} />
       </div>
 
+      {outcome?.win && roulette.phase !== "betting" && (
+        <div className="cozy-confetti" aria-hidden>
+          {CONFETTI.map((c, i) => (
+            <i key={i} style={{ background: c.color, ["--dx" as string]: c.dx, ["--dy" as string]: c.dy, animationDelay: `${(i % 6) * 30}ms` } as CSSProperties} />
+          ))}
+        </div>
+      )}
       {outcome && roulette.phase !== "betting" && (
         <div style={{ ...styles.outcome, background: outcome.win ? "rgba(111,208,140,0.25)" : "rgba(255,255,255,0.08)" }}>
           <span style={{ ...styles.ball, background: POCKET_BG[pocketColor(outcome.result)] }}>{outcome.result}</span>
@@ -112,7 +128,7 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
       )}
 
       <div style={styles.felt}>
-        <div style={styles.grid}>
+        <div className="cozy-felt-grid" style={styles.grid}>
           {cell("n0", "0", POCKET_BG.green, "#fff", { gridRow: "1 / span 3", gridColumn: 1 })}
           {ROWS.map((row, r) =>
             row.map((n, c) => (
@@ -158,7 +174,7 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
           </button>
         )}
       </div>
-      <span style={styles.hint}>Red · Black · Odd · Even pay 2× — a single number pays 36×</span>
+      <span className="cozy-hint" style={styles.hint}>Red · Black · Odd · Even pay 2× — a single number pays 36×</span>
     </div>
   );
 }
@@ -167,12 +183,14 @@ const styles: Record<string, CSSProperties> = {
   panel: {
     ...glass,
     ...hudText,
-    background: "rgba(38, 16, 20, 0.86)",
+    backdropFilter: "blur(16px) saturate(150%)",
     border: "1px solid rgba(242, 207, 115, 0.45)",
     color: "#fff3dc",
     borderRadius: 22,
     padding: 12,
-    width: "min(560px, calc(100vw - 24px))",
+    width: "min(500px, calc(100vw - 24px))",
+    position: "relative",
+    background: "rgba(38, 16, 20, 0.72)",
     display: "flex",
     flexDirection: "column",
     gap: 8,
@@ -188,7 +206,7 @@ const styles: Record<string, CSSProperties> = {
   outcome: { display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 12, fontWeight: 700, fontSize: 14 },
   ball: { width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center", fontWeight: 800, color: "#fff", boxShadow: "0 0 0 2px #f2cf73" },
   felt: { background: "#1c6b3f", borderRadius: 14, padding: 6, display: "flex", flexDirection: "column", gap: 5, boxShadow: "inset 0 0 0 2px rgba(242,207,115,0.5)" },
-  grid: { display: "grid", gridTemplateColumns: "1.1fr repeat(12, 1fr)", gridTemplateRows: "repeat(3, 30px)", gap: 3 },
+  grid: { display: "grid", gridTemplateColumns: "1.1fr repeat(12, 1fr)", gridTemplateRows: "repeat(3, 26px)", gap: 3 },
   outside: { display: "flex", gap: 4 },
   cell: {
     position: "relative",

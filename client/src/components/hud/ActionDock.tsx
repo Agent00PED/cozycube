@@ -23,6 +23,9 @@ const MAX_BUTTONS = 3;
 
 interface Action {
   key: string;
+  /** What kind of thing it is. Only the nearest of each type gets a button, so three slot
+   *  machines side by side give one "Play slots", not three. */
+  type: string;
   label: string;
   run: () => void;
 }
@@ -83,7 +86,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         const label = propLabel(p);
         if (!label) continue;
         const d = dist(p.x, p.z, p.propId);
-        if (d <= REACH) found.push({ key: p.propId, label, d, run: () => interactBridge.current?.useProp(p.propId) });
+        if (d <= REACH) found.push({ key: p.propId, type: p.kind, label, d, run: () => interactBridge.current?.useProp(p.propId) });
       }
 
       // Seats that are an activity: the pier (fishing) and the logs round the fire (roasting).
@@ -97,7 +100,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         if (isFishingSeat(c.propId) && (!fish || d < fish.d)) {
           fish = { id: c.propId, d };
         } else if (c.style === "log" && (!fire || d < fire.d)) {
-          fire = { key: "fire", label: "🔥 Sit by the fire", d, run: () => interactBridge.current?.sit(c.propId) };
+          fire = { key: "fire", type: "fire", label: "🔥 Sit by the fire", d, run: () => interactBridge.current?.sit(c.propId) };
         }
       }
       // The pier offers both ways to fish: the bite-and-reel game, or chill mode that keeps
@@ -108,8 +111,8 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
           castPending.current = mode;
           interactBridge.current?.sit(seat);
         };
-        found.push({ key: "fish", label: "🎣 Manual Fishing", d: fish.d, run: go("manual") });
-        found.push({ key: "afkfish", label: "☕ AFK Fishing (chill)", d: fish.d + 0.01, run: go("afk") });
+        found.push({ key: "fish", type: "fish", label: "🎣 Manual Fishing", d: fish.d, run: go("manual") });
+        found.push({ key: "afkfish", type: "afkfish", label: "☕ AFK Fishing (chill)", d: fish.d + 0.01, run: go("afk") });
       }
       if (fire) found.push(fire);
 
@@ -119,11 +122,12 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         const dz = pz - ROULETTE_CENTER.z;
         const d = Math.hypot(dx, dz);
         if (d < ROULETTE_BET_RADIUS - 0.2) {
-          found.push({ key: "roulette-open", label: "🎡 Betting board", d: 0, run: () => window.dispatchEvent(new Event("cozy-open-roulette")) });
+          found.push({ key: "roulette-open", type: "roulette", label: "🎡 Betting board", d: 0, run: () => window.dispatchEvent(new Event("cozy-open-roulette")) });
         } else if (d < ROULETTE_BET_RADIUS + REACH) {
           const k = 3.0 / (d || 1);
           found.push({
             key: "roulette",
+            type: "roulette",
             label: "🎡 Join roulette",
             d: d - ROULETTE_BET_RADIUS,
             run: () => interactBridge.current?.walkTo(ROULETTE_CENTER.x + dx * k, ROULETTE_CENTER.z + dz * k),
@@ -131,8 +135,10 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         }
       }
 
+      // Nearest first, then keep only the first (nearest) of each type.
       found.sort((a, b) => a.d - b.d);
-      const next = found.slice(0, MAX_BUTTONS);
+      const seen = new Set<string>();
+      const next = found.filter((a) => (seen.has(a.type) ? false : (seen.add(a.type), true))).slice(0, MAX_BUTTONS);
       const key = next.map((a) => a.key + a.label).join("|");
       if (key !== lastKey) {
         lastKey = key;

@@ -213,7 +213,7 @@ export function Leaderboard({ players }: { players: Record<string, PlayerState> 
       .sort((a, b) => b.coins - a.coins)
       .slice(0, 5);
     if (top.length === 0) return "—";
-    return top.map((p, i) => `${i + 1}. ${p.username.slice(0, 12).padEnd(12, " ")} ${p.coins}`).join("\n");
+    return top.map((p, i) => `${i + 1}. ${p.username.slice(0, 9).padEnd(10, " ")} ${p.coins}`).join("\n");
   }, [players]);
 
   return (
@@ -227,7 +227,7 @@ export function Leaderboard({ players }: { players: Record<string, PlayerState> 
         <Text font="/fonts/kenpixel.ttf" position={[0, 0.43, 0.05]} fontSize={0.14} color="#f2cf73" anchorX="center">
           HIGH ROLLERS
         </Text>
-        <Text font="/fonts/kenpixel.ttf" position={[-0.74, 0.28, 0.05]} fontSize={0.095} lineHeight={1.45} color="#fff3dc" anchorX="left" anchorY="top">
+        <Text font="/fonts/kenpixel.ttf" position={[-0.74, 0.28, 0.05]} fontSize={0.13} lineHeight={1.3} color="#fff3dc" anchorX="left" anchorY="top">
           {lines}
         </Text>
       </group>

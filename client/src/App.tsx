@@ -120,6 +120,19 @@ const GLOBAL_CSS = `
 }
 .cozy-bottom-stack > * { pointer-events: auto; }
 .cozy-roulette { animation: cozy-menu-in 200ms ease-out; }
+/* Phones and narrow Discord panels: the board becomes a bottom sheet, edge to edge and short,
+   so the table and your character stay in view above it. */
+@media (max-width: 767px) {
+  .cozy-roulette-wrap { left: 0 !important; right: 0 !important; bottom: 0 !important; transform: none !important; }
+  .cozy-roulette { width: 100% !important; border-radius: 20px 20px 0 0 !important; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)) !important; animation: cozy-sheet-up 240ms cubic-bezier(0.2, 0.9, 0.3, 1) !important; }
+  .cozy-roulette .cozy-hint { display: none; }
+  .cozy-roulette .cozy-felt-grid { grid-template-rows: repeat(3, 24px) !important; }
+}
+@keyframes cozy-sheet-up { from { transform: translateY(100%); } }
+/* a burst of confetti when you win */
+.cozy-confetti { position: absolute; left: 50%; top: 40%; width: 0; height: 0; pointer-events: none; }
+.cozy-confetti i { position: absolute; width: 7px; height: 11px; border-radius: 2px; animation: cozy-confetti 1.2s cubic-bezier(0.2, 0.7, 0.4, 1) forwards; }
+@keyframes cozy-confetti { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(540deg); opacity: 0; } }
 .cozy-roulette button:not(:disabled):hover { filter: brightness(1.15); }
 .cozy-roulette button:not(:disabled):active { transform: scale(0.94); }
 /* the rod bobbing while chill-fishing */
@@ -331,7 +344,7 @@ export default function App() {
       {localPlayer && <EmoteBar onEmote={handleEmote} onGesture={sendGesture} />}
 
       {showRoulette && localPlayer && localSessionId && (
-        <div style={roulettePanelStyle}>
+        <div className="cozy-roulette-wrap" style={roulettePanelStyle}>
           <RoulettePanel
             roulette={roulette}
             myBets={bets[localSessionId] ?? ""}

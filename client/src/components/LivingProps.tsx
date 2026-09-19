@@ -5,7 +5,8 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { NPCS, type ToggleableSyncState } from "@shared/types";
 import { APPROACH_POINTS } from "@shared/props";
-import { GEO, noRaycast, onHitLayer } from "../scene/kit";
+import { GEO, arcGeo, noRaycast, onHitLayer } from "../scene/kit";
+import { playMeow } from "../audio/sfx";
 import { TimeOfDayContext } from "../scene/timeOfDay";
 import { useRoomMessage } from "../scene/roomEvents";
 import { Character3D, type FloatingEmote } from "./Character3D";
@@ -239,55 +240,77 @@ export function Sparkle({ prop, onUse }: { prop: ToggleableSyncState; onUse: () 
 
 // --- Mochi the cat -----------------------------------------------------------------------------
 
+// A chubby chibi loaf: one round body, a big head that sinks into it, proper cone ears with
+// pink insides, and a thick tail that wraps round the front paws from the body itself.
+const CAT_TAIL = arcGeo(0.3, 0.055, Math.PI * 1.15);
+
 export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => void }) {
   const bodyRef = useRef<THREE.Mesh>(null);
   const headRef = useRef<THREE.Group>(null);
-  const tailRef = useRef<THREE.Group>(null);
-  const earRef = useRef<THREE.Mesh>(null);
+  const tailRef = useRef<THREE.Mesh>(null);
+  const earRef = useRef<THREE.Group>(null);
   const petted = prop.boost > 0;
+  const wasPetted = useRef(false);
+  useEffect(() => {
+    if (petted && !wasPetted.current) playMeow();
+    wasPetted.current = petted;
+  }, [petted]);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    if (bodyRef.current) bodyRef.current.scale.y = 0.2 * (1 + Math.sin(t * (petted ? 5 : 1.6)) * 0.05);
+    // breathing: the loaf rises and falls
+    if (bodyRef.current) bodyRef.current.scale.y = 0.27 * (1 + Math.sin(t * (petted ? 5 : 1.6)) * 0.035);
     if (headRef.current) {
-      headRef.current.position.y = THREE.MathUtils.lerp(headRef.current.position.y, petted ? 0.24 : 0.14, 0.1);
-      headRef.current.rotation.z = petted ? Math.sin(t * 3) * 0.15 : 0;
+      headRef.current.position.y = THREE.MathUtils.lerp(headRef.current.position.y, petted ? 0.5 : 0.44, 0.1);
+      headRef.current.rotation.z = petted ? Math.sin(t * 3) * 0.14 : Math.sin(t * 0.5) * 0.03;
     }
-    if (tailRef.current) tailRef.current.rotation.y = Math.sin(t * (petted ? 4 : 0.8)) * (petted ? 0.5 : 0.15);
-    // One ear flicks back for a moment every ~3.7 s, like a cat half-listening in its sleep.
+    if (tailRef.current) tailRef.current.rotation.z = Math.sin(t * (petted ? 4 : 0.7)) * (petted ? 0.25 : 0.08);
+    // one ear flicks now and then, like a cat half-listening in its sleep
     if (earRef.current) {
       const phase = t % 3.7;
-      earRef.current.rotation.x = phase < 0.25 ? Math.sin((phase / 0.25) * Math.PI) * 0.7 : 0;
+      earRef.current.rotation.x = phase < 0.25 ? Math.sin((phase / 0.25) * Math.PI) * 0.5 : 0;
     }
   });
   return (
     <group position={[prop.x, 0, prop.z]} rotation={[0, 0.6, 0]}>
-      {/* curled body */}
-      <mesh ref={bodyRef} geometry={GEO.sphere} material={M.catOrange} position={[0, 0.1, 0]} scale={[0.42, 0.2, 0.3]} raycast={noRaycast} />
-      <mesh geometry={GEO.sphereLow} material={M.catCream} position={[0.05, 0.08, 0.1]} scale={[0.26, 0.12, 0.14]} raycast={noRaycast} />
-      {[-0.08, 0.06].map((x) => (
-        <mesh key={x} geometry={GEO.sphereLow} material={M.catDark} position={[x, 0.19, 0]} scale={[0.06, 0.03, 0.26]} raycast={noRaycast} />
+      {/* the loaf */}
+      <mesh ref={bodyRef} geometry={GEO.sphere} material={M.catOrange} position={[0, 0.22, -0.04]} scale={[0.3, 0.27, 0.36]} castShadow raycast={noRaycast} />
+      <mesh geometry={GEO.sphereLow} material={M.catCream} position={[0, 0.16, 0.2]} scale={[0.2, 0.15, 0.14]} raycast={noRaycast} />
+      {/* back stripes */}
+      {[-0.12, 0.0, 0.12].map((z) => (
+        <mesh key={z} geometry={GEO.sphereLow} material={M.catDark} position={[0, 0.45, z - 0.06]} scale={[0.22, 0.03, 0.05]} raycast={noRaycast} />
       ))}
-      <group ref={headRef} position={[0.2, 0.14, 0.08]}>
-        <mesh geometry={GEO.sphere} material={M.catOrange} scale={[0.19, 0.16, 0.17]} raycast={noRaycast} />
-        <mesh geometry={GEO.cone} material={M.catOrange} position={[-0.01, 0.09, -0.05]} scale={[0.07, 0.08, 0.06]} raycast={noRaycast} />
-        <mesh ref={earRef} geometry={GEO.cone} material={M.catOrange} position={[-0.01, 0.09, 0.05]} scale={[0.07, 0.08, 0.06]} raycast={noRaycast} />
-        <mesh geometry={GEO.sphereLow} material={M.nose} position={[0.09, -0.01, 0]} scale={0.022} raycast={noRaycast} />
-        {/* closed sleepy eyes */}
-        {[-0.035, 0.035].map((z) => (
-          <mesh key={z} geometry={GEO.box} material={M.catDark} position={[0.085, 0.02, z]} scale={[0.005, 0.006, 0.03]} raycast={noRaycast} />
+      {/* front paws */}
+      {[-0.09, 0.09].map((x) => (
+        <mesh key={x} geometry={GEO.sphereLow} material={M.catCream} position={[x, 0.05, 0.26]} scale={[0.08, 0.06, 0.1]} raycast={noRaycast} />
+      ))}
+      {/* the tail curls round the paws, joined to the body at the back */}
+      <mesh ref={tailRef} geometry={CAT_TAIL} material={M.catOrange} position={[0, 0.06, 0.02]} rotation={[-Math.PI / 2, 0, -0.35]} raycast={noRaycast} />
+      <group ref={headRef} position={[0, 0.44, 0.16]}>
+        <mesh geometry={GEO.sphere} material={M.catOrange} scale={[0.22, 0.19, 0.2]} castShadow raycast={noRaycast} />
+        <mesh geometry={GEO.sphereLow} material={M.catCream} position={[0, -0.06, 0.15]} scale={[0.11, 0.07, 0.07]} raycast={noRaycast} />
+        <mesh geometry={GEO.sphereLow} material={M.nose} position={[0, -0.02, 0.2]} scale={0.02} raycast={noRaycast} />
+        {/* ears: round cones with pink insides, tilted out */}
+        <group position={[-0.11, 0.14, -0.01]} rotation={[0, 0, 0.35]}>
+          <mesh geometry={GEO.cone} material={M.catOrange} scale={[0.1, 0.13, 0.08]} raycast={noRaycast} />
+          <mesh geometry={GEO.cone} material={M.nose} position={[0, -0.01, 0.025]} scale={[0.055, 0.08, 0.03]} raycast={noRaycast} />
+        </group>
+        <group ref={earRef} position={[0.11, 0.14, -0.01]} rotation={[0, 0, -0.35]}>
+          <mesh geometry={GEO.cone} material={M.catOrange} scale={[0.1, 0.13, 0.08]} raycast={noRaycast} />
+          <mesh geometry={GEO.cone} material={M.nose} position={[0, -0.01, 0.025]} scale={[0.055, 0.08, 0.03]} raycast={noRaycast} />
+        </group>
+        {/* closed, contented eyes */}
+        {[-0.075, 0.075].map((x) => (
+          <mesh key={x} geometry={GEO.box} material={M.catDark} position={[x, 0.02, 0.185]} rotation={[0, 0, x > 0 ? -0.2 : 0.2]} scale={[0.05, 0.008, 0.01]} raycast={noRaycast} />
         ))}
       </group>
-      <group ref={tailRef} position={[-0.18, 0.06, 0]}>
-        <mesh geometry={GEO.sphereLow} material={M.catOrange} position={[-0.05, 0, 0.14]} rotation={[0, 0.6, 0]} scale={[0.09, 0.07, 0.34]} raycast={noRaycast} />
-      </group>
       {petted && (
-        <Html position={[0.1, 0.6, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
+        <Html position={[0, 0.9, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
           <div style={{ position: "relative", width: 0, height: 0 }}>
             <span className="cozy-emote">💕</span>
           </div>
         </Html>
       )}
-      <HitPad size={[0.8, 0.6, 0.7]} position={[0, 0.25, 0]} onUse={onUse} />
+      <HitPad size={[0.8, 0.8, 0.8]} position={[0, 0.35, 0]} onUse={onUse} />
     </group>
   );
 }

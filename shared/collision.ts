@@ -49,7 +49,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -7.95, maxX: -7.25, minZ: 2.85, maxZ: 3.55 }, // round side table by the armchair
     // --- Tea corner ---
     { minX: -2.5, maxX: -1.1, minZ: 4.3, maxZ: 5.7 }, // low round table
-    { minX: 0.0, maxX: 0.6, minZ: 6.3, maxZ: 6.9 }, // fig
+    { minX: 2.2, maxX: 2.8, minZ: 6.1, maxZ: 6.7 }, // fig, clear of the cushions
     { minX: -3.9, maxX: -3.3, minZ: 6.5, maxZ: 7.1 }, // snake plant
     { minX: 1.5, maxX: 2.1, minZ: 3.0, maxZ: 3.6 }, // fern
     // --- Balcony deck ---
@@ -69,7 +69,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: 4.1, maxX: 4.7, minZ: -2.5, maxZ: -1.9 }, // lantern stump east
     { minX: -4.7, maxX: -4.1, minZ: 1.9, maxZ: 2.5 }, // lantern stump west
     { minX: -3.4, maxX: -2.4, minZ: -4.8, maxZ: -3.8 }, // firewood stack
-    { minX: 7.0, maxX: 7.6, minZ: -3.0, maxZ: -2.4 }, // telescope
+    { minX: 7.2, maxX: 7.8, minZ: -2.3, maxZ: -1.7 }, // telescope
     { minX: 1.6, maxX: 3.0, minZ: -6.4, maxZ: -5.6 }, // camp table and cooler
     { minX: 6.1, maxX: 6.7, minZ: 1.9, maxZ: 2.5 }, // Ranger Oak
     { minX: -7.15, maxX: -6.45, minZ: -1.55, maxZ: -0.85 }, // berry bush west
@@ -82,6 +82,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -8.3, maxX: -7.7, minZ: -1.9, maxZ: -1.3 }, // west tiki torch
     { minX: 7.1, maxX: 7.7, minZ: 2.7, maxZ: 3.3 }, // east tiki torch
     { minX: 4.1, maxX: 5.9, minZ: -1.9, maxZ: -0.1 }, // bonfire and its stone ring
+    { minX: 7.05, maxX: 7.75, minZ: -3.75, maxZ: -3.05 }, // cooler, clear of the driftwood logs
     { minX: -7.3, maxX: -6.7, minZ: 1.8, maxZ: 2.4 }, // parasol post between the loungers
     { minX: -8.6, maxX: -7.8, minZ: -7.4, maxZ: -6.6 }, // palm by the bar
     { minX: 7.4, maxX: 8.2, minZ: -6.2, maxZ: -5.4 }, // palm at the top of the beach
@@ -102,7 +103,8 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: 2.05, maxX: 2.75, minZ: -1.65, maxZ: -0.95 }, // roulette dealer, at the far end of the layout
     { minX: 5.15, maxX: 6.05, minZ: 3.15, maxZ: 4.05 }, // cocktail high-top
     { minX: 4.75, maxX: 5.65, minZ: -4.95, maxZ: -4.05 }, // cocktail high-top
-    { minX: -6.9, maxX: -4.1, minZ: -5.3, maxZ: -3.9 }, // blackjack table
+    { minX: -6.95, maxX: -4.05, minZ: -5.3, maxZ: -3.75 }, // blackjack table, to the edge of its curve
+    { minX: -7.0, maxX: -4.0, minZ: -6.1, maxZ: -5.3 }, // the dealer's side behind it: no walking into the counter
     { minX: -9.8, maxX: -8.8, minZ: 2.8, maxZ: 7.2 }, // VIP chesterfield against the left wall
     { minX: -8.2, maxX: -6.8, minZ: 4.3, maxZ: 5.7 }, // VIP coffee table
     { minX: -5.9, maxX: -5.1, minZ: 2.9, maxZ: 3.7 }, // VIP armchair
@@ -157,8 +159,19 @@ export const PIER_MIN_X = 1.0;
 export const PIER_MAX_X = 3.4;
 export const PIER_END_Z = 8.0;
 
-function inScenery(mapId: MapId, x: number, z: number): boolean {
+/** The campfire stream's centre line (shared with CampfireWorld, which draws it). */
+export function streamZ(x: number): number {
+  return 6.4 + Math.sin(x * 0.34) * 0.9;
+}
+/** Half-width of the stream and its muddy banks: nobody wades in. */
+const STREAM_HALF = 1.0;
+/** The plank bridge: walkable between its rails (at x = +/-0.85). */
+const BRIDGE_HALF = 0.62;
+
+function inScenery(mapId: MapId, x: number, z: number, radius: number): boolean {
   if (mapId === "campfire_night") {
+    // The stream is a wall except on the bridge deck, and the rails keep you on the deck.
+    if (Math.abs(z - streamZ(x)) < STREAM_HALF + radius && Math.abs(x) + radius > BRIDGE_HALF) return true;
     if (Math.abs(x) < TRAIL_HALF_WIDTH && z > TRAIL_START_Z) return false; // the stone trail
     return Math.hypot(x, z) > FOREST_RADIUS;
   }
@@ -171,7 +184,7 @@ function inScenery(mapId: MapId, x: number, z: number): boolean {
 
 export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boolean {
   if (Math.abs(x) > WORLD_LIMIT || Math.abs(z) > WORLD_LIMIT) return true;
-  if (inScenery(mapId, x, z)) return true;
+  if (inScenery(mapId, x, z, radius)) return true;
   for (const box of MAP_OBSTACLES[mapId]) {
     if (x + radius > box.minX && x - radius < box.maxX && z + radius > box.minZ && z - radius < box.maxZ) {
       return true;

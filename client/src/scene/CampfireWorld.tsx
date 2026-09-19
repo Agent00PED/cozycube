@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
 import { TimeOfDayContext } from "./timeOfDay";
+import { streamZ } from "@shared/collision";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { B, Cyl, GEO, HALF, Instanced, Sph, noMerge, noRaycast, seeded, type InstanceSpec, type Materials } from "./kit";
@@ -14,9 +15,7 @@ const EDGE = HALF - 0.3;
 const TREELINE = 8.3;
 
 /** Centre line of the stream, which meanders across the front-left of the clearing. */
-export function streamZ(x: number): number {
-  return 6.4 + Math.sin(x * 0.34) * 0.9;
-}
+export { streamZ };
 
 const TENTS: { x: number; z: number; color: string }[] = [
   { x: -5.6, z: -4.6, color: "#d97a4a" },
@@ -30,7 +29,7 @@ function isClearZone(x: number, z: number, margin = 0): boolean {
   if (Math.abs(z - streamZ(x)) < 1.5 + margin) return true; // the stream
   if (Math.hypot(x, z) < 4.6 + margin) return true; // fire, log ring and their approach points
   if (TENTS.some((t) => Math.hypot(x - t.x, z - t.z) < 2.2 + margin)) return true;
-  if (Math.hypot(x - 5.7, z + 3.4) < 2.0 + margin) return true; // stargazing blanket + telescope
+  if (Math.hypot(x - 5.9, z + 2.4) < 2.1 + margin) return true; // stargazing blanket + telescope
   if (Math.hypot(x - 4.4, z + 2.2) < 0.9 || Math.hypot(x + 4.4, z - 2.2) < 0.9) return true; // lantern stumps
   if (Math.hypot(x - 2.3, z + 6.0) < 1.4 + margin) return true; // camp table
   return false;
@@ -260,7 +259,7 @@ function Stream({ mats }: { mats: Materials }) {
   return (
     <group userData={noMerge}>
       <mesh geometry={bank} material={mats.mud} receiveShadow raycast={noRaycast} />
-      <mesh geometry={water} material={mats.water} raycast={noRaycast} />
+      <mesh geometry={water} material={STREAM_WATER} renderOrder={2} raycast={noRaycast} />
       <instancedMesh ref={glintRef} args={[GEO.box, mats.bulb, glints.length]} frustumCulled={false} raycast={noRaycast} />
       {/* stepping stones a little downstream of the bridge, for the look of it */}
       {[-2.2, -1.5, -0.8].map((dx) => (
@@ -310,6 +309,36 @@ function StoneTrail({ mats }: { mats: Materials }) {
   );
 }
 
+// The tent doorway (a triangle) and one door flap (a right triangle), built once.
+const DOOR_GEO = (() => {
+  const s = new THREE.Shape();
+  s.moveTo(-0.4, 0);
+  s.lineTo(0.4, 0);
+  s.lineTo(0, 1.05);
+  s.closePath();
+  return new THREE.ShapeGeometry(s);
+})();
+const FLAP_GEO = (() => {
+  const s = new THREE.Shape();
+  s.moveTo(0, 0);
+  s.lineTo(0.3, 0);
+  s.lineTo(0, 0.95);
+  s.closePath();
+  const g = new THREE.ShapeGeometry(s);
+  g.computeVertexNormals();
+  return g;
+})();
+const TENT_INSIDE = new THREE.MeshBasicMaterial({ color: "#2b2622", side: THREE.DoubleSide });
+const STREAM_WATER = new THREE.MeshStandardMaterial({
+  color: "#2f6480",
+  emissive: "#0d2c3d",
+  roughness: 0.12,
+  metalness: 0.15,
+  transparent: true,
+  opacity: 0.88,
+  depthWrite: false,
+});
+
 function Tent({ x, z, color, mats }: { x: number; z: number; color: string; mats: Materials }) {
   const canvas = useMemo(() => new THREE.MeshStandardMaterial({ color, roughness: 0.85 }), [color]);
   // Door faces the fire.
@@ -317,11 +346,18 @@ function Tent({ x, z, color, mats }: { x: number; z: number; color: string; mats
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
       <mesh geometry={GEO.pyramid} material={canvas} position={[0, 0.75, 0]} rotation={[0, Math.PI / 4, 0]} scale={[2.1, 1.5, 2.1]} castShadow receiveShadow raycast={noRaycast} />
-      <mesh geometry={GEO.plane} material={mats.black} position={[0, 0.42, 0.76]} scale={[0.55, 0.8, 1]} raycast={noRaycast} />
+      {/* the doorway: a shaded triangular opening set back into the canvas, with a groundsheet
+          lip, and the two door flaps tied back on either side */}
+      <mesh geometry={DOOR_GEO} material={TENT_INSIDE} position={[0, 0.02, 0.62]} raycast={noRaycast} />
+      <B p={[0, 0.02, 0.72]} s={[0.8, 0.03, 0.24]} m={mats.dirt} />
       {[-1, 1].map((side) => (
         <group key={side}>
+          <mesh geometry={FLAP_GEO} material={canvas} position={[side * 0.36, 0.02, 0.8]} rotation={[0, side * 0.55, 0]} scale={[side, 1, 1]} castShadow raycast={noRaycast} />
+          <Cyl p={[side * 0.3, 0.55, 0.84]} s={[0.035, 0.05, 0.035]} r={[0, 0, Math.PI / 2]} m={mats.cream} />
+          {/* guy line down to a peg */}
           <Cyl p={[side * 0.95, 0.5, 0.88]} s={[0.02, 1.1, 0.02]} r={[0.55, 0, side * -0.55]} m={mats.cream} />
-          <Cyl p={[side * 1.28, 0.05, 1.2]} s={[0.05, 0.1, 0.05]} m={mats.metal} />
+          <Cyl p={[side * 1.28, 0.06, 1.2]} s={[0.035, 0.14, 0.035]} r={[0.3, 0, side * -0.3]} m={mats.metal} />
+          <Cyl p={[side * 1.27, 0.13, 1.18]} s={[0.07, 0.025, 0.07]} m={mats.metal} />
         </group>
       ))}
     </group>
@@ -410,18 +446,18 @@ function StargazingSpot({ mats }: { mats: Materials }) {
   return (
     <>
       {/* plaid picnic blanket — the "blanket_N" seats lie down here */}
-      <B p={[5.7, 0.06, -3.4]} s={[2.2, 0.02, 1.7]} m={mats.rust} recv />
+      <B p={[5.7, 0.06, -2.4]} s={[2.2, 0.02, 1.7]} m={mats.rust} recv />
       {[-0.6, 0, 0.6].map((dx) => (
-        <B key={`v${dx}`} p={[5.7 + dx, 0.075, -3.4]} s={[0.12, 0.01, 1.7]} m={mats.cream} />
+        <B key={`v${dx}`} p={[5.7 + dx, 0.075, -2.4]} s={[0.12, 0.01, 1.7]} m={mats.cream} />
       ))}
       {[-0.5, 0.3].map((dz) => (
-        <B key={`h${dz}`} p={[5.7, 0.08, -3.4 + dz]} s={[2.2, 0.01, 0.12]} m={mats.mustard} />
+        <B key={`h${dz}`} p={[5.7, 0.08, -2.4 + dz]} s={[2.2, 0.01, 0.12]} m={mats.mustard} />
       ))}
       {[5.3, 6.1].map((x) => (
-        <Sph key={x} p={[x, 0.09, -4.0]} s={[0.52, 0.16, 0.32]} m={mats.cream} cast />
+        <Sph key={x} p={[x, 0.09, -3.0]} s={[0.52, 0.16, 0.32]} m={mats.cream} cast />
       ))}
       {/* telescope on a tripod, aimed up at the stars */}
-      <group position={[7.3, 0, -2.7]}>
+      <group position={[7.5, 0, -2.0]}>
         {[0, 1, 2].map((i) => (
           <Cyl key={i} p={[Math.cos(i * 2.09) * 0.2, 0.5, Math.sin(i * 2.09) * 0.2]} s={[0.03, 1.05, 0.03]} r={[Math.sin(i * 2.09) * 0.35, 0, -Math.cos(i * 2.09) * 0.35]} m={mats.black} />
         ))}

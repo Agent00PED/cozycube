@@ -112,10 +112,12 @@ function Sea({ mats }: { mats: Materials }) {
   const foam = useMemo<InstanceSpec[]>(() => {
     const rand = seeded(5);
     return Array.from({ length: 30 }, (_, i) => {
-      const x = -HALF + (i / 30) * HALF * 2 + rand() * 0.3;
+      const w = 0.8 + rand() * 0.5;
+      // clamped so a strip never pokes out past the diorama's edge
+      const x = Math.max(-HALF + w / 2 + 0.02, Math.min(HALF - w / 2 - 0.02, -HALF + (i / 30) * HALF * 2 + rand() * 0.3));
       return {
         p: [x, WATER_Y + 0.03, SHORELINE_Z + 0.12 + Math.sin(x * 0.9) * 0.14] as [number, number, number],
-        s: [0.8 + rand() * 0.5, 0.02, 0.26] as [number, number, number],
+        s: [w, 0.02, 0.26] as [number, number, number],
       };
     });
   }, []);
@@ -209,6 +211,8 @@ function Sand({ mats }: { mats: Materials }) {
 // The tiki bar: a smooth thatched cone, a woven lantern, and a counter that looks stocked
 // ---------------------------------------------------------------------------------------
 
+const ROOF_LIFT = 0.75;
+
 function TikiBar({ mats }: { mats: Materials }) {
   const bottles = useMemo<InstanceSpec[]>(() => {
     const rand = seeded(12);
@@ -271,22 +275,24 @@ function TikiBar({ mats }: { mats: Materials }) {
         [-3.3, -5.2],
         [2.1, -5.2],
       ].map(([x, z]) => (
-        <Cyl key={String(x) + ":" + String(z)} p={[x, 1.25, z]} s={[0.17, 2.5, 0.17]} m={mats.bark} cast />
+        <Cyl key={String(x) + ":" + String(z)} p={[x, 1.625, z]} s={[0.17, 3.25, 0.17]} m={mats.bark} cast />
       ))}
-      <Cone p={[0, 2.95, -5.9]} s={[7.0, 0.95, 5.4]} m={thatchMat} cast />
-      <Cone p={[0, 3.5, -5.9]} s={[3.6, 0.7, 2.8]} m={thatchMat} cast />
+      {/* The whole roof sits ROOF_LIFT higher than it first did, so someone on a bar stool
+          is under the eave, not sliced by it. */}
+      <Cone p={[0, 2.95 + ROOF_LIFT, -5.9]} s={[7.0, 0.95, 5.4]} m={thatchMat} cast />
+      <Cone p={[0, 3.5 + ROOF_LIFT, -5.9]} s={[3.6, 0.7, 2.8]} m={thatchMat} cast />
       {/* The apex is a tied-off thatch point bound with natural rope — no lamp up here; the
           woven lantern hangs under the front eave instead (the "lamp_bar" pendant prop). */}
-      <Cone p={[0, 4.02, -5.9]} s={[0.5, 0.5, 0.42]} m={thatchMat} cast />
+      <Cone p={[0, 4.02 + ROOF_LIFT, -5.9]} s={[0.5, 0.5, 0.42]} m={thatchMat} cast />
       {[3.8, 3.9].map((y) => (
-        <mesh key={y} geometry={GEO.torus} material={mats.darkWood} position={[0, y, -5.9]} rotation={[Math.PI / 2, 0, 0]} scale={[y > 3.85 ? 0.38 : 0.52, y > 3.85 ? 0.32 : 0.44, 0.9]} />
+        <mesh key={y} geometry={GEO.torus} material={mats.darkWood} position={[0, y + ROOF_LIFT, -5.9]} rotation={[Math.PI / 2, 0, 0]} scale={[y > 3.85 ? 0.38 : 0.52, y > 3.85 ? 0.32 : 0.44, 0.9]} />
       ))}
       {/* painted sign hanging off the front beam */}
-      <B p={[-0.6, 2.5, -5.15]} s={[5.6, 0.14, 0.14]} m={mats.darkWood} />
-      <B p={[-0.6, 2.14, -5.1]} s={[1.9, 0.48, 0.06]} m={mats.oak} />
-      <B p={[-0.6, 2.14, -5.06]} s={[1.7, 0.32, 0.02]} m={mats.coral} />
+      <B p={[-0.6, 2.5 + ROOF_LIFT, -5.15]} s={[5.6, 0.14, 0.14]} m={mats.darkWood} />
+      <B p={[-0.6, 2.14 + ROOF_LIFT, -5.1]} s={[1.9, 0.48, 0.06]} m={mats.oak} />
+      <B p={[-0.6, 2.14 + ROOF_LIFT, -5.06]} s={[1.7, 0.32, 0.02]} m={mats.coral} />
       {[-0.3, 0.3].map((dx) => (
-        <Cyl key={dx} p={[-0.6 + dx, 2.38, -5.1]} s={[0.02, 0.16, 0.02]} m={mats.metal} />
+        <Cyl key={dx} p={[-0.6 + dx, 2.38 + ROOF_LIFT, -5.1]} s={[0.02, 0.16, 0.02]} m={mats.metal} />
       ))}
     </>
   );
@@ -589,8 +595,8 @@ function BonfireRing({ mats }: { mats: Materials }) {
       {[0.5, -0.5, 1.6].map((r) => (
         <Cyl key={r} p={[5.0, 0.17, -1.0]} s={[0.12, 0.8, 0.12]} r={[0, r, Math.PI / 2.4]} m={mats.darkWood} cast />
       ))}
-      <B p={[6.9, 0.22, -2.0]} s={[0.7, 0.44, 0.45]} r={[0, 0.3, 0]} m={mats.seaShallow} cast />
-      <B p={[6.9, 0.46, -2.0]} s={[0.74, 0.06, 0.49]} r={[0, 0.3, 0]} m={mats.white} />
+      <B p={[7.4, 0.22, -3.4]} s={[0.7, 0.44, 0.45]} r={[0, 0.3, 0]} m={mats.seaShallow} cast />
+      <B p={[7.4, 0.46, -3.4]} s={[0.74, 0.06, 0.49]} r={[0, 0.3, 0]} m={mats.white} />
       {[0, 1, 2].map((i) => (
         <Cyl key={i} p={[3.0 + i * 0.06, 0.12 + i * 0.2, -2.4]} s={[0.2, 0.9, 0.2]} r={[0, 0.3 * i, Math.PI / 2]} m={i % 2 ? mats.darkWood : mats.bark} cast />
       ))}

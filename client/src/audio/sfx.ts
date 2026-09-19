@@ -85,3 +85,27 @@ export function playChip() {
   blip(3100, 0, 0.04, 0.05, "square");
   blip(2400, 0.035, 0.05, 0.035, "square");
 }
+
+/** A sparkly rising run for a big win. */
+export function playConfetti() {
+  [1046.5, 1318.5, 1568, 2093, 2637].forEach((f, i) => blip(f, i * 0.06, 0.35, 0.04, "triangle"));
+}
+
+/** A tiny, soft "mrrp": a short gliding purr-meow for petting Mochi. */
+export function playMeow() {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime;
+  const osc = a.createOscillator();
+  const g = a.createGain();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(520, t);
+  osc.frequency.linearRampToValueAtTime(760, t + 0.12);
+  osc.frequency.exponentialRampToValueAtTime(430, t + 0.38);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.045, t + 0.04);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+  osc.connect(g).connect(a.destination);
+  osc.start(t);
+  osc.stop(t + 0.45);
+}

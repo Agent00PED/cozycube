@@ -138,11 +138,12 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     // Six log benches ringing the fire.
     ...seatRing("log", 0, 0, 2.8, 4.1, 6, "log"),
     // Camp chairs a little further back, out of the smoke.
-    { propId: "camp_chair_1", x: -3.6, z: 3.4, rotationY: facing(-3.6, 3.4, 0, 0), style: "deckchair", sitY: -0.06, approachX: -4.6, approachZ: 4.4 },
+    { propId: "camp_chair_1", x: -3.6, z: 3.4, rotationY: facing(-3.6, 3.4, 0, 0), style: "deckchair", sitY: -0.06, approachX: -4.7, approachZ: 3.6 },
     { propId: "camp_chair_2", x: 3.6, z: 3.4, rotationY: facing(3.6, 3.4, 0, 0), style: "deckchair", sitY: -0.06, approachX: 4.6, approachZ: 4.4 },
     // Stargazing blanket: you lie down here instead of sitting.
-    { propId: "blanket_1", x: 5.2, z: -3.4, rotationY: FACE_POS_Z, style: "blanket", approachX: 5.2, approachZ: -2.1 },
-    { propId: "blanket_2", x: 6.2, z: -3.4, rotationY: FACE_POS_Z, style: "blanket", approachX: 6.2, approachZ: -2.1 },
+    // One unit clear of the blue tent, so a head never ends up inside the canvas.
+    { propId: "blanket_1", x: 5.2, z: -2.4, rotationY: FACE_POS_Z, style: "blanket", approachX: 5.2, approachZ: -1.1 },
+    { propId: "blanket_2", x: 6.2, z: -2.4, rotationY: FACE_POS_Z, style: "blanket", approachX: 6.2, approachZ: -1.1 },
   ],
 
   sunset_beach: [
@@ -215,7 +216,7 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
     // Both cabinets on the back wall of the game den, two clear units of floor in front.
     { propId: "arcade_1", x: -7.0, z: -9.45, kind: "arcade", color: "#ff4fd8", defaultOn: true, approachX: -7.0, approachZ: -7.4 },
     { propId: "arcade_2", x: -5.6, z: -9.45, kind: "arcade", color: "#4fd8ff", defaultOn: false, approachX: -5.6, approachZ: -7.4 },
-    { propId: "desk_lamp_den", x: -9.0, y: 0.66, z: -7.8, kind: "desk_lamp", color: "#b18cff", defaultOn: true },
+    { propId: "desk_lamp_den", x: -9.0, y: 0.66, z: -7.8, kind: "desk_lamp", color: "#ffe2b0", defaultOn: true },
     { propId: "lamp_vinyl", x: -8.4, z: 5.5, kind: "lamp", color: "#ffc47a", defaultOn: true },
     // The record player on top of the vinyl shelf: click to change the record (or stop it).
     { propId: "turntable", x: -9.3, y: 1.7, z: 3.8, kind: "turntable", color: "#e0a93b", defaultOn: true },
@@ -241,7 +242,7 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
     // The bonfire the driftwood logs ring — same fire, so roasting works on the beach too.
     { propId: "bonfire", x: 5.0, z: -1.0, kind: "campfire", color: "#ff8a3d", defaultOn: true },
     // A woven lantern hanging under the front eave (it used to be a floor lamp on the roof).
-    { propId: "lamp_bar", x: -0.6, y: 2.02, z: -5.25, kind: "pendant", color: "#ffd08a", defaultOn: true },
+    { propId: "lamp_bar", x: -0.6, y: 2.75, z: -5.25, kind: "pendant", color: "#ffd08a", defaultOn: true },
     { propId: "beach_bar_tap", x: -1.1, y: 1.05, z: -5.95, kind: "espresso", color: "#ffb36b", defaultOn: true, approachX: -1.1, approachZ: -3.3 },
     { propId: "tiki_east", x: 7.4, y: 0.5, z: 3.0, kind: "lantern", color: "#ff9a4a", defaultOn: true },
     { propId: "tiki_west", x: -8.0, y: 0.5, z: -1.6, kind: "lantern", color: "#ff9a4a", defaultOn: true },
