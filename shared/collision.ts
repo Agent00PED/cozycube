@@ -21,29 +21,37 @@ export const WORLD_LIMIT = 9.4;
 // decorative meshes (books, mugs, shells) never appear here at all.
 export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   cozy_lounge: [
-    // --- Living room ---
-    { minX: -6.0, maxX: -2.4, minZ: -9.8, maxZ: -9.0 }, // media console under the TV
-    { minX: -6.4, maxX: -2.0, minZ: -5.2, maxZ: -4.0 }, // L-sofa, long run
-    { minX: -7.6, maxX: -6.4, minZ: -7.2, maxZ: -5.2 }, // L-sofa, return leg
-    { minX: -5.6, maxX: -3.0, minZ: -7.4, maxZ: -6.4 }, // coffee table
-    { minX: -1.5, maxX: -1.1, minZ: -5.1, maxZ: -4.7 }, // floor lamp
-    { minX: -6.3, maxX: -2.3, minZ: -3.95, maxZ: -3.5 }, // low bookshelf behind the sofa
+    // --- Living room (the middle of the floor) ---
+    { minX: -5.5, maxX: -0.5, minZ: -4.1, maxZ: -3.2 }, // slatted screen with the media console and TV
+    { minX: -5.3, maxX: -0.6, minZ: 0.5, maxZ: 1.6 }, // L-sofa, long run
+    { minX: -6.2, maxX: -5.0, minZ: -1.75, maxZ: 1.6 }, // L-sofa, return leg
+    { minX: -4.1, maxX: -1.9, minZ: -1.75, maxZ: -0.85 }, // coffee table
+    { minX: 0.3, maxX: 0.9, minZ: 0.05, maxZ: 0.65 }, // side table by the armchair
+    { minX: 0.6, maxX: 1.2, minZ: 1.2, maxZ: 1.8 }, // floor lamp
+    { minX: -5.2, maxX: -0.8, minZ: 1.7, maxZ: 2.2 }, // low bookshelf behind the sofa
+    { minX: -6.75, maxX: -6.05, minZ: -3.85, maxZ: -3.15 }, // monstera at the screen's end
+    { minX: -0.55, maxX: 0.15, minZ: 1.85, maxZ: 2.55 }, // olive tree by the sofa
     // --- Kitchen ---
     { minX: 0.8, maxX: 9.4, minZ: -9.8, maxZ: -8.8 }, // back counter run, sink and fridge grouped
     { minX: 3.3, maxX: 6.9, minZ: -6.8, maxZ: -5.6 }, // bar island
     // --- Dining set ---
-    { minX: -4.5, maxX: -2.7, minZ: 0.7, maxZ: 2.3 }, // table (chairs tuck under, so they are not boxes)
+    { minX: -0.1, maxX: 2.7, minZ: -6.9, maxZ: -5.5 }, // farmhouse table (chairs tuck under, so they are not boxes)
     // --- Gamer corner ---
     { minX: -9.8, maxX: -8.4, minZ: -8.7, maxZ: -5.7 }, // streamer desk against the left wall
-    { minX: -9.8, maxX: -9.05, minZ: -4.45, maxZ: -2.35 }, // both arcade cabinets, on the left wall
-    { minX: -7.95, maxX: -7.25, minZ: -9.65, maxZ: -8.95 }, // fern where the cabinets used to stand
-    { minX: -6.9, maxX: -5.9, minZ: -9.6, maxZ: -8.7 }, // beanbag
+    { minX: -7.5, maxX: -5.1, minZ: -9.8, maxZ: -9.0 }, // both arcade cabinets on the back wall
+    { minX: -3.7, maxX: -0.9, minZ: -9.8, maxZ: -9.3 }, // tall bookcase
+    { minX: -2.75, maxX: -2.15, minZ: -8.1, maxZ: -7.5 }, // snack table between the beanbags
     { minX: -9.6, maxX: -8.8, minZ: -9.6, maxZ: -8.8 }, // corner plant
     // --- Vinyl nook ---
     { minX: -9.8, maxX: -8.9, minZ: 2.4, maxZ: 5.2 }, // record shelf against the left wall
     { minX: -8.7, maxX: -8.1, minZ: 5.2, maxZ: 5.8 }, // floor lamp
     { minX: -7.7, maxX: -6.9, minZ: 5.2, maxZ: 6.0 }, // guitar on its stand, beside the armchair
     { minX: -7.95, maxX: -7.25, minZ: 2.85, maxZ: 3.55 }, // round side table by the armchair
+    // --- Tea corner ---
+    { minX: -2.5, maxX: -1.1, minZ: 4.3, maxZ: 5.7 }, // low round table
+    { minX: 0.0, maxX: 0.6, minZ: 6.3, maxZ: 6.9 }, // fig
+    { minX: -3.9, maxX: -3.3, minZ: 6.5, maxZ: 7.1 }, // snake plant
+    { minX: 1.5, maxX: 2.1, minZ: 3.0, maxZ: 3.6 }, // fern
     // --- Balcony deck ---
     { minX: 8.6, maxX: 9.2, minZ: 5.1, maxZ: 5.7 }, // floor lantern
     { minX: 5.2, maxX: 5.8, minZ: 0.7, maxZ: 1.3 }, // potted fig by the deck step

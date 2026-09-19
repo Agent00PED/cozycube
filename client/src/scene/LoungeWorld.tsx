@@ -3,10 +3,18 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { B, Cone, Cyl, FloorPatch, GEO, HALF, Instanced, Rug, Sph, arcGeo, noMerge, noRaycast, ringGeo, seeded, type InstanceSpec, type Materials } from "./kit";
 
-// A 20x20 penthouse in five zones — living room, kitchen, dining, gamer corner, vinyl nook —
-// wrapped round a balcony deck. Coordinates match shared/collision.ts and shared/props.ts:
-// when something moves here, its obstacle box and any approach point that passes it must move
-// too (scripts/checklayout.ts checks the latter).
+// A 20x20 "cozy modern loft", laid out as one connected home rather than furniture pushed
+// against the walls:
+//   - the LIVING ROOM is the heart of the floor: an L-sofa on a big cream rug, facing a media
+//     console that stands on a slatted oak screen;
+//   - behind that screen, the GAME DEN (desk, arcades, beanbags by a tall bookcase);
+//   - the KITCHEN runs along the back wall and its island continues straight into a long
+//     farmhouse DINING table;
+//   - a low bookshelf behind the sofa divides the living room from the TEA CORNER (low table,
+//     floor cushions) and the VINYL NOOK in the front-left;
+//   - the BALCONY deck on the front-right, where everyone arrives.
+// Coordinates match shared/collision.ts and shared/props.ts: when something moves here, its
+// obstacle box and any approach point that passes it must move too (npm run check-layout).
 //
 // The camera looks from +X/+Z, so the two walls stand along x = -HALF (screen left) and
 // z = -HALF (screen right), and the front of the room (+X/+Z) stays open.
@@ -24,6 +32,7 @@ export function LoungeWorld({ mats, wallColor }: { mats: Materials; wallColor: s
       <DiningSet mats={mats} />
       <GamerCorner mats={mats} />
       <VinylNook mats={mats} />
+      <TeaCorner mats={mats} />
       <BalconyDeck mats={mats} />
     </>
   );
@@ -69,12 +78,18 @@ function Shell({ mats, wallColor }: { mats: Materials; wallColor: string }) {
       {/* Kitchen tiles mark that zone off from the living room's wood floor. */}
       <FloorPatch x0={0.4} x1={HALF} z0={-INNER} z1={-4.4} y={0.006} m={mats.tile} />
       <KitchenTileGrid mats={mats} />
-      {/* A warm cream, hand-woven rug under the sofa and coffee table, with a darker border
-          and a woven stripe, instead of the near-black slab that used to fill this corner. */}
-      <FloorPatch x0={-7.9} x1={-1.7} z0={-8.3} z1={-3.8} y={0.008} m={mats.rugBorder} />
-      <FloorPatch x0={-7.7} x1={-1.9} z0={-8.1} z1={-4.0} y={0.012} m={mats.denCarpet} />
-      <FloorPatch x0={-7.7} x1={-1.9} z0={-7.75} z1={-7.6} y={0.014} m={mats.rugBorder} />
-      <FloorPatch x0={-7.7} x1={-1.9} z0={-4.5} z1={-4.35} y={0.014} m={mats.rugBorder} />
+      {/* The living room's big hand-woven rug, in the middle of the floor: cream with a caramel
+          border and two woven stripes. */}
+      <FloorPatch x0={-6.5} x1={1.6} z0={-3.4} z1={1.7} y={0.008} m={mats.rugBorder} />
+      <FloorPatch x0={-6.3} x1={1.4} z0={-3.2} z1={1.5} y={0.012} m={mats.denCarpet} />
+      <FloorPatch x0={-6.3} x1={1.4} z0={-2.9} z1={-2.75} y={0.014} m={mats.rugBorder} />
+      <FloorPatch x0={-6.3} x1={1.4} z0={1.05} z1={1.2} y={0.014} m={mats.rugBorder} />
+      {/* the game den's rug, navy with a neon-pink edge */}
+      <FloorPatch x0={-8.3} x1={-3.9} z0={-9.0} z1={-4.9} y={0.008} m={mats.neonPink} />
+      <FloorPatch x0={-8.25} x1={-3.95} z0={-8.95} z1={-4.95} y={0.012} m={mats.navy} />
+      {/* a runner under the farmhouse table */}
+      <FloorPatch x0={-0.6} x1={3.2} z0={-7.5} z1={-4.9} y={0.012} m={mats.terracotta} />
+      <FloorPatch x0={-0.45} x1={3.05} z0={-7.35} z1={-5.05} y={0.014} m={mats.blush} />
 
       {/* gallery wall + a clock with real hands */}
       <WallFrame x={-INNER + 0.01} y={2.0} z={-1.4} w={0.8} h={1.0} art={mats.terracotta} mats={mats} onLeftWall />
@@ -220,64 +235,80 @@ export function PottedPlant({
 function LivingRoom({ mats }: { mats: Materials }) {
   return (
     <>
+      <SlatScreen mats={mats} x0={-5.4} x1={-0.6} z={-3.95} />
 
-      {/* media console under the TV (the screen itself is the "tv" prop) */}
-      <B p={[-4.2, 0.3, -9.4]} s={[3.4, 0.6, 0.72]} m={mats.walnut} cast recv />
-      {[-5.0, -4.2, -3.4].map((x) => (
-        <B key={x} p={[x, 0.3, -9.03]} s={[0.72, 0.46, 0.02]} m={mats.darkWood} />
+      {/* media console standing against the screen; the TV on it is the "tv" prop */}
+      <B p={[-3.0, 0.3, -3.55]} s={[3.2, 0.6, 0.6]} m={mats.walnut} cast recv />
+      {[-4.05, -3.0, -1.95].map((x) => (
+        <B key={x} p={[x, 0.3, -3.24]} s={[0.95, 0.44, 0.02]} m={mats.darkWood} />
       ))}
-      <B p={[-4.2, 0.64, -9.3]} s={[1.8, 0.1, 0.14]} m={mats.black} />
-      <Cyl p={[-3.0, 0.72, -9.35]} s={[0.2, 0.22, 0.2]} m={mats.blush} />
-      <PottedPlant x={-6.7} z={-9.2} mats={mats} kind="snake" scale={0.7} />
-      <WallFrame x={-1.4} y={1.9} z={-INNER + 0.01} w={0.85} h={1.1} art={mats.rust} mats={mats} />
+      <PottedPlant x={-4.35} z={-3.6} y={0.6} mats={mats} kind="snake" scale={0.5} />
+      <Cyl p={[-1.7, 0.72, -3.6]} s={[0.2, 0.24, 0.2]} m={mats.blush} />
+      <Cyl p={[-1.45, 0.66, -3.55]} s={[0.1, 0.12, 0.1]} m={mats.warmGlow} />
 
-      {/* L-sofa: long run faces the TV, the return leg turns in toward the room's middle so
-          the corner "hugs" the open floor rather than facing a wall. */}
-      <B p={[-4.2, 0.21, -4.6]} s={[4.4, 0.42, 1.1]} m={mats.sage} cast recv />
-      <B p={[-4.2, 0.58, -4.14]} s={[4.4, 0.75, 0.2]} m={mats.sageDark} cast recv />
-      <B p={[-7.0, 0.21, -6.2]} s={[1.1, 0.42, 2.1]} m={mats.sage} cast recv />
-      <B p={[-7.46, 0.58, -5.9]} s={[0.2, 0.75, 2.7]} m={mats.sageDark} cast recv />
-      <B p={[-2.05, 0.44, -4.6]} s={[0.2, 0.46, 1.1]} m={mats.sageDark} cast />
-      {[-5.6, -4.2, -2.8].map((x) => (
-        <B key={x} p={[x, 0.46, -4.64]} s={[1.32, 0.1, 0.92]} m={mats.sage} />
+      {/* L-sofa facing the TV: the long run across the rug, the return leg on its left */}
+      <B p={[-3.0, 0.21, 1.0]} s={[4.4, 0.42, 1.1]} m={mats.sage} cast recv />
+      <B p={[-3.0, 0.58, 1.46]} s={[4.4, 0.75, 0.2]} m={mats.sageDark} cast recv />
+      <B p={[-0.7, 0.44, 1.0]} s={[0.2, 0.46, 1.1]} m={mats.sageDark} cast />
+      <B p={[-5.6, 0.21, -0.4]} s={[1.1, 0.42, 2.4]} m={mats.sage} cast recv />
+      <B p={[-6.06, 0.58, -0.1]} s={[0.2, 0.75, 3.1]} m={mats.sageDark} cast recv />
+      <B p={[-5.6, 0.44, -1.62]} s={[1.1, 0.46, 0.2]} m={mats.sageDark} cast />
+      {[-4.4, -3.0, -1.6].map((x) => (
+        <B key={x} p={[x, 0.46, 0.96]} s={[1.32, 0.1, 0.92]} m={mats.sage} />
       ))}
-      <B p={[-7.0, 0.46, -6.1]} s={[0.92, 0.1, 1.24]} m={mats.sage} />
-      {[
-        [-5.9, -4.5, mats.mustard],
-        [-2.6, -4.5, mats.terracotta],
-      ].map(([x, z, m], i) => (
-        <B key={i} p={[x as number, 0.68, z as number]} s={[0.38, 0.36, 0.13]} r={[0.12, 0, (i - 0.5) * 0.14]} m={m as THREE.Material} cast />
-      ))}
-      {/* a throw blanket folded flat on the return leg's seat */}
-      <B p={[-6.95, 0.53, -6.5]} s={[0.7, 0.04, 0.5]} r={[0, 0.2, 0]} m={mats.rust} />
+      <B p={[-5.6, 0.46, -0.5]} s={[0.92, 0.1, 1.9]} m={mats.sage} />
+      {/* throw pillows on the seat, and a blanket folded over the return leg */}
+      <B p={[-4.7, 0.68, 1.26]} s={[0.4, 0.38, 0.13]} r={[-0.14, 0, 0.08]} m={mats.mustard} cast />
+      <B p={[-1.3, 0.68, 1.26]} s={[0.4, 0.38, 0.13]} r={[-0.14, 0, -0.08]} m={mats.terracotta} cast />
+      <B p={[-5.84, 0.68, -1.15]} s={[0.13, 0.38, 0.4]} r={[0, 0, 0.14]} m={mats.blush} cast />
+      <B p={[-5.55, 0.53, -1.1]} s={[0.8, 0.04, 0.55]} r={[0, 0.2, 0]} m={mats.rust} />
 
-      {/* a low bookshelf along the sofa's back: a soft partition between lounge and walkway */}
-      <B p={[-4.3, 0.36, -3.72]} s={[3.9, 0.72, 0.4]} m={mats.oak} cast recv />
-      <B p={[-4.3, 0.73, -3.72]} s={[4.0, 0.04, 0.44]} m={mats.walnut} />
-      <LowShelfBooks mats={mats} />
-      <PottedPlant x={-5.6} z={-3.72} mats={mats} kind="snake" scale={0.45} y={0.75} />
-      <Cyl p={[-3.2, 0.84, -3.72]} s={[0.16, 0.18, 0.16]} m={mats.terracotta} />
-
-      {/* marble coffee table + tabletop styling */}
-      <B p={[-4.3, 0.4, -6.9]} s={[2.2, 0.08, 0.9]} m={mats.marble} cast recv />
-      <B p={[-4.3, 0.18, -6.9]} s={[1.8, 0.36, 0.6]} m={mats.walnut} cast />
-      <B p={[-4.8, 0.46, -6.9]} s={[0.6, 0.04, 0.4]} m={mats.brass} />
-      <Cyl p={[-4.92, 0.52, -6.94]} s={[0.1, 0.1, 0.1]} m={mats.white} />
-      <Cyl p={[-4.66, 0.52, -6.82]} s={[0.1, 0.1, 0.1]} m={mats.terracotta} />
-      <Cyl p={[-3.7, 0.5, -7.0]} s={[0.12, 0.12, 0.12]} m={mats.warmGlow} />
-      <B p={[-4.0, 0.47, -6.76]} s={[0.32, 0.06, 0.24]} m={mats.navy} r={[0, 0.3, 0]} />
-      {/* a little vase of tulips on the coffee table */}
-      <Cyl p={[-3.3, 0.53, -6.8]} s={[0.12, 0.18, 0.12]} m={mats.blush} />
+      {/* marble coffee table with a tray, mugs, a book and a vase of tulips */}
+      <B p={[-3.0, 0.4, -1.3]} s={[2.2, 0.08, 0.9]} m={mats.marble} cast recv />
+      <B p={[-3.0, 0.18, -1.3]} s={[1.8, 0.36, 0.6]} m={mats.walnut} cast />
+      <B p={[-3.5, 0.46, -1.3]} s={[0.6, 0.04, 0.4]} m={mats.brass} />
+      <Cyl p={[-3.62, 0.52, -1.34]} s={[0.1, 0.1, 0.1]} m={mats.white} />
+      <Cyl p={[-3.36, 0.52, -1.22]} s={[0.1, 0.1, 0.1]} m={mats.terracotta} />
+      <B p={[-2.7, 0.47, -1.16]} s={[0.32, 0.06, 0.24]} m={mats.navy} r={[0, 0.3, 0]} />
+      <Cyl p={[-2.1, 0.53, -1.2]} s={[0.12, 0.18, 0.12]} m={mats.blush} />
       {[-0.05, 0, 0.05].map((dx, i) => (
         <group key={dx}>
-          <Cyl p={[-3.3 + dx, 0.72, -6.8 + (i - 1) * 0.02]} s={[0.012, 0.24, 0.012]} m={mats.olive} />
-          <Sph p={[-3.3 + dx * 1.6, 0.86, -6.8 + (i - 1) * 0.03]} s={[0.06, 0.08, 0.06]} m={i === 1 ? mats.mustard : mats.terracotta} />
+          <Cyl p={[-2.1 + dx, 0.72, -1.2 + (i - 1) * 0.02]} s={[0.012, 0.24, 0.012]} m={mats.olive} />
+          <Sph p={[-2.1 + dx * 1.6, 0.86, -1.2 + (i - 1) * 0.03]} s={[0.06, 0.08, 0.06]} m={i === 1 ? mats.mustard : mats.terracotta} />
         </group>
       ))}
-      {/* bonsai on the media console */}
-      <Cyl p={[-5.3, 0.66, -9.35]} s={[0.26, 0.08, 0.16]} m={mats.charcoal} />
-      <Cyl p={[-5.3, 0.78, -9.35]} s={[0.03, 0.2, 0.03]} r={[0, 0, 0.3]} m={mats.darkWood} />
-      <Sph p={[-5.36, 0.92, -9.35]} s={[0.26, 0.12, 0.18]} m={mats.olive} />
+
+      {/* a little round side table beside the armchair across from the sofa */}
+      <Cyl p={[0.6, 0.5, 0.35]} s={[0.5, 0.04, 0.5]} m={mats.oak} cast />
+      <Cyl p={[0.6, 0.25, 0.35]} s={[0.06, 0.5, 0.06]} m={mats.walnut} />
+      <Cyl p={[0.55, 0.58, 0.32]} s={[0.1, 0.12, 0.1]} m={mats.sage} />
+
+      {/* the low bookshelf behind the sofa: a soft partition from the tea corner */}
+      <B p={[-3.0, 0.36, 1.95]} s={[4.2, 0.72, 0.4]} m={mats.oak} cast recv />
+      <B p={[-3.0, 0.73, 1.95]} s={[4.3, 0.04, 0.44]} m={mats.walnut} />
+      <LowShelfBooks mats={mats} />
+      <PottedPlant x={-4.45} z={1.95} mats={mats} kind="fern" scale={0.45} y={0.75} />
+      <Cyl p={[-1.3, 0.84, 1.95]} s={[0.16, 0.18, 0.16]} m={mats.terracotta} />
+
+      {/* big plants bookending the room's heart */}
+      <PottedPlant x={-6.4} z={-3.5} mats={mats} kind="monstera" scale={1.1} />
+      <PottedPlant x={-0.2} z={2.2} mats={mats} kind="olive" scale={0.85} />
+    </>
+  );
+}
+
+/** A slatted oak screen: open vertical battens between a top and bottom rail. */
+function SlatScreen({ mats, x0, x1, z }: { mats: Materials; x0: number; x1: number; z: number }) {
+  const slats = useMemo<InstanceSpec[]>(() => {
+    const out: InstanceSpec[] = [];
+    for (let x = x0 + 0.08; x < x1; x += 0.22) out.push({ p: [x, 1.15, z], s: [0.07, 2.2, 0.09] });
+    return out;
+  }, [x0, x1, z]);
+  return (
+    <>
+      <Instanced geo={GEO.box} m={mats.oak} items={slats} cast />
+      <B p={[(x0 + x1) / 2, 2.27, z]} s={[x1 - x0, 0.07, 0.14]} m={mats.walnut} cast />
+      <B p={[(x0 + x1) / 2, 0.05, z]} s={[x1 - x0, 0.1, 0.16]} m={mats.walnut} />
     </>
   );
 }
@@ -288,15 +319,15 @@ function LowShelfBooks({ mats }: { mats: Materials }) {
     const rand = seeded(88);
     const colors = ["#c4714a", "#2f3f5c", "#e0a93b", "#7d9471", "#a8553a", "#f0e6d2"];
     const out: InstanceSpec[] = [];
-    let x = -6.1;
-    while (x < -2.6) {
+    let x = -4.9;
+    while (x < -1.5) {
       const w = 0.06 + rand() * 0.05;
       const h = 0.22 + rand() * 0.1;
-      if (x > -5.9 && x < -5.3) {
+      if (x > -4.75 && x < -4.15) {
         x += 0.1; // leave room for the plant
         continue;
       }
-      out.push({ p: [x + w / 2, 0.75 + h / 2, -3.72], s: [w, h, 0.28], r: [0, 0, rand() < 0.1 ? 0.15 : 0], color: colors[Math.floor(rand() * colors.length)] });
+      out.push({ p: [x + w / 2, 0.75 + h / 2, 1.95], s: [w, h, 0.28], r: [0, 0, rand() < 0.1 ? 0.15 : 0], color: colors[Math.floor(rand() * colors.length)] });
       x += w + 0.01;
     }
     return out;
@@ -430,38 +461,35 @@ function CoffeeStation({ mats }: { mats: Materials }) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Dining set: centre of the room, filling the open floor between the sofa and the vinyl rug.
-// Authored around (3.8, -1.4) and moved as a group; shared/props.ts places its four chairs.
+// Dining: a long farmhouse table running straight on from the kitchen island, so cooking,
+// the bar stools and dinner are one continuous social line. shared/props.ts places the chairs.
 // ---------------------------------------------------------------------------------------
-
-// Pulled 2.5 units forward into the true middle of the room, on the kitchen island's axis.
-const DINING_OFFSET: [number, number, number] = [-7.4, 0, 2.9]; // table centre (-3.6, 1.5)
 
 function DiningSet({ mats }: { mats: Materials }) {
   return (
-    <group position={DINING_OFFSET}>
-      {/* a woven rug under the table anchors the zone */}
-      <B p={[3.8, 0.05, -1.4]} s={[3.4, 0.01, 3.0]} m={mats.terracotta} recv />
-      <B p={[3.8, 0.056, -1.4]} s={[3.0, 0.01, 2.6]} m={mats.blush} recv />
-      <B p={[3.8, 0.74, -1.4]} s={[1.7, 0.08, 1.5]} m={mats.oak} cast recv />
-      <B p={[3.8, 0.4, -1.4]} s={[0.24, 0.7, 0.24]} m={mats.walnut} cast />
-      <B p={[3.8, 0.06, -1.4]} s={[1.1, 0.1, 1.0]} m={mats.walnut} cast />
-      {/* a runner, a vase of dried flowers and two place settings */}
-      <B p={[3.8, 0.79, -1.4]} s={[1.5, 0.01, 0.42]} m={mats.blush} />
-      <Cyl p={[3.8, 0.92, -1.4]} s={[0.18, 0.28, 0.18]} m={mats.glass} />
-      {[0, 1, 2].map((i) => (
-        <Cyl key={i} p={[3.8 + Math.sin(i * 2) * 0.05, 1.16, -1.4 + Math.cos(i * 2) * 0.05]} s={[0.02, 0.5, 0.02]} r={[Math.sin(i) * 0.2, 0, Math.cos(i) * 0.2]} m={mats.olive} />
+    <>
+      <B p={[1.3, 0.74, -6.2]} s={[2.7, 0.08, 1.3]} m={mats.oak} cast recv />
+      {[-0.0, 2.6].map((x) =>
+        [-6.7, -5.7].map((z) => <B key={`${x}${z}`} p={[x, 0.36, z]} s={[0.1, 0.72, 0.1]} m={mats.walnut} cast />)
+      )}
+      {/* runner, a jug of wildflowers and four place settings */}
+      <B p={[1.3, 0.79, -6.2]} s={[2.3, 0.01, 0.4]} m={mats.cream} />
+      <Cyl p={[1.3, 0.92, -6.2]} s={[0.18, 0.28, 0.18]} m={mats.glass} />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <Sph key={i} p={[1.3 + Math.sin(i * 1.3) * 0.08, 1.12 + (i % 2) * 0.05, -6.2 + Math.cos(i * 1.3) * 0.08]} s={0.06} m={i % 2 ? mats.mustard : mats.blush} />
       ))}
       {[
-        [3.15, -1.4],
-        [4.45, -1.4],
-      ].map(([x, z], i) => (
-        <group key={i}>
-          <Cyl p={[x, 0.79, z]} s={[0.4, 0.02, 0.4]} m={mats.white} />
-          <Cyl p={[x, 0.81, z]} s={[0.22, 0.02, 0.22]} m={mats.terracotta} />
+        [0.7, -5.75],
+        [1.9, -5.75],
+        [0.7, -6.65],
+        [1.9, -6.65],
+      ].map(([x, z]) => (
+        <group key={`${x}${z}`}>
+          <Cyl p={[x, 0.79, z]} s={[0.36, 0.02, 0.36]} m={mats.white} />
+          <Cyl p={[x, 0.81, z]} s={[0.2, 0.02, 0.2]} m={mats.terracotta} />
         </group>
       ))}
-    </group>
+    </>
   );
 }
 
@@ -470,6 +498,26 @@ function DiningSet({ mats }: { mats: Materials }) {
 // ---------------------------------------------------------------------------------------
 
 function GamerCorner({ mats }: { mats: Materials }) {
+  const books = useMemo<InstanceSpec[]>(() => {
+    const rand = seeded(311);
+    const colors = ["#c4714a", "#2f3f5c", "#e0a93b", "#7d9471", "#a8553a", "#f0e6d2", "#5b3a63"];
+    const out: InstanceSpec[] = [];
+    for (const y of [0.42, 1.02, 1.62]) {
+      let x = -3.55;
+      while (x < -1.05) {
+        const w = 0.06 + rand() * 0.05;
+        const h = 0.26 + rand() * 0.14;
+        if (rand() < 0.1) {
+          x += 0.25; // a gap for a trinket
+          continue;
+        }
+        out.push({ p: [x + w / 2, y + h / 2, -9.55], s: [w, h, 0.3], color: colors[Math.floor(rand() * colors.length)] });
+        x += w + 0.012;
+      }
+    }
+    return out;
+  }, []);
+
   return (
     <>
       <group position={[-9.05, 0, -7.2]} rotation={[0, Math.PI / 2, 0]}>
@@ -489,8 +537,6 @@ function GamerCorner({ mats }: { mats: Materials }) {
         ))}
         <mesh geometry={GEO.torus} material={mats.neonCyan} position={[-1.1, 1.3, -0.24]} scale={[0.42, 0.42, 0.42]} raycast={noRaycast} />
         <Cyl p={[-1.1, 0.92, -0.24]} s={[0.03, 0.56, 0.03]} m={mats.black} />
-        <Cyl p={[1.05, 0.88, 0.18]} s={[0.03, 0.4, 0.03]} m={mats.black} r={[0.5, 0, 0]} />
-        <Sph p={[1.05, 1.05, 0.28]} s={[0.1, 0.15, 0.1]} m={mats.charcoal} />
         <B p={[1.1, 0.3, -0.22]} s={[0.4, 0.6, 0.55]} m={mats.black} cast />
         <B p={[1.1, 0.3, 0.06]} s={[0.34, 0.52, 0.01]} m={mats.neonPink} />
       </group>
@@ -505,18 +551,74 @@ function GamerCorner({ mats }: { mats: Materials }) {
           </group>
         ))}
       </group>
+      {/* neon art over the two arcade cabinets on the back wall */}
+      <WallFrame x={-7.0} y={2.3} z={-INNER + 0.01} w={0.55} h={0.38} art={mats.neonCyan} mats={mats} />
+      <WallFrame x={-5.6} y={2.3} z={-INNER + 0.01} w={0.55} h={0.38} art={mats.neonPink} mats={mats} />
 
-      <WallFrame x={-7.4} y={2.2} z={-INNER + 0.01} w={0.55} h={0.38} art={mats.neonCyan} mats={mats} />
-      {/* where the arcade cabinets used to stand: a fern and a slouchy beanbag */}
-      <PottedPlant x={-7.6} z={-9.3} mats={mats} kind="fern" scale={0.9} />
-      <Sph p={[-6.4, 0.22, -9.1]} s={[0.9, 0.45, 0.8]} m={mats.mustard} cast />
-      <Sph p={[-6.4, 0.46, -9.35]} s={[0.7, 0.35, 0.3]} m={mats.mustard} />
-      <WallFrame x={-6.1} y={2.2} z={-INNER + 0.01} w={0.55} h={0.38} art={mats.neonPink} mats={mats} />
+      {/* a tall bookcase on the back wall, with two beanbags in front of it */}
+      <B p={[-2.3, 1.1, -9.55]} s={[2.7, 2.2, 0.45]} m={mats.walnut} cast recv />
+      {[0.4, 1.0, 1.6].map((y) => (
+        <B key={y} p={[-2.3, y, -9.36]} s={[2.62, 0.04, 0.1]} m={mats.darkWood} />
+      ))}
+      <Instanced geo={GEO.box} m={mats.tintable} items={books} />
+      <PottedPlant x={-2.3} z={-9.5} y={2.2} mats={mats} kind="fern" scale={0.5} />
+      <Beanbag x={-3.3} z={-7.3} m={mats.mustard} mats={mats} />
+      <Beanbag x={-1.6} z={-7.3} m={mats.sage} mats={mats} />
+      {/* snack table between them */}
+      <Cyl p={[-2.45, 0.18, -7.8]} s={[0.5, 0.36, 0.5]} m={mats.charcoal} cast />
+      <Cyl p={[-2.45, 0.39, -7.8]} s={[0.3, 0.08, 0.3]} m={mats.white} />
+      <Sph p={[-2.45, 0.44, -7.8]} s={[0.24, 0.08, 0.24]} m={mats.mustard} />
+    </>
+  );
+}
 
-      {/* snack table between the cabinets and the sofa */}
-      <Cyl p={[-6.6, 0.18, -6.9]} s={[0.5, 0.36, 0.5]} m={mats.charcoal} cast />
-      <Cyl p={[-6.6, 0.39, -6.9]} s={[0.3, 0.08, 0.3]} m={mats.white} />
-      <Sph p={[-6.6, 0.44, -6.9]} s={[0.24, 0.08, 0.24]} m={mats.mustard} />
+/** A slouchy beanbag for a floor seat (its seat in props.ts is style "pad"). */
+function Beanbag({ x, z, m, mats }: { x: number; z: number; m: THREE.Material; mats: Materials }) {
+  return (
+    <group position={[x, 0, z]}>
+      <Sph p={[0, 0.2, 0]} s={[0.9, 0.42, 0.85]} m={m} cast />
+      <Sph p={[0, 0.42, -0.28]} s={[0.72, 0.38, 0.34]} m={m} />
+      <Sph p={[0, 0.02, 0]} s={[0.92, 0.04, 0.88]} m={mats.charcoal} />
+    </group>
+  );
+}
+
+/** A plump floor cushion (seat style "pad"). */
+function FloorCushion({ x, z, m }: { x: number; z: number; m: THREE.Material }) {
+  return (
+    <group position={[x, 0, z]}>
+      <Cyl p={[0, 0.09, 0]} s={[0.62, 0.16, 0.62]} m={m} cast />
+      <Sph p={[0, 0.17, 0]} s={[0.58, 0.08, 0.58]} m={m} />
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// Tea corner: a low round table on its own rug with floor cushions, behind the sofa
+// ---------------------------------------------------------------------------------------
+
+function TeaCorner({ mats }: { mats: Materials }) {
+  return (
+    <>
+      <Rug x={-1.8} z={5.0} radius={1.7} y={0.012} m={mats.rugBorder} />
+      <Rug x={-1.8} z={5.0} radius={1.55} y={0.016} m={mats.denCarpet} />
+      <Cyl p={[-1.8, 0.3, 5.0]} s={[1.3, 0.06, 1.3]} m={mats.oak} cast recv />
+      <Cyl p={[-1.8, 0.14, 5.0]} s={[0.9, 0.28, 0.9]} m={mats.walnut} cast />
+      {/* a teapot, two cups and a plate of biscuits */}
+      <Sph p={[-1.8, 0.43, 5.0]} s={[0.24, 0.2, 0.24]} m={mats.sage} />
+      <Cyl p={[-1.8, 0.54, 5.0]} s={[0.09, 0.03, 0.09]} m={mats.sage} />
+      <Cyl p={[-1.66, 0.45, 5.0]} s={[0.04, 0.14, 0.04]} r={[0, 0, -0.9]} m={mats.sage} />
+      <Cyl p={[-2.2, 0.38, 4.8]} s={[0.1, 0.1, 0.1]} m={mats.white} />
+      <Cyl p={[-1.4, 0.38, 5.25]} s={[0.1, 0.1, 0.1]} m={mats.white} />
+      <Cyl p={[-2.05, 0.34, 5.35]} s={[0.3, 0.02, 0.3]} m={mats.white} />
+      <Cyl p={[-2.05, 0.36, 5.35]} s={[0.1, 0.02, 0.1]} m={mats.mustard} />
+      <FloorCushion x={-3.0} z={4.9} m={mats.terracotta} />
+      <FloorCushion x={-0.7} z={5.5} m={mats.mustard} />
+      <FloorCushion x={-2.0} z={6.25} m={mats.blush} />
+      {/* a paper floor lantern and plants round the edge */}
+      <PottedPlant x={0.3} z={6.6} mats={mats} kind="fig" scale={1.0} />
+      <PottedPlant x={-3.6} z={6.8} mats={mats} kind="snake" scale={0.8} />
+      <PottedPlant x={1.8} z={3.3} mats={mats} kind="fern" scale={0.8} />
     </>
   );
 }

@@ -258,13 +258,20 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
         syncBall();
       }
 
-      const r = room.state.roulette;
-      if (r) {
+      // Follow the roulette through `listen`, not a one-off reference: the object present at
+      // join time can be a placeholder that the first full state replaces, and a listener left
+      // on that would freeze the wheel and the betting board on their first phase.
+      let attached: any = null;
+      const attachRoulette = (r: any) => {
+        if (!r || r === attached) return;
+        attached = r;
         const syncRoulette = () =>
           setRoulette({ phase: r.phase as RoulettePhase, timeLeft: r.timeLeft, result: r.result, spinId: r.spinId });
         r.onChange(syncRoulette);
         syncRoulette();
-      }
+      };
+      room.state.listen("roulette", attachRoulette);
+      attachRoulette(room.state.roulette);
       if (room.state.bets) {
         room.state.bets.onAdd((value: string, sessionId: string) => setBets((prev) => ({ ...prev, [sessionId]: value })));
         room.state.bets.onChange((value: string, sessionId: string) => setBets((prev) => ({ ...prev, [sessionId]: value })));

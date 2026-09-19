@@ -55,9 +55,11 @@ interface ActionDockProps {
   toggleables: Record<string, ToggleableSyncState>;
   localSessionId: string;
   onCastLine: (afk?: boolean) => void;
+  /** The betting board is already up: no need to offer it. */
+  rouletteOpen?: boolean;
 }
 
-export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onCastLine }: ActionDockProps) {
+export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onCastLine, rouletteOpen = false }: ActionDockProps) {
   const [actions, setActions] = useState<Action[]>([]);
   const latest = useRef({ chairs, toggleables, mapId, localSessionId });
   latest.current = { chairs, toggleables, mapId, localSessionId };
@@ -116,7 +118,9 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         const dx = px - ROULETTE_CENTER.x;
         const dz = pz - ROULETTE_CENTER.z;
         const d = Math.hypot(dx, dz);
-        if (d >= ROULETTE_BET_RADIUS - 0.2 && d < ROULETTE_BET_RADIUS + REACH) {
+        if (d < ROULETTE_BET_RADIUS - 0.2) {
+          found.push({ key: "roulette-open", label: "🎡 Betting board", d: 0, run: () => window.dispatchEvent(new Event("cozy-open-roulette")) });
+        } else if (d < ROULETTE_BET_RADIUS + REACH) {
           const k = 3.0 / (d || 1);
           found.push({
             key: "roulette",
@@ -151,11 +155,12 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
   }, [onPier, player.action, onCastLine]);
 
   // Busy (seated, fishing, brewing): the activity bar has the controls, not the dock.
-  if (player.sitting || player.action !== "" || actions.length === 0) return null;
+  const shown = rouletteOpen ? actions.filter((a) => a.key !== "roulette-open") : actions;
+  if (player.sitting || player.action !== "" || shown.length === 0) return null;
 
   return (
     <div style={styles.dock}>
-      {actions.map((a) => (
+      {shown.map((a) => (
         <button
           key={a.key}
           type="button"

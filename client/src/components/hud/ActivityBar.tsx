@@ -1,29 +1,25 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
-  CHIP_VALUES,
+  AFK_FISH_MAX_S,
+  AFK_FISH_MIN_S,
   ITEMS,
-  MAX_BET_TOTAL,
-  ROULETTE_BET_RADIUS,
-  ROULETTE_CENTER,
   TOAST_MAX,
   parseBag,
-  parseBets,
   type ChairSyncState,
   type ItemId,
   type MapId,
   type PlayerState,
-  type RouletteSyncState,
 } from "@shared/types";
 import { isFishingSeat } from "@shared/props";
 import { glass, hudText, pillButton } from "./glass";
-import { playChip, playClick, playSplash } from "../../audio/sfx";
+import { playClick, playSplash } from "../../audio/sfx";
 
 interface ActivityBarProps {
   player: PlayerState;
   chairs: Record<string, ChairSyncState>;
   localSessionId: string;
   mapId: MapId;
-  roulette: RouletteSyncState;
+  roulette: unknown;
   myBets: string;
   onRoast: () => void;
   onEat: () => void;
@@ -57,25 +53,15 @@ export function ActivityBar(props: ActivityBarProps) {
   const bite = fishing && player.actionProgress >= 1;
   const bag = parseBag(player.bag);
   const bagCount = Object.values(bag).reduce((a, b) => a + (b ?? 0), 0);
-  const atRoulette =
-    mapId === "velvet_casino" && Math.hypot(player.x - ROULETTE_CENTER.x, player.z - ROULETTE_CENTER.z) < ROULETTE_BET_RADIUS && !player.sitting;
 
   const hasActions = onLog || roasting || holdingCoffee || brewing || onPier;
 
-  // A soft splash whenever chill-mode fishing brings something in.
-  const haul = player.coins + bagCount;
-  const lastHaul = useRef(haul);
-  useEffect(() => {
-    if (afkFishing && haul > lastHaul.current) playSplash();
-    lastHaul.current = haul;
-  }, [haul, afkFishing]);
-  if (!hasActions && bagCount === 0 && !atRoulette) return null;
+  if (!hasActions && bagCount === 0 && !afkFishing) return null;
 
   const d = doneness(player.toast);
 
   return (
     <div style={styles.stack}>
-      {atRoulette && <BettingBoard roulette={roulette} myBets={myBets} coins={player.coins} onPlaceBet={props.onPlaceBet} onClearBets={props.onClearBets} />}
       {(hasActions || bagCount > 0) && (
         <div style={styles.bar}>
           {brewing && <span style={styles.status}>☕ Brewing… {Math.round(player.actionProgress * 100)}%</span>}
@@ -90,19 +76,7 @@ export function ActivityBar(props: ActivityBarProps) {
               </button>
             </>
           )}
-          {afkFishing && (
-            <>
-              <div style={styles.meterWrap} aria-label="Chill fishing">
-                <span style={styles.status}>☕ Chill fishing — something every ~40 s</span>
-                <div style={styles.meterTrack}>
-                  <div style={{ ...styles.meterFill, width: `${player.actionProgress * 100}%`, background: "#7fc6d9" }} />
-                </div>
-              </div>
-              <button type="button" style={styles.ghost} onClick={onReelIn}>
-                Stop
-              </button>
-            </>
-          )}
+          {afkFishing && <ChillFishing player={player} onStop={onReelIn} />}
           {fishing && !bite && (
             <>
               <span style={styles.status}>🎣 Watching the float…</span>
@@ -156,6 +130,60 @@ export function ActivityBar(props: ActivityBarProps) {
   );
 }
 
+/** Chill-mode fishing: a calm card with the wait for the next haul and what has come in. */
+function ChillFishing({ player, onStop }: { player: PlayerState; onStop: () => void }) {
+  const [log, setLog] = useState<{ id: number; text: string }[]>([]);
+  const [session, setSession] = useState({ coins: 0, fish: 0 });
+  const prev = useRef({ coins: player.coins, bag: parseBag(player.bag) });
+  useEffect(() => {
+    const bag = parseBag(player.bag);
+    const before = prev.current;
+    const gained: string[] = [];
+    const dc = player.coins - before.coins;
+    if (dc > 0) gained.push(`+${dc} 🪙`);
+    let fish = 0;
+    for (const id of Object.keys(bag) as ItemId[]) {
+      const n = (bag[id] ?? 0) - (before.bag[id] ?? 0);
+      if (n > 0) {
+        gained.push(`${ITEMS[id].emoji} ${ITEMS[id].name}`);
+        fish += n;
+      }
+    }
+    prev.current = { coins: player.coins, bag };
+    if (!gained.length) return;
+    playSplash();
+    setSession((s0) => ({ coins: s0.coins + Math.max(0, dc), fish: s0.fish + fish }));
+    setLog((l) => [{ id: Date.now(), text: gained.join(" · ") }, ...l].slice(0, 3));
+  }, [player.coins, player.bag]);
+
+  // The server keeps the exact moment; the wait is always 35-45 s, so this is honest to a few seconds.
+  const secondsLeft = Math.max(1, Math.round((1 - player.actionProgress) * ((AFK_FISH_MIN_S + AFK_FISH_MAX_S) / 2)));
+  return (
+    <div style={styles.chill}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 22 }} className="cozy-bob">🎣</span>
+        <div style={{ flex: 1 }}>
+          <div style={styles.status}>Chill fishing · next bite in ~{secondsLeft}s</div>
+          <div style={styles.meterTrack}>
+            <div style={{ ...styles.meterFill, width: `${player.actionProgress * 100}%`, background: "#7fc6d9", transition: "width 0.5s linear" }} />
+          </div>
+        </div>
+        <button type="button" style={styles.ghost} onClick={onStop}>
+          Stop
+        </button>
+      </div>
+      <div style={styles.chillStats}>
+        <span>This session: {session.fish} 🐟 · {session.coins} 🪙</span>
+        {log[0] && (
+          <span key={log[0].id} className="cozy-coin-bump" style={styles.chillLast}>
+            {log[0].text}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** The personal fish bucket / forage bag, and who buys what. */
 function Bucket({ bag, count }: { bag: ReturnType<typeof parseBag>; count: number }) {
   const [open, setOpen] = useState(false);
@@ -194,97 +222,11 @@ function Bucket({ bag, count }: { bag: ReturnType<typeof parseBag>; count: numbe
   );
 }
 
-const OUTSIDE: { kind: string; label: string; bg: string; fg: string }[] = [
-  { kind: "red", label: "Red", bg: "#b3202e", fg: "#fff" },
-  { kind: "black", label: "Black", bg: "#1c1c22", fg: "#fff" },
-  { kind: "odd", label: "Odd", bg: "rgba(255,255,255,0.8)", fg: "#3a2415" },
-  { kind: "even", label: "Even", bg: "rgba(255,255,255,0.8)", fg: "#3a2415" },
-];
-const RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
-
-/** The roulette betting board: pick a chip, then tap where to put it. */
-function BettingBoard({
-  roulette,
-  myBets,
-  coins,
-  onPlaceBet,
-  onClearBets,
-}: {
-  roulette: RouletteSyncState;
-  myBets: string;
-  coins: number;
-  onPlaceBet: (kind: string, amount: number) => void;
-  onClearBets: () => void;
-}) {
-  const [chip, setChip] = useState<number>(CHIP_VALUES[0]);
-  const [numbers, setNumbers] = useState(false);
-  const bets = parseBets(myBets);
-  const staked = Object.values(bets).reduce((a, b) => a + b, 0);
-  const open = roulette.phase === "betting";
-  const canBet = open && coins >= chip && staked + chip <= MAX_BET_TOTAL;
-  const place = (kind: string) => {
-    if (!canBet) return;
-    playClick();
-    playChip();
-    onPlaceBet(kind, chip);
-  };
-
-  return (
-    <div style={{ ...styles.bar, flexDirection: "column", borderRadius: 20, alignItems: "stretch", padding: 8, gap: 6 }}>
-      <div style={styles.boardHead}>
-        <span style={styles.status}>
-          🎡 {open ? `Bets close in ${roulette.timeLeft}s` : roulette.phase === "spinning" ? "Spinning… no more bets" : `Result: ${roulette.result}`}
-        </span>
-        <span style={{ ...styles.status, opacity: 0.75 }}>On the table: {staked} 🪙</span>
-      </div>
-      <div style={styles.row}>
-        {CHIP_VALUES.map((v) => (
-          <button key={v} type="button" onClick={() => setChip(v)} aria-pressed={chip === v} style={{ ...styles.chip, ...(chip === v ? styles.chipOn : null) }}>
-            {v}
-          </button>
-        ))}
-        <span style={{ width: 6 }} />
-        {OUTSIDE.map((o) => (
-          <button key={o.kind} type="button" disabled={!canBet} onClick={() => place(o.kind)} style={{ ...styles.betBtn, background: o.bg, color: o.fg, opacity: canBet ? 1 : 0.5 }}>
-            {o.label}
-            {bets[o.kind] ? ` · ${bets[o.kind]}` : ""}
-          </button>
-        ))}
-        <button type="button" onClick={() => setNumbers((n) => !n)} style={styles.betBtnGhost} aria-expanded={numbers}>
-          # Number
-        </button>
-        {staked > 0 && open && (
-          <button type="button" onClick={onClearBets} style={styles.betBtnGhost}>
-            Take back
-          </button>
-        )}
-      </div>
-      {numbers && (
-        <div style={styles.numberGrid}>
-          {Array.from({ length: 37 }, (_, n) => (
-            <button
-              key={n}
-              type="button"
-              disabled={!canBet}
-              onClick={() => place(`n${n}`)}
-              style={{
-                ...styles.num,
-                background: n === 0 ? "#1f8a4c" : RED.has(n) ? "#b3202e" : "#1c1c22",
-                outline: bets[`n${n}`] ? "2px solid #ffd35c" : "none",
-                opacity: canBet ? 1 : 0.5,
-              }}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-      )}
-      <span style={styles.hint}>Red/Black/Odd/Even pay 2×, a single number pays 36×.</span>
-    </div>
-  );
-}
 
 const styles: Record<string, CSSProperties> = {
+  chill: { ...glass, background: "rgba(240, 250, 252, 0.8)", borderRadius: 18, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6, minWidth: 280 },
+  chillStats: { ...hudText, display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, opacity: 0.85 },
+  chillLast: { fontWeight: 800, color: "#2c6f86" },
   stack: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, maxWidth: "calc(100vw - 24px)" },
   bar: {
     ...glass,

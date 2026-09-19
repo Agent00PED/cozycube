@@ -82,19 +82,19 @@ const FACE_POS_Z = 0;
 // (inner faces at -9.8), and the open sides are +X and +Z — the camera looks from that corner.
 export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   cozy_lounge: [
-    // --- Living room: L-sofa opening onto the middle of the room ---
-    // Approached from the FRONT (the strip between sofa and coffee table): the low bookshelf
-    // now closes off the sofa's back.
-    ...[-5.6, -4.2, -2.8].map((x, i) => ({
+    // --- Living room, the heart of the floor: L-sofa facing the TV on the slatted screen ---
+    // Approached from the strip between the sofa and the coffee table.
+    ...[-4.4, -3.0, -1.6].map((x, i) => ({
       propId: `sofa_${i + 1}`,
       x,
-      z: -4.6,
+      z: 1.0,
       rotationY: FACE_NEG_Z,
       style: "pad" as const,
       approachX: x,
-      approachZ: -5.8,
+      approachZ: 0.0,
     })),
-    { propId: "sofa_4", x: -7.0, z: -6.0, rotationY: FACE_POS_X, style: "pad", approachX: -6.0, approachZ: -6.1 },
+    { propId: "sofa_4", x: -5.6, z: -0.6, rotationY: FACE_POS_X, style: "pad", approachX: -4.6, approachZ: -0.3 },
+    { propId: "armchair_2", x: 0.5, z: -1.1, rotationY: FACE_NEG_X, style: "armchair", sitY: 0.03, approachX: -0.4, approachZ: -0.3 },
 
     // --- Kitchen bar: three stools along the island ---
     ...[3.9, 5.1, 6.3].map((x, i) => ({
@@ -109,18 +109,25 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     })),
 
     // --- Dining set: four chairs round the table, bridging kitchen and living room ---
-    { propId: "dining_1", x: -4.8, z: 1.5, rotationY: FACE_POS_X, style: "wood", sitY: 0.04, approachX: -6.0, approachZ: 1.5 },
-    { propId: "dining_2", x: -2.4, z: 1.5, rotationY: FACE_NEG_X, style: "wood", sitY: 0.04, approachX: -1.2, approachZ: 1.5 },
-    { propId: "dining_3", x: -3.6, z: 0.3, rotationY: FACE_POS_Z, style: "wood", sitY: 0.04, approachX: -3.6, approachZ: -0.5 },
-    { propId: "dining_4", x: -3.6, z: 2.7, rotationY: FACE_NEG_Z, style: "wood", sitY: 0.04, approachX: -3.6, approachZ: 3.8 },
+    // Farmhouse table running on from the island: two chairs each side.
+    { propId: "dining_1", x: 0.7, z: -5.1, rotationY: FACE_NEG_Z, style: "wood", sitY: 0.04, approachX: 0.7, approachZ: -4.3 },
+    { propId: "dining_2", x: 1.9, z: -5.1, rotationY: FACE_NEG_Z, style: "wood", sitY: 0.04, approachX: 1.9, approachZ: -4.3 },
+    { propId: "dining_3", x: 0.7, z: -7.3, rotationY: FACE_POS_Z, style: "wood", sitY: 0.04, approachX: 0.2, approachZ: -8.0 },
+    { propId: "dining_4", x: 1.9, z: -7.3, rotationY: FACE_POS_Z, style: "wood", sitY: 0.04, approachX: 1.4, approachZ: -8.0 },
+
+    // --- Game den: two beanbags by the bookcase ---
+    { propId: "beanbag_1", x: -3.3, z: -7.3, rotationY: FACE_POS_Z, style: "pad", approachX: -3.3, approachZ: -6.2 },
+    { propId: "beanbag_2", x: -1.6, z: -7.3, rotationY: FACE_POS_Z, style: "pad", approachX: -1.6, approachZ: -6.2 },
 
     // --- Gamer corner ---
     { propId: "gamer_chair_1", x: -8.1, z: -7.2, rotationY: FACE_POS_Z, style: "gaming", approachX: -8.1, approachZ: -5.9 },
 
     // --- Vinyl nook: an armchair and two floor cushions by the record player ---
     { propId: "armchair_1", x: -7.6, z: 4.2, rotationY: FACE_POS_X, style: "armchair", sitY: 0.03, approachX: -6.2, approachZ: 4.2 },
-    { propId: "cushion_1", x: -5.9, z: 5.7, rotationY: -2.2, style: "pad", approachX: -4.9, approachZ: 6.4 },
-    { propId: "cushion_2", x: -4.6, z: 4.3, rotationY: -1.9, style: "pad", approachX: -3.6, approachZ: 4.8 },
+    // --- Tea corner: three floor cushions round the low table ---
+    { propId: "cushion_1", x: -3.0, z: 4.9, rotationY: FACE_POS_X, style: "pad", approachX: -3.9, approachZ: 4.4 },
+    { propId: "cushion_2", x: -0.7, z: 5.5, rotationY: FACE_NEG_X, style: "pad", approachX: 0.2, approachZ: 5.0 },
+    { propId: "cushion_3", x: -2.0, z: 6.25, rotationY: Math.PI, style: "pad", approachX: -2.0, approachZ: 7.2 },
 
     // --- Balcony deck: loungers looking out over the edge ---
     { propId: "deckchair_1", x: 7.6, z: 4.2, rotationY: FACE_POS_X, style: "deckchair", sitY: -0.06, approachX: 6.3, approachZ: 4.2 },
@@ -199,20 +206,22 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
 
 export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
   cozy_lounge: [
-    { propId: "tv", x: -4.2, y: 1.62, z: -9.72, kind: "tv", color: "#9ad1e8", defaultOn: true },
-    { propId: "lamp_living", x: -1.3, z: -4.9, kind: "lamp", color: "#ffcf8a", defaultOn: true },
+    // The TV stands on the media console against the slatted screen, facing the sofa.
+    { propId: "tv", x: -3.0, y: 1.42, z: -3.62, kind: "tv", color: "#9ad1e8", defaultOn: true },
+    { propId: "lamp_living", x: 0.9, z: 1.5, kind: "lamp", color: "#ffcf8a", defaultOn: true },
     { propId: "espresso", x: 2.4, y: 0.95, z: -9.25, kind: "espresso", color: "#ffb36b", defaultOn: true, approachX: 2.4, approachZ: -8.0 },
     // Both cabinets stand against the left wall just past the streamer desk, facing into the room
     // with two clear units of floor in front of them.
-    { propId: "arcade_1", x: -9.45, z: -4.0, rotationY: Math.PI / 2, kind: "arcade", color: "#ff4fd8", defaultOn: true, approachX: -7.3, approachZ: -4.0 },
-    { propId: "arcade_2", x: -9.45, z: -2.8, rotationY: Math.PI / 2, kind: "arcade", color: "#4fd8ff", defaultOn: false, approachX: -7.3, approachZ: -2.8 },
+    // Both cabinets on the back wall of the game den, two clear units of floor in front.
+    { propId: "arcade_1", x: -7.0, z: -9.45, kind: "arcade", color: "#ff4fd8", defaultOn: true, approachX: -7.0, approachZ: -7.4 },
+    { propId: "arcade_2", x: -5.6, z: -9.45, kind: "arcade", color: "#4fd8ff", defaultOn: false, approachX: -5.6, approachZ: -7.4 },
     { propId: "desk_lamp_den", x: -9.0, y: 0.66, z: -7.8, kind: "desk_lamp", color: "#b18cff", defaultOn: true },
     { propId: "lamp_vinyl", x: -8.4, z: 5.5, kind: "lamp", color: "#ffc47a", defaultOn: true },
     // The record player on top of the vinyl shelf: click to change the record (or stop it).
     { propId: "turntable", x: -9.3, y: 1.7, z: 3.8, kind: "turntable", color: "#e0a93b", defaultOn: true },
     { propId: "lantern_balcony", x: 8.9, z: 5.4, kind: "lantern", color: "#ffbe6b", defaultOn: true },
     // Mochi the cat, asleep on the rug. Walk up and pet her.
-    { propId: "cat_mochi", x: -2.4, z: -6.9, kind: "cat", color: "#f0a860", defaultOn: true, approachX: -1.7, approachZ: -6.3 },
+    { propId: "cat_mochi", x: -0.9, z: -2.5, kind: "cat", color: "#f0a860", defaultOn: true, approachX: -0.3, approachZ: -1.9 },
   ],
 
   campfire_night: [

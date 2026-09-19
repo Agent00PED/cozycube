@@ -2,7 +2,7 @@ import { forwardRef, memo, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Html, Text } from "@react-three/drei";
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { ACTIVITY_STATUSES, GESTURE_SECONDS, isActivityStatus, TOAST_MAX, defaultLook, hashString, parseLook, type Accessory, type Gesture, type HairStyle, type HeldItem, type PlayerAction, type SitPose } from "@shared/types";
 import { GEO, arcGeo, noRaycast, ringGeo } from "../scene/kit";
 
@@ -87,7 +87,6 @@ const G = {
   head: new THREE.SphereGeometry(HEAD_R, 24, 18),
   // Hair is a real shell standing ~0.07 off the skull (not a swim-cap hugging it), tipped back
   // so the forehead shows, with separate bangs and per-style volumes on top.
-  hairShell: new THREE.SphereGeometry(HEAD_R + 0.07, 26, 14, 0, Math.PI * 2, 0, Math.PI * 0.56),
   beanieShell: new THREE.SphereGeometry(HEAD_R + 0.11, 26, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
   collar: new THREE.TorusGeometry(0.19, 0.055, 8, 22),
   eye: new THREE.SphereGeometry(0.048, 10, 8),
@@ -236,7 +235,8 @@ export const Character3D = memo(
         const holdingCup = holding === "coffee";
         const fishing = action === "fish" || action === "afkfish";
         // AFK and standing about: curl up for a nap where you are until you're back.
-        const afkNap = status === "afk" && !walking && pose === "stand";
+        // AFK: stay on your feet, eyes shut, swaying gently like someone dozing standing up.
+        const dozing = status === "afk" && !walking && pose === "stand";
 
         // --- limbs ---
         let leftArm = swing * ARM_SWING;
@@ -285,12 +285,12 @@ export const Character3D = memo(
         // --- body: waddle when walking, breathe when still, lie flat on a blanket ---
         const body = bodyRef.current;
         if (body) {
-          const lying = pose === "lie" || g === "nap" || afkNap;
+          const lying = pose === "lie" || g === "nap";
           const danceBob = g === "dance" ? Math.abs(Math.sin(gAge * 7)) * 0.08 : 0;
           const bob = walking ? Math.abs(Math.sin(phase)) * BOB_HEIGHT : danceBob;
           body.position.y = L(body.position.y, lying ? LIE_LIFT : bob, lerp);
           body.rotation.x = L(body.rotation.x, lying ? LIE_ROLL : walking ? 0.06 * speed : 0, lerp);
-          body.rotation.z = L(body.rotation.z, walking ? Math.sin(phase) * WADDLE_ROLL : 0, lerp);
+          body.rotation.z = L(body.rotation.z, walking ? Math.sin(phase) * WADDLE_ROLL : dozing ? Math.sin(t * 0.9) * 0.05 : 0, lerp);
           body.rotation.y = L(body.rotation.y, g === "dance" ? Math.sin(gAge * 3.5) * 0.6 : 0, 0.2);
         }
         const torso = torsoRef.current;
@@ -328,7 +328,7 @@ export const Character3D = memo(
               blink.next = 2.5 + Math.random() * 3.5;
             }
           }
-          eyesRef.current.scale.y = g === "nap" ? 0.1 : Math.max(0.1, open);
+          eyesRef.current.scale.y = g === "nap" || dozing ? 0.1 : Math.max(0.1, open);
         }
 
         // --- held items, counter-rotated so a cup stays upright whatever the arm does ---
@@ -529,7 +529,7 @@ export const Character3D = memo(
               font, which WebGL text can't use, so they're DOM overlays. No distanceFactor:
               under an OrthographicCamera it scales runaway. */}
           {isActivityStatus(status) && (
-            <Html position={[0, (lying ? 0.72 : NAMETAG_Y) + 0.32, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
+            <Html position={[0, (lying ? 0.72 : NAMETAG_Y) + 0.42, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
               <div style={{ position: "relative" }}>
                 <span className="cozy-status">
                   {ACTIVITY_STATUSES[status].emoji} {ACTIVITY_STATUSES[status].label}
@@ -545,7 +545,7 @@ export const Character3D = memo(
             </Html>
           )}
           {(emotes.length > 0 || speaking) && (
-            <Html position={[0, NAMETAG_Y + (isActivityStatus(status) ? 0.5 : 0.3), 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
+            <Html position={[0, NAMETAG_Y + (isActivityStatus(status) ? 0.66 : 0.3), 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
               <div style={{ position: "relative", width: 0, height: 0 }}>
                 {speaking && <span className="cozy-speaking">🎵</span>}
                 {emotes.map((e) => (
@@ -593,40 +593,11 @@ function bake(parts: Part[]): THREE.BufferGeometry {
 // The shell is tipped back so its front edge sits just above the eyes and its back edge falls
 // to the nape.
 
-const BANGS: [number, number, number, number][] = [
-  // x, y, z, tilt
-  [-0.21, 0.13, 0.3, 0.5],
-  [-0.08, 0.17, 0.35, 0.18],
-  [0.06, 0.17, 0.35, -0.12],
-  [0.19, 0.13, 0.31, -0.45],
-];
-
-/** Direction on the head for a spike: polar angle from +y, azimuth from +z toward +x. */
-function spike(polar: number, azimuth: number, r: number): { p: [number, number, number]; rot: [number, number, number, "YXZ"] } {
-  const d = [Math.sin(azimuth) * Math.sin(polar), Math.cos(polar), Math.cos(azimuth) * Math.sin(polar)];
-  return { p: [d[0] * r, d[1] * r + 0.02, d[2] * r - 0.03], rot: [polar, azimuth, 0, "YXZ"] };
-}
-const SPIKES = [
-  spike(0.2, 0, 0.4),
-  spike(0.6, 0.9, 0.4),
-  spike(0.6, -0.9, 0.4),
-  spike(0.7, 2.2, 0.38),
-  spike(0.7, -2.2, 0.38),
-  spike(0.75, Math.PI, 0.38),
-  spike(1.0, 1.6, 0.36),
-  spike(1.0, -1.6, 0.36),
-];
-
 // The face: both eyes, both glints and both blush marks are one geometry each.
 const EYES_GEO = bake([-0.12, 0.12].map((x) => ({ geo: G.eye, p: [x, 0, 0] as [number, number, number], s: [1, 1.25, 0.6] as [number, number, number] })));
 const GLINTS_GEO = bake([-0.12, 0.12].map((x) => ({ geo: G.glint, p: [x + 0.015, 0.022, 0.03] as [number, number, number], s: 1 })));
 const BLUSH_GEO = bake([-0.2, 0.2].map((x) => ({ geo: G.blush, p: [x, -0.075, HEAD_R * 0.86] as [number, number, number], r: [0, x * 0.9, 0] as [number, number, number], s: 1 })));
 
-const BANGS_GEO = bake(BANGS.map(([x, y, z, tilt]) => ({ geo: GEO.sphereLow, p: [x, y, z], r: [0.35, 0, tilt], s: [0.17, 0.12, 0.1] })));
-const SPIKES_GEO = bake([
-  ...SPIKES.map((sp) => ({ geo: GEO.coneLow, p: sp.p, r: sp.rot, s: [0.16, 0.24, 0.16] as [number, number, number] })),
-  ...[-0.14, 0, 0.14].map((x) => ({ geo: GEO.coneLow, p: [x, 0.16, 0.33] as [number, number, number], r: [2.5, 0, -x * 1.4] as [number, number, number], s: [0.12, 0.2, 0.1] as [number, number, number] })),
-]);
 const PETALS_GEO = bake([
   ...[0, 1, 2, 3, 4].map((i) => {
     const a = (i / 5) * Math.PI * 2;
@@ -651,46 +622,90 @@ const GEMS_GEO = bake(
   })
 );
 
-// Each hairstyle — shell, bangs and its own volumes, all one colour — is ONE baked geometry, in
-// two variants: the full cut, and just the parts that show under a beanie or top hat.
-type P = Part[];
-const SHELL: Part = { geo: G.hairShell, p: [0, 0.02, -0.03], r: [-0.42, 0, 0], s: 1 };
-const BANGS_PART: Part = { geo: BANGS_GEO, p: [0, 0, 0], s: 1 };
-const STYLE_EXTRAS: Record<HairStyle, { covered: P; visible: P }> = {
-  // short layered cut: tufts over the ears and a layer at the crown (all under a hat)
-  cap: {
-    covered: [
-      ...[-1, 1].map((s) => ({ geo: GEO.sphereLow, p: [s * 0.37, 0.02, -0.06] as [number, number, number], r: [0, 0, s * 0.3] as [number, number, number], s: [0.12, 0.2, 0.22] as [number, number, number] })),
-      { geo: GEO.sphereLow, p: [0, 0.3, -0.12], r: [-0.5, 0, 0], s: [0.46, 0.14, 0.36] },
-    ],
-    visible: [],
-  },
-  // rounded bob: side volumes that curve in at the cheeks, and a full back
-  bob: {
-    covered: [],
-    visible: [
-      ...[-1, 1].map((s) => ({ geo: GEO.sphere, p: [s * 0.36, -0.08, 0.02] as [number, number, number], r: [0, 0, s * 0.12] as [number, number, number], s: [0.2, 0.4, 0.4] as [number, number, number] })),
-      { geo: GEO.sphere, p: [0, -0.08, -0.18], s: [0.78, 0.44, 0.44] },
-    ],
-  },
-  bun: { covered: [], visible: [{ geo: GEO.sphere, p: [0, 0.47, -0.14], s: 0.3 }] },
-  // anime spikes radiating from the crown, plus a pointed fringe
-  spiky: { covered: [{ geo: SPIKES_GEO, p: [0, 0, 0], s: 1 }], visible: [] },
-  // a thick curtain down the back to the shoulders, and two locks falling in front
-  long: {
-    covered: [],
-    visible: [
-      { geo: GEO.sphere, p: [0, -0.28, -0.2], s: [0.72, 0.8, 0.36] },
-      ...[-1, 1].map((s) => ({ geo: GEO.sphere, p: [s * 0.33, -0.3, 0.06] as [number, number, number], r: [0.1, 0, s * 0.08] as [number, number, number], s: [0.16, 0.56, 0.18] as [number, number, number] })),
-    ],
-  },
+// Each hairstyle is ONE smooth sculpted mesh. A dense sphere round the head is pushed out where
+// the style has hair and tucked inside the skull where it doesn't, with soft falloffs, so every
+// cut is a single clean surface: a swept fringe with gentle points instead of a row of beads,
+// soft spikes instead of cones, a rounded bob instead of stacked balls. Two variants each: the
+// full cut, and what still shows under a beanie or top hat.
+
+const smooth = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
 };
+
+interface HairShape {
+  /** Lowest point of the hair at the front (fringe), at the sides and at the back, in unit-sphere y. */
+  front: (ux: number) => number;
+  side: number;
+  back: number;
+  /** Extra radius (fraction) at this direction: volume, flicks, spikes. */
+  puff: (ux: number, uy: number, uz: number) => number;
+}
+
+// A side-swept fringe with three soft points, clear of the eyes (they sit at y 0..0.14).
+const FRINGE = (ux: number) => 0.3 - ux * 0.1 + Math.abs(Math.sin(ux * 7.5)) * 0.06;
+
+const HAIR_SHAPES: Record<HairStyle, HairShape> = {
+  // short and tidy: tapers to the ears and the nape
+  cap: { front: FRINGE, side: -0.05, back: -0.42, puff: (_x, uy) => 0.03 * smooth(0, 0.8, uy) },
+  // rounded bob: full at the cheeks and back, curling in at the jaw
+  bob: {
+    front: FRINGE,
+    side: -0.72,
+    back: -0.78,
+    puff: (_x, uy, uz) => 0.16 * Math.exp(-((uy + 0.38) ** 2) / 0.09) * (1 - smooth(0.15, 0.6, uz)) + 0.03,
+  },
+  // tidy top with a bun (the bun itself is added below)
+  bun: { front: FRINGE, side: -0.12, back: -0.5, puff: () => 0.02 },
+  // soft anime spikes round the crown
+  spiky: {
+    front: (ux) => 0.26 + Math.abs(Math.sin(ux * 9)) * 0.1,
+    side: -0.05,
+    back: -0.35,
+    puff: (ux, uy, uz) => {
+      const az = Math.atan2(ux, uz);
+      const ridge = Math.pow(0.5 + 0.5 * Math.cos(az * 7), 5);
+      return 0.04 + 0.3 * ridge * smooth(-0.1, 0.7, uy) * (uz > 0.7 ? 0.35 : 1);
+    },
+  },
+  // long: to the shoulders at the back and sides (the fall below the head is added below)
+  long: { front: FRINGE, side: -0.85, back: -0.95, puff: (_x, uy) => 0.05 + 0.04 * smooth(0, -0.8, uy) },
+};
+
+function sculptHair(shape: HairShape, capAbove = Infinity): THREE.BufferGeometry {
+  const R = HEAD_R + 0.05;
+  const inside = HEAD_R * 0.82;
+  const g = new THREE.SphereGeometry(1, 44, 30);
+  g.deleteAttribute("uv");
+  const pos = g.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).normalize();
+    const { x: ux, y: uy, z: uz } = v;
+    // where the hairline sits in this direction: fringe in front, sides, then back
+    const frontness = smooth(0.35, 0.85, uz);
+    const backness = smooth(0.1, -0.6, uz);
+    const edge = shape.side + (shape.front(ux) - shape.side) * frontness + (shape.back - shape.side) * backness;
+    let cover = smooth(edge - 0.05, edge + 0.03, uy);
+    if (uy > capAbove) cover = 0; // under a hat: only what hangs below it
+    const r = inside + (R * (1 + shape.puff(ux, uy, uz)) - inside) * cover;
+    pos.setXYZ(i, ux * r, uy * r, uz * r);
+  }
+  const merged = mergeVertices(g);
+  merged.computeVertexNormals();
+  return merged;
+}
+
+const HAIR_OFFSET: [number, number, number] = [0, 0.02, -0.02];
 const HAIR_GEO = Object.fromEntries(
-  (Object.keys(STYLE_EXTRAS) as HairStyle[]).map((style) => {
-    const { covered, visible } = STYLE_EXTRAS[style];
-    const full = bake([SHELL, ...(style === "spiky" ? [] : [BANGS_PART]), ...covered, ...visible]);
-    const underHat = visible.length ? bake(visible) : null;
-    return [style, { full, underHat }];
+  (Object.keys(HAIR_SHAPES) as HairStyle[]).map((style) => {
+    const extras: Part[] = [];
+    if (style === "bun") extras.push({ geo: GEO.sphere, p: [0, 0.47, -0.14], s: 0.28 });
+    if (style === "long") extras.push({ geo: GEO.sphere, p: [0, -0.34, -0.19], s: [0.66, 0.66, 0.3] });
+    const shell = { geo: sculptHair(HAIR_SHAPES[style]), p: HAIR_OFFSET, s: 1 };
+    const under = { geo: sculptHair(HAIR_SHAPES[style], 0.12), p: HAIR_OFFSET, s: 1 };
+    const keepUnderHat = extras.filter((e) => e.p[1] < 0);
+    return [style, { full: bake([shell, ...extras]), underHat: bake([under, ...keepUnderHat]) }];
   })
 ) as Record<HairStyle, { full: THREE.BufferGeometry; underHat: THREE.BufferGeometry | null }>;
 

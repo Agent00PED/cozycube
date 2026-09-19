@@ -5,9 +5,10 @@ import { TopBar } from "./components/hud/TopBar";
 import { Wardrobe } from "./components/hud/Wardrobe";
 import { loadSavedLook } from "./components/hud/lookStorage";
 import { playWinBell, setSfxMuted } from "./audio/sfx";
-import { defaultLook, parseLook } from "@shared/types";
+import { ROULETTE_BET_RADIUS, ROULETTE_CENTER, defaultLook, parseLook } from "@shared/types";
 import { EmoteBar } from "./components/hud/EmoteBar";
 import { ActionDock } from "./components/hud/ActionDock";
+import { RoulettePanel } from "./components/hud/RoulettePanel";
 import { ActivityBar } from "./components/hud/ActivityBar";
 import { VoiceChip } from "./components/hud/VoiceChip";
 import { PlayerRoster } from "./components/hud/PlayerRoster";
@@ -118,6 +119,12 @@ const GLOBAL_CSS = `
   z-index: 10;
 }
 .cozy-bottom-stack > * { pointer-events: auto; }
+.cozy-roulette { animation: cozy-menu-in 200ms ease-out; }
+.cozy-roulette button:not(:disabled):hover { filter: brightness(1.15); }
+.cozy-roulette button:not(:disabled):active { transform: scale(0.94); }
+/* the rod bobbing while chill-fishing */
+.cozy-bob { display: inline-block; animation: cozy-bob 2.2s ease-in-out infinite; }
+@keyframes cozy-bob { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg) translateY(2px); } }
 /* On phones, keep the emote bar clear of the colour-picker puck in the bottom-right corner. */
 @media (max-width: 480px) {
   .cozy-bottom-stack { left: 12px; transform: none; align-items: flex-start; }
@@ -210,6 +217,7 @@ export default function App() {
     return () => window.clearTimeout(t);
   }, [toast]);
   const closeWardrobe = useCallback(() => setWardrobeOpen(false), []);
+
   // Put the remembered outfit back on once per connection (the room forgets it on leave).
   const restoredLookRef = useRef<unknown>(null);
   useEffect(() => {
@@ -224,12 +232,32 @@ export default function App() {
   sendEmoteRef.current = sendEmote;
   const handleEmote = useCallback((emoji: string) => sendEmoteRef.current(emoji), []);
 
+  // The roulette board opens by itself when you step up to the table, can be closed, and comes
+  // back from the action dock (or on your next visit to the table).
+  const me = localSessionId ? players[localSessionId] : null;
+  const atRoulette =
+    currentMap === "velvet_casino" &&
+    !!me &&
+    !me.sitting &&
+    Math.hypot(me.x - ROULETTE_CENTER.x, me.z - ROULETTE_CENTER.z) < ROULETTE_BET_RADIUS;
+  const [rouletteClosed, setRouletteClosed] = useState(false);
+  useEffect(() => {
+    if (!atRoulette) setRouletteClosed(false);
+  }, [atRoulette]);
+  useEffect(() => {
+    const reopen = () => setRouletteClosed(false);
+    window.addEventListener("cozy-open-roulette", reopen);
+    return () => window.removeEventListener("cozy-open-roulette", reopen);
+  }, []);
+  const showRoulette = atRoulette && !rouletteClosed;
+
   if (authLoading) return <StatusScreen text="Connecting to Discord..." />;
   if (authError) return <StatusScreen text={`Auth error: ${authError}`} isError />;
   if (!connected) return <StatusScreen text="Joining room..." />;
   if (roomError) return <StatusScreen text={`Room error: ${roomError}`} isError />;
 
   const localPlayer = localSessionId ? players[localSessionId] : null;
+
 
   return (
     <div style={rootStyle}>
@@ -296,11 +324,26 @@ export default function App() {
             onCastLine={castLine}
             onReelIn={reelIn}
           />
-          <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onCastLine={castLine} />
+          <ActionDock rouletteOpen={showRoulette} player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onCastLine={castLine} />
         </div>
       )}
 
       {localPlayer && <EmoteBar onEmote={handleEmote} onGesture={sendGesture} />}
+
+      {showRoulette && localPlayer && localSessionId && (
+        <div style={roulettePanelStyle}>
+          <RoulettePanel
+            roulette={roulette}
+            myBets={bets[localSessionId] ?? ""}
+            coins={localPlayer.coins}
+            localSessionId={localSessionId}
+            onPlaceBet={placeBet}
+            onClearBets={clearBets}
+            subscribeMessages={subscribeMessages}
+            onClose={() => setRouletteClosed(true)}
+          />
+        </div>
+      )}
 
       {mapTransitioning && <StatusScreen text="Changing scene..." overlay />}
 
@@ -359,6 +402,14 @@ const rootStyle: CSSProperties = {
 
 // Below the single top bar, so nothing collides on a narrow Discord window.
 const HUD_TOP = "calc(max(12px, env(safe-area-inset-top)) + 54px)";
+// Above the action dock, centred: the roulette board.
+const roulettePanelStyle: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  bottom: "calc(max(18px, env(safe-area-inset-bottom)) + 64px)",
+  transform: "translateX(-50%)",
+  zIndex: 14,
+};
 const topLeftStyle: CSSProperties = { position: "absolute", top: HUD_TOP, left: 12, zIndex: 10 };
 const topRightStyle: CSSProperties = {
   position: "absolute",
