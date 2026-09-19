@@ -1,9 +1,11 @@
-import { useCallback, useRef, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { IsometricCanvas } from "./scene/IsometricCanvas";
 import { WorldScene } from "./components/WorldScene";
-import { ColorPickerUI } from "./components/ColorPickerUI";
 import { TopBar } from "./components/hud/TopBar";
-import { SoundToggle } from "./components/hud/SoundToggle";
+import { Wardrobe } from "./components/hud/Wardrobe";
+import { loadSavedLook } from "./components/hud/lookStorage";
+import { setSfxMuted } from "./audio/sfx";
+import { defaultLook, parseLook } from "@shared/types";
 import { EmoteBar } from "./components/hud/EmoteBar";
 import { ActivityBar } from "./components/hud/ActivityBar";
 import { VoiceChip } from "./components/hud/VoiceChip";
@@ -35,6 +37,11 @@ const GLOBAL_CSS = `
   25%  { transform: translate(-50%, -14px) scale(1); }
   75%  { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -70px) scale(0.9); }
+}
+/* Wardrobe stacks preview over pickers on a phone-width window. */
+@media (max-width: 560px) {
+  .cozy-wardrobe { flex-direction: column; }
+  .cozy-wardrobe-preview { flex: 0 0 200px !important; min-height: 200px !important; }
 }
 /* The note that bobs over a player's head while they talk. */
 .cozy-speaking {
@@ -89,7 +96,7 @@ export default function App() {
     mapTransitioning,
     connected,
     error: roomError,
-    setColor,
+    setLook,
     changeMap,
     setTimeOfDay,
     sendEmote,
@@ -109,6 +116,18 @@ export default function App() {
   const turntable = Object.values(toggleables).find((t) => t.kind === "turntable");
   const record = turntable?.on ? turntable.track : null;
   const ambience = useAmbience(currentMap, record);
+  setSfxMuted(!ambience.enabled);
+
+  const [wardrobeOpen, setWardrobeOpen] = useState(false);
+  const closeWardrobe = useCallback(() => setWardrobeOpen(false), []);
+  // Put the remembered outfit back on once per connection (the room forgets it on leave).
+  const restoredLookRef = useRef<unknown>(null);
+  useEffect(() => {
+    if (!room || !localSessionId || restoredLookRef.current === room) return;
+    restoredLookRef.current = room;
+    const saved = loadSavedLook();
+    if (parseLook(saved)) setLook(saved!);
+  }, [room, localSessionId, setLook]);
 
   // EmoteBar registers a keydown listener keyed on this callback; keep its identity stable.
   const sendEmoteRef = useRef(sendEmote);
@@ -148,6 +167,9 @@ export default function App() {
         onSelectMap={changeMap}
         timeOfDay={timeOfDay}
         onSelectTime={setTimeOfDay}
+        onOpenWardrobe={() => setWardrobeOpen(true)}
+        soundOn={ambience.enabled}
+        onToggleSound={ambience.toggle}
       />
 
       <div style={topLeftStyle}>
@@ -155,7 +177,6 @@ export default function App() {
       </div>
       <div style={topRightStyle}>
         <VoiceChip mode={voice.mode} active={voice.simulatedActive} onPressChange={voice.setSimulatedActive} />
-        <SoundToggle enabled={ambience.enabled} onToggle={ambience.toggle} />
       </div>
 
       {localPlayer && localSessionId && (
@@ -179,8 +200,17 @@ export default function App() {
 
       <div style={bottomRightStyle}>
         <RecenterButton />
-        {localPlayer && <ColorPickerUI currentColor={localPlayer.color} onSelect={setColor} inline />}
       </div>
+
+      {wardrobeOpen && localPlayer && (
+        <Wardrobe
+          userId={localPlayer.userId}
+          username={localPlayer.username}
+          initial={parseLook(localPlayer.look) ?? defaultLook(localPlayer.userId || localPlayer.username, localPlayer.color)}
+          onApply={setLook}
+          onClose={closeWardrobe}
+        />
+      )}
     </div>
   );
 }

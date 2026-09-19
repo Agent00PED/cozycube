@@ -212,9 +212,6 @@ export function PottedPlant({
 function LivingRoom({ mats }: { mats: Materials }) {
   return (
     <>
-      {/* One plain rug. The faint concentric rings that used to sit on it read as a radar
-          sweep from above, so they are gone. */}
-      <Rug x={-4.4} z={-5.8} radius={3.1} y={0.06} m={mats.cream} sx={1.15} />
 
       {/* media console under the TV (the screen itself is the "tv" prop) */}
       <B p={[-4.2, 0.3, -9.4]} s={[3.4, 0.6, 0.72]} m={mats.walnut} cast recv />
@@ -253,6 +250,18 @@ function LivingRoom({ mats }: { mats: Materials }) {
       <Cyl p={[-4.66, 0.52, -6.82]} s={[0.1, 0.1, 0.1]} m={mats.terracotta} />
       <Cyl p={[-3.7, 0.5, -7.0]} s={[0.12, 0.12, 0.12]} m={mats.warmGlow} />
       <B p={[-4.0, 0.47, -6.76]} s={[0.32, 0.06, 0.24]} m={mats.navy} r={[0, 0.3, 0]} />
+      {/* a little vase of tulips on the coffee table */}
+      <Cyl p={[-3.3, 0.53, -6.8]} s={[0.12, 0.18, 0.12]} m={mats.blush} />
+      {[-0.05, 0, 0.05].map((dx, i) => (
+        <group key={dx}>
+          <Cyl p={[-3.3 + dx, 0.72, -6.8 + (i - 1) * 0.02]} s={[0.012, 0.24, 0.012]} m={mats.olive} />
+          <Sph p={[-3.3 + dx * 1.6, 0.86, -6.8 + (i - 1) * 0.03]} s={[0.06, 0.08, 0.06]} m={i === 1 ? mats.mustard : mats.terracotta} />
+        </group>
+      ))}
+      {/* bonsai on the media console */}
+      <Cyl p={[-5.3, 0.66, -9.35]} s={[0.26, 0.08, 0.16]} m={mats.charcoal} />
+      <Cyl p={[-5.3, 0.78, -9.35]} s={[0.03, 0.2, 0.03]} r={[0, 0, 0.3]} m={mats.darkWood} />
+      <Sph p={[-5.36, 0.92, -9.35]} s={[0.26, 0.12, 0.18]} m={mats.olive} />
     </>
   );
 }
@@ -383,12 +392,18 @@ function CoffeeStation({ mats }: { mats: Materials }) {
 }
 
 // ---------------------------------------------------------------------------------------
-// Dining set: the bridge between kitchen and living room, so the middle is not dead floor
+// Dining set: centre of the room, filling the open floor between the sofa and the vinyl rug.
+// Authored around (3.8, -1.4) and moved as a group; shared/props.ts places its four chairs.
 // ---------------------------------------------------------------------------------------
+
+const DINING_OFFSET: [number, number, number] = [-7.4, 0, 0.4]; // table centre (-3.6, -1.0)
 
 function DiningSet({ mats }: { mats: Materials }) {
   return (
-    <>
+    <group position={DINING_OFFSET}>
+      {/* a woven rug under the table anchors the zone */}
+      <B p={[3.8, 0.05, -1.4]} s={[3.4, 0.01, 3.0]} m={mats.terracotta} recv />
+      <B p={[3.8, 0.056, -1.4]} s={[3.0, 0.01, 2.6]} m={mats.blush} recv />
       <B p={[3.8, 0.74, -1.4]} s={[1.7, 0.08, 1.5]} m={mats.oak} cast recv />
       <B p={[3.8, 0.4, -1.4]} s={[0.24, 0.7, 0.24]} m={mats.walnut} cast />
       <B p={[3.8, 0.06, -1.4]} s={[1.1, 0.1, 1.0]} m={mats.walnut} cast />
@@ -407,7 +422,7 @@ function DiningSet({ mats }: { mats: Materials }) {
           <Cyl p={[x, 0.81, z]} s={[0.22, 0.02, 0.22]} m={mats.terracotta} />
         </group>
       ))}
-    </>
+    </group>
   );
 }
 

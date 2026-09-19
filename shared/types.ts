@@ -15,6 +15,8 @@ export interface PlayerState {
   dirX: number;
   dirZ: number;
   color: string; // "#rrggbb"
+  /** Wardrobe outfit, encoded by encodeLook(). Empty = the defaults derived from the user id. */
+  look: string;
   sitting: boolean;
   sitRotationY: number; // facing direction snapped from the chair while sitting
   /** Vertical offset while seated, so bar stools and floor blankets put the body at the right height. */
@@ -119,6 +121,57 @@ export function hashString(value: string): number {
 
 export function accessoryFor(userId: string): Accessory {
   return ACCESSORIES[hashString(userId) % ACCESSORIES.length];
+}
+
+// --- wardrobe ---
+// A player's outfit travels as one short string ("skin,style,hair,shirt,pants,hat") so it is a
+// single schema field and a single message. Every value is picked from a fixed palette, which is
+// also how the server validates it: anything not in the lists is rejected outright.
+export const SKIN_TONES = ["#fbe3d3", "#f6d7c3", "#f2cfb0", "#eec1a0", "#d9a47c", "#b67c56", "#8a5a3c", "#6b4430"];
+export const HAIR_COLORS = ["#3b2a20", "#6b4430", "#1f1c1c", "#c98e4f", "#8c3d2e", "#e5d3a6", "#4a3a5c", "#f2a7bd", "#9fc3e8", "#a8d5b5"];
+export const HAIR_STYLES = ["cap", "bob", "bun", "spiky", "long"] as const;
+export type HairStyle = (typeof HAIR_STYLES)[number];
+export const OUTFIT_COLORS = [
+  "#e8a598", "#f4b6c2", "#f0c290", "#f6e3a1", "#e8d5a8", "#a8c8a0", "#bfe3c8", "#8fb8b0",
+  "#9ab8d8", "#c4d7f2", "#b8a8d0", "#d8a8c0", "#c8b090", "#f5ede0", "#7a8aa6", "#5c6b5a",
+];
+export const HATS: Accessory[] = ACCESSORIES;
+
+export interface Look {
+  skin: string;
+  hairStyle: HairStyle;
+  hair: string;
+  shirt: string;
+  pants: string;
+  hat: Accessory;
+}
+
+/** The outfit someone has before they ever open the wardrobe — stable per user id. */
+export function defaultLook(userId: string, shirt = OUTFIT_COLORS[0]): Look {
+  const h = hashString(userId);
+  return {
+    skin: SKIN_TONES[h % SKIN_TONES.length],
+    hairStyle: HAIR_STYLES[(h >>> 8) % HAIR_STYLES.length],
+    hair: HAIR_COLORS[(h >>> 4) % HAIR_COLORS.length],
+    shirt,
+    pants: OUTFIT_COLORS[14 + ((h >>> 12) % 2)],
+    hat: accessoryFor(userId),
+  };
+}
+
+export function encodeLook(l: Look): string {
+  return [l.skin, l.hairStyle, l.hair, l.shirt, l.pants, l.hat].join(",");
+}
+
+/** Parses and validates; returns null for anything that isn't made of palette values. */
+export function parseLook(raw: string | null | undefined): Look | null {
+  if (!raw || raw.length > 64) return null;
+  const [skin, hairStyle, hair, shirt, pants, hat] = raw.split(",");
+  if (!SKIN_TONES.includes(skin)) return null;
+  if (!(HAIR_STYLES as readonly string[]).includes(hairStyle)) return null;
+  if (!HAIR_COLORS.includes(hair) || !OUTFIT_COLORS.includes(shirt) || !OUTFIT_COLORS.includes(pants)) return null;
+  if (!ACCESSORIES.includes(hat as Accessory)) return null;
+  return { skin, hairStyle: hairStyle as HairStyle, hair, shirt, pants, hat: hat as Accessory };
 }
 export type Emote = (typeof EMOTES)[number];
 

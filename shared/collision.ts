@@ -31,7 +31,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: 0.8, maxX: 9.4, minZ: -9.8, maxZ: -8.8 }, // back counter run, sink and fridge grouped
     { minX: 3.3, maxX: 6.9, minZ: -6.8, maxZ: -5.6 }, // bar island
     // --- Dining set ---
-    { minX: 2.9, maxX: 4.7, minZ: -2.2, maxZ: -0.6 }, // table (chairs tuck under, so they are not boxes)
+    { minX: -4.5, maxX: -2.7, minZ: -1.8, maxZ: -0.2 }, // table (chairs tuck under, so they are not boxes)
     // --- Gamer corner ---
     { minX: -9.8, maxX: -8.4, minZ: -8.7, maxZ: -5.7 }, // streamer desk against the left wall
     { minX: -8.1, maxX: -5.4, minZ: -9.8, maxZ: -8.7 }, // both arcade cabinets, grouped
@@ -70,6 +70,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -5.2, maxX: -4.6, minZ: -3.9, maxZ: -3.3 }, // volleyball post
     { minX: -5.2, maxX: -4.6, minZ: -0.3, maxZ: 0.3 }, // volleyball post
     { minX: -3.7, maxX: -1.5, minZ: -0.1, maxZ: 2.1 }, // rowboat pulled up on the sand
+    { minX: 8.7, maxX: 9.4, minZ: 3.3, maxZ: 4.0 }, // palm moved off the bonfire, out by the shore
   ],
 };
 

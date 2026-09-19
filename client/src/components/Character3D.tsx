@@ -2,7 +2,7 @@ import { forwardRef, memo, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Html, Text } from "@react-three/drei";
 import * as THREE from "three";
-import { TOAST_MAX, accessoryFor, hashString, type Accessory, type HeldItem, type PlayerAction, type SitPose } from "@shared/types";
+import { TOAST_MAX, defaultLook, hashString, parseLook, type Accessory, type HairStyle, type HeldItem, type PlayerAction, type SitPose } from "@shared/types";
 import { GEO, arcGeo, noRaycast, ringGeo } from "../scene/kit";
 
 export type CharacterPose = "stand" | SitPose;
@@ -15,6 +15,8 @@ export interface FloatingEmote {
 interface Character3DProps {
   /** Discord user id — picks the head accessory, skin tone and hair colour deterministically. */
   userId: string;
+  /** Wardrobe outfit (encodeLook); empty falls back to defaults derived from the user id. */
+  look?: string;
   color: string; // "#rrggbb" — the clothing colour
   username: string;
   pose: CharacterPose;
@@ -71,9 +73,6 @@ const RAW = new THREE.Color("#f6f1e6");
 const GOLDEN = new THREE.Color("#d9974a");
 const BURNT = new THREE.Color("#2d211a");
 
-// Identity palettes, picked by hashing the user id.
-const SKIN_TONES = ["#f6d7c3", "#eec1a0", "#d9a47c", "#b67c56", "#8a5a3c", "#f2cfb0"];
-const HAIR_TONES = ["#3b2a20", "#6b4430", "#1f1c1c", "#c98e4f", "#8c3d2e", "#e5d3a6", "#4a3a5c"];
 
 // Shared geometry: every avatar uses the same few shapes, created once for the app's lifetime.
 const G = {
@@ -146,7 +145,7 @@ const ROD_LENGTH = 1.3;
 // RemotePlayerAvatar in WorldScene) owns the forwarded outer group and drives its position.
 export const Character3D = memo(
   forwardRef<THREE.Group, Character3DProps>(
-    ({ userId, color, username, pose, speedRef, holding, action, actionProgress, toast, speaking, emotes }, ref) => {
+    ({ userId, look, color, username, pose, speedRef, holding, action, actionProgress, toast, speaking, emotes }, ref) => {
       const bodyRef = useRef<THREE.Group>(null);
       const torsoRef = useRef<THREE.Mesh>(null);
       const headRef = useRef<THREE.Group>(null);
@@ -164,19 +163,24 @@ export const Character3D = memo(
       const auraRef = useRef<THREE.Mesh>(null);
       const aura2Ref = useRef<THREE.Mesh>(null);
       const targetColor = useRef(new THREE.Color(color));
+      // an occasional curious head tilt while idle, on its own per-avatar schedule
+      const tiltRef = useRef({ next: 4 + Math.random() * 6, until: 0, dir: 1 });
       const walkPhaseRef = useRef(0);
       const blinkRef = useRef({ next: 2 + Math.random() * 3, t: 0 });
       // every avatar breathes and glances round on its own clock, so a crowd never moves in unison
       const idleSeed = useMemo(() => (hashString(userId || username) % 1000) / 100, [userId, username]);
 
-      const identity = useMemo(() => {
-        const h = hashString(userId || username);
-        return {
-          accessory: accessoryFor(userId || username) as Accessory,
-          skin: skinMaterial(SKIN_TONES[h % SKIN_TONES.length]),
-          hair: hairMaterial(HAIR_TONES[(h >>> 4) % HAIR_TONES.length]),
-        };
-      }, [userId, username]);
+      const outfit = useMemo(() => parseLook(look) ?? defaultLook(userId || username, color), [look, userId, username, color]);
+      const identity = useMemo(
+        () => ({
+          accessory: outfit.hat,
+          hairStyle: outfit.hairStyle,
+          skin: skinMaterial(outfit.skin),
+          hair: hairMaterial(outfit.hair),
+          pants: hairMaterial(outfit.pants),
+        }),
+        [outfit]
+      );
 
       const clothes = useMemo(
         () => new THREE.MeshStandardMaterial({ color, roughness: 0.8 }),
@@ -197,8 +201,8 @@ export const Character3D = memo(
         [clothes, marshmallowMat, auraMat]
       );
       useEffect(() => {
-        targetColor.current.set(color);
-      }, [color]);
+        targetColor.current.set(outfit.shirt);
+      }, [outfit.shirt]);
 
       useFrame(({ clock }, delta) => {
         const t = clock.elapsedTime;
@@ -261,7 +265,14 @@ export const Character3D = memo(
         if (head) {
           const idleLook = !walking && pose === "stand" ? Math.sin(t * 0.45 + idleSeed) * 0.35 * Math.max(0, Math.sin(t * 0.21 + idleSeed * 2)) : 0;
           head.rotation.y = L(head.rotation.y, idleLook, 0.06);
-          head.rotation.z = L(head.rotation.z, walking ? -Math.sin(phase) * 0.06 : 0, 0.2);
+          const tilt = tiltRef.current;
+          if (!walking && t > tilt.next) {
+            tilt.until = t + 1.4;
+            tilt.dir = Math.random() < 0.5 ? -1 : 1;
+            tilt.next = t + 6 + Math.random() * 9;
+          }
+          const tiltZ = !walking && t < tilt.until ? tilt.dir * 0.22 : 0;
+          head.rotation.z = L(head.rotation.z, walking ? -Math.sin(phase) * 0.06 : tiltZ, walking ? 0.2 : 0.08);
           head.position.y = HEAD_Y + (walking ? 0 : Math.sin(t * 2.1 + idleSeed) * 0.006);
         }
 
@@ -355,7 +366,7 @@ export const Character3D = memo(
               [rightLegRef, LEG_X],
             ].map(([legRef, x], i) => (
               <group key={i} ref={legRef as React.RefObject<THREE.Group>} position={[x as number, HIP_Y, 0]}>
-                <mesh castShadow geometry={G.leg} material={clothes} position={[0, -HIP_Y / 2, 0]} raycast={noRaycast} />
+                <mesh castShadow geometry={G.leg} material={identity.pants} position={[0, -HIP_Y / 2, 0]} raycast={noRaycast} />
                 <mesh castShadow geometry={G.foot} material={M.shoe} position={[0, -HIP_Y + 0.045, 0.035]} scale={[0.1, 0.06, 0.13]} raycast={noRaycast} />
               </group>
             ))}
@@ -426,6 +437,7 @@ export const Character3D = memo(
               ))}
               <mesh geometry={arcGeo(0.05, 0.012, Math.PI)} material={M.mouth} position={[0, -0.075, HEAD_R * 0.96]} rotation={[0, 0, Math.PI]} raycast={noRaycast} />
 
+              <HairExtras style={identity.hairStyle} mat={identity.hair} />
               <HeadAccessory kind={identity.accessory} />
             </group>
           </group>
@@ -497,6 +509,34 @@ export const Character3D = memo(
 Character3D.displayName = "Character3D";
 
 /** Deterministic per-user headwear. Everything sits on the head group, so it follows the head. */
+// Hair styles are the shared cap plus a few extra shapes each — a handful of meshes, no textures.
+function HairExtras({ style, mat }: { style: HairStyle; mat: THREE.Material }) {
+  switch (style) {
+    case "bob":
+      return (
+        <>
+          {[-1, 1].map((s) => (
+            <mesh key={s} castShadow geometry={GEO.sphereLow} material={mat} position={[s * HEAD_R * 0.82, -0.06, -0.04]} scale={[0.13, 0.26, 0.26]} raycast={noRaycast} />
+          ))}
+        </>
+      );
+    case "bun":
+      return <mesh castShadow geometry={GEO.sphereLow} material={mat} position={[0, HEAD_R * 0.95, -HEAD_R * 0.45]} scale={0.16} raycast={noRaycast} />;
+    case "spiky":
+      return (
+        <>
+          {[-0.14, 0, 0.14].map((x, i) => (
+            <mesh key={x} castShadow geometry={GEO.cone} material={mat} position={[x, HEAD_R * 0.95, -0.06]} rotation={[-0.35, 0, -x * 2.2]} scale={[0.14, 0.2 + (i === 1 ? 0.06 : 0), 0.14]} raycast={noRaycast} />
+          ))}
+        </>
+      );
+    case "long":
+      return <mesh castShadow geometry={GEO.sphereLow} material={mat} position={[0, -0.14, -HEAD_R * 0.55]} scale={[0.36, 0.42, 0.2]} raycast={noRaycast} />;
+    default:
+      return null;
+  }
+}
+
 function HeadAccessory({ kind }: { kind: Accessory }) {
   switch (kind) {
     case "beret":

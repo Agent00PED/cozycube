@@ -14,6 +14,8 @@ import {
   TOAST_MAX,
   isTimeOfDay,
   isWalkUpProp,
+  encodeLook,
+  parseLook,
   poseForSeat,
   type MapId,
   type TimeOfDay,
@@ -30,6 +32,7 @@ class Player extends Schema {
   @type("number") dirX = 0;
   @type("number") dirZ = 0;
   @type("string") color = "#ffffff";
+  @type("string") look = "";
   @type("boolean") sitting = false;
   @type("number") sitRotationY = 0;
   @type("number") sitY = 0;
@@ -153,6 +156,14 @@ export class HangoutRoom extends Room<HangoutState> {
     });
 
     this.onMessage("standUp", (client) => this.handleStandUp(client.sessionId));
+
+    this.onMessage("setLook", (client, msg: { look: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      const look = parseLook(msg?.look);
+      if (!player || !look) return;
+      player.look = encodeLook(look);
+      player.color = look.shirt;
+    });
 
     this.onMessage("setColor", (client, msg: { color: string }) => {
       const player = this.state.players.get(client.sessionId);

@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-// The frosted-glass pill look shared by every HUD element (matches MapSwitcherUI / ColorPickerUI).
+// The frosted-glass pill look shared by every HUD element (top bar, wardrobe, activity bar).
 export const glass: CSSProperties = {
   background: "rgba(255, 250, 240, 0.55)",
   backdropFilter: "blur(14px) saturate(160%)",

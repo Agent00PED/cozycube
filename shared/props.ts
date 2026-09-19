@@ -104,10 +104,10 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     })),
 
     // --- Dining set: four chairs round the table, bridging kitchen and living room ---
-    { propId: "dining_1", x: 2.6, z: -1.4, rotationY: FACE_POS_X, style: "wood", sitY: 0.04, approachX: 1.4, approachZ: -1.4 },
-    { propId: "dining_2", x: 5.0, z: -1.4, rotationY: FACE_NEG_X, style: "wood", sitY: 0.04, approachX: 6.2, approachZ: -1.4 },
-    { propId: "dining_3", x: 3.8, z: -2.6, rotationY: FACE_POS_Z, style: "wood", sitY: 0.04, approachX: 3.8, approachZ: -3.7 },
-    { propId: "dining_4", x: 3.8, z: -0.2, rotationY: FACE_NEG_Z, style: "wood", sitY: 0.04, approachX: 3.8, approachZ: 0.9 },
+    { propId: "dining_1", x: -4.8, z: -1.0, rotationY: FACE_POS_X, style: "wood", sitY: 0.04, approachX: -6.0, approachZ: -1.0 },
+    { propId: "dining_2", x: -2.4, z: -1.0, rotationY: FACE_NEG_X, style: "wood", sitY: 0.04, approachX: -1.2, approachZ: -1.0 },
+    { propId: "dining_3", x: -3.6, z: -2.2, rotationY: FACE_POS_Z, style: "wood", sitY: 0.04, approachX: -3.6, approachZ: -3.3 },
+    { propId: "dining_4", x: -3.6, z: 0.2, rotationY: FACE_NEG_Z, style: "wood", sitY: 0.04, approachX: -3.6, approachZ: 1.3 },
 
     // --- Gamer corner ---
     { propId: "gamer_chair_1", x: -8.1, z: -7.2, rotationY: FACE_POS_Z, style: "gaming", approachX: -8.1, approachZ: -5.9 },
@@ -176,8 +176,8 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
     { propId: "campfire", x: 0, z: 0, kind: "campfire", color: "#ff8a3d", defaultOn: true },
     // Warm lantern gold, never the greenish white it used to read as against the night grade.
     // Dimmed so they read as lanterns round a campfire rather than competing with it.
-    { propId: "lantern_east", x: 4.4, y: 0.42, z: -2.2, kind: "lantern", color: "#ffa64d", defaultOn: true, intensity: 0.55 },
-    { propId: "lantern_west", x: -4.4, y: 0.42, z: 2.2, kind: "lantern", color: "#ffa64d", defaultOn: true, intensity: 0.55 },
+    { propId: "lantern_east", x: 4.4, y: 0.42, z: -2.2, kind: "lantern", color: "#ffb25e", defaultOn: true, intensity: 0.5 },
+    { propId: "lantern_west", x: -4.4, y: 0.42, z: 2.2, kind: "lantern", color: "#ffb25e", defaultOn: true, intensity: 0.5 },
   ],
 
   sunset_beach: [

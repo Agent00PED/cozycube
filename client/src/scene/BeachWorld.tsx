@@ -403,7 +403,8 @@ const PALMS: { x: number; z: number; h: number; lean: number }[] = [
   { x: -8.2, z: -7.0, h: 3.6, lean: 0.16 },
   { x: 7.8, z: -5.8, h: 4.0, lean: -0.13 },
   { x: -8.4, z: -0.4, h: 3.2, lean: 0.1 },
-  { x: 8.4, z: 0.6, h: 3.4, lean: -0.2 },
+  // was at z 0.6 with its crown over the bonfire; moved 3 units toward the shore
+  { x: 9.05, z: 3.65, h: 3.4, lean: -0.08 },
   { x: 3.4, z: -8.2, h: 3.0, lean: 0.22 },
   { x: -2.0, z: 2.6, h: 3.3, lean: 0.14 },
 ];

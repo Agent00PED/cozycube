@@ -38,6 +38,7 @@ interface UseColyseusRoomResult {
   connected: boolean;
   error: string | null;
   setColor: (color: string) => void;
+  setLook: (look: string) => void;
   changeMap: (mapId: MapId) => void;
   setTimeOfDay: (timeOfDay: TimeOfDay) => void;
   sendEmote: (emoji: string) => void;
@@ -134,6 +135,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
               dirX: player.dirX,
               dirZ: player.dirZ,
               color: player.color,
+              look: player.look,
               sitting: player.sitting,
               sitRotationY: player.sitRotationY,
               sitY: player.sitY,
@@ -288,6 +290,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     connected,
     error,
     setColor: (color) => send("setColor", { color }),
+    setLook: (look) => send("setLook", { look }),
     changeMap: (mapId) => send("changeMap", { mapId }),
     setTimeOfDay: (t) => send("setTimeOfDay", { timeOfDay: t }),
     sendEmote: (emoji) => send("emote", { emoji }),

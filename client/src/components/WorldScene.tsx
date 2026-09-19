@@ -291,6 +291,7 @@ function LocalPlayerAvatar({
     <Character3D
       ref={groupRef}
       userId={player.userId}
+      look={player.look}
       color={player.color}
       username={player.username}
       pose={poseOf(player)}
@@ -411,6 +412,7 @@ function RemotePlayerAvatar({ player, speaking, emotes }: { player: PlayerState;
     <Character3D
       ref={groupRef}
       userId={player.userId}
+      look={player.look}
       color={player.color}
       username={player.username}
       pose={poseOf(player)}
