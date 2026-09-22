@@ -9,6 +9,7 @@ import {
   WHEEL_ORDER,
   parseBets,
   pocketColor,
+  type LeaderboardEntry,
   type PlayerState,
   type RouletteResultBroadcast,
   type RouletteSyncState,
@@ -278,15 +279,20 @@ export function BetChips({ bets, players }: { bets: Record<string, string>; play
 // High Roller leaderboard: a gilt board on an easel by the cashier
 // ---------------------------------------------------------------------------------------
 
-export function Leaderboard({ players }: { players: Record<string, PlayerState> }) {
+export function Leaderboard({ players, persisted = [] }: { players: Record<string, PlayerState>; persisted?: LeaderboardEntry[] }) {
   const lines = useMemo(() => {
-    const top = Object.values(players)
-      .filter((p) => p.connected)
-      .sort((a, b) => b.coins - a.coins)
-      .slice(0, 5);
+    // The all-time table from the database; the room's own balances until it has one.
+    const top =
+      persisted.length > 0
+        ? persisted.slice(0, 5)
+        : Object.values(players)
+            .filter((p) => p.connected)
+            .sort((a, b) => b.coins - a.coins)
+            .slice(0, 5)
+            .map((p) => ({ username: p.username, coins: p.coins }));
     if (top.length === 0) return "—";
     return top.map((p, i) => `${i + 1}. ${p.username.slice(0, 9).padEnd(10, " ")} ${p.coins}`).join("\n");
-  }, [players]);
+  }, [players, persisted]);
 
   return (
     <group position={[8.0, 0, -4.7]} rotation={[0, Math.PI / 4, 0]} scale={1.25}>

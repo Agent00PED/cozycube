@@ -10,7 +10,7 @@ import { TOGGLEABLE_CONFIG } from "@shared/props";
 import { Sparkle } from "./LivingProps";
 import { useRetroScreen } from "./useRetroScreen";
 import { SlotMachine } from "./Casino";
-import { Cat, ForageBush, NpcTrader } from "./LivingProps";
+import { Cat, ForageBush, NpcTrader, StewPot } from "./LivingProps";
 
 interface ToggleablePropProps {
   prop: ToggleableSyncState;
@@ -119,6 +119,8 @@ export function ToggleableProp({ prop, onUse, brewing = false }: ToggleablePropP
       return <Cat prop={prop} onUse={use} />;
     case "sparkle":
       return <Sparkle prop={prop} onUse={use} />;
+    case "stew":
+      return <StewPot prop={prop} onUse={use} />;
     default:
       return <FloorLamp prop={prop} onUse={use} />;
   }

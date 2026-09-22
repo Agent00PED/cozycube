@@ -1,6 +1,7 @@
 import { Room, Client } from "colyseus";
 import { Schema, type, MapSchema } from "@colyseus/schema";
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToWorld, isBlocked } from "../../../shared/collision";
+import { PersistenceQueue, getPlayerStore, newPlayerRecord, type PlayerRecord } from "../db/players";
 import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat } from "../../../shared/props";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
 import {
@@ -53,6 +54,27 @@ import {
   type TimeOfDay,
   type SeatStyle,
   type ToggleableKind,
+  ALLOWANCE_BELOW,
+  ALLOWANCE_COINS,
+  ALLOWANCE_COOLDOWN_S,
+  BLACKJACK_BETS,
+  BLACKJACK_CENTER,
+  BLACKJACK_RADIUS,
+  CHAT_MAX_CHARS,
+  DEFAULT_STATS,
+  SLOT_BETS,
+  STEW_COOLDOWN_S,
+  STEW_RADIUS,
+  STEW_REWARD,
+  STEW_STIRS,
+  blackjackTotal,
+  parseStats,
+  type BlackjackAction,
+  type BlackjackCard,
+  type BlackjackOutcome,
+  type BlackjackPhase,
+  type BlackjackView,
+  type PlayerStats,
 } from "../../../shared/types";
 
 class Player extends Schema {
@@ -79,6 +101,8 @@ class Player extends Schema {
   @type("string") bag = "";
   @type("string") owned = "";
   @type("string") status = "";
+  @type("string") stats = JSON.stringify(DEFAULT_STATS);
+  @type("number") ping = 0;
 }
 
 // The shared roulette wheel in the casino. One loop for the whole room: 25 s of betting, a 6 s
@@ -136,7 +160,34 @@ class HangoutState extends Schema {
   /** Roulette bets on the table this round, per sessionId, as encodeBets() strings. */
   @type({ map: "string" }) bets = new MapSchema<string>();
   @type("boolean") autoCycle = false;
+  /** The persisted High Rollers table (LeaderboardEntry[] as JSON), refreshed every few seconds. */
+  @type("string") leaderboard = "[]";
 }
+
+// --- blackjack: one hand per player, dealt and settled entirely on the server ---
+interface BlackjackGame {
+  deck: BlackjackCard[];
+  player: BlackjackCard[];
+  dealer: BlackjackCard[];
+  bet: number;
+  phase: BlackjackPhase;
+  outcome: BlackjackOutcome;
+  payout: number;
+}
+const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+const SUITS = ["♠", "♥", "♦", "♣"];
+function freshDeck(): BlackjackCard[] {
+  const deck: BlackjackCard[] = [];
+  for (const suit of SUITS) for (const rank of RANKS) deck.push({ rank, suit });
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+const CHAT_COOLDOWN_MS = 1200;
+const PERSIST_EVERY_S = 2.5;
+const LEADERBOARD_EVERY_S = 15;
 
 interface Wallet {
   coins: number;
@@ -209,6 +260,14 @@ export class HangoutRoom extends Room<HangoutState> {
   private regrowAt = new Map<string, number>();
   /** Wallets of players who left, by Discord user id, so coming back restores them. */
   private wallets = new Map<string, Wallet>();
+  /** The persisted record behind each connected player, and a signature of what was last saved. */
+  private records = new Map<string, PlayerRecord>();
+  private savedSignature = new Map<string, string>();
+  private queue = new PersistenceQueue(getPlayerStore);
+  private blackjack = new Map<string, BlackjackGame>();
+  private lastChatAt = new Map<string, number>();
+  private persistClock = 0;
+  private leaderboardClock = LEADERBOARD_EVERY_S; // refresh on the first tick
   private phaseClock = ROULETTE_PHASE_SECONDS.betting;
   private cycleClock = 0;
   private ballIdle = 0;
@@ -308,6 +367,172 @@ export class HangoutRoom extends Room<HangoutState> {
       const player = this.state.players.get(client.sessionId);
       if (player && player.holding === "coffee") player.holding = "";
     });
+
+    // --- server-authoritative transactions (the wallet is never trusted from a client) ---
+    this.onMessage("claim_allowance", (client) => this.handleClaimAllowance(client.sessionId));
+    this.onMessage("buy_item", (client, msg: { item: string }) => this.handleBuyHat(client.sessionId, msg?.item));
+    this.onMessage("spin_slots", (client, msg: { propId: string; bet: number }) => this.handleSpinSlots(client.sessionId, msg));
+    this.onMessage("blackjack_action", (client, msg: { action: BlackjackAction; bet?: number }) => this.handleBlackjack(client.sessionId, msg));
+    this.onMessage("chat_bubble", (client, msg: { text: string }) => this.handleChat(client.sessionId, msg?.text));
+    // Latency: the client times the round trip and reports it, so the roster can show pings.
+    this.onMessage("ping", (client, msg: { t: number; rtt?: number }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player && typeof msg?.rtt === "number" && Number.isFinite(msg.rtt)) player.ping = Math.max(0, Math.min(9999, Math.round(msg.rtt)));
+      client.send("pong", { t: msg?.t ?? 0 });
+    });
+  }
+
+  // --- persistence ---------------------------------------------------------------------------
+
+  /** Copies the live state into the player's record and queues a debounced write if it changed. */
+  private persist(sessionId: string, player: Player, now = false) {
+    const record = this.records.get(sessionId);
+    if (!record) return;
+    record.username = player.username;
+    record.coins = player.coins;
+    record.unlockedItems = player.owned ? player.owned.split(",") : [];
+    const look = parseLook(player.look);
+    record.equippedLook = look ? { ...look } : {};
+    record.stats = parseStats(player.stats);
+    const signature = `${record.coins}|${player.owned}|${player.look}|${player.stats}|${record.lastDailyClaim?.getTime() ?? 0}`;
+    if (signature === this.savedSignature.get(sessionId) && !now) return;
+    this.savedSignature.set(sessionId, signature);
+    this.queue.mark(record);
+    if (now) void this.queue.flush(record.discordId);
+  }
+
+  private bumpStat(player: Player, stat: keyof PlayerStats, by = 1) {
+    const stats = parseStats(player.stats);
+    stats[stat] += by;
+    player.stats = JSON.stringify(stats);
+  }
+
+  private async refreshLeaderboard() {
+    try {
+      const top = await getPlayerStore().topCoins(10);
+      const json = JSON.stringify(top);
+      if (json !== this.state.leaderboard) this.state.leaderboard = json;
+    } catch (err) {
+      console.error("[db] leaderboard query failed:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  private handleClaimAllowance(sessionId: string) {
+    const player = this.state.players.get(sessionId);
+    const record = this.records.get(sessionId);
+    if (!player || !record) return;
+    if (player.coins >= ALLOWANCE_BELOW) return;
+    const last = record.lastDailyClaim?.getTime() ?? 0;
+    if (Date.now() - last < ALLOWANCE_COOLDOWN_S * 1000) {
+      this.sendTo(sessionId, "allowance", { ok: false, retryInS: Math.ceil((ALLOWANCE_COOLDOWN_S * 1000 - (Date.now() - last)) / 1000) });
+      return;
+    }
+    record.lastDailyClaim = new Date();
+    this.addCoins(player, ALLOWANCE_COINS);
+    this.sendTo(sessionId, "allowance", { ok: true, coins: ALLOWANCE_COINS });
+    this.broadcast("emote", { sessionId, emoji: "🪙" });
+    this.persist(sessionId, player, true);
+  }
+
+  private handleChat(sessionId: string, raw: unknown) {
+    const player = this.state.players.get(sessionId);
+    if (!player || typeof raw !== "string") return;
+    // eslint-disable-next-line no-control-regex
+    const text = raw.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, CHAT_MAX_CHARS);
+    if (!text) return;
+    const now = Date.now();
+    if (now - (this.lastChatAt.get(sessionId) ?? 0) < CHAT_COOLDOWN_MS) return;
+    this.lastChatAt.set(sessionId, now);
+    this.broadcast("chatBubble", { sessionId, text });
+  }
+
+  private handleSpinSlots(sessionId: string, msg: { propId: string; bet: number }) {
+    const player = this.state.players.get(sessionId);
+    const prop = this.state.toggleables.get(String(msg?.propId ?? ""));
+    if (!player || !prop || prop.kind !== "slot") return;
+    const bet = Number(msg.bet);
+    if (!(SLOT_BETS as readonly number[]).includes(bet)) return;
+    if (Math.hypot(player.x - prop.x, player.z - prop.z) > INTERACT_RADIUS + 0.8) return;
+    this.spinSlot(sessionId, player, prop.propId, bet);
+  }
+
+  // --- blackjack -----------------------------------------------------------------------------
+
+  private blackjackView(game: BlackjackGame): BlackjackView {
+    const holeHidden = game.phase === "player";
+    const dealerShown = holeHidden ? game.dealer.slice(0, 1) : game.dealer;
+    return {
+      phase: game.phase,
+      bet: game.bet,
+      player: game.player,
+      dealer: dealerShown,
+      holeHidden,
+      playerTotal: blackjackTotal(game.player),
+      dealerTotal: blackjackTotal(dealerShown),
+      outcome: game.outcome,
+      payout: game.payout,
+      canDouble: game.phase === "player" && game.player.length === 2,
+    };
+  }
+
+  private handleBlackjack(sessionId: string, msg: { action: BlackjackAction; bet?: number }) {
+    const player = this.state.players.get(sessionId);
+    if (!player || this.state.currentMap !== "velvet_casino") return;
+    if (Math.hypot(player.x - BLACKJACK_CENTER.x, player.z - BLACKJACK_CENTER.z) > BLACKJACK_RADIUS + 0.8) return;
+    const action = msg?.action;
+    let game = this.blackjack.get(sessionId);
+
+    if (action === "deal") {
+      if (game && (game.phase === "player" || game.phase === "dealer")) return; // hand in progress
+      const bet = Number(msg.bet);
+      if (!(BLACKJACK_BETS as readonly number[]).includes(bet) || player.coins < bet) return;
+      player.coins -= bet;
+      const deck = freshDeck();
+      game = { deck, player: [deck.pop()!, deck.pop()!], dealer: [deck.pop()!, deck.pop()!], bet, phase: "player", outcome: "", payout: 0 };
+      this.blackjack.set(sessionId, game);
+      const natural = blackjackTotal(game.player) === 21;
+      const dealerNatural = blackjackTotal(game.dealer) === 21;
+      if (natural || dealerNatural) this.settleBlackjack(sessionId, player, game, natural && !dealerNatural ? "blackjack" : natural ? "push" : "lose");
+    } else if (!game || game.phase !== "player") {
+      return;
+    } else if (action === "hit") {
+      game.player.push(game.deck.pop()!);
+      const total = blackjackTotal(game.player);
+      if (total > 21) this.settleBlackjack(sessionId, player, game, "bust");
+      else if (total === 21) this.dealerPlays(sessionId, player, game);
+    } else if (action === "double") {
+      if (game.player.length !== 2 || player.coins < game.bet) return;
+      player.coins -= game.bet;
+      game.bet *= 2;
+      game.player.push(game.deck.pop()!);
+      if (blackjackTotal(game.player) > 21) this.settleBlackjack(sessionId, player, game, "bust");
+      else this.dealerPlays(sessionId, player, game);
+    } else if (action === "stand") {
+      this.dealerPlays(sessionId, player, game);
+    } else {
+      return;
+    }
+    this.sendTo(sessionId, "blackjackState", this.blackjackView(this.blackjack.get(sessionId)!));
+  }
+
+  /** Dealer draws to 17 (hits 16 and below, stands on any 17), then the hand is compared. */
+  private dealerPlays(sessionId: string, player: Player, game: BlackjackGame) {
+    game.phase = "dealer";
+    while (blackjackTotal(game.dealer) < 17) game.dealer.push(game.deck.pop()!);
+    const p = blackjackTotal(game.player);
+    const d = blackjackTotal(game.dealer);
+    this.settleBlackjack(sessionId, player, game, d > 21 || p > d ? "win" : p === d ? "push" : "lose");
+  }
+
+  private settleBlackjack(sessionId: string, player: Player, game: BlackjackGame, outcome: BlackjackOutcome) {
+    game.phase = "done";
+    game.outcome = outcome;
+    game.payout = outcome === "blackjack" ? Math.floor(game.bet * 2.5) : outcome === "win" ? game.bet * 2 : outcome === "push" ? game.bet : 0;
+    if (game.payout > 0) this.addCoins(player, game.payout);
+    if (outcome === "win" || outcome === "blackjack") {
+      this.bumpStat(player, "blackjack_wins");
+      this.broadcast("emote", { sessionId, emoji: outcome === "blackjack" ? "💰" : "🪙" });
+    }
   }
 
   private loadMapProps(mapId: MapId) {
@@ -341,6 +566,19 @@ export class HangoutRoom extends Room<HangoutState> {
   // here so every client sees the same progress instead of each running its own clock.
   private tick(dt: number) {
     const now = Date.now();
+
+    // Debounced persistence: every few seconds, anyone whose wallet, wardrobe or stats moved
+    // gets queued for a write (the queue coalesces further). Leaving flushes at once.
+    this.persistClock += dt;
+    if (this.persistClock >= PERSIST_EVERY_S) {
+      this.persistClock = 0;
+      this.state.players.forEach((player, sessionId) => this.persist(sessionId, player));
+    }
+    this.leaderboardClock += dt;
+    if (this.leaderboardClock >= LEADERBOARD_EVERY_S) {
+      this.leaderboardClock = 0;
+      void this.refreshLeaderboard();
+    }
     this.state.toggleables.forEach((prop) => {
       if (prop.boost > 0) prop.boost = Math.max(0, prop.boost - dt);
       // picked bushes grow back
@@ -349,6 +587,7 @@ export class HangoutRoom extends Room<HangoutState> {
         prop.on = true;
         this.regrowAt.delete(prop.propId);
         if (prop.kind === "sparkle") this.moveSparkle(prop);
+        if (prop.kind === "stew") prop.track = 0; // a fresh pot
       }
     });
 
@@ -379,6 +618,7 @@ export class HangoutRoom extends Room<HangoutState> {
           } else {
             const fish: ItemId = roll < 0.8 ? "sardine" : "clownfish";
             this.addItem(player, fish);
+            this.bumpStat(player, "fish_caught");
             this.broadcast("emote", { sessionId, emoji: ITEMS[fish].emoji });
           }
           this.scheduleAfkCatch(sessionId, now);
@@ -453,6 +693,7 @@ export class HangoutRoom extends Room<HangoutState> {
       for (const [kind, amount] of Object.entries(parseBets(raw))) won += betReturn(kind, amount, result);
       if (won > 0) {
         this.addCoins(player, won);
+        this.bumpStat(player, "roulette_wins");
         winners.push({ sessionId, username: player.username, amount: won });
         this.broadcast("emote", { sessionId, emoji: won >= 100 ? "💰" : "🪙" });
       }
@@ -539,6 +780,7 @@ export class HangoutRoom extends Room<HangoutState> {
       this.broadcast("emote", { sessionId, emoji: "👢" });
     } else {
       this.addItem(player, caught);
+      this.bumpStat(player, "fish_caught");
       this.broadcast("emote", { sessionId, emoji: ITEMS[caught].emoji });
     }
     this.fishBiteAt.set(sessionId, Date.now() + randomBiteDelay());
@@ -576,8 +818,8 @@ export class HangoutRoom extends Room<HangoutState> {
     if (typeof x !== "number" || typeof z !== "number") return;
     if (!Number.isFinite(x) || !Number.isFinite(z)) return;
 
-    let goalX = clampToWorld(x);
-    let goalZ = clampToWorld(z);
+    let goalX = clampToWorld(x, this.state.currentMap);
+    let goalZ = clampToWorld(z, this.state.currentMap);
 
     // How far this player could honestly have walked since their last report.
     const now = Date.now();
@@ -757,8 +999,25 @@ export class HangoutRoom extends Room<HangoutState> {
         }
         break;
       case "slot":
-        this.spinSlot(sessionId, player, prop.propId);
+        // Walking up opens the machine's own panel; spins arrive as "spin_slots" with a stake.
+        this.sendTo(sessionId, "openSlots", { propId: prop.propId });
         break;
+      case "stew": {
+        if (!prop.on) return; // the pot is empty and being refilled
+        prop.track = Math.min(STEW_STIRS, prop.track + 1);
+        this.broadcast("emote", { sessionId, emoji: "🥄" });
+        if (prop.track >= STEW_STIRS) {
+          // Stew's up: everyone round the fire gets a bowl.
+          this.state.players.forEach((p, id) => {
+            if (!p.connected || Math.hypot(p.x - prop.x, p.z - prop.z) > STEW_RADIUS) return;
+            this.addCoins(p, STEW_REWARD);
+            this.broadcast("emote", { sessionId: id, emoji: "🍲" });
+          });
+          prop.on = false;
+          this.regrowAt.set(prop.propId, Date.now() + STEW_COOLDOWN_S * 1000);
+        }
+        break;
+      }
       case "npc":
         this.sellTo(sessionId, player, prop.propId);
         break;
@@ -800,21 +1059,22 @@ export class HangoutRoom extends Room<HangoutState> {
     }
   }
 
-  private spinSlot(sessionId: string, player: Player, propId: string) {
-    if (player.coins < SLOT_COST) return;
-    player.coins -= SLOT_COST;
+  private spinSlot(sessionId: string, player: Player, propId: string, bet: number = SLOT_COST) {
+    if (player.coins < bet) return;
+    player.coins -= bet;
+    this.bumpStat(player, "slots_spins");
     const reels: [number, number, number] = [rollSymbol(), rollSymbol(), rollSymbol()];
     let win = 0;
-    if (reels[0] === reels[1] && reels[1] === reels[2]) win = SLOT_COST * SLOT_TRIPLE[reels[0]];
-    else if (reels[0] === reels[1] || reels[1] === reels[2] || reels[0] === reels[2]) win = SLOT_COST * 2;
+    if (reels[0] === reels[1] && reels[1] === reels[2]) win = bet * SLOT_TRIPLE[reels[0]];
+    else if (reels[0] === reels[1] || reels[1] === reels[2] || reels[0] === reels[2]) win = bet * 2;
     // The reels spin for ~1.6 s on screen; pay out when they land.
-    this.broadcast("slotSpin", { propId, sessionId, reels, win });
+    this.broadcast("slotSpin", { propId, sessionId, reels, win, bet });
     if (win > 0) {
       this.clock.setTimeout(() => {
         const p = this.state.players.get(sessionId);
         if (!p) return;
         this.addCoins(p, win);
-        this.broadcast("emote", { sessionId, emoji: win >= SLOT_COST * 12 ? "💰" : "🪙" });
+        this.broadcast("emote", { sessionId, emoji: win >= bet * 12 ? "💰" : "🪙" });
       }, 1700);
     }
   }
@@ -863,6 +1123,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!player || player.holding !== "marshmallow") return;
     // The reaction depends on how long you left it in the fire.
     const emoji = player.toast < 0.55 ? "😋" : player.toast <= 1.15 ? "🤩" : "😵";
+    this.bumpStat(player, "marshmallows_roasted");
     this.broadcast("emote", { sessionId, emoji });
     player.holding = "";
     player.toast = 0;
@@ -941,11 +1202,12 @@ export class HangoutRoom extends Room<HangoutState> {
     player.actionProgress = 0;
   }
 
-  onJoin(client: Client, options: { userId: string; username: string; avatarUrl: string }) {
+  async onJoin(client: Client, options: { userId: string; username: string; avatarUrl: string }) {
     const player = new Player();
-    player.userId = options.userId;
-    player.username = options.username;
-    player.avatarUrl = options.avatarUrl;
+    // The Discord user id keys the persisted record; a session id stands in when there is none.
+    player.userId = String(options?.userId || `guest_${client.sessionId}`);
+    player.username = String(options?.username || "Guest").slice(0, 100);
+    player.avatarUrl = String(options?.avatarUrl ?? "");
     player.color = PASTEL_COLORS[Math.floor(Math.random() * PASTEL_COLORS.length)];
     // Cycle through the spawn points instead of always using the first one, otherwise every
     // player in the room materialises inside everybody else.
@@ -953,21 +1215,51 @@ export class HangoutRoom extends Room<HangoutState> {
     const spawn = spawns[this.state.players.size % spawns.length];
     player.x = spawn.x;
     player.z = spawn.z;
-    // Coming back to the same room restores your wallet, catch and shop hats.
-    const wallet = this.wallets.get(player.userId);
-    if (wallet) {
-      player.coins = wallet.coins;
-      player.bag = wallet.bag;
-      player.owned = wallet.owned;
+
+    // Returning players come back with their wallet, hats, look and stats; newcomers get the
+    // starter grant. A store outage must not keep anyone out: fall back to a fresh record.
+    let record: PlayerRecord | null = null;
+    try {
+      record = await getPlayerStore().load(player.userId);
+    } catch (err) {
+      console.error("[db] load failed, starting a fresh record:", err instanceof Error ? err.message : err);
     }
+    const isNew = !record;
+    if (!record) record = newPlayerRecord(player.userId, player.username);
+    record.username = player.username;
+    player.coins = record.coins;
+    player.owned = record.unlockedItems.join(",");
+    player.stats = JSON.stringify(record.stats);
+    const look = record.equippedLook && record.equippedLook.skin ? parseLook(encodeLook(record.equippedLook as any)) : null;
+    if (look) {
+      player.look = encodeLook(look);
+      player.color = look.shirt;
+    }
+    this.records.set(client.sessionId, record);
+    // The catch bucket is a session thing (the traders buy it); it survives a reconnect only.
+    const wallet = this.wallets.get(player.userId);
+    if (wallet) player.bag = wallet.bag;
+
     this.state.players.set(client.sessionId, player);
+    if (isNew) this.persist(client.sessionId, player, true);
+    else this.savedSignature.set(client.sessionId, "");
+    this.sendTo(client.sessionId, "welcome", { isNew, coins: player.coins });
   }
 
   private removePlayer(sessionId: string) {
     const player = this.state.players.get(sessionId);
     if (!player) return;
     this.refundBets(sessionId);
+    // An unfinished blackjack hand is abandoned: the stake comes back.
+    const game = this.blackjack.get(sessionId);
+    if (game && game.phase === "player") this.addCoins(player, game.bet);
+    this.blackjack.delete(sessionId);
     if (player.userId) this.wallets.set(player.userId, { coins: player.coins, bag: player.bag, owned: player.owned });
+    // Flush straight to the database: nothing pending may be lost with the player gone.
+    this.persist(sessionId, player, true);
+    this.records.delete(sessionId);
+    this.savedSignature.delete(sessionId);
+    this.lastChatAt.delete(sessionId);
     this.state.players.delete(sessionId);
     this.lastEmoteAt.delete(sessionId);
     this.lastGestureAt.delete(sessionId);
@@ -993,6 +1285,8 @@ export class HangoutRoom extends Room<HangoutState> {
       return;
     }
 
+    // Dropped, not left: write what we have now in case they never come back.
+    this.persist(client.sessionId, player, true);
     player.connected = false;
     try {
       await this.allowReconnection(client, 30);
@@ -1002,7 +1296,8 @@ export class HangoutRoom extends Room<HangoutState> {
     }
   }
 
-  onDispose() {
+  async onDispose() {
+    await this.queue.flush();
     console.log(`Room ${this.roomId} disposed`);
   }
 }
@@ -1018,7 +1313,7 @@ function pickFish(): ItemId | "boot" {
 }
 
 /** Weighted so jackpots stay rare: cherries common, sevens scarce. */
-const SYMBOL_WEIGHTS = [34, 26, 20, 13, 7];
+const SYMBOL_WEIGHTS = [30, 24, 18, 13, 9, 6];
 function rollSymbol(): number {
   let roll = Math.random() * SYMBOL_WEIGHTS.reduce((a, b) => a + b, 0);
   for (let i = 0; i < SLOT_SYMBOLS.length; i++) {

@@ -1,5 +1,5 @@
 import type { MapId } from "./types";
-import { WORLD_LIMIT, isBlocked } from "./collision";
+import { GRID_LIMIT, isBlocked } from "./collision";
 
 // Grid A* over the same collision the server validates against.
 //
@@ -15,16 +15,18 @@ export interface Point {
 }
 
 const CELL = 0.25;
-const SIZE = Math.ceil((WORLD_LIMIT * 2) / CELL) + 1;
+// One grid size for every map (the largest, the 28x28 valley); smaller maps simply have their
+// outer cells blocked by isBlocked's per-map limit.
+const SIZE = Math.ceil((GRID_LIMIT * 2) / CELL) + 1;
 const PLAYER_RADIUS = 0.3;
 
 const gridCache = new Map<MapId, Uint8Array>();
 
 function toCell(v: number): number {
-  return Math.round((v + WORLD_LIMIT) / CELL);
+  return Math.round((v + GRID_LIMIT) / CELL);
 }
 function toWorld(c: number): number {
-  return c * CELL - WORLD_LIMIT;
+  return c * CELL - GRID_LIMIT;
 }
 
 /** 1 = walkable. Built once per map, lazily — about 5.8k collision tests. */

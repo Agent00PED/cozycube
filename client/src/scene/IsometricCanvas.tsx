@@ -25,7 +25,7 @@ const DEFAULT_ZOOM_FLOOR = 34;
 const MAX_ZOOM = 160;
 // Free look roams the whole diorama (a bit past its lip, so corner furniture can be centred)
 // rather than a small window around the player.
-const FREE_LOOK_LIMIT = 11;
+const FREE_LOOK_LIMIT = 15; // the campfire valley is 28 across
 
 // Per-60fps-frame blend toward the focus point. Kept low so the camera trails the player
 // gently instead of feeling glued to them; converted to a frame-rate-independent factor below.

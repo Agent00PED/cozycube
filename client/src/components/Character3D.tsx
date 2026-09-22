@@ -33,6 +33,8 @@ interface Character3DProps {
   gesture?: { kind: Gesture; at: number } | null;
   /** Activity status badge (an ActivityStatusId), "" for none. "afk" also naps. */
   status?: string;
+  /** A quick-chat line to show in a speech bubble (keyed so a repeat re-animates). */
+  bubble?: { id: number; text: string } | null;
 }
 
 // --- Proportions -------------------------------------------------------------------------
@@ -171,7 +173,7 @@ const ROD_LENGTH = 1.3;
 // RemotePlayerAvatar in WorldScene) owns the forwarded outer group and drives its position.
 export const Character3D = memo(
   forwardRef<THREE.Group, Character3DProps>(
-    ({ userId, look, color, username, pose, speedRef, holding, action, actionProgress, toast, speaking, emotes, gesture, status = "" }, ref) => {
+    ({ userId, look, color, username, pose, speedRef, holding, action, actionProgress, toast, speaking, emotes, gesture, status = "", bubble = null }, ref) => {
       const bodyRef = useRef<THREE.Group>(null);
       const torsoRef = useRef<THREE.Mesh>(null);
       const headRef = useRef<THREE.Group>(null);
@@ -401,6 +403,8 @@ export const Character3D = memo(
       const gaugeVisible = action === "brew";
       const gaugeWidth = 0.7;
       const lying = pose === "lie";
+      const bite = action === "fish" && actionProgress >= 1;
+      const overheadY = (lying ? 0.72 : NAMETAG_Y) + (isActivityStatus(status) ? 0.7 : 0.32);
 
       return (
         <group ref={ref}>
@@ -552,6 +556,18 @@ export const Character3D = memo(
                   </>
                 )}
               </div>
+            </Html>
+          )}
+          {bubble && (
+            <Html key={bubble.id} position={[0, overheadY + 0.15, 0]} center zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
+              <div className="cozy-chat-bubble" style={{ position: "relative" }}>
+                {bubble.text}
+              </div>
+            </Html>
+          )}
+          {bite && (
+            <Html position={[0, overheadY + 0.2, 0]} center zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
+              <div className="cozy-bite-mark">!</div>
             </Html>
           )}
           {(emotes.length > 0 || speaking) && (

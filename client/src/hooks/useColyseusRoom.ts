@@ -3,8 +3,10 @@ import { Client, Room } from "colyseus.js";
 import type { DiscordAuthInfo } from "./useDiscordAuth";
 import type {
   BallSyncState,
+  BlackjackAction,
   ChairSyncState,
   EmoteBroadcast,
+  LeaderboardEntry,
   HeldItem,
   MapId,
   PlayerAction,
@@ -25,7 +27,9 @@ export type EmoteListener = (emote: EmoteBroadcast) => void;
 
 /** One-shot server messages other than emotes (gesture, slotSpin, rouletteResult, npcSay). */
 export type RoomMessageListener = (type: string, payload: any) => void;
-const RELAYED_MESSAGES = ["gesture", "slotSpin", "rouletteResult", "npcSay"] as const;
+const RELAYED_MESSAGES = ["gesture", "slotSpin", "rouletteResult", "npcSay", "chatBubble", "blackjackState", "openSlots", "allowance", "welcome"] as const;
+/** How often the client times a round trip for the roster's ping column. */
+const PING_EVERY_MS = 5000;
 
 export interface BallSnapshot extends BallSyncState {
   /** performance.now() when this snapshot arrived. */
@@ -47,7 +51,15 @@ interface UseColyseusRoomResult {
   /** Roulette bets on the table this round, by sessionId (encodeBets strings). */
   bets: Record<string, string>;
   autoCycle: boolean;
+  /** Persisted High Rollers (top balances), refreshed by the server every few seconds. */
+  leaderboard: LeaderboardEntry[];
+  /** Your last measured round trip in ms. */
+  latency: number;
   setAutoCycle: (on: boolean) => void;
+  claimAllowance: () => void;
+  spinSlots: (propId: string, bet: number) => void;
+  blackjackAction: (action: BlackjackAction, bet?: number) => void;
+  sendChat: (text: string) => void;
   sendGesture: (gesture: string) => void;
   buyHat: (hat: string) => void;
   placeBet: (kind: string, amount: number) => void;
@@ -89,6 +101,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [roulette, setRoulette] = useState<RouletteSyncState>({ phase: "betting", timeLeft: 25, result: -1, spinId: 0 });
   const [bets, setBets] = useState<Record<string, string>>({});
   const [autoCycle, setAutoCycleState] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [latency, setLatency] = useState(0);
   const ballRef = useRef<BallSnapshot | null>(null);
 
   useEffect(() => {
@@ -143,6 +157,16 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       for (const type of RELAYED_MESSAGES) {
         room.onMessage(type, (msg: unknown) => messageListenersRef.current.forEach((listener) => listener(type, msg)));
       }
+      // Latency: time a round trip every few seconds and tell the server the last result.
+      let lastRtt = 0;
+      room.onMessage("pong", (msg: { t: number }) => {
+        lastRtt = Math.round(performance.now() - msg.t);
+        setLatency(lastRtt);
+      });
+      const pingTimer = window.setInterval(() => {
+        if (roomRef.current === room) room.send("ping", { t: performance.now(), rtt: lastRtt });
+      }, PING_EVERY_MS);
+      room.onLeave(() => window.clearInterval(pingTimer));
 
       room.state.players.onAdd((player: any, sessionId: string) => {
         const sync = () => {
@@ -174,6 +198,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
               bag: player.bag ?? "",
               owned: player.owned ?? "",
               status: player.status ?? "",
+              stats: player.stats ?? "",
+              ping: player.ping ?? 0,
             },
           }));
         };
@@ -284,6 +310,14 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
         );
       }
       room.state.listen("autoCycle", (v: boolean) => setAutoCycleState(v));
+      room.state.listen("leaderboard", (raw: string) => {
+        try {
+          const parsed = JSON.parse(raw || "[]");
+          setLeaderboard(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          setLeaderboard([]);
+        }
+      });
 
       room.state.listen("currentMap", (map: MapId) => setCurrentMap(map));
       room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
@@ -354,7 +388,13 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     roulette,
     bets,
     autoCycle,
+    leaderboard,
+    latency,
     setAutoCycle: (on) => send("setAutoCycle", { on }),
+    claimAllowance: () => send("claim_allowance"),
+    spinSlots: (propId, bet) => send("spin_slots", { propId, bet }),
+    blackjackAction: (action, bet) => send("blackjack_action", { action, bet }),
+    sendChat: (text) => send("chat_bubble", { text }),
     sendGesture: (gesture) => send("gesture", { gesture }),
     buyHat: (hat) => send("buyHat", { hat }),
     placeBet: (kind, amount) => send("placeBet", { kind, amount }),

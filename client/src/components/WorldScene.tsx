@@ -13,6 +13,7 @@ import { StaticBatch } from "../scene/kit";
 import { Volleyball } from "./Volleyball";
 import { BetChips, Leaderboard, PayoutConfetti, RouletteWheel } from "./Casino";
 import { walkY } from "@shared/collision";
+import { MAP_HALF } from "@shared/types";
 import { Dealer } from "./LivingProps";
 import { Critters } from "../scene/Critters";
 import { RoomEventsContext } from "../scene/roomEvents";
@@ -22,6 +23,9 @@ import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlay
 import type { BallSnapshot, EmoteListener, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { requestRecenter } from "../scene/cameraFocus";
 import { APPROACH_POINTS } from "@shared/props";
+import { cameraFocus } from "../scene/cameraFocus";
+import { moveInput } from "../systems/input";
+import { CHAT_BUBBLE_SECONDS } from "@shared/types";
 import {
   GESTURE_SECONDS,
   isWalkUpProp,
@@ -29,6 +33,8 @@ import {
   type GestureBroadcast,
   type RouletteSyncState,
   type ChairSyncState,
+  type ChatBubbleBroadcast,
+  type LeaderboardEntry,
   type MapId,
   type PlayerState,
   type TimeOfDay,
@@ -54,6 +60,7 @@ interface WorldSceneProps {
   onKickBall: (dirX: number, dirZ: number) => void;
   roulette: RouletteSyncState;
   bets: Record<string, string>;
+  leaderboard: LeaderboardEntry[];
   subscribeMessages: (listener: RoomMessageListener) => () => void;
 }
 
@@ -74,6 +81,7 @@ export function WorldScene({
   onKickBall,
   roulette,
   bets,
+  leaderboard,
   subscribeMessages,
 }: WorldSceneProps) {
   const theme = ROOM_THEMES[mapId];
@@ -150,12 +158,32 @@ export function WorldScene({
         const chair = syncedRef.current.chairs[id];
         if (chair) handleSeatClick(chair);
       },
+      sitNearest: () => {
+        let best: ChairSyncState | null = null;
+        let bestD = 6;
+        for (const chair of Object.values(syncedRef.current.chairs)) {
+          if (chair.occupiedBy !== "") continue;
+          const d = Math.hypot(chair.x - cameraFocus.x, chair.z - cameraFocus.z);
+          if (d < bestD) {
+            bestD = d;
+            best = chair;
+          }
+        }
+        if (!best) return false;
+        handleSeatClick(best);
+        return true;
+      },
       walkTo: (x, z) => {
         standUpIfSeated();
         moveTargetRef.current = { x, z };
         pingRipple(x, z);
       },
     };
+    // Dev builds expose the bridge next to __r3f so automated checks can walk the avatar.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __cozy?: unknown }).__cozy = interactBridge;
+      (window as unknown as { __cozyDebug?: unknown }).__cozyDebug = { cameraFocus, moveTargetRef, moveInput };
+    }
     return () => {
       interactBridge.current = null;
     };
@@ -190,6 +218,33 @@ export function WorldScene({
       timers.forEach((t) => window.clearTimeout(t));
     };
   }, [subscribeEmotes]);
+
+  // --- speech bubbles: quick-chat lines hang over a head for a few seconds ---
+  const [bubbles, setBubbles] = useState<Record<string, { id: number; text: string }>>({});
+  const bubbleIdRef = useRef(0);
+  useEffect(() => {
+    const timers = new Set<number>();
+    const unsubscribe = subscribeMessages((type, payload) => {
+      if (type !== "chatBubble") return;
+      const { sessionId, text } = payload as ChatBubbleBroadcast;
+      const entry = { id: ++bubbleIdRef.current, text };
+      setBubbles((prev) => ({ ...prev, [sessionId]: entry }));
+      const timer = window.setTimeout(() => {
+        timers.delete(timer);
+        setBubbles((prev) => {
+          if (prev[sessionId] !== entry) return prev;
+          const next = { ...prev };
+          delete next[sessionId];
+          return next;
+        });
+      }, CHAT_BUBBLE_SECONDS * 1000);
+      timers.add(timer);
+    });
+    return () => {
+      unsubscribe();
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [subscribeMessages]);
 
   // --- social gestures (wave, dance, cheers, nap): one-shot broadcasts, held for their duration ---
   const [gestures, setGestures] = useState<Record<string, ActiveGesture>>({});
@@ -239,7 +294,7 @@ export function WorldScene({
         <>
           <RouletteWheel roulette={roulette} />
           <BetChips bets={bets} players={players} />
-          <Leaderboard players={players} />
+          <Leaderboard players={players} persisted={leaderboard} />
           <Dealer phase={roulette.phase} />
           <PayoutConfetti />
         </>
@@ -249,7 +304,7 @@ export function WorldScene({
           handful of draw calls — re-merged only when the set of seats changes (a map change). */}
       <StaticBatch version={chairSetKey}>
         {Object.values(chairs).map((chair) => (
-          <ChairProp key={chair.propId} chair={chair} onSeatClick={handleSeatClick} />
+          <ChairProp key={chair.propId} chair={chair} y={walkY(mapId, chair.x, chair.z)} onSeatClick={handleSeatClick} />
         ))}
       </StaticBatch>
       {Object.values(toggleables).map((prop) => (
@@ -272,9 +327,10 @@ export function WorldScene({
             emotes={playerEmotes}
             mapId={mapId}
             gesture={gestures[sessionId] ?? null}
+            bubble={bubbles[sessionId] ?? null}
           />
         ) : (
-          <RemotePlayerAvatar key={sessionId} player={player} speaking={speaking} emotes={playerEmotes} gesture={gestures[sessionId] ?? null} mapId={mapId} />
+          <RemotePlayerAvatar key={sessionId} player={player} speaking={speaking} emotes={playerEmotes} gesture={gestures[sessionId] ?? null} mapId={mapId} bubble={bubbles[sessionId] ?? null} />
         );
       })}
     </TimeOfDayContext.Provider>
@@ -312,6 +368,8 @@ const RoomLighting = memo(function RoomLighting({ theme, preset, mapId }: { them
   const sun: [number, number, number] = indoors
     ? [Math.abs(preset.sun[0]) + 6, preset.sun[1] + 10, Math.abs(preset.sun[2]) + 8]
     : preset.sun;
+  // The shadow frustum hugs the slab: ~half-diagonal of the map plus a margin.
+  const bound = MAP_HALF[mapId] * 1.3;
 
   return (
     <>
@@ -342,10 +400,10 @@ const RoomLighting = memo(function RoomLighting({ theme, preset, mapId }: { them
         // Tight to the 20x20 slab (half-diagonal ~14). At 2048 px over 26 units that is ~79
         // texels per world unit, so contact shadows stay crisp instead of blocky — and a
         // smaller frustum is also less for the shadow pass to cover.
-        shadow-camera-left={-13}
-        shadow-camera-right={13}
-        shadow-camera-top={13}
-        shadow-camera-bottom={-13}
+        shadow-camera-left={-bound}
+        shadow-camera-right={bound}
+        shadow-camera-top={bound}
+        shadow-camera-bottom={-bound}
         shadow-camera-near={1}
         shadow-camera-far={90}
       />
@@ -365,6 +423,7 @@ function LocalPlayerAvatar({
   emotes,
   mapId,
   gesture,
+  bubble,
 }: {
   room: Room | null;
   player: PlayerState;
@@ -373,6 +432,7 @@ function LocalPlayerAvatar({
   emotes: FloatingEmote[];
   mapId: MapId;
   gesture: ActiveGesture | null;
+  bubble: { id: number; text: string } | null;
 }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
@@ -394,6 +454,7 @@ function LocalPlayerAvatar({
       emotes={emotes}
       gesture={gesture}
       status={player.status}
+      bubble={bubble}
     />
   );
 }
@@ -455,7 +516,7 @@ function sampleSnapshots(buffer: Snapshot[], renderTime: number): { x: number; z
   return { x: newest.x + vx * carried, z: newest.z + vz * carried, vx: vx * fade, vz: vz * fade };
 }
 
-function RemotePlayerAvatar({ player, speaking, emotes, gesture, mapId }: { player: PlayerState; speaking: boolean; emotes: FloatingEmote[]; gesture: ActiveGesture | null; mapId: MapId }) {
+function RemotePlayerAvatar({ player, speaking, emotes, gesture, mapId, bubble }: { player: PlayerState; speaking: boolean; emotes: FloatingEmote[]; gesture: ActiveGesture | null; mapId: MapId; bubble: { id: number; text: string } | null }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
   const bufferRef = useRef<Snapshot[]>([{ t: performance.now(), x: player.x, z: player.z }]);
@@ -517,6 +578,7 @@ function RemotePlayerAvatar({ player, speaking, emotes, gesture, mapId }: { play
       emotes={emotes}
       gesture={gesture}
       status={player.status}
+      bubble={bubble}
     />
   );
 }

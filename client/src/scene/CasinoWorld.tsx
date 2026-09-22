@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { B, noRaycast, Cone, Cyl, FloorPatch, GEO, HALF, Instanced, Sph, seeded, type InstanceSpec, type Materials } from "./kit";
 import { CUSHIONS } from "@shared/seats";
+import { VIP_PLATFORM } from "@shared/types";
 
 // The Cozy Velvet Casino: a 20x20 retro casino in warm gold and burgundy. Same shell as the
 // lounge — solid walls along x = -HALF and z = -HALF, open toward the camera — so the camera,
@@ -26,6 +27,7 @@ function useCasinoMaterials() {
       leather: make("#6b2f22", { roughness: 0.55 }),
       leatherDark: make("#4a1f17", { roughness: 0.55 }),
       cream: make("#f3e6c8", { roughness: 0.9 }),
+      emerald: make("#1c4a38", { roughness: 1 }),
       sconce: make("#fff1c9", { emissive: "#ffbf66", emissiveIntensity: 1.8 }),
       bottle: make("#ffffff", { roughness: 0.25 }),
     };
@@ -104,6 +106,10 @@ function Shell({ mats, c, wallColor }: { mats: Materials; c: CasinoMats; wallCol
       <FloorPatch x0={-3.8} x1={7.2} z0={6.4} z1={6.45} y={0.012} m={c.gold} />
       <FloorPatch x0={-3.85} x1={-3.8} z0={-7.25} z1={6.45} y={0.012} m={c.gold} />
       <FloorPatch x0={7.2} x1={7.25} z0={-7.25} z1={6.45} y={0.012} m={c.gold} />
+
+      {/* the blackjack wing sits on emerald, trimmed in gold, so the card table reads as its own room */}
+      <FloorPatch x0={-9.1} x1={-3.95} z0={-7.6} z1={-2.2} y={0.009} m={c.gold} />
+      <FloorPatch x0={-9.05} x1={-4.0} z0={-7.55} z1={-2.25} y={0.013} m={c.emerald} />
 
       {/* entrance doormat and brass stanchions where people arrive */}
       <B p={[6.4, 0.012, 7.8]} s={[2.5, 0.01, 1.5]} m={c.gold} recv />
@@ -360,8 +366,18 @@ function VipLounge({ mats, c }: { mats: Materials; c: CasinoMats }) {
     return out;
   }, []);
 
+  const v = VIP_PLATFORM;
+  const vw = v.x1 - v.x0;
+  const vd = v.z1 - v.z0;
   return (
     <>
+      {/* The VIP lounge stands a step up on a walnut platform (walkY lifts avatars onto it),
+          with a brass-edged ramp along its open front and everything on it raised with it. */}
+      <B p={[(v.x0 + v.x1) / 2, v.height / 2, (v.z0 + v.z1) / 2]} s={[vw, v.height, vd]} m={mats.walnut} cast recv />
+      <B p={[(v.x0 + v.x1) / 2, v.height + 0.004, (v.z0 + v.z1) / 2]} s={[vw - 0.1, 0.008, vd - 0.1]} m={c.panel} />
+      <B p={[(v.x0 + v.x1) / 2, v.height - 0.015, v.z0 + 0.03]} s={[vw, 0.03, 0.06]} m={c.gold} />
+      <B p={[(v.x0 + v.x1) / 2, v.height / 2 - 0.02, v.z0 - 0.25]} s={[vw, 0.04, 0.56]} r={[Math.atan2(v.height, 0.5), 0, 0]} m={mats.walnut} recv />
+      <group position={[0, v.height, 0]}>
       {/* a gold-and-burgundy rug */}
       <B p={[-7.1, 0.01, 5.0]} s={[4.6, 0.01, 4.8]} m={c.gold} recv />
       <B p={[-7.1, 0.016, 5.0]} s={[4.4, 0.01, 4.6]} m={c.velvetDeep} recv />
@@ -404,6 +420,8 @@ function VipLounge({ mats, c }: { mats: Materials; c: CasinoMats }) {
           <B p={[0, 0.47, 0.04]} s={[0.6, 0.08, 0.64]} m={c.leather} />
         </group>
       ))}
+
+      </group>
 
       {/* velvet rope on brass stanchions */}
       {[2.0, 4.1, 6.1, 8.1].map((z) => (

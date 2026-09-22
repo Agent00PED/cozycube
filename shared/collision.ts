@@ -1,4 +1,4 @@
-import type { MapId } from "./types";
+import { BLUFF, LOUNGE_PIT, MAP_HALF, VIP_PLATFORM, type MapId } from "./types";
 
 export interface AABB {
   minX: number;
@@ -7,8 +7,14 @@ export interface AABB {
   maxZ: number;
 }
 
-/** The diorama slab spans -10..10 on both axes; players are kept a little inside its lip. */
+/** The default slab spans -10..10 on both axes; players are kept a little inside its lip. */
 export const WORLD_LIMIT = 9.4;
+/** Each map's own limit: the campfire valley is 28x28, the rest 20x20 (see MAP_HALF). */
+export function worldLimit(mapId: MapId): number {
+  return MAP_HALF[mapId] - 0.6;
+}
+/** The largest limit of any map: the pathfinding grid is sized to it. */
+export const GRID_LIMIT = Math.max(...Object.values(MAP_HALF)) - 0.6;
 
 // Static furniture obstacles per map, on the X-Z floor plane.
 //
@@ -27,7 +33,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -6.2, maxX: -5.0, minZ: -1.75, maxZ: 1.6 }, // L-sofa, return leg
     { minX: -4.1, maxX: -1.9, minZ: -1.75, maxZ: -0.85 }, // coffee table
     { minX: 0.3, maxX: 0.9, minZ: 0.05, maxZ: 0.65 }, // side table by the armchair
-    { minX: 0.6, maxX: 1.2, minZ: 1.2, maxZ: 1.8 }, // floor lamp
+    { minX: 0.6, maxX: 1.2, minZ: 0.8, maxZ: 1.4 }, // floor lamp, down in the pit
     { minX: -5.2, maxX: -0.8, minZ: 1.7, maxZ: 2.2 }, // low bookshelf behind the sofa
     { minX: -6.75, maxX: -6.05, minZ: -3.85, maxZ: -3.15 }, // monstera at the screen's end
     { minX: -0.55, maxX: 0.15, minZ: 1.85, maxZ: 2.55 }, // olive tree by the sofa
@@ -36,11 +42,11 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: 3.3, maxX: 6.9, minZ: -6.8, maxZ: -5.6 }, // bar island
     // --- Dining set ---
     { minX: -0.1, maxX: 2.7, minZ: -6.9, maxZ: -5.5 }, // farmhouse table (chairs tuck under, so they are not boxes)
-    // --- Gamer corner ---
-    { minX: -9.8, maxX: -8.4, minZ: -8.7, maxZ: -5.7 }, // streamer desk against the left wall
+    // --- Gaming zone ---
+    { minX: -8.9, maxX: -7.5, minZ: -7.7, maxZ: -6.3 }, // the board-game table (its three chairs are seats)
     { minX: -7.5, maxX: -5.1, minZ: -9.8, maxZ: -9.0 }, // both arcade cabinets on the back wall
     { minX: -3.7, maxX: -0.9, minZ: -9.8, maxZ: -9.3 }, // tall bookcase
-    { minX: -2.75, maxX: -2.15, minZ: -8.1, maxZ: -7.5 }, // snack table between the beanbags
+    { minX: -2.95, maxX: -1.95, minZ: -8.9, maxZ: -8.1 }, // the console unit the beanbags face
     { minX: -9.6, maxX: -8.8, minZ: -9.6, maxZ: -8.8 }, // corner plant
     // --- Reading & tea lounge (front-left wing), everything gathered round the tea table ---
     { minX: -9.8, maxX: -8.9, minZ: 2.4, maxZ: 5.2 }, // record shelf against the left wall
@@ -61,13 +67,19 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
 
   campfire_night: [
     { minX: -0.9, maxX: 0.9, minZ: -0.9, maxZ: 0.9 }, // fire pit and its tripod
+    { minX: -0.3, maxX: 0.5, minZ: -2.4, maxZ: -1.6 }, // the stew pot on its stand, in the gap between two logs
     { minX: -6.6, maxX: -4.6, minZ: -5.6, maxZ: -3.6 }, // tent 1, out on the open grass
     { minX: 4.4, maxX: 6.4, minZ: -6.0, maxZ: -4.0 }, // tent 2
     { minX: -7.2, maxX: -5.2, minZ: 1.6, maxZ: 3.6 }, // tent 3
+    { minX: -11.2, maxX: -9.2, minZ: -5.4, maxZ: -3.4 }, // tent 4, the glamping clearing
+    { minX: -9.8, maxX: -9.4, minZ: -8.8, maxZ: -8.4 }, // hammock post, west
+    { minX: -7.2, maxX: -6.8, minZ: -8.8, maxZ: -8.4 }, // hammock post, east
+    { minX: -8.3, maxX: -7.7, minZ: -6.9, maxZ: -6.3 }, // glamping lantern stump
     { minX: 4.1, maxX: 4.7, minZ: -2.5, maxZ: -1.9 }, // lantern stump east
     { minX: -4.7, maxX: -4.1, minZ: 1.9, maxZ: 2.5 }, // lantern stump west
     { minX: -3.4, maxX: -2.4, minZ: -4.8, maxZ: -3.8 }, // firewood stack
-    { minX: 7.7, maxX: 8.3, minZ: -3.3, maxZ: -2.7 }, // telescope, in the back corner
+    { minX: 9.6, maxX: 10.2, minZ: -10.6, maxZ: -10.0 }, // telescope, up on the stargazing bluff
+    { minX: 11.0, maxX: 11.8, minZ: -9.2, maxZ: -8.4 }, // boulder on the bluff's rim
     { minX: 1.6, maxX: 3.0, minZ: -6.4, maxZ: -5.6 }, // camp table and cooler
     { minX: 6.1, maxX: 6.7, minZ: 1.9, maxZ: 2.5 }, // Ranger Oak
     { minX: -7.15, maxX: -6.45, minZ: -1.55, maxZ: -0.85 }, // berry bush west
@@ -92,6 +104,10 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -3.7, maxX: -1.5, minZ: -0.1, maxZ: 2.1 }, // rowboat pulled up on the sand
     { minX: 8.8, maxX: 9.6, minZ: -9.2, maxZ: -8.4 }, // palm, up in the back corner of the beach
     { minX: 3.5, maxX: 5.4, minZ: 3.5, maxZ: 4.6 }, // Fisherman Bob and his bait stall beside him
+    { minX: 7.05, maxX: 7.35, minZ: 0.55, maxZ: 0.85 }, // cabana post
+    { minX: 9.05, maxX: 9.35, minZ: 0.55, maxZ: 0.85 }, // cabana post
+    { minX: 7.05, maxX: 7.35, minZ: 2.25, maxZ: 2.55 }, // cabana post
+    { minX: 9.05, maxX: 9.35, minZ: 2.25, maxZ: 2.55 }, // cabana post
   ],
 
   // A 20x20 retro casino: walls on x = -10 and z = -10 like the lounge, open toward the camera.
@@ -127,11 +143,11 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
     { x: 7.4, z: 9.0 },
   ],
   campfire_night: [
-    { x: 0, z: 8.4 },
-    { x: 1.4, z: 8.9 },
-    { x: -1.4, z: 8.9 },
-    { x: 0.7, z: 9.2 },
-    { x: -0.7, z: 9.2 },
+    { x: 0, z: 12.2 },
+    { x: 1.4, z: 12.7 },
+    { x: -1.4, z: 12.7 },
+    { x: 0.7, z: 13.0 },
+    { x: -0.7, z: 13.0 },
   ],
   velvet_casino: [
     { x: 6.6, z: 7.6 },
@@ -152,7 +168,8 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
 // The outdoor maps are ringed by scenery rather than walls: pines round the campfire clearing,
 // open sea past the beach. Enumerating the seeded trees as boxes would be absurd, so each is
 // one rule instead — with the ways in (the stone trail, the pier) carved out of it.
-const FOREST_RADIUS = 8.3;
+/** The valley: pines close in past this radius (the bluff in the NE corner is carved out). */
+export const FOREST_RADIUS = 12.4;
 const TRAIL_HALF_WIDTH = 2.6;
 const TRAIL_START_Z = 5.0;
 /** Past this the beach becomes sea; the pier is the only way out over the water. */
@@ -181,13 +198,36 @@ const BRIDGE_RAMP = 0.5;
  * never sink through the planks. Client-side only: it is where the avatar is DRAWN.
  */
 export function walkY(mapId: MapId, x: number, z: number): number {
-  if (mapId !== "campfire_night") return 0;
-  if (Math.abs(x) > BRIDGE_HALF + 0.3) return 0;
-  const along = Math.abs(z - streamZ(x));
-  if (along >= BRIDGE_HALF_LENGTH + BRIDGE_RAMP) return 0;
-  if (along <= BRIDGE_HALF_LENGTH) return BRIDGE_DECK_Y;
-  const t = 1 - (along - BRIDGE_HALF_LENGTH) / BRIDGE_RAMP;
-  return BRIDGE_DECK_Y * t * t * (3 - 2 * t);
+  if (mapId === "campfire_night") {
+    // the stargazing bluff: a knoll with gentle sides all round
+    const d = Math.hypot(x - BLUFF.x, z - BLUFF.z);
+    if (d < BLUFF.radius + 0.9) return BLUFF.height * smooth(BLUFF.radius + 0.9, BLUFF.radius - 0.4, d);
+    if (Math.abs(x) > BRIDGE_HALF + 0.3) return 0;
+    const along = Math.abs(z - streamZ(x));
+    if (along >= BRIDGE_HALF_LENGTH + BRIDGE_RAMP) return 0;
+    if (along <= BRIDGE_HALF_LENGTH) return BRIDGE_DECK_Y;
+    return BRIDGE_DECK_Y * smooth(BRIDGE_HALF_LENGTH + BRIDGE_RAMP, BRIDGE_HALF_LENGTH, along);
+  }
+  if (mapId === "cozy_lounge") {
+    // the sunken conversation pit: a step down, eased over the rim
+    const p = LOUNGE_PIT;
+    const inset = Math.min(x - p.x0, p.x1 - x, z - p.z0, p.z1 - z);
+    if (inset <= 0) return 0;
+    return -p.depth * smooth(0, 0.35, inset);
+  }
+  if (mapId === "velvet_casino") {
+    // the raised VIP lounge: a ramp along its open edge (z0), walls or the rope everywhere else
+    const v = VIP_PLATFORM;
+    if (x < v.x0 - 0.2 || x > v.x1 + 0.2 || z > v.z1 || z < v.z0 - 0.5) return 0;
+    return v.height * smooth(v.z0 - 0.5, v.z0 + 0.05, z);
+  }
+  return 0;
+}
+
+/** Hermite ease from 0 at `a` to 1 at `b` (either order). */
+function smooth(a: number, b: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
 }
 
 function inScenery(mapId: MapId, x: number, z: number, radius: number): boolean {
@@ -195,6 +235,7 @@ function inScenery(mapId: MapId, x: number, z: number, radius: number): boolean 
     // The stream is a wall except on the bridge deck, and the rails keep you on the deck.
     if (Math.abs(z - streamZ(x)) < STREAM_HALF + radius && Math.abs(x) + radius > BRIDGE_HALF) return true;
     if (Math.abs(x) < TRAIL_HALF_WIDTH && z > TRAIL_START_Z) return false; // the stone trail
+    if (Math.hypot(x - BLUFF.x, z - BLUFF.z) < BLUFF.radius + 0.4) return false; // the stargazing bluff
     return Math.hypot(x, z) > FOREST_RADIUS;
   }
   if (mapId === "sunset_beach") {
@@ -205,7 +246,8 @@ function inScenery(mapId: MapId, x: number, z: number, radius: number): boolean 
 }
 
 export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boolean {
-  if (Math.abs(x) > WORLD_LIMIT || Math.abs(z) > WORLD_LIMIT) return true;
+  const limit = worldLimit(mapId);
+  if (Math.abs(x) > limit || Math.abs(z) > limit) return true;
   if (inScenery(mapId, x, z, radius)) return true;
   for (const box of MAP_OBSTACLES[mapId]) {
     if (x + radius > box.minX && x - radius < box.maxX && z + radius > box.minZ && z - radius < box.maxZ) {
@@ -215,6 +257,7 @@ export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boo
   return false;
 }
 
-export function clampToWorld(v: number): number {
-  return Math.max(-WORLD_LIMIT, Math.min(WORLD_LIMIT, v));
+export function clampToWorld(v: number, mapId: MapId = "cozy_lounge"): number {
+  const limit = worldLimit(mapId);
+  return Math.max(-limit, Math.min(limit, v));
 }

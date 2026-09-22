@@ -4,6 +4,10 @@ import * as THREE from "three";
 import { B, Cone, Cyl, FloorPatch, GEO, HALF, Instanced, Rug, Sph, arcGeo, noMerge, noRaycast, ringGeo, seeded, type InstanceSpec, type Materials } from "./kit";
 import { CUSHIONS, surfaceY } from "@shared/seats";
 import { TEA_TABLE } from "@shared/props";
+import { LOUNGE_PIT } from "@shared/types";
+
+const PIT = LOUNGE_PIT;
+const PIT_Y = -PIT.depth;
 
 // A 20x20 "cozy modern loft", laid out as one connected home rather than furniture pushed
 // against the walls:
@@ -82,10 +86,10 @@ function Shell({ mats, wallColor }: { mats: Materials; wallColor: string }) {
       <KitchenTileGrid mats={mats} />
       {/* The living room's big hand-woven rug, in the middle of the floor: cream with a caramel
           border and two woven stripes. */}
-      <FloorPatch x0={-6.5} x1={1.6} z0={-3.4} z1={1.7} y={0.008} m={mats.rugBorder} />
-      <FloorPatch x0={-6.3} x1={1.4} z0={-3.2} z1={1.5} y={0.012} m={mats.denCarpet} />
-      <FloorPatch x0={-6.3} x1={1.4} z0={-2.9} z1={-2.75} y={0.014} m={mats.rugBorder} />
-      <FloorPatch x0={-6.3} x1={1.4} z0={1.05} z1={1.2} y={0.014} m={mats.rugBorder} />
+      <FloorPatch x0={PIT.x0 + 0.25} x1={PIT.x1 - 0.25} z0={PIT.z0 + 0.25} z1={PIT.z1 - 0.25} y={PIT_Y + 0.008} m={mats.rugBorder} />
+      <FloorPatch x0={PIT.x0 + 0.45} x1={PIT.x1 - 0.45} z0={PIT.z0 + 0.45} z1={PIT.z1 - 0.45} y={PIT_Y + 0.012} m={mats.denCarpet} />
+      <FloorPatch x0={PIT.x0 + 0.45} x1={PIT.x1 - 0.45} z0={-2.9} z1={-2.75} y={PIT_Y + 0.014} m={mats.rugBorder} />
+      <FloorPatch x0={PIT.x0 + 0.45} x1={PIT.x1 - 0.45} z0={1.05} z1={1.2} y={PIT_Y + 0.014} m={mats.rugBorder} />
       {/* the studio den's rug: sage with a caramel border */}
       <FloorPatch x0={-8.3} x1={-3.9} z0={-9.0} z1={-4.9} y={0.008} m={mats.rugBorder} />
       <FloorPatch x0={-8.15} x1={-4.05} z0={-8.85} z1={-5.05} y={0.012} m={mats.sage} />
@@ -268,15 +272,22 @@ function LivingRoom({ mats }: { mats: Materials }) {
     <>
       <SlatScreen mats={mats} x0={-5.4} x1={-0.6} z={-3.95} />
 
-      {/* media console standing against the screen; the TV on it is the "tv" prop */}
+      {/* media console standing against the screen; the TV on it is the "tv" prop, and its
+          middle bay is the hearth: a glass firebox with a bed of embers and real flames */}
       <B p={[-3.0, 0.3, -3.55]} s={[3.2, 0.6, 0.6]} m={mats.walnut} cast recv />
-      {[-4.05, -3.0, -1.95].map((x) => (
+      {[-4.05, -1.95].map((x) => (
         <B key={x} p={[x, 0.3, -3.24]} s={[0.95, 0.44, 0.02]} m={mats.darkWood} />
       ))}
+      <Hearth mats={mats} />
       <PottedPlant x={-4.35} z={-3.6} y={0.6} mats={mats} kind="snake" scale={0.5} />
       <Cyl p={[-1.7, 0.72, -3.6]} s={[0.2, 0.24, 0.2]} m={mats.blush} />
       <Cyl p={[-1.45, 0.66, -3.55]} s={[0.1, 0.12, 0.1]} m={mats.warmGlow} />
 
+      {/* The conversation pit: the floor steps down PIT.depth inside PIT (walkY in
+          shared/collision.ts), with a walnut lip, a warm light strip under it, and the sofa,
+          coffee table and side table all sitting on the lower floor. */}
+      <PitRim mats={mats} />
+      <group position={[0, PIT_Y, 0]}>
       {/* L-sofa facing the TV: the long run across the rug, the return leg on its left */}
       <B p={[-3.0, 0.21, 1.0]} s={[4.4, 0.42, 1.1]} m={mats.sage} cast recv />
       <B p={[-3.0, 0.58, 1.46]} s={[4.4, 0.75, 0.2]} m={mats.sageDark} cast recv />
@@ -318,6 +329,7 @@ function LivingRoom({ mats }: { mats: Materials }) {
       <Cyl p={[0.6, 0.5, 0.35]} s={[0.5, 0.04, 0.5]} m={mats.oak} cast />
       <Cyl p={[0.6, 0.25, 0.35]} s={[0.06, 0.5, 0.06]} m={mats.walnut} />
       <Cyl p={[0.55, 0.58, 0.32]} s={[0.1, 0.12, 0.1]} m={mats.sage} />
+      </group>
 
       {/* the low bookshelf behind the sofa: a soft partition from the tea corner */}
       <B p={[-3.0, 0.36, 1.95]} s={[4.2, 0.72, 0.4]} m={mats.oak} cast recv />
@@ -330,6 +342,72 @@ function LivingRoom({ mats }: { mats: Materials }) {
       <PottedPlant x={-6.4} z={-3.5} mats={mats} kind="monstera" scale={1.1} />
       <PottedPlant x={-0.2} z={2.2} mats={mats} kind="olive" scale={0.85} />
     </>
+  );
+}
+
+/** The pit's walnut lip and walls, and the warm LED strip glowing under the lip. */
+function PitRim({ mats }: { mats: Materials }) {
+  const w = PIT.x1 - PIT.x0;
+  const d = PIT.z1 - PIT.z0;
+  const cx = (PIT.x0 + PIT.x1) / 2;
+  const cz = (PIT.z0 + PIT.z1) / 2;
+  const h = PIT.depth;
+  return (
+    <>
+      {/* walls, just inside the cut, from the pit floor up to the rim */}
+      <B p={[cx, -h / 2, PIT.z0 + 0.03]} s={[w, h, 0.06]} m={mats.walnut} />
+      <B p={[cx, -h / 2, PIT.z1 - 0.03]} s={[w, h, 0.06]} m={mats.walnut} />
+      <B p={[PIT.x0 + 0.03, -h / 2, cz]} s={[0.06, h, d]} m={mats.walnut} />
+      <B p={[PIT.x1 - 0.03, -h / 2, cz]} s={[0.06, h, d]} m={mats.walnut} />
+      {/* the lip: a rounded-off nosing half over the cut */}
+      <B p={[cx, 0.02, PIT.z0]} s={[w + 0.3, 0.04, 0.3]} m={mats.oak} />
+      <B p={[cx, 0.02, PIT.z1]} s={[w + 0.3, 0.04, 0.3]} m={mats.oak} />
+      <B p={[PIT.x0, 0.02, cz]} s={[0.3, 0.04, d]} m={mats.oak} />
+      <B p={[PIT.x1, 0.02, cz]} s={[0.3, 0.04, d]} m={mats.oak} />
+      {/* the light strip under the lip, a warm line all the way round */}
+      <B p={[cx, -0.03, PIT.z0 + 0.07]} s={[w - 0.2, 0.012, 0.02]} m={mats.warmGlow} />
+      <B p={[cx, -0.03, PIT.z1 - 0.07]} s={[w - 0.2, 0.012, 0.02]} m={mats.warmGlow} />
+      <B p={[PIT.x0 + 0.07, -0.03, cz]} s={[0.02, 0.012, d - 0.2]} m={mats.warmGlow} />
+      <B p={[PIT.x1 - 0.07, -0.03, cz]} s={[0.02, 0.012, d - 0.2]} m={mats.warmGlow} />
+    </>
+  );
+}
+
+const FLAME_OUTER = new THREE.MeshBasicMaterial({ color: "#ff8a3d", toneMapped: false });
+const FLAME_INNER = new THREE.MeshBasicMaterial({ color: "#fff1b8", toneMapped: false });
+const EMBER = new THREE.MeshBasicMaterial({ color: "#ff5a2a", toneMapped: false });
+
+/** The hearth in the console's middle bay: a dark firebox, glowing embers, three dancing flames. */
+function Hearth({ mats }: { mats: Materials }) {
+  const flamesRef = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    const g = flamesRef.current;
+    if (!g) return;
+    const t = clock.elapsedTime;
+    g.children.forEach((f, i) => {
+      const flicker = 0.85 + Math.sin(t * 9 + i * 2.1) * 0.12 + Math.sin(t * 17 + i) * 0.06;
+      f.scale.set(0.16 * (0.9 + Math.sin(t * 7 + i) * 0.1), 0.3 * flicker, 0.1);
+      f.rotation.z = Math.sin(t * 5 + i * 1.7) * 0.12;
+    });
+  });
+  return (
+    <group position={[-3.0, 0.3, -3.3]}>
+      {/* the black steel surround and the cavity behind it */}
+      <B p={[0, 0, 0.03]} s={[0.98, 0.5, 0.06]} m={mats.black} />
+      <B p={[0, 0, 0.02]} s={[0.84, 0.38, 0.02]} m={mats.charcoal} />
+      {/* the ember bed */}
+      <B p={[0, -0.16, 0.03]} s={[0.8, 0.03, 0.06]} m={EMBER} />
+      {[-0.28, -0.1, 0.1, 0.26].map((x) => (
+        <Cyl key={x} p={[x, -0.12, 0.04]} s={[0.08, 0.14, 0.08]} r={[0, 0, Math.PI / 2]} m={mats.bark} />
+      ))}
+      <group ref={flamesRef} position={[0, -0.02, 0.05]} userData={noMerge}>
+        {[-0.2, 0.02, 0.2].map((x, i) => (
+          <mesh key={x} geometry={GEO.cone} material={i === 1 ? FLAME_INNER : FLAME_OUTER} position={[x, 0, 0]} raycast={noRaycast} />
+        ))}
+      </group>
+      {/* the glass front */}
+      <B p={[0, 0, 0.07]} s={[0.86, 0.4, 0.01]} m={mats.glass} />
+    </group>
   );
 }
 
@@ -562,29 +640,29 @@ function GamerCorner({ mats }: { mats: Materials }) {
     return out;
   }, []);
 
+  const board = useMemo<InstanceSpec[]>(() => {
+    // a checkered game board on the round table, four by four, with a few pieces on it
+    const out: InstanceSpec[] = [];
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) out.push({ p: [-8.2 - 0.3 + i * 0.2, 0.755, -7.0 - 0.3 + j * 0.2], s: [0.19, 0.01, 0.19], color: (i + j) % 2 ? "#4a2f1d" : "#f0e6d2" });
+    return out;
+  }, []);
   return (
     <>
-      <group position={[-9.05, 0, -7.2]} rotation={[0, Math.PI / 2, 0]}>
-        <B p={[0, 0.62, 0]} s={[2.6, 0.08, 1.0]} m={mats.oak} cast recv />
-        {[-1.2, 1.2].map((lx) => (
-          <B key={lx} p={[lx, 0.31, 0.3]} s={[0.08, 0.62, 0.08]} m={mats.black} cast />
-        ))}
-        <B p={[0, 0.667, 0.12]} s={[1.2, 0.004, 0.45]} m={mats.cream} />
-        <B p={[0, 0.69, 0.12]} s={[0.9, 0.04, 0.28]} m={mats.black} />
-        <Sph p={[0.58, 0.69, 0.15]} s={[0.1, 0.05, 0.13]} m={mats.black} />
-        {[-0.55, 0.3].map((mx) => (
-          <group key={mx}>
-            <B p={[mx, 0.96, -0.28]} s={[0.72, 0.42, 0.04]} m={mats.screenGlow} cast />
-            <B p={[mx, 0.76, -0.31]} s={[0.05, 0.2, 0.05]} m={mats.black} />
-          </group>
-        ))}
-        {/* a little potted plant and a stack of notebooks where the ring light was */}
-        <Cyl p={[-1.05, 0.74, -0.2]} s={[0.18, 0.18, 0.18]} m={mats.terracotta} />
-        <Sph p={[-1.05, 0.9, -0.2]} s={[0.26, 0.2, 0.26]} m={mats.leafLight} />
-        <B p={[-0.95, 0.69, 0.25]} s={[0.26, 0.06, 0.2]} m={mats.sage} />
-        <B p={[1.1, 0.3, -0.22]} s={[0.4, 0.6, 0.55]} m={mats.walnut} cast />
-        <B p={[1.1, 0.3, 0.06]} s={[0.34, 0.52, 0.01]} m={mats.darkWood} />
-      </group>
+      {/* the board-game table: a round oak top on a turned pedestal, its three chairs are seats */}
+      <Cyl p={[-8.2, 0.72, -7.0]} s={[1.5, 0.06, 1.5]} m={mats.oak} cast recv />
+      <Cyl p={[-8.2, 0.36, -7.0]} s={[0.16, 0.66, 0.16]} m={mats.walnut} cast />
+      <Cyl p={[-8.2, 0.04, -7.0]} s={[0.8, 0.08, 0.8]} m={mats.walnut} />
+      <Instanced geo={GEO.box} m={mats.tintable} items={board} />
+      {[
+        [-8.5, -7.3, mats.terracotta],
+        [-8.1, -6.9, mats.terracotta],
+        [-7.9, -7.3, mats.navy],
+        [-8.3, -6.7, mats.navy],
+      ].map(([x, z, m], i) => (
+        <Cyl key={i} p={[x as number, 0.78, z as number]} s={[0.1, 0.04, 0.1]} m={m as THREE.Material} />
+      ))}
+      <Cyl p={[-7.7, 0.82, -7.5]} s={[0.14, 0.14, 0.14]} m={mats.white} />
+      <B p={[-8.75, 0.78, -6.5]} s={[0.3, 0.06, 0.22]} r={[0, 0.5, 0]} m={mats.rust} />
 
       {/* an oak-framed cork board over the desk, pinned with sketches and photos */}
       <group position={[-INNER + 0.02, 2.2, -7.2]} rotation={[0, Math.PI / 2, 0]}>
@@ -612,10 +690,17 @@ function GamerCorner({ mats }: { mats: Materials }) {
       <PottedPlant x={-2.3} z={-9.5} y={2.2} mats={mats} kind="fern" scale={0.5} />
       <Beanbag x={-3.3} z={-7.3} m={mats.mustard} mats={mats} />
       <Beanbag x={-1.6} z={-7.3} m={mats.sage} mats={mats} />
-      {/* snack table between them */}
-      <Cyl p={[-2.45, 0.18, -7.8]} s={[0.5, 0.36, 0.5]} m={mats.charcoal} cast />
-      <Cyl p={[-2.45, 0.39, -7.8]} s={[0.3, 0.08, 0.3]} m={mats.white} />
-      <Sph p={[-2.45, 0.44, -7.8]} s={[0.24, 0.08, 0.24]} m={mats.mustard} />
+      {/* the console lounge: a retro set on a crate in front of the bookcase, which the beanbags
+          face, with the console and two controllers on the floor between them */}
+      <group position={[-2.45, 0, -8.5]}>
+        <B p={[0, 0.25, 0]} s={[1.0, 0.5, 0.7]} m={mats.walnut} cast recv />
+        <B p={[0, 0.78, 0.02]} s={[0.76, 0.54, 0.5]} m={mats.charcoal} cast />
+        <B p={[0, 0.8, 0.28]} s={[0.6, 0.4, 0.02]} m={mats.screenGlow} />
+        <Cyl p={[0.26, 1.15, -0.1]} s={[0.02, 0.36, 0.02]} r={[0, 0, -0.5]} m={mats.metal} />
+        <B p={[-0.2, 0.54, 0.42]} s={[0.3, 0.08, 0.2]} m={mats.black} />
+      </group>
+      <B p={[-3.0, 0.03, -7.9]} s={[0.22, 0.06, 0.12]} r={[0, 0.3, 0]} m={mats.mustard} />
+      <B p={[-1.9, 0.03, -7.9]} s={[0.22, 0.06, 0.12]} r={[0, -0.4, 0]} m={mats.sage} />
     </>
   );
 }
@@ -719,16 +804,40 @@ function VinylNook({ mats }: { mats: Materials }) {
     return out;
   }, []);
 
+  const tierBooks = useMemo<InstanceSpec[]>(() => {
+    const rand = seeded(505);
+    const colors = ["#c4714a", "#2f3f5c", "#e0a93b", "#7d9471", "#a8553a", "#f0e6d2", "#5b3a63"];
+    const out: InstanceSpec[] = [];
+    for (const [y, z0, z1] of [
+      [1.89, 2.45, 3.35],
+      [1.69, 4.35, 5.15],
+      [2.32, 2.45, 3.35],
+    ]) {
+      let z = z0;
+      while (z < z1) {
+        const w = 0.05 + rand() * 0.04;
+        const h = 0.24 + rand() * 0.12;
+        out.push({ p: [-9.35, y + h / 2, z + w / 2], s: [0.4, h, w], r: [rand() < 0.1 ? 0.15 : 0, 0, 0], color: colors[Math.floor(rand() * colors.length)] });
+        z += w + 0.01;
+      }
+    }
+    return out;
+  }, []);
   return (
     <>
-      {/* a smaller rug (radius 2.6 -> 1.9) gathering chair, lamp, guitar and side table into one nook */}
 
 
-      {/* record shelf against the wall, packed with sleeves */}
-      <B p={[-9.35, 0.85, 3.8]} s={[0.62, 1.7, 2.8]} m={mats.walnut} cast recv />
+      {/* a tiered bookcase against the wall: tall ends stepping down to the middle, where the
+          record player stands (the "turntable" prop); records in the low tier, books above */}
+      <B p={[-9.35, 1.3, 2.9]} s={[0.62, 2.6, 1.0]} m={mats.walnut} cast recv />
+      <B p={[-9.35, 0.85, 3.85]} s={[0.62, 1.7, 0.9]} m={mats.walnut} cast recv />
+      <B p={[-9.35, 1.1, 4.75]} s={[0.62, 2.2, 0.9]} m={mats.walnut} cast recv />
       <B p={[-9.35, 0.36, 3.8]} s={[0.66, 0.05, 2.84]} m={mats.darkWood} />
       <B p={[-9.35, 1.08, 3.8]} s={[0.66, 0.05, 2.84]} m={mats.darkWood} />
+      <B p={[-9.35, 1.86, 2.9]} s={[0.66, 0.05, 1.04]} m={mats.darkWood} />
+      <B p={[-9.35, 1.66, 4.75]} s={[0.66, 0.05, 0.94]} m={mats.darkWood} />
       <Instanced geo={GEO.box} m={mats.tintable} items={sleeves} />
+      <Instanced geo={GEO.box} m={mats.tintable} items={tierBooks} />
 
       {/* the record player on top of the shelf is the interactive "turntable" prop */}
 

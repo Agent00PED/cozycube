@@ -110,6 +110,14 @@ function Sea({ mats }: { mats: Materials }) {
     pos.needsUpdate = true;
   });
 
+  const foamRef = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    const g = foamRef.current;
+    if (!g) return;
+    const t = clock.elapsedTime;
+    g.position.z = Math.sin(t * 0.9) * 0.12 - 0.04;
+    g.position.y = Math.sin(t * 0.9 + 0.4) * 0.01;
+  });
   const foam = useMemo<InstanceSpec[]>(() => {
     const rand = seeded(5);
     return Array.from({ length: 30 }, (_, i) => {
@@ -157,7 +165,10 @@ function Sea({ mats }: { mats: Materials }) {
         position={[0, WATER_Y, SHORELINE_Z + (HALF - SHORELINE_Z + 0.4) / 2 - 0.2]}
         raycast={noRaycast}
       />
-      <Instanced geo={GEO.box} m={mats.foam} items={foam} />
+      {/* the foam line breathes with the swell: the whole set slides a little up the sand and back */}
+      <group ref={foamRef}>
+        <Instanced geo={GEO.box} m={mats.foam} items={foam} />
+      </group>
       <instancedMesh ref={sparkleRef} args={[GEO.box, mats.foam, sparkles.length]} frustumCulled={false} raycast={noRaycast} />
     </group>
     </>
@@ -236,6 +247,28 @@ function TikiBar({ mats }: { mats: Materials }) {
   // whose facets caught the low sun as hard black wedges.
   const thatchMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#c79a4e", roughness: 1 }), []);
   useEffect(() => () => thatchMat.dispose(), [thatchMat]);
+  const { stringLights, stringWire } = useMemo(() => {
+    const bulbs: InstanceSpec[] = [];
+    const wire: InstanceSpec[] = [];
+    const y0 = 2.95 + ROOF_LIFT - 0.55;
+    const from = new THREE.Vector3(-3.3, y0, -5.05);
+    const to = new THREE.Vector3(2.1, y0, -5.05);
+    const n = 16;
+    let prev = from.clone();
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const p = from.clone().lerp(to, t);
+      p.y -= Math.sin(t * Math.PI) * 0.45;
+      if (i > 0) {
+        const mid = prev.clone().add(p).multiplyScalar(0.5);
+        const len = prev.distanceTo(p);
+        wire.push({ p: [mid.x, mid.y, mid.z], s: [len, 0.015, 0.015], r: [0, 0, Math.atan2(p.y - prev.y, p.x - prev.x)] });
+      }
+      if (i > 0 && i < n) bulbs.push({ p: [p.x, p.y - 0.06, p.z], s: [0.09, 0.11, 0.09] });
+      prev = p;
+    }
+    return { stringLights: bulbs, stringWire: wire };
+  }, []);
 
   return (
     <>
@@ -295,6 +328,16 @@ function TikiBar({ mats }: { mats: Materials }) {
       {[3.8, 3.9].map((y) => (
         <mesh key={y} geometry={GEO.torus} material={mats.darkWood} position={[0, y + ROOF_LIFT, -5.9]} rotation={[Math.PI / 2, 0, 0]} scale={[y > 3.85 ? 0.38 : 0.52, y > 3.85 ? 0.32 : 0.44, 0.9]} />
       ))}
+      {/* string lights looping between the front posts, sagging under the eave */}
+      <Instanced geo={GEO.sphereLow} m={mats.bulb} items={stringLights} />
+      <Instanced geo={GEO.box} m={mats.black} items={stringWire} />
+      {/* a blender on the back counter, half full of something pink */}
+      <group position={[-1.9, 1.45, -6.35]}>
+        <B p={[0, 0.1, 0]} s={[0.24, 0.2, 0.24]} m={mats.metal} />
+        <Cyl p={[0, 0.42, 0]} s={[0.22, 0.44, 0.22]} m={mats.glass} />
+        <Cyl p={[0, 0.34, 0]} s={[0.19, 0.24, 0.19]} m={mats.blush} />
+        <Cyl p={[0, 0.66, 0]} s={[0.22, 0.04, 0.22]} m={mats.black} />
+      </group>
       {/* painted sign hanging off the front beam */}
       <B p={[-0.6, 2.5 + ROOF_LIFT, -5.15]} s={[5.6, 0.14, 0.14]} m={mats.darkWood} />
       <B p={[-0.6, 2.14 + ROOF_LIFT, -5.1]} s={[1.9, 0.48, 0.06]} m={mats.oak} />
@@ -592,6 +635,31 @@ function BeachClutter({ mats }: { mats: Materials }) {
         <Sph p={[0, 0.34, 0]} s={[0.8, 0.44, 2.3]} m={mats.oak} />
         <B p={[0, 0.34, 0]} s={[0.78, 0.06, 0.3]} m={mats.darkWood} />
         <Cyl p={[0.5, 0.42, 0.3]} s={[0.06, 2.0, 0.06]} r={[0, 0.2, 1.5]} m={mats.oak} />
+      </group>
+
+      {/* The cabana: a shaded daybed for two on a low deck, looking back over the beach. The two
+          daybed seats (CUSHIONS.cabanaBed) are placed by shared/props.ts. */}
+      <group position={[8.2, 0, 1.55]}>
+        <B p={[0, 0.15, 0]} s={[2.4, 0.3, 2.2]} m={mats.oak} cast recv />
+        <B p={[0, 0.305, 0]} s={[2.2, 0.01, 2.0]} m={mats.plankA} />
+        {[1.1, 2.0].map((z) => (
+          <B key={z} p={[0, CUSHIONS.cabanaBed.y, z - 1.55]} s={[1.5, CUSHIONS.cabanaBed.h, 0.84]} m={mats.white} cast />
+        ))}
+        <B p={[0.8, 0.6, 0]} s={[0.14, 0.5, 1.9]} m={mats.cream} cast />
+        {[1.1, 2.0].map((z) => (
+          <B key={z} p={[0.6, 0.55, z - 1.55]} s={[0.24, 0.24, 0.5]} r={[0, 0, 0.3]} m={z < 1.5 ? mats.coral : mats.seaShallow} />
+        ))}
+        {[
+          [-1.0, -0.85],
+          [1.0, -0.85],
+          [-1.0, 0.85],
+          [1.0, 0.85],
+        ].map(([x, z]) => (
+          <Cyl key={`${x}${z}`} p={[x, 1.2, z]} s={[0.3, 2.4, 0.3]} m={mats.bark} cast />
+        ))}
+        <B p={[0, 2.42, 0]} s={[2.7, 0.06, 2.5]} m={mats.white} cast />
+        <B p={[0, 2.36, 0]} s={[2.76, 0.06, 2.56]} m={mats.coral} />
+        <B p={[-1.36, 2.2, 0]} s={[0.04, 0.3, 2.5]} m={mats.white} />
       </group>
 
       {/* Sandcastle, moved clear of the pier planks onto open sand. */}

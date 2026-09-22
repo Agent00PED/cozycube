@@ -38,6 +38,55 @@ export interface PlayerState {
   owned: string;
   /** What the player is up to away from the game (an ActivityStatusId), "" = just here. */
   status: string;
+  /** Lifetime stats (a PlayerStats as JSON), persisted between visits. */
+  stats: string;
+  /** Round-trip latency to the server in ms, as the client last measured it. */
+  ping: number;
+}
+
+/** Lifetime achievements, kept in PostgreSQL and shown in the profile / roster. */
+export interface PlayerStats {
+  roulette_wins: number;
+  blackjack_wins: number;
+  slots_spins: number;
+  fish_caught: number;
+  marshmallows_roasted: number;
+}
+export const DEFAULT_STATS: PlayerStats = { roulette_wins: 0, blackjack_wins: 0, slots_spins: 0, fish_caught: 0, marshmallows_roasted: 0 };
+export function parseStats(raw: string | null | undefined): PlayerStats {
+  try {
+    const v = raw ? JSON.parse(raw) : null;
+    return { ...DEFAULT_STATS, ...(v && typeof v === "object" ? v : {}) };
+  } catch {
+    return { ...DEFAULT_STATS };
+  }
+}
+
+/** Achievement milestones surfaced as toasts when a stat first reaches them. */
+export const ACHIEVEMENTS: { stat: keyof PlayerStats; at: number; title: string; emoji: string }[] = [
+  { stat: "fish_caught", at: 1, title: "First catch!", emoji: "🐟" },
+  { stat: "fish_caught", at: 10, title: "Angler", emoji: "🎣" },
+  { stat: "marshmallows_roasted", at: 1, title: "Campfire cook", emoji: "🍢" },
+  { stat: "marshmallows_roasted", at: 10, title: "S'more sommelier", emoji: "🔥" },
+  { stat: "slots_spins", at: 25, title: "One more spin", emoji: "🎰" },
+  { stat: "roulette_wins", at: 1, title: "Lucky number", emoji: "🎡" },
+  { stat: "roulette_wins", at: 10, title: "High roller", emoji: "💰" },
+  { stat: "blackjack_wins", at: 1, title: "Twenty-one", emoji: "🃏" },
+  { stat: "blackjack_wins", at: 10, title: "Card shark", emoji: "🦈" },
+];
+
+/** The house tops you up when you are broke: once per cooldown, only under this balance. */
+export const ALLOWANCE_COINS = 50;
+export const ALLOWANCE_BELOW = 10;
+export const ALLOWANCE_COOLDOWN_S = 600;
+
+/** Quick chat: short lines that float over your head as a speech bubble for everyone. */
+export const CHAT_MAX_CHARS = 80;
+export const CHAT_BUBBLE_SECONDS = 4;
+export const QUICK_CHATS = ["hi! 👋", "brb", "gg!", "lol", "come sit here!", "let's go to the beach 🏖️", "who's up for roulette? 🎡", "love this song 🎶"];
+export interface ChatBubbleBroadcast {
+  sessionId: string;
+  text: string;
 }
 
 // --- activity status: a badge over your head saying what you're up to IRL ---
@@ -95,7 +144,8 @@ export type ToggleableKind =
   | "npc"
   | "forage"
   | "cat"
-  | "sparkle";
+  | "sparkle"
+  | "stew";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -161,7 +211,12 @@ export interface GestureBroadcast {
 }
 
 // --- economy ---
-export const STARTING_COINS = 100;
+export const STARTING_COINS = 150;
+/** The stew pot by the campfire: stir it this many times and it feeds everyone round the fire. */
+export const STEW_STIRS = 5;
+export const STEW_REWARD = 4;
+export const STEW_RADIUS = 6;
+export const STEW_COOLDOWN_S = 40;
 export const ESPRESSO_TIP = 6;
 export const ESPRESSO_TIP_COOLDOWN_S = 30;
 export const FORAGE_REGROW_S = 25;
@@ -253,14 +308,60 @@ export const ROULETTE_BET_RADIUS = 4.4;
 
 // --- casino: slots ---
 export const SLOT_COST = 5;
-export const SLOT_SYMBOLS = ["🍒", "🍋", "🔔", "⭐", "7"] as const;
-/** Payout multipliers for three of a kind, by symbol index; any pair pays 2x. */
-export const SLOT_TRIPLE = [5, 8, 12, 20, 50];
+/** Stakes the slot modal offers; a win scales with the stake. */
+export const SLOT_BETS = [5, 10, 25] as const;
+export const SLOT_SYMBOLS = ["🍒", "🍋", "🔔", "🍀", "💎", "7"] as const;
+/** Payout multipliers (of the stake) for three of a kind, by symbol index; any pair pays 2x. */
+export const SLOT_TRIPLE = [5, 8, 12, 20, 35, 60];
 export interface SlotBroadcast {
   propId: string;
   sessionId: string;
   reels: [number, number, number];
   win: number;
+  bet: number;
+}
+
+// --- casino: blackjack ---
+export const BLACKJACK_BETS = [10, 25, 50, 100] as const;
+/** Where the half-moon table stands; you must be this close to play. */
+export const BLACKJACK_CENTER = { x: -5.5, z: -4.6 };
+export const BLACKJACK_RADIUS = 3.6;
+export interface BlackjackCard {
+  rank: string; // "A", "2".."10", "J", "Q", "K"
+  suit: string; // "♠" "♥" "♦" "♣"
+}
+export type BlackjackPhase = "idle" | "player" | "dealer" | "done";
+export type BlackjackOutcome = "" | "blackjack" | "win" | "push" | "lose" | "bust";
+/** What the player sees: the dealer's hole card stays hidden until the dealer plays. */
+export interface BlackjackView {
+  phase: BlackjackPhase;
+  bet: number;
+  player: BlackjackCard[];
+  dealer: BlackjackCard[];
+  holeHidden: boolean;
+  playerTotal: number;
+  dealerTotal: number;
+  outcome: BlackjackOutcome;
+  payout: number;
+  canDouble: boolean;
+}
+export type BlackjackAction = "deal" | "hit" | "stand" | "double";
+/** Best total with aces as 11 where that does not bust, else 1. */
+export function blackjackTotal(cards: BlackjackCard[]): number {
+  let total = 0;
+  let aces = 0;
+  for (const c of cards) {
+    if (c.rank === "A") {
+      aces++;
+      total += 11;
+    } else if (c.rank === "J" || c.rank === "Q" || c.rank === "K") total += 10;
+    else total += Number(c.rank);
+  }
+  while (total > 21 && aces > 0) {
+    total -= 10;
+    aces--;
+  }
+  return total;
 }
 
 // --- NPC traders ---
@@ -384,7 +485,23 @@ export function poseForSeat(style: SeatStyle): SitPose {
 
 /** Props you must walk up to before using; everything else (lights, TV, campfire) works from anywhere. */
 export function isWalkUpProp(kind: ToggleableKind): boolean {
-  return kind === "espresso" || kind === "arcade" || kind === "slot" || kind === "npc" || kind === "forage" || kind === "cat" || kind === "sparkle";
+  return kind === "espresso" || kind === "arcade" || kind === "slot" || kind === "npc" || kind === "forage" || kind === "cat" || kind === "sparkle" || kind === "stew";
+}
+
+// --- world sizes ---
+/** Half-width of each diorama slab: most maps are 20x20, the campfire valley is 28x28. */
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 10, campfire_night: 14, sunset_beach: 10, velvet_casino: 10 };
+/** The lounge's sunken conversation pit: a step down round the sofa and fireplace. */
+export const LOUNGE_PIT = { x0: -6.4, x1: 1.5, z0: -3.3, z1: 1.6, depth: 0.16 };
+/** The casino's raised VIP lounge, behind the velvet rope. */
+export const VIP_PLATFORM = { x0: -9.8, x1: -4.7, z0: 1.7, z1: 8.3, height: 0.18 };
+/** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
+export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
+
+/** Persisted top balances, synced to every room. */
+export interface LeaderboardEntry {
+  username: string;
+  coins: number;
 }
 
 // --- client -> server messages ---

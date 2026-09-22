@@ -3,7 +3,7 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { NPCS, type ToggleableSyncState } from "@shared/types";
+import { NPCS, STEW_STIRS, type ToggleableSyncState } from "@shared/types";
 import { APPROACH_POINTS } from "@shared/props";
 import { GEO, arcGeo, noRaycast, onHitLayer } from "../scene/kit";
 import { playMeow } from "../audio/sfx";
@@ -280,7 +280,7 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
     }
   });
   return (
-    <group position={[prop.x, 0, prop.z]} rotation={[0, 0.6, 0]}>
+    <group position={[prop.x, prop.y, prop.z]} rotation={[0, 0.6, 0]}>
       {/* the loaf */}
       <mesh ref={bodyRef} geometry={GEO.sphere} material={M.catOrange} position={[0, 0.22, -0.04]} scale={[0.3, 0.27, 0.36]} castShadow raycast={noRaycast} />
       <mesh geometry={GEO.sphereLow} material={M.catCream} position={[0, 0.16, 0.2]} scale={[0.2, 0.15, 0.14]} raycast={noRaycast} />
@@ -322,6 +322,65 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
         </Html>
       )}
       <HitPad size={[0.8, 0.8, 0.8]} position={[0, 0.35, 0]} onUse={onUse} />
+    </group>
+  );
+}
+
+// --- The stew pot -------------------------------------------------------------------------------
+
+const POT = new THREE.MeshStandardMaterial({ color: "#2a2a2e", roughness: 0.55, metalness: 0.5 });
+const STEW = new THREE.MeshStandardMaterial({ color: "#b8552a", roughness: 0.6 });
+const LADLE = new THREE.MeshStandardMaterial({ color: "#c9a24a", roughness: 0.35, metalness: 0.7 });
+const STEAM = new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.4, depthWrite: false });
+const IRON = new THREE.MeshStandardMaterial({ color: "#3a3a40", roughness: 0.6, metalness: 0.4 });
+
+/** A cauldron on an iron stand by the fire. Each stir (prop.track) thickens the steam; when the
+ *  pot is served it sits empty (prop.on false) until it is refilled. */
+export function StewPot({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => void }) {
+  const steamRef = useRef<THREE.Group>(null);
+  const ladleRef = useRef<THREE.Group>(null);
+  const stirs = prop.track;
+  const ready = prop.on;
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const g = steamRef.current;
+    if (g) {
+      g.visible = ready;
+      const strength = 0.4 + (stirs / STEW_STIRS) * 0.9;
+      g.children.forEach((puff, i) => {
+        const p = (t * 0.4 + i / 5) % 1;
+        puff.position.set(Math.sin(p * 6 + i) * 0.08, 0.05 + p * 0.7 * strength, Math.cos(p * 5 + i) * 0.08);
+        puff.scale.setScalar((0.05 + p * 0.12) * strength);
+      });
+    }
+    if (ladleRef.current) ladleRef.current.rotation.y = ready ? Math.sin(t * 0.8) * 0.6 : 0;
+  });
+  return (
+    <group position={[prop.x, prop.y, prop.z]}>
+      {/* iron stand */}
+      {[0, 1, 2].map((i) => {
+        const a = (i / 3) * Math.PI * 2;
+        return <mesh key={i} geometry={GEO.cyl} material={IRON} position={[Math.cos(a) * 0.3, 0.32, Math.sin(a) * 0.3]} scale={[0.04, 0.64, 0.04]} rotation={[Math.sin(a) * 0.18, 0, -Math.cos(a) * 0.18]} raycast={noRaycast} />;
+      })}
+      <mesh geometry={GEO.torus} material={IRON} position={[0, 0.62, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.5, 0.5, 0.5]} raycast={noRaycast} />
+      {/* the pot */}
+      <mesh geometry={GEO.sphere} material={POT} position={[0, 0.66, 0]} scale={[0.72, 0.5, 0.72]} castShadow raycast={noRaycast} />
+      <mesh geometry={GEO.cyl} material={POT} position={[0, 0.84, 0]} scale={[0.62, 0.06, 0.62]} raycast={noRaycast} />
+      {ready ? (
+        <mesh geometry={GEO.cyl} material={STEW} position={[0, 0.85, 0]} scale={[0.52, 0.02, 0.52]} raycast={noRaycast} />
+      ) : (
+        <mesh geometry={GEO.cyl} material={IRON} position={[0, 0.87, 0]} scale={[0.6, 0.04, 0.6]} raycast={noRaycast} />
+      )}
+      <group ref={ladleRef} position={[0, 0.86, 0]}>
+        <mesh geometry={GEO.cyl} material={LADLE} position={[0.14, 0.24, 0]} scale={[0.025, 0.5, 0.025]} rotation={[0, 0, -0.5]} raycast={noRaycast} />
+        <mesh geometry={GEO.sphereLow} material={LADLE} position={[0.26, 0.46, 0]} scale={0.08} raycast={noRaycast} />
+      </group>
+      <group ref={steamRef} position={[0, 0.88, 0]}>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <mesh key={i} geometry={GEO.sphereLow} material={STEAM} raycast={noRaycast} />
+        ))}
+      </group>
+      <HitPad size={[1.0, 1.1, 1.0]} position={[0, 0.55, 0]} onUse={onUse} />
     </group>
   );
 }

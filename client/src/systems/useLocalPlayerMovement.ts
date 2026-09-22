@@ -5,7 +5,8 @@ import type { Group } from "three";
 import type { MapId, PlayerState } from "@shared/types";
 import { isBlocked, walkY } from "@shared/collision";
 import { findPath, type Point } from "@shared/pathfinding";
-import { cameraFocus } from "../scene/cameraFocus";
+import { cameraFocus, requestRecenter } from "../scene/cameraFocus";
+import { worldMoveDirection } from "./input";
 
 // --- Movement feel ---
 const MOVE_SPEED = 3; // units/sec — must match MOVE_SPEED_PER_SEC in server/src/rooms/HangoutRoom.ts
@@ -158,8 +159,22 @@ export function useLocalPlayerMovement(
     }
 
     if (!player.sitting) {
+      // Held keys or the joystick take over from any click-to-move target: you steer, the
+      // path is dropped, and the same collision slide keeps you off the furniture.
+      const steer = worldMoveDirection();
+      if (steer && targetPosRef.current) {
+        targetPosRef.current = null;
+        requestRecenter();
+      }
       const target = targetPosRef.current;
-      if (target) {
+      if (steer) {
+        dirX = steer.x;
+        dirZ = steer.z;
+        const cap = MOVE_SPEED * (0.35 + 0.65 * steer.strength);
+        velocityRef.current = Math.min(cap, velocityRef.current + ACCELERATION * delta);
+        slideStep(pos, dirX * velocityRef.current * delta, dirZ * velocityRef.current * delta, mapId);
+        facingRef.current = lerpAngle(facingRef.current, Math.atan2(dirX, dirZ), TURN_LERP);
+      } else if (target) {
         // Route once per click, the first frame the target is seen.
         if (!target.path) target.path = findPath(mapId, pos, { x: target.x, z: target.z }) ?? [];
 

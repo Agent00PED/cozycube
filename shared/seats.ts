@@ -71,6 +71,9 @@ export const CUSHIONS = {
   floorCushion: { y: 0.17, h: 0.08 }, // the plump top of a floor cushion
   pierPlank: { y: 0.13, h: 0.06 }, // the pier deck (BeachWorld)
   vipSofa: { y: 0.48, h: 0.1 }, // the chesterfield's seat cushions (CasinoWorld)
+  hammock: { y: 0.62, h: 0.08 }, // the canvas sling between its posts (CampfireWorld)
+  sleepingMat: { y: 0.05, h: 0.06 }, // a foam mat on the grass
+  cabanaBed: { y: 0.38, h: 0.12 }, // the daybed cushions under the beach cabana (BeachWorld)
 } as const satisfies Record<string, Cushion>;
 
 export type CushionId = keyof typeof CUSHIONS;

@@ -1,19 +1,25 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
 import { TimeOfDayContext } from "./timeOfDay";
-import { BRIDGE_DECK_Y, BRIDGE_HALF_LENGTH, streamZ } from "@shared/collision";
+import { BRIDGE_DECK_Y, BRIDGE_HALF_LENGTH, FOREST_RADIUS, streamZ } from "@shared/collision";
 import { BLANKET } from "@shared/props";
+import { BLUFF, MAP_HALF } from "@shared/types";
+import { CUSHIONS } from "@shared/seats";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { B, Cyl, GEO, HALF, Instanced, Sph, noMerge, noRaycast, seeded, type InstanceSpec, type Materials } from "./kit";
 
-// A 20x20 forest clearing: an open grass camp with the tents pitched on the grass (not buried
-// in the trees), a stream running across the front corner, and a stone trail that crosses it on
-// a little wooden bridge. The six log benches and the lanterns are interactive props rendered
-// elsewhere; this file draws everything static around them.
+// A 28x28 forest valley: the grand campfire at its heart with the log ring and the stew pot, a
+// stream across the front crossed by a plank bridge on the stone trail, tents pitched on the
+// grass, a glamping clearing (hammock, sleeping mats, its own lantern) in the west, and a
+// stargazing bluff rising in the north-east corner. The seats, lanterns and the stew pot are
+// interactive props rendered elsewhere; this file draws everything static around them.
 
-const EDGE = HALF - 0.3;
-/** Matches FOREST_RADIUS in shared/collision.ts: past this you are in the trees. */
-const TREELINE = 8.3;
+const CAMP_HALF = MAP_HALF.campfire_night;
+const EDGE = CAMP_HALF - 0.3;
+/** Past this you are in the trees (shared with the collision rules). */
+const TREELINE = FOREST_RADIUS;
+/** The glamping clearing's middle (hammock, mats and lantern gather round it). */
+const GLAMP = { x: -7.8, z: -7.4 };
 
 /** Centre line of the stream, which meanders across the front-left of the clearing. */
 export { streamZ };
@@ -22,6 +28,7 @@ const TENTS: { x: number; z: number; color: string }[] = [
   { x: -5.6, z: -4.6, color: "#d97a4a" },
   { x: 5.4, z: -5.0, color: "#4a8ad9" },
   { x: -6.2, z: 2.6, color: "#5fa86a" },
+  { x: -10.2, z: -4.4, color: "#d9c04a" }, // the glamping tent, out past the clearing
 ];
 
 /** Keep procedural scatter off the paths, the water, the tents and the seating ring. */
@@ -31,7 +38,10 @@ function isClearZone(x: number, z: number, margin = 0): boolean {
   if (Math.hypot(x, z) < 4.6 + margin) return true; // fire, log ring and their approach points
   if (TENTS.some((t) => Math.hypot(x - t.x, z - t.z) < 2.2 + margin)) return true;
   if (Math.hypot(x - BLANKET.x, z - BLANKET.z) < 2.0 + margin) return true; // stargazing blanket
-  if (Math.hypot(x - 8.0, z + 3.0) < 0.9 + margin) return true; // telescope
+  if (Math.hypot(x - GLAMP.x, z - GLAMP.z) < 3.2 + margin) return true; // the glamping clearing
+  if (Math.hypot(x - BLUFF.x, z - BLUFF.z) < BLUFF.radius + 1.2 + margin) return true; // the bluff
+  if (Math.hypot(x + 4.2, z + 4.6) < 1.2 + margin) return true; // the path to the clearing
+  if (Math.hypot(x - 6.0, z + 5.6) < 1.2 + margin) return true; // the path up to the bluff
   if (Math.hypot(x - 4.4, z + 2.2) < 0.9 || Math.hypot(x + 4.4, z - 2.2) < 0.9) return true; // lantern stumps
   if (Math.hypot(x - 2.3, z + 6.0) < 1.4 + margin) return true; // camp table
   return false;
@@ -50,6 +60,8 @@ export function CampfireWorld({ mats }: { mats: Materials }) {
       ))}
       <CampProps mats={mats} />
       <StargazingSpot mats={mats} />
+      <Glamping mats={mats} />
+      <Bluff mats={mats} />
       <Fireflies mats={mats} />
     </>
   );
@@ -112,7 +124,7 @@ function Forest({ mats }: { mats: Materials }) {
     };
 
     // Two rings of trunks around the treeline, jittered, with a gap where the trail comes in.
-    for (const ring of [TREELINE + 0.35, TREELINE + 1.35]) {
+    for (const ring of [TREELINE + 0.3, TREELINE + 1.0]) {
       const count = Math.round(ring * 3.4);
       for (let i = 0; i < count; i++) {
         const a = (i / count) * Math.PI * 2 + rand() * 0.18;
@@ -124,10 +136,10 @@ function Forest({ mats }: { mats: Materials }) {
         addPine(x, z, 0.85 + rand() * 0.6);
       }
     }
-    // A handful of saplings and boulders scattered inside the clearing for depth.
-    for (let i = 0; i < 90; i++) {
+    // Saplings and boulders scattered through the valley for depth (never on the paths).
+    for (let i = 0; i < 170; i++) {
       const a = rand() * Math.PI * 2;
-      const r = 5.2 + rand() * 2.6;
+      const r = 5.2 + rand() * 6.4;
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
       if (isClearZone(x, z)) continue;
@@ -168,9 +180,10 @@ function GroundCover({ mats }: { mats: Materials }) {
       }
     };
 
-    for (let i = 0; i < 360; i++) {
-      const x = (rand() * 2 - 1) * 9.2;
-      const z = (rand() * 2 - 1) * 9.2;
+    for (let i = 0; i < 700; i++) {
+      const x = (rand() * 2 - 1) * (EDGE - 0.2);
+      const z = (rand() * 2 - 1) * (EDGE - 0.2);
+      if (Math.hypot(x, z) > TREELINE + 0.6) continue; // under the pines it is needles, not flowers
       if (isClearZone(x, z, -0.5)) continue;
       const nearStream = Math.abs(z - streamZ(x)) < 2.4;
       const roll = rand();
@@ -279,12 +292,26 @@ function StoneTrail({ mats }: { mats: Materials }) {
   const stones = useMemo<InstanceSpec[]>(() => {
     const rand = seeded(9);
     const out: InstanceSpec[] = [];
-    for (let z = 9.2; z > 3.4; z -= 0.6) {
+    for (let z = EDGE - 0.4; z > 3.4; z -= 0.6) {
       if (Math.abs(z - streamZ(Math.sin(z * 0.8) * 0.3)) < 1.3) continue; // the bridge spans this
       const x = Math.sin(z * 0.8) * 0.3;
       const s = 0.45 + rand() * 0.15;
       out.push({ p: [x, 0.04, z], s: [s, 0.05, s * 0.8], r: [0, rand() * 3, 0] });
     }
+    // meandering side paths: west to the glamping clearing, north-east up to the bluff
+    const branch = (from: [number, number], to: [number, number]) => {
+      const steps = Math.ceil(Math.hypot(to[0] - from[0], to[1] - from[1]) / 0.62);
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const wobble = Math.sin(t * 9) * 0.25;
+        const x = from[0] + (to[0] - from[0]) * t + wobble;
+        const z = from[1] + (to[1] - from[1]) * t - wobble;
+        const s = 0.4 + rand() * 0.14;
+        out.push({ p: [x, 0.04, z], s: [s, 0.05, s * 0.8], r: [0, rand() * 3, 0] });
+      }
+    };
+    branch([-3.4, -2.4], [-6.4, -6.0]);
+    branch([3.4, -3.2], [7.6, -7.2]);
     return out;
   }, []);
 
@@ -513,19 +540,112 @@ function StargazingSpot({ mats }: { mats: Materials }) {
       {[-0.5, 0.5].map((dx) => (
         <Sph key={dx} p={[BLANKET.x + dx, 0.09, BLANKET.z - 0.62]} s={[0.52, 0.16, 0.32]} m={mats.cream} cast />
       ))}
-      {/* telescope on a tripod in the back corner, aimed up and away over the trees — from the
-          camera its tube used to cross the blanket and read as a pole through whoever lay there */}
-      <group position={[8.0, 0, -3.0]} rotation={[0, -1.3, 0]}>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// The glamping clearing: a hammock slung between two posts, two sleeping mats, a lantern
+// stump, bunting to the tent, and a stump table with mugs. The hammock and mats are seats.
+// ---------------------------------------------------------------------------------------
+
+function Glamping({ mats }: { mats: Materials }) {
+  const posts: [number, number][] = [
+    [-9.6, -8.6],
+    [-7.0, -8.6],
+  ];
+  const sling = CUSHIONS.hammock; // the seat anchor is derived from this
+  const mat = CUSHIONS.sleepingMat;
+  const bunting = useMemo<InstanceSpec[]>(() => {
+    // little flags strung from the west hammock post to the tent's ridge
+    const from = new THREE.Vector3(-9.6, 1.9, -8.6);
+    const to = new THREE.Vector3(-10.2, 1.5, -4.9);
+    const colors = ["#e0a93b", "#c4714a", "#7d9471", "#e3b3a3"];
+    return Array.from({ length: 9 }, (_, i) => {
+      const t = (i + 0.5) / 9;
+      const p = from.clone().lerp(to, t);
+      p.y -= Math.sin(t * Math.PI) * 0.35; // the string sags
+      return { p: [p.x, p.y - 0.12, p.z] as [number, number, number], s: [0.16, 0.2, 0.02] as [number, number, number], r: [Math.PI, 0.3, 0] as [number, number, number], color: colors[i % colors.length] };
+    });
+  }, []);
+  return (
+    <>
+      {/* a worn patch of ground marks the clearing */}
+      <Cyl p={[GLAMP.x, 0.006, GLAMP.z]} s={[6.0, 0.01, 5.2]} m={mats.mud} recv />
+      {/* the hammock: two posts, the ropes, and the canvas sling between them */}
+      {posts.map(([x, z]) => (
+        <Cyl key={x} p={[x, 0.95, z]} s={[0.2, 1.9, 0.2]} m={mats.darkWood} cast />
+      ))}
+      <B p={[-8.3, sling.y, -8.6]} s={[2.0, sling.h, 0.9]} r={[0, 0, 0]} m={mats.cream} cast recv />
+      <B p={[-8.3, sling.y + 0.02, -8.6]} s={[1.6, 0.02, 0.8]} m={mats.sage} />
+      {[-1, 1].map((side) => (
+        <group key={side}>
+          <Cyl p={[-8.3 + side * 1.15, 1.2, -8.6]} s={[0.03, 1.15, 0.03]} r={[0, 0, side * 0.62]} m={mats.cream} />
+          <Cyl p={[-8.3 + side * 0.85, sling.y + 0.06, -8.6]} s={[0.05, 0.05, 0.94]} r={[Math.PI / 2, 0, 0]} m={mats.darkWood} />
+        </group>
+      ))}
+      {/* two sleeping mats with a rolled pillow at the head end (heads lie to the west) */}
+      {[-8.4, -7.0].map((z) => (
+        <group key={z}>
+          <B p={[-6.2, mat.y, z]} s={[1.9, mat.h, 0.9]} m={z < -8 ? mats.navy : mats.terracotta} recv />
+          <B p={[-6.2, mat.y + 0.035, z]} s={[1.7, 0.01, 0.7]} m={mats.cream} />
+          <Cyl p={[-7.0, mat.y + 0.1, z]} s={[0.22, 0.6, 0.22]} r={[Math.PI / 2, 0, 0]} m={mats.blush} />
+        </group>
+      ))}
+      {/* the lantern stump (the lantern itself is the "lantern_glamp" prop) and a stump table */}
+      <Cyl p={[-8.0, 0.2, -6.6]} s={[0.62, 0.4, 0.62]} m={mats.bark} cast recv />
+      <Cyl p={[-8.0, 0.405, -6.6]} s={[0.58, 0.01, 0.58]} m={mats.oak} />
+      <group position={[-9.0, 0, -7.6]}>
+        <Cyl p={[0, 0.24, 0]} s={[0.7, 0.48, 0.7]} m={mats.bark} cast />
+        <Cyl p={[0, 0.485, 0]} s={[0.66, 0.01, 0.66]} m={mats.oak} />
+        <Cyl p={[-0.15, 0.56, 0.05]} s={[0.14, 0.14, 0.14]} m={mats.white} />
+        <Cyl p={[0.14, 0.56, -0.1]} s={[0.14, 0.14, 0.14]} m={mats.sage} />
+        <B p={[0.05, 0.53, 0.2]} s={[0.26, 0.06, 0.2]} m={mats.rust} />
+      </group>
+      <Instanced geo={GEO.pyramid} m={mats.tintable} items={bunting} />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// The stargazing bluff: a grassy knoll in the north-east corner (walkY lifts you onto it),
+// with the telescope on top, a cairn, and boulders round the rim. Its two camp chairs are seats.
+// ---------------------------------------------------------------------------------------
+
+function Bluff({ mats }: { mats: Materials }) {
+  const r = BLUFF.radius;
+  return (
+    <group position={[BLUFF.x, 0, BLUFF.z]}>
+      {/* the mound: a tapered drum with a flat grassy top, the slope matching the walk ramp */}
+      <mesh geometry={GEO.cylTaper} material={mats.pineLight} position={[0, BLUFF.height / 2, 0]} scale={[(r + 0.9) * 2, BLUFF.height, (r + 0.9) * 2]} receiveShadow raycast={noRaycast} />
+      <Cyl p={[0, BLUFF.height + 0.004, 0]} s={[(r - 0.1) * 2, 0.01, (r - 0.1) * 2]} m={mats.leaf} recv />
+      {/* boulders round the rim, and a little cairn */}
+      {[
+        [2.0, 1.0, 0.9],
+        [-1.6, 1.9, 0.7],
+        [1.2, -2.2, 0.8],
+        [-2.3, -0.8, 0.6],
+      ].map(([x, z, s], i) => (
+        <Sph key={i} p={[x, BLUFF.height + s * 0.2, z]} s={[s, s * 0.6, s * 0.8]} r={[0, i, 0]} m={mats.stone} cast recv low />
+      ))}
+      {[0.32, 0.24, 0.16].map((s, i) => (
+        <Sph key={s} p={[-0.9, BLUFF.height + 0.1 + i * 0.2, 1.4]} s={[s, s * 0.7, s]} m={mats.stone} low />
+      ))}
+      {/* the telescope on its tripod, aimed up over the valley's edge */}
+      <group position={[0, BLUFF.height, -0.6]} rotation={[0, -0.9, 0]}>
         {[0, 1, 2].map((i) => (
           <Cyl key={i} p={[Math.cos(i * 2.09) * 0.2, 0.5, Math.sin(i * 2.09) * 0.2]} s={[0.03, 1.05, 0.03]} r={[Math.sin(i * 2.09) * 0.35, 0, -Math.cos(i * 2.09) * 0.35]} m={mats.black} />
         ))}
         <Cyl p={[0, 1.1, -0.1]} s={[0.12, 0.9, 0.12]} r={[-0.9, 0.3, 0]} m={mats.brass} cast />
       </group>
-    </>
+      {/* a folded star chart and a thermos on the grass between the chairs */}
+      <B p={[-0.5, BLUFF.height + 0.02, 1.0]} s={[0.5, 0.01, 0.36]} r={[0, 0.4, 0]} m={mats.cream} />
+      <Cyl p={[-0.1, BLUFF.height + 0.16, 0.6]} s={[0.16, 0.32, 0.16]} m={mats.navy} />
+    </group>
   );
 }
 
-const FIREFLY_COUNT = 30;
+const FIREFLY_COUNT = 44;
 
 // Slow-drifting fireflies with an independent blink phase each, as ONE instanced mesh updated
 // per frame (30 matrix writes) instead of 30 separate draw calls.
@@ -539,7 +659,7 @@ function Fireflies({ mats }: { mats: Materials }) {
     const rand = seeded(31);
     return Array.from({ length: FIREFLY_COUNT }, (_, i) => ({
       overStream: i % 3 === 0,
-      radius: 2.8 + rand() * 5.0,
+      radius: 2.8 + rand() * 9.0,
       angle: rand() * Math.PI * 2,
       baseY: 0.45 + rand() * 1.4,
       drift: (0.04 + rand() * 0.07) * (rand() < 0.5 ? -1 : 1),

@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import type { MapId } from "@shared/types";
+import { BLUFF, LOUNGE_PIT, MAP_HALF, VIP_PLATFORM, type MapId } from "@shared/types";
 import { SHORELINE_Z } from "@shared/collision";
 import { ROOM_THEMES, type RoomTheme } from "./roomThemes";
 import { GEO, HALF, StaticBatch, noRaycast, useSharedMaterials, type Materials } from "./kit";
@@ -31,12 +31,36 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
   const theme = ROOM_THEMES[mapId];
   const mats = useSharedMaterials();
   const isBeach = mapId === "sunset_beach";
+  const half = MAP_HALF[mapId];
 
   const floorMaterial = useMemo(
     () => new THREE.MeshStandardMaterial({ color: theme.floor, roughness: 0.9 }),
     [theme.floor]
   );
   useEffect(() => () => floorMaterial.dispose(), [floorMaterial]);
+
+  // The lounge floor has the conversation pit cut out of it, so the pit floor (a step down)
+  // can be its own click target instead of a hole clicks fall through.
+  const loungeFloor = useMemo(() => {
+    if (mapId !== "cozy_lounge") return null;
+    const shape = new THREE.Shape();
+    shape.moveTo(-half, -half);
+    shape.lineTo(half, -half);
+    shape.lineTo(half, half);
+    shape.lineTo(-half, half);
+    shape.closePath();
+    // ShapeGeometry lies in XY; rotated -90deg about X a shape point (x, y) lands at world (x, -y)
+    const p = LOUNGE_PIT;
+    const hole = new THREE.Path();
+    hole.moveTo(p.x0, -p.z1);
+    hole.lineTo(p.x1, -p.z1);
+    hole.lineTo(p.x1, -p.z0);
+    hole.lineTo(p.x0, -p.z0);
+    hole.closePath();
+    shape.holes.push(hole);
+    return new THREE.ShapeGeometry(shape);
+  }, [mapId, half]);
+  useEffect(() => () => loungeFloor?.dispose(), [loungeFloor]);
 
   const handleFloorClick = (e: ThreeEvent<PointerEvent>) => {
     if (e.button === 2) return; // right-drag is camera panning, not a walk order
@@ -47,35 +71,72 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
   // On the beach the visible floor stops at the shoreline — past it the slab is moulded into a
   // basin that the sea sits in — so the walkable floor is split into a sand plane and an
   // invisible catcher over the water.
-  const sandDepth = isBeach ? SHORELINE_Z + HALF : HALF * 2;
-  const sandCenter = isBeach ? (SHORELINE_Z - HALF) / 2 : 0;
+  const sandDepth = isBeach ? SHORELINE_Z + half : half * 2;
+  const sandCenter = isBeach ? (SHORELINE_Z - half) / 2 : 0;
 
   return (
     <group>
       {/* The floor is its own thin single-sided plane rather than the top face of the slab box:
           it is the ONLY click target for walking, and a box would also return hits on its sides
           and underside, which would send the character to nonsensical places. */}
-      <mesh
-        geometry={GEO.plane}
-        material={floorMaterial}
-        position={[0, 0, sandCenter]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        scale={[HALF * 2, sandDepth, 1]}
-        receiveShadow
-        onPointerDown={handleFloorClick}
-      />
+      {loungeFloor ? (
+        <mesh geometry={loungeFloor} material={floorMaterial} rotation={[-Math.PI / 2, 0, 0]} receiveShadow onPointerDown={handleFloorClick} />
+      ) : (
+        <mesh
+          geometry={GEO.plane}
+          material={floorMaterial}
+          position={[0, 0, sandCenter]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          scale={[half * 2, sandDepth, 1]}
+          receiveShadow
+          onPointerDown={handleFloorClick}
+        />
+      )}
+      {/* Walk surfaces that are not at y = 0 get their own click targets at their real height,
+          so a tap lands where it looks like it lands (walkY in shared/collision.ts). */}
+      {mapId === "cozy_lounge" && (
+        <mesh
+          geometry={GEO.plane}
+          material={floorMaterial}
+          position={[(LOUNGE_PIT.x0 + LOUNGE_PIT.x1) / 2, -LOUNGE_PIT.depth, (LOUNGE_PIT.z0 + LOUNGE_PIT.z1) / 2]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          scale={[LOUNGE_PIT.x1 - LOUNGE_PIT.x0, LOUNGE_PIT.z1 - LOUNGE_PIT.z0, 1]}
+          receiveShadow
+          onPointerDown={handleFloorClick}
+        />
+      )}
+      {mapId === "velvet_casino" && (
+        <mesh
+          geometry={GEO.plane}
+          material={CLICK_CATCHER}
+          position={[(VIP_PLATFORM.x0 + VIP_PLATFORM.x1) / 2, VIP_PLATFORM.height + 0.005, (VIP_PLATFORM.z0 + VIP_PLATFORM.z1) / 2]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          scale={[VIP_PLATFORM.x1 - VIP_PLATFORM.x0, VIP_PLATFORM.z1 - VIP_PLATFORM.z0, 1]}
+          onPointerDown={handleFloorClick}
+        />
+      )}
+      {mapId === "campfire_night" && (
+        <mesh
+          geometry={GEO.circle}
+          material={CLICK_CATCHER}
+          position={[BLUFF.x, BLUFF.height + 0.01, BLUFF.z]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          scale={[(BLUFF.radius - 0.2) * 2, (BLUFF.radius - 0.2) * 2, 1]}
+          onPointerDown={handleFloorClick}
+        />
+      )}
       {isBeach && (
         <mesh
           geometry={GEO.plane}
           material={CLICK_CATCHER}
-          position={[0, 0, (SHORELINE_Z + HALF) / 2]}
+          position={[0, 0, (SHORELINE_Z + half) / 2]}
           rotation={[-Math.PI / 2, 0, 0]}
-          scale={[HALF * 2, HALF - SHORELINE_Z, 1]}
+          scale={[half * 2, half - SHORELINE_Z, 1]}
           onPointerDown={handleFloorClick}
         />
       )}
 
-      <DioramaSlab theme={theme} mats={mats} mapId={mapId} />
+      <DioramaSlab theme={theme} mats={mats} mapId={mapId} half={half} />
 
       {/* Everything inside a world is static after mount, so it is baked down to a handful of
           merged draw calls. Animated pieces opt out with userData={noMerge}. */}
@@ -92,7 +153,8 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
 // A solid 20x20 cube with clean edges. Nothing is scattered along the cut face any more: the
 // pebbles that used to be embedded there stuck out past the sides and gave the island a
 // serrated, chewed-looking rim.
-function DioramaSlab({ theme, mats, mapId }: { theme: RoomTheme; mats: Materials; mapId: MapId }) {
+function DioramaSlab({ theme, mats, mapId, half }: { theme: RoomTheme; mats: Materials; mapId: MapId; half: number }) {
+  const HALF = half; // the slab spans -half..half on both axes
   const edgeMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: theme.edge, roughness: 0.95 }), [theme.edge]);
   const edgeTopMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: theme.edgeTop, roughness: 1 }), [theme.edgeTop]);
   useEffect(

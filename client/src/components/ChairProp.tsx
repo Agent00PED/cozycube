@@ -7,6 +7,8 @@ import { GEO, noRaycast, castsUsefulShadow, onHitLayer } from "../scene/kit";
 
 interface ChairPropProps {
   chair: ChairSyncState;
+  /** Height of the walk surface under the seat (a step down in the pit, up on a platform). */
+  y?: number;
   onSeatClick: (chair: ChairSyncState) => void;
 }
 
@@ -57,7 +59,7 @@ const Cylinder = ({ p, s, m, r }: { p: [number, number, number]; s: [number, num
 );
 
 // memo: seats only change when someone sits or stands, not on every movement patch.
-export const ChairProp = memo(function ChairProp({ chair, onSeatClick }: ChairPropProps) {
+export const ChairProp = memo(function ChairProp({ chair, y = 0, onSeatClick }: ChairPropProps) {
   const pad = PAD[chair.style] ?? PAD.pad;
 
   const handleClick = (e: ThreeEvent<PointerEvent>) => {
@@ -67,7 +69,7 @@ export const ChairProp = memo(function ChairProp({ chair, onSeatClick }: ChairPr
   };
 
   return (
-    <group position={[chair.x, 0, chair.z]} rotation={[0, chair.rotationY, 0]}>
+    <group position={[chair.x, y, chair.z]} rotation={[0, chair.rotationY, 0]}>
       {/* noMerge: the click target must stay its own visible mesh, or it can't be raycast */}
       <mesh ref={onHitLayer} geometry={GEO.box} material={HIT_PAD_MATERIAL} position={[0, pad.y, 0]} scale={pad.size} onPointerDown={handleClick} userData={{ noMerge: true }} />
 

@@ -12,7 +12,7 @@
 //
 // Hand-placed static meshes live in TSX, not data, so their y >= 0 check runs in the client:
 // StaticBatch logs any mesh whose bottom dips below the slab in development builds.
-import { MAP_OBSTACLES, MAP_SPAWN_POINTS, WORLD_LIMIT, isBlocked } from "../shared/collision";
+import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, walkY, worldLimit } from "../shared/collision";
 import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES } from "../shared/props";
 import { isReachable } from "../shared/pathfinding";
 import { ROULETTE_BET_RADIUS, ROULETTE_CENTER, isWalkUpProp, type MapId } from "../shared/types";
@@ -51,7 +51,7 @@ for (const mapId of maps) {
   // --- seats: in bounds, approach open and reachable on foot ---
   for (const chair of MAP_CHAIRS[mapId]) {
     mapChecks++;
-    if (Math.abs(chair.x) > WORLD_LIMIT + 0.6 || Math.abs(chair.z) > WORLD_LIMIT + 0.6) fail(`${mapId}: seat ${chair.propId} is off the island ${fmt(chair)}`);
+    if (Math.abs(chair.x) > worldLimit(mapId) + 0.6 || Math.abs(chair.z) > worldLimit(mapId) + 0.6) fail(`${mapId}: seat ${chair.propId} is off the island ${fmt(chair)}`);
     const a = APPROACH_POINTS[chair.propId];
     if (!a) {
       fail(`${mapId}: seat ${chair.propId} has no approach point`);
@@ -64,7 +64,9 @@ for (const mapId of maps) {
   // --- props: above the slab; walk-up props reachable ---
   for (const prop of MAP_TOGGLEABLES[mapId]) {
     mapChecks++;
-    if ((prop.y ?? 0) < 0) fail(`${mapId}: prop ${prop.propId} is sunk below the slab (y = ${prop.y})`);
+    // "the slab" is the walk surface there: the lounge pit is a step down, the VIP lounge a step up
+    const floor = walkY(mapId, prop.x, prop.z);
+    if ((prop.y ?? 0) < floor - 0.01) fail(`${mapId}: prop ${prop.propId} is sunk below the floor (y = ${prop.y}, floor ${floor.toFixed(2)})`);
     if (!isWalkUpProp(prop.kind)) continue;
     const a = APPROACH_POINTS[prop.propId];
     if (!a) {

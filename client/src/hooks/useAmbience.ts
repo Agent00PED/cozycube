@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { MapId } from "@shared/types";
+import { bgmBus, getAudioContext, getAudioSettings, isUnlocked, setAudioSettings, subscribeAudioSettings } from "../audio/SoundManager";
 
 // Per-map soundscapes, synthesised with WebAudio instead of shipped as audio files: a few
 // oscillators and a noise buffer cost nothing to download and let each bed be shaped in code.
@@ -101,6 +102,58 @@ function beachBed(ctx: AudioContext, out: GainNode): Bed {
   lfo.start();
   wind.start();
   gust.start();
+  return scope;
+}
+
+/** A stream close by: soft, bubbling filtered noise with a slow ripple in its tone. */
+function streamBed(ctx: AudioContext, out: GainNode, level = 0.06): Bed {
+  const scope = bedScope();
+  const water = scope.keep(noiseSource(ctx));
+  const f = ctx.createBiquadFilter();
+  f.type = "bandpass";
+  f.frequency.value = 1500;
+  f.Q.value = 0.6;
+  const g = ctx.createGain();
+  g.gain.value = level;
+  const ripple = scope.keep(ctx.createOscillator());
+  ripple.frequency.value = 0.35;
+  const rippleDepth = ctx.createGain();
+  rippleDepth.gain.value = 400;
+  ripple.connect(rippleDepth).connect(f.frequency);
+  water.connect(f).connect(g).connect(out);
+  water.start();
+  ripple.start();
+  return scope;
+}
+
+/** A hearth: a low warm hiss with sparse, softer crackles than the open campfire. */
+function hearthBed(ctx: AudioContext, out: GainNode): Bed {
+  const scope = bedScope();
+  const hiss = scope.keep(noiseSource(ctx));
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 600;
+  const bed = ctx.createGain();
+  bed.gain.value = 0.07;
+  hiss.connect(filter).connect(bed).connect(out);
+  hiss.start();
+  scope.every(
+    () => 260 + Math.random() * 1400,
+    () => {
+      const now = ctx.currentTime;
+      const pop = noiseSource(ctx);
+      const popFilter = ctx.createBiquadFilter();
+      popFilter.type = "bandpass";
+      popFilter.frequency.value = 1200 + Math.random() * 1600;
+      const popGain = ctx.createGain();
+      popGain.gain.setValueAtTime(0.0001, now);
+      popGain.gain.exponentialRampToValueAtTime(0.04 + Math.random() * 0.05, now + 0.005);
+      popGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+      pop.connect(popFilter).connect(popGain).connect(out);
+      pop.start(now);
+      pop.stop(now + 0.09);
+    }
+  );
   return scope;
 }
 
@@ -407,29 +460,39 @@ function casinoBed(ctx: AudioContext, out: GainNode): Bed {
 function startBeds(ctx: AudioContext, out: GainNode, mapId: MapId, record: number | null): Bed[] {
   if (mapId === "sunset_beach") return [beachBed(ctx, out)];
   if (mapId === "velvet_casino") return [casinoBed(ctx, out)];
-  if (mapId === "campfire_night") return [campfireBed(ctx, out)];
-  return [record === null ? rainBed(ctx, out) : recordBed(ctx, out, record), coffeeBubbles(ctx, out)];
+  if (mapId === "campfire_night") return [campfireBed(ctx, out), streamBed(ctx, out)];
+  // the lounge: the record (or rain on the window), the hearth, and the coffee machine
+  return [record === null ? rainBed(ctx, out) : recordBed(ctx, out, record), hearthBed(ctx, out), coffeeBubbles(ctx, out)];
 }
 
 /**
+ * Plays the current map's soundscape through the SoundManager's bgm bus whenever ambience is
+ * on in the audio settings and the context has been unlocked by a gesture.
  * @param record the lounge turntable's record index while it is playing, or null when it is
  *               off (or when not in the lounge)
  */
 export function useAmbience(mapId: MapId, record: number | null) {
-  const [enabled, setEnabled] = useState(false);
-  const ctxRef = useRef<AudioContext | null>(null);
+  const [settings, setSettings] = useState(getAudioSettings());
+  const [unlocked, setUnlocked] = useState(isUnlocked());
+  useEffect(
+    () =>
+      subscribeAudioSettings((s) => {
+        setSettings(s);
+        setUnlocked(isUnlocked());
+      }),
+    []
+  );
+  const enabled = settings.ambience && settings.master > 0 && unlocked;
 
   useEffect(() => {
     if (!enabled) return;
-    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctor) return;
-    const ctx = ctxRef.current ?? new Ctor();
-    ctxRef.current = ctx;
+    const ctx = getAudioContext();
+    if (!ctx) return;
     void ctx.resume();
 
     const master = ctx.createGain();
     master.gain.value = 0;
-    master.connect(ctx.destination);
+    master.connect(bgmBus());
     const beds = startBeds(ctx, master, mapId, mapId === "cozy_lounge" ? record : null);
     master.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 1.2); // fade in, no thump
 
@@ -444,14 +507,6 @@ export function useAmbience(mapId: MapId, record: number | null) {
     };
   }, [enabled, mapId, record]);
 
-  useEffect(
-    () => () => {
-      void ctxRef.current?.close();
-      ctxRef.current = null;
-    },
-    []
-  );
-
-  const toggle = useCallback(() => setEnabled((v) => !v), []);
-  return { enabled, toggle };
+  const toggle = useCallback(() => setAudioSettings({ ambience: !getAudioSettings().ambience }), []);
+  return { enabled: settings.ambience, toggle };
 }

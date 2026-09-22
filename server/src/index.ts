@@ -6,11 +6,20 @@ import { createServer } from "http";
 import { Server } from "colyseus";
 import { HangoutRoom } from "./rooms/HangoutRoom";
 import { tokenRouter } from "./routes/token";
+import { getPlayerStore, initPlayerStore } from "./db/players";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/api", tokenRouter);
+// The High Rollers table for anyone outside a room (and for the modal's refresh button).
+app.get("/api/leaderboard", async (_req, res) => {
+  try {
+    res.json(await getPlayerStore().topCoins(10));
+  } catch (err) {
+    res.status(503).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
 
 const httpServer = createServer(app);
 const gameServer = new Server({ server: httpServer });
@@ -39,6 +48,14 @@ if (process.env.NODE_ENV === "production") {
 
 const PORT = Number(process.env.PORT) || 2567;
 const HOST = "0.0.0.0"; // not just localhost — required for Railway (and most PaaS) to route traffic in
-httpServer.listen(PORT, HOST, () => {
-  console.log(`Colyseus + Express listening on ${HOST}:${PORT} (NODE_ENV=${process.env.NODE_ENV ?? "development"})`);
+// The players table (or the in-memory fallback) is ready before the first client can join.
+void initPlayerStore().then((store) => {
+  httpServer.listen(PORT, HOST, () => {
+    console.log(`Colyseus + Express listening on ${HOST}:${PORT} (NODE_ENV=${process.env.NODE_ENV ?? "development"}, players: ${store.kind})`);
+  });
 });
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    void gameServer.gracefullyShutdown(false).finally(() => getPlayerStore().close().finally(() => process.exit(0)));
+  });
+}

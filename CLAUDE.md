@@ -7,13 +7,17 @@ with four maps — Cozy Lounge, Campfire, Sunset Beach Bar, Velvet Casino.
 
 | Path | What lives there |
 | --- | --- |
-| `shared/types.ts` | Synced state shapes, economy constants, items, gestures, statuses |
-| `shared/props.ts` | Per-map seats and interactive props, plus their approach points |
-| `shared/collision.ts` | Obstacle boxes, spawn points, scenery rules, `isBlocked` |
-| `server/src/rooms/HangoutRoom.ts` | All authoritative logic (economy, casino, fishing, seats) |
+| `shared/types.ts` | Synced state shapes, economy constants, items, gestures, statuses, blackjack/slots/chat contracts, map sizes |
+| `shared/props.ts` | Per-map seats and interactive props, plus their approach points (anchors derived) |
+| `shared/seats.ts` | Cushion descriptors; every seat anchor height is derived from them |
+| `shared/collision.ts` | Obstacle boxes, spawn points, scenery rules, `isBlocked`, `walkY` (bridge, pit, VIP platform, bluff) |
+| `server/src/rooms/HangoutRoom.ts` | All authoritative logic (economy, casino, blackjack, slots, fishing, seats, chat) |
+| `server/src/db/players.ts` | PostgreSQL store (DATABASE_URL) with in-memory fallback, schema init, debounced writes |
+| `client/src/audio/` | `SoundManager` (buses, settings, gesture unlock) and the synthesised effects |
+| `client/src/systems/` | Client movement, and `input.ts` (WASD / joystick steering) |
 | `client/src/scene/` | The four world scenes, the shared mesh kit, camera and lighting |
 | `client/src/components/` | Avatars, interactive props, the scene root |
-| `client/src/components/hud/` | HUD: top bar, action dock, roulette panel, wardrobe |
+| `client/src/components/hud/` | Cozy Clay HUD: header, world drawer, social drawer, action dock, slots/blackjack/leaderboard/settings modals, wardrobe |
 | `scripts/validate-world.ts` | `npm run check-layout` — every approach point must be reachable |
 
 ## Verification before any commit
@@ -87,22 +91,26 @@ Honest notes so the standard is applied to real code rather than assumed:
 
 - **A. Seat anchors** — derived, never authored. `shared/seats.ts` describes each seat's cushion
   primitive once (`CUSHIONS`), the worlds draw the cushion from it, and `shared/props.ts`
-  computes every `sitY` from it through `anchored()` (`surfaceY = 0.5 * h + y`, then
-  `+ AVATAR_HIP_OFFSET - AVATAR_HIP_Y`). `Character3D` asserts its hip constants match. The Tiki
-  roof lift (`ROOF_LIFT` in `BeachWorld.tsx`) is computed from the stool anchor + seated height +
-  headroom.
-- **B. Group hierarchy** — palms are built per tree about their own base (`palmParts`) and baked
-  (`bakeGroups`); tents own their porch, flaps, ropes and pegs; Mochi's tail hugs the loaf.
-- **C. Materials / draw calls** — palms are fully opaque (no occluder dithering). `StaticBatch`
-  normalises custom geometry (index + uv) before merging, so hand-built triangle soups no longer
-  break a whole material bucket. Last measured at the default zoom: Lounge 110, Campfire 115,
-  Casino 118, Beach 138 (the beach carries two avatars, the sea and three sparkles). All
-  `PointLight`s pass `castShadow={false}`.
-- **D. Walkable elevation** — `walkY(mapId, x, z)` in `shared/collision.ts` lifts the walk plane
-  onto the campfire bridge deck (`BRIDGE_DECK_Y`) with short ramps; both local and remote avatars
-  use it. Riverbank and bridge-rail colliders remain in `inScenery`.
-- **E. Zoning / dedupe** — floor-material zoning and action-dock deduplication by `action.type`
-  are in place; the fireside offers "Sit" and "Roast" as two types on purpose.
-- **Known gaps** — the 3D payout confetti (`PayoutConfetti`, fires on a >= 50 coin win) has not
-  been seen in a browser; the wardrobe's `defaultLook` snaps the server's pastel shirt to the
-  nearest palette colour (before that, a fresh player's wardrobe edits were rejected silently).
+  computes every `sitY` through `anchored(mapId, ...)` = cushion surface + hip offset + the walk
+  surface height (`walkY`). `Character3D` asserts its hip constants match.
+- **B. Group hierarchy** — palms, tents (with porches, ropes, pegs), the cabana, the hammock and
+  Mochi are each one group; palms are baked per tree.
+- **C. Materials / draw calls** — all stylized meshes opaque; `StaticBatch` normalises custom
+  geometry before merging. Measured with the whole room in view (zoomed out): Lounge ~168,
+  Campfire 129, Beach 143, Casino 161; at the default follow-camera zoom the lounge sits near
+  110 and the casino near 120. The always-visible HUD chrome has no `backdrop-filter` (a blur
+  over the live canvas re-blurs every frame); only transient panels blur.
+- **D. Walkable elevation** — `walkY(mapId, x, z)` in `shared/collision.ts` lifts avatars onto
+  the campfire bridge and the stargazing bluff, drops them into the lounge's conversation pit
+  and raises them onto the casino VIP platform; seats and props follow it. Each raised or sunken
+  surface has its own click target in `ProceduralRoom`. Maps have their own size (`MAP_HALF`):
+  the campfire valley is 28x28.
+- **E. Zoning / dedupe** — floor zoning (kitchen tile, emerald blackjack wing, pit rug) and the
+  action dock's dedupe by `action.type` are in place.
+- **Persistence** — `server/src/db/players.ts`; wallet, hats, look and stats are hydrated on
+  join, saved on a 2.5 s debounce, flushed on leave. Verified with a scripted client (leave and
+  rejoin keeps coins and stats). Railway needs a PostgreSQL service attached so `DATABASE_URL`
+  is set; without it the server logs a warning and keeps everything in memory.
+- **Known gaps** — the 3D payout confetti and the in-browser slot reel animation were verified
+  by code and by the scripted server flow, not seen on screen; the audio beds were not listened
+  to in this session.

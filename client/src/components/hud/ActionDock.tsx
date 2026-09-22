@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
+  BLACKJACK_CENTER,
+  BLACKJACK_RADIUS,
   NPCS,
   ROULETTE_BET_RADIUS,
   ROULETTE_CENTER,
@@ -46,6 +48,8 @@ function propLabel(p: ToggleableSyncState): string | null {
       return "🐱 Pet Mochi";
     case "sparkle":
       return p.on ? "🐚 Pick it up" : null;
+    case "stew":
+      return p.on ? "🍲 Stir the stew" : null; // an empty pot is being refilled
     default:
       return null;
   }
@@ -96,6 +100,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
       const free = (c: ChairSyncState) => c.occupiedBy === "" || c.occupiedBy === localSessionId;
       let fish: { id: string; d: number } | null = null;
       let fire: { id: string; d: number } | null = null;
+      let seat: { id: string; d: number } | null = null;
       for (const c of Object.values(chairs)) {
         if (!free(c)) continue;
         const d = dist(c.x, c.z, c.propId);
@@ -104,7 +109,14 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
           fish = { id: c.propId, d };
         } else if (c.style === "log" && (!fire || d < fire.d)) {
           fire = { id: c.propId, d };
+        } else if (d <= REACH && (!seat || d < seat.d)) {
+          seat = { id: c.propId, d };
         }
+      }
+      // Any other seat close by: one "sit" button for the nearest.
+      if (seat) {
+        const id = seat.id;
+        found.push({ key: "sit", type: "sit", label: "🛋️ Sit here", d: seat.d + 0.3, run: () => interactBridge.current?.sit(id) });
       }
       // The pier offers both ways to fish: the bite-and-reel game, or chill mode that keeps
       // bringing in a little something while you just hang out on voice.
@@ -133,6 +145,18 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         });
       }
 
+      // The blackjack table: step up to it and the table opens.
+      if (mapId === "velvet_casino") {
+        const dx = px - BLACKJACK_CENTER.x;
+        const dz = pz - BLACKJACK_CENTER.z;
+        const d = Math.hypot(dx, dz);
+        if (d < BLACKJACK_RADIUS) {
+          found.push({ key: "blackjack-open", type: "blackjack", label: "🃏 Play blackjack", d: 0.5, run: () => window.dispatchEvent(new Event("cozy-open-blackjack")) });
+        } else if (d < BLACKJACK_RADIUS + REACH) {
+          const k = 2.6 / (d || 1);
+          found.push({ key: "blackjack", type: "blackjack", label: "🃏 Blackjack table", d: d - BLACKJACK_RADIUS + 0.2, run: () => interactBridge.current?.walkTo(BLACKJACK_CENTER.x + dx * k, BLACKJACK_CENTER.z + dz * k) });
+        }
+      }
       // The roulette table: from anywhere near it, step up to the rail and the board opens.
       if (mapId === "velvet_casino") {
         const dx = px - ROULETTE_CENTER.x;
@@ -217,7 +241,8 @@ const styles: Record<string, CSSProperties> = {
     ...hudText,
     fontSize: 15,
     fontWeight: 800,
-    padding: "11px 20px",
+    padding: "12px 20px",
+    minHeight: 48,
     color: "#4a2a08",
     background: "linear-gradient(180deg, #ffe08a 0%, #f5b93a 100%)",
     border: "2px solid #fff3c4",
