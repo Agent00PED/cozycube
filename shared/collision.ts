@@ -42,21 +42,19 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -3.7, maxX: -0.9, minZ: -9.8, maxZ: -9.3 }, // tall bookcase
     { minX: -2.75, maxX: -2.15, minZ: -8.1, maxZ: -7.5 }, // snack table between the beanbags
     { minX: -9.6, maxX: -8.8, minZ: -9.6, maxZ: -8.8 }, // corner plant
-    // --- Vinyl nook ---
+    // --- Reading & tea lounge (front-left wing), everything gathered round the tea table ---
     { minX: -9.8, maxX: -8.9, minZ: 2.4, maxZ: 5.2 }, // record shelf against the left wall
-    { minX: -8.7, maxX: -8.1, minZ: 5.2, maxZ: 5.8 }, // floor lamp
-    { minX: -7.7, maxX: -6.9, minZ: 5.2, maxZ: 6.0 }, // guitar on its stand, beside the armchair
-    { minX: -7.95, maxX: -7.25, minZ: 2.85, maxZ: 3.55 }, // round side table by the armchair
-    // --- Tea corner ---
-    { minX: -2.5, maxX: -1.1, minZ: 4.3, maxZ: 5.7 }, // low round table
+    { minX: -8.4, maxX: -7.8, minZ: 6.7, maxZ: 7.3 }, // reading lamp behind the armchair
+    { minX: -9.1, maxX: -8.3, minZ: 7.6, maxZ: 8.4 }, // guitar on its stand, in the corner by the wall
+    { minX: -6.65, maxX: -5.95, minZ: 6.35, maxZ: 7.05 }, // round side table beside the armchair
+    { minX: -5.1, maxX: -3.7, minZ: 4.7, maxZ: 6.1 }, // the low tea table
     { minX: 2.2, maxX: 2.8, minZ: 6.1, maxZ: 6.7 }, // fig, clear of the cushions
-    { minX: -3.9, maxX: -3.3, minZ: 6.5, maxZ: 7.1 }, // snake plant
+    { minX: -2.3, maxX: -1.7, minZ: 7.4, maxZ: 8.0 }, // snake plant
     { minX: 1.5, maxX: 2.1, minZ: 3.0, maxZ: 3.6 }, // fern
     // --- Balcony deck ---
     { minX: 8.6, maxX: 9.2, minZ: 5.1, maxZ: 5.7 }, // floor lantern
     { minX: 5.2, maxX: 5.8, minZ: 0.7, maxZ: 1.3 }, // potted fig by the deck step
     { minX: 8.5, maxX: 9.2, minZ: 1.4, maxZ: 2.1 }, // olive tree
-    { minX: 6.0, maxX: 7.0, minZ: -3.6, maxZ: -2.6 }, // console table by the entry
     { minX: 8.75, maxX: 9.45, minZ: 6.85, maxZ: 7.55 }, // monstera on the deck
     { minX: 8.8, maxX: 9.4, minZ: 2.9, maxZ: 3.5 }, // fern on its plant stool
   ],
@@ -69,7 +67,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: 4.1, maxX: 4.7, minZ: -2.5, maxZ: -1.9 }, // lantern stump east
     { minX: -4.7, maxX: -4.1, minZ: 1.9, maxZ: 2.5 }, // lantern stump west
     { minX: -3.4, maxX: -2.4, minZ: -4.8, maxZ: -3.8 }, // firewood stack
-    { minX: 7.2, maxX: 7.8, minZ: -2.3, maxZ: -1.7 }, // telescope
+    { minX: 7.7, maxX: 8.3, minZ: -3.3, maxZ: -2.7 }, // telescope, in the back corner
     { minX: 1.6, maxX: 3.0, minZ: -6.4, maxZ: -5.6 }, // camp table and cooler
     { minX: 6.1, maxX: 6.7, minZ: 1.9, maxZ: 2.5 }, // Ranger Oak
     { minX: -7.15, maxX: -6.45, minZ: -1.55, maxZ: -0.85 }, // berry bush west
@@ -83,9 +81,12 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: 7.1, maxX: 7.7, minZ: 2.7, maxZ: 3.3 }, // east tiki torch
     { minX: 4.1, maxX: 5.9, minZ: -1.9, maxZ: -0.1 }, // bonfire and its stone ring
     { minX: 7.05, maxX: 7.75, minZ: -3.75, maxZ: -3.05 }, // cooler, clear of the driftwood logs
-    { minX: -7.3, maxX: -6.7, minZ: 1.8, maxZ: 2.4 }, // parasol post between the loungers
+    { minX: -7.3, maxX: -6.7, minZ: 1.3, maxZ: 1.9 }, // parasol post between the loungers
     { minX: -8.6, maxX: -7.8, minZ: -7.4, maxZ: -6.6 }, // palm by the bar
     { minX: 7.4, maxX: 8.2, minZ: -6.2, maxZ: -5.4 }, // palm at the top of the beach
+    { minX: -8.8, maxX: -8.0, minZ: -0.8, maxZ: 0.0 }, // palm with the surfboards leaning on it
+    { minX: 3.0, maxX: 3.8, minZ: -8.6, maxZ: -7.8 }, // palm behind the bar
+    { minX: -9.4, maxX: -8.6, minZ: 3.6, maxZ: 4.4 }, // palm shading the loungers from the west
     { minX: -5.2, maxX: -4.6, minZ: -3.9, maxZ: -3.3 }, // volleyball post
     { minX: -5.2, maxX: -4.6, minZ: -0.3, maxZ: 0.3 }, // volleyball post
     { minX: -3.7, maxX: -1.5, minZ: -0.1, maxZ: 2.1 }, // rowboat pulled up on the sand
@@ -101,8 +102,9 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: 6.4, maxX: 9.8, minZ: -9.8, maxZ: -7.6 }, // cashier cage
     { minX: 7.3, maxX: 8.7, minZ: -5.4, maxZ: -4.0 }, // High Roller leaderboard easel
     { minX: 2.05, maxX: 2.75, minZ: -1.65, maxZ: -0.95 }, // roulette dealer, at the far end of the layout
-    { minX: 5.15, maxX: 6.05, minZ: 3.15, maxZ: 4.05 }, // cocktail high-top
-    { minX: 4.75, maxX: 5.65, minZ: -4.95, maxZ: -4.05 }, // cocktail high-top
+    { minX: 3.85, maxX: 4.75, minZ: 1.95, maxZ: 2.85 }, // cocktail high-top, front-right of the wheel
+    { minX: -2.65, maxX: -1.75, minZ: 2.75, maxZ: 3.65 }, // cocktail high-top, front-left
+    { minX: 3.65, maxX: 4.55, minZ: -2.85, maxZ: -1.95 }, // cocktail high-top, behind the dealer
     { minX: -6.95, maxX: -4.05, minZ: -5.3, maxZ: -3.75 }, // blackjack table, to the edge of its curve
     { minX: -7.0, maxX: -4.0, minZ: -6.1, maxZ: -5.3 }, // the dealer's side behind it: no walking into the counter
     { minX: -9.8, maxX: -8.8, minZ: 2.8, maxZ: 7.2 }, // VIP chesterfield against the left wall
@@ -167,6 +169,26 @@ export function streamZ(x: number): number {
 const STREAM_HALF = 1.0;
 /** The plank bridge: walkable between its rails (at x = +/-0.85). */
 const BRIDGE_HALF = 0.62;
+/** The bridge deck: its plank tops stand this high, and it spans this far either side of the stream. */
+export const BRIDGE_DECK_Y = 0.26;
+export const BRIDGE_HALF_LENGTH = 1.77;
+/** The little ramps at each end climb over this distance. */
+const BRIDGE_RAMP = 0.5;
+
+/**
+ * The height of the ground under a player's feet. Flat everywhere except the campfire's plank
+ * bridge, which lifts the walk plane onto its deck (with a short ramp at each end) so legs
+ * never sink through the planks. Client-side only: it is where the avatar is DRAWN.
+ */
+export function walkY(mapId: MapId, x: number, z: number): number {
+  if (mapId !== "campfire_night") return 0;
+  if (Math.abs(x) > BRIDGE_HALF + 0.3) return 0;
+  const along = Math.abs(z - streamZ(x));
+  if (along >= BRIDGE_HALF_LENGTH + BRIDGE_RAMP) return 0;
+  if (along <= BRIDGE_HALF_LENGTH) return BRIDGE_DECK_Y;
+  const t = 1 - (along - BRIDGE_HALF_LENGTH) / BRIDGE_RAMP;
+  return BRIDGE_DECK_Y * t * t * (3 - 2 * t);
+}
 
 function inScenery(mapId: MapId, x: number, z: number, radius: number): boolean {
   if (mapId === "campfire_night") {

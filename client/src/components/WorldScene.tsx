@@ -11,7 +11,8 @@ import { DioramaRoom } from "../scene/DioramaRoom";
 import { Footprints } from "../scene/Footprints";
 import { StaticBatch } from "../scene/kit";
 import { Volleyball } from "./Volleyball";
-import { BetChips, Leaderboard, RouletteWheel } from "./Casino";
+import { BetChips, Leaderboard, PayoutConfetti, RouletteWheel } from "./Casino";
+import { walkY } from "@shared/collision";
 import { Dealer } from "./LivingProps";
 import { Critters } from "../scene/Critters";
 import { RoomEventsContext } from "../scene/roomEvents";
@@ -240,6 +241,7 @@ export function WorldScene({
           <BetChips bets={bets} players={players} />
           <Leaderboard players={players} />
           <Dealer phase={roulette.phase} />
+          <PayoutConfetti />
         </>
       )}
 
@@ -272,7 +274,7 @@ export function WorldScene({
             gesture={gestures[sessionId] ?? null}
           />
         ) : (
-          <RemotePlayerAvatar key={sessionId} player={player} speaking={speaking} emotes={playerEmotes} gesture={gestures[sessionId] ?? null} />
+          <RemotePlayerAvatar key={sessionId} player={player} speaking={speaking} emotes={playerEmotes} gesture={gestures[sessionId] ?? null} mapId={mapId} />
         );
       })}
     </TimeOfDayContext.Provider>
@@ -453,7 +455,7 @@ function sampleSnapshots(buffer: Snapshot[], renderTime: number): { x: number; z
   return { x: newest.x + vx * carried, z: newest.z + vz * carried, vx: vx * fade, vz: vz * fade };
 }
 
-function RemotePlayerAvatar({ player, speaking, emotes, gesture }: { player: PlayerState; speaking: boolean; emotes: FloatingEmote[]; gesture: ActiveGesture | null }) {
+function RemotePlayerAvatar({ player, speaking, emotes, gesture, mapId }: { player: PlayerState; speaking: boolean; emotes: FloatingEmote[]; gesture: ActiveGesture | null; mapId: MapId }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
   const bufferRef = useRef<Snapshot[]>([{ t: performance.now(), x: player.x, z: player.z }]);
@@ -486,7 +488,7 @@ function RemotePlayerAvatar({ player, speaking, emotes, gesture }: { player: Pla
     const sample = sampleSnapshots(bufferRef.current, performance.now() - INTERP_DELAY_MS);
     g.position.x = sample.x;
     g.position.z = sample.z;
-    g.position.y += ((player.sitting ? player.sitY : 0) - g.position.y) * REMOTE_Y_LERP;
+    g.position.y += ((player.sitting ? player.sitY : walkY(mapId, sample.x, sample.z)) - g.position.y) * REMOTE_Y_LERP;
 
     // Gait speed from the actual velocity (units/ms -> fraction of walking speed).
     const speed = Math.hypot(sample.vx, sample.vz) * 1000;

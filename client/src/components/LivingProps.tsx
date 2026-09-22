@@ -241,8 +241,14 @@ export function Sparkle({ prop, onUse }: { prop: ToggleableSyncState; onUse: () 
 // --- Mochi the cat -----------------------------------------------------------------------------
 
 // A chubby chibi loaf: one round body, a big head that sinks into it, proper cone ears with
-// pink insides, and a thick tail that wraps round the front paws from the body itself.
-const CAT_TAIL = arcGeo(0.3, 0.055, Math.PI * 1.15);
+// pink insides, and a thick tail that hugs the loaf from the rump round to the front paws.
+// The tail's arc radius is a whisker larger than the loaf's half-width, so it presses against
+// the body along its whole length instead of floating in a ring round it.
+const CAT_TAIL = arcGeo(0.19, 0.045, Math.PI * 1.05);
+const TAIL_REST = -1.73; // yaw that starts the curl at the rump and ends it by the paws
+/** Every so often the loaf gives a contented squash-and-stretch, on a slow clock. */
+const SQUISH_PERIOD = 7.5;
+const SQUISH_LENGTH = 0.6;
 
 export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => void }) {
   const bodyRef = useRef<THREE.Mesh>(null);
@@ -257,13 +263,16 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
   }, [petted]);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    // breathing: the loaf rises and falls
-    if (bodyRef.current) bodyRef.current.scale.y = 0.27 * (1 + Math.sin(t * (petted ? 5 : 1.6)) * 0.035);
+    // breathing: the loaf rises and falls; and now and then a happy little squish
+    const breath = Math.sin(t * (petted ? 5 : 1.6)) * 0.035;
+    const phase = (t + 1.3) % SQUISH_PERIOD;
+    const squish = petted ? 0 : phase < SQUISH_LENGTH ? Math.sin((phase / SQUISH_LENGTH) * Math.PI) : 0;
+    if (bodyRef.current) bodyRef.current.scale.set(0.3 * (1 + squish * 0.07), 0.27 * (1 + breath) * (1 - squish * 0.14), 0.36 * (1 + squish * 0.05));
     if (headRef.current) {
-      headRef.current.position.y = THREE.MathUtils.lerp(headRef.current.position.y, petted ? 0.5 : 0.44, 0.1);
+      headRef.current.position.y = THREE.MathUtils.lerp(headRef.current.position.y, (petted ? 0.5 : 0.44) - squish * 0.035, 0.1);
       headRef.current.rotation.z = petted ? Math.sin(t * 3) * 0.14 : Math.sin(t * 0.5) * 0.03;
     }
-    if (tailRef.current) tailRef.current.rotation.z = Math.sin(t * (petted ? 4 : 0.7)) * (petted ? 0.25 : 0.08);
+    if (tailRef.current) tailRef.current.rotation.z = TAIL_REST + Math.sin(t * (petted ? 4 : 0.7)) * (petted ? 0.2 : 0.06);
     // one ear flicks now and then, like a cat half-listening in its sleep
     if (earRef.current) {
       const phase = t % 3.7;
@@ -283,8 +292,10 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
       {[-0.09, 0.09].map((x) => (
         <mesh key={x} geometry={GEO.sphereLow} material={M.catCream} position={[x, 0.05, 0.26]} scale={[0.08, 0.06, 0.1]} raycast={noRaycast} />
       ))}
-      {/* the tail curls round the paws, joined to the body at the back */}
-      <mesh ref={tailRef} geometry={CAT_TAIL} material={M.catOrange} position={[0, 0.06, 0.02]} rotation={[-Math.PI / 2, 0, -0.35]} raycast={noRaycast} />
+      {/* the tail hugs the loaf from the rump round its right side to the front paws, with a
+          cream tip resting between them */}
+      <mesh ref={tailRef} geometry={CAT_TAIL} material={M.catOrange} position={[0.02, 0.07, 0.02]} rotation={[-Math.PI / 2, 0, TAIL_REST]} raycast={noRaycast} />
+      <mesh geometry={GEO.sphereLow} material={M.catCream} position={[-0.01, 0.07, 0.21]} scale={0.055} raycast={noRaycast} />
       <group ref={headRef} position={[0, 0.44, 0.16]}>
         <mesh geometry={GEO.sphere} material={M.catOrange} scale={[0.22, 0.19, 0.2]} castShadow raycast={noRaycast} />
         <mesh geometry={GEO.sphereLow} material={M.catCream} position={[0, -0.06, 0.15]} scale={[0.11, 0.07, 0.07]} raycast={noRaycast} />

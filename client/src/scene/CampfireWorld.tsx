@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
 import { TimeOfDayContext } from "./timeOfDay";
-import { streamZ } from "@shared/collision";
+import { BRIDGE_DECK_Y, BRIDGE_HALF_LENGTH, streamZ } from "@shared/collision";
+import { BLANKET } from "@shared/props";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { B, Cyl, GEO, HALF, Instanced, Sph, noMerge, noRaycast, seeded, type InstanceSpec, type Materials } from "./kit";
@@ -29,7 +30,8 @@ function isClearZone(x: number, z: number, margin = 0): boolean {
   if (Math.abs(z - streamZ(x)) < 1.5 + margin) return true; // the stream
   if (Math.hypot(x, z) < 4.6 + margin) return true; // fire, log ring and their approach points
   if (TENTS.some((t) => Math.hypot(x - t.x, z - t.z) < 2.2 + margin)) return true;
-  if (Math.hypot(x - 5.9, z + 2.4) < 2.1 + margin) return true; // stargazing blanket + telescope
+  if (Math.hypot(x - BLANKET.x, z - BLANKET.z) < 2.0 + margin) return true; // stargazing blanket
+  if (Math.hypot(x - 8.0, z + 3.0) < 0.9 + margin) return true; // telescope
   if (Math.hypot(x - 4.4, z + 2.2) < 0.9 || Math.hypot(x + 4.4, z - 2.2) < 0.9) return true; // lantern stumps
   if (Math.hypot(x - 2.3, z + 6.0) < 1.4 + margin) return true; // camp table
   return false;
@@ -248,8 +250,11 @@ function Stream({ mats }: { mats: Materials }) {
       const u = (g.offset + t * 0.04) % 1;
       const x = -EDGE + u * EDGE * 2;
       tmp.position.set(x, 0.04, streamZ(x) + g.lane * 0.32);
-      const twinkle = 0.5 + 0.5 * Math.sin(t * 3 + i * 1.7);
-      tmp.scale.set(0.2 * twinkle + 0.05, 0.01, 0.05);
+      // Glints stay out from under the bridge: a row of pale strokes glimpsed between the
+      // planks read as a stray white grid in the water.
+      const underBridge = Math.abs(x) < 1.3;
+      const twinkle = underBridge ? 0 : 0.5 + 0.5 * Math.sin(t * 3 + i * 1.7);
+      tmp.scale.set(0.2 * twinkle + 0.001, 0.01, 0.05 * twinkle + 0.001);
       tmp.updateMatrix();
       mesh.setMatrixAt(i, tmp.matrix);
     });
@@ -284,8 +289,10 @@ function StoneTrail({ mats }: { mats: Materials }) {
   }, []);
 
   const bridgeZ = streamZ(0);
+  // Plank tops sit exactly at BRIDGE_DECK_Y: the walk plane (walkY in shared/collision.ts)
+  // lifts avatars onto that height, so feet stand ON the deck instead of through it.
   const planks = useMemo<InstanceSpec[]>(
-    () => Array.from({ length: 9 }, (_, i) => ({ p: [0, 0.22, bridgeZ - 1.6 + i * 0.4] as [number, number, number], s: [1.7, 0.08, 0.34] as [number, number, number] })),
+    () => Array.from({ length: 9 }, (_, i) => ({ p: [0, BRIDGE_DECK_Y - 0.04, bridgeZ - 1.6 + i * 0.4] as [number, number, number], s: [1.7, 0.08, 0.34] as [number, number, number] })),
     [bridgeZ]
   );
 
@@ -294,6 +301,10 @@ function StoneTrail({ mats }: { mats: Materials }) {
       <Instanced geo={GEO.cylLow} m={mats.stone} items={stones} recv />
       {/* the bridge: deck, four posts and a rail on each side */}
       <Instanced geo={GEO.box} m={mats.plankA} items={planks} cast recv />
+      {/* a short sloped board at each end, matching the ramp the walk plane climbs */}
+      {[-1, 1].map((end) => (
+        <B key={end} p={[0, BRIDGE_DECK_Y / 2 - 0.01, bridgeZ + end * (BRIDGE_HALF_LENGTH + 0.24)]} s={[1.5, 0.06, 0.56]} r={[end * 0.48, 0, 0]} m={mats.plankA} recv />
+      ))}
       {[-0.85, 0.85].map((dx) => (
         <group key={dx}>
           {[-1.5, 1.5].map((dz) => (
@@ -309,14 +320,44 @@ function StoneTrail({ mats }: { mats: Materials }) {
   );
 }
 
-// The tent doorway (a triangle) and one door flap (a right triangle), built once.
-const DOOR_GEO = (() => {
-  const s = new THREE.Shape();
-  s.moveTo(-0.4, 0);
-  s.lineTo(0.4, 0);
-  s.lineTo(0, 1.05);
-  s.closePath();
-  return new THREE.ShapeGeometry(s);
+// The tent doorway is a real porch: a Λ of canvas standing out from the pyramid's face, with a
+// dark interior (the door opening lies back against the sloping canvas, the groundsheet runs
+// out to the porch mouth), so the entrance has depth instead of being a triangle painted on.
+type V = [number, number, number];
+/** A double-sided triangle (both windings), for panels seen from either side. */
+function tri2(out: number[], a: V, b: V, c: V) {
+  out.push(...a, ...b, ...c, ...a, ...c, ...b);
+}
+function quad2(out: number[], a: V, b: V, c: V, d: V) {
+  tri2(out, a, b, c);
+  tri2(out, a, c, d);
+}
+function geoFrom(pos: number[]): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+// Pyramid face: from z 0.74 at the ground to z 0 at the ridge (height 1.5), i.e. z = 0.74 * (1 - y / 1.5).
+const faceZ = (y: number) => 0.74 * (1 - y / 1.5);
+const PORCH = {
+  ridgeBack: [0, 1.0, faceZ(1.0)] as V,
+  ridgeFront: [0, 0.9, 1.18] as V,
+  groundBack: (s: number) => [s * 0.46, 0.005, faceZ(0)] as V,
+  groundFront: (s: number) => [s * 0.5, 0.005, 1.18] as V,
+};
+const PORCH_CANVAS = (() => {
+  const pos: number[] = [];
+  for (const s of [-1, 1]) quad2(pos, PORCH.ridgeBack, PORCH.ridgeFront, PORCH.groundFront(s), PORCH.groundBack(s));
+  return geoFrom(pos);
+})();
+const PORCH_INSIDE = (() => {
+  const pos: number[] = [];
+  // the door opening, lying back against the sloping face
+  tri2(pos, PORCH.ridgeBack, PORCH.groundBack(-1), PORCH.groundBack(1));
+  // the groundsheet out to the mouth
+  quad2(pos, PORCH.groundBack(-1), PORCH.groundBack(1), PORCH.groundFront(1), PORCH.groundFront(-1));
+  return geoFrom(pos);
 })();
 const FLAP_GEO = (() => {
   const s = new THREE.Shape();
@@ -328,7 +369,22 @@ const FLAP_GEO = (() => {
   g.computeVertexNormals();
   return g;
 })();
-const TENT_INSIDE = new THREE.MeshBasicMaterial({ color: "#2b2622", side: THREE.DoubleSide });
+const TENT_INSIDE = new THREE.MeshBasicMaterial({ color: "#241f1b" });
+
+/** A taut line from `from` to `to`: one thin cylinder, positioned and turned to span them. */
+function Rope({ from, to, m, thick = 0.02 }: { from: V; to: V; m: THREE.Material; thick?: number }) {
+  const { p, r, len } = useMemo(() => {
+    const a = new THREE.Vector3(...from);
+    const b = new THREE.Vector3(...to);
+    const dir = b.clone().sub(a);
+    const len = dir.length();
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    const e = new THREE.Euler().setFromQuaternion(q);
+    const mid = a.add(b).multiplyScalar(0.5);
+    return { p: [mid.x, mid.y, mid.z] as V, r: [e.x, e.y, e.z] as V, len };
+  }, [from, to]);
+  return <Cyl p={p} s={[thick, len, thick]} r={r} m={m} />;
+}
 const STREAM_WATER = new THREE.MeshStandardMaterial({
   color: "#2f6480",
   emissive: "#0d2c3d",
@@ -346,18 +402,17 @@ function Tent({ x, z, color, mats }: { x: number; z: number; color: string; mats
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
       <mesh geometry={GEO.pyramid} material={canvas} position={[0, 0.75, 0]} rotation={[0, Math.PI / 4, 0]} scale={[2.1, 1.5, 2.1]} castShadow receiveShadow raycast={noRaycast} />
-      {/* the doorway: a shaded triangular opening set back into the canvas, with a groundsheet
-          lip, and the two door flaps tied back on either side */}
-      <mesh geometry={DOOR_GEO} material={TENT_INSIDE} position={[0, 0.02, 0.62]} raycast={noRaycast} />
-      <B p={[0, 0.02, 0.72]} s={[0.8, 0.03, 0.24]} m={mats.dirt} />
+      {/* the porch: a Λ of canvas standing proud of the face, dark inside, flaps tied back at
+          its mouth, and its ridge staked down with a guy rope to a peg on each side */}
+      <mesh geometry={PORCH_CANVAS} material={canvas} castShadow raycast={noRaycast} />
+      <mesh geometry={PORCH_INSIDE} material={TENT_INSIDE} raycast={noRaycast} />
       {[-1, 1].map((side) => (
         <group key={side}>
-          <mesh geometry={FLAP_GEO} material={canvas} position={[side * 0.36, 0.02, 0.8]} rotation={[0, side * 0.55, 0]} scale={[side, 1, 1]} castShadow raycast={noRaycast} />
-          <Cyl p={[side * 0.3, 0.55, 0.84]} s={[0.035, 0.05, 0.035]} r={[0, 0, Math.PI / 2]} m={mats.cream} />
-          {/* guy line down to a peg */}
-          <Cyl p={[side * 0.95, 0.5, 0.88]} s={[0.02, 1.1, 0.02]} r={[0.55, 0, side * -0.55]} m={mats.cream} />
-          <Cyl p={[side * 1.28, 0.06, 1.2]} s={[0.035, 0.14, 0.035]} r={[0.3, 0, side * -0.3]} m={mats.metal} />
-          <Cyl p={[side * 1.27, 0.13, 1.18]} s={[0.07, 0.025, 0.07]} m={mats.metal} />
+          <mesh geometry={FLAP_GEO} material={canvas} position={[side * 0.5, 0.02, 1.18]} rotation={[0, side * 0.75, 0]} scale={[side, 0.92, 1]} castShadow raycast={noRaycast} />
+          <Cyl p={[side * 0.42, 0.5, 1.24]} s={[0.035, 0.05, 0.035]} r={[0, 0, Math.PI / 2]} m={mats.cream} />
+          <Rope from={[0, 0.9, 1.18]} to={[side * 1.15, 0.12, 1.75]} m={mats.cream} />
+          <Cyl p={[side * 1.15, 0.07, 1.75]} s={[0.035, 0.16, 0.035]} r={[0.25, 0, side * -0.25]} m={mats.metal} />
+          <Cyl p={[side * 1.15, 0.14, 1.74]} s={[0.07, 0.025, 0.07]} m={mats.metal} />
         </group>
       ))}
     </group>
@@ -445,19 +500,22 @@ function CampProps({ mats }: { mats: Materials }) {
 function StargazingSpot({ mats }: { mats: Materials }) {
   return (
     <>
-      {/* plaid picnic blanket — the "blanket_N" seats lie down here */}
-      <B p={[5.7, 0.06, -2.4]} s={[2.2, 0.02, 1.7]} m={mats.rust} recv />
+      {/* plaid picnic blanket — the "blanket_N" seats lie down here (BLANKET in shared/props.ts).
+          Lying, a head goes a head-length behind the anchor, so the blanket sits well forward
+          of the blue tent with the pillows along its back edge. */}
+      <B p={[BLANKET.x, 0.06, BLANKET.z]} s={[2.2, 0.02, 1.7]} m={mats.rust} recv />
       {[-0.6, 0, 0.6].map((dx) => (
-        <B key={`v${dx}`} p={[5.7 + dx, 0.075, -2.4]} s={[0.12, 0.01, 1.7]} m={mats.cream} />
+        <B key={`v${dx}`} p={[BLANKET.x + dx, 0.075, BLANKET.z]} s={[0.12, 0.01, 1.7]} m={mats.cream} />
       ))}
       {[-0.5, 0.3].map((dz) => (
-        <B key={`h${dz}`} p={[5.7, 0.08, -2.4 + dz]} s={[2.2, 0.01, 0.12]} m={mats.mustard} />
+        <B key={`h${dz}`} p={[BLANKET.x, 0.08, BLANKET.z + dz]} s={[2.2, 0.01, 0.12]} m={mats.mustard} />
       ))}
-      {[5.3, 6.1].map((x) => (
-        <Sph key={x} p={[x, 0.09, -3.0]} s={[0.52, 0.16, 0.32]} m={mats.cream} cast />
+      {[-0.5, 0.5].map((dx) => (
+        <Sph key={dx} p={[BLANKET.x + dx, 0.09, BLANKET.z - 0.62]} s={[0.52, 0.16, 0.32]} m={mats.cream} cast />
       ))}
-      {/* telescope on a tripod, aimed up at the stars */}
-      <group position={[7.5, 0, -2.0]}>
+      {/* telescope on a tripod in the back corner, aimed up and away over the trees — from the
+          camera its tube used to cross the blanket and read as a pole through whoever lay there */}
+      <group position={[8.0, 0, -3.0]} rotation={[0, -1.3, 0]}>
         {[0, 1, 2].map((i) => (
           <Cyl key={i} p={[Math.cos(i * 2.09) * 0.2, 0.5, Math.sin(i * 2.09) * 0.2]} s={[0.03, 1.05, 0.03]} r={[Math.sin(i * 2.09) * 0.35, 0, -Math.cos(i * 2.09) * 0.35]} m={mats.black} />
         ))}

@@ -4,6 +4,7 @@ import { Billboard, Html, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { ACTIVITY_STATUSES, GESTURE_SECONDS, isActivityStatus, TOAST_MAX, defaultLook, hashString, parseLook, type Accessory, type Gesture, type HairStyle, type HeldItem, type PlayerAction, type SitPose } from "@shared/types";
+import { AVATAR_HIP_Y, AVATAR_LEG_RADIUS } from "@shared/seats";
 import { GEO, arcGeo, noRaycast, ringGeo } from "../scene/kit";
 
 export type CharacterPose = "stand" | SitPose;
@@ -41,6 +42,11 @@ interface Character3DProps {
 const LEG_RADIUS = 0.085;
 const LEG_LENGTH = 0.1;
 const HIP_Y = LEG_LENGTH + LEG_RADIUS * 2; // 0.27 — top of the leg capsule
+// Seat anchors (shared/seats.ts) are derived from these two numbers; the rig and the level data
+// must agree or every seated avatar floats or sinks by the difference.
+if (Math.abs(HIP_Y - AVATAR_HIP_Y) > 1e-6 || Math.abs(LEG_RADIUS - AVATAR_LEG_RADIUS) > 1e-6) {
+  throw new Error("Character3D: hip height / leg radius drifted from shared/seats.ts");
+}
 const LEG_X = 0.105;
 
 const BODY_Y = 0.5; // centre of the rounded torso
@@ -88,6 +94,8 @@ const G = {
   // Hair is a real shell standing ~0.07 off the skull (not a swim-cap hugging it), tipped back
   // so the forehead shows, with separate bangs and per-style volumes on top.
   beanieShell: new THREE.SphereGeometry(HEAD_R + 0.11, 26, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
+  // The sunhat's crown: a dome wide enough to sit over the hair, open underneath.
+  hatCrown: new THREE.SphereGeometry(0.44, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
   collar: new THREE.TorusGeometry(0.19, 0.055, 8, 22),
   eye: new THREE.SphereGeometry(0.048, 10, 8),
   glint: new THREE.SphereGeometry(0.016, 6, 5),
@@ -125,6 +133,8 @@ const M = {
   headphonePad: new THREE.MeshStandardMaterial({ color: "#7d9471", roughness: 0.9 }),
   collar: new THREE.MeshStandardMaterial({ color: "#fbf6ea", roughness: 0.85 }),
   straw: new THREE.MeshStandardMaterial({ color: "#e8cf8a", roughness: 1 }),
+  strawDark: new THREE.MeshStandardMaterial({ color: "#c9ad68", roughness: 1 }),
+  beretBand: new THREE.MeshStandardMaterial({ color: "#8f2f36", roughness: 0.9 }),
   ribbon: new THREE.MeshStandardMaterial({ color: "#e0707a", roughness: 0.8 }),
   topHat: new THREE.MeshStandardMaterial({ color: "#1d1b22", roughness: 0.5 }),
   bunny: new THREE.MeshStandardMaterial({ color: "#fbf6f2", roughness: 0.9 }),
@@ -468,7 +478,7 @@ export const Character3D = memo(
             {/* --- the head: big, round, with a face --- */}
             <group ref={headRef} position={[0, HEAD_Y, 0]}>
               <mesh castShadow receiveShadow geometry={G.head} material={identity.skin} raycast={noRaycast} />
-              <Hair style={identity.hairStyle} mat={identity.hair} hidden={identity.accessory === "beanie" || identity.accessory === "tophat"} />
+              <Hair style={identity.hairStyle} mat={identity.hair} hidden={identity.accessory === "beanie" || identity.accessory === "tophat" || identity.accessory === "straw"} />
               {/* eyes (the group squashes to blink), with a glint each */}
               <group ref={eyesRef} position={[0, 0.0, HEAD_R * 0.9]}>
                 <mesh geometry={EYES_GEO} material={M.eye} raycast={noRaycast} />
@@ -615,6 +625,20 @@ const CROWN_GEO = bake([
     return { geo: GEO.cone, p: [Math.sin(a) * 0.23, 0.2, Math.cos(a) * 0.23] as [number, number, number], s: [0.1, 0.16, 0.1] as [number, number, number] };
   }),
 ]);
+// The sunhat and beret are several pieces in two materials each; baked, each hat is two draws.
+const STRAW_GEO = bake([
+  { geo: GEO.cone, p: [0, -0.01, 0], s: [1.42, 0.1, 1.42] }, // a shallow cone: the brim droops toward its edge
+  { geo: G.hatCrown, p: [0, 0, 0], s: [1, 0.82, 1] },
+]);
+const STRAW_TRIM_GEO = bake([
+  { geo: arcGeo(0.445, 0.028, Math.PI * 2), p: [0, 0.06, 0], r: [Math.PI / 2, 0, 0], s: 1 }, // ribbon band
+  { geo: GEO.box, p: [0.28, 0.07, -0.35], r: [0, 0.7, 0], s: [0.17, 0.08, 0.05] }, // its bow at the back
+]);
+const BERET_GEO = bake([
+  { geo: GEO.sphere, p: [0.02, 0.06, 0], s: [1.0, 0.42, 0.98] },
+  { geo: GEO.sphere, p: [0.12, 0.12, -0.03], s: [0.76, 0.34, 0.72] }, // the plush overhang, slumped to one side
+  { geo: GEO.cyl, p: [0.08, 0.3, -0.02], s: [0.04, 0.09, 0.04] }, // the stalk
+]);
 const GEMS_GEO = bake(
   [0, 1, 2, 3, 4].map((i) => {
     const a = (i / 5) * Math.PI * 2;
@@ -655,22 +679,76 @@ const HAIR_SHAPES: Record<HairStyle, HairShape> = {
     back: -0.78,
     puff: (_x, uy, uz) => 0.16 * Math.exp(-((uy + 0.38) ** 2) / 0.09) * (1 - smooth(0.15, 0.6, uz)) + 0.03,
   },
-  // tidy top with a bun (the bun itself is added below)
-  bun: { front: FRINGE, side: -0.12, back: -0.5, puff: () => 0.02 },
-  // soft anime spikes round the crown
-  spiky: {
-    front: (ux) => 0.26 + Math.abs(Math.sin(ux * 9)) * 0.1,
-    side: -0.05,
-    back: -0.35,
+  // tidy top gathered back into a bun (the bun itself is added below): soft tapered ridges
+  // sweep round the head toward it, so it reads as pulled-back hair rather than a swim cap
+  bun: {
+    front: FRINGE,
+    side: -0.12,
+    back: -0.5,
     puff: (ux, uy, uz) => {
-      const az = Math.atan2(ux, uz);
-      const ridge = Math.pow(0.5 + 0.5 * Math.cos(az * 7), 5);
-      return 0.04 + 0.3 * ridge * smooth(-0.1, 0.7, uy) * (uz > 0.7 ? 0.35 : 1);
+      const toward = ux * BUN_DIR.x + uy * BUN_DIR.y + uz * BUN_DIR.z; // 1 = right at the bun
+      // azimuth of this direction around the bun's axis
+      const px = ux - toward * BUN_DIR.x;
+      const py = uy - toward * BUN_DIR.y;
+      const pz = uz - toward * BUN_DIR.z;
+      const az = Math.atan2(px, py * BUN_SIDE.y + pz * BUN_SIDE.z);
+      const ridge = Math.pow(0.5 + 0.5 * Math.cos(az * 5), 2);
+      return 0.02 + 0.05 * ridge * smooth(-0.25, 0.25, toward);
     },
   },
-  // long: to the shoulders at the back and sides (the fall below the head is added below)
-  long: { front: FRINGE, side: -0.85, back: -0.95, puff: (_x, uy) => 0.05 + 0.04 * smooth(0, -0.8, uy) },
+  // lively anime spikes: a dozen separate clusters across the crown and temples, each its own
+  // soft point, instead of ridges that all converge at the top of the head
+  spiky: {
+    front: (ux) => 0.24 + Math.abs(Math.sin(ux * 9)) * 0.1,
+    side: -0.05,
+    back: -0.4,
+    puff: (ux, uy, uz) => {
+      // each spike is a narrow lobe (half its height ~9 degrees off its axis), so neighbours
+      // stay separate points instead of merging into one puff
+      let p = 0.03;
+      for (const [sx, sy, sz, amp] of SPIKES) {
+        const d = ux * sx + uy * sy + uz * sz;
+        if (d > 0.5) p += amp * Math.pow(d, 44);
+      }
+      return p;
+    },
+  },
+  // long: the cut stops at the ears and cheeks (they show), flares at the temples, and the
+  // bulk drapes back and down over the shoulders (the fall below the head is added below)
+  long: {
+    front: FRINGE,
+    side: -0.12,
+    back: -0.95,
+    puff: (ux, uy, uz) => {
+      const backness = smooth(0.2, -0.5, uz);
+      const low = smooth(0.1, -0.7, uy);
+      const temple = smooth(0.55, 0.95, Math.abs(ux)) * smooth(0.3, -0.1, uy);
+      return 0.05 + 0.14 * low * backness + 0.05 * temple + 0.03 * smooth(0, 0.8, uy);
+    },
+  },
 };
+
+/** Where the bun sits (a unit direction from the head centre) and a side axis round it. */
+const BUN_DIR = new THREE.Vector3(0, 0.64, -0.77).normalize();
+const BUN_SIDE = new THREE.Vector3(0, BUN_DIR.z, -BUN_DIR.y);
+/** Spike directions [x, y, z, amplitude]: crown swept back, sides, front-up, temples, back. */
+const SPIKES: [number, number, number, number][] = (
+  [
+    [0, 1, -0.3, 0.7],
+    [0.6, 0.85, -0.15, 0.6],
+    [-0.6, 0.85, -0.15, 0.6],
+    [0.3, 0.85, 0.6, 0.5],
+    [-0.3, 0.85, 0.6, 0.5],
+    [0.95, 0.45, 0.3, 0.42],
+    [-0.95, 0.45, 0.3, 0.42],
+    [0.5, 0.6, -0.8, 0.55],
+    [-0.5, 0.6, -0.8, 0.55],
+    [0, 0.55, -0.95, 0.5],
+  ] as [number, number, number, number][]
+).map(([x, y, z, a]) => {
+  const n = Math.hypot(x, y, z);
+  return [x / n, y / n, z / n, a];
+});
 
 function sculptHair(shape: HairShape, capAbove = Infinity): THREE.BufferGeometry {
   const R = HEAD_R + 0.05;
@@ -700,8 +778,13 @@ const HAIR_OFFSET: [number, number, number] = [0, 0.02, -0.02];
 const HAIR_GEO = Object.fromEntries(
   (Object.keys(HAIR_SHAPES) as HairStyle[]).map((style) => {
     const extras: Part[] = [];
-    if (style === "bun") extras.push({ geo: GEO.sphere, p: [0, 0.47, -0.14], s: 0.28 });
-    if (style === "long") extras.push({ geo: GEO.sphere, p: [0, -0.34, -0.19], s: [0.66, 0.66, 0.3] });
+    if (style === "bun") extras.push({ geo: GEO.sphere, p: [0, 0.31, -0.38], s: 0.31 });
+    if (style === "long") {
+      // the bulk over the shoulders at the back, and a lock in front of each ear flaring out
+      extras.push({ geo: GEO.sphere, p: [0, -0.36, -0.2], s: [0.64, 0.72, 0.32] });
+      extras.push({ geo: GEO.sphere, p: [0.31, -0.28, 0.1], s: [0.17, 0.56, 0.2], r: [0, 0, -0.12] });
+      extras.push({ geo: GEO.sphere, p: [-0.31, -0.28, 0.1], s: [0.17, 0.56, 0.2], r: [0, 0, 0.12] });
+    }
     const shell = { geo: sculptHair(HAIR_SHAPES[style]), p: HAIR_OFFSET, s: 1 };
     const under = { geo: sculptHair(HAIR_SHAPES[style], 0.12), p: HAIR_OFFSET, s: 1 };
     const keepUnderHat = extras.filter((e) => e.p[1] < 0);
@@ -715,7 +798,7 @@ function Hair({ style, mat, hidden }: { style: HairStyle; mat: THREE.Material; h
     <group>
       {geo && <mesh castShadow geometry={geo} material={mat} raycast={noRaycast} />}
       {style === "bun" && !hidden && (
-        <mesh geometry={GEO.torus} material={M.ribbon} position={[0, 0.39, -0.1]} rotation={[Math.PI / 2 - 0.35, 0, 0]} scale={[0.22, 0.22, 0.5]} raycast={noRaycast} />
+        <mesh geometry={GEO.torus} material={M.ribbon} position={[0, 0.24, -0.3]} rotation={[-2.45, 0, 0]} scale={[0.27, 0.27, 0.6]} raycast={noRaycast} />
       )}
     </group>
   );
@@ -725,16 +808,18 @@ function Hair({ style, mat, hidden }: { style: HairStyle; mat: THREE.Material; h
 // Sized to sit on the hair shell (HEAD_R + 0.07), not on the bare skull.
 
 const HAT_TOP = HEAD_R + 0.06;
+/** The brow line: eyes sit at y 0, so a brim resting here shades them without covering them. */
+const HAT_BROW = 0.12;
 
 function HeadAccessory({ kind }: { kind: Accessory }) {
   switch (kind) {
     case "beret":
-      // a soft flattened dome worn at a tilt, with a band and the little stalk on top
+      // a plush dome with real volume, slumped to one side the way a beret drapes, with a
+      // band round the head and the little stalk on top
       return (
-        <group position={[0.05, HAT_TOP - 0.02, -0.02]} rotation={[-0.18, 0, -0.32]}>
-          <mesh geometry={GEO.sphere} material={M.beret} scale={[0.9, 0.24, 0.9]} raycast={noRaycast} />
-          <mesh geometry={GEO.torus} material={M.beret} position={[0, -0.04, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.72, 0.72, 0.9]} raycast={noRaycast} />
-          <mesh geometry={GEO.cyl} material={M.beret} position={[0, 0.13, 0]} scale={[0.04, 0.08, 0.04]} raycast={noRaycast} />
+        <group position={[0.08, HAT_TOP - 0.11, -0.04]} rotation={[-0.16, 0.1, -0.5]}>
+          <mesh geometry={BERET_GEO} material={M.beret} raycast={noRaycast} />
+          <mesh geometry={arcGeo(0.39, 0.035, Math.PI * 2)} material={M.beretBand} position={[0, -0.06, 0]} rotation={[Math.PI / 2, 0, 0]} raycast={noRaycast} />
         </group>
       );
     case "beanie":
@@ -768,11 +853,14 @@ function HeadAccessory({ kind }: { kind: Accessory }) {
         </group>
       );
     case "straw":
+      // worn properly: the brim rests on the brow (the hair above it is hidden, like under a
+      // beanie), a full crown dome covers the head, a woven contour line runs round the crown,
+      // and a ribbon band with a bow at the back
       return (
-        <group position={[0, HAT_TOP - 0.04, -0.02]} rotation={[-0.15, 0, 0.08]}>
-          <mesh geometry={GEO.cyl} material={M.straw} scale={[1.3, 0.03, 1.3]} raycast={noRaycast} />
-          <mesh geometry={GEO.sphere} material={M.straw} position={[0, 0.06, 0]} scale={[0.62, 0.36, 0.62]} raycast={noRaycast} />
-          <mesh geometry={GEO.cyl} material={M.ribbon} position={[0, 0.05, 0]} scale={[0.64, 0.06, 0.64]} raycast={noRaycast} />
+        <group position={[0, HAT_BROW, -0.03]} rotation={[-0.12, 0, 0.05]}>
+          <mesh geometry={STRAW_GEO} material={M.straw} raycast={noRaycast} />
+          <mesh geometry={arcGeo(0.385, 0.012, Math.PI * 2)} material={M.strawDark} position={[0, 0.18, 0]} rotation={[Math.PI / 2, 0, 0]} raycast={noRaycast} />
+          <mesh geometry={STRAW_TRIM_GEO} material={M.ribbon} raycast={noRaycast} />
         </group>
       );
     case "tophat":

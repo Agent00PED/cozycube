@@ -329,6 +329,25 @@ export interface Look {
   hat: Accessory;
 }
 
+/** The palette colour closest to any "#rrggbb" — so a shirt handed in from outside the
+ *  wardrobe (the server's join-time pastel) always encodes to a look that validates. */
+export function nearestOutfitColor(hex: string): string {
+  if (OUTFIT_COLORS.includes(hex)) return hex;
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) || 0);
+  const [r, g, b] = rgb(hex);
+  let best = OUTFIT_COLORS[0];
+  let bestD = Infinity;
+  for (const c of OUTFIT_COLORS) {
+    const [cr, cg, cb] = rgb(c);
+    const d = (cr - r) ** 2 + (cg - g) ** 2 + (cb - b) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      best = c;
+    }
+  }
+  return best;
+}
+
 /** The outfit someone has before they ever open the wardrobe — stable per user id. */
 export function defaultLook(userId: string, shirt = OUTFIT_COLORS[0]): Look {
   const h = hashString(userId);
@@ -336,7 +355,7 @@ export function defaultLook(userId: string, shirt = OUTFIT_COLORS[0]): Look {
     skin: SKIN_TONES[h % SKIN_TONES.length],
     hairStyle: HAIR_STYLES[(h >>> 8) % HAIR_STYLES.length],
     hair: HAIR_COLORS[(h >>> 4) % HAIR_COLORS.length],
-    shirt,
+    shirt: nearestOutfitColor(shirt),
     pants: OUTFIT_COLORS[14 + ((h >>> 12) % 2)],
     hat: accessoryFor(userId),
   };

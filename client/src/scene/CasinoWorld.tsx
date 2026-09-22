@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { B, noRaycast, Cone, Cyl, FloorPatch, GEO, HALF, Instanced, Sph, seeded, type InstanceSpec, type Materials } from "./kit";
+import { CUSHIONS } from "@shared/seats";
 
 // The Cozy Velvet Casino: a 20x20 retro casino in warm gold and burgundy. Same shell as the
 // lounge — solid walls along x = -HALF and z = -HALF, open toward the camera — so the camera,
@@ -45,9 +46,13 @@ export function CasinoWorld({ mats, wallColor }: { mats: Materials; wallColor: s
       <BlackjackTable mats={mats} c={c} />
       <VipLounge mats={mats} c={c} />
       <Plants mats={mats} />
-      <RoulettePendant c={c} />
-      <CocktailTable x={5.6} z={3.6} mats={mats} c={c} />
-      <CocktailTable x={5.2} z={-4.5} mats={mats} c={c} />
+      <Pendant x={0.6} z={0.4} c={c} />
+      <Pendant x={-5.5} z={-5.1} c={c} scale={0.72} />
+      {/* high-tops clustered round the roulette perimeter, so the floor between the wheel and
+          the bar is a busy little crowd instead of an empty run of carpet */}
+      <CocktailTable x={4.3} z={2.4} mats={mats} c={c} />
+      <CocktailTable x={-2.2} z={3.2} mats={mats} c={c} />
+      <CocktailTable x={4.1} z={-2.4} mats={mats} c={c} />
     </>
   );
 }
@@ -176,18 +181,17 @@ const CONE_GLOW = new THREE.MeshBasicMaterial({ color: "#ffc46b", transparent: t
 const POOL_GLOW = new THREE.MeshBasicMaterial({ color: "#ffb34d", transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
 const BULB_GLOW = new THREE.MeshBasicMaterial({ color: "#fff0c8", toneMapped: false });
 
-function RoulettePendant({ c }: { c: CasinoMats }) {
-  const x = 0.6;
-  const z = 0.4;
+/** A brass pendant with its amber cone and the pool of light it leaves on the table below. */
+function Pendant({ x, z, c, scale = 1 }: { x: number; z: number; c: CasinoMats; scale?: number }) {
   return (
     <group position={[x, 0, z]}>
       <Cyl p={[0, 3.9, 0]} s={[0.03, 1.4, 0.03]} m={c.gold} />
-      <Cone p={[0, 3.05, 0]} s={[0.62, 0.3, 0.62]} m={c.gold} cast />
-      <Cyl p={[0, 2.9, 0]} s={[0.64, 0.03, 0.64]} m={c.gold} />
-      <mesh geometry={GEO.sphereLow} material={BULB_GLOW} position={[0, 2.84, 0]} scale={0.16} raycast={noRaycast} />
+      <Cone p={[0, 3.05, 0]} s={[0.62 * scale, 0.3, 0.62 * scale]} m={c.gold} cast />
+      <Cyl p={[0, 2.9, 0]} s={[0.64 * scale, 0.03, 0.64 * scale]} m={c.gold} />
+      <mesh geometry={GEO.sphereLow} material={BULB_GLOW} position={[0, 2.84, 0]} scale={0.16 * scale} raycast={noRaycast} />
       {/* the light cone and the warm pool it leaves on the felt */}
-      <mesh geometry={GEO.cone} material={CONE_GLOW} position={[0, 1.86, 0]} scale={[2.6, 1.95, 2.6]} raycast={noRaycast} />
-      <mesh geometry={GEO.cyl} material={POOL_GLOW} position={[0, 0.9, 0]} scale={[2.7, 0.01, 2.2]} raycast={noRaycast} />
+      <mesh geometry={GEO.cone} material={CONE_GLOW} position={[0, 1.86, 0]} scale={[2.6 * scale, 1.95, 2.6 * scale]} raycast={noRaycast} />
+      <mesh geometry={GEO.cyl} material={POOL_GLOW} position={[0, 0.9, 0]} scale={[2.7 * scale, 0.01, 2.2 * scale]} raycast={noRaycast} />
     </group>
   );
 }
@@ -369,8 +373,9 @@ function VipLounge({ mats, c }: { mats: Materials; c: CasinoMats }) {
       {[2.95, 7.05].map((z) => (
         <Cyl key={z} p={[-9.2, 0.5, z]} s={[1.0, 0.36, 0.36]} r={[0, 0, Math.PI / 2]} m={c.leather} cast />
       ))}
-      {[4.3, 5.7].map((z) => (
-        <B key={z} p={[-9.1, 0.48, z]} s={[0.9, 0.1, 1.3]} m={c.leather} />
+      {/* the two seat cushions: CUSHIONS.vipSofa, which the sofa seats' anchor is derived from */}
+      {[4.35, 5.65].map((z) => (
+        <B key={z} p={[-9.1, CUSHIONS.vipSofa.y, z]} s={[0.9, CUSHIONS.vipSofa.h, 1.24]} m={c.leather} />
       ))}
       <B p={[-9.1, 0.62, 3.6]} s={[0.36, 0.3, 0.12]} r={[0, 0, -0.2]} m={c.gold} />
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
@@ -10,14 +10,15 @@ import {
   parseBets,
   pocketColor,
   type PlayerState,
+  type RouletteResultBroadcast,
   type RouletteSyncState,
   type SlotBroadcast,
   type ToggleableSyncState,
 } from "@shared/types";
 import { GEO, noRaycast, onHitLayer } from "../scene/kit";
 import { LAYOUT } from "../scene/CasinoWorld";
-import { useRoomMessage } from "../scene/roomEvents";
-import { playCoin, playReelTick } from "../audio/sfx";
+import { RoomEventsContext, useRoomMessage } from "../scene/roomEvents";
+import { playCoin, playConfetti, playReelTick } from "../audio/sfx";
 
 // ---------------------------------------------------------------------------------------
 // Roulette wheel: the head spins, the ball runs the other way and drops into the result
@@ -146,6 +147,77 @@ export function RouletteWheel({ roulette }: { roulette: RouletteSyncState }) {
           </Text>
         </Billboard>
       )}
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// Payout confetti: a burst of gold, red and cream flecks over the wheel when a big payout
+// lands — for everyone in the room, not just the winner's own screen
+// ---------------------------------------------------------------------------------------
+
+const CONFETTI_COUNT = 56;
+const CONFETTI_LIFE = 2.4; // seconds
+const BIG_PAYOUT = 50; // coins: below this the table just pays out quietly
+const CONFETTI_MAT = new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false });
+const CONFETTI_COLORS = ["#f2c94c", "#e0453a", "#fbf6ea", "#2d9a5a", "#ffb34d"];
+
+export function PayoutConfetti() {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const burstAt = useRef(-Infinity);
+  const { localSessionId } = useContext(RoomEventsContext);
+  // each fleck's launch velocity and spin, fixed once
+  const flecks = useMemo(() => {
+    let s = 7;
+    const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+    return Array.from({ length: CONFETTI_COUNT }, () => {
+      const a = rand() * Math.PI * 2;
+      const r = 0.6 + rand() * 1.6;
+      return { vx: Math.cos(a) * r, vy: 2.2 + rand() * 1.8, vz: Math.sin(a) * r, spin: (rand() - 0.5) * 12, tilt: rand() * Math.PI };
+    });
+  }, []);
+  const tmp = useMemo(() => new THREE.Object3D(), []);
+
+  useEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const color = new THREE.Color();
+    flecks.forEach((_, i) => mesh.setColorAt(i, color.set(CONFETTI_COLORS[i % CONFETTI_COLORS.length])));
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [flecks]);
+
+  useRoomMessage<RouletteResultBroadcast>("rouletteResult", (msg) => {
+    const biggest = msg.winners.reduce((m, w) => Math.max(m, w.amount), 0);
+    if (biggest < BIG_PAYOUT) return;
+    burstAt.current = performance.now();
+    // the winner's own panel already plays the fanfare; everyone else hears the burst here
+    if (!msg.winners.some((w) => w.sessionId === localSessionId)) playConfetti();
+  });
+
+  useFrame(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const t = (performance.now() - burstAt.current) / 1000;
+    if (t > CONFETTI_LIFE) {
+      mesh.visible = false;
+      return;
+    }
+    mesh.visible = true;
+    flecks.forEach((f, i) => {
+      const drag = 1 - Math.min(0.85, t * 0.35);
+      tmp.position.set(f.vx * t * drag, f.vy * t - 4.2 * t * t * 0.5, f.vz * t * drag);
+      tmp.rotation.set(f.tilt + t * f.spin, t * f.spin * 0.7, 0);
+      const fade = t > CONFETTI_LIFE - 0.5 ? (CONFETTI_LIFE - t) / 0.5 : 1;
+      tmp.scale.set(0.07 * fade, 0.03 * fade, 0.001 + 0.05 * fade);
+      tmp.updateMatrix();
+      mesh.setMatrixAt(i, tmp.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <group position={[WHEEL.x, WHEEL.y + 0.3, WHEEL.z]}>
+      <instancedMesh ref={ref} args={[GEO.box, CONFETTI_MAT, CONFETTI_COUNT]} frustumCulled={false} visible={false} raycast={noRaycast} />
     </group>
   );
 }

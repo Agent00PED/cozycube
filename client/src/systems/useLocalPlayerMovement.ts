@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type { Group } from "three";
 import type { MapId, PlayerState } from "@shared/types";
-import { isBlocked } from "@shared/collision";
+import { isBlocked, walkY } from "@shared/collision";
 import { findPath, type Point } from "@shared/pathfinding";
 import { cameraFocus } from "../scene/cameraFocus";
 
@@ -15,6 +15,7 @@ const ARRIVE_THRESHOLD = 0.05; // world units from the final waypoint counted as
 const WAYPOINT_THRESHOLD = 0.2; // how close counts as reaching an intermediate waypoint
 const TURN_LERP = 0.22;
 const SEAT_HEIGHT_LERP = 0.2;
+const GROUND_LERP = 0.35; // stepping onto the bridge deck / down its ramps
 const SIT_CONFIRM_TIMEOUT = 1.5;
 // A backgrounded tab or a GC pause can deliver one frame spanning whole seconds; integrating
 // that raw would move the player many units in a single step.
@@ -94,6 +95,7 @@ export function useLocalPlayerMovement(
   const initializedRef = useRef(false);
   const sitWaitRef = useRef(0);
   const seatYRef = useRef(0);
+  const groundYRef = useRef(0);
   // A server correction being blended in: the offset still to apply, and time left to apply it.
   const correctionRef = useRef({ x: 0, z: 0, remaining: 0 });
 
@@ -232,10 +234,12 @@ export function useLocalPlayerMovement(
 
     speedRef.current = player.sitting ? 0 : velocityRef.current / MOVE_SPEED;
     seatYRef.current += ((player.sitting ? player.sitY : 0) - seatYRef.current) * SEAT_HEIGHT_LERP;
+    // Elevated walkways (the campfire's plank bridge) lift the feet onto their deck.
+    groundYRef.current += ((player.sitting ? 0 : walkY(mapId, pos.x, pos.z)) - groundYRef.current) * GROUND_LERP;
     if (player.sitting) facingRef.current = player.sitRotationY;
 
     if (groupRef.current) {
-      groupRef.current.position.set(pos.x, seatYRef.current, pos.z);
+      groupRef.current.position.set(pos.x, seatYRef.current + groundYRef.current, pos.z);
       groupRef.current.rotation.y = facingRef.current;
     }
 

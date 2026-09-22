@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { B, Cone, Cyl, GEO, HALF, Instanced, Sph, noMerge, noRaycast, seeded, type InstanceSpec, type Materials } from "./kit";
 import { PIER_MAX_X, PIER_MIN_X, PIER_END_Z, SHORELINE_Z } from "@shared/collision";
+import { AVATAR_SEATED_HEIGHT, CUSHIONS, HEADROOM_MIN, seatAnchorY } from "@shared/seats";
 
 // A 20x20 sunset beach. The tiki bar's stools, the loungers, the driftwood ring and the bonfire
 // are interactive props rendered elsewhere; this file draws the island itself.
@@ -211,7 +212,14 @@ function Sand({ mats }: { mats: Materials }) {
 // The tiki bar: a smooth thatched cone, a woven lantern, and a counter that looks stocked
 // ---------------------------------------------------------------------------------------
 
-const ROOF_LIFT = 0.75;
+// The lowest thing hanging over the stools is the painted sign under the front beam (its
+// bottom at SIGN_BOTTOM before any lift). The roof group is lifted until a seated avatar's
+// head clears it with HEADROOM_MIN to spare — computed from the seat anchor, not eyeballed.
+const SIGN_BOTTOM = 2.14 - 0.24;
+const STOOL_HEAD_TOP = seatAnchorY(CUSHIONS.stool) + AVATAR_SEATED_HEIGHT;
+const ROOF_LIFT = Math.max(0.8, Math.ceil((STOOL_HEAD_TOP + HEADROOM_MIN - SIGN_BOTTOM) * 20) / 20);
+/** The bamboo posts reach the underside of the lifted eave. */
+const POST_H = 2.95 - 0.475 + ROOF_LIFT + 0.05;
 
 function TikiBar({ mats }: { mats: Materials }) {
   const bottles = useMemo<InstanceSpec[]>(() => {
@@ -275,7 +283,7 @@ function TikiBar({ mats }: { mats: Materials }) {
         [-3.3, -5.2],
         [2.1, -5.2],
       ].map(([x, z]) => (
-        <Cyl key={String(x) + ":" + String(z)} p={[x, 1.625, z]} s={[0.17, 3.25, 0.17]} m={mats.bark} cast />
+        <Cyl key={String(x) + ":" + String(z)} p={[x, POST_H / 2, z]} s={[0.17, POST_H, 0.17]} m={mats.bark} cast />
       ))}
       {/* The whole roof sits ROOF_LIFT higher than it first did, so someone on a bar stool
           is under the eave, not sliced by it. */}
@@ -308,8 +316,11 @@ function Pier({ mats }: { mats: Materials }) {
     const posts: InstanceSpec[] = [];
     const width = PIER_MAX_X - PIER_MIN_X;
     const cx = (PIER_MIN_X + PIER_MAX_X) / 2;
+    // The deck IS the seat at the pier's end: its planks come from CUSHIONS.pierPlank, which
+    // the pier seats' anchor height is derived from.
+    const deck = CUSHIONS.pierPlank;
     for (let z = 3.0; z <= PIER_END_Z; z += 0.34) {
-      planks.push({ p: [cx, 0.13, z], s: [width, 0.06, 0.3] });
+      planks.push({ p: [cx, deck.y, z], s: [width, deck.h, 0.3] });
     }
     // Posts run from the deck down to the basin floor — over water they are full length.
     for (let z = 3.6; z <= PIER_END_Z; z += 1.1) {
@@ -391,7 +402,9 @@ function LoungerSpot({ mats }: { mats: Materials }) {
 
   return (
     <>
-      <group position={[-7.0, 0, 2.1]}>
+      {/* a touch further back (-Z) than the loungers' midpoint, so its canopy no longer sits
+          between the camera and anyone walking the lane in front of them */}
+      <group position={[-7.0, 0, 1.6]}>
         <Cyl p={[0, 1.2, 0]} s={[0.08, 2.4, 0.08]} m={mats.oak} cast />
         <mesh geometry={PARASOL_RED} material={canvasMats.red} position={[0, TOP, 0]} castShadow />
         <mesh geometry={PARASOL_WHITE} material={canvasMats.white} position={[0, TOP, 0]} castShadow />
@@ -478,48 +491,76 @@ const PALMS: { x: number; z: number; h: number; lean: number }[] = [
   // neither its crown nor its shadow comes anywhere near the fire circle.
   { x: 9.2, z: -8.8, h: 3.4, lean: -0.08 },
   { x: 3.4, z: -8.2, h: 3.0, lean: 0.22 },
-  { x: -2.0, z: 2.6, h: 3.3, lean: 0.14 },
+  // Was mid-beach at (-2.0, 2.6), where its crown stood between the camera and the volleyball
+  // court. Now at the west edge shading the loungers: nothing walkable lies behind it.
+  { x: -9.0, z: 4.0, h: 3.3, lean: 0.14 },
 ];
 
-function Palms({ mats }: { mats: Materials }) {
-  const { trunks, fronds, coconuts } = useMemo(() => {
-    const trunks: InstanceSpec[] = [];
-    const fronds: InstanceSpec[] = [];
-    const coconuts: InstanceSpec[] = [];
-    const rand = seeded(303);
+type PalmPart = { geo: THREE.BufferGeometry; p: [number, number, number]; r?: [number, number, number]; s: [number, number, number] };
 
-    for (const palm of PALMS) {
-      const segments = 7;
-      for (let i = 0; i < segments; i++) {
-        const t = i / (segments - 1);
-        const y = 0.2 + t * palm.h;
-        const x = palm.x + palm.lean * t * t * 3.2;
-        trunks.push({ p: [x, y, palm.z], s: [0.3 - t * 0.09, palm.h / segments + 0.08, 0.3 - t * 0.09], r: [0, 0, palm.lean * t] });
-      }
-      const topX = palm.x + palm.lean * 3.2;
-      const topY = 0.2 + palm.h;
-      const count = 7;
-      for (let i = 0; i < count; i++) {
-        const a = (i / count) * Math.PI * 2 + rand();
-        fronds.push({
-          p: [topX + Math.cos(a) * 0.75, topY + 0.12, palm.z + Math.sin(a) * 0.75],
-          s: [1.9, 0.09, 0.62],
-          r: [0.1, -a, -0.32],
-        });
-      }
-      for (let i = 0; i < 3; i++) {
-        const a = (i / 3) * Math.PI * 2;
-        coconuts.push({ p: [topX + Math.cos(a) * 0.2, topY - 0.08, palm.z + Math.sin(a) * 0.2], s: [0.19, 0.19, 0.19] });
-      }
+/**
+ * One palm, authored about its own base at (0, 0, 0): trunk segments curving up with the lean,
+ * a crown of fronds round the top, and three coconuts tucked into the crown between the trunk
+ * top and the frond bases — so they hang from the tree, not in the air beside it.
+ */
+function palmParts(h: number, lean: number, rand: () => number): { trunk: PalmPart[]; fronds: PalmPart[]; coconuts: PalmPart[] } {
+  const trunk: PalmPart[] = [];
+  const segments = 7;
+  for (let i = 0; i < segments; i++) {
+    const t = i / (segments - 1);
+    trunk.push({ geo: GEO.cylLow, p: [lean * t * t * 3.2, 0.2 + t * h, 0], s: [0.3 - t * 0.09, h / segments + 0.08, 0.3 - t * 0.09], r: [0, 0, lean * t] });
+  }
+  const topX = lean * 3.2;
+  const topY = 0.2 + h;
+  const fronds: PalmPart[] = [];
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + rand();
+    fronds.push({ geo: GEO.sphereLow, p: [topX + Math.cos(a) * 0.75, topY + 0.12, Math.sin(a) * 0.75], s: [1.9, 0.09, 0.62], r: [0.1, -a, -0.32] });
+  }
+  const coconuts: PalmPart[] = [];
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.4;
+    coconuts.push({ geo: GEO.sphereLow, p: [topX + Math.cos(a) * 0.15, topY + 0.06, Math.sin(a) * 0.15], s: [0.2, 0.22, 0.2] });
+  }
+  return { trunk, fronds, coconuts };
+}
+
+/** Bakes parts (each in its group's local space) into one geometry, placing each group. */
+function bakeGroups(groups: { at: [number, number, number]; parts: PalmPart[] }[]): THREE.BufferGeometry {
+  const m = new THREE.Matrix4();
+  const geos: THREE.BufferGeometry[] = [];
+  for (const { at, parts } of groups) {
+    const place = new THREE.Matrix4().makeTranslation(at[0], at[1], at[2]);
+    for (const { geo, p, r = [0, 0, 0], s } of parts) {
+      const g = geo.index ? geo.toNonIndexed() : geo.clone();
+      for (const name of Object.keys(g.attributes)) if (name !== "position" && name !== "normal") g.deleteAttribute(name);
+      m.compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...r)), new THREE.Vector3(...s));
+      g.applyMatrix4(place.clone().multiply(m));
+      geos.push(g);
     }
-    return { trunks, fronds, coconuts };
-  }, []);
+  }
+  return mergeGeometries(geos)!;
+}
 
+// Fully opaque, like every stylized mesh here: the old screen-door "dissolve" for palms in the
+// line of sight is gone, because its dithering read as green-black noise over avatars and sand.
+// Three draws for all six trees.
+const PALM_GEO = (() => {
+  const rand = seeded(303);
+  const trees = PALMS.map((palm) => ({ at: [palm.x, 0, palm.z] as [number, number, number], ...palmParts(palm.h, palm.lean, rand) }));
+  return {
+    trunk: bakeGroups(trees.map((t) => ({ at: t.at, parts: t.trunk }))),
+    fronds: bakeGroups(trees.map((t) => ({ at: t.at, parts: t.fronds }))),
+    coconuts: bakeGroups(trees.map((t) => ({ at: t.at, parts: t.coconuts }))),
+  };
+})();
+
+function Palms({ mats }: { mats: Materials }) {
   return (
     <>
-      <Instanced geo={GEO.cylLow} m={mats.bark} items={trunks} cast fadeRadius={0.9} />
-      <Instanced geo={GEO.sphereLow} m={mats.palmLeaf} items={fronds} cast fadeRadius={1.4} />
-      <Instanced geo={GEO.sphereLow} m={mats.darkWood} items={coconuts} />
+      <mesh geometry={PALM_GEO.trunk} material={mats.bark} castShadow raycast={noRaycast} />
+      <mesh geometry={PALM_GEO.fronds} material={mats.palmLeaf} castShadow raycast={noRaycast} />
+      <mesh geometry={PALM_GEO.coconuts} material={mats.darkWood} raycast={noRaycast} />
     </>
   );
 }

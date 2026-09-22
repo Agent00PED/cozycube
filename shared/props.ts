@@ -1,5 +1,6 @@
 import type { MapId, SeatStyle, ToggleableKind } from "./types";
-import { SPARKLE_SPOTS } from "./types";
+import { SPARKLE_SPOTS, poseForSeat } from "./types";
+import { CUSHIONS, STYLE_CUSHION, seatAnchorY, type CushionId } from "./seats";
 
 // Author-time config for each map's interactive furniture. The server loads this into
 // ChairState/ToggleableState schema instances on room create and on every map change;
@@ -16,11 +17,31 @@ export interface ChairConfig {
   z: number;
   rotationY: number; // radians, direction the seated character faces
   style: SeatStyle;
-  /** Vertical lift while seated: 0 for sofa-height seats, more for bar stools. */
-  sitY?: number;
+  /**
+   * Which cushion the seat is drawn on (see shared/seats.ts). Styles that ChairProp draws
+   * default to their own cushion; "pad" seats drawn by the worlds must name theirs.
+   */
+  cushion?: CushionId;
+  /**
+   * Vertical offset of the seated avatar. NEVER authored: filled in by `anchored()` below from
+   * the cushion's bounding box, so it can't drift from the geometry.
+   */
+  sitY: number;
   /** Where the character walks to before sitting. */
   approachX: number;
   approachZ: number;
+}
+
+/** A ChairConfig as written by hand: everything but the derived anchor. */
+type SeatSpec = Omit<ChairConfig, "sitY">;
+
+/** Derives each seat's anchor height from its cushion (shared/seats.ts). */
+function anchored(seats: SeatSpec[]): ChairConfig[] {
+  return seats.map((seat) => {
+    const cushion = seat.cushion ?? (seat.style === "pad" ? undefined : STYLE_CUSHION[seat.style]);
+    if (!cushion) throw new Error(`seat ${seat.propId}: a "pad" seat must name the cushion it sits on`);
+    return { ...seat, cushion, sitY: seatAnchorY(CUSHIONS[cushion], poseForSeat(seat.style)) };
+  });
 }
 
 export interface ToggleableConfig {
@@ -56,7 +77,7 @@ function seatRing(
   count: number,
   style: SeatStyle,
   startAngle = 0
-): ChairConfig[] {
+): SeatSpec[] {
   return Array.from({ length: count }, (_, i) => {
     const a = startAngle + (i / count) * Math.PI * 2;
     const x = cx + Math.cos(a) * radius;
@@ -73,6 +94,9 @@ function seatRing(
   });
 }
 
+/** Centre of the stargazing blanket in the campfire clearing (CampfireWorld draws it here). */
+export const BLANKET = { x: 5.9, z: -1.55 };
+
 const FACE_NEG_Z = Math.PI;
 const FACE_POS_X = Math.PI / 2;
 const FACE_NEG_X = -Math.PI / 2;
@@ -80,21 +104,26 @@ const FACE_POS_Z = 0;
 
 // The world is 20x20 (HALF = 10). Indoors the two back walls run along x = -10 and z = -10
 // (inner faces at -9.8), and the open sides are +X and +Z — the camera looks from that corner.
+/** The reading & tea cluster in the lounge's front-left wing: everything gathers round here. */
+export const TEA_TABLE = { x: -4.4, z: 5.4 };
+
 export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
-  cozy_lounge: [
+  cozy_lounge: anchored([
     // --- Living room, the heart of the floor: L-sofa facing the TV on the slatted screen ---
-    // Approached from the strip between the sofa and the coffee table.
+    // Approached from the strip between the sofa and the coffee table. The seats sit a little
+    // forward of the backrest (which stands at z 1.36) so nobody's shoulders go through it.
     ...[-4.4, -3.0, -1.6].map((x, i) => ({
       propId: `sofa_${i + 1}`,
       x,
-      z: 1.0,
+      z: 0.95,
       rotationY: FACE_NEG_Z,
       style: "pad" as const,
+      cushion: "loungeSofa" as const,
       approachX: x,
       approachZ: 0.0,
     })),
-    { propId: "sofa_4", x: -5.6, z: -0.6, rotationY: FACE_POS_X, style: "pad", approachX: -4.6, approachZ: -0.3 },
-    { propId: "armchair_2", x: 0.5, z: -1.1, rotationY: FACE_NEG_X, style: "armchair", sitY: 0.03, approachX: -0.4, approachZ: -0.3 },
+    { propId: "sofa_4", x: -5.55, z: -0.6, rotationY: FACE_POS_X, style: "pad", cushion: "loungeSofa", approachX: -4.6, approachZ: -0.3 },
+    { propId: "armchair_2", x: 0.5, z: -1.1, rotationY: FACE_NEG_X, style: "armchair", approachX: -0.4, approachZ: -0.3 },
 
     // --- Kitchen bar: three stools along the island ---
     ...[3.9, 5.1, 6.3].map((x, i) => ({
@@ -103,50 +132,50 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
       z: -5.0,
       rotationY: FACE_NEG_Z,
       style: "stool" as const,
-      sitY: 0.34,
       approachX: x,
       approachZ: -4.2,
     })),
 
     // --- Dining set: four chairs round the table, bridging kitchen and living room ---
     // Farmhouse table running on from the island: two chairs each side.
-    { propId: "dining_1", x: 0.7, z: -5.1, rotationY: FACE_NEG_Z, style: "wood", sitY: 0.04, approachX: 0.7, approachZ: -4.3 },
-    { propId: "dining_2", x: 1.9, z: -5.1, rotationY: FACE_NEG_Z, style: "wood", sitY: 0.04, approachX: 1.9, approachZ: -4.3 },
-    { propId: "dining_3", x: 0.7, z: -7.3, rotationY: FACE_POS_Z, style: "wood", sitY: 0.04, approachX: 0.2, approachZ: -8.0 },
-    { propId: "dining_4", x: 1.9, z: -7.3, rotationY: FACE_POS_Z, style: "wood", sitY: 0.04, approachX: 1.4, approachZ: -8.0 },
+    { propId: "dining_1", x: 0.7, z: -5.1, rotationY: FACE_NEG_Z, style: "wood", approachX: 0.7, approachZ: -4.3 },
+    { propId: "dining_2", x: 1.9, z: -5.1, rotationY: FACE_NEG_Z, style: "wood", approachX: 1.9, approachZ: -4.3 },
+    { propId: "dining_3", x: 0.7, z: -7.3, rotationY: FACE_POS_Z, style: "wood", approachX: 0.2, approachZ: -8.0 },
+    { propId: "dining_4", x: 1.9, z: -7.3, rotationY: FACE_POS_Z, style: "wood", approachX: 1.4, approachZ: -8.0 },
 
     // --- Game den: two beanbags by the bookcase ---
-    { propId: "beanbag_1", x: -3.3, z: -7.3, rotationY: FACE_POS_Z, style: "pad", approachX: -3.3, approachZ: -6.2 },
-    { propId: "beanbag_2", x: -1.6, z: -7.3, rotationY: FACE_POS_Z, style: "pad", approachX: -1.6, approachZ: -6.2 },
+    { propId: "beanbag_1", x: -3.3, z: -7.3, rotationY: FACE_POS_Z, style: "pad", cushion: "beanbag", approachX: -3.3, approachZ: -6.2 },
+    { propId: "beanbag_2", x: -1.6, z: -7.3, rotationY: FACE_POS_Z, style: "pad", cushion: "beanbag", approachX: -1.6, approachZ: -6.2 },
 
     // --- Gamer corner ---
     { propId: "gamer_chair_1", x: -8.1, z: -7.2, rotationY: FACE_POS_Z, style: "gaming", approachX: -8.1, approachZ: -5.9 },
 
-    // --- Vinyl nook: an armchair and two floor cushions by the record player ---
-    { propId: "armchair_1", x: -7.6, z: 4.2, rotationY: FACE_POS_X, style: "armchair", sitY: 0.03, approachX: -6.2, approachZ: 4.2 },
-    // --- Tea corner: three floor cushions round the low table ---
-    { propId: "cushion_1", x: -3.0, z: 4.9, rotationY: FACE_POS_X, style: "pad", approachX: -3.9, approachZ: 4.4 },
-    { propId: "cushion_2", x: -0.7, z: 5.5, rotationY: FACE_NEG_X, style: "pad", approachX: 0.2, approachZ: 5.0 },
-    { propId: "cushion_3", x: -2.0, z: 6.25, rotationY: Math.PI, style: "pad", approachX: -2.0, approachZ: 7.2 },
+    // --- Reading & tea lounge: the armchair and three floor cushions gather round the low
+    //     tea table, with the record shelf and guitar along the wall behind them ---
+    { propId: "armchair_1", x: -6.3, z: TEA_TABLE.z, rotationY: FACE_POS_X, style: "armchair", approachX: -6.3, approachZ: 4.1 },
+    { propId: "cushion_1", x: TEA_TABLE.x, z: 4.0, rotationY: FACE_POS_Z, style: "pad", cushion: "floorCushion", approachX: TEA_TABLE.x, approachZ: 3.0 },
+    { propId: "cushion_2", x: TEA_TABLE.x, z: 6.8, rotationY: FACE_NEG_Z, style: "pad", cushion: "floorCushion", approachX: TEA_TABLE.x, approachZ: 7.8 },
+    { propId: "cushion_3", x: -2.9, z: TEA_TABLE.z, rotationY: FACE_NEG_X, style: "pad", cushion: "floorCushion", approachX: -1.9, approachZ: TEA_TABLE.z },
 
     // --- Balcony deck: loungers looking out over the edge ---
-    { propId: "deckchair_1", x: 7.6, z: 4.2, rotationY: FACE_POS_X, style: "deckchair", sitY: -0.06, approachX: 6.3, approachZ: 4.2 },
-    { propId: "deckchair_2", x: 7.6, z: 6.6, rotationY: FACE_POS_X, style: "deckchair", sitY: -0.06, approachX: 6.3, approachZ: 6.6 },
-  ],
+    { propId: "deckchair_1", x: 7.6, z: 4.2, rotationY: FACE_POS_X, style: "deckchair", approachX: 6.3, approachZ: 4.2 },
+    { propId: "deckchair_2", x: 7.6, z: 6.6, rotationY: FACE_POS_X, style: "deckchair", approachX: 6.3, approachZ: 6.6 },
+  ]),
 
-  campfire_night: [
+  campfire_night: anchored([
     // Six log benches ringing the fire.
     ...seatRing("log", 0, 0, 2.8, 4.1, 6, "log"),
     // Camp chairs a little further back, out of the smoke.
-    { propId: "camp_chair_1", x: -3.6, z: 3.4, rotationY: facing(-3.6, 3.4, 0, 0), style: "deckchair", sitY: -0.06, approachX: -4.7, approachZ: 3.6 },
-    { propId: "camp_chair_2", x: 3.6, z: 3.4, rotationY: facing(3.6, 3.4, 0, 0), style: "deckchair", sitY: -0.06, approachX: 4.6, approachZ: 4.4 },
-    // Stargazing blanket: you lie down here instead of sitting.
-    // One unit clear of the blue tent, so a head never ends up inside the canvas.
-    { propId: "blanket_1", x: 5.2, z: -2.4, rotationY: FACE_POS_Z, style: "blanket", approachX: 5.2, approachZ: -1.1 },
-    { propId: "blanket_2", x: 6.2, z: -2.4, rotationY: FACE_POS_Z, style: "blanket", approachX: 6.2, approachZ: -1.1 },
-  ],
+    { propId: "camp_chair_1", x: -3.6, z: 3.4, rotationY: facing(-3.6, 3.4, 0, 0), style: "deckchair", approachX: -4.7, approachZ: 3.6 },
+    { propId: "camp_chair_2", x: 3.6, z: 3.4, rotationY: facing(3.6, 3.4, 0, 0), style: "deckchair", approachX: 4.6, approachZ: 4.4 },
+    // Stargazing blanket: you lie down here instead of sitting. Lying, the head goes a full
+    // head-length BEHIND the anchor (-Z), so the anchor sits well forward of the blue tent.
+    // Approached from the fire side, a step in from the ends so the east berry bush stays clear.
+    { propId: "blanket_1", x: BLANKET.x - 0.5, z: BLANKET.z, rotationY: FACE_POS_Z, style: "blanket", approachX: BLANKET.x - 0.6, approachZ: BLANKET.z + 1.3 },
+    { propId: "blanket_2", x: BLANKET.x + 0.5, z: BLANKET.z, rotationY: FACE_POS_Z, style: "blanket", approachX: BLANKET.x + 0.2, approachZ: BLANKET.z + 1.3 },
+  ]),
 
-  sunset_beach: [
+  sunset_beach: anchored([
     // --- Tiki bar: four stools along the counter ---
     ...[-2.4, -1.2, 0, 1.2].map((x, i) => ({
       propId: `bar_stool_${i + 1}`,
@@ -154,23 +183,22 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
       z: -4.6,
       rotationY: FACE_NEG_Z,
       style: "stool" as const,
-      sitY: 0.34,
       approachX: x,
       approachZ: -3.3,
     })),
     // --- Sun loungers under the striped parasol ---
-    { propId: "lounger_1", x: -6.4, z: 1.0, rotationY: FACE_POS_Z, style: "deckchair", sitY: -0.06, approachX: -5.1, approachZ: 1.0 },
-    { propId: "lounger_2", x: -6.4, z: 3.2, rotationY: FACE_POS_Z, style: "deckchair", sitY: -0.06, approachX: -5.1, approachZ: 3.2 },
+    { propId: "lounger_1", x: -6.4, z: 1.0, rotationY: FACE_POS_Z, style: "deckchair", approachX: -5.1, approachZ: 1.0 },
+    { propId: "lounger_2", x: -6.4, z: 3.2, rotationY: FACE_POS_Z, style: "deckchair", approachX: -5.1, approachZ: 3.2 },
     // --- Driftwood logs round the beach bonfire (marshmallows work here too) ---
     // NOTE: propIds key the global APPROACH_POINTS table, so they must be unique across ALL
     // maps — hence "driftwood" rather than reusing the campfire's "log".
     ...seatRing("driftwood", 5.0, -1.0, 1.9, 3.1, 3, "log"),
     // --- The end of the pier: sit with your feet over the water ---
-    { propId: "pier_seat_1", x: 1.6, z: 7.4, rotationY: FACE_POS_Z, style: "pad", approachX: 1.6, approachZ: 6.2 },
-    { propId: "pier_seat_2", x: 2.8, z: 7.4, rotationY: FACE_POS_Z, style: "pad", approachX: 2.8, approachZ: 6.2 },
-  ],
+    { propId: "pier_seat_1", x: 1.6, z: 7.4, rotationY: FACE_POS_Z, style: "pad", cushion: "pierPlank", approachX: 1.6, approachZ: 6.2 },
+    { propId: "pier_seat_2", x: 2.8, z: 7.4, rotationY: FACE_POS_Z, style: "pad", cushion: "pierPlank", approachX: 2.8, approachZ: 6.2 },
+  ]),
 
-  velvet_casino: [
+  velvet_casino: anchored([
     // --- Bar: three stools along the back counter ---
     ...[-7.8, -6.2, -4.6].map((x, i) => ({
       propId: `casino_bar_${i + 1}`,
@@ -178,31 +206,32 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
       z: -8.4,
       rotationY: FACE_NEG_Z,
       style: "stool" as const,
-      sitY: 0.34,
       approachX: x,
       approachZ: -7.3,
     })),
-    // --- Blackjack: three stools round the player side of the half-moon table ---
+    // --- Blackjack: three stools round the player side of the half-moon table, close enough
+    //     that folded legs tuck under the leather rail instead of dangling short of it ---
     ...[-0.7, 0, 0.7].map((a, i) => {
-      const x = -5.5 + Math.sin(a) * 1.55;
-      const z = -4.6 + Math.cos(a) * 1.55;
+      const x = -5.5 + Math.sin(a) * 1.45;
+      const z = -4.6 + Math.cos(a) * 1.45;
       return {
         propId: `blackjack_${i + 1}`,
         x,
         z,
         rotationY: facing(x, z, -5.5, -4.6),
         style: "stool" as const,
-        sitY: 0.34,
         approachX: -5.5 + Math.sin(a) * 2.5,
         approachZ: -4.6 + Math.cos(a) * 2.5,
       };
     }),
     // --- VIP lounge: the chesterfield and two club armchairs ---
-    { propId: "vip_sofa_1", x: -9.0, z: 4.3, rotationY: FACE_POS_X, style: "pad", approachX: -7.7, approachZ: 3.4 },
-    { propId: "vip_sofa_2", x: -9.0, z: 5.7, rotationY: FACE_POS_X, style: "pad", approachX: -7.7, approachZ: 6.6 },
-    { propId: "vip_chair_1", x: -5.5, z: 3.3, rotationY: facing(-5.5, 3.3, -7.5, 5), style: "armchair", sitY: 0.03, approachX: -6.3, approachZ: 2.6 },
-    { propId: "vip_chair_2", x: -5.5, z: 6.7, rotationY: facing(-5.5, 6.7, -7.5, 5), style: "armchair", sitY: 0.03, approachX: -6.3, approachZ: 7.5 },
-  ],
+    // Sofa seats sit forward of the buttoned back (front face x -9.42) and in from the rolled
+    // arms (z 2.95 and 7.05), so shoulders never go through leather.
+    { propId: "vip_sofa_1", x: -8.95, z: 4.35, rotationY: FACE_POS_X, style: "pad", cushion: "vipSofa", approachX: -7.7, approachZ: 3.4 },
+    { propId: "vip_sofa_2", x: -8.95, z: 5.65, rotationY: FACE_POS_X, style: "pad", cushion: "vipSofa", approachX: -7.7, approachZ: 6.6 },
+    { propId: "vip_chair_1", x: -5.5, z: 3.3, rotationY: facing(-5.5, 3.3, -7.5, 5), style: "armchair", approachX: -6.3, approachZ: 2.6 },
+    { propId: "vip_chair_2", x: -5.5, z: 6.7, rotationY: facing(-5.5, 6.7, -7.5, 5), style: "armchair", approachX: -6.3, approachZ: 7.5 },
+  ]),
 };
 
 export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
@@ -217,7 +246,7 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
     { propId: "arcade_1", x: -7.0, z: -9.45, kind: "arcade", color: "#ff4fd8", defaultOn: true, approachX: -7.0, approachZ: -7.4 },
     { propId: "arcade_2", x: -5.6, z: -9.45, kind: "arcade", color: "#4fd8ff", defaultOn: false, approachX: -5.6, approachZ: -7.4 },
     { propId: "desk_lamp_den", x: -9.0, y: 0.66, z: -7.8, kind: "desk_lamp", color: "#ffe2b0", defaultOn: true },
-    { propId: "lamp_vinyl", x: -8.4, z: 5.5, kind: "lamp", color: "#ffc47a", defaultOn: true },
+    { propId: "lamp_vinyl", x: -8.1, z: 7.0, kind: "lamp", color: "#ffc47a", defaultOn: true },
     // The record player on top of the vinyl shelf: click to change the record (or stop it).
     { propId: "turntable", x: -9.3, y: 1.7, z: 3.8, kind: "turntable", color: "#e0a93b", defaultOn: true },
     { propId: "lantern_balcony", x: 8.9, z: 5.4, kind: "lantern", color: "#ffbe6b", defaultOn: true },

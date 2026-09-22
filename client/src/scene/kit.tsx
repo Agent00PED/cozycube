@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { cameraFocus } from "./cameraFocus";
 
 // Building blocks for the procedural world.
@@ -452,10 +452,16 @@ export function StaticBatch({ children, version }: { children: React.ReactNode; 
         bucket = { material, cast: mesh.castShadow, recv: mesh.receiveShadow, geos: [], sources: [] };
         buckets.set(key, bucket);
       }
-      const geo = mesh.geometry.clone();
+      let geo = mesh.geometry.clone();
       geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, mesh.matrixWorld));
-      // Merging needs identical attribute sets; the kit's unit shapes all carry position/normal/uv.
-      geo.deleteAttribute("uv1");
+      // Merging needs identical attribute sets and either every geometry indexed or none. The
+      // kit's unit shapes carry position/normal/uv with an index; hand-built triangle soups
+      // (tent porches, baked palms) arrive with fewer attributes and no index. Normalise them
+      // here, or one odd mesh fails the whole bucket and leaves every mesh in it drawn alone.
+      for (const name of Object.keys(geo.attributes)) if (name !== "position" && name !== "normal" && name !== "uv") geo.deleteAttribute(name);
+      if (!geo.getAttribute("normal")) geo.computeVertexNormals();
+      if (!geo.getAttribute("uv")) geo.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(geo.getAttribute("position").count * 2), 2));
+      if (!geo.index) geo = mergeVertices(geo);
       bucket.geos.push(geo);
       bucket.sources.push(mesh);
     }

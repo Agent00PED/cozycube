@@ -337,7 +337,7 @@ export default function App() {
             onCastLine={castLine}
             onReelIn={reelIn}
           />
-          <ActionDock rouletteOpen={showRoulette} player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onCastLine={castLine} />
+          <ActionDock rouletteOpen={showRoulette} player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onCastLine={castLine} onRoast={roast} />
         </div>
       )}
 

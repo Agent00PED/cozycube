@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { B, Cone, Cyl, FloorPatch, GEO, HALF, Instanced, Rug, Sph, arcGeo, noMerge, noRaycast, ringGeo, seeded, type InstanceSpec, type Materials } from "./kit";
+import { CUSHIONS, surfaceY } from "@shared/seats";
+import { TEA_TABLE } from "@shared/props";
 
 // A 20x20 "cozy modern loft", laid out as one connected home rather than furniture pushed
 // against the walls:
@@ -89,10 +91,10 @@ function Shell({ mats, wallColor }: { mats: Materials; wallColor: string }) {
       <FloorPatch x0={-8.15} x1={-4.05} z0={-8.85} z1={-5.05} y={0.012} m={mats.sage} />
       {/* The reading & tea lounge: one big rug under the vinyl nook AND the tea table, so the
           front of the room is a single zone with real visual weight instead of two islands. */}
-      <FloorPatch x0={-9.6} x1={0.9} z0={2.5} z1={8.9} y={0.008} m={mats.rugBorder} />
-      <FloorPatch x0={-9.4} x1={0.7} z0={2.7} z1={8.7} y={0.012} m={mats.denCarpet} />
-      <FloorPatch x0={-9.4} x1={0.7} z0={3.1} z1={3.25} y={0.014} m={mats.terracotta} />
-      <FloorPatch x0={-9.4} x1={0.7} z0={8.15} z1={8.3} y={0.014} m={mats.terracotta} />
+      <FloorPatch x0={-8.8} x1={-0.6} z0={2.9} z1={8.4} y={0.008} m={mats.rugBorder} />
+      <FloorPatch x0={-8.6} x1={-0.8} z0={3.1} z1={8.2} y={0.012} m={mats.denCarpet} />
+      <FloorPatch x0={-8.6} x1={-0.8} z0={3.5} z1={3.65} y={0.014} m={mats.terracotta} />
+      <FloorPatch x0={-8.6} x1={-0.8} z0={7.65} z1={7.8} y={0.014} m={mats.terracotta} />
       {/* a runner under the farmhouse table */}
       <FloorPatch x0={-0.6} x1={3.2} z0={-7.5} z1={-4.9} y={0.012} m={mats.terracotta} />
       <FloorPatch x0={-0.45} x1={3.05} z0={-7.35} z1={-5.05} y={0.014} m={mats.blush} />
@@ -208,15 +210,22 @@ export function PottedPlant({
       {kind === "fig" && (
         <>
           <Cyl p={[0, 1.0, 0]} s={[0.07, 1.0, 0.07]} m={mats.bark} />
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <Sph key={i} p={[Math.sin(i * 1.9) * 0.28, 1.25 + (i % 3) * 0.28, Math.cos(i * 1.9) * 0.28]} s={[0.42, 0.36, 0.2]} r={[0.4, i, 0]} m={i % 2 ? mats.leaf : mats.leafLight} cast />
-          ))}
+          {/* big fiddle leaves clustered on the trunk: each leaf's inner end overlaps the stem,
+              so nothing hangs in the air */}
+          {[0, 1, 2, 3, 4, 5].map((i) => {
+            const a = i * 1.9;
+            const y = 1.15 + (i % 3) * 0.24;
+            return <Sph key={i} p={[Math.sin(a) * 0.19, y, Math.cos(a) * 0.19]} s={[0.4, 0.34, 0.18]} r={[0.35, a, 0]} m={i % 2 ? mats.leaf : mats.leafLight} cast />;
+          })}
+          <Sph p={[0, 1.78, 0]} s={[0.34, 0.26, 0.34]} m={mats.leafLight} cast />
         </>
       )}
       {kind === "snake" &&
-        [0, 1, 2, 3, 4].map((i) => (
-          <B key={i} p={[Math.sin(i * 2.4) * 0.12, 0.85, Math.cos(i * 2.4) * 0.12]} s={[0.1, 0.7 + (i % 2) * 0.25, 0.03]} r={[Math.sin(i) * 0.15, i * 1.2, Math.cos(i) * 0.12]} m={i % 2 ? mats.leaf : mats.sageDark} cast />
-        ))}
+        // tapered blades fanning out of the soil, in two greens
+        [0, 1, 2, 3, 4, 5].map((i) => {
+          const a = i * 1.05;
+          return <Cone key={i} p={[Math.sin(a) * 0.1, 0.5 + 0.3 * ((i % 3) + 1) * 0.5, Math.cos(a) * 0.1]} s={[0.16, 0.6 + (i % 3) * 0.3, 0.05]} r={[Math.cos(a) * 0.22, a, -Math.sin(a) * 0.22]} m={i % 2 ? mats.leaf : mats.sageDark} cast />;
+        })}
       {kind === "olive" && (
         <>
           <Cyl p={[0, 1.05, 0]} s={[0.09, 1.1, 0.09]} m={mats.bark} />
@@ -251,6 +260,9 @@ export function PottedPlant({
 // Living room: L-sofa opening onto the middle of the room, TV on the back wall
 // ---------------------------------------------------------------------------------------
 
+const SOFA = CUSHIONS.loungeSofa;
+const SOFA_TOP = surfaceY(SOFA);
+
 function LivingRoom({ mats }: { mats: Materials }) {
   return (
     <>
@@ -272,10 +284,15 @@ function LivingRoom({ mats }: { mats: Materials }) {
       <B p={[-5.6, 0.21, -0.4]} s={[1.1, 0.42, 2.4]} m={mats.sage} cast recv />
       <B p={[-6.06, 0.58, -0.1]} s={[0.2, 0.75, 3.1]} m={mats.sageDark} cast recv />
       <B p={[-5.6, 0.44, -1.62]} s={[1.1, 0.46, 0.2]} m={mats.sageDark} cast />
-      {[-4.4, -3.0, -1.6].map((x) => (
-        <B key={x} p={[x, 0.46, 0.96]} s={[1.32, 0.1, 0.92]} m={mats.sage} />
+      {/* ONE flush cushion platform across both legs of the L (CUSHIONS.loungeSofa, which the
+          seats' anchor height is derived from): no stepped trench between modules, just two
+          stitched seams drawn on top */}
+      <B p={[-3.43, SOFA.y, 0.96]} s={[5.26, SOFA.h, 0.92]} m={mats.sage} />
+      <B p={[-5.6, SOFA.y, -0.475]} s={[0.92, SOFA.h, 1.95]} m={mats.sage} />
+      {[-3.7, -2.3].map((x) => (
+        <B key={x} p={[x, SOFA_TOP + 0.002, 0.96]} s={[0.02, 0.004, 0.9]} m={mats.sageDark} />
       ))}
-      <B p={[-5.6, 0.46, -0.5]} s={[0.92, 0.1, 1.9]} m={mats.sage} />
+      <B p={[-5.6, SOFA_TOP + 0.002, 0.5]} s={[0.9, 0.004, 0.02]} m={mats.sageDark} />
       {/* throw pillows on the seat, and a blanket folded over the return leg */}
       <B p={[-4.7, 0.68, 1.16]} s={[0.4, 0.36, 0.14]} r={[0.25, 0, 0.08]} m={mats.mustard} cast />
       <B p={[-1.3, 0.68, 1.16]} s={[0.4, 0.36, 0.14]} r={[0.25, 0, -0.08]} m={mats.terracotta} cast />
@@ -292,8 +309,8 @@ function LivingRoom({ mats }: { mats: Materials }) {
       <Cyl p={[-2.1, 0.53, -1.2]} s={[0.12, 0.18, 0.12]} m={mats.blush} />
       {[-0.05, 0, 0.05].map((dx, i) => (
         <group key={dx}>
-          <Cyl p={[-2.1 + dx, 0.72, -1.2 + (i - 1) * 0.02]} s={[0.012, 0.24, 0.012]} m={mats.olive} />
-          <Sph p={[-2.1 + dx * 1.6, 0.86, -1.2 + (i - 1) * 0.03]} s={[0.06, 0.08, 0.06]} m={i === 1 ? mats.mustard : mats.terracotta} />
+          <Cyl p={[-2.1 + dx * 1.2, 0.74, -1.2 + (i - 1) * 0.02]} s={[0.025, 0.26, 0.025]} r={[0, 0, -dx * 2.2]} m={mats.olive} />
+          <Sph p={[-2.1 + dx * 1.7, 0.87, -1.2 + (i - 1) * 0.03]} s={[0.07, 0.09, 0.07]} m={i === 1 ? mats.mustard : mats.terracotta} />
         </group>
       ))}
 
@@ -494,9 +511,17 @@ function DiningSet({ mats }: { mats: Materials }) {
       {/* runner, a jug of wildflowers and four place settings */}
       <B p={[1.3, 0.79, -6.2]} s={[2.3, 0.01, 0.4]} m={mats.cream} />
       <Cyl p={[1.3, 0.92, -6.2]} s={[0.18, 0.28, 0.18]} m={mats.glass} />
-      {[0, 1, 2, 3, 4].map((i) => (
-        <Sph key={i} p={[1.3 + Math.sin(i * 1.3) * 0.08, 1.12 + (i % 2) * 0.05, -6.2 + Math.cos(i * 1.3) * 0.08]} s={0.06} m={i % 2 ? mats.mustard : mats.blush} />
-      ))}
+      <Cyl p={[1.3, 0.9, -6.2]} s={[0.15, 0.2, 0.15]} m={mats.seaShallow} />
+      {[0, 1, 2, 3, 4].map((i) => {
+        const a = i * 1.3;
+        const lean = 0.18 + (i % 2) * 0.08;
+        return (
+          <group key={i}>
+            <Cyl p={[1.3 + Math.sin(a) * 0.05, 1.03, -6.2 + Math.cos(a) * 0.05]} s={[0.02, 0.3, 0.02]} r={[Math.cos(a) * lean, 0, -Math.sin(a) * lean]} m={mats.olive} />
+            <Sph p={[1.3 + Math.sin(a) * 0.09, 1.19 + (i % 2) * 0.03, -6.2 + Math.cos(a) * 0.09]} s={0.065} m={i % 2 ? mats.mustard : mats.blush} />
+          </group>
+        );
+      })}
       {[
         [0.7, -5.75],
         [1.9, -5.75],
@@ -619,9 +644,10 @@ function TeaSteam({ x, y, z, mats }: { x: number; y: number; z: number; mats: Ma
 
 /** A slouchy beanbag for a floor seat (its seat in props.ts is style "pad"). */
 function Beanbag({ x, z, m, mats }: { x: number; z: number; m: THREE.Material; mats: Materials }) {
+  const seat = CUSHIONS.beanbag;
   return (
     <group position={[x, 0, z]}>
-      <Sph p={[0, 0.2, 0]} s={[0.9, 0.42, 0.85]} m={m} cast />
+      <Sph p={[0, seat.y, 0]} s={[0.9, seat.h, 0.85]} m={m} cast />
       <Sph p={[0, 0.42, -0.28]} s={[0.72, 0.38, 0.34]} m={m} />
       <Sph p={[0, 0.02, 0]} s={[0.92, 0.04, 0.88]} m={mats.charcoal} />
     </group>
@@ -630,10 +656,11 @@ function Beanbag({ x, z, m, mats }: { x: number; z: number; m: THREE.Material; m
 
 /** A plump floor cushion (seat style "pad"). */
 function FloorCushion({ x, z, m }: { x: number; z: number; m: THREE.Material }) {
+  const top = CUSHIONS.floorCushion; // the plump top; the seat anchor is derived from it
   return (
     <group position={[x, 0, z]}>
-      <Cyl p={[0, 0.09, 0]} s={[0.62, 0.16, 0.62]} m={m} cast />
-      <Sph p={[0, 0.17, 0]} s={[0.58, 0.08, 0.58]} m={m} />
+      <Cyl p={[0, top.y - 0.08, 0]} s={[0.62, 0.16, 0.62]} m={m} cast />
+      <Sph p={[0, top.y, 0]} s={[0.58, top.h, 0.58]} m={m} />
     </group>
   );
 }
@@ -643,23 +670,25 @@ function FloorCushion({ x, z, m }: { x: number; z: number; m: THREE.Material }) 
 // ---------------------------------------------------------------------------------------
 
 function TeaCorner({ mats }: { mats: Materials }) {
+  const { x, z } = TEA_TABLE;
   return (
     <>
-      <Cyl p={[-1.8, 0.3, 5.0]} s={[1.3, 0.06, 1.3]} m={mats.oak} cast recv />
-      <Cyl p={[-1.8, 0.14, 5.0]} s={[0.9, 0.28, 0.9]} m={mats.walnut} cast />
-      {/* a teapot, two cups and a plate of biscuits */}
-      <Sph p={[-1.8, 0.43, 5.0]} s={[0.24, 0.2, 0.24]} m={mats.sage} />
-      <Cyl p={[-1.8, 0.54, 5.0]} s={[0.09, 0.03, 0.09]} m={mats.sage} />
-      <Cyl p={[-1.66, 0.45, 5.0]} s={[0.04, 0.14, 0.04]} r={[0, 0, -0.9]} m={mats.sage} />
-      <Cyl p={[-2.2, 0.38, 4.8]} s={[0.1, 0.1, 0.1]} m={mats.white} />
-      <Cyl p={[-1.4, 0.38, 5.25]} s={[0.1, 0.1, 0.1]} m={mats.white} />
-      <TeaSteam x={-1.8} y={0.6} z={5.0} mats={mats} />
-      <FloorCushion x={-3.0} z={4.9} m={mats.terracotta} />
-      <FloorCushion x={-0.7} z={5.5} m={mats.mustard} />
-      <FloorCushion x={-2.0} z={6.25} m={mats.blush} />
-      {/* a paper floor lantern and plants round the edge */}
+      <Cyl p={[x, 0.3, z]} s={[1.3, 0.06, 1.3]} m={mats.oak} cast recv />
+      <Cyl p={[x, 0.14, z]} s={[0.9, 0.28, 0.9]} m={mats.walnut} cast />
+      {/* a teapot and three cups, one per cushion */}
+      <Sph p={[x, 0.43, z]} s={[0.24, 0.2, 0.24]} m={mats.sage} />
+      <Cyl p={[x, 0.54, z]} s={[0.09, 0.03, 0.09]} m={mats.sage} />
+      <Cyl p={[x + 0.14, 0.45, z]} s={[0.04, 0.14, 0.04]} r={[0, 0, -0.9]} m={mats.sage} />
+      <Cyl p={[x - 0.1, 0.38, z - 0.4]} s={[0.1, 0.1, 0.1]} m={mats.white} />
+      <Cyl p={[x + 0.4, 0.38, z + 0.15]} s={[0.1, 0.1, 0.1]} m={mats.white} />
+      <Cyl p={[x - 0.15, 0.38, z + 0.42]} s={[0.1, 0.1, 0.1]} m={mats.white} />
+      <TeaSteam x={x} y={0.6} z={z} mats={mats} />
+      <FloorCushion x={x} z={4.0} m={mats.terracotta} />
+      <FloorCushion x={x} z={6.8} m={mats.mustard} />
+      <FloorCushion x={-2.9} z={z} m={mats.blush} />
+      {/* plants round the edge of the wing */}
       <PottedPlant x={2.5} z={6.4} mats={mats} kind="fig" scale={1.0} />
-      <PottedPlant x={-3.6} z={6.8} mats={mats} kind="snake" scale={0.8} />
+      <PottedPlant x={-2.0} z={7.7} mats={mats} kind="snake" scale={0.8} />
       <PottedPlant x={1.8} z={3.3} mats={mats} kind="fern" scale={0.8} />
     </>
   );
@@ -703,8 +732,8 @@ function VinylNook({ mats }: { mats: Materials }) {
 
       {/* the record player on top of the shelf is the interactive "turntable" prop */}
 
-      {/* acoustic guitar on a proper A-frame stand, resting on the floor */}
-      <group position={[-7.3, 0, 5.6]} rotation={[0, 1.2, 0]}>
+      {/* acoustic guitar on a proper A-frame stand, tucked into the corner by the wall */}
+      <group position={[-8.7, 0, 8.0]} rotation={[0, 0.9, 0]}>
         {[-0.18, 0.18].map((dx) => (
           <Cyl key={dx} p={[dx, 0.28, 0]} s={[0.05, 0.56, 0.05]} r={[0.18, 0, dx > 0 ? -0.2 : 0.2]} m={mats.black} />
         ))}
@@ -718,14 +747,14 @@ function VinylNook({ mats }: { mats: Materials }) {
         </group>
       </group>
 
-      {/* a round wooden side table by the armchair, with a coffee and a little stack of books */}
-      <Cyl p={[-7.6, 0.56, 3.2]} s={[0.66, 0.05, 0.66]} m={mats.oak} cast recv />
-      <Cyl p={[-7.6, 0.28, 3.2]} s={[0.08, 0.52, 0.08]} m={mats.walnut} cast />
-      <Cyl p={[-7.6, 0.03, 3.2]} s={[0.4, 0.05, 0.4]} m={mats.walnut} />
-      <B p={[-7.7, 0.61, 3.12]} s={[0.3, 0.05, 0.22]} m={mats.rust} />
-      <B p={[-7.7, 0.66, 3.12]} s={[0.28, 0.05, 0.2]} r={[0, 0.25, 0]} m={mats.navy} />
-      <Cyl p={[-7.45, 0.64, 3.35]} s={[0.12, 0.13, 0.12]} m={mats.white} />
-      <Cyl p={[-7.45, 0.7, 3.35]} s={[0.1, 0.01, 0.1]} m={mats.darkWood} />
+      {/* a round wooden side table beside the armchair, with a coffee and a little stack of books */}
+      <Cyl p={[-6.3, 0.56, 6.7]} s={[0.66, 0.05, 0.66]} m={mats.oak} cast recv />
+      <Cyl p={[-6.3, 0.28, 6.7]} s={[0.08, 0.52, 0.08]} m={mats.walnut} cast />
+      <Cyl p={[-6.3, 0.03, 6.7]} s={[0.4, 0.05, 0.4]} m={mats.walnut} />
+      <B p={[-6.4, 0.61, 6.62]} s={[0.3, 0.05, 0.22]} m={mats.rust} />
+      <B p={[-6.4, 0.66, 6.62]} s={[0.28, 0.05, 0.2]} r={[0, 0.25, 0]} m={mats.navy} />
+      <Cyl p={[-6.15, 0.64, 6.85]} s={[0.12, 0.13, 0.12]} m={mats.white} />
+      <Cyl p={[-6.15, 0.7, 6.85]} s={[0.1, 0.01, 0.1]} m={mats.darkWood} />
     </>
   );
 }
@@ -804,14 +833,7 @@ function BalconyDeck({ mats }: { mats: Materials }) {
       <Cyl p={[9.1, 0.22, 3.2]} s={[0.5, 0.44, 0.5]} m={mats.walnut} cast />
       <PottedPlant x={9.1} z={3.2} mats={mats} kind="fern" scale={0.75} y={0.44} />
 
-      {/* console table by the entry, where everyone spawns */}
-      <B p={[6.5, 0.42, -3.1]} s={[1.0, 0.05, 0.36]} m={mats.oak} cast />
-      {[6.1, 6.9].map((x) => (
-        <B key={x} p={[x, 0.2, -3.1]} s={[0.05, 0.4, 0.3]} m={mats.oak} />
-      ))}
-      <Cyl p={[6.3, 0.49, -3.1]} s={[0.24, 0.08, 0.24]} m={mats.brass} />
-      <Cyl p={[6.8, 0.6, -3.1]} s={[0.13, 0.32, 0.13]} m={mats.blush} />
-      <Sph p={[6.8, 0.83, -3.1]} s={[0.24, 0.18, 0.24]} m={mats.leafLight} />
+      {/* The walkway between the kitchen and the deck stays open: no furniture in it. */}
     </>
   );
 }

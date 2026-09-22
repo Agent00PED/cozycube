@@ -58,16 +58,19 @@ interface ActionDockProps {
   toggleables: Record<string, ToggleableSyncState>;
   localSessionId: string;
   onCastLine: (afk?: boolean) => void;
+  onRoast: () => void;
   /** The betting board is already up: no need to offer it. */
   rouletteOpen?: boolean;
 }
 
-export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onCastLine, rouletteOpen = false }: ActionDockProps) {
+export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onCastLine, onRoast, rouletteOpen = false }: ActionDockProps) {
   const [actions, setActions] = useState<Action[]>([]);
   const latest = useRef({ chairs, toggleables, mapId, localSessionId });
   latest.current = { chairs, toggleables, mapId, localSessionId };
   // Pressing "Fish" walks you onto a pier seat; the line is cast by itself once you sit.
   const castPending = useRef<null | "manual" | "afk">(null);
+  // Likewise "Roast": sit on the nearest log, and the stick is handed over once you're down.
+  const roastPending = useRef(false);
 
   useEffect(() => {
     let lastKey = "";
@@ -92,7 +95,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
       // Seats that are an activity: the pier (fishing) and the logs round the fire (roasting).
       const free = (c: ChairSyncState) => c.occupiedBy === "" || c.occupiedBy === localSessionId;
       let fish: { id: string; d: number } | null = null;
-      let fire: (Action & { d: number }) | null = null;
+      let fire: { id: string; d: number } | null = null;
       for (const c of Object.values(chairs)) {
         if (!free(c)) continue;
         const d = dist(c.x, c.z, c.propId);
@@ -100,7 +103,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         if (isFishingSeat(c.propId) && (!fish || d < fish.d)) {
           fish = { id: c.propId, d };
         } else if (c.style === "log" && (!fire || d < fire.d)) {
-          fire = { key: "fire", type: "fire", label: "🔥 Sit by the fire", d, run: () => interactBridge.current?.sit(c.propId) };
+          fire = { id: c.propId, d };
         }
       }
       // The pier offers both ways to fish: the bite-and-reel game, or chill mode that keeps
@@ -114,7 +117,21 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         found.push({ key: "fish", type: "fish", label: "🎣 Manual Fishing", d: fish.d, run: go("manual") });
         found.push({ key: "afkfish", type: "afkfish", label: "☕ AFK Fishing (chill)", d: fish.d + 0.01, run: go("afk") });
       }
-      if (fire) found.push(fire);
+      // The fire offers a seat, or a seat with a roasting stick already in hand.
+      if (fire) {
+        const seat = fire.id;
+        found.push({ key: "fire", type: "fire", label: "🔥 Sit by the fire", d: fire.d, run: () => interactBridge.current?.sit(seat) });
+        found.push({
+          key: "roast",
+          type: "roast",
+          label: "🍢 Roast a marshmallow",
+          d: fire.d + 0.01,
+          run: () => {
+            roastPending.current = true;
+            interactBridge.current?.sit(seat);
+          },
+        });
+      }
 
       // The roulette table: from anywhere near it, step up to the rail and the board opens.
       if (mapId === "velvet_casino") {
@@ -159,6 +176,15 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
       onCastLine(mode === "afk");
     }
   }, [onPier, player.action, onCastLine]);
+
+  const onLog = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "log");
+  useEffect(() => {
+    if (!roastPending.current) return;
+    if (onLog && player.action === "") {
+      roastPending.current = false;
+      onRoast();
+    }
+  }, [onLog, player.action, onRoast]);
 
   // Busy (seated, fishing, brewing): the activity bar has the controls, not the dock.
   const shown = rouletteOpen ? actions.filter((a) => a.key !== "roulette-open") : actions;

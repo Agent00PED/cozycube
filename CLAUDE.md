@@ -85,14 +85,24 @@ Automatically activates when auditing, modifying, or creating 3D diorama maps, m
 
 Honest notes so the standard is applied to real code rather than assumed:
 
-- **A. Seat anchors** — seats still use authored `sitY` values in `shared/props.ts`; they are not
-  derived from bounding boxes. The Tiki roof was raised by hand (`ROOF_LIFT` in `BeachWorld.tsx`)
-  rather than computed from headroom.
-- **C. Draw calls** — last measured: Lounge 127, Casino 146 (close view with two avatars),
-  Beach 138, Campfire 86. Two maps are above the 130 cap; avatars are the dominant cost.
-  All `PointLight`s already pass `castShadow={false}`.
-- **D. Walkable elevation** — riverbank and bridge-rail colliders exist (`streamZ` +
-  `STREAM_HALF` / `BRIDGE_HALF` in `shared/collision.ts`), but the walk plane is flat: avatars
-  cross the bridge at ground height rather than on the plank surface.
-- **B / C materials / E** — group hierarchy, opaque stylized materials, water `depthWrite: false`
-  with `renderOrder`, floor-material zoning, and action-dock deduplication by type are in place.
+- **A. Seat anchors** — derived, never authored. `shared/seats.ts` describes each seat's cushion
+  primitive once (`CUSHIONS`), the worlds draw the cushion from it, and `shared/props.ts`
+  computes every `sitY` from it through `anchored()` (`surfaceY = 0.5 * h + y`, then
+  `+ AVATAR_HIP_OFFSET - AVATAR_HIP_Y`). `Character3D` asserts its hip constants match. The Tiki
+  roof lift (`ROOF_LIFT` in `BeachWorld.tsx`) is computed from the stool anchor + seated height +
+  headroom.
+- **B. Group hierarchy** — palms are built per tree about their own base (`palmParts`) and baked
+  (`bakeGroups`); tents own their porch, flaps, ropes and pegs; Mochi's tail hugs the loaf.
+- **C. Materials / draw calls** — palms are fully opaque (no occluder dithering). `StaticBatch`
+  normalises custom geometry (index + uv) before merging, so hand-built triangle soups no longer
+  break a whole material bucket. Last measured at the default zoom: Lounge 110, Campfire 115,
+  Casino 118, Beach 138 (the beach carries two avatars, the sea and three sparkles). All
+  `PointLight`s pass `castShadow={false}`.
+- **D. Walkable elevation** — `walkY(mapId, x, z)` in `shared/collision.ts` lifts the walk plane
+  onto the campfire bridge deck (`BRIDGE_DECK_Y`) with short ramps; both local and remote avatars
+  use it. Riverbank and bridge-rail colliders remain in `inScenery`.
+- **E. Zoning / dedupe** — floor-material zoning and action-dock deduplication by `action.type`
+  are in place; the fireside offers "Sit" and "Roast" as two types on purpose.
+- **Known gaps** — the 3D payout confetti (`PayoutConfetti`, fires on a >= 50 coin win) has not
+  been seen in a browser; the wardrobe's `defaultLook` snaps the server's pastel shirt to the
+  nearest palette colour (before that, a fresh player's wardrobe edits were rejected silently).
