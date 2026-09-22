@@ -6,3 +6,7 @@ dist/
 *.tsbuildinfo
 .DS_Store
 *.log
+
+# Claude Code: track shared skills, keep local machine settings out
+.claude/*
+!.claude/skills/
