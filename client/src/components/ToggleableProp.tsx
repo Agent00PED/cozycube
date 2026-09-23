@@ -11,6 +11,7 @@ import { Sparkle } from "./LivingProps";
 import { useRetroScreen } from "./useRetroScreen";
 import { SlotMachine } from "./Casino";
 import { Cat, ForageBush, NpcTrader, StewPot } from "./LivingProps";
+import { BlenderProp, BoardGameProp, ClawMachine, Gachapon, Jukebox, ShishiOdoshiProp, TeaHouseProp, WishingWellProp } from "./WorldProps";
 
 interface ToggleablePropProps {
   prop: ToggleableSyncState;
@@ -27,7 +28,7 @@ const LIGHT_LERP = 0.18;
 
 // Hit pads have to stay "visible" (R3F only raycasts visible objects), so they are hidden by
 // writing nothing to colour or depth instead. One shared material for all of them.
-const HIT_PAD_MATERIAL = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+const HIT_PAD_MATERIAL = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, visible: false });
 
 const mat = (color: string, opts: THREE.MeshStandardMaterialParameters = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.6, ...opts });
@@ -121,6 +122,22 @@ export function ToggleableProp({ prop, onUse, brewing = false }: ToggleablePropP
       return <Sparkle prop={prop} onUse={use} />;
     case "stew":
       return <StewPot prop={prop} onUse={use} />;
+    case "gacha":
+      return <Gachapon prop={prop} onUse={use} />;
+    case "claw":
+      return <ClawMachine prop={prop} onUse={use} />;
+    case "well":
+      return <WishingWellProp prop={prop} onUse={use} />;
+    case "teahouse":
+      return <TeaHouseProp prop={prop} onUse={use} />;
+    case "blender":
+      return <BlenderProp prop={prop} onUse={use} />;
+    case "boardgame":
+      return <BoardGameProp prop={prop} onUse={use} />;
+    case "jukebox":
+      return <Jukebox prop={prop} onUse={use} />;
+    case "shishi":
+      return <ShishiOdoshiProp prop={prop} onUse={use} />;
     default:
       return <FloorLamp prop={prop} onUse={use} />;
   }

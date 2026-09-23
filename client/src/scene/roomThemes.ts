@@ -57,6 +57,36 @@ export const ROOM_THEMES: Record<MapId, RoomTheme> = {
     ambientIntensity: 0.85,
     directionalIntensity: 1.15,
   },
+  boxing_ring: {
+    floor: "#6b625a", // worn concrete gym floor
+    wall: "#2f3542", // slate blue-grey panelling
+    edge: "#2a2622",
+    edgeTop: "#8b1e2a", // the club's red stripe round the slab
+    ambient: "#ffe6c8", // warm halide spotlights
+    directional: "#fff1d8",
+    ambientIntensity: 1.5,
+    directionalIntensity: 1.2,
+  },
+  japanese_onsen: {
+    floor: "#7c8a5e", // mossy ground
+    wall: "#f6f0e2", // unused outdoors
+    edge: "#5a4a3a", // dark mountain soil
+    edgeTop: "#8a9a6a",
+    ambient: "#e6f0e8",
+    directional: "#fff4e0",
+    ambientIntensity: 0.9,
+    directionalIntensity: 1.1,
+  },
+  retro_arcade: {
+    floor: "#26244a", // checkered carpet base
+    wall: "#1b1a33", // near-black violet
+    edge: "#14132a",
+    edgeTop: "#ff5fc8", // a neon lip round the slab
+    ambient: "#8c7cff", // violet neon wash
+    directional: "#cfd8ff",
+    ambientIntensity: 1.7,
+    directionalIntensity: 0.55,
+  },
 };
 
 // --- time of day -------------------------------------------------------------------------

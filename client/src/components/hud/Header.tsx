@@ -9,6 +9,9 @@ export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: st
   campfire_night: { icon: "🔥", name: "Campfire", tagline: "A valley of tents and stars" },
   sunset_beach: { icon: "🏖️", name: "Beach Bar", tagline: "Surf, fishing and tiki drinks" },
   velvet_casino: { icon: "🎰", name: "Casino", tagline: "Roulette, blackjack and slots" },
+  boxing_ring: { icon: "🥊", name: "Boxing Gym", tagline: "Slapstick bouts and bleachers" },
+  japanese_onsen: { icon: "♨️", name: "Onsen", tagline: "Hot spring, tea and a wishing well" },
+  retro_arcade: { icon: "🕹️", name: "Arcade", tagline: "Gachapon, the claw and old cabinets" },
 };
 
 interface HeaderProps {
@@ -20,6 +23,8 @@ interface HeaderProps {
   autoCycle: boolean;
   onToggleAutoCycle: () => void;
   coins: number;
+  /** The voice indicator, rendered inside the right-hand island so it never overlaps the header. */
+  voiceSlot?: ReactNode;
   onClaimAllowance: () => void;
   status: string;
   onSetStatus: (status: string) => void;
@@ -64,14 +69,14 @@ export function Header(p: HeaderProps) {
 
   return (
     <div ref={rootRef} className="font-cozy pointer-events-none fixed left-0 right-0 z-30 flex items-start justify-between gap-2 px-2" style={{ top: "max(10px, env(safe-area-inset-top))" }}>
-      {/* where */}
-      <div className="pointer-events-auto flex items-center gap-2">
-        <button type="button" onClick={p.onOpenWorlds} className="clay-pill flex min-h-12 items-center gap-2 px-3 pr-4 text-sm font-extrabold transition-transform hover:scale-105 active:scale-95" title="Fast travel">
+      {/* where: one capsule holding the world badge and the head count */}
+      <div className="pointer-events-auto clay-pill flex min-h-12 shrink-0 items-center gap-1 p-1">
+        <button type="button" onClick={p.onOpenWorlds} className="flex min-h-10 items-center gap-2 rounded-full px-3 text-sm font-extrabold transition-transform hover:bg-white/10 active:scale-95" title="Fast travel">
           <span className="clay-wiggle text-xl">{map.icon}</span>
           <span className="hidden sm:inline">{map.name}</span>
           <span className="text-xs opacity-60">▾</span>
         </button>
-        <span className="clay-pill flex min-h-10 items-center gap-1.5 px-3 text-xs font-bold" title="Players in this world">
+        <span className="flex min-h-10 items-center gap-1.5 border-l border-white/10 pl-3 pr-2 text-xs font-bold" title="Players in this world">
           <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]" />
           {p.playerCount}
           <span className="hidden sm:inline">here</span>
@@ -103,10 +108,12 @@ export function Header(p: HeaderProps) {
         )}
       </div>
 
-      {/* you */}
-      <div className="pointer-events-auto clay-pill flex items-center gap-0.5 p-1">
-        <CoinCounter coins={p.coins} onClaim={p.onClaimAllowance} />
-        <div className="relative">
+      {/* you: an island whose parts never squash into each other (every child is shrink-0) */}
+      <div className="pointer-events-auto clay-pill flex min-w-0 shrink-0 items-center gap-0.5 p-1">
+        <div className="flex shrink-0 items-center gap-2 px-2">
+          <CoinCounter coins={p.coins} onClaim={p.onClaimAllowance} />
+        </div>
+        <div className="relative shrink-0 border-l border-white/10 pl-1">
           <button type="button" onClick={() => toggle("status")} className="clay-icon-btn w-auto gap-1 px-2.5 text-sm font-bold hover:bg-white/10" title="Set your status" aria-expanded={open === "status"}>
             <span className="text-lg">{st ? st.emoji : "🟢"}</span>
             <span className="hidden lg:inline">{st ? st.label : "Status"}</span>
@@ -124,7 +131,8 @@ export function Header(p: HeaderProps) {
             </Menu>
           )}
         </div>
-        <button type="button" onClick={() => (playChime(), p.onOpenWardrobe())} className="clay-icon-btn hover:bg-white/10" title="Wardrobe">
+        {p.voiceSlot && <div className="hidden shrink-0 items-center border-l border-white/10 pl-1 md:flex">{p.voiceSlot}</div>}
+        <button type="button" onClick={() => (playChime(), p.onOpenWardrobe())} className="clay-icon-btn shrink-0 hover:bg-white/10" title="Wardrobe">
           👗
         </button>
         <button type="button" onClick={() => (playClick(), p.onOpenLeaderboard())} className="clay-icon-btn hover:bg-white/10" title="High Rollers">

@@ -16,6 +16,8 @@ import { bgmBus, getAudioContext, getAudioSettings, isUnlocked, setAudioSettings
 // making noise the moment it opens is the kind of thing people close the tab over.
 
 type Bed = { stop: () => void };
+/** Seconds the outgoing and incoming soundscapes overlap on fast travel. */
+const CROSSFADE_S = 1.2;
 
 let sharedNoise: AudioBuffer | null = null;
 function noise(ctx: AudioContext): AudioBuffer {
@@ -457,10 +459,179 @@ function casinoBed(ctx: AudioContext, out: GainNode): Bed {
   return scope;
 }
 
+/** The gym: a low room hum with reverberant slap, canvas scuffs, crowd murmur and the odd bell. */
+function gymBed(ctx: AudioContext, out: GainNode): Bed {
+  const scope = bedScope();
+  const hum = scope.keep(ctx.createOscillator());
+  hum.frequency.value = 55;
+  const humGain = ctx.createGain();
+  humGain.gain.value = 0.025;
+  hum.connect(humGain).connect(out);
+  hum.start();
+  const murmur = scope.keep(noiseSource(ctx));
+  const mf = ctx.createBiquadFilter();
+  mf.type = "bandpass";
+  mf.frequency.value = 380;
+  mf.Q.value = 0.9;
+  const mg = ctx.createGain();
+  mg.gain.value = 0.03;
+  murmur.connect(mf).connect(mg).connect(out);
+  murmur.start();
+  // scuffs and glove thumps echo round the hall
+  scope.every(
+    () => 900 + Math.random() * 2600,
+    () => {
+      const t = ctx.currentTime;
+      const n = noiseSource(ctx);
+      const f = ctx.createBiquadFilter();
+      f.type = "lowpass";
+      f.frequency.value = 500 + Math.random() * 600;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.05, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      n.connect(f).connect(g).connect(out);
+      n.start(t);
+      n.stop(t + 0.4);
+    }
+  );
+  // the bell, now and then
+  scope.every(
+    () => 20000 + Math.random() * 25000,
+    () => {
+      const t = ctx.currentTime;
+      for (const [f, d] of [
+        [1760, 1.4],
+        [2637, 0.9],
+      ]) {
+        const o = ctx.createOscillator();
+        o.type = "sine";
+        o.frequency.value = f;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.05, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        o.connect(g).connect(out);
+        o.start(t);
+        o.stop(t + d + 0.1);
+      }
+    }
+  );
+  return scope;
+}
+
+/** The onsen: trickling water, a steam hiss, and the shishi-odoshi's clack-thunk every six seconds. */
+function onsenBed(ctx: AudioContext, out: GainNode): Bed {
+  const scope = bedScope();
+  const trickle = streamBed(ctx, out, 0.045);
+  const hiss = scope.keep(noiseSource(ctx));
+  const hf = ctx.createBiquadFilter();
+  hf.type = "highpass";
+  hf.frequency.value = 5000;
+  const hg = ctx.createGain();
+  hg.gain.value = 0.012;
+  hiss.connect(hf).connect(hg).connect(out);
+  hiss.start();
+  scope.every(
+    () => 6000,
+    () => {
+      const t = ctx.currentTime + 4.6; // matches the bamboo's tip in OnsenWorld (6 s cycle)
+      // clack: a bright wooden knock; thunk: a low hollow note as it swings back
+      const clack = ctx.createOscillator();
+      clack.type = "square";
+      clack.frequency.setValueAtTime(1800, t);
+      clack.frequency.exponentialRampToValueAtTime(900, t + 0.05);
+      const cg = ctx.createGain();
+      cg.gain.setValueAtTime(0.0001, t);
+      cg.gain.exponentialRampToValueAtTime(0.09, t + 0.005);
+      cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+      clack.connect(cg).connect(out);
+      clack.start(t);
+      clack.stop(t + 0.1);
+      const thunk = ctx.createOscillator();
+      thunk.type = "sine";
+      thunk.frequency.setValueAtTime(220, t + 0.35);
+      thunk.frequency.exponentialRampToValueAtTime(120, t + 0.6);
+      const tg = ctx.createGain();
+      tg.gain.setValueAtTime(0.0001, t + 0.35);
+      tg.gain.exponentialRampToValueAtTime(0.12, t + 0.37);
+      tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
+      thunk.connect(tg).connect(out);
+      thunk.start(t + 0.35);
+      thunk.stop(t + 0.8);
+    }
+  );
+  return { stop: () => (scope.stop(), trickle.stop()) };
+}
+
+// A bouncy chiptune loop: square-wave lead over a triangle bass, with a hat on the off-beats.
+const CHIP_LEAD = [72, 76, 79, 76, 72, 74, 77, 74, 71, 74, 79, 74, 72, 76, 81, 79];
+const CHIP_BASS = [48, 48, 55, 55, 53, 53, 50, 50];
+
+function arcadeBed(ctx: AudioContext, out: GainNode): Bed {
+  const scope = bedScope();
+  const beat = 60 / 132;
+  const mix = ctx.createGain();
+  mix.gain.value = 0.35;
+  const tone = ctx.createBiquadFilter();
+  tone.type = "lowpass";
+  tone.frequency.value = 2600;
+  tone.connect(mix).connect(out);
+  const hum = scope.keep(noiseSource(ctx));
+  const hf = ctx.createBiquadFilter();
+  hf.type = "bandpass";
+  hf.frequency.value = 240;
+  const hg = ctx.createGain();
+  hg.gain.value = 0.015;
+  hum.connect(hf).connect(hg).connect(out);
+  hum.start();
+  let next = ctx.currentTime + 0.1;
+  let step = 0;
+  const note = (t: number, m: number, dur: number, type: OscillatorType, gain: number) => {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.value = midi(m);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(tone);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  };
+  scope.every(
+    () => 100,
+    () => {
+      while (next < ctx.currentTime + 0.3) {
+        const s = step % 16;
+        note(next, CHIP_LEAD[s], beat * 0.45, "square", 0.05);
+        if (s % 2 === 0) note(next, CHIP_BASS[(step >> 1) % 8], beat * 0.9, "triangle", 0.08);
+        if (s % 2 === 1) {
+          const n = noiseSource(ctx);
+          const f = ctx.createBiquadFilter();
+          f.type = "highpass";
+          f.frequency.value = 8000;
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.02, next);
+          g.gain.exponentialRampToValueAtTime(0.0001, next + 0.04);
+          n.connect(f).connect(g).connect(out);
+          n.start(next);
+          n.stop(next + 0.05);
+        }
+        next += beat / 2;
+        step++;
+      }
+    }
+  );
+  return scope;
+}
+
 function startBeds(ctx: AudioContext, out: GainNode, mapId: MapId, record: number | null): Bed[] {
   if (mapId === "sunset_beach") return [beachBed(ctx, out)];
   if (mapId === "velvet_casino") return [casinoBed(ctx, out)];
   if (mapId === "campfire_night") return [campfireBed(ctx, out), streamBed(ctx, out)];
+  if (mapId === "boxing_ring") return [gymBed(ctx, out)];
+  if (mapId === "japanese_onsen") return [onsenBed(ctx, out)];
+  if (mapId === "retro_arcade") return [arcadeBed(ctx, out)];
   // the lounge: the record (or rain on the window), the hearth, and the coffee machine
   return [record === null ? rainBed(ctx, out) : recordBed(ctx, out, record), hearthBed(ctx, out), coffeeBubbles(ctx, out)];
 }
@@ -494,16 +665,17 @@ export function useAmbience(mapId: MapId, record: number | null) {
     master.gain.value = 0;
     master.connect(bgmBus());
     const beds = startBeds(ctx, master, mapId, mapId === "cozy_lounge" ? record : null);
-    master.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 1.2); // fade in, no thump
+    master.gain.linearRampToValueAtTime(0.5, ctx.currentTime + CROSSFADE_S); // fade in over the crossfade
 
     return () => {
+      // fast travel: the old world's bed lingers under the new one for the crossfade
       master.gain.cancelScheduledValues(ctx.currentTime);
       master.gain.setValueAtTime(master.gain.value, ctx.currentTime);
-      master.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.25);
+      master.gain.linearRampToValueAtTime(0, ctx.currentTime + CROSSFADE_S);
       window.setTimeout(() => {
         beds.forEach((b) => b.stop());
         master.disconnect();
-      }, 300);
+      }, CROSSFADE_S * 1000 + 80);
     };
   }, [enabled, mapId, record]);
 

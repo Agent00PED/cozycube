@@ -8,6 +8,7 @@ import { ChairProp } from "./ChairProp";
 import { ToggleableProp } from "./ToggleableProp";
 import { ClickMarker } from "./ClickMarker";
 import { DioramaRoom } from "../scene/DioramaRoom";
+import { INDOOR_MAPS } from "../scene/ProceduralRoom";
 import { Footprints } from "../scene/Footprints";
 import { StaticBatch } from "../scene/kit";
 import { Volleyball } from "./Volleyball";
@@ -19,6 +20,8 @@ import { Critters } from "../scene/Critters";
 import { RoomEventsContext } from "../scene/roomEvents";
 import { ROOM_THEMES, TIME_PRESETS, type RoomTheme, type TimePreset } from "../scene/roomThemes";
 import { TimeOfDayContext } from "../scene/timeOfDay";
+import { MapIdContext } from "../scene/mapContext";
+import { playThwack } from "../audio/sfx";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
 import type { BallSnapshot, EmoteListener, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { requestRecenter } from "../scene/cameraFocus";
@@ -195,7 +198,7 @@ export function WorldScene({
   const emoteIdRef = useRef(0);
   useEffect(() => {
     const timers = new Set<number>();
-    const unsubscribe = subscribeEmotes(({ sessionId, emoji }) => {
+    const push = ({ sessionId, emoji }: { sessionId: string; emoji: string }) => {
       const id = ++emoteIdRef.current;
       setEmotes((prev) => ({
         ...prev,
@@ -212,9 +215,21 @@ export function WorldScene({
         });
       }, EMOTE_LIFETIME_MS);
       timers.add(timer);
+    };
+    const unsubscribe = subscribeEmotes(push);
+    // the onsen's splashes and the ring's punches are one-shot broadcasts too: they float up
+    // over the player they happened to, the same way an emote does
+    const unsubscribeMessages = subscribeMessages((type, payload) => {
+      if (type === "splash") push({ sessionId: (payload as { sessionId: string }).sessionId, emoji: "💦" });
+      if (type === "punch") {
+        const p = payload as { from: string; to: string; hits: number };
+        push({ sessionId: p.to, emoji: p.hits >= 3 ? "💫" : "💥" });
+        playThwack();
+      }
     });
     return () => {
       unsubscribe();
+      unsubscribeMessages();
       timers.forEach((t) => window.clearTimeout(t));
     };
   }, [subscribeEmotes]);
@@ -278,8 +293,12 @@ export function WorldScene({
   const chairSetKey = useMemo(() => Object.keys(chairs).sort().join(","), [chairs]);
   const anyoneBrewing = useMemo(() => Object.values(players).some((p) => p.action === "brew"), [players]);
 
+  // a seat in the hot spring puts a towel on your head
+  const soakingIds = useMemo(() => new Set(Object.values(chairs).filter((c) => c.style === "onsen" && c.occupiedBy).map((c) => c.occupiedBy)), [chairs]);
+
   return (
     <RoomEventsContext.Provider value={roomEvents}>
+    <MapIdContext.Provider value={mapId}>
     <TimeOfDayContext.Provider value={timeOfDay}>
       <RoomLighting theme={theme} preset={TIME_PRESETS[timeOfDay]} mapId={mapId} />
       {/* key={mapId} forces a full unmount of the old world before the new one mounts, instead of
@@ -328,12 +347,14 @@ export function WorldScene({
             mapId={mapId}
             gesture={gestures[sessionId] ?? null}
             bubble={bubbles[sessionId] ?? null}
+            soaking={soakingIds.has(sessionId)}
           />
         ) : (
-          <RemotePlayerAvatar key={sessionId} player={player} speaking={speaking} emotes={playerEmotes} gesture={gestures[sessionId] ?? null} mapId={mapId} bubble={bubbles[sessionId] ?? null} />
+          <RemotePlayerAvatar key={sessionId} player={player} speaking={speaking} emotes={playerEmotes} gesture={gestures[sessionId] ?? null} mapId={mapId} bubble={bubbles[sessionId] ?? null} soaking={soakingIds.has(sessionId)} />
         );
       })}
     </TimeOfDayContext.Provider>
+    </MapIdContext.Provider>
     </RoomEventsContext.Provider>
   );
 }
@@ -362,9 +383,9 @@ const RoomLighting = memo(function RoomLighting({ theme, preset, mapId }: { them
   // the far side, and a sun from behind them laid a slab of shadow across most of the floor.
   // It still has to stay off the camera's own (1,1,1) bearing or every shadow hides behind its
   // caster, so this leans the light toward +X and lifts it rather than matching the camera.
-  const indoors = mapId === "cozy_lounge" || mapId === "velvet_casino";
-  // The casino has no windows: its own warm gold replaces the hour's sky-tinted fill.
-  const ambientColor = mapId === "velvet_casino" ? theme.ambient : preset.ambientColor;
+  const indoors = INDOOR_MAPS.has(mapId);
+  // Windowless rooms (casino, arcade) keep their own fill colour instead of the hour's sky tint.
+  const ambientColor = mapId === "velvet_casino" || mapId === "retro_arcade" ? theme.ambient : preset.ambientColor;
   const sun: [number, number, number] = indoors
     ? [Math.abs(preset.sun[0]) + 6, preset.sun[1] + 10, Math.abs(preset.sun[2]) + 8]
     : preset.sun;
@@ -424,6 +445,7 @@ function LocalPlayerAvatar({
   mapId,
   gesture,
   bubble,
+  soaking,
 }: {
   room: Room | null;
   player: PlayerState;
@@ -433,6 +455,7 @@ function LocalPlayerAvatar({
   mapId: MapId;
   gesture: ActiveGesture | null;
   bubble: { id: number; text: string } | null;
+  soaking: boolean;
 }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
@@ -455,6 +478,9 @@ function LocalPlayerAvatar({
       gesture={gesture}
       status={player.status}
       bubble={bubble}
+      gloves={player.gloves}
+      aura={player.aura}
+      soaking={soaking}
     />
   );
 }
@@ -516,7 +542,7 @@ function sampleSnapshots(buffer: Snapshot[], renderTime: number): { x: number; z
   return { x: newest.x + vx * carried, z: newest.z + vz * carried, vx: vx * fade, vz: vz * fade };
 }
 
-function RemotePlayerAvatar({ player, speaking, emotes, gesture, mapId, bubble }: { player: PlayerState; speaking: boolean; emotes: FloatingEmote[]; gesture: ActiveGesture | null; mapId: MapId; bubble: { id: number; text: string } | null }) {
+function RemotePlayerAvatar({ player, speaking, emotes, gesture, mapId, bubble, soaking }: { player: PlayerState; speaking: boolean; emotes: FloatingEmote[]; gesture: ActiveGesture | null; mapId: MapId; bubble: { id: number; text: string } | null; soaking: boolean }) {
   const groupRef = useRef<Group>(null);
   const speedRef = useRef(0);
   const bufferRef = useRef<Snapshot[]>([{ t: performance.now(), x: player.x, z: player.z }]);
@@ -579,6 +605,9 @@ function RemotePlayerAvatar({ player, speaking, emotes, gesture, mapId, bubble }
       gesture={gesture}
       status={player.status}
       bubble={bubble}
+    gloves={player.gloves}
+      aura={player.aura}
+      soaking={soaking}
     />
   );
 }

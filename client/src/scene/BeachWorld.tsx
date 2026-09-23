@@ -5,6 +5,8 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { B, Cone, Cyl, GEO, HALF, Instanced, Sph, noMerge, noRaycast, seeded, type InstanceSpec, type Materials } from "./kit";
 import { PIER_MAX_X, PIER_MIN_X, PIER_END_Z, SHORELINE_Z } from "@shared/collision";
 import { AVATAR_SEATED_HEIGHT, CUSHIONS, HEADROOM_MIN, seatAnchorY } from "@shared/seats";
+import { MAP_HALF } from "@shared/types";
+import { Occluder } from "./Occluder";
 
 // A 20x20 sunset beach. The tiki bar's stools, the loungers, the driftwood ring and the bonfire
 // are interactive props rendered elsewhere; this file draws the island itself.
@@ -26,6 +28,88 @@ export function BeachWorld({ mats }: { mats: Materials }) {
       <Palms mats={mats} />
       <BeachClutter mats={mats} />
       <BonfireRing mats={mats} />
+      <WiderBeach mats={mats} />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// The wider beach (28x28): dunes and the lifeguard tower north, the shell shack and the rock
+// pool west. Everything tall fades when it stands between the camera and you.
+// ---------------------------------------------------------------------------------------
+
+const BEACH_EDGE = MAP_HALF.sunset_beach;
+
+function WiderBeach({ mats }: { mats: Materials }) {
+  const { dunes, grass, rocks, shells } = useMemo(() => {
+    const rand = seeded(1212);
+    const dunes: InstanceSpec[] = [];
+    const grass: InstanceSpec[] = [];
+    const rocks: InstanceSpec[] = [];
+    const shells: InstanceSpec[] = [];
+    for (let i = 0; i < 9; i++) {
+      const x = -BEACH_EDGE + 1.5 + rand() * (BEACH_EDGE * 2 - 3);
+      const z = -BEACH_EDGE + 0.8 + rand() * 2.2;
+      const s = 1.6 + rand() * 1.6;
+      dunes.push({ p: [x, -s * 0.28, z], s: [s * 1.6, s * 0.5, s], r: [0, rand() * 3, 0] });
+      for (let k = 0; k < 6; k++) grass.push({ p: [x + (rand() - 0.5) * s, 0.2 + rand() * 0.1, z + (rand() - 0.5) * s * 0.6], s: [0.05, 0.4 + rand() * 0.3, 0.05], r: [(rand() - 0.5) * 0.4, 0, (rand() - 0.5) * 0.4] });
+    }
+    for (let i = 0; i < 14; i++) {
+      const s = 0.4 + rand() * 0.6;
+      rocks.push({ p: [-12.0 + (rand() - 0.5) * 2.2, s * 0.2, 1.8 + (rand() - 0.5) * 2.6], s: [s, s * 0.5, s * 0.8], r: [0, rand() * 3, 0] });
+    }
+    for (let i = 0; i < 10; i++) shells.push({ p: [-12.0 + (rand() - 0.5) * 2.0, 0.04, -6.1 + (rand() - 0.5) * 1.6], s: [0.16, 0.05, 0.13], r: [0, rand() * 3, 0] });
+    return { dunes, grass, rocks, shells };
+  }, []);
+  return (
+    <>
+      {/* the dunes: soft mounds of sand with marram grass along the top of the beach */}
+      <Instanced geo={GEO.sphereLow} m={mats.sand} items={dunes} recv />
+      <Instanced geo={GEO.cylLow} m={mats.olive} items={grass} />
+      {/* the lifeguard tower: a hut on stilts with a ladder and a red flag */}
+      <Occluder x={-6.8} z={-12.4} halfWidth={1.3}>
+        <group position={[-6.8, 0, -12.4]}>
+          {[
+            [-0.6, -0.6],
+            [0.6, -0.6],
+            [-0.6, 0.6],
+            [0.6, 0.6],
+          ].map(([x, z]) => (
+            <Cyl key={`${x}${z}`} p={[x, 1.1, z]} s={[0.14, 2.2, 0.14]} m={mats.bark} cast />
+          ))}
+          <B p={[0, 2.25, 0]} s={[1.7, 0.12, 1.7]} m={mats.bark} cast recv />
+          <B p={[0, 2.95, -0.3]} s={[1.5, 1.3, 1.0]} m={mats.white} cast />
+          <B p={[0, 2.9, 0.22]} s={[1.1, 0.7, 0.04]} m={mats.coral} />
+          <B p={[0, 3.7, -0.2]} s={[1.9, 0.1, 1.5]} m={mats.coral} cast />
+          <B p={[0, 2.5, 0.75]} s={[1.6, 0.06, 0.06]} m={mats.bark} />
+          {[0.5, 0.9, 1.3, 1.7].map((y) => (
+            <B key={y} p={[0.9, y, 0.5]} s={[0.4, 0.05, 0.05]} m={mats.bark} />
+          ))}
+          <Cyl p={[0.8, 4.4, -0.8]} s={[0.04, 1.4, 0.04]} m={mats.white} />
+          <B p={[1.05, 4.9, -0.8]} s={[0.5, 0.3, 0.02]} m={mats.coral} />
+        </group>
+      </Occluder>
+      {/* the shell shack: a tiny driftwood hut selling shells and ices */}
+      <group position={[-12.0, 0, -6.1]}>
+        <B p={[0, 0.9, -0.6]} s={[2.6, 1.8, 0.9]} m={mats.plankA} cast recv />
+        <B p={[0, 0.5, 0.4]} s={[2.4, 1.0, 0.5]} m={mats.oak} cast recv />
+        <B p={[0, 1.02, 0.4]} s={[2.5, 0.05, 0.6]} m={mats.white} />
+        <B p={[0, 1.95, -0.2]} s={[2.9, 0.08, 1.9]} r={[0.12, 0, 0]} m={mats.thatch} cast />
+        <B p={[0, 2.3, -0.6]} s={[2.0, 0.44, 0.06]} m={mats.coral} />
+        <B p={[0, 2.3, -0.56]} s={[1.7, 0.3, 0.02]} m={mats.cream} />
+        <Instanced geo={GEO.sphereLow} m={mats.shell} items={shells} />
+        {[-0.7, -0.2, 0.3, 0.8].map((x, i) => (
+          <Cyl key={x} p={[x, 1.14, 0.35]} s={[0.16, 0.18, 0.16]} m={[mats.blush, mats.mustard, mats.seaShallow, mats.leafLight][i]} />
+        ))}
+      </group>
+      {/* the rock pool: dark wet rocks round a pool with a starfish in it */}
+      <group position={[-12.0, 0, 1.8]}>
+        <Cyl p={[0, 0.02, 0]} s={[2.2, 0.04, 2.6]} m={mats.wetSand} recv />
+        <Cyl p={[0, 0.05, 0]} s={[1.6, 0.02, 2.0]} m={mats.seaShallow} />
+        <Instanced geo={GEO.sphereLow} m={mats.stone} items={rocks} cast recv />
+        <Sph p={[0.2, 0.08, 0.3]} s={[0.24, 0.05, 0.24]} m={mats.coral} />
+        <Sph p={[-0.4, 0.08, -0.5]} s={[0.18, 0.05, 0.18]} m={mats.mustard} />
+      </group>
     </>
   );
 }
@@ -320,8 +404,10 @@ function TikiBar({ mats }: { mats: Materials }) {
       ))}
       {/* The whole roof sits ROOF_LIFT higher than it first did, so someone on a bar stool
           is under the eave, not sliced by it. */}
-      <Cone p={[0, 2.95 + ROOF_LIFT, -5.9]} s={[7.0, 0.95, 5.4]} m={thatchMat} cast />
-      <Cone p={[0, 3.5 + ROOF_LIFT, -5.9]} s={[3.6, 0.7, 2.8]} m={thatchMat} cast />
+      <Occluder x={0} z={-5.9} halfWidth={3.4}>
+        <Cone p={[0, 2.95 + ROOF_LIFT, -5.9]} s={[7.0, 0.95, 5.4]} m={thatchMat} cast />
+        <Cone p={[0, 3.5 + ROOF_LIFT, -5.9]} s={[3.6, 0.7, 2.8]} m={thatchMat} cast />
+      </Occluder>
       {/* The apex is a tied-off thatch point bound with natural rope — no lamp up here; the
           woven lantern hangs under the front eave instead (the "lamp_bar" pendant prop). */}
       <Cone p={[0, 4.02 + ROOF_LIFT, -5.9]} s={[0.5, 0.5, 0.42]} m={thatchMat} cast />
@@ -537,6 +623,10 @@ const PALMS: { x: number; z: number; h: number; lean: number }[] = [
   // Was mid-beach at (-2.0, 2.6), where its crown stood between the camera and the volleyball
   // court. Now at the west edge shading the loungers: nothing walkable lies behind it.
   { x: -9.0, z: 4.0, h: 3.3, lean: 0.14 },
+  // the wider beach: two on the east edge and one up on the dune
+  { x: 12.0, z: -4.0, h: 3.5, lean: -0.12 },
+  { x: 12.4, z: 2.0, h: 3.1, lean: -0.18 },
+  { x: 2.6, z: -12.2, h: 3.8, lean: 0.1 },
 ];
 
 type PalmPart = { geo: THREE.BufferGeometry; p: [number, number, number]; r?: [number, number, number]; s: [number, number, number] };
@@ -585,9 +675,9 @@ function bakeGroups(groups: { at: [number, number, number]; parts: PalmPart[] }[
   return mergeGeometries(geos)!;
 }
 
-// Fully opaque, like every stylized mesh here: the old screen-door "dissolve" for palms in the
-// line of sight is gone, because its dithering read as green-black noise over avatars and sand.
-// Three draws for all six trees.
+// Trunks and coconuts are one draw each for every tree. Each crown is baked on its own so it
+// can dither out (Occluder) when it stands between the camera and the player: an ordered
+// screen-door at 25%, not the old alpha dissolve that read as green-black noise.
 const PALM_GEO = (() => {
   const rand = seeded(303);
   const trees = PALMS.map((palm) => ({ at: [palm.x, 0, palm.z] as [number, number, number], ...palmParts(palm.h, palm.lean, rand) }));
@@ -595,6 +685,7 @@ const PALM_GEO = (() => {
     trunk: bakeGroups(trees.map((t) => ({ at: t.at, parts: t.trunk }))),
     fronds: bakeGroups(trees.map((t) => ({ at: t.at, parts: t.fronds }))),
     coconuts: bakeGroups(trees.map((t) => ({ at: t.at, parts: t.coconuts }))),
+    footprints: trees.map((t) => ({ x: t.at[0], z: t.at[2] })),
   };
 })();
 
@@ -602,7 +693,10 @@ function Palms({ mats }: { mats: Materials }) {
   return (
     <>
       <mesh geometry={PALM_GEO.trunk} material={mats.bark} castShadow raycast={noRaycast} />
-      <mesh geometry={PALM_GEO.fronds} material={mats.palmLeaf} castShadow raycast={noRaycast} />
+      {/* every crown in one draw; the fade fires when any tree stands in the line of sight */}
+      <Occluder x={0} z={0} halfWidth={1.4} points={PALM_GEO.footprints}>
+        <mesh geometry={PALM_GEO.fronds} material={mats.palmLeaf} castShadow raycast={noRaycast} />
+      </Occluder>
       <mesh geometry={PALM_GEO.coconuts} material={mats.darkWood} raycast={noRaycast} />
     </>
   );
@@ -657,7 +751,9 @@ function BeachClutter({ mats }: { mats: Materials }) {
         ].map(([x, z]) => (
           <Cyl key={`${x}${z}`} p={[x, 1.2, z]} s={[0.3, 2.4, 0.3]} m={mats.bark} cast />
         ))}
-        <B p={[0, 2.42, 0]} s={[2.7, 0.06, 2.5]} m={mats.white} cast />
+        <Occluder x={8.2} z={1.55} halfWidth={1.6}>
+          <B p={[0, 2.42, 0]} s={[2.7, 0.06, 2.5]} m={mats.white} cast />
+        </Occluder>
         <B p={[0, 2.36, 0]} s={[2.76, 0.06, 2.56]} m={mats.coral} />
         <B p={[-1.36, 2.2, 0]} s={[0.04, 0.3, 2.5]} m={mats.white} />
       </group>

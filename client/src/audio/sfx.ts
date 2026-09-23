@@ -163,3 +163,114 @@ export function playToast() {
   blip(880, 0, 0.12, 0.035, "sine");
   blip(1174.7, 0.08, 0.16, 0.035, "sine");
 }
+
+/** The gachapon: the crank's clack-creak, then the capsule dropping with a thump. */
+export function playGachaCrank() {
+  for (let i = 0; i < 6; i++) blip(520 + i * 40, i * 0.07, 0.05, 0.045, "square");
+  blip(300, 0.5, 0.1, 0.05, "sawtooth");
+}
+export function playGachaDrop() {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime;
+  const o = a.createOscillator();
+  o.type = "sine";
+  o.frequency.setValueAtTime(180, t);
+  o.frequency.exponentialRampToValueAtTime(70, t + 0.18);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.16, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+  o.connect(g).connect(sfxBus());
+  o.start(t);
+  o.stop(t + 0.3);
+  blip(1200, 0.2, 0.06, 0.03, "triangle");
+}
+
+/** A comical glove thwack. */
+export function playThwack() {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime;
+  const buffer = a.createBuffer(1, a.sampleRate * 0.12, a.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
+  const src = a.createBufferSource();
+  src.buffer = buffer;
+  const f = a.createBiquadFilter();
+  f.type = "lowpass";
+  f.frequency.value = 900;
+  const g = a.createGain();
+  g.gain.value = 0.35;
+  src.connect(f).connect(g).connect(sfxBus());
+  src.start(t);
+  blip(160, 0, 0.12, 0.12, "sine");
+}
+
+/** Dizzy birds chirping in circles. */
+export function playDizzyBirds() {
+  for (let i = 0; i < 6; i++) blip(2200 + (i % 2) * 500, i * 0.16, 0.08, 0.03, "sine");
+}
+
+/** A cat purr: a low warbling tone that rises and falls. */
+export function playPurr() {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime;
+  const o = a.createOscillator();
+  o.type = "sawtooth";
+  o.frequency.value = 28;
+  const lfo = a.createOscillator();
+  lfo.frequency.value = 22;
+  const depth = a.createGain();
+  depth.gain.value = 10;
+  lfo.connect(depth).connect(o.frequency);
+  const f = a.createBiquadFilter();
+  f.type = "lowpass";
+  f.frequency.value = 260;
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.08, t + 0.2);
+  g.gain.linearRampToValueAtTime(0.06, t + 1.2);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+  o.connect(f).connect(g).connect(sfxBus());
+  o.start(t);
+  lfo.start(t);
+  o.stop(t + 1.9);
+  lfo.stop(t + 1.9);
+}
+
+/** The reel clicking under tension while a fish fights. */
+export function playReelClick() {
+  blip(2400 + Math.random() * 400, 0, 0.02, 0.025, "square");
+}
+
+/** The bite alert: a bright ding. */
+export function playBiteDing() {
+  blip(1568, 0, 0.35, 0.06, "sine");
+  blip(2093, 0.06, 0.4, 0.05, "sine");
+}
+
+/** A little whisk swish for the matcha ceremony. */
+export function playWhisk() {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime;
+  const buffer = a.createBuffer(1, a.sampleRate * 0.06, a.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.sin((i / data.length) * Math.PI);
+  const src = a.createBufferSource();
+  src.buffer = buffer;
+  const f = a.createBiquadFilter();
+  f.type = "bandpass";
+  f.frequency.value = 3200;
+  const g = a.createGain();
+  g.gain.value = 0.05;
+  src.connect(f).connect(g).connect(sfxBus());
+  src.start(t);
+}
+
+/** A coin dropping into water. */
+export function playPlop() {
+  blip(900, 0, 0.12, 0.05, "sine");
+  blip(420, 0.05, 0.2, 0.05, "sine");
+}

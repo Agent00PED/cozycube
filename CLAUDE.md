@@ -1,7 +1,8 @@
 # CozyCube — project configuration
 
-A Discord Activity: a 20x20 isometric diorama hangout (Colyseus server + React Three Fiber client)
-with four maps — Cozy Lounge, Campfire, Sunset Beach Bar, Velvet Casino.
+A Discord Activity: an isometric diorama hangout (Colyseus server + React Three Fiber client)
+with seven worlds — Cozy Lounge (26x26), Campfire (28x28), Sunset Beach Bar (28x28), Velvet
+Casino (26x26), Boxing Gym (24x24), Japanese Onsen (26x26) and the Retro Arcade (24x24).
 
 ## Layout
 
@@ -10,14 +11,15 @@ with four maps — Cozy Lounge, Campfire, Sunset Beach Bar, Velvet Casino.
 | `shared/types.ts` | Synced state shapes, economy constants, items, gestures, statuses, blackjack/slots/chat contracts, map sizes |
 | `shared/props.ts` | Per-map seats and interactive props, plus their approach points (anchors derived) |
 | `shared/seats.ts` | Cushion descriptors; every seat anchor height is derived from them |
-| `shared/collision.ts` | Obstacle boxes, spawn points, scenery rules, `isBlocked`, `walkY` (bridge, pit, VIP platform, bluff) |
-| `server/src/rooms/HangoutRoom.ts` | All authoritative logic (economy, casino, blackjack, slots, fishing, seats, chat) |
+| `shared/collision.ts` | Obstacle boxes, spawn points, scenery rules, `isBlocked`, `walkY` (bridge, pit, VIP platform, bluff, ring, onsen pool) |
+| `server/src/rooms/HangoutRoom.ts` | All authoritative logic (economy, casino, blackjack, slots, fishing, boxing, onsen, arcade, Mochi, daily checklist, vibe bonus, seats, chat) |
+| `server/src/rooms/games.ts` | Pure game rules: fish tables, gacha odds, the daily roll, checkers |
 | `server/src/db/players.ts` | PostgreSQL store (DATABASE_URL) with in-memory fallback, schema init, debounced writes |
 | `client/src/audio/` | `SoundManager` (buses, settings, gesture unlock) and the synthesised effects |
 | `client/src/systems/` | Client movement, and `input.ts` (WASD / joystick steering) |
-| `client/src/scene/` | The four world scenes, the shared mesh kit, camera and lighting |
-| `client/src/components/` | Avatars, interactive props, the scene root |
-| `client/src/components/hud/` | Cozy Clay HUD: header, world drawer, social drawer, action dock, slots/blackjack/leaderboard/settings modals, wardrobe |
+| `client/src/scene/` | The seven world scenes, the shared mesh kit, `Occluder` (dither fade), camera and lighting |
+| `client/src/components/` | Avatars (outfits, gloves, towel, aura), interactive props (`ToggleableProp`, `WorldProps`, `LivingProps`), the scene root |
+| `client/src/components/hud/` | Cozy Clay HUD: header, world drawer, social drawer (with the daily checklist), action dock, boxing HUD, and the per-world modals (fishing reel, gacha, claw, Snake, wish, matcha, blender, jukebox, checkers, Mochi playroom, slots, blackjack), wardrobe |
 | `scripts/validate-world.ts` | `npm run check-layout` — every approach point must be reachable |
 
 ## Verification before any commit
@@ -92,25 +94,37 @@ Honest notes so the standard is applied to real code rather than assumed:
 - **A. Seat anchors** — derived, never authored. `shared/seats.ts` describes each seat's cushion
   primitive once (`CUSHIONS`), the worlds draw the cushion from it, and `shared/props.ts`
   computes every `sitY` through `anchored(mapId, ...)` = cushion surface + hip offset + the walk
-  surface height (`walkY`). `Character3D` asserts its hip constants match.
-- **B. Group hierarchy** — palms, tents (with porches, ropes, pegs), the cabana, the hammock and
-  Mochi are each one group; palms are baked per tree.
-- **C. Materials / draw calls** — all stylized meshes opaque; `StaticBatch` normalises custom
-  geometry before merging. Measured with the whole room in view (zoomed out): Lounge ~168,
-  Campfire 129, Beach 143, Casino 161; at the default follow-camera zoom the lounge sits near
-  110 and the casino near 120. The always-visible HUD chrome has no `backdrop-filter` (a blur
-  over the live canvas re-blurs every frame); only transient panels blur.
-- **D. Walkable elevation** — `walkY(mapId, x, z)` in `shared/collision.ts` lifts avatars onto
-  the campfire bridge and the stargazing bluff, drops them into the lounge's conversation pit
-  and raises them onto the casino VIP platform; seats and props follow it. Each raised or sunken
-  surface has its own click target in `ProceduralRoom`. Maps have their own size (`MAP_HALF`):
-  the campfire valley is 28x28.
-- **E. Zoning / dedupe** — floor zoning (kitchen tile, emerald blackjack wing, pit rug) and the
-  action dock's dedupe by `action.type` are in place.
-- **Persistence** — `server/src/db/players.ts`; wallet, hats, look and stats are hydrated on
-  join, saved on a 2.5 s debounce, flushed on leave. Verified with a scripted client (leave and
-  rejoin keeps coins and stats). Railway needs a PostgreSQL service attached so `DATABASE_URL`
-  is set; without it the server logs a warning and keeps everything in memory.
-- **Known gaps** — the 3D payout confetti and the in-browser slot reel animation were verified
-  by code and by the scripted server flow, not seen on screen; the audio beds were not listened
-  to in this session.
+  surface height (`walkY`). Onsen ledges are relative to the pool floor, bleachers to the gym
+  floor. `Character3D` asserts its hip constants match.
+- **B. Group hierarchy** — palms, tents, the cabana, the hammock, the ring, the tea house, the
+  well, every arcade machine and Mochi are each one group; Mochi's per-world outfit is a child.
+- **C. Materials / draw calls** — all stylized meshes opaque; `StaticBatch` merges the static
+  world, and `Occluder` (a self-batching group) dithers tall things to 25% when they stand
+  between the camera and you: the tiki roof, the cabana, the palm crowns, the lifeguard tower,
+  the lounge slat screen, the tea house and well roofs, the cherry trees, the ring's lighting
+  truss, the arcade's big screen. Measured at the default follow-camera zoom: Lounge ~105,
+  Boxing 95, Onsen 82, Arcade 86 (143 beside the cabinets), Casino 156, Campfire 113; the beach
+  with the whole 28x28 island in view reads ~190, mostly the living things (avatars, Mochi,
+  critters, the NPC) and seat/prop hit pads, which never merge. The always-visible HUD chrome
+  has no `backdrop-filter`.
+- **D. Walkable elevation** — `walkY(mapId, x, z)` lifts avatars onto the campfire bridge and
+  bluff, the casino VIP platform and the boxing ring (steps on the south side), and drops them
+  into the lounge pit and the onsen pool. Each raised or sunken surface has its own click
+  target in `ProceduralRoom`. Maps have their own size (`MAP_HALF`); indoor back walls stay
+  at `ROOM_HALF` (-10), and the extra ring is a terrace, foyer, corridor or dunes.
+- **E. Zoning / dedupe** — floor zoning (kitchen tile, emerald blackjack wing, pit rug, foyer
+  checker marble, the gym's rubber mat, the arcade's dance floor) and the action dock's dedupe
+  by `action.type` are in place; the dock now shows a single contextual button.
+- **Persistence** — `server/src/db/players.ts`; wallet, unlocked items (hats and outfits), the
+  stored look, stats, the daily checklist and Mochi's daily coin are hydrated on join, saved on
+  a 2.5 s debounce, flushed on leave. Railway needs a PostgreSQL service attached so
+  `DATABASE_URL` is set; without it the server logs a warning and keeps everything in memory.
+- **Verified on screen (Titan Infinity)** — all seven worlds render with no console errors; the
+  7-card fast-travel grid; the gachapon (crank, capsule, reveal, coins paid); the wardrobe's
+  outfit closet (bought the flannel vest, the avatar and the preview change, coins deducted);
+  the lounge terrace, casino foyer, wider beach and river stones.
+- **Known gaps** — the fishing reel, claw, Snake, wish, matcha, blender, jukebox, checkers,
+  Mochi playroom and boxing HUD were verified by type-check and by reading the server handlers
+  they talk to, not exercised on screen in this session; the new ambience beds and SFX were not
+  listened to. Mochi's wander is client-side (deterministic in wall-clock time) while the
+  server still measures "near Mochi" from her home spot.

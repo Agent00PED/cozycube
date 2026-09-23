@@ -74,6 +74,14 @@ export const CUSHIONS = {
   hammock: { y: 0.62, h: 0.08 }, // the canvas sling between its posts (CampfireWorld)
   sleepingMat: { y: 0.05, h: 0.06 }, // a foam mat on the grass
   cabanaBed: { y: 0.38, h: 0.12 }, // the daybed cushions under the beach cabana (BeachWorld)
+  wingback: { y: 0.44, h: 0.1 }, // the deep seat of a wingback armchair (ChairProp)
+  bleacherLow: { y: 0.3, h: 0.1 }, // the three tiers of the boxing bleachers (BoxingWorld)
+  bleacherMid: { y: 0.6, h: 0.1 },
+  bleacherHigh: { y: 0.9, h: 0.1 },
+  onsenLedge: { y: 0.1, h: 0.2 }, // the stone ledge under the water, relative to the pool floor (OnsenWorld)
+  ringApron: { y: 0.0, h: 0.06 }, // the ring's edge you sit on with your legs over the side
+  velvetBench: { y: 0.4, h: 0.1 }, // the foyer benches in the casino
+  terraceBench: { y: 0.42, h: 0.06 }, // the lounge terrace's garden bench
 } as const satisfies Record<string, Cushion>;
 
 export type CushionId = keyof typeof CUSHIONS;
@@ -87,4 +95,7 @@ export const STYLE_CUSHION: Record<Exclude<SeatStyle, "pad">, CushionId> = {
   log: "log",
   deckchair: "deckchair",
   blanket: "blanket",
+  onsen: "onsenLedge",
+  bleacher: "bleacherLow",
+  wingback: "wingback",
 };

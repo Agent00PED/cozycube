@@ -2,7 +2,8 @@
 
 export type SitPose = "sit" | "lie";
 export type HeldItem = "" | "coffee" | "marshmallow";
-export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish";
+/** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is a boxing knockdown. */
+export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy";
 
 export interface PlayerState {
   sessionId: string;
@@ -42,6 +43,14 @@ export interface PlayerState {
   stats: string;
   /** Round-trip latency to the server in ms, as the client last measured it. */
   ping: number;
+  /** Boxing: wearing the big gloves (inside the ring), hits taken this round, knockdowns scored. */
+  gloves: boolean;
+  boxHits: number;
+  boxKOs: number;
+  /** A temporary glow (from a blended drink): a colour, or "" for none. */
+  aura: string;
+  /** Today's cozy checklist (a DailyChecklist as JSON). */
+  daily: string;
 }
 
 /** Lifetime achievements, kept in PostgreSQL and shown in the profile / roster. */
@@ -51,8 +60,48 @@ export interface PlayerStats {
   slots_spins: number;
   fish_caught: number;
   marshmallows_roasted: number;
+  boxing_knockouts: number;
+  gacha_pulls: number;
+  mochi_pets: number;
+  time_spent_mins: number;
 }
-export const DEFAULT_STATS: PlayerStats = { roulette_wins: 0, blackjack_wins: 0, slots_spins: 0, fish_caught: 0, marshmallows_roasted: 0 };
+export const DEFAULT_STATS: PlayerStats = { roulette_wins: 0, blackjack_wins: 0, slots_spins: 0, fish_caught: 0, marshmallows_roasted: 0, boxing_knockouts: 0, gacha_pulls: 0, mochi_pets: 0, time_spent_mins: 0 };
+
+// --- the daily cozy checklist ---
+export type DailyTaskId = "pet_mochi" | "catch_fish" | "win_boxing" | "soak_onsen" | "roast_marshmallow" | "spin_slots" | "pull_gacha" | "splash_water" | "brew_coffee" | "make_wish";
+export const DAILY_TASKS: Record<DailyTaskId, { label: string; emoji: string; goal: number }> = {
+  pet_mochi: { label: "Play with Mochi", emoji: "🐱", goal: 1 },
+  catch_fish: { label: "Catch 2 fish", emoji: "🎣", goal: 2 },
+  win_boxing: { label: "Win a boxing bout", emoji: "🥊", goal: 1 },
+  soak_onsen: { label: "Soak in the onsen for 30 s", emoji: "♨️", goal: 1 },
+  roast_marshmallow: { label: "Toast a marshmallow", emoji: "🍢", goal: 1 },
+  spin_slots: { label: "Spin the slots 3 times", emoji: "🎰", goal: 3 },
+  pull_gacha: { label: "Turn the gachapon", emoji: "🔮", goal: 1 },
+  splash_water: { label: "Splash someone at the onsen", emoji: "💦", goal: 1 },
+  brew_coffee: { label: "Pull an espresso", emoji: "☕", goal: 1 },
+  make_wish: { label: "Make a wish at the well", emoji: "🪙", goal: 1 },
+};
+export const DAILY_REWARD = 75;
+export interface DailyChecklist {
+  /** YYYY-MM-DD (UTC) the list was rolled for. */
+  date: string;
+  tasks: { id: DailyTaskId; progress: number }[];
+  claimed: boolean;
+}
+export function parseDaily(raw: string | null | undefined): DailyChecklist | null {
+  try {
+    const v = raw ? JSON.parse(raw) : null;
+    return v && typeof v === "object" && Array.isArray(v.tasks) ? (v as DailyChecklist) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Time-in-room rewards: coins every VIBE_EVERY_MIN minutes, more when it is a party. */
+export const VIBE_EVERY_MIN = 10;
+export const VIBE_COINS = 15;
+export const VIBE_PARTY_SIZE = 3;
+export const VIBE_PARTY_MULTIPLIER = 1.5;
 export function parseStats(raw: string | null | undefined): PlayerStats {
   try {
     const v = raw ? JSON.parse(raw) : null;
@@ -120,8 +169,11 @@ export const SPARKLE_SPOTS: { x: number; z: number }[] = [
 ];
 export const SPARKLE_RESPAWN_S = 30;
 
-export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino";
-export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "velvet_casino"];
+export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "boxing_ring" | "japanese_onsen" | "retro_arcade";
+export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "velvet_casino", "boxing_ring", "japanese_onsen", "retro_arcade"];
+export function isMapId(v: unknown): v is MapId {
+  return typeof v === "string" && (MAP_IDS as string[]).includes(v);
+}
 
 /** Shared lighting mood. Purely presentational, but synced so the room reads the same for everyone. */
 export type TimeOfDay = "sunrise" | "day" | "sunset" | "night";
@@ -145,12 +197,20 @@ export type ToggleableKind =
   | "forage"
   | "cat"
   | "sparkle"
-  | "stew";
+  | "stew"
+  | "gacha"
+  | "claw"
+  | "well"
+  | "teahouse"
+  | "blender"
+  | "boardgame"
+  | "jukebox"
+  | "shishi";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
 // so the seat contributes only a click target and a snap point.
-export type SeatStyle = "gaming" | "log" | "pad" | "stool" | "armchair" | "wood" | "deckchair" | "blanket";
+export type SeatStyle = "gaming" | "log" | "pad" | "stool" | "armchair" | "wood" | "deckchair" | "blanket" | "onsen" | "bleacher" | "wingback";
 
 // Runtime (synced) state of an interactive prop — mirrors the server's ChairState/ToggleableState schema.
 export interface ChairSyncState {
@@ -223,16 +283,51 @@ export const FORAGE_REGROW_S = 25;
 /** How long a bite lasts: reel in within this window or the fish slips the hook. */
 export const BITE_WINDOW_S = 2.6;
 
-export type ItemId = "sardine" | "clownfish" | "octopus" | "goldray" | "berry" | "firefly" | "shell";
+export type ItemId = "sardine" | "clownfish" | "octopus" | "goldray" | "berry" | "firefly" | "shell" | "seabass" | "starfish" | "trout" | "salmon" | "crayfish" | "plush";
 export const ITEMS: Record<ItemId, { emoji: string; name: string; value: number; buyer: "bob" | "oak" }> = {
   sardine: { emoji: "🐟", name: "Sardine", value: 10, buyer: "bob" },
   clownfish: { emoji: "🐠", name: "Clownfish", value: 25, buyer: "bob" },
+  seabass: { emoji: "🐟", name: "Sea Bass", value: 35, buyer: "bob" },
+  starfish: { emoji: "⭐", name: "Starfish", value: 18, buyer: "bob" },
   octopus: { emoji: "🐙", name: "Giant Octopus", value: 60, buyer: "bob" },
   goldray: { emoji: "🌟", name: "Golden Ray", value: 150, buyer: "bob" },
+  trout: { emoji: "🐟", name: "River Trout", value: 20, buyer: "oak" },
+  salmon: { emoji: "🍣", name: "Salmon", value: 45, buyer: "oak" },
+  crayfish: { emoji: "🦞", name: "Crayfish", value: 14, buyer: "oak" },
   berry: { emoji: "🫐", name: "Wild Berries", value: 5, buyer: "oak" },
   firefly: { emoji: "✨", name: "Firefly Jar", value: 12, buyer: "oak" },
   shell: { emoji: "🐚", name: "Pretty Shell", value: 8, buyer: "bob" },
+  plush: { emoji: "🧸", name: "Mochi Plush", value: 40, buyer: "bob" },
 };
+
+// --- fishing: the Stardew-style reel mini-game ---
+/** How long the tension game lasts before the fish wins by exhaustion. */
+export const REEL_SECONDS = 22;
+export type FishingWater = "ocean" | "river";
+/** What a line brings up, per water. "boot" is a dud. `speed` shapes the mini-game. */
+export const FISH_TABLES: Record<FishingWater, { item: ItemId | "boot"; weight: number; speed: number; size: number }[]> = {
+  ocean: [
+    { item: "sardine", weight: 40, speed: 0.7, size: 0.9 },
+    { item: "clownfish", weight: 22, speed: 1.0, size: 0.8 },
+    { item: "seabass", weight: 14, speed: 1.4, size: 1.1 },
+    { item: "starfish", weight: 10, speed: 0.4, size: 0.7 },
+    { item: "boot", weight: 8, speed: 0.3, size: 1.2 },
+    { item: "octopus", weight: 5, speed: 1.6, size: 1.3 },
+    { item: "goldray", weight: 1, speed: 2.0, size: 1.0 },
+  ],
+  river: [
+    { item: "trout", weight: 45, speed: 0.9, size: 0.9 },
+    { item: "crayfish", weight: 25, speed: 0.5, size: 0.7 },
+    { item: "salmon", weight: 18, speed: 1.5, size: 1.2 },
+    { item: "boot", weight: 12, speed: 0.3, size: 1.2 },
+  ],
+};
+export interface FishOnLine {
+  item: ItemId | "boot";
+  speed: number;
+  size: number;
+  water: FishingWater;
+}
 export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];
 
 export type Bag = Partial<Record<ItemId, number>>;
@@ -321,6 +416,71 @@ export interface SlotBroadcast {
   bet: number;
 }
 
+// --- boxing ring ---
+export const BOXING_RING = { x: 0, z: 0, half: 3.2, height: 0.5 };
+export const BOXING_REACH = 1.7;
+export const PUNCH_COOLDOWN_MS = 650;
+export const BOXING_KNOCKDOWN_HITS = 3;
+export const BOXING_DIZZY_S = 3;
+export const BOXING_BOUT_KOS = 2;
+export const BOXING_PURSE = 20;
+export const BOXING_TIP = 5;
+
+// --- japanese onsen ---
+export const ONSEN_POOL = { x0: -3.4, x1: 3.4, z0: -2.6, z1: 2.6, depth: 0.42 };
+export const ONSEN_SOAK_S = 30;
+export const WISH_COST = 1;
+export const FORTUNES = [
+  "A warm drink will find you before the day is out.",
+  "Someone is thinking of you kindly right now.",
+  "The fish are biting on the north bank tonight.",
+  "Luck favours the one who stirs the stew.",
+  "Rest is productive. Stay a little longer.",
+  "A small kindness today comes back tenfold.",
+  "Your next spin has a good feeling about it.",
+  "Mochi approves of you. That is rare.",
+];
+export const MATCHA_REWARD_MAX = 8;
+export const MATCHA_COOLDOWN_S = 60;
+
+// --- beach bar: blended drinks ---
+export const DRINK_RECIPES: { id: string; name: string; emoji: string; aura: string; needs: string[] }[] = [
+  { id: "sunset", name: "Sunset Punch", emoji: "🍹", aura: "#ff9a5c", needs: ["mango", "lime", "ice"] },
+  { id: "lagoon", name: "Blue Lagoon", emoji: "🧊", aura: "#6fd3ff", needs: ["coconut", "ice", "mint"] },
+  { id: "berry", name: "Berry Fizz", emoji: "🫐", aura: "#c98fff", needs: ["berry", "lime", "mint"] },
+];
+export const DRINK_INGREDIENTS = ["mango", "lime", "ice", "coconut", "mint", "berry"] as const;
+export const DRINK_REWARD = 6;
+export const DRINK_COOLDOWN_S = 45;
+export const AURA_SECONDS = 90;
+
+// --- retro arcade: gachapon, claw and the cabinet high score ---
+export const GACHA_COST = 25;
+export const CLAW_COST = 10;
+export const CLAW_WIN_COINS = 30;
+export const ARCADE_SCORE_COOLDOWN_S = 60;
+export const ARCADE_COINS_PER_POINT = 0.1;
+export const ARCADE_COINS_MAX = 20;
+export type GachaPrize = { kind: "hat"; id: PremiumHat } | { kind: "outfit"; id: OutfitId } | { kind: "coins"; amount: number } | { kind: "dupe"; refund: number; id: string };
+
+// --- the lounge board game (checkers) ---
+export type BoardCell = 0 | 1 | 2 | 3 | 4; // empty, red, black, red king, black king
+export interface BoardGameView {
+  board: BoardCell[]; // 64 cells, row-major from the red side
+  players: { red: string; black: string }; // session ids, "" while waiting
+  names: { red: string; black: string };
+  turn: "red" | "black";
+  winner: "" | "red" | "black";
+  mustJump: boolean;
+}
+export const BOARD_MOVE_TIMEOUT_S = 90;
+
+// --- mochi ---
+export const MOCHI_ACTIONS = ["feather", "treat", "scritch"] as const;
+export type MochiAction = (typeof MOCHI_ACTIONS)[number];
+export const MOCHI_SCRITCH_COINS = [5, 10];
+export const MOCHI_ACTION_COOLDOWN_S = 20;
+
 // --- casino: blackjack ---
 export const BLACKJACK_BETS = [10, 25, 50, 100] as const;
 /** Where the half-moon table stands; you must be this close to play. */
@@ -379,15 +539,36 @@ export const LOFI_TRACKS = ["Rainy Window", "Late Night Study", "Sunday Coffee"]
 // client computes the same answer, it survives reconnects and map changes, and it costs the
 // room state nothing.
 export type FreeAccessory = "beret" | "beanie" | "flower" | "headphones" | "none";
-export type PremiumHat = "straw" | "bunny" | "tophat" | "crown";
+export type PremiumHat = "straw" | "bunny" | "tophat" | "crown" | "mochiears";
+
+// --- outfits: a whole look for the body, in one accent colour of your choosing ---
+export type OutfitId = "outfit_starter_hoodie" | "outfit_starter_overalls" | "outfit_flannel_vest" | "outfit_hawaiian" | "outfit_tuxedo" | "outfit_boxing" | "outfit_yukata" | "outfit_cyber";
+export const OUTFITS: Record<OutfitId, { name: string; emoji: string; price: number; gachaOnly?: boolean }> = {
+  outfit_starter_hoodie: { name: "Cozy Hoodie & Sweats", emoji: "🧥", price: 0 },
+  outfit_starter_overalls: { name: "Classic Denim Overalls", emoji: "👖", price: 0 },
+  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 120 },
+  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 150 },
+  outfit_tuxedo: { name: "Velvet Evening Tuxedo", emoji: "🎩", price: 250 },
+  outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 200 },
+  outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 180 },
+  outfit_cyber: { name: "Retro Cyber Jumpsuit", emoji: "🕹️", price: 0, gachaOnly: true },
+};
+export const OUTFIT_IDS = Object.keys(OUTFITS) as OutfitId[];
+export const STARTER_OUTFITS: OutfitId[] = ["outfit_starter_hoodie", "outfit_starter_overalls"];
+export function isOutfitId(v: unknown): v is OutfitId {
+  return typeof v === "string" && v in OUTFITS;
+}
+/** Everything a fresh player owns: the two starter outfits and the bare head. */
+export const STARTER_UNLOCKS = ["outfit_starter_hoodie", "outfit_starter_overalls", "hat_none"];
 export type Accessory = FreeAccessory | PremiumHat;
 const ACCESSORIES: FreeAccessory[] = ["beret", "beanie", "flower", "headphones", "none"];
 /** The coin shop: premium hats and their prices. */
-export const PREMIUM_HATS: Record<PremiumHat, { name: string; price: number; emoji: string }> = {
+export const PREMIUM_HATS: Record<PremiumHat, { name: string; price: number; emoji: string; gachaOnly?: boolean }> = {
   straw: { name: "Straw Sunhat", price: 80, emoji: "👒" },
   bunny: { name: "Bunny Ears", price: 120, emoji: "🐰" },
   tophat: { name: "Top Hat", price: 200, emoji: "🎩" },
   crown: { name: "High Roller Crown", price: 400, emoji: "👑" },
+  mochiears: { name: "Mochi Ears", price: 0, emoji: "🐱", gachaOnly: true },
 };
 export const PREMIUM_HAT_IDS = Object.keys(PREMIUM_HATS) as PremiumHat[];
 export function isPremiumHat(v: unknown): v is PremiumHat {
@@ -411,9 +592,9 @@ export function accessoryFor(userId: string): FreeAccessory {
 // A player's outfit travels as one short string ("skin,style,hair,shirt,pants,hat") so it is a
 // single schema field and a single message. Every value is picked from a fixed palette, which is
 // also how the server validates it: anything not in the lists is rejected outright.
-export const SKIN_TONES = ["#fbe3d3", "#f6d7c3", "#f2cfb0", "#eec1a0", "#d9a47c", "#b67c56", "#8a5a3c", "#6b4430"];
-export const HAIR_COLORS = ["#3b2a20", "#6b4430", "#1f1c1c", "#c98e4f", "#8c3d2e", "#e5d3a6", "#4a3a5c", "#f2a7bd", "#9fc3e8", "#a8d5b5"];
-export const HAIR_STYLES = ["cap", "bob", "bun", "spiky", "long"] as const;
+export const SKIN_TONES = ["#ffd1b3", "#f6d7c3", "#eec1a0", "#d9a47c", "#b67c56", "#8a5a3c"];
+export const HAIR_COLORS = ["#3b2a20", "#6b4430", "#c98e4f", "#8c3d2e", "#e5d3a6", "#f2a7bd", "#a8d8ea", "#a8d5b5"];
+export const HAIR_STYLES = ["cap", "bob", "bun", "buns", "spiky", "long"] as const;
 export type HairStyle = (typeof HAIR_STYLES)[number];
 export const OUTFIT_COLORS = [
   "#e8a598", "#f4b6c2", "#f0c290", "#f6e3a1", "#e8d5a8", "#a8c8a0", "#bfe3c8", "#8fb8b0",
@@ -425,9 +606,26 @@ export interface Look {
   skin: string;
   hairStyle: HairStyle;
   hair: string;
-  shirt: string;
-  pants: string;
+  /** The whole outfit, and its accent colour (the hoodie's fabric, the tux's lapel...). */
+  outfit: OutfitId;
+  outfitColor: string;
   hat: Accessory;
+}
+/** The look as it is stored in the database (the spec's column shape). */
+export interface StoredLook {
+  skinColor: string;
+  hairStyle: HairStyle;
+  hairColor: string;
+  outfit: OutfitId;
+  outfitColor: string;
+  hat: Accessory;
+}
+export function toStoredLook(l: Look): StoredLook {
+  return { skinColor: l.skin, hairStyle: l.hairStyle, hairColor: l.hair, outfit: l.outfit, outfitColor: l.outfitColor, hat: l.hat };
+}
+export function fromStoredLook(s: Partial<StoredLook> | null | undefined): Look | null {
+  if (!s || !s.skinColor) return null;
+  return parseLook(encodeLook({ skin: s.skinColor, hairStyle: s.hairStyle as HairStyle, hair: String(s.hairColor), outfit: s.outfit as OutfitId, outfitColor: String(s.outfitColor), hat: s.hat as Accessory }));
 }
 
 /** The palette colour closest to any "#rrggbb" — so a shirt handed in from outside the
@@ -450,31 +648,31 @@ export function nearestOutfitColor(hex: string): string {
 }
 
 /** The outfit someone has before they ever open the wardrobe — stable per user id. */
-export function defaultLook(userId: string, shirt = OUTFIT_COLORS[0]): Look {
+export function defaultLook(userId: string, accent = OUTFIT_COLORS[0]): Look {
   const h = hashString(userId);
   return {
     skin: SKIN_TONES[h % SKIN_TONES.length],
     hairStyle: HAIR_STYLES[(h >>> 8) % HAIR_STYLES.length],
     hair: HAIR_COLORS[(h >>> 4) % HAIR_COLORS.length],
-    shirt: nearestOutfitColor(shirt),
-    pants: OUTFIT_COLORS[14 + ((h >>> 12) % 2)],
+    outfit: STARTER_OUTFITS[(h >>> 12) % STARTER_OUTFITS.length],
+    outfitColor: nearestOutfitColor(accent),
     hat: accessoryFor(userId),
   };
 }
 
 export function encodeLook(l: Look): string {
-  return [l.skin, l.hairStyle, l.hair, l.shirt, l.pants, l.hat].join(",");
+  return [l.skin, l.hairStyle, l.hair, l.outfit, l.outfitColor, l.hat].join(",");
 }
 
 /** Parses and validates; returns null for anything that isn't made of palette values. */
 export function parseLook(raw: string | null | undefined): Look | null {
-  if (!raw || raw.length > 64) return null;
-  const [skin, hairStyle, hair, shirt, pants, hat] = raw.split(",");
+  if (!raw || raw.length > 96) return null;
+  const [skin, hairStyle, hair, outfit, outfitColor, hat] = raw.split(",");
   if (!SKIN_TONES.includes(skin)) return null;
   if (!(HAIR_STYLES as readonly string[]).includes(hairStyle)) return null;
-  if (!HAIR_COLORS.includes(hair) || !OUTFIT_COLORS.includes(shirt) || !OUTFIT_COLORS.includes(pants)) return null;
+  if (!HAIR_COLORS.includes(hair) || !isOutfitId(outfit) || !OUTFIT_COLORS.includes(outfitColor)) return null;
   if (!ACCESSORIES.includes(hat as FreeAccessory) && !isPremiumHat(hat)) return null;
-  return { skin, hairStyle: hairStyle as HairStyle, hair, shirt, pants, hat: hat as Accessory };
+  return { skin, hairStyle: hairStyle as HairStyle, hair, outfit, outfitColor, hat: hat as Accessory };
 }
 export type Emote = (typeof EMOTES)[number];
 
@@ -485,12 +683,31 @@ export function poseForSeat(style: SeatStyle): SitPose {
 
 /** Props you must walk up to before using; everything else (lights, TV, campfire) works from anywhere. */
 export function isWalkUpProp(kind: ToggleableKind): boolean {
-  return kind === "espresso" || kind === "arcade" || kind === "slot" || kind === "npc" || kind === "forage" || kind === "cat" || kind === "sparkle" || kind === "stew";
+  return (
+    kind === "espresso" ||
+    kind === "arcade" ||
+    kind === "slot" ||
+    kind === "npc" ||
+    kind === "forage" ||
+    kind === "cat" ||
+    kind === "sparkle" ||
+    kind === "stew" ||
+    kind === "gacha" ||
+    kind === "claw" ||
+    kind === "well" ||
+    kind === "teahouse" ||
+    kind === "blender" ||
+    kind === "boardgame" ||
+    kind === "jukebox"
+  );
 }
 
 // --- world sizes ---
-/** Half-width of each diorama slab: most maps are 20x20, the campfire valley is 28x28. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 10, campfire_night: 14, sunset_beach: 10, velvet_casino: 10 };
+/** Half-width of each diorama slab. Indoor rooms keep their walls at ROOM_HALF; the slab beyond
+ *  the open sides is the terrace / foyer that the bigger footprint adds. */
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 13, campfire_night: 14, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12 };
+/** Where the two back walls of an indoor room stand (x = -ROOM_HALF and z = -ROOM_HALF). */
+export const ROOM_HALF = 10;
 /** The lounge's sunken conversation pit: a step down round the sofa and fireplace. */
 export const LOUNGE_PIT = { x0: -6.4, x1: 1.5, z0: -3.3, z1: 1.6, depth: 0.16 };
 /** The casino's raised VIP lounge, behind the velvet rope. */

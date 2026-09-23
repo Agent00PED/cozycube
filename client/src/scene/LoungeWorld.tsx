@@ -4,7 +4,8 @@ import * as THREE from "three";
 import { B, Cone, Cyl, FloorPatch, GEO, HALF, Instanced, Rug, Sph, arcGeo, noMerge, noRaycast, ringGeo, seeded, type InstanceSpec, type Materials } from "./kit";
 import { CUSHIONS, surfaceY } from "@shared/seats";
 import { TEA_TABLE } from "@shared/props";
-import { LOUNGE_PIT } from "@shared/types";
+import { LOUNGE_PIT, MAP_HALF } from "@shared/types";
+import { Occluder } from "./Occluder";
 
 const PIT = LOUNGE_PIT;
 const PIT_Y = -PIT.depth;
@@ -40,6 +41,86 @@ export function LoungeWorld({ mats, wallColor }: { mats: Materials; wallColor: s
       <VinylNook mats={mats} />
       <TeaCorner mats={mats} />
       <BalconyDeck mats={mats} />
+      <GardenTerrace mats={mats} />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// The garden terrace: the 26x26 lounge's extra ring, outside the deck rail and along the front
+// ---------------------------------------------------------------------------------------
+
+const LOUNGE_EDGE = MAP_HALF.cozy_lounge;
+
+function GardenTerrace({ mats }: { mats: Materials }) {
+  const { flags, lavender, hedge } = useMemo(() => {
+    const rand = seeded(77);
+    const flags: InstanceSpec[] = [];
+    const lavender: InstanceSpec[] = [];
+    const hedge: InstanceSpec[] = [];
+    // flagstones over the grass, in two runs: down the east side and along the front
+    for (let z = -9.2; z < 12.4; z += 0.9) for (let x = 9.9; x < LOUNGE_EDGE - 0.6; x += 0.9) if (rand() < 0.8) flags.push({ p: [x + (rand() - 0.5) * 0.15, 0.012, z + (rand() - 0.5) * 0.15], s: [0.7 + rand() * 0.15, 0.024, 0.7 + rand() * 0.15], r: [0, (rand() - 0.5) * 0.2, 0] });
+    for (let x = -9.2; x < 9.6; x += 0.9) for (let z = 9.9; z < LOUNGE_EDGE - 0.6; z += 0.9) if (rand() < 0.8) flags.push({ p: [x + (rand() - 0.5) * 0.15, 0.012, z + (rand() - 0.5) * 0.15], s: [0.7 + rand() * 0.15, 0.024, 0.7 + rand() * 0.15], r: [0, (rand() - 0.5) * 0.2, 0] });
+    for (let i = 0; i < 26; i++) lavender.push({ p: [11.7 + rand() * 1.0, 0.25 + rand() * 0.1, 8.1 + rand() * 0.8], s: [0.14, 0.4 + rand() * 0.2, 0.14] });
+    for (let x = 3.2; x < 9.3; x += 0.55) hedge.push({ p: [x, 0.45, 12.4 + (rand() - 0.5) * 0.1], s: [0.7, 0.9, 0.7] });
+    return { flags, lavender, hedge };
+  }, []);
+  const bench = CUSHIONS.terraceBench;
+  return (
+    <>
+      {/* lawn under everything east of the deck and along the front */}
+      <FloorPatch x0={9.5} x1={LOUNGE_EDGE - 0.2} z0={-LOUNGE_EDGE + 0.2} z1={LOUNGE_EDGE - 0.2} y={0.004} m={mats.leafLight} />
+      <FloorPatch x0={-LOUNGE_EDGE + 0.2} x1={9.5} z0={9.5} z1={LOUNGE_EDGE - 0.2} y={0.004} m={mats.leafLight} />
+      <Instanced geo={GEO.box} m={mats.stone} items={flags} recv />
+      {/* the long planter at the deck's end, full of herbs */}
+      <B p={[11.2, 0.3, 0.8]} s={[3.2, 0.6, 0.8]} m={mats.terracotta} cast recv />
+      <B p={[11.2, 0.62, 0.8]} s={[3.0, 0.04, 0.6]} m={mats.dirt} />
+      {[9.9, 10.6, 11.3, 12.0, 12.6].map((x, i) => (
+        <Sph key={x} p={[x, 0.85, 0.8]} s={[0.5, 0.4, 0.5]} m={i % 2 ? mats.leaf : mats.sage} cast />
+      ))}
+      {/* two garden benches looking back at the house (seats: garden_bench_1/2) */}
+      {[2.6, 3.4].map((z) => (
+        <group key={z} position={[11.3, 0, z]}>
+          <B p={[0, bench.y, 0]} s={[0.5, bench.h, 0.78]} m={mats.oak} cast recv />
+          <B p={[0.27, 0.62, 0]} s={[0.06, 0.5, 0.78]} m={mats.oak} cast />
+          {[-0.3, 0.3].map((dz) => (
+            <B key={dz} p={[0, 0.2, dz]} s={[0.44, 0.4, 0.06]} m={mats.darkWood} />
+          ))}
+        </group>
+      ))}
+      {/* an olive in a big pot, and the lavender bed */}
+      <PottedPlant x={12.3} z={4.9} mats={mats} kind="olive" scale={1.35} />
+      <B p={[12.2, 0.12, 8.5]} s={[1.2, 0.24, 1.0]} m={mats.dirt} recv />
+      <Instanced geo={GEO.sphereLow} m={mats.plum} items={lavender} />
+      {/* the hedge along the front edge, and the garden pond */}
+      <Instanced geo={GEO.sphereLow} m={mats.leaf} items={hedge} cast />
+      <group position={[-0.6, 0, 11.5]}>
+        <Cyl p={[0, 0.08, 0]} s={[1.5, 0.16, 2.0]} m={mats.stone} recv />
+        <Cyl p={[0, 0.17, 0]} s={[1.2, 0.01, 1.7]} m={mats.water} />
+        <Sph p={[0.3, 0.19, -0.3]} s={[0.22, 0.03, 0.22]} m={mats.leafLight} />
+        <Sph p={[-0.35, 0.19, 0.4]} s={[0.26, 0.03, 0.26]} m={mats.leafLight} />
+        <Sph p={[-0.35, 0.22, 0.4]} s={0.08} m={mats.blush} />
+      </group>
+      {/* the reading lamp beside the second wingback, and a stack of books by its foot */}
+      <group position={[-7.9, 0, 2.0]}>
+        <Cyl p={[0, 0.02, 0]} s={[0.4, 0.04, 0.4]} m={mats.brass} />
+        <Cyl p={[0, 0.8, 0]} s={[0.04, 1.6, 0.04]} m={mats.brass} />
+        <Cone p={[0, 1.7, 0]} s={[0.5, 0.3, 0.5]} m={mats.cream} cast />
+        {[0, 0.07, 0.14].map((y, i) => (
+          <B key={y} p={[0.5, 0.035 + y, 0.1]} s={[0.3, 0.07, 0.22]} r={[0, i * 0.15, 0]} m={i ? mats.rust : mats.navy} />
+        ))}
+      </group>
+      {/* a little library: a low bookcase behind the wingbacks, full of spines */}
+      <group position={[-9.2, 0, 3.4]}>
+        <B p={[0, 0.5, 0]} s={[0.4, 1.0, 2.6]} m={mats.walnut} cast recv />
+        {[0.28, 0.72].map((y) => (
+          <group key={y}>
+            {Array.from({ length: 11 }, (_, i) => (
+              <B key={i} p={[0.02, y, -1.15 + i * 0.22]} s={[0.3, 0.32 + (i % 3) * 0.04, 0.16]} m={[mats.rust, mats.navy, mats.mustard, mats.sage, mats.plum][i % 5]} />
+            ))}
+          </group>
+        ))}
+      </group>
     </>
   );
 }
@@ -270,7 +351,9 @@ const SOFA_TOP = surfaceY(SOFA);
 function LivingRoom({ mats }: { mats: Materials }) {
   return (
     <>
-      <SlatScreen mats={mats} x0={-5.4} x1={-0.6} z={-3.95} />
+      <Occluder x={-3.0} z={-3.95} halfWidth={2.8}>
+        <SlatScreen mats={mats} x0={-5.4} x1={-0.6} z={-3.95} />
+      </Occluder>
 
       {/* media console standing against the screen; the TV on it is the "tv" prop, and its
           middle bay is the hearth: a glass firebox with a bed of embers and real flames */}

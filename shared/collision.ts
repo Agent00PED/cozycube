@@ -1,4 +1,4 @@
-import { BLUFF, LOUNGE_PIT, MAP_HALF, VIP_PLATFORM, type MapId } from "./types";
+import { BLUFF, BOXING_RING, LOUNGE_PIT, MAP_HALF, ONSEN_POOL, VIP_PLATFORM, type MapId } from "./types";
 
 export interface AABB {
   minX: number;
@@ -63,6 +63,13 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: 8.5, maxX: 9.2, minZ: 1.4, maxZ: 2.1 }, // olive tree
     { minX: 8.75, maxX: 9.45, minZ: 6.85, maxZ: 7.55 }, // monstera on the deck
     { minX: 8.8, maxX: 9.4, minZ: 2.9, maxZ: 3.5 }, // fern on its plant stool
+    // --- The garden terrace beyond the deck rail ---
+    { minX: 9.6, maxX: 12.8, minZ: 0.4, maxZ: 1.2 }, // long planter along the deck's end
+    { minX: 11.8, maxX: 12.8, minZ: 4.2, maxZ: 5.6 }, // olive in a big pot
+    { minX: 11.6, maxX: 12.8, minZ: 8.0, maxZ: 9.0 }, // lavender bed
+    { minX: 3.0, maxX: 9.4, minZ: 12.0, maxZ: 12.8 }, // hedge along the front edge
+    { minX: -1.2, maxX: 0.0, minZ: 10.6, maxZ: 12.4 }, // the garden pond
+    { minX: -8.2, maxX: -7.6, minZ: 1.7, maxZ: 2.3 }, // reading lamp by the wingback
   ],
 
   campfire_night: [
@@ -89,6 +96,13 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
 
   sunset_beach: [
     { minX: -3.6, maxX: 2.4, minZ: -6.6, maxZ: -5.3 }, // tiki bar counter and its back shelf
+    // --- The wider beach: dunes to the north, rock pools west, more palms east ---
+    { minX: -7.6, maxX: -6.0, minZ: -13.2, maxZ: -11.6 }, // lifeguard tower
+    { minX: -13.4, maxX: -10.6, minZ: -7.2, maxZ: -5.0 }, // the shell shack
+    { minX: -13.2, maxX: -10.8, minZ: 0.4, maxZ: 3.2 }, // the rock pool
+    { minX: 11.6, maxX: 12.4, minZ: -4.4, maxZ: -3.6 }, // palm, east
+    { minX: 12.0, maxX: 12.8, minZ: 1.6, maxZ: 2.4 }, // palm, east
+    { minX: 2.2, maxX: 3.0, minZ: -12.6, maxZ: -11.8 }, // palm on the dune
     { minX: -8.3, maxX: -7.7, minZ: -1.9, maxZ: -1.3 }, // west tiki torch
     { minX: 7.1, maxX: 7.7, minZ: 2.7, maxZ: 3.3 }, // east tiki torch
     { minX: 4.1, maxX: 5.9, minZ: -1.9, maxZ: -0.1 }, // bonfire and its stone ring
@@ -130,6 +144,60 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
     { minX: -4.6, maxX: -4.2, minZ: 1.8, maxZ: 8.2 }, // velvet rope round the VIP lounge
     { minX: 8.8, maxX: 9.6, minZ: -2.6, maxZ: -1.8 }, // potted palm
     { minX: -9.6, maxX: -8.8, minZ: -2.4, maxZ: -1.6 }, // potted palm
+    // --- The foyer beyond the doormat and the east corridor ---
+    { minX: 1.0, maxX: 3.6, minZ: 11.4, maxZ: 12.6 }, // coat-check counter
+    { minX: -4.6, maxX: -2.6, minZ: 10.8, maxZ: 12.8 }, // the foyer fountain
+    { minX: 11.8, maxX: 12.8, minZ: -8.2, maxZ: -5.4 }, // trophy case along the east wall
+    { minX: 11.8, maxX: 12.8, minZ: 2.2, maxZ: 4.6 }, // brass mirror console
+  ],
+
+  // A 24x24 gym: the ring in the middle (its own height, see walkY), bleachers north and west,
+  // a drink rail east, the doors and the spectator floor south.
+  boxing_ring: [
+    { minX: -3.5, maxX: -3.1, minZ: -3.5, maxZ: 3.5 }, // ropes, west
+    { minX: 3.1, maxX: 3.5, minZ: -3.5, maxZ: 3.5 }, // ropes, east
+    { minX: -3.5, maxX: 3.5, minZ: -3.5, maxZ: -3.1 }, // ropes, north
+    { minX: -3.5, maxX: -0.9, minZ: 3.1, maxZ: 3.5 }, // ropes, south (a gap for the steps)
+    { minX: 0.9, maxX: 3.5, minZ: 3.1, maxZ: 3.5 },
+    { minX: -9.8, maxX: -6.4, minZ: -6.4, maxZ: 6.4 }, // west bleachers (the benches are seats)
+    { minX: -6.4, maxX: 6.4, minZ: -9.8, maxZ: -6.4 }, // north bleachers
+    { minX: 7.6, maxX: 8.4, minZ: -4.4, maxZ: 4.4 }, // the drink rail (stools sit in front of it)
+    { minX: 7.2, maxX: 9.4, minZ: -9.6, maxZ: -7.2 }, // corner: the ring bell podium and buckets
+    { minX: -9.6, maxX: -7.2, minZ: 7.4, maxZ: 9.6 }, // corner: the towel and water station
+    { minX: 3.4, maxX: 5.0, minZ: 7.8, maxZ: 9.6 }, // the trainer's desk by the doors
+  ],
+
+  // A 26x26 mountain bathhouse: the hot spring in the middle (a basin, see walkY), rocks round
+  // it with a gap for the steps on the south side, bamboo north and west, the tea house and the
+  // wishing well on either side, the changing hut by the entrance.
+  japanese_onsen: [
+    { minX: -4.3, maxX: -3.4, minZ: -3.4, maxZ: 3.4 }, // rocks, west rim
+    { minX: 3.4, maxX: 4.3, minZ: -3.4, maxZ: 3.4 }, // rocks, east rim
+    { minX: -4.3, maxX: 4.3, minZ: -3.5, maxZ: -2.6 }, // rocks, north rim
+    { minX: -4.3, maxX: -1.2, minZ: 2.6, maxZ: 3.5 }, // rocks, south rim (steps in the gap)
+    { minX: 1.2, maxX: 4.3, minZ: 2.6, maxZ: 3.5 },
+    { minX: -9.2, maxX: -5.4, minZ: -9.0, maxZ: -5.2 }, // the tea house
+    { minX: 5.6, maxX: 7.4, minZ: -6.6, maxZ: -4.8 }, // the wishing well
+    { minX: -6.6, maxX: -5.4, minZ: 0.0, maxZ: 1.0 }, // the shishi-odoshi and its basin
+    { minX: 6.8, maxX: 9.6, minZ: 4.4, maxZ: 7.4 }, // the changing hut
+    { minX: -7.4, maxX: -6.6, minZ: 5.2, maxZ: 6.0 }, // stone lantern
+    { minX: 6.4, maxX: 7.2, minZ: -1.2, maxZ: -0.4 }, // stone lantern
+    { minX: -3.0, maxX: -2.2, minZ: 6.6, maxZ: 7.4 }, // cherry tree
+    { minX: 8.4, maxX: 9.2, minZ: -9.2, maxZ: -8.4 }, // cherry tree
+    { minX: -10.4, maxX: -9.6, minZ: 3.4, maxZ: 4.2 }, // cherry tree
+  ],
+
+  // A 24x24 arcade: cabinets along the north wall, gachapon along the west wall, the claw and
+  // the prize counter in the north-east, the snack bar east, the dance floor in the middle.
+  retro_arcade: [
+    { minX: -9.2, maxX: 2.2, minZ: -11.8, maxZ: -10.4 }, // the row of cabinets
+    { minX: -11.8, maxX: -10.4, minZ: -5.2, maxZ: 1.2 }, // three gachapon machines
+    { minX: 3.0, maxX: 5.0, minZ: -11.8, maxZ: -10.0 }, // the claw machine
+    { minX: 6.4, maxX: 11.6, minZ: -11.8, maxZ: -10.4 }, // prize counter
+    { minX: 8.8, maxX: 10.4, minZ: -3.4, maxZ: 3.4 }, // the snack bar (stools in front)
+    { minX: -11.8, maxX: -10.6, minZ: 4.0, maxZ: 8.0 }, // pinball machines along the west wall
+    { minX: -6.0, maxX: -4.4, minZ: 8.8, maxZ: 10.2 }, // the photo booth
+    { minX: 8.2, maxX: 9.4, minZ: 7.6, maxZ: 8.8 }, // a vending machine by the doors
   ],
 };
 
@@ -162,6 +230,27 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
     { x: -4.6, z: -1.4 },
     { x: -1.2, z: -2.6 },
     { x: -3.0, z: -0.6 },
+  ],
+  boxing_ring: [
+    { x: 0, z: 8.6 },
+    { x: 1.4, z: 9.2 },
+    { x: -1.4, z: 9.2 },
+    { x: 0.8, z: 10.2 },
+    { x: -0.8, z: 10.2 },
+  ],
+  japanese_onsen: [
+    { x: 0, z: 9.4 },
+    { x: 1.4, z: 10.0 },
+    { x: -1.4, z: 10.0 },
+    { x: 0.7, z: 11.0 },
+    { x: -0.7, z: 11.0 },
+  ],
+  retro_arcade: [
+    { x: 1.0, z: 9.0 },
+    { x: 2.4, z: 9.6 },
+    { x: -0.4, z: 9.6 },
+    { x: 1.6, z: 10.4 },
+    { x: 0.2, z: 10.4 },
   ],
 };
 
@@ -220,6 +309,22 @@ export function walkY(mapId: MapId, x: number, z: number): number {
     const v = VIP_PLATFORM;
     if (x < v.x0 - 0.2 || x > v.x1 + 0.2 || z > v.z1 || z < v.z0 - 0.5) return 0;
     return v.height * smooth(v.z0 - 0.5, v.z0 + 0.05, z);
+  }
+  if (mapId === "boxing_ring") {
+    // the ring stands on its platform; the steps on the south side climb up to it
+    const r = BOXING_RING;
+    const inside = Math.abs(x - r.x) <= r.half && Math.abs(z - r.z) <= r.half;
+    if (inside) return r.height;
+    if (Math.abs(x - r.x) < 0.9 && z > r.z + r.half && z < r.z + r.half + 0.9) return r.height * smooth(r.z + r.half + 0.9, r.z + r.half, z);
+    return 0;
+  }
+  if (mapId === "japanese_onsen") {
+    // the hot spring basin: a step down into the water, the steps on the south side
+    const p = ONSEN_POOL;
+    const inside = x > p.x0 && x < p.x1 && z > p.z0 && z < p.z1;
+    if (inside) return -p.depth;
+    if (Math.abs(x) < 1.2 && z >= p.z1 && z < p.z1 + 0.9) return -p.depth * smooth(p.z1 + 0.9, p.z1, z);
+    return 0;
   }
   return 0;
 }

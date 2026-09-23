@@ -3,7 +3,10 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { NPCS, STEW_STIRS, type ToggleableSyncState } from "@shared/types";
+import { NPCS, STEW_STIRS, type MapId, type ToggleableSyncState } from "@shared/types";
+import { MOCHI_WAYPOINTS } from "@shared/props";
+import { walkY } from "@shared/collision";
+import { useMapId } from "../scene/mapContext";
 import { APPROACH_POINTS } from "@shared/props";
 import { GEO, arcGeo, noRaycast, onHitLayer } from "../scene/kit";
 import { playMeow } from "../audio/sfx";
@@ -15,7 +18,7 @@ import { Character3D, type FloatingEmote } from "./Character3D";
 // Each is a walk-up toggleable (see shared/types isWalkUpProp); the server decides what
 // using it does, these only draw it and react to its synced state.
 
-const HIT_PAD = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+const HIT_PAD = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, visible: false });
 const mat = (color: string, opts: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...opts });
 const M = {
   crate: mat("#9a6a3e"),
@@ -34,6 +37,10 @@ const M = {
   catDark: mat("#b8703a", { roughness: 0.9 }),
   nose: mat("#e88a8a"),
   sign: mat("#f2e2bf"),
+  bandana: mat("#d63a48", { roughness: 0.9 }),
+  shades: mat("#ff7ab8", { roughness: 0.3 }),
+  towel: mat("#fbf8f0", { roughness: 1 }),
+  pixel: mat("#4fe3ff", { emissive: "#4fe3ff", emissiveIntensity: 0.8, roughness: 0.5 }),
 };
 
 function HitPad({ size, position, onUse }: { size: [number, number, number]; position: [number, number, number]; onUse: () => void }) {
@@ -83,8 +90,8 @@ const STALL = {
 // --- NPC traders ---------------------------------------------------------------------------
 
 const NPC_LOOKS: Record<string, string> = {
-  npc_bob: "#d9a47c,cap,#e5d3a6,#9ab8d8,#c8b090,straw",
-  npc_oak: "#b67c56,cap,#3b2a20,#5c6b5a,#c8b090,beanie",
+  npc_bob: "#d9a47c,cap,#e5d3a6,outfit_hawaiian,#9ab8d8,straw",
+  npc_oak: "#b67c56,cap,#3b2a20,outfit_flannel_vest,#5c6b5a,beanie",
 };
 const NO_EMOTES: FloatingEmote[] = [];
 
@@ -250,7 +257,29 @@ const TAIL_REST = -1.73; // yaw that starts the curl at the rump and ends it by 
 const SQUISH_PERIOD = 7.5;
 const SQUISH_LENGTH = 0.6;
 
+// Mochi is a traveller: she is the same loaf in every world, dressed for it, and she wanders
+// slowly between three favourite spots (MOCHI_WAYPOINTS) instead of sitting in one place. The
+// wander is client-side and deterministic in time, so every client sees her in the same spot.
+const MOCHI_WANDER_PERIOD = 42; // seconds for the full loop of three spots
+const MOCHI_HOLD = 0.72; // fraction of each leg spent sitting before the next stroll
+
+function mochiSpot(mapId: MapId, home: { x: number; z: number }, t: number): { x: number; z: number; walking: boolean; heading: number } {
+  const points = MOCHI_WAYPOINTS[mapId] ?? [];
+  if (points.length < 2) return { x: home.x, z: home.z, walking: false, heading: 0.6 };
+  const legLen = MOCHI_WANDER_PERIOD / points.length;
+  const u = (t % MOCHI_WANDER_PERIOD) / legLen;
+  const i = Math.floor(u);
+  const a = points[i % points.length];
+  const b = points[(i + 1) % points.length];
+  const f = u - i;
+  const k = f < MOCHI_HOLD ? 0 : (f - MOCHI_HOLD) / (1 - MOCHI_HOLD);
+  const e = k * k * (3 - 2 * k);
+  return { x: a.x + (b.x - a.x) * e, z: a.z + (b.z - a.z) * e, walking: k > 0 && k < 1, heading: Math.atan2(b.x - a.x, b.z - a.z) };
+}
+
 export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => void }) {
+  const mapId = useMapId();
+  const rootRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Mesh>(null);
   const headRef = useRef<THREE.Group>(null);
   const tailRef = useRef<THREE.Mesh>(null);
@@ -263,6 +292,14 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
   }, [petted]);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
+    const root = rootRef.current;
+    if (root) {
+      // walk time is wall-clock so all clients agree; petting pins her where she is
+      const spot = mochiSpot(mapId, prop, petted ? 0 : Date.now() / 1000);
+      const y = prop.y > 0.01 ? prop.y : walkY(mapId, spot.x, spot.z); // perched props stay perched
+      root.position.set(spot.x, y + (spot.walking ? Math.abs(Math.sin(t * 9)) * 0.03 : 0), spot.z);
+      root.rotation.y = THREE.MathUtils.lerp(root.rotation.y, spot.walking ? spot.heading : 0.6, 0.08);
+    }
     // breathing: the loaf rises and falls; and now and then a happy little squish
     const breath = Math.sin(t * (petted ? 5 : 1.6)) * 0.035;
     const phase = (t + 1.3) % SQUISH_PERIOD;
@@ -280,9 +317,10 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
     }
   });
   return (
-    <group position={[prop.x, prop.y, prop.z]} rotation={[0, 0.6, 0]}>
+    <group ref={rootRef} position={[prop.x, prop.y, prop.z]} rotation={[0, 0.6, 0]}>
       {/* the loaf */}
       <mesh ref={bodyRef} geometry={GEO.sphere} material={M.catOrange} position={[0, 0.22, -0.04]} scale={[0.3, 0.27, 0.36]} castShadow raycast={noRaycast} />
+      <MochiOutfit mapId={mapId} />
       <mesh geometry={GEO.sphereLow} material={M.catCream} position={[0, 0.16, 0.2]} scale={[0.2, 0.15, 0.14]} raycast={noRaycast} />
       {/* back stripes */}
       {[-0.12, 0.0, 0.12].map((z) => (
@@ -324,6 +362,61 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
       <HitPad size={[0.8, 0.8, 0.8]} position={[0, 0.35, 0]} onUse={onUse} />
     </group>
   );
+}
+
+/** What Mochi wears in each world: a bandana, pink sunglasses, a bow tie, a red glove, a head towel, pixel glasses. */
+function MochiOutfit({ mapId }: { mapId: MapId }) {
+  switch (mapId) {
+    case "campfire_night":
+      // a red bandana knotted round the neck
+      return (
+        <group position={[0, 0.34, 0.12]}>
+          <mesh geometry={GEO.torus} material={M.bandana} rotation={[Math.PI / 2 + 0.3, 0, 0]} scale={[0.4, 0.4, 0.8]} raycast={noRaycast} />
+          <mesh geometry={GEO.cone} material={M.bandana} position={[0, -0.08, 0.14]} rotation={[Math.PI, 0, 0]} scale={[0.14, 0.14, 0.04]} raycast={noRaycast} />
+        </group>
+      );
+    case "sunset_beach":
+      // pink sunglasses
+      return (
+        <group position={[0, 0.46, 0.34]}>
+          {[-0.07, 0.07].map((x) => (
+            <mesh key={x} geometry={GEO.cyl} material={M.shades} position={[x, 0, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.09, 0.02, 0.09]} raycast={noRaycast} />
+          ))}
+          <mesh geometry={GEO.box} material={M.shades} scale={[0.22, 0.012, 0.012]} raycast={noRaycast} />
+        </group>
+      );
+    case "velvet_casino":
+      // a dapper bow tie
+      return (
+        <group position={[0, 0.32, 0.22]}>
+          <mesh geometry={GEO.box} material={M.bandana} scale={[0.14, 0.05, 0.03]} raycast={noRaycast} />
+          <mesh geometry={GEO.sphereLow} material={M.bandana} scale={0.03} raycast={noRaycast} />
+        </group>
+      );
+    case "boxing_ring":
+      // one little red glove on a front paw
+      return <mesh geometry={GEO.sphere} material={M.bandana} position={[0.09, 0.07, 0.3]} scale={[0.09, 0.08, 0.1]} raycast={noRaycast} />;
+    case "japanese_onsen":
+      // a folded towel on the head
+      return (
+        <group position={[0, 0.58, 0.14]} rotation={[0, 0.1, 0.06]}>
+          <mesh geometry={GEO.box} material={M.towel} scale={[0.22, 0.05, 0.16]} raycast={noRaycast} />
+          <mesh geometry={GEO.box} material={M.towel} position={[0, 0.04, 0]} scale={[0.16, 0.04, 0.12]} raycast={noRaycast} />
+        </group>
+      );
+    case "retro_arcade":
+      // chunky pixel glasses
+      return (
+        <group position={[0, 0.46, 0.34]}>
+          {[-0.07, 0.07].map((x) => (
+            <mesh key={x} geometry={GEO.box} material={M.pixel} position={[x, 0, 0]} scale={[0.1, 0.08, 0.03]} raycast={noRaycast} />
+          ))}
+          <mesh geometry={GEO.box} material={M.pixel} scale={[0.22, 0.02, 0.02]} raycast={noRaycast} />
+        </group>
+      );
+    default:
+      return null;
+  }
 }
 
 // --- The stew pot -------------------------------------------------------------------------------
@@ -387,7 +480,7 @@ export function StewPot({ prop, onUse }: { prop: ToggleableSyncState; onUse: () 
 
 // --- The roulette dealer -------------------------------------------------------------------------
 
-const DEALER_LOOK = "#e8c29c,bob,#2a1c14,#1d1d24,#1d1d24,bunny";
+const DEALER_LOOK = "#e8c29c,bob,#2a1c14,outfit_tuxedo,#7a8aa6,bunny";
 const BOW_TIE = new THREE.MeshStandardMaterial({ color: "#b3202e", roughness: 0.5 });
 const SHIRT_FRONT = new THREE.MeshStandardMaterial({ color: "#f4efe6", roughness: 0.7 });
 

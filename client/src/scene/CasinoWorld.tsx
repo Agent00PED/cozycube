@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { B, noRaycast, Cone, Cyl, FloorPatch, GEO, HALF, Instanced, Sph, seeded, type InstanceSpec, type Materials } from "./kit";
 import { CUSHIONS } from "@shared/seats";
-import { VIP_PLATFORM } from "@shared/types";
+import { MAP_HALF, VIP_PLATFORM } from "@shared/types";
 
 // The Cozy Velvet Casino: a 20x20 retro casino in warm gold and burgundy. Same shell as the
 // lounge — solid walls along x = -HALF and z = -HALF, open toward the camera — so the camera,
@@ -48,6 +48,7 @@ export function CasinoWorld({ mats, wallColor }: { mats: Materials; wallColor: s
       <BlackjackTable mats={mats} c={c} />
       <VipLounge mats={mats} c={c} />
       <Plants mats={mats} />
+      <Foyer mats={mats} c={c} />
       <Pendant x={0.6} z={0.4} c={c} />
       <Pendant x={-5.5} z={-5.1} c={c} scale={0.72} />
       {/* high-tops clustered round the roulette perimeter, so the floor between the wheel and
@@ -283,28 +284,97 @@ function Bar({ mats, c }: { mats: Materials; c: CasinoMats }) {
 // Cashier cage: counter, brass bars and a sign
 // ---------------------------------------------------------------------------------------
 
+// The cashier: an open brass-and-marble counter (no bars: the cage's grille turned the whole
+// corner into a dark moiré from this camera), a banker's lamp, a bell and the chip stacks.
 function CashierCage({ mats, c }: { mats: Materials; c: CasinoMats }) {
-  const bars = useMemo<InstanceSpec[]>(() => {
-    const out: InstanceSpec[] = [];
-    for (let x = 6.6; x <= 9.7; x += 0.16) out.push({ p: [x, 1.8, -7.72], s: [0.025, 1.3, 0.025] });
-    for (let z = -9.6; z <= -7.8; z += 0.16) out.push({ p: [6.5, 1.8, z], s: [0.025, 1.3, 0.025] });
-    return out;
-  }, []);
   return (
     <>
       <B p={[8.1, 0.55, -7.8]} s={[3.4, 1.1, 0.4]} m={c.panel} cast recv />
       <B p={[6.6, 0.55, -8.7]} s={[0.4, 1.1, 1.9]} m={c.panel} cast recv />
       <B p={[8.1, 1.13, -7.75]} s={[3.5, 0.06, 0.5]} m={mats.marble} />
-      <Instanced geo={GEO.cylLow} m={c.gold} items={bars} />
-      <B p={[8.1, 2.48, -7.72]} s={[3.4, 0.08, 0.08]} m={c.gold} />
-      <B p={[8.1, 2.72, -7.74]} s={[1.8, 0.4, 0.06]} m={c.panelDark} />
-      <B p={[8.1, 2.72, -7.7]} s={[1.6, 0.28, 0.02]} m={c.gold} />
+      <B p={[6.6, 1.13, -8.7]} s={[0.5, 0.06, 2.0]} m={mats.marble} />
+      <B p={[8.1, 1.17, -7.55]} s={[3.5, 0.03, 0.06]} m={c.gold} />
+      {/* the back wall of the cashier's corner: a brass-framed "CASHIER" board and a safe */}
+      <B p={[8.1, 2.4, -9.7]} s={[3.0, 0.9, 0.06]} m={c.panelDark} />
+      <B p={[8.1, 2.4, -9.66]} s={[2.8, 0.7, 0.02]} m={c.gold} />
+      <B p={[8.1, 2.4, -9.64]} s={[2.4, 0.4, 0.02]} m={c.panelDark} />
+      <B p={[9.0, 0.5, -9.2]} s={[1.0, 1.0, 0.8]} m={mats.charcoal} cast />
+      <Cyl p={[9.0, 0.5, -8.78]} s={[0.24, 0.04, 0.24]} r={[Math.PI / 2, 0, 0]} m={c.gold} />
+      {/* a banker's lamp on the counter */}
+      <Cyl p={[9.3, 1.2, -7.9]} s={[0.16, 0.08, 0.16]} m={c.gold} />
+      <Cyl p={[9.3, 1.4, -7.9]} s={[0.03, 0.4, 0.03]} m={c.gold} />
+      <B p={[9.3, 1.62, -7.85]} s={[0.5, 0.16, 0.26]} m={c.emerald} />
       {/* a teller's window gap and a bell */}
       <Cyl p={[7.6, 1.2, -7.65]} s={[0.12, 0.08, 0.12]} m={c.gold} />
       {/* stacks of chips behind the glass */}
       {[7.2, 7.5, 8.6, 8.9].map((x, i) => (
         <Cyl key={x} p={[x, 1.2 + (i % 2) * 0.02, -8.2]} s={[0.14, 0.14 + (i % 2) * 0.04, 0.14]} m={chipMat(["#e0453a", "#2f5fd0", "#e8b53c", "#2d9a5a"][i])} />
       ))}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// The foyer (front, z > 10) and the east corridor (x > 10): the casino's 26x26 extra ring
+// ---------------------------------------------------------------------------------------
+
+const CASINO_EDGE = MAP_HALF.velvet_casino;
+
+function Foyer({ mats, c }: { mats: Materials; c: CasinoMats }) {
+  const tiles = useMemo<InstanceSpec[]>(() => {
+    const out: InstanceSpec[] = [];
+    // checker marble in the foyer and down the corridor
+    for (let x = -CASINO_EDGE + 0.6; x < CASINO_EDGE - 0.4; x += 0.8) for (let z = 10.2; z < CASINO_EDGE - 0.4; z += 0.8) out.push({ p: [x, 0.006, z], s: [0.76, 0.008, 0.76], color: (Math.round(x / 0.8) + Math.round(z / 0.8)) % 2 ? "#e9dfcf" : "#2a2226" });
+    for (let x = 10.2; x < CASINO_EDGE - 0.4; x += 0.8) for (let z = -CASINO_EDGE + 0.6; z < 10.2; z += 0.8) out.push({ p: [x, 0.006, z], s: [0.76, 0.008, 0.76], color: (Math.round(x / 0.8) + Math.round(z / 0.8)) % 2 ? "#e9dfcf" : "#2a2226" });
+    return out;
+  }, []);
+  const bench = CUSHIONS.velvetBench;
+  const trophies = useMemo<InstanceSpec[]>(() => [0, 1, 2, 3, 4].map((i) => ({ p: [12.3, 1.05 + (i % 2) * 0.55, -7.8 + i * 0.5] as [number, number, number], s: [0.16, 0.3 + (i % 3) * 0.06, 0.16] as [number, number, number] })), []);
+  return (
+    <>
+      <Instanced geo={GEO.box} m={mats.tintable} items={tiles} recv />
+      {/* a runner from the doormat out through the foyer */}
+      <FloorPatch x0={5.2} x1={7.6} z0={8.6} z1={CASINO_EDGE - 0.3} y={0.014} m={c.velvet} />
+      {/* the coat-check counter */}
+      <B p={[2.3, 0.55, 12.0]} s={[2.6, 1.1, 1.0]} m={c.panel} cast recv />
+      <B p={[2.3, 1.13, 12.0]} s={[2.7, 0.06, 1.1]} m={mats.marble} />
+      <B p={[2.3, 2.0, 12.6]} s={[2.6, 1.6, 0.08]} m={c.panelDark} cast />
+      {[1.4, 1.9, 2.4, 2.9].map((x) => (
+        <group key={x}>
+          <Cyl p={[x, 2.4, 12.5]} s={[0.03, 0.4, 0.03]} m={c.gold} />
+          <B p={[x, 1.75, 12.5]} s={[0.36, 0.5, 0.1]} m={[mats.navy, mats.plum, mats.rust, mats.velvetGreen][Math.round((x - 1.4) / 0.5)]} />
+        </group>
+      ))}
+      <Cyl p={[1.4, 1.2, 11.8]} s={[0.12, 0.08, 0.12]} m={c.gold} />
+      {/* the foyer fountain: a marble bowl with a brass spout and a shallow pool */}
+      <group position={[-3.6, 0, 11.8]}>
+        <Cyl p={[0, 0.2, 0]} s={[2.0, 0.4, 2.0]} m={mats.marble} cast recv />
+        <Cyl p={[0, 0.41, 0]} s={[1.7, 0.01, 1.7]} m={mats.water} />
+        <Cyl p={[0, 0.7, 0]} s={[0.3, 0.6, 0.3]} m={mats.marble} />
+        <Cyl p={[0, 1.02, 0]} s={[0.9, 0.08, 0.9]} m={mats.marble} />
+        <Cyl p={[0, 1.07, 0]} s={[0.8, 0.01, 0.8]} m={mats.water} />
+        <Sph p={[0, 1.25, 0]} s={0.22} m={c.gold} />
+      </group>
+      {/* two velvet benches by the doors (seats: foyer_bench_1/2) */}
+      {[6.2, 8.0].map((x) => (
+        <group key={x} position={[x, 0, 11.9]}>
+          <B p={[0, bench.y, 0]} s={[1.5, bench.h, 0.6]} m={c.velvet} cast recv />
+          <B p={[0, 0.2, 0]} s={[1.4, 0.36, 0.5]} m={c.panelDark} />
+          {[-0.6, 0.6].map((dx) => (
+            <Cyl key={dx} p={[dx, 0.05, 0]} s={[0.1, 0.1, 0.1]} m={c.gold} />
+          ))}
+        </group>
+      ))}
+      {/* the east corridor: a trophy case and a brass mirror console along the outer wall */}
+      <B p={[12.3, 1.0, -6.8]} s={[0.9, 2.0, 2.8]} m={c.panelDark} cast recv />
+      <B p={[11.86, 1.1, -6.8]} s={[0.02, 1.7, 2.6]} m={mats.glass} />
+      <Instanced geo={GEO.cylLow} m={c.gold} items={trophies} />
+      <B p={[12.3, 0.45, 3.4]} s={[0.8, 0.9, 2.4]} m={c.panel} cast recv />
+      <B p={[12.3, 0.92, 3.4]} s={[0.9, 0.04, 2.5]} m={mats.marble} />
+      <B p={[12.65, 2.0, 3.4]} s={[0.06, 1.6, 2.0]} m={c.gold} />
+      <B p={[12.6, 2.0, 3.4]} s={[0.02, 1.4, 1.8]} m={mats.mirror} />
+      <Cyl p={[12.2, 1.1, 2.6]} s={[0.3, 0.3, 0.3]} m={mats.glass} />
+      <Sph p={[12.2, 1.3, 2.6]} s={[0.36, 0.3, 0.36]} m={mats.blush} />
     </>
   );
 }

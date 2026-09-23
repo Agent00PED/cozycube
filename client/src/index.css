@@ -13,6 +13,10 @@
 }
 
 html, body, #root { height: 100%; margin: 0; overflow: hidden; background: #0e0e16; }
+/* No scrollbars, anywhere: drawers and panels still scroll by wheel and touch, they just never
+   show a gutter over the diorama. */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
 button { font: inherit; }
 
 /* frosted panel and springy control primitives, used by the Tailwind-styled HUD */
@@ -56,4 +60,4 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
 
 /* speech bubbles over avatars: pop in, hang, float away */
 @keyframes bubble-life { 0% { opacity: 0; transform: translate(-50%, -80%) scale(0.85); } 8% { opacity: 1; transform: translate(-50%, -100%) scale(1); } 78% { opacity: 1; transform: translate(-50%, -100%); } 100% { opacity: 0; transform: translate(-50%, -150%); } }
-.cozy-chat-bubble { transform: translate(-50%, -100%); animation: bubble-life 4s ease-out forwards; }
+.cozy-chat-bubble { transform: translate(-50%, -100%); animation: bubble-life 4s ease-out forwards; white-space: nowrap !important; min-width: fit-content; max-width: none !important; }

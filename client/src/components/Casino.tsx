@@ -354,7 +354,7 @@ function getReelTexture() {
 const reelGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.16, 20, 1, true);
 reelGeo.rotateZ(Math.PI / 2);
 
-const HIT_PAD = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+const HIT_PAD = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, visible: false });
 
 // The cabinet's fixed parts, one geometry per material.
 const CABINET_GEO = bake([

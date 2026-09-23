@@ -27,6 +27,10 @@ interface ActivityBarProps {
   onPutDown: () => void;
   onCastLine: (afk?: boolean) => void;
   onReelIn: () => void;
+  /** A bite: set the hook and the reel minigame opens. */
+  onHook: () => void;
+  /** Sitting in the hot spring: splash whoever is next to you. */
+  onSplash: () => void;
   onPlaceBet: (kind: string, amount: number) => void;
   onClearBets: () => void;
 }
@@ -42,7 +46,8 @@ function doneness(toast: number): { label: string; color: string } {
 // The action dock: only what you can do right now, right here — plus your fish bucket, and the
 // betting board when you are standing at the roulette table.
 export function ActivityBar(props: ActivityBarProps) {
-  const { player, chairs, localSessionId, mapId, roulette, myBets, onRoast, onEat, onSip, onPutDown, onCastLine, onReelIn } = props;
+  const { player, chairs, localSessionId, mapId, roulette, myBets, onRoast, onEat, onSip, onPutDown, onCastLine, onReelIn, onHook, onSplash } = props;
+  const soaking = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "onsen");
   const onLog = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "log");
   const roasting = player.holding === "marshmallow";
   const holdingCoffee = player.holding === "coffee";
@@ -54,8 +59,10 @@ export function ActivityBar(props: ActivityBarProps) {
   const bag = parseBag(player.bag);
   const bagCount = Object.values(bag).reduce((a, b) => a + (b ?? 0), 0);
 
-  const hasActions = onLog || roasting || holdingCoffee || brewing || onPier;
+  const hasActions = onLog || roasting || holdingCoffee || brewing || onPier || soaking;
 
+  // the reel itself is a modal; nothing to add underneath it
+  if (player.action === "reel" || player.action === "dizzy") return null;
   if (!hasActions && bagCount === 0 && !afkFishing) return null;
 
   const d = doneness(player.toast);
@@ -86,8 +93,13 @@ export function ActivityBar(props: ActivityBarProps) {
             </>
           )}
           {bite && (
-            <button type="button" className="cozy-bite" style={styles.bite} onClick={onReelIn}>
-              ❗ Bite! Reel in!
+            <button type="button" className="cozy-bite" style={styles.bite} onClick={onHook}>
+              ❗ Bite! Set the hook!
+            </button>
+          )}
+          {soaking && (
+            <button type="button" style={styles.secondary} onClick={onSplash}>
+              💦 Splash
             </button>
           )}
 

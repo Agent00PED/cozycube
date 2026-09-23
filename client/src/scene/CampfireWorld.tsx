@@ -283,6 +283,18 @@ function Stream({ mats }: { mats: Materials }) {
       {[-2.2, -1.5, -0.8].map((dx) => (
         <Cyl key={dx} p={[-4.2 + dx, 0.06, streamZ(-4.2 + dx)]} s={[0.66, 0.12, 0.54]} m={mats.stone} recv />
       ))}
+      {/* two flat fishing stones on the near bank (river_seat_1/2 sit on the pierPlank cushion),
+          each with a bait tin and a rod rest beside it */}
+      {[
+        [-4.6, 4.4],
+        [3.6, 4.6],
+      ].map(([x, z]) => (
+        <group key={x} position={[x, 0, z]}>
+          <Cyl p={[0, CUSHIONS.pierPlank.y, 0]} s={[1.3, CUSHIONS.pierPlank.h + 0.14, 1.1]} m={mats.stone} cast recv />
+          <Cyl p={[0.75, 0.1, -0.2]} s={[0.22, 0.2, 0.22]} m={mats.rust} />
+          <Cyl p={[-0.7, 0.35, 0.1]} s={[0.04, 0.7, 0.04]} r={[0.5, 0, 0.3]} m={mats.darkWood} />
+        </group>
+      ))}
     </group>
   );
 }

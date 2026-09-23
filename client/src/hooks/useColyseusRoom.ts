@@ -27,7 +27,33 @@ export type EmoteListener = (emote: EmoteBroadcast) => void;
 
 /** One-shot server messages other than emotes (gesture, slotSpin, rouletteResult, npcSay). */
 export type RoomMessageListener = (type: string, payload: any) => void;
-const RELAYED_MESSAGES = ["gesture", "slotSpin", "rouletteResult", "npcSay", "chatBubble", "blackjackState", "openSlots", "allowance", "welcome"] as const;
+const RELAYED_MESSAGES = [
+  "gesture",
+  "slotSpin",
+  "rouletteResult",
+  "npcSay",
+  "chatBubble",
+  "blackjackState",
+  "openSlots",
+  "allowance",
+  "welcome",
+  // titan infinity: per-world minigames, the boxing ring, the checklist and the vibe bonus
+  "openPanel",
+  "fishOnLine",
+  "gachaResult",
+  "clawResult",
+  "arcadeResult",
+  "punch",
+  "boxingResult",
+  "splash",
+  "wishResult",
+  "matchaResult",
+  "blendResult",
+  "boardState",
+  "mochiResult",
+  "dailyComplete",
+  "vibe",
+] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
 
@@ -78,6 +104,27 @@ interface UseColyseusRoomResult {
   castLine: (afk?: boolean) => void;
   setStatus: (status: string) => void;
   reelIn: () => void;
+  /** Wardrobe: buy a full outfit by id (server checks the price and the gacha-only flag). */
+  buyOutfit: (outfit: string) => void;
+  pullGacha: () => void;
+  clawPlay: (aim: number) => void;
+  arcadeScore: (score: number) => void;
+  /** Fishing: a bite was noticed; then the reel minigame's outcome. */
+  hook: () => void;
+  catchFish: (result: "caught" | "lost", quality: number) => void;
+  boxingEnter: () => void;
+  boxingExit: () => void;
+  punch: (target: string) => void;
+  tossCoin: (to: string) => void;
+  splash: () => void;
+  makeWish: () => void;
+  matchaWhisk: (score: number) => void;
+  blendDrink: (recipe: string, ingredients: string[]) => void;
+  setRecord: (track: number) => void;
+  boardJoin: () => void;
+  boardLeave: () => void;
+  boardMove: (from: number, to: number) => void;
+  mochiPlay: (action: string) => void;
   /** Latest server snapshot of the beach volleyball (null until the first patch). */
   ballRef: React.MutableRefObject<BallSnapshot | null>;
   /** Emotes are one-shot broadcasts rather than state, so they are delivered by subscription. */
@@ -200,6 +247,11 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
               status: player.status ?? "",
               stats: player.stats ?? "",
               ping: player.ping ?? 0,
+              gloves: !!player.gloves,
+              boxHits: player.boxHits ?? 0,
+              boxKOs: player.boxKOs ?? 0,
+              aura: player.aura ?? "",
+              daily: player.daily ?? "",
             },
           }));
         };
@@ -413,6 +465,25 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     castLine: (afk = false) => send("castLine", { afk }),
     setStatus: (status) => send("setStatus", { status }),
     reelIn: () => send("reelIn"),
+    buyOutfit: (outfit) => send("buy_outfit", { outfit }),
+    pullGacha: () => send("pull_gacha"),
+    clawPlay: (aim) => send("claw_play", { aim }),
+    arcadeScore: (score) => send("arcade_score", { score }),
+    hook: () => send("hook"),
+    catchFish: (result, quality) => send("catch_fish", { result, quality }),
+    boxingEnter: () => send("boxing_enter"),
+    boxingExit: () => send("boxing_exit"),
+    punch: (target) => send("boxing_punch", { target }),
+    tossCoin: (to) => send("toss_coin", { to }),
+    splash: () => send("splash"),
+    makeWish: () => send("make_wish"),
+    matchaWhisk: (score) => send("matcha_whisk", { score }),
+    blendDrink: (recipe, ingredients) => send("blend_drink", { recipe, ingredients }),
+    setRecord: (track) => send("set_record", { track }),
+    boardJoin: () => send("board_join"),
+    boardLeave: () => send("board_leave"),
+    boardMove: (from, to) => send("board_move", { from, to }),
+    mochiPlay: (action) => send("mochi_play", { action }),
     ballRef,
     subscribeEmotes,
   };

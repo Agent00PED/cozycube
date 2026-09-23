@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ACTIVITY_STATUSES, CHAT_MAX_CHARS, QUICK_CHATS, isActivityStatus, parseStats, type Gesture, type PlayerState } from "@shared/types";
+import { ACTIVITY_STATUSES, CHAT_MAX_CHARS, DAILY_REWARD, DAILY_TASKS, QUICK_CHATS, isActivityStatus, parseDaily, parseStats, type Gesture, type PlayerState } from "@shared/types";
 import { lookAtTemporarily } from "../../scene/cameraFocus";
 import { playClick, playPop } from "../../audio/sfx";
 
@@ -53,6 +53,7 @@ export function SideDrawer(props: SideDrawerProps) {
     .sort((a, b) => (a.sessionId === localSessionId ? -1 : b.sessionId === localSessionId ? 1 : a.username.localeCompare(b.username)));
   const me = localSessionId ? players[localSessionId] : null;
   const stats = parseStats(me?.stats);
+  const daily = parseDaily(me?.daily);
 
   const send = (line: string) => {
     const t = line.trim().slice(0, CHAT_MAX_CHARS);
@@ -156,6 +157,31 @@ export function SideDrawer(props: SideDrawerProps) {
             })}
           </ul>
         </section>
+
+        {/* today's cozy checklist */}
+        {me && daily && (
+          <section className="shrink-0 rounded-3xl border border-amber-200/20 bg-amber-300/10 p-3">
+            <h3 className="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-widest opacity-70">
+              <span>Daily cozy checklist</span>
+              <span>{daily.claimed ? "✅ claimed" : `${DAILY_REWARD} 🪙`}</span>
+            </h3>
+            <ul className="flex flex-col gap-1.5">
+              {daily.tasks.map((t) => {
+                const task = DAILY_TASKS[t.id];
+                if (!task) return null;
+                const done = t.progress >= task.goal;
+                return (
+                  <li key={t.id} className={`flex items-center gap-2 rounded-2xl px-3 py-2 text-sm ${done ? "bg-emerald-400/15" : "bg-white/5"}`}>
+                    <span className="text-lg">{task.emoji}</span>
+                    <span className={`flex-1 ${done ? "line-through opacity-70" : ""}`}>{task.label}</span>
+                    <span className="text-xs font-extrabold tabular-nums opacity-80">{done ? "✓" : `${Math.min(t.progress, task.goal)}/${task.goal}`}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-2 text-[11px] opacity-60">Finish all three and the coins land by themselves. A fresh list every day.</p>
+          </section>
+        )}
 
         {/* your story so far */}
         {me && (

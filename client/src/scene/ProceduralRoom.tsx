@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import { BLUFF, LOUNGE_PIT, MAP_HALF, VIP_PLATFORM, type MapId } from "@shared/types";
+import { BLUFF, BOXING_RING, LOUNGE_PIT, MAP_HALF, ONSEN_POOL, VIP_PLATFORM, type MapId } from "@shared/types";
 import { SHORELINE_Z } from "@shared/collision";
 import { ROOM_THEMES, type RoomTheme } from "./roomThemes";
 import { GEO, HALF, StaticBatch, noRaycast, useSharedMaterials, type Materials } from "./kit";
@@ -9,12 +9,18 @@ import { LoungeWorld } from "./LoungeWorld";
 import { CampfireWorld } from "./CampfireWorld";
 import { BASIN_Y, BeachWorld } from "./BeachWorld";
 import { CasinoWorld } from "./CasinoWorld";
+import { BoxingWorld } from "./BoxingWorld";
+import { OnsenWorld } from "./OnsenWorld";
+import { ArcadeWorld } from "./ArcadeWorld";
+
+/** Worlds with walls and a ceiling: the sun comes from the open corner and the slab gets a wood lip. */
+export const INDOOR_MAPS: ReadonlySet<MapId> = new Set<MapId>(["cozy_lounge", "velvet_casino", "boxing_ring", "retro_arcade"]);
 
 const SLAB_HEIGHT = 1.3; // a chunky island — the diorama base reads as a model on a table
 
 // The hidden click target over the beach's water. Walking there is refused by collision, but
 // the pier runs over it, and without a target the pier would be unclickable.
-const CLICK_CATCHER = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+const CLICK_CATCHER = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, visible: false });
 
 interface ProceduralRoomProps {
   mapId: MapId;
@@ -125,6 +131,26 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
           onPointerDown={handleFloorClick}
         />
       )}
+      {mapId === "boxing_ring" && (
+        <mesh
+          geometry={GEO.plane}
+          material={CLICK_CATCHER}
+          position={[BOXING_RING.x, BOXING_RING.height + 0.02, BOXING_RING.z]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          scale={[BOXING_RING.half * 2 + 0.5, BOXING_RING.half * 2 + 0.5, 1]}
+          onPointerDown={handleFloorClick}
+        />
+      )}
+      {mapId === "japanese_onsen" && (
+        <mesh
+          geometry={GEO.plane}
+          material={CLICK_CATCHER}
+          position={[(ONSEN_POOL.x0 + ONSEN_POOL.x1) / 2, -ONSEN_POOL.depth + 0.01, (ONSEN_POOL.z0 + ONSEN_POOL.z1) / 2]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          scale={[ONSEN_POOL.x1 - ONSEN_POOL.x0, ONSEN_POOL.z1 - ONSEN_POOL.z0, 1]}
+          onPointerDown={handleFloorClick}
+        />
+      )}
       {isBeach && (
         <mesh
           geometry={GEO.plane}
@@ -145,6 +171,9 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
         {mapId === "campfire_night" && <CampfireWorld mats={mats} />}
         {isBeach && <BeachWorld mats={mats} />}
         {mapId === "velvet_casino" && <CasinoWorld mats={mats} wallColor={theme.wall} />}
+        {mapId === "boxing_ring" && <BoxingWorld mats={mats} wallColor={theme.wall} />}
+        {mapId === "japanese_onsen" && <OnsenWorld mats={mats} />}
+        {mapId === "retro_arcade" && <ArcadeWorld mats={mats} />}
       </StaticBatch>
     </group>
   );
@@ -166,7 +195,7 @@ function DioramaSlab({ theme, mats, mapId, half }: { theme: RoomTheme; mats: Mat
   );
 
   const isBeach = mapId === "sunset_beach";
-  const indoor = mapId === "cozy_lounge" || mapId === "velvet_casino";
+  const indoor = INDOOR_MAPS.has(mapId);
 
   // The beach slab is built in two blocks so the sea sits in a real recess with solid walls all
   // round it: the sand block runs up to y=0, the sea block stops at BASIN_Y. Underneath, one

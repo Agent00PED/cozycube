@@ -12,10 +12,11 @@ interface ChairPropProps {
   onSeatClick: (chair: ChairSyncState) => void;
 }
 
-// Hit pads must stay `visible` — three.js/R3F skip invisible objects when raycasting, which is
-// exactly how an earlier version silently made every seat unclickable. They're hidden by writing
-// nothing to colour or depth instead.
-const HIT_PAD_MATERIAL = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+// Hit pads must stay `visible` as OBJECTS — three.js/R3F skip invisible objects when raycasting,
+// which is exactly how an earlier version silently made every seat unclickable. Their MATERIAL is
+// invisible instead: the renderer drops a mesh whose material is not visible (no draw call at
+// all), while Mesh.raycast never looks at the material's visibility.
+const HIT_PAD_MATERIAL = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, visible: false });
 
 const mat = (color: string, roughness = 0.75, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 const M = {
@@ -47,6 +48,9 @@ const PAD: Record<SeatStyle, { size: [number, number, number]; y: number }> = {
   wood: { size: [0.8, 1.2, 0.8], y: 0.55 },
   deckchair: { size: [0.9, 1.0, 1.4], y: 0.45 },
   blanket: { size: [0.9, 0.4, 1.4], y: 0.1 },
+  wingback: { size: [1.2, 1.4, 1.1], y: 0.6 },
+  bleacher: { size: [1.0, 0.8, 0.9], y: 0.5 },
+  onsen: { size: [1.1, 0.8, 1.1], y: 0.2 },
 };
 
 // Seat frames and legs go through the same silhouette test as the rest of the furniture, so a
@@ -79,12 +83,38 @@ export const ChairProp = memo(function ChairProp({ chair, y = 0, onSeatClick }: 
       {chair.style === "armchair" && <Armchair />}
       {chair.style === "wood" && <WoodChair />}
       {chair.style === "deckchair" && <DeckChair />}
-      {/* "pad" and "blanket" seats are drawn by the world itself (sofa, beanbags, cushions, blanket) */}
+      {chair.style === "wingback" && <Wingback />}
+      {/* "pad", "blanket", "bleacher" and "onsen" seats are drawn by the world itself (sofa, beanbags, benches, pool ledges) */}
     </group>
   );
 });
 
 // All seats face local +Z; backrests therefore sit on local -Z.
+
+/** A deep velvet wingback: tall back with wings, rolled arms, a plump cushion, brass feet. */
+function Wingback() {
+  return (
+    <>
+      <Box p={[0, C.wingback.y, 0]} s={[0.8, C.wingback.h, 0.8]} m={M.velvet} />
+      <Box p={[0, 0.2, 0]} s={[0.84, 0.36, 0.84]} m={M.velvet} />
+      <Box p={[0, 0.85, -0.36]} s={[0.84, 1.1, 0.16]} m={M.velvet} />
+      {[-0.42, 0.42].map((x) => (
+        <Box key={x} p={[x, 0.95, -0.22]} s={[0.12, 0.9, 0.4]} m={M.velvet} r={[0, x > 0 ? -0.3 : 0.3, 0]} />
+      ))}
+      {[-0.4, 0.4].map((x) => (
+        <Cylinder key={x} p={[x, 0.62, 0.05]} s={[0.16, 0.7, 0.16]} m={M.velvet} r={[Math.PI / 2, 0, 0]} />
+      ))}
+      {[
+        [-0.34, -0.34],
+        [0.34, -0.34],
+        [-0.34, 0.34],
+        [0.34, 0.34],
+      ].map(([x, z]) => (
+        <Cylinder key={`${x}${z}`} p={[x, 0.03, z]} s={[0.08, 0.06, 0.08]} m={M.brass} />
+      ))}
+    </>
+  );
+}
 
 function GamingChair() {
   const seat = M.seat;

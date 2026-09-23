@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   BLACKJACK_CENTER,
   BLACKJACK_RADIUS,
+  BOXING_RING,
   NPCS,
   ROULETTE_BET_RADIUS,
   ROULETTE_CENTER,
@@ -21,7 +22,8 @@ import { playClick } from "../../audio/sfx";
 // appears at the bottom of the screen. Pressing it does exactly what clicking the 3D model does,
 // so nobody has to hit a small mesh (or miss it behind a hit box or a label) to play.
 const REACH = 2.8;
-const MAX_BUTTONS = 3;
+/** One button: the nearest thing you can do right now. */
+const MAX_BUTTONS = 1;
 
 interface Action {
   key: string;
@@ -32,12 +34,28 @@ interface Action {
   run: () => void;
 }
 
-function propLabel(p: ToggleableSyncState): string | null {
+function propLabel(p: ToggleableSyncState, mapId: MapId): string | null {
   switch (p.kind) {
     case "espresso":
       return "☕ Brew a coffee";
     case "arcade":
-      return "🕹️ Play arcade";
+      return mapId === "retro_arcade" ? "🕹️ Play Snake" : "🕹️ Play arcade";
+    case "gacha":
+      return "🔮 Turn Gacha";
+    case "claw":
+      return "🧸 Claw machine";
+    case "well":
+      return "🪙 Make a wish";
+    case "teahouse":
+      return "🍵 Tea ceremony";
+    case "blender":
+      return "🍹 Blend a drink";
+    case "boardgame":
+      return "🔴 Play checkers";
+    case "jukebox":
+      return "🎵 Jukebox";
+    case "shishi":
+      return null;
     case "slot":
       return "🎰 Play slots";
     case "npc":
@@ -45,7 +63,7 @@ function propLabel(p: ToggleableSyncState): string | null {
     case "forage":
       return p.on ? "🫐 Forage" : null; // picked bushes have nothing to give yet
     case "cat":
-      return "🐱 Pet Mochi";
+      return "🐱 Play with Mochi";
     case "sparkle":
       return p.on ? "🐚 Pick it up" : null;
     case "stew":
@@ -63,14 +81,18 @@ interface ActionDockProps {
   localSessionId: string;
   onCastLine: (afk?: boolean) => void;
   onRoast: () => void;
+  /** Step into the ring: gloves on (the server checks you are standing inside it). */
+  onBoxingEnter: () => void;
   /** The betting board is already up: no need to offer it. */
   rouletteOpen?: boolean;
 }
 
-export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onCastLine, onRoast, rouletteOpen = false }: ActionDockProps) {
+export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onCastLine, onRoast, onBoxingEnter, rouletteOpen = false }: ActionDockProps) {
   const [actions, setActions] = useState<Action[]>([]);
-  const latest = useRef({ chairs, toggleables, mapId, localSessionId });
-  latest.current = { chairs, toggleables, mapId, localSessionId };
+  const latest = useRef({ chairs, toggleables, mapId, localSessionId, gloves: player.gloves });
+  latest.current = { chairs, toggleables, mapId, localSessionId, gloves: player.gloves };
+  // "Step into the ring" walks you up the steps; the gloves go on once you are inside.
+  const ringPending = useRef(false);
   // Pressing "Fish" walks you onto a pier seat; the line is cast by itself once you sit.
   const castPending = useRef<null | "manual" | "afk">(null);
   // Likewise "Roast": sit on the nearest log, and the stick is handed over once you're down.
@@ -79,7 +101,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
   useEffect(() => {
     let lastKey = "";
     const scan = () => {
-      const { chairs, toggleables, mapId, localSessionId } = latest.current;
+      const { chairs, toggleables, mapId, localSessionId, gloves } = latest.current;
       const px = cameraFocus.x;
       const pz = cameraFocus.z;
       const found: (Action & { d: number })[] = [];
@@ -90,10 +112,21 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
 
       for (const p of Object.values(toggleables)) {
         if (!isWalkUpProp(p.kind)) continue;
-        const label = propLabel(p);
+        const label = propLabel(p, mapId);
         if (!label) continue;
         const d = dist(p.x, p.z, p.propId);
-        if (d <= REACH) found.push({ key: p.propId, type: p.kind, label, d, run: () => interactBridge.current?.useProp(p.propId) });
+        if (d <= REACH)
+          found.push({
+            key: p.propId,
+            type: p.kind,
+            label,
+            d,
+            run: () => {
+              interactBridge.current?.useProp(p.propId);
+              // the arcade's cabinets open their game on this client; the server only lights them up
+              if (p.kind === "arcade" && mapId === "retro_arcade") window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "arcade", propId: p.propId } }));
+            },
+          });
       }
 
       // Seats that are an activity: the pier (fishing) and the logs round the fire (roasting).
@@ -113,10 +146,28 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
           seat = { id: c.propId, d };
         }
       }
-      // Any other seat close by: one "sit" button for the nearest.
+      // Any other seat close by: one "sit" button for the nearest (a soak, in the hot spring).
       if (seat) {
         const id = seat.id;
-        found.push({ key: "sit", type: "sit", label: "🛋️ Sit here", d: seat.d + 0.3, run: () => interactBridge.current?.sit(id) });
+        const onsen = chairs[id]?.style === "onsen";
+        found.push({ key: "sit", type: "sit", label: onsen ? "♨️ Soak" : "🛋️ Sit", d: seat.d + 0.3, run: () => interactBridge.current?.sit(id) });
+      }
+      // The ring: from beside it, walk up the steps; standing inside, the gloves go on.
+      if (mapId === "boxing_ring" && !gloves) {
+        const inside = Math.abs(px - BOXING_RING.x) < BOXING_RING.half - 0.3 && Math.abs(pz - BOXING_RING.z) < BOXING_RING.half - 0.3;
+        const d = Math.hypot(px - BOXING_RING.x, pz - BOXING_RING.z);
+        if (inside) found.push({ key: "ring-enter", type: "ring", label: "🥊 Put the gloves on", d: 0, run: () => onBoxingEnter() });
+        else if (d < BOXING_RING.half + REACH + 1.5)
+          found.push({
+            key: "ring",
+            type: "ring",
+            label: "🥊 Step into Ring",
+            d: d - BOXING_RING.half + 0.2,
+            run: () => {
+              ringPending.current = true;
+              interactBridge.current?.walkTo(BOXING_RING.x, BOXING_RING.z + 1.0);
+            },
+          });
       }
       // The pier offers both ways to fish: the bite-and-reel game, or chill mode that keeps
       // bringing in a little something while you just hang out on voice.
@@ -126,18 +177,16 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
           castPending.current = mode;
           interactBridge.current?.sit(seat);
         };
-        found.push({ key: "fish", type: "fish", label: "🎣 Manual Fishing", d: fish.d, run: go("manual") });
-        found.push({ key: "afkfish", type: "afkfish", label: "☕ AFK Fishing (chill)", d: fish.d + 0.01, run: go("afk") });
+        found.push({ key: "fish", type: "fish", label: "🎣 Cast Line", d: fish.d, run: go("manual") });
       }
       // The fire offers a seat, or a seat with a roasting stick already in hand.
       if (fire) {
         const seat = fire.id;
-        found.push({ key: "fire", type: "fire", label: "🔥 Sit by the fire", d: fire.d, run: () => interactBridge.current?.sit(seat) });
         found.push({
           key: "roast",
           type: "roast",
           label: "🍢 Roast a marshmallow",
-          d: fire.d + 0.01,
+          d: fire.d,
           run: () => {
             roastPending.current = true;
             interactBridge.current?.sit(seat);
@@ -201,6 +250,20 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
     }
   }, [onPier, player.action, onCastLine]);
 
+  // Gloves go on by themselves once "Step into Ring" has carried you up onto the canvas.
+  const inRing = !player.sitting && Math.abs(player.x - BOXING_RING.x) < BOXING_RING.half - 0.3 && Math.abs(player.z - BOXING_RING.z) < BOXING_RING.half - 0.3;
+  useEffect(() => {
+    if (!ringPending.current) return;
+    if (mapId !== "boxing_ring") {
+      ringPending.current = false;
+      return;
+    }
+    if (inRing && !player.gloves) {
+      ringPending.current = false;
+      onBoxingEnter();
+    }
+  }, [inRing, player.gloves, mapId, onBoxingEnter]);
+
   const onLog = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "log");
   useEffect(() => {
     if (!roastPending.current) return;
@@ -212,7 +275,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
 
   // Busy (seated, fishing, brewing): the activity bar has the controls, not the dock.
   const shown = rouletteOpen ? actions.filter((a) => a.key !== "roulette-open") : actions;
-  if (player.sitting || player.action !== "" || shown.length === 0) return null;
+  if (player.sitting || player.action !== "" || player.gloves || shown.length === 0) return null;
 
   return (
     <div style={styles.dock}>

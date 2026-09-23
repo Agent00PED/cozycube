@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { Billboard, Html, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { ACTIVITY_STATUSES, GESTURE_SECONDS, isActivityStatus, TOAST_MAX, defaultLook, hashString, parseLook, type Accessory, type Gesture, type HairStyle, type HeldItem, type PlayerAction, type SitPose } from "@shared/types";
+import { ACTIVITY_STATUSES, GESTURE_SECONDS, isActivityStatus, TOAST_MAX, defaultLook, hashString, parseLook, type Accessory, type Gesture, type HairStyle, type HeldItem, type OutfitId, type PlayerAction, type SitPose } from "@shared/types";
 import { AVATAR_HIP_Y, AVATAR_LEG_RADIUS } from "@shared/seats";
 import { GEO, arcGeo, noRaycast, ringGeo } from "../scene/kit";
 
@@ -35,6 +35,12 @@ interface Character3DProps {
   status?: string;
   /** A quick-chat line to show in a speech bubble (keyed so a repeat re-animates). */
   bubble?: { id: number; text: string } | null;
+  /** Boxing: the big red gloves go on inside the ring. */
+  gloves?: boolean;
+  /** A drink's glow colour ("" for none), from the beach blender. */
+  aura?: string;
+  /** Sitting in the hot spring: a folded towel on the head. */
+  soaking?: boolean;
 }
 
 // --- Proportions -------------------------------------------------------------------------
@@ -144,6 +150,57 @@ const M = {
   crown: new THREE.MeshStandardMaterial({ color: "#f2c23a", roughness: 0.25, metalness: 0.85 }),
   gem: new THREE.MeshStandardMaterial({ color: "#d6334a", roughness: 0.2, emissive: "#6a0a18", emissiveIntensity: 0.6 }),
   flute: new THREE.MeshStandardMaterial({ color: "#f6e7b0", roughness: 0.1, transparent: true, opacity: 0.8 }),
+  mochiFur: new THREE.MeshStandardMaterial({ color: "#e89a52", roughness: 0.9 }),
+};
+
+// --- Outfits ------------------------------------------------------------------------------------
+// Every outfit is the same rig dressed differently: the torso and sleeves take the player's
+// accent colour, the legs a fixed fabric, and a few extra shapes (a hood, straps, lapels, a
+// sash, a robe) tell them apart at chibi size.
+const OUTFIT_M = {
+  sweats: new THREE.MeshStandardMaterial({ color: "#5a5a66", roughness: 0.95 }),
+  denim: new THREE.MeshStandardMaterial({ color: "#3f5f8a", roughness: 0.9 }),
+  denimDark: new THREE.MeshStandardMaterial({ color: "#2f4a6e", roughness: 0.9 }),
+  khaki: new THREE.MeshStandardMaterial({ color: "#a08a60", roughness: 0.95 }),
+  flannel: new THREE.MeshStandardMaterial({ color: "#b3403a", roughness: 0.95 }),
+  flannelLine: new THREE.MeshStandardMaterial({ color: "#3a2320", roughness: 0.95 }),
+  linen: new THREE.MeshStandardMaterial({ color: "#f5ecd8", roughness: 0.95 }),
+  hibiscus: new THREE.MeshStandardMaterial({ color: "#ff6b8a", roughness: 0.9 }),
+  tuxBlack: new THREE.MeshStandardMaterial({ color: "#1d1b22", roughness: 0.6 }),
+  tuxShirt: new THREE.MeshStandardMaterial({ color: "#f7f3ea", roughness: 0.8 }),
+  bowTie: new THREE.MeshStandardMaterial({ color: "#b3202e", roughness: 0.6 }),
+  robeTrim: new THREE.MeshStandardMaterial({ color: "#f2c23a", roughness: 0.5, metalness: 0.3 }),
+  shorts: new THREE.MeshStandardMaterial({ color: "#f4efe6", roughness: 0.9 }),
+  indigo: new THREE.MeshStandardMaterial({ color: "#2b3a6b", roughness: 0.95 }),
+  obi: new THREE.MeshStandardMaterial({ color: "#e0a93b", roughness: 0.9 }),
+  cyber: new THREE.MeshStandardMaterial({ color: "#1a1a2e", roughness: 0.5, metalness: 0.2 }),
+  neon: new THREE.MeshStandardMaterial({ color: "#4fe3ff", emissive: "#4fe3ff", emissiveIntensity: 1.8, roughness: 0.4 }),
+  neonPink: new THREE.MeshStandardMaterial({ color: "#ff5fc8", emissive: "#ff5fc8", emissiveIntensity: 1.6, roughness: 0.4 }),
+  glove: new THREE.MeshStandardMaterial({ color: "#d63a48", roughness: 0.55 }),
+  gloveCuff: new THREE.MeshStandardMaterial({ color: "#f4efe6", roughness: 0.8 }),
+  towel: new THREE.MeshStandardMaterial({ color: "#fbf8f0", roughness: 1 }),
+  towelStripe: new THREE.MeshStandardMaterial({ color: "#9ac6ea", roughness: 1 }),
+  bird: new THREE.MeshStandardMaterial({ color: "#ffe15f", roughness: 0.8 }),
+};
+
+interface OutfitSpec {
+  /** Legs. null means the accent colour (a one-piece). */
+  legs: THREE.Material | null;
+  /** Torso material when it is NOT the accent colour (the tux is always black). */
+  torso: THREE.Material | null;
+  /** Sleeves follow the torso unless given. */
+  sleeves?: THREE.Material | null;
+  collar: boolean;
+}
+const OUTFIT_SPECS: Record<OutfitId, OutfitSpec> = {
+  outfit_starter_hoodie: { legs: OUTFIT_M.sweats, torso: null, collar: false },
+  outfit_starter_overalls: { legs: OUTFIT_M.denim, torso: null, collar: true },
+  outfit_flannel_vest: { legs: OUTFIT_M.khaki, torso: OUTFIT_M.flannel, sleeves: OUTFIT_M.flannel, collar: false },
+  outfit_hawaiian: { legs: OUTFIT_M.linen, torso: null, collar: true },
+  outfit_tuxedo: { legs: OUTFIT_M.tuxBlack, torso: OUTFIT_M.tuxBlack, collar: false },
+  outfit_boxing: { legs: OUTFIT_M.shorts, torso: null, collar: false },
+  outfit_yukata: { legs: OUTFIT_M.indigo, torso: OUTFIT_M.indigo, collar: false },
+  outfit_cyber: { legs: OUTFIT_M.cyber, torso: OUTFIT_M.cyber, collar: false },
 };
 
 const skinCache = new Map<string, THREE.MeshStandardMaterial>();
@@ -173,7 +230,7 @@ const ROD_LENGTH = 1.3;
 // RemotePlayerAvatar in WorldScene) owns the forwarded outer group and drives its position.
 export const Character3D = memo(
   forwardRef<THREE.Group, Character3DProps>(
-    ({ userId, look, color, username, pose, speedRef, holding, action, actionProgress, toast, speaking, emotes, gesture, status = "", bubble = null }, ref) => {
+    ({ userId, look, color, username, pose, speedRef, holding, action, actionProgress, toast, speaking, emotes, gesture, status = "", bubble = null, gloves = false, aura = "", soaking = false }, ref) => {
       const bodyRef = useRef<THREE.Group>(null);
       const torsoRef = useRef<THREE.Mesh>(null);
       const headRef = useRef<THREE.Group>(null);
@@ -191,6 +248,8 @@ export const Character3D = memo(
       const fluteRef = useRef<THREE.Group>(null);
       const auraRef = useRef<THREE.Mesh>(null);
       const aura2Ref = useRef<THREE.Mesh>(null);
+      const birdsRef = useRef<THREE.Group>(null);
+      const glowRef = useRef<THREE.Mesh>(null);
       const targetColor = useRef(new THREE.Color(color));
       // an occasional curious head tilt while idle, on its own per-avatar schedule
       const tiltRef = useRef({ next: 4 + Math.random() * 6, until: 0, dir: 1 });
@@ -206,7 +265,8 @@ export const Character3D = memo(
           hairStyle: outfit.hairStyle,
           skin: skinMaterial(outfit.skin),
           hair: hairMaterial(outfit.hair),
-          pants: hairMaterial(outfit.pants),
+          outfit: outfit.outfit,
+          spec: OUTFIT_SPECS[outfit.outfit] ?? OUTFIT_SPECS.outfit_starter_hoodie,
         }),
         [outfit]
       );
@@ -221,17 +281,23 @@ export const Character3D = memo(
         () => new THREE.MeshBasicMaterial({ color: "#43d17a", transparent: true, opacity: 0, depthWrite: false }),
         []
       );
+      // the drink glow: a soft additive shell round the body in the drink's colour
+      const glowMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.BackSide }), []);
       useEffect(
         () => () => {
           clothes.dispose();
           marshmallowMat.dispose();
           auraMat.dispose();
+          glowMat.dispose();
         },
-        [clothes, marshmallowMat, auraMat]
+        [clothes, marshmallowMat, auraMat, glowMat]
       );
       useEffect(() => {
-        targetColor.current.set(outfit.shirt);
-      }, [outfit.shirt]);
+        targetColor.current.set(outfit.outfitColor);
+      }, [outfit.outfitColor]);
+      useEffect(() => {
+        if (aura) glowMat.color.set(aura);
+      }, [aura, glowMat]);
 
       useFrame(({ clock }, delta) => {
         const t = clock.elapsedTime;
@@ -245,7 +311,9 @@ export const Character3D = memo(
         const swing = walking ? Math.sin(phase) * Math.min(1, speed * 1.4) : 0;
         const roasting = holding === "marshmallow";
         const holdingCup = holding === "coffee";
-        const fishing = action === "fish" || action === "afkfish";
+        const fishing = action === "fish" || action === "afkfish" || action === "reel";
+        const reeling = action === "reel";
+        const dizzy = action === "dizzy";
         // AFK and standing about: curl up for a nap where you are until you're back.
         // AFK: stay on your feet, eyes shut, swaying gently like someone dozing standing up.
         const dozing = status === "afk" && !walking && pose === "stand";
@@ -285,6 +353,20 @@ export const Character3D = memo(
 
         if (roasting) leftArm = rightArm = ROAST_ARM;
         if (fishing) rightArm = FISH_ARM + Math.sin(t * 1.1) * 0.04;
+        if (reeling) {
+          // both hands on the rod, tugging against the fish
+          rightArm = FISH_ARM - 0.3 + Math.sin(t * 9) * 0.18;
+          leftArm = FISH_ARM - 0.1 + Math.sin(t * 9 + 1) * 0.12;
+        }
+        if (gloves && !seated && !dizzy) {
+          // guard up, bouncing on the toes
+          leftArm = -1.9 + Math.sin(t * 6) * 0.08;
+          rightArm = -2.0 - Math.sin(t * 6) * 0.08;
+        }
+        if (dizzy) {
+          leftArm = -0.6;
+          rightArm = -0.6;
+        }
         if (holdingCup && pose !== "lie" && !fishing) rightArm = CUP_ARM + swing * 0.1;
 
         const L = THREE.MathUtils.lerp;
@@ -301,8 +383,8 @@ export const Character3D = memo(
           const danceBob = g === "dance" ? Math.abs(Math.sin(gAge * 7)) * 0.08 : 0;
           const bob = walking ? Math.abs(Math.sin(phase)) * BOB_HEIGHT : danceBob;
           body.position.y = L(body.position.y, lying ? LIE_LIFT : bob, lerp);
-          body.rotation.x = L(body.rotation.x, lying ? LIE_ROLL : walking ? 0.06 * speed : 0, lerp);
-          body.rotation.z = L(body.rotation.z, walking ? Math.sin(phase) * WADDLE_ROLL : dozing ? Math.sin(t * 0.9) * 0.05 : 0, lerp);
+          body.rotation.x = L(body.rotation.x, lying ? LIE_ROLL : walking ? 0.06 * speed : dizzy ? Math.sin(t * 4.5) * 0.12 : 0, lerp);
+          body.rotation.z = L(body.rotation.z, walking ? Math.sin(phase) * WADDLE_ROLL : dizzy ? Math.cos(t * 4.5) * 0.28 : dozing ? Math.sin(t * 0.9) * 0.05 : 0, lerp);
           body.rotation.y = L(body.rotation.y, g === "dance" ? Math.sin(gAge * 3.5) * 0.6 : 0, 0.2);
         }
         const torso = torsoRef.current;
@@ -342,6 +424,17 @@ export const Character3D = memo(
           }
           eyesRef.current.scale.y = g === "nap" || dozing ? 0.1 : Math.max(0.1, open);
         }
+        // knocked silly: little birds circle the head
+        if (birdsRef.current) {
+          birdsRef.current.visible = dizzy;
+          if (dizzy) {
+            birdsRef.current.rotation.y = t * 4;
+            birdsRef.current.position.y = HEAD_Y + HEAD_R + 0.2 + Math.sin(t * 6) * 0.03;
+          }
+        }
+        // the drink glow breathes while it lasts
+        glowMat.opacity = L(glowMat.opacity, aura ? 0.16 + Math.sin(t * 2.2) * 0.05 : 0, 0.08);
+        if (glowRef.current) glowRef.current.visible = glowMat.opacity > 0.01;
 
         // --- held items, counter-rotated so a cup stays upright whatever the arm does ---
         const armX = rightArmRef.current?.rotation.x ?? 0;
@@ -419,25 +512,30 @@ export const Character3D = memo(
               [rightLegRef, LEG_X],
             ].map(([legRef, x], i) => (
               <group key={i} ref={legRef as React.RefObject<THREE.Group>} position={[x as number, HIP_Y, 0]}>
-                <mesh geometry={G.leg} material={identity.pants} position={[0, -HIP_Y / 2, 0]} raycast={noRaycast} />
+                <mesh geometry={G.leg} material={identity.spec.legs ?? clothes} position={[0, -HIP_Y / 2, 0]} raycast={noRaycast} />
                 <mesh geometry={G.foot} material={M.shoe} position={[0, -HIP_Y + 0.045, 0.035]} scale={[0.1, 0.06, 0.13]} raycast={noRaycast} />
               </group>
             ))}
 
             {/* a round, slightly pear-shaped body */}
-            <mesh ref={torsoRef} castShadow receiveShadow geometry={G.body} material={clothes} position={[0, BODY_Y, 0]} scale={[BODY_R, BODY_R * 1.06, BODY_R * 0.92]} raycast={noRaycast} />
+            <mesh ref={torsoRef} castShadow receiveShadow geometry={G.body} material={identity.spec.torso ?? clothes} position={[0, BODY_Y, 0]} scale={[BODY_R, BODY_R * 1.06, BODY_R * 0.92]} raycast={noRaycast} />
+            <OutfitDetails outfit={identity.outfit} accent={clothes} />
 
             {/* a little collar, so the head doesn't just sit on the egg of the body */}
-            <mesh geometry={G.collar} material={M.collar} position={[0, 0.73, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 0.92, 1]} raycast={noRaycast} />
+            {identity.spec.collar && <mesh geometry={G.collar} material={M.collar} position={[0, 0.73, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 0.92, 1]} raycast={noRaycast} />}
+            {/* the drink glow */}
+            <mesh ref={glowRef} geometry={G.body} material={glowMat} position={[0, BODY_Y + 0.1, 0]} scale={[BODY_R + 0.14, BODY_R * 1.5, BODY_R + 0.1]} visible={false} raycast={noRaycast} />
 
             {/* arms pivot at the shoulder */}
             <group ref={leftArmRef} position={[-SHOULDER_X, SHOULDER_Y, 0]} rotation={[0, 0, -0.35]}>
-              <mesh geometry={G.arm} material={clothes} position={[0, -ARM_TOTAL / 2, 0]} raycast={noRaycast} />
+              <mesh geometry={G.arm} material={sleeveMaterial(identity.spec, clothes)} position={[0, -ARM_TOTAL / 2, 0]} raycast={noRaycast} />
               <mesh geometry={G.hand} material={identity.skin} position={[0, -ARM_TOTAL, 0]} raycast={noRaycast} />
+              {gloves && <BoxingGlove />}
             </group>
             <group ref={rightArmRef} position={[SHOULDER_X, SHOULDER_Y, 0]} rotation={[0, 0, 0.35]}>
-              <mesh geometry={G.arm} material={clothes} position={[0, -ARM_TOTAL / 2, 0]} raycast={noRaycast} />
+              <mesh geometry={G.arm} material={sleeveMaterial(identity.spec, clothes)} position={[0, -ARM_TOTAL / 2, 0]} raycast={noRaycast} />
               <mesh geometry={G.hand} material={identity.skin} position={[0, -ARM_TOTAL, 0]} raycast={noRaycast} />
+              {gloves && <BoxingGlove />}
 
               {/* a champagne flute for cheers */}
               <group ref={fluteRef} position={[0, -ARM_TOTAL - 0.02, 0.06]} visible={false}>
@@ -492,7 +590,16 @@ export const Character3D = memo(
               <mesh geometry={BLUSH_GEO} material={M.blush} raycast={noRaycast} />
               <mesh geometry={arcGeo(0.05, 0.012, Math.PI)} material={M.mouth} position={[0, -0.075, HEAD_R * 0.96]} rotation={[0, 0, Math.PI]} raycast={noRaycast} />
 
-              <HeadAccessory kind={identity.accessory} />
+              {soaking ? <HeadTowel /> : <HeadAccessory kind={identity.accessory} />}
+            </group>
+            {/* dizzy birds, orbiting above the head */}
+            <group ref={birdsRef} position={[0, HEAD_Y + HEAD_R + 0.2, 0]} visible={false}>
+              {[0, 1, 2].map((i) => (
+                <group key={i} rotation={[0, (i / 3) * Math.PI * 2, 0]}>
+                  <mesh geometry={GEO.sphereLow} material={OUTFIT_M.bird} position={[0.42, 0, 0]} scale={[0.09, 0.07, 0.07]} raycast={noRaycast} />
+                  <mesh geometry={GEO.cone} material={OUTFIT_M.bird} position={[0.5, 0, 0]} rotation={[0, 0, -Math.PI / 2]} scale={[0.03, 0.05, 0.03]} raycast={noRaycast} />
+                </group>
+              ))}
             </group>
           </group>
 
@@ -712,6 +819,13 @@ const HAIR_SHAPES: Record<HairStyle, HairShape> = {
       return 0.02 + 0.05 * ridge * smooth(-0.25, 0.25, toward);
     },
   },
+  // twin buns: the tidy bun cap, but gathered out to each side (the buns themselves are added below)
+  buns: {
+    front: FRINGE,
+    side: -0.12,
+    back: -0.5,
+    puff: (ux, uy) => 0.02 + 0.05 * smooth(0.3, 0.9, Math.abs(ux)) * smooth(-0.1, 0.5, uy),
+  },
   // lively anime spikes: a dozen separate clusters across the crown and temples, each its own
   // soft point, instead of ridges that all converge at the top of the head
   spiky: {
@@ -795,6 +909,10 @@ const HAIR_GEO = Object.fromEntries(
   (Object.keys(HAIR_SHAPES) as HairStyle[]).map((style) => {
     const extras: Part[] = [];
     if (style === "bun") extras.push({ geo: GEO.sphere, p: [0, 0.31, -0.38], s: 0.31 });
+    if (style === "buns") {
+      extras.push({ geo: GEO.sphere, p: [0.4, 0.3, -0.12], s: 0.27 });
+      extras.push({ geo: GEO.sphere, p: [-0.4, 0.3, -0.12], s: 0.27 });
+    }
     if (style === "long") {
       // the bulk over the shoulders at the back, and a lock in front of each ear flaring out
       extras.push({ geo: GEO.sphere, p: [0, -0.36, -0.2], s: [0.64, 0.72, 0.32] });
@@ -816,6 +934,9 @@ function Hair({ style, mat, hidden }: { style: HairStyle; mat: THREE.Material; h
       {style === "bun" && !hidden && (
         <mesh geometry={GEO.torus} material={M.ribbon} position={[0, 0.24, -0.3]} rotation={[-2.45, 0, 0]} scale={[0.27, 0.27, 0.6]} raycast={noRaycast} />
       )}
+      {style === "buns" &&
+        !hidden &&
+        [-1, 1].map((s) => <mesh key={s} geometry={GEO.torus} material={M.ribbon} position={[s * 0.36, 0.22, -0.1]} rotation={[0, s * 1.2, 0]} scale={[0.24, 0.24, 0.6]} raycast={noRaycast} />)}
     </group>
   );
 }
@@ -906,7 +1027,154 @@ function HeadAccessory({ kind }: { kind: Accessory }) {
           <mesh geometry={GEMS_GEO} material={M.gem} raycast={noRaycast} />
         </group>
       );
+    case "mochiears":
+      // Mochi's own ears: orange cones with pink insides on a thin band
+      return (
+        <group position={[0, HAT_TOP - 0.06, -0.04]}>
+          {[-1, 1].map((s) => (
+            <group key={s} position={[s * 0.24, 0.12, 0]} rotation={[0, 0, -s * 0.35]}>
+              <mesh geometry={GEO.cone} material={M.mochiFur} scale={[0.2, 0.26, 0.16]} raycast={noRaycast} />
+              <mesh geometry={GEO.cone} material={M.bunnyInner} position={[0, -0.02, 0.05]} scale={[0.11, 0.16, 0.06]} raycast={noRaycast} />
+            </group>
+          ))}
+          <mesh geometry={arcGeo(HEAD_R + 0.08, 0.025, Math.PI)} material={M.mochiFur} position={[0, 0.02, 0.02]} raycast={noRaycast} />
+        </group>
+      );
     default:
       return null;
   }
+}
+
+// --- Outfit details -----------------------------------------------------------------------------
+// The few shapes that make each outfit read at a glance. All static, all shared materials.
+
+function sleeveMaterial(spec: OutfitSpec, accent: THREE.Material): THREE.Material {
+  if (spec.sleeves === undefined) return spec.torso ?? accent;
+  return spec.sleeves ?? accent;
+}
+
+function OutfitDetails({ outfit, accent }: { outfit: OutfitId; accent: THREE.Material }) {
+  switch (outfit) {
+    case "outfit_starter_hoodie":
+      // a hood slumped at the back of the neck, a kangaroo pocket and drawstrings
+      return (
+        <group>
+          <mesh geometry={GEO.sphere} material={accent} position={[0, 0.74, -0.16]} scale={[0.34, 0.16, 0.2]} raycast={noRaycast} />
+          <mesh geometry={GEO.box} material={OUTFIT_M.sweats} position={[0, 0.4, 0.2]} scale={[0.26, 0.1, 0.04]} raycast={noRaycast} />
+          {[-0.05, 0.05].map((x) => (
+            <mesh key={x} geometry={GEO.cyl} material={OUTFIT_M.towel} position={[x, 0.62, 0.23]} scale={[0.012, 0.16, 0.012]} raycast={noRaycast} />
+          ))}
+        </group>
+      );
+    case "outfit_starter_overalls":
+      // a denim bib with two straps over the shoulders and a pocket
+      return (
+        <group>
+          <mesh geometry={GEO.box} material={OUTFIT_M.denim} position={[0, 0.5, 0.21]} scale={[0.26, 0.24, 0.05]} raycast={noRaycast} />
+          <mesh geometry={GEO.box} material={OUTFIT_M.denimDark} position={[0, 0.48, 0.24]} scale={[0.14, 0.1, 0.01]} raycast={noRaycast} />
+          {[-0.09, 0.09].map((x) => (
+            <mesh key={x} geometry={GEO.box} material={OUTFIT_M.denim} position={[x, 0.66, 0.1]} rotation={[0.5, 0, 0]} scale={[0.05, 0.28, 0.03]} raycast={noRaycast} />
+          ))}
+          <mesh geometry={GEO.sphere} material={OUTFIT_M.denim} position={[0, 0.32, 0]} scale={[0.24, 0.12, 0.22]} raycast={noRaycast} />
+        </group>
+      );
+    case "outfit_flannel_vest":
+      // a checked shirt (the torso) under a puffer vest in the player's colour
+      return (
+        <group>
+          <mesh geometry={GEO.sphere} material={accent} position={[0, 0.5, 0]} scale={[0.23, 0.25, 0.2]} raycast={noRaycast} />
+          <mesh geometry={GEO.box} material={OUTFIT_M.flannelLine} position={[0, 0.5, 0.21]} scale={[0.02, 0.3, 0.01]} raycast={noRaycast} />
+          {[0.44, 0.56].map((y) => (
+            <mesh key={y} geometry={GEO.box} material={OUTFIT_M.flannelLine} position={[0, y, 0.21]} scale={[0.3, 0.012, 0.01]} raycast={noRaycast} />
+          ))}
+        </group>
+      );
+    case "outfit_hawaiian":
+      // an open floral shirt: hibiscus dots over the accent, and a lei
+      return (
+        <group>
+          {[
+            [0.12, 0.56, 0.2],
+            [-0.14, 0.46, 0.19],
+            [0.04, 0.38, 0.22],
+            [-0.06, 0.6, 0.2],
+            [0.18, 0.42, 0.14],
+          ].map(([x, y, z], i) => (
+            <mesh key={i} geometry={GEO.sphereLow} material={OUTFIT_M.hibiscus} position={[x, y, z]} scale={0.045} raycast={noRaycast} />
+          ))}
+          <mesh geometry={GEO.torus} material={OUTFIT_M.hibiscus} position={[0, 0.66, 0.06]} rotation={[Math.PI / 2 + 0.4, 0, 0]} scale={[0.46, 0.46, 0.7]} raycast={noRaycast} />
+        </group>
+      );
+    case "outfit_tuxedo":
+      // a white shirt front, satin lapels in the accent, and a bow tie
+      return (
+        <group>
+          <mesh geometry={GEO.box} material={OUTFIT_M.tuxShirt} position={[0, 0.54, 0.215]} scale={[0.12, 0.28, 0.02]} raycast={noRaycast} />
+          {[-1, 1].map((s) => (
+            <mesh key={s} geometry={GEO.box} material={accent} position={[s * 0.1, 0.56, 0.21]} rotation={[0, 0, s * 0.35]} scale={[0.06, 0.26, 0.02]} raycast={noRaycast} />
+          ))}
+          <mesh geometry={GEO.box} material={OUTFIT_M.bowTie} position={[0, 0.7, 0.2]} scale={[0.14, 0.05, 0.03]} raycast={noRaycast} />
+          <mesh geometry={GEO.sphereLow} material={OUTFIT_M.bowTie} position={[0, 0.7, 0.21]} scale={0.035} raycast={noRaycast} />
+        </group>
+      );
+    case "outfit_boxing":
+      // a satin robe in the accent (the torso), gold trim and a waistband over white shorts
+      return (
+        <group>
+          {[-1, 1].map((s) => (
+            <mesh key={s} geometry={GEO.box} material={OUTFIT_M.robeTrim} position={[s * 0.08, 0.5, 0.215]} rotation={[0, 0, s * 0.2]} scale={[0.035, 0.36, 0.015]} raycast={noRaycast} />
+          ))}
+          <mesh geometry={GEO.torus} material={OUTFIT_M.robeTrim} position={[0, 0.33, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.42, 0.42, 0.5]} raycast={noRaycast} />
+        </group>
+      );
+    case "outfit_yukata":
+      // crossed indigo lapels edged in the accent, and a wide obi sash
+      return (
+        <group>
+          {[-1, 1].map((s) => (
+            <mesh key={s} geometry={GEO.box} material={accent} position={[s * 0.07, 0.56, 0.215]} rotation={[0, 0, s * 0.55]} scale={[0.04, 0.3, 0.015]} raycast={noRaycast} />
+          ))}
+          <mesh geometry={GEO.torus} material={OUTFIT_M.obi} position={[0, 0.36, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.44, 0.44, 0.9]} raycast={noRaycast} />
+          <mesh geometry={GEO.box} material={OUTFIT_M.obi} position={[0, 0.36, -0.24]} scale={[0.16, 0.1, 0.06]} raycast={noRaycast} />
+        </group>
+      );
+    case "outfit_cyber":
+      // a dark jumpsuit with neon piping in the accent and a glowing chest core
+      return (
+        <group>
+          {[-1, 1].map((s) => (
+            <mesh key={s} geometry={GEO.box} material={OUTFIT_M.neon} position={[s * 0.12, 0.5, 0.2]} rotation={[0, 0, s * 0.1]} scale={[0.02, 0.36, 0.015]} raycast={noRaycast} />
+          ))}
+          <mesh geometry={GEO.sphereLow} material={OUTFIT_M.neonPink} position={[0, 0.56, 0.22]} scale={0.05} raycast={noRaycast} />
+          <mesh geometry={GEO.torus} material={OUTFIT_M.neon} position={[0, 0.33, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.4, 0.4, 0.4]} raycast={noRaycast} />
+          {[-LEG_X, LEG_X].map((x) => (
+            <mesh key={x} geometry={GEO.box} material={OUTFIT_M.neonPink} position={[x, 0.14, 0.085]} scale={[0.02, 0.12, 0.01]} raycast={noRaycast} />
+          ))}
+        </group>
+      );
+    default:
+      return null;
+  }
+}
+
+/** A big red glove over the hand, with a white cuff. */
+function BoxingGlove() {
+  return (
+    <group position={[0, -ARM_TOTAL - 0.02, 0.01]}>
+      <mesh geometry={GEO.sphere} material={OUTFIT_M.glove} scale={[0.15, 0.14, 0.16]} raycast={noRaycast} />
+      <mesh geometry={GEO.sphere} material={OUTFIT_M.glove} position={[0.06, 0.03, 0.06]} scale={[0.07, 0.06, 0.07]} raycast={noRaycast} />
+      <mesh geometry={GEO.cyl} material={OUTFIT_M.gloveCuff} position={[0, 0.1, 0]} scale={[0.15, 0.06, 0.15]} raycast={noRaycast} />
+    </group>
+  );
+}
+
+/** A folded towel balanced on the head, the onsen way. */
+function HeadTowel() {
+  return (
+    <group position={[0, HEAD_R + 0.02, -0.02]} rotation={[0, 0.15, 0.05]}>
+      <mesh geometry={GEO.box} material={OUTFIT_M.towel} position={[0, 0.04, 0]} scale={[0.5, 0.09, 0.34]} raycast={noRaycast} />
+      <mesh geometry={GEO.box} material={OUTFIT_M.towel} position={[0, 0.11, 0]} scale={[0.36, 0.06, 0.26]} raycast={noRaycast} />
+      <mesh geometry={GEO.box} material={OUTFIT_M.towelStripe} position={[0, 0.045, 0]} scale={[0.505, 0.025, 0.345]} raycast={noRaycast} />
+    </group>
+  );
 }

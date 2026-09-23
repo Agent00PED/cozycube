@@ -13,7 +13,18 @@ import { pushToast } from "./components/hud/toastStore";
 import { Joystick } from "./components/hud/Joystick";
 import { Wardrobe } from "./components/hud/Wardrobe";
 import { loadSavedLook } from "./components/hud/lookStorage";
-import { playWinBell } from "./audio/sfx";
+import { FishingModal } from "./components/hud/FishingModal";
+import { GachaModal } from "./components/hud/GachaModal";
+import { ClawModal } from "./components/hud/ClawModal";
+import { RetroGameModal } from "./components/hud/RetroGameModal";
+import { WishModal } from "./components/hud/WishModal";
+import { MatchaModal } from "./components/hud/MatchaModal";
+import { BlenderModal } from "./components/hud/BlenderModal";
+import { JukeboxModal } from "./components/hud/JukeboxModal";
+import { BoardGameModal } from "./components/hud/BoardGameModal";
+import { MochiPlayroom } from "./components/hud/MochiPlayroom";
+import { BoxingHud } from "./components/hud/BoxingHud";
+import { playDizzyBirds, playWinBell } from "./audio/sfx";
 import { getAudioSettings, installGestureUnlock, setAudioSettings, subscribeAudioSettings } from "./audio/SoundManager";
 import { installKeyboard, isTouchDevice } from "./systems/input";
 import { interactBridge } from "./scene/interactBridge";
@@ -28,6 +39,12 @@ import {
   parseLook,
   parseStats,
   type BlackjackView,
+  type BoardGameView,
+  type FishOnLine,
+  type GachaPrize,
+  type MochiAction,
+  type OutfitId,
+  type PremiumHat,
 } from "@shared/types";
 import { ActionDock } from "./components/hud/ActionDock";
 import { RoulettePanel } from "./components/hud/RoulettePanel";
@@ -163,6 +180,25 @@ export default function App() {
     reelIn,
     ballRef,
     subscribeEmotes,
+    buyOutfit,
+    pullGacha,
+    clawPlay,
+    arcadeScore,
+    hook,
+    catchFish,
+    boxingEnter,
+    boxingExit,
+    punch,
+    tossCoin,
+    splash,
+    makeWish,
+    matchaWhisk,
+    blendDrink,
+    setRecord,
+    boardJoin,
+    boardLeave,
+    boardMove,
+    mochiPlay,
   } = useColyseusRoom(auth);
 
   const voice = useVoiceActivity(auth, setSpeaking);
@@ -186,6 +222,39 @@ export default function App() {
   const [blackjackOpen, setBlackjackOpen] = useState(false);
   const [blackjackView, setBlackjackView] = useState<BlackjackView | null>(null);
   const closeWardrobe = useCallback(() => setWardrobeOpen(false), []);
+
+  // --- titan infinity panels: whichever prop you walked up to (openPanel), and its results ---
+  const [panel, setPanel] = useState<{ kind: string; propId: string } | null>(null);
+  const closePanel = useCallback(() => setPanel(null), []);
+  const [fishOnLine, setFishOnLine] = useState<FishOnLine | null>(null);
+  const closeFishing = useCallback(() => setFishOnLine(null), []);
+  const [gachaResult, setGachaResult] = useState<GachaPrize | null>(null);
+  const [clawResult, setClawResult] = useState<{ won: boolean; target: number } | null>(null);
+  const [arcadeResult, setArcadeResult] = useState<{ coins: number } | null>(null);
+  const [wishResult, setWishResult] = useState<{ fortune: string; lucky: number } | null>(null);
+  const [matchaResult, setMatchaResult] = useState<{ coins: number } | null>(null);
+  const [blendResult, setBlendResult] = useState<{ right: boolean; coins: number } | null>(null);
+  const [boardView, setBoardView] = useState<BoardGameView | null>(null);
+  const [mochiResult, setMochiResult] = useState<{ action: MochiAction; coins: number; cooldown: boolean } | null>(null);
+  const openPanel = useCallback((kind: string, propId: string) => {
+    // a fresh panel starts with no stale result from last time
+    setGachaResult(null);
+    setClawResult(null);
+    setArcadeResult(null);
+    setWishResult(null);
+    setMatchaResult(null);
+    setBlendResult(null);
+    setMochiResult(null);
+    setPanel({ kind, propId });
+  }, []);
+  useEffect(() => {
+    const open = (e: Event) => {
+      const d = (e as CustomEvent<{ kind: string; propId: string }>).detail;
+      if (d) openPanel(d.kind, d.propId);
+    };
+    window.addEventListener("cozy-open-panel", open);
+    return () => window.removeEventListener("cozy-open-panel", open);
+  }, [openPanel]);
 
   // --- one-shot server messages: results, openings, welcomes ---
   const localIdRef = useRef(localSessionId);
@@ -211,9 +280,42 @@ export default function App() {
         } else if (type === "welcome") {
           const w = payload as { isNew: boolean; coins: number };
           pushToast(w.isNew ? `Welcome to CozyCube! Here are ${w.coins} coins to start` : `Welcome back! Your ${w.coins} coins are right where you left them`, { emoji: w.isNew ? "🎀" : "👋", tone: "arrive" });
+        } else if (type === "openPanel") {
+          const p = payload as { kind: string; propId: string };
+          openPanel(p.kind, p.propId);
+        } else if (type === "fishOnLine") {
+          setFishOnLine(payload as FishOnLine);
+        } else if (type === "gachaResult") {
+          setGachaResult(payload as GachaPrize);
+        } else if (type === "clawResult") {
+          setClawResult(payload as { won: boolean; target: number });
+        } else if (type === "arcadeResult") {
+          setArcadeResult(payload as { coins: number });
+        } else if (type === "wishResult") {
+          setWishResult(payload as { fortune: string; lucky: number });
+        } else if (type === "matchaResult") {
+          setMatchaResult(payload as { coins: number });
+        } else if (type === "blendResult") {
+          setBlendResult(payload as { right: boolean; coins: number });
+        } else if (type === "boardState") {
+          setBoardView(payload as BoardGameView);
+        } else if (type === "mochiResult") {
+          setMochiResult(payload as { action: MochiAction; coins: number; cooldown: boolean });
+        } else if (type === "boxingResult") {
+          const r = payload as { winner: string; winnerName: string; loser: string; loserName: string; purse: number };
+          if (r.winner === localIdRef.current) playWinBell();
+          pushToast(`${r.winnerName} knocked out ${r.loserName}! +${r.purse} purse`, { emoji: "🥊", tone: "win", silent: true });
+        } else if (type === "punch") {
+          const p = payload as { from: string; to: string; hits: number };
+          if (p.to === localIdRef.current && p.hits >= 3) playDizzyBirds();
+        } else if (type === "dailyComplete") {
+          pushToast(`Daily checklist done! +${(payload as { coins: number }).coins} coins`, { emoji: "📋", tone: "win" });
+        } else if (type === "vibe") {
+          const v = payload as { coins: number; party: boolean };
+          pushToast(v.party ? `Party vibes: +${v.coins} coins for hanging out together` : `Cozy vibes: +${v.coins} coins for hanging out`, { emoji: v.party ? "🎉" : "🕯️", tone: "coin" });
         }
       }),
-    [subscribeMessages]
+    [subscribeMessages, openPanel]
   );
 
   // Blackjack opens from the dock (walk up to the table first) and closes when you leave it.
@@ -307,7 +409,15 @@ export default function App() {
       setBlackjackOpen(false);
       setBlackjackView(null);
     }
+    // fast travel closes whatever was open in the old world
+    setPanel(null);
+    setFishOnLine(null);
+    setBoardView(null);
   }, [currentMap]);
+  // the reel closes by itself if the server gave up on the line (timeout) or you stood up
+  useEffect(() => {
+    if (me && me.action !== "reel") setFishOnLine(null);
+  }, [me?.action]); // eslint-disable-line react-hooks/exhaustive-deps
   const showRoulette = atRoulette && !rouletteClosed && !blackjackOpen && !slotsProp;
 
   const playerCount = useMemo(() => Object.values(players).filter((p) => p.connected).length, [players]);
@@ -352,6 +462,7 @@ export default function App() {
         autoCycle={autoCycle}
         onToggleAutoCycle={() => setAutoCycle(!autoCycle)}
         coins={localPlayer?.coins ?? 0}
+        voiceSlot={<VoiceChip mode={voice.mode} active={voice.simulatedActive} onPressChange={voice.setSimulatedActive} />}
         onClaimAllowance={claimAllowance}
         status={localPlayer?.status ?? ""}
         onSetStatus={setStatus}
@@ -365,7 +476,8 @@ export default function App() {
       />
       <Toasts />
 
-      <div style={voiceStyle}>
+      {/* on phones the voice chip drops out of the header and sits under it on the right */}
+      <div style={voiceStyle} className="md:hidden">
         <VoiceChip mode={voice.mode} active={voice.simulatedActive} onPressChange={voice.setSimulatedActive} />
       </div>
 
@@ -386,8 +498,11 @@ export default function App() {
             onPutDown={dropHeld}
             onCastLine={castLine}
             onReelIn={reelIn}
+            onHook={hook}
+            onSplash={splash}
           />
-          <ActionDock rouletteOpen={showRoulette} player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onCastLine={castLine} onRoast={roast} />
+          {currentMap === "boxing_ring" && <BoxingHud me={localPlayer} players={players} onPunch={punch} onExit={boxingExit} onToss={tossCoin} />}
+          <ActionDock rouletteOpen={showRoulette} player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onCastLine={castLine} onRoast={roast} onBoxingEnter={boxingEnter} />
         </div>
       )}
 
@@ -441,6 +556,18 @@ export default function App() {
       )}
       {blackjackOpen && localPlayer && <BlackjackModal view={blackjackView} coins={localPlayer.coins} onAction={blackjackAction} onClose={() => setBlackjackOpen(false)} />}
 
+      {/* the world's own panels */}
+      {fishOnLine && <FishingModal fish={fishOnLine} onResult={catchFish} onClose={closeFishing} />}
+      {panel?.kind === "gacha" && localPlayer && <GachaModal coins={localPlayer.coins} result={gachaResult} onPull={pullGacha} onClose={closePanel} />}
+      {panel?.kind === "claw" && localPlayer && <ClawModal coins={localPlayer.coins} result={clawResult} onPlay={clawPlay} onClose={closePanel} />}
+      {panel?.kind === "arcade" && <RetroGameModal result={arcadeResult} onScore={arcadeScore} onClose={closePanel} />}
+      {panel?.kind === "well" && localPlayer && <WishModal coins={localPlayer.coins} result={wishResult} onWish={makeWish} onClose={closePanel} />}
+      {panel?.kind === "teahouse" && <MatchaModal result={matchaResult} onWhisk={matchaWhisk} onClose={closePanel} />}
+      {panel?.kind === "blender" && <BlenderModal result={blendResult} onBlend={blendDrink} onClose={closePanel} />}
+      {panel?.kind === "jukebox" && <JukeboxModal playing={record} onPick={(t) => (setRecord(t), setPanel(null))} onClose={closePanel} />}
+      {panel?.kind === "boardgame" && localSessionId && <BoardGameModal view={boardView} localSessionId={localSessionId} onJoin={boardJoin} onLeave={boardLeave} onMove={boardMove} onClose={closePanel} />}
+      {panel?.kind === "mochi" && <MochiPlayroom result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
+
       {wardrobeOpen && localPlayer && (
         <Wardrobe
           userId={localPlayer.userId}
@@ -448,7 +575,8 @@ export default function App() {
           initial={parseLook(localPlayer.look) ?? defaultLook(localPlayer.userId || localPlayer.username, localPlayer.color)}
           coins={localPlayer.coins}
           owned={localPlayer.owned}
-          onBuy={buyHat}
+          onBuy={(hat: PremiumHat) => buyHat(hat)}
+          onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)}
           onApply={setLook}
           onClose={closeWardrobe}
         />

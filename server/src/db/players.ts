@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { DEFAULT_STATS, STARTING_COINS, type PlayerStats } from "../../../shared/types";
+import { DEFAULT_STATS, STARTER_UNLOCKS, STARTING_COINS, type DailyChecklist, type PlayerStats } from "../../../shared/types";
 
 // Player persistence: Railway PostgreSQL when DATABASE_URL is set, an in-memory store when it
 // is not (local dev, offline tests). Both speak the same interface, so the room never knows
@@ -14,6 +14,10 @@ export interface PlayerRecord {
   /** The wardrobe look as parsed fields, or {} for "never opened the wardrobe". */
   equippedLook: Record<string, string>;
   stats: PlayerStats;
+  /** Today's checklist, kept inside the stats JSON column under "daily". */
+  daily: DailyChecklist | null;
+  /** The last day Mochi dropped lucky coins for this player (stats JSON "mochi_coins_day"). */
+  mochiCoinsDay: string;
   lastDailyClaim: Date | null;
 }
 
@@ -31,7 +35,7 @@ export interface PlayerStore {
 }
 
 export function newPlayerRecord(discordId: string, username: string): PlayerRecord {
-  return { discordId, username, coins: STARTING_COINS, unlockedItems: [], equippedLook: {}, stats: { ...DEFAULT_STATS }, lastDailyClaim: null };
+  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", lastDailyClaim: null };
 }
 
 const SCHEMA_SQL = `
@@ -39,9 +43,9 @@ CREATE TABLE IF NOT EXISTS players (
   discord_id VARCHAR(64) PRIMARY KEY,
   username VARCHAR(100) NOT NULL,
   coins INTEGER DEFAULT 150,
-  unlocked_items JSONB DEFAULT '[]'::jsonb,
-  equipped_look JSONB DEFAULT '{}'::jsonb,
-  stats JSONB DEFAULT '{"roulette_wins":0,"blackjack_wins":0,"slots_spins":0,"fish_caught":0,"marshmallows_roasted":0}'::jsonb,
+  unlocked_items JSONB DEFAULT '["outfit_starter_hoodie", "outfit_starter_overalls", "hat_none"]'::jsonb,
+  equipped_look JSONB DEFAULT '{"skinColor":"#ffd1b3","hairStyle":"long","hairColor":"#a8d8ea","outfit":"outfit_starter_hoodie","outfitColor":"#4a6b5d","hat":"none"}'::jsonb,
+  stats JSONB DEFAULT '{"roulette_wins":0,"blackjack_wins":0,"slots_spins":0,"fish_caught":0,"marshmallows_roasted":0,"boxing_knockouts":0,"gacha_pulls":0,"mochi_pets":0,"time_spent_mins":0}'::jsonb,
   last_daily_claim TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -50,15 +54,27 @@ CREATE INDEX IF NOT EXISTS idx_players_coins ON players (coins DESC);
 `;
 
 function rowToRecord(row: any): PlayerRecord {
+  const raw = row.stats && typeof row.stats === "object" ? { ...row.stats } : {};
+  const daily = raw.daily && typeof raw.daily === "object" ? (raw.daily as DailyChecklist) : null;
+  const mochiCoinsDay = typeof raw.mochi_coins_day === "string" ? raw.mochi_coins_day : "";
+  delete raw.daily;
+  delete raw.mochi_coins_day;
   return {
     discordId: row.discord_id,
     username: row.username,
     coins: Number(row.coins ?? STARTING_COINS),
-    unlockedItems: Array.isArray(row.unlocked_items) ? row.unlocked_items.map(String) : [],
+    unlockedItems: Array.isArray(row.unlocked_items) ? row.unlocked_items.map(String) : [...STARTER_UNLOCKS],
     equippedLook: row.equipped_look && typeof row.equipped_look === "object" ? row.equipped_look : {},
-    stats: { ...DEFAULT_STATS, ...(row.stats && typeof row.stats === "object" ? row.stats : {}) },
+    stats: { ...DEFAULT_STATS, ...raw },
+    daily,
+    mochiCoinsDay,
     lastDailyClaim: row.last_daily_claim ? new Date(row.last_daily_claim) : null,
   };
+}
+
+/** The stats column carries the checklist and Mochi's coin day alongside the counters. */
+function statsColumn(r: PlayerRecord): string {
+  return JSON.stringify({ ...r.stats, daily: r.daily, mochi_coins_day: r.mochiCoinsDay });
 }
 
 class PostgresStore implements PlayerStore {
@@ -94,7 +110,7 @@ class PostgresStore implements PlayerStore {
          stats = EXCLUDED.stats,
          last_daily_claim = EXCLUDED.last_daily_claim,
          updated_at = CURRENT_TIMESTAMP`,
-      [r.discordId, r.username.slice(0, 100), r.coins, JSON.stringify(r.unlockedItems), JSON.stringify(r.equippedLook), JSON.stringify(r.stats), r.lastDailyClaim]
+      [r.discordId, r.username.slice(0, 100), r.coins, JSON.stringify(r.unlockedItems), JSON.stringify(r.equippedLook), statsColumn(r), r.lastDailyClaim]
     );
   }
 
@@ -114,10 +130,10 @@ class MemoryStore implements PlayerStore {
   private rows = new Map<string, PlayerRecord>();
   async load(discordId: string) {
     const r = this.rows.get(discordId);
-    return r ? { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook } } : null;
+    return r ? { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null } : null;
   }
   async upsert(r: PlayerRecord) {
-    this.rows.set(r.discordId, { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook } });
+    this.rows.set(r.discordId, { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null });
   }
   async topCoins(limit: number) {
     return [...this.rows.values()]
