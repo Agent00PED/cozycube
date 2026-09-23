@@ -2,6 +2,7 @@ import type { MapId, SeatStyle, ToggleableKind } from "./types";
 import { BOXING_RING, SPARKLE_SPOTS, poseForSeat } from "./types";
 import { CUSHIONS, STYLE_CUSHION, seatAnchorY, type CushionId } from "./seats";
 import { walkY } from "./collision";
+import { LOFT_MOCHI, LOFT_PROPS, LOFT_SEATS } from "./worlds/lounge";
 
 // Author-time config for each map's interactive furniture. The server loads this into
 // ChairState/ToggleableState schema instances on room create and on every map change;
@@ -108,69 +109,10 @@ const FACE_POS_Z = 0;
 
 // The world is 20x20 (HALF = 10). Indoors the two back walls run along x = -10 and z = -10
 // (inner faces at -9.8), and the open sides are +X and +Z — the camera looks from that corner.
-/** The reading & tea cluster in the lounge's front-left wing: everything gathers round here. */
-export const TEA_TABLE = { x: -4.4, z: 5.4 };
 
 export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
-  cozy_lounge: anchored("cozy_lounge", [
-    // --- Living room, the heart of the floor: L-sofa facing the TV on the slatted screen ---
-    // Approached from the strip between the sofa and the coffee table. The seats sit a little
-    // forward of the backrest (which stands at z 1.36) so nobody's shoulders go through it.
-    ...[-4.4, -3.0, -1.6].map((x, i) => ({
-      propId: `sofa_${i + 1}`,
-      x,
-      z: 0.95,
-      rotationY: FACE_NEG_Z,
-      style: "pad" as const,
-      cushion: "loungeSofa" as const,
-      approachX: x,
-      approachZ: 0.0,
-    })),
-    { propId: "sofa_4", x: -5.55, z: -0.6, rotationY: FACE_POS_X, style: "pad", cushion: "loungeSofa", approachX: -4.6, approachZ: -0.3 },
-    { propId: "armchair_2", x: 0.5, z: -1.1, rotationY: FACE_NEG_X, style: "armchair", approachX: -0.4, approachZ: -0.3 },
-
-    // --- Kitchen bar: three stools along the island ---
-    ...[3.9, 5.1, 6.3].map((x, i) => ({
-      propId: `stool_${i + 1}`,
-      x,
-      z: -5.0,
-      rotationY: FACE_NEG_Z,
-      style: "stool" as const,
-      approachX: x,
-      approachZ: -4.2,
-    })),
-
-    // --- Dining set: four chairs round the table, bridging kitchen and living room ---
-    // Farmhouse table running on from the island: two chairs each side.
-    { propId: "dining_1", x: 0.7, z: -5.1, rotationY: FACE_NEG_Z, style: "wood", approachX: 0.7, approachZ: -4.3 },
-    { propId: "dining_2", x: 1.9, z: -5.1, rotationY: FACE_NEG_Z, style: "wood", approachX: 1.9, approachZ: -4.3 },
-    { propId: "dining_3", x: 0.7, z: -7.3, rotationY: FACE_POS_Z, style: "wood", approachX: 0.2, approachZ: -8.0 },
-    { propId: "dining_4", x: 1.9, z: -7.3, rotationY: FACE_POS_Z, style: "wood", approachX: 1.4, approachZ: -8.0 },
-
-    // --- Console lounge: two beanbags turned to the little screen in front of the bookcase ---
-    { propId: "beanbag_1", x: -3.3, z: -7.3, rotationY: FACE_NEG_Z, style: "pad", cushion: "beanbag", approachX: -3.3, approachZ: -6.2 },
-    { propId: "beanbag_2", x: -1.6, z: -7.3, rotationY: FACE_NEG_Z, style: "pad", cushion: "beanbag", approachX: -1.6, approachZ: -6.2 },
-
-    // --- Board-game table: three chairs round the round table in the corner ---
-    { propId: "game_1", x: -8.2, z: -5.9, rotationY: FACE_NEG_Z, style: "wood", approachX: -8.2, approachZ: -5.0 },
-    { propId: "game_2", x: -7.0, z: -7.0, rotationY: FACE_NEG_X, style: "wood", approachX: -6.1, approachZ: -7.0 },
-    { propId: "game_3", x: -8.2, z: -8.1, rotationY: FACE_POS_Z, style: "wood", approachX: -8.2, approachZ: -9.0 },
-
-    // --- Reading & tea lounge: the armchair and three floor cushions gather round the low
-    //     tea table, with the record shelf and guitar along the wall behind them ---
-    { propId: "armchair_1", x: -6.3, z: TEA_TABLE.z, rotationY: FACE_POS_X, style: "wingback", approachX: -6.3, approachZ: 4.1 },
-    { propId: "wingback_2", x: -8.2, z: 2.2, rotationY: FACE_POS_Z, style: "wingback", approachX: -8.2, approachZ: 1.1 },
-    { propId: "cushion_1", x: TEA_TABLE.x, z: 4.0, rotationY: FACE_POS_Z, style: "pad", cushion: "floorCushion", approachX: TEA_TABLE.x, approachZ: 3.0 },
-    { propId: "cushion_2", x: TEA_TABLE.x, z: 6.8, rotationY: FACE_NEG_Z, style: "pad", cushion: "floorCushion", approachX: TEA_TABLE.x, approachZ: 7.8 },
-    { propId: "cushion_3", x: -2.9, z: TEA_TABLE.z, rotationY: FACE_NEG_X, style: "pad", cushion: "floorCushion", approachX: -1.9, approachZ: TEA_TABLE.z },
-
-    // --- Balcony deck: loungers looking out over the edge ---
-    { propId: "deckchair_1", x: 7.6, z: 4.2, rotationY: FACE_POS_X, style: "deckchair", approachX: 6.3, approachZ: 4.2 },
-    { propId: "deckchair_2", x: 7.6, z: 6.6, rotationY: FACE_POS_X, style: "deckchair", approachX: 6.3, approachZ: 6.6 },
-    // --- The garden terrace beyond the deck: a bench for two under the string lights ---
-    { propId: "garden_bench_1", x: 11.3, z: 2.6, rotationY: FACE_NEG_X, style: "pad", cushion: "terraceBench", approachX: 10.2, approachZ: 2.6 },
-    { propId: "garden_bench_2", x: 11.3, z: 3.4, rotationY: FACE_NEG_X, style: "pad", cushion: "terraceBench", approachX: 10.2, approachZ: 3.4 },
-  ]),
+  // the Loft is authored in shared/worlds/lounge.ts
+  cozy_lounge: anchored("cozy_lounge", LOFT_SEATS),
 
   campfire_night: anchored("campfire_night", [
     // Six log benches ringing the fire.
@@ -315,27 +257,7 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
 };
 
 export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
-  cozy_lounge: [
-    // The TV stands on the media console against the slatted screen, facing the sofa.
-    { propId: "tv", x: -3.0, y: 1.42, z: -3.62, kind: "tv", color: "#9ad1e8", defaultOn: true },
-    { propId: "lamp_living", x: 0.9, y: -0.16, z: 1.1, kind: "lamp", color: "#ffcf8a", defaultOn: true }, // down in the pit
-    { propId: "espresso", x: 2.4, y: 0.95, z: -9.25, kind: "espresso", color: "#ffb36b", defaultOn: true, approachX: 2.4, approachZ: -8.0 },
-    // Both cabinets stand against the left wall just past the streamer desk, facing into the room
-    // with two clear units of floor in front of them.
-    // Both cabinets on the back wall of the game den, two clear units of floor in front.
-    { propId: "arcade_1", x: -7.0, z: -9.45, kind: "arcade", color: "#ff4fd8", defaultOn: true, approachX: -7.0, approachZ: -7.4 },
-    { propId: "arcade_2", x: -5.6, z: -9.45, kind: "arcade", color: "#4fd8ff", defaultOn: false, approachX: -5.6, approachZ: -7.4 },
-    { propId: "desk_lamp_den", x: -9.0, y: 0.66, z: -7.8, kind: "desk_lamp", color: "#ffe2b0", defaultOn: true },
-    { propId: "lamp_vinyl", x: -8.1, z: 7.0, kind: "lamp", color: "#ffc47a", defaultOn: true },
-    // The record player on top of the vinyl shelf: click to change the record (or stop it).
-    { propId: "turntable", x: -9.3, y: 1.7, z: 3.8, kind: "turntable", color: "#e0a93b", defaultOn: true },
-    { propId: "lantern_balcony", x: 8.9, z: 5.4, kind: "lantern", color: "#ffbe6b", defaultOn: true },
-    // Mochi the cat, loafing on the pit rug. Walk up and play with her.
-    { propId: "cat_mochi", x: -0.9, y: -0.16, z: -2.5, kind: "cat", color: "#f0a860", defaultOn: true, approachX: -0.3, approachZ: -1.9 },
-    // The board-game table (checkers) and the jukebox panel on the record player.
-    { propId: "boardgame_lounge", x: -8.2, y: 0.75, z: -7.0, kind: "boardgame", color: "#f0e6d2", defaultOn: true, approachX: -7.0, approachZ: -5.9 },
-    { propId: "jukebox_lounge", x: -9.3, y: 1.7, z: 4.4, kind: "jukebox", color: "#e0a93b", defaultOn: true, approachX: -8.4, approachZ: 4.4 },
-  ],
+  cozy_lounge: LOFT_PROPS,
 
   campfire_night: [
     { propId: "campfire", x: 0, z: 0, kind: "campfire", color: "#ff8a3d", defaultOn: true },
@@ -453,41 +375,91 @@ export function isFishingSeat(propId: string): boolean {
   return propId.startsWith("pier_seat") || propId.startsWith("river_seat");
 }
 
-/** Where Mochi wanders in each world: three cozy spots round her home (the cat prop). */
-export const MOCHI_WAYPOINTS: Record<MapId, { x: number; z: number }[]> = {
-  cozy_lounge: [
-    { x: -0.9, z: -2.5 },
-    { x: -2.6, z: -0.4 },
-    { x: 0.3, z: -0.9 },
-  ],
+/** Where Mochi wanders in each world: a few cozy spots round her home (the cat prop). */
+export interface MochiWaypoint {
+  x: number;
+  z: number;
+  /** Where a player stands to play with her while she is here (a walkable spot beside it). */
+  ax: number;
+  az: number;
+}
+
+/** Mochi's favourite spots in each world, in the order she visits them (a loop; a spot may repeat). */
+export const MOCHI_WAYPOINTS: Record<MapId, MochiWaypoint[]> = {
+  cozy_lounge: LOFT_MOCHI,
   campfire_night: [
-    { x: -3.9, z: -3.1 },
-    { x: -2.2, z: -2.2 },
-    { x: -4.4, z: -1.4 },
+    { x: -3.9, z: -3.1, ax: -4.6, az: -2.3 },
+    { x: -2.2, z: -2.2, ax: -2.6, az: -1.3 },
+    { x: -4.4, z: -1.4, ax: -5.2, az: -0.6 },
   ],
   sunset_beach: [
-    { x: -7.7, z: 2.4 },
-    { x: -8.6, z: 1.0 },
-    { x: -6.2, z: 4.3 },
+    { x: -7.7, z: 2.4, ax: -8.5, az: 2.5 },
+    { x: -8.6, z: 1.0, ax: -7.6, az: 1.0 },
+    { x: -6.2, z: 4.3, ax: -5.2, az: 4.3 },
   ],
   velvet_casino: [
-    { x: -5.4, z: -9.0 },
-    { x: -6.6, z: -9.0 },
-    { x: -4.2, z: -9.0 },
+    { x: -5.4, z: -9.0, ax: -5.4, az: -7.4 },
+    { x: -6.6, z: -9.0, ax: -6.6, az: -7.4 },
+    { x: -4.2, z: -9.0, ax: -4.2, az: -7.4 },
   ],
   boxing_ring: [
-    { x: 3.3, z: 3.3 },
-    { x: 3.3, z: 1.4 },
-    { x: 1.4, z: 3.3 },
+    { x: 3.3, z: 3.3, ax: 4.3, az: 4.4 },
+    { x: 3.3, z: 1.4, ax: 4.4, az: 1.4 },
+    { x: 1.4, z: 3.3, ax: 1.4, az: 4.4 },
   ],
   japanese_onsen: [
-    { x: 3.9, z: -1.4 },
-    { x: 3.9, z: 0.6 },
-    { x: 2.4, z: -3.0 },
+    { x: 3.9, z: -1.4, ax: 5.0, az: -1.4 },
+    { x: 3.9, z: 0.6, ax: 5.0, az: 0.6 },
+    { x: 2.4, z: -3.0, ax: 2.4, az: -4.0 },
   ],
   retro_arcade: [
-    { x: -3.2, z: -11.2 },
-    { x: -5.6, z: -11.2 },
-    { x: -0.8, z: -11.2 },
+    { x: -3.2, z: -11.2, ax: -3.2, az: -9.4 },
+    { x: -5.6, z: -11.2, ax: -5.6, az: -9.4 },
+    { x: -0.8, z: -11.2, ax: -0.8, az: -9.4 },
   ],
 };
+
+// Her day, on a loop: loaf (asleep, 20 s) -> stretch and yawn -> waddle to the next spot ->
+// lick a paw -> loaf again. It runs on wall-clock time, so every client and the server agree
+// on where she is without a single byte of state.
+export type MochiPhase = "loaf" | "stretch" | "walk" | "lick";
+export const MOCHI_LOAF_S = 20;
+export const MOCHI_STRETCH_S = 2.5;
+export const MOCHI_WALK_S = 5;
+export const MOCHI_LICK_S = 3;
+export const MOCHI_LEG_S = MOCHI_LOAF_S + MOCHI_STRETCH_S + MOCHI_WALK_S + MOCHI_LICK_S;
+
+export interface MochiSpot {
+  x: number;
+  z: number;
+  /** Where to stand to play with her right now. */
+  ax: number;
+  az: number;
+  phase: MochiPhase;
+  /** 0..1 through the current phase. */
+  progress: number;
+  /** Which way she faces (radians about y, like a player's heading). */
+  heading: number;
+}
+
+/** Where Mochi is, and what she is doing, at wall-clock time `t` (seconds). */
+export function mochiSpot(mapId: MapId, t: number): MochiSpot {
+  const points = MOCHI_WAYPOINTS[mapId] ?? [];
+  if (points.length === 0) return { x: 0, z: 0, ax: 0, az: 1, phase: "loaf", progress: 0, heading: 0.6 };
+  if (points.length === 1) return { x: points[0].x, z: points[0].z, ax: points[0].ax, az: points[0].az, phase: "loaf", progress: 0, heading: 0.6 };
+  const cycle = MOCHI_LEG_S * points.length;
+  const u = ((t % cycle) + cycle) % cycle;
+  const leg = Math.floor(u / MOCHI_LEG_S);
+  const inLeg = u - leg * MOCHI_LEG_S;
+  const a = points[leg % points.length];
+  const b = points[(leg + 1) % points.length];
+  const heading = Math.atan2(b.x - a.x, b.z - a.z);
+  if (inLeg < MOCHI_LOAF_S) return { x: a.x, z: a.z, ax: a.ax, az: a.az, phase: "loaf", progress: inLeg / MOCHI_LOAF_S, heading: 0.6 };
+  if (inLeg < MOCHI_LOAF_S + MOCHI_STRETCH_S) return { x: a.x, z: a.z, ax: a.ax, az: a.az, phase: "stretch", progress: (inLeg - MOCHI_LOAF_S) / MOCHI_STRETCH_S, heading: 0.6 };
+  if (inLeg < MOCHI_LOAF_S + MOCHI_STRETCH_S + MOCHI_WALK_S) {
+    const k = (inLeg - MOCHI_LOAF_S - MOCHI_STRETCH_S) / MOCHI_WALK_S;
+    const e = k * k * (3 - 2 * k);
+    return { x: a.x + (b.x - a.x) * e, z: a.z + (b.z - a.z) * e, ax: k < 0.5 ? a.ax : b.ax, az: k < 0.5 ? a.az : b.az, phase: "walk", progress: k, heading };
+  }
+  return { x: b.x, z: b.z, ax: b.ax, az: b.az, phase: "lick", progress: (inLeg - MOCHI_LOAF_S - MOCHI_STRETCH_S - MOCHI_WALK_S) / MOCHI_LICK_S, heading: 0.6 };
+}

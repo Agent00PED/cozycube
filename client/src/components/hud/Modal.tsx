@@ -37,7 +37,7 @@ export function Modal({
       <div
         role="dialog"
         aria-label={title}
-        className={`clay-sheet sm:clay-pop flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl border text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl ${toneClass}`}
+        className={`clay-sheet sm:clay-pop flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-3xl border text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl ${toneClass}`}
         style={{ maxWidth: width }}
       >
         <div className="flex items-center gap-3 px-5 pt-4 pb-2">
@@ -47,7 +47,7 @@ export function Modal({
             ✕
           </button>
         </div>
-        <div className="overflow-y-auto px-5 pb-[max(20px,env(safe-area-inset-bottom))]">{children}</div>
+        <div className="scrollbar-none overflow-y-auto px-5 pb-[max(20px,env(safe-area-inset-bottom))]">{children}</div>
       </div>
     </div>,
     document.body

@@ -22,9 +22,9 @@ import { MatchaModal } from "./components/hud/MatchaModal";
 import { BlenderModal } from "./components/hud/BlenderModal";
 import { JukeboxModal } from "./components/hud/JukeboxModal";
 import { BoardGameModal } from "./components/hud/BoardGameModal";
-import { MochiPlayroom } from "./components/hud/MochiPlayroom";
+import { MochiPlayroomModal } from "./entities/MochiPlayroomModal";
 import { BoxingHud } from "./components/hud/BoxingHud";
-import { playDizzyBirds, playWinBell } from "./audio/sfx";
+import { installUiPops, playDizzyBirds, playWinBell } from "./audio/sfx";
 import { getAudioSettings, installGestureUnlock, setAudioSettings, subscribeAudioSettings } from "./audio/SoundManager";
 import { installKeyboard, isTouchDevice } from "./systems/input";
 import { interactBridge } from "./scene/interactBridge";
@@ -74,12 +74,15 @@ const GLOBAL_CSS = `
 /* Speech bubbles over avatars and the NPC traders. */
 .cozy-bubble, .cozy-chat-bubble {
   background: rgba(255, 250, 242, 0.96); color: #4a3a2c;
-  font: 700 12.5px 'Nunito', system-ui, sans-serif; padding: 8px 12px; border-radius: 16px 16px 16px 4px;
-  max-width: 220px; box-shadow: 0 6px 18px rgba(60, 40, 20, 0.28); pointer-events: none; user-select: none;
+  font: 700 13px 'Nunito', system-ui, sans-serif; padding: 8px 14px; border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(60, 40, 20, 0.28), inset 0 -2px 0 rgba(60, 40, 20, 0.08); pointer-events: none; user-select: none;
+  /* one line, always: the <Html> overlay has no intrinsic width, so without these a short word
+     like "brb" would wrap into a column of single letters */
+  white-space: nowrap; min-width: fit-content; width: max-content; max-width: none; display: inline-block;
 }
-.cozy-bubble { transform: translate(-50%, -100%); white-space: nowrap; animation: cozy-bubble-in 180ms ease-out; }
-.cozy-chat-bubble { white-space: normal; overflow-wrap: anywhere; text-align: center; }
-.cozy-chat-bubble::after { content: ""; position: absolute; left: 50%; bottom: -7px; width: 14px; height: 14px; background: inherit; transform: translateX(-50%) rotate(45deg); border-radius: 3px; }
+.cozy-bubble { transform: translate(-50%, -100%); animation: cozy-bubble-in 180ms ease-out; }
+.cozy-chat-bubble { text-align: center; }
+.cozy-chat-bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: inherit; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
 @keyframes cozy-bubble-in { from { opacity: 0; transform: translate(-50%, -80%) scale(0.9); } }
 /* The bite mark over a fishing avatar: reel in NOW. */
 .cozy-bite-mark { transform: translate(-50%, -100%); font: 900 26px system-ui, sans-serif; color: #fff; -webkit-text-stroke: 2px #d83a5a; text-shadow: 0 2px 6px rgba(0,0,0,0.4); animation: cozy-bite-mark 0.45s ease-in-out infinite alternate; pointer-events: none; }
@@ -122,6 +125,11 @@ const GLOBAL_CSS = `
 .cozy-roulette button:not(:disabled):hover { filter: brightness(1.15); }
 .cozy-roulette button:not(:disabled):active { transform: scale(0.94); }
 .cozy-bob { display: inline-block; animation: cozy-bob 2.2s ease-in-out infinite; }
+/* Mochi in her playroom: chewing a treat, purring under a scritch */
+.cozy-chew { animation: cozy-chew 0.32s ease-in-out infinite; }
+@keyframes cozy-chew { 0%, 100% { transform: translate(-50%, -50%) scaleY(1); } 50% { transform: translate(-50%, -50%) scaleY(0.86) rotate(2deg); } }
+.cozy-purr { animation: cozy-purr 0.18s ease-in-out infinite; }
+@keyframes cozy-purr { 0%, 100% { transform: translate(-50%, -50%) translateX(-1px); } 50% { transform: translate(-50%, -50%) translateX(1px) rotate(-1deg); } }
 @keyframes cozy-bob { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg) translateY(2px); } }
 /* With a joystick on the left, the bottom stack keeps to the centre-right on phones. */
 @media (max-width: 560px) {
@@ -209,6 +217,7 @@ export default function App() {
   // Sound unlocks on the first gesture; WASD / arrows steer for the app's lifetime.
   useEffect(() => {
     installGestureUnlock();
+    installUiPops();
     return installKeyboard();
   }, []);
 
@@ -476,11 +485,6 @@ export default function App() {
       />
       <Toasts />
 
-      {/* on phones the voice chip drops out of the header and sits under it on the right */}
-      <div style={voiceStyle} className="md:hidden">
-        <VoiceChip mode={voice.mode} active={voice.simulatedActive} onPressChange={voice.setSimulatedActive} />
-      </div>
-
       {localPlayer && localSessionId && (
         <div className={`cozy-bottom-stack ${showJoystick ? "" : "no-joystick"}`}>
           <ActivityBar
@@ -566,7 +570,7 @@ export default function App() {
       {panel?.kind === "blender" && <BlenderModal result={blendResult} onBlend={blendDrink} onClose={closePanel} />}
       {panel?.kind === "jukebox" && <JukeboxModal playing={record} onPick={(t) => (setRecord(t), setPanel(null))} onClose={closePanel} />}
       {panel?.kind === "boardgame" && localSessionId && <BoardGameModal view={boardView} localSessionId={localSessionId} onJoin={boardJoin} onLeave={boardLeave} onMove={boardMove} onClose={closePanel} />}
-      {panel?.kind === "mochi" && <MochiPlayroom result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
+      {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
 
       {wardrobeOpen && localPlayer && (
         <Wardrobe
@@ -612,7 +616,6 @@ function StatusScreen({ text, isError, overlay }: { text: string; isError?: bool
 }
 
 const rootStyle: CSSProperties = { position: "relative", width: "100vw", height: "100vh", overflow: "hidden" };
-const HUD_TOP = "calc(max(10px, env(safe-area-inset-top)) + 60px)";
 const roulettePanelStyle: CSSProperties = {
   position: "absolute",
   left: "50%",
@@ -620,7 +623,6 @@ const roulettePanelStyle: CSSProperties = {
   transform: "translateX(-50%)",
   zIndex: 14,
 };
-const voiceStyle: CSSProperties = { position: "absolute", top: HUD_TOP, right: 12, zIndex: 10 };
 const bottomRightStyle: CSSProperties = {
   position: "absolute",
   right: "max(16px, env(safe-area-inset-right))",

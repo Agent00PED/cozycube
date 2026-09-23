@@ -3,7 +3,7 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ToggleableSyncState } from "@shared/types";
 import { TOGGLEABLE_CONFIG } from "@shared/props";
-import { GEO, noRaycast, onHitLayer } from "../scene/kit";
+import { GEO, StaticBatch, noRaycast, onHitLayer } from "../scene/kit";
 import { useLampBoost } from "../scene/timeOfDay";
 
 // The Titan Infinity props: each is a walk-up thing that opens a panel on the HUD (the server
@@ -227,6 +227,7 @@ export function BoardGameProp({ prop, onUse }: P) {
   useEffect(() => () => (lightGeo.dispose(), darkGeo.dispose()), [lightGeo, darkGeo]);
   return (
     <group position={[prop.x, prop.y, prop.z]} rotation={[0, rot(prop), 0]}>
+      <StaticBatch version="static">
       <mesh geometry={GEO.box} material={M.tray} position={[0, 0.01, 0]} scale={[0.86, 0.03, 0.86]} raycast={noRaycast} />
       <mesh geometry={lightGeo} material={M.boardLight} raycast={noRaycast} />
       <mesh geometry={darkGeo} material={M.boardDark} raycast={noRaycast} />
@@ -236,6 +237,7 @@ export function BoardGameProp({ prop, onUse }: P) {
       {[0, 1, 2, 3].map((i) => (
         <mesh key={`b${i}`} geometry={GEO.cyl} material={M.pieceBlack} position={[-0.35 + i * 2 * 0.1, 0.06, 0.35]} scale={[0.08, 0.03, 0.08]} raycast={noRaycast} />
       ))}
+      </StaticBatch>
       <HitPad size={[1.0, 0.5, 1.0]} position={[0, 0.2, 0]} onUse={onUse} />
     </group>
   );
@@ -271,6 +273,9 @@ export function Jukebox({ prop, onUse }: P) {
   const glowB = prop.on ? M.jukeGlowB : M.jukeChrome;
   return (
     <group position={[prop.x, prop.y, prop.z]} rotation={[0, rot(prop), 0]}>
+      {/* everything but the spinning record and the light is one merged draw per material; the
+          glow materials swap with prop.on, so the batch is rebuilt then */}
+      <StaticBatch version={String(prop.on)}>
       <mesh geometry={GEO.box} material={M.jukeBody} position={[0, 0.6, 0]} scale={[1.0, 1.2, 0.6]} castShadow receiveShadow raycast={noRaycast} />
       <mesh geometry={GEO.cyl} material={M.jukeBody} position={[0, 1.2, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1.0, 0.6, 1.0]} castShadow raycast={noRaycast} />
       {/* the arch of glowing pipes */}
@@ -281,12 +286,15 @@ export function Jukebox({ prop, onUse }: P) {
       ))}
       {/* the window with the record, the speaker grille and the buttons */}
       <mesh geometry={GEO.box} material={M.dark} position={[0, 1.25, 0.28]} scale={[0.5, 0.36, 0.06]} raycast={noRaycast} />
+      </StaticBatch>
       <mesh ref={recordRef} geometry={GEO.cyl} material={M.record} position={[0, 1.25, 0.3]} rotation={[Math.PI / 2, 0, 0]} scale={[0.3, 0.02, 0.3]} raycast={noRaycast} />
+      <StaticBatch version={String(prop.on)}>
       <mesh geometry={GEO.cyl} material={M.jukeChrome} position={[0, 1.25, 0.32]} rotation={[Math.PI / 2, 0, 0]} scale={[0.08, 0.02, 0.08]} raycast={noRaycast} />
       <mesh geometry={GEO.box} material={M.jukeChrome} position={[0, 0.45, 0.31]} scale={[0.7, 0.5, 0.02]} raycast={noRaycast} />
       {[-0.2, -0.07, 0.07, 0.2].map((x, i) => (
         <mesh key={x} geometry={GEO.cyl} material={i % 2 ? M.jukeGlow : M.jukeGlowB} position={[x, 0.85, 0.32]} rotation={[Math.PI / 2, 0, 0]} scale={[0.06, 0.02, 0.06]} raycast={noRaycast} />
       ))}
+      </StaticBatch>
       <pointLight position={[0, 1.3, 0.8]} color="#ff9a5c" intensity={prop.on ? 0.9 * boost : 0} distance={4} decay={2} castShadow={false} />
       <HitPad size={[1.2, 2.0, 0.9]} position={[0, 1.0, 0.1]} onUse={onUse} />
     </group>

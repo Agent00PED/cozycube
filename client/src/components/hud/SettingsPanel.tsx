@@ -64,8 +64,11 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
 function Switch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button type="button" role="switch" aria-checked={on} onClick={() => (playClick(), onChange(!on))} className={`relative h-8 w-14 rounded-full transition-colors ${on ? "bg-amber-300" : "bg-white/15"}`}>
-      <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${on ? "translate-x-7" : "translate-x-1"}`} />
+    // The thumb is an inline-block INSIDE an inline-flex track with 2px padding, so it starts on
+    // the track's left edge (the old absolute thumb had no `left`, so its static position was the
+    // button's centred text cursor, and translate-x pushed it clean out of the track).
+    <button type="button" role="switch" aria-checked={on} onClick={() => (playClick(), onChange(!on))} className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out ${on ? "bg-amber-300" : "bg-white/15"}`}>
+      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out ${on ? "translate-x-5" : "translate-x-0"}`} />
     </button>
   );
 }

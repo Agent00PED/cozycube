@@ -87,6 +87,7 @@ export function isUnlocked(): boolean {
  * context. Installed once from the app root; safe to call more than once.
  */
 let installed = false;
+/** Autoplay compliance: the shared AudioContext resumes on the first pointerdown/keydown/touchend. */
 export function installGestureUnlock() {
   if (installed || typeof window === "undefined") return;
   installed = true;

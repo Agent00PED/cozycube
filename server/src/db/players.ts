@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS players (
   username VARCHAR(100) NOT NULL,
   coins INTEGER DEFAULT 150,
   unlocked_items JSONB DEFAULT '["outfit_starter_hoodie", "outfit_starter_overalls", "hat_none"]'::jsonb,
-  equipped_look JSONB DEFAULT '{"skinColor":"#ffd1b3","hairStyle":"long","hairColor":"#a8d8ea","outfit":"outfit_starter_hoodie","outfitColor":"#4a6b5d","hat":"none"}'::jsonb,
+  equipped_look JSONB DEFAULT '{"skinColor":"#ffd1b3","hairStyle":"long","hairColor":"#a8d8ea","outfit":"outfit_starter_hoodie","outfitColor":"#a8e6cf","hat":"none"}'::jsonb,
   stats JSONB DEFAULT '{"roulette_wins":0,"blackjack_wins":0,"slots_spins":0,"fish_caught":0,"marshmallows_roasted":0,"boxing_knockouts":0,"gacha_pulls":0,"mochi_pets":0,"time_spent_mins":0}'::jsonb,
   last_daily_claim TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

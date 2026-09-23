@@ -102,7 +102,7 @@ Honest notes so the standard is applied to real code rather than assumed:
   world, and `Occluder` (a self-batching group) dithers tall things to 25% when they stand
   between the camera and you: the tiki roof, the cabana, the palm crowns, the lifeguard tower,
   the lounge slat screen, the tea house and well roofs, the cherry trees, the ring's lighting
-  truss, the arcade's big screen. Measured at the default follow-camera zoom: Lounge ~105,
+  truss, the arcade's big screen. Measured at the default zoom: Lounge ~137 (its fixed frame shows the whole 15x15 room, no shadow pass),
   Boxing 95, Onsen 82, Arcade 86 (143 beside the cabinets), Casino 156, Campfire 113; the beach
   with the whole 28x28 island in view reads ~190, mostly the living things (avatars, Mochi,
   critters, the NPC) and seat/prop hit pads, which never merge. The always-visible HUD chrome
@@ -123,8 +123,71 @@ Honest notes so the standard is applied to real code rather than assumed:
   7-card fast-travel grid; the gachapon (crank, capsule, reveal, coins paid); the wardrobe's
   outfit closet (bought the flannel vest, the avatar and the preview change, coins deducted);
   the lounge terrace, casino foyer, wider beach and river stones.
-- **Known gaps** — the fishing reel, claw, Snake, wish, matcha, blender, jukebox, checkers,
-  Mochi playroom and boxing HUD were verified by type-check and by reading the server handlers
-  they talk to, not exercised on screen in this session; the new ambience beds and SFX were not
-  listened to. Mochi's wander is client-side (deterministic in wall-clock time) while the
-  server still measures "near Mochi" from her home spot.
+- **Zero-state re-initialisation (sixth pass)** — `shared/worlds/`, `client/src/entities/` and
+  `client/src/scene/` were emptied and initialised again. `shared/worlds/index.ts` is the
+  world table (`WorldId` "lounge" | "gym" | "arcade" | "onsen" | "casino" | "beach" |
+  "campfire", `WORLDS` with each world's `mapId`, name, icon, tagline, half-size and
+  indoor flag, `ACTIVE_WORLD` = "lounge", `worldOfMap`); the header's `MAP_LABELS` is derived
+  from it. `client/src/entities/` holds the three entities: `Avatar.tsx` (the claymorphic player
+  avatar with its walk/sit animation, nametag and speech bubble; exported as `Avatar` and, for
+  the rest of the app, `Character3D`), `Mochi.tsx` (the loaf cat, below) and
+  `MochiPlayroomModal.tsx` (the 3D playroom, below). `client/src/scene/` was re-initialised
+  with the scene manager (`ProceduralRoom` picks the world by map id, `IsometricCanvas` is the
+  camera rig, `kit.tsx` the mesh kit and static batcher) plus the six other worlds' scene files,
+  brought back unchanged from git so those maps keep rendering; the lounge is the reference
+  build.
+- **The lounge ("the Loft", fifth rebuild: artisan 15x15)** — the lounge file, the Mochi
+  file and the layout module were physically deleted and written again. Its whole floor plan
+  lives in ONE shared module, `shared/worlds/lounge.ts` (`LOFT_HALF` 7.5, `LOFT_WALL_HEIGHT`,
+  `LOFT_FRAME`, `LOFT_SEAT_REACH`, `LOFT_PIT`, `LOFT_SEATS`, `LOFT_PROPS`, `LOFT_OBSTACLES`,
+  `LOFT_SPAWNS`, `LOFT_MOCHI` plus the named zones), which `shared/props.ts`,
+  `shared/collision.ts` and `shared/types.ts` re-export, and `client/src/scene/LoungeWorld.tsx`
+  draws from the same constants. One visual language: every material is made in-file, matte
+  (roughness 0.7..0.85, metalness at most 0.1), in warm oak and walnut, forest olive, vanilla
+  cream, terracotta and muted brass; NOTHING in the room casts or receives a shadow map (the
+  theme's `shadowless` flag turns the sun's shadow off and keeps the room's own warm ambient,
+  `#fff5e6`), so it is lit by ambient light, the hearth's point light and the lamps' and
+  pendants' soft lights. Proportions follow the 1.3-unit avatar: counters 0.68, seats 0.36,
+  stools 0.48, tables 0.58. Zones: the hearth (brick breast, TV over the mantel, a fire with
+  its point light nestled in the firebox, a built-in bookcase), the reading nook (lamp BEHIND
+  the wingback), three recessed windows on the left wall and one over the kitchen sink (frames
+  embedded 0.06 into the wall and 0.12 proud, panes 0.02 proud: glass and frame faces 0.1
+  apart), the pit with a CLOSED corner sofa (one continuous base and back, a corner seat
+  `pit_c`), the kitchen (counter run, fridge, island with three stools, bistro table for two an
+  1.8 corridor away, pendants hung on cords from the ceiling plane), the lounge corner
+  (loveseat, armchair with rolled arms joined to the seat, lamp behind), the games table under
+  the last window, the record console, four plants. No arcade cabinet or jukebox in the lounge
+  any more. Every seat is a "pad" seat drawn here from its cushion in `shared/seats.ts`. Rugs
+  are two-tone discs, never floor-coloured.
+- **Camera frame** — `cameraFocus.frame` (`setCameraFrame` in `scene/cameraFocus.ts`): a
+  world can ask the rig to hold a centre and fit N world units across the viewport instead of
+  following the player. `WorldScene` sets `LOFT_FRAME` (centre [0, 0], 15.8 units) in the
+  lounge and clears it elsewhere; `IsometricCanvas` `fitZoom` derives the zoom from the
+  isometric diagonal and the wall height, refitted on resize. Wheel/pinch still zoom, drag
+  still pans. The dock offers a lounge seat from `LOFT_SEAT_REACH` (1.5 units, measured to the
+  seat or its approach point) instead of the usual 2.8.
+- **Mochi** — her model is `client/src/entities/Mochi.tsx`, one seamless compound mesh: the
+  loaf rests flush on the floor with her tabby stripes and cream chest painted as VERTEX
+  COLOURS into its own sphere geometry (no marking mesh above her back), a neck sphere fills
+  the crease under the head, the paws grow out of a cream chest bulge buried in the underbelly,
+  the tail grows from a root sunk in the rump, the ears are cones sunk into the skull and the
+  closed happy eyes, nose, blush, smile and whiskers are merged with the face. All matte
+  (roughness 0.85, metalness 0). She is driven through a `MochiDrive` ref (stretch, lick,
+  walking, happy, head yaw/pitch, pounce, chew). The world cat (`components/LivingProps.tsx`
+  `Cat`) fills the drive from her SHARED day: `mochiSpot(mapId, wallClockSeconds)` in
+  `shared/props.ts` (loaf 20 s, stretch and yawn, waddle, lick a paw) over `MOCHI_WAYPOINTS`,
+  which may repeat a spot: in the lounge she loops hearthrug -> sunlit window bay -> hearthrug
+  -> kitchen mat, so no leg crosses the pit. Her per-world outfits sit in a group 0.105 lower
+  than they were fitted for. The playroom (`hud/MochiPlayroom.tsx`) mounts the SAME model in
+  its own `<Canvas>` with its own lights (ambient 1.0 `#fff5e6` plus two warm point lights):
+  the feather follows the pointer, her head follows the feather, a flick pounces, the treat
+  chews, the scritch purrs. The validator checks every approach is walkable and reachable AND
+  samples each straight leg between her waypoints against the colliders.
+- **Header** — the day/night pill is present at every width: icon-only below `lg`, with the
+  hour's name and chevron from `lg`. At 360 px the three clusters end at x = 355 (no overflow).
+- **Known gaps** — the fishing reel, claw, Snake, wish, matcha, blender, jukebox, checkers and
+  boxing HUD were verified by type-check and by reading the server handlers they talk to, not
+  exercised on screen; the scritch meter was not held on screen; the new ambience beds and SFX
+  were not listened to. In the browser pane R3F frames only advance while the pane renders, so
+  walks were driven by screenshot bursts and one test moved the server-side position with
+  spaced `move` messages instead.

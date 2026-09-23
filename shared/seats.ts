@@ -66,7 +66,6 @@ export const CUSHIONS = {
   deckchair: { y: 0.3, h: 0.06 }, // the sling where the hips land (it slopes; this is its middle)
   blanket: { y: 0.06, h: 0.02 },
   // "pad" seats drawn by the worlds
-  loungeSofa: { y: 0.46, h: 0.1 }, // the unified L-sofa cushion platform (LoungeWorld)
   beanbag: { y: 0.2, h: 0.42 }, // the beanbag's squashed sphere
   floorCushion: { y: 0.17, h: 0.08 }, // the plump top of a floor cushion
   pierPlank: { y: 0.13, h: 0.06 }, // the pier deck (BeachWorld)
@@ -81,7 +80,15 @@ export const CUSHIONS = {
   onsenLedge: { y: 0.1, h: 0.2 }, // the stone ledge under the water, relative to the pool floor (OnsenWorld)
   ringApron: { y: 0.0, h: 0.06 }, // the ring's edge you sit on with your legs over the side
   velvetBench: { y: 0.4, h: 0.1 }, // the foyer benches in the casino
-  terraceBench: { y: 0.42, h: 0.06 }, // the lounge terrace's garden bench
+  // the Loft (LoungeWorld draws every one of its seats itself, from these)
+  // (proportioned to the 1.3-unit avatar: seats at 0.36, stools at 0.48, the chaise lower)
+  loftSofa: { y: 0.3, h: 0.12 }, // the corner sofa in the pit, relative to the pit floor
+  loftWingback: { y: 0.31, h: 0.1 }, // the wingback in the reading nook
+  loftStool: { y: 0.45, h: 0.06 }, // the island's counter stools
+  loftDining: { y: 0.34, h: 0.04 }, // the bistro and board-game chairs
+  chaise: { y: 0.26, h: 0.12 }, // the chaise under the windows
+  loveseat: { y: 0.3, h: 0.12 }, // the loveseat in the lounge corner
+  loftArmchair: { y: 0.3, h: 0.12 }, // the armchair beside it
 } as const satisfies Record<string, Cushion>;
 
 export type CushionId = keyof typeof CUSHIONS;

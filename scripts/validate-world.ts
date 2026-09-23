@@ -13,7 +13,7 @@
 // Hand-placed static meshes live in TSX, not data, so their y >= 0 check runs in the client:
 // StaticBatch logs any mesh whose bottom dips below the slab in development builds.
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, walkY, worldLimit } from "../shared/collision";
-import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES } from "../shared/props";
+import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES, MOCHI_WAYPOINTS } from "../shared/props";
 import { isReachable } from "../shared/pathfinding";
 import { ROULETTE_BET_RADIUS, ROULETTE_CENTER, isWalkUpProp, type MapId } from "../shared/types";
 
@@ -75,6 +75,33 @@ for (const mapId of maps) {
     }
     if (isBlocked(a.x, a.z, mapId)) fail(`${mapId}: prop ${prop.propId} approach ${fmt(a)} is blocked`);
     else if (!isReachable(mapId, home, a)) fail(`${mapId}: prop ${prop.propId} approach ${fmt(a)} is unreachable from the spawn`);
+  }
+
+  // Mochi wanders between her waypoints; each has a spot beside it a player can stand on.
+  for (const w of MOCHI_WAYPOINTS[mapId] ?? []) {
+    mapChecks++;
+    const a = { x: w.ax, z: w.az };
+    if (isBlocked(a.x, a.z, mapId)) fail(`${mapId}: Mochi waypoint ${fmt(w)} approach ${fmt(a)} is blocked`);
+    else if (!isReachable(mapId, home, a)) fail(`${mapId}: Mochi waypoint ${fmt(w)} approach ${fmt(a)} is unreachable from the spawn`);
+  }
+  // ...and she walks a straight line from each spot to the next, so every leg must be clear of
+  // furniture. A perched cat (a spot inside a collider, like the arcade's cabinet tops) walks
+  // along her perch, so legs from or to a perch are not sampled.
+  const spots = MOCHI_WAYPOINTS[mapId] ?? [];
+  for (let i = 0; i < spots.length; i++) {
+    const a = spots[i];
+    const b = spots[(i + 1) % spots.length];
+    if (isBlocked(a.x, a.z, mapId, 0.05) || isBlocked(b.x, b.z, mapId, 0.05)) continue;
+    mapChecks++;
+    const steps = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.2));
+    for (let s = 0; s <= steps; s++) {
+      const k = s / steps;
+      const at = { x: a.x + (b.x - a.x) * k, z: a.z + (b.z - a.z) * k };
+      if (isBlocked(at.x, at.z, mapId, 0.2)) {
+        fail(`${mapId}: Mochi's walk from ${fmt(a)} to ${fmt(b)} crosses furniture at ${fmt(at)}`);
+        break;
+      }
+    }
   }
 
   checks += mapChecks;

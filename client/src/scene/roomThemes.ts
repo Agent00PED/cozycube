@@ -12,6 +12,8 @@ export interface RoomTheme {
   directional: string;
   ambientIntensity: number;
   directionalIntensity: number;
+  /** Lit by warm ambient and local point lights only: the sun casts no shadow map here. */
+  shadowless?: boolean;
 }
 
 export const ROOM_THEMES: Record<MapId, RoomTheme> = {
@@ -20,10 +22,11 @@ export const ROOM_THEMES: Record<MapId, RoomTheme> = {
     wall: "#f2e8d8", // warm off-white
     edge: "#4a2f1d", // rich dark walnut
     edgeTop: "#6b452b",
-    ambient: "#fff1d8",
-    directional: "#fff8ec", // gentle daylight through the window
-    ambientIntensity: 0.6,
-    directionalIntensity: 1.2,
+    ambient: "#fff5e6",
+    directional: "#fff8ec", // gentle daylight through the windows
+    ambientIntensity: 0.5, // x1.6 x the hour's preset: ~0.8 at midday
+    directionalIntensity: 0.55,
+    shadowless: true,
   },
   campfire_night: {
     floor: "#41684f", // grass — light enough to still read as ground under a night grade

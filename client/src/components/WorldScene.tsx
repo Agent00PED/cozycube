@@ -3,7 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Group } from "three";
 import type { Room } from "colyseus.js";
-import { Character3D, type CharacterPose, type FloatingEmote } from "./Character3D";
+import { Character3D, type CharacterPose, type FloatingEmote } from "../entities/Avatar";
 import { ChairProp } from "./ChairProp";
 import { ToggleableProp } from "./ToggleableProp";
 import { ClickMarker } from "./ClickMarker";
@@ -25,8 +25,9 @@ import { playThwack } from "../audio/sfx";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
 import type { BallSnapshot, EmoteListener, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { requestRecenter } from "../scene/cameraFocus";
-import { APPROACH_POINTS } from "@shared/props";
-import { cameraFocus } from "../scene/cameraFocus";
+import { APPROACH_POINTS, mochiSpot } from "@shared/props";
+import { cameraFocus, setCameraFrame } from "../scene/cameraFocus";
+import { LOFT_FRAME } from "@shared/worlds/lounge";
 import { moveInput } from "../systems/input";
 import { CHAT_BUBBLE_SECONDS } from "@shared/types";
 import {
@@ -133,10 +134,27 @@ export function WorldScene({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const mapIdRef = useRef(mapId);
+  mapIdRef.current = mapId;
+  // The intimate lounge holds the camera on a fixed frame that fills the viewport; the bigger
+  // worlds let it follow the player.
+  useEffect(() => {
+    setCameraFrame(mapId === "cozy_lounge" ? LOFT_FRAME : null);
+    return () => setCameraFrame(null);
+  }, [mapId]);
   const handleUseProp = useCallback((prop: ToggleableSyncState) => {
     if (isWalkUpProp(prop.kind)) {
-      // Sparkles wander (the server moves them), so walk right onto wherever one is now.
-      const approach = prop.kind === "sparkle" ? { x: prop.x, z: prop.z } : APPROACH_POINTS[prop.propId] ?? { x: prop.x, z: prop.z + 1 };
+      // Sparkles wander (the server moves them), so walk right onto wherever one is now; Mochi
+      // wanders too (mochiSpot), so walk to the standing spot beside wherever she is.
+      const approach =
+        prop.kind === "sparkle"
+          ? { x: prop.x, z: prop.z }
+          : prop.kind === "cat"
+            ? (() => {
+                const at = mochiSpot(mapIdRef.current, Date.now() / 1000);
+                return { x: at.ax, z: at.az };
+              })()
+            : APPROACH_POINTS[prop.propId] ?? { x: prop.x, z: prop.z + 1 };
       standUpIfSeated();
       moveTargetRef.current = { x: approach.x, z: approach.z, propId: prop.propId };
       pingRipple(approach.x, approach.z);
@@ -385,7 +403,7 @@ const RoomLighting = memo(function RoomLighting({ theme, preset, mapId }: { them
   // caster, so this leans the light toward +X and lifts it rather than matching the camera.
   const indoors = INDOOR_MAPS.has(mapId);
   // Windowless rooms (casino, arcade) keep their own fill colour instead of the hour's sky tint.
-  const ambientColor = mapId === "velvet_casino" || mapId === "retro_arcade" ? theme.ambient : preset.ambientColor;
+  const ambientColor = mapId === "velvet_casino" || mapId === "retro_arcade" || theme.shadowless ? theme.ambient : preset.ambientColor;
   const sun: [number, number, number] = indoors
     ? [Math.abs(preset.sun[0]) + 6, preset.sun[1] + 10, Math.abs(preset.sun[2]) + 8]
     : preset.sun;
@@ -412,7 +430,8 @@ const RoomLighting = memo(function RoomLighting({ theme, preset, mapId }: { them
         position={sun}
         intensity={sunIntensity}
         color={preset.sunColor}
-        castShadow
+        // the shadowless rooms (the lounge) are lit by ambient and point lights alone
+        castShadow={!theme.shadowless}
         shadow-mapSize={[2048, 2048]}
         // Negative bias pushes the depth comparison away from the surface, killing the
         // self-shadowing "acne" you otherwise get on large flat floors.

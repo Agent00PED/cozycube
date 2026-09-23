@@ -695,7 +695,10 @@ export const Character3D = memo(
   )
 );
 
-Character3D.displayName = "Character3D";
+Character3D.displayName = "Avatar";
+
+/** The player avatar entity (the name the rest of the app grew up with is kept below). */
+export const Avatar = Character3D;
 
 // --- Merged part geometry ------------------------------------------------------------------------
 // Bangs, spikes, petals and crown points are several shapes that never move relative to each

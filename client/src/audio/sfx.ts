@@ -27,8 +27,55 @@ function blip(freq: number, at: number, dur: number, gain: number, type: Oscilla
   osc.stop(t + dur + 0.02);
 }
 
+// Every HUD button pops. One document-level listener plays the bubble pop on pointerdown for
+// any <button> (opt out with data-silent); the buttons' own playClick/playPop calls are then
+// skipped for a few milliseconds so a tap never sounds twice.
+let lastUiPopAt = 0;
+function uiPopGuard(): boolean {
+  const now = performance.now();
+  if (now - lastUiPopAt < 80) return false;
+  lastUiPopAt = now;
+  return true;
+}
+
+export function installUiPops() {
+  if (typeof document === "undefined") return;
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      const el = (e.target as Element | null)?.closest?.("button, [role=menuitem], [role=tab]");
+      if (!el || el.hasAttribute("data-silent") || (el as HTMLButtonElement).disabled) return;
+      playPopSound();
+    },
+    { capture: true, passive: true }
+  );
+}
+
+/** The claymorphic UI bubble pop: a soft, rounded blip with a touch of pitch rise. */
+export function playPopSound() {
+  if (!uiPopGuard()) return;
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime;
+  const osc = a.createOscillator();
+  const g = a.createGain();
+  const f = a.createBiquadFilter();
+  f.type = "lowpass";
+  f.frequency.value = 1800;
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(300 + Math.random() * 40, t);
+  osc.frequency.exponentialRampToValueAtTime(640, t + 0.045);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.1, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+  osc.connect(f).connect(g).connect(sfxBus());
+  osc.start(t);
+  osc.stop(t + 0.16);
+}
+
 /** A soft wooden tick for taps on HUD buttons and swatches. */
 export function playClick() {
+  if (!uiPopGuard()) return;
   blip(1800, 0, 0.05, 0.05, "triangle");
 }
 
@@ -104,6 +151,7 @@ export function playMeow() {
 
 /** A soft rounded "pop" for panels and drawers opening. */
 export function playPop() {
+  if (!uiPopGuard()) return;
   const a = audio();
   if (!a) return;
   const t = a.currentTime;

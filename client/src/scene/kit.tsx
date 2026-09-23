@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { floorY } from "@shared/collision";
+import { useMapId } from "./mapContext";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { cameraFocus } from "./cameraFocus";
 
@@ -422,11 +424,14 @@ function collectMergeable(root: THREE.Object3D): THREE.Mesh[] {
 // hidden (never removed), so React still owns them and a re-render can't fight this.
 export function StaticBatch({ children, version }: { children: React.ReactNode; version?: string }) {
   const groupRef = useRef<THREE.Group>(null);
+  const mapId = useMapId();
 
   useLayoutEffect(() => {
     const root = groupRef.current;
     if (!root) return;
-    root.updateWorldMatrix(false, true);
+    // Ancestors too: a batch inside a moving group (Mochi's head) otherwise reads stale world
+    // matrices, and the dev sink check below reports its parts as underground.
+    root.updateWorldMatrix(true, true);
     const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
 
     const buckets = new Map<string, { material: THREE.Material; cast: boolean; recv: boolean; geos: THREE.BufferGeometry[]; sources: THREE.Mesh[] }>();
@@ -437,19 +442,23 @@ export function StaticBatch({ children, version }: { children: React.ReactNode; 
       const box = new THREE.Box3();
       for (const mesh of collectMergeable(root)) {
         box.setFromObject(mesh);
-        if (box.min.y < -0.02) {
-          const c = box.getCenter(new THREE.Vector3());
-          console.warn(`[validate-world] mesh sinks ${(-box.min.y).toFixed(3)} below the slab at world (${c.x.toFixed(2)}, ${c.y.toFixed(2)}, ${c.z.toFixed(2)})`);
+        const c = box.getCenter(new THREE.Vector3());
+        // "the slab" is the drawn floor there: furniture in the lounge's pit stands a step down
+        const floor = floorY(mapId, c.x, c.z);
+        if (box.min.y < floor - 0.02) {
+          console.warn(`[validate-world] mesh sinks ${(floor - box.min.y).toFixed(3)} below the floor at world (${c.x.toFixed(2)}, ${c.y.toFixed(2)}, ${c.z.toFixed(2)})`);
         }
       }
     }
 
     for (const mesh of collectMergeable(root)) {
       const material = mesh.material as THREE.Material;
-      const key = `${material.uuid}|${mesh.castShadow}|${mesh.receiveShadow}`;
+      // Receiving shadows never splits a bucket: a material used with and without `recv`
+      // would otherwise cost two draws, and letting every piece receive is free-looking.
+      const key = `${material.uuid}|${mesh.castShadow}`;
       let bucket = buckets.get(key);
       if (!bucket) {
-        bucket = { material, cast: mesh.castShadow, recv: mesh.receiveShadow, geos: [], sources: [] };
+        bucket = { material, cast: mesh.castShadow, recv: true, geos: [], sources: [] };
         buckets.set(key, bucket);
       }
       let geo = mesh.geometry.clone();

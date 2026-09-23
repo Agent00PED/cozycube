@@ -15,7 +15,17 @@ export const cameraFocus = {
   dirZ: 0,
   /** Temporary "look over there" (e.g. clicking a friend in the roster), then back to the player. */
   override: null as { x: number; z: number; until: number } | null,
+  /**
+   * A frame the camera holds instead of following the player: its centre and how many world
+   * units it fits across the viewport. The intimate lounge asks for one (it fills the screen
+   * from a fixed point); the bigger worlds leave it null and follow.
+   */
+  frame: null as { x: number; z: number; size: number } | null,
 };
+
+export function setCameraFrame(frame: { x: number; z: number; size: number } | null) {
+  cameraFocus.frame = frame;
+}
 
 export function lookAtTemporarily(x: number, z: number, ms = 2600) {
   cameraFocus.override = { x, z, until: performance.now() + ms };

@@ -3,7 +3,7 @@ import { Schema, type, MapSchema } from "@colyseus/schema";
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToWorld, isBlocked } from "../../../shared/collision";
 import { PersistenceQueue, getPlayerStore, newPlayerRecord, type PlayerRecord } from "../db/players";
 import { applyMove, boardView, legalMoves, newBoardGame, outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey, type BoardGame } from "./games";
-import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat } from "../../../shared/props";
+import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat, mochiSpot } from "../../../shared/props";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
 import {
   BITE_WINDOW_S,
@@ -816,11 +816,14 @@ export class HangoutRoom extends Room<HangoutState> {
     const record = this.records.get(sessionId);
     if (!player || !record || !(MOCHI_ACTIONS as readonly string[]).includes(String(action))) return;
     const a = action as MochiAction;
-    let mochi: Player | null = null;
+    // she has to be in this world, and you have to be beside wherever she has wandered to
+    let hasMochi = false;
     this.state.toggleables.forEach((prop) => {
-      if (prop.kind === "cat" && Math.hypot(prop.x - player.x, prop.z - player.z) <= INTERACT_RADIUS + 2.5) mochi = player;
+      if (prop.kind === "cat") hasMochi = true;
     });
-    if (!mochi) return;
+    if (!hasMochi) return;
+    const at = mochiSpot(this.state.currentMap, Date.now() / 1000);
+    if (Math.hypot(at.x - player.x, at.z - player.z) > INTERACT_RADIUS + 1.5) return;
     const now = Date.now();
     const key = `${sessionId}:${a}`;
     if (now - (this.lastMochiAt.get(key) ?? 0) < MOCHI_ACTION_COOLDOWN_S * 1000) {
@@ -1452,7 +1455,9 @@ export class HangoutRoom extends Room<HangoutState> {
     // like shared ambience. The espresso machine and arcades are things you stand in front of.
     if (isWalkUpProp(kind)) {
       if (player.sitting) return;
-      if (Math.hypot(player.x - prop.x, player.z - prop.z) > INTERACT_RADIUS) return;
+      // Mochi wanders (mochiSpot, wall-clock), so her reach is measured from where she is now.
+      const at = kind === "cat" ? mochiSpot(this.state.currentMap, Date.now() / 1000) : prop;
+      if (Math.hypot(player.x - at.x, player.z - at.z) > INTERACT_RADIUS) return;
     }
 
     switch (kind) {

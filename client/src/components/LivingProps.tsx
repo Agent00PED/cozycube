@@ -4,15 +4,16 @@ import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { NPCS, STEW_STIRS, type MapId, type ToggleableSyncState } from "@shared/types";
-import { MOCHI_WAYPOINTS } from "@shared/props";
+import { mochiSpot } from "@shared/props";
 import { walkY } from "@shared/collision";
 import { useMapId } from "../scene/mapContext";
 import { APPROACH_POINTS } from "@shared/props";
-import { GEO, arcGeo, noRaycast, onHitLayer } from "../scene/kit";
+import { GEO, noRaycast, onHitLayer } from "../scene/kit";
+import { MochiModel, restDrive, type MochiDrive } from "../entities/Mochi";
 import { playMeow } from "../audio/sfx";
 import { TimeOfDayContext } from "../scene/timeOfDay";
 import { useRoomMessage } from "../scene/roomEvents";
-import { Character3D, type FloatingEmote } from "./Character3D";
+import { Character3D, type FloatingEmote } from "../entities/Avatar";
 
 // Interactive "living" props: the two NPC traders, forage bushes, and Mochi the lounge cat.
 // Each is a walk-up toggleable (see shared/types isWalkUpProp); the server decides what
@@ -32,9 +33,6 @@ const M = {
   leafLight: mat("#5a9a55"),
   berry: mat("#4a5bd0", { roughness: 0.4 }),
   firefly: new THREE.MeshBasicMaterial({ color: "#fff2a0", toneMapped: false }),
-  catOrange: mat("#e89a52", { roughness: 0.9 }),
-  catCream: mat("#f6e2c4", { roughness: 0.9 }),
-  catDark: mat("#b8703a", { roughness: 0.9 }),
   nose: mat("#e88a8a"),
   sign: mat("#f2e2bf"),
   bandana: mat("#d63a48", { roughness: 0.9 }),
@@ -90,8 +88,8 @@ const STALL = {
 // --- NPC traders ---------------------------------------------------------------------------
 
 const NPC_LOOKS: Record<string, string> = {
-  npc_bob: "#d9a47c,cap,#e5d3a6,outfit_hawaiian,#9ab8d8,straw",
-  npc_oak: "#b67c56,cap,#3b2a20,outfit_flannel_vest,#5c6b5a,beanie",
+  npc_bob: "#c68642,cap,#e6c980,outfit_hawaiian,#a8d8ea,straw",
+  npc_oak: "#8d5524,cap,#1f1a1c,outfit_flannel_vest,#a8e6cf,beanie",
 };
 const NO_EMOTES: FloatingEmote[] = [];
 
@@ -246,112 +244,53 @@ export function Sparkle({ prop, onUse }: { prop: ToggleableSyncState; onUse: () 
 }
 
 // --- Mochi the cat -----------------------------------------------------------------------------
+// Her model is MochiModel (one seamless loaf, shared with the playroom's viewport). Her day
+// (loaf, stretch and yawn, waddle, lick a paw) comes from shared/props.ts mochiSpot, on
+// wall-clock time, so every client and the server agree on where she is and what she is up to.
 
-// A chubby chibi loaf: one round body, a big head that sinks into it, proper cone ears with
-// pink insides, and a thick tail that hugs the loaf from the rump round to the front paws.
-// The tail's arc radius is a whisker larger than the loaf's half-width, so it presses against
-// the body along its whole length instead of floating in a ring round it.
-const CAT_TAIL = arcGeo(0.19, 0.045, Math.PI * 1.05);
-const TAIL_REST = -1.73; // yaw that starts the curl at the rump and ends it by the paws
-/** Every so often the loaf gives a contented squash-and-stretch, on a slow clock. */
-const SQUISH_PERIOD = 7.5;
-const SQUISH_LENGTH = 0.6;
-
-// Mochi is a traveller: she is the same loaf in every world, dressed for it, and she wanders
-// slowly between three favourite spots (MOCHI_WAYPOINTS) instead of sitting in one place. The
-// wander is client-side and deterministic in time, so every client sees her in the same spot.
-const MOCHI_WANDER_PERIOD = 42; // seconds for the full loop of three spots
-const MOCHI_HOLD = 0.72; // fraction of each leg spent sitting before the next stroll
-
-function mochiSpot(mapId: MapId, home: { x: number; z: number }, t: number): { x: number; z: number; walking: boolean; heading: number } {
-  const points = MOCHI_WAYPOINTS[mapId] ?? [];
-  if (points.length < 2) return { x: home.x, z: home.z, walking: false, heading: 0.6 };
-  const legLen = MOCHI_WANDER_PERIOD / points.length;
-  const u = (t % MOCHI_WANDER_PERIOD) / legLen;
-  const i = Math.floor(u);
-  const a = points[i % points.length];
-  const b = points[(i + 1) % points.length];
-  const f = u - i;
-  const k = f < MOCHI_HOLD ? 0 : (f - MOCHI_HOLD) / (1 - MOCHI_HOLD);
-  const e = k * k * (3 - 2 * k);
-  return { x: a.x + (b.x - a.x) * e, z: a.z + (b.z - a.z) * e, walking: k > 0 && k < 1, heading: Math.atan2(b.x - a.x, b.z - a.z) };
-}
 
 export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => void }) {
   const mapId = useMapId();
   const rootRef = useRef<THREE.Group>(null);
-  const bodyRef = useRef<THREE.Mesh>(null);
-  const headRef = useRef<THREE.Group>(null);
-  const tailRef = useRef<THREE.Mesh>(null);
-  const earRef = useRef<THREE.Group>(null);
+  const drive = useRef<MochiDrive>(restDrive());
   const petted = prop.boost > 0;
   const wasPetted = useRef(false);
   useEffect(() => {
     if (petted && !wasPetted.current) playMeow();
     wasPetted.current = petted;
   }, [petted]);
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime;
+
+  // Her day (shared/props mochiSpot) drives the model: where she is, and which of loafing,
+  // stretching, walking or washing she is doing. The model itself lives in MochiModel.
+  useFrame(() => {
+    // being petted pins her in place (frozen at the start of a loaf) so she does not wander off mid-scritch
+    const spot = mochiSpot(mapId, petted ? 0 : Date.now() / 1000);
+    const walking = spot.phase === "walk";
     const root = rootRef.current;
     if (root) {
-      // walk time is wall-clock so all clients agree; petting pins her where she is
-      const spot = mochiSpot(mapId, prop, petted ? 0 : Date.now() / 1000);
       const y = prop.y > 0.01 ? prop.y : walkY(mapId, spot.x, spot.z); // perched props stay perched
-      root.position.set(spot.x, y + (spot.walking ? Math.abs(Math.sin(t * 9)) * 0.03 : 0), spot.z);
-      root.rotation.y = THREE.MathUtils.lerp(root.rotation.y, spot.walking ? spot.heading : 0.6, 0.08);
+      root.position.set(spot.x, y, spot.z);
+      root.rotation.y = THREE.MathUtils.lerp(root.rotation.y, walking ? spot.heading : 0.6, 0.08);
     }
-    // breathing: the loaf rises and falls; and now and then a happy little squish
-    const breath = Math.sin(t * (petted ? 5 : 1.6)) * 0.035;
-    const phase = (t + 1.3) % SQUISH_PERIOD;
-    const squish = petted ? 0 : phase < SQUISH_LENGTH ? Math.sin((phase / SQUISH_LENGTH) * Math.PI) : 0;
-    if (bodyRef.current) bodyRef.current.scale.set(0.3 * (1 + squish * 0.07), 0.27 * (1 + breath) * (1 - squish * 0.14), 0.36 * (1 + squish * 0.05));
-    if (headRef.current) {
-      headRef.current.position.y = THREE.MathUtils.lerp(headRef.current.position.y, (petted ? 0.5 : 0.44) - squish * 0.035, 0.1);
-      headRef.current.rotation.z = petted ? Math.sin(t * 3) * 0.14 : Math.sin(t * 0.5) * 0.03;
-    }
-    if (tailRef.current) tailRef.current.rotation.z = TAIL_REST + Math.sin(t * (petted ? 4 : 0.7)) * (petted ? 0.2 : 0.06);
-    // one ear flicks now and then, like a cat half-listening in its sleep
-    if (earRef.current) {
-      const phase = t % 3.7;
-      earRef.current.rotation.x = phase < 0.25 ? Math.sin((phase / 0.25) * Math.PI) * 0.5 : 0;
-    }
+    const d = drive.current;
+    d.stretch = spot.phase === "stretch" ? spot.progress : 0;
+    d.lick = spot.phase === "lick" ? spot.progress : 0;
+    d.walking = walking;
+    d.happy = petted;
+    d.headYaw = 0;
+    d.headPitch = 0;
+    d.pounce = 0;
+    d.chew = 0;
   });
+
   return (
     <group ref={rootRef} position={[prop.x, prop.y, prop.z]} rotation={[0, 0.6, 0]}>
-      {/* the loaf */}
-      <mesh ref={bodyRef} geometry={GEO.sphere} material={M.catOrange} position={[0, 0.22, -0.04]} scale={[0.3, 0.27, 0.36]} castShadow raycast={noRaycast} />
-      <MochiOutfit mapId={mapId} />
-      <mesh geometry={GEO.sphereLow} material={M.catCream} position={[0, 0.16, 0.2]} scale={[0.2, 0.15, 0.14]} raycast={noRaycast} />
-      {/* back stripes */}
-      {[-0.12, 0.0, 0.12].map((z) => (
-        <mesh key={z} geometry={GEO.sphereLow} material={M.catDark} position={[0, 0.45, z - 0.06]} scale={[0.22, 0.03, 0.05]} raycast={noRaycast} />
-      ))}
-      {/* front paws */}
-      {[-0.09, 0.09].map((x) => (
-        <mesh key={x} geometry={GEO.sphereLow} material={M.catCream} position={[x, 0.05, 0.26]} scale={[0.08, 0.06, 0.1]} raycast={noRaycast} />
-      ))}
-      {/* the tail hugs the loaf from the rump round its right side to the front paws, with a
-          cream tip resting between them */}
-      <mesh ref={tailRef} geometry={CAT_TAIL} material={M.catOrange} position={[0.02, 0.07, 0.02]} rotation={[-Math.PI / 2, 0, TAIL_REST]} raycast={noRaycast} />
-      <mesh geometry={GEO.sphereLow} material={M.catCream} position={[-0.01, 0.07, 0.21]} scale={0.055} raycast={noRaycast} />
-      <group ref={headRef} position={[0, 0.44, 0.16]}>
-        <mesh geometry={GEO.sphere} material={M.catOrange} scale={[0.22, 0.19, 0.2]} castShadow raycast={noRaycast} />
-        <mesh geometry={GEO.sphereLow} material={M.catCream} position={[0, -0.06, 0.15]} scale={[0.11, 0.07, 0.07]} raycast={noRaycast} />
-        <mesh geometry={GEO.sphereLow} material={M.nose} position={[0, -0.02, 0.2]} scale={0.02} raycast={noRaycast} />
-        {/* ears: round cones with pink insides, tilted out */}
-        <group position={[-0.11, 0.14, -0.01]} rotation={[0, 0, 0.35]}>
-          <mesh geometry={GEO.cone} material={M.catOrange} scale={[0.1, 0.13, 0.08]} raycast={noRaycast} />
-          <mesh geometry={GEO.cone} material={M.nose} position={[0, -0.01, 0.025]} scale={[0.055, 0.08, 0.03]} raycast={noRaycast} />
+      <MochiModel drive={drive}>
+        {/* her outfits were fitted to a head 0.105 higher than the rebuilt loaf's */}
+        <group position={[0, -0.105, 0]}>
+          <MochiOutfit mapId={mapId} />
         </group>
-        <group ref={earRef} position={[0.11, 0.14, -0.01]} rotation={[0, 0, -0.35]}>
-          <mesh geometry={GEO.cone} material={M.catOrange} scale={[0.1, 0.13, 0.08]} raycast={noRaycast} />
-          <mesh geometry={GEO.cone} material={M.nose} position={[0, -0.01, 0.025]} scale={[0.055, 0.08, 0.03]} raycast={noRaycast} />
-        </group>
-        {/* closed, contented eyes */}
-        {[-0.075, 0.075].map((x) => (
-          <mesh key={x} geometry={GEO.box} material={M.catDark} position={[x, 0.02, 0.185]} rotation={[0, 0, x > 0 ? -0.2 : 0.2]} scale={[0.05, 0.008, 0.01]} raycast={noRaycast} />
-        ))}
-      </group>
+      </MochiModel>
       {petted && (
         <Html position={[0, 0.9, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
           <div style={{ position: "relative", width: 0, height: 0 }}>
@@ -359,7 +298,7 @@ export function Cat({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => v
           </div>
         </Html>
       )}
-      <HitPad size={[0.8, 0.8, 0.8]} position={[0, 0.35, 0]} onUse={onUse} />
+      <HitPad size={[0.9, 0.9, 0.9]} position={[0, 0.35, 0]} onUse={onUse} />
     </group>
   );
 }
@@ -480,7 +419,7 @@ export function StewPot({ prop, onUse }: { prop: ToggleableSyncState; onUse: () 
 
 // --- The roulette dealer -------------------------------------------------------------------------
 
-const DEALER_LOOK = "#e8c29c,bob,#2a1c14,outfit_tuxedo,#7a8aa6,bunny";
+const DEALER_LOOK = "#f5c6a5,bob,#4a2e1f,outfit_tuxedo,#b5b9ff,bunny";
 const BOW_TIE = new THREE.MeshStandardMaterial({ color: "#b3202e", roughness: 0.5 });
 const SHIRT_FRONT = new THREE.MeshStandardMaterial({ color: "#f4efe6", roughness: 0.7 });
 

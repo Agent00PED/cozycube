@@ -46,6 +46,18 @@ const ISO_DIR = new THREE.Vector3(
   DISTANCE * Math.cos(ISO_ANGLE) * Math.sin(Math.PI / 4)
 );
 
+/**
+ * The orthographic zoom (pixels per world unit) at which a square of `size` world units,
+ * seen from the isometric angle, fills the viewport with a small margin: its diagonal spans
+ * size*sqrt(2) across, and its depth foreshortens to size*sqrt(2)*sin(ISO_ANGLE) tall, plus
+ * the height of a wall standing on its far side.
+ */
+function fitZoom(size: number, width: number, height: number): number {
+  const across = size * Math.SQRT2;
+  const tall = across * Math.sin(ISO_ANGLE) + 3.4 * Math.cos(ISO_ANGLE);
+  return Math.min(width / across, height / tall) * 0.97;
+}
+
 /** Turns a "per 60fps frame" lerp factor into the equivalent for an arbitrary frame delta. */
 function frameLerp(factor: number, delta: number): number {
   return 1 - Math.pow(1 - factor, delta * 60);
@@ -183,13 +195,17 @@ function CameraRig() {
   const pinchStartDistRef = useRef<number | null>(null);
   const pinchStartZoomRef = useRef(BASE_ZOOM);
 
+  // Which fixed frame (if any) the default zoom was last fitted to, so a world that asks for
+  // one gets fitted once when it appears and again when the viewport changes, not every frame.
+  const fittedFrameRef = useRef<string | null>(null);
   useEffect(() => {
     // The camera follows the player, so a narrow phone screen doesn't need to fit the whole room
     // the way the old fixed camera did. Floor the default so characters stay readable on phones;
     // pinch-out still reaches MIN_ZOOM for the full-island overview.
     const scaledBase = THREE.MathUtils.clamp(BASE_ZOOM * (size.width / BASE_WIDTH), DEFAULT_ZOOM_FLOOR, MAX_ZOOM);
     targetZoomRef.current = scaledBase;
-  }, [size.width]);
+    fittedFrameRef.current = null; // a resize refits a held frame on the next frame
+  }, [size.width, size.height]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -288,11 +304,20 @@ function CameraRig() {
 
     const override = cameraFocus.override;
     if (override && performance.now() > override.until) cameraFocus.override = null;
-    const goalX = cameraFocus.override?.x ?? cameraFocus.x;
-    const goalZ = cameraFocus.override?.z ?? cameraFocus.z;
+    // A world holding a fixed frame (the intimate lounge) is centred on that frame and fitted
+    // to the viewport; the wheel and pinch can still zoom in from there, and a drag still pans.
+    const frame = cameraFocus.frame;
+    const frameKey = frame ? `${frame.x},${frame.z},${frame.size}` : null;
+    if (frameKey !== fittedFrameRef.current) {
+      fittedFrameRef.current = frameKey;
+      if (frame) targetZoomRef.current = THREE.MathUtils.clamp(fitZoom(frame.size, size.width, size.height), MIN_ZOOM, MAX_ZOOM);
+      else targetZoomRef.current = THREE.MathUtils.clamp(BASE_ZOOM * (size.width / BASE_WIDTH), DEFAULT_ZOOM_FLOOR, MAX_ZOOM);
+    }
+    const goalX = cameraFocus.override?.x ?? frame?.x ?? cameraFocus.x;
+    const goalZ = cameraFocus.override?.z ?? frame?.z ?? cameraFocus.z;
 
     const center = centerRef.current;
-    if (cameraFocus.hasTarget && !snappedRef.current) {
+    if ((cameraFocus.hasTarget || frame) && !snappedRef.current) {
       // First known player position: start there instead of gliding in from the world origin.
       center.set(goalX, 0, goalZ);
       snappedRef.current = true;

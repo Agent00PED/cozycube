@@ -47,6 +47,9 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
 
   // The lounge floor has the conversation pit cut out of it, so the pit floor (a step down)
   // can be its own click target instead of a hole clicks fall through.
+  // The slab under it is lowered by the pit's depth and this extruded skirt fills the gap, so
+  // the pit is a real hole in the floor instead of a plane sunk inside the slab (where the
+  // slab's own top face would cover everything in it).
   const loungeFloor = useMemo(() => {
     if (mapId !== "cozy_lounge") return null;
     const shape = new THREE.Shape();
@@ -64,9 +67,15 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
     hole.lineTo(p.x0, -p.z0);
     hole.closePath();
     shape.holes.push(hole);
-    return new THREE.ShapeGeometry(shape);
+    return { top: new THREE.ShapeGeometry(shape), skirt: new THREE.ExtrudeGeometry(shape, { depth: p.depth, bevelEnabled: false }) };
   }, [mapId, half]);
-  useEffect(() => () => loungeFloor?.dispose(), [loungeFloor]);
+  useEffect(
+    () => () => {
+      loungeFloor?.top.dispose();
+      loungeFloor?.skirt.dispose();
+    },
+    [loungeFloor]
+  );
 
   const handleFloorClick = (e: ThreeEvent<PointerEvent>) => {
     if (e.button === 2) return; // right-drag is camera panning, not a walk order
@@ -86,7 +95,10 @@ export const ProceduralRoom = memo(function ProceduralRoom({ mapId, onFloorClick
           it is the ONLY click target for walking, and a box would also return hits on its sides
           and underside, which would send the character to nonsensical places. */}
       {loungeFloor ? (
-        <mesh geometry={loungeFloor} material={floorMaterial} rotation={[-Math.PI / 2, 0, 0]} receiveShadow onPointerDown={handleFloorClick} />
+        <>
+          <mesh geometry={loungeFloor.top} material={floorMaterial} rotation={[-Math.PI / 2, 0, 0]} onPointerDown={handleFloorClick} />
+          <mesh geometry={loungeFloor.skirt} material={floorMaterial} position={[0, -LOUNGE_PIT.depth, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} />
+        </>
       ) : (
         <mesh
           geometry={GEO.plane}
@@ -196,6 +208,8 @@ function DioramaSlab({ theme, mats, mapId, half }: { theme: RoomTheme; mats: Mat
 
   const isBeach = mapId === "sunset_beach";
   const indoor = INDOOR_MAPS.has(mapId);
+  // the lounge's slab top sits below its pit floor (the extruded floor skirt above fills the gap)
+  const topDrop = mapId === "cozy_lounge" ? LOUNGE_PIT.depth : 0;
 
   // The beach slab is built in two blocks so the sea sits in a real recess with solid walls all
   // round it: the sand block runs up to y=0, the sea block stops at BASIN_Y. Underneath, one
@@ -250,8 +264,8 @@ function DioramaSlab({ theme, mats, mapId, half }: { theme: RoomTheme; mats: Mat
         <mesh
           geometry={GEO.box}
           material={edgeMaterial}
-          position={[0, -SLAB_HEIGHT / 2 - 0.005, 0]}
-          scale={[HALF * 2, SLAB_HEIGHT, HALF * 2]}
+          position={[0, -(SLAB_HEIGHT + topDrop) / 2 - 0.005, 0]}
+          scale={[HALF * 2, SLAB_HEIGHT - topDrop, HALF * 2]}
           castShadow
           receiveShadow
           raycast={noRaycast}
@@ -259,11 +273,12 @@ function DioramaSlab({ theme, mats, mapId, half }: { theme: RoomTheme; mats: Mat
       )}
 
       {/* A clean band around the top of the cut — topsoil outdoors, a wood lip indoors. */}
+      {/* the band sits under the floor skirt in the lounge, so it never caps the pit */}
       {!isBeach && (
         <mesh
           geometry={GEO.box}
           material={edgeTopMaterial}
-          position={[0, -0.1, 0]}
+          position={[0, -0.1 - topDrop, 0]}
           scale={[HALF * 2 + 0.02, 0.18, HALF * 2 + 0.02]}
           raycast={noRaycast}
         />

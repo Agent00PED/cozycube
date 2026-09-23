@@ -64,10 +64,10 @@ export function Occluder({ x, z, halfWidth, points, children }: { x: number; z: 
         return;
       }
       const material = mesh.material as THREE.Material;
-      const key = `${material.uuid}|${mesh.castShadow}|${mesh.receiveShadow}`;
+      const key = `${material.uuid}|${mesh.castShadow}`;
       let bucket = buckets.get(key);
       if (!bucket) {
-        bucket = { material, cast: mesh.castShadow, recv: mesh.receiveShadow, geos: [] };
+        bucket = { material, cast: mesh.castShadow, recv: true, geos: [] };
         buckets.set(key, bucket);
       }
       let geo = mesh.geometry.clone();

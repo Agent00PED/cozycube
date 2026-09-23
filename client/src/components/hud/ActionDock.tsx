@@ -1,3 +1,4 @@
+import { LOFT_SEAT_REACH } from "@shared/worlds/lounge";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   BLACKJACK_CENTER,
@@ -12,7 +13,7 @@ import {
   type PlayerState,
   type ToggleableSyncState,
 } from "@shared/types";
-import { APPROACH_POINTS, isFishingSeat } from "@shared/props";
+import { APPROACH_POINTS, isFishingSeat, mochiSpot } from "@shared/props";
 import { cameraFocus } from "../../scene/cameraFocus";
 import { interactBridge } from "../../scene/interactBridge";
 import { hudText, pillButton } from "./glass";
@@ -114,7 +115,9 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         if (!isWalkUpProp(p.kind)) continue;
         const label = propLabel(p, mapId);
         if (!label) continue;
-        const d = dist(p.x, p.z, p.propId);
+        // Mochi is wherever her day has taken her, not at her home spot
+        const at = p.kind === "cat" ? mochiSpot(mapId, Date.now() / 1000) : null;
+        const d = at ? Math.min(Math.hypot(at.x - px, at.z - pz), Math.hypot(at.ax - px, at.az - pz)) : dist(p.x, p.z, p.propId);
         if (d <= REACH)
           found.push({
             key: p.propId,
@@ -133,6 +136,8 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
       const free = (c: ChairSyncState) => c.occupiedBy === "" || c.occupiedBy === localSessionId;
       let fish: { id: string; d: number } | null = null;
       let fire: { id: string; d: number } | null = null;
+      // the intimate lounge asks you to come right up to a seat before offering it
+      const seatReach = mapId === "cozy_lounge" ? LOFT_SEAT_REACH : REACH;
       let seat: { id: string; d: number } | null = null;
       for (const c of Object.values(chairs)) {
         if (!free(c)) continue;
@@ -142,7 +147,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
           fish = { id: c.propId, d };
         } else if (c.style === "log" && (!fire || d < fire.d)) {
           fire = { id: c.propId, d };
-        } else if (d <= REACH && (!seat || d < seat.d)) {
+        } else if (d <= seatReach && (!seat || d < seat.d)) {
           seat = { id: c.propId, d };
         }
       }

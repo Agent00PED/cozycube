@@ -592,14 +592,19 @@ export function accessoryFor(userId: string): FreeAccessory {
 // A player's outfit travels as one short string ("skin,style,hair,shirt,pants,hat") so it is a
 // single schema field and a single message. Every value is picked from a fixed palette, which is
 // also how the server validates it: anything not in the lists is rejected outright.
-export const SKIN_TONES = ["#ffd1b3", "#f6d7c3", "#eec1a0", "#d9a47c", "#b67c56", "#8a5a3c"];
-export const HAIR_COLORS = ["#3b2a20", "#6b4430", "#c98e4f", "#8c3d2e", "#e5d3a6", "#f2a7bd", "#a8d8ea", "#a8d5b5"];
+/** Six natural warm skin tones, light to deep. */
+export const SKIN_TONES = ["#ffd1b3", "#f5c6a5", "#e0ac69", "#c68642", "#8d5524", "#5a3825"];
+/** Eight hair tones: black, dark brown, blonde, pastel blue, pastel pink, mint, silver, white. */
+export const HAIR_COLORS = ["#1f1a1c", "#4a2e1f", "#e6c980", "#a8d8ea", "#f5b7cf", "#a8e6c8", "#c7ccd4", "#f7f4ef"];
+export const HAIR_COLOR_NAMES = ["Black", "Dark brown", "Blonde", "Pastel blue", "Pastel pink", "Mint", "Silver", "White"];
 export const HAIR_STYLES = ["cap", "bob", "bun", "buns", "spiky", "long"] as const;
 export type HairStyle = (typeof HAIR_STYLES)[number];
+/** Twelve vibrant pastels for the outfit's fabric accent (hoodie, lapels, sash, piping). */
 export const OUTFIT_COLORS = [
-  "#e8a598", "#f4b6c2", "#f0c290", "#f6e3a1", "#e8d5a8", "#a8c8a0", "#bfe3c8", "#8fb8b0",
-  "#9ab8d8", "#c4d7f2", "#b8a8d0", "#d8a8c0", "#c8b090", "#f5ede0", "#7a8aa6", "#5c6b5a",
+  "#ff9aa2", "#ffb7b2", "#ffdac1", "#fff3a8", "#c9f2a8", "#a8e6cf",
+  "#9ee7e3", "#a8d8ea", "#b5b9ff", "#d5aaff", "#f4b6e0", "#ffd6a5",
 ];
+export const OUTFIT_COLOR_NAMES = ["Coral", "Peach blush", "Apricot", "Lemon", "Lime", "Mint", "Aqua", "Sky", "Periwinkle", "Lilac", "Orchid", "Butterscotch"];
 export const HATS: FreeAccessory[] = ACCESSORIES;
 
 export interface Look {
@@ -705,11 +710,12 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
 // --- world sizes ---
 /** Half-width of each diorama slab. Indoor rooms keep their walls at ROOM_HALF; the slab beyond
  *  the open sides is the terrace / foyer that the bigger footprint adds. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 13, campfire_night: 14, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: LOFT_HALF, campfire_night: 14, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12 };
 /** Where the two back walls of an indoor room stand (x = -ROOM_HALF and z = -ROOM_HALF). */
 export const ROOM_HALF = 10;
-/** The lounge's sunken conversation pit: a step down round the sofa and fireplace. */
-export const LOUNGE_PIT = { x0: -6.4, x1: 1.5, z0: -3.3, z1: 1.6, depth: 0.16 };
+/** The loft's sunken conversation pit (authored with the rest of the room in worlds/lounge.ts). */
+export { LOFT_PIT as LOUNGE_PIT } from "./worlds/lounge";
+import { LOFT_HALF } from "./worlds/lounge";
 /** The casino's raised VIP lounge, behind the velvet rope. */
 export const VIP_PLATFORM = { x0: -9.8, x1: -4.7, z0: 1.7, z1: 8.3, height: 0.18 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */

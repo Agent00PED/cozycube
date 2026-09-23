@@ -192,6 +192,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       }
 
       roomRef.current = room;
+      // dev aid: poke at the live room from the console (window.__cozyRoom.state, .send)
+      if (import.meta.env.DEV) (window as unknown as { __cozyRoom?: Room }).__cozyRoom = room;
       forceRender((n) => n + 1);
       setLocalSessionId(room.sessionId);
       setConnected(true);

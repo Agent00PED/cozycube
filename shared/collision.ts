@@ -1,4 +1,5 @@
 import { BLUFF, BOXING_RING, LOUNGE_PIT, MAP_HALF, ONSEN_POOL, VIP_PLATFORM, type MapId } from "./types";
+import { LOFT_OBSTACLES, LOFT_SPAWNS } from "./worlds/lounge";
 
 export interface AABB {
   minX: number;
@@ -26,51 +27,8 @@ export const GRID_LIMIT = Math.max(...Object.values(MAP_HALF)) - 0.6;
 // Seats are intentionally NOT obstacles (you have to be able to reach them), and purely
 // decorative meshes (books, mugs, shells) never appear here at all.
 export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
-  cozy_lounge: [
-    // --- Living room (the middle of the floor) ---
-    { minX: -5.5, maxX: -0.5, minZ: -4.1, maxZ: -3.2 }, // slatted screen with the media console and TV
-    { minX: -5.3, maxX: -0.6, minZ: 0.5, maxZ: 1.6 }, // L-sofa, long run
-    { minX: -6.2, maxX: -5.0, minZ: -1.75, maxZ: 1.6 }, // L-sofa, return leg
-    { minX: -4.1, maxX: -1.9, minZ: -1.75, maxZ: -0.85 }, // coffee table
-    { minX: 0.3, maxX: 0.9, minZ: 0.05, maxZ: 0.65 }, // side table by the armchair
-    { minX: 0.6, maxX: 1.2, minZ: 0.8, maxZ: 1.4 }, // floor lamp, down in the pit
-    { minX: -5.2, maxX: -0.8, minZ: 1.7, maxZ: 2.2 }, // low bookshelf behind the sofa
-    { minX: -6.75, maxX: -6.05, minZ: -3.85, maxZ: -3.15 }, // monstera at the screen's end
-    { minX: -0.55, maxX: 0.15, minZ: 1.85, maxZ: 2.55 }, // olive tree by the sofa
-    // --- Kitchen ---
-    { minX: 0.8, maxX: 9.4, minZ: -9.8, maxZ: -8.8 }, // back counter run, sink and fridge grouped
-    { minX: 3.3, maxX: 6.9, minZ: -6.8, maxZ: -5.6 }, // bar island
-    // --- Dining set ---
-    { minX: -0.1, maxX: 2.7, minZ: -6.9, maxZ: -5.5 }, // farmhouse table (chairs tuck under, so they are not boxes)
-    // --- Gaming zone ---
-    { minX: -8.9, maxX: -7.5, minZ: -7.7, maxZ: -6.3 }, // the board-game table (its three chairs are seats)
-    { minX: -7.5, maxX: -5.1, minZ: -9.8, maxZ: -9.0 }, // both arcade cabinets on the back wall
-    { minX: -3.7, maxX: -0.9, minZ: -9.8, maxZ: -9.3 }, // tall bookcase
-    { minX: -2.95, maxX: -1.95, minZ: -8.9, maxZ: -8.1 }, // the console unit the beanbags face
-    { minX: -9.6, maxX: -8.8, minZ: -9.6, maxZ: -8.8 }, // corner plant
-    // --- Reading & tea lounge (front-left wing), everything gathered round the tea table ---
-    { minX: -9.8, maxX: -8.9, minZ: 2.4, maxZ: 5.2 }, // record shelf against the left wall
-    { minX: -8.4, maxX: -7.8, minZ: 6.7, maxZ: 7.3 }, // reading lamp behind the armchair
-    { minX: -9.1, maxX: -8.3, minZ: 7.6, maxZ: 8.4 }, // guitar on its stand, in the corner by the wall
-    { minX: -6.65, maxX: -5.95, minZ: 6.35, maxZ: 7.05 }, // round side table beside the armchair
-    { minX: -5.1, maxX: -3.7, minZ: 4.7, maxZ: 6.1 }, // the low tea table
-    { minX: 2.2, maxX: 2.8, minZ: 6.1, maxZ: 6.7 }, // fig, clear of the cushions
-    { minX: -2.3, maxX: -1.7, minZ: 7.4, maxZ: 8.0 }, // snake plant
-    { minX: 1.5, maxX: 2.1, minZ: 3.0, maxZ: 3.6 }, // fern
-    // --- Balcony deck ---
-    { minX: 8.6, maxX: 9.2, minZ: 5.1, maxZ: 5.7 }, // floor lantern
-    { minX: 5.2, maxX: 5.8, minZ: 0.7, maxZ: 1.3 }, // potted fig by the deck step
-    { minX: 8.5, maxX: 9.2, minZ: 1.4, maxZ: 2.1 }, // olive tree
-    { minX: 8.75, maxX: 9.45, minZ: 6.85, maxZ: 7.55 }, // monstera on the deck
-    { minX: 8.8, maxX: 9.4, minZ: 2.9, maxZ: 3.5 }, // fern on its plant stool
-    // --- The garden terrace beyond the deck rail ---
-    { minX: 9.6, maxX: 12.8, minZ: 0.4, maxZ: 1.2 }, // long planter along the deck's end
-    { minX: 11.8, maxX: 12.8, minZ: 4.2, maxZ: 5.6 }, // olive in a big pot
-    { minX: 11.6, maxX: 12.8, minZ: 8.0, maxZ: 9.0 }, // lavender bed
-    { minX: 3.0, maxX: 9.4, minZ: 12.0, maxZ: 12.8 }, // hedge along the front edge
-    { minX: -1.2, maxX: 0.0, minZ: 10.6, maxZ: 12.4 }, // the garden pond
-    { minX: -8.2, maxX: -7.6, minZ: 1.7, maxZ: 2.3 }, // reading lamp by the wingback
-  ],
+  // the Loft is authored in shared/worlds/lounge.ts
+  cozy_lounge: LOFT_OBSTACLES,
 
   campfire_night: [
     { minX: -0.9, maxX: 0.9, minZ: -0.9, maxZ: 0.9 }, // fire pit and its tripod
@@ -203,13 +161,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
 
 // Where players arrive: the lounge deck, the end of the campfire trail, the top of the beach.
 export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
-  cozy_lounge: [
-    { x: 7.0, z: 8.4 },
-    { x: 5.8, z: 8.8 },
-    { x: 8.0, z: 7.6 },
-    { x: 5.2, z: 7.6 },
-    { x: 7.4, z: 9.0 },
-  ],
+  cozy_lounge: LOFT_SPAWNS,
   campfire_night: [
     { x: 0, z: 12.2 },
     { x: 1.4, z: 12.7 },
@@ -360,6 +312,18 @@ export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boo
     }
   }
   return false;
+}
+
+/**
+ * The DRAWN floor height at (x, z). Like walkY, except the lounge pit is the hard step it is
+ * drawn as (walkY eases avatars over its rim). For checks against geometry, not for walking.
+ */
+export function floorY(mapId: MapId, x: number, z: number): number {
+  if (mapId === "cozy_lounge") {
+    const p = LOUNGE_PIT;
+    return x > p.x0 && x < p.x1 && z > p.z0 && z < p.z1 ? -p.depth : 0;
+  }
+  return walkY(mapId, x, z);
 }
 
 export function clampToWorld(v: number, mapId: MapId = "cozy_lounge"): number {

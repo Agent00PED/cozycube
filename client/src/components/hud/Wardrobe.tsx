@@ -3,10 +3,12 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import type * as THREE from "three";
 import {
   HAIR_COLORS,
+  HAIR_COLOR_NAMES,
   HAIR_STYLES,
   HATS,
   OUTFITS,
   OUTFIT_COLORS,
+  OUTFIT_COLOR_NAMES,
   OUTFIT_IDS,
   PREMIUM_HATS,
   PREMIUM_HAT_IDS,
@@ -19,7 +21,7 @@ import {
   type OutfitId,
   type PremiumHat,
 } from "@shared/types";
-import { Character3D, type FloatingEmote } from "../Character3D";
+import { Character3D, type FloatingEmote } from "../../entities/Avatar";
 import { playChime, playClick, playCoin } from "../../audio/sfx";
 import { saveLook } from "./lookStorage";
 
@@ -36,31 +38,41 @@ interface WardrobeProps {
   onClose: () => void;
 }
 
-const HAIR_STYLE_LABELS: Record<HairStyle, string> = { cap: "Short", bob: "Bob", bun: "Bun", buns: "Twin buns", spiky: "Spiky", long: "Long" };
-const HAT_LABELS: Record<Accessory, string> = {
-  beret: "Beret",
-  beanie: "Beanie",
-  flower: "Flower",
-  headphones: "Phones",
-  none: "None",
-  straw: "👒 Sunhat",
-  bunny: "🐰 Bunny",
-  tophat: "🎩 Top hat",
-  crown: "👑 Crown",
-  mochiears: "🐱 Mochi ears",
+const HAIR_STYLE_LABELS: Record<HairStyle, { label: string; emoji: string }> = {
+  cap: { label: "Short", emoji: "✂️" },
+  bob: { label: "Bob", emoji: "💇" },
+  bun: { label: "Bun", emoji: "🍡" },
+  buns: { label: "Twin buns", emoji: "🐼" },
+  spiky: { label: "Spiky", emoji: "⚡" },
+  long: { label: "Long", emoji: "🌊" },
 };
-type Tab = "outfits" | "hair" | "hats" | "skin";
+const FREE_HAT_LABELS: Record<Accessory, { label: string; emoji: string }> = {
+  none: { label: "Bare head", emoji: "🙂" },
+  beret: { label: "Beret", emoji: "🎨" },
+  beanie: { label: "Beanie", emoji: "🧶" },
+  flower: { label: "Flower", emoji: "🌸" },
+  headphones: { label: "Headphones", emoji: "🎧" },
+  straw: { label: "Straw Sunhat", emoji: "👒" },
+  bunny: { label: "Bunny Ears", emoji: "🐰" },
+  tophat: { label: "Top Hat", emoji: "🎩" },
+  crown: { label: "High Roller Crown", emoji: "👑" },
+  mochiears: { label: "Mochi Ears", emoji: "🐱" },
+};
+const SKIN_NAMES = ["Porcelain", "Peach", "Honey", "Caramel", "Chestnut", "Espresso"];
+
+type Tab = "outfits" | "hats" | "hair";
 const TABS: { id: Tab; label: string; emoji: string }[] = [
   { id: "outfits", label: "Outfits", emoji: "👕" },
+  { id: "hats", label: "Hats", emoji: "👒" },
   { id: "hair", label: "Hair", emoji: "💇" },
-  { id: "hats", label: "Hats", emoji: "🎩" },
-  { id: "skin", label: "Skin", emoji: "🎨" },
 ];
 
-// The wardrobe: a live 3D preview you can drag round, beside category tabs. Every change
-// applies immediately (you see it on your character in the world too), syncs through the room,
-// persists to the database and is remembered locally as a fallback. Outfits are bought here
-// (buy_outfit); the gacha-only ones only ever arrive from the arcade.
+// The wardrobe: a live 3D preview you can drag round, beside a category list (outfits, hats,
+// hair styles) and the three palettes (skin, hair colour, clothing accent) that are always to
+// hand. Every change applies immediately (you see it on your character in the world too),
+// syncs through the room as the equipped look, persists to the database and is remembered
+// locally as a fallback. Outfits and premium hats are bought here; gacha-only items only
+// ever arrive from the arcade.
 export function Wardrobe({ userId, username, initial, coins, owned, onApply, onBuy, onBuyOutfit, onClose }: WardrobeProps) {
   const [look, setLook] = useState<Look>(initial);
   const [tab, setTab] = useState<Tab>("outfits");
@@ -88,7 +100,8 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
 
   return (
     <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
-      <div className="cozy-wardrobe clay-sheet sm:clay-pop font-cozy flex max-h-[92vh] w-full max-w-[720px] overflow-hidden rounded-t-3xl border border-white/10 bg-stone-900/85 text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl" role="dialog" aria-label="Wardrobe">
+      <div className="cozy-wardrobe clay-sheet sm:clay-pop font-cozy flex max-h-[85vh] w-full max-w-[760px] overflow-hidden rounded-t-3xl border border-white/10 bg-stone-900/85 text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl" role="dialog" aria-label="Wardrobe">
+        {/* ---- left: the preview ---- */}
         <div
           className="cozy-wardrobe-preview relative min-h-[260px] flex-[0_0_40%] cursor-grab touch-none select-none bg-[radial-gradient(circle_at_50%_70%,#3b2a36_0%,#1f1a22_70%)] active:cursor-grabbing"
           onPointerDown={(e) => {
@@ -118,7 +131,8 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
           <span className="pointer-events-none absolute bottom-2 left-0 right-0 text-center text-[11px] opacity-50">drag to turn</span>
         </div>
 
-        <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+        {/* ---- right: categories, the list, the palettes ---- */}
+        <div className="scrollbar-none flex flex-1 flex-col gap-3 overflow-y-auto p-4">
           <div className="flex items-center gap-3">
             <h2 className="flex-1 text-lg font-extrabold tracking-wide">👗 Wardrobe</h2>
             <span className="rounded-full bg-amber-300/25 px-3 py-1 text-sm font-extrabold text-amber-100">🪙 {coins}</span>
@@ -126,113 +140,77 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
               ✕
             </button>
           </div>
-          <div className="flex gap-1.5 overflow-x-auto" role="tablist">
+
+          <div className="flex gap-1.5" role="tablist" aria-label="Wardrobe categories">
             {TABS.map((t) => (
-              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => (playClick(), setTab(t.id))} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-bold transition-transform active:scale-95 ${tab === t.id ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
+              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`min-h-11 flex-1 rounded-full px-3 text-sm font-bold transition-transform duration-150 active:scale-95 ${tab === t.id ? "bg-amber-300 text-amber-950 shadow-[inset_0_-2px_0_rgba(120,70,0,0.25)]" : "bg-white/10 hover:bg-white/15"}`}>
                 {t.emoji} {t.label}
               </button>
             ))}
           </div>
 
-          {tab === "outfits" && (
-            <>
-              <div>
-                <div className="mb-2 text-xs font-bold uppercase tracking-widest opacity-60">Closet</div>
-                <div className="flex flex-col gap-2">
-                  {OUTFIT_IDS.map((id) => {
-                    const item = OUTFITS[id];
-                    const have = ownsOutfit(id);
-                    const wearing = look.outfit === id;
-                    return (
-                      <div key={id} className={`flex shrink-0 items-center gap-3 rounded-2xl px-3 py-2 text-sm ${wearing ? "bg-amber-300/15 ring-1 ring-amber-300/40" : "bg-white/5"}`}>
-                        <span className="text-2xl">{item.emoji}</span>
-                        <span className="min-w-0 flex-1">
-                          <b className="block truncate">{item.name}</b>
-                          <span className="opacity-70">{have ? "Owned" : item.gachaOnly ? "Gachapon only" : `${item.price} 🪙`}</span>
-                        </span>
-                        {have ? (
-                          <button type="button" disabled={wearing} onClick={() => update({ outfit: id })} className={`clay-btn min-h-10 px-4 text-xs ${wearing ? "clay-btn-rose" : "clay-btn-ghost"}`}>
-                            {wearing ? "Wearing" : "Wear"}
-                          </button>
-                        ) : item.gachaOnly ? (
-                          <span className="text-xs opacity-60">🔮</span>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={coins < item.price}
-                            onClick={() => {
-                              playCoin();
-                              onBuyOutfit(id);
-                              update({ outfit: id });
-                            }}
-                            className="clay-btn clay-btn-amber min-h-10 px-4 text-xs"
-                          >
-                            Buy
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <Swatches label="Accent colour" colors={OUTFIT_COLORS} value={look.outfitColor} onPick={(outfitColor) => update({ outfitColor })} />
-            </>
-          )}
-          {tab === "hair" && (
-            <>
-              <Chips label="Style" options={HAIR_STYLES} labels={HAIR_STYLE_LABELS} value={look.hairStyle} onPick={(hairStyle) => update({ hairStyle })} />
-              <Swatches label="Colour" colors={HAIR_COLORS} value={look.hair} onPick={(hair) => update({ hair })} big />
-            </>
-          )}
-          {tab === "skin" && <Swatches label="Skin tone" colors={SKIN_TONES} value={look.skin} onPick={(skin) => update({ skin })} big />}
-          {tab === "hats" && (
-            <>
-              <Chips label="Everyday" options={HATS} labels={HAT_LABELS} value={look.hat} onPick={(hat) => update({ hat })} />
-              <div>
-                <div className="mb-2 text-xs font-bold uppercase tracking-widest opacity-60">Coin shop</div>
-                <div className="flex flex-col gap-2">
-                  {PREMIUM_HAT_IDS.map((hat) => {
-                    const item = PREMIUM_HATS[hat];
-                    const have = ownedIds.has(hat);
-                    const wearing = look.hat === hat;
-                    return (
-                      <div key={hat} className="flex shrink-0 items-center gap-3 rounded-2xl bg-white/5 px-3 py-2 text-sm">
-                        <span className="text-2xl">{item.emoji}</span>
-                        <span className="flex-1">
-                          <b>{item.name}</b>
-                          <br />
-                          <span className="opacity-70">{have ? "Owned" : item.gachaOnly ? "Gachapon only" : `${item.price} 🪙`}</span>
-                        </span>
-                        {have ? (
-                          <button type="button" onClick={() => update({ hat: wearing ? "none" : hat })} className={`clay-btn min-h-10 px-4 text-xs ${wearing ? "clay-btn-rose" : "clay-btn-ghost"}`}>
-                            {wearing ? "Wearing" : "Wear"}
-                          </button>
-                        ) : item.gachaOnly ? (
-                          <span className="text-xs opacity-60">🔮</span>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={coins < item.price}
-                            onClick={() => {
-                              playCoin();
-                              onBuy(hat);
-                              update({ hat });
-                            }}
-                            className="clay-btn clay-btn-amber min-h-10 px-4 text-xs"
-                          >
-                            Buy
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="mt-2 text-xs opacity-60">Earn coins by fishing, foraging, boxing, the tea house, the daily checklist, and at the casino.</p>
-              </div>
-            </>
-          )}
+          <div className="flex flex-col gap-2" role="tabpanel">
+            {tab === "outfits" &&
+              OUTFIT_IDS.map((id) => {
+                const item = OUTFITS[id];
+                const have = ownsOutfit(id);
+                return (
+                  <ItemRow key={id} emoji={item.emoji} name={item.name} note={have ? "Owned" : item.gachaOnly ? "Gachapon only" : `${item.price} 🪙`} wearing={look.outfit === id} owned={have} gachaOnly={!!item.gachaOnly} canAfford={coins >= item.price} onWear={() => update({ outfit: id })} onBuy={() => (playCoin(), onBuyOutfit(id), update({ outfit: id }))} />
+                );
+              })}
+            {tab === "hats" && (
+              <>
+                {HATS.map((hat) => (
+                  <ItemRow key={hat} emoji={FREE_HAT_LABELS[hat].emoji} name={FREE_HAT_LABELS[hat].label} note="Free" wearing={look.hat === hat} owned onWear={() => update({ hat })} />
+                ))}
+                {PREMIUM_HAT_IDS.map((hat) => {
+                  const item = PREMIUM_HATS[hat];
+                  const have = ownedIds.has(hat);
+                  return (
+                    <ItemRow key={hat} emoji={item.emoji} name={item.name} note={have ? "Owned" : item.gachaOnly ? "Gachapon only" : `${item.price} 🪙`} wearing={look.hat === hat} owned={have} gachaOnly={!!item.gachaOnly} canAfford={coins >= item.price} onWear={() => update({ hat })} onBuy={() => (playCoin(), onBuy(hat), update({ hat }))} />
+                  );
+                })}
+              </>
+            )}
+            {tab === "hair" &&
+              HAIR_STYLES.map((style) => <ItemRow key={style} emoji={HAIR_STYLE_LABELS[style].emoji} name={HAIR_STYLE_LABELS[style].label} note="Free" wearing={look.hairStyle === style} owned onWear={() => update({ hairStyle: style })} />)}
+          </div>
+
+          {/* the palettes are always to hand: every pick lands on the preview and the world instantly */}
+          <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/5 p-3">
+            <Swatches label="Skin tone" colors={SKIN_TONES} names={SKIN_NAMES} value={look.skin} onPick={(skin) => update({ skin })} big />
+            <Swatches label="Hair colour" colors={HAIR_COLORS} names={HAIR_COLOR_NAMES} value={look.hair} onPick={(hair) => update({ hair })} big />
+            <Swatches label="Clothing accent" colors={OUTFIT_COLORS} names={OUTFIT_COLOR_NAMES} value={look.outfitColor} onPick={(outfitColor) => update({ outfitColor })} />
+          </div>
+          <p className="text-xs opacity-60">Earn coins by fishing, foraging, boxing, the tea house, the daily checklist, and at the casino.</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** One line of the closet: what it is, what it costs, and Wear / Wearing / Buy. */
+function ItemRow({ emoji, name, note, wearing, owned, gachaOnly = false, canAfford = true, onWear, onBuy }: { emoji: string; name: string; note: string; wearing: boolean; owned: boolean; gachaOnly?: boolean; canAfford?: boolean; onWear: () => void; onBuy?: () => void }) {
+  return (
+    <div className={`flex shrink-0 items-center gap-3 rounded-2xl px-3 py-2 text-sm transition-colors ${wearing ? "bg-amber-300/15 ring-1 ring-amber-300/40" : "bg-white/5"}`}>
+      <span className="text-2xl">{emoji}</span>
+      <span className="min-w-0 flex-1">
+        <b className="block truncate">{name}</b>
+        <span className="opacity-70">{note}</span>
+      </span>
+      {owned ? (
+        <button type="button" disabled={wearing} onClick={onWear} className={`clay-btn min-h-10 px-4 text-xs ${wearing ? "clay-btn-rose" : "clay-btn-ghost"}`}>
+          {wearing ? "Wearing" : "Wear"}
+        </button>
+      ) : gachaOnly ? (
+        <span className="text-xs opacity-60" title="Only from the gachapon in the arcade">
+          🔮
+        </span>
+      ) : (
+        <button type="button" disabled={!canAfford} onClick={onBuy} className="clay-btn clay-btn-amber min-h-10 px-4 text-xs">
+          Buy
+        </button>
+      )}
     </div>
   );
 }
@@ -261,36 +239,25 @@ function PreviewAvatar({ userId, look, color }: { userId: string; username: stri
   return <Character3D userId={userId} look={look} color={color} username="" pose="stand" speedRef={speedRef} holding="" action="" actionProgress={0} toast={0} speaking={false} emotes={emotes} />;
 }
 
-function Swatches({ label, colors, value, onPick, big = false }: { label: string; colors: string[]; value: string; onPick: (c: string) => void; big?: boolean }) {
+function Swatches({ label, colors, names, value, onPick, big = false }: { label: string; colors: string[]; names?: string[]; value: string; onPick: (c: string) => void; big?: boolean }) {
   return (
     <div>
-      <div className="mb-2 text-xs font-bold uppercase tracking-widest opacity-60">{label}</div>
+      <div className="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-widest opacity-60">
+        <span>{label}</span>
+        {names && <span className="normal-case tracking-normal opacity-90">{names[colors.indexOf(value)] ?? ""}</span>}
+      </div>
       <div className="flex flex-wrap gap-2">
-        {colors.map((c) => (
+        {colors.map((c, i) => (
           <button
             key={c}
             type="button"
             onClick={() => onPick(c)}
-            aria-label={`${label} ${c}`}
+            aria-label={`${label}: ${names?.[i] ?? c}`}
+            title={names?.[i] ?? c}
             aria-pressed={c === value}
-            className={`rounded-full border-2 border-white/70 transition-transform hover:scale-110 active:scale-95 ${big ? "h-11 w-11" : "h-8 w-8"} ${c === value ? "scale-110 ring-2 ring-pink-300 ring-offset-2 ring-offset-stone-900" : ""}`}
+            className={`rounded-full border-2 border-white/70 shadow-[inset_0_-2px_0_rgba(0,0,0,0.18)] transition-transform duration-150 hover:scale-110 active:scale-95 ${big ? "h-10 w-10" : "h-8 w-8"} ${c === value ? "scale-110 ring-2 ring-pink-300 ring-offset-2 ring-offset-stone-900" : ""}`}
             style={{ background: c }}
           />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Chips<T extends string>({ label, options, labels, value, onPick }: { label: string; options: readonly T[]; labels: Record<T, string>; value: T; onPick: (v: T) => void }) {
-  return (
-    <div>
-      <div className="mb-2 text-xs font-bold uppercase tracking-widest opacity-60">{label}</div>
-      <div className="flex flex-wrap gap-2">
-        {options.map((o) => (
-          <button key={o} type="button" onClick={() => onPick(o)} aria-pressed={o === value} className={`min-h-10 rounded-full px-4 text-sm font-bold transition-transform active:scale-95 ${o === value ? "bg-pink-300 text-pink-950" : "bg-white/10 hover:bg-white/15"}`}>
-            {labels[o]}
-          </button>
         ))}
       </div>
     </div>
