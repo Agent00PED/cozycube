@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@colyseus/schema": "^2.0.28",
+    "@colyseus/ws-transport": "^0.15.3",
     "colyseus": "^0.15.17",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",

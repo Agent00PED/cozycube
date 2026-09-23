@@ -4,6 +4,7 @@ import cors from "cors";
 import path from "path";
 import { createServer } from "http";
 import { Server } from "colyseus";
+import { WebSocketTransport } from "@colyseus/ws-transport";
 import { HangoutRoom } from "./rooms/HangoutRoom";
 import { tokenRouter } from "./routes/token";
 import { getPlayerStore, initPlayerStore } from "./db/players";
@@ -22,7 +23,9 @@ app.get("/api/leaderboard", async (_req, res) => {
 });
 
 const httpServer = createServer(app);
-const gameServer = new Server({ server: httpServer });
+// The transport is named explicitly: on 0.15 passing `server` straight to `new Server` still
+// works but logs a deprecation warning at every start, and 0.16 drops it altogether.
+const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer }) });
 
 // Client connects via ws(s)://<host>/colyseus in dev (see client/vite.config.ts proxy rewrite)
 // or ws(s)://<host> directly in production (see useColyseusRoom.ts). filterBy partitions
