@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { IsometricCanvas } from "./scene/IsometricCanvas";
-import { WorldScene } from "./components/WorldScene";
 import { Header } from "./components/hud/Header";
 import { WorldDrawer } from "./components/hud/WorldDrawer";
 import { SideDrawer } from "./components/hud/SideDrawer";
@@ -10,6 +8,11 @@ import { BlackjackModal } from "./components/hud/BlackjackModal";
 import { LeaderboardModal } from "./components/hud/LeaderboardModal";
 import { Toasts } from "./components/hud/Toasts";
 import { pushToast } from "./components/hud/toastStore";
+import { IsometricCanvas } from "./scene/IsometricCanvas";
+import { WorldScene } from "./scene/WorldScene";
+import { interactBridge } from "./scene/interactBridge";
+import { MochiPlayroomModal } from "./entities/MochiPlayroomModal";
+import { ActionDock } from "./components/hud/ActionDock";
 import { Joystick } from "./components/hud/Joystick";
 import { Wardrobe } from "./components/hud/Wardrobe";
 import { loadSavedLook } from "./components/hud/lookStorage";
@@ -22,12 +25,8 @@ import { MatchaModal } from "./components/hud/MatchaModal";
 import { BlenderModal } from "./components/hud/BlenderModal";
 import { JukeboxModal } from "./components/hud/JukeboxModal";
 import { BoardGameModal } from "./components/hud/BoardGameModal";
-import { MochiPlayroomModal } from "./entities/MochiPlayroomModal";
 import { BoxingHud } from "./components/hud/BoxingHud";
-import { installUiPops, playDizzyBirds, playWinBell } from "./audio/sfx";
-import { getAudioSettings, installGestureUnlock, setAudioSettings, subscribeAudioSettings } from "./audio/SoundManager";
 import { installKeyboard, isTouchDevice } from "./systems/input";
-import { interactBridge } from "./scene/interactBridge";
 import {
   ACHIEVEMENTS,
   BLACKJACK_CENTER,
@@ -43,18 +42,16 @@ import {
   type FishOnLine,
   type GachaPrize,
   type MochiAction,
+  type HairStyle,
   type OutfitId,
   type PremiumHat,
 } from "@shared/types";
-import { ActionDock } from "./components/hud/ActionDock";
 import { RoulettePanel } from "./components/hud/RoulettePanel";
 import { ActivityBar } from "./components/hud/ActivityBar";
 import { VoiceChip } from "./components/hud/VoiceChip";
-import { RecenterButton } from "./components/hud/RecenterButton";
 import { useDiscordAuth } from "./hooks/useDiscordAuth";
 import { useColyseusRoom } from "./hooks/useColyseusRoom";
 import { useVoiceActivity } from "./hooks/useVoiceActivity";
-import { useAmbience } from "./hooks/useAmbience";
 
 // Global styles the inline-style HUD can't express: the floating-emote keyframes (used by the
 // <Html> overlays in Character3D) and the narrow-screen layout of the bottom HUD stack.
@@ -189,6 +186,7 @@ export default function App() {
     ballRef,
     subscribeEmotes,
     buyOutfit,
+    buyHair,
     pullGacha,
     clawPlay,
     arcadeScore,
@@ -212,12 +210,9 @@ export default function App() {
   const voice = useVoiceActivity(auth, setSpeaking);
   const turntable = Object.values(toggleables).find((t) => t.kind === "turntable");
   const record = turntable?.on ? turntable.track : null;
-  const ambience = useAmbience(currentMap, record);
 
-  // Sound unlocks on the first gesture; WASD / arrows steer for the app's lifetime.
+  // WASD / arrows steer for the app's lifetime.
   useEffect(() => {
-    installGestureUnlock();
-    installUiPops();
     return installKeyboard();
   }, []);
 
@@ -274,7 +269,6 @@ export default function App() {
         if (type === "rouletteResult") {
           const { winners } = payload as { result: number; winners: { sessionId: string; username: string; amount: number }[] };
           if (winners.length === 0) return;
-          if (winners.some((w) => w.sessionId === localIdRef.current)) playWinBell();
           const best = [...winners].sort((a, b) => b.amount - a.amount)[0];
           pushToast(`${best.username} won ${best.amount} coins${winners.length > 1 ? ` (+${winners.length - 1} more)` : ""}`, { emoji: "🎉", tone: "win", silent: true });
         } else if (type === "openSlots") {
@@ -312,11 +306,9 @@ export default function App() {
           setMochiResult(payload as { action: MochiAction; coins: number; cooldown: boolean });
         } else if (type === "boxingResult") {
           const r = payload as { winner: string; winnerName: string; loser: string; loserName: string; purse: number };
-          if (r.winner === localIdRef.current) playWinBell();
           pushToast(`${r.winnerName} knocked out ${r.loserName}! +${r.purse} purse`, { emoji: "🥊", tone: "win", silent: true });
         } else if (type === "punch") {
           const p = payload as { from: string; to: string; hits: number };
-          if (p.to === localIdRef.current && p.hits >= 3) playDizzyBirds();
         } else if (type === "dailyComplete") {
           pushToast(`Daily checklist done! +${(payload as { coins: number }).coins} coins`, { emoji: "📋", tone: "win" });
         } else if (type === "vibe") {
@@ -392,10 +384,8 @@ export default function App() {
     seenPlayers.current = ids;
   }, [players, localSessionId]);
 
-  // --- joystick: touch devices by default, or by preference ---
-  const [joystickPref, setJoystickPref] = useState(getAudioSettings().joystick);
-  useEffect(() => subscribeAudioSettings((s) => setJoystickPref(s.joystick)), []);
-  const showJoystick = joystickPref === "on" || (joystickPref === "auto" && isTouchDevice());
+  // --- joystick: touch devices only ---
+  const showJoystick = isTouchDevice();
 
   // --- table proximity: the roulette board and the blackjack panel follow you to the tables ---
   const atRoulette = currentMap === "velvet_casino" && !!me && !me.sitting && Math.hypot(me.x - ROULETTE_CENTER.x, me.z - ROULETTE_CENTER.z) < ROULETTE_BET_RADIUS;
@@ -453,11 +443,6 @@ export default function App() {
           timeOfDay={timeOfDay}
           speakingUserIds={voice.speakingUserIds}
           subscribeEmotes={subscribeEmotes}
-          ballRef={ballRef}
-          onKickBall={kickBall}
-          roulette={roulette}
-          bets={bets}
-          leaderboard={leaderboard}
           subscribeMessages={subscribeMessages}
         />
       </IsometricCanvas>
@@ -477,8 +462,6 @@ export default function App() {
         onSetStatus={setStatus}
         onOpenWardrobe={() => setWardrobeOpen(true)}
         onOpenLeaderboard={() => setLeaderboardOpen(true)}
-        soundOn={ambience.enabled}
-        onToggleSound={() => setAudioSettings({ ambience: !getAudioSettings().ambience })}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenSocial={() => setSocialOpen((o) => !o)}
         socialOpen={socialOpen}
@@ -506,7 +489,7 @@ export default function App() {
             onSplash={splash}
           />
           {currentMap === "boxing_ring" && <BoxingHud me={localPlayer} players={players} onPunch={punch} onExit={boxingExit} onToss={tossCoin} />}
-          <ActionDock rouletteOpen={showRoulette} player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onCastLine={castLine} onRoast={roast} onBoxingEnter={boxingEnter} />
+          <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} />
         </div>
       )}
 
@@ -532,10 +515,6 @@ export default function App() {
       )}
 
       {mapTransitioning && <StatusScreen text="Changing scene..." overlay />}
-
-      <div style={bottomRightStyle}>
-        <RecenterButton />
-      </div>
 
       {worldsOpen && <WorldDrawer currentMap={currentMap} playerCount={playerCount} disabled={mapTransitioning} onSelect={changeMap} onClose={() => setWorldsOpen(false)} />}
       {socialOpen && (
@@ -570,6 +549,7 @@ export default function App() {
       {panel?.kind === "blender" && <BlenderModal result={blendResult} onBlend={blendDrink} onClose={closePanel} />}
       {panel?.kind === "jukebox" && <JukeboxModal playing={record} onPick={(t) => (setRecord(t), setPanel(null))} onClose={closePanel} />}
       {panel?.kind === "boardgame" && localSessionId && <BoardGameModal view={boardView} localSessionId={localSessionId} onJoin={boardJoin} onLeave={boardLeave} onMove={boardMove} onClose={closePanel} />}
+
       {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
 
       {wardrobeOpen && localPlayer && (
@@ -581,6 +561,7 @@ export default function App() {
           owned={localPlayer.owned}
           onBuy={(hat: PremiumHat) => buyHat(hat)}
           onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)}
+          onBuyHair={(style: HairStyle) => buyHair(style)}
           onApply={setLook}
           onClose={closeWardrobe}
         />

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CLAW_COST, CLAW_WIN_COINS } from "@shared/types";
 import { Modal } from "./Modal";
-import { playClick, playCoin, playPop } from "../../audio/sfx";
 
 interface Props {
   coins: number;
@@ -39,8 +38,6 @@ export function ClawModal({ coins, result, onPlay, onClose }: Props) {
   useEffect(() => {
     if (!result || phase !== "dropping") return;
     const t = window.setTimeout(() => {
-      if (result.won) playCoin();
-      else playPop();
       setPhase("done");
     }, 1100);
     return () => window.clearTimeout(t);
@@ -48,7 +45,6 @@ export function ClawModal({ coins, result, onPlay, onClose }: Props) {
 
   const drop = () => {
     if (coins < CLAW_COST) return;
-    playClick();
     setPhase("dropping");
     onPlay(posRef.current);
   };

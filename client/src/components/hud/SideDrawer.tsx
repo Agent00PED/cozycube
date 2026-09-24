@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { ACTIVITY_STATUSES, CHAT_MAX_CHARS, DAILY_REWARD, DAILY_TASKS, QUICK_CHATS, isActivityStatus, parseDaily, parseStats, type Gesture, type PlayerState } from "@shared/types";
-import { lookAtTemporarily } from "../../scene/cameraFocus";
-import { playClick, playPop } from "../../audio/sfx";
 
 interface SideDrawerProps {
   players: Record<string, PlayerState>;
@@ -58,7 +56,6 @@ export function SideDrawer(props: SideDrawerProps) {
   const send = (line: string) => {
     const t = line.trim().slice(0, CHAT_MAX_CHARS);
     if (!t) return;
-    playPop();
     onChat(t);
     setText("");
   };
@@ -86,7 +83,6 @@ export function SideDrawer(props: SideDrawerProps) {
                   key={w.label}
                   type="button"
                   onClick={() => {
-                    playClick();
                     w.run(props);
                     onClose();
                   }}
@@ -143,7 +139,7 @@ export function SideDrawer(props: SideDrawerProps) {
               const isMe = p.sessionId === localSessionId;
               return (
                 <li key={p.sessionId}>
-                  <button type="button" onClick={() => (playClick(), lookAtTemporarily(p.x, p.z))} className="flex min-h-11 w-full items-center gap-3 rounded-2xl bg-white/5 px-3 text-left text-sm transition-transform hover:bg-white/10 active:scale-[0.98]" title={isMe ? "That's you" : `Look at ${p.username}`}>
+                  <button type="button" className="flex min-h-11 w-full items-center gap-3 rounded-2xl bg-white/5 px-3 text-left text-sm transition-transform hover:bg-white/10 active:scale-[0.98]" title={isMe ? "That's you" : `Look at ${p.username}`}>
                     <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p.color, boxShadow: speaking ? "0 0 0 2px #fff, 0 0 0 4px #43d17a" : "0 0 0 2px rgba(255,255,255,0.35)" }} />
                     <span className="flex-1 truncate font-bold">
                       {p.username}

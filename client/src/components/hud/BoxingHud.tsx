@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { BOXING_BOUT_KOS, BOXING_KNOCKDOWN_HITS, BOXING_REACH, BOXING_TIP, PUNCH_COOLDOWN_MS, type PlayerState } from "@shared/types";
 import { hudText, pillButton } from "./glass";
-import { playClick, playThwack } from "../../audio/sfx";
 
 interface Props {
   me: PlayerState;
@@ -29,7 +28,7 @@ export function BoxingHud({ me, players, onPunch, onExit, onToss }: Props) {
     return (
       <div style={styles.row}>
         {fighters.slice(0, 2).map((f) => (
-          <button key={f.sessionId} type="button" style={styles.tip} disabled={me.coins < BOXING_TIP} onClick={() => (playClick(), onToss(f.sessionId))}>
+          <button key={f.sessionId} type="button" style={styles.tip} disabled={me.coins < BOXING_TIP} onClick={() => (onToss(f.sessionId))}>
             🪙 Toss coin to {f.username} · {BOXING_TIP}
           </button>
         ))}
@@ -45,7 +44,6 @@ export function BoxingHud({ me, players, onPunch, onExit, onToss }: Props) {
     const now = performance.now();
     if (now - lastRef.current < PUNCH_COOLDOWN_MS) return;
     lastRef.current = now;
-    playThwack();
     setCool(PUNCH_COOLDOWN_MS);
     onPunch(nearest.f.sessionId);
   };
@@ -63,7 +61,7 @@ export function BoxingHud({ me, players, onPunch, onExit, onToss }: Props) {
       <button type="button" className="cozy-action" style={{ ...styles.swing, opacity: inReach && !dizzy && !cool ? 1 : 0.55 }} disabled={!inReach || dizzy || !!cool} onClick={swing}>
         {dizzy ? "😵 Seeing birds…" : !nearest ? "🥊 Waiting for a challenger" : inReach ? `👊 Swing at ${nearest.f.username}` : `🥊 Get closer to ${nearest.f.username}`}
       </button>
-      <button type="button" style={styles.ghost} onClick={() => (playClick(), onExit())}>
+      <button type="button" style={styles.ghost} onClick={() => (onExit())}>
         Leave the ring
       </button>
     </div>

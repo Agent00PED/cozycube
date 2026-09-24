@@ -110,7 +110,10 @@ import {
   VIBE_PARTY_MULTIPLIER,
   VIBE_PARTY_SIZE,
   WISH_COST,
+  HAIR_DEFINITIONS,
   fromStoredLook,
+  hairUnlockId,
+  isHairStyle,
   isMapId,
   isOutfitId,
   toStoredLook,
@@ -353,9 +356,10 @@ export class HangoutRoom extends Room<HangoutState> {
       const player = this.state.players.get(client.sessionId);
       const look = parseLook(msg?.look);
       if (!player || !look) return;
-      // Premium hats and outfits have to have been bought (or won at the gachapon).
+      // Premium hats, outfits and fancy hair have to have been bought (or won at the gachapon).
       if (isPremiumHat(look.hat) && !this.owns(player, look.hat)) return;
       if (!this.owns(player, look.outfit)) return;
+      if (!this.ownsHair(player.owned.split(","), look.hairStyle)) return;
       player.look = encodeLook(look);
       player.color = look.outfitColor;
     });
@@ -431,6 +435,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("chat_bubble", (client, msg: { text: string }) => this.handleChat(client.sessionId, msg?.text));
     // --- outfits, gachapon and the arcade ---
     this.onMessage("buy_outfit", (client, msg: { outfit: string }) => this.handleBuyOutfit(client.sessionId, msg?.outfit));
+    this.onMessage("buy_hair", (client, msg: { style: string }) => this.handleBuyHair(client.sessionId, msg?.style));
     this.onMessage("pull_gacha", (client) => this.handleGacha(client.sessionId));
     this.onMessage("claw_play", (client, msg: { aim: number }) => this.handleClaw(client.sessionId, Number(msg?.aim)));
     this.onMessage("arcade_score", (client, msg: { score: number }) => this.handleArcadeScore(client.sessionId, Number(msg?.score)));
@@ -530,6 +535,17 @@ export class HangoutRoom extends Room<HangoutState> {
     player.coins -= price;
     this.grant(player, outfit);
     this.broadcast("emote", { sessionId, emoji: "👕" });
+  }
+
+  /** A fancy hair style from the wardrobe's shop: recorded as hair_<style> with the other unlocks. */
+  private handleBuyHair(sessionId: string, style: unknown) {
+    const player = this.state.players.get(sessionId);
+    if (!player || !isHairStyle(style) || this.ownsHair(player.owned.split(","), style)) return;
+    const price = HAIR_DEFINITIONS[style].price;
+    if (player.coins < price) return;
+    player.coins -= price;
+    this.grant(player, hairUnlockId(style));
+    this.broadcast("emote", { sessionId, emoji: HAIR_DEFINITIONS[style].emoji });
   }
 
   private handleGacha(sessionId: string) {
@@ -1719,7 +1735,7 @@ export class HangoutRoom extends Room<HangoutState> {
     player.owned = record.unlockedItems.join(",");
     player.stats = JSON.stringify(record.stats);
     const look = fromStoredLook(record.equippedLook as any);
-    if (look && this.ownsOutfit(record.unlockedItems, look.outfit)) {
+    if (look && this.ownsOutfit(record.unlockedItems, look.outfit) && this.ownsHair(record.unlockedItems, look.hairStyle)) {
       player.look = encodeLook(look);
       player.color = look.outfitColor;
     }
@@ -1740,6 +1756,11 @@ export class HangoutRoom extends Room<HangoutState> {
 
   private ownsOutfit(unlocked: string[], outfit: string): boolean {
     return (STARTER_OUTFITS as string[]).includes(outfit) || unlocked.includes(outfit);
+  }
+
+  /** The starter styles are everyone's; a fancy one has to have been bought. */
+  private ownsHair(unlocked: string[], style: string): boolean {
+    return isHairStyle(style) && (HAIR_DEFINITIONS[style].price === 0 || unlocked.includes(hairUnlockId(style)));
   }
 
   private removePlayer(sessionId: string) {

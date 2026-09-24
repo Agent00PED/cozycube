@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { DRINK_INGREDIENTS, DRINK_RECIPES, DRINK_REWARD } from "@shared/types";
 import { Modal } from "./Modal";
-import { playChime, playClick, playPop } from "../../audio/sfx";
 
 const INGREDIENT_EMOJI: Record<(typeof DRINK_INGREDIENTS)[number], string> = { mango: "🥭", lime: "🍋", ice: "🧊", coconut: "🥥", mint: "🌿", berry: "🫐" };
 
@@ -20,12 +19,9 @@ export function BlenderModal({ result, onBlend, onClose }: Props) {
   useEffect(() => {
     if (!result) return;
     setBlending(false);
-    if (result.right) playChime();
-    else playPop();
   }, [result]);
 
   const toggle = (id: string) => {
-    playClick();
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length < 3 ? [...p, id] : p));
   };
   const blend = () => {
@@ -41,7 +37,7 @@ export function BlenderModal({ result, onBlend, onClose }: Props) {
         <div className="text-xs font-bold uppercase tracking-widest opacity-60">The card</div>
         <div className="flex gap-2 overflow-x-auto">
           {DRINK_RECIPES.map((r) => (
-            <button key={r.id} type="button" onClick={() => (playClick(), setRecipe(r.id), setPicked([]))} className={`min-h-12 shrink-0 rounded-full px-4 text-sm font-bold transition-transform active:scale-95 ${recipe === r.id ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
+            <button key={r.id} type="button" onClick={() => (setRecipe(r.id), setPicked([]))} className={`min-h-12 shrink-0 rounded-full px-4 text-sm font-bold transition-transform active:scale-95 ${recipe === r.id ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
               {r.emoji} {r.name}
             </button>
           ))}

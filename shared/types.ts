@@ -589,32 +589,83 @@ export function accessoryFor(userId: string): FreeAccessory {
 }
 
 // --- wardrobe ---
-// A player's outfit travels as one short string ("skin,style,hair,shirt,pants,hat") so it is a
-// single schema field and a single message. Every value is picked from a fixed palette, which is
-// also how the server validates it: anything not in the lists is rejected outright.
-/** Six natural warm skin tones, light to deep. */
-export const SKIN_TONES = ["#ffd1b3", "#f5c6a5", "#e0ac69", "#c68642", "#8d5524", "#5a3825"];
-/** Eight hair tones: black, dark brown, blonde, pastel blue, pastel pink, mint, silver, white. */
-export const HAIR_COLORS = ["#1f1a1c", "#4a2e1f", "#e6c980", "#a8d8ea", "#f5b7cf", "#a8e6c8", "#c7ccd4", "#f7f4ef"];
-export const HAIR_COLOR_NAMES = ["Black", "Dark brown", "Blonde", "Pastel blue", "Pastel pink", "Mint", "Silver", "White"];
-export const HAIR_STYLES = ["cap", "bob", "bun", "buns", "spiky", "long"] as const;
+// A player's look travels as one short string (encodeLook: skin, hair style, hair colour, outfit,
+// accent, hat, top colour, bottom colour) so it is a single schema field and a single message.
+// Every value is picked from a fixed palette or list, which is also how the server validates it.
+// A look saved before the palettes and styles changed (six fields) is carried over to the nearest
+// current values rather than thrown away.
+
+/** Six warm skin tones, light to deep. */
+export const SKIN_TONES = ["#ffe5d9", "#fcd5ce", "#e8b89a", "#c68e5e", "#a67c52", "#6f4e37"];
+export const SKIN_TONE_NAMES = ["Porcelain", "Warm peach", "Honey tan", "Golden caramel", "Warm cocoa", "Deep chestnut"];
+/** Eight cozy hair tones. */
+export const HAIR_COLORS = ["#222222", "#4a3525", "#dda15e", "#c85a44", "#dda7a5", "#457b9d", "#d6d6d6", "#a390e4"];
+export const HAIR_COLOR_NAMES = ["Soft black", "Chocolate", "Blonde", "Terracotta", "Rose", "Slate blue", "Silver", "Lavender"];
+
+export const HAIR_STYLES = ["short", "bob", "wavy", "messy", "hero", "drill", "topknot", "spacebuns", "afro"] as const;
 export type HairStyle = (typeof HAIR_STYLES)[number];
-/** Twelve vibrant pastels for the outfit's fabric accent (hoodie, lapels, sash, piping). */
+/** The hair catalogue: four free starter styles, and the fancy ones sold in the wardrobe (price in coins). */
+export const HAIR_DEFINITIONS: Record<HairStyle, { name: string; emoji: string; price: number }> = {
+  short: { name: "Cozy Crop", emoji: "✂️", price: 0 },
+  bob: { name: "Classic Bob", emoji: "💇", price: 0 },
+  wavy: { name: "Soft Waves", emoji: "🌊", price: 0 },
+  messy: { name: "Messy Spikes", emoji: "🌪️", price: 0 },
+  hero: { name: "Anime Hero", emoji: "⚡", price: 200 },
+  drill: { name: "Twin Drills", emoji: "🎀", price: 180 },
+  topknot: { name: "Samurai Topknot", emoji: "🎋", price: 150 },
+  spacebuns: { name: "Space Buns", emoji: "🐼", price: 150 },
+  afro: { name: "Cloud Afro", emoji: "☁️", price: 250 },
+};
+export const STARTER_HAIR: HairStyle[] = HAIR_STYLES.filter((s) => HAIR_DEFINITIONS[s].price === 0);
+export function isHairStyle(v: unknown): v is HairStyle {
+  return typeof v === "string" && v in HAIR_DEFINITIONS;
+}
+/** The unlock id a bought hair style is recorded under, in the same list as hats and outfits. */
+export function hairUnlockId(style: HairStyle): string {
+  return `hair_${style}`;
+}
+/** The styles before the catalogue was redone, and what they are worn as now (always a free one). */
+const LEGACY_HAIR: Record<string, HairStyle> = { cap: "short", long: "wavy", spiky: "messy", bun: "short", buns: "short" };
+
+/** Twelve vibrant pastels for an outfit's accent: its trims (a vest, lapels, an obi, piping). */
 export const OUTFIT_COLORS = [
   "#ff9aa2", "#ffb7b2", "#ffdac1", "#fff3a8", "#c9f2a8", "#a8e6cf",
   "#9ee7e3", "#a8d8ea", "#b5b9ff", "#d5aaff", "#f4b6e0", "#ffd6a5",
 ];
 export const OUTFIT_COLOR_NAMES = ["Coral", "Peach blush", "Apricot", "Lemon", "Lime", "Mint", "Aqua", "Sky", "Periwinkle", "Lilac", "Orchid", "Butterscotch"];
+/** Twelve cozy earth and jewel tones for a top's fabric: every one reads as cloth against every skin tone. */
+export const SHIRT_COLORS = ["#c85a44", "#b3403a", "#e9c46a", "#8aa67e", "#2a9d8f", "#6c8ebf", "#3d5a80", "#2b3a6b", "#7d4e6d", "#d98e8e", "#3a3a40", "#1d1b22"];
+export const SHIRT_COLOR_NAMES = ["Terracotta", "Brick", "Mustard", "Sage", "Teal", "Cornflower", "Slate", "Indigo", "Plum", "Dusty rose", "Charcoal", "Midnight"];
+/** Nine fabrics for trousers and shorts. */
+export const PANTS_COLORS = ["#5a5a66", "#3f5f8a", "#2b3a6b", "#a08a60", "#6b4f3a", "#7a8b6f", "#f5ecd8", "#3a3a40", "#1d1b22"];
+export const PANTS_COLOR_NAMES = ["Heather grey", "Denim", "Indigo", "Khaki", "Cocoa", "Olive", "Cream", "Charcoal", "Midnight"];
+/** Each outfit's own fabrics: what its top and bottom are made of until the player recolours them. */
+export const OUTFIT_FABRICS: Record<OutfitId, { shirt: string; pants: string }> = {
+  outfit_starter_hoodie: { shirt: "#c85a44", pants: "#5a5a66" },
+  outfit_starter_overalls: { shirt: "#e9c46a", pants: "#3f5f8a" },
+  outfit_flannel_vest: { shirt: "#b3403a", pants: "#a08a60" },
+  outfit_hawaiian: { shirt: "#2a9d8f", pants: "#f5ecd8" },
+  outfit_tuxedo: { shirt: "#1d1b22", pants: "#1d1b22" },
+  outfit_boxing: { shirt: "#c85a44", pants: "#f5ecd8" },
+  outfit_yukata: { shirt: "#2b3a6b", pants: "#2b3a6b" },
+  outfit_cyber: { shirt: "#1d1b22", pants: "#1d1b22" },
+};
 export const HATS: FreeAccessory[] = ACCESSORIES;
+export function isHat(v: unknown): v is Accessory {
+  return ACCESSORIES.includes(v as FreeAccessory) || isPremiumHat(v);
+}
 
 export interface Look {
   skin: string;
   hairStyle: HairStyle;
   hair: string;
-  /** The whole outfit, and its accent colour (the hoodie's fabric, the tux's lapel...). */
+  /** The whole outfit, and its accent colour (its trims: the vest, the lapels, the obi...). */
   outfit: OutfitId;
   outfitColor: string;
   hat: Accessory;
+  /** The top's fabric and the bottom's (SHIRT_COLORS, PANTS_COLORS). */
+  shirt: string;
+  pants: string;
 }
 /** The look as it is stored in the database (the spec's column shape). */
 export interface StoredLook {
@@ -624,24 +675,28 @@ export interface StoredLook {
   outfit: OutfitId;
   outfitColor: string;
   hat: Accessory;
+  shirtColor: string;
+  pantsColor: string;
 }
 export function toStoredLook(l: Look): StoredLook {
-  return { skinColor: l.skin, hairStyle: l.hairStyle, hairColor: l.hair, outfit: l.outfit, outfitColor: l.outfitColor, hat: l.hat };
+  return { skinColor: l.skin, hairStyle: l.hairStyle, hairColor: l.hair, outfit: l.outfit, outfitColor: l.outfitColor, hat: l.hat, shirtColor: l.shirt, pantsColor: l.pants };
 }
 export function fromStoredLook(s: Partial<StoredLook> | null | undefined): Look | null {
   if (!s || !s.skinColor) return null;
-  return parseLook(encodeLook({ skin: s.skinColor, hairStyle: s.hairStyle as HairStyle, hair: String(s.hairColor), outfit: s.outfit as OutfitId, outfitColor: String(s.outfitColor), hat: s.hat as Accessory }));
+  const fields = [s.skinColor, s.hairStyle, s.hairColor, s.outfit, s.outfitColor, s.hat];
+  if (s.shirtColor && s.pantsColor) fields.push(s.shirtColor, s.pantsColor);
+  return parseLook(fields.map(String).join(","));
 }
 
-/** The palette colour closest to any "#rrggbb" — so a shirt handed in from outside the
- *  wardrobe (the server's join-time pastel) always encodes to a look that validates. */
-export function nearestOutfitColor(hex: string): string {
-  if (OUTFIT_COLORS.includes(hex)) return hex;
+/** The colour in `palette` closest to any "#rrggbb". */
+export function nearestColor(palette: readonly string[], hex: string): string {
+  const lower = hex.toLowerCase();
+  if (palette.includes(lower)) return lower;
   const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) || 0);
-  const [r, g, b] = rgb(hex);
-  let best = OUTFIT_COLORS[0];
+  const [r, g, b] = rgb(lower);
+  let best = palette[0];
   let bestD = Infinity;
-  for (const c of OUTFIT_COLORS) {
+  for (const c of palette) {
     const [cr, cg, cb] = rgb(c);
     const d = (cr - r) ** 2 + (cg - g) ** 2 + (cb - b) ** 2;
     if (d < bestD) {
@@ -652,32 +707,54 @@ export function nearestOutfitColor(hex: string): string {
   return best;
 }
 
-/** The outfit someone has before they ever open the wardrobe — stable per user id. */
+/** The accent colour closest to any "#rrggbb" — so a colour handed in from outside the wardrobe
+ *  (the server's join-time pastel) always encodes to a look that validates. */
+export function nearestOutfitColor(hex: string): string {
+  return nearestColor(OUTFIT_COLORS, hex);
+}
+
+/** The look someone has before they ever open the wardrobe — stable per user id, all free items. */
 export function defaultLook(userId: string, accent = OUTFIT_COLORS[0]): Look {
   const h = hashString(userId);
+  const outfit = STARTER_OUTFITS[(h >>> 12) % STARTER_OUTFITS.length];
   return {
     skin: SKIN_TONES[h % SKIN_TONES.length],
-    hairStyle: HAIR_STYLES[(h >>> 8) % HAIR_STYLES.length],
+    hairStyle: STARTER_HAIR[(h >>> 8) % STARTER_HAIR.length],
     hair: HAIR_COLORS[(h >>> 4) % HAIR_COLORS.length],
-    outfit: STARTER_OUTFITS[(h >>> 12) % STARTER_OUTFITS.length],
+    outfit,
     outfitColor: nearestOutfitColor(accent),
     hat: accessoryFor(userId),
+    ...OUTFIT_FABRICS[outfit],
   };
 }
 
 export function encodeLook(l: Look): string {
-  return [l.skin, l.hairStyle, l.hair, l.outfit, l.outfitColor, l.hat].join(",");
+  return [l.skin, l.hairStyle, l.hair, l.outfit, l.outfitColor, l.hat, l.shirt, l.pants].join(",");
 }
 
-/** Parses and validates; returns null for anything that isn't made of palette values. */
+/** Parses and validates; returns null for anything that isn't made of palette values. A six-field
+ *  look from before the current palettes is carried over instead (migrateLook). */
 export function parseLook(raw: string | null | undefined): Look | null {
-  if (!raw || raw.length > 96) return null;
-  const [skin, hairStyle, hair, outfit, outfitColor, hat] = raw.split(",");
-  if (!SKIN_TONES.includes(skin)) return null;
-  if (!(HAIR_STYLES as readonly string[]).includes(hairStyle)) return null;
-  if (!HAIR_COLORS.includes(hair) || !isOutfitId(outfit) || !OUTFIT_COLORS.includes(outfitColor)) return null;
-  if (!ACCESSORIES.includes(hat as FreeAccessory) && !isPremiumHat(hat)) return null;
-  return { skin, hairStyle: hairStyle as HairStyle, hair, outfit, outfitColor, hat: hat as Accessory };
+  if (!raw || raw.length > 128) return null;
+  const fields = raw.split(",");
+  if (fields.length === 6) return migrateLook(fields);
+  if (fields.length !== 8) return null;
+  const [skin, hairStyle, hair, outfit, outfitColor, hat, shirt, pants] = fields;
+  if (!SKIN_TONES.includes(skin) || !isHairStyle(hairStyle) || !HAIR_COLORS.includes(hair)) return null;
+  if (!isOutfitId(outfit) || !OUTFIT_COLORS.includes(outfitColor) || !isHat(hat)) return null;
+  if (!SHIRT_COLORS.includes(shirt) || !PANTS_COLORS.includes(pants)) return null;
+  return { skin, hairStyle, hair, outfit, outfitColor, hat, shirt, pants };
+}
+
+/** A look saved in the old six-field shape: its colours snap to the nearest current swatches, a
+ *  retired hair style becomes the free style closest to it, and the top and bottom take the
+ *  outfit's own fabrics. */
+function migrateLook([skin, hairStyle, hair, outfit, outfitColor, hat]: string[]): Look | null {
+  const hex = /^#[0-9a-f]{6}$/i;
+  if (![skin, hair, outfitColor].every((c) => hex.test(c)) || !isOutfitId(outfit) || !isHat(hat)) return null;
+  const style = isHairStyle(hairStyle) ? hairStyle : LEGACY_HAIR[hairStyle];
+  if (!style) return null;
+  return { skin: nearestColor(SKIN_TONES, skin), hairStyle: style, hair: nearestColor(HAIR_COLORS, hair), outfit, outfitColor: nearestColor(OUTFIT_COLORS, outfitColor), hat, ...OUTFIT_FABRICS[outfit] };
 }
 export type Emote = (typeof EMOTES)[number];
 
@@ -710,12 +787,9 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
 // --- world sizes ---
 /** Half-width of each diorama slab. Indoor rooms keep their walls at ROOM_HALF; the slab beyond
  *  the open sides is the terrace / foyer that the bigger footprint adds. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: LOFT_HALF, campfire_night: 14, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 14, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12 };
 /** Where the two back walls of an indoor room stand (x = -ROOM_HALF and z = -ROOM_HALF). */
 export const ROOM_HALF = 10;
-/** The loft's sunken conversation pit (authored with the rest of the room in worlds/lounge.ts). */
-export { LOFT_PIT as LOUNGE_PIT } from "./worlds/lounge";
-import { LOFT_HALF } from "./worlds/lounge";
 /** The casino's raised VIP lounge, behind the velvet rope. */
 export const VIP_PLATFORM = { x0: -9.8, x1: -4.7, z0: 1.7, z1: 8.3, height: 0.18 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */

@@ -1,8 +1,6 @@
 import { WORLDS, WORLD_IDS } from "@shared/worlds";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, type MapId, type TimeOfDay } from "@shared/types";
-import { TIME_PRESETS } from "../../scene/roomThemes";
-import { playChime, playClick, playCoin } from "../../audio/sfx";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 
 /** Each map's icon, name and tagline, from the world table (shared/worlds). */
@@ -26,15 +24,15 @@ interface HeaderProps {
   onSetStatus: (status: string) => void;
   onOpenWardrobe: () => void;
   onOpenLeaderboard: () => void;
-  soundOn: boolean;
-  onToggleSound: () => void;
   onOpenSettings: () => void;
   onOpenSocial: () => void;
   socialOpen: boolean;
 }
 
+const TIME_LABELS: Record<TimeOfDay, string> = { sunrise: "🌅 Sunrise", day: "☀️ Day", sunset: "🌇 Sunset", night: "🌙 Night" };
+
 function timeLabel(time: TimeOfDay) {
-  const [icon, ...rest] = TIME_PRESETS[time].label.split(" ");
+  const [icon, ...rest] = TIME_LABELS[time].split(" ");
   return { icon, name: rest.join(" ") };
 }
 
@@ -67,7 +65,6 @@ export function Header(p: HeaderProps) {
     return () => window.removeEventListener("pointerdown", onDown);
   }, [open]);
   const toggle = (menu: "time" | "status") => {
-    playClick();
     setOpen((o) => (o === menu ? null : menu));
   };
   const time = timeLabel(p.timeOfDay);
@@ -78,7 +75,7 @@ export function Header(p: HeaderProps) {
     <div ref={rootRef} className="font-cozy pointer-events-none fixed left-0 right-0 z-30 flex flex-nowrap items-center justify-between gap-1 sm:gap-3" style={{ top: "max(8px, env(safe-area-inset-top))", paddingRight: "max(8px, env(safe-area-inset-right))", paddingLeft: "max(8px, env(safe-area-inset-left))" }}>
       {/* ---- left cluster: the world and who is in it, one capsule ---- */}
       <div className={`pointer-events-auto ${PILL_SHELL} p-0.5 sm:p-1`}>
-        <button type="button" onClick={() => (playChime(), p.onOpenWorlds())} className="flex min-h-9 items-center gap-1.5 rounded-full px-2 text-sm font-extrabold transition-transform duration-150 hover:bg-white/10 active:scale-95 sm:min-h-10 sm:gap-2 sm:px-3" title="Fast travel" aria-haspopup="dialog">
+        <button type="button" onClick={() => (p.onOpenWorlds())} className="flex min-h-9 items-center gap-1.5 rounded-full px-2 text-sm font-extrabold transition-transform duration-150 hover:bg-white/10 active:scale-95 sm:min-h-10 sm:gap-2 sm:px-3" title="Fast travel" aria-haspopup="dialog">
           <span className="clay-wiggle text-xl leading-none">{map.icon}</span>
           <span className="hidden lg:inline">{map.name}</span>
           <span className="hidden text-xs opacity-60 lg:inline">▾</span>
@@ -103,13 +100,13 @@ export function Header(p: HeaderProps) {
             {TIMES_OF_DAY.map((t) => {
               const l = timeLabel(t);
               return (
-                <MenuItem key={t} active={t === p.timeOfDay && !p.autoCycle} onClick={() => (playClick(), p.onSelectTime(t), setOpen(null))}>
+                <MenuItem key={t} active={t === p.timeOfDay && !p.autoCycle} onClick={() => (p.onSelectTime(t), setOpen(null))}>
                   {l.icon} {l.name}
                 </MenuItem>
               );
             })}
             <div className="my-1 h-px bg-white/10" />
-            <MenuItem active={p.autoCycle} onClick={() => (playClick(), p.onToggleAutoCycle())}>
+            <MenuItem active={p.autoCycle} onClick={() => (p.onToggleAutoCycle())}>
               ⏱️ Auto cycle {p.autoCycle ? "on" : "off"}
             </MenuItem>
           </Menu>
@@ -139,19 +136,16 @@ export function Header(p: HeaderProps) {
             </IconButton>
             {open === "status" && <StatusMenu status={p.status} onSetStatus={p.onSetStatus} close={() => setOpen(null)} />}
           </div>
-          <IconButton onClick={() => (playChime(), p.onOpenWardrobe())} title="Wardrobe">
+          <IconButton onClick={() => (p.onOpenWardrobe())} title="Wardrobe">
             👗
           </IconButton>
-          <IconButton onClick={() => (playClick(), p.onOpenLeaderboard())} title="High Rollers">
+          <IconButton onClick={() => (p.onOpenLeaderboard())} title="High Rollers">
             🏆
           </IconButton>
-          <IconButton onClick={() => (p.onToggleSound(), playClick())} title={p.soundOn ? "Mute the room" : "Play this room's ambience"} pressed={p.soundOn} hideOnPhone>
-            {p.soundOn ? "🔊" : "🔇"}
-          </IconButton>
-          <IconButton onClick={() => (playClick(), p.onOpenSettings())} title="Settings">
+          <IconButton onClick={() => (p.onOpenSettings())} title="Settings">
             ⚙️
           </IconButton>
-          <IconButton onClick={() => (playClick(), p.onOpenSocial())} title="Emotes, chat and who's here" pressed={p.socialOpen} active={p.socialOpen}>
+          <IconButton onClick={() => (p.onOpenSocial())} title="Emotes, chat and who's here" pressed={p.socialOpen} active={p.socialOpen}>
             💬
           </IconButton>
         </div>
@@ -172,11 +166,11 @@ function StatusMenu({ status, onSetStatus, close }: { status: string; onSetStatu
   const st = isActivityStatus(status) ? ACTIVITY_STATUSES[status] : null;
   return (
     <Menu alignRight>
-      <MenuItem active={!st} onClick={() => (playClick(), onSetStatus(""), close())}>
+      <MenuItem active={!st} onClick={() => (onSetStatus(""), close())}>
         🟢 Just hanging out
       </MenuItem>
       {ACTIVITY_STATUS_IDS.map((id) => (
-        <MenuItem key={id} active={status === id} onClick={() => (playClick(), onSetStatus(id), close())}>
+        <MenuItem key={id} active={status === id} onClick={() => (onSetStatus(id), close())}>
           {ACTIVITY_STATUSES[id].emoji} {ACTIVITY_STATUSES[id].label}
         </MenuItem>
       ))}
@@ -208,7 +202,6 @@ function CoinWallet({ coins, onClaim }: { coins: number; onClaim: () => void }) 
   useEffect(() => {
     if (coins > prev.current) {
       setBump((b) => b + 1);
-      playCoin();
     }
     prev.current = coins;
   }, [coins]);
@@ -220,7 +213,7 @@ function CoinWallet({ coins, onClaim }: { coins: number; onClaim: () => void }) 
         {shown}
       </span>
       {broke && (
-        <button type="button" onClick={() => (playClick(), onClaim())} className="clay-btn clay-btn-mint min-h-9 min-w-0 px-2.5 text-xs" title="The house tops you up when you are out of coins">
+        <button type="button" onClick={() => (onClaim())} className="clay-btn clay-btn-mint min-h-9 min-w-0 px-2.5 text-xs" title="The house tops you up when you are out of coins">
           🎁 <span className="hidden lg:inline">Allowance</span>
         </button>
       )}

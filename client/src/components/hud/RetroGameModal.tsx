@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ARCADE_COINS_MAX, ARCADE_COINS_PER_POINT } from "@shared/types";
 import { Modal } from "./Modal";
-import { playClick, playCoin, playPop } from "../../audio/sfx";
 
 // A pocket Snake on a canvas: arrows / WASD / swipe buttons. Score goes to the server when the
 // run ends (arcade_score), which pays a few coins once a minute.
@@ -72,7 +71,6 @@ export function RetroGameModal({ result, onScore, onClose }: Props) {
       if (nx < 0 || ny < 0 || nx >= CELLS || ny >= CELLS || snake.some(([x, y]) => x === nx && y === ny)) {
         alive = false;
         setOver(true);
-        playPop();
         if (points > 0) onScore(points);
         return;
       }
@@ -80,7 +78,6 @@ export function RetroGameModal({ result, onScore, onClose }: Props) {
       if (nx === food[0] && ny === food[1]) {
         points += 10;
         setScore(points);
-        playClick();
         placeFood();
       } else snake.pop();
       draw();
@@ -106,7 +103,6 @@ export function RetroGameModal({ result, onScore, onClose }: Props) {
   }, [run]);
 
   useEffect(() => {
-    if (result && result.coins > 0) playCoin();
   }, [result]);
 
   const pad = (d: Dir, label: string) => (
@@ -130,7 +126,7 @@ export function RetroGameModal({ result, onScore, onClose }: Props) {
             <div className="clay-pop absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-stone-950/70 text-center">
               <b className="text-xl">Game over</b>
               <span className="text-sm opacity-80">{score} points{result ? ` · ${result.coins > 0 ? `+${result.coins} 🪙` : "the cabinet is cooling down"}` : ""}</span>
-              <button type="button" className="clay-btn clay-btn-amber" onClick={() => (playClick(), setRun((r) => r + 1))}>
+              <button type="button" className="clay-btn clay-btn-amber" onClick={() => (setRun((r) => r + 1))}>
                 ▶ Play again
               </button>
             </div>

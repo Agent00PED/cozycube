@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { setJoystick } from "../../systems/input";
-import { requestRecenter } from "../../scene/cameraFocus";
 
 // A floating analog stick for phones: drag the knob anywhere within the ring and the avatar
 // walks that way, camera-relative. touch-action: none and stopPropagation keep the drag from
@@ -69,7 +68,6 @@ export function Joystick() {
         e.preventDefault();
         pointerId.current = e.pointerId;
         (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-        requestRecenter(); // walking always brings the camera back to you
         update(e.clientX, e.clientY);
       }}
       onPointerMove={(e) => {

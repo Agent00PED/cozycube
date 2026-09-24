@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { BLACKJACK_BETS, type BlackjackAction, type BlackjackCard, type BlackjackView } from "@shared/types";
 import { Modal } from "./Modal";
-import { playCardFlip, playChip, playClick, playCoin, playJingle } from "../../audio/sfx";
 
 // The blackjack table: the server deals, hits, stands and pays; this shows the hand it sends
 // back and offers the moves that are legal right now.
@@ -26,7 +25,6 @@ export function BlackjackModal({ view, coins, onAction, onClose }: Props) {
   // card sounds as cards arrive; a fanfare when it pays
   useEffect(() => {
     const n = (view?.player.length ?? 0) + (view?.dealer.length ?? 0);
-    if (n > cardsSeen.current) playCardFlip();
     cardsSeen.current = n;
   }, [view?.player.length, view?.dealer.length]);
   const settled = useRef("");
@@ -35,8 +33,6 @@ export function BlackjackModal({ view, coins, onAction, onClose }: Props) {
     const key = `${view.outcome}:${view.payout}:${view.player.length}`;
     if (settled.current === key) return;
     settled.current = key;
-    if (view.outcome === "blackjack") playJingle();
-    else if (view.outcome === "win") playCoin();
   }, [view]);
 
   return (
@@ -54,7 +50,7 @@ export function BlackjackModal({ view, coins, onAction, onClose }: Props) {
             <div className="text-xs opacity-70">Dealer stands on 17 · Blackjack pays 3:2</div>
             <div className="flex flex-wrap justify-center gap-2">
               {BLACKJACK_BETS.map((b) => (
-                <button key={b} type="button" disabled={coins < b} onClick={() => (playChip(), onAction("deal", b))} className="clay-btn clay-btn-amber min-h-12 px-4">
+                <button key={b} type="button" disabled={coins < b} onClick={() => (onAction("deal", b))} className="clay-btn clay-btn-amber min-h-12 px-4">
                   <Chip value={b} /> {b}
                 </button>
               ))}
@@ -62,13 +58,13 @@ export function BlackjackModal({ view, coins, onAction, onClose }: Props) {
           </div>
         ) : (
           <div className="flex justify-center gap-2">
-            <button type="button" onClick={() => (playClick(), onAction("hit"))} className="clay-btn clay-btn-mint px-6">
+            <button type="button" onClick={() => (onAction("hit"))} className="clay-btn clay-btn-mint px-6">
               Hit
             </button>
-            <button type="button" onClick={() => (playClick(), onAction("stand"))} className="clay-btn clay-btn-rose px-6">
+            <button type="button" onClick={() => (onAction("stand"))} className="clay-btn clay-btn-rose px-6">
               Stand
             </button>
-            <button type="button" disabled={!view?.canDouble || coins < (view?.bet ?? 0)} onClick={() => (playChip(), onAction("double"))} className="clay-btn clay-btn-amber px-4" title="Double the stake, take one card, stand">
+            <button type="button" disabled={!view?.canDouble || coins < (view?.bet ?? 0)} onClick={() => (onAction("double"))} className="clay-btn clay-btn-amber px-4" title="Double the stake, take one card, stand">
               Double
             </button>
           </div>

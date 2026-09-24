@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ITEMS, REEL_SECONDS, type FishOnLine } from "@shared/types";
 import { Modal } from "./Modal";
-import { playBiteDing, playReelClick, playSplash } from "../../audio/sfx";
 
 // The Stardew-style reel: a fish darts up and down a tall bar; hold the button (or space) to
 // lift the green catch zone, let go to drop it. Keeping the fish inside the zone fills the
@@ -31,7 +30,6 @@ export function FishingModal({ fish, onResult, onClose }: Props) {
   const doneRef = useRef(false);
 
   useEffect(() => {
-    playBiteDing();
     const down = (e: KeyboardEvent) => {
       if (e.code === "Space") {
         e.preventDefault();
@@ -77,7 +75,6 @@ export function FishingModal({ fish, onResult, onClose }: Props) {
         s.inTime += dt;
         if (now - s.lastClick > 140) {
           s.lastClick = now;
-          playReelClick();
         }
       }
       setZoneY(s.zoneY);
@@ -90,7 +87,6 @@ export function FishingModal({ fish, onResult, onClose }: Props) {
           doneRef.current = true;
           const quality = Math.min(1, s.inTime / Math.max(1, s.total));
           setDone("caught");
-          playSplash();
           onResult("caught", quality);
           return;
         }

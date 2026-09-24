@@ -1,277 +1,307 @@
-import { useEffect, useRef, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import { MOCHI_ACTION_COOLDOWN_S, MOCHI_SCRITCH_COINS, type MochiAction } from "@shared/types";
+import type { MochiAction } from "@shared/types";
 import { Modal } from "../components/hud/Modal";
+import { GEO, matte, noRaycast } from "../scene/kit";
 import { MochiModel, restDrive, type MochiDrive } from "./Mochi";
-import { GEO, noRaycast } from "../scene/kit";
-import { playClick, playCoin, playMeow, playPurr } from "../audio/sfx";
 
-interface Props {
-  result: { action: MochiAction; coins: number; cooldown: boolean } | null;
-  onPlay: (action: MochiAction) => void;
-  onClose: () => void;
-}
+// Mochi's playroom: her own little 3D viewport (a separate <Canvas>, ambient light at 1.0 and two
+// warm point lights) with three things to do.
+//
+//   feather  a wand that follows the cursor; her head follows it, and a flick makes her pounce
+//   treat    tap the bowl: she chews, and the server logs the play
+//   scritch  drag over her: the meter fills, she purrs (a synthesised purr) and sways; a full
+//            meter is a satisfied cat and the day's scritch coins
+//
+// Every action is also sent to the server (`onPlay`), which applies the cooldowns and the daily
+// coin; its answer (`result`) comes back as the little line under the viewport.
 
-// Mochi's playroom: a clay card with a little 3D viewport in the middle (her real model, the
-// same one that sleeps by the fire) and three ways to fuss over her.
-//   🪶 Feather wand: move the pointer over the viewport; the feather follows it, her head
-//      follows the feather, and a quick flick makes her pounce (that is the feather "play",
-//      once per cooldown).
-//   🐟 Treat: a dried fish; she chews, purrs, and looks very pleased.
-//   ✨ Scritches: hold to stroke her chin; the purr meter fills and, once a day, she drops a
-//      few coins she found somewhere.
-// The server owns the cooldowns and the coins (mochi_play -> mochiResult); this is the toy.
-const POUNCE_SPEED = 900; // px/s of feather movement that counts as a flick
-type Pose = "idle" | "pounce" | "chew" | "purr" | "grumpy";
+const SCRITCH_FILL_PER_S = 0.55;
+const SCRITCH_DECAY_PER_S = 0.18;
+const POUNCE_S = 0.7;
+const TREAT_S = 2.6;
 
-/** What the pointer is doing over the viewport, written by the DOM handlers, read per frame. */
-interface Pointer {
-  /** Normalised -1..1 across the viewport (x right, y up), or null when the pointer is off it. */
-  x: number;
-  y: number;
-  over: boolean;
-}
-
-export function MochiPlayroomModal({ result, onPlay, onClose }: Props) {
-  const [meter, setMeter] = useState(0);
-  const [pose, setPose] = useState<Pose>("idle");
-  const [cooldowns, setCooldowns] = useState<Partial<Record<MochiAction, number>>>({});
-  const [now, setNow] = useState(Date.now());
-  const rubbing = useRef(false);
-  const matRef = useRef<HTMLDivElement>(null);
-  const pointer = useRef<Pointer>({ x: 0, y: 0, over: false });
-  const lastMove = useRef({ x: 0, y: 0, t: 0 });
-  const lastPounce = useRef(0);
-
-  useEffect(() => {
-    const t = window.setInterval(() => setNow(Date.now()), 500);
-    return () => window.clearInterval(t);
+/** A cat's purr, synthesised: low, amplitude-modulated noise. Only ever started by a user gesture. */
+function usePurr() {
+  const ref = useRef<{ ctx: AudioContext; gain: GainNode; stop: () => void } | null>(null);
+  const start = useCallback(() => {
+    if (ref.current) return;
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    noise.loop = true;
+    const low = ctx.createBiquadFilter();
+    low.type = "lowpass";
+    low.frequency.value = 180;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    // the rumble: the noise pulsed at ~25 Hz, the pace of a real purr
+    const pulse = ctx.createOscillator();
+    pulse.frequency.value = 25;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.5;
+    const amp = ctx.createGain();
+    amp.gain.value = 0.5;
+    pulse.connect(depth).connect(amp.gain);
+    noise.connect(low).connect(amp).connect(gain).connect(ctx.destination);
+    noise.start();
+    pulse.start();
+    ref.current = {
+      ctx,
+      gain,
+      stop: () => {
+        noise.stop();
+        pulse.stop();
+        void ctx.close();
+      },
+    };
   }, []);
+  /** 0..1 loudness, eased so a purr swells and fades instead of clicking. */
+  const level = useCallback((v: number) => {
+    const p = ref.current;
+    if (p) p.gain.gain.setTargetAtTime(v * 0.5, p.ctx.currentTime, 0.15);
+  }, []);
+  useEffect(() => () => ref.current?.stop(), []);
+  return { start, level };
+}
 
-  // the server's answer drives her reaction
+interface Session {
+  drive: React.MutableRefObject<MochiDrive>;
+  /** The wand's tip in the playroom's floor plane (x, z), or null when the cursor is away. */
+  wand: React.MutableRefObject<{ x: number; z: number } | null>;
+  scratching: React.MutableRefObject<boolean>;
+  /** Bumped on a flick, so the scene can start a pounce. */
+  flick: React.MutableRefObject<number>;
+  /** True while she is chewing a treat. */
+  chewing: React.MutableRefObject<boolean>;
+  meter: React.MutableRefObject<number>;
+}
+
+function Playroom({ s, onScratchStart }: { s: Session; onScratchStart: () => void }) {
+  const wandRef = useRef<THREE.Group>(null);
+  const pounceAt = useRef(-1);
+  const lastFlick = useRef(0);
+  const lastWand = useRef<{ x: number; z: number } | null>(null);
+  const gl = useThree((state) => state.gl);
+  const { camera } = useThree();
+  const plane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.02));
+  const ray = useRef(new THREE.Raycaster());
+  const hit = useRef(new THREE.Vector3());
+
+  // the cursor is tracked over the whole canvas, not only over meshes
   useEffect(() => {
-    if (!result) return;
-    if (result.cooldown) {
-      setPose("grumpy");
-      const t = window.setTimeout(() => setPose("idle"), 1500);
-      return () => window.clearTimeout(t);
-    }
-    setCooldowns((c) => ({ ...c, [result.action]: Date.now() + MOCHI_ACTION_COOLDOWN_S * 1000 }));
-    if (result.action === "feather") {
-      setPose("pounce");
-      playMeow();
-    } else if (result.action === "treat") {
-      setPose("chew");
-      playPurr();
-    } else {
-      setPose("purr");
-      playPurr();
-      if (result.coins > 0) playCoin();
-    }
-    const t = window.setTimeout(() => setPose("idle"), 2600);
-    return () => window.clearTimeout(t);
-  }, [result]);
+    const el = gl.domElement;
+    const move = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1));
+      ray.current.setFromCamera(ndc, camera);
+      if (ray.current.ray.intersectPlane(plane.current, hit.current)) {
+        const p = { x: THREE.MathUtils.clamp(hit.current.x, -1.6, 1.6), z: THREE.MathUtils.clamp(hit.current.z, -1.2, 1.4) };
+        const prev = lastWand.current;
+        // a quick sweep is a flick
+        if (prev && Math.hypot(p.x - prev.x, p.z - prev.z) > 0.35) s.flick.current += 1;
+        lastWand.current = p;
+        s.wand.current = p;
+      }
+    };
+    const leave = () => {
+      s.wand.current = null;
+      lastWand.current = null;
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerleave", leave);
+    return () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerleave", leave);
+    };
+  }, [gl, camera, s]);
 
-  // the purr meter: fills while the scritch button is held, then fires the action once
+  useFrame(({ clock }, rawDelta) => {
+    const delta = Math.min(rawDelta, 0.1);
+    const d = s.drive.current;
+    const now = clock.elapsedTime;
+    const wand = s.wand.current;
+
+    // the feather: floats after the cursor, and bobs a little on its own
+    if (wandRef.current) {
+      const goal = wand ?? { x: 1.2, z: 0.9 };
+      wandRef.current.position.x = THREE.MathUtils.lerp(wandRef.current.position.x, goal.x, 0.25);
+      wandRef.current.position.z = THREE.MathUtils.lerp(wandRef.current.position.z, goal.z, 0.25);
+      wandRef.current.position.y = 0.32 + Math.sin(now * 5) * 0.03;
+      wandRef.current.rotation.z = Math.sin(now * 6) * 0.25;
+    }
+
+    // her head follows the wand; a flick starts a pounce
+    if (wand) {
+      d.headYaw = THREE.MathUtils.clamp(Math.atan2(wand.x, wand.z + 0.3) * 0.7, -0.7, 0.7);
+      d.headPitch = THREE.MathUtils.clamp(0.1 - wand.z * 0.05, -0.2, 0.3);
+    } else {
+      d.headYaw = 0;
+      d.headPitch = 0;
+    }
+    if (s.flick.current !== lastFlick.current) {
+      lastFlick.current = s.flick.current;
+      if (pounceAt.current < 0) pounceAt.current = now;
+    }
+    d.pounce = 0;
+    if (pounceAt.current >= 0) {
+      const k = (now - pounceAt.current) / POUNCE_S;
+      if (k >= 1) pounceAt.current = -1;
+      else d.pounce = k;
+    }
+
+    // the treat, and the scritches
+    d.chew = s.chewing.current ? 1 : 0;
+    const scratching = s.scratching.current;
+    s.meter.current = THREE.MathUtils.clamp(s.meter.current + (scratching ? SCRITCH_FILL_PER_S : -SCRITCH_DECAY_PER_S) * delta, 0, 1);
+    d.happy = scratching || s.meter.current > 0.02 || d.chew > 0;
+  });
+
+  const scratch = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    s.scratching.current = true;
+    onScratchStart();
+  };
+
+  return (
+    <>
+      {/* a round rug for her to play on */}
+      <mesh geometry={GEO.circle} material={RUG} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0.1]} scale={[3.6, 3.6, 1]} raycast={noRaycast} />
+      <mesh geometry={GEO.circle} material={RUG_INNER} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.008, 0.1]} scale={[2.9, 2.9, 1]} raycast={noRaycast} />
+      <group scale={2.4}>
+        <MochiModel drive={s.drive} />
+      </group>
+      {/* the scritch target: a big invisible pad over her */}
+      <mesh geometry={GEO.box} material={HIT} position={[0, 0.4, 0.1]} scale={[1.3, 0.9, 1.5]} onPointerDown={scratch} />
+      {/* the feather wand */}
+      <group ref={wandRef} position={[1.2, 0.32, 0.9]}>
+        <mesh geometry={GEO.cyl} material={WOOD} position={[0, 0.25, 0]} scale={[0.03, 0.5, 0.03]} raycast={noRaycast} />
+        {[0, 1, 2, 3].map((i) => (
+          <mesh key={i} geometry={GEO.sphere} material={i % 2 ? FEATHER_A : FEATHER_B} position={[Math.sin(i * 1.6) * 0.05, 0.52 + i * 0.05, Math.cos(i * 1.6) * 0.03]} scale={[0.07, 0.2, 0.03]} rotation={[0, 0, (i - 1.5) * 0.35]} raycast={noRaycast} />
+        ))}
+      </group>
+    </>
+  );
+}
+
+// invisible but raycastable: R3F skips `visible={false}` objects, so the MATERIAL is what is hidden
+const HIT = new THREE.MeshBasicMaterial({ visible: false });
+const RUG = matte("#a65a38", 0.85);
+const RUG_INNER = matte("#e3c9a0", 0.85);
+const WOOD = matte("#c48a4f", 0.8);
+const FEATHER_A = matte("#7fb3a0", 0.85);
+const FEATHER_B = matte("#f0c27a", 0.85);
+
+const LINES: Record<MochiAction, string> = {
+  feather: "She pounces on the feather!",
+  treat: "Nom nom nom.",
+  scritch: "Purrrrr.",
+};
+
+export function MochiPlayroomModal({ result, onPlay, onClose }: { result: { action: MochiAction; coins: number; cooldown: boolean } | null; onPlay: (action: string) => void; onClose: () => void }) {
+  const session = useRef<Session>({
+    drive: { current: restDrive() },
+    wand: { current: null },
+    scratching: { current: false },
+    flick: { current: 0 },
+    chewing: { current: false },
+    meter: { current: 0 },
+  }).current;
+  const purr = usePurr();
+  const [meter, setMeter] = useState(0);
+  const [line, setLine] = useState("Wave the feather, feed her a treat, or scritch her.");
+  const sentScritch = useRef(false);
+  const sentFeather = useRef(false);
+
+  // the meter, the purr and the "satisfied" moment all follow the scene's meter
   useEffect(() => {
     let raf = 0;
     const tick = () => {
-      setMeter((m) => {
-        const next = rubbing.current ? Math.min(1, m + 0.012) : Math.max(0, m - 0.004);
-        if (next >= 1 && m < 1) {
-          rubbing.current = false;
-          onPlay("scritch");
-          return 0;
-        }
-        return next;
-      });
+      const m = session.meter.current;
+      setMeter(m);
+      purr.level(m > 0.02 ? 0.4 + m * 0.6 : 0);
+      if (session.flick.current > 0 && !sentFeather.current) {
+        sentFeather.current = true;
+        onPlay("feather");
+        setLine(LINES.feather);
+      }
+      if (m >= 1 && !sentScritch.current) {
+        sentScritch.current = true;
+        onPlay("scritch");
+        setLine("Mochi is completely satisfied. 💕");
+      }
+      if (m < 0.3) sentScritch.current = false;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [onPlay]);
+  }, [session, purr, onPlay]);
 
-  const left = (id: MochiAction) => Math.max(0, Math.ceil(((cooldowns[id] ?? 0) - now) / 1000));
+  // letting go anywhere ends the scritch
+  useEffect(() => {
+    const up = () => (session.scratching.current = false);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+  }, [session]);
 
-  // the feather: wherever the pointer goes over the viewport; a flick is a pounce
-  const moveFeather = (e: React.PointerEvent<HTMLDivElement>) => {
-    const r = matRef.current?.getBoundingClientRect();
-    if (!r) return;
-    const x = e.clientX - r.left;
-    const y = e.clientY - r.top;
-    pointer.current = { x: (x / r.width) * 2 - 1, y: -((y / r.height) * 2 - 1), over: true };
-    const t = performance.now();
-    const prev = lastMove.current;
-    if (prev.t) {
-      const speed = Math.hypot(x - prev.x, y - prev.y) / Math.max(0.001, (t - prev.t) / 1000);
-      if (speed > POUNCE_SPEED && t - lastPounce.current > 1200 && left("feather") === 0) {
-        lastPounce.current = t;
-        onPlay("feather");
-      }
-    }
-    lastMove.current = { x, y, t };
+  // the server's answer: coins for the day's first satisfied scritch, or a "not yet"
+  useEffect(() => {
+    if (!result) return;
+    if (result.cooldown) setLine("She needs a moment before doing that again.");
+    else if (result.coins > 0) setLine(`Mochi is delighted. +${result.coins} 🪙`);
+    else setLine(LINES[result.action]);
+  }, [result]);
+
+  const giveTreat = () => {
+    session.chewing.current = true;
+    purr.start();
+    onPlay("treat");
+    setLine(LINES.treat);
+    window.setTimeout(() => (session.chewing.current = false), TREAT_S * 1000);
   };
 
   return (
-    <Modal title="Mochi's Playroom" icon="🐱" onClose={onClose} width={440}>
-      <div className="flex flex-col items-center gap-3 pb-2 text-center">
-        {/* the viewport: Mochi herself, and the feather wherever the pointer is */}
-        <div
-          ref={matRef}
-          className="relative h-56 w-full touch-none select-none overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_50%_70%,#3b2a36_0%,#1f1a22_75%)] shadow-[inset_0_2px_0_rgba(255,255,255,0.08)]"
-          onPointerMove={moveFeather}
-          onPointerDown={(e) => {
-            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-            moveFeather(e);
-          }}
-          onPointerLeave={() => (pointer.current = { ...pointer.current, over: false })}
-        >
-          <Canvas
-            dpr={[1, 1.5]}
-            gl={{ antialias: true, alpha: true, powerPreference: "default" }}
-            camera={{ fov: 28, position: [0, 0.55, 2.2], near: 0.1, far: 20 }}
-            style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
-            onCreated={({ camera }) => camera.lookAt(0, 0.22, 0)}
-          >
-            <PlayroomScene pose={pose} pointer={pointer} />
+    <Modal title="Mochi's playroom" icon="🐱" onClose={onClose} width={560}>
+      <div className="flex flex-col gap-3 pb-2">
+        <div className="relative overflow-hidden rounded-3xl" style={{ height: 300, background: "#3a2618", touchAction: "none" }}>
+          <Canvas dpr={[1, 1.5]} camera={{ position: [0, 2.6, 3.6], fov: 34 }} gl={{ antialias: true }} onCreated={({ camera }) => camera.lookAt(0, 0.4, 0.2)}>
+            <color attach="background" args={["#3a2618"]} />
+            <ambientLight intensity={1.0} />
+            <pointLight position={[-2, 2.5, 1.5]} color="#ffaa44" intensity={9} distance={9} decay={2} />
+            <pointLight position={[2.2, 2, 2.2]} color="#ffe0b2" intensity={8} distance={9} decay={2} />
+            <Playroom s={session} onScratchStart={purr.start} />
           </Canvas>
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[11px] opacity-50">move the feather over her, flick it to play</div>
-          {pose === "purr" && (
-            <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 text-sm font-extrabold text-pink-200" aria-hidden>
-              purrrr…
-            </div>
-          )}
-          {pose === "grumpy" && (
-            <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 text-sm font-extrabold text-amber-100/80" aria-hidden>
-              …not now.
-            </div>
-          )}
+          <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/35 px-3 py-1 text-[11px] font-bold text-amber-100">move the feather · drag over Mochi to scritch</span>
         </div>
 
-        {result?.cooldown && <span className="text-xs opacity-70">She needs a minute. Try something else.</span>}
-        {result && !result.cooldown && result.action === "scritch" && (
-          <span className="clay-pop text-sm font-bold text-amber-200">{result.coins > 0 ? `She drops ${result.coins} coins from somewhere. 🪙` : "That is today's coin already claimed, but she loves you anyway."}</span>
-        )}
-
-        <div className="grid w-full grid-cols-2 gap-2">
-          <div className="clay-btn clay-btn-ghost min-h-16 flex-col gap-0 text-sm" aria-label="Feather wand: move it over the viewport">
-            <span className="text-2xl">🪶</span>
-            {left("feather") > 0 ? `${left("feather")}s` : "Feather wand"}
-            <span className="text-[10px] opacity-60">flick it to make her pounce</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold uppercase tracking-widest opacity-60">Scritch</span>
+          <div className="h-3 flex-1 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full transition-[width] duration-100" style={{ width: `${Math.round(meter * 100)}%`, background: meter >= 1 ? "#ff8fb1" : "#ffc457" }} />
           </div>
-          <button type="button" disabled={left("treat") > 0} onClick={() => (playClick(), onPlay("treat"))} className="clay-btn clay-btn-rose min-h-16 flex-col gap-0 text-sm">
-            <span className="text-2xl">🐟</span>
-            {left("treat") > 0 ? `${left("treat")}s` : "Cat treat"}
-            <span className="text-[10px] opacity-70">a dried fish, gone in one bite</span>
-          </button>
+          <span className="w-8 text-right text-xs tabular-nums opacity-70">{Math.round(meter * 100)}</span>
         </div>
 
-        <div className="w-full">
-          <div className="mb-1 flex justify-between text-xs font-bold uppercase tracking-widest opacity-60">
-            <span>✨ Scritch meter</span>
-            <span>
-              {MOCHI_SCRITCH_COINS[0]}–{MOCHI_SCRITCH_COINS[1]} 🪙 once a day
-            </span>
-          </div>
-          <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-gradient-to-r from-pink-300 to-amber-200" style={{ width: `${meter * 100}%` }} />
-          </div>
-          <button
-            type="button"
-            disabled={left("scritch") > 0}
-            className="clay-btn clay-btn-amber mt-2 min-h-14 w-full select-none text-lg"
-            onPointerDown={() => (rubbing.current = true)}
-            onPointerUp={() => (rubbing.current = false)}
-            onPointerLeave={() => (rubbing.current = false)}
-            onPointerCancel={() => (rubbing.current = false)}
-          >
-            {left("scritch") > 0 ? `🤚 ${left("scritch")}s` : "🤚 Hold to scritch"}
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="clay-btn clay-btn-amber" onClick={giveTreat}>
+            🐟 Give a treat
           </button>
+          <button type="button" className="clay-btn clay-btn-ghost" onClick={() => (session.flick.current += 1)}>
+            🪶 Flick the feather
+          </button>
+          <span className="min-w-0 flex-1 text-sm opacity-80">{line}</span>
         </div>
       </div>
     </Modal>
-  );
-}
-
-// ---------------------------------------------------------------------------------------
-// The little scene: a warm spot of light, a round mat, Mochi, and the feather
-// ---------------------------------------------------------------------------------------
-
-const MAT = new THREE.MeshStandardMaterial({ color: "#5a3f4c", roughness: 1 });
-const MAT_RIM = new THREE.MeshStandardMaterial({ color: "#7a5668", roughness: 1 });
-const FEATHER = new THREE.MeshStandardMaterial({ color: "#f3e7c9", roughness: 0.9, side: THREE.DoubleSide });
-const FEATHER_TIP = new THREE.MeshStandardMaterial({ color: "#e88a8a", roughness: 0.9, side: THREE.DoubleSide });
-const WAND = new THREE.MeshStandardMaterial({ color: "#6b4a32", roughness: 0.8 });
-const FEATHER_PLANE_Z = 0.55; // the feather hovers on this plane, just in front of her nose
-
-function PlayroomScene({ pose, pointer }: { pose: Pose; pointer: React.MutableRefObject<Pointer> }) {
-  const drive = useRef<MochiDrive>(restDrive());
-  const featherRef = useRef<THREE.Group>(null);
-  const poseStart = useRef(0);
-  const lastPose = useRef<Pose>("idle");
-  const { camera, viewport } = useThree();
-
-  useFrame(({ clock }, delta) => {
-    const t = clock.elapsedTime;
-    if (pose !== lastPose.current) {
-      lastPose.current = pose;
-      poseStart.current = t;
-    }
-    const since = t - poseStart.current;
-    const d = drive.current;
-    const L = THREE.MathUtils.lerp;
-    const p = pointer.current;
-
-    // the feather: on its plane, under the pointer, with a little bob; parked at the side when the pointer leaves
-    const f = featherRef.current;
-    if (f) {
-      const v = viewport.getCurrentViewport(camera, new THREE.Vector3(0, 0.22, FEATHER_PLANE_Z));
-      const tx = p.over ? (p.x * v.width) / 2 : 0.9;
-      const ty = p.over ? 0.22 + (p.y * v.height) / 2 : 0.15;
-      f.position.x = L(f.position.x, tx, 1 - Math.pow(0.001, delta));
-      f.position.y = L(f.position.y, ty + Math.sin(t * 5) * 0.02, 1 - Math.pow(0.001, delta));
-      f.position.z = FEATHER_PLANE_Z;
-      f.rotation.z = L(f.rotation.z, -0.5 + (tx - f.position.x) * 2, 0.2);
-    }
-
-    // her head follows the feather; a pounce, a chew or a purr takes over for a moment
-    const fx = f ? f.position.x : 0;
-    const fy = f ? f.position.y : 0.3;
-    const yaw = THREE.MathUtils.clamp(Math.atan2(fx, FEATHER_PLANE_Z + 0.1), -0.8, 0.8);
-    const pitch = THREE.MathUtils.clamp(-Math.atan2(fy - 0.35, FEATHER_PLANE_Z + 0.2), -0.55, 0.6);
-    d.headYaw = p.over ? yaw : Math.sin(t * 0.4) * 0.15;
-    d.headPitch = p.over ? pitch : 0;
-    d.pounce = pose === "pounce" ? THREE.MathUtils.clamp(since / 0.7, 0, 1) : 0;
-    d.chew = pose === "chew" && since < 2.4 ? 1 : 0;
-    d.happy = pose === "purr" || pose === "chew";
-    d.stretch = pose === "grumpy" ? 0 : 0;
-    d.lick = 0;
-    d.walking = false;
-    if (pose === "grumpy") {
-      d.headYaw = Math.sin(t * 12) * 0.25; // a firm little head-shake
-      d.headPitch = 0.2;
-    }
-  });
-
-  return (
-    <>
-      {/* the modal's own lights: bright and warm, so she is never a silhouette */}
-      <ambientLight intensity={1.0} color="#fff5e6" />
-      <pointLight position={[1.6, 2.2, 2.0]} intensity={2.4} color="#ffe0b2" distance={8} decay={1.5} />
-      <pointLight position={[-1.6, 1.4, 1.4]} intensity={1.4} color="#ffaa44" distance={7} decay={1.5} />
-      {/* a round mat for her to sit on */}
-      <mesh geometry={GEO.cyl} material={MAT_RIM} position={[0, -0.05, 0]} scale={[1.7, 0.08, 1.7]} raycast={noRaycast} />
-      <mesh geometry={GEO.cyl} material={MAT} position={[0, -0.03, 0]} scale={[1.5, 0.08, 1.5]} raycast={noRaycast} />
-      <group position={[0, 0, 0]} rotation={[0, 0, 0]} scale={1.15}>
-        <MochiModel drive={drive} />
-      </group>
-      {/* the feather wand */}
-      <group ref={featherRef} position={[0.9, 0.15, FEATHER_PLANE_Z]} rotation={[0, 0, -0.5]}>
-        <mesh geometry={GEO.cyl} material={WAND} position={[0, -0.22, 0]} scale={[0.02, 0.3, 0.02]} raycast={noRaycast} />
-        <mesh geometry={GEO.sphere} material={FEATHER} position={[0, 0.04, 0]} scale={[0.09, 0.26, 0.02]} raycast={noRaycast} />
-        <mesh geometry={GEO.sphere} material={FEATHER_TIP} position={[0, 0.17, 0.002]} scale={[0.05, 0.1, 0.02]} raycast={noRaycast} />
-      </group>
-    </>
   );
 }

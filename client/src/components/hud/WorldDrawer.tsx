@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { MAP_IDS, type MapId } from "@shared/types";
 import { MAP_LABELS } from "./Header";
-import { playChime, playClick } from "../../audio/sfx";
 
 // Illustrated fast travel: a drawer from the left with a little diorama card per world. The
 // whole voice channel shares one room, so "active" is where everyone is right now.
@@ -44,7 +43,6 @@ export function WorldDrawer({ currentMap, playerCount, disabled, onSelect, onClo
               disabled={disabled}
               onClick={() => {
                 if (here) return onClose();
-                playChime();
                 onSelect(id);
                 onClose();
               }}
@@ -71,7 +69,7 @@ export function WorldDrawer({ currentMap, playerCount, disabled, onSelect, onClo
           );
         })}
         </div>
-        <button type="button" onClick={() => (playClick(), onClose())} className="clay-btn clay-btn-ghost mt-auto">
+        <button type="button" onClick={() => (onClose())} className="clay-btn clay-btn-ghost mt-auto">
           Stay here
         </button>
       </aside>

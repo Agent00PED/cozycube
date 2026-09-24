@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { SLOT_BETS, SLOT_SYMBOLS, SLOT_TRIPLE, type SlotBroadcast } from "@shared/types";
 import { Modal } from "./Modal";
-import { playClick, playCoin, playJingle, playLever, playReelTick } from "../../audio/sfx";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 
 // A retro-cozy three-reel machine. The server rolls (spin_slots) and broadcasts the reels;
@@ -52,18 +51,14 @@ export function SlotsModal({ propId, coins, localSessionId, onSpin, subscribeMes
         setResult({ reels: msg.reels, win: msg.win });
         setLanded(0);
         setSpinning(true);
-        tickTimer.current = window.setInterval(playReelTick, 90);
         STOP_MS.forEach((ms, i) =>
           window.setTimeout(() => {
             setLanded(i + 1);
-            playClick();
             if (i === 2) {
               window.clearInterval(tickTimer.current);
               setSpinning(false);
               if (msg.win > 0) {
                 setBurst((b) => b + 1);
-                if (msg.win >= msg.bet * 12) playJingle();
-                else playCoin();
               }
             }
           }, ms)
@@ -88,7 +83,6 @@ export function SlotsModal({ propId, coins, localSessionId, onSpin, subscribeMes
 
   const pull = () => {
     if (spinning || coins < bet) return;
-    playLever();
     setLever(true);
     window.setTimeout(() => setLever(false), 450);
     setResult(null);
@@ -140,7 +134,7 @@ export function SlotsModal({ propId, coins, localSessionId, onSpin, subscribeMes
 
         <div className="flex items-center gap-2">
           {SLOT_BETS.map((b) => (
-            <button key={b} type="button" onClick={() => (playClick(), setBet(b))} disabled={spinning} className={`clay-btn min-h-11 px-4 text-sm ${bet === b ? "clay-btn-amber" : "clay-btn-ghost"}`}>
+            <button key={b} type="button" onClick={() => (setBet(b))} disabled={spinning} className={`clay-btn min-h-11 px-4 text-sm ${bet === b ? "clay-btn-amber" : "clay-btn-ghost"}`}>
               🪙 {b}
             </button>
           ))}

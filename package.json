@@ -13,7 +13,8 @@
     "start": "NODE_ENV=production node server/dist/server/src/index.js",
     "tunnel": "cloudflared tunnel --url http://localhost:5173",
     "validate-world": "tsx scripts/validate-world.ts",
-    "check-layout": "tsx scripts/validate-world.ts"
+    "check-layout": "tsx scripts/validate-world.ts",
+    "build-models": "tsx scripts/build-models.ts"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

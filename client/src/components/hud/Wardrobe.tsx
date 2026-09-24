@@ -4,48 +4,48 @@ import type * as THREE from "three";
 import {
   HAIR_COLORS,
   HAIR_COLOR_NAMES,
+  HAIR_DEFINITIONS,
   HAIR_STYLES,
   HATS,
   OUTFITS,
   OUTFIT_COLORS,
   OUTFIT_COLOR_NAMES,
+  OUTFIT_FABRICS,
   OUTFIT_IDS,
+  PANTS_COLORS,
+  PANTS_COLOR_NAMES,
   PREMIUM_HATS,
   PREMIUM_HAT_IDS,
+  SHIRT_COLORS,
+  SHIRT_COLOR_NAMES,
   SKIN_TONES,
+  SKIN_TONE_NAMES,
   STARTER_OUTFITS,
   encodeLook,
+  hairUnlockId,
   type Accessory,
   type HairStyle,
   type Look,
   type OutfitId,
   type PremiumHat,
 } from "@shared/types";
-import { Character3D, type FloatingEmote } from "../../entities/Avatar";
-import { playChime, playClick, playCoin } from "../../audio/sfx";
 import { saveLook } from "./lookStorage";
+import { Avatar } from "../../entities/Avatar";
 
 interface WardrobeProps {
   userId: string;
   username: string;
   initial: Look;
   coins: number;
-  /** Everything unlocked so far (comma-separated ids: premium hats and bought outfits). */
+  /** Everything unlocked so far (comma-separated ids: premium hats, bought outfits, hair_<style>). */
   owned: string;
   onApply: (encoded: string) => void;
   onBuy: (hat: PremiumHat) => void;
   onBuyOutfit: (outfit: OutfitId) => void;
+  onBuyHair: (style: HairStyle) => void;
   onClose: () => void;
 }
 
-const HAIR_STYLE_LABELS: Record<HairStyle, { label: string; emoji: string }> = {
-  cap: { label: "Short", emoji: "✂️" },
-  bob: { label: "Bob", emoji: "💇" },
-  bun: { label: "Bun", emoji: "🍡" },
-  buns: { label: "Twin buns", emoji: "🐼" },
-  spiky: { label: "Spiky", emoji: "⚡" },
-  long: { label: "Long", emoji: "🌊" },
-};
 const FREE_HAT_LABELS: Record<Accessory, { label: string; emoji: string }> = {
   none: { label: "Bare head", emoji: "🙂" },
   beret: { label: "Beret", emoji: "🎨" },
@@ -58,22 +58,39 @@ const FREE_HAT_LABELS: Record<Accessory, { label: string; emoji: string }> = {
   crown: { label: "High Roller Crown", emoji: "👑" },
   mochiears: { label: "Mochi Ears", emoji: "🐱" },
 };
-const SKIN_NAMES = ["Porcelain", "Peach", "Honey", "Caramel", "Chestnut", "Espresso"];
 
-type Tab = "outfits" | "hats" | "hair";
+type Tab = "outfits" | "hats" | "hair" | "appearance";
 const TABS: { id: Tab; label: string; emoji: string }[] = [
   { id: "outfits", label: "Outfits", emoji: "👕" },
   { id: "hats", label: "Hats", emoji: "👒" },
   { id: "hair", label: "Hair", emoji: "💇" },
+  { id: "appearance", label: "Appearance", emoji: "🎨" },
 ];
 
-// The wardrobe: a live 3D preview you can drag round, beside a category list (outfits, hats,
-// hair styles) and the three palettes (skin, hair colour, clothing accent) that are always to
-// hand. Every change applies immediately (you see it on your character in the world too),
-// syncs through the room as the equipped look, persists to the database and is remembered
-// locally as a fallback. Outfits and premium hats are bought here; gacha-only items only
-// ever arrive from the arcade.
-export function Wardrobe({ userId, username, initial, coins, owned, onApply, onBuy, onBuyOutfit, onClose }: WardrobeProps) {
+/** A palette the look can be painted from: which field it sets, and its swatches. */
+interface Palette {
+  label: string;
+  field: "skin" | "hair" | "shirt" | "pants" | "outfitColor";
+  colors: string[];
+  names: string[];
+}
+const PALETTES: Record<Palette["field"], Palette> = {
+  skin: { label: "Skin tone", field: "skin", colors: SKIN_TONES, names: SKIN_TONE_NAMES },
+  hair: { label: "Hair colour", field: "hair", colors: HAIR_COLORS, names: HAIR_COLOR_NAMES },
+  shirt: { label: "Top", field: "shirt", colors: SHIRT_COLORS, names: SHIRT_COLOR_NAMES },
+  pants: { label: "Bottoms", field: "pants", colors: PANTS_COLORS, names: PANTS_COLOR_NAMES },
+  outfitColor: { label: "Accent", field: "outfitColor", colors: OUTFIT_COLORS, names: OUTFIT_COLOR_NAMES },
+};
+/** The quick-bar under the preview follows the tab: the colour that tab is about. */
+const QUICK_PALETTE: Record<Tab, Palette> = { outfits: PALETTES.shirt, hats: PALETTES.outfitColor, hair: PALETTES.hair, appearance: PALETTES.skin };
+
+// The wardrobe: a live 3D preview you can drag round, with a quick colour bar under it, beside a
+// category list (outfits, hats, hair styles) and the Appearance tab with every palette (skin, hair,
+// top, bottoms, accent). Every change applies immediately (you see it on your character in the
+// world too), syncs through the room as the equipped look, persists to the database and is
+// remembered locally as a fallback. Outfits, premium hats and fancy hair are bought here;
+// gacha-only items only ever arrive from the arcade.
+export function Wardrobe({ userId, username, initial, coins, owned, onApply, onBuy, onBuyOutfit, onBuyHair, onClose }: WardrobeProps) {
   const [look, setLook] = useState<Look>(initial);
   const [tab, setTab] = useState<Tab>("outfits");
   const ownedIds = useMemo(() => new Set(owned ? owned.split(",") : []), [owned]);
@@ -81,14 +98,12 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
   const spin = useRef({ y: 0, v: 0, dragging: false, lastX: 0 });
 
   useEffect(() => {
-    playChime();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   const update = (patch: Partial<Look>) => {
-    playClick();
     const next = { ...lookRef.current, ...patch };
     lookRef.current = next;
     setLook(next);
@@ -97,41 +112,48 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
     onApply(encoded);
   };
   const ownsOutfit = (id: OutfitId) => STARTER_OUTFITS.includes(id) || ownedIds.has(id);
+  const ownsHair = (style: HairStyle) => HAIR_DEFINITIONS[style].price === 0 || ownedIds.has(hairUnlockId(style));
+  // a new outfit comes in its own fabrics; recolour it from there
+  const wearOutfit = (outfit: OutfitId) => update({ outfit, ...OUTFIT_FABRICS[outfit] });
+  const quick = QUICK_PALETTE[tab];
 
   return (
     <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
       <div className="cozy-wardrobe clay-sheet sm:clay-pop font-cozy flex max-h-[85vh] w-full max-w-[760px] overflow-hidden rounded-t-3xl border border-white/10 bg-stone-900/85 text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl" role="dialog" aria-label="Wardrobe">
-        {/* ---- left: the preview ---- */}
-        <div
-          className="cozy-wardrobe-preview relative min-h-[260px] flex-[0_0_40%] cursor-grab touch-none select-none bg-[radial-gradient(circle_at_50%_70%,#3b2a36_0%,#1f1a22_70%)] active:cursor-grabbing"
-          onPointerDown={(e) => {
-            spin.current.dragging = true;
-            spin.current.lastX = e.clientX;
-            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-          }}
-          onPointerMove={(e) => {
-            if (!spin.current.dragging) return;
-            const dx = e.clientX - spin.current.lastX;
-            spin.current.lastX = e.clientX;
-            spin.current.v = dx * 0.01;
-            spin.current.y += dx * 0.01;
-          }}
-          onPointerUp={() => (spin.current.dragging = false)}
-          onPointerCancel={() => (spin.current.dragging = false)}
-        >
-          <Canvas dpr={[1, 1.5]} camera={{ position: [0, 0.1, 4.4], fov: 30 }} gl={{ antialias: true, alpha: true }}>
-            <ambientLight intensity={1.3} />
-            <directionalLight position={[2, 4, 3]} intensity={1.7} />
-            <Suspense fallback={null}>
-              <Turntable spin={spin}>
-                <PreviewAvatar userId={userId} username={username} look={encodeLook(look)} color={look.outfitColor} />
-              </Turntable>
-            </Suspense>
-          </Canvas>
-          <span className="pointer-events-none absolute bottom-2 left-0 right-0 text-center text-[11px] opacity-50">drag to turn</span>
+        {/* ---- left: the preview, and the quick colour bar under it ---- */}
+        <div className="flex min-h-[260px] flex-[0_0_40%] flex-col bg-[radial-gradient(circle_at_50%_70%,#3b2a36_0%,#1f1a22_70%)]">
+          <div
+            className="cozy-wardrobe-preview relative min-h-0 flex-1 cursor-grab touch-none select-none active:cursor-grabbing"
+            onPointerDown={(e) => {
+              spin.current.dragging = true;
+              spin.current.lastX = e.clientX;
+              (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (!spin.current.dragging) return;
+              const dx = e.clientX - spin.current.lastX;
+              spin.current.lastX = e.clientX;
+              spin.current.v = dx * 0.01;
+              spin.current.y += dx * 0.01;
+            }}
+            onPointerUp={() => (spin.current.dragging = false)}
+            onPointerCancel={() => (spin.current.dragging = false)}
+          >
+            <Canvas dpr={[1, 1.5]} camera={{ position: [0, 0.1, 4.4], fov: 30 }} gl={{ antialias: true, alpha: true }}>
+              <ambientLight intensity={1.3} />
+              <directionalLight position={[2, 4, 3]} intensity={1.7} />
+              <Suspense fallback={null}>
+                <Turntable spin={spin}>
+                  <PreviewAvatar userId={userId} username={username} look={encodeLook(look)} color={look.outfitColor} />
+                </Turntable>
+              </Suspense>
+            </Canvas>
+            <span className="pointer-events-none absolute bottom-1 left-0 right-0 text-center text-[11px] opacity-50">drag to turn</span>
+          </div>
+          <QuickBar palette={quick} value={look[quick.field]} onPick={(c) => update({ [quick.field]: c })} />
         </div>
 
-        {/* ---- right: categories, the list, the palettes ---- */}
+        {/* ---- right: categories and the list ---- */}
         <div className="scrollbar-none flex flex-1 flex-col gap-3 overflow-y-auto p-4">
           <div className="flex items-center gap-3">
             <h2 className="flex-1 text-lg font-extrabold tracking-wide">👗 Wardrobe</h2>
@@ -143,7 +165,7 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
 
           <div className="flex gap-1.5" role="tablist" aria-label="Wardrobe categories">
             {TABS.map((t) => (
-              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`min-h-11 flex-1 rounded-full px-3 text-sm font-bold transition-transform duration-150 active:scale-95 ${tab === t.id ? "bg-amber-300 text-amber-950 shadow-[inset_0_-2px_0_rgba(120,70,0,0.25)]" : "bg-white/10 hover:bg-white/15"}`}>
+              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`min-h-11 flex-1 rounded-full px-2 text-xs font-bold sm:text-sm transition-transform duration-150 active:scale-95 ${tab === t.id ? "bg-amber-300 text-amber-950 shadow-[inset_0_-2px_0_rgba(120,70,0,0.25)]" : "bg-white/10 hover:bg-white/15"}`}>
                 {t.emoji} {t.label}
               </button>
             ))}
@@ -155,7 +177,7 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
                 const item = OUTFITS[id];
                 const have = ownsOutfit(id);
                 return (
-                  <ItemRow key={id} emoji={item.emoji} name={item.name} note={have ? "Owned" : item.gachaOnly ? "Gachapon only" : `${item.price} 🪙`} wearing={look.outfit === id} owned={have} gachaOnly={!!item.gachaOnly} canAfford={coins >= item.price} onWear={() => update({ outfit: id })} onBuy={() => (playCoin(), onBuyOutfit(id), update({ outfit: id }))} />
+                  <ItemRow key={id} emoji={item.emoji} name={item.name} note={have ? "Owned" : item.gachaOnly ? "Gachapon only" : `${item.price} 🪙`} wearing={look.outfit === id} owned={have} gachaOnly={!!item.gachaOnly} canAfford={coins >= item.price} onWear={() => wearOutfit(id)} onBuy={() => (onBuyOutfit(id), wearOutfit(id))} />
                 );
               })}
             {tab === "hats" && (
@@ -167,20 +189,26 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
                   const item = PREMIUM_HATS[hat];
                   const have = ownedIds.has(hat);
                   return (
-                    <ItemRow key={hat} emoji={item.emoji} name={item.name} note={have ? "Owned" : item.gachaOnly ? "Gachapon only" : `${item.price} 🪙`} wearing={look.hat === hat} owned={have} gachaOnly={!!item.gachaOnly} canAfford={coins >= item.price} onWear={() => update({ hat })} onBuy={() => (playCoin(), onBuy(hat), update({ hat }))} />
+                    <ItemRow key={hat} emoji={item.emoji} name={item.name} note={have ? "Owned" : item.gachaOnly ? "Gachapon only" : `${item.price} 🪙`} wearing={look.hat === hat} owned={have} gachaOnly={!!item.gachaOnly} canAfford={coins >= item.price} onWear={() => update({ hat })} onBuy={() => (onBuy(hat), update({ hat }))} />
                   );
                 })}
               </>
             )}
             {tab === "hair" &&
-              HAIR_STYLES.map((style) => <ItemRow key={style} emoji={HAIR_STYLE_LABELS[style].emoji} name={HAIR_STYLE_LABELS[style].label} note="Free" wearing={look.hairStyle === style} owned onWear={() => update({ hairStyle: style })} />)}
-          </div>
-
-          {/* the palettes are always to hand: every pick lands on the preview and the world instantly */}
-          <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/5 p-3">
-            <Swatches label="Skin tone" colors={SKIN_TONES} names={SKIN_NAMES} value={look.skin} onPick={(skin) => update({ skin })} big />
-            <Swatches label="Hair colour" colors={HAIR_COLORS} names={HAIR_COLOR_NAMES} value={look.hair} onPick={(hair) => update({ hair })} big />
-            <Swatches label="Clothing accent" colors={OUTFIT_COLORS} names={OUTFIT_COLOR_NAMES} value={look.outfitColor} onPick={(outfitColor) => update({ outfitColor })} />
+              HAIR_STYLES.map((style) => {
+                const item = HAIR_DEFINITIONS[style];
+                const have = ownsHair(style);
+                return (
+                  <ItemRow key={style} emoji={item.emoji} name={item.name} note={item.price === 0 ? "Free" : have ? "Owned" : `${item.price} 🪙`} wearing={look.hairStyle === style} owned={have} canAfford={coins >= item.price} onWear={() => update({ hairStyle: style })} onBuy={() => (onBuyHair(style), update({ hairStyle: style }))} />
+                );
+              })}
+            {tab === "appearance" && (
+              <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-3">
+                {Object.values(PALETTES).map((p) => (
+                  <Swatches key={p.field} label={p.label} colors={p.colors} names={p.names} value={look[p.field]} onPick={(c) => update({ [p.field]: c })} big={p.field === "skin" || p.field === "hair"} />
+                ))}
+              </div>
+            )}
           </div>
           <p className="text-xs opacity-60">Earn coins by fishing, foraging, boxing, the tea house, the daily checklist, and at the casino.</p>
         </div>
@@ -235,8 +263,33 @@ function Turntable({ spin, children }: { spin: React.MutableRefObject<{ y: numbe
 
 function PreviewAvatar({ userId, look, color }: { userId: string; username: string; look: string; color: string }) {
   const speedRef = useRef(0);
-  const emotes = useMemo<FloatingEmote[]>(() => [], []);
-  return <Character3D userId={userId} look={look} color={color} username="" pose="stand" speedRef={speedRef} holding="" action="" actionProgress={0} toast={0} speaking={false} emotes={emotes} />;
+  return <Avatar userId={userId} look={look} color={color} username="" pose="stand" speedRef={speedRef} />;
+}
+
+/** The quick colour bar docked under the preview: one row of chips for the current tab's colour. */
+function QuickBar({ palette, value, onPick }: { palette: Palette; value: string; onPick: (c: string) => void }) {
+  return (
+    <div className="border-t border-white/10 bg-black/25 px-3 py-2">
+      <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-widest opacity-60">
+        <span>{palette.label}</span>
+        <span className="normal-case tracking-normal">{palette.names[palette.colors.indexOf(value)] ?? ""}</span>
+      </div>
+      <div className="scrollbar-none flex gap-1.5 overflow-x-auto pb-0.5">
+        {palette.colors.map((c, i) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onPick(c)}
+            aria-label={`${palette.label}: ${palette.names[i]}`}
+            title={palette.names[i]}
+            aria-pressed={c === value}
+            className={`h-7 w-7 shrink-0 rounded-full border-2 border-white/70 shadow-[inset_0_-2px_0_rgba(0,0,0,0.18)] transition-transform duration-150 hover:scale-110 active:scale-95 ${c === value ? "scale-110 ring-2 ring-pink-300 ring-offset-1 ring-offset-stone-900" : ""}`}
+            style={{ background: c }}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function Swatches({ label, colors, names, value, onPick, big = false }: { label: string; colors: string[]; names?: string[]; value: string; onPick: (c: string) => void; big?: boolean }) {

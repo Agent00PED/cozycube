@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { BoardGameView } from "@shared/types";
 import { Modal } from "./Modal";
-import { playCardFlip, playClick } from "../../audio/sfx";
 
 interface Props {
   view: BoardGameView | null;
@@ -26,12 +25,10 @@ export function BoardGameModal({ view, localSessionId, onJoin, onLeave, onMove, 
     if (!view || !myTurn) return;
     const c = view.board[i];
     if (mine(c)) {
-      playClick();
       setPicked(i);
       return;
     }
     if (picked !== null && c === 0) {
-      playCardFlip();
       onMove(picked, i);
       setPicked(null);
     }
@@ -73,11 +70,11 @@ export function BoardGameModal({ view, localSessionId, onJoin, onLeave, onMove, 
         <div className="text-sm font-bold">{status}</div>
         <div className="flex gap-2">
           {me ? (
-            <button type="button" className="clay-btn clay-btn-ghost" onClick={() => (playClick(), onLeave())}>
+            <button type="button" className="clay-btn clay-btn-ghost" onClick={() => (onLeave())}>
               Leave the table
             </button>
           ) : (
-            <button type="button" className="clay-btn clay-btn-amber" disabled={!!view && !!view.players.red && !!view.players.black && !view.winner} onClick={() => (playClick(), onJoin())}>
+            <button type="button" className="clay-btn clay-btn-amber" disabled={!!view && !!view.players.red && !!view.players.black && !view.winner} onClick={() => (onJoin())}>
               🪑 Take a seat
             </button>
           )}

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MATCHA_REWARD_MAX } from "@shared/types";
 import { Modal } from "./Modal";
-import { playChime, playClick, playWhisk } from "../../audio/sfx";
 
 // The tea ceremony: whisk in rhythm. A marker sweeps across a bar; tap when it is in the
 // green. Eight strokes; the share of good strokes is the score (matcha_whisk -> matchaResult),
@@ -35,16 +34,13 @@ export function MatchaModal({ result, onWhisk, onClose }: Props) {
 
   const tap = () => {
     if (doneRef.current) return;
-    playWhisk();
     const good = pos > 0.6 && pos < 0.9;
-    if (good) playClick();
     const next = [...strokes, good];
     setStrokes(next);
     if (next.length >= STROKES) {
       doneRef.current = true;
       setDone(true);
       const score = next.filter(Boolean).length / STROKES;
-      if (score > 0.5) playChime();
       onWhisk(score);
     }
   };

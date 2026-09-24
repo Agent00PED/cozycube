@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { GACHA_COST, OUTFITS, PREMIUM_HATS, type GachaPrize } from "@shared/types";
 import { Modal } from "./Modal";
-import { playClick, playCoin, playGachaCrank, playGachaDrop, playJingle } from "../../audio/sfx";
 
 interface Props {
   coins: number;
@@ -22,7 +21,6 @@ export function GachaModal({ coins, result, onPull, onClose }: Props) {
     // the capsule lands once the crank has finished turning
     const wait = phase === "idle" ? 0 : 900;
     const t = window.setTimeout(() => {
-      playGachaDrop();
       setShown(result);
       setPhase("dropped");
     }, wait);
@@ -32,15 +30,12 @@ export function GachaModal({ coins, result, onPull, onClose }: Props) {
 
   const pull = () => {
     if (coins < GACHA_COST) return;
-    playGachaCrank();
     setShown(null);
     setPhase("cranking");
     onPull();
   };
   const open = () => {
     if (!shown) return;
-    if (shown.kind === "coins" || shown.kind === "dupe") playCoin();
-    else playJingle();
     setPhase("open");
   };
 
@@ -79,7 +74,7 @@ export function GachaModal({ coins, result, onPull, onClose }: Props) {
             {coins < GACHA_COST && <span className="text-xs opacity-60">You need {GACHA_COST} coins.</span>}
           </>
         )}
-        <button type="button" className="text-xs opacity-60 hover:opacity-90" onClick={() => (playClick(), onClose())}>
+        <button type="button" className="text-xs opacity-60 hover:opacity-90" onClick={() => (onClose())}>
           Walk away
         </button>
       </div>

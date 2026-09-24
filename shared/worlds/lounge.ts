@@ -1,238 +1,280 @@
 import type { AABB } from "../collision";
-import type { ChairConfig, MochiWaypoint, ToggleableConfig } from "../props";
+import type { CushionId } from "../seats";
 
-// The Loft: the cozy lounge's whole floor plan in one place.
+// The Loft: the cozy lounge's whole floor plan, authored once.
 //
-// Everything the server, the validator and the client need to agree on about this room is
-// authored HERE and only here: the room's size, the sunken pit, every seat, every interactive
-// prop, every collider, the spawns, Mochi's walk and the camera frame. `shared/props.ts`,
-// `shared/collision.ts` and `shared/types.ts` read from this file for the cozy_lounge
-// entries; `client/src/scene/LoungeWorld.tsx` draws the same numbers. Move a piece of
-// furniture here and the picture, the collider and the seat anchor move together.
+// The server, the layout validator, the seat anchors and the client scene ALL read this file:
+// LoungeWorld.tsx draws exactly these numbers, collision.ts turns them into obstacles and props.ts
+// turns them into seats. Move a piece of furniture here and the picture, the collider and the
+// seat anchor move together.
 //
-// The room is an intimate 15x15 penthouse: two solid walls along x = -7.5 and z = -7.5 (inner
-// faces at -7.3), open toward +X and +Z where the camera stands, with a low balustrade along
-// the open edges. Walking is clamped to worldLimit (MAP_HALF - 0.6 = 6.9), so nobody steps
-// through a wall or over the rail.
+// An intimate 15x15 penthouse. Two solid back walls (x = -7.5 and z = -7.5, inner faces at
+// -7.3), the front (+X and +Z) open to the camera behind a low balustrade. Avatars walk
+// within +-NAV_LIMIT of the centre, and never through furniture.
 //
-// Proportions follow the avatar (about 1.3 units tall): counters at 0.68 (its waist), seats at
-// 0.36, stools at 0.48, tables at 0.58, the mantel at 1.05.
+// Proportions follow the ~1.3-unit avatar: counters 0.7 (its waist), seats 0.36, stools 0.48,
+// bistro and games tables 0.58 / 0.68, the mantel 1.1.
 //
-// Zones, left to right as the camera sees them:
-//   back-left    the hearth: brick chimney breast with the TV over the mantel, a built-in
-//                bookcase beside it, Mochi's hearthrug in front
-//   left wall    the reading nook (wingback, lamp behind it, side table), three tall windows
-//                with a chaise in the sun and the games table under the last one
-//   centre       the conversation pit: a closed corner sofa round the fire, a round table
-//   back-right   the kitchen: counter run on the back wall with a window over the sink, the
-//                island with three stools, a bistro table for two beside it
-//   front-right  the lounge corner: loveseat, armchair, lamp behind, a rug; the record console
+// Zones, as the camera sees them (x runs right-and-down, z left-and-down):
+//   back-left    THE HEARTH: brick chimney breast in the back wall with the firebox, flanked by
+//                built-in shelves; a closed L-shaped corner sofa tucked into the corner faces
+//                it across a round coffee table on the hearth rug
+//   left wall    the reading nook (wingback, floor lamp), the chaise, three tall windows
+//   back-right   THE KITCHEN: counter run on the back wall, an island with three stools under
+//                two pendants, a bistro table for two
+//   front-left   the games table (two chairs)
+//   front-right  the pouf circle round a low table, a floor lamp, plants
 //
-// Walkways: 1.8 between the island and the bistro table, 1.5 between the counter and the
-// island, 1.3 beside the pit; nothing narrower (the avatar is 0.6 wide).
+// Walkways: 1.9 between the counter and the island, 2.2 between the island and the bistro
+// table, 1.0 or more everywhere else; nothing is narrower than the avatar (0.6) needs.
 
-type SeatSpec = Omit<ChairConfig, "sitY">;
+type Box = { x0: number; x1: number; z0: number; z1: number };
+type Pt = { x: number; z: number };
 
-const FACE_NEG_Z = Math.PI;
+const FACE_NEG_Z = Math.PI; // heading 0 is +z; a heading of pi faces the back wall
 const FACE_POS_X = Math.PI / 2;
 const FACE_NEG_X = -Math.PI / 2;
 const FACE_POS_Z = 0;
 
-/** Half the room's width: the slab spans -7.5..7.5 and the walls stand at -7.5. */
 export const LOFT_HALF = 7.5;
-/** The walls' height; pendant cords drop from this plane. */
-export const LOFT_WALL_HEIGHT = 3.2;
-/** The camera holds this frame in the lounge (centre and the world-units it fits across). */
+/** The walls' thickness: their inner faces stand at +-(LOFT_HALF - WALL_T). */
+export const WALL_T = 0.2;
+export const WALL_HEIGHT = 3.2;
+/** Avatars are kept within this of the centre on both axes. */
+export const NAV_LIMIT = 7.0;
+/** The camera holds this frame in the lounge: centre and world-units it fits across. */
 export const LOFT_FRAME = { x: 0, z: 0, size: LOFT_HALF * 2 + 0.8 };
-/** How close to a seat you stand before the dock offers to sit you on it. */
-export const LOFT_SEAT_REACH = 1.5;
-
-/** The sunken conversation pit: a step down, eased over its rim by walkY. */
-export const LOFT_PIT = { x0: -4.7, x1: -0.1, z0: -4.4, z1: -0.7, depth: 0.2 };
+/** How close to a seat (or its approach point) you stand before the dock offers to sit you. */
+export const SEAT_REACH = 1.5;
+/** How close to Mochi you stand before the dock offers to pet her. */
+export const MOCHI_REACH = 2.4;
 
 // --- the hearth ---
 export const HEARTH = {
-  /** The chimney breast on the back wall (its full footprint is a collider). */
-  x0: -4.4,
-  x1: -2.0,
-  z0: -7.5,
-  z1: -6.5,
-  fireY: 0.5,
-  mantelY: 1.05,
-  rug: { x: -3.5, z: -5.5, radius: 0.95 },
+  /** The chimney breast in the back wall: brick to the ceiling, a firebox cut into its face. */
+  breast: { x0: -6.0, x1: -3.4, z0: -7.3, z1: -6.5 } as Box,
+  fireX: -4.7,
+  fireW: 1.1,
+  fireH: 0.85,
+  mantelY: 1.12,
+  /** The stone hearth slab in front of the firebox (flat, walkable). */
+  stone: { x0: -5.9, x1: -3.5, z0: -6.5, z1: -5.9 } as Box,
+  /** The rug the coffee table and Mochi's spot share. */
+  rug: { x: -4.6, z: -4.9, rx: 2.0, rz: 1.5 },
+  bookcaseL: { x0: -7.3, x1: -6.0, z0: -7.3, z1: -6.9, height: 2.3 },
+  bookcaseR: { x0: -3.4, x1: -2.3, z0: -7.3, z1: -6.9, height: 2.3 },
 };
 
-/** The built-in bookcase left of the chimney. */
-export const BOOKCASE = { x0: -7.1, x1: -4.7, z0: -7.3, z1: -6.9, height: 2.3 };
+/** The closed L-shaped corner sofa, tucked into the back-left corner facing the hearth. */
+export const SOFA = {
+  /** The long run (facing the fire) and the return leg along the left wall. */
+  run: { x0: -7.3, x1: -3.05, z0: -3.2, z1: -2.2 } as Box,
+  leg: { x0: -7.3, x1: -6.3, z0: -5.45, z1: -3.2 } as Box,
+  /** Seat cushion centres: three along the run, the corner cell, two down the return leg. */
+  runXs: [-5.8, -4.8, -3.8],
+  runZ: -2.7,
+  corner: { x: -6.8, z: -2.7 },
+  legZs: [-3.7, -4.7],
+  legX: -6.8,
+  seatH: 0.36,
+  backH: 0.85,
+  armH: 0.62,
+};
+export const COFFEE_TABLE = { x: -4.6, z: -5.0, radius: 0.5, height: 0.34 };
 
 // --- the kitchen ---
 export const KITCHEN = {
-  /** The counter run along the back wall, right of the fridge. */
-  counter: { x0: -0.4, x1: 6.4, z0: -7.3, z1: -6.4, height: 0.68 },
-  /** The fridge, tucked between the chimney and the counter. */
-  fridge: { x0: -1.5, x1: -0.6, z0: -7.3, z1: -6.4, height: 1.5 },
-  /** The window over the sink, on the back wall. */
-  window: { x0: 0.4, x1: 2.2, y0: 1.2, y1: 2.4 },
-  sinkX: 1.3,
-  hobX: 5.0,
-  /** The island; the stools sit along its +Z side. */
-  island: { x0: 1.4, x1: 4.0, z0: -4.9, z1: -3.8, height: 0.68 },
-  stoolXs: [1.9, 2.7, 3.5],
-  stoolZ: -3.0,
-  /** The mat between the counter and the island (Mochi's kitchen spot is on its right end). */
-  mat: { x0: 0.2, x1: 5.8, z0: -6.2, z1: -5.1 },
-  /** A bistro table for two, an 1.8 corridor from the island. */
-  bistro: { x: 6.3, z: -2.8, radius: 0.5, height: 0.58 },
-  bistroChairZs: { north: -3.9, south: -1.7 },
-  /** The espresso machine's spot on the counter. */
-  espresso: { x: 3.4, z: -6.85 },
-};
-
-// --- the conversation pit's furniture (all relative to the PIT FLOOR, a step down) ---
-export const PIT_SOFA = {
-  /** The south run, its back along the pit's +Z rim. */
-  south: { x0: LOFT_PIT.x0, x1: LOFT_PIT.x1, z0: -1.8, z1: LOFT_PIT.z1 },
-  /** The east run, its back along the +X rim, turned in for conversation. */
-  east: { x0: -0.9, x1: LOFT_PIT.x1, z0: LOFT_PIT.z0, z1: -1.8 },
-  /** The closed corner where the two runs meet (a seat of its own). */
-  corner: { x: -0.5, z: -1.25 },
-  seatZ: -1.25,
-  seatXs: [-3.9, -2.7, -1.5],
-  eastSeatX: -0.5,
-  eastSeatZs: [-3.7, -2.6],
-  table: { x: -2.7, z: -3.4, radius: 0.45, height: 0.34 },
+  /** The counter run along the back wall (waist-height), the fridge to its left. */
+  counter: { x0: -1.3, x1: 7.3, z0: -7.3, z1: -6.5, height: 0.7 } as Box & { height: number },
+  fridge: { x0: -2.2, x1: -1.3, z0: -7.3, z1: -6.4, height: 1.6 } as Box & { height: number },
+  /** The window over the sink. */
+  window: { x0: 0.2, x1: 1.9, y0: 1.2, y1: 2.4 },
+  sinkX: 1.05,
+  hobX: 5.2,
+  /** Wall cabinets over the counter to the right of the window. */
+  uppers: { x0: 2.5, x1: 7.3, y0: 1.55, y1: 2.35, depth: 0.38 },
+  island: { x0: 0.4, x1: 3.2, z0: -4.6, z1: -3.6, height: 0.7 } as Box & { height: number },
+  stoolXs: [0.9, 1.8, 2.7],
+  stoolZ: -3.05,
+  pendantXs: [1.1, 2.5],
+  pendantZ: -4.1,
+  pendantY: 2.0,
+  mat: { x0: 2.2, x1: 4.8, z0: -6.2, z1: -5.0 } as Box,
+  tile: { x0: -1.3, x1: 7.5, z0: -7.5, z1: -4.9 } as Box,
+  bistro: { x: 6.4, z: -2.6, radius: 0.5, height: 0.58 },
+  bistroChairZs: { north: -3.7, south: -1.5 },
 };
 
 // --- the left wall ---
-export const READING = { chair: { x: -6.5, z: -4.9 }, lamp: { x: -6.9, z: -5.9 }, sideTable: { x: -6.9, z: -3.9 } };
-/** Three tall windows on the left wall; the frames are embedded a little into the wall. */
+export const READING = { chair: { x: -6.75, z: -0.4 }, box: { x0: -7.3, x1: -6.3, z0: -0.9, z1: 0.1 } as Box, lamp: { x: -6.9, z: 1.2 } };
+export const CHAISE = { x: -6.8, z: 2.9, box: { x0: -7.25, x1: -6.35, z0: 2.0, z1: 3.9 } as Box };
+export const SUN_PATCH = { x: -5.3, z: 1.1, rx: 0.95, rz: 0.75 };
+/** Tall windows on the left wall (z ranges) and their height band. */
 export const WINDOWS = [
   { z0: -1.6, z1: 0.4 },
-  { z0: 0.9, z1: 2.9 },
-  { z0: 3.6, z1: 5.6 },
+  { z0: 1.0, z1: 3.0 },
+  { z0: 3.7, z1: 5.7 },
 ] as const;
-export const WINDOW_Y = { y0: 0.6, y1: 2.4 };
-export const CHAISE = { x: -6.6, z: 2.0, w: 0.9, d: 2.2 };
-export const SUNNY_RUG = { x: -6.3, z: -0.6, radius: 0.7 };
+export const WINDOW_Y = { y0: 0.7, y1: 2.5 };
 
-// --- the front corners ---
-export const LOUNGE_CORNER = {
-  loveseat: { x0: 3.4, x1: 5.8, z0: 4.4, z1: 5.2 },
-  loveSeatXs: [4.0, 5.2],
-  loveSeatZ: 4.7,
-  armchair: { x: 2.0, z: 4.6 },
-  lamp: { x: 6.3, z: 5.6 },
-  rug: { x: 4.2, z: 3.7, radius: 1.3 },
-  sideTable: { x: 6.4, z: 4.7 },
+// --- the front ---
+export const GAMES = { table: { x: -3.6, z: 4.6, radius: 0.6, height: 0.68 }, chairA: { x: -4.7, z: 4.6 }, chairB: { x: -2.5, z: 4.6 } };
+export const POUF_CIRCLE = {
+  table: { x: 3.2, z: 2.6, radius: 0.5, height: 0.34 },
+  rug: { x: 3.2, z: 2.6, r: 2.0 },
+  /** Pouf centres, each facing the table. */
+  poufs: [
+    { x: 4.3, z: 2.6, heading: FACE_NEG_X },
+    { x: 2.1, z: 2.6, heading: FACE_POS_X },
+    { x: 3.2, z: 1.5, heading: FACE_POS_Z },
+    { x: 3.2, z: 3.7, heading: FACE_NEG_Z },
+  ],
+  radius: 0.36,
 };
-export const GAMES = {
-  table: { x: -4.6, z: 5.4, radius: 0.6, height: 0.68 },
-  chairA: { x: -4.6, z: 4.2 },
-  chairB: { x: -3.4, z: 5.4 },
-};
-export const CONSOLE = { x0: 6.5, x1: 7.3, z0: -0.2, z1: 1.0, height: 0.62 };
-
-/** The plants that stand about the room (each a small collider). */
-export const PLANTS = [
-  { x: 6.8, z: 1.8, kind: "fig" },
-  { x: -6.9, z: -2.3, kind: "monstera" },
-  { x: -2.9, z: 6.4, kind: "olive" },
-  { x: -6.9, z: 6.6, kind: "olive" },
-] as const;
+export const PLANTS: (Pt & { kind: "fig" | "monstera" | "olive" })[] = [
+  { x: -6.8, z: -1.5, kind: "fig" },
+  { x: -6.9, z: 6.3, kind: "olive" },
+  { x: -2.5, z: 6.6, kind: "monstera" },
+  { x: 6.8, z: 0.8, kind: "fig" },
+  { x: 6.7, z: 6.4, kind: "olive" },
+];
+export const FLOOR_LAMPS = [
+  { propId: "lamp_read", ...READING.lamp, color: "#ffc47a" },
+  { propId: "lamp_pouf", x: 6.4, z: 4.2, color: "#ffe0b2" },
+];
 
 // ---------------------------------------------------------------------------------------
-// The shared tables: seats, props, colliders, spawns and Mochi's walk
+// The shared tables
 // ---------------------------------------------------------------------------------------
+
+export interface SeatSpec {
+  propId: string;
+  x: number;
+  z: number;
+  /** The way the avatar faces: outward, away from the backrest. */
+  rotationY: number;
+  cushion: CushionId;
+  /** Where you stand to sit, and where you land when you get up. */
+  approachX: number;
+  approachZ: number;
+}
 
 export const LOFT_SEATS: SeatSpec[] = [
-  // the pit: south run facing the fire, east run turned in, and the corner between them
-  ...PIT_SOFA.seatXs.map((x, i) => ({ propId: `pit_s${i + 1}`, x, z: PIT_SOFA.seatZ, rotationY: FACE_NEG_Z, style: "pad" as const, cushion: "loftSofa" as const, approachX: x, approachZ: -2.6 })),
-  ...PIT_SOFA.eastSeatZs.map((z, i) => ({ propId: `pit_e${i + 1}`, x: PIT_SOFA.eastSeatX, z, rotationY: FACE_NEG_X, style: "pad" as const, cushion: "loftSofa" as const, approachX: -1.6, approachZ: z })),
-  { propId: "pit_c", x: PIT_SOFA.corner.x, z: PIT_SOFA.corner.z, rotationY: (-3 * Math.PI) / 4, style: "pad", cushion: "loftSofa", approachX: -1.6, approachZ: -2.4 },
-  // the reading nook, beside the hearth
-  { propId: "read_1", x: READING.chair.x, z: READING.chair.z, rotationY: FACE_POS_X, style: "pad", cushion: "loftWingback", approachX: -5.4, approachZ: READING.chair.z },
-  // the chaise in the window light
-  { propId: "chaise_1", x: CHAISE.x, z: CHAISE.z, rotationY: FACE_POS_X, style: "pad", cushion: "chaise", approachX: -5.5, approachZ: CHAISE.z },
+  // the corner sofa, facing the hearth: three along the run, the corner cell, two down the return leg
+  ...SOFA.runXs.map((x, i): SeatSpec => ({ propId: `sofa_run_${i + 1}`, x, z: SOFA.runZ, rotationY: FACE_NEG_Z, cushion: "sofa", approachX: x, approachZ: -3.9 })),
+  { propId: "sofa_corner", x: SOFA.corner.x, z: SOFA.corner.z, rotationY: (3 * Math.PI) / 4, cushion: "sofa", approachX: -5.8, approachZ: -3.9 },
+  ...SOFA.legZs.map((z, i): SeatSpec => ({ propId: `sofa_leg_${i + 1}`, x: SOFA.legX, z, rotationY: FACE_POS_X, cushion: "sofa", approachX: -5.6, approachZ: z })),
+  // the reading nook and the chaise, on the left wall
+  { propId: "nook_wingback", x: READING.chair.x, z: READING.chair.z, rotationY: FACE_POS_X, cushion: "wingback", approachX: -5.6, approachZ: READING.chair.z },
+  { propId: "chaise", x: CHAISE.x, z: CHAISE.z, rotationY: FACE_POS_X, cushion: "chaise", approachX: -5.6, approachZ: CHAISE.z },
   // the island: three stools facing the counter
-  ...KITCHEN.stoolXs.map((x, i) => ({ propId: `stool_${i + 1}`, x, z: KITCHEN.stoolZ, rotationY: FACE_NEG_Z, style: "pad" as const, cushion: "loftStool" as const, approachX: x, approachZ: -2.1 })),
+  ...KITCHEN.stoolXs.map((x, i): SeatSpec => ({ propId: `stool_${i + 1}`, x, z: KITCHEN.stoolZ, rotationY: FACE_NEG_Z, cushion: "stool", approachX: x, approachZ: -2.1 })),
   // the bistro table: a chair each side
-  { propId: "bistro_n", x: KITCHEN.bistro.x, z: KITCHEN.bistroChairZs.north, rotationY: FACE_POS_Z, style: "pad", cushion: "loftDining", approachX: KITCHEN.bistro.x, approachZ: -4.9 },
-  { propId: "bistro_s", x: KITCHEN.bistro.x, z: KITCHEN.bistroChairZs.south, rotationY: FACE_NEG_Z, style: "pad", cushion: "loftDining", approachX: KITCHEN.bistro.x, approachZ: -0.7 },
-  // the lounge corner: a loveseat for two and an armchair
-  ...LOUNGE_CORNER.loveSeatXs.map((x, i) => ({ propId: `love_${i + 1}`, x, z: LOUNGE_CORNER.loveSeatZ, rotationY: FACE_NEG_Z, style: "pad" as const, cushion: "loveseat" as const, approachX: x, approachZ: 3.6 })),
-  { propId: "arm_1", x: LOUNGE_CORNER.armchair.x, z: LOUNGE_CORNER.armchair.z, rotationY: FACE_POS_X, style: "pad", cushion: "loftArmchair", approachX: 1.0, approachZ: LOUNGE_CORNER.armchair.z },
-  // the games table under the last window: two chairs
-  { propId: "game_1", x: GAMES.chairA.x, z: GAMES.chairA.z, rotationY: FACE_POS_Z, style: "pad", cushion: "loftDining", approachX: GAMES.chairA.x, approachZ: 3.2 },
-  { propId: "game_2", x: GAMES.chairB.x, z: GAMES.chairB.z, rotationY: FACE_NEG_X, style: "pad", cushion: "loftDining", approachX: -2.4, approachZ: GAMES.chairB.z },
+  { propId: "bistro_north", x: KITCHEN.bistro.x, z: KITCHEN.bistroChairZs.north, rotationY: FACE_POS_Z, cushion: "dining", approachX: KITCHEN.bistro.x, approachZ: -4.6 },
+  { propId: "bistro_south", x: KITCHEN.bistro.x, z: KITCHEN.bistroChairZs.south, rotationY: FACE_NEG_Z, cushion: "dining", approachX: KITCHEN.bistro.x, approachZ: -0.5 },
+  // the games table
+  { propId: "games_west", x: GAMES.chairA.x, z: GAMES.chairA.z, rotationY: FACE_POS_X, cushion: "dining", approachX: GAMES.chairA.x, approachZ: 5.7 },
+  { propId: "games_east", x: GAMES.chairB.x, z: GAMES.chairB.z, rotationY: FACE_NEG_X, cushion: "dining", approachX: GAMES.chairB.x, approachZ: 5.7 },
+  // the pouf circle: each faces the low table, and you step in from outside the ring
+  ...POUF_CIRCLE.poufs.map((p, i): SeatSpec => {
+    const dx = p.x - POUF_CIRCLE.table.x;
+    const dz = p.z - POUF_CIRCLE.table.z;
+    const d = Math.hypot(dx, dz);
+    return { propId: `pouf_${i + 1}`, x: p.x, z: p.z, rotationY: p.heading, cushion: "pouf", approachX: p.x + (dx / d) * 0.95, approachZ: p.z + (dz / d) * 0.95 };
+  }),
 ];
 
-export const LOFT_PROPS: ToggleableConfig[] = [
-  // the TV over the mantel (the WallTV faces +Z, into the room; its bracket touches the brick)
-  { propId: "loft_tv", x: (HEARTH.x0 + HEARTH.x1) / 2, y: 1.95, z: HEARTH.z1 + 0.13, kind: "tv", color: "#9ad1e8", defaultOn: true },
-  // floor lamps stand BEHIND their chairs, never in front of a seat
-  { propId: "loft_lamp_read", x: READING.lamp.x, z: READING.lamp.z, kind: "lamp", color: "#ffc47a", defaultOn: true },
-  { propId: "loft_lamp_lounge", x: LOUNGE_CORNER.lamp.x, z: LOUNGE_CORNER.lamp.z, kind: "lamp", color: "#ffcf8a", defaultOn: true },
-  // pendants over the island and the bistro table (LoungeWorld drops their cords from the ceiling plane)
-  { propId: "loft_pendant_island", x: (KITCHEN.island.x0 + KITCHEN.island.x1) / 2, y: 1.85, z: (KITCHEN.island.z0 + KITCHEN.island.z1) / 2, kind: "pendant", color: "#ffd08a", defaultOn: true },
-  { propId: "loft_pendant_bistro", x: KITCHEN.bistro.x, y: 1.8, z: KITCHEN.bistro.z, kind: "pendant", color: "#ffd08a", defaultOn: true, intensity: 0.8 },
-  // the espresso machine on the back counter
-  { propId: "loft_espresso", x: KITCHEN.espresso.x, y: KITCHEN.counter.height + 0.03, z: KITCHEN.espresso.z, kind: "espresso", color: "#ffb36b", defaultOn: true, approachX: KITCHEN.espresso.x, approachZ: -5.6 },
-  // the turntable on the record console by the open edge
-  { propId: "loft_turntable", x: (CONSOLE.x0 + CONSOLE.x1) / 2, y: CONSOLE.height, z: (CONSOLE.z0 + CONSOLE.z1) / 2, kind: "turntable", color: "#e0a93b", defaultOn: true },
-  { propId: "loft_boardgame", x: GAMES.table.x, y: GAMES.table.height + 0.04, z: GAMES.table.z, kind: "boardgame", color: "#f0e6d2", defaultOn: true, approachX: GAMES.table.x, approachZ: 6.5 },
-  // Mochi sleeps on the hearthrug and wanders from there (LOFT_MOCHI)
-  { propId: "mochi_loft", x: -4.2, z: -5.8, kind: "cat", color: "#f0a860", defaultOn: true, approachX: -4.2, approachZ: -4.8 },
+export interface PropSpec {
+  propId: string;
+  x: number;
+  y?: number;
+  z: number;
+  kind: "lamp" | "cat";
+  color: string;
+  defaultOn: boolean;
+  approachX?: number;
+  approachZ?: number;
+}
+
+/** Mochi's home: the hearth rug, beside the coffee table. */
+const MOCHI_HEARTH = { x: -3.7, z: -5.8, ax: -3.7, az: -4.9 };
+
+export const LOFT_PROPS: PropSpec[] = [
+  // floor lamps stand BEHIND their seats, never in front of one
+  ...FLOOR_LAMPS.map((l): PropSpec => ({ propId: l.propId, x: l.x, z: l.z, kind: "lamp", color: l.color, defaultOn: true })),
+  // Mochi sleeps on the hearth rug and wanders from there (LOFT_MOCHI)
+  { propId: "mochi", x: MOCHI_HEARTH.x, z: MOCHI_HEARTH.z, kind: "cat", color: "#f0a860", defaultOn: true, approachX: MOCHI_HEARTH.ax, approachZ: MOCHI_HEARTH.az },
 ];
+
+/** One stop on Mochi's day. `pass` stops are just corners on the way: she doesn't rest there. */
+export interface MochiStop {
+  x: number;
+  z: number;
+  /** A spot beside her a player can stand on. */
+  ax: number;
+  az: number;
+  /** The way she settles: heading about y (0 = +z). Omitted, she faces the next stop. */
+  face?: number;
+  pass?: boolean;
+}
 
 /**
- * Mochi's day: the hearthrug, the sunlit window bay, back past the hearth, the kitchen mat.
- * Each leg is a straight walk, and the hearth sits between the other two so no leg has to
- * cross the pit.
+ * Mochi's day: the hearth rug (facing the fire), the sunlit window bay, the kitchen mat by the
+ * hob, and home again. The sofa stands between the hearth and the windows, so each leg between
+ * them is routed through `pass` corners that keep her clear of it: the validator samples every
+ * straight leg against the colliders.
  */
-const MOCHI_HEARTH: MochiWaypoint = { x: -4.2, z: -5.8, ax: -4.2, az: -4.8 };
-export const LOFT_MOCHI: MochiWaypoint[] = [
-  MOCHI_HEARTH, // the hearthrug, in front of the fire
-  { x: SUNNY_RUG.x, z: SUNNY_RUG.z, ax: -5.2, az: SUNNY_RUG.z }, // the sunlit window bay
-  MOCHI_HEARTH,
-  { x: 5.4, z: -5.6, ax: 5.4, az: -4.6 }, // the kitchen mat, by the hob
+export const LOFT_MOCHI: MochiStop[] = [
+  { ...MOCHI_HEARTH, face: FACE_NEG_Z },
+  { x: -2.4, z: -3.6, ax: -2.4, az: -3.6, pass: true },
+  { x: -2.4, z: -1.2, ax: -2.4, az: -1.2, pass: true },
+  { x: SUN_PATCH.x, z: SUN_PATCH.z, ax: -4.3, az: SUN_PATCH.z, face: FACE_NEG_X }, // the window bay, facing the glass
+  { x: -2.4, z: -1.2, ax: -2.4, az: -1.2, pass: true },
+  { x: -0.3, z: -5.2, ax: -0.3, az: -5.2, pass: true },
+  { x: 3.4, z: -5.6, ax: 3.4, az: -5.05, face: FACE_NEG_Z }, // the kitchen mat, by the hob
 ];
 
-const around = (p: { x: number; z: number }, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
+const box = (b: Box): AABB => ({ minX: b.x0, maxX: b.x1, minZ: b.z0, maxZ: b.z1 });
+const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
 
 export const LOFT_OBSTACLES: AABB[] = [
-  // the hearth and the bookcase
-  { minX: HEARTH.x0, maxX: HEARTH.x1, minZ: HEARTH.z0, maxZ: HEARTH.z1 },
-  { minX: BOOKCASE.x0, maxX: BOOKCASE.x1, minZ: BOOKCASE.z0, maxZ: BOOKCASE.z1 },
-  // the pit's sofa and table (their tops are seats; the runs themselves are solid)
-  { minX: PIT_SOFA.south.x0, maxX: PIT_SOFA.south.x1, minZ: PIT_SOFA.south.z0, maxZ: PIT_SOFA.south.z1 },
-  { minX: PIT_SOFA.east.x0, maxX: PIT_SOFA.east.x1, minZ: PIT_SOFA.east.z0, maxZ: PIT_SOFA.east.z1 },
-  around(PIT_SOFA.table, PIT_SOFA.table.radius),
+  // the hearth and its shelves
+  box(HEARTH.breast),
+  box(HEARTH.bookcaseL),
+  box(HEARTH.bookcaseR),
+  // the sectional (the seat cells on it are seats; the furniture itself is solid) and its table
+  box(SOFA.run),
+  box(SOFA.leg),
+  around(COFFEE_TABLE, COFFEE_TABLE.radius),
   // the reading nook and the chaise
-  around(READING.lamp, 0.3),
-  around(READING.sideTable, 0.3),
-  { minX: CHAISE.x - CHAISE.w / 2, maxX: CHAISE.x + CHAISE.w / 2, minZ: CHAISE.z - CHAISE.d / 2, maxZ: CHAISE.z + CHAISE.d / 2 },
+  box(READING.box),
+  around(READING.lamp, 0.25),
+  box(CHAISE.box),
   // the kitchen
-  { minX: KITCHEN.counter.x0, maxX: KITCHEN.counter.x1, minZ: KITCHEN.counter.z0, maxZ: KITCHEN.counter.z1 },
-  { minX: KITCHEN.fridge.x0, maxX: KITCHEN.fridge.x1, minZ: KITCHEN.fridge.z0, maxZ: KITCHEN.fridge.z1 },
-  { minX: KITCHEN.island.x0, maxX: KITCHEN.island.x1, minZ: KITCHEN.island.z0, maxZ: KITCHEN.island.z1 },
+  box(KITCHEN.counter),
+  box(KITCHEN.fridge),
+  box(KITCHEN.island),
+  ...KITCHEN.stoolXs.map((x) => around({ x, z: KITCHEN.stoolZ }, 0.25)),
   around(KITCHEN.bistro, KITCHEN.bistro.radius),
-  // the lounge corner
-  { minX: LOUNGE_CORNER.loveseat.x0, maxX: LOUNGE_CORNER.loveseat.x1, minZ: LOUNGE_CORNER.loveseat.z0, maxZ: LOUNGE_CORNER.loveseat.z1 },
-  around(LOUNGE_CORNER.lamp, 0.3),
-  around(LOUNGE_CORNER.sideTable, 0.3),
+  around({ x: KITCHEN.bistro.x, z: KITCHEN.bistroChairZs.north }, 0.28),
+  around({ x: KITCHEN.bistro.x, z: KITCHEN.bistroChairZs.south }, 0.28),
   // the games table
   around(GAMES.table, GAMES.table.radius),
-  // the record console by the open edge
-  { minX: CONSOLE.x0, maxX: CONSOLE.x1, minZ: CONSOLE.z0, maxZ: CONSOLE.z1 },
+  around(GAMES.chairA, 0.28),
+  around(GAMES.chairB, 0.28),
+  // the pouf circle
+  around(POUF_CIRCLE.table, POUF_CIRCLE.table.radius),
+  ...POUF_CIRCLE.poufs.map((p) => around(p, POUF_CIRCLE.radius)),
+  around({ x: FLOOR_LAMPS[1].x, z: FLOOR_LAMPS[1].z }, 0.25),
   // the plants
-  ...PLANTS.map((p) => around(p, 0.35)),
+  ...PLANTS.map((p) => around(p, 0.32)),
 ];
 
 /** Everyone arrives along the open front and walks in. */
-export const LOFT_SPAWNS = [
-  { x: 0.5, z: 6.3 },
-  { x: -0.7, z: 6.5 },
-  { x: 1.7, z: 6.4 },
-  { x: -1.9, z: 6.2 },
-  { x: 2.9, z: 6.5 },
+export const LOFT_SPAWNS: Pt[] = [
+  { x: 0.5, z: 6.2 },
+  { x: -0.7, z: 6.4 },
+  { x: 1.7, z: 6.3 },
+  { x: 4.2, z: 6.3 },
+  { x: 2.9, z: 6.4 },
 ];

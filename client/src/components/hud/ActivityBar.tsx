@@ -12,7 +12,6 @@ import {
 } from "@shared/types";
 import { isFishingSeat } from "@shared/props";
 import { glass, hudText, pillButton } from "./glass";
-import { playClick, playSplash } from "../../audio/sfx";
 
 interface ActivityBarProps {
   player: PlayerState;
@@ -163,7 +162,6 @@ function ChillFishing({ player, onStop }: { player: PlayerState; onStop: () => v
     }
     prev.current = { coins: player.coins, bag };
     if (!gained.length) return;
-    playSplash();
     setSession((s0) => ({ coins: s0.coins + Math.max(0, dc), fish: s0.fish + fish }));
     setLog((l) => [{ id: Date.now(), text: gained.join(" · ") }, ...l].slice(0, 3));
   }, [player.coins, player.bag]);
@@ -207,7 +205,6 @@ function Bucket({ bag, count }: { bag: ReturnType<typeof parseBag>; count: numbe
         type="button"
         style={styles.secondary}
         onClick={() => {
-          playClick();
           setOpen((o) => !o);
         }}
         aria-expanded={open}

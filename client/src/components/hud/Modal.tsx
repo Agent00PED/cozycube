@@ -1,6 +1,5 @@
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { playPop } from "../../audio/sfx";
 
 // The one modal shell every panel uses: a frosted clay card centred on desktop, a bottom sheet
 // on phones, closed by the X, the backdrop or Escape. Rendered through a portal so it always
@@ -22,7 +21,6 @@ export function Modal({
   tone?: "stone" | "felt" | "velvet";
 }) {
   useEffect(() => {
-    playPop();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };

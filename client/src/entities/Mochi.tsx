@@ -1,239 +1,197 @@
-import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { Suspense, useMemo, useRef } from "react";
+import { useFrame, type GroupProps } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { GEO, StaticBatch, arcGeo, noRaycast } from "../scene/kit";
+import { GEO, matte, noRaycast } from "../scene/kit";
+import { ModelBoundary } from "./ModelBoundary";
+import { MOCHI_NODES, MOCHI_URL } from "./rig";
 
-// Mochi: one lovingly sculpted, seamless loaf cat. Shared by the cat in every world
-// (components/LivingProps `Cat`) and the playroom's own little viewport
-// (entities/MochiPlayroomModal).
+// Mochi: a ginger cat loaf, authored in Blender (scripts/blender/build_mochi.py) and loaded from
+// client/public/models/mochi.glb. Shared by the world cat (scene/Props `Cat`) and the playroom's
+// own little viewport (entities/MochiPlayroomModal).
 //
-// How she stays watertight:
-//   - The loaf rests flush on the floor (its belly touches y = 0, never below it). Her tabby
-//     stripes and cream chest are VERTEX COLOURS painted into the loaf's own geometry, so
-//     there is no marking mesh anywhere above her back.
-//   - The head is sunk into the loaf's front and a neck sphere fills the crease between them,
-//     so the profile is one curve from ears to rump.
-//   - The paws grow out of a cream chest bulge that is itself buried in the underbelly; their
-//     back halves sit inside it, so they cannot float.
-//   - The tail starts from a root sunk in the rump and curls round her side along the floor.
-//   - Ears are cones sunk into the skull; the closed eyes, nose, blush, smile and whiskers are
-//     laid on the face and merged with it.
+// This file only loads the model and poses it. Each part the runtime moves is its own node with
+// its pivot at the joint and no rotation of its own (rig.ts, MOCHI_NODES), so a pose is plain
+// rotations and offsets from the rest transforms read out of the file:
 //
-// Whoever mounts her drives her through a `MochiDrive` ref, written every frame by the owner
-// and read here: the world cat fills it from her wall-clock day (mochiSpot: hearthrug ->
-// window bay -> hearthrug -> kitchen mat, loafing, stretching, waddling, washing), the
-// playroom from the feather, the treat and the scritches.
+//   Loaf     squashed and stretched about its base on the floor (breathing, crouch, stretch);
+//            the head, paws and tail ride along with its scale so they stay attached
+//   Head     pivots at the neck: looks at the feather, nods while chewing, tips up to yawn
+//   EarL/R   flick about their base now and then, and flatten for a pounce
+//   PawL/R   pivot at the wrist: waddle, reach forward in a stretch, the left one lifts to be washed
+//   Tail     pivots at the root: sways, lifts while walking, swishes before a pounce
+//   Yawn     a dark mouth hidden inside the head, scaled open for a yawn or a chew
+//   Tongue   scaled out for a wash
+//
+// Whoever mounts her drives her through a `MochiDrive` ref, written every frame by the owner and
+// read here: the world cat fills it from her wall-clock day (mochiSpot), the playroom from the
+// feather, the treat and the scritches.
 
 export interface MochiDrive {
-  /** 0..1 how much she is stretched out (the yawn opens near the top of it). */
-  stretch: number;
-  /** 0..1 paw-washing; the tongue and one paw follow it. */
-  lick: number;
-  /** Waddling: bob and rock the body, tail up. */
+  /** Waddling: bob and rock the body, paws stepping, tail up. */
   walking: boolean;
-  /** Being fussed over: the happy sway and the purring tail. */
-  happy: boolean;
-  /** Where she is looking, radians about y (left/right) and x (down/up). */
+  /** 0..1 through a paw wash; the tongue and the left paw follow it. */
+  lick: number;
+  /** 0..1 through a stretch (the yawn opens near the top of it). */
+  stretch: number;
+  /** Where she is looking, radians about y (+ to her left) and x (+ down). */
   headYaw: number;
   headPitch: number;
-  /** 0..1 a pounce: crouch then spring. */
+  /** 0..1 a pounce: crouch through the first half, spring through the second. */
   pounce: number;
   /** 0..1 chewing a treat. */
   chew: number;
+  /** Being fussed over: the happy sway, a quick purring breath, the swishing tail. */
+  happy: boolean;
 }
 
-export const restDrive = (): MochiDrive => ({ stretch: 0, lick: 0, walking: false, happy: false, headYaw: 0, headPitch: 0, pounce: 0, chew: 0 });
+export const restDrive = (): MochiDrive => ({
+  walking: false,
+  lick: 0,
+  stretch: 0,
+  headYaw: 0,
+  headPitch: 0,
+  pounce: 0,
+  chew: 0,
+  happy: false,
+});
 
-// Her palette: warm orange fur, vanilla cream, a darker tabby brown, and soft pinks. All matte.
-const ORANGE = "#e89a52";
-const CREAM = "#f6e2c4";
-const DARK = "#b8703a";
-const mat = (color: string, opts: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, ...opts });
-const M = {
-  orange: mat(ORANGE),
-  cream: mat(CREAM),
-  dark: mat(DARK),
-  pink: mat("#e88a8a"),
-  blush: mat("#f6a5b5", { roughness: 1 }),
-  mouth: mat("#7a2a3a", { roughness: 1 }),
-  whisker: mat("#f6efe4", { roughness: 1 }),
-  /** The loaf: its colour comes from the geometry below. */
-  loaf: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 }),
-};
+type PartKey = keyof typeof MOCHI_NODES;
+interface Part {
+  node: THREE.Object3D;
+  pos: THREE.Vector3;
+  scale: THREE.Vector3;
+}
+type Rig = Record<PartKey, Part>;
 
+/** How quickly each pose eases toward its target (per second): high is snappy, low is lazy. */
+const EASE = 10;
+const { damp, clamp } = THREE.MathUtils;
 const smooth = (a: number, b: number, v: number) => {
-  const t = THREE.MathUtils.clamp((v - a) / (b - a), 0, 1);
+  const t = clamp((v - a) / (b - a), 0, 1);
   return t * t * (3 - 2 * t);
 };
 
-/** The loaf: a smooth unit sphere with her markings painted into its vertex colours. */
-const LOAF_GEO = (() => {
-  const g = new THREE.SphereGeometry(0.5, 56, 36);
-  const pos = g.getAttribute("position");
-  const colors = new Float32Array(pos.count * 3);
-  const orange = new THREE.Color(ORANGE);
-  const dark = new THREE.Color(DARK);
-  const cream = new THREE.Color(CREAM);
-  const c = new THREE.Color();
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const z = pos.getZ(i);
-    c.copy(orange);
-    // tabby stripes: three soft bands across the back that fade out down the flanks
-    let band = 0;
-    for (const zc of [-0.3, -0.12, 0.06]) band = Math.max(band, Math.exp(-(((z - zc) / 0.05) ** 2)));
-    const back = smooth(0.0, 0.3, y) * (1 - smooth(0.22, 0.44, Math.abs(x)));
-    c.lerp(dark, band * back * 0.85);
-    // the cream chest and belly: the lower front, softly feathered into the orange
-    const chest = smooth(0.05, 0.28, z * 1.2 - y * 0.6 - 0.15);
-    c.lerp(cream, chest);
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
-  }
-  g.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  return g;
-})();
+/** Finds every contract node in a fresh copy of the file, and remembers its rest transform. */
+function useRig(): { root: THREE.Object3D; rig: Rig } {
+  const { scene } = useGLTF(MOCHI_URL);
+  return useMemo(() => {
+    const root = scene.clone(true);
+    root.traverse((o) => {
+      // clicks are taken by the invisible pads the owners put over her
+      if ((o as THREE.Mesh).isMesh) o.raycast = noRaycast;
+    });
+    const rig = {} as Rig;
+    for (const key of Object.keys(MOCHI_NODES) as PartKey[]) {
+      const node = root.getObjectByName(MOCHI_NODES[key]);
+      if (!node) throw new Error(`mochi.glb has no "${MOCHI_NODES[key]}" node`);
+      rig[key] = { node, pos: node.position.clone(), scale: node.scale.clone() };
+    }
+    return { root, rig };
+  }, [scene]);
+}
 
-const TAIL = arcGeo(0.17, 0.045, Math.PI * 0.95);
-const EYE = arcGeo(0.032, 0.008, Math.PI);
-const SMILE = arcGeo(0.02, 0.006, Math.PI);
-
-/** Where the head rests (its sphere sinks into the loaf's front top). */
-const HEAD_Y = 0.31;
-/** Where the paws rest: on the floor, growing out of the chest bulge. */
-const PAW_Y = 0.05;
-const PAW_Z = 0.24;
-
-export function MochiModel({ drive, children }: { drive: React.MutableRefObject<MochiDrive>; children?: React.ReactNode }) {
-  const bodyRef = useRef<THREE.Group>(null);
-  const loafRef = useRef<THREE.Mesh>(null);
-  const headRef = useRef<THREE.Group>(null);
-  const tailRef = useRef<THREE.Group>(null);
-  const earLRef = useRef<THREE.Group>(null);
-  const earRRef = useRef<THREE.Group>(null);
-  const yawnRef = useRef<THREE.Mesh>(null);
-  const tongueRef = useRef<THREE.Mesh>(null);
-  const pawLRef = useRef<THREE.Mesh>(null);
-  const pawRRef = useRef<THREE.Mesh>(null);
+function MochiRig({ drive }: { drive: React.RefObject<MochiDrive> }) {
+  const { root, rig } = useRig();
   const seed = useMemo(() => Math.random() * 7, []);
 
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime + seed;
+  useFrame(({ clock }, rawDelta) => {
     const d = drive.current;
-    const L = THREE.MathUtils.lerp;
-    const stretchK = Math.sin(Math.min(1, d.stretch) * Math.PI);
-    const pounceK = d.pounce; // 0 rest .. 0.5 crouched .. 1 sprung
-    const crouch = Math.sin(Math.min(0.5, pounceK) * Math.PI); // crouches through the first half
-    const spring = pounceK > 0.5 ? Math.sin((pounceK - 0.5) * Math.PI) : 0;
-    const body = bodyRef.current;
-    const loaf = loafRef.current;
-    if (body && loaf) {
-      const breath = Math.sin(t * (d.happy ? 5 : 1.4)) * 0.03;
-      const waddle = d.walking ? Math.sin(t * 10) : 0;
-      // the loaf squashes and stretches about its BELLY, so it never lifts off the floor
-      const sy = 0.27 * (1 + breath) * (1 - stretchK * 0.22 - crouch * 0.3 + spring * 0.15);
-      loaf.scale.set(0.34 * (1 - stretchK * 0.08 + crouch * 0.06), sy, 0.42 * (1 + stretchK * 0.35 + crouch * 0.12));
-      loaf.position.y = sy / 2 - 0.004;
-      body.position.y = (d.walking ? Math.abs(Math.sin(t * 10)) * 0.035 : 0) + spring * 0.25;
-      body.position.z = spring * 0.2;
-      body.rotation.z = L(body.rotation.z, waddle * 0.09 + (d.happy ? Math.sin(t * 3) * 0.04 : 0), 0.3);
-      body.rotation.x = L(body.rotation.x, stretchK * -0.18 + (d.walking ? 0.05 : 0) - spring * 0.25, 0.15);
-    }
-    const head = headRef.current;
-    if (head) {
-      const lickK = d.lick > 0 ? 0.5 + 0.5 * Math.sin(d.lick * Math.PI * 4) : 0;
-      const chewK = d.chew > 0 ? Math.abs(Math.sin(t * 14)) * d.chew : 0;
-      head.rotation.x = L(head.rotation.x, -stretchK * 0.55 + lickK * 0.5 + d.headPitch + chewK * 0.08 - spring * 0.2, 0.15);
-      head.rotation.z = L(head.rotation.z, d.happy ? Math.sin(t * 3) * 0.14 : d.lick > 0 ? 0.25 : d.walking ? Math.sin(t * 10) * 0.05 : Math.sin(t * 0.5) * 0.03, 0.12);
-      head.rotation.y = L(head.rotation.y, (d.lick > 0 ? -0.35 : 0) + d.headYaw, 0.12);
-      head.position.y = L(head.position.y, HEAD_Y + stretchK * 0.05 - lickK * 0.05 - crouch * 0.06, 0.12);
-    }
-    if (yawnRef.current) {
-      const open = Math.max(0, stretchK - 0.35) + (d.chew > 0 ? Math.abs(Math.sin(t * 14)) * 0.5 * d.chew : 0);
-      yawnRef.current.scale.set(0.03 + open * 0.03, 0.01 + open * 0.06, 0.02);
-      yawnRef.current.visible = open > 0.02;
-    }
-    if (tongueRef.current) {
-      const out = d.lick > 0 ? Math.max(0, Math.sin(d.lick * Math.PI * 4)) : 0;
-      tongueRef.current.visible = out > 0.2;
-      tongueRef.current.position.z = 0.19 + out * 0.03;
-    }
-    if (pawLRef.current && pawRRef.current) {
-      const lift = d.lick > 0 ? 0.5 + 0.5 * Math.sin(d.lick * Math.PI * 4) : 0;
-      pawLRef.current.position.y = L(pawLRef.current.position.y, PAW_Y + lift * 0.2 + spring * 0.1, 0.15);
-      pawLRef.current.position.z = L(pawLRef.current.position.z, PAW_Z + lift * 0.02 + spring * 0.1, 0.15);
-      pawRRef.current.position.y = PAW_Y + (d.walking ? Math.abs(Math.sin(t * 10 + 1)) * 0.04 : 0) + spring * 0.1;
-      pawRRef.current.position.z = PAW_Z + spring * 0.1;
-    }
-    const tail = tailRef.current;
-    if (tail) {
-      tail.rotation.y = L(tail.rotation.y, Math.sin(t * (d.happy ? 4 : 0.9)) * (d.happy ? 0.35 : 0.12) + (pounceK > 0 ? Math.sin(t * 9) * 0.3 : 0), 0.2);
-      tail.rotation.x = L(tail.rotation.x, d.walking || crouch > 0.3 ? -0.9 : stretchK > 0 ? -0.4 : 0, 0.08);
-    }
-    if (earLRef.current && earRRef.current) {
-      const phase = t % 3.7;
-      earLRef.current.rotation.x = phase < 0.25 ? Math.sin((phase / 0.25) * Math.PI) * 0.45 : 0;
-      const phase2 = (t + 1.9) % 5.1;
-      earRRef.current.rotation.x = (phase2 < 0.25 ? Math.sin((phase2 / 0.25) * Math.PI) * 0.45 : 0) - crouch * 0.6;
-    }
+    if (!d) return;
+    const dt = Math.min(rawDelta, 0.1);
+    const t = clock.elapsedTime + seed;
+    const { body, loaf, head, earL, earR, pawL, pawR, tail, yawn, tongue } = rig;
+
+    const stretchK = Math.sin(clamp(d.stretch, 0, 1) * Math.PI);
+    const crouch = Math.sin(Math.min(0.5, d.pounce) * Math.PI);
+    const spring = d.pounce > 0.5 ? Math.sin((d.pounce - 0.5) * Math.PI) : 0;
+    const washing = d.lick > 0;
+    const wash = washing ? 0.5 + 0.5 * Math.sin(d.lick * Math.PI * 4) : 0;
+    const chewK = d.chew > 0 ? Math.abs(Math.sin(t * 14)) * d.chew : 0;
+    const step = d.walking ? t * 10 : 0;
+
+    // the loaf breathes (a quick shallow purr while fussed), crouches and stretches about its base
+    const breath = d.happy ? Math.sin(t * 5) * 0.015 : Math.sin(t * 1.4) * 0.025;
+    const sx = 1 - stretchK * 0.06 + crouch * 0.06;
+    const sy = (1 + breath) * (1 - stretchK * 0.18 - crouch * 0.25 + spring * 0.1);
+    const sz = 1 + stretchK * 0.22 + crouch * 0.08;
+    loaf.node.scale.set(loaf.scale.x * sx, loaf.scale.y * sy, loaf.scale.z * sz);
+
+    // the whole body: a waddle, the happy sway, the spring of a pounce
+    const b = body.node;
+    b.position.y = damp(b.position.y, body.pos.y + (d.walking ? Math.abs(Math.sin(step)) * 0.03 : 0) + spring * 0.18, EASE * 2, dt);
+    b.position.z = damp(b.position.z, body.pos.z + spring * 0.2, EASE * 2, dt);
+    b.rotation.z = damp(b.rotation.z, (d.walking ? Math.sin(step) * 0.08 : 0) + (d.happy ? Math.sin(t * 3) * 0.04 : 0) + crouch * Math.sin(t * 16) * 0.03, EASE, dt);
+    b.rotation.x = damp(b.rotation.x, -spring * 0.25, EASE, dt);
+
+    // the head rides on the loaf's squash, and turns about the neck
+    const h = head.node;
+    h.position.set(head.pos.x * sx, head.pos.y * sy - wash * 0.02, head.pos.z * sz);
+    h.rotation.x = damp(h.rotation.x, d.headPitch - stretchK * 0.45 + wash * 0.35 + chewK * 0.08 - spring * 0.2, EASE, dt);
+    h.rotation.y = damp(h.rotation.y, d.headYaw + (washing ? 0.3 : 0), EASE, dt);
+    h.rotation.z = damp(h.rotation.z, d.happy ? Math.sin(t * 3) * 0.12 : washing ? -0.2 : d.walking ? Math.sin(step) * 0.05 : Math.sin(t * 0.5) * 0.03, EASE, dt);
+
+    // ears: a flick every few seconds (never both at once), flattened back for a pounce
+    const flick = (phase: number, every: number) => {
+      const p = (t + phase) % every;
+      return p < 0.25 ? Math.sin((p / 0.25) * Math.PI) * 0.4 : 0;
+    };
+    earL.node.rotation.x = damp(earL.node.rotation.x, flick(0, 3.7) - crouch * 0.7 - (d.happy ? 0.15 : 0), EASE * 2, dt);
+    earR.node.rotation.x = damp(earR.node.rotation.x, flick(1.9, 5.1) - crouch * 0.7 - (d.happy ? 0.15 : 0), EASE * 2, dt);
+
+    // paws: they ride forward with a stretch, step while walking, and the left one comes up to be washed
+    const pawGoal = (rest: THREE.Vector3, lift: number, reach: number) => [rest.x * sx, rest.y + lift, rest.z * sz + reach] as const;
+    const [lx, ly, lz] = pawGoal(pawL.pos, wash * 0.13 + (d.walking ? Math.max(0, Math.sin(step)) * 0.035 : 0) + spring * 0.06, stretchK * 0.06 + spring * 0.08 - wash * 0.04);
+    const [rx, ry, rz] = pawGoal(pawR.pos, (d.walking ? Math.max(0, -Math.sin(step)) * 0.035 : 0) + spring * 0.06, stretchK * 0.06 + spring * 0.08);
+    pawL.node.position.set(lx, damp(pawL.node.position.y, ly, EASE, dt), damp(pawL.node.position.z, lz, EASE, dt));
+    pawR.node.position.set(rx, damp(pawR.node.position.y, ry, EASE, dt), damp(pawR.node.position.z, rz, EASE, dt));
+    pawL.node.rotation.x = damp(pawL.node.rotation.x, -wash * 0.9, EASE, dt);
+
+    // the tail: a lazy sway, a swish when happy or about to pounce, carried up while she walks
+    const tl = tail.node;
+    tl.position.set(tail.pos.x * sx, tail.pos.y * sy, tail.pos.z * sz);
+    const swish = d.happy ? Math.sin(t * 4) * 0.3 : Math.sin(t * 0.9) * 0.1;
+    tl.rotation.y = damp(tl.rotation.y, swish + (d.pounce > 0 ? Math.sin(t * 9) * 0.3 : 0), EASE, dt);
+    tl.rotation.x = damp(tl.rotation.x, d.walking || crouch > 0.3 ? -0.5 : stretchK > 0 ? -0.25 : 0, EASE * 0.5, dt);
+
+    // the mouth opens for a yawn at the top of a stretch and with every chew; the tongue for a wash
+    const open = smooth(0.35, 0.9, stretchK) + chewK * 0.45;
+    yawn.node.scale.setScalar(Math.max(yawn.scale.x, open));
+    yawn.node.visible = open > 0.02;
+    const out = washing ? Math.max(0, Math.sin(d.lick * Math.PI * 4)) : 0;
+    tongue.node.scale.setScalar(Math.max(tongue.scale.x, out));
+    tongue.node.position.z = tongue.pos.z + out * 0.012;
+    tongue.node.visible = out > 0.05;
   });
 
-  return (
-    <group ref={bodyRef}>
-      {/* the loaf, flush on the floor, stripes and chest painted into it */}
-      <mesh ref={loafRef} geometry={LOAF_GEO} material={M.loaf} position={[0, 0.131, -0.02]} scale={[0.34, 0.27, 0.42]} raycast={noRaycast} />
-      <StaticBatch version="static">
-        {/* the neck: fills the crease where the head meets the loaf */}
-        <mesh geometry={GEO.sphere} material={M.orange} position={[0, 0.23, 0.1]} scale={[0.24, 0.17, 0.22]} raycast={noRaycast} />
-        {/* the chest bulge: the cream front the paws grow out of, buried in the underbelly */}
-        <mesh geometry={GEO.sphere} material={M.cream} position={[0, 0.09, 0.15]} scale={[0.24, 0.17, 0.2]} raycast={noRaycast} />
-      </StaticBatch>
-      {/* front paws on the floor, their back halves inside the chest */}
-      <mesh ref={pawLRef} geometry={GEO.sphere} material={M.cream} position={[-0.09, PAW_Y, PAW_Z]} scale={[0.085, 0.075, 0.2]} raycast={noRaycast} />
-      <mesh ref={pawRRef} geometry={GEO.sphere} material={M.cream} position={[0.09, PAW_Y, PAW_Z]} scale={[0.085, 0.075, 0.2]} raycast={noRaycast} />
-      {/* the tail: a root sunk in the rump, then the arc curling round her right side along the floor */}
-      <group ref={tailRef} position={[0.14, 0.05, -0.28]}>
-        <mesh geometry={GEO.sphere} material={M.orange} position={[0, 0.01, 0.07]} scale={[0.1, 0.09, 0.16]} raycast={noRaycast} />
-        <mesh geometry={TAIL} material={M.orange} position={[0.1, 0, 0.1]} rotation={[Math.PI / 2, 0, 0.5]} raycast={noRaycast} />
-        <mesh geometry={GEO.sphere} material={M.cream} position={[0.2, 0.0, 0.27]} scale={0.05} raycast={noRaycast} />
-      </group>
-      {/* the head: sunk into the loaf's front top so the neck is one curve */}
-      <group ref={headRef} position={[0, HEAD_Y, 0.16]}>
-        <StaticBatch version="static">
-          <mesh geometry={GEO.sphere} material={M.orange} scale={[0.25, 0.22, 0.23]} raycast={noRaycast} />
-          <mesh geometry={GEO.sphere} material={M.cream} position={[0, -0.07, 0.14]} scale={[0.13, 0.08, 0.09]} raycast={noRaycast} />
-          {/* closed, happy eyes; blush; a tiny nose; a little smile; whiskers */}
-          {[-0.08, 0.08].map((x) => (
-            <mesh key={x} geometry={EYE} material={M.dark} position={[x, 0.035, 0.21]} raycast={noRaycast} />
-          ))}
-          {[-0.135, 0.135].map((x) => (
-            <mesh key={x} geometry={GEO.sphere} material={M.blush} position={[x, -0.02, 0.165]} scale={[0.045, 0.028, 0.02]} raycast={noRaycast} />
-          ))}
-          <mesh geometry={GEO.sphere} material={M.pink} position={[0, -0.02, 0.225]} scale={[0.024, 0.017, 0.016]} raycast={noRaycast} />
-          <mesh geometry={SMILE} material={M.dark} position={[0, -0.05, 0.22]} rotation={[0, 0, Math.PI]} raycast={noRaycast} />
-          {[-1, 1].map((s) => (
-            <group key={s}>
-              <mesh geometry={GEO.box} material={M.whisker} position={[s * 0.16, -0.02, 0.155]} rotation={[0, 0, s * 0.15]} scale={[0.12, 0.004, 0.004]} raycast={noRaycast} />
-              <mesh geometry={GEO.box} material={M.whisker} position={[s * 0.16, -0.045, 0.155]} rotation={[0, 0, -s * 0.15]} scale={[0.12, 0.004, 0.004]} raycast={noRaycast} />
-            </group>
-          ))}
-        </StaticBatch>
-        {/* ears: rounded cones sunk into the skull, pink inside; they flick, so they stay their own draws */}
-        <group ref={earLRef} position={[-0.12, 0.135, -0.02]} rotation={[0, 0, 0.3]}>
-          <mesh geometry={GEO.cone} material={M.orange} position={[0, 0.03, 0]} scale={[0.1, 0.14, 0.08]} raycast={noRaycast} />
-          <mesh geometry={GEO.cone} material={M.pink} position={[0, 0.02, 0.025]} scale={[0.05, 0.08, 0.03]} raycast={noRaycast} />
-        </group>
-        <group ref={earRRef} position={[0.12, 0.135, -0.02]} rotation={[0, 0, -0.3]}>
-          <mesh geometry={GEO.cone} material={M.orange} position={[0, 0.03, 0]} scale={[0.1, 0.14, 0.08]} raycast={noRaycast} />
-          <mesh geometry={GEO.cone} material={M.pink} position={[0, 0.02, 0.025]} scale={[0.05, 0.08, 0.03]} raycast={noRaycast} />
-        </group>
-        {/* the yawn and the tongue only show during a stretch, a chew or a wash */}
-        <mesh ref={yawnRef} geometry={GEO.sphere} material={M.mouth} position={[0, -0.06, 0.21]} scale={[0.03, 0.01, 0.02]} visible={false} raycast={noRaycast} />
-        <mesh ref={tongueRef} geometry={GEO.sphere} material={M.pink} position={[0, -0.075, 0.2]} scale={[0.02, 0.012, 0.03]} visible={false} raycast={noRaycast} />
-      </group>
-      {children}
-    </group>
-  );
+  return <primitive object={root} />;
 }
+
+// the stand-in while the file loads, or if it cannot: a plain ginger lump of her size
+const STAND_IN = matte("#eb9a55", 0.8);
+function StandIn() {
+  return <mesh geometry={GEO.sphere} material={STAND_IN} position={[0, 0.16, 0]} scale={[0.38, 0.32, 0.6]} raycast={noRaycast} />;
+}
+
+/** Mochi posed by `drive` (or resting, without one). The model is authored at diorama scale, about 0.66 long. */
+export const MochiModel: React.FC<{ drive?: React.RefObject<MochiDrive> | any }> = ({ drive }) => {
+  const idle = useRef(restDrive());
+  return (
+    <ModelBoundary what="mochi.glb" fallback={<StandIn />}>
+      <Suspense fallback={<StandIn />}>
+        <MochiRig drive={drive ?? idle} />
+      </Suspense>
+    </ModelBoundary>
+  );
+};
+
+/** A self-contained Mochi you can place anywhere: a group around the model. */
+export const Mochi: React.FC<GroupProps & { drive?: React.RefObject<MochiDrive> }> = ({ drive, ...group }) => (
+  <group {...group}>
+    <MochiModel drive={drive} />
+  </group>
+);
+
+export default Mochi;
+
+useGLTF.preload(MOCHI_URL);

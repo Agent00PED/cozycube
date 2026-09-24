@@ -3,87 +3,78 @@ import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type { Group } from "three";
 import type { MapId, PlayerState } from "@shared/types";
-import { isBlocked, walkY } from "@shared/collision";
+import { clampToWorld, isBlocked } from "@shared/collision";
 import { findPath, type Point } from "@shared/pathfinding";
-import { cameraFocus, requestRecenter } from "../scene/cameraFocus";
+import { cameraFocus } from "../scene/cameraFocus";
 import { worldMoveDirection } from "./input";
 
-// --- Movement feel ---
-const MOVE_SPEED = 3; // units/sec — must match MOVE_SPEED_PER_SEC in server/src/rooms/HangoutRoom.ts
-const ACCELERATION = 14; // units/sec^2: ~0.2s to full speed, so starts feel soft, not robotic
-const ARRIVE_RADIUS = 0.7; // start easing off this far from the final waypoint
-const ARRIVE_THRESHOLD = 0.05; // world units from the final waypoint counted as "arrived"
-const WAYPOINT_THRESHOLD = 0.2; // how close counts as reaching an intermediate waypoint
+// The local player's locomotion. Three inputs, one controller:
+//   - click-to-move: the scene sets `targetRef` from a floor raycast, and the shared pathfinder
+//     routes round the furniture
+//   - WASD / arrow keys and the on-screen joystick, both through worldMoveDirection()
+//   - arriving on a target sits on its seat or uses its prop
+//
+// The CLIENT is the authority on where you are: every step is collided here with the SAME test
+// the server runs (shared/collision.ts), inside the strict floor bounds (NAV_LIMIT), and the
+// server only validates and relays the reports.
+
+const MOVE_SPEED = 3; // units/sec; the server's MOVE_SPEED_PER_SEC must match
+const ACCELERATION = 14;
+const ARRIVE_RADIUS = 0.7; // ease off this far from the final waypoint
+const ARRIVE_THRESHOLD = 0.05;
+const WAYPOINT_THRESHOLD = 0.2;
 const TURN_LERP = 0.22;
 const SEAT_HEIGHT_LERP = 0.2;
-const GROUND_LERP = 0.35; // stepping onto the bridge deck / down its ramps
 const SIT_CONFIRM_TIMEOUT = 1.5;
-// A backgrounded tab or a GC pause can deliver one frame spanning whole seconds; integrating
-// that raw would move the player many units in a single step.
-const MAX_FRAME_DELTA = 0.1;
-
-// --- Networking ---
-// ~16 Hz. Remote players interpolate between these (see RemotePlayerAvatar), so the report
-// rate only sets how much latency their view carries, not how smooth it looks.
+const MAX_FRAME_DELTA = 0.1; // a backgrounded tab must not integrate seconds in one step
 const SEND_INTERVAL = 1 / 16;
 const DIR_CHANGE_EPSILON = 0.2;
-
-// --- Reconciliation ---
-// The client is the authority on where you are. The server only ever overrides that for a
-// real teleport (a map change, a stand-up to the approach point) or when it has refused an
-// impossible report. There is NO hard snap for ordinary drift: small differences are ignored,
-// and a genuine correction is blended in over a fraction of a second instead of popping.
-const CORRECTION_THRESHOLD = 0.9; // server disagreement worth acting on
-const TELEPORT_THRESHOLD = 4; // beyond this it IS a teleport — adopt it instantly
-const CORRECTION_BLEND = 0.25; // seconds to glide onto a corrected position
-
-// Collision: the SAME test the server runs, with long steps split so a corner can't be skipped.
-const COLLIDE_SUBSTEP = 0.12;
+// server reconciliation: small differences are ignored, real corrections glide, teleports snap
+const CORRECTION_THRESHOLD = 0.9;
+const TELEPORT_THRESHOLD = 4;
+const CORRECTION_BLEND = 0.25;
+const COLLIDE_SUBSTEP = 0.12; // long steps are split so a corner can't be skipped
 const PLAYER_RADIUS = 0.3;
 
 export interface MoveTarget {
   x: number;
   z: number;
-  /** When set, the player sits on this seat once they arrive. */
+  /** Sit on this seat on arrival. */
   seatId?: string;
-  /** When set, the player uses this walk-up prop (espresso machine, arcade) once they arrive. */
+  /** Use this walk-up prop on arrival (Mochi opens her playroom). */
   propId?: string;
-  /** Guard against re-sending on arrival. Lives on the target object (not a ref) so a fresh
-   *  click always gets a fresh attempt. */
+  /** Guards against re-sending the sit request. */
   sent?: boolean;
-  /** Waypoints to walk, filled in by the pathfinder the first frame the target is seen. */
+  /** Waypoints, filled in by the pathfinder the first frame the target is seen. */
   path?: Point[];
 }
 
 function lerpAngle(from: number, to: number, t: number): number {
-  let delta = (to - from) % (Math.PI * 2);
-  if (delta > Math.PI) delta -= Math.PI * 2;
-  if (delta < -Math.PI) delta += Math.PI * 2;
-  return from + delta * t;
+  let d = (to - from) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return from + d * t;
 }
 
-/** Axis-separated so brushing a wall slides along it, like the server does. */
+/** Axis-separated, so brushing a wall or a table slides along it. */
 function slideStep(pos: Point, dx: number, dz: number, mapId: MapId) {
   const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / COLLIDE_SUBSTEP));
   const sx = dx / steps;
   const sz = dz / steps;
   for (let i = 0; i < steps; i++) {
-    const nx = pos.x + sx;
+    const nx = clampToWorld(pos.x + sx, mapId);
     if (!isBlocked(nx, pos.z, mapId, PLAYER_RADIUS)) pos.x = nx;
-    const nz = pos.z + sz;
+    const nz = clampToWorld(pos.z + sz, mapId);
     if (!isBlocked(pos.x, nz, mapId, PLAYER_RADIUS)) pos.z = nz;
   }
 }
 
-// Click-to-move with the CLIENT as the authority: the pathfinder routes round furniture, the
-// walk accelerates and eases into its stop, and every step is collided locally, all with zero
-// input latency. The server validates the reports for sanity and relays them to everyone else.
 export function useLocalPlayerMovement(
   groupRef: React.RefObject<Group>,
   room: Room | null,
   player: PlayerState,
-  targetPosRef: React.MutableRefObject<MoveTarget | null>,
-  // Read by Character3D's gait animation — 0 when stationary, 1 at full walking speed.
+  targetRef: React.MutableRefObject<MoveTarget | null>,
+  /** Read by the avatar's gait: 0 standing, 1 at full walking speed. */
   speedRef: React.MutableRefObject<number>,
   mapId: MapId
 ) {
@@ -96,11 +87,10 @@ export function useLocalPlayerMovement(
   const initializedRef = useRef(false);
   const sitWaitRef = useRef(0);
   const seatYRef = useRef(0);
-  const groundYRef = useRef(0);
-  // A server correction being blended in: the offset still to apply, and time left to apply it.
+  const standRequestedRef = useRef(false);
   const correctionRef = useRef({ x: 0, z: 0, remaining: 0 });
 
-  // Reconcile with the server's view of us — see the constants above for the rules.
+  // reconcile with the server's view of us
   useEffect(() => {
     if (player.sitting) {
       posRef.current = { x: player.x, z: player.z };
@@ -115,8 +105,8 @@ export function useLocalPlayerMovement(
     const dz = player.z - posRef.current.z;
     const drift = Math.hypot(dx, dz);
     if (drift > TELEPORT_THRESHOLD) {
-      posRef.current = { x: player.x, z: player.z }; // map change or the like: adopt outright
-      targetPosRef.current = null;
+      posRef.current = { x: player.x, z: player.z };
+      targetRef.current = null;
       correctionRef.current.remaining = 0;
     } else if (drift > CORRECTION_THRESHOLD) {
       correctionRef.current = { x: dx, z: dz, remaining: CORRECTION_BLEND };
@@ -124,8 +114,7 @@ export function useLocalPlayerMovement(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.x, player.z, player.sitting]);
 
-  // Sitting down and standing up are server-authored teleports (onto the seat, and back out
-  // to its approach point); adopt the server position verbatim on either transition.
+  // sitting down and standing up are server-authored teleports: adopt the server position
   const prevSittingRef = useRef(player.sitting);
   useEffect(() => {
     if (prevSittingRef.current !== player.sitting) {
@@ -133,9 +122,8 @@ export function useLocalPlayerMovement(
       posRef.current = { x: player.x, z: player.z };
       velocityRef.current = 0;
       correctionRef.current.remaining = 0;
-      // Standing up must NOT clear the target: it is normally triggered BY a click that has
-      // already queued the walk the player wants.
-      if (player.sitting) targetPosRef.current = null;
+      standRequestedRef.current = false;
+      if (player.sitting) targetRef.current = null; // standing up must NOT clear a queued walk
       sitWaitRef.current = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -147,7 +135,6 @@ export function useLocalPlayerMovement(
     let dirX = 0;
     let dirZ = 0;
 
-    // Blend in any pending server correction.
     const correction = correctionRef.current;
     if (correction.remaining > 0) {
       const share = Math.min(1, delta / correction.remaining);
@@ -158,15 +145,18 @@ export function useLocalPlayerMovement(
       correction.remaining -= delta;
     }
 
-    if (!player.sitting) {
-      // Held keys or the joystick take over from any click-to-move target: you steer, the
-      // path is dropped, and the same collision slide keeps you off the furniture.
-      const steer = worldMoveDirection();
-      if (steer && targetPosRef.current) {
-        targetPosRef.current = null;
-        requestRecenter();
+    const steer = worldMoveDirection();
+
+    if (player.sitting) {
+      // steering from a seat gets you up; a click does the same through the scene
+      if (steer && room && !standRequestedRef.current) {
+        standRequestedRef.current = true;
+        room.send("standUp");
       }
-      const target = targetPosRef.current;
+    } else {
+      // held keys or the joystick take over from any click-to-move target
+      if (steer && targetRef.current) targetRef.current = null;
+      const target = targetRef.current;
       if (steer) {
         dirX = steer.x;
         dirZ = steer.z;
@@ -175,9 +165,7 @@ export function useLocalPlayerMovement(
         slideStep(pos, dirX * velocityRef.current * delta, dirZ * velocityRef.current * delta, mapId);
         facingRef.current = lerpAngle(facingRef.current, Math.atan2(dirX, dirZ), TURN_LERP);
       } else if (target) {
-        // Route once per click, the first frame the target is seen.
         if (!target.path) target.path = findPath(mapId, pos, { x: target.x, z: target.z }) ?? [];
-
         const path = target.path;
         const waypoint = path[0];
         if (waypoint) {
@@ -185,48 +173,41 @@ export function useLocalPlayerMovement(
           const dz = waypoint.z - pos.z;
           const distance = Math.hypot(dx, dz);
           const isFinal = path.length === 1;
-
           if (distance > (isFinal ? ARRIVE_THRESHOLD : WAYPOINT_THRESHOLD)) {
             dirX = dx / distance;
             dirZ = dz / distance;
-            // Accelerate toward full speed, and ease off approaching the last waypoint only.
-            const remaining = isFinal ? distance : Infinity;
-            const cap = remaining < ARRIVE_RADIUS ? MOVE_SPEED * Math.max(0.35, remaining / ARRIVE_RADIUS) : MOVE_SPEED;
+            const cap = isFinal && distance < ARRIVE_RADIUS ? MOVE_SPEED * Math.max(0.35, distance / ARRIVE_RADIUS) : MOVE_SPEED;
             velocityRef.current = Math.min(cap, velocityRef.current + ACCELERATION * delta);
             const step = Math.min(velocityRef.current * delta, distance);
             const before = { x: pos.x, z: pos.z };
             slideStep(pos, dirX * step, dirZ * step, mapId);
-            // Wedged against something the path didn't expect (another route change, a
-            // corrected position): re-plan from here rather than grinding.
+            // wedged against something the path didn't expect: re-plan from here
             if (Math.hypot(pos.x - before.x, pos.z - before.z) < step * 0.05) {
               target.path = findPath(mapId, pos, { x: target.x, z: target.z }) ?? [];
-              if (target.path.length === 0) targetPosRef.current = null;
+              if (target.path.length === 0) targetRef.current = null;
             }
             facingRef.current = lerpAngle(facingRef.current, Math.atan2(dirX, dirZ), TURN_LERP);
-          } else if (!isFinal) {
-            path.shift(); // on to the next waypoint
           } else {
-            path.shift();
+            path.shift(); // on to the next waypoint, or arrived
           }
         } else {
-          // Path finished: this is arrival.
+          // path finished: arrival
           velocityRef.current = 0;
           if (target.propId && room) {
-            // The arrival position rides along with the request: the server's copy of our
-            // position is only as fresh as the last throttled report.
+            // the arrival position rides along: the server's copy is only as fresh as the last report
             room.send("useProp", { propId: target.propId, x: pos.x, z: pos.z });
-            targetPosRef.current = null;
+            targetRef.current = null;
           } else if (target.seatId && room && !target.sent) {
             target.sent = true;
             room.send("interactChair", { chairId: target.seatId, x: pos.x, z: pos.z });
           } else if (!target.seatId) {
-            targetPosRef.current = null;
+            targetRef.current = null;
           } else {
-            // Sit already requested; if the server never confirms (seat taken meanwhile), give up.
+            // sit already requested; if the server never confirms (someone got there first), give up
             sitWaitRef.current += delta;
             if (sitWaitRef.current > SIT_CONFIRM_TIMEOUT) {
               sitWaitRef.current = 0;
-              targetPosRef.current = null;
+              targetRef.current = null;
             }
           }
         }
@@ -249,17 +230,14 @@ export function useLocalPlayerMovement(
 
     speedRef.current = player.sitting ? 0 : velocityRef.current / MOVE_SPEED;
     seatYRef.current += ((player.sitting ? player.sitY : 0) - seatYRef.current) * SEAT_HEIGHT_LERP;
-    // Elevated walkways (the campfire's plank bridge) lift the feet onto their deck.
-    groundYRef.current += ((player.sitting ? 0 : walkY(mapId, pos.x, pos.z)) - groundYRef.current) * GROUND_LERP;
     if (player.sitting) facingRef.current = player.sitRotationY;
 
     if (groupRef.current) {
-      groupRef.current.position.set(pos.x, seatYRef.current + groundYRef.current, pos.z);
+      groupRef.current.position.set(pos.x, seatYRef.current, pos.z);
       groupRef.current.rotation.y = facingRef.current;
     }
 
-    // Hand the camera (and the sand footprints, occlusion fade, volleyball) the predicted
-    // position — what you SEE, not what the server last heard.
+    // hand the action dock the predicted position: what you SEE, not what the server last heard
     cameraFocus.x = pos.x;
     cameraFocus.z = pos.z;
     cameraFocus.dirX = dirX;

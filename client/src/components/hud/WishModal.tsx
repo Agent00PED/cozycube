@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { WISH_COST } from "@shared/types";
 import { Modal } from "./Modal";
-import { playCoin, playPlop } from "../../audio/sfx";
 
 interface Props {
   coins: number;
@@ -16,11 +15,9 @@ export function WishModal({ coins, result, onWish, onClose }: Props) {
   useEffect(() => {
     if (!result) return;
     setTossed(false);
-    if (result.lucky > 0) playCoin();
   }, [result]);
   const wish = () => {
     if (coins < WISH_COST) return;
-    playPlop();
     setTossed(true);
     onWish();
   };

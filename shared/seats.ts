@@ -1,23 +1,21 @@
-import type { SeatStyle, SitPose } from "./types";
-
 // Seat anchors are DERIVED, never typed in by hand.
 //
-// Every seat is drawn from one cushion primitive (a unit box, cylinder or sphere from the mesh
-// kit, scaled and positioned). That primitive is described here ONCE, and both sides read it:
-// the world files draw the cushion from it, and props.ts computes where a seated avatar goes
-// from it. Move a cushion and the avatar moves with it; there is no second number to forget.
+// Every seat is drawn from one cushion primitive: a unit box, cylinder or sphere from the mesh
+// kit, scaled to `h` tall and centred at `y`. That is described here ONCE. The world draws the
+// cushion from it, and props.ts computes where a seated avatar goes from it, so moving a cushion
+// moves the avatar with it and there is no second number to forget.
 //
-// surfaceY = geometry.boundingBox.max.y * scale.y + position.y   (kit shapes are unit-sized,
-// so boundingBox.max.y is 0.5 for a box, cylinder or sphere)
+//   surfaceY = geometry.boundingBox.max.y * scale.y + position.y
+//
+// (the kit's unit shapes are 1 tall about their centre, so boundingBox.max.y is 0.5)
 
 export interface Cushion {
   /** Centre height of the cushion primitive (its `position.y`). */
   y: number;
-  /** Full height of the primitive (its `scale.y`); the kit's unit shapes are 1 unit tall. */
+  /** Full height of the primitive (its `scale.y`). */
   h: number;
 }
 
-/** Every kit primitive is authored 1 unit tall about its centre. */
 const UNIT_BOUNDING_BOX_MAX_Y = 0.5;
 
 /** The top surface of a cushion, from its bounding box. */
@@ -25,84 +23,29 @@ export function surfaceY(c: Cushion): number {
   return UNIT_BOUNDING_BOX_MAX_Y * c.h + c.y;
 }
 
-// --- The avatar's own proportions that seating depends on (mirrored by Character3D) ---
+// --- The avatar's proportions that seating depends on (client/src/entities/Avatar.tsx asserts them) ---
 
-/** Height of the chibi's hip pivot above its soles; its legs fold forward here when it sits. */
+/** Height of the hip pivot above the soles; the thighs fold forward from here when sitting. */
 export const AVATAR_HIP_Y = 0.27;
-/** Radius of the leg capsules: the folded legs hang this far below the hip pivot. */
+/** Radius of the leg capsules: the folded thighs hang this far below the hip pivot. */
 export const AVATAR_LEG_RADIUS = 0.085;
-/**
- * How far above the cushion surface the hip pivot rests. The legs are AVATAR_LEG_RADIUS thick
- * below the pivot, so this leaves them pressed into the top of the cushion by a whisker (soft
- * seats give a little) instead of hovering over it or sinking into it.
- */
-export const AVATAR_HIP_OFFSET = 0.07;
-/** Lying down, the body rolls onto its back; its back is this far above the avatar origin. */
-export const AVATAR_BACK_LIFT = 0.03;
-/** A seated avatar's top of head (hat included) above its origin. Used for headroom checks. */
-export const AVATAR_SEATED_HEIGHT = 1.78;
-/** Clear air wanted between a seated head and anything overhead (roof eaves, tent canvas). */
-export const HEADROOM_MIN = 0.5;
+/** The hip pivot rests this far above the cushion surface (the thighs sink into it by a whisker). */
+export const AVATAR_HIP_OFFSET = 0.1;
 
-/** The vertical offset of a seated avatar's origin so its hips rest on `cushion`. */
-export function seatAnchorY(cushion: Cushion, pose: SitPose = "sit"): number {
-  const top = surfaceY(cushion);
-  if (pose === "lie") return top - AVATAR_BACK_LIFT;
-  return top + AVATAR_HIP_OFFSET - AVATAR_HIP_Y;
+/** Where a seated avatar's ORIGIN (its soles' height) goes so its hips rest on `cushion`. */
+export function seatAnchorY(cushion: Cushion): number {
+  return surfaceY(cushion) + AVATAR_HIP_OFFSET - AVATAR_HIP_Y;
 }
 
-// --- The cushions themselves ---
-// Keyed by the world piece they belong to. Seat styles drawn by ChairProp reference these by
-// style name; "pad" seats drawn by the worlds (sofas, beanbags, cushions, pier planks) name
-// their own entry.
+// --- The Loft's cushions (proportioned to the 1.3-unit avatar: seats 0.36, stools 0.48) ---
 
 export const CUSHIONS = {
-  // ChairProp styles (see client/src/components/ChairProp.tsx)
-  stool: { y: 0.77, h: 0.04 }, // the padded top of a bar stool
-  armchair: { y: 0.42, h: 0.08 }, // seat cushion
-  wood: { y: 0.46, h: 0.05 }, // plank seat
-  gaming: { y: 0.37, h: 0.1 },
-  log: { y: 0.21, h: 0.44 }, // a log lying on its side: its diameter is its height
-  deckchair: { y: 0.3, h: 0.06 }, // the sling where the hips land (it slopes; this is its middle)
-  blanket: { y: 0.06, h: 0.02 },
-  // "pad" seats drawn by the worlds
-  beanbag: { y: 0.2, h: 0.42 }, // the beanbag's squashed sphere
-  floorCushion: { y: 0.17, h: 0.08 }, // the plump top of a floor cushion
-  pierPlank: { y: 0.13, h: 0.06 }, // the pier deck (BeachWorld)
-  vipSofa: { y: 0.48, h: 0.1 }, // the chesterfield's seat cushions (CasinoWorld)
-  hammock: { y: 0.62, h: 0.08 }, // the canvas sling between its posts (CampfireWorld)
-  sleepingMat: { y: 0.05, h: 0.06 }, // a foam mat on the grass
-  cabanaBed: { y: 0.38, h: 0.12 }, // the daybed cushions under the beach cabana (BeachWorld)
-  wingback: { y: 0.44, h: 0.1 }, // the deep seat of a wingback armchair (ChairProp)
-  bleacherLow: { y: 0.3, h: 0.1 }, // the three tiers of the boxing bleachers (BoxingWorld)
-  bleacherMid: { y: 0.6, h: 0.1 },
-  bleacherHigh: { y: 0.9, h: 0.1 },
-  onsenLedge: { y: 0.1, h: 0.2 }, // the stone ledge under the water, relative to the pool floor (OnsenWorld)
-  ringApron: { y: 0.0, h: 0.06 }, // the ring's edge you sit on with your legs over the side
-  velvetBench: { y: 0.4, h: 0.1 }, // the foyer benches in the casino
-  // the Loft (LoungeWorld draws every one of its seats itself, from these)
-  // (proportioned to the 1.3-unit avatar: seats at 0.36, stools at 0.48, the chaise lower)
-  loftSofa: { y: 0.3, h: 0.12 }, // the corner sofa in the pit, relative to the pit floor
-  loftWingback: { y: 0.31, h: 0.1 }, // the wingback in the reading nook
-  loftStool: { y: 0.45, h: 0.06 }, // the island's counter stools
-  loftDining: { y: 0.34, h: 0.04 }, // the bistro and board-game chairs
-  chaise: { y: 0.26, h: 0.12 }, // the chaise under the windows
-  loveseat: { y: 0.3, h: 0.12 }, // the loveseat in the lounge corner
-  loftArmchair: { y: 0.3, h: 0.12 }, // the armchair beside it
+  sofa: { y: 0.3, h: 0.12 }, // the sectional's seat cushions -> top 0.36
+  wingback: { y: 0.3, h: 0.12 }, // the reading armchair
+  chaise: { y: 0.26, h: 0.12 }, // a little lower: you recline into it -> top 0.32
+  stool: { y: 0.45, h: 0.06 }, // the island's counter stools -> top 0.48
+  dining: { y: 0.34, h: 0.04 }, // bistro and games-table chairs -> top 0.36
+  pouf: { y: 0.16, h: 0.32 }, // the floor poufs round the low table -> top 0.32
 } as const satisfies Record<string, Cushion>;
 
 export type CushionId = keyof typeof CUSHIONS;
-
-/** The cushion a ChairProp-drawn style sits you on. */
-export const STYLE_CUSHION: Record<Exclude<SeatStyle, "pad">, CushionId> = {
-  stool: "stool",
-  armchair: "armchair",
-  wood: "wood",
-  gaming: "gaming",
-  log: "log",
-  deckchair: "deckchair",
-  blanket: "blanket",
-  onsen: "onsenLedge",
-  bleacher: "bleacherLow",
-  wingback: "wingback",
-};

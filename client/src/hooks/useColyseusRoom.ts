@@ -106,6 +106,7 @@ interface UseColyseusRoomResult {
   reelIn: () => void;
   /** Wardrobe: buy a full outfit by id (server checks the price and the gacha-only flag). */
   buyOutfit: (outfit: string) => void;
+  buyHair: (style: string) => void;
   pullGacha: () => void;
   clawPlay: (aim: number) => void;
   arcadeScore: (score: number) => void;
@@ -468,6 +469,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     setStatus: (status) => send("setStatus", { status }),
     reelIn: () => send("reelIn"),
     buyOutfit: (outfit) => send("buy_outfit", { outfit }),
+    buyHair: (style) => send("buy_hair", { style }),
     pullGacha: () => send("pull_gacha"),
     clawPlay: (aim) => send("claw_play", { aim }),
     arcadeScore: (score) => send("arcade_score", { score }),

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { CHIP_VALUES, MAX_BET_TOTAL, ROULETTE_PHASE_SECONDS, parseBets, pocketColor, type RouletteResultBroadcast, type RouletteSyncState } from "@shared/types";
 import { glass, hudText } from "./glass";
-import { playChip, playClick, playConfetti } from "../../audio/sfx";
 
 const CONFETTI = Array.from({ length: 18 }, (_, i) => ({
   dx: `${Math.cos(i * 0.35 + 0.2) * (90 + (i % 4) * 30)}px`,
@@ -59,7 +58,6 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
         const mine = winners.find((w) => w.sessionId === localSessionId);
         if (mine) {
           setOutcome({ result, text: `You won ${mine.amount} 🪙!`, win: true });
-          playConfetti();
         }
         else if (ridingRef.current > 0) setOutcome({ result, text: `No luck — ${ridingRef.current} 🪙 to the house`, win: false });
         else setOutcome({ result, text: "Place a chip next round!", win: false });
@@ -69,7 +67,6 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
 
   const place = (kind: string) => {
     if (!canBet) return;
-    playChip();
     onPlaceBet(kind, chip);
   };
 
@@ -101,7 +98,6 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
           type="button"
           style={styles.close}
           onClick={() => {
-            playClick();
             onClose();
           }}
           aria-label="Close the betting board"
@@ -148,7 +144,6 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
               key={v}
               type="button"
               onClick={() => {
-                playClick();
                 setChip(v);
               }}
               aria-pressed={chip === v}
@@ -166,7 +161,6 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
             type="button"
             style={styles.clear}
             onClick={() => {
-              playClick();
               onClearBets();
             }}
           >
