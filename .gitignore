@@ -10,3 +10,6 @@ dist/
 # Claude Code: track shared skills, keep local machine settings out
 .claude/*
 !.claude/skills/
+
+# Local Python virtualenv (Blender tooling)
+.venv/
