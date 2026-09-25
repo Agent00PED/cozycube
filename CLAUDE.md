@@ -2,7 +2,7 @@
 
 A Discord Activity: an isometric diorama hangout (Colyseus server + React Three Fiber client)
 with eight worlds in the registry, in the fast-travel grid's order — Cozy Lounge (15x15, built),
-the Starlight Campfire (16x16, built: roasting, pond fishing, the guitar), Sunset Beach Bar,
+the Starlight Campfire (22x22, built: roasting, a river with a three-spot fishing dock, two-seat log benches, the guitar; always night), Sunset Beach Bar,
 Japanese Onsen, Velvet Casino, Boxing Gym, Retro Arcade and the Gaming Cafe (registered, not built:
 each is a bare floor with no seats or props until its world is authored).
 
@@ -13,14 +13,14 @@ each is a bare floor with no seats or props until its world is authored).
 | `shared/types.ts` | Synced state shapes, economy constants, items, gestures, statuses, game contracts, map sizes |
 | `shared/worlds/index.ts` | The world table: `WorldId`, `WORLDS` (map id, name, icon, size, built), `ACTIVE_WORLD` |
 | `shared/worlds/lounge.ts` | The Loft's whole floor plan, authored once: zones, seats, props, colliders, spawns, Mochi's route |
-| `shared/worlds/campfire.ts` | The Campfire's floor plan: `CAMPFIRE_LAYOUT` (plain JSON between markers, read as-is by `build_campfire.py`), seats (logs; hammock and tent lie seats), props, colliders, spawns |
+| `shared/worlds/campfire.ts` | The Campfire's floor plan: `CAMPFIRE_LAYOUT` (plain JSON between markers, read as-is by `build_campfire.py`), `riverSpan` (the river spline; the builder has the same function), seats (two per log; hammock and tent lie seats), props (the bonfire, three fishing spots), colliders, spawns |
 | `shared/seats.ts` | Cushion descriptors and the avatar's hip constants; every seat anchor height is derived from them |
 | `shared/collision.ts` | Obstacle boxes, spawns, `isBlocked`, `worldLimit` (the lounge is clamped to +-7.0) |
 | `shared/props.ts` | Per-map seats and props with approach points, and `mochiSpot` (her wall-clock day) |
 | `shared/pathfinding.ts` | Grid A* over the same collision the server validates against |
 | `server/src/rooms/HangoutRoom.ts` | All authoritative logic (economy, seats, props, Mochi, chat, ...) |
 | `server/src/db/players.ts` | PostgreSQL store (DATABASE_URL) with in-memory fallback |
-| `client/src/scene/` | `IsometricCanvas` (fitted ortho camera), `WorldScene` (root), `LoungeWorld` (the room), `CampfireWorld` (loads `campfire.glb`; fire light, embers, fireflies, stars), `Props` (lamps, Mochi, seat pads, effects), `kit` (primitives, `StaticBatch`), lighting per hour |
+| `client/src/scene/` | `IsometricCanvas` (fitted ortho camera), `WorldScene` (root), `LoungeWorld` (the room), `CampfireWorld` (loads `campfire.glb`; fire light, moonlight, the midnight sky gradient, embers, fireflies, stars), `Props` (lamps, Mochi, seat pads, effects), `kit` (primitives, `StaticBatch`), lighting per hour |
 | `client/src/entities/` | `Avatar` and `Mochi` (pure GLTF loaders via `useGLTF`), `rig.ts` (node/material contracts), `ModelBoundary`, `MochiPlayroomModal`, `Players` |
 | `client/public/models/` | The ONLY location for 3D assets: `avatar.glb` (with its held props: mug, watering can, skewer, rod, guitar, bobber), `cat.glb` (Mochi), `props.glb` (the lounge's small props), `campfire.glb` (the Campfire diorama). All assets are authored in Blender |
 | `scripts/blender/` | Blender Python automation scripts (executed via Live Bridge http://127.0.0.1:8192 or headless CLI) |

@@ -950,7 +950,7 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
 // --- world sizes ---
 /** Half-width of each diorama slab. Indoor rooms keep their walls at ROOM_HALF; the slab beyond
  *  the open sides is the terrace / foyer that the bigger footprint adds. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 8, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
 /** Where the two back walls of an indoor room stand (x = -ROOM_HALF and z = -ROOM_HALF). */
 export const ROOM_HALF = 10;
 /** The casino's raised VIP lounge, behind the velvet rope. */
@@ -1064,7 +1064,7 @@ export interface RoastResult {
   capped: boolean;
 }
 
-/** What the pond gives up to a starlight fishing line, and what each is worth. */
+/** What the river gives up to a starlight fishing line, and what each is worth. */
 export const STARLIGHT_CATCHES = {
   minnow: { name: "Chibi Minnow", emoji: "🐟", coins: 10, weight: 40 },
   trout: { name: "River Trout", emoji: "🐠", coins: 15, weight: 30 },

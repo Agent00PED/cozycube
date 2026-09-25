@@ -18,17 +18,19 @@ walkable floor and seat anchors are derived from. A stylised chibi clay island, 
 opaque and matte (roughness 0.7-0.9; the water a little glossier), one object per named part:
 
     Campfire_Ground     the floating island: moss on top, midnight soil on its bevelled sides, the
-                        pond dug into its east side (a dark bed, stone walls)
+                        river dug down its east side (a dark bed, stone banks)
     Campfire_Underside  the rock tapering away beneath it, so it floats
     Campfire_Paths      the packed-dirt clearing round the fire and the paths off it
     Campfire_Grass      patches of darker and lighter moss
-    Campfire_Water      the pond's glossy surface
+    Campfire_Water      the river's glossy surface
     Prop_Bonfire        the stone ring, the teepee of logs, the ash and the glowing ember bed
     Fire_Flame_Outer    the fire's flames, two nested teardrops (their origin at the base: the
     Fire_Flame_Inner    game flickers them by scaling)
-    Seat_Log_01..04     the fallen-log benches round the fire
-    Prop_FishingSpot    the plank pier out over the pond, its posts and its lantern
-    Pier_Lantern_Glow   the lantern's glass (the game lights it)
+    Seat_Log_01..04     the fallen-log benches round the fire, two seats each (empties
+                        Seat_Log_0N_L / _R mark each sitter's place on the log's top)
+    Prop_Dock           the wide plank boardwalk out over the river, its posts and two lanterns
+                        (empties Prop_FishingSpot_01..03 mark where each angler stands)
+    Pier_Lantern_Glow   the lanterns' glass (the game lights them)
     Seat_Tent           the canvas tipi, flap open toward the fire, poles out of its crown, a mat
                         and a pillow inside
     Seat_Hammock        the striped hammock, its spreader bars and ropes (its pines are trees)
@@ -39,6 +41,10 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
 
 Coordinates: the game's (x, y up, z) is Blender's (x, -z, y); `W` converts, so every number below
 reads as in campfire.ts.
+
+The ground decals (moss patches, paths, the clearing) each sit on their own layer a few
+millimetres over the moss, and no two patches of a layer overlap: nothing on the island's top is
+coplanar with anything else, so nothing z-fights (CampfireWorld.tsx adds a polygon offset on top).
 """
 
 import json
@@ -92,6 +98,10 @@ PALETTE = {
     "CF_PetalYellow": "#F4D35E",
 }
 ROUGHNESS = {"CF_Water": 0.25, "CF_Metal": 0.6}
+# the ground decals' tops, a layer each over the moss (y = 0): patches, paths, then the clearing
+LAYER_PATCH = 0.008
+LAYER_PATH = 0.015
+LAYER_CLEARING = 0.022
 # glowing things: (strength) of an emission in their own colour
 EMISSION = {"CF_Ember": 2.2, "CF_FlameOuter": 3.0, "CF_FlameInner": 4.0, "CF_LanternGlass": 2.5}
 # thin sheets seen from both sides
@@ -129,6 +139,98 @@ def read_layout(root):
     src = open(os.path.join(root, "shared", "worlds", "campfire.ts"), encoding="utf-8").read()
     body = re.search(r"/\* layout:begin \*/(.*?)/\* layout:end \*/", src, re.S).group(1)
     return json.loads(body)
+
+
+def catmull(p0, p1, p2, p3, u):
+    return 0.5 * (2 * p1 + (p2 - p0) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (3 * p1 - p0 - 3 * p2 + p3) * u * u * u)
+
+
+def river_span(L, z):
+    """The river's (west, east) banks at z, or None: riverSpan in shared/worlds/campfire.ts."""
+    P = L["river"]["points"]
+    n = len(P)
+    z_first, x_first, w_first = P[0]
+    z_last, x_last, w_last = P[-1]
+    if z < z_first:
+        d = z_first - z
+        if d >= w_first:
+            return None
+        w = math.sqrt(w_first * w_first - d * d)
+        return (x_first - w, x_first + w)
+    if z > z_last:
+        d = z - z_last
+        if d >= w_last:
+            return None
+        w = math.sqrt(w_last * w_last - d * d)
+        return (x_last - w, x_last + w)
+    i = 0
+    while i < n - 2 and z > P[i + 1][0]:
+        i += 1
+    u = (z - P[i][0]) / (P[i + 1][0] - P[i][0])
+    at = lambda k: P[max(0, min(n - 1, k))]
+    x = catmull(at(i - 1)[1], at(i)[1], at(i + 1)[1], at(i + 2)[1], u)
+    w = catmull(at(i - 1)[2], at(i)[2], at(i + 1)[2], at(i + 2)[2], u)
+    return (x - w, x + w)
+
+
+def in_river(L, x, z, pad=0.0):
+    span = river_span(L, z)
+    return span is not None and span[0] - pad <= x <= span[1] + pad
+
+
+def river_banks(L, grow=0.0, step=0.1):
+    """The river's outline as matching west and east bank points down its length, north to south,
+    each `grow` out from the water's edge. The round ends are sampled more finely."""
+    P = L["river"]["points"]
+    z0, z1 = P[0][0] - P[0][2], P[-1][0] + P[-1][2]
+    zs = []
+    for k in range(13):  # the north cap, finely (a quarter circle's worth of angle steps)
+        zs.append(P[0][0] - P[0][2] * math.cos(math.pi / 2 * k / 12))
+    z = P[0][0] + step
+    while z < P[-1][0]:
+        zs.append(z)
+        z += step
+    for k in range(13):  # the south cap
+        zs.append(P[-1][0] + P[-1][2] * math.sin(math.pi / 2 * k / 12))
+    west, east = [], []
+    for z in zs:
+        # the very ends a hair in, so the two banks never meet in one point
+        z = min(max(z, z0 + 0.01), z1 - 0.01)
+        span = river_span(L, z)
+        if span is None:
+            continue
+        west.append((span[0] - grow, z))
+        east.append((span[1] + grow, z))
+    return west, east
+
+
+def ribbon(bm, west, east, y0, y1, m=0, top_only=False):
+    """A strip of quads between matching bank points: a surface at y1 alone, or a closed solid
+    from y0 to y1."""
+    tops = [(bm.verts.new(W(wx, y1, wz)), bm.verts.new(W(ex, y1, ez))) for (wx, wz), (ex, ez) in zip(west, east)]
+    for (a, b), (c, d) in zip(tops, tops[1:]):
+        bm.faces.new((a, c, d, b)).material_index = m
+    if top_only:
+        return
+    bots = [(bm.verts.new(W(wx, y0, wz)), bm.verts.new(W(ex, y0, ez))) for (wx, wz), (ex, ez) in zip(west, east)]
+    for (a, b), (c, d) in zip(bots, bots[1:]):
+        bm.faces.new((b, d, c, a)).material_index = m
+    for side in (0, 1):
+        for i in range(len(tops) - 1):
+            bm.faces.new((tops[i][side], tops[i + 1][side], bots[i + 1][side], bots[i][side])).material_index = m
+    for i in (0, -1):
+        bm.faces.new((tops[i][0], tops[i][1], bots[i][1], bots[i][0])).material_index = m
+
+
+def near_path(L, x, z, pad):
+    for path in L["paths"]:
+        pts = path["points"]
+        for (ax, az), (bx, bz) in zip(pts, pts[1:]):
+            dx, dz = bx - ax, bz - az
+            t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
+            if math.hypot(x - (ax + dx * t), z - (az + dz * t)) < path["w"] / 2 + pad:
+                return True
+    return False
 
 
 def read_cushions(root):
@@ -316,10 +418,12 @@ def material(name):
     return m
 
 
-def make_object(name, bm, mats, coll, origin=None, smooth_all=False):
+def make_object(name, bm, mats, coll, origin=None, smooth_all=False, recalc=True):
     """`bm` as a mesh object `name`, its materials `mats`, its origin at the game point `origin`.
-    Its faces are turned to face outward first: the three.js runtime culls back faces."""
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    Its faces are turned to face outward first (the three.js runtime culls back faces), unless it
+    is an open sheet already built facing the right way (`recalc` False)."""
+    if recalc:
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     if smooth_all:
         for f in bm.faces:
             f.smooth = True
@@ -355,7 +459,7 @@ def bake_modifiers(ob):
 
 def build_ground(L, coll):
     half = L["half"]
-    p = L["pond"]
+    p = L["river"]
     bm = bmesh.new()
     slab(bm, rounded_rect(-half, half, -half, half, 1.1, 10), -1.1, 0.0, 0)
     ground = make_object("Campfire_Ground", bm, ["CF_Grass", "CF_Soil", "CF_PondBed", "CF_StoneDark"], coll)
@@ -364,11 +468,12 @@ def build_ground(L, coll):
     bev.segments = 4
     bev.limit_method = "ANGLE"
     bake_modifiers(ground)
-    # dig the pond: a rounded pit from the top down to its bed
+    # dig the river: its outline, from above the top down to its bed
     bm = bmesh.new()
-    slab(bm, rounded_rect(p["x0"], p["x1"], p["z0"], p["z1"], p["round"], 8), -p["depth"], 1.0, 0)
-    cutter = make_object("CF_PondCutter", bm, ["CF_Soil"], coll)
-    dig = ground.modifiers.new("Pond", "BOOLEAN")
+    west, east = river_banks(L)
+    ribbon(bm, west, east, -p["depth"], 1.0)
+    cutter = make_object("CF_RiverCutter", bm, ["CF_Soil"], coll)
+    dig = ground.modifiers.new("River", "BOOLEAN")
     dig.operation = "DIFFERENCE"
     dig.object = cutter
     try:
@@ -377,14 +482,13 @@ def build_ground(L, coll):
         pass
     bake_modifiers(ground)
     bpy.data.objects.remove(cutter, do_unlink=True)
-    # paint it: moss on top, soil down the sides, a dark bed and stone walls in the pond
+    # paint it: moss on top, soil down the sides, a dark bed and stone banks in the river
     me = ground.data
     for poly in me.polygons:
         c = poly.center  # Blender space: game (c.x, c.z, -c.y)
         gx, gy, gz = c.x, c.z, -c.y
-        in_pond = p["x0"] - 0.05 <= gx <= p["x1"] + 0.05 and p["z0"] - 0.05 <= gz <= p["z1"] + 0.05
         up = poly.normal.z
-        if in_pond and gy < -0.02:
+        if in_river(L, gx, gz, 0.05) and gy < -0.02:
             poly.material_index = 2 if up > 0.6 else 3
         elif up > 0.55 and gy > -0.4:
             poly.material_index = 0
@@ -412,42 +516,51 @@ def build_ground(L, coll):
     make_object("Campfire_Underside", bm, ["CF_SoilDeep"], coll, smooth_all=True)
     # the water, a hand's breadth below the rim
     bm = bmesh.new()
-    outline = rounded_rect(p["x0"] + 0.02, p["x1"] - 0.02, p["z0"] + 0.02, p["z1"] - 0.02, p["round"] - 0.02, 8)
-    f = bm.faces.new([bm.verts.new(W(x, p["water"], z)) for x, z in outline])
-    if f.normal.z < 0:
-        f.normal_flip()
-    make_object("Campfire_Water", bm, ["CF_Water"], coll)
-
-
-def inside_rect(x, z, r, pad):
-    return r["x0"] - pad <= x <= r["x1"] + pad and r["z0"] - pad <= z <= r["z1"] + pad
+    west, east = river_banks(L, grow=-0.02)
+    ribbon(bm, west, east, 0.0, p["water"], top_only=True)
+    for f in bm.faces:
+        f.smooth = True
+    make_object("Campfire_Water", bm, ["CF_Water"], coll, recalc=False)  # built facing up
 
 
 def build_paths(L, coll):
     rng = random.Random(3)
     bm = bmesh.new()
     c = L["clearing"]
-    slab(bm, wobbly_circle(c["x"], c["z"], c["r"], 48, 0.035, rng), -0.02, 0.013, 0)
+    # the clearing on the top layer, the paths just under it (one colour: where they meet, the
+    # clearing is simply the higher of the two)
+    slab(bm, wobbly_circle(c["x"], c["z"], c["r"], 64, 0.035, rng), -0.02, LAYER_CLEARING, 0)
     for path in L["paths"]:
         pts = path["points"]
         for (ax, az), (bx, bz) in zip(pts, pts[1:]):
-            slab(bm, capsule(ax, az, bx, bz, path["w"] / 2), -0.02, 0.01, 0)
+            slab(bm, capsule(ax, az, bx, bz, path["w"] / 2), -0.02, LAYER_PATH, 0)
     make_object("Campfire_Paths", bm, ["CF_Dirt"], coll)
-    # moss patches, wherever there is grass
+    # moss patches on open grass: never overlapping each other, a path, the river, the dock or the
+    # tipi, so no two are ever coplanar
     bm = bmesh.new()
     half = L["half"]
-    placed = 0
+    d, t = L["dock"], L["tent"]
+    placed = []
     tries = 0
-    while placed < 26 and tries < 400:
+    while len(placed) < 40 and tries < 900:
         tries += 1
         x, z = rng.uniform(-half + 1, half - 1), rng.uniform(-half + 1, half - 1)
-        r = rng.uniform(0.45, 1.0)
-        if math.hypot(x - c["x"], z - c["z"]) < c["r"] + r + 0.2 or inside_rect(x, z, L["pond"], r + 0.3):
+        r = rng.uniform(0.45, 1.1)
+        if max(abs(x), abs(z)) + 1.25 * r > half - 0.45:  # clear of the bevelled rim
             continue
-        if any(math.hypot(x - t["x"], z - t["z"]) < r + 0.2 for t in L["trees"]):
+        if math.hypot(x - c["x"], z - c["z"]) < c["r"] + r + 0.2 or in_river(L, x, z, r + 0.35) or near_path(L, x, z, r + 0.15):
             continue
-        slab(bm, wobbly_circle(x, z, r, 20, 0.12, rng), -0.02, 0.006, placed % 2)
-        placed += 1
+        if d["x0"] - r - 0.2 <= x <= d["x1"] + r and d["z0"] - r - 0.2 <= z <= d["z1"] + r + 0.2:
+            continue
+        if math.hypot(x - t["x"], z - t["z"]) < t["r"] + r + 0.2:
+            continue
+        if any(math.hypot(x - tr["x"], z - tr["z"]) < r + 0.2 for tr in L["trees"]):
+            continue
+        # the wobble reaches ~1.2 r: keep the wobbly edges apart too
+        if any(math.hypot(x - px, z - pz) < 1.2 * (r + pr) + 0.1 for px, pz, pr in placed):
+            continue
+        slab(bm, wobbly_circle(x, z, r, 20, 0.12, rng), -0.02, LAYER_PATCH, len(placed) % 2)
+        placed.append((x, z, r))
     make_object("Campfire_Grass", bm, ["CF_GrassDark", "CF_GrassLight"], coll)
 
 
@@ -492,46 +605,82 @@ def build_logs(L, cushions, coll):
         bm = bmesh.new()
         a = W(log["x"] - tx * half_len, cy, log["z"] - tz * half_len)
         b = W(log["x"] + tx * half_len, cy, log["z"] + tz * half_len)
-        cylinder(bm, a, b, radius, 16, m=0, cap_m=1, wobble=0.06, rng=rng)
-        # a stubby broken branch on its outer side
-        stub = W(log["x"] + tx * half_len * 0.35 + rx / d * 0.12, cy + 0.05, log["z"] + tz * half_len * 0.35 + rz / d * 0.12)
-        cylinder(bm, stub, stub + W(rx / d * 0.18, 0.1, rz / d * 0.18) - W(0, 0, 0), 0.045, 8, m=0, cap_m=1, r_end=0.035)
+        cylinder(bm, a, b, radius, 18, m=0, cap_m=1, wobble=0.06, rng=rng)
+        # stubby broken branches on its outer side, clear of both seats (they sit at +-spread)
+        for along, up in ((0.82, 0.05), (-0.05, 0.08)):
+            stub = W(log["x"] + tx * half_len * along + rx / d * 0.12, cy + up, log["z"] + tz * half_len * along + rz / d * 0.12)
+            cylinder(bm, stub, stub + W(rx / d * 0.18, 0.1, rz / d * 0.18) - W(0, 0, 0), 0.045, 8, m=0, cap_m=1, r_end=0.035)
+        # a ring of moss round each end
+        for sgn in (-1, 1):
+            e = W(log["x"] + tx * sgn * (half_len - 0.12), cy, log["z"] + tz * sgn * (half_len - 0.12))
+            cylinder(bm, e - W(tx * 0.05, 0, tz * 0.05) + W(0, 0, 0), e + W(tx * 0.05, 0, tz * 0.05) - W(0, 0, 0), radius + 0.012, 18, m=2)
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-        make_object(f"Seat_Log_0{i + 1}", bm, ["CF_Bark", "CF_WoodCut"], coll)
+        ob = make_object(f"Seat_Log_0{i + 1}", bm, ["CF_Bark", "CF_WoodCut", "CF_GrassLight"], coll)
+        # where each of its two sitters goes, on its top: L and R as they see it, facing the fire
+        top = cushions["log"]["top"]
+        spread = L["logSeatSpread"]
+        for side, sgn in (("L", 1), ("R", -1)):
+            mark = bpy.data.objects.new(f"Seat_Log_0{i + 1}_{side}", None)
+            mark.empty_display_type = "ARROWS"
+            mark.empty_display_size = 0.2
+            mark.location = W(log["x"] + tx * sgn * spread, top, log["z"] + tz * sgn * spread)
+            coll.objects.link(mark)
+        del ob
 
 
-def build_pier(L, coll):
-    p = L["pier"]
-    x0, x1, z, hw, deck = p["x0"], p["x1"], p["z"], p["half"], p["deck"]
+def build_dock(L, coll):
+    """The boardwalk: planks across its width, stringers under them, posts down into the river bed,
+    bollards along its river edge and a lantern post at each of its river corners."""
+    d = L["dock"]
+    x0, x1, z0, z1, deck = d["x0"], d["x1"], d["z0"], d["z1"], d["deck"]
+    bed = -L["river"]["depth"]
     bm = bmesh.new()
     x = x0
     k = 0
     while x < x1 - 0.05:
         w = min(0.22, x1 - x)
-        box(bm, x, x + w, deck - 0.06, deck, z - hw, z + hw, m=k % 2)
+        # each plank a touch short or long at its ends, for a hand-laid look
+        j0, j1 = 0.04 * ((k * 7) % 3 - 1), 0.04 * ((k * 5) % 3 - 1)
+        box(bm, x, x + w, deck - 0.06, deck, z0 + j0, z1 + j1, m=k % 2)
         x += 0.25
         k += 1
-    # stringers under the planks, and the posts down into the pond
-    for s in (-1, 1):
-        box(bm, x0, x1, -0.22, deck - 0.06, z + s * (hw - 0.14), z + s * (hw - 0.04), m=1)
-    for px in (L["pond"]["x0"] + 0.3, (L["pond"]["x0"] + x1) / 2 + 0.2, x1 - 0.08):
-        for s in (-1, 1):
-            tall = 0.2 if px == x1 - 0.08 else deck
-            cylinder(bm, W(px, -L["pond"]["depth"], z + s * (hw - 0.06)), W(px, tall, z + s * (hw - 0.06)), 0.065, 10, m=1)
-    # the lantern post at the pier's end, and the lantern on it
-    lx, lz = L["lantern"]["x"], L["lantern"]["z"]
-    cylinder(bm, W(lx, -L["pond"]["depth"], lz), W(lx, 0.95, lz), 0.055, 10, m=1)
-    box(bm, lx - 0.1, lx + 0.1, 0.93, 0.96, lz - 0.1, lz + 0.1, m=2)
-    box(bm, lx - 0.1, lx + 0.1, 1.2, 1.23, lz - 0.1, lz + 0.1, m=2)
-    for sx in (-1, 1):
-        for sz in (-1, 1):
-            box(bm, lx + sx * 0.085 - 0.012, lx + sx * 0.085 + 0.012, 0.96, 1.2, lz + sz * 0.085 - 0.012, lz + sz * 0.085 + 0.012, m=2)
-    lathe(bm, lx, lz, [(0, 1.23), (0.09, 1.23), (0.02, 1.32), (0, 1.33)], segs=4, m=2, yaw=math.pi / 4)
+    # stringers under the planks, running out over the water
+    for sz in (z0 + 0.12, (z0 + z1) / 2, z1 - 0.12):
+        box(bm, x0 + 0.05, x1 - 0.02, -0.24, deck - 0.06, sz - 0.05, sz + 0.05, m=1)
+    # posts: along the bank and along the river edge, down into the bed; bollards on the river edge
+    bank = max(river_span(L, z)[0] for z in (z0, (z0 + z1) / 2, z1))
+    lanterns = [(p["x"], p["z"]) for p in L["lanterns"]]
+    for px, tall in ((bank + 0.1, deck), (x1 - 0.08, 0.24)):
+        for pz in (z0 + 0.1, (z0 + z1) / 2 - 0.62, (z0 + z1) / 2 + 0.62, z1 - 0.1):
+            if any(math.hypot(px - lx, pz - lz) < 0.3 for lx, lz in lanterns):
+                continue
+            cylinder(bm, W(px, bed, pz), W(px, tall, pz), 0.065, 10, m=1)
+    # the lantern posts at the river corners, and the lanterns on them
+    for lx, lz in lanterns:
+        cylinder(bm, W(lx, bed, lz), W(lx, 0.95, lz), 0.055, 10, m=1)
+        box(bm, lx - 0.1, lx + 0.1, 0.93, 0.96, lz - 0.1, lz + 0.1, m=2)
+        box(bm, lx - 0.1, lx + 0.1, 1.2, 1.23, lz - 0.1, lz + 0.1, m=2)
+        for sx in (-1, 1):
+            for sz in (-1, 1):
+                box(bm, lx + sx * 0.085 - 0.012, lx + sx * 0.085 + 0.012, 0.96, 1.2, lz + sz * 0.085 - 0.012, lz + sz * 0.085 + 0.012, m=2)
+        lathe(bm, lx, lz, [(0, 1.23), (0.09, 1.23), (0.02, 1.32), (0, 1.33)], segs=4, m=2, yaw=math.pi / 4)
+    # a bait bucket and a coil of rope by the bank end, out of the anglers' way
+    lathe(bm, x0 + 0.35, z0 + 0.35, [(0, deck), (0.12, deck), (0.15, deck + 0.22), (0, deck + 0.2)], segs=12, m=2)
+    for k in range(3):
+        a0 = W(x0 + 0.35 + 0.13 * math.cos(2.1 * k), deck + 0.02 + 0.03 * k, z1 - 0.4 + 0.13 * math.sin(2.1 * k))
+        cylinder(bm, a0, a0 + W(0.001, 0.028, 0.001) - W(0, 0, 0), 0.16 - 0.02 * k, 14, m=3, r_end=0.16 - 0.02 * k)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    make_object("Prop_FishingSpot", bm, ["CF_Plank", "CF_PlankDark", "CF_Metal"], coll)
+    make_object("Prop_Dock", bm, ["CF_Plank", "CF_PlankDark", "CF_Metal", "CF_Rope"], coll)
     bm = bmesh.new()
-    box(bm, lx - 0.07, lx + 0.07, 0.97, 1.19, lz - 0.07, lz + 0.07, m=0)
+    for lx, lz in lanterns:
+        box(bm, lx - 0.07, lx + 0.07, 0.97, 1.19, lz - 0.07, lz + 0.07, m=0)
     make_object("Pier_Lantern_Glow", bm, ["CF_LanternGlass"], coll)
+    # where each angler stands
+    for i, spot in enumerate(L["fishing"]):
+        mark = bpy.data.objects.new(f"Prop_FishingSpot_0{i + 1}", None)
+        mark.empty_display_type = "SINGLE_ARROW"
+        mark.location = W(spot["stand"]["x"], deck, spot["stand"]["z"])
+        coll.objects.link(mark)
 
 
 def build_tent(L, cushions, coll):
@@ -697,25 +846,36 @@ def build_deco(L, coll):
         a = rng.random() * 6.28
         rr = c["r"] + 0.25 + rng.random() * 1.2
         x, z = c["x"] + rr * math.cos(a), c["z"] + rr * math.sin(a)
-        if inside_rect(x, z, L["pond"], 0.3) or any(math.hypot(x - lg["x"], z - lg["z"]) < 1 for lg in L["logs"]):
+        if in_river(L, x, z, 0.4) or near_path(L, x, z, 0.15) or any(math.hypot(x - lg["x"], z - lg["z"]) < 1.5 for lg in L["logs"]):
             continue
         cylinder(bm, W(x, 0.0, z), W(x, 0.16, z), 0.012, 5, m=2)
         blob(bm, x, 0.17, z, 0.045, 0.03, 0.045, m=3 if k % 3 else 4, cuts=2, n=2.0)
-    # lily pads on the pond, and reeds at its corners
-    pond = L["pond"]
-    for x, z, r in ((6.3, 1.4, 0.22), (6.8, 0.9, 0.16), (4.9, -2.7, 0.2), (6.6, -3.0, 0.18), (5.2, 1.7, 0.15)):
+    # lily pads down the river (clear of the dock and the anglers' floats), reeds along its banks
+    water = L["river"]["water"]
+    d = L["dock"]
+    floats = [(s["bobber"]["x"], s["bobber"]["z"]) for s in L["fishing"]]
+    for z, t, r in ((-8.4, 0.5, 0.16), (-7.0, 0.35, 0.2), (-6.6, 0.65, 0.15), (-4.8, 0.3, 0.22), (-3.6, 0.7, 0.18), (-2.7, 0.45, 0.14), (3.0, 0.3, 0.2), (3.6, 0.62, 0.16), (5.2, 0.45, 0.22), (6.6, 0.3, 0.15)):
+        x0, x1 = river_span(L, z)
+        x = x0 + (x1 - x0) * t
+        if any(math.hypot(x - fx, z - fz) < 0.7 for fx, fz in floats) or (d["z0"] - 0.4 <= z <= d["z1"] + 0.4 and x < d["x1"] + 0.4):
+            continue
         a0 = rng.random() * 6.28
         notch = [(x + r * math.cos(a), z + r * math.sin(a)) for a in (a0 + 0.35 + (2 * math.pi - 0.7) * k / 14 for k in range(15))] + [(x, z)]
-        slab(bm, notch, pond["water"] + 0.004, pond["water"] + 0.02, m=2)
-    for cx, cz in ((pond["x0"] + 0.35, pond["z1"] - 0.4), (pond["x1"] - 0.3, pond["z0"] + 0.35), (pond["x1"] - 0.35, pond["z1"] - 0.35)):
+        slab(bm, notch, water + 0.004, water + 0.02, m=2)
+    clumps = [(z, side) for z, side in ((-9.0, 0), (-8.9, 1), (-5.6, 0), (-3.3, 1), (2.8, 1), (4.2, 0), (7.4, 0), (7.3, 1))]
+    for cz, side in clumps:
+        span = river_span(L, cz)
+        if span is None:
+            continue
+        cx = span[0] + 0.22 if side == 0 else span[1] - 0.22
         for k in range(7):
-            x, z = cx + 0.25 * (rng.random() - 0.5), cz + 0.25 * (rng.random() - 0.5)
+            x, z = cx + 0.25 * (rng.random() - 0.5), cz + 0.3 * (rng.random() - 0.5)
             h = 0.55 + 0.35 * rng.random()
-            cylinder(bm, W(x, pond["water"], z), W(x + 0.05 * (rng.random() - 0.5), pond["water"] + h, z), 0.018, 5, m=2, r_end=0.008)
+            cylinder(bm, W(x, water, z), W(x + 0.05 * (rng.random() - 0.5), water + h, z), 0.018, 5, m=2, r_end=0.008)
             if k % 3 == 0:  # a cattail
-                cylinder(bm, W(x, pond["water"] + h * 0.72, z), W(x, pond["water"] + h * 0.9, z), 0.035, 6, m=5)
+                cylinder(bm, W(x, water + h * 0.72, z), W(x, water + h * 0.9, z), 0.035, 6, m=5)
     # round bushes at the front corners
-    for x, z, s in ((-6.6, 7.0, 0.9), (7.0, 6.9, 0.8)):
+    for x, z, s in ((-9.1, 9.3, 0.9), (9.2, 9.3, 0.8)):
         for k in range(3):
             blob(bm, x + 0.35 * (k - 1) * s, 0.3 * s, z + 0.2 * ((k % 2) - 0.5) * s, 0.42 * s, 0.36 * s, 0.4 * s, m=2, cuts=3, noise=0.08, rng=rng, flat_bottom=-0.05)
     # the woodpile: split logs stacked three, two, one, beside a chopping stump
@@ -739,7 +899,7 @@ def build(root):
     build_paths(L, coll)
     build_bonfire(L, coll)
     build_logs(L, cushions, coll)
-    build_pier(L, coll)
+    build_dock(L, coll)
     build_tent(L, cushions, coll)
     build_hammock(L, cushions, coll)
     build_trees(L, coll)
@@ -772,7 +932,11 @@ def export(coll, path):
 
 def summary(coll, L, cushions):
     out = {}
+    marks = {}
     for o in coll.all_objects:
+        if o.data is None:  # an empty: a seat or a fishing spot mark
+            marks[o.name] = [round(o.location.x, 3), round(o.location.z, 3), round(-o.location.y, 3)]
+            continue
         ws = [o.matrix_world @ v.co for v in o.data.vertices]
         lo = [min(w[k] for w in ws) for k in range(3)]
         hi = [max(w[k] for w in ws) for k in range(3)]
@@ -783,11 +947,11 @@ def summary(coll, L, cushions):
         "logCushionTop": cushions["log"]["top"],
         "tentMatTop": cushions["tentMat"]["top"],
         "hammockCushionTop": cushions["hammock"]["top"],
-        "water": L["pond"]["water"],
+        "water": L["river"]["water"],
         "drawCallsApprox": sum(v["materials"] for v in out.values()),
         "tris": sum(v["tris"] for v in out.values()),
     }
-    return {"objects": out, "checks": checks}
+    return {"objects": out, "marks": marks, "checks": checks}
 
 
 def main():

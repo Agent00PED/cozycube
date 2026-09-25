@@ -6,7 +6,7 @@ import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } 
 import { AWAY_PREFIX, BoardTable } from "./boardgame";
 import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
-import { BONFIRE_REACH, FISHING_REACH } from "../../../shared/worlds/campfire";
+import { BONFIRE_REACH, FISHING_REACH, nearestFishingSpot } from "../../../shared/worlds/campfire";
 import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat, isWaterable, mochiSpot } from "../../../shared/props";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
 import {
@@ -361,7 +361,7 @@ export class HangoutRoom extends Room<HangoutState> {
   /** The fish on each reeling player's line, and when the tension game times out. */
   private hooked = new Map<string, { fish: FishOnLine; until: number }>();
   /** The campfire: each roast in progress (its dial, timed here), when each skewer is eaten up,
-   *  when each player last took one off the fire, and who is fishing the pond from the pier. */
+   *  when each player last took one off the fire, and who is fishing the river from the dock. */
   private roasts = new Map<string, RoastStart & { food: RoastFood; startedAt: number }>();
   private snackUntil = new Map<string, number>();
   private lastRoastAt = new Map<string, number>();
@@ -417,7 +417,7 @@ export class HangoutRoom extends Room<HangoutState> {
       player.dirZ = Math.max(-1, Math.min(1, msg.dirZ));
       // Walking away from the espresso machine abandons the brew.
       if (player.action === "brew" && (player.dirX !== 0 || player.dirZ !== 0)) this.clearAction(player);
-      // walking off the pier puts the rod away; walking away from the fire takes the skewer out
+      // walking off your spot on the dock puts the rod away; walking away from the fire takes the skewer out
       if (player.dirX !== 0 || player.dirZ !== 0) {
         if (player.action === "fish" && this.starlight.has(client.sessionId)) this.stopStarlight(client.sessionId, player);
         else if (player.action === "grill") this.finishRoast(client.sessionId, player, "raw");
@@ -468,8 +468,13 @@ export class HangoutRoom extends Room<HangoutState> {
     });
 
     // Time of day is shared ambience, like the lights: anyone can set it, everyone sees it.
-    this.onMessage("setTimeOfDay", (_client, msg: { timeOfDay: TimeOfDay }) => {
+    this.onMessage("setTimeOfDay", (client, msg: { timeOfDay: TimeOfDay }) => {
       if (!isTimeOfDay(msg?.timeOfDay)) return;
+      // the campfire is always a starlit night
+      if (this.state.currentMap === "campfire_night") {
+        this.sendTo(client.sessionId, "campfireNotice", { message: "It's always a starlit night by the campfire", emoji: "🌙" });
+        return;
+      }
       this.state.timeOfDay = msg.timeOfDay;
       this.state.autoCycle = false; // picking an hour by hand stops the clock
     });
@@ -1440,7 +1445,7 @@ export class HangoutRoom extends Room<HangoutState> {
             this.fishBiteAt.set(sessionId, now + (starlit ? starlightBiteDelay() : randomBiteDelay()));
           }
         } else if (now >= (this.fishBiteAt.get(sessionId) ?? 0)) {
-          // Bite! actionProgress = 1 tells every client the float has gone under. On the pond the
+          // Bite! actionProgress = 1 tells every client the float has gone under. On the river the
           // window is STARLIGHT_BITE_S, plus half the angler's round trip (the tap has to get here)
           this.biteUntil.set(sessionId, now + (starlit ? STARLIGHT_BITE_S * 1000 + Math.min(400, player.ping / 2 + 120) : BITE_WINDOW_S * 1000));
           player.actionProgress = 1;
@@ -1452,7 +1457,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (this.state.currentMap === "campfire_night") this.tickCampfire(now);
     if (this.state.currentMap === "velvet_casino") this.tickRoulette(dt);
 
-    if (this.state.autoCycle) {
+    if (this.state.autoCycle && this.state.currentMap !== "campfire_night") {
       this.cycleClock += dt;
       if (this.cycleClock >= AUTO_CYCLE_SECONDS) {
         this.cycleClock = 0;
@@ -1592,7 +1597,7 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   /**
-   * Campfire coins, paid within the day's cap (CAMPFIRE_DAILY_COINS): the pond and the fire stay
+   * Campfire coins, paid within the day's cap (CAMPFIRE_DAILY_COINS): the river and the fire stay
    * fun all evening without flooding the economy. Returns what was actually paid.
    */
   private campfirePay(sessionId: string, player: Player, kind: "fish" | "roast", coins: number): number {
@@ -1707,7 +1712,7 @@ export class HangoutRoom extends Room<HangoutState> {
     });
   }
 
-  /** A tap while the bobber is under: what the pond gives up, paid within the day's cap. */
+  /** A tap while the bobber is under: what the river gives up, paid within the day's cap. */
   private hookStarlight(sessionId: string) {
     const player = this.state.players.get(sessionId);
     if (!player || player.action !== "fish" || !this.biteUntil.has(sessionId)) return;
@@ -2202,9 +2207,19 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleCastLine(sessionId: string, afk = false) {
     const player = this.state.players.get(sessionId);
     if (!player || player.action !== "") return;
-    // the campfire's pond: standing at the end of the pier, a bite, a tap, a catch
+    // the campfire's river: standing at one of the dock's spots (one angler to a spot), a bite, a
+    // tap, a catch
     if (!player.sitting) {
       if (!this.nearProp(player, "fishing", FISHING_REACH)) return;
+      const spot = nearestFishingSpot(player.x, player.z).propId;
+      let taken = false;
+      this.state.players.forEach((other, id) => {
+        if (id !== sessionId && other.action === "fish" && this.starlight.has(id) && nearestFishingSpot(other.x, other.z).propId === spot) taken = true;
+      });
+      if (taken) {
+        this.sendTo(sessionId, "campfireNotice", { message: "Someone's already fishing there. Try the next spot along the dock", emoji: "🎣" });
+        return;
+      }
       player.action = "fish";
       player.actionProgress = 0;
       this.starlight.add(sessionId);
@@ -2493,7 +2508,7 @@ function rollSymbol(): number {
 /** A roast can start again this long after the last one came off the fire. */
 const ROAST_COOLDOWN_MS = 1500;
 
-/** The pond's bites come quicker than the sea's (STARLIGHT_BITE_DELAY_S). */
+/** The river's bites come quicker than the sea's (STARLIGHT_BITE_DELAY_S). */
 function starlightBiteDelay(): number {
   return (STARLIGHT_BITE_DELAY_S.min + Math.random() * (STARLIGHT_BITE_DELAY_S.max - STARLIGHT_BITE_DELAY_S.min)) * 1000;
 }

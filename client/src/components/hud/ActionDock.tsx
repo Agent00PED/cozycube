@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, msUntilNextDay, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
-import { BONFIRE_REACH, FISHING_REACH } from "@shared/worlds/campfire";
+import { BONFIRE_REACH, CAMP_SEAT_LABELS, FISHING_REACH, nearestFishingSpot } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { pushToast } from "./toastStore";
@@ -12,6 +12,7 @@ import { glass, hudText, pillButton } from "./glass";
 // now, and does exactly what clicking it in the scene does.
 //
 //   [🛋️ Sit]        within SEAT_REACH (1.5) of a free seat, measured to the seat or its approach point
+//                    (a seat you lie in says what it is for: [⛺ Rest] in the tent, [🛌 Nap] in the hammock)
 //   [🐾 Pet Mochi]  as you approach her (she wanders, so it is measured to where she is right now)
 //   [♟️ Play Board Game]  within BOARD_REACH of the games table, or sitting at it
 //   [☕ Brew Drink]  within KITCHEN_REACH of the coffee machine
@@ -19,7 +20,7 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🪴 Water Plant] within PLANT_REACH of a plant you have not watered today; after, [🌿 Happy
 //                    Plant · 5h] counts down to when it is thirsty again (the day's rollover)
 //   [🍡 Roast & Grill]  within BONFIRE_REACH of the campfire, or sitting on a log bench round it
-//   [🎣 Go Fishing]  at the end of the pier (FISHING_REACH of it)
+//   [🎣 Go Fishing]  at the dock: the nearest of its fishing spots nobody else is fishing from
 //   [🎸 Play Guitar] / [⏹ Stop Guitar]  sitting on a log bench
 //   [🧍 Stand up · Space]  while you are sitting, always (a panel closed, a reconnect: never stuck);
 //                    Space or any movement key does the same
@@ -47,6 +48,8 @@ function untilTomorrow(short = false) {
 
 interface DockProps {
   player: PlayerState;
+  /** Everyone in the world (which of the dock's fishing spots are taken). */
+  players: Record<string, PlayerState>;
   mapId: MapId;
   chairs: Record<string, ChairSyncState>;
   toggleables: Record<string, ToggleableSyncState>;
@@ -61,22 +64,22 @@ const SCAN_MS = 120;
 /** A keyboard to press Space on (not a phone or tablet, where the pill is the way up). */
 const HAS_KEYBOARD = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: fine)").matches;
 
-export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onWater, onCampfire }: DockProps) {
+export function ActionDock({ player, players, mapId, chairs, toggleables, localSessionId, onWater, onCampfire }: DockProps) {
   const [actions, setActions] = useState<Action[]>([]);
-  const latest = useRef({ chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire });
-  latest.current = { chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire };
+  const latest = useRef({ players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire });
+  latest.current = { players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire };
 
   useEffect(() => {
     let lastKey = "";
     const scan = () => {
-      const { chairs, toggleables, mapId, localSessionId, sitting, watered, action, onWater, onCampfire } = latest.current;
+      const { players, chairs, toggleables, mapId, localSessionId, sitting, watered, action, onWater, onCampfire } = latest.current;
       const found: Action[] = [];
       const reach = (p: ToggleableSyncState) => {
         const a = APPROACH_POINTS[p.propId];
         return Math.min(Math.hypot(p.x - cameraFocus.x, p.z - cameraFocus.z), a ? Math.hypot(a.x - cameraFocus.x, a.z - cameraFocus.z) : Infinity);
       };
 
-      // the campfire: roast from beside the fire or a log bench round it; fish from the pier's end;
+      // the campfire: roast from beside the fire or a log bench round it; fish from a spot on the dock;
       // play the guitar sitting on a log
       const onLog = Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "log");
       const bonfire = Object.values(toggleables).find((p) => p.kind === "bonfire");
@@ -86,10 +89,19 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         const run = onLog ? () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "roast", propId: id } })) : () => interactBridge.current?.useProp(id);
         found.push({ key: `roast:${id}`, type: "roast", label: "🍡 Roast & Grill", hint: "Roast a marshmallow or grill a skewer: pull it out in the green for +5 coins", run });
       }
-      const spot = Object.values(toggleables).find((p) => p.kind === "fishing");
-      if (spot && !sitting && action !== "fish" && reach(spot) <= FISHING_REACH + 0.4) {
-        const id = spot.propId;
-        found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: "Cast into the pond; tap when the bobber dips", run: () => interactBridge.current?.useProp(id) });
+      // the dock's spots: the nearest one in reach that nobody else is fishing from
+      if (!sitting && action !== "fish") {
+        const taken = new Set(Object.values(players).flatMap((p) => (p.sessionId !== localSessionId && p.action === "fish" ? [nearestFishingSpot(p.x, p.z).propId] : [])));
+        let spot: { id: string; d: number } | null = null;
+        for (const p of Object.values(toggleables)) {
+          if (p.kind !== "fishing" || taken.has(p.propId)) continue;
+          const d = reach(p);
+          if (d <= FISHING_REACH + 1.6 && (!spot || d < spot.d)) spot = { id: p.propId, d };
+        }
+        if (spot) {
+          const id = spot.id;
+          found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: "Cast into the river; tap when the bobber dips", run: () => interactBridge.current?.useProp(id) });
+        }
       }
       if (onLog) {
         const playing = action === "guitar";
@@ -160,7 +172,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
         }
         if (seat) {
           const id = seat.id;
-          found.push({ key: `sit:${id}`, type: "sit", label: "🛋️ Sit", run: () => interactBridge.current?.sit(id) });
+          found.push({ key: `sit:${id}`, type: "sit", label: CAMP_SEAT_LABELS[id] ?? "🛋️ Sit", run: () => interactBridge.current?.sit(id) });
         }
 
         // Mochi is wherever her day has taken her, not at her home spot

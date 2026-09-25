@@ -66,7 +66,9 @@ export function Header(p: HeaderProps) {
   const toggle = (menu: "time" | "status" | "more") => {
     setOpen((o) => (o === menu ? null : menu));
   };
-  const time = timeLabel(p.timeOfDay);
+  // the campfire is always a starlit night: its hour does not follow the room's clock
+  const starlit = p.currentMap === "campfire_night";
+  const time = starlit ? { icon: "🌙", name: "Starlight" } : timeLabel(p.timeOfDay);
   const st = isActivityStatus(p.status) ? ACTIVITY_STATUSES[p.status] : null;
   const map = MAP_LABELS[p.currentMap];
   const actions: { icon: string; label: string; title?: string; onClick: () => void; active?: boolean }[] = [
@@ -95,9 +97,9 @@ export function Header(p: HeaderProps) {
 
       {/* ---- centre: the hour (a pill from 640px; on phones it is in the ☰ sheet) ---- */}
       <div className="pointer-events-auto relative hidden shrink-0 sm:block">
-        <button type="button" onClick={() => toggle("time")} className={`${ICON_PILL} gap-2 xl:w-auto xl:px-3.5`} title={`${time.name}${p.autoCycle ? " · Auto" : ""}: day and night`} aria-label="Day and night" aria-expanded={open === "time"} aria-haspopup="menu">
+        <button type="button" onClick={() => toggle("time")} className={`${ICON_PILL} gap-2 xl:w-auto xl:px-3.5`} title={starlit ? "Always a starlit night by the campfire" : `${time.name}${p.autoCycle ? " · Auto" : ""}: day and night`} aria-label="Day and night" aria-expanded={open === "time"} aria-haspopup="menu">
           <span className={ICON}>{time.icon}</span>
-          <span className="hidden xl:inline">{p.autoCycle ? `${time.name} · Auto` : time.name}</span>
+          <span className="hidden xl:inline">{p.autoCycle && !starlit ? `${time.name} · Auto` : time.name}</span>
           <span className="hidden text-xs opacity-60 xl:inline">▾</span>
         </button>
         {open === "time" && (
@@ -173,6 +175,9 @@ function SheetSection({ title, children }: { title: string; children: ReactNode 
 
 /** The hours and the auto cycle, as a menu's rows or (in the phone sheet) as chips. */
 function TimeChoices({ p, close, chips = false }: { p: HeaderProps; close: () => void; chips?: boolean }) {
+  if (p.currentMap === "campfire_night") {
+    return <p className={`m-0 whitespace-nowrap px-3 py-2 text-sm font-semibold opacity-80 ${chips ? "" : "text-left"}`}>🌙 Always a starlit night by the campfire</p>;
+  }
   return (
     <>
       {TIMES_OF_DAY.map((t) => {

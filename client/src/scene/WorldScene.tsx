@@ -8,7 +8,7 @@ import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
 import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN } from "@shared/worlds/campfire";
 import { useGLTF } from "@react-three/drei";
-import { CAMPFIRE_URL, CampfireWorld } from "./CampfireWorld";
+import { CAMPFIRE_URL, CampfireSky, CampfireWorld } from "./CampfireWorld";
 import type { EmoteListener, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
 import { BoardTablePad, CampfirePuff, Cat, FloorLamp, PLANT_BURST_SECONDS, PUFF_SECONDS, PlantBurst, PropPad, RadioProp, SeatPad } from "./Props";
@@ -51,11 +51,11 @@ const EMOTE_LIFETIME_MS = 1900;
 const BUBBLE_LIFETIME_MS = 4200;
 
 /** Warm ambient light and a soft key with no shadow map: the whole room's light, with the lamps' own point lights. */
-function SceneLighting({ timeOfDay }: { timeOfDay: TimeOfDay }) {
+function SceneLighting({ timeOfDay, starlit }: { timeOfDay: TimeOfDay; starlit: boolean }) {
   const look = HOUR_LOOKS[timeOfDay];
   return (
     <>
-      <color attach="background" args={[look.sky]} />
+      {starlit ? <CampfireSky /> : <color attach="background" args={[look.sky]} />}
       <ambientLight color={look.ambientColor} intensity={look.ambient} />
       {/* the key only gives the clay its form: it never casts a shadow, and it comes from off the camera's axis */}
       <directionalLight position={[-14, 24, 10]} color={look.sunColor} intensity={look.sun} castShadow={false} />
@@ -202,9 +202,9 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         const d = Math.hypot(fx, fz) || 1;
         add({ x: who.x + (fx / d) * 0.55, y: 0.55, z: who.z + (fz / d) * 0.55, kind: "smoke" });
       } else if (type === "fishCaught") {
-        // off this angler's own float (each is nudged along the pier's end)
-        const b = bobberFor(who, "campfire_night") ?? { ...CAMPFIRE_LAYOUT.fishing.bobber, y: CAMPFIRE_LAYOUT.pond.water };
-        add({ x: b.x, y: b.y, z: b.z, kind: "splash" });
+        // off this angler's own float (the one out from their spot on the dock)
+        const b = bobberFor(who, "campfire_night");
+        if (b) add({ x: b.x, y: b.y, z: b.z, kind: "splash" });
       }
     });
     return () => {
@@ -219,7 +219,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
     const timer = window.setInterval(() => {
       for (const p of Object.values(livePlayers.current)) {
         if (p.sitting) continue;
-        if (p.action === "fish") faceToward(p.sessionId, CAMPFIRE_LAYOUT.fishing.bobber.x, CAMPFIRE_LAYOUT.fishing.bobber.z, 0.6);
+        const float = bobberFor(p, "campfire_night");
+        if (float) faceToward(p.sessionId, float.x, float.z, 0.6);
         else if (p.action === "grill") faceToward(p.sessionId, CAMPFIRE_LAYOUT.fire.x, CAMPFIRE_LAYOUT.fire.z, 0.6);
       }
     }, 250);
@@ -337,9 +338,12 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   }, [board]);
   const feed = useMemo<CrowdFeed>(() => ({ speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId }), [speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId]);
 
+  // it is always a starlit night at the campfire, whatever the room's clock says
+  const starlit = mapId === "campfire_night";
+  const hour: TimeOfDay = starlit ? "night" : timeOfDay;
   return (
-    <TimeOfDayContext.Provider value={timeOfDay}>
-      <SceneLighting timeOfDay={timeOfDay} />
+    <TimeOfDayContext.Provider value={hour}>
+      <SceneLighting timeOfDay={hour} starlit={starlit} />
       {mapId === "cozy_lounge" ? <LoungeWorld onFloorClick={onFloorClick} /> : mapId === "campfire_night" ? <CampfireWorld onFloorClick={onFloorClick} /> : <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />}
 
       {Object.values(chairs).map((chair) => (

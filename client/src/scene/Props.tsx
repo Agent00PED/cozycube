@@ -275,7 +275,7 @@ export const PUFF_SECONDS = 1.6;
 /**
  * A little effect at a point, started at `at` (performance.now ms): "smoke" (grey clay puffs
  * rising and swelling, off a skewer left too long in the fire) or "splash" (drops thrown up off
- * the water and golden twinkles, a catch coming out of the pond). Driven by the frame clock.
+ * the water and golden twinkles, a catch coming out of the river). Driven by the frame clock.
  */
 export function CampfirePuff({ x, y, z, kind, at }: { x: number; y: number; z: number; kind: "smoke" | "splash"; at: number }) {
   const bits = useRef<(THREE.Mesh | null)[]>([]);

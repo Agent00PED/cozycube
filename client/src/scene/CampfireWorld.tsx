@@ -1,9 +1,9 @@
 import { Suspense, useContext, useEffect, useMemo, useRef } from "react";
-import { useFrame, type ThreeEvent } from "@react-three/fiber";
+import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { TimeOfDay } from "@shared/types";
-import { CAMPFIRE_LAYOUT as L } from "@shared/worlds/campfire";
+import { CAMPFIRE_LAYOUT as L, RIVER_Z, riverSpan } from "@shared/worlds/campfire";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { GEO, matte, noRaycast } from "./kit";
 import { TimeOfDayContext, useLampBoost } from "./timeOfDay";
@@ -14,16 +14,23 @@ import { TimeOfDayContext, useLampBoost } from "./timeOfDay";
 //
 //   the fire      its two flame nodes flicker and breathe, over a flickering orange point light
 //   embers        sparks lifting off the fire and winking out
-//   fireflies     drifting and blinking by the pond, the pines and the hammock, after dark
-//   stars         a field of them round the floating island, after dark
-//   the lantern   on the pier's end post, glowing, with a small warm light of its own
+//   fireflies     green-gold, drifting and blinking over the river, the pines and the hammock
+//   stars         a field of them round the floating island
+//   the lanterns  on the dock's river corners, glowing, with a small warm light between them
+//   the sky       a midnight-navy gradient (CampfireSky), with a cool moon over the island
 //
-// Walking is a flat invisible plane over the island (the model never takes clicks), as the
-// lounge's floor is. No light casts a shadow; the effects are one instanced draw each.
+// It is always night at the campfire (WorldScene wears the "night" hour here whatever the room's
+// clock says). Walking is a flat invisible plane over the island (the model never takes clicks),
+// as the lounge's floor is. No light casts a shadow; the effects are one instanced draw each.
 
 export const CAMPFIRE_URL = "/models/campfire.glb";
 
 const FIRE_COLOR = "#ff8c32";
+/** The fire's light at its base; every lamp is scaled by the hour's lamp boost (x2.2 at night). */
+const FIRE_INTENSITY = 2.8;
+/** The ground decals (moss patches, paths, the clearing), each nudged toward the camera in the
+ *  depth test by its own polygon offset on top of its few millimetres of height: never a flicker. */
+const DECAL_OFFSET: Record<string, number> = { CF_GrassDark: -1, CF_GrassLight: -1, CF_Dirt: -2 };
 const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 
 /** How much of the night's magic shows at each hour (fireflies, stars). */
@@ -77,6 +84,12 @@ function CampfireModel() {
       if (mesh.isMesh) {
         mesh.raycast = noRaycast; // the plane above takes the clicks
         const m = mesh.material as THREE.MeshStandardMaterial;
+        const offset = DECAL_OFFSET[m.name];
+        if (offset !== undefined) {
+          m.polygonOffset = true;
+          m.polygonOffsetFactor = offset;
+          m.polygonOffsetUnits = offset;
+        }
         if (m.emissive && m.emissive.getHex() !== 0) {
           // glowing things keep their colour: the tone mapping would bleach a bright orange white
           m.toneMapped = false;
@@ -116,27 +129,68 @@ function FireLight() {
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     const flick = 0.82 + 0.1 * Math.sin(t * 7.3) + 0.06 * Math.sin(t * 13.1 + 2) + 0.04 * Math.sin(t * 23.7);
-    if (light.current) light.current.intensity = 3.2 * boost * flick;
-    if (lantern.current) lantern.current.intensity = 0.7 * boost * (0.95 + 0.05 * Math.sin(t * 5.1));
+    if (light.current) light.current.intensity = FIRE_INTENSITY * boost * flick;
+    if (lantern.current) lantern.current.intensity = 0.9 * boost * (0.95 + 0.05 * Math.sin(t * 5.1));
   });
+  // one warm light for the dock's two lanterns, between them
+  const lx = L.lanterns.reduce((a, p) => a + p.x, 0) / L.lanterns.length;
+  const lz = L.lanterns.reduce((a, p) => a + p.z, 0) / L.lanterns.length;
   return (
     <>
-      <pointLight ref={light} color={FIRE_COLOR} intensity={3.2 * boost} distance={12} decay={2} position={[L.fire.x, 1.0, L.fire.z]} castShadow={false} />
-      <pointLight ref={lantern} color="#ffd27a" intensity={0.7 * boost} distance={4} decay={2} position={[L.lantern.x, 1.08, L.lantern.z]} castShadow={false} />
+      <pointLight ref={light} color={FIRE_COLOR} intensity={FIRE_INTENSITY * boost} distance={14} decay={2} position={[L.fire.x, 1.0, L.fire.z]} castShadow={false} />
+      <pointLight ref={lantern} color="#ffd27a" intensity={0.9 * boost} distance={5} decay={2} position={[lx, 1.1, lz]} castShadow={false} />
     </>
   );
 }
 
-/** A soft blue moonlight from above after dark, so the island's edges and pines still read. */
+/** The moon: a soft cool key from high over the back of the island (no shadow), and a faint
+ *  blue-over-moss fill, so the island's edges and pines still read by it. */
 function Moonlight() {
   const night = NIGHTNESS[useContext(TimeOfDayContext)];
   if (night <= 0) return null;
-  return <hemisphereLight args={["#6f86c8", "#1c2a1f", 0.55 * night]} />;
+  return (
+    <>
+      <directionalLight color="#9fb4e8" intensity={0.35 * night} position={[-10, 20, -14]} castShadow={false} />
+      <hemisphereLight args={["#6f86c8", "#1c2a1f", 0.3 * night]} />
+    </>
+  );
+}
+
+/** The campfire's sky: a midnight-navy gradient behind the island, deepest at the top. */
+export function CampfireSky() {
+  const scene = useThree((s) => s.scene);
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 2;
+    canvas.height = 256;
+    const g = canvas.getContext("2d");
+    if (g) {
+      const grad = g.createLinearGradient(0, 0, 0, 256);
+      grad.addColorStop(0, "#0b0e14");
+      grad.addColorStop(1, "#182030");
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 2, 256);
+    }
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, []);
+  useEffect(() => {
+    const before = scene.background;
+    scene.background = texture;
+    return () => {
+      scene.background = before;
+      texture.dispose();
+    };
+  }, [scene, texture]);
+  return null;
 }
 
 const SPARK_GEO = new THREE.SphereGeometry(1, 6, 4);
 const EMBER_MAT = new THREE.MeshBasicMaterial({ color: "#ffb347", toneMapped: false });
-const FIREFLY_MAT = new THREE.MeshBasicMaterial({ color: "#e8ff8a", toneMapped: false });
+const FIREFLY_MAT = new THREE.MeshBasicMaterial({ color: "#d6ff7a", toneMapped: false });
+/** A firefly's soft halo: a bigger, faint green-gold glow round each one (additive, no depth write). */
+const FIREFLY_HALO_MAT = new THREE.MeshBasicMaterial({ color: "#b8e05a", toneMapped: false, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending });
 const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
 const dummy = new THREE.Object3D();
 
@@ -162,7 +216,7 @@ function Embers() {
   return <instancedMesh ref={mesh} args={[SPARK_GEO, EMBER_MAT, COUNT]} raycast={noRaycast} frustumCulled={false} />;
 }
 
-/** Fireflies drifting over the pond, among the pines and by the hammock, blinking; only after dark. */
+/** Fireflies drifting low over the river, among the pines and by the hammock, blinking; only after dark. */
 function Fireflies() {
   const hour = useContext(TimeOfDayContext);
   const night = NIGHTNESS[hour];
@@ -171,20 +225,29 @@ function Fireflies() {
     const around = (x0: number, x1: number, z0: number, z1: number, n: number) =>
       Array.from({ length: n }, () => ({ x: x0 + Math.random() * (x1 - x0), z: z0 + Math.random() * (z1 - z0), y: 0.35 + Math.random() * 1.1, phase: Math.random() * 6.28, rate: 0.6 + Math.random() * 0.9, wander: 0.25 + Math.random() * 0.45 }));
     const h = L.hammock;
+    // over the water, all the way down the river
+    const river = Array.from({ length: 16 }, (_, i) => {
+      const z = RIVER_Z.from + 0.8 + ((RIVER_Z.to - RIVER_Z.from - 1.6) * (i + Math.random())) / 16;
+      const span = riverSpan(z) ?? { x0: 7, x1: 8 };
+      return { x: span.x0 + Math.random() * (span.x1 - span.x0), z, y: 0.25 + Math.random() * 0.9, phase: Math.random() * 6.28, rate: 0.6 + Math.random() * 0.9, wander: 0.25 + Math.random() * 0.45 };
+    });
     return [
-      ...around(L.pond.x0, L.pond.x1, L.pond.z0, L.pond.z1, 9),
-      ...around(-7, -4.5, -6.5, 1, 6),
-      ...around(-3, 5, -7, -5.5, 5),
+      ...river,
+      ...around(-9.5, -6, -9, 1.5, 7),
+      ...around(-4, 6, -9.5, -7.5, 6),
       ...around(Math.min(h.a.x, h.b.x) - 0.5, Math.max(h.a.x, h.b.x) + 0.5, Math.min(h.a.z, h.b.z) - 0.5, Math.max(h.a.z, h.b.z) + 0.5, 5),
     ];
   }, []);
+  const halo = useRef<THREE.InstancedMesh>(null);
   useFrame(({ clock }) => {
     const m = mesh.current;
-    if (!m) return;
+    const g = halo.current;
+    if (!m || !g) return;
     const t = clock.elapsedTime;
     flies.forEach((f, i) => {
       if (night <= 0) {
         m.setMatrixAt(i, hidden);
+        g.setMatrixAt(i, hidden);
         return;
       }
       const blink = Math.max(0, Math.sin(t * f.rate + f.phase));
@@ -192,10 +255,20 @@ function Fireflies() {
       dummy.scale.setScalar(0.034 * night * blink * blink);
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
+      // the glow round it, soft and a little slower to fade
+      dummy.scale.setScalar(0.12 * night * blink);
+      dummy.updateMatrix();
+      g.setMatrixAt(i, dummy.matrix);
     });
     m.instanceMatrix.needsUpdate = true;
+    g.instanceMatrix.needsUpdate = true;
   });
-  return <instancedMesh ref={mesh} args={[SPARK_GEO, FIREFLY_MAT, flies.length]} raycast={noRaycast} frustumCulled={false} />;
+  return (
+    <>
+      <instancedMesh ref={mesh} args={[SPARK_GEO, FIREFLY_MAT, flies.length]} raycast={noRaycast} frustumCulled={false} />
+      <instancedMesh ref={halo} args={[SPARK_GEO, FIREFLY_HALO_MAT, flies.length]} raycast={noRaycast} frustumCulled={false} renderOrder={2} />
+    </>
+  );
 }
 
 /** A field of stars far below and round the floating island: from the camera's angle they fill

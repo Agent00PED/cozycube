@@ -78,7 +78,7 @@ export interface AvatarProps {
   snack?: string;
   /** 0..1 progress of the current action: a fishing bite is 1 (the bobber is under). */
   actionProgress?: number;
-  /** Where this angler's bobber floats (world space), while fishing the campfire's pond. */
+  /** Where this angler's bobber floats (world space), while fishing the campfire's river. */
   bobberAt?: { x: number; y: number; z: number } | null;
   /** Tapping the bite mark (your own avatar only): set the hook. */
   onHook?: () => void;
@@ -141,7 +141,7 @@ const RIPPLE_MAT = new THREE.MeshBasicMaterial({ color: "#dff3ff" });
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
 const FISH_ARM = -1.0;
-// casting at the pond: the rod swings up and back, then over and out (CAST_SECONDS)
+// casting into the river: the rod swings up and back, then over and out (CAST_SECONDS)
 const CAST_BACK_ARM = -2.5;
 const CAST_SECONDS = 0.7;
 // roasting at the campfire: the skewer held out over the fire, then carried and nibbled from the
@@ -622,7 +622,7 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     // --- the guitar across the lap ---
     part.guitar.visible = guitarOn;
 
-    // --- fishing the pond: the rod held out at a steady angle, the bobber on the water (dipping
+    // --- fishing the river: the rod held out at a steady angle, the bobber on the water (dipping
     // on a bite, rings spreading), the line from the rod's tip to it ---
     const angling = action === "fish" && !!bobberAt;
     part.fishingRod.visible = fishing;

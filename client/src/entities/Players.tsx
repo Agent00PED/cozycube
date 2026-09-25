@@ -2,8 +2,8 @@ import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type * as THREE from "three";
-import { hashString, type Gesture, type MapId, type PlayerState } from "@shared/types";
-import { CAMPFIRE_LAYOUT } from "@shared/worlds/campfire";
+import { type Gesture, type MapId, type PlayerState } from "@shared/types";
+import { CAMPFIRE_LAYOUT, nearestFishingSpot } from "@shared/worlds/campfire";
 import { faceHeading } from "../systems/faceTargets";
 import { liveMotion, type MotionSample } from "../systems/liveMotion";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
@@ -36,13 +36,12 @@ export interface CrowdFeed {
   mapId: MapId;
 }
 
-/** Where an angler's bobber floats on the campfire's pond: its spot, nudged across per player so
- *  two lines side by side do not share one float. */
+/** Where an angler's bobber floats on the campfire's river: out from the dock spot they fish from
+ *  (each spot has its own float, and only one angler at a time). */
 export function bobberFor(player: PlayerState, mapId: MapId) {
   if (mapId !== "campfire_night" || player.action !== "fish") return null;
-  const { bobber } = CAMPFIRE_LAYOUT.fishing;
-  const nudge = ((hashString(player.sessionId) % 7) - 3) * 0.12;
-  return { x: bobber.x, y: CAMPFIRE_LAYOUT.pond.water, z: bobber.z + nudge };
+  const { bobber } = nearestFishingSpot(player.x, player.z);
+  return { x: bobber.x, y: CAMPFIRE_LAYOUT.river.water, z: bobber.z };
 }
 
 const NO_EMOTES: FloatingEmote[] = [];

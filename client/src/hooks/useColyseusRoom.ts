@@ -64,10 +64,11 @@ const RELAYED_MESSAGES = [
   // the server refusing a board move, or failing on a message: the sender is told why
   "boardError",
   "serverError",
-  // the campfire: a roast's dial and how it came off the fire; what the pond gave up
+  // the campfire: a roast's dial and how it came off the fire; what the river gave up
   "roastStart",
   "roastResult",
   "fishCaught",
+  "campfireNotice",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;

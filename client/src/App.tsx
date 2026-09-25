@@ -316,11 +316,11 @@ export default function App() {
         } else if (type === "boardState") {
           setBoardView(payload as BoardGameView);
         } else if (type === "fishCaught") {
-          // the campfire's pond: what you pulled out, and what it paid
+          // the campfire's river: what you pulled out, and what it paid
           const c = payload as FishCaught;
           if (c.sessionId === localIdRef.current) {
             const info = STARLIGHT_CATCHES[c.catchId];
-            pushToast(c.coins > 0 ? `${info.name}! +${c.coins} coins` : `${info.name}! (the pond's coins are all earned today)`, { emoji: info.emoji, tone: c.coins > 0 ? "coin" : undefined });
+            pushToast(c.coins > 0 ? `${info.name}! +${c.coins} coins` : `${info.name}! (the river's coins are all earned today)`, { emoji: info.emoji, tone: c.coins > 0 ? "coin" : undefined });
             playSfx("catch");
           }
         } else if (type === "roastResult") {
@@ -333,6 +333,10 @@ export default function App() {
         } else if (type === "plantWatered") {
           const w = payload as { sessionId: string; coins: number };
           if (w.sessionId === localIdRef.current) pushToast(`The plant drinks it up! +${w.coins} coins`, { emoji: "🪴", tone: "coin" });
+        } else if (type === "campfireNotice") {
+          // the campfire said no, kindly (a taken fishing spot, the hour it keeps)
+          const n = payload as { message?: string; emoji?: string };
+          pushToast(String(n?.message ?? ""), { emoji: n?.emoji ?? "🔥" });
         } else if (type === "boardError" || type === "serverError") {
           // the server refused or could not do what we asked (an illegal move): say so, gently
           pushToast(String((payload as { message?: string })?.message ?? "Something went wrong"), { emoji: type === "boardError" ? "♟️" : "⚠️" });
@@ -536,7 +540,7 @@ export default function App() {
               onSplash={splash}
             />
             {currentMap === "boxing_ring" && <BoxingHud me={localPlayer} players={players} onPunch={punch} onExit={boxingExit} onToss={tossCoin} />}
-            <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} onCampfire={campfireSend} />
+            <ActionDock player={localPlayer} players={players} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} onCampfire={campfireSend} />
           </div>
         )}
 

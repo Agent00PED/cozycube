@@ -1,7 +1,7 @@
 // Little synthesized sound effects for the campfire's games: no files (the Activity's CSP and
 // licensing, as for the radio), just a few oscillators and a puff of noise on one shared
 // AudioContext, made on first use. Browsers keep it silent until the page has had a tap or a key;
-// by the time these play, the player has clicked their way to the fire or the pier.
+// by the time these play, the player has clicked their way to the fire or the dock.
 
 let ctx: AudioContext | null = null;
 
