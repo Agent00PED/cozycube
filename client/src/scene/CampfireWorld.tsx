@@ -9,8 +9,10 @@ import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
 import { TimeOfDayContext, useLampBoost } from "./timeOfDay";
 import { CRITTER_TREAT, DUCK_DIVE_AT, DUCK_DIVE_S, STRING_BULBS, STRING_SWING, bindCampfireLife, campNow, duckPose } from "./campfireLife";
-import type { RoomMessageListener } from "../hooks/useColyseusRoom";
+import type { HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { playSfx } from "../audio/sfx";
+import { Barnaby } from "../entities/Barnaby";
+import { LOW_FUEL, COZY_AURA_FUEL, type BonfireUpdate } from "@shared/bonfire";
 
 // The Starlight Campfire (map 2). The island itself is one Blender model, campfire.glb
 // (scripts/blender/build_campfire.py, laid out from shared/worlds/campfire.ts); this file loads it
@@ -18,7 +20,12 @@ import { playSfx } from "../audio/sfx";
 // pines' sway are campfireLife.ts):
 //
 //   the fire      its two flame nodes flicker and breathe over a flickering orange point light,
-//                 and roar up for a minute when someone splits a log for it (the bonfire's boost)
+//                 as big and bright as its fuel (the room's hearth): a burst as wood goes on,
+//                 roaring above 70% (the Cozy Aura), sunk to embers under a smoky haze below 20%
+//   the hearth    the Dutch oven swinging gently on its tripod over the fire, its stew showing
+//                 (tinted by what is in it) and steaming as it cooks; the skewers friends left
+//                 on the picnic table's plates
+//   Barnaby       the otter angler at his tackle stall by the dock (entities/Barnaby.tsx)
 //   smoke         soft puffs rising off it and drifting away on the night wind
 //   embers        sparks lifting off the fire and winking out
 //   fireflies     green-gold, drifting and blinking over the river, the pines and the hammock
@@ -47,26 +54,30 @@ const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: f
 /** How much of the night's magic shows at each hour (fireflies, stars). */
 const NIGHTNESS: Record<TimeOfDay, number> = { night: 1, sunset: 0.6, sunrise: 0.25, day: 0 };
 
-/** How fed the fire is right now, 0..1: a clean split at the chopping block sets the bonfire's
- *  boost (BONFIRE_FUEL_SECONDS), and the flames, its light, the embers and the smoke all swell. */
-const FUEL = { value: 0 };
+/** The fire right now, smoothed from the hearth's fuel: `level` 0..1 (the fuel), `heat` how big and
+ *  bright its flames and light are (embers at 0.4, full at 1), `value` its roar on top (above the
+ *  Cozy Aura line, and a burst each time wood goes on), `smoky` the haze of a fire burning low. */
+const FUEL = { value: 0, level: 0.6, heat: 1, burst: 0, smoky: 0 };
 
 interface Live {
   players: Record<string, PlayerState>;
   toggleables: Record<string, ToggleableSyncState>;
+  hearth: HearthState;
 }
 
 interface CampfireWorldProps extends Live {
+  /** The camp's shared hearth: the fire's fuel, the Dutch oven, the picnic table's plates. */
+  hearth: HearthState;
   onFloorClick: (x: number, z: number) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   /** A tap on one of the ducks (the room tells everyone it dives). */
   onDuck: (duck: number) => void;
 }
 
-export function CampfireWorld({ onFloorClick, players, toggleables, subscribeMessages, onDuck }: CampfireWorldProps) {
+export function CampfireWorld({ onFloorClick, players, toggleables, hearth, subscribeMessages, onDuck }: CampfireWorldProps) {
   // the latest state for the frame loop, without re-rendering the island on every change
-  const live = useRef<Live>({ players, toggleables });
-  live.current = { players, toggleables };
+  const live = useRef<Live>({ players, toggleables, hearth });
+  live.current = { players, toggleables, hearth };
   const floorClick = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -82,14 +93,21 @@ export function CampfireWorld({ onFloorClick, players, toggleables, subscribeMes
         } else if (type === "duckDive" && typeof payload?.duck === "number") {
           DUCK_DIVE_AT[payload.duck] = campNow();
           playSfx("quack");
+        } else if (type === "BONFIRE_STATE_UPDATE" && (payload as BonfireUpdate).amount > 0) {
+          // wood on the fire: it flares up
+          FUEL.burst = 1;
         }
       }),
     [subscribeMessages]
   );
   useFrame((_, dt) => {
-    const fire = Object.values(live.current.toggleables).find((p) => p.kind === "bonfire");
-    const want = fire && fire.boost > 0 ? Math.min(1, fire.boost / 4) : 0;
-    FUEL.value += (want - FUEL.value) * Math.min(1, dt * 1.5);
+    const level = Math.max(0, Math.min(1, live.current.hearth.fuel / 100));
+    FUEL.level += (level - FUEL.level) * Math.min(1, dt * 0.8);
+    FUEL.burst = Math.max(0, FUEL.burst - dt * 0.45);
+    FUEL.heat = 0.4 + 0.6 * Math.min(1, FUEL.level / 0.6);
+    const roar = Math.max(0, (FUEL.level - COZY_AURA_FUEL / 100) / (1 - COZY_AURA_FUEL / 100));
+    FUEL.value += (Math.max(roar * 0.8, FUEL.burst) - FUEL.value) * Math.min(1, dt * 2.5);
+    FUEL.smoky = Math.max(0, Math.min(1, (LOW_FUEL / 100 - FUEL.level) / (LOW_FUEL / 100)));
   });
   return (
     <group>
@@ -100,8 +118,9 @@ export function CampfireWorld({ onFloorClick, players, toggleables, subscribeMes
         </Suspense>
       </ModelBoundary>
       <FireLight />
-      <VanHeadlights />
       <JarLights live={live} />
+      <StewSteam live={live} />
+      <Barnaby subscribeMessages={subscribeMessages} />
       <Moonlight />
       <Embers />
       <Smoke />
@@ -131,24 +150,61 @@ function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
   const { scene } = useGLTF(CAMPFIRE_URL);
   const boost = useLampBoost();
   const life = useMemo(() => bindCampfireLife(scene, DECAL_OFFSET), [scene]);
+  const hearthNodes = useMemo(() => {
+    const pot = scene.getObjectByName("Stew_Pot") ?? null;
+    const contents = scene.getObjectByName("Stew_Contents") as THREE.Mesh | undefined;
+    const stewMat = contents && !Array.isArray(contents.material) ? (contents.material as THREE.MeshStandardMaterial) : null;
+    const plates = [1, 2, 3, 4].map((k) => {
+      const mallow = scene.getObjectByName(`Picnic_Skewer_0${k}`) ?? null;
+      const bbq = scene.getObjectByName(`Picnic_Bbq_0${k}`) ?? null;
+      if (mallow) mallow.visible = false;
+      if (bbq) bbq.visible = false;
+      return { mallow, bbq };
+    });
+    if (contents) contents.visible = false;
+    return { pot, contents: contents ?? null, contentsY: contents?.position.y ?? 0, stewMat, plates };
+  }, [scene]);
   const [begging, setBegging] = useState(false);
 
   useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
     const flick = 0.5 + 0.5 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1);
     const fuel = FUEL.value;
+    const heat = FUEL.heat;
     const { outer, inner } = life.flames;
     if (outer) {
-      outer.scale.set((1 + 0.05 * Math.sin(t * 9.1)) * (1 + 0.3 * fuel), (0.9 + 0.14 * flick + 0.05 * Math.sin(t * 13.7)) * (1 + 0.55 * fuel), (1 + 0.05 * Math.cos(t * 8.3)) * (1 + 0.3 * fuel));
+      outer.scale.set((1 + 0.05 * Math.sin(t * 9.1)) * (1 + 0.3 * fuel) * heat, (0.9 + 0.14 * flick + 0.05 * Math.sin(t * 13.7)) * (1 + 0.45 * fuel) * heat, (1 + 0.05 * Math.cos(t * 8.3)) * (1 + 0.3 * fuel) * heat);
       outer.rotation.y = t * 0.6;
     }
     if (inner) {
-      inner.scale.set((1 + 0.07 * Math.sin(t * 11.3 + 1)) * (1 + 0.25 * fuel), (0.88 + 0.2 * (1 - flick) + 0.06 * Math.sin(t * 17.1)) * (1 + 0.5 * fuel), (1 + 0.07 * Math.cos(t * 10.1)) * (1 + 0.25 * fuel));
+      inner.scale.set((1 + 0.07 * Math.sin(t * 11.3 + 1)) * (1 + 0.25 * fuel) * heat, (0.88 + 0.2 * (1 - flick) + 0.06 * Math.sin(t * 17.1)) * (1 + 0.4 * fuel) * heat, (1 + 0.07 * Math.cos(t * 10.1)) * (1 + 0.25 * fuel) * heat);
       inner.rotation.y = -t * 0.9;
     }
     // the flames, the embers and the lanterns glow a touch brighter after dark, and flicker
     for (const m of life.flicker) m.emissiveIntensity = (0.75 + 0.12 * Math.min(1.5, boost)) * (0.9 + 0.1 * flick) * (1 + 0.25 * fuel);
     const now = life.update(t, dt, live.current.players, live.current.toggleables);
+    // the Dutch oven: a gentle swing on its chain (livelier on the boil), its stew showing and
+    // tinted by what went in, bubbling as it cooks
+    const { stew, picnic } = live.current.hearth;
+    if (hearthNodes.pot) {
+      const cooking = stew.phase === "cooking";
+      hearthNodes.pot.rotation.x = (cooking ? 0.035 : 0.015) * Math.sin(t * 1.4);
+      hearthNodes.pot.rotation.z = (cooking ? 0.03 : 0.012) * Math.sin(t * 1.1 + 1);
+    }
+    if (hearthNodes.contents) {
+      const n = stew.items.length;
+      hearthNodes.contents.visible = n > 0 || stew.phase !== "gathering";
+      hearthNodes.contents.position.y = hearthNodes.contentsY - 0.05 + 0.02 * Math.min(3, n);
+      const pulse = stew.phase === "cooking" ? 1 + 0.03 * Math.sin(t * 9) : 1;
+      hearthNodes.contents.scale.set(pulse, 1, pulse);
+      if (hearthNodes.stewMat) hearthNodes.stewMat.color.copy(stewColor(stew.items.map((i) => i.kind)));
+    }
+    // the picnic table: the skewers friends have left on its plates
+    hearthNodes.plates.forEach((plate, k) => {
+      const on = picnic[k];
+      if (plate.mallow) plate.mallow.visible = on?.food === "mallow";
+      if (plate.bbq) plate.bbq.visible = on?.food === "bbq";
+    });
     if (now.begging !== begging) setBegging(now.begging);
   });
 
@@ -183,8 +239,8 @@ function FireLight() {
     if (grove.current) grove.current.intensity = 0.55 * boost * (0.9 + 0.1 * Math.sin(t * 6.1 + 1) * Math.sin(t * 2.3));
     if (tipi.current) tipi.current.intensity = 0.9 * boost * (0.92 + 0.08 * Math.sin(t * 3.7) * Math.sin(t * 1.3 + 2));
     if (light.current) {
-      light.current.intensity = FIRE_INTENSITY * boost * flick * (1 + 0.6 * FUEL.value);
-      light.current.distance = 14 + 6 * FUEL.value;
+      light.current.intensity = FIRE_INTENSITY * boost * flick * (0.35 + 0.65 * FUEL.heat) * (1 + 0.5 * FUEL.value);
+      light.current.distance = (10 + 4 * FUEL.heat) + 6 * FUEL.value;
     }
     if (lantern.current) lantern.current.intensity = 0.9 * boost * (0.95 + 0.05 * Math.sin(t * 5.1));
   });
@@ -201,6 +257,8 @@ function FireLight() {
       <pointLight color="#ffd98a" intensity={0.45 * boost} distance={4.5} decay={2} position={[L.van.x + 0.2, 1.3, L.van.z + L.van.w / 2 + 0.8]} castShadow={false} />
       <pointLight color="#ffd27a" intensity={0.5 * boost} distance={5} decay={2} position={[L.picnic.x - 0.48, 1.0, L.picnic.z + 0.05]} castShadow={false} />
       {/* the grove's ground lantern by the guitar case */}
+      {/* Barnaby's stall: a warm little light so he is easy to find by the dock */}
+      <pointLight color="#ffd27a" intensity={0.55 * boost} distance={3.4} decay={2} position={[L.barnaby.x + 0.3, 1.5, L.barnaby.z + 0.7]} castShadow={false} />
       <pointLight ref={grove} color="#ffa844" intensity={0.55 * boost} distance={4.5} decay={2} position={[L.groundLantern.x, 0.35, L.groundLantern.z]} castShadow={false} />
     </>
   );
@@ -299,7 +357,7 @@ function Embers() {
       const life = (t * s.speed * (1 + 0.6 * fuel) + s.phase) % 1;
       const a = s.spin + life * s.drift * 4;
       dummy.position.set(L.fire.x + Math.cos(a) * s.r * (0.4 + life), 0.45 + life * (2.3 + 1.2 * fuel), L.fire.z + Math.sin(a) * s.r * (0.4 + life));
-      dummy.scale.setScalar(0.028 * (1 + 0.4 * fuel) * (1 - life) * (0.7 + 0.3 * Math.sin(t * 20 + i)));
+      dummy.scale.setScalar(i / COUNT > FUEL.heat + 0.1 ? 0 : 0.028 * (1 + 0.4 * fuel) * (1 - life) * (0.7 + 0.3 * Math.sin(t * 20 + i)));
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
     });
@@ -412,12 +470,13 @@ function Smoke() {
       // the wind carries it off toward the back right, a little more the higher it goes
       dummy.position.set(L.fire.x + life * life * 2.2 + Math.sin(t * 0.7 + s.wobble) * 0.12, 1.05 + rise, L.fire.z - life * life * 1.4 + Math.cos(t * 0.6 + s.wobble) * 0.1);
       const grow = 0.16 + life * 0.6;
-      dummy.scale.setScalar(grow * s.size * (1 - life * life * life) * (1 + 0.35 * fuel));
+      dummy.scale.setScalar(grow * s.size * (1 - life * life * life) * (1 + 0.35 * fuel + 0.9 * FUEL.smoky));
+      if (FUEL.smoky > 0) dummy.position.y -= rise * 0.35 * FUEL.smoky; // a low fire's smoke hangs about
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
     });
     m.instanceMatrix.needsUpdate = true;
-    SMOKE_MAT.opacity = 0.12 + 0.06 * fuel;
+    SMOKE_MAT.opacity = 0.12 + 0.06 * fuel + 0.2 * FUEL.smoky;
   });
   return <instancedMesh ref={mesh} args={[SPARK_GEO, SMOKE_MAT, COUNT]} raycast={noRaycast} frustumCulled={false} renderOrder={3} />;
 }
@@ -444,28 +503,43 @@ function BulbGlows() {
   return <instancedMesh ref={mesh} args={[SPARK_GEO, GLOW_MAT, STRING_BULBS.length]} raycast={noRaycast} frustumCulled={false} renderOrder={2} />;
 }
 
-/** The camper's headlamps: a warm spotlight out ahead of its nose, and two soft beams of light in
- *  the air (additive cones, faint) from its round lamps across the grass toward the river. */
-const BEAM_GEO = new THREE.ConeGeometry(0.55, 2.4, 20, 1, true).rotateZ(Math.PI / 2).translate(1.2, 0, 0);
-const BEAM_MAT = new THREE.MeshBasicMaterial({ color: "#ffd98a", toneMapped: false, transparent: true, opacity: 0.09, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
-function VanHeadlights() {
-  const boost = useLampBoost();
-  const spot = useRef<THREE.SpotLight>(null);
-  const nose = L.van.x + L.van.len / 2 + 0.06;
-  useEffect(() => {
-    const s = spot.current;
-    if (!s) return;
-    s.target.position.set(nose + 4, 0, L.van.z);
-    s.target.updateMatrixWorld();
-  }, [nose]);
-  return (
-    <group>
-      <spotLight ref={spot} color="#ffd98a" intensity={1.6 * boost} distance={8} angle={0.5} penumbra={0.7} decay={2} position={[nose, 0.72, L.van.z]} castShadow={false} />
-      {[-0.46, 0.46].map((dz) => (
-        <mesh key={dz} geometry={BEAM_GEO} material={BEAM_MAT} position={[nose, 0.72, L.van.z + dz]} rotation={[0, 0, -0.12]} raycast={noRaycast} renderOrder={2} />
-      ))}
-    </group>
-  );
+const STEAM_MAT = new THREE.MeshBasicMaterial({ color: "#f3efe8", transparent: true, opacity: 0.2, depthWrite: false });
+const STEW_TINT: Record<string, THREE.Color> = { fish: new THREE.Color("#d88a4a"), mushroom: new THREE.Color("#8a5a3a"), berry: new THREE.Color("#8f4f9a") };
+const stewMix = new THREE.Color();
+/** The stew's colour: an average of its ingredients' (a fishy orange, a mushroom brown, a berry purple). */
+function stewColor(kinds: string[]): THREE.Color {
+  if (!kinds.length) return stewMix.set("#c8763c");
+  stewMix.setRGB(0, 0, 0);
+  for (const k of kinds) stewMix.add(STEW_TINT[k] ?? STEW_TINT.fish);
+  return stewMix.multiplyScalar(1 / kinds.length);
+}
+
+/** Wisps of steam off the Dutch oven while it cooks and while the stew waits, warm, for bowls. */
+function StewSteam({ live }: { live: React.MutableRefObject<Live> }) {
+  const COUNT = 8;
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const seeds = useMemo(() => Array.from({ length: COUNT }, (_, i) => ({ phase: i / COUNT, a: Math.random() * 6.28, r: 0.05 + Math.random() * 0.12 })), []);
+  const top = L.tripod.potY + 0.28;
+  useFrame(({ clock }) => {
+    const m = mesh.current;
+    if (!m) return;
+    const t = clock.elapsedTime;
+    const phase = live.current.hearth.stew.phase;
+    const on = phase === "cooking" ? 1 : phase === "ready" ? 0.6 : 0;
+    seeds.forEach((s, i) => {
+      if (!on) {
+        m.setMatrixAt(i, hidden);
+        return;
+      }
+      const life = (t * 0.35 + s.phase) % 1;
+      dummy.position.set(L.fire.x + Math.cos(s.a + life * 2) * s.r, top + life * 0.9, L.fire.z + Math.sin(s.a + life * 2) * s.r);
+      dummy.scale.setScalar((0.05 + life * 0.14) * (1 - life) * on * 1.6);
+      dummy.updateMatrix();
+      m.setMatrixAt(i, dummy.matrix);
+    });
+    m.instanceMatrix.needsUpdate = true;
+  });
+  return <instancedMesh ref={mesh} args={[SPARK_GEO, STEAM_MAT, COUNT]} raycast={noRaycast} frustumCulled={false} renderOrder={3} />;
 }
 
 const RING_GEO = new THREE.RingGeometry(0.08, 0.11, 24).rotateX(-Math.PI / 2);

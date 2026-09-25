@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { PLANT_WATER_COINS, msUntilNextDay, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
+import { PLANT_WATER_COINS, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
+import { BARNABY_FRONT, BARNABY_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH } from "@shared/worlds/campfire";
+import type { HearthState } from "../../hooks/useColyseusRoom";
 import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, spotOfSeat } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
@@ -20,6 +22,11 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🪴 Water Plant] within PLANT_REACH of a plant you have not watered today; after, [🌿 Happy
 //                    Plant · 5h] counts down to when it is thirsty again (the day's rollover)
 //   [🍡 Roast & Grill]  within BONFIRE_REACH of the campfire, or sitting on a log bench round it
+//   [🪵 Add Firewood]  there too, with firewood (or Golden Charcoal) in your bag
+//   [🍲 Dutch Oven] / [🥣 Scoop Stew]  there too: the hearth's panel, or a bowl when the stew's up
+//   [🍢 Leave on Table] / [🍢 Grab a Skewer]  at the picnic table, a skewer in hand or on a plate
+//   [💤 AFK Mode: OFF] / [💤 AFK Mode: ON]  sitting at a fishing spot (the dock's edge, the canoe)
+//   [🦦 Talk to Barnaby]  at the angler's tackle stall by the dock
 //   [🎣 Go Fishing]  at the dock: sit on its edge at the nearest free spot and cast; sitting on the
 //                    edge already, [🎣 Cast Line]
 //   [✨ Catch Fireflies] / [✨ Release Fireflies]  in the grove between the hammock and the tipi
@@ -36,7 +43,7 @@ import { glass, hudText, pillButton } from "./glass";
 
 interface Action {
   key: string;
-  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "critter" | "stand";
+  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fuel" | "stew" | "picnic" | "afk" | "barnaby" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "critter" | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
   hint?: string;
@@ -62,23 +69,25 @@ interface DockProps {
   localSessionId: string;
   /** Water the plant in reach (PLANT_WATER). */
   onWater: (plantId: string) => void;
-  /** The campfire's guitar (GUITAR). */
+  /** The campfire's guitar (GUITAR), wood on the fire, the stew, the picnic table and AFK fishing. */
   onCampfire: (packet: CampfirePacket) => void;
+  /** The campfire's hearth (the fire's fuel, the Dutch oven, the picnic table's plates). */
+  hearth: HearthState;
 }
 
 const SCAN_MS = 120;
 /** A keyboard to press Space on (not a phone or tablet, where the pill is the way up). */
 const HAS_KEYBOARD = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: fine)").matches;
 
-export function ActionDock({ player, players, mapId, chairs, toggleables, localSessionId, onWater, onCampfire }: DockProps) {
+export function ActionDock({ player, players, mapId, chairs, toggleables, localSessionId, hearth, onWater, onCampfire }: DockProps) {
   const [actions, setActions] = useState<Action[]>([]);
-  const latest = useRef({ players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire });
-  latest.current = { players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire };
+  const latest = useRef({ players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire, hearth, player });
+  latest.current = { players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire, hearth, player };
 
   useEffect(() => {
     let lastKey = "";
     const scan = () => {
-      const { players, chairs, toggleables, mapId, localSessionId, sitting, watered, action, onWater, onCampfire } = latest.current;
+      const { players, chairs, toggleables, mapId, localSessionId, sitting, watered, action, onWater, onCampfire, hearth, player } = latest.current;
       const found: Action[] = [];
       const reach = (p: ToggleableSyncState) => {
         const a = APPROACH_POINTS[p.propId];
@@ -95,6 +104,38 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         const run = onLog ? () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "roast", propId: id } })) : () => interactBridge.current?.useProp(id);
         found.push({ key: `roast:${id}`, type: "roast", label: "🍡 Roast & Grill", hint: "Roast a marshmallow or grill a skewer: pull it out in the green for +5 coins", run });
       }
+      // the hearth: wood on the fire, and the Dutch oven over it (from the fire's side or a seat round it)
+      if (bonfire && (onLog || (!sitting && reach(bonfire) <= BONFIRE_REACH))) {
+        const bag = parseBag(player.bag);
+        const item = bag.charcoal ? ("charcoal" as const) : bag.firewood ? ("firewood" as const) : null;
+        if (item && hearth.fuel < 100 && action !== "grill") {
+          const n = bag[item] ?? 0;
+          found.push({ key: `fuel:${item}:${n}`, type: "fuel", label: item === "charcoal" ? `✨ Add Golden Charcoal ×${n}` : `🪵 Add Firewood ×${n}`, hint: "Build the fire up: above 70% everyone gets the Cozy Aura", run: () => onCampfire({ type: "ADD_FUEL", item }) });
+        }
+        const stew = hearth.stew;
+        const ready = stew.phase === "ready" && stew.servings > 0 && !stew.served.includes(player.userId);
+        const open = () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "cooking", propId: "bonfire" } }));
+        if (ready) found.push({ key: "stew:scoop", type: "stew", label: "🥣 Scoop Stew", hint: "A warm bowl: Well-Fed for 8 minutes", run: () => onCampfire({ type: "STEW_SCOOP" }) });
+        else found.push({ key: `stew:${stew.phase}`, type: "stew", label: stew.phase === "cooking" ? "🫕 Stew Simmering" : "🍲 Dutch Oven", hint: "Add fish, mushrooms or berries to the communal pot", run: open });
+      }
+      // the picnic table: leave the skewer in hand for a friend, or take one somebody left
+      if (mapId === "campfire_night" && Math.hypot(CAMPFIRE_LAYOUT.picnic.x - cameraFocus.x, CAMPFIRE_LAYOUT.picnic.z - cameraFocus.z) <= PICNIC_REACH) {
+        const snack = parseSnack(player.snack);
+        if (player.holding === "skewer" && snack && action !== "grill") {
+          found.push({ key: "picnic:place", type: "picnic", label: "🍢 Leave on Table", hint: "Put your skewer on a plate for a friend to grab", run: () => onCampfire({ type: "PICNIC_PLACE" }) });
+        } else if (hearth.picnic.length > 0 && (action === "" || action === "guitar") && player.holding !== "jar") {
+          const plate = hearth.picnic[0];
+          found.push({ key: `picnic:take:${hearth.picnic.length}`, type: "picnic", label: `${ROAST_FOOD_INFO[plate.food].emoji} Grab a Skewer`, hint: `${plate.by} left a ${ROAST_FOOD_INFO[plate.food].name.toLowerCase()} here: Well-Fed for 8 minutes`, run: () => onCampfire({ type: "PICNIC_TAKE", plate: 0 }) });
+        }
+      }
+      // Barnaby's tackle stall by the dock
+      if (mapId === "campfire_night" && !sitting) {
+        const angler = Object.values(toggleables).find((p) => p.kind === "angler");
+        if (angler && Math.min(reach(angler), Math.hypot(BARNABY_FRONT.x - cameraFocus.x, BARNABY_FRONT.z - cameraFocus.z)) <= BARNABY_REACH + 0.6) {
+          const id = angler.propId;
+          found.push({ key: `barnaby:${id}`, type: "barnaby", label: "🦦 Talk to Barnaby", hint: "Sell your creel, buy rods and bait", run: () => interactBridge.current?.useProp(id) });
+        }
+      }
       // the dock: sitting on its edge, cast from there; standing, sit down at the nearest free spot
       const mySeat = Object.values(chairs).find((c) => c.occupiedBy === localSessionId);
       const mySpot = mySeat ? spotOfSeat(mySeat.propId) : undefined;
@@ -102,7 +143,13 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         // sitting on the dock's edge or in the canoe: cast from there
         const id = mySpot;
         found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Cast Line", hint: "Cast into the river; tap when the bobber dips, then reel it in", run: () => interactBridge.current?.useProp(id) });
-      } else if (!sitting && action === "") {
+      }
+      // sitting at a spot with the line in (or about to be): feet up, and let the fish come to you
+      if (mySpot && (action === "" || action === "fish" || action === "afkfish")) {
+        const on = action === "afkfish";
+        found.push({ key: `afk:${on}`, type: "afk", label: on ? "💤 AFK Mode: ON" : "💤 AFK Mode: OFF", hint: on ? "Catching a common fish every 15-20s. Tap to watch the bobber again" : "Feet up: a common fish into the creel every 15-20s", run: () => onCampfire({ type: "AFK", on: !on }) });
+      }
+      if (!mySpot && !sitting && action === "") {
         let spot: { id: string; d: number } | null = null;
         for (const p of Object.values(toggleables)) {
           if (p.kind !== "fishing") continue;

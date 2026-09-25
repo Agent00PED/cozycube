@@ -44,6 +44,10 @@ export interface FishProfile {
   treasureReward?: number;
   /** A difficulty word under the fish (Easy, Medium, ...). */
   tier?: string;
+  /** The rod's grip on the line: tension builds this much slower (0.35: 35%). */
+  tensionResist?: number;
+  /** A line under the name once it is landed (its length and stars). */
+  detail?: string;
 }
 
 interface Props {
@@ -150,7 +154,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
       s.meter = Math.max(0, Math.min(1, s.meter + (inside ? 0.26 : -0.06 - fish.size * 0.04) * dt));
       // the line's tension: builds while the fish runs free (faster for a heavy one), eases while
       // it is held; left running, it snaps before the meter could run dry
-      s.tension = Math.max(0, Math.min(1, s.tension + (inside ? -0.5 : 0.35 + fish.size * 0.2) * dt));
+      s.tension = Math.max(0, Math.min(1, s.tension + (inside ? -0.5 : (0.35 + fish.size * 0.2) * (1 - (fish.tensionResist ?? 0))) * dt));
       if (s.tension > 0.65 && s.t - s.warnAt > 0.45) {
         s.warnAt = s.t;
         playSfx("tension");
@@ -238,6 +242,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
             )}
             <span className="text-6xl">{done === "caught" ? fish.emoji : "💨"}</span>
             <b className="text-lg">{done === "caught" ? `You reeled in a ${fish.name}!` : snapped ? "Snap! The line broke" : "It got away…"}</b>
+            {done === "caught" && fish.detail ? <span className="text-base font-bold text-sky-200">{fish.detail}</span> : null}
             {done === "caught" && fish.reward ? <span className="text-base font-bold text-amber-200">+{fish.reward} 🪙</span> : null}
             {done === "caught" && chestOpen ? <span className="text-base font-bold text-amber-200">🎁 Sunken treasure! +{fish.treasureReward ?? 0} 🪙</span> : null}
             <span className="text-sm opacity-70">{done === "caught" ? "Back in the water it goes, your line with it." : snapped ? "Too much tension: keep the fish in the green. A new line's out." : "The line went slack. The float's back out."}</span>

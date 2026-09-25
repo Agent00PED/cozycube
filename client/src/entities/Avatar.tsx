@@ -85,6 +85,10 @@ export interface AvatarProps {
   bobberAt?: { x: number; y: number; z: number } | null;
   /** Tapping the bite mark (your own avatar only): set the hook. */
   onHook?: () => void;
+  /** Well-Fed (a campfire meal): a bouncier step. */
+  fed?: boolean;
+  /** Fishing with the Starlight Composite: a shimmer of stars about the rod's tip. */
+  rodAura?: boolean;
 }
 
 /** The overhead anchor: the nametag sits here, the badge, bubble and emotes stack above it. */
@@ -170,6 +174,13 @@ const CHOP_RAISE_ARM = -2.75;
 const CHOP_DOWN_ARM = -0.55;
 // the telescope: both hands up to the eyepiece
 const STARGAZE_ARM = -1.35;
+// the rod held in both hands: the left arm reaches in across the body to the grip
+const TWO_HAND_IN = 0.42;
+// the belly rub: both paws on the tummy, reaching in
+const BELLY_ARM = -0.62;
+const BELLY_IN = 0.34;
+// Well-Fed: how much bouncier the step is
+const FED_BOUNCE = 1.9;
 // casting into the river: the rod swings up and back, then over and out (CAST_SECONDS)
 const CAST_BACK_ARM = -2.5;
 const CAST_SECONDS = 0.7;
@@ -395,11 +406,13 @@ interface RigProps {
   actionProgress: number;
   bobberAt: { x: number; y: number; z: number } | null;
   onHook?: () => void;
+  fed: boolean;
+  rodAura: boolean;
   /** Told the height of the top of the hair or hat being worn, so the nametag clears it. */
   onCrownTop: (y: number) => void;
 }
 
-function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, awaiting, snack, actionProgress, bobberAt, onHook, onCrownTop }: RigProps) {
+function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, awaiting, snack, actionProgress, bobberAt, onHook, fed, rodAura, onCrownTop }: RigProps) {
   const rig = useRig();
   const shirtGoal = useRef(new THREE.Color());
   const walkPhase = useRef(0);
@@ -414,8 +427,9 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
   const bites = useRef({ snack: "", eaten: 0, next: 0, until: 0, pending: false });
   // a cast: when the line went out (the rod swings over and out)
   const cast = useRef({ was: "" as PlayerAction, at: -Infinity });
-  // where the bite mark floats, over the bobber
+  // where the bite mark floats, over the bobber; and the Starlight rod's shimmer, at its tip
   const markRef = useRef<THREE.Group>(null);
+  const auraRef = useRef<THREE.Group>(null);
 
   // the skewer: the food's colour for how it was roasted, and the pieces of the right food
   useEffect(() => {
@@ -499,7 +513,7 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     }
     // gestures, while standing still (and a move at the board, played from the chair)
     const gAge = gesture ? (performance.now() - gesture.at) / 1000 : Infinity;
-    const g = gesture && gAge < GESTURE_SECONDS[gesture.kind] && !walking && (pose === "stand" || gesture.kind === "reach") ? gesture.kind : null;
+    const g = gesture && gAge < GESTURE_SECONDS[gesture.kind] && !walking && (pose === "stand" || gesture.kind === "reach" || (gesture.kind === "belly" && pose !== "lie")) ? gesture.kind : null;
     const holdingCup = holding === "coffee" && pose !== "lie" && !fishing;
     // the reach: out over REACH_OUT, held REACH_HOLD, back over REACH_OUT (eased both ways)
     const reach = g === "reach" ? THREE.MathUtils.smoothstep(Math.min(gAge, 2 * REACH_OUT + REACH_HOLD - gAge) / REACH_OUT, 0, 1) : 0;
@@ -519,6 +533,10 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
       armL = armR = CHEER_ARM + Math.sin(gAge * 9) * 0.12;
     } else if (g === "heart") {
       armL = armR = HEART_ARM;
+    } else if (g === "belly") {
+      // a happy belly rub: both paws on the tummy, rubbing round and round
+      armL = BELLY_ARM + Math.sin(gAge * 7) * 0.12;
+      armR = BELLY_ARM - Math.sin(gAge * 7) * 0.12;
     } else if (g === "toss") {
       armR = gAge < 0.25 ? THREE.MathUtils.lerp(0, TOSS_BACK_ARM, gAge / 0.25) : THREE.MathUtils.lerp(TOSS_BACK_ARM, TOSS_OVER_ARM, THREE.MathUtils.smoothstep((gAge - 0.25) / 0.3, 0, 1));
     } else if (g === "water") {
@@ -533,7 +551,11 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
       const k = gAge / GESTURE_SECONDS.net;
       armR = k < 0.35 ? THREE.MathUtils.lerp(0, NET_UP_ARM, k / 0.35) : THREE.MathUtils.lerp(NET_UP_ARM, NET_DOWN_ARM, THREE.MathUtils.smoothstep((k - 0.35) / 0.4, 0, 1));
     }
-    if (fishing) armR = FISH_ARM + Math.sin(t * 1.1) * 0.04;
+    // the rod in both hands: the right on the grip, the left reaching across to steady it
+    if (fishing) {
+      armR = FISH_ARM + Math.sin(t * 1.1) * 0.04;
+      armL = FISH_ARM + 0.08 + Math.sin(t * 1.1 + 0.4) * 0.03;
+    }
     // a cast: up and back, then over and out, as the line goes in
     const cr = cast.current;
     if (action === "fish" && cr.was !== "fish") cr.at = t;
@@ -609,8 +631,10 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     const k = seated ? POSE_LERP : LIMB_LERP;
     part.armL.rotation.x = L(part.armL.rotation.x, armL, k);
     part.armR.rotation.x = L(part.armR.rotation.x, armR, k);
-    part.armL.rotation.z = L(part.armL.rotation.z, pose === "lie" ? 0.1 : guitarOn ? GUITAR_NECK_SPLAY : ARM_SPLAY, 0.3);
-    part.armR.rotation.z = L(part.armR.rotation.z, (pose === "lie" ? -0.1 : guitarOn ? -0.05 : -ARM_SPLAY) - wave, 0.3);
+    const twoHanded = fishing && pose !== "lie";
+    const rubbing = g === "belly";
+    part.armL.rotation.z = L(part.armL.rotation.z, pose === "lie" ? 0.1 : guitarOn ? GUITAR_NECK_SPLAY : twoHanded ? -TWO_HAND_IN : rubbing ? -BELLY_IN : ARM_SPLAY, 0.3);
+    part.armR.rotation.z = L(part.armR.rotation.z, (pose === "lie" ? -0.1 : guitarOn ? -0.05 : twoHanded ? TWO_HAND_IN * 0.3 : rubbing ? BELLY_IN : -ARM_SPLAY) - wave, 0.3);
     part.legL.rotation.x = L(part.legL.rotation.x, legs[0], k);
     part.legR.rotation.x = L(part.legR.rotation.x, legs[1], k);
     // cross-legged: each thigh swung in across the other (the left is +x, so it turns to -x)
@@ -620,7 +644,8 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     // --- body: waddle when walking, lie back on a blanket, sway while dizzy or dozing ---
     const body = part.body;
     const lying = pose === "lie" || g === "nap";
-    const bob = walking ? Math.abs(Math.sin(phase)) * BOB_HEIGHT : g === "dance" ? Math.abs(Math.sin(gAge * 7)) * 0.08 : 0;
+    // Well-Fed: a spring in the step
+    const bob = walking ? Math.abs(Math.sin(phase)) * BOB_HEIGHT * (fed ? FED_BOUNCE : 1) : g === "dance" ? Math.abs(Math.sin(gAge * 7)) * 0.08 : 0;
     body.position.y = L(body.position.y, rest.body.pos.y + (lying ? AVATAR_LIE_LIFT : bob), k);
     const reeling = action === "reel" && !!bobberAt;
     body.rotation.x = L(body.rotation.x, lying ? LIE_ROLL : reeling ? REEL_LEAN + Math.sin(t * 9) * 0.05 + Math.sin(t * 23) * 0.02 : walking ? 0.06 * speed : dizzy ? Math.sin(t * 4.5) * 0.12 : g === "water" ? WATER_LEAN : reach * REACH_LEAN, reeling ? 0.3 : k);
@@ -676,7 +701,7 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     }
     part.eyes.scale.y = rest.eyes.scale.y * (g === "nap" || asleep || pose === "lie" ? 0.1 : Math.max(0.1, open));
     // a sip of something warm (or a bite of something golden): the eyes close happily (^ ^)
-    const happy = (sipping || (biting && parseSnack(snack)?.quality === "golden")) && !asleep; // (both only while not lying)
+    const happy = (sipping || g === "belly" || (biting && parseSnack(snack)?.quality === "golden")) && !asleep; // (only while not lying)
     part.eyes.visible = !happy;
     part.eyesHappy.visible = happy;
 
@@ -726,17 +751,19 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
 
     // --- fishing the river: the rod held out at a steady angle, the bobber on the water (dipping
     // on a bite, rings spreading), the line from the rod's tip to it ---
-    const angling = (action === "fish" || action === "reel") && !!bobberAt;
+    const angling = (action === "fish" || action === "reel" || action === "afkfish") && !!bobberAt;
+    // the wait: as the bite nears (the server's progress, in tenths), nibbles tug the float and rings spread
+    const nibble = action === "fish" && !bite && actionProgress >= 0.5 ? Math.min(1, (actionProgress - 0.4) / 0.5) : 0;
     part.fishingRod.visible = fishing;
     // fighting a fish on the river, the rod's tip is pulled down toward it and jerks
     part.fishingRod.rotation.x = -part.armR.rotation.x + (reeling ? 0.3 + Math.sin(t * 13) * 0.1 + Math.sin(t * 31) * 0.04 : 0);
     part.bobber.visible = angling;
     rig.line.visible = angling;
-    rig.ripples.forEach((ring) => (ring.visible = angling && (bite || reeling)));
+    rig.ripples.forEach((ring) => (ring.visible = angling && (bite || reeling || nibble > 0)));
     if (angling && bobberAt) {
       const float = rig.root.worldToLocal(tmpA.set(bobberAt.x, bobberAt.y, bobberAt.z));
       const surface = float.y;
-      float.y += reeling ? -0.05 + Math.sin(t * 17) * 0.02 : bite ? -0.06 + Math.sin(t * 28) * 0.015 : castAge < CAST_SECONDS ? 0.3 * (1 - castAge / CAST_SECONDS) : Math.sin(t * 2.3 + seed) * 0.012;
+      float.y += reeling ? -0.05 + Math.sin(t * 17) * 0.02 : bite ? -0.06 + Math.sin(t * 28) * 0.015 : castAge < CAST_SECONDS ? 0.3 * (1 - castAge / CAST_SECONDS) : Math.sin(t * 2.3 + seed) * 0.012 - nibble * 0.035 * Math.pow(Math.max(0, Math.sin(t * (4 + 5 * nibble) + seed)), 8);
       if (reeling) {
         // the fish drags the float about under the surface
         float.x += Math.sin(t * 3.1) * 0.12 + Math.sin(t * 7.7) * 0.04;
@@ -750,11 +777,14 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
       pos.setXYZ(1, float.x, float.y + 0.085, float.z);
       pos.needsUpdate = true;
       rig.ripples.forEach((ring, i) => {
-        const life = (t * 1.6 + i * 0.5) % 1;
+        const small = nibble > 0 && !bite && !reeling;
+        const life = (t * (small ? 0.8 + nibble : 1.6) + i * 0.5) % 1;
         ring.position.set(float.x, surface + 0.006, float.z);
-        ring.scale.setScalar(0.6 + life * 2.4);
+        ring.scale.setScalar(small ? 0.4 + life * (0.6 + 1.4 * nibble) : 0.6 + life * 2.4);
       });
     }
+    // the Starlight rod's shimmer rides its tip
+    if (rodAura && fishing && auraRef.current) auraRef.current.position.copy(rig.root.worldToLocal(part.rodTip.getWorldPosition(tmpB)));
   });
 
   const guitarOn = action === "guitar" && pose === "sit";
@@ -769,6 +799,20 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
             <button type="button" className="cozy-bite-mark" onClick={onHook} disabled={!onHook} aria-label="Set the hook">
               !
             </button>
+          </Html>
+        )}
+      </group>
+      {/* the Starlight Composite: stars twinkling about the rod's tip while it is out */}
+      <group ref={auraRef}>
+        {rodAura && (action === "fish" || action === "afkfish" || action === "reel") && (
+          <Html center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
+            <div className="cozy-star-aura" aria-hidden>
+              {["✨", "⭐", "✨"].map((c, i) => (
+                <span key={i} style={{ animationDelay: `${i * 0.5}s`, "--ax": `${(i - 1) * 12}px` } as React.CSSProperties}>
+                  {c}
+                </span>
+              ))}
+            </div>
           </Html>
         )}
       </group>
@@ -823,7 +867,7 @@ const RING_GEO = new THREE.RingGeometry(0.62, 0.7, 40);
 
 /** A player: the model, dressed and posed, with the nametag and the overhead overlays. */
 export const Avatar = memo(
-  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook }, ref) {
+  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false }, ref) {
     const outfit = useMemo(() => parseLook(look) ?? defaultLook(userId || username, color), [look, userId, username, color]);
     // every avatar breathes and glances round on its own clock, so a crowd never moves in unison
     const seed = useMemo(() => (hashString(userId || username) % 1000) / 100, [userId, username]);
@@ -856,7 +900,7 @@ export const Avatar = memo(
 
         <ModelBoundary what="avatar.glb" fallback={<StandIn />}>
           <Suspense fallback={<StandIn />}>
-            <AvatarModel look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} onCrownTop={setCrownTop} />
+            <AvatarModel look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} fed={fed} rodAura={rodAura} onCrownTop={setCrownTop} />
           </Suspense>
         </ModelBoundary>
 

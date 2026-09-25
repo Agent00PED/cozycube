@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { BONFIRE_FUEL_SECONDS, CHOP_CLEAN_COINS, CHOP_STUN_S, type CampfirePacket, type ChopResult } from "@shared/types";
-import { CHOP_STROKE_NAMES, chopMarker, chopZone, type ChopStroke } from "@shared/chop";
+import { CHOP_CLEAN_COINS, CHOP_STUN_S, type CampfirePacket, type ChopResult } from "@shared/types";
+import { CHOP_LOGS, CHOP_STROKE_NAMES, chopKnot, chopMarker, chopZone, type ChopStroke } from "@shared/chop";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -13,14 +13,17 @@ interface Props {
 }
 
 // The chopping block's 3-hit combo. Raise the hatchet (CHOP_START) and swing (the button, Space or
-// Enter) when the needle is in the green, three times running:
+// Enter) when the needle is in the green, three times running. The needle ping-pongs across the
+// meter on every stroke (it never runs out at the edge; take your time):
 //
-//   1  Notch Cut      the needle runs once; the wide sweet spot swings back and forth
-//   2  Wedge Split    the needle swings to and fro; the sweet spot holds still
-//   3  Clean Cleave   the needle runs once, quicker, at a narrow golden sweet spot
+//   1  Notch Cut      the wide sweet spot swings back and forth
+//   2  Wedge Split    the sweet spot holds still
+//   3  Clean Cleave   a narrow golden sweet spot, the needle slower still
 //
-// The red wood knot on each meter stuns the axe if the swing lands in it. All three land: the log
-// splits (a burst of chips), +CHOP_CLEAN_COINS, and the bonfire roars up for BONFIRE_FUEL_SECONDS.
+// The red wood knot on each meter stuns the axe if the swing lands in it. The log is Soft Pine (a
+// wider sweet spot), Hard Oak (its knots creep) or, one in ten, a Golden Log. All three land: the
+// log splits (a burst of chips), +CHOP_CLEAN_COINS and its Firewood (or Golden Charcoal) go in
+// your bag, to put on the bonfire.
 // The server keeps each stroke's clock and judges each swing (shared/chop.ts: the meter drawn here
 // is computed exactly as it judges); chopStroke hands over the next meter, chopResult ends it.
 
@@ -115,12 +118,19 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
   const live = phase === "stroke" || phase === "judging";
   const needle = stroke && live ? chopMarker(stroke, t) : 0;
   const [z0, z1] = stroke && live ? chopZone(stroke, t) : [0.4, 0.6];
+  const [k0, k1] = stroke && live ? chopKnot(stroke, t) : [0, 0];
+  const log = stroke ? CHOP_LOGS[stroke.log] : result ? CHOP_LOGS[result.log] : null;
   const current = stroke?.stroke ?? 1;
   const done = (n: number) => (phase === "result" ? (result?.clean ? true : n < (result?.stroke ?? 1)) : n < current);
   return (
     <Modal title="Chop Firewood" icon="🪓" onClose={onClose} width={440}>
       <div className="flex flex-col items-center gap-3 pb-2">
         <p className="m-0 text-center text-sm opacity-80">Three swings, each in the green: notch it, split it, cleave it. Mind the red knot.</p>
+        {log && (
+          <div className={`rounded-full px-3 py-1 text-xs font-bold ${stroke?.log === "golden" || result?.log === "golden" ? "bg-amber-300/30 text-amber-100 shadow-[0_0_12px_rgba(255,209,102,0.5)]" : "bg-white/10"}`}>
+            {log.emoji} {log.name} · <span className="font-normal opacity-80">{log.blurb}</span>
+          </div>
+        )}
         {/* the combo: three strokes */}
         <div className="flex w-full items-center justify-center gap-2" aria-label="Combo">
           {([1, 2, 3] as const).map((n) => (
@@ -132,7 +142,7 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
         </div>
         {/* the meter */}
         <div className="relative h-11 w-full overflow-hidden rounded-full bg-gradient-to-r from-[#6b4a33] to-[#8a6246]" role="img" aria-label="Chopping meter">
-          {stroke && live && <div className="absolute inset-y-1 rounded-full bg-[#ff5a4f]/85 shadow-[0_0_10px_rgba(255,90,79,0.7)]" style={{ left: `${stroke.knotFrom * 100}%`, width: `${stroke.knotWidth * 100}%` }} title="Wood knot" />}
+          {stroke && live && <div className="absolute inset-y-1 rounded-full bg-[#ff5a4f]/85 shadow-[0_0_10px_rgba(255,90,79,0.7)]" style={{ left: `${k0 * 100}%`, width: `${(k1 - k0) * 100}%` }} title="Wood knot" />}
           <div className={`absolute inset-y-1 rounded-full ${current === 3 ? "bg-[#ffd166] shadow-[0_0_14px_rgba(255,209,102,0.9)]" : "bg-[#6fcf7a] shadow-[0_0_12px_rgba(111,207,122,0.7)]"}`} style={{ left: `${z0 * 100}%`, width: `${(z1 - z0) * 100}%`, opacity: live ? 1 : 0.35 }} />
           {live && <div className="absolute inset-y-0 w-1.5 -translate-x-1/2 rounded-full bg-[#fff4e0] shadow-[0_0_10px_rgba(255,244,224,0.9)]" style={{ left: `${needle * 100}%` }} />}
         </div>
@@ -146,12 +156,10 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
                 ))}
               </div>
             )}
-            <div className="text-lg font-semibold">{result.clean ? "🪵 Clean cleave! The log splits in two" : result.stunned ? "💫 The axe bit a knot!" : `😅 Missed the ${CHOP_STROKE_NAMES[(result.stroke as 1 | 2 | 3) ?? 1].toLowerCase()}`}</div>
+            <div className="text-lg font-semibold">{result.clean ? (result.charcoal ? "✨ Golden Charcoal! The log splits in two" : "🪵 Clean cleave! The log splits in two") : result.stunned ? "💫 The axe bit a knot!" : `😅 Missed the ${CHOP_STROKE_NAMES[(result.stroke as 1 | 2 | 3) ?? 1].toLowerCase()}`}</div>
             <div className={`text-sm ${result.clean ? "text-amber-200" : "opacity-70"}`}>
               {result.clean
-                ? result.coins > 0
-                  ? `+${result.coins} 🪙 · the fire roars up for ${BONFIRE_FUEL_SECONDS}s`
-                  : "The fire roars up (today's chopping coins are all earned)"
+                ? `${result.charcoal ? `+${result.charcoal} Golden Charcoal ✨` : `+${result.firewood} Firewood 🪵`}${result.coins > 0 ? ` · +${result.coins} 🪙` : " (today's chopping coins are all earned)"} · put it on the fire!`
                 : result.stunned
                   ? `Shake it off: the axe is ready again in ${CHOP_STUN_S}s`
                   : "Try again: swing when the needle is in the green"}

@@ -6,10 +6,10 @@ import type { BoardGameView, ChairSyncState, MapId, PlayerState, TimeOfDay, Togg
 import { GESTURE_SECONDS, MAP_HALF, isWalkUpProp } from "@shared/types";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
-import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN } from "@shared/worlds/campfire";
+import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf } from "@shared/worlds/campfire";
 import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireSky, CampfireWorld } from "./CampfireWorld";
-import type { EmoteListener, RoomMessageListener } from "../hooks/useColyseusRoom";
+import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
 import { BoardTablePad, CampfirePuff, Cat, FloorLamp, PLANT_BURST_SECONDS, PUFF_SECONDS, PlantBurst, PropPad, RadioProp, SeatPad } from "./Props";
 import { ClickMarker } from "./ClickMarker";
@@ -45,6 +45,8 @@ export interface WorldSceneProps {
   speakingUserIds: ReadonlySet<string>;
   subscribeEmotes: (listener: EmoteListener) => () => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
+  /** The Campfire's hearth (the fire's fuel, the Dutch oven, the picnic plates). */
+  hearth: HearthState;
 }
 
 /** An emote's bubble floats over its sender this long (it pops in, bobs, and fades). */
@@ -135,7 +137,7 @@ function useCrowdEvents(subscribeEmotes: WorldSceneProps["subscribeEmotes"], sub
   return { emotes, gestures, bubbles };
 }
 
-export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, speakingUserIds, subscribeEmotes, subscribeMessages }: WorldSceneProps) {
+export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, speakingUserIds, subscribeEmotes, subscribeMessages, hearth }: WorldSceneProps) {
   const me = localSessionId ? players[localSessionId] : undefined;
   const { emotes, gestures, bubbles } = useCrowdEvents(subscribeEmotes, subscribeMessages);
 
@@ -277,6 +279,12 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: prop.kind, propId } }));
         return;
       }
+      // sitting at a fishing spot already (the dock's edge, the canoe): cast from right there,
+      // never walking off to its approach point (the canoe's is on the dock)
+      if (prop.kind === "fishing" && me?.sitting && live.current.localSessionId && live.current.chairs[dockSeatOf(propId)]?.occupiedBy === live.current.localSessionId) {
+        room?.send("useProp", { propId, x: cameraFocus.x, z: cameraFocus.z });
+        return;
+      }
       if (!isWalkUpProp(prop.kind)) {
         // lamps work from across the room
         room?.send("useProp", { propId, x: cameraFocus.x, z: cameraFocus.z });
@@ -352,7 +360,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   return (
     <TimeOfDayContext.Provider value={hour}>
       <SceneLighting timeOfDay={hour} starlit={starlit} />
-      {mapId === "cozy_lounge" ? <LoungeWorld onFloorClick={onFloorClick} /> : mapId === "campfire_night" ? <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} subscribeMessages={subscribeMessages} onDuck={(duck) => room?.send("duckPoke", { duck })} /> : <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />}
+      {mapId === "cozy_lounge" ? <LoungeWorld onFloorClick={onFloorClick} /> : mapId === "campfire_night" ? <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} hearth={hearth} subscribeMessages={subscribeMessages} onDuck={(duck) => room?.send("duckPoke", { duck })} /> : <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />}
 
       {Object.values(chairs).map((chair) => (
         // a seat you lie in (the hammock, the tent) is placed by where your feet go: its pad sits
@@ -382,6 +390,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={prop} size={[0.8, 1.4, 0.8]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "woodchop" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.7, 0.8, 0.7]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "angler" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.8, 1.3, 0.8]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "critter" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.6, 0.6, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "fireflies" ? (

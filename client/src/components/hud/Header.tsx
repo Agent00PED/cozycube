@@ -2,6 +2,8 @@ import { WORLDS, WORLD_IDS } from "@shared/worlds";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, type MapId, type TimeOfDay } from "@shared/types";
 import { useAnimatedNumber } from "./useAnimatedNumber";
+import { useAnglerProfile } from "./anglerStore";
+import { CreelPopover } from "./CreelPopover";
 
 /** Each map's icon, name and tagline, from the world table (shared/worlds). */
 export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: string }> = Object.fromEntries(
@@ -25,6 +27,9 @@ interface HeaderProps {
   onOpenSettings: () => void;
   onOpenSocial: () => void;
   socialOpen: boolean;
+  /** You, for the Fish Creel (your user id, and your angler's profile as the room syncs it). */
+  userId: string;
+  fishing: string;
 }
 
 const TIME_LABELS: Record<TimeOfDay, string> = { sunrise: "🌅 Sunrise", day: "☀️ Day", sunset: "🌇 Sunset", night: "🌙 Night" };
@@ -53,7 +58,8 @@ const ICON = "text-lg leading-none";
  *     too. Voice has no control here: who is speaking shows as the green rings at their feet.
  */
 export function Header(p: HeaderProps) {
-  const [open, setOpen] = useState<"time" | "status" | "more" | null>(null);
+  const [open, setOpen] = useState<"time" | "status" | "more" | "creel" | null>(null);
+  const angler = useAnglerProfile(p.userId, p.fishing, p.coins);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -63,7 +69,7 @@ export function Header(p: HeaderProps) {
     window.addEventListener("pointerdown", onDown);
     return () => window.removeEventListener("pointerdown", onDown);
   }, [open]);
-  const toggle = (menu: "time" | "status" | "more") => {
+  const toggle = (menu: "time" | "status" | "more" | "creel") => {
     setOpen((o) => (o === menu ? null : menu));
   };
   // the campfire is always a starlit night: its hour does not follow the room's clock
@@ -112,6 +118,17 @@ export function Header(p: HeaderProps) {
       {/* ---- right: you ---- */}
       <div className="pointer-events-auto ml-auto flex shrink-0 flex-nowrap items-center gap-2">
         <CoinWallet coins={p.coins} onClaim={p.onClaimAllowance} />
+        <div className="relative shrink-0">
+          <button type="button" onClick={() => toggle("creel")} className={ICON_PILL} title={`Fish Creel: ${angler.profile.creel.length}/${angler.profile.slots}`} aria-label="Fish creel" aria-expanded={open === "creel"} aria-haspopup="dialog">
+            <span className={ICON}>🪣</span>
+            {angler.profile.creel.length > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-300 px-1 text-[11px] font-bold text-amber-950">{angler.profile.creel.length}</span>}
+          </button>
+          {open === "creel" && (
+            <Menu alignRight>
+              <CreelPopover profile={angler.profile} live={angler.live} />
+            </Menu>
+          )}
+        </div>
 
         <div className="relative hidden shrink-0 sm:block">
           <button type="button" onClick={() => toggle("status")} className={`${ICON_PILL} gap-2 lg:w-auto lg:px-3.5`} title={st ? `Status: ${st.label}` : "Set your status"} aria-label="Status" aria-expanded={open === "status"} aria-haspopup="menu">

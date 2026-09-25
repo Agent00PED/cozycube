@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { emptyFishingProfile, sanitizeFishingProfile, type FishingProfile } from "../../../shared/fishing";
 import { CAMPFIRE_DAILY_COINS, DEFAULT_STATS, STARTER_UNLOCKS, STARTING_COINS, type CampfireCoinKind, type DailyChecklist, type PlayerStats } from "../../../shared/types";
 
 /** The campfire coins earned on `day`, by activity. */
@@ -28,6 +29,8 @@ export interface PlayerRecord {
   plantsWatered: { day: string; ids: string[] };
   /** Coins earned at the campfire today, by activity (stats JSON "campfire_coins"): each capped daily. */
   campfireCoins: CampfireCoins;
+  /** The angler's creel, rods, baits, records and Well-Fed clock (stats JSON "fishing"). */
+  fishing: FishingProfile;
   lastDailyClaim: Date | null;
 }
 
@@ -45,7 +48,7 @@ export interface PlayerStore {
 }
 
 export function newPlayerRecord(discordId: string, username: string): PlayerRecord {
-  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: emptyCampfireCoins(""), lastDailyClaim: null };
+  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: emptyCampfireCoins(""), fishing: emptyFishingProfile(), lastDailyClaim: null };
 }
 
 const SCHEMA_SQL = `
@@ -76,6 +79,8 @@ function rowToRecord(row: any): PlayerRecord {
   const campfireCoins = emptyCampfireCoins(typeof cc?.day === "string" ? cc.day : "");
   for (const kind of Object.keys(CAMPFIRE_DAILY_COINS) as CampfireCoinKind[]) campfireCoins[kind] = Number(cc?.[kind]) || 0;
   delete raw.campfire_coins;
+  const fishing = sanitizeFishingProfile(raw.fishing);
+  delete raw.fishing;
   return {
     discordId: row.discord_id,
     username: row.username,
@@ -87,13 +92,14 @@ function rowToRecord(row: any): PlayerRecord {
     mochiCoinsDay,
     plantsWatered,
     campfireCoins,
+    fishing,
     lastDailyClaim: row.last_daily_claim ? new Date(row.last_daily_claim) : null,
   };
 }
 
 /** The stats column carries the checklist, Mochi's coin day and today's watered plants alongside the counters. */
 function statsColumn(r: PlayerRecord): string {
-  return JSON.stringify({ ...r.stats, daily: r.daily, mochi_coins_day: r.mochiCoinsDay, plants_watered: r.plantsWatered, campfire_coins: r.campfireCoins });
+  return JSON.stringify({ ...r.stats, daily: r.daily, mochi_coins_day: r.mochiCoinsDay, plants_watered: r.plantsWatered, campfire_coins: r.campfireCoins, fishing: r.fishing });
 }
 
 /** A connection pool to the database at `url` (the player store and the board store each keep one). */

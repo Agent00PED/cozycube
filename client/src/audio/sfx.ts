@@ -46,7 +46,7 @@ function noise(c: AudioContext, at: number, length: number, gain: number, cutoff
   src.onended = () => (src.disconnect(), filter.disconnect(), g.disconnect());
 }
 
-export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck" | "squeak" | "quack" | "tension" | "snap";
+export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck" | "squeak" | "quack" | "tension" | "snap" | "flame" | "bubble" | "slurp" | "coins";
 
 export function playSfx(kind: Sfx) {
   if (!getSoundSettings().effects) return;
@@ -91,6 +91,22 @@ export function playSfx(kind: Sfx) {
     tone(c, t + 0.17, 480, 300, 0.16, 0.06, "sawtooth");
     tone(c, t + 0.45, 600, 180, 0.18, 0.12, "sine");
     noise(c, t + 0.45, 0.2, 0.08, 1500);
+  } else if (kind === "flame") {
+    // wood on the fire: a whoosh of air, a crackle, the flames leaping up
+    noise(c, t, 0.55, 0.22, 700);
+    noise(c, t + 0.05, 0.4, 0.12, 2400);
+    [0.12, 0.2, 0.31, 0.43].forEach((d) => noise(c, t + d, 0.03, 0.18, 5200));
+    tone(c, t, 90, 180, 0.45, 0.1, "sine");
+  } else if (kind === "bubble") {
+    // the Dutch oven: three soft blurps
+    [0, 0.14, 0.3].forEach((d, i) => tone(c, t + d, 240 + i * 60, 480 + i * 80, 0.09, 0.08, "sine"));
+  } else if (kind === "slurp") {
+    // a warm bowl of stew: a sip and a happy hum
+    noise(c, t, 0.22, 0.06, 1200);
+    tone(c, t + 0.25, 392, 523, 0.3, 0.07, "triangle");
+  } else if (kind === "coins") {
+    // Barnaby counting out coins: a cascade of little clinks
+    [0, 0.06, 0.13, 0.19, 0.27].forEach((d, i) => tone(c, t + d, 1800 + (i % 2) * 400, 2100 + (i % 2) * 400, 0.12, 0.05, "triangle"));
   } else if (kind === "pluck") {
     // picking: a soft snap and a bright blip
     noise(c, t, 0.05, 0.12, 3500);

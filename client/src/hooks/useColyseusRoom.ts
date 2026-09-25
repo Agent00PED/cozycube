@@ -26,7 +26,17 @@ import type {
   ToggleableSyncState,
 } from "@shared/types";
 
+import { parsePicnic, parseStew, FUEL_START, type PicnicPlate, type StewState } from "@shared/bonfire";
+
 const RECONNECT_KEY_PREFIX = "hangout_reconnect_";
+
+/** The Campfire's shared hearth, as the room syncs it (shared/bonfire.ts). */
+export interface HearthState {
+  fuel: number;
+  stew: StewState;
+  picnic: PicnicPlate[];
+}
+const EMPTY_HEARTH: HearthState = { fuel: FUEL_START, stew: parseStew(""), picnic: [] };
 
 export type EmoteListener = (emote: EmoteBroadcast) => void;
 
@@ -80,6 +90,11 @@ const RELAYED_MESSAGES = [
   "chopStroke",
   "chopResult",
   "forageResult",
+  // the hearth: wood on the fire (or it burning down), the Dutch oven; Barnaby's stall
+  "BONFIRE_STATE_UPDATE",
+  "STEW_STATE_UPDATE",
+  "barnabyResult",
+  "barnabyWave",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
@@ -168,6 +183,8 @@ interface UseColyseusRoomResult {
   autoCycle: boolean;
   /** Persisted High Rollers (top balances), refreshed by the server every few seconds. */
   leaderboard: LeaderboardEntry[];
+  /** The Campfire's hearth: the bonfire's fuel (0..100), the Dutch oven and the picnic table's plates. */
+  hearth: HearthState;
   /** Your last measured round trip in ms. */
   latency: number;
   setAutoCycle: (on: boolean) => void;
@@ -252,6 +269,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [bets, setBets] = useState<Record<string, string>>({});
   const [autoCycle, setAutoCycleState] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [hearth, setHearth] = useState<HearthState>(EMPTY_HEARTH);
   const [latency, setLatency] = useState(0);
   const ballRef = useRef<BallSnapshot | null>(null);
 
@@ -482,6 +500,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             boxKOs: player.boxKOs ?? 0,
             aura: player.aura ?? "",
             daily: player.daily ?? "",
+            fishing: player.fishing ?? "",
+            fed: player.fed ?? 0,
           };
           const prevSnapshot = last;
           const motionOnly = prevSnapshot !== null && onlyMotionChanged(prevSnapshot, snapshot);
@@ -613,6 +633,10 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
         }
       });
 
+      room.state.listen("fuel", (fuel: number) => setHearth((h) => ({ ...h, fuel: fuel ?? 0 })));
+      room.state.listen("stew", (raw: string) => setHearth((h) => ({ ...h, stew: parseStew(raw ?? "") })));
+      room.state.listen("picnic", (raw: string) => setHearth((h) => ({ ...h, picnic: parsePicnic(raw ?? "") })));
+
       room.state.listen("currentMap", (map: MapId) => setCurrentMap(map));
       room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
       room.state.listen("mapTransitioning", (val: boolean) => setMapTransitioning(val));
@@ -687,6 +711,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     bets,
     autoCycle,
     leaderboard,
+    hearth,
     latency,
     setAutoCycle: (on) => send("setAutoCycle", { on }),
     claimAllowance: () => send("claim_allowance"),

@@ -54,6 +54,13 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
     Fauna_Critter       a raccoon, with _Head and _Tail child nodes pivoting where they join
     Fauna_Owl           an owl on a pine branch by the tent, with _Head and, in it, _Lids
     Forage_0N_Yield     each foraging patch's pickings: spotted mushrooms or glowing berries
+    Prop_Tripod         the Dutch oven's tripod over the fire: three lashed poles
+    Stew_Pot            the cast-iron Dutch oven on its chain, origin at the tripod's apex (it
+                        sways from there); its child Stew_Contents is the stew's surface (the game
+                        shows and tints it from the pot's ingredients)
+    Picnic_Plates       four enamel plates on the picnic table
+    Picnic_Skewer_0N    a skewer of toasted marshmallows on plate N, and Picnic_Bbq_0N a BBQ
+                        skewer (the game shows what friends have left there)
 
 Coordinates: the game's (x, y up, z) is Blender's (x, -z, y); `W` converts, so every number below
 reads as in campfire.ts.
@@ -152,8 +159,15 @@ PALETTE = {
     "CF_BushLeaf": "#4F7B4A",
     "CF_MushSpot": "#FFF6E8",
     "CF_LanternWarm": "#FFA844",
+    "CF_Iron": "#2F2C2A",
+    "CF_IronRim": "#4A4643",
+    "CF_Stew": "#C8763C",
+    "CF_Mallow": "#F1D9A8",
+    "CF_MallowToast": "#D9974A",
+    "CF_Meat": "#8A4B2F",
+    "CF_Pepper": "#6BA84F",
 }
-ROUGHNESS = {"CF_Water": 0.25, "CF_Metal": 0.6, "CF_Glass": 0.4, "CF_Chrome": 0.45, "CF_Brass": 0.55, "CF_Steel": 0.5}
+ROUGHNESS = {"CF_Iron": 0.7, "CF_Stew": 0.45, "CF_Water": 0.25, "CF_Metal": 0.6, "CF_Glass": 0.4, "CF_Chrome": 0.45, "CF_Brass": 0.55, "CF_Steel": 0.5}
 # the ground decals' tops, a layer each over the moss (y = 0): patches, paths, then the clearing
 LAYER_PATCH = 0.008
 LAYER_PATH = 0.015
@@ -1580,6 +1594,74 @@ def build_forage(L, coll):
         make_object(f"Forage_0{i + 1}_Yield", bm, mats, coll, origin=(x, 0.0, z))
 
 
+def build_hearth(L, coll):
+    """The communal Dutch oven: a tripod of three poles lashed over the fire, and the cast-iron pot
+    hung from its apex on a short chain, low enough for the flames to lick its base."""
+    fx, fz = L["fire"]["x"], L["fire"]["z"]
+    tp = L["tripod"]
+    apex = W(fx, tp["apex"], fz)
+    bm = bmesh.new()
+    for deg in (30, 150, 270):
+        a = math.radians(deg)
+        foot = W(fx + math.cos(a) * tp["legs"], 0.0, fz + math.sin(a) * tp["legs"])
+        tip = apex + (apex - foot).normalized() * 0.16  # the poles cross past the lashing
+        cylinder(bm, foot, tip, 0.04, 8, m=0, cap_m=1, r_end=0.03)
+    # the rope lashing where they cross
+    lathe(bm, fx, fz, [(0, -0.07), (0.07, -0.07), (0.075, 0.0), (0.07, 0.07), (0, 0.07)], segs=10, m=2, y0=tp["apex"])
+    make_object("Prop_Tripod", bm, ["CF_Bark", "CF_WoodCut", "CF_Rope"], coll)
+
+    # the pot, its bail and its chain: origin at the apex, so it can sway from there
+    py, pr = tp["potY"], tp["potR"]
+    h = 0.27
+    bm = bmesh.new()
+    lathe(bm, fx, fz, [(0, 0.0), (pr * 0.78, 0.0), (pr * 0.97, 0.05), (pr, 0.15), (pr * 0.98, h - 0.02), (pr * 1.05, h), (pr * 0.9, h + 0.012), (pr * 0.88, h - 0.04), (0, h - 0.04)], segs=18, m=0, y0=py)
+    for sx in (-1, 1):  # the lugs the bail hooks into
+        blob(bm, fx + sx * (pr + 0.02), py + h - 0.05, fz, 0.035, 0.025, 0.03, m=1, cuts=2)
+    bail = [W(fx + math.cos(t) * (pr + 0.03), py + h - 0.05 + math.sin(t) * 0.26, fz) for t in (math.pi * k / 8 for k in range(9))]
+    for p, q in zip(bail, bail[1:]):
+        cylinder(bm, p, q, 0.009, 6, m=1)
+    top = py + h - 0.05 + 0.26
+    for k in range(6):  # the chain, link by link, up to the apex
+        y0 = top + (tp["apex"] - top) * k / 6
+        y1 = top + (tp["apex"] - top) * (k + 1) / 6
+        cylinder(bm, W(fx, y0 + 0.01, fz), W(fx, y1 - 0.01, fz), 0.016 if k % 2 else 0.012, 6, m=1)
+    pot = make_object("Stew_Pot", bm, ["CF_Iron", "CF_IronRim"], coll, origin=(fx, tp["apex"], fz))
+    # the stew's surface inside the rim, a gentle dome (hidden while the pot is empty)
+    bm = bmesh.new()
+    lathe(bm, fx, fz, [(0, 0.0), (pr * 0.86, 0.0), (pr * 0.86, 0.012), (pr * 0.5, 0.03), (0, 0.035)], segs=16, m=0, y0=py + h - 0.07)
+    contents = make_object("Stew_Contents", bm, ["CF_Stew"], coll, origin=(fx, py + h - 0.07, fz))
+    contents.parent = pot
+    contents.matrix_parent_inverse = pot.matrix_basis.inverted()
+
+
+def build_picnic_plates(L, coll):
+    """Four enamel plates on the picnic table, and on each a skewer friends can leave there (one of
+    marshmallows, one BBQ): the game shows the ones that are really on the table."""
+    top = 0.726
+    spots = [(L["picnic"]["x"] + dx, L["picnic"]["z"] + dz) for dx, dz in L["picnicPlates"]]
+    bm = bmesh.new()
+    for x, z in spots:
+        lathe(bm, x, z, [(0, 0.0), (0.07, 0.0), (0.11, 0.012), (0.115, 0.02), (0, 0.008)], segs=16, m=0, y0=top)
+        lathe(bm, x, z, [(0, 0.012), (0.117, 0.012), (0.117, 0.021), (0, 0.021)], segs=16, m=1, y0=top)
+    make_object("Picnic_Plates", bm, ["CF_Enamel", "CF_EnamelRim"], coll)
+    for k, (x, z) in enumerate(spots):
+        y = top + 0.04
+        a = W(x - 0.13, y, z + 0.03)
+        b = W(x + 0.13, y + 0.01, z - 0.03)
+        # marshmallows, toasted golden
+        bm = bmesh.new()
+        cylinder(bm, a, b, 0.006, 5, m=0)
+        for t in (-0.06, 0.0, 0.06):
+            blob(bm, x + t, y + 0.004, z - t * 0.23, 0.028, 0.026, 0.028, m=1 if t else 2, cuts=2, n=2.6)
+        make_object(f"Picnic_Skewer_0{k + 1}", bm, ["CF_Pole", "CF_MallowToast", "CF_Mallow"], coll, origin=(x, top, z))
+        # a BBQ skewer: meat and peppers
+        bm = bmesh.new()
+        cylinder(bm, a, b, 0.006, 5, m=0)
+        for j, t in enumerate((-0.075, -0.025, 0.025, 0.075)):
+            blob(bm, x + t, y + 0.004, z - t * 0.23, 0.025, 0.022, 0.025, m=1 if j % 2 == 0 else 2, cuts=2, n=3.0)
+        make_object(f"Picnic_Bbq_0{k + 1}", bm, ["CF_Pole", "CF_Meat", "CF_Pepper"], coll, origin=(x, top, z))
+
+
 def build(root):
     purge()
     L = read_layout(root)
@@ -1604,6 +1686,8 @@ def build(root):
     build_lights(L, coll)
     build_fauna(L, coll)
     build_forage(L, coll)
+    build_hearth(L, coll)
+    build_picnic_plates(L, coll)
     for ob in coll.all_objects:
         if ob.modifiers:
             bake_modifiers(ob)

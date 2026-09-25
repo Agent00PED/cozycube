@@ -6,16 +6,58 @@ import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } 
 import { AWAY_PREFIX, BoardTable } from "./boardgame";
 import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
-import { BONFIRE_REACH, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, nearestFishingSpot } from "../../../shared/worlds/campfire";
+import { BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
-import { judgeChop, rollChopStroke, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
+import { CHOP_LOGS, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
+import {
+  BAITS,
+  CAMP_AFK_S,
+  CREEL_RELEASE_COINS,
+  FISH,
+  RODS,
+  WELL_FED_S,
+  WELL_FED_SPEED,
+  biteSeconds,
+  creelUpgradeCost,
+  fishValue,
+  isBaitId,
+  isRodId,
+  rollCatch,
+  rollFish as rollRiverFish,
+  type BaitId,
+  type CreelFish,
+  type FishId,
+} from "../../../shared/fishing";
+import {
+  COZY_AURA_LUCK,
+  FUEL_DECAY,
+  FUEL_DECAY_S,
+  FUEL_MAX,
+  FUEL_PER_CHARCOAL,
+  FUEL_PER_FIREWOOD,
+  FUEL_START,
+  PICNIC_PLATES,
+  PICNIC_STALE_S,
+  STEW_COLD_S,
+  STEW_COOK_S,
+  STEW_SERVINGS,
+  STEW_SLOTS,
+  emptyStew,
+  hasCozyAura,
+  parsePicnic,
+  parseStew,
+  stewName,
+  type BonfireUpdate,
+  type PicnicPlate,
+  type StewState,
+  type StewUpdate,
+} from "../../../shared/bonfire";
 import { emptyCampfireCoins } from "../db/players";
 import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat, isWaterable, mochiSpot } from "../../../shared/props";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
 import {
   BITE_WINDOW_S,
   CAMPFIRE_DAILY_COINS,
-  BONFIRE_FUEL_SECONDS,
   CHOP_CLEAN_COINS,
   FORAGE_COINS,
   FORAGE_INFO,
@@ -41,10 +83,10 @@ import {
   type StarCaught,
   ROAST_GOLDEN_COINS,
   SNACK_SECONDS,
-  STARLIGHT_BITE_DELAY_S,
   STARLIGHT_BITE_S,
-  STARLIGHT_CATCHES,
   encodeSnack,
+  parseSnack,
+  type BarnabyResult,
   isRoastFood,
   type CampfirePacket,
   type FishCaught,
@@ -52,7 +94,6 @@ import {
   type RoastQuality,
   type RoastResult,
   type RoastStart,
-  type StarlightCatchId,
   BREW_SECONDS,
   ESPRESSO_TIP,
   ESPRESSO_TIP_COOLDOWN_S,
@@ -223,6 +264,10 @@ class Player extends Schema {
   @type("number") boxKOs = 0;
   @type("string") aura = "";
   @type("string") daily = "";
+  /** The angler's FishingProfile as JSON (the record's copy is the one kept). */
+  @type("string") fishing = "";
+  /** Whole seconds left Well-Fed. */
+  @type("number") fed = 0;
 }
 
 // The shared roulette wheel in the casino. One loop for the whole room: 25 s of betting, a 6 s
@@ -287,6 +332,12 @@ class HangoutState extends Schema {
   @type("boolean") autoCycle = false;
   /** The persisted High Rollers table (LeaderboardEntry[] as JSON), refreshed every few seconds. */
   @type("string") leaderboard = "[]";
+  /** The Campfire's bonfire, 0..FUEL_MAX (shared/bonfire.ts): it burns down; firewood builds it up. */
+  @type("number") fuel = FUEL_START;
+  /** The Dutch oven over it (a StewState as JSON). */
+  @type("string") stew = "";
+  /** Skewers left on the picnic table (PicnicPlate[] as JSON). */
+  @type("string") picnic = "";
 }
 
 // --- blackjack: one hand per player, dealt and settled entirely on the server ---
@@ -394,7 +445,16 @@ export class HangoutRoom extends Room<HangoutState> {
   private lastRoastAt = new Map<string, number>();
   private starlight = new Set<string>();
   /** The river's reels in progress: what is on each line, and when the fight began. */
-  private starReels = new Map<string, { catchId: StarlightCatchId; startedAt: number; treasure: boolean }>();
+  private starReels = new Map<string, { fish: CreelFish; startedAt: number; treasure: boolean }>();
+  /** What is nosing at each line in the river before it bites (rolled at the cast: a big fish takes
+   *  its time), when the line went in, and how long the wait is. */
+  private pendingFish = new Map<string, { species: FishId; castAt: number; total: number }>();
+  /** The bonfire's last burn-down; the Dutch oven's cooking clock and when it came to the boil;
+   *  when each plate went on the picnic table. */
+  private fuelTickAt = Date.now();
+  private stewCookAt = 0;
+  private stewReadyAt = 0;
+  private picnicAt: number[] = [];
   /** When each player last swept the net through the fireflies. */
   private lastNetAt = new Map<string, number>();
   /** When each player last tossed the raccoon a treat, and when each duck last dived. */
@@ -407,7 +467,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private starSeq = 1;
   /** The chopping block: each combo in progress (the stroke it is on, its meter, timed here), and
    *  each player's last swing (a knot stuns the axe past it). */
-  private chops = new Map<string, { stroke: ChopStroke; startedAt: number }>();
+  private chops = new Map<string, { stroke: ChopStroke; startedAt: number; log: ChopLog }>();
   private lastChopAt = new Map<string, number>();
   private lastPunchAt = new Map<string, number>();
   private dizzyUntil = new Map<string, number>();
@@ -659,7 +719,7 @@ export class HangoutRoom extends Room<HangoutState> {
     } catch {
       record.daily = null;
     }
-    const signature = `${record.coins}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
+    const signature = `${record.coins}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
     if (signature === this.savedSignature.get(sessionId) && !now) return;
     this.savedSignature.set(sessionId, signature);
     this.queue.mark(record);
@@ -1409,6 +1469,12 @@ export class HangoutRoom extends Room<HangoutState> {
       this.persistClock = 0;
       this.state.players.forEach((player, sessionId) => this.persist(sessionId, player));
     }
+    this.state.players.forEach((player, sessionId) => {
+      if (player.fed <= 0) return;
+      const until = this.records.get(sessionId)?.fishing.fedUntil ?? 0;
+      const left = Math.max(0, Math.ceil((until - now) / 1000));
+      if (left !== player.fed) player.fed = left;
+    });
     this.boardSweepClock += dt;
     if (this.boardSweepClock >= 1) {
       this.boardSweepClock = 0;
@@ -1485,6 +1551,18 @@ export class HangoutRoom extends Room<HangoutState> {
             this.broadcast("emote", { sessionId, emoji: "🪙" });
           }
         }
+      } else if (player.action === "afkfish" && this.state.currentMap === "campfire_night") {
+        // feet up, line in: a common fish into the creel every CAMP_AFK_S (or, the creel full, let go)
+        const at = this.fishBiteAt.get(sessionId) ?? now;
+        const total = this.afkTotal.get(sessionId) ?? CAMP_AFK_S.min * 1000;
+        const progress = Math.max(0, Math.min(1, Math.floor((1 - (at - now) / total) * 20) / 20));
+        if (progress !== player.actionProgress) player.actionProgress = progress;
+        if (now >= at) {
+          const species = rollRiverFish("freshwater", { commonOnly: true });
+          this.landFish(sessionId, player, rollCatch(species), true, 0);
+          this.scheduleCampAfk(sessionId, now);
+          player.actionProgress = 0;
+        }
       } else if (player.action === "afkfish") {
         // Chill mode: no bites to watch for, a little haul now and then while you chat.
         const at = this.fishBiteAt.get(sessionId) ?? now;
@@ -1515,8 +1593,14 @@ export class HangoutRoom extends Room<HangoutState> {
             this.biteUntil.delete(sessionId);
             player.actionProgress = 0;
             this.broadcast("emote", { sessionId, emoji: "💨" });
-            this.fishBiteAt.set(sessionId, now + (starlit ? starlightBiteDelay() : randomBiteDelay()));
+            if (starlit) this.waitForBite(sessionId, player, false);
+            else this.fishBiteAt.set(sessionId, now + randomBiteDelay());
           }
+        } else if (starlit && now < (this.fishBiteAt.get(sessionId) ?? 0)) {
+          // the wait: ripples round the bobber build as the bite nears (tenths, 0..0.9; 1 is the bite)
+          const wait = this.pendingFish.get(sessionId);
+          const progress = wait ? Math.min(0.9, Math.floor(((now - wait.castAt) / wait.total) * 10) / 10) : 0;
+          if (progress !== player.actionProgress) player.actionProgress = progress;
         } else if (now >= (this.fishBiteAt.get(sessionId) ?? 0)) {
           // Bite! actionProgress = 1 tells every client the float has gone under. On the river the
           // window is STARLIGHT_BITE_S, plus half the angler's round trip (the tap has to get here)
@@ -1662,6 +1746,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.hooked.delete(sessionId);
     this.starlight.delete(sessionId);
     this.starReels.delete(sessionId);
+    this.pendingFish.delete(sessionId);
   }
 
   // --- the campfire: roasting, starlight fishing and the guitar ------------------------------------
@@ -1684,7 +1769,8 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!record) return 0;
     const today = todayKey();
     if (record.campfireCoins.day !== today) record.campfireCoins = emptyCampfireCoins(today);
-    const paid = Math.max(0, Math.min(coins, CAMPFIRE_DAILY_COINS[kind] - record.campfireCoins[kind]));
+    const lucky = Math.round(coins * (hasCozyAura(this.state.fuel) ? 1 + COZY_AURA_LUCK : 1));
+    const paid = Math.max(0, Math.min(lucky, CAMPFIRE_DAILY_COINS[kind] - record.campfireCoins[kind]));
     if (paid > 0) {
       record.campfireCoins[kind] += paid;
       this.addCoins(player, paid);
@@ -1764,6 +1850,7 @@ export class HangoutRoom extends Room<HangoutState> {
         // traced star by star: not believed faster than a person could
         if (Date.now() - gazer.since < CONSTELLATION_MIN_S * 1000) return;
         gazer.traced.add(shape.id);
+        gazer.since = Date.now(); // the next one takes its own time
         const coins = this.campfirePay(sessionId, player, "star", CONSTELLATION_COINS);
         const done: ConstellationDone = { sessionId, id: shape.id as ConstellationId, coins, capped: coins === 0 };
         client.send("constellationDone", done);
@@ -1778,11 +1865,139 @@ export class HangoutRoom extends Room<HangoutState> {
         // the combo's first stroke: the notch
         player.action = "chop";
         player.actionProgress = 0;
-        this.startChopStroke(client, 1);
+        this.startChopStroke(client, 1, rollChopLog());
         return;
       }
       case "REEL_DONE": {
         this.finishStarlightReel(sessionId, packet.caught === true, packet.treasure === true);
+        return;
+      }
+      case "ADD_FUEL": {
+        const item = packet.item === "charcoal" ? "charcoal" : "firewood";
+        if (player.action === "grill" || !this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) return;
+        const bag = parseBag(player.bag);
+        if (!((bag[item] ?? 0) > 0)) return;
+        if (this.state.fuel >= FUEL_MAX) {
+          client.send("campfireNotice", { message: "The fire's already roaring! Save that for later", emoji: "🔥" });
+          return;
+        }
+        bag[item] = (bag[item] ?? 0) - 1;
+        if (!bag[item]) delete bag[item];
+        player.bag = encodeBag(bag);
+        const amount = item === "charcoal" ? FUEL_PER_CHARCOAL : FUEL_PER_FIREWOOD;
+        this.state.fuel = Math.min(FUEL_MAX, this.state.fuel + amount);
+        const update: BonfireUpdate = { fuel: this.state.fuel, sessionId, item, amount };
+        this.broadcast("BONFIRE_STATE_UPDATE", update);
+        if (!player.sitting) this.playGesture(sessionId, "toss");
+        this.broadcast("emote", { sessionId, emoji: "🔥" });
+        return;
+      }
+      case "STEW_ADD": {
+        if (player.action === "grill" || !this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) return;
+        const stew = parseStew(this.state.stew);
+        if (stew.phase !== "gathering" || stew.items.length >= STEW_SLOTS) return;
+        const kind = packet.ingredient;
+        let fish: FishId | undefined;
+        if (kind === "fish") {
+          const profile = this.records.get(sessionId)?.fishing;
+          const slot = Math.floor(Number(packet.slot));
+          const f = profile?.creel[slot];
+          if (!profile || !f) return;
+          profile.creel.splice(slot, 1);
+          fish = f.s;
+          this.saveFishing(sessionId, player);
+        } else if (kind === "mushroom" || kind === "berry") {
+          const bag = parseBag(player.bag);
+          if (!((bag[kind] ?? 0) > 0)) return;
+          bag[kind] = (bag[kind] ?? 0) - 1;
+          if (!bag[kind]) delete bag[kind];
+          player.bag = encodeBag(bag);
+        } else return;
+        stew.items.push(fish ? { kind, by: player.username, fish } : { kind, by: player.username });
+        if (stew.items.length >= STEW_SLOTS) {
+          stew.phase = "cooking";
+          stew.progress = 0;
+          this.stewCookAt = Date.now();
+        }
+        this.setStew(stew, "add", sessionId);
+        this.broadcast("emote", { sessionId, emoji: fish ? FISH[fish].emoji : kind === "berry" ? "🫐" : "🍄" });
+        return;
+      }
+      case "STEW_SCOOP": {
+        if (!this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) return;
+        const stew = parseStew(this.state.stew);
+        if (stew.phase !== "ready" || stew.servings <= 0 || stew.served.includes(player.userId)) return;
+        stew.servings -= 1;
+        stew.served.push(player.userId);
+        this.feed(sessionId, player);
+        this.broadcast("emote", { sessionId, emoji: "🥣" });
+        if (stew.servings <= 0) {
+          this.stewReadyAt = 0;
+          this.setStew(emptyStew(), "scoop", sessionId);
+        } else this.setStew(stew, "scoop", sessionId);
+        return;
+      }
+      case "PICNIC_PLACE": {
+        const snack = parseSnack(player.snack);
+        if (player.holding !== "skewer" || !snack || player.action === "grill" || !this.nearPicnic(player)) return;
+        const plates = parsePicnic(this.state.picnic);
+        if (plates.length >= PICNIC_PLATES) {
+          client.send("campfireNotice", { message: "The picnic table's full of skewers already!", emoji: "🍢" });
+          return;
+        }
+        plates.push({ food: snack.food, quality: snack.quality, by: player.username });
+        this.picnicAt.push(Date.now());
+        this.state.picnic = JSON.stringify(plates);
+        player.holding = "";
+        player.snack = "";
+        this.snackUntil.delete(sessionId);
+        if (!player.sitting) this.playGesture(sessionId, "reach");
+        this.broadcast("emote", { sessionId, emoji: "🍢" });
+        return;
+      }
+      case "PICNIC_TAKE": {
+        if (!this.nearPicnic(player) || (player.action !== "" && player.action !== "guitar")) return;
+        const plates = parsePicnic(this.state.picnic);
+        const k = Math.floor(Number(packet.plate));
+        const plate = plates[k];
+        if (!plate) return;
+        plates.splice(k, 1);
+        this.picnicAt.splice(k, 1);
+        this.state.picnic = plates.length ? JSON.stringify(plates) : "";
+        player.drink = "";
+        player.holding = "skewer";
+        player.snack = encodeSnack(plate.food, plate.quality);
+        this.snackUntil.set(sessionId, Date.now() + SNACK_SECONDS * 1000);
+        this.feed(sessionId, player);
+        this.broadcast("emote", { sessionId, emoji: "😋" });
+        return;
+      }
+      case "AFK": {
+        let seatId = "";
+        this.state.chairs.forEach((chair) => {
+          if (chair.occupiedBy === sessionId) seatId = chair.propId;
+        });
+        if (!spotOfSeat(seatId)) return;
+        if (!packet.on) {
+          if (player.action !== "afkfish") return;
+          // back to watching the bobber
+          this.afkTotal.delete(sessionId);
+          player.action = "fish";
+          this.starlight.add(sessionId);
+          this.waitForBite(sessionId, player, false);
+          return;
+        }
+        if (player.action !== "" && player.action !== "fish") return;
+        this.biteUntil.delete(sessionId);
+        this.pendingFish.delete(sessionId);
+        this.starlight.delete(sessionId);
+        player.action = "afkfish";
+        player.actionProgress = 0;
+        this.scheduleCampAfk(sessionId, Date.now());
+        return;
+      }
+      case "BARNABY": {
+        this.handleBarnaby(sessionId, player, packet);
         return;
       }
       case "CHOP_STOP": {
@@ -1793,7 +2008,7 @@ export class HangoutRoom extends Room<HangoutState> {
         const verdict = judgeChop(chop.stroke, t);
         if (verdict === "hit") {
           this.playGesture(sessionId, "chop");
-          if (chop.stroke.stroke < 3) this.startChopStroke(client, (chop.stroke.stroke + 1) as ChopStrokeNo);
+          if (chop.stroke.stroke < 3) this.startChopStroke(client, (chop.stroke.stroke + 1) as ChopStrokeNo, chop.log);
           else this.finishChop(sessionId, player, true, false, 3);
         } else {
           this.finishChop(sessionId, player, false, verdict === "knot", chop.stroke.stroke);
@@ -1828,6 +2043,7 @@ export class HangoutRoom extends Room<HangoutState> {
     player.action = "";
     player.actionProgress = 0;
     this.snackUntil.set(sessionId, now + SNACK_SECONDS * 1000);
+    this.feed(sessionId, player);
     let coins = 0;
     if (quality === "golden") {
       coins = this.campfirePay(sessionId, player, "roast", ROAST_GOLDEN_COINS);
@@ -1842,28 +2058,30 @@ export class HangoutRoom extends Room<HangoutState> {
 
   /** The axe comes down: a clean split pays and feeds the fire; a glancing blow does neither. */
   /** The chopping combo's next stroke: a fresh meter for it, timed from now. */
-  private startChopStroke(client: Client, stroke: ChopStrokeNo) {
-    const meter = rollChopStroke(stroke);
-    this.chops.set(client.sessionId, { stroke: meter, startedAt: Date.now() });
+  private startChopStroke(client: Client, stroke: ChopStrokeNo, log: ChopLog) {
+    const meter = rollChopStroke(stroke, log);
+    this.chops.set(client.sessionId, { stroke: meter, startedAt: Date.now(), log });
     client.send("chopStroke", meter);
   }
 
   /** The combo's end: all three strokes landed (paid, the fire fed), a swing into a knot (the axe
    *  is stunned a moment), or a miss. */
   private finishChop(sessionId: string, player: Player, clean: boolean, stunned: boolean, stroke: number) {
-    if (!this.chops.delete(sessionId)) return;
+    const chop = this.chops.get(sessionId);
+    if (!chop) return;
+    this.chops.delete(sessionId);
     this.lastChopAt.set(sessionId, Date.now() + (stunned ? CHOP_STUN_S * 1000 : 0));
     this.clearAction(player);
     this.playGesture(sessionId, "chop");
     let coins = 0;
+    const log = CHOP_LOGS[chop.log];
     if (clean) {
-      coins = this.campfirePay(sessionId, player, "chop", CHOP_CLEAN_COINS);
-      // the split logs go on the fire: it roars up for a good while
-      this.state.toggleables.forEach((prop) => {
-        if (prop.kind === "bonfire") prop.boost = Math.max(prop.boost, BONFIRE_FUEL_SECONDS);
-      });
+      coins = this.campfirePay(sessionId, player, "chop", CHOP_CLEAN_COINS + log.bonus);
+      // the split log goes in your bag: firewood (or Golden Charcoal) to put on the fire
+      for (let k = 0; k < log.firewood; k++) this.addItem(player, "firewood");
+      for (let k = 0; k < log.charcoal; k++) this.addItem(player, "charcoal");
     }
-    const result: ChopResult = { sessionId, clean, stunned, stroke, coins, capped: clean && coins === 0 };
+    const result: ChopResult = { sessionId, clean, stunned, stroke, log: chop.log, firewood: clean ? log.firewood : 0, charcoal: clean ? log.charcoal : 0, coins, capped: clean && coins === 0 };
     this.broadcast("chopResult", result);
     this.broadcast("emote", { sessionId, emoji: clean ? "🪵" : stunned ? "💫" : "😅" });
     this.persist(sessionId, player);
@@ -1905,6 +2123,7 @@ export class HangoutRoom extends Room<HangoutState> {
     prop.on = false;
     this.regrowAt.set(prop.propId, Date.now() + FORAGE_REGROW_CAMP_S * 1000);
     this.playGesture(sessionId, "reach");
+    this.addItem(player, spot.kind === "berries" ? "berry" : "mushroom");
     const coins = this.campfirePay(sessionId, player, "forage", FORAGE_COINS);
     const result: ForageResult = { sessionId, kind: spot.kind, coins, capped: coins === 0 };
     this.broadcast("forageResult", result);
@@ -1914,6 +2133,23 @@ export class HangoutRoom extends Room<HangoutState> {
 
   /** The roasting dials, skewers eaten up, the chopping meters and the stargazers' shooting stars. */
   private tickCampfire(now: number) {
+    // the bonfire burns down a notch every couple of minutes
+    if (now - this.fuelTickAt >= FUEL_DECAY_S * 1000) {
+      this.fuelTickAt = now;
+      if (this.state.fuel > 0) {
+        this.state.fuel = Math.max(0, this.state.fuel - FUEL_DECAY);
+        const update: BonfireUpdate = { fuel: this.state.fuel, sessionId: "", item: "", amount: -FUEL_DECAY };
+        this.broadcast("BONFIRE_STATE_UPDATE", update);
+      }
+    }
+    this.tickStew(now);
+    // plates left too long on the picnic table are cleared
+    const plates = parsePicnic(this.state.picnic);
+    if (plates.length && this.picnicAt.some((at) => now - at > PICNIC_STALE_S * 1000)) {
+      const keep = plates.filter((_, k) => now - (this.picnicAt[k] ?? now) <= PICNIC_STALE_S * 1000);
+      this.picnicAt = this.picnicAt.filter((at) => now - at <= PICNIC_STALE_S * 1000);
+      this.state.picnic = keep.length ? JSON.stringify(keep) : "";
+    }
     this.starReels.forEach((reel, sessionId) => {
       if (now - reel.startedAt > (REEL_SECONDS + 6) * 1000) this.finishStarlightReel(sessionId, false);
     });
@@ -1992,13 +2228,201 @@ export class HangoutRoom extends Room<HangoutState> {
     const player = this.state.players.get(sessionId);
     if (!player || player.action !== "fish" || !this.biteUntil.has(sessionId)) return;
     this.biteUntil.delete(sessionId);
-    const catchId = rollStarlightCatch();
-    const treasure = Math.random() < TREASURE_CHANCE[catchId];
-    this.starReels.set(sessionId, { catchId, startedAt: Date.now(), treasure });
+    const species = this.pendingFish.get(sessionId)?.species ?? rollRiverFish("freshwater");
+    this.pendingFish.delete(sessionId);
+    const fish = rollCatch(species, { rareLuck: hasCozyAura(this.state.fuel) ? COZY_AURA_LUCK : 0 });
+    const treasure = Math.random() < TREASURE_CHANCE[FISH[species].tier];
+    this.starReels.set(sessionId, { fish, startedAt: Date.now(), treasure });
     player.action = "reel";
     player.actionProgress = 0;
-    const reel: StarlightReel = { catchId, treasure };
+    const reel: StarlightReel = { fish, rod: this.records.get(sessionId)?.fishing.rod ?? "bamboo", treasure };
     this.sendTo(sessionId, "starlightReel", reel);
+  }
+
+  /**
+   * A line goes (back) in the river: what will bite is rolled now (the Cozy Aura and Star Droplets
+   * tip it rare), and so is the wait, from its kind (a big fish takes its time), sooner with
+   * Glowworms and while Well-Fed. A fresh cast puts a bait on the hook (`consumeBait`); a bite that
+   * got away leaves the old one on.
+   */
+  private waitForBite(sessionId: string, player: Player, consumeBait: boolean) {
+    const profile = this.records.get(sessionId)?.fishing;
+    let bait: BaitId | "" = "";
+    if (profile?.bait && (profile.baits[profile.bait] ?? 0) > 0) {
+      bait = profile.bait;
+      if (consumeBait) {
+        const left = (profile.baits[bait] ?? 0) - 1;
+        if (left > 0) profile.baits[bait] = left;
+        else {
+          delete profile.baits[bait];
+          profile.bait = "";
+        }
+        this.saveFishing(sessionId, player);
+      }
+    }
+    const species = rollRiverFish("freshwater", { rareLuck: hasCozyAura(this.state.fuel) ? COZY_AURA_LUCK : 0, bait });
+    const total = biteSeconds(species, { fed: player.fed > 0, bait }) * 1000;
+    const now = Date.now();
+    this.pendingFish.set(sessionId, { species, castAt: now, total });
+    this.fishBiteAt.set(sessionId, now + total);
+    player.actionProgress = 0;
+  }
+
+  private scheduleCampAfk(sessionId: string, now: number) {
+    const total = (CAMP_AFK_S.min + Math.random() * (CAMP_AFK_S.max - CAMP_AFK_S.min)) * 1000;
+    this.afkTotal.set(sessionId, total);
+    this.fishBiteAt.set(sessionId, now + total);
+  }
+
+  /** A fish out of the river: into the creel (the angler's longest of its kind noted), or, the creel
+   *  full, let go for a few coins. Everyone hears about it. */
+  private landFish(sessionId: string, player: Player, fish: CreelFish, afk: boolean, treasure: number) {
+    const profile = this.records.get(sessionId)?.fishing;
+    if (!profile) return;
+    const best = profile.records[fish.s] ?? 0;
+    if (fish.cm > best) profile.records[fish.s] = fish.cm;
+    let coins = treasure;
+    let released = false;
+    if (profile.creel.length < profile.slots) profile.creel.push(fish);
+    else {
+      released = true;
+      coins += this.campfirePay(sessionId, player, "fish", CREEL_RELEASE_COINS);
+    }
+    this.bumpStat(player, "fish_caught");
+    this.daily(sessionId, player, "catch_fish");
+    const landed: FishCaught = { sessionId, fish, released, record: fish.cm > best, coins, treasure, afk };
+    this.broadcast("fishCaught", landed);
+    this.broadcast("emote", { sessionId, emoji: released ? "🪣" : FISH[fish.s].emoji });
+    this.saveFishing(sessionId, player);
+  }
+
+  /** The angler's profile changed: its synced copy follows, and it is queued for the database. */
+  private saveFishing(sessionId: string, player: Player) {
+    const record = this.records.get(sessionId);
+    if (!record) return;
+    player.fishing = JSON.stringify(record.fishing);
+    this.persist(sessionId, player);
+  }
+
+  /** Eating at the campfire: Well-Fed for WELL_FED_S (a bouncier, quicker step; quicker bites). */
+  private feed(sessionId: string, player: Player) {
+    const record = this.records.get(sessionId);
+    if (!record) return;
+    record.fishing.fedUntil = Date.now() + WELL_FED_S * 1000;
+    player.fed = WELL_FED_S;
+    this.saveFishing(sessionId, player);
+  }
+
+  /** The Dutch oven, changed: synced, and announced (the pot bubbles, a bowl is scooped...). */
+  private setStew(stew: StewState, event: StewUpdate["event"], sessionId: string) {
+    this.state.stew = stew.items.length || stew.phase !== "gathering" ? JSON.stringify(stew) : "";
+    const update: StewUpdate = { stew, event, sessionId };
+    this.broadcast("STEW_STATE_UPDATE", update);
+  }
+
+  /** The pot simmers once its third ingredient is in, then waits (warm) for bowls, then goes cold. */
+  private tickStew(now: number) {
+    if (this.stewCookAt) {
+      const stew = parseStew(this.state.stew);
+      const done = (now - this.stewCookAt) / (STEW_COOK_S * 1000);
+      if (done >= 1) {
+        this.stewCookAt = 0;
+        this.stewReadyAt = now;
+        stew.phase = "ready";
+        stew.progress = 1;
+        stew.servings = STEW_SERVINGS;
+        this.setStew(stew, "ready", "");
+        this.broadcast("campfireNotice", { message: `The ${stewName(stew.items)} is ready! Grab a bowl by the fire`, emoji: "🍲" });
+      } else {
+        const progress = Math.floor(done * 20) / 20;
+        if (progress !== stew.progress) {
+          stew.progress = progress;
+          this.state.stew = JSON.stringify(stew);
+        }
+      }
+    }
+    if (this.stewReadyAt && now - this.stewReadyAt > STEW_COLD_S * 1000) {
+      this.stewReadyAt = 0;
+      this.setStew(emptyStew(), "cold", "");
+    }
+  }
+
+  private nearPicnic(player: Player): boolean {
+    return Math.hypot(player.x - CAMPFIRE_LAYOUT.picnic.x, player.z - CAMPFIRE_LAYOUT.picnic.z) <= PICNIC_REACH + 0.4;
+  }
+
+  /** Barnaby's stall: selling the creel (near him), buying rods, bait and a bigger creel (near him),
+   *  and switching rod or bait (anywhere). */
+  private handleBarnaby(sessionId: string, player: Player, packet: Extract<CampfirePacket, { type: "BARNABY" }>) {
+    const record = this.records.get(sessionId);
+    if (!record) return;
+    const profile = record.fishing;
+    const B = CAMPFIRE_LAYOUT.barnaby;
+    const near = Math.min(Math.hypot(player.x - BARNABY_FRONT.x, player.z - BARNABY_FRONT.z), Math.hypot(player.x - B.x, player.z - B.z)) <= BARNABY_REACH + 0.4;
+    const reply = (ok: boolean, message: string, coins = 0) => {
+      const result: BarnabyResult = { ok, message, coins };
+      this.sendTo(sessionId, "barnabyResult", result);
+      if (ok) this.saveFishing(sessionId, player);
+    };
+    const tooFar = () => reply(false, "Come on over to the stall, friend!");
+    switch (packet.op) {
+      case "sell": {
+        if (!near) return tooFar();
+        const picked = packet.slot === "all" ? profile.creel.map((_, k) => k) : [Math.floor(Number(packet.slot))].filter((k) => !!profile.creel[k]);
+        if (!picked.length) return reply(false, "Your creel's empty! The river's right there 🎣");
+        // a roaring fire puts Barnaby in a generous mood (the Cozy Aura: +15%)
+        const aura = hasCozyAura(this.state.fuel) ? 1 + COZY_AURA_LUCK : 1;
+        const first = profile.creel[picked[0]];
+        const earned = picked.reduce((sum, k) => sum + Math.round(fishValue(profile.creel[k]) * aura), 0);
+        profile.creel = profile.creel.filter((_, k) => !picked.includes(k));
+        this.addCoins(player, earned);
+        this.broadcast("emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
+        return reply(true, picked.length > 1 ? `${picked.length} fine fish! Here's ${earned} 🪙` : `A lovely ${FISH[first.s].name}! Here's ${earned} 🪙`, earned);
+      }
+      case "buyRod": {
+        if (!isRodId(packet.rod)) return;
+        const rod = RODS[packet.rod];
+        if (profile.rods.includes(packet.rod)) return reply(false, `You've already got the ${rod.name}`);
+        if (!near) return tooFar();
+        if (player.coins < rod.price) return reply(false, `The ${rod.name} is ${rod.price} 🪙. Keep at it!`);
+        this.addCoins(player, -rod.price);
+        profile.rods.push(packet.rod);
+        profile.rod = packet.rod;
+        this.broadcast("emote", { sessionId, emoji: rod.emoji });
+        return reply(true, `The ${rod.name} is yours. Tight lines!`, -rod.price);
+      }
+      case "equipRod": {
+        if (!isRodId(packet.rod) || !profile.rods.includes(packet.rod)) return;
+        profile.rod = packet.rod;
+        return reply(true, `${RODS[packet.rod].emoji} ${RODS[packet.rod].name} in hand`);
+      }
+      case "buyBait": {
+        if (!isBaitId(packet.bait)) return;
+        const bait = BAITS[packet.bait];
+        if (!near) return tooFar();
+        if (player.coins < bait.price) return reply(false, `A pack of ${bait.name} is ${bait.price} 🪙`);
+        if ((profile.baits[packet.bait] ?? 0) >= 99) return reply(false, `Your ${bait.name} tin is full!`);
+        this.addCoins(player, -bait.price);
+        profile.baits[packet.bait] = Math.min(99, (profile.baits[packet.bait] ?? 0) + bait.pack);
+        if (!profile.bait) profile.bait = packet.bait;
+        return reply(true, `${bait.pack} ${bait.name} ${bait.emoji}, on the hook for your next casts`, -bait.price);
+      }
+      case "equipBait": {
+        if (packet.bait === "") profile.bait = "";
+        else if (isBaitId(packet.bait) && (profile.baits[packet.bait] ?? 0) > 0) profile.bait = packet.bait;
+        else return;
+        return reply(true, profile.bait ? `${BAITS[profile.bait].emoji} ${BAITS[profile.bait].name} on the hook` : "No bait on the hook");
+      }
+      case "upgradeCreel": {
+        if (!near) return tooFar();
+        const cost = creelUpgradeCost(profile.slots);
+        if (cost === null) return reply(false, "That creel's as big as they come!");
+        if (player.coins < cost) return reply(false, `Two more slots is ${cost} 🪙`);
+        this.addCoins(player, -cost);
+        profile.slots += 2;
+        return reply(true, `Stitched on two more slots: ${profile.slots} now 🪣`, -cost);
+      }
+    }
   }
 
   /** The reel's end: landed (believed only if it took as long as a real one can), or it got away.
@@ -2009,26 +2433,19 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!player || !reel || player.action !== "reel") return;
     this.starReels.delete(sessionId);
     player.action = "fish";
-    player.actionProgress = 0;
-    this.fishBiteAt.set(sessionId, Date.now() + starlightBiteDelay());
+    this.waitForBite(sessionId, player, true);
     if (!caught || Date.now() - reel.startedAt < STARLIGHT_REEL_MIN_S * 1000) {
       this.broadcast("emote", { sessionId, emoji: "💨" });
       return;
     }
-    const catchId = reel.catchId;
-    const coins = this.campfirePay(sessionId, player, "fish", STARLIGHT_CATCHES[catchId].coins);
     // a chest the server rolled for this reel, held in the bar until it opened
     const treasure = reel.treasure && openedChest ? this.campfirePay(sessionId, player, "fish", TREASURE_COINS) : 0;
-    this.bumpStat(player, "fish_caught");
-    this.daily(sessionId, player, "catch_fish");
-    const landed: FishCaught = { sessionId, catchId, coins, capped: coins === 0, treasure };
-    this.broadcast("fishCaught", landed);
-    this.broadcast("emote", { sessionId, emoji: STARLIGHT_CATCHES[catchId].emoji });
-    this.persist(sessionId, player);
+    this.landFish(sessionId, player, reel.fish, false, treasure);
   }
 
   private stopStarlight(sessionId: string, player: Player) {
     this.starReels.delete(sessionId);
+    this.pendingFish.delete(sessionId);
     this.clearAction(player);
     this.fishBiteAt.delete(sessionId);
     this.biteUntil.delete(sessionId);
@@ -2072,13 +2489,14 @@ export class HangoutRoom extends Room<HangoutState> {
 
     // How far this player could honestly have walked since their last report.
     const now = Date.now();
-    let allowed = MAX_REPORT_STEP;
+    let allowed = MAX_REPORT_STEP * (player.fed > 0 ? WELL_FED_SPEED : 1);
     if (sessionId) {
       const last = this.lastReportAt.get(sessionId);
       this.lastReportAt.set(sessionId, now);
       if (last !== undefined) {
         const elapsed = Math.min(1, (now - last) / 1000);
-        allowed = Math.min(MAX_REPORT_STEP, MOVE_SPEED_PER_SEC * elapsed * SPEED_TOLERANCE + STEP_SLACK);
+        const pace = player.fed > 0 ? WELL_FED_SPEED : 1;
+        allowed = Math.min(MAX_REPORT_STEP * pace, MOVE_SPEED_PER_SEC * pace * elapsed * SPEED_TOLERANCE + STEP_SLACK);
       }
     }
 
@@ -2114,6 +2532,7 @@ export class HangoutRoom extends Room<HangoutState> {
       this.soakSeconds.delete(id);
     });
     this.hooked.clear();
+    this.pendingFish.clear();
     this.board = new BoardTable();
     this.saveBoard();
 
@@ -2229,6 +2648,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.biteUntil.delete(sessionId);
     this.starlight.delete(sessionId);
     this.starReels.delete(sessionId);
+    this.pendingFish.delete(sessionId);
     this.lastReportAt.delete(sessionId);
     player.sitting = false;
     player.sitY = 0;
@@ -2391,8 +2811,13 @@ export class HangoutRoom extends Room<HangoutState> {
         this.broadcast("critterTreat", { sessionId });
         break;
       }
+      case "angler":
+        if (Math.hypot(player.x - prop.x, player.z - prop.z) > BARNABY_REACH + 1.2) return;
+        this.sendTo(sessionId, "openPanel", { kind: "barnaby", propId: prop.propId });
+        this.broadcast("barnabyWave", { sessionId });
+        break;
       case "fishing":
-        if (player.action === "fish") this.handleReelIn(sessionId);
+        if (player.action === "fish" || player.action === "afkfish") this.handleReelIn(sessionId);
         else this.handleCastLine(sessionId, false, prop.propId);
         break;
       case "boardgame":
@@ -2487,6 +2912,7 @@ export class HangoutRoom extends Room<HangoutState> {
     player.holding = "";
     player.toast = 0;
     this.clearAction(player);
+    this.feed(sessionId, player);
   }
 
   private handleKick(sessionId: string, msg: { dirX: number; dirZ: number }) {
@@ -2552,7 +2978,7 @@ export class HangoutRoom extends Room<HangoutState> {
       player.action = "fish";
       player.actionProgress = 0;
       this.starlight.add(sessionId);
-      this.fishBiteAt.set(sessionId, Date.now() + starlightBiteDelay());
+      this.waitForBite(sessionId, player, true);
       return;
     }
     let onPier = false;
@@ -2620,6 +3046,8 @@ export class HangoutRoom extends Room<HangoutState> {
     const daily = record.daily && record.daily.date === todayKey() ? record.daily : rollDaily(player.userId);
     record.daily = daily;
     player.daily = JSON.stringify(daily);
+    player.fishing = JSON.stringify(record.fishing);
+    player.fed = Math.max(0, Math.ceil((record.fishing.fedUntil - Date.now()) / 1000));
     this.vibeAt.set(client.sessionId, Date.now());
     this.records.set(client.sessionId, record);
     // The catch bucket is a session thing (the traders buy it); it survives a reconnect only.
@@ -2683,6 +3111,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.chops.delete(sessionId);
     this.lastChopAt.delete(sessionId);
     this.starReels.delete(sessionId);
+    this.pendingFish.delete(sessionId);
     this.lastNetAt.delete(sessionId);
     this.lastTreatAt.delete(sessionId);
     this.hooked.delete(sessionId);
@@ -2773,6 +3202,17 @@ export class HangoutRoom extends Room<HangoutState> {
    * and a game in progress carries on. Returns whether a board seat came along.
    */
   private takeOver(oldId: string, old: Player, sessionId: string, player: Player): boolean {
+    // the dropped session's wallet and creel are the newest (its last writes may still be queued)
+    const oldRecord = this.records.get(oldId);
+    const record = this.records.get(sessionId);
+    if (oldRecord && record) {
+      record.coins = oldRecord.coins;
+      record.fishing = oldRecord.fishing;
+      record.campfireCoins = oldRecord.campfireCoins;
+      player.coins = old.coins;
+      player.fishing = JSON.stringify(record.fishing);
+      player.fed = old.fed;
+    }
     player.x = old.x;
     player.z = old.z;
     player.sitting = old.sitting;
@@ -2850,21 +3290,6 @@ const DUCK_DIVE_COOLDOWN_MS = 1800;
 /** Sitting cross-legged on the ground: the avatar's height, derived from the ground "cushion". */
 const GROUND_SIT_Y = Math.round(seatAnchorY(CUSHIONS.ground) * 1000) / 1000;
 
-/** The river's bites come quicker than the sea's (STARLIGHT_BITE_DELAY_S). */
-function starlightBiteDelay(): number {
-  return (STARLIGHT_BITE_DELAY_S.min + Math.random() * (STARLIGHT_BITE_DELAY_S.max - STARLIGHT_BITE_DELAY_S.min)) * 1000;
-}
-
-/** What bites: a minnow most often, a lucky bottle now and then (STARLIGHT_CATCHES' weights). */
-function rollStarlightCatch(): StarlightCatchId {
-  const ids = Object.keys(STARLIGHT_CATCHES) as StarlightCatchId[];
-  let roll = Math.random() * ids.reduce((a, id) => a + STARLIGHT_CATCHES[id].weight, 0);
-  for (const id of ids) {
-    roll -= STARLIGHT_CATCHES[id].weight;
-    if (roll <= 0) return id;
-  }
-  return ids[0];
-}
 
 /** 5-12 seconds between bites: long enough to feel like fishing, short enough to stay fun. */
 function randomBiteDelay(): number {

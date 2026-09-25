@@ -145,6 +145,21 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
   100% { opacity: 0; transform: translate(var(--cx), calc(var(--cy) + 70px)) rotate(calc(var(--spin) * 1.6)) scale(0.9); }
 }
 
+/* the Starlight Composite rod: stars twinkling about its tip */
+.cozy-star-aura { position: relative; width: 0; height: 0; pointer-events: none; }
+.cozy-star-aura span { position: absolute; left: 0; bottom: 0; font-size: 11px; opacity: 0; animation: cozy-star-twinkle 1.5s ease-in-out infinite; filter: drop-shadow(0 0 4px rgba(255, 224, 140, 0.9)); }
+@keyframes cozy-star-twinkle {
+  0%, 100% { opacity: 0; transform: translate(calc(-50% + var(--ax)), 0) scale(0.5); }
+  50% { opacity: 1; transform: translate(calc(-50% + var(--ax)), -10px) scale(1.1) rotate(40deg); }
+}
+/* the campfire strip's fire chip, glowing while the Cozy Aura is up */
+.cozy-aura-chip { animation: cozy-aura-glow 2.4s ease-in-out infinite; }
+@keyframes cozy-aura-glow {
+  0%, 100% { box-shadow: 0 0 6px rgba(255, 200, 100, 0.35); }
+  50% { box-shadow: 0 0 16px rgba(255, 200, 100, 0.8); }
+}
+@media (prefers-reduced-motion: reduce) { .cozy-star-aura span, .cozy-aura-chip { animation: none; } .cozy-star-aura span { opacity: 0.8; } }
+
 /* the Cheer gesture's sparkles, rising and scattering; the Sleep gesture's Zzz drifting up */
 .cozy-sparkles, .cozy-zzz { position: relative; width: 0; height: 0; pointer-events: none; }
 .cozy-sparkles span { position: absolute; left: 0; bottom: 0; font-size: 15px; opacity: 0; animation: cozy-sparkle-rise 1.6s ease-out forwards; }

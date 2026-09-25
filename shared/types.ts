@@ -1,5 +1,9 @@
 // Shared between client and server — keep this file framework-agnostic (no THREE/Colyseus imports).
 
+import type { BaitId, CreelFish, FishTier, RodId } from "./fishing";
+import type { FuelItem, StewIngredient } from "./bonfire";
+import type { ChopLog } from "./chop";
+
 /** "dangle": sitting on an edge (the campfire's dock), legs hanging down and swinging.
  *  "cross": sitting cross-legged right on the ground (the Sit emote, away from any seat). */
 export type SitPose = "sit" | "lie" | "dangle" | "cross";
@@ -60,6 +64,10 @@ export interface PlayerState {
   aura: string;
   /** Today's cozy checklist (a DailyChecklist as JSON). */
   daily: string;
+  /** The angler's creel, rods, baits and records (a FishingProfile as JSON, shared/fishing.ts). */
+  fishing: string;
+  /** Whole seconds left Well-Fed (0: not): a quicker, bouncier step and quicker bites. */
+  fed: number;
 }
 
 /** Lifetime achievements, kept in PostgreSQL and shown in the profile / roster. */
@@ -230,7 +238,8 @@ export type ToggleableKind =
   | "woodchop"
   | "foraging"
   | "fireflies"
-  | "critter";
+  | "critter"
+  | "angler";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -287,10 +296,10 @@ export const SYSTEM_EMOJI = ["🥂", "💤", "💃", "🪙", "💰", "🎰", "�
  * on its own when something happens (SERVER_GESTURES): watering a plant, reaching over the board
  * to make a move.
  */
-export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss"] as const;
+export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss", "belly"] as const;
 export type Gesture = (typeof GESTURES)[number];
-export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8 };
-export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪" };
+export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8, belly: 2.6 };
+export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪", belly: "😋" };
 /** Gestures only the server starts (a client asking for one is ignored). */
 export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net", "toss"]);
 export function isGesture(v: unknown): v is Gesture {
@@ -314,7 +323,7 @@ export const FORAGE_REGROW_S = 25;
 /** How long a bite lasts: reel in within this window or the fish slips the hook. */
 export const BITE_WINDOW_S = 2.6;
 
-export type ItemId = "sardine" | "clownfish" | "octopus" | "goldray" | "berry" | "firefly" | "shell" | "seabass" | "starfish" | "trout" | "salmon" | "crayfish" | "plush";
+export type ItemId = "sardine" | "clownfish" | "octopus" | "goldray" | "berry" | "firefly" | "shell" | "seabass" | "starfish" | "trout" | "salmon" | "crayfish" | "plush" | "firewood" | "charcoal" | "mushroom";
 export const ITEMS: Record<ItemId, { emoji: string; name: string; value: number; buyer: "bob" | "oak" }> = {
   sardine: { emoji: "🐟", name: "Sardine", value: 10, buyer: "bob" },
   clownfish: { emoji: "🐠", name: "Clownfish", value: 25, buyer: "bob" },
@@ -329,6 +338,9 @@ export const ITEMS: Record<ItemId, { emoji: string; name: string; value: number;
   firefly: { emoji: "✨", name: "Firefly Jar", value: 12, buyer: "oak" },
   shell: { emoji: "🐚", name: "Pretty Shell", value: 8, buyer: "bob" },
   plush: { emoji: "🧸", name: "Mochi Plush", value: 40, buyer: "bob" },
+  firewood: { emoji: "🪵", name: "Firewood", value: 3, buyer: "oak" },
+  charcoal: { emoji: "✨", name: "Golden Charcoal", value: 10, buyer: "oak" },
+  mushroom: { emoji: "🍄", name: "Red Mushrooms", value: 6, buyer: "oak" },
 };
 
 // --- fishing: the Stardew-style reel mini-game ---
@@ -958,7 +970,8 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "woodchop" ||
     kind === "foraging" ||
     kind === "fireflies" ||
-    kind === "critter"
+    kind === "critter" ||
+    kind === "angler"
   );
 }
 
@@ -1082,42 +1095,37 @@ export interface RoastResult {
 /** How a fish swims in the reel: a slow sine wave; rhythmic plunges to the bottom; erratic jerks and
  *  sudden turns; or the Star-Koi's fast darting. */
 export type SwimPattern = "sine" | "plunge" | "erratic" | "koi";
-/** What the river gives up to a starlight fishing line, what each is worth, and how it fights in
- *  the reel (`speed`: how often and how fast it darts; `size`: how fast the line's tension builds
- *  while it is out of the green bar; `barScale`: the green bar's height, 1 = full). */
-export const STARLIGHT_CATCHES = {
-  minnow: { name: "Chibi Minnow", emoji: "🐡", coins: 15, weight: 42, speed: 0.5, size: 0.5, pattern: "sine" as SwimPattern, barScale: 1, tier: "Easy" },
-  trout: { name: "Midnight Trout", emoji: "🐠", coins: 20, weight: 30, speed: 0.85, size: 0.75, pattern: "plunge" as SwimPattern, barScale: 1, tier: "Medium" },
-  salmon: { name: "Starlight Salmon", emoji: "🐟", coins: 25, weight: 18, speed: 1.15, size: 0.9, pattern: "erratic" as SwimPattern, barScale: 0.9, tier: "Hard" },
-  koi: { name: "Cosmic Star-Koi", emoji: "🎏", coins: 30, weight: 10, speed: 1.45, size: 1.0, pattern: "koi" as SwimPattern, barScale: 0.72, tier: "Legendary ✨" },
-} as const;
-/** A hooked fish at the campfire: the reel mini-game starts (FishingModal) for this catch, and a
- *  Sunken Treasure Chest may turn up in the column (`treasure`: the server rolled one). */
+/** A hooked fish at the campfire: the reel mini-game starts (FishingModal) for this fish (the
+ *  server rolled its kind, length and stars; shared/fishing.ts FISH says how it fights), with the
+ *  angler's rod, and a Sunken Treasure Chest may turn up in the column (`treasure`). */
 export interface StarlightReel {
-  catchId: StarlightCatchId;
+  fish: CreelFish;
+  rod: RodId;
   treasure: boolean;
 }
-/** A Sunken Treasure Chest held in the green bar until it opens pays this on top of the catch. */
+/** A Sunken Treasure Chest held in the green bar until it opens pays this. */
 export const TREASURE_COINS = 25;
-/** How likely a chest is on each catch's reel. */
-export const TREASURE_CHANCE: Record<StarlightCatchId, number> = { minnow: 0.08, trout: 0.12, salmon: 0.2, koi: 0.65 };
+/** How likely a chest is on a reel, by how rare the fish is. */
+export const TREASURE_CHANCE: Record<FishTier, number> = { common: 0.08, uncommon: 0.12, rare: 0.2, epic: 0.35, legendary: 0.65 };
 /** The shortest a real reel can take (the catch meter fills no faster): a quicker "caught" is not believed. */
 export const STARLIGHT_REEL_MIN_S = 2.0;
-export type StarlightCatchId = keyof typeof STARLIGHT_CATCHES;
+/** A fish landed at the campfire: into the creel (Barnaby buys them), or, the creel full, let go
+ *  for CREEL_RELEASE_COINS. `record`: the angler's longest of its kind yet. */
 export interface FishCaught {
   sessionId: string;
-  catchId: StarlightCatchId;
+  fish: CreelFish;
+  released: boolean;
+  record: boolean;
+  /** Coins paid now: a release, a Sunken Treasure Chest. */
   coins: number;
-  capped: boolean;
   /** Coins from a Sunken Treasure Chest opened in the reel (0: none). */
   treasure: number;
+  afk: boolean;
 }
 /** The bobber stays under this long after a bite: tap in time and it is yours. */
 export const STARLIGHT_BITE_S = 1.0;
-/** Seconds between casting (or a catch) and the next bite. */
-export const STARLIGHT_BITE_DELAY_S = { min: 3, max: 6 };
 /** Campfire coins a player can earn in a day, by activity (it all still happens past a cap, unpaid). */
-export const CAMPFIRE_DAILY_COINS = { fish: 250, roast: 60, star: 150, chop: 60, forage: 60 };
+export const CAMPFIRE_DAILY_COINS = { fish: 250, roast: 60, star: 150, chop: 80, forage: 60 };
 export type CampfireCoinKind = keyof typeof CAMPFIRE_DAILY_COINS;
 
 // --- the Campfire's telescope, chopping block and foraging ----------------------------------------
@@ -1188,6 +1196,54 @@ export const CONSTELLATIONS = [
       [[0.64, 0.63], [0.78, 0.66]],
     ],
   },
+  {
+    id: "celestial_fox",
+    name: "Celestial Fox",
+    emoji: "🦊",
+    stars: [[0.32, 0.26], [0.41, 0.4], [0.59, 0.4], [0.68, 0.26], [0.66, 0.52], [0.5, 0.72], [0.34, 0.52]],
+    art: [
+      [[0.43, 0.51], [0.46, 0.49]],
+      [[0.54, 0.49], [0.57, 0.51]],
+      [[0.48, 0.64], [0.52, 0.64]],
+      [[0.7, 0.62], [0.8, 0.58], [0.85, 0.46], [0.8, 0.37]],
+    ],
+  },
+  {
+    id: "cosmic_koi",
+    name: "Cosmic Koi",
+    emoji: "🎏",
+    stars: [[0.24, 0.5], [0.36, 0.37], [0.52, 0.35], [0.68, 0.47], [0.8, 0.34], [0.8, 0.62], [0.52, 0.63], [0.34, 0.6]],
+    art: [
+      [[0.3, 0.47], [0.31, 0.47]],
+      [[0.45, 0.63], [0.48, 0.71], [0.54, 0.64]],
+      [[0.25, 0.53], [0.17, 0.59]],
+      [[0.42, 0.44], [0.46, 0.49], [0.42, 0.55]],
+      [[0.52, 0.44], [0.56, 0.49], [0.52, 0.55]],
+    ],
+  },
+  {
+    id: "moon_bunny",
+    name: "Moon Bunny",
+    emoji: "🐰",
+    stars: [[0.4, 0.14], [0.45, 0.38], [0.55, 0.38], [0.62, 0.16], [0.64, 0.5], [0.5, 0.66], [0.36, 0.5]],
+    art: [
+      [[0.44, 0.5], [0.45, 0.5]],
+      [[0.55, 0.5], [0.56, 0.5]],
+      [[0.48, 0.57], [0.5, 0.59], [0.52, 0.57]],
+      [[0.76, 0.6], [0.82, 0.68], [0.8, 0.79], [0.71, 0.83]],
+    ],
+  },
+  {
+    id: "cozy_teapot",
+    name: "Cozy Teapot",
+    emoji: "🫖",
+    stars: [[0.2, 0.4], [0.35, 0.52], [0.38, 0.72], [0.62, 0.72], [0.7, 0.62], [0.8, 0.5], [0.68, 0.42], [0.5, 0.34]],
+    art: [
+      [[0.47, 0.3], [0.5, 0.27], [0.53, 0.3]],
+      [[0.22, 0.33], [0.19, 0.26], [0.23, 0.19]],
+      [[0.44, 0.55], [0.5, 0.6], [0.56, 0.55]],
+    ],
+  },
 ] as const;
 export type ConstellationId = (typeof CONSTELLATIONS)[number]["id"];
 export interface ConstellationDone {
@@ -1196,9 +1252,8 @@ export interface ConstellationDone {
   coins: number;
   capped: boolean;
 }
-/** All three strokes of the chopping combo landed: this, and the bonfire roars up for BONFIRE_FUEL_SECONDS. */
+/** All three strokes of the chopping combo landed: this, and the log's firewood (ChopLog). */
 export const CHOP_CLEAN_COINS = 15;
-export const BONFIRE_FUEL_SECONDS = 90;
 /** Swinging into a wood knot stuns the axe this long before the next try. */
 export const CHOP_STUN_S = 1.5;
 export interface ChopResult {
@@ -1209,6 +1264,10 @@ export interface ChopResult {
   stunned: boolean;
   /** The stroke it ended on (3 when clean). */
   stroke: number;
+  /** The log on the block, and (clean) what it split into. */
+  log: ChopLog;
+  firewood: number;
+  charcoal: number;
   coins: number;
   capped: boolean;
 }
@@ -1236,4 +1295,27 @@ export type CampfirePacket =
   | { type: "CONSTELLATION"; id: ConstellationId }
   | { type: "CHOP_START" }
   | { type: "CHOP_STOP" }
-  | { type: "REEL_DONE"; caught: boolean; treasure: boolean };
+  | { type: "REEL_DONE"; caught: boolean; treasure: boolean }
+  /** A split log (or Golden Charcoal) onto the bonfire. */
+  | { type: "ADD_FUEL"; item: FuelItem }
+  /** An ingredient into the Dutch oven: a fish from the creel (by its slot), mushrooms or berries. */
+  | { type: "STEW_ADD"; ingredient: StewIngredient; slot?: number }
+  | { type: "STEW_SCOOP" }
+  /** The skewer in hand onto the picnic table, or one off it. */
+  | { type: "PICNIC_PLACE" }
+  | { type: "PICNIC_TAKE"; plate: number }
+  /** Feet up, line in: common fish into the creel every CAMP_AFK_S. */
+  | { type: "AFK"; on: boolean }
+  /** Barnaby's shop (and equipping what you have: any time). */
+  | { type: "BARNABY"; op: "sell"; slot: number | "all" }
+  | { type: "BARNABY"; op: "buyRod" | "equipRod"; rod: RodId }
+  | { type: "BARNABY"; op: "buyBait"; bait: BaitId }
+  | { type: "BARNABY"; op: "equipBait"; bait: BaitId | "" }
+  | { type: "BARNABY"; op: "upgradeCreel" };
+
+/** Barnaby's answer to a shop request (sent to the one who asked). */
+export interface BarnabyResult {
+  ok: boolean;
+  message: string;
+  coins: number;
+}

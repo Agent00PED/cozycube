@@ -10,6 +10,7 @@ import { consumeStandPress, worldMoveDirection } from "./input";
 import { faceHeading } from "./faceTargets";
 import { liveMotion } from "./liveMotion";
 import { Reconciler } from "./reconcile";
+import { WELL_FED_SPEED } from "@shared/fishing";
 
 // The local player's locomotion. Three inputs, one controller:
 //   - click-to-move: the scene sets `targetRef` from a floor raycast, and the shared pathfinder
@@ -86,6 +87,9 @@ export function useLocalPlayerMovement(
   mapId: MapId
 ) {
   const posRef = useRef({ x: player.x, z: player.z });
+  // Well-Fed walks 15% quicker (the server allows for it)
+  const fedRef = useRef(false);
+  fedRef.current = player.fed > 0;
   const velocityRef = useRef(0);
   const facingRef = useRef(0);
   const sendTimerRef = useRef(0);
@@ -166,10 +170,11 @@ export function useLocalPlayerMovement(
       // held keys or the joystick take over from any click-to-move target
       if (steer && targetRef.current) targetRef.current = null;
       const target = targetRef.current;
+      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1);
       if (steer) {
         dirX = steer.x;
         dirZ = steer.z;
-        const cap = MOVE_SPEED * (0.35 + 0.65 * steer.strength);
+        const cap = pace * (0.35 + 0.65 * steer.strength);
         velocityRef.current = Math.min(cap, velocityRef.current + ACCELERATION * delta);
         slideStep(pos, dirX * velocityRef.current * delta, dirZ * velocityRef.current * delta, mapId);
         facingRef.current = lerpAngle(facingRef.current, Math.atan2(dirX, dirZ), TURN_LERP);
@@ -185,7 +190,7 @@ export function useLocalPlayerMovement(
           if (distance > (isFinal ? ARRIVE_THRESHOLD : WAYPOINT_THRESHOLD)) {
             dirX = dx / distance;
             dirZ = dz / distance;
-            const cap = isFinal && distance < ARRIVE_RADIUS ? MOVE_SPEED * Math.max(0.35, distance / ARRIVE_RADIUS) : MOVE_SPEED;
+            const cap = isFinal && distance < ARRIVE_RADIUS ? pace * Math.max(0.35, distance / ARRIVE_RADIUS) : pace;
             velocityRef.current = Math.min(cap, velocityRef.current + ACCELERATION * delta);
             const step = Math.min(velocityRef.current * delta, distance);
             const before = { x: pos.x, z: pos.z };
@@ -238,7 +243,7 @@ export function useLocalPlayerMovement(
       }
     }
 
-    speedRef.current = player.sitting ? 0 : velocityRef.current / MOVE_SPEED;
+    speedRef.current = player.sitting ? 0 : Math.min(1, velocityRef.current / MOVE_SPEED);
     seatYRef.current += ((player.sitting ? player.sitY : 0) - seatYRef.current) * SEAT_HEIGHT_LERP;
     if (player.sitting) facingRef.current = player.sitRotationY;
     else if (dirX === 0 && dirZ === 0) {

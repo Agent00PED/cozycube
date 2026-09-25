@@ -26,6 +26,8 @@ const WHEEL: { label: string; emoji: string; run: (p: SideDrawerProps) => void }
   { label: "Sleep", emoji: "💤", run: (p) => p.onGesture("nap") },
   { label: "Heart", emoji: "❤️", run: (p) => p.onGesture("heart") },
 ];
+/** Well-Fed from a campfire meal: a happy belly rub joins the wheel. */
+const BELLY = { label: "Yum", emoji: "😋", run: (p: SideDrawerProps) => p.onGesture("belly") };
 
 function statusIcon(p: PlayerState): string {
   if (isActivityStatus(p.status)) return ACTIVITY_STATUSES[p.status].emoji;
@@ -43,6 +45,8 @@ function pingTone(ms: number) {
 export function SideDrawer(props: SideDrawerProps) {
   const { players, localSessionId, speakingUserIds, latency, onChat, onClose } = props;
   const [text, setText] = useState("");
+  const fed = (localSessionId ? players[localSessionId]?.fed ?? 0 : 0) > 0;
+  const wheel = fed ? [...WHEEL, BELLY] : WHEEL;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -78,8 +82,8 @@ export function SideDrawer(props: SideDrawerProps) {
           <h3 className="mb-2 text-xs font-bold uppercase tracking-widest opacity-60">Express yourself</h3>
           <div className="relative mx-auto h-56 w-56">
             <div className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl">✨</div>
-            {WHEEL.map((w, i) => {
-              const a = (i / WHEEL.length) * Math.PI * 2 - Math.PI / 2;
+            {wheel.map((w, i) => {
+              const a = (i / wheel.length) * Math.PI * 2 - Math.PI / 2;
               const r = 88;
               return (
                 <button

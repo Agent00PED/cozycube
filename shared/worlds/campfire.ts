@@ -25,17 +25,20 @@ import type { PropSpec, SeatSpec } from "./lounge";
 export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "half": 10.8,
   "fire": { "x": 0, "z": 0, "ring": 0.62, "collider": 0.45 },
-  "clearing": { "x": 0, "z": 0, "r": 4.3 },
+  "clearing": { "x": 0, "z": 0, "r": 4.75 },
   "firepit": {
-    "r": 2.75,
+    "r": 3.5,
     "pieces": [
-      { "id": "Long", "kind": "log", "angle": 290, "len": 2.9, "seats": ["L1", "L2", "L3"] },
-      { "id": "Medium", "kind": "log", "angle": 45, "len": 1.9, "seats": ["M1", "M2"] },
-      { "id": "Curved", "kind": "curved", "angle": 155, "arc": 40, "seats": ["C1", "C2"] },
-      { "id": "Stump", "kind": "stump", "angle": 122, "r": 2.6, "seats": ["01"] },
-      { "id": "Boulder", "kind": "boulder", "angle": 188, "r": 2.65, "seats": ["01"] }
+      { "id": "Long", "kind": "log", "angle": 288, "r": 3.55, "len": 2.9, "seats": ["L1", "L2", "L3"] },
+      { "id": "Medium", "kind": "log", "angle": 40, "r": 3.3, "len": 1.9, "seats": ["M1", "M2"] },
+      { "id": "Curved", "kind": "curved", "angle": 158, "r": 3.65, "arc": 38, "seats": ["C1", "C2"] },
+      { "id": "Stump", "kind": "stump", "angle": 116, "r": 3.2, "seats": ["01"] },
+      { "id": "Boulder", "kind": "boulder", "angle": 197, "r": 3.45, "seats": ["01"] }
     ]
   },
+  "tripod": { "legs": 0.9, "apex": 1.95, "potY": 1.0, "potR": 0.27 },
+  "barnaby": { "x": 4.7, "z": -2.6, "yaw": -0.35 },
+  "picnicPlates": [[-0.12, -0.17], [0.3, -0.17], [-0.12, 0.17], [0.3, 0.17]],
   "river": {
     "points": [[-8.6, 7.2, 1.0], [-6.4, 7.9, 1.3], [-4.2, 8.2, 1.5], [-2.0, 7.9, 1.6], [0.2, 7.7, 1.65], [2.4, 7.9, 1.5], [4.6, 8.4, 1.3], [6.8, 8.1, 1.0]],
     "depth": 0.5,
@@ -151,7 +154,7 @@ export const CAMPFIRE_HALF = L.half;
 export const CAMPFIRE_FRAME = { x: 0, z: 0, size: L.half * 2 + 0.8 };
 
 /** Close enough to the fire to hold a skewer over it (the log benches are well inside). */
-export const BONFIRE_REACH = 3.2;
+export const BONFIRE_REACH = 4.0;
 /** Close enough to a fishing spot on the dock to cast from it. */
 export const FISHING_REACH = 1.1;
 /** Players seated within this of someone playing the guitar sway along. */
@@ -307,6 +310,9 @@ const HAMMOCK = (() => {
 
 /** Each log bench round the fire: its middle, the way along it (tangent to the fire), and its two
  *  seats, L and R as the sitter sees them facing the fire. */
+/** How far in front of a firepit seat (toward the fire) you step up to it and get up from it. */
+export const FRONT_MOUNT = 0.85;
+
 /** The firepit's seating, an organic ring with open walkways toward the tipi (west-north-west),
  *  the picnic table (south) and the dock (east): a long log (3 seats) behind the fire, a medium
  *  log (2) and a curved one (2) to the sides, a stump and a boulder (1 each). Each piece: where it
@@ -369,11 +375,12 @@ export const spotOfSeat = (seatId: string) => FISHING_SPOTS.find((f) => f.seat =
 /** The campfire's seats. */
 export const CAMP_SEATS: CampSeat[] = [
   // the firepit's nine seats, each facing the fire (all "log" seats: play the guitar, roast from
-  // them); you get up on the far side from the fire
+  // them). Front-mounted: you walk up to a seat from the fire's side, turn and sit back onto it,
+  // and get up the same way; nobody is ever routed round behind the logs
   ...FIREPIT.flatMap((piece) =>
     piece.seats.map((at): CampSeat => {
       const out = unit(at.x - L.fire.x, at.z - L.fire.z);
-      return { propId: at.propId, x: at.x, z: at.z, rotationY: facing(at.x, at.z, L.fire), cushion: piece.cushion, style: "log", approachX: at.x + out.x * 1.2, approachZ: at.z + out.z * 1.2 };
+      return { propId: at.propId, x: at.x, z: at.z, rotationY: facing(at.x, at.z, L.fire), cushion: piece.cushion, style: "log", approachX: at.x - out.x * FRONT_MOUNT, approachZ: at.z - out.z * FRONT_MOUNT };
     })
   ),
   // the hammock, along its length, head toward pine b; climb in from the camera's side
@@ -437,6 +444,17 @@ export function lieSeatPose(seat: CampSeat) {
   return seat.lie ? napPose(CUSHIONS[seat.cushion], seat.lie.head, seat.lie.dir) : null;
 }
 
+/** Where you stand to talk to Barnaby: in front of him. */
+export const BARNABY_FRONT = { x: L.barnaby.x + Math.sin(L.barnaby.yaw) * 0.95, z: L.barnaby.z + Math.cos(L.barnaby.yaw) * 0.95 };
+/** Close enough to Barnaby to trade. */
+export const BARNABY_REACH = 1.8;
+/** The Dutch oven's tripod legs round the fire. */
+export const TRIPOD_LEGS: Pt[] = [30, 150, 270].map((deg) => ({ x: L.fire.x + Math.cos(deg * DEG) * L.tripod.legs, z: L.fire.z + Math.sin(deg * DEG) * L.tripod.legs }));
+/** The plates on the picnic table where skewers are left for friends (table-relative offsets). */
+export const PICNIC_PLATE_SPOTS: Pt[] = L.picnicPlates.map(([dx, dz]) => ({ x: L.picnic.x + dx, z: L.picnic.z + dz }));
+/** Close enough to the picnic table to leave a skewer or take one. */
+export const PICNIC_REACH = 2.0;
+
 export const CAMP_PROPS: PropSpec[] = [
   // the bonfire: walk up (or sit on a log) and roast a marshmallow or grill a skewer
   { propId: "bonfire", x: L.fire.x, z: L.fire.z, kind: "bonfire", color: "#ff8c32", defaultOn: true, approachX: L.fire.x, approachZ: L.fire.z + 1.35 },
@@ -453,6 +471,8 @@ export const CAMP_PROPS: PropSpec[] = [
     const toFire = unit(L.fire.x - L.critter.x, L.fire.z - L.critter.z);
     return { propId: "critter", x: L.critter.x, z: L.critter.z, kind: "critter", color: "#8c8a91", defaultOn: true, approachX: L.critter.x + toFire.x * 0.9, approachZ: L.critter.z + toFire.z * 0.9 } satisfies PropSpec;
   })(),
+  // Barnaby the Angler, at his tackle stall by the dock: sell your creel, buy rods and bait
+  { propId: "barnaby", x: L.barnaby.x, z: L.barnaby.z, kind: "angler", color: "#6b8fb5", defaultOn: true, approachX: BARNABY_FRONT.x, approachZ: BARNABY_FRONT.z },
   // the dark grove between the hammock and the tipi, alive with fireflies: catch some in a jar
   (() => {
     const toFire = unit(L.fire.x - L.fireflies.x, L.fire.z - L.fireflies.z);
@@ -494,8 +514,10 @@ function riverBoxes(): AABB[] {
 }
 
 export const CAMP_OBSTACLES: AABB[] = [
-  // the fire: only its logs, inside the stones' inner edge, so you can walk right round it
+  // the fire: only its logs, inside the stones' inner edge, so you can walk right round it; and
+  // the Dutch oven's three tripod legs
   around(L.fire, L.fire.collider),
+  ...TRIPOD_LEGS.map((p) => around(p, 0.09)),
   // the firepit's seating: small boxes along each log (straight or curved), so the ring inside it
   // and the walkways between the pieces stay open; the stump and the boulder
   ...FIREPIT.flatMap((piece) => {
@@ -547,6 +569,9 @@ export const CAMP_OBSTACLES: AABB[] = [
   // the guitar case lying open in the grove, and the lantern on the grass beside it
   around(L.guitarCase, 0.5),
   around(L.groundLantern, 0.15),
+  // Barnaby and his tackle crate
+  around(L.barnaby, 0.34),
+  around({ x: L.barnaby.x + Math.cos(L.barnaby.yaw) * 0.62, z: L.barnaby.z - Math.sin(L.barnaby.yaw) * 0.62 }, 0.26),
 ];
 
 export const CAMP_SPAWNS: Pt[] = L.spawns;

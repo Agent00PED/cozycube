@@ -59,6 +59,15 @@ const CLOUDS = [
 type Streak = ShootingStar & { start: number; hit: boolean; gone: boolean };
 type Burst = { x: number; y: number; at: number; text: string };
 
+/** The focus ring: a constellation's stars are sharp (and can be traced) within this of its focus. */
+const FOCUS_OK = 0.07;
+/** A fresh focus for the next constellation, well away from where the ring is now (so it blurs). */
+function newFocus(from: number): number {
+  const away = 0.25 + Math.random() * 0.2;
+  const up = from + away <= 1 && (from - away < 0 || Math.random() < 0.5);
+  return up ? from + away : from - away;
+}
+
 export function StargazingModal({ send, subscribeMessages, localSessionId, onClose }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const streaks = useRef<Streak[]>([]);
@@ -67,13 +76,23 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
   const lastHit = useRef<{ x: number; y: number } | null>(null);
   const opened = useRef(performance.now());
   // the constellation being traced: which one, how many of its stars are joined, and when it finished
-  const trace = useRef({ index: 0, joined: 0, doneAt: 0, all: false });
+  const trace = useRef({ index: 0, joined: 0, doneAt: 0, all: false, target: newFocus(0.5), sharp: false });
+  // the focus ring's setting (0..1), and where a drag round the brass ring began
+  const focusRef = useRef(0.5);
+  const [focus, setFocusState] = useState(0.5);
+  const setFocus = (v: number) => {
+    focusRef.current = Math.max(0, Math.min(1, v));
+    setFocusState(focusRef.current);
+  };
+  const ringDrag = useRef<{ angle: number; focus: number } | null>(null);
+  // the last constellation's trace went to the server then (the next is timed from it)
+  const lastSent = useRef(performance.now());
   const [sparks, setSparks] = useState(0);
   const [combo, setCombo] = useState({ n: 0, mult: 1 });
   const comboRef = useRef(combo);
   comboRef.current = combo;
   const [traced, setTraced] = useState<string[]>([]);
-  const [note, setNote] = useState("Tap the shooting stars as they streak by, and trace the numbered stars in order");
+  const [note, setNote] = useState("Tap the shooting stars as they streak by. Turn the focus ring until a constellation is sharp, then trace its stars in order");
 
   // looking through it, for as long as this is open (send is a fresh function each render: held in a ref)
   const sendRef = useRef(send);
@@ -161,6 +180,13 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
       if (shape && !tr.all) {
         const pts = shape.stars.map(([px, py]) => [px * SIZE + cx, py * SIZE + cy] as const);
         const revealed = tr.joined >= pts.length;
+        // out of focus, its stars are soft blurs (the further off, the softer): turn the ring
+        const off = Math.abs(focusRef.current - tr.target);
+        const sharp = revealed || off < FOCUS_OK;
+        if (sharp !== tr.sharp) {
+          tr.sharp = sharp;
+          if (sharp && !revealed) setNote(`In focus: ${shape.emoji} ${shape.name}! Trace its stars in order`);
+        }
         // the lines joined so far (closing the loop once complete)
         g.strokeStyle = revealed ? "rgba(255, 228, 158, 0.95)" : "rgba(255, 228, 158, 0.55)";
         g.lineWidth = revealed ? 2 : 1.5;
@@ -190,16 +216,20 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
           g.textAlign = "center";
           g.fillText(`${shape.emoji} ${shape.name}`, SIZE / 2 + cx, SIZE * 0.88 + cy);
           g.textAlign = "start";
-          // on to the next one after a moment
+          // on to the next one after a moment, out of focus again
           if (now - tr.doneAt > 2800) {
             tr.index += 1;
             tr.joined = 0;
+            tr.target = newFocus(focusRef.current);
+            tr.sharp = false;
             if (tr.index >= CONSTELLATIONS.length) tr.all = true;
+            else setNote("A new patch of sky, all a blur: turn the focus ring");
           }
         }
-        // its stars, the next one to tap numbered and pulsing
+        // its stars, the next one to tap numbered and pulsing (blurred until the ring brings them in)
+        if (!sharp) g.filter = `blur(${Math.min(7, 1.5 + off * 16).toFixed(1)}px)`;
         pts.forEach(([px, py], k) => {
-          const next = k === tr.joined && !revealed;
+          const next = k === tr.joined && !revealed && sharp;
           const tw = 0.6 + 0.4 * Math.sin(t * 2.2 + k * 1.3);
           g.fillStyle = k < tr.joined ? "rgba(255, 236, 170, 1)" : `rgba(255, 244, 214, ${0.55 + 0.35 * tw})`;
           g.beginPath();
@@ -212,12 +242,13 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
             g.arc(px, py, 8 + tw * 3, 0, Math.PI * 2);
             g.stroke();
           }
-          if (!revealed) {
+          if (!revealed && sharp) {
             g.fillStyle = "rgba(255, 244, 214, 0.75)";
             g.font = "700 9px Fredoka, system-ui, sans-serif";
             g.fillText(String(k + 1), px + 5, py - 5);
           }
         });
+        g.filter = "none";
       }
 
       // the meteor shower: bright heads and fading tails, each at its own speed
@@ -328,27 +359,60 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
     const cy = -aim.current.y * LAYERS[1].depth;
     const [sx, sy] = shape.stars[tr.joined];
     if (Math.hypot(p.x - (sx * SIZE + cx), p.y - (sy * SIZE + cy)) > HIT_STAR) return;
+    if (!tr.sharp) {
+      setNote("Too blurry to pick out: turn the focus ring until the stars are sharp");
+      return;
+    }
     tr.joined += 1;
     playSfx("pluck");
     if (tr.joined === shape.stars.length) {
       tr.doneAt = now;
-      // the server wants to see it took a person's time; if this was quicker, it waits a beat
-      const wait = Math.max(0, CONSTELLATION_MIN_S * 1000 + 250 - (now - opened.current));
+      // the server wants to see each took a person's time; if this was quicker, it waits a beat
+      const wait = Math.max(0, CONSTELLATION_MIN_S * 1000 + 250 - (now - Math.max(opened.current, lastSent.current)));
+      lastSent.current = now + wait;
       window.setTimeout(() => sendRef.current({ type: "CONSTELLATION", id: shape.id }), wait);
     }
+  };
+  // the brass ring round the lens turns the focus: drag round it (a full turn sweeps the range)
+  const ringAngle = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2));
+  };
+  const onRingDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return; // the lens itself takes its own taps
+    e.currentTarget.setPointerCapture(e.pointerId);
+    ringDrag.current = { angle: ringAngle(e), focus: focusRef.current };
+  };
+  const onRingMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = ringDrag.current;
+    if (!d) return;
+    let turn = ringAngle(e) - d.angle;
+    turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+    setFocus(d.focus + turn / (Math.PI * 2));
+    d.angle = ringAngle(e);
+    d.focus = focusRef.current;
+  };
+  const onRingUp = () => {
+    ringDrag.current = null;
   };
 
   return (
     <Modal title="Stargazing" icon="🔭" onClose={onClose} width={400}>
       <div className="flex flex-col items-center gap-3 pb-2">
         <div
-          className="relative rounded-full p-[10px]"
+          className="relative cursor-grab touch-none rounded-full p-[14px] active:cursor-grabbing"
           style={{
             width: "min(340px, 78vw)",
             aspectRatio: "1",
-            background: "conic-gradient(from 210deg, #7a5a22, #e8c46a, #9a7428, #f3d98c, #7a5a22, #d9b25a, #7a5a22)",
+            // the knurled brass focus ring: it turns as you drag it
+            background: `repeating-conic-gradient(from ${Math.round(focus * 360)}deg, rgba(0,0,0,0.18) 0deg 3deg, rgba(0,0,0,0) 3deg 9deg), conic-gradient(from ${210 + Math.round(focus * 360)}deg, #7a5a22, #e8c46a, #9a7428, #f3d98c, #7a5a22, #d9b25a, #7a5a22)`,
             boxShadow: "0 6px 24px rgba(0,0,0,0.45), inset 0 2px 3px rgba(255,240,200,0.6)",
           }}
+          onPointerDown={onRingDown}
+          onPointerMove={onRingMove}
+          onPointerUp={onRingUp}
+          onPointerCancel={onRingUp}
+          title="The focus ring: drag it round"
         >
           <canvas
             ref={canvas}
@@ -365,6 +429,11 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
             </div>
           )}
         </div>
+        <label className="flex w-full max-w-[300px] items-center gap-2 text-xs font-semibold">
+          <span aria-hidden>🔍</span>
+          <span className="opacity-80">Focus</span>
+          <input type="range" min={0} max={1000} value={Math.round(focus * 1000)} onChange={(e) => setFocus(Number(e.target.value) / 1000)} className="cozy-focus flex-1 accent-amber-300" aria-label="Focus ring" />
+        </label>
         <p className="m-0 min-h-[20px] text-center text-sm opacity-80">{note}</p>
         <p className="m-0 text-center text-[11px] opacity-60">
           Star Sparks: {sparks} · {STAR_SPARK_COINS} 🪙 each, x2, x3, x5 in a row · constellations traced: {traced.length}/{CONSTELLATIONS.length} (+{CONSTELLATION_COINS} 🪙 each)

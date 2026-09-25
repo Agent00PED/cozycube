@@ -36,7 +36,13 @@ import { StargazingModal } from "./components/hud/StargazingModal";
 import { WoodChopModal } from "./components/hud/WoodChopModal";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
-import { FORAGE_INFO, ITEMS, STARLIGHT_CATCHES, TREASURE_COINS, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
+import { FORAGE_INFO, ITEMS, TREASURE_COINS, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
+import { FISH, RODS, TIER_LABEL, stars } from "@shared/fishing";
+import { COZY_AURA_FUEL, LOW_FUEL, stewName, type BonfireUpdate, type StewUpdate } from "@shared/bonfire";
+import { CookingModal } from "./components/hud/CookingModal";
+import { BarnabyModal } from "./components/hud/BarnabyModal";
+import { CampfireStatus } from "./components/hud/CampfireStatus";
+import { useAnglerProfile } from "./components/hud/anglerStore";
 import { BoxingHud } from "./components/hud/BoxingHud";
 import { installKeyboard, isTouchDevice } from "./systems/input";
 import {
@@ -179,6 +185,7 @@ export default function App() {
     autoCycle,
     setAutoCycle,
     leaderboard,
+    hearth,
     latency,
     claimAllowance,
     spinSlots,
@@ -335,14 +342,33 @@ export default function App() {
         } else if (type === "boardState") {
           setBoardView(payload as BoardGameView);
         } else if (type === "fishCaught") {
-          // the campfire's river: what you pulled out, and what it paid
+          // the campfire's river: into the creel (or, the creel full, back in the river for a few coins)
           const c = payload as FishCaught;
           if (c.sessionId === localIdRef.current) {
-            const info = STARLIGHT_CATCHES[c.catchId];
-            pushToast(c.coins > 0 ? `${info.name}! +${c.coins} coins` : `${info.name}! (the river's coins are all earned today)`, { emoji: info.emoji, tone: c.coins > 0 ? "coin" : undefined });
+            const info = FISH[c.fish.s];
+            const released = c.coins - c.treasure;
+            if (c.released) pushToast(released > 0 ? `Creel full! Released for +${released} coins` : "Creel full! Released back to the river", { emoji: "🪣", tone: released > 0 ? "coin" : undefined });
+            else pushToast(`${c.afk ? "💤 " : ""}${info.name} · ${c.fish.cm} cm ${stars(c.fish.q)}${c.record ? " · New record!" : ""}`, { emoji: info.emoji, silent: c.afk });
             if (c.treasure > 0) pushToast(`Sunken treasure! +${c.treasure} coins`, { emoji: "🧰", tone: "coin" });
             playSfx("catch");
           }
+        } else if (type === "BONFIRE_STATE_UPDATE") {
+          // wood on the fire: a whoosh for everyone; the fire crossing into the Cozy Aura, or sinking low
+          const u = payload as BonfireUpdate;
+          const before = u.fuel - u.amount;
+          if (u.amount > 0) playSfx("flame");
+          if (u.sessionId === localIdRef.current) pushToast(`The fire roars up! ${u.fuel}%`, { emoji: u.item === "charcoal" ? "✨" : "🪵", silent: true });
+          if (before <= COZY_AURA_FUEL && u.fuel > COZY_AURA_FUEL) pushToast("Cozy Aura! +15% rare fish and campfire coins", { emoji: "✨", tone: "win" });
+          else if (before > COZY_AURA_FUEL && u.fuel <= COZY_AURA_FUEL) pushToast("The Cozy Aura fades as the fire settles", { emoji: "🔥", silent: true });
+          else if (before >= LOW_FUEL && u.fuel < LOW_FUEL) pushToast("The fire's burning low. Chop some firewood!", { emoji: "🪵" });
+        } else if (type === "STEW_STATE_UPDATE") {
+          const u = payload as StewUpdate;
+          if (u.event === "add") playSfx("bubble");
+          if (u.event === "scoop" && u.sessionId === localIdRef.current) {
+            playSfx("slurp");
+            pushToast("A warm bowl of stew: Well-Fed for 8 minutes", { emoji: "🥣", tone: "win" });
+          }
+          if (u.event === "cold") pushToast(`The ${stewName(u.stew.items.length ? u.stew.items : [])} went cold and was tipped out`, { emoji: "🫕", silent: true });
         } else if (type === "roastResult") {
           const r = payload as RoastResult;
           if (r.sessionId === localIdRef.current) {
@@ -489,6 +515,8 @@ export default function App() {
   }, [me?.action]); // eslint-disable-line react-hooks/exhaustive-deps
   const showRoulette = atRoulette && !rouletteClosed && !blackjackOpen && !slotsProp;
 
+  // the angler's creel, rods and baits (the room's copy, or the one mirrored locally until it syncs)
+  const angler = useAnglerProfile(me?.userId ?? "", me?.fishing ?? "", me?.coins ?? 0);
   const playerCount = useMemo(() => Object.values(players).filter((p) => p.connected).length, [players]);
 
   // The cozy loading screen covers the Discord handshake, the room join and the models loading.
@@ -525,6 +553,7 @@ export default function App() {
             speakingUserIds={voice.speakingUserIds}
             subscribeEmotes={subscribeEmotes}
             subscribeMessages={subscribeMessages}
+            hearth={hearth}
           />
         </IsometricCanvas>
 
@@ -545,6 +574,8 @@ export default function App() {
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSocial={() => setSocialOpen((o) => !o)}
           socialOpen={socialOpen}
+          userId={localPlayer?.userId ?? ""}
+          fishing={localPlayer?.fishing ?? ""}
         />
         <Toasts />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
@@ -570,9 +601,11 @@ export default function App() {
               onSplash={splash}
             />
             {currentMap === "boxing_ring" && <BoxingHud me={localPlayer} players={players} onPunch={punch} onExit={boxingExit} onToss={tossCoin} />}
-            <ActionDock player={localPlayer} players={players} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} onCampfire={campfireSend} />
+            <ActionDock player={localPlayer} players={players} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} hearth={hearth} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} onCampfire={campfireSend} />
           </div>
         )}
+
+        {currentMap === "campfire_night" && localPlayer && !mapTransitioning && <CampfireStatus hearth={hearth} fed={localPlayer.fed} />}
 
         {showJoystick && localPlayer && (
           <div className="pointer-events-none fixed z-20" style={{ left: "max(16px, env(safe-area-inset-left))", bottom: "max(16px, env(safe-area-inset-bottom))" }}>
@@ -633,15 +666,33 @@ export default function App() {
             onClose={closeFishing}
           />
         )}
-        {starReel && (
-          <FishingModal
-            key={`${starReel.catchId}:${localSessionId}`}
-            fish={{ ...STARLIGHT_CATCHES[starReel.catchId], hint: "Something from the starlit river", reward: STARLIGHT_CATCHES[starReel.catchId].coins, treasure: starReel.treasure, treasureReward: TREASURE_COINS }}
-            onResult={(result, _quality, openedChest) => campfireSend({ type: "REEL_DONE", caught: result === "caught", treasure: openedChest })}
-            onClose={closeStarReel}
-            autoCloseMs={2200}
-          />
-        )}
+        {starReel &&
+          (() => {
+            const sp = FISH[starReel.fish.s];
+            const rod = RODS[starReel.rod] ?? RODS.bamboo;
+            return (
+              <FishingModal
+                key={`${starReel.fish.s}:${starReel.fish.cm}:${localSessionId}`}
+                fish={{
+                  emoji: sp.emoji,
+                  name: sp.name,
+                  speed: sp.speed,
+                  size: sp.size,
+                  pattern: sp.pattern,
+                  barScale: Math.min(1.3, sp.barScale * (1 + rod.barBonus)),
+                  tensionResist: rod.tensionResist,
+                  tier: TIER_LABEL[sp.tier],
+                  hint: `Something from the starlit river · ${rod.emoji} ${rod.name}`,
+                  detail: `${starReel.fish.cm} cm · ${stars(starReel.fish.q)} · into the creel`,
+                  treasure: starReel.treasure,
+                  treasureReward: TREASURE_COINS,
+                }}
+                onResult={(result, _quality, openedChest) => campfireSend({ type: "REEL_DONE", caught: result === "caught", treasure: openedChest })}
+                onClose={closeStarReel}
+                autoCloseMs={2200}
+              />
+            );
+          })()}
         {panel?.kind === "gacha" && localPlayer && <GachaModal coins={localPlayer.coins} result={gachaResult} onPull={pullGacha} onClose={closePanel} />}
         {panel?.kind === "claw" && localPlayer && <ClawModal coins={localPlayer.coins} result={clawResult} onPlay={clawPlay} onClose={closePanel} />}
         {panel?.kind === "arcade" && <RetroGameModal result={arcadeResult} onScore={arcadeScore} onClose={closePanel} />}
@@ -655,6 +706,8 @@ export default function App() {
         {panel?.kind === "roast" && localSessionId && <RoastingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "stargaze" && localSessionId && <StargazingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "woodchop" && localSessionId && <WoodChopModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
+        {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
+        {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
 
