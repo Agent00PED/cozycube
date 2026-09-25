@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CONSTELLATIONS, CONSTELLATION_COINS, CONSTELLATION_MIN_S, STAR_SPARK_COINS, type CampfirePacket, type ConstellationDone, type MeteorShower, type ShootingStar, type StarCaught } from "@shared/types";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
@@ -59,6 +59,10 @@ const CLOUDS = [
 type Streak = ShootingStar & { start: number; hit: boolean; gone: boolean };
 type Burst = { x: number; y: number; at: number; text: string };
 
+/** Each of a constellation's three clusters of stars sits this much off its focus from the next,
+ *  and a star is crisp within STAR_CRISP of its own. */
+const STAR_DEPTH = 0.04;
+const STAR_CRISP = 0.018;
 /** The focus ring: a constellation's stars are sharp (and can be traced) within this of its focus. */
 const FOCUS_OK = 0.07;
 /** A fresh focus for the next constellation, well away from where the ring is now (so it blurs). */
@@ -76,7 +80,10 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
   const lastHit = useRef<{ x: number; y: number } | null>(null);
   const opened = useRef(performance.now());
   // the constellation being traced: which one, how many of its stars are joined, and when it finished
-  const trace = useRef({ index: 0, joined: 0, doneAt: 0, all: false, target: newFocus(0.5), sharp: false });
+  const firstFocus = useMemo(() => newFocus(0.5), []);
+  // the constellation being traced: which one, how many of its stars are joined, when it finished;
+  // its focus, the way the ring has to turn to reach it (`dir`), and whether it is sharp yet
+  const trace = useRef({ index: 0, joined: 0, doneAt: 0, all: false, target: firstFocus, dir: firstFocus > 0.5 ? 1 : -1, sharp: false });
   // the focus ring's setting (0..1), and where a drag round the brass ring began
   const focusRef = useRef(0.5);
   const [focus, setFocusState] = useState(0.5);
@@ -221,14 +228,21 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
             tr.index += 1;
             tr.joined = 0;
             tr.target = newFocus(focusRef.current);
+            tr.dir = tr.target > focusRef.current ? 1 : -1;
             tr.sharp = false;
             if (tr.index >= CONSTELLATIONS.length) tr.all = true;
             else setNote("A new patch of sky, all a blur: turn the focus ring");
           }
         }
-        // its stars, the next one to tap numbered and pulsing (blurred until the ring brings them in)
-        if (!sharp) g.filter = `blur(${Math.min(7, 1.5 + off * 16).toFixed(1)}px)`;
+        // its stars, the next one to tap numbered and pulsing. Each cluster of them sits at its own
+        // focal depth (STAR_DEPTH apart, the first to trace nearest the way the ring turns), so as
+        // the ring comes round they snap crisp one cluster after another
+        const per = Math.ceil(pts.length / 3);
         pts.forEach(([px, py], k) => {
+          const depth = revealed ? 0 : (Math.floor(k / per) - 1) * STAR_DEPTH * tr.dir;
+          const starOff = Math.abs(focusRef.current - (tr.target + depth));
+          const soft = revealed ? 0 : Math.max(0, starOff - STAR_CRISP);
+          g.filter = soft > 0 ? `blur(${Math.min(7, 0.8 + soft * 22).toFixed(1)}px)` : "none";
           const next = k === tr.joined && !revealed && sharp;
           const tw = 0.6 + 0.4 * Math.sin(t * 2.2 + k * 1.3);
           g.fillStyle = k < tr.joined ? "rgba(255, 236, 170, 1)" : `rgba(255, 244, 214, ${0.55 + 0.35 * tw})`;

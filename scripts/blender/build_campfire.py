@@ -58,7 +58,9 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
     Stew_Pot            the cast-iron Dutch oven on its chain, origin at the tripod's apex (it
                         sways from there); its child Stew_Contents is the stew's surface (the game
                         shows and tints it from the pot's ingredients)
-    Picnic_Plates       four enamel plates on the picnic table
+    Picnic_Plates       four glazed off-white ceramic plates and two ceramic mugs on the picnic table
+    Seat_Tent_02        the second tent: a small sage canvas A-frame on the upper-left lawn, door
+                        toward the fire, a mat and pillow inside
     Picnic_Skewer_0N    a skewer of toasted marshmallows on plate N, and Picnic_Bbq_0N a BBQ
                         skewer (the game shows what friends have left there)
 
@@ -166,8 +168,11 @@ PALETTE = {
     "CF_MallowToast": "#D9974A",
     "CF_Meat": "#8A4B2F",
     "CF_Pepper": "#6BA84F",
+    "CF_Ceramic": "#F4EFE6",
+    "CF_ClayFoot": "#D9A67A",
+    "CF_TentSage": "#8FA37A",
 }
-ROUGHNESS = {"CF_Iron": 0.7, "CF_Stew": 0.45, "CF_Water": 0.25, "CF_Metal": 0.6, "CF_Glass": 0.4, "CF_Chrome": 0.45, "CF_Brass": 0.55, "CF_Steel": 0.5}
+ROUGHNESS = {"CF_Ceramic": 0.45, "CF_Iron": 0.7, "CF_Stew": 0.45, "CF_Water": 0.25, "CF_Metal": 0.6, "CF_Glass": 0.4, "CF_Chrome": 0.45, "CF_Brass": 0.55, "CF_Steel": 0.5}
 # the ground decals' tops, a layer each over the moss (y = 0): patches, paths, then the clearing
 LAYER_PATCH = 0.008
 LAYER_PATH = 0.015
@@ -175,7 +180,7 @@ LAYER_CLEARING = 0.022
 # glowing things: (strength) of an emission in their own colour
 EMISSION = {"CF_Ember": 2.2, "CF_FlameOuter": 3.0, "CF_FlameInner": 4.0, "CF_LanternGlass": 2.5, "CF_Bulb": 3.0, "CF_BerryGlow": 2.0, "CF_LanternWarm": 2.6}
 # thin sheets seen from both sides
-DOUBLE_SIDED = {"CF_Canvas", "CF_CanvasStripe", "CF_Hammock", "CF_HammockStripe", "CF_Checker", "CF_VanCream", "CF_Cooler", "CF_AwningStripe", "CF_Canoe", "CF_CanoeInner"}
+DOUBLE_SIDED = {"CF_TentSage", "CF_Canvas", "CF_CanvasStripe", "CF_Hammock", "CF_HammockStripe", "CF_Checker", "CF_VanCream", "CF_Cooler", "CF_AwningStripe", "CF_Canoe", "CF_CanoeInner"}
 
 
 def _lin(c):
@@ -1202,10 +1207,6 @@ def build_glamping(L, cushions, coll):
     for sx in (-1, 1):
         cylinder(bm, W(lx + sx * 0.05, 0.9, lz), W(lx + sx * 0.03, 1.0, lz), 0.006, 4, m=m["CF_Metal"])
     cylinder(bm, W(lx - 0.03, 1.0, lz), W(lx + 0.03, 1.0, lz), 0.006, 4, m=m["CF_Metal"])
-    for mx, mz in ((px + 0.18, pz - 0.16), (px + 0.46, pz + 0.17)):
-        lathe(bm, mx, mz, [(0, 0.726), (0.04, 0.726), (0.045, 0.8), (0, 0.79)], segs=12, m=m["CF_Enamel"])
-        lathe(bm, mx, mz, [(0.04, 0.795), (0.047, 0.795), (0.047, 0.808), (0.04, 0.808)], segs=12, m=m["CF_EnamelRim"])
-        cylinder(bm, W(mx + 0.045, 0.78, mz), W(mx + 0.07, 0.765, mz), 0.008, 5, m=m["CF_Enamel"])
     cx_, cz_ = px + 1.2, pz - 0.1
     box(bm, cx_ - 0.26, cx_ + 0.26, 0.0, 0.3, cz_ - 0.17, cz_ + 0.17, m=m["CF_Cooler"])
     box(bm, cx_ - 0.27, cx_ + 0.27, 0.3, 0.36, cz_ - 0.18, cz_ + 0.18, m=m["CF_CoolerLid"])
@@ -1594,6 +1595,58 @@ def build_forage(L, coll):
         make_object(f"Forage_0{i + 1}_Yield", bm, mats, coll, origin=(x, 0.0, z))
 
 
+def build_tent2(L, cushions, coll):
+    """The second tent: a small A-frame of sage canvas on the upper-left lawn, its ridge pointing
+    at the fire and its door flaps tied back on that end; a closed back, a ridge pole on two
+    uprights, guy ropes to pegs, and a mat and pillow inside to lie on (the tentMat cushion)."""
+    t = L["tent2"]
+    cx, cz, length, width, h = t["x"], t["z"], t["len"], t["w"], t["h"]
+    fx, fz = L["fire"]["x"], L["fire"]["z"]
+    ox, oz = fx - cx, fz - cz
+    d = math.hypot(ox, oz)
+    ox, oz = ox / d, oz / d
+    ax, az = -oz, ox  # across: the way the canvas slopes down to each side
+    at = lambda u, s, y: W(cx + ox * u + ax * s, y, cz + oz * u + az * s)  # u along, s across
+    bm = bmesh.new()
+    half = length / 2
+    for side in (-1, 1):
+        def panel(u, v, side=side):
+            # a touch of sag between the poles, and the canvas flaring out a little at the hem
+            along = -half + length * u
+            sag = 0.05 * math.sin(math.pi * u) * v
+            return at(along, side * (width / 2) * (1 - v) * (1 + 0.04 * (1 - v)), 0.02 + (h - 0.02) * v - sag)
+        sheet(bm, 8, 6, panel, m_of=lambda i, j: 1 if j == 0 else 0)
+    # the closed back
+    vs = [bm.verts.new(p) for p in (at(-half, -width / 2 * 1.04, 0.02), at(-half, width / 2 * 1.04, 0.02), at(-half, 0.0, h))]
+    bm.faces.new(vs).material_index = 0
+    # the door flaps, folded back and tied either side of the open front
+    for side in (-1, 1):
+        vs = [bm.verts.new(p) for p in (at(half, 0.0, h * 0.95), at(half, side * width / 2 * 1.04, 0.02), at(half - 0.12, side * width * 0.72, 0.1))]
+        bm.faces.new(vs).material_index = 1
+    # the ridge pole on its two uprights, a rope from each end to a peg
+    cylinder(bm, at(-half - 0.06, 0.0, h + 0.02), at(half + 0.08, 0.0, h + 0.02), 0.022, 6, m=2)
+    for u in (-half, half):
+        cylinder(bm, at(u, 0.0, 0.0), at(u, 0.0, h + 0.1), 0.025, 6, m=2)
+        e = 1 if u > 0 else -1
+        peg = at(u + e * 0.55, 0.0, 0.0)
+        cylinder(bm, at(u, 0.0, h + 0.06), peg + Vector((0, 0, 0.04)), 0.007, 4, m=3)
+        cylinder(bm, peg + Vector((0, 0, -0.02)), peg + Vector((0, 0, 0.08)), 0.015, 5, m=2)
+    for side in (-1, 1):  # the side guy lines
+        for u in (-half * 0.6, half * 0.6):
+            hem = at(u, side * width / 2 * 1.04, 0.05)
+            peg = at(u, side * (width / 2 + 0.35), 0.0)
+            cylinder(bm, hem, peg + Vector((0, 0, 0.04)), 0.006, 4, m=3)
+            cylinder(bm, peg + Vector((0, 0, -0.02)), peg + Vector((0, 0, 0.07)), 0.013, 5, m=2)
+    # the mat and a pillow at the back
+    mat_len, mat_w = 1.35, 0.6
+    outline = [(cx + ox * su * mat_len / 2 + ax * sv * mat_w / 2, cz + oz * su * mat_len / 2 + az * sv * mat_w / 2) for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+    slab(bm, outline, 0.0, cushions["tentMat"]["top"], m=4)
+    blob(bm, cx - ox * 0.62, cushions["tentMat"]["top"] + 0.05, cz - oz * 0.62, 0.2, 0.06, 0.13, m=5, cuts=3, n=2.8)
+    ob = make_object("Seat_Tent_02", bm, ["CF_TentSage", "CF_Canvas", "CF_Pole", "CF_Rope", "CF_Mat", "CF_Pillow"], coll)
+    thick = ob.modifiers.new("Canvas", "SOLIDIFY")
+    thick.thickness = 0.02
+
+
 def build_hearth(L, coll):
     """The communal Dutch oven: a tripod of three poles lashed over the fire, and the cast-iron pot
     hung from its apex on a short chain, low enough for the flames to lick its base."""
@@ -1635,15 +1688,22 @@ def build_hearth(L, coll):
 
 
 def build_picnic_plates(L, coll):
-    """Four enamel plates on the picnic table, and on each a skewer friends can leave there (one of
-    marshmallows, one BBQ): the game shows the ones that are really on the table."""
+    """Four glazed ceramic plates on the picnic table (off-white, a shallow dish with a lip) and two
+    ceramic mugs with an unglazed clay foot, and on each plate a skewer friends can leave there
+    (one of marshmallows, one BBQ): the game shows the ones that are really on the table."""
     top = 0.726
-    spots = [(L["picnic"]["x"] + dx, L["picnic"]["z"] + dz) for dx, dz in L["picnicPlates"]]
+    px, pz = L["picnic"]["x"], L["picnic"]["z"]
+    spots = [(px + dx, pz + dz) for dx, dz in L["picnicPlates"]]
     bm = bmesh.new()
     for x, z in spots:
-        lathe(bm, x, z, [(0, 0.0), (0.07, 0.0), (0.11, 0.012), (0.115, 0.02), (0, 0.008)], segs=16, m=0, y0=top)
-        lathe(bm, x, z, [(0, 0.012), (0.117, 0.012), (0.117, 0.021), (0, 0.021)], segs=16, m=1, y0=top)
-    make_object("Picnic_Plates", bm, ["CF_Enamel", "CF_EnamelRim"], coll)
+        lathe(bm, x, z, [(0, 0.0), (0.066, 0.0), (0.07, 0.006), (0.108, 0.014), (0.118, 0.024), (0.11, 0.027), (0.074, 0.013), (0, 0.013)], segs=20, m=0, y0=top)
+    for mx, mz in ((px + 0.47, pz - 0.2), (px + 0.47, pz + 0.19)):
+        lathe(bm, mx, mz, [(0, 0.0), (0.036, 0.0), (0.04, 0.012), (0, 0.012)], segs=14, m=1, y0=top)
+        lathe(bm, mx, mz, [(0, 0.012), (0.04, 0.012), (0.046, 0.05), (0.047, 0.085), (0.04, 0.085), (0.04, 0.078), (0, 0.07)], segs=14, m=0, y0=top)
+        a = W(mx - 0.045, top + 0.07, mz)
+        cylinder(bm, a, W(mx - 0.075, top + 0.05, mz), 0.009, 6, m=0)
+        cylinder(bm, W(mx - 0.075, top + 0.05, mz), W(mx - 0.045, top + 0.027, mz), 0.009, 6, m=0)
+    make_object("Picnic_Plates", bm, ["CF_Ceramic", "CF_ClayFoot"], coll)
     for k, (x, z) in enumerate(spots):
         y = top + 0.04
         a = W(x - 0.13, y, z + 0.03)
@@ -1674,6 +1734,7 @@ def build(root):
     build_logs(L, cushions, coll)
     build_dock(L, coll)
     build_tent(L, cushions, coll)
+    build_tent2(L, cushions, coll)
     build_hammock(L, cushions, coll)
     build_trees(L, coll)
     build_rocks(L, coll)

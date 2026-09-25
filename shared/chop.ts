@@ -5,9 +5,13 @@
 // On every stroke the needle ping-pongs across the meter, bouncing off each end (it never runs out
 // at the right edge: the stroke only ends when you swing, or after a few passes).
 //
-//   Stroke 1  Notch Cut      a wide sweet spot swinging back and forth
-//   Stroke 2  Wedge Split    the sweet spot holds still; the needle 30% slower than it was
-//   Stroke 3  Clean Cleave   a narrow golden sweet spot; the needle 40% slower than it was
+//   Stroke 1  Notch Cut      the slowest needle (x1.0), a wide sweet spot swinging back and forth
+//   Stroke 2  Wedge Split    quicker (x1.4); the sweet spot holds still
+//   Stroke 3  Clean Cleave   the quickest (x1.85), at a narrow golden sweet spot: the real test
+//
+// A swing is judged a little generously (CHOP_GRACE either side of the green), at the needle's
+// place when it was made: the client samples it at the click, and the server checks that time is
+// one the connection could have given (see HangoutRoom's CHOP_STOP).
 //
 // Each stroke has a wood knot too, a red patch on the meter: swinging into it stuns the axe (the
 // combo is lost, and the block needs a moment before the next try). And the log on the block is
@@ -46,6 +50,11 @@ export interface ChopStroke {
 }
 
 export const CHOP_STROKE_NAMES: Record<ChopStrokeNo, string> = { 1: "Notch Cut", 2: "Wedge Split", 3: "Clean Cleave" };
+/** How far outside the green a swing still counts (a fraction of the meter: 5%). */
+export const CHOP_GRACE = 0.05;
+/** The needle's round trip on the first stroke (s), and each stroke's speed on it. */
+const BASE_PERIOD = 3.2;
+export const CHOP_SPEED: Record<ChopStrokeNo, number> = { 1: 1.0, 2: 1.4, 3: 1.85 };
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
@@ -72,7 +81,7 @@ export function judgeChop(s: ChopStroke, t: number): "hit" | "knot" | "miss" {
   const m = chopMarker(s, t);
   const [a, b] = chopZone(s, t);
   // the sweet spot wins where the two touch: a creeping knot never steals a clean swing
-  if (m >= a - 0.012 && m <= b + 0.012) return "hit";
+  if (m >= a - CHOP_GRACE && m <= b + CHOP_GRACE) return "hit";
   const [k0, k1] = chopKnot(s, t);
   return m >= k0 && m <= k1 ? "knot" : "miss";
 }
@@ -93,15 +102,15 @@ export function rollChopStroke(stroke: ChopStrokeNo, log: ChopLog, rand: () => n
     // a wide sweet spot swinging about the middle; the knot waits at one end
     const zoneCenter = 0.45 + rand() * 0.1;
     const early = rand() < 0.5;
-    return make({ zoneCenter, zoneWidth: 0.22 * wide, zoneSwing: 0.17, zonePeriod: 1.6, needlePeriod: 3.2, knotFrom: early ? 0.05 : 0.86, knotWidth: 0.08 });
+    return make({ zoneCenter, zoneWidth: 0.22 * wide, zoneSwing: 0.17, zonePeriod: 1.6, needlePeriod: BASE_PERIOD / CHOP_SPEED[1], knotFrom: early ? 0.02 : 0.9, knotWidth: 0.07 });
   }
   if (stroke === 2) {
-    // a still sweet spot, the knot right beside it; the needle 30% slower than it used to run
+    // a still sweet spot, the knot beside it (clear of the grace either side)
     const zoneCenter = 0.28 + rand() * 0.44;
     const side = zoneCenter < 0.5 ? 1 : -1;
-    return make({ zoneCenter, zoneWidth: 0.2 * wide, zoneSwing: 0, zonePeriod: 0, needlePeriod: 1.6 / 0.7, knotFrom: clamp01(zoneCenter + side * 0.2 - 0.035), knotWidth: 0.07 });
+    return make({ zoneCenter, zoneWidth: 0.2 * wide, zoneSwing: 0, zonePeriod: 0, needlePeriod: BASE_PERIOD / CHOP_SPEED[2], knotFrom: clamp01(zoneCenter + side * 0.24 - 0.035), knotWidth: 0.07 });
   }
-  // a narrow golden sweet spot with the knot just before it; the needle 40% slower than it used to run
+  // a narrow golden sweet spot with the knot just before it, the needle at its quickest
   const zoneCenter = 0.58 + rand() * 0.22;
-  return make({ zoneCenter, zoneWidth: 0.09 * wide, zoneSwing: 0, zonePeriod: 0, needlePeriod: (1.45 * 2) / 0.6, knotFrom: zoneCenter - 0.16, knotWidth: 0.07 });
+  return make({ zoneCenter, zoneWidth: 0.09 * wide, zoneSwing: 0, zonePeriod: 0, needlePeriod: BASE_PERIOD / CHOP_SPEED[3], knotFrom: zoneCenter - 0.18, knotWidth: 0.07 });
 }

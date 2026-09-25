@@ -46,6 +46,9 @@ export const CAMPFIRE_URL = modelUrl("campfire.glb");
 const FIRE_COLOR = "#ff8c32";
 /** The fire's light at its base; every lamp is scaled by the hour's lamp boost (x2.2 at night). */
 const FIRE_INTENSITY = 2.8;
+/** The tipi's inner glow (the Tipi interior light): lit while it is empty, a dim 0.1 while someone naps in it. */
+const TIPI_AWAKE = 1.5;
+const TIPI_ASLEEP = 0.1;
 /** The ground decals (moss patches, paths, the clearing), each nudged toward the camera in the
  *  depth test by its own polygon offset on top of its few millimetres of height: never a flicker. */
 const DECAL_OFFSET: Record<string, number> = { CF_GrassDark: -1, CF_GrassLight: -1, CF_Dirt: -2 };
@@ -117,7 +120,7 @@ export function CampfireWorld({ onFloorClick, players, toggleables, hearth, subs
           <CampfireModel live={live} />
         </Suspense>
       </ModelBoundary>
-      <FireLight />
+      <FireLight live={live} />
       <JarLights live={live} />
       <StewSteam live={live} />
       <Barnaby subscribeMessages={subscribeMessages} />
@@ -227,17 +230,23 @@ function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
 
 /** The bonfire's light (warm orange, flickering, swelling when fed), the lanterns', and the soft
  *  warm pools under the string lights; no shadows. */
-function FireLight() {
+function FireLight({ live }: { live: React.MutableRefObject<Live> }) {
   const boost = useLampBoost();
+  // the tipi's glow, eased down to a dim night-light while someone sleeps in it
+  const tipiLevel = useRef(TIPI_AWAKE);
   const light = useRef<THREE.PointLight>(null);
   const lantern = useRef<THREE.PointLight>(null);
   const grove = useRef<THREE.PointLight>(null);
   const tipi = useRef<THREE.PointLight>(null);
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
     const flick = 0.82 + 0.1 * Math.sin(t * 7.3) + 0.06 * Math.sin(t * 13.1 + 2) + 0.04 * Math.sin(t * 23.7);
     if (grove.current) grove.current.intensity = 0.55 * boost * (0.9 + 0.1 * Math.sin(t * 6.1 + 1) * Math.sin(t * 2.3));
-    if (tipi.current) tipi.current.intensity = 0.9 * boost * (0.92 + 0.08 * Math.sin(t * 3.7) * Math.sin(t * 1.3 + 2));
+    if (tipi.current) {
+      const asleep = Object.values(live.current.players).some((p) => p.sitting && p.sitPose === "lie" && Math.hypot(p.x - L.tent.x, p.z - L.tent.z) < L.tent.r);
+      tipiLevel.current += ((asleep ? TIPI_ASLEEP : TIPI_AWAKE) - tipiLevel.current) * Math.min(1, dt * 1.2);
+      tipi.current.intensity = tipiLevel.current * (0.92 + 0.08 * Math.sin(t * 3.7) * Math.sin(t * 1.3 + 2));
+    }
     if (light.current) {
       light.current.intensity = FIRE_INTENSITY * boost * flick * (0.35 + 0.65 * FUEL.heat) * (1 + 0.5 * FUEL.value);
       light.current.distance = (10 + 4 * FUEL.heat) + 6 * FUEL.value;
@@ -252,7 +261,7 @@ function FireLight() {
       <pointLight ref={light} color={FIRE_COLOR} intensity={FIRE_INTENSITY * boost} distance={14} decay={2} position={[L.fire.x, 1.0, L.fire.z]} castShadow={false} />
       <pointLight ref={lantern} color="#ffd27a" intensity={0.9 * boost} distance={5} decay={2} position={[lx, 1.1, lz]} castShadow={false} />
       {/* inside the tipi: a warm glow through its canvas and out of its open flap */}
-      <pointLight ref={tipi} color="#ffa64d" intensity={0.9 * boost} distance={4.5} decay={2} position={[L.tent.x + 0.2, 0.9, L.tent.z + 0.15]} castShadow={false} />
+      <pointLight ref={tipi} color="#ffa64d" intensity={TIPI_AWAKE} distance={4.5} decay={2} position={[L.tent.x + 0.2, 0.9, L.tent.z + 0.15]} castShadow={false} />
       {/* under the strings: the awning, and the picnic table's lantern */}
       <pointLight color="#ffd98a" intensity={0.45 * boost} distance={4.5} decay={2} position={[L.van.x + 0.2, 1.3, L.van.z + L.van.w / 2 + 0.8]} castShadow={false} />
       <pointLight color="#ffd27a" intensity={0.5 * boost} distance={5} decay={2} position={[L.picnic.x - 0.48, 1.0, L.picnic.z + 0.05]} castShadow={false} />

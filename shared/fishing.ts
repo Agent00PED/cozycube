@@ -191,14 +191,16 @@ export interface CatchLuck {
   /** Extra weight on rare, epic and legendary fish (0.15: +15%), from the Cozy Aura. */
   rareLuck?: number;
   bait?: BaitId | "";
-  /** Only the commons (AFK fishing). */
+  /** Only the commons. */
   commonOnly?: boolean;
+  /** What an AFK line can bring up: commons, uncommons and rares (never an epic or a legendary). */
+  afk?: boolean;
 }
 
 /** What bites, weighted, with luck tipping it toward the rare end. */
 export function rollFish(water: Water, luck: CatchLuck = {}, rand: () => number = Math.random): FishId {
   const rareMul = (1 + (luck.rareLuck ?? 0)) * (luck.bait ? BAITS[luck.bait].rareMul : 1);
-  const pool = fishOf(water).filter((id) => !luck.commonOnly || FISH[id].tier === "common");
+  const pool = fishOf(water).filter((id) => (!luck.commonOnly || FISH[id].tier === "common") && (!luck.afk || AFK_CATCH_S[FISH[id].tier] !== null));
   const weightOf = (id: FishId) => FISH[id].weight * (RARE_TIERS.has(FISH[id].tier) ? rareMul : 1);
   let roll = rand() * pool.reduce((a, id) => a + weightOf(id), 0);
   for (const id of pool) {
@@ -242,5 +244,17 @@ export const WELL_FED_BITE_BONUS_S = 2;
 
 // --- AFK fishing at the campfire ------------------------------------------------------------------
 
-/** Line in, feet up: a common fish into the creel every so often. */
-export const CAMP_AFK_S = { min: 15, max: 20 };
+/** Line in, feet up: a fish into the creel every so often, the rarer the longer the wait (seconds,
+ *  min and max; null: never on an AFK line). */
+export const AFK_CATCH_S: Record<FishTier, readonly [number, number] | null> = {
+  common: [25, 30],
+  uncommon: [30, 35],
+  rare: [35, 45],
+  epic: null,
+  legendary: null,
+};
+/** How long an AFK line waits for this fish. */
+export function afkSeconds(species: FishId, rand: () => number = Math.random): number {
+  const [lo, hi] = AFK_CATCH_S[FISH[species].tier] ?? [45, 45];
+  return lo + (hi - lo) * rand();
+}

@@ -147,7 +147,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       // sitting at a spot with the line in (or about to be): feet up, and let the fish come to you
       if (mySpot && (action === "" || action === "fish" || action === "afkfish")) {
         const on = action === "afkfish";
-        found.push({ key: `afk:${on}`, type: "afk", label: on ? "💤 AFK Mode: ON" : "💤 AFK Mode: OFF", hint: on ? "Catching a common fish every 15-20s. Tap to watch the bobber again" : "Feet up: a common fish into the creel every 15-20s", run: () => onCampfire({ type: "AFK", on: !on }) });
+        found.push({ key: `afk:${on}`, type: "afk", label: on ? "💤 AFK Mode: ON" : "💤 AFK Mode: OFF", hint: on ? "A fish into the creel every 25-45s (the rarer, the longer). Tap to watch the bobber again" : "Feet up: a fish into the creel every 25-45s, the rarer the longer", run: () => onCampfire({ type: "AFK", on: !on }) });
       }
       if (!mySpot && !sitting && action === "") {
         let spot: { id: string; d: number } | null = null;

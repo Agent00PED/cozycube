@@ -1294,7 +1294,8 @@ export type CampfirePacket =
   | { type: "STAR_CATCH"; id: number }
   | { type: "CONSTELLATION"; id: ConstellationId }
   | { type: "CHOP_START" }
-  | { type: "CHOP_STOP" }
+  /** The swing, `t` seconds into the stroke's meter as the swinger saw it (sampled at the click). */
+  | { type: "CHOP_STOP"; t?: number }
   | { type: "REEL_DONE"; caught: boolean; treasure: boolean }
   /** A split log (or Golden Charcoal) onto the bonfire. */
   | { type: "ADD_FUEL"; item: FuelItem }
@@ -1304,7 +1305,7 @@ export type CampfirePacket =
   /** The skewer in hand onto the picnic table, or one off it. */
   | { type: "PICNIC_PLACE" }
   | { type: "PICNIC_TAKE"; plate: number }
-  /** Feet up, line in: common fish into the creel every CAMP_AFK_S. */
+  /** Feet up, line in: fish into the creel every AFK_CATCH_S (shared/fishing.ts). */
   | { type: "AFK"; on: boolean }
   /** Barnaby's shop (and equipping what you have: any time). */
   | { type: "BARNABY"; op: "sell"; slot: number | "all" }

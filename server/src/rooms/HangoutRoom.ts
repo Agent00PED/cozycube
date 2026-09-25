@@ -11,7 +11,7 @@ import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
 import { CHOP_LOGS, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
 import {
   BAITS,
-  CAMP_AFK_S,
+  afkSeconds,
   CREEL_RELEASE_COINS,
   FISH,
   RODS,
@@ -1552,13 +1552,14 @@ export class HangoutRoom extends Room<HangoutState> {
           }
         }
       } else if (player.action === "afkfish" && this.state.currentMap === "campfire_night") {
-        // feet up, line in: a common fish into the creel every CAMP_AFK_S (or, the creel full, let go)
+        // feet up, line in: a fish into the creel now and then, the rarer the longer the wait
+        // (AFK_CATCH_S; the fish is rolled when the wait starts), or, the creel full, let go
         const at = this.fishBiteAt.get(sessionId) ?? now;
-        const total = this.afkTotal.get(sessionId) ?? CAMP_AFK_S.min * 1000;
+        const total = this.afkTotal.get(sessionId) ?? 25000;
         const progress = Math.max(0, Math.min(1, Math.floor((1 - (at - now) / total) * 20) / 20));
         if (progress !== player.actionProgress) player.actionProgress = progress;
         if (now >= at) {
-          const species = rollRiverFish("freshwater", { commonOnly: true });
+          const species = this.pendingFish.get(sessionId)?.species ?? rollRiverFish("freshwater", { afk: true });
           this.landFish(sessionId, player, rollCatch(species), true, 0);
           this.scheduleCampAfk(sessionId, now);
           player.actionProgress = 0;
@@ -2003,8 +2004,14 @@ export class HangoutRoom extends Room<HangoutState> {
       case "CHOP_STOP": {
         const chop = this.chops.get(sessionId);
         if (!chop || player.action !== "chop") return;
-        // judged on when you swung, not when it got here: half the round trip back
-        const t = (Date.now() - Math.min(250, player.ping / 2) - chop.startedAt) / 1000;
+        // judged on when you swung: the time on your meter at the click, as long as it is one the
+        // connection could have given (the meter reached you up to a round trip after it started
+        // here, and the swing took up to half of one to arrive); otherwise, on this clock less
+        // half a round trip
+        const raw = (Date.now() - chop.startedAt) / 1000;
+        const rtt = Math.min(1, Math.max(0, player.ping) / 1000);
+        const told = typeof packet.t === "number" && Number.isFinite(packet.t) ? packet.t : NaN;
+        const t = told <= raw + 0.05 && told >= raw - rtt - 0.35 ? told : raw - rtt / 2;
         const verdict = judgeChop(chop.stroke, t);
         if (verdict === "hit") {
           this.playGesture(sessionId, "chop");
@@ -2269,7 +2276,9 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private scheduleCampAfk(sessionId: string, now: number) {
-    const total = (CAMP_AFK_S.min + Math.random() * (CAMP_AFK_S.max - CAMP_AFK_S.min)) * 1000;
+    const species = rollRiverFish("freshwater", { afk: true, rareLuck: hasCozyAura(this.state.fuel) ? COZY_AURA_LUCK : 0 });
+    const total = afkSeconds(species) * 1000;
+    this.pendingFish.set(sessionId, { species, castAt: now, total });
     this.afkTotal.set(sessionId, total);
     this.fishBiteAt.set(sessionId, now + total);
   }

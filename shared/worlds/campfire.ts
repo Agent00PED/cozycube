@@ -25,20 +25,20 @@ import type { PropSpec, SeatSpec } from "./lounge";
 export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "half": 10.8,
   "fire": { "x": 0, "z": 0, "ring": 0.62, "collider": 0.45 },
-  "clearing": { "x": 0, "z": 0, "r": 4.75 },
+  "clearing": { "x": 0, "z": 0, "r": 4.4 },
   "firepit": {
-    "r": 3.5,
+    "r": 3.0,
     "pieces": [
-      { "id": "Long", "kind": "log", "angle": 288, "r": 3.55, "len": 2.9, "seats": ["L1", "L2", "L3"] },
-      { "id": "Medium", "kind": "log", "angle": 40, "r": 3.3, "len": 1.9, "seats": ["M1", "M2"] },
-      { "id": "Curved", "kind": "curved", "angle": 158, "r": 3.65, "arc": 38, "seats": ["C1", "C2"] },
-      { "id": "Stump", "kind": "stump", "angle": 116, "r": 3.2, "seats": ["01"] },
-      { "id": "Boulder", "kind": "boulder", "angle": 197, "r": 3.45, "seats": ["01"] }
+      { "id": "Long", "kind": "log", "angle": 288, "r": 3.05, "len": 2.9, "seats": ["L1", "L2", "L3"] },
+      { "id": "Medium", "kind": "log", "angle": 40, "r": 2.8, "len": 1.9, "seats": ["M1", "M2"] },
+      { "id": "Curved", "kind": "curved", "angle": 158, "r": 3.15, "arc": 38, "seats": ["C1", "C2"] },
+      { "id": "Stump", "kind": "stump", "angle": 116, "r": 2.7, "seats": ["01"] },
+      { "id": "Boulder", "kind": "boulder", "angle": 197, "r": 2.95, "seats": ["01"] }
     ]
   },
   "tripod": { "legs": 0.9, "apex": 1.95, "potY": 1.0, "potR": 0.27 },
   "barnaby": { "x": 4.7, "z": -2.6, "yaw": -0.35 },
-  "picnicPlates": [[-0.12, -0.17], [0.3, -0.17], [-0.12, 0.17], [0.3, 0.17]],
+  "picnicPlates": [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]],
   "river": {
     "points": [[-8.6, 7.2, 1.0], [-6.4, 7.9, 1.3], [-4.2, 8.2, 1.5], [-2.0, 7.9, 1.6], [0.2, 7.7, 1.65], [2.4, 7.9, 1.5], [4.6, 8.4, 1.3], [6.8, 8.1, 1.0]],
     "depth": 0.5,
@@ -52,6 +52,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   ],
   "lanterns": [{ "x": 7.12, "z": -1.72 }, { "x": 7.12, "z": 1.72 }],
   "tent": { "x": -6.3, "z": -5.0, "r": 1.35, "h": 3.0, "opening": 70 },
+  "tent2": { "x": -7.8, "z": -2.35, "len": 1.9, "w": 1.55, "h": 1.25 },
   "hammock": { "a": { "x": -9.0, "z": 7.0 }, "b": { "x": -6.5, "z": 4.5 }, "top": 1.25 },
   "woodpile": { "x": 1.0, "z": -7.0 },
   "trees": [
@@ -372,6 +373,14 @@ export const dockSeatOf = (spotPropId: string) => FISHING_SPOTS.find((f) => f.pr
 /** The fishing spot of a seat, if it is one. */
 export const spotOfSeat = (seatId: string) => FISHING_SPOTS.find((f) => f.seat === seatId)?.propId;
 
+/** The second tent: a small A-frame on the upper-left lawn, its door toward the fire (`open`), its
+ *  ridge along that way; `across` is the way its two canvas sides slope down. */
+export const TENT2 = (() => {
+  const t = L.tent2;
+  const open = unit(L.fire.x - t.x, L.fire.z - t.z);
+  return { ...t, open, across: { x: -open.z, z: open.x } };
+})();
+
 /** The campfire's seats. */
 export const CAMP_SEATS: CampSeat[] = [
   // the firepit's nine seats, each facing the fire (all "log" seats: play the guitar, roast from
@@ -405,6 +414,17 @@ export const CAMP_SEATS: CampSeat[] = [
     approachZ: L.tent.z + TENT_OPENS.z * 2.1,
     lie: { head: { x: L.tent.x - TENT_OPENS.x * 0.35, z: L.tent.z - TENT_OPENS.z * 0.35 }, dir: { x: -TENT_OPENS.x, z: -TENT_OPENS.z } },
   },
+  // the A-frame: lie on its mat, head to the back, feet to the door
+  {
+    propId: "seat_tent_02",
+    x: TENT2.x,
+    z: TENT2.z,
+    rotationY: 0,
+    cushion: "tentMat",
+    approachX: TENT2.x + TENT2.open.x * (TENT2.len / 2 + 0.75),
+    approachZ: TENT2.z + TENT2.open.z * (TENT2.len / 2 + 0.75),
+    lie: { head: { x: TENT2.x - TENT2.open.x * 0.35, z: TENT2.z - TENT2.open.z * 0.35 }, dir: { x: -TENT2.open.x, z: -TENT2.open.z } },
+  },
   // the dock's river edge at each fishing spot: sit with your legs over the water, rod out
   ...FISHING_SPOTS.filter((s) => s.seat.startsWith("seat_dock_")).map((s): CampSeat => ({ propId: s.seat, x: L.dock.x1 - 0.12, z: s.stand.z, rotationY: Math.PI / 2, cushion: "dock", style: "dock", approachX: s.stand.x, approachZ: s.stand.z })),
   // the picnic table: two to each bench, facing each other across the gingham
@@ -434,6 +454,7 @@ export const CAMP_SEATS: CampSeat[] = [
 /** What the action dock offers for a seat you lie in: you rest in the tent and nap in the hammock. */
 export const CAMP_SEAT_LABELS: Record<string, string> = {
   seat_tent: "⛺ Rest",
+  seat_tent_02: "⛺ Rest",
   seat_hammock: "🛌 Nap",
   ...Object.fromEntries(FISHING_SPOTS.filter((s) => s.seat.startsWith("seat_dock_")).map((s) => [s.seat, "🌊 Sit on the dock"])),
   seat_canoe: "🛶 Sit in the canoe",
@@ -541,8 +562,14 @@ export const CAMP_OBSTACLES: AABB[] = [
   ...riverBoxes(),
   // the dock's lantern posts
   ...L.lanterns.map((p) => around(p, 0.12)),
-  // the tipi (you lie down inside it: the seat is within its box, as a sofa's is)
+  // the tipi (you lie down inside it: the seat is within its box, as a sofa's is), and the A-frame
   around(L.tent, L.tent.r - 0.15),
+  {
+    minX: TENT2.x - (Math.abs(TENT2.open.x) * TENT2.len + Math.abs(TENT2.across.x) * TENT2.w) / 2 + 0.12,
+    maxX: TENT2.x + (Math.abs(TENT2.open.x) * TENT2.len + Math.abs(TENT2.across.x) * TENT2.w) / 2 - 0.12,
+    minZ: TENT2.z - (Math.abs(TENT2.open.z) * TENT2.len + Math.abs(TENT2.across.z) * TENT2.w) / 2 + 0.12,
+    maxZ: TENT2.z + (Math.abs(TENT2.open.z) * TENT2.len + Math.abs(TENT2.across.z) * TENT2.w) / 2 - 0.12,
+  },
   // the woodpile and its chopping stump
   { minX: L.woodpile.x - 0.6, maxX: L.woodpile.x + 1.0, minZ: L.woodpile.z - 0.5, maxZ: L.woodpile.z + 0.6 },
   // the hammock (it hangs across a diagonal: small boxes along it) and its two pines

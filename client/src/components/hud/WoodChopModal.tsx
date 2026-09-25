@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CHOP_CLEAN_COINS, CHOP_STUN_S, type CampfirePacket, type ChopResult } from "@shared/types";
-import { CHOP_LOGS, CHOP_STROKE_NAMES, chopKnot, chopMarker, chopZone, type ChopStroke } from "@shared/chop";
+import { CHOP_GRACE, CHOP_LOGS, CHOP_STROKE_NAMES, chopKnot, chopMarker, chopZone, type ChopStroke } from "@shared/chop";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -86,10 +86,16 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
     setPhase("raising");
     sendRef.current({ type: "CHOP_START" });
   };
+  const strokeRef = useRef(stroke);
+  strokeRef.current = stroke;
   const strike = () => {
-    if (phaseRef.current !== "stroke") return;
+    if (phaseRef.current !== "stroke" || !strokeRef.current) return;
+    // the needle's place at this very click, on the same clock the meter is drawn from: that is
+    // what the server judges (and where the needle stays while it does)
+    const at = (performance.now() - strokeRef.current.at) / 1000;
+    setT(at);
     setPhase("judging");
-    sendRef.current({ type: "CHOP_STOP" });
+    sendRef.current({ type: "CHOP_STOP", t: at });
   };
 
   // one key does it all: Space or Enter raises the hatchet, and brings it down
@@ -143,6 +149,8 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
         {/* the meter */}
         <div className="relative h-11 w-full overflow-hidden rounded-full bg-gradient-to-r from-[#6b4a33] to-[#8a6246]" role="img" aria-label="Chopping meter">
           {stroke && live && <div className="absolute inset-y-1 rounded-full bg-[#ff5a4f]/85 shadow-[0_0_10px_rgba(255,90,79,0.7)]" style={{ left: `${k0 * 100}%`, width: `${(k1 - k0) * 100}%` }} title="Wood knot" />}
+          {/* the grace either side of the green: a swing in the halo still lands */}
+          {live && <div className="absolute inset-y-2 rounded-full bg-white/15" style={{ left: `${Math.max(0, z0 - CHOP_GRACE) * 100}%`, width: `${(Math.min(1, z1 + CHOP_GRACE) - Math.max(0, z0 - CHOP_GRACE)) * 100}%` }} aria-hidden />}
           <div className={`absolute inset-y-1 rounded-full ${current === 3 ? "bg-[#ffd166] shadow-[0_0_14px_rgba(255,209,102,0.9)]" : "bg-[#6fcf7a] shadow-[0_0_12px_rgba(111,207,122,0.7)]"}`} style={{ left: `${z0 * 100}%`, width: `${(z1 - z0) * 100}%`, opacity: live ? 1 : 0.35 }} />
           {live && <div className="absolute inset-y-0 w-1.5 -translate-x-1/2 rounded-full bg-[#fff4e0] shadow-[0_0_10px_rgba(255,244,224,0.9)]" style={{ left: `${needle * 100}%` }} />}
         </div>

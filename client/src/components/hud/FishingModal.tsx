@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { REEL_SECONDS, type SwimPattern } from "@shared/types";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -15,12 +15,21 @@ import { Modal } from "./Modal";
 // sparks and a warning twang, and at full tension the line snaps. Sometimes a Sunken Treasure
 // Chest drifts into the column: hold the bar over it until it opens for a bonus.
 
-const BAR_H = 280;
-const ZONE_H = 74;
-const FISH_H = 24;
+// the column is sized so the whole reel fits the screen (the modal never scrolls): BAR_H tall, or
+// shorter on a short screen (everything else in the panel takes about REEL_CHROME), never under
+// BAR_MIN; the bar's physics scale with it, so it plays the same at any size
+const BAR_H = 220;
+const BAR_MIN = 140;
+const REEL_CHROME = 190;
+const ZONE_H = 58;
+const FISH_H = 22;
 /** The bar's physics, in px/s²: lifted while held, pulled down by gravity otherwise. */
-const GRAVITY = 820;
-const LIFT = 1500;
+const GRAVITY = 645;
+const LIFT = 1180;
+/** How lively the fish swim, and how hard an erratic one kicks (0.7: 30% gentler than they were). */
+const SWIM = 0.7;
+/** Extra seconds a line holds, from slack to snapping, while the fish runs free. */
+const TENSION_GRACE_S = 2.5;
 
 /** What is on the line, as the reel shows it. */
 export interface FishProfile {
@@ -67,12 +76,15 @@ const CONFETTI = Array.from({ length: 22 }, (_, i) => ({
 }));
 
 export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
-  const zoneH = Math.round(ZONE_H * (fish.barScale ?? 1));
-  const [view, setView] = useState({ zoneY: BAR_H - zoneH, fishY: BAR_H / 2, meter: 0.3, inZone: false, timeLeft: REEL_SECONDS, tension: 0, chestY: -1, chest: 0, chestOpen: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const barH = useMemo(() => Math.round(Math.max(BAR_MIN, Math.min(BAR_H, window.innerHeight * 0.85 - REEL_CHROME))), []);
+  const scale = barH / BAR_H;
+  const zoneH = Math.round(ZONE_H * scale * (fish.barScale ?? 1));
+  const [view, setView] = useState({ zoneY: barH - zoneH, fishY: barH / 2, meter: 0.3, inZone: false, timeLeft: REEL_SECONDS, tension: 0, chestY: -1, chest: 0, chestOpen: false });
   const [done, setDone] = useState<"caught" | "lost" | null>(null);
   const [snapped, setSnapped] = useState(false);
   const holding = useRef(false);
-  const sim = useRef({ zoneY: BAR_H - zoneH, zoneV: 0, fishY: BAR_H / 2, fishV: 0, fishTarget: BAR_H / 2, meter: 0.3, inTime: 0, total: 0, t: 0, nextDart: 0.6, plunge: -1, tension: 0, warnAt: 0, chestAt: 2.5 + Math.random() * 2, chestY: -1, chest: 0, chestOpen: false, chestGone: 0 });
+  const sim = useRef({ zoneY: barH - zoneH, zoneV: 0, fishY: barH / 2, fishV: 0, fishTarget: barH / 2, meter: 0.3, inTime: 0, total: 0, t: 0, nextDart: 0.6, plunge: -1, tension: 0, warnAt: 0, chestAt: 2.5 + Math.random() * 2, chestY: -1, chest: 0, chestOpen: false, chestGone: 0 });
   const doneRef = useRef(false);
   const resultRef = useRef(onResult);
   resultRef.current = onResult;
@@ -105,13 +117,13 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
       const s = sim.current;
       s.t += dt;
       // the catch bar: lifted while held, falls otherwise, bounces a little at the ends
-      s.zoneV += (holding.current ? -LIFT : GRAVITY) * dt;
+      s.zoneV += (holding.current ? -LIFT : GRAVITY) * scale * dt;
       s.zoneV *= 0.955;
       s.zoneY += s.zoneV * dt;
       if (s.zoneY < 0) (s.zoneY = 0), (s.zoneV = Math.abs(s.zoneV) * 0.35);
-      if (s.zoneY > BAR_H - zoneH) (s.zoneY = BAR_H - zoneH), (s.zoneV = -Math.abs(s.zoneV) * 0.35);
+      if (s.zoneY > barH - zoneH) (s.zoneY = barH - zoneH), (s.zoneV = -Math.abs(s.zoneV) * 0.35);
       // the fish, its own way
-      const span = BAR_H - FISH_H;
+      const span = barH - FISH_H;
       const pattern = fish.pattern ?? "erratic";
       let wobble = 0;
       if (pattern === "sine") {
@@ -133,7 +145,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
         // jerks: frequent sudden turns, a kick of speed with each
         if (s.t >= s.nextDart) {
           s.fishTarget = Math.random() * span;
-          s.fishV += (Math.random() < 0.5 ? -1 : 1) * (160 + Math.random() * 220);
+          s.fishV += (Math.random() < 0.5 ? -1 : 1) * (125 + Math.random() * 175) * SWIM * scale;
           s.nextDart = s.t + 0.3 + Math.random() * 0.6;
         }
         wobble = Math.sin(s.t * 9.3) * 4;
@@ -145,7 +157,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
         }
         wobble = Math.sin(s.t * 11) * 7;
       }
-      const pull = 10 + fish.speed * 16;
+      const pull = (10 + fish.speed * 16) * SWIM;
       s.fishV += ((s.fishTarget - s.fishY) * pull - s.fishV * (4 + fish.speed * 2)) * dt;
       s.fishY = Math.max(0, Math.min(span, s.fishY + s.fishV * dt));
       const shownFish = Math.max(0, Math.min(span, s.fishY + wobble));
@@ -154,7 +166,9 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
       s.meter = Math.max(0, Math.min(1, s.meter + (inside ? 0.26 : -0.06 - fish.size * 0.04) * dt));
       // the line's tension: builds while the fish runs free (faster for a heavy one), eases while
       // it is held; left running, it snaps before the meter could run dry
-      s.tension = Math.max(0, Math.min(1, s.tension + (inside ? -0.5 : (0.35 + fish.size * 0.2) * (1 - (fish.tensionResist ?? 0))) * dt));
+      // (TENSION_GRACE_S more to snap than the fish's own pull alone would give)
+      const pullRate = (0.35 + fish.size * 0.2) * (1 - (fish.tensionResist ?? 0));
+      s.tension = Math.max(0, Math.min(1, s.tension + (inside ? -0.5 : 1 / (1 / pullRate + TENSION_GRACE_S)) * dt));
       if (s.tension > 0.65 && s.t - s.warnAt > 0.45) {
         s.warnAt = s.t;
         playSfx("tension");
@@ -229,10 +243,10 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
   const { zoneY, fishY, meter, inZone, timeLeft, tension, chestY, chest, chestOpen } = view;
   const straining = tension > 0.65;
   return (
-    <Modal title="Something's on the line!" icon="🎣" onClose={close} width={420}>
-      <div className="flex flex-col gap-3 pb-2">
+    <Modal title="Something's on the line!" icon="🎣" onClose={close} width={380} fit>
+      <div className="flex min-h-0 flex-col justify-between gap-2">
         {done ? (
-          <div className="clay-pop relative flex flex-col items-center gap-2 py-6 text-center">
+          <div className="clay-pop relative flex flex-col items-center gap-1.5 py-3 text-center">
             {done === "caught" && (
               <div className="cozy-confetti" aria-hidden>
                 {CONFETTI.map((c, i) => (
@@ -240,7 +254,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
                 ))}
               </div>
             )}
-            <span className="text-6xl">{done === "caught" ? fish.emoji : "💨"}</span>
+            <span className="text-5xl">{done === "caught" ? fish.emoji : "💨"}</span>
             <b className="text-lg">{done === "caught" ? `You reeled in a ${fish.name}!` : snapped ? "Snap! The line broke" : "It got away…"}</b>
             {done === "caught" && fish.detail ? <span className="text-base font-bold text-sky-200">{fish.detail}</span> : null}
             {done === "caught" && fish.reward ? <span className="text-base font-bold text-amber-200">+{fish.reward} 🪙</span> : null}
@@ -254,11 +268,11 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
           </div>
         ) : (
           <>
-            <p className="m-0 text-sm opacity-80">Hold to lift the green bar, let go to let it fall. Keep the fish inside it to reel it in.</p>
-            <div className="flex items-stretch justify-center gap-5">
+            <p className="m-0 text-xs leading-snug opacity-80">Hold to lift the green bar, let go to let it fall. Keep the fish inside it.</p>
+            <div className="flex items-stretch justify-center gap-4">
               <div
                 className="relative w-16 shrink-0 cursor-pointer touch-none select-none overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-sky-900/80 to-sky-950/90"
-                style={{ height: BAR_H }}
+                style={{ height: barH }}
                 aria-label="Reel column: hold to lift the catch bar"
                 onPointerDown={hold(true)}
                 onPointerUp={hold(false)}
@@ -285,19 +299,19 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
                   </div>
                 )}
               </div>
-              <div className="flex w-6 shrink-0 flex-col justify-end overflow-hidden rounded-full bg-white/10" style={{ height: BAR_H }} aria-label="Catch meter">
+              <div className="flex w-6 shrink-0 flex-col justify-end overflow-hidden rounded-full bg-white/10" style={{ height: barH }} aria-label="Catch meter">
                 <div className="w-full rounded-full transition-[height] duration-100" style={{ height: `${meter * 100}%`, background: meter > 0.66 ? "#8fd3b6" : meter > 0.33 ? "#ffd166" : "#ec7fa3" }} />
               </div>
               <div className="flex flex-1 flex-col justify-between py-1 text-sm">
                 <div>
                   <div className="text-xs font-bold uppercase tracking-widest opacity-60">Hooked</div>
-                  <div className="text-lg font-extrabold">???</div>
-                  <div className="opacity-70">{fish.hint}</div>
+                  <div className="text-base font-extrabold">???</div>
+                  <div className="text-xs leading-snug opacity-70">{fish.hint}</div>
                   {fish.tier && <div className="mt-1 text-xs font-bold text-amber-200/90">{fish.tier}</div>}
                 </div>
                 <div>
                   <div className="text-xs font-bold uppercase tracking-widest opacity-60">Catch</div>
-                  <div className="text-2xl font-extrabold tabular-nums">{Math.round(meter * 100)}%</div>
+                  <div className="text-xl font-extrabold tabular-nums">{Math.round(meter * 100)}%</div>
                   <div className="text-xs opacity-60">line holds {Math.ceil(timeLeft)}s</div>
                   <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10" aria-label="Line tension">
                     <div className="h-full rounded-full transition-[width] duration-100" style={{ width: `${tension * 100}%`, background: straining ? "#ff5a4f" : "#ffd166" }} />
@@ -306,7 +320,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs }: Props) {
                 </div>
               </div>
             </div>
-            <button type="button" className="clay-btn clay-btn-amber min-h-14 touch-none select-none text-lg" onPointerDown={hold(true)} onPointerUp={hold(false)} onPointerLeave={hold(false)} onPointerCancel={hold(false)}>
+            <button type="button" className="clay-btn clay-btn-amber min-h-12 touch-none select-none text-base" onPointerDown={hold(true)} onPointerUp={hold(false)} onPointerLeave={hold(false)} onPointerCancel={hold(false)}>
               🎣 Hold to reel
             </button>
           </>

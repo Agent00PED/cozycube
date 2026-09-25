@@ -118,6 +118,8 @@ export function Header(p: HeaderProps) {
       {/* ---- right: you ---- */}
       <div className="pointer-events-auto ml-auto flex shrink-0 flex-nowrap items-center gap-2">
         <CoinWallet coins={p.coins} onClaim={p.onClaimAllowance} />
+        {/* the Fish Creel: only where there is fishing (the campfire) */}
+        {p.currentMap === "campfire_night" && (
         <div className="relative shrink-0">
           <button type="button" onClick={() => toggle("creel")} className={ICON_PILL} title={`Fish Creel: ${angler.profile.creel.length}/${angler.profile.slots}`} aria-label="Fish creel" aria-expanded={open === "creel"} aria-haspopup="dialog">
             <span className={ICON}>🪣</span>
@@ -129,6 +131,7 @@ export function Header(p: HeaderProps) {
             </Menu>
           )}
         </div>
+        )}
 
         <div className="relative hidden shrink-0 sm:block">
           <button type="button" onClick={() => toggle("status")} className={`${ICON_PILL} gap-2 lg:w-auto lg:px-3.5`} title={st ? `Status: ${st.label}` : "Set your status"} aria-label="Status" aria-expanded={open === "status"} aria-haspopup="menu">
