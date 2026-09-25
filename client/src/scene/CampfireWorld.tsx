@@ -76,6 +76,7 @@ export function CampfireWorld({ onFloorClick, players, toggleables }: { onFloorC
         </Suspense>
       </ModelBoundary>
       <FireLight />
+      <JarLights live={live} />
       <Moonlight />
       <Embers />
       <Smoke />
@@ -172,6 +173,34 @@ function FireLight() {
   );
 }
 
+/** A soft green-gold glow round anyone carrying a jar of fireflies (two lights, always there, so
+ *  the scene's light count never changes: a change would recompile every material). */
+function JarLights({ live }: { live: React.MutableRefObject<Live> }) {
+  const lights = [useRef<THREE.PointLight>(null), useRef<THREE.PointLight>(null)];
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const holders = Object.values(live.current.players).filter((p) => p.holding === "jar");
+    lights.forEach((ref, i) => {
+      const l = ref.current;
+      if (!l) return;
+      const p = holders[i];
+      if (!p) {
+        l.intensity = 0;
+        return;
+      }
+      l.position.set(p.x, 0.45, p.z);
+      l.intensity = 0.7 * (0.85 + 0.15 * Math.sin(t * 3.3 + i * 2));
+    });
+  });
+  return (
+    <>
+      {lights.map((ref, i) => (
+        <pointLight key={i} ref={ref} color="#d6ff7a" intensity={0} distance={3.2} decay={2} castShadow={false} />
+      ))}
+    </>
+  );
+}
+
 /** The moon: a soft cool key from high over the back of the island (no shadow), and a faint
  *  blue-over-moss fill, so the island's edges and pines still read by it. */
 function Moonlight() {
@@ -263,6 +292,8 @@ function Fireflies() {
     });
     return [
       ...river,
+      // the grove between the hammock and the tipi, thick with them (catch some in a jar)
+      ...around(L.fireflies.x - 1.3, L.fireflies.x + 1.3, L.fireflies.z - 1.3, L.fireflies.z + 1.3, 12),
       ...around(-9.5, -6, -9, 1.5, 7),
       ...around(-4, 6, -9.5, -7.5, 6),
       ...around(Math.min(h.a.x, h.b.x) - 0.5, Math.max(h.a.x, h.b.x) + 0.5, Math.min(h.a.z, h.b.z) - 0.5, Math.max(h.a.z, h.b.z) + 0.5, 5),

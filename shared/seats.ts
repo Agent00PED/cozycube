@@ -76,10 +76,14 @@ export const CUSHIONS = {
   stool: { y: 0.45, h: 0.06 }, // the island's counter stools -> top 0.48
   dining: { y: 0.34, h: 0.04 }, // bistro and games-table chairs -> top 0.36
   pouf: { y: 0.16, h: 0.32 }, // the floor poufs round the low table -> top 0.32
-  // --- the Campfire's (shared/worlds/campfire.ts; scripts/blender/build_campfire.py reads these three) ---
+  // --- the Campfire's (shared/worlds/campfire.ts; scripts/blender/build_campfire.py reads them all) ---
   log: { y: 0.19, h: 0.38 }, // a fallen log bench, lying on its side (radius 0.19) -> top 0.38
   hammock: { y: 0.6, h: 0.04 }, // the hammock's fabric at the bottom of its sag -> 0.62
   tentMat: { y: 0.03, h: 0.06 }, // the sleeping mat inside the tipi -> 0.06
+  picnicBench: { y: 0.425, h: 0.05 }, // the picnic table's benches -> 0.45
+  campChair: { y: 0.32, h: 0.04 }, // the camper's folding chair -> 0.34
+  stump: { y: 0.18, h: 0.36 }, // the sitting stump by the chopping block -> 0.36
+  dock: { y: 0.015, h: 0.03 }, // the dock's planks at its river edge (you sit on the edge, legs over) -> 0.03
 } as const satisfies Record<string, Cushion>;
 
 export type CushionId = keyof typeof CUSHIONS;

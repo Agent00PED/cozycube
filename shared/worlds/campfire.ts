@@ -1,5 +1,6 @@
 import type { AABB } from "../collision";
 import { CUSHIONS, napPose } from "../seats";
+import type { SeatStyle } from "../types";
 import type { PropSpec, SeatSpec } from "./lounge";
 
 // The Starlight Campfire: a floating island of midnight forest soil and moss, a bonfire ringed by
@@ -105,11 +106,22 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "a": [3.05, 1.55, -6.925], "b": [5.15, 1.55, -6.925], "sag": 0.22 }
   ],
   "fenceLights": { "y": 0.78, "sag": 0.2, "every": 2 },
+  "fireflies": { "x": -7.6, "z": 0.2 },
+  "stumpSeat": { "x": 0.7, "z": -5.65 },
+  "signpost": {
+    "x": 0.85,
+    "z": 6.75,
+    "arms": [
+      { "label": "Campfire", "to": [0, 0] },
+      { "label": "Pier", "to": [5.5, 0] },
+      { "label": "Overlook", "to": [-2.4, 9.35] }
+    ]
+  },
   "paths": [
-    { "points": [[0, 7.9], [0, 4.1]], "w": 1.4 },
-    { "points": [[3.9, 0], [5.6, 0]], "w": 1.3 },
-    { "points": [[-3.2, -2.6], [-4.6, -3.7]], "w": 1.0 },
-    { "points": [[-0.9, 6.6], [-5.6, 6.9]], "w": 0.9 }
+    { "points": [[-2.7, -2.2], [-3.5, -2.85], [-4.1, -3.3], [-4.6, -3.6]], "w": 1.0 },
+    { "points": [[0.15, 3.9], [0.05, 5.3], [-0.2, 6.4], [-0.35, 7.3], [-0.3, 7.9]], "w": 1.2 },
+    { "points": [[-0.2, 6.6], [-1.1, 7.35], [-1.9, 8.0], [-2.4, 8.45]], "w": 0.85 },
+    { "points": [[3.7, 0.9], [4.4, 0.45], [5.0, 0.15], [5.6, 0.05]], "w": 1.2 }
   ],
   "spawns": [
     { "x": 0, "z": 5.0 },
@@ -203,6 +215,8 @@ export const STARGAZE_REACH = 1.4;
 export const CHOP_REACH = 1.4;
 /** Close enough to a mushroom patch or a berry bush to pick it. */
 export const FORAGE_REACH = 1.3;
+/** Close enough to the grove's fireflies to sweep the net through them. */
+export const FIREFLY_REACH = 1.6;
 /** A critter this close to someone carrying a roasted snack hopes for a bite (hearts). */
 export const CRITTER_NOTICE = 2.0;
 
@@ -292,8 +306,15 @@ export interface LieSpec {
   dir: Pt;
 }
 
-/** The campfire's seats. `lie` seats are ChairConfig "blanket"s (shared/props.ts). */
-export const CAMP_SEATS: (SeatSpec & { lie?: LieSpec })[] = [
+/** A campfire seat: a lie seat is a ChairConfig "blanket" (shared/props.ts); `style` otherwise
+ *  (a log bench unless it says). */
+export type CampSeat = SeatSpec & { lie?: LieSpec; style?: SeatStyle };
+
+/** The dock seat at a fishing spot: sit on the edge there, and casting fishes from it. */
+export const dockSeatOf = (spotPropId: string) => spotPropId.replace("fishing_spot_", "seat_dock_");
+
+/** The campfire's seats. */
+export const CAMP_SEATS: CampSeat[] = [
   // the four log benches round the fire, two to a log, each seat facing the fire; you get up on
   // the far side of the log from it
   ...LOG_BENCHES.flatMap((log) =>
@@ -325,13 +346,39 @@ export const CAMP_SEATS: (SeatSpec & { lie?: LieSpec })[] = [
     approachZ: L.tent.z + TENT_OPENS.z * 2.1,
     lie: { head: { x: L.tent.x - TENT_OPENS.x * 0.35, z: L.tent.z - TENT_OPENS.z * 0.35 }, dir: { x: -TENT_OPENS.x, z: -TENT_OPENS.z } },
   },
+  // the dock's river edge at each fishing spot: sit with your legs over the water, rod out
+  ...FISHING_SPOTS.map((s): CampSeat => ({ propId: dockSeatOf(s.propId), x: L.dock.x1 - 0.12, z: s.stand.z, rotationY: Math.PI / 2, cushion: "dock", style: "dock", approachX: s.stand.x, approachZ: s.stand.z })),
+  // the picnic table: two to each bench, facing each other across the gingham
+  ...([-1, 1] as const).flatMap((side, b) =>
+    ([-1, 1] as const).map((sx, k): CampSeat => ({
+      propId: `seat_picnic_0${b * 2 + k + 1}`,
+      x: L.picnic.x + sx * 0.42,
+      z: L.picnic.z + side * 0.68,
+      rotationY: side < 0 ? 0 : Math.PI,
+      cushion: "picnicBench",
+      style: "wood",
+      approachX: L.picnic.x + sx * 0.42,
+      approachZ: L.picnic.z + side * 1.2,
+    }))
+  ),
+  // the camper's folding chair under the awning, looking out toward the fire
+  { propId: "seat_camper_chair", x: L.campChair.x, z: L.campChair.z, rotationY: 0, cushion: "campChair", style: "deckchair", approachX: L.campChair.x, approachZ: L.campChair.z + 0.9 },
+  // the sitting stump beside the chopping block, facing the fire
+  (() => {
+    const toFire = unit(L.fire.x - L.stumpSeat.x, L.fire.z - L.stumpSeat.z);
+    return { propId: "seat_chop_stump", x: L.stumpSeat.x, z: L.stumpSeat.z, rotationY: facing(L.stumpSeat.x, L.stumpSeat.z, L.fire), cushion: "stump", style: "wood", approachX: L.stumpSeat.x + toFire.x * 0.85, approachZ: L.stumpSeat.z + toFire.z * 0.85 } satisfies CampSeat;
+  })(),
 ];
 
 /** What the action dock offers for a seat you lie in: you rest in the tent and nap in the hammock. */
-export const CAMP_SEAT_LABELS: Record<string, string> = { seat_tent: "⛺ Rest", seat_hammock: "🛌 Nap" };
+export const CAMP_SEAT_LABELS: Record<string, string> = {
+  seat_tent: "⛺ Rest",
+  seat_hammock: "🛌 Nap",
+  ...Object.fromEntries(FISHING_SPOTS.map((s) => [dockSeatOf(s.propId), "🌊 Sit on the dock"])),
+};
 
 /** Where a lie seat puts the avatar (its soles, heading and height), derived from its cushion. */
-export function lieSeatPose(seat: SeatSpec & { lie?: LieSpec }) {
+export function lieSeatPose(seat: CampSeat) {
   return seat.lie ? napPose(CUSHIONS[seat.cushion], seat.lie.head, seat.lie.dir) : null;
 }
 
@@ -346,6 +393,11 @@ export const CAMP_PROPS: PropSpec[] = [
   { propId: "woodchop", x: L.chop.x, z: L.chop.z, kind: "woodchop", color: "#c98b4f", defaultOn: true, approachX: L.chop.x, approachZ: L.chop.z + 0.9 },
   // mushrooms and berries under the pines; `on` while there is something to pick
   ...FORAGE_SPOTS.map((f): PropSpec => ({ propId: f.propId, x: f.x, z: f.z, kind: "foraging", color: f.kind === "berries" ? "#8f7bff" : "#d9483b", defaultOn: true, approachX: f.approachX, approachZ: f.approachZ })),
+  // the dark grove between the hammock and the tipi, alive with fireflies: catch some in a jar
+  (() => {
+    const toFire = unit(L.fire.x - L.fireflies.x, L.fire.z - L.fireflies.z);
+    return { propId: "fireflies", x: L.fireflies.x, z: L.fireflies.z, kind: "fireflies", color: "#e8ff8a", defaultOn: true, approachX: L.fireflies.x + toFire.x * 0.9, approachZ: L.fireflies.z + toFire.z * 0.9 } satisfies PropSpec;
+  })(),
 ];
 
 // --- what you walk round ----------------------------------------------------------------------
@@ -417,8 +469,10 @@ export const CAMP_OBSTACLES: AABB[] = [
   ...AWNING_POLES.map((p) => around(p, 0.08)),
   around(L.campChair, 0.3),
   around(L.critter, 0.22),
-  // the pole the lights are strung from
+  // the pole the lights are strung from, the sitting stump, the signpost
   around(L.stringPole, 0.1),
+  around(L.stumpSeat, 0.22),
+  around(L.signpost, 0.12),
 ];
 
 export const CAMP_SPAWNS: Pt[] = L.spawns;

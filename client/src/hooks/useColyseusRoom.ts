@@ -71,6 +71,7 @@ const RELAYED_MESSAGES = [
   "campfireNotice",
   // the telescope, the chopping block and foraging
   "shootingStar",
+  "starlightReel",
   "starCaught",
   "chopStart",
   "chopResult",

@@ -1,7 +1,9 @@
 // Shared between client and server — keep this file framework-agnostic (no THREE/Colyseus imports).
 
-export type SitPose = "sit" | "lie";
-export type HeldItem = "" | "coffee" | "marshmallow" | "skewer";
+/** "dangle": sitting on an edge (the campfire's dock), legs hanging down and swinging. */
+export type SitPose = "sit" | "lie" | "dangle";
+/** "jar": a glass jar of fireflies caught at the campfire, glowing in the left hand. */
+export type HeldItem = "" | "coffee" | "marshmallow" | "skewer" | "jar";
 /** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is a boxing knockdown. */
 export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar" | "stargaze" | "chop";
 
@@ -223,12 +225,13 @@ export type ToggleableKind =
   | "fishing"
   | "telescope"
   | "woodchop"
-  | "foraging";
+  | "foraging"
+  | "fireflies";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
 // so the seat contributes only a click target and a snap point.
-export type SeatStyle = "gaming" | "log" | "pad" | "stool" | "armchair" | "wood" | "deckchair" | "blanket" | "onsen" | "bleacher" | "wingback";
+export type SeatStyle = "gaming" | "log" | "pad" | "stool" | "armchair" | "wood" | "deckchair" | "blanket" | "onsen" | "bleacher" | "wingback" | "dock";
 
 // Runtime (synced) state of an interactive prop — mirrors the server's ChairState/ToggleableState schema.
 export interface ChairSyncState {
@@ -280,12 +283,12 @@ export const SYSTEM_EMOJI = ["🥂", "💤", "💃", "🪙", "💰", "🎰", "�
  * on its own when something happens (SERVER_GESTURES): watering a plant, reaching over the board
  * to make a move.
  */
-export const GESTURES = ["wave", "dance", "cheers", "nap", "water", "reach", "chop"] as const;
+export const GESTURES = ["wave", "dance", "cheers", "nap", "water", "reach", "chop", "net"] as const;
 export type Gesture = (typeof GESTURES)[number];
-export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 2.2, dance: 5, cheers: 2.4, nap: 7, water: 1.8, reach: 0.8, chop: 0.7 };
-export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", water: "💧", reach: "♟️", chop: "🪓" };
+export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 2.2, dance: 5, cheers: 2.4, nap: 7, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0 };
+export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", water: "💧", reach: "♟️", chop: "🪓", net: "✨" };
 /** Gestures only the server starts (a client asking for one is ignored). */
-export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop"]);
+export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net"]);
 export function isGesture(v: unknown): v is Gesture {
   return typeof v === "string" && (GESTURES as readonly string[]).includes(v);
 }
@@ -921,7 +924,7 @@ export type Emote = (typeof EMOTES)[number];
 
 /** Seat styles you lie down on rather than sit on. */
 export function poseForSeat(style: SeatStyle): SitPose {
-  return style === "blanket" ? "lie" : "sit";
+  return style === "blanket" ? "lie" : style === "dock" ? "dangle" : "sit";
 }
 
 /** Props you must walk up to before using; everything else (lights, TV, campfire) works from anywhere. */
@@ -949,7 +952,8 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "fishing" ||
     kind === "telescope" ||
     kind === "woodchop" ||
-    kind === "foraging"
+    kind === "foraging" ||
+    kind === "fireflies"
   );
 }
 
@@ -1070,13 +1074,21 @@ export interface RoastResult {
   capped: boolean;
 }
 
-/** What the river gives up to a starlight fishing line, and what each is worth. */
+/** What the river gives up to a starlight fishing line, what each is worth, and how it fights in
+ *  the reel (`speed`: how often and how fast it darts; `size`: how fast the catch meter drains
+ *  while it is out of the green bar). */
 export const STARLIGHT_CATCHES = {
-  minnow: { name: "Chibi Minnow", emoji: "🐟", coins: 10, weight: 40 },
-  trout: { name: "River Trout", emoji: "🐠", coins: 15, weight: 30 },
-  starshell: { name: "Star Shell", emoji: "🐚", coins: 20, weight: 20 },
-  bottle: { name: "Lucky Bottle", emoji: "🍾", coins: 25, weight: 10 },
+  minnow: { name: "Chibi Minnow", emoji: "🐟", coins: 15, weight: 40, speed: 0.55, size: 0.5 },
+  trout: { name: "River Trout", emoji: "🐠", coins: 20, weight: 30, speed: 0.85, size: 0.8 },
+  starshell: { name: "Star Shell", emoji: "🐚", coins: 25, weight: 20, speed: 1.1, size: 0.9 },
+  bottle: { name: "Lucky Bottle", emoji: "🍾", coins: 30, weight: 10, speed: 1.35, size: 1.0 },
 } as const;
+/** A hooked fish at the campfire: the reel mini-game starts (FishingModal) for this catch. */
+export interface StarlightReel {
+  catchId: StarlightCatchId;
+}
+/** The shortest a real reel can take (the catch meter fills no faster): a quicker "caught" is not believed. */
+export const STARLIGHT_REEL_MIN_S = 2.0;
 export type StarlightCatchId = keyof typeof STARLIGHT_CATCHES;
 export interface FishCaught {
   sessionId: string;
@@ -1149,4 +1161,5 @@ export type CampfirePacket =
   | { type: "STARGAZE"; on: boolean }
   | { type: "STAR_CATCH"; id: number }
   | { type: "CHOP_START" }
-  | { type: "CHOP_STOP" };
+  | { type: "CHOP_STOP" }
+  | { type: "REEL_DONE"; caught: boolean };

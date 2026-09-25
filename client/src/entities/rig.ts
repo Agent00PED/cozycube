@@ -40,6 +40,10 @@ export const AVATAR_NODES = {
   wateringCan: "WateringCan",
   /** A camp hatchet in the right hand, pivot at the hand, blade on the underside: shown while chopping firewood. */
   hatchet: "Hatchet",
+  /** A little firefly net in the right hand, pivot at the hand: shown for the swipe at the fireflies. */
+  net: "Net",
+  /** A glowing jar of fireflies in the LEFT hand, pivot at the hand: shown while holding one. */
+  fireflyJar: "FireflyJar",
   /** A roasting stick in the right hand, pivot at the hand, pointing forward; its food pieces are
    *  SkewerMallow_1..2 / SkewerBBQ_1..4 (tip first), tinted by Mat_Roast / Mat_RoastVeg. */
   skewer: "Skewer",

@@ -58,7 +58,7 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
       x: lie ? round(lie.x) : s.x,
       z: lie ? round(lie.z) : s.z,
       rotationY: lie ? round(lie.rotationY) : s.rotationY,
-      style: lie ? ("blanket" as const) : ("log" as const),
+      style: lie ? ("blanket" as const) : (s.style ?? ("log" as const)),
       approachX: round(s.approachX),
       approachZ: round(s.approachZ),
       sitY: round(lie ? lie.y : seatAnchorY(CUSHIONS[s.cushion])),

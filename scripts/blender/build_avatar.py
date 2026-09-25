@@ -49,6 +49,8 @@ runtime's swings are clean rotations about local axes (client/src/entities/rig.t
                          or a BBQ skewer's meat and peppers, one node a piece so bites take them
           Hatchet        a small camp hatchet out of the right hand, its blade on the underside,
                          hidden until she chops firewood at the campfire
+          Net            a little butterfly net out of the right hand, for a swipe at the fireflies
+          FireflyJar     (on ArmL) a glowing glass jar of fireflies held in the left hand
           FishingRod     a bamboo pole out of the right hand, raised forward
             RodTip       an empty at its tip: the runtime runs the line from here to the Bobber
         Guitar           an acoustic guitar resting across the lap (a child of Body), hidden until
@@ -121,7 +123,7 @@ BOTTOM_IDS = ("sweats", "overalls", "trousers", "shorts", "wide")
 TOP_PARTS = (("", "Torso"), ("_SleeveL", "ArmL"), ("_SleeveR", "ArmR"))  # (name suffix, parent)
 BOTTOM_PARTS = (("", "Body"), ("_LegL", "LegL"), ("_LegR", "LegR"))
 NODE_NAMES = (
-    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "LegL", "LegR")
+    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Net", "FireflyJar", "LegL", "LegR")
     + tuple(f"SkewerMallow_{i}" for i in (1, 2))
     + tuple(f"SkewerBBQ_{i}" for i in (1, 2, 3, 4))
     + tuple(f"MugTop_{t}" for t in MUG_TOPPINGS)
@@ -157,6 +159,10 @@ PALETTE = {
     "Mat_CanRose": "#E3B861",  # its brass rose
     "Mat_Stick": "#C9A273",  # a green-wood roasting stick
     "Mat_Steel": "#A7AEB5",  # the hatchet's head
+    "Mat_Net": "#F1ECDD",  # the firefly net's mesh
+    "Mat_JarGlass": "#D8F0B0",  # the firefly jar, glowing softly from within
+    "Mat_JarLid": "#C9A14A",  # its brass lid
+    "Mat_JarGlow": "#F6FF9E",  # the fireflies in it
     "Mat_Roast": "#FFF4E2",  # the marshmallows / the meat: tinted raw, golden or charred by the runtime
     "Mat_RoastVeg": "#6FAE4B",  # the skewer's peppers: tinted too
     "Mat_Bamboo": "#C2AA62",
@@ -448,10 +454,19 @@ def material(name):
     metallic, roughness = FINISH.get(name, (0.0, ROUGHNESS))
     bsdf.inputs["Roughness"].default_value = roughness
     bsdf.inputs["Metallic"].default_value = metallic
+    if name in GLOW:
+        key = "Emission Color" if "Emission Color" in bsdf.inputs else "Emission"
+        bsdf.inputs[key].default_value = (*c, 1)
+        if "Emission Strength" in bsdf.inputs:
+            bsdf.inputs["Emission Strength"].default_value = GLOW[name]
     m.diffuse_color = (*c, 1)
     m.roughness = roughness
     m.use_backface_culling = True  # exports single-sided: every mesh is closed or a decal facing out
     return m
+
+
+# materials that glow from within (the game keeps their colour out of the tone mapping)
+GLOW = {"Mat_JarGlass": 0.9, "Mat_JarGlow": 2.5}
 
 
 def empty(name, collection, parent=None, at=Vector(), parent_at=Vector()):
@@ -2469,6 +2484,29 @@ def build(hip_y, leg_r, hip_off, covering):
     add_shaped(bm, 6, ellipsoid(hand + fwd * 0.29 + Vector((0, 0, -0.035)), Vector((0.014, 0.04, 0.055)), n=3.2), material=1)
     make_object("Hatchet", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Stick"], mat["Mat_Steel"]))
 
+    # Net: a short handle up and forward from the fist, a hoop at its end and a soft pouch under it
+    up_fwd_net = Vector((0, -math.cos(math.radians(40)), math.sin(math.radians(40))))
+    butt = hand - up_fwd_net * 0.06
+    bm = bmesh.new()
+    tube(bm, [butt + up_fwd_net * 0.46 * i / 8 for i in range(9)], lambda s_: 0.011 - 0.003 * s_, sides=8, cap_rings=2)
+    hoop_c = butt + up_fwd_net * 0.55
+    u = Vector((1, 0, 0))
+    v = up_fwd_net.cross(u).normalized()
+    ring = [hoop_c + (u * math.cos(a) + v * math.sin(a)) * 0.09 for a in (2 * math.pi * k / 20 for k in range(21))]
+    tube(bm, ring, lambda s_: 0.007, sides=6, cap_rings=1)
+    add_shaped(bm, 6, ellipsoid(hoop_c - up_fwd_net * 0.02 + Vector((0, 0, -0.055)), Vector((0.085, 0.085, 0.07)), n=2.2), material=1)
+    make_object("Net", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Stick"], mat["Mat_Net"]))
+
+    # FireflyJar: a little glass jar held out of the left fist, glowing, a brass lid and fireflies
+    hand_l = Vector((shoulders["ArmL"].x, 0, HAND_Z))
+    jar_c = hand_l + Vector((0, -0.035, -0.075))
+    bm = bmesh.new()
+    add_shaped(bm, 6, ellipsoid(jar_c, Vector((0.052, 0.052, 0.066)), n=3.4))
+    add_shaped(bm, 5, ellipsoid(jar_c + Vector((0, 0, 0.07)), Vector((0.046, 0.046, 0.016)), n=3.0), material=1)
+    for dx, dy, dz in ((0.03, -0.035, 0.01), (-0.035, -0.03, -0.02), (0.0, -0.05, 0.03), (-0.02, 0.035, 0.0)):
+        add_shaped(bm, 3, ellipsoid(jar_c + Vector((dx, dy, dz)), Vector((0.013, 0.013, 0.013)), n=2.0), material=2)
+    make_object("FireflyJar", bm, hand_l, coll, arms["ArmL"], shoulders["ArmL"], (mat["Mat_JarGlass"], mat["Mat_JarLid"], mat["Mat_JarGlow"]))
+
     # FishingRod: a bamboo pole raised forward from the fist, ringed at its nodes, an empty at its tip
     up_fwd = Vector((0, -math.cos(math.radians(35)), math.sin(math.radians(35))))
     rod_len = 1.05
@@ -2567,7 +2605,7 @@ def is_variant(ob):
     name = ob.name[len(PREFIX) :]
     kind, _, rest = name.partition("_")
     default = {"Hair": DEFAULT_HAIR, "Top": DEFAULT_TOP, "Bottom": DEFAULT_BOTTOM}.get(kind)
-    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet"))
+    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Net", "FireflyJar"))
 
 
 def tidy_viewport(coll):

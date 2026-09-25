@@ -39,7 +39,7 @@ export interface CrowdFeed {
 /** Where an angler's bobber floats on the campfire's river: out from the dock spot they fish from
  *  (each spot has its own float, and only one angler at a time). */
 export function bobberFor(player: PlayerState, mapId: MapId) {
-  if (mapId !== "campfire_night" || player.action !== "fish") return null;
+  if (mapId !== "campfire_night" || (player.action !== "fish" && player.action !== "reel")) return null;
   const { bobber } = nearestFishingSpot(player.x, player.z);
   return { x: bobber.x, y: CAMPFIRE_LAYOUT.river.water, z: bobber.z };
 }

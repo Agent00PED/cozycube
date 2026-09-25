@@ -137,3 +137,12 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
   20% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -36px) scale(1.1); }
 }
+
+/* the reel's catch: a burst of confetti round the fish */
+.cozy-confetti { position: absolute; left: 50%; top: 42%; width: 0; height: 0; pointer-events: none; }
+.cozy-confetti span { position: absolute; width: 8px; height: 5px; border-radius: 2px; opacity: 0; animation: cozy-confetti-burst 1.3s cubic-bezier(0.2, 0.7, 0.3, 1) forwards; }
+@keyframes cozy-confetti-burst {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(0.6); }
+  60% { opacity: 1; transform: translate(var(--cx), var(--cy)) rotate(var(--spin)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--cx), calc(var(--cy) + 70px)) rotate(calc(var(--spin) * 1.6)) scale(0.9); }
+}

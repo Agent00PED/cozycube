@@ -53,6 +53,8 @@ export function ActivityBar(props: ActivityBarProps) {
   // the campfire's skewer, carried (not while it is still over the fire)
   const snack = player.holding === "skewer" && player.action !== "grill" ? parseSnack(player.snack) : null;
   const holdingCoffee = player.holding === "coffee";
+  // a jar of fireflies from the campfire's grove
+  const holdingJar = player.holding === "jar";
   const brewing = player.action === "brew";
   const onPier = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && isFishingSeat(c.propId));
   const fishing = player.action === "fish";
@@ -61,7 +63,7 @@ export function ActivityBar(props: ActivityBarProps) {
   const bag = parseBag(player.bag);
   const bagCount = Object.values(bag).reduce((a, b) => a + (b ?? 0), 0);
 
-  const hasActions = roasting || holdingCoffee || !!snack || brewing || onPier || fishing || soaking;
+  const hasActions = roasting || holdingCoffee || holdingJar || !!snack || brewing || onPier || fishing || soaking;
 
   // the bobber goes under: a plop, so you can look away from the float
   const wasBite = useRef(false);
@@ -134,6 +136,15 @@ export function ActivityBar(props: ActivityBarProps) {
               </div>
               <button type="button" style={styles.primary} onClick={onEat}>
                 😋 Eat it
+              </button>
+            </>
+          )}
+
+          {holdingJar && (
+            <>
+              <span style={styles.status}>✨ Firefly jar</span>
+              <button type="button" style={styles.ghost} onClick={onPutDown}>
+                Let them go
               </button>
             </>
           )}

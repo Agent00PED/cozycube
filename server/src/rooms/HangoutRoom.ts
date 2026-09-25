@@ -6,7 +6,7 @@ import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } 
 import { AWAY_PREFIX, BoardTable } from "./boardgame";
 import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
-import { BONFIRE_REACH, CHOP_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, nearestFishingSpot } from "../../../shared/worlds/campfire";
+import { BONFIRE_REACH, CHOP_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, nearestFishingSpot } from "../../../shared/worlds/campfire";
 import { emptyCampfireCoins } from "../db/players";
 import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat, isWaterable, mochiSpot } from "../../../shared/props";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
@@ -19,6 +19,8 @@ import {
   FORAGE_INFO,
   FORAGE_REGROW_CAMP_S,
   STAR_SPARK_COINS,
+  STARLIGHT_REEL_MIN_S,
+  type StarlightReel,
   type CampfireCoinKind,
   type ChopResult,
   type ChopStart,
@@ -380,6 +382,10 @@ export class HangoutRoom extends Room<HangoutState> {
   private snackUntil = new Map<string, number>();
   private lastRoastAt = new Map<string, number>();
   private starlight = new Set<string>();
+  /** The river's reels in progress: what is on each line, and when the fight began. */
+  private starReels = new Map<string, { catchId: StarlightCatchId; startedAt: number }>();
+  /** When each player last swept the net through the fireflies. */
+  private lastNetAt = new Map<string, number>();
   /** The telescope: each stargazer's next shooting star, and the one crossing their lens now. */
   private stargazers = new Map<string, { next: number; star: (ShootingStar & { until: number }) | null }>();
   private starSeq = 1;
@@ -439,7 +445,7 @@ export class HangoutRoom extends Room<HangoutState> {
       if (player.action === "brew" && (player.dirX !== 0 || player.dirZ !== 0)) this.clearAction(player);
       // walking off your spot on the dock puts the rod away; walking away from the fire takes the skewer out
       if (player.dirX !== 0 || player.dirZ !== 0) {
-        if (player.action === "fish" && this.starlight.has(client.sessionId)) this.stopStarlight(client.sessionId, player);
+        if ((player.action === "fish" || player.action === "reel") && this.starlight.has(client.sessionId)) this.stopStarlight(client.sessionId, player);
         else if (player.action === "grill") this.finishRoast(client.sessionId, player, "raw");
         else if (player.action === "stargaze") this.stopStargazing(client.sessionId, player);
         else if (player.action === "chop") this.finishChop(client.sessionId, player, false);
@@ -531,7 +537,11 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("eat", (client) => this.handleEat(client.sessionId));
     this.onMessage("dropHeld", (client) => {
       const player = this.state.players.get(client.sessionId);
-      if (player && (player.holding === "coffee" || (player.holding === "skewer" && player.action !== "grill"))) {
+      if (player && player.holding === "jar") {
+        // letting the fireflies go
+        player.holding = "";
+        this.broadcast("emote", { sessionId: client.sessionId, emoji: "✨" });
+      } else if (player && (player.holding === "coffee" || (player.holding === "skewer" && player.action !== "grill"))) {
         player.holding = "";
         player.drink = "";
         player.snack = "";
@@ -1610,6 +1620,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.biteUntil.delete(sessionId);
     this.hooked.delete(sessionId);
     this.starlight.delete(sessionId);
+    this.starReels.delete(sessionId);
   }
 
   // --- the campfire: roasting, starlight fishing and the guitar ------------------------------------
@@ -1717,6 +1728,10 @@ export class HangoutRoom extends Room<HangoutState> {
         client.send("chopStart", start);
         return;
       }
+      case "REEL_DONE": {
+        this.finishStarlightReel(sessionId, packet.caught === true);
+        return;
+      }
       case "CHOP_STOP": {
         const chop = this.chops.get(sessionId);
         if (!chop || player.action !== "chop") return;
@@ -1784,6 +1799,28 @@ export class HangoutRoom extends Room<HangoutState> {
     this.persist(sessionId, player);
   }
 
+  /** A swipe of the net through the grove's fireflies: a glowing jar of them to carry about (or,
+   *  with a jar already in hand, letting them go). */
+  private catchFireflies(sessionId: string, player: Player, prop: ToggleableState) {
+    if (player.sitting || player.action !== "") return;
+    if (Math.hypot(player.x - prop.x, player.z - prop.z) > FIREFLY_REACH + 0.4) return;
+    const now = Date.now();
+    if (now - (this.lastNetAt.get(sessionId) ?? 0) < 1500) return;
+    this.lastNetAt.set(sessionId, now);
+    if (player.holding === "jar") {
+      player.holding = "";
+      this.broadcast("emote", { sessionId, emoji: "✨" });
+      return;
+    }
+    // whatever was in hand is set down for the jar
+    player.holding = "jar";
+    player.drink = "";
+    player.snack = "";
+    this.snackUntil.delete(sessionId);
+    this.playGesture(sessionId, "net");
+    this.broadcast("emote", { sessionId, emoji: "✨" });
+  }
+
   private stopStargazing(sessionId: string, player: Player) {
     this.stargazers.delete(sessionId);
     if (player.action === "stargaze") this.clearAction(player);
@@ -1807,6 +1844,9 @@ export class HangoutRoom extends Room<HangoutState> {
 
   /** The roasting dials, skewers eaten up, the chopping meters and the stargazers' shooting stars. */
   private tickCampfire(now: number) {
+    this.starReels.forEach((reel, sessionId) => {
+      if (now - reel.startedAt > (REEL_SECONDS + 6) * 1000) this.finishStarlightReel(sessionId, false);
+    });
     this.chops.forEach((chop, sessionId) => {
       const player = this.state.players.get(sessionId);
       if (!player || player.action !== "chop") {
@@ -1860,25 +1900,46 @@ export class HangoutRoom extends Room<HangoutState> {
     });
   }
 
-  /** A tap while the bobber is under: what the river gives up, paid within the day's cap. */
+  /** A tap while the bobber is under: the fish is on, and the reel begins (the angler's
+   *  FishingModal plays it; REEL_DONE says how it ended). */
   private hookStarlight(sessionId: string) {
     const player = this.state.players.get(sessionId);
     if (!player || player.action !== "fish" || !this.biteUntil.has(sessionId)) return;
     this.biteUntil.delete(sessionId);
     const catchId = rollStarlightCatch();
+    this.starReels.set(sessionId, { catchId, startedAt: Date.now() });
+    player.action = "reel";
+    player.actionProgress = 0;
+    const reel: StarlightReel = { catchId };
+    this.sendTo(sessionId, "starlightReel", reel);
+  }
+
+  /** The reel's end: landed (believed only if it took as long as a real one can), or it got away.
+   *  Either way the line goes back in. */
+  private finishStarlightReel(sessionId: string, caught: boolean) {
+    const player = this.state.players.get(sessionId);
+    const reel = this.starReels.get(sessionId);
+    if (!player || !reel || player.action !== "reel") return;
+    this.starReels.delete(sessionId);
+    player.action = "fish";
+    player.actionProgress = 0;
+    this.fishBiteAt.set(sessionId, Date.now() + starlightBiteDelay());
+    if (!caught || Date.now() - reel.startedAt < STARLIGHT_REEL_MIN_S * 1000) {
+      this.broadcast("emote", { sessionId, emoji: "💨" });
+      return;
+    }
+    const catchId = reel.catchId;
     const coins = this.campfirePay(sessionId, player, "fish", STARLIGHT_CATCHES[catchId].coins);
     this.bumpStat(player, "fish_caught");
     this.daily(sessionId, player, "catch_fish");
-    const caught: FishCaught = { sessionId, catchId, coins, capped: coins === 0 };
-    this.broadcast("fishCaught", caught);
+    const landed: FishCaught = { sessionId, catchId, coins, capped: coins === 0 };
+    this.broadcast("fishCaught", landed);
     this.broadcast("emote", { sessionId, emoji: STARLIGHT_CATCHES[catchId].emoji });
-    // the line goes straight back in
-    player.actionProgress = 0;
-    this.fishBiteAt.set(sessionId, Date.now() + starlightBiteDelay());
     this.persist(sessionId, player);
   }
 
   private stopStarlight(sessionId: string, player: Player) {
+    this.starReels.delete(sessionId);
     this.clearAction(player);
     this.fishBiteAt.delete(sessionId);
     this.biteUntil.delete(sessionId);
@@ -1997,6 +2058,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.starlight.clear();
     this.stargazers.clear();
     this.chops.clear();
+    this.starReels.clear();
     this.lastReportAt.clear();
     Object.assign(this.state.ball, BALL_HOME);
     this.ballIdle = 0;
@@ -2076,6 +2138,8 @@ export class HangoutRoom extends Room<HangoutState> {
     this.clearAction(player);
     this.fishBiteAt.delete(sessionId);
     this.biteUntil.delete(sessionId);
+    this.starlight.delete(sessionId);
+    this.starReels.delete(sessionId);
     this.lastReportAt.delete(sessionId);
     player.sitting = false;
     player.sitY = 0;
@@ -2130,7 +2194,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // Lights, the TV and the campfire work from across the room — that's what makes them feel
     // like shared ambience. The espresso machine and arcades are things you stand in front of.
     if (isWalkUpProp(kind)) {
-      if (player.sitting) return;
+      // (sitting on the dock's edge, you cast from where you sit)
+      if (player.sitting && !(kind === "fishing" && this.state.chairs.get(dockSeatOf(prop.propId))?.occupiedBy === sessionId)) return;
       // Mochi wanders (mochiSpot, wall-clock), so her reach is measured from where she is now.
       const at = kind === "cat" ? mochiSpot(this.state.currentMap, Date.now() / 1000) : prop;
       if (Math.hypot(player.x - at.x, player.z - at.z) > INTERACT_RADIUS) return;
@@ -2223,6 +2288,9 @@ export class HangoutRoom extends Room<HangoutState> {
         break;
       case "foraging":
         this.forage(sessionId, player, prop);
+        break;
+      case "fireflies":
+        this.catchFireflies(sessionId, player, prop);
         break;
       case "fishing":
         if (player.action === "fish") this.handleReelIn(sessionId);
@@ -2366,18 +2434,20 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleCastLine(sessionId: string, afk = false) {
     const player = this.state.players.get(sessionId);
     if (!player || player.action !== "") return;
-    // the campfire's river: standing at one of the dock's spots (one angler to a spot), a bite, a
-    // tap, a catch
-    if (!player.sitting) {
-      if (!this.nearProp(player, "fishing", FISHING_REACH)) return;
-      const spot = nearestFishingSpot(player.x, player.z).propId;
-      let taken = false;
-      this.state.players.forEach((other, id) => {
-        if (id !== sessionId && other.action === "fish" && this.starlight.has(id) && nearestFishingSpot(other.x, other.z).propId === spot) taken = true;
-      });
-      if (taken) {
-        this.sendTo(sessionId, "campfireNotice", { message: "Someone's already fishing there. Try the next spot along the dock", emoji: "🎣" });
-        return;
+    // the campfire's river: from the dock's edge at one of its spots (one angler to a spot), sitting
+    // with your legs over the water; a bite, a tap, then the reel
+    if (this.state.currentMap === "campfire_night") {
+      const seat = this.state.chairs.get(dockSeatOf(nearestFishingSpot(player.x, player.z).propId));
+      if (!seat) return;
+      if (!player.sitting) {
+        if (!this.nearProp(player, "fishing", FISHING_REACH)) return;
+        if (seat.occupiedBy !== "") {
+          this.sendTo(sessionId, "campfireNotice", { message: "Someone's already fishing there. Try the next spot along the dock", emoji: "🎣" });
+          return;
+        }
+        this.seatPlayer(sessionId, player, seat);
+      } else if (seat.occupiedBy !== sessionId) {
+        return; // sitting somewhere else
       }
       player.action = "fish";
       player.actionProgress = 0;
@@ -2512,6 +2582,8 @@ export class HangoutRoom extends Room<HangoutState> {
     this.stargazers.delete(sessionId);
     this.chops.delete(sessionId);
     this.lastChopAt.delete(sessionId);
+    this.starReels.delete(sessionId);
+    this.lastNetAt.delete(sessionId);
     this.hooked.delete(sessionId);
     this.refundBets(sessionId);
     // An unfinished blackjack hand is abandoned: the stake comes back.

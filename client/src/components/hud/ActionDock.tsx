@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, msUntilNextDay, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
-import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, nearestFishingSpot } from "@shared/worlds/campfire";
+import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { pushToast } from "./toastStore";
@@ -20,7 +20,9 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🪴 Water Plant] within PLANT_REACH of a plant you have not watered today; after, [🌿 Happy
 //                    Plant · 5h] counts down to when it is thirsty again (the day's rollover)
 //   [🍡 Roast & Grill]  within BONFIRE_REACH of the campfire, or sitting on a log bench round it
-//   [🎣 Go Fishing]  at the dock: the nearest of its fishing spots nobody else is fishing from
+//   [🎣 Go Fishing]  at the dock: sit on its edge at the nearest free spot and cast; sitting on the
+//                    edge already, [🎣 Cast Line]
+//   [✨ Catch Fireflies] / [✨ Release Fireflies]  in the grove between the hammock and the tipi
 //   [🎸 Play Guitar] / [⏹ Stop Guitar]  sitting on a log bench
 //   [🔭 Stargaze]    at the brass telescope by the front fence
 //   [🪓 Chop Firewood]  at the chopping block by the woodpile
@@ -33,7 +35,7 @@ import { glass, hudText, pillButton } from "./glass";
 
 interface Action {
   key: string;
-  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "stand";
+  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
   hint?: string;
@@ -92,18 +94,23 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         const run = onLog ? () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "roast", propId: id } })) : () => interactBridge.current?.useProp(id);
         found.push({ key: `roast:${id}`, type: "roast", label: "🍡 Roast & Grill", hint: "Roast a marshmallow or grill a skewer: pull it out in the green for +5 coins", run });
       }
-      // the dock's spots: the nearest one in reach that nobody else is fishing from
-      if (!sitting && action !== "fish") {
-        const taken = new Set(Object.values(players).flatMap((p) => (p.sessionId !== localSessionId && p.action === "fish" ? [nearestFishingSpot(p.x, p.z).propId] : [])));
+      // the dock: sitting on its edge, cast from there; standing, sit down at the nearest free spot
+      const mySeat = Object.values(chairs).find((c) => c.occupiedBy === localSessionId);
+      if (mySeat?.style === "dock" && action === "") {
+        const id = mySeat.propId.replace("seat_dock_", "fishing_spot_");
+        found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Cast Line", hint: "Cast into the river; tap when the bobber dips, then reel it in", run: () => interactBridge.current?.useProp(id) });
+      } else if (!sitting && action === "") {
         let spot: { id: string; d: number } | null = null;
         for (const p of Object.values(toggleables)) {
-          if (p.kind !== "fishing" || taken.has(p.propId)) continue;
+          if (p.kind !== "fishing") continue;
+          const seat = chairs[dockSeatOf(p.propId)];
+          if (seat && seat.occupiedBy && seat.occupiedBy !== localSessionId) continue; // someone's fishing there
           const d = reach(p);
           if (d <= FISHING_REACH + 1.6 && (!spot || d < spot.d)) spot = { id: p.propId, d };
         }
         if (spot) {
           const id = spot.id;
-          found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: "Cast into the river; tap when the bobber dips", run: () => interactBridge.current?.useProp(id) });
+          found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: "Sit on the dock's edge and cast; tap when the bobber dips, then reel it in", run: () => interactBridge.current?.useProp(id) });
         }
       }
       // the telescope, the chopping block and the foraging patches: walk up to them
@@ -117,6 +124,12 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         if (block && reach(block) <= CHOP_REACH + 0.3) {
           const id = block.propId;
           found.push({ key: `chop:${id}`, type: "chop", label: "🪓 Chop Firewood", hint: "Split a log in the sweet spot: +5 coins, and the fire roars up", run: () => interactBridge.current?.useProp(id) });
+        }
+        const grove = Object.values(toggleables).find((p) => p.kind === "fireflies");
+        if (grove && reach(grove) <= FIREFLY_REACH + 0.3) {
+          const id = grove.propId;
+          const jar = players[localSessionId]?.holding === "jar";
+          found.push({ key: `fireflies:${id}:${jar}`, type: "fireflies", label: jar ? "✨ Release Fireflies" : "✨ Catch Fireflies", hint: jar ? "Let the fireflies go" : "A swipe of the net: a glowing jar of fireflies to carry", run: () => interactBridge.current?.useProp(id) });
         }
         let patch: { id: string; d: number } | null = null;
         for (const p of Object.values(toggleables)) {

@@ -20,7 +20,9 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
     Campfire_Ground     the floating island: moss on top, midnight soil on its bevelled sides, the
                         river dug down its east side (a dark bed, stone banks)
     Campfire_Underside  the rock tapering away beneath it, so it floats
-    Campfire_Paths      the packed-dirt clearing round the fire and the paths off it
+    Campfire_Paths      the packed-dirt clearing round the fire and the trails off it (smooth,
+                        bevelled, one continuous ribbon each: to the tipi, the picnic table and
+                        the telescope, the dock)
     Campfire_Grass      patches of darker and lighter moss
     Campfire_Water      the river's glossy surface
     Prop_Bonfire        the stone ring, the teepee of logs, the ash and the glowing ember bed
@@ -44,6 +46,7 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
                         camper van with its striped awning and camp chair, the light pole, the
                         chopping stump and the canoe's cleat and rope
     Prop_WoodChop_Hatchet  the hatchet bitten into the stump (hidden while someone chops)
+    Prop_Signpost       the 3-way signpost at the trails' fork (Campfire, Pier, Overlook)
     Prop_Canoe          the red canoe tied off the dock (origin at the waterline: it bobs)
     StringLight_01..06  the strings of warm bulbs from the tipi, the pole, the pines and the awning,
     StringLight_Fence   and the swags along the front fence (each origin at an end: they sway)
@@ -69,7 +72,7 @@ import traceback
 
 import bmesh
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 COLLECTION = "Campfire"
 
@@ -274,9 +277,28 @@ def ribbon(bm, west, east, y0, y1, m=0, top_only=False):
         bm.faces.new((tops[i][0], tops[i][1], bots[i][1], bots[i][0])).material_index = m
 
 
+def path_polyline(path, step=0.1):
+    """A trail's centre line: a Catmull-Rom spline through its points, sampled every ~step."""
+    P = path["points"]
+    if len(P) < 3:
+        (ax, az), (bx, bz) = P[0], P[-1]
+        n = max(2, int(math.hypot(bx - ax, bz - az) / step))
+        return [(ax + (bx - ax) * k / n, az + (bz - az) * k / n) for k in range(n + 1)]
+    out = []
+    at = lambda k: P[max(0, min(len(P) - 1, k))]
+    for i in range(len(P) - 1):
+        seg = math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1])
+        n = max(2, int(seg / step))
+        for k in range(n):
+            u = k / n
+            out.append(tuple(catmull(at(i - 1)[d], at(i)[d], at(i + 1)[d], at(i + 2)[d], u) for d in (0, 1)))
+    out.append(tuple(P[-1]))
+    return out
+
+
 def near_path(L, x, z, pad):
     for path in L["paths"]:
-        pts = path["points"]
+        pts = path_polyline(path, 0.3)
         for (ax, az), (bx, bz) in zip(pts, pts[1:]):
             dx, dz = bx - ax, bz - az
             t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
@@ -288,7 +310,7 @@ def near_path(L, x, z, pad):
 def read_cushions(root):
     src = open(os.path.join(root, "shared", "seats.ts"), encoding="utf-8").read()
     out = {}
-    for name in ("log", "hammock", "tentMat"):
+    for name in ("log", "hammock", "tentMat", "picnicBench", "campChair", "stump", "dock"):
         m = re.search(rf"\b{name}: \{{ y: ([0-9.]+), h: ([0-9.]+) \}}", src)
         y, h = float(m.group(1)), float(m.group(2))
         out[name] = {"y": y, "h": h, "top": y + h / 2}
@@ -314,23 +336,6 @@ def rounded_rect(x0, x1, z0, z1, r, per_corner=8):
 def wobbly_circle(cx, cz, r, n, amp, rng):
     phase = rng.random() * 6.28
     return [(cx + r * (1 + amp * math.sin(3 * a + phase) + amp * 0.5 * math.sin(5 * a + 2 * phase)) * math.cos(a), cz + r * (1 + amp * math.sin(3 * a + phase)) * math.sin(a)) for a in (2 * math.pi * k / n for k in range(n))]
-
-
-def capsule(ax, az, bx, bz, half_w, n=10):
-    """The (x, z) outline of a stadium from a to b, half_w wide each side."""
-    dx, dz = bx - ax, bz - az
-    d = math.hypot(dx, dz) or 1
-    ux, uz = dx / d, dz / d
-    nx, nz = -uz, ux
-    out = []
-    base = math.atan2(nz, nx)
-    for k in range(n + 1):
-        a = base + math.pi * k / n
-        out.append((bx + half_w * math.cos(a) * 1, bz + half_w * math.sin(a)))
-    for k in range(n + 1):
-        a = base + math.pi + math.pi * k / n
-        out.append((ax + half_w * math.cos(a), az + half_w * math.sin(a)))
-    return out
 
 
 def slab(bm, outline, y0, y1, m=0, top_m=None):
@@ -575,6 +580,42 @@ def build_ground(L, coll):
     make_object("Campfire_Water", bm, ["CF_Water"], coll, recalc=False)  # built facing up
 
 
+def trail(bm, pts, hw, bevel=0.14):
+    """A dirt trail along `pts`: a flat top `hw` either side of the line at LAYER_PATH, its edges
+    bevelled out and down to just over the moss, a rounded cap on each end."""
+    top, low = LAYER_PATH, 0.002
+    n = len(pts)
+    rows = []
+    for i, (x, z) in enumerate(pts):
+        (ax, az), (bx, bz) = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
+        d = math.hypot(bx - ax, bz - az) or 1
+        tx, tz = (bx - ax) / d, (bz - az) / d
+        nx, nz = -tz, tx
+        w = hw * (1 + 0.05 * math.sin(i * 0.9))
+        rows.append([bm.verts.new(W(x + nx * s_ * (w + (bevel if outer else 0)), low if outer else top, z + nz * s_ * (w + (bevel if outer else 0)))) for s_, outer in ((1, True), (1, False), (-1, False), (-1, True))])
+    for r0, r1 in zip(rows, rows[1:]):
+        for k in range(3):
+            bm.faces.new((r0[k], r0[k + 1], r1[k + 1], r1[k]))
+    # the rounded ends: a half fan of the top and the bevel round each
+    for end, sign in ((0, -1), (n - 1, 1)):
+        x, z = pts[end]
+        (ax, az), (bx, bz) = (pts[0], pts[1]) if end == 0 else (pts[-2], pts[-1])
+        d = math.hypot(bx - ax, bz - az) or 1
+        tx, tz = sign * (bx - ax) / d, sign * (bz - az) / d
+        nx, nz = -tz, tx
+        w = hw * (1 + 0.05 * math.sin(end * 0.9))
+        centre = bm.verts.new(W(x, top, z))
+        inner, outer = [], []
+        for k in range(9):
+            a = math.pi * k / 8
+            ux, uz = nx * math.cos(a) + tx * math.sin(a), nz * math.cos(a) + tz * math.sin(a)
+            inner.append(bm.verts.new(W(x + ux * w, top, z + uz * w)))
+            outer.append(bm.verts.new(W(x + ux * (w + bevel), low, z + uz * (w + bevel))))
+        for k in range(8):
+            bm.faces.new((centre, inner[k], inner[k + 1]))
+            bm.faces.new((inner[k], outer[k], outer[k + 1], inner[k + 1]))
+
+
 def build_paths(L, coll):
     rng = random.Random(3)
     bm = bmesh.new()
@@ -582,11 +623,18 @@ def build_paths(L, coll):
     # the clearing on the top layer, the paths just under it (one colour: where they meet, the
     # clearing is simply the higher of the two)
     slab(bm, wobbly_circle(c["x"], c["z"], c["r"], 64, 0.035, rng), -0.02, LAYER_CLEARING, 0)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    # the trails out of the clearing: each one continuous ribbon along its spline, its edges bevelled
+    # down to the moss, its far end rounded (they start inside the clearing, under its layer)
+    before = set(bm.faces)
     for path in L["paths"]:
-        pts = path["points"]
-        for (ax, az), (bx, bz) in zip(pts, pts[1:]):
-            slab(bm, capsule(ax, az, bx, bz, path["w"] / 2), -0.02, LAYER_PATH, 0)
-    make_object("Campfire_Paths", bm, ["CF_Dirt"], coll)
+        trail(bm, path_polyline(path), path["w"] / 2)
+    for f in bm.faces:
+        if f not in before:
+            f.normal_update()
+            if f.normal.z < 0:
+                f.normal_flip()
+    make_object("Campfire_Paths", bm, ["CF_Dirt"], coll, recalc=False)
     # moss patches on open grass: never overlapping each other, a path, the river, the dock or the
     # tipi, so no two are ever coplanar
     bm = bmesh.new()
@@ -600,7 +648,7 @@ def build_paths(L, coll):
         r = rng.uniform(0.45, 1.1)
         if max(abs(x), abs(z)) + 1.25 * r > half - 0.45:  # clear of the bevelled rim
             continue
-        if math.hypot(x - c["x"], z - c["z"]) < c["r"] + r + 0.2 or in_river(L, x, z, r + 0.35) or near_path(L, x, z, r + 0.15):
+        if math.hypot(x - c["x"], z - c["z"]) < c["r"] + r + 0.2 or in_river(L, x, z, r + 0.35) or near_path(L, x, z, r + 0.3):
             continue
         if d["x0"] - r - 0.2 <= x <= d["x1"] + r and d["z0"] - r - 0.2 <= z <= d["z1"] + r + 0.2:
             continue
@@ -697,10 +745,10 @@ def build_dock(L, coll):
     # stringers under the planks, running out over the water
     for sz in (z0 + 0.12, (z0 + z1) / 2, z1 - 0.12):
         box(bm, x0 + 0.05, x1 - 0.02, -0.24, deck - 0.06, sz - 0.05, sz + 0.05, m=1)
-    # posts: along the bank and along the river edge, down into the bed; bollards on the river edge
+    # posts: along the bank and along the river edge, from the bed up to just under the planks
     bank = max(river_span(L, z)[0] for z in (z0, (z0 + z1) / 2, z1))
     lanterns = [(p["x"], p["z"]) for p in L["lanterns"]]
-    for px, tall in ((bank + 0.1, deck), (x1 - 0.08, 0.24)):
+    for px, tall in ((bank + 0.1, deck - 0.065), (x1 - 0.08, deck - 0.065)):
         for pz in (z0 + 0.1, (z0 + z1) / 2 - 0.62, (z0 + z1) / 2 + 0.62, z1 - 0.1):
             if any(math.hypot(px - lx, pz - lz) < 0.3 for lx, lz in lanterns):
                 continue
@@ -1037,8 +1085,9 @@ def build_glamping(L, cushions, coll):
     for k in range(4):  # the top: four planks along it
         z0 = pz - 0.4 + k * 0.2
         box(bm, px - 0.85, px + 0.85, 0.66, 0.72, z0 + 0.008, z0 + 0.192, m=m["CF_Plank"])
-    for sz in (-1, 1):  # the benches
-        box(bm, px - 0.85, px + 0.85, 0.4, 0.45, pz + sz * 0.68 - 0.13, pz + sz * 0.68 + 0.13, m=m["CF_Plank"])
+    bench = cushions["picnicBench"]
+    for sz in (-1, 1):  # the benches (their tops are the picnicBench cushion's: the seats sit on them)
+        box(bm, px - 0.85, px + 0.85, bench["top"] - bench["h"], bench["top"], pz + sz * 0.68 - 0.13, pz + sz * 0.68 + 0.13, m=m["CF_Plank"])
     for sx in (-1, 1):  # the A-frame legs, bench to bench, and a brace
         lx = px + sx * 0.62
         for sz in (-1, 1):
@@ -1129,7 +1178,8 @@ def build_glamping(L, cushions, coll):
         cylinder(bm, W(pxz, 1.5, zf), W(pxz + 0.25 * (1 if pxz > vx else -1), 0.0, zf + 0.55), 0.007, 4, m=m["CF_Rope"])
     # the folding camp chair under it
     chx, chz = L["campChair"]["x"], L["campChair"]["z"]
-    box(bm, chx - 0.24, chx + 0.24, 0.3, 0.34, chz - 0.2, chz + 0.2, m=m["CF_ChairFabric"])
+    seat = cushions["campChair"]
+    box(bm, chx - 0.24, chx + 0.24, seat["top"] - seat["h"], seat["top"], chz - 0.2, chz + 0.2, m=m["CF_ChairFabric"])
     sheet(bm, 1, 4, lambda u, w_: W(chx - 0.24 + 0.48 * w_, 0.34 + 0.44 * u, chz - 0.2 - 0.12 * u), m_of=lambda i, j: m["CF_ChairFabric"])
     for sx in (-1, 1):
         cx2 = chx + sx * 0.25
@@ -1153,6 +1203,10 @@ def build_glamping(L, cushions, coll):
         a0 = W(ch["x"] + sgn * 0.45, 0.07, ch["z"] + 0.3)
         cylinder(bm, a0, a0 + W(0.12 * sgn, 0, 0.3) - W(0, 0, 0), 0.08, 8, m=m["CF_WoodCut"], cap_m=m["CF_Bark"])
 
+    # --- the sitting stump beside the chopping block (its top the stump cushion's) ---
+    ss = L["stumpSeat"]
+    cylinder(bm, W(ss["x"], 0.0, ss["z"]), W(ss["x"], cushions["stump"]["top"], ss["z"]), 0.22, 14, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
+
     # --- the canoe's cleat on the dock, and its rope ---
     cl = L["cleat"]
     deck = L["dock"]["deck"]
@@ -1165,12 +1219,77 @@ def build_glamping(L, cushions, coll):
     cylinder(bm, mid, bow, 0.011, 5, m=m["CF_Rope"])
 
     make_object("Campfire_Glamping", bm, M, coll)
+    # the seats, marked where each sitter goes (on the cushion's top)
+    marks = [(f"Seat_Picnic_0{b * 2 + k + 1}", (px + sx * 0.42, bench["top"], pz + side * 0.68)) for b, side in enumerate((-1, 1)) for k, sx in enumerate((-1, 1))]
+    marks += [("Seat_CamperChair", (chx, seat["top"], chz)), ("Seat_ChopStump", (ss["x"], cushions["stump"]["top"], ss["z"]))]
+    marks += [(f"Seat_Dock_0{i + 1}", (L["dock"]["x1"] - 0.12, cushions["dock"]["top"], f["stand"]["z"])) for i, f in enumerate(L["fishing"])]
+    for name, at in marks:
+        mark = bpy.data.objects.new(name, None)
+        mark.empty_display_type = "ARROWS"
+        mark.empty_display_size = 0.2
+        mark.location = W(*at)
+        coll.objects.link(mark)
     # the interactive ones, marked by name where they stand (their geometry is in the object above)
-    for name, at in (("Prop_Telescope", (tx, 0.95, tz)), ("Prop_WoodChop", (ch["x"], 0.36, ch["z"])), ("Prop_PicnicTable", (px, 0.72, pz)), ("Prop_CamperVan", (vx, 0.0, vz))):
+    for name, at in (("Prop_Telescope", (tx, 0.95, tz)), ("Prop_WoodChop", (ch["x"], 0.36, ch["z"])), ("Prop_PicnicTable", (px, 0.72, pz)), ("Prop_CamperVan", (vx, 0.0, vz)), ("Prop_Fireflies", (L["fireflies"]["x"], 0.0, L["fireflies"]["z"]))):
         mark = bpy.data.objects.new(name, None)
         mark.empty_display_type = "PLAIN_AXES"
         mark.location = W(*at)
         coll.objects.link(mark)
+
+
+def build_signpost(L, coll):
+    """The 3-way signpost at the fork of the trails: a post, and an arrow board pointing to each
+    place, lettered on the side the camera sees."""
+    sp = L["signpost"]
+    sx, sz = sp["x"], sp["z"]
+    bm = bmesh.new()
+    cylinder(bm, W(sx, 0.0, sz), W(sx, 1.22, sz), 0.045, 8, m=1)
+    lathe(bm, sx, sz, [(0, 1.22), (0.06, 1.22), (0, 1.3)], segs=4, m=1, yaw=math.pi / 4)
+    labels = []
+    for i, arm in enumerate(sp["arms"]):
+        dx, dz = arm["to"][0] - sx, arm["to"][1] - sz
+        d = math.hypot(dx, dz) or 1
+        ux, uz = dx / d, dz / d
+        nx, nz = -uz, ux
+        y, h, t, length = 1.08 - i * 0.18, 0.13, 0.03, 0.62
+        shape = [(0.03, -h / 2), (length - 0.1, -h / 2), (length, 0.0), (length - 0.1, h / 2), (0.03, h / 2)]
+        front = [bm.verts.new(W(sx + ux * u + nx * t / 2, y + v, sz + uz * u + nz * t / 2)) for u, v in shape]
+        back = [bm.verts.new(W(sx + ux * u - nx * t / 2, y + v, sz + uz * u - nz * t / 2)) for u, v in shape]
+        bm.faces.new(front).material_index = i % 2
+        bm.faces.new(list(reversed(back))).material_index = i % 2
+        for k in range(len(shape)):
+            k1 = (k + 1) % len(shape)
+            bm.faces.new((front[k], back[k], back[k1], front[k1])).material_index = i % 2
+        # the lettering goes on the face toward the camera (+x +z)
+        side = 1 if nx + nz >= 0 else -1
+        labels.append((arm["label"], (sx + ux * (length / 2 - 0.02) + nx * side * (t / 2 + 0.004), y, sz + uz * (length / 2 - 0.02) + nz * side * (t / 2 + 0.004)), (nx * side, nz * side)))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    sign = make_object("Prop_Signpost", bm, ["CF_Plank", "CF_PlankDark"], coll, origin=(sx, 0.0, sz))
+    texts = []
+    for text, at, (nx, nz) in labels:
+        curve = bpy.data.curves.new(f"Sign_{text}", "FONT")
+        curve.body = text
+        curve.size = 0.075
+        curve.align_x = "CENTER"
+        curve.align_y = "CENTER"
+        curve.extrude = 0.002
+        curve.resolution_u = 2
+        ob = bpy.data.objects.new(f"Sign_{text}", curve)
+        coll.objects.link(ob)
+        n = Vector((nx, -nz, 0)).normalized()  # the facing, in Blender's axes
+        up = Vector((0, 0, 1))
+        right = up.cross(n)
+        rot = Matrix((right, up, n)).transposed()
+        ob.matrix_world = Matrix.Translation(W(*at)) @ rot.to_4x4()
+        texts.append(ob)
+    bpy.context.view_layer.update()
+    for ob in texts:
+        with bpy.context.temp_override(object=ob, active_object=ob, selected_objects=[ob], selected_editable_objects=[ob]):
+            bpy.ops.object.convert(target="MESH")
+        ob.data.materials.clear()
+        ob.data.materials.append(material("CF_Wire"))
+    with bpy.context.temp_override(object=sign, active_object=sign, selected_objects=[sign, *texts], selected_editable_objects=[sign, *texts]):
+        bpy.ops.object.join()
 
 
 def build_hatchet(L, coll):
@@ -1346,6 +1465,7 @@ def build(root):
     build_deco(L, coll)
     build_glamping(L, cushions, coll)
     build_hatchet(L, coll)
+    build_signpost(L, coll)
     build_canoe(L, coll)
     build_lights(L, coll)
     build_fauna(L, coll)

@@ -35,7 +35,7 @@ import { StargazingModal } from "./components/hud/StargazingModal";
 import { WoodChopModal } from "./components/hud/WoodChopModal";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
-import { FORAGE_INFO, STARLIGHT_CATCHES, type FishCaught, type ForageResult, type RoastResult } from "@shared/types";
+import { FORAGE_INFO, ITEMS, STARLIGHT_CATCHES, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
 import { BoxingHud } from "./components/hud/BoxingHud";
 import { installKeyboard, isTouchDevice } from "./systems/input";
 import {
@@ -245,6 +245,9 @@ export default function App() {
   const closePanel = useCallback(() => setPanel(null), []);
   const [fishOnLine, setFishOnLine] = useState<FishOnLine | null>(null);
   const closeFishing = useCallback(() => setFishOnLine(null), []);
+  // the campfire's reel: a fish on the line at the dock
+  const [starReel, setStarReel] = useState<StarlightReel | null>(null);
+  const closeStarReel = useCallback(() => setStarReel(null), []);
   const [gachaResult, setGachaResult] = useState<GachaPrize | null>(null);
   const [clawResult, setClawResult] = useState<{ won: boolean; target: number } | null>(null);
   const [arcadeResult, setArcadeResult] = useState<{ coins: number } | null>(null);
@@ -306,6 +309,8 @@ export default function App() {
           openPanel(p.kind, p.propId);
         } else if (type === "fishOnLine") {
           setFishOnLine(payload as FishOnLine);
+        } else if (type === "starlightReel") {
+          setStarReel(payload as StarlightReel);
         } else if (type === "gachaResult") {
           setGachaResult(payload as GachaPrize);
         } else if (type === "clawResult") {
@@ -468,6 +473,9 @@ export default function App() {
   // the reel closes by itself if the server gave up on the line (timeout) or you stood up
   useEffect(() => {
     if (me && me.action !== "reel") setFishOnLine(null);
+    // the campfire's reel shows its result while the line goes back in ("fish"); only leaving the
+    // dock (no action at all) closes it
+    if (me && me.action === "") setStarReel(null);
   }, [me?.action]); // eslint-disable-line react-hooks/exhaustive-deps
   const showRoulette = atRoulette && !rouletteClosed && !blackjackOpen && !slotsProp;
 
@@ -603,7 +611,22 @@ export default function App() {
         {blackjackOpen && localPlayer && <BlackjackModal view={blackjackView} coins={localPlayer.coins} onAction={blackjackAction} onClose={() => setBlackjackOpen(false)} />}
 
         {/* the world's own panels */}
-        {fishOnLine && <FishingModal fish={fishOnLine} onResult={catchFish} onClose={closeFishing} />}
+        {fishOnLine && (
+          <FishingModal
+            fish={{ emoji: fishOnLine.item === "boot" ? "🥾" : ITEMS[fishOnLine.item].emoji, name: fishOnLine.item === "boot" ? "old boot" : ITEMS[fishOnLine.item].name.toLowerCase(), speed: fishOnLine.speed, size: fishOnLine.size, hint: fishOnLine.water === "ocean" ? "Something from the sea" : "Something from the river" }}
+            onResult={catchFish}
+            onClose={closeFishing}
+          />
+        )}
+        {starReel && (
+          <FishingModal
+            key={`${starReel.catchId}:${localSessionId}`}
+            fish={{ ...STARLIGHT_CATCHES[starReel.catchId], hint: "Something from the starlit river", reward: STARLIGHT_CATCHES[starReel.catchId].coins }}
+            onResult={(result) => campfireSend({ type: "REEL_DONE", caught: result === "caught" })}
+            onClose={closeStarReel}
+            autoCloseMs={2200}
+          />
+        )}
         {panel?.kind === "gacha" && localPlayer && <GachaModal coins={localPlayer.coins} result={gachaResult} onPull={pullGacha} onClose={closePanel} />}
         {panel?.kind === "claw" && localPlayer && <ClawModal coins={localPlayer.coins} result={clawResult} onPlay={clawPlay} onClose={closePanel} />}
         {panel?.kind === "arcade" && <RetroGameModal result={arcadeResult} onScore={arcadeScore} onClose={closePanel} />}

@@ -103,6 +103,16 @@ const ARM_SPLAY = 0.2;
 const LIMB_LERP = 0.25;
 const POSE_LERP = 0.18;
 const SIT_LEG = -Math.PI / 2;
+// sitting on the dock's edge: the legs hang down over the water (forward and down), swinging
+const DANGLE_LEG = -0.95;
+const DANGLE_SWING = 0.16;
+// the reel: leaning back against the fish, the rod's tip dipping and jerking toward it
+const REEL_LEAN = -0.2;
+// the firefly net's swipe: up and over, then down through the air
+const NET_UP_ARM = -2.6;
+const NET_DOWN_ARM = -0.6;
+// the firefly jar, held out a little in the left hand
+const JAR_ARM = -0.55;
 const SIT_ARM = -0.5;
 const ROAST_ARM = -1.2;
 const CUP_ARM = -1.05;
@@ -279,6 +289,13 @@ function useRig(): Rig {
     part.mug.visible = false;
     part.wateringCan.visible = false;
     part.hatchet.visible = false;
+    part.net.visible = false;
+    part.fireflyJar.visible = false;
+    // the jar glows from within: keep its colour out of the tone mapping
+    part.fireflyJar.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (m?.emissive && m.emissive.getHex() !== 0) m.toneMapped = false;
+    });
     part.eyesHappy.visible = false;
     for (const key of ["skewer", "fishingRod", "guitar", "bobber"] as const) part[key].visible = false;
     const pieces = (prefix: string) => [...variants(part.skewer, prefix).entries()].sort(([a], [b]) => Number(a) - Number(b)).map(([, node]) => node);
@@ -443,6 +460,9 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     if (pose === "sit") {
       armL = armR = SIT_ARM;
       legs = [SIT_LEG, SIT_LEG];
+    } else if (pose === "dangle") {
+      armL = armR = SIT_ARM;
+      legs = [DANGLE_LEG + Math.sin(t * 1.7 + seed) * DANGLE_SWING, DANGLE_LEG + Math.sin(t * 1.7 + seed + 2.4) * DANGLE_SWING];
     } else if (pose === "lie") {
       armL = armR = LIE_ARMS;
       legs = [LIE_LEGS, LIE_LEGS];
@@ -473,6 +493,14 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
       armR = WATER_ARM + Math.sin(gAge * 6) * 0.08;
     }
     if (holding === "marshmallow") armL = armR = ROAST_ARM;
+    // the firefly jar, held out in the left hand
+    const holdingJar = holding === "jar" && pose !== "lie";
+    if (holdingJar) armL = JAR_ARM + swing * 0.08;
+    // the net: a swipe up and over, then down through the fireflies
+    if (g === "net") {
+      const k = gAge / GESTURE_SECONDS.net;
+      armR = k < 0.35 ? THREE.MathUtils.lerp(0, NET_UP_ARM, k / 0.35) : THREE.MathUtils.lerp(NET_UP_ARM, NET_DOWN_ARM, THREE.MathUtils.smoothstep((k - 0.35) / 0.4, 0, 1));
+    }
     if (fishing) armR = FISH_ARM + Math.sin(t * 1.1) * 0.04;
     // a cast: up and back, then over and out, as the line goes in
     const cr = cast.current;
@@ -559,7 +587,8 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     const lying = pose === "lie" || g === "nap";
     const bob = walking ? Math.abs(Math.sin(phase)) * BOB_HEIGHT : g === "dance" ? Math.abs(Math.sin(gAge * 7)) * 0.08 : 0;
     body.position.y = L(body.position.y, rest.body.pos.y + (lying ? AVATAR_LIE_LIFT : bob), k);
-    body.rotation.x = L(body.rotation.x, lying ? LIE_ROLL : walking ? 0.06 * speed : dizzy ? Math.sin(t * 4.5) * 0.12 : g === "water" ? WATER_LEAN : reach * REACH_LEAN, k);
+    const reeling = action === "reel" && !!bobberAt;
+    body.rotation.x = L(body.rotation.x, lying ? LIE_ROLL : reeling ? REEL_LEAN + Math.sin(t * 9) * 0.05 + Math.sin(t * 23) * 0.02 : walking ? 0.06 * speed : dizzy ? Math.sin(t * 4.5) * 0.12 : g === "water" ? WATER_LEAN : reach * REACH_LEAN, reeling ? 0.3 : k);
     // the radio's groove: eased in while vibing on a cushion, riding on top of the pose
     const gr = groove.current;
     gr.amount = L(gr.amount, (vibe || guitarOn) && pose === "sit" && !asleep ? 1 : 0, 0.05);
@@ -616,6 +645,8 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     part.mug.rotation.x = -part.armR.rotation.x;
     part.wateringCan.visible = g === "water";
     part.hatchet.visible = action === "chop" || g === "chop";
+    part.net.visible = g === "net";
+    part.fireflyJar.visible = holdingJar;
     part.wateringCan.rotation.x = -part.armR.rotation.x + pour * WATER_POUR;
     rig.steam.forEach((wisp, i) => {
       wisp.visible = mugShown;
@@ -644,16 +675,22 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
 
     // --- fishing the river: the rod held out at a steady angle, the bobber on the water (dipping
     // on a bite, rings spreading), the line from the rod's tip to it ---
-    const angling = action === "fish" && !!bobberAt;
+    const angling = (action === "fish" || action === "reel") && !!bobberAt;
     part.fishingRod.visible = fishing;
-    part.fishingRod.rotation.x = -part.armR.rotation.x;
+    // fighting a fish on the river, the rod's tip is pulled down toward it and jerks
+    part.fishingRod.rotation.x = -part.armR.rotation.x + (reeling ? 0.3 + Math.sin(t * 13) * 0.1 + Math.sin(t * 31) * 0.04 : 0);
     part.bobber.visible = angling;
     rig.line.visible = angling;
-    rig.ripples.forEach((ring) => (ring.visible = angling && bite));
+    rig.ripples.forEach((ring) => (ring.visible = angling && (bite || reeling)));
     if (angling && bobberAt) {
       const float = rig.root.worldToLocal(tmpA.set(bobberAt.x, bobberAt.y, bobberAt.z));
       const surface = float.y;
-      float.y += bite ? -0.06 + Math.sin(t * 28) * 0.015 : castAge < CAST_SECONDS ? 0.3 * (1 - castAge / CAST_SECONDS) : Math.sin(t * 2.3 + seed) * 0.012;
+      float.y += reeling ? -0.05 + Math.sin(t * 17) * 0.02 : bite ? -0.06 + Math.sin(t * 28) * 0.015 : castAge < CAST_SECONDS ? 0.3 * (1 - castAge / CAST_SECONDS) : Math.sin(t * 2.3 + seed) * 0.012;
+      if (reeling) {
+        // the fish drags the float about under the surface
+        float.x += Math.sin(t * 3.1) * 0.12 + Math.sin(t * 7.7) * 0.04;
+        float.z += Math.cos(t * 2.3) * 0.1;
+      }
       part.bobber.position.copy(float);
       markRef.current?.position.set(float.x, surface + 0.42, float.z);
       const tip = rig.root.worldToLocal(part.rodTip.getWorldPosition(tmpB));
