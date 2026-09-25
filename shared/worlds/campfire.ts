@@ -53,8 +53,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": -5.9, "z": -9.6, "s": 0.9 },
     { "x": -3.5, "z": -9.6, "s": 1.15 },
     { "x": -0.3, "z": -9.7, "s": 0.85 },
-    { "x": 2.4, "z": -9.8, "s": 0.95 },
-    { "x": 4.9, "z": -9.5, "s": 1.0 },
+    { "x": 1.3, "z": -10.0, "s": 0.95 },
     { "x": 9.5, "z": -9.4, "s": 0.9 },
     { "x": -9.6, "z": -6.5, "s": 1.0 },
     { "x": -10.0, "z": -4.0, "s": 0.85 },
@@ -74,11 +73,40 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": -8.0, "z": 2.8, "s": 0.6 },
     { "x": 3.8, "z": 8.6, "s": 0.5 },
     { "x": -8.4, "z": -8.4, "s": 0.8 },
-    { "x": 3.9, "z": -7.8, "s": 0.6 }
+    { "x": 5.8, "z": -7.4, "s": 0.55 }
   ],
   "fence": { "at": 10.35, "zFrom": 8.3, "xFrom": -10.1, "post": 1.25 },
+  "picnic": { "x": 0, "z": 8.85 },
+  "telescope": { "x": -2.4, "z": 9.35 },
+  "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
+  "campChair": { "x": 4.5, "z": -7.45 },
+  "chop": { "x": 1.75, "z": -6.65 },
+  "critter": { "x": 3.4, "z": -6.2 },
+  "canoe": { "x": 8.0, "z": 2.62, "len": 2.0 },
+  "cleat": { "x": 6.95, "z": 1.8 },
+  "owl": { "x": -9.35, "y": 1.2, "z": -3.35, "tree": { "x": -10.0, "z": -4.0 } },
+  "ducks": [
+    { "z": -4.4, "rx": 0.6, "rz": 1.3, "speed": 0.09 },
+    { "z": 5.2, "rx": 0.45, "rz": 0.95, "speed": 0.12 }
+  ],
+  "forage": [
+    { "kind": "mushroom", "x": -5.2, "z": -8.8 },
+    { "kind": "berries", "x": -8.6, "z": -1.1 },
+    { "kind": "mushroom", "x": -8.7, "z": 1.7 },
+    { "kind": "berries", "x": 0.5, "z": -8.9 }
+  ],
+  "stringPole": { "x": -4.0, "z": -1.2, "h": 2.2 },
+  "strings": [
+    { "a": [-6.3, 2.65, -5.0], "b": [-3.76, 1.6, -9.18], "sag": 0.45 },
+    { "a": [-6.3, 2.65, -5.0], "b": [-9.15, 1.6, -2.15], "sag": 0.45 },
+    { "a": [-6.3, 2.65, -5.0], "b": [-4.0, 2.15, -1.2], "sag": 0.4 },
+    { "a": [-4.0, 2.15, -1.2], "b": [-6.3, 1.5, 4.04], "sag": 0.5 },
+    { "a": [0.05, 1.25, -9.42], "b": [3.05, 1.55, -6.925], "sag": 0.35 },
+    { "a": [3.05, 1.55, -6.925], "b": [5.15, 1.55, -6.925], "sag": 0.22 }
+  ],
+  "fenceLights": { "y": 0.78, "sag": 0.2, "every": 2 },
   "paths": [
-    { "points": [[0, 10.1], [0, 4.1]], "w": 1.4 },
+    { "points": [[0, 7.9], [0, 4.1]], "w": 1.4 },
     { "points": [[3.9, 0], [5.6, 0]], "w": 1.3 },
     { "points": [[-3.2, -2.6], [-4.6, -3.7]], "w": 1.0 },
     { "points": [[-0.9, 6.6], [-5.6, 6.9]], "w": 0.9 }
@@ -167,6 +195,72 @@ export function nearestFishingSpot(x: number, z: number) {
   return best;
 }
 
+// --- the living camp: the telescope, the chopping block, foraging, lights and wildlife ----------
+
+/** Close enough to the telescope's eyepiece to look through it. */
+export const STARGAZE_REACH = 1.4;
+/** Close enough to the chopping block to swing at it. */
+export const CHOP_REACH = 1.4;
+/** Close enough to a mushroom patch or a berry bush to pick it. */
+export const FORAGE_REACH = 1.3;
+/** A critter this close to someone carrying a roasted snack hopes for a bite (hearts). */
+export const CRITTER_NOTICE = 2.0;
+
+export type Vec3 = [number, number, number];
+
+/** Where the bulbs hang on a light string from a to b sagging `sag` in the middle: one every
+ *  ~0.38 along it (a parabola: the build script hangs the very same bulbs). */
+export function stringBulbs(a: Vec3, b: Vec3, sag: number): Vec3[] {
+  const n = Math.max(3, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) / 0.38));
+  return Array.from({ length: n }, (_, i) => {
+    const t = (i + 0.5) / n;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t - 4 * sag * t * (1 - t), a[2] + (b[2] - a[2]) * t] as Vec3;
+  });
+}
+
+/** The fence's posts along the front edge (as build_campfire.py spaces them). */
+export const FENCE_POSTS: number[] = (() => {
+  const f = L.fence;
+  const len = f.at - f.xFrom;
+  const n = Math.max(1, Math.round(len / f.post));
+  return Array.from({ length: n + 1 }, (_, k) => f.xFrom + (len * k) / n);
+})();
+
+/** Every string of lights: the ones slung between the tipi, the pole, the pines and the awning
+ *  (each its own node in campfire.glb, StringLight_01.., swaying about its two ends), then the
+ *  swags along the front fence (one node, StringLight_Fence, swaying as one). */
+export const LIGHT_STRINGS = L.strings.map((s, i) => ({ id: `StringLight_0${i + 1}`, a: s.a as Vec3, b: s.b as Vec3, sag: s.sag }));
+export const FENCE_SWAGS = (() => {
+  const { y, sag, every } = L.fenceLights;
+  const out: { a: Vec3; b: Vec3; sag: number }[] = [];
+  for (let k = 0; k + every < FENCE_POSTS.length; k += every) out.push({ a: [FENCE_POSTS[k], y, L.fence.at], b: [FENCE_POSTS[k + every], y, L.fence.at], sag });
+  return out;
+})();
+
+/** The ducks' lazy ovals on the river, each centred mid-stream at its z. */
+export const DUCK_PATHS = L.ducks.map((d) => {
+  const span = riverSpan(d.z) ?? { x0: 7, x1: 8 };
+  return { cx: (span.x0 + span.x1) / 2, cz: d.z, rx: d.rx, rz: d.rz, speed: d.speed };
+});
+
+/** The camper van's awning: its canvas runs out from the van's front (camera) side to two poles. */
+export const AWNING_POLES: Pt[] = (() => {
+  const zFront = L.van.z + L.van.w / 2 + L.van.awning;
+  return [
+    { x: L.van.x - 0.85, z: zFront },
+    { x: L.van.x + 1.25, z: zFront },
+  ];
+})();
+
+/** The dock's pilings standing in the river (foam rings round them). */
+export const DOCK_PILINGS: Pt[] = [...L.lanterns, { x: L.dock.x1 - 0.08, z: (L.dock.z0 + L.dock.z1) / 2 - 0.62 }, { x: L.dock.x1 - 0.08, z: (L.dock.z0 + L.dock.z1) / 2 + 0.62 }];
+
+/** The foraging spots under the pines: spotted red mushrooms and glowing night berries. */
+export const FORAGE_SPOTS = L.forage.map((f, i) => {
+  const toFire = unit(L.fire.x - f.x, L.fire.z - f.z);
+  return { propId: `forage_0${i + 1}`, kind: f.kind as "mushroom" | "berries", x: f.x, z: f.z, approachX: f.x + toFire.x * 0.8, approachZ: f.z + toFire.z * 0.8 };
+});
+
 /** The way the tipi opens: toward the fire (and so toward the camera). */
 export const TENT_OPENS = unit(L.fire.x - L.tent.x, L.fire.z - L.tent.z);
 /** The hammock hangs from pine a to pine b (across the screen, so neither pine hides it): its
@@ -246,6 +340,12 @@ export const CAMP_PROPS: PropSpec[] = [
   { propId: "bonfire", x: L.fire.x, z: L.fire.z, kind: "bonfire", color: "#ff8c32", defaultOn: true, approachX: L.fire.x, approachZ: L.fire.z + 1.35 },
   // the dock's fishing spots, side by side along its river edge: cast a line from each
   ...FISHING_SPOTS.map((s): PropSpec => ({ propId: s.propId, x: s.stand.x + 0.25, z: s.stand.z, kind: "fishing", color: "#7fb7d6", defaultOn: true, approachX: s.stand.x, approachZ: s.stand.z })),
+  // the brass telescope by the front fence: look up and catch shooting stars
+  { propId: "telescope", x: L.telescope.x, z: L.telescope.z, kind: "telescope", color: "#d9a441", defaultOn: true, approachX: L.telescope.x, approachZ: L.telescope.z - 0.85 },
+  // the chopping block by the woodpile: split a log to feed the fire
+  { propId: "woodchop", x: L.chop.x, z: L.chop.z, kind: "woodchop", color: "#c98b4f", defaultOn: true, approachX: L.chop.x, approachZ: L.chop.z + 0.9 },
+  // mushrooms and berries under the pines; `on` while there is something to pick
+  ...FORAGE_SPOTS.map((f): PropSpec => ({ propId: f.propId, x: f.x, z: f.z, kind: "foraging", color: f.kind === "berries" ? "#8f7bff" : "#d9483b", defaultOn: true, approachX: f.approachX, approachZ: f.approachZ })),
 ];
 
 // --- what you walk round ----------------------------------------------------------------------
@@ -309,6 +409,16 @@ export const CAMP_OBSTACLES: AABB[] = [
   // the pines' trunks and the boulders
   ...L.trees.map((t) => around(t, 0.42 * Math.max(0.8, t.s))),
   ...L.rocks.map((r) => around(r, 0.45 * r.s)),
+  // the picnic table, its benches and the cooler at its end; the telescope's tripod
+  { minX: L.picnic.x - 0.92, maxX: L.picnic.x + 1.5, minZ: L.picnic.z - 0.78, maxZ: L.picnic.z + 0.78 },
+  around(L.telescope, 0.3),
+  // the camper van, its awning's two front poles and the camp chair under it, the critter
+  { minX: L.van.x - L.van.len / 2 - 0.05, maxX: L.van.x + L.van.len / 2 + 0.05, minZ: L.van.z - L.van.w / 2 - 0.05, maxZ: L.van.z + L.van.w / 2 + 0.05 },
+  ...AWNING_POLES.map((p) => around(p, 0.08)),
+  around(L.campChair, 0.3),
+  around(L.critter, 0.22),
+  // the pole the lights are strung from
+  around(L.stringPole, 0.1),
 ];
 
 export const CAMP_SPAWNS: Pt[] = L.spawns;

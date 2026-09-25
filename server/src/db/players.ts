@@ -1,5 +1,11 @@
 import { Pool } from "pg";
-import { DEFAULT_STATS, STARTER_UNLOCKS, STARTING_COINS, type DailyChecklist, type PlayerStats } from "../../../shared/types";
+import { CAMPFIRE_DAILY_COINS, DEFAULT_STATS, STARTER_UNLOCKS, STARTING_COINS, type CampfireCoinKind, type DailyChecklist, type PlayerStats } from "../../../shared/types";
+
+/** The campfire coins earned on `day`, by activity. */
+export type CampfireCoins = { day: string } & Record<CampfireCoinKind, number>;
+export function emptyCampfireCoins(day: string): CampfireCoins {
+  return { day, fish: 0, roast: 0, star: 0, chop: 0, forage: 0 };
+}
 
 // Player persistence: Railway PostgreSQL when DATABASE_URL is set, an in-memory store when it
 // is not (local dev, offline tests). Both speak the same interface, so the room never knows
@@ -20,8 +26,8 @@ export interface PlayerRecord {
   mochiCoinsDay: string;
   /** The lounge plants watered, and the day they were (stats JSON "plants_watered"). */
   plantsWatered: { day: string; ids: string[] };
-  /** Coins earned at the campfire today, by fishing and by roasting (stats JSON "campfire_coins"): capped daily. */
-  campfireCoins: { day: string; fish: number; roast: number };
+  /** Coins earned at the campfire today, by activity (stats JSON "campfire_coins"): each capped daily. */
+  campfireCoins: CampfireCoins;
   lastDailyClaim: Date | null;
 }
 
@@ -39,7 +45,7 @@ export interface PlayerStore {
 }
 
 export function newPlayerRecord(discordId: string, username: string): PlayerRecord {
-  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: { day: "", fish: 0, roast: 0 }, lastDailyClaim: null };
+  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: emptyCampfireCoins(""), lastDailyClaim: null };
 }
 
 const SCHEMA_SQL = `
@@ -66,8 +72,9 @@ function rowToRecord(row: any): PlayerRecord {
   delete raw.daily;
   delete raw.mochi_coins_day;
   delete raw.plants_watered;
-  const cc = raw.campfire_coins as { day?: unknown; fish?: unknown; roast?: unknown } | undefined;
-  const campfireCoins = { day: typeof cc?.day === "string" ? cc.day : "", fish: Number(cc?.fish) || 0, roast: Number(cc?.roast) || 0 };
+  const cc = raw.campfire_coins as Record<string, unknown> | undefined;
+  const campfireCoins = emptyCampfireCoins(typeof cc?.day === "string" ? cc.day : "");
+  for (const kind of Object.keys(CAMPFIRE_DAILY_COINS) as CampfireCoinKind[]) campfireCoins[kind] = Number(cc?.[kind]) || 0;
   delete raw.campfire_coins;
   return {
     discordId: row.discord_id,

@@ -222,6 +222,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         const float = bobberFor(p, "campfire_night");
         if (float) faceToward(p.sessionId, float.x, float.z, 0.6);
         else if (p.action === "grill") faceToward(p.sessionId, CAMPFIRE_LAYOUT.fire.x, CAMPFIRE_LAYOUT.fire.z, 0.6);
+        else if (p.action === "stargaze") faceToward(p.sessionId, CAMPFIRE_LAYOUT.telescope.x, CAMPFIRE_LAYOUT.telescope.z, 0.6);
+        else if (p.action === "chop") faceToward(p.sessionId, CAMPFIRE_LAYOUT.chop.x, CAMPFIRE_LAYOUT.chop.z, 0.6);
       }
     }, 250);
     return () => window.clearInterval(timer);
@@ -344,7 +346,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   return (
     <TimeOfDayContext.Provider value={hour}>
       <SceneLighting timeOfDay={hour} starlit={starlit} />
-      {mapId === "cozy_lounge" ? <LoungeWorld onFloorClick={onFloorClick} /> : mapId === "campfire_night" ? <CampfireWorld onFloorClick={onFloorClick} /> : <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />}
+      {mapId === "cozy_lounge" ? <LoungeWorld onFloorClick={onFloorClick} /> : mapId === "campfire_night" ? <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} /> : <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />}
 
       {Object.values(chairs).map((chair) => (
         // a seat you lie in (the hammock, the tent) is placed by where your feet go: its pad sits
@@ -370,6 +372,12 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={prop} size={[1.4, 1.2, 1.4]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "fishing" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.9, 0.5, 1.1]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "telescope" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.8, 1.4, 0.8]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "woodchop" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.7, 0.8, 0.7]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "foraging" ? (
+          prop.on ? <PropPad key={prop.propId} prop={prop} size={[0.8, 0.6, 0.8]} onUse={() => activate(prop.propId)} /> : null
         ) : prop.kind === "plant" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.75, 1.4, 0.75]} onUse={() => activate(prop.propId)} />
         ) : null

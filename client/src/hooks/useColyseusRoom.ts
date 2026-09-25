@@ -69,6 +69,12 @@ const RELAYED_MESSAGES = [
   "roastResult",
   "fishCaught",
   "campfireNotice",
+  // the telescope, the chopping block and foraging
+  "shootingStar",
+  "starCaught",
+  "chopStart",
+  "chopResult",
+  "forageResult",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;

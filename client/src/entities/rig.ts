@@ -38,6 +38,8 @@ export const AVATAR_NODES = {
   mugDrink: "MugDrink",
   /** A watering can in the right hand, pivot at the hand, hidden: shown while watering a plant (kept upright, tipped to pour). */
   wateringCan: "WateringCan",
+  /** A camp hatchet in the right hand, pivot at the hand, blade on the underside: shown while chopping firewood. */
+  hatchet: "Hatchet",
   /** A roasting stick in the right hand, pivot at the hand, pointing forward; its food pieces are
    *  SkewerMallow_1..2 / SkewerBBQ_1..4 (tip first), tinted by Mat_Roast / Mat_RoastVeg. */
   skewer: "Skewer",

@@ -126,3 +126,14 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
   .cozy-bite-mark, .cozy-guitar-note { animation: none; }
   .cozy-guitar-note { opacity: 0.8; }
 }
+
+/* the campfire's raccoon, begging at a roasted snack: hearts floating up over it */
+.cozy-critter-hearts { position: relative; width: 40px; height: 44px; pointer-events: none; }
+.cozy-critter-hearts span { position: absolute; left: 50%; bottom: 0; font-size: 14px; opacity: 0; animation: cozy-heart-rise 2.1s ease-out infinite; }
+.cozy-critter-hearts span:nth-child(2) { animation-delay: 0.7s; margin-left: -10px; font-size: 11px; }
+.cozy-critter-hearts span:nth-child(3) { animation-delay: 1.4s; margin-left: 6px; font-size: 12px; }
+@keyframes cozy-heart-rise {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -36px) scale(1.1); }
+}

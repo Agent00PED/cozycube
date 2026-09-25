@@ -3,7 +3,7 @@
 export type SitPose = "sit" | "lie";
 export type HeldItem = "" | "coffee" | "marshmallow" | "skewer";
 /** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is a boxing knockdown. */
-export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar";
+export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar" | "stargaze" | "chop";
 
 export interface PlayerState {
   sessionId: string;
@@ -220,7 +220,10 @@ export type ToggleableKind =
   | "radio"
   | "plant"
   | "bonfire"
-  | "fishing";
+  | "fishing"
+  | "telescope"
+  | "woodchop"
+  | "foraging";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -277,12 +280,12 @@ export const SYSTEM_EMOJI = ["🥂", "💤", "💃", "🪙", "💰", "🎰", "�
  * on its own when something happens (SERVER_GESTURES): watering a plant, reaching over the board
  * to make a move.
  */
-export const GESTURES = ["wave", "dance", "cheers", "nap", "water", "reach"] as const;
+export const GESTURES = ["wave", "dance", "cheers", "nap", "water", "reach", "chop"] as const;
 export type Gesture = (typeof GESTURES)[number];
-export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 2.2, dance: 5, cheers: 2.4, nap: 7, water: 1.8, reach: 0.8 };
-export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", water: "💧", reach: "♟️" };
+export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 2.2, dance: 5, cheers: 2.4, nap: 7, water: 1.8, reach: 0.8, chop: 0.7 };
+export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", water: "💧", reach: "♟️", chop: "🪓" };
 /** Gestures only the server starts (a client asking for one is ignored). */
-export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach"]);
+export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop"]);
 export function isGesture(v: unknown): v is Gesture {
   return typeof v === "string" && (GESTURES as readonly string[]).includes(v);
 }
@@ -943,7 +946,10 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "radio" ||
     kind === "plant" ||
     kind === "bonfire" ||
-    kind === "fishing"
+    kind === "fishing" ||
+    kind === "telescope" ||
+    kind === "woodchop" ||
+    kind === "foraging"
   );
 }
 
@@ -1082,7 +1088,65 @@ export interface FishCaught {
 export const STARLIGHT_BITE_S = 1.0;
 /** Seconds between casting (or a catch) and the next bite. */
 export const STARLIGHT_BITE_DELAY_S = { min: 3, max: 6 };
-/** Campfire coins a player can earn in a day (catches and golden roasts still happen past it, unpaid). */
-export const CAMPFIRE_DAILY_COINS = { fish: 250, roast: 60 };
+/** Campfire coins a player can earn in a day, by activity (it all still happens past a cap, unpaid). */
+export const CAMPFIRE_DAILY_COINS = { fish: 250, roast: 60, star: 100, chop: 60, forage: 60 };
+export type CampfireCoinKind = keyof typeof CAMPFIRE_DAILY_COINS;
 
-export type CampfirePacket = { type: "ROAST_START"; food: RoastFood } | { type: "ROAST_STOP" } | { type: "GUITAR"; playing: boolean };
+// --- the Campfire's telescope, chopping block and foraging ----------------------------------------
+
+/** A shooting star caught in the telescope pays this. */
+export const STAR_SPARK_COINS = 10;
+/** A shooting star, as the server sends one to a stargazer: it crosses the lens from (x0, y0) to
+ *  (x1, y1) (fractions of the lens, 0..1) over `duration` seconds; tap it on the way to catch it. */
+export interface ShootingStar {
+  id: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  duration: number;
+}
+export interface StarCaught {
+  sessionId: string;
+  coins: number;
+  capped: boolean;
+}
+/** A clean split pays this, and feeds the bonfire for BONFIRE_FUEL_SECONDS. */
+export const CHOP_CLEAN_COINS = 5;
+export const BONFIRE_FUEL_SECONDS = 60;
+/** The chop, as the server sets it: the marker runs the meter once over `duration` seconds;
+ *  tapping between zoneFrom and zoneTo (fractions of the run) splits the log clean. */
+export interface ChopStart {
+  duration: number;
+  zoneFrom: number;
+  zoneTo: number;
+}
+export interface ChopResult {
+  sessionId: string;
+  clean: boolean;
+  coins: number;
+  capped: boolean;
+}
+/** Picking a patch of mushrooms or a bush of night berries pays this; it grows back after FORAGE_REGROW_CAMP_S. */
+export const FORAGE_COINS = 5;
+export const FORAGE_REGROW_CAMP_S = 180;
+export type ForageKind = "mushroom" | "berries";
+export const FORAGE_INFO: Record<ForageKind, { name: string; emoji: string }> = {
+  mushroom: { name: "Spotted Red Mushrooms", emoji: "🍄" },
+  berries: { name: "Glowing Night Berries", emoji: "🫐" },
+};
+export interface ForageResult {
+  sessionId: string;
+  kind: ForageKind;
+  coins: number;
+  capped: boolean;
+}
+
+export type CampfirePacket =
+  | { type: "ROAST_START"; food: RoastFood }
+  | { type: "ROAST_STOP" }
+  | { type: "GUITAR"; playing: boolean }
+  | { type: "STARGAZE"; on: boolean }
+  | { type: "STAR_CATCH"; id: number }
+  | { type: "CHOP_START" }
+  | { type: "CHOP_STOP" };

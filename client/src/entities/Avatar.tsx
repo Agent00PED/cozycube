@@ -141,6 +141,11 @@ const RIPPLE_MAT = new THREE.MeshBasicMaterial({ color: "#dff3ff" });
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
 const FISH_ARM = -1.0;
+// the chopping block: the hatchet held up overhead while the meter runs, then brought down
+const CHOP_RAISE_ARM = -2.75;
+const CHOP_DOWN_ARM = -0.55;
+// the telescope: both hands up to the eyepiece
+const STARGAZE_ARM = -1.35;
 // casting into the river: the rod swings up and back, then over and out (CAST_SECONDS)
 const CAST_BACK_ARM = -2.5;
 const CAST_SECONDS = 0.7;
@@ -273,6 +278,7 @@ function useRig(): Rig {
     if (Math.abs(hipY - AVATAR_HIP_Y) > 1e-3) console.warn(`[models] avatar.glb hips at ${hipY.toFixed(3)}, seats expect ${AVATAR_HIP_Y}`);
     part.mug.visible = false;
     part.wateringCan.visible = false;
+    part.hatchet.visible = false;
     part.eyesHappy.visible = false;
     for (const key of ["skewer", "fishingRod", "guitar", "bobber"] as const) part[key].visible = false;
     const pieces = (prefix: string) => [...variants(part.skewer, prefix).entries()].sort(([a], [b]) => Number(a) - Number(b)).map(([, node]) => node);
@@ -476,6 +482,19 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     if (action === "fish" && castAge < CAST_SECONDS) armR = THREE.MathUtils.lerp(CAST_BACK_ARM, FISH_ARM, THREE.MathUtils.smoothstep(castAge / CAST_SECONDS, 0.25, 1));
     const bite = action === "fish" && actionProgress >= 1;
     if (bite) armR = FISH_ARM - 0.12 + Math.sin(t * 22) * 0.05;
+    // the chopping block: raised overhead, then (the server's "chop" gesture) swung down through the log
+    if (action === "chop") {
+      armR = CHOP_RAISE_ARM + Math.sin(t * 3.1) * 0.05;
+      armL = -0.5;
+    }
+    if (g === "chop") {
+      const down = THREE.MathUtils.smoothstep(gAge / 0.18, 0, 1);
+      const back = THREE.MathUtils.smoothstep((gAge - 0.4) / 0.3, 0, 1);
+      armR = THREE.MathUtils.lerp(THREE.MathUtils.lerp(CHOP_RAISE_ARM, CHOP_DOWN_ARM, down), 0, back);
+      armL = -0.5 * (1 - back);
+    }
+    // the telescope: hands up to the eyepiece, and a slow sway as the sky is searched
+    if (action === "stargaze") armL = armR = STARGAZE_ARM + Math.sin(t * 0.7 + seed) * 0.03;
     if (action === "reel") {
       armR = FISH_ARM - 0.3 + Math.sin(t * 9) * 0.18;
       armL = FISH_ARM - 0.1 + Math.sin(t * 9 + 1) * 0.12;
@@ -596,6 +615,7 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     part.mug.visible = mugShown;
     part.mug.rotation.x = -part.armR.rotation.x;
     part.wateringCan.visible = g === "water";
+    part.hatchet.visible = action === "chop" || g === "chop";
     part.wateringCan.rotation.x = -part.armR.rotation.x + pour * WATER_POUR;
     rig.steam.forEach((wisp, i) => {
       wisp.visible = mugShown;

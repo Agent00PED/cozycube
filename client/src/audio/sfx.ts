@@ -3,6 +3,8 @@
 // AudioContext, made on first use. Browsers keep it silent until the page has had a tap or a key;
 // by the time these play, the player has clicked their way to the fire or the dock.
 
+import { getSoundSettings } from "./soundSettings";
+
 let ctx: AudioContext | null = null;
 
 function audio(): AudioContext | null {
@@ -44,9 +46,10 @@ function noise(c: AudioContext, at: number, length: number, gain: number, cutoff
   src.onended = () => (src.disconnect(), filter.disconnect(), g.disconnect());
 }
 
-export type Sfx = "bite" | "catch" | "golden" | "burnt";
+export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck";
 
 export function playSfx(kind: Sfx) {
+  if (!getSoundSettings().effects) return;
   const c = audio();
   if (!c) return;
   const t = c.currentTime + 0.01;
@@ -59,6 +62,22 @@ export function playSfx(kind: Sfx) {
     [660, 880, 1320].forEach((f, i) => tone(c, t + i * 0.08, f, f * 1.01, 0.35, 0.12, "triangle"));
   } else if (kind === "golden") {
     [880, 1175].forEach((f, i) => tone(c, t + i * 0.1, f, f, 0.45, 0.12, "sine"));
+  } else if (kind === "star") {
+    // a star spark: a cozy little music-box chime, up an arpeggio with a shimmer on top
+    [1047, 1319, 1568, 2093].forEach((f, i) => tone(c, t + i * 0.07, f, f, 0.6 - i * 0.08, 0.09, "sine"));
+    noise(c, t + 0.2, 0.35, 0.03, 7000);
+  } else if (kind === "chop") {
+    // a clean split: a crisp crack and a woody knock
+    noise(c, t, 0.09, 0.35, 2600);
+    tone(c, t, 240, 110, 0.18, 0.2, "triangle");
+  } else if (kind === "thunk") {
+    // a glancing blow: a dull thud
+    tone(c, t, 130, 70, 0.22, 0.2, "sine");
+    noise(c, t, 0.06, 0.12, 900);
+  } else if (kind === "pluck") {
+    // picking: a soft snap and a bright blip
+    noise(c, t, 0.05, 0.12, 3500);
+    tone(c, t + 0.03, 880, 1320, 0.14, 0.08, "triangle");
   } else {
     // charcoal: a hiss and a low thump
     noise(c, t, 0.4, 0.2, 3200);

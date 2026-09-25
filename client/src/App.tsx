@@ -31,8 +31,11 @@ import { KitchenModal } from "./components/hud/KitchenModal";
 import { RadioModal } from "./components/hud/RadioModal";
 import { useRadio } from "./hooks/useRadio";
 import { RoastingModal } from "./components/hud/RoastingModal";
+import { StargazingModal } from "./components/hud/StargazingModal";
+import { WoodChopModal } from "./components/hud/WoodChopModal";
+import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
-import { STARLIGHT_CATCHES, type FishCaught, type RoastResult } from "@shared/types";
+import { FORAGE_INFO, STARLIGHT_CATCHES, type FishCaught, type ForageResult, type RoastResult } from "@shared/types";
 import { BoxingHud } from "./components/hud/BoxingHud";
 import { installKeyboard, isTouchDevice } from "./systems/input";
 import {
@@ -272,6 +275,8 @@ export default function App() {
 
   // --- one-shot server messages: results, openings, welcomes ---
   const localIdRef = useRef(localSessionId);
+  // the world's ambient soundscape (the campfire's), faded in and out with the world
+  useWorldAmbience(currentMap);
   // which panel is open, for the message handler below (a roast's result shows in its own panel)
   const panelKindRef = useRef<string | undefined>(undefined);
   panelKindRef.current = panel?.kind;
@@ -333,6 +338,13 @@ export default function App() {
         } else if (type === "plantWatered") {
           const w = payload as { sessionId: string; coins: number };
           if (w.sessionId === localIdRef.current) pushToast(`The plant drinks it up! +${w.coins} coins`, { emoji: "🪴", tone: "coin" });
+        } else if (type === "forageResult") {
+          const f = payload as ForageResult;
+          if (f.sessionId === localIdRef.current) {
+            playSfx("pluck");
+            const info = FORAGE_INFO[f.kind];
+            pushToast(f.coins > 0 ? `${info.name}! +${f.coins} coins` : `${info.name}! (today's foraging coins are all earned)`, { emoji: info.emoji, tone: f.coins > 0 ? "coin" : undefined });
+          }
         } else if (type === "campfireNotice") {
           // the campfire said no, kindly (a taken fishing spot, the hour it keeps)
           const n = payload as { message?: string; emoji?: string };
@@ -603,6 +615,8 @@ export default function App() {
         {panel?.kind === "kitchen" && <KitchenModal send={kitchenSend} onClose={closePanel} />}
         {panel?.kind === "radio" && <RadioModal radio={radio} send={radioSend} onClose={closePanel} />}
         {panel?.kind === "roast" && localSessionId && <RoastingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
+        {panel?.kind === "stargaze" && localSessionId && <StargazingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
+        {panel?.kind === "woodchop" && localSessionId && <WoodChopModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
 

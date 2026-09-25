@@ -47,6 +47,8 @@ runtime's swings are clean rotations about local axes (client/src/entities/rig.t
           Skewer         a roasting stick held out of the right hand (Mat_Roast / Mat_RoastVeg are
             SkewerMallow_1..2 / SkewerBBQ_1..4   tinted raw, golden or charred): two marshmallows
                          or a BBQ skewer's meat and peppers, one node a piece so bites take them
+          Hatchet        a small camp hatchet out of the right hand, its blade on the underside,
+                         hidden until she chops firewood at the campfire
           FishingRod     a bamboo pole out of the right hand, raised forward
             RodTip       an empty at its tip: the runtime runs the line from here to the Bobber
         Guitar           an acoustic guitar resting across the lap (a child of Body), hidden until
@@ -119,7 +121,7 @@ BOTTOM_IDS = ("sweats", "overalls", "trousers", "shorts", "wide")
 TOP_PARTS = (("", "Torso"), ("_SleeveL", "ArmL"), ("_SleeveR", "ArmR"))  # (name suffix, parent)
 BOTTOM_PARTS = (("", "Body"), ("_LegL", "LegL"), ("_LegR", "LegR"))
 NODE_NAMES = (
-    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "LegL", "LegR")
+    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "LegL", "LegR")
     + tuple(f"SkewerMallow_{i}" for i in (1, 2))
     + tuple(f"SkewerBBQ_{i}" for i in (1, 2, 3, 4))
     + tuple(f"MugTop_{t}" for t in MUG_TOPPINGS)
@@ -154,6 +156,7 @@ PALETTE = {
     "Mat_Can": "#8EC5B8",  # the watering can: a soft mint enamel
     "Mat_CanRose": "#E3B861",  # its brass rose
     "Mat_Stick": "#C9A273",  # a green-wood roasting stick
+    "Mat_Steel": "#A7AEB5",  # the hatchet's head
     "Mat_Roast": "#FFF4E2",  # the marshmallows / the meat: tinted raw, golden or charred by the runtime
     "Mat_RoastVeg": "#6FAE4B",  # the skewer's peppers: tinted too
     "Mat_Bamboo": "#C2AA62",
@@ -2459,6 +2462,13 @@ def build(hip_y, leg_r, hip_off, covering):
         add_shaped(bm, 5, ellipsoid(hand + fwd * d, half, n=3.0 if veg else 2.6))
         make_object(f"SkewerBBQ_{i + 1}", bm, hand, coll, skewer, hand, (mat["Mat_RoastVeg" if veg else "Mat_Roast"],))
 
+    # Hatchet: a short handle straight out of the fist, the head at its end with the blade on the
+    # underside (raised overhead and brought down, the blade leads)
+    bm = bmesh.new()
+    tube(bm, [hand + Vector((0, 0.04, 0)) + fwd * 0.34 * i / 6 for i in range(7)], lambda s_: 0.014 - 0.002 * s_, sides=8, cap_rings=2)
+    add_shaped(bm, 6, ellipsoid(hand + fwd * 0.29 + Vector((0, 0, -0.035)), Vector((0.014, 0.04, 0.055)), n=3.2), material=1)
+    make_object("Hatchet", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Stick"], mat["Mat_Steel"]))
+
     # FishingRod: a bamboo pole raised forward from the fist, ringed at its nodes, an empty at its tip
     up_fwd = Vector((0, -math.cos(math.radians(35)), math.sin(math.radians(35))))
     rod_len = 1.05
@@ -2557,7 +2567,7 @@ def is_variant(ob):
     name = ob.name[len(PREFIX) :]
     kind, _, rest = name.partition("_")
     default = {"Hair": DEFAULT_HAIR, "Top": DEFAULT_TOP, "Bottom": DEFAULT_BOTTOM}.get(kind)
-    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber"))
+    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet"))
 
 
 def tidy_viewport(coll):

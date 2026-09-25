@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, msUntilNextDay, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
-import { BONFIRE_REACH, CAMP_SEAT_LABELS, FISHING_REACH, nearestFishingSpot } from "@shared/worlds/campfire";
+import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, nearestFishingSpot } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { pushToast } from "./toastStore";
@@ -22,6 +22,9 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🍡 Roast & Grill]  within BONFIRE_REACH of the campfire, or sitting on a log bench round it
 //   [🎣 Go Fishing]  at the dock: the nearest of its fishing spots nobody else is fishing from
 //   [🎸 Play Guitar] / [⏹ Stop Guitar]  sitting on a log bench
+//   [🔭 Stargaze]    at the brass telescope by the front fence
+//   [🪓 Chop Firewood]  at the chopping block by the woodpile
+//   [🍄 Forage] / [🫐 Forage]  at a patch under the pines with something to pick
 //   [🧍 Stand up · Space]  while you are sitting, always (a panel closed, a reconnect: never stuck);
 //                    Space or any movement key does the same
 //
@@ -30,7 +33,7 @@ import { glass, hudText, pillButton } from "./glass";
 
 interface Action {
   key: string;
-  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fish" | "guitar" | "stand";
+  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
   hint?: string;
@@ -101,6 +104,30 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         if (spot) {
           const id = spot.id;
           found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: "Cast into the river; tap when the bobber dips", run: () => interactBridge.current?.useProp(id) });
+        }
+      }
+      // the telescope, the chopping block and the foraging patches: walk up to them
+      if (!sitting && action === "") {
+        const tele = Object.values(toggleables).find((p) => p.kind === "telescope");
+        if (tele && reach(tele) <= STARGAZE_REACH + 0.3) {
+          const id = tele.propId;
+          found.push({ key: `gaze:${id}`, type: "stargaze", label: "🔭 Stargaze", hint: "Look through the telescope: tap shooting stars for +10 coins", run: () => interactBridge.current?.useProp(id) });
+        }
+        const block = Object.values(toggleables).find((p) => p.kind === "woodchop");
+        if (block && reach(block) <= CHOP_REACH + 0.3) {
+          const id = block.propId;
+          found.push({ key: `chop:${id}`, type: "chop", label: "🪓 Chop Firewood", hint: "Split a log in the sweet spot: +5 coins, and the fire roars up", run: () => interactBridge.current?.useProp(id) });
+        }
+        let patch: { id: string; d: number } | null = null;
+        for (const p of Object.values(toggleables)) {
+          if (p.kind !== "foraging" || !p.on) continue;
+          const d = reach(p);
+          if (d <= FORAGE_REACH + 0.3 && (!patch || d < patch.d)) patch = { id: p.propId, d };
+        }
+        if (patch) {
+          const id = patch.id;
+          const berries = FORAGE_SPOTS.find((f) => f.propId === id)?.kind === "berries";
+          found.push({ key: `forage:${id}`, type: "forage", label: berries ? "🫐 Forage" : "🍄 Forage", hint: berries ? "Pick the glowing night berries: +5 coins" : "Pick the spotted red mushrooms: +5 coins", run: () => interactBridge.current?.useProp(id) });
         }
       }
       if (onLog) {
