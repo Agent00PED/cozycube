@@ -7,6 +7,8 @@ import { clampToWorld, isBlocked } from "@shared/collision";
 import { findPath, type Point } from "@shared/pathfinding";
 import { cameraFocus } from "../scene/cameraFocus";
 import { worldMoveDirection } from "./input";
+import { liveMotion } from "./liveMotion";
+import { Reconciler } from "./reconcile";
 
 // The local player's locomotion. Three inputs, one controller:
 //   - click-to-move: the scene sets `targetRef` from a floor raycast, and the shared pathfinder
@@ -16,7 +18,9 @@ import { worldMoveDirection } from "./input";
 //
 // The CLIENT is the authority on where you are: every step is collided here with the SAME test
 // the server runs (shared/collision.ts), inside the strict floor bounds (NAV_LIMIT), and the
-// server only validates and relays the reports.
+// server only validates and relays the reports. Reports go out at a fixed 16 Hz, numbered; the
+// server echoes the number it applied, and reconcile.ts compares each echo with what was reported
+// under that number, so latency is never mistaken for an error (the old rubberbanding).
 
 const MOVE_SPEED = 3; // units/sec; the server's MOVE_SPEED_PER_SEC must match
 const ACCELERATION = 14;
@@ -26,13 +30,13 @@ const WAYPOINT_THRESHOLD = 0.2;
 const TURN_LERP = 0.22;
 const SEAT_HEIGHT_LERP = 0.2;
 const SIT_CONFIRM_TIMEOUT = 1.5;
-const MAX_FRAME_DELTA = 0.1; // a backgrounded tab must not integrate seconds in one step
+// a frame hitch or a backgrounded tab must not integrate one giant step (a slow frame walks a
+// little slower instead of leaping, and never trips the server's speed check)
+const MAX_FRAME_DELTA = 0.05;
+// reports go out at this fixed rate (16 Hz) while moving or when the direction changed, never
+// faster: a turn waits for the next slot instead of adding a packet
 const SEND_INTERVAL = 1 / 16;
 const DIR_CHANGE_EPSILON = 0.2;
-// server reconciliation: small differences are ignored, real corrections glide, teleports snap
-const CORRECTION_THRESHOLD = 0.9;
-const TELEPORT_THRESHOLD = 4;
-const CORRECTION_BLEND = 0.25;
 const COLLIDE_SUBSTEP = 0.12; // long steps are split so a corner can't be skipped
 const PLAYER_RADIUS = 0.3;
 
@@ -83,36 +87,20 @@ export function useLocalPlayerMovement(
   const facingRef = useRef(0);
   const sendTimerRef = useRef(0);
   const lastSentDirRef = useRef({ x: 0, z: 0 });
-  const seqRef = useRef(0);
   const initializedRef = useRef(false);
   const sitWaitRef = useRef(0);
   const seatYRef = useRef(0);
   const standRequestedRef = useRef(false);
-  const correctionRef = useRef({ x: 0, z: 0, remaining: 0 });
+  const reconcilerRef = useRef(new Reconciler());
+  const seenVersionRef = useRef(0);
 
-  // reconcile with the server's view of us
+  // the first position is the server's
   useEffect(() => {
-    if (player.sitting) {
-      posRef.current = { x: player.x, z: player.z };
-      return;
-    }
-    if (!initializedRef.current) {
-      posRef.current = { x: player.x, z: player.z };
-      initializedRef.current = true;
-      return;
-    }
-    const dx = player.x - posRef.current.x;
-    const dz = player.z - posRef.current.z;
-    const drift = Math.hypot(dx, dz);
-    if (drift > TELEPORT_THRESHOLD) {
-      posRef.current = { x: player.x, z: player.z };
-      targetRef.current = null;
-      correctionRef.current.remaining = 0;
-    } else if (drift > CORRECTION_THRESHOLD) {
-      correctionRef.current = { x: dx, z: dz, remaining: CORRECTION_BLEND };
-    }
+    if (initializedRef.current) return;
+    posRef.current = { x: player.x, z: player.z };
+    initializedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player.x, player.z, player.sitting]);
+  }, []);
 
   // sitting down and standing up are server-authored teleports: adopt the server position
   const prevSittingRef = useRef(player.sitting);
@@ -121,7 +109,8 @@ export function useLocalPlayerMovement(
       prevSittingRef.current = player.sitting;
       posRef.current = { x: player.x, z: player.z };
       velocityRef.current = 0;
-      correctionRef.current.remaining = 0;
+      reconcilerRef.current.reset();
+      seenVersionRef.current = liveMotion.get(player.sessionId)?.version ?? 0;
       standRequestedRef.current = false;
       if (player.sitting) targetRef.current = null; // standing up must NOT clear a queued walk
       sitWaitRef.current = 0;
@@ -135,14 +124,25 @@ export function useLocalPlayerMovement(
     let dirX = 0;
     let dirZ = 0;
 
-    const correction = correctionRef.current;
-    if (correction.remaining > 0) {
-      const share = Math.min(1, delta / correction.remaining);
-      pos.x += correction.x * share;
-      pos.z += correction.z * share;
-      correction.x *= 1 - share;
-      correction.z *= 1 - share;
-      correction.remaining -= delta;
+    // reconcile with the server's copy of us: only a real error moves us, eased; a teleport snaps
+    const reconciler = reconcilerRef.current;
+    const live = liveMotion.get(player.sessionId);
+    if (player.sitting) {
+      pos.x = player.x; // seated, the server places us
+      pos.z = player.z;
+    } else {
+      if (live && live.version !== seenVersionRef.current) {
+        seenVersionRef.current = live.version;
+        const jump = reconciler.onServer(live.seq, live.x, live.z, pos);
+        if (jump) {
+          pos.x += jump.x;
+          pos.z += jump.z;
+          targetRef.current = null;
+        }
+      }
+      const ease = reconciler.step(delta);
+      pos.x += ease.x;
+      pos.z += ease.z;
     }
 
     const steer = worldMoveDirection();
@@ -216,14 +216,15 @@ export function useLocalPlayerMovement(
       }
 
       if (room) {
-        sendTimerRef.current += delta;
+        // real time, not the clamped delta: the cadence must hold even through slow frames
+        sendTimerRef.current += rawDelta;
         const last = lastSentDirRef.current;
         const dirChanged = Math.abs(dirX - last.x) > DIR_CHANGE_EPSILON || Math.abs(dirZ - last.z) > DIR_CHANGE_EPSILON;
         const moving = dirX !== 0 || dirZ !== 0;
-        if (dirChanged || (moving && sendTimerRef.current >= SEND_INTERVAL)) {
+        if ((dirChanged || moving) && sendTimerRef.current >= SEND_INTERVAL) {
           sendTimerRef.current = 0;
           lastSentDirRef.current = { x: dirX, z: dirZ };
-          room.send("move", { dirX, dirZ, x: pos.x, z: pos.z, seq: seqRef.current++ });
+          room.send("move", { dirX, dirZ, x: pos.x, z: pos.z, seq: reconciler.report(pos.x, pos.z) });
         }
       }
     }

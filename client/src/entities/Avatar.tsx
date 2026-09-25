@@ -130,6 +130,23 @@ function garments(parents: THREE.Object3D[], prefix: string) {
   return found;
 }
 
+/**
+ * Show or hide a wardrobe variant. A variant never moves relative to the part it hangs on, so its
+ * local matrices are baked once (bakeStatic); a hidden one also stops refreshing its world
+ * matrix, so the dozens of variants nobody is wearing cost nothing in the frame's scene update.
+ */
+function show(node: THREE.Object3D, on: boolean) {
+  node.visible = on;
+  node.matrixWorldAutoUpdate = on;
+}
+
+function bakeStatic(node: THREE.Object3D) {
+  node.traverse((o) => {
+    o.updateMatrix();
+    o.matrixAutoUpdate = false;
+  });
+}
+
 /** A fresh copy of the model, its parts found by name and its tinted materials made its own. */
 function useRig(): Rig {
   const { scene } = useGLTF(AVATAR_URL);
@@ -161,16 +178,17 @@ function useRig(): Rig {
     if (Math.abs(hipY - AVATAR_HIP_Y) > 1e-3) console.warn(`[models] avatar.glb hips at ${hipY.toFixed(3)}, seats expect ${AVATAR_HIP_Y}`);
     part.mug.visible = false;
     const limbs = [part.torso, part.body, part.armL, part.armR, part.legL, part.legR];
-    return {
-      root,
-      part,
-      rest,
-      tint,
+    const wardrobe = {
       hair: variants(part.head, AVATAR_VARIANT_PREFIX.hair),
       hats: variants(part.head, AVATAR_VARIANT_PREFIX.hat),
       tops: garments(limbs, AVATAR_VARIANT_PREFIX.top),
       bottoms: garments(limbs, AVATAR_VARIANT_PREFIX.bottom),
     };
+    wardrobe.hair.forEach(bakeStatic);
+    wardrobe.hats.forEach(bakeStatic);
+    wardrobe.tops.forEach((pieces) => pieces.forEach(bakeStatic));
+    wardrobe.bottoms.forEach((pieces) => pieces.forEach(bakeStatic));
+    return { root, part, rest, tint, ...wardrobe };
   }, [scene]);
   useEffect(() => () => Object.values(rig.tint).forEach((m) => m.dispose()), [rig]);
   return rig;
@@ -200,16 +218,16 @@ function AvatarModel({ look, pose, speedRef, holding, action, gesture, status, s
   // dress: the hair style, the hat, the outfit and the colours from the look
   useEffect(() => {
     const style = hairUnderHat(rig.hair.has(look.hairStyle) ? look.hairStyle : DEFAULT_HAIR, look.hat);
-    rig.hair.forEach((node, name) => (node.visible = name === style));
-    rig.hats.forEach((node, name) => (node.visible = name === look.hat));
+    rig.hair.forEach((node, name) => show(node, name === style));
+    rig.hats.forEach((node, name) => show(node, name === look.hat));
     // the top of whatever the head wears, measured in the model's own space
     rig.root.updateWorldMatrix(true, true);
     const toModel = rig.root.matrixWorld.clone().invert();
     const worn = [rig.hair.get(style), rig.hats.get(look.hat)].filter((o): o is THREE.Object3D => !!o);
     onCrownTop(Math.max(0, ...worn.map((o) => new THREE.Box3().setFromObject(o).applyMatrix4(toModel).max.y)));
     const outfit = OUTFIT_PARTS[look.outfit] ?? OUTFIT_PARTS.outfit_starter_hoodie;
-    rig.tops.forEach((pieces, id) => pieces.forEach((node) => (node.visible = id === outfit.top)));
-    rig.bottoms.forEach((pieces, id) => pieces.forEach((node) => (node.visible = id === outfit.bottom)));
+    rig.tops.forEach((pieces, id) => pieces.forEach((node) => show(node, id === outfit.top)));
+    rig.bottoms.forEach((pieces, id) => pieces.forEach((node) => show(node, id === outfit.bottom)));
     rig.tint.skin?.color.set(look.skin);
     rig.tint.accent?.color.set(look.outfitColor);
     rig.tint.hair?.color.set(look.hair);

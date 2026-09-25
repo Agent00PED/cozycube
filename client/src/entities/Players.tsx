@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type * as THREE from "three";
 import type { Gesture, MapId, PlayerState } from "@shared/types";
+import { liveMotion, type MotionSample } from "../systems/liveMotion";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
 import { Avatar, type FloatingEmote } from "./Avatar";
 
@@ -54,13 +55,39 @@ export function LocalPlayerAvatar({ player, room, mapId, targetRef, feed }: { pl
   return <Avatar ref={groupRef} speedRef={speedRef} {...avatarProps(player, feed)} />;
 }
 
-// Remote players are drawn where the server last said they were, eased toward it. Reports arrive
-// ~16 times a second; the ease turns those steps into a walk.
-const FOLLOW_RATE = 11; // 1/s
+// Remote players are drawn a little in the past, interpolated between the positions the server
+// relayed (liveMotion keeps them with their arrival times). Reports arrive ~16 times a second but
+// unevenly, bunched and gapped by the network; chasing each one made the walk surge and stall.
+// Rendering INTERP_DELAY_MS behind the newest sample puts two samples either side of the drawn
+// moment almost always, so the walk runs at an even speed. Starved of samples (a gap longer than
+// the delay), the player coasts on for a moment and then waits where they were last seen.
+const INTERP_DELAY_MS = 120;
+const MAX_COAST_MS = 100;
 const SNAP_DISTANCE = 4; // a bigger jump is a teleport (a map change, standing up): don't glide across the room
 const FULL_SPEED = 3; // units/s, the walking speed
 const HEIGHT_LERP = 0.2;
 const TURN_LERP = 0.22;
+
+/** Where the samples put a player at time `t` (performance.now ms). */
+function sampleAt(samples: MotionSample[], t: number): { x: number; z: number } {
+  const last = samples[samples.length - 1];
+  if (t >= last.t) {
+    const prev = samples[samples.length - 2];
+    if (!prev || last.t - prev.t <= 0) return last;
+    const ahead = Math.min(t - last.t, MAX_COAST_MS) / (last.t - prev.t);
+    return { x: last.x + (last.x - prev.x) * ahead, z: last.z + (last.z - prev.z) * ahead };
+  }
+  for (let i = samples.length - 1; i > 0; i--) {
+    const a = samples[i - 1];
+    const b = samples[i];
+    if (a.t <= t) {
+      if (Math.hypot(b.x - a.x, b.z - a.z) > SNAP_DISTANCE) return b; // a teleport: never glide across the room
+      const f = (t - a.t) / (b.t - a.t);
+      return { x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f };
+    }
+  }
+  return samples[0];
+}
 
 function turn(from: number, to: number, k: number): number {
   let d = (to - from) % (Math.PI * 2);
@@ -83,18 +110,19 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
     const p = latest.current;
     const d = drawn.current;
 
-    const dx = p.x - d.x;
-    const dz = p.z - d.z;
+    const live = liveMotion.get(p.sessionId);
+    const goal = live && !p.sitting ? sampleAt(live.samples, performance.now() - INTERP_DELAY_MS) : p;
+    const dx = goal.x - d.x;
+    const dz = goal.z - d.z;
     let moved = 0;
     if (!d.ready || Math.hypot(dx, dz) > SNAP_DISTANCE) {
-      d.x = p.x;
-      d.z = p.z;
+      d.x = goal.x;
+      d.z = goal.z;
       d.ready = true;
     } else {
-      const k = 1 - Math.exp(-FOLLOW_RATE * delta);
-      d.x += dx * k;
-      d.z += dz * k;
-      moved = Math.hypot(dx * k, dz * k);
+      d.x = goal.x;
+      d.z = goal.z;
+      moved = Math.hypot(dx, dz);
       if (!p.sitting && moved > 0.002) d.facing = turn(d.facing, Math.atan2(dx, dz), TURN_LERP);
     }
     // the gait is measured from what is actually drawn, so the feet match the ground

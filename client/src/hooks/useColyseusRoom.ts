@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
 import type { DiscordAuthInfo } from "./useDiscordAuth";
+import { liveMotion, recordMotion } from "../systems/liveMotion";
 import type {
   BallSyncState,
   BlackjackAction,
@@ -56,6 +57,15 @@ const RELAYED_MESSAGES = [
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
+/** Movement alone reaches React state at most this often (the frame loops read liveMotion). */
+const MOTION_FLUSH_MS = 200;
+const MOTION_KEYS: ReadonlySet<string> = new Set(["x", "z", "dirX", "dirZ"]);
+
+/** Whether two snapshots of a player differ in nothing but where they are and which way they walk. */
+function onlyMotionChanged(a: PlayerState, b: PlayerState): boolean {
+  for (const key of Object.keys(b) as (keyof PlayerState)[]) if (!MOTION_KEYS.has(key) && a[key] !== b[key]) return false;
+  return true;
+}
 
 export interface BallSnapshot extends BallSyncState {
   /** performance.now() when this snapshot arrived. */
@@ -218,51 +228,83 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       }, PING_EVERY_MS);
       room.onLeave(() => window.clearInterval(pingTimer));
 
+      // Motion goes to liveMotion on every patch, for the frame loops. React hears about a change
+      // at once only if something other than movement changed; movement alone is batched into at
+      // most MOTION_FLUSH_MS-spaced updates, so walking never re-renders the app 20 times a second.
+      const pendingMotion = new Map<string, PlayerState>();
+      let motionFlush: number | undefined;
+      const flushMotion = () => {
+        motionFlush = undefined;
+        if (pendingMotion.size === 0) return;
+        const batch = new Map(pendingMotion);
+        pendingMotion.clear();
+        setPlayers((prev) => {
+          const next = { ...prev };
+          batch.forEach((snapshot, id) => {
+            if (next[id]) next[id] = snapshot;
+          });
+          return next;
+        });
+      };
+      room.onLeave(() => window.clearTimeout(motionFlush));
+
       room.state.players.onAdd((player: any, sessionId: string) => {
+        let last: PlayerState | null = null;
         const sync = () => {
-          setPlayers((prev) => ({
-            ...prev,
-            [sessionId]: {
-              sessionId,
-              userId: player.userId,
-              username: player.username,
-              avatarUrl: player.avatarUrl,
-              x: player.x,
-              y: 0,
-              z: player.z,
-              dirX: player.dirX,
-              dirZ: player.dirZ,
-              color: player.color,
-              look: player.look,
-              sitting: player.sitting,
-              sitRotationY: player.sitRotationY,
-              sitY: player.sitY,
-              sitPose: player.sitPose as SitPose,
-              holding: player.holding as HeldItem,
-              action: player.action as PlayerAction,
-              actionProgress: player.actionProgress,
-              toast: player.toast,
-              speaking: player.speaking,
-              connected: player.connected,
-              coins: player.coins ?? 0,
-              bag: player.bag ?? "",
-              owned: player.owned ?? "",
-              status: player.status ?? "",
-              stats: player.stats ?? "",
-              ping: player.ping ?? 0,
-              gloves: !!player.gloves,
-              boxHits: player.boxHits ?? 0,
-              boxKOs: player.boxKOs ?? 0,
-              aura: player.aura ?? "",
-              daily: player.daily ?? "",
-            },
-          }));
+          recordMotion(sessionId, player.x, player.z, player.moveSeq ?? 0);
+          const snapshot: PlayerState = {
+            sessionId,
+            userId: player.userId,
+            username: player.username,
+            avatarUrl: player.avatarUrl,
+            x: player.x,
+            y: 0,
+            z: player.z,
+            dirX: player.dirX,
+            dirZ: player.dirZ,
+            color: player.color,
+            look: player.look,
+            sitting: player.sitting,
+            sitRotationY: player.sitRotationY,
+            sitY: player.sitY,
+            sitPose: player.sitPose as SitPose,
+            holding: player.holding as HeldItem,
+            action: player.action as PlayerAction,
+            actionProgress: player.actionProgress,
+            toast: player.toast,
+            speaking: player.speaking,
+            connected: player.connected,
+            coins: player.coins ?? 0,
+            bag: player.bag ?? "",
+            owned: player.owned ?? "",
+            status: player.status ?? "",
+            stats: player.stats ?? "",
+            ping: player.ping ?? 0,
+            gloves: !!player.gloves,
+            boxHits: player.boxHits ?? 0,
+            boxKOs: player.boxKOs ?? 0,
+            aura: player.aura ?? "",
+            daily: player.daily ?? "",
+          };
+          const prevSnapshot = last;
+          const motionOnly = prevSnapshot !== null && onlyMotionChanged(prevSnapshot, snapshot);
+          last = snapshot;
+          if (motionOnly) {
+            if (prevSnapshot && prevSnapshot.x === snapshot.x && prevSnapshot.z === snapshot.z && prevSnapshot.dirX === snapshot.dirX && prevSnapshot.dirZ === snapshot.dirZ) return; // only the echo number moved
+            pendingMotion.set(sessionId, snapshot);
+            motionFlush ??= window.setTimeout(flushMotion, MOTION_FLUSH_MS);
+            return;
+          }
+          pendingMotion.delete(sessionId);
+          setPlayers((prev) => ({ ...prev, [sessionId]: snapshot }));
         };
         player.onChange(sync);
         sync();
       });
 
       room.state.players.onRemove((_player: any, sessionId: string) => {
+        liveMotion.delete(sessionId);
+        pendingMotion.delete(sessionId);
         setPlayers((prev) => {
           const next = { ...prev };
           delete next[sessionId];

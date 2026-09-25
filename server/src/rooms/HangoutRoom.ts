@@ -131,6 +131,8 @@ class Player extends Schema {
   @type("number") z = 2;
   @type("number") dirX = 0;
   @type("number") dirZ = 0;
+  /** The number of the last movement report applied: the client reconciles against that report. */
+  @type("number") moveSeq = 0;
   @type("string") color = "#ffffff";
   @type("string") look = "";
   @type("boolean") sitting = false;
@@ -340,7 +342,7 @@ export class HangoutRoom extends Room<HangoutState> {
 
     this.setSimulationInterval((dtMs) => this.tick(dtMs / 1000), TICK_MS);
 
-    this.onMessage("move", (client, msg: { dirX: number; dirZ: number; x?: number; z?: number }) => {
+    this.onMessage("move", (client, msg: { dirX: number; dirZ: number; x?: number; z?: number; seq?: number }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player || player.sitting) return;
       player.dirX = Math.max(-1, Math.min(1, msg.dirX));
@@ -348,6 +350,9 @@ export class HangoutRoom extends Room<HangoutState> {
       // Walking away from the espresso machine abandons the brew.
       if (player.action === "brew" && (player.dirX !== 0 || player.dirZ !== 0)) this.clearAction(player);
       this.applyReportedPosition(player, msg.x, msg.z, client.sessionId);
+      // echo which report this position answers, applied as sent or not, so the client can tell
+      // an old echo from a real correction
+      if (typeof msg.seq === "number" && Number.isInteger(msg.seq) && msg.seq > 0) player.moveSeq = msg.seq;
     });
 
     this.onMessage("standUp", (client) => this.handleStandUp(client.sessionId));
