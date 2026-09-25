@@ -12,7 +12,8 @@
   --font-cozy: "Fredoka Variable", "Fredoka", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-html, body, #root { height: 100%; margin: 0; overflow: hidden; background: #0e0e16; }
+/* cream behind everything: the loading screen's colour, so the page never flashes black before it */
+html, body, #root { height: 100%; margin: 0; overflow: hidden; background: #faf6ee; }
 /* one warm, rounded face for the whole UI (the 3D nametags keep their own pixel font) */
 html { font-family: var(--font-cozy); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
 /* No scrollbars, anywhere: drawers and panels still scroll by wheel and touch, they just never
@@ -100,3 +101,15 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
 @keyframes cozy-eq { from { transform: scaleY(0.25); } to { transform: scaleY(1); } }
 @keyframes cozy-bob-kf { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 .cozy-bob { display: inline-block; animation: cozy-bob-kf 1.1s ease-in-out infinite; }
+
+/* the loading screen (LoadingScreen.tsx): the mug bobs, its steam curls up, the dots hop */
+.cozy-load-bob { animation: cozy-load-bob 2.4s ease-in-out infinite; }
+@keyframes cozy-load-bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
+.cozy-load-steam { opacity: 0; transform-box: fill-box; transform-origin: 50% 100%; animation: cozy-load-steam 1.65s ease-out infinite; }
+@keyframes cozy-load-steam { 0% { opacity: 0; transform: translateY(6px) scaleY(0.7); } 30% { opacity: 0.9; } 100% { opacity: 0; transform: translateY(-14px) scaleY(1.1); } }
+.cozy-load-dot { animation: cozy-load-dot 1.2s ease-in-out infinite; }
+@keyframes cozy-load-dot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.45; } 30% { transform: translateY(-4px); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .cozy-load-bob, .cozy-load-steam, .cozy-load-dot { animation: none; }
+  .cozy-load-steam { opacity: 0.6; }
+}

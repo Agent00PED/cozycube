@@ -9,6 +9,7 @@ import { LeaderboardModal } from "./components/hud/LeaderboardModal";
 import { Toasts } from "./components/hud/Toasts";
 import { pushToast } from "./components/hud/toastStore";
 import { IsometricCanvas } from "./scene/IsometricCanvas";
+import { LoadingScreen, type LoadStage } from "./components/LoadingScreen";
 import { WorldScene } from "./scene/WorldScene";
 import { interactBridge } from "./scene/interactBridge";
 import { MochiPlayroomModal } from "./entities/MochiPlayroomModal";
@@ -427,153 +428,165 @@ export default function App() {
 
   const playerCount = useMemo(() => Object.values(players).filter((p) => p.connected).length, [players]);
 
-  if (authLoading) return <StatusScreen text="Connecting to Discord..." />;
-  if (authError) return <StatusScreen text={`Auth error: ${authError}`} isError />;
-  if (!connected) return <StatusScreen text="Joining room..." />;
-  if (roomError) return <StatusScreen text={`Room error: ${roomError}`} isError />;
+  // The cozy loading screen covers the Discord handshake, the room join and the models loading.
+  // It is the second child of the same fragment on every path below, so React keeps it as one
+  // element from the first frame until it fades out over the lounge. An error is checked before
+  // "not connected": a failed join never connects, and must say so instead of waiting forever.
+  const loadStage: LoadStage = authLoading ? "discord" : authError || roomError ? "error" : !connected ? "room" : "assets";
+  const loadError = authError ? `Couldn't reach Discord: ${authError}` : roomError ? `Couldn't join the room: ${roomError}` : undefined;
+  if (loadStage !== "assets")
+    return (
+      <>
+        {null}
+        <LoadingScreen stage={loadStage} error={loadError} />
+      </>
+    );
 
   const localPlayer = me;
 
   return (
-    <div style={rootStyle}>
-      <style>{GLOBAL_CSS}</style>
+    <>
+      <div style={rootStyle}>
+        <style>{GLOBAL_CSS}</style>
 
-      <IsometricCanvas>
-        <WorldScene
-          room={room}
-          players={players}
-          chairs={chairs}
-          toggleables={toggleables}
-          localSessionId={localSessionId}
-          mapId={currentMap}
-          timeOfDay={timeOfDay}
-          speakingUserIds={voice.speakingUserIds}
-          subscribeEmotes={subscribeEmotes}
-          subscribeMessages={subscribeMessages}
-        />
-      </IsometricCanvas>
-
-      <Header
-        currentMap={currentMap}
-        playerCount={playerCount}
-        onOpenWorlds={() => setWorldsOpen(true)}
-        timeOfDay={timeOfDay}
-        onSelectTime={setTimeOfDay}
-        autoCycle={autoCycle}
-        onToggleAutoCycle={() => setAutoCycle(!autoCycle)}
-        coins={localPlayer?.coins ?? 0}
-        onClaimAllowance={claimAllowance}
-        status={localPlayer?.status ?? ""}
-        onSetStatus={setStatus}
-        onOpenWardrobe={() => setWardrobeOpen(true)}
-        onOpenLeaderboard={() => setLeaderboardOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onOpenSocial={() => setSocialOpen((o) => !o)}
-        socialOpen={socialOpen}
-      />
-      <Toasts />
-
-      {localPlayer && localSessionId && (
-        <div className={`cozy-bottom-stack ${showJoystick ? "" : "no-joystick"}`}>
-          <ActivityBar
-            player={localPlayer}
+        <IsometricCanvas>
+          <WorldScene
+            room={room}
+            players={players}
             chairs={chairs}
+            toggleables={toggleables}
             localSessionId={localSessionId}
             mapId={currentMap}
-            roulette={roulette}
-            myBets={bets[localSessionId] ?? ""}
-            onPlaceBet={placeBet}
-            onClearBets={clearBets}
-            onRoast={roast}
-            onEat={eat}
-            onSip={() => handleEmote("☕")}
-            onPutDown={dropHeld}
-            onCastLine={castLine}
-            onReelIn={reelIn}
-            onHook={hook}
-            onSplash={splash}
-          />
-          {currentMap === "boxing_ring" && <BoxingHud me={localPlayer} players={players} onPunch={punch} onExit={boxingExit} onToss={tossCoin} />}
-          <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} />
-        </div>
-      )}
-
-      {showJoystick && localPlayer && (
-        <div className="pointer-events-none fixed z-20" style={{ left: "max(16px, env(safe-area-inset-left))", bottom: "max(16px, env(safe-area-inset-bottom))" }}>
-          <Joystick />
-        </div>
-      )}
-
-      {showRoulette && localPlayer && localSessionId && (
-        <div className="cozy-roulette-wrap" style={roulettePanelStyle}>
-          <RoulettePanel
-            roulette={roulette}
-            myBets={bets[localSessionId] ?? ""}
-            coins={localPlayer.coins}
-            localSessionId={localSessionId}
-            onPlaceBet={placeBet}
-            onClearBets={clearBets}
+            timeOfDay={timeOfDay}
+            speakingUserIds={voice.speakingUserIds}
+            subscribeEmotes={subscribeEmotes}
             subscribeMessages={subscribeMessages}
-            onClose={() => setRouletteClosed(true)}
           />
-        </div>
-      )}
+        </IsometricCanvas>
 
-      {mapTransitioning && <StatusScreen text="Changing scene..." overlay />}
-
-      {worldsOpen && <WorldDrawer currentMap={currentMap} playerCount={playerCount} disabled={mapTransitioning} onSelect={changeMap} onClose={() => setWorldsOpen(false)} />}
-      {socialOpen && (
-        <SideDrawer
-          players={players}
-          localSessionId={localSessionId}
-          speakingUserIds={voice.speakingUserIds}
-          latency={latency}
-          onEmote={handleEmote}
-          onGesture={sendGesture}
-          onSitNearest={() => {
-            if (!interactBridge.current?.sitNearest()) pushToast("No free seat close by", { emoji: "🪑", silent: true });
-          }}
-          onChat={sendChat}
-          onClose={() => setSocialOpen(false)}
+        <Header
+          currentMap={currentMap}
+          playerCount={playerCount}
+          onOpenWorlds={() => setWorldsOpen(true)}
+          timeOfDay={timeOfDay}
+          onSelectTime={setTimeOfDay}
+          autoCycle={autoCycle}
+          onToggleAutoCycle={() => setAutoCycle(!autoCycle)}
+          coins={localPlayer?.coins ?? 0}
+          onClaimAllowance={claimAllowance}
+          status={localPlayer?.status ?? ""}
+          onSetStatus={setStatus}
+          onOpenWardrobe={() => setWardrobeOpen(true)}
+          onOpenLeaderboard={() => setLeaderboardOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSocial={() => setSocialOpen((o) => !o)}
+          socialOpen={socialOpen}
         />
-      )}
-      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
-      {leaderboardOpen && <LeaderboardModal leaderboard={leaderboard} players={players} localName={localPlayer?.username ?? ""} onClose={() => setLeaderboardOpen(false)} />}
-      {slotsProp && localPlayer && localSessionId && (
-        <SlotsModal propId={slotsProp} coins={localPlayer.coins} localSessionId={localSessionId} onSpin={spinSlots} subscribeMessages={subscribeMessages} onClose={() => setSlotsProp(null)} />
-      )}
-      {blackjackOpen && localPlayer && <BlackjackModal view={blackjackView} coins={localPlayer.coins} onAction={blackjackAction} onClose={() => setBlackjackOpen(false)} />}
+        <Toasts />
 
-      {/* the world's own panels */}
-      {fishOnLine && <FishingModal fish={fishOnLine} onResult={catchFish} onClose={closeFishing} />}
-      {panel?.kind === "gacha" && localPlayer && <GachaModal coins={localPlayer.coins} result={gachaResult} onPull={pullGacha} onClose={closePanel} />}
-      {panel?.kind === "claw" && localPlayer && <ClawModal coins={localPlayer.coins} result={clawResult} onPlay={clawPlay} onClose={closePanel} />}
-      {panel?.kind === "arcade" && <RetroGameModal result={arcadeResult} onScore={arcadeScore} onClose={closePanel} />}
-      {panel?.kind === "well" && localPlayer && <WishModal coins={localPlayer.coins} result={wishResult} onWish={makeWish} onClose={closePanel} />}
-      {panel?.kind === "teahouse" && <MatchaModal result={matchaResult} onWhisk={matchaWhisk} onClose={closePanel} />}
-      {panel?.kind === "blender" && <BlenderModal result={blendResult} onBlend={blendDrink} onClose={closePanel} />}
-      {panel?.kind === "jukebox" && <JukeboxModal playing={record} onPick={(t) => (setRecord(t), setPanel(null))} onClose={closePanel} />}
-      {panel?.kind === "boardgame" && localSessionId && <BoardGameModal view={boardView} localSessionId={localSessionId} send={boardSend} onClose={closePanel} />}
-      {panel?.kind === "kitchen" && <KitchenModal send={kitchenSend} onClose={closePanel} />}
-      {panel?.kind === "radio" && <RadioModal radio={radio} send={radioSend} onClose={closePanel} />}
+        {localPlayer && localSessionId && (
+          <div className={`cozy-bottom-stack ${showJoystick ? "" : "no-joystick"}`}>
+            <ActivityBar
+              player={localPlayer}
+              chairs={chairs}
+              localSessionId={localSessionId}
+              mapId={currentMap}
+              roulette={roulette}
+              myBets={bets[localSessionId] ?? ""}
+              onPlaceBet={placeBet}
+              onClearBets={clearBets}
+              onRoast={roast}
+              onEat={eat}
+              onSip={() => handleEmote("☕")}
+              onPutDown={dropHeld}
+              onCastLine={castLine}
+              onReelIn={reelIn}
+              onHook={hook}
+              onSplash={splash}
+            />
+            {currentMap === "boxing_ring" && <BoxingHud me={localPlayer} players={players} onPunch={punch} onExit={boxingExit} onToss={tossCoin} />}
+            <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} />
+          </div>
+        )}
 
-      {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
+        {showJoystick && localPlayer && (
+          <div className="pointer-events-none fixed z-20" style={{ left: "max(16px, env(safe-area-inset-left))", bottom: "max(16px, env(safe-area-inset-bottom))" }}>
+            <Joystick />
+          </div>
+        )}
 
-      {wardrobeOpen && localPlayer && (
-        <Wardrobe
-          userId={localPlayer.userId}
-          username={localPlayer.username}
-          initial={parseLook(localPlayer.look) ?? defaultLook(localPlayer.userId || localPlayer.username, localPlayer.color)}
-          coins={localPlayer.coins}
-          owned={localPlayer.owned}
-          onBuy={(hat: PremiumHat) => buyHat(hat)}
-          onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)}
-          onBuyHair={(style: HairStyle) => buyHair(style)}
-          onApply={setLook}
-          onClose={closeWardrobe}
-        />
-      )}
-    </div>
+        {showRoulette && localPlayer && localSessionId && (
+          <div className="cozy-roulette-wrap" style={roulettePanelStyle}>
+            <RoulettePanel
+              roulette={roulette}
+              myBets={bets[localSessionId] ?? ""}
+              coins={localPlayer.coins}
+              localSessionId={localSessionId}
+              onPlaceBet={placeBet}
+              onClearBets={clearBets}
+              subscribeMessages={subscribeMessages}
+              onClose={() => setRouletteClosed(true)}
+            />
+          </div>
+        )}
+
+        {mapTransitioning && <StatusScreen text="Changing scene..." overlay />}
+
+        {worldsOpen && <WorldDrawer currentMap={currentMap} playerCount={playerCount} disabled={mapTransitioning} onSelect={changeMap} onClose={() => setWorldsOpen(false)} />}
+        {socialOpen && (
+          <SideDrawer
+            players={players}
+            localSessionId={localSessionId}
+            speakingUserIds={voice.speakingUserIds}
+            latency={latency}
+            onEmote={handleEmote}
+            onGesture={sendGesture}
+            onSitNearest={() => {
+              if (!interactBridge.current?.sitNearest()) pushToast("No free seat close by", { emoji: "🪑", silent: true });
+            }}
+            onChat={sendChat}
+            onClose={() => setSocialOpen(false)}
+          />
+        )}
+        {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+        {leaderboardOpen && <LeaderboardModal leaderboard={leaderboard} players={players} localName={localPlayer?.username ?? ""} onClose={() => setLeaderboardOpen(false)} />}
+        {slotsProp && localPlayer && localSessionId && (
+          <SlotsModal propId={slotsProp} coins={localPlayer.coins} localSessionId={localSessionId} onSpin={spinSlots} subscribeMessages={subscribeMessages} onClose={() => setSlotsProp(null)} />
+        )}
+        {blackjackOpen && localPlayer && <BlackjackModal view={blackjackView} coins={localPlayer.coins} onAction={blackjackAction} onClose={() => setBlackjackOpen(false)} />}
+
+        {/* the world's own panels */}
+        {fishOnLine && <FishingModal fish={fishOnLine} onResult={catchFish} onClose={closeFishing} />}
+        {panel?.kind === "gacha" && localPlayer && <GachaModal coins={localPlayer.coins} result={gachaResult} onPull={pullGacha} onClose={closePanel} />}
+        {panel?.kind === "claw" && localPlayer && <ClawModal coins={localPlayer.coins} result={clawResult} onPlay={clawPlay} onClose={closePanel} />}
+        {panel?.kind === "arcade" && <RetroGameModal result={arcadeResult} onScore={arcadeScore} onClose={closePanel} />}
+        {panel?.kind === "well" && localPlayer && <WishModal coins={localPlayer.coins} result={wishResult} onWish={makeWish} onClose={closePanel} />}
+        {panel?.kind === "teahouse" && <MatchaModal result={matchaResult} onWhisk={matchaWhisk} onClose={closePanel} />}
+        {panel?.kind === "blender" && <BlenderModal result={blendResult} onBlend={blendDrink} onClose={closePanel} />}
+        {panel?.kind === "jukebox" && <JukeboxModal playing={record} onPick={(t) => (setRecord(t), setPanel(null))} onClose={closePanel} />}
+        {panel?.kind === "boardgame" && localSessionId && <BoardGameModal view={boardView} localSessionId={localSessionId} send={boardSend} onClose={closePanel} />}
+        {panel?.kind === "kitchen" && <KitchenModal send={kitchenSend} onClose={closePanel} />}
+        {panel?.kind === "radio" && <RadioModal radio={radio} send={radioSend} onClose={closePanel} />}
+
+        {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
+
+        {wardrobeOpen && localPlayer && (
+          <Wardrobe
+            userId={localPlayer.userId}
+            username={localPlayer.username}
+            initial={parseLook(localPlayer.look) ?? defaultLook(localPlayer.userId || localPlayer.username, localPlayer.color)}
+            coins={localPlayer.coins}
+            owned={localPlayer.owned}
+            onBuy={(hat: PremiumHat) => buyHat(hat)}
+            onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)}
+            onBuyHair={(style: HairStyle) => buyHair(style)}
+            onApply={setLook}
+            onClose={closeWardrobe}
+          />
+        )}
+      </div>
+      <LoadingScreen stage="assets" />
+    </>
   );
 }
 
