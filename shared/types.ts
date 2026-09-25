@@ -173,8 +173,12 @@ export const SPARKLE_SPOTS: { x: number; z: number }[] = [
 ];
 export const SPARKLE_RESPAWN_S = 30;
 
-export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "boxing_ring" | "japanese_onsen" | "retro_arcade";
-export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "velvet_casino", "boxing_ring", "japanese_onsen", "retro_arcade"];
+export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "boxing_ring" | "japanese_onsen" | "retro_arcade" | "gaming_cafe";
+/**
+ * Every world, in the fast-travel grid's order: two per row, a theme per row (cozy living,
+ * vacation and spa, action and play, gaming and cyber).
+ */
+export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "japanese_onsen", "velvet_casino", "boxing_ring", "retro_arcade", "gaming_cafe"];
 export function isMapId(v: unknown): v is MapId {
   return typeof v === "string" && (MAP_IDS as string[]).includes(v);
 }
@@ -935,7 +939,7 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
 // --- world sizes ---
 /** Half-width of each diorama slab. Indoor rooms keep their walls at ROOM_HALF; the slab beyond
  *  the open sides is the terrace / foyer that the bigger footprint adds. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 14, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 14, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
 /** Where the two back walls of an indoor room stand (x = -ROOM_HALF and z = -ROOM_HALF). */
 export const ROOM_HALF = 10;
 /** The casino's raised VIP lounge, behind the velvet rope. */

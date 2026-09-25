@@ -54,6 +54,7 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   boxing_ring: [],
   japanese_onsen: [],
   retro_arcade: [],
+  gaming_cafe: [],
 };
 
 export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
@@ -64,6 +65,7 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
   boxing_ring: [],
   japanese_onsen: [],
   retro_arcade: [],
+  gaming_cafe: [],
 };
 
 /** Where to stand for each seat and walk-up prop, by prop id. */

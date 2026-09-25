@@ -1,9 +1,10 @@
 # CozyCube — project configuration
 
 A Discord Activity: an isometric diorama hangout (Colyseus server + React Three Fiber client)
-with seven worlds in the registry — Cozy Lounge (15x15, built), Campfire, Sunset Beach Bar, Velvet
-Casino, Boxing Gym, Japanese Onsen and the Retro Arcade (registered, not rebuilt: each is a bare
-floor with no seats or props until its world is authored).
+with eight worlds in the registry, in the fast-travel grid's order — Cozy Lounge (15x15, built),
+Campfire, Sunset Beach Bar, Japanese Onsen, Velvet Casino, Boxing Gym, Retro Arcade and the Gaming
+Cafe (registered, not built: each is a bare floor with no seats or props until its world is
+authored).
 
 ## Layout
 

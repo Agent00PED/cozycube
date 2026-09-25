@@ -64,6 +64,49 @@ const RELAYED_MESSAGES = [
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
+// Staying connected. The "ping" above is also the heartbeat: its steady traffic keeps idle-timeout
+// proxies (Discord's, the host's) from cutting a quiet socket, and its answers prove the socket is
+// alive. A socket a proxy drops silently never closes, so when HEARTBEAT_MISSES pings in a row go
+// unanswered for HEARTBEAT_SILENCE_MS it is treated as lost. A lost or failed connection is retried
+// with backoff (RETRY_BASE_MS doubling to RETRY_MAX_MS), first with the reconnection token (the
+// server holds a dropped player's seat for 30 s), then as a fresh join.
+const HEARTBEAT_MISSES = 3;
+const HEARTBEAT_SILENCE_MS = 15000;
+const RETRY_BASE_MS = 1000;
+const RETRY_MAX_MS = 8000;
+/** A join the server has not answered by now is given up on (and retried). */
+const JOIN_TIMEOUT_MS = 8000;
+
+/** A failed join as words: a network failure rejects with a bare browser event, not an Error. */
+function describeFailure(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string" && err) return err;
+  return "Couldn't reach the lounge's server";
+}
+
+/** `join`, or a rejection after `ms`; a room that turns up after that is left at once. */
+function joinWithin(join: Promise<Room>, ms: number): Promise<Room> {
+  return new Promise((resolve, reject) => {
+    let late = false;
+    const timer = window.setTimeout(() => {
+      late = true;
+      reject(new Error("The lounge took too long to answer"));
+      join.then((room) => room.leave(true)).catch(() => {});
+    }, ms);
+    join.then(
+      (room) => {
+        if (late) return;
+        window.clearTimeout(timer);
+        resolve(room);
+      },
+      (err) => {
+        if (late) return;
+        window.clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
 /** Movement alone reaches React state at most this often (the frame loops read liveMotion). */
 const MOTION_FLUSH_MS = 200;
 const MOTION_KEYS: ReadonlySet<string> = new Set(["x", "z", "dirX", "dirZ"]);
@@ -89,7 +132,10 @@ interface UseColyseusRoomResult {
   timeOfDay: TimeOfDay;
   mapTransitioning: boolean;
   connected: boolean;
-  error: string | null;
+  /** Why the last connection attempt failed or dropped, while it is being retried; null when fine. */
+  connectionIssue: string | null;
+  /** Tear the connection down and start the handshake again now (the loading screen's Reconnect). */
+  reconnect: () => void;
   roulette: RouletteSyncState;
   /** Roulette bets on the table this round, by sessionId (encodeBets strings). */
   bets: Record<string, string>;
@@ -163,7 +209,10 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [timeOfDay, setTimeOfDayState] = useState<TimeOfDay>("day");
   const [mapTransitioning, setMapTransitioning] = useState(false);
   const [connected, setConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
+  // bumped by reconnect(): the connection effect tears everything down and starts over
+  const [reconnectNonce, setReconnectNonce] = useState(0);
+  const reconnect = useCallback(() => setReconnectNonce((n) => n + 1), []);
   const emoteListenersRef = useRef(new Set<EmoteListener>());
   const messageListenersRef = useRef(new Set<RoomMessageListener>());
   const [roulette, setRoulette] = useState<RouletteSyncState>({ phase: "betting", timeLeft: 25, result: -1, spinId: 0 });
@@ -176,6 +225,77 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   useEffect(() => {
     if (!auth) return;
     let disposed = false;
+    let connecting = false;
+    let attempt = 0;
+    let retryTimer: number | undefined;
+    /** The room this run is connected to, if any. */
+    let live: Room | null = null;
+    /** Each connection's own timers, stopped when it is let go. */
+    const stops = new Map<Room, (() => void)[]>();
+    setConnectionIssue(null);
+
+    const resetWorld = () => {
+      setPlayers({});
+      setChairs({});
+      setToggleables({});
+    };
+
+    /** Let go of a room for good: its timers, every listener, and its socket if still open. */
+    function retire(room: Room, consented: boolean) {
+      stops.get(room)?.forEach((stop) => stop());
+      stops.delete(room);
+      room.removeAllListeners();
+      if (room.connection?.isOpen) room.leave(consented).catch(() => {});
+      if (live === room) live = null;
+      if (roomRef.current === room) roomRef.current = null;
+    }
+
+    /** The connection dropped or went silent: clear it away and come back, with backoff. */
+    function lost(room: Room, reason: string) {
+      if (disposed || live !== room) return;
+      // not consented: the server keeps the seat for a while, and the token takes it back
+      retire(room, false);
+      setConnected(false);
+      resetWorld();
+      scheduleRetry(reason);
+    }
+
+    function scheduleRetry(reason: string) {
+      if (disposed || retryTimer !== undefined) return;
+      setConnectionIssue(reason);
+      const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** attempt);
+      attempt++;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = undefined;
+        void attemptConnect();
+      }, delay);
+    }
+
+    async function attemptConnect() {
+      if (disposed || connecting || live) return;
+      connecting = true;
+      try {
+        await connect();
+        attempt = 0;
+      } catch (err) {
+        scheduleRetry(describeFailure(err));
+      } finally {
+        connecting = false;
+      }
+    }
+
+    // back online, or the Activity looked at again: retry now instead of waiting out the backoff
+    const nudge = () => {
+      if (disposed || live || retryTimer === undefined) return;
+      window.clearTimeout(retryTimer);
+      retryTimer = undefined;
+      void attemptConnect();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") nudge();
+    };
+    window.addEventListener("online", nudge);
+    document.addEventListener("visibilitychange", onVisible);
 
     async function connect() {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -198,13 +318,14 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       let room: Room;
       if (savedToken) {
         try {
-          room = await client.reconnect(savedToken);
+          room = await joinWithin(client.reconnect(savedToken), JOIN_TIMEOUT_MS);
         } catch {
+          // the seat is gone (held too long, or the server restarted): join afresh
           localStorage.removeItem(reconnectKey);
-          room = await client.joinOrCreate("hangout_room", joinOptions);
+          room = await joinWithin(client.joinOrCreate("hangout_room", joinOptions), JOIN_TIMEOUT_MS);
         }
       } else {
-        room = await client.joinOrCreate("hangout_room", joinOptions);
+        room = await joinWithin(client.joinOrCreate("hangout_room", joinOptions), JOIN_TIMEOUT_MS);
       }
 
       if (disposed) {
@@ -212,13 +333,16 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
         return;
       }
 
+      live = room;
+      const roomStops: (() => void)[] = [];
+      stops.set(room, roomStops);
       roomRef.current = room;
       // dev aid: poke at the live room from the console (window.__cozyRoom.state, .send)
       if (import.meta.env.DEV) (window as unknown as { __cozyRoom?: Room }).__cozyRoom = room;
       forceRender((n) => n + 1);
       setLocalSessionId(room.sessionId);
       setConnected(true);
-      setError(null);
+      setConnectionIssue(null);
       localStorage.setItem(reconnectKey, room.reconnectionToken);
 
       room.onMessage("emote", (msg: EmoteBroadcast) => {
@@ -227,16 +351,27 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       for (const type of RELAYED_MESSAGES) {
         room.onMessage(type, (msg: unknown) => messageListenersRef.current.forEach((listener) => listener(type, msg)));
       }
-      // Latency: time a round trip every few seconds and tell the server the last result.
+      // Latency and heartbeat: time a round trip every few seconds and tell the server the last
+      // result; pings that stop coming back mean the socket is dead, even if it never closed.
       let lastRtt = 0;
+      let lastPong = performance.now();
+      let unanswered = 0;
       room.onMessage("pong", (msg: { t: number }) => {
         lastRtt = Math.round(performance.now() - msg.t);
+        lastPong = performance.now();
+        unanswered = 0;
         setLatency(lastRtt);
       });
       const pingTimer = window.setInterval(() => {
-        if (roomRef.current === room) room.send("ping", { t: performance.now(), rtt: lastRtt });
+        if (live !== room) return;
+        if (unanswered >= HEARTBEAT_MISSES && performance.now() - lastPong > HEARTBEAT_SILENCE_MS) {
+          lost(room, "The connection went quiet");
+          return;
+        }
+        room.send("ping", { t: performance.now(), rtt: lastRtt });
+        unanswered++;
       }, PING_EVERY_MS);
-      room.onLeave(() => window.clearInterval(pingTimer));
+      roomStops.push(() => window.clearInterval(pingTimer));
 
       // Motion goes to liveMotion on every patch, for the frame loops. React hears about a change
       // at once only if something other than movement changed; movement alone is batched into at
@@ -256,7 +391,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
           return next;
         });
       };
-      room.onLeave(() => window.clearTimeout(motionFlush));
+      roomStops.push(() => window.clearTimeout(motionFlush));
 
       room.state.players.onAdd((player: any, sessionId: string) => {
         let last: PlayerState | null = null;
@@ -432,34 +567,34 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
       room.state.listen("mapTransitioning", (val: boolean) => setMapTransitioning(val));
 
+      // the socket closed under us (a proxy timed it out, the network blinked, the server restarted)
       room.onLeave((code) => {
-        setConnected(false);
-        if (code === NORMAL_CLOSE_CODE) {
-          localStorage.removeItem(reconnectKey);
-        }
+        if (code === NORMAL_CLOSE_CODE) localStorage.removeItem(reconnectKey);
+        lost(room, "The connection closed");
       });
 
       room.onError((code, message) => {
-        setError(message ?? `room error (code ${code})`);
+        setConnectionIssue(message ?? `room error (code ${code})`);
       });
     }
 
-    connect().catch((err) => {
-      if (!disposed) setError(err instanceof Error ? err.message : String(err));
-    });
+    void attemptConnect();
 
     return () => {
       disposed = true;
-      roomRef.current?.leave(true);
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("online", nudge);
+      document.removeEventListener("visibilitychange", onVisible);
+      if (live) retire(live, true);
+      stops.forEach((list) => list.forEach((stop) => stop()));
+      stops.clear();
       roomRef.current = null;
-      setPlayers({});
-      setChairs({});
-      setToggleables({});
+      resetWorld();
       setConnected(false);
     };
-    // Only re-join when identity of the target room changes.
+    // Re-join when the identity of the target room changes, or on reconnect().
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth?.channelId, auth?.userId]);
+  }, [auth?.channelId, auth?.userId, reconnectNonce]);
 
   const send = (type: string, payload?: unknown) => roomRef.current?.send(type, payload);
 
@@ -493,7 +628,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     timeOfDay,
     mapTransitioning,
     connected,
-    error,
+    connectionIssue,
+    reconnect,
     roulette,
     bets,
     autoCycle,

@@ -154,7 +154,8 @@ export default function App() {
     timeOfDay,
     mapTransitioning,
     connected,
-    error: roomError,
+    connectionIssue,
+    reconnect,
     setLook,
     roulette,
     bets,
@@ -430,15 +431,16 @@ export default function App() {
 
   // The cozy loading screen covers the Discord handshake, the room join and the models loading.
   // It is the second child of the same fragment on every path below, so React keeps it as one
-  // element from the first frame until it fades out over the lounge. An error is checked before
-  // "not connected": a failed join never connects, and must say so instead of waiting forever.
-  const loadStage: LoadStage = authLoading ? "discord" : authError || roomError ? "error" : !connected ? "room" : "assets";
-  const loadError = authError ? `Couldn't reach Discord: ${authError}` : roomError ? `Couldn't join the room: ${roomError}` : undefined;
+  // element from the first frame until it fades out over the lounge. A join that fails or a
+  // connection that drops stays on the room stage while useColyseusRoom retries; after a while the
+  // screen says so and offers Reconnect (it never waits silently forever).
+  const loadStage: LoadStage = authLoading ? "discord" : authError ? "error" : !connected ? "room" : "assets";
+  const loadError = authError ? `Couldn't reach Discord: ${authError}` : undefined;
   if (loadStage !== "assets")
     return (
       <>
         {null}
-        <LoadingScreen stage={loadStage} error={loadError} />
+        <LoadingScreen stage={loadStage} error={loadError} issue={connectionIssue ?? undefined} onReconnect={reconnect} />
       </>
     );
 

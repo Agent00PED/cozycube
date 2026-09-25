@@ -501,7 +501,10 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("board", (client, packet: BoardPacket) => this.handleBoardPacket(client, packet));
     // --- mochi ---
     this.onMessage("mochi_play", (client, msg: { action: string }) => this.handleMochi(client.sessionId, msg?.action));
-    // Latency: the client times the round trip and reports it, so the roster can show pings.
+    // Latency and heartbeat: the client times the round trip and reports it, so the roster can
+    // show pings. The steady traffic also keeps idle-timeout proxies from cutting the socket, and a
+    // client whose pings stop coming back treats its connection as dead and reconnects, so every
+    // ping is always answered.
     this.onMessage("ping", (client, msg: { t: number; rtt?: number }) => {
       const player = this.state.players.get(client.sessionId);
       if (player && typeof msg?.rtt === "number" && Number.isFinite(msg.rtt)) player.ping = Math.max(0, Math.min(9999, Math.round(msg.rtt)));

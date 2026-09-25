@@ -31,6 +31,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   boxing_ring: open(),
   japanese_onsen: open(),
   retro_arcade: open(),
+  gaming_cafe: open(),
 };
 
 const centre = () => [{ x: 0, z: 0 }];
@@ -42,6 +43,7 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
   boxing_ring: centre(),
   japanese_onsen: centre(),
   retro_arcade: centre(),
+  gaming_cafe: centre(),
 };
 
 /** True when a disc of `radius` at (x, z) is off the floor or overlaps furniture. */
