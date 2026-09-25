@@ -36,7 +36,7 @@ import { StargazingModal } from "./components/hud/StargazingModal";
 import { WoodChopModal } from "./components/hud/WoodChopModal";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
-import { FORAGE_INFO, ITEMS, STARLIGHT_CATCHES, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
+import { FORAGE_INFO, ITEMS, STARLIGHT_CATCHES, TREASURE_COINS, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
 import { BoxingHud } from "./components/hud/BoxingHud";
 import { installKeyboard, isTouchDevice } from "./systems/input";
 import {
@@ -340,6 +340,7 @@ export default function App() {
           if (c.sessionId === localIdRef.current) {
             const info = STARLIGHT_CATCHES[c.catchId];
             pushToast(c.coins > 0 ? `${info.name}! +${c.coins} coins` : `${info.name}! (the river's coins are all earned today)`, { emoji: info.emoji, tone: c.coins > 0 ? "coin" : undefined });
+            if (c.treasure > 0) pushToast(`Sunken treasure! +${c.treasure} coins`, { emoji: "🧰", tone: "coin" });
             playSfx("catch");
           }
         } else if (type === "roastResult") {
@@ -635,8 +636,8 @@ export default function App() {
         {starReel && (
           <FishingModal
             key={`${starReel.catchId}:${localSessionId}`}
-            fish={{ ...STARLIGHT_CATCHES[starReel.catchId], hint: "Something from the starlit river", reward: STARLIGHT_CATCHES[starReel.catchId].coins }}
-            onResult={(result) => campfireSend({ type: "REEL_DONE", caught: result === "caught" })}
+            fish={{ ...STARLIGHT_CATCHES[starReel.catchId], hint: "Something from the starlit river", reward: STARLIGHT_CATCHES[starReel.catchId].coins, treasure: starReel.treasure, treasureReward: TREASURE_COINS }}
+            onResult={(result, _quality, openedChest) => campfireSend({ type: "REEL_DONE", caught: result === "caught", treasure: openedChest })}
             onClose={closeStarReel}
             autoCloseMs={2200}
           />

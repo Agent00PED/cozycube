@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef } from "react";
+import { modelUrl } from "../assetVersion";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
@@ -215,7 +216,7 @@ export function LoungeWorld({ onFloorClick }: { onFloorClick: (x: number, z: num
 // The Blender props (client/public/models/props.glb)
 // ---------------------------------------------------------------------------------------
 
-const PROPS_URL = "/models/props.glb";
+const PROPS_URL = modelUrl("props.glb");
 type PropName = "Prop_Pillow" | "Prop_Toaster" | "Prop_Kettle" | "Prop_DutchOven" | "Prop_FruitBowl" | "Prop_BreadBasket" | "Prop_Mug" | "Prop_Radio" | "Prop_CoffeeMachine";
 /** The materials a placement may recolour: a pillow's fabric, a mug's glaze. */
 const TINTABLE = new Set(["Prop_Fabric", "Prop_Glaze"]);

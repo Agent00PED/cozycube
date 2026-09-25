@@ -159,3 +159,25 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
   20% { opacity: 1; }
   100% { opacity: 0; transform: translate(22px, -46px) scale(1.25); }
 }
+
+/* the reel's line tension: red sparks flicking off the fish */
+.cozy-tension { position: absolute; left: 50%; width: 0; height: 24px; pointer-events: none; }
+.cozy-tension span { position: absolute; top: 10px; width: 4px; height: 4px; border-radius: 999px; background: #ff5a4f; box-shadow: 0 0 6px #ff5a4f; animation: cozy-tension-spark 0.45s ease-out infinite; }
+.cozy-tension span:nth-child(2) { animation-delay: 0.15s; }
+.cozy-tension span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes cozy-tension-spark {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--tx, 18px), -14px) scale(0.3); }
+}
+.cozy-tension span:nth-child(1) { --tx: -20px; }
+.cozy-tension span:nth-child(2) { --tx: 20px; }
+.cozy-tension span:nth-child(3) { --tx: 4px; }
+
+/* the chopping combo's clean cleave: a burst of wood chips */
+.cozy-chips { position: absolute; left: 50%; top: 40%; width: 0; height: 0; pointer-events: none; }
+.cozy-chips span { position: absolute; width: 9px; height: 5px; border-radius: 2px; background: linear-gradient(90deg, #d2a774, #9c7148); opacity: 0; animation: cozy-chip-burst 1.1s cubic-bezier(0.2, 0.7, 0.3, 1) forwards; }
+@keyframes cozy-chip-burst {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(0.6); }
+  60% { opacity: 1; transform: translate(var(--cx), var(--cy)) rotate(var(--spin)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--cx), calc(var(--cy) + 50px)) rotate(calc(var(--spin) * 1.5)) scale(0.9); }
+}

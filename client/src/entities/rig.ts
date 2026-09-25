@@ -9,9 +9,10 @@
 // this side; the Blender scripts spell the same names out.
 
 import type { OutfitId } from "@shared/types";
+import { modelUrl } from "../assetVersion";
 
-export const AVATAR_URL = "/models/avatar.glb";
-export const MOCHI_URL = "/models/cat.glb";
+export const AVATAR_URL = modelUrl("avatar.glb");
+export const MOCHI_URL = modelUrl("cat.glb");
 
 /** Avatar nodes the runtime animates. Every one must exist; pivots sit at the joint. */
 export const AVATAR_NODES = {

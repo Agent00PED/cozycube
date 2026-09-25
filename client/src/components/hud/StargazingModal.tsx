@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { STAR_SPARK_COINS, type CampfirePacket, type ShootingStar, type StarCaught } from "@shared/types";
+import { CONSTELLATIONS, CONSTELLATION_COINS, CONSTELLATION_MIN_S, STAR_SPARK_COINS, type CampfirePacket, type ConstellationDone, type MeteorShower, type ShootingStar, type StarCaught } from "@shared/types";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -12,12 +12,21 @@ interface Props {
 }
 
 // The brass telescope by the campfire's front fence. Looking through it (STARGAZE on while this is
-// open) shows a round window on the night sky: three layers of stars drifting at their own depths
-// (the lens follows the pointer a little, so they slide past each other), a few twinkling
-// constellations, and every few seconds a shooting star the server sends across the lens. Tap it
-// on its way (STAR_CATCH) to catch a Star Spark: the server says whether it counted (starCaught).
+// open) shows a round window on the night sky: three depths of stars drifting at their own speeds
+// (the lens follows the pointer a little, so they slide past each other), soft clouds drifting
+// across and hiding whatever is behind them, and two games in it at once:
+//
+//   meteor showers   every few seconds a shower of shooting stars (the server sends it) streaks
+//                    across at their own speeds and slants; tap them as they go. Catching one
+//                    after another without letting one slip away builds a combo: x2, x3, x5 Star
+//                    Sparks (the server keeps the chain and pays it)
+//   constellations   the numbered stars of a constellation twinkle in the sky; tap them in order
+//                    and the lines join up and the picture it makes (Ursa Chibi, the Starlight Cat)
+//                    glows into view, for CONSTELLATION_COINS (the server checks it took a person's time)
 
 const SIZE = 320;
+const HIT_STREAK = 44;
+const HIT_STAR = 24;
 
 interface Dot {
   x: number;
@@ -40,23 +49,31 @@ const LAYERS = [
   { dots: scatter(41, 16, 1.2, 2.1), depth: 26, alpha: 1 },
 ];
 
-/** The camp's own constellations (points in lens fractions, and which to join). */
-const CONSTELLATIONS = [
-  { name: "The Kettle", points: [[0.18, 0.3], [0.27, 0.26], [0.35, 0.3], [0.33, 0.39], [0.21, 0.4], [0.42, 0.24], [0.5, 0.2]], lines: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0], [2, 5], [5, 6]] },
-  { name: "Mochi", points: [[0.62, 0.55], [0.66, 0.47], [0.7, 0.54], [0.76, 0.47], [0.8, 0.55], [0.71, 0.64]], lines: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0]] },
-  { name: "The Canoe", points: [[0.22, 0.72], [0.32, 0.78], [0.45, 0.8], [0.56, 0.76]], lines: [[0, 1], [1, 2], [2, 3]] },
+/** Clouds: each a cluster of soft puffs, drifting right to left at its own pace. */
+const CLOUDS = [
+  { y: 0.24, speed: 0.022, phase: 0.1, size: 1.0 },
+  { y: 0.58, speed: 0.016, phase: 0.55, size: 1.25 },
+  { y: 0.82, speed: 0.027, phase: 0.8, size: 0.85 },
 ];
 
+type Streak = ShootingStar & { start: number; hit: boolean; gone: boolean };
 type Burst = { x: number; y: number; at: number; text: string };
 
 export function StargazingModal({ send, subscribeMessages, localSessionId, onClose }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const star = useRef<(ShootingStar & { at: number; hit: boolean }) | null>(null);
+  const streaks = useRef<Streak[]>([]);
   const aim = useRef({ x: 0, y: 0, tx: 0, ty: 0 });
   const bursts = useRef<Burst[]>([]);
   const lastHit = useRef<{ x: number; y: number } | null>(null);
-  const [caught, setCaught] = useState(0);
-  const [note, setNote] = useState("Tap a shooting star as it streaks across the lens");
+  const opened = useRef(performance.now());
+  // the constellation being traced: which one, how many of its stars are joined, and when it finished
+  const trace = useRef({ index: 0, joined: 0, doneAt: 0, all: false });
+  const [sparks, setSparks] = useState(0);
+  const [combo, setCombo] = useState({ n: 0, mult: 1 });
+  const comboRef = useRef(combo);
+  comboRef.current = combo;
+  const [traced, setTraced] = useState<string[]>([]);
+  const [note, setNote] = useState("Tap the shooting stars as they streak by, and trace the numbered stars in order");
 
   // looking through it, for as long as this is open (send is a fresh function each render: held in a ref)
   const sendRef = useRef(send);
@@ -69,15 +86,24 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
   useEffect(
     () =>
       subscribeMessages((type, payload) => {
-        if (type === "shootingStar") {
-          star.current = { ...(payload as ShootingStar), at: performance.now(), hit: false };
+        if (type === "meteorShower") {
+          const now = performance.now();
+          for (const s of (payload as MeteorShower).stars) streaks.current.push({ ...s, start: now + s.delay * 1000, hit: false, gone: false });
         } else if (type === "starCaught" && (payload as StarCaught).sessionId === localSessionId) {
           const c = payload as StarCaught;
           playSfx("star");
-          setCaught((n) => n + 1);
+          setSparks((n) => n + 1);
+          setCombo({ n: c.combo, mult: c.multiplier });
           const at = lastHit.current ?? { x: SIZE / 2, y: SIZE / 2 };
-          bursts.current.push({ ...at, at: performance.now(), text: c.coins > 0 ? `+${c.coins} 🪙` : "✨" });
-          setNote(c.coins > 0 ? `Star Spark! +${c.coins} coins` : "A Star Spark! (today's star coins are all earned)");
+          bursts.current.push({ ...at, at: performance.now(), text: c.coins > 0 ? `+${c.coins}${c.multiplier > 1 ? ` x${c.multiplier}` : ""}` : "✨" });
+          setNote(c.multiplier > 1 ? `Combo x${c.multiplier}! Keep them coming` : c.capped ? "A Star Spark! (today's star coins are all earned)" : `Star Spark! +${c.coins} coins`);
+        } else if (type === "constellationDone" && (payload as ConstellationDone).sessionId === localSessionId) {
+          const d = payload as ConstellationDone;
+          const shape = CONSTELLATIONS.find((c) => c.id === d.id);
+          playSfx("golden");
+          setTraced((list) => [...list, d.id]);
+          bursts.current.push({ x: SIZE / 2, y: SIZE * 0.2, at: performance.now(), text: d.coins > 0 ? `${shape?.emoji ?? "✨"} +${d.coins}` : `${shape?.emoji ?? "✨"}` });
+          setNote(d.coins > 0 ? `${shape?.name}! +${d.coins} coins` : `${shape?.name}! (today's star coins are all earned)`);
         }
       }),
     [subscribeMessages, localSessionId]
@@ -94,7 +120,8 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
     g.scale(dpr, dpr);
     let frame = 0;
     const draw = () => {
-      const t = performance.now() / 1000;
+      const now = performance.now();
+      const t = now / 1000;
       const a = aim.current;
       a.x += (a.tx - a.x) * 0.06;
       a.y += (a.ty - a.y) * 0.06;
@@ -104,22 +131,20 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
       sky.addColorStop(1, "#070910");
       g.fillStyle = sky;
       g.fillRect(0, 0, SIZE, SIZE);
-      // a faint band of the milky way, drifting
       const band = g.createLinearGradient(0, SIZE, SIZE, 0);
       band.addColorStop(0.35, "rgba(120,110,190,0)");
       band.addColorStop(0.5, "rgba(150,140,220,0.13)");
       band.addColorStop(0.65, "rgba(120,110,190,0)");
       g.fillStyle = band;
       g.fillRect(0, 0, SIZE, SIZE);
-      // the three depths of stars, sliding past each other as the lens moves
+      // the three depths of stars
       LAYERS.forEach((layer, li) => {
         const ox = -a.x * layer.depth + Math.sin(t * 0.05 + li) * layer.depth * 0.3;
         const oy = -a.y * layer.depth + t * 0.6 * (li + 1);
         for (const d of layer.dots) {
           const x = (((d.x * SIZE + ox) % (SIZE * 1.3)) + SIZE * 1.3) % (SIZE * 1.3) - SIZE * 0.15;
           const y = (((d.y * SIZE + oy) % (SIZE * 1.3)) + SIZE * 1.3) % (SIZE * 1.3) - SIZE * 0.15;
-          const tw = 0.55 + 0.45 * Math.sin(t * d.rate + d.phase);
-          g.globalAlpha = layer.alpha * tw;
+          g.globalAlpha = layer.alpha * (0.55 + 0.45 * Math.sin(t * d.rate + d.phase));
           g.fillStyle = li === 2 ? "#fff6dc" : "#dfe6ff";
           g.beginPath();
           g.arc(x, y, d.r, 0, Math.PI * 2);
@@ -127,62 +152,131 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
         }
       });
       g.globalAlpha = 1;
-      // the constellations, on the middle depth
+
+      // the constellation being traced (on the middle depth, so it moves with the sky a little)
       const cx = -a.x * LAYERS[1].depth;
       const cy = -a.y * LAYERS[1].depth;
-      for (const c of CONSTELLATIONS) {
-        g.strokeStyle = "rgba(255, 228, 158, 0.22)";
-        g.lineWidth = 1;
+      const tr = trace.current;
+      const shape = CONSTELLATIONS[tr.index];
+      if (shape && !tr.all) {
+        const pts = shape.stars.map(([px, py]) => [px * SIZE + cx, py * SIZE + cy] as const);
+        const revealed = tr.joined >= pts.length;
+        // the lines joined so far (closing the loop once complete)
+        g.strokeStyle = revealed ? "rgba(255, 228, 158, 0.95)" : "rgba(255, 228, 158, 0.55)";
+        g.lineWidth = revealed ? 2 : 1.5;
         g.beginPath();
-        for (const [i, j] of c.lines) {
-          g.moveTo(c.points[i][0] * SIZE + cx, c.points[i][1] * SIZE + cy);
-          g.lineTo(c.points[j][0] * SIZE + cx, c.points[j][1] * SIZE + cy);
+        for (let k = 1; k < Math.min(tr.joined, pts.length); k++) {
+          g.moveTo(pts[k - 1][0], pts[k - 1][1]);
+          g.lineTo(pts[k][0], pts[k][1]);
+        }
+        if (revealed) {
+          g.moveTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+          g.lineTo(pts[0][0], pts[0][1]);
         }
         g.stroke();
-        c.points.forEach(([px, py], k) => {
-          const tw = 0.6 + 0.4 * Math.sin(t * 1.7 + k * 1.3 + px * 10);
-          g.fillStyle = `rgba(255, 240, 200, ${0.65 + 0.35 * tw})`;
-          g.beginPath();
-          g.arc(px * SIZE + cx, py * SIZE + cy, 1.6 + tw * 0.8, 0, Math.PI * 2);
-          g.fill();
-        });
-        g.fillStyle = "rgba(255, 228, 158, 0.35)";
-        g.font = "600 9px Fredoka, system-ui, sans-serif";
-        g.fillText(c.name, c.points[0][0] * SIZE + cx - 4, c.points[0][1] * SIZE + cy - 8);
-      }
-      // the shooting star: a bright head and a fading tail
-      const s = star.current;
-      if (s) {
-        const p = (performance.now() - s.at) / (s.duration * 1000);
-        if (p > 1.15) star.current = null;
-        else {
-          const head = { x: (s.x0 + (s.x1 - s.x0) * p) * SIZE, y: (s.y0 + (s.y1 - s.y0) * p) * SIZE };
-          const back = Math.max(0, p - 0.18);
-          const tail = { x: (s.x0 + (s.x1 - s.x0) * back) * SIZE, y: (s.y0 + (s.y1 - s.y0) * back) * SIZE };
-          const fade = p > 1 ? 1 - (p - 1) / 0.15 : 1;
-          const grad = g.createLinearGradient(tail.x, tail.y, head.x, head.y);
-          grad.addColorStop(0, "rgba(255,240,200,0)");
-          grad.addColorStop(1, `rgba(255,248,225,${0.95 * fade})`);
-          g.strokeStyle = grad;
-          g.lineWidth = 2.6;
+        // once complete, the picture glows into view
+        if (revealed) {
+          const k = Math.min(1, (now - tr.doneAt) / 900);
+          g.strokeStyle = `rgba(255, 244, 214, ${0.9 * k})`;
+          g.lineWidth = 2.2;
           g.lineCap = "round";
+          for (const line of shape.art) {
+            g.beginPath();
+            line.forEach(([px, py], i) => (i === 0 ? g.moveTo(px * SIZE + cx, py * SIZE + cy) : g.lineTo(px * SIZE + cx, py * SIZE + cy)));
+            g.stroke();
+          }
+          g.fillStyle = `rgba(255, 228, 158, ${k})`;
+          g.font = "700 13px Fredoka, system-ui, sans-serif";
+          g.textAlign = "center";
+          g.fillText(`${shape.emoji} ${shape.name}`, SIZE / 2 + cx, SIZE * 0.88 + cy);
+          g.textAlign = "start";
+          // on to the next one after a moment
+          if (now - tr.doneAt > 2800) {
+            tr.index += 1;
+            tr.joined = 0;
+            if (tr.index >= CONSTELLATIONS.length) tr.all = true;
+          }
+        }
+        // its stars, the next one to tap numbered and pulsing
+        pts.forEach(([px, py], k) => {
+          const next = k === tr.joined && !revealed;
+          const tw = 0.6 + 0.4 * Math.sin(t * 2.2 + k * 1.3);
+          g.fillStyle = k < tr.joined ? "rgba(255, 236, 170, 1)" : `rgba(255, 244, 214, ${0.55 + 0.35 * tw})`;
           g.beginPath();
-          g.moveTo(tail.x, tail.y);
-          g.lineTo(head.x, head.y);
-          g.stroke();
-          const glow = g.createRadialGradient(head.x, head.y, 0, head.x, head.y, 14);
-          glow.addColorStop(0, `rgba(255,250,230,${fade})`);
-          glow.addColorStop(1, "rgba(255,230,160,0)");
-          g.fillStyle = glow;
+          g.arc(px, py, next ? 3.2 + tw * 1.4 : 2.4, 0, Math.PI * 2);
+          g.fill();
+          if (next) {
+            g.strokeStyle = `rgba(255, 209, 102, ${0.5 + 0.5 * tw})`;
+            g.lineWidth = 1.2;
+            g.beginPath();
+            g.arc(px, py, 8 + tw * 3, 0, Math.PI * 2);
+            g.stroke();
+          }
+          if (!revealed) {
+            g.fillStyle = "rgba(255, 244, 214, 0.75)";
+            g.font = "700 9px Fredoka, system-ui, sans-serif";
+            g.fillText(String(k + 1), px + 5, py - 5);
+          }
+        });
+      }
+
+      // the meteor shower: bright heads and fading tails, each at its own speed
+      for (const s of streaks.current) {
+        if (s.hit || s.gone || now < s.start) continue;
+        const p = (now - s.start) / (s.duration * 1000);
+        if (p > 1.15) {
+          s.gone = true;
+          // one got away: the chain breaks (the server's does too)
+          if (comboRef.current.n > 0) setCombo({ n: 0, mult: 1 });
+          continue;
+        }
+        const head = { x: (s.x0 + (s.x1 - s.x0) * p) * SIZE, y: (s.y0 + (s.y1 - s.y0) * p) * SIZE };
+        const back = Math.max(0, p - 0.2);
+        const tail = { x: (s.x0 + (s.x1 - s.x0) * back) * SIZE, y: (s.y0 + (s.y1 - s.y0) * back) * SIZE };
+        const fade = p > 1 ? 1 - (p - 1) / 0.15 : 1;
+        const grad = g.createLinearGradient(tail.x, tail.y, head.x, head.y);
+        grad.addColorStop(0, "rgba(255,240,200,0)");
+        grad.addColorStop(1, `rgba(255,248,225,${0.95 * fade})`);
+        g.strokeStyle = grad;
+        g.lineWidth = 2.6;
+        g.lineCap = "round";
+        g.beginPath();
+        g.moveTo(tail.x, tail.y);
+        g.lineTo(head.x, head.y);
+        g.stroke();
+        const glow = g.createRadialGradient(head.x, head.y, 0, head.x, head.y, 14);
+        glow.addColorStop(0, `rgba(255,250,230,${fade})`);
+        glow.addColorStop(1, "rgba(255,230,160,0)");
+        g.fillStyle = glow;
+        g.beginPath();
+        g.arc(head.x, head.y, 14, 0, Math.PI * 2);
+        g.fill();
+      }
+      streaks.current = streaks.current.filter((s) => !s.hit && !s.gone);
+
+      // the clouds, drifting across and hiding what is behind them
+      for (const c of CLOUDS) {
+        const x = ((1.4 - ((t * c.speed + c.phase) % 1.8)) * SIZE) | 0;
+        const y = c.y * SIZE - a.y * 4;
+        for (let k = 0; k < 5; k++) {
+          const px = x + (k - 2) * 26 * c.size;
+          const py = y + Math.sin(k * 1.7) * 9 * c.size;
+          const r = (28 + (k % 2) * 10) * c.size;
+          const puff = g.createRadialGradient(px, py, 0, px, py, r);
+          puff.addColorStop(0, "rgba(58, 64, 92, 0.62)");
+          puff.addColorStop(0.6, "rgba(44, 50, 76, 0.4)");
+          puff.addColorStop(1, "rgba(30, 34, 54, 0)");
+          g.fillStyle = puff;
           g.beginPath();
-          g.arc(head.x, head.y, 14, 0, Math.PI * 2);
+          g.arc(px, py, r, 0, Math.PI * 2);
           g.fill();
         }
       }
-      // catches: a ring of sparks and the coins
-      bursts.current = bursts.current.filter((b) => performance.now() - b.at < 1400);
+
+      // catches and constellations: rings of sparks and the coins
+      bursts.current = bursts.current.filter((b) => now - b.at < 1500);
       for (const b of bursts.current) {
-        const k = (performance.now() - b.at) / 1400;
+        const k = (now - b.at) / 1500;
         for (let i = 0; i < 10; i++) {
           const ang = (i / 10) * Math.PI * 2;
           g.fillStyle = `rgba(255, 228, 158, ${1 - k})`;
@@ -212,17 +306,36 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
     aim.current.ty = p.y / SIZE - 0.5;
   };
   const onTap = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const s = star.current;
-    if (!s || s.hit) return;
     const p = toLens(e);
-    const k = Math.min(1, (performance.now() - s.at) / (s.duration * 1000));
-    const head = { x: (s.x0 + (s.x1 - s.x0) * k) * SIZE, y: (s.y0 + (s.y1 - s.y0) * k) * SIZE };
-    // a generous catch: anywhere near its head, or just behind it along the tail
-    if (Math.hypot(p.x - head.x, p.y - head.y) > 42) return;
-    s.hit = true;
-    lastHit.current = head;
-    send({ type: "STAR_CATCH", id: s.id });
-    star.current = null;
+    const now = performance.now();
+    // a shooting star first: anywhere near its head
+    for (const s of streaks.current) {
+      if (s.hit || now < s.start) continue;
+      const k = Math.min(1, (now - s.start) / (s.duration * 1000));
+      const head = { x: (s.x0 + (s.x1 - s.x0) * k) * SIZE, y: (s.y0 + (s.y1 - s.y0) * k) * SIZE };
+      if (Math.hypot(p.x - head.x, p.y - head.y) <= HIT_STREAK) {
+        s.hit = true;
+        lastHit.current = head;
+        sendRef.current({ type: "STAR_CATCH", id: s.id });
+        return;
+      }
+    }
+    // otherwise the constellation's next star
+    const tr = trace.current;
+    const shape = CONSTELLATIONS[tr.index];
+    if (!shape || tr.all || tr.joined >= shape.stars.length) return;
+    const cx = -aim.current.x * LAYERS[1].depth;
+    const cy = -aim.current.y * LAYERS[1].depth;
+    const [sx, sy] = shape.stars[tr.joined];
+    if (Math.hypot(p.x - (sx * SIZE + cx), p.y - (sy * SIZE + cy)) > HIT_STAR) return;
+    tr.joined += 1;
+    playSfx("pluck");
+    if (tr.joined === shape.stars.length) {
+      tr.doneAt = now;
+      // the server wants to see it took a person's time; if this was quicker, it waits a beat
+      const wait = Math.max(0, CONSTELLATION_MIN_S * 1000 + 250 - (now - opened.current));
+      window.setTimeout(() => sendRef.current({ type: "CONSTELLATION", id: shape.id }), wait);
+    }
   };
 
   return (
@@ -243,13 +356,18 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
             style={{ boxShadow: "inset 0 0 28px 10px rgba(0,0,0,0.85)" }}
             onPointerMove={onMove}
             onPointerDown={onTap}
-            aria-label="The night sky through the telescope; tap a shooting star to catch it"
+            aria-label="The night sky through the telescope: tap shooting stars, and trace the numbered stars in order"
           />
           <div className="pointer-events-none absolute inset-[10px] rounded-full" style={{ boxShadow: "inset 0 0 26px 12px rgba(4,6,12,0.9)" }} />
+          {combo.mult > 1 && (
+            <div key={combo.n} className="clay-pop pointer-events-none absolute right-2 top-2 rounded-full bg-amber-300 px-2.5 py-1 text-sm font-extrabold text-amber-950 shadow-lg">
+              Combo x{combo.mult}
+            </div>
+          )}
         </div>
-        <p className="m-0 text-center text-sm opacity-80">{note}</p>
-        <p className="m-0 text-[11px] opacity-60">
-          Star Sparks caught: {caught} · each +{STAR_SPARK_COINS} 🪙
+        <p className="m-0 min-h-[20px] text-center text-sm opacity-80">{note}</p>
+        <p className="m-0 text-center text-[11px] opacity-60">
+          Star Sparks: {sparks} · {STAR_SPARK_COINS} 🪙 each, x2, x3, x5 in a row · constellations traced: {traced.length}/{CONSTELLATIONS.length} (+{CONSTELLATION_COINS} 🪙 each)
         </p>
       </div>
     </Modal>

@@ -6,8 +6,9 @@ import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } 
 import { AWAY_PREFIX, BoardTable } from "./boardgame";
 import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
-import { BONFIRE_REACH, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, nearestFishingSpot } from "../../../shared/worlds/campfire";
+import { BONFIRE_REACH, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, nearestFishingSpot } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
+import { judgeChop, rollChopStroke, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
 import { emptyCampfireCoins } from "../db/players";
 import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat, isWaterable, mochiSpot } from "../../../shared/props";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
@@ -24,7 +25,16 @@ import {
   type StarlightReel,
   type CampfireCoinKind,
   type ChopResult,
-  type ChopStart,
+  CHOP_STUN_S,
+  CONSTELLATIONS,
+  CONSTELLATION_COINS,
+  CONSTELLATION_MIN_S,
+  TREASURE_CHANCE,
+  TREASURE_COINS,
+  starComboMultiplier,
+  type ConstellationDone,
+  type ConstellationId,
+  type MeteorShower,
   type ForageResult,
   type Gesture,
   type ShootingStar,
@@ -384,17 +394,20 @@ export class HangoutRoom extends Room<HangoutState> {
   private lastRoastAt = new Map<string, number>();
   private starlight = new Set<string>();
   /** The river's reels in progress: what is on each line, and when the fight began. */
-  private starReels = new Map<string, { catchId: StarlightCatchId; startedAt: number }>();
+  private starReels = new Map<string, { catchId: StarlightCatchId; startedAt: number; treasure: boolean }>();
   /** When each player last swept the net through the fireflies. */
   private lastNetAt = new Map<string, number>();
   /** When each player last tossed the raccoon a treat, and when each duck last dived. */
   private lastTreatAt = new Map<string, number>();
   private duckDivedAt: number[] = [];
-  /** The telescope: each stargazer's next shooting star, and the one crossing their lens now. */
-  private stargazers = new Map<string, { next: number; star: (ShootingStar & { until: number }) | null }>();
+  /** The telescope: each stargazer's next meteor shower, the shooting stars crossing their lens
+   *  (each catchable until its time is up), their catch chain, and the constellations they have
+   *  traced this look. */
+  private stargazers = new Map<string, { next: number; since: number; stars: Map<number, number>; combo: number; traced: Set<string> }>();
   private starSeq = 1;
-  /** The chopping block: each swing in progress (its meter, timed here), and each player's last. */
-  private chops = new Map<string, ChopStart & { startedAt: number }>();
+  /** The chopping block: each combo in progress (the stroke it is on, its meter, timed here), and
+   *  each player's last swing (a knot stuns the axe past it). */
+  private chops = new Map<string, { stroke: ChopStroke; startedAt: number }>();
   private lastChopAt = new Map<string, number>();
   private lastPunchAt = new Map<string, number>();
   private dizzyUntil = new Map<string, number>();
@@ -452,7 +465,7 @@ export class HangoutRoom extends Room<HangoutState> {
         if ((player.action === "fish" || player.action === "reel") && this.starlight.has(client.sessionId)) this.stopStarlight(client.sessionId, player);
         else if (player.action === "grill") this.finishRoast(client.sessionId, player, "raw");
         else if (player.action === "stargaze") this.stopStargazing(client.sessionId, player);
-        else if (player.action === "chop") this.finishChop(client.sessionId, player, false);
+        else if (player.action === "chop") this.finishChop(client.sessionId, player, false, false, this.chops.get(client.sessionId)?.stroke.stroke ?? 1);
       }
       this.applyReportedPosition(player, msg.x, msg.z, client.sessionId);
       // echo which report this position answers, applied as sent or not, so the client can tell
@@ -1724,47 +1737,67 @@ export class HangoutRoom extends Room<HangoutState> {
         if (!this.nearProp(player, "telescope", STARGAZE_REACH + 0.4)) return;
         player.action = "stargaze";
         player.actionProgress = 0;
-        // the first star comes quickly, so the lens never feels empty for long
-        this.stargazers.set(sessionId, { next: Date.now() + 1500 + Math.random() * 1500, star: null });
+        // the first shower comes quickly, so the lens never feels empty for long
+        const now = Date.now();
+        this.stargazers.set(sessionId, { next: now + 1500 + Math.random() * 1000, since: now, stars: new Map(), combo: 0, traced: new Set() });
         return;
       }
       case "STAR_CATCH": {
         const gazer = this.stargazers.get(sessionId);
-        const star = gazer?.star;
-        if (!gazer || !star || player.action !== "stargaze" || packet.id !== star.id || Date.now() > star.until) return;
-        gazer.star = null;
-        const coins = this.campfirePay(sessionId, player, "star", STAR_SPARK_COINS);
-        const caught: StarCaught = { sessionId, coins, capped: coins === 0 };
+        const until = gazer?.stars.get(packet.id);
+        if (!gazer || until === undefined || player.action !== "stargaze" || Date.now() > until) return;
+        gazer.stars.delete(packet.id);
+        // one after another without letting one go: the chain grows, and so does the multiplier
+        gazer.combo += 1;
+        const multiplier = starComboMultiplier(gazer.combo);
+        const coins = this.campfirePay(sessionId, player, "star", STAR_SPARK_COINS * multiplier);
+        const caught: StarCaught = { sessionId, coins, capped: coins === 0, combo: gazer.combo, multiplier };
         client.send("starCaught", caught);
         this.broadcast("emote", { sessionId, emoji: "🌠" });
+        this.persist(sessionId, player);
+        return;
+      }
+      case "CONSTELLATION": {
+        const gazer = this.stargazers.get(sessionId);
+        const shape = CONSTELLATIONS.find((c) => c.id === packet.id);
+        if (!gazer || !shape || player.action !== "stargaze" || gazer.traced.has(shape.id)) return;
+        // traced star by star: not believed faster than a person could
+        if (Date.now() - gazer.since < CONSTELLATION_MIN_S * 1000) return;
+        gazer.traced.add(shape.id);
+        const coins = this.campfirePay(sessionId, player, "star", CONSTELLATION_COINS);
+        const done: ConstellationDone = { sessionId, id: shape.id as ConstellationId, coins, capped: coins === 0 };
+        client.send("constellationDone", done);
+        this.broadcast("emote", { sessionId, emoji: shape.emoji });
         this.persist(sessionId, player);
         return;
       }
       case "CHOP_START": {
         if (player.sitting || player.action !== "") return;
         if (!this.nearProp(player, "woodchop", CHOP_REACH + 0.4)) return;
-        if (Date.now() - (this.lastChopAt.get(sessionId) ?? 0) < CHOP_COOLDOWN_MS) return;
-        // one run of the meter; a narrow sweet spot somewhere in its middle stretch
-        const duration = 1.4 + Math.random() * 0.4;
-        const width = 0.11 + Math.random() * 0.04;
-        const zoneFrom = 0.3 + Math.random() * (0.85 - width - 0.3);
-        const chop = { startedAt: Date.now(), duration, zoneFrom, zoneTo: zoneFrom + width };
-        this.chops.set(sessionId, chop);
+        if (Date.now() < (this.lastChopAt.get(sessionId) ?? 0) + CHOP_COOLDOWN_MS) return;
+        // the combo's first stroke: the notch
         player.action = "chop";
         player.actionProgress = 0;
-        const start: ChopStart = { duration, zoneFrom, zoneTo: chop.zoneTo };
-        client.send("chopStart", start);
+        this.startChopStroke(client, 1);
         return;
       }
       case "REEL_DONE": {
-        this.finishStarlightReel(sessionId, packet.caught === true);
+        this.finishStarlightReel(sessionId, packet.caught === true, packet.treasure === true);
         return;
       }
       case "CHOP_STOP": {
         const chop = this.chops.get(sessionId);
         if (!chop || player.action !== "chop") return;
-        const at = (Date.now() - Math.min(250, player.ping / 2) - chop.startedAt) / (chop.duration * 1000);
-        this.finishChop(sessionId, player, at >= chop.zoneFrom - 0.01 && at <= chop.zoneTo + 0.01);
+        // judged on when you swung, not when it got here: half the round trip back
+        const t = (Date.now() - Math.min(250, player.ping / 2) - chop.startedAt) / 1000;
+        const verdict = judgeChop(chop.stroke, t);
+        if (verdict === "hit") {
+          this.playGesture(sessionId, "chop");
+          if (chop.stroke.stroke < 3) this.startChopStroke(client, (chop.stroke.stroke + 1) as ChopStrokeNo);
+          else this.finishChop(sessionId, player, true, false, 3);
+        } else {
+          this.finishChop(sessionId, player, false, verdict === "knot", chop.stroke.stroke);
+        }
         return;
       }
       case "GUITAR": {
@@ -1808,22 +1841,31 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   /** The axe comes down: a clean split pays and feeds the fire; a glancing blow does neither. */
-  private finishChop(sessionId: string, player: Player, clean: boolean) {
+  /** The chopping combo's next stroke: a fresh meter for it, timed from now. */
+  private startChopStroke(client: Client, stroke: ChopStrokeNo) {
+    const meter = rollChopStroke(stroke);
+    this.chops.set(client.sessionId, { stroke: meter, startedAt: Date.now() });
+    client.send("chopStroke", meter);
+  }
+
+  /** The combo's end: all three strokes landed (paid, the fire fed), a swing into a knot (the axe
+   *  is stunned a moment), or a miss. */
+  private finishChop(sessionId: string, player: Player, clean: boolean, stunned: boolean, stroke: number) {
     if (!this.chops.delete(sessionId)) return;
-    this.lastChopAt.set(sessionId, Date.now());
+    this.lastChopAt.set(sessionId, Date.now() + (stunned ? CHOP_STUN_S * 1000 : 0));
     this.clearAction(player);
     this.playGesture(sessionId, "chop");
     let coins = 0;
     if (clean) {
       coins = this.campfirePay(sessionId, player, "chop", CHOP_CLEAN_COINS);
-      // the split log goes on the fire: it roars up for a minute
+      // the split logs go on the fire: it roars up for a good while
       this.state.toggleables.forEach((prop) => {
         if (prop.kind === "bonfire") prop.boost = Math.max(prop.boost, BONFIRE_FUEL_SECONDS);
       });
     }
-    const result: ChopResult = { sessionId, clean, coins, capped: clean && coins === 0 };
+    const result: ChopResult = { sessionId, clean, stunned, stroke, coins, capped: clean && coins === 0 };
     this.broadcast("chopResult", result);
-    this.broadcast("emote", { sessionId, emoji: clean ? "🪵" : "😅" });
+    this.broadcast("emote", { sessionId, emoji: clean ? "🪵" : stunned ? "💫" : "😅" });
     this.persist(sessionId, player);
   }
 
@@ -1881,8 +1923,8 @@ export class HangoutRoom extends Room<HangoutState> {
         this.chops.delete(sessionId);
         return;
       }
-      // the marker ran off the end: the axe glances off
-      if (now - chop.startedAt > chop.duration * 1000 + 400) this.finishChop(sessionId, player, false);
+      // the meter ran out with no swing: the stroke is missed
+      if (now - chop.startedAt > chop.stroke.duration * 1000 + 400) this.finishChop(sessionId, player, false, false, chop.stroke.stroke);
     });
     this.stargazers.forEach((gazer, sessionId) => {
       const player = this.state.players.get(sessionId);
@@ -1890,22 +1932,38 @@ export class HangoutRoom extends Room<HangoutState> {
         this.stargazers.delete(sessionId);
         return;
       }
+      // a star that got across the lens uncaught breaks the chain
+      gazer.stars.forEach((until, id) => {
+        if (now > until) {
+          gazer.stars.delete(id);
+          gazer.combo = 0;
+        }
+      });
       if (now < gazer.next) return;
-      // a shooting star across the lens: in at one edge, out at the other, on a slant
-      const fromLeft = Math.random() < 0.5;
-      const duration = 1.5 + Math.random() * 0.6;
-      const star: ShootingStar = {
-        id: this.starSeq++,
-        x0: fromLeft ? 0.05 : 0.95,
-        y0: 0.1 + Math.random() * 0.35,
-        x1: fromLeft ? 0.95 : 0.05,
-        y1: 0.45 + Math.random() * 0.4,
-        duration,
-      };
-      gazer.star = { ...star, until: now + duration * 1000 + Math.min(400, player.ping / 2 + 150) };
-      gazer.next = now + duration * 1000 + 3000 + Math.random() * 4000;
+      // a meteor shower: three to five shooting stars, at their own speeds and slants, a beat apart
+      const grace = Math.min(400, player.ping / 2 + 150);
+      const shower: MeteorShower = { stars: [] };
+      let delay = 0;
+      const count = 3 + Math.floor(Math.random() * 3);
+      for (let k = 0; k < count; k++) {
+        const fromLeft = Math.random() < 0.5;
+        const duration = 0.75 + Math.random() * 0.9;
+        const star: ShootingStar = {
+          id: this.starSeq++,
+          delay,
+          x0: fromLeft ? 0.02 : 0.98,
+          y0: 0.08 + Math.random() * 0.45,
+          x1: fromLeft ? 0.98 : 0.02,
+          y1: 0.3 + Math.random() * 0.62,
+          duration,
+        };
+        shower.stars.push(star);
+        gazer.stars.set(star.id, now + (delay + duration) * 1000 + grace);
+        delay += 0.35 + Math.random() * 0.7;
+      }
+      gazer.next = now + (delay + 1.2) * 1000 + 3500 + Math.random() * 3500;
       const client = this.clients.find((c) => c.sessionId === sessionId);
-      client?.send("shootingStar", star);
+      client?.send("meteorShower", shower);
     });
     this.roasts.forEach((roast, sessionId) => {
       const player = this.state.players.get(sessionId);
@@ -1935,16 +1993,17 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!player || player.action !== "fish" || !this.biteUntil.has(sessionId)) return;
     this.biteUntil.delete(sessionId);
     const catchId = rollStarlightCatch();
-    this.starReels.set(sessionId, { catchId, startedAt: Date.now() });
+    const treasure = Math.random() < TREASURE_CHANCE[catchId];
+    this.starReels.set(sessionId, { catchId, startedAt: Date.now(), treasure });
     player.action = "reel";
     player.actionProgress = 0;
-    const reel: StarlightReel = { catchId };
+    const reel: StarlightReel = { catchId, treasure };
     this.sendTo(sessionId, "starlightReel", reel);
   }
 
   /** The reel's end: landed (believed only if it took as long as a real one can), or it got away.
    *  Either way the line goes back in. */
-  private finishStarlightReel(sessionId: string, caught: boolean) {
+  private finishStarlightReel(sessionId: string, caught: boolean, openedChest = false) {
     const player = this.state.players.get(sessionId);
     const reel = this.starReels.get(sessionId);
     if (!player || !reel || player.action !== "reel") return;
@@ -1958,9 +2017,11 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     const catchId = reel.catchId;
     const coins = this.campfirePay(sessionId, player, "fish", STARLIGHT_CATCHES[catchId].coins);
+    // a chest the server rolled for this reel, held in the bar until it opened
+    const treasure = reel.treasure && openedChest ? this.campfirePay(sessionId, player, "fish", TREASURE_COINS) : 0;
     this.bumpStat(player, "fish_caught");
     this.daily(sessionId, player, "catch_fish");
-    const landed: FishCaught = { sessionId, catchId, coins, capped: coins === 0 };
+    const landed: FishCaught = { sessionId, catchId, coins, capped: coins === 0, treasure };
     this.broadcast("fishCaught", landed);
     this.broadcast("emote", { sessionId, emoji: STARLIGHT_CATCHES[catchId].emoji });
     this.persist(sessionId, player);
@@ -2332,7 +2393,7 @@ export class HangoutRoom extends Room<HangoutState> {
       }
       case "fishing":
         if (player.action === "fish") this.handleReelIn(sessionId);
-        else this.handleCastLine(sessionId);
+        else this.handleCastLine(sessionId, false, prop.propId);
         break;
       case "boardgame":
         // walking up to the table seats you at it (seat 1, or seat 2 opposite whoever has it);
@@ -2469,16 +2530,17 @@ export class HangoutRoom extends Room<HangoutState> {
     }
   }
 
-  private handleCastLine(sessionId: string, afk = false) {
+  private handleCastLine(sessionId: string, afk = false, spotId = "") {
     const player = this.state.players.get(sessionId);
     if (!player || player.action !== "") return;
     // the campfire's river: from the dock's edge at one of its spots (one angler to a spot), sitting
     // with your legs over the water; a bite, a tap, then the reel
     if (this.state.currentMap === "campfire_night") {
-      const seat = this.state.chairs.get(dockSeatOf(nearestFishingSpot(player.x, player.z).propId));
+      const spot = FISHING_SPOTS.find((f) => f.propId === spotId) ?? nearestFishingSpot(player.x, player.z);
+      const seat = this.state.chairs.get(dockSeatOf(spot.propId));
       if (!seat) return;
       if (!player.sitting) {
-        if (!this.nearProp(player, "fishing", FISHING_REACH)) return;
+        if (Math.hypot(player.x - spot.approach.x, player.z - spot.approach.z) > FISHING_REACH + 0.3 && !this.nearProp(player, "fishing", FISHING_REACH)) return;
         if (seat.occupiedBy !== "") {
           this.sendTo(sessionId, "campfireNotice", { message: "Someone's already fishing there. Try the next spot along the dock", emoji: "🎣" });
           return;

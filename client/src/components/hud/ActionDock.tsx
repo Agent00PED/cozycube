@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, msUntilNextDay, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
-import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf } from "@shared/worlds/campfire";
+import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, spotOfSeat } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { pushToast } from "./toastStore";
@@ -97,8 +97,10 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       }
       // the dock: sitting on its edge, cast from there; standing, sit down at the nearest free spot
       const mySeat = Object.values(chairs).find((c) => c.occupiedBy === localSessionId);
-      if (mySeat?.style === "dock" && action === "") {
-        const id = mySeat.propId.replace("seat_dock_", "fishing_spot_");
+      const mySpot = mySeat ? spotOfSeat(mySeat.propId) : undefined;
+      if (mySpot && action === "") {
+        // sitting on the dock's edge or in the canoe: cast from there
+        const id = mySpot;
         found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Cast Line", hint: "Cast into the river; tap when the bobber dips, then reel it in", run: () => interactBridge.current?.useProp(id) });
       } else if (!sitting && action === "") {
         let spot: { id: string; d: number } | null = null;

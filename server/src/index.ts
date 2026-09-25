@@ -49,8 +49,20 @@ if (process.env.NODE_ENV === "production") {
   // Registered after /api so it never shadows that route; Colyseus's own matchmake/WS
   // handling is independent of Express's routing table, so ordering relative to it doesn't matter.
   const clientDist = path.resolve(process.cwd(), "client/dist");
-  app.use(express.static(clientDist));
+  // Caching, per kind of file: the page itself is always revalidated (so Discord's webview picks up
+  // a new deploy at once), the fingerprinted bundle under /assets is cached for good, and the
+  // models (versioned by a ?v= per build) for a day.
+  app.use(
+    express.static(clientDist, {
+      setHeaders: (res, file) => {
+        if (file.endsWith(".html")) res.setHeader("Cache-Control", "no-cache");
+        else if (file.includes(`${path.sep}assets${path.sep}`)) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        else res.setHeader("Cache-Control", "public, max-age=86400");
+      },
+    })
+  );
   app.get("*", (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(clientDist, "index.html"));
   });
 }

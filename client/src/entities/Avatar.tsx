@@ -6,6 +6,7 @@ import { ACTIVITY_STATUSES, DRINK_BASE_INFO, GESTURE_SECONDS, defaultLook, hashS
 import { AVATAR_HIP_Y, AVATAR_LIE_LIFT } from "@shared/seats";
 import { matte, noRaycast } from "../scene/kit";
 import { ModelBoundary } from "./ModelBoundary";
+import { canoeBob, canoePitch, canoeRoll } from "../scene/canoeMotion";
 import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
 
 // The player avatar: a chibi clay figurine authored in Blender (scripts/blender/build_avatar.py)
@@ -627,9 +628,14 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     const gr = groove.current;
     gr.amount = L(gr.amount, (vibe || guitarOn) && pose === "sit" && !asleep ? 1 : 0, 0.05);
     gr.bodyZ = L(gr.bodyZ, walking ? Math.sin(phase) * WADDLE_ROLL : dizzy ? Math.cos(t * 4.5) * 0.28 : dozing ? Math.sin(t * 0.9) * 0.05 : g === "dance" ? Math.sin(gAge * 7) * 0.14 : 0, k);
-    body.rotation.z = gr.bodyZ + gr.amount * Math.sin(t * VIBE_BEAT * 0.5 + seed) * VIBE_SWAY + (rock ? 0.035 * Math.sin(t * 1.3) : 0);
-    // the canoe bobs on the water (as campfireLife bobs the boat), and its sitter with it
-    if (rock) body.position.y += 0.012 * Math.sin(t * 1.6);
+    body.rotation.z = gr.bodyZ + gr.amount * Math.sin(t * VIBE_BEAT * 0.5 + seed) * VIBE_SWAY;
+    // the canoe bobs and rocks on the water (canoeMotion, as campfireLife moves the boat), its
+    // sitter with it, harder while fighting a fish from it; the sitter faces +z, across the boat,
+    // so the boat's roll about x is the root's pitch here and its pitch about z the root's roll
+    const struggling = action === "reel";
+    part.root.position.y = rest.root.pos.y + (rock ? canoeBob(t) : 0);
+    part.root.rotation.x = rock ? canoeRoll(t, struggling) : 0;
+    part.root.rotation.z = rock ? canoePitch(t, struggling) : 0;
     body.rotation.y = L(body.rotation.y, g === "dance" ? Math.sin(gAge * 3.5) * 0.6 : 0, 0.2);
 
     // --- breathing: the torso swells about its base ---

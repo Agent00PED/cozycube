@@ -234,6 +234,11 @@ def in_river(L, x, z, pad=0.0):
     return span is not None and span[0] - pad <= x <= span[1] + pad
 
 
+def river_z(L):
+    P = L["river"]["points"]
+    return P[0][0] - P[0][2], P[-1][0] + P[-1][2]
+
+
 def river_banks(L, grow=0.0, step=0.1):
     """The river's outline as matching west and east bank points down its length, north to south,
     each `grow` out from the water's edge. The round ends are sampled more finely."""
@@ -309,7 +314,7 @@ def near_path(L, x, z, pad):
 def read_cushions(root):
     src = open(os.path.join(root, "shared", "seats.ts"), encoding="utf-8").read()
     out = {}
-    for name in ("log", "hammock", "tentMat", "picnicBench", "campChair", "stump", "dock", "canoe"):
+    for name in ("log", "hammock", "tentMat", "picnicBench", "campChair", "stump", "dock", "canoe", "boulder"):
         m = re.search(rf"\b{name}: \{{ y: (-?[0-9.]+), h: ([0-9.]+) \}}", src)
         y, h = float(m.group(1)), float(m.group(2))
         out[name] = {"y": y, "h": h, "top": y + h / 2}
@@ -576,6 +581,24 @@ def build_ground(L, coll):
     ribbon(bm, west, east, 0.0, p["water"], top_only=True)
     for f in bm.faces:
         f.smooth = True
+    # the river's inlet: a thin chute of water spilling from the stacked stone into the river (it
+    # flows in the water's shader like the rest)
+    cs = L["cascade"]
+    x, z0, top = cs["x"], cs["z"], cs["top"]
+    z1 = river_z(L)[0] + 0.35
+    rows = []
+    for k in range(9):
+        u = k / 8
+        z = z0 + (z1 - z0) * u
+        y = top + (p["water"] + 0.005 - top) * (u ** 1.6)
+        w = 0.13 + 0.07 * u
+        rows.append((bm.verts.new(W(x - w, y, z)), bm.verts.new(W(x + w, y, z))))
+    for (a0, b0), (a1, b1) in zip(rows, rows[1:]):
+        bm.faces.new((a0, a1, b1, b0))
+    for f in bm.faces:
+        f.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()
     make_object("Campfire_Water", bm, ["CF_Water"], coll, recalc=False)  # built facing up
 
 
@@ -694,38 +717,92 @@ def build_bonfire(L, coll):
         make_object(name, bm, [mat], coll, origin=(fx, 0.06, fz))
 
 
+def firepit_pieces(L):
+    """The firepit's seating as shared/worlds/campfire.ts derives it (FIREPIT): each piece's centre,
+    its angle round the fire, the way along it, and its seats (name, x, z)."""
+    fx, fz = L["fire"]["x"], L["fire"]["z"]
+    out = []
+    for p in L["firepit"]["pieces"]:
+        r = p.get("r", L["firepit"]["r"])
+        a = math.radians(p["angle"])
+        cx, cz = fx + math.cos(a) * r, fz + math.sin(a) * r
+        tx, tz = -math.sin(a), math.cos(a)
+        n = len(p["seats"])
+        if p["kind"] == "log":
+            spacing = 0.95 if n == 3 else 1.0
+            seats = [(cx + tx * (k - (n - 1) / 2) * spacing, cz + tz * (k - (n - 1) / 2) * spacing) for k in range(n)]
+        elif p["kind"] == "curved":
+            arc = math.radians(p.get("arc", 40))
+            seats = [(fx + math.cos(a + (k - (n - 1) / 2) * arc / 2) * r, fz + math.sin(a + (k - (n - 1) / 2) * arc / 2) * r) for k in range(n)]
+        else:
+            seats = [(cx, cz)]
+        names = [f"Seat_{p['kind'].capitalize()}_{s_}" if p["kind"] in ("stump", "boulder") else f"Seat_Log_{s_}" for s_ in p["seats"]]
+        out.append({**p, "r": r, "a": a, "cx": cx, "cz": cz, "tx": tx, "tz": tz, "seats": list(zip(names, seats))})
+    return out
+
+
 def build_logs(L, cushions, coll):
+    """The firepit's organic seating, one object: a long log behind the fire (3 seats), a medium
+    log and a curved one to the sides (2 each), a stump and a smooth boulder (1 each); empties mark
+    each piece (Seat_Log_Long, _Medium, _Curved, Seat_Stump_Solo, Seat_Boulder_Solo) and each seat."""
     rng = random.Random(9)
     fx, fz = L["fire"]["x"], L["fire"]["z"]
     radius = cushions["log"]["h"] / 2
     cy = cushions["log"]["y"]
-    half_len = L["logLength"] / 2
     bm = bmesh.new()
-    for i, log in enumerate(L["logs"]):
-        rx, rz = log["x"] - fx, log["z"] - fz
-        d = math.hypot(rx, rz)
-        tx, tz = -rz / d, rx / d  # along the log: tangent to the circle round the fire
-        a = W(log["x"] - tx * half_len, cy, log["z"] - tz * half_len)
-        b = W(log["x"] + tx * half_len, cy, log["z"] + tz * half_len)
-        cylinder(bm, a, b, radius, 18, m=0, cap_m=1, wobble=0.06, rng=rng)
-        # stubby broken branches on its outer side, clear of both seats (they sit at +-spread)
-        for along, up in ((0.82, 0.05), (-0.05, 0.08)):
-            stub = W(log["x"] + tx * half_len * along + rx / d * 0.12, cy + up, log["z"] + tz * half_len * along + rz / d * 0.12)
-            cylinder(bm, stub, stub + W(rx / d * 0.18, 0.1, rz / d * 0.18) - W(0, 0, 0), 0.045, 8, m=0, cap_m=1, r_end=0.035)
-        # a ring of moss round each end
-        for sgn in (-1, 1):
-            e = W(log["x"] + tx * sgn * (half_len - 0.12), cy, log["z"] + tz * sgn * (half_len - 0.12))
-            cylinder(bm, e - W(tx * 0.05, 0, tz * 0.05) + W(0, 0, 0), e + W(tx * 0.05, 0, tz * 0.05) - W(0, 0, 0), radius + 0.012, 18, m=2)
-        # where each of its two sitters goes, on its top: L and R as they see it, facing the fire
-        top = cushions["log"]["top"]
-        spread = L["logSeatSpread"]
-        for side, sgn in (("L", 1), ("R", -1)):
-            mark = bpy.data.objects.new(f"Seat_Log_0{i + 1}_{side}", None)
-            mark.empty_display_type = "ARROWS"
-            mark.empty_display_size = 0.2
-            mark.location = W(log["x"] + tx * sgn * spread, top, log["z"] + tz * sgn * spread)
-            coll.objects.link(mark)
-    make_object("Seat_Logs", bm, ["CF_Bark", "CF_WoodCut", "CF_GrassLight"], coll)
+    marks = []
+    for p in firepit_pieces(L):
+        cx, cz, tx, tz, a = p["cx"], p["cz"], p["tx"], p["tz"], p["a"]
+        ox, oz = math.cos(a), math.sin(a)  # outward from the fire
+        if p["kind"] == "log":
+            half = p["len"] / 2
+            cylinder(bm, W(cx - tx * half, cy, cz - tz * half), W(cx + tx * half, cy, cz + tz * half), radius, 18, m=0, cap_m=1, wobble=0.06, rng=rng)
+            # a stubby broken branch on its outer side, between the seats
+            for along, up in ((0.85, 0.05), (-0.25, 0.07)):
+                stub = W(cx + tx * half * along + ox * 0.12, cy + up, cz + tz * half * along + oz * 0.12)
+                cylinder(bm, stub, stub + W(ox * 0.18, 0.1, oz * 0.18) - W(0, 0, 0), 0.045, 8, m=0, cap_m=1, r_end=0.035)
+            ends = [(cx - tx * (half - 0.12), cz - tz * (half - 0.12), tx, tz), (cx + tx * (half - 0.12), cz + tz * (half - 0.12), tx, tz)]
+            marks.append((f"Seat_Log_{p['id']}", (cx, cushions["log"]["top"], cz)))
+        elif p["kind"] == "curved":
+            # a log grown bent: a chain of short round segments along the arc round the fire
+            arc = math.radians(p.get("arc", 40))
+            pts = [(fx + math.cos(a + (k / 10 - 0.5) * arc) * p["r"], fz + math.sin(a + (k / 10 - 0.5) * arc) * p["r"]) for k in range(11)]
+            for (x0, z0), (x1, z1) in zip(pts, pts[1:]):
+                cylinder(bm, W(x0, cy, z0), W(x1, cy, z1), radius * (1 + 0.04 * rng.random()), 16, m=0, cap_m=0)
+                blob(bm, x1, cy, z1, radius, radius, radius, m=0, cuts=2, n=2.0)
+            # its sawn ends: a thin disc of cut wood on each
+            for (ex, ez), (px, pz) in ((pts[0], pts[1]), (pts[-1], pts[-2])):
+                cylinder(bm, W(ex, cy, ez), W(ex + (ex - px) * 0.08, cy, ez + (ez - pz) * 0.08), radius + 0.004, 16, m=1, cap_m=1)
+            ends = []
+            marks.append(("Seat_Log_Curved", (cx, cushions["log"]["top"], cz)))
+        elif p["kind"] == "stump":
+            top = cushions["stump"]["top"]
+            cylinder(bm, W(cx, 0.0, cz), W(cx, top, cz), 0.24, 16, m=0, cap_m=1, wobble=0.05, rng=rng)
+            for k in range(4):  # roots spreading into the ground
+                ra = a + k * math.pi / 2 + 0.4
+                cylinder(bm, W(cx + math.cos(ra) * 0.16, 0.12, cz + math.sin(ra) * 0.16), W(cx + math.cos(ra) * 0.38, -0.02, cz + math.sin(ra) * 0.38), 0.06, 8, m=0, r_end=0.025)
+            ends = []
+            marks.append(("Seat_Stump_Solo", (cx, top, cz)))
+        else:
+            # a smooth river boulder, its top worn flat to sit on (the boulder cushion's)
+            top = cushions["boulder"]["top"]
+            blob(bm, cx, top / 2 - 0.02, cz, 0.38, top / 2 + 0.02, 0.33, m=3, cuts=4, n=2.6, noise=0.05, rng=rng, flat_bottom=-0.05)
+            ends = []
+            marks.append(("Seat_Boulder_Solo", (cx, top, cz)))
+        # a ring of moss round each end of a straight log
+        for ex, ez, ux, uz in ends:
+            cylinder(bm, W(ex - ux * 0.05, cy, ez - uz * 0.05), W(ex + ux * 0.05, cy, ez + uz * 0.05), radius + 0.012, 18, m=2)
+        cushion = cushions["stump" if p["kind"] == "stump" else "boulder" if p["kind"] == "boulder" else "log"]
+        for name, (sx, sz) in p["seats"]:
+            marks.append((name, (sx, cushion["top"], sz)))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    make_object("Seat_Firepit", bm, ["CF_Bark", "CF_WoodCut", "CF_GrassLight", "CF_StoneDark"], coll)
+    for name, at in marks:
+        mark = bpy.data.objects.new(name, None)
+        mark.empty_display_type = "ARROWS" if name.count("_") >= 2 and name.split("_")[-1][-1].isdigit() else "PLAIN_AXES"
+        mark.empty_display_size = 0.2
+        mark.location = W(*at)
+        coll.objects.link(mark)
 
 
 def build_dock(L, coll):
@@ -764,11 +841,8 @@ def build_dock(L, coll):
             for sz in (-1, 1):
                 box(bm, lx + sx * 0.085 - 0.012, lx + sx * 0.085 + 0.012, 0.96, 1.2, lz + sz * 0.085 - 0.012, lz + sz * 0.085 + 0.012, m=2)
         lathe(bm, lx, lz, [(0, 1.23), (0.09, 1.23), (0.02, 1.32), (0, 1.33)], segs=4, m=2, yaw=math.pi / 4)
-    # a bait bucket and a coil of rope by the bank end, out of the anglers' way
+    # a bait bucket by the bank end, out of the anglers' way
     lathe(bm, x0 + 0.35, z0 + 0.35, [(0, deck), (0.12, deck), (0.15, deck + 0.22), (0, deck + 0.2)], segs=12, m=2)
-    for k in range(3):
-        a0 = W(x0 + 0.35 + 0.13 * math.cos(2.1 * k), deck + 0.02 + 0.03 * k, z1 - 0.4 + 0.13 * math.sin(2.1 * k))
-        cylinder(bm, a0, a0 + W(0.001, 0.028, 0.001) - W(0, 0, 0), 0.16 - 0.02 * k, 14, m=3, r_end=0.16 - 0.02 * k)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     make_object("Prop_Dock", bm, ["CF_Plank", "CF_PlankDark", "CF_Metal", "CF_Rope"], coll)
     bm = bmesh.new()
@@ -900,6 +974,9 @@ def build_trees(L, coll):
 def build_rocks(L, coll):
     rng = random.Random(33)
     bm = bmesh.new()
+    # the cascade's top stone, stacked on the inlet's rim rocks
+    cs = L["cascade"]
+    blob(bm, cs["x"], cs["top"] - 0.13, cs["z"], 0.3, 0.16, 0.26, m=0, cuts=4, noise=0.1, rng=rng)
     for i, r in enumerate(L["rocks"]):
         s = r["s"]
         blob(bm, r["x"], 0.12 * s, r["z"], 0.5 * s, 0.36 * s, 0.42 * s, m=i % 2, cuts=4, noise=0.1, rng=rng, flat_bottom=-0.3)
@@ -949,7 +1026,7 @@ def build_deco(L, coll):
         a = rng.random() * 6.28
         rr = c["r"] + 0.25 + rng.random() * 1.2
         x, z = c["x"] + rr * math.cos(a), c["z"] + rr * math.sin(a)
-        if in_river(L, x, z, 0.4) or near_path(L, x, z, 0.15) or any(math.hypot(x - lg["x"], z - lg["z"]) < 1.5 for lg in L["logs"]):
+        if in_river(L, x, z, 0.4) or near_path(L, x, z, 0.15) or any(math.hypot(x - sx, z - sz) < 1.2 for p in firepit_pieces(L) for _, (sx, sz) in p["seats"]):
             continue
         cylinder(bm, W(x, 0.0, z), W(x, 0.16, z), 0.012, 5, m=2)
         blob(bm, x, 0.17, z, 0.045, 0.03, 0.045, m=3 if k % 3 else 4, cuts=2, n=2.0)
@@ -1564,8 +1641,8 @@ def summary(coll, L, cushions):
         # reported in the game's axes: x, y (up), z
         out[o.name] = {"tris": sum(len(p.vertices) - 2 for p in o.data.polygons), "x": [round(lo[0], 3), round(hi[0], 3)], "y": [round(lo[2], 3), round(hi[2], 3)], "z": [round(-hi[1], 3), round(-lo[1], 3)], "materials": len(o.data.materials)}
     checks = {
-        "logTops": out["Seat_Logs"]["y"][1],
-        "seatMarkHeights": sorted({v[1] for k, v in marks.items() if k.startswith("Seat_Log_")}),
+        "firepitTop": out["Seat_Firepit"]["y"][1],
+        "firepitSeatHeights": {k: v[1] for k, v in marks.items() if k.startswith(("Seat_Log_L", "Seat_Log_M", "Seat_Log_C", "Seat_Stump_0", "Seat_Boulder_0"))},
         "logCushionTop": cushions["log"]["top"],
         "tentMatTop": cushions["tentMat"]["top"],
         "hammockCushionTop": cushions["hammock"]["top"],

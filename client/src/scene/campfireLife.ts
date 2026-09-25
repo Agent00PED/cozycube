@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { PlayerState, ToggleableSyncState } from "@shared/types";
+import { canoeBob, canoePitch, canoeRoll } from "./canoeMotion";
 import { CAMPFIRE_LAYOUT as L, CRITTER_NOTICE, DUCK_PATHS, LIGHT_STRINGS, stringBulbs, FENCE_SWAGS, type Vec3 } from "@shared/worlds/campfire";
 
 // The campfire's living parts, driven every frame from the nodes campfire.glb names for them
@@ -231,10 +232,11 @@ export function bindCampfireLife(scene: THREE.Object3D, decalOffset: Record<stri
         owl.lids.scale.set(1, 0.06 + 0.94 * blink, 1);
       }
 
-      // the canoe on its rope
+      // the canoe on its rope, rocking harder while its angler fights a fish
       if (canoe) {
-        canoe.position.y = canoeY + 0.012 * Math.sin(t * 1.6);
-        canoe.rotation.set(0.035 * Math.sin(t * 1.3), 0, 0.02 * Math.sin(t * 1.1 + 1));
+        const struggling = everyone.some((p) => p.sitting && p.action === "reel" && Math.hypot(p.x - (L.canoe.x - 0.45), p.z - L.canoe.z) < 0.2);
+        canoe.position.y = canoeY + canoeBob(t);
+        canoe.rotation.set(canoeRoll(t, struggling), 0, canoePitch(t, struggling));
       }
 
       // the hatchet leaves the stump while someone chops with it (and a moment after)

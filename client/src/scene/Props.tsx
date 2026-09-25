@@ -277,7 +277,10 @@ export const PUFF_SECONDS = 1.6;
  * rising and swelling, off a skewer left too long in the fire) or "splash" (drops thrown up off
  * the water and golden twinkles, a catch coming out of the river). Driven by the frame clock.
  */
-export function CampfirePuff({ x, y, z, kind, at }: { x: number; y: number; z: number; kind: "smoke" | "splash"; at: number }) {
+/** Wood chips flying off a clean cleave at the chopping block. */
+const CHIP_MAT = matte("#c9965f", 0.85);
+
+export function CampfirePuff({ x, y, z, kind, at }: { x: number; y: number; z: number; kind: "smoke" | "splash" | "chips"; at: number }) {
   const bits = useRef<(THREE.Mesh | null)[]>([]);
   const seeds = useMemo(() => Array.from({ length: 10 }, (_, i) => ({ a: (i / 10) * Math.PI * 2 + Math.random() * 0.5, r: 0.05 + Math.random() * 0.15, d: Math.random() * 0.3, up: 0.6 + Math.random() * 0.6 })), []);
   useFrame(({ camera }) => {
@@ -291,6 +294,11 @@ export function CampfirePuff({ x, y, z, kind, at }: { x: number; y: number; z: n
       if (kind === "smoke") {
         m.position.set(Math.cos(s.a) * s.r * (1 + u * 2), u * s.up * 1.2, Math.sin(s.a) * s.r * (1 + u * 2));
         m.scale.setScalar(0.05 + 0.12 * u * (1 - u * 0.6));
+      } else if (kind === "chips") {
+        // a chip: flung out and up off the block, tumbling, and down onto the grass
+        m.position.set(Math.cos(s.a) * (0.1 + 0.55 * u), s.up * 1.5 * (u - u * u), Math.sin(s.a) * (0.1 + 0.55 * u));
+        m.rotation.set(u * 9 + i, u * 7, 0);
+        m.scale.set(0.05, 0.02, 0.035);
       } else if (i % 2 === 0) {
         // a drop: thrown up off the water and back down
         m.position.set(Math.cos(s.a) * s.r * 2 * u, s.up * 1.8 * (u - u * u), Math.sin(s.a) * s.r * 2 * u);
@@ -307,7 +315,7 @@ export function CampfirePuff({ x, y, z, kind, at }: { x: number; y: number; z: n
     <group position={[x, y, z]}>
       {seeds.map((_, i) => {
         const twinkle = kind === "splash" && i % 2 === 1;
-        return <mesh key={i} ref={(m) => (bits.current[i] = m)} geometry={twinkle ? SPARKLE_GEO : DROP_GEO} material={kind === "smoke" ? SMOKE_MAT : twinkle ? SPARKLE_MAT : DROP_MAT} visible={false} raycast={noRaycast} />;
+        return <mesh key={i} ref={(m) => (bits.current[i] = m)} geometry={kind === "chips" ? GEO.box : twinkle ? SPARKLE_GEO : DROP_GEO} material={kind === "smoke" ? SMOKE_MAT : kind === "chips" ? CHIP_MAT : twinkle ? SPARKLE_MAT : DROP_MAT} visible={false} raycast={noRaycast} />;
       })}
     </group>
   );

@@ -1079,19 +1079,28 @@ export interface RoastResult {
   capped: boolean;
 }
 
+/** How a fish swims in the reel: a slow sine wave; rhythmic plunges to the bottom; erratic jerks and
+ *  sudden turns; or the Star-Koi's fast darting. */
+export type SwimPattern = "sine" | "plunge" | "erratic" | "koi";
 /** What the river gives up to a starlight fishing line, what each is worth, and how it fights in
- *  the reel (`speed`: how often and how fast it darts; `size`: how fast the catch meter drains
- *  while it is out of the green bar). */
+ *  the reel (`speed`: how often and how fast it darts; `size`: how fast the line's tension builds
+ *  while it is out of the green bar; `barScale`: the green bar's height, 1 = full). */
 export const STARLIGHT_CATCHES = {
-  minnow: { name: "Chibi Minnow", emoji: "🐟", coins: 15, weight: 40, speed: 0.55, size: 0.5 },
-  trout: { name: "River Trout", emoji: "🐠", coins: 20, weight: 30, speed: 0.85, size: 0.8 },
-  starshell: { name: "Star Shell", emoji: "🐚", coins: 25, weight: 20, speed: 1.1, size: 0.9 },
-  bottle: { name: "Lucky Bottle", emoji: "🍾", coins: 30, weight: 10, speed: 1.35, size: 1.0 },
+  minnow: { name: "Chibi Minnow", emoji: "🐡", coins: 15, weight: 42, speed: 0.5, size: 0.5, pattern: "sine" as SwimPattern, barScale: 1, tier: "Easy" },
+  trout: { name: "Midnight Trout", emoji: "🐠", coins: 20, weight: 30, speed: 0.85, size: 0.75, pattern: "plunge" as SwimPattern, barScale: 1, tier: "Medium" },
+  salmon: { name: "Starlight Salmon", emoji: "🐟", coins: 25, weight: 18, speed: 1.15, size: 0.9, pattern: "erratic" as SwimPattern, barScale: 0.9, tier: "Hard" },
+  koi: { name: "Cosmic Star-Koi", emoji: "🎏", coins: 30, weight: 10, speed: 1.45, size: 1.0, pattern: "koi" as SwimPattern, barScale: 0.72, tier: "Legendary ✨" },
 } as const;
-/** A hooked fish at the campfire: the reel mini-game starts (FishingModal) for this catch. */
+/** A hooked fish at the campfire: the reel mini-game starts (FishingModal) for this catch, and a
+ *  Sunken Treasure Chest may turn up in the column (`treasure`: the server rolled one). */
 export interface StarlightReel {
   catchId: StarlightCatchId;
+  treasure: boolean;
 }
+/** A Sunken Treasure Chest held in the green bar until it opens pays this on top of the catch. */
+export const TREASURE_COINS = 25;
+/** How likely a chest is on each catch's reel. */
+export const TREASURE_CHANCE: Record<StarlightCatchId, number> = { minnow: 0.08, trout: 0.12, salmon: 0.2, koi: 0.65 };
 /** The shortest a real reel can take (the catch meter fills no faster): a quicker "caught" is not believed. */
 export const STARLIGHT_REEL_MIN_S = 2.0;
 export type StarlightCatchId = keyof typeof STARLIGHT_CATCHES;
@@ -1100,47 +1109,106 @@ export interface FishCaught {
   catchId: StarlightCatchId;
   coins: number;
   capped: boolean;
+  /** Coins from a Sunken Treasure Chest opened in the reel (0: none). */
+  treasure: number;
 }
 /** The bobber stays under this long after a bite: tap in time and it is yours. */
 export const STARLIGHT_BITE_S = 1.0;
 /** Seconds between casting (or a catch) and the next bite. */
 export const STARLIGHT_BITE_DELAY_S = { min: 3, max: 6 };
 /** Campfire coins a player can earn in a day, by activity (it all still happens past a cap, unpaid). */
-export const CAMPFIRE_DAILY_COINS = { fish: 250, roast: 60, star: 100, chop: 60, forage: 60 };
+export const CAMPFIRE_DAILY_COINS = { fish: 250, roast: 60, star: 150, chop: 60, forage: 60 };
 export type CampfireCoinKind = keyof typeof CAMPFIRE_DAILY_COINS;
 
 // --- the Campfire's telescope, chopping block and foraging ----------------------------------------
 
-/** A shooting star caught in the telescope pays this. */
-export const STAR_SPARK_COINS = 10;
-/** A shooting star, as the server sends one to a stargazer: it crosses the lens from (x0, y0) to
- *  (x1, y1) (fractions of the lens, 0..1) over `duration` seconds; tap it on the way to catch it. */
+/** A shooting star caught in the telescope pays this, times the combo multiplier. */
+export const STAR_SPARK_COINS = 5;
+/** Catching shooting stars one after another without letting one go: x1, x2, x3, then x5. */
+export const STAR_COMBO_MULTIPLIERS = [1, 2, 3, 5];
+export function starComboMultiplier(combo: number): number {
+  return STAR_COMBO_MULTIPLIERS[Math.max(0, Math.min(STAR_COMBO_MULTIPLIERS.length - 1, combo - 1))];
+}
+/** A shooting star, as the server sends one to a stargazer: `delay` seconds after the shower
+ *  arrives it crosses the lens from (x0, y0) to (x1, y1) (fractions of the lens) over `duration`
+ *  seconds; tap it on the way to catch it. */
 export interface ShootingStar {
   id: number;
+  delay: number;
   x0: number;
   y0: number;
   x1: number;
   y1: number;
   duration: number;
 }
+/** A meteor shower: a few shooting stars, at their own speeds and angles. */
+export interface MeteorShower {
+  stars: ShootingStar[];
+}
 export interface StarCaught {
   sessionId: string;
   coins: number;
   capped: boolean;
+  /** The catch's place in the chain (1: a fresh start) and the multiplier it earned. */
+  combo: number;
+  multiplier: number;
 }
-/** A clean split pays this, and feeds the bonfire for BONFIRE_FUEL_SECONDS. */
-export const CHOP_CLEAN_COINS = 5;
-export const BONFIRE_FUEL_SECONDS = 60;
-/** The chop, as the server sets it: the marker runs the meter once over `duration` seconds;
- *  tapping between zoneFrom and zoneTo (fractions of the run) splits the log clean. */
-export interface ChopStart {
-  duration: number;
-  zoneFrom: number;
-  zoneTo: number;
+/** A constellation traced in the telescope pays this (once per look through it). */
+export const CONSTELLATION_COINS = 30;
+/** Tracing one faster than this is not believed. */
+export const CONSTELLATION_MIN_S = 3;
+/** The constellations to trace: their stars in order (fractions of the lens), then the picture
+ *  they make once joined (polylines, the same space). */
+export const CONSTELLATIONS = [
+  {
+    id: "ursa_chibi",
+    name: "Ursa Chibi",
+    emoji: "🐻",
+    stars: [[0.3, 0.42], [0.38, 0.3], [0.5, 0.26], [0.62, 0.3], [0.7, 0.42], [0.64, 0.56], [0.5, 0.62], [0.36, 0.56]],
+    art: [
+      [[0.34, 0.36], [0.3, 0.26], [0.38, 0.22], [0.43, 0.29]],
+      [[0.57, 0.29], [0.62, 0.22], [0.7, 0.26], [0.66, 0.36]],
+      [[0.44, 0.44], [0.45, 0.45]],
+      [[0.55, 0.44], [0.56, 0.45]],
+      [[0.47, 0.52], [0.5, 0.55], [0.53, 0.52]],
+    ],
+  },
+  {
+    id: "starlight_cat",
+    name: "Starlight Cat",
+    emoji: "🐱",
+    stars: [[0.3, 0.62], [0.32, 0.36], [0.4, 0.46], [0.5, 0.42], [0.6, 0.46], [0.68, 0.36], [0.7, 0.62], [0.5, 0.7]],
+    art: [
+      [[0.43, 0.54], [0.44, 0.55]],
+      [[0.56, 0.54], [0.57, 0.55]],
+      [[0.48, 0.6], [0.5, 0.62], [0.52, 0.6]],
+      [[0.36, 0.6], [0.22, 0.57]],
+      [[0.36, 0.63], [0.22, 0.66]],
+      [[0.64, 0.6], [0.78, 0.57]],
+      [[0.64, 0.63], [0.78, 0.66]],
+    ],
+  },
+] as const;
+export type ConstellationId = (typeof CONSTELLATIONS)[number]["id"];
+export interface ConstellationDone {
+  sessionId: string;
+  id: ConstellationId;
+  coins: number;
+  capped: boolean;
 }
+/** All three strokes of the chopping combo landed: this, and the bonfire roars up for BONFIRE_FUEL_SECONDS. */
+export const CHOP_CLEAN_COINS = 15;
+export const BONFIRE_FUEL_SECONDS = 90;
+/** Swinging into a wood knot stuns the axe this long before the next try. */
+export const CHOP_STUN_S = 1.5;
 export interface ChopResult {
   sessionId: string;
+  /** All three strokes landed. */
   clean: boolean;
+  /** The swing hit a wood knot. */
+  stunned: boolean;
+  /** The stroke it ended on (3 when clean). */
+  stroke: number;
   coins: number;
   capped: boolean;
 }
@@ -1165,6 +1233,7 @@ export type CampfirePacket =
   | { type: "GUITAR"; playing: boolean }
   | { type: "STARGAZE"; on: boolean }
   | { type: "STAR_CATCH"; id: number }
+  | { type: "CONSTELLATION"; id: ConstellationId }
   | { type: "CHOP_START" }
   | { type: "CHOP_STOP" }
-  | { type: "REEL_DONE"; caught: boolean };
+  | { type: "REEL_DONE"; caught: boolean; treasure: boolean };

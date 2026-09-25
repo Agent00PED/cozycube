@@ -70,13 +70,14 @@ const RELAYED_MESSAGES = [
   "fishCaught",
   "campfireNotice",
   // the telescope, the chopping block and foraging
-  "shootingStar",
+  "meteorShower",
+  "constellationDone",
   "starlightReel",
   // the campfire's critters: a treat for the raccoon, a duck's dive
   "critterTreat",
   "duckDive",
   "starCaught",
-  "chopStart",
+  "chopStroke",
   "chopResult",
   "forageResult",
 ] as const;

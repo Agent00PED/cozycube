@@ -2,9 +2,18 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { readFileSync } from "fs";
+
+// every build stamps its models' URLs with a fresh version (src/assetVersion.ts): the package's
+// version and the build's time, so a deploy is never served a model the webview cached before
+const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf8")) as { version: string };
+const ASSET_VERSION = `${pkg.version}-${Date.now().toString(36)}`;
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    __ASSET_VERSION__: JSON.stringify(ASSET_VERSION),
+  },
   resolve: {
     alias: {
       "@shared": path.resolve(__dirname, "../shared"),

@@ -46,7 +46,7 @@ function noise(c: AudioContext, at: number, length: number, gain: number, cutoff
   src.onended = () => (src.disconnect(), filter.disconnect(), g.disconnect());
 }
 
-export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck" | "squeak" | "quack";
+export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck" | "squeak" | "quack" | "tension" | "snap";
 
 export function playSfx(kind: Sfx) {
   if (!getSoundSettings().effects) return;
@@ -74,6 +74,13 @@ export function playSfx(kind: Sfx) {
     // a glancing blow: a dull thud
     tone(c, t, 130, 70, 0.22, 0.2, "sine");
     noise(c, t, 0.06, 0.12, 900);
+  } else if (kind === "tension") {
+    // the line straining: a taut, rising twang
+    tone(c, t, 660, 990, 0.12, 0.06, "triangle");
+  } else if (kind === "snap") {
+    // the line breaks: a sharp crack and a slack wobble down
+    noise(c, t, 0.06, 0.3, 4200);
+    tone(c, t + 0.02, 900, 140, 0.35, 0.1, "sawtooth");
   } else if (kind === "squeak") {
     // the raccoon, delighted: two quick high chirps
     tone(c, t, 1500, 2300, 0.09, 0.07, "sine");

@@ -178,13 +178,13 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   }, []);
 
   // the campfire's little effects: smoke off a burnt skewer, a splash off a catch
-  const [puffs, setPuffs] = useState<{ id: number; x: number; y: number; z: number; kind: "smoke" | "splash"; at: number }[]>([]);
+  const [puffs, setPuffs] = useState<{ id: number; x: number; y: number; z: number; kind: "smoke" | "splash" | "chips"; at: number }[]>([]);
   const puffId = useRef(1);
   const livePlayers = useRef(players);
   livePlayers.current = players;
   useEffect(() => {
     const timers = new Set<number>();
-    const add = (p: { x: number; y: number; z: number; kind: "smoke" | "splash" }) => {
+    const add = (p: { x: number; y: number; z: number; kind: "smoke" | "splash" | "chips" }) => {
       const id = puffId.current++;
       setPuffs((prev) => [...prev, { id, ...p, at: performance.now() }]);
       const timer = window.setTimeout(() => {
@@ -202,6 +202,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         const fz = CAMPFIRE_LAYOUT.fire.z - who.z;
         const d = Math.hypot(fx, fz) || 1;
         add({ x: who.x + (fx / d) * 0.55, y: 0.55, z: who.z + (fz / d) * 0.55, kind: "smoke" });
+      } else if (type === "chopResult" && payload.clean) {
+        add({ x: CAMPFIRE_LAYOUT.chop.x, y: 0.45, z: CAMPFIRE_LAYOUT.chop.z, kind: "chips" });
       } else if (type === "fishCaught") {
         // off this angler's own float (the one out from their spot on the dock)
         const b = bobberFor(who, "campfire_night");
