@@ -1,7 +1,8 @@
 // Shared between client and server — keep this file framework-agnostic (no THREE/Colyseus imports).
 
-/** "dangle": sitting on an edge (the campfire's dock), legs hanging down and swinging. */
-export type SitPose = "sit" | "lie" | "dangle";
+/** "dangle": sitting on an edge (the campfire's dock), legs hanging down and swinging.
+ *  "cross": sitting cross-legged right on the ground (the Sit emote, away from any seat). */
+export type SitPose = "sit" | "lie" | "dangle" | "cross";
 /** "jar": a glass jar of fireflies caught at the campfire, glowing in the left hand. */
 export type HeldItem = "" | "coffee" | "marshmallow" | "skewer" | "jar";
 /** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is a boxing knockdown. */
@@ -141,6 +142,8 @@ export const ALLOWANCE_COOLDOWN_S = 600;
 export const CHAT_MAX_CHARS = 80;
 export const CHAT_BUBBLE_SECONDS = 4;
 export const QUICK_CHATS = ["hi! 👋", "brb", "gg!", "lol", "come sit here!", "let's go to the beach 🏖️", "who's up for roulette? 🎡", "love this song 🎶"];
+/** The quick chats round the campfire. */
+export const CAMPFIRE_QUICK_CHATS = ["Pass the marshmallows! 🍢", "Huge catch! 🐟", "Cozy night 🔥", "Look, a shooting star! 🌠", "Who's on guitar? 🎸", "Come sit by the fire!", "Fireflies! ✨", "goodnight 🌙"];
 export interface ChatBubbleBroadcast {
   sessionId: string;
   text: string;
@@ -226,7 +229,8 @@ export type ToggleableKind =
   | "telescope"
   | "woodchop"
   | "foraging"
-  | "fireflies";
+  | "fireflies"
+  | "critter";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -283,12 +287,12 @@ export const SYSTEM_EMOJI = ["🥂", "💤", "💃", "🪙", "💰", "🎰", "�
  * on its own when something happens (SERVER_GESTURES): watering a plant, reaching over the board
  * to make a move.
  */
-export const GESTURES = ["wave", "dance", "cheers", "nap", "water", "reach", "chop", "net"] as const;
+export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss"] as const;
 export type Gesture = (typeof GESTURES)[number];
-export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 2.2, dance: 5, cheers: 2.4, nap: 7, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0 };
-export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", water: "💧", reach: "♟️", chop: "🪓", net: "✨" };
+export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8 };
+export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪" };
 /** Gestures only the server starts (a client asking for one is ignored). */
-export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net"]);
+export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net", "toss"]);
 export function isGesture(v: unknown): v is Gesture {
   return typeof v === "string" && (GESTURES as readonly string[]).includes(v);
 }
@@ -953,7 +957,8 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "telescope" ||
     kind === "woodchop" ||
     kind === "foraging" ||
-    kind === "fireflies"
+    kind === "fireflies" ||
+    kind === "critter"
   );
 }
 

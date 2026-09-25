@@ -9,6 +9,8 @@ export const cameraFocus = {
   /** The local player's walking direction (0, 0 when standing). */
   dirX: 0,
   dirZ: 0,
+  /** The way the local player faces (radians; heading 0 faces +z): a ground sit keeps it. */
+  facing: 0,
 };
 
 /** How many world units the camera fits across the viewport: the current world sets it (its floor plus a margin). */

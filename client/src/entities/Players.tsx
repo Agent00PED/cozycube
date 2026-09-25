@@ -34,6 +34,8 @@ export interface CrowdFeed {
   awaiting: ReadonlySet<string>;
   /** The world everyone is in (where a fishing line goes). */
   mapId: MapId;
+  /** Session ids sitting in the campfire's canoe (they rock with it). */
+  rocking: ReadonlySet<string>;
 }
 
 /** Where an angler's bobber floats on the campfire's river: out from the dock spot they fish from
@@ -62,6 +64,7 @@ function avatarProps(player: PlayerState, feed: CrowdFeed) {
     status: player.status,
     bubble: feed.bubbles[player.sessionId] ?? null,
     vibe: feed.vibing.has(player.sessionId),
+    rock: feed.rocking.has(player.sessionId),
     awaiting: feed.awaiting.has(player.sessionId),
     snack: player.snack,
     actionProgress: player.actionProgress,

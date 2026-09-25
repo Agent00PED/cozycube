@@ -47,7 +47,8 @@ export interface WorldSceneProps {
   subscribeMessages: (listener: RoomMessageListener) => () => void;
 }
 
-const EMOTE_LIFETIME_MS = 1900;
+/** An emote's bubble floats over its sender this long (it pops in, bobs, and fades). */
+const EMOTE_LIFETIME_MS = 3000;
 const BUBBLE_LIFETIME_MS = 4200;
 
 /** Warm ambient light and a soft key with no shadow map: the whole room's light, with the lamps' own point lights. */
@@ -338,7 +339,10 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
     const waiter = board?.phase === "playing" ? board.seats[board.turn === "w" ? "b" : "w"] : "";
     return new Set(waiter ? [waiter] : []);
   }, [board]);
-  const feed = useMemo<CrowdFeed>(() => ({ speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId }), [speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId]);
+  // whoever sits in the campfire's canoe rocks with it
+  const canoeSitter = chairs.seat_canoe?.occupiedBy ?? "";
+  const rocking = useMemo<ReadonlySet<string>>(() => new Set(canoeSitter ? [canoeSitter] : []), [canoeSitter]);
+  const feed = useMemo<CrowdFeed>(() => ({ speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId, rocking }), [speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId, rocking]);
 
   // it is always a starlit night at the campfire, whatever the room's clock says
   const starlit = mapId === "campfire_night";
@@ -346,7 +350,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   return (
     <TimeOfDayContext.Provider value={hour}>
       <SceneLighting timeOfDay={hour} starlit={starlit} />
-      {mapId === "cozy_lounge" ? <LoungeWorld onFloorClick={onFloorClick} /> : mapId === "campfire_night" ? <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} /> : <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />}
+      {mapId === "cozy_lounge" ? <LoungeWorld onFloorClick={onFloorClick} /> : mapId === "campfire_night" ? <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} subscribeMessages={subscribeMessages} onDuck={(duck) => room?.send("duckPoke", { duck })} /> : <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />}
 
       {Object.values(chairs).map((chair) => (
         // a seat you lie in (the hammock, the tent) is placed by where your feet go: its pad sits
@@ -376,6 +380,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={prop} size={[0.8, 1.4, 0.8]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "woodchop" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.7, 0.8, 0.7]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "critter" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.6, 0.6, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "fireflies" ? (
           <PropPad key={prop.propId} prop={prop} size={[1.4, 1.2, 1.4]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "foraging" ? (

@@ -151,6 +151,7 @@ PALETTE = {
     "CF_BerryGlow": "#8F7BFF",
     "CF_BushLeaf": "#4F7B4A",
     "CF_MushSpot": "#FFF6E8",
+    "CF_LanternWarm": "#FFA844",
 }
 ROUGHNESS = {"CF_Water": 0.25, "CF_Metal": 0.6, "CF_Glass": 0.4, "CF_Chrome": 0.45, "CF_Brass": 0.55, "CF_Steel": 0.5}
 # the ground decals' tops, a layer each over the moss (y = 0): patches, paths, then the clearing
@@ -158,7 +159,7 @@ LAYER_PATCH = 0.008
 LAYER_PATH = 0.015
 LAYER_CLEARING = 0.022
 # glowing things: (strength) of an emission in their own colour
-EMISSION = {"CF_Ember": 2.2, "CF_FlameOuter": 3.0, "CF_FlameInner": 4.0, "CF_LanternGlass": 2.5, "CF_Bulb": 3.0, "CF_BerryGlow": 2.0}
+EMISSION = {"CF_Ember": 2.2, "CF_FlameOuter": 3.0, "CF_FlameInner": 4.0, "CF_LanternGlass": 2.5, "CF_Bulb": 3.0, "CF_BerryGlow": 2.0, "CF_LanternWarm": 2.6}
 # thin sheets seen from both sides
 DOUBLE_SIDED = {"CF_Canvas", "CF_CanvasStripe", "CF_Hammock", "CF_HammockStripe", "CF_Checker", "CF_VanCream", "CF_Cooler", "CF_AwningStripe", "CF_Canoe", "CF_CanoeInner"}
 
@@ -278,31 +279,29 @@ def ribbon(bm, west, east, y0, y1, m=0, top_only=False):
 
 
 def path_polyline(path, step=0.1):
-    """A trail's centre line: a Catmull-Rom spline through its points, sampled every ~step."""
-    P = path["points"]
-    if len(P) < 3:
-        (ax, az), (bx, bz) = P[0], P[-1]
-        n = max(2, int(math.hypot(bx - ax, bz - az) / step))
-        return [(ax + (bx - ax) * k / n, az + (bz - az) * k / n) for k in range(n + 1)]
-    out = []
+    """A trail's centre line and width: a Catmull-Rom spline through its points ([x, z] or
+    [x, z, width]; a point without a width takes the trail's "w"), sampled every ~step."""
+    P = [(p[0], p[1], p[2] if len(p) > 2 else path["w"]) for p in path["points"]]
     at = lambda k: P[max(0, min(len(P) - 1, k))]
+    out = []
     for i in range(len(P) - 1):
         seg = math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1])
         n = max(2, int(seg / step))
         for k in range(n):
             u = k / n
-            out.append(tuple(catmull(at(i - 1)[d], at(i)[d], at(i + 1)[d], at(i + 2)[d], u) for d in (0, 1)))
-    out.append(tuple(P[-1]))
+            x, z, w = (catmull(at(i - 1)[d], at(i)[d], at(i + 1)[d], at(i + 2)[d], u) for d in (0, 1, 2))
+            out.append((x, z, max(0.3, w)))
+    out.append(P[-1])
     return out
 
 
 def near_path(L, x, z, pad):
     for path in L["paths"]:
         pts = path_polyline(path, 0.3)
-        for (ax, az), (bx, bz) in zip(pts, pts[1:]):
+        for (ax, az, aw), (bx, bz, bw) in zip(pts, pts[1:]):
             dx, dz = bx - ax, bz - az
             t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
-            if math.hypot(x - (ax + dx * t), z - (az + dz * t)) < path["w"] / 2 + pad:
+            if math.hypot(x - (ax + dx * t), z - (az + dz * t)) < max(aw, bw) / 2 + pad:
                 return True
     return False
 
@@ -310,8 +309,8 @@ def near_path(L, x, z, pad):
 def read_cushions(root):
     src = open(os.path.join(root, "shared", "seats.ts"), encoding="utf-8").read()
     out = {}
-    for name in ("log", "hammock", "tentMat", "picnicBench", "campChair", "stump", "dock"):
-        m = re.search(rf"\b{name}: \{{ y: ([0-9.]+), h: ([0-9.]+) \}}", src)
+    for name in ("log", "hammock", "tentMat", "picnicBench", "campChair", "stump", "dock", "canoe"):
+        m = re.search(rf"\b{name}: \{{ y: (-?[0-9.]+), h: ([0-9.]+) \}}", src)
         y, h = float(m.group(1)), float(m.group(2))
         out[name] = {"y": y, "h": h, "top": y + h / 2}
     return out
@@ -580,30 +579,33 @@ def build_ground(L, coll):
     make_object("Campfire_Water", bm, ["CF_Water"], coll, recalc=False)  # built facing up
 
 
-def trail(bm, pts, hw, bevel=0.14):
-    """A dirt trail along `pts`: a flat top `hw` either side of the line at LAYER_PATH, its edges
-    bevelled out and down to just over the moss, a rounded cap on each end."""
+def trail(bm, pts, bevel=0.14, flat_end=False):
+    """A dirt trail along `pts` ((x, z, width) samples): a flat top at LAYER_PATH, its edges
+    bevelled out and down to just over the moss, a rounded cap on each end (or, `flat_end`, a
+    straight one: the dock's trail ends square under its planks)."""
     top, low = LAYER_PATH, 0.002
     n = len(pts)
     rows = []
-    for i, (x, z) in enumerate(pts):
-        (ax, az), (bx, bz) = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
+    for i, (x, z, width) in enumerate(pts):
+        (ax, az, _), (bx, bz, _) = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
         d = math.hypot(bx - ax, bz - az) or 1
         tx, tz = (bx - ax) / d, (bz - az) / d
         nx, nz = -tz, tx
-        w = hw * (1 + 0.05 * math.sin(i * 0.9))
+        w = width / 2 * (1 + 0.04 * math.sin(i * 0.9))
         rows.append([bm.verts.new(W(x + nx * s_ * (w + (bevel if outer else 0)), low if outer else top, z + nz * s_ * (w + (bevel if outer else 0)))) for s_, outer in ((1, True), (1, False), (-1, False), (-1, True))])
     for r0, r1 in zip(rows, rows[1:]):
         for k in range(3):
             bm.faces.new((r0[k], r0[k + 1], r1[k + 1], r1[k]))
     # the rounded ends: a half fan of the top and the bevel round each
     for end, sign in ((0, -1), (n - 1, 1)):
-        x, z = pts[end]
-        (ax, az), (bx, bz) = (pts[0], pts[1]) if end == 0 else (pts[-2], pts[-1])
+        if flat_end and end == n - 1:
+            continue
+        x, z, width = pts[end]
+        (ax, az, _), (bx, bz, _) = (pts[0], pts[1]) if end == 0 else (pts[-2], pts[-1])
         d = math.hypot(bx - ax, bz - az) or 1
         tx, tz = sign * (bx - ax) / d, sign * (bz - az) / d
         nx, nz = -tz, tx
-        w = hw * (1 + 0.05 * math.sin(end * 0.9))
+        w = width / 2 * (1 + 0.04 * math.sin(end * 0.9))
         centre = bm.verts.new(W(x, top, z))
         inner, outer = [], []
         for k in range(9):
@@ -628,7 +630,7 @@ def build_paths(L, coll):
     # down to the moss, its far end rounded (they start inside the clearing, under its layer)
     before = set(bm.faces)
     for path in L["paths"]:
-        trail(bm, path_polyline(path), path["w"] / 2)
+        trail(bm, path_polyline(path), flat_end=path.get("flatEnd", False))
     for f in bm.faces:
         if f not in before:
             f.normal_update()
@@ -1069,7 +1071,7 @@ def build_glamping(L, cushions, coll):
     and the canoe's rope."""
     rng = random.Random(71)
     M = ["CF_Plank", "CF_PlankDark", "CF_Checker", "CF_VanCream", "CF_Metal", "CF_LanternGlass", "CF_Cooler", "CF_Brass", "CF_VanMint", "CF_Glass",
-         "CF_Chrome", "CF_AwningStripe", "CF_Pole", "CF_Rope", "CF_Bark", "CF_WoodCut"]
+         "CF_Chrome", "CF_AwningStripe", "CF_Pole", "CF_Rope", "CF_Bark", "CF_WoodCut", "CF_LanternWarm"]
     m = {name: i for i, name in enumerate(M)}
     # each material in an object is a draw call: the near-duplicates share one (the gingham's white,
     # the awning's cream stripes, the cooler's lid and the enamel mugs are the van's cream; the
@@ -1203,6 +1205,55 @@ def build_glamping(L, cushions, coll):
         a0 = W(ch["x"] + sgn * 0.45, 0.07, ch["z"] + 0.3)
         cylinder(bm, a0, a0 + W(0.12 * sgn, 0, 0.3) - W(0, 0, 0), 0.08, 8, m=m["CF_WoodCut"], cap_m=m["CF_Bark"])
 
+    # --- the grove: a guitar case lying open on the grass (plush lining, a few coins), and a warm
+    # camping lantern on the ground beside it ---
+    gc = L["guitarCase"]
+    cyaw, syaw = math.cos(gc["yaw"]), math.sin(gc["yaw"])
+
+    def case_point(u, y, v):  # the case's own axes: u along it, v across, y up
+        return W(gc["x"] + (u - 0.47) * cyaw - v * syaw, y, gc["z"] + (u - 0.47) * syaw + v * cyaw)
+
+    def half_width(u):
+        bout = lambda c, r: math.sqrt(max(0.0, r * r - (u - c) ** 2))
+        return max(bout(0.2, 0.2), bout(0.52, 0.155), 0.045 if 0.6 <= u <= 0.95 else 0.0)
+
+    us = [0.001 + 0.949 * k / 28 for k in range(29)]
+    outline = [(u, half_width(u) + 0.02) for u in us] + [(u, -half_width(u) - 0.02) for u in reversed(us)]
+    lining = [(u, max(0.01, half_width(u) - 0.01)) for u in us[1:-1]] + [(u, -max(0.01, half_width(u) - 0.01)) for u in reversed(us[1:-1])]
+
+    def prism(pts, y0, y1, mi, hinge=None):
+        """An outline in the case's axes extruded from y0 to y1 (hinge: (v0, y0, angle) to swing it up)."""
+        def place(u, y, v):
+            if hinge:
+                hv, hy, ang = hinge
+                dv, dy = v - hv, y - hy
+                v, y = hv + dv * math.cos(ang) - dy * math.sin(ang), hy + dv * math.sin(ang) + dy * math.cos(ang)
+            return case_point(u, y, v)
+        lo = [bm.verts.new(place(u, y0, v)) for u, v in pts]
+        hi = [bm.verts.new(place(u, y1, v)) for u, v in pts]
+        bm.faces.new(list(reversed(lo))).material_index = mi
+        bm.faces.new(hi).material_index = mi
+        for k in range(len(pts)):
+            k1 = (k + 1) % len(pts)
+            bm.faces.new((lo[k], lo[k1], hi[k1], hi[k])).material_index = mi
+
+    prism(outline, 0.0, 0.1, m["CF_PlankDark"])
+    prism(lining, 0.1, 0.108, m["CF_Checker"])
+    # the lid, hinged along the case's back edge and swung up past upright
+    back = -max(half_width(u) for u in us) - 0.02
+    prism(outline, 0.1, 0.12, m["CF_PlankDark"], hinge=(back, 0.1, math.radians(105)))
+    for k in range(4):
+        u, v = 0.18 + 0.07 * k, 0.05 * math.sin(k * 2.1)
+        cx_, cz_ = gc["x"] + (u - 0.47) * cyaw - v * syaw, gc["z"] + (u - 0.47) * syaw + v * cyaw
+        lathe(bm, cx_, cz_, [(0, 0.108), (0.03, 0.108), (0.03, 0.118), (0, 0.118)], segs=10, m=m["CF_Brass"])
+    gl = L["groundLantern"]
+    lathe(bm, gl["x"], gl["z"], [(0, 0.0), (0.08, 0.0), (0.08, 0.04), (0, 0.04)], segs=12, m=m["CF_Metal"])
+    lathe(bm, gl["x"], gl["z"], [(0, 0.04), (0.06, 0.04), (0.068, 0.12), (0.06, 0.2), (0, 0.2)], segs=12, m=m["CF_LanternWarm"])
+    lathe(bm, gl["x"], gl["z"], [(0, 0.2), (0.075, 0.2), (0.035, 0.25), (0, 0.26)], segs=12, m=m["CF_Metal"])
+    for sx in (-1, 1):
+        cylinder(bm, W(gl["x"] + sx * 0.055, 0.22, gl["z"]), W(gl["x"] + sx * 0.03, 0.34, gl["z"]), 0.006, 4, m=m["CF_Metal"])
+    cylinder(bm, W(gl["x"] - 0.03, 0.34, gl["z"]), W(gl["x"] + 0.03, 0.34, gl["z"]), 0.006, 4, m=m["CF_Metal"])
+
     # --- the sitting stump beside the chopping block (its top the stump cushion's) ---
     ss = L["stumpSeat"]
     cylinder(bm, W(ss["x"], 0.0, ss["z"]), W(ss["x"], cushions["stump"]["top"], ss["z"]), 0.22, 14, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
@@ -1302,7 +1353,7 @@ def build_hatchet(L, coll):
     make_object("Prop_WoodChop_Hatchet", bm, ["CF_Steel", "CF_Pole"], coll, origin=p0)
 
 
-def build_canoe(L, coll):
+def build_canoe(L, cushions, coll):
     """A little red canoe, tied up off the dock: its own node, origin at the waterline (it bobs)."""
     cn = L["canoe"]
     water = L["river"]["water"]
@@ -1321,11 +1372,17 @@ def build_canoe(L, coll):
 
     sheet(bm, 20, 8, hull(1.0, 0.0), m_of=lambda i, j: 0)
     sheet(bm, 20, 8, hull(0.9, 0.012), m_of=lambda i, j: 1)
-    for sx in (-0.45, 0.42):  # the seats
-        box(bm, cx + sx - 0.07, cx + sx + 0.07, water + 0.13, water + 0.16, cz - 0.21, cz + 0.21, m=1)
+    seat = cushions["canoe"]
+    for sx in (-0.45, 0.42):  # the seats (the stern one, -0.45, is Seat_Canoe: its top is the canoe cushion's)
+        box(bm, cx + sx - 0.07, cx + sx + 0.07, seat["top"] - seat["h"], seat["top"], cz - 0.21, cz + 0.21, m=1)
     cylinder(bm, W(cx - 0.55, water + 0.18, cz - 0.05), W(cx + 0.5, water + 0.18, cz + 0.06), 0.015, 6, m=1)  # the paddle's shaft
     blob(bm, cx + 0.6, water + 0.18, cz + 0.07, 0.14, 0.012, 0.06, m=1, cuts=2)
     make_object("Prop_Canoe", bm, ["CF_Canoe", "CF_CanoeInner"], coll, origin=(cx, water, cz), recalc=False)
+    mark = bpy.data.objects.new("Seat_Canoe", None)
+    mark.empty_display_type = "ARROWS"
+    mark.empty_display_size = 0.2
+    mark.location = W(cx - 0.45, seat["top"], cz)
+    coll.objects.link(mark)
 
 
 def build_fauna(L, coll):
@@ -1466,7 +1523,7 @@ def build(root):
     build_glamping(L, cushions, coll)
     build_hatchet(L, coll)
     build_signpost(L, coll)
-    build_canoe(L, coll)
+    build_canoe(L, cushions, coll)
     build_lights(L, coll)
     build_fauna(L, coll)
     build_forage(L, coll)

@@ -6,7 +6,8 @@ import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } 
 import { AWAY_PREFIX, BoardTable } from "./boardgame";
 import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
-import { BONFIRE_REACH, CHOP_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, nearestFishingSpot } from "../../../shared/worlds/campfire";
+import { BONFIRE_REACH, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, nearestFishingSpot } from "../../../shared/worlds/campfire";
+import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
 import { emptyCampfireCoins } from "../db/players";
 import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat, isWaterable, mochiSpot } from "../../../shared/props";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
@@ -386,6 +387,9 @@ export class HangoutRoom extends Room<HangoutState> {
   private starReels = new Map<string, { catchId: StarlightCatchId; startedAt: number }>();
   /** When each player last swept the net through the fireflies. */
   private lastNetAt = new Map<string, number>();
+  /** When each player last tossed the raccoon a treat, and when each duck last dived. */
+  private lastTreatAt = new Map<string, number>();
+  private duckDivedAt: number[] = [];
   /** The telescope: each stargazer's next shooting star, and the one crossing their lens now. */
   private stargazers = new Map<string, { next: number; star: (ShootingStar & { until: number }) | null }>();
   private starSeq = 1;
@@ -457,6 +461,30 @@ export class HangoutRoom extends Room<HangoutState> {
     });
 
     this.onMessage("standUp", (client) => this.handleStandUp(client.sessionId));
+    // the Sit emote, away from any seat: cross-legged right where you stand, facing the way you
+    // faced (moving, or standUp, gets you up again)
+    this.onMessage("groundSit", (client, msg: { rotationY?: number }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || player.sitting || player.action !== "" || player.gloves || this.state.mapTransitioning) return;
+      const heading = Number(msg?.rotationY);
+      player.sitting = true;
+      player.sitPose = "cross";
+      player.sitY = GROUND_SIT_Y;
+      player.sitRotationY = Number.isFinite(heading) ? heading : 0;
+      player.dirX = 0;
+      player.dirZ = 0;
+      this.lastReportAt.delete(client.sessionId);
+    });
+    // a tap on one of the campfire's ducks: it quacks and dives (everyone sees it)
+    this.onMessage("duckPoke", (client, msg: { duck?: number }) => {
+      if (this.state.currentMap !== "campfire_night") return;
+      const i = Number(msg?.duck);
+      if (!Number.isInteger(i) || i < 0 || i >= DUCK_PATHS.length) return;
+      const now = Date.now();
+      if (now - (this.duckDivedAt[i] ?? 0) < DUCK_DIVE_COOLDOWN_MS) return;
+      this.duckDivedAt[i] = now;
+      this.broadcast("duckDive", { duck: i, sessionId: client.sessionId });
+    });
 
     this.onMessage("setLook", (client, msg: { look: string }) => {
       const player = this.state.players.get(client.sessionId);
@@ -2292,6 +2320,16 @@ export class HangoutRoom extends Room<HangoutState> {
       case "fireflies":
         this.catchFireflies(sessionId, player, prop);
         break;
+      case "critter": {
+        // a treat tossed to the raccoon: it spins for joy (everyone sees it)
+        if (player.sitting || Math.hypot(player.x - prop.x, player.z - prop.z) > CRITTER_REACH + 0.4) return;
+        const now = Date.now();
+        if (now - (this.lastTreatAt.get(sessionId) ?? 0) < TREAT_COOLDOWN_MS) return;
+        this.lastTreatAt.set(sessionId, now);
+        this.playGesture(sessionId, "toss");
+        this.broadcast("critterTreat", { sessionId });
+        break;
+      }
       case "fishing":
         if (player.action === "fish") this.handleReelIn(sessionId);
         else this.handleCastLine(sessionId);
@@ -2584,6 +2622,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.lastChopAt.delete(sessionId);
     this.starReels.delete(sessionId);
     this.lastNetAt.delete(sessionId);
+    this.lastTreatAt.delete(sessionId);
     this.hooked.delete(sessionId);
     this.refundBets(sessionId);
     // An unfinished blackjack hand is abandoned: the stake comes back.
@@ -2743,6 +2782,11 @@ function rollSymbol(): number {
 const ROAST_COOLDOWN_MS = 1500;
 /** Between swings at the chopping block. */
 const CHOP_COOLDOWN_MS = 900;
+/** Between treats for the raccoon (per player), and between a duck's dives. */
+const TREAT_COOLDOWN_MS = 2000;
+const DUCK_DIVE_COOLDOWN_MS = 1800;
+/** Sitting cross-legged on the ground: the avatar's height, derived from the ground "cushion". */
+const GROUND_SIT_Y = Math.round(seatAnchorY(CUSHIONS.ground) * 1000) / 1000;
 
 /** The river's bites come quicker than the sea's (STARLIGHT_BITE_DELAY_S). */
 function starlightBiteDelay(): number {

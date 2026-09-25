@@ -84,6 +84,9 @@ export const CUSHIONS = {
   campChair: { y: 0.32, h: 0.04 }, // the camper's folding chair -> 0.34
   stump: { y: 0.18, h: 0.36 }, // the sitting stump by the chopping block -> 0.36
   dock: { y: 0.015, h: 0.03 }, // the dock's planks at its river edge (you sit on the edge, legs over) -> 0.03
+  canoe: { y: -0.035, h: 0.03 }, // the canoe's stern seat, just over the water (-0.18) -> -0.02
+  // --- anywhere ---
+  ground: { y: 0.02, h: 0.04 }, // sitting cross-legged on the grass (the Sit emote) -> 0.04, hips at ~0.14
 } as const satisfies Record<string, Cushion>;
 
 export type CushionId = keyof typeof CUSHIONS;

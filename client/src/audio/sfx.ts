@@ -46,7 +46,7 @@ function noise(c: AudioContext, at: number, length: number, gain: number, cutoff
   src.onended = () => (src.disconnect(), filter.disconnect(), g.disconnect());
 }
 
-export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck";
+export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck" | "squeak" | "quack";
 
 export function playSfx(kind: Sfx) {
   if (!getSoundSettings().effects) return;
@@ -74,6 +74,16 @@ export function playSfx(kind: Sfx) {
     // a glancing blow: a dull thud
     tone(c, t, 130, 70, 0.22, 0.2, "sine");
     noise(c, t, 0.06, 0.12, 900);
+  } else if (kind === "squeak") {
+    // the raccoon, delighted: two quick high chirps
+    tone(c, t, 1500, 2300, 0.09, 0.07, "sine");
+    tone(c, t + 0.12, 1700, 2600, 0.1, 0.07, "sine");
+  } else if (kind === "quack") {
+    // a soft duck quack: a nasal buzz falling in pitch, twice, then a plop as it dives
+    tone(c, t, 520, 330, 0.14, 0.07, "sawtooth");
+    tone(c, t + 0.17, 480, 300, 0.16, 0.06, "sawtooth");
+    tone(c, t + 0.45, 600, 180, 0.18, 0.12, "sine");
+    noise(c, t + 0.45, 0.2, 0.08, 1500);
   } else if (kind === "pluck") {
     // picking: a soft snap and a bright blip
     noise(c, t, 0.05, 0.12, 3500);

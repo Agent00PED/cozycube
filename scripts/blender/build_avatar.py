@@ -123,7 +123,7 @@ BOTTOM_IDS = ("sweats", "overalls", "trousers", "shorts", "wide")
 TOP_PARTS = (("", "Torso"), ("_SleeveL", "ArmL"), ("_SleeveR", "ArmR"))  # (name suffix, parent)
 BOTTOM_PARTS = (("", "Body"), ("_LegL", "LegL"), ("_LegR", "LegR"))
 NODE_NAMES = (
-    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Net", "FireflyJar", "LegL", "LegR")
+    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Net", "FireflyJar", "Heart", "LegL", "LegR")
     + tuple(f"SkewerMallow_{i}" for i in (1, 2))
     + tuple(f"SkewerBBQ_{i}" for i in (1, 2, 3, 4))
     + tuple(f"MugTop_{t}" for t in MUG_TOPPINGS)
@@ -163,6 +163,7 @@ PALETTE = {
     "Mat_JarGlass": "#D8F0B0",  # the firefly jar, glowing softly from within
     "Mat_JarLid": "#C9A14A",  # its brass lid
     "Mat_JarGlow": "#F6FF9E",  # the fireflies in it
+    "Mat_Heart": "#FF6F91",  # the Heart emote's heart, glowing a little
     "Mat_Roast": "#FFF4E2",  # the marshmallows / the meat: tinted raw, golden or charred by the runtime
     "Mat_RoastVeg": "#6FAE4B",  # the skewer's peppers: tinted too
     "Mat_Bamboo": "#C2AA62",
@@ -466,7 +467,7 @@ def material(name):
 
 
 # materials that glow from within (the game keeps their colour out of the tone mapping)
-GLOW = {"Mat_JarGlass": 0.9, "Mat_JarGlow": 2.5}
+GLOW = {"Mat_JarGlass": 0.9, "Mat_JarGlow": 2.5, "Mat_Heart": 0.8}
 
 
 def empty(name, collection, parent=None, at=Vector(), parent_at=Vector()):
@@ -2551,6 +2552,26 @@ def build(hip_y, leg_r, hip_off, covering):
     tube(bm, [Vector((0, 0, 0.04)), Vector((0, 0, 0.1))], lambda s_: 0.006, sides=6, cap_rings=1, material=0)
     make_object("Bobber", bm, Vector((0, 0, 0)), coll, root, origin, (mat["Mat_BobberRed"], mat["Mat_BobberWhite"]))
 
+    # Heart: the Heart emote's plump heart, in front of the chest (a child of Root: the runtime pops
+    # it up from here, floats and spins it, then shrinks it away). Its surface is the classic
+    # implicit heart, (x^2 + 9/4 y^2 + z^2 - 1)^3 = x^2 z^3 + 9/80 y^2 z^3, found along each ray.
+    def heart_shape(d):
+        def f(r):
+            x, y, z = d.x * r, d.y * r, d.z * r
+            return (x * x + 2.25 * y * y + z * z - 1) ** 3 - x * x * z ** 3 - 0.1125 * y * y * z ** 3
+        lo, hi = 0.0, 1.6
+        for _ in range(40):
+            mid = (lo + hi) / 2
+            if f(mid) < 0:
+                lo = mid
+            else:
+                hi = mid
+        return heart_c + d * (lo * 0.085)
+    heart_c = Vector((0, -0.24, 0.47))
+    bm = bmesh.new()
+    add_shaped(bm, 8, heart_shape)
+    make_object("Heart", bm, heart_c, coll, root, origin, (mat["Mat_Heart"],))
+
     # Legs: skin, pivots at the hips (AVATAR_LEG_RADIUS round there), tapering to the ankle, in
     # sneakers: a fused canvas upper on a thick flat sole, flush on the floor, with laces
     legs, hips = {}, {}
@@ -2605,7 +2626,7 @@ def is_variant(ob):
     name = ob.name[len(PREFIX) :]
     kind, _, rest = name.partition("_")
     default = {"Hair": DEFAULT_HAIR, "Top": DEFAULT_TOP, "Bottom": DEFAULT_BOTTOM}.get(kind)
-    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Net", "FireflyJar"))
+    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Net", "FireflyJar", "Heart"))
 
 
 def tidy_viewport(coll):

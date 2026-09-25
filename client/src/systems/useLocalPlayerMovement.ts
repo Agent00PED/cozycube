@@ -257,6 +257,7 @@ export function useLocalPlayerMovement(
     cameraFocus.z = pos.z;
     cameraFocus.dirX = dirX;
     cameraFocus.dirZ = dirZ;
+    cameraFocus.facing = facingRef.current;
     cameraFocus.hasTarget = true;
   });
 }

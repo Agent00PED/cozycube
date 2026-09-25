@@ -7,7 +7,9 @@ import { CAMPFIRE_LAYOUT as L, DOCK_PILINGS, DUCK_PATHS, RIVER_Z, riverSpan } fr
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { GEO, matte, noRaycast } from "./kit";
 import { TimeOfDayContext, useLampBoost } from "./timeOfDay";
-import { STRING_BULBS, STRING_SWING, bindCampfireLife, duckPose } from "./campfireLife";
+import { CRITTER_TREAT, DUCK_DIVE_AT, DUCK_DIVE_S, STRING_BULBS, STRING_SWING, bindCampfireLife, campNow, duckPose } from "./campfireLife";
+import type { RoomMessageListener } from "../hooks/useColyseusRoom";
+import { playSfx } from "../audio/sfx";
 
 // The Starlight Campfire (map 2). The island itself is one Blender model, campfire.glb
 // (scripts/blender/build_campfire.py, laid out from shared/worlds/campfire.ts); this file loads it
@@ -53,7 +55,14 @@ interface Live {
   toggleables: Record<string, ToggleableSyncState>;
 }
 
-export function CampfireWorld({ onFloorClick, players, toggleables }: { onFloorClick: (x: number, z: number) => void } & Live) {
+interface CampfireWorldProps extends Live {
+  onFloorClick: (x: number, z: number) => void;
+  subscribeMessages: (listener: RoomMessageListener) => () => void;
+  /** A tap on one of the ducks (the room tells everyone it dives). */
+  onDuck: (duck: number) => void;
+}
+
+export function CampfireWorld({ onFloorClick, players, toggleables, subscribeMessages, onDuck }: CampfireWorldProps) {
   // the latest state for the frame loop, without re-rendering the island on every change
   const live = useRef<Live>({ players, toggleables });
   live.current = { players, toggleables };
@@ -62,6 +71,20 @@ export function CampfireWorld({ onFloorClick, players, toggleables }: { onFloorC
     e.stopPropagation();
     onFloorClick(e.point.x, e.point.z);
   };
+  // the raccoon's treats and the ducks' dives, as the room reports them: everyone sees (and hears) them
+  useEffect(
+    () =>
+      subscribeMessages((type, payload) => {
+        if (type === "critterTreat") {
+          CRITTER_TREAT.at = campNow();
+          playSfx("squeak");
+        } else if (type === "duckDive" && typeof payload?.duck === "number") {
+          DUCK_DIVE_AT[payload.duck] = campNow();
+          playSfx("quack");
+        }
+      }),
+    [subscribeMessages]
+  );
   useFrame((_, dt) => {
     const fire = Object.values(live.current.toggleables).find((p) => p.kind === "bonfire");
     const want = fire && fire.boost > 0 ? Math.min(1, fire.boost / 4) : 0;
@@ -82,6 +105,7 @@ export function CampfireWorld({ onFloorClick, players, toggleables }: { onFloorC
       <Smoke />
       <BulbGlows />
       <FoamRings />
+      <DuckTargets onDuck={onDuck} />
       <Fireflies />
       <Stars />
     </group>
@@ -149,9 +173,11 @@ function FireLight() {
   const boost = useLampBoost();
   const light = useRef<THREE.PointLight>(null);
   const lantern = useRef<THREE.PointLight>(null);
+  const grove = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     const flick = 0.82 + 0.1 * Math.sin(t * 7.3) + 0.06 * Math.sin(t * 13.1 + 2) + 0.04 * Math.sin(t * 23.7);
+    if (grove.current) grove.current.intensity = 0.55 * boost * (0.9 + 0.1 * Math.sin(t * 6.1 + 1) * Math.sin(t * 2.3));
     if (light.current) {
       light.current.intensity = FIRE_INTENSITY * boost * flick * (1 + 0.6 * FUEL.value);
       light.current.distance = 14 + 6 * FUEL.value;
@@ -169,6 +195,8 @@ function FireLight() {
       <pointLight color="#ffd98a" intensity={0.55 * boost} distance={6.5} decay={2} position={[-5.3, 2.0, -3.1]} castShadow={false} />
       <pointLight color="#ffd98a" intensity={0.45 * boost} distance={4.5} decay={2} position={[L.van.x + 0.2, 1.3, L.van.z + L.van.w / 2 + 0.8]} castShadow={false} />
       <pointLight color="#ffd27a" intensity={0.5 * boost} distance={5} decay={2} position={[L.picnic.x - 0.48, 1.0, L.picnic.z + 0.05]} castShadow={false} />
+      {/* the grove's ground lantern by the guitar case */}
+      <pointLight ref={grove} color="#ffa844" intensity={0.55 * boost} distance={4.5} decay={2} position={[L.groundLantern.x, 0.35, L.groundLantern.z]} castShadow={false} />
     </>
   );
 }
@@ -430,17 +458,53 @@ function FoamRings() {
       for (let k = 0; k < PER; k++) {
         const i = s * PER + k;
         const life = (t * (duck ? 0.55 : 0.4) + k / PER + s * 0.37) % 1;
+        const dk = duck ? (t - (DUCK_DIVE_AT[s - DOCK_PILINGS.length] ?? -99)) / (DUCK_DIVE_S + 0.4) : 1;
+        const splash = dk >= 0 && dk < 1 ? 1 - dk : 0;
         dummy.position.set(at.x, L.river.water + 0.006, at.z);
         dummy.rotation.set(0, 0, 0);
-        dummy.scale.setScalar((duck ? 1.1 : 1.3) + life * (duck ? 2.2 : 1.8));
+        dummy.scale.setScalar(((duck ? 1.1 : 1.3) + life * (duck ? 2.2 : 1.8)) * (1 + splash * 1.2));
         dummy.updateMatrix();
         m.setMatrixAt(i, dummy.matrix);
         // fading out as it spreads (additive: fading to black is fading away)
-        m.setColorAt(i, foamColor.setScalar(0.45 * (1 - life) * (1 - life)));
+        m.setColorAt(i, foamColor.setScalar((0.45 + splash * 0.5) * (1 - life) * (1 - life)));
       }
     }
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
   });
   return <instancedMesh ref={mesh} args={[RING_GEO, FOAM_MAT, sources * PER]} raycast={noRaycast} frustumCulled={false} renderOrder={1} />;
+}
+
+const DUCK_TARGET_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+
+/** Invisible, generous click targets that paddle along with the ducks: tap one to make it dive. */
+function DuckTargets({ onDuck }: { onDuck: (duck: number) => void }) {
+  const refs = useRef<(THREE.Mesh | null)[]>([]);
+  useFrame(({ clock }) => {
+    refs.current.forEach((m, i) => {
+      if (!m) return;
+      const p = duckPose(i, clock.elapsedTime);
+      // above the island's invisible floor plane (y 0.02, over the river too), so a tap on the duck
+      // reaches the duck and not the floor
+      m.position.set(p.x, L.river.water + 0.32, p.z);
+    });
+  });
+  return (
+    <>
+      {DUCK_PATHS.map((_, i) => (
+        <mesh
+          key={i}
+          ref={(m) => (refs.current[i] = m)}
+          geometry={SPARK_GEO}
+          material={DUCK_TARGET_MAT}
+          scale={0.38}
+          onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+            if (e.button !== 0) return;
+            e.stopPropagation();
+            onDuck(i);
+          }}
+        />
+      ))}
+    </>
+  );
 }

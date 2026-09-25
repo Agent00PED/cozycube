@@ -2,7 +2,7 @@
 
 A Discord Activity: an isometric diorama hangout (Colyseus server + React Three Fiber client)
 with eight worlds in the registry, in the fast-travel grid's order — Cozy Lounge (15x15, built),
-the Starlight Campfire (22x22, built, always night: roasting, a river with a three-spot dock you fish from sitting on its edge (a Stardew-style reel), two-seat log benches, picnic-table, camp-chair and stump seats, the guitar, a stargazing telescope, firefly jars, a wood-chopping block, foraging, string lights, ducks, a raccoon and an owl, and a synthesized ambience), Sunset Beach Bar,
+the Starlight Campfire (22x22, built, always night: roasting, a river with a three-spot dock you fish from sitting on its edge (a Stardew-style reel), two-seat log benches, picnic-table, camp-chair, stump and canoe seats, a raccoon to feed and ducks that dive when tapped, the guitar, a stargazing telescope, firefly jars, a wood-chopping block, foraging, string lights, ducks, a raccoon and an owl, and a synthesized ambience), Sunset Beach Bar,
 Japanese Onsen, Velvet Casino, Boxing Gym, Retro Arcade and the Gaming Cafe (registered, not built:
 each is a bare floor with no seats or props until its world is authored).
 
@@ -22,7 +22,7 @@ each is a bare floor with no seats or props until its world is authored).
 | `server/src/db/players.ts` | PostgreSQL store (DATABASE_URL) with in-memory fallback |
 | `client/src/scene/` | `IsometricCanvas` (fitted ortho camera), `WorldScene` (root), `LoungeWorld` (the room), `CampfireWorld` (loads `campfire.glb`; fire light and fuel, moonlight, the midnight sky gradient, smoke, embers, bulb glows, foam rings, fireflies, stars) and `campfireLife` (the wildlife, the canoe, swaying strings, the river's flow and the pines' wind sway), `Props` (lamps, Mochi, seat pads, effects), `kit` (primitives, `StaticBatch`), lighting per hour |
 | `client/src/entities/` | `Avatar` and `Mochi` (pure GLTF loaders via `useGLTF`), `rig.ts` (node/material contracts), `ModelBoundary`, `MochiPlayroomModal`, `Players` |
-| `client/public/models/` | The ONLY location for 3D assets: `avatar.glb` (with its held props: mug, watering can, skewer, rod, guitar, bobber, hatchet, firefly net and jar), `cat.glb` (Mochi), `props.glb` (the lounge's small props), `campfire.glb` (the Campfire diorama, its animated wildlife and props as named nodes). All assets are authored in Blender |
+| `client/public/models/` | The ONLY location for 3D assets: `avatar.glb` (with its held props: mug, watering can, skewer, rod, guitar, bobber, hatchet, firefly net and jar, and the Heart emote's heart), `cat.glb` (Mochi), `props.glb` (the lounge's small props), `campfire.glb` (the Campfire diorama, its animated wildlife and props as named nodes). All assets are authored in Blender |
 | `scripts/blender/` | Blender Python automation scripts (executed via Live Bridge http://127.0.0.1:8192 or headless CLI) |
 | `client/src/audio/` | Synthesized sound, no audio files: `radio` (the lounge radio), `sfx` (one-shot effects), `ambience` (each world's soundscape, cross-faded), `soundSettings` (the Settings panel's Ambience and Effects) |
 | `client/src/systems/` | `useLocalPlayerMovement` (click / WASD / joystick locomotion) and `input.ts` |

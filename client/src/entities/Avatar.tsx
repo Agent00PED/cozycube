@@ -72,6 +72,8 @@ export interface AvatarProps {
   bubble?: { id: number; text: string } | null;
   /** Seated on a cushion round the radio while it plays: the head bobs and the body sways to it. */
   vibe?: boolean;
+  /** Sitting in the campfire's canoe: rocking with the boat on the water. */
+  rock?: boolean;
   /** Seated at the board while the opponent thinks: the head tilts, waiting. */
   awaiting?: boolean;
   /** On the skewer while holding "skewer" (shared/types encodeSnack). */
@@ -113,6 +115,17 @@ const NET_UP_ARM = -2.6;
 const NET_DOWN_ARM = -0.6;
 // the firefly jar, held out a little in the left hand
 const JAR_ARM = -0.55;
+// sitting cross-legged on the ground: the thighs forward and a touch down, crossed in front
+const CROSS_LEG_X = -Math.PI / 2 + 0.12;
+const CROSS_LEG_Y = 0.9;
+const CROSS_ARM = -0.75;
+// the cheer: both arms up
+const CHEER_ARM = -2.6;
+// the heart: both hands together at the chest while it floats up
+const HEART_ARM = -1.15;
+// the toss to the raccoon: back, then up and over
+const TOSS_BACK_ARM = 0.5;
+const TOSS_OVER_ARM = -2.3;
 const SIT_ARM = -0.5;
 const ROAST_ARM = -1.2;
 const CUP_ARM = -1.05;
@@ -291,6 +304,14 @@ function useRig(): Rig {
     part.hatchet.visible = false;
     part.net.visible = false;
     part.fireflyJar.visible = false;
+    part.heart.visible = false;
+    part.heart.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (m?.emissive && m.emissive.getHex() !== 0) m.toneMapped = false;
+    });
+    // crossing the legs turns each about the vertical after folding it forward
+    part.legL.rotation.order = "YXZ";
+    part.legR.rotation.order = "YXZ";
     // the jar glows from within: keep its colour out of the tone mapping
     part.fireflyJar.traverse((o) => {
       const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -367,6 +388,7 @@ interface RigProps {
   status: string;
   seed: number;
   vibe: boolean;
+  rock: boolean;
   awaiting: boolean;
   snack: string;
   actionProgress: number;
@@ -376,7 +398,7 @@ interface RigProps {
   onCrownTop: (y: number) => void;
 }
 
-function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, awaiting, snack, actionProgress, bobberAt, onHook, onCrownTop }: RigProps) {
+function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, awaiting, snack, actionProgress, bobberAt, onHook, onCrownTop }: RigProps) {
   const rig = useRig();
   const shirtGoal = useRef(new THREE.Color());
   const walkPhase = useRef(0);
@@ -460,6 +482,9 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     if (pose === "sit") {
       armL = armR = SIT_ARM;
       legs = [SIT_LEG, SIT_LEG];
+    } else if (pose === "cross") {
+      armL = armR = CROSS_ARM;
+      legs = [CROSS_LEG_X, CROSS_LEG_X];
     } else if (pose === "dangle") {
       armL = armR = SIT_ARM;
       legs = [DANGLE_LEG + Math.sin(t * 1.7 + seed) * DANGLE_SWING, DANGLE_LEG + Math.sin(t * 1.7 + seed + 2.4) * DANGLE_SWING];
@@ -481,14 +506,20 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     const pour = g === "water" ? THREE.MathUtils.smoothstep(Math.min(gAge - 0.2, GESTURE_SECONDS.water - 0.25 - gAge) / 0.25, 0, 1) : 0;
     let wave = 0;
     if (g === "wave") {
+      // three waves side to side over the gesture
       armR = -2.75;
-      wave = Math.sin(gAge * 11) * 0.4;
+      wave = Math.sin((gAge / GESTURE_SECONDS.wave) * Math.PI * 2 * 3) * 0.45;
     } else if (g === "dance") {
+      // arms up and swinging, stepping from foot to foot (the hips sway and the body bounces below)
       armL = -2.3 + Math.sin(gAge * 7) * 0.6;
       armR = -2.3 - Math.sin(gAge * 7) * 0.6;
       legs = [Math.max(0, Math.sin(gAge * 7)) * -0.4, Math.max(0, -Math.sin(gAge * 7)) * -0.4];
     } else if (g === "cheers") {
-      armR = -2.45 + Math.sin(gAge * 3) * 0.1;
+      armL = armR = CHEER_ARM + Math.sin(gAge * 9) * 0.12;
+    } else if (g === "heart") {
+      armL = armR = HEART_ARM;
+    } else if (g === "toss") {
+      armR = gAge < 0.25 ? THREE.MathUtils.lerp(0, TOSS_BACK_ARM, gAge / 0.25) : THREE.MathUtils.lerp(TOSS_BACK_ARM, TOSS_OVER_ARM, THREE.MathUtils.smoothstep((gAge - 0.25) / 0.3, 0, 1));
     } else if (g === "water") {
       armR = WATER_ARM + Math.sin(gAge * 6) * 0.08;
     }
@@ -581,6 +612,9 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     part.armR.rotation.z = L(part.armR.rotation.z, (pose === "lie" ? -0.1 : guitarOn ? -0.05 : -ARM_SPLAY) - wave, 0.3);
     part.legL.rotation.x = L(part.legL.rotation.x, legs[0], k);
     part.legR.rotation.x = L(part.legR.rotation.x, legs[1], k);
+    // cross-legged: each thigh swung in across the other (the left is +x, so it turns to -x)
+    part.legL.rotation.y = L(part.legL.rotation.y, pose === "cross" ? -CROSS_LEG_Y : 0, k);
+    part.legR.rotation.y = L(part.legR.rotation.y, pose === "cross" ? CROSS_LEG_Y : 0, k);
 
     // --- body: waddle when walking, lie back on a blanket, sway while dizzy or dozing ---
     const body = part.body;
@@ -592,8 +626,10 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     // the radio's groove: eased in while vibing on a cushion, riding on top of the pose
     const gr = groove.current;
     gr.amount = L(gr.amount, (vibe || guitarOn) && pose === "sit" && !asleep ? 1 : 0, 0.05);
-    gr.bodyZ = L(gr.bodyZ, walking ? Math.sin(phase) * WADDLE_ROLL : dizzy ? Math.cos(t * 4.5) * 0.28 : dozing ? Math.sin(t * 0.9) * 0.05 : 0, k);
-    body.rotation.z = gr.bodyZ + gr.amount * Math.sin(t * VIBE_BEAT * 0.5 + seed) * VIBE_SWAY;
+    gr.bodyZ = L(gr.bodyZ, walking ? Math.sin(phase) * WADDLE_ROLL : dizzy ? Math.cos(t * 4.5) * 0.28 : dozing ? Math.sin(t * 0.9) * 0.05 : g === "dance" ? Math.sin(gAge * 7) * 0.14 : 0, k);
+    body.rotation.z = gr.bodyZ + gr.amount * Math.sin(t * VIBE_BEAT * 0.5 + seed) * VIBE_SWAY + (rock ? 0.035 * Math.sin(t * 1.3) : 0);
+    // the canoe bobs on the water (as campfireLife bobs the boat), and its sitter with it
+    if (rock) body.position.y += 0.012 * Math.sin(t * 1.6);
     body.rotation.y = L(body.rotation.y, g === "dance" ? Math.sin(gAge * 3.5) * 0.6 : 0, 0.2);
 
     // --- breathing: the torso swells about its base ---
@@ -647,6 +683,15 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     part.hatchet.visible = action === "chop" || g === "chop";
     part.net.visible = g === "net";
     part.fireflyJar.visible = holdingJar;
+    // the Heart emote: the heart pops up in front of the chest, floats up spinning, then shrinks away
+    const hk = g === "heart" ? gAge / GESTURE_SECONDS.heart : -1;
+    part.heart.visible = hk >= 0 && hk < 1;
+    if (part.heart.visible) {
+      const pop = hk < 0.15 ? 1 + 0.25 * Math.sin((hk / 0.15) * Math.PI) - 0.25 * (1 - hk / 0.15) : hk > 0.75 ? 1 - (hk - 0.75) / 0.25 : 1;
+      part.heart.scale.setScalar(rest.heart.scale.x * Math.max(0.01, hk < 0.15 ? (hk / 0.15) * pop : pop));
+      part.heart.position.set(rest.heart.pos.x, rest.heart.pos.y + hk * 0.75, rest.heart.pos.z);
+      part.heart.rotation.y = gAge * 2.4;
+    }
     part.wateringCan.rotation.x = -part.armR.rotation.x + pour * WATER_POUR;
     rig.steam.forEach((wisp, i) => {
       wisp.visible = mugShown;
@@ -721,6 +766,29 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
           </Html>
         )}
       </group>
+      {/* the cheer's sparkles and the nap's Zzz, played once each time (keyed on the gesture) */}
+      {gesture?.kind === "cheers" && (
+        <Html key={`cheer:${gesture.at}`} position={[0, 1.25, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
+          <div className="cozy-sparkles" aria-hidden>
+            {["✨", "⭐", "✨", "🌟", "✨"].map((c, i) => (
+              <span key={i} style={{ "--sx": `${(i - 2) * 16}px`, animationDelay: `${i * 0.12}s` } as React.CSSProperties}>
+                {c}
+              </span>
+            ))}
+          </div>
+        </Html>
+      )}
+      {gesture?.kind === "nap" && (
+        <Html key={`nap:${gesture.at}`} position={[0.18, 1.05, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
+          <div className="cozy-zzz" aria-hidden>
+            {["z", "Z", "z", "Z"].map((c, i) => (
+              <span key={i} style={{ animationDelay: `${i * 1.4}s` }}>
+                {c}
+              </span>
+            ))}
+          </div>
+        </Html>
+      )}
       {/* the guitar: warm notes drifting up while it is played */}
       {guitarOn && (
         <Html position={[0.1, 0.9, 0.2]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
@@ -749,7 +817,7 @@ const RING_GEO = new THREE.RingGeometry(0.62, 0.7, 40);
 
 /** A player: the model, dressed and posed, with the nametag and the overhead overlays. */
 export const Avatar = memo(
-  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook }, ref) {
+  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook }, ref) {
     const outfit = useMemo(() => parseLook(look) ?? defaultLook(userId || username, color), [look, userId, username, color]);
     // every avatar breathes and glances round on its own clock, so a crowd never moves in unison
     const seed = useMemo(() => (hashString(userId || username) % 1000) / 100, [userId, username]);
@@ -782,7 +850,7 @@ export const Avatar = memo(
 
         <ModelBoundary what="avatar.glb" fallback={<StandIn />}>
           <Suspense fallback={<StandIn />}>
-            <AvatarModel look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} onCrownTop={setCrownTop} />
+            <AvatarModel look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} onCrownTop={setCrownTop} />
           </Suspense>
         </ModelBoundary>
 

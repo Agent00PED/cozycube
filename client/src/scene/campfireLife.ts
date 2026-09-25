@@ -18,8 +18,18 @@ import { CAMPFIRE_LAYOUT as L, CRITTER_NOTICE, DUCK_PATHS, LIGHT_STRINGS, string
 // and the materials it animates: the river's flow (a scrolling ripple in its shader), the pines'
 // sway in the wind (a vertex sway, stronger up the tree), the berries' glow.
 
-/** Shared by the shaders: seconds, for the flow and the wind. */
-export const CAMP_TIME = { value: 0 };
+/** Shared by the shaders: seconds, for the flow and the wind (and, `real`, when that frame ran). */
+export const CAMP_TIME = { value: 0, real: 0 };
+/** The scene clock right now, even between frames: an event (a treat, a dive) is stamped with it. */
+export function campNow(): number {
+  return CAMP_TIME.value + (performance.now() / 1000 - CAMP_TIME.real);
+}
+/** When each duck last dived (a tap on it), and when the raccoon last got a treat, in CAMP_TIME. */
+export const DUCK_DIVE_AT: number[] = [];
+export const CRITTER_TREAT = { at: -99 };
+/** How long a duck's dive and the raccoon's joyful spin take. */
+export const DUCK_DIVE_S = 1.0;
+const TREAT_SPIN_S = 1.1;
 
 /** Where each bulb hangs at rest (its glow follows it as its string swings). */
 export const STRING_BULBS: { string: number; rest: THREE.Vector3; anchor: THREE.Vector3; axis: THREE.Vector3 }[] = [];
@@ -76,7 +86,7 @@ function swayPines(m: THREE.MeshStandardMaterial) {
 }
 
 const BULB_MATERIALS = new Set(["CF_Bulb", "CF_BerryGlow"]);
-const FLICKER_MATERIALS = new Set(["CF_Ember", "CF_FlameOuter", "CF_FlameInner", "CF_LanternGlass"]);
+const FLICKER_MATERIALS = new Set(["CF_Ember", "CF_FlameOuter", "CF_FlameInner", "CF_LanternGlass", "CF_LanternWarm"]);
 
 export interface CampfireLife {
   flames: { outer?: THREE.Object3D; inner?: THREE.Object3D };
@@ -140,14 +150,18 @@ export function bindCampfireLife(scene: THREE.Object3D, decalOffset: Record<stri
     critterAt,
     update(t, dt, players, toggleables) {
       CAMP_TIME.value = t;
+      CAMP_TIME.real = performance.now() / 1000;
       const everyone = Object.values(players);
 
       // the ducks paddle their ovals, bobbing
       ducks.forEach((duck, i) => {
         if (!duck) return;
         const p = duckPose(i, t);
-        duck.position.set(p.x, L.river.water + 0.012 * p.bob, p.z);
-        duck.rotation.set(0, p.heading, 0.05 * p.bob);
+        // a tap: the duck tips head-first under and bobs back up
+        const dk = (t - (DUCK_DIVE_AT[i] ?? -99)) / DUCK_DIVE_S;
+        const dive = dk >= 0 && dk < 1 ? Math.sin(Math.PI * dk) : 0;
+        duck.position.set(p.x, L.river.water + 0.012 * p.bob - 0.1 * dive, p.z);
+        duck.rotation.set(1.3 * dive, p.heading, 0.05 * p.bob);
       });
 
       // the raccoon: begs at a snack nearby, otherwise potters about
@@ -164,11 +178,21 @@ export function bindCampfireLife(scene: THREE.Object3D, decalOffset: Record<stri
           }
         }
         begging = !!target;
+        // a treat: a joyful hop and a full spin
+        const tk = (t - CRITTER_TREAT.at) / TREAT_SPIN_S;
+        const treating = tk >= 0 && tk < 1;
         const wantYaw = target ? Math.atan2(target.x - critterHome.x, target.z - critterHome.z) : Math.sin(t * 0.13) * 0.6;
         critterYaw += (wantYaw - critterYaw) * Math.min(1, dt * 4);
         critter.root.rotation.set(0, critterYaw, 0);
         const cycle = t % 9;
-        if (begging) {
+        if (treating) {
+          const e = tk * tk * (3 - 2 * tk);
+          critter.root.rotation.y = critterYaw + Math.PI * 2 * e;
+          critter.root.position.set(critterHome.x, Math.sin(Math.PI * tk) * 0.14, critterHome.z);
+          critter.head.rotation.set(-0.3, 0, 0);
+          critter.tail.rotation.set(0, Math.sin(t * 18) * 0.6, 0);
+          begging = true; // the hearts
+        } else if (begging) {
           critter.root.position.set(critterHome.x, Math.abs(Math.sin(t * 6)) * 0.05, critterHome.z);
           critter.head.rotation.set(-0.35 + Math.sin(t * 6) * 0.05, 0, Math.sin(t * 3) * 0.15);
           critter.tail.rotation.set(0, Math.sin(t * 14) * 0.5, 0);

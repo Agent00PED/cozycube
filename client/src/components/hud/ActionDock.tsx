@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, msUntilNextDay, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
-import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf } from "@shared/worlds/campfire";
+import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { pushToast } from "./toastStore";
@@ -23,6 +23,7 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🎣 Go Fishing]  at the dock: sit on its edge at the nearest free spot and cast; sitting on the
 //                    edge already, [🎣 Cast Line]
 //   [✨ Catch Fireflies] / [✨ Release Fireflies]  in the grove between the hammock and the tipi
+//   [🍪 Feed Raccoon]  by the raccoon at the camper van (it spins for joy)
 //   [🎸 Play Guitar] / [⏹ Stop Guitar]  sitting on a log bench
 //   [🔭 Stargaze]    at the brass telescope by the front fence
 //   [🪓 Chop Firewood]  at the chopping block by the woodpile
@@ -35,7 +36,7 @@ import { glass, hudText, pillButton } from "./glass";
 
 interface Action {
   key: string;
-  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "stand";
+  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "critter" | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
   hint?: string;
@@ -124,6 +125,11 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         if (block && reach(block) <= CHOP_REACH + 0.3) {
           const id = block.propId;
           found.push({ key: `chop:${id}`, type: "chop", label: "🪓 Chop Firewood", hint: "Split a log in the sweet spot: +5 coins, and the fire roars up", run: () => interactBridge.current?.useProp(id) });
+        }
+        const raccoon = Object.values(toggleables).find((p) => p.kind === "critter");
+        if (raccoon && reach(raccoon) <= CRITTER_REACH + 0.3) {
+          const id = raccoon.propId;
+          found.push({ key: `critter:${id}`, type: "critter", label: "🍪 Feed Raccoon", hint: "Toss it a treat", run: () => interactBridge.current?.useProp(id) });
         }
         const grove = Object.values(toggleables).find((p) => p.kind === "fireflies");
         if (grove && reach(grove) <= FIREFLY_REACH + 0.3) {

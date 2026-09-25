@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { ACTIVITY_STATUSES, CHAT_MAX_CHARS, DAILY_REWARD, DAILY_TASKS, QUICK_CHATS, isActivityStatus, parseDaily, parseStats, type Gesture, type PlayerState } from "@shared/types";
+import { ACTIVITY_STATUSES, CAMPFIRE_QUICK_CHATS, CHAT_MAX_CHARS, DAILY_REWARD, DAILY_TASKS, QUICK_CHATS, isActivityStatus, parseDaily, parseStats, type Gesture, type MapId, type PlayerState } from "@shared/types";
 
 interface SideDrawerProps {
   players: Record<string, PlayerState>;
   localSessionId: string | null;
   speakingUserIds: ReadonlySet<string>;
   latency: number;
+  /** The world you are in (the campfire has its own quick chats). */
+  mapId: MapId;
   onEmote: (emoji: string) => void;
   onGesture: (g: Gesture) => void;
   onSitNearest: () => void;
@@ -13,15 +15,16 @@ interface SideDrawerProps {
   onClose: () => void;
 }
 
-// The expressive wheel: six moods round a hub. Wave, cheer and dance are full-body gestures;
-// sit walks you to the nearest free seat; sleep is the nap; heart floats a heart.
+// The expressive wheel: six moods round a hub, each a full-body gesture everyone sees (and a
+// bubble over your head): wave, cheer (sparkles), dance, sleep (Zzz), heart (a heart floats up
+// from your chest). Sit takes the nearest free seat, or sits you cross-legged on the ground.
 const WHEEL: { label: string; emoji: string; run: (p: SideDrawerProps) => void }[] = [
   { label: "Wave", emoji: "👋", run: (p) => p.onGesture("wave") },
   { label: "Cheer", emoji: "🥂", run: (p) => p.onGesture("cheers") },
   { label: "Dance", emoji: "💃", run: (p) => p.onGesture("dance") },
   { label: "Sit", emoji: "🪑", run: (p) => p.onSitNearest() },
   { label: "Sleep", emoji: "💤", run: (p) => p.onGesture("nap") },
-  { label: "Heart", emoji: "❤️", run: (p) => p.onEmote("❤️") },
+  { label: "Heart", emoji: "❤️", run: (p) => p.onGesture("heart") },
 ];
 
 function statusIcon(p: PlayerState): string {
@@ -119,7 +122,7 @@ export function SideDrawer(props: SideDrawerProps) {
             </button>
           </form>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {QUICK_CHATS.map((q) => (
+            {(props.mapId === "campfire_night" ? CAMPFIRE_QUICK_CHATS : QUICK_CHATS).map((q) => (
               <button key={q} type="button" onClick={() => send(q)} className="min-h-9 rounded-full bg-white/10 px-3 text-xs font-bold transition-transform hover:bg-white/15 active:scale-95">
                 {q}
               </button>

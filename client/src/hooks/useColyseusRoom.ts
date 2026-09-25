@@ -72,6 +72,9 @@ const RELAYED_MESSAGES = [
   // the telescope, the chopping block and foraging
   "shootingStar",
   "starlightReel",
+  // the campfire's critters: a treat for the raccoon, a duck's dive
+  "critterTreat",
+  "duckDive",
   "starCaught",
   "chopStart",
   "chopResult",
@@ -215,6 +218,8 @@ interface UseColyseusRoomResult {
   plantSend: (packet: PlantPacket) => void;
   /** The campfire: roasting (ROAST_START / ROAST_STOP) and the guitar (GUITAR). */
   campfireSend: (packet: CampfirePacket) => void;
+  /** Sit cross-legged on the ground where you stand, facing `rotationY` (the Sit emote, away from seats). */
+  groundSit: (rotationY: number) => void;
   mochiPlay: (action: string) => void;
   /** Latest server snapshot of the beach volleyball (null until the first patch). */
   ballRef: React.MutableRefObject<BallSnapshot | null>;
@@ -688,6 +693,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     blackjackAction: (action, bet) => send("blackjack_action", { action, bet }),
     sendChat: (text) => send("chat_bubble", { text }),
     sendGesture: (gesture) => send("gesture", { gesture }),
+    groundSit: (rotationY) => send("groundSit", { rotationY }),
     buyHat: (hat) => send("buyHat", { hat }),
     placeBet: (kind, amount) => send("placeBet", { kind, amount }),
     clearBets: () => send("clearBets"),

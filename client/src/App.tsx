@@ -13,6 +13,7 @@ import { LoadingScreen, type LoadStage } from "./components/LoadingScreen";
 import { ReconnectingPill } from "./components/hud/ReconnectingPill";
 import { WorldScene } from "./scene/WorldScene";
 import { interactBridge } from "./scene/interactBridge";
+import { cameraFocus } from "./scene/cameraFocus";
 import { MochiPlayroomModal } from "./entities/MochiPlayroomModal";
 import { ActionDock } from "./components/hud/ActionDock";
 import { Joystick } from "./components/hud/Joystick";
@@ -68,15 +69,22 @@ import { useVoiceActivity } from "./hooks/useVoiceActivity";
 const GLOBAL_CSS = `
 .cozy-emote {
   position: absolute; left: 0; bottom: 0; transform: translate(-50%, 0);
-  font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
-  animation: cozy-emote-float 1.9s cubic-bezier(0.2, 0.7, 0.3, 1) forwards; pointer-events: none; user-select: none;
+  display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 999px;
+  background: rgba(255, 250, 242, 0.96); box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 -2px 0 rgba(74,58,44,0.12);
+  font-size: 24px; line-height: 1;
+  animation: cozy-emote-bubble 3s cubic-bezier(0.2, 0.7, 0.3, 1) forwards; pointer-events: none; user-select: none;
 }
-@keyframes cozy-emote-float {
-  0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.4); }
-  12%  { opacity: 1; transform: translate(-50%, -6px) scale(1.15); }
-  25%  { transform: translate(-50%, -14px) scale(1); }
-  75%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(-50%, -70px) scale(0.9); }
+.cozy-emote::after {
+  content: ""; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; background: inherit;
+  transform: translateX(-50%) rotate(45deg); border-radius: 2px; z-index: -1;
+}
+@keyframes cozy-emote-bubble {
+  0%   { opacity: 0; transform: translate(-50%, 8px) scale(0.3); }
+  8%   { opacity: 1; transform: translate(-50%, -4px) scale(1.18); }
+  14%  { transform: translate(-50%, -8px) scale(1); }
+  45%  { transform: translate(-50%, -14px) scale(1); }
+  80%  { opacity: 1; transform: translate(-50%, -22px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -34px) scale(0.9); }
 }
 /* Speech bubbles over avatars and the NPC traders. */
 .cozy-bubble, .cozy-chat-bubble {
@@ -215,6 +223,7 @@ export default function App() {
     radioSend,
     plantSend,
     campfireSend,
+    groundSit,
     mochiPlay,
   } = useColyseusRoom(auth);
 
@@ -596,8 +605,13 @@ export default function App() {
             latency={latency}
             onEmote={handleEmote}
             onGesture={sendGesture}
+            mapId={currentMap}
             onSitNearest={() => {
-              if (!interactBridge.current?.sitNearest()) pushToast("No free seat close by", { emoji: "🪑", silent: true });
+              // a free seat in reach: sit on it; otherwise, cross-legged right here on the ground
+              if (interactBridge.current?.sitNearest()) return;
+              const me = localSessionId ? players[localSessionId] : null;
+              if (me && !me.sitting && me.action === "") groundSit(cameraFocus.facing);
+              else pushToast("Not while you're busy", { emoji: "🪑", silent: true });
             }}
             onChat={sendChat}
             onClose={() => setSocialOpen(false)}

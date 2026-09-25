@@ -117,11 +117,13 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
       { "label": "Overlook", "to": [-2.4, 9.35] }
     ]
   },
+  "guitarCase": { "x": -7.4, "z": 3.3, "yaw": 0.5 },
+  "groundLantern": { "x": -6.95, "z": 2.9 },
   "paths": [
-    { "points": [[-2.7, -2.2], [-3.5, -2.85], [-4.1, -3.3], [-4.6, -3.6]], "w": 1.0 },
-    { "points": [[0.15, 3.9], [0.05, 5.3], [-0.2, 6.4], [-0.35, 7.3], [-0.3, 7.9]], "w": 1.2 },
-    { "points": [[-0.2, 6.6], [-1.1, 7.35], [-1.9, 8.0], [-2.4, 8.45]], "w": 0.85 },
-    { "points": [[3.7, 0.9], [4.4, 0.45], [5.0, 0.15], [5.6, 0.05]], "w": 1.2 }
+    { "points": [[-2.9, -2.35, 2.2], [-3.45, -2.75, 1.5], [-4.0, -3.2, 1.05], [-4.6, -3.6, 1.0]] },
+    { "points": [[0.15, 3.8, 2.2], [0.1, 4.5, 1.5], [0.05, 5.3, 1.2], [-0.2, 6.4, 1.3], [-0.3, 7.0, 1.35], [-0.35, 7.5, 1.3], [-0.3, 7.95, 1.6]] },
+    { "points": [[-0.05, 6.5, 1.5], [-0.7, 7.05, 1.0], [-1.5, 7.65, 0.85], [-2.4, 8.45, 0.9]] },
+    { "points": [[3.3, 1.2, 2.2], [3.95, 0.75, 1.5], [4.6, 0.35, 1.3], [5.25, 0.08, 2.6], [5.95, 0.0, 3.7]], "flatEnd": true }
   ],
   "spawns": [
     { "x": 0, "z": 5.0 },
@@ -217,6 +219,8 @@ export const CHOP_REACH = 1.4;
 export const FORAGE_REACH = 1.3;
 /** Close enough to the grove's fireflies to sweep the net through them. */
 export const FIREFLY_REACH = 1.6;
+/** Close enough to the raccoon to toss it a treat. */
+export const CRITTER_REACH = 1.4;
 /** A critter this close to someone carrying a roasted snack hopes for a bite (hearts). */
 export const CRITTER_NOTICE = 2.0;
 
@@ -363,6 +367,8 @@ export const CAMP_SEATS: CampSeat[] = [
   ),
   // the camper's folding chair under the awning, looking out toward the fire
   { propId: "seat_camper_chair", x: L.campChair.x, z: L.campChair.z, rotationY: 0, cushion: "campChair", style: "deckchair", approachX: L.campChair.x, approachZ: L.campChair.z + 0.9 },
+  // the canoe's stern seat, facing along it: it rocks with the boat on the water
+  { propId: "seat_canoe", x: L.canoe.x - 0.45, z: L.canoe.z, rotationY: Math.PI / 2, cushion: "canoe", style: "wood", approachX: 6.6, approachZ: 1.5 },
   // the sitting stump beside the chopping block, facing the fire
   (() => {
     const toFire = unit(L.fire.x - L.stumpSeat.x, L.fire.z - L.stumpSeat.z);
@@ -375,6 +381,7 @@ export const CAMP_SEAT_LABELS: Record<string, string> = {
   seat_tent: "⛺ Rest",
   seat_hammock: "🛌 Nap",
   ...Object.fromEntries(FISHING_SPOTS.map((s) => [dockSeatOf(s.propId), "🌊 Sit on the dock"])),
+  seat_canoe: "🛶 Sit in the canoe",
 };
 
 /** Where a lie seat puts the avatar (its soles, heading and height), derived from its cushion. */
@@ -393,6 +400,11 @@ export const CAMP_PROPS: PropSpec[] = [
   { propId: "woodchop", x: L.chop.x, z: L.chop.z, kind: "woodchop", color: "#c98b4f", defaultOn: true, approachX: L.chop.x, approachZ: L.chop.z + 0.9 },
   // mushrooms and berries under the pines; `on` while there is something to pick
   ...FORAGE_SPOTS.map((f): PropSpec => ({ propId: f.propId, x: f.x, z: f.z, kind: "foraging", color: f.kind === "berries" ? "#8f7bff" : "#d9483b", defaultOn: true, approachX: f.approachX, approachZ: f.approachZ })),
+  // the raccoon by the camper van: toss it a treat
+  (() => {
+    const toFire = unit(L.fire.x - L.critter.x, L.fire.z - L.critter.z);
+    return { propId: "critter", x: L.critter.x, z: L.critter.z, kind: "critter", color: "#8c8a91", defaultOn: true, approachX: L.critter.x + toFire.x * 0.9, approachZ: L.critter.z + toFire.z * 0.9 } satisfies PropSpec;
+  })(),
   // the dark grove between the hammock and the tipi, alive with fireflies: catch some in a jar
   (() => {
     const toFire = unit(L.fire.x - L.fireflies.x, L.fire.z - L.fireflies.z);
@@ -473,6 +485,9 @@ export const CAMP_OBSTACLES: AABB[] = [
   around(L.stringPole, 0.1),
   around(L.stumpSeat, 0.22),
   around(L.signpost, 0.12),
+  // the guitar case lying open in the grove, and the lantern on the grass beside it
+  around(L.guitarCase, 0.5),
+  around(L.groundLantern, 0.15),
 ];
 
 export const CAMP_SPAWNS: Pt[] = L.spawns;

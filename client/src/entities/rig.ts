@@ -44,6 +44,9 @@ export const AVATAR_NODES = {
   net: "Net",
   /** A glowing jar of fireflies in the LEFT hand, pivot at the hand: shown while holding one. */
   fireflyJar: "FireflyJar",
+  /** The Heart emote's heart, a child of Root, pivot at its centre in front of the chest: the
+   *  runtime pops it up, floats and spins it, then shrinks it away. */
+  heart: "Heart",
   /** A roasting stick in the right hand, pivot at the hand, pointing forward; its food pieces are
    *  SkewerMallow_1..2 / SkewerBBQ_1..4 (tip first), tinted by Mat_Roast / Mat_RoastVeg. */
   skewer: "Skewer",
