@@ -6,8 +6,8 @@ import { GEO, matte, noRaycast } from "../scene/kit";
 import { ModelBoundary } from "./ModelBoundary";
 import { MOCHI_NODES, MOCHI_URL } from "./rig";
 
-// Mochi: a ginger cat loaf, authored in Blender (scripts/blender/build_mochi.py) and loaded from
-// client/public/models/mochi.glb. Shared by the world cat (scene/Props `Cat`) and the playroom's
+// Mochi: a ginger cat loaf, authored in Blender (scripts/blender/build_cat.py) and loaded from
+// client/public/models/cat.glb. Shared by the world cat (scene/Props `Cat`) and the playroom's
 // own little viewport (entities/MochiPlayroomModal).
 //
 // This file only loads the model and poses it. Each part the runtime moves is its own node with
@@ -84,7 +84,7 @@ function useRig(): { root: THREE.Object3D; rig: Rig } {
     const rig = {} as Rig;
     for (const key of Object.keys(MOCHI_NODES) as PartKey[]) {
       const node = root.getObjectByName(MOCHI_NODES[key]);
-      if (!node) throw new Error(`mochi.glb has no "${MOCHI_NODES[key]}" node`);
+      if (!node) throw new Error(`cat.glb has no "${MOCHI_NODES[key]}" node`);
       rig[key] = { node, pos: node.position.clone(), scale: node.scale.clone() };
     }
     return { root, rig };
@@ -177,7 +177,7 @@ function StandIn() {
 export const MochiModel: React.FC<{ drive?: React.RefObject<MochiDrive> | any }> = ({ drive }) => {
   const idle = useRef(restDrive());
   return (
-    <ModelBoundary what="mochi.glb" fallback={<StandIn />}>
+    <ModelBoundary what="cat.glb" fallback={<StandIn />}>
       <Suspense fallback={<StandIn />}>
         <MochiRig drive={drive ?? idle} />
       </Suspense>

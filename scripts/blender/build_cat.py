@@ -1,12 +1,12 @@
-"""Mochi the cat: builds client/public/models/mochi.glb.
+"""Mochi the cat: builds client/public/models/cat.glb.
 
 Run it inside Blender, either through the Live Bridge (it executes the POSTed body as Python):
 
-    curl -X POST http://127.0.0.1:8192 --data-binary @scripts/blender/build_mochi.py
+    curl -X POST http://127.0.0.1:8192 --data-binary @scripts/blender/build_cat.py
 
 or headless:
 
-    blender -b -P scripts/blender/build_mochi.py
+    blender -b -P scripts/blender/build_cat.py
 
 When the body is POSTed there is no `__file__`, so the export path falls back to the
 COZYCUBE_ROOT environment variable, then Blender's working directory. Define `REPO_ROOT` (and
@@ -18,10 +18,11 @@ into three.js's (Y up, facing +Z). Every object keeps a zero rotation, and every
 baked into its mesh around its pivot, so the runtime's rotations are about clean local axes at the
 joint. The node names are the contract in client/src/entities/rig.ts (MOCHI_NODES).
 
-Her form, front to back: a chubby head nested into the sloping top of her chest (a soft nape
-fills the crease, so there is no snowman pinch), cupped ears angled out and a little forward,
-two cream half-dome paws tucked under the chest, and a pear-shaped loaf, narrow at the chest and
-wide and round at the hips, with a gentle arc along the spine. The tail curls from the rump round
+Her form, front to back: a round head, one soft monolithic shape whose lower half is gently
+fuller (a chubby taper), with a little muzzle and a round chin, on a short neck slope above her
+chest, cupped ears with rounded tips and a soft 0.012 rim angled out and a little forward, two cream half-dome
+paws tucked under the chest, and a plump pear of a body, narrow at the chest and round at the
+haunches, with shoulder blades and haunches under the fur and a gentle arc along the spine. The tail curls from the rump round
 her right flank along the floor, tapering to 65% of its root.
 
 Two-tone coat: Mat_Ginger everywhere, Mat_Cream on the paws, a chest bib and the muzzle. The bib
@@ -345,11 +346,16 @@ def make_object(name, bm, origin, collection, parent=None, parent_origin=Vector(
 # ---------------------------------------------------------------------------------------------
 # anatomy: every number is in metres of the diorama (the whole cat is about 0.67 long)
 
-# The loaf: a pear, wide round hips tapering to the chest, flat on the floor
-LOAF_CENTRE = Vector((0, 0.05, 0.13))
-LOAF_HALF = Vector((0.182, 0.25, 0.155))
+# The body: a plump pear, round haunches tapering to the chest, flat on the floor. Soft
+# contours under the fur: two shoulder blades behind the head, two haunches over the hips, and a
+# dip at the withers so the head sits on a neck slope instead of running into a loaf.
+LOAF_CENTRE = Vector((0, 0.035, 0.135))
+LOAF_HALF = Vector((0.188, 0.222, 0.16))
 LOAF_FLOOR_K = 0.014
 CHEST_DIR = Vector((0, -0.95, 0.3)).normalized()
+SHOULDER_DIRS = [Vector((s * 0.5, -0.45, 0.74)).normalized() for s in (-1, 1)]
+HAUNCH_DIRS = [Vector((s * 0.78, 0.55, 0.05)).normalized() for s in (-1, 1)]
+WITHERS_DIR = Vector((0, -0.62, 0.78)).normalized()
 
 
 def loaf_shape(d):
@@ -360,35 +366,35 @@ def loaf_shape(d):
     if p.z > 0:
         p.z *= 1 + 0.07 * math.sin(math.pi * (1 - chest)) - 0.04 * chest  # the spine's arc, easing down to the chest
     p.y -= 0.05 * gauss(d, CHEST_DIR, 0.16)  # the upper chest swells forward to cradle the chin
+    p += d * (
+        sum(0.014 * gauss(d, c, 0.05) for c in SHOULDER_DIRS)
+        + sum(0.016 * gauss(d, c, 0.12) for c in HAUNCH_DIRS)
+        - 0.02 * gauss(d, WITHERS_DIR, 0.05)
+    )
     w = LOAF_CENTRE + p
     # flatten her belly onto the floor; the lowest point lands exactly on z = 0
     w.z = soft_floor(w.z, LOAF_FLOOR_K) - soft_floor(LOAF_CENTRE.z - LOAF_HALF.z, LOAF_FLOOR_K)
     return w
 
 
-# The head is nested into the chest's slope; its pivot is the neck base, inside the loaf
-HEAD_CENTRE = Vector((0, -0.16, 0.24))
+# The head sits on a short neck slope above the chest; its pivot is the neck base, inside the
+# body. One monolithic form: a softly squared sphere with a little muzzle, a round chin that
+# curves down toward the chest and a small nape, its lower half eased out sideways (up to
+# CHUBBY_TAPER) so the face reads chubby without anything stuck onto it.
+HEAD_CENTRE = Vector((0, -0.165, 0.255))
 HEAD_HALF = Vector((0.17, 0.138, 0.134))
 NECK = Vector((0, -0.09, 0.16))
-CHEEK_DIRS = [Vector((s * 0.84, -0.42, -0.3)).normalized() for s in (-1, 1)]
+CHUBBY_TAPER = 1.08
 MUZZLE_DIR = Vector((0, -0.93, -0.36)).normalized()
 CHIN_DIR = Vector((0, -0.5, -0.87)).normalized()
 NAPE_DIR = Vector((0, 0.78, -0.62)).normalized()
-SCRUFF_DIR = Vector((0, 0.97, 0.22)).normalized()
 
 
 def head_offset(d):
     q = superellipsoid(d, 2.35)
     p = Vector((q.x * HEAD_HALF.x, q.y * HEAD_HALF.y, q.z * HEAD_HALF.z))
-    # chubby cheeks, a little muzzle, a round chin that curves on down into the chest, and a soft
-    # nape and scruff that flow into the back, so head and loaf read as one doughy form
-    push = (
-        sum(0.034 * gauss(d, c, 0.18) for c in CHEEK_DIRS)
-        + 0.018 * gauss(d, MUZZLE_DIR, 0.05)
-        + 0.032 * gauss(d, CHIN_DIR, 0.18)
-        + 0.07 * gauss(d, NAPE_DIR, 0.34)
-        + 0.06 * gauss(d, SCRUFF_DIR, 0.2)
-    )
+    p.x *= 1 + (CHUBBY_TAPER - 1) * smoothstep(0.25, -0.55, d.z)
+    push = 0.018 * gauss(d, MUZZLE_DIR, 0.05) + 0.032 * gauss(d, CHIN_DIR, 0.18) + 0.04 * gauss(d, NAPE_DIR, 0.3)
     return p + d * push
 
 
@@ -430,18 +436,17 @@ def head_project(q):
 
 
 def muzzle_mask(q):
-    """> 0 on the cream mask: two whisker pads cupping the :3 mouth (the nose sits in the notch
-    between them), the chin and the throat, unioned softly so the contour is one gentle curve."""
+    """> 0 on the cream mask: one smooth rounded patch wrapping the :3 mouth (the nose sits at its
+    top edge), widening a little over the whisker pads and carrying on down the chin to the
+    throat. A single soft shape, so its outline is one clean curve with no notches."""
     d = head_param(q)  # the same yaw / pitch the eyes, nose and blush are placed in
     yaw, pitch = math.atan2(d.x, -d.y), math.asin(max(-1.0, min(1.0, d.z)))
     if abs(yaw) > 1.6:
         return -1.0
-
-    def blob(yc, pc, ry, rp):
-        return 1 - ((yaw - yc) / ry) ** 2 - ((pitch - pc) / rp) ** 2
-
-    throat = min((-pitch - 0.72) / 0.12, 1 - (yaw / 0.8) ** 2)
-    return smax([blob(-0.2, -0.3, 0.27, 0.17), blob(0.2, -0.3, 0.27, 0.17), blob(0, -0.52, 0.3, 0.26), throat], 0.1)
+    half_width = 0.4 + 0.08 * math.exp(-(((pitch + 0.3) / 0.12) ** 2))  # a touch wider over the pads
+    face = 1 - (yaw / half_width) ** 2 - ((pitch + 0.42) / 0.3) ** 2
+    throat = min((-pitch - 0.62) / 0.2, 1 - (yaw / 0.7) ** 2)
+    return smax([face, throat], 0.25)
 
 
 def face_arc(centre_yaw, centre_pitch, arc_from, arc_to, rw, rh, steps=48):
@@ -454,19 +459,22 @@ def face_arc(centre_yaw, centre_pitch, arc_from, arc_to, rw, rh, steps=48):
 
 
 # Ears: a soft cupped triangle; base at the origin, pink scooped front facing -Y before it is turned
-EAR_H, EAR_W, EAR_T = 0.11, 0.075, 0.03
+EAR_H, EAR_W, EAR_T = 0.105, 0.078, 0.03
+EAR_RIM = 0.012  # the ear's edge is never thinner than this: a soft bevelled rim, not a razor
 
 
 def ear_local(d):
+    """A soft cupped triangle with body: it narrows toward a ROUNDED tip (the width eases off
+    near the top instead of running to a point), and its rim keeps EAR_RIM of thickness."""
     h = (d.z + 1) / 2
-    x = d.x * EAR_W * (1 - 0.8 * h)
-    thick = EAR_T * (1 - 0.6 * h) * abs(d.y)
+    x = d.x * EAR_W * (1 - 0.66 * h**1.25)
+    core = EAR_T * (1 - 0.35 * h) * abs(d.y)
     if d.y > 0:
-        y = thick
+        y = core + EAR_RIM / 2
     else:
         # the scoop: the front face is pressed back into a bowl, deepest a little above the middle
         bowl = smoothstep(1.0, 0.3, math.hypot(d.x / 0.8, (d.z - 0.1) / 0.9))
-        y = thick * (-0.4 + 0.95 * bowl)
+        y = -EAR_RIM / 2 + core * (-0.4 + 0.95 * bowl)
     return Vector((x, y, h * EAR_H - 0.03))
 
 
@@ -501,7 +509,7 @@ def build():
     make_object("Loaf", bm, origin, coll, body, origin, (mat["Mat_Ginger"], mat["Mat_Cream"]))
 
     # Head: pivot at the neck base; a cream muzzle and chin
-    bm = shaped(34, head_point)
+    bm = shaped(44, head_point)  # dense enough that the muzzle's outline is a smooth curve
     paint_by_field(bm, muzzle_mask, CREAM, lambda q: head_project(q)[0])
     head = make_object("Head", bm, NECK, coll, body, origin, (mat["Mat_Ginger"], mat["Mat_Cream"]))
 
@@ -633,7 +641,7 @@ def repo_root():
     root = globals().get("REPO_ROOT")
     if root:
         return root
-    if "__file__" in globals() and __file__.endswith("build_mochi.py"):
+    if "__file__" in globals() and __file__.endswith("build_cat.py"):
         return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     return os.environ.get("COZYCUBE_ROOT", os.getcwd())
 
@@ -642,7 +650,7 @@ def main():
     report = globals().get("REPORT_PATH")
     try:
         coll = build()
-        out = os.path.join(repo_root(), "client", "public", "models", "mochi.glb")
+        out = os.path.join(repo_root(), "client", "public", "models", "cat.glb")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         export(coll, out)
         result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), **summary(coll)}

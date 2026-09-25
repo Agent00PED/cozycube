@@ -7,6 +7,7 @@ import { clampToWorld, isBlocked } from "@shared/collision";
 import { findPath, type Point } from "@shared/pathfinding";
 import { cameraFocus } from "../scene/cameraFocus";
 import { worldMoveDirection } from "./input";
+import { faceHeading } from "./faceTargets";
 import { liveMotion } from "./liveMotion";
 import { Reconciler } from "./reconcile";
 
@@ -232,6 +233,11 @@ export function useLocalPlayerMovement(
     speedRef.current = player.sitting ? 0 : velocityRef.current / MOVE_SPEED;
     seatYRef.current += ((player.sitting ? player.sitY : 0) - seatYRef.current) * SEAT_HEIGHT_LERP;
     if (player.sitting) facingRef.current = player.sitRotationY;
+    else if (dirX === 0 && dirZ === 0) {
+      // standing still with something to face (the plant being watered): turn to it
+      const heading = faceHeading(player.sessionId, pos.x, pos.z);
+      if (heading !== null) facingRef.current = lerpAngle(facingRef.current, heading, TURN_LERP);
+    }
 
     if (groupRef.current) {
       groupRef.current.position.set(pos.x, seatYRef.current, pos.z);

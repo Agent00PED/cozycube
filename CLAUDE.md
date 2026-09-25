@@ -20,7 +20,7 @@ floor with no seats or props until its world is authored).
 | `server/src/db/players.ts` | PostgreSQL store (DATABASE_URL) with in-memory fallback |
 | `client/src/scene/` | `IsometricCanvas` (fitted ortho camera), `WorldScene` (root), `LoungeWorld` (the room), `Props` (lamps, Mochi, seat pads), `kit` (primitives, `StaticBatch`), lighting per hour |
 | `client/src/entities/` | `Avatar` and `Mochi` (pure GLTF loaders via `useGLTF`), `rig.ts` (node/material contracts), `ModelBoundary`, `MochiPlayroomModal`, `Players` |
-| `client/public/models/` | The ONLY location for 3D assets: `avatar.glb`, `mochi.glb`. All assets are authored in Blender |
+| `client/public/models/` | The ONLY location for 3D assets: `avatar.glb`, `cat.glb` (Mochi), `props.glb` (the lounge's pillows, toaster, kettle, pot, fruit bowl, bread basket, mugs). All assets are authored in Blender |
 | `scripts/blender/` | Blender Python automation scripts (executed via Live Bridge http://127.0.0.1:8192 or headless CLI) |
 | `client/src/systems/` | `useLocalPlayerMovement` (click / WASD / joystick locomotion) and `input.ts` |
 | `client/src/components/hud/` | The Cozy Clay HUD: header, world drawer, social drawer, `ActionDock`, modals, wardrobe |

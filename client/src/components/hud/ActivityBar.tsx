@@ -283,5 +283,5 @@ const styles: Record<string, CSSProperties> = {
   betBtn: { ...pillButton, padding: "7px 12px", fontWeight: 700 },
   betBtnGhost: { ...pillButton, padding: "7px 12px", background: "rgba(255,255,255,0.6)" },
   numberGrid: { display: "grid", gridTemplateColumns: "repeat(13, minmax(0, 1fr))", gap: 3 },
-  num: { border: "none", borderRadius: 6, color: "#fff", fontWeight: 700, fontSize: 11, padding: "5px 0", cursor: "pointer", fontFamily: "sans-serif" },
+  num: { border: "none", borderRadius: 6, color: "#fff", fontWeight: 700, fontSize: 11, padding: "5px 0", cursor: "pointer", fontFamily: "var(--font-cozy)" },
 };

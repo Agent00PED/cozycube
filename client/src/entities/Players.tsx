@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type * as THREE from "three";
 import type { Gesture, MapId, PlayerState } from "@shared/types";
+import { faceHeading } from "../systems/faceTargets";
 import { liveMotion, type MotionSample } from "../systems/liveMotion";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
 import { Avatar, type FloatingEmote } from "./Avatar";
@@ -26,6 +27,10 @@ export interface CrowdFeed {
   emotes: Record<string, FloatingEmote[]>;
   gestures: Record<string, GestureState>;
   bubbles: Record<string, BubbleState>;
+  /** Session ids seated on a cushion round the radio while it plays (they groove to it). */
+  vibing: ReadonlySet<string>;
+  /** Session ids seated at the board while it is the opponent's move (they wait, head tilted). */
+  awaiting: ReadonlySet<string>;
 }
 
 const NO_EMOTES: FloatingEmote[] = [];
@@ -38,12 +43,15 @@ function avatarProps(player: PlayerState, feed: CrowdFeed) {
     username: player.username,
     pose: player.sitting ? player.sitPose : ("stand" as const),
     holding: player.holding,
+    drink: player.drink,
     action: player.action,
     speaking: player.speaking || feed.speakingUserIds.has(player.userId),
     emotes: feed.emotes[player.sessionId] ?? NO_EMOTES,
     gesture: feed.gestures[player.sessionId] ?? null,
     status: player.status,
     bubble: feed.bubbles[player.sessionId] ?? null,
+    vibe: feed.vibing.has(player.sessionId),
+    awaiting: feed.awaiting.has(player.sessionId),
   };
 }
 
@@ -130,6 +138,11 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
     speedRef.current += (speed - speedRef.current) * 0.3;
 
     if (p.sitting) d.facing = p.sitRotationY;
+    else if (moved <= 0.002) {
+      // standing still with something to face (the plant being watered): turn to it
+      const heading = faceHeading(p.sessionId, d.x, d.z);
+      if (heading !== null) d.facing = turn(d.facing, heading, TURN_LERP);
+    }
     d.seatY += ((p.sitting ? p.sitY : 0) - d.seatY) * HEIGHT_LERP;
     g.position.set(d.x, d.seatY, d.z);
     g.rotation.y = d.facing;

@@ -8,7 +8,11 @@ import type {
   ChairSyncState,
   EmoteBroadcast,
   LeaderboardEntry,
+  BoardPacket,
   HeldItem,
+  KitchenPacket,
+  PlantPacket,
+  RadioPacket,
   MapId,
   PlayerAction,
   PlayerState,
@@ -54,6 +58,9 @@ const RELAYED_MESSAGES = [
   "mochiResult",
   "dailyComplete",
   "vibe",
+  // the lounge's plants: the splash for everyone, and "already watered" for the one who tried
+  "plantWatered",
+  "plantHappy",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
@@ -132,9 +139,12 @@ interface UseColyseusRoomResult {
   matchaWhisk: (score: number) => void;
   blendDrink: (recipe: string, ingredients: string[]) => void;
   setRecord: (track: number) => void;
-  boardJoin: () => void;
-  boardLeave: () => void;
-  boardMove: (from: number, to: number) => void;
+  /** A packet for the board game table (BoardPacket); the server answers with "boardState". */
+  boardSend: (packet: BoardPacket) => void;
+  /** The lounge's kitchenette (KITCHEN_BREW), radio (RADIO_UPDATE) and plants (PLANT_WATER). */
+  kitchenSend: (packet: KitchenPacket) => void;
+  radioSend: (packet: RadioPacket) => void;
+  plantSend: (packet: PlantPacket) => void;
   mochiPlay: (action: string) => void;
   /** Latest server snapshot of the beach volleyball (null until the first patch). */
   ballRef: React.MutableRefObject<BallSnapshot | null>;
@@ -269,6 +279,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             sitY: player.sitY,
             sitPose: player.sitPose as SitPose,
             holding: player.holding as HeldItem,
+            drink: player.drink ?? "",
+            watered: player.watered ?? "",
             action: player.action as PlayerAction,
             actionProgress: player.actionProgress,
             toast: player.toast,
@@ -526,9 +538,10 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     matchaWhisk: (score) => send("matcha_whisk", { score }),
     blendDrink: (recipe, ingredients) => send("blend_drink", { recipe, ingredients }),
     setRecord: (track) => send("set_record", { track }),
-    boardJoin: () => send("board_join"),
-    boardLeave: () => send("board_leave"),
-    boardMove: (from, to) => send("board_move", { from, to }),
+    boardSend: (packet) => send("board", packet),
+    kitchenSend: (packet) => send("kitchen", packet),
+    radioSend: (packet) => send("radio", packet),
+    plantSend: (packet) => send("plant", packet),
     mochiPlay: (action) => send("mochi_play", { action }),
     ballRef,
     subscribeEmotes,

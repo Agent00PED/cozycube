@@ -24,6 +24,10 @@ export interface PlayerState {
   sitY: number;
   sitPose: SitPose;
   holding: HeldItem;
+  /** What is in the mug while holding "coffee" from the kitchenette (encodeDrink), "" for a plain one. */
+  drink: string;
+  /** The lounge plants this player has watered today, comma-separated prop ids. */
+  watered: string;
   action: PlayerAction;
   /** 0..1 progress of a timed action (the espresso brew gauge). */
   actionProgress: number;
@@ -205,7 +209,10 @@ export type ToggleableKind =
   | "blender"
   | "boardgame"
   | "jukebox"
-  | "shishi";
+  | "shishi"
+  | "kitchen"
+  | "radio"
+  | "plant";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -257,11 +264,17 @@ export const EMOTES = ["☕", "🍢", "🔥", "❤️", "😂", "👋"] as const
 /** Emoji the server itself sends (rewards, reactions) — never accepted from a client. */
 export const SYSTEM_EMOJI = ["🥂", "💤", "💃", "🪙", "💰", "🎰", "✨", "💕", "🫐", "💨"] as const;
 
-/** Full-body social gestures (the emote bar's second row). */
-export const GESTURES = ["wave", "dance", "cheers", "nap"] as const;
+/**
+ * Full-body gestures: the social ones (the emote bar's second row), and the ones the server plays
+ * on its own when something happens (SERVER_GESTURES): watering a plant, reaching over the board
+ * to make a move.
+ */
+export const GESTURES = ["wave", "dance", "cheers", "nap", "water", "reach"] as const;
 export type Gesture = (typeof GESTURES)[number];
-export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 2.2, dance: 5, cheers: 2.4, nap: 7 };
-export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤" };
+export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 2.2, dance: 5, cheers: 2.4, nap: 7, water: 1.8, reach: 0.8 };
+export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", water: "💧", reach: "♟️" };
+/** Gestures only the server starts (a client asking for one is ignored). */
+export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach"]);
 export function isGesture(v: unknown): v is Gesture {
   return typeof v === "string" && (GESTURES as readonly string[]).includes(v);
 }
@@ -463,17 +476,142 @@ export const ARCADE_COINS_PER_POINT = 0.1;
 export const ARCADE_COINS_MAX = 20;
 export type GachaPrize = { kind: "hat"; id: PremiumHat } | { kind: "outfit"; id: OutfitId } | { kind: "coins"; amount: number } | { kind: "dupe"; refund: number; id: string };
 
-// --- the lounge board game (checkers) ---
-export type BoardCell = 0 | 1 | 2 | 3 | 4; // empty, red, black, red king, black king
-export interface BoardGameView {
-  board: BoardCell[]; // 64 cells, row-major from the red side
-  players: { red: string; black: string }; // session ids, "" while waiting
-  names: { red: string; black: string };
-  turn: "red" | "black";
-  winner: "" | "red" | "black";
-  mustJump: boolean;
+// --- the lounge board game table: chess or checkers, two seats, anyone may watch ---
+//
+// The server owns the rules (server/src/rooms/boardgame.ts: chess.js for chess, its own engine for
+// checkers) and broadcasts the whole table as a BoardGameView ("boardState") after every change,
+// so the two players and every spectator always draw the same, authoritative board. Clients send
+// BoardPackets on the "board" channel.
+
+export type BoardGameType = "chess" | "checkers";
+/** Seat 1 plays white (and moves first), seat 2 black: in chess the pieces, in checkers the cream and cocoa discs. */
+export type BoardSide = "w" | "b";
+/**
+ * A square is its index 0..63, row by row from the top of the board as white sees it: 0 is a8,
+ * 7 is h8, 56 is a1, 63 is h1. A promotion names the piece a pawn becomes (chess only).
+ */
+export interface BoardMove {
+  from: number;
+  to: number;
+  promotion?: "q" | "r" | "b" | "n";
 }
-export const BOARD_MOVE_TIMEOUT_S = 90;
+export type BoardPacket =
+  /** The board modal opened (watching) or closed: the table lists who is looking on. */
+  | { type: "BOARD_WATCH"; watching: boolean }
+  /** Take a seat (sitting on its chair too, if you are near and it is free). */
+  | { type: "BOARD_SIT"; seat: BoardSide }
+  /** Get up from the table: an unfinished game with an opponent is forfeited. */
+  | { type: "BOARD_LEAVE" }
+  /** Choose the game, while none is under way. */
+  | { type: "BOARD_SELECT"; gameType: BoardGameType }
+  /** A move. `fen` is what the sender's board shows; the server's own position is what counts. */
+  | { type: "BOARD_MOVE"; gameType: BoardGameType; move: BoardMove; fen?: string }
+  /** A fresh board (a rematch, or a new game type), once a game is over or before it has begun. */
+  | { type: "BOARD_RESET"; gameType: BoardGameType }
+  | { type: "BOARD_RESIGN" }
+  /** Offer a draw, or answer one (accept: true / false). */
+  | { type: "BOARD_DRAW"; accept?: boolean };
+
+export interface BoardGameView {
+  gameType: BoardGameType;
+  /**
+   * The 64 squares (see BoardMove): "" is empty, otherwise the side and the piece: chess
+   * "wp" "wn" "wb" "wr" "wq" "wk" (and "b..."), checkers "wm" / "bm" for a man and "wk" / "bk"
+   * for a king.
+   */
+  cells: string[];
+  seats: Record<BoardSide, string>; // session ids, "" while open
+  names: Record<BoardSide, string>;
+  turn: BoardSide;
+  /** "waiting" for a second player, "playing", or "over". */
+  phase: "waiting" | "playing" | "over";
+  /** Who won ("draw" for a draw), once it is over. */
+  result: "" | BoardSide | "draw";
+  /** Why it ended: "checkmate", "stalemate", "resignation", "no moves left", "draw agreed", ... */
+  reason: string;
+  /** The side to move is in check (chess). */
+  check: boolean;
+  /** The side to move has to capture (checkers). */
+  mustJump: boolean;
+  /** Every legal move for the side to move: the board's tap-to-highlight comes from here. */
+  legal: { from: number; to: number; promotion: boolean }[];
+  lastMove: { from: number; to: number } | null;
+  /** A standing draw offer, and whose it is. */
+  drawOffer: "" | BoardSide;
+  /** The chess position (Forsyth-Edwards); "" for checkers. */
+  fen: string;
+  /** Plies played in this game. */
+  moves: number;
+  /** Who has the board open and is not playing. */
+  watchers: string[];
+}
+/** The winner's purse, paid once a decisive game has lasted at least BOARD_MIN_PLIES_FOR_PURSE plies. */
+export const BOARD_WIN_COINS = 15;
+export const BOARD_MIN_PLIES_FOR_PURSE = 6;
+
+// --- the lounge's kitchenette, radio and plants ---
+//
+// Clients send typed packets: KitchenPacket on "kitchen", RadioPacket on "radio", PlantPacket on
+// "plant". The radio's station and whether it plays live in its prop's synced state (on, track),
+// so everyone, late arrivals too, hears the same station; the music itself is generated in each
+// browser (client/src/audio/radio.ts), and its volume and mute are each player's own.
+
+export const DRINK_BASES = ["coffee", "matcha", "milktea"] as const;
+export type DrinkBase = (typeof DRINK_BASES)[number];
+export const DRINK_TOPPINGS = ["marshmallow", "cinnamon", "caramel", "cream"] as const;
+export type DrinkTopping = (typeof DRINK_TOPPINGS)[number];
+/** Each base: its name, and the colour of the drink in the mug. */
+export const DRINK_BASE_INFO: Record<DrinkBase, { name: string; emoji: string; color: string; note: string }> = {
+  coffee: { name: "Coffee", emoji: "☕", color: "#6b4430", note: "a smooth house roast" },
+  matcha: { name: "Matcha", emoji: "🍵", color: "#8fb56a", note: "whisked, grassy and sweet" },
+  milktea: { name: "Milk Tea", emoji: "🧋", color: "#c9a27a", note: "black tea, milk and honey" },
+};
+export const DRINK_TOPPING_INFO: Record<DrinkTopping, { name: string; emoji: string }> = {
+  marshmallow: { name: "Marshmallows", emoji: "🍡" },
+  cinnamon: { name: "Cinnamon", emoji: "🌰" },
+  caramel: { name: "Caramel", emoji: "🍯" },
+  cream: { name: "Whipped Cream", emoji: "🍦" },
+};
+export function encodeDrink(base: DrinkBase, topping: DrinkTopping): string {
+  return `${base}:${topping}`;
+}
+export function parseDrink(raw: string): { base: DrinkBase; topping: DrinkTopping } | null {
+  const [base, topping] = raw.split(":");
+  return (DRINK_BASES as readonly string[]).includes(base) && (DRINK_TOPPINGS as readonly string[]).includes(topping) ? { base: base as DrinkBase, topping: topping as DrinkTopping } : null;
+}
+/** The brewing animation the kitchen modal plays before the drink is poured. */
+export const KITCHEN_BREW_SECONDS = 1.5;
+export type KitchenPacket = { type: "KITCHEN_BREW"; base: DrinkBase; topping: DrinkTopping };
+
+/** The radio's stations, in the order its synced `track` indexes them. */
+export const RADIO_STATIONS = [
+  { id: "lofi", name: "Cozy Lofi Beats", emoji: "🎧", mood: "dusty keys, a lazy boom-bap, vinyl crackle" },
+  { id: "rain", name: "Rainy Evening", emoji: "🌧️", mood: "soft rain on the glass, slow pads, a few piano notes" },
+  { id: "jazz", name: "Sunny Café Jazz", emoji: "🎷", mood: "a walking bass, brushed swing, bright chords" },
+  { id: "stars", name: "Starlight Ambient", emoji: "🌙", mood: "a warm drone and a music-box twinkle" },
+] as const;
+export type RadioStationId = (typeof RADIO_STATIONS)[number]["id"];
+export function radioStationIndex(id: string): number {
+  return RADIO_STATIONS.findIndex((s) => s.id === id);
+}
+export type RadioPacket = { type: "RADIO_UPDATE"; station: RadioStationId; playing: boolean };
+
+/** Coins for watering a plant: each plant, once a day. */
+export const PLANT_WATER_COINS = 15;
+/** The daily things (plants, the checklist) roll over at midnight UTC: how long until then. */
+export function msUntilNextDay(now = Date.now()): number {
+  const next = new Date(now);
+  next.setUTCHours(24, 0, 0, 0);
+  return next.getTime() - now;
+}
+export type PlantPacket = { type: "PLANT_WATER"; plantId: string };
+/** Broadcast when a plant is watered: where to splash, and who earned what. */
+export interface PlantWatered {
+  type: "PLANT_WATERED";
+  sessionId: string;
+  plantId: string;
+  coins: number;
+}
 
 // --- mochi ---
 export const MOCHI_ACTIONS = ["feather", "treat", "scritch"] as const;
@@ -602,14 +740,15 @@ export const SKIN_TONE_NAMES = ["Porcelain", "Warm peach", "Honey tan", "Golden 
 export const HAIR_COLORS = ["#222222", "#4a3525", "#dda15e", "#c85a44", "#dda7a5", "#457b9d", "#d6d6d6", "#a390e4"];
 export const HAIR_COLOR_NAMES = ["Soft black", "Chocolate", "Blonde", "Terracotta", "Rose", "Slate blue", "Silver", "Lavender"];
 
-export const HAIR_STYLES = ["short", "bob", "wavy", "messy", "hero", "drill", "topknot", "spacebuns", "afro"] as const;
+export const HAIR_STYLES = ["short", "bob", "curtain", "ponytail", "wavylong", "hero", "drill", "topknot", "spacebuns", "afro"] as const;
 export type HairStyle = (typeof HAIR_STYLES)[number];
-/** The hair catalogue: four free starter styles, and the fancy ones sold in the wardrobe (price in coins). */
+/** The hair catalogue: five free starter styles, and the fancy ones sold in the wardrobe (price in coins). */
 export const HAIR_DEFINITIONS: Record<HairStyle, { name: string; emoji: string; price: number }> = {
   short: { name: "Cozy Crop", emoji: "✂️", price: 0 },
-  bob: { name: "Classic Bob", emoji: "💇", price: 0 },
-  wavy: { name: "Soft Waves", emoji: "🌊", price: 0 },
-  messy: { name: "Messy Spikes", emoji: "🌪️", price: 0 },
+  bob: { name: "Layered Bob", emoji: "💇", price: 0 },
+  curtain: { name: "Curtain Shag", emoji: "🍃", price: 0 },
+  ponytail: { name: "High Ponytail", emoji: "💁", price: 0 },
+  wavylong: { name: "Soft Waves", emoji: "🌊", price: 0 },
   hero: { name: "Anime Hero", emoji: "⚡", price: 200 },
   drill: { name: "Twin Drills", emoji: "🎀", price: 180 },
   topknot: { name: "Samurai Topknot", emoji: "🎋", price: 150 },
@@ -624,8 +763,13 @@ export function isHairStyle(v: unknown): v is HairStyle {
 export function hairUnlockId(style: HairStyle): string {
   return `hair_${style}`;
 }
-/** The styles before the catalogue was redone, and what they are worn as now (always a free one). */
-const LEGACY_HAIR: Record<string, HairStyle> = { cap: "short", long: "wavy", spiky: "messy", bun: "short", buns: "short" };
+/** Retired style ids, and what they are worn as now (always a free one): a saved look naming one
+ *  still loads, in the style that replaced it. */
+const LEGACY_HAIR: Record<string, HairStyle> = { cap: "short", long: "wavylong", spiky: "curtain", bun: "short", buns: "short", messy: "curtain", wavy: "wavylong" };
+/** A hair id from a saved look: a current style as it is, a retired one as the style that replaced it. */
+function currentHair(id: string): HairStyle | undefined {
+  return isHairStyle(id) ? id : LEGACY_HAIR[id];
+}
 
 /** Twelve vibrant pastels for an outfit's accent: its trims (a vest, lapels, an obi, piping). */
 export const OUTFIT_COLORS = [
@@ -739,8 +883,9 @@ export function parseLook(raw: string | null | undefined): Look | null {
   const fields = raw.split(",");
   if (fields.length === 6) return migrateLook(fields);
   if (fields.length !== 8) return null;
-  const [skin, hairStyle, hair, outfit, outfitColor, hat, shirt, pants] = fields;
-  if (!SKIN_TONES.includes(skin) || !isHairStyle(hairStyle) || !HAIR_COLORS.includes(hair)) return null;
+  const [skin, hairId, hair, outfit, outfitColor, hat, shirt, pants] = fields;
+  const hairStyle = currentHair(hairId);
+  if (!SKIN_TONES.includes(skin) || !hairStyle || !HAIR_COLORS.includes(hair)) return null;
   if (!isOutfitId(outfit) || !OUTFIT_COLORS.includes(outfitColor) || !isHat(hat)) return null;
   if (!SHIRT_COLORS.includes(shirt) || !PANTS_COLORS.includes(pants)) return null;
   return { skin, hairStyle, hair, outfit, outfitColor, hat, shirt, pants };
@@ -752,7 +897,7 @@ export function parseLook(raw: string | null | undefined): Look | null {
 function migrateLook([skin, hairStyle, hair, outfit, outfitColor, hat]: string[]): Look | null {
   const hex = /^#[0-9a-f]{6}$/i;
   if (![skin, hair, outfitColor].every((c) => hex.test(c)) || !isOutfitId(outfit) || !isHat(hat)) return null;
-  const style = isHairStyle(hairStyle) ? hairStyle : LEGACY_HAIR[hairStyle];
+  const style = currentHair(hairStyle);
   if (!style) return null;
   return { skin: nearestColor(SKIN_TONES, skin), hairStyle: style, hair: nearestColor(HAIR_COLORS, hair), outfit, outfitColor: nearestColor(OUTFIT_COLORS, outfitColor), hat, ...OUTFIT_FABRICS[outfit] };
 }
@@ -780,7 +925,10 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "teahouse" ||
     kind === "blender" ||
     kind === "boardgame" ||
-    kind === "jukebox"
+    kind === "jukebox" ||
+    kind === "kitchen" ||
+    kind === "radio" ||
+    kind === "plant"
   );
 }
 

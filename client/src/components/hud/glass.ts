@@ -12,7 +12,7 @@ export const glass: CSSProperties = {
 };
 
 export const hudText: CSSProperties = {
-  fontFamily: "'Nunito', 'Quicksand', system-ui, -apple-system, 'Segoe UI', sans-serif",
+  fontFamily: "var(--font-cozy)",
   color: "#f5f5f4",
 };
 

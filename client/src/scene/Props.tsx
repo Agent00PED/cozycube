@@ -95,6 +95,177 @@ export function Cat({ mapId, onUse }: { mapId: MapId; onUse: () => void }) {
   );
 }
 
+/** The games table's click target: an invisible pad over the table top and its board. */
+export function BoardTablePad({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => void }) {
+  return <HitPad size={[1.3, 0.8, 1.3]} position={[prop.x, 0.4, prop.z]} onUse={onUse} />;
+}
+
+/** A walk-up prop's click target (the coffee machine, a plant): an invisible pad of `size` over it, its base at `y`. */
+export function PropPad({ prop, size, onUse }: { prop: ToggleableSyncState; size: [number, number, number]; onUse: () => void }) {
+  return <HitPad size={size} position={[prop.x, prop.y + size[1] / 2, prop.z]} onUse={onUse} />;
+}
+
+// --- the radio's music notes -------------------------------------------------------------------
+
+const NOTE_COLORS = ["#f4b6e0", "#a8d8ea", "#fff3a8", "#c9f2a8", "#d5aaff"].map((c) => matte(c, 0.7));
+const NOTE_HEAD = new THREE.SphereGeometry(1, 12, 8);
+const NOTE_STEM = new THREE.CylinderGeometry(1, 1, 1, 6);
+const NOTE_FLAG = new THREE.BoxGeometry(1, 1, 1);
+const NOTE_COUNT = 6;
+const NOTE_LIFE = 3.2; // seconds from the radio up into the air
+
+/** One note: a "♪" (a head, a stem and a flag) or a beamed "♫" (two heads and stems, one beam). */
+function NoteShape({ beamed, m }: { beamed: boolean; m: THREE.Material }) {
+  const heads = beamed ? [-0.04, 0.04] : [0];
+  return (
+    <group>
+      {heads.map((x, i) => (
+        <group key={i} position={[x, i * 0.015, 0]}>
+          <mesh geometry={NOTE_HEAD} material={m} scale={[0.028, 0.022, 0.022]} rotation={[0, 0, 0.4]} raycast={noRaycast} />
+          <mesh geometry={NOTE_STEM} material={m} position={[0.024, 0.06, 0]} scale={[0.006, 0.12, 0.006]} raycast={noRaycast} />
+        </group>
+      ))}
+      {beamed ? <mesh geometry={NOTE_FLAG} material={m} position={[0.024, 0.125, 0]} rotation={[0, 0, 0.2]} scale={[0.1, 0.018, 0.012]} raycast={noRaycast} /> : <mesh geometry={NOTE_FLAG} material={m} position={[0.042, 0.105, 0]} rotation={[0, 0, -0.7]} scale={[0.045, 0.014, 0.01]} raycast={noRaycast} />}
+    </group>
+  );
+}
+
+/**
+ * The radio's click target, and while it plays, pastel music notes floating up out of it: each
+ * rises and drifts over NOTE_LIFE seconds, swelling in and shrinking away (no fading: every
+ * material stays opaque), and they all stop the moment the radio does.
+ */
+export function RadioProp({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => void }) {
+  const notes = useRef<(THREE.Group | null)[]>([]);
+  const playing = useRef(prop.on);
+  playing.current = prop.on;
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    notes.current.forEach((g, i) => {
+      if (!g) return;
+      if (!playing.current) {
+        g.visible = false;
+        return;
+      }
+      const life = ((t / NOTE_LIFE + i / NOTE_COUNT) % 1 + 1) % 1;
+      g.visible = true;
+      const side = i % 2 === 0 ? 1 : -1;
+      g.position.set(Math.sin(life * Math.PI * 1.5 + i) * 0.18 * side + side * 0.05, 0.3 + life * 1.1, Math.cos(life * Math.PI + i * 1.3) * 0.12);
+      g.rotation.z = Math.sin(t * 2 + i) * 0.25;
+      g.scale.setScalar(Math.sin(Math.PI * Math.min(1, life * 1.15)) * 1.1 + 0.001);
+    });
+  });
+  return (
+    <group position={[prop.x, prop.y, prop.z]}>
+      {Array.from({ length: NOTE_COUNT }, (_, i) => (
+        <group key={i} ref={(g) => (notes.current[i] = g)} visible={false}>
+          <NoteShape beamed={i % 3 === 1} m={NOTE_COLORS[i % NOTE_COLORS.length]} />
+        </group>
+      ))}
+      <HitPad size={[0.45, 0.45, 0.35]} position={[0, 0.2, 0]} onUse={onUse} />
+    </group>
+  );
+}
+
+// --- watering a plant: a stream of drops from the can, then star sparkles -------------------------
+
+const DROP_MAT = matte("#8fd0f2", 0.7, { emissive: "#5fb8e8", emissiveIntensity: 0.35 });
+const SPARKLE_MAT = new THREE.MeshBasicMaterial({ color: "#ffd166", toneMapped: false, side: THREE.DoubleSide });
+const DROP_GEO = new THREE.SphereGeometry(1, 8, 6);
+/** A four-pointed twinkle (the ✨ shape): long points on the axes, pinched in between. */
+function twinkleShape() {
+  const s = new THREE.Shape();
+  const pinch = 0.14;
+  s.moveTo(0, 1);
+  s.quadraticCurveTo(pinch, pinch, 1, 0);
+  s.quadraticCurveTo(pinch, -pinch, 0, -1);
+  s.quadraticCurveTo(-pinch, -pinch, -1, 0);
+  s.quadraticCurveTo(-pinch, pinch, 0, 1);
+  return s;
+}
+const SPARKLE_GEO = new THREE.ShapeGeometry(twinkleShape(), 5);
+const DROPS = 16;
+const SPARKLES = 12;
+// The pour, timed to the waterer's "water" gesture (Avatar.tsx): the can tips once the arm is out
+// (POUR_START), drops leave the spout for POUR_SECONDS and each takes DROP_FALL to land, so the
+// stream runs one second in all; then the sparkles pop, each living SPARKLE_LIFE.
+const POUR_START = 0.4;
+const POUR_SECONDS = 0.6;
+const DROP_FALL = 0.4;
+const SPARKLE_START = POUR_START + POUR_SECONDS + DROP_FALL - 0.1;
+const SPARKLE_LIFE = 1.1;
+/** How long a splash lasts; the scene removes it after this. */
+export const PLANT_BURST_SECONDS = SPARKLE_START + 0.35 + SPARKLE_LIFE + 0.1;
+/** The pot's soil; the can's spout, this far out in front of the waterer, at this height while pouring. */
+const SOIL_Y = 0.38;
+const SPOUT_REACH = 0.5;
+const SPOUT_Y = 0.44;
+/** The spout never sits inside the pot: at the closest, just over its rim. */
+const SPOUT_MIN = 0.26;
+
+/**
+ * The splash over a watered plant, started at `at` (performance.now ms). `from` is where the
+ * waterer stands: a stream of soft blue drops arcs from their can's spout, out in front of them,
+ * down onto the soil (under the canopy, where the camera sees it), for one second; then golden
+ * four-pointed sparkles pop round the outside of the whole plant, facing the camera, and twinkle
+ * away. Driven by the frame clock (no timers of its own).
+ */
+export function PlantBurst({ x, z, from, at }: { x: number; z: number; from?: { x: number; z: number }; at: number }) {
+  const drops = useRef<(THREE.Mesh | null)[]>([]);
+  const sparkles = useRef<(THREE.Mesh | null)[]>([]);
+  // the spout, relative to the plant: toward the waterer (the camera's side when unknown)
+  const spout = useMemo(() => {
+    const dx = from ? from.x - x : 1;
+    const dz = from ? from.z - z : 1;
+    const d = Math.hypot(dx, dz) || 1;
+    const out = Math.max(SPOUT_MIN, from ? d - SPOUT_REACH : SPOUT_MIN);
+    return { x: (dx / d) * out, z: (dz / d) * out };
+  }, [from, x, z]);
+  const seeds = useMemo(
+    () => ({
+      drops: Array.from({ length: DROPS }, (_, i) => ({ d: POUR_START + (i / DROPS) * POUR_SECONDS, jx: (Math.random() - 0.5) * 0.12, jz: (Math.random() - 0.5) * 0.12 })),
+      sparkles: Array.from({ length: SPARKLES }, (_, i) => ({ a: (i / SPARKLES) * Math.PI * 2 + Math.random() * 0.4, y: 0.7 + (i % 4) * 0.42 + Math.random() * 0.15, r: 0.62 + Math.random() * 0.2, d: Math.random() * 0.35, spin: Math.random() * Math.PI })),
+    }),
+    []
+  );
+  useFrame(({ camera }) => {
+    const age = (performance.now() - at) / 1000;
+    drops.current.forEach((m, i) => {
+      if (!m) return;
+      const s = seeds.drops[i];
+      const u = (age - s.d) / DROP_FALL;
+      m.visible = u > 0 && u < 1;
+      if (!m.visible) return;
+      // out of the spout in a little arc, over the rim, down onto the soil
+      m.position.set(spout.x * (1 - u) + s.jx * u, SPOUT_Y + (SOIL_Y - SPOUT_Y) * u * u + 0.1 * Math.sin(Math.PI * u), spout.z * (1 - u) + s.jz * u);
+      m.scale.set(0.05, 0.075, 0.05);
+    });
+    sparkles.current.forEach((m, i) => {
+      if (!m) return;
+      const s = seeds.sparkles[i];
+      const u = (age - SPARKLE_START - s.d) / SPARKLE_LIFE;
+      m.visible = u > 0 && u < 1;
+      if (!m.visible) return;
+      const r = s.r + 0.25 * u;
+      m.position.set(Math.cos(s.a) * r, s.y + 0.35 * u, Math.sin(s.a) * r);
+      // flat twinkles turned to the camera, spinning a little as they swell and fade
+      m.quaternion.copy(camera.quaternion);
+      m.rotateZ(s.spin + u * 2.5);
+      m.scale.setScalar(0.13 * Math.sin(Math.PI * u) * (0.75 + 0.35 * Math.sin(u * 28 + i)));
+    });
+  });
+  return (
+    <group position={[x, 0, z]}>
+      {Array.from({ length: DROPS }, (_, i) => (
+        <mesh key={`d${i}`} ref={(m) => (drops.current[i] = m)} geometry={DROP_GEO} material={DROP_MAT} visible={false} raycast={noRaycast} />
+      ))}
+      {Array.from({ length: SPARKLES }, (_, i) => (
+        <mesh key={`s${i}`} ref={(m) => (sparkles.current[i] = m)} geometry={SPARKLE_GEO} material={SPARKLE_MAT} visible={false} raycast={noRaycast} />
+      ))}
+    </group>
+  );
+}
+
 /** A seat's click target: an invisible pad over the cushion. */
 export function SeatPad({ x, z, wide, onUse }: { x: number; z: number; wide: boolean; onUse: () => void }) {
   return <HitPad size={wide ? [1.05, 0.9, 1.05] : [0.6, 1.0, 0.6]} position={[x, wide ? 0.45 : 0.5, z]} onUse={onUse} />;

@@ -37,6 +37,36 @@ export function seatAnchorY(cushion: Cushion): number {
   return surfaceY(cushion) + AVATAR_HIP_OFFSET - AVATAR_HIP_Y;
 }
 
+// --- Lying down (a nap on a sofa, a blanket) ---
+//
+// Lying, the avatar rolls onto its back about its soles (Avatar.tsx) and is lifted AVATAR_LIE_LIFT,
+// so its head, the widest part of it, rests on whatever is under its origin. Its head's centre is
+// then AVATAR_HEAD_Y along the body from the soles, toward the way the head points.
+
+/** How far a lying avatar is lifted: its head's radius, so the back of the head rests on the surface. */
+export const AVATAR_LIE_LIFT = 0.26;
+/** The head's centre above the soles, standing (along the body, lying). */
+export const AVATAR_HEAD_Y = 0.82;
+/** How far a napping head sinks into a soft cushion. */
+const NAP_SINK = 0.03;
+
+/** Where a napping avatar's ORIGIN goes so its head rests on `cushion`. */
+export function napAnchorY(cushion: Cushion): number {
+  return surfaceY(cushion) - NAP_SINK;
+}
+
+/** Where a nap puts the avatar: its soles (the origin), heading and height, from where the head
+ *  rests and the way it points along the cushion (a unit vector in x, z). A lying avatar's head
+ *  points along its local -z, which a heading of h turns to (-sin h, -cos h). */
+export function napPose(cushion: Cushion, head: { x: number; z: number }, dir: { x: number; z: number }) {
+  return {
+    x: head.x - dir.x * AVATAR_HEAD_Y,
+    z: head.z - dir.z * AVATAR_HEAD_Y,
+    rotationY: Math.atan2(-dir.x, -dir.z),
+    y: napAnchorY(cushion),
+  };
+}
+
 // --- The Loft's cushions (proportioned to the 1.3-unit avatar: seats 0.36, stools 0.48) ---
 
 export const CUSHIONS = {

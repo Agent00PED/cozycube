@@ -65,7 +65,7 @@ export function SideDrawer(props: SideDrawerProps) {
       <aside className="clay-slide-right font-cozy absolute right-0 top-0 scrollbar-none flex h-full w-[min(340px,90vw)] flex-col gap-4 overflow-y-auto border-l border-white/10 bg-stone-900/85 p-4 pt-[max(16px,env(safe-area-inset-top))] text-stone-100 shadow-[-12px_0_40px_rgba(0,0,0,0.5)] backdrop-blur-md" aria-label="Social">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-extrabold tracking-wide">💬 Social</h2>
-          <button type="button" onClick={onClose} className="clay-icon-btn bg-white/10 hover:bg-white/20" aria-label="Close">
+          <button type="button" onClick={onClose} className="clay-close" aria-label="Close">
             ✕
           </button>
         </div>

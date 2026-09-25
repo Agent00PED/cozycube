@@ -2,19 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import type { Room } from "colyseus.js";
-import type { ChairSyncState, MapId, PlayerState, TimeOfDay, ToggleableSyncState } from "@shared/types";
-import { MAP_HALF, isWalkUpProp } from "@shared/types";
+import type { BoardGameView, ChairSyncState, MapId, PlayerState, TimeOfDay, ToggleableSyncState } from "@shared/types";
+import { GESTURE_SECONDS, MAP_HALF, isWalkUpProp } from "@shared/types";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
 import type { EmoteListener, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
-import { Cat, FloorLamp, SeatPad } from "./Props";
+import { BoardTablePad, Cat, FloorLamp, PLANT_BURST_SECONDS, PlantBurst, PropPad, RadioProp, SeatPad } from "./Props";
 import { ClickMarker } from "./ClickMarker";
 import { HOUR_LOOKS, TimeOfDayContext } from "./timeOfDay";
 import { cameraFocus, frame, requestRecenter } from "./cameraFocus";
 import { interactBridge } from "./interactBridge";
 import { GEO, StaticBatch, matte, noRaycast } from "./kit";
 import type { MoveTarget } from "../systems/useLocalPlayerMovement";
+import { faceToward } from "../systems/faceTargets";
+import { liveMotion } from "../systems/liveMotion";
 import { LocalPlayerAvatar, OtherPlayers, type BubbleState, type CrowdFeed, type GestureState } from "../entities/Players";
 import type { FloatingEmote } from "../entities/Avatar";
 
@@ -133,6 +135,35 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   const me = localSessionId ? players[localSessionId] : undefined;
   const { emotes, gestures, bubbles } = useCrowdEvents(subscribeEmotes, subscribeMessages);
 
+  // a watered plant's splash (drops from the waterer's can, then sparkles), shown for
+  // PLANT_BURST_SECONDS; the waterer turns to face the plant for the pour
+  const [bursts, setBursts] = useState<{ id: number; x: number; z: number; from?: { x: number; z: number }; at: number }[]>([]);
+  const burstId = useRef(1);
+  const liveProps = useRef(toggleables);
+  liveProps.current = toggleables;
+  useEffect(() => {
+    const timers = new Set<number>();
+    const off = subscribeMessages((type, payload) => {
+      if (type !== "plantWatered") return;
+      const plant = liveProps.current[payload?.plantId];
+      if (!plant) return;
+      const waterer = typeof payload?.sessionId === "string" ? liveMotion.get(payload.sessionId) : undefined;
+      const from = waterer ? { x: waterer.x, z: waterer.z } : APPROACH_POINTS[plant.propId];
+      if (waterer) faceToward(payload.sessionId, plant.x, plant.z, GESTURE_SECONDS.water);
+      const id = burstId.current++;
+      setBursts((prev) => [...prev, { id, x: plant.x, z: plant.z, from, at: performance.now() }]);
+      const timer = window.setTimeout(() => {
+        timers.delete(timer);
+        setBursts((prev) => prev.filter((b) => b.id !== id));
+      }, PLANT_BURST_SECONDS * 1000);
+      timers.add(timer);
+    });
+    return () => {
+      off();
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [subscribeMessages]);
+
   // the camera fits this world's floor with a margin (the lounge's own frame, or another world's size)
   frame.size = mapId === "cozy_lounge" ? LOFT_FRAME.size : MAP_HALF[mapId] * 2 + 0.8;
 
@@ -173,9 +204,14 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
 
   const activate = useCallback(
     (propId: string) => {
-      const { room, toggleables, mapId } = live.current;
+      const { room, toggleables, mapId, me } = live.current;
       const prop = toggleables[propId];
       if (!prop) return;
+      // already sitting at the games table, or on a pouf by the radio: its panel opens right there, without getting up
+      if ((prop.kind === "boardgame" || prop.kind === "radio") && me?.sitting) {
+        window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: prop.kind, propId } }));
+        return;
+      }
       if (!isWalkUpProp(prop.kind)) {
         // lamps work from across the room
         room?.send("useProp", { propId, x: cameraFocus.x, z: cameraFocus.z });
@@ -219,7 +255,17 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
     targetRef.current = null;
   }, [mapId]);
 
-  const feed = useMemo<CrowdFeed>(() => ({ speakingUserIds, emotes, gestures, bubbles }), [speakingUserIds, emotes, gestures, bubbles]);
+  // the lounge's moods: whoever sits on a cushion round the radio while it plays grooves to it, and
+  // whoever sits at the board waits on the opponent's move (from the table's broadcasts)
+  const radioOn = Object.values(toggleables).some((t) => t.kind === "radio" && t.on);
+  const vibing = useMemo<ReadonlySet<string>>(() => new Set(radioOn ? Object.values(chairs).flatMap((c) => (c.occupiedBy && c.propId.startsWith("pouf_") ? [c.occupiedBy] : [])) : []), [radioOn, chairs]);
+  const [board, setBoard] = useState<BoardGameView | null>(null);
+  useEffect(() => subscribeMessages((type, payload) => type === "boardState" && setBoard(payload as BoardGameView)), [subscribeMessages]);
+  const awaiting = useMemo<ReadonlySet<string>>(() => {
+    const waiter = board?.phase === "playing" ? board.seats[board.turn === "w" ? "b" : "w"] : "";
+    return new Set(waiter ? [waiter] : []);
+  }, [board]);
+  const feed = useMemo<CrowdFeed>(() => ({ speakingUserIds, emotes, gestures, bubbles, vibing, awaiting }), [speakingUserIds, emotes, gestures, bubbles, vibing, awaiting]);
 
   return (
     <TimeOfDayContext.Provider value={timeOfDay}>
@@ -230,8 +276,23 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         <SeatPad key={chair.propId} x={chair.x} z={chair.z} wide={!chair.propId.startsWith("stool")} onUse={() => sit(chair.propId)} />
       ))}
       {Object.values(toggleables).map((prop) =>
-        prop.kind === "cat" ? <Cat key={prop.propId} mapId={mapId} onUse={() => activate(prop.propId)} /> : prop.kind === "lamp" ? <FloorLamp key={prop.propId} prop={prop} onUse={() => activate(prop.propId)} /> : null
+        prop.kind === "cat" ? (
+          <Cat key={prop.propId} mapId={mapId} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "lamp" ? (
+          <FloorLamp key={prop.propId} prop={prop} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "boardgame" ? (
+          <BoardTablePad key={prop.propId} prop={prop} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "radio" ? (
+          <RadioProp key={prop.propId} prop={prop} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "kitchen" ? (
+          <PropPad key={prop.propId} prop={{ ...prop, y: 0.7 }} size={[0.4, 0.45, 0.4]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "plant" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.75, 1.4, 0.75]} onUse={() => activate(prop.propId)} />
+        ) : null
       )}
+      {bursts.map((b) => (
+        <PlantBurst key={b.id} x={b.x} z={b.z} from={b.from} at={b.at} />
+      ))}
 
       {me && <LocalPlayerAvatar key={`${mapId}:${localSessionId}`} player={me} room={room} mapId={mapId} targetRef={targetRef} feed={feed} />}
       <OtherPlayers players={players} localSessionId={localSessionId} feed={feed} />

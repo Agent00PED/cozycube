@@ -26,7 +26,7 @@ export function WorldDrawer({ currentMap, playerCount, disabled, onSelect, onClo
       <aside className="clay-slide-left font-cozy absolute left-0 top-0 scrollbar-none flex h-full w-[min(560px,96vw)] flex-col gap-3 overflow-y-auto border-r border-white/10 bg-stone-900/85 p-4 pt-[max(16px,env(safe-area-inset-top))] text-stone-100 shadow-[12px_0_40px_rgba(0,0,0,0.5)] backdrop-blur-md" aria-label="Fast travel">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-extrabold tracking-wide">🗺️ Fast travel</h2>
-          <button type="button" onClick={onClose} className="clay-icon-btn bg-white/10 hover:bg-white/20" aria-label="Close">
+          <button type="button" onClick={onClose} className="clay-close" aria-label="Close">
             ✕
           </button>
         </div>

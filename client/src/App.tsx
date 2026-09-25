@@ -25,6 +25,9 @@ import { MatchaModal } from "./components/hud/MatchaModal";
 import { BlenderModal } from "./components/hud/BlenderModal";
 import { JukeboxModal } from "./components/hud/JukeboxModal";
 import { BoardGameModal } from "./components/hud/BoardGameModal";
+import { KitchenModal } from "./components/hud/KitchenModal";
+import { RadioModal } from "./components/hud/RadioModal";
+import { useRadio } from "./hooks/useRadio";
 import { BoxingHud } from "./components/hud/BoxingHud";
 import { installKeyboard, isTouchDevice } from "./systems/input";
 import {
@@ -48,7 +51,6 @@ import {
 } from "@shared/types";
 import { RoulettePanel } from "./components/hud/RoulettePanel";
 import { ActivityBar } from "./components/hud/ActivityBar";
-import { VoiceChip } from "./components/hud/VoiceChip";
 import { useDiscordAuth } from "./hooks/useDiscordAuth";
 import { useColyseusRoom } from "./hooks/useColyseusRoom";
 import { useVoiceActivity } from "./hooks/useVoiceActivity";
@@ -71,7 +73,7 @@ const GLOBAL_CSS = `
 /* Speech bubbles over avatars and the NPC traders. */
 .cozy-bubble, .cozy-chat-bubble {
   background: rgba(255, 250, 242, 0.96); color: #4a3a2c;
-  font: 700 13px 'Nunito', system-ui, sans-serif; padding: 8px 14px; border-radius: 999px;
+  font: 600 13px var(--font-cozy); padding: 8px 14px; border-radius: 999px;
   box-shadow: 0 6px 18px rgba(60, 40, 20, 0.28), inset 0 -2px 0 rgba(60, 40, 20, 0.08); pointer-events: none; user-select: none;
   /* one line, always: the <Html> overlay has no intrinsic width, so without these a short word
      like "brb" would wrap into a column of single letters */
@@ -82,16 +84,12 @@ const GLOBAL_CSS = `
 .cozy-chat-bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: inherit; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
 @keyframes cozy-bubble-in { from { opacity: 0; transform: translate(-50%, -80%) scale(0.9); } }
 /* The bite mark over a fishing avatar: reel in NOW. */
-.cozy-bite-mark { transform: translate(-50%, -100%); font: 900 26px system-ui, sans-serif; color: #fff; -webkit-text-stroke: 2px #d83a5a; text-shadow: 0 2px 6px rgba(0,0,0,0.4); animation: cozy-bite-mark 0.45s ease-in-out infinite alternate; pointer-events: none; }
+.cozy-bite-mark { transform: translate(-50%, -100%); font: 700 26px var(--font-cozy); color: #fff; -webkit-text-stroke: 2px #d83a5a; text-shadow: 0 2px 6px rgba(0,0,0,0.4); animation: cozy-bite-mark 0.45s ease-in-out infinite alternate; pointer-events: none; }
 @keyframes cozy-bite-mark { from { transform: translate(-50%, -100%) scale(1); } to { transform: translate(-50%, -125%) scale(1.25); } }
 .cozy-coin-bump { animation: cozy-coin-bump 420ms cubic-bezier(0.3, 1.6, 0.5, 1); }
 @keyframes cozy-coin-bump { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
 .cozy-bite { animation: cozy-bite 0.5s ease-in-out infinite alternate; }
 @keyframes cozy-bite { from { transform: scale(1); } to { transform: scale(1.08); } }
-@media (max-width: 560px) {
-  .cozy-wardrobe { flex-direction: column; }
-  .cozy-wardrobe-preview { flex: 0 0 200px !important; min-height: 200px !important; }
-}
 .cozy-speaking {
   position: absolute; left: 0; bottom: 0; transform: translate(-50%, 0); font-size: 20px; line-height: 1;
   filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35)); animation: cozy-speaking-bob 0.9s ease-in-out infinite; pointer-events: none; user-select: none;
@@ -201,14 +199,17 @@ export default function App() {
     matchaWhisk,
     blendDrink,
     setRecord,
-    boardJoin,
-    boardLeave,
-    boardMove,
+    boardSend,
+    kitchenSend,
+    radioSend,
+    plantSend,
     mochiPlay,
   } = useColyseusRoom(auth);
 
   const voice = useVoiceActivity(auth, setSpeaking);
   const turntable = Object.values(toggleables).find((t) => t.kind === "turntable");
+  // the lounge radio, heard here: follows the room's station, with this player's own volume
+  const radio = useRadio(toggleables);
   const record = turntable?.on ? turntable.track : null;
 
   // WASD / arrows steer for the app's lifetime.
@@ -302,6 +303,11 @@ export default function App() {
           setBlendResult(payload as { right: boolean; coins: number });
         } else if (type === "boardState") {
           setBoardView(payload as BoardGameView);
+        } else if (type === "plantWatered") {
+          const w = payload as { sessionId: string; coins: number };
+          if (w.sessionId === localIdRef.current) pushToast(`The plant drinks it up! +${w.coins} coins`, { emoji: "🪴", tone: "coin" });
+        } else if (type === "plantHappy") {
+          pushToast("The plant is happy and hydrated!", { emoji: "🌿" });
         } else if (type === "mochiResult") {
           setMochiResult(payload as { action: MochiAction; coins: number; cooldown: boolean });
         } else if (type === "boxingResult") {
@@ -456,7 +462,6 @@ export default function App() {
         autoCycle={autoCycle}
         onToggleAutoCycle={() => setAutoCycle(!autoCycle)}
         coins={localPlayer?.coins ?? 0}
-        voiceSlot={<VoiceChip mode={voice.mode} active={voice.simulatedActive} onPressChange={voice.setSimulatedActive} />}
         onClaimAllowance={claimAllowance}
         status={localPlayer?.status ?? ""}
         onSetStatus={setStatus}
@@ -489,7 +494,7 @@ export default function App() {
             onSplash={splash}
           />
           {currentMap === "boxing_ring" && <BoxingHud me={localPlayer} players={players} onPunch={punch} onExit={boxingExit} onToss={tossCoin} />}
-          <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} />
+          <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} />
         </div>
       )}
 
@@ -548,7 +553,9 @@ export default function App() {
       {panel?.kind === "teahouse" && <MatchaModal result={matchaResult} onWhisk={matchaWhisk} onClose={closePanel} />}
       {panel?.kind === "blender" && <BlenderModal result={blendResult} onBlend={blendDrink} onClose={closePanel} />}
       {panel?.kind === "jukebox" && <JukeboxModal playing={record} onPick={(t) => (setRecord(t), setPanel(null))} onClose={closePanel} />}
-      {panel?.kind === "boardgame" && localSessionId && <BoardGameModal view={boardView} localSessionId={localSessionId} onJoin={boardJoin} onLeave={boardLeave} onMove={boardMove} onClose={closePanel} />}
+      {panel?.kind === "boardgame" && localSessionId && <BoardGameModal view={boardView} localSessionId={localSessionId} send={boardSend} onClose={closePanel} />}
+      {panel?.kind === "kitchen" && <KitchenModal send={kitchenSend} onClose={closePanel} />}
+      {panel?.kind === "radio" && <RadioModal radio={radio} send={radioSend} onClose={closePanel} />}
 
       {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
 
@@ -581,7 +588,7 @@ function StatusScreen({ text, isError, overlay }: { text: string; isError?: bool
         justifyContent: "center",
         background: overlay ? "rgba(10, 10, 16, 0.7)" : "#0e0e16",
         color: isError ? "#ff6b6b" : "#e8e8f0",
-        fontFamily: "sans-serif",
+        fontFamily: "var(--font-cozy)",
         fontSize: 16,
         lineHeight: 1.5,
         whiteSpace: "pre-wrap",

@@ -208,7 +208,7 @@ const styles: Record<string, CSSProperties> = {
     width: "100%",
     border: "1px solid rgba(242,207,115,0.35)",
     borderRadius: 6,
-    fontFamily: "system-ui, sans-serif",
+    fontFamily: "var(--font-cozy)",
     fontWeight: 800,
     fontSize: 12,
     padding: 0,

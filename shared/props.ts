@@ -1,4 +1,4 @@
-import { CUSHIONS, seatAnchorY } from "./seats";
+import { CUSHIONS, napPose, seatAnchorY } from "./seats";
 import type { MapId, SeatStyle, ToggleableKind } from "./types";
 import { LOFT_MOCHI, LOFT_PROPS, LOFT_SEATS } from "./worlds/lounge";
 
@@ -16,6 +16,8 @@ export interface ChairConfig {
   approachZ: number;
   /** DERIVED from the seat's cushion (shared/seats.ts): the seated avatar's origin height. */
   sitY: number;
+  /** A long seat's nap pose (lying along it while AFK), DERIVED from where the head rests. */
+  nap?: { x: number; z: number; rotationY: number; y: number };
 }
 
 export interface ToggleableConfig {
@@ -28,6 +30,8 @@ export interface ToggleableConfig {
   defaultOn: boolean;
   approachX?: number;
   approachZ?: number;
+  /** A potted plant: each player can water it once a day for PLANT_WATER_COINS. */
+  waterable?: boolean;
 }
 
 const round = (v: number) => Math.round(v * 1000) / 1000;
@@ -42,6 +46,7 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     approachX: s.approachX,
     approachZ: s.approachZ,
     sitY: round(seatAnchorY(CUSHIONS[s.cushion])),
+    nap: s.nap && napPose(CUSHIONS[s.cushion], s.nap.head, s.nap.dir),
   })),
   campfire_night: [],
   sunset_beach: [],
@@ -65,6 +70,12 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
 export const APPROACH_POINTS: Record<string, { x: number; z: number }> = {};
 for (const list of Object.values(MAP_CHAIRS)) for (const c of list) APPROACH_POINTS[c.propId] = { x: c.approachX, z: c.approachZ };
 for (const list of Object.values(MAP_TOGGLEABLES)) for (const t of list) if (t.approachX !== undefined && t.approachZ !== undefined) APPROACH_POINTS[t.propId] = { x: t.approachX, z: t.approachZ };
+
+/** The props tagged waterable (the potted plants), by prop id, across every map. */
+export const WATERABLE_PROPS: ReadonlySet<string> = new Set(Object.values(MAP_TOGGLEABLES).flatMap((list) => list.filter((t) => t.waterable).map((t) => t.propId)));
+export function isWaterable(propId: string): boolean {
+  return WATERABLE_PROPS.has(propId);
+}
 
 /** There is no pier yet. */
 export function isFishingSeat(_propId: string): boolean {

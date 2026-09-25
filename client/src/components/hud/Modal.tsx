@@ -41,7 +41,7 @@ export function Modal({
         <div className="flex items-center gap-3 px-5 pt-4 pb-2">
           {icon && <span className="text-2xl">{icon}</span>}
           <h2 className="font-cozy flex-1 text-lg font-extrabold tracking-wide">{title}</h2>
-          <button type="button" onClick={onClose} className="clay-icon-btn bg-white/10 hover:bg-white/20" aria-label="Close">
+          <button type="button" onClick={onClose} className="clay-close" aria-label="Close">
             ✕
           </button>
         </div>

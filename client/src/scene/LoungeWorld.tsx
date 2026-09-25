@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import { ModelBoundary } from "../entities/ModelBoundary";
 import { B, Cyl, GEO, RB, Sph, StaticBatch, Stem, makePlankTexture, makeTileTexture, matte, noMerge, noRaycast, seeded } from "./kit";
 import { useLampBoost } from "./timeOfDay";
 import { CUSHIONS } from "@shared/seats";
 import {
   CHAISE,
+  COFFEE_MACHINE,
   COFFEE_TABLE,
   GAMES,
   HEARTH,
@@ -13,6 +16,7 @@ import {
   LOFT_HALF,
   PLANTS,
   POUF_CIRCLE,
+  RADIO,
   READING,
   SOFA,
   SUN_PATCH,
@@ -33,7 +37,9 @@ import {
 // Every piece of furniture is one group built from the kit's primitives, joined part into part
 // (arms into seats, legs into aprons), so nothing can drift from the thing it belongs to. The
 // whole static world is baked into a few dozen merged draws by the StaticBatch round it; only the
-// fire (which flickers) opts out.
+// fire (which flickers) opts out. The small things lying about (the throw pillows, the toaster,
+// the kettle and pot, the fruit bowl, the bread basket, the mugs) are sculpted in Blender
+// (scripts/blender/build_props.py -> props.glb) and placed by LoftProps, batched the same way.
 
 const HALF = LOFT_HALF;
 const H = WALL_HEIGHT;
@@ -195,9 +201,113 @@ export function LoungeWorld({ onFloorClick }: { onFloorClick: (x: number, z: num
       </StaticBatch>
       <Fire c={c} />
       <PendantLights c={c} />
+      {/* a missing or broken props.glb just leaves the counters bare: the room never fails */}
+      <ModelBoundary what="props.glb" fallback={null}>
+        <Suspense fallback={null}>
+          <LoftProps />
+        </Suspense>
+      </ModelBoundary>
     </group>
   );
 }
+
+// ---------------------------------------------------------------------------------------
+// The Blender props (client/public/models/props.glb)
+// ---------------------------------------------------------------------------------------
+
+const PROPS_URL = "/models/props.glb";
+type PropName = "Prop_Pillow" | "Prop_Toaster" | "Prop_Kettle" | "Prop_DutchOven" | "Prop_FruitBowl" | "Prop_BreadBasket" | "Prop_Mug" | "Prop_Radio" | "Prop_CoffeeMachine";
+/** The materials a placement may recolour: a pillow's fabric, a mug's glaze. */
+const TINTABLE = new Set(["Prop_Fabric", "Prop_Glaze"]);
+
+interface Placement {
+  name: PropName;
+  /** Where the middle of its base stands. */
+  p: V3;
+  /** Its heading about y (0 faces +z, into the room). */
+  heading?: number;
+  /** How far it leans back, radians: a pillow resting against a backrest. */
+  tilt?: number;
+  tint?: string;
+}
+
+const HOB_TOP = KITCHEN.counter.height + 0.022; // on the burners
+const ISLAND_MID = { x: (KITCHEN.island.x0 + KITCHEN.island.x1) / 2, z: (KITCHEN.island.z0 + KITCHEN.island.z1) / 2 };
+// The throw pillows stand on the seat cushions (their top is 0.36) and lean back 16-17 degrees
+// against the back cushions, well behind where a napping head goes (shared/worlds/lounge.ts nap).
+const PILLOW_BASE = CUSHIONS.sofa.y + CUSHIONS.sofa.h / 2 - 0.01;
+const PILLOW_TILT = 0.28;
+
+const PLACEMENTS: Placement[] = [
+  // the sectional: one at each end of the run, one in the corner; and one in the wingback
+  { name: "Prop_Pillow", p: [-6.1, PILLOW_BASE, -2.64], heading: Math.PI + 0.2, tilt: PILLOW_TILT, tint: "#c4714a" },
+  { name: "Prop_Pillow", p: [-3.5, PILLOW_BASE, -2.64], heading: Math.PI - 0.3, tilt: PILLOW_TILT, tint: "#d9a441" },
+  { name: "Prop_Pillow", p: [-6.82, PILLOW_BASE, -2.68], heading: (3 * Math.PI) / 4, tilt: PILLOW_TILT, tint: "#f3e9d6" },
+  { name: "Prop_Pillow", p: [READING.chair.x - 0.13, CUSHIONS.wingback.y + CUSHIONS.wingback.h / 2 - 0.01, READING.chair.z + 0.05], heading: Math.PI / 2 - 0.25, tilt: 0.3, tint: "#d9a441" },
+  // the kitchen counter: the toaster where the espresso machine stood, a fruit bowl; the hob's
+  // Dutch oven and kettle
+  { name: "Prop_Toaster", p: [6.5, KITCHEN.counter.height, -6.98] },
+  { name: "Prop_FruitBowl", p: [3.7, KITCHEN.counter.height, -6.9], heading: 0.3 },
+  { name: "Prop_DutchOven", p: [KITCHEN.hobX - 0.2, HOB_TOP, -6.79], heading: 0.3 },
+  { name: "Prop_Kettle", p: [KITCHEN.hobX + 0.2, HOB_TOP, -7.05], heading: -0.6 },
+  // the island: a bread basket and two mugs of coffee
+  { name: "Prop_BreadBasket", p: [ISLAND_MID.x - 0.6, KITCHEN.island.height, ISLAND_MID.z], heading: 0.25 },
+  { name: "Prop_Mug", p: [ISLAND_MID.x + 0.35, KITCHEN.island.height, ISLAND_MID.z + 0.2], heading: 0.6, tint: "#c4714a" },
+  { name: "Prop_Mug", p: [ISLAND_MID.x + 0.55, KITCHEN.island.height, ISLAND_MID.z + 0.05], heading: -0.5, tint: "#f3e9d6" },
+  // the coffee machine at the counter (brew a drink there) and the radio on the green rug's low table
+  { name: "Prop_CoffeeMachine", p: [COFFEE_MACHINE.x, KITCHEN.counter.height, COFFEE_MACHINE.z] },
+  { name: "Prop_Radio", p: [RADIO.x, POUF_CIRCLE.table.height, RADIO.z], heading: -0.5 },
+  // the coffee table's tray
+  { name: "Prop_Mug", p: [COFFEE_TABLE.x + 0.14, COFFEE_TABLE.height + 0.022, COFFEE_TABLE.z - 0.06], heading: 2.2, tint: "#e9dfd0" },
+];
+
+/** The Blender props, each copy placed, leaned and recoloured, then baked into one draw per material. */
+function LoftProps() {
+  const { scene } = useGLTF(PROPS_URL);
+  const { placed, tints } = useMemo(() => {
+    const tints = new Map<string, THREE.MeshStandardMaterial>();
+    const tinted = (m: THREE.MeshStandardMaterial, color: string) => {
+      const key = `${m.name}|${color}`;
+      let t = tints.get(key);
+      if (!t) tints.set(key, (t = m.clone()));
+      t.color.set(color);
+      return t;
+    };
+    const placed = PLACEMENTS.map((pl) => {
+      const source = scene.getObjectByName(pl.name);
+      if (!source) throw new Error(`props.glb has no "${pl.name}" node`);
+      const copy = source.clone(true);
+      copy.position.set(0, 0, 0);
+      copy.rotation.set(0, 0, 0);
+      copy.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.raycast = noRaycast;
+        const material = mesh.material as THREE.MeshStandardMaterial;
+        if (pl.tint && TINTABLE.has(material.name)) mesh.material = tinted(material, pl.tint);
+      });
+      const lean = new THREE.Group();
+      lean.rotation.x = -(pl.tilt ?? 0);
+      lean.add(copy);
+      const at = new THREE.Group();
+      at.position.set(...pl.p);
+      at.rotation.y = pl.heading ?? 0;
+      at.add(lean);
+      return at;
+    });
+    return { placed, tints };
+  }, [scene]);
+  useEffect(() => () => tints.forEach((m) => m.dispose()), [tints]);
+  return (
+    <StaticBatch>
+      {placed.map((o, i) => (
+        <primitive key={i} object={o} />
+      ))}
+    </StaticBatch>
+  );
+}
+
+useGLTF.preload(PROPS_URL);
 
 /** The diorama slab under the floor: a chunky walnut block with a lighter lip, like a model on a table. */
 function Slab({ c }: { c: Mats }) {
@@ -455,10 +565,7 @@ function Sectional({ c }: { c: Mats }) {
           <RB p={cell.alongX ? [cell.x, 0.62, run.z1 - 0.34] : [leg.x0 + 0.34, 0.62, cell.z]} s={cell.alongX ? [0.9, 0.5, 0.16] : [0.16, 0.5, 0.9]} r={cell.alongX ? [-0.16, 0, 0] : [0, 0, 0.16]} m={c.oliveSoft} />
         </group>
       ))}
-      {/* throw pillows */}
-      <RB p={[-6.1, 0.6, -2.62]} s={[0.34, 0.34, 0.13]} r={[-0.2, 0.35, 0.05]} m={c.terracotta} />
-      <RB p={[-3.55, 0.6, -2.66]} s={[0.34, 0.34, 0.13]} r={[-0.2, -0.3, -0.05]} m={c.mustard} />
-      <RB p={[-6.95, 0.6, -3.3]} s={[0.13, 0.34, 0.34]} r={[0, 0.2, 0.2]} m={c.cream} />
+      {/* its throw pillows are Blender props (LoftProps) */}
       {/* four little feet */}
       {[
         [run.x0 + 0.1, run.z0 + 0.1],
@@ -479,11 +586,10 @@ function CoffeeTable({ c }: { c: Mats }) {
       <Cyl p={[0, 0.02, 0]} s={[0.62, 0.04, 0.62]} m={c.walnut} />
       <Cyl p={[0, 0.16, 0]} s={[0.14, 0.28, 0.14]} m={c.walnut} />
       <Cyl p={[0, t.height - 0.03, 0]} s={[t.radius * 2, 0.06, t.radius * 2]} m={c.oakLight} />
-      {/* a tray, two books, a mug and a little plant */}
+      {/* a tray, two books and a little plant (and a mug of coffee: LoftProps) */}
       <Cyl p={[0, t.height + 0.012, 0]} s={[0.62, 0.02, 0.62]} m={c.creamDeep} />
       <B p={[-0.1, t.height + 0.04, 0.05]} s={[0.26, 0.035, 0.19]} r={[0, 0.3, 0]} m={c.books[2]} />
       <B p={[-0.1, t.height + 0.075, 0.05]} s={[0.22, 0.035, 0.16]} r={[0, 0.1, 0]} m={c.books[1]} />
-      <Cyl p={[0.14, t.height + 0.06, -0.06]} s={[0.075, 0.09, 0.075]} m={c.ceramic} />
       <Cyl p={[-0.02, t.height + 0.05, -0.17]} s={[0.1, 0.07, 0.1]} m={c.terracottaDeep} />
       <Sph p={[-0.02, t.height + 0.12, -0.17]} s={[0.16, 0.12, 0.16]} m={c.leafLight} />
     </group>
@@ -518,7 +624,6 @@ function ReadingNook({ c }: { c: Mats }) {
       ].map(([lx, lz], i) => (
         <Cyl key={i} p={[lx, 0.02, lz]} s={[0.06, 0.04, 0.06]} m={c.walnut} />
       ))}
-      <RB p={[-0.1, 0.5, 0.05]} s={[0.36, 0.34, 0.12]} r={[-0.2, 0.2, 0.1]} m={c.mustard} />
     </group>
   );
 }
@@ -582,7 +687,7 @@ function Kitchen({ c }: { c: Mats }) {
       <B p={[KITCHEN.sinkX, k.height + 0.004, -7.0]} s={[0.7, 0.012, 0.42]} m={c.charcoal} />
       <Cyl p={[KITCHEN.sinkX, k.height + 0.16, -7.2]} s={[0.035, 0.32, 0.035]} m={c.brass} />
       <Cyl p={[KITCHEN.sinkX, k.height + 0.31, -7.1]} s={[0.03, 0.2, 0.03]} m={c.brass} r={[Math.PI / 2, 0, 0]} />
-      {/* the hob: four burners, a kettle and a pot */}
+      {/* the hob: four burners (its Dutch oven and kettle are Blender props: LoftProps) */}
       {[
         [-0.2, -0.13],
         [0.2, -0.13],
@@ -591,22 +696,10 @@ function Kitchen({ c }: { c: Mats }) {
       ].map(([dx, dz], i) => (
         <Cyl key={i} p={[KITCHEN.hobX + dx, k.height + 0.012, -6.92 + dz]} s={[0.2, 0.02, 0.2]} m={c.charcoal} />
       ))}
-      <Cyl p={[KITCHEN.hobX - 0.2, k.height + 0.1, -6.79]} s={[0.22, 0.16, 0.22]} m={c.terracotta} />
-      <Cyl p={[KITCHEN.hobX + 0.2, k.height + 0.13, -7.05]} s={[0.2, 0.22, 0.2]} m={c.ceramic} />
-      <Sph p={[KITCHEN.hobX + 0.2, k.height + 0.26, -7.05]} s={0.06} m={c.brass} />
-      {/* things on the counter: a cutting board, a fruit bowl, a jar of spoons, an espresso machine */}
+      {/* on the counter: a cutting board and a jar of spoons (the fruit bowl and the toaster are
+          Blender props: LoftProps) */}
       <B p={[2.9, k.height + 0.015, -6.95]} s={[0.5, 0.03, 0.3]} m={c.oakLight} />
-      <Cyl p={[3.7, k.height + 0.06, -6.9]} s={[0.3, 0.1, 0.3]} m={c.ceramic} />
-      {[
-        [-0.06, 0.02, 0.04, c.terracotta],
-        [0.06, 0.03, -0.03, c.mustard],
-        [0, 0.09, 0, c.leafLight],
-      ].map(([dx, dy, dz, m], i) => (
-        <Sph key={i} p={[3.7 + (dx as number), k.height + 0.13 + (dy as number), -6.9 + (dz as number)]} s={0.1} m={m as THREE.Material} />
-      ))}
       <Cyl p={[4.2, k.height + 0.09, -7.1]} s={[0.1, 0.18, 0.1]} m={c.ceramic} />
-      <B p={[6.5, k.height + 0.17, -7.0]} s={[0.36, 0.34, 0.3]} m={c.creamDeep} />
-      <B p={[6.5, k.height + 0.36, -7.0]} s={[0.3, 0.06, 0.26]} m={c.charcoal} />
       {/* the fridge: rounded, cream, with a brass handle */}
       <RB p={[mid(f.x0, f.x1), f.height / 2, mid(f.z0, f.z1)]} s={[f.x1 - f.x0, f.height, f.z1 - f.z0]} m={c.creamDeep} />
       <B p={[f.x1 - 0.1, 1.0, f.z1 + 0.02]} s={[0.03, 0.5, 0.04]} m={c.brass} />
@@ -640,17 +733,7 @@ function Island({ c }: { c: Mats }) {
     <group>
       <B p={[cx, (i.height - 0.06) / 2, cz - 0.05]} s={[i.x1 - i.x0 - 0.1, i.height - 0.06, i.z1 - i.z0 - 0.3]} m={c.oak} />
       <B p={[cx, i.height - 0.03, cz]} s={[i.x1 - i.x0 + 0.06, 0.06, i.z1 - i.z0 + 0.14]} m={c.oakLight} />
-      {/* a bowl of lemons, two mugs, a plant */}
-      <Cyl p={[cx - 0.6, i.height + 0.05, cz]} s={[0.34, 0.09, 0.34]} m={c.ceramic} />
-      {[
-        [-0.06, 0.05],
-        [0.07, 0.03],
-        [0, -0.06],
-      ].map(([dx, dz], j) => (
-        <Sph key={j} p={[cx - 0.6 + dx, i.height + 0.13, cz + dz]} s={[0.11, 0.09, 0.09]} m={c.mustard} />
-      ))}
-      <Cyl p={[cx + 0.35, i.height + 0.06, cz + 0.2]} s={[0.075, 0.09, 0.075]} m={c.terracotta} />
-      <Cyl p={[cx + 0.55, i.height + 0.06, cz + 0.05]} s={[0.075, 0.09, 0.075]} m={c.cream} />
+      {/* a plant (the bread basket and two mugs of coffee are Blender props: LoftProps) */}
       <Cyl p={[cx + 0.8, i.height + 0.07, cz - 0.15]} s={[0.16, 0.1, 0.16]} m={c.terracottaDeep} />
       <Sph p={[cx + 0.8, i.height + 0.18, cz - 0.15]} s={[0.24, 0.2, 0.24]} m={c.leaf} />
     </group>
@@ -806,8 +889,7 @@ function PoufCircle({ c }: { c: Mats }) {
       <group position={[t.x, 0, t.z]}>
         <Cyl p={[0, 0.15, 0]} s={[0.16, 0.26, 0.16]} m={c.walnut} />
         <Cyl p={[0, t.height - 0.02, 0]} s={[t.radius * 2, 0.05, t.radius * 2]} m={c.oak} />
-        <Cyl p={[0.1, t.height + 0.055, 0.05]} s={[0.09, 0.1, 0.09]} m={c.ceramic} />
-        <Cyl p={[-0.12, t.height + 0.03, -0.08]} s={[0.22, 0.03, 0.22]} m={c.sage} />
+        {/* the radio sits on it (a Blender prop: LoftProps) */}
       </group>
       {POUF_CIRCLE.poufs.map((p, i) => (
         <group key={i} position={[p.x, 0, p.z]}>

@@ -2,8 +2,10 @@ import { Room, Client } from "colyseus";
 import { Schema, type, MapSchema } from "@colyseus/schema";
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToWorld, isBlocked } from "../../../shared/collision";
 import { PersistenceQueue, getPlayerStore, newPlayerRecord, type PlayerRecord } from "../db/players";
-import { applyMove, boardView, legalMoves, newBoardGame, outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey, type BoardGame } from "./games";
-import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat, mochiSpot } from "../../../shared/props";
+import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } from "./games";
+import { BoardTable } from "./boardgame";
+import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
+import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat, isWaterable, mochiSpot } from "../../../shared/props";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
 import {
   BITE_WINDOW_S,
@@ -12,6 +14,7 @@ import {
   ESPRESSO_TIP_COOLDOWN_S,
   FORAGE_REGROW_S,
   GESTURE_EMOJI,
+  SERVER_GESTURES,
   ITEMS,
   MAX_BET_TOTAL,
   NPCS,
@@ -80,7 +83,21 @@ import {
   ARCADE_COINS_PER_POINT,
   ARCADE_SCORE_COOLDOWN_S,
   AURA_SECONDS,
-  BOARD_MOVE_TIMEOUT_S,
+  BOARD_MIN_PLIES_FOR_PURSE,
+  BOARD_WIN_COINS,
+  DRINK_BASES,
+  DRINK_BASE_INFO,
+  DRINK_TOPPINGS,
+  PLANT_WATER_COINS,
+  RADIO_STATIONS,
+  encodeDrink,
+  radioStationIndex,
+  type BoardPacket,
+  type BoardSide,
+  type KitchenPacket,
+  type PlantPacket,
+  type PlantWatered,
+  type RadioPacket,
   BOXING_BOUT_KOS,
   BOXING_DIZZY_S,
   BOXING_KNOCKDOWN_HITS,
@@ -140,6 +157,10 @@ class Player extends Schema {
   @type("number") sitY = 0;
   @type("string") sitPose = "sit";
   @type("string") holding = "";
+  /** What is in the mug (encodeDrink), "" for a plain one. */
+  @type("string") drink = "";
+  /** The lounge plants watered today, comma-separated prop ids. */
+  @type("string") watered = "";
   @type("string") action = "";
   @type("number") actionProgress = 0;
   @type("number") toast = 0;
@@ -167,6 +188,11 @@ class RouletteSchema extends Schema {
   @type("number") result = -1;
   @type("number") spinId = 0;
 }
+
+// How near the board game table you must be to take a seat at it
+const BOARD_REACH = 3.2;
+// How soon after one drink the kitchenette will pour another
+const KITCHEN_COOLDOWN_MS = 2000;
 
 class ChairState extends Schema {
   @type("string") propId = "";
@@ -324,7 +350,10 @@ export class HangoutRoom extends Room<HangoutState> {
   private lastMatchaAt = new Map<string, number>();
   private lastDrinkAt = new Map<string, number>();
   private lastMochiAt = new Map<string, number>();
-  private boardGame: BoardGame = newBoardGame();
+  private board = new BoardTable();
+  /** When each player last poured a drink at the kitchenette. */
+  private lastKitchenAt = new Map<string, number>();
+  private boardSweepClock = 0;
   private persistClock = 0;
   private leaderboardClock = LEADERBOARD_EVERY_S; // refresh on the first tick
   private phaseClock = ROULETTE_PHASE_SECONDS.betting;
@@ -424,13 +453,22 @@ export class HangoutRoom extends Room<HangoutState> {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
       player.status = isActivityStatus(msg?.status) ? msg.status : "";
+      // going AFK on a long sofa lies you down along it; coming back sits you up again
+      if (player.sitting) this.state.chairs.forEach((chair) => chair.occupiedBy === client.sessionId && this.settleInSeat(player, chair));
     });
     this.onMessage("reelIn", (client) => this.handleReelIn(client.sessionId));
     this.onMessage("eat", (client) => this.handleEat(client.sessionId));
     this.onMessage("dropHeld", (client) => {
       const player = this.state.players.get(client.sessionId);
-      if (player && player.holding === "coffee") player.holding = "";
+      if (player && player.holding === "coffee") {
+        player.holding = "";
+        player.drink = "";
+      }
     });
+    // --- lounge: the kitchenette, the radio and the plants ---
+    this.onMessage("kitchen", (client, packet: KitchenPacket) => this.handleKitchen(client.sessionId, packet));
+    this.onMessage("radio", (client, packet: RadioPacket) => this.handleRadio(client.sessionId, packet));
+    this.onMessage("plant", (client, packet: PlantPacket) => packet?.type === "PLANT_WATER" && this.waterPlant(client.sessionId, String(packet.plantId)));
 
     // --- server-authoritative transactions (the wallet is never trusted from a client) ---
     this.onMessage("claim_allowance", (client) => this.handleClaimAllowance(client.sessionId));
@@ -460,9 +498,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("blend_drink", (client, msg: { recipe: string; ingredients: string[] }) => this.handleBlend(client.sessionId, msg));
     // --- lounge ---
     this.onMessage("set_record", (client, msg: { track: number }) => this.handleSetRecord(Number(msg?.track)));
-    this.onMessage("board_join", (client) => this.handleBoardJoin(client.sessionId));
-    this.onMessage("board_leave", (client) => this.handleBoardLeave(client.sessionId));
-    this.onMessage("board_move", (client, msg: { from: number; to: number }) => this.handleBoardMove(client.sessionId, Number(msg?.from), Number(msg?.to)));
+    this.onMessage("board", (client, packet: BoardPacket) => this.handleBoardPacket(client, packet));
     // --- mochi ---
     this.onMessage("mochi_play", (client, msg: { action: string }) => this.handleMochi(client.sessionId, msg?.action));
     // Latency: the client times the round trip and reports it, so the roster can show pings.
@@ -490,7 +526,7 @@ export class HangoutRoom extends Room<HangoutState> {
     } catch {
       record.daily = null;
     }
-    const signature = `${record.coins}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.lastDailyClaim?.getTime() ?? 0}`;
+    const signature = `${record.coins}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${record.lastDailyClaim?.getTime() ?? 0}`;
     if (signature === this.savedSignature.get(sessionId) && !now) return;
     this.savedSignature.set(sessionId, signature);
     this.queue.mark(record);
@@ -737,6 +773,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const coins = Math.round(Math.max(0, Math.min(1, score)) * MATCHA_REWARD_MAX);
     if (coins > 0) this.addCoins(player, coins);
     player.holding = "coffee"; // a bowl of tea to carry, drawn like the mug
+    player.drink = "";
     this.sendTo(sessionId, "matchaResult", { coins });
     this.broadcast("emote", { sessionId, emoji: "🍵" });
   }
@@ -757,9 +794,79 @@ export class HangoutRoom extends Room<HangoutState> {
       player.aura = recipe.aura;
       this.auraUntil.set(sessionId, now + AURA_SECONDS * 1000);
       player.holding = "coffee";
+      player.drink = "";
       this.broadcast("emote", { sessionId, emoji: recipe.emoji });
     }
     this.sendTo(sessionId, "blendResult", { right, coins: right ? DRINK_REWARD : 0 });
+  }
+
+  // --- lounge: the kitchenette, the radio and the plants -----------------------------------------
+
+  /** The nearest prop of `kind` in reach of the player (INTERACT_RADIUS), or undefined. */
+  private propInReach(player: Player, kind: string, propId?: string) {
+    let best: ToggleableState | undefined;
+    let bestD = INTERACT_RADIUS;
+    this.state.toggleables.forEach((prop) => {
+      if (prop.kind !== kind || (propId && prop.propId !== propId)) return;
+      const d = Math.hypot(player.x - prop.x, player.z - prop.z);
+      if (d <= bestD) {
+        best = prop;
+        bestD = d;
+      }
+    });
+    return best;
+  }
+
+  /** Pours the drink the kitchen modal brewed (its brewing animation has already played) into the player's mug. */
+  private handleKitchen(sessionId: string, packet: KitchenPacket) {
+    const player = this.state.players.get(sessionId);
+    if (!player || packet?.type !== "KITCHEN_BREW" || this.state.currentMap !== "cozy_lounge") return;
+    if (!(DRINK_BASES as readonly string[]).includes(packet.base) || !(DRINK_TOPPINGS as readonly string[]).includes(packet.topping)) return;
+    if (!this.propInReach(player, "kitchen")) return;
+    const now = Date.now();
+    if (now - (this.lastKitchenAt.get(sessionId) ?? 0) < KITCHEN_COOLDOWN_MS) return;
+    this.lastKitchenAt.set(sessionId, now);
+    if (player.action === "brew" || player.action === "roast") this.clearAction(player);
+    if (player.holding === "marshmallow") player.toast = 0;
+    player.holding = "coffee";
+    player.drink = encodeDrink(packet.base, packet.topping);
+    this.daily(sessionId, player, "brew_coffee");
+    this.broadcast("emote", { sessionId, emoji: DRINK_BASE_INFO[packet.base].emoji });
+  }
+
+  /** Tunes the lounge radio for the whole room: its station and whether it plays are synced state. */
+  private handleRadio(sessionId: string, packet: RadioPacket) {
+    const player = this.state.players.get(sessionId);
+    if (!player || packet?.type !== "RADIO_UPDATE" || this.state.currentMap !== "cozy_lounge") return;
+    const station = radioStationIndex(String(packet.station));
+    if (station < 0 || station >= RADIO_STATIONS.length) return;
+    // tuning is done at the radio (or from a pouf round its table)
+    const radio = this.propInReach(player, "radio");
+    if (!radio) return;
+    radio.track = station;
+    radio.on = !!packet.playing;
+  }
+
+  /** Waters a lounge plant: each one pays PLANT_WATER_COINS, once a day per player. */
+  private waterPlant(sessionId: string, plantId: string) {
+    const player = this.state.players.get(sessionId);
+    const record = this.records.get(sessionId);
+    if (!player || !record || this.state.currentMap !== "cozy_lounge" || !isWaterable(plantId)) return;
+    const plant = this.propInReach(player, "plant", plantId);
+    if (!plant) return;
+    const today = todayKey();
+    if (record.plantsWatered.day !== today) record.plantsWatered = { day: today, ids: [] };
+    if (record.plantsWatered.ids.includes(plantId)) {
+      this.sendTo(sessionId, "plantHappy", { plantId });
+      return;
+    }
+    record.plantsWatered.ids.push(plantId);
+    player.watered = record.plantsWatered.ids.join(",");
+    this.addCoins(player, PLANT_WATER_COINS);
+    const splash: PlantWatered = { type: "PLANT_WATERED", sessionId, plantId, coins: PLANT_WATER_COINS };
+    this.broadcast("plantWatered", splash);
+    this.broadcast("gesture", { sessionId, gesture: "water" });
+    this.persist(sessionId, player);
   }
 
   // --- lounge: the jukebox and the board game ---------------------------------------------------
@@ -778,56 +885,125 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private broadcastBoard() {
-    this.broadcast("boardState", boardView(this.boardGame));
+    this.broadcast("boardState", this.board.view());
   }
 
-  private handleBoardJoin(sessionId: string) {
+  /**
+   * The board game table (server/src/rooms/boardgame.ts owns the rules). Every packet that
+   * changes the table is answered by broadcasting the whole table to everyone, so the players and
+   * the spectators can never disagree about the board. A decisive game pays its winner once.
+   */
+  private handleBoardPacket(client: Client, packet: BoardPacket) {
+    const sessionId = client.sessionId;
     const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "cozy_lounge") return;
-    const g = this.boardGame;
-    if (g.players.red === sessionId || g.players.black === sessionId) return this.broadcastBoard();
-    if (g.winner || (g.players.red && g.players.black && !this.state.players.has(g.players.red))) this.boardGame = newBoardGame();
-    const game = this.boardGame;
-    if (!game.players.red) {
-      game.players.red = sessionId;
-      game.names.red = player.username;
-    } else if (!game.players.black) {
-      game.players.black = sessionId;
-      game.names.black = player.username;
+    if (!player || !packet || typeof packet !== "object" || this.state.currentMap !== "cozy_lounge") return;
+    const t = this.board;
+    let changed = false;
+    switch (packet.type) {
+      case "BOARD_WATCH":
+        changed = t.watch(sessionId, player.username, !!packet.watching);
+        // whoever opens the board gets the table as it stands right now
+        if (packet.watching) this.sendTo(sessionId, "boardState", t.view());
+        break;
+      case "BOARD_SIT":
+        if (Math.hypot(player.x - GAMES.table.x, player.z - GAMES.table.z) > BOARD_REACH) return;
+        this.takeBoardSeat(sessionId, packet.seat === "b" ? "b" : "w");
+        return; // takeBoardSeat broadcasts what changed
+      case "BOARD_LEAVE":
+        this.leaveBoard(sessionId);
+        return;
+      case "BOARD_SELECT":
+        changed = t.select(sessionId, packet.gameType);
+        break;
+      case "BOARD_MOVE":
+        changed = !!packet.move && t.move(sessionId, packet.gameType, { from: Number(packet.move.from), to: Number(packet.move.to), promotion: packet.move.promotion });
+        // the mover reaches over the table to play it (everyone sees the hand go out)
+        if (changed) this.broadcast("gesture", { sessionId, gesture: "reach" });
+        break;
+      case "BOARD_RESET":
+        changed = t.reset(sessionId, packet.gameType);
+        break;
+      case "BOARD_RESIGN":
+        changed = t.resign(sessionId);
+        break;
+      case "BOARD_DRAW":
+        changed = t.draw(sessionId, typeof packet.accept === "boolean" ? packet.accept : undefined);
+        break;
+      default:
+        return;
     }
-    game.lastMoveAt = Date.now();
+    if (!changed) return;
     this.broadcastBoard();
+    this.payBoardWinner();
   }
 
-  private handleBoardLeave(sessionId: string) {
-    const g = this.boardGame;
-    if (g.players.red !== sessionId && g.players.black !== sessionId) return;
-    // walking away forfeits an unfinished game
-    if (g.players.red && g.players.black && !g.winner) g.winner = g.players.red === sessionId ? "black" : "red";
-    else this.boardGame = newBoardGame();
-    this.broadcastBoard();
-    if (this.boardGame.winner) this.clock.setTimeout(() => (this.boardGame = newBoardGame()), 4000);
+  /** A decisive game pays its winner BOARD_WIN_COINS, once, if it lasted long enough to count. */
+  private payBoardWinner() {
+    const winnerId = this.board.settle(BOARD_MIN_PLIES_FOR_PURSE);
+    const winner = winnerId ? this.state.players.get(winnerId) : undefined;
+    if (!winner) return;
+    this.addCoins(winner, BOARD_WIN_COINS);
+    this.broadcast("emote", { sessionId: winnerId, emoji: this.board.gameType === "chess" ? "♟️" : "⛀" });
   }
 
-  private handleBoardMove(sessionId: string, from: number, to: number) {
-    const g = this.boardGame;
-    const color = g.players.red === sessionId ? "red" : g.players.black === sessionId ? "black" : "";
-    if (!color || !g.players.red || !g.players.black) return;
-    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || from > 63 || to > 63) return;
-    if (!applyMove(g, color, from, to)) return;
+  /**
+   * Seats `sessionId` at the board table: on the seat asked for if its chair is free, otherwise on
+   * the other one (so a second player always lands on the opposite chair), sitting them on that
+   * seat's chair in the same step. Both seats taken: false, and they stay where they are (the
+   * board opens for them to watch). The seat and its chair are one lock (BOARD_SEAT_CHAIRS):
+   * messages are handled one at a time, so two players can never be given the same one.
+   */
+  private takeBoardSeat(sessionId: string, wanted?: BoardSide): boolean {
+    const player = this.state.players.get(sessionId);
+    if (!player || this.state.currentMap !== "cozy_lounge" || this.state.mapTransitioning) return false;
+    const mine = this.board.sideOf(sessionId);
+    if (mine && (!wanted || wanted === mine)) return true; // already there
+    if (mine && this.board.underWay()) return false; // no swapping sides mid-game
+    const free = (side: BoardSide) => {
+      const chair = this.state.chairs.get(BOARD_SEAT_CHAIRS[side]);
+      return !!chair && (chair.occupiedBy === "" || chair.occupiedBy === sessionId) && (!this.board.seats[side] || this.board.seats[side] === sessionId);
+    };
+    const first: BoardSide = wanted ?? "w";
+    const other: BoardSide = first === "w" ? "b" : "w";
+    const side: BoardSide | "" = free(first) ? first : free(other) ? other : "";
+    if (!side || side === mine) return !!side;
+    if (player.sitting) this.handleStandUp(sessionId); // off whatever seat (or the other board seat) first
+    const chair = this.state.chairs.get(BOARD_SEAT_CHAIRS[side]);
+    if (!chair || chair.occupiedBy !== "" || !this.board.sit(sessionId, player.username, side)) return false;
+    this.seatPlayer(sessionId, player, chair);
     this.broadcastBoard();
-    if (g.winner) {
-      const winnerId = g.players[g.winner];
-      const winner = this.state.players.get(winnerId);
-      if (winner) {
-        this.addCoins(winner, 15);
-        this.broadcast("emote", { sessionId: winnerId, emoji: "♟️" });
-      }
-      this.clock.setTimeout(() => {
-        this.boardGame = newBoardGame();
-        this.broadcastBoard();
-      }, 6000);
+    return true;
+  }
+
+  /** Gets up from the board table: the seat and its chair are given up together. */
+  private leaveBoard(sessionId: string) {
+    let onBoardChair = false;
+    this.state.chairs.forEach((chair) => {
+      if (chair.occupiedBy === sessionId && boardSeatOfChair(chair.propId)) onBoardChair = true;
+    });
+    if (onBoardChair) this.handleStandUp(sessionId); // standing up gives the seat up with the chair
+    else if (this.board.leave(sessionId)) {
+      this.broadcastBoard();
+      this.payBoardWinner();
     }
+  }
+
+  /**
+   * Keeps the lock honest: a board seat is held only by the player sitting on its chair. Anyone
+   * holding one without sitting on it (they left the room, or got up some other way) loses it.
+   * A dropped connection does not count: a reconnecting player keeps their chair, and so their seat.
+   */
+  private sweepBoardSeats() {
+    let changed = false;
+    for (const side of ["w", "b"] as BoardSide[]) {
+      const id = this.board.seats[side];
+      if (!id) continue;
+      const chair = this.state.chairs.get(BOARD_SEAT_CHAIRS[side]);
+      if (!this.state.players.has(id) || chair?.occupiedBy !== id) changed = this.board.leave(id) || changed;
+    }
+    if (!changed) return;
+    this.broadcastBoard();
+    this.payBoardWinner();
   }
 
   // --- mochi ---------------------------------------------------------------------------------
@@ -1034,6 +1210,11 @@ export class HangoutRoom extends Room<HangoutState> {
       this.persistClock = 0;
       this.state.players.forEach((player, sessionId) => this.persist(sessionId, player));
     }
+    this.boardSweepClock += dt;
+    if (this.boardSweepClock >= 1) {
+      this.boardSweepClock = 0;
+      this.sweepBoardSeats();
+    }
     this.leaderboardClock += dt;
     if (this.leaderboardClock >= LEADERBOARD_EVERY_S) {
       this.leaderboardClock = 0;
@@ -1094,6 +1275,7 @@ export class HangoutRoom extends Room<HangoutState> {
         player.actionProgress = Math.min(1, player.actionProgress + dt / BREW_SECONDS);
         if (player.actionProgress >= 1) {
           player.holding = "coffee";
+          player.drink = "";
           this.clearAction(player);
           this.daily(sessionId, player, "brew_coffee");
           this.broadcast("emote", { sessionId, emoji: "☕" });
@@ -1241,7 +1423,7 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private handleGesture(sessionId: string, gesture: unknown) {
-    if (!isGesture(gesture)) return;
+    if (!isGesture(gesture) || SERVER_GESTURES.has(gesture)) return;
     const player = this.state.players.get(sessionId);
     if (!player) return;
     const now = Date.now();
@@ -1352,7 +1534,7 @@ export class HangoutRoom extends Room<HangoutState> {
       this.soakSeconds.delete(id);
     });
     this.hooked.clear();
-    this.boardGame = newBoardGame();
+    this.board = new BoardTable();
 
     this.state.mapTransitioning = true;
     // Each map has an hour it was built for. Arriving at the Sunset Beach Bar at midday would
@@ -1397,6 +1579,28 @@ export class HangoutRoom extends Room<HangoutState> {
     }, 1500);
   }
 
+  /**
+   * Put a seated player where the seat puts them: upright on it, or, AFK on a long seat that has a
+   * nap pose (shared/props.ts), lying along it with their head at the arm. Called on sitting down
+   * and whenever their status changes, so an AFK nap starts and ends with the badge.
+   */
+  private settleInSeat(player: Player, chair: ChairState) {
+    const nap = player.status === "afk" ? MAP_CHAIRS[this.state.currentMap].find((c) => c.propId === chair.propId)?.nap : undefined;
+    if (nap) {
+      player.sitPose = "lie";
+      player.x = nap.x;
+      player.z = nap.z;
+      player.sitRotationY = nap.rotationY;
+      player.sitY = nap.y;
+    } else {
+      player.sitPose = poseForSeat(chair.style as SeatStyle);
+      player.x = chair.x;
+      player.z = chair.z;
+      player.sitRotationY = chair.rotationY;
+      player.sitY = chair.sitY;
+    }
+  }
+
   // Seats deliberately sit INSIDE their furniture's collision box (you sit on the sofa, not
   // beside it). If we just flipped `sitting` off and left the player there, every position they
   // reported while walking away would be rejected by isBlocked, the server position would stay
@@ -1418,6 +1622,11 @@ export class HangoutRoom extends Room<HangoutState> {
     if (config) {
       player.x = config.approachX;
       player.z = config.approachZ;
+    }
+    // getting up from one of the games table's chairs gives up its board seat with it
+    if (boardSeatOfChair(vacatedId) && this.board.leave(sessionId)) {
+      this.broadcastBoard();
+      this.payBoardWinner();
     }
 
     // You can't carry a roasting stick away from the fire.
@@ -1451,18 +1660,25 @@ export class HangoutRoom extends Room<HangoutState> {
     const dist = Math.hypot(player.x - chair.x, player.z - chair.z);
     if (dist > INTERACT_RADIUS) return; // server-authoritative proximity check
 
+    // the games table's chairs are its board seats: sitting on one takes that seat, and opens the board
+    const seat = boardSeatOfChair(chairId);
+    if (seat) {
+      if (this.takeBoardSeat(client.sessionId, seat)) this.sendTo(client.sessionId, "openPanel", { kind: "boardgame", propId: "board_table" });
+      return;
+    }
+    this.seatPlayer(client.sessionId, player, chair);
+  }
+
+  /** Sits a player on a (free) chair: the chair is theirs, and they settle into it. */
+  private seatPlayer(sessionId: string, player: Player, chair: ChairState) {
     if (player.action === "brew") this.clearAction(player);
-    if (player.gloves) this.handleBoxingExit(client.sessionId); // gloves come off to sit down
-    chair.occupiedBy = client.sessionId;
+    if (player.gloves) this.handleBoxingExit(sessionId); // gloves come off to sit down
+    chair.occupiedBy = sessionId;
     player.sitting = true;
-    player.sitRotationY = chair.rotationY;
-    player.sitY = chair.sitY;
-    player.sitPose = poseForSeat(chair.style as SeatStyle);
-    player.x = chair.x;
-    player.z = chair.z;
+    this.settleInSeat(player, chair);
     player.dirX = 0;
     player.dirZ = 0;
-    this.lastReportAt.delete(client.sessionId);
+    this.lastReportAt.delete(sessionId);
   }
 
   private handleUseProp(sessionId: string, propId: string) {
@@ -1550,7 +1766,19 @@ export class HangoutRoom extends Room<HangoutState> {
       case "well":
       case "teahouse":
       case "blender":
+      case "kitchen":
+      case "radio":
+        this.sendTo(sessionId, "openPanel", { kind, propId: prop.propId });
+        break;
+      case "plant":
+        this.waterPlant(sessionId, prop.propId);
+        break;
       case "boardgame":
+        // walking up to the table seats you at it (seat 1, or seat 2 opposite whoever has it);
+        // with both seats taken you stay standing and the board opens for you to watch
+        this.takeBoardSeat(sessionId);
+        this.sendTo(sessionId, "openPanel", { kind, propId: prop.propId });
+        break;
       case "jukebox":
         this.sendTo(sessionId, "openPanel", { kind, propId: prop.propId });
         break;
@@ -1738,6 +1966,7 @@ export class HangoutRoom extends Room<HangoutState> {
     record.username = player.username;
     player.coins = record.coins;
     player.owned = record.unlockedItems.join(",");
+    player.watered = record.plantsWatered.day === todayKey() ? record.plantsWatered.ids.join(",") : "";
     player.stats = JSON.stringify(record.stats);
     const look = fromStoredLook(record.equippedLook as any);
     if (look && this.ownsOutfit(record.unlockedItems, look.outfit) && this.ownsHair(record.unlockedItems, look.hairStyle)) {
@@ -1757,6 +1986,8 @@ export class HangoutRoom extends Room<HangoutState> {
     if (isNew) this.persist(client.sessionId, player, true);
     else this.savedSignature.set(client.sessionId, "");
     this.sendTo(client.sessionId, "welcome", { isNew, coins: player.coins });
+    // a game already on at the board table: the newcomer's avatars know whose turn it is
+    if (this.board.seats.w || this.board.seats.b) this.sendTo(client.sessionId, "boardState", this.board.view());
   }
 
   private ownsOutfit(unlocked: string[], outfit: string): boolean {
@@ -1771,7 +2002,11 @@ export class HangoutRoom extends Room<HangoutState> {
   private removePlayer(sessionId: string) {
     const player = this.state.players.get(sessionId);
     if (!player) return;
-    if (this.boardGame.players.red === sessionId || this.boardGame.players.black === sessionId) this.handleBoardLeave(sessionId);
+    const leftTable = this.board.leave(sessionId);
+    if (this.board.watch(sessionId, "", false) || leftTable) {
+      this.broadcastBoard();
+      this.payBoardWinner();
+    }
     this.vibeAt.delete(sessionId);
     this.soakSeconds.delete(sessionId);
     this.hooked.delete(sessionId);

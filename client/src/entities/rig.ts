@@ -1,8 +1,8 @@
-// The GLB rig contract: what `client/public/models/avatar.glb` and `mochi.glb` must contain.
+// The GLB rig contract: what `client/public/models/avatar.glb` and `cat.glb` must contain.
 //
 // A model file is a RIG, not one fixed pose: the runtime finds parts by NAME, moves the ones it
 // animates, shows or hides the wardrobe variants, and recolours the materials it owns. Both models
-// are authored in Blender by scripts/blender/build_avatar.py and build_mochi.py, which build to
+// are authored in Blender by scripts/blender/build_avatar.py and build_cat.py, which build to
 // these names; any other model works as long as it follows them.
 //
 // The runtime (Avatar.tsx, Mochi.tsx) imports this file, so the names are written down once on
@@ -11,7 +11,7 @@
 import type { OutfitId } from "@shared/types";
 
 export const AVATAR_URL = "/models/avatar.glb";
-export const MOCHI_URL = "/models/mochi.glb";
+export const MOCHI_URL = "/models/cat.glb";
 
 /** Avatar nodes the runtime animates. Every one must exist; pivots sit at the joint. */
 export const AVATAR_NODES = {
@@ -25,6 +25,8 @@ export const AVATAR_NODES = {
   head: "Head",
   /** The eyes as one group, pivot on the eye line: scaled in y to blink. */
   eyes: "Eyes",
+  /** Joyful closed eyes (^ ^) on the same line, hidden: swapped in for Eyes during a happy moment (a sip). */
+  eyesHappy: "EyesHappy",
   /** Pivots at the shoulders and the hips, hanging straight down: rotated about x to swing. */
   armL: "ArmL",
   armR: "ArmR",
@@ -32,6 +34,13 @@ export const AVATAR_NODES = {
   legR: "LegR",
   /** A mug in the right hand, shown while holding coffee. */
   mug: "Mug",
+  /** The drink filling the mug (tinted by Mat_Drink); its toppings are its siblings, MugTop_<id>. */
+  mugDrink: "MugDrink",
+  /** A watering can in the right hand, pivot at the hand, hidden: shown while watering a plant (kept upright, tipped to pour). */
+  wateringCan: "WateringCan",
+  /** The ears, children of Head: hidden under a hair style that covers them (HAIR_STYLE_META). */
+  earL: "EarL",
+  earR: "EarR",
 } as const;
 
 /**
@@ -42,7 +51,7 @@ export const AVATAR_NODES = {
  * Bottom_<id>_LegL / _LegR on LegL / LegR.
  */
 export const AVATAR_VARIANT_PREFIX = {
-  hair: "Hair_", // Hair_short, _bob, _wavy, _messy (free); Hair_hero, _drill, _topknot, _spacebuns, _afro (bought)
+  hair: "Hair_", // Hair_short, _bob, _curtain, _ponytail, _wavylong (free); Hair_hero, _drill, _topknot, _spacebuns, _afro (bought)
   hat: "Hat_", // Hat_beret, Hat_beanie, Hat_flower, Hat_headphones, Hat_straw, Hat_bunny, Hat_tophat, Hat_crown, Hat_mochiears
   top: "Top_", // Top_hoodie, Top_tee, Top_flannel, Top_hawaiian, Top_tuxedo, Top_robe, Top_yukata, Top_jumpsuit
   bottom: "Bottom_", // Bottom_sweats, Bottom_overalls, Bottom_trousers, Bottom_shorts, Bottom_wide
@@ -63,11 +72,31 @@ export const OUTFIT_PARTS: Record<OutfitId, { top: string; bottom: string }> = {
 /** Hats that sit on the crown of the head. */
 export const CROWN_HATS: ReadonlySet<string> = new Set(["beret", "beanie", "straw", "tophat", "crown"]);
 /**
- * Hair styles too tall for a hat, and which hats tuck them away: under one, the style is worn as
- * the short crop instead (the hats are fitted to it), so nothing pokes through. "crown": the hats
- * that sit on the crown; "any": every hat, for volume no hat or headband could sit on.
+ * A style's raised part (the ponytail's tail and scrunchie, the space buns, the topknot) is its own
+ * child node, Hair_<style>_Prop. Under a hat that covers the crown it is hidden and the rest of the
+ * style stays, its shell fitted to sit under the hat like the crop's.
  */
-export const HAIR_TUCK: Readonly<Record<string, "crown" | "any">> = { messy: "crown", topknot: "crown", spacebuns: "crown", hero: "any", afro: "any" };
+export const HAIR_PROP_SUFFIX = "_Prop";
+/**
+ * Hair styles whose whole volume is too big for a hat, and which hats tuck them away: under one,
+ * the style is worn as the short crop instead (the hats are fitted to it), so nothing pokes
+ * through. "crown": the hats that sit on the crown; "any": every hat, for volume no hat or
+ * headband could sit on.
+ */
+export const HAIR_TUCK: Readonly<Record<string, "crown" | "any">> = { hero: "any", afro: "any" };
+/**
+ * What the runtime needs to know about a hair style beyond its mesh. coversEars: the style falls
+ * over the ears (a bob, long layers), so EarL / EarR are hidden while it is worn, instead of
+ * poking through it. build_avatar.py reads this table too: it only checks the ears are clear of
+ * the styles that leave them showing.
+ */
+export const HAIR_STYLE_META: Readonly<Record<string, { coversEars?: boolean }>> = {
+  bob: { coversEars: true },
+  wavylong: { coversEars: true },
+};
+export function coversEars(style: string): boolean {
+  return HAIR_STYLE_META[style]?.coversEars === true;
+}
 /** The style everyone falls back to, and the one tall styles tuck into under a hat. */
 export const DEFAULT_HAIR = "short";
 
@@ -88,7 +117,12 @@ export const AVATAR_MATERIALS = {
   trousers: "Mat_Pants",
   /** The outfit's accent colour: a vest, lapels and a bow tie, an obi, piping, a waistband. */
   accent: "Mat_Accent",
+  /** The drink in the mug: coffee, matcha or milk tea (shared/types DRINK_BASE_INFO). */
+  drink: "Mat_Drink",
 } as const;
+
+/** The mug's toppings, children of Mug named MugTop_<DrinkTopping>: the one in the drink is shown. */
+export const MUG_TOPPING_PREFIX = "MugTop_";
 
 /** Materials whose name starts with this are flat facial decals: the runtime gives them a polygon offset so they never z-fight the skin. */
 export const DECAL_PREFIX = "Decal";

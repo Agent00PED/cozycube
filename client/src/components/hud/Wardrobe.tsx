@@ -118,12 +118,14 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
   const quick = QUICK_PALETTE[tab];
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
-      <div className="cozy-wardrobe clay-sheet sm:clay-pop font-cozy flex max-h-[85vh] w-full max-w-[760px] overflow-hidden rounded-t-3xl border border-white/10 bg-stone-900/85 text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl" role="dialog" aria-label="Wardrobe">
-        {/* ---- left: the preview, and the quick colour bar under it ---- */}
-        <div className="flex min-h-[260px] flex-[0_0_40%] flex-col bg-[radial-gradient(circle_at_50%_70%,#3b2a36_0%,#1f1a22_70%)]">
+    <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/50 p-0 backdrop-blur-[3px] sm:items-center sm:p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
+      {/* Stacked (the preview over the list) below 768px; side by side from there, the preview a
+          fixed 260-280px so the list always keeps room for full names and the whole tab bar. */}
+      <div className="clay-sheet sm:clay-pop font-cozy flex max-h-[88vh] w-full max-w-[820px] flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-stone-900/85 text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl md:flex-row" role="dialog" aria-label="Wardrobe">
+        {/* ---- the preview, and the quick colour bar under it ---- */}
+        <div className="flex shrink-0 flex-col bg-[radial-gradient(circle_at_50%_70%,#3b2a36_0%,#1f1a22_70%)] md:min-h-[420px] md:w-[260px] lg:w-[280px]">
           <div
-            className="cozy-wardrobe-preview relative min-h-0 flex-1 cursor-grab touch-none select-none active:cursor-grabbing"
+            className="relative h-[190px] cursor-grab touch-none select-none active:cursor-grabbing sm:h-[230px] md:h-auto md:min-h-0 md:flex-1"
             onPointerDown={(e) => {
               spin.current.dragging = true;
               spin.current.lastX = e.clientX;
@@ -153,20 +155,28 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
           <QuickBar palette={quick} value={look[quick.field]} onPick={(c) => update({ [quick.field]: c })} />
         </div>
 
-        {/* ---- right: categories and the list ---- */}
-        <div className="scrollbar-none flex flex-1 flex-col gap-3 overflow-y-auto p-4">
-          <div className="flex items-center gap-3">
-            <h2 className="flex-1 text-lg font-extrabold tracking-wide">👗 Wardrobe</h2>
-            <span className="rounded-full bg-amber-300/25 px-3 py-1 text-sm font-extrabold text-amber-100">🪙 {coins}</span>
-            <button type="button" onClick={onClose} className="clay-icon-btn bg-white/10 hover:bg-white/20" aria-label="Close wardrobe">
+        {/* ---- categories and the list ---- */}
+        <div className="scrollbar-none flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+          <div className="flex items-center gap-2">
+            <h2 className="min-w-0 flex-1 text-lg font-bold tracking-wide">👗 Wardrobe</h2>
+            <span className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-amber-300/20 px-3.5 text-sm font-bold tabular-nums leading-none text-amber-100 outline outline-1 -outline-offset-1 outline-amber-200/25" title="Your coins">
+              <span className="text-base leading-none">🪙</span>
+              {coins}
+            </span>
+            <button type="button" onClick={onClose} className="clay-close" aria-label="Close wardrobe">
               ✕
             </button>
           </div>
 
-          <div className="flex gap-1.5" role="tablist" aria-label="Wardrobe categories">
+          {/* one segmented track; each tab sizes to its label and never wraps or clips it (the
+              icons step aside on the narrowest phones so all four still fit on one line) */}
+          <div className="flex gap-1 rounded-full bg-black/30 p-1 outline outline-1 -outline-offset-1 outline-white/10" role="tablist" aria-label="Wardrobe categories">
             {TABS.map((t) => (
-              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`min-h-11 flex-1 rounded-full px-2 text-xs font-bold sm:text-sm transition-transform duration-150 active:scale-95 ${tab === t.id ? "bg-amber-300 text-amber-950 shadow-[inset_0_-2px_0_rgba(120,70,0,0.25)]" : "bg-white/10 hover:bg-white/15"}`}>
-                {t.emoji} {t.label}
+              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`flex h-10 flex-auto items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-[13px] font-semibold leading-none transition-transform duration-150 active:scale-95 sm:px-3 sm:text-sm ${tab === t.id ? "bg-[#fff4e0] text-stone-900 shadow-[0_2px_8px_rgba(0,0,0,0.35),inset_0_-2px_0_rgba(120,70,0,0.14)]" : "text-stone-200 hover:bg-white/10"}`}>
+                <span className="text-base leading-none max-[419px]:hidden" aria-hidden>
+                  {t.emoji}
+                </span>
+                {t.label}
               </button>
             ))}
           </div>
@@ -217,25 +227,30 @@ export function Wardrobe({ userId, username, initial, coins, owned, onApply, onB
   );
 }
 
+// Every row's action is the same pill: one width and height whether it says Wear, Wearing, Buy or
+// Gacha, so the column lines up down the list.
+const ROW_ACTION = "inline-flex h-9 w-[92px] shrink-0 items-center justify-center gap-1 rounded-full text-xs font-bold leading-none transition-transform duration-150";
+
 /** One line of the closet: what it is, what it costs, and Wear / Wearing / Buy. */
 function ItemRow({ emoji, name, note, wearing, owned, gachaOnly = false, canAfford = true, onWear, onBuy }: { emoji: string; name: string; note: string; wearing: boolean; owned: boolean; gachaOnly?: boolean; canAfford?: boolean; onWear: () => void; onBuy?: () => void }) {
   return (
-    <div className={`flex shrink-0 items-center gap-3 rounded-2xl px-3 py-2 text-sm transition-colors ${wearing ? "bg-amber-300/15 ring-1 ring-amber-300/40" : "bg-white/5"}`}>
-      <span className="text-2xl">{emoji}</span>
+    <div className={`flex shrink-0 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition-colors ${wearing ? "bg-amber-300/15 ring-1 ring-amber-300/40" : "bg-white/5"}`}>
+      <span className="w-8 shrink-0 text-center text-2xl leading-none">{emoji}</span>
+      {/* the full name, always: it wraps onto a second line before it would ever be clipped */}
       <span className="min-w-0 flex-1">
-        <b className="block truncate">{name}</b>
-        <span className="opacity-70">{note}</span>
+        <b className="block break-words font-semibold leading-tight">{name}</b>
+        <span className="text-xs opacity-70">{note}</span>
       </span>
       {owned ? (
-        <button type="button" disabled={wearing} onClick={onWear} className={`clay-btn min-h-10 px-4 text-xs ${wearing ? "clay-btn-rose" : "clay-btn-ghost"}`}>
-          {wearing ? "Wearing" : "Wear"}
+        <button type="button" disabled={wearing} onClick={onWear} className={`${ROW_ACTION} ${wearing ? "bg-gradient-to-b from-pink-200 to-pink-400 text-pink-950 shadow-[0_4px_12px_rgba(236,127,163,0.35)]" : "bg-white/10 text-stone-100 outline outline-1 -outline-offset-1 outline-white/10 hover:bg-white/20 active:scale-95"}`}>
+          {wearing ? "✓ Wearing" : "Wear"}
         </button>
       ) : gachaOnly ? (
-        <span className="text-xs opacity-60" title="Only from the gachapon in the arcade">
-          🔮
+        <span className={`${ROW_ACTION} bg-violet-400/15 text-violet-200`} title="Only from the gachapon in the arcade">
+          🔮 Gacha
         </span>
       ) : (
-        <button type="button" disabled={!canAfford} onClick={onBuy} className="clay-btn clay-btn-amber min-h-10 px-4 text-xs">
+        <button type="button" disabled={!canAfford} onClick={onBuy} className={`${ROW_ACTION} bg-gradient-to-b from-amber-200 to-amber-400 text-amber-950 shadow-[0_4px_12px_rgba(244,161,92,0.4),inset_0_-2px_0_rgba(120,70,0,0.25)] enabled:active:scale-95 disabled:opacity-40`}>
           Buy
         </button>
       )}
@@ -266,15 +281,21 @@ function PreviewAvatar({ userId, look, color }: { userId: string; username: stri
   return <Avatar userId={userId} look={look} color={color} username="" pose="stand" speedRef={speedRef} />;
 }
 
-/** The quick colour bar docked under the preview: one row of chips for the current tab's colour. */
+// A colour chip, and its picked state: a cream ring with a gap, matching the active tab
+const SWATCH = "shrink-0 rounded-full border-2 border-white/60 shadow-[inset_0_-2px_0_rgba(0,0,0,0.18)] transition-transform duration-150 hover:scale-110 active:scale-95";
+const SWATCH_ON = "scale-105 border-white ring-2 ring-[#fff4e0] ring-offset-2 ring-offset-stone-900";
+
+/** The quick colour bar docked under the preview: the current tab's colour, as chips that wrap onto
+ *  a second row rather than ever running past the card's edge. */
 function QuickBar({ palette, value, onPick }: { palette: Palette; value: string; onPick: (c: string) => void }) {
   return (
-    <div className="border-t border-white/10 bg-black/25 px-3 py-2">
-      <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-widest opacity-60">
-        <span>{palette.label}</span>
-        <span className="normal-case tracking-normal">{palette.names[palette.colors.indexOf(value)] ?? ""}</span>
+    <div className="border-t border-white/10 bg-black/25 px-4 pb-4 pt-3">
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-widest opacity-60">
+        <span className="shrink-0">{palette.label}</span>
+        <span className="min-w-0 truncate normal-case tracking-normal">{palette.names[palette.colors.indexOf(value)] ?? ""}</span>
       </div>
-      <div className="scrollbar-none flex gap-1.5 overflow-x-auto pb-0.5">
+      {/* padded all round, so a picked chip's ring and lift always sit inside the bar */}
+      <div className="flex flex-wrap gap-2 p-1">
         {palette.colors.map((c, i) => (
           <button
             key={c}
@@ -283,7 +304,7 @@ function QuickBar({ palette, value, onPick }: { palette: Palette; value: string;
             aria-label={`${palette.label}: ${palette.names[i]}`}
             title={palette.names[i]}
             aria-pressed={c === value}
-            className={`h-7 w-7 shrink-0 rounded-full border-2 border-white/70 shadow-[inset_0_-2px_0_rgba(0,0,0,0.18)] transition-transform duration-150 hover:scale-110 active:scale-95 ${c === value ? "scale-110 ring-2 ring-pink-300 ring-offset-1 ring-offset-stone-900" : ""}`}
+            className={`${SWATCH} h-7 w-7 ${c === value ? SWATCH_ON : ""}`}
             style={{ background: c }}
           />
         ))}
@@ -299,7 +320,7 @@ function Swatches({ label, colors, names, value, onPick, big = false }: { label:
         <span>{label}</span>
         {names && <span className="normal-case tracking-normal opacity-90">{names[colors.indexOf(value)] ?? ""}</span>}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2.5 p-1">
         {colors.map((c, i) => (
           <button
             key={c}
@@ -308,7 +329,7 @@ function Swatches({ label, colors, names, value, onPick, big = false }: { label:
             aria-label={`${label}: ${names?.[i] ?? c}`}
             title={names?.[i] ?? c}
             aria-pressed={c === value}
-            className={`rounded-full border-2 border-white/70 shadow-[inset_0_-2px_0_rgba(0,0,0,0.18)] transition-transform duration-150 hover:scale-110 active:scale-95 ${big ? "h-10 w-10" : "h-8 w-8"} ${c === value ? "scale-110 ring-2 ring-pink-300 ring-offset-2 ring-offset-stone-900" : ""}`}
+            className={`${SWATCH} ${big ? "h-10 w-10" : "h-9 w-9"} ${c === value ? SWATCH_ON : ""}`}
             style={{ background: c }}
           />
         ))}
