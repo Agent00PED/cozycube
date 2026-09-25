@@ -11,6 +11,8 @@ import {
   type PlayerState,
 } from "@shared/types";
 import { isFishingSeat } from "@shared/props";
+import { ROAST_FOOD_INFO, parseSnack } from "@shared/types";
+import { playSfx } from "../../audio/sfx";
 import { glass, hudText, pillButton } from "./glass";
 
 interface ActivityBarProps {
@@ -47,8 +49,9 @@ function doneness(toast: number): { label: string; color: string } {
 export function ActivityBar(props: ActivityBarProps) {
   const { player, chairs, localSessionId, mapId, roulette, myBets, onRoast, onEat, onSip, onPutDown, onCastLine, onReelIn, onHook, onSplash } = props;
   const soaking = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "onsen");
-  const onLog = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "log");
   const roasting = player.holding === "marshmallow";
+  // the campfire's skewer, carried (not while it is still over the fire)
+  const snack = player.holding === "skewer" && player.action !== "grill" ? parseSnack(player.snack) : null;
   const holdingCoffee = player.holding === "coffee";
   const brewing = player.action === "brew";
   const onPier = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && isFishingSeat(c.propId));
@@ -58,7 +61,14 @@ export function ActivityBar(props: ActivityBarProps) {
   const bag = parseBag(player.bag);
   const bagCount = Object.values(bag).reduce((a, b) => a + (b ?? 0), 0);
 
-  const hasActions = onLog || roasting || holdingCoffee || brewing || onPier || soaking;
+  const hasActions = roasting || holdingCoffee || !!snack || brewing || onPier || fishing || soaking;
+
+  // the bobber goes under: a plop, so you can look away from the float
+  const wasBite = useRef(false);
+  useEffect(() => {
+    if (bite && !wasBite.current) playSfx("bite");
+    wasBite.current = bite;
+  }, [bite]);
 
   // the reel itself is a modal; nothing to add underneath it
   if (player.action === "reel" || player.action === "dizzy") return null;
@@ -102,10 +112,15 @@ export function ActivityBar(props: ActivityBarProps) {
             </button>
           )}
 
-          {onLog && !roasting && (
-            <button type="button" style={styles.primary} onClick={onRoast}>
-              🍡 Roast a marshmallow
-            </button>
+          {snack && (
+            <>
+              <span style={styles.status}>
+                {ROAST_FOOD_INFO[snack.food].emoji} {snack.quality === "golden" ? "Golden" : snack.quality === "charred" ? "Charred" : "Pale"} {snack.food === "mallow" ? "marshmallows" : "skewer"}
+              </span>
+              <button type="button" style={styles.ghost} onClick={onPutDown}>
+                Put down
+              </button>
+            </>
           )}
 
           {roasting && (

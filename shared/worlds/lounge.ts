@@ -232,7 +232,7 @@ export interface PropSpec {
   x: number;
   y?: number;
   z: number;
-  kind: "lamp" | "cat" | "boardgame" | "kitchen" | "radio" | "plant";
+  kind: "lamp" | "cat" | "boardgame" | "kitchen" | "radio" | "plant" | "bonfire" | "fishing";
   color: string;
   defaultOn: boolean;
   approachX?: number;

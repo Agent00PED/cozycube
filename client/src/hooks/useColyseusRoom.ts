@@ -10,6 +10,7 @@ import type {
   LeaderboardEntry,
   BoardPacket,
   HeldItem,
+  CampfirePacket,
   KitchenPacket,
   PlantPacket,
   RadioPacket,
@@ -63,6 +64,10 @@ const RELAYED_MESSAGES = [
   // the server refusing a board move, or failing on a message: the sender is told why
   "boardError",
   "serverError",
+  // the campfire: a roast's dial and how it came off the fire; what the pond gave up
+  "roastStart",
+  "roastResult",
+  "fishCaught",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
@@ -200,6 +205,8 @@ interface UseColyseusRoomResult {
   kitchenSend: (packet: KitchenPacket) => void;
   radioSend: (packet: RadioPacket) => void;
   plantSend: (packet: PlantPacket) => void;
+  /** The campfire: roasting (ROAST_START / ROAST_STOP) and the guitar (GUITAR). */
+  campfireSend: (packet: CampfirePacket) => void;
   mochiPlay: (action: string) => void;
   /** Latest server snapshot of the beach volleyball (null until the first patch). */
   ballRef: React.MutableRefObject<BallSnapshot | null>;
@@ -443,6 +450,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             sitPose: player.sitPose as SitPose,
             holding: player.holding as HeldItem,
             drink: player.drink ?? "",
+            snack: player.snack ?? "",
             watered: player.watered ?? "",
             action: player.action as PlayerAction,
             actionProgress: player.actionProgress,
@@ -709,6 +717,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     kitchenSend: (packet) => send("kitchen", packet),
     radioSend: (packet) => send("radio", packet),
     plantSend: (packet) => send("plant", packet),
+    campfireSend: (packet) => send("campfire", packet),
     mochiPlay: (action) => send("mochi_play", { action }),
     ballRef,
     subscribeEmotes,

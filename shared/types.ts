@@ -1,9 +1,9 @@
 // Shared between client and server — keep this file framework-agnostic (no THREE/Colyseus imports).
 
 export type SitPose = "sit" | "lie";
-export type HeldItem = "" | "coffee" | "marshmallow";
+export type HeldItem = "" | "coffee" | "marshmallow" | "skewer";
 /** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is a boxing knockdown. */
-export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy";
+export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar";
 
 export interface PlayerState {
   sessionId: string;
@@ -28,6 +28,8 @@ export interface PlayerState {
   drink: string;
   /** The lounge plants this player has watered today, comma-separated prop ids. */
   watered: string;
+  /** What is on the skewer while holding "skewer" from the campfire (encodeSnack), e.g. "mallow:golden". */
+  snack: string;
   action: PlayerAction;
   /** 0..1 progress of a timed action (the espresso brew gauge). */
   actionProgress: number;
@@ -216,7 +218,9 @@ export type ToggleableKind =
   | "shishi"
   | "kitchen"
   | "radio"
-  | "plant";
+  | "plant"
+  | "bonfire"
+  | "fishing";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -548,6 +552,11 @@ export interface BoardGameView {
   moves: number;
   /** Who has the board open and is not playing. */
   watchers: string[];
+  /**
+   * A seated player who is not here right now (their connection dropped, or the server restarted
+   * and they have not rejoined yet): the seat is held for them for a minute.
+   */
+  away?: Partial<Record<BoardSide, boolean>>;
 }
 /** The winner's purse, paid once a decisive game has lasted at least BOARD_MIN_PLIES_FOR_PURSE plies. */
 export const BOARD_WIN_COINS = 15;
@@ -932,14 +941,16 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "jukebox" ||
     kind === "kitchen" ||
     kind === "radio" ||
-    kind === "plant"
+    kind === "plant" ||
+    kind === "bonfire" ||
+    kind === "fishing"
   );
 }
 
 // --- world sizes ---
 /** Half-width of each diorama slab. Indoor rooms keep their walls at ROOM_HALF; the slab beyond
  *  the open sides is the terrace / foyer that the bigger footprint adds. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 14, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 8, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
 /** Where the two back walls of an indoor room stand (x = -ROOM_HALF and z = -ROOM_HALF). */
 export const ROOM_HALF = 10;
 /** The casino's raised VIP lounge, behind the velvet rope. */
@@ -1008,3 +1019,70 @@ export interface EmoteBroadcast {
   sessionId: string;
   emoji: string;
 }
+
+// --- the Campfire: roasting, starlight fishing and the guitar ------------------------------------
+
+/** What you can put on a skewer over the bonfire. */
+export const ROAST_FOODS = ["mallow", "bbq"] as const;
+export type RoastFood = (typeof ROAST_FOODS)[number];
+export const ROAST_FOOD_INFO: Record<RoastFood, { name: string; emoji: string; note: string }> = {
+  mallow: { name: "Sweet Marshmallow", emoji: "🍡", note: "gooey and golden" },
+  bbq: { name: "Hearty BBQ Skewer", emoji: "🍢", note: "smoky, peppers and all" },
+};
+/** How it came off the fire: pulled too soon, just right (the green zone), or left too long. */
+export type RoastQuality = "raw" | "golden" | "charred";
+export function isRoastFood(v: unknown): v is RoastFood {
+  return typeof v === "string" && (ROAST_FOODS as readonly string[]).includes(v);
+}
+/** A skewer's contents as synced on the player: "mallow:golden". */
+export function encodeSnack(food: RoastFood, quality: RoastQuality): string {
+  return `${food}:${quality}`;
+}
+export function parseSnack(snack: string): { food: RoastFood; quality: RoastQuality } | null {
+  const [food, quality] = snack.split(":");
+  if (!isRoastFood(food) || (quality !== "raw" && quality !== "golden" && quality !== "charred")) return null;
+  return { food, quality };
+}
+/** A perfectly roasted skewer pays this. */
+export const ROAST_GOLDEN_COINS = 5;
+/** A skewer in hand is nibbled away over this long (bites every few seconds), then it is gone. */
+export const SNACK_SECONDS = 45;
+
+/** The roast, as the server sets it: the dial's needle sweeps once over `duration` seconds, and
+ *  stopping it between zoneFrom and zoneTo (fractions of the sweep) is golden. Past the end, it burns. */
+export interface RoastStart {
+  duration: number;
+  zoneFrom: number;
+  zoneTo: number;
+}
+export interface RoastResult {
+  sessionId: string;
+  food: RoastFood;
+  quality: RoastQuality;
+  coins: number;
+  /** A golden roast that paid nothing because today's campfire coins are spent. */
+  capped: boolean;
+}
+
+/** What the pond gives up to a starlight fishing line, and what each is worth. */
+export const STARLIGHT_CATCHES = {
+  minnow: { name: "Chibi Minnow", emoji: "🐟", coins: 10, weight: 40 },
+  trout: { name: "River Trout", emoji: "🐠", coins: 15, weight: 30 },
+  starshell: { name: "Star Shell", emoji: "🐚", coins: 20, weight: 20 },
+  bottle: { name: "Lucky Bottle", emoji: "🍾", coins: 25, weight: 10 },
+} as const;
+export type StarlightCatchId = keyof typeof STARLIGHT_CATCHES;
+export interface FishCaught {
+  sessionId: string;
+  catchId: StarlightCatchId;
+  coins: number;
+  capped: boolean;
+}
+/** The bobber stays under this long after a bite: tap in time and it is yours. */
+export const STARLIGHT_BITE_S = 1.0;
+/** Seconds between casting (or a catch) and the next bite. */
+export const STARLIGHT_BITE_DELAY_S = { min: 3, max: 6 };
+/** Campfire coins a player can earn in a day (catches and golden roasts still happen past it, unpaid). */
+export const CAMPFIRE_DAILY_COINS = { fish: 250, roast: 60 };
+
+export type CampfirePacket = { type: "ROAST_START"; food: RoastFood } | { type: "ROAST_STOP" } | { type: "GUITAR"; playing: boolean };

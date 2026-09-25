@@ -21,7 +21,7 @@ export interface WorldConfig {
 // In the fast-travel grid's order (WORLD_ROWS below, and shared/types MAP_IDS).
 export const WORLDS: Record<WorldId, WorldConfig> = {
   lounge: { id: "lounge", mapId: "cozy_lounge", name: "Lounge", icon: "🛋️", tagline: "Fireplace, kitchen and Mochi", size: 15, built: true },
-  campfire: { id: "campfire", mapId: "campfire_night", name: "Campfire", icon: "🔥", tagline: "Marshmallows under the stars", size: 28, built: false },
+  campfire: { id: "campfire", mapId: "campfire_night", name: "Campfire", icon: "🔥", tagline: "Starlight, embers, and fishing", size: 16, built: true },
   beach: { id: "beach", mapId: "sunset_beach", name: "Beach Bar", icon: "🏖️", tagline: "Sunset drinks and volleyball", size: 28, built: false },
   onsen: { id: "onsen", mapId: "japanese_onsen", name: "Onsen", icon: "♨️", tagline: "Hot springs and cherry blossoms", size: 26, built: false },
   casino: { id: "casino", mapId: "velvet_casino", name: "Casino", icon: "🎰", tagline: "Roulette, cards and slots", size: 26, built: false },

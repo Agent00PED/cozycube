@@ -113,3 +113,16 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
   .cozy-load-bob, .cozy-load-steam, .cozy-load-dot { animation: none; }
   .cozy-load-steam { opacity: 0.6; }
 }
+
+/* the campfire: a fishing bite's mark over the bobber (tap it), and the guitar's notes drifting up */
+.cozy-bite-mark { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 999px; border: 3px solid #fff4e0; background: #f4a15c; color: #3b2a1e; font: 800 21px/1 var(--font-cozy); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35); cursor: pointer; animation: cozy-bite-pop 0.42s ease-in-out infinite alternate; }
+.cozy-bite-mark:disabled { cursor: default; }
+@keyframes cozy-bite-pop { from { transform: scale(0.92); } to { transform: scale(1.14) translateY(-4px); } }
+.cozy-guitar-note { position: absolute; left: 0; top: 0; font: 700 19px/1 var(--font-cozy); color: #ffd9a0; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55); opacity: 0; animation: cozy-guitar-note 2.1s ease-out infinite; }
+.cozy-guitar-note:nth-child(2) { left: -14px; color: #ffe8c2; }
+.cozy-guitar-note:nth-child(3) { left: 12px; color: #f7c59f; }
+@keyframes cozy-guitar-note { 0% { opacity: 0; transform: translate(0, 0) rotate(-8deg) scale(0.7); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(16px, -48px) rotate(10deg) scale(1.1); } }
+@media (prefers-reduced-motion: reduce) {
+  .cozy-bite-mark, .cozy-guitar-note { animation: none; }
+  .cozy-guitar-note { opacity: 0.8; }
+}

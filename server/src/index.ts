@@ -8,6 +8,7 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { HangoutRoom } from "./rooms/HangoutRoom";
 import { tokenRouter } from "./routes/token";
 import { getPlayerStore, initPlayerStore } from "./db/players";
+import { getBoardStore, initBoardStore } from "./db/boards";
 
 const app = express();
 app.use(cors());
@@ -56,14 +57,18 @@ if (process.env.NODE_ENV === "production") {
 
 const PORT = Number(process.env.PORT) || 2567;
 const HOST = "0.0.0.0"; // not just localhost — required for Railway (and most PaaS) to route traffic in
-// The players table (or the in-memory fallback) is ready before the first client can join.
-void initPlayerStore().then((store) => {
+// The players and board tables (or their fallbacks) are ready before the first client can join:
+// a room restores its board game from the store as it is created.
+void Promise.all([initPlayerStore(), initBoardStore()]).then(([store, boards]) => {
   httpServer.listen(PORT, HOST, () => {
-    console.log(`Colyseus + Express listening on ${HOST}:${PORT} (NODE_ENV=${process.env.NODE_ENV ?? "development"}, players: ${store.kind})`);
+    console.log(`Colyseus + Express listening on ${HOST}:${PORT} (NODE_ENV=${process.env.NODE_ENV ?? "development"}, players: ${store.kind}, boards: ${boards.kind})`);
   });
 });
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
-    void gameServer.gracefullyShutdown(false).finally(() => getPlayerStore().close().finally(() => process.exit(0)));
+    // the rooms save their board games on the way down (HangoutRoom.onBeforeShutdown)
+    void gameServer
+      .gracefullyShutdown(false)
+      .finally(() => Promise.allSettled([getPlayerStore().close(), getBoardStore().close()]).finally(() => process.exit(0)));
   });
 }

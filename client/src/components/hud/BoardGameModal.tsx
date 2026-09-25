@@ -142,6 +142,7 @@ function Lobby({ view, mySide, underWay, send, onBoard }: { view: BoardGameView;
                 Seat {i + 1} · {SIDE_NAMES[side]}
               </div>
               <div className="min-h-5 max-w-full break-words text-sm font-semibold">{taken ? view.names[side] : <span className="opacity-50">Open seat</span>}</div>
+              {taken && view.away?.[side] && <Away />}
               {mine ? (
                 <button type="button" className="clay-btn clay-btn-ghost min-h-10 w-full text-sm" onClick={() => send({ type: "BOARD_LEAVE" })}>
                   Leave
@@ -386,12 +387,22 @@ function Piece({ cell, gameType, lift = false, size }: { cell: string; gameType:
   );
 }
 
+/** A seated player who is not here right now: their seat is held while they reconnect. */
+function Away() {
+  return (
+    <span className="shrink-0 rounded-full bg-amber-300/20 px-2 py-0.5 text-[11px] font-bold text-amber-100" title="Their seat is held while they reconnect">
+      💤 reconnecting…
+    </span>
+  );
+}
+
 function PlayerChip({ view, side }: { view: BoardGameView; side: BoardSide }) {
   const toMove = view.phase === "playing" && view.turn === side;
   return (
     <div className={`flex w-full max-w-[400px] items-center gap-2 rounded-full px-3 py-1 text-sm transition-colors ${toMove ? "bg-emerald-300/15 outline outline-1 -outline-offset-1 outline-emerald-300/40" : "bg-white/5"}`}>
       <Disc side={side} size={20} />
       <span className="min-w-0 flex-1 truncate font-semibold">{view.names[side] || <span className="opacity-50">Open seat</span>}</span>
+      {view.away?.[side] && <Away />}
       <span className="text-[11px] font-bold uppercase tracking-widest opacity-60">{SIDE_NAMES[side]}</span>
       {toMove && <span className="clay-ring-dot" aria-label="to move" />}
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { PLANT_WATER_COINS, msUntilNextDay, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
+import { PLANT_WATER_COINS, msUntilNextDay, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
+import { BONFIRE_REACH, FISHING_REACH } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { pushToast } from "./toastStore";
@@ -17,6 +18,9 @@ import { glass, hudText, pillButton } from "./glass";
 //   [📻 Tune Radio]  within RADIO_REACH of the radio, or sitting on a pouf round its table
 //   [🪴 Water Plant] within PLANT_REACH of a plant you have not watered today; after, [🌿 Happy
 //                    Plant · 5h] counts down to when it is thirsty again (the day's rollover)
+//   [🍡 Roast & Grill]  within BONFIRE_REACH of the campfire, or sitting on a log bench round it
+//   [🎣 Go Fishing]  at the end of the pier (FISHING_REACH of it)
+//   [🎸 Play Guitar] / [⏹ Stop Guitar]  sitting on a log bench
 //   [🧍 Stand up · Space]  while you are sitting, always (a panel closed, a reconnect: never stuck);
 //                    Space or any movement key does the same
 //
@@ -25,7 +29,7 @@ import { glass, hudText, pillButton } from "./glass";
 
 interface Action {
   key: string;
-  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "stand";
+  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fish" | "guitar" | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
   hint?: string;
@@ -49,26 +53,48 @@ interface DockProps {
   localSessionId: string;
   /** Water the plant in reach (PLANT_WATER). */
   onWater: (plantId: string) => void;
+  /** The campfire's guitar (GUITAR). */
+  onCampfire: (packet: CampfirePacket) => void;
 }
 
 const SCAN_MS = 120;
 /** A keyboard to press Space on (not a phone or tablet, where the pill is the way up). */
 const HAS_KEYBOARD = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: fine)").matches;
 
-export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onWater }: DockProps) {
+export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onWater, onCampfire }: DockProps) {
   const [actions, setActions] = useState<Action[]>([]);
-  const latest = useRef({ chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, onWater });
-  latest.current = { chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, onWater };
+  const latest = useRef({ chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire });
+  latest.current = { chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire };
 
   useEffect(() => {
     let lastKey = "";
     const scan = () => {
-      const { chairs, toggleables, mapId, localSessionId, sitting, watered, onWater } = latest.current;
+      const { chairs, toggleables, mapId, localSessionId, sitting, watered, action, onWater, onCampfire } = latest.current;
       const found: Action[] = [];
       const reach = (p: ToggleableSyncState) => {
         const a = APPROACH_POINTS[p.propId];
         return Math.min(Math.hypot(p.x - cameraFocus.x, p.z - cameraFocus.z), a ? Math.hypot(a.x - cameraFocus.x, a.z - cameraFocus.z) : Infinity);
       };
+
+      // the campfire: roast from beside the fire or a log bench round it; fish from the pier's end;
+      // play the guitar sitting on a log
+      const onLog = Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "log");
+      const bonfire = Object.values(toggleables).find((p) => p.kind === "bonfire");
+      if (bonfire && action !== "grill" && (onLog || (!sitting && reach(bonfire) <= BONFIRE_REACH))) {
+        const id = bonfire.propId;
+        // seated, the panel opens where you are; standing, you walk up to the fire first
+        const run = onLog ? () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "roast", propId: id } })) : () => interactBridge.current?.useProp(id);
+        found.push({ key: `roast:${id}`, type: "roast", label: "🍡 Roast & Grill", hint: "Roast a marshmallow or grill a skewer: pull it out in the green for +5 coins", run });
+      }
+      const spot = Object.values(toggleables).find((p) => p.kind === "fishing");
+      if (spot && !sitting && action !== "fish" && reach(spot) <= FISHING_REACH + 0.4) {
+        const id = spot.propId;
+        found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: "Cast into the pond; tap when the bobber dips", run: () => interactBridge.current?.useProp(id) });
+      }
+      if (onLog) {
+        const playing = action === "guitar";
+        found.push({ key: `guitar:${playing}`, type: "guitar", label: playing ? "⏹ Stop Guitar" : "🎸 Play Guitar", run: () => onCampfire({ type: "GUITAR", playing: !playing }) });
+      }
 
       // the radio: tune it from beside it, or from a pouf round its table
       const radio = Object.values(toggleables).find((p) => p.kind === "radio");

@@ -38,6 +38,17 @@ export const AVATAR_NODES = {
   mugDrink: "MugDrink",
   /** A watering can in the right hand, pivot at the hand, hidden: shown while watering a plant (kept upright, tipped to pour). */
   wateringCan: "WateringCan",
+  /** A roasting stick in the right hand, pivot at the hand, pointing forward; its food pieces are
+   *  SkewerMallow_1..2 / SkewerBBQ_1..4 (tip first), tinted by Mat_Roast / Mat_RoastVeg. */
+  skewer: "Skewer",
+  /** A bamboo fishing pole in the right hand, pivot at the hand, raised forward. */
+  fishingRod: "FishingRod",
+  /** An empty at the pole's tip: the line runs from here to the Bobber. */
+  rodTip: "RodTip",
+  /** An acoustic guitar across the lap, a child of Body, hidden until played on a log bench. */
+  guitar: "Guitar",
+  /** The red and white float, a child of Root, pivot at its centre: the runtime floats it on the water. */
+  bobber: "Bobber",
   /** The ears, children of Head: hidden under a hair style that covers them (HAIR_STYLE_META). */
   earL: "EarL",
   earR: "EarR",
@@ -119,7 +130,14 @@ export const AVATAR_MATERIALS = {
   accent: "Mat_Accent",
   /** The drink in the mug: coffee, matcha or milk tea (shared/types DRINK_BASE_INFO). */
   drink: "Mat_Drink",
+  /** On the skewer: the marshmallows or the meat, tinted raw, golden or charred. */
+  roast: "Mat_Roast",
+  /** The skewer's peppers, tinted too. */
+  roastVeg: "Mat_RoastVeg",
 } as const;
+
+/** The skewer's food, children of Skewer, one node a piece (tip first): bites hide them in turn. */
+export const SKEWER_PIECE_PREFIX = { mallow: "SkewerMallow_", bbq: "SkewerBBQ_" } as const;
 
 /** The mug's toppings, children of Mug named MugTop_<DrinkTopping>: the one in the drink is shown. */
 export const MUG_TOPPING_PREFIX = "MugTop_";

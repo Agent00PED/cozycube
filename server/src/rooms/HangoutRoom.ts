@@ -3,12 +3,29 @@ import { Schema, type, MapSchema } from "@colyseus/schema";
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToWorld, isBlocked } from "../../../shared/collision";
 import { PersistenceQueue, getPlayerStore, newPlayerRecord, type PlayerRecord } from "../db/players";
 import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } from "./games";
-import { BoardTable } from "./boardgame";
+import { AWAY_PREFIX, BoardTable } from "./boardgame";
+import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
+import { BONFIRE_REACH, FISHING_REACH } from "../../../shared/worlds/campfire";
 import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat, isWaterable, mochiSpot } from "../../../shared/props";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
 import {
   BITE_WINDOW_S,
+  CAMPFIRE_DAILY_COINS,
+  ROAST_GOLDEN_COINS,
+  SNACK_SECONDS,
+  STARLIGHT_BITE_DELAY_S,
+  STARLIGHT_BITE_S,
+  STARLIGHT_CATCHES,
+  encodeSnack,
+  isRoastFood,
+  type CampfirePacket,
+  type FishCaught,
+  type RoastFood,
+  type RoastQuality,
+  type RoastResult,
+  type RoastStart,
+  type StarlightCatchId,
   BREW_SECONDS,
   ESPRESSO_TIP,
   ESPRESSO_TIP_COOLDOWN_S,
@@ -159,6 +176,8 @@ class Player extends Schema {
   @type("string") holding = "";
   /** What is in the mug (encodeDrink), "" for a plain one. */
   @type("string") drink = "";
+  /** On the skewer, while holding "skewer" (shared/types encodeSnack). */
+  @type("string") snack = "";
   /** The lounge plants watered today, comma-separated prop ids. */
   @type("string") watered = "";
   @type("string") action = "";
@@ -341,6 +360,12 @@ export class HangoutRoom extends Room<HangoutState> {
   private lastChatAt = new Map<string, number>();
   /** The fish on each reeling player's line, and when the tension game times out. */
   private hooked = new Map<string, { fish: FishOnLine; until: number }>();
+  /** The campfire: each roast in progress (its dial, timed here), when each skewer is eaten up,
+   *  when each player last took one off the fire, and who is fishing the pond from the pier. */
+  private roasts = new Map<string, RoastStart & { food: RoastFood; startedAt: number }>();
+  private snackUntil = new Map<string, number>();
+  private lastRoastAt = new Map<string, number>();
+  private starlight = new Set<string>();
   private lastPunchAt = new Map<string, number>();
   private dizzyUntil = new Map<string, number>();
   private auraUntil = new Map<string, number>();
@@ -354,13 +379,18 @@ export class HangoutRoom extends Room<HangoutState> {
   /** When each player last poured a drink at the kitchenette. */
   private lastKitchenAt = new Map<string, number>();
   private boardSweepClock = 0;
+  /** Seats restored after a restart are held for their players until then (Date.now ms). */
+  private boardHoldUntil = 0;
+  /** Set while shutting down: the table was saved as it stood, and what follows is not saved. */
+  private boardFrozen = false;
+  private boardSaveTimer: NodeJS.Timeout | undefined;
   private persistClock = 0;
   private leaderboardClock = LEADERBOARD_EVERY_S; // refresh on the first tick
   private phaseClock = ROULETTE_PHASE_SECONDS.betting;
   private cycleClock = 0;
   private ballIdle = 0;
 
-  onCreate(options: { channelId: string }) {
+  async onCreate(options: { channelId: string }) {
     this.setState(new HangoutState());
     this.autoDispose = false; // `autoDispose` is an accessor on the base Room class — assign, don't redeclare as a field.
     // NOTE: do not reassign `this.roomId` here — it breaks Colyseus's internal room
@@ -368,6 +398,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // `.filterBy(["channelId"])` on the room definition in server/src/index.ts instead.
     this.channelId = options.channelId;
     this.loadMapProps(this.state.currentMap);
+    // (the board game in this channel, if one was going when the server last stopped, is put back
+    // at the end of onCreate: see restoreBoard)
 
     this.setSimulationInterval((dtMs) => this.tick(dtMs / 1000), TICK_MS);
 
@@ -385,6 +417,11 @@ export class HangoutRoom extends Room<HangoutState> {
       player.dirZ = Math.max(-1, Math.min(1, msg.dirZ));
       // Walking away from the espresso machine abandons the brew.
       if (player.action === "brew" && (player.dirX !== 0 || player.dirZ !== 0)) this.clearAction(player);
+      // walking off the pier puts the rod away; walking away from the fire takes the skewer out
+      if (player.dirX !== 0 || player.dirZ !== 0) {
+        if (player.action === "fish" && this.starlight.has(client.sessionId)) this.stopStarlight(client.sessionId, player);
+        else if (player.action === "grill") this.finishRoast(client.sessionId, player, "raw");
+      }
       this.applyReportedPosition(player, msg.x, msg.z, client.sessionId);
       // echo which report this position answers, applied as sent or not, so the client can tell
       // an old echo from a real correction
@@ -467,11 +504,15 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("eat", (client) => this.handleEat(client.sessionId));
     this.onMessage("dropHeld", (client) => {
       const player = this.state.players.get(client.sessionId);
-      if (player && player.holding === "coffee") {
+      if (player && (player.holding === "coffee" || (player.holding === "skewer" && player.action !== "grill"))) {
         player.holding = "";
         player.drink = "";
+        player.snack = "";
+        this.snackUntil.delete(client.sessionId);
       }
     });
+    // --- the campfire: roasting and the guitar (fishing goes through castLine / hook / reelIn) ---
+    this.onMessage("campfire", (client, packet: CampfirePacket) => this.handleCampfire(client, packet));
     // --- lounge: the kitchenette, the radio and the plants ---
     this.onMessage("kitchen", (client, packet: KitchenPacket) => this.handleKitchen(client.sessionId, packet));
     this.onMessage("radio", (client, packet: RadioPacket) => this.handleRadio(client.sessionId, packet));
@@ -517,6 +558,10 @@ export class HangoutRoom extends Room<HangoutState> {
       if (player && typeof msg?.rtt === "number" && Number.isFinite(msg.rtt)) player.ping = Math.max(0, Math.min(9999, Math.round(msg.rtt)));
       client.send("pong", { t: msg?.t ?? 0 });
     });
+
+    // last: the board game this channel had going when the server stopped, back on its table
+    // (Colyseus waits for this before anyone joins, so the first to arrive can reclaim a seat)
+    await this.restoreBoard();
   }
 
   // --- persistence ---------------------------------------------------------------------------
@@ -536,7 +581,7 @@ export class HangoutRoom extends Room<HangoutState> {
     } catch {
       record.daily = null;
     }
-    const signature = `${record.coins}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${record.lastDailyClaim?.getTime() ?? 0}`;
+    const signature = `${record.coins}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${record.campfireCoins.day}:${record.campfireCoins.fish}:${record.campfireCoins.roast}|${record.lastDailyClaim?.getTime() ?? 0}`;
     if (signature === this.savedSignature.get(sessionId) && !now) return;
     this.savedSignature.set(sessionId, signature);
     this.queue.mark(record);
@@ -647,6 +692,7 @@ export class HangoutRoom extends Room<HangoutState> {
   // --- fishing: the tension game ---------------------------------------------------------------
 
   private handleHook(sessionId: string) {
+    if (this.starlight.has(sessionId)) return this.hookStarlight(sessionId);
     const player = this.state.players.get(sessionId);
     if (!player || player.action !== "fish" || !this.biteUntil.has(sessionId)) return;
     const water = MAP_WATER[this.state.currentMap] ?? "ocean";
@@ -895,7 +941,57 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private broadcastBoard() {
-    this.broadcast("boardState", this.board.view());
+    this.broadcast("boardState", this.boardView());
+    this.saveBoard();
+  }
+
+  /** The table, plus who at it is away (dropped, or not back yet since a restart). */
+  private boardView() {
+    const away = (side: BoardSide) => {
+      const id = this.board.seats[side];
+      return !!id && (id.startsWith(AWAY_PREFIX) || this.state.players.get(id)?.connected === false);
+    };
+    return { ...this.board.view(), away: { w: away("w"), b: away("b") } };
+  }
+
+  // --- saving the board game ------------------------------------------------------------------
+  // The table is written to the board store (db/boards.ts) shortly after every change, so a
+  // restart or a redeploy never wipes a game in progress; the room puts it back when it is
+  // created again, each seat held for its player (by Discord user id) for RECONNECT_WINDOW_S.
+
+  private boardStoreKey() {
+    return this.channelId || this.roomId;
+  }
+
+  /** Saves the table soon (changes that come in a burst are written once). */
+  private saveBoard() {
+    if (this.boardFrozen) return;
+    clearTimeout(this.boardSaveTimer);
+    this.boardSaveTimer = setTimeout(() => void this.writeBoard(), BOARD_SAVE_DEBOUNCE_MS);
+  }
+
+  private async writeBoard() {
+    clearTimeout(this.boardSaveTimer);
+    this.boardSaveTimer = undefined;
+    const t = this.board;
+    const held = !!t.seats.w || !!t.seats.b;
+    try {
+      await getBoardStore().save(this.boardStoreKey(), held ? t.snapshot((id) => this.state.players.get(id)?.userId ?? "") : null);
+    } catch (err) {
+      console.error("[db] failed to save the board game (will retry on the next change):", err instanceof Error ? err.message : err);
+    }
+  }
+
+  /** Puts back the board game this channel had going when the server last stopped. */
+  private async restoreBoard() {
+    try {
+      const snap = await getBoardStore().load(this.boardStoreKey());
+      if (!snap || !this.board.restore(snap)) return;
+      this.boardHoldUntil = Date.now() + RECONNECT_WINDOW_S * 1000;
+      console.log(`[room ${this.roomId}] board game restored for channel ${this.boardStoreKey()} (${snap.gameType}, ${snap.plies} plies)`);
+    } catch (err) {
+      console.error("[db] could not restore the board game:", err instanceof Error ? err.message : err);
+    }
   }
 
   /**
@@ -913,7 +1009,7 @@ export class HangoutRoom extends Room<HangoutState> {
       case "BOARD_WATCH":
         changed = t.watch(sessionId, player.username, !!packet.watching);
         // whoever opens the board gets the table as it stands right now
-        if (packet.watching) this.sendTo(sessionId, "boardState", t.view());
+        if (packet.watching) this.sendTo(sessionId, "boardState", this.boardView());
         break;
       case "BOARD_SIT":
         if (Math.hypot(player.x - GAMES.table.x, player.z - GAMES.table.z) > BOARD_REACH) return;
@@ -953,13 +1049,14 @@ export class HangoutRoom extends Room<HangoutState> {
   /** Tells a player their board packet was refused, and sends them the table as it stands. */
   private boardRefused(client: Client, message: string) {
     client.send("boardError", { type: "BOARD_ERROR", message });
-    client.send("boardState", this.board.view());
+    client.send("boardState", this.boardView());
   }
 
   /** A decisive game pays its winner BOARD_WIN_COINS, once, if it lasted long enough to count. */
   private payBoardWinner() {
     const winnerId = this.board.settle(BOARD_MIN_PLIES_FOR_PURSE);
     const winner = winnerId ? this.state.players.get(winnerId) : undefined;
+    this.saveBoard(); // settled: the purse is never paid twice, restart or not
     if (!winner) return;
     this.addCoins(winner, BOARD_WIN_COINS);
     this.broadcast("emote", { sessionId: winnerId, emoji: this.board.gameType === "chess" ? "♟️" : "⛀" });
@@ -1017,6 +1114,11 @@ export class HangoutRoom extends Room<HangoutState> {
     for (const side of ["w", "b"] as BoardSide[]) {
       const id = this.board.seats[side];
       if (!id) continue;
+      // held since a restart: kept until its player is back, or until the wait is over
+      if (id.startsWith(AWAY_PREFIX)) {
+        if (Date.now() > this.boardHoldUntil) changed = this.board.leave(id) || changed;
+        continue;
+      }
       const chair = this.state.chairs.get(BOARD_SEAT_CHAIRS[side]);
       if (!this.state.players.has(id) || chair?.occupiedBy !== id) changed = this.board.leave(id) || changed;
     }
@@ -1327,6 +1429,7 @@ export class HangoutRoom extends Room<HangoutState> {
       } else if (player.action === "roast") {
         player.toast = Math.min(TOAST_MAX, player.toast + dt / ROAST_SECONDS);
       } else if (player.action === "fish") {
+        const starlit = this.starlight.has(sessionId);
         const until = this.biteUntil.get(sessionId);
         if (until !== undefined) {
           if (now > until) {
@@ -1334,17 +1437,19 @@ export class HangoutRoom extends Room<HangoutState> {
             this.biteUntil.delete(sessionId);
             player.actionProgress = 0;
             this.broadcast("emote", { sessionId, emoji: "💨" });
-            this.fishBiteAt.set(sessionId, now + randomBiteDelay());
+            this.fishBiteAt.set(sessionId, now + (starlit ? starlightBiteDelay() : randomBiteDelay()));
           }
         } else if (now >= (this.fishBiteAt.get(sessionId) ?? 0)) {
-          // Bite! actionProgress = 1 tells every client the float has gone under.
-          this.biteUntil.set(sessionId, now + BITE_WINDOW_S * 1000);
+          // Bite! actionProgress = 1 tells every client the float has gone under. On the pond the
+          // window is STARLIGHT_BITE_S, plus half the angler's round trip (the tap has to get here)
+          this.biteUntil.set(sessionId, now + (starlit ? STARLIGHT_BITE_S * 1000 + Math.min(400, player.ping / 2 + 120) : BITE_WINDOW_S * 1000));
           player.actionProgress = 1;
         }
       }
     });
 
     if (this.state.currentMap === "sunset_beach") this.tickBall(dt);
+    if (this.state.currentMap === "campfire_night") this.tickCampfire(now);
     if (this.state.currentMap === "velvet_casino") this.tickRoulette(dt);
 
     if (this.state.autoCycle) {
@@ -1472,6 +1577,159 @@ export class HangoutRoom extends Room<HangoutState> {
     this.fishBiteAt.delete(sessionId);
     this.biteUntil.delete(sessionId);
     this.hooked.delete(sessionId);
+    this.starlight.delete(sessionId);
+  }
+
+  // --- the campfire: roasting, starlight fishing and the guitar ------------------------------------
+
+  /** Whether `player` stands (or sits) within `reach` of a prop of `kind` on this map. */
+  private nearProp(player: Player, kind: string, reach: number): boolean {
+    let near = false;
+    this.state.toggleables.forEach((prop) => {
+      if (prop.kind === kind && Math.hypot(player.x - prop.x, player.z - prop.z) <= reach) near = true;
+    });
+    return near;
+  }
+
+  /**
+   * Campfire coins, paid within the day's cap (CAMPFIRE_DAILY_COINS): the pond and the fire stay
+   * fun all evening without flooding the economy. Returns what was actually paid.
+   */
+  private campfirePay(sessionId: string, player: Player, kind: "fish" | "roast", coins: number): number {
+    const record = this.records.get(sessionId);
+    if (!record) return 0;
+    const today = todayKey();
+    if (record.campfireCoins.day !== today) record.campfireCoins = { day: today, fish: 0, roast: 0 };
+    const paid = Math.max(0, Math.min(coins, CAMPFIRE_DAILY_COINS[kind] - record.campfireCoins[kind]));
+    if (paid > 0) {
+      record.campfireCoins[kind] += paid;
+      this.addCoins(player, paid);
+    }
+    return paid;
+  }
+
+  private handleCampfire(client: Client, packet: CampfirePacket) {
+    const sessionId = client.sessionId;
+    const player = this.state.players.get(sessionId);
+    if (!player || !packet || typeof packet !== "object" || this.state.currentMap !== "campfire_night" || this.state.mapTransitioning) return;
+    switch (packet.type) {
+      case "ROAST_START": {
+        // from beside the fire or from a log bench round it (a little slack for latency)
+        if (!isRoastFood(packet.food) || (player.action !== "" && player.action !== "guitar")) return;
+        if (!this.nearProp(player, "bonfire", BONFIRE_REACH + 0.3)) return;
+        if (Date.now() - (this.lastRoastAt.get(sessionId) ?? 0) < ROAST_COOLDOWN_MS) return;
+        // the dial: one sweep over `duration`, a green zone somewhere past halfway; the server keeps
+        // the clock, so the result is its call
+        const duration = 3.0 + Math.random() * 0.8;
+        const width = 0.13 + Math.random() * 0.04;
+        const zoneFrom = 0.5 + Math.random() * (0.86 - width - 0.5);
+        const roast = { food: packet.food, startedAt: Date.now(), duration, zoneFrom, zoneTo: zoneFrom + width };
+        this.roasts.set(sessionId, roast);
+        this.snackUntil.delete(sessionId);
+        player.drink = "";
+        player.holding = "skewer";
+        player.snack = encodeSnack(packet.food, "raw");
+        player.action = "grill";
+        player.actionProgress = 0;
+        const start: RoastStart = { duration, zoneFrom, zoneTo: roast.zoneTo };
+        client.send("roastStart", start);
+        return;
+      }
+      case "ROAST_STOP": {
+        const roast = this.roasts.get(sessionId);
+        if (!roast || player.action !== "grill") return;
+        // judged on when you pressed, not when it got here: half the round trip back
+        const at = (Date.now() - Math.min(250, player.ping / 2) - roast.startedAt) / (roast.duration * 1000);
+        const quality: RoastQuality = at < roast.zoneFrom - 0.01 ? "raw" : at <= roast.zoneTo + 0.01 ? "golden" : "charred";
+        this.finishRoast(sessionId, player, quality);
+        return;
+      }
+      case "GUITAR": {
+        if (!packet.playing) {
+          if (player.action === "guitar") this.clearAction(player);
+          return;
+        }
+        let onLog = false;
+        this.state.chairs.forEach((chair) => {
+          if (chair.occupiedBy === sessionId && chair.style === "log") onLog = true;
+        });
+        if (!player.sitting || !onLog || player.action !== "") return;
+        player.action = "guitar";
+        player.actionProgress = 0;
+        return;
+      }
+    }
+  }
+
+  /** The skewer comes off the fire: raw, golden (paid) or charred. The rest is eaten away. */
+  private finishRoast(sessionId: string, player: Player, quality: RoastQuality) {
+    const roast = this.roasts.get(sessionId);
+    if (!roast) return;
+    this.roasts.delete(sessionId);
+    const now = Date.now();
+    this.lastRoastAt.set(sessionId, now);
+    player.snack = encodeSnack(roast.food, quality);
+    player.action = "";
+    player.actionProgress = 0;
+    this.snackUntil.set(sessionId, now + SNACK_SECONDS * 1000);
+    let coins = 0;
+    if (quality === "golden") {
+      coins = this.campfirePay(sessionId, player, "roast", ROAST_GOLDEN_COINS);
+      this.bumpStat(player, "marshmallows_roasted");
+      this.daily(sessionId, player, "roast_marshmallow");
+    }
+    const result: RoastResult = { sessionId, food: roast.food, quality, coins, capped: quality === "golden" && coins === 0 };
+    this.broadcast("roastResult", result);
+    this.broadcast("emote", { sessionId, emoji: quality === "golden" ? "🤩" : quality === "charred" ? "😵" : "😋" });
+    this.persist(sessionId, player);
+  }
+
+  /** The roasting dials, and skewers eaten up. */
+  private tickCampfire(now: number) {
+    this.roasts.forEach((roast, sessionId) => {
+      const player = this.state.players.get(sessionId);
+      if (!player || player.action !== "grill") {
+        this.roasts.delete(sessionId);
+        return;
+      }
+      const at = (now - roast.startedAt) / (roast.duration * 1000);
+      player.actionProgress = Math.min(1, Math.round(at * 50) / 50);
+      if (at >= 1) this.finishRoast(sessionId, player, "charred"); // left in the fire: burnt
+    });
+    this.snackUntil.forEach((until, sessionId) => {
+      if (now < until) return;
+      this.snackUntil.delete(sessionId);
+      const player = this.state.players.get(sessionId);
+      if (player && player.holding === "skewer" && player.action !== "grill") {
+        player.holding = "";
+        player.snack = "";
+      }
+    });
+  }
+
+  /** A tap while the bobber is under: what the pond gives up, paid within the day's cap. */
+  private hookStarlight(sessionId: string) {
+    const player = this.state.players.get(sessionId);
+    if (!player || player.action !== "fish" || !this.biteUntil.has(sessionId)) return;
+    this.biteUntil.delete(sessionId);
+    const catchId = rollStarlightCatch();
+    const coins = this.campfirePay(sessionId, player, "fish", STARLIGHT_CATCHES[catchId].coins);
+    this.bumpStat(player, "fish_caught");
+    this.daily(sessionId, player, "catch_fish");
+    const caught: FishCaught = { sessionId, catchId, coins, capped: coins === 0 };
+    this.broadcast("fishCaught", caught);
+    this.broadcast("emote", { sessionId, emoji: STARLIGHT_CATCHES[catchId].emoji });
+    // the line goes straight back in
+    player.actionProgress = 0;
+    this.fishBiteAt.set(sessionId, Date.now() + starlightBiteDelay());
+    this.persist(sessionId, player);
+  }
+
+  private stopStarlight(sessionId: string, player: Player) {
+    this.clearAction(player);
+    this.fishBiteAt.delete(sessionId);
+    this.biteUntil.delete(sessionId);
+    this.starlight.delete(sessionId);
   }
 
   private tickBall(dt: number) {
@@ -1554,6 +1812,7 @@ export class HangoutRoom extends Room<HangoutState> {
     });
     this.hooked.clear();
     this.board = new BoardTable();
+    this.saveBoard();
 
     this.state.mapTransitioning = true;
     // Each map has an hour it was built for. Arriving at the Sunset Beach Bar at midday would
@@ -1566,9 +1825,10 @@ export class HangoutRoom extends Room<HangoutState> {
       p.sitting = false;
       this.clearAction(p);
       // A coffee survives the trip; a marshmallow on a stick doesn't make sense away from the fire.
-      if (p.holding === "marshmallow") {
+      if (p.holding === "marshmallow" || p.holding === "skewer") {
         p.holding = "";
         p.toast = 0;
+        p.snack = "";
       }
     });
     this.loadMapProps(mapId); // clears + repopulates chairs/toggleables, implicitly releasing all occupants
@@ -1579,6 +1839,9 @@ export class HangoutRoom extends Room<HangoutState> {
     this.regrowAt.clear();
     this.biteUntil.clear();
     this.fishBiteAt.clear();
+    this.roasts.clear();
+    this.snackUntil.clear();
+    this.starlight.clear();
     this.lastReportAt.clear();
     Object.assign(this.state.ball, BALL_HOME);
     this.ballIdle = 0;
@@ -1648,6 +1911,8 @@ export class HangoutRoom extends Room<HangoutState> {
       this.payBoardWinner();
     }
 
+    // Standing up mid-roast takes the skewer out of the fire (as it is).
+    if (this.roasts.has(sessionId)) this.finishRoast(sessionId, player, "raw");
     // You can't carry a roasting stick away from the fire.
     if (player.action === "roast" || player.holding === "marshmallow") {
       player.holding = "";
@@ -1792,6 +2057,13 @@ export class HangoutRoom extends Room<HangoutState> {
       case "plant":
         this.waterPlant(sessionId, prop.propId);
         break;
+      case "bonfire":
+        this.sendTo(sessionId, "openPanel", { kind: "roast", propId: prop.propId });
+        break;
+      case "fishing":
+        if (player.action === "fish") this.handleReelIn(sessionId);
+        else this.handleCastLine(sessionId);
+        break;
       case "boardgame":
         // walking up to the table seats you at it (seat 1, or seat 2 opposite whoever has it);
         // with both seats taken you stay standing and the board opens for you to watch
@@ -1929,7 +2201,16 @@ export class HangoutRoom extends Room<HangoutState> {
 
   private handleCastLine(sessionId: string, afk = false) {
     const player = this.state.players.get(sessionId);
-    if (!player || !player.sitting || player.action !== "") return;
+    if (!player || player.action !== "") return;
+    // the campfire's pond: standing at the end of the pier, a bite, a tap, a catch
+    if (!player.sitting) {
+      if (!this.nearProp(player, "fishing", FISHING_REACH)) return;
+      player.action = "fish";
+      player.actionProgress = 0;
+      this.starlight.add(sessionId);
+      this.fishBiteAt.set(sessionId, Date.now() + starlightBiteDelay());
+      return;
+    }
     let onPier = false;
     this.state.chairs.forEach((chair) => {
       if (chair.occupiedBy === sessionId && isFishingSeat(chair.propId)) onPier = true;
@@ -2010,11 +2291,20 @@ export class HangoutRoom extends Room<HangoutState> {
     for (const [oldId, old] of ghosts) resumedSeat = this.takeOver(oldId, old, client.sessionId, player) || resumedSeat;
 
     this.state.players.set(client.sessionId, player);
+    // back after a restart to a board game they were playing: their seat was held, so they sit
+    // straight back down on its chair and the game goes on
+    const heldSide = this.board.reservedSide(player.userId);
+    const heldChair = heldSide ? this.state.chairs.get(BOARD_SEAT_CHAIRS[heldSide]) : undefined;
+    if (heldSide && heldChair && !heldChair.occupiedBy && this.state.currentMap === "cozy_lounge") {
+      this.board.claim(heldSide, client.sessionId);
+      this.seatPlayer(client.sessionId, player, heldChair);
+      resumedSeat = true;
+    }
     if (isNew) this.persist(client.sessionId, player, true);
     else this.savedSignature.set(client.sessionId, "");
     this.sendTo(client.sessionId, "welcome", { isNew, coins: player.coins });
     // a game already on at the board table: the newcomer's avatars know whose turn it is
-    if (this.board.seats.w || this.board.seats.b) this.sendTo(client.sessionId, "boardState", this.board.view());
+    if (this.board.seats.w || this.board.seats.b) this.sendTo(client.sessionId, "boardState", this.boardView());
     // back in their seat at the board: everyone sees the new session there, and their board reopens
     if (resumedSeat) {
       this.broadcastBoard();
@@ -2041,6 +2331,10 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     this.vibeAt.delete(sessionId);
     this.soakSeconds.delete(sessionId);
+    this.roasts.delete(sessionId);
+    this.snackUntil.delete(sessionId);
+    this.lastRoastAt.delete(sessionId);
+    this.starlight.delete(sessionId);
     this.hooked.delete(sessionId);
     this.refundBets(sessionId);
     // An unfinished blackjack hand is abandoned: the stake comes back.
@@ -2065,6 +2359,8 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!player) return;
 
     player.speaking = false;
+    if (this.roasts.has(sessionId)) this.finishRoast(sessionId, player, "raw");
+    this.starlight.delete(sessionId);
     this.clearAction(player);
     this.fishBiteAt.delete(sessionId);
     this.biteUntil.delete(sessionId);
@@ -2116,7 +2412,7 @@ export class HangoutRoom extends Room<HangoutState> {
    */
   private welcomeBack(client: Client) {
     const seated = !!this.board.sideOf(client.sessionId);
-    if (seated || this.board.watchers.has(client.sessionId)) client.send("boardState", this.board.view());
+    if (seated || this.board.watchers.has(client.sessionId)) client.send("boardState", this.boardView());
     if (seated) client.send("openPanel", { kind: "boardgame", propId: "board_table" });
   }
 
@@ -2158,13 +2454,28 @@ export class HangoutRoom extends Room<HangoutState> {
     }
   }
 
+  /**
+   * A deploy or a restart. The default would disconnect everyone as if they had chosen to leave,
+   * and leaving walks out on a board game (a forfeit). So the table is frozen first (nothing that
+   * happens as everyone is let go is saved), written as it stands, and only then is everyone let
+   * go. The next server puts the game back and holds the seats for their players.
+   */
+  onBeforeShutdown() {
+    this.boardFrozen = true;
+    void this.writeBoard().finally(() => super.onBeforeShutdown());
+  }
+
   async onDispose() {
+    clearTimeout(this.boardSaveTimer);
+    if (!this.boardFrozen) await this.writeBoard();
     await this.queue.flush();
     console.log(`Room ${this.roomId} disposed`);
   }
 }
 
 
+/** A burst of board changes is saved once, this long after the last. */
+const BOARD_SAVE_DEBOUNCE_MS = 300;
 /** How long a dropped player's avatar, chair and board seat wait for them to reconnect. */
 const RECONNECT_WINDOW_S = 60;
 
@@ -2177,6 +2488,25 @@ function rollSymbol(): number {
     if (roll <= 0) return i;
   }
   return 0;
+}
+
+/** A roast can start again this long after the last one came off the fire. */
+const ROAST_COOLDOWN_MS = 1500;
+
+/** The pond's bites come quicker than the sea's (STARLIGHT_BITE_DELAY_S). */
+function starlightBiteDelay(): number {
+  return (STARLIGHT_BITE_DELAY_S.min + Math.random() * (STARLIGHT_BITE_DELAY_S.max - STARLIGHT_BITE_DELAY_S.min)) * 1000;
+}
+
+/** What bites: a minnow most often, a lucky bottle now and then (STARLIGHT_CATCHES' weights). */
+function rollStarlightCatch(): StarlightCatchId {
+  const ids = Object.keys(STARLIGHT_CATCHES) as StarlightCatchId[];
+  let roll = Math.random() * ids.reduce((a, id) => a + STARLIGHT_CATCHES[id].weight, 0);
+  for (const id of ids) {
+    roll -= STARLIGHT_CATCHES[id].weight;
+    if (roll <= 0) return id;
+  }
+  return ids[0];
 }
 
 /** 5-12 seconds between bites: long enough to feel like fishing, short enough to stay fun. */

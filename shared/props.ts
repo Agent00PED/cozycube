@@ -1,6 +1,7 @@
 import { CUSHIONS, napPose, seatAnchorY } from "./seats";
 import type { MapId, SeatStyle, ToggleableKind } from "./types";
 import { LOFT_MOCHI, LOFT_PROPS, LOFT_SEATS } from "./worlds/lounge";
+import { CAMP_PROPS, CAMP_SEATS, lieSeatPose } from "./worlds/campfire";
 
 // The per-map tables of things you can sit on and things you can use, with the approach point of
 // each (where you stand to use it, and where you land when you get up). The lounge's come from
@@ -48,7 +49,21 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     sitY: round(seatAnchorY(CUSHIONS[s.cushion])),
     nap: s.nap && napPose(CUSHIONS[s.cushion], s.nap.head, s.nap.dir),
   })),
-  campfire_night: [],
+  // the campfire: the log benches (sit, facing the fire), and the hammock and the tipi, which you
+  // lie down in: a lie seat's position, heading and height are where its lying avatar goes
+  campfire_night: CAMP_SEATS.map((s) => {
+    const lie = lieSeatPose(s);
+    return {
+      propId: s.propId,
+      x: lie ? round(lie.x) : s.x,
+      z: lie ? round(lie.z) : s.z,
+      rotationY: lie ? round(lie.rotationY) : s.rotationY,
+      style: lie ? ("blanket" as const) : ("log" as const),
+      approachX: round(s.approachX),
+      approachZ: round(s.approachZ),
+      sitY: round(lie ? lie.y : seatAnchorY(CUSHIONS[s.cushion])),
+    };
+  }),
   sunset_beach: [],
   velvet_casino: [],
   boxing_ring: [],
@@ -59,7 +74,7 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
 
 export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
   cozy_lounge: LOFT_PROPS,
-  campfire_night: [],
+  campfire_night: CAMP_PROPS,
   sunset_beach: [],
   velvet_casino: [],
   boxing_ring: [],

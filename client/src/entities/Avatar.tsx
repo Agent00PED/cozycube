@@ -2,11 +2,11 @@ import { forwardRef, memo, Suspense, useEffect, useMemo, useRef, useState } from
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Html, Text, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { ACTIVITY_STATUSES, DRINK_BASE_INFO, GESTURE_SECONDS, defaultLook, hashString, isActivityStatus, parseDrink, parseLook, type Gesture, type HeldItem, type Look, type PlayerAction, type SitPose } from "@shared/types";
+import { ACTIVITY_STATUSES, DRINK_BASE_INFO, GESTURE_SECONDS, defaultLook, hashString, isActivityStatus, parseDrink, parseLook, parseSnack, type Gesture, type HeldItem, type Look, type PlayerAction, type RoastFood, type RoastQuality, type SitPose } from "@shared/types";
 import { AVATAR_HIP_Y, AVATAR_LIE_LIFT } from "@shared/seats";
 import { matte, noRaycast } from "../scene/kit";
 import { ModelBoundary } from "./ModelBoundary";
-import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, coversEars, hairUnderHat } from "./rig";
+import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
 
 // The player avatar: a chibi clay figurine authored in Blender (scripts/blender/build_avatar.py)
 // and loaded from client/public/models/avatar.glb. This file loads it, dresses it from the
@@ -21,7 +21,9 @@ import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROW
 //   Head     glances about, tilts, nods along with the waddle, bobs to the radio; Eyes blink, and
 //            EyesHappy (^ ^) stand in for them over a sip of something warm
 //   ArmL/R   swing, splay, wave, cheer, dance, hold a mug (the right hand) or a stick or rod,
-//            reach over the board to play a move, tip a WateringCan over a plant
+//            reach over the board to play a move, tip a WateringCan over a plant; at the
+//            campfire, hold a Skewer over the fire and nibble it, cast a FishingRod (its line runs
+//            to the Bobber on the water), strum the Guitar across the lap on a log bench
 //   LegL/R   swing, and fold forward 90 degrees to sit (the hip height is shared/seats.ts's)
 //
 // The look picks the hair variant (Hair_<style>), the hat (Hat_<id>) and the outfit's top and
@@ -72,6 +74,14 @@ export interface AvatarProps {
   vibe?: boolean;
   /** Seated at the board while the opponent thinks: the head tilts, waiting. */
   awaiting?: boolean;
+  /** On the skewer while holding "skewer" (shared/types encodeSnack). */
+  snack?: string;
+  /** 0..1 progress of the current action: a fishing bite is 1 (the bobber is under). */
+  actionProgress?: number;
+  /** Where this angler's bobber floats (world space), while fishing the campfire's pond. */
+  bobberAt?: { x: number; y: number; z: number } | null;
+  /** Tapping the bite mark (your own avatar only): set the hook. */
+  onHook?: () => void;
 }
 
 /** The overhead anchor: the nametag sits here, the badge, bubble and emotes stack above it. */
@@ -124,7 +134,38 @@ const STEAM_BASE = new THREE.Vector3(0, 0.075, 0.07);
 const STEAM_RISE = 0.26;
 const STEAM_GEO = new THREE.SphereGeometry(1, 8, 6);
 const STEAM_MAT = new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.65, depthWrite: false });
+// the fishing line, and the rings a bite sends out across the water
+const LINE_MAT = new THREE.LineBasicMaterial({ color: "#f4efe6" });
+const RIPPLE_GEO = new THREE.RingGeometry(0.07, 0.09, 28);
+const RIPPLE_MAT = new THREE.MeshBasicMaterial({ color: "#dff3ff" });
+const tmpA = new THREE.Vector3();
+const tmpB = new THREE.Vector3();
 const FISH_ARM = -1.0;
+// casting at the pond: the rod swings up and back, then over and out (CAST_SECONDS)
+const CAST_BACK_ARM = -2.5;
+const CAST_SECONDS = 0.7;
+// roasting at the campfire: the skewer held out over the fire, then carried and nibbled from the
+// tip (a bite every BITE_EVERY..+BITE_JITTER s, the arm up for BITE_SECONDS)
+const GRILL_ARM = -1.3;
+const SKEWER_HOLD_ARM = -0.95;
+const BITE_ARM = -1.85;
+const BITE_SECONDS = 0.9;
+const BITE_EVERY = 6;
+const BITE_JITTER = 3;
+/** The stick's tip a little up while carried, a little down over the fire (radians about x). */
+const SKEWER_LEVEL = -0.3;
+const SKEWER_OVER_FIRE = 0.15;
+/** The food's colours by how it came off the fire (the marshmallows or the meat, and the peppers). */
+const ROAST_TINTS: Record<RoastFood, Record<RoastQuality, { food: string; veg: string }>> = {
+  mallow: { raw: { food: "#fff6e6", veg: "#6fae4b" }, golden: { food: "#e8a94e", veg: "#6fae4b" }, charred: { food: "#3b2a20", veg: "#2f3326" } },
+  bbq: { raw: { food: "#d98a7a", veg: "#6fae4b" }, golden: { food: "#9b5a33", veg: "#5e8a38" }, charred: { food: "#2b211c", veg: "#2f3326" } },
+};
+// the guitar on a log bench: the left hand up the neck, the right strumming over the sound hole
+const GUITAR_NECK_ARM = -0.95;
+const GUITAR_NECK_SPLAY = 0.55;
+const STRUM_ARM = -0.62;
+const STRUM_SWING = 0.14;
+const STRUM_RATE = 10;
 const LIE_ROLL = -Math.PI / 2;
 // lying down (a blanket, an AFK nap on a sofa): legs eased up a touch, hands resting on the tummy
 const LIE_LEGS = -0.12;
@@ -144,6 +185,12 @@ interface Rig {
   /** The mug's toppings, by topping id, and the steam wisps rising off it. */
   toppings: Map<string, THREE.Object3D>;
   steam: THREE.Mesh[];
+  /** The skewer's food, tip first, by food; the steam off a golden roast; the fishing line and the
+   *  bite's ripples (both in the model's own space, round the bobber). */
+  skewerPieces: Record<RoastFood, THREE.Object3D[]>;
+  skewerSteam: THREE.Mesh[];
+  line: THREE.Line;
+  ripples: THREE.Mesh[];
   /** Each style's raised part (Hair_<style>_Prop, a child of its hair node), by style. */
   hairProps: Map<string, THREE.Object3D>;
   hats: Map<string, THREE.Object3D>;
@@ -227,6 +274,29 @@ function useRig(): Rig {
     part.mug.visible = false;
     part.wateringCan.visible = false;
     part.eyesHappy.visible = false;
+    for (const key of ["skewer", "fishingRod", "guitar", "bobber"] as const) part[key].visible = false;
+    const pieces = (prefix: string) => [...variants(part.skewer, prefix).entries()].sort(([a], [b]) => Number(a) - Number(b)).map(([, node]) => node);
+    const skewerPieces = { mallow: pieces(SKEWER_PIECE_PREFIX.mallow), bbq: pieces(SKEWER_PIECE_PREFIX.bbq) };
+    const skewerSteam = Array.from({ length: STEAM_COUNT }, () => {
+      const wisp = new THREE.Mesh(STEAM_GEO, STEAM_MAT);
+      wisp.raycast = noRaycast;
+      wisp.visible = false;
+      part.skewer.add(wisp);
+      return wisp;
+    });
+    const line = new THREE.Line(new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3)), LINE_MAT);
+    line.frustumCulled = false;
+    line.visible = false;
+    line.raycast = noRaycast;
+    root.add(line);
+    const ripples = [0, 1].map(() => {
+      const ring = new THREE.Mesh(RIPPLE_GEO, RIPPLE_MAT);
+      ring.rotation.x = -Math.PI / 2;
+      ring.visible = false;
+      ring.raycast = noRaycast;
+      root.add(ring);
+      return ring;
+    });
     const toppings = variants(part.mug, MUG_TOPPING_PREFIX);
     const steam = Array.from({ length: STEAM_COUNT }, () => {
       const wisp = new THREE.Mesh(STEAM_GEO, STEAM_MAT);
@@ -251,9 +321,15 @@ function useRig(): Rig {
     wardrobe.hats.forEach(bakeStatic);
     wardrobe.tops.forEach((pieces) => pieces.forEach(bakeStatic));
     wardrobe.bottoms.forEach((pieces) => pieces.forEach(bakeStatic));
-    return { root, part, rest, tint, hairProps, toppings, steam, ...wardrobe };
+    return { root, part, rest, tint, hairProps, toppings, steam, skewerPieces, skewerSteam, line, ripples, ...wardrobe };
   }, [scene]);
-  useEffect(() => () => Object.values(rig.tint).forEach((m) => m.dispose()), [rig]);
+  useEffect(
+    () => () => {
+      Object.values(rig.tint).forEach((m) => m.dispose());
+      rig.line.geometry.dispose();
+    },
+    [rig]
+  );
   return rig;
 }
 
@@ -269,11 +345,15 @@ interface RigProps {
   seed: number;
   vibe: boolean;
   awaiting: boolean;
+  snack: string;
+  actionProgress: number;
+  bobberAt: { x: number; y: number; z: number } | null;
+  onHook?: () => void;
   /** Told the height of the top of the hair or hat being worn, so the nametag clears it. */
   onCrownTop: (y: number) => void;
 }
 
-function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, awaiting, onCrownTop }: RigProps) {
+function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, awaiting, snack, actionProgress, bobberAt, onHook, onCrownTop }: RigProps) {
   const rig = useRig();
   const shirtGoal = useRef(new THREE.Color());
   const walkPhase = useRef(0);
@@ -284,6 +364,20 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
   const sip = useRef({ next: 3 + Math.random() * 4, until: 0 });
   // the radio's groove eases in and out, and rides on top of the head's and body's own pose
   const groove = useRef({ amount: 0, headX: 0, bodyZ: 0 });
+  // the skewer: how many pieces are eaten, and the next bite (reset for each new skewer)
+  const bites = useRef({ snack: "", eaten: 0, next: 0, until: 0, pending: false });
+  // a cast: when the line went out (the rod swings over and out)
+  const cast = useRef({ was: "" as PlayerAction, at: -Infinity });
+  // where the bite mark floats, over the bobber
+  const markRef = useRef<THREE.Group>(null);
+
+  // the skewer: the food's colour for how it was roasted, and the pieces of the right food
+  useEffect(() => {
+    const s = parseSnack(snack);
+    const tints = ROAST_TINTS[s?.food ?? "mallow"][s?.quality ?? "raw"];
+    rig.tint.roast?.color.set(tints.food);
+    rig.tint.roastVeg?.color.set(tints.veg);
+  }, [rig, snack]);
 
   // the mug: the drink's colour, and its one topping (a plain coffee has none)
   useEffect(() => {
@@ -374,6 +468,14 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     }
     if (holding === "marshmallow") armL = armR = ROAST_ARM;
     if (fishing) armR = FISH_ARM + Math.sin(t * 1.1) * 0.04;
+    // a cast: up and back, then over and out, as the line goes in
+    const cr = cast.current;
+    if (action === "fish" && cr.was !== "fish") cr.at = t;
+    cr.was = action;
+    const castAge = t - cr.at;
+    if (action === "fish" && castAge < CAST_SECONDS) armR = THREE.MathUtils.lerp(CAST_BACK_ARM, FISH_ARM, THREE.MathUtils.smoothstep(castAge / CAST_SECONDS, 0.25, 1));
+    const bite = action === "fish" && actionProgress >= 1;
+    if (bite) armR = FISH_ARM - 0.12 + Math.sin(t * 22) * 0.05;
     if (action === "reel") {
       armR = FISH_ARM - 0.3 + Math.sin(t * 9) * 0.18;
       armL = FISH_ARM - 0.1 + Math.sin(t * 9 + 1) * 0.12;
@@ -393,13 +495,43 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
       if (holdingCup) armL = THREE.MathUtils.lerp(armL, REACH_ARM, reach);
       else armR = THREE.MathUtils.lerp(armR, REACH_ARM, reach);
     }
+    // the campfire: a skewer held out over the fire, then carried and nibbled from the tip
+    const guitarOn = action === "guitar" && pose === "sit";
+    const grilling = action === "grill";
+    const holdingSkewer = holding === "skewer" && pose !== "lie" && !fishing && !guitarOn && g !== "water";
+    const food = parseSnack(snack)?.food ?? "mallow";
+    const bt = bites.current;
+    if (bt.snack !== snack) {
+      bt.snack = snack;
+      bt.eaten = 0;
+      bt.next = t + 2.5;
+      bt.until = 0;
+      bt.pending = false;
+    }
+    const pieceCount = rig.skewerPieces[food].length;
+    if (holdingSkewer && !grilling && bt.eaten < pieceCount && t > bt.next) {
+      bt.until = t + BITE_SECONDS;
+      bt.pending = true;
+      bt.next = t + BITE_EVERY + Math.random() * BITE_JITTER;
+    }
+    const biting = holdingSkewer && t < bt.until;
+    if (bt.pending && t > bt.until - BITE_SECONDS / 2) {
+      bt.eaten += 1; // chomp: the piece at the tip is gone
+      bt.pending = false;
+    }
+    if (holdingSkewer) armR = grilling ? GRILL_ARM + Math.sin(t * 2.2) * 0.03 : biting ? BITE_ARM : SKEWER_HOLD_ARM + swing * 0.1;
+    // the guitar across the lap: the left hand up the neck, the right strumming
+    if (guitarOn) {
+      armL = GUITAR_NECK_ARM + Math.sin(t * 1.3 + seed) * 0.04;
+      armR = STRUM_ARM + Math.sin(t * STRUM_RATE) * STRUM_SWING;
+    }
 
     const L = THREE.MathUtils.lerp;
     const k = seated ? POSE_LERP : LIMB_LERP;
     part.armL.rotation.x = L(part.armL.rotation.x, armL, k);
     part.armR.rotation.x = L(part.armR.rotation.x, armR, k);
-    part.armL.rotation.z = L(part.armL.rotation.z, pose === "lie" ? 0.1 : ARM_SPLAY, 0.3);
-    part.armR.rotation.z = L(part.armR.rotation.z, (pose === "lie" ? -0.1 : -ARM_SPLAY) - wave, 0.3);
+    part.armL.rotation.z = L(part.armL.rotation.z, pose === "lie" ? 0.1 : guitarOn ? GUITAR_NECK_SPLAY : ARM_SPLAY, 0.3);
+    part.armR.rotation.z = L(part.armR.rotation.z, (pose === "lie" ? -0.1 : guitarOn ? -0.05 : -ARM_SPLAY) - wave, 0.3);
     part.legL.rotation.x = L(part.legL.rotation.x, legs[0], k);
     part.legR.rotation.x = L(part.legR.rotation.x, legs[1], k);
 
@@ -411,7 +543,7 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     body.rotation.x = L(body.rotation.x, lying ? LIE_ROLL : walking ? 0.06 * speed : dizzy ? Math.sin(t * 4.5) * 0.12 : g === "water" ? WATER_LEAN : reach * REACH_LEAN, k);
     // the radio's groove: eased in while vibing on a cushion, riding on top of the pose
     const gr = groove.current;
-    gr.amount = L(gr.amount, vibe && pose === "sit" && !asleep ? 1 : 0, 0.05);
+    gr.amount = L(gr.amount, (vibe || guitarOn) && pose === "sit" && !asleep ? 1 : 0, 0.05);
     gr.bodyZ = L(gr.bodyZ, walking ? Math.sin(phase) * WADDLE_ROLL : dizzy ? Math.cos(t * 4.5) * 0.28 : dozing ? Math.sin(t * 0.9) * 0.05 : 0, k);
     body.rotation.z = gr.bodyZ + gr.amount * Math.sin(t * VIBE_BEAT * 0.5 + seed) * VIBE_SWAY;
     body.rotation.y = L(body.rotation.y, g === "dance" ? Math.sin(gAge * 3.5) * 0.6 : 0, 0.2);
@@ -436,7 +568,7 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     const waiting = awaiting && pose === "sit" && !asleep;
     const tiltZ = nodding ? DOZE_LOLL : !walking && t < tl.until ? tl.dir * 0.22 : waiting ? (seed % 2 < 1 ? 1 : -1) * AWAIT_TILT : 0;
     head.rotation.z = L(head.rotation.z, walking ? -Math.sin(phase) * 0.06 : tiltZ, walking ? 0.2 : 0.08);
-    gr.headX = L(gr.headX, nodding ? DOZE_NOD + Math.sin(t * 0.8 + seed) * 0.03 : sipping ? SIP_TILT : 0, sipping ? 0.12 : 0.05);
+    gr.headX = L(gr.headX, nodding ? DOZE_NOD + Math.sin(t * 0.8 + seed) * 0.03 : sipping ? SIP_TILT : biting ? SIP_TILT * 0.6 : 0, sipping || biting ? 0.12 : 0.05);
     head.rotation.x = gr.headX + gr.amount * Math.sin(t * VIBE_BEAT) * VIBE_BOB;
     head.position.y = rest.head.pos.y + (walking ? 0 : Math.sin(t * 2.1 + seed) * 0.006);
 
@@ -452,15 +584,15 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
         b.next = 2.5 + Math.random() * 3.5;
       }
     }
-    part.eyes.scale.y = rest.eyes.scale.y * (g === "nap" || asleep ? 0.1 : Math.max(0.1, open));
-    // a sip of something warm: the eyes close happily (^ ^)
-    const happy = sipping && !asleep;
+    part.eyes.scale.y = rest.eyes.scale.y * (g === "nap" || asleep || pose === "lie" ? 0.1 : Math.max(0.1, open));
+    // a sip of something warm (or a bite of something golden): the eyes close happily (^ ^)
+    const happy = (sipping || (biting && parseSnack(snack)?.quality === "golden")) && !asleep; // (both only while not lying)
     part.eyes.visible = !happy;
     part.eyesHappy.visible = happy;
 
     // --- the mug stays upright whatever the arm does, and a hot drink steams (puffing on a sip);
     // the watering can takes the right hand while pouring, upright, then tipped forward ---
-    const mugShown = holdingCup && g !== "water";
+    const mugShown = holdingCup && g !== "water" && !guitarOn;
     part.mug.visible = mugShown;
     part.mug.rotation.x = -part.armR.rotation.x;
     part.wateringCan.visible = g === "water";
@@ -472,9 +604,80 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
       wisp.position.set(STEAM_BASE.x + Math.sin(t * 1.7 + i * 2.1) * 0.012, STEAM_BASE.y + life * STEAM_RISE, STEAM_BASE.z + Math.cos(t * 1.3 + i) * 0.008);
       wisp.scale.setScalar((0.012 + 0.024 * Math.sin(Math.PI * life)) * (sipping ? 1.3 : 1));
     });
+
+    // --- the skewer: level while carried, dipped over the fire; its pieces go as they are
+    // eaten; a golden one steams ---
+    part.skewer.visible = holdingSkewer;
+    part.skewer.rotation.x = -part.armR.rotation.x + (grilling ? SKEWER_OVER_FIRE : SKEWER_LEVEL);
+    (["mallow", "bbq"] as const).forEach((f) => rig.skewerPieces[f].forEach((piece, i) => (piece.visible = f === food && i >= bt.eaten)));
+    const steaming = holdingSkewer && !grilling && parseSnack(snack)?.quality === "golden" && bt.eaten < pieceCount;
+    rig.skewerSteam.forEach((wisp, i) => {
+      wisp.visible = steaming;
+      if (!steaming) return;
+      const life = (t * 0.5 + i / STEAM_COUNT + seed) % 1;
+      wisp.position.set(Math.sin(t * 1.7 + i * 2.1) * 0.012, 0.04 + life * STEAM_RISE, 0.42);
+      wisp.scale.setScalar(0.012 + 0.022 * Math.sin(Math.PI * life));
+    });
+
+    // --- the guitar across the lap ---
+    part.guitar.visible = guitarOn;
+
+    // --- fishing the pond: the rod held out at a steady angle, the bobber on the water (dipping
+    // on a bite, rings spreading), the line from the rod's tip to it ---
+    const angling = action === "fish" && !!bobberAt;
+    part.fishingRod.visible = fishing;
+    part.fishingRod.rotation.x = -part.armR.rotation.x;
+    part.bobber.visible = angling;
+    rig.line.visible = angling;
+    rig.ripples.forEach((ring) => (ring.visible = angling && bite));
+    if (angling && bobberAt) {
+      const float = rig.root.worldToLocal(tmpA.set(bobberAt.x, bobberAt.y, bobberAt.z));
+      const surface = float.y;
+      float.y += bite ? -0.06 + Math.sin(t * 28) * 0.015 : castAge < CAST_SECONDS ? 0.3 * (1 - castAge / CAST_SECONDS) : Math.sin(t * 2.3 + seed) * 0.012;
+      part.bobber.position.copy(float);
+      markRef.current?.position.set(float.x, surface + 0.42, float.z);
+      const tip = rig.root.worldToLocal(part.rodTip.getWorldPosition(tmpB));
+      const pos = rig.line.geometry.attributes.position as THREE.BufferAttribute;
+      pos.setXYZ(0, tip.x, tip.y, tip.z);
+      pos.setXYZ(1, float.x, float.y + 0.085, float.z);
+      pos.needsUpdate = true;
+      rig.ripples.forEach((ring, i) => {
+        const life = (t * 1.6 + i * 0.5) % 1;
+        ring.position.set(float.x, surface + 0.006, float.z);
+        ring.scale.setScalar(0.6 + life * 2.4);
+      });
+    }
   });
 
-  return <primitive object={rig.root} />;
+  const guitarOn = action === "guitar" && pose === "sit";
+  const bite = action === "fish" && actionProgress >= 1 && !!bobberAt;
+  return (
+    <>
+      <primitive object={rig.root} />
+      {/* the bite: a mark over the bobber (tap it, or the dock's button, to set the hook) */}
+      <group ref={markRef}>
+        {bite && (
+          <Html center zIndexRange={[6, 0]} style={{ pointerEvents: onHook ? "auto" : "none" }}>
+            <button type="button" className="cozy-bite-mark" onClick={onHook} disabled={!onHook} aria-label="Set the hook">
+              !
+            </button>
+          </Html>
+        )}
+      </group>
+      {/* the guitar: warm notes drifting up while it is played */}
+      {guitarOn && (
+        <Html position={[0.1, 0.9, 0.2]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
+          <div style={{ position: "relative", width: 0, height: 0 }}>
+            {["♪", "♫", "♪"].map((n, i) => (
+              <span key={i} className="cozy-guitar-note" style={{ animationDelay: `${i * 0.7}s` }}>
+                {n}
+              </span>
+            ))}
+          </div>
+        </Html>
+      )}
+    </>
+  );
 }
 
 // the stand-in while the model loads, or if it cannot: a plain capsule of her size
@@ -489,7 +692,7 @@ const RING_GEO = new THREE.RingGeometry(0.62, 0.7, 40);
 
 /** A player: the model, dressed and posed, with the nametag and the overhead overlays. */
 export const Avatar = memo(
-  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, awaiting = false }, ref) {
+  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook }, ref) {
     const outfit = useMemo(() => parseLook(look) ?? defaultLook(userId || username, color), [look, userId, username, color]);
     // every avatar breathes and glances round on its own clock, so a crowd never moves in unison
     const seed = useMemo(() => (hashString(userId || username) % 1000) / 100, [userId, username]);
@@ -522,7 +725,7 @@ export const Avatar = memo(
 
         <ModelBoundary what="avatar.glb" fallback={<StandIn />}>
           <Suspense fallback={<StandIn />}>
-            <AvatarModel look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} awaiting={awaiting} onCrownTop={setCrownTop} />
+            <AvatarModel look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} onCrownTop={setCrownTop} />
           </Suspense>
         </ModelBoundary>
 

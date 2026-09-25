@@ -44,6 +44,14 @@ runtime's swings are clean rotations about local axes (client/src/entities/rig.t
             MugTop_<id>  a topping on the drink: cream, marshmallow, cinnamon, caramel (one shown)
           WateringCan    a little can held by its top handle in the right hand, hidden until
                          she waters a plant (the runtime keeps it upright and tips it to pour)
+          Skewer         a roasting stick held out of the right hand (Mat_Roast / Mat_RoastVeg are
+            SkewerMallow_1..2 / SkewerBBQ_1..4   tinted raw, golden or charred): two marshmallows
+                         or a BBQ skewer's meat and peppers, one node a piece so bites take them
+          FishingRod     a bamboo pole out of the right hand, raised forward
+            RodTip       an empty at its tip: the runtime runs the line from here to the Bobber
+        Guitar           an acoustic guitar resting across the lap (a child of Body), hidden until
+                         she plays it on a log bench
+      Bobber             the red and white float (a child of Root: the runtime puts it on the water)
         LegL / LegR      pivots at the hips: skin leg and sneaker
           Bottom_<id>_LegL / _LegR      the bottom's leg, swinging and folding with the leg
 
@@ -111,7 +119,9 @@ BOTTOM_IDS = ("sweats", "overalls", "trousers", "shorts", "wide")
 TOP_PARTS = (("", "Torso"), ("_SleeveL", "ArmL"), ("_SleeveR", "ArmR"))  # (name suffix, parent)
 BOTTOM_PARTS = (("", "Body"), ("_LegL", "LegL"), ("_LegR", "LegR"))
 NODE_NAMES = (
-    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "LegL", "LegR")
+    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "LegL", "LegR")
+    + tuple(f"SkewerMallow_{i}" for i in (1, 2))
+    + tuple(f"SkewerBBQ_{i}" for i in (1, 2, 3, 4))
     + tuple(f"MugTop_{t}" for t in MUG_TOPPINGS)
     + tuple(f"Hair_{s}" for s in HAIR_STYLES)
     + tuple(f"Hair_{s}_Prop" for s in HAIR_PROP_STYLES)
@@ -143,6 +153,17 @@ PALETTE = {
     "Mat_Caramel": "#D99A3E",
     "Mat_Can": "#8EC5B8",  # the watering can: a soft mint enamel
     "Mat_CanRose": "#E3B861",  # its brass rose
+    "Mat_Stick": "#C9A273",  # a green-wood roasting stick
+    "Mat_Roast": "#FFF4E2",  # the marshmallows / the meat: tinted raw, golden or charred by the runtime
+    "Mat_RoastVeg": "#6FAE4B",  # the skewer's peppers: tinted too
+    "Mat_Bamboo": "#C2AA62",
+    "Mat_BambooNode": "#8C7A3E",
+    "Mat_BobberRed": "#E0524A",
+    "Mat_BobberWhite": "#F7F3EA",
+    "Mat_GuitarWood": "#D9A066",
+    "Mat_GuitarDark": "#5A3A26",
+    "Mat_GuitarHole": "#2A1E17",
+    "Mat_String": "#EDE6D6",
     "Mat_Beret": "#B8434A",
     "Mat_BeretBand": "#8F2F36",
     "Mat_Beanie": "#E0A93B",
@@ -2421,6 +2442,67 @@ def build(hip_y, leg_r, hip_off, covering):
     add_shaped(bm, 8, ellipsoid(tip + Vector((0, -0.01, 0.004)) * K, Vector((0.018, 0.009, 0.018)) * K, n=2.4), material=1)
     make_object("WateringCan", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Can"], mat["Mat_CanRose"]))
 
+    # Skewer: a green-wood stick straight out of the fist, the food near its tip (the runtime keeps
+    # it level, holds it into the fire, lifts it to bite; it tints the food by how it was roasted)
+    fwd = Vector((0, -1, 0))
+    stick_back, stick_len = hand + Vector((0, 0.05, 0.0)), 0.58
+    bm = bmesh.new()
+    tube(bm, [stick_back + fwd * (stick_len + 0.05) * i / 8 for i in range(9)], lambda s_: 0.008 - 0.003 * s_, sides=8, cap_rings=2)
+    skewer = make_object("Skewer", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Stick"],))
+    for i, d in enumerate((0.47, 0.4)):  # tip first: bites take them from the tip
+        bm = bmesh.new()
+        add_shaped(bm, 6, ellipsoid(hand + fwd * d, Vector((0.034, 0.03, 0.034)), n=4))
+        make_object(f"SkewerMallow_{i + 1}", bm, hand, coll, skewer, hand, (mat["Mat_Roast"],))
+    for i, (d, veg) in enumerate(((0.5, False), (0.43, True), (0.36, False), (0.29, True))):
+        bm = bmesh.new()
+        half = Vector((0.03, 0.022, 0.027)) if veg else Vector((0.033, 0.03, 0.031))
+        add_shaped(bm, 5, ellipsoid(hand + fwd * d, half, n=3.0 if veg else 2.6))
+        make_object(f"SkewerBBQ_{i + 1}", bm, hand, coll, skewer, hand, (mat["Mat_RoastVeg" if veg else "Mat_Roast"],))
+
+    # FishingRod: a bamboo pole raised forward from the fist, ringed at its nodes, an empty at its tip
+    up_fwd = Vector((0, -math.cos(math.radians(35)), math.sin(math.radians(35))))
+    rod_len = 1.05
+    butt = hand - up_fwd * 0.08
+    bm = bmesh.new()
+    tube(bm, [butt + up_fwd * rod_len * i / 12 for i in range(13)], lambda s_: 0.014 - 0.008 * s_, sides=8, cap_rings=2)
+    for k in range(1, 6):
+        at = butt + up_fwd * rod_len * k / 6
+        r = 0.016 - 0.008 * k / 6
+        tube(bm, [at - up_fwd * 0.012, at + up_fwd * 0.012], lambda s_, r=r: r, sides=8, cap_rings=1, material=1)
+    rod = make_object("FishingRod", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Bamboo"], mat["Mat_BambooNode"]))
+    empty("RodTip", coll, rod, butt + up_fwd * rod_len, hand)
+
+    # Guitar: across the lap (seated on a log), the body at her right hip, the neck rising to her
+    # left; its face to the front. A child of Body, so it goes where she sits.
+    tilt = math.radians(24)
+    u = Vector((math.cos(tilt), 0, math.sin(tilt)))  # along the neck, to her left and up
+    v = Vector((-math.sin(tilt), 0, math.cos(tilt)))  # across the body
+    frame = (u, Vector((0, 1, 0)), v)
+    centre = Vector((-0.08, -0.2, 0.44))
+    bm = bmesh.new()
+    add_shaped(bm, 8, blob(centre - u * 0.02, frame, Vector((0.105, 0.036, 0.112)), n=2.2))
+    add_shaped(bm, 8, blob(centre + u * 0.12, frame, Vector((0.082, 0.034, 0.088)), n=2.2))
+    tube(bm, [centre + u * 0.19 + Vector((0, -0.006, 0)), centre + u * 0.45 + Vector((0, -0.006, 0))], lambda s_: 0.017, sides=8, cap_rings=2, material=1)
+    add_shaped(bm, 4, blob(centre + u * 0.5, frame, Vector((0.045, 0.016, 0.03)), n=3.0), material=1)
+    for k in (-1, 1):
+        for j in (0, 1):
+            add_shaped(bm, 2, ellipsoid(centre + u * (0.485 + 0.03 * j) + v * k * 0.037 + Vector((0, 0.004, 0)), Vector((0.009, 0.009, 0.009))), material=1)
+    add_shaped(bm, 5, blob(centre + u * 0.07 + Vector((0, -0.036, 0)), frame, Vector((0.032, 0.004, 0.032)), n=2.0), material=2)
+    add_shaped(bm, 3, blob(centre - u * 0.06 + Vector((0, -0.036, 0)), frame, Vector((0.012, 0.006, 0.042)), n=4.0), material=1)
+    for k in (-1.5, -0.5, 0.5, 1.5):
+        a = centre - u * 0.06 + v * k * 0.009 + Vector((0, -0.042, 0))
+        b = centre + u * 0.47 + v * k * 0.007 + Vector((0, -0.024, 0))
+        tube(bm, [a, b], lambda s_: 0.0022, sides=4, cap_rings=1, material=3)
+    make_object("Guitar", bm, centre, coll, body, origin, (mat["Mat_GuitarWood"], mat["Mat_GuitarDark"], mat["Mat_GuitarHole"], mat["Mat_String"]))
+
+    # Bobber: a red and white float with a little mast, centred on its pivot (the runtime floats it)
+    bm = bmesh.new()
+    add_shaped(bm, 6, ellipsoid(Vector((0, 0, 0)), Vector((0.045, 0.045, 0.045))))
+    for f in bm.faces:
+        f.material_index = 1 if f.calc_center_median().z > 0.004 else 0
+    tube(bm, [Vector((0, 0, 0.04)), Vector((0, 0, 0.1))], lambda s_: 0.006, sides=6, cap_rings=1, material=0)
+    make_object("Bobber", bm, Vector((0, 0, 0)), coll, root, origin, (mat["Mat_BobberRed"], mat["Mat_BobberWhite"]))
+
     # Legs: skin, pivots at the hips (AVATAR_LEG_RADIUS round there), tapering to the ankle, in
     # sneakers: a fused canvas upper on a thick flat sole, flush on the floor, with laces
     legs, hips = {}, {}
@@ -2475,7 +2557,7 @@ def is_variant(ob):
     name = ob.name[len(PREFIX) :]
     kind, _, rest = name.partition("_")
     default = {"Hair": DEFAULT_HAIR, "Top": DEFAULT_TOP, "Bottom": DEFAULT_BOTTOM}.get(kind)
-    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy"))
+    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber"))
 
 
 def tidy_viewport(coll):

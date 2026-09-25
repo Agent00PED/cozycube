@@ -2,7 +2,8 @@ import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type * as THREE from "three";
-import type { Gesture, MapId, PlayerState } from "@shared/types";
+import { hashString, type Gesture, type MapId, type PlayerState } from "@shared/types";
+import { CAMPFIRE_LAYOUT } from "@shared/worlds/campfire";
 import { faceHeading } from "../systems/faceTargets";
 import { liveMotion, type MotionSample } from "../systems/liveMotion";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
@@ -31,6 +32,17 @@ export interface CrowdFeed {
   vibing: ReadonlySet<string>;
   /** Session ids seated at the board while it is the opponent's move (they wait, head tilted). */
   awaiting: ReadonlySet<string>;
+  /** The world everyone is in (where a fishing line goes). */
+  mapId: MapId;
+}
+
+/** Where an angler's bobber floats on the campfire's pond: its spot, nudged across per player so
+ *  two lines side by side do not share one float. */
+export function bobberFor(player: PlayerState, mapId: MapId) {
+  if (mapId !== "campfire_night" || player.action !== "fish") return null;
+  const { bobber } = CAMPFIRE_LAYOUT.fishing;
+  const nudge = ((hashString(player.sessionId) % 7) - 3) * 0.12;
+  return { x: bobber.x, y: CAMPFIRE_LAYOUT.pond.water, z: bobber.z + nudge };
 }
 
 const NO_EMOTES: FloatingEmote[] = [];
@@ -52,6 +64,9 @@ function avatarProps(player: PlayerState, feed: CrowdFeed) {
     bubble: feed.bubbles[player.sessionId] ?? null,
     vibe: feed.vibing.has(player.sessionId),
     awaiting: feed.awaiting.has(player.sessionId),
+    snack: player.snack,
+    actionProgress: player.actionProgress,
+    bobberAt: bobberFor(player, feed.mapId),
   };
 }
 
@@ -60,7 +75,7 @@ export function LocalPlayerAvatar({ player, room, mapId, targetRef, feed }: { pl
   const groupRef = useRef<THREE.Group>(null);
   const speedRef = useRef(0);
   useLocalPlayerMovement(groupRef, room, player, targetRef, speedRef, mapId);
-  return <Avatar ref={groupRef} speedRef={speedRef} {...avatarProps(player, feed)} />;
+  return <Avatar ref={groupRef} speedRef={speedRef} {...avatarProps(player, feed)} onHook={room ? () => room.send("hook") : undefined} />;
 }
 
 // Remote players are drawn a little in the past, interpolated between the positions the server

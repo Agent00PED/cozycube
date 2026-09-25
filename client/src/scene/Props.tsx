@@ -266,6 +266,53 @@ export function PlantBurst({ x, z, from, at }: { x: number; z: number; from?: { 
   );
 }
 
+// --- the campfire: a puff of smoke off a burnt skewer, a splash and sparkles off a catch -----------
+
+const SMOKE_MAT = matte("#6f6a66", 0.95);
+/** How long a puff lasts; the scene removes it after this. */
+export const PUFF_SECONDS = 1.6;
+
+/**
+ * A little effect at a point, started at `at` (performance.now ms): "smoke" (grey clay puffs
+ * rising and swelling, off a skewer left too long in the fire) or "splash" (drops thrown up off
+ * the water and golden twinkles, a catch coming out of the pond). Driven by the frame clock.
+ */
+export function CampfirePuff({ x, y, z, kind, at }: { x: number; y: number; z: number; kind: "smoke" | "splash"; at: number }) {
+  const bits = useRef<(THREE.Mesh | null)[]>([]);
+  const seeds = useMemo(() => Array.from({ length: 10 }, (_, i) => ({ a: (i / 10) * Math.PI * 2 + Math.random() * 0.5, r: 0.05 + Math.random() * 0.15, d: Math.random() * 0.3, up: 0.6 + Math.random() * 0.6 })), []);
+  useFrame(({ camera }) => {
+    const age = (performance.now() - at) / 1000;
+    bits.current.forEach((m, i) => {
+      if (!m) return;
+      const s = seeds[i];
+      const u = (age - s.d) / (kind === "smoke" ? 1.2 : 0.8);
+      m.visible = u > 0 && u < 1;
+      if (!m.visible) return;
+      if (kind === "smoke") {
+        m.position.set(Math.cos(s.a) * s.r * (1 + u * 2), u * s.up * 1.2, Math.sin(s.a) * s.r * (1 + u * 2));
+        m.scale.setScalar(0.05 + 0.12 * u * (1 - u * 0.6));
+      } else if (i % 2 === 0) {
+        // a drop: thrown up off the water and back down
+        m.position.set(Math.cos(s.a) * s.r * 2 * u, s.up * 1.8 * (u - u * u), Math.sin(s.a) * s.r * 2 * u);
+        m.scale.set(0.03, 0.045, 0.03);
+      } else {
+        // a twinkle, turned to the camera
+        m.position.set(Math.cos(s.a) * (0.15 + 0.3 * u), 0.25 + 0.4 * u, Math.sin(s.a) * (0.15 + 0.3 * u));
+        m.quaternion.copy(camera.quaternion);
+        m.scale.setScalar(0.08 * Math.sin(Math.PI * u));
+      }
+    });
+  });
+  return (
+    <group position={[x, y, z]}>
+      {seeds.map((_, i) => {
+        const twinkle = kind === "splash" && i % 2 === 1;
+        return <mesh key={i} ref={(m) => (bits.current[i] = m)} geometry={twinkle ? SPARKLE_GEO : DROP_GEO} material={kind === "smoke" ? SMOKE_MAT : twinkle ? SPARKLE_MAT : DROP_MAT} visible={false} raycast={noRaycast} />;
+      })}
+    </group>
+  );
+}
+
 /** A seat's click target: an invisible pad over the cushion. */
 export function SeatPad({ x, z, wide, onUse }: { x: number; z: number; wide: boolean; onUse: () => void }) {
   return <HitPad size={wide ? [1.05, 0.9, 1.05] : [0.6, 1.0, 0.6]} position={[x, wide ? 0.45 : 0.5, z]} onUse={onUse} />;

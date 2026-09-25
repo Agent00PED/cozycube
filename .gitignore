@@ -13,3 +13,6 @@ dist/
 
 # Local Python virtualenv (Blender tooling)
 .venv/
+
+# Local board-game saves (server/src/db/boards.ts, when DATABASE_URL is not set)
+.data/

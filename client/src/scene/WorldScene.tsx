@@ -6,9 +6,12 @@ import type { BoardGameView, ChairSyncState, MapId, PlayerState, TimeOfDay, Togg
 import { GESTURE_SECONDS, MAP_HALF, isWalkUpProp } from "@shared/types";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
+import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN } from "@shared/worlds/campfire";
+import { useGLTF } from "@react-three/drei";
+import { CAMPFIRE_URL, CampfireWorld } from "./CampfireWorld";
 import type { EmoteListener, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
-import { BoardTablePad, Cat, FloorLamp, PLANT_BURST_SECONDS, PlantBurst, PropPad, RadioProp, SeatPad } from "./Props";
+import { BoardTablePad, CampfirePuff, Cat, FloorLamp, PLANT_BURST_SECONDS, PUFF_SECONDS, PlantBurst, PropPad, RadioProp, SeatPad } from "./Props";
 import { ClickMarker } from "./ClickMarker";
 import { HOUR_LOOKS, TimeOfDayContext } from "./timeOfDay";
 import { cameraFocus, frame, requestRecenter } from "./cameraFocus";
@@ -17,7 +20,7 @@ import { GEO, StaticBatch, matte, noRaycast } from "./kit";
 import type { MoveTarget } from "../systems/useLocalPlayerMovement";
 import { faceToward } from "../systems/faceTargets";
 import { liveMotion } from "../systems/liveMotion";
-import { LocalPlayerAvatar, OtherPlayers, type BubbleState, type CrowdFeed, type GestureState } from "../entities/Players";
+import { LocalPlayerAvatar, OtherPlayers, bobberFor, type BubbleState, type CrowdFeed, type GestureState } from "../entities/Players";
 import type { FloatingEmote } from "../entities/Avatar";
 
 // The scene root: the world and everything alive in it.
@@ -165,7 +168,63 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   }, [subscribeMessages]);
 
   // the camera fits this world's floor with a margin (the lounge's own frame, or another world's size)
-  frame.size = mapId === "cozy_lounge" ? LOFT_FRAME.size : MAP_HALF[mapId] * 2 + 0.8;
+  frame.size = mapId === "cozy_lounge" ? LOFT_FRAME.size : mapId === "campfire_night" ? CAMPFIRE_FRAME.size : MAP_HALF[mapId] * 2 + 0.8;
+
+  // the campfire's model is fetched quietly once the lounge is up, so travelling there is instant
+  useEffect(() => {
+    const t = window.setTimeout(() => useGLTF.preload(CAMPFIRE_URL), 4000);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  // the campfire's little effects: smoke off a burnt skewer, a splash off a catch
+  const [puffs, setPuffs] = useState<{ id: number; x: number; y: number; z: number; kind: "smoke" | "splash"; at: number }[]>([]);
+  const puffId = useRef(1);
+  const livePlayers = useRef(players);
+  livePlayers.current = players;
+  useEffect(() => {
+    const timers = new Set<number>();
+    const add = (p: { x: number; y: number; z: number; kind: "smoke" | "splash" }) => {
+      const id = puffId.current++;
+      setPuffs((prev) => [...prev, { id, ...p, at: performance.now() }]);
+      const timer = window.setTimeout(() => {
+        timers.delete(timer);
+        setPuffs((prev) => prev.filter((b) => b.id !== id));
+      }, PUFF_SECONDS * 1000);
+      timers.add(timer);
+    };
+    const off = subscribeMessages((type, payload) => {
+      const who = typeof payload?.sessionId === "string" ? livePlayers.current[payload.sessionId] : undefined;
+      if (!who) return;
+      if (type === "roastResult" && payload.quality === "charred") {
+        // over the skewer's end: out in front of them, toward the fire
+        const fx = CAMPFIRE_LAYOUT.fire.x - who.x;
+        const fz = CAMPFIRE_LAYOUT.fire.z - who.z;
+        const d = Math.hypot(fx, fz) || 1;
+        add({ x: who.x + (fx / d) * 0.55, y: 0.55, z: who.z + (fz / d) * 0.55, kind: "smoke" });
+      } else if (type === "fishCaught") {
+        // off this angler's own float (each is nudged along the pier's end)
+        const b = bobberFor(who, "campfire_night") ?? { ...CAMPFIRE_LAYOUT.fishing.bobber, y: CAMPFIRE_LAYOUT.pond.water };
+        add({ x: b.x, y: b.y, z: b.z, kind: "splash" });
+      }
+    });
+    return () => {
+      off();
+      timers.forEach((t) => window.clearTimeout(t));
+    };
+  }, [subscribeMessages]);
+
+  // anglers face their float and cooks face the fire, whichever way they stood
+  useEffect(() => {
+    if (mapId !== "campfire_night") return;
+    const timer = window.setInterval(() => {
+      for (const p of Object.values(livePlayers.current)) {
+        if (p.sitting) continue;
+        if (p.action === "fish") faceToward(p.sessionId, CAMPFIRE_LAYOUT.fishing.bobber.x, CAMPFIRE_LAYOUT.fishing.bobber.z, 0.6);
+        else if (p.action === "grill") faceToward(p.sessionId, CAMPFIRE_LAYOUT.fire.x, CAMPFIRE_LAYOUT.fire.z, 0.6);
+      }
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [mapId]);
 
   // --- click-to-move ---
   const targetRef = useRef<MoveTarget | null>(null);
@@ -258,22 +317,39 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   // the lounge's moods: whoever sits on a cushion round the radio while it plays grooves to it, and
   // whoever sits at the board waits on the opponent's move (from the table's broadcasts)
   const radioOn = Object.values(toggleables).some((t) => t.kind === "radio" && t.on);
-  const vibing = useMemo<ReadonlySet<string>>(() => new Set(radioOn ? Object.values(chairs).flatMap((c) => (c.occupiedBy && c.propId.startsWith("pouf_") ? [c.occupiedBy] : [])) : []), [radioOn, chairs]);
+  const guitarists = Object.values(players).filter((p) => p.action === "guitar");
+  const guitarKey = guitarists.map((p) => p.sessionId).join(",");
+  const vibing = useMemo<ReadonlySet<string>>(() => {
+    const out = new Set(radioOn ? Object.values(chairs).flatMap((c) => (c.occupiedBy && c.propId.startsWith("pouf_") ? [c.occupiedBy] : [])) : []);
+    // the campfire's guitar: everyone seated within earshot sways along
+    for (const c of Object.values(chairs)) {
+      if (c.occupiedBy && guitarists.some((g) => Math.hypot(g.x - c.x, g.z - c.z) <= GUITAR_LISTEN)) out.add(c.occupiedBy);
+    }
+    return out;
+    // guitarKey stands in for who is playing (positions only matter as seated)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [radioOn, chairs, guitarKey]);
   const [board, setBoard] = useState<BoardGameView | null>(null);
   useEffect(() => subscribeMessages((type, payload) => type === "boardState" && setBoard(payload as BoardGameView)), [subscribeMessages]);
   const awaiting = useMemo<ReadonlySet<string>>(() => {
     const waiter = board?.phase === "playing" ? board.seats[board.turn === "w" ? "b" : "w"] : "";
     return new Set(waiter ? [waiter] : []);
   }, [board]);
-  const feed = useMemo<CrowdFeed>(() => ({ speakingUserIds, emotes, gestures, bubbles, vibing, awaiting }), [speakingUserIds, emotes, gestures, bubbles, vibing, awaiting]);
+  const feed = useMemo<CrowdFeed>(() => ({ speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId }), [speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId]);
 
   return (
     <TimeOfDayContext.Provider value={timeOfDay}>
       <SceneLighting timeOfDay={timeOfDay} />
-      {mapId === "cozy_lounge" ? <LoungeWorld onFloorClick={onFloorClick} /> : <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />}
+      {mapId === "cozy_lounge" ? <LoungeWorld onFloorClick={onFloorClick} /> : mapId === "campfire_night" ? <CampfireWorld onFloorClick={onFloorClick} /> : <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />}
 
       {Object.values(chairs).map((chair) => (
-        <SeatPad key={chair.propId} x={chair.x} z={chair.z} wide={!chair.propId.startsWith("stool")} onUse={() => sit(chair.propId)} />
+        // a seat you lie in (the hammock, the tent) is placed by where your feet go: its pad sits
+        // over the middle of you instead (the head end is local -z)
+        chair.style === "blanket" ? (
+          <SeatPad key={chair.propId} x={chair.x - Math.sin(chair.rotationY) * 0.45} z={chair.z - Math.cos(chair.rotationY) * 0.45} wide onUse={() => sit(chair.propId)} />
+        ) : (
+          <SeatPad key={chair.propId} x={chair.x} z={chair.z} wide={!chair.propId.startsWith("stool")} onUse={() => sit(chair.propId)} />
+        )
       ))}
       {Object.values(toggleables).map((prop) =>
         prop.kind === "cat" ? (
@@ -286,10 +362,17 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <RadioProp key={prop.propId} prop={prop} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "kitchen" ? (
           <PropPad key={prop.propId} prop={{ ...prop, y: 0.7 }} size={[0.4, 0.45, 0.4]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "bonfire" ? (
+          <PropPad key={prop.propId} prop={prop} size={[1.4, 1.2, 1.4]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "fishing" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.9, 0.5, 1.1]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "plant" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.75, 1.4, 0.75]} onUse={() => activate(prop.propId)} />
         ) : null
       )}
+      {puffs.map((p) => (
+        <CampfirePuff key={p.id} x={p.x} y={p.y} z={p.z} kind={p.kind} at={p.at} />
+      ))}
       {bursts.map((b) => (
         <PlantBurst key={b.id} x={b.x} z={b.z} from={b.from} at={b.at} />
       ))}

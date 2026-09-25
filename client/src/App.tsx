@@ -30,6 +30,9 @@ import { BoardGameModal } from "./components/hud/BoardGameModal";
 import { KitchenModal } from "./components/hud/KitchenModal";
 import { RadioModal } from "./components/hud/RadioModal";
 import { useRadio } from "./hooks/useRadio";
+import { RoastingModal } from "./components/hud/RoastingModal";
+import { playSfx } from "./audio/sfx";
+import { STARLIGHT_CATCHES, type FishCaught, type RoastResult } from "@shared/types";
 import { BoxingHud } from "./components/hud/BoxingHud";
 import { installKeyboard, isTouchDevice } from "./systems/input";
 import {
@@ -208,6 +211,7 @@ export default function App() {
     kitchenSend,
     radioSend,
     plantSend,
+    campfireSend,
     mochiPlay,
   } = useColyseusRoom(auth);
 
@@ -268,6 +272,9 @@ export default function App() {
 
   // --- one-shot server messages: results, openings, welcomes ---
   const localIdRef = useRef(localSessionId);
+  // which panel is open, for the message handler below (a roast's result shows in its own panel)
+  const panelKindRef = useRef<string | undefined>(undefined);
+  panelKindRef.current = panel?.kind;
   localIdRef.current = localSessionId;
   useEffect(
     () =>
@@ -308,6 +315,21 @@ export default function App() {
           setBlendResult(payload as { right: boolean; coins: number });
         } else if (type === "boardState") {
           setBoardView(payload as BoardGameView);
+        } else if (type === "fishCaught") {
+          // the campfire's pond: what you pulled out, and what it paid
+          const c = payload as FishCaught;
+          if (c.sessionId === localIdRef.current) {
+            const info = STARLIGHT_CATCHES[c.catchId];
+            pushToast(c.coins > 0 ? `${info.name}! +${c.coins} coins` : `${info.name}! (the pond's coins are all earned today)`, { emoji: info.emoji, tone: c.coins > 0 ? "coin" : undefined });
+            playSfx("catch");
+          }
+        } else if (type === "roastResult") {
+          const r = payload as RoastResult;
+          if (r.sessionId === localIdRef.current) {
+            playSfx(r.quality === "golden" ? "golden" : r.quality === "charred" ? "burnt" : "catch");
+            // left in the fire with its panel closed: say how it came out
+            if (panelKindRef.current !== "roast") pushToast(r.quality === "golden" ? `Golden! +${r.coins} coins` : r.quality === "charred" ? "Oops, charcoal!" : "A little pale, still tasty", { emoji: r.quality === "charred" ? "🔥" : "🍡" });
+          }
         } else if (type === "plantWatered") {
           const w = payload as { sessionId: string; coins: number };
           if (w.sessionId === localIdRef.current) pushToast(`The plant drinks it up! +${w.coins} coins`, { emoji: "🪴", tone: "coin" });
@@ -514,7 +536,7 @@ export default function App() {
               onSplash={splash}
             />
             {currentMap === "boxing_ring" && <BoxingHud me={localPlayer} players={players} onPunch={punch} onExit={boxingExit} onToss={tossCoin} />}
-            <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} />
+            <ActionDock player={localPlayer} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} onCampfire={campfireSend} />
           </div>
         )}
 
@@ -576,6 +598,7 @@ export default function App() {
         {panel?.kind === "boardgame" && localSessionId && <BoardGameModal view={boardView} localSessionId={localSessionId} send={boardSend} onClose={closePanel} />}
         {panel?.kind === "kitchen" && <KitchenModal send={kitchenSend} onClose={closePanel} />}
         {panel?.kind === "radio" && <RadioModal radio={radio} send={radioSend} onClose={closePanel} />}
+        {panel?.kind === "roast" && localSessionId && <RoastingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
 

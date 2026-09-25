@@ -133,6 +133,37 @@ function checkersPlay(g: Checkers, from: number, to: number): boolean {
 
 // --- the table ------------------------------------------------------------------------------
 
+// --- saving a table ------------------------------------------------------------------------
+//
+// A table is saved (the room writes it to the database after every change) so a server restart
+// or a redeploy does not wipe a game in progress. Session ids do not survive a restart, so the
+// seats are saved as the players' Discord user ids; restored, each is held for its player as
+// AWAY_PREFIX + userId, a placeholder every rule already treats as a taken seat, until that player
+// rejoins and claims it (or the room gives up waiting and lets it go, forfeiting as walking out does).
+
+export const AWAY_PREFIX = "away:";
+
+export interface BoardSnapshot {
+  version: 1;
+  gameType: BoardGameType;
+  /** The seated players' Discord user ids, "" for an open seat. */
+  seats: Record<BoardSide, string>;
+  names: Record<BoardSide, string>;
+  result: "" | BoardSide | "draw";
+  reason: string;
+  drawOffer: "" | BoardSide;
+  lastMove: { from: number; to: number } | null;
+  plies: number;
+  settled: boolean;
+  /** Chess: the game as PGN (its history counts for threefold repetition), and its FEN as a fallback. */
+  pgn: string;
+  fen: string;
+  checkers: Checkers;
+}
+
+const isSide = (v: unknown): v is BoardSide => v === "w" || v === "b";
+const isPiece = (v: unknown) => v === "" || v === "wm" || v === "wk" || v === "bm" || v === "bk";
+
 export class BoardTable {
   gameType: BoardGameType = "chess";
   seats: Record<BoardSide, string> = { w: "", b: "" };
@@ -167,6 +198,79 @@ export class BoardTable {
       moved = true;
     }
     return moved;
+  }
+
+  /** The table as it stands, for saving; `userOf` turns a seated session into its user id. */
+  snapshot(userOf: (sessionId: string) => string): BoardSnapshot {
+    const seat = (side: BoardSide) => {
+      const id = this.seats[side];
+      return !id ? "" : id.startsWith(AWAY_PREFIX) ? id.slice(AWAY_PREFIX.length) : userOf(id);
+    };
+    return {
+      version: 1,
+      gameType: this.gameType,
+      seats: { w: seat("w"), b: seat("b") },
+      names: { ...this.names },
+      result: this.result,
+      reason: this.reason,
+      drawOffer: this.drawOffer,
+      lastMove: this.lastMove,
+      plies: this.plies,
+      settled: this.settled,
+      pgn: this.chess.pgn(),
+      fen: this.chess.fen(),
+      checkers: { cells: [...this.checkers.cells], turn: this.checkers.turn, chain: this.checkers.chain, quiet: this.checkers.quiet },
+    };
+  }
+
+  /**
+   * Puts a saved table back (after a restart): the game exactly as it was, each seat held for its
+   * player until they claim it. Anything malformed leaves the table fresh; returns whether a
+   * table came back.
+   */
+  restore(snap: BoardSnapshot): boolean {
+    try {
+      if (!snap || snap.version !== 1 || (snap.gameType !== "chess" && snap.gameType !== "checkers")) return false;
+      if (!snap.seats?.w && !snap.seats?.b) return false; // nobody was at it: nothing worth keeping
+      const chess = new Chess();
+      if (snap.gameType === "chess") {
+        try {
+          chess.loadPgn(snap.pgn);
+        } catch {
+          chess.load(snap.fen); // throws too if this is no good either
+        }
+      }
+      const c = snap.checkers;
+      const checkers = snap.gameType === "checkers" && c && Array.isArray(c.cells) && c.cells.length === 64 && c.cells.every(isPiece) && isSide(c.turn) ? { cells: [...c.cells], turn: c.turn, chain: Number.isInteger(c.chain) ? c.chain : -1, quiet: Number(c.quiet) || 0 } : newCheckers();
+      this.gameType = snap.gameType;
+      this.chess = chess;
+      this.checkers = checkers;
+      this.seats = { w: snap.seats.w ? AWAY_PREFIX + snap.seats.w : "", b: snap.seats.b ? AWAY_PREFIX + snap.seats.b : "" };
+      this.names = { w: String(snap.names?.w ?? ""), b: String(snap.names?.b ?? "") };
+      this.result = snap.result === "draw" || isSide(snap.result) ? snap.result : "";
+      this.reason = String(snap.reason ?? "");
+      this.drawOffer = isSide(snap.drawOffer) ? snap.drawOffer : "";
+      this.lastMove = snap.lastMove && Number.isInteger(snap.lastMove.from) && Number.isInteger(snap.lastMove.to) ? { from: snap.lastMove.from, to: snap.lastMove.to } : null;
+      this.plies = Number.isInteger(snap.plies) && snap.plies > 0 ? snap.plies : 0;
+      this.settled = !!snap.settled;
+      return true;
+    } catch {
+      this.fresh("chess");
+      this.seats = { w: "", b: "" };
+      this.names = { w: "", b: "" };
+      return false;
+    }
+  }
+
+  /** The side held for `userId` since a restore, if any. */
+  reservedSide(userId: string): BoardSide | "" {
+    const held = AWAY_PREFIX + userId;
+    return this.seats.w === held ? "w" : this.seats.b === held ? "b" : "";
+  }
+
+  /** The player a held seat was waiting for is back: the seat is theirs again, the game goes on. */
+  claim(side: BoardSide, sessionId: string) {
+    this.seats[side] = sessionId;
   }
 
   sideOf(sessionId: string): BoardSide | "" {

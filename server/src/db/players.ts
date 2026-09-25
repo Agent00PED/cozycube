@@ -20,6 +20,8 @@ export interface PlayerRecord {
   mochiCoinsDay: string;
   /** The lounge plants watered, and the day they were (stats JSON "plants_watered"). */
   plantsWatered: { day: string; ids: string[] };
+  /** Coins earned at the campfire today, by fishing and by roasting (stats JSON "campfire_coins"): capped daily. */
+  campfireCoins: { day: string; fish: number; roast: number };
   lastDailyClaim: Date | null;
 }
 
@@ -37,7 +39,7 @@ export interface PlayerStore {
 }
 
 export function newPlayerRecord(discordId: string, username: string): PlayerRecord {
-  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, lastDailyClaim: null };
+  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: { day: "", fish: 0, roast: 0 }, lastDailyClaim: null };
 }
 
 const SCHEMA_SQL = `
@@ -64,6 +66,9 @@ function rowToRecord(row: any): PlayerRecord {
   delete raw.daily;
   delete raw.mochi_coins_day;
   delete raw.plants_watered;
+  const cc = raw.campfire_coins as { day?: unknown; fish?: unknown; roast?: unknown } | undefined;
+  const campfireCoins = { day: typeof cc?.day === "string" ? cc.day : "", fish: Number(cc?.fish) || 0, roast: Number(cc?.roast) || 0 };
+  delete raw.campfire_coins;
   return {
     discordId: row.discord_id,
     username: row.username,
@@ -74,13 +79,25 @@ function rowToRecord(row: any): PlayerRecord {
     daily,
     mochiCoinsDay,
     plantsWatered,
+    campfireCoins,
     lastDailyClaim: row.last_daily_claim ? new Date(row.last_daily_claim) : null,
   };
 }
 
 /** The stats column carries the checklist, Mochi's coin day and today's watered plants alongside the counters. */
 function statsColumn(r: PlayerRecord): string {
-  return JSON.stringify({ ...r.stats, daily: r.daily, mochi_coins_day: r.mochiCoinsDay, plants_watered: r.plantsWatered });
+  return JSON.stringify({ ...r.stats, daily: r.daily, mochi_coins_day: r.mochiCoinsDay, plants_watered: r.plantsWatered, campfire_coins: r.campfireCoins });
+}
+
+/** A connection pool to the database at `url` (the player store and the board store each keep one). */
+export function createPool(url: string): Pool {
+  return new Pool({
+    connectionString: url,
+    // Railway's public proxy needs TLS; its private network does not. `sslmode` in the URL
+    // wins when present; otherwise trust the platform's certificate chain loosely.
+    ssl: /sslmode=disable|localhost|127\.0\.0\.1|\.railway\.internal/.test(url) ? undefined : { rejectUnauthorized: false },
+    max: 5,
+  });
 }
 
 class PostgresStore implements PlayerStore {
@@ -88,13 +105,7 @@ class PostgresStore implements PlayerStore {
   constructor(private pool: Pool) {}
 
   static async connect(url: string): Promise<PostgresStore> {
-    const pool = new Pool({
-      connectionString: url,
-      // Railway's public proxy needs TLS; its private network does not. `sslmode` in the URL
-      // wins when present; otherwise trust the platform's certificate chain loosely.
-      ssl: /sslmode=disable|localhost|127\.0\.0\.1|\.railway\.internal/.test(url) ? undefined : { rejectUnauthorized: false },
-      max: 5,
-    });
+    const pool = createPool(url);
     await pool.query(SCHEMA_SQL);
     return new PostgresStore(pool);
   }
@@ -136,10 +147,10 @@ class MemoryStore implements PlayerStore {
   private rows = new Map<string, PlayerRecord>();
   async load(discordId: string) {
     const r = this.rows.get(discordId);
-    return r ? { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] } } : null;
+    return r ? { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins } } : null;
   }
   async upsert(r: PlayerRecord) {
-    this.rows.set(r.discordId, { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] } });
+    this.rows.set(r.discordId, { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins } });
   }
   async topCoins(limit: number) {
     return [...this.rows.values()]
