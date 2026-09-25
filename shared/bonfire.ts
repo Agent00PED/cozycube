@@ -9,6 +9,7 @@
 
 import type { RoastFood, RoastQuality } from "./types";
 import type { FishId } from "./fishing";
+import type { WoodKind } from "./chop";
 
 // --- the bonfire's fuel --------------------------------------------------------------------------
 
@@ -19,9 +20,7 @@ export const FUEL_START = 60;
 export const FUEL_DECAY = 5;
 /** ...every this many seconds. */
 export const FUEL_DECAY_S = 120;
-/** What a split log (or a lump of Golden Charcoal, double) puts back. */
-export const FUEL_PER_FIREWOOD = 25;
-export const FUEL_PER_CHARCOAL = 50;
+/** What wood puts back is its kind's `fuel` (shared/chop.ts WOOD: pine 25, oak 30, Golden Charcoal 50). */
 /** Above this the fire roars and everyone at the campfire has the Cozy Aura. */
 export const COZY_AURA_FUEL = 70;
 /** Below this the fire sinks to embers under a smoky haze. */
@@ -29,7 +28,7 @@ export const LOW_FUEL = 20;
 /** The Cozy Aura: +15% on rare fish and on campfire coins. */
 export const COZY_AURA_LUCK = 0.15;
 
-export type FuelItem = "firewood" | "charcoal";
+export type FuelItem = WoodKind;
 export function hasCozyAura(fuel: number): boolean {
   return fuel > COZY_AURA_FUEL;
 }

@@ -152,7 +152,13 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
   0%, 100% { opacity: 0; transform: translate(calc(-50% + var(--ax)), 0) scale(0.5); }
   50% { opacity: 1; transform: translate(calc(-50% + var(--ax)), -10px) scale(1.1) rotate(40deg); }
 }
-@media (prefers-reduced-motion: reduce) { .cozy-star-aura span { animation: none; opacity: 0.8; } }
+/* the AFK fishing pill: eased in, its rod bobbing on the water, a sleepy blue z drifting up */
+.cozy-afk-pill { animation: cozy-afk-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+@keyframes cozy-afk-in { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+.cozy-afk-rod { animation: cozy-bob-kf 2.2s ease-in-out infinite; }
+.cozy-afk-zzz { position: absolute; right: -8px; top: -6px; font: 800 11px "Fredoka", system-ui, sans-serif; color: #9ad8ff; text-shadow: 0 0 6px rgba(125, 211, 252, 0.95); animation: cozy-afk-zzz-kf 2.4s ease-out infinite; }
+@keyframes cozy-afk-zzz-kf { 0% { opacity: 0; transform: translate(0, 4px) scale(0.7); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -12px) scale(1.2); } }
+@media (prefers-reduced-motion: reduce) { .cozy-star-aura span { animation: none; opacity: 0.8; } .cozy-afk-pill, .cozy-afk-rod, .cozy-afk-zzz { animation: none; } }
 
 /* the Cheer gesture's sparkles, rising and scattering; the Sleep gesture's Zzz drifting up */
 .cozy-sparkles, .cozy-zzz { position: relative; width: 0; height: 0; pointer-events: none; }

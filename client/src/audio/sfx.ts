@@ -46,7 +46,7 @@ function noise(c: AudioContext, at: number, length: number, gain: number, cutoff
   src.onended = () => (src.disconnect(), filter.disconnect(), g.disconnect());
 }
 
-export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck" | "squeak" | "quack" | "tension" | "snap" | "flame" | "bubble" | "slurp" | "coins";
+export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck" | "squeak" | "quack" | "tension" | "snap" | "flame" | "bubble" | "slurp" | "coins" | "focus";
 
 export function playSfx(kind: Sfx) {
   if (!getSoundSettings().effects) return;
@@ -107,6 +107,11 @@ export function playSfx(kind: Sfx) {
   } else if (kind === "coins") {
     // Barnaby counting out coins: a cascade of little clinks
     [0, 0.06, 0.13, 0.19, 0.27].forEach((d, i) => tone(c, t + d, 1800 + (i % 2) * 400, 2100 + (i % 2) * 400, 0.12, 0.05, "triangle"));
+  } else if (kind === "focus") {
+    // a lens clicking into focus: a soft mechanical tick and a small bright chime
+    noise(c, t, 0.025, 0.14, 4200);
+    tone(c, t + 0.03, 1568, 1568, 0.28, 0.05, "sine");
+    tone(c, t + 0.08, 2093, 2093, 0.3, 0.035, "sine");
   } else if (kind === "pluck") {
     // picking: a soft snap and a bright blip
     noise(c, t, 0.05, 0.12, 3500);

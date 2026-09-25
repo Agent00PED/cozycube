@@ -57,6 +57,10 @@ const FREE_HAT_LABELS: Record<Accessory, { label: string; emoji: string }> = {
   tophat: { label: "Top Hat", emoji: "🎩" },
   crown: { label: "High Roller Crown", emoji: "👑" },
   mochiears: { label: "Mochi Ears", emoji: "🐱" },
+  cozybeanie: { label: "Cozy Pompom Beanie", emoji: "🧡" },
+  boonie: { label: "Angler Boonie", emoji: "🎣" },
+  bearcap: { label: "Bear Fleece Cap", emoji: "🐻" },
+  headlamp: { label: "Trail Headlamp", emoji: "🔦" },
 };
 
 type Tab = "outfits" | "hats" | "hair" | "appearance";

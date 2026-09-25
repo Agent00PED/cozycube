@@ -1,15 +1,7 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import {
-  AFK_FISH_MAX_S,
-  AFK_FISH_MIN_S,
-  ITEMS,
-  TOAST_MAX,
-  parseBag,
-  type ChairSyncState,
-  type ItemId,
-  type MapId,
-  type PlayerState,
-} from "@shared/types";
+import { useEffect, useRef, type CSSProperties } from "react";
+import { TOAST_MAX, type ChairSyncState, type MapId, type PlayerState } from "@shared/types";
+import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
+import { AFKFishingBar } from "./AFKFishingBar";
 import { isFishingSeat } from "@shared/props";
 import { ROAST_FOOD_INFO, parseSnack } from "@shared/types";
 import { playSfx } from "../../audio/sfx";
@@ -34,6 +26,10 @@ interface ActivityBarProps {
   onSplash: () => void;
   onPlaceBet: (kind: string, amount: number) => void;
   onClearBets: () => void;
+  /** The room's one-shot messages (the AFK pill counts this session's catches). */
+  subscribeMessages: (listener: RoomMessageListener) => () => void;
+  /** Get up from wherever you sit (the AFK pill's button). */
+  onStandUp: () => void;
 }
 
 function doneness(toast: number): { label: string; color: string } {
@@ -44,10 +40,10 @@ function doneness(toast: number): { label: string; color: string } {
   return { label: "Burnt! 🔥", color: "#5a3a2a" };
 }
 
-// The action dock: only what you can do right now, right here — plus your fish bucket, and the
-// betting board when you are standing at the roulette table.
+// The action dock: only what you can do right now, right here (and, while fishing AFK, the frosted
+// AFK pill). What you carry lives in the header now: the 🪣 creel and the 🪵 wood.
 export function ActivityBar(props: ActivityBarProps) {
-  const { player, chairs, localSessionId, mapId, roulette, myBets, onRoast, onEat, onSip, onPutDown, onCastLine, onReelIn, onHook, onSplash } = props;
+  const { player, chairs, localSessionId, onRoast, onEat, onSip, onPutDown, onCastLine, onReelIn, onHook, onSplash, subscribeMessages, onStandUp } = props;
   const soaking = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "onsen");
   const roasting = player.holding === "marshmallow";
   // the campfire's skewer, carried (not while it is still over the fire)
@@ -60,8 +56,6 @@ export function ActivityBar(props: ActivityBarProps) {
   const fishing = player.action === "fish";
   const afkFishing = player.action === "afkfish";
   const bite = fishing && player.actionProgress >= 1;
-  const bag = parseBag(player.bag);
-  const bagCount = Object.values(bag).reduce((a, b) => a + (b ?? 0), 0);
 
   const hasActions = roasting || holdingCoffee || holdingJar || !!snack || brewing || onPier || fishing || soaking;
 
@@ -74,13 +68,14 @@ export function ActivityBar(props: ActivityBarProps) {
 
   // the reel itself is a modal; nothing to add underneath it
   if (player.action === "reel" || player.action === "dizzy") return null;
-  if (!hasActions && bagCount === 0 && !afkFishing) return null;
+  if (!hasActions && !afkFishing) return null;
 
   const d = doneness(player.toast);
 
   return (
     <div style={styles.stack}>
-      {(hasActions || bagCount > 0) && (
+      {afkFishing && <AFKFishingBar player={player} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onStandUp={onStandUp} />}
+      {hasActions && !afkFishing && (
         <div style={styles.bar}>
           {brewing && <span style={styles.status}>☕ Brewing… {Math.round(player.actionProgress * 100)}%</span>}
 
@@ -94,7 +89,6 @@ export function ActivityBar(props: ActivityBarProps) {
               </button>
             </>
           )}
-          {afkFishing && <ChillFishing player={player} onStop={onReelIn} />}
           {fishing && !bite && (
             <>
               <span style={styles.status}>🎣 Watching the float…</span>
@@ -160,103 +154,11 @@ export function ActivityBar(props: ActivityBarProps) {
             </>
           )}
 
-          {bagCount > 0 && <Bucket bag={bag} count={bagCount} />}
         </div>
       )}
     </div>
   );
 }
-
-/** Chill-mode fishing: a calm card with the wait for the next haul and what has come in. */
-function ChillFishing({ player, onStop }: { player: PlayerState; onStop: () => void }) {
-  const [log, setLog] = useState<{ id: number; text: string }[]>([]);
-  const [session, setSession] = useState({ coins: 0, fish: 0 });
-  const prev = useRef({ coins: player.coins, bag: parseBag(player.bag) });
-  useEffect(() => {
-    const bag = parseBag(player.bag);
-    const before = prev.current;
-    const gained: string[] = [];
-    const dc = player.coins - before.coins;
-    if (dc > 0) gained.push(`+${dc} 🪙`);
-    let fish = 0;
-    for (const id of Object.keys(bag) as ItemId[]) {
-      const n = (bag[id] ?? 0) - (before.bag[id] ?? 0);
-      if (n > 0) {
-        gained.push(`${ITEMS[id].emoji} ${ITEMS[id].name}`);
-        fish += n;
-      }
-    }
-    prev.current = { coins: player.coins, bag };
-    if (!gained.length) return;
-    setSession((s0) => ({ coins: s0.coins + Math.max(0, dc), fish: s0.fish + fish }));
-    setLog((l) => [{ id: Date.now(), text: gained.join(" · ") }, ...l].slice(0, 3));
-  }, [player.coins, player.bag]);
-
-  // The server keeps the exact moment; the wait is always 35-45 s, so this is honest to a few seconds.
-  const secondsLeft = Math.max(1, Math.round((1 - player.actionProgress) * ((AFK_FISH_MIN_S + AFK_FISH_MAX_S) / 2)));
-  return (
-    <div style={styles.chill}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 22 }} className="cozy-bob">🎣</span>
-        <div style={{ flex: 1 }}>
-          <div style={styles.status}>Chill fishing · next bite in ~{secondsLeft}s</div>
-          <div style={styles.meterTrack}>
-            <div style={{ ...styles.meterFill, width: `${player.actionProgress * 100}%`, background: "#7fc6d9", transition: "width 0.5s linear" }} />
-          </div>
-        </div>
-        <button type="button" style={styles.ghost} onClick={onStop}>
-          Stop
-        </button>
-      </div>
-      <div style={styles.chillStats}>
-        <span>This session: {session.fish} 🐟 · {session.coins} 🪙</span>
-        {log[0] && (
-          <span key={log[0].id} className="cozy-coin-bump" style={styles.chillLast}>
-            {log[0].text}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** The personal fish bucket / forage bag, and who buys what. */
-function Bucket({ bag, count }: { bag: ReturnType<typeof parseBag>; count: number }) {
-  const [open, setOpen] = useState(false);
-  const entries = (Object.entries(bag) as [ItemId, number][]).filter(([, n]) => n > 0);
-  const worth = entries.reduce((sum, [id, n]) => sum + ITEMS[id].value * n, 0);
-  return (
-    <div style={{ position: "relative" }}>
-      <button
-        type="button"
-        style={styles.secondary}
-        onClick={() => {
-          setOpen((o) => !o);
-        }}
-        aria-expanded={open}
-      >
-        🪣 Bucket ({count})
-      </button>
-      {open && (
-        <div style={styles.popover} role="dialog" aria-label="Your bucket">
-          {entries.map(([id, n]) => (
-            <div key={id} style={styles.itemRow}>
-              <span style={{ fontSize: 18 }}>{ITEMS[id].emoji}</span>
-              <span style={{ flex: 1 }}>
-                {ITEMS[id].name} × {n}
-              </span>
-              <span style={styles.value}>{ITEMS[id].value * n} 🪙</span>
-            </div>
-          ))}
-          <div style={styles.hint}>
-            Worth {worth} 🪙. Sell fish to <b>Fisherman Bob</b> (beach) and berries or fireflies to <b>Ranger Oak</b> (campfire).
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 const styles: Record<string, CSSProperties> = {
   chill: { ...glass, background: "rgba(240, 250, 252, 0.8)", borderRadius: 18, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6, minWidth: 280 },

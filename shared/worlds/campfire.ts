@@ -38,6 +38,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   },
   "tripod": { "legs": 0.9, "apex": 1.95, "potY": 1.0, "potR": 0.27 },
   "barnaby": { "x": 4.7, "z": -2.6, "yaw": -0.35 },
+  "buster": { "x": -1.35, "z": -6.35, "yaw": 0.25 },
   "picnicPlates": [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]],
   "river": {
     "points": [[-8.6, 7.2, 1.0], [-6.4, 7.9, 1.3], [-4.2, 8.2, 1.5], [-2.0, 7.9, 1.6], [0.2, 7.7, 1.65], [2.4, 7.9, 1.5], [4.6, 8.4, 1.3], [6.8, 8.1, 1.0]],
@@ -469,6 +470,9 @@ export function lieSeatPose(seat: CampSeat) {
 export const BARNABY_FRONT = { x: L.barnaby.x + Math.sin(L.barnaby.yaw) * 0.95, z: L.barnaby.z + Math.cos(L.barnaby.yaw) * 0.95 };
 /** Close enough to Barnaby to trade. */
 export const BARNABY_REACH = 1.8;
+/** Where you stand to talk to Buster the Lumberjack (in front of him), and how close is close enough. */
+export const BUSTER_FRONT = { x: L.buster.x + Math.sin(L.buster.yaw) * 0.95, z: L.buster.z + Math.cos(L.buster.yaw) * 0.95 };
+export const BUSTER_REACH = 1.8;
 /** The Dutch oven's tripod legs round the fire. */
 export const TRIPOD_LEGS: Pt[] = [30, 150, 270].map((deg) => ({ x: L.fire.x + Math.cos(deg * DEG) * L.tripod.legs, z: L.fire.z + Math.sin(deg * DEG) * L.tripod.legs }));
 /** The plates on the picnic table where skewers are left for friends (table-relative offsets). */
@@ -494,6 +498,8 @@ export const CAMP_PROPS: PropSpec[] = [
   })(),
   // Barnaby the Angler, at his tackle stall by the dock: sell your creel, buy rods and bait
   { propId: "barnaby", x: L.barnaby.x, z: L.barnaby.z, kind: "angler", color: "#6b8fb5", defaultOn: true, approachX: BARNABY_FRONT.x, approachZ: BARNABY_FRONT.z },
+  // Buster the Lumberjack, by the woodpile: buys split wood, sells axes
+  { propId: "buster", x: L.buster.x, z: L.buster.z, kind: "lumberjack", color: "#b3403a", defaultOn: true, approachX: BUSTER_FRONT.x, approachZ: BUSTER_FRONT.z },
   // the dark grove between the hammock and the tipi, alive with fireflies: catch some in a jar
   (() => {
     const toFire = unit(L.fire.x - L.fireflies.x, L.fire.z - L.fireflies.z);
@@ -596,6 +602,9 @@ export const CAMP_OBSTACLES: AABB[] = [
   // the guitar case lying open in the grove, and the lantern on the grass beside it
   around(L.guitarCase, 0.5),
   around(L.groundLantern, 0.15),
+  // Buster and his sawhorse of logs (to his right, the camera's left)
+  around(L.buster, 0.34),
+  around({ x: L.buster.x - Math.cos(L.buster.yaw) * 0.7, z: L.buster.z + Math.sin(L.buster.yaw) * 0.7 }, 0.3),
   // Barnaby and his tackle crate
   around(L.barnaby, 0.34),
   around({ x: L.barnaby.x + Math.cos(L.barnaby.yaw) * 0.62, z: L.barnaby.z - Math.sin(L.barnaby.yaw) * 0.62 }, 0.26),

@@ -11,7 +11,7 @@ import { TimeOfDayContext, useLampBoost } from "./timeOfDay";
 import { CRITTER_TREAT, DUCK_DIVE_AT, DUCK_DIVE_S, STRING_BULBS, STRING_SWING, bindCampfireLife, campNow, duckPose } from "./campfireLife";
 import type { HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { playSfx } from "../audio/sfx";
-import { Barnaby } from "../entities/Barnaby";
+import { Barnaby, Buster } from "../entities/Barnaby";
 import { LOW_FUEL, COZY_AURA_FUEL, type BonfireUpdate } from "@shared/bonfire";
 
 // The Starlight Campfire (map 2). The island itself is one Blender model, campfire.glb
@@ -25,7 +25,8 @@ import { LOW_FUEL, COZY_AURA_FUEL, type BonfireUpdate } from "@shared/bonfire";
 //   the hearth    the Dutch oven swinging gently on its tripod over the fire, its stew showing
 //                 (tinted by what is in it) and steaming as it cooks; the skewers friends left
 //                 on the picnic table's plates
-//   Barnaby       the otter angler at his tackle stall by the dock (entities/Barnaby.tsx)
+//   Barnaby       the otter angler at his tackle stall by the dock, and Buster the beaver
+//                 lumberjack at his firewood stall by the woodpile (entities/Barnaby.tsx)
 //   smoke         soft puffs rising off it and drifting away on the night wind
 //   embers        sparks lifting off the fire and winking out
 //   fireflies     green-gold, drifting and blinking over the river, the pines and the hammock
@@ -124,6 +125,7 @@ export function CampfireWorld({ onFloorClick, players, toggleables, hearth, subs
       <JarLights live={live} />
       <StewSteam live={live} />
       <Barnaby subscribeMessages={subscribeMessages} />
+      <Buster subscribeMessages={subscribeMessages} />
       <Moonlight />
       <Embers />
       <Smoke />
@@ -266,7 +268,8 @@ function FireLight({ live }: { live: React.MutableRefObject<Live> }) {
       <pointLight color="#ffd98a" intensity={0.45 * boost} distance={4.5} decay={2} position={[L.van.x + 0.2, 1.3, L.van.z + L.van.w / 2 + 0.8]} castShadow={false} />
       <pointLight color="#ffd27a" intensity={0.5 * boost} distance={5} decay={2} position={[L.picnic.x - 0.48, 1.0, L.picnic.z + 0.05]} castShadow={false} />
       {/* the grove's ground lantern by the guitar case */}
-      {/* Barnaby's stall: a warm little light so he is easy to find by the dock */}
+      {/* Buster's stall by the woodpile, and Barnaby's by the dock: warm little lights so they are easy to find */}
+      <pointLight color="#ffd27a" intensity={0.5 * boost} distance={3.2} decay={2} position={[L.buster.x - 0.4, 1.5, L.buster.z + 0.8]} castShadow={false} />
       <pointLight color="#ffd27a" intensity={0.55 * boost} distance={3.4} decay={2} position={[L.barnaby.x + 0.3, 1.5, L.barnaby.z + 0.7]} castShadow={false} />
       <pointLight ref={grove} color="#ffa844" intensity={0.55 * boost} distance={4.5} decay={2} position={[L.groundLantern.x, 0.35, L.groundLantern.z]} castShadow={false} />
     </>

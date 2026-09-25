@@ -117,9 +117,9 @@ HAIR_STYLES = ("short", "bob", "curtain", "ponytail", "wavylong", "hero", "drill
 # Styles whose raised part (a tail, buns, a knot) is its own child node, Hair_<style>_Prop, which
 # the runtime hides under a hat that covers the crown (rig.ts HAIR_PROP_SUFFIX)
 HAIR_PROP_STYLES = ("ponytail", "topknot", "spacebuns")
-HAT_IDS = ("beret", "beanie", "flower", "headphones", "straw", "tophat", "bunny", "crown", "mochiears")
-TOP_IDS = ("hoodie", "tee", "flannel", "hawaiian", "tuxedo", "robe", "yukata", "jumpsuit")
-BOTTOM_IDS = ("sweats", "overalls", "trousers", "shorts", "wide")
+HAT_IDS = ("beret", "beanie", "flower", "headphones", "straw", "tophat", "bunny", "crown", "mochiears", "cozybeanie", "boonie", "bearcap", "headlamp")
+TOP_IDS = ("hoodie", "tee", "flannel", "hawaiian", "tuxedo", "robe", "yukata", "jumpsuit", "plaid", "puffer")
+BOTTOM_IDS = ("sweats", "overalls", "trousers", "shorts", "wide", "waders")
 TOP_PARTS = (("", "Torso"), ("_SleeveL", "ArmL"), ("_SleeveR", "ArmR"))  # (name suffix, parent)
 BOTTOM_PARTS = (("", "Body"), ("_LegL", "LegL"), ("_LegR", "LegR"))
 NODE_NAMES = (
@@ -191,6 +191,19 @@ PALETTE = {
     "Mat_Crown": "#F2C23A",
     "Mat_Gem": "#D6334A",
     "Mat_MochiFur": "#E89A52",
+    # the campfire collection
+    "Mat_CozyBeanie": "#E8742C",
+    "Mat_CozyRib": "#C9591C",
+    "Mat_Khaki": "#C8B48A",
+    "Mat_KhakiBand": "#8C7A55",
+    "Mat_BearFleece": "#8A5A3B",
+    "Mat_BearInner": "#E8C9A0",
+    "Mat_Elastic": "#3A3A40",
+    "Mat_LampBody": "#2F3F5C",
+    "Mat_LampGlow": "#FFF4C2",
+    "Mat_Plaid": "#1D1B22",  # the dark bars of a buffalo check
+    "Mat_Puffer": "#E0A93B",  # mustard down
+    "Mat_Boot": "#4A3A2E",  # muddy wader boots
 }
 # (metallic, roughness) for the few materials that are not matte clay
 FINISH = {"Mat_Crown": (0.85, 0.35), "Mat_Gem": (0.0, 0.3), "Mat_Headphone": (0.2, 0.45)}
@@ -467,7 +480,7 @@ def material(name):
 
 
 # materials that glow from within (the game keeps their colour out of the tone mapping)
-GLOW = {"Mat_JarGlass": 0.9, "Mat_JarGlow": 2.5, "Mat_Heart": 0.8}
+GLOW = {"Mat_JarGlass": 0.9, "Mat_JarGlow": 2.5, "Mat_Heart": 0.8, "Mat_LampGlow": 3.0}
 
 
 def empty(name, collection, parent=None, at=Vector(), parent_at=Vector()):
@@ -1195,6 +1208,63 @@ def top_jumpsuit(bm, part, side):
     strip(bm, [trunk_point(v_at_z(z), front(), TOP_OFF + 0.002) for z in (0.6, 0.45, 0.3)], 0.005, material=1)
 
 
+def top_plaid(bm, part, side):
+    # a red-and-black buffalo-plaid flannel: dark bars round and down the body and round the
+    # sleeves, a collar, and suspenders (in the accent colour, brass clips) over the shoulders
+    if part:
+        sleeve(bm, side, LONG_SLEEVE, cuff=1)
+        shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+        for d in (0.06, 0.13):
+            r = arm_radius(d) + SLEEVE_LOOSE + 0.002
+            band(bm, shoulder - UP * d, r, r, 0.004, 0.013, segs=28, sides=6, material=1)
+        return
+    top_body(bm)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.015, 0.017, material=1)
+    for z in (0.3, 0.41, 0.52):
+        waist_band(bm, z, TOP_OFF + 0.001, 0.004, 0.016, material=1)
+    for k in range(8):
+        a = front() + 2 * math.pi * (k + 0.5) / 8
+        strip(bm, [trunk_point(v_at_z(z), a, TOP_OFF + 0.002) for z in (0.24, 0.34, 0.44, 0.54)], 0.012, material=1)
+    for s in (-1, 1):
+        a_front, a_back = front(s * 0.3), math.pi / 2 - s * 0.36
+        off = TOP_OFF + 0.012
+        over = [Vector((s * 0.09, y, 0.0)) for y in (-0.05, 0.0, 0.05)]
+        pts = [trunk_point(v_at_z(z), a_front, off) for z in (SEAM_Z + 0.02, 0.36, 0.5, 0.58)]
+        pts += [Vector((p.x, p.y, trunk_point(v_at_neck(math.hypot(p.x, p.y / TRUNK_DEPTH) / TRUNK_R[0]), 0.0, 0.0).z + off)) for p in over]
+        pts += [trunk_point(v_at_z(z), a_back, off) for z in (0.58, 0.48, 0.36, SEAM_Z + 0.02)]
+        strip(bm, pts, 0.009, material=2)
+        deco(bm, v_at_z(SEAM_Z + 0.035), front(s * 0.3), off + 0.004, Vector((0.013, 0.007, 0.013)), material=3, cuts=4)
+
+
+def top_puffer(bm, part, side):
+    # a long-sleeved shirt under a mustard down vest: the vest stands well off it, quilted in
+    # plump rows, with a stand-up collar and a dark zip
+    if part:
+        return sleeve(bm, side, LONG_SLEEVE, cuff=0)
+    top_body(bm)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.015, 0.017)
+    off = OUTER_OFF + 0.01
+    trunk_shell(bm, v_at_z(0.23), v_at_neck(0.86), off, material=1)
+    for z in (0.28, 0.35, 0.42, 0.49, 0.555):
+        waist_band(bm, z, off - 0.006, 0.012, 0.022, material=1)
+    neck_band(bm, 0.86, off + 0.004, 0.018, 0.03, material=1)
+    strip(bm, [trunk_point(v_at_z(z), front(), off + 0.012) for z in (0.6, 0.48, 0.36, 0.24)], 0.005, material=2)
+
+
+def bottom_waders(bm, part, side, hip_y, leg_r, pant_r):
+    # forest-green fishing waders: overalls cut high in a bib with straps and brass buckles, the
+    # legs running into chunky muddy boots
+    if part:
+        pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r + 0.004 - 0.006 * smoothstep(0.0, LONG_LEG, t))
+        hip = Vector((side * LEG_X, 0, hip_y))
+        rb = pant_r + 0.012
+        top = hip - UP * (LONG_LEG - 0.075)
+        axis_lathe(bm, top, [(0.0, 0.0), (0.0, rb), (0.06, rb), (0.085, rb * 0.97), (0.085, 0.0)], segs=20, material=2)
+        band(bm, top - UP * 0.004, rb + 0.004, rb + 0.004, 0.006, 0.01, segs=28, sides=6, material=2)
+        return
+    bottom_overalls(bm, part, side, hip_y, leg_r, pant_r)
+
+
 def waist(bm, off=BOTTOM_OFF, material=0):
     """The seat of a bottom worn under the top: from the bottom of the seat up to just under the
     top's hem (the seam contract), SEAM_CLEARANCE inside the top."""
@@ -1276,6 +1346,8 @@ TOPS = {
     "robe": (("Mat_Shirt", "Mat_Trim"), top_robe),
     "yukata": (("Mat_Shirt", "Mat_Trim", "Mat_Accent"), top_yukata),
     "jumpsuit": (("Mat_Shirt", "Mat_Accent"), top_jumpsuit),
+    "plaid": (("Mat_Shirt", "Mat_Plaid", "Mat_Accent", "Mat_Button"), top_plaid),
+    "puffer": (("Mat_Shirt", "Mat_Puffer", "Mat_Plaid"), top_puffer),
 }
 BOTTOMS = {
     "sweats": (("Mat_Pants",), bottom_sweats),
@@ -1283,6 +1355,7 @@ BOTTOMS = {
     "trousers": (("Mat_Pants",), bottom_trousers),
     "shorts": (("Mat_Pants",), bottom_shorts),
     "wide": (("Mat_Pants",), bottom_wide),
+    "waders": (("Mat_Pants", "Mat_Button", "Mat_Boot"), bottom_waders),
 }
 
 
@@ -2189,6 +2262,72 @@ def hat_mochiears(bm):
         add_shaped(bm, 8, blob(centre + front * 0.026 - along * 0.008, (across, through, along), Vector((0.04, 0.012, 0.055)), n=1.5), material=1)
 
 
+def hat_cozybeanie(bm):
+    # a chunky orange knit beanie: a tall dome with ribbed rows, a deep folded cuff, a big pom-pom
+    slope = 0.18
+
+    def shape(d):
+        q = superellipsoid(d, 2.2)
+        w = Vector((0, 0.015, 0.915)) + Vector((q.x * 0.305, q.y * 0.315, q.z * 0.29))
+        cut = 0.95 - slope * w.y
+        w.z = cut + soft_floor(w.z - cut, 0.01)
+        return w
+
+    add_shaped(bm, 18, shape)
+    band(bm, Vector((0, 0.015, 0.99)), 0.296, 0.306, 0.016, 0.045, roundness=3.0, tilt=-math.atan(slope), material=1)
+    for z, k in ((1.075, 0.86), (1.13, 0.71)):  # the dome's own radius there, less a hair: ribs, not rings
+        band(bm, Vector((0, 0.015, z)), 0.305 * k, 0.315 * k, 0.005, 0.009, roundness=3.0, tilt=-math.atan(slope), material=1)
+    add_shaped(bm, 10, blob(Vector((0, 0.03, 1.225)), AXES, Vector((0.075,) * 3)), material=2)
+
+
+def hat_boonie(bm):
+    # a soft khaki boonie: a low crown, a floppy brim drooping all round, a band with a fishing
+    # lure pinned to its side
+    def crown(d):
+        q = superellipsoid(d, 2.2)
+        w = Vector((0, 0.015, 0.975)) + Vector((q.x * 0.29, q.y * 0.3, q.z * 0.15))
+        w.z = 0.975 + soft_floor(w.z - 0.975, 0.008)
+        return w
+
+    add_shaped(bm, 16, crown)
+    disc(bm, Vector((0, 0.015, 0.975)), 0.2, 0.39, 0.014, lambda r, a: -0.075 * max(0.0, (r - 0.27) / 0.12) ** 1.6)
+    band(bm, Vector((0, 0.015, 0.995)), 0.293, 0.303, 0.012, 0.022, material=1)
+    lure = Vector((0.27, -0.12, 1.0))
+    add_shaped(bm, 6, blob(lure, AXES, Vector((0.026, 0.012, 0.016))), material=2)
+    add_shaped(bm, 6, blob(lure + Vector((0.02, -0.012, 0.0)), AXES, Vector((0.014, 0.01, 0.012))), material=3)
+    tube(bm, [lure + Vector((0.032, -0.02, 0.0)), lure + Vector((0.04, -0.03, -0.018)), lure + Vector((0.032, -0.036, -0.03))], lambda s: 0.003, sides=6, cap_rings=2, material=1)
+    tilt_about(bm, Vector((0, 0.0, 0.975)), rx=-0.12)
+
+
+def hat_bearcap(bm):
+    # a soft fleece cap snug over the crown, two round bear ears with pale insides on top
+    slope = 0.14
+
+    def shape(d):
+        q = superellipsoid(d, 2.4)
+        w = Vector((0, 0.015, 0.93)) + Vector((q.x * 0.3, q.y * 0.31, q.z * 0.24))
+        cut = 0.96 - slope * w.y
+        w.z = cut + soft_floor(w.z - cut, 0.01)
+        return w
+
+    add_shaped(bm, 18, shape)
+    band(bm, Vector((0, 0.015, 0.975)), 0.294, 0.304, 0.012, 0.018, roundness=3.0, tilt=-math.atan(slope), material=0)
+    for side in (-1, 1):
+        centre = Vector((side * 0.2, 0.02, 1.13))
+        add_shaped(bm, 10, blob(centre, AXES, Vector((0.07, 0.035, 0.065))))
+        add_shaped(bm, 8, blob(centre + Vector((0, -0.025, -0.005)), AXES, Vector((0.042, 0.012, 0.04))), material=1)
+
+
+def hat_headlamp(bm):
+    # a trail headlamp: an elastic band round the head and one over the crown, and on the brow a
+    # little lamp whose lens glows warm
+    band(bm, Vector((0, 0.015, 0.965)), 0.302, 0.312, 0.012, 0.022, roundness=3.0, tilt=-0.12)
+    headband(bm, 0.02, 0.29, 0.31, 0.011, 0, reach=1.35)
+    lamp = Vector((0, -0.322, 0.955))
+    add_shaped(bm, 10, blob(lamp, AXES, Vector((0.055, 0.032, 0.04)), n=3.0), material=1)
+    add_shaped(bm, 8, blob(lamp + Vector((0, -0.03, 0.0)), AXES, Vector((0.034, 0.01, 0.028))), material=2)
+
+
 # each hat: its builder and its materials, in material-index order
 HATS = {
     "beret": (hat_beret, ("Mat_Beret", "Mat_BeretBand")),
@@ -2200,6 +2339,10 @@ HATS = {
     "bunny": (hat_bunny, ("Mat_Bunny", "Mat_BunnyInner")),
     "crown": (hat_crown, ("Mat_Crown", "Mat_Gem")),
     "mochiears": (hat_mochiears, ("Mat_MochiFur", "Mat_BunnyInner")),
+    "cozybeanie": (hat_cozybeanie, ("Mat_CozyBeanie", "Mat_CozyRib", "Mat_Pom")),
+    "boonie": (hat_boonie, ("Mat_Khaki", "Mat_KhakiBand", "Mat_BobberRed", "Mat_BobberWhite")),
+    "bearcap": (hat_bearcap, ("Mat_BearFleece", "Mat_BearInner")),
+    "headlamp": (hat_headlamp, ("Mat_Elastic", "Mat_LampBody", "Mat_LampGlow")),
 }
 
 

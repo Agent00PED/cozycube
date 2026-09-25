@@ -73,9 +73,9 @@ export const AVATAR_NODES = {
  */
 export const AVATAR_VARIANT_PREFIX = {
   hair: "Hair_", // Hair_short, _bob, _curtain, _ponytail, _wavylong (free); Hair_hero, _drill, _topknot, _spacebuns, _afro (bought)
-  hat: "Hat_", // Hat_beret, Hat_beanie, Hat_flower, Hat_headphones, Hat_straw, Hat_bunny, Hat_tophat, Hat_crown, Hat_mochiears
-  top: "Top_", // Top_hoodie, Top_tee, Top_flannel, Top_hawaiian, Top_tuxedo, Top_robe, Top_yukata, Top_jumpsuit
-  bottom: "Bottom_", // Bottom_sweats, Bottom_overalls, Bottom_trousers, Bottom_shorts, Bottom_wide
+  hat: "Hat_", // Hat_beret, Hat_beanie, Hat_flower, Hat_headphones, Hat_straw, Hat_bunny, Hat_tophat, Hat_crown, Hat_mochiears, Hat_cozybeanie, Hat_boonie, Hat_bearcap, Hat_headlamp
+  top: "Top_", // Top_hoodie, Top_tee, Top_flannel, Top_hawaiian, Top_tuxedo, Top_robe, Top_yukata, Top_jumpsuit, Top_plaid, Top_puffer
+  bottom: "Bottom_", // Bottom_sweats, Bottom_overalls, Bottom_trousers, Bottom_shorts, Bottom_wide, Bottom_waders
 } as const;
 
 /** Each wardrobe outfit as the top and the bottom it is made of (their ids after the prefix). */
@@ -88,10 +88,13 @@ export const OUTFIT_PARTS: Record<OutfitId, { top: string; bottom: string }> = {
   outfit_boxing: { top: "robe", bottom: "shorts" },
   outfit_yukata: { top: "yukata", bottom: "wide" },
   outfit_cyber: { top: "jumpsuit", bottom: "trousers" },
+  outfit_red_plaid: { top: "plaid", bottom: "trousers" },
+  outfit_puffer_vest: { top: "puffer", bottom: "trousers" },
+  outfit_wader_overalls: { top: "tee", bottom: "waders" },
 };
 
 /** Hats that sit on the crown of the head. */
-export const CROWN_HATS: ReadonlySet<string> = new Set(["beret", "beanie", "straw", "tophat", "crown"]);
+export const CROWN_HATS: ReadonlySet<string> = new Set(["beret", "beanie", "straw", "tophat", "crown", "cozybeanie", "boonie", "bearcap"]);
 /**
  * A style's raised part (the ponytail's tail and scrunchie, the space buns, the topknot) is its own
  * child node, Hair_<style>_Prop. Under a hat that covers the crown it is hidden and the rest of the

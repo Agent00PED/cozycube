@@ -4,6 +4,8 @@ import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, 
 import { useAnimatedNumber } from "./useAnimatedNumber";
 import { useAnglerProfile } from "./anglerStore";
 import { CreelPopover } from "./CreelPopover";
+import { WoodPopover } from "./WoodPopover";
+import { woodCount } from "@shared/fishing";
 
 /** Each map's icon, name and tagline, from the world table (shared/worlds). */
 export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: string }> = Object.fromEntries(
@@ -30,6 +32,8 @@ interface HeaderProps {
   /** You, for the Fish Creel (your user id, and your angler's profile as the room syncs it). */
   userId: string;
   fishing: string;
+  /** The session bag (the pantry: foraged mushrooms and berries). */
+  bag: string;
 }
 
 const TIME_LABELS: Record<TimeOfDay, string> = { sunrise: "🌅 Sunrise", day: "☀️ Day", sunset: "🌇 Sunset", night: "🌙 Night" };
@@ -58,7 +62,7 @@ const ICON = "text-lg leading-none";
  *     too. Voice has no control here: who is speaking shows as the green rings at their feet.
  */
 export function Header(p: HeaderProps) {
-  const [open, setOpen] = useState<"time" | "status" | "more" | "creel" | null>(null);
+  const [open, setOpen] = useState<"time" | "status" | "more" | "creel" | "wood" | null>(null);
   const angler = useAnglerProfile(p.userId, p.fishing, p.coins);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -69,7 +73,7 @@ export function Header(p: HeaderProps) {
     window.addEventListener("pointerdown", onDown);
     return () => window.removeEventListener("pointerdown", onDown);
   }, [open]);
-  const toggle = (menu: "time" | "status" | "more" | "creel") => {
+  const toggle = (menu: "time" | "status" | "more" | "creel" | "wood") => {
     setOpen((o) => (o === menu ? null : menu));
   };
   // the campfire is always a starlit night: its hour does not follow the room's clock
@@ -118,6 +122,20 @@ export function Header(p: HeaderProps) {
       {/* ---- right: you ---- */}
       <div className="pointer-events-auto ml-auto flex shrink-0 flex-nowrap items-center gap-2">
         <CoinWallet coins={p.coins} onClaim={p.onClaimAllowance} />
+        {/* the wood you carry: only at the campfire (a round pill, the count beside the log) */}
+        {p.currentMap === "campfire_night" && (
+          <div className="relative shrink-0">
+            <button type="button" onClick={() => toggle("wood")} className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`} title={`Firewood: ${woodCount(angler.profile)}`} aria-label="Firewood" aria-expanded={open === "wood"} aria-haspopup="dialog">
+              <span className={ICON}>🪵</span>
+              <span className="font-bold tabular-nums text-amber-100">{woodCount(angler.profile)}</span>
+            </button>
+            {open === "wood" && (
+              <Menu alignRight>
+                <WoodPopover profile={angler.profile} bag={p.bag} />
+              </Menu>
+            )}
+          </div>
+        )}
         {/* the Fish Creel: only where there is fishing (the campfire) */}
         {p.currentMap === "campfire_night" && (
         <div className="relative shrink-0">

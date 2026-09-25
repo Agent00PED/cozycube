@@ -6,9 +6,9 @@ import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } 
 import { AWAY_PREFIX, BoardTable } from "./boardgame";
 import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
-import { BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
+import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
-import { CHOP_LOGS, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
+import { AXES, CHOP_LOGS, WOOD, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
 import {
   BAITS,
   afkSeconds,
@@ -33,8 +33,6 @@ import {
   FUEL_DECAY,
   FUEL_DECAY_S,
   FUEL_MAX,
-  FUEL_PER_CHARCOAL,
-  FUEL_PER_FIREWOOD,
   FUEL_START,
   PICNIC_PLATES,
   PICNIC_STALE_S,
@@ -1874,18 +1872,17 @@ export class HangoutRoom extends Room<HangoutState> {
         return;
       }
       case "ADD_FUEL": {
-        const item = packet.item === "charcoal" ? "charcoal" : "firewood";
-        if (player.action === "grill" || !this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) return;
-        const bag = parseBag(player.bag);
-        if (!((bag[item] ?? 0) > 0)) return;
+        const item = isWoodKind(packet.item) ? packet.item : "pine";
+        const profile = this.records.get(sessionId)?.fishing;
+        if (!profile || player.action === "grill" || !this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) return;
+        if (!(profile.wood[item] > 0)) return;
         if (this.state.fuel >= FUEL_MAX) {
           client.send("campfireNotice", { message: "The fire's already roaring! Save that for later", emoji: "🔥" });
           return;
         }
-        bag[item] = (bag[item] ?? 0) - 1;
-        if (!bag[item]) delete bag[item];
-        player.bag = encodeBag(bag);
-        const amount = item === "charcoal" ? FUEL_PER_CHARCOAL : FUEL_PER_FIREWOOD;
+        profile.wood[item] -= 1;
+        this.saveFishing(sessionId, player);
+        const amount = WOOD[item].fuel;
         this.state.fuel = Math.min(FUEL_MAX, this.state.fuel + amount);
         const update: BonfireUpdate = { fuel: this.state.fuel, sessionId, item, amount };
         this.broadcast("BONFIRE_STATE_UPDATE", update);
@@ -2001,6 +1998,10 @@ export class HangoutRoom extends Room<HangoutState> {
         this.handleBarnaby(sessionId, player, packet);
         return;
       }
+      case "BUSTER": {
+        this.handleBuster(sessionId, player, packet);
+        return;
+      }
       case "CHOP_STOP": {
         const chop = this.chops.get(sessionId);
         if (!chop || player.action !== "chop") return;
@@ -2066,7 +2067,7 @@ export class HangoutRoom extends Room<HangoutState> {
   /** The axe comes down: a clean split pays and feeds the fire; a glancing blow does neither. */
   /** The chopping combo's next stroke: a fresh meter for it, timed from now. */
   private startChopStroke(client: Client, stroke: ChopStrokeNo, log: ChopLog) {
-    const meter = rollChopStroke(stroke, log);
+    const meter = rollChopStroke(stroke, log, Math.random, this.records.get(client.sessionId)?.fishing.axe ?? "rusty");
     this.chops.set(client.sessionId, { stroke: meter, startedAt: Date.now(), log });
     client.send("chopStroke", meter);
   }
@@ -2082,13 +2083,16 @@ export class HangoutRoom extends Room<HangoutState> {
     this.playGesture(sessionId, "chop");
     let coins = 0;
     const log = CHOP_LOGS[chop.log];
-    if (clean) {
+    const profile = this.records.get(sessionId)?.fishing;
+    let pieces = 0;
+    if (clean && profile) {
       coins = this.campfirePay(sessionId, player, "chop", CHOP_CLEAN_COINS + log.bonus);
-      // the split log goes in your bag: firewood (or Golden Charcoal) to put on the fire
-      for (let k = 0; k < log.firewood; k++) this.addItem(player, "firewood");
-      for (let k = 0; k < log.charcoal; k++) this.addItem(player, "charcoal");
+      // the split log is yours: wood to burn or to sell to Buster (two, with the Golden Axe's luck)
+      pieces = Math.random() < AXES[profile.axe].doubleChance ? 2 : 1;
+      profile.wood[log.wood] = Math.min(999, profile.wood[log.wood] + pieces);
+      this.saveFishing(sessionId, player);
     }
-    const result: ChopResult = { sessionId, clean, stunned, stroke, log: chop.log, firewood: clean ? log.firewood : 0, charcoal: clean ? log.charcoal : 0, coins, capped: clean && coins === 0 };
+    const result: ChopResult = { sessionId, clean, stunned, stroke, log: chop.log, wood: log.wood, pieces, coins, capped: clean && coins === 0 };
     this.broadcast("chopResult", result);
     this.broadcast("emote", { sessionId, emoji: clean ? "🪵" : stunned ? "💫" : "😅" });
     this.persist(sessionId, player);
@@ -2358,6 +2362,53 @@ export class HangoutRoom extends Room<HangoutState> {
 
   private nearPicnic(player: Player): boolean {
     return Math.hypot(player.x - CAMPFIRE_LAYOUT.picnic.x, player.z - CAMPFIRE_LAYOUT.picnic.z) <= PICNIC_REACH + 0.4;
+  }
+
+  /** Buster the Lumberjack's stall: he buys split wood (near him) and sells axes (near him); an
+   *  axe you own can be switched to anywhere. */
+  private handleBuster(sessionId: string, player: Player, packet: Extract<CampfirePacket, { type: "BUSTER" }>) {
+    const record = this.records.get(sessionId);
+    if (!record) return;
+    const profile = record.fishing;
+    const B = CAMPFIRE_LAYOUT.buster;
+    const near = Math.min(Math.hypot(player.x - BUSTER_FRONT.x, player.z - BUSTER_FRONT.z), Math.hypot(player.x - B.x, player.z - B.z)) <= BUSTER_REACH + 0.4;
+    const reply = (ok: boolean, message: string, coins = 0) => {
+      const result: BarnabyResult = { ok, message, coins };
+      this.sendTo(sessionId, "busterResult", result);
+      if (ok) this.saveFishing(sessionId, player);
+    };
+    const tooFar = () => reply(false, "Come on over to the woodpile, pal!");
+    switch (packet.op) {
+      case "sell": {
+        if (!isWoodKind(packet.wood)) return;
+        if (!near) return tooFar();
+        const have = profile.wood[packet.wood];
+        const n = packet.count === "all" ? have : Math.min(have, Math.max(1, Math.floor(Number(packet.count) || 1)));
+        if (n <= 0) return reply(false, `No ${WOOD[packet.wood].name} to sell. The chopping block's right there!`);
+        const earned = n * WOOD[packet.wood].sell;
+        profile.wood[packet.wood] -= n;
+        this.addCoins(player, earned);
+        this.broadcast("emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
+        return reply(true, `${n} ${WOOD[packet.wood].name}? Fine timber! Here's ${earned} 🪙`, earned);
+      }
+      case "buyAxe": {
+        if (!isAxeId(packet.axe)) return;
+        const axe = AXES[packet.axe];
+        if (profile.axes.includes(packet.axe)) return reply(false, `You've already got the ${axe.name}`);
+        if (!near) return tooFar();
+        if (player.coins < axe.price) return reply(false, `The ${axe.name} is ${axe.price} 🪙. Keep chopping!`);
+        this.addCoins(player, -axe.price);
+        profile.axes.push(packet.axe);
+        profile.axe = packet.axe;
+        this.broadcast("emote", { sessionId, emoji: axe.emoji });
+        return reply(true, `The ${axe.name}, all yours. Mind your toes!`, -axe.price);
+      }
+      case "equipAxe": {
+        if (!isAxeId(packet.axe) || !profile.axes.includes(packet.axe)) return;
+        profile.axe = packet.axe;
+        return reply(true, `${AXES[packet.axe].emoji} ${AXES[packet.axe].name} in hand`);
+      }
+    }
   }
 
   /** Barnaby's stall: selling the creel (near him), buying rods, bait and a bigger creel (near him),
@@ -2820,6 +2871,11 @@ export class HangoutRoom extends Room<HangoutState> {
         this.broadcast("critterTreat", { sessionId });
         break;
       }
+      case "lumberjack":
+        if (Math.hypot(player.x - prop.x, player.z - prop.z) > BUSTER_REACH + 1.2) return;
+        this.sendTo(sessionId, "openPanel", { kind: "buster", propId: prop.propId });
+        this.broadcast("busterWave", { sessionId });
+        break;
       case "angler":
         if (Math.hypot(player.x - prop.x, player.z - prop.z) > BARNABY_REACH + 1.2) return;
         this.sendTo(sessionId, "openPanel", { kind: "barnaby", propId: prop.propId });

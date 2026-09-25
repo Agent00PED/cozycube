@@ -7,6 +7,7 @@
 // same tables in the reel, the creel and Barnaby's shop.
 
 import type { SwimPattern } from "./types";
+import { WOOD_KINDS, isAxeId, type AxeId, type WoodKind } from "./chop";
 
 export type Water = "freshwater" | "saltwater";
 export type FishTier = "common" | "uncommon" | "rare" | "epic" | "legendary";
@@ -135,9 +136,17 @@ export interface FishingProfile {
   records: Partial<Record<FishId, number>>;
   /** Well-Fed until (epoch ms, the server's clock). */
   fedUntil: number;
+  /** The camp's other kit: split wood by kind (to burn or sell to Buster), and the axe in hand and those owned. */
+  wood: Record<WoodKind, number>;
+  axe: AxeId;
+  axes: AxeId[];
 }
 export function emptyFishingProfile(): FishingProfile {
-  return { creel: [], slots: CREEL_BASE_SLOTS, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, fedUntil: 0 };
+  return { creel: [], slots: CREEL_BASE_SLOTS, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, fedUntil: 0, wood: { pine: 0, oak: 0, charcoal: 0 }, axe: "rusty", axes: ["rusty"] };
+}
+/** How much split wood the profile holds, all kinds together. */
+export function woodCount(p: Pick<FishingProfile, "wood">): number {
+  return WOOD_KINDS.reduce((sum, k) => sum + (p.wood[k] ?? 0), 0);
 }
 /** A profile read back from storage (or the network), with anything unknown or broken dropped. */
 export function sanitizeFishingProfile(raw: unknown): FishingProfile {
@@ -170,6 +179,11 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
     }
   }
   p.fedUntil = Math.max(0, Number(r.fedUntil) || 0);
+  if (r.wood && typeof r.wood === "object") {
+    for (const k of WOOD_KINDS) p.wood[k] = Math.max(0, Math.min(999, Math.round(Number((r.wood as Record<string, unknown>)[k]) || 0)));
+  }
+  if (Array.isArray(r.axes)) p.axes = Array.from(new Set(["rusty" as AxeId, ...r.axes.filter(isAxeId)]));
+  p.axe = isAxeId(r.axe) && p.axes.includes(r.axe) ? r.axe : "rusty";
   return p;
 }
 

@@ -24,11 +24,37 @@
 export type ChopStrokeNo = 1 | 2 | 3;
 export type ChopLog = "pine" | "oak" | "golden";
 
-export const CHOP_LOGS: Record<ChopLog, { name: string; emoji: string; firewood: number; charcoal: number; bonus: number; blurb: string }> = {
-  pine: { name: "Soft Pine", emoji: "🌲", firewood: 1, charcoal: 0, bonus: 0, blurb: "Soft wood: a wide sweet spot" },
-  oak: { name: "Hard Oak", emoji: "🌳", firewood: 2, charcoal: 0, bonus: 5, blurb: "Hard wood: its knots move" },
-  golden: { name: "Golden Log", emoji: "✨", firewood: 0, charcoal: 1, bonus: 15, blurb: "A rare golden log: Golden Charcoal burns twice as long" },
+// --- the wood: what a clean split yields, kept (with the axe) in the player's camp profile ---
+export type WoodKind = "pine" | "oak" | "charcoal";
+export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal"];
+/** Each kind: what Buster pays for one, and how much it feeds the bonfire. */
+export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number; fuel: number }> = {
+  pine: { name: "Pine Firewood", emoji: "🪵", sell: 8, fuel: 25 },
+  oak: { name: "Oak Firewood", emoji: "🌳", sell: 15, fuel: 30 },
+  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: 35, fuel: 50 },
 };
+export function isWoodKind(v: unknown): v is WoodKind {
+  return v === "pine" || v === "oak" || v === "charcoal";
+}
+
+/** What each log splits into. */
+export const CHOP_LOGS: Record<ChopLog, { name: string; emoji: string; wood: WoodKind; bonus: number; blurb: string }> = {
+  pine: { name: "Soft Pine", emoji: "🌲", wood: "pine", bonus: 0, blurb: "Soft wood: a wide sweet spot" },
+  oak: { name: "Hard Oak", emoji: "🌳", wood: "oak", bonus: 5, blurb: "Hard wood: its knots move" },
+  golden: { name: "Golden Log", emoji: "✨", wood: "charcoal", bonus: 15, blurb: "A rare golden log: Golden Charcoal burns twice as long" },
+};
+
+// --- the axes: Buster the Lumberjack sells them ---
+export type AxeId = "rusty" | "steel" | "golden";
+export const AXES: Record<AxeId, { name: string; emoji: string; price: number; zoneBonus: number; slow: number; doubleChance: number; blurb: string }> = {
+  rusty: { name: "Rusty Hatchet", emoji: "🪓", price: 0, zoneBonus: 0, slow: 0, doubleChance: 0, blurb: "It gets the job done. Mostly." },
+  steel: { name: "Steel Camp Axe", emoji: "⚒️", price: 300, zoneBonus: 0.25, slow: 0, doubleChance: 0, blurb: "+25% green zone on every stroke." },
+  golden: { name: "Golden Lumberjack Axe", emoji: "🌟", price: 900, zoneBonus: 0.25, slow: 0.2, doubleChance: 0.3, blurb: "+25% green zone, a 20% slower needle, and a 30% chance of double wood." },
+};
+export const AXE_IDS = Object.keys(AXES) as AxeId[];
+export function isAxeId(v: unknown): v is AxeId {
+  return typeof v === "string" && v in AXES;
+}
 
 export interface ChopStroke {
   stroke: ChopStrokeNo;
@@ -93,11 +119,12 @@ export function rollChopLog(rand: () => number = Math.random): ChopLog {
 }
 
 /** A fresh stroke's meter (the server rolls it; `rand` is Math.random there). */
-export function rollChopStroke(stroke: ChopStrokeNo, log: ChopLog, rand: () => number = Math.random): ChopStroke {
-  const wide = log === "pine" ? 1.3 : log === "golden" ? 0.9 : 1;
+export function rollChopStroke(stroke: ChopStrokeNo, log: ChopLog, rand: () => number = Math.random, axe: AxeId = "rusty"): ChopStroke {
+  const wide = (log === "pine" ? 1.3 : log === "golden" ? 0.9 : 1) * (1 + AXES[axe].zoneBonus);
+  const slow = 1 / (1 - AXES[axe].slow);
   const creep = log === "oak" ? { knotSwing: 0.12, knotPeriod: 2.2 + rand() * 0.8 } : { knotSwing: 0, knotPeriod: 0 };
   // the stroke waits three round trips of the needle for a swing
-  const make = (m: Omit<ChopStroke, "stroke" | "log" | "duration" | "knotSwing" | "knotPeriod">): ChopStroke => ({ stroke, log, duration: m.needlePeriod * 3, ...m, ...creep });
+  const make = (m: Omit<ChopStroke, "stroke" | "log" | "duration" | "knotSwing" | "knotPeriod">): ChopStroke => ({ stroke, log, ...m, needlePeriod: m.needlePeriod * slow, duration: m.needlePeriod * slow * 3, ...creep });
   if (stroke === 1) {
     // a wide sweet spot swinging about the middle; the knot waits at one end
     const zoneCenter = 0.45 + rand() * 0.1;

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { parseBag, type CampfirePacket } from "@shared/types";
-import { FISH, stars, WELL_FED_S, type FishingProfile } from "@shared/fishing";
-import { COZY_AURA_FUEL, FUEL_PER_CHARCOAL, FUEL_PER_FIREWOOD, LOW_FUEL, STEW_INGREDIENT_INFO, STEW_SLOTS, hasCozyAura, stewName } from "@shared/bonfire";
+import { FISH, stars, WELL_FED_S, woodCount, type FishingProfile } from "@shared/fishing";
+import { WOOD, WOOD_KINDS } from "@shared/chop";
+import { COZY_AURA_FUEL, LOW_FUEL, STEW_INGREDIENT_INFO, STEW_SLOTS, hasCozyAura, stewName } from "@shared/bonfire";
 import type { HearthState } from "../../hooks/useColyseusRoom";
 import { Modal } from "./Modal";
 
@@ -42,15 +43,14 @@ export function CookingModal({ hearth, profile, bag, userId, fed, send, onClose 
             <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${fuel}%`, background: aura ? "linear-gradient(90deg,#ff8c32,#ffd166)" : fuel < LOW_FUEL ? "#8a6a5a" : "#ff8c32" }} />
             <div className="absolute inset-y-0 w-0.5 bg-white/50" style={{ left: `${COZY_AURA_FUEL}%` }} aria-hidden />
           </div>
-          <div className="flex gap-1.5">
-            <button type="button" className="clay-btn clay-btn-amber min-h-10 flex-1 text-xs" disabled={!items.firewood || fuel >= 100} onClick={() => send({ type: "ADD_FUEL", item: "firewood" })}>
-              🪵 Firewood ×{items.firewood ?? 0} · +{FUEL_PER_FIREWOOD}%
-            </button>
-            <button type="button" className="clay-btn min-h-10 flex-1 text-xs" disabled={!items.charcoal || fuel >= 100} onClick={() => send({ type: "ADD_FUEL", item: "charcoal" })}>
-              ✨ Charcoal ×{items.charcoal ?? 0} · +{FUEL_PER_CHARCOAL}%
-            </button>
+          <div className="grid grid-cols-3 gap-1.5">
+            {WOOD_KINDS.map((k) => (
+              <button key={k} type="button" className={`clay-btn min-h-10 px-1 text-[11px] leading-tight ${k === "pine" ? "clay-btn-amber" : ""}`} disabled={!profile.wood[k] || fuel >= 100} onClick={() => send({ type: "ADD_FUEL", item: k })} title={WOOD[k].name}>
+                {WOOD[k].emoji} ×{profile.wood[k]} · +{WOOD[k].fuel}%
+              </button>
+            ))}
           </div>
-          {!items.firewood && !items.charcoal && <p className="m-0 text-[11px] opacity-60">Split logs at the chopping block by the woodpile for firewood.</p>}
+          {woodCount(profile) === 0 && <p className="m-0 text-[11px] opacity-60">Split logs at the chopping block by the woodpile for firewood.</p>}
         </section>
 
         {/* the Dutch oven */}

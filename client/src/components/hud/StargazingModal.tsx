@@ -59,17 +59,26 @@ const CLOUDS = [
 type Streak = ShootingStar & { start: number; hit: boolean; gone: boolean };
 type Burst = { x: number; y: number; at: number; text: string };
 
-/** Each of a constellation's three clusters of stars sits this much off its focus from the next,
- *  and a star is crisp within STAR_CRISP of its own. */
-const STAR_DEPTH = 0.04;
-const STAR_CRISP = 0.018;
-/** The focus ring: a constellation's stars are sharp (and can be traced) within this of its focus. */
-const FOCUS_OK = 0.07;
-/** A fresh focus for the next constellation, well away from where the ring is now (so it blurs). */
-function newFocus(from: number): number {
-  const away = 0.25 + Math.random() * 0.2;
-  const up = from + away <= 1 && (from - away < 0 || Math.random() < 0.5);
-  return up ? from + away : from - away;
+/** Multi-focal lens: each constellation's stars lie in three depth planes (stars 1-3, 4-6, 7-8 in
+ *  tracing order). Each plane comes into focus at its own place on the focus slider, somewhere in
+ *  its zone (near, mid, far), and is sharp within FOCUS_TOLERANCE of it: only then can its stars
+ *  be seen clearly and linked. */
+const FOCUS_ZONES: readonly (readonly [number, number])[] = [
+  [0.2, 0.35],
+  [0.5, 0.65],
+  [0.8, 0.95],
+];
+const ZONE_NAMES = ["Near", "Mid", "Far"];
+const FOCUS_TOLERANCE = 0.08;
+/** Where the ring starts: nothing in focus. */
+const FOCUS_START = 0.05;
+/** A constellation's three depth planes: a focus somewhere in each zone. */
+function rollBands(): number[] {
+  return FOCUS_ZONES.map(([lo, hi]) => lo + Math.random() * (hi - lo));
+}
+/** The depth plane of each star (by its place in the tracing order). */
+function planeOf(k: number, count: number): number {
+  return Math.min(2, Math.floor(k / Math.ceil(count / 3)));
 }
 
 export function StargazingModal({ send, subscribeMessages, localSessionId, onClose }: Props) {
@@ -79,14 +88,13 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
   const bursts = useRef<Burst[]>([]);
   const lastHit = useRef<{ x: number; y: number } | null>(null);
   const opened = useRef(performance.now());
-  // the constellation being traced: which one, how many of its stars are joined, and when it finished
-  const firstFocus = useMemo(() => newFocus(0.5), []);
   // the constellation being traced: which one, how many of its stars are joined, when it finished;
-  // its focus, the way the ring has to turn to reach it (`dir`), and whether it is sharp yet
-  const trace = useRef({ index: 0, joined: 0, doneAt: 0, all: false, target: firstFocus, dir: firstFocus > 0.5 ? 1 : -1, sharp: false });
+  // its three depth planes' focus points, and which plane the ring has in focus (-1: none)
+  const firstBands = useMemo(() => rollBands(), []);
+  const trace = useRef({ index: 0, joined: 0, doneAt: 0, all: false, bands: firstBands, plane: -1 });
   // the focus ring's setting (0..1), and where a drag round the brass ring began
-  const focusRef = useRef(0.5);
-  const [focus, setFocusState] = useState(0.5);
+  const focusRef = useRef(FOCUS_START);
+  const [focus, setFocusState] = useState(FOCUS_START);
   const setFocus = (v: number) => {
     focusRef.current = Math.max(0, Math.min(1, v));
     setFocusState(focusRef.current);
@@ -99,7 +107,7 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
   const comboRef = useRef(combo);
   comboRef.current = combo;
   const [traced, setTraced] = useState<string[]>([]);
-  const [note, setNote] = useState("Tap the shooting stars as they streak by. Turn the focus ring until a constellation is sharp, then trace its stars in order");
+  const [note, setNote] = useState("Tap shooting stars as they streak by. The constellation's stars lie at three depths: focus near, mid, then far to link them in order");
 
   // looking through it, for as long as this is open (send is a fresh function each render: held in a ref)
   const sendRef = useRef(send);
@@ -187,12 +195,21 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
       if (shape && !tr.all) {
         const pts = shape.stars.map(([px, py]) => [px * SIZE + cx, py * SIZE + cy] as const);
         const revealed = tr.joined >= pts.length;
-        // out of focus, its stars are soft blurs (the further off, the softer): turn the ring
-        const off = Math.abs(focusRef.current - tr.target);
-        const sharp = revealed || off < FOCUS_OK;
-        if (sharp !== tr.sharp) {
-          tr.sharp = sharp;
-          if (sharp && !revealed) setNote(`In focus: ${shape.emoji} ${shape.name}! Trace its stars in order`);
+        // which depth plane the ring has in focus: entering one clicks, and says whose stars they are
+        const f = focusRef.current;
+        const plane = tr.bands.findIndex((b) => Math.abs(f - b) <= FOCUS_TOLERANCE);
+        if (plane !== tr.plane) {
+          tr.plane = plane;
+          if (plane >= 0 && !revealed) {
+            playSfx("focus");
+            const members = pts.map((_, k) => k).filter((k) => planeOf(k, pts.length) === plane);
+            const nextPlane = planeOf(Math.min(tr.joined, pts.length - 1), pts.length);
+            setNote(
+              plane === nextPlane
+                ? `${ZONE_NAMES[plane]} stars ${members[0] + 1}-${members[members.length - 1] + 1} in focus: link them!`
+                : `${ZONE_NAMES[plane]} stars ${members[0] + 1}-${members[members.length - 1] + 1} in focus, but next is star ${tr.joined + 1} (${ZONE_NAMES[nextPlane].toLowerCase()})`
+            );
+          }
         }
         // the lines joined so far (closing the loop once complete)
         g.strokeStyle = revealed ? "rgba(255, 228, 158, 0.95)" : "rgba(255, 228, 158, 0.55)";
@@ -223,43 +240,46 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
           g.textAlign = "center";
           g.fillText(`${shape.emoji} ${shape.name}`, SIZE / 2 + cx, SIZE * 0.88 + cy);
           g.textAlign = "start";
-          // on to the next one after a moment, out of focus again
+          // on to the next one after a moment, with its own depth planes
           if (now - tr.doneAt > 2800) {
             tr.index += 1;
             tr.joined = 0;
-            tr.target = newFocus(focusRef.current);
-            tr.dir = tr.target > focusRef.current ? 1 : -1;
-            tr.sharp = false;
+            tr.bands = rollBands();
+            tr.plane = -1;
             if (tr.index >= CONSTELLATIONS.length) tr.all = true;
-            else setNote("A new patch of sky, all a blur: turn the focus ring");
+            else setNote("A new patch of sky: find the near stars' focus first");
           }
         }
-        // its stars, the next one to tap numbered and pulsing. Each cluster of them sits at its own
-        // focal depth (STAR_DEPTH apart, the first to trace nearest the way the ring turns), so as
-        // the ring comes round they snap crisp one cluster after another
-        const per = Math.ceil(pts.length / 3);
+        // its stars. A star in the plane in focus is crisp and bright; the rest are heavy, faint
+        // blurs (the farther off, the heavier). Joined stars stay lit. The in-focus stars not yet
+        // joined wear a target reticle, and the next to tap pulses, numbered
         pts.forEach(([px, py], k) => {
-          const depth = revealed ? 0 : (Math.floor(k / per) - 1) * STAR_DEPTH * tr.dir;
-          const starOff = Math.abs(focusRef.current - (tr.target + depth));
-          const soft = revealed ? 0 : Math.max(0, starOff - STAR_CRISP);
-          g.filter = soft > 0 ? `blur(${Math.min(7, 0.8 + soft * 22).toFixed(1)}px)` : "none";
-          const next = k === tr.joined && !revealed && sharp;
+          const own = tr.bands[planeOf(k, pts.length)];
+          const off = Math.abs(f - own);
+          const crisp = revealed || k < tr.joined || off <= FOCUS_TOLERANCE;
+          g.filter = crisp ? "none" : `blur(${Math.min(8, 3 + (off - FOCUS_TOLERANCE) * 18).toFixed(1)}px)`;
+          const next = k === tr.joined && !revealed && crisp;
           const tw = 0.6 + 0.4 * Math.sin(t * 2.2 + k * 1.3);
-          g.fillStyle = k < tr.joined ? "rgba(255, 236, 170, 1)" : `rgba(255, 244, 214, ${0.55 + 0.35 * tw})`;
+          g.fillStyle = k < tr.joined ? "rgba(255, 236, 170, 1)" : crisp ? `rgba(255, 244, 214, ${0.7 + 0.3 * tw})` : "rgba(255, 244, 214, 0.28)";
           g.beginPath();
-          g.arc(px, py, next ? 3.2 + tw * 1.4 : 2.4, 0, Math.PI * 2);
+          g.arc(px, py, next ? 3.2 + tw * 1.4 : crisp ? 2.6 : 3.6, 0, Math.PI * 2);
           g.fill();
-          if (next) {
-            g.strokeStyle = `rgba(255, 209, 102, ${0.5 + 0.5 * tw})`;
+          if (crisp && !revealed && k >= tr.joined) {
+            // the target reticle: a ring with four ticks, the next star's pulsing gold
+            const r = next ? 8 + tw * 3 : 7;
+            g.strokeStyle = next ? `rgba(255, 209, 102, ${0.55 + 0.45 * tw})` : "rgba(200, 230, 255, 0.55)";
             g.lineWidth = 1.2;
             g.beginPath();
-            g.arc(px, py, 8 + tw * 3, 0, Math.PI * 2);
+            g.arc(px, py, r, 0, Math.PI * 2);
+            for (let q = 0; q < 4; q++) {
+              const ang = (q * Math.PI) / 2 + t * 0.6;
+              g.moveTo(px + Math.cos(ang) * (r + 2), py + Math.sin(ang) * (r + 2));
+              g.lineTo(px + Math.cos(ang) * (r + 5), py + Math.sin(ang) * (r + 5));
+            }
             g.stroke();
-          }
-          if (!revealed && sharp) {
-            g.fillStyle = "rgba(255, 244, 214, 0.75)";
+            g.fillStyle = "rgba(255, 244, 214, 0.8)";
             g.font = "700 9px Fredoka, system-ui, sans-serif";
-            g.fillText(String(k + 1), px + 5, py - 5);
+            g.fillText(String(k + 1), px + 6, py - 6);
           }
         });
         g.filter = "none";
@@ -373,8 +393,10 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
     const cy = -aim.current.y * LAYERS[1].depth;
     const [sx, sy] = shape.stars[tr.joined];
     if (Math.hypot(p.x - (sx * SIZE + cx), p.y - (sy * SIZE + cy)) > HIT_STAR) return;
-    if (!tr.sharp) {
-      setNote("Too blurry to pick out: turn the focus ring until the stars are sharp");
+    // a blurred star cannot be picked out: its depth plane has to be in focus
+    const plane = planeOf(tr.joined, shape.stars.length);
+    if (Math.abs(focusRef.current - tr.bands[plane]) > FOCUS_TOLERANCE) {
+      setNote(`Star ${tr.joined + 1} is a blur: turn the focus toward the ${ZONE_NAMES[plane].toLowerCase()} zone`);
       return;
     }
     tr.joined += 1;
@@ -443,10 +465,20 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
             </div>
           )}
         </div>
-        <label className="flex w-full max-w-[300px] items-center gap-2 text-xs font-semibold">
+        <label className="flex w-full max-w-[300px] items-center gap-2 pb-3 text-xs font-semibold">
           <span aria-hidden>🔍</span>
           <span className="opacity-80">Focus</span>
-          <input type="range" min={0} max={1000} value={Math.round(focus * 1000)} onChange={(e) => setFocus(Number(e.target.value) / 1000)} className="cozy-focus flex-1 accent-amber-300" aria-label="Focus ring" />
+          <span className="relative flex-1">
+            <input type="range" min={0} max={1000} value={Math.round(focus * 1000)} onChange={(e) => setFocus(Number(e.target.value) / 1000)} className="cozy-focus w-full accent-amber-300" aria-label="Focus ring" />
+            {/* the three depth zones, faintly marked under the track */}
+            <span className="pointer-events-none absolute inset-x-0 -bottom-3 text-[9px] font-bold uppercase tracking-wide opacity-45" aria-hidden>
+              {FOCUS_ZONES.map(([lo, hi], i) => (
+                <span key={i} className="absolute -translate-x-1/2" style={{ left: `${((lo + hi) / 2) * 100}%` }}>
+                  {ZONE_NAMES[i]}
+                </span>
+              ))}
+            </span>
+          </span>
         </label>
         <p className="m-0 min-h-[20px] text-center text-sm opacity-80">{note}</p>
         <p className="m-0 text-center text-[11px] opacity-60">

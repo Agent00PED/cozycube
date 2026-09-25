@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CHOP_CLEAN_COINS, CHOP_STUN_S, type CampfirePacket, type ChopResult } from "@shared/types";
-import { CHOP_GRACE, CHOP_LOGS, CHOP_STROKE_NAMES, chopKnot, chopMarker, chopZone, type ChopStroke } from "@shared/chop";
+import { CHOP_GRACE, WOOD, CHOP_LOGS, CHOP_STROKE_NAMES, chopKnot, chopMarker, chopZone, type ChopStroke } from "@shared/chop";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -164,10 +164,10 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
                 ))}
               </div>
             )}
-            <div className="text-lg font-semibold">{result.clean ? (result.charcoal ? "✨ Golden Charcoal! The log splits in two" : "🪵 Clean cleave! The log splits in two") : result.stunned ? "💫 The axe bit a knot!" : `😅 Missed the ${CHOP_STROKE_NAMES[(result.stroke as 1 | 2 | 3) ?? 1].toLowerCase()}`}</div>
+            <div className="text-lg font-semibold">{result.clean ? (result.wood === "charcoal" ? "✨ Golden Charcoal! The log splits in two" : "🪵 Clean cleave! The log splits in two") : result.stunned ? "💫 The axe bit a knot!" : `😅 Missed the ${CHOP_STROKE_NAMES[(result.stroke as 1 | 2 | 3) ?? 1].toLowerCase()}`}</div>
             <div className={`text-sm ${result.clean ? "text-amber-200" : "opacity-70"}`}>
               {result.clean
-                ? `${result.charcoal ? `+${result.charcoal} Golden Charcoal ✨` : `+${result.firewood} Firewood 🪵`}${result.coins > 0 ? ` · +${result.coins} 🪙` : " (today's chopping coins are all earned)"} · put it on the fire!`
+                ? `+${result.pieces} ${WOOD[result.wood].name} ${WOOD[result.wood].emoji}${result.pieces > 1 ? " (double!)" : ""}${result.coins > 0 ? ` · +${result.coins} 🪙` : " (today's chopping coins are all earned)"} · burn it or sell it to Buster`
                 : result.stunned
                   ? `Shake it off: the axe is ready again in ${CHOP_STUN_S}s`
                   : "Try again: swing when the needle is in the green"}

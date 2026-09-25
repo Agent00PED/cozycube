@@ -95,6 +95,8 @@ const RELAYED_MESSAGES = [
   "STEW_STATE_UPDATE",
   "barnabyResult",
   "barnabyWave",
+  "busterResult",
+  "busterWave",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;

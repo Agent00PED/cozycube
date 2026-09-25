@@ -2,7 +2,7 @@
 
 import type { BaitId, CreelFish, FishTier, RodId } from "./fishing";
 import type { FuelItem, StewIngredient } from "./bonfire";
-import type { ChopLog } from "./chop";
+import type { AxeId, ChopLog, WoodKind } from "./chop";
 
 /** "dangle": sitting on an edge (the campfire's dock), legs hanging down and swinging.
  *  "cross": sitting cross-legged right on the ground (the Sit emote, away from any seat). */
@@ -239,7 +239,8 @@ export type ToggleableKind =
   | "foraging"
   | "fireflies"
   | "critter"
-  | "angler";
+  | "angler"
+  | "lumberjack";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -323,7 +324,7 @@ export const FORAGE_REGROW_S = 25;
 /** How long a bite lasts: reel in within this window or the fish slips the hook. */
 export const BITE_WINDOW_S = 2.6;
 
-export type ItemId = "sardine" | "clownfish" | "octopus" | "goldray" | "berry" | "firefly" | "shell" | "seabass" | "starfish" | "trout" | "salmon" | "crayfish" | "plush" | "firewood" | "charcoal" | "mushroom";
+export type ItemId = "sardine" | "clownfish" | "octopus" | "goldray" | "berry" | "firefly" | "shell" | "seabass" | "starfish" | "trout" | "salmon" | "crayfish" | "plush" | "mushroom";
 export const ITEMS: Record<ItemId, { emoji: string; name: string; value: number; buyer: "bob" | "oak" }> = {
   sardine: { emoji: "🐟", name: "Sardine", value: 10, buyer: "bob" },
   clownfish: { emoji: "🐠", name: "Clownfish", value: 25, buyer: "bob" },
@@ -338,8 +339,6 @@ export const ITEMS: Record<ItemId, { emoji: string; name: string; value: number;
   firefly: { emoji: "✨", name: "Firefly Jar", value: 12, buyer: "oak" },
   shell: { emoji: "🐚", name: "Pretty Shell", value: 8, buyer: "bob" },
   plush: { emoji: "🧸", name: "Mochi Plush", value: 40, buyer: "bob" },
-  firewood: { emoji: "🪵", name: "Firewood", value: 3, buyer: "oak" },
-  charcoal: { emoji: "✨", name: "Golden Charcoal", value: 10, buyer: "oak" },
   mushroom: { emoji: "🍄", name: "Red Mushrooms", value: 6, buyer: "oak" },
 };
 
@@ -712,10 +711,10 @@ export const LOFI_TRACKS = ["Rainy Window", "Late Night Study", "Sunday Coffee"]
 // client computes the same answer, it survives reconnects and map changes, and it costs the
 // room state nothing.
 export type FreeAccessory = "beret" | "beanie" | "flower" | "headphones" | "none";
-export type PremiumHat = "straw" | "bunny" | "tophat" | "crown" | "mochiears";
+export type PremiumHat = "straw" | "bunny" | "tophat" | "crown" | "mochiears" | "cozybeanie" | "boonie" | "bearcap" | "headlamp";
 
 // --- outfits: a whole look for the body, in one accent colour of your choosing ---
-export type OutfitId = "outfit_starter_hoodie" | "outfit_starter_overalls" | "outfit_flannel_vest" | "outfit_hawaiian" | "outfit_tuxedo" | "outfit_boxing" | "outfit_yukata" | "outfit_cyber";
+export type OutfitId = "outfit_starter_hoodie" | "outfit_starter_overalls" | "outfit_flannel_vest" | "outfit_hawaiian" | "outfit_tuxedo" | "outfit_boxing" | "outfit_yukata" | "outfit_cyber" | "outfit_red_plaid" | "outfit_puffer_vest" | "outfit_wader_overalls";
 export const OUTFITS: Record<OutfitId, { name: string; emoji: string; price: number; gachaOnly?: boolean }> = {
   outfit_starter_hoodie: { name: "Cozy Hoodie & Sweats", emoji: "🧥", price: 0 },
   outfit_starter_overalls: { name: "Classic Denim Overalls", emoji: "👖", price: 0 },
@@ -725,6 +724,10 @@ export const OUTFITS: Record<OutfitId, { name: string; emoji: string; price: num
   outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 200 },
   outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 180 },
   outfit_cyber: { name: "Retro Cyber Jumpsuit", emoji: "🕹️", price: 0, gachaOnly: true },
+  // the campfire collection
+  outfit_red_plaid: { name: "Buffalo Plaid & Suspenders", emoji: "🟥", price: 160 },
+  outfit_puffer_vest: { name: "Mustard Puffer Vest", emoji: "🟨", price: 180 },
+  outfit_wader_overalls: { name: "Angler's Wader Overalls", emoji: "🥾", price: 200 },
 };
 export const OUTFIT_IDS = Object.keys(OUTFITS) as OutfitId[];
 export const STARTER_OUTFITS: OutfitId[] = ["outfit_starter_hoodie", "outfit_starter_overalls"];
@@ -742,6 +745,11 @@ export const PREMIUM_HATS: Record<PremiumHat, { name: string; price: number; emo
   tophat: { name: "Top Hat", price: 200, emoji: "🎩" },
   crown: { name: "High Roller Crown", price: 400, emoji: "👑" },
   mochiears: { name: "Mochi Ears", price: 0, emoji: "🐱", gachaOnly: true },
+  // the campfire collection
+  cozybeanie: { name: "Cozy Pompom Beanie", price: 90, emoji: "🧡" },
+  boonie: { name: "Angler Boonie", price: 110, emoji: "🎣" },
+  bearcap: { name: "Bear Fleece Cap", price: 130, emoji: "🐻" },
+  headlamp: { name: "Trail Headlamp", price: 150, emoji: "🔦" },
 };
 export const PREMIUM_HAT_IDS = Object.keys(PREMIUM_HATS) as PremiumHat[];
 export function isPremiumHat(v: unknown): v is PremiumHat {
@@ -815,9 +823,9 @@ export const OUTFIT_COLOR_NAMES = ["Coral", "Peach blush", "Apricot", "Lemon", "
 /** Twelve cozy earth and jewel tones for a top's fabric: every one reads as cloth against every skin tone. */
 export const SHIRT_COLORS = ["#c85a44", "#b3403a", "#e9c46a", "#8aa67e", "#2a9d8f", "#6c8ebf", "#3d5a80", "#2b3a6b", "#7d4e6d", "#d98e8e", "#3a3a40", "#1d1b22"];
 export const SHIRT_COLOR_NAMES = ["Terracotta", "Brick", "Mustard", "Sage", "Teal", "Cornflower", "Slate", "Indigo", "Plum", "Dusty rose", "Charcoal", "Midnight"];
-/** Nine fabrics for trousers and shorts. */
-export const PANTS_COLORS = ["#5a5a66", "#3f5f8a", "#2b3a6b", "#a08a60", "#6b4f3a", "#7a8b6f", "#f5ecd8", "#3a3a40", "#1d1b22"];
-export const PANTS_COLOR_NAMES = ["Heather grey", "Denim", "Indigo", "Khaki", "Cocoa", "Olive", "Cream", "Charcoal", "Midnight"];
+/** Ten fabrics for trousers and shorts. */
+export const PANTS_COLORS = ["#5a5a66", "#3f5f8a", "#2b3a6b", "#a08a60", "#6b4f3a", "#7a8b6f", "#f5ecd8", "#3a3a40", "#1d1b22", "#3f5b3a"];
+export const PANTS_COLOR_NAMES = ["Heather grey", "Denim", "Indigo", "Khaki", "Cocoa", "Olive", "Cream", "Charcoal", "Midnight", "Forest"];
 /** Each outfit's own fabrics: what its top and bottom are made of until the player recolours them. */
 export const OUTFIT_FABRICS: Record<OutfitId, { shirt: string; pants: string }> = {
   outfit_starter_hoodie: { shirt: "#c85a44", pants: "#5a5a66" },
@@ -828,6 +836,9 @@ export const OUTFIT_FABRICS: Record<OutfitId, { shirt: string; pants: string }> 
   outfit_boxing: { shirt: "#c85a44", pants: "#f5ecd8" },
   outfit_yukata: { shirt: "#2b3a6b", pants: "#2b3a6b" },
   outfit_cyber: { shirt: "#1d1b22", pants: "#1d1b22" },
+  outfit_red_plaid: { shirt: "#b3403a", pants: "#3f5f8a" },
+  outfit_puffer_vest: { shirt: "#3d5a80", pants: "#6b4f3a" },
+  outfit_wader_overalls: { shirt: "#e9c46a", pants: "#3f5b3a" },
 };
 export const HATS: FreeAccessory[] = ACCESSORIES;
 export function isHat(v: unknown): v is Accessory {
@@ -971,7 +982,8 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "foraging" ||
     kind === "fireflies" ||
     kind === "critter" ||
-    kind === "angler"
+    kind === "angler" ||
+    kind === "lumberjack"
   );
 }
 
@@ -1264,10 +1276,10 @@ export interface ChopResult {
   stunned: boolean;
   /** The stroke it ended on (3 when clean). */
   stroke: number;
-  /** The log on the block, and (clean) what it split into. */
+  /** The log on the block, and (clean) what it split into (two with the Golden Axe's luck). */
   log: ChopLog;
-  firewood: number;
-  charcoal: number;
+  wood: WoodKind;
+  pieces: number;
   coins: number;
   capped: boolean;
 }
@@ -1312,7 +1324,10 @@ export type CampfirePacket =
   | { type: "BARNABY"; op: "buyRod" | "equipRod"; rod: RodId }
   | { type: "BARNABY"; op: "buyBait"; bait: BaitId }
   | { type: "BARNABY"; op: "equipBait"; bait: BaitId | "" }
-  | { type: "BARNABY"; op: "upgradeCreel" };
+  | { type: "BARNABY"; op: "upgradeCreel" }
+  /** Buster the Lumberjack's stall: sell split wood (one, or all of a kind), buy or switch axes. */
+  | { type: "BUSTER"; op: "sell"; wood: WoodKind; count: number | "all" }
+  | { type: "BUSTER"; op: "buyAxe" | "equipAxe"; axe: AxeId };
 
 /** Barnaby's answer to a shop request (sent to the one who asked). */
 export interface BarnabyResult {

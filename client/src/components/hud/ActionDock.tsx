@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
-import { BARNABY_FRONT, BARNABY_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH } from "@shared/worlds/campfire";
+import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH } from "@shared/worlds/campfire";
+import { WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
 import type { HearthState } from "../../hooks/useColyseusRoom";
 import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, spotOfSeat } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
@@ -27,6 +28,7 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🍢 Leave on Table] / [🍢 Grab a Skewer]  at the picnic table, a skewer in hand or on a plate
 //   [💤 AFK Mode: OFF] / [💤 AFK Mode: ON]  sitting at a fishing spot (the dock's edge, the canoe)
 //   [🦦 Talk to Barnaby]  at the angler's tackle stall by the dock
+//   [🪓 Talk to Buster]  at the lumberjack's firewood stall by the woodpile
 //   [🎣 Go Fishing]  at the dock: sit on its edge at the nearest free spot and cast; sitting on the
 //                    edge already, [🎣 Cast Line]
 //   [✨ Catch Fireflies] / [✨ Release Fireflies]  in the grove between the hammock and the tipi
@@ -43,11 +45,20 @@ import { glass, hudText, pillButton } from "./glass";
 
 interface Action {
   key: string;
-  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fuel" | "stew" | "picnic" | "afk" | "barnaby" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "critter" | "stand";
+  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fuel" | "stew" | "picnic" | "afk" | "barnaby" | "buster" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "critter" | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
   hint?: string;
   run: () => void;
+}
+
+/** The split wood in a synced camp profile (PlayerState.fishing). */
+function woodOf(fishing: string): Partial<Record<WoodKind, number>> {
+  try {
+    return (JSON.parse(fishing || "{}") as { wood?: Partial<Record<WoodKind, number>> }).wood ?? {};
+  } catch {
+    return {};
+  }
 }
 
 /** "5h 12m", "12m", "<1m": the time until the daily rollover. */
@@ -106,11 +117,12 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       }
       // the hearth: wood on the fire, and the Dutch oven over it (from the fire's side or a seat round it)
       if (bonfire && (onLog || (!sitting && reach(bonfire) <= BONFIRE_REACH))) {
-        const bag = parseBag(player.bag);
-        const item = bag.charcoal ? ("charcoal" as const) : bag.firewood ? ("firewood" as const) : null;
+        // the humblest wood first (pine, then oak, then Golden Charcoal: it sells best to Buster)
+        const wood = woodOf(player.fishing);
+        const item = WOOD_KINDS.find((k) => (wood[k] ?? 0) > 0);
         if (item && hearth.fuel < 100 && action !== "grill") {
-          const n = bag[item] ?? 0;
-          found.push({ key: `fuel:${item}:${n}`, type: "fuel", label: item === "charcoal" ? `✨ Add Golden Charcoal ×${n}` : `🪵 Add Firewood ×${n}`, hint: "Build the fire up: above 70% everyone gets the Cozy Aura", run: () => onCampfire({ type: "ADD_FUEL", item }) });
+          const n = wood[item] ?? 0;
+          found.push({ key: `fuel:${item}:${n}`, type: "fuel", label: `${WOOD[item].emoji} Add ${WOOD[item].name} ×${n}`, hint: "Build the fire up: above 70% everyone gets the Cozy Aura", run: () => onCampfire({ type: "ADD_FUEL", item }) });
         }
         const stew = hearth.stew;
         const ready = stew.phase === "ready" && stew.servings > 0 && !stew.served.includes(player.userId);
@@ -134,6 +146,11 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         if (angler && Math.min(reach(angler), Math.hypot(BARNABY_FRONT.x - cameraFocus.x, BARNABY_FRONT.z - cameraFocus.z)) <= BARNABY_REACH + 0.6) {
           const id = angler.propId;
           found.push({ key: `barnaby:${id}`, type: "barnaby", label: "🦦 Talk to Barnaby", hint: "Sell your creel, buy rods and bait", run: () => interactBridge.current?.useProp(id) });
+        }
+        const lumberjack = Object.values(toggleables).find((p) => p.kind === "lumberjack");
+        if (lumberjack && Math.min(reach(lumberjack), Math.hypot(BUSTER_FRONT.x - cameraFocus.x, BUSTER_FRONT.z - cameraFocus.z)) <= BUSTER_REACH + 0.6) {
+          const id = lumberjack.propId;
+          found.push({ key: `buster:${id}`, type: "buster", label: "🪓 Talk to Buster", hint: "Sell your firewood, buy a better axe", run: () => interactBridge.current?.useProp(id) });
         }
       }
       // the dock: sitting on its edge, cast from there; standing, sit down at the nearest free spot

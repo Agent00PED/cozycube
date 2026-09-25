@@ -41,6 +41,7 @@ import { FISH, RODS, TIER_LABEL, stars } from "@shared/fishing";
 import { COZY_AURA_FUEL, LOW_FUEL, stewName, type BonfireUpdate, type StewUpdate } from "@shared/bonfire";
 import { CookingModal } from "./components/hud/CookingModal";
 import { BarnabyModal } from "./components/hud/BarnabyModal";
+import { LumberjackModal } from "./components/hud/LumberjackModal";
 import { CampfireStatus } from "./components/hud/CampfireStatus";
 import { useAnglerProfile } from "./components/hud/anglerStore";
 import { BoxingHud } from "./components/hud/BoxingHud";
@@ -576,6 +577,7 @@ export default function App() {
           socialOpen={socialOpen}
           userId={localPlayer?.userId ?? ""}
           fishing={localPlayer?.fishing ?? ""}
+          bag={localPlayer?.bag ?? ""}
         />
         <Toasts />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
@@ -583,6 +585,8 @@ export default function App() {
         {localPlayer && localSessionId && (
           <div className={`cozy-bottom-stack ${showJoystick ? "" : "no-joystick"}`}>
             <ActivityBar
+              subscribeMessages={subscribeMessages}
+              onStandUp={() => interactBridge.current?.stand()}
               player={localPlayer}
               chairs={chairs}
               localSessionId={localSessionId}
@@ -707,6 +711,7 @@ export default function App() {
         {panel?.kind === "stargaze" && localSessionId && <StargazingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "woodchop" && localSessionId && <WoodChopModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
+        {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
