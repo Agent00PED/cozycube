@@ -40,10 +40,12 @@ export function BoardGameModal({ view, localSessionId, send, onClose }: Props) {
   // registered as a watcher for as long as the modal is open (and fetch the table now)
   const sendRef = useRef(send);
   sendRef.current = send;
+  // watch the table; again under a new session (a reconnect that came back as a new player), so
+  // the board keeps updating instead of freezing on the old session's last view
   useEffect(() => {
     sendRef.current({ type: "BOARD_WATCH", watching: true });
     return () => sendRef.current({ type: "BOARD_WATCH", watching: false });
-  }, []);
+  }, [localSessionId]);
 
   const mySide: BoardSide | "" = view ? (view.seats.w === localSessionId ? "w" : view.seats.b === localSessionId ? "b" : "") : "";
   const underWay = !!view && view.moves > 0 && view.phase !== "over";

@@ -26,7 +26,6 @@ import type {
 } from "@shared/types";
 
 const RECONNECT_KEY_PREFIX = "hangout_reconnect_";
-const NORMAL_CLOSE_CODE = 1000;
 
 export type EmoteListener = (emote: EmoteBroadcast) => void;
 
@@ -61,6 +60,9 @@ const RELAYED_MESSAGES = [
   // the lounge's plants: the splash for everyone, and "already watered" for the one who tried
   "plantWatered",
   "plantHappy",
+  // the server refusing a board move, or failing on a message: the sender is told why
+  "boardError",
+  "serverError",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
@@ -136,6 +138,13 @@ interface UseColyseusRoomResult {
   connectionIssue: string | null;
   /** Tear the connection down and start the handshake again now (the loading screen's Reconnect). */
   reconnect: () => void;
+  /**
+   * The connection dropped mid-session and is being restored in the background: the world, the
+   * HUD and any open panel stay on screen (the last state, frozen) while this is true.
+   */
+  reconnecting: boolean;
+  /** Skip the backoff wait and try to reconnect right now (the reconnecting pill's button). */
+  retryNow: () => void;
   roulette: RouletteSyncState;
   /** Roulette bets on the table this round, by sessionId (encodeBets strings). */
   bets: Record<string, string>;
@@ -209,6 +218,9 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [timeOfDay, setTimeOfDayState] = useState<TimeOfDay>("day");
   const [mapTransitioning, setMapTransitioning] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const retryNowRef = useRef<(() => void) | null>(null);
+  const retryNow = useCallback(() => retryNowRef.current?.(), []);
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
   // bumped by reconnect(): the connection effect tears everything down and starts over
   const [reconnectNonce, setReconnectNonce] = useState(0);
@@ -253,10 +265,11 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     /** The connection dropped or went silent: clear it away and come back, with backoff. */
     function lost(room: Room, reason: string) {
       if (disposed || live !== room) return;
-      // not consented: the server keeps the seat for a while, and the token takes it back
+      // not consented: the server keeps the seat (and a board game's seat) for a while, and the
+      // token takes it back. Mid-session this is quiet: the world stays up, frozen on its last
+      // state, and a pill says we are reconnecting; nothing is unmounted.
       retire(room, false);
-      setConnected(false);
-      resetWorld();
+      setReconnecting(true);
       scheduleRetry(reason);
     }
 
@@ -296,6 +309,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     };
     window.addEventListener("online", nudge);
     document.addEventListener("visibilitychange", onVisible);
+    retryNowRef.current = nudge;
 
     async function connect() {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -342,6 +356,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       forceRender((n) => n + 1);
       setLocalSessionId(room.sessionId);
       setConnected(true);
+      setReconnecting(false);
       setConnectionIssue(null);
       localStorage.setItem(reconnectKey, room.reconnectionToken);
 
@@ -392,6 +407,19 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
         });
       };
       roomStops.push(() => window.clearTimeout(motionFlush));
+
+      // Back after a drop, the world was kept as it was: once the first full state arrives (the
+      // additions below have refreshed everything still there), drop whatever is no longer
+      // there (players who left meanwhile, our own old session after a fresh join).
+      room.onStateChange.once(() => {
+        const only = <T,>(ids: Iterable<string>) => {
+          const keep = new Set(ids);
+          return (prev: Record<string, T>) => (Object.keys(prev).every((id) => keep.has(id)) ? prev : Object.fromEntries(Object.entries(prev).filter(([id]) => keep.has(id))));
+        };
+        setPlayers(only<PlayerState>(room.state.players.keys()));
+        setChairs(only<ChairSyncState>(room.state.chairs.keys()));
+        setToggleables(only<ToggleableSyncState>(room.state.toggleables.keys()));
+      });
 
       room.state.players.onAdd((player: any, sessionId: string) => {
         let last: PlayerState | null = null;
@@ -567,11 +595,10 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
       room.state.listen("mapTransitioning", (val: boolean) => setMapTransitioning(val));
 
-      // the socket closed under us (a proxy timed it out, the network blinked, the server restarted)
-      room.onLeave((code) => {
-        if (code === NORMAL_CLOSE_CODE) localStorage.removeItem(reconnectKey);
-        lost(room, "The connection closed");
-      });
+      // the socket closed under us (a proxy timed it out, the network blinked, the server restarted).
+      // The token is kept whatever the close code (a proxy's idle cut can look like a clean close):
+      // the next attempt tries it first, and a seat that is really gone falls back to a fresh join.
+      room.onLeave(() => lost(room, "The connection closed"));
 
       room.onError((code, message) => {
         setConnectionIssue(message ?? `room error (code ${code})`);
@@ -582,6 +609,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
 
     return () => {
       disposed = true;
+      retryNowRef.current = null;
+      setReconnecting(false);
       window.clearTimeout(retryTimer);
       window.removeEventListener("online", nudge);
       document.removeEventListener("visibilitychange", onVisible);
@@ -630,6 +659,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     connected,
     connectionIssue,
     reconnect,
+    reconnecting,
+    retryNow,
     roulette,
     bets,
     autoCycle,

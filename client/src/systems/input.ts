@@ -43,6 +43,15 @@ function keyVector() {
 
 let joystickActive = false;
 
+/** Space was pressed since the movement hook last looked: seated, it means "stand up". */
+let standPressed = false;
+/** Whether Space was pressed since the last call (and forget it either way). */
+export function consumeStandPress(): boolean {
+  const pressed = standPressed;
+  standPressed = false;
+  return pressed;
+}
+
 /** The joystick writes here; a null clears it (finger lifted). */
 export function setJoystick(vector: { x: number; y: number } | null) {
   joystickActive = !!vector;
@@ -74,6 +83,11 @@ export function installKeyboard(): () => void {
   };
   const down = (e: KeyboardEvent) => {
     if (isTyping(e)) return;
+    // Space stands you up from a seat (a focused button keeps its own Space: it is a click there)
+    if (e.code === "Space" && !e.repeat && (e.target as HTMLElement | null)?.tagName !== "BUTTON") {
+      standPressed = true;
+      return;
+    }
     if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
       keys.add(e.code);
       if (e.code.startsWith("Arrow")) e.preventDefault(); // no page scrolling under the game

@@ -25,6 +25,11 @@ app.get("/api/leaderboard", async (_req, res) => {
 const httpServer = createServer(app);
 // The transport is named explicitly: on 0.15 passing `server` straight to `new Server` still
 // works but logs a deprecation warning at every start, and 0.16 drops it altogether.
+// A last line of defence: whatever escapes the rooms' own guards (HangoutRoom.onUncaughtException)
+// is logged, and the process keeps serving everyone else instead of dropping every connection.
+process.on("uncaughtException", (err) => console.error("[process] uncaught exception:", err));
+process.on("unhandledRejection", (reason) => console.error("[process] unhandled rejection:", reason));
+
 const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer }) });
 
 // Client connects via ws(s)://<host>/colyseus in dev (see client/vite.config.ts proxy rewrite)

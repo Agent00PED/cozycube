@@ -149,6 +149,26 @@ export class BoardTable {
   /** The winner's session id, once a decisive game has been settled (the purse is paid once). */
   private settled = false;
 
+  /**
+   * The same player back on a new session (their old connection was lost with its token): their
+   * seat and their place among the watchers move with them, and the game carries on.
+   */
+  transfer(fromId: string, toId: string): boolean {
+    let moved = false;
+    for (const side of ["w", "b"] as BoardSide[]) {
+      if (this.seats[side] !== fromId) continue;
+      this.seats[side] = toId;
+      moved = true;
+    }
+    const watching = this.watchers.get(fromId);
+    if (watching !== undefined) {
+      this.watchers.delete(fromId);
+      this.watchers.set(toId, watching);
+      moved = true;
+    }
+    return moved;
+  }
+
   sideOf(sessionId: string): BoardSide | "" {
     return this.seats.w === sessionId ? "w" : this.seats.b === sessionId ? "b" : "";
   }

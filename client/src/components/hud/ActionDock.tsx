@@ -17,7 +17,8 @@ import { glass, hudText, pillButton } from "./glass";
 //   [📻 Tune Radio]  within RADIO_REACH of the radio, or sitting on a pouf round its table
 //   [🪴 Water Plant] within PLANT_REACH of a plant you have not watered today; after, [🌿 Happy
 //                    Plant · 5h] counts down to when it is thirsty again (the day's rollover)
-//   [🧍 Stand up]   while you are sitting
+//   [🧍 Stand up · Space]  while you are sitting, always (a panel closed, a reconnect: never stuck);
+//                    Space or any movement key does the same
 //
 // Buttons are deduplicated by action type: only the nearest target of each type gets one, so
 // three stools side by side give one "Sit", not three.
@@ -51,6 +52,8 @@ interface DockProps {
 }
 
 const SCAN_MS = 120;
+/** A keyboard to press Space on (not a phone or tablet, where the pill is the way up). */
+const HAS_KEYBOARD = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: fine)").matches;
 
 export function ActionDock({ player, mapId, chairs, toggleables, localSessionId, onWater }: DockProps) {
   const [actions, setActions] = useState<Action[]>([]);
@@ -116,7 +119,7 @@ export function ActionDock({ player, mapId, chairs, toggleables, localSessionId,
       }
 
       if (sitting) {
-        found.push({ key: "stand", type: "stand", label: "🧍 Stand up", run: () => interactBridge.current?.stand() });
+        found.push({ key: "stand", type: "stand", label: HAS_KEYBOARD ? "🧍 Stand up · Space" : "🧍 Stand up", hint: "Press Space or move to stand up", run: () => interactBridge.current?.stand() });
       } else {
         const px = cameraFocus.x;
         const pz = cameraFocus.z;

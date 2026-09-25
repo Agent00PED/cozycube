@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Header } from "./components/hud/Header";
+import { Header, MAP_LABELS } from "./components/hud/Header";
 import { WorldDrawer } from "./components/hud/WorldDrawer";
 import { SideDrawer } from "./components/hud/SideDrawer";
 import { SettingsPanel } from "./components/hud/SettingsPanel";
@@ -10,6 +10,7 @@ import { Toasts } from "./components/hud/Toasts";
 import { pushToast } from "./components/hud/toastStore";
 import { IsometricCanvas } from "./scene/IsometricCanvas";
 import { LoadingScreen, type LoadStage } from "./components/LoadingScreen";
+import { ReconnectingPill } from "./components/hud/ReconnectingPill";
 import { WorldScene } from "./scene/WorldScene";
 import { interactBridge } from "./scene/interactBridge";
 import { MochiPlayroomModal } from "./entities/MochiPlayroomModal";
@@ -156,6 +157,8 @@ export default function App() {
     connected,
     connectionIssue,
     reconnect,
+    reconnecting,
+    retryNow,
     setLook,
     roulette,
     bets,
@@ -308,6 +311,9 @@ export default function App() {
         } else if (type === "plantWatered") {
           const w = payload as { sessionId: string; coins: number };
           if (w.sessionId === localIdRef.current) pushToast(`The plant drinks it up! +${w.coins} coins`, { emoji: "🪴", tone: "coin" });
+        } else if (type === "boardError" || type === "serverError") {
+          // the server refused or could not do what we asked (an illegal move): say so, gently
+          pushToast(String((payload as { message?: string })?.message ?? "Something went wrong"), { emoji: type === "boardError" ? "♟️" : "⚠️" });
         } else if (type === "plantHappy") {
           pushToast("The plant is happy and hydrated!", { emoji: "🌿" });
         } else if (type === "mochiResult") {
@@ -485,6 +491,7 @@ export default function App() {
           socialOpen={socialOpen}
         />
         <Toasts />
+        <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
 
         {localPlayer && localSessionId && (
           <div className={`cozy-bottom-stack ${showJoystick ? "" : "no-joystick"}`}>

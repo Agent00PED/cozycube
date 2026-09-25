@@ -6,7 +6,7 @@ import type { MapId, PlayerState } from "@shared/types";
 import { clampToWorld, isBlocked } from "@shared/collision";
 import { findPath, type Point } from "@shared/pathfinding";
 import { cameraFocus } from "../scene/cameraFocus";
-import { worldMoveDirection } from "./input";
+import { consumeStandPress, worldMoveDirection } from "./input";
 import { faceHeading } from "./faceTargets";
 import { liveMotion } from "./liveMotion";
 import { Reconciler } from "./reconcile";
@@ -29,6 +29,8 @@ const ARRIVE_RADIUS = 0.7; // ease off this far from the final waypoint
 const ARRIVE_THRESHOLD = 0.05;
 const WAYPOINT_THRESHOLD = 0.2;
 const TURN_LERP = 0.22;
+/** Still seated this long after asking to get up: the request was lost (a dropping connection, say), so ask again. */
+const STAND_RETRY_MS = 1200;
 const SEAT_HEIGHT_LERP = 0.2;
 const SIT_CONFIRM_TIMEOUT = 1.5;
 // a frame hitch or a backgrounded tab must not integrate one giant step (a slow frame walks a
@@ -91,7 +93,8 @@ export function useLocalPlayerMovement(
   const initializedRef = useRef(false);
   const sitWaitRef = useRef(0);
   const seatYRef = useRef(0);
-  const standRequestedRef = useRef(false);
+  /** When we last asked the server to stand us up (-Infinity: not since sitting down). */
+  const standRequestedAtRef = useRef(-Infinity);
   const reconcilerRef = useRef(new Reconciler());
   const seenVersionRef = useRef(0);
 
@@ -112,7 +115,7 @@ export function useLocalPlayerMovement(
       velocityRef.current = 0;
       reconcilerRef.current.reset();
       seenVersionRef.current = liveMotion.get(player.sessionId)?.version ?? 0;
-      standRequestedRef.current = false;
+      standRequestedAtRef.current = -Infinity;
       if (player.sitting) targetRef.current = null; // standing up must NOT clear a queued walk
       sitWaitRef.current = 0;
     }
@@ -148,10 +151,15 @@ export function useLocalPlayerMovement(
 
     const steer = worldMoveDirection();
 
+    // Space, like steering, gets you up from a seat (a click does the same through the scene)
+    const standPressed = consumeStandPress();
     if (player.sitting) {
-      // steering from a seat gets you up; a click does the same through the scene
-      if (steer && room && !standRequestedRef.current) {
-        standRequestedRef.current = true;
+      // Never stuck on a seat: while you keep asking and are still seated, the request is sent
+      // again every STAND_RETRY_MS, so one lost on a dropping connection is simply repeated
+      // (and the server stands a seated player up if they report walking, too).
+      const now = performance.now();
+      if ((steer || standPressed) && room && now - standRequestedAtRef.current > STAND_RETRY_MS) {
+        standRequestedAtRef.current = now;
         room.send("standUp");
       }
     } else {

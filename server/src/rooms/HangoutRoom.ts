@@ -1,4 +1,4 @@
-import { Room, Client } from "colyseus";
+import { Room, Client, OnMessageException, type RoomException } from "colyseus";
 import { Schema, type, MapSchema } from "@colyseus/schema";
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToWorld, isBlocked } from "../../../shared/collision";
 import { PersistenceQueue, getPlayerStore, newPlayerRecord, type PlayerRecord } from "../db/players";
@@ -373,7 +373,14 @@ export class HangoutRoom extends Room<HangoutState> {
 
     this.onMessage("move", (client, msg: { dirX: number; dirZ: number; x?: number; z?: number; seq?: number }) => {
       const player = this.state.players.get(client.sessionId);
-      if (!player || player.sitting) return;
+      if (!player) return;
+      if (player.sitting) {
+        // walking off a seat gets you up: nobody is ever held on a chair by a missed "standUp"
+        // (one sent into a dying connection, say) while their client thinks they are walking
+        if (!msg || (!msg.dirX && !msg.dirZ)) return;
+        this.handleStandUp(client.sessionId);
+        if (player.sitting) return;
+      }
       player.dirX = Math.max(-1, Math.min(1, msg.dirX));
       player.dirZ = Math.max(-1, Math.min(1, msg.dirZ));
       // Walking away from the espresso machine abandons the brew.
@@ -922,6 +929,9 @@ export class HangoutRoom extends Room<HangoutState> {
         changed = !!packet.move && t.move(sessionId, packet.gameType, { from: Number(packet.move.from), to: Number(packet.move.to), promotion: packet.move.promotion });
         // the mover reaches over the table to play it (everyone sees the hand go out)
         if (changed) this.broadcast("gesture", { sessionId, gesture: "reach" });
+        // refused (illegal, out of turn, or a board that moved on): say so, and resend the table
+        // so a client drawing a stale board catches up
+        else this.boardRefused(client, "That move isn't allowed");
         break;
       case "BOARD_RESET":
         changed = t.reset(sessionId, packet.gameType);
@@ -938,6 +948,12 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!changed) return;
     this.broadcastBoard();
     this.payBoardWinner();
+  }
+
+  /** Tells a player their board packet was refused, and sends them the table as it stands. */
+  private boardRefused(client: Client, message: string) {
+    client.send("boardError", { type: "BOARD_ERROR", message });
+    client.send("boardState", this.board.view());
   }
 
   /** A decisive game pays its winner BOARD_WIN_COINS, once, if it lasted long enough to count. */
@@ -1985,12 +2001,25 @@ export class HangoutRoom extends Room<HangoutState> {
     const wallet = this.wallets.get(player.userId);
     if (wallet) player.bag = wallet.bag;
 
+    // this person's own lingering session (dropped, waiting to reconnect): take it over
+    const ghosts: [string, Player][] = [];
+    this.state.players.forEach((old, oldId) => {
+      if (oldId !== client.sessionId && !old.connected && old.userId === player.userId) ghosts.push([oldId, old]);
+    });
+    let resumedSeat = false;
+    for (const [oldId, old] of ghosts) resumedSeat = this.takeOver(oldId, old, client.sessionId, player) || resumedSeat;
+
     this.state.players.set(client.sessionId, player);
     if (isNew) this.persist(client.sessionId, player, true);
     else this.savedSignature.set(client.sessionId, "");
     this.sendTo(client.sessionId, "welcome", { isNew, coins: player.coins });
     // a game already on at the board table: the newcomer's avatars know whose turn it is
     if (this.board.seats.w || this.board.seats.b) this.sendTo(client.sessionId, "boardState", this.board.view());
+    // back in their seat at the board: everyone sees the new session there, and their board reopens
+    if (resumedSeat) {
+      this.broadcastBoard();
+      this.sendTo(client.sessionId, "openPanel", { kind: "boardgame", propId: "board_table" });
+    }
   }
 
   private ownsOutfit(unlocked: string[], outfit: string): boolean {
@@ -2031,32 +2060,101 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   async onLeave(client: Client, consented: boolean) {
-    const player = this.state.players.get(client.sessionId);
+    const sessionId = client.sessionId;
+    const player = this.state.players.get(sessionId);
     if (!player) return;
 
-    this.state.chairs.forEach((chair) => {
-      if (chair.occupiedBy === client.sessionId) chair.occupiedBy = "";
-    });
-    player.sitting = false;
     player.speaking = false;
     this.clearAction(player);
-
-    this.fishBiteAt.delete(client.sessionId);
-    this.biteUntil.delete(client.sessionId);
-    this.lastReportAt.delete(client.sessionId);
+    this.fishBiteAt.delete(sessionId);
+    this.biteUntil.delete(sessionId);
+    this.lastReportAt.delete(sessionId);
     if (consented) {
-      this.removePlayer(client.sessionId);
+      this.releaseSeat(sessionId, player);
+      this.removePlayer(sessionId);
       return;
     }
 
-    // Dropped, not left: write what we have now in case they never come back.
-    this.persist(client.sessionId, player, true);
+    // Dropped, not left (a proxy cut an idle socket, the network blinked): write what we have now
+    // in case they never come back, and keep their chair, and with it their board seat, so a game
+    // of chess survives the blip. Only if they do not come back in time are they got up.
+    this.persist(sessionId, player, true);
     player.connected = false;
     try {
-      await this.allowReconnection(client, 30);
+      const back = await this.allowReconnection(client, RECONNECT_WINDOW_S);
+      if (this.state.players.get(sessionId) !== player) {
+        back.leave(); // they came back on a new session meanwhile, which took this one over
+        return;
+      }
       player.connected = true;
+      this.welcomeBack(back);
     } catch {
-      this.removePlayer(client.sessionId);
+      if (this.state.players.get(sessionId) !== player) return;
+      this.releaseSeat(sessionId, player);
+      this.removePlayer(sessionId);
+    }
+  }
+
+  /** Gets a player off whatever they sit on (and so off the board table, if that is where). */
+  private releaseSeat(sessionId: string, player: Player) {
+    let boardChair = false;
+    this.state.chairs.forEach((chair) => {
+      if (chair.occupiedBy !== sessionId) return;
+      chair.occupiedBy = "";
+      if (boardSeatOfChair(chair.propId)) boardChair = true;
+    });
+    player.sitting = false;
+    if (boardChair && this.board.leave(sessionId)) {
+      this.broadcastBoard();
+      this.payBoardWinner();
+    }
+  }
+
+  /**
+   * A player back after a drop: the table as it stands, and if they sit at it, the board opened
+   * again, so their game resumes where it was.
+   */
+  private welcomeBack(client: Client) {
+    const seated = !!this.board.sideOf(client.sessionId);
+    if (seated || this.board.watchers.has(client.sessionId)) client.send("boardState", this.board.view());
+    if (seated) client.send("openPanel", { kind: "boardgame", propId: "board_table" });
+  }
+
+  /**
+   * The same person joining on a new session while their old one still waits to reconnect (its
+   * token was lost: a reload in a new webview, cleared storage): the new session takes the old
+   * one over, where it stood or sat, its chair and its board seat, so nobody meets their own ghost
+   * and a game in progress carries on. Returns whether a board seat came along.
+   */
+  private takeOver(oldId: string, old: Player, sessionId: string, player: Player): boolean {
+    player.x = old.x;
+    player.z = old.z;
+    player.sitting = old.sitting;
+    player.sitRotationY = old.sitRotationY;
+    player.sitY = old.sitY;
+    player.sitPose = old.sitPose;
+    this.state.chairs.forEach((chair) => {
+      if (chair.occupiedBy === oldId) chair.occupiedBy = sessionId;
+    });
+    const seated = this.board.transfer(oldId, sessionId);
+    this.removePlayer(oldId); // quietly: the chair and the seat have already moved on
+    return seated;
+  }
+
+  /**
+   * Nothing a player sends, and nothing on a timer, may take the server down or close anyone's
+   * connection: with this defined, Colyseus runs every message handler, timer and lifecycle hook
+   * inside a try/catch and hands what it catches here. The sender of a bad message is told.
+   */
+  onUncaughtException(err: RoomException<this>, methodName: string) {
+    const cause = (err as Error & { cause?: unknown }).cause;
+    console.error(`[room ${this.roomId}] uncaught in ${methodName}:`, cause instanceof Error ? cause.stack : cause ?? err);
+    if (!(err instanceof OnMessageException)) return;
+    try {
+      if (err.type === "board") this.boardRefused(err.client, "Something went wrong with that move");
+      else err.client.send("serverError", { type: err.type, message: "Something went wrong, try again" });
+    } catch {
+      // the sender is gone: nothing to tell
     }
   }
 
@@ -2066,6 +2164,9 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 }
 
+
+/** How long a dropped player's avatar, chair and board seat wait for them to reconnect. */
+const RECONNECT_WINDOW_S = 60;
 
 /** Weighted so jackpots stay rare: cherries common, sevens scarce. */
 const SYMBOL_WEIGHTS = [30, 24, 18, 13, 9, 6];
