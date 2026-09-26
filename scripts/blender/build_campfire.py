@@ -47,7 +47,8 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
                         chopping stump and the canoe's cleat and rope
     Prop_WoodChop_0N_Hatchet  each chopping station's hatchet, bitten into its stump (hidden while
                         someone chops there), and Prop_WoodChop_0N_Log the log on its block
-    Prop_Workbench      the carpenter's workbench between the tipi and Buster's stall (a plank top,
+    Prop_Workbench      the carpenter's workbench back by the north pines between the tipi and
+                        Buster's stall (a plank top,
                         a face vise, a shelf of boards, a tool rack with a saw, a mallet and chisels,
                         a half-carved totem, shavings, a little lantern), its front toward the fire
     Prop_Signpost       the 3-way signpost at the trails' fork (Campfire, Pier, Overlook)
@@ -1294,7 +1295,7 @@ def build_glamping(L, cushions, coll):
         a = 2 * math.pi * k / 5
         blob(bm, sp["x"] + 0.14 * math.cos(a), 0.04, sp["z"] + 0.14 * math.sin(a), 0.07, 0.05, 0.06, m=m["CF_Metal"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.01)
 
-    # --- the chopping stumps (by the hammock, by the A-frame, behind the tipi, at the woodpile), split
+    # --- the chopping stumps (either side of the tipi, in front of Buster, at the woodpile), split
     # halves beside each ---
     for ch in L["chops"]:
         cylinder(bm, W(ch["x"], 0.0, ch["z"]), W(ch["x"], 0.36, ch["z"]), 0.25, 14, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)

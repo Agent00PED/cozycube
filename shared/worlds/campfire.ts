@@ -38,7 +38,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   },
   "tripod": { "legs": 0.9, "apex": 1.95, "potY": 1.0, "potR": 0.27 },
   "barnaby": { "x": 4.7, "z": -2.6, "yaw": -0.35 },
-  "buster": { "x": -1.35, "z": -6.35, "yaw": 0.25 },
+  "buster": { "x": -1.77, "z": -8.47, "yaw": 0.25 },
   "picnicPlates": [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]],
   "river": {
     "points": [[-8.6, 7.2, 1.0], [-6.4, 7.9, 1.3], [-4.2, 8.2, 1.5], [-2.0, 7.9, 1.6], [0.2, 7.7, 1.65], [2.4, 7.9, 1.5], [4.6, 8.4, 1.3], [6.8, 8.1, 1.0]],
@@ -94,8 +94,8 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "telescope": { "x": -2.4, "z": 9.35 },
   "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
   "campChair": { "x": 4.5, "z": -7.45 },
-  "chops": [{ "x": -9.5, "z": 3.3 }, { "x": -8.7, "z": -4.6 }, { "x": -6.5, "z": -8.1 }, { "x": 1.75, "z": -6.65 }],
-  "workbench": { "x": -4.2, "z": -6.1, "len": 1.4, "w": 0.62, "top": 0.86 },
+  "chops": [{ "x": -8.7, "z": -4.6 }, { "x": -6.5, "z": -8.1 }, { "x": -0.1, "z": -6.7 }, { "x": 1.75, "z": -6.65 }],
+  "workbench": { "x": -4.4, "z": -7.0, "len": 1.4, "w": 0.62, "top": 0.86 },
   "critter": { "x": 3.4, "z": -6.2 },
   "canoe": { "x": 8.0, "z": 2.62, "len": 2.0 },
   "cleat": { "x": 6.95, "z": 1.8 },
@@ -231,11 +231,11 @@ export function nearestFishingSpot(x: number, z: number) {
 
 // --- the living camp: the telescope, the chopping block, foraging, lights and wildlife ----------
 
-/** The Northern Timber Trail: four chopping stations spread across the camp's whole width, none of
- *  them behind Buster's stall: far left in the pines by the hammock, between the A-frame tent and the
- *  tipi, deep in the north pines behind the tipi, and far right at the woodpile by the camper. Each
- *  block yields a few logs (CHOP_YIELD), then waits CHOP_RESPAWN_S for fresh ones; you step up to it
- *  from the fire's side. */
+/** The Northern Timber Trail: four chopping stations in two pairs. The tipi's: one either side of
+ *  it (between it and the A-frame tent, and in the north pines behind its right). The workshop's:
+ *  one in front of Buster's stall (he and the workbench stand back in the north pines, leaving the
+ *  ground before them open) and one at the woodpile by the camper. Each block yields MAX_CHOP_YIELD
+ *  logs, then rests CHOP_COOLDOWN_S (rolled) for fresh ones; you step up to it from the fire's side. */
 export const CHOP_STATIONS = L.chops.map((c, i) => {
   const toFire = unit(L.fire.x - c.x, L.fire.z - c.z);
   return { propId: `woodchop_0${i + 1}`, x: c.x, z: c.z, approachX: c.x + toFire.x * 0.9, approachZ: c.z + toFire.z * 0.9 };
@@ -488,8 +488,8 @@ export const BARNABY_REACH = 1.8;
 /** Where you stand to talk to Buster the Lumberjack (in front of him), and how close is close enough. */
 export const BUSTER_FRONT = { x: L.buster.x + Math.sin(L.buster.yaw) * 0.95, z: L.buster.z + Math.cos(L.buster.yaw) * 0.95 };
 export const BUSTER_REACH = 1.8;
-/** The carpenter's workbench on the grass between the tipi and Buster's stall (well clear of him:
- *  walking up to one never offers the other), its front toward the fire: `front` the way it faces,
+/** The carpenter's workbench on the grass between the tipi and Buster's stall, back by the north
+ *  pines (clear of him: walking up to one never offers the other), its front toward the fire: `front` the way it faces,
  *  `along` its length, `yaw` its heading. You carve Buster's artisan pieces here. */
 export const WORKBENCH = (() => {
   const b = L.workbench;

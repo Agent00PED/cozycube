@@ -114,12 +114,15 @@ const BASE_PERIOD = 3.2;
 export const CHOP_SPEED: Record<ChopStrokeNo, number> = { 1: 1.0, 2: 1.35, 3: 1.6 };
 /** How fast each stroke's sweet spot patrols, against its needle (0: it holds still). */
 const PATROL: Record<ChopStrokeNo, number> = { 1: 0, 2: 0.35, 3: 0.5 };
-/** A chopping station yields this many logs (rolled each time it is stocked), then its block waits
- *  CHOP_RESPAWN_S for fresh ones. */
-export const CHOP_YIELD = [2, 3] as const;
-export const CHOP_RESPAWN_S = 20;
-export function rollChopYield(rand: () => number = Math.random): number {
-  return CHOP_YIELD[0] + Math.floor(rand() * (CHOP_YIELD[1] - CHOP_YIELD[0] + 1));
+/** A chopping station holds this many logs each time it is stocked; once they are split its block
+ *  rests CHOP_COOLDOWN_S (a whole number of seconds, rolled each time) before fresh ones arrive. */
+export const MAX_CHOP_YIELD = 3;
+export const CHOP_COOLDOWN_S = [20, 25] as const;
+export function rollChopYield(): number {
+  return MAX_CHOP_YIELD;
+}
+export function rollChopCooldown(rand: () => number = Math.random): number {
+  return CHOP_COOLDOWN_S[0] + Math.floor(rand() * (CHOP_COOLDOWN_S[1] - CHOP_COOLDOWN_S[0] + 1));
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));

@@ -9,7 +9,7 @@ import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worl
 import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, WORKBENCH, WORKBENCH_FRONT, WORKBENCH_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
 import { CRAFTS, MASTERWORK_CHANCE, canCraft, craftPrice, isCraftId } from "../../../shared/crafting";
-import { AXES, nextCarrierTier, CHOP_LOGS, CHOP_RESPAWN_S, WOOD, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
+import { AXES, nextCarrierTier, CHOP_LOGS, WOOD, rollChopCooldown, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
 import {
   BAITS,
   afkSeconds,
@@ -2212,19 +2212,21 @@ export class HangoutRoom extends Room<HangoutState> {
     if (clean && profile) {
       coins = this.campfirePay(sessionId, player, "chop", CHOP_CLEAN_COINS + log.bonus);
       // the split log is yours: wood to burn or to sell to Buster (two, with the Golden Axe's luck),
-      // as much as the carrier holds; the block waits CHOP_RESPAWN_S for its next log
+      // as much as the carrier holds
       const room = Math.max(0, carrierCapacity(profile.carrierTier) - carrierLoad(profile));
       pieces = Math.min(room, Math.random() < AXES[profile.axe].doubleChance ? 2 : 1);
       profile.wood[log.wood] = Math.min(999, profile.wood[log.wood] + pieces);
       this.saveFishing(sessionId, player);
-      // one log fewer on the block; the last one leaves it bare for CHOP_RESPAWN_S
+      // one log fewer on the block; the last of its three leaves it bare for a rolled 20-25 s (the
+      // countdown badge over it reads `boost`)
       const station = this.state.toggleables.get(chop.station);
       if (station) {
         station.track = Math.max(0, station.track - 1);
         if (station.track <= 0) {
+          const rest = rollChopCooldown();
           station.on = false;
-          station.boost = CHOP_RESPAWN_S;
-          this.regrowAt.set(station.propId, Date.now() + CHOP_RESPAWN_S * 1000);
+          station.boost = rest;
+          this.regrowAt.set(station.propId, Date.now() + rest * 1000);
         }
       }
     }
