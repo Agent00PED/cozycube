@@ -1,7 +1,8 @@
-import { BAITS, FISH, FISH_IDS, RODS, TIER_LABEL, fishValue, stars, type FishingProfile } from "@shared/fishing";
+import { BAITS, FISH, FISH_IDS, RODS, TIER_LABEL, creelTier, fishValue, stars, type FishingProfile } from "@shared/fishing";
 
-// The Fish Creel, from the header's 🪣 button: every slot (the catches, then the empty ones), what
-// Barnaby would pay for them, the rod and bait in use, and the angler's records (the longest of
+// The Fish Creel, from the header's 🪣 button: every slot in a five-wide grid (the catches, then the
+// empty ones: every creel's capacity is a multiple of five, so the rows always come out whole),
+// what Barnaby would pay for them, the rod and bait in use, and the angler's records (the longest of
 // each kind they have landed).
 
 export function CreelPopover({ profile, live }: { profile: FishingProfile; live: boolean }) {
@@ -12,25 +13,26 @@ export function CreelPopover({ profile, live }: { profile: FishingProfile; live:
   return (
     <div className="flex w-[min(92vw,300px)] flex-col gap-2 p-1.5 text-sm" aria-label="Fish creel">
       <div className="flex items-center justify-between gap-2">
-        <b className="text-base">🪣 Fish Creel</b>
+        <b className="text-base">
+          {creelTier(profile.creelTier).icon} {creelTier(profile.creelTier).name}
+        </b>
         <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${empty === 0 ? "bg-rose-400/30 text-rose-100" : "bg-white/10"}`}>
           {profile.creel.length}/{profile.slots}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid max-h-[46vh] grid-cols-5 gap-2 overflow-y-auto pr-0.5">
         {profile.creel.map((f, i) => {
           const sp = FISH[f.s];
           return (
-            <div key={i} className="flex flex-col items-center rounded-2xl bg-white/10 px-1 py-1.5 text-center leading-tight" title={`${sp.name} · ${TIER_LABEL[sp.tier]} · worth ${fishValue(f)} 🪙`}>
-              <span className="text-2xl">{sp.emoji}</span>
-              <span className="text-[10px] font-semibold">{sp.name}</span>
-              <span className="text-[10px] opacity-80">{f.cm} cm</span>
-              <span className="text-[10px] text-amber-200">{stars(f.q)}</span>
+            <div key={i} className="flex aspect-square flex-col items-center justify-center rounded-xl bg-white/10 text-center leading-none" title={`${sp.name} · ${f.cm} cm ${stars(f.q)} · ${TIER_LABEL[sp.tier]} · worth ${fishValue(f)} 🪙`}>
+              <span className="text-xl">{sp.emoji}</span>
+              <span className="mt-0.5 text-[9px] opacity-80">{f.cm}cm</span>
+              <span className="text-[8px] text-amber-200">{"★".repeat(f.q)}</span>
             </div>
           );
         })}
         {Array.from({ length: empty }, (_, i) => (
-          <div key={`e${i}`} className="flex min-h-[74px] items-center justify-center rounded-2xl border border-dashed border-white/15 text-lg opacity-40">
+          <div key={`e${i}`} className="flex aspect-square items-center justify-center rounded-xl border border-dashed border-white/15 text-sm opacity-40">
             ·
           </div>
         ))}

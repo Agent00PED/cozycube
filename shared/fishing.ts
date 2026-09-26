@@ -112,13 +112,33 @@ export interface CreelFish {
   cm: number;
   q: 1 | 2 | 3;
 }
-export const CREEL_BASE_SLOTS = 6;
-export const CREEL_MAX_SLOTS = 12;
-/** Barnaby stitches on two more slots at a time, for these (6 -> 8 -> 10 -> 12). */
-export const CREEL_UPGRADE_COSTS = [150, 250, 400];
-export function creelUpgradeCost(slots: number): number | null {
-  const step = Math.round((slots - CREEL_BASE_SLOTS) / 2);
-  return CREEL_UPGRADE_COSTS[step] ?? null;
+/** The creel progression: what the angler keeps their catch in, from a starter pail to a livewell.
+ *  Barnaby sells each next one in turn (tier 1 is everyone's to start). */
+export interface CreelTier {
+  id: string;
+  name: string;
+  capacity: number;
+  price: number;
+  icon: string;
+}
+export const CREEL_TIERS: CreelTier[] = [
+  { id: "creel_tier_1", name: "Wooden Pail", capacity: 5, price: 0, icon: "🪵" },
+  { id: "creel_tier_2", name: "Woven Reed Creel", capacity: 10, price: 200, icon: "🧺" },
+  { id: "creel_tier_3", name: "Canvas Tackle Bag", capacity: 15, price: 550, icon: "🎒" },
+  { id: "creel_tier_4", name: "Insulated Ice Cooler", capacity: 25, price: 1400, icon: "🧊" },
+  { id: "creel_tier_5", name: "River Pier Keepnet", capacity: 35, price: 3000, icon: "🕸️" },
+  { id: "creel_tier_6", name: "Starlight Deep Livewell", capacity: 50, price: 6000, icon: "✨" },
+];
+/** A creel tier (1-based, clamped), and the next one up (null at the top). */
+export function creelTier(tier: number): CreelTier {
+  return CREEL_TIERS[Math.max(1, Math.min(CREEL_TIERS.length, Math.round(tier) || 1)) - 1];
+}
+export function nextCreelTier(tier: number): CreelTier | null {
+  return CREEL_TIERS[Math.round(tier)] ?? null;
+}
+/** Whether the creel has no room for another fish. */
+export function creelFull(p: Pick<FishingProfile, "creel" | "slots">): boolean {
+  return p.creel.length >= p.slots;
 }
 /** A full creel: a fresh common catch goes back in the river, and this is paid for letting it go. */
 export const CREEL_RELEASE_COINS = 5;
@@ -127,6 +147,8 @@ export const CREEL_RELEASE_COINS = 5;
  *  (the longest of each kind), and how long they have left being Well-Fed. */
 export interface FishingProfile {
   creel: CreelFish[];
+  /** The creel's tier (1-6, CREEL_TIERS), and its capacity (always that tier's). */
+  creelTier: number;
   slots: number;
   rod: RodId;
   rods: RodId[];
@@ -144,7 +166,7 @@ export interface FishingProfile {
   carrier: number;
 }
 export function emptyFishingProfile(): FishingProfile {
-  return { creel: [], slots: CREEL_BASE_SLOTS, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, fedUntil: 0, wood: { pine: 0, oak: 0, charcoal: 0 }, axe: "rusty", axes: ["rusty"], carrier: 1 };
+  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, fedUntil: 0, wood: { pine: 0, oak: 0, charcoal: 0 }, axe: "rusty", axes: ["rusty"], carrier: 1 };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -155,7 +177,12 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
   const p = emptyFishingProfile();
   if (!raw || typeof raw !== "object") return p;
   const r = raw as Record<string, unknown>;
-  p.slots = Math.max(CREEL_BASE_SLOTS, Math.min(CREEL_MAX_SLOTS, Math.round(Number(r.slots) || CREEL_BASE_SLOTS)));
+  // the creel's tier; a profile from before the tiers (a creel of 6-12 slots) moves up to the
+  // smallest tier that holds all it held, so nothing is ever lost in the move
+  const legacy = Math.max(Number(r.slots) || 0, Array.isArray(r.creel) ? r.creel.length : 0);
+  const tier = Number(r.creelTier) >= 1 ? Math.round(Number(r.creelTier)) : legacy > 0 ? CREEL_TIERS.findIndex((t) => t.capacity >= legacy) + 1 || CREEL_TIERS.length : 1;
+  p.creelTier = Math.max(1, Math.min(CREEL_TIERS.length, tier));
+  p.slots = creelTier(p.creelTier).capacity;
   if (Array.isArray(r.creel)) {
     for (const f of r.creel) {
       const fish = f as Record<string, unknown>;

@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FishCaught, PlayerState } from "@shared/types";
-import { fishValue } from "@shared/fishing";
+import { fishValue, sanitizeFishingProfile } from "@shared/fishing";
+import { playSfx } from "../../audio/sfx";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 
 // AFK fishing, as a small frosted pill over the action dock: a bobbing rod with a sleepy blue Zzz,
 // "Starlight fishing…" over a slim bar filling toward the next catch (the server's progress), what
 // this session has brought in (fish, and what they are worth at Barnaby's plus any coins from
-// letting fish go). Getting up is the action dock's [🧍 Stand up · Space], as for any seat.
+// letting fish go). Once the creel is full the rod is stowed and the angler rests by the water:
+// the pill says so, glowing a soft amber, with one soft chime as it happens (not again). Getting up
+// is the action dock's [🧍 Stand up · Space], as for any seat.
 
 export function AFKFishingBar({ player, localSessionId, subscribeMessages }: { player: PlayerState; localSessionId: string; subscribeMessages: (listener: RoomMessageListener) => () => void }) {
   const [session, setSession] = useState({ fish: 0, coins: 0, last: 0 });
@@ -21,6 +24,32 @@ export function AFKFishingBar({ player, localSessionId, subscribeMessages }: { p
     [subscribeMessages, localSessionId]
   );
   const progress = Math.max(0, Math.min(1, player.actionProgress));
+  const resting = player.action === "rest";
+  const capacity = useMemo(() => {
+    try {
+      return sanitizeFishingProfile(JSON.parse(player.fishing || "{}")).slots;
+    } catch {
+      return 0;
+    }
+  }, [player.fishing]);
+  // one soft chime as the creel fills and the rod is stowed (on the change, never repeated)
+  const wasResting = useRef(resting);
+  useEffect(() => {
+    if (resting && !wasResting.current) playSfx("chime");
+    wasResting.current = resting;
+  }, [resting]);
+  if (resting) {
+    return (
+      <div className="cozy-afk-pill cozy-afk-full pointer-events-none flex items-center gap-3 rounded-full border border-amber-300/40 bg-black/40 px-5 py-2.5 text-white shadow-xl backdrop-blur-md" role="status" aria-label="Creel full: resting by the water">
+        <span className="text-xl leading-none" aria-hidden>
+          🪣
+        </span>
+        <span className="text-[12px] font-semibold text-amber-100">
+          Creel Full! ({capacity}/{capacity}) · Resting by the water ☕
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="cozy-afk-pill pointer-events-none flex items-center gap-4 rounded-full border border-white/10 bg-black/40 px-5 py-2.5 text-white shadow-xl backdrop-blur-md" role="status" aria-label="AFK fishing">
       <span className="relative text-xl leading-none" aria-hidden>

@@ -52,7 +52,8 @@ export function ActivityBar(props: ActivityBarProps) {
   const brewing = player.action === "brew";
   const onPier = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && isFishingSeat(c.propId));
   const fishing = player.action === "fish";
-  const afkFishing = player.action === "afkfish";
+  // AFK fishing, or resting by the water with the creel full: the frosted pill says which
+  const afkFishing = player.action === "afkfish" || player.action === "rest";
   const bite = fishing && player.actionProgress >= 1;
 
   const hasActions = roasting || holdingCoffee || holdingJar || !!snack || brewing || onPier || fishing || soaking;

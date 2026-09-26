@@ -154,6 +154,9 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
 }
 /* the Timber Trail's floating station signs */
 .cozy-chop-sign { white-space: nowrap; padding: 2px 8px; border-radius: 999px; font: 700 11px "Fredoka", system-ui, sans-serif; color: rgba(255, 255, 255, 0.85); background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.12); backdrop-filter: blur(4px); }
+/* the AFK pill resting by the water, the creel full: a slow amber glow */
+.cozy-afk-full { box-shadow: 0 0 14px rgba(252, 211, 77, 0.28), 0 10px 25px rgba(0, 0, 0, 0.35); animation: cozy-afk-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both, cozy-afk-glow 3s ease-in-out 0.4s infinite; }
+@keyframes cozy-afk-glow { 0%, 100% { box-shadow: 0 0 10px rgba(252, 211, 77, 0.2), 0 10px 25px rgba(0, 0, 0, 0.35); } 50% { box-shadow: 0 0 20px rgba(252, 211, 77, 0.45), 0 10px 25px rgba(0, 0, 0, 0.35); } }
 /* the AFK fishing pill: eased in, its rod bobbing on the water, a sleepy blue z drifting up */
 .cozy-afk-pill { animation: cozy-afk-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
 @keyframes cozy-afk-in { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }

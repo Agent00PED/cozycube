@@ -19,7 +19,9 @@ import {
   WELL_FED_SPEED,
   biteSeconds,
   woodCount,
-  creelUpgradeCost,
+  creelFull,
+  creelTier,
+  nextCreelTier,
   fishValue,
   isBaitId,
   isRodId,
@@ -1626,7 +1628,8 @@ export class HangoutRoom extends Room<HangoutState> {
         }
       } else if (player.action === "afkfish" && this.state.currentMap === "campfire_night") {
         // feet up, line in: a fish into the creel now and then, the rarer the longer the wait
-        // (AFK_CATCH_S; the fish is rolled when the wait starts), or, the creel full, let go
+        // (AFK_CATCH_S; the fish is rolled when the wait starts); the creel full, the rod is stowed
+        // and the angler rests (no cast, no bait) until there is room again
         const at = this.fishBiteAt.get(sessionId) ?? now;
         const total = this.afkTotal.get(sessionId) ?? 25000;
         const progress = Math.max(0, Math.min(1, Math.floor((1 - (at - now) / total) * 20) / 20));
@@ -1634,8 +1637,11 @@ export class HangoutRoom extends Room<HangoutState> {
         if (now >= at) {
           const species = this.pendingFish.get(sessionId)?.species ?? rollRiverFish("freshwater", { afk: true });
           this.landFish(sessionId, player, rollCatch(species), true, 0);
-          this.scheduleCampAfk(sessionId, now);
-          player.actionProgress = 0;
+          if (this.creelIsFull(sessionId)) this.restByTheWater(sessionId, player);
+          else {
+            this.scheduleCampAfk(sessionId, now);
+            player.actionProgress = 0;
+          }
         }
       } else if (player.action === "afkfish") {
         // Chill mode: no bites to watch for, a little haul now and then while you chat.
@@ -2077,6 +2083,7 @@ export class HangoutRoom extends Room<HangoutState> {
         });
         if (!spotOfSeat(seatId)) return;
         if (!packet.on) {
+          if (player.action === "rest") return;
           if (player.action !== "afkfish") return;
           // back to watching the bobber
           this.afkTotal.delete(sessionId);
@@ -2085,7 +2092,14 @@ export class HangoutRoom extends Room<HangoutState> {
           this.waitForBite(sessionId, player, false);
           return;
         }
-        if (player.action !== "" && player.action !== "fish") return;
+        if (player.action !== "" && player.action !== "fish" && player.action !== "rest") return;
+        // the pre-cast guard: no room in the creel, no cast (and no bait spent)
+        if (this.creelIsFull(sessionId)) {
+          if (player.action !== "rest") this.restByTheWater(sessionId, player);
+          else client.send("campfireNotice", { message: "Your creel's still full: sell some fish to Barnaby first", emoji: "🪣" });
+          return;
+        }
+        if (player.action === "rest") this.putMugAway(player);
         this.biteUntil.delete(sessionId);
         this.pendingFish.delete(sessionId);
         this.starlight.delete(sessionId);
@@ -2391,6 +2405,38 @@ export class HangoutRoom extends Room<HangoutState> {
     player.actionProgress = 0;
   }
 
+  private creelIsFull(sessionId: string): boolean {
+    const profile = this.records.get(sessionId)?.fishing;
+    return !!profile && creelFull(profile);
+  }
+
+  /** The creel is full: the line comes in (nothing on it, no bait spent), the rod is stowed, and the
+   *  angler rests where they sit, feet over the water with a warm mug, until there is room again
+   *  (they sell some fish) or they get up. Said once, to them. */
+  private restByTheWater(sessionId: string, player: Player) {
+    this.fishBiteAt.delete(sessionId);
+    this.biteUntil.delete(sessionId);
+    this.pendingFish.delete(sessionId);
+    this.afkTotal.delete(sessionId);
+    this.starlight.delete(sessionId);
+    this.starReels.delete(sessionId);
+    const was = player.action;
+    player.action = "rest";
+    player.actionProgress = 0;
+    player.holding = "coffee";
+    player.drink = "";
+    if (was !== "rest") {
+      const capacity = this.records.get(sessionId)?.fishing.slots ?? 0;
+      this.sendTo(sessionId, "creelFull", { capacity });
+      this.broadcast("emote", { sessionId, emoji: "☕" });
+    }
+  }
+
+  /** Out of the rest: the mug goes back in the bag. */
+  private putMugAway(player: Player) {
+    if (player.holding === "coffee" && !player.drink) player.holding = "";
+  }
+
   private scheduleCampAfk(sessionId: string, now: number) {
     const species = rollRiverFish("freshwater", { afk: true, rareLuck: hasCozyAura(this.state.fuel) ? COZY_AURA_LUCK : 0 });
     const total = afkSeconds(species) * 1000;
@@ -2596,12 +2642,13 @@ export class HangoutRoom extends Room<HangoutState> {
       }
       case "upgradeCreel": {
         if (!near) return tooFar();
-        const cost = creelUpgradeCost(profile.slots);
-        if (cost === null) return reply(false, "That creel's as big as they come!");
-        if (player.coins < cost) return reply(false, `Two more slots is ${cost} 🪙`);
-        this.addCoins(player, -cost);
-        profile.slots += 2;
-        return reply(true, `Stitched on two more slots: ${profile.slots} now 🪣`, -cost);
+        const next = nextCreelTier(profile.creelTier);
+        if (!next) return reply(false, "That's the finest livewell on the river!");
+        if (player.coins < next.price) return reply(false, `The ${next.name} is ${next.price} 🪙`);
+        this.addCoins(player, -next.price);
+        profile.creelTier += 1;
+        profile.slots = creelTier(profile.creelTier).capacity;
+        return reply(true, `${next.icon} The ${next.name}: room for ${next.capacity} fish!`, -next.price);
       }
     }
   }
@@ -2614,14 +2661,15 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!player || !reel || player.action !== "reel") return;
     this.starReels.delete(sessionId);
     player.action = "fish";
-    this.waitForBite(sessionId, player, true);
-    if (!caught || Date.now() - reel.startedAt < STARLIGHT_REEL_MIN_S * 1000) {
-      this.broadcast("emote", { sessionId, emoji: "💨" });
-      return;
-    }
-    // a chest the server rolled for this reel, held in the bar until it opened
-    const treasure = reel.treasure && openedChest ? this.campfirePay(sessionId, player, "fish", TREASURE_COINS) : 0;
-    this.landFish(sessionId, player, reel.fish, false, treasure);
+    const landed = caught && Date.now() - reel.startedAt >= STARLIGHT_REEL_MIN_S * 1000;
+    if (landed) {
+      // a chest the server rolled for this reel, held in the bar until it opened
+      const treasure = reel.treasure && openedChest ? this.campfirePay(sessionId, player, "fish", TREASURE_COINS) : 0;
+      this.landFish(sessionId, player, reel.fish, false, treasure);
+    } else this.broadcast("emote", { sessionId, emoji: "💨" });
+    // the line goes back in only if the creel has room (a full one: rod stowed, no bait spent)
+    if (this.creelIsFull(sessionId)) this.restByTheWater(sessionId, player);
+    else this.waitForBite(sessionId, player, landed);
   }
 
   private stopStarlight(sessionId: string, player: Player) {
@@ -2817,6 +2865,8 @@ export class HangoutRoom extends Room<HangoutState> {
       this.payBoardWinner();
     }
 
+    // Getting up from a rest by the water: the mug goes back in the bag.
+    if (player.action === "rest") this.putMugAway(player);
     // Standing up mid-roast takes the skewer out of the fire (as it is).
     if (this.roasts.has(sessionId)) this.finishRoast(sessionId, player, "raw");
     // You can't carry a roasting stick away from the fire.
@@ -3144,7 +3194,8 @@ export class HangoutRoom extends Room<HangoutState> {
 
   private handleCastLine(sessionId: string, afk = false, spotId = "") {
     const player = this.state.players.get(sessionId);
-    if (!player || player.action !== "") return;
+    // (resting by the water with a full creel counts as free: the guard below decides)
+    if (!player || (player.action !== "" && player.action !== "rest")) return;
     // the campfire's river: from the dock's edge at one of its spots (one angler to a spot), sitting
     // with your legs over the water; a bite, a tap, then the reel
     if (this.state.currentMap === "campfire_night") {
@@ -3161,6 +3212,13 @@ export class HangoutRoom extends Room<HangoutState> {
       } else if (seat.occupiedBy !== sessionId) {
         return; // sitting somewhere else
       }
+      // the pre-cast guard: a full creel means no cast (and no bait spent)
+      if (this.creelIsFull(sessionId)) {
+        if (player.action === "rest") this.sendTo(sessionId, "campfireNotice", { message: "Your creel's still full: sell some fish to Barnaby first", emoji: "🪣" });
+        this.restByTheWater(sessionId, player);
+        return;
+      }
+      if (player.action === "rest") this.putMugAway(player);
       player.action = "fish";
       player.actionProgress = 0;
       this.starlight.add(sessionId);

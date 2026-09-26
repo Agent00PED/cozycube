@@ -353,6 +353,9 @@ export default function App() {
             if (c.treasure > 0) pushToast(`Sunken treasure! +${c.treasure} coins`, { emoji: "🧰", tone: "coin" });
             playSfx("catch");
           }
+        } else if (type === "creelFull") {
+          const f = payload as { capacity?: number };
+          pushToast(`Creel full (${f.capacity ?? 0}/${f.capacity ?? 0})! Rod stowed: sell some fish to Barnaby`, { emoji: "🪣", silent: true });
         } else if (type === "BONFIRE_STATE_UPDATE") {
           // wood on the fire: a whoosh for everyone; the fire crossing into the Cozy Aura, or sinking low
           const u = payload as BonfireUpdate;

@@ -175,6 +175,9 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Cast Line", hint: "Cast into the river; tap when the bobber dips, then reel it in", run: () => interactBridge.current?.useProp(id) });
       }
       // sitting at a spot with the line in (or about to be): feet up, and let the fish come to you
+      if (mySpot && action === "rest") {
+        found.push({ key: "afk:resume", type: "afk", label: "🎣 Resume Fishing", hint: "Once there's room in the creel (sell to Barnaby), back to AFK fishing", run: () => onCampfire({ type: "AFK", on: true }) });
+      }
       if (mySpot && (action === "" || action === "fish" || action === "afkfish")) {
         const on = action === "afkfish";
         found.push({ key: `afk:${on}`, type: "afk", label: on ? "💤 AFK Mode: ON" : "💤 AFK Mode: OFF", hint: on ? "A fish into the creel every 25-45s (the rarer, the longer). Tap to watch the bobber again" : "Feet up: a fish into the creel every 25-45s, the rarer the longer", run: () => onCampfire({ type: "AFK", on: !on }) });

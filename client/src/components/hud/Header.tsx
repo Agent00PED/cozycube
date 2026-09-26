@@ -142,9 +142,11 @@ export function Header(p: HeaderProps) {
         {/* the Fish Creel: only where there is fishing (the campfire) */}
         {p.currentMap === "campfire_night" && (
         <div className="relative shrink-0">
-          <button type="button" onClick={() => toggle("creel")} className={ICON_PILL} title={`Fish Creel: ${angler.profile.creel.length}/${angler.profile.slots}`} aria-label="Fish creel" aria-expanded={open === "creel"} aria-haspopup="dialog">
+          <button type="button" onClick={() => toggle("creel")} className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`} title={`Fish Creel: ${angler.profile.creel.length} of ${angler.profile.slots}`} aria-label="Fish creel" aria-expanded={open === "creel"} aria-haspopup="dialog">
             <span className={ICON}>🪣</span>
-            {angler.profile.creel.length > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-300 px-1 text-[11px] font-bold text-amber-950">{angler.profile.creel.length}</span>}
+            <span className={`font-bold tabular-nums ${angler.profile.creel.length >= angler.profile.slots ? "text-amber-300" : "text-sky-100"}`}>
+              {angler.profile.creel.length}/{angler.profile.slots}
+            </span>
           </button>
           {open === "creel" && (
             <Menu alignRight>

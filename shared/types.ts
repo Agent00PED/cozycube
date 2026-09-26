@@ -10,7 +10,8 @@ export type SitPose = "sit" | "lie" | "dangle" | "cross";
 /** "jar": a glass jar of fireflies caught at the campfire, glowing in the left hand. */
 export type HeldItem = "" | "coffee" | "marshmallow" | "skewer" | "jar";
 /** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is a boxing knockdown. */
-export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar" | "stargaze" | "chop";
+/** "rest": sitting at a fishing spot with the rod stowed and a warm mug, the creel full. */
+export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar" | "stargaze" | "chop" | "rest";
 
 export interface PlayerState {
   sessionId: string;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { BAITS, BAIT_IDS, CREEL_MAX_SLOTS, FISH, RODS, ROD_IDS, TIER_LABEL, creelUpgradeCost, fishValue, stars, type FishingProfile } from "@shared/fishing";
+import { BAITS, BAIT_IDS, CREEL_TIERS, FISH, RODS, ROD_IDS, TIER_LABEL, fishValue, nextCreelTier, stars, type FishingProfile } from "@shared/fishing";
 import { COZY_AURA_LUCK, hasCozyAura } from "@shared/bonfire";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
@@ -47,7 +47,7 @@ export function BarnabyModal({ profile, coins, fuel, send, subscribeMessages, on
   const aura = hasCozyAura(fuel);
   const price = (v: number) => Math.round(v * (aura ? 1 + COZY_AURA_LUCK : 1));
   const worth = profile.creel.reduce((sum, f) => sum + price(fishValue(f)), 0);
-  const upgrade = creelUpgradeCost(profile.slots);
+  const next = nextCreelTier(profile.creelTier);
 
   return (
     <Modal title="Barnaby's Bait & Tackle" icon="🦦" onClose={onClose} width={460}>
@@ -166,17 +166,34 @@ export function BarnabyModal({ profile, coins, fuel, send, subscribeMessages, on
         )}
 
         {tab === "creel" && (
-          <div className="flex flex-col items-center gap-2 py-2 text-center">
-            <span className="text-5xl">🪣</span>
-            <b>
-              Your creel holds {profile.slots} fish{profile.slots >= CREEL_MAX_SLOTS ? " (as big as they come)" : ""}
-            </b>
-            <p className="m-0 text-xs opacity-75">When it is full, a fresh catch goes back in the river for a few coins. Barnaby can stitch on two more slots at a time, up to {CREEL_MAX_SLOTS}.</p>
-            {upgrade !== null && (
-              <button type="button" className="clay-btn clay-btn-amber min-h-11 w-full max-w-[260px]" disabled={coins < upgrade} onClick={() => shop({ type: "BARNABY", op: "upgradeCreel" })}>
-                +2 slots · {upgrade} 🪙
-              </button>
-            )}
+          <div className="flex flex-col gap-1.5">
+            <p className="m-0 text-center text-xs opacity-75">A full creel means the rod is stowed until you sell some fish. Each creel in turn holds more:</p>
+            {CREEL_TIERS.map((t, i) => {
+              const tier = i + 1;
+              const have = tier <= profile.creelTier;
+              const using = tier === profile.creelTier;
+              const isNext = next?.id === t.id;
+              return (
+                <div key={t.id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${using ? "bg-emerald-400/20" : have ? "bg-white/5 opacity-60" : "bg-white/10"}`}>
+                  <span className="text-xl">{t.icon}</span>
+                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <b className="text-sm">{t.name}</b>
+                    <span className="text-[11px] opacity-75">{t.capacity} fish</span>
+                  </div>
+                  {using ? (
+                    <span className="px-2 text-xs font-bold text-emerald-200">In use</span>
+                  ) : have ? (
+                    <span className="px-2 text-xs opacity-60">Outgrown</span>
+                  ) : isNext ? (
+                    <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < t.price} onClick={() => shop({ type: "BARNABY", op: "upgradeCreel" })}>
+                      {t.price.toLocaleString()} 🪙
+                    </button>
+                  ) : (
+                    <span className="px-2 text-xs opacity-50">{t.price.toLocaleString()} 🪙</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -688,7 +688,8 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
       tl.dir = Math.random() < 0.5 ? -1 : 1;
       tl.next = t + 6 + Math.random() * 9;
     }
-    const nodding = asleep && pose === "sit";
+    // resting by the water (the creel full): feet over the edge, a warm mug, the head nodding off
+    const nodding = (asleep && pose === "sit") || (action === "rest" && !sipping);
     // at the board, waiting on the opponent: a small steady tilt, to the side this avatar favours
     const waiting = awaiting && pose === "sit" && !asleep;
     const tiltZ = nodding ? DOZE_LOLL : !walking && t < tl.until ? tl.dir * 0.22 : waiting ? (seed % 2 < 1 ? 1 : -1) * AWAIT_TILT : 0;
