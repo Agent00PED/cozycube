@@ -15,10 +15,10 @@
 
 /** Coins per Velvet Chip, both ways: the cage takes no cut. */
 export const COINS_PER_CHIP = 1;
-/** The amounts the cashier modal offers, each way ("all" rides beside them). */
+/** The amounts the cashier modal offers, each way (with "all" beside them). */
 export const CASHIER_AMOUNTS = [10, 50, 100, 500] as const;
-/** The most a single exchange may move (a guard on the message, not a limit anyone meets). */
-export const CASHIER_MAX_EXCHANGE = 100_000;
+/** The most chips anyone can hold (the same ceiling as coins, shared/types COIN_CAP). */
+export const CHIP_CAP = 99_999;
 
 /** The casino's slice of the player record (stats JSON "casino"). */
 export interface CasinoProfile {
@@ -29,10 +29,11 @@ export function emptyCasinoProfile(): CasinoProfile {
   return { chips: 0 };
 }
 
-/** A saved profile read back from the database: anything malformed becomes an empty one. */
+/** A saved profile read back from the database: anything malformed becomes an empty one, so a
+ *  player saved before the casino opened simply has no chips. */
 export function sanitizeCasinoProfile(raw: unknown): CasinoProfile {
   const chips = (raw as { chips?: unknown } | null | undefined)?.chips;
-  return { chips: typeof chips === "number" && Number.isFinite(chips) && chips > 0 ? Math.floor(chips) : 0 };
+  return { chips: typeof chips === "number" && Number.isFinite(chips) && chips > 0 ? Math.min(CHIP_CAP, Math.floor(chips)) : 0 };
 }
 
 /** What a player is worth: coins and chips together. The allowance (topped up only below a
@@ -41,27 +42,33 @@ export function netWorth(coins: number, chips: number): number {
   return coins + chips * COINS_PER_CHIP;
 }
 
-/** Client -> server, at the cage: buy chips with coins, or cash chips back into coins. */
-export type CashierPacket = { type: "BUY_CHIPS"; amount: number } | { type: "CASH_OUT"; amount: number };
+/** Client -> server, at the cage window: "buyChips" (coins into chips) or "cashOut" (chips back
+ *  into coins), `amount` in chips, or "all" of what the balance drawn on holds. */
+export interface CashierRequest {
+  amount: number | "all";
+}
 
-/** Server -> client, after an exchange: the balances it left. */
+/** Server -> client ("cashierResult"), after an exchange: the balances it left. */
 export interface CashierResult {
   ok: boolean;
-  type: CashierPacket["type"];
+  kind: "buy" | "cashout";
   /** Chips bought or cashed out (0 when refused). */
   amount: number;
   coins: number;
   chips: number;
+  /** Why it was refused: too far from the window, nothing to exchange, or a malformed amount. */
   reason?: "far" | "funds" | "amount";
 }
 
-/** How many chips an exchange of `requested` actually moves, given the balance it draws on (coins
- *  for a purchase, chips for a cash-out): a whole number, at least 1, no more than is there. 0 when
- *  the request is malformed or there is nothing to move. */
-export function exchangeAmount(requested: unknown, available: number): number {
+/** How many chips an exchange moves: `requested` ("all", or a whole number of at least 1), no
+ *  more than `available` (what the balance drawn on holds, less any room left under the other's
+ *  cap). null when the request is malformed; 0 when there is nothing to move. */
+export function exchangeAmount(requested: unknown, available: number): number | null {
+  const room = Math.max(0, Math.floor(available));
+  if (requested === "all") return room;
   const n = Number(requested);
-  if (!Number.isFinite(n) || n < 1) return 0;
-  return Math.min(Math.floor(n), CASHIER_MAX_EXCHANGE, Math.floor(available));
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(Math.floor(n), room);
 }
 
 // --- roulette -------------------------------------------------------------------------------
@@ -125,8 +132,13 @@ export const SLOT_COST = 5;
 /** Stakes the slot modal offers; a win scales with the stake. */
 export const SLOT_BETS = [5, 10, 25] as const;
 export const SLOT_SYMBOLS = ["🍒", "🍋", "🔔", "🍀", "💎", "7"] as const;
-/** Payout multipliers (of the stake) for three of a kind, by symbol index; any pair pays 2x. */
-export const SLOT_TRIPLE = [5, 8, 12, 20, 35, 60];
+/** Payout multipliers (of the stake) for three of a kind, by symbol index. With the reels'
+ *  weights (server/src/rooms/casino.ts: cherries common, sevens scarce) and a pair handing the
+ *  stake back, the machines return about 96% of what goes in; 2x pairs used to make it 135%, a
+ *  coin faucet once chips cash out 1:1. */
+export const SLOT_TRIPLE = [6, 10, 15, 25, 40, 75];
+/** Any pair (not three of a kind) returns the stake: a push. */
+export const SLOT_PAIR = 1;
 export interface SlotBroadcast {
   propId: string;
   sessionId: string;

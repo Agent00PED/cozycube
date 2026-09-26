@@ -49,6 +49,8 @@ export interface PlayerState {
   connected: boolean;
   /** Wallet. Starts at STARTING_COINS; lives in the room (kept across reconnects, not restarts). */
   coins: number;
+  /** Velvet Chips 🟡: the casino's balance, bought and cashed out at Mr. Vance's cage. */
+  chips: number;
   /** Carried catches and forage, encoded by encodeBag(). */
   bag: string;
   /** Comma-separated premium hats bought in the coin shop. */
@@ -144,7 +146,11 @@ export const ACHIEVEMENTS: { stat: keyof PlayerStats; at: number; title: string;
   { stat: "blackjack_wins", at: 10, title: "Card shark", emoji: "🦈" },
 ];
 
-/** The house tops you up when you are broke: once per cooldown, only under this balance. */
+/** The most coins anyone can hold (Velvet Chips share the ceiling: shared/casino CHIP_CAP). */
+export const COIN_CAP = 99_999;
+
+/** The house tops you up when you are broke: once per cooldown, only while your net worth (coins
+ *  and Velvet Chips together, shared/casino netWorth) is under this. */
 export const ALLOWANCE_COINS = 50;
 export const ALLOWANCE_BELOW = 10;
 export const ALLOWANCE_COOLDOWN_S = 600;
@@ -893,6 +899,9 @@ export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 export interface LeaderboardEntry {
   username: string;
   coins: number;
+  chips: number;
+  /** coins + chips (shared/casino netWorth): what the board is ranked by. */
+  worth: number;
 }
 
 // --- client -> server messages ---

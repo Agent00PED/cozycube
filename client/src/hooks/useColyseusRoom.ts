@@ -493,6 +493,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             speaking: player.speaking,
             connected: player.connected,
             coins: player.coins ?? 0,
+            chips: player.chips ?? 0,
             bag: player.bag ?? "",
             owned: player.owned ?? "",
             status: player.status ?? "",

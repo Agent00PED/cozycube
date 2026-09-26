@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SLOT_BETS, SLOT_SYMBOLS, SLOT_TRIPLE, type SlotBroadcast } from "@shared/casino";
+import { SLOT_BETS, SLOT_PAIR, SLOT_SYMBOLS, SLOT_TRIPLE, type SlotBroadcast } from "@shared/casino";
 import { Modal } from "./Modal";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 
@@ -157,7 +157,7 @@ export function SlotsModal({ propId, coins, localSessionId, onSpin, subscribeMes
             ))}
             <div className="flex justify-between">
               <span>any pair</span>
-              <span className="font-bold text-amber-200">×2</span>
+              <span className="font-bold text-amber-200">×{SLOT_PAIR}</span>
             </div>
           </div>
         </details>

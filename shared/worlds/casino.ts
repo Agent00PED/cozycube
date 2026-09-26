@@ -221,7 +221,7 @@ export const CASINO_PROPS: PropSpec[] = [
   // Neon Alley: spin a slot machine (chips)
   ...SLOT_MACHINES.map((s): PropSpec => ({ propId: s.propId, x: s.x, z: s.z, kind: "slot", color: "#ff4fa3", defaultOn: true, approachX: s.approachX, approachZ: s.approachZ })),
   // Mr. Vance at the cage window: buy chips with coins, cash chips back into coins
-  { propId: "vance", x: CASINO_NPCS.vance.x, z: CASINO_NPCS.vance.z, kind: "cashier", color: "#e0b04a", defaultOn: true, approachX: CASHIER_FRONT.x, approachZ: CASHIER_FRONT.z },
+  { propId: "cashier_cage_window", x: CASINO_NPCS.vance.x, z: CASINO_NPCS.vance.z, kind: "cashier", color: "#e0b04a", defaultOn: true, approachX: CASHIER_FRONT.x, approachZ: CASHIER_FRONT.z },
   // the exit doors: back to the Lounge (or anywhere, through the world drawer)
   { propId: "casino_exit", x: EXIT_DOORS.x, z: EXIT_DOORS.z, kind: "portal", color: "#d4a93c", defaultOn: true, approachX: EXIT_FRONT.x, approachZ: EXIT_FRONT.z },
 ];

@@ -17,7 +17,7 @@ app.use("/api", tokenRouter);
 // The High Rollers table for anyone outside a room (and for the modal's refresh button).
 app.get("/api/leaderboard", async (_req, res) => {
   try {
-    res.json(await getPlayerStore().topCoins(10));
+    res.json(await getPlayerStore().topNetWorth(10));
   } catch (err) {
     res.status(503).json({ error: err instanceof Error ? err.message : String(err) });
   }

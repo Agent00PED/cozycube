@@ -1,11 +1,13 @@
 import type { LeaderboardEntry, PlayerState } from "@shared/types";
+import { netWorth } from "@shared/casino";
 import { Modal } from "./Modal";
 
-/** The High Rollers board: persisted top balances (PostgreSQL), and who is in the room now. */
+/** The High Rollers board: persisted top fortunes (PostgreSQL), and who is in the room now. A
+ *  fortune is net worth: coins and Velvet Chips together. */
 export function LeaderboardModal({ leaderboard, players, localName, onClose }: { leaderboard: LeaderboardEntry[]; players: Record<string, PlayerState>; localName: string; onClose: () => void }) {
   const here = Object.values(players)
     .filter((p) => p.connected)
-    .sort((a, b) => b.coins - a.coins);
+    .sort((a, b) => netWorth(b.coins, b.chips) - netWorth(a.coins, a.chips));
   const medal = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`);
   return (
     <Modal title="High Rollers" icon="🏆" onClose={onClose} width={440} tone="velvet">
@@ -18,7 +20,7 @@ export function LeaderboardModal({ leaderboard, players, localName, onClose }: {
               <li key={`${e.username}-${i}`} className={`flex items-center gap-3 rounded-2xl px-3 py-2 text-sm ${e.username === localName ? "bg-amber-300/20" : "bg-white/5"}`}>
                 <span className="w-7 text-center font-black">{medal(i)}</span>
                 <span className="flex-1 truncate font-bold">{e.username}</span>
-                <span className="font-extrabold tabular-nums text-amber-200">🪙 {e.coins}</span>
+                <span className="font-extrabold tabular-nums text-amber-200" title={`${e.coins} coins + ${e.chips} chips`}>🪙 {e.worth}</span>
               </li>
             ))}
           </ol>
@@ -31,7 +33,7 @@ export function LeaderboardModal({ leaderboard, players, localName, onClose }: {
                 <span className="w-7 text-center">{medal(i)}</span>
                 <span className="h-3 w-3 rounded-full" style={{ background: p.color }} />
                 <span className="flex-1 truncate font-bold">{p.username}</span>
-                <span className="tabular-nums">🪙 {p.coins}</span>
+                <span className="tabular-nums" title={`${p.coins} coins + ${p.chips} chips`}>🪙 {netWorth(p.coins, p.chips)}</span>
               </li>
             ))}
           </ul>

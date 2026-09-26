@@ -1,6 +1,7 @@
 import { WORLDS, WORLD_IDS } from "@shared/worlds";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, type MapId, type TimeOfDay } from "@shared/types";
+import { netWorth } from "@shared/casino";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 import { useAnglerProfile } from "./anglerStore";
 import { CreelPopover } from "./CreelPopover";
@@ -21,6 +22,8 @@ interface HeaderProps {
   autoCycle: boolean;
   onToggleAutoCycle: () => void;
   coins: number;
+  /** Velvet Chips: counted with the coins for the allowance (net worth). */
+  chips: number;
   onClaimAllowance: () => void;
   status: string;
   onSetStatus: (status: string) => void;
@@ -121,7 +124,7 @@ export function Header(p: HeaderProps) {
 
       {/* ---- right: you ---- */}
       <div className="pointer-events-auto ml-auto flex shrink-0 flex-nowrap items-center gap-2">
-        <CoinWallet coins={p.coins} onClaim={p.onClaimAllowance} />
+        <CoinWallet coins={p.coins} chips={p.chips} onClaim={p.onClaimAllowance} />
         {/* the wood carrier: only at the campfire; the pill opens it (WoodCarrierModal) */}
         {p.currentMap === "campfire_night" && (
           <button
@@ -273,7 +276,7 @@ function MenuItem({ children, active, onClick, chip = false }: { children: React
 }
 
 /** The wallet: its own capsule. Rolls to the new balance, chimes when it grows, offers a top-up when broke. */
-function CoinWallet({ coins, onClaim }: { coins: number; onClaim: () => void }) {
+function CoinWallet({ coins, chips, onClaim }: { coins: number; chips: number; onClaim: () => void }) {
   const shown = useAnimatedNumber(coins);
   const prev = useRef(coins);
   const [bump, setBump] = useState(0);
@@ -283,7 +286,8 @@ function CoinWallet({ coins, onClaim }: { coins: number; onClaim: () => void }) 
     }
     prev.current = coins;
   }, [coins]);
-  const broke = coins < ALLOWANCE_BELOW;
+  // the house tops up the broke, not those with chips parked at the cage (the server checks the same)
+  const broke = netWorth(coins, chips) < ALLOWANCE_BELOW;
   return (
     <div className={`${PILL_SHELL} gap-2 ${broke ? "pl-3.5 pr-1.5" : "px-3.5"}`} title="Your coins">
       <span key={bump} className={`flex items-center gap-1.5 font-bold tabular-nums text-amber-100 ${bump ? "cozy-coin-bump" : ""}`}>

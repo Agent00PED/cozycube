@@ -571,6 +571,7 @@ export default function App() {
           autoCycle={autoCycle}
           onToggleAutoCycle={() => setAutoCycle(!autoCycle)}
           coins={localPlayer?.coins ?? 0}
+          chips={localPlayer?.chips ?? 0}
           onClaimAllowance={claimAllowance}
           status={localPlayer?.status ?? ""}
           onSetStatus={setStatus}
@@ -625,7 +626,7 @@ export default function App() {
             <RoulettePanel
               roulette={roulette}
               myBets={bets[localSessionId] ?? ""}
-              coins={localPlayer.coins}
+              coins={localPlayer.chips}
               localSessionId={localSessionId}
               onPlaceBet={placeBet}
               onClearBets={clearBets}
@@ -661,9 +662,9 @@ export default function App() {
         {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
         {leaderboardOpen && <LeaderboardModal leaderboard={leaderboard} players={players} localName={localPlayer?.username ?? ""} onClose={() => setLeaderboardOpen(false)} />}
         {slotsProp && localPlayer && localSessionId && (
-          <SlotsModal propId={slotsProp} coins={localPlayer.coins} localSessionId={localSessionId} onSpin={spinSlots} subscribeMessages={subscribeMessages} onClose={() => setSlotsProp(null)} />
+          <SlotsModal propId={slotsProp} coins={localPlayer.chips} localSessionId={localSessionId} onSpin={spinSlots} subscribeMessages={subscribeMessages} onClose={() => setSlotsProp(null)} />
         )}
-        {blackjackOpen && localPlayer && <BlackjackModal view={blackjackView} coins={localPlayer.coins} onAction={blackjackAction} onClose={() => setBlackjackOpen(false)} />}
+        {blackjackOpen && localPlayer && <BlackjackModal view={blackjackView} coins={localPlayer.chips} onAction={blackjackAction} onClose={() => setBlackjackOpen(false)} />}
 
         {/* the world's own panels */}
         {fishOnLine && (
