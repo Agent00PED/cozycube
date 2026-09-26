@@ -39,13 +39,24 @@ const CHIPS = Array.from({ length: 14 }, (_, i) => ({
 export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose }: Props) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [stroke, setStroke] = useState<(ChopStroke & { at: number }) | null>(null);
-  const [t, setT] = useState(0);
   const [result, setResult] = useState<ChopResult | null>(null);
   const [splits, setSplits] = useState(0);
+  // what the frame loop and the key handler read: always the latest, never a stale closure
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  const strokeRef = useRef(stroke);
+  strokeRef.current = stroke;
   const sendRef = useRef(send);
   sendRef.current = send;
+  // the meter's moving parts, written straight to the DOM each frame (no React state per frame, no
+  // CSS transitions): the needle, the sweet spot and its grace halo, and the knot
+  const needleEl = useRef<HTMLDivElement>(null);
+  const zoneEl = useRef<HTMLDivElement>(null);
+  const graceEl = useRef<HTMLDivElement>(null);
+  const knotEl = useRef<HTMLDivElement>(null);
+  const animFrameRef = useRef<number>(0);
+  /** The stroke time the meter is frozen at while a swing is judged (null: running). */
+  const frozenAt = useRef<number | null>(null);
 
   useEffect(
     () =>
@@ -53,8 +64,8 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
         if (type === "chopStroke") {
           const s = payload as ChopStroke;
           if (s.stroke > 1) playSfx("chop"); // the last swing landed: a notch, a split
+          frozenAt.current = null;
           setStroke({ ...s, at: performance.now() });
-          setT(0);
           setPhase("stroke");
         } else if (type === "chopResult" && (payload as ChopResult).sessionId === localSessionId) {
           const r = payload as ChopResult;
@@ -67,17 +78,41 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
     [subscribeMessages, localSessionId]
   );
 
-  // the needle and the sweet spot, from when the stroke's meter arrived
+  // the one animation loop: every moving part of the meter is placed from the same stroke time, in
+  // the same frame, by the same functions the server judges with (shared/chop.ts)
   useEffect(() => {
-    if (phase !== "stroke" || !stroke) return;
-    let frame = 0;
-    const tick = () => {
-      setT((performance.now() - stroke.at) / 1000);
-      frame = requestAnimationFrame(tick);
+    const place = (el: HTMLDivElement | null, from: number, to: number, show = true) => {
+      if (!el) return;
+      el.style.display = show && to > from ? "block" : "none";
+      el.style.left = `${from * 100}%`;
+      el.style.width = `${(to - from) * 100}%`;
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [phase, stroke]);
+    const updateLoop = (timestamp: number) => {
+      const s = strokeRef.current;
+      const live = phaseRef.current === "stroke" || phaseRef.current === "judging";
+      if (s && live) {
+        const t = frozenAt.current ?? (timestamp - s.at) / 1000;
+        const needle = chopMarker(s, t);
+        const [z0, z1] = chopZone(s, t);
+        const [k0, k1] = chopKnot(s, t);
+        if (needleEl.current) {
+          needleEl.current.style.display = "block";
+          needleEl.current.style.left = `${needle * 100}%`;
+        }
+        place(zoneEl.current, z0, z1);
+        place(graceEl.current, Math.max(0, z0 - CHOP_GRACE), Math.min(1, z1 + CHOP_GRACE));
+        place(knotEl.current, k0, k1, s.knotWidth > 0);
+      } else {
+        if (needleEl.current) needleEl.current.style.display = "none";
+        place(graceEl.current, 0, 0, false);
+        place(knotEl.current, 0, 0, false);
+        place(zoneEl.current, 0.35, 0.65);
+      }
+      animFrameRef.current = requestAnimationFrame(updateLoop);
+    };
+    animFrameRef.current = requestAnimationFrame(updateLoop);
+    return () => cancelAnimationFrame(animFrameRef.current);
+  }, []);
 
   const raise = () => {
     if (phaseRef.current !== "ready" && phaseRef.current !== "result") return;
@@ -86,14 +121,13 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
     setPhase("raising");
     sendRef.current({ type: "CHOP_START" });
   };
-  const strokeRef = useRef(stroke);
-  strokeRef.current = stroke;
-  const strike = () => {
-    if (phaseRef.current !== "stroke" || !strokeRef.current) return;
-    // the needle's place at this very click, on the same clock the meter is drawn from: that is
-    // what the server judges (and where the needle stays while it does)
-    const at = (performance.now() - strokeRef.current.at) / 1000;
-    setT(at);
+  /** A swing, at `when` (the click's or key's own timestamp, on the performance clock the meter runs
+   *  on): the needle's place at that very moment is what the server judges, and where it stays. */
+  const strike = (when: number = performance.now()) => {
+    const s = strokeRef.current;
+    if (phaseRef.current !== "stroke" || !s) return;
+    const at = Math.max(0, (when - s.at) / 1000);
+    frozenAt.current = at;
     setPhase("judging");
     sendRef.current({ type: "CHOP_STOP", t: at });
   };
@@ -102,7 +136,8 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== "Space" && e.code !== "Enter") return;
-      if (phaseRef.current === "stroke") strike();
+      if (e.repeat) return;
+      if (phaseRef.current === "stroke") strike(e.timeStamp || performance.now());
       else if (phaseRef.current === "ready" || phaseRef.current === "result") raise();
       else return;
       e.preventDefault();
@@ -110,11 +145,11 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-    // raise and strike read the phase through its ref
+    // raise and strike read everything through refs
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // no answer to CHOP_START (out of reach, the axe still stunned): back to ready
+  // no answer to CHOP_START (no log on this block, the carrier full, the axe still stunned): back to ready
   useEffect(() => {
     if (phase !== "raising") return;
     const timer = window.setTimeout(() => setPhase("ready"), 2000);
@@ -122,9 +157,6 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
   }, [phase]);
 
   const live = phase === "stroke" || phase === "judging";
-  const needle = stroke && live ? chopMarker(stroke, t) : 0;
-  const [z0, z1] = stroke && live ? chopZone(stroke, t) : [0.4, 0.6];
-  const [k0, k1] = stroke && live ? chopKnot(stroke, t) : [0, 0];
   const log = stroke ? CHOP_LOGS[stroke.log] : result ? CHOP_LOGS[result.log] : null;
   const current = stroke?.stroke ?? 1;
   const done = (n: number) => (phase === "result" ? (result?.clean ? true : n < (result?.stroke ?? 1)) : n < current);
@@ -146,13 +178,22 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
             </div>
           ))}
         </div>
-        {/* the meter */}
-        <div className="relative h-11 w-full overflow-hidden rounded-full bg-gradient-to-r from-[#6b4a33] to-[#8a6246]" role="img" aria-label="Chopping meter">
-          {stroke && live && <div className="absolute inset-y-1 rounded-full bg-[#ff5a4f]/85 shadow-[0_0_10px_rgba(255,90,79,0.7)]" style={{ left: `${k0 * 100}%`, width: `${(k1 - k0) * 100}%` }} title="Wood knot" />}
+        {/* the meter: its parts placed by the frame loop above */}
+        <div
+          className="relative h-11 w-full cursor-pointer overflow-hidden rounded-full bg-gradient-to-r from-[#6b4a33] to-[#8a6246]"
+          role="img"
+          aria-label="Chopping meter"
+          onPointerDown={(e) => {
+            if (phaseRef.current !== "stroke") return;
+            e.preventDefault();
+            strike(e.timeStamp || performance.now());
+          }}
+        >
+          <div ref={knotEl} className="absolute inset-y-1 rounded-full bg-[#ff5a4f]/85 shadow-[0_0_10px_rgba(255,90,79,0.7)]" style={{ display: "none" }} title="Wood knot" />
           {/* the grace either side of the green: a swing in the halo still lands */}
-          {live && <div className="absolute inset-y-2 rounded-full bg-white/15" style={{ left: `${Math.max(0, z0 - CHOP_GRACE) * 100}%`, width: `${(Math.min(1, z1 + CHOP_GRACE) - Math.max(0, z0 - CHOP_GRACE)) * 100}%` }} aria-hidden />}
-          <div className={`absolute inset-y-1 rounded-full ${current === 3 ? "bg-[#ffd166] shadow-[0_0_14px_rgba(255,209,102,0.9)]" : "bg-[#6fcf7a] shadow-[0_0_12px_rgba(111,207,122,0.7)]"}`} style={{ left: `${z0 * 100}%`, width: `${(z1 - z0) * 100}%`, opacity: live ? 1 : 0.35 }} />
-          {live && <div className="absolute inset-y-0 w-1.5 -translate-x-1/2 rounded-full bg-[#fff4e0] shadow-[0_0_10px_rgba(255,244,224,0.9)]" style={{ left: `${needle * 100}%` }} />}
+          <div ref={graceEl} className="absolute inset-y-2 rounded-full bg-white/15" style={{ display: "none" }} aria-hidden />
+          <div ref={zoneEl} className={`absolute inset-y-1 rounded-full ${current === 3 ? "bg-[#ffd166] shadow-[0_0_14px_rgba(255,209,102,0.9)]" : "bg-[#6fcf7a] shadow-[0_0_12px_rgba(111,207,122,0.7)]"}`} style={{ left: "35%", width: "30%", opacity: live ? 1 : 0.35 }} />
+          <div ref={needleEl} className="absolute inset-y-0 w-1.5 -translate-x-1/2 rounded-full bg-[#fff4e0] shadow-[0_0_10px_rgba(255,244,224,0.9)]" style={{ display: "none" }} />
         </div>
 
         {phase === "result" && result && (
@@ -176,7 +217,7 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
         )}
 
         {live ? (
-          <button type="button" className="clay-btn clay-btn-amber min-h-12 w-full max-w-[260px] text-[16px]" disabled={phase !== "stroke"} onClick={strike}>
+          <button type="button" className="clay-btn clay-btn-amber min-h-12 w-full max-w-[260px] text-[16px]" disabled={phase !== "stroke"} onPointerDown={(e) => strike(e.timeStamp || performance.now())}>
             {phase === "judging" ? "…" : `🪓 ${CHOP_STROKE_NAMES[current]}!`}
           </button>
         ) : (

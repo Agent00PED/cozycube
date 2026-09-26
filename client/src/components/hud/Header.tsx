@@ -6,6 +6,7 @@ import { useAnglerProfile } from "./anglerStore";
 import { CreelPopover } from "./CreelPopover";
 import { WoodPopover } from "./WoodPopover";
 import { woodCount } from "@shared/fishing";
+import { carrierCapacity } from "@shared/chop";
 
 /** Each map's icon, name and tagline, from the world table (shared/worlds). */
 export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: string }> = Object.fromEntries(
@@ -125,9 +126,11 @@ export function Header(p: HeaderProps) {
         {/* the wood you carry: only at the campfire (a round pill, the count beside the log) */}
         {p.currentMap === "campfire_night" && (
           <div className="relative shrink-0">
-            <button type="button" onClick={() => toggle("wood")} className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`} title={`Firewood: ${woodCount(angler.profile)}`} aria-label="Firewood" aria-expanded={open === "wood"} aria-haspopup="dialog">
+            <button type="button" onClick={() => toggle("wood")} className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`} title={`Firewood: ${woodCount(angler.profile)} of ${carrierCapacity(angler.profile.carrier)} (your wood carrier)`} aria-label="Firewood" aria-expanded={open === "wood"} aria-haspopup="dialog">
               <span className={ICON}>🪵</span>
-              <span className="font-bold tabular-nums text-amber-100">{woodCount(angler.profile)}</span>
+              <span className={`font-bold tabular-nums ${woodCount(angler.profile) >= carrierCapacity(angler.profile.carrier) ? "text-rose-200" : "text-amber-100"}`}>
+                {woodCount(angler.profile)}/{carrierCapacity(angler.profile.carrier)}
+              </span>
             </button>
             {open === "wood" && (
               <Menu alignRight>

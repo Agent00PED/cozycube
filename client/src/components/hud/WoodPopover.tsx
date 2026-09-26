@@ -1,5 +1,5 @@
 import { ITEMS, parseBag } from "@shared/types";
-import { AXES, WOOD, WOOD_KINDS } from "@shared/chop";
+import { AXES, WOOD, WOOD_KINDS, carrierCapacity } from "@shared/chop";
 import { woodCount, type FishingProfile } from "@shared/fishing";
 
 // The 🪵 pill's popover: the split wood you carry (it burns on the bonfire, and Buster buys it by
@@ -13,7 +13,9 @@ export function WoodPopover({ profile, bag }: { profile: FishingProfile; bag: st
     <div className="flex w-[min(92vw,260px)] flex-col gap-2 p-1.5 text-sm" aria-label="Wood and pantry">
       <div className="flex items-center justify-between gap-2">
         <b className="text-base">🪵 Firewood</b>
-        <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-bold">{woodCount(profile)}</span>
+        <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-bold" title="Your wood carrier">
+          {woodCount(profile)}/{carrierCapacity(profile.carrier)}
+        </span>
       </div>
       <div className="flex flex-col gap-1">
         {WOOD_KINDS.map((k) => (
@@ -27,7 +29,7 @@ export function WoodPopover({ profile, bag }: { profile: FishingProfile; bag: st
       </div>
       <div className="flex items-center justify-between text-xs opacity-85">
         <span>
-          Buster pays <b className="text-amber-200">{worth} 🪙</b>
+          Buster pays <b className="text-amber-200">{worth} 🪙</b> (the fire loves it more)
         </span>
         <span className="rounded-full bg-white/10 px-2 py-0.5">
           {axe.emoji} {axe.name}

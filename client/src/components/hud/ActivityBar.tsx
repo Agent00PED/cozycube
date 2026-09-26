@@ -28,8 +28,6 @@ interface ActivityBarProps {
   onClearBets: () => void;
   /** The room's one-shot messages (the AFK pill counts this session's catches). */
   subscribeMessages: (listener: RoomMessageListener) => () => void;
-  /** Get up from wherever you sit (the AFK pill's button). */
-  onStandUp: () => void;
 }
 
 function doneness(toast: number): { label: string; color: string } {
@@ -43,7 +41,7 @@ function doneness(toast: number): { label: string; color: string } {
 // The action dock: only what you can do right now, right here (and, while fishing AFK, the frosted
 // AFK pill). What you carry lives in the header now: the 🪣 creel and the 🪵 wood.
 export function ActivityBar(props: ActivityBarProps) {
-  const { player, chairs, localSessionId, onRoast, onEat, onSip, onPutDown, onCastLine, onReelIn, onHook, onSplash, subscribeMessages, onStandUp } = props;
+  const { player, chairs, localSessionId, onRoast, onEat, onSip, onPutDown, onCastLine, onReelIn, onHook, onSplash, subscribeMessages } = props;
   const soaking = player.sitting && Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "onsen");
   const roasting = player.holding === "marshmallow";
   // the campfire's skewer, carried (not while it is still over the fire)
@@ -74,7 +72,7 @@ export function ActivityBar(props: ActivityBarProps) {
 
   return (
     <div style={styles.stack}>
-      {afkFishing && <AFKFishingBar player={player} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onStandUp={onStandUp} />}
+      {afkFishing && <AFKFishingBar player={player} localSessionId={localSessionId} subscribeMessages={subscribeMessages} />}
       {hasActions && !afkFishing && (
         <div style={styles.bar}>
           {brewing && <span style={styles.status}>☕ Brewing… {Math.round(player.actionProgress * 100)}%</span>}

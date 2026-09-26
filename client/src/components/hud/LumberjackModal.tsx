@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { AXES, AXE_IDS, WOOD, WOOD_KINDS } from "@shared/chop";
-import type { FishingProfile } from "@shared/fishing";
+import { AXES, AXE_IDS, CARRIER_CAPACITY, CARRIER_UPGRADE_COSTS, WOOD, WOOD_KINDS, carrierCapacity } from "@shared/chop";
+import { woodCount, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -19,7 +19,7 @@ interface Props {
 // the Golden Lumberjack Axe also slows the needle and sometimes splits a log in two). Every trade
 // is the server's call (BUSTER packets); his answer comes back as busterResult.
 
-type Tab = "wood" | "axes";
+type Tab = "wood" | "axes" | "carrier";
 const HELLO = "Howdy! Buster's the name, timber's the game. Got some wood for me? 🦫";
 
 export function LumberjackModal({ profile, coins, send, subscribeMessages, onClose }: Props) {
@@ -53,6 +53,7 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
             [
               ["wood", "🪵 Sell Wood"],
               ["axes", "🪓 Axes"],
+              ["carrier", "🎒 Carrier"],
             ] as const
           ).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`min-h-9 flex-1 rounded-full px-2 text-xs font-bold transition-transform active:scale-95 ${tab === id ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
@@ -88,6 +89,23 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
             <p className="m-0 text-center text-xs opacity-75">
               Everything you carry: <b className="text-amber-200">{total} 🪙</b>. Split logs at the chopping block right here.
             </p>
+          </div>
+        )}
+
+        {tab === "carrier" && (
+          <div className="flex flex-col items-center gap-2 py-2 text-center">
+            <span className="text-5xl">🎒</span>
+            <b>
+              Your wood carrier holds {carrierCapacity(profile.carrier)} logs ({woodCount(profile)} in it now)
+            </b>
+            <p className="m-0 text-xs opacity-75">A full carrier means no more chopping until you burn some wood on the bonfire or sell it here. Levels: {CARRIER_CAPACITY.join(" → ")} logs.</p>
+            {profile.carrier < CARRIER_CAPACITY.length ? (
+              <button type="button" className="clay-btn clay-btn-amber min-h-11 w-full max-w-[280px]" disabled={coins < CARRIER_UPGRADE_COSTS[profile.carrier - 1]} onClick={() => send({ type: "BUSTER", op: "upgradeCarrier" })}>
+                Upgrade to {CARRIER_CAPACITY[profile.carrier]} logs · {CARRIER_UPGRADE_COSTS[profile.carrier - 1]} 🪙
+              </button>
+            ) : (
+              <span className="text-sm font-bold text-emerald-200">The biggest carrier in the woods!</span>
+            )}
           </div>
         )}
 

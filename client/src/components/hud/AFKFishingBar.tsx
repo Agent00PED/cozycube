@@ -6,9 +6,9 @@ import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 // AFK fishing, as a small frosted pill over the action dock: a bobbing rod with a sleepy blue Zzz,
 // "Starlight fishing…" over a slim bar filling toward the next catch (the server's progress), what
 // this session has brought in (fish, and what they are worth at Barnaby's plus any coins from
-// letting fish go), and one warm button to get up.
+// letting fish go). Getting up is the action dock's [🧍 Stand up · Space], as for any seat.
 
-export function AFKFishingBar({ player, localSessionId, subscribeMessages, onStandUp }: { player: PlayerState; localSessionId: string; subscribeMessages: (listener: RoomMessageListener) => () => void; onStandUp: () => void }) {
+export function AFKFishingBar({ player, localSessionId, subscribeMessages }: { player: PlayerState; localSessionId: string; subscribeMessages: (listener: RoomMessageListener) => () => void }) {
   const [session, setSession] = useState({ fish: 0, coins: 0, last: 0 });
   useEffect(
     () =>
@@ -22,7 +22,7 @@ export function AFKFishingBar({ player, localSessionId, subscribeMessages, onSta
   );
   const progress = Math.max(0, Math.min(1, player.actionProgress));
   return (
-    <div className="cozy-afk-pill pointer-events-auto flex items-center gap-4 rounded-full border border-white/10 bg-black/40 px-5 py-2.5 text-white shadow-xl backdrop-blur-md" role="status" aria-label="AFK fishing">
+    <div className="cozy-afk-pill pointer-events-none flex items-center gap-4 rounded-full border border-white/10 bg-black/40 px-5 py-2.5 text-white shadow-xl backdrop-blur-md" role="status" aria-label="AFK fishing">
       <span className="relative text-xl leading-none" aria-hidden>
         <span className="cozy-afk-rod inline-block">🎣</span>
         <span className="cozy-afk-zzz">z</span>
@@ -36,9 +36,6 @@ export function AFKFishingBar({ player, localSessionId, subscribeMessages, onSta
       <span key={session.last} className={`whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold tabular-nums ${session.last ? "cozy-coin-bump" : ""}`} title="This session: fish caught, and what they are worth at Barnaby's">
         {session.fish} 🐟 · +{session.coins} 🪙
       </span>
-      <button type="button" className="clay-btn clay-btn-amber min-h-9 whitespace-nowrap px-3.5 text-[12px]" onClick={onStandUp}>
-        ✕ Stand Up
-      </button>
     </div>
   );
 }

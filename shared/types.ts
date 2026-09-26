@@ -1327,7 +1327,8 @@ export type CampfirePacket =
   | { type: "BARNABY"; op: "upgradeCreel" }
   /** Buster the Lumberjack's stall: sell split wood (one, or all of a kind), buy or switch axes. */
   | { type: "BUSTER"; op: "sell"; wood: WoodKind; count: number | "all" }
-  | { type: "BUSTER"; op: "buyAxe" | "equipAxe"; axe: AxeId };
+  | { type: "BUSTER"; op: "buyAxe" | "equipAxe"; axe: AxeId }
+  | { type: "BUSTER"; op: "upgradeCarrier" };
 
 /** Barnaby's answer to a shop request (sent to the one who asked). */
 export interface BarnabyResult {

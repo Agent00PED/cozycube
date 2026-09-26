@@ -586,7 +586,6 @@ export default function App() {
           <div className={`cozy-bottom-stack ${showJoystick ? "" : "no-joystick"}`}>
             <ActivityBar
               subscribeMessages={subscribeMessages}
-              onStandUp={() => interactBridge.current?.stand()}
               player={localPlayer}
               chairs={chairs}
               localSessionId={localSessionId}

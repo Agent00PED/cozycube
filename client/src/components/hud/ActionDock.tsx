@@ -187,10 +187,17 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           const id = tele.propId;
           found.push({ key: `gaze:${id}`, type: "stargaze", label: "🔭 Stargaze", hint: "Look through the telescope: tap shooting stars for +10 coins", run: () => interactBridge.current?.useProp(id) });
         }
-        const block = Object.values(toggleables).find((p) => p.kind === "woodchop");
-        if (block && reach(block) <= CHOP_REACH + 0.3) {
-          const id = block.propId;
-          found.push({ key: `chop:${id}`, type: "chop", label: "🪓 Chop Firewood", hint: "Split a log in the sweet spot: +5 coins, and the fire roars up", run: () => interactBridge.current?.useProp(id) });
+        // the nearest of the three chopping stations: its log, or the wait for the next one
+        let block: { p: ToggleableSyncState; d: number } | null = null;
+        for (const p of Object.values(toggleables)) {
+          if (p.kind !== "woodchop") continue;
+          const d = reach(p);
+          if (d <= CHOP_REACH + 0.3 && (!block || d < block.d)) block = { p, d };
+        }
+        if (block) {
+          const id = block.p.propId;
+          if (block.p.on) found.push({ key: `chop:${id}`, type: "chop", label: "🪓 Chop Firewood", hint: "Split the log in three clean swings: firewood to burn or sell", run: () => interactBridge.current?.useProp(id) });
+          else found.push({ key: `chop:${id}:wait`, type: "chop", label: "🪵 Next log soon…", hint: "This block's next log arrives in under half a minute. Two more stations round the camp!", run: () => pushToast("A fresh log is on its way to this block. Try another station!", { emoji: "🪵" }) });
         }
         const raccoon = Object.values(toggleables).find((p) => p.kind === "critter");
         if (raccoon && reach(raccoon) <= CRITTER_REACH + 0.3) {

@@ -5,9 +5,12 @@
 // On every stroke the needle ping-pongs across the meter, bouncing off each end (it never runs out
 // at the right edge: the stroke only ends when you swing, or after a few passes).
 //
-//   Stroke 1  Notch Cut      the slowest needle (x1.0), a wide sweet spot swinging back and forth
-//   Stroke 2  Wedge Split    quicker (x1.4); the sweet spot holds still
-//   Stroke 3  Clean Cleave   the quickest (x1.85), at a narrow golden sweet spot: the real test
+//   Stroke 1  Notch Cut      the slowest needle (x1.0), a wide (30%) sweet spot that holds still,
+//                            and no knots
+//   Stroke 2  Wedge Split    quicker (x1.35): a 20% sweet spot patrolling slowly back and forth,
+//                            and one knot that stays put
+//   Stroke 3  Clean Cleave   the quickest (x1.6): a narrow (12%) golden sweet spot patrolling a
+//                            little quicker, and a knot that moves too: the real test
 //
 // A swing is judged a little generously (CHOP_GRACE either side of the green), at the needle's
 // place when it was made: the client samples it at the click, and the server checks that time is
@@ -29,9 +32,9 @@ export type WoodKind = "pine" | "oak" | "charcoal";
 export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal"];
 /** Each kind: what Buster pays for one, and how much it feeds the bonfire. */
 export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number; fuel: number }> = {
-  pine: { name: "Pine Firewood", emoji: "🪵", sell: 8, fuel: 25 },
-  oak: { name: "Oak Firewood", emoji: "🌳", sell: 15, fuel: 30 },
-  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: 35, fuel: 50 },
+  pine: { name: "Pine Firewood", emoji: "🪵", sell: 4, fuel: 25 },
+  oak: { name: "Oak Firewood", emoji: "🌳", sell: 8, fuel: 30 },
+  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: 18, fuel: 50 },
 };
 export function isWoodKind(v: unknown): v is WoodKind {
   return v === "pine" || v === "oak" || v === "charcoal";
@@ -52,6 +55,14 @@ export const AXES: Record<AxeId, { name: string; emoji: string; price: number; z
   golden: { name: "Golden Lumberjack Axe", emoji: "🌟", price: 900, zoneBonus: 0.25, slow: 0.2, doubleChance: 0.3, blurb: "+25% green zone, a 20% slower needle, and a 30% chance of double wood." },
 };
 export const AXE_IDS = Object.keys(AXES) as AxeId[];
+
+// --- the wood carrier: how many logs you can carry, and Buster's upgrades to it ---
+export const CARRIER_CAPACITY = [6, 12, 20] as const;
+/** What the next level costs (from level 1, from level 2). */
+export const CARRIER_UPGRADE_COSTS = [150, 400] as const;
+export function carrierCapacity(level: number): number {
+  return CARRIER_CAPACITY[Math.max(1, Math.min(CARRIER_CAPACITY.length, Math.round(level) || 1)) - 1];
+}
 export function isAxeId(v: unknown): v is AxeId {
   return typeof v === "string" && v in AXES;
 }
@@ -80,7 +91,11 @@ export const CHOP_STROKE_NAMES: Record<ChopStrokeNo, string> = { 1: "Notch Cut",
 export const CHOP_GRACE = 0.05;
 /** The needle's round trip on the first stroke (s), and each stroke's speed on it. */
 const BASE_PERIOD = 3.2;
-export const CHOP_SPEED: Record<ChopStrokeNo, number> = { 1: 1.0, 2: 1.4, 3: 1.85 };
+export const CHOP_SPEED: Record<ChopStrokeNo, number> = { 1: 1.0, 2: 1.35, 3: 1.6 };
+/** How fast each stroke's sweet spot patrols, against its needle (0: it holds still). */
+const PATROL: Record<ChopStrokeNo, number> = { 1: 0, 2: 0.35, 3: 0.5 };
+/** A chopping station's next log is ready this long after its last one was split. */
+export const CHOP_RESPAWN_S = 25;
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
@@ -108,6 +123,7 @@ export function judgeChop(s: ChopStroke, t: number): "hit" | "knot" | "miss" {
   const [a, b] = chopZone(s, t);
   // the sweet spot wins where the two touch: a creeping knot never steals a clean swing
   if (m >= a - CHOP_GRACE && m <= b + CHOP_GRACE) return "hit";
+  if (s.knotWidth <= 0) return "miss"; // (the Notch Cut has no knot)
   const [k0, k1] = chopKnot(s, t);
   return m >= k0 && m <= k1 ? "knot" : "miss";
 }
@@ -120,24 +136,26 @@ export function rollChopLog(rand: () => number = Math.random): ChopLog {
 
 /** A fresh stroke's meter (the server rolls it; `rand` is Math.random there). */
 export function rollChopStroke(stroke: ChopStrokeNo, log: ChopLog, rand: () => number = Math.random, axe: AxeId = "rusty"): ChopStroke {
-  const wide = (log === "pine" ? 1.3 : log === "golden" ? 0.9 : 1) * (1 + AXES[axe].zoneBonus);
+  const wide = (log === "pine" ? 1.2 : log === "golden" ? 0.9 : 1) * (1 + AXES[axe].zoneBonus);
   const slow = 1 / (1 - AXES[axe].slow);
-  const creep = log === "oak" ? { knotSwing: 0.12, knotPeriod: 2.2 + rand() * 0.8 } : { knotSwing: 0, knotPeriod: 0 };
+  const needlePeriod = BASE_PERIOD / CHOP_SPEED[stroke];
+  // the sweet spot patrols at PATROL x the needle's pace: one sweep of its range per needle pass, slowed
+  const zonePeriod = PATROL[stroke] > 0 ? (needlePeriod * slow) / PATROL[stroke] : 0;
+  // Hard Oak's knots creep on every stroke that has one; the Clean Cleave's knot always moves
+  const creep = log === "oak" || stroke === 3 ? { knotSwing: stroke === 3 ? 0.16 : 0.1, knotPeriod: (stroke === 3 ? 2.6 : 2.2) + rand() * 0.8 } : { knotSwing: 0, knotPeriod: 0 };
   // the stroke waits three round trips of the needle for a swing
   const make = (m: Omit<ChopStroke, "stroke" | "log" | "duration" | "knotSwing" | "knotPeriod">): ChopStroke => ({ stroke, log, ...m, needlePeriod: m.needlePeriod * slow, duration: m.needlePeriod * slow * 3, ...creep });
   if (stroke === 1) {
-    // a wide sweet spot swinging about the middle; the knot waits at one end
-    const zoneCenter = 0.45 + rand() * 0.1;
-    const early = rand() < 0.5;
-    return make({ zoneCenter, zoneWidth: 0.22 * wide, zoneSwing: 0.17, zonePeriod: 1.6, needlePeriod: BASE_PERIOD / CHOP_SPEED[1], knotFrom: early ? 0.02 : 0.9, knotWidth: 0.07 });
+    // a wide sweet spot holding still somewhere near the middle, and no knots at all
+    const zoneCenter = 0.35 + rand() * 0.3;
+    return { ...make({ zoneCenter, zoneWidth: 0.3 * wide, zoneSwing: 0, zonePeriod: 0, needlePeriod, knotFrom: 0, knotWidth: 0 }), knotSwing: 0, knotPeriod: 0 };
   }
   if (stroke === 2) {
-    // a still sweet spot, the knot beside it (clear of the grace either side)
-    const zoneCenter = 0.28 + rand() * 0.44;
-    const side = zoneCenter < 0.5 ? 1 : -1;
-    return make({ zoneCenter, zoneWidth: 0.2 * wide, zoneSwing: 0, zonePeriod: 0, needlePeriod: BASE_PERIOD / CHOP_SPEED[2], knotFrom: clamp01(zoneCenter + side * 0.24 - 0.035), knotWidth: 0.07 });
+    // a 20% sweet spot patrolling the middle; one knot out near an end, clear of its patrol
+    const early = rand() < 0.5;
+    return make({ zoneCenter: 0.5, zoneWidth: 0.2 * wide, zoneSwing: 0.2, zonePeriod, needlePeriod, knotFrom: early ? 0.02 : 0.9, knotWidth: 0.07 });
   }
-  // a narrow golden sweet spot with the knot just before it, the needle at its quickest
-  const zoneCenter = 0.58 + rand() * 0.22;
-  return make({ zoneCenter, zoneWidth: 0.09 * wide, zoneSwing: 0, zonePeriod: 0, needlePeriod: BASE_PERIOD / CHOP_SPEED[3], knotFrom: zoneCenter - 0.18, knotWidth: 0.07 });
+  // a narrow golden sweet spot patrolling a little quicker, and a knot roaming the other half
+  const right = rand() < 0.5;
+  return make({ zoneCenter: right ? 0.64 : 0.36, zoneWidth: 0.12 * wide, zoneSwing: 0.16, zonePeriod, needlePeriod, knotFrom: right ? 0.18 : 0.75, knotWidth: 0.07 });
 }

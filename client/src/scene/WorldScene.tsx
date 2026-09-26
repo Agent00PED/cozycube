@@ -6,7 +6,7 @@ import type { BoardGameView, ChairSyncState, MapId, PlayerState, TimeOfDay, Togg
 import { GESTURE_SECONDS, MAP_HALF, isWalkUpProp } from "@shared/types";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
-import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf } from "@shared/worlds/campfire";
+import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf, nearestChopStation } from "@shared/worlds/campfire";
 import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireSky, CampfireWorld } from "./CampfireWorld";
 import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -205,7 +205,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         const d = Math.hypot(fx, fz) || 1;
         add({ x: who.x + (fx / d) * 0.55, y: 0.55, z: who.z + (fz / d) * 0.55, kind: "smoke" });
       } else if (type === "chopResult" && payload.clean) {
-        add({ x: CAMPFIRE_LAYOUT.chop.x, y: 0.45, z: CAMPFIRE_LAYOUT.chop.z, kind: "chips" });
+        const block = nearestChopStation(who.x, who.z);
+        add({ x: block.x, y: 0.45, z: block.z, kind: "chips" });
       } else if (type === "fishCaught") {
         // off this angler's own float (the one out from their spot on the dock)
         const b = bobberFor(who, "campfire_night");
@@ -228,7 +229,10 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         if (float) faceToward(p.sessionId, float.x, float.z, 0.6);
         else if (p.action === "grill") faceToward(p.sessionId, CAMPFIRE_LAYOUT.fire.x, CAMPFIRE_LAYOUT.fire.z, 0.6);
         else if (p.action === "stargaze") faceToward(p.sessionId, CAMPFIRE_LAYOUT.telescope.x, CAMPFIRE_LAYOUT.telescope.z, 0.6);
-        else if (p.action === "chop") faceToward(p.sessionId, CAMPFIRE_LAYOUT.chop.x, CAMPFIRE_LAYOUT.chop.z, 0.6);
+        else if (p.action === "chop") {
+          const block = nearestChopStation(p.x, p.z);
+          faceToward(p.sessionId, block.x, block.z, 0.6);
+        }
       }
     }, 250);
     return () => window.clearInterval(timer);

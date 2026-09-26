@@ -265,9 +265,9 @@ export function StargazingModal({ send, subscribeMessages, localSessionId, onClo
           g.arc(px, py, next ? 3.2 + tw * 1.4 : crisp ? 2.6 : 3.6, 0, Math.PI * 2);
           g.fill();
           if (crisp && !revealed && k >= tr.joined) {
-            // the target reticle: a ring with four ticks, the next star's pulsing gold
+            // the golden target reticle: a ring with four ticks (the next star's pulsing)
             const r = next ? 8 + tw * 3 : 7;
-            g.strokeStyle = next ? `rgba(255, 209, 102, ${0.55 + 0.45 * tw})` : "rgba(200, 230, 255, 0.55)";
+            g.strokeStyle = next ? `rgba(255, 209, 102, ${0.55 + 0.45 * tw})` : "rgba(255, 209, 102, 0.5)";
             g.lineWidth = 1.2;
             g.beginPath();
             g.arc(px, py, r, 0, Math.PI * 2);

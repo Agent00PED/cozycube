@@ -45,7 +45,8 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
                         camping lantern, enamel mugs, a cooler), the brass telescope, the vintage
                         camper van with its striped awning and camp chair, the light pole, the
                         chopping stump and the canoe's cleat and rope
-    Prop_WoodChop_Hatchet  the hatchet bitten into the stump (hidden while someone chops)
+    Prop_WoodChop_0N_Hatchet  each chopping station's hatchet, bitten into its stump (hidden while
+                        someone chops there), and Prop_WoodChop_0N_Log the log on its block
     Prop_Signpost       the 3-way signpost at the trails' fork (Campfire, Pier, Overlook)
     Prop_Canoe          the red canoe tied off the dock (origin at the waterline: it bobs)
     StringLight_01..06  the strings of warm bulbs from the tipi, the pole, the pines and the awning,
@@ -1290,12 +1291,12 @@ def build_glamping(L, cushions, coll):
         a = 2 * math.pi * k / 5
         blob(bm, sp["x"] + 0.14 * math.cos(a), 0.04, sp["z"] + 0.14 * math.sin(a), 0.07, 0.05, 0.06, m=m["CF_Metal"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.01)
 
-    # --- the chopping stump, and two split halves beside it ---
-    ch = L["chop"]
-    cylinder(bm, W(ch["x"], 0.0, ch["z"]), W(ch["x"], 0.36, ch["z"]), 0.25, 14, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
-    for sgn in (-1, 1):
-        a0 = W(ch["x"] + sgn * 0.45, 0.07, ch["z"] + 0.3)
-        cylinder(bm, a0, a0 + W(0.12 * sgn, 0, 0.3) - W(0, 0, 0), 0.08, 8, m=m["CF_WoodCut"], cap_m=m["CF_Bark"])
+    # --- the chopping stumps (by the woodpile, in the grove, at the fork), split halves beside each ---
+    for ch in L["chops"]:
+        cylinder(bm, W(ch["x"], 0.0, ch["z"]), W(ch["x"], 0.36, ch["z"]), 0.25, 14, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
+        for sgn in (-1, 1):
+            a0 = W(ch["x"] + sgn * 0.45, 0.07, ch["z"] + 0.3)
+            cylinder(bm, a0, a0 + W(0.12 * sgn, 0, 0.3) - W(0, 0, 0), 0.08, 8, m=m["CF_WoodCut"], cap_m=m["CF_Bark"])
 
     # --- the grove: a guitar case lying open on the grass (plush lining, a few coins), and a warm
     # camping lantern on the ground beside it ---
@@ -1436,13 +1437,19 @@ def build_signpost(L, coll):
 
 
 def build_hatchet(L, coll):
-    """The hatchet bitten into the chopping stump: its own node, so the game can take it up."""
-    ch = L["chop"]
-    p0 = (ch["x"] - 0.02, 0.37, ch["z"] + 0.02)
-    bm = bmesh.new()
-    cylinder(bm, W(*p0), W(p0[0] + 0.1, p0[1] + 0.33, p0[2] + 0.2), 0.018, 8, m=1)
-    blob(bm, p0[0] - 0.01, p0[1] + 0.01, p0[2] - 0.01, 0.1, 0.055, 0.016, m=0, cuts=2, n=3.0)
-    make_object("Prop_WoodChop_Hatchet", bm, ["CF_Steel", "CF_Pole"], coll, origin=p0)
+    """Each chopping station's hatchet, bitten into its stump's rim, and the log standing on the
+    block waiting to be split: their own nodes (Prop_WoodChop_0N_Hatchet, _Log), so the game can
+    take the hatchet up and clear the log once it is split (it comes back a little later)."""
+    for k, ch in enumerate(L["chops"]):
+        p0 = (ch["x"] - 0.15, 0.37, ch["z"] + 0.1)
+        bm = bmesh.new()
+        cylinder(bm, W(*p0), W(p0[0] + 0.1, p0[1] + 0.33, p0[2] + 0.2), 0.018, 8, m=1)
+        blob(bm, p0[0] - 0.01, p0[1] + 0.01, p0[2] - 0.01, 0.1, 0.055, 0.016, m=0, cuts=2, n=3.0)
+        make_object(f"Prop_WoodChop_0{k + 1}_Hatchet", bm, ["CF_Steel", "CF_Pole"], coll, origin=p0)
+        lx, lz = ch["x"] + 0.05, ch["z"] - 0.04
+        bm = bmesh.new()
+        cylinder(bm, W(lx, 0.36, lz), W(lx, 0.66, lz), 0.13, 12, m=0, cap_m=1)
+        make_object(f"Prop_WoodChop_0{k + 1}_Log", bm, ["CF_Bark", "CF_WoodCut"], coll, origin=(lx, 0.36, lz))
 
 
 def build_canoe(L, cushions, coll):

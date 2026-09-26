@@ -7,7 +7,7 @@
 // same tables in the reel, the creel and Barnaby's shop.
 
 import type { SwimPattern } from "./types";
-import { WOOD_KINDS, isAxeId, type AxeId, type WoodKind } from "./chop";
+import { CARRIER_CAPACITY, WOOD_KINDS, isAxeId, type AxeId, type WoodKind } from "./chop";
 
 export type Water = "freshwater" | "saltwater";
 export type FishTier = "common" | "uncommon" | "rare" | "epic" | "legendary";
@@ -34,11 +34,11 @@ export interface FishSpecies {
 
 export const FISH = {
   // freshwater: the Starlight Campfire's river
-  chibi_minnow: { name: "Chibi Minnow", emoji: "🐡", water: "freshwater", tier: "common", weight: 40, bite: [3, 5], cm: [5, 12], value: 6, speed: 0.5, size: 0.5, pattern: "sine", barScale: 1 },
-  mud_carp: { name: "Mud Carp", emoji: "🐟", water: "freshwater", tier: "uncommon", weight: 28, bite: [4, 7], cm: [22, 48], value: 12, speed: 0.7, size: 0.7, pattern: "plunge", barScale: 1 },
-  midnight_trout: { name: "Midnight Trout", emoji: "🐠", water: "freshwater", tier: "rare", weight: 18, bite: [5, 9], cm: [25, 55], value: 22, speed: 0.95, size: 0.8, pattern: "erratic", barScale: 0.95 },
-  golden_catfish: { name: "Golden Catfish", emoji: "🐈", water: "freshwater", tier: "epic", weight: 9, bite: [7, 11], cm: [45, 95], value: 45, speed: 1.15, size: 0.95, pattern: "plunge", barScale: 0.85 },
-  star_koi: { name: "Cosmic Star-Koi", emoji: "🎏", water: "freshwater", tier: "legendary", weight: 5, bite: [8, 14], cm: [50, 85], value: 90, speed: 1.45, size: 1.0, pattern: "koi", barScale: 0.72 },
+  chibi_minnow: { name: "Chibi Minnow", emoji: "🐡", water: "freshwater", tier: "common", weight: 40, bite: [3, 5], cm: [5, 12], value: 10, speed: 0.5, size: 0.5, pattern: "sine", barScale: 1 },
+  mud_carp: { name: "Mud Carp", emoji: "🐟", water: "freshwater", tier: "uncommon", weight: 28, bite: [4, 7], cm: [22, 48], value: 18, speed: 0.7, size: 0.7, pattern: "plunge", barScale: 1 },
+  midnight_trout: { name: "Midnight Trout", emoji: "🐠", water: "freshwater", tier: "rare", weight: 18, bite: [5, 9], cm: [25, 55], value: 32, speed: 0.95, size: 0.8, pattern: "erratic", barScale: 0.95 },
+  golden_catfish: { name: "Golden Catfish", emoji: "🐈", water: "freshwater", tier: "epic", weight: 9, bite: [7, 11], cm: [45, 95], value: 75, speed: 1.15, size: 0.95, pattern: "plunge", barScale: 0.85 },
+  star_koi: { name: "Cosmic Star-Koi", emoji: "🎏", water: "freshwater", tier: "legendary", weight: 5, bite: [8, 14], cm: [50, 85], value: 175, speed: 1.45, size: 1.0, pattern: "koi", barScale: 0.72 },
   // saltwater: the Sunset Beach Bar's pier (registered for when it opens its waters)
   sand_sardine: { name: "Sand Sardine", emoji: "🐟", water: "saltwater", tier: "common", weight: 42, bite: [3, 5], cm: [8, 18], value: 6, speed: 0.55, size: 0.5, pattern: "sine", barScale: 1 },
   sunset_clownfish: { name: "Sunset Clownfish", emoji: "🐠", water: "saltwater", tier: "uncommon", weight: 30, bite: [4, 7], cm: [7, 14], value: 14, speed: 0.85, size: 0.6, pattern: "erratic", barScale: 1 },
@@ -140,9 +140,11 @@ export interface FishingProfile {
   wood: Record<WoodKind, number>;
   axe: AxeId;
   axes: AxeId[];
+  /** The wood carrier's level (1-3): how many logs it holds (shared/chop.ts CARRIER_CAPACITY). */
+  carrier: number;
 }
 export function emptyFishingProfile(): FishingProfile {
-  return { creel: [], slots: CREEL_BASE_SLOTS, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, fedUntil: 0, wood: { pine: 0, oak: 0, charcoal: 0 }, axe: "rusty", axes: ["rusty"] };
+  return { creel: [], slots: CREEL_BASE_SLOTS, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, fedUntil: 0, wood: { pine: 0, oak: 0, charcoal: 0 }, axe: "rusty", axes: ["rusty"], carrier: 1 };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -184,6 +186,7 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
   }
   if (Array.isArray(r.axes)) p.axes = Array.from(new Set(["rusty" as AxeId, ...r.axes.filter(isAxeId)]));
   p.axe = isAxeId(r.axe) && p.axes.includes(r.axe) ? r.axe : "rusty";
+  p.carrier = Math.max(1, Math.min(CARRIER_CAPACITY.length, Math.round(Number(r.carrier) || 1)));
   return p;
 }
 

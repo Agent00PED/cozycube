@@ -8,7 +8,7 @@ import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
 import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
-import { AXES, CHOP_LOGS, WOOD, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
+import { AXES, CARRIER_CAPACITY, CARRIER_UPGRADE_COSTS, CHOP_LOGS, CHOP_RESPAWN_S, WOOD, carrierCapacity, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
 import {
   BAITS,
   afkSeconds,
@@ -18,6 +18,7 @@ import {
   WELL_FED_S,
   WELL_FED_SPEED,
   biteSeconds,
+  woodCount,
   creelUpgradeCost,
   fishValue,
   isBaitId,
@@ -465,7 +466,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private starSeq = 1;
   /** The chopping block: each combo in progress (the stroke it is on, its meter, timed here), and
    *  each player's last swing (a knot stuns the axe past it). */
-  private chops = new Map<string, { stroke: ChopStroke; startedAt: number; log: ChopLog }>();
+  private chops = new Map<string, { stroke: ChopStroke; startedAt: number; log: ChopLog; station: string }>();
   private lastChopAt = new Map<string, number>();
   private lastPunchAt = new Map<string, number>();
   private dizzyUntil = new Map<string, number>();
@@ -1859,12 +1860,33 @@ export class HangoutRoom extends Room<HangoutState> {
       }
       case "CHOP_START": {
         if (player.sitting || player.action !== "") return;
-        if (!this.nearProp(player, "woodchop", CHOP_REACH + 0.4)) return;
+        // the station you stand at: it needs a log on its block, and nobody else at it
+        let station: ToggleableState | null = null;
+        this.state.toggleables.forEach((prop) => {
+          if (prop.kind !== "woodchop" || Math.hypot(player.x - prop.x, player.z - prop.z) > CHOP_REACH + 0.4) return;
+          if (!station || Math.hypot(player.x - prop.x, player.z - prop.z) < Math.hypot(player.x - station.x, player.z - station.z)) station = prop;
+        });
+        const at = station as ToggleableState | null;
+        if (!at) return;
         if (Date.now() < (this.lastChopAt.get(sessionId) ?? 0) + CHOP_COOLDOWN_MS) return;
+        if (!at.on) {
+          const left = Math.max(1, Math.ceil(((this.regrowAt.get(at.propId) ?? Date.now()) - Date.now()) / 1000));
+          client.send("campfireNotice", { message: `A fresh log is on its way to this block (${left}s). Try another station!`, emoji: "🪵" });
+          return;
+        }
+        if ([...this.chops.values()].some((c) => c.station === at.propId)) {
+          client.send("campfireNotice", { message: "Someone's chopping at this block. There are two more!", emoji: "🪓" });
+          return;
+        }
+        const profile = this.records.get(sessionId)?.fishing;
+        if (profile && woodCount(profile) >= carrierCapacity(profile.carrier)) {
+          client.send("campfireNotice", { message: `Your wood carrier is full (${carrierCapacity(profile.carrier)}): burn some on the fire, or sell it to Buster`, emoji: "🪵" });
+          return;
+        }
         // the combo's first stroke: the notch
         player.action = "chop";
         player.actionProgress = 0;
-        this.startChopStroke(client, 1, rollChopLog());
+        this.startChopStroke(client, 1, rollChopLog(), at.propId);
         return;
       }
       case "REEL_DONE": {
@@ -2016,7 +2038,7 @@ export class HangoutRoom extends Room<HangoutState> {
         const verdict = judgeChop(chop.stroke, t);
         if (verdict === "hit") {
           this.playGesture(sessionId, "chop");
-          if (chop.stroke.stroke < 3) this.startChopStroke(client, (chop.stroke.stroke + 1) as ChopStrokeNo, chop.log);
+          if (chop.stroke.stroke < 3) this.startChopStroke(client, (chop.stroke.stroke + 1) as ChopStrokeNo, chop.log, chop.station);
           else this.finishChop(sessionId, player, true, false, 3);
         } else {
           this.finishChop(sessionId, player, false, verdict === "knot", chop.stroke.stroke);
@@ -2066,9 +2088,9 @@ export class HangoutRoom extends Room<HangoutState> {
 
   /** The axe comes down: a clean split pays and feeds the fire; a glancing blow does neither. */
   /** The chopping combo's next stroke: a fresh meter for it, timed from now. */
-  private startChopStroke(client: Client, stroke: ChopStrokeNo, log: ChopLog) {
+  private startChopStroke(client: Client, stroke: ChopStrokeNo, log: ChopLog, station: string) {
     const meter = rollChopStroke(stroke, log, Math.random, this.records.get(client.sessionId)?.fishing.axe ?? "rusty");
-    this.chops.set(client.sessionId, { stroke: meter, startedAt: Date.now(), log });
+    this.chops.set(client.sessionId, { stroke: meter, startedAt: Date.now(), log, station });
     client.send("chopStroke", meter);
   }
 
@@ -2087,10 +2109,17 @@ export class HangoutRoom extends Room<HangoutState> {
     let pieces = 0;
     if (clean && profile) {
       coins = this.campfirePay(sessionId, player, "chop", CHOP_CLEAN_COINS + log.bonus);
-      // the split log is yours: wood to burn or to sell to Buster (two, with the Golden Axe's luck)
-      pieces = Math.random() < AXES[profile.axe].doubleChance ? 2 : 1;
+      // the split log is yours: wood to burn or to sell to Buster (two, with the Golden Axe's luck),
+      // as much as the carrier holds; the block waits CHOP_RESPAWN_S for its next log
+      const room = Math.max(0, carrierCapacity(profile.carrier) - woodCount(profile));
+      pieces = Math.min(room, Math.random() < AXES[profile.axe].doubleChance ? 2 : 1);
       profile.wood[log.wood] = Math.min(999, profile.wood[log.wood] + pieces);
       this.saveFishing(sessionId, player);
+      const station = this.state.toggleables.get(chop.station);
+      if (station) {
+        station.on = false;
+        this.regrowAt.set(station.propId, Date.now() + CHOP_RESPAWN_S * 1000);
+      }
     }
     const result: ChopResult = { sessionId, clean, stunned, stroke, log: chop.log, wood: log.wood, pieces, coins, capped: clean && coins === 0 };
     this.broadcast("chopResult", result);
@@ -2407,6 +2436,15 @@ export class HangoutRoom extends Room<HangoutState> {
         if (!isAxeId(packet.axe) || !profile.axes.includes(packet.axe)) return;
         profile.axe = packet.axe;
         return reply(true, `${AXES[packet.axe].emoji} ${AXES[packet.axe].name} in hand`);
+      }
+      case "upgradeCarrier": {
+        if (!near) return tooFar();
+        const cost = CARRIER_UPGRADE_COSTS[profile.carrier - 1];
+        if (cost === undefined || profile.carrier >= CARRIER_CAPACITY.length) return reply(false, "That carrier's as big as they come!");
+        if (player.coins < cost) return reply(false, `A bigger carrier is ${cost} 🪙`);
+        this.addCoins(player, -cost);
+        profile.carrier += 1;
+        return reply(true, `There you go: your carrier holds ${carrierCapacity(profile.carrier)} logs now 🪵`, -cost);
       }
     }
   }

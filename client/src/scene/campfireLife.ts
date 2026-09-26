@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { PlayerState, ToggleableSyncState } from "@shared/types";
 import { canoeBob, canoePitch, canoeRoll } from "./canoeMotion";
-import { CAMPFIRE_LAYOUT as L, CRITTER_NOTICE, DUCK_PATHS, LIGHT_STRINGS, stringBulbs, FENCE_SWAGS, type Vec3 } from "@shared/worlds/campfire";
+import { CAMPFIRE_LAYOUT as L, CHOP_STATIONS, CRITTER_NOTICE, DUCK_PATHS, LIGHT_STRINGS, stringBulbs, FENCE_SWAGS, type Vec3 } from "@shared/worlds/campfire";
 
 // The campfire's living parts, driven every frame from the nodes campfire.glb names for them
 // (scripts/blender/build_campfire.py builds each as its own node, its origin where it pivots):
@@ -12,7 +12,8 @@ import { CAMPFIRE_LAYOUT as L, CRITTER_NOTICE, DUCK_PATHS, LIGHT_STRINGS, string
 //   Fauna_Owl (+ _Head, _Lids)       on a pine branch by the tent: blinks, and turns its head
 //                           (within a 60 degree cone) to watch whoever walks nearest
 //   Prop_Canoe              bobbing on its rope
-//   Prop_WoodChop_Hatchet   in the stump, until someone takes it up to chop
+//   Prop_WoodChop_0N_*      each chopping station's hatchet (in the stump, until someone takes it
+//                           up to chop there) and the log on its block (until it is split)
 //   Forage_0N_Yield         the mushrooms and berries, there while they are there to pick
 //   StringLight_0N / _Fence the light strings, swinging gently about the line between their ends
 //
@@ -136,13 +137,13 @@ export function bindCampfireLife(scene: THREE.Object3D, decalOffset: Record<stri
   const owl = { root: node("Fauna_Owl"), head: node("Fauna_Owl_Head"), lids: node("Fauna_Owl_Lids"), yaw: 0, blinkAt: 2, rest: Math.PI / 4 };
   const canoe = node("Prop_Canoe");
   const canoeY = canoe?.position.y ?? L.river.water;
-  const hatchet = node("Prop_WoodChop_Hatchet");
+  // the chopping stations: each one's hatchet (taken up while someone chops there) and its log
+  const stations = CHOP_STATIONS.map((s, i) => ({ ...s, hatchet: node(`Prop_WoodChop_0${i + 1}_Hatchet`), log: node(`Prop_WoodChop_0${i + 1}_Log`), hiddenUntil: 0 }));
   const yields = L.forage.map((_, i) => ({ id: `forage_0${i + 1}`, node: node(`Forage_0${i + 1}_Yield`) }));
   const strings = LIGHT_STRINGS.map((s) => ({ node: node(s.id), axis: new THREE.Vector3(...s.b).sub(new THREE.Vector3(...s.a)).normalize() }));
   const fence = node("StringLight_Fence");
   const critterHome = critter.root?.position.clone() ?? new THREE.Vector3(L.critter.x, 0, L.critter.z);
   const critterAt = critterHome.clone().add(new THREE.Vector3(0, 0.62, 0));
-  let hatchetHiddenUntil = 0;
   let critterYaw = 0;
 
   return {
@@ -239,10 +240,12 @@ export function bindCampfireLife(scene: THREE.Object3D, decalOffset: Record<stri
         canoe.rotation.set(canoeRoll(t, struggling), 0, canoePitch(t, struggling));
       }
 
-      // the hatchet leaves the stump while someone chops with it (and a moment after)
-      if (hatchet) {
-        if (everyone.some((p) => p.action === "chop")) hatchetHiddenUntil = t + 0.9;
-        hatchet.visible = t > hatchetHiddenUntil;
+      // each station's hatchet leaves its stump while someone chops there (and a moment after), and
+      // its log is on the block until it is split (it comes back when the station's `on` does)
+      for (const s of stations) {
+        if (everyone.some((p) => p.action === "chop" && Math.hypot(p.x - s.x, p.z - s.z) < 2)) s.hiddenUntil = t + 0.9;
+        if (s.hatchet) s.hatchet.visible = t > s.hiddenUntil;
+        if (s.log) s.log.visible = toggleables[s.propId]?.on ?? true;
       }
 
       // the pickings, there while there is something to pick
