@@ -33,6 +33,37 @@ export function hasCozyAura(fuel: number): boolean {
   return fuel > COZY_AURA_FUEL;
 }
 
+/** How the bonfire looks at a fuel level: its flames, its light (a multiplier: 1 at 60%) and its
+ *  smoke, on a combustion-efficiency curve. Out (0%): no flames, no smoke, only the embers' faint
+ *  glow. Dying (1-20%): smouldering wood's thick, low, billowing smoke, a warning in the world that
+ *  it needs wood. Cozy (21-60%): a steady, natural column. Blazing (61-100%): burning clean, thin
+ *  wisps rising fast, so the smoke never clouds the people round it. `smokeSpawnRate` and
+ *  `smokeRise` are multipliers on the smoke's base puff rate and climb. */
+export interface BonfireVisualState {
+  isBurning: boolean;
+  flameVisible: boolean;
+  lightIntensity: number;
+  smokeVisible: boolean;
+  smokeOpacity: number;
+  smokeSpawnRate: number;
+  smokeScale: number;
+  smokeRise: number;
+}
+export function getBonfireVisualState(fuelLevel: number | null | undefined): BonfireVisualState {
+  const fuel = Math.max(0, Math.min(FUEL_MAX, Number.isFinite(fuelLevel) ? (fuelLevel as number) : 0));
+  if (fuel <= 0) {
+    return { isBurning: false, flameVisible: false, lightIntensity: 0.04, smokeVisible: false, smokeOpacity: 0, smokeSpawnRate: 0, smokeScale: 0, smokeRise: 0 };
+  }
+  if (fuel <= LOW_FUEL) {
+    const factor = (LOW_FUEL - fuel) / LOW_FUEL; // 0 at 20%, ~1 at 1%
+    return { isBurning: true, flameVisible: true, lightIntensity: 0.4 + (fuel / LOW_FUEL) * 0.4, smokeVisible: true, smokeOpacity: 0.35 + factor * 0.12, smokeSpawnRate: 1.4, smokeScale: 1.25, smokeRise: 0.7 };
+  }
+  if (fuel <= 60) {
+    return { isBurning: true, flameVisible: true, lightIntensity: 0.8 + ((fuel - LOW_FUEL) / 40) * 0.6, smokeVisible: true, smokeOpacity: 0.2, smokeSpawnRate: 1.0, smokeScale: 1.0, smokeRise: 1.0 };
+  }
+  return { isBurning: true, flameVisible: true, lightIntensity: 1.4 + ((fuel - 60) / 40) * 0.6, smokeVisible: true, smokeOpacity: 0.1, smokeSpawnRate: 0.6, smokeScale: 0.8, smokeRise: 1.45 };
+}
+
 /** Someone put wood on the fire (or it burnt down a notch: `sessionId` ""). */
 export interface BonfireUpdate {
   fuel: number;

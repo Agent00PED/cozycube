@@ -1,4 +1,4 @@
-import { Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
@@ -12,7 +12,7 @@ import { CRITTER_TREAT, DUCK_DIVE_AT, DUCK_DIVE_S, STRING_BULBS, STRING_SWING, b
 import type { HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { playSfx } from "../audio/sfx";
 import { Barnaby, Buster } from "../entities/Barnaby";
-import { LOW_FUEL, COZY_AURA_FUEL, type BonfireUpdate } from "@shared/bonfire";
+import { COZY_AURA_FUEL, getBonfireVisualState, type BonfireUpdate } from "@shared/bonfire";
 
 // The Starlight Campfire (map 2). The island itself is one Blender model, campfire.glb
 // (scripts/blender/build_campfire.py, laid out from shared/worlds/campfire.ts); this file loads it
@@ -21,13 +21,17 @@ import { LOW_FUEL, COZY_AURA_FUEL, type BonfireUpdate } from "@shared/bonfire";
 //
 //   the fire      its two flame nodes flicker and breathe over a flickering orange point light,
 //                 as big and bright as its fuel (the room's hearth): a burst as wood goes on,
-//                 roaring above 70% (the Cozy Aura), sunk to embers under a smoky haze below 20%
+//                 roaring above 70% (the Cozy Aura); out at 0%: no flames, no smoke, no sparks,
+//                 the ember bed a faint dull glow under charred logs
 //   the hearth    the Dutch oven swinging gently on its tripod over the fire, its stew showing
 //                 (tinted by what is in it) and steaming as it cooks; the skewers friends left
 //                 on the picnic table's plates
 //   Barnaby       the otter angler at his tackle stall by the dock, and Buster the beaver
 //                 lumberjack at his firewood stall by the woodpile (entities/Barnaby.tsx)
-//   smoke         soft puffs rising off it and drifting away on the night wind
+//   smoke         soft puffs rising off it and drifting away on the night wind, on a
+//                 combustion-efficiency curve (shared/bonfire.ts getBonfireVisualState): thick,
+//                 low and billowing while it is dying (a warning), a steady column when cozy,
+//                 thin fast wisps when it blazes, none at all once it is out
 //   embers        sparks lifting off the fire and winking out
 //   fireflies     green-gold, drifting and blinking over the river, the pines and the hammock
 //   stars         a field of them round the floating island
@@ -47,8 +51,10 @@ export const CAMPFIRE_URL = modelUrl("campfire.glb");
 const FIRE_COLOR = "#ff8c32";
 /** The fire's light at its base; every lamp is scaled by the hour's lamp boost (x2.2 at night). */
 const FIRE_INTENSITY = 2.8;
-/** The bonfire's light once it is out: the embers' faint glow. */
-const EMBER_LIGHT = 0.05;
+/** The ember bed once the fire is out: charcoal, with only a faint, dull, cooling red in it. */
+const COLD_EMBER_COLOR = new THREE.Color("#3b302b");
+const COLD_EMBER_EMISSIVE = new THREE.Color("#a3401c");
+const COLD_EMBER_GLOW = 0.12;
 /** The tipi's inner glow (the Tipi interior light): lit while it is empty, a dim 0.1 while someone naps in it. */
 const TIPI_AWAKE = 1.5;
 const TIPI_ASLEEP = 0.1;
@@ -61,9 +67,19 @@ const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: f
 const NIGHTNESS: Record<TimeOfDay, number> = { night: 1, sunset: 0.6, sunrise: 0.25, day: 0 };
 
 /** The fire right now, smoothed from the hearth's fuel: `level` 0..1 (the fuel), `heat` how big and
- *  bright its flames and light are (embers at 0.4, full at 1), `value` its roar on top (above the
- *  Cozy Aura line, and a burst each time wood goes on), `smoky` the haze of a fire burning low. */
-const FUEL = { value: 0, level: 0.6, heat: 1, burst: 0, smoky: 0, out: false };
+ *  bright its flames are (embers at 0.4, full at 1), `value` its roar on top (above the Cozy Aura
+ *  line, and a burst each time wood goes on), `out` at 0%, `vis` its look at this fuel
+ *  (getBonfireVisualState), and `smoke` that look's smoke eased toward (never lingering once out). */
+const FUEL = {
+  value: 0,
+  level: 0.6,
+  heat: 1,
+  burst: 0,
+  out: false,
+  vis: getBonfireVisualState(60),
+  light: getBonfireVisualState(60).lightIntensity,
+  smoke: { opacity: 0.2, rate: 1, scale: 1, rise: 1 },
+};
 
 interface Live {
   players: Record<string, PlayerState>;
@@ -107,15 +123,30 @@ export function CampfireWorld({ onFloorClick, players, toggleables, hearth, subs
     [subscribeMessages]
   );
   useFrame((_, dt) => {
-    const level = Math.max(0, Math.min(1, live.current.hearth.fuel / 100));
+    const fuel = live.current.hearth.fuel ?? 0;
+    const level = Math.max(0, Math.min(1, fuel / 100));
     FUEL.level += (level - FUEL.level) * Math.min(1, dt * 0.8);
     FUEL.burst = Math.max(0, FUEL.burst - dt * 0.45);
-    // at 0% the fire is out: no flames, a faint glow from the embers (until someone relights it)
-    FUEL.out = live.current.hearth.fuel <= 0;
+    // at 0% the fire is out, at once: no flames, no smoke, a faint glow from the embers (until
+    // someone relights it)
+    const vis = getBonfireVisualState(fuel);
+    FUEL.vis = vis;
+    FUEL.out = !vis.isBurning;
     FUEL.heat = FUEL.out ? 0 : 0.4 + 0.6 * Math.min(1, FUEL.level / 0.6);
     const roar = Math.max(0, (FUEL.level - COZY_AURA_FUEL / 100) / (1 - COZY_AURA_FUEL / 100));
     FUEL.value += (Math.max(roar * 0.8, FUEL.burst) - FUEL.value) * Math.min(1, dt * 2.5);
-    FUEL.smoky = Math.max(0, Math.min(1, (LOW_FUEL / 100 - FUEL.level) / (LOW_FUEL / 100)));
+    // the light and the smoke ease from one tier's look to the next (no pop at 20% or 60%); out,
+    // they drop at once
+    const ease = Math.min(1, dt * 0.9);
+    FUEL.light = FUEL.out ? vis.lightIntensity : FUEL.light + (vis.lightIntensity - FUEL.light) * ease;
+    const sm = FUEL.smoke;
+    if (FUEL.out) Object.assign(sm, { opacity: 0, rate: 0, scale: 0, rise: 0 });
+    else {
+      sm.opacity += (vis.smokeOpacity - sm.opacity) * ease;
+      sm.rate += (vis.smokeSpawnRate - sm.rate) * ease;
+      sm.scale += (vis.smokeScale - sm.scale) * ease;
+      sm.rise += (vis.smokeRise - sm.rise) * ease;
+    }
   });
   return (
     <group>
@@ -160,6 +191,8 @@ function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
   const { scene } = useGLTF(CAMPFIRE_URL);
   const boost = useLampBoost();
   const life = useMemo(() => bindCampfireLife(scene, DECAL_OFFSET), [scene]);
+  // the ember bed's own colours, to go back to when the fire is relit
+  const embers = useMemo(() => life.flicker.filter((m) => m.name === "CF_Ember").map((m) => ({ m, color: m.color.clone(), emissive: m.emissive.clone() })), [life]);
   const hearthNodes = useMemo(() => {
     const pot = scene.getObjectByName("Stew_Pot") ?? null;
     const contents = scene.getObjectByName("Stew_Contents") as THREE.Mesh | undefined;
@@ -192,8 +225,14 @@ function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
       inner.scale.set((1 + 0.07 * Math.sin(t * 11.3 + 1)) * (1 + 0.25 * fuel) * heat, (0.88 + 0.2 * (1 - flick) + 0.06 * Math.sin(t * 17.1)) * (1 + 0.4 * fuel) * heat, (1 + 0.07 * Math.cos(t * 10.1)) * (1 + 0.25 * fuel) * heat);
       inner.rotation.y = -t * 0.9;
     }
-    // the flames, the embers and the lanterns glow a touch brighter after dark, and flicker
+    // the flames, the embers and the lanterns glow a touch brighter after dark, and flicker; once
+    // the fire is out its ember bed goes to charcoal with a faint dull red in it (the lanterns burn on)
     for (const m of life.flicker) m.emissiveIntensity = (0.75 + 0.12 * Math.min(1.5, boost)) * (0.9 + 0.1 * flick) * (1 + 0.25 * fuel);
+    for (const e of embers) {
+      e.m.color.copy(FUEL.out ? COLD_EMBER_COLOR : e.color);
+      e.m.emissive.copy(FUEL.out ? COLD_EMBER_EMISSIVE : e.emissive);
+      if (FUEL.out) e.m.emissiveIntensity = COLD_EMBER_GLOW;
+    }
     const now = life.update(t, dt, live.current.players, live.current.toggleables);
     // the Dutch oven: a gentle swing on its chain (livelier on the boil), its stew showing and
     // tinted by what went in, bubbling as it cooks
@@ -257,7 +296,9 @@ function FireLight({ live }: { live: React.MutableRefObject<Live> }) {
       tipi.current.intensity = tipiLevel.current * (0.92 + 0.08 * Math.sin(t * 3.7) * Math.sin(t * 1.3 + 2));
     }
     if (light.current) {
-      light.current.intensity = FUEL.out ? EMBER_LIGHT : FIRE_INTENSITY * boost * flick * (0.35 + 0.65 * FUEL.heat) * (1 + 0.5 * FUEL.value);
+      // its look's light (1 at 60%: dimmer as it dies, brighter as it blazes), flaring as wood goes
+      // on; out, only the embers' faint glow
+      light.current.intensity = FUEL.out ? FUEL.light : (FIRE_INTENSITY / 1.4) * boost * flick * FUEL.light * (1 + 0.5 * FUEL.burst);
       light.current.distance = (10 + 4 * FUEL.heat) + 6 * FUEL.value;
     }
     if (lantern.current) lantern.current.intensity = 0.9 * boost * (0.95 + 0.05 * Math.sin(t * 5.1));
@@ -370,13 +411,16 @@ function Embers() {
   useFrame(({ clock }) => {
     const m = mesh.current;
     if (!m) return;
+    // out: not one spark
+    m.visible = !FUEL.out;
+    if (FUEL.out) return;
     const t = clock.elapsedTime;
     const fuel = FUEL.value;
     seeds.forEach((s, i) => {
       const life = (t * s.speed * (1 + 0.6 * fuel) + s.phase) % 1;
       const a = s.spin + life * s.drift * 4;
       dummy.position.set(L.fire.x + Math.cos(a) * s.r * (0.4 + life), 0.45 + life * (2.3 + 1.2 * fuel), L.fire.z + Math.sin(a) * s.r * (0.4 + life));
-      dummy.scale.setScalar(i / COUNT > FUEL.heat + 0.1 ? 0 : 0.028 * (1 + 0.4 * fuel) * (1 - life) * (0.7 + 0.3 * Math.sin(t * 20 + i)));
+      dummy.scale.setScalar(i / COUNT > FUEL.heat ? 0 : 0.028 * (1 + 0.4 * fuel) * (1 - life) * (0.7 + 0.3 * Math.sin(t * 20 + i)));
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
     });
@@ -470,34 +514,100 @@ function Stars() {
   return <points geometry={geometry} material={material} raycast={noRaycast} frustumCulled={false} />;
 }
 
-const SMOKE_MAT = new THREE.MeshBasicMaterial({ color: "#9a93a6", transparent: true, opacity: 0.14, depthWrite: false });
+const SMOKE_MAT = new THREE.MeshBasicMaterial({ color: "#9a93a6", transparent: true, opacity: 0.2, depthWrite: false });
+/** A smooth, round puff (the sparks' six-sided ball read as a polygon at smoke's size). */
+const PUFF_GEO = new THREE.SphereGeometry(1, 16, 12);
+/** The smoke's puffs: at most this many aloft; about this many a second at the base rate; each
+ *  lives this long at the base climb (a faster climb, a shorter life: the same height). */
+const SMOKE_MAX = 30;
+const SMOKE_RATE = 1.2;
+const SMOKE_LIFE_S = 11.5;
 
-/** Soft puffs of smoke billowing up off the fire and drifting off diagonally on the night wind
- *  (thicker while the fire is fed). */
+interface Puff {
+  alive: boolean;
+  age: number;
+  life: number;
+  size: number;
+  wobble: number;
+  /** Its look when it was born: a puff keeps the fire's mood it rose from. */
+  scale: number;
+  rise: number;
+  x: number;
+  z: number;
+}
+
+/** Puffs of smoke rising off the fire and drifting off diagonally on the night wind, each born,
+ *  climbing, swelling and thinning away on its own clock. How many, how big, how thick and how fast
+ *  follow the fire's look (FUEL.smoke, from getBonfireVisualState): heavy and low as it dies, a
+ *  steady column when cozy, thin quick wisps when it blazes. Once it is out, every puff in the air
+ *  is cleared at once and none are born; relit, the column starts again from the fire. */
 function Smoke() {
-  const COUNT = 14;
   const mesh = useRef<THREE.InstancedMesh>(null);
-  const seeds = useMemo(() => Array.from({ length: COUNT }, (_, i) => ({ phase: i / COUNT, wobble: Math.random() * 6.28, size: 0.8 + Math.random() * 0.5 })), []);
-  useFrame(({ clock }) => {
+  const puffs = useMemo<Puff[]>(() => Array.from({ length: SMOKE_MAX }, () => ({ alive: false, age: 0, life: SMOKE_LIFE_S, size: 1, wobble: 0, scale: 1, rise: 1, x: 0, z: 0 })), []);
+  const due = useRef(0);
+  // every puff starts unborn: never a frame of all of them stacked at the fire
+  useLayoutEffect(() => {
     const m = mesh.current;
     if (!m) return;
+    for (let i = 0; i < SMOKE_MAX; i++) m.setMatrixAt(i, hidden);
+    m.instanceMatrix.needsUpdate = true;
+    m.visible = false;
+  }, []);
+  useFrame(({ clock }, rawDt) => {
+    const m = mesh.current;
+    if (!m) return;
+    const dt = Math.min(rawDt, 0.1);
+    const sm = FUEL.smoke;
+    if (FUEL.out || !FUEL.vis.smokeVisible) {
+      // out: no smoke at all, this very frame, and nothing left to drift on afterwards
+      if (m.visible || puffs.some((p) => p.alive)) {
+        for (let i = 0; i < SMOKE_MAX; i++) {
+          puffs[i].alive = false;
+          m.setMatrixAt(i, hidden);
+        }
+        m.instanceMatrix.needsUpdate = true;
+      }
+      m.visible = false;
+      SMOKE_MAT.opacity = 0;
+      due.current = 0;
+      return;
+    }
+    m.visible = true;
     const t = clock.elapsedTime;
-    const fuel = FUEL.value;
-    seeds.forEach((s, i) => {
-      const life = (t * 0.085 + s.phase) % 1;
-      const rise = life * 3.6;
-      // the wind carries it off toward the back right, a little more the higher it goes
-      dummy.position.set(L.fire.x + life * life * 2.2 + Math.sin(t * 0.7 + s.wobble) * 0.12, 1.05 + rise, L.fire.z - life * life * 1.4 + Math.cos(t * 0.6 + s.wobble) * 0.1);
-      const grow = 0.16 + life * 0.6;
-      dummy.scale.setScalar(grow * s.size * (1 - life * life * life) * (1 + 0.35 * fuel + 0.9 * FUEL.smoky));
-      if (FUEL.smoky > 0) dummy.position.y -= rise * 0.35 * FUEL.smoky; // a low fire's smoke hangs about
+    // new puffs off the fire, as many a second as the fire's mood
+    due.current += dt * SMOKE_RATE * sm.rate;
+    while (due.current >= 1) {
+      due.current -= 1;
+      const p = puffs.find((q) => !q.alive);
+      if (!p) break;
+      Object.assign(p, { alive: true, age: 0, life: SMOKE_LIFE_S / Math.max(0.5, sm.rise), size: 0.8 + Math.random() * 0.5, wobble: Math.random() * 6.28, scale: sm.scale, rise: sm.rise, x: (Math.random() - 0.5) * 0.25, z: (Math.random() - 0.5) * 0.25 });
+    }
+    puffs.forEach((p, i) => {
+      if (!p.alive) {
+        m.setMatrixAt(i, hidden);
+        return;
+      }
+      p.age += dt;
+      const u = p.age / p.life;
+      if (u >= 1) {
+        p.alive = false;
+        m.setMatrixAt(i, hidden);
+        return;
+      }
+      // it climbs (a heavy, smouldering smoke hangs lower), and the wind carries it off toward the
+      // back right, a little more the higher it goes
+      const height = 3.6 * u * (0.55 + 0.45 * Math.min(1, p.rise));
+      dummy.position.set(L.fire.x + p.x + u * u * 2.2 + Math.sin(t * 0.7 + p.wobble) * 0.12, 1.05 + height, L.fire.z + p.z - u * u * 1.4 + Math.cos(t * 0.6 + p.wobble) * 0.1);
+      // it swells as it rises, and thins away at the top of its climb
+      const swell = Math.min(1, p.age / 0.6);
+      dummy.scale.setScalar((0.16 + u * 0.6) * p.size * p.scale * swell * (1 - u * u * u));
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
     });
     m.instanceMatrix.needsUpdate = true;
-    SMOKE_MAT.opacity = 0.12 + 0.06 * fuel + 0.2 * FUEL.smoky;
+    SMOKE_MAT.opacity = sm.opacity;
   });
-  return <instancedMesh ref={mesh} args={[SPARK_GEO, SMOKE_MAT, COUNT]} raycast={noRaycast} frustumCulled={false} renderOrder={3} />;
+  return <instancedMesh ref={mesh} args={[PUFF_GEO, SMOKE_MAT, SMOKE_MAX]} raycast={noRaycast} frustumCulled={false} renderOrder={3} />;
 }
 
 const GLOW_MAT = new THREE.MeshBasicMaterial({ color: "#ffd98a", toneMapped: false, transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending });
