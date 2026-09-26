@@ -4,8 +4,7 @@ import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, 
 import { useAnimatedNumber } from "./useAnimatedNumber";
 import { useAnglerProfile } from "./anglerStore";
 import { CreelPopover } from "./CreelPopover";
-import { WoodPopover } from "./WoodPopover";
-import { woodCount } from "@shared/fishing";
+import { carrierLoad } from "@shared/fishing";
 import { carrierCapacity } from "@shared/chop";
 
 /** Each map's icon, name and tagline, from the world table (shared/worlds). */
@@ -63,7 +62,7 @@ const ICON = "text-lg leading-none";
  *     too. Voice has no control here: who is speaking shows as the green rings at their feet.
  */
 export function Header(p: HeaderProps) {
-  const [open, setOpen] = useState<"time" | "status" | "more" | "creel" | "wood" | null>(null);
+  const [open, setOpen] = useState<"time" | "status" | "more" | "creel" | null>(null);
   const angler = useAnglerProfile(p.userId, p.fishing, p.coins);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -74,7 +73,7 @@ export function Header(p: HeaderProps) {
     window.addEventListener("pointerdown", onDown);
     return () => window.removeEventListener("pointerdown", onDown);
   }, [open]);
-  const toggle = (menu: "time" | "status" | "more" | "creel" | "wood") => {
+  const toggle = (menu: "time" | "status" | "more" | "creel") => {
     setOpen((o) => (o === menu ? null : menu));
   };
   // the campfire is always a starlit night: its hour does not follow the room's clock
@@ -123,21 +122,21 @@ export function Header(p: HeaderProps) {
       {/* ---- right: you ---- */}
       <div className="pointer-events-auto ml-auto flex shrink-0 flex-nowrap items-center gap-2">
         <CoinWallet coins={p.coins} onClaim={p.onClaimAllowance} />
-        {/* the wood you carry: only at the campfire (a round pill, the count beside the log) */}
+        {/* the wood carrier: only at the campfire; the pill opens it (WoodCarrierModal) */}
         {p.currentMap === "campfire_night" && (
-          <div className="relative shrink-0">
-            <button type="button" onClick={() => toggle("wood")} className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`} title={`Firewood: ${woodCount(angler.profile)} of ${carrierCapacity(angler.profile.carrier)} (your wood carrier)`} aria-label="Firewood" aria-expanded={open === "wood"} aria-haspopup="dialog">
-              <span className={ICON}>🪵</span>
-              <span className={`font-bold tabular-nums ${woodCount(angler.profile) >= carrierCapacity(angler.profile.carrier) ? "text-rose-200" : "text-amber-100"}`}>
-                {woodCount(angler.profile)}/{carrierCapacity(angler.profile.carrier)}
-              </span>
-            </button>
-            {open === "wood" && (
-              <Menu alignRight>
-                <WoodPopover profile={angler.profile} bag={p.bag} />
-              </Menu>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "carrier", propId: "carrier" } }))}
+            className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
+            title={`Wood carrier: ${carrierLoad(angler.profile)} of ${carrierCapacity(angler.profile.carrierTier)} slots`}
+            aria-label="Wood carrier"
+            aria-haspopup="dialog"
+          >
+            <span className={ICON}>🪵</span>
+            <span className={`font-bold tabular-nums ${carrierLoad(angler.profile) >= carrierCapacity(angler.profile.carrierTier) ? "text-rose-200" : "text-amber-100"}`}>
+              {carrierLoad(angler.profile)}/{carrierCapacity(angler.profile.carrierTier)}
+            </span>
+          </button>
         )}
         {/* the Fish Creel: only where there is fishing (the campfire) */}
         {p.currentMap === "campfire_night" && (

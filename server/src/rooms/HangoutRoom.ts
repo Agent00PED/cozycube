@@ -8,7 +8,8 @@ import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
 import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
-import { AXES, CARRIER_CAPACITY, CARRIER_UPGRADE_COSTS, CHOP_LOGS, CHOP_RESPAWN_S, WOOD, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
+import { CRAFTS, MASTERWORK_CHANCE, canCraft, craftPrice, isCraftId } from "../../../shared/crafting";
+import { AXES, nextCarrierTier, CHOP_LOGS, CHOP_RESPAWN_S, WOOD, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
 import {
   BAITS,
   afkSeconds,
@@ -19,6 +20,7 @@ import {
   WELL_FED_SPEED,
   biteSeconds,
   woodCount,
+  carrierLoad,
   creelFull,
   creelTier,
   nextCreelTier,
@@ -1963,8 +1965,8 @@ export class HangoutRoom extends Room<HangoutState> {
           return;
         }
         const profile = this.records.get(sessionId)?.fishing;
-        if (profile && woodCount(profile) >= carrierCapacity(profile.carrier)) {
-          client.send("campfireNotice", { message: `Your wood carrier is full (${carrierCapacity(profile.carrier)}): burn some on the fire, or sell it to Buster`, emoji: "🪵" });
+        if (profile && carrierLoad(profile) >= carrierCapacity(profile.carrierTier)) {
+          client.send("campfireNotice", { message: `Your wood carrier is full (${carrierCapacity(profile.carrierTier)}): burn some wood, craft it at Buster's bench, or sell it`, emoji: "🪵" });
           return;
         }
         // the combo's first stroke: the notch
@@ -1980,7 +1982,11 @@ export class HangoutRoom extends Room<HangoutState> {
       case "ADD_FUEL": {
         const item = isWoodKind(packet.item) ? packet.item : "pine";
         const profile = this.records.get(sessionId)?.fishing;
-        if (!profile || player.action === "grill" || !this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) return;
+        if (!profile || player.action === "grill") return;
+        if (!this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) {
+          client.send("campfireNotice", { message: "Walk over to the bonfire to feed it", emoji: "🔥" });
+          return;
+        }
         if (!(profile.wood[item] > 0)) return;
         if (this.state.fuel >= FUEL_MAX) {
           client.send("campfireNotice", { message: "The fire's already roaring! Save that for later", emoji: "🔥" });
@@ -2203,7 +2209,7 @@ export class HangoutRoom extends Room<HangoutState> {
       coins = this.campfirePay(sessionId, player, "chop", CHOP_CLEAN_COINS + log.bonus);
       // the split log is yours: wood to burn or to sell to Buster (two, with the Golden Axe's luck),
       // as much as the carrier holds; the block waits CHOP_RESPAWN_S for its next log
-      const room = Math.max(0, carrierCapacity(profile.carrier) - woodCount(profile));
+      const room = Math.max(0, carrierCapacity(profile.carrierTier) - carrierLoad(profile));
       pieces = Math.min(room, Math.random() < AXES[profile.axe].doubleChance ? 2 : 1);
       profile.wood[log.wood] = Math.min(999, profile.wood[log.wood] + pieces);
       this.saveFishing(sessionId, player);
@@ -2568,12 +2574,37 @@ export class HangoutRoom extends Room<HangoutState> {
       }
       case "upgradeCarrier": {
         if (!near) return tooFar();
-        const cost = CARRIER_UPGRADE_COSTS[profile.carrier - 1];
-        if (cost === undefined || profile.carrier >= CARRIER_CAPACITY.length) return reply(false, "That carrier's as big as they come!");
-        if (player.coins < cost) return reply(false, `A bigger carrier is ${cost} 🪙`);
-        this.addCoins(player, -cost);
-        profile.carrier += 1;
-        return reply(true, `There you go: your carrier holds ${carrierCapacity(profile.carrier)} logs now 🪵`, -cost);
+        const next = nextCarrierTier(profile.carrierTier);
+        if (!next) return reply(false, "That's the finest rig in the woods!");
+        if (player.coins < next.price) return reply(false, `The ${next.name} is ${next.price} 🪙`);
+        this.addCoins(player, -next.price);
+        profile.carrierTier += 1;
+        return reply(true, `${next.icon} The ${next.name}: room for ${next.capacity}!`, -next.price);
+      }
+      case "craft": {
+        // the workbench: the recipe's wood comes out of the carrier, one piece goes in (a Masterwork
+        // now and then: finer with a finer axe)
+        if (!isCraftId(packet.recipe)) return;
+        if (!near) return tooFar();
+        const craft = CRAFTS[packet.recipe];
+        if (!canCraft(profile.wood, packet.recipe)) return reply(false, `The ${craft.name} takes ${Object.entries(craft.needs).map(([k, n]) => `${n} ${WOOD[k as keyof typeof WOOD].name}`).join(" + ")}`);
+        for (const [k, n] of Object.entries(craft.needs) as [keyof typeof WOOD, number][]) profile.wood[k] -= n;
+        const m = Math.random() < MASTERWORK_CHANCE[profile.axe];
+        profile.crafts.push({ c: packet.recipe, m });
+        this.playGesture(sessionId, "chop");
+        this.broadcast("emote", { sessionId, emoji: m ? "✨" : craft.emoji });
+        return reply(true, m ? `A Masterwork ${craft.name}! ✨ That'll fetch ${craft.master} 🪙` : `A fine ${craft.name} ${craft.emoji}, worth ${craft.price} 🪙`);
+      }
+      case "sellCraft": {
+        if (!near) return tooFar();
+        const picked = packet.slot === "all" ? profile.crafts.map((_, k) => k) : [Math.floor(Number(packet.slot))].filter((k) => !!profile.crafts[k]);
+        if (!picked.length) return reply(false, "No carved pieces to sell yet: try the workbench!");
+        const earned = picked.reduce((sum, k) => sum + craftPrice(profile.crafts[k]), 0);
+        const first = profile.crafts[picked[0]];
+        profile.crafts = profile.crafts.filter((_, k) => !picked.includes(k));
+        this.addCoins(player, earned);
+        this.broadcast("emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
+        return reply(true, picked.length > 1 ? `${picked.length} pieces of fine work! Here's ${earned} 🪙` : `${first.m ? "A Masterwork " : "A "}${CRAFTS[first.c].name}? Here's ${earned} 🪙`, earned);
       }
     }
   }

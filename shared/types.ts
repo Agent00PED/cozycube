@@ -3,6 +3,7 @@
 import type { BaitId, CreelFish, FishTier, RodId } from "./fishing";
 import type { FuelItem, StewIngredient } from "./bonfire";
 import type { AxeId, ChopLog, WoodKind } from "./chop";
+import type { CraftId } from "./crafting";
 
 /** "dangle": sitting on an edge (the campfire's dock), legs hanging down and swinging.
  *  "cross": sitting cross-legged right on the ground (the Sit emote, away from any seat). */
@@ -1329,7 +1330,10 @@ export type CampfirePacket =
   /** Buster the Lumberjack's stall: sell split wood (one, or all of a kind), buy or switch axes. */
   | { type: "BUSTER"; op: "sell"; wood: WoodKind; count: number | "all" }
   | { type: "BUSTER"; op: "buyAxe" | "equipAxe"; axe: AxeId }
-  | { type: "BUSTER"; op: "upgradeCarrier" };
+  | { type: "BUSTER"; op: "upgradeCarrier" }
+  /** Buster's workbench: carve a piece (its wood from the carrier), or sell pieces (one, or all). */
+  | { type: "BUSTER"; op: "craft"; recipe: CraftId }
+  | { type: "BUSTER"; op: "sellCraft"; slot: number | "all" };
 
 /** Barnaby's answer to a shop request (sent to the one who asked). */
 export interface BarnabyResult {

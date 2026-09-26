@@ -42,6 +42,7 @@ import { COZY_AURA_FUEL, LOW_FUEL, stewName, type BonfireUpdate, type StewUpdate
 import { CookingModal } from "./components/hud/CookingModal";
 import { BarnabyModal } from "./components/hud/BarnabyModal";
 import { LumberjackModal } from "./components/hud/LumberjackModal";
+import { WoodCarrierModal } from "./components/hud/WoodCarrierModal";
 import { CampfireStatus } from "./components/hud/CampfireStatus";
 import { useAnglerProfile } from "./components/hud/anglerStore";
 import { BoxingHud } from "./components/hud/BoxingHud";
@@ -715,6 +716,7 @@ export default function App() {
         {panel?.kind === "stargaze" && localSessionId && <StargazingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "woodchop" && localSessionId && <WoodChopModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
+        {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} send={campfireSend} onClose={closePanel} />}
         {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
 

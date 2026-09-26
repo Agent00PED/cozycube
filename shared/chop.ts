@@ -32,9 +32,9 @@ export type WoodKind = "pine" | "oak" | "charcoal";
 export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal"];
 /** Each kind: what Buster pays for one, and how much it feeds the bonfire. */
 export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number; fuel: number }> = {
-  pine: { name: "Pine Firewood", emoji: "🪵", sell: 5, fuel: 25 },
-  oak: { name: "Oak Firewood", emoji: "🌳", sell: 10, fuel: 30 },
-  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: 25, fuel: 50 },
+  pine: { name: "Soft Pine", emoji: "🪵", sell: 8, fuel: 25 },
+  oak: { name: "Hard Oak", emoji: "🌳", sell: 18, fuel: 30 },
+  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: 45, fuel: 50 },
 };
 export function isWoodKind(v: unknown): v is WoodKind {
   return v === "pine" || v === "oak" || v === "charcoal";
@@ -56,12 +56,32 @@ export const AXES: Record<AxeId, { name: string; emoji: string; price: number; z
 };
 export const AXE_IDS = Object.keys(AXES) as AxeId[];
 
-// --- the wood carrier: how many logs you can carry, and Buster's upgrades to it ---
-export const CARRIER_CAPACITY = [6, 12, 20] as const;
-/** What the next level costs (from level 1, from level 2). */
-export const CARRIER_UPGRADE_COSTS = [150, 350] as const;
-export function carrierCapacity(level: number): number {
-  return CARRIER_CAPACITY[Math.max(1, Math.min(CARRIER_CAPACITY.length, Math.round(level) || 1)) - 1];
+// --- the wood carrier: what you carry your wood and crafted pieces in; Buster sells each next one ---
+export interface WoodCarrierTier {
+  id: string;
+  name: string;
+  capacity: number;
+  price: number;
+  icon: string;
+}
+export const WOOD_CARRIER_TIERS: WoodCarrierTier[] = [
+  { id: "carrier_tier_1", name: "Twine Wood Strap", capacity: 10, price: 0, icon: "🪢" },
+  { id: "carrier_tier_2", name: "Canvas Timber Bag", capacity: 15, price: 180, icon: "🎒" },
+  { id: "carrier_tier_3", name: "Reinforced Wood Rig", capacity: 20, price: 450, icon: "🪵" },
+  { id: "carrier_tier_4", name: "Lumberjack Pack", capacity: 35, price: 1200, icon: "📦" },
+  { id: "carrier_tier_5", name: "Forester Heavy Frame", capacity: 50, price: 2600, icon: "🧰" },
+  { id: "carrier_tier_6", name: "Ironbound Hauling Sled", capacity: 75, price: 4800, icon: "🛷" },
+  { id: "carrier_tier_7", name: "Starlight Beaver Rig", capacity: 100, price: 8500, icon: "✨" },
+];
+/** A carrier tier (1-based, clamped), the next one up (null at the top), and a tier's capacity. */
+export function carrierTier(tier: number): WoodCarrierTier {
+  return WOOD_CARRIER_TIERS[Math.max(1, Math.min(WOOD_CARRIER_TIERS.length, Math.round(tier) || 1)) - 1];
+}
+export function nextCarrierTier(tier: number): WoodCarrierTier | null {
+  return WOOD_CARRIER_TIERS[Math.round(tier)] ?? null;
+}
+export function carrierCapacity(tier: number): number {
+  return carrierTier(tier).capacity;
 }
 export function isAxeId(v: unknown): v is AxeId {
   return typeof v === "string" && v in AXES;

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { AXES, AXE_IDS, CARRIER_CAPACITY, CARRIER_UPGRADE_COSTS, WOOD, WOOD_KINDS, carrierCapacity } from "@shared/chop";
-import { woodCount, type FishingProfile } from "@shared/fishing";
+import { AXES, AXE_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier, type WoodKind } from "@shared/chop";
+import { CRAFTS, CRAFT_IDS, MASTERWORK_CHANCE, canCraft, craftPrice } from "@shared/crafting";
+import { carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -14,16 +15,26 @@ interface Props {
   onClose: () => void;
 }
 
-// Buster the Lumberjack's stall by the woodpile: he buys your split wood (Soft Pine, Hard Oak,
-// Golden Charcoal) and sells better axes (the Steel Camp Axe widens the chopping block's green;
-// the Golden Lumberjack Axe also slows the needle and sometimes splits a log in two). Every trade
-// is the server's call (BUSTER packets); his answer comes back as busterResult.
+// Buster the Lumberjack's stall by the woodpile. He buys your split wood (Soft Pine, Hard Oak,
+// Golden Charcoal) and your carved pieces; at his workbench you carve wood into artisan pieces
+// worth far more (a Masterwork ✨ now and then, likelier with a finer axe); he sells better axes and
+// bigger wood carriers, tier by tier. Every trade is the server's call (BUSTER packets); his answer
+// comes back as busterResult.
 
-type Tab = "wood" | "axes" | "carrier";
+type Tab = "sell" | "bench" | "axes" | "carrier";
+const TABS: [Tab, string][] = [
+  ["sell", "🪙 Sell"],
+  ["bench", "🛠️ Workbench"],
+  ["axes", "🪓 Axes"],
+  ["carrier", "🎒 Carrier"],
+];
 const HELLO = "Howdy! Buster's the name, timber's the game. Got some wood for me? 🦫";
 
+const needsText = (needs: Partial<Record<WoodKind, number>>) =>
+  (Object.entries(needs) as [WoodKind, number][]).map(([k, n]) => `${n} ${WOOD[k].emoji}`).join(" + ");
+
 export function LumberjackModal({ profile, coins, send, subscribeMessages, onClose }: Props) {
-  const [tab, setTab] = useState<Tab>("wood");
+  const [tab, setTab] = useState<Tab>("sell");
   const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
   useEffect(
     () =>
@@ -36,9 +47,11 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
       }),
     [subscribeMessages]
   );
-  const total = WOOD_KINDS.reduce((sum, k) => sum + profile.wood[k] * WOOD[k].sell, 0);
+  const woodWorth = WOOD_KINDS.reduce((sum, k) => sum + profile.wood[k] * WOOD[k].sell, 0);
+  const craftWorth = profile.crafts.reduce((sum, c) => sum + craftPrice(c), 0);
+  const next = nextCarrierTier(profile.carrierTier);
   return (
-    <Modal title="Buster's Firewood" icon="🪓" onClose={onClose} width={440}>
+    <Modal title="Buster's Firewood" icon="🪓" onClose={onClose} width={460}>
       <div className="flex flex-col gap-3 pb-2">
         <div className="flex items-start gap-2">
           <span className="text-4xl leading-none" aria-hidden>
@@ -49,20 +62,14 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
           </div>
         </div>
         <div className="flex gap-1.5" role="tablist">
-          {(
-            [
-              ["wood", "🪵 Sell Wood"],
-              ["axes", "🪓 Axes"],
-              ["carrier", "🎒 Carrier"],
-            ] as const
-          ).map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`min-h-9 flex-1 rounded-full px-2 text-xs font-bold transition-transform active:scale-95 ${tab === id ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
+          {TABS.map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`min-h-9 flex-1 rounded-full px-1.5 text-[11px] font-bold transition-transform active:scale-95 ${tab === id ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
               {label}
             </button>
           ))}
         </div>
 
-        {tab === "wood" && (
+        {tab === "sell" && (
           <div className="flex flex-col gap-1.5">
             {WOOD_KINDS.map((k) => {
               const have = profile.wood[k];
@@ -86,26 +93,56 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
                 </div>
               );
             })}
+            {profile.crafts.length > 0 && (
+              <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
+                <div className="flex max-h-[20vh] flex-col gap-1 overflow-y-auto pr-1">
+                  {profile.crafts.map((item, i) => (
+                    <div key={i} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${item.m ? "border-2 border-amber-300 bg-amber-300/10" : "bg-white/10"}`}>
+                      <span className="text-xl">{CRAFTS[item.c].emoji}</span>
+                      <b className="flex-1 text-xs">
+                        {CRAFTS[item.c].name}
+                        {item.m && <span className="ml-1 text-amber-200">Masterwork ✨</span>}
+                      </b>
+                      <button type="button" className="clay-btn min-h-8 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: i })}>
+                        {craftPrice(item)} 🪙
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" className="clay-btn clay-btn-amber min-h-10 w-full text-xs" onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: "all" })}>
+                  Sell every carved piece · {craftWorth} 🪙
+                </button>
+              </div>
+            )}
             <p className="m-0 text-center text-xs opacity-75">
-              Everything you carry: <b className="text-amber-200">{total} 🪙</b>. Split logs at the chopping block right here.
+              Carrying <b className="text-amber-200">{woodWorth + craftWorth} 🪙</b> of timber. Carved, wood is worth far more!
             </p>
           </div>
         )}
 
-        {tab === "carrier" && (
-          <div className="flex flex-col items-center gap-2 py-2 text-center">
-            <span className="text-5xl">🎒</span>
-            <b>
-              Your wood carrier holds {carrierCapacity(profile.carrier)} logs ({woodCount(profile)} in it now)
-            </b>
-            <p className="m-0 text-xs opacity-75">A full carrier means no more chopping until you burn some wood on the bonfire or sell it here. Levels: {CARRIER_CAPACITY.join(" → ")} logs.</p>
-            {profile.carrier < CARRIER_CAPACITY.length ? (
-              <button type="button" className="clay-btn clay-btn-amber min-h-11 w-full max-w-[280px]" disabled={coins < CARRIER_UPGRADE_COSTS[profile.carrier - 1]} onClick={() => send({ type: "BUSTER", op: "upgradeCarrier" })}>
-                Upgrade to {CARRIER_CAPACITY[profile.carrier]} logs · {CARRIER_UPGRADE_COSTS[profile.carrier - 1]} 🪙
-              </button>
-            ) : (
-              <span className="text-sm font-bold text-emerald-200">The biggest carrier in the woods!</span>
-            )}
+        {tab === "bench" && (
+          <div className="flex flex-col gap-1.5">
+            <p className="m-0 text-center text-xs opacity-75">
+              Carve your logs into artisan pieces. A Masterwork ✨ ({Math.round(MASTERWORK_CHANCE[profile.axe] * 100)}% with your {AXES[profile.axe].name}) fetches half again.
+            </p>
+            {CRAFT_IDS.map((id) => {
+              const craft = CRAFTS[id];
+              const ok = canCraft(profile.wood, id);
+              return (
+                <div key={id} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+                  <span className="text-2xl">{craft.emoji}</span>
+                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <b className="text-sm">{craft.name}</b>
+                    <span className="text-[11px] opacity-75">
+                      {needsText(craft.needs)} → {craft.price} 🪙 · ✨ {craft.master} 🪙
+                    </span>
+                  </div>
+                  <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={!ok} onClick={() => send({ type: "BUSTER", op: "craft", recipe: id })}>
+                    Carve
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -136,6 +173,41 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {tab === "carrier" && (
+          <div className="flex flex-col gap-1.5">
+            <p className="m-0 text-center text-xs opacity-75">
+              Every log and carved piece takes a slot ({carrierLoad(profile)}/{carrierCapacity(profile.carrierTier)} now). A full carrier means no more chopping.
+            </p>
+            <div className="flex max-h-[34vh] flex-col gap-1.5 overflow-y-auto pr-1">
+              {WOOD_CARRIER_TIERS.map((t, i) => {
+                const tier = i + 1;
+                const using = tier === profile.carrierTier;
+                const have = tier <= profile.carrierTier;
+                return (
+                  <div key={t.id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${using ? "bg-emerald-400/20" : have ? "bg-white/5 opacity-60" : "bg-white/10"}`}>
+                    <span className="text-xl">{t.icon}</span>
+                    <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                      <b className="text-sm">{t.name}</b>
+                      <span className="text-[11px] opacity-75">{t.capacity} slots</span>
+                    </div>
+                    {using ? (
+                      <span className="px-2 text-xs font-bold text-emerald-200">In use</span>
+                    ) : have ? (
+                      <span className="px-2 text-xs opacity-60">Outgrown</span>
+                    ) : next?.id === t.id ? (
+                      <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < t.price} onClick={() => send({ type: "BUSTER", op: "upgradeCarrier" })}>
+                        {t.price.toLocaleString()} 🪙
+                      </button>
+                    ) : (
+                      <span className="px-2 text-xs opacity-50">{t.price.toLocaleString()} 🪙</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

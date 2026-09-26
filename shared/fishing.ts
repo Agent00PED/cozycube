@@ -7,7 +7,8 @@
 // same tables in the reel, the creel and Barnaby's shop.
 
 import type { SwimPattern } from "./types";
-import { CARRIER_CAPACITY, WOOD_KINDS, isAxeId, type AxeId, type WoodKind } from "./chop";
+import { WOOD_CARRIER_TIERS, WOOD_KINDS, isAxeId, type AxeId, type WoodKind } from "./chop";
+import { isCraftId, type CraftItem } from "./crafting";
 
 export type Water = "freshwater" | "saltwater";
 export type FishTier = "common" | "uncommon" | "rare" | "epic" | "legendary";
@@ -34,11 +35,16 @@ export interface FishSpecies {
 
 export const FISH = {
   // freshwater: the Starlight Campfire's river
-  chibi_minnow: { name: "Chibi Minnow", emoji: "🐡", water: "freshwater", tier: "common", weight: 40, bite: [3, 5], cm: [5, 12], value: 10, speed: 0.5, size: 0.5, pattern: "sine", barScale: 1 },
-  mud_carp: { name: "Mud Carp", emoji: "🐟", water: "freshwater", tier: "uncommon", weight: 28, bite: [4, 7], cm: [22, 48], value: 18, speed: 0.7, size: 0.7, pattern: "plunge", barScale: 1 },
-  midnight_trout: { name: "Midnight Trout", emoji: "🐠", water: "freshwater", tier: "rare", weight: 18, bite: [5, 9], cm: [25, 55], value: 42, speed: 0.95, size: 0.8, pattern: "erratic", barScale: 0.95 },
-  golden_catfish: { name: "Golden Catfish", emoji: "🐈", water: "freshwater", tier: "epic", weight: 9, bite: [7, 11], cm: [45, 95], value: 85, speed: 1.15, size: 0.95, pattern: "plunge", barScale: 0.85 },
-  star_koi: { name: "Cosmic Star-Koi", emoji: "🎏", water: "freshwater", tier: "legendary", weight: 5, bite: [8, 14], cm: [50, 85], value: 190, speed: 1.45, size: 1.0, pattern: "koi", barScale: 0.72 },
+  chibi_minnow: { name: "Chibi Minnow", emoji: "🐡", water: "freshwater", tier: "common", weight: 32, bite: [3, 5], cm: [5, 12], value: 10, speed: 0.5, size: 0.5, pattern: "sine", barScale: 1 },
+  river_goby: { name: "River Goby", emoji: "🐟", water: "freshwater", tier: "common", weight: 26, bite: [3, 5], cm: [6, 15], value: 16, speed: 0.55, size: 0.5, pattern: "sine", barScale: 1 },
+  mud_carp: { name: "Mud Carp", emoji: "🐟", water: "freshwater", tier: "uncommon", weight: 20, bite: [4, 7], cm: [22, 48], value: 26, speed: 0.7, size: 0.7, pattern: "plunge", barScale: 1 },
+  speckled_perch: { name: "Speckled Perch", emoji: "🐠", water: "freshwater", tier: "uncommon", weight: 16, bite: [4, 7], cm: [15, 32], value: 38, speed: 0.8, size: 0.65, pattern: "erratic", barScale: 1 },
+  midnight_trout: { name: "Midnight Trout", emoji: "🐠", water: "freshwater", tier: "rare", weight: 12, bite: [5, 9], cm: [25, 55], value: 65, speed: 0.95, size: 0.8, pattern: "erratic", barScale: 0.95 },
+  silver_salmon: { name: "Silver Salmon", emoji: "🐟", water: "freshwater", tier: "rare", weight: 9, bite: [6, 10], cm: [45, 80], value: 90, speed: 1.05, size: 0.85, pattern: "plunge", barScale: 0.9 },
+  golden_catfish: { name: "Golden Catfish", emoji: "🐈", water: "freshwater", tier: "epic", weight: 6, bite: [7, 11], cm: [45, 95], value: 140, speed: 1.15, size: 0.95, pattern: "plunge", barScale: 0.85 },
+  moonlight_eel: { name: "Moonlight Eel", emoji: "🐍", water: "freshwater", tier: "epic", weight: 4, bite: [7, 12], cm: [60, 130], value: 190, speed: 1.25, size: 0.9, pattern: "erratic", barScale: 0.8 },
+  star_koi: { name: "Cosmic Star-Koi", emoji: "🎏", water: "freshwater", tier: "legendary", weight: 3, bite: [8, 14], cm: [50, 85], value: 280, speed: 1.45, size: 1.0, pattern: "koi", barScale: 0.72 },
+  river_leviathan: { name: "River Leviathan", emoji: "🐉", water: "freshwater", tier: "legendary", weight: 1.5, bite: [10, 14], cm: [180, 320], value: 380, speed: 1.4, size: 1.0, pattern: "plunge", barScale: 0.66 },
   // saltwater: the Sunset Beach Bar's pier (registered for when it opens its waters)
   sand_sardine: { name: "Sand Sardine", emoji: "🐟", water: "saltwater", tier: "common", weight: 42, bite: [3, 5], cm: [8, 18], value: 6, speed: 0.55, size: 0.5, pattern: "sine", barScale: 1 },
   sunset_clownfish: { name: "Sunset Clownfish", emoji: "🐠", water: "saltwater", tier: "uncommon", weight: 30, bite: [4, 7], cm: [7, 14], value: 14, speed: 0.85, size: 0.6, pattern: "erratic", barScale: 1 },
@@ -162,15 +168,22 @@ export interface FishingProfile {
   wood: Record<WoodKind, number>;
   axe: AxeId;
   axes: AxeId[];
-  /** The wood carrier's level (1-3): how many logs it holds (shared/chop.ts CARRIER_CAPACITY). */
-  carrier: number;
+  /** The wood carrier's tier (1-7, shared/chop.ts WOOD_CARRIER_TIERS): how many slots it has for
+   *  logs and crafted pieces together. */
+  carrierTier: number;
+  /** Crafted pieces from Buster's workbench, each in a carrier slot (shared/crafting.ts). */
+  crafts: CraftItem[];
 }
 export function emptyFishingProfile(): FishingProfile {
-  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, fedUntil: 0, wood: { pine: 0, oak: 0, charcoal: 0 }, axe: "rusty", axes: ["rusty"], carrier: 1 };
+  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, fedUntil: 0, wood: { pine: 0, oak: 0, charcoal: 0 }, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [] };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
   return WOOD_KINDS.reduce((sum, k) => sum + (p.wood[k] ?? 0), 0);
+}
+/** How full the wood carrier is: every log and every crafted piece takes a slot. */
+export function carrierLoad(p: Pick<FishingProfile, "wood" | "crafts">): number {
+  return woodCount(p) + p.crafts.length;
 }
 /** A profile read back from storage (or the network), with anything unknown or broken dropped. */
 export function sanitizeFishingProfile(raw: unknown): FishingProfile {
@@ -213,7 +226,20 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
   }
   if (Array.isArray(r.axes)) p.axes = Array.from(new Set(["rusty" as AxeId, ...r.axes.filter(isAxeId)]));
   p.axe = isAxeId(r.axe) && p.axes.includes(r.axe) ? r.axe : "rusty";
-  p.carrier = Math.max(1, Math.min(CARRIER_CAPACITY.length, Math.round(Number(r.carrier) || 1)));
+  if (Array.isArray(r.crafts)) {
+    for (const it of r.crafts) {
+      const item = it as Record<string, unknown>;
+      if (isCraftId(item?.c)) p.crafts.push({ c: item.c, m: item.m === true });
+      if (p.crafts.length >= 999) break;
+    }
+  }
+  // the carrier's tier; one from before the tiers (levels 1-3: 6, 12, 20 logs) moves up to the
+  // smallest tier that holds all it held, so nothing is lost in the move
+  if (Number(r.carrierTier) >= 1) p.carrierTier = Math.min(WOOD_CARRIER_TIERS.length, Math.round(Number(r.carrierTier)));
+  else {
+    const legacy = Math.max([0, 6, 12, 20][Math.round(Number(r.carrier) || 0)] ?? 0, carrierLoad(p));
+    p.carrierTier = WOOD_CARRIER_TIERS.findIndex((t) => t.capacity >= legacy) + 1 || WOOD_CARRIER_TIERS.length;
+  }
   return p;
 }
 
