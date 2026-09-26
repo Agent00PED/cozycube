@@ -4,7 +4,6 @@ import type { DiscordAuthInfo } from "./useDiscordAuth";
 import { liveMotion, recordMotion } from "../systems/liveMotion";
 import type {
   BallSyncState,
-  BlackjackAction,
   ChairSyncState,
   EmoteBroadcast,
   LeaderboardEntry,
@@ -17,14 +16,13 @@ import type {
   MapId,
   PlayerAction,
   PlayerState,
-  RoulettePhase,
-  RouletteSyncState,
   SeatStyle,
   SitPose,
   TimeOfDay,
   ToggleableKind,
   ToggleableSyncState,
 } from "@shared/types";
+import { type BlackjackAction, type RoulettePhase, type RouletteSyncState } from "@shared/casino";
 
 import { parsePicnic, parseStew, FUEL_START, type PicnicPlate, type StewState } from "@shared/bonfire";
 

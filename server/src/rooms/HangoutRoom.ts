@@ -107,28 +107,15 @@ import {
   GESTURE_EMOJI,
   SERVER_GESTURES,
   ITEMS,
-  MAX_BET_TOTAL,
   NPCS,
   PREMIUM_HATS,
-  ROULETTE_BET_RADIUS,
-  ROULETTE_CENTER,
-  ROULETTE_PHASE_SECONDS,
-  SLOT_COST,
-  SLOT_SYMBOLS,
-  SLOT_TRIPLE,
   STARTING_COINS,
   TIMES_OF_DAY,
-  CHIP_VALUES,
-  betReturn,
   encodeBag,
-  encodeBets,
-  isBetKind,
   isGesture,
   isPremiumHat,
   parseBag,
-  parseBets,
   type ItemId,
-  type RoulettePhase,
   LOFI_TRACKS,
   CAMPFIRE_BOOST_SECONDS,
   EMOTES,
@@ -152,23 +139,13 @@ import {
   ALLOWANCE_BELOW,
   ALLOWANCE_COINS,
   ALLOWANCE_COOLDOWN_S,
-  BLACKJACK_BETS,
-  BLACKJACK_CENTER,
-  BLACKJACK_RADIUS,
   CHAT_MAX_CHARS,
   DEFAULT_STATS,
-  SLOT_BETS,
   STEW_COOLDOWN_S,
   STEW_RADIUS,
   STEW_REWARD,
   STEW_STIRS,
-  blackjackTotal,
   parseStats,
-  type BlackjackAction,
-  type BlackjackCard,
-  type BlackjackOutcome,
-  type BlackjackPhase,
-  type BlackjackView,
   type PlayerStats,
   ARCADE_COINS_MAX,
   ARCADE_COINS_PER_POINT,
@@ -230,6 +207,28 @@ import {
   type FishingWater,
   type MochiAction,
 } from "../../../shared/types";
+import {
+  MAX_BET_TOTAL,
+  ROULETTE_PHASE_SECONDS,
+  SLOT_COST,
+  SLOT_SYMBOLS,
+  SLOT_TRIPLE,
+  CHIP_VALUES,
+  betReturn,
+  encodeBets,
+  isBetKind,
+  parseBets,
+  type RoulettePhase,
+  BLACKJACK_BETS,
+  SLOT_BETS,
+  blackjackTotal,
+  type BlackjackAction,
+  type BlackjackCard,
+  type BlackjackOutcome,
+  type BlackjackPhase,
+  type BlackjackView,
+} from "../../../shared/casino";
+import { ROULETTE_BET_RADIUS, ROULETTE_CENTER, blackjackTableNear } from "../../../shared/worlds/casino";
 
 class Player extends Schema {
   @type("string") userId = "";
@@ -1440,7 +1439,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleBlackjack(sessionId: string, msg: { action: BlackjackAction; bet?: number }) {
     const player = this.state.players.get(sessionId);
     if (!player || this.state.currentMap !== "velvet_casino") return;
-    if (Math.hypot(player.x - BLACKJACK_CENTER.x, player.z - BLACKJACK_CENTER.z) > BLACKJACK_RADIUS + 0.8) return;
+    if (!blackjackTableNear(player.x, player.z, 0.8)) return;
     const action = msg?.action;
     let game = this.blackjack.get(sessionId);
 

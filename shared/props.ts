@@ -2,10 +2,11 @@ import { CUSHIONS, napPose, seatAnchorY } from "./seats";
 import type { MapId, SeatStyle, ToggleableKind } from "./types";
 import { LOFT_MOCHI, LOFT_PROPS, LOFT_SEATS } from "./worlds/lounge";
 import { CAMP_PROPS, CAMP_SEATS, lieSeatPose } from "./worlds/campfire";
+import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
 
 // The per-map tables of things you can sit on and things you can use, with the approach point of
-// each (where you stand to use it, and where you land when you get up). The lounge's come from
-// its floor plan (shared/worlds/lounge.ts); the other worlds have none until they are rebuilt.
+// each (where you stand to use it, and where you land when you get up). The built worlds' come from
+// their floor plans (shared/worlds/); the other worlds have none until they are rebuilt.
 
 export interface ChairConfig {
   propId: string;
@@ -64,8 +65,18 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
       sitY: round(lie ? lie.y : seatAnchorY(CUSHIONS[s.cushion])),
     };
   }),
+  // the casino: stools, chairs, the ottoman and the piano bench, all drawn by casino.glb
+  velvet_casino: CASINO_SEATS.map((s) => ({
+    propId: s.propId,
+    x: round(s.x),
+    z: round(s.z),
+    rotationY: round(s.rotationY),
+    style: s.style,
+    approachX: round(s.approachX),
+    approachZ: round(s.approachZ),
+    sitY: round(seatAnchorY(CUSHIONS[s.cushion])),
+  })),
   sunset_beach: [],
-  velvet_casino: [],
   boxing_ring: [],
   japanese_onsen: [],
   retro_arcade: [],
@@ -75,8 +86,8 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
 export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
   cozy_lounge: LOFT_PROPS,
   campfire_night: CAMP_PROPS,
+  velvet_casino: CASINO_PROPS,
   sunset_beach: [],
-  velvet_casino: [],
   boxing_ring: [],
   japanese_onsen: [],
   retro_arcade: [],

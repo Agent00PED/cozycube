@@ -37,6 +37,8 @@ import { WoodChopModal } from "./components/hud/WoodChopModal";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
 import { FORAGE_INFO, ITEMS, TREASURE_COINS, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
+import { type BlackjackView } from "@shared/casino";
+import { blackjackTableNear, ROULETTE_BET_RADIUS, ROULETTE_CENTER } from "@shared/worlds/casino";
 import { FISH, RODS, TIER_LABEL, stars } from "@shared/fishing";
 import { COZY_AURA_FUEL, LOW_FUEL, stewName, type BonfireUpdate, type StewUpdate } from "@shared/bonfire";
 import { CookingModal } from "./components/hud/CookingModal";
@@ -50,15 +52,10 @@ import { BoxingHud } from "./components/hud/BoxingHud";
 import { installKeyboard, isTouchDevice } from "./systems/input";
 import {
   ACHIEVEMENTS,
-  BLACKJACK_CENTER,
-  BLACKJACK_RADIUS,
   EMOTES,
-  ROULETTE_BET_RADIUS,
-  ROULETTE_CENTER,
   defaultLook,
   parseLook,
   parseStats,
-  type BlackjackView,
   type BoardGameView,
   type FishOnLine,
   type GachaPrize,
@@ -490,7 +487,7 @@ export default function App() {
 
   // --- table proximity: the roulette board and the blackjack panel follow you to the tables ---
   const atRoulette = currentMap === "velvet_casino" && !!me && !me.sitting && Math.hypot(me.x - ROULETTE_CENTER.x, me.z - ROULETTE_CENTER.z) < ROULETTE_BET_RADIUS;
-  const atBlackjack = currentMap === "velvet_casino" && !!me && Math.hypot(me.x - BLACKJACK_CENTER.x, me.z - BLACKJACK_CENTER.z) < BLACKJACK_RADIUS + 0.5;
+  const atBlackjack = currentMap === "velvet_casino" && !!me && !!blackjackTableNear(me.x, me.z);
   const [rouletteClosed, setRouletteClosed] = useState(false);
   useEffect(() => {
     if (!atRoulette) setRouletteClosed(false);

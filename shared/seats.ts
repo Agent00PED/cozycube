@@ -86,6 +86,12 @@ export const CUSHIONS = {
   dock: { y: 0.015, h: 0.03 }, // the dock's planks at its river edge (you sit on the edge, legs over) -> 0.03
   canoe: { y: -0.035, h: 0.03 }, // the canoe's stern seat, just over the water (-0.18) -> -0.02
   boulder: { y: 0.2, h: 0.4 }, // the smooth sitting boulder by the fire -> 0.4
+  // --- the Velvet Casino's (shared/worlds/casino.ts; scripts/blender/build_casino.py reads them) ---
+  barStool: { y: 0.45, h: 0.06 }, // the bar's and the blackjack tables' velvet stools -> 0.48
+  pokerChair: { y: 0.35, h: 0.06 }, // the high-roller pit's tufted chairs round the poker table -> 0.38
+  clubChair: { y: 0.3, h: 0.12 }, // the jazz lounge's velvet club chairs -> 0.36
+  ottoman: { y: 0.19, h: 0.38 }, // the foyer's round tufted ottoman -> 0.38
+  pianoBench: { y: 0.36, h: 0.06 }, // the grand piano's bench -> 0.39
   // --- anywhere ---
   ground: { y: 0.02, h: 0.04 }, // sitting cross-legged on the grass (the Sit emote) -> 0.04, hips at ~0.14
 } as const satisfies Record<string, Cushion>;

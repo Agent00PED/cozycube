@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { CHIP_VALUES, MAX_BET_TOTAL, ROULETTE_PHASE_SECONDS, parseBets, pocketColor, type RouletteResultBroadcast, type RouletteSyncState } from "@shared/types";
+import {
+  CHIP_VALUES,
+  MAX_BET_TOTAL,
+  ROULETTE_PHASE_SECONDS,
+  parseBets,
+  pocketColor,
+  type RouletteResultBroadcast,
+  type RouletteSyncState,
+} from "@shared/casino";
 import { glass, hudText } from "./glass";
 
 const CONFETTI = Array.from({ length: 18 }, (_, i) => ({

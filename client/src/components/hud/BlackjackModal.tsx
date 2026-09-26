@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { BLACKJACK_BETS, type BlackjackAction, type BlackjackCard, type BlackjackView } from "@shared/types";
+import { BLACKJACK_BETS, type BlackjackAction, type BlackjackCard, type BlackjackView } from "@shared/casino";
 import { Modal } from "./Modal";
 
 // The blackjack table: the server deals, hits, stands and pays; this shows the hand it sends

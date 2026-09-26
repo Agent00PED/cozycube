@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SLOT_BETS, SLOT_SYMBOLS, SLOT_TRIPLE, type SlotBroadcast } from "@shared/types";
+import { SLOT_BETS, SLOT_SYMBOLS, SLOT_TRIPLE, type SlotBroadcast } from "@shared/casino";
 import { Modal } from "./Modal";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 
