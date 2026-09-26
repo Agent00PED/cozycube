@@ -13,7 +13,7 @@ import { CAMPFIRE_URL, CampfireSky, CampfireWorld } from "./CampfireWorld";
 import { CASINO_URL, CasinoWorld } from "./CasinoWorld";
 import { preloadCasinoStaff } from "../entities/CasinoStaff";
 import { preloadPatrons } from "../entities/AmbientPatrons";
-import { BAR_REACH, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, barDistance, blackjackTableNear, casinoFloorY } from "@shared/worlds/casino";
+import { BAR_REACH, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, barDistance, blackjackTableNear, casinoFloorY, inVipRoom, nearGameTable } from "@shared/worlds/casino";
 import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
 import { BoardTablePad, CampfirePuff, Cat, FloorLamp, PLANT_BURST_SECONDS, PUFF_SECONDS, PlantBurst, PropPad, RadioProp, SeatPad } from "./Props";
@@ -108,23 +108,25 @@ const CL = CASINO_LAYOUT;
 const CASINO_PADS: Partial<Record<ToggleableSyncState["kind"], { size: [number, number, number]; at?: (p: ToggleableSyncState) => Partial<ToggleableSyncState> }>> = {
   roulette: { size: [CL.roulette.len, 0.95, CL.roulette.w + 0.1] },
   blackjack: { size: [2.0, 0.95, 2.0] },
+  poker: { size: [CL.poker.len, 0.95, CL.poker.w] },
   craps: { size: [CL.craps.len, 1.0, CL.craps.w] },
   derby: { size: [CL.derby.w, 1.1, CL.derby.len] },
   pusher: { size: [CL.pusher.d, CL.pusher.h, CL.pusher.w] },
   billiards: { size: [CL.billiards.len, 1.0, CL.billiards.w] },
   piano: { size: [CL.piano.len, 1.1, CL.piano.w], at: () => ({ x: CL.piano.x, z: CL.piano.z, y: casinoFloorY(CL.piano.x, CL.piano.z) }) },
-  gazette: { size: [CL.coffee.w, 0.3, CL.coffee.len], at: (p) => ({ y: p.y - 0.12 }) },
+  gazette: { size: [CL.coffee.lx, 0.3, CL.coffee.lz], at: (p) => ({ y: p.y - 0.12 }) },
   fortune: { size: [1.2, CL.zara.h, 1.2] },
   gachapon: { size: [0.75, CL.gachapon.h, 0.75] },
   tipjar: { size: [0.3, 0.32, 0.3] },
   barmenu: { size: [0.75, 1.15, 0.75] },
-  vipdoor: { size: [0.3, CL.vipDoor.h, CL.vipDoor.w + 0.1] },
+  vipdoor: { size: [CL.vip.gateW + 0.2, 1.8, 0.35] },
 };
 
 /** Whether a seated player (at cameraFocus) is in reach of a casino prop they can use sitting. */
 function seatedReach(kind: ToggleableSyncState["kind"], prop: { x: number; z: number }): boolean {
   const d = Math.hypot(prop.x - cameraFocus.x, prop.z - cameraFocus.z);
   if (kind === "blackjack") return !!blackjackTableNear(cameraFocus.x, cameraFocus.z);
+  if (kind === "poker") return nearGameTable("poker", cameraFocus.x, cameraFocus.z);
   if (kind === "barmenu") return barDistance(cameraFocus.x, cameraFocus.z) <= BAR_REACH;
   if (kind === "piano") return d <= PIANO_REACH;
   if (kind === "gazette") return d <= GAZETTE_REACH;
@@ -319,8 +321,10 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   const stand = useCallback(() => live.current.room?.send("standUp"), []);
 
   const activate = useCallback(
-    (propId: string) => {
+    (clicked: string) => {
       const { room, toggleables, mapId, me } = live.current;
+      // the VIP room's doors are one pad: out through them from inside, in past Bruno from the stage
+      const propId = toggleables[clicked]?.kind === "vipdoor" ? (inVipRoom(cameraFocus.x, cameraFocus.z) ? "vip_exit" : "vip_door") : clicked;
       const prop = toggleables[propId];
       if (!prop) return;
       // already sitting at the games table, or on a pouf by the radio: its panel opens right there, without getting up
@@ -474,7 +478,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={{ ...prop, z: prop.z + 0.45 }} size={[1.2, 2.3, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "portal" ? (
           <PropPad key={prop.propId} prop={prop} size={[2.4, 2.9, 0.5]} onUse={() => activate(prop.propId)} />
-        ) : CASINO_PADS[prop.kind] ? (
+        ) : prop.propId === "vip_exit" ? null : CASINO_PADS[prop.kind] ? (
           <PropPad key={prop.propId} prop={{ ...prop, ...CASINO_PADS[prop.kind]!.at?.(prop) }} size={CASINO_PADS[prop.kind]!.size} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "plant" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.75, 1.4, 0.75]} onUse={() => activate(prop.propId)} />

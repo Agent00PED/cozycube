@@ -109,6 +109,16 @@ const RELAYED_MESSAGES = [
   "capsuleResult",
   "casinoWin",
   "casinoNotice",
+  // the casino's panel games: Boris's poker, your dice, the Turf Club's race, the coin pusher; the
+  // blackjack tables' results (Cedric's cue), the baby grand's recitals and notes
+  "pokerState",
+  "pokerResult",
+  "crapsState",
+  "derbyState",
+  "pusherResult",
+  "blackjackResult",
+  "pianoRecital",
+  "pianoNote",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;

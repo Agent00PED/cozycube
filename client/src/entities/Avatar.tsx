@@ -10,6 +10,7 @@ import { CasinoAura } from "./CasinoAura";
 import { capsuleTitle } from "@shared/casino";
 import { canoeBob, canoePitch, canoeRoll } from "../scene/canoeMotion";
 import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
+import { EmoteGlyph } from "../components/hud/VelvetChipIcon";
 
 // The player avatar: a chibi clay figurine authored in Blender (scripts/blender/build_avatar.py)
 // and loaded from client/public/models/avatar.glb. This file loads it, dresses it from the
@@ -982,7 +983,7 @@ export const Avatar = memo(
               {speaking && <span className="cozy-speaking">🎵</span>}
               {emotes.map((e) => (
                 <span key={e.id} className="cozy-emote">
-                  {e.emoji}
+                  <EmoteGlyph emoji={e.emoji} />
                 </span>
               ))}
             </div>

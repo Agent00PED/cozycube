@@ -1,49 +1,178 @@
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
+import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import type { Room } from "colyseus.js";
 import { walkY } from "@shared/collision";
 import { findPath, type Point } from "@shared/pathfinding";
 import { CASINO_LAYOUT as L, PATRON_SPOTS, ROULETTE_CENTER } from "@shared/worlds/casino";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { modelUrl } from "../assetVersion";
+import { cameraFocus } from "../scene/cameraFocus";
 import { ModelBoundary } from "./ModelBoundary";
 
-// The Velvet Casino's crowd: a dozen well-dressed regulars drifting through the hall, drawn on this
-// screen only (the server never hears of them, and they walk through players as if they were not
-// there, though never through the furniture: they path round it on the same grid players do).
+// The Velvet Casino's crowd: a dozen chibi regulars drifting through the hall, and Bella the
+// cocktail bunny on her round between the tables with her brass tray, all drawn on this screen only
+// (the server never hears of them; they walk through players as if they were not there, though never
+// through the furniture: they path round it on the same grid players do).
 //
-// Three archetypes from patrons.glb (scripts/blender/build_casino_staff.py): an evening-gowned
-// rabbit, a raccoon in a tailored suit, a dapper badger in a waistcoat and bowler. Each archetype
-// is two instanced meshes, the animal and its clothes, every patron's clothes tinted their own
-// colour: six draw calls for the whole crowd.
+// Four figures from patrons.glb (scripts/blender/build_casino_staff.py): an evening-gowned rabbit, a
+// raccoon in a tailored suit, a chic feline in a cocktail dress and a pillbox hat, and Bella. Each is
+// ONE instanced mesh (a draw call apiece, four for the whole crowd), rigged for a shader instead of
+// bones: every vertex knows its limb (the model's u: body, right arm, left arm, right leg, left leg,
+// tail) and whether it is clothing (v). The vertex shader swings each limb round its pivot from a
+// per-patron walk (phase, stride), and a pose laid over it (a clap, a cheer, a sip); it tints each
+// patron's clothes their own colour and their fur a shade of its own. The patron moves whole on the
+// CPU: a bob of |sin(8t)| * 0.04 in its step, a sway, a turn toward where it goes.
 //
 // Each patron's evening, a little state machine over PATRON_SPOTS: in through the doors, to the
-// slot row (watching, now and then a cheer), the bar (a drink, tipped back now and then), the
-// roulette table (watching the wheel, cheering a number), now and then a detour by the lounge or
-// the craps table, then out through the doors again; a while later, someone new comes in.
+// slot row (watching, cheering a win), the bar (a sip now and then), the roulette table (clapping
+// the number), now and then a detour by the lounge or the craps table, then out through the doors
+// again; a while later, someone new comes in.
 
 const URL = modelUrl("patrons.glb");
-const KINDS = ["Rabbit", "Raccoon", "Badger"] as const;
+const KINDS = ["Rabbit", "Raccoon", "Feline"] as const;
 type Kind = (typeof KINDS)[number];
 const PER_KIND = 4;
 const WALK_SPEED = 1.05;
-/** Outfit tints: gowns, suits, waistcoats. */
+const BELLA_SPEED = 0.9;
+/** Outfit tints: gowns, suits, cocktail dresses. */
 const OUTFITS: Record<Kind, string[]> = {
   Rabbit: ["#b3263e", "#2a4fa8", "#1f7a4f", "#e8d3a2", "#7b4ba8"],
   Raccoon: ["#3a3a46", "#22305a", "#5a2448", "#a8845a", "#2f4a3a"],
-  Badger: ["#7a5a3a", "#2f5a3a", "#6a1e2a", "#b8912e", "#40506a"],
+  Feline: ["#1c1c22", "#c2415b", "#2f6fb0", "#e0b44a", "#6b3aa8"],
 };
 /** Fur tints: gentle variations on the model's own colours. */
 const FURS: Record<Kind, string[]> = {
   Rabbit: ["#ffffff", "#f3e6d4", "#d9c2a4", "#e6e6ec"],
   Raccoon: ["#ffffff", "#ece6dc", "#dcdce6", "#f2ebe0"],
-  Badger: ["#ffffff", "#efe9e0", "#e2e2e8", "#f5efe4"],
+  Feline: ["#ffffff", "#f7d8b0", "#dcdcdc", "#c9a07a"],
 };
+
+/** The poses laid over the walk (the shader's aWalk.z). */
+const POSE = { none: 0, clap: 1, cheer: 2, sip: 3 } as const;
+type Pose = keyof typeof POSE;
+const POSE_S: Record<Pose, number> = { none: 0, clap: 1.8, cheer: 1.5, sip: 1.3 };
+
+// --- the shader: the limbs round their pivots, the clothes tinted ------------------------------
+
+const HEADER = /* glsl */ `
+attribute vec2 aLimb;
+attribute vec4 aWalk;
+attribute vec3 aFur;
+uniform float uTime;
+uniform vec3 uPivot[5];
+mat3 chRotX(float a) { float c = cos(a), s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
+mat3 chRotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
+mat3 chRotZ(float a) { float c = cos(a), s = sin(a); return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0); }
+// arms hang down: x below 0 swings one forward; z toward the middle is +side (the right arm is on -x)
+mat3 chLimb(float limb) {
+  float ph = aWalk.x;
+  float stride = aWalk.y;
+  float pose = aWalk.z;
+  float pw = aWalk.w;
+  float sw = sin(uTime * 8.0 + ph);
+  if (limb > 0.5 && limb < 2.5) {
+    float side = limb < 1.5 ? 1.0 : -1.0;
+    float ax = sw * 0.7 * stride * side;
+    float az = 0.0;
+    if (pose > 0.5 && pose < 1.5) {
+      ax = mix(ax, -1.25, pw);
+      az = mix(az, side * (0.3 + 0.28 * (0.5 + 0.5 * sin(uTime * 16.0 + ph))), pw);
+    } else if (pose > 1.5 && pose < 2.5) {
+      ax = mix(ax, -0.25, pw);
+      az = mix(az, -side * (2.5 + 0.25 * sin(uTime * 11.0 + ph)), pw);
+    } else if (pose > 2.5 && pose < 3.5 && side > 0.0) {
+      ax = mix(ax, -2.05 + 0.08 * sin(uTime * 2.0 + ph), pw);
+      az = mix(az, 0.5, pw);
+    }
+    return chRotX(ax) * chRotZ(az);
+  }
+  if (limb > 2.5 && limb < 4.5) {
+    float side = limb < 3.5 ? 1.0 : -1.0;
+    return chRotX(-sw * 0.6 * stride * side);
+  }
+  if (limb > 4.5) return chRotY(sin(uTime * 3.0 + ph) * 0.45);
+  return mat3(1.0);
+}
+`;
+const NORMAL = /* glsl */ `
+float chId = floor(aLimb.x + 0.5);
+mat3 chR = chLimb(chId);
+vec3 chP = chId > 0.5 ? uPivot[int(chId) - 1] : vec3(0.0);
+objectNormal = chR * objectNormal;
+`;
+const POSITION = /* glsl */ `
+if (chId > 0.5) transformed = chP + chR * (transformed - chP);
+`;
+// (the model's colours carry an alpha, so vColor may be a vec4)
+const COLOR = /* glsl */ `
+#if defined( USE_COLOR_ALPHA )
+vColor = vec4(1.0);
+#else
+vColor = vec3(1.0);
+#endif
+vColor *= color;
+vColor.xyz *= mix(aFur, instanceColor.xyz, aLimb.y);
+`;
+
+const PIVOT_ORDER = ["armR", "armL", "legR", "legL", "tail"] as const;
+const DEFAULT_PIVOTS: Record<(typeof PIVOT_ORDER)[number], number[]> = { armR: [-0.15, 0.5, 0], armL: [0.15, 0.5, 0], legR: [-0.075, 0.27, 0], legL: [0.075, 0.27, 0], tail: [0, 0.3, -0.12] };
+const time = { value: 0 };
+
+interface Figure {
+  mesh: THREE.InstancedMesh;
+  walk: THREE.InstancedBufferAttribute;
+}
+
+/** One figure from the model as an instanced mesh with the limb shader, `count` of it. */
+function makeFigure(scene: THREE.Object3D, name: string, count: number): Figure {
+  const node = scene.getObjectByName(name) as THREE.Mesh | undefined;
+  const geo = node?.geometry?.clone() ?? new THREE.BoxGeometry(0.3, 1, 0.3).translate(0, 0.5, 0);
+  // the model's UVs are the limb and the tint: renamed, so no texture code wants them
+  const uv = geo.getAttribute("uv");
+  if (uv) {
+    geo.setAttribute("aLimb", uv);
+    geo.deleteAttribute("uv");
+  } else geo.setAttribute("aLimb", new THREE.BufferAttribute(new Float32Array(geo.getAttribute("position").count * 2), 2));
+  if (!geo.getAttribute("color")) geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(geo.getAttribute("position").count * 3).fill(0.8), 3));
+  let pivots = DEFAULT_PIVOTS;
+  try {
+    const raw = node?.userData?.pivots;
+    if (typeof raw === "string") pivots = { ...DEFAULT_PIVOTS, ...JSON.parse(raw) };
+  } catch {
+    // the defaults are the builder's own
+  }
+  const src = node?.material as THREE.MeshStandardMaterial | undefined;
+  const mat = src ? src.clone() : new THREE.MeshStandardMaterial({ roughness: 0.8 });
+  mat.vertexColors = true;
+  const pivotUniform = { value: PIVOT_ORDER.map((k) => new THREE.Vector3(...(pivots[k] as [number, number, number]))) };
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = time;
+    shader.uniforms.uPivot = pivotUniform;
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\n${HEADER}`)
+      .replace("#include <beginnormal_vertex>", `#include <beginnormal_vertex>\n${NORMAL}`)
+      .replace("#include <begin_vertex>", `#include <begin_vertex>\n${POSITION}`)
+      .replace("#include <color_vertex>", COLOR);
+  };
+  mat.customProgramCacheKey = () => "cozy-chibi-patron";
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  // the tints exist from the first frame, so the shader is built with them
+  mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(count * 3).fill(1), 3);
+  const walk = new THREE.InstancedBufferAttribute(new Float32Array(count * 4), 4);
+  walk.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute("aWalk", walk);
+  geo.setAttribute("aFur", new THREE.InstancedBufferAttribute(new Float32Array(count * 3).fill(1), 3));
+  mesh.frustumCulled = false;
+  mesh.raycast = () => {};
+  return { mesh, walk };
+}
 
 type Group = "slots" | "bar" | "roulette" | "craps" | "lounge";
 const GROUPS: Group[] = ["slots", "bar", "roulette", "craps", "lounge"];
-/** What each place's patrons look at, and do. */
+/** What each place's patrons look at. */
 const LOOK_AT: Record<Group, (p: Point) => Point> = {
   slots: (p) => ({ x: L.slots.x, z: p.z }),
   bar: (p) => ({ x: L.bar.x1, z: p.z }),
@@ -73,7 +202,10 @@ interface Patron {
   /** 0..1 appearing (the doors), 1 present. */
   shown: number;
   phase: number;
-  cheerAt: number;
+  /** A pose laid over the walk: which, and when it started. */
+  pose: Pose;
+  poseAt: number;
+  nextSip: number;
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -93,12 +225,19 @@ function restOf(group: Group): Group[] {
   return i >= 0 ? plan.slice(i + 1) : plan.slice(plan.indexOf("roulette"));
 }
 const spotsOf = (g: Group | "doors"): Point[] => (g === "doors" ? [PATRON_SPOTS.doors] : PATRON_SPOTS[g]);
+/** A pose's weight at `now` (eased in and out), 0 once it is over. */
+function poseWeight(pose: Pose, at: number, now: number): number {
+  const d = POSE_S[pose];
+  const u = d ? (now - at) / d : 1;
+  return u >= 0 && u < 1 ? Math.min(1, Math.min(u, 1 - u) * 5) : 0;
+}
 
-export function AmbientPatrons({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
+export function AmbientPatrons({ subscribeMessages, room }: { subscribeMessages: (listener: RoomMessageListener) => () => void; room: Room | null }) {
   return (
     <ModelBoundary what="patrons.glb" fallback={null}>
       <Suspense fallback={null}>
         <Crowd subscribeMessages={subscribeMessages} />
+        <Bella room={room} />
       </Suspense>
     </ModelBoundary>
   );
@@ -106,36 +245,16 @@ export function AmbientPatrons({ subscribeMessages }: { subscribeMessages: (list
 
 function Crowd({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
   const { scene } = useGLTF(URL);
-  const meshes = useMemo(() => {
-    const out: Record<Kind, { fur: THREE.InstancedMesh; outfit: THREE.InstancedMesh }> = {} as never;
-    for (const kind of KINDS) {
-      const make = (part: "Fur" | "Outfit") => {
-        const node = scene.getObjectByName(`Patron_${kind}_${part}`) as THREE.Mesh | undefined;
-        const geo = node?.geometry ?? new THREE.BoxGeometry(0.3, 1, 0.3);
-        const src = node?.material as THREE.MeshStandardMaterial | undefined;
-        const mat = src ? src.clone() : new THREE.MeshStandardMaterial({ color: "#999", roughness: 0.8 });
-        const mesh = new THREE.InstancedMesh(geo, mat, PER_KIND);
-        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        // the tints exist from the first frame, so the shader is built with them
-        mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(PER_KIND * 3).fill(1), 3);
-        mesh.frustumCulled = false;
-        mesh.raycast = () => {};
-        return mesh;
-      };
-      out[kind] = { fur: make("Fur"), outfit: make("Outfit") };
-    }
-    return out;
-  }, [scene]);
+  const figures = useMemo(() => Object.fromEntries(KINDS.map((k) => [k, makeFigure(scene, `Patron_${k}`, PER_KIND)])) as Record<Kind, Figure>, [scene]);
   useEffect(
     () => () => {
       for (const kind of KINDS) {
-        (meshes[kind].fur.material as THREE.Material).dispose();
-        (meshes[kind].outfit.material as THREE.Material).dispose();
-        meshes[kind].fur.dispose();
-        meshes[kind].outfit.dispose();
+        (figures[kind].mesh.material as THREE.Material).dispose();
+        figures[kind].mesh.geometry.dispose();
+        figures[kind].mesh.dispose();
       }
     },
-    [meshes]
+    [figures]
   );
 
   // the evening's patrons: most already about the hall, a few still to come in
@@ -161,7 +280,9 @@ function Crowd({ subscribeMessages }: { subscribeMessages: (listener: RoomMessag
           plan: [],
           shown: 0,
           phase: Math.random() * 10,
-          cheerAt: -99,
+          pose: "none",
+          poseAt: -99,
+          nextSip: rand(2, 6),
         };
         if ((i + k) % 3 !== 0) {
           // already here: standing at a free spot somewhere, part way through the evening
@@ -180,15 +301,22 @@ function Crowd({ subscribeMessages }: { subscribeMessages: (listener: RoomMessag
   }, []);
   const occupied = useRef(new Set<string>(patrons.filter((p) => p.state === "stay").map((p) => `${p.group}:${p.spot}`)));
 
-  // a roulette number or a jackpot: those watching cheer
+  // the room's moments: a number at the wheel (its watchers clap), a win at the slots or a jackpot
+  // (cheers), the dice (the craps crowd claps)
   useEffect(
     () =>
-      subscribeMessages((type) => {
-        if (type !== "rouletteResult" && type !== "casinoWin" && type !== "slotSpin") return;
+      subscribeMessages((type, payload) => {
         const now = performance.now() / 1000;
+        const pose = (p: Patron, which: Pose) => {
+          p.pose = which;
+          p.poseAt = now + Math.random() * 0.35;
+        };
         for (const p of patrons) {
           if (p.state !== "stay") continue;
-          if ((type === "rouletteResult" && p.group === "roulette") || (type === "casinoWin" && Math.random() < 0.6) || (type === "slotSpin" && p.group === "slots" && Math.random() < 0.3)) p.cheerAt = now + Math.random() * 0.4;
+          if (type === "rouletteResult" && p.group === "roulette") pose(p, "clap");
+          else if (type === "slotSpin" && p.group === "slots" && (payload as { win?: number; bet?: number })?.win! > (payload as { bet?: number })?.bet! && Math.random() < 0.8) pose(p, "cheer");
+          else if (type === "casinoWin" && (payload as { celebrate?: boolean })?.celebrate && Math.random() < 0.7) pose(p, p.group === "roulette" ? "clap" : "cheer");
+          else if (type === "casinoProp" && (payload as { kind?: string })?.kind === "craps" && p.group === "craps") pose(p, "clap");
         }
       }),
     [subscribeMessages, patrons]
@@ -221,6 +349,7 @@ function Crowd({ subscribeMessages }: { subscribeMessages: (listener: RoomMessag
   useFrame(({ clock }, rawDelta) => {
     const dt = Math.min(rawDelta, 0.1);
     const t = clock.elapsedTime;
+    time.value = t;
     const now = performance.now() / 1000;
     for (const p of patrons) {
       if (p.state === "away") {
@@ -270,50 +399,50 @@ function Crowd({ subscribeMessages }: { subscribeMessages: (listener: RoomMessag
         const look = LOOK_AT[g]({ x: p.x, z: p.z });
         p.heading = turn(p.heading, Math.atan2(look.x - p.x, look.z - p.z), 0.08);
         p.left -= dt;
-        if (g === "slots" && Math.random() < dt * 0.05) p.cheerAt = now;
+        // a sip at the bar now and then; the odd cheer at the slots
+        if (g === "bar") {
+          p.nextSip -= dt;
+          if (p.nextSip <= 0) {
+            p.pose = "sip";
+            p.poseAt = now;
+            p.nextSip = rand(3.5, 7);
+          }
+        } else if (g === "slots" && Math.random() < dt * 0.04) {
+          p.pose = "cheer";
+          p.poseAt = now;
+        }
         if (p.left <= 0) route(p);
       }
       p.y += (walkY("velvet_casino", p.x, p.z) - p.y) * 0.2;
     }
 
     for (const kind of KINDS) {
-      const { fur, outfit } = meshes[kind];
+      const { mesh, walk } = figures[kind];
       for (const p of patrons) {
         if (p.kind !== kind) continue;
         const walking = (p.state === "walk" || p.state === "exit") && p.path.length > 0;
-        const cheer = now - p.cheerAt;
-        let lift = 0;
-        let tilt = 0;
-        let squash = 1 + 0.012 * Math.sin(t * 2 + p.phase);
-        if (walking) {
-          lift = Math.abs(Math.sin(t * 8 + p.phase)) * 0.035;
-          tilt = Math.sin(t * 8 + p.phase) * 0.05;
-        } else if (cheer >= 0 && cheer < 1.2) {
-          // a cheer: two little hops
-          lift = Math.abs(Math.sin((cheer / 1.2) * Math.PI * 2)) * 0.12;
-          squash = 1 + 0.05 * Math.sin((cheer / 1.2) * Math.PI * 2);
-        } else if (p.state === "stay" && p.group === "bar") {
-          // a drink: tipped back now and then
-          const s = (t * 0.25 + p.phase) % 1;
-          tilt = s < 0.12 ? -Math.sin((s / 0.12) * Math.PI) * 0.18 : 0;
-        }
+        const pw = walking ? 0 : poseWeight(p.pose, p.poseAt, now);
+        // the step's bob and sway; a little hop in a cheer
+        const lift = walking ? Math.abs(Math.sin(t * 8 + p.phase)) * 0.04 : p.pose === "cheer" ? Math.abs(Math.sin((now - p.poseAt) * 7)) * 0.06 * pw : 0;
+        const sway = walking ? Math.sin(t * 8 + p.phase) * 0.04 : 0;
+        const squash = 1 + 0.012 * Math.sin(t * 2 + p.phase);
         const scale = p.shown <= 0 ? 0.0001 : 0.25 + 0.75 * easeOut(p.shown);
         dummy.position.set(p.x, p.y + lift, p.z);
-        dummy.rotation.set(tilt, p.heading, 0, "YXZ");
+        dummy.rotation.set(0, p.heading, sway, "YXZ");
         dummy.scale.set(scale, scale * squash, scale);
         dummy.updateMatrix();
-        fur.setMatrixAt(p.slot, dummy.matrix);
-        outfit.setMatrixAt(p.slot, dummy.matrix);
+        mesh.setMatrixAt(p.slot, dummy.matrix);
+        walk.setXYZW(p.slot, p.phase, walking ? 1 : 0, POSE[p.pose], pw);
         if (!colored.current) {
-          fur.setColorAt(p.slot, p.fur);
-          outfit.setColorAt(p.slot, p.outfit);
+          mesh.setColorAt(p.slot, p.outfit);
+          (mesh.geometry.getAttribute("aFur") as THREE.InstancedBufferAttribute).setXYZ(p.slot, p.fur.r, p.fur.g, p.fur.b);
         }
       }
-      fur.instanceMatrix.needsUpdate = true;
-      outfit.instanceMatrix.needsUpdate = true;
+      mesh.instanceMatrix.needsUpdate = true;
+      walk.needsUpdate = true;
       if (!colored.current) {
-        if (fur.instanceColor) fur.instanceColor.needsUpdate = true;
-        if (outfit.instanceColor) outfit.instanceColor.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        (mesh.geometry.getAttribute("aFur") as THREE.InstancedBufferAttribute).needsUpdate = true;
       }
     }
     colored.current = true;
@@ -322,11 +451,106 @@ function Crowd({ subscribeMessages }: { subscribeMessages: (listener: RoomMessag
   return (
     <>
       {KINDS.map((kind) => (
-        <group key={kind}>
-          <primitive object={meshes[kind].fur} />
-          <primitive object={meshes[kind].outfit} />
-        </group>
+        <primitive key={kind} object={figures[kind].mesh} />
       ))}
+    </>
+  );
+}
+
+// --- Bella: round the tables with her tray, pausing at each stop; a word for a seated guest ---
+
+const BELLA_LINES = ["Can I get you anything, darling? 🍸", "Something sparkling for the table? 🥂", "You look like a winner tonight! ✨", "Pippin's shaking up something special, sweetie. 🍹"];
+const BELLA_GREET_GAP_S = 30;
+const BELLA_PAUSE_S = 2.6;
+
+function Bella({ room }: { room: Room | null }) {
+  const { scene } = useGLTF(URL);
+  const figure = useMemo(() => makeFigure(scene, "Patron_Bella", 1), [scene]);
+  useEffect(
+    () => () => {
+      (figure.mesh.material as THREE.Material).dispose();
+      figure.mesh.geometry.dispose();
+      figure.mesh.dispose();
+    },
+    [figure]
+  );
+  // her round: the stops in PATRON_SPOTS.bella, joined by paths round the furniture
+  const round = useMemo(() => {
+    const stops = PATRON_SPOTS.bella;
+    return stops.map((a, i) => {
+      const b = stops[(i + 1) % stops.length];
+      return findPath("velvet_casino", a, b) ?? [b];
+    });
+  }, []);
+  const me = useRef({ x: PATRON_SPOTS.bella[0].x, z: PATRON_SPOTS.bella[0].z, y: 0, heading: 0, leg: 0, path: [...round[0]], pause: 1, lastGreet: -99 });
+  const anchor = useRef<THREE.Group>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const [bubble, setBubble] = useState<{ id: number; text: string } | null>(null);
+
+  useFrame(({ clock }, rawDelta) => {
+    const dt = Math.min(rawDelta, 0.1);
+    const t = clock.elapsedTime;
+    const now = performance.now() / 1000;
+    const b = me.current;
+    let walking = false;
+    if (b.pause > 0) b.pause -= dt;
+    else {
+      const wp = b.path[0];
+      if (!wp) {
+        // at a stop: a pause, then on to the next
+        b.leg = (b.leg + 1) % round.length;
+        b.path = [...round[b.leg]];
+        b.pause = BELLA_PAUSE_S;
+      } else {
+        walking = true;
+        const dx = wp.x - b.x;
+        const dz = wp.z - b.z;
+        const d = Math.hypot(dx, dz);
+        const step = BELLA_SPEED * dt;
+        if (d <= step) {
+          b.x = wp.x;
+          b.z = wp.z;
+          b.path.shift();
+        } else {
+          b.x += (dx / d) * step;
+          b.z += (dz / d) * step;
+        }
+        if (d > 0.01) b.heading = turn(b.heading, Math.atan2(dx, dz), 0.15);
+      }
+    }
+    b.y += (walkY("velvet_casino", b.x, b.z) - b.y) * 0.2;
+    // a seated guest close by: a word, now and then
+    const seated = !!room?.state?.players?.get?.(room.sessionId)?.sitting;
+    if (seated && now - b.lastGreet > BELLA_GREET_GAP_S && Math.hypot(cameraFocus.x - b.x, cameraFocus.z - b.z) < 1.9) {
+      b.lastGreet = now;
+      const id = Math.floor(now * 1000);
+      setBubble({ id, text: BELLA_LINES[Math.floor(Math.random() * BELLA_LINES.length)] });
+      window.setTimeout(() => setBubble((cur) => (cur?.id === id ? null : cur)), 4000);
+    }
+    const lift = walking ? Math.abs(Math.sin(t * 8)) * 0.04 : 0;
+    dummy.position.set(b.x, b.y + lift, b.z);
+    dummy.rotation.set(0, b.heading, walking ? Math.sin(t * 8) * 0.035 : 0, "YXZ");
+    dummy.scale.setScalar(1);
+    dummy.updateMatrix();
+    figure.mesh.setMatrixAt(0, dummy.matrix);
+    figure.mesh.instanceMatrix.needsUpdate = true;
+    figure.walk.setXYZW(0, 0, walking ? 1 : 0, 0, 0);
+    figure.walk.needsUpdate = true;
+    anchor.current?.position.set(b.x, b.y + 1.35, b.z);
+  });
+
+  return (
+    <>
+      <primitive object={figure.mesh} />
+      <group ref={anchor}>
+        {bubble && (
+          <Html key={bubble.id} center zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
+            <div className="cozy-chat-bubble" style={{ position: "relative" }}>
+              {bubble.text}
+            </div>
+          </Html>
+        )}
+      </group>
     </>
   );
 }

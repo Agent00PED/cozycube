@@ -241,7 +241,7 @@ class Player extends Schema {
   @type("boolean") speaking = false;
   @type("boolean") connected = true;
   @type("number") coins = STARTING_COINS;
-  /** Velvet Chips 🟡 (the record's casino.chips is the one kept). */
+  /** Velvet Chips (the record's casino.chips is the one kept). */
   @type("number") chips = 0;
   @type("string") bag = "";
   @type("string") owned = "";
@@ -460,7 +460,19 @@ export class HangoutRoom extends Room<HangoutState> {
     this.setState(new HangoutState());
     this.casino = new CasinoFloor(this.state, {
       broadcast: (type, payload) => this.broadcast(type, payload),
+      broadcastExcept: (sessionId, type, payload) => {
+        const except = this.clients.find((c) => c.sessionId === sessionId);
+        this.broadcast(type, payload, except ? { except } : undefined);
+      },
       sendTo: (sessionId, type, payload) => this.sendTo(sessionId, type, payload),
+      teleport: (sessionId, x, z) => {
+        const player = this.state.players.get(sessionId);
+        if (!player || player.sitting) return;
+        player.x = x;
+        player.z = z;
+        player.dirX = 0;
+        player.dirZ = 0;
+      },
       later: (ms, fn) => void this.clock.setTimeout(fn, ms),
       tally: (sessionId, event) => {
         const player = this.state.players.get(sessionId);

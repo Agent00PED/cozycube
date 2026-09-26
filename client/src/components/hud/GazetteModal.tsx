@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { DERBY_HORSES, type CasinoWin } from "@shared/casino";
 import type { LeaderboardEntry } from "@shared/types";
 import { Modal } from "./Modal";
+import { VelvetChipIcon } from "./VelvetChipIcon";
 
 // The Velvet Gazette, folded on the Chesterfield's coffee table: the house's evening paper. Its
 // front page is tonight's real news (the room's big wins as they happened, the High Rollers'
@@ -22,7 +23,7 @@ const GOSSIP = [
   ["VIP Room: Still Locked", "Bruno confirms the doors remain shut. Asked who is inside, he adjusted his sunglasses."],
   ["Madame Vivienne's Wheel Waxed", "The croupier insists the gleam is purely cosmetic. Faites vos jeux."],
   ["Chandelier Count Holds at Four", "After an exhaustive audit, the house confirms: still four chandeliers, all sparkling."],
-  ["The Turf Club Goes to the Races", `Tipsters favour ${DERBY_HORSES[0]}, though ${DERBY_HORSES[4]} is said to be in fine form.`],
+  ["The Turf Club Goes to the Races", `Tipsters favour ${DERBY_HORSES[0]}, though ${DERBY_HORSES[3]} is said to be in fine form.`],
 ];
 
 function dayIndex(): number {
@@ -66,7 +67,7 @@ export function GazetteModal({ leaderboard, onClose }: { leaderboard: Leaderboar
             <ol className="m-0 pl-5 text-sm">
               {top.map((e) => (
                 <li key={e.username}>
-                  <b>{e.username}</b> — worth {e.worth.toLocaleString("en-US")} ({e.coins.toLocaleString("en-US")} 🪙 · {e.chips.toLocaleString("en-US")} 🟡)
+                  <b>{e.username}</b> — worth {e.worth.toLocaleString("en-US")} ({e.coins.toLocaleString("en-US")} 🪙 · {e.chips.toLocaleString("en-US")} <VelvetChipIcon />)
                 </li>
               ))}
             </ol>

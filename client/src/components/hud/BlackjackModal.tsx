@@ -1,27 +1,38 @@
-import { useEffect, useRef } from "react";
-import { BLACKJACK_BETS, type BlackjackAction, type BlackjackCard, type BlackjackView } from "@shared/casino";
+import { useEffect, useRef, useState } from "react";
+import { TABLE_LIMITS, limitPlacard, type BlackjackAction, type BlackjackCard, type BlackjackView } from "@shared/casino";
+import type { BlackjackTier } from "@shared/worlds/casino";
 import { Modal } from "./Modal";
+import { BetPicker, ShortOfChips, clampStake } from "./BetControls";
+import { ChipAmount } from "./VelvetChipIcon";
 
-// The blackjack table: the server deals, hits, stands and pays; this shows the hand it sends
-// back and offers the moves that are legal right now. Stakes and payouts are Velvet Chips.
+// The blackjack tables: the server deals, hits, stands and pays; this shows the hand it sends
+// back and offers the moves that are legal right now. Stakes and payouts are Velvet Chips, within
+// the table's limits (Table 1 casual, Table 2 high stakes), with an ALL IN up to the table's cap.
 interface Props {
   view: BlackjackView | null;
-  /** Velvet Chips: what you can stake. */
+  /** The table you are at: its limits. */
+  tier: BlackjackTier;
+  tableLabel: string;
+  /** Velvet Chips: what you can stake (and coins, for the cage's advice when both run out). */
   chips: number;
+  coins: number;
   onAction: (action: BlackjackAction, bet?: number) => void;
   onClose: () => void;
 }
 
 const OUTCOME_TEXT: Record<string, string> = {
   blackjack: "Blackjack! Pays 3 to 2 🎉",
-  win: "You win! 🟡",
+  win: "You win!",
   push: "Push — stake returned",
   lose: "Dealer wins",
   bust: "Bust! Over 21",
 };
 
-export function BlackjackModal({ view, chips, onAction, onClose }: Props) {
+export function BlackjackModal({ view, tier, tableLabel, chips, coins, onAction, onClose }: Props) {
   const idle = !view || view.phase === "idle" || view.phase === "done";
+  const limit = TABLE_LIMITS[tier];
+  const [stake, setStake] = useState<number>(limit.presets[0]);
+  const bet = clampStake(stake, limit, chips);
   const cardsSeen = useRef(0);
   // card sounds as cards arrive; a fanfare when it pays
   useEffect(() => {
@@ -37,26 +48,27 @@ export function BlackjackModal({ view, chips, onAction, onClose }: Props) {
   }, [view]);
 
   return (
-    <Modal title="Blackjack" icon="🃏" onClose={onClose} width={520} tone="felt">
+    <Modal title={`Blackjack · ${tableLabel}${tier === "blackjack_high" ? " (High Stakes)" : " (Casual)"}`} icon="🃏" onClose={onClose} width={540} tone="felt" placard={limitPlacard(limit)}>
       <div className="flex flex-col gap-4 pb-2">
         <Hand title="Dealer" cards={view?.dealer ?? []} total={view?.dealerTotal ?? 0} hidden={!!view?.holeHidden} />
         <div className="text-center text-sm font-extrabold text-amber-200">
           {view?.phase === "done" ? OUTCOME_TEXT[view.outcome] ?? "" : view?.phase === "player" ? "Your move" : "Place a bet to be dealt in"}
-          {view?.phase === "done" && view.payout > 0 && <span className="ml-2 rounded-full bg-amber-300 px-2 py-0.5 text-amber-950">+{view.payout}</span>}
+          {view?.phase === "done" && view.payout > 0 && (
+            <span className="ml-2 rounded-full bg-amber-300 px-2 py-0.5 text-amber-950">
+              +<ChipAmount n={view.payout} />
+            </span>
+          )}
         </div>
         <Hand title="You" cards={view?.player ?? []} total={view?.playerTotal ?? 0} />
 
         {idle ? (
           <div className="flex flex-col items-center gap-2">
-            <div className="text-xs opacity-70">Dealer stands on 17 · Blackjack pays 3:2 · Your chips: 🟡 {chips}</div>
-            <div className="flex flex-wrap justify-center gap-2">
-              {BLACKJACK_BETS.map((b) => (
-                <button key={b} type="button" disabled={chips < b} onClick={() => (onAction("deal", b))} className="clay-btn clay-btn-amber min-h-12 px-4">
-                  <Chip value={b} /> {b}
-                </button>
-              ))}
-            </div>
-            {chips < BLACKJACK_BETS[0] && <div className="text-xs text-rose-200">Not enough chips to sit in. Buy chips from Mr. Vance at the cage by the doors.</div>}
+            <div className="text-xs opacity-70">Cedric stands on 17 · Blackjack pays 3:2</div>
+            <BetPicker limit={limit} chips={chips} value={bet} onChange={setStake} />
+            <button type="button" disabled={chips < bet || chips < limit.min} onClick={() => onAction("deal", bet)} className="clay-btn clay-btn-amber min-h-12 px-8 text-base">
+              Deal · <ChipAmount n={bet} />
+            </button>
+            <ShortOfChips limit={limit} chips={chips} coins={coins} />
           </div>
         ) : (
           <div className="flex justify-center gap-2">
@@ -71,7 +83,11 @@ export function BlackjackModal({ view, chips, onAction, onClose }: Props) {
             </button>
           </div>
         )}
-        {view && view.phase !== "idle" && <div className="text-center text-xs opacity-70">Stake on the table: 🟡 {view.bet}</div>}
+        {view && view.phase !== "idle" && (
+          <div className="text-center text-xs opacity-70">
+            Stake on the table: <ChipAmount n={view.bet} />
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -110,9 +126,4 @@ function Card({ card }: { card: BlackjackCard }) {
 
 function CardBack() {
   return <div className="card-deal h-20 w-14 rounded-xl border border-amber-200/40 bg-[repeating-linear-gradient(45deg,#7a1f2e_0,#7a1f2e_6px,#5a1522_6px,#5a1522_12px)] shadow-lg" />;
-}
-
-function Chip({ value }: { value: number }) {
-  const color = value >= 100 ? "bg-stone-900 text-amber-200" : value >= 50 ? "bg-blue-600 text-white" : value >= 25 ? "bg-emerald-600 text-white" : "bg-red-600 text-white";
-  return <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-dashed border-white/80 text-[10px] font-black ${color}`}>{value}</span>;
 }

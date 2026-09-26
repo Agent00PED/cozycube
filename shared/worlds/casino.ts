@@ -2,139 +2,148 @@ import type { AABB } from "../collision";
 import type { SeatStyle } from "../types";
 import type { PropSpec, SeatSpec } from "./lounge";
 
-// The Velvet Casino: a mid-century Art-Deco hall on a 26x26 slab, run by and for dapper animals.
-// Two tall back walls (x = -13 and z = -13, inner faces at -12.8), the front (+x and +z) open to
-// the camera. Authored ONCE, here:
+// The Velvet Casino: a compact mid-century Art-Deco hall on a 20x20 slab, run by and for dapper
+// animals. Two tall back walls (x = -10 and z = -10, inner faces at -9.8), the front (+x and +z)
+// open to the camera. Authored ONCE, here:
 //
 //   CASINO_LAYOUT     where everything is (plain JSON between the markers: scripts/blender/
 //                     build_casino.py reads the very same text to build casino.glb, so the model
 //                     and the walkable floor can never disagree)
-//   casinoFloorY      how high the floor is anywhere: the raised High-Roller Pit and Velvet Lounge,
-//                     and the steps up to them (the game stands avatars, seats and staff on it)
-//   CASINO_SEATS      stools, chairs, the ottoman, the piano bench, the Chesterfield
+//   casinoFloorY      how high the floor is anywhere: the raised High-Roller Stage and Velvet
+//                     Lounge, and the steps up to them (the game stands avatars, seats and staff on it)
+//   CASINO_SEATS      stools, chairs, the Chesterfield, the piano bench, the VIP room's loveseat
 //   CASINO_PROPS      everything you walk up to and use (the tables, the slots, the cage, the
 //                     doors, Madame Zara, the capsule machine, the tip jars, the bar, the piano...)
 //   CASINO_OBSTACLES  what you walk round;  CASINO_SPAWNS  where you arrive (inside the doors)
 //   CASINO_NPCS       where the staff and regulars stand;  PATRON_SPOTS  where the crowd wanders
 //
-// The zones, as the camera sees them (the camera looks from +x +z, so the tall things stand along
-// the back walls, and what stands on the floor stays low: the pillars are torch columns, not
-// ceiling posts, and there is no ceiling to hang anything from):
+// The zones, by the screen's compass (the camera looks from +x +z: north is the back corner, east
+// the right-hand one, west the left-hand one):
 //
-//   back-right   1 THE GRAND FOYER: marble; the exit doors in the back wall, flanked by palms; a
-//                round tufted ottoman under a chandelier; Madame Zara's fortune booth and the
-//                capsule machine by the main floor; Mr. Vance's Golden Cage in the corner (a
-//                raised teller's platform behind its counter, `cage.floor`)
-//   centre       2 THE MAIN GAMING FLOOR: burgundy velvet carpet; the roulette table (Madame
-//                Vivienne at the wheel, her tip jar on the rail) in a gold sunburst; three
-//                half-moon blackjack tables in a crescent round a pit boss's podium; the craps
-//                table between the roulette and Neon Alley
-//   left wall    3 NEON ALLEY: six vintage slot machines against the wall (Jasper at a seventh of
-//                his own), the Turf Club derby table and a coin pusher in front of them
-//   back corner  4 THE HIGH-ROLLER PIT: raised 0.35 behind a velvet rope, two brass steps up at its
-//                open corner; the mahogany poker table (Boris dealing, his tip jar at his elbow);
-//                the locked VIP room's doors in the wall, Bruno the bulldog bouncer beside them
-//   front-left   5 THE VELVET LOUNGE & JAZZ BAR: a dais raised 0.25, two steps up all along its open
-//                sides; the bar along the wall (Pippin behind it on a duckboard, `bar.floor`) with
-//                five stools, a billiards table under its brass lamp, a Chesterfield nook with The
-//                Velvet Gazette on its coffee table, two cocktail tables, and the baby grand
-//
-// Four fluted torch columns mark the corners where the foyer, the floor, the alley and the lounge
-// meet; brass divider strips run where one floor meets another; paintings of the house's ancestors,
-// sunburst mirrors and the Big-Win marquee hang on the walls' upper spans.
+//   south-east   1 THE GRAND FOYER: marble; the double doors in the right-hand back wall, a red
+//                runner in from them; Mr. Vance's Golden Cage to the right of the doors (a raised
+//                teller's platform behind its counter, `cage.floor`); Madame Zara's fortune booth
+//                and the capsule machine tucked into the nook to their left
+//   centre       2 THE MAIN GAMING FLOOR: burgundy velvet carpet; Madame Vivienne's roulette in a
+//                gold sunburst; the craps table beside it; two parallel half-moon blackjack tables
+//                (Table 1 casual, Table 2 high stakes), Cedric the badger dealing both from between
+//                them
+//   north-east   3 THE HIGH-ROLLER STAGE: raised 0.35 behind brass stanchions and velvet ropes, a
+//                double step up at its middle; Boris's poker table with five chairs in a row; the
+//                VIP room, a roped enclosure behind gilded double doors that Bruno the bulldog
+//                guards (he lets in a player holding 500 chips or the Card Shark title), with the
+//                high-stakes slot and a loveseat inside
+//   north-west   4 THE VELVET LOUNGE: a dais raised 0.25, steps all along its open sides; Pippin's
+//                bar along the wall (him behind it on a duckboard, `bar.floor`) with five stools,
+//                a Chesterfield nook against the back wall with The Velvet Gazette on its coffee
+//                table, the 8-ball table under its low brass lamps, and the baby grand at the
+//                dais's front corner, its pianist facing the room
+//   west         5 NEON ALLEY: five vintage slots against the wall (Jasper at his own machine at the
+//                end of the row) under the neon, the Mechanical Turf Club and the coin pusher
 //
 // Coordinates are the game's: x right, z toward the camera's side, heights in y; headings about y
 // with 0 facing +z (so pi/2 faces +x).
 
 export const CASINO_LAYOUT = /* layout:begin */ {
-  "half": 13,
-  "walls": { "t": 0.2, "h": 4.2 },
+  "half": 10,
+  "walls": { "t": 0.2, "h": 4.0 },
   "zones": [
-    { "id": "floor", "name": "Main Gaming Floor", "x0": -13, "x1": 13, "z0": -13, "z1": 13, "floor": "carpet" },
-    { "id": "foyer", "name": "Grand Foyer", "x0": 1.2, "x1": 13, "z0": -13, "z1": -5.2, "floor": "marble" },
-    { "id": "alley", "name": "Neon Alley", "x0": -13, "x1": -8.2, "z0": -5.6, "z1": 3.2, "floor": "neon" },
-    { "id": "pit", "name": "High-Roller Pit", "x0": -13, "x1": -6.2, "z0": -13, "z1": -6.2, "floor": "pit" },
-    { "id": "lounge", "name": "Velvet Lounge", "x0": -13, "x1": -3.4, "z0": 3.2, "z1": 13, "floor": "lounge" }
+    { "id": "floor", "name": "Main Gaming Floor", "x0": -10, "x1": 10, "z0": -10, "z1": 10, "floor": "carpet" },
+    { "id": "foyer", "name": "Grand Foyer", "x0": 3.0, "x1": 10, "z0": -10, "z1": -4.6, "floor": "marble" },
+    { "id": "alley", "name": "Neon Alley", "x0": -10, "x1": -5.0, "z0": 0.4, "z1": 8.6, "floor": "neon" },
+    { "id": "pit", "name": "High-Roller Stage", "x0": -4.2, "x1": 3.0, "z0": -10, "z1": -4.6, "floor": "pit" },
+    { "id": "lounge", "name": "Velvet Lounge", "x0": -10, "x1": -4.2, "z0": -10, "z1": -0.2, "floor": "lounge" },
+    { "id": "vip", "name": "VIP Room", "x0": -4.2, "x1": -1.2, "z0": -10, "z1": -6.8, "floor": "vip" }
   ],
   "stages": [
-    { "id": "pit", "x0": -13, "x1": -6.2, "z0": -13, "z1": -6.2, "h": 0.35, "depth": 0.7, "count": 2, "open": [{ "edge": "x1", "from": -7.6, "to": -6.2 }, { "edge": "z1", "from": -7.6, "to": -6.2 }] },
-    { "id": "lounge", "x0": -13, "x1": -4.0, "z0": 3.8, "z1": 13, "h": 0.25, "depth": 0.6, "count": 2, "open": [{ "edge": "x1", "from": 3.8, "to": 13 }, { "edge": "z0", "from": -13, "to": -4.0 }] }
+    { "id": "pit", "x0": -4.2, "x1": 3.0, "z0": -10, "z1": -4.6, "h": 0.35, "depth": 0.7, "count": 2, "open": [{ "edge": "z1", "from": -1.0, "to": 1.2 }] },
+    { "id": "lounge", "x0": -10, "x1": -4.2, "z0": -10, "z1": -0.2, "h": 0.25, "depth": 0.6, "count": 2, "open": [{ "edge": "x1", "from": -4.6, "to": -0.2 }, { "edge": "z1", "from": -10, "to": -4.2 }] }
   ],
-  "doors": { "x": 4.5, "w": 2.4, "h": 2.9 },
-  "palms": [{ "x": 2.3, "z": -12.1 }, { "x": 6.7, "z": -12.1 }],
-  "ottoman": { "x": 4.5, "z": -7.6, "r": 0.95, "seatR": 0.8 },
-  "cage": { "x0": 7.6, "x1": 13, "z0": -13, "z1": -10.4, "window": 10.2, "counter": 1.05, "h": 2.6, "floor": 0.55 },
-  "zara": { "x": 2.0, "z": -6.4, "w": 1.1, "d": 0.9, "h": 2.35, "yaw": 0.7854 },
-  "gachapon": { "x": 8.4, "z": -6.1, "r": 0.34, "h": 1.5 },
-  "roulette": { "x": 1.0, "z": 0.5, "len": 3.2, "w": 1.5, "top": 0.78, "wheel": -1.15, "reach": 3.4 },
+  "doors": { "x": 6.6, "w": 2.2, "h": 2.9 },
+  "runner": { "x": 6.6, "w": 1.2, "z1": -4.8 },
+  "cage": { "x0": 8.2, "x1": 10, "z0": -10, "z1": -7.9, "window": 9.1, "counter": 1.05, "h": 2.6, "floor": 0.55 },
+  "zara": { "x": 4.55, "z": -9.0, "w": 1.1, "d": 0.9, "h": 2.35, "yaw": 0.7854 },
+  "gachapon": { "x": 3.5, "z": -7.7, "r": 0.34, "h": 1.5 },
+  "roulette": { "x": 0.4, "z": 0.8, "len": 3.2, "w": 1.5, "top": 0.78, "wheel": -1.15, "reach": 3.4, "sunburst": 3.0 },
   "blackjack": {
-    "centre": [11.4, 2.3],
-    "radius": 4.6,
-    "angles": [-50, 0, 50],
+    "tables": [
+      { "x": 6.9, "z": -0.3, "tier": "blackjack_casual", "felt": "green" },
+      { "x": 6.9, "z": 3.7, "tier": "blackjack_high", "felt": "blue" }
+    ],
+    "yaw": 1.5708,
     "r": 1.1,
     "top": 0.74,
     "stoolR": 1.55,
     "stoolAngles": [-60, -20, 20, 60],
-    "reach": 2.4,
-    "podium": 0.32
+    "reach": 2.4
   },
-  "craps": { "x": -5.0, "z": 0.3, "len": 3.4, "w": 1.7, "top": 0.88, "felt": 0.66 },
-  "slots": { "x": -12.25, "zs": [-4.8, -3.6, -2.4, -1.2, 0.0, 1.2], "jasper": 2.4, "w": 0.9, "d": 0.8, "h": 1.75 },
-  "derby": { "x": -9.1, "z": -2.2, "len": 2.4, "w": 1.0, "top": 0.9 },
-  "pusher": { "x": -8.95, "z": 1.5, "w": 0.9, "d": 0.8, "h": 1.8 },
-  "pillars": { "at": [[1.2, -5.2], [-8.2, -5.6], [-8.2, 2.9], [-3.1, 2.9]], "r": 0.26, "h": 2.6 },
+  "craps": { "x": 0.4, "z": 5.4, "len": 3.4, "w": 1.7, "top": 0.88, "felt": 0.66, "reach": 2.6 },
+  "slots": { "x": -9.25, "zs": [1.3, 2.5, 3.7, 4.9, 6.1], "jasper": 7.3, "w": 0.9, "d": 0.8, "h": 1.75 },
+  "neon": { "from": 0.8, "to": 7.8, "y": 2.6 },
+  "derby": { "x": -6.3, "z": 2.9, "len": 2.4, "w": 1.0, "top": 0.9, "reach": 2.0 },
+  "pusher": { "x": -6.3, "z": 6.3, "w": 0.9, "d": 0.8, "h": 1.8, "reach": 1.9 },
+  "pillars": { "at": [[3.25, -4.35], [-4.6, 0.8]], "r": 0.26, "h": 2.6 },
   "poker": {
-    "x": -9.6,
-    "z": -9.6,
-    "len": 2.8,
-    "w": 1.6,
+    "x": 0.9,
+    "z": -7.75,
+    "len": 3.4,
+    "w": 1.3,
     "top": 0.68,
-    "chairs": [
-      { "x": -10.6, "z": -8.35, "yaw": 3.1416 },
-      { "x": -9.6, "z": -8.35, "yaw": 3.1416 },
-      { "x": -8.6, "z": -8.35, "yaw": 3.1416 },
-      { "x": -11.45, "z": -9.6, "yaw": 1.5708 },
-      { "x": -7.75, "z": -9.6, "yaw": -1.5708 }
-    ]
+    "reach": 2.4,
+    "chairZ": -6.5,
+    "chairs": [-0.6, 0.15, 0.9, 1.65, 2.4]
   },
   "ropes": [
-    { "a": [-6.32, -12.8], "b": [-6.32, -7.6] },
-    { "a": [-12.8, -6.32], "b": [-7.6, -6.32] }
+    { "a": [-4.2, -4.6], "b": [-1.0, -4.6] },
+    { "a": [1.2, -4.6], "b": [3.0, -4.6] },
+    { "a": [3.0, -4.6], "b": [3.0, -9.8] }
   ],
-  "vipDoor": { "z": -8.3, "w": 1.4, "h": 2.5 },
-  "tipJars": { "boris": [-8.55, -9.95], "vivienne": [-0.3, 1.1] },
-  "bar": { "x0": -13, "x1": -10.4, "z0": 3.8, "z1": 10.0, "top": 0.72, "floor": 0.3, "stoolX": -9.9, "stools": [4.6, 5.8, 7.0, 8.2, 9.4] },
-  "billiards": { "x": -6.4, "z": 5.6, "len": 2.5, "w": 1.4, "top": 0.8, "lamp": 2.0 },
-  "sofa": { "x": -4.75, "z": 7.4, "len": 2.0, "seats": [6.8, 7.4, 8.0] },
-  "coffee": { "x": -6.25, "z": 7.4, "w": 0.6, "len": 1.0, "top": 0.45 },
-  "cocktails": [{ "x": -11.0, "z": 11.6 }, { "x": -7.6, "z": 11.6 }],
-  "piano": { "x": -5.0, "z": 10.9, "len": 1.5, "w": 1.45, "top": 1.0, "bench": 9.75 },
-  "planters": [{ "x": 12.1, "z": 12.1 }, { "x": 12.1, "z": -4.4 }, { "x": -2.4, "z": 12.1 }],
-  "chandeliers": [[1.0, 3.5, 0.5], [8.4, 3.5, 2.3], [4.5, 3.7, -7.6], [-9.6, 3.6, -9.6]],
-  "sconces": { "y": 2.3, "onBackZ": [-11.0, -8.0, -3.5, 0.0, 2.3, 6.7], "onBackX": [-11.0, -5.8, -1.8, 3.3, 10.6, 12.0] },
-  "marquee": { "x": -0.3, "y": 3.1, "w": 2.3, "h": 0.8 },
+  "balustrade": { "x": -4.2, "z0": -9.8, "z1": -4.6 },
+  "vip": {
+    "x0": -4.2,
+    "x1": -1.2,
+    "z0": -10,
+    "z1": -6.8,
+    "gate": -2.7,
+    "gateW": 1.0,
+    "rail": 1.0,
+    "slot": { "x": -3.6, "z": -9.35 },
+    "loveseat": { "x": -2.0, "z": -9.35, "len": 1.3, "seats": [-2.3, -1.7] },
+    "bucket": { "x": -2.85, "z": -9.5 }
+  },
+  "tipJars": { "boris": [2.45, -7.25], "vivienne": [-0.9, 1.4] },
+  "bar": { "x0": -10, "x1": -8.4, "z0": -10, "z1": -4.2, "top": 0.72, "floor": 0.3, "stoolX": -7.9, "stools": [-8.8, -7.8, -6.8, -5.8, -4.8] },
+  "billiards": { "x": -7.4, "z": -2.3, "len": 2.5, "w": 1.4, "top": 0.8, "lamp": 1.75 },
+  "sofa": { "x": -5.5, "z": -9.1, "len": 2.0, "seats": [-6.1, -5.5, -4.9] },
+  "coffee": { "x": -5.5, "z": -7.6, "lx": 1.0, "lz": 0.6, "top": 0.45 },
+  "piano": { "x": -5.1, "z": -3.0, "len": 1.5, "w": 1.45, "top": 1.0, "bench": -4.15 },
+  "planters": [{ "x": 9.3, "z": 9.3 }, { "x": -4.4, "z": 9.4 }, { "x": 9.4, "z": -3.6 }],
+  "chandeliers": [[0.4, 3.4, 0.8], [6.9, 3.4, 1.7], [6.6, 3.5, -6.9], [0.9, 3.4, -7.4]],
+  "sconces": { "y": 2.3, "onBackZ": [-8.2, -6.4, -3.6, -0.7, 2.5], "onBackX": [-3.4, 0.0, 8.6] },
+  "marquee": { "x": 0.9, "y": 3.05, "w": 2.3, "h": 0.8 },
   "paintings": [
-    { "wall": "z", "at": -11.0, "y": 3.05, "subject": "fox" },
-    { "wall": "z", "at": -8.0, "y": 3.05, "subject": "bear" },
-    { "wall": "z", "at": 2.3, "y": 3.05, "subject": "owl" },
-    { "wall": "z", "at": 12.0, "y": 3.35, "subject": "poodle" },
-    { "wall": "x", "at": -11.0, "y": 3.05, "subject": "cat" }
+    { "wall": "z", "at": -7.3, "y": 3.05, "subject": "poodle" },
+    { "wall": "z", "at": -2.7, "y": 3.1, "subject": "bear" },
+    { "wall": "z", "at": 9.1, "y": 3.35, "subject": "fox" },
+    { "wall": "x", "at": -1.7, "y": 3.0, "subject": "owl" },
+    { "wall": "x", "at": 9.1, "y": 3.0, "subject": "cat" }
   ],
-  "mirrors": [{ "wall": "z", "at": -3.5, "y": 3.15 }, { "wall": "x", "at": 12.1, "y": 3.15 }],
+  "mirrors": [{ "wall": "z", "at": 4.2, "y": 3.15 }],
   "npcs": {
-    "vance": { "x": 9.75, "z": -11.15, "yaw": 0 },
-    "boris": { "x": -9.6, "z": -10.75, "yaw": 0 },
-    "vivienne": { "x": -1.05, "z": 0.5, "yaw": 1.5708 },
-    "jasper": { "x": -11.45, "z": 2.4, "yaw": -1.5708 },
-    "pippin": { "x": -11.35, "z": 6.9, "yaw": 1.5708 },
-    "bruno": { "x": -12.1, "z": -7.1, "yaw": 1.5708 }
+    "vance": { "x": 8.75, "z": -8.65, "yaw": 0 },
+    "boris": { "x": 0.9, "z": -8.75, "yaw": 0 },
+    "vivienne": { "x": -1.65, "z": 0.8, "yaw": 1.5708 },
+    "jasper": { "x": -8.45, "z": 7.3, "yaw": -1.5708 },
+    "pippin": { "x": -9.25, "z": -6.8, "yaw": 1.5708 },
+    "bruno": { "x": -1.7, "z": -6.35, "yaw": 0 },
+    "cedric": { "x": 6.2, "z": 1.7, "yaw": 1.5708 }
   },
   "spawns": [
-    { "x": 4.5, "z": -10.5 },
-    { "x": 3.4, "z": -10.0 },
-    { "x": 5.6, "z": -10.0 },
-    { "x": 2.4, "z": -9.3 },
-    { "x": 6.6, "z": -9.3 }
+    { "x": 6.6, "z": -7.2 },
+    { "x": 5.7, "z": -6.6 },
+    { "x": 7.5, "z": -6.6 },
+    { "x": 6.6, "z": -5.9 },
+    { "x": 5.2, "z": -5.6 }
   ]
 } /* layout:end */;
 
@@ -147,21 +156,18 @@ export const CASINO_FRAME = { x: 0, z: 0, size: L.half * 2 + 0.8 };
 
 const DEG = Math.PI / 180;
 const FACE_POS_Z = 0;
-const FACE_POS_X = Math.PI / 2;
+const FACE_NEG_Z = Math.PI;
 const FACE_NEG_X = -Math.PI / 2;
 /** The heading that faces from (x, z) toward `to` (heading 0 faces +z). */
 const facing = (x: number, z: number, to: Pt) => Math.atan2(to.x - x, to.z - z);
-const unit = (x: number, z: number) => {
-  const d = Math.hypot(x, z) || 1;
-  return { x: x / d, z: z / d };
-};
 const heading = (yaw: number) => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
+const near = (p: Pt, q: Pt, reach: number) => Math.hypot(p.x - q.x, p.z - q.z) <= reach;
 
 // --- the zones ------------------------------------------------------------------------------
 
-export type CasinoZoneId = "floor" | "foyer" | "alley" | "pit" | "lounge";
+export type CasinoZoneId = "floor" | "foyer" | "alley" | "pit" | "lounge" | "vip";
 export type CasinoZone = { id: CasinoZoneId; name: string; x0: number; x1: number; z0: number; z1: number; floor: string };
-/** The five zones, in paint order: the main floor's carpet is the whole slab, the others lie on it. */
+/** The zones, in paint order: the main floor's carpet is the whole slab, the others lie on it. */
 export const CASINO_ZONES = L.zones as readonly CasinoZone[];
 /** The zone at (x, z): the topmost one there. */
 export function casinoZoneAt(x: number, z: number): CasinoZone {
@@ -175,10 +181,10 @@ export function casinoZoneAt(x: number, z: number): CasinoZone {
 // --- the raised stages and their steps --------------------------------------------------------
 //
 // A stage is a rectangle raised `h`, with steps (`count` treads, `depth` deep in all) down from the
-// runs of its edges listed in `open`; its other edges meet a wall or a velvet rope, so nobody walks
-// off them. Its `count + 1` risers are equal (h / (count + 1) each), so the treads stand at
-// h * count / (count + 1) (the one against the stage) down to h / (count + 1): feet land on a
-// tread, and the avatar's height eases from one to the next as it climbs. build_casino.py builds
+// runs of its edges listed in `open`; its other edges meet a wall, a velvet rope or a balustrade, so
+// nobody walks off them. Its `count + 1` risers are equal (h / (count + 1) each), so the treads
+// stand at h * count / (count + 1) (the one against the stage) down to h / (count + 1): feet land on
+// a tread, and the avatar's height eases from one to the next as it climbs. build_casino.py builds
 // the very same stages and steps from this.
 
 export interface Stage {
@@ -225,7 +231,7 @@ export function casinoFloorY(x: number, z: number): number {
 }
 
 const stage = (id: string) => CASINO_STAGES.find((s) => s.id === id)!;
-/** The top of the pit and of the lounge's dais. */
+/** The top of the High-Roller Stage and of the lounge's dais. */
 export const PIT_Y = stage("pit").h;
 export const LOUNGE_Y = stage("lounge").h;
 
@@ -236,15 +242,16 @@ export type CasinoNpcId = keyof typeof L.npcs;
  *  their spot: paws on the counter or the felt, Jasper on the stool at his own machine), and how
  *  high (the floor under them, and Mr. Vance's and Pippin's platforms). `phase`: the build that
  *  brought them. Mr. Vance stands a little left of his window's middle: the camera looks down along
- *  (1, 1, 1), so the line from his face to it crosses the bars about 0.5 further along +x, in the
- *  window's middle. */
-export const CASINO_NPCS: Record<CasinoNpcId, { x: number; z: number; yaw: number; y: number; name: string; role: string; phase: "1a" | "1b" | "2" }> = {
+ *  (1, 1, 1), so the line from his face to it crosses the bars further along +x, in the window's
+ *  middle. */
+export const CASINO_NPCS: Record<CasinoNpcId, { x: number; z: number; yaw: number; y: number; name: string; role: string; phase: "1a" | "1b" | "2" | "3" }> = {
   vance: { ...L.npcs.vance, y: L.cage.floor, name: "Mr. Vance", role: "the fox cashier at the Golden Cage", phase: "1a" },
-  boris: { ...L.npcs.boris, y: PIT_Y, name: "Boris", role: "the polar bear dealer in the High-Roller Pit", phase: "1b" },
+  boris: { ...L.npcs.boris, y: PIT_Y, name: "Boris", role: "the polar bear dealing Three-Card Poker on the High-Roller Stage", phase: "1b" },
   vivienne: { ...L.npcs.vivienne, y: 0, name: "Madame Vivienne", role: "the poodle croupier at the roulette wheel", phase: "1b" },
   jasper: { ...L.npcs.jasper, y: 0, name: "Jasper", role: "the tuxedo cat at his favourite slot", phase: "1b" },
   pippin: { ...L.npcs.pippin, y: LOUNGE_Y + L.bar.floor, name: "Pippin", role: "the penguin mixologist behind the bar", phase: "1b" },
   bruno: { ...L.npcs.bruno, y: PIT_Y, name: "Bruno", role: "the bulldog bouncer at the VIP room's doors", phase: "2" },
+  cedric: { ...L.npcs.cedric, y: 0, name: "Cedric", role: "the badger dealing both blackjack tables", phase: "3" },
 };
 
 // --- the games' tables ------------------------------------------------------------------------
@@ -253,18 +260,22 @@ export const CASINO_NPCS: Record<CasinoNpcId, { x: number; z: number; yaw: numbe
 export const ROULETTE_CENTER = { x: L.roulette.x, z: L.roulette.z };
 export const ROULETTE_BET_RADIUS = L.roulette.reach;
 
-/** The half-moon blackjack tables, in a crescent round the pit boss's podium (`centre`): each
- *  one's flat dealer side toward the podium, its players' curve out toward the room (`yaw`: the
- *  way the curve faces). You play within `reach` of one's middle. */
-export const BLACKJACK_TABLES = L.blackjack.angles.map((deg, i) => {
-  const [cx, cz] = L.blackjack.centre;
-  const a = deg * DEG;
-  const out = { x: -Math.cos(a), z: Math.sin(a) };
-  return { id: `blackjack_0${i + 1}`, x: cx + out.x * L.blackjack.radius, z: cz + out.z * L.blackjack.radius, yaw: Math.atan2(out.x, out.z), r: L.blackjack.r, reach: L.blackjack.reach };
-});
+export type BlackjackTier = "blackjack_casual" | "blackjack_high";
+/** The two half-moon blackjack tables, side by side: each one's flat dealer side toward Cedric, its
+ *  players' curve out toward the room (`yaw`: the way the curve faces). You play within `reach` of
+ *  one's middle, at its limits (`tier`). */
+export const BLACKJACK_TABLES = L.blackjack.tables.map((t, i) => ({
+  id: `blackjack_0${i + 1}`,
+  x: t.x,
+  z: t.z,
+  yaw: L.blackjack.yaw,
+  r: L.blackjack.r,
+  reach: L.blackjack.reach,
+  tier: t.tier as BlackjackTier,
+  label: `Table ${i + 1}`,
+}));
 /** The nearest blackjack table within reach of (x, z) (plus `slack`: the server allows a little
- *  more than the client shows, for lag), if any. The crescent's reaches overlap between tables: the
- *  nearer one is yours. */
+ *  more than the client shows, for lag), if any: where two reaches overlap, the nearer is yours. */
 export function blackjackTableNear(x: number, z: number, slack = 0) {
   let best: (typeof BLACKJACK_TABLES)[number] | undefined;
   let bestD = Infinity;
@@ -283,8 +294,44 @@ const blackjackFront = (t: (typeof BLACKJACK_TABLES)[number]) => {
   return { x: t.x + d.x * (L.blackjack.stoolR + 0.6), z: t.z + d.z * (L.blackjack.stoolR + 0.6) };
 };
 
-/** Neon Alley's slot machines against the left wall, facing +x; you play standing at the front. */
-export const SLOT_MACHINES = L.slots.zs.map((z, i) => ({ propId: `slot_0${i + 1}`, x: L.slots.x, z, approachX: L.slots.x + L.slots.d / 2 + 0.85, approachZ: z }));
+/** The tables played from a panel beside them (not the wheel or blackjack): where each one is, and
+ *  how near to it you must be to play (the server allows a little more, for lag). */
+export type CasinoGameTable = "poker" | "craps" | "derby" | "pusher" | "billiards";
+export const CASINO_GAME_TABLES: Record<CasinoGameTable, Pt & { reach: number }> = {
+  poker: { x: L.poker.x, z: L.poker.z, reach: L.poker.reach },
+  craps: { x: L.craps.x, z: L.craps.z, reach: L.craps.reach },
+  derby: { x: L.derby.x, z: L.derby.z, reach: L.derby.reach },
+  pusher: { x: L.pusher.x, z: L.pusher.z, reach: L.pusher.reach },
+  billiards: { x: L.billiards.x, z: L.billiards.z, reach: 2.4 },
+};
+export function nearGameTable(game: CasinoGameTable, x: number, z: number, slack = 0): boolean {
+  const t = CASINO_GAME_TABLES[game];
+  return near({ x, z }, t, t.reach + slack);
+}
+
+/** The VIP room's high-stakes machine. */
+export const VIP_SLOT_PROP = "slot_vip";
+/** Neon Alley's slot machines against the left wall, facing +x, and the VIP room's against the back
+ *  wall, facing +z; you play standing at the front. */
+export const SLOT_MACHINES = [
+  ...L.slots.zs.map((z, i) => ({ propId: `slot_0${i + 1}`, x: L.slots.x, z, approachX: L.slots.x + L.slots.d / 2 + 0.85, approachZ: z, y: 0 })),
+  { propId: VIP_SLOT_PROP, x: L.vip.slot.x, z: L.vip.slot.z, approachX: L.vip.slot.x, approachZ: L.vip.slot.z + L.slots.d / 2 + 0.7, y: PIT_Y },
+];
+
+// --- the VIP room ------------------------------------------------------------------------------
+//
+// A roped enclosure on the High-Roller Stage behind gilded double doors. Its rails are colliders all
+// round: nobody walks in. Bruno opens the doors to a welcome player (shared/casino vipWelcome): the
+// server moves them from VIP_OUTSIDE to VIP_INSIDE, and back out through the same doors.
+
+export const VIP_ROOM = { x0: L.vip.x0, x1: L.vip.x1, z0: L.vip.z0, z1: L.vip.z1 };
+export function inVipRoom(x: number, z: number): boolean {
+  return x > VIP_ROOM.x0 && x < VIP_ROOM.x1 && z > VIP_ROOM.z0 && z < VIP_ROOM.z1;
+}
+/** The doors in the room's front rail, and where you stand on either side of them. */
+export const VIP_GATE = { x: L.vip.gate, z: L.vip.z1 };
+export const VIP_OUTSIDE = { x: L.vip.gate, z: L.vip.z1 + 0.65 };
+export const VIP_INSIDE = { x: L.vip.gate, z: L.vip.z1 - 0.65 };
 
 // --- Mr. Vance's cage, the exit doors, the foyer's machines -------------------------------------
 
@@ -308,13 +355,13 @@ export const PIANO_REACH = 2.0;
 
 /** The dealers' tip jars, on their tables' rails (y: the jar's foot), and where you stand to tip. */
 export const TIP_JARS = {
-  boris: { x: L.tipJars.boris[0], z: L.tipJars.boris[1], y: PIT_Y + L.poker.top, front: { x: -7.3, z: -10.3 } },
-  vivienne: { x: L.tipJars.vivienne[0], z: L.tipJars.vivienne[1], y: L.roulette.top, front: { x: -0.3, z: 1.95 } },
+  boris: { x: L.tipJars.boris[0], z: L.tipJars.boris[1], y: PIT_Y + L.poker.top, front: { x: 2.45, z: -5.75 } },
+  vivienne: { x: L.tipJars.vivienne[0], z: L.tipJars.vivienne[1], y: L.roulette.top, front: { x: -0.9, z: 2.25 } },
 } as const;
 export type TipDealer = keyof typeof TIP_JARS;
 
 /** The bar's counter front (Pippin takes orders across it): where you stand, and how near to it. */
-export const BAR_FRONT = { x: L.bar.stoolX + 0.85, z: 6.4 };
+export const BAR_FRONT = { x: L.bar.stoolX + 0.85, z: -6.3 };
 export const BAR_REACH = 2.2;
 /** Distance from (x, z) to the bar counter's front edge. */
 export function barDistance(x: number, z: number): number {
@@ -330,7 +377,6 @@ export function barDistance(x: number, z: number): number {
 export type CasinoSeat = SeatSpec & { style: SeatStyle; floor: number };
 
 const BAR_STOOL_APPROACH = 0.85;
-const OTTOMAN_ANGLES = [45, 135, 225, 315];
 const onFloor = (s: Omit<CasinoSeat, "floor">): CasinoSeat => ({ ...s, floor: casinoFloorY(s.x, s.z) });
 
 export const CASINO_SEATS: CasinoSeat[] = [
@@ -343,30 +389,16 @@ export const CASINO_SEATS: CasinoSeat[] = [
       return onFloor({ propId: `seat_bj${ti + 1}_${k + 1}`, x, z, rotationY: facing(x, z, t), cushion: "barStool", style: "stool", approachX: x + out.x * 0.8, approachZ: z + out.z * 0.8 });
     })
   ),
-  // the High-Roller Pit's poker table: its chairs, each stepped into from behind
-  ...L.poker.chairs.map((c, i): CasinoSeat => {
-    const out = unit(c.x - L.poker.x, c.z - L.poker.z);
-    return onFloor({ propId: `seat_poker_${i + 1}`, x: c.x, z: c.z, rotationY: c.yaw, cushion: "pokerChair", style: "armchair", approachX: c.x + out.x * 0.85, approachZ: c.z + out.z * 0.85 });
-  }),
+  // Boris's poker table: five chairs in a row along its front, facing him; stepped into from behind
+  ...L.poker.chairs.map((x, i): CasinoSeat => onFloor({ propId: `seat_poker_${i + 1}`, x, z: L.poker.chairZ, rotationY: FACE_NEG_Z, cushion: "pokerChair", style: "armchair", approachX: x, approachZ: L.poker.chairZ + 0.85 })),
   // the bar: stools along the counter, facing Pippin
   ...L.bar.stools.map((z, i): CasinoSeat => onFloor({ propId: `seat_bar_${i + 1}`, x: L.bar.stoolX, z, rotationY: FACE_NEG_X, cushion: "barStool", style: "stool", approachX: L.bar.stoolX + BAR_STOOL_APPROACH, approachZ: z })),
-  // the lounge's cocktail tables: a club chair either side, facing across; step in from the bar's side
-  ...L.cocktails.flatMap((t, ti) =>
-    ([-1, 1] as const).map((side, k): CasinoSeat => onFloor({ propId: `seat_club_${ti * 2 + k + 1}`, x: t.x + side * 0.85, z: t.z, rotationY: side < 0 ? FACE_POS_X : FACE_NEG_X, cushion: "clubChair", style: "armchair", approachX: t.x + side * 0.85, approachZ: t.z - 0.85 }))
-  ),
-  // the Chesterfield: three places along it, facing the coffee table (and the billiards beyond)
-  ...L.sofa.seats.map((z, i): CasinoSeat => onFloor({ propId: `seat_sofa_${i + 1}`, x: L.sofa.x, z, rotationY: FACE_NEG_X, cushion: "chesterfield", style: "armchair", approachX: L.sofa.x - 0.75, approachZ: z })),
-  // the grand piano's bench: facing the keys (the piano's back side is toward the camera)
-  onFloor({ propId: "seat_piano", x: L.piano.x, z: L.piano.bench, rotationY: FACE_POS_Z, cushion: "pianoBench", style: "pad", approachX: L.piano.x, approachZ: L.piano.bench - 0.85 }),
-  // the foyer's round ottoman: four seats round its rim, facing out (its collider is square, so
-  // the diagonal approaches stand well clear of the box's corners)
-  ...OTTOMAN_ANGLES.map((deg, i): CasinoSeat => {
-    const out = { x: Math.cos(deg * DEG), z: Math.sin(deg * DEG) };
-    const o = L.ottoman;
-    const x = o.x + out.x * o.seatR;
-    const z = o.z + out.z * o.seatR;
-    return onFloor({ propId: `seat_ottoman_${i + 1}`, x, z, rotationY: Math.atan2(out.x, out.z), cushion: "ottoman", style: "pad", approachX: o.x + out.x * (o.r + 0.95), approachZ: o.z + out.z * (o.r + 0.95) });
-  }),
+  // the Chesterfield against the back wall: three places along it, facing the coffee table and the room
+  ...L.sofa.seats.map((x, i): CasinoSeat => onFloor({ propId: `seat_sofa_${i + 1}`, x, z: L.sofa.z, rotationY: FACE_POS_Z, cushion: "chesterfield", style: "armchair", approachX: x, approachZ: L.sofa.z + 0.75 })),
+  // the grand piano's bench: facing the keys (the piano's tail toward the camera); in from its side
+  onFloor({ propId: "seat_piano", x: L.piano.x, z: L.piano.bench, rotationY: FACE_POS_Z, cushion: "pianoBench", style: "pad", approachX: L.piano.x - 1.0, approachZ: L.piano.bench }),
+  // the VIP room's loveseat, against the back wall, facing out
+  ...L.vip.loveseat.seats.map((x, i): CasinoSeat => onFloor({ propId: `seat_vip_${i + 1}`, x, z: L.vip.loveseat.z, rotationY: FACE_POS_Z, cushion: "chesterfield", style: "armchair", approachX: x, approachZ: L.vip.loveseat.z + 0.85 })),
 ];
 
 // --- props ------------------------------------------------------------------------------------
@@ -374,19 +406,19 @@ export const CASINO_SEATS: CasinoSeat[] = [
 const prop = (propId: string, at: Pt, kind: PropSpec["kind"], color: string, front: Pt, y?: number): PropSpec => ({ propId, x: at.x, z: at.z, y: y ?? casinoFloorY(at.x, at.z), kind, color, defaultOn: true, approachX: front.x, approachZ: front.z });
 
 export const CASINO_PROPS: PropSpec[] = [
-  // Neon Alley: spin a slot machine (chips)
-  ...SLOT_MACHINES.map((s): PropSpec => prop(s.propId, s, "slot", "#ff4fa3", { x: s.approachX, z: s.approachZ })),
-  // the tables: walking up to one (or clicking it) opens its board; nothing ever opens by itself
+  // Neon Alley's slots and the VIP room's high-stakes machine (chips)
+  ...SLOT_MACHINES.map((s): PropSpec => prop(s.propId, s, "slot", "#ff4fa3", { x: s.approachX, z: s.approachZ }, s.y)),
+  // the tables: walking up to one (or clicking it) opens its panel; nothing ever opens by itself
   prop("roulette_table", ROULETTE_CENTER, "roulette", "#1f6b45", { x: L.roulette.x, z: L.roulette.z + L.roulette.w / 2 + 0.95 }),
   ...BLACKJACK_TABLES.map((t): PropSpec => prop(t.id, t, "blackjack", "#1f6b45", blackjackFront(t))),
-  // the dice, the Turf Club, the coin pusher and the billiards: set dressing with a word for a click
+  prop("poker_table", L.poker, "poker", "#1f6b45", { x: L.poker.x, z: L.poker.chairZ + 0.85 }),
   prop("craps_table", L.craps, "craps", "#1f6b45", { x: L.craps.x, z: L.craps.z + L.craps.w / 2 + 0.75 }),
   prop("derby_table", L.derby, "derby", "#2f6b3f", { x: L.derby.x + L.derby.w / 2 + 0.7, z: L.derby.z }),
   prop("coin_pusher", L.pusher, "pusher", "#ffd98a", { x: L.pusher.x + L.pusher.d / 2 + 0.7, z: L.pusher.z }),
   prop("billiards_table", L.billiards, "billiards", "#1f6b45", { x: L.billiards.x, z: L.billiards.z - L.billiards.w / 2 - 0.65 }),
   // The Velvet Gazette on the coffee table, and the baby grand's keys
-  prop("velvet_gazette", L.coffee, "gazette", "#f2e8d5", { x: L.sofa.x - 0.75, z: L.coffee.z }, LOUNGE_Y + L.coffee.top),
-  prop("piano_keys", { x: L.piano.x, z: L.piano.z - L.piano.w / 2 }, "piano", "#161214", { x: L.piano.x, z: L.piano.bench - 0.85 }),
+  prop("velvet_gazette", L.coffee, "gazette", "#f2e8d5", { x: L.sofa.x, z: L.sofa.z + 0.75 }, LOUNGE_Y + L.coffee.top),
+  prop("piano_keys", { x: L.piano.x, z: L.piano.z - L.piano.w / 2 }, "piano", "#161214", { x: L.piano.x - 1.0, z: L.piano.bench }),
   // Mr. Vance at the cage window: buy chips with coins, cash chips back into coins
   prop("cashier_cage_window", CASINO_NPCS.vance, "cashier", "#e0b04a", CASHIER_FRONT, 0),
   // Madame Zara's fortunes, and the capsule machine
@@ -397,8 +429,9 @@ export const CASINO_PROPS: PropSpec[] = [
   prop("tipjar_vivienne", TIP_JARS.vivienne, "tipjar", "#d4a93c", TIP_JARS.vivienne.front, TIP_JARS.vivienne.y),
   // Pippin's bar menu, ordered across the counter
   prop("bar_menu", CASINO_NPCS.pippin, "barmenu", "#7a1e2e", BAR_FRONT, CASINO_NPCS.pippin.y),
-  // the VIP room's doors (locked: Bruno sees to it)
-  prop("vip_door", { x: -L.half + L.walls.t + 0.1, z: L.vipDoor.z }, "vipdoor", "#7a1e2e", { x: -11.6, z: L.vipDoor.z }),
+  // the VIP room's doors: in past Bruno (from the stage), and out again (from inside)
+  prop("vip_door", { x: VIP_GATE.x, z: VIP_GATE.z + 0.15 }, "vipdoor", "#7a1e2e", VIP_OUTSIDE, PIT_Y),
+  prop("vip_exit", { x: VIP_GATE.x, z: VIP_GATE.z - 0.15 }, "vipdoor", "#7a1e2e", VIP_INSIDE, PIT_Y),
   // the exit doors: back to the Lounge (or anywhere, through the world drawer)
   prop("casino_exit", EXIT_DOORS, "portal", "#d4a93c", EXIT_FRONT, 0),
 ];
@@ -406,14 +439,16 @@ export const CASINO_PROPS: PropSpec[] = [
 // --- where the crowd wanders (client-side only: entities/AmbientPatrons.tsx) ----------------------
 
 /** The spots the ambient patrons drift between: watching the slots, at the bar, round the roulette
- *  and the craps table; they come in and leave by the doors. None is anyone's seat or approach. */
+ *  and the craps table; they come in and leave by the doors. None is anyone's seat or approach.
+ *  `bella`: the cocktail waitress's round between the tables. */
 export const PATRON_SPOTS = {
   doors: EXIT_FRONT,
-  slots: [-4.2, -3.0, -1.8, -0.6, 0.6].map((z) => ({ x: -10.15, z })),
-  bar: [5.2, 6.4, 7.6, 8.8].map((z) => ({ x: -9.2, z })),
+  slots: [1.9, 3.1, 4.3, 5.5].map((z) => ({ x: -7.7, z })),
+  bar: [-8.3, -7.3, -5.3].map((z) => ({ x: -7.1, z })),
   roulette: [150, 115, 80, 45, 10, -25].map((deg) => ({ x: L.roulette.x + Math.cos(deg * DEG) * 2.35, z: L.roulette.z + Math.sin(deg * DEG) * 1.95 })),
-  craps: [{ x: -6.2, z: 1.9 }, { x: -3.9, z: 1.9 }, { x: -2.7, z: 0.3 }],
-  lounge: [{ x: -7.8, z: 4.35 }, { x: -5.0, z: 4.35 }, { x: -8.2, z: 6.9 }],
+  craps: [{ x: -0.9, z: 6.95 }, { x: 1.7, z: 6.95 }, { x: 2.75, z: 5.4 }],
+  lounge: [{ x: -6.2, z: -5.6 }, { x: -5.2, z: -6.2 }, { x: -6.6, z: -0.9 }],
+  bella: [{ x: 3.4, z: -2.9 }, { x: 4.5, z: 1.7 }, { x: 3.4, z: 6.6 }, { x: -2.4, z: 7.9 }, { x: -3.5, z: 3.3 }, { x: -2.9, z: -2.8 }],
 };
 
 // --- what you walk round ----------------------------------------------------------------------
@@ -423,8 +458,8 @@ const box = (b: Box): AABB => ({ minX: b.x0, maxX: b.x1, minZ: b.z0, maxZ: b.z1 
 const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
 const centred = (c: Pt, hx: number, hz: number): AABB => ({ minX: c.x - hx, maxX: c.x + hx, minZ: c.z - hz, maxZ: c.z + hz });
 
-/** A velvet rope between brass stanchions: a thin box along it (axis-aligned ropes only). */
-function ropeBox(a: number[], b: number[]): AABB {
+/** A velvet rope (or a rail) along an axis-aligned line: a thin box along it. */
+function railBox(a: number[], b: number[]): AABB {
   const R = 0.08;
   return { minX: Math.min(a[0], b[0]) - R, maxX: Math.max(a[0], b[0]) + R, minZ: Math.min(a[1], b[1]) - R, maxZ: Math.max(a[1], b[1]) + R };
 }
@@ -440,64 +475,73 @@ function halfMoonBoxes(t: (typeof BLACKJACK_TABLES)[number]): AABB[] {
   return out;
 }
 
-/** The pit's steps have brass cheeks where they meet the ropes: you go up the steps, not their ends. */
+/** Steps have brass cheeks where a run ends short of the stage's corner: you go up the steps, not
+ *  over their ends. */
 function stepCheeks(s: Stage): AABB[] {
   const out: AABB[] = [];
   const R = 0.08;
   for (const o of s.open) {
-    const lo = Math.min(o.from, o.to);
-    if (o.edge === "x1" && lo > s.z0) out.push({ minX: s.x1, maxX: s.x1 + s.depth, minZ: lo - R, maxZ: lo + R });
-    if (o.edge === "z1" && lo > s.x0) out.push({ minX: lo - R, maxX: lo + R, minZ: s.z1, maxZ: s.z1 + s.depth });
+    const horizontal = o.edge === "z0" || o.edge === "z1";
+    const [lo, hi] = horizontal ? [s.x0, s.x1] : [s.z0, s.z1];
+    const sign = o.edge === "x1" || o.edge === "z1" ? 1 : -1;
+    const base = o.edge === "x0" ? s.x0 : o.edge === "x1" ? s.x1 : o.edge === "z0" ? s.z0 : s.z1;
+    const [a, b] = [base, base + sign * s.depth].sort((p, q) => p - q);
+    for (const end of [Math.min(o.from, o.to), Math.max(o.from, o.to)]) {
+      if (end <= lo + 1e-6 || end >= hi - 1e-6) continue; // at a corner (or a wall): nothing to guard
+      out.push(horizontal ? { minX: end - R, maxX: end + R, minZ: a, maxZ: b } : { minX: a, maxX: b, minZ: end - R, maxZ: end + R });
+    }
   }
   return out;
 }
 
 const seatBox = (propIdPrefix: string, r: number) => CASINO_SEATS.filter((s) => s.propId.startsWith(propIdPrefix)).map((s) => around(s, r));
+const V = L.vip;
 
 export const CASINO_OBSTACLES: AABB[] = [
-  // 1 the foyer: the palms flanking the doors, the ottoman (its seats within its box, as a sofa's
-  // are), Mr. Vance's cage (him inside it), Madame Zara's booth and the capsule machine
-  ...L.palms.map((p) => around(p, 0.45)),
-  around(L.ottoman, L.ottoman.r),
+  // 1 the foyer: Mr. Vance's cage (him inside it), Madame Zara's booth and the capsule machine
   box(L.cage),
   around(L.zara, 0.62),
   around(L.gachapon, L.gachapon.r),
   // the torch columns at the zones' corners
   ...L.pillars.at.map(([x, z]) => around({ x, z }, L.pillars.r)),
-  // 2 the main floor: the roulette table and Madame Vivienne at its wheel; the blackjack crescent,
-  // its stools and the pit boss's podium; the craps table
+  // 2 the main floor: the roulette table and Madame Vivienne at its wheel; the blackjack tables,
+  // their stools and Cedric between them; the craps table
   centred(L.roulette, L.roulette.len / 2, L.roulette.w / 2),
   around(L.npcs.vivienne, 0.32),
   ...BLACKJACK_TABLES.flatMap(halfMoonBoxes),
   ...seatBox("seat_bj", 0.22),
-  around({ x: L.blackjack.centre[0], z: L.blackjack.centre[1] }, L.blackjack.podium),
+  around(L.npcs.cedric, 0.34),
   centred(L.craps, L.craps.len / 2, L.craps.w / 2),
-  // 3 Neon Alley: the whole row of cabinets against the wall (Jasper's too), Jasper on his stool,
+  // 3 the High-Roller Stage: its ropes and the steps' cheeks, the balustrade to the lounge, the
+  // poker table, Boris behind it, the chairs along it, Bruno at the VIP room's doors; the VIP room's
+  // rails (the doors in them stay shut: Bruno walks you through), its machine, loveseat and bucket
+  ...L.ropes.map((r) => railBox(r.a, r.b)),
+  ...CASINO_STAGES.flatMap(stepCheeks),
+  railBox([L.balustrade.x, L.balustrade.z0], [L.balustrade.x, L.balustrade.z1]),
+  centred(L.poker, L.poker.len / 2, L.poker.w / 2),
+  around(L.npcs.boris, 0.36),
+  ...seatBox("seat_poker", 0.25),
+  around(L.npcs.bruno, 0.36),
+  railBox([V.x0, V.z1], [V.x1, V.z1]),
+  railBox([V.x1, V.z0], [V.x1, V.z1]),
+  centred(V.slot, L.slots.w / 2, L.slots.d / 2),
+  centred(V.loveseat, V.loveseat.len / 2, 0.4),
+  around(V.bucket, 0.2),
+  // 4 the lounge: the bar and the back bar behind it (Pippin inside), its stools, the billiards
+  // table, the Chesterfield and its coffee table, the grand piano and its bench
+  box(L.bar),
+  ...seatBox("seat_bar", 0.22),
+  centred(L.billiards, L.billiards.len / 2, L.billiards.w / 2),
+  centred({ x: L.sofa.x, z: L.sofa.z - 0.05 }, L.sofa.len / 2 + 0.05, 0.4),
+  centred(L.coffee, L.coffee.lx / 2, L.coffee.lz / 2),
+  centred(L.piano, L.piano.len / 2, L.piano.w / 2),
+  box({ x0: L.piano.x - 0.45, x1: L.piano.x + 0.45, z0: L.piano.bench - 0.18, z1: L.piano.bench + 0.18 }),
+  // 5 Neon Alley: the whole row of cabinets against the wall (Jasper's too), Jasper on his stool,
   // the derby table and the coin pusher
   box({ x0: -L.half, x1: L.slots.x + L.slots.d / 2, z0: L.slots.zs[0] - L.slots.w / 2, z1: L.slots.jasper + L.slots.w / 2 }),
   around(L.npcs.jasper, 0.3),
   centred(L.derby, L.derby.w / 2, L.derby.len / 2),
   centred(L.pusher, L.pusher.d / 2, L.pusher.w / 2),
-  // 4 the pit: its ropes and the steps' cheeks, the poker table, Boris behind it, the chairs round
-  // it, Bruno at the VIP doors
-  ...L.ropes.map((r) => ropeBox(r.a, r.b)),
-  ...stepCheeks(stage("pit")),
-  centred(L.poker, L.poker.len / 2, L.poker.w / 2),
-  around(L.npcs.boris, 0.36),
-  ...seatBox("seat_poker", 0.25),
-  around(L.npcs.bruno, 0.36),
-  // 5 the lounge: the bar and the back bar behind it (Pippin inside), its stools, the billiards
-  // table, the Chesterfield and its coffee table, the cocktail tables and their club chairs, the
-  // grand piano and its bench
-  box(L.bar),
-  ...seatBox("seat_bar", 0.22),
-  centred(L.billiards, L.billiards.len / 2, L.billiards.w / 2),
-  centred({ x: L.sofa.x + 0.05, z: L.sofa.z }, 0.4, L.sofa.len / 2 + 0.05),
-  centred(L.coffee, L.coffee.w / 2, L.coffee.len / 2),
-  ...L.cocktails.map((t) => around(t, 0.3)),
-  ...seatBox("seat_club", 0.3),
-  centred(L.piano, L.piano.len / 2, L.piano.w / 2),
-  box({ x0: L.piano.x - 0.45, x1: L.piano.x + 0.45, z0: L.piano.bench - 0.18, z1: L.piano.bench + 0.18 }),
   // the planters out front
   ...L.planters.map((p) => around(p, 0.4)),
 ];

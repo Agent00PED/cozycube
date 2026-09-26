@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { CASHIER_AMOUNTS, CHIP_CAP, type CashierResult } from "@shared/casino";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { CASHIER_AMOUNTS, CHIP_CAP, VANCE_BROKE_LINE, type CashierResult } from "@shared/casino";
 import { COIN_CAP } from "@shared/types";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
+import { VelvetChipIcon } from "./VelvetChipIcon";
 
 // Mr. Vance's cage, the Velvet Casino's Golden Cashier: coins into Velvet Chips and chips back into
 // coins, one for one, no fee. Pick a way, build an amount (quick adds, "All", or the slider), see
@@ -33,7 +34,8 @@ export function CashierModal({ coins, chips, onBuy, onCashOut, subscribeMessages
   /** "All" follows the balance, so it stays all of it even as the purse changes. */
   const [all, setAll] = useState(false);
   const [pending, setPending] = useState(false);
-  const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
+  // an empty purse on both sides: Mr. Vance points the way to the Campfire
+  const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: coins + chips <= 0 ? VANCE_BROKE_LINE : HELLO, ok: coins + chips > 0 });
   const pendingTimer = useRef(0);
 
   useEffect(
@@ -119,9 +121,9 @@ export function CashierModal({ coins, chips, onBuy, onCashOut, subscribeMessages
         <div className="grid grid-cols-2 gap-1.5 rounded-full border border-amber-300/40 bg-black/30 p-1" role="tablist" aria-label="Exchange">
           {(
             [
-              ["buy", "Buy Chips 🟡"],
+              ["buy", <>Buy Chips <VelvetChipIcon /></>],
               ["cashout", "Cash Out 🪙"],
-            ] as [Mode, string][]
+            ] as [Mode, ReactNode][]
           ).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={mode === id} onClick={() => pickMode(id)} className={`min-h-10 rounded-full text-sm font-extrabold tracking-wide transition-transform active:scale-95 ${mode === id ? "bg-gradient-to-b from-amber-200 to-amber-400 text-[#3b1a0e] shadow-[0_2px_10px_rgba(242,207,115,0.45)]" : "text-amber-100/80 hover:bg-white/10"}`}>
               {label}
@@ -137,7 +139,7 @@ export function CashierModal({ coins, chips, onBuy, onCashOut, subscribeMessages
           </div>
           <div className="flex items-center gap-2">
             <span className="text-2xl" aria-hidden>
-              {buying ? "🪙" : "🟡"}
+              {buying ? "🪙" : <VelvetChipIcon />}
             </span>
             <input
               type="number"
@@ -170,19 +172,31 @@ export function CashierModal({ coins, chips, onBuy, onCashOut, subscribeMessages
         {/* both purses, now and after */}
         <div className="grid grid-cols-2 gap-2">
           <Purse icon="🪙" label="Coins" now={coins} after={after.coins} />
-          <Purse icon="🟡" label="Velvet Chips" now={chips} after={after.chips} />
+          <Purse icon={<VelvetChipIcon />} label="Velvet Chips" now={chips} after={after.chips} />
         </div>
 
         <button type="button" onClick={exchange} disabled={value <= 0 || pending} className="clay-btn clay-btn-amber min-h-12 text-base">
-          {pending ? "Counting…" : value <= 0 ? (max === 0 ? (buying ? "No coins to exchange" : "No chips to cash in") : "Choose an amount") : buying ? `Buy ${fmt(value)} 🟡` : `Cash out ${fmt(value)} 🪙`}
+          {pending ? (
+            "Counting…"
+          ) : value <= 0 ? (
+            max === 0 ? (buying ? "No coins to exchange" : "No chips to cash in") : "Choose an amount"
+          ) : buying ? (
+            <>
+              Buy {fmt(value)} <VelvetChipIcon />
+            </>
+          ) : (
+            `Cash out ${fmt(value)} 🪙`
+          )}
         </button>
-        <div className="text-center text-[11px] tracking-wide opacity-60">1 🪙 = 1 🟡 · no fee either way · your chips are kept until you cash them in</div>
+        <div className="text-center text-[11px] tracking-wide opacity-60">
+          1 🪙 = 1 <VelvetChipIcon /> · no fee either way · your chips are kept until you cash them in
+        </div>
       </div>
     </Modal>
   );
 }
 
-function Purse({ icon, label, now, after }: { icon: string; label: string; now: number; after: number }) {
+function Purse({ icon, label, now, after }: { icon: ReactNode; label: string; now: number; after: number }) {
   const delta = after - now;
   return (
     <div className="rounded-2xl border border-amber-300/30 bg-black/25 px-3 py-2">

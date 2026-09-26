@@ -12,6 +12,7 @@ export function Modal({
   width = 480,
   tone = "stone",
   fit = false,
+  placard,
 }: {
   title: string;
   icon?: string;
@@ -22,6 +23,8 @@ export function Modal({
   tone?: "stone" | "felt" | "velvet";
   /** Sized to fit the viewport whole (90vw, never over 85vh), with no scrolling: for panels laid out to fit (the reel). */
   fit?: boolean;
+  /** A brass placard under the title: a casino table's limits ("MIN: 25 | MAX ALL-IN: 1,000"). */
+  placard?: string;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -48,6 +51,11 @@ export function Modal({
             ✕
           </button>
         </div>
+        {placard && (
+          <div className="mx-5 mb-2 self-center rounded-md border border-[#6b4a12] bg-gradient-to-b from-[#f6dc8f] via-[#d9a843] to-[#9c6b1c] px-3 py-0.5 text-center font-serif text-[11px] font-black tracking-[0.18em] text-[#3a2206] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_2px_6px_rgba(0,0,0,0.45)]" style={{ textShadow: "0 1px 0 rgba(255,240,200,0.6)" }}>
+            {placard}
+          </div>
+        )}
         <div className={fit ? "flex min-h-0 flex-1 flex-col justify-between overflow-hidden px-4 pb-[max(14px,env(safe-area-inset-bottom))]" : "scrollbar-none overflow-y-auto px-5 pb-[max(20px,env(safe-area-inset-bottom))]"}>{children}</div>
       </div>
     </div>,

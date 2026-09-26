@@ -8,6 +8,7 @@ import { CreelPopover } from "./CreelPopover";
 import { carrierLoad } from "@shared/fishing";
 import { carrierCapacity } from "@shared/chop";
 import { setCameraMode, useCameraMode } from "../../scene/cameraFocus";
+import { VelvetChipIcon } from "./VelvetChipIcon";
 
 /** Each map's icon, name and tagline, from the world table (shared/worlds). */
 export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: string }> = Object.fromEntries(
@@ -305,7 +306,7 @@ function ChipPurse({ chips, here }: { chips: number; here: boolean }) {
     >
       <span key={bump} className={`flex items-center gap-1.5 font-bold tabular-nums text-amber-200 ${bump ? "cozy-coin-bump" : ""}`}>
         <span className={ICON} aria-hidden>
-          🟡
+          <VelvetChipIcon size="1.05em" />
         </span>
         {shown}
       </span>

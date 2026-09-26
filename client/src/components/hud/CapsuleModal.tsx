@@ -3,6 +3,7 @@ import { CAPSULE_COST, CAPSULE_DUP_REFUND, CAPSULE_PRIZES, capsuleUnlock, type C
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
+import { VelvetChipIcon } from "./VelvetChipIcon";
 
 // The capsule machine in the Grand Foyer: a pull costs Velvet Chips and drops a capsule with a
 // title to wear over your name or an emote to send (a duplicate hands some chips back). Below it,
@@ -82,10 +83,16 @@ export function CapsuleModal({ chips, owned, title, onSend, subscribeMessages, o
             <div className="text-center text-sm opacity-80">{notice ?? (shaking ? "The globe spins… a capsule rattles down…" : "Turn the crank for a title or an emote. Rare ones glitter.")}</div>
           )}
           <button type="button" onClick={pull} disabled={shaking || chips < CAPSULE_COST} className="clay-btn clay-btn-amber min-h-11 px-6 text-base">
-            {shaking ? "Turning…" : `Turn the crank · ${CAPSULE_COST} 🟡`}
+            {shaking ? (
+              "Turning…"
+            ) : (
+              <>
+                Turn the crank · {CAPSULE_COST} <VelvetChipIcon />
+              </>
+            )}
           </button>
           <div className="text-[11px] opacity-60">
-            Your chips: {chips.toLocaleString("en-US")} 🟡 · a duplicate returns {CAPSULE_DUP_REFUND}
+            Your chips: {chips.toLocaleString("en-US")} <VelvetChipIcon /> · a duplicate returns {CAPSULE_DUP_REFUND}
           </div>
         </div>
 

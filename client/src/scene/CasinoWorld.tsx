@@ -4,8 +4,8 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { Room } from "colyseus.js";
 import { walkY } from "@shared/collision";
-import { DERBY_HORSES, DERBY_LANES, DERBY_RACE_MS, SLOT_SYMBOLS, type CasinoPropEvent, type CasinoWin } from "@shared/casino";
-import { CASINO_LAYOUT as L, CASINO_STAGES, TIP_JARS } from "@shared/worlds/casino";
+import { DERBY_HORSES, DERBY_LANES, DERBY_RACERS, DERBY_RACE_MS, SLOT_SYMBOLS, derbyPaces, derbyProgress, type CasinoGame, type CasinoPropEvent, type CasinoWin, type PianoNote, type PianoRecital } from "@shared/casino";
+import { CASINO_LAYOUT as L, CASINO_NPCS, CASINO_STAGES, TIP_JARS } from "@shared/worlds/casino";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
@@ -15,7 +15,8 @@ import { CasinoStaff } from "../entities/CasinoStaff";
 import { AmbientPatrons } from "../entities/AmbientPatrons";
 import { cameraFocus } from "./cameraFocus";
 import { liveMotion } from "../systems/liveMotion";
-import { distanceVolume, playPiano, playSfx } from "../audio/sfx";
+import { distanceVolume, playSfx } from "../audio/sfx";
+import { playPianoNote, startRecital, stopRecital } from "../audio/piano";
 import { pushToast } from "../components/hud/toastStore";
 
 // The Velvet Casino (map 3). The hall is one Blender model, casino.glb
@@ -36,15 +37,19 @@ import { pushToast } from "../components/hud/toastStore";
 //                    chasing bulbs (a canvas painted on the Prop_Marquee quad)
 //   celebrations     a jackpot or a number hit straight up sets the whole hall off: a brass fanfare,
 //                    the chandeliers and every bulb flaring, confetti over the winner
-//   the extras       the craps dice tumble to the thrower's roll; the Turf Club's five horses race;
-//                    the coin pusher's plate slides; the cue ball breaks the rack; the baby grand
-//                    plays its arpeggio; Madame Zara's brass owl swivels, and hoots at a reading; a
-//                    tip in a dealer's jar sparkles (every one a "casinoProp" message: all see it)
-//   the staff        Mr. Vance, Boris, Madame Vivienne, Jasper, Pippin and Bruno (entities/CasinoStaff.tsx)
-//   the crowd        a dozen regulars drifting between the tables and the bar (entities/AmbientPatrons.tsx)
+//   the extras       the craps dice tumble to the thrower's roll; the Turf Club's four horses race
+//                    (the same race as its panel: shared derbyPaces); the coin pusher's plate slides;
+//                    the cue ball breaks the rack; Madame Zara's brass owl swivels, and hoots at a
+//                    reading; a tip in a dealer's jar sparkles; the VIP room's doors swing open for
+//                    Bruno's guests (every one a "casinoProp" message: all see it)
+//   the baby grand   a recital (pianoRecital) or a key played by hand (pianoNote), heard across the
+//                    hall, softer the further you stand from the piano (audio/piano.ts)
+//   the staff        Mr. Vance, Boris, Madame Vivienne, Jasper, Pippin, Bruno and Cedric (entities/CasinoStaff.tsx)
+//   the crowd        the chibi regulars drifting between the tables and the bar, and Bella the
+//                    cocktail waitress on her round (entities/AmbientPatrons.tsx)
 //   the light        a warm fill, amber pools under the four chandeliers, washes along the walls,
-//                    the banker's lamp, the back bar, the billiards lamp, the lounge's candles, and a
-//                    pink and a cyan glow off the slot row
+//                    the banker's lamp, the back bar, the billiards lamps, the Chesterfield's lamp,
+//                    and a pink and a cyan glow off the slot row
 //
 // No light casts a shadow, and nothing hangs low over the floor between the camera and the tables.
 
@@ -102,7 +107,7 @@ export function CasinoWorld({ onFloorClick, room, subscribeMessages }: CasinoWor
         </Suspense>
       </ModelBoundary>
       <CasinoStaff subscribeMessages={subscribeMessages} />
-      <AmbientPatrons subscribeMessages={subscribeMessages} />
+      <AmbientPatrons subscribeMessages={subscribeMessages} room={room} />
       <Confetti room={room} subscribeMessages={subscribeMessages} />
       <CasinoLights />
     </group>
@@ -154,7 +159,6 @@ interface Roll {
 }
 interface Race {
   at: number;
-  winner: number;
   pace: number[][];
 }
 
@@ -188,12 +192,12 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
     const horse = get("Prop_DerbyHorse") as THREE.Mesh | null;
     let horses: THREE.InstancedMesh | null = null;
     if (horse) {
-      // the template stands at lane 0's start; five of it race, one a lane, each its own colours
+      // the template stands at lane 0's start; four of it race, one a lane, each in its colours
       horse.visible = false;
       horses = new THREE.InstancedMesh(horse.geometry, horse.material, DERBY_LANES);
       horses.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       horses.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(DERBY_LANES * 3), 3);
-      ["#c8743a", "#8a5a3a", "#cfcfd6", "#5a5050", "#e8c080"].forEach((c, i) => horses!.setColorAt(i, new THREE.Color(c)));
+      DERBY_RACERS.forEach((r, i) => horses!.setColorAt(i, new THREE.Color(r.color).lerp(new THREE.Color("#ffffff"), 0.25)));
       horses.frustumCulled = false;
       horses.raycast = () => {};
       (horse.parent ?? scene).add(horses);
@@ -213,6 +217,7 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
       plateRest: get("Prop_PusherPlate")?.position.clone() ?? null,
       cue: get("Prop_CueBall"),
       cueRest: get("Prop_CueBall")?.position.clone() ?? null,
+      vipDoors: [get("Prop_VipDoorL"), get("Prop_VipDoorR")],
     };
   }, [scene, marquee.texture]);
   useEffect(
@@ -232,9 +237,23 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
   const hoot = useRef(-99);
   const push = useRef(-99);
   const breakAt = useRef(-99);
+  const vipOpen = useRef(-99);
+  // the baby grand, heard from where you stand (and silent once you leave the casino)
+  useEffect(() => () => stopRecital(), []);
   useEffect(
     () =>
       subscribeMessages((type, payload) => {
+        const fromPiano = () => distanceVolume(cameraFocus.x, cameraFocus.z, L.piano.x, L.piano.z);
+        if (type === "pianoRecital") {
+          const r = payload as PianoRecital;
+          if (r.piece) startRecital(r.piece, fromPiano);
+          else stopRecital();
+          return;
+        }
+        if (type === "pianoNote") {
+          playPianoNote((payload as PianoNote).midi, fromPiano());
+          return;
+        }
         if (type === "casinoWin") {
           const win = payload as CasinoWin;
           if (win?.celebrate) {
@@ -266,27 +285,18 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
           playSfx("dice", heard(L.craps.x, L.craps.z));
           if (mine) window.setTimeout(() => pushToast(`You rolled ${ev.dice![0]} + ${ev.dice![1]} = ${ev.dice![0] + ev.dice![1]}${ev.dice![0] + ev.dice![1] === 7 || ev.dice![0] + ev.dice![1] === 11 ? ": a natural!" : ""}`, { emoji: "🎲" }), ROLL_S * 1000);
         } else if (ev.kind === "derby") {
-          const r = seeded(ev.seed);
-          // each horse's pace in four stretches; the winner's is made to be the quickest overall
-          const pace = Array.from({ length: DERBY_LANES }, () => Array.from({ length: 4 }, () => 0.7 + r() * 0.6));
-          const total = (k: number) => pace[k].reduce((a, b) => a + b, 0);
-          const best = Math.max(...pace.map((_, k) => total(k)));
+          // the same race as the Turf Club's panel: every client runs the one seed
           const w = ev.winner ?? 0;
-          if (total(w) < best + 0.2) pace[w][3] += best + 0.2 - total(w);
-          race.current = { at: now, winner: w, pace };
+          race.current = { at: now, pace: derbyPaces(ev.seed, w) };
           playSfx("bugle", heard(L.derby.x, L.derby.z));
-          if (mine) {
-            pushToast("And they're off at the Turf Club!", { emoji: "🏇" });
-            window.setTimeout(() => pushToast(`${DERBY_HORSES[w]} wins by a whisker!`, { emoji: "🏆", tone: "win" }), DERBY_RACE_MS - 400);
-          }
+          const near = Math.hypot(cameraFocus.x - L.derby.x, cameraFocus.z - L.derby.z) < 5;
+          if (near) window.setTimeout(() => pushToast(`${DERBY_HORSES[w]} wins by a whisker!`, { emoji: "🏆", tone: "win" }), DERBY_RACE_MS - 400);
         } else if (ev.kind === "pusher") {
           push.current = now;
-          playSfx("coins", heard(L.pusher.x, L.pusher.z));
+          playSfx("coins", heard(L.pusher.x, L.pusher.z) * (mine ? 0.5 : 1));
         } else if (ev.kind === "billiards") {
           breakAt.current = now;
-          window.setTimeout(() => playSfx("clack", heard(L.billiards.x, L.billiards.z)), 450);
-        } else if (ev.kind === "piano") {
-          playPiano(ev.seed, heard(L.piano.x, L.piano.z));
+          if (!mine) window.setTimeout(() => playSfx("clack", heard(L.billiards.x, L.billiards.z)), 450);
         } else if (ev.kind === "fortune") {
           hoot.current = now;
           playSfx("hoot", heard(L.zara.x, L.zara.z));
@@ -295,9 +305,13 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
           sparkle(jar.x, jar.y + 0.18, jar.z);
           playSfx("sparkle", heard(jar.x, jar.z));
         } else if (ev.kind === "vipdoor") {
-          playSfx("rattle");
-        } else if (ev.kind === "barmenu") {
-          playSfx("fizz", heard(L.bar.x1, 6.9));
+          if (ev.vip === "refused") playSfx("rattle");
+          else {
+            vipOpen.current = now;
+            playSfx("clack", heard(L.vip.gate, L.vip.z1));
+          }
+        } else if (ev.kind === "barmenu" && ev.drink) {
+          playSfx("fizz", heard(L.bar.x1, CASINO_NPCS.pippin.z));
         }
       }),
     [subscribeMessages, parts, room]
@@ -342,7 +356,7 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
         d.quaternion.copy(tmpQ).slerp(r.end[k], Math.max(0, (u - 0.6) / 0.4));
       } else d.quaternion.copy(r.end[k]);
     });
-    // the Turf Club: five horses down their lanes; after the finish they trot back to the start
+    // the Turf Club: four horses down their lanes; after the finish they trot back to the start
     if (parts.horses && parts.horse) {
       const base = parts.horse.position;
       const lane = (L.derby.w - 0.16) / DERBY_LANES;
@@ -352,14 +366,7 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
       for (let k = 0; k < DERBY_LANES; k++) {
         let p = 0;
         if (rc && el < DERBY_RACE_MS) {
-          const pace = rc.pace[k];
-          const total = pace.reduce((a, b) => a + b, 0);
-          const best = Math.max(...rc.pace.map((row) => row.reduce((a, b) => a + b, 0)));
-          const u = el / (DERBY_RACE_MS - 800);
-          // how far along: the stretches at their paces, the fastest arriving at u = 1
-          let dist = 0;
-          for (let j = 0; j < 4; j++) dist += pace[j] * Math.max(0, Math.min(1, u * 4 - j));
-          p = Math.min(1, (dist / best) * (total >= best - 1e-6 ? 1 : 0.985));
+          p = derbyProgress(rc.pace, k, el);
         } else if (rc && el < DERBY_RACE_MS + 2600) {
           p = 1 - (el - DERBY_RACE_MS) / 2600;
         }
@@ -383,6 +390,12 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
       parts.cue.position.x = parts.cueRest.x + k * (L.billiards.len - 1.45);
       parts.cue.rotation.z = -parts.cue.position.x * 20;
     }
+    // the VIP room's doors: swung open for a guest going in or out, then eased shut
+    const v = now - vipOpen.current;
+    const open = v < 0 ? 0 : v < 0.5 ? easeOut(v / 0.5) : v < 2.2 ? 1 : v < 3 ? 1 - easeInOut((v - 2.2) / 0.8) : 0;
+    parts.vipDoors.forEach((d, i) => {
+      if (d) d.rotation.y = (i === 0 ? 1 : -1) * open * 1.35;
+    });
     marquee.tick(now);
   });
 
@@ -395,6 +408,7 @@ const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2,
 
 // --- the Big-Win marquee ---------------------------------------------------------------------
 
+const GAME_ICON: Record<CasinoGame, string> = { slots: "🎰", roulette: "🎡", blackjack: "🃏", poker: "♠", craps: "🎲", derby: "🏇", pusher: "🪙" };
 const REGULARS = ["Lady Honeysuckle", "Count Whiskerton", "The Baroness", "Sir Reginald", "Madame Plume", "Dr. Fluffington", "Captain Barnacles", "Duchess Marmalade", "Monsieur Truffle", "Old Tom Tabby"];
 const SCROLL_S = 7;
 
@@ -415,7 +429,7 @@ function useMarquee(subscribeMessages: (listener: RoomMessageListener) => () => 
       subscribeMessages((type, payload) => {
         if (type !== "casinoWin") return;
         const w = payload as CasinoWin;
-        const game = w.game === "slots" ? "🎰" : w.game === "roulette" ? "🎡" : "🃏";
+        const game = GAME_ICON[w.game] ?? "★";
         state.queue.unshift({ text: `${game} ${w.username.toUpperCase()}  ${w.detail}  +${w.amount} CHIPS${w.celebrate ? "  ★ JACKPOT ★" : ""}`, live: true });
         state.queue = state.queue.slice(0, 6);
       }),
@@ -608,7 +622,9 @@ function CasinoLights() {
       <pointLight color="#ffd98a" intensity={0.9 * lamp} distance={4} decay={2} position={[L.cage.window - 0.85, 1.5, L.cage.z1 - 0.4]} castShadow={false} />
       <pointLight color="#ffc070" intensity={1.1 * lamp} distance={5} decay={2} position={[face + 0.8, lounge + 2.3, (L.bar.z0 + L.bar.z1) / 2]} castShadow={false} />
       <pointLight color="#ffe2a0" intensity={1.3 * lamp} distance={3.6} decay={2} position={[L.billiards.x, lounge + L.billiards.lamp - 0.2, L.billiards.z]} castShadow={false} />
-      <pointLight color="#ffb866" intensity={0.8 * lamp} distance={4.5} decay={2} position={[(L.cocktails[0].x + L.cocktails[1].x) / 2, lounge + 1.0, L.cocktails[0].z]} castShadow={false} />
+      <pointLight color="#ffb866" intensity={0.8 * lamp} distance={4.5} decay={2} position={[L.coffee.x, lounge + 1.0, L.coffee.z]} castShadow={false} />
+      {/* the VIP room's own warm glow */}
+      <pointLight color="#ffb35c" intensity={1.0 * lamp} distance={4} decay={2} position={[(L.vip.x0 + L.vip.x1) / 2, 2.0, (L.vip.z0 + L.vip.z1) / 2]} castShadow={false} />
       {/* Neon Alley: a pink glow and a cyan one off the slot row */}
       <pointLight color="#ff4fa3" intensity={1.0} distance={5} decay={2} position={[pinkX, pinkY, L.slots.zs[1]]} castShadow={false} />
       <pointLight color="#4fe3ff" intensity={0.9} distance={5} decay={2} position={[pinkX, pinkY, L.slots.zs[4]]} castShadow={false} />

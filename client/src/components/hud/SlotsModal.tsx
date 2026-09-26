@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { SLOT_BETS, SLOT_PAIR, SLOT_SYMBOLS, SLOT_TRIPLE, type SlotBroadcast } from "@shared/casino";
+import { SLOT_PAIR, SLOT_SYMBOLS, SLOT_TRIPLE, VIP_SLOT_ID, limitPlacard, slotLimit, type SlotBroadcast } from "@shared/casino";
 import { Modal } from "./Modal";
+import { BetPicker, ShortOfChips, clampStake } from "./BetControls";
+import { ChipAmount, VelvetChipIcon } from "./VelvetChipIcon";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 
 // A retro-cozy three-reel machine. The server rolls (spin_slots) and broadcasts the reels;
 // this panel spins its strips to land on them one after another, ticking as they go, then
-// lights the payline and bursts chips if it paid. Stakes and wins are Velvet Chips; a pair hands
-// the stake back (a push), three of a kind pays the paytable.
+// lights the payline and bursts chips if it paid. Stakes and wins are Velvet Chips, within the
+// machine's limits (Neon Alley's, or the VIP room's high-stakes one), with an ALL IN up to its
+// cap; a pair hands the stake back (a push), three of a kind pays the paytable.
 const SYMBOLS = SLOT_SYMBOLS as readonly string[];
 const N = SYMBOLS.length;
 const ROW = 72; // px per symbol row
@@ -15,16 +18,19 @@ const STOP_MS = [900, 1350, 1800];
 
 interface Props {
   propId: string;
-  /** Velvet Chips: what you can stake. */
+  /** Velvet Chips: what you can stake (and coins, for the cage's advice when both run out). */
   chips: number;
+  coins: number;
   localSessionId: string;
   onSpin: (propId: string, bet: number) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onClose: () => void;
 }
 
-export function SlotsModal({ propId, chips, localSessionId, onSpin, subscribeMessages, onClose }: Props) {
-  const [bet, setBet] = useState<number>(SLOT_BETS[0]);
+export function SlotsModal({ propId, chips, coins, localSessionId, onSpin, subscribeMessages, onClose }: Props) {
+  const limit = slotLimit(propId);
+  const vip = propId === VIP_SLOT_ID;
+  const [stake, setBet] = useState<number>(limit.presets[0]);
   const [spinning, setSpinning] = useState(false);
   const [lever, setLever] = useState(false);
   const [result, setResult] = useState<{ reels: number[]; win: number } | null>(null);
@@ -83,8 +89,10 @@ export function SlotsModal({ propId, chips, localSessionId, onSpin, subscribeMes
     }
   }, [spinning]);
 
+  // the stake follows the purse (it can't be more than you hold, nor under the machine's minimum)
+  const bet = spinning ? stake : clampStake(stake, limit, chips);
   const pull = () => {
-    if (spinning || chips < bet) return;
+    if (spinning || chips < bet || bet < limit.min) return;
     setLever(true);
     window.setTimeout(() => setLever(false), 450);
     setResult(null);
@@ -97,7 +105,7 @@ export function SlotsModal({ propId, chips, localSessionId, onSpin, subscribeMes
   const strip = Array.from({ length: N * REPEATS }, (_, i) => SYMBOLS[i % N]);
 
   return (
-    <Modal title="Lucky Reels" icon="🎰" onClose={onClose} width={440} tone="velvet">
+    <Modal title={vip ? "The VIP High-Stakes Reels" : "Lucky Reels"} icon={vip ? "💎" : "🎰"} onClose={onClose} width={460} tone="velvet" placard={limitPlacard(limit)}>
       <div className="flex flex-col items-center gap-4 pb-2">
         <div className="relative flex w-full items-stretch justify-center gap-3">
           {/* the cabinet window */}
@@ -120,7 +128,7 @@ export function SlotsModal({ propId, chips, localSessionId, onSpin, subscribeMes
             {won &&
               Array.from({ length: 14 }, (_, i) => (
                 <span key={`${burst}-${i}`} className="coin-burst left-1/2 top-1/2 text-xl" style={{ ["--dx" as string]: `${(Math.random() - 0.5) * 220}px`, ["--dy" as string]: `${-60 - Math.random() * 120}px` }}>
-                  🟡
+                  <VelvetChipIcon />
                 </span>
               ))}
           </div>
@@ -133,21 +141,26 @@ export function SlotsModal({ propId, chips, localSessionId, onSpin, subscribeMes
         </div>
 
         <div className="h-7 text-center text-base font-extrabold text-amber-200">
-          {spinning ? "Spinning…" : won ? `🎉 WIN +${result!.win} chips!` : push ? "A pair! Your stake back 🟡" : landedAll ? "So close! Try again?" : "Pick a stake and pull the lever"}
+          {spinning ? (
+            "Spinning…"
+          ) : won ? (
+            <>
+              🎉 WIN +<ChipAmount n={result!.win} />!
+            </>
+          ) : push ? (
+            "A pair! Your stake back"
+          ) : landedAll ? (
+            "So close! Try again?"
+          ) : (
+            "Pick a stake and pull the lever"
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {SLOT_BETS.map((b) => (
-            <button key={b} type="button" onClick={() => (setBet(b))} disabled={spinning} className={`clay-btn min-h-11 px-4 text-sm ${bet === b ? "clay-btn-amber" : "clay-btn-ghost"}`}>
-              🟡 {b}
-            </button>
-          ))}
-          <button type="button" onClick={pull} disabled={spinning || chips < bet} className="clay-btn clay-btn-rose px-6">
-            SPIN
-          </button>
-        </div>
-        <div className="text-xs opacity-70">Your chips: 🟡 {chips}</div>
-        {chips < bet && <div className="text-xs text-rose-200">Not enough chips for that stake. Buy chips from Mr. Vance at the cage by the doors.</div>}
+        <BetPicker limit={limit} chips={chips} value={bet} onChange={setBet} disabled={spinning} />
+        <button type="button" onClick={pull} disabled={spinning || chips < bet || chips < limit.min} className="clay-btn clay-btn-rose min-h-11 px-10">
+          SPIN
+        </button>
+        <ShortOfChips limit={limit} chips={chips} coins={coins} />
 
         <details className="w-full rounded-2xl bg-white/5 px-4 py-2 text-xs">
           <summary className="cursor-pointer font-bold">Paytable</summary>

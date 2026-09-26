@@ -49,7 +49,7 @@ export interface PlayerState {
   connected: boolean;
   /** Wallet. Starts at STARTING_COINS; lives in the room (kept across reconnects, not restarts). */
   coins: number;
-  /** Velvet Chips 🟡: the casino's balance, bought and cashed out at Mr. Vance's cage. */
+  /** Velvet Chips: the casino's balance, bought and cashed out at Mr. Vance's cage. */
   chips: number;
   /** Carried catches and forage, encoded by encodeBag(). */
   bag: string;
@@ -257,16 +257,16 @@ export type ToggleableKind =
   | CasinoPropKind;
 
 /** The Velvet Casino's props (shared/worlds/casino.ts): the slot row, Mr. Vance's cage, the exit
- *  doors, the game tables (walking up to one opens its board), the set dressing that answers a click
- *  (the dice, the Turf Club, the coin pusher, the billiards, the baby grand), Madame Zara, the
- *  capsule machine, the dealers' tip jars, Pippin's bar menu, The Velvet Gazette and the VIP room's
- *  locked doors. */
+ *  doors, the game tables (walking up to one opens its panel: the wheel, blackjack, poker, the dice,
+ *  the Turf Club, the coin pusher, the billiards, the baby grand), Madame Zara, the capsule machine,
+ *  the dealers' tip jars, Pippin's bar menu, The Velvet Gazette and the VIP room's doors. */
 export type CasinoPropKind =
   | "slot"
   | "cashier"
   | "portal"
   | "roulette"
   | "blackjack"
+  | "poker"
   | "craps"
   | "derby"
   | "pusher"
@@ -913,7 +913,7 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
   );
 }
 
-const CASINO_PROP_KINDS: ReadonlySet<string> = new Set<CasinoPropKind>(["slot", "cashier", "portal", "roulette", "blackjack", "craps", "derby", "pusher", "billiards", "piano", "gazette", "fortune", "gachapon", "tipjar", "barmenu", "vipdoor"]);
+const CASINO_PROP_KINDS: ReadonlySet<string> = new Set<CasinoPropKind>(["slot", "cashier", "portal", "roulette", "blackjack", "poker", "craps", "derby", "pusher", "billiards", "piano", "gazette", "fortune", "gachapon", "tipjar", "barmenu", "vipdoor"]);
 /** The casino's props: every one is walked up to. */
 export function isCasinoProp(kind: string): kind is CasinoPropKind {
   return CASINO_PROP_KINDS.has(kind);
@@ -921,14 +921,14 @@ export function isCasinoProp(kind: string): kind is CasinoPropKind {
 
 /** Props you can use without getting up from a seat within their reach (the server measures it):
  *  the baby grand from its bench, Pippin's menu from a bar stool, a tip from the poker table, The
- *  Velvet Gazette from the Chesterfield, and a blackjack table from one of its stools. */
+ *  Velvet Gazette from the Chesterfield, and a blackjack or poker table from one of its seats. */
 export function usableSeated(kind: ToggleableKind): boolean {
-  return kind === "piano" || kind === "barmenu" || kind === "tipjar" || kind === "gazette" || kind === "blackjack";
+  return kind === "piano" || kind === "barmenu" || kind === "tipjar" || kind === "gazette" || kind === "blackjack" || kind === "poker";
 }
 
 // --- world sizes ---
 /** Half-width of each diorama slab. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
 export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 

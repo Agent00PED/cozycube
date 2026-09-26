@@ -1,5 +1,6 @@
 import type { FortuneResult } from "@shared/casino";
 import { Modal } from "./Modal";
+import { VelvetChipIcon } from "./VelvetChipIcon";
 
 // Madame Zara's card: the reading her booth prints (the owl on its roof hoots as it does). One a
 // day: asked again, she hands you the same card; a lucky reading comes with a few chips, once.
@@ -18,7 +19,7 @@ export function FortuneModal({ fortune, onClose }: { fortune: FortuneResult; onC
         {fortune.again ? (
           <div className="text-center text-sm opacity-80">Madame Zara reads each palm but once a day. Come back tomorrow for a new card.</div>
         ) : fortune.lucky ? (
-          <div className="rounded-full bg-emerald-400/20 px-4 py-2 text-sm font-extrabold text-emerald-200">A lucky reading! +{fortune.chips} Velvet Chips 🟡</div>
+          <div className="rounded-full bg-emerald-400/20 px-4 py-2 text-sm font-extrabold text-emerald-200">A lucky reading! +{fortune.chips} Velvet Chips <VelvetChipIcon /></div>
         ) : (
           <div className="text-center text-sm opacity-80">The owl blinks knowingly. Tomorrow, another card.</div>
         )}

@@ -10,6 +10,11 @@ let ctx: AudioContext | null = null;
 /** The volume of the sound being made (0..1): what playSfx was asked for. */
 let level = 1;
 
+/** The shared context (the baby grand's recitals play on it too), made and resumed on first use. */
+export function sharedAudio(): AudioContext | null {
+  return audio();
+}
+
 function audio(): AudioContext | null {
   const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctx) return null;
@@ -80,7 +85,15 @@ export type Sfx =
   | "clack"
   | "fizz"
   | "rattle"
-  | "bugle";
+  | "bugle"
+  | "card"
+  | "crunch"
+  | "shaker"
+  | "pocket"
+  | "coinDrop"
+  | "knock"
+  | "purr"
+  | "gallop";
 
 /** A sound from somewhere in the world, heard from where you stand: full up close, fading with
  *  distance (and never quite gone within the room). */
@@ -229,6 +242,36 @@ export function playSfx(kind: Sfx, volume = 1) {
     noise(c, t, 0.025, 0.14, 4200);
     tone(c, t + 0.03, 1568, 1568, 0.28, 0.05, "sine");
     tone(c, t + 0.08, 2093, 2093, 0.3, 0.035, "sine");
+  } else if (kind === "card") {
+    // a card dealt or turned: a papery swish and a light snap
+    noise(c, t, 0.09, 0.14, 5200);
+    noise(c, t + 0.06, 0.03, 0.1, 2400);
+  } else if (kind === "crunch") {
+    // a pretzel: three dry cracks
+    for (let i = 0; i < 3; i++) noise(c, t + i * 0.07, 0.05, 0.22, 1800 + i * 500);
+  } else if (kind === "shaker") {
+    // Pippin's shaker: ice rattling back and forth
+    for (let i = 0; i < 8; i++) noise(c, t + i * 0.085, 0.06, 0.09 + (i % 2) * 0.04, 6200 - (i % 2) * 1400);
+  } else if (kind === "pocket") {
+    // a ball dropping into a pocket: a hollow thunk and a roll
+    tone(c, t, 180, 90, 0.18, 0.2, "sine");
+    noise(c, t + 0.05, 0.25, 0.06, 700);
+  } else if (kind === "coinDrop") {
+    // a coin down the pusher's chute: a bright clink, a bounce
+    tone(c, t, 2400, 2200, 0.12, 0.06, "triangle");
+    tone(c, t + 0.09, 3100, 2900, 0.1, 0.04, "triangle");
+    noise(c, t + 0.16, 0.12, 0.05, 3000);
+  } else if (kind === "knock") {
+    // knuckles on the felt: two soft thuds
+    tone(c, t, 140, 80, 0.09, 0.22, "sine");
+    tone(c, t + 0.14, 150, 85, 0.09, 0.2, "sine");
+  } else if (kind === "purr") {
+    // a contented cat: a low buzzing hum
+    tone(c, t, 48, 44, 0.9, 0.12, "sawtooth");
+    tone(c, t, 96, 90, 0.9, 0.03, "triangle");
+  } else if (kind === "gallop") {
+    // clockwork hooves: a quick run of clicks
+    for (let i = 0; i < 6; i++) noise(c, t + i * 0.09 + (i % 2) * 0.03, 0.03, 0.12, 2600);
   } else if (kind === "pluck") {
     // picking: a soft snap and a bright blip
     noise(c, t, 0.05, 0.12, 3500);
