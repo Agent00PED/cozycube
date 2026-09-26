@@ -587,8 +587,12 @@ def build_cage(M, L):
         a0, a1 = math.pi * k / 12, math.pi * (k + 1) / 12
         pts = [(win + 0.51 * math.cos(a0), arc_c + 0.51 * math.sin(a0)), (win + 0.59 * math.cos(a0), arc_c + 0.59 * math.sin(a0)), (win + 0.59 * math.cos(a1), arc_c + 0.59 * math.sin(a1)), (win + 0.51 * math.cos(a1), arc_c + 0.51 * math.sin(a1))]
         vslab(M, pts, bar_z - 0.04, bar_z + 0.04, "CS_Gold")
-    # the vault door on the wall behind: a brass disc, a dark ring, a three-spoke wheel
-    vx, vy = win, 1.45
+    # the teller's platform behind the counter: Mr. Vance stands on it, paws on the counter
+    fl = c["floor"]
+    box(M, x0 + 0.2, x1 - 0.2, 0.0, fl - 0.02, face_z, front, "CS_MahoganyDark")
+    box(M, x0 + 0.2, x1 - 0.2, fl - 0.02, fl, face_z, front, "CS_Runner")  # its top is `floor`: his feet
+    # the vault door on the wall behind, beside him: a brass disc, a dark ring, a three-spoke wheel
+    vx, vy = win + 1.45, fl + 1.0
     cylinder(M, (vx, vy, face_z), (vx, vy, face_z + 0.08), 0.62, "CS_Brass", sides=24)
     cylinder(M, (vx, vy, face_z + 0.08), (vx, vy, face_z + 0.1), 0.5, "CS_Black", sides=24)
     cylinder(M, (vx, vy, face_z + 0.1), (vx, vy, face_z + 0.2), 0.08, "CS_Gold", sides=12)

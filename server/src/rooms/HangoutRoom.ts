@@ -2976,8 +2976,10 @@ export class HangoutRoom extends Room<HangoutState> {
         this.sendTo(sessionId, "openPanel", { kind: "workbench", propId: prop.propId });
         break;
       case "cashier":
-        // Mr. Vance's window: the cage modal (the exchange itself is "buyChips" / "cashOut")
+        // Mr. Vance's window: the cage modal (the exchange itself is "buyChips" / "cashOut"); he
+        // waves, and everyone sees it
         this.sendTo(sessionId, "openPanel", { kind: "cashier", propId: prop.propId });
+        this.broadcast("vanceWave", { sessionId });
         break;
       case "portal":
         // the casino's exit doors: the world drawer, to go back to the Lounge or anywhere else

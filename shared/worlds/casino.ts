@@ -19,7 +19,8 @@ import type { PropSpec, SeatSpec } from "./lounge";
 //
 //   back-right   1 THE GRAND FOYER: marble; the exit doors in the back wall, flanked by palms;
 //                a round tufted ottoman under a chandelier; Mr. Vance's golden cashier cage in
-//                the corner by the front edge
+//                the corner by the front edge, a raised teller's platform behind its counter (`floor`)
+//                so he stands at the window with his paws on the counter
 //   centre       2 THE MAIN GAMING FLOOR: burgundy velvet carpet; the roulette table (Madame
 //                Vivienne at the wheel) and two half-moon blackjack tables to its right
 //   left wall    3 NEON ALLEY: a row of six vintage slot machines against the wall, Jasper at a
@@ -49,7 +50,7 @@ export const CASINO_LAYOUT = /* layout:begin */ {
   "doors": { "x": 4.5, "w": 2.4, "h": 2.9 },
   "palms": [{ "x": 2.3, "z": -12.1 }, { "x": 6.7, "z": -12.1 }],
   "ottoman": { "x": 4.5, "z": -7.6, "r": 0.95, "seatR": 0.8 },
-  "cage": { "x0": 7.6, "x1": 13, "z0": -13, "z1": -10.4, "window": 10.2, "counter": 1.05, "h": 2.6 },
+  "cage": { "x0": 7.6, "x1": 13, "z0": -13, "z1": -10.4, "window": 10.2, "counter": 1.05, "h": 2.6, "floor": 0.55 },
   "roulette": { "x": 1.0, "z": 0.5, "len": 3.2, "w": 1.5, "top": 0.78, "wheel": -1.15, "reach": 3.4 },
   "blackjack": {
     "tables": [{ "x": 7.6, "z": -1.2 }, { "x": 7.6, "z": 5.2 }],
@@ -85,7 +86,7 @@ export const CASINO_LAYOUT = /* layout:begin */ {
   "chandeliers": [[1.0, 3.5, 0.5], [7.6, 3.5, 2.0], [4.5, 3.7, -7.6], [-9.6, 3.3, -9.6]],
   "sconces": { "y": 2.3, "onBackZ": [-11.0, -8.0, -3.5, 0.0, 2.3, 6.7], "onBackX": [-11.0, -8.0, -5.8, -1.8, 3.3, 10.6, 12.0] },
   "npcs": {
-    "vance": { "x": 10.2, "z": -11.6, "yaw": 0 },
+    "vance": { "x": 9.75, "z": -11.15, "yaw": 0 },
     "boris": { "x": -9.6, "z": -10.95, "yaw": 0 },
     "vivienne": { "x": -1.45, "z": 0.5, "yaw": 1.5708 },
     "jasper": { "x": -11.15, "z": 2.4, "yaw": -1.5708 },
@@ -136,7 +137,9 @@ export function casinoZoneAt(x: number, z: number): CasinoZone {
 // --- the staff and the regulars -----------------------------------------------------------------
 
 export type CasinoNpcId = keyof typeof L.npcs;
-/** Who stands where. `phase`: the build that brings them (1a: Mr. Vance; 1b: the other four). */
+/** Who stands where. `phase`: the build that brings them (1a: Mr. Vance; 1b: the other four). Mr.
+ *  Vance stands a little left of his window's middle: the camera looks down along (1, 1, 1), so
+ *  the line from his face to it crosses the bars about 0.5 further along +x, in the window's middle. */
 export const CASINO_NPCS: Record<CasinoNpcId, { x: number; z: number; yaw: number; name: string; role: string; phase: "1a" | "1b" }> = {
   vance: { ...L.npcs.vance, name: "Mr. Vance", role: "the fox cashier at the Golden Cage", phase: "1a" },
   boris: { ...L.npcs.boris, name: "Boris", role: "the polar bear dealer in the High-Roller Pit", phase: "1b" },

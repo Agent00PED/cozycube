@@ -7,11 +7,12 @@ import { cameraFocus } from "../scene/cameraFocus";
 import { noRaycast } from "../scene/kit";
 import { ModelBoundary } from "./ModelBoundary";
 
-// A Campfire shopkeeper (Barnaby the Angler, Buster the Lumberjack): a pure loader for their
-// Blender model, whose nodes follow one contract (`<Prefix>_Body`, `_Head`, `_ArmR`, `_Tail`, see
-// scripts/blender/build_barnaby.py and build_buster.py). They breathe, sway their tails, turn their
-// heads to whoever walks up, and wave when someone opens their shop (`waveEvent`: everyone sees it).
-// Where they stand comes from CAMPFIRE_LAYOUT; a model loading or missing shows `standIn`.
+// A shopkeeper (the Campfire's Barnaby the Angler and Buster the Lumberjack, the casino's Mr. Vance):
+// a pure loader for their Blender model, whose nodes follow one contract (`<Prefix>_Body`, `_Head`,
+// `_ArmR`, `_Tail`, see scripts/blender/build_barnaby.py, build_buster.py and build_vance.py). They
+// breathe, sway their tails, turn their heads to whoever walks up, and wave when someone opens their
+// shop (`waveEvent`: everyone sees it). Where they stand comes from their world's layout (`y` lifts
+// them onto a platform, as the cage's); a model loading or missing shows `standIn`.
 
 /** How near the local player comes before they look their way. */
 const NOTICE = 4.5;
@@ -22,6 +23,8 @@ export interface CampNpcProps {
   what: string;
   prefix: string;
   at: { x: number; z: number; yaw: number };
+  /** The height they stand at (a platform's top); the ground when omitted. */
+  y?: number;
   waveEvent: string;
   standIn: ReactNode;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
@@ -29,7 +32,7 @@ export interface CampNpcProps {
 
 export function CampNpc(props: CampNpcProps) {
   return (
-    <group position={[props.at.x, 0, props.at.z]} rotation={[0, props.at.yaw, 0]}>
+    <group position={[props.at.x, props.y ?? 0, props.at.z]} rotation={[0, props.at.yaw, 0]}>
       <ModelBoundary what={props.what} fallback={props.standIn}>
         <Suspense fallback={props.standIn}>
           <NpcModel {...props} />

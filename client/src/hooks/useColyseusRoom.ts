@@ -98,8 +98,9 @@ const RELAYED_MESSAGES = [
   "workbenchResult",
   "chopSwing",
   "creelFull",
-  // the casino: Mr. Vance's answer at the cage (an exchange, or why not)
+  // the casino: Mr. Vance's answer at the cage (an exchange, or why not), and his wave as it opens
   "cashierResult",
+  "vanceWave",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;

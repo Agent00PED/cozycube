@@ -376,7 +376,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       ) : mapId === "campfire_night" ? (
         <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} hearth={hearth} subscribeMessages={subscribeMessages} onDuck={(duck) => room?.send("duckPoke", { duck })} />
       ) : mapId === "velvet_casino" ? (
-        <CasinoWorld onFloorClick={onFloorClick} room={room} />
+        <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} />
       ) : (
         <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />
       )}
@@ -424,8 +424,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         ) : prop.kind === "slot" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.9, 1.8, 0.95]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "cashier" ? (
-          // Mr. Vance's window: the pad stands in the teller window, where you click
-          <PropPad key={prop.propId} prop={{ ...prop, z: prop.z + 1.1 }} size={[1.2, 2.3, 0.5]} onUse={() => activate(prop.propId)} />
+          // Mr. Vance and his window: the pad stands over him and the window's bars, where you click
+          <PropPad key={prop.propId} prop={{ ...prop, z: prop.z + 0.45 }} size={[1.2, 2.3, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "portal" ? (
           <PropPad key={prop.propId} prop={prop} size={[2.4, 2.9, 0.5]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "plant" ? (
