@@ -1,9 +1,10 @@
 import { MAP_HALF, MAP_IDS, type MapId } from "./types";
 import { LOFT_OBSTACLES, LOFT_SPAWNS, NAV_LIMIT } from "./worlds/lounge";
 import { CAMP_OBSTACLES, CAMP_SPAWNS } from "./worlds/campfire";
+import { CASINO_OBSTACLES, CASINO_SPAWNS } from "./worlds/casino";
 
-// Where you can stand. The lounge and the campfire are authored in shared/worlds/ (lounge.ts,
-// campfire.ts); every other world is still an open square floor with one spawn in the middle
+// Where you can stand. The lounge, the campfire and the casino are authored in shared/worlds/
+// (lounge.ts, campfire.ts, casino.ts); every other world is still an open square floor with one spawn in the middle
 // until it is rebuilt.
 
 export interface AABB {
@@ -29,7 +30,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   cozy_lounge: LOFT_OBSTACLES,
   campfire_night: CAMP_OBSTACLES,
   sunset_beach: open(),
-  velvet_casino: open(),
+  velvet_casino: CASINO_OBSTACLES,
   boxing_ring: open(),
   japanese_onsen: open(),
   retro_arcade: open(),
@@ -41,7 +42,7 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
   cozy_lounge: LOFT_SPAWNS,
   campfire_night: CAMP_SPAWNS,
   sunset_beach: centre(),
-  velvet_casino: centre(),
+  velvet_casino: CASINO_SPAWNS,
   boxing_ring: centre(),
   japanese_onsen: centre(),
   retro_arcade: centre(),

@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { emptyFishingProfile, sanitizeFishingProfile, type FishingProfile } from "../../../shared/fishing";
+import { emptyCasinoProfile, netWorth, sanitizeCasinoProfile, type CasinoProfile } from "../../../shared/casino";
 import { CAMPFIRE_DAILY_COINS, DEFAULT_STATS, STARTER_UNLOCKS, STARTING_COINS, type CampfireCoinKind, type DailyChecklist, type PlayerStats } from "../../../shared/types";
 
 /** The campfire coins earned on `day`, by activity. */
@@ -31,24 +32,30 @@ export interface PlayerRecord {
   campfireCoins: CampfireCoins;
   /** The angler's creel, rods, baits, records and Well-Fed clock (stats JSON "fishing"). */
   fishing: FishingProfile;
+  /** Velvet Chips (stats JSON "casino"); a record saved before the casino opened reads as 0. */
+  casino: CasinoProfile;
   lastDailyClaim: Date | null;
 }
 
 export interface LeaderboardEntry {
   username: string;
   coins: number;
+  chips: number;
+  /** coins + chips: what the board is ranked by. */
+  worth: number;
 }
 
 export interface PlayerStore {
   readonly kind: "postgres" | "memory";
   load(discordId: string): Promise<PlayerRecord | null>;
   upsert(record: PlayerRecord): Promise<void>;
-  topCoins(limit: number): Promise<LeaderboardEntry[]>;
+  /** The richest players by net worth (coins + chips), so chips parked at the cage still count. */
+  topNetWorth(limit: number): Promise<LeaderboardEntry[]>;
   close(): Promise<void>;
 }
 
 export function newPlayerRecord(discordId: string, username: string): PlayerRecord {
-  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: emptyCampfireCoins(""), fishing: emptyFishingProfile(), lastDailyClaim: null };
+  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: emptyCampfireCoins(""), fishing: emptyFishingProfile(), casino: emptyCasinoProfile(), lastDailyClaim: null };
 }
 
 const SCHEMA_SQL = `
@@ -81,6 +88,8 @@ function rowToRecord(row: any): PlayerRecord {
   delete raw.campfire_coins;
   const fishing = sanitizeFishingProfile(raw.fishing);
   delete raw.fishing;
+  const casino = sanitizeCasinoProfile(raw.casino);
+  delete raw.casino;
   return {
     discordId: row.discord_id,
     username: row.username,
@@ -93,13 +102,14 @@ function rowToRecord(row: any): PlayerRecord {
     plantsWatered,
     campfireCoins,
     fishing,
+    casino,
     lastDailyClaim: row.last_daily_claim ? new Date(row.last_daily_claim) : null,
   };
 }
 
-/** The stats column carries the checklist, Mochi's coin day and today's watered plants alongside the counters. */
+/** The stats column carries the checklist, Mochi's coin day, today's watered plants, the camp profile and the casino's chips alongside the counters. */
 function statsColumn(r: PlayerRecord): string {
-  return JSON.stringify({ ...r.stats, daily: r.daily, mochi_coins_day: r.mochiCoinsDay, plants_watered: r.plantsWatered, campfire_coins: r.campfireCoins, fishing: r.fishing });
+  return JSON.stringify({ ...r.stats, daily: r.daily, mochi_coins_day: r.mochiCoinsDay, plants_watered: r.plantsWatered, campfire_coins: r.campfireCoins, fishing: r.fishing, casino: r.casino });
 }
 
 /** A connection pool to the database at `url` (the player store and the board store each keep one). */
@@ -144,9 +154,18 @@ class PostgresStore implements PlayerStore {
     );
   }
 
-  async topCoins(limit: number) {
-    const res = await this.pool.query("SELECT username, coins FROM players ORDER BY coins DESC, updated_at ASC LIMIT $1", [limit]);
-    return res.rows.map((row) => ({ username: String(row.username), coins: Number(row.coins) }));
+  async topNetWorth(limit: number) {
+    // chips live in the stats JSON; the guard reads anything but a number there as none
+    const res = await this.pool.query(
+      `SELECT username, coins, chips, coins + chips AS worth FROM (
+         SELECT username, coins, updated_at,
+           CASE WHEN jsonb_typeof(stats->'casino'->'chips') = 'number' THEN floor((stats->'casino'->>'chips')::numeric)::int ELSE 0 END AS chips
+         FROM players
+       ) p
+       ORDER BY worth DESC, updated_at ASC LIMIT $1`,
+      [limit]
+    );
+    return res.rows.map((row) => ({ username: String(row.username), coins: Number(row.coins), chips: Number(row.chips), worth: Number(row.worth) }));
   }
 
   async close() {
@@ -160,16 +179,16 @@ class MemoryStore implements PlayerStore {
   private rows = new Map<string, PlayerRecord>();
   async load(discordId: string) {
     const r = this.rows.get(discordId);
-    return r ? { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins } } : null;
+    return r ? { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins }, casino: { ...r.casino } } : null;
   }
   async upsert(r: PlayerRecord) {
-    this.rows.set(r.discordId, { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins } });
+    this.rows.set(r.discordId, { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins }, casino: { ...r.casino } });
   }
-  async topCoins(limit: number) {
+  async topNetWorth(limit: number) {
     return [...this.rows.values()]
-      .sort((a, b) => b.coins - a.coins)
-      .slice(0, limit)
-      .map((r) => ({ username: r.username, coins: r.coins }));
+      .map((r) => ({ username: r.username, coins: r.coins, chips: r.casino.chips, worth: netWorth(r.coins, r.casino.chips) }))
+      .sort((a, b) => b.worth - a.worth)
+      .slice(0, limit);
   }
   async close() {}
 }

@@ -9,6 +9,9 @@ import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
 import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf, nearestChopStation } from "@shared/worlds/campfire";
 import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireSky, CampfireWorld } from "./CampfireWorld";
+import { CASINO_URL, CasinoWorld } from "./CasinoWorld";
+import { preloadCasinoStaff } from "../entities/CasinoStaff";
+import { CASINO_FRAME } from "@shared/worlds/casino";
 import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
 import { BoardTablePad, CampfirePuff, Cat, FloorLamp, PLANT_BURST_SECONDS, PUFF_SECONDS, PlantBurst, PropPad, RadioProp, SeatPad } from "./Props";
@@ -26,7 +29,7 @@ import type { FloatingEmote } from "../entities/Avatar";
 // The scene root: the world and everything alive in it.
 //
 //   - warm ambient light and the sky for the hour
-//   - the world itself (the lounge; the other six are still an empty floor)
+//   - the world itself (the lounge, the campfire, the casino; the other five are still an empty floor)
 //   - seats and interactive props, drawn from the server's synced state
 //   - you (LocalPlayerAvatar) and everyone else (OtherPlayers)
 //   - click-to-move: the floor, a seat or Mochi is a walk order, and seats and props act on arrival
@@ -53,12 +56,13 @@ export interface WorldSceneProps {
 const EMOTE_LIFETIME_MS = 3000;
 const BUBBLE_LIFETIME_MS = 4200;
 
-/** Warm ambient light and a soft key with no shadow map: the whole room's light, with the lamps' own point lights. */
-function SceneLighting({ timeOfDay, starlit }: { timeOfDay: TimeOfDay; starlit: boolean }) {
+/** Warm ambient light and a soft key with no shadow map: the whole room's light, with the lamps' own
+ *  point lights. Indoors with a backdrop of its own (the casino), the hour's sky is not drawn. */
+function SceneLighting({ timeOfDay, starlit, indoor }: { timeOfDay: TimeOfDay; starlit: boolean; indoor: boolean }) {
   const look = HOUR_LOOKS[timeOfDay];
   return (
     <>
-      {starlit ? <CampfireSky /> : <color attach="background" args={[look.sky]} />}
+      {starlit ? <CampfireSky /> : indoor ? null : <color attach="background" args={[look.sky]} />}
       <ambientLight color={look.ambientColor} intensity={look.ambient} />
       {/* the key only gives the clay its form: it never casts a shadow, and it comes from off the camera's axis */}
       <directionalLight position={[-14, 24, 10]} color={look.sunColor} intensity={look.sun} castShadow={false} />
@@ -69,7 +73,7 @@ function SceneLighting({ timeOfDay, starlit }: { timeOfDay: TimeOfDay; starlit: 
 const FLOOR = matte("#8b8f86", 0.85);
 const SLAB = matte("#4a3a2c", 0.85);
 
-/** The other six worlds: a bare floor and a sign, until each is rebuilt. */
+/** The other five worlds: a bare floor and a sign, until each is rebuilt. */
 function EmptyWorld({ mapId, onFloorClick }: { mapId: MapId; onFloorClick: (x: number, z: number) => void }) {
   const half = MAP_HALF[mapId];
   return (
@@ -88,7 +92,7 @@ function EmptyWorld({ mapId, onFloorClick }: { mapId: MapId; onFloorClick: (x: n
       <StaticBatch>
         <mesh geometry={GEO.box} material={SLAB} position={[0, -0.67, 0]} scale={[half * 2, 1.3, half * 2]} raycast={noRaycast} />
       </StaticBatch>
-      <Html position={[0, 1.2, 0]} center style={{ pointerEvents: "none" }}>
+      <Html position={[0, 1.2, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
         <div style={{ padding: "8px 16px", borderRadius: 999, background: "rgba(40,28,20,0.7)", color: "#fff8ec", font: "700 14px system-ui, sans-serif", whiteSpace: "nowrap" }}>🚧 This world is being rebuilt</div>
       </Html>
     </group>
@@ -171,12 +175,19 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   }, [subscribeMessages]);
 
   // the camera fits this world's floor with a margin (the lounge's own frame, or another world's size)
-  frame.size = mapId === "cozy_lounge" ? LOFT_FRAME.size : mapId === "campfire_night" ? CAMPFIRE_FRAME.size : MAP_HALF[mapId] * 2 + 0.8;
+  frame.size = mapId === "cozy_lounge" ? LOFT_FRAME.size : mapId === "campfire_night" ? CAMPFIRE_FRAME.size : mapId === "velvet_casino" ? CASINO_FRAME.size : MAP_HALF[mapId] * 2 + 0.8;
 
-  // the campfire's model is fetched quietly once the lounge is up, so travelling there is instant
+  // the other worlds' models are fetched quietly once the lounge is up, so travelling is instant
   useEffect(() => {
-    const t = window.setTimeout(() => useGLTF.preload(CAMPFIRE_URL), 4000);
-    return () => window.clearTimeout(t);
+    const campfire = window.setTimeout(() => useGLTF.preload(CAMPFIRE_URL), 4000);
+    const casino = window.setTimeout(() => {
+      useGLTF.preload(CASINO_URL);
+      preloadCasinoStaff();
+    }, 7000);
+    return () => {
+      window.clearTimeout(campfire);
+      window.clearTimeout(casino);
+    };
   }, []);
 
   // the campfire's little effects: smoke off a burnt skewer, a splash off a catch
@@ -363,8 +374,16 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   const hour: TimeOfDay = starlit ? "night" : timeOfDay;
   return (
     <TimeOfDayContext.Provider value={hour}>
-      <SceneLighting timeOfDay={hour} starlit={starlit} />
-      {mapId === "cozy_lounge" ? <LoungeWorld onFloorClick={onFloorClick} /> : mapId === "campfire_night" ? <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} hearth={hearth} subscribeMessages={subscribeMessages} onDuck={(duck) => room?.send("duckPoke", { duck })} /> : <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />}
+      <SceneLighting timeOfDay={hour} starlit={starlit} indoor={mapId === "velvet_casino"} />
+      {mapId === "cozy_lounge" ? (
+        <LoungeWorld onFloorClick={onFloorClick} />
+      ) : mapId === "campfire_night" ? (
+        <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} hearth={hearth} subscribeMessages={subscribeMessages} onDuck={(duck) => room?.send("duckPoke", { duck })} />
+      ) : mapId === "velvet_casino" ? (
+        <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} />
+      ) : (
+        <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />
+      )}
 
       {Object.values(chairs).map((chair) => (
         // a seat you lie in (the hammock, the tent) is placed by where your feet go: its pad sits
@@ -406,6 +425,13 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={prop} size={[1.4, 1.2, 1.4]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "foraging" ? (
           prop.on ? <PropPad key={prop.propId} prop={prop} size={[0.8, 0.6, 0.8]} onUse={() => activate(prop.propId)} /> : null
+        ) : prop.kind === "slot" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.9, 1.8, 0.95]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "cashier" ? (
+          // Mr. Vance and his window: the pad stands over him and the window's bars, where you click
+          <PropPad key={prop.propId} prop={{ ...prop, z: prop.z + 0.45 }} size={[1.2, 2.3, 0.7]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "portal" ? (
+          <PropPad key={prop.propId} prop={prop} size={[2.4, 2.9, 0.5]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "plant" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.75, 1.4, 0.75]} onUse={() => activate(prop.propId)} />
         ) : null

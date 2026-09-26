@@ -4,6 +4,7 @@ import { WorldDrawer } from "./components/hud/WorldDrawer";
 import { SideDrawer } from "./components/hud/SideDrawer";
 import { SettingsPanel } from "./components/hud/SettingsPanel";
 import { SlotsModal } from "./components/hud/SlotsModal";
+import { CashierModal } from "./components/hud/CashierModal";
 import { BlackjackModal } from "./components/hud/BlackjackModal";
 import { LeaderboardModal } from "./components/hud/LeaderboardModal";
 import { Toasts } from "./components/hud/Toasts";
@@ -37,6 +38,8 @@ import { WoodChopModal } from "./components/hud/WoodChopModal";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
 import { FORAGE_INFO, ITEMS, TREASURE_COINS, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
+import { type BlackjackView } from "@shared/casino";
+import { blackjackTableNear, ROULETTE_BET_RADIUS, ROULETTE_CENTER } from "@shared/worlds/casino";
 import { FISH, RODS, TIER_LABEL, stars } from "@shared/fishing";
 import { COZY_AURA_FUEL, LOW_FUEL, stewName, type BonfireUpdate, type StewUpdate } from "@shared/bonfire";
 import { CookingModal } from "./components/hud/CookingModal";
@@ -50,15 +53,10 @@ import { BoxingHud } from "./components/hud/BoxingHud";
 import { installKeyboard, isTouchDevice } from "./systems/input";
 import {
   ACHIEVEMENTS,
-  BLACKJACK_CENTER,
-  BLACKJACK_RADIUS,
   EMOTES,
-  ROULETTE_BET_RADIUS,
-  ROULETTE_CENTER,
   defaultLook,
   parseLook,
   parseStats,
-  type BlackjackView,
   type BoardGameView,
   type FishOnLine,
   type GachaPrize,
@@ -198,6 +196,8 @@ export default function App() {
     buyHat,
     placeBet,
     clearBets,
+    buyChips,
+    cashOut,
     subscribeMessages,
     changeMap,
     setTimeOfDay,
@@ -284,6 +284,11 @@ export default function App() {
     setMatchaResult(null);
     setBlendResult(null);
     setMochiResult(null);
+    // the casino's exit doors: the world drawer, to go home or anywhere else
+    if (kind === "worlds") {
+      setWorldsOpen(true);
+      return;
+    }
     setPanel({ kind, propId });
   }, []);
   useEffect(() => {
@@ -310,7 +315,7 @@ export default function App() {
           const { winners } = payload as { result: number; winners: { sessionId: string; username: string; amount: number }[] };
           if (winners.length === 0) return;
           const best = [...winners].sort((a, b) => b.amount - a.amount)[0];
-          pushToast(`${best.username} won ${best.amount} coins${winners.length > 1 ? ` (+${winners.length - 1} more)` : ""}`, { emoji: "🎉", tone: "win", silent: true });
+          pushToast(`${best.username} won ${best.amount} chips${winners.length > 1 ? ` (+${winners.length - 1} more)` : ""}`, { emoji: "🎉", tone: "win", silent: true });
         } else if (type === "openSlots") {
           setSlotsProp((payload as { propId: string }).propId);
         } else if (type === "blackjackState") {
@@ -490,7 +495,7 @@ export default function App() {
 
   // --- table proximity: the roulette board and the blackjack panel follow you to the tables ---
   const atRoulette = currentMap === "velvet_casino" && !!me && !me.sitting && Math.hypot(me.x - ROULETTE_CENTER.x, me.z - ROULETTE_CENTER.z) < ROULETTE_BET_RADIUS;
-  const atBlackjack = currentMap === "velvet_casino" && !!me && Math.hypot(me.x - BLACKJACK_CENTER.x, me.z - BLACKJACK_CENTER.z) < BLACKJACK_RADIUS + 0.5;
+  const atBlackjack = currentMap === "velvet_casino" && !!me && !!blackjackTableNear(me.x, me.z);
   const [rouletteClosed, setRouletteClosed] = useState(false);
   useEffect(() => {
     if (!atRoulette) setRouletteClosed(false);
@@ -574,6 +579,7 @@ export default function App() {
           autoCycle={autoCycle}
           onToggleAutoCycle={() => setAutoCycle(!autoCycle)}
           coins={localPlayer?.coins ?? 0}
+          chips={localPlayer?.chips ?? 0}
           onClaimAllowance={claimAllowance}
           status={localPlayer?.status ?? ""}
           onSetStatus={setStatus}
@@ -628,7 +634,7 @@ export default function App() {
             <RoulettePanel
               roulette={roulette}
               myBets={bets[localSessionId] ?? ""}
-              coins={localPlayer.coins}
+              chips={localPlayer.chips}
               localSessionId={localSessionId}
               onPlaceBet={placeBet}
               onClearBets={clearBets}
@@ -664,9 +670,9 @@ export default function App() {
         {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
         {leaderboardOpen && <LeaderboardModal leaderboard={leaderboard} players={players} localName={localPlayer?.username ?? ""} onClose={() => setLeaderboardOpen(false)} />}
         {slotsProp && localPlayer && localSessionId && (
-          <SlotsModal propId={slotsProp} coins={localPlayer.coins} localSessionId={localSessionId} onSpin={spinSlots} subscribeMessages={subscribeMessages} onClose={() => setSlotsProp(null)} />
+          <SlotsModal propId={slotsProp} chips={localPlayer.chips} localSessionId={localSessionId} onSpin={spinSlots} subscribeMessages={subscribeMessages} onClose={() => setSlotsProp(null)} />
         )}
-        {blackjackOpen && localPlayer && <BlackjackModal view={blackjackView} coins={localPlayer.coins} onAction={blackjackAction} onClose={() => setBlackjackOpen(false)} />}
+        {blackjackOpen && localPlayer && <BlackjackModal view={blackjackView} chips={localPlayer.chips} onAction={blackjackAction} onClose={() => setBlackjackOpen(false)} />}
 
         {/* the world's own panels */}
         {fishOnLine && (
@@ -719,6 +725,7 @@ export default function App() {
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
         {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} send={campfireSend} onClose={closePanel} />}
         {panel?.kind === "workbench" && localPlayer && <WoodCraftModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "cashier" && localPlayer && <CashierModal coins={localPlayer.coins} chips={localPlayer.chips} onBuy={buyChips} onCashOut={cashOut} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
 

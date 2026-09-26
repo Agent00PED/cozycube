@@ -16,6 +16,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               ["fire", "🔥 Campfire Crackle"],
               ["river", "🌊 River Stream"],
               ["forest", "🍃 Forest & Crickets"],
+              ["jazz", "🎷 Casino Jazz"],
             ] as const
           ).map(([k, label]) => (
             <label key={k} className="flex items-center gap-3 text-sm">
@@ -29,7 +30,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             <input type="checkbox" checked={sound.effects} onChange={(e) => setSoundSettings({ effects: e.target.checked })} className="h-5 w-5 accent-amber-300" aria-label="Sound effects" />
             <span className="opacity-70">{sound.effects ? "On" : "Off"}</span>
           </label>
-          <p className="m-0 text-[11px] opacity-55">The campfire's soundscape, channel by channel (the crackle fades out if the bonfire goes out). The lounge radio has its own volume in its panel.</p>
+          <p className="m-0 text-[11px] opacity-55">The campfire's soundscape, channel by channel (the crackle fades out if the bonfire goes out), and the casino's jazz combo. The lounge radio has its own volume in its panel.</p>
         </section>
         <section className="flex flex-col gap-3 rounded-3xl bg-white/5 p-4">
           <h3 className="text-xs font-bold uppercase tracking-widest opacity-60">Controls</h3>

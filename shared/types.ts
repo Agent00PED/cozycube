@@ -49,6 +49,8 @@ export interface PlayerState {
   connected: boolean;
   /** Wallet. Starts at STARTING_COINS; lives in the room (kept across reconnects, not restarts). */
   coins: number;
+  /** Velvet Chips 🟡: the casino's balance, bought and cashed out at Mr. Vance's cage. */
+  chips: number;
   /** Carried catches and forage, encoded by encodeBag(). */
   bag: string;
   /** Comma-separated premium hats bought in the coin shop. */
@@ -144,7 +146,11 @@ export const ACHIEVEMENTS: { stat: keyof PlayerStats; at: number; title: string;
   { stat: "blackjack_wins", at: 10, title: "Card shark", emoji: "🦈" },
 ];
 
-/** The house tops you up when you are broke: once per cooldown, only under this balance. */
+/** The most coins anyone can hold (Velvet Chips share the ceiling: shared/casino CHIP_CAP). */
+export const COIN_CAP = 99_999;
+
+/** The house tops you up when you are broke: once per cooldown, only while your net worth (coins
+ *  and Velvet Chips together, shared/casino netWorth) is under this. */
 export const ALLOWANCE_COINS = 50;
 export const ALLOWANCE_BELOW = 10;
 export const ALLOWANCE_COOLDOWN_S = 600;
@@ -244,7 +250,9 @@ export type ToggleableKind =
   | "critter"
   | "angler"
   | "lumberjack"
-  | "workbench";
+  | "workbench"
+  | "cashier"
+  | "portal";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -390,76 +398,6 @@ export function encodeBag(bag: Bag): string {
   return ITEM_IDS.filter((id) => (bag[id] ?? 0) > 0)
     .map((id) => `${id}:${bag[id]}`)
     .join(",");
-}
-
-// --- casino: roulette ---
-export type RoulettePhase = "betting" | "spinning" | "payout";
-export const ROULETTE_PHASE_SECONDS: Record<RoulettePhase, number> = { betting: 25, spinning: 6, payout: 4 };
-/** European wheel order, clockwise. */
-export const WHEEL_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
-const RED_NUMBERS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
-export function pocketColor(n: number): "green" | "red" | "black" {
-  return n === 0 ? "green" : RED_NUMBERS.has(n) ? "red" : "black";
-}
-/** A bet target: "red" | "black" | "odd" | "even" | "n<0-36>". */
-export type BetKind = string;
-export const CHIP_VALUES = [5, 10, 25] as const;
-export const MAX_BET_TOTAL = 200;
-export function isBetKind(kind: unknown): kind is BetKind {
-  if (typeof kind !== "string") return false;
-  if (kind === "red" || kind === "black" || kind === "odd" || kind === "even") return true;
-  const m = /^n(\d{1,2})$/.exec(kind);
-  return !!m && Number(m[1]) <= 36;
-}
-/** Total returned (stake included) for a winning bet, or 0. */
-export function betReturn(kind: BetKind, amount: number, result: number): number {
-  if (kind === "red" || kind === "black") return pocketColor(result) === kind ? amount * 2 : 0;
-  if (kind === "odd") return result !== 0 && result % 2 === 1 ? amount * 2 : 0;
-  if (kind === "even") return result !== 0 && result % 2 === 0 ? amount * 2 : 0;
-  return kind === `n${result}` ? amount * 36 : 0;
-}
-/** Bets travel as "kind:amount,kind:amount". */
-export function parseBets(raw: string): Record<BetKind, number> {
-  const out: Record<BetKind, number> = {};
-  if (!raw) return out;
-  for (const part of raw.split(",")) {
-    const [k, n] = part.split(":");
-    if (isBetKind(k) && Number(n) > 0) out[k] = Math.floor(Number(n));
-  }
-  return out;
-}
-export function encodeBets(bets: Record<BetKind, number>): string {
-  return Object.entries(bets)
-    .filter(([, n]) => n > 0)
-    .map(([k, n]) => `${k}:${n}`)
-    .join(",");
-}
-export interface RouletteSyncState {
-  phase: RoulettePhase;
-  timeLeft: number;
-  result: number;
-  spinId: number;
-}
-export interface RouletteResultBroadcast {
-  result: number;
-  winners: { sessionId: string; username: string; amount: number }[];
-}
-export const ROULETTE_CENTER = { x: 0.6, z: 0.4 };
-export const ROULETTE_BET_RADIUS = 4.4;
-
-// --- casino: slots ---
-export const SLOT_COST = 5;
-/** Stakes the slot modal offers; a win scales with the stake. */
-export const SLOT_BETS = [5, 10, 25] as const;
-export const SLOT_SYMBOLS = ["🍒", "🍋", "🔔", "🍀", "💎", "7"] as const;
-/** Payout multipliers (of the stake) for three of a kind, by symbol index; any pair pays 2x. */
-export const SLOT_TRIPLE = [5, 8, 12, 20, 35, 60];
-export interface SlotBroadcast {
-  propId: string;
-  sessionId: string;
-  reels: [number, number, number];
-  win: number;
-  bet: number;
 }
 
 // --- boxing ring ---
@@ -656,49 +594,6 @@ export const MOCHI_ACTIONS = ["feather", "treat", "scritch"] as const;
 export type MochiAction = (typeof MOCHI_ACTIONS)[number];
 export const MOCHI_SCRITCH_COINS = [5, 10];
 export const MOCHI_ACTION_COOLDOWN_S = 20;
-
-// --- casino: blackjack ---
-export const BLACKJACK_BETS = [10, 25, 50, 100] as const;
-/** Where the half-moon table stands; you must be this close to play. */
-export const BLACKJACK_CENTER = { x: -5.5, z: -4.6 };
-export const BLACKJACK_RADIUS = 3.6;
-export interface BlackjackCard {
-  rank: string; // "A", "2".."10", "J", "Q", "K"
-  suit: string; // "♠" "♥" "♦" "♣"
-}
-export type BlackjackPhase = "idle" | "player" | "dealer" | "done";
-export type BlackjackOutcome = "" | "blackjack" | "win" | "push" | "lose" | "bust";
-/** What the player sees: the dealer's hole card stays hidden until the dealer plays. */
-export interface BlackjackView {
-  phase: BlackjackPhase;
-  bet: number;
-  player: BlackjackCard[];
-  dealer: BlackjackCard[];
-  holeHidden: boolean;
-  playerTotal: number;
-  dealerTotal: number;
-  outcome: BlackjackOutcome;
-  payout: number;
-  canDouble: boolean;
-}
-export type BlackjackAction = "deal" | "hit" | "stand" | "double";
-/** Best total with aces as 11 where that does not bust, else 1. */
-export function blackjackTotal(cards: BlackjackCard[]): number {
-  let total = 0;
-  let aces = 0;
-  for (const c of cards) {
-    if (c.rank === "A") {
-      aces++;
-      total += 11;
-    } else if (c.rank === "J" || c.rank === "Q" || c.rank === "K") total += 10;
-    else total += Number(c.rank);
-  }
-  while (total > 21 && aces > 0) {
-    total -= 10;
-    aces--;
-  }
-  return total;
-}
 
 // --- NPC traders ---
 export type NpcId = "bob" | "oak";
@@ -988,18 +883,15 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "critter" ||
     kind === "angler" ||
     kind === "lumberjack" ||
-    kind === "workbench"
+    kind === "workbench" ||
+    kind === "cashier" ||
+    kind === "portal"
   );
 }
 
 // --- world sizes ---
-/** Half-width of each diorama slab. Indoor rooms keep their walls at ROOM_HALF; the slab beyond
- *  the open sides is the terrace / foyer that the bigger footprint adds. */
+/** Half-width of each diorama slab. */
 export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 13, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
-/** Where the two back walls of an indoor room stand (x = -ROOM_HALF and z = -ROOM_HALF). */
-export const ROOM_HALF = 10;
-/** The casino's raised VIP lounge, behind the velvet rope. */
-export const VIP_PLATFORM = { x0: -9.8, x1: -4.7, z0: 1.7, z1: 8.3, height: 0.18 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
 export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 
@@ -1007,6 +899,9 @@ export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 export interface LeaderboardEntry {
   username: string;
   coins: number;
+  chips: number;
+  /** coins + chips (shared/casino netWorth): what the board is ranked by. */
+  worth: number;
 }
 
 // --- client -> server messages ---

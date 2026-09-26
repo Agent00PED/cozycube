@@ -4,7 +4,6 @@ import type { DiscordAuthInfo } from "./useDiscordAuth";
 import { liveMotion, recordMotion } from "../systems/liveMotion";
 import type {
   BallSyncState,
-  BlackjackAction,
   ChairSyncState,
   EmoteBroadcast,
   LeaderboardEntry,
@@ -17,14 +16,13 @@ import type {
   MapId,
   PlayerAction,
   PlayerState,
-  RoulettePhase,
-  RouletteSyncState,
   SeatStyle,
   SitPose,
   TimeOfDay,
   ToggleableKind,
   ToggleableSyncState,
 } from "@shared/types";
+import { type BlackjackAction, type RoulettePhase, type RouletteSyncState } from "@shared/casino";
 
 import { parsePicnic, parseStew, FUEL_START, type PicnicPlate, type StewState } from "@shared/bonfire";
 
@@ -100,6 +98,9 @@ const RELAYED_MESSAGES = [
   "workbenchResult",
   "chopSwing",
   "creelFull",
+  // the casino: Mr. Vance's answer at the cage (an exchange, or why not), and his wave as it opens
+  "cashierResult",
+  "vanceWave",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
@@ -200,6 +201,9 @@ interface UseColyseusRoomResult {
   sendGesture: (gesture: string) => void;
   buyHat: (hat: string) => void;
   placeBet: (kind: string, amount: number) => void;
+  /** Mr. Vance's cage: coins into Velvet Chips, and chips back into coins (1:1; "all" of the balance). */
+  buyChips: (amount: number | "all") => void;
+  cashOut: (amount: number | "all") => void;
   clearBets: () => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   setColor: (color: string) => void;
@@ -495,6 +499,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             speaking: player.speaking,
             connected: player.connected,
             coins: player.coins ?? 0,
+            chips: player.chips ?? 0,
             bag: player.bag ?? "",
             owned: player.owned ?? "",
             status: player.status ?? "",
@@ -727,6 +732,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     groundSit: (rotationY) => send("groundSit", { rotationY }),
     buyHat: (hat) => send("buyHat", { hat }),
     placeBet: (kind, amount) => send("placeBet", { kind, amount }),
+    buyChips: (amount) => send("buyChips", { amount }),
+    cashOut: (amount) => send("cashOut", { amount }),
     clearBets: () => send("clearBets"),
     subscribeMessages,
     setColor: (color) => send("setColor", { color }),

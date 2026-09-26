@@ -107,28 +107,15 @@ import {
   GESTURE_EMOJI,
   SERVER_GESTURES,
   ITEMS,
-  MAX_BET_TOTAL,
   NPCS,
   PREMIUM_HATS,
-  ROULETTE_BET_RADIUS,
-  ROULETTE_CENTER,
-  ROULETTE_PHASE_SECONDS,
-  SLOT_COST,
-  SLOT_SYMBOLS,
-  SLOT_TRIPLE,
   STARTING_COINS,
   TIMES_OF_DAY,
-  CHIP_VALUES,
-  betReturn,
   encodeBag,
-  encodeBets,
-  isBetKind,
   isGesture,
   isPremiumHat,
   parseBag,
-  parseBets,
   type ItemId,
-  type RoulettePhase,
   LOFI_TRACKS,
   CAMPFIRE_BOOST_SECONDS,
   EMOTES,
@@ -152,23 +139,13 @@ import {
   ALLOWANCE_BELOW,
   ALLOWANCE_COINS,
   ALLOWANCE_COOLDOWN_S,
-  BLACKJACK_BETS,
-  BLACKJACK_CENTER,
-  BLACKJACK_RADIUS,
   CHAT_MAX_CHARS,
   DEFAULT_STATS,
-  SLOT_BETS,
   STEW_COOLDOWN_S,
   STEW_RADIUS,
   STEW_REWARD,
   STEW_STIRS,
-  blackjackTotal,
   parseStats,
-  type BlackjackAction,
-  type BlackjackCard,
-  type BlackjackOutcome,
-  type BlackjackPhase,
-  type BlackjackView,
   type PlayerStats,
   ARCADE_COINS_MAX,
   ARCADE_COINS_PER_POINT,
@@ -230,6 +207,8 @@ import {
   type FishingWater,
   type MochiAction,
 } from "../../../shared/types";
+import { netWorth, type BlackjackAction, type CashierRequest } from "../../../shared/casino";
+import { CasinoFloor, RouletteSchema } from "./casino";
 
 class Player extends Schema {
   @type("string") userId = "";
@@ -260,6 +239,8 @@ class Player extends Schema {
   @type("boolean") speaking = false;
   @type("boolean") connected = true;
   @type("number") coins = STARTING_COINS;
+  /** Velvet Chips 🟡 (the record's casino.chips is the one kept). */
+  @type("number") chips = 0;
   @type("string") bag = "";
   @type("string") owned = "";
   @type("string") status = "";
@@ -274,16 +255,6 @@ class Player extends Schema {
   @type("string") fishing = "";
   /** Whole seconds left Well-Fed. */
   @type("number") fed = 0;
-}
-
-// The shared roulette wheel in the casino. One loop for the whole room: 25 s of betting, a 6 s
-// spin everyone watches together, then 4 s of payouts. Only the phase, a whole-second countdown
-// and the result are synced; the wheel's motion is animated client-side from spinId + result.
-class RouletteSchema extends Schema {
-  @type("string") phase: RoulettePhase = "betting";
-  @type("number") timeLeft = ROULETTE_PHASE_SECONDS.betting;
-  @type("number") result = -1;
-  @type("number") spinId = 0;
 }
 
 // How near the board game table you must be to take a seat at it
@@ -346,27 +317,6 @@ class HangoutState extends Schema {
   @type("string") picnic = "";
 }
 
-// --- blackjack: one hand per player, dealt and settled entirely on the server ---
-interface BlackjackGame {
-  deck: BlackjackCard[];
-  player: BlackjackCard[];
-  dealer: BlackjackCard[];
-  bet: number;
-  phase: BlackjackPhase;
-  outcome: BlackjackOutcome;
-  payout: number;
-}
-const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
-const SUITS = ["♠", "♥", "♦", "♣"];
-function freshDeck(): BlackjackCard[] {
-  const deck: BlackjackCard[] = [];
-  for (const suit of SUITS) for (const rank of RANKS) deck.push({ rank, suit });
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-}
 const CHAT_COOLDOWN_MS = 1200;
 const PERSIST_EVERY_S = 2.5;
 const LEADERBOARD_EVERY_S = 15;
@@ -440,7 +390,6 @@ export class HangoutRoom extends Room<HangoutState> {
   private records = new Map<string, PlayerRecord>();
   private savedSignature = new Map<string, string>();
   private queue = new PersistenceQueue(getPlayerStore);
-  private blackjack = new Map<string, BlackjackGame>();
   private lastChatAt = new Map<string, number>();
   /** The fish on each reeling player's line, and when the tension game times out. */
   private hooked = new Map<string, { fish: FishOnLine; until: number }>();
@@ -485,6 +434,8 @@ export class HangoutRoom extends Room<HangoutState> {
   private lastDrinkAt = new Map<string, number>();
   private lastMochiAt = new Map<string, number>();
   private board = new BoardTable();
+  /** The casino's tables and Mr. Vance's cage (server/src/rooms/casino.ts), built with the state. */
+  private casino!: CasinoFloor;
   /** When each player last poured a drink at the kitchenette. */
   private lastKitchenAt = new Map<string, number>();
   private boardSweepClock = 0;
@@ -498,12 +449,28 @@ export class HangoutRoom extends Room<HangoutState> {
   /** The channel's scene as last saved (sceneSignature), and the clock that checks it. */
   private savedScene = "";
   private sceneClock = 0;
-  private phaseClock = ROULETTE_PHASE_SECONDS.betting;
   private cycleClock = 0;
   private ballIdle = 0;
 
   async onCreate(options: { channelId: string }) {
     this.setState(new HangoutState());
+    this.casino = new CasinoFloor(this.state, {
+      broadcast: (type, payload) => this.broadcast(type, payload),
+      sendTo: (sessionId, type, payload) => this.sendTo(sessionId, type, payload),
+      later: (ms, fn) => void this.clock.setTimeout(fn, ms),
+      tally: (sessionId, event) => {
+        const player = this.state.players.get(sessionId);
+        if (!player) return;
+        if (event === "slots_spin") {
+          this.bumpStat(player, "slots_spins");
+          this.daily(sessionId, player, "spin_slots");
+        } else this.bumpStat(player, event === "roulette_win" ? "roulette_wins" : "blackjack_wins");
+      },
+      persistNow: (sessionId) => {
+        const player = this.state.players.get(sessionId);
+        if (player) this.persist(sessionId, player, true);
+      },
+    });
     this.autoDispose = false; // `autoDispose` is an accessor on the base Room class — assign, don't redeclare as a field.
     // NOTE: do not reassign `this.roomId` here — it breaks Colyseus's internal room
     // registry/dispose bookkeeping. "1 Discord voice channel = 1 room" is achieved via
@@ -623,8 +590,11 @@ export class HangoutRoom extends Room<HangoutState> {
 
     this.onMessage("gesture", (client, msg: { gesture: string }) => this.handleGesture(client.sessionId, msg?.gesture));
     this.onMessage("buyHat", (client, msg: { hat: string }) => this.handleBuyHat(client.sessionId, msg?.hat));
-    this.onMessage("placeBet", (client, msg: { kind: string; amount: number }) => this.handlePlaceBet(client.sessionId, msg));
-    this.onMessage("clearBets", (client) => this.handleClearBets(client.sessionId));
+    this.onMessage("placeBet", (client, msg: { kind: string; amount: number }) => this.casino.placeBet(client.sessionId, msg));
+    this.onMessage("clearBets", (client) => this.casino.clearBets(client.sessionId));
+    // Mr. Vance's cage: coins into Velvet Chips and back, 1:1, at the window
+    this.onMessage("buyChips", (client, msg: CashierRequest) => this.casino.exchange(client.sessionId, "buy", msg?.amount));
+    this.onMessage("cashOut", (client, msg: CashierRequest) => this.casino.exchange(client.sessionId, "cashout", msg?.amount));
 
     this.onMessage("emote", (client, msg: { emoji: string }) => this.handleEmote(client.sessionId, msg.emoji));
 
@@ -668,8 +638,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // --- server-authoritative transactions (the wallet is never trusted from a client) ---
     this.onMessage("claim_allowance", (client) => this.handleClaimAllowance(client.sessionId));
     this.onMessage("buy_item", (client, msg: { item: string }) => this.handleBuyHat(client.sessionId, msg?.item));
-    this.onMessage("spin_slots", (client, msg: { propId: string; bet: number }) => this.handleSpinSlots(client.sessionId, msg));
-    this.onMessage("blackjack_action", (client, msg: { action: BlackjackAction; bet?: number }) => this.handleBlackjack(client.sessionId, msg));
+    this.onMessage("spin_slots", (client, msg: { propId: string; bet: number }) => this.casino.spinSlot(client.sessionId, this.state.toggleables.get(String(msg?.propId ?? "")), Number(msg?.bet)));
+    this.onMessage("blackjack_action", (client, msg: { action: BlackjackAction; bet?: number }) => this.casino.blackjack(client.sessionId, msg));
     this.onMessage("chat_bubble", (client, msg: { text: string }) => this.handleChat(client.sessionId, msg?.text));
     // --- outfits, gachapon and the arcade ---
     this.onMessage("buy_outfit", (client, msg: { outfit: string }) => this.handleBuyOutfit(client.sessionId, msg?.outfit));
@@ -720,6 +690,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!record) return;
     record.username = player.username;
     record.coins = player.coins;
+    record.casino = { chips: player.chips };
     record.unlockedItems = player.owned ? player.owned.split(",") : [];
     const look = parseLook(player.look);
     record.equippedLook = look ? { ...toStoredLook(look) } : {};
@@ -729,7 +700,7 @@ export class HangoutRoom extends Room<HangoutState> {
     } catch {
       record.daily = null;
     }
-    const signature = `${record.coins}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
+    const signature = `${record.coins}|${player.chips}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
     if (signature === this.savedSignature.get(sessionId) && !now) return;
     this.savedSignature.set(sessionId, signature);
     this.queue.mark(record);
@@ -1371,7 +1342,7 @@ export class HangoutRoom extends Room<HangoutState> {
 
   private async refreshLeaderboard() {
     try {
-      const top = await getPlayerStore().topCoins(10);
+      const top = await getPlayerStore().topNetWorth(10);
       const json = JSON.stringify(top);
       if (json !== this.state.leaderboard) this.state.leaderboard = json;
     } catch (err) {
@@ -1383,7 +1354,8 @@ export class HangoutRoom extends Room<HangoutState> {
     const player = this.state.players.get(sessionId);
     const record = this.records.get(sessionId);
     if (!player || !record) return;
-    if (player.coins >= ALLOWANCE_BELOW) return;
+    // net worth, not coins: chips parked at the cage still count
+    if (netWorth(player.coins, player.chips) >= ALLOWANCE_BELOW) return;
     const last = record.lastDailyClaim?.getTime() ?? 0;
     if (Date.now() - last < ALLOWANCE_COOLDOWN_S * 1000) {
       this.sendTo(sessionId, "allowance", { ok: false, retryInS: Math.ceil((ALLOWANCE_COOLDOWN_S * 1000 - (Date.now() - last)) / 1000) });
@@ -1406,95 +1378,6 @@ export class HangoutRoom extends Room<HangoutState> {
     if (now - (this.lastChatAt.get(sessionId) ?? 0) < CHAT_COOLDOWN_MS) return;
     this.lastChatAt.set(sessionId, now);
     this.broadcast("chatBubble", { sessionId, text });
-  }
-
-  private handleSpinSlots(sessionId: string, msg: { propId: string; bet: number }) {
-    const player = this.state.players.get(sessionId);
-    const prop = this.state.toggleables.get(String(msg?.propId ?? ""));
-    if (!player || !prop || prop.kind !== "slot") return;
-    const bet = Number(msg.bet);
-    if (!(SLOT_BETS as readonly number[]).includes(bet)) return;
-    if (Math.hypot(player.x - prop.x, player.z - prop.z) > INTERACT_RADIUS + 0.8) return;
-    this.spinSlot(sessionId, player, prop.propId, bet);
-  }
-
-  // --- blackjack -----------------------------------------------------------------------------
-
-  private blackjackView(game: BlackjackGame): BlackjackView {
-    const holeHidden = game.phase === "player";
-    const dealerShown = holeHidden ? game.dealer.slice(0, 1) : game.dealer;
-    return {
-      phase: game.phase,
-      bet: game.bet,
-      player: game.player,
-      dealer: dealerShown,
-      holeHidden,
-      playerTotal: blackjackTotal(game.player),
-      dealerTotal: blackjackTotal(dealerShown),
-      outcome: game.outcome,
-      payout: game.payout,
-      canDouble: game.phase === "player" && game.player.length === 2,
-    };
-  }
-
-  private handleBlackjack(sessionId: string, msg: { action: BlackjackAction; bet?: number }) {
-    const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "velvet_casino") return;
-    if (Math.hypot(player.x - BLACKJACK_CENTER.x, player.z - BLACKJACK_CENTER.z) > BLACKJACK_RADIUS + 0.8) return;
-    const action = msg?.action;
-    let game = this.blackjack.get(sessionId);
-
-    if (action === "deal") {
-      if (game && (game.phase === "player" || game.phase === "dealer")) return; // hand in progress
-      const bet = Number(msg.bet);
-      if (!(BLACKJACK_BETS as readonly number[]).includes(bet) || player.coins < bet) return;
-      player.coins -= bet;
-      const deck = freshDeck();
-      game = { deck, player: [deck.pop()!, deck.pop()!], dealer: [deck.pop()!, deck.pop()!], bet, phase: "player", outcome: "", payout: 0 };
-      this.blackjack.set(sessionId, game);
-      const natural = blackjackTotal(game.player) === 21;
-      const dealerNatural = blackjackTotal(game.dealer) === 21;
-      if (natural || dealerNatural) this.settleBlackjack(sessionId, player, game, natural && !dealerNatural ? "blackjack" : natural ? "push" : "lose");
-    } else if (!game || game.phase !== "player") {
-      return;
-    } else if (action === "hit") {
-      game.player.push(game.deck.pop()!);
-      const total = blackjackTotal(game.player);
-      if (total > 21) this.settleBlackjack(sessionId, player, game, "bust");
-      else if (total === 21) this.dealerPlays(sessionId, player, game);
-    } else if (action === "double") {
-      if (game.player.length !== 2 || player.coins < game.bet) return;
-      player.coins -= game.bet;
-      game.bet *= 2;
-      game.player.push(game.deck.pop()!);
-      if (blackjackTotal(game.player) > 21) this.settleBlackjack(sessionId, player, game, "bust");
-      else this.dealerPlays(sessionId, player, game);
-    } else if (action === "stand") {
-      this.dealerPlays(sessionId, player, game);
-    } else {
-      return;
-    }
-    this.sendTo(sessionId, "blackjackState", this.blackjackView(this.blackjack.get(sessionId)!));
-  }
-
-  /** Dealer draws to 17 (hits 16 and below, stands on any 17), then the hand is compared. */
-  private dealerPlays(sessionId: string, player: Player, game: BlackjackGame) {
-    game.phase = "dealer";
-    while (blackjackTotal(game.dealer) < 17) game.dealer.push(game.deck.pop()!);
-    const p = blackjackTotal(game.player);
-    const d = blackjackTotal(game.dealer);
-    this.settleBlackjack(sessionId, player, game, d > 21 || p > d ? "win" : p === d ? "push" : "lose");
-  }
-
-  private settleBlackjack(sessionId: string, player: Player, game: BlackjackGame, outcome: BlackjackOutcome) {
-    game.phase = "done";
-    game.outcome = outcome;
-    game.payout = outcome === "blackjack" ? Math.floor(game.bet * 2.5) : outcome === "win" ? game.bet * 2 : outcome === "push" ? game.bet : 0;
-    if (game.payout > 0) this.addCoins(player, game.payout);
-    if (outcome === "win" || outcome === "blackjack") {
-      this.bumpStat(player, "blackjack_wins");
-      this.broadcast("emote", { sessionId, emoji: outcome === "blackjack" ? "💰" : "🪙" });
-    }
   }
 
   private loadMapProps(mapId: MapId) {
@@ -1697,7 +1580,7 @@ export class HangoutRoom extends Room<HangoutState> {
 
     if (this.state.currentMap === "sunset_beach") this.tickBall(dt);
     if (this.state.currentMap === "campfire_night") this.tickCampfire(now);
-    if (this.state.currentMap === "velvet_casino") this.tickRoulette(dt);
+    if (this.state.currentMap === "velvet_casino") this.casino.tick(dt);
 
     if (this.state.autoCycle && this.state.currentMap !== "campfire_night") {
       this.cycleClock += dt;
@@ -1707,79 +1590,6 @@ export class HangoutRoom extends Room<HangoutState> {
         this.state.timeOfDay = TIMES_OF_DAY[(i + 1) % TIMES_OF_DAY.length];
       }
     }
-  }
-
-  // --- roulette ---
-  private tickRoulette(dt: number) {
-    const r = this.state.roulette;
-    this.phaseClock -= dt;
-    const shown = Math.max(0, Math.ceil(this.phaseClock));
-    if (r.timeLeft !== shown) r.timeLeft = shown;
-    if (this.phaseClock > 0) return;
-
-    if (r.phase === "betting") {
-      r.result = Math.floor(Math.random() * 37);
-      r.spinId += 1;
-      this.setPhase("spinning");
-    } else if (r.phase === "spinning") {
-      this.payRoulette(r.result);
-      this.setPhase("payout");
-    } else {
-      this.state.bets.clear();
-      this.setPhase("betting");
-    }
-  }
-
-  private setPhase(phase: RoulettePhase) {
-    this.state.roulette.phase = phase;
-    this.phaseClock = ROULETTE_PHASE_SECONDS[phase];
-    this.state.roulette.timeLeft = ROULETTE_PHASE_SECONDS[phase];
-  }
-
-  private payRoulette(result: number) {
-    const winners: { sessionId: string; username: string; amount: number }[] = [];
-    this.state.bets.forEach((raw, sessionId) => {
-      const player = this.state.players.get(sessionId);
-      if (!player) return;
-      let won = 0;
-      for (const [kind, amount] of Object.entries(parseBets(raw))) won += betReturn(kind, amount, result);
-      if (won > 0) {
-        this.addCoins(player, won);
-        this.bumpStat(player, "roulette_wins");
-        winners.push({ sessionId, username: player.username, amount: won });
-        this.broadcast("emote", { sessionId, emoji: won >= 100 ? "💰" : "🪙" });
-      }
-    });
-    this.broadcast("rouletteResult", { result, winners });
-  }
-
-  private handlePlaceBet(sessionId: string, msg: { kind: string; amount: number }) {
-    if (this.state.currentMap !== "velvet_casino" || this.state.roulette.phase !== "betting") return;
-    const player = this.state.players.get(sessionId);
-    if (!player || !isBetKind(msg?.kind)) return;
-    const amount = Number(msg.amount);
-    if (!(CHIP_VALUES as readonly number[]).includes(amount)) return;
-    if (Math.hypot(player.x - ROULETTE_CENTER.x, player.z - ROULETTE_CENTER.z) > ROULETTE_BET_RADIUS + 0.6) return;
-    if (player.coins < amount) return;
-    const bets = parseBets(this.state.bets.get(sessionId) ?? "");
-    const staked = Object.values(bets).reduce((a, b) => a + b, 0);
-    if (staked + amount > MAX_BET_TOTAL) return;
-    bets[msg.kind] = (bets[msg.kind] ?? 0) + amount;
-    player.coins -= amount;
-    this.state.bets.set(sessionId, encodeBets(bets));
-  }
-
-  private handleClearBets(sessionId: string) {
-    if (this.state.roulette.phase !== "betting") return;
-    this.refundBets(sessionId);
-  }
-
-  private refundBets(sessionId: string) {
-    const raw = this.state.bets.get(sessionId);
-    if (raw === undefined) return;
-    const player = this.state.players.get(sessionId);
-    if (player) this.addCoins(player, Object.values(parseBets(raw)).reduce((a, b) => a + b, 0));
-    this.state.bets.delete(sessionId);
   }
 
   // --- wallet helpers ---
@@ -2899,10 +2709,8 @@ export class HangoutRoom extends Room<HangoutState> {
       }
     });
     this.loadMapProps(mapId); // clears + repopulates chairs/toggleables, implicitly releasing all occupants
-    // Leaving the casino mid-round hands every stake back.
-    this.state.players.forEach((_p, sessionId) => this.refundBets(sessionId));
-    this.state.bets.clear();
-    this.setPhase("betting");
+    // Leaving the casino mid-round hands every stake back, in chips.
+    this.casino.closeTables();
     this.regrowAt.clear();
     this.biteUntil.clear();
     this.fishBiteAt.clear();
@@ -3167,6 +2975,16 @@ export class HangoutRoom extends Room<HangoutState> {
         if (Math.hypot(player.x - prop.x, player.z - prop.z) > WORKBENCH_REACH + 1.0) return;
         this.sendTo(sessionId, "openPanel", { kind: "workbench", propId: prop.propId });
         break;
+      case "cashier":
+        // Mr. Vance's window: the cage modal (the exchange itself is "buyChips" / "cashOut"); he
+        // waves, and everyone sees it
+        this.sendTo(sessionId, "openPanel", { kind: "cashier", propId: prop.propId });
+        this.broadcast("vanceWave", { sessionId });
+        break;
+      case "portal":
+        // the casino's exit doors: the world drawer, to go back to the Lounge or anywhere else
+        this.sendTo(sessionId, "openPanel", { kind: "worlds", propId: prop.propId });
+        break;
       case "angler":
         if (Math.hypot(player.x - prop.x, player.z - prop.z) > BARNABY_REACH + 1.2) return;
         this.sendTo(sessionId, "openPanel", { kind: "barnaby", propId: prop.propId });
@@ -3194,27 +3012,6 @@ export class HangoutRoom extends Room<HangoutState> {
         break;
       default:
         prop.on = !prop.on;
-    }
-  }
-
-  private spinSlot(sessionId: string, player: Player, propId: string, bet: number = SLOT_COST) {
-    if (player.coins < bet) return;
-    player.coins -= bet;
-    this.bumpStat(player, "slots_spins");
-    this.daily(sessionId, player, "spin_slots");
-    const reels: [number, number, number] = [rollSymbol(), rollSymbol(), rollSymbol()];
-    let win = 0;
-    if (reels[0] === reels[1] && reels[1] === reels[2]) win = bet * SLOT_TRIPLE[reels[0]];
-    else if (reels[0] === reels[1] || reels[1] === reels[2] || reels[0] === reels[2]) win = bet * 2;
-    // The reels spin for ~1.6 s on screen; pay out when they land.
-    this.broadcast("slotSpin", { propId, sessionId, reels, win, bet });
-    if (win > 0) {
-      this.clock.setTimeout(() => {
-        const p = this.state.players.get(sessionId);
-        if (!p) return;
-        this.addCoins(p, win);
-        this.broadcast("emote", { sessionId, emoji: win >= bet * 12 ? "💰" : "🪙" });
-      }, 1700);
     }
   }
 
@@ -3399,6 +3196,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!record) record = newPlayerRecord(player.userId, player.username);
     record.username = player.username;
     player.coins = record.coins;
+    player.chips = record.casino.chips;
     player.owned = record.unlockedItems.join(",");
     player.watered = record.plantsWatered.day === todayKey() ? record.plantsWatered.ids.join(",") : "";
     player.stats = JSON.stringify(record.stats);
@@ -3479,11 +3277,8 @@ export class HangoutRoom extends Room<HangoutState> {
     this.lastNetAt.delete(sessionId);
     this.lastTreatAt.delete(sessionId);
     this.hooked.delete(sessionId);
-    this.refundBets(sessionId);
-    // An unfinished blackjack hand is abandoned: the stake comes back.
-    const game = this.blackjack.get(sessionId);
-    if (game && game.phase === "player") this.addCoins(player, game.bet);
-    this.blackjack.delete(sessionId);
+    // Bets on the wheel and an unfinished blackjack hand come back, in chips.
+    this.casino.release(sessionId);
     if (player.userId) this.wallets.set(player.userId, { coins: player.coins, bag: player.bag, owned: player.owned });
     // Flush straight to the database: nothing pending may be lost with the player gone.
     this.persist(sessionId, player, true);
@@ -3573,7 +3368,9 @@ export class HangoutRoom extends Room<HangoutState> {
       record.coins = oldRecord.coins;
       record.fishing = oldRecord.fishing;
       record.campfireCoins = oldRecord.campfireCoins;
+      record.casino = oldRecord.casino;
       player.coins = old.coins;
+      player.chips = old.chips;
       player.fishing = JSON.stringify(record.fishing);
       player.fed = old.fed;
     }
@@ -3587,6 +3384,9 @@ export class HangoutRoom extends Room<HangoutState> {
       if (chair.occupiedBy === oldId) chair.occupiedBy = sessionId;
     });
     const seated = this.board.transfer(oldId, sessionId);
+    // bets on the wheel and a hand at the blackjack table move over before the old session goes
+    // (removing it would hand them back to a player about to vanish)
+    this.casino.transfer(oldId, sessionId);
     this.removePlayer(oldId); // quietly: the chair and the seat have already moved on
     return seated;
   }
@@ -3643,17 +3443,6 @@ interface SavedScene {
 const BOARD_SAVE_DEBOUNCE_MS = 300;
 /** How long a dropped player's avatar, chair and board seat wait for them to reconnect. */
 const RECONNECT_WINDOW_S = 60;
-
-/** Weighted so jackpots stay rare: cherries common, sevens scarce. */
-const SYMBOL_WEIGHTS = [30, 24, 18, 13, 9, 6];
-function rollSymbol(): number {
-  let roll = Math.random() * SYMBOL_WEIGHTS.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < SLOT_SYMBOLS.length; i++) {
-    roll -= SYMBOL_WEIGHTS[i];
-    if (roll <= 0) return i;
-  }
-  return 0;
-}
 
 /** A roast can start again this long after the last one came off the fire. */
 const ROAST_COOLDOWN_MS = 1500;

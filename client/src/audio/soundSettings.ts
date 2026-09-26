@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 
 // The game's own sound settings (the lounge radio keeps its volume in its panel): the ambience
 // mixer, a fader for each channel of a world's soundscape (at the campfire: the fire's crackle,
-// the river, and the forest's breeze and crickets), and whether the little effects (a catch's
+// the river, and the forest's breeze and crickets), the casino's jazz, and whether the little effects (a catch's
 // chime, a chop) play. Kept in this browser; a private window or blocked storage just starts from
 // the defaults. A single Ambience level saved before the mixer sets all three faders.
 
@@ -14,12 +14,14 @@ export interface SoundSettings {
   fire: number;
   river: number;
   forest: number;
+  /** The Velvet Casino's jazz combo (audio/casinoJazz.ts), 0..1. */
+  jazz: number;
   /** The one-shot effects: chimes, splashes, chops. */
   effects: boolean;
 }
 
 const KEY = "cozy-sound-settings";
-const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, effects: true };
+const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, jazz: 0.5, effects: true };
 
 function load(): SoundSettings {
   try {
@@ -30,6 +32,7 @@ function load(): SoundSettings {
       fire: level(raw?.fire),
       river: level(raw?.river),
       forest: level(raw?.forest),
+      jazz: typeof raw?.jazz === "number" ? Math.max(0, Math.min(1, raw.jazz)) : DEFAULTS.jazz,
       effects: typeof raw?.effects === "boolean" ? raw.effects : DEFAULTS.effects,
     };
   } catch {
