@@ -94,8 +94,8 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "telescope": { "x": -2.4, "z": 9.35 },
   "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
   "campChair": { "x": 4.5, "z": -7.45 },
-  "chops": [{ "x": -8.7, "z": -4.6 }, { "x": -6.5, "z": -8.1 }, { "x": -0.1, "z": -6.7 }, { "x": 1.75, "z": -6.65 }],
-  "workbench": { "x": -4.4, "z": -7.0, "len": 1.4, "w": 0.62, "top": 0.86 },
+  "chops": [{ "x": -8.7, "z": -4.6 }, { "x": -6.5, "z": -8.1 }, { "x": -0.65, "z": -8.9, "halves": [] }, { "x": 1.75, "z": -6.65 }],
+  "workbench": { "x": -4.2, "z": -7.35, "len": 1.4, "w": 0.62, "top": 0.86 },
   "critter": { "x": 3.4, "z": -6.2 },
   "canoe": { "x": 8.0, "z": 2.62, "len": 2.0 },
   "cleat": { "x": 6.95, "z": 1.8 },
@@ -233,8 +233,9 @@ export function nearestFishingSpot(x: number, z: number) {
 
 /** The Northern Timber Trail: four chopping stations in two pairs. The tipi's: one either side of
  *  it (between it and the A-frame tent, and in the north pines behind its right). The workshop's:
- *  one in front of Buster's stall (he and the workbench stand back in the north pines, leaving the
- *  ground before them open) and one at the woodpile by the camper. Each block yields MAX_CHOP_YIELD
+ *  one beside Buster on his open side, between him and the pine and the berry bush (he and the
+ *  workbench stand back in the north pines, leaving the ground before them open), and one at the
+ *  woodpile by the camper. `halves`: which sides the split halves lie on (default both). Each block yields MAX_CHOP_YIELD
  *  logs, then rests CHOP_COOLDOWN_S (rolled) for fresh ones; you step up to it from the fire's side. */
 export const CHOP_STATIONS = L.chops.map((c, i) => {
   const toFire = unit(L.fire.x - c.x, L.fire.z - c.z);

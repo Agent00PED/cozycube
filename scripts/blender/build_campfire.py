@@ -1295,11 +1295,11 @@ def build_glamping(L, cushions, coll):
         a = 2 * math.pi * k / 5
         blob(bm, sp["x"] + 0.14 * math.cos(a), 0.04, sp["z"] + 0.14 * math.sin(a), 0.07, 0.05, 0.06, m=m["CF_Metal"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.01)
 
-    # --- the chopping stumps (either side of the tipi, in front of Buster, at the woodpile), split
-    # halves beside each ---
+    # --- the chopping stumps (either side of the tipi, beside Buster, at the woodpile), split halves
+    # beside each (on the sides its "halves" lists: none by Buster, where they would crowd him) ---
     for ch in L["chops"]:
         cylinder(bm, W(ch["x"], 0.0, ch["z"]), W(ch["x"], 0.36, ch["z"]), 0.25, 14, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
-        for sgn in (-1, 1):
+        for sgn in ch.get("halves", (-1, 1)):
             a0 = W(ch["x"] + sgn * 0.45, 0.07, ch["z"] + 0.3)
             cylinder(bm, a0, a0 + W(0.12 * sgn, 0, 0.3) - W(0, 0, 0), 0.08, 8, m=m["CF_WoodCut"], cap_m=m["CF_Bark"])
 
