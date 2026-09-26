@@ -3,12 +3,12 @@ import { Schema, type, MapSchema } from "@colyseus/schema";
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToWorld, isBlocked } from "../../../shared/collision";
 import { PersistenceQueue, getPlayerStore, newPlayerRecord, type PlayerRecord } from "../db/players";
 import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } from "./games";
-import { AWAY_PREFIX, BoardTable } from "./boardgame";
+import { AWAY_PREFIX, BoardTable, type BoardSnapshot } from "./boardgame";
 import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
 import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
-import { AXES, CARRIER_CAPACITY, CARRIER_UPGRADE_COSTS, CHOP_LOGS, CHOP_RESPAWN_S, WOOD, carrierCapacity, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
+import { AXES, CARRIER_CAPACITY, CARRIER_UPGRADE_COSTS, CHOP_LOGS, CHOP_RESPAWN_S, WOOD, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
 import {
   BAITS,
   afkSeconds,
@@ -488,6 +488,9 @@ export class HangoutRoom extends Room<HangoutState> {
   private boardSaveTimer: NodeJS.Timeout | undefined;
   private persistClock = 0;
   private leaderboardClock = LEADERBOARD_EVERY_S; // refresh on the first tick
+  /** The channel's scene as last saved (sceneSignature), and the clock that checks it. */
+  private savedScene = "";
+  private sceneClock = 0;
   private phaseClock = ROULETTE_PHASE_SECONDS.betting;
   private cycleClock = 0;
   private ballIdle = 0;
@@ -698,6 +701,7 @@ export class HangoutRoom extends Room<HangoutState> {
 
     // last: the board game this channel had going when the server stopped, back on its table
     // (Colyseus waits for this before anyone joins, so the first to arrive can reclaim a seat)
+    await this.restoreScene();
     await this.restoreBoard();
   }
 
@@ -1119,6 +1123,63 @@ export class HangoutRoom extends Room<HangoutState> {
     }
   }
 
+  // --- the channel's scene -----------------------------------------------------------------------
+  //
+  // A room lives as long as the server does (it is never disposed when it empties), so what ends
+  // one is a restart or a redeploy, and a fresh room starts in the lounge with a fresh fire. The
+  // scene is saved beside the board game (db/boards.ts, under "<channel>#scene") whenever it
+  // changes, and a room created again for the channel puts it back before anyone joins: the world
+  // it was in, the hour, and the campfire's bonfire (its fuel, even at 0%: an out fire stays out
+  // until relit, nobody is ever moved for it), its Dutch oven and its picnic plates.
+
+  private sceneKey() {
+    return `${this.boardStoreKey()}#scene`;
+  }
+
+  private sceneNow(): SavedScene {
+    return { map: this.state.currentMap, time: this.state.timeOfDay, fuel: this.state.fuel, stew: this.state.stew, picnic: this.state.picnic };
+  }
+
+  private async saveScene() {
+    if (this.state.mapTransitioning) return;
+    const scene = this.sceneNow();
+    const signature = JSON.stringify(scene);
+    if (signature === this.savedScene) return;
+    this.savedScene = signature;
+    try {
+      // (the board store keeps any JSON per key: the scene rides in it under its own key)
+      await getBoardStore().save(this.sceneKey(), scene as unknown as BoardSnapshot);
+    } catch (err) {
+      this.savedScene = "";
+      console.error("[db] failed to save the scene (will retry):", err instanceof Error ? err.message : err);
+    }
+  }
+
+  private async restoreScene() {
+    try {
+      const scene = (await getBoardStore().load(this.sceneKey())) as unknown as Partial<SavedScene> | null;
+      if (!scene) return;
+      if (isMapId(scene.map) && MAP_OBSTACLES[scene.map] && scene.map !== this.state.currentMap) {
+        this.state.currentMap = scene.map;
+        this.loadMapProps(scene.map);
+      }
+      if (isTimeOfDay(scene.time)) this.state.timeOfDay = scene.time;
+      if (typeof scene.fuel === "number" && Number.isFinite(scene.fuel)) this.state.fuel = Math.max(0, Math.min(FUEL_MAX, Math.round(scene.fuel)));
+      // the pot and the plates come back as they were; a pot still cooking finishes from now
+      const stew = parseStew(typeof scene.stew === "string" ? scene.stew : "");
+      if (stew.phase === "cooking") this.stewCookAt = Date.now() - stew.progress * STEW_COOK_S * 1000;
+      if (stew.phase === "ready") this.stewReadyAt = Date.now();
+      this.state.stew = stew.items.length || stew.phase !== "gathering" ? JSON.stringify(stew) : "";
+      const plates = parsePicnic(typeof scene.picnic === "string" ? scene.picnic : "");
+      this.state.picnic = plates.length ? JSON.stringify(plates) : "";
+      this.picnicAt = plates.map(() => Date.now());
+      this.savedScene = JSON.stringify(this.sceneNow());
+      console.log(`[room ${this.roomId}] scene restored for channel ${this.boardStoreKey()}: ${this.state.currentMap}, fire ${this.state.fuel}%`);
+    } catch (err) {
+      console.error("[db] could not restore the scene:", err instanceof Error ? err.message : err);
+    }
+  }
+
   /** Puts back the board game this channel had going when the server last stopped. */
   private async restoreBoard() {
     try {
@@ -1452,6 +1513,8 @@ export class HangoutRoom extends Room<HangoutState> {
       state.kind = prop.kind;
       state.color = prop.color;
       state.on = prop.defaultOn;
+      // a chopping station starts stocked: `track` is the logs on its block
+      if (state.kind === "woodchop") state.track = rollChopYield();
       this.state.toggleables.set(prop.propId, state);
     }
   }
@@ -1478,6 +1541,12 @@ export class HangoutRoom extends Room<HangoutState> {
     if (this.boardSweepClock >= 1) {
       this.boardSweepClock = 0;
       this.sweepBoardSeats();
+    }
+    // the channel's scene (its world, the campfire's hearth, the hour), saved when it changes
+    this.sceneClock += dt;
+    if (this.sceneClock >= SCENE_SAVE_EVERY_S) {
+      this.sceneClock = 0;
+      void this.saveScene();
     }
     this.leaderboardClock += dt;
     if (this.leaderboardClock >= LEADERBOARD_EVERY_S) {
@@ -1523,7 +1592,8 @@ export class HangoutRoom extends Room<HangoutState> {
       }
     });
     this.state.toggleables.forEach((prop) => {
-      if (prop.boost > 0) prop.boost = Math.max(0, prop.boost - dt);
+      // (a chopping station's `boost` is its cooldown's length, for the client's countdown: it stays put)
+      if (prop.boost > 0 && prop.kind !== "woodchop") prop.boost = Math.max(0, prop.boost - dt);
       // picked bushes grow back
       const regrow = this.regrowAt.get(prop.propId);
       if (regrow !== undefined && now >= regrow) {
@@ -1531,6 +1601,10 @@ export class HangoutRoom extends Room<HangoutState> {
         this.regrowAt.delete(prop.propId);
         if (prop.kind === "sparkle") this.moveSparkle(prop);
         if (prop.kind === "stew") prop.track = 0; // a fresh pot
+        if (prop.kind === "woodchop") {
+          prop.track = rollChopYield(); // fresh logs on the block
+          prop.boost = 0;
+        }
       }
     });
 
@@ -1787,6 +1861,10 @@ export class HangoutRoom extends Room<HangoutState> {
         // from beside the fire or from a log bench round it (a little slack for latency)
         if (!isRoastFood(packet.food) || (player.action !== "" && player.action !== "guitar")) return;
         if (!this.nearProp(player, "bonfire", BONFIRE_REACH + 0.3)) return;
+        if (this.state.fuel <= 0) {
+          client.send("campfireNotice", { message: "The bonfire's out! Relight it with a log first", emoji: "🔥" });
+          return;
+        }
         if (Date.now() - (this.lastRoastAt.get(sessionId) ?? 0) < ROAST_COOLDOWN_MS) return;
         // the dial: one sweep over `duration`, a green zone somewhere past halfway; the server keeps
         // the clock, so the result is its call
@@ -2115,10 +2193,15 @@ export class HangoutRoom extends Room<HangoutState> {
       pieces = Math.min(room, Math.random() < AXES[profile.axe].doubleChance ? 2 : 1);
       profile.wood[log.wood] = Math.min(999, profile.wood[log.wood] + pieces);
       this.saveFishing(sessionId, player);
+      // one log fewer on the block; the last one leaves it bare for CHOP_RESPAWN_S
       const station = this.state.toggleables.get(chop.station);
       if (station) {
-        station.on = false;
-        this.regrowAt.set(station.propId, Date.now() + CHOP_RESPAWN_S * 1000);
+        station.track = Math.max(0, station.track - 1);
+        if (station.track <= 0) {
+          station.on = false;
+          station.boost = CHOP_RESPAWN_S;
+          this.regrowAt.set(station.propId, Date.now() + CHOP_RESPAWN_S * 1000);
+        }
       }
     }
     const result: ChopResult = { sessionId, clean, stunned, stroke, log: chop.log, wood: log.wood, pieces, coins, capped: clean && coins === 0 };
@@ -3366,6 +3449,17 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 }
 
+
+/** How often the room checks whether its scene changed (and saves it if so). */
+const SCENE_SAVE_EVERY_S = 3;
+/** A channel's scene, as saved (restoreScene). */
+interface SavedScene {
+  map: MapId;
+  time: TimeOfDay;
+  fuel: number;
+  stew: string;
+  picnic: string;
+}
 
 /** A burst of board changes is saved once, this long after the last. */
 const BOARD_SAVE_DEBOUNCE_MS = 300;

@@ -10,17 +10,26 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       <div className="flex flex-col gap-4 pb-2">
         <section className="flex flex-col gap-3 rounded-3xl bg-white/5 p-4">
           <h3 className="text-xs font-bold uppercase tracking-widest opacity-60">Sound</h3>
+          {/* the ambience mixer: a fader per channel */}
+          {(
+            [
+              ["fire", "🔥 Campfire Crackle"],
+              ["river", "🌊 River Stream"],
+              ["forest", "🍃 Forest & Crickets"],
+            ] as const
+          ).map(([k, label]) => (
+            <label key={k} className="flex items-center gap-3 text-sm">
+              <span className="w-36 shrink-0">{label}</span>
+              <input type="range" min={0} max={100} step={1} value={Math.round(sound[k] * 100)} onChange={(e) => setSoundSettings({ [k]: Number(e.target.value) / 100 })} className="flex-1 accent-amber-400" aria-label={`${label} volume`} />
+              <span className="w-9 text-right tabular-nums opacity-70">{Math.round(sound[k] * 100)}</span>
+            </label>
+          ))}
           <label className="flex items-center gap-3 text-sm">
-            <span className="w-24 shrink-0">🌙 Ambience</span>
-            <input type="range" min={0} max={1} step={0.05} value={sound.ambience} onChange={(e) => setSoundSettings({ ambience: Number(e.target.value) })} className="flex-1 accent-amber-300" aria-label="Ambience volume" />
-            <span className="w-9 text-right tabular-nums opacity-70">{Math.round(sound.ambience * 100)}</span>
-          </label>
-          <label className="flex items-center gap-3 text-sm">
-            <span className="w-24 shrink-0">🔔 Effects</span>
+            <span className="w-36 shrink-0">🔔 Effects</span>
             <input type="checkbox" checked={sound.effects} onChange={(e) => setSoundSettings({ effects: e.target.checked })} className="h-5 w-5 accent-amber-300" aria-label="Sound effects" />
             <span className="opacity-70">{sound.effects ? "On" : "Off"}</span>
           </label>
-          <p className="m-0 text-[11px] opacity-55">Ambience: the campfire's crackle, the river and the crickets. The lounge radio has its own volume in its panel.</p>
+          <p className="m-0 text-[11px] opacity-55">The campfire's soundscape, channel by channel (the crackle fades out if the bonfire goes out). The lounge radio has its own volume in its panel.</p>
         </section>
         <section className="flex flex-col gap-3 rounded-3xl bg-white/5 p-4">
           <h3 className="text-xs font-bold uppercase tracking-widest opacity-60">Controls</h3>

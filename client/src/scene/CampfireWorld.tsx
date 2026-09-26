@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState, TimeOfDay, ToggleableSyncState } from "@shared/types";
-import { CAMPFIRE_LAYOUT as L, DOCK_PILINGS, DUCK_PATHS, RIVER_Z, riverSpan } from "@shared/worlds/campfire";
+import { CAMPFIRE_LAYOUT as L, CHOP_STATIONS, DOCK_PILINGS, DUCK_PATHS, RIVER_Z, riverSpan } from "@shared/worlds/campfire";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
@@ -47,6 +47,8 @@ export const CAMPFIRE_URL = modelUrl("campfire.glb");
 const FIRE_COLOR = "#ff8c32";
 /** The fire's light at its base; every lamp is scaled by the hour's lamp boost (x2.2 at night). */
 const FIRE_INTENSITY = 2.8;
+/** The bonfire's light once it is out: the embers' faint glow. */
+const EMBER_LIGHT = 0.05;
 /** The tipi's inner glow (the Tipi interior light): lit while it is empty, a dim 0.1 while someone naps in it. */
 const TIPI_AWAKE = 1.5;
 const TIPI_ASLEEP = 0.1;
@@ -61,7 +63,7 @@ const NIGHTNESS: Record<TimeOfDay, number> = { night: 1, sunset: 0.6, sunrise: 0
 /** The fire right now, smoothed from the hearth's fuel: `level` 0..1 (the fuel), `heat` how big and
  *  bright its flames and light are (embers at 0.4, full at 1), `value` its roar on top (above the
  *  Cozy Aura line, and a burst each time wood goes on), `smoky` the haze of a fire burning low. */
-const FUEL = { value: 0, level: 0.6, heat: 1, burst: 0, smoky: 0 };
+const FUEL = { value: 0, level: 0.6, heat: 1, burst: 0, smoky: 0, out: false };
 
 interface Live {
   players: Record<string, PlayerState>;
@@ -108,7 +110,9 @@ export function CampfireWorld({ onFloorClick, players, toggleables, hearth, subs
     const level = Math.max(0, Math.min(1, live.current.hearth.fuel / 100));
     FUEL.level += (level - FUEL.level) * Math.min(1, dt * 0.8);
     FUEL.burst = Math.max(0, FUEL.burst - dt * 0.45);
-    FUEL.heat = 0.4 + 0.6 * Math.min(1, FUEL.level / 0.6);
+    // at 0% the fire is out: no flames, a faint glow from the embers (until someone relights it)
+    FUEL.out = live.current.hearth.fuel <= 0;
+    FUEL.heat = FUEL.out ? 0 : 0.4 + 0.6 * Math.min(1, FUEL.level / 0.6);
     const roar = Math.max(0, (FUEL.level - COZY_AURA_FUEL / 100) / (1 - COZY_AURA_FUEL / 100));
     FUEL.value += (Math.max(roar * 0.8, FUEL.burst) - FUEL.value) * Math.min(1, dt * 2.5);
     FUEL.smoky = Math.max(0, Math.min(1, (LOW_FUEL / 100 - FUEL.level) / (LOW_FUEL / 100)));
@@ -124,6 +128,7 @@ export function CampfireWorld({ onFloorClick, players, toggleables, hearth, subs
       <FireLight live={live} />
       <JarLights live={live} />
       <StewSteam live={live} />
+      <ChopBillboards toggleables={toggleables} />
       <Barnaby subscribeMessages={subscribeMessages} />
       <Buster subscribeMessages={subscribeMessages} />
       <Moonlight />
@@ -177,6 +182,8 @@ function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
     const fuel = FUEL.value;
     const heat = FUEL.heat;
     const { outer, inner } = life.flames;
+    if (outer) outer.visible = !FUEL.out;
+    if (inner) inner.visible = !FUEL.out;
     if (outer) {
       outer.scale.set((1 + 0.05 * Math.sin(t * 9.1)) * (1 + 0.3 * fuel) * heat, (0.9 + 0.14 * flick + 0.05 * Math.sin(t * 13.7)) * (1 + 0.45 * fuel) * heat, (1 + 0.05 * Math.cos(t * 8.3)) * (1 + 0.3 * fuel) * heat);
       outer.rotation.y = t * 0.6;
@@ -250,7 +257,7 @@ function FireLight({ live }: { live: React.MutableRefObject<Live> }) {
       tipi.current.intensity = tipiLevel.current * (0.92 + 0.08 * Math.sin(t * 3.7) * Math.sin(t * 1.3 + 2));
     }
     if (light.current) {
-      light.current.intensity = FIRE_INTENSITY * boost * flick * (0.35 + 0.65 * FUEL.heat) * (1 + 0.5 * FUEL.value);
+      light.current.intensity = FUEL.out ? EMBER_LIGHT : FIRE_INTENSITY * boost * flick * (0.35 + 0.65 * FUEL.heat) * (1 + 0.5 * FUEL.value);
       light.current.distance = (10 + 4 * FUEL.heat) + 6 * FUEL.value;
     }
     if (lantern.current) lantern.current.intensity = 0.9 * boost * (0.95 + 0.05 * Math.sin(t * 5.1));
@@ -513,6 +520,38 @@ function BulbGlows() {
     m.instanceMatrix.needsUpdate = true;
   });
   return <instancedMesh ref={mesh} args={[SPARK_GEO, GLOW_MAT, STRING_BULBS.length]} raycast={noRaycast} frustumCulled={false} renderOrder={2} />;
+}
+
+/** Over each chopping station on the Timber Trail, a little floating sign: ready (and how many logs
+ *  its block holds), or the countdown to its fresh logs. The server says how long the wait is (the
+ *  station's `boost`) when it goes bare; the countdown runs here, from when that was seen. */
+function ChopBillboards({ toggleables }: { toggleables: Record<string, ToggleableSyncState> }) {
+  const bareSince = useRef<Record<string, number>>({});
+  const [, setTick] = useState(0);
+  const stations = CHOP_STATIONS.map((s) => toggleables[s.propId]).filter((s): s is ToggleableSyncState => !!s);
+  const now = performance.now();
+  for (const s of stations) {
+    if (!s.on) bareSince.current[s.propId] ??= now;
+    else delete bareSince.current[s.propId];
+  }
+  const waiting = stations.some((s) => !s.on);
+  useEffect(() => {
+    if (!waiting) return;
+    const id = window.setInterval(() => setTick((n) => n + 1), 500);
+    return () => window.clearInterval(id);
+  }, [waiting]);
+  return (
+    <>
+      {stations.map((s) => {
+        const left = s.on ? 0 : Math.max(0, Math.ceil((s.boost || 20) - (now - (bareSince.current[s.propId] ?? now)) / 1000));
+        return (
+          <Html key={s.propId} position={[s.x, 1.15, s.z]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
+            <div className={`cozy-chop-sign ${s.on ? "is-ready" : ""}`}>{s.on ? `🪓 Ready${s.track ? ` ×${s.track}` : ""}` : `⏳ ${left}s`}</div>
+          </Html>
+        );
+      })}
+    </>
+  );
 }
 
 const STEAM_MAT = new THREE.MeshBasicMaterial({ color: "#f3efe8", transparent: true, opacity: 0.2, depthWrite: false });

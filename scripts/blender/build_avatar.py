@@ -130,6 +130,7 @@ NODE_NAMES = (
     + tuple(f"Hair_{s}" for s in HAIR_STYLES)
     + tuple(f"Hair_{s}_Prop" for s in HAIR_PROP_STYLES)
     + tuple(f"Hat_{h}" for h in HAT_IDS)
+    + ("Hat_bearcap_EarL", "Hat_bearcap_EarR")
     + tuple(f"Top_{t}{suffix}" for t in TOP_IDS for suffix, _ in TOP_PARTS)
     + tuple(f"Bottom_{b}{suffix}" for b in BOTTOM_IDS for suffix, _ in BOTTOM_PARTS)
 )
@@ -204,9 +205,11 @@ PALETTE = {
     "Mat_Plaid": "#1D1B22",  # the dark bars of a buffalo check
     "Mat_Puffer": "#E0A93B",  # mustard down
     "Mat_Boot": "#4A3A2E",  # muddy wader boots
+    "Mat_Mud": "#6B5236",  # splashes of river mud on them
+    "Mat_Fleece": "#F1ECDD",  # the puffer's stand-up fleece collar
 }
 # (metallic, roughness) for the few materials that are not matte clay
-FINISH = {"Mat_Crown": (0.85, 0.35), "Mat_Gem": (0.0, 0.3), "Mat_Headphone": (0.2, 0.45)}
+FINISH = {"Mat_Crown": (0.85, 0.35), "Mat_Gem": (0.0, 0.3), "Mat_Headphone": (0.2, 0.45), "Mat_Steel": (0.6, 0.4)}
 ROUGHNESS = 0.8
 DECAL_LIFT = 0.002
 GLINT_LIFT = 0.004
@@ -1212,11 +1215,14 @@ def top_plaid(bm, part, side):
     # a red-and-black buffalo-plaid flannel: dark bars round and down the body and round the
     # sleeves, a collar, and suspenders (in the accent colour, brass clips) over the shoulders
     if part:
-        sleeve(bm, side, LONG_SLEEVE, cuff=1)
+        # rolled up to the elbow: a shorter sleeve with a fat turned-back roll at its end
+        rolled = 0.12
+        sleeve(bm, side, rolled)
         shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
-        for d in (0.06, 0.13):
-            r = arm_radius(d) + SLEEVE_LOOSE + 0.002
-            band(bm, shoulder - UP * d, r, r, 0.004, 0.013, segs=28, sides=6, material=1)
+        band(bm, shoulder - UP * 0.055, arm_radius(0.055) + SLEEVE_LOOSE + 0.002, arm_radius(0.055) + SLEEVE_LOOSE + 0.002, 0.004, 0.013, segs=28, sides=6, material=1)
+        r = arm_radius(rolled) + SLEEVE_LOOSE + 0.006
+        band(bm, shoulder - UP * (rolled - 0.008), r, r, 0.011, 0.018, segs=28, sides=8, material=0)
+        band(bm, shoulder - UP * (rolled - 0.008), r + 0.002, r + 0.002, 0.004, 0.006, segs=28, sides=6, material=1)
         return
     top_body(bm)
     neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.015, 0.017, material=1)
@@ -1232,8 +1238,11 @@ def top_plaid(bm, part, side):
         pts = [trunk_point(v_at_z(z), a_front, off) for z in (SEAM_Z + 0.02, 0.36, 0.5, 0.58)]
         pts += [Vector((p.x, p.y, trunk_point(v_at_neck(math.hypot(p.x, p.y / TRUNK_DEPTH) / TRUNK_R[0]), 0.0, 0.0).z + off)) for p in over]
         pts += [trunk_point(v_at_z(z), a_back, off) for z in (0.58, 0.48, 0.36, SEAM_Z + 0.02)]
-        strip(bm, pts, 0.009, material=2)
-        deco(bm, v_at_z(SEAM_Z + 0.035), front(s * 0.3), off + 0.004, Vector((0.013, 0.007, 0.013)), material=3, cuts=4)
+        strip(bm, pts, 0.011, material=2)
+        # the steel buckle clips where the suspenders meet the waist, front and back
+        for z, a in ((SEAM_Z + 0.04, front(s * 0.3)), (SEAM_Z + 0.04, a_back)):
+            deco(bm, v_at_z(z), a, off + 0.008, Vector((0.02, 0.008, 0.024)), material=4, n=3.0, cuts=4)
+            deco(bm, v_at_z(z), a, off + 0.014, Vector((0.009, 0.004, 0.013)), material=3, cuts=3)
 
 
 def top_puffer(bm, part, side):
@@ -1245,9 +1254,9 @@ def top_puffer(bm, part, side):
     neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.015, 0.017)
     off = OUTER_OFF + 0.01
     trunk_shell(bm, v_at_z(0.23), v_at_neck(0.86), off, material=1)
-    for z in (0.28, 0.35, 0.42, 0.49, 0.555):
-        waist_band(bm, z, off - 0.006, 0.012, 0.022, material=1)
-    neck_band(bm, 0.86, off + 0.004, 0.018, 0.03, material=1)
+    for z in (0.275, 0.345, 0.415, 0.485, 0.55):
+        waist_band(bm, z, off - 0.004, 0.02, 0.03, material=1)  # a plump down baffle
+    neck_band(bm, 0.86, off + 0.008, 0.026, 0.045, material=3)  # the stand-up fleece collar
     strip(bm, [trunk_point(v_at_z(z), front(), off + 0.012) for z in (0.6, 0.48, 0.36, 0.24)], 0.005, material=2)
 
 
@@ -1257,12 +1266,22 @@ def bottom_waders(bm, part, side, hip_y, leg_r, pant_r):
     if part:
         pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r + 0.004 - 0.006 * smoothstep(0.0, LONG_LEG, t))
         hip = Vector((side * LEG_X, 0, hip_y))
-        rb = pant_r + 0.012
-        top = hip - UP * (LONG_LEG - 0.075)
-        axis_lathe(bm, top, [(0.0, 0.0), (0.0, rb), (0.06, rb), (0.085, rb * 0.97), (0.085, 0.0)], segs=20, material=2)
-        band(bm, top - UP * 0.004, rb + 0.004, rb + 0.004, 0.006, 0.01, segs=28, sides=6, material=2)
+        rb = pant_r + 0.024  # thick rubber boots, well over the ankle and down over the shoe
+        top = hip - UP * (LONG_LEG - 0.11)
+        axis_lathe(bm, top, [(0.0, 0.0), (0.0, rb), (0.08, rb * 1.02), (0.12, rb * 1.05), (0.125, 0.0)], segs=22, material=2)
+        band(bm, top - UP * 0.004, rb + 0.006, rb + 0.006, 0.008, 0.013, segs=28, sides=6, material=2)  # the boot's top rim
+        band(bm, top - UP * 0.118, rb * 1.05 + 0.004, rb * 1.05 + 0.004, 0.006, 0.01, segs=28, sides=6, material=5)  # its muddy sole
+        for k in range(5):  # splashes of river mud
+            a = 2 * math.pi * k / 5 + side
+            add_shaped(bm, 4, blob(top - UP * (0.06 + 0.03 * (k % 2)) + Vector((math.cos(a) * rb, math.sin(a) * rb, 0)), AXES, Vector((0.012, 0.012, 0.009))), material=5)
         return
     bottom_overalls(bm, part, side, hip_y, leg_r, pant_r)
+    # a chest pouch on the bib, its flap in boot rubber, a steel tackle clip with a red lure on it
+    deco(bm, v_at_z(OVERALLS_BIB_Z - 0.06), front(), OVERALLS_OFF + 0.012, Vector((0.05, 0.014, 0.034)), n=3.0)
+    deco(bm, v_at_z(OVERALLS_BIB_Z - 0.035), front(), OVERALLS_OFF + 0.022, Vector((0.052, 0.008, 0.012)), material=2, n=3.0)
+    clip = trunk_point(v_at_z(OVERALLS_BIB_Z - 0.03), front(0.25), OVERALLS_OFF + 0.02)
+    band(bm, clip, 0.012, 0.012, 0.003, 0.003, segs=16, sides=6, material=3)
+    add_shaped(bm, 5, blob(clip - UP * 0.022, AXES, Vector((0.008, 0.006, 0.014))), material=4)
 
 
 def waist(bm, off=BOTTOM_OFF, material=0):
@@ -1346,8 +1365,8 @@ TOPS = {
     "robe": (("Mat_Shirt", "Mat_Trim"), top_robe),
     "yukata": (("Mat_Shirt", "Mat_Trim", "Mat_Accent"), top_yukata),
     "jumpsuit": (("Mat_Shirt", "Mat_Accent"), top_jumpsuit),
-    "plaid": (("Mat_Shirt", "Mat_Plaid", "Mat_Accent", "Mat_Button"), top_plaid),
-    "puffer": (("Mat_Shirt", "Mat_Puffer", "Mat_Plaid"), top_puffer),
+    "plaid": (("Mat_Shirt", "Mat_Plaid", "Mat_Accent", "Mat_Button", "Mat_Steel"), top_plaid),
+    "puffer": (("Mat_Shirt", "Mat_Puffer", "Mat_Plaid", "Mat_Fleece"), top_puffer),
 }
 BOTTOMS = {
     "sweats": (("Mat_Pants",), bottom_sweats),
@@ -1355,7 +1374,7 @@ BOTTOMS = {
     "trousers": (("Mat_Pants",), bottom_trousers),
     "shorts": (("Mat_Pants",), bottom_shorts),
     "wide": (("Mat_Pants",), bottom_wide),
-    "waders": (("Mat_Pants", "Mat_Button", "Mat_Boot"), bottom_waders),
+    "waders": (("Mat_Pants", "Mat_Button", "Mat_Boot", "Mat_Steel", "Mat_BobberRed", "Mat_Mud"), bottom_waders),
 }
 
 
@@ -2275,9 +2294,20 @@ def hat_cozybeanie(bm):
 
     add_shaped(bm, 18, shape)
     band(bm, Vector((0, 0.015, 0.99)), 0.296, 0.306, 0.016, 0.045, roundness=3.0, tilt=-math.atan(slope), material=1)
+    # the cuff's knit ribs: little upright ridges all the way round its fold
+    for k in range(40):
+        a = 2 * math.pi * k / 40
+        at = Vector((0.312 * math.cos(a), 0.015 + 0.322 * math.sin(a), 0.99 - slope * 0.322 * math.sin(a)))
+        add_shaped(bm, 3, blob(at, AXES, Vector((0.007, 0.007, 0.036))), material=1)
     for z, k in ((1.075, 0.86), (1.13, 0.71)):  # the dome's own radius there, less a hair: ribs, not rings
         band(bm, Vector((0, 0.015, z)), 0.305 * k, 0.315 * k, 0.005, 0.009, roundness=3.0, tilt=-math.atan(slope), material=1)
-    add_shaped(bm, 10, blob(Vector((0, 0.03, 1.225)), AXES, Vector((0.075,) * 3)), material=2)
+    # a fluffy pompom: a cluster of soft tufts round a core
+    pom = Vector((0, 0.03, 1.225))
+    add_shaped(bm, 8, blob(pom, AXES, Vector((0.062,) * 3)), material=2)
+    for k in range(10):
+        a, b = 2.399 * k, math.acos(1 - 2 * (k + 0.5) / 10)
+        d = Vector((math.sin(b) * math.cos(a), math.sin(b) * math.sin(a), math.cos(b)))
+        add_shaped(bm, 4, blob(pom + d * 0.05, AXES, Vector((0.03,) * 3)), material=2)
 
 
 def hat_boonie(bm):
@@ -2312,10 +2342,18 @@ def hat_bearcap(bm):
 
     add_shaped(bm, 18, shape)
     band(bm, Vector((0, 0.015, 0.975)), 0.294, 0.304, 0.012, 0.018, roundness=3.0, tilt=-math.atan(slope), material=0)
-    for side in (-1, 1):
-        centre = Vector((side * 0.2, 0.02, 1.13))
-        add_shaped(bm, 10, blob(centre, AXES, Vector((0.07, 0.035, 0.065))))
-        add_shaped(bm, 8, blob(centre + Vector((0, -0.025, -0.005)), AXES, Vector((0.042, 0.012, 0.04))), material=1)
+    # (the ears are built apart, bear_ear, as child nodes: they bob as you walk)
+
+
+BEAR_EAR_BASE = 1.09  # where each ear meets the cap: its pivot
+
+
+def bear_ear(bm, side):
+    """A rounded bear ear, extruded up off the cap, a pale inside facing forward."""
+    centre = Vector((side * 0.2, 0.02, 1.14))
+    add_shaped(bm, 10, blob(centre, AXES, Vector((0.072, 0.038, 0.07))))
+    add_shaped(bm, 6, blob(Vector((side * 0.2, 0.02, BEAR_EAR_BASE + 0.005)), AXES, Vector((0.05, 0.03, 0.03))))  # its root in the cap
+    add_shaped(bm, 8, blob(centre + Vector((0, -0.027, -0.005)), AXES, Vector((0.044, 0.012, 0.042))), material=1)
 
 
 def hat_headlamp(bm):
@@ -2559,7 +2597,13 @@ def build(hip_y, leg_r, hip_off, covering):
     for hat, (build_hat, names) in HATS.items():
         bm = bmesh.new()
         build_hat(bm)
-        make_object(f"Hat_{hat}", bm, NECK, coll, head, NECK, [mat[n] for n in names])
+        hat_ob = make_object(f"Hat_{hat}", bm, NECK, coll, head, NECK, [mat[n] for n in names])
+        if hat == "bearcap":
+            # the bear cap's ears: child nodes of the cap, pivoting where they join it
+            for ear, side in (("EarL", 1), ("EarR", -1)):
+                bm = bmesh.new()
+                bear_ear(bm, side)
+                make_object(f"Hat_bearcap_{ear}", bm, Vector((side * 0.2, 0.02, BEAR_EAR_BASE)), coll, hat_ob, NECK, [mat[n] for n in names])
 
     # Arms: skin, pivots at the shoulders, hanging straight down; each arm and its hand fused into
     # one form

@@ -111,16 +111,29 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       const bonfire = Object.values(toggleables).find((p) => p.kind === "bonfire");
       if (bonfire && action !== "grill" && (onLog || (!sitting && reach(bonfire) <= BONFIRE_REACH))) {
         const id = bonfire.propId;
-        // seated, the panel opens where you are; standing, you walk up to the fire first
-        const run = onLog ? () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "roast", propId: id } })) : () => interactBridge.current?.useProp(id);
-        found.push({ key: `roast:${id}`, type: "roast", label: "🍡 Roast & Grill", hint: "Roast a marshmallow or grill a skewer: pull it out in the green for +5 coins", run });
+        if (hearth.fuel <= 0) {
+          // the fire's out: relight it with the humblest log you carry (nothing to roast over embers)
+          const wood = woodOf(player.fishing);
+          const item = WOOD_KINDS.find((k) => (wood[k] ?? 0) > 0);
+          found.push({
+            key: `relight:${item ?? "none"}`,
+            type: "roast",
+            label: "🔥 Relight Bonfire (Requires 1 Wood)",
+            hint: item ? `Put a ${WOOD[item].name} on the embers` : "Chop a log at one of the stations on the Timber Trail first",
+            run: () => (item ? onCampfire({ type: "ADD_FUEL", item }) : pushToast("You need a log to relight the fire: chop one on the Timber Trail", { emoji: "🪵" })),
+          });
+        } else {
+          // seated, the panel opens where you are; standing, you walk up to the fire first
+          const run = onLog ? () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "roast", propId: id } })) : () => interactBridge.current?.useProp(id);
+          found.push({ key: `roast:${id}`, type: "roast", label: "🍡 Roast & Grill", hint: "Roast a marshmallow or grill a skewer: pull it out in the green for +5 coins", run });
+        }
       }
       // the hearth: wood on the fire, and the Dutch oven over it (from the fire's side or a seat round it)
       if (bonfire && (onLog || (!sitting && reach(bonfire) <= BONFIRE_REACH))) {
         // the humblest wood first (pine, then oak, then Golden Charcoal: it sells best to Buster)
         const wood = woodOf(player.fishing);
         const item = WOOD_KINDS.find((k) => (wood[k] ?? 0) > 0);
-        if (item && hearth.fuel < 100 && action !== "grill") {
+        if (item && hearth.fuel > 0 && hearth.fuel < 100 && action !== "grill") {
           const n = wood[item] ?? 0;
           found.push({ key: `fuel:${item}:${n}`, type: "fuel", label: `${WOOD[item].emoji} Add ${WOOD[item].name} ×${n}`, hint: "Build the fire up: above 70% everyone gets the Cozy Aura", run: () => onCampfire({ type: "ADD_FUEL", item }) });
         }

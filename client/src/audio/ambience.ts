@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { MapId } from "@shared/types";
-import { getSoundSettings, subscribeSoundSettings } from "./soundSettings";
+import { AMBIENCE_CHANNELS, getSoundSettings, subscribeSoundSettings, type AmbienceChannel } from "./soundSettings";
 import { cameraFocus } from "../scene/cameraFocus";
 import { CAMPFIRE_LAYOUT, RIVER_Z, riverSpan } from "@shared/worlds/campfire";
 
@@ -23,6 +23,9 @@ import { CAMPFIRE_LAYOUT, RIVER_Z, riverSpan } from "@shared/worlds/campfire";
 
 const FADE_S = 1.8;
 
+/** The master's level once faded in (the channels' faders set the mix under it). */
+const MASTER = 1;
+
 class CampfireAmbience {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -37,6 +40,10 @@ class CampfireAmbience {
   /** The placed layers: the fire (its beds and crackles) and the river. */
   private fire: { gain: GainNode; pan: StereoPannerNode } | null = null;
   private river: { gain: GainNode; pan: StereoPannerNode } | null = null;
+  /** The mixer: a gain per channel (its fader), between its layers and the master. The fire's also
+   *  follows the bonfire's fuel: silent once it is out, back as it is relit. */
+  private channels: Record<AmbienceChannel, GainNode> | null = null;
+  private fuel = 60;
 
   private ensure(): AudioContext | null {
     if (this.ctx) return this.ctx;
@@ -47,14 +54,21 @@ class CampfireAmbience {
     this.master = c.createGain();
     this.master.gain.value = 0;
     this.master.connect(c.destination);
-    const placed = () => {
+    const channel = () => {
+      const g = c.createGain();
+      g.connect(this.master!);
+      return g;
+    };
+    this.channels = { fire: channel(), river: channel(), forest: channel() };
+    for (const k of AMBIENCE_CHANNELS) this.channels[k].gain.value = this.channelLevel(k);
+    const placed = (into: GainNode) => {
       const gain = c.createGain();
       const pan = c.createStereoPanner();
-      gain.connect(pan).connect(this.master!);
+      gain.connect(pan).connect(into);
       return { gain, pan };
     };
-    this.fire = placed();
-    this.river = placed();
+    this.fire = placed(this.channels.fire);
+    this.river = placed(this.channels.river);
     // two seconds of white noise, looped by every bed
     this.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -109,7 +123,7 @@ class CampfireAmbience {
     this.bed("bandpass", 1600, 0.8, 0.025, 0.4, 0.012, this.fire!.gain); // its hiss
     this.bed("bandpass", 650, 0.6, 0.11, 0.13, 0.05, this.river!.gain); // the river
     this.bed("bandpass", 2400, 1.2, 0.022, 0.31, 0.012, this.river!.gain); // its trickle
-    this.bed("lowpass", 300, 0.5, 0.05, 0.05, 0.05); // the breeze
+    this.bed("lowpass", 300, 0.5, 0.05, 0.05, 0.05, this.channels!.forest); // the breeze
   }
 
   private stopBeds() {
@@ -158,7 +172,7 @@ class CampfireAmbience {
       this.cricketSide = -this.cricketSide;
       const pan = c.createStereoPanner();
       pan.pan.value = this.cricketSide * (0.3 + Math.random() * 0.4);
-      pan.connect(this.master);
+      pan.connect(this.channels?.forest ?? this.master);
       const pitch = this.cricketSide > 0 ? 4550 : 4250;
       const level = 0.012 + Math.random() * 0.01;
       for (let k = 0; k < 3; k++) {
@@ -207,7 +221,7 @@ class CampfireAmbience {
     const g = this.master.gain;
     g.cancelScheduledValues(now);
     g.setValueAtTime(g.value, now);
-    g.linearRampToValueAtTime(on ? this.level() : 0, now + FADE_S);
+    g.linearRampToValueAtTime(on ? MASTER : 0, now + FADE_S);
     if (on) {
       this.startBeds();
       if (!this.timer) this.timer = window.setInterval(this.tick, 60);
@@ -216,25 +230,43 @@ class CampfireAmbience {
     }
   }
 
-  /** The master level: the Ambience slider, gently curved (a slider's middle should sound like the middle). */
-  private level() {
-    const v = getSoundSettings().ambience;
-    return v * v * 0.9;
+  /** A channel's level: its fader, gently curved (a fader's middle should sound like the middle);
+   *  the fire's scaled by the bonfire (quieter as it burns low, silent once it is out). */
+  private channelLevel(k: AmbienceChannel) {
+    const v = getSoundSettings()[k];
+    const fire = k === "fire" ? (this.fuel <= 0 ? 0 : 0.45 + 0.55 * Math.min(1, this.fuel / 50)) : 1;
+    return v * v * 0.9 * fire;
   }
 
   refreshVolume() {
     const c = this.ctx;
-    if (!c || !this.master || !this.active) return;
+    if (!c || !this.channels) return;
     const now = c.currentTime;
-    this.master.gain.cancelScheduledValues(now);
-    this.master.gain.setTargetAtTime(this.level(), now, 0.1);
+    for (const k of AMBIENCE_CHANNELS) {
+      const g = this.channels[k].gain;
+      g.cancelScheduledValues(now);
+      // the fire dies away (or catches) over a couple of seconds; a fader moves at once
+      g.setTargetAtTime(this.channelLevel(k), now, k === "fire" ? 0.7 : 0.1);
+    }
+  }
+
+  /** The bonfire's fuel (0..100): the fire's channel follows it. */
+  setFuel(fuel: number) {
+    if (fuel === this.fuel) return;
+    this.fuel = fuel;
+    this.refreshVolume();
   }
 }
 
 let campfire: CampfireAmbience | null = null;
 
-/** Plays the world's ambience while you are in it (only the Starlight Campfire has one so far). */
-export function useWorldAmbience(mapId: MapId | null) {
+/** Plays the world's ambience while you are in it (only the Starlight Campfire has one so far);
+ *  `fuel` is the Campfire's bonfire (its crackle follows it). */
+export function useWorldAmbience(mapId: MapId | null, fuel = 60) {
+  useEffect(() => {
+    campfire ??= new CampfireAmbience();
+    campfire.setFuel(fuel);
+  }, [fuel]);
   useEffect(() => {
     campfire ??= new CampfireAmbience();
     campfire.setActive(mapId === "campfire_night");

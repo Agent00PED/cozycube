@@ -32,9 +32,9 @@ export type WoodKind = "pine" | "oak" | "charcoal";
 export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal"];
 /** Each kind: what Buster pays for one, and how much it feeds the bonfire. */
 export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number; fuel: number }> = {
-  pine: { name: "Pine Firewood", emoji: "🪵", sell: 4, fuel: 25 },
-  oak: { name: "Oak Firewood", emoji: "🌳", sell: 8, fuel: 30 },
-  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: 18, fuel: 50 },
+  pine: { name: "Pine Firewood", emoji: "🪵", sell: 5, fuel: 25 },
+  oak: { name: "Oak Firewood", emoji: "🌳", sell: 10, fuel: 30 },
+  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: 25, fuel: 50 },
 };
 export function isWoodKind(v: unknown): v is WoodKind {
   return v === "pine" || v === "oak" || v === "charcoal";
@@ -59,7 +59,7 @@ export const AXE_IDS = Object.keys(AXES) as AxeId[];
 // --- the wood carrier: how many logs you can carry, and Buster's upgrades to it ---
 export const CARRIER_CAPACITY = [6, 12, 20] as const;
 /** What the next level costs (from level 1, from level 2). */
-export const CARRIER_UPGRADE_COSTS = [150, 400] as const;
+export const CARRIER_UPGRADE_COSTS = [150, 350] as const;
 export function carrierCapacity(level: number): number {
   return CARRIER_CAPACITY[Math.max(1, Math.min(CARRIER_CAPACITY.length, Math.round(level) || 1)) - 1];
 }
@@ -94,8 +94,13 @@ const BASE_PERIOD = 3.2;
 export const CHOP_SPEED: Record<ChopStrokeNo, number> = { 1: 1.0, 2: 1.35, 3: 1.6 };
 /** How fast each stroke's sweet spot patrols, against its needle (0: it holds still). */
 const PATROL: Record<ChopStrokeNo, number> = { 1: 0, 2: 0.35, 3: 0.5 };
-/** A chopping station's next log is ready this long after its last one was split. */
-export const CHOP_RESPAWN_S = 25;
+/** A chopping station yields this many logs (rolled each time it is stocked), then its block waits
+ *  CHOP_RESPAWN_S for fresh ones. */
+export const CHOP_YIELD = [2, 3] as const;
+export const CHOP_RESPAWN_S = 20;
+export function rollChopYield(rand: () => number = Math.random): number {
+  return CHOP_YIELD[0] + Math.floor(rand() * (CHOP_YIELD[1] - CHOP_YIELD[0] + 1));
+}
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 

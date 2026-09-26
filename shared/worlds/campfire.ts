@@ -94,7 +94,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "telescope": { "x": -2.4, "z": 9.35 },
   "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
   "campChair": { "x": 4.5, "z": -7.45 },
-  "chops": [{ "x": 1.75, "z": -6.65 }, { "x": -5.5, "z": -0.1 }, { "x": 2.5, "z": 5.5 }],
+  "chops": [{ "x": -4.2, "z": -7.4 }, { "x": -2.6, "z": -8.3 }, { "x": -0.6, "z": -8.0 }, { "x": 1.75, "z": -6.65 }],
   "critter": { "x": 3.4, "z": -6.2 },
   "canoe": { "x": 8.0, "z": 2.62, "len": 2.0 },
   "cleat": { "x": 6.95, "z": 1.8 },
@@ -230,14 +230,12 @@ export function nearestFishingSpot(x: number, z: number) {
 
 // --- the living camp: the telescope, the chopping block, foraging, lights and wildlife ----------
 
-/** The chopping stations: one by the woodpile and the camper van, one in the upper-left grove by the
- *  A-frame tent, one by the signpost at the trails' fork. Each has a log on its block until it is
- *  split (it comes back CHOP_RESPAWN_S later); you step up to it from the fire's side (the first
- *  from in front of the woodpile). */
+/** The Northern Timber Trail: four chopping stations along the forest ridge at the back of the camp,
+ *  from beside the tipi past Buster's stall to the woodpile. Each block yields a few logs
+ *  (CHOP_YIELD), then waits CHOP_RESPAWN_S for fresh ones; you step up to it from the fire's side. */
 export const CHOP_STATIONS = L.chops.map((c, i) => {
   const toFire = unit(L.fire.x - c.x, L.fire.z - c.z);
-  const approach = i === 0 ? { x: c.x, z: c.z + 0.9 } : { x: c.x + toFire.x * 0.9, z: c.z + toFire.z * 0.9 };
-  return { propId: `woodchop_0${i + 1}`, x: c.x, z: c.z, approachX: approach.x, approachZ: approach.z };
+  return { propId: `woodchop_0${i + 1}`, x: c.x, z: c.z, approachX: c.x + toFire.x * 0.9, approachZ: c.z + toFire.z * 0.9 };
 });
 /** The chopping station nearest a point. */
 export function nearestChopStation(x: number, z: number) {
@@ -591,9 +589,9 @@ export const CAMP_OBSTACLES: AABB[] = [
     minZ: TENT2.z - (Math.abs(TENT2.open.z) * TENT2.len + Math.abs(TENT2.across.z) * TENT2.w) / 2 + 0.12,
     maxZ: TENT2.z + (Math.abs(TENT2.open.z) * TENT2.len + Math.abs(TENT2.across.z) * TENT2.w) / 2 - 0.12,
   },
-  // the woodpile and its chopping stump, and the other two chopping stumps
+  // the woodpile (its chopping stump inside its box), and the trail's other chopping stumps
   { minX: L.woodpile.x - 0.6, maxX: L.woodpile.x + 1.0, minZ: L.woodpile.z - 0.5, maxZ: L.woodpile.z + 0.6 },
-  ...CHOP_STATIONS.slice(1).map((s) => around(s, 0.3)),
+  ...CHOP_STATIONS.slice(0, 3).map((s) => around(s, 0.3)),
   // the hammock (it hangs across a diagonal: small boxes along it) and its two pines
   ...Array.from({ length: 6 }, (_, k) => {
     const t = (k + 0.5) / 6 - 0.5;

@@ -427,6 +427,8 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
   const bites = useRef({ snack: "", eaten: 0, next: 0, until: 0, pending: false });
   // a cast: when the line went out (the rod swings over and out)
   const cast = useRef({ was: "" as PlayerAction, at: -Infinity });
+  // the Bear Fleece Cap's ears (child nodes of Hat_bearcap): they bob with each step
+  const bearEars = useMemo(() => [rig.root.getObjectByName("Hat_bearcap_EarL") ?? null, rig.root.getObjectByName("Hat_bearcap_EarR") ?? null], [rig]);
   // where the bite mark floats, over the bobber; and the Starlight rod's shimmer, at its tip
   const markRef = useRef<THREE.Group>(null);
   const auraRef = useRef<THREE.Group>(null);
@@ -662,6 +664,14 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     part.root.rotation.x = rock ? canoeRoll(t, struggling) : 0;
     part.root.rotation.z = rock ? canoePitch(t, struggling) : 0;
     body.rotation.y = L(body.rotation.y, g === "dance" ? Math.sin(gAge * 3.5) * 0.6 : 0, 0.2);
+
+    // --- the bear cap's ears: a floppy bob, one then the other, with each step; a twitch now and then idle ---
+    bearEars.forEach((ear, i) => {
+      if (!ear) return;
+      const side = i === 0 ? 1 : -1;
+      ear.rotation.x = walking ? Math.sin(phase + i * Math.PI) * 0.3 : Math.pow(Math.max(0, Math.sin(t * 0.9 + seed + i * 1.7)), 14) * 0.4;
+      ear.rotation.y = walking ? side * Math.abs(Math.sin(phase)) * 0.15 : 0;
+    });
 
     // --- breathing: the torso swells about its base ---
     const breath = walking ? 0 : Math.sin(t * 2.1 + seed) * 0.018;

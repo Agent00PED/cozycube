@@ -296,7 +296,7 @@ export default function App() {
   // --- one-shot server messages: results, openings, welcomes ---
   const localIdRef = useRef(localSessionId);
   // the world's ambient soundscape (the campfire's), faded in and out with the world
-  useWorldAmbience(currentMap);
+  useWorldAmbience(currentMap, hearth.fuel);
   // which panel is open, for the message handler below (a roast's result shows in its own panel)
   const panelKindRef = useRef<string | undefined>(undefined);
   panelKindRef.current = panel?.kind;
@@ -361,7 +361,9 @@ export default function App() {
           if (u.sessionId === localIdRef.current) pushToast(`The fire roars up! ${u.fuel}%`, { emoji: u.item === "charcoal" ? "✨" : "🪵", silent: true });
           if (before <= COZY_AURA_FUEL && u.fuel > COZY_AURA_FUEL) pushToast("Cozy Aura! +15% rare fish and campfire coins", { emoji: "✨", tone: "win" });
           else if (before > COZY_AURA_FUEL && u.fuel <= COZY_AURA_FUEL) pushToast("The Cozy Aura fades as the fire settles", { emoji: "🔥", silent: true });
-          else if (before >= LOW_FUEL && u.fuel < LOW_FUEL) pushToast("The fire's burning low. Chop some firewood!", { emoji: "🪵" });
+          else if (before >= LOW_FUEL && u.fuel < LOW_FUEL && u.fuel > 0) pushToast("The fire's burning low. Chop some firewood!", { emoji: "🪵" });
+          if (before > 0 && u.fuel <= 0) pushToast("The bonfire has gone out. Relight it with a log!", { emoji: "🌑" });
+          else if (before <= 0 && u.fuel > 0) pushToast("The bonfire crackles back to life!", { emoji: "🔥", tone: "win" });
         } else if (type === "STEW_STATE_UPDATE") {
           const u = payload as StewUpdate;
           if (u.event === "add") playSfx("bubble");
