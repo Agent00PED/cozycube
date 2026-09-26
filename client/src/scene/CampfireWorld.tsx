@@ -522,9 +522,10 @@ function BulbGlows() {
   return <instancedMesh ref={mesh} args={[SPARK_GEO, GLOW_MAT, STRING_BULBS.length]} raycast={noRaycast} frustumCulled={false} renderOrder={2} />;
 }
 
-/** Over each chopping station on the Timber Trail, a little floating sign: ready (and how many logs
- *  its block holds), or the countdown to its fresh logs. The server says how long the wait is (the
- *  station's `boost`) when it goes bare; the countdown runs here, from when that was seen. */
+/** Over a chopping station on the Timber Trail that is cooling down (bare, waiting for fresh logs), a
+ *  small floating countdown; nothing at all over one that is ready. The server says how long the
+ *  wait is (the station's `boost`) when it goes bare; the countdown runs here, from when that was
+ *  seen, and the badge goes the moment it reaches 0. */
 function ChopBillboards({ toggleables }: { toggleables: Record<string, ToggleableSyncState> }) {
   const bareSince = useRef<Record<string, number>>({});
   const [, setTick] = useState(0);
@@ -543,10 +544,12 @@ function ChopBillboards({ toggleables }: { toggleables: Record<string, Toggleabl
   return (
     <>
       {stations.map((s) => {
-        const left = s.on ? 0 : Math.max(0, Math.ceil((s.boost || 20) - (now - (bareSince.current[s.propId] ?? now)) / 1000));
+        if (s.on) return null;
+        const left = Math.max(0, Math.ceil((s.boost || 20) - (now - (bareSince.current[s.propId] ?? now)) / 1000));
+        if (left <= 0) return null;
         return (
           <Html key={s.propId} position={[s.x, 1.15, s.z]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
-            <div className={`cozy-chop-sign ${s.on ? "is-ready" : ""}`}>{s.on ? `🪓 Ready${s.track ? ` ×${s.track}` : ""}` : `⏳ ${left}s`}</div>
+            <div className="cozy-chop-sign">⏳ {left}s</div>
           </Html>
         );
       })}

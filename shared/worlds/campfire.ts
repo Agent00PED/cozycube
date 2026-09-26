@@ -94,7 +94,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "telescope": { "x": -2.4, "z": 9.35 },
   "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
   "campChair": { "x": 4.5, "z": -7.45 },
-  "chops": [{ "x": -4.2, "z": -7.4 }, { "x": -2.6, "z": -8.3 }, { "x": -0.6, "z": -8.0 }, { "x": 1.75, "z": -6.65 }],
+  "chops": [{ "x": -8.7, "z": -4.6 }, { "x": -3.3, "z": -7.5 }, { "x": -0.7, "z": -8.3 }, { "x": 1.75, "z": -6.65 }],
   "critter": { "x": 3.4, "z": -6.2 },
   "canoe": { "x": 8.0, "z": 2.62, "len": 2.0 },
   "cleat": { "x": 6.95, "z": 1.8 },
@@ -230,8 +230,9 @@ export function nearestFishingSpot(x: number, z: number) {
 
 // --- the living camp: the telescope, the chopping block, foraging, lights and wildlife ----------
 
-/** The Northern Timber Trail: four chopping stations along the forest ridge at the back of the camp,
- *  from beside the tipi past Buster's stall to the woodpile. Each block yields a few logs
+/** The Northern Timber Trail: four chopping stations spread along the forest ridge at the back of
+ *  the camp, its whole width: far left behind the A-frame tent, between the tipi and the back pines,
+ *  behind Buster's stall, and far right at the woodpile by the camper. Each block yields a few logs
  *  (CHOP_YIELD), then waits CHOP_RESPAWN_S for fresh ones; you step up to it from the fire's side. */
 export const CHOP_STATIONS = L.chops.map((c, i) => {
   const toFire = unit(L.fire.x - c.x, L.fire.z - c.z);

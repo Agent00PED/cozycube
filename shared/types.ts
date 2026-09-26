@@ -718,16 +718,16 @@ export type OutfitId = "outfit_starter_hoodie" | "outfit_starter_overalls" | "ou
 export const OUTFITS: Record<OutfitId, { name: string; emoji: string; price: number; gachaOnly?: boolean }> = {
   outfit_starter_hoodie: { name: "Cozy Hoodie & Sweats", emoji: "🧥", price: 0 },
   outfit_starter_overalls: { name: "Classic Denim Overalls", emoji: "👖", price: 0 },
-  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 320 },
-  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 380 },
+  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 350 },
+  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 420 },
   outfit_tuxedo: { name: "Velvet Evening Tuxedo", emoji: "🎩", price: 650 },
   outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 450 },
   outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 950 },
   outfit_cyber: { name: "Retro Cyber Jumpsuit", emoji: "🕹️", price: 0, gachaOnly: true },
   // the campfire collection
-  outfit_red_plaid: { name: "Buffalo Plaid & Suspenders", emoji: "🟥", price: 420 },
-  outfit_puffer_vest: { name: "Mustard Puffer Vest", emoji: "🟨", price: 480 },
-  outfit_wader_overalls: { name: "Angler's Wader Overalls", emoji: "🥾", price: 550 },
+  outfit_red_plaid: { name: "Lumberjack Suspenders", emoji: "🟥", price: 380 },
+  outfit_puffer_vest: { name: "Mustard Down Vest", emoji: "🟨", price: 520 },
+  outfit_wader_overalls: { name: "River Wader Dungarees", emoji: "🥾", price: 650 },
 };
 export const OUTFIT_IDS = Object.keys(OUTFITS) as OutfitId[];
 export const STARTER_OUTFITS: OutfitId[] = ["outfit_starter_hoodie", "outfit_starter_overalls"];
@@ -740,16 +740,16 @@ export type Accessory = FreeAccessory | PremiumHat;
 const ACCESSORIES: FreeAccessory[] = ["beret", "beanie", "flower", "headphones", "none"];
 /** The coin shop: premium hats and their prices. */
 export const PREMIUM_HATS: Record<PremiumHat, { name: string; price: number; emoji: string; gachaOnly?: boolean }> = {
-  straw: { name: "Straw Sunhat", price: 80, emoji: "👒" },
-  bunny: { name: "Bunny Ears", price: 120, emoji: "🐰" },
-  tophat: { name: "Top Hat", price: 200, emoji: "🎩" },
-  crown: { name: "High Roller Crown", price: 220, emoji: "👑" },
+  straw: { name: "Straw Sunhat", price: 180, emoji: "👒" },
+  bunny: { name: "Bunny Ears", price: 320, emoji: "🐰" },
+  tophat: { name: "Top Hat", price: 850, emoji: "🎩" },
+  crown: { name: "Gilded Crown", price: 1100, emoji: "👑" },
   mochiears: { name: "Mochi Ears", price: 0, emoji: "🐱", gachaOnly: true },
   // the campfire collection
-  cozybeanie: { name: "Cozy Pompom Beanie", price: 90, emoji: "🧡" },
-  boonie: { name: "Angler Boonie", price: 110, emoji: "🎣" },
-  bearcap: { name: "Bear Fleece Cap", price: 130, emoji: "🐻" },
-  headlamp: { name: "Trail Headlamp", price: 150, emoji: "🔦" },
+  cozybeanie: { name: "Cozy Knit Beanie", price: 160, emoji: "🧡" },
+  boonie: { name: "Angler Boonie Hat", price: 360, emoji: "🎣" },
+  bearcap: { name: "Fleece Bear Cap", price: 440, emoji: "🐻" },
+  headlamp: { name: "Spelunker Headlamp", price: 210, emoji: "🔦" },
 };
 export const PREMIUM_HAT_IDS = Object.keys(PREMIUM_HATS) as PremiumHat[];
 export function isPremiumHat(v: unknown): v is PremiumHat {
@@ -792,11 +792,11 @@ export const HAIR_DEFINITIONS: Record<HairStyle, { name: string; emoji: string; 
   curtain: { name: "Curtain Shag", emoji: "🍃", price: 0 },
   ponytail: { name: "High Ponytail", emoji: "💁", price: 0 },
   wavylong: { name: "Soft Waves", emoji: "🌊", price: 0 },
-  hero: { name: "Anime Hero", emoji: "⚡", price: 200 },
-  drill: { name: "Twin Drills", emoji: "🎀", price: 180 },
-  topknot: { name: "Samurai Topknot", emoji: "🎋", price: 150 },
-  spacebuns: { name: "Space Buns", emoji: "🐼", price: 150 },
-  afro: { name: "Cloud Afro", emoji: "☁️", price: 220 },
+  hero: { name: "Anime Hero", emoji: "⚡", price: 580 },
+  drill: { name: "Twin Drills", emoji: "🎀", price: 420 },
+  topknot: { name: "Samurai Topknot", emoji: "🎋", price: 680 },
+  spacebuns: { name: "Festival Space Buns", emoji: "🐼", price: 380 },
+  afro: { name: "Cloud Afro", emoji: "☁️", price: 620 },
 };
 export const STARTER_HAIR: HairStyle[] = HAIR_STYLES.filter((s) => HAIR_DEFINITIONS[s].price === 0);
 export function isHairStyle(v: unknown): v is HairStyle {
