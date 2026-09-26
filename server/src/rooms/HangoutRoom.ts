@@ -6,7 +6,7 @@ import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } 
 import { AWAY_PREFIX, BoardTable, type BoardSnapshot } from "./boardgame";
 import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
-import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
+import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, WORKBENCH, WORKBENCH_FRONT, WORKBENCH_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
 import { CRAFTS, MASTERWORK_CHANCE, canCraft, craftPrice, isCraftId } from "../../../shared/crafting";
 import { AXES, nextCarrierTier, CHOP_LOGS, CHOP_RESPAWN_S, WOOD, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
@@ -2122,6 +2122,10 @@ export class HangoutRoom extends Room<HangoutState> {
         this.handleBuster(sessionId, player, packet);
         return;
       }
+      case "WORKBENCH": {
+        this.handleWorkbench(sessionId, player, packet);
+        return;
+      }
       case "CHOP_STOP": {
         const chop = this.chops.get(sessionId);
         if (!chop || player.action !== "chop") return;
@@ -2528,8 +2532,32 @@ export class HangoutRoom extends Room<HangoutState> {
     return Math.hypot(player.x - CAMPFIRE_LAYOUT.picnic.x, player.z - CAMPFIRE_LAYOUT.picnic.z) <= PICNIC_REACH + 0.4;
   }
 
-  /** Buster the Lumberjack's stall: he buys split wood (near him) and sells axes (near him); an
-   *  axe you own can be switched to anywhere. */
+  /** The carpenter's workbench between the tipi and Buster's stall: the recipe's wood comes out of
+   *  the carrier and one carved piece goes in (a Masterwork now and then: finer with a finer axe).
+   *  Answered with workbenchResult; Buster buys the pieces at his stall. */
+  private handleWorkbench(sessionId: string, player: Player, packet: Extract<CampfirePacket, { type: "WORKBENCH" }>) {
+    const record = this.records.get(sessionId);
+    if (!record || !isCraftId(packet.recipe)) return;
+    const profile = record.fishing;
+    const reply = (ok: boolean, message: string) => {
+      const result: BarnabyResult = { ok, message, coins: 0 };
+      this.sendTo(sessionId, "workbenchResult", result);
+      if (ok) this.saveFishing(sessionId, player);
+    };
+    const near = Math.min(Math.hypot(player.x - WORKBENCH_FRONT.x, player.z - WORKBENCH_FRONT.z), Math.hypot(player.x - WORKBENCH.x, player.z - WORKBENCH.z)) <= WORKBENCH_REACH + 0.4;
+    if (!near) return reply(false, "Step up to the workbench to carve");
+    const craft = CRAFTS[packet.recipe];
+    if (!canCraft(profile.wood, packet.recipe)) return reply(false, `The ${craft.name} takes ${Object.entries(craft.needs).map(([k, n]) => `${n} ${WOOD[k as keyof typeof WOOD].name}`).join(" + ")}`);
+    for (const [k, n] of Object.entries(craft.needs) as [keyof typeof WOOD, number][]) profile.wood[k] -= n;
+    const m = Math.random() < MASTERWORK_CHANCE[profile.axe];
+    profile.crafts.push({ c: packet.recipe, m });
+    this.playGesture(sessionId, "chop");
+    this.broadcast("emote", { sessionId, emoji: m ? "✨" : craft.emoji });
+    reply(true, m ? `A Masterwork ${craft.name}! ✨ Buster will pay ${craft.master} 🪙 for it` : `A fine ${craft.name} ${craft.emoji}, worth ${craft.price} 🪙 at Buster's stall`);
+  }
+
+  /** Buster the Lumberjack's stall: he buys split wood and carved pieces (near him) and sells axes
+   *  and carriers (near him); an axe you own can be switched to anywhere. */
   private handleBuster(sessionId: string, player: Player, packet: Extract<CampfirePacket, { type: "BUSTER" }>) {
     const record = this.records.get(sessionId);
     if (!record) return;
@@ -2580,20 +2608,6 @@ export class HangoutRoom extends Room<HangoutState> {
         this.addCoins(player, -next.price);
         profile.carrierTier += 1;
         return reply(true, `${next.icon} The ${next.name}: room for ${next.capacity}!`, -next.price);
-      }
-      case "craft": {
-        // the workbench: the recipe's wood comes out of the carrier, one piece goes in (a Masterwork
-        // now and then: finer with a finer axe)
-        if (!isCraftId(packet.recipe)) return;
-        if (!near) return tooFar();
-        const craft = CRAFTS[packet.recipe];
-        if (!canCraft(profile.wood, packet.recipe)) return reply(false, `The ${craft.name} takes ${Object.entries(craft.needs).map(([k, n]) => `${n} ${WOOD[k as keyof typeof WOOD].name}`).join(" + ")}`);
-        for (const [k, n] of Object.entries(craft.needs) as [keyof typeof WOOD, number][]) profile.wood[k] -= n;
-        const m = Math.random() < MASTERWORK_CHANCE[profile.axe];
-        profile.crafts.push({ c: packet.recipe, m });
-        this.playGesture(sessionId, "chop");
-        this.broadcast("emote", { sessionId, emoji: m ? "✨" : craft.emoji });
-        return reply(true, m ? `A Masterwork ${craft.name}! ✨ That'll fetch ${craft.master} 🪙` : `A fine ${craft.name} ${craft.emoji}, worth ${craft.price} 🪙`);
       }
       case "sellCraft": {
         if (!near) return tooFar();
@@ -3077,6 +3091,10 @@ export class HangoutRoom extends Room<HangoutState> {
         if (Math.hypot(player.x - prop.x, player.z - prop.z) > BUSTER_REACH + 1.2) return;
         this.sendTo(sessionId, "openPanel", { kind: "buster", propId: prop.propId });
         this.broadcast("busterWave", { sessionId });
+        break;
+      case "workbench":
+        if (Math.hypot(player.x - prop.x, player.z - prop.z) > WORKBENCH_REACH + 1.0) return;
+        this.sendTo(sessionId, "openPanel", { kind: "workbench", propId: prop.propId });
         break;
       case "angler":
         if (Math.hypot(player.x - prop.x, player.z - prop.z) > BARNABY_REACH + 1.2) return;

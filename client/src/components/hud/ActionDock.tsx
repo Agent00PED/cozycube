@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
-import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH } from "@shared/worlds/campfire";
+import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
 import type { HearthState } from "../../hooks/useColyseusRoom";
 import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, spotOfSeat } from "@shared/worlds/campfire";
@@ -45,7 +45,7 @@ import { glass, hudText, pillButton } from "./glass";
 
 interface Action {
   key: string;
-  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fuel" | "stew" | "picnic" | "afk" | "barnaby" | "buster" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "critter" | "stand";
+  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fuel" | "stew" | "picnic" | "afk" | "barnaby" | "buster" | "workbench" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "critter" | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
   hint?: string;
@@ -160,10 +160,18 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           const id = angler.propId;
           found.push({ key: `barnaby:${id}`, type: "barnaby", label: "🦦 Talk to Barnaby", hint: "Sell your creel, buy rods and bait", run: () => interactBridge.current?.useProp(id) });
         }
+        // Buster's stall and the workbench beside it: only the nearer one is offered, so walking up
+        // to either never shows the other's button too
         const lumberjack = Object.values(toggleables).find((p) => p.kind === "lumberjack");
-        if (lumberjack && Math.min(reach(lumberjack), Math.hypot(BUSTER_FRONT.x - cameraFocus.x, BUSTER_FRONT.z - cameraFocus.z)) <= BUSTER_REACH + 0.6) {
+        const bench = Object.values(toggleables).find((p) => p.kind === "workbench");
+        const toBuster = lumberjack ? Math.min(reach(lumberjack), Math.hypot(BUSTER_FRONT.x - cameraFocus.x, BUSTER_FRONT.z - cameraFocus.z)) : Infinity;
+        const toBench = bench ? Math.min(reach(bench), Math.hypot(WORKBENCH_FRONT.x - cameraFocus.x, WORKBENCH_FRONT.z - cameraFocus.z)) : Infinity;
+        if (lumberjack && toBuster <= BUSTER_REACH + 0.6 && toBuster <= toBench) {
           const id = lumberjack.propId;
-          found.push({ key: `buster:${id}`, type: "buster", label: "🪓 Talk to Buster", hint: "Sell your firewood, buy a better axe", run: () => interactBridge.current?.useProp(id) });
+          found.push({ key: `buster:${id}`, type: "buster", label: "🦫 Talk to Buster", hint: "Sell wood and carvings, buy axes and bigger carriers", run: () => interactBridge.current?.useProp(id) });
+        } else if (bench && toBench <= WORKBENCH_REACH + 0.4) {
+          const id = bench.propId;
+          found.push({ key: `workbench:${id}`, type: "workbench", label: "🪚 Workbench", hint: "Carve your logs into artisan pieces worth far more", run: () => interactBridge.current?.useProp(id) });
         }
       }
       // the dock: sitting on its edge, cast from there; standing, sit down at the nearest free spot
@@ -213,7 +221,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         if (block) {
           const id = block.p.propId;
           if (block.p.on) found.push({ key: `chop:${id}`, type: "chop", label: "🪓 Chop Firewood", hint: "Split the log in three clean swings: firewood to burn or sell", run: () => interactBridge.current?.useProp(id) });
-          else found.push({ key: `chop:${id}:wait`, type: "chop", label: "🪵 Next log soon…", hint: "This block's next log arrives in under half a minute. Two more stations round the camp!", run: () => pushToast("A fresh log is on its way to this block. Try another station!", { emoji: "🪵" }) });
+          else found.push({ key: `chop:${id}:wait`, type: "chop", label: "🪵 Next log soon…", hint: "This block's next log arrives in under half a minute. Three more stations round the camp!", run: () => pushToast("A fresh log is on its way to this block. Try another station!", { emoji: "🪵" }) });
         }
         const raccoon = Object.values(toggleables).find((p) => p.kind === "critter");
         if (raccoon && reach(raccoon) <= CRITTER_REACH + 0.3) {

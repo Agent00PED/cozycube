@@ -94,7 +94,8 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "telescope": { "x": -2.4, "z": 9.35 },
   "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
   "campChair": { "x": 4.5, "z": -7.45 },
-  "chops": [{ "x": -8.7, "z": -4.6 }, { "x": -3.3, "z": -7.5 }, { "x": -0.7, "z": -8.3 }, { "x": 1.75, "z": -6.65 }],
+  "chops": [{ "x": -9.5, "z": 3.3 }, { "x": -8.7, "z": -4.6 }, { "x": -6.5, "z": -8.1 }, { "x": 1.75, "z": -6.65 }],
+  "workbench": { "x": -4.2, "z": -6.1, "len": 1.4, "w": 0.62, "top": 0.86 },
   "critter": { "x": 3.4, "z": -6.2 },
   "canoe": { "x": 8.0, "z": 2.62, "len": 2.0 },
   "cleat": { "x": 6.95, "z": 1.8 },
@@ -230,10 +231,11 @@ export function nearestFishingSpot(x: number, z: number) {
 
 // --- the living camp: the telescope, the chopping block, foraging, lights and wildlife ----------
 
-/** The Northern Timber Trail: four chopping stations spread along the forest ridge at the back of
- *  the camp, its whole width: far left behind the A-frame tent, between the tipi and the back pines,
- *  behind Buster's stall, and far right at the woodpile by the camper. Each block yields a few logs
- *  (CHOP_YIELD), then waits CHOP_RESPAWN_S for fresh ones; you step up to it from the fire's side. */
+/** The Northern Timber Trail: four chopping stations spread across the camp's whole width, none of
+ *  them behind Buster's stall: far left in the pines by the hammock, between the A-frame tent and the
+ *  tipi, deep in the north pines behind the tipi, and far right at the woodpile by the camper. Each
+ *  block yields a few logs (CHOP_YIELD), then waits CHOP_RESPAWN_S for fresh ones; you step up to it
+ *  from the fire's side. */
 export const CHOP_STATIONS = L.chops.map((c, i) => {
   const toFire = unit(L.fire.x - c.x, L.fire.z - c.z);
   return { propId: `woodchop_0${i + 1}`, x: c.x, z: c.z, approachX: c.x + toFire.x * 0.9, approachZ: c.z + toFire.z * 0.9 };
@@ -486,6 +488,17 @@ export const BARNABY_REACH = 1.8;
 /** Where you stand to talk to Buster the Lumberjack (in front of him), and how close is close enough. */
 export const BUSTER_FRONT = { x: L.buster.x + Math.sin(L.buster.yaw) * 0.95, z: L.buster.z + Math.cos(L.buster.yaw) * 0.95 };
 export const BUSTER_REACH = 1.8;
+/** The carpenter's workbench on the grass between the tipi and Buster's stall (well clear of him:
+ *  walking up to one never offers the other), its front toward the fire: `front` the way it faces,
+ *  `along` its length, `yaw` its heading. You carve Buster's artisan pieces here. */
+export const WORKBENCH = (() => {
+  const b = L.workbench;
+  const front = unit(L.fire.x - b.x, L.fire.z - b.z);
+  return { ...b, front, along: { x: front.z, z: -front.x }, yaw: Math.atan2(front.x, front.z) };
+})();
+/** Where you stand to work at the bench (in front of it), and how close is close enough. */
+export const WORKBENCH_FRONT = { x: WORKBENCH.x + WORKBENCH.front.x * (WORKBENCH.w / 2 + 0.55), z: WORKBENCH.z + WORKBENCH.front.z * (WORKBENCH.w / 2 + 0.55) };
+export const WORKBENCH_REACH = 1.5;
 /** The Dutch oven's tripod legs round the fire. */
 export const TRIPOD_LEGS: Pt[] = [30, 150, 270].map((deg) => ({ x: L.fire.x + Math.cos(deg * DEG) * L.tripod.legs, z: L.fire.z + Math.sin(deg * DEG) * L.tripod.legs }));
 /** The plates on the picnic table where skewers are left for friends (table-relative offsets). */
@@ -512,8 +525,10 @@ export const CAMP_PROPS: PropSpec[] = [
   })(),
   // Barnaby the Angler, at his tackle stall by the dock: sell your creel, buy rods and bait
   { propId: "barnaby", x: L.barnaby.x, z: L.barnaby.z, kind: "angler", color: "#6b8fb5", defaultOn: true, approachX: BARNABY_FRONT.x, approachZ: BARNABY_FRONT.z },
-  // Buster the Lumberjack, by the woodpile: buys split wood, sells axes
+  // Buster the Lumberjack, by the woodpile: buys split wood and carved pieces, sells axes and carriers
   { propId: "buster", x: L.buster.x, z: L.buster.z, kind: "lumberjack", color: "#b3403a", defaultOn: true, approachX: BUSTER_FRONT.x, approachZ: BUSTER_FRONT.z },
+  // the carpenter's workbench: carve split wood into artisan pieces
+  { propId: "workbench", x: WORKBENCH.x, z: WORKBENCH.z, kind: "workbench", color: "#c98b4f", defaultOn: true, approachX: WORKBENCH_FRONT.x, approachZ: WORKBENCH_FRONT.z },
   // the dark grove between the hammock and the tipi, alive with fireflies: catch some in a jar
   (() => {
     const toFire = unit(L.fire.x - L.fireflies.x, L.fire.z - L.fireflies.z);
@@ -620,6 +635,8 @@ export const CAMP_OBSTACLES: AABB[] = [
   // Buster and his sawhorse of logs (to his right, the camera's left)
   around(L.buster, 0.34),
   around({ x: L.buster.x - Math.cos(L.buster.yaw) * 0.7, z: L.buster.z + Math.sin(L.buster.yaw) * 0.7 }, 0.3),
+  // the workbench (and its tool rack at the back): three boxes along its length
+  ...[-0.45, 0, 0.45].map((t) => around({ x: WORKBENCH.x + WORKBENCH.along.x * t, z: WORKBENCH.z + WORKBENCH.along.z * t }, 0.32)),
   // Barnaby and his tackle crate
   around(L.barnaby, 0.34),
   around({ x: L.barnaby.x + Math.cos(L.barnaby.yaw) * 0.62, z: L.barnaby.z - Math.sin(L.barnaby.yaw) * 0.62 }, 0.26),

@@ -47,6 +47,9 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
                         chopping stump and the canoe's cleat and rope
     Prop_WoodChop_0N_Hatchet  each chopping station's hatchet, bitten into its stump (hidden while
                         someone chops there), and Prop_WoodChop_0N_Log the log on its block
+    Prop_Workbench      the carpenter's workbench between the tipi and Buster's stall (a plank top,
+                        a face vise, a shelf of boards, a tool rack with a saw, a mallet and chisels,
+                        a half-carved totem, shavings, a little lantern), its front toward the fire
     Prop_Signpost       the 3-way signpost at the trails' fork (Campfire, Pier, Overlook)
     Prop_Canoe          the red canoe tied off the dock (origin at the waterline: it bobs)
     StringLight_01..06  the strings of warm bulbs from the tipi, the pole, the pines and the awning,
@@ -1291,7 +1294,8 @@ def build_glamping(L, cushions, coll):
         a = 2 * math.pi * k / 5
         blob(bm, sp["x"] + 0.14 * math.cos(a), 0.04, sp["z"] + 0.14 * math.sin(a), 0.07, 0.05, 0.06, m=m["CF_Metal"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.01)
 
-    # --- the chopping stumps (by the woodpile, in the grove, at the fork), split halves beside each ---
+    # --- the chopping stumps (by the hammock, by the A-frame, behind the tipi, at the woodpile), split
+    # halves beside each ---
     for ch in L["chops"]:
         cylinder(bm, W(ch["x"], 0.0, ch["z"]), W(ch["x"], 0.36, ch["z"]), 0.25, 14, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
         for sgn in (-1, 1):
@@ -1450,6 +1454,105 @@ def build_hatchet(L, coll):
         bm = bmesh.new()
         cylinder(bm, W(lx, 0.36, lz), W(lx, 0.66, lz), 0.13, 12, m=0, cap_m=1)
         make_object(f"Prop_WoodChop_0{k + 1}_Log", bm, ["CF_Bark", "CF_WoodCut"], coll, origin=(lx, 0.36, lz))
+
+
+def build_workbench(L, coll):
+    """The carpenter's workbench where split wood is carved into artisan pieces: a thick three-plank
+    top on four legs with aprons, a face vise at its left end, a shelf of boards and a log below, a
+    tool rack along the back (a hand saw, a mallet, two chisels), a half-carved totem, a board and
+    curls of shavings on the top, sawdust at its feet and a small warm lantern so it reads at night.
+    Built in its own axes (u along it, v toward the fire, y up) and turned to face the fire."""
+    b = L["workbench"]
+    bx, bz = b["x"], b["z"]
+    d = math.hypot(L["fire"]["x"] - bx, L["fire"]["z"] - bz) or 1.0
+    fx, fz = (L["fire"]["x"] - bx) / d, (L["fire"]["z"] - bz) / d  # front: toward the fire
+    ax, az = fz, -fx  # along its length
+    half, depth, top = b["len"] / 2, b["w"] / 2, b["top"]
+    rng = random.Random(151)
+
+    def P(u, y, v):
+        return W(bx + ax * u + fx * v, y, bz + az * u + fz * v)
+
+    def obox(u0, u1, y0, y1, v0, v1, m):
+        """A box in the bench's own axes."""
+        c = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+        lo = [bm.verts.new(P(u, y0, v)) for u, v in c]
+        hi = [bm.verts.new(P(u, y1, v)) for u, v in c]
+        bm.faces.new(list(reversed(lo))).material_index = m
+        bm.faces.new(hi).material_index = m
+        for i in range(4):
+            j = (i + 1) % 4
+            bm.faces.new((lo[i], lo[j], hi[j], hi[i])).material_index = m
+
+    M = ["CF_Plank", "CF_PlankDark", "CF_WoodCut", "CF_Steel", "CF_Bark", "CF_LanternWarm"]
+    m = {name: i for i, name in enumerate(M)}
+    bm = bmesh.new()
+    # the top: three thick planks along it, each a hair off level (hand-planed)
+    pw = (2 * depth - 0.02) / 3
+    for k in range(3):
+        v0 = -depth + k * (pw + 0.01)
+        obox(-half, half, top - 0.08, top - rng.uniform(0.0, 0.006), v0, v0 + pw, m["CF_Plank"])
+    # four legs, the aprons under the top, the low side rails and a shelf of two boards
+    lu, lv = half - 0.12, depth - 0.09
+    for su in (-1, 1):
+        for sv in (-1, 1):
+            obox(su * lu - 0.045, su * lu + 0.045, 0.0, top - 0.08, sv * lv - 0.045, sv * lv + 0.045, m["CF_PlankDark"])
+        obox(su * lu - 0.03, su * lu + 0.03, 0.16, 0.22, -lv, lv, m["CF_PlankDark"])
+    for sv in (-1, 1):
+        obox(-lu, lu, top - 0.2, top - 0.08, sv * lv - 0.02, sv * lv + 0.02, m["CF_PlankDark"])
+    for k in range(2):
+        v0 = -lv + 0.04 + k * (lv - 0.03)
+        obox(-lu, lu, 0.22, 0.25, v0, v0 + lv - 0.07, m["CF_Plank"])
+    # on the shelf: two sawn boards and a log waiting its turn
+    obox(-0.45, 0.1, 0.25, 0.28, -0.14, 0.02, m["CF_WoodCut"])
+    obox(-0.4, 0.15, 0.28, 0.31, -0.12, 0.04, m["CF_WoodCut"])
+    cylinder(bm, P(0.18, 0.33, 0.0), P(0.46, 0.33, 0.02), 0.08, 10, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.08, rng=rng)
+    # the face vise at the left end of the front: a jaw, its screw and a T-handle
+    obox(-half + 0.02, -half + 0.28, top - 0.24, top - 0.01, depth, depth + 0.06, m["CF_PlankDark"])
+    cylinder(bm, P(-half + 0.15, top - 0.12, depth + 0.06), P(-half + 0.15, top - 0.12, depth + 0.17), 0.018, 8, m=m["CF_Steel"])
+    cylinder(bm, P(-half + 0.03, top - 0.12, depth + 0.17), P(-half + 0.27, top - 0.12, depth + 0.17), 0.014, 8, m=m["CF_PlankDark"])
+    # the tool rack along the back: two posts and a rail, and the tools hanging from it
+    rv = -depth + 0.03
+    for su in (-1, 1):
+        obox(su * (half - 0.14) - 0.028, su * (half - 0.14) + 0.028, top, top + 0.58, rv - 0.028, rv + 0.028, m["CF_PlankDark"])
+    obox(-half + 0.08, half - 0.08, top + 0.47, top + 0.55, rv - 0.03, rv + 0.03, m["CF_Plank"])
+    tv = rv + 0.045  # the tools hang on the rail's front face
+    # a hand saw: its tapering blade and its handle
+    blade = [(-0.42, top + 0.12), (-0.14, top + 0.2), (-0.14, top + 0.44), (-0.42, top + 0.44)]
+    lo = [bm.verts.new(P(u, y, tv - 0.004)) for u, y in blade]
+    hi = [bm.verts.new(P(u, y, tv + 0.004)) for u, y in blade]
+    bm.faces.new(list(reversed(lo))).material_index = m["CF_Steel"]
+    bm.faces.new(hi).material_index = m["CF_Steel"]
+    for i in range(4):
+        j = (i + 1) % 4
+        bm.faces.new((lo[i], lo[j], hi[j], hi[i])).material_index = m["CF_Steel"]
+    obox(-0.13, -0.02, top + 0.3, top + 0.46, tv - 0.015, tv + 0.015, m["CF_PlankDark"])
+    # a mallet, head down
+    cylinder(bm, P(0.06, top + 0.2, tv + 0.02), P(0.06, top + 0.46, tv + 0.02), 0.014, 8, m=m["CF_PlankDark"])
+    obox(-0.01, 0.13, top + 0.1, top + 0.2, tv - 0.02, tv + 0.07, m["CF_WoodCut"])
+    # two chisels: steel below, handles above
+    for u in (0.24, 0.32):
+        cylinder(bm, P(u, top + 0.2, tv + 0.02), P(u, top + 0.32, tv + 0.02), 0.008, 6, m=m["CF_Steel"])
+        cylinder(bm, P(u, top + 0.32, tv + 0.02), P(u, top + 0.45, tv + 0.02), 0.017, 8, m=m["CF_PlankDark"], r_end=0.014)
+    # on the top: a half-carved chibi totem (a bulb of a head on a stubby body), a board and shavings
+    tu, tvv = 0.36, 0.04
+    tcx, tcz = bx + ax * tu + fx * tvv, bz + az * tu + fz * tvv
+    lathe(bm, tcx, tcz, [(0, 0.0), (0.07, 0.0), (0.075, 0.05), (0.06, 0.1), (0.075, 0.13), (0.08, 0.18), (0.06, 0.225), (0, 0.24)], segs=12, m=m["CF_WoodCut"], y0=top)
+    for s in (-1, 1):  # its ears, still rough
+        blob(bm, tcx + ax * 0.045 * s, top + 0.235, tcz + az * 0.045 * s, 0.025, 0.03, 0.02, m=m["CF_WoodCut"], cuts=2, n=2.2)
+    obox(-0.3, 0.12, top, top + 0.025, -0.02, 0.14, m["CF_WoodCut"])
+    for _ in range(9):  # curls of shavings on the top
+        u = rng.uniform(0.05, 0.6)
+        v = rng.uniform(-0.12, depth - 0.04)
+        blob(bm, bx + ax * u + fx * v, top + 0.012, bz + az * u + fz * v, 0.03, 0.012, 0.018, m=m["CF_WoodCut"], cuts=2, n=2.0, noise=0.3, rng=rng)
+    # sawdust at its feet, spilling out in front
+    blob(bm, bx + fx * 0.25, 0.0, bz + fz * 0.25, 0.55, 0.018, 0.3, m=m["CF_WoodCut"], cuts=3, n=2.0, noise=0.15, rng=rng, flat_bottom=0.0)
+    # a small warm lantern at the right end, so the bench reads in the dark
+    lx_, lz_ = bx + ax * (half - 0.16) + fx * (-0.12), bz + az * (half - 0.16) + fz * (-0.12)
+    lathe(bm, lx_, lz_, [(0, 0.0), (0.05, 0.0), (0.05, 0.025), (0, 0.025)], segs=10, m=m["CF_Steel"], y0=top)
+    lathe(bm, lx_, lz_, [(0, 0.025), (0.04, 0.025), (0.046, 0.08), (0.04, 0.13), (0, 0.13)], segs=10, m=m["CF_LanternWarm"], y0=top)
+    lathe(bm, lx_, lz_, [(0, 0.13), (0.05, 0.13), (0.022, 0.165), (0, 0.17)], segs=10, m=m["CF_Steel"], y0=top)
+    make_object("Prop_Workbench", bm, M, coll, origin=(bx, 0.0, bz))
 
 
 def build_canoe(L, cushions, coll):
@@ -1749,6 +1852,7 @@ def build(root):
     build_deco(L, coll)
     build_glamping(L, cushions, coll)
     build_hatchet(L, coll)
+    build_workbench(L, coll)
     build_signpost(L, coll)
     build_canoe(L, cushions, coll)
     build_lights(L, coll)

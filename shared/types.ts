@@ -242,7 +242,8 @@ export type ToggleableKind =
   | "fireflies"
   | "critter"
   | "angler"
-  | "lumberjack";
+  | "lumberjack"
+  | "workbench";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -985,7 +986,8 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "fireflies" ||
     kind === "critter" ||
     kind === "angler" ||
-    kind === "lumberjack"
+    kind === "lumberjack" ||
+    kind === "workbench"
   );
 }
 
@@ -1331,9 +1333,10 @@ export type CampfirePacket =
   | { type: "BUSTER"; op: "sell"; wood: WoodKind; count: number | "all" }
   | { type: "BUSTER"; op: "buyAxe" | "equipAxe"; axe: AxeId }
   | { type: "BUSTER"; op: "upgradeCarrier" }
-  /** Buster's workbench: carve a piece (its wood from the carrier), or sell pieces (one, or all). */
-  | { type: "BUSTER"; op: "craft"; recipe: CraftId }
-  | { type: "BUSTER"; op: "sellCraft"; slot: number | "all" };
+  /** Sell Buster your carved pieces (one, or all). */
+  | { type: "BUSTER"; op: "sellCraft"; slot: number | "all" }
+  /** The workbench: carve a piece (its wood from the carrier; answered with workbenchResult). */
+  | { type: "WORKBENCH"; recipe: CraftId };
 
 /** Barnaby's answer to a shop request (sent to the one who asked). */
 export interface BarnabyResult {

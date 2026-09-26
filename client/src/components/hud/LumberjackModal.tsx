@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { AXES, AXE_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier, type WoodKind } from "@shared/chop";
-import { CRAFTS, CRAFT_IDS, MASTERWORK_CHANCE, canCraft, craftPrice } from "@shared/crafting";
+import { AXES, AXE_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier } from "@shared/chop";
+import { CRAFTS, craftPrice } from "@shared/crafting";
 import { carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
@@ -16,22 +16,17 @@ interface Props {
 }
 
 // Buster the Lumberjack's stall by the woodpile. He buys your split wood (Soft Pine, Hard Oak,
-// Golden Charcoal) and your carved pieces; at his workbench you carve wood into artisan pieces
-// worth far more (a Masterwork ✨ now and then, likelier with a finer axe); he sells better axes and
-// bigger wood carriers, tier by tier. Every trade is the server's call (BUSTER packets); his answer
-// comes back as busterResult.
+// Golden Charcoal) and the artisan pieces carved at the workbench beside his stall (WoodCraftModal);
+// he sells better axes and bigger wood carriers, tier by tier. Every trade is the server's call
+// (BUSTER packets); his answer comes back as busterResult.
 
-type Tab = "sell" | "bench" | "axes" | "carrier";
+type Tab = "sell" | "axes" | "carrier";
 const TABS: [Tab, string][] = [
   ["sell", "🪙 Sell"],
-  ["bench", "🛠️ Workbench"],
   ["axes", "🪓 Axes"],
   ["carrier", "🎒 Carrier"],
 ];
 const HELLO = "Howdy! Buster's the name, timber's the game. Got some wood for me? 🦫";
-
-const needsText = (needs: Partial<Record<WoodKind, number>>) =>
-  (Object.entries(needs) as [WoodKind, number][]).map(([k, n]) => `${n} ${WOOD[k].emoji}`).join(" + ");
 
 export function LumberjackModal({ profile, coins, send, subscribeMessages, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("sell");
@@ -115,34 +110,8 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
               </div>
             )}
             <p className="m-0 text-center text-xs opacity-75">
-              Carrying <b className="text-amber-200">{woodWorth + craftWorth} 🪙</b> of timber. Carved, wood is worth far more!
+              Carrying <b className="text-amber-200">{woodWorth + craftWorth} 🪙</b> of timber. Carve it at the workbench 🪚 by the tipi: worth far more!
             </p>
-          </div>
-        )}
-
-        {tab === "bench" && (
-          <div className="flex flex-col gap-1.5">
-            <p className="m-0 text-center text-xs opacity-75">
-              Carve your logs into artisan pieces. A Masterwork ✨ ({Math.round(MASTERWORK_CHANCE[profile.axe] * 100)}% with your {AXES[profile.axe].name}) fetches half again.
-            </p>
-            {CRAFT_IDS.map((id) => {
-              const craft = CRAFTS[id];
-              const ok = canCraft(profile.wood, id);
-              return (
-                <div key={id} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
-                  <span className="text-2xl">{craft.emoji}</span>
-                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <b className="text-sm">{craft.name}</b>
-                    <span className="text-[11px] opacity-75">
-                      {needsText(craft.needs)} → {craft.price} 🪙 · ✨ {craft.master} 🪙
-                    </span>
-                  </div>
-                  <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={!ok} onClick={() => send({ type: "BUSTER", op: "craft", recipe: id })}>
-                    Carve
-                  </button>
-                </div>
-              );
-            })}
           </div>
         )}
 

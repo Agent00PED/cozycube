@@ -396,6 +396,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={prop} size={[0.7, 0.8, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "lumberjack" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.8, 1.3, 0.8]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "workbench" ? (
+          <PropPad key={prop.propId} prop={prop} size={[1.2, 1.0, 1.2]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "angler" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.8, 1.3, 0.8]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "critter" ? (
