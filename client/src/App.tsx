@@ -4,6 +4,7 @@ import { WorldDrawer } from "./components/hud/WorldDrawer";
 import { SideDrawer } from "./components/hud/SideDrawer";
 import { SettingsPanel } from "./components/hud/SettingsPanel";
 import { SlotsModal } from "./components/hud/SlotsModal";
+import { CashierModal } from "./components/hud/CashierModal";
 import { BlackjackModal } from "./components/hud/BlackjackModal";
 import { LeaderboardModal } from "./components/hud/LeaderboardModal";
 import { Toasts } from "./components/hud/Toasts";
@@ -195,6 +196,8 @@ export default function App() {
     buyHat,
     placeBet,
     clearBets,
+    buyChips,
+    cashOut,
     subscribeMessages,
     changeMap,
     setTimeOfDay,
@@ -281,6 +284,11 @@ export default function App() {
     setMatchaResult(null);
     setBlendResult(null);
     setMochiResult(null);
+    // the casino's exit doors: the world drawer, to go home or anywhere else
+    if (kind === "worlds") {
+      setWorldsOpen(true);
+      return;
+    }
     setPanel({ kind, propId });
   }, []);
   useEffect(() => {
@@ -307,7 +315,7 @@ export default function App() {
           const { winners } = payload as { result: number; winners: { sessionId: string; username: string; amount: number }[] };
           if (winners.length === 0) return;
           const best = [...winners].sort((a, b) => b.amount - a.amount)[0];
-          pushToast(`${best.username} won ${best.amount} coins${winners.length > 1 ? ` (+${winners.length - 1} more)` : ""}`, { emoji: "🎉", tone: "win", silent: true });
+          pushToast(`${best.username} won ${best.amount} chips${winners.length > 1 ? ` (+${winners.length - 1} more)` : ""}`, { emoji: "🎉", tone: "win", silent: true });
         } else if (type === "openSlots") {
           setSlotsProp((payload as { propId: string }).propId);
         } else if (type === "blackjackState") {
@@ -626,7 +634,7 @@ export default function App() {
             <RoulettePanel
               roulette={roulette}
               myBets={bets[localSessionId] ?? ""}
-              coins={localPlayer.chips}
+              chips={localPlayer.chips}
               localSessionId={localSessionId}
               onPlaceBet={placeBet}
               onClearBets={clearBets}
@@ -662,9 +670,9 @@ export default function App() {
         {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
         {leaderboardOpen && <LeaderboardModal leaderboard={leaderboard} players={players} localName={localPlayer?.username ?? ""} onClose={() => setLeaderboardOpen(false)} />}
         {slotsProp && localPlayer && localSessionId && (
-          <SlotsModal propId={slotsProp} coins={localPlayer.chips} localSessionId={localSessionId} onSpin={spinSlots} subscribeMessages={subscribeMessages} onClose={() => setSlotsProp(null)} />
+          <SlotsModal propId={slotsProp} chips={localPlayer.chips} localSessionId={localSessionId} onSpin={spinSlots} subscribeMessages={subscribeMessages} onClose={() => setSlotsProp(null)} />
         )}
-        {blackjackOpen && localPlayer && <BlackjackModal view={blackjackView} coins={localPlayer.chips} onAction={blackjackAction} onClose={() => setBlackjackOpen(false)} />}
+        {blackjackOpen && localPlayer && <BlackjackModal view={blackjackView} chips={localPlayer.chips} onAction={blackjackAction} onClose={() => setBlackjackOpen(false)} />}
 
         {/* the world's own panels */}
         {fishOnLine && (
@@ -717,6 +725,7 @@ export default function App() {
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
         {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} send={campfireSend} onClose={closePanel} />}
         {panel?.kind === "workbench" && localPlayer && <WoodCraftModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "cashier" && localPlayer && <CashierModal coins={localPlayer.coins} chips={localPlayer.chips} onBuy={buyChips} onCashOut={cashOut} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
 

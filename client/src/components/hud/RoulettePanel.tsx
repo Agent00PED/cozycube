@@ -21,7 +21,8 @@ type Subscribe = (listener: (type: string, payload: unknown) => void) => () => v
 interface RoulettePanelProps {
   roulette: RouletteSyncState;
   myBets: string;
-  coins: number;
+  /** Velvet Chips: what you can stake. */
+  chips: number;
   localSessionId: string;
   onPlaceBet: (kind: string, amount: number) => void;
   onClearBets: () => void;
@@ -43,13 +44,13 @@ const ROWS = [3, 2, 1].map((r) => Array.from({ length: 12 }, (_, c) => c * 3 + r
 // The roulette table as a proper on-screen board: pick a chip, tap the felt. It shows the phase
 // countdown, what you have on the table, and — after each spin — the number and what you won
 // or lost, while the wallet in the top bar ticks over.
-export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlaceBet, onClearBets, subscribeMessages, onClose }: RoulettePanelProps) {
+export function RoulettePanel({ roulette, myBets, chips, localSessionId, onPlaceBet, onClearBets, subscribeMessages, onClose }: RoulettePanelProps) {
   const [chip, setChip] = useState<number>(CHIP_VALUES[0]);
   const [outcome, setOutcome] = useState<{ result: number; text: string; win: boolean } | null>(null);
   const bets = parseBets(myBets) as Record<string, number>;
   const staked = Object.values(bets).reduce((a, b) => a + b, 0);
   const open = roulette.phase === "betting";
-  const canBet = open && coins >= chip && staked + chip <= MAX_BET_TOTAL;
+  const canBet = open && chips >= chip && staked + chip <= MAX_BET_TOTAL;
 
   // What was riding on this spin, so a loss can be named when the result lands.
   const ridingRef = useRef(0);
@@ -65,9 +66,9 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
         const { result, winners } = payload as RouletteResultBroadcast;
         const mine = winners.find((w) => w.sessionId === localSessionId);
         if (mine) {
-          setOutcome({ result, text: `You won ${mine.amount} 🪙!`, win: true });
+          setOutcome({ result, text: `You won ${mine.amount} 🟡!`, win: true });
         }
-        else if (ridingRef.current > 0) setOutcome({ result, text: `No luck — ${ridingRef.current} 🪙 to the house`, win: false });
+        else if (ridingRef.current > 0) setOutcome({ result, text: `No luck — ${ridingRef.current} 🟡 to the house`, win: false });
         else setOutcome({ result, text: "Place a chip next round!", win: false });
       }),
     [subscribeMessages, localSessionId]
@@ -101,7 +102,7 @@ export function RoulettePanel({ roulette, myBets, coins, localSessionId, onPlace
         <span style={styles.title}>🎡 Roulette</span>
         <span style={{ ...styles.phase, background: open ? "#2d9a5a" : roulette.phase === "spinning" ? "#b3202e" : "#8a6a2a" }}>{phaseLabel}</span>
         <span style={{ flex: 1 }} />
-        <span style={styles.wallet}>🪙 {coins}</span>
+        <span style={styles.wallet} title="Your Velvet Chips">🟡 {chips}</span>
         <button
           type="button"
           style={styles.close}

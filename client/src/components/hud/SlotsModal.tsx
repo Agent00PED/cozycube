@@ -5,7 +5,8 @@ import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 
 // A retro-cozy three-reel machine. The server rolls (spin_slots) and broadcasts the reels;
 // this panel spins its strips to land on them one after another, ticking as they go, then
-// lights the payline and bursts coins if it paid.
+// lights the payline and bursts chips if it paid. Stakes and wins are Velvet Chips; a pair hands
+// the stake back (a push), three of a kind pays the paytable.
 const SYMBOLS = SLOT_SYMBOLS as readonly string[];
 const N = SYMBOLS.length;
 const ROW = 72; // px per symbol row
@@ -14,14 +15,15 @@ const STOP_MS = [900, 1350, 1800];
 
 interface Props {
   propId: string;
-  coins: number;
+  /** Velvet Chips: what you can stake. */
+  chips: number;
   localSessionId: string;
   onSpin: (propId: string, bet: number) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onClose: () => void;
 }
 
-export function SlotsModal({ propId, coins, localSessionId, onSpin, subscribeMessages, onClose }: Props) {
+export function SlotsModal({ propId, chips, localSessionId, onSpin, subscribeMessages, onClose }: Props) {
   const [bet, setBet] = useState<number>(SLOT_BETS[0]);
   const [spinning, setSpinning] = useState(false);
   const [lever, setLever] = useState(false);
@@ -57,7 +59,7 @@ export function SlotsModal({ propId, coins, localSessionId, onSpin, subscribeMes
             if (i === 2) {
               window.clearInterval(tickTimer.current);
               setSpinning(false);
-              if (msg.win > 0) {
+              if (msg.win > msg.bet) {
                 setBurst((b) => b + 1);
               }
             }
@@ -82,14 +84,16 @@ export function SlotsModal({ propId, coins, localSessionId, onSpin, subscribeMes
   }, [spinning]);
 
   const pull = () => {
-    if (spinning || coins < bet) return;
+    if (spinning || chips < bet) return;
     setLever(true);
     window.setTimeout(() => setLever(false), 450);
     setResult(null);
     onSpin(propId, bet);
   };
 
-  const won = !spinning && result && result.win > 0 && landed === 3;
+  const landedAll = !spinning && !!result && landed === 3;
+  const won = landedAll && result!.win > bet;
+  const push = landedAll && result!.win > 0 && !won;
   const strip = Array.from({ length: N * REPEATS }, (_, i) => SYMBOLS[i % N]);
 
   return (
@@ -116,12 +120,12 @@ export function SlotsModal({ propId, coins, localSessionId, onSpin, subscribeMes
             {won &&
               Array.from({ length: 14 }, (_, i) => (
                 <span key={`${burst}-${i}`} className="coin-burst left-1/2 top-1/2 text-xl" style={{ ["--dx" as string]: `${(Math.random() - 0.5) * 220}px`, ["--dy" as string]: `${-60 - Math.random() * 120}px` }}>
-                  🪙
+                  🟡
                 </span>
               ))}
           </div>
           {/* the lever */}
-          <button type="button" onClick={pull} disabled={spinning || coins < bet} className="relative flex w-12 flex-col items-center justify-start disabled:opacity-50" aria-label="Pull the lever" title="Pull!">
+          <button type="button" onClick={pull} disabled={spinning || chips < bet} className="relative flex w-12 flex-col items-center justify-start disabled:opacity-50" aria-label="Pull the lever" title="Pull!">
             <span className={`h-16 w-2 rounded-full bg-stone-300 transition-transform duration-300 ${lever ? "translate-y-10 scale-y-50" : ""}`} style={{ transformOrigin: "bottom" }} />
             <span className={`-mt-1 h-7 w-7 rounded-full bg-gradient-to-b from-red-400 to-red-600 shadow-lg transition-transform duration-300 ${lever ? "translate-y-10" : ""}`} />
             <span className="mt-1 h-10 w-4 rounded-b-xl bg-stone-600" />
@@ -129,20 +133,21 @@ export function SlotsModal({ propId, coins, localSessionId, onSpin, subscribeMes
         </div>
 
         <div className="h-7 text-center text-base font-extrabold text-amber-200">
-          {spinning ? "Spinning…" : won ? `🎉 WIN +${result!.win} coins!` : result && landed === 3 ? "So close! Try again?" : "Pick a stake and pull the lever"}
+          {spinning ? "Spinning…" : won ? `🎉 WIN +${result!.win} chips!` : push ? "A pair! Your stake back 🟡" : landedAll ? "So close! Try again?" : "Pick a stake and pull the lever"}
         </div>
 
         <div className="flex items-center gap-2">
           {SLOT_BETS.map((b) => (
             <button key={b} type="button" onClick={() => (setBet(b))} disabled={spinning} className={`clay-btn min-h-11 px-4 text-sm ${bet === b ? "clay-btn-amber" : "clay-btn-ghost"}`}>
-              🪙 {b}
+              🟡 {b}
             </button>
           ))}
-          <button type="button" onClick={pull} disabled={spinning || coins < bet} className="clay-btn clay-btn-rose px-6">
+          <button type="button" onClick={pull} disabled={spinning || chips < bet} className="clay-btn clay-btn-rose px-6">
             SPIN
           </button>
         </div>
-        {coins < bet && <div className="text-xs text-rose-200">Not enough coins for that stake.</div>}
+        <div className="text-xs opacity-70">Your chips: 🟡 {chips}</div>
+        {chips < bet && <div className="text-xs text-rose-200">Not enough chips for that stake. Buy chips from Mr. Vance at the cage by the doors.</div>}
 
         <details className="w-full rounded-2xl bg-white/5 px-4 py-2 text-xs">
           <summary className="cursor-pointer font-bold">Paytable</summary>
@@ -156,7 +161,7 @@ export function SlotsModal({ propId, coins, localSessionId, onSpin, subscribeMes
               </div>
             ))}
             <div className="flex justify-between">
-              <span>any pair</span>
+              <span>any pair (stake back)</span>
               <span className="font-bold text-amber-200">×{SLOT_PAIR}</span>
             </div>
           </div>

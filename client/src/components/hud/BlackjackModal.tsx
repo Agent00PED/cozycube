@@ -3,23 +3,24 @@ import { BLACKJACK_BETS, type BlackjackAction, type BlackjackCard, type Blackjac
 import { Modal } from "./Modal";
 
 // The blackjack table: the server deals, hits, stands and pays; this shows the hand it sends
-// back and offers the moves that are legal right now.
+// back and offers the moves that are legal right now. Stakes and payouts are Velvet Chips.
 interface Props {
   view: BlackjackView | null;
-  coins: number;
+  /** Velvet Chips: what you can stake. */
+  chips: number;
   onAction: (action: BlackjackAction, bet?: number) => void;
   onClose: () => void;
 }
 
 const OUTCOME_TEXT: Record<string, string> = {
   blackjack: "Blackjack! Pays 3 to 2 🎉",
-  win: "You win! 🪙",
+  win: "You win! 🟡",
   push: "Push — stake returned",
   lose: "Dealer wins",
   bust: "Bust! Over 21",
 };
 
-export function BlackjackModal({ view, coins, onAction, onClose }: Props) {
+export function BlackjackModal({ view, chips, onAction, onClose }: Props) {
   const idle = !view || view.phase === "idle" || view.phase === "done";
   const cardsSeen = useRef(0);
   // card sounds as cards arrive; a fanfare when it pays
@@ -47,14 +48,15 @@ export function BlackjackModal({ view, coins, onAction, onClose }: Props) {
 
         {idle ? (
           <div className="flex flex-col items-center gap-2">
-            <div className="text-xs opacity-70">Dealer stands on 17 · Blackjack pays 3:2</div>
+            <div className="text-xs opacity-70">Dealer stands on 17 · Blackjack pays 3:2 · Your chips: 🟡 {chips}</div>
             <div className="flex flex-wrap justify-center gap-2">
               {BLACKJACK_BETS.map((b) => (
-                <button key={b} type="button" disabled={coins < b} onClick={() => (onAction("deal", b))} className="clay-btn clay-btn-amber min-h-12 px-4">
+                <button key={b} type="button" disabled={chips < b} onClick={() => (onAction("deal", b))} className="clay-btn clay-btn-amber min-h-12 px-4">
                   <Chip value={b} /> {b}
                 </button>
               ))}
             </div>
+            {chips < BLACKJACK_BETS[0] && <div className="text-xs text-rose-200">Not enough chips to sit in. Buy chips from Mr. Vance at the cage by the doors.</div>}
           </div>
         ) : (
           <div className="flex justify-center gap-2">
@@ -64,12 +66,12 @@ export function BlackjackModal({ view, coins, onAction, onClose }: Props) {
             <button type="button" onClick={() => (onAction("stand"))} className="clay-btn clay-btn-rose px-6">
               Stand
             </button>
-            <button type="button" disabled={!view?.canDouble || coins < (view?.bet ?? 0)} onClick={() => (onAction("double"))} className="clay-btn clay-btn-amber px-4" title="Double the stake, take one card, stand">
+            <button type="button" disabled={!view?.canDouble || chips < (view?.bet ?? 0)} onClick={() => (onAction("double"))} className="clay-btn clay-btn-amber px-4" title="Double the stake in chips, take one card, stand">
               Double
             </button>
           </div>
         )}
-        {view && view.phase !== "idle" && <div className="text-center text-xs opacity-70">Stake on the table: 🪙 {view.bet}</div>}
+        {view && view.phase !== "idle" && <div className="text-center text-xs opacity-70">Stake on the table: 🟡 {view.bet}</div>}
       </div>
     </Modal>
   );

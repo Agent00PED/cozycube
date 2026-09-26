@@ -15,8 +15,8 @@
 
 /** Coins per Velvet Chip, both ways: the cage takes no cut. */
 export const COINS_PER_CHIP = 1;
-/** The amounts the cashier modal offers, each way (with "all" beside them). */
-export const CASHIER_AMOUNTS = [10, 50, 100, 500] as const;
+/** The cashier modal's quick amounts, each way: each adds to the amount (with "All" beside them). */
+export const CASHIER_AMOUNTS = [50, 100, 500] as const;
 /** The most chips anyone can hold (the same ceiling as coins, shared/types COIN_CAP). */
 export const CHIP_CAP = 99_999;
 

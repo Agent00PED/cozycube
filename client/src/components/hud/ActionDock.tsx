@@ -6,6 +6,7 @@ import type { HearthState } from "../../hooks/useColyseusRoom";
 import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, spotOfSeat } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
+import { CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, ROULETTE_BET_RADIUS, ROULETTE_CENTER, blackjackTableNear } from "@shared/worlds/casino";
 import { pushToast } from "./toastStore";
 import { cameraFocus } from "../../scene/cameraFocus";
 import { interactBridge } from "../../scene/interactBridge";
@@ -37,6 +38,11 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🔭 Stargaze]    at the brass telescope by the front fence
 //   [🪓 Chop Firewood]  at the chopping block by the woodpile
 //   [🍄 Forage] / [🫐 Forage]  at a patch under the pines with something to pick
+//   [🏦 Cashier]    at Mr. Vance's cage window in the casino: coins into Velvet Chips and back
+//   [🎰 Play Slots]  at a slot machine in Neon Alley (the nearest one)
+//   [🎡 Roulette]   within betting reach of the roulette table: (re)opens the betting board
+//   [🃏 Blackjack]  at a blackjack table, standing or on one of its stools
+//   [🚪 Leave Casino]  at the exit doors: the world drawer
 //   [🧍 Stand up · Space]  while you are sitting, always (a panel closed, a reconnect: never stuck);
 //                    Space or any movement key does the same
 //
@@ -45,7 +51,7 @@ import { glass, hudText, pillButton } from "./glass";
 
 interface Action {
   key: string;
-  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fuel" | "stew" | "picnic" | "afk" | "barnaby" | "buster" | "workbench" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "critter" | "stand";
+  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fuel" | "stew" | "picnic" | "afk" | "barnaby" | "buster" | "workbench" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "critter" | "cashier" | "slots" | "roulette" | "blackjack" | "exit" | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
   hint?: string;
@@ -173,6 +179,39 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           const id = bench.propId;
           found.push({ key: `workbench:${id}`, type: "workbench", label: "🪚 Workbench", hint: "Carve your logs into artisan pieces worth far more", run: () => interactBridge.current?.useProp(id) });
         }
+      }
+      // the Velvet Casino: Mr. Vance's cage, the slot row, the roulette and blackjack tables, the doors
+      if (mapId === "velvet_casino") {
+        const px = cameraFocus.x;
+        const pz = cameraFocus.z;
+        if (!sitting) {
+          const cage = Object.values(toggleables).find((p) => p.kind === "cashier");
+          if (cage && Math.min(reach(cage), Math.hypot(CASHIER_FRONT.x - px, CASHIER_FRONT.z - pz)) <= CASHIER_REACH + 0.4) {
+            const id = cage.propId;
+            found.push({ key: `cashier:${id}`, type: "cashier", label: "🏦 Cashier", hint: "Mr. Vance changes coins into Velvet Chips and back, one for one", run: () => interactBridge.current?.useProp(id) });
+          }
+          let slot: { id: string; d: number } | null = null;
+          for (const p of Object.values(toggleables)) {
+            if (p.kind !== "slot") continue;
+            const d = reach(p);
+            if (d <= 1.3 && (!slot || d < slot.d)) slot = { id: p.propId, d };
+          }
+          if (slot) {
+            const id = slot.id;
+            found.push({ key: `slots:${id}`, type: "slots", label: "🎰 Play Slots", hint: "Stake 5, 10 or 25 chips: three of a kind pays up to 75x", run: () => interactBridge.current?.useProp(id) });
+          }
+          if (Math.hypot(ROULETTE_CENTER.x - px, ROULETTE_CENTER.z - pz) < ROULETTE_BET_RADIUS) {
+            found.push({ key: "roulette", type: "roulette", label: "🎡 Roulette", hint: "Open the betting board: chips on red, black, odd, even or a number", run: () => window.dispatchEvent(new CustomEvent("cozy-open-roulette")) });
+          }
+          const doors = Object.values(toggleables).find((p) => p.kind === "portal");
+          if (doors && Math.min(reach(doors), Math.hypot(EXIT_FRONT.x - px, EXIT_FRONT.z - pz)) <= 1.6) {
+            const id = doors.propId;
+            found.push({ key: `exit:${id}`, type: "exit", label: "🚪 Leave Casino", hint: "Back to the Lounge, or anywhere else", run: () => interactBridge.current?.useProp(id) });
+          }
+        }
+        // blackjack is played standing at a table or from one of its stools
+        const table = blackjackTableNear(px, pz);
+        if (table) found.push({ key: `blackjack:${table.id}`, type: "blackjack", label: "🃏 Blackjack", hint: "Deal in for 10 to 100 chips: dealer stands on 17, blackjack pays 3:2", run: () => window.dispatchEvent(new CustomEvent("cozy-open-blackjack")) });
       }
       // the dock: sitting on its edge, cast from there; standing, sit down at the nearest free spot
       const mySeat = Object.values(chairs).find((c) => c.occupiedBy === localSessionId);

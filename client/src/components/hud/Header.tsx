@@ -125,6 +125,8 @@ export function Header(p: HeaderProps) {
       {/* ---- right: you ---- */}
       <div className="pointer-events-auto ml-auto flex shrink-0 flex-nowrap items-center gap-2">
         <CoinWallet coins={p.coins} chips={p.chips} onClaim={p.onClaimAllowance} />
+        {/* Velvet Chips: bright in the casino; elsewhere a dimmed reminder, only while you hold some */}
+        {(p.currentMap === "velvet_casino" || p.chips > 0) && <ChipPurse chips={p.chips} here={p.currentMap === "velvet_casino"} />}
         {/* the wood carrier: only at the campfire; the pill opens it (WoodCarrierModal) */}
         {p.currentMap === "campfire_night" && (
           <button
@@ -272,6 +274,33 @@ function MenuItem({ children, active, onClick, chip = false }: { children: React
     <button type="button" role="menuitem" onClick={onClick} className={`min-h-10 whitespace-nowrap text-sm font-semibold transition-transform duration-150 active:scale-95 ${shape} ${active ? "bg-amber-300 text-amber-950" : chip ? "bg-white/10 hover:bg-white/15" : "hover:bg-white/10"}`}>
       {children}
     </button>
+  );
+}
+
+/** The Velvet Chip purse, beside the wallet: rolls to the new balance like the coins do. In the
+ *  casino it is lit (chips are what the tables take); anywhere else it is dimmed, a reminder of chips
+ *  still to cash in at Mr. Vance's cage. */
+function ChipPurse({ chips, here }: { chips: number; here: boolean }) {
+  const shown = useAnimatedNumber(chips);
+  const prev = useRef(chips);
+  const [bump, setBump] = useState(0);
+  useEffect(() => {
+    if (chips > prev.current) setBump((b) => b + 1);
+    prev.current = chips;
+  }, [chips]);
+  return (
+    <div
+      className={`${PILL_SHELL} gap-1.5 px-3 ${here ? "outline-amber-300/40" : "opacity-55 saturate-50"}`}
+      title={here ? "Velvet Chips: what the casino's tables take. Buy and cash out at Mr. Vance's cage" : "Velvet Chips held: cash them in at Mr. Vance's cage in the Velvet Casino"}
+      aria-label={`${chips} Velvet Chips`}
+    >
+      <span key={bump} className={`flex items-center gap-1.5 font-bold tabular-nums text-amber-200 ${bump ? "cozy-coin-bump" : ""}`}>
+        <span className={ICON} aria-hidden>
+          🟡
+        </span>
+        {shown}
+      </span>
+    </div>
   );
 }
 

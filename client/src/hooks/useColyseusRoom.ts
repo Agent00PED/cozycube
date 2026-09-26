@@ -98,6 +98,8 @@ const RELAYED_MESSAGES = [
   "workbenchResult",
   "chopSwing",
   "creelFull",
+  // the casino: Mr. Vance's answer at the cage (an exchange, or why not)
+  "cashierResult",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
@@ -198,6 +200,9 @@ interface UseColyseusRoomResult {
   sendGesture: (gesture: string) => void;
   buyHat: (hat: string) => void;
   placeBet: (kind: string, amount: number) => void;
+  /** Mr. Vance's cage: coins into Velvet Chips, and chips back into coins (1:1; "all" of the balance). */
+  buyChips: (amount: number | "all") => void;
+  cashOut: (amount: number | "all") => void;
   clearBets: () => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   setColor: (color: string) => void;
@@ -726,6 +731,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     groundSit: (rotationY) => send("groundSit", { rotationY }),
     buyHat: (hat) => send("buyHat", { hat }),
     placeBet: (kind, amount) => send("placeBet", { kind, amount }),
+    buyChips: (amount) => send("buyChips", { amount }),
+    cashOut: (amount) => send("cashOut", { amount }),
     clearBets: () => send("clearBets"),
     subscribeMessages,
     setColor: (color) => send("setColor", { color }),

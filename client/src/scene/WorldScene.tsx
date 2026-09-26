@@ -88,7 +88,7 @@ function EmptyWorld({ mapId, onFloorClick }: { mapId: MapId; onFloorClick: (x: n
       <StaticBatch>
         <mesh geometry={GEO.box} material={SLAB} position={[0, -0.67, 0]} scale={[half * 2, 1.3, half * 2]} raycast={noRaycast} />
       </StaticBatch>
-      <Html position={[0, 1.2, 0]} center style={{ pointerEvents: "none" }}>
+      <Html position={[0, 1.2, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
         <div style={{ padding: "8px 16px", borderRadius: 999, background: "rgba(40,28,20,0.7)", color: "#fff8ec", font: "700 14px system-ui, sans-serif", whiteSpace: "nowrap" }}>🚧 This world is being rebuilt</div>
       </Html>
     </group>
