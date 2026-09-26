@@ -46,7 +46,7 @@ function noise(c: AudioContext, at: number, length: number, gain: number, cutoff
   src.onended = () => (src.disconnect(), filter.disconnect(), g.disconnect());
 }
 
-export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck" | "squeak" | "quack" | "tension" | "snap" | "flame" | "bubble" | "slurp" | "coins" | "focus" | "chime";
+export type Sfx = "bite" | "catch" | "golden" | "burnt" | "star" | "chop" | "thunk" | "pluck" | "squeak" | "quack" | "tension" | "snap" | "flame" | "bubble" | "slurp" | "coins" | "focus" | "chime" | "crit" | "woodSnap" | "masterwork";
 
 export function playSfx(kind: Sfx) {
   if (!getSoundSettings().effects) return;
@@ -70,6 +70,19 @@ export function playSfx(kind: Sfx) {
     // a clean split: a crisp crack and a woody knock
     noise(c, t, 0.09, 0.35, 2600);
     tone(c, t, 240, 110, 0.18, 0.2, "triangle");
+  } else if (kind === "crit") {
+    // a critical chop in the gold: a sharper, brighter crack with a ring on top
+    noise(c, t, 0.07, 0.42, 4200);
+    tone(c, t, 320, 150, 0.14, 0.22, "triangle");
+    tone(c, t + 0.03, 1568, 1568, 0.22, 0.07, "sine");
+  } else if (kind === "woodSnap") {
+    // a carving breaks: a dull, splintering snap
+    noise(c, t, 0.16, 0.3, 900);
+    tone(c, t, 180, 60, 0.28, 0.22, "sine");
+  } else if (kind === "masterwork") {
+    // a Masterwork: a high, rewarding chime, up and sparkling
+    [1319, 1760, 2349, 2637].forEach((f, i) => tone(c, t + i * 0.06, f, f, 0.7 - i * 0.1, 0.1, "sine"));
+    noise(c, t + 0.18, 0.4, 0.04, 8000);
   } else if (kind === "thunk") {
     // a glancing blow: a dull thud
     tone(c, t, 130, 70, 0.22, 0.2, "sine");

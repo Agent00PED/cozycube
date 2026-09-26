@@ -28,7 +28,8 @@ export const LOW_FUEL = 20;
 /** The Cozy Aura: +15% on rare fish and on campfire coins. */
 export const COZY_AURA_LUCK = 0.15;
 
-export type FuelItem = WoodKind;
+/** What goes on the fire: split wood, or a handful of Sawdust (shared/crafting.ts SAWDUST_FUEL). */
+export type FuelItem = WoodKind | "sawdust";
 export function hasCozyAura(fuel: number): boolean {
   return fuel > COZY_AURA_FUEL;
 }

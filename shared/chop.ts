@@ -12,9 +12,21 @@
 //   Stroke 3  Clean Cleave   the quickest (x1.6): a narrow (12%) golden sweet spot patrolling a
 //                            little quicker, and a knot that moves too: the real test
 //
-// A swing is judged a little generously (CHOP_GRACE either side of the green), at the needle's
-// place when it was made: the client samples it at the click, and the server checks that time is
-// one the connection could have given (see HangoutRoom's CHOP_STOP).
+// Each sweet spot is green with a gold centre (a third of it; gloves from Buster widen the gold),
+// and a swing lands in one of five places, judged at the needle's place when it was made (the
+// client samples it at the click, and the server checks that time is one the connection could have
+// given: see HangoutRoom's CHOP_STOP):
+//
+//   gold    the centre: a critical, crisp chop (a burst of chips, and now and then +3 coins or a
+//           Pine Resin); it counts as green too
+//   green   a normal hit
+//   edge    just outside the green (CHOP_GRACE): a glancing blow
+//   miss    anywhere else
+//   knot    the red knot: the axe is stunned and the combo is lost
+//
+// A glancing blow or a miss doesn't end the combo: the chopping carries on to the next stroke at a
+// baseline pace. At the end, the log splits (one log, as the wood carrier holds) if at least
+// CHOP_GREENS_TO_SPLIT of its three strokes landed green or gold.
 //
 // Each stroke has a wood knot too, a red patch on the meter: swinging into it stuns the axe (the
 // combo is lost, and the block needs a moment before the next try). And the log on the block is
@@ -32,9 +44,9 @@ export type WoodKind = "pine" | "oak" | "charcoal";
 export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal"];
 /** Each kind: what Buster pays for one, and how much it feeds the bonfire. */
 export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number; fuel: number }> = {
-  pine: { name: "Soft Pine", emoji: "🪵", sell: 8, fuel: 25 },
-  oak: { name: "Hard Oak", emoji: "🌳", sell: 18, fuel: 30 },
-  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: 45, fuel: 50 },
+  pine: { name: "Soft Pine", emoji: "🪵", sell: 4, fuel: 25 },
+  oak: { name: "Hard Oak", emoji: "🌳", sell: 10, fuel: 30 },
+  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: 25, fuel: 50 },
 };
 export function isWoodKind(v: unknown): v is WoodKind {
   return v === "pine" || v === "oak" || v === "charcoal";
@@ -95,6 +107,8 @@ export interface ChopStroke {
   /** The sweet spot: its centre and width (fractions of the meter), and its swing (amplitude and period in s; 0: still). */
   zoneCenter: number;
   zoneWidth: number;
+  /** The gold centre of the sweet spot (a critical chop): its width, centred in it. */
+  goldWidth: number;
   zoneSwing: number;
   zonePeriod: number;
   /** The needle's round trip, end to end and back (s). */
@@ -107,8 +121,16 @@ export interface ChopStroke {
 }
 
 export const CHOP_STROKE_NAMES: Record<ChopStrokeNo, string> = { 1: "Notch Cut", 2: "Wedge Split", 3: "Clean Cleave" };
-/** How far outside the green a swing still counts (a fraction of the meter: 5%). */
+/** How far outside the green a swing is a glancing blow, not a miss (a fraction of the meter: 5%). */
 export const CHOP_GRACE = 0.05;
+/** The sweet spot's gold centre: this share of it (before gloves widen it). */
+export const CHOP_GOLD_SHARE = 0.34;
+/** A log splits if at least this many of its three strokes land green or gold. */
+export const CHOP_GREENS_TO_SPLIT = 2;
+/** A gold (critical) swing: its chance of a bonus, and the bonus (coins, or else a Pine Resin). */
+export const CHOP_CRIT_CHANCE = 0.5;
+export const CHOP_CRIT_COINS = 3;
+export type ChopVerdict = "gold" | "hit" | "edge" | "knot" | "miss";
 /** The needle's round trip on the first stroke (s), and each stroke's speed on it. */
 const BASE_PERIOD = 3.2;
 export const CHOP_SPEED: Record<ChopStrokeNo, number> = { 1: 1.0, 2: 1.35, 3: 1.6 };
@@ -145,16 +167,30 @@ export function chopKnot(s: ChopStroke, t: number): [number, number] {
   return [clamp01(from), clamp01(from + s.knotWidth)];
 }
 
-/** A swing `t` seconds into the stroke: into the sweet spot (a little grace either side), into the knot, or neither. */
-export function judgeChop(s: ChopStroke, t: number): "hit" | "knot" | "miss" {
+/** The sweet spot's gold centre, `t` seconds into the stroke: [from, to]. */
+export function chopGold(s: ChopStroke, t: number): [number, number] {
+  const [a, b] = chopZone(s, t);
+  const c = (a + b) / 2;
+  const w = Math.min(b - a, s.goldWidth);
+  return [clamp01(c - w / 2), clamp01(c + w / 2)];
+}
+
+/** A swing `t` seconds into the stroke: into the gold centre, the green, its glancing edge, the
+ *  knot, or nowhere. */
+export function judgeChop(s: ChopStroke, t: number): ChopVerdict {
   const m = chopMarker(s, t);
   const [a, b] = chopZone(s, t);
+  const [g0, g1] = chopGold(s, t);
   // the sweet spot wins where the two touch: a creeping knot never steals a clean swing
-  if (m >= a - CHOP_GRACE && m <= b + CHOP_GRACE) return "hit";
+  if (m >= g0 && m <= g1) return "gold";
+  if (m >= a && m <= b) return "hit";
+  if (m >= a - CHOP_GRACE && m <= b + CHOP_GRACE) return "edge";
   if (s.knotWidth <= 0) return "miss"; // (the Notch Cut has no knot)
   const [k0, k1] = chopKnot(s, t);
   return m >= k0 && m <= k1 ? "knot" : "miss";
 }
+/** Whether a swing counts toward the split (green, or its gold centre). */
+export const isGreen = (v: ChopVerdict) => v === "gold" || v === "hit";
 
 /** Which log goes on the block for a combo. */
 export function rollChopLog(rand: () => number = Math.random): ChopLog {
@@ -162,8 +198,9 @@ export function rollChopLog(rand: () => number = Math.random): ChopLog {
   return r < 0.1 ? "golden" : r < 0.45 ? "oak" : "pine";
 }
 
-/** A fresh stroke's meter (the server rolls it; `rand` is Math.random there). */
-export function rollChopStroke(stroke: ChopStrokeNo, log: ChopLog, rand: () => number = Math.random, axe: AxeId = "rusty"): ChopStroke {
+/** A fresh stroke's meter (the server rolls it; `rand` is Math.random there). `goldBonus`: how much
+ *  wider gloves make its gold centre (shared/gear.ts gloveSweetBonus). */
+export function rollChopStroke(stroke: ChopStrokeNo, log: ChopLog, rand: () => number = Math.random, axe: AxeId = "rusty", goldBonus = 0): ChopStroke {
   const wide = (log === "pine" ? 1.2 : log === "golden" ? 0.9 : 1) * (1 + AXES[axe].zoneBonus);
   const slow = 1 / (1 - AXES[axe].slow);
   const needlePeriod = BASE_PERIOD / CHOP_SPEED[stroke];
@@ -172,7 +209,7 @@ export function rollChopStroke(stroke: ChopStrokeNo, log: ChopLog, rand: () => n
   // Hard Oak's knots creep on every stroke that has one; the Clean Cleave's knot always moves
   const creep = log === "oak" || stroke === 3 ? { knotSwing: stroke === 3 ? 0.16 : 0.1, knotPeriod: (stroke === 3 ? 2.6 : 2.2) + rand() * 0.8 } : { knotSwing: 0, knotPeriod: 0 };
   // the stroke waits three round trips of the needle for a swing
-  const make = (m: Omit<ChopStroke, "stroke" | "log" | "duration" | "knotSwing" | "knotPeriod">): ChopStroke => ({ stroke, log, ...m, needlePeriod: m.needlePeriod * slow, duration: m.needlePeriod * slow * 3, ...creep });
+  const make = (m: Omit<ChopStroke, "stroke" | "log" | "duration" | "knotSwing" | "knotPeriod" | "goldWidth">): ChopStroke => ({ stroke, log, ...m, goldWidth: Math.min(m.zoneWidth, m.zoneWidth * CHOP_GOLD_SHARE * (1 + goldBonus)), needlePeriod: m.needlePeriod * slow, duration: m.needlePeriod * slow * 3, ...creep });
   if (stroke === 1) {
     // a wide sweet spot holding still somewhere near the middle, and no knots at all
     const zoneCenter = 0.35 + rand() * 0.3;

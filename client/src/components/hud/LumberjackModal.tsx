@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
 import { AXES, AXE_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier } from "@shared/chop";
-import { CRAFTS, craftPrice } from "@shared/crafting";
+import { CRAFTS, RESIN_PRICE, craftPrice } from "@shared/crafting";
+import { GEAR, GEAR_IDS } from "@shared/gear";
 import { carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
@@ -16,14 +17,16 @@ interface Props {
 }
 
 // Buster the Lumberjack's stall by the woodpile. He buys your split wood (Soft Pine, Hard Oak,
-// Golden Charcoal) and the artisan pieces carved at the workbench beside his stall (WoodCraftModal);
-// he sells better axes and bigger wood carriers, tier by tier. Every trade is the server's call
+// Golden Charcoal), the Pine Resin from critical chops and the artisan pieces carved at the
+// workbench beside his stall (WoodCraftModal); he sells better axes, bigger wood carriers tier by
+// tier, and utility gear (gloves for the chopping meter, boots, an apron for the workbench). Every trade is the server's call
 // (BUSTER packets); his answer comes back as busterResult.
 
-type Tab = "sell" | "axes" | "carrier";
+type Tab = "sell" | "axes" | "gear" | "carrier";
 const TABS: [Tab, string][] = [
   ["sell", "🪙 Sell"],
   ["axes", "🪓 Axes"],
+  ["gear", "🧤 Gear"],
   ["carrier", "🎒 Carrier"],
 ];
 const HELLO = "Howdy! Buster's the name, timber's the game. Got some wood for me? 🦫";
@@ -42,7 +45,7 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
       }),
     [subscribeMessages]
   );
-  const woodWorth = WOOD_KINDS.reduce((sum, k) => sum + profile.wood[k] * WOOD[k].sell, 0);
+  const woodWorth = WOOD_KINDS.reduce((sum, k) => sum + profile.wood[k] * WOOD[k].sell, 0) + profile.resin * RESIN_PRICE;
   const craftWorth = profile.crafts.reduce((sum, c) => sum + craftPrice(c), 0);
   const next = nextCarrierTier(profile.carrierTier);
   return (
@@ -88,6 +91,20 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
                 </div>
               );
             })}
+            {profile.resin > 0 && (
+              <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+                <span className="text-2xl">🍯</span>
+                <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <b className="text-sm">
+                    Pine Resin <span className="font-normal opacity-70">×{profile.resin}</span>
+                  </b>
+                  <span className="text-[11px] opacity-75">{RESIN_PRICE} 🪙 each · from critical chops</span>
+                </div>
+                <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellResin", count: "all" })}>
+                  All · {profile.resin * RESIN_PRICE} 🪙
+                </button>
+              </div>
+            )}
             {profile.crafts.length > 0 && (
               <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
                 <div className="flex max-h-[20vh] flex-col gap-1 overflow-y-auto pr-1">
@@ -137,6 +154,32 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
                   ) : (
                     <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < axe.price} onClick={() => send({ type: "BUSTER", op: "buyAxe", axe: id })}>
                       {axe.price} 🪙
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === "gear" && (
+          <div className="flex flex-col gap-1.5">
+            <p className="m-0 text-center text-xs opacity-75">Buy it once and it works for good: no need to put it on.</p>
+            {GEAR_IDS.map((id) => {
+              const g = GEAR[id];
+              const owned = profile.gear.includes(id);
+              return (
+                <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${owned ? "bg-emerald-400/20" : "bg-white/10"}`}>
+                  <span className="text-2xl">{g.emoji}</span>
+                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <b className="text-sm">{g.name}</b>
+                    <span className="text-[11px] opacity-75">{g.blurb}</span>
+                  </div>
+                  {owned ? (
+                    <span className="px-2 text-xs font-bold text-emerald-200">Owned</span>
+                  ) : (
+                    <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < g.price} onClick={() => send({ type: "BUSTER", op: "buyGear", gear: id })}>
+                      {g.price} 🪙
                     </button>
                   )}
                 </div>

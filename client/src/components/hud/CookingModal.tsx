@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SAWDUST_FUEL } from "@shared/crafting";
 import { parseBag, type CampfirePacket } from "@shared/types";
 import { FISH, stars, WELL_FED_S, woodCount, type FishingProfile } from "@shared/fishing";
 import { WOOD, WOOD_KINDS } from "@shared/chop";
@@ -49,6 +50,11 @@ export function CookingModal({ hearth, profile, bag, userId, fed, send, onClose 
                 {WOOD[k].emoji} ×{profile.wood[k]} · +{WOOD[k].fuel}%
               </button>
             ))}
+            {profile.sawdust > 0 && (
+              <button type="button" className="clay-btn col-span-3 min-h-9 px-1 text-[11px] leading-tight" disabled={fuel >= 100} onClick={() => send({ type: "ADD_FUEL", item: "sawdust" })} title="Sawdust, from a broken carving">
+                🪚 Sawdust ×{profile.sawdust} · +{SAWDUST_FUEL}%
+              </button>
+            )}
           </div>
           {woodCount(profile) === 0 && <p className="m-0 text-[11px] opacity-60">Split logs at the chopping block by the woodpile for firewood.</p>}
         </section>

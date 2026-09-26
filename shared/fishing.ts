@@ -9,6 +9,7 @@
 import type { SwimPattern } from "./types";
 import { WOOD_CARRIER_TIERS, WOOD_KINDS, isAxeId, type AxeId, type WoodKind } from "./chop";
 import { isCraftId, type CraftItem } from "./crafting";
+import { isGearId, type GearId } from "./gear";
 
 export type Water = "freshwater" | "saltwater";
 export type FishTier = "common" | "uncommon" | "rare" | "epic" | "legendary";
@@ -173,9 +174,15 @@ export interface FishingProfile {
   carrierTier: number;
   /** Crafted pieces from Buster's workbench, each in a carrier slot (shared/crafting.ts). */
   crafts: CraftItem[];
+  /** Buster's utility gear owned (shared/gear.ts): it works for good once bought. */
+  gear: GearId[];
+  /** Pine Resin (from critical chops; Buster buys it) and Sawdust (from broken carvings; +15% on
+   *  the bonfire). Small things: they ride in a pouch, not in the carrier's slots. */
+  resin: number;
+  sawdust: number;
 }
 export function emptyFishingProfile(): FishingProfile {
-  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, fedUntil: 0, wood: { pine: 0, oak: 0, charcoal: 0 }, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [] };
+  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, fedUntil: 0, wood: { pine: 0, oak: 0, charcoal: 0 }, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], gear: [], resin: 0, sawdust: 0 };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -233,6 +240,9 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
       if (p.crafts.length >= 999) break;
     }
   }
+  if (Array.isArray(r.gear)) p.gear = Array.from(new Set(r.gear.filter(isGearId)));
+  p.resin = Math.max(0, Math.min(999, Math.round(Number(r.resin) || 0)));
+  p.sawdust = Math.max(0, Math.min(999, Math.round(Number(r.sawdust) || 0)));
   // the carrier's tier; one from before the tiers (levels 1-3: 6, 12, 20 logs) moves up to the
   // smallest tier that holds all it held, so nothing is lost in the move
   if (Number(r.carrierTier) >= 1) p.carrierTier = Math.min(WOOD_CARRIER_TIERS.length, Math.round(Number(r.carrierTier)));

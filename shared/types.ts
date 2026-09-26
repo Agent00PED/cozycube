@@ -2,8 +2,9 @@
 
 import type { BaitId, CreelFish, FishTier, RodId } from "./fishing";
 import type { FuelItem, StewIngredient } from "./bonfire";
-import type { AxeId, ChopLog, WoodKind } from "./chop";
-import type { CraftId } from "./crafting";
+import type { AxeId, ChopLog, ChopVerdict, WoodKind } from "./chop";
+import type { CraftId, CraftMode, CraftOutcome } from "./crafting";
+import type { GearId } from "./gear";
 
 /** "dangle": sitting on an edge (the campfire's dock), legs hanging down and swinging.
  *  "cross": sitting cross-legged right on the ground (the Sit emote, away from any seat). */
@@ -1274,8 +1275,10 @@ export const CHOP_CLEAN_COINS = 15;
 export const CHOP_STUN_S = 1.5;
 export interface ChopResult {
   sessionId: string;
-  /** All three strokes landed. */
+  /** The log split: at least CHOP_GREENS_TO_SPLIT of the three strokes landed green or gold. */
   clean: boolean;
+  /** How many strokes landed green or gold. */
+  greens: number;
   /** The swing hit a wood knot. */
   stunned: boolean;
   /** The stroke it ended on (3 when clean). */
@@ -1333,10 +1336,34 @@ export type CampfirePacket =
   | { type: "BUSTER"; op: "sell"; wood: WoodKind; count: number | "all" }
   | { type: "BUSTER"; op: "buyAxe" | "equipAxe"; axe: AxeId }
   | { type: "BUSTER"; op: "upgradeCarrier" }
-  /** Sell Buster your carved pieces (one, or all). */
+  /** Sell Buster your carved pieces (one, or all), or your Pine Resin; buy a piece of his gear. */
   | { type: "BUSTER"; op: "sellCraft"; slot: number | "all" }
-  /** The workbench: carve a piece (its wood from the carrier; answered with workbenchResult). */
-  | { type: "WORKBENCH"; recipe: CraftId };
+  | { type: "BUSTER"; op: "sellResin"; count: number | "all" }
+  | { type: "BUSTER"; op: "buyGear"; gear: GearId }
+  /** The workbench: carve a piece, safe or pushing for a Masterwork (its wood from the carrier;
+   *  answered with workbenchResult). */
+  | { type: "WORKBENCH"; recipe: CraftId; mode: CraftMode };
+
+/** How a carve at the workbench came out (sent to the carver). */
+export interface WorkbenchResult {
+  ok: boolean;
+  message: string;
+  /** Set when the carve happened: a normal piece, a Masterwork, or broken (salvage and sawdust back). */
+  outcome?: CraftOutcome;
+  recipe?: CraftId;
+  salvaged?: Partial<Record<WoodKind, number>>;
+  sawdust?: number;
+}
+
+/** One swing of a chopping combo, as it landed (sent to the chopper): where it hit, and a critical
+ *  (gold) swing's bonus if it had one. */
+export interface ChopSwing {
+  sessionId: string;
+  stroke: number;
+  verdict: ChopVerdict;
+  bonus: "" | "coins" | "resin";
+  coins: number;
+}
 
 /** Barnaby's answer to a shop request (sent to the one who asked). */
 export interface BarnabyResult {

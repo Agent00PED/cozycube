@@ -98,6 +98,7 @@ const RELAYED_MESSAGES = [
   "busterResult",
   "busterWave",
   "workbenchResult",
+  "chopSwing",
   "creelFull",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */

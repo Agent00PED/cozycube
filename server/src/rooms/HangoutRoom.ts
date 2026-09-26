@@ -8,8 +8,9 @@ import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
 import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, WORKBENCH, WORKBENCH_FRONT, WORKBENCH_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
-import { CRAFTS, MASTERWORK_CHANCE, canCraft, craftPrice, isCraftId } from "../../../shared/crafting";
-import { AXES, nextCarrierTier, CHOP_LOGS, WOOD, rollChopCooldown, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo } from "../../../shared/chop";
+import { CRAFTS, RESIN_PRICE, SAWDUST_FUEL, canCraft, craftOdds, craftPrice, craftSalvage, isCraftId, isCraftMode, rollCraft } from "../../../shared/crafting";
+import { GEAR, bonusLogChance, gearPace, gloveSweetBonus, isGearId } from "../../../shared/gear";
+import { AXES, nextCarrierTier, CHOP_LOGS, CHOP_CRIT_CHANCE, CHOP_CRIT_COINS, CHOP_GREENS_TO_SPLIT, WOOD, isGreen, rollChopCooldown, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo, type ChopVerdict } from "../../../shared/chop";
 import {
   BAITS,
   afkSeconds,
@@ -70,6 +71,8 @@ import {
   type StarlightReel,
   type CampfireCoinKind,
   type ChopResult,
+  type ChopSwing,
+  type WorkbenchResult,
   CHOP_STUN_S,
   CONSTELLATIONS,
   CONSTELLATION_COINS,
@@ -470,7 +473,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private starSeq = 1;
   /** The chopping block: each combo in progress (the stroke it is on, its meter, timed here), and
    *  each player's last swing (a knot stuns the axe past it). */
-  private chops = new Map<string, { stroke: ChopStroke; startedAt: number; log: ChopLog; station: string }>();
+  private chops = new Map<string, { stroke: ChopStroke; startedAt: number; log: ChopLog; station: string; greens: number }>();
   private lastChopAt = new Map<string, number>();
   private lastPunchAt = new Map<string, number>();
   private dizzyUntil = new Map<string, number>();
@@ -531,7 +534,7 @@ export class HangoutRoom extends Room<HangoutState> {
         if ((player.action === "fish" || player.action === "reel") && this.starlight.has(client.sessionId)) this.stopStarlight(client.sessionId, player);
         else if (player.action === "grill") this.finishRoast(client.sessionId, player, "raw");
         else if (player.action === "stargaze") this.stopStargazing(client.sessionId, player);
-        else if (player.action === "chop") this.finishChop(client.sessionId, player, false, false, this.chops.get(client.sessionId)?.stroke.stroke ?? 1);
+        else if (player.action === "chop") this.finishChop(client.sessionId, player, false, this.chops.get(client.sessionId)?.stroke.stroke ?? 1);
       }
       this.applyReportedPosition(player, msg.x, msg.z, client.sessionId);
       // echo which report this position answers, applied as sent or not, so the client can tell
@@ -1980,21 +1983,22 @@ export class HangoutRoom extends Room<HangoutState> {
         return;
       }
       case "ADD_FUEL": {
-        const item = isWoodKind(packet.item) ? packet.item : "pine";
+        const item = isWoodKind(packet.item) || packet.item === "sawdust" ? packet.item : "pine";
         const profile = this.records.get(sessionId)?.fishing;
         if (!profile || player.action === "grill") return;
         if (!this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) {
           client.send("campfireNotice", { message: "Walk over to the bonfire to feed it", emoji: "🔥" });
           return;
         }
-        if (!(profile.wood[item] > 0)) return;
+        if (!((item === "sawdust" ? profile.sawdust : profile.wood[item]) > 0)) return;
         if (this.state.fuel >= FUEL_MAX) {
           client.send("campfireNotice", { message: "The fire's already roaring! Save that for later", emoji: "🔥" });
           return;
         }
-        profile.wood[item] -= 1;
+        if (item === "sawdust") profile.sawdust -= 1;
+        else profile.wood[item] -= 1;
         this.saveFishing(sessionId, player);
-        const amount = WOOD[item].fuel;
+        const amount = item === "sawdust" ? SAWDUST_FUEL : WOOD[item].fuel;
         this.state.fuel = Math.min(FUEL_MAX, this.state.fuel + amount);
         const update: BonfireUpdate = { fuel: this.state.fuel, sessionId, item, amount };
         this.broadcast("BONFIRE_STATE_UPDATE", update);
@@ -2137,14 +2141,7 @@ export class HangoutRoom extends Room<HangoutState> {
         const rtt = Math.min(1, Math.max(0, player.ping) / 1000);
         const told = typeof packet.t === "number" && Number.isFinite(packet.t) ? packet.t : NaN;
         const t = told <= raw + 0.05 && told >= raw - rtt - 0.35 ? told : raw - rtt / 2;
-        const verdict = judgeChop(chop.stroke, t);
-        if (verdict === "hit") {
-          this.playGesture(sessionId, "chop");
-          if (chop.stroke.stroke < 3) this.startChopStroke(client, (chop.stroke.stroke + 1) as ChopStrokeNo, chop.log, chop.station);
-          else this.finishChop(sessionId, player, true, false, 3);
-        } else {
-          this.finishChop(sessionId, player, false, verdict === "knot", chop.stroke.stroke);
-        }
+        this.landChopSwing(client, player, chop, judgeChop(chop.stroke, t));
         return;
       }
       case "GUITAR": {
@@ -2190,18 +2187,52 @@ export class HangoutRoom extends Room<HangoutState> {
 
   /** The axe comes down: a clean split pays and feeds the fire; a glancing blow does neither. */
   /** The chopping combo's next stroke: a fresh meter for it, timed from now. */
-  private startChopStroke(client: Client, stroke: ChopStrokeNo, log: ChopLog, station: string) {
-    const meter = rollChopStroke(stroke, log, Math.random, this.records.get(client.sessionId)?.fishing.axe ?? "rusty");
-    this.chops.set(client.sessionId, { stroke: meter, startedAt: Date.now(), log, station });
+  private startChopStroke(client: Client, stroke: ChopStrokeNo, log: ChopLog, station: string, greens = 0) {
+    const profile = this.records.get(client.sessionId)?.fishing;
+    const meter = rollChopStroke(stroke, log, Math.random, profile?.axe ?? "rusty", gloveSweetBonus(profile?.gear ?? []));
+    this.chops.set(client.sessionId, { stroke: meter, startedAt: Date.now(), log, station, greens });
     client.send("chopStroke", meter);
   }
 
-  /** The combo's end: all three strokes landed (paid, the fire fed), a swing into a knot (the axe
-   *  is stunned a moment), or a miss. */
-  private finishChop(sessionId: string, player: Player, clean: boolean, stunned: boolean, stroke: number) {
+  /** A swing lands (or the meter runs out: a miss). Gold is a critical chop (now and then +3 coins
+   *  or a Pine Resin) and counts as green; green counts toward the split; a glancing blow or a miss
+   *  carries on to the next stroke at a baseline pace; a knot stuns the axe and ends the combo.
+   *  After the third stroke the log splits if enough of them landed green. */
+  private landChopSwing(client: Client, player: Player, chop: { stroke: ChopStroke; log: ChopLog; station: string; greens: number }, verdict: ChopVerdict) {
+    const sessionId = client.sessionId;
+    const stroke = chop.stroke.stroke;
+    let bonus: ChopSwing["bonus"] = "";
+    let coins = 0;
+    if (verdict === "gold" && Math.random() < CHOP_CRIT_CHANCE) {
+      // a coin bonus counts toward the day's chopping coins (none once they are all earned); a
+      // resin, the other half of the time
+      const profile = this.records.get(sessionId)?.fishing;
+      if (Math.random() < 0.5) {
+        coins = this.campfirePay(sessionId, player, "chop", CHOP_CRIT_COINS);
+        if (coins > 0) bonus = "coins";
+      } else if (profile) {
+        profile.resin = Math.min(999, profile.resin + 1);
+        this.saveFishing(sessionId, player);
+        bonus = "resin";
+      }
+    }
+    const swing: ChopSwing = { sessionId, stroke, verdict, bonus, coins };
+    client.send("chopSwing", swing);
+    if (verdict === "knot") return this.finishChop(sessionId, player, true, stroke);
+    this.playGesture(sessionId, "chop");
+    const greens = chop.greens + (isGreen(verdict) ? 1 : 0);
+    chop.greens = greens;
+    if (stroke < 3) this.startChopStroke(client, (stroke + 1) as ChopStrokeNo, chop.log, chop.station, greens);
+    else this.finishChop(sessionId, player, false, 3);
+  }
+
+  /** The combo's end: the third stroke done (the log splits if enough strokes landed green: paid,
+   *  its wood in the carrier), or a swing into a knot (the axe is stunned a moment). */
+  private finishChop(sessionId: string, player: Player, stunned: boolean, stroke: number) {
     const chop = this.chops.get(sessionId);
     if (!chop) return;
     this.chops.delete(sessionId);
+    const clean = !stunned && stroke >= 3 && chop.greens >= CHOP_GREENS_TO_SPLIT;
     this.lastChopAt.set(sessionId, Date.now() + (stunned ? CHOP_STUN_S * 1000 : 0));
     this.clearAction(player);
     this.playGesture(sessionId, "chop");
@@ -2214,7 +2245,9 @@ export class HangoutRoom extends Room<HangoutState> {
       // the split log is yours: wood to burn or to sell to Buster (two, with the Golden Axe's luck),
       // as much as the carrier holds
       const room = Math.max(0, carrierCapacity(profile.carrierTier) - carrierLoad(profile));
-      pieces = Math.min(room, Math.random() < AXES[profile.axe].doubleChance ? 2 : 1);
+      // (and one more, now and then, with the Deerskin Grip Gloves)
+      const logs = (Math.random() < AXES[profile.axe].doubleChance ? 2 : 1) + (Math.random() < bonusLogChance(profile.gear) ? 1 : 0);
+      pieces = Math.min(room, logs);
       profile.wood[log.wood] = Math.min(999, profile.wood[log.wood] + pieces);
       this.saveFishing(sessionId, player);
       // one log fewer on the block; the last of its three leaves it bare for a rolled 20-25 s (the
@@ -2230,7 +2263,7 @@ export class HangoutRoom extends Room<HangoutState> {
         }
       }
     }
-    const result: ChopResult = { sessionId, clean, stunned, stroke, log: chop.log, wood: log.wood, pieces, coins, capped: clean && coins === 0 };
+    const result: ChopResult = { sessionId, clean, greens: chop.greens, stunned, stroke, log: chop.log, wood: log.wood, pieces, coins, capped: clean && coins === 0 };
     this.broadcast("chopResult", result);
     this.broadcast("emote", { sessionId, emoji: clean ? "🪵" : stunned ? "💫" : "😅" });
     this.persist(sessionId, player);
@@ -2308,8 +2341,12 @@ export class HangoutRoom extends Room<HangoutState> {
         this.chops.delete(sessionId);
         return;
       }
-      // the meter ran out with no swing: the stroke is missed
-      if (now - chop.startedAt > chop.stroke.duration * 1000 + 400) this.finishChop(sessionId, player, false, false, chop.stroke.stroke);
+      // the meter ran out with no swing: the stroke is missed (the chopping carries on)
+      if (now - chop.startedAt > chop.stroke.duration * 1000 + 400) {
+        const client = this.clients.find((c) => c.sessionId === sessionId);
+        if (client) this.landChopSwing(client, player, chop, "miss");
+        else this.finishChop(sessionId, player, false, chop.stroke.stroke);
+      }
     });
     this.stargazers.forEach((gazer, sessionId) => {
       const player = this.state.players.get(sessionId);
@@ -2540,9 +2577,10 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleWorkbench(sessionId: string, player: Player, packet: Extract<CampfirePacket, { type: "WORKBENCH" }>) {
     const record = this.records.get(sessionId);
     if (!record || !isCraftId(packet.recipe)) return;
+    const mode = isCraftMode(packet.mode) ? packet.mode : "safe";
     const profile = record.fishing;
-    const reply = (ok: boolean, message: string) => {
-      const result: BarnabyResult = { ok, message, coins: 0 };
+    const reply = (ok: boolean, message: string, extra: Partial<WorkbenchResult> = {}) => {
+      const result: WorkbenchResult = { ok, message, ...extra };
       this.sendTo(sessionId, "workbenchResult", result);
       if (ok) this.saveFishing(sessionId, player);
     };
@@ -2551,11 +2589,21 @@ export class HangoutRoom extends Room<HangoutState> {
     const craft = CRAFTS[packet.recipe];
     if (!canCraft(profile.wood, packet.recipe)) return reply(false, `The ${craft.name} takes ${Object.entries(craft.needs).map(([k, n]) => `${n} ${WOOD[k as keyof typeof WOOD].name}`).join(" + ")}`);
     for (const [k, n] of Object.entries(craft.needs) as [keyof typeof WOOD, number][]) profile.wood[k] -= n;
-    const m = Math.random() < MASTERWORK_CHANCE[profile.axe];
-    profile.crafts.push({ c: packet.recipe, m });
+    const outcome = rollCraft(craftOdds(packet.recipe, mode, profile.gear), Math.random());
     this.playGesture(sessionId, "chop");
+    if (outcome === "broken") {
+      // the safety net: half its wood back (rounded up, per kind; 75% with the apron), and sawdust
+      const salvaged = craftSalvage(packet.recipe, profile.gear);
+      for (const [k, n] of Object.entries(salvaged) as [keyof typeof WOOD, number][]) profile.wood[k] = Math.min(999, profile.wood[k] + n);
+      profile.sawdust = Math.min(999, profile.sawdust + 1);
+      this.broadcast("emote", { sessionId, emoji: "💥" });
+      const back = (Object.entries(salvaged) as [keyof typeof WOOD, number][]).map(([k, n]) => `${n} ${WOOD[k].emoji}`).join(" + ");
+      return reply(true, `Craft Broken! Salvaged ${back} + 1 Sawdust`, { outcome, recipe: packet.recipe, salvaged, sawdust: 1 });
+    }
+    const m = outcome === "masterwork";
+    profile.crafts.push({ c: packet.recipe, m });
     this.broadcast("emote", { sessionId, emoji: m ? "✨" : craft.emoji });
-    reply(true, m ? `A Masterwork ${craft.name}! ✨ Buster will pay ${craft.master} 🪙 for it` : `A fine ${craft.name} ${craft.emoji}, worth ${craft.price} 🪙 at Buster's stall`);
+    reply(true, m ? `A Masterwork ${craft.name}! ✨ Buster will pay ${craft.master} 🪙 for it` : `A fine ${craft.name} ${craft.emoji}, worth ${craft.price} 🪙 at Buster's stall`, { outcome, recipe: packet.recipe });
   }
 
   /** Buster the Lumberjack's stall: he buys split wood and carved pieces (near him) and sells axes
@@ -2610,6 +2658,26 @@ export class HangoutRoom extends Room<HangoutState> {
         this.addCoins(player, -next.price);
         profile.carrierTier += 1;
         return reply(true, `${next.icon} The ${next.name}: room for ${next.capacity}!`, -next.price);
+      }
+      case "buyGear": {
+        if (!isGearId(packet.gear)) return;
+        if (!near) return tooFar();
+        const gear = GEAR[packet.gear];
+        if (profile.gear.includes(packet.gear)) return reply(false, `You've already got the ${gear.name}!`);
+        if (player.coins < gear.price) return reply(false, `The ${gear.name} is ${gear.price} 🪙`);
+        this.addCoins(player, -gear.price);
+        profile.gear.push(packet.gear);
+        return reply(true, `${gear.emoji} The ${gear.name}! ${gear.blurb}`, -gear.price);
+      }
+      case "sellResin": {
+        if (!near) return tooFar();
+        const n = packet.count === "all" ? profile.resin : Math.min(profile.resin, Math.max(1, Math.floor(Number(packet.count) || 1)));
+        if (n <= 0) return reply(false, "No resin yet: land a swing in the gold on the chopping meter!");
+        const earned = n * RESIN_PRICE;
+        profile.resin -= n;
+        this.addCoins(player, earned);
+        this.broadcast("emote", { sessionId, emoji: "🪙" });
+        return reply(true, `${n} Pine Resin? Smells like the woods! Here's ${earned} 🪙`, earned);
       }
       case "sellCraft": {
         if (!near) return tooFar();
@@ -2765,13 +2833,14 @@ export class HangoutRoom extends Room<HangoutState> {
 
     // How far this player could honestly have walked since their last report.
     const now = Date.now();
-    let allowed = MAX_REPORT_STEP * (player.fed > 0 ? WELL_FED_SPEED : 1);
+    const kit = sessionId ? this.records.get(sessionId)?.fishing : undefined;
+    const pace = (player.fed > 0 ? WELL_FED_SPEED : 1) * (kit ? gearPace(kit.gear, carrierLoad(kit) > 0) : 1);
+    let allowed = MAX_REPORT_STEP * pace;
     if (sessionId) {
       const last = this.lastReportAt.get(sessionId);
       this.lastReportAt.set(sessionId, now);
       if (last !== undefined) {
         const elapsed = Math.min(1, (now - last) / 1000);
-        const pace = player.fed > 0 ? WELL_FED_SPEED : 1;
         allowed = Math.min(MAX_REPORT_STEP * pace, MOVE_SPEED_PER_SEC * pace * elapsed * SPEED_TOLERANCE + STEP_SLACK);
       }
     }

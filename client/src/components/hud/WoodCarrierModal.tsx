@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ITEMS, parseBag, type CampfirePacket } from "@shared/types";
 import { WOOD, WOOD_KINDS, carrierTier, type WoodKind } from "@shared/chop";
-import { CRAFTS, craftPrice } from "@shared/crafting";
+import { CRAFTS, RESIN_PRICE, SAWDUST_FUEL, craftPrice } from "@shared/crafting";
 import { carrierLoad, type FishingProfile } from "@shared/fishing";
 import { Modal } from "./Modal";
 
@@ -92,6 +92,36 @@ export function WoodCarrierModal({ profile, bag, send, onClose }: Props) {
                 </button>
               </div>
             ))}
+            {(profile.sawdust > 0 || profile.resin > 0) && (
+              <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
+                {profile.sawdust > 0 && (
+                  <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-1.5">
+                    <span className="text-xl">🪚</span>
+                    <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                      <b className="text-sm">
+                        Sawdust <span className="font-normal opacity-70">×{profile.sawdust}</span>
+                      </b>
+                      <span className="text-[11px] opacity-75">+{SAWDUST_FUEL}% on the fire · from broken carvings</span>
+                    </div>
+                    <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "ADD_FUEL", item: "sawdust" })} title="At the bonfire">
+                      🔥 Feed Fire
+                    </button>
+                  </div>
+                )}
+                {profile.resin > 0 && (
+                  <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-1.5">
+                    <span className="text-xl">🍯</span>
+                    <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                      <b className="text-sm">
+                        Pine Resin <span className="font-normal opacity-70">×{profile.resin}</span>
+                      </b>
+                      <span className="text-[11px] opacity-75">{RESIN_PRICE} 🪙 each at Buster's · from critical chops</span>
+                    </div>
+                  </div>
+                )}
+                <p className="m-0 text-[10.5px] opacity-55">The pouch: small things, no carrier slots.</p>
+              </div>
+            )}
             {(pantry.mushroom || pantry.berry) && (
               <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
                 <b className="opacity-80">🧺 Pantry</b>

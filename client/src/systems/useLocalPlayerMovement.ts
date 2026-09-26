@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type { Group } from "three";
@@ -10,7 +10,8 @@ import { consumeStandPress, worldMoveDirection } from "./input";
 import { faceHeading } from "./faceTargets";
 import { liveMotion } from "./liveMotion";
 import { Reconciler } from "./reconcile";
-import { WELL_FED_SPEED } from "@shared/fishing";
+import { WELL_FED_SPEED, carrierLoad, sanitizeFishingProfile } from "@shared/fishing";
+import { gearPace } from "@shared/gear";
 
 // The local player's locomotion. Three inputs, one controller:
 //   - click-to-move: the scene sets `targetRef` from a floor raycast, and the shared pathfinder
@@ -90,6 +91,17 @@ export function useLocalPlayerMovement(
   // Well-Fed walks 15% quicker (the server allows for it)
   const fedRef = useRef(false);
   fedRef.current = player.fed > 0;
+  // and the Forester Traction Boots 15% quicker again while the wood carrier holds anything (the
+  // server allows for that too)
+  const gearPaceRef = useRef(1);
+  gearPaceRef.current = useMemo(() => {
+    try {
+      const kit = sanitizeFishingProfile(JSON.parse(player.fishing || "{}"));
+      return gearPace(kit.gear, carrierLoad(kit) > 0);
+    } catch {
+      return 1;
+    }
+  }, [player.fishing]);
   const velocityRef = useRef(0);
   const facingRef = useRef(0);
   const sendTimerRef = useRef(0);
@@ -170,7 +182,7 @@ export function useLocalPlayerMovement(
       // held keys or the joystick take over from any click-to-move target
       if (steer && targetRef.current) targetRef.current = null;
       const target = targetRef.current;
-      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1);
+      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * gearPaceRef.current;
       if (steer) {
         dirX = steer.x;
         dirZ = steer.z;
