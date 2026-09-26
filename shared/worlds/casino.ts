@@ -27,8 +27,9 @@ import type { PropSpec, SeatSpec } from "./lounge";
 //                seventh of his own
 //   back corner  4 THE HIGH-ROLLER PIT: behind a velvet rope (open at its corner), a mahogany
 //                poker table, Boris dealing from the wall side
-//   front-left   5 THE VELVET LOUNGE & JAZZ BAR: the bar along the wall (Pippin behind it) with
-//                five stools, two cocktail tables, and a grand piano by the front edge
+//   front-left   5 THE VELVET LOUNGE & JAZZ BAR: the bar along the wall (Pippin behind it, on a
+//                duckboard step, `floor`) with five stools, two cocktail tables, and a grand piano
+//                by the front edge
 //
 // The floor is flat everywhere (the pit is set apart by its carpet and rope, not raised), so
 // nobody's walking height changes. Proportions follow the ~1.3-unit avatar and the Loft: the bar
@@ -79,7 +80,7 @@ export const CASINO_LAYOUT = /* layout:begin */ {
     { "a": [-6.2, -12.8], "b": [-6.2, -7.6] },
     { "a": [-12.8, -6.2], "b": [-7.6, -6.2] }
   ],
-  "bar": { "x0": -13, "x1": -10.4, "z0": 3.8, "z1": 10.0, "top": 0.72, "stoolX": -9.9, "stools": [4.6, 5.8, 7.0, 8.2, 9.4] },
+  "bar": { "x0": -13, "x1": -10.4, "z0": 3.8, "z1": 10.0, "top": 0.72, "floor": 0.3, "stoolX": -9.9, "stools": [4.6, 5.8, 7.0, 8.2, 9.4] },
   "cocktails": [{ "x": -11.0, "z": 11.6 }, { "x": -7.6, "z": 11.6 }],
   "piano": { "x": -4.6, "z": 10.9, "len": 1.5, "w": 1.45, "top": 1.0, "bench": 9.75 },
   "planters": [{ "x": 12.1, "z": 12.1 }, { "x": 12.1, "z": -4.4 }, { "x": -2.4, "z": 12.1 }],
@@ -87,10 +88,10 @@ export const CASINO_LAYOUT = /* layout:begin */ {
   "sconces": { "y": 2.3, "onBackZ": [-11.0, -8.0, -3.5, 0.0, 2.3, 6.7], "onBackX": [-11.0, -8.0, -5.8, -1.8, 3.3, 10.6, 12.0] },
   "npcs": {
     "vance": { "x": 9.75, "z": -11.15, "yaw": 0 },
-    "boris": { "x": -9.6, "z": -10.95, "yaw": 0 },
-    "vivienne": { "x": -1.45, "z": 0.5, "yaw": 1.5708 },
-    "jasper": { "x": -11.15, "z": 2.4, "yaw": -1.5708 },
-    "pippin": { "x": -11.7, "z": 6.9, "yaw": 1.5708 }
+    "boris": { "x": -9.6, "z": -10.75, "yaw": 0 },
+    "vivienne": { "x": -1.05, "z": 0.5, "yaw": 1.5708 },
+    "jasper": { "x": -11.45, "z": 2.4, "yaw": -1.5708 },
+    "pippin": { "x": -11.35, "z": 6.9, "yaw": 1.5708 }
   },
   "spawns": [
     { "x": 4.5, "z": -10.5 },
@@ -137,9 +138,11 @@ export function casinoZoneAt(x: number, z: number): CasinoZone {
 // --- the staff and the regulars -----------------------------------------------------------------
 
 export type CasinoNpcId = keyof typeof L.npcs;
-/** Who stands where. `phase`: the build that brings them (1a: Mr. Vance; 1b: the other four). Mr.
- *  Vance stands a little left of his window's middle: the camera looks down along (1, 1, 1), so
- *  the line from his face to it crosses the bars about 0.5 further along +x, in the window's middle. */
+/** Who stands where (scripts/blender/build_vance.py and build_casino_staff.py pose each one at
+ *  their spot: paws on the counter or the felt, Jasper on the stool at his own machine). `phase`:
+ *  the build that brought them (1a: Mr. Vance; 1b: the other four). Mr. Vance stands a little left
+ *  of his window's middle: the camera looks down along (1, 1, 1), so the line from his face to it
+ *  crosses the bars about 0.5 further along +x, in the window's middle. */
 export const CASINO_NPCS: Record<CasinoNpcId, { x: number; z: number; yaw: number; name: string; role: string; phase: "1a" | "1b" }> = {
   vance: { ...L.npcs.vance, name: "Mr. Vance", role: "the fox cashier at the Golden Cage", phase: "1a" },
   boris: { ...L.npcs.boris, name: "Boris", role: "the polar bear dealer in the High-Roller Pit", phase: "1b" },

@@ -10,6 +10,7 @@ import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf, nearestChop
 import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireSky, CampfireWorld } from "./CampfireWorld";
 import { CASINO_URL, CasinoWorld } from "./CasinoWorld";
+import { preloadCasinoStaff } from "../entities/CasinoStaff";
 import { CASINO_FRAME } from "@shared/worlds/casino";
 import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
@@ -179,7 +180,10 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   // the other worlds' models are fetched quietly once the lounge is up, so travelling is instant
   useEffect(() => {
     const campfire = window.setTimeout(() => useGLTF.preload(CAMPFIRE_URL), 4000);
-    const casino = window.setTimeout(() => useGLTF.preload(CASINO_URL), 7000);
+    const casino = window.setTimeout(() => {
+      useGLTF.preload(CASINO_URL);
+      preloadCasinoStaff();
+    }, 7000);
     return () => {
       window.clearTimeout(campfire);
       window.clearTimeout(casino);

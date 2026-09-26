@@ -794,9 +794,14 @@ def slot_machine(M, L, z, k, jasper=False):
     for y in (H - 0.16, H - 0.09):
         box(M, X1 - 0.1, X1 - 0.08, y - 0.015, y + 0.015, z - hw + 0.06, z + hw - 0.06, neon)
     box(M, X0, X1 - 0.08, H - 0.03, H, z - hw - 0.01, z + hw + 0.01, "CS_Chrome")
-    # the lever on the machine's side, a red ball on it
-    cylinder(M, (X1 - 0.3, 0.95, z + hw + 0.02), (X1 - 0.28, 1.4, z + hw + 0.07), 0.018, "CS_Chrome", sides=8)
-    blob(M, X1 - 0.28, 1.44, z + hw + 0.07, 0.05, 0.05, 0.05, "CS_Red", cuts=2)
+    # the lever, a red ball on it: on the machine's side, or (Jasper's, where he sits with a paw on
+    # it) at its front corner
+    if jasper:
+        cylinder(M, (X1 + 0.02, 0.95, z + hw + 0.03), (X1 + 0.12, 1.3, z + hw + 0.08), 0.018, "CS_Chrome", sides=8)
+        blob(M, X1 + 0.12, 1.34, z + hw + 0.08, 0.05, 0.05, 0.05, "CS_Red", cuts=2)
+    else:
+        cylinder(M, (X1 - 0.3, 0.95, z + hw + 0.02), (X1 - 0.28, 1.4, z + hw + 0.07), 0.018, "CS_Chrome", sides=8)
+        blob(M, X1 - 0.28, 1.44, z + hw + 0.07, 0.05, 0.05, 0.05, "CS_Red", cuts=2)
 
 
 def build_alley(M, L):
@@ -927,6 +932,13 @@ def build_lounge(M, L, cushions):
                 bottle(M, face_x + 0.16 + (0.1 if y == 1.04 else 0), zz, y, k)
             zz += 0.2
             k += 1
+    # Pippin's duckboard step behind the counter (its top is `floor`: his feet)
+    fl = b["floor"]
+    box(M, face_x + 0.45, x1 - 0.35, 0.0, fl - 0.02, z0 + 0.3, z1 - 0.3, "CS_MahoganyDark")
+    zz = z0 + 0.35
+    while zz < z1 - 0.35:
+        box(M, face_x + 0.47, x1 - 0.37, fl - 0.02, fl, zz, min(zz + 0.12, z1 - 0.32), "CS_Mahogany")
+        zz += 0.16
     # the counter: a fluted mahogany front, a mahogany top with a gold nosing, returns to the wall,
     # a brass foot rail
     box(M, x1 - 0.35, x1, 0.08, top - 0.04, z0, z1, "CS_Mahogany")

@@ -9,7 +9,7 @@ import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
 import { useLampBoost } from "./timeOfDay";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
-import { Vance } from "../entities/Vance";
+import { CasinoStaff } from "../entities/CasinoStaff";
 
 // The Velvet Casino (map 3). The hall is one Blender model, casino.glb
 // (scripts/blender/build_casino.py, laid out from shared/worlds/casino.ts): everything that stands
@@ -21,9 +21,9 @@ import { Vance } from "../entities/Vance";
 //   the wheel        turns slowly while bets are open, spins up when the croupier launches it and
 //                    runs down over the spin (the room's roulette phase)
 //   the neon         Neon Alley's tubes and floor strip breathe, with the odd flutter
-//   Mr. Vance        the fox cashier at the Golden Cage's window, on the platform behind its counter
-//                    (entities/Vance.tsx): he looks up at whoever comes to the window and waves as
-//                    they open the cage
+//   the staff        Mr. Vance at the Golden Cage, Boris at the poker table, Madame Vivienne at the
+//                    wheel, Jasper at his slot machine and Pippin behind the bar (entities/CasinoStaff.tsx):
+//                    they look at whoever comes near, and have a word for a click, a spin or a number
 //   the light        a low warm ambient (the hour's), amber pools under the four chandeliers, a wash
 //                    along each wall from its sconces, the banker's lamp in the cage, the back bar,
 //                    the lounge's candles, and a pink and a cyan glow off the slot row
@@ -56,7 +56,7 @@ interface CasinoWorldProps {
   onFloorClick: (x: number, z: number) => void;
   /** The room, for the roulette's phase (the wheel follows it). */
   room: Room | null;
-  /** One-shot messages (Mr. Vance waves on "vanceWave"). */
+  /** One-shot messages (the staff wave and talk on them: "vanceWave", "slotSpin", "rouletteResult"). */
   subscribeMessages: (listener: RoomMessageListener) => () => void;
 }
 
@@ -75,7 +75,7 @@ export function CasinoWorld({ onFloorClick, room, subscribeMessages }: CasinoWor
           <CasinoModel room={room} />
         </Suspense>
       </ModelBoundary>
-      <Vance subscribeMessages={subscribeMessages} />
+      <CasinoStaff subscribeMessages={subscribeMessages} />
       <CasinoLights />
     </group>
   );
