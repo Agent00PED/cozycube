@@ -66,6 +66,11 @@ import {
   type PremiumHat,
 } from "@shared/types";
 import { RoulettePanel } from "./components/hud/RoulettePanel";
+import { BarMenuModal } from "./components/hud/BarMenuModal";
+import { CapsuleModal } from "./components/hud/CapsuleModal";
+import { FortuneModal } from "./components/hud/FortuneModal";
+import { GazetteModal, recordCasinoNews } from "./components/hud/GazetteModal";
+import { CASINO_DRINKS, type CasinoNotice, type CasinoPropEvent, type CasinoWin, type FortuneResult } from "@shared/casino";
 import { ActivityBar } from "./components/hud/ActivityBar";
 import { useDiscordAuth } from "./hooks/useDiscordAuth";
 import { useColyseusRoom } from "./hooks/useColyseusRoom";
@@ -198,6 +203,7 @@ export default function App() {
     clearBets,
     buyChips,
     cashOut,
+    casinoSend,
     subscribeMessages,
     changeMap,
     setTimeOfDay,
@@ -275,6 +281,9 @@ export default function App() {
   const [blendResult, setBlendResult] = useState<{ right: boolean; coins: number } | null>(null);
   const [boardView, setBoardView] = useState<BoardGameView | null>(null);
   const [mochiResult, setMochiResult] = useState<{ action: MochiAction; coins: number; cooldown: boolean } | null>(null);
+  // the casino's tables open only when asked (the dock, or a click on the table): never by walking past
+  const [rouletteOpen, setRouletteOpen] = useState(false);
+  const [fortune, setFortune] = useState<FortuneResult | null>(null);
   const openPanel = useCallback((kind: string, propId: string) => {
     // a fresh panel starts with no stale result from last time
     setGachaResult(null);
@@ -287,6 +296,15 @@ export default function App() {
     // the casino's exit doors: the world drawer, to go home or anywhere else
     if (kind === "worlds") {
       setWorldsOpen(true);
+      return;
+    }
+    // the casino's tables: their own boards, not a panel
+    if (kind === "roulette") {
+      setRouletteOpen(true);
+      return;
+    }
+    if (kind === "blackjack") {
+      setBlackjackOpen(true);
       return;
     }
     setPanel({ kind, propId });
@@ -318,6 +336,20 @@ export default function App() {
           pushToast(`${best.username} won ${best.amount} chips${winners.length > 1 ? ` (+${winners.length - 1} more)` : ""}`, { emoji: "🎉", tone: "win", silent: true });
         } else if (type === "openSlots") {
           setSlotsProp((payload as { propId: string }).propId);
+        } else if (type === "fortuneResult") {
+          setFortune(payload as FortuneResult);
+        } else if (type === "casinoWin") {
+          const w = payload as CasinoWin;
+          recordCasinoNews(w);
+          if (w.celebrate) pushToast(`${w.username} hit ${w.detail} for ${w.amount} chips!`, { emoji: "🎉", tone: "win" });
+        } else if (type === "casinoNotice") {
+          // the bar and the capsule machine say so in their own panels
+          if (panelKindRef.current !== "barmenu" && panelKindRef.current !== "capsule") pushToast((payload as CasinoNotice).reason === "chips" ? "Not enough Velvet Chips: Mr. Vance's cage is by the doors" : "Step a little closer", { emoji: "🟡" });
+        } else if (type === "casinoProp") {
+          const ev = payload as CasinoPropEvent;
+          if (ev.sessionId !== localIdRef.current) return;
+          if (ev.kind === "tipjar") pushToast(`${ev.dealer === "boris" ? "Boris" : "Madame Vivienne"} thanks you for the tip`, { emoji: "🪙" });
+          else if (ev.kind === "barmenu" && ev.drink && panelKindRef.current !== "barmenu") pushToast(`Pippin serves you a ${CASINO_DRINKS[ev.drink].name}`, { emoji: CASINO_DRINKS[ev.drink].emoji });
         } else if (type === "blackjackState") {
           setBlackjackView(payload as BlackjackView);
           setBlackjackOpen(true);
@@ -496,14 +528,14 @@ export default function App() {
   // --- table proximity: the roulette board and the blackjack panel follow you to the tables ---
   const atRoulette = currentMap === "velvet_casino" && !!me && !me.sitting && Math.hypot(me.x - ROULETTE_CENTER.x, me.z - ROULETTE_CENTER.z) < ROULETTE_BET_RADIUS;
   const atBlackjack = currentMap === "velvet_casino" && !!me && !!blackjackTableNear(me.x, me.z);
-  const [rouletteClosed, setRouletteClosed] = useState(false);
+  // the betting board closes when you walk away from the table (it opens only when asked)
   useEffect(() => {
-    if (!atRoulette) setRouletteClosed(false);
+    if (!atRoulette) setRouletteOpen(false);
   }, [atRoulette]);
   useEffect(() => {
-    const reopen = () => setRouletteClosed(false);
-    window.addEventListener("cozy-open-roulette", reopen);
-    return () => window.removeEventListener("cozy-open-roulette", reopen);
+    const open = () => setRouletteOpen(true);
+    window.addEventListener("cozy-open-roulette", open);
+    return () => window.removeEventListener("cozy-open-roulette", open);
   }, []);
   useEffect(() => {
     if (!atBlackjack) setBlackjackOpen(false);
@@ -513,6 +545,8 @@ export default function App() {
       setSlotsProp(null);
       setBlackjackOpen(false);
       setBlackjackView(null);
+      setRouletteOpen(false);
+      setFortune(null);
     }
     // fast travel closes whatever was open in the old world
     setPanel(null);
@@ -526,7 +560,7 @@ export default function App() {
     // dock (no action at all) closes it
     if (me && me.action === "") setStarReel(null);
   }, [me?.action]); // eslint-disable-line react-hooks/exhaustive-deps
-  const showRoulette = atRoulette && !rouletteClosed && !blackjackOpen && !slotsProp;
+  const showRoulette = atRoulette && rouletteOpen && !blackjackOpen && !slotsProp;
 
   // the angler's creel, rods and baits (the room's copy, or the one mirrored locally until it syncs)
   const angler = useAnglerProfile(me?.userId ?? "", me?.fishing ?? "", me?.coins ?? 0);
@@ -639,7 +673,7 @@ export default function App() {
               onPlaceBet={placeBet}
               onClearBets={clearBets}
               subscribeMessages={subscribeMessages}
-              onClose={() => setRouletteClosed(true)}
+              onClose={() => setRouletteOpen(false)}
             />
           </div>
         )}
@@ -726,6 +760,10 @@ export default function App() {
         {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} send={campfireSend} onClose={closePanel} />}
         {panel?.kind === "workbench" && localPlayer && <WoodCraftModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "cashier" && localPlayer && <CashierModal coins={localPlayer.coins} chips={localPlayer.chips} onBuy={buyChips} onCashOut={cashOut} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "barmenu" && localPlayer && localSessionId && <BarMenuModal chips={localPlayer.chips} aura={localPlayer.aura} localSessionId={localSessionId} onOrder={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "capsule" && localPlayer && <CapsuleModal chips={localPlayer.chips} owned={localPlayer.owned} title={localPlayer.title} onSend={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "gazette" && <GazetteModal leaderboard={leaderboard} onClose={closePanel} />}
+        {fortune && <FortuneModal fortune={fortune} onClose={() => setFortune(null)} />}
         {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
 

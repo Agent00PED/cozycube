@@ -23,17 +23,29 @@ export const CHIP_CAP = 99_999;
 /** The casino's slice of the player record (stats JSON "casino"). */
 export interface CasinoProfile {
   chips: number;
+  /** The capsule title worn over the name ("" for none; it must be owned: title_<id>). */
+  title: string;
+  /** The day (todayKey, UTC) Madame Zara last read this player's fortune, and which one it was. */
+  fortuneDay: string;
+  fortune: number;
 }
 
 export function emptyCasinoProfile(): CasinoProfile {
-  return { chips: 0 };
+  return { chips: 0, title: "", fortuneDay: "", fortune: -1 };
 }
 
 /** A saved profile read back from the database: anything malformed becomes an empty one, so a
- *  player saved before the casino opened simply has no chips. */
+ *  player saved before the casino opened simply has no chips (and one saved before the expansion
+ *  no title, and no fortune told). */
 export function sanitizeCasinoProfile(raw: unknown): CasinoProfile {
-  const chips = (raw as { chips?: unknown } | null | undefined)?.chips;
-  return { chips: typeof chips === "number" && Number.isFinite(chips) && chips > 0 ? Math.min(CHIP_CAP, Math.floor(chips)) : 0 };
+  const r = (raw ?? {}) as { chips?: unknown; title?: unknown; fortuneDay?: unknown; fortune?: unknown };
+  const chips = r.chips;
+  return {
+    chips: typeof chips === "number" && Number.isFinite(chips) && chips > 0 ? Math.min(CHIP_CAP, Math.floor(chips)) : 0,
+    title: typeof r.title === "string" && isCasinoTitle(r.title) ? r.title : "",
+    fortuneDay: typeof r.fortuneDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.fortuneDay) ? r.fortuneDay : "",
+    fortune: typeof r.fortune === "number" && Number.isInteger(r.fortune) && r.fortune >= 0 && r.fortune < ZARA_FORTUNES.length ? r.fortune : -1,
+  };
 }
 
 /** What a player is worth: coins and chips together. The allowance (topped up only below a
@@ -186,4 +198,178 @@ export function blackjackTotal(cards: BlackjackCard[]): number {
     aces--;
   }
   return total;
+}
+
+// --- the house's extras -----------------------------------------------------------------------
+//
+// Nothing here is a game with a stake beyond the capsule machine's: the dice, the Turf Club's race,
+// the coin pusher, the billiards and the piano are for the fun of it; a tip is a thank-you; Pippin's
+// drinks are a glow (and the espresso a quicker step); Madame Zara reads one fortune a day, now and
+// then with a few chips of luck in it.
+
+/** A tip in a dealer's jar: Boris's at the poker table, Madame Vivienne's on the roulette rail. */
+export const DEALER_TIP = 5;
+
+export type CasinoDrinkId = "fizz" | "martini" | "espresso";
+export const CASINO_DRINK_IDS: CasinoDrinkId[] = ["fizz", "martini", "espresso"];
+/** Pippin's bar menu, in chips; each leaves an aura for `seconds` (PlayerState.aura "casino:<id>"). */
+export const CASINO_DRINKS: Record<CasinoDrinkId, { name: string; emoji: string; price: number; seconds: number; blurb: string; line: string }> = {
+  fizz: { name: "Velvet Fizz", emoji: "🥂", price: 15, seconds: 90, blurb: "Rose-pink bubbles rise round you for a minute and a half", line: "One Velvet Fizz, extra sparkle!" },
+  martini: { name: "Lucky Martini", emoji: "🍸", price: 20, seconds: 90, blurb: "Stirred with a four-leaf clover: a golden glimmer (purely for show)", line: "A Lucky Martini: stirred, never shaken. Well, shaken a little." },
+  espresso: { name: "Espresso", emoji: "☕", price: 10, seconds: 60, blurb: "A double shot: +20% walking pace for a minute", line: "Espresso! Mind your step, it's a quick one." },
+};
+export function isCasinoDrink(v: unknown): v is CasinoDrinkId {
+  return typeof v === "string" && (CASINO_DRINK_IDS as string[]).includes(v);
+}
+/** The walking pace an espresso gives (the server and the client both apply it). */
+export const ESPRESSO_PACE = 1.2;
+const DRINK_AURA = "casino:";
+export const drinkAura = (id: CasinoDrinkId) => `${DRINK_AURA}${id}`;
+/** The casino drink an aura is, or null (a blended drink's colour, or none). */
+export function casinoDrinkOf(aura: string): CasinoDrinkId | null {
+  if (!aura.startsWith(DRINK_AURA)) return null;
+  const id = aura.slice(DRINK_AURA.length);
+  return isCasinoDrink(id) ? id : null;
+}
+/** The pace multiplier an aura gives. */
+export function auraPace(aura: string): number {
+  return casinoDrinkOf(aura) === "espresso" ? ESPRESSO_PACE : 1;
+}
+
+// --- Madame Zara ---
+
+/** A lucky reading hands over this many chips (once a day, like every reading). */
+export const FORTUNE_LUCKY_CHIPS = 15;
+export const ZARA_FORTUNES: { text: string; lucky: boolean }[] = [
+  { text: "The wheel remembers kindness. Tip your croupier, and the felt will warm to you.", lucky: false },
+  { text: "A seven walks beside you tonight. It will not introduce itself.", lucky: true },
+  { text: "Beware the dealer who smiles on sixteen. Stand firm, little one.", lucky: false },
+  { text: "Your pockets feel lighter? The owl sees a small fortune finding its way back to you.", lucky: true },
+  { text: "Red and black are both rivers. Tonight, swim in neither: order a fizz instead.", lucky: false },
+  { text: "The cards whisper your name. Listen, but do not believe everything they say.", lucky: false },
+  { text: "A stranger will cheer your win before you notice it. Cheer theirs back.", lucky: false },
+  { text: "Clover in the martini, silver in the palm. Luck has already taken your coat.", lucky: true },
+  { text: "The piano knows a song about you. Sit, and let it play.", lucky: false },
+  { text: "Great patience at the table; greater still at the bar. Pippin is doing his best.", lucky: false },
+  { text: "Tonight the stars line up over Neon Alley. Something gold rolls your way.", lucky: true },
+  { text: "Mr. Vance counts every chip twice. Count your blessings once, and you will be richer.", lucky: false },
+];
+/** Today's reading for a player: the same all day, a different one tomorrow. */
+export function fortuneFor(userId: string, day: string): number {
+  let h = 2166136261;
+  for (const ch of `${userId}|${day}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return (h >>> 0) % ZARA_FORTUNES.length;
+}
+/** Server -> client ("fortuneResult"): the reading, and what it brought (chips only the first time). */
+export interface FortuneResult {
+  text: string;
+  lucky: boolean;
+  chips: number;
+  /** Already read today: the same reading again, nothing more. */
+  again: boolean;
+}
+
+// --- the capsule machine: titles and emotes ---
+
+/** A pull of the capsule machine, in chips; a prize already owned hands some back. */
+export const CAPSULE_COST = 30;
+export const CAPSULE_DUP_REFUND = 10;
+export type CapsuleRarity = "common" | "rare" | "legendary";
+export interface CapsulePrize {
+  kind: "title" | "emote";
+  id: string;
+  name: string;
+  /** The emote itself, or the title's badge. */
+  emoji: string;
+  rarity: CapsuleRarity;
+}
+export const CAPSULE_PRIZES: CapsulePrize[] = [
+  { kind: "title", id: "night_owl", name: "Night Owl", emoji: "🦉", rarity: "common" },
+  { kind: "title", id: "card_shark", name: "Card Shark", emoji: "🦈", rarity: "common" },
+  { kind: "title", id: "jazz_cat", name: "Jazz Cat", emoji: "🎷", rarity: "common" },
+  { kind: "title", id: "lady_luck", name: "Lady Luck", emoji: "🍀", rarity: "rare" },
+  { kind: "title", id: "high_roller", name: "High Roller", emoji: "🎩", rarity: "rare" },
+  { kind: "title", id: "velvet_royalty", name: "Velvet Royalty", emoji: "👑", rarity: "legendary" },
+  { kind: "emote", id: "dice", name: "Lucky Dice", emoji: "🎲", rarity: "common" },
+  { kind: "emote", id: "cards", name: "Wild Card", emoji: "🃏", rarity: "common" },
+  { kind: "emote", id: "martini", name: "Cheers, Darling", emoji: "🍸", rarity: "common" },
+  { kind: "emote", id: "rose", name: "Rose Toss", emoji: "🌹", rarity: "rare" },
+  { kind: "emote", id: "diamond", name: "Diamond Wink", emoji: "💎", rarity: "rare" },
+  { kind: "emote", id: "moneybags", name: "Jackpot Grin", emoji: "🤑", rarity: "legendary" },
+];
+export const CAPSULE_WEIGHTS: Record<CapsuleRarity, number> = { common: 10, rare: 4, legendary: 1 };
+/** The unlock id a prize is kept under with the rest (PlayerState.owned): title_<id>, emote_<id>. */
+export const capsuleUnlock = (p: Pick<CapsulePrize, "kind" | "id">) => `${p.kind}_${p.id}`;
+export function capsuleTitle(id: string): CapsulePrize | undefined {
+  return CAPSULE_PRIZES.find((p) => p.kind === "title" && p.id === id);
+}
+export function isCasinoTitle(id: string): boolean {
+  return !!capsuleTitle(id);
+}
+/** The emotes the capsule machine gives, by emoji: sent like the six everyone has, once owned. */
+export const CASINO_EMOTES: ReadonlyMap<string, CapsulePrize> = new Map(CAPSULE_PRIZES.filter((p) => p.kind === "emote").map((p) => [p.emoji, p]));
+/** A random prize, weighted by rarity (`roll` in [0, 1)). */
+export function rollCapsule(roll: number): CapsulePrize {
+  const total = CAPSULE_PRIZES.reduce((sum, p) => sum + CAPSULE_WEIGHTS[p.rarity], 0);
+  let left = roll * total;
+  for (const p of CAPSULE_PRIZES) {
+    left -= CAPSULE_WEIGHTS[p.rarity];
+    if (left < 0) return p;
+  }
+  return CAPSULE_PRIZES[0];
+}
+/** Server -> client ("capsuleResult"): what came out, and whether it was a duplicate. */
+export interface CapsuleResult {
+  prize: CapsulePrize;
+  duplicate: boolean;
+  refund: number;
+}
+
+// --- wins worth shouting about ---
+
+/** A slot jackpot (three of a kind, paying at least this many times the stake: every triple) sets
+ *  the hall off: a brass fanfare, the chandeliers flaring, confetti over the winner. So does a
+ *  straight-up roulette number. */
+export const CELEBRATE_SLOT_MULTIPLIER = Math.min(...SLOT_TRIPLE);
+/** Wins this big (in chips) make the Big-Win marquee. */
+export const MARQUEE_MIN_WIN = 50;
+export type CasinoGame = "slots" | "roulette" | "blackjack";
+/** Server -> everyone ("casinoWin"): a win for the marquee, and whether the hall celebrates it. */
+export interface CasinoWin {
+  sessionId: string;
+  username: string;
+  amount: number;
+  game: CasinoGame;
+  /** "🍀🍀🍀", "17 straight up", "Blackjack!" */
+  detail: string;
+  celebrate: boolean;
+}
+
+// --- the set dressing's broadcasts ---
+
+/** Server -> everyone ("casinoProp"): someone rolled the dice, started a race, pushed a coin, broke
+ *  the rack, played the piano, tried the VIP doors, got a reading, tipped a dealer or was served a
+ *  drink. `seed` makes every client play it the same way; the dice are the server's roll. */
+export interface CasinoPropEvent {
+  kind: "craps" | "derby" | "pusher" | "billiards" | "piano" | "vipdoor" | "fortune" | "tipjar" | "barmenu";
+  propId: string;
+  sessionId: string;
+  seed: number;
+  dice?: [number, number];
+  /** The race's winning lane (0 to DERBY_LANES - 1). */
+  winner?: number;
+  /** A tip: which dealer. A drink: which one. */
+  dealer?: "boris" | "vivienne";
+  drink?: CasinoDrinkId;
+}
+/** How long a Turf Club race runs, and how many horses race. */
+export const DERBY_RACE_MS = 7000;
+export const DERBY_LANES = 5;
+export const DERBY_HORSES = ["Velvet Thunder", "Lucky Buttons", "Midnight Mocha", "Sir Gallops", "Clover Dash"];
+
+/** Client -> server ("casino"): the capsule machine, wearing a title, Pippin's bar menu. */
+export type CasinoPacket = { type: "CAPSULE_PULL" } | { type: "EQUIP_TITLE"; id: string } | { type: "BAR_ORDER"; drink: CasinoDrinkId };
+/** Server -> client ("casinoNotice"): why an extra was refused (short of chips, or too far away). */
+export interface CasinoNotice {
+  reason: "chips" | "far";
 }

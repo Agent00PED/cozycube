@@ -129,6 +129,8 @@ import {
   SPARKLE_SPOTS,
   SPARKLE_RESPAWN_S,
   isWalkUpProp,
+  isCasinoProp,
+  usableSeated,
   encodeLook,
   parseLook,
   poseForSeat,
@@ -207,7 +209,7 @@ import {
   type FishingWater,
   type MochiAction,
 } from "../../../shared/types";
-import { netWorth, type BlackjackAction, type CashierRequest } from "../../../shared/casino";
+import { CASINO_EMOTES, auraPace, capsuleUnlock, netWorth, type BlackjackAction, type CashierRequest, type CasinoPacket } from "../../../shared/casino";
 import { CasinoFloor, RouletteSchema } from "./casino";
 
 class Player extends Schema {
@@ -250,6 +252,8 @@ class Player extends Schema {
   @type("number") boxHits = 0;
   @type("number") boxKOs = 0;
   @type("string") aura = "";
+  /** A capsule title worn over the name (shared/casino.ts CAPSULE_PRIZES), "" for none. */
+  @type("string") title = "";
   @type("string") daily = "";
   /** The angler's FishingProfile as JSON (the record's copy is the one kept). */
   @type("string") fishing = "";
@@ -464,11 +468,30 @@ export class HangoutRoom extends Room<HangoutState> {
         if (event === "slots_spin") {
           this.bumpStat(player, "slots_spins");
           this.daily(sessionId, player, "spin_slots");
+        } else if (event === "capsule_pull") {
+          // the casino's capsule machine counts as a turn of the gachapon
+          this.bumpStat(player, "gacha_pulls");
+          this.daily(sessionId, player, "pull_gacha");
         } else this.bumpStat(player, event === "roulette_win" ? "roulette_wins" : "blackjack_wins");
       },
       persistNow: (sessionId) => {
         const player = this.state.players.get(sessionId);
         if (player) this.persist(sessionId, player, true);
+      },
+      profile: (sessionId) => this.records.get(sessionId)?.casino,
+      owns: (sessionId, id) => {
+        const player = this.state.players.get(sessionId);
+        return !!player && this.owns(player, id);
+      },
+      grant: (sessionId, id) => {
+        const player = this.state.players.get(sessionId);
+        if (player) this.grant(player, id);
+      },
+      aura: (sessionId, aura, seconds) => {
+        const player = this.state.players.get(sessionId);
+        if (!player) return;
+        player.aura = aura;
+        this.auraUntil.set(sessionId, Date.now() + seconds * 1000);
       },
     });
     this.autoDispose = false; // `autoDispose` is an accessor on the base Room class — assign, don't redeclare as a field.
@@ -595,6 +618,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // Mr. Vance's cage: coins into Velvet Chips and back, 1:1, at the window
     this.onMessage("buyChips", (client, msg: CashierRequest) => this.casino.exchange(client.sessionId, "buy", msg?.amount));
     this.onMessage("cashOut", (client, msg: CashierRequest) => this.casino.exchange(client.sessionId, "cashout", msg?.amount));
+    // the capsule machine, the title you wear, Pippin's bar menu
+    this.onMessage("casino", (client, packet: CasinoPacket) => this.casino.packet(client.sessionId, packet));
 
     this.onMessage("emote", (client, msg: { emoji: string }) => this.handleEmote(client.sessionId, msg.emoji));
 
@@ -690,7 +715,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!record) return;
     record.username = player.username;
     record.coins = player.coins;
-    record.casino = { chips: player.chips };
+    record.casino = { ...record.casino, chips: player.chips, title: player.title };
     record.unlockedItems = player.owned ? player.owned.split(",") : [];
     const look = parseLook(player.look);
     record.equippedLook = look ? { ...toStoredLook(look) } : {};
@@ -700,7 +725,7 @@ export class HangoutRoom extends Room<HangoutState> {
     } catch {
       record.daily = null;
     }
-    const signature = `${record.coins}|${player.chips}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
+    const signature = `${record.coins}|${player.chips}|${player.title}|${record.casino.fortuneDay}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
     if (signature === this.savedSignature.get(sessionId) && !now) return;
     this.savedSignature.set(sessionId, signature);
     this.queue.mark(record);
@@ -2644,7 +2669,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // How far this player could honestly have walked since their last report.
     const now = Date.now();
     const kit = sessionId ? this.records.get(sessionId)?.fishing : undefined;
-    const pace = (player.fed > 0 ? WELL_FED_SPEED : 1) * (kit ? gearPace(kit.gear, carrierLoad(kit) > 0) : 1);
+    const pace = (player.fed > 0 ? WELL_FED_SPEED : 1) * (kit ? gearPace(kit.gear, carrierLoad(kit) > 0) : 1) * auraPace(player.aura);
     let allowed = MAX_REPORT_STEP * pace;
     if (sessionId) {
       const last = this.lastReportAt.get(sessionId);
@@ -2858,11 +2883,19 @@ export class HangoutRoom extends Room<HangoutState> {
     // Lights, the TV and the campfire work from across the room — that's what makes them feel
     // like shared ambience. The espresso machine and arcades are things you stand in front of.
     if (isWalkUpProp(kind)) {
-      // (sitting on the dock's edge, you cast from where you sit)
-      if (player.sitting && !(kind === "fishing" && this.state.chairs.get(dockSeatOf(prop.propId))?.occupiedBy === sessionId)) return;
+      // (sitting on the dock's edge, you cast from where you sit; the piano's bench, a bar stool, a
+      // chair by Boris's tip jar, the Chesterfield and a blackjack stool reach their props too: the
+      // casino measures those reaches itself)
+      if (player.sitting && !(kind === "fishing" && this.state.chairs.get(dockSeatOf(prop.propId))?.occupiedBy === sessionId) && !usableSeated(kind)) return;
       // Mochi wanders (mochiSpot, wall-clock), so her reach is measured from where she is now.
       const at = kind === "cat" ? mochiSpot(this.state.currentMap, Date.now() / 1000) : prop;
       if (Math.hypot(player.x - at.x, player.z - at.z) > INTERACT_RADIUS) return;
+    }
+
+    // the casino's tables, machines, jars and set dressing (the slots, the cage and the doors below)
+    if (isCasinoProp(kind) && kind !== "slot" && kind !== "cashier" && kind !== "portal") {
+      this.casino.useProp(sessionId, prop);
+      return;
     }
 
     switch (kind) {
@@ -3158,7 +3191,11 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private handleEmote(sessionId: string, emoji: string) {
-    if (!ALLOWED_EMOTES.has(emoji)) return;
+    if (!ALLOWED_EMOTES.has(emoji)) {
+      const prize = CASINO_EMOTES.get(emoji);
+      const player = this.state.players.get(sessionId);
+      if (!prize || !player || !this.owns(player, capsuleUnlock(prize))) return;
+    }
     const now = Date.now();
     if (now - (this.lastEmoteAt.get(sessionId) ?? 0) < EMOTE_COOLDOWN_MS) return; // spam guard
     this.lastEmoteAt.set(sessionId, now);
@@ -3198,6 +3235,8 @@ export class HangoutRoom extends Room<HangoutState> {
     player.coins = record.coins;
     player.chips = record.casino.chips;
     player.owned = record.unlockedItems.join(",");
+    const title = record.casino.title;
+    player.title = title && record.unlockedItems.includes(capsuleUnlock({ kind: "title", id: title })) ? title : "";
     player.watered = record.plantsWatered.day === todayKey() ? record.plantsWatered.ids.join(",") : "";
     player.stats = JSON.stringify(record.stats);
     const look = fromStoredLook(record.equippedLook as any);
@@ -3371,6 +3410,7 @@ export class HangoutRoom extends Room<HangoutState> {
       record.casino = oldRecord.casino;
       player.coins = old.coins;
       player.chips = old.chips;
+      player.title = old.title;
       player.fishing = JSON.stringify(record.fishing);
       player.fed = old.fed;
     }

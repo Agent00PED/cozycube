@@ -1,36 +1,83 @@
 import { Schema, type, type MapSchema } from "@colyseus/schema";
 import {
   BLACKJACK_BETS,
+  CAPSULE_COST,
+  CAPSULE_DUP_REFUND,
+  CASINO_DRINKS,
+  CELEBRATE_SLOT_MULTIPLIER,
   CHIP_CAP,
   CHIP_VALUES,
+  DEALER_TIP,
+  DERBY_LANES,
+  DERBY_RACE_MS,
+  FORTUNE_LUCKY_CHIPS,
+  MARQUEE_MIN_WIN,
   MAX_BET_TOTAL,
   ROULETTE_PHASE_SECONDS,
   SLOT_BETS,
   SLOT_PAIR,
   SLOT_SYMBOLS,
   SLOT_TRIPLE,
+  ZARA_FORTUNES,
   betReturn,
   blackjackTotal,
+  capsuleUnlock,
+  drinkAura,
   encodeBets,
   exchangeAmount,
+  fortuneFor,
   isBetKind,
+  isCasinoDrink,
+  isCasinoTitle,
   parseBets,
+  pocketColor,
+  rollCapsule,
   type BlackjackAction,
   type BlackjackCard,
   type BlackjackOutcome,
   type BlackjackPhase,
   type BlackjackView,
+  type CapsuleResult,
   type CashierResult,
+  type CasinoGame,
+  type CasinoPacket,
+  type CasinoNotice,
+  type CasinoProfile,
+  type CasinoPropEvent,
+  type CasinoWin,
+  type FortuneResult,
   type RoulettePhase,
 } from "../../../shared/casino";
-import { CASHIER_FRONT, CASHIER_REACH, ROULETTE_BET_RADIUS, ROULETTE_CENTER, blackjackTableNear } from "../../../shared/worlds/casino";
+import {
+  BAR_REACH,
+  CASHIER_FRONT,
+  CASHIER_REACH,
+  GACHAPON_FRONT,
+  GAZETTE_REACH,
+  MACHINE_REACH,
+  PIANO_REACH,
+  ROULETTE_BET_RADIUS,
+  ROULETTE_CENTER,
+  TIP_JARS,
+  ZARA_FRONT,
+  barDistance,
+  blackjackTableNear,
+  type TipDealer,
+} from "../../../shared/worlds/casino";
 import { COIN_CAP, INTERACT_RADIUS } from "../../../shared/types";
+import { todayKey } from "./games";
 
 // The Velvet Casino's tables: the shared roulette wheel, one blackjack hand per player, the slot
 // machines, and Mr. Vance's cage, where coins become Velvet Chips and back. Every stake and every
 // payout is in chips. The room owns the synced state (the wheel and the bets on it live in its
 // schema) and the side effects (messages, timers, stats); this owns the rules, the money and the
 // hands, the way BoardTable owns a board game.
+//
+// And the house's extras: the dice, the Turf Club's race, the coin pusher, the billiards and the
+// baby grand (for the fun of it: every client plays the same roll, race or tune from the one
+// broadcast), Madame Zara's daily fortune, the capsule machine's titles and emotes, the dealers' tip
+// jars, Pippin's bar, and the Big-Win marquee's news (a win worth shouting about, and whether the
+// hall celebrates it).
 
 // The shared roulette wheel. One loop for the whole room: 25 s of betting, a 6 s spin everyone
 // watches together, then 4 s of payouts. Only the phase, a whole-second countdown and the result
@@ -42,13 +89,18 @@ export class RouletteSchema extends Schema {
   @type("number") spinId = 0;
 }
 
-/** What the casino needs of a player: where they stand, and their two balances. */
+/** What the casino needs of a player: who and where they are, their two balances, and what they
+ *  wear (a capsule title) and drink (an aura). */
 export interface Patron {
+  userId: string;
   username: string;
   x: number;
   z: number;
   coins: number;
   chips: number;
+  sitting: boolean;
+  title: string;
+  aura: string;
 }
 
 /** The room state the casino reads and writes. */
@@ -60,7 +112,7 @@ export interface CasinoState {
   players: { get(sessionId: string): Patron | undefined; forEach(fn: (p: Patron, sessionId: string) => void): void };
 }
 
-/** A slot machine, as the room's props hold it. */
+/** A casino prop, as the room's props hold it. */
 export interface SlotProp {
   propId: string;
   kind: string;
@@ -74,10 +126,17 @@ export interface CasinoHost {
   sendTo(sessionId: string, type: string, payload: unknown): void;
   /** Runs `fn` after `ms` on the room's clock. */
   later(ms: number, fn: () => void): void;
-  /** Counts a spin or a win toward the player's stats and today's checklist. */
-  tally(sessionId: string, event: "slots_spin" | "roulette_win" | "blackjack_win"): void;
+  /** Counts a spin, a win or a capsule toward the player's stats and today's checklist. */
+  tally(sessionId: string, event: "slots_spin" | "roulette_win" | "blackjack_win" | "capsule_pull"): void;
   /** Saves the player at once (an exchange moves money between two balances). */
   persistNow(sessionId: string): void;
+  /** The player's saved casino profile (Madame Zara notes the day's reading on it). */
+  profile(sessionId: string): CasinoProfile | undefined;
+  /** The player's unlocks (capsule titles and emotes live with the hats and outfits). */
+  owns(sessionId: string, id: string): boolean;
+  grant(sessionId: string, id: string): void;
+  /** A drink's glow (and, for an espresso, its quicker step) for `seconds`. */
+  aura(sessionId: string, aura: string, seconds: number): void;
 }
 
 // --- blackjack: one hand per player, dealt and settled entirely here ---
@@ -114,18 +173,29 @@ function rollSymbol(): number {
 }
 
 const sum = (bets: Record<string, number>) => Object.values(bets).reduce((a, b) => a + b, 0);
+const seed = () => Math.floor(Math.random() * 0x7fffffff);
+const die = () => 1 + Math.floor(Math.random() * 6);
+const near = (p: { x: number; z: number }, q: { x: number; z: number }, reach: number) => Math.hypot(p.x - q.x, p.z - q.z) <= reach;
 
 /** How much further than the client's reach the server allows, for lag. */
 const ROULETTE_SLACK = 0.6;
 const BLACKJACK_SLACK = 0.8;
 const SLOT_SLACK = 0.8;
 const CASHIER_SLACK = 0.6;
+const EXTRA_SLACK = 0.6;
 /** The reels spin for ~1.6 s on screen; a win is paid when they land. */
 const SLOT_LAND_MS = 1700;
+/** How often one player may roll the dice, push a coin, break the rack, play the piano, try the VIP
+ *  doors or tip (a click storm is not a storm of broadcasts). */
+const PROP_COOLDOWN_MS: Partial<Record<CasinoPropEvent["kind"], number>> = { craps: 2500, pusher: 1500, billiards: 2500, piano: 2200, vipdoor: 3000, tipjar: 1200, fortune: 2500 };
 
 export class CasinoFloor {
   private phaseClock = ROULETTE_PHASE_SECONDS.betting;
   private readonly hands = new Map<string, BlackjackGame>();
+  /** Each player's last use of each prop kind (the cooldowns above). */
+  private readonly lastUse = new Map<string, number>();
+  /** The Turf Club runs one race at a time. */
+  private raceUntil = 0;
 
   constructor(
     private readonly state: CasinoState,
@@ -138,6 +208,27 @@ export class CasinoFloor {
 
   private addChips(p: Patron, amount: number) {
     p.chips = Math.max(0, Math.min(CHIP_CAP, p.chips + amount));
+  }
+
+  /** A win for the marquee (big enough), and the hall's celebration (a jackpot, a number hit). */
+  private announce(sessionId: string, p: Patron, amount: number, game: CasinoGame, detail: string, celebrate: boolean) {
+    if (!celebrate && amount < MARQUEE_MIN_WIN) return;
+    this.host.broadcast("casinoWin", { sessionId, username: p.username, amount, game, detail, celebrate } satisfies CasinoWin);
+  }
+
+  /** Why an extra was refused, to the one who tried. */
+  private refuse(sessionId: string, reason: CasinoNotice["reason"]) {
+    this.host.sendTo(sessionId, "casinoNotice", { reason } satisfies CasinoNotice);
+  }
+
+  /** Whether `kind` is off its cooldown for this player (and starts it again if so). */
+  private ready(sessionId: string, kind: CasinoPropEvent["kind"]): boolean {
+    const wait = PROP_COOLDOWN_MS[kind] ?? 0;
+    const key = `${sessionId}:${kind}`;
+    const now = Date.now();
+    if (now - (this.lastUse.get(key) ?? 0) < wait) return false;
+    this.lastUse.set(key, now);
+    return true;
   }
 
   // --- Mr. Vance's cage ------------------------------------------------------------------------
@@ -200,13 +291,17 @@ export class CasinoFloor {
     this.state.bets.forEach((raw, sessionId) => {
       const p = this.state.players.get(sessionId);
       if (!p) return;
+      const bets = parseBets(raw);
       let won = 0;
-      for (const [kind, amount] of Object.entries(parseBets(raw))) won += betReturn(kind, amount, result);
+      for (const [kind, amount] of Object.entries(bets)) won += betReturn(kind, amount, result);
       if (won > 0) {
         this.addChips(p, won);
         this.host.tally(sessionId, "roulette_win");
         winners.push({ sessionId, username: p.username, amount: won });
         this.host.broadcast("emote", { sessionId, emoji: won >= 100 ? "💰" : "🟡" });
+        // a number hit straight up sets the hall off; any big win makes the marquee
+        const straight = (bets[`n${result}`] ?? 0) > 0;
+        this.announce(sessionId, p, won, "roulette", straight ? `${result} straight up` : `${result} ${pocketColor(result)}`, straight);
       }
     });
     this.host.broadcast("rouletteResult", { result, winners });
@@ -252,8 +347,9 @@ export class CasinoFloor {
     p.chips -= bet;
     this.host.tally(sessionId, "slots_spin");
     const reels: [number, number, number] = [rollSymbol(), rollSymbol(), rollSymbol()];
+    const triple = reels[0] === reels[1] && reels[1] === reels[2];
     let win = 0;
-    if (reels[0] === reels[1] && reels[1] === reels[2]) win = bet * SLOT_TRIPLE[reels[0]];
+    if (triple) win = bet * SLOT_TRIPLE[reels[0]];
     else if (reels[0] === reels[1] || reels[1] === reels[2] || reels[0] === reels[2]) win = bet * SLOT_PAIR;
     this.host.broadcast("slotSpin", { propId: prop.propId, sessionId, reels, win, bet });
     if (win > 0) {
@@ -263,6 +359,7 @@ export class CasinoFloor {
         this.addChips(now, win);
         // a pair only hands the stake back: nothing to cheer
         if (win > bet) this.host.broadcast("emote", { sessionId, emoji: win >= bet * 12 ? "💰" : "🟡" });
+        if (triple) this.announce(sessionId, now, win, "slots", `${SLOT_SYMBOLS[reels[0]]}${SLOT_SYMBOLS[reels[0]]}${SLOT_SYMBOLS[reels[0]]}`, SLOT_TRIPLE[reels[0]] >= CELEBRATE_SLOT_MULTIPLIER);
       });
     }
   }
@@ -343,6 +440,7 @@ export class CasinoFloor {
     if (outcome === "win" || outcome === "blackjack") {
       this.host.tally(sessionId, "blackjack_win");
       this.host.broadcast("emote", { sessionId, emoji: outcome === "blackjack" ? "💰" : "🟡" });
+      this.announce(sessionId, p, game.payout, "blackjack", outcome === "blackjack" ? "Blackjack!" : `${blackjackTotal(game.player)} beats the dealer`, false);
     }
   }
 
@@ -354,6 +452,137 @@ export class CasinoFloor {
     this.hands.delete(sessionId);
   }
 
+  // --- the house's extras -----------------------------------------------------------------------
+
+  /** A casino prop walked up to (or, for the ones you can use from a seat, clicked from it). The
+   *  room has already checked the general reach (INTERACT_RADIUS); the finer ones are here. */
+  useProp(sessionId: string, prop: SlotProp) {
+    const p = this.state.players.get(sessionId);
+    if (!p || !this.open) return;
+    const event = (kind: CasinoPropEvent["kind"], extra: Partial<CasinoPropEvent> = {}) => ({ kind, propId: prop.propId, sessionId, seed: seed(), ...extra }) satisfies CasinoPropEvent;
+    switch (prop.kind) {
+      // the game tables: walking up to one opens its board (nothing ever opens by itself)
+      case "roulette":
+        this.host.sendTo(sessionId, "openPanel", { kind: "roulette", propId: prop.propId });
+        break;
+      case "blackjack":
+        if (blackjackTableNear(p.x, p.z, BLACKJACK_SLACK)) this.host.sendTo(sessionId, "openPanel", { kind: "blackjack", propId: prop.propId });
+        break;
+      // what you read, order and pull: their panels
+      case "gazette":
+        if (near(p, prop, GAZETTE_REACH + EXTRA_SLACK)) this.host.sendTo(sessionId, "openPanel", { kind: "gazette", propId: prop.propId });
+        break;
+      case "barmenu":
+        if (barDistance(p.x, p.z) <= BAR_REACH + EXTRA_SLACK) this.host.sendTo(sessionId, "openPanel", { kind: "barmenu", propId: prop.propId });
+        break;
+      case "gachapon":
+        if (near(p, GACHAPON_FRONT, MACHINE_REACH + EXTRA_SLACK)) this.host.sendTo(sessionId, "openPanel", { kind: "capsule", propId: prop.propId });
+        break;
+      case "fortune":
+        if (near(p, ZARA_FRONT, MACHINE_REACH + EXTRA_SLACK) && this.ready(sessionId, "fortune")) this.fortune(sessionId, p, event("fortune"));
+        break;
+      case "tipjar":
+        this.tip(sessionId, p, prop.propId === "tipjar_boris" ? "boris" : "vivienne", event);
+        break;
+      // the set dressing: everyone sees (and hears) the same roll, race, push, break and tune
+      case "craps":
+        if (this.ready(sessionId, "craps")) this.host.broadcast("casinoProp", event("craps", { dice: [die(), die()] }));
+        break;
+      case "derby": {
+        const now = Date.now();
+        if (now < this.raceUntil) return; // they're off already: watch this one
+        this.raceUntil = now + DERBY_RACE_MS + 1500;
+        this.host.broadcast("casinoProp", event("derby", { winner: Math.floor(Math.random() * DERBY_LANES) }));
+        break;
+      }
+      case "pusher":
+        if (this.ready(sessionId, "pusher")) this.host.broadcast("casinoProp", event("pusher"));
+        break;
+      case "billiards":
+        if (this.ready(sessionId, "billiards")) this.host.broadcast("casinoProp", event("billiards"));
+        break;
+      case "piano":
+        if (near(p, prop, PIANO_REACH + EXTRA_SLACK) && this.ready(sessionId, "piano")) this.host.broadcast("casinoProp", event("piano"));
+        break;
+      case "vipdoor":
+        // locked: Bruno sees to it (his word is for the one who tried the handle)
+        if (this.ready(sessionId, "vipdoor")) this.host.sendTo(sessionId, "casinoProp", event("vipdoor"));
+        break;
+    }
+  }
+
+  /** Madame Zara: one reading a day (the same one if you ask again), a lucky one with chips in it. */
+  private fortune(sessionId: string, p: Patron, ev: CasinoPropEvent) {
+    const profile = this.host.profile(sessionId);
+    if (!profile) return;
+    const day = todayKey();
+    const again = profile.fortuneDay === day && profile.fortune >= 0;
+    const index = again ? profile.fortune : fortuneFor(p.userId, day);
+    const reading = ZARA_FORTUNES[index];
+    let chips = 0;
+    if (!again) {
+      profile.fortuneDay = day;
+      profile.fortune = index;
+      if (reading.lucky) {
+        chips = FORTUNE_LUCKY_CHIPS;
+        this.addChips(p, chips);
+      }
+      this.host.persistNow(sessionId);
+    }
+    this.host.sendTo(sessionId, "fortuneResult", { text: reading.text, lucky: reading.lucky, chips, again } satisfies FortuneResult);
+    // the owl on the booth hoots and spreads its wings, for everyone
+    this.host.broadcast("casinoProp", ev);
+  }
+
+  /** A tip in a dealer's jar: from the spot in front of it (or a chair beside it). */
+  private tip(sessionId: string, p: Patron, dealer: TipDealer, event: (kind: CasinoPropEvent["kind"], extra?: Partial<CasinoPropEvent>) => CasinoPropEvent) {
+    const jar = TIP_JARS[dealer];
+    if (!near(p, jar, MACHINE_REACH + EXTRA_SLACK) && !near(p, jar.front, MACHINE_REACH)) return;
+    if (!this.ready(sessionId, "tipjar")) return;
+    if (p.chips < DEALER_TIP) return this.refuse(sessionId, "chips");
+    p.chips -= DEALER_TIP;
+    this.host.broadcast("casinoProp", event("tipjar", { dealer }));
+    this.host.broadcast("emote", { sessionId, emoji: "🪙" });
+  }
+
+  /** The capsule machine, Pippin's bar menu and the title you wear. */
+  packet(sessionId: string, packet: CasinoPacket) {
+    const p = this.state.players.get(sessionId);
+    if (!p || !packet || typeof packet !== "object") return;
+    if (packet.type === "EQUIP_TITLE") {
+      // a title is worn everywhere, once won: "" takes it off
+      const id = String(packet.id ?? "");
+      if (id === "") p.title = "";
+      else if (isCasinoTitle(id) && this.host.owns(sessionId, capsuleUnlock({ kind: "title", id }))) p.title = id;
+      else return;
+      this.host.persistNow(sessionId);
+      return;
+    }
+    if (!this.open) return;
+    if (packet.type === "CAPSULE_PULL") {
+      if (!near(p, GACHAPON_FRONT, MACHINE_REACH + EXTRA_SLACK)) return this.refuse(sessionId, "far");
+      if (p.chips < CAPSULE_COST) return this.refuse(sessionId, "chips");
+      p.chips -= CAPSULE_COST;
+      const prize = rollCapsule(Math.random());
+      const unlock = capsuleUnlock(prize);
+      const duplicate = this.host.owns(sessionId, unlock);
+      if (duplicate) this.addChips(p, CAPSULE_DUP_REFUND);
+      else this.host.grant(sessionId, unlock);
+      this.host.tally(sessionId, "capsule_pull");
+      this.host.persistNow(sessionId);
+      this.host.sendTo(sessionId, "capsuleResult", { prize, duplicate, refund: duplicate ? CAPSULE_DUP_REFUND : 0 } satisfies CapsuleResult);
+      if (!duplicate) this.host.broadcast("emote", { sessionId, emoji: prize.rarity === "legendary" ? "💰" : "✨" });
+    } else if (packet.type === "BAR_ORDER") {
+      if (!isCasinoDrink(packet.drink)) return;
+      if (barDistance(p.x, p.z) > BAR_REACH + EXTRA_SLACK) return this.refuse(sessionId, "far");
+      const drink = CASINO_DRINKS[packet.drink];
+      if (p.chips < drink.price) return this.refuse(sessionId, "chips");
+      p.chips -= drink.price;
+      this.host.aura(sessionId, drinkAura(packet.drink), drink.seconds);
+      this.host.broadcast("casinoProp", { kind: "barmenu", propId: "bar_menu", sessionId, seed: seed(), drink: packet.drink } satisfies CasinoPropEvent);
+    }
+  }
+
   // --- comings and goings ---------------------------------------------------------------------
 
   /** A player leaving the room: their bets on the wheel and an unfinished hand come back to them
@@ -361,6 +590,7 @@ export class CasinoFloor {
   release(sessionId: string) {
     this.refundBets(sessionId);
     this.abandonHand(sessionId);
+    for (const key of this.lastUse.keys()) if (key.startsWith(`${sessionId}:`)) this.lastUse.delete(key);
   }
 
   /** The room moving to another map: every stake on the wheel and every unfinished hand is handed
@@ -369,6 +599,7 @@ export class CasinoFloor {
     this.state.players.forEach((_p, sessionId) => this.release(sessionId));
     this.state.bets.clear();
     this.hands.clear();
+    this.raceUntil = 0;
     this.setPhase("betting");
   }
 

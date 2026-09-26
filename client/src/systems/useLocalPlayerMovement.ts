@@ -3,7 +3,8 @@ import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type { Group } from "three";
 import type { MapId, PlayerState } from "@shared/types";
-import { clampToWorld, isBlocked } from "@shared/collision";
+import { clampToWorld, isBlocked, walkY } from "@shared/collision";
+import { auraPace } from "@shared/casino";
 import { findPath, type Point } from "@shared/pathfinding";
 import { cameraFocus } from "../scene/cameraFocus";
 import { consumeStandPress, worldMoveDirection } from "./input";
@@ -102,6 +103,9 @@ export function useLocalPlayerMovement(
       return 1;
     }
   }, [player.fishing]);
+  // an espresso from the casino's bar: 20% quicker for a minute (the server allows for it)
+  const auraPaceRef = useRef(1);
+  auraPaceRef.current = auraPace(player.aura);
   const velocityRef = useRef(0);
   const facingRef = useRef(0);
   const sendTimerRef = useRef(0);
@@ -182,7 +186,7 @@ export function useLocalPlayerMovement(
       // held keys or the joystick take over from any click-to-move target
       if (steer && targetRef.current) targetRef.current = null;
       const target = targetRef.current;
-      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * gearPaceRef.current;
+      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * gearPaceRef.current * auraPaceRef.current;
       if (steer) {
         dirX = steer.x;
         dirZ = steer.z;
@@ -256,7 +260,8 @@ export function useLocalPlayerMovement(
     }
 
     speedRef.current = player.sitting ? 0 : Math.min(1, velocityRef.current / MOVE_SPEED);
-    seatYRef.current += ((player.sitting ? player.sitY : 0) - seatYRef.current) * SEAT_HEIGHT_LERP;
+    // seated, the seat's height; standing, the floor's (the casino's raised pit and lounge, their steps)
+    seatYRef.current += ((player.sitting ? player.sitY : walkY(mapId, pos.x, pos.z)) - seatYRef.current) * SEAT_HEIGHT_LERP;
     if (player.sitting) facingRef.current = player.sitRotationY;
     else if (dirX === 0 && dirZ === 0) {
       // standing still with something to face (the plant being watered): turn to it
@@ -275,6 +280,7 @@ export function useLocalPlayerMovement(
     cameraFocus.dirX = dirX;
     cameraFocus.dirZ = dirZ;
     cameraFocus.facing = facingRef.current;
+    cameraFocus.y = seatYRef.current;
     cameraFocus.hasTarget = true;
   });
 }

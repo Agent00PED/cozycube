@@ -2,6 +2,7 @@ import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject, 
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { cameraFocus } from "../scene/cameraFocus";
 import { GEO, noRaycast } from "../scene/kit";
@@ -18,16 +19,21 @@ import { ModelBoundary } from "./ModelBoundary";
 // Some also talk (`talk`): a line in a speech bubble over them, with a wave, when they are clicked,
 // when a room message they care about arrives (Jasper at a slot spin, Vivienne at the wheel's
 // number), or when you walk into their corner (Boris, at the pit). What they say is only yours: the
-// bubble shows on your screen.
+// bubble shows on your screen. And some bow (`bowOn`: a dealer thanked with a tip) or wave
+// (`waveOn`: Pippin serving a drink) when a message says so, for everyone.
 
 /** How near the local player comes before they look their way. */
 const NOTICE = 4.5;
 const WAVE_S = 1.8;
+/** A bow: forward from the feet and back up, this long, this far. */
+const BOW_S = 1.3;
+const BOW_ANGLE = 0.32;
 /** A room message sets them talking at most this often (a run of spins is not a run of lines). */
 const REACT_GAP_MS = 5000;
 /** A bubble's life (the chat bubble's own animation fades it over 4 s). */
 const BUBBLE_MS = 4000;
-const PAD = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+// the click pad is never drawn (no draw call), but it still takes the click
+const PAD = new THREE.MeshBasicMaterial({ visible: false });
 
 export interface NpcTalk {
   /** How high over their feet they stand (the bubble floats over it, the click pad reaches it). */
@@ -51,13 +57,18 @@ export interface CampNpcProps {
   standIn: ReactNode;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   talk?: NpcTalk;
+  /** A room message that makes them bow (a tip in their jar), for everyone. */
+  bowOn?: (type: string, payload: any) => boolean;
+  /** A room message that makes them wave (a drink served), besides `waveEvent`. */
+  waveOn?: (type: string, payload: any) => boolean;
 }
 
 const pick = (lines: string[]) => lines[Math.floor(Math.random() * lines.length)];
 
 export function CampNpc(props: CampNpcProps) {
-  const { talk, waveEvent, subscribeMessages } = props;
+  const { talk, waveEvent, subscribeMessages, bowOn, waveOn } = props;
   const waveAt = useRef(-99);
+  const bowAt = useRef(-99);
   const [bubble, setBubble] = useState<{ id: number; text: string } | null>(null);
   const bubbleId = useRef(0);
   const lastReact = useRef(0);
@@ -72,7 +83,8 @@ export function CampNpc(props: CampNpcProps) {
   useEffect(
     () =>
       subscribeMessages((type, payload) => {
-        if (type === waveEvent) waveAt.current = performance.now() / 1000;
+        if (type === waveEvent || waveOn?.(type, payload)) waveAt.current = performance.now() / 1000;
+        if (bowOn?.(type, payload)) bowAt.current = performance.now() / 1000;
         const react = talk?.on?.[type];
         if (!react || Date.now() - lastReact.current < REACT_GAP_MS) return;
         const line = react(payload);
@@ -80,7 +92,7 @@ export function CampNpc(props: CampNpcProps) {
         lastReact.current = Date.now();
         say.current(line);
       }),
-    [subscribeMessages, waveEvent, talk]
+    [subscribeMessages, waveEvent, talk, bowOn, waveOn]
   );
   // walking into their corner: a greeting, once per visit
   useFrame(() => {
@@ -102,7 +114,7 @@ export function CampNpc(props: CampNpcProps) {
     <group position={[props.at.x, props.y ?? 0, props.at.z]} rotation={[0, props.at.yaw, 0]}>
       <ModelBoundary what={props.what} fallback={props.standIn}>
         <Suspense fallback={props.standIn}>
-          <NpcModel {...props} waveAt={waveAt} />
+          <NpcModel {...props} waveAt={waveAt} bowAt={bowAt} />
         </Suspense>
       </ModelBoundary>
       {talk && clicked && <mesh geometry={GEO.box} material={PAD} position={[0, talk.height / 2, 0]} scale={[0.8, talk.height, 0.8]} onPointerDown={onPad} />}
@@ -117,7 +129,7 @@ export function CampNpc(props: CampNpcProps) {
   );
 }
 
-function NpcModel({ url, prefix, at, waveAt }: CampNpcProps & { waveAt: MutableRefObject<number> }) {
+function NpcModel({ url, prefix, at, waveAt, bowAt }: CampNpcProps & { waveAt: MutableRefObject<number>; bowAt: MutableRefObject<number> }) {
   const { scene } = useGLTF(url);
   const model = useMemo(() => scene.clone(true), [scene]);
   const parts = useMemo(() => {
@@ -125,15 +137,32 @@ function NpcModel({ url, prefix, at, waveAt }: CampNpcProps & { waveAt: MutableR
     model.traverse((o) => {
       o.raycast = noRaycast;
     });
+    // the left arm never moves on its own (it holds the rake, the lever, the shaker, the cards):
+    // fused into the body, it costs no draw call of its own
+    const body = get("Body") as THREE.Mesh | null;
+    const armL = get("ArmL") as THREE.Mesh | null;
+    if (body?.isMesh && armL?.isMesh && armL.parent === body && armL.material === body.material) {
+      armL.updateMatrix();
+      const merged = mergeGeometries([body.geometry, armL.geometry.clone().applyMatrix4(armL.matrix)]);
+      if (merged) {
+        body.geometry = merged;
+        armL.removeFromParent();
+      }
+    }
     const armR = get("ArmR");
-    return { body: get("Body"), head: get("Head"), armR, tail: get("Tail"), armRest: armR ? armR.rotation.clone() : new THREE.Euler() };
+    return { body, head: get("Head"), armR, tail: get("Tail"), armRest: armR ? armR.rotation.clone() : new THREE.Euler() };
   }, [model, prefix]);
   const look = useRef(0);
 
   useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
     const { body, head, armR, tail, armRest } = parts;
-    if (body) body.scale.set(1 + 0.01 * Math.sin(t * 2.1), 1 + 0.018 * Math.sin(t * 2.1 + 0.4), 1);
+    if (body) {
+      body.scale.set(1 + 0.01 * Math.sin(t * 2.1), 1 + 0.018 * Math.sin(t * 2.1 + 0.4), 1);
+      // a bow: forward from the feet (the body's origin) and slowly back up
+      const b = performance.now() / 1000 - bowAt.current;
+      body.rotation.x = b >= 0 && b < BOW_S ? BOW_ANGLE * Math.sin((Math.PI * b) / BOW_S) : 0;
+    }
     if (tail) tail.rotation.y = 0.35 * Math.sin(t * 1.7);
     // the head turns to you as you come near (relative to their own facing), and idly looks about
     if (head) {

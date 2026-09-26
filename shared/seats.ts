@@ -92,6 +92,7 @@ export const CUSHIONS = {
   clubChair: { y: 0.3, h: 0.12 }, // the jazz lounge's velvet club chairs -> 0.36
   ottoman: { y: 0.19, h: 0.38 }, // the foyer's round tufted ottoman -> 0.38
   pianoBench: { y: 0.36, h: 0.06 }, // the grand piano's bench -> 0.39
+  chesterfield: { y: 0.3, h: 0.12 }, // the lounge's tufted leather Chesterfield -> 0.36
   // --- anywhere ---
   ground: { y: 0.02, h: 0.04 }, // sitting cross-legged on the grass (the Sit emote) -> 0.04, hips at ~0.14
 } as const satisfies Record<string, Cushion>;

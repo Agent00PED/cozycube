@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ACTIVITY_STATUSES, CAMPFIRE_QUICK_CHATS, CHAT_MAX_CHARS, DAILY_REWARD, DAILY_TASKS, QUICK_CHATS, isActivityStatus, parseDaily, parseStats, type Gesture, type MapId, type PlayerState } from "@shared/types";
+import { CASINO_EMOTES, capsuleUnlock } from "@shared/casino";
 
 interface SideDrawerProps {
   players: Record<string, PlayerState>;
@@ -58,6 +59,9 @@ export function SideDrawer(props: SideDrawerProps) {
     .sort((a, b) => (a.sessionId === localSessionId ? -1 : b.sessionId === localSessionId ? 1 : a.username.localeCompare(b.username)));
   const me = localSessionId ? players[localSessionId] : null;
   const stats = parseStats(me?.stats);
+  // the emotes won from the casino's capsule machine
+  const owned = new Set((me?.owned ?? "").split(","));
+  const casinoEmotes = [...CASINO_EMOTES.values()].filter((p) => owned.has(capsuleUnlock(p)));
   const daily = parseDaily(me?.daily);
 
   const send = (line: string) => {
@@ -103,6 +107,19 @@ export function SideDrawer(props: SideDrawerProps) {
             })}
           </div>
         </section>
+
+        {casinoEmotes.length > 0 && (
+          <section className="shrink-0">
+            <h3 className="mb-2 text-xs font-bold uppercase tracking-widest opacity-60">Capsule emotes</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {casinoEmotes.map((p) => (
+                <button key={p.id} type="button" onClick={() => props.onEmote(p.emoji)} className="flex h-11 min-w-11 items-center justify-center rounded-2xl bg-white/10 px-2 text-2xl transition-transform hover:bg-white/15 active:scale-95" title={p.name} aria-label={p.name}>
+                  {p.emoji}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* quick chat */}
         <section className="shrink-0">

@@ -65,7 +65,8 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
       sitY: round(lie ? lie.y : seatAnchorY(CUSHIONS[s.cushion])),
     };
   }),
-  // the casino: stools, chairs, the ottoman and the piano bench, all drawn by casino.glb
+  // the casino: stools, chairs, the ottoman, the Chesterfield and the piano bench, all drawn by
+  // casino.glb; a seat on the pit or the lounge's dais sits that much higher
   velvet_casino: CASINO_SEATS.map((s) => ({
     propId: s.propId,
     x: round(s.x),
@@ -74,7 +75,7 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     style: s.style,
     approachX: round(s.approachX),
     approachZ: round(s.approachZ),
-    sitY: round(seatAnchorY(CUSHIONS[s.cushion])),
+    sitY: round(s.floor + seatAnchorY(CUSHIONS[s.cushion])),
   })),
   sunset_beach: [],
   boxing_ring: [],

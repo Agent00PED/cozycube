@@ -4,6 +4,7 @@ import { AMBIENCE_CHANNELS, getSoundSettings, subscribeSoundSettings, type Ambie
 import { cameraFocus } from "../scene/cameraFocus";
 import { CAMPFIRE_LAYOUT, RIVER_Z, riverSpan } from "@shared/worlds/campfire";
 import { CasinoJazz } from "./casinoJazz";
+import { CasinoCrowd } from "./casinoCrowd";
 
 // Each world's ambient soundscape, generated in the browser like the radio (no audio files: the
 // Activity's sandbox and licensing). The Starlight Campfire's is four layers on one master gain:
@@ -261,10 +262,12 @@ class CampfireAmbience {
 
 let campfire: CampfireAmbience | null = null;
 let jazz: CasinoJazz | null = null;
+let crowd: CasinoCrowd | null = null;
 
 /** Plays the world's ambience while you are in it: the Starlight Campfire's soundscape, the Velvet
- *  Casino's jazz (audio/casinoJazz.ts). Travelling cross-fades them: the one you leave fades out as
- *  the one you arrive at fades in. `fuel` is the Campfire's bonfire (its crackle follows it). */
+ *  Casino's jazz and its crowd (audio/casinoJazz.ts, audio/casinoCrowd.ts). Travelling cross-fades
+ *  them: the one you leave fades out as the one you arrive at fades in. `fuel` is the Campfire's
+ *  bonfire (its crackle follows it). */
 export function useWorldAmbience(mapId: MapId | null, fuel = 60) {
   useEffect(() => {
     campfire ??= new CampfireAmbience();
@@ -273,15 +276,20 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60) {
   useEffect(() => {
     campfire ??= new CampfireAmbience();
     campfire.setActive(mapId === "campfire_night");
-    // the casino's band starts only once someone has gone there
-    if (mapId === "velvet_casino") jazz ??= new CasinoJazz();
+    // the casino's band and crowd start only once someone has gone there
+    if (mapId === "velvet_casino") {
+      jazz ??= new CasinoJazz();
+      crowd ??= new CasinoCrowd();
+    }
     jazz?.setActive(mapId === "velvet_casino");
+    crowd?.setActive(mapId === "velvet_casino");
   }, [mapId]);
   useEffect(
     () =>
       subscribeSoundSettings(() => {
         campfire?.refreshVolume();
         jazz?.refreshVolume();
+        crowd?.refreshVolume();
       }),
     []
   );
@@ -289,6 +297,7 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60) {
     () => () => {
       campfire?.setActive(false);
       jazz?.setActive(false);
+      crowd?.setActive(false);
     },
     []
   );

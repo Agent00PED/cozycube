@@ -22,7 +22,7 @@ import type {
   ToggleableKind,
   ToggleableSyncState,
 } from "@shared/types";
-import { type BlackjackAction, type RoulettePhase, type RouletteSyncState } from "@shared/casino";
+import { type BlackjackAction, type CasinoPacket, type RoulettePhase, type RouletteSyncState } from "@shared/casino";
 
 import { parsePicnic, parseStew, FUEL_START, type PicnicPlate, type StewState } from "@shared/bonfire";
 
@@ -101,6 +101,14 @@ const RELAYED_MESSAGES = [
   // the casino: Mr. Vance's answer at the cage (an exchange, or why not), and his wave as it opens
   "cashierResult",
   "vanceWave",
+  // the casino's extras: a roll, a race, a push, a break, a tune, a tip, a drink, the owl's hoot
+  // (casinoProp); Madame Zara's reading and the capsule machine's prize (for the one who asked); a
+  // win for the marquee and the hall's celebration (casinoWin); why an extra was refused
+  "casinoProp",
+  "fortuneResult",
+  "capsuleResult",
+  "casinoWin",
+  "casinoNotice",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
@@ -203,6 +211,8 @@ interface UseColyseusRoomResult {
   placeBet: (kind: string, amount: number) => void;
   /** Mr. Vance's cage: coins into Velvet Chips, and chips back into coins (1:1; "all" of the balance). */
   buyChips: (amount: number | "all") => void;
+  /** The casino's capsule machine, the title you wear, and Pippin's bar menu (CasinoPacket). */
+  casinoSend: (packet: CasinoPacket) => void;
   cashOut: (amount: number | "all") => void;
   clearBets: () => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
@@ -509,6 +519,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             boxHits: player.boxHits ?? 0,
             boxKOs: player.boxKOs ?? 0,
             aura: player.aura ?? "",
+            title: player.title ?? "",
             daily: player.daily ?? "",
             fishing: player.fishing ?? "",
             fed: player.fed ?? 0,
@@ -734,6 +745,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     placeBet: (kind, amount) => send("placeBet", { kind, amount }),
     buyChips: (amount) => send("buyChips", { amount }),
     cashOut: (amount) => send("cashOut", { amount }),
+    casinoSend: (packet) => send("casino", packet),
     clearBets: () => send("clearBets"),
     subscribeMessages,
     setColor: (color) => send("setColor", { color }),

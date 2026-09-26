@@ -1,5 +1,6 @@
-"""The Velvet Casino's staff and regulars (Phase 1b): builds boris.glb, vivienne.glb, jasper.glb and
-pippin.glb in client/public/models/.
+"""The Velvet Casino's staff, regulars and crowd: builds boris.glb, vivienne.glb, jasper.glb,
+pippin.glb, bruno.glb and patrons.glb in client/public/models/ (ONLY, a list of those names set in
+the namespace, builds just those).
 
 Run it inside Blender through the Live Bridge (POST {"code": ...}; queued, nothing comes back, and
 it execs with separate globals and locals, so run this file inside a namespace of its own with
@@ -29,6 +30,16 @@ it), with the nodes entities/CampNpc.tsx animates:
                 velvet stool at his gold slot machine, a paw on its lever, his tail curled up
     Pippin      a penguin mixologist (a burgundy bow tie), flippers on the bar, a shaker in one,
                 a cocktail with a cherry on the counter in front of him
+    Bruno       a bulldog bouncer in a black suit and dark glasses, an earpiece coiled to his
+                collar, arms folded, beside the VIP room's doors
+
+The crowd (patrons.glb) is three archetypes the game instances by the dozen: an evening-gowned
+rabbit, a raccoon in a tailored suit and a dapper badger in a waistcoat and bowler. Each is two
+nodes at the origin, facing +z, feet on the floor, and no rig (the game moves them whole):
+
+    Patron_<Kind>_Fur      the animal, and what keeps its own colour (pearls, a collar, a bow tie)
+    Patron_<Kind>_Outfit   the clothes, painted in pale greys: the game tints each patron's own
+                           (a gown in ruby or sapphire, a suit in navy, a waistcoat in tweed)
 
 Coordinates: the game's (x, y up, z) is Blender's (x, -z, y); `W` converts.
 """
@@ -84,6 +95,24 @@ PALETTE = {
     "Glass": "#E6EFEF",
     "Drink": "#D9873A",
     "Cherry": "#C2263A",
+    # Bruno
+    "Fawn": "#C99A6B",
+    "FawnWhite": "#F2E8DA",
+    "FawnDark": "#8A5E3C",
+    "FawnShade": "#A87C52",
+    "Suit": "#1B1B22",
+    "SuitShade": "#26262F",
+    "Mouth": "#5A2A2A",
+    "Tooth": "#FBF8F0",
+    "Coil": "#D8D8D8",
+    # the crowd: fur in its own colours, clothes in pale greys (the game tints them)
+    "PatFurWhite": "#F1EFEA",
+    "PatFurGrey": "#9A9690",
+    "PatFurDark": "#2A2728",
+    "PatPink": "#E7B3B3",
+    "PatCloth": "#E6E6E6",
+    "PatClothShade": "#BDBDBD",
+    "PatClothLight": "#FAFAFA",
 }
 
 
@@ -556,6 +585,154 @@ def build_pippin(L):
 
 
 # ---------------------------------------------------------------------------------------------
+# Bruno: the bulldog bouncer by the VIP doors (the game stands him on the pit, facing +x). He stands
+# square, arms folded; he unfolds the right one to wave.
+
+
+def build_bruno(L):
+    coll, root = rig("Bruno")
+    B = Part()
+    for sx in (-1, 1):
+        cylinder(B, (sx * 0.12, 0.36, 0.0), (sx * 0.13, 0.08, 0.02), 0.09, "Suit", r_end=0.08)
+        blob(B, sx * 0.13, 0.045, 0.07, 0.09, 0.045, 0.14, "Black", bottom=0.0)
+    blob(B, 0.0, 0.57, 0.0, 0.31, 0.3, 0.26, "Suit", cuts=4)
+    blob(B, 0.0, 0.37, 0.0, 0.29, 0.1, 0.24, "Suit", top=0.44)
+    blob(B, 0.0, 0.68, 0.17, 0.09, 0.12, 0.09, "TuxShirt")  # the shirt in the jacket's V
+    cylinder(B, (0.0, 0.76, 0.255), (0.0, 0.56, 0.27), 0.022, "Black", sides=6, r_end=0.035)  # the tie
+    for sx in (-1, 1):
+        cylinder(B, (sx * 0.08, 0.78, 0.2), (sx * 0.14, 0.52, 0.22), 0.03, "SuitShade", sides=6)  # lapels
+    for k, y in enumerate((0.48, 0.4)):
+        blob(B, 0.0, y, 0.265 - k * 0.01, 0.016, 0.016, 0.008, "Black", cuts=1)
+    blob(B, 0.0, 0.8, 0.1, 0.16, 0.06, 0.14, "FawnWhite")  # the chest ruff at the collar
+    body = node("Bruno_Body", B, coll, root)
+
+    H = Part()
+    neck = (0.0, 0.8, 0.0)
+    blob(H, 0.0, 0.99, 0.0, 0.3, 0.19, 0.22, "Fawn", cuts=4, n=2.6)
+    blob(H, 0.0, 0.92, 0.15, 0.22, 0.1, 0.1, "FawnWhite", n=2.6)
+    for sx in (-1, 1):
+        blob(H, sx * 0.14, 0.88, 0.15, 0.11, 0.09, 0.09, "FawnWhite")  # jowls
+        blob(H, sx * 0.085, 1.04, 0.2, 0.07, 0.042, 0.02, "Black", cuts=2)  # dark glasses
+        blob(H, sx * 0.27, 1.1, -0.02, 0.06, 0.03, 0.07, "FawnDark", cuts=2, tilt=0.4)  # rose ears, folded
+        blob(H, sx * 0.3, 1.06, 0.02, 0.03, 0.05, 0.05, "FawnDark", cuts=1)
+    cylinder(H, (-0.03, 1.062, 0.218), (0.03, 1.062, 0.218), 0.008, "Brass", sides=5)
+    blob(H, 0.0, 0.99, 0.255, 0.055, 0.036, 0.03, "Nose", cuts=2)
+    blob(H, 0.0, 0.85, 0.2, 0.1, 0.035, 0.065, "Mouth")  # the underbite
+    for sx in (-1, 1):
+        blob(H, sx * 0.05, 0.878, 0.25, 0.012, 0.018, 0.01, "Tooth", cuts=1)
+    for k in range(3):
+        blob(H, 0.0, 1.12 + k * 0.025, 0.17 - k * 0.025, 0.1 - k * 0.015, 0.008, 0.02, "FawnShade", cuts=1)  # his brow
+    cylinder(H, (-0.24, 1.02, 0.02), (-0.2, 0.84, -0.07), 0.008, "Coil", sides=5)  # the earpiece
+    node("Bruno_Head", H, coll, body, neck)
+
+    for sx, name in ((-1, "Bruno_ArmR"), (1, "Bruno_ArmL")):
+        A = Part()
+        shoulder = (sx * 0.3, 0.72, 0.02)
+        elbow = (sx * 0.31, 0.52, 0.2)
+        paw = (-sx * 0.15, 0.6 + (0.03 if sx > 0 else 0.0), 0.29 + (0.04 if sx > 0 else 0.0))
+        arm(A, shoulder, elbow, paw, "Suit", "Suit", r=0.08, paw_size=0.065, paw_colour="Fawn")
+        blob(A, lerp(elbow, paw, 0.82)[0], lerp(elbow, paw, 0.82)[1], lerp(elbow, paw, 0.82)[2], 0.06, 0.06, 0.06, "TuxShirt", cuts=1)  # a cuff
+        node(name, A, coll, body, shoulder)
+
+    T = Part()
+    blob(T, 0.0, 0.34, -0.27, 0.06, 0.05, 0.05, "Fawn")
+    node("Bruno_Tail", T, coll, body, (0.0, 0.34, -0.23))
+    return coll
+
+
+# ---------------------------------------------------------------------------------------------
+# the crowd: three archetypes, two nodes each (the animal; the clothes to tint)
+
+
+def build_patrons():
+    purge("Patrons")
+    coll = bpy.data.collections.new("Patrons")
+    bpy.context.scene.collection.children.link(coll)
+
+    # an evening-gowned rabbit: a floor-length gown, opera gloves, a clutch; pearls, tall ears
+    F, O = Part(), Part()
+    lathe(O, 0.0, 0.0, [(0, 0), (0.25, 0), (0.23, 0.08), (0.17, 0.35), (0.13, 0.52), (0, 0.52)], "PatCloth", segs=16)
+    blob(O, 0.0, 0.64, 0.0, 0.14, 0.15, 0.12, "PatCloth", cuts=3)
+    blob(O, 0.0, 0.53, 0.0, 0.145, 0.03, 0.125, "PatClothShade", cuts=2)  # the sash
+    blob(F, 0.0, 0.79, 0.0, 0.11, 0.06, 0.09, "PatFurWhite", cuts=2)  # bare shoulders
+    for sx in (-1, 1):
+        cylinder(F, (sx * 0.13, 0.76, 0.0), (sx * 0.17, 0.62, 0.03), 0.035, "PatFurWhite", sides=6)
+        cylinder(O, (sx * 0.17, 0.62, 0.03), (sx * 0.13, 0.48, 0.08), 0.033, "PatClothLight", sides=6)  # gloves
+        blob(O, sx * 0.13, 0.46, 0.09, 0.035, 0.03, 0.035, "PatClothLight", cuts=1)
+    box(O, 0.09, 0.19, 0.44, 0.5, 0.08, 0.13, "PatClothShade")  # the clutch
+    for k in range(9):
+        a = math.radians(-80 + 20 * k)
+        blob(F, 0.09 * math.sin(a), 0.8 - 0.02 * math.cos(a) ** 2, 0.02 + 0.08 * math.cos(a), 0.012, 0.012, 0.012, "Pearl", cuts=1)
+    blob(F, 0.0, 0.96, 0.01, 0.15, 0.14, 0.14, "PatFurWhite", cuts=3)
+    blob(F, 0.0, 0.92, 0.11, 0.07, 0.05, 0.05, "PatFurWhite", cuts=2)
+    blob(F, 0.0, 0.94, 0.16, 0.02, 0.014, 0.012, "PatPink", cuts=1)
+    eyes(F, 0.055, 0.99, 0.12, 0.018, 0.024)
+    for sx in (-1, 1):
+        blob(F, sx * 0.06, 1.2, -0.01, 0.045, 0.16, 0.035, "PatFurWhite", cuts=2)
+        blob(F, sx * 0.06, 1.2, 0.015, 0.025, 0.12, 0.012, "PatPink", cuts=1)
+    blob(F, 0.0, 0.28, -0.22, 0.06, 0.06, 0.06, "PatFurWhite", cuts=1)  # the tail peeks out of the gown
+    node("Patron_Rabbit_Fur", F, coll)
+    node("Patron_Rabbit_Outfit", O, coll)
+
+    # a raccoon in a tailored suit: the mask, the ringed tail, a white collar
+    F, O = Part(), Part()
+    for sx in (-1, 1):
+        cylinder(O, (sx * 0.08, 0.4, 0.0), (sx * 0.085, 0.06, 0.01), 0.055, "PatCloth", r_end=0.05)
+        blob(F, sx * 0.085, 0.035, 0.05, 0.06, 0.035, 0.09, "PatFurDark", bottom=0.0, cuts=1)
+    blob(O, 0.0, 0.58, 0.0, 0.18, 0.22, 0.15, "PatCloth", cuts=3)  # the jacket
+    blob(O, 0.0, 0.4, 0.0, 0.17, 0.07, 0.14, "PatClothShade", cuts=2)
+    blob(F, 0.0, 0.66, 0.12, 0.06, 0.1, 0.05, "PatFurWhite", cuts=1)  # the shirt front
+    cylinder(O, (0.0, 0.75, 0.165), (0.0, 0.56, 0.17), 0.016, "PatClothShade", sides=5, r_end=0.025)  # the tie
+    for sx in (-1, 1):
+        cylinder(O, (sx * 0.18, 0.72, 0.0), (sx * 0.2, 0.5, 0.05), 0.05, "PatCloth", sides=7)
+        blob(F, sx * 0.2, 0.47, 0.06, 0.04, 0.035, 0.04, "PatFurDark", cuts=1)
+    blob(F, 0.0, 0.93, 0.0, 0.16, 0.14, 0.14, "PatFurGrey", cuts=3)
+    blob(F, 0.0, 0.94, 0.11, 0.13, 0.04, 0.05, "PatFurDark", cuts=2)  # the mask
+    blob(F, 0.0, 0.87, 0.12, 0.07, 0.045, 0.06, "PatFurWhite", cuts=2)
+    blob(F, 0.0, 0.88, 0.18, 0.02, 0.015, 0.012, "Nose", cuts=1)
+    eyes(F, 0.055, 0.95, 0.155, 0.016, 0.02)
+    for sx in (-1, 1):
+        blob(F, sx * 0.11, 1.07, -0.01, 0.045, 0.05, 0.03, "PatFurGrey", cuts=1)
+        blob(F, sx * 0.11, 1.07, 0.01, 0.025, 0.03, 0.01, "PatFurWhite", cuts=1)
+    pts = [(0.0, 0.3, -0.12), (0.05, 0.22, -0.26), (0.12, 0.2, -0.38), (0.18, 0.26, -0.47)]
+    for k, (a, b) in enumerate(zip(pts, pts[1:])):
+        cylinder(F, a, b, 0.06, "PatFurDark" if k % 2 else "PatFurGrey", sides=8, r_end=0.055)
+        blob(F, b[0], b[1], b[2], 0.058, 0.058, 0.058, "PatFurGrey" if k % 2 else "PatFurDark", cuts=1)
+    node("Patron_Raccoon_Fur", F, coll)
+    node("Patron_Raccoon_Outfit", O, coll)
+
+    # a dapper badger: a waistcoat, a bowler, a bow tie and a watch chain
+    F, O = Part(), Part()
+    for sx in (-1, 1):
+        cylinder(O, (sx * 0.09, 0.38, 0.0), (sx * 0.095, 0.06, 0.01), 0.06, "PatClothShade", r_end=0.055)
+        blob(F, sx * 0.095, 0.035, 0.05, 0.065, 0.035, 0.09, "PatFurDark", bottom=0.0, cuts=1)
+    blob(F, 0.0, 0.55, 0.0, 0.185, 0.22, 0.155, "PatFurGrey", cuts=3)
+    blob(O, 0.0, 0.53, 0.005, 0.205, 0.2, 0.175, "PatCloth", cuts=3, top=0.68, bottom=0.36)  # the waistcoat
+    blob(F, 0.0, 0.66, 0.13, 0.07, 0.08, 0.05, "PatFurWhite", cuts=1)  # the shirt
+    for sx in (-1, 1):
+        blob(F, sx * 0.045, 0.72, 0.17, 0.04, 0.025, 0.02, "BowRed", cuts=1)
+    blob(F, 0.0, 0.72, 0.185, 0.018, 0.02, 0.014, "BowRed", cuts=1)
+    cylinder(F, (-0.06, 0.52, 0.18), (0.07, 0.48, 0.18), 0.006, "Brass", sides=4)  # the watch chain
+    for k in range(3):
+        blob(O, 0.0, 0.6 - k * 0.07, 0.185, 0.012, 0.012, 0.008, "PatClothShade", cuts=1)
+    for sx in (-1, 1):
+        cylinder(F, (sx * 0.2, 0.68, 0.0), (sx * 0.22, 0.47, 0.05), 0.05, "PatFurGrey", sides=7)
+        blob(F, sx * 0.22, 0.44, 0.06, 0.04, 0.035, 0.04, "PatFurDark", cuts=1)
+    blob(F, 0.0, 0.9, 0.0, 0.16, 0.14, 0.15, "PatFurWhite", cuts=3)
+    for sx in (-1, 1):
+        blob(F, sx * 0.07, 0.95, 0.06, 0.04, 0.12, 0.1, "PatFurDark", cuts=2)  # the black stripes
+        blob(F, sx * 0.12, 1.02, -0.03, 0.035, 0.03, 0.025, "PatFurDark", cuts=1)
+    blob(F, 0.0, 0.85, 0.15, 0.022, 0.016, 0.012, "Nose", cuts=1)
+    eyes(F, 0.07, 0.93, 0.13, 0.014, 0.018, glint=False)
+    lathe(O, 0.0, 0.0, [(0, 1.0), (0.155, 1.0), (0.16, 1.015), (0.115, 1.03), (0.115, 1.1), (0.095, 1.15), (0.05, 1.175), (0, 1.18)], "PatClothShade", segs=16)  # the bowler
+    lathe(O, 0.0, 0.0, [(0, 1.03), (0.118, 1.03), (0.118, 1.05), (0, 1.05)], "PatClothLight", segs=16)
+    blob(F, 0.0, 0.3, -0.2, 0.05, 0.04, 0.05, "PatFurGrey", cuts=1)
+    node("Patron_Badger_Fur", F, coll)
+    node("Patron_Badger_Outfit", O, coll)
+    return coll
+
+
+# ---------------------------------------------------------------------------------------------
 
 
 def read_cushions(root):
@@ -602,7 +779,10 @@ def main():
         L = read_layout(root)
         cushions = read_cushions(root)
         result = {"ok": True}
-        for name, make in (("boris", lambda: build_boris(L)), ("vivienne", lambda: build_vivienne(L)), ("jasper", lambda: build_jasper(L, cushions)), ("pippin", lambda: build_pippin(L))):
+        only = globals().get("ONLY")
+        for name, make in (("boris", lambda: build_boris(L)), ("vivienne", lambda: build_vivienne(L)), ("jasper", lambda: build_jasper(L, cushions)), ("pippin", lambda: build_pippin(L)), ("bruno", lambda: build_bruno(L)), ("patrons", build_patrons)):
+            if only and name not in only:
+                continue
             coll = make()
             bpy.context.view_layer.update()
             out = os.path.join(root, "client", "public", "models", f"{name}.glb")

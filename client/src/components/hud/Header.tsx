@@ -7,6 +7,7 @@ import { useAnglerProfile } from "./anglerStore";
 import { CreelPopover } from "./CreelPopover";
 import { carrierLoad } from "@shared/fishing";
 import { carrierCapacity } from "@shared/chop";
+import { setCameraMode, useCameraMode } from "../../scene/cameraFocus";
 
 /** Each map's icon, name and tagline, from the world table (shared/worlds). */
 export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: string }> = Object.fromEntries(
@@ -84,7 +85,15 @@ export function Header(p: HeaderProps) {
   const time = starlit ? { icon: "🌙", name: "Starlight" } : timeLabel(p.timeOfDay);
   const st = isActivityStatus(p.status) ? ACTIVITY_STATUSES[p.status] : null;
   const map = MAP_LABELS[p.currentMap];
+  // the camera: locked on you (follow), or free to pan with a right- or middle-drag
+  const camera = useCameraMode();
   const actions: { icon: string; label: string; title?: string; onClick: () => void; active?: boolean }[] = [
+    {
+      icon: camera === "follow" ? "🎯" : "🖐️",
+      label: camera === "follow" ? "Camera: Follow" : "Camera: Free Pan",
+      title: camera === "follow" ? "Camera: following you (tap for Free Pan: right- or middle-drag to look round)" : "Camera: Free Pan, right- or middle-drag to look round (tap to follow you again)",
+      onClick: () => setCameraMode(camera === "follow" ? "free_pan" : "follow"),
+    },
     { icon: "👗", label: "Wardrobe", onClick: p.onOpenWardrobe },
     { icon: "🏆", label: "High Rollers", onClick: p.onOpenLeaderboard },
     { icon: "⚙️", label: "Settings", onClick: p.onOpenSettings },
@@ -174,7 +183,7 @@ export function Header(p: HeaderProps) {
         </div>
 
 
-        <div className="hidden items-center gap-2 sm:flex" role="toolbar" aria-label="Wardrobe, High Rollers, settings and social">
+        <div className="hidden items-center gap-2 sm:flex" role="toolbar" aria-label="Camera, wardrobe, High Rollers, settings and social">
           {actions.map((a) => (
             <button key={a.label} type="button" onClick={() => a.onClick()} className={`${ICON_PILL} ${a.active ? "bg-stone-600/90" : ""}`} title={a.title ?? a.label} aria-label={a.title ?? a.label} aria-pressed={a.active}>
               <span className={ICON}>{a.icon}</span>

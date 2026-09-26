@@ -6,7 +6,8 @@ import type { HearthState } from "../../hooks/useColyseusRoom";
 import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, spotOfSeat } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
-import { CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, ROULETTE_BET_RADIUS, ROULETTE_CENTER, blackjackTableNear } from "@shared/worlds/casino";
+import { BAR_REACH, CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, GACHAPON_FRONT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, ROULETTE_BET_RADIUS, ROULETTE_CENTER, TIP_JARS, ZARA_FRONT, barDistance, blackjackTableNear } from "@shared/worlds/casino";
+import { CAPSULE_COST, DEALER_TIP } from "@shared/casino";
 import { pushToast } from "./toastStore";
 import { cameraFocus } from "../../scene/cameraFocus";
 import { interactBridge } from "../../scene/interactBridge";
@@ -42,6 +43,15 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🎰 Play Slots]  at a slot machine in Neon Alley (the nearest one)
 //   [🎡 Roulette]   within betting reach of the roulette table: (re)opens the betting board
 //   [🃏 Blackjack]  at a blackjack table, standing or on one of its stools
+//   [🔮 Madame Zara]  at her booth: today's fortune (the owl hoots)
+//   [🎁 Capsule Machine]  at the capsule machine: titles and emotes, for chips
+//   [🪙 Tip 5 Chips]  at a dealer's tip jar (or a chair beside Boris's): they bow, the jar sparkles
+//   [🍸 Bar Menu]   at the bar, standing or on a stool: Pippin's drinks
+//   [📰 Read the Gazette]  by the coffee table, or on the Chesterfield
+//   [🎹 Play Piano] on the baby grand's bench, or beside it: an arpeggio the lounge hears
+//   [🎲 Roll Dice] / [🏇 Start a Race] / [🪙 Push a Coin] / [🎱 Break the Rack]  at the craps table,
+//                    the Turf Club, the coin pusher and the billiards table: just for fun
+//   [🚪 VIP Room]   at the VIP room's doors (Bruno has something to say)
 //   [🚪 Leave Casino]  at the exit doors: the world drawer
 //   [🧍 Stand up · Space]  while you are sitting, always (a panel closed, a reconnect: never stuck);
 //                    Space or any movement key does the same
@@ -51,7 +61,42 @@ import { glass, hudText, pillButton } from "./glass";
 
 interface Action {
   key: string;
-  type: "sit" | "pet" | "board" | "brew" | "radio" | "water" | "roast" | "fuel" | "stew" | "picnic" | "afk" | "barnaby" | "buster" | "workbench" | "fish" | "guitar" | "stargaze" | "chop" | "forage" | "fireflies" | "critter" | "cashier" | "slots" | "roulette" | "blackjack" | "exit" | "stand";
+  type:
+    | "sit"
+    | "pet"
+    | "board"
+    | "brew"
+    | "radio"
+    | "water"
+    | "roast"
+    | "fuel"
+    | "stew"
+    | "picnic"
+    | "afk"
+    | "barnaby"
+    | "buster"
+    | "workbench"
+    | "fish"
+    | "guitar"
+    | "stargaze"
+    | "chop"
+    | "forage"
+    | "fireflies"
+    | "critter"
+    | "cashier"
+    | "slots"
+    | "roulette"
+    | "blackjack"
+    | "fortune"
+    | "capsule"
+    | "tip"
+    | "bar"
+    | "gazette"
+    | "piano"
+    | "fun"
+    | "vip"
+    | "exit"
+    | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
   hint?: string;
@@ -208,7 +253,44 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
             const id = doors.propId;
             found.push({ key: `exit:${id}`, type: "exit", label: "🚪 Leave Casino", hint: "Back to the Lounge, or anywhere else", run: () => interactBridge.current?.useProp(id) });
           }
+          const kindNear = (kind: string, within: number) => {
+            let best: { p: ToggleableSyncState; d: number } | null = null;
+            for (const p of Object.values(toggleables)) {
+              if (p.kind !== kind) continue;
+              const d = reach(p);
+              if (d <= within && (!best || d < best.d)) best = { p, d };
+            }
+            return best?.p ?? null;
+          };
+          const use = (p: ToggleableSyncState) => () => interactBridge.current?.useProp(p.propId);
+          const zara = kindNear("fortune", MACHINE_REACH);
+          if (zara && Math.hypot(ZARA_FRONT.x - px, ZARA_FRONT.z - pz) <= MACHINE_REACH + 0.4) found.push({ key: "fortune", type: "fortune", label: "🔮 Madame Zara", hint: "Today's fortune (a lucky one brings a few chips)", run: use(zara) });
+          const capsule = kindNear("gachapon", 1.5);
+          if (capsule && Math.hypot(GACHAPON_FRONT.x - px, GACHAPON_FRONT.z - pz) <= MACHINE_REACH) found.push({ key: "capsule", type: "capsule", label: "🎁 Capsule Machine", hint: `A title or an emote for ${CAPSULE_COST} chips`, run: use(capsule) });
+          const fun: [string, string, string, number][] = [
+            ["craps", "🎲 Roll Dice", "Roll the craps dice for everyone to see (just for fun)", 1.4],
+            ["derby", "🏇 Start a Race", "Five tin horses race the Turf Club's lanes (just for fun)", 1.3],
+            ["pusher", "🪙 Push a Coin", "Drop a coin in the pusher and watch it shove (just for fun)", 1.3],
+            ["billiards", "🎱 Break the Rack", "A crack of the cue ball into the rack (just for fun)", 1.4],
+            ["vipdoor", "🚪 VIP Room", "The VIP room's doors (Bruno is watching)", 1.3],
+          ];
+          for (const [kind, label, hint, within] of fun) {
+            const p = kindNear(kind, within);
+            if (p) found.push({ key: `${kind}:${p.propId}`, type: kind === "vipdoor" ? "vip" : "fun", label, hint, run: use(p) });
+          }
         }
+        // what you can use standing or from a seat within reach: the tip jars, the bar, the paper, the piano
+        for (const [dealer, jar] of Object.entries(TIP_JARS)) {
+          const near = sitting ? Math.hypot(jar.x - px, jar.z - pz) <= MACHINE_REACH : Math.min(Math.hypot(jar.front.x - px, jar.front.z - pz), Math.hypot(jar.x - px, jar.z - pz)) <= MACHINE_REACH - 0.2;
+          const prop = toggleables[`tipjar_${dealer}`];
+          if (near && prop) found.push({ key: `tip:${dealer}`, type: "tip", label: `🪙 Tip ${DEALER_TIP} Chips`, hint: `A tip for ${dealer === "boris" ? "Boris" : "Madame Vivienne"}: a bow and a sparkle`, run: () => interactBridge.current?.useProp(prop.propId) });
+        }
+        const menu = toggleables.bar_menu;
+        if (menu && barDistance(px, pz) <= BAR_REACH) found.push({ key: "bar", type: "bar", label: "🍸 Bar Menu", hint: "Pippin's drinks: a Velvet Fizz, a Lucky Martini, an Espresso", run: () => interactBridge.current?.useProp(menu.propId) });
+        const paper = toggleables.velvet_gazette;
+        if (paper && Math.hypot(paper.x - px, paper.z - pz) <= GAZETTE_REACH) found.push({ key: "gazette", type: "gazette", label: "📰 Read the Gazette", hint: "The Velvet Gazette: tonight's big wins and the house's gossip", run: () => interactBridge.current?.useProp(paper.propId) });
+        const keys = toggleables.piano_keys;
+        if (keys && Math.hypot(keys.x - px, keys.z - pz) <= PIANO_REACH) found.push({ key: "piano", type: "piano", label: "🎹 Play Piano", hint: "A little arpeggio on the baby grand (the lounge hears it)", run: () => interactBridge.current?.useProp(keys.propId) });
         // blackjack is played standing at a table or from one of its stools
         const table = blackjackTableNear(px, pz);
         if (table) found.push({ key: `blackjack:${table.id}`, type: "blackjack", label: "🃏 Blackjack", hint: "Deal in for 10 to 100 chips: dealer stands on 17, blackjack pays 3:2", run: () => window.dispatchEvent(new CustomEvent("cozy-open-blackjack")) });

@@ -2,17 +2,19 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { WALL_HEIGHT } from "@shared/worlds/lounge";
-import { cameraFocus, cameraView, frame } from "./cameraFocus";
+import { cameraFocus, cameraSettings, cameraView, frame } from "./cameraFocus";
 
-// The isometric camera. Orthographic, looking along (1, 1, 1), with its zoom fitted so the 15x15
-// loft (floor, walls and the slab under it) fills the viewport, then nudged a little closer.
+// The isometric camera. Orthographic, looking along (1, 1, 1), with its zoom fitted to the world's
+// floor (the lounge's 15x15 loft, walls and slab fill the viewport), then nudged a little closer.
+// Two modes (cameraFocus.ts, a setting kept in this browser; the HUD's top bar switches it):
 //
-//   follow    by default the camera glides toward the local player, but only part of the way
-//             (FOLLOW): the room never slides far off-screen, it just leans toward you
-//   free look right-drag or middle-drag (or a two-finger drag) pans the camera anywhere over the room
-//   snap back the moment the player moves (a click-to-move, WASD, the joystick) the camera eases
-//             back onto them
-//   zoom      the wheel or a pinch, around the fit
+//   follow    (the default) locked on the local player: the camera glides after you (a damped
+//             lerp, FOLLOW_DAMPING a frame), all the way to every edge of the room, never leaving
+//             you off-centre. Big worlds are framed closer (FOLLOW_SPAN units across), so the
+//             player stays the size they are in the lounge; the wheel or a pinch zooms round you
+//   free_pan  the classic view: the camera leans toward you, part of the way (FOLLOW); a right- or
+//             middle-drag (or a two-finger drag) pans it anywhere over the room, and the moment you
+//             move (a click-to-move, WASD, the joystick) it eases back
 
 const ISO_ANGLE = Math.atan(1 / Math.sqrt(2)); // ~35.264 deg
 /** Orthographic, so this only has to keep the whole room in front of the near plane. */
@@ -24,9 +26,15 @@ const DEFAULT_ZOOM = 1.04;
 const ZOOM_MIN = 0.7; // x the fitted zoom
 const ZOOM_MAX = 5;
 const ZOOM_LERP = 0.18;
-/** How much of the way to the player the camera leans while following (1 = locked on). */
+/** Free pan: how much of the way to the player the camera leans (1 = locked on), and how quickly. */
 const FOLLOW = 0.4;
 const FOLLOW_LERP = 0.07;
+/** Follow: the damping toward the player each (60 fps) frame, and a jump that is a teleport (a
+ *  world change, a spawn): the camera cuts to it instead of sweeping across the room. */
+const FOLLOW_DAMPING = 0.08;
+const FOLLOW_SNAP = 8;
+/** Follow frames this many world units across a big world (never wider than the fitted view). */
+const FOLLOW_SPAN = 17;
 /** Free look may roam this far from the room's centre. */
 const PAN_LIMIT = 10;
 /** The player counts as moving above this speed, in world units per second. */
@@ -95,6 +103,11 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** The default zoom over the fitted one: follow frames a big world closer (FOLLOW_SPAN across). */
+function baseZoom(): number {
+  return cameraSettings.mode === "follow" ? Math.max(DEFAULT_ZOOM, frame.size / FOLLOW_SPAN) : DEFAULT_ZOOM;
+}
+
 function CameraRig() {
   const { camera, gl, size } = useThree();
   /** How far the wheel or a pinch has zoomed away from the default (1 = default). */
@@ -106,8 +119,10 @@ function CameraRig() {
 
   useEffect(() => {
     const canvas = gl.domElement;
-    const clampZoom = (v: number) => THREE.MathUtils.clamp(v, ZOOM_MIN, ZOOM_MAX);
+    // the zoom's limits hold for the zoom as seen (the default times the user's): ZOOM_MIN..ZOOM_MAX of the fit
+    const clampZoom = (v: number) => THREE.MathUtils.clamp(v, ZOOM_MIN / baseZoom(), ZOOM_MAX / baseZoom());
     const pan = (dx: number, dy: number) => {
+      if (cameraSettings.mode === "follow") return; // locked on the player: no panning
       const perPixel = 1 / zoomRef.current; // orthographic: zoom is pixels per world unit
       center.current.x = THREE.MathUtils.clamp(center.current.x - (dx * SCREEN_RIGHT.x + dy * SCREEN_DOWN.x) * perPixel, -PAN_LIMIT, PAN_LIMIT);
       center.current.z = THREE.MathUtils.clamp(center.current.z - (dx * SCREEN_RIGHT.y + dy * SCREEN_DOWN.y) * perPixel, -PAN_LIMIT, PAN_LIMIT);
@@ -195,8 +210,10 @@ function CameraRig() {
     const delta = Math.min(rawDelta, 0.1);
     const cam = camera as THREE.OrthographicCamera;
 
-    // zoom, eased toward the fitted goal
-    const goal = fitZoom(frame.size, size.width, size.height) * DEFAULT_ZOOM * userZoom.current;
+    // zoom, eased toward the fitted goal (a mode's change of framing eases in the same way)
+    const base = baseZoom();
+    userZoom.current = THREE.MathUtils.clamp(userZoom.current, ZOOM_MIN / base, ZOOM_MAX / base);
+    const goal = fitZoom(frame.size, size.width, size.height) * base * userZoom.current;
     zoomRef.current = snapped.current ? THREE.MathUtils.lerp(zoomRef.current, goal, frameLerp(ZOOM_LERP, delta)) : goal;
     cam.zoom = zoomRef.current;
     cam.updateProjectionMatrix();
@@ -211,8 +228,22 @@ function CameraRig() {
       last.ready = true;
     }
 
-    // following: lean toward the player, most of the way; free look leaves the centre where it was dragged
-    if (!cameraView.freeLook) {
+    // follow: locked on the player, gliding after them; a teleport cuts straight there
+    if (cameraSettings.mode === "follow") {
+      cameraView.freeLook = false;
+      const gx = cameraFocus.hasTarget ? cameraFocus.x : 0;
+      const gz = cameraFocus.hasTarget ? cameraFocus.z : 0;
+      const gy = cameraFocus.hasTarget ? cameraFocus.y : 0;
+      if (!snapped.current || Math.hypot(gx - center.current.x, gz - center.current.z) > FOLLOW_SNAP) center.current.set(gx, gy, gz);
+      else {
+        const t = frameLerp(FOLLOW_DAMPING, delta);
+        center.current.x = THREE.MathUtils.lerp(center.current.x, gx, t);
+        center.current.y = THREE.MathUtils.lerp(center.current.y, gy, t);
+        center.current.z = THREE.MathUtils.lerp(center.current.z, gz, t);
+      }
+    } else if (!cameraView.freeLook) {
+      center.current.y = 0;
+      // free pan, following: lean toward the player, part of the way; free look leaves the centre where it was dragged
       const gx = cameraFocus.hasTarget ? cameraFocus.x * FOLLOW : 0;
       const gz = cameraFocus.hasTarget ? cameraFocus.z * FOLLOW : 0;
       if (!snapped.current) center.current.set(gx, 0, gz);
@@ -226,8 +257,8 @@ function CameraRig() {
 
     // the same isometric angle as ever; only the point it looks at moves
     const c = center.current;
-    cam.position.set(ISO_DIR.x + c.x, ISO_DIR.y, ISO_DIR.z + c.z);
-    cam.lookAt(c.x, 0, c.z);
+    cam.position.set(ISO_DIR.x + c.x, ISO_DIR.y + c.y, ISO_DIR.z + c.z);
+    cam.lookAt(c.x, c.y, c.z);
   });
   return null;
 }

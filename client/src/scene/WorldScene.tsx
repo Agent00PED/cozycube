@@ -3,7 +3,8 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import type { Room } from "colyseus.js";
 import type { BoardGameView, ChairSyncState, MapId, PlayerState, TimeOfDay, ToggleableSyncState } from "@shared/types";
-import { GESTURE_SECONDS, MAP_HALF, isWalkUpProp } from "@shared/types";
+import { GESTURE_SECONDS, MAP_HALF, isWalkUpProp, usableSeated } from "@shared/types";
+import { walkY } from "@shared/collision";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
 import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf, nearestChopStation } from "@shared/worlds/campfire";
@@ -11,7 +12,8 @@ import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireSky, CampfireWorld } from "./CampfireWorld";
 import { CASINO_URL, CasinoWorld } from "./CasinoWorld";
 import { preloadCasinoStaff } from "../entities/CasinoStaff";
-import { CASINO_FRAME } from "@shared/worlds/casino";
+import { preloadPatrons } from "../entities/AmbientPatrons";
+import { BAR_REACH, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, barDistance, blackjackTableNear, casinoFloorY } from "@shared/worlds/casino";
 import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
 import { BoardTablePad, CampfirePuff, Cat, FloorLamp, PLANT_BURST_SECONDS, PUFF_SECONDS, PlantBurst, PropPad, RadioProp, SeatPad } from "./Props";
@@ -99,6 +101,37 @@ function EmptyWorld({ mapId, onFloorClick }: { mapId: MapId; onFloorClick: (x: n
   );
 }
 
+// The casino's props: the invisible pad each is clicked by (its size, and where it stands when that
+// is not the prop's own spot: the baby grand's body, not its keys; a little below the paper, over
+// the whole coffee table).
+const CL = CASINO_LAYOUT;
+const CASINO_PADS: Partial<Record<ToggleableSyncState["kind"], { size: [number, number, number]; at?: (p: ToggleableSyncState) => Partial<ToggleableSyncState> }>> = {
+  roulette: { size: [CL.roulette.len, 0.95, CL.roulette.w + 0.1] },
+  blackjack: { size: [2.0, 0.95, 2.0] },
+  craps: { size: [CL.craps.len, 1.0, CL.craps.w] },
+  derby: { size: [CL.derby.w, 1.1, CL.derby.len] },
+  pusher: { size: [CL.pusher.d, CL.pusher.h, CL.pusher.w] },
+  billiards: { size: [CL.billiards.len, 1.0, CL.billiards.w] },
+  piano: { size: [CL.piano.len, 1.1, CL.piano.w], at: () => ({ x: CL.piano.x, z: CL.piano.z, y: casinoFloorY(CL.piano.x, CL.piano.z) }) },
+  gazette: { size: [CL.coffee.w, 0.3, CL.coffee.len], at: (p) => ({ y: p.y - 0.12 }) },
+  fortune: { size: [1.2, CL.zara.h, 1.2] },
+  gachapon: { size: [0.75, CL.gachapon.h, 0.75] },
+  tipjar: { size: [0.3, 0.32, 0.3] },
+  barmenu: { size: [0.75, 1.15, 0.75] },
+  vipdoor: { size: [0.3, CL.vipDoor.h, CL.vipDoor.w + 0.1] },
+};
+
+/** Whether a seated player (at cameraFocus) is in reach of a casino prop they can use sitting. */
+function seatedReach(kind: ToggleableSyncState["kind"], prop: { x: number; z: number }): boolean {
+  const d = Math.hypot(prop.x - cameraFocus.x, prop.z - cameraFocus.z);
+  if (kind === "blackjack") return !!blackjackTableNear(cameraFocus.x, cameraFocus.z);
+  if (kind === "barmenu") return barDistance(cameraFocus.x, cameraFocus.z) <= BAR_REACH;
+  if (kind === "piano") return d <= PIANO_REACH;
+  if (kind === "gazette") return d <= GAZETTE_REACH;
+  if (kind === "tipjar") return d <= MACHINE_REACH;
+  return false;
+}
+
 /** Emotes, gestures and speech bubbles arrive as one-shot messages; keep them per session. */
 function useCrowdEvents(subscribeEmotes: WorldSceneProps["subscribeEmotes"], subscribeMessages: WorldSceneProps["subscribeMessages"]) {
   const [emotes, setEmotes] = useState<Record<string, FloatingEmote[]>>({});
@@ -183,6 +216,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
     const casino = window.setTimeout(() => {
       useGLTF.preload(CASINO_URL);
       preloadCasinoStaff();
+      preloadPatrons();
     }, 7000);
     return () => {
       window.clearTimeout(campfire);
@@ -294,6 +328,14 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: prop.kind, propId } }));
         return;
       }
+      // the casino's handful used from a seat in reach of them: the baby grand from its bench, the
+      // bar menu from a stool, a tip from a chair by the jar, the paper from the Chesterfield; a
+      // blackjack stool deals you in right there
+      if (me?.sitting && usableSeated(prop.kind) && seatedReach(prop.kind, prop)) {
+        if (prop.kind === "blackjack") window.dispatchEvent(new CustomEvent("cozy-open-blackjack"));
+        else room?.send("useProp", { propId, x: cameraFocus.x, z: cameraFocus.z });
+        return;
+      }
       // sitting at a fishing spot already (the dock's edge, the canoe): cast from right there,
       // never walking off to its approach point (the canoe's is on the dock)
       if (prop.kind === "fishing" && me?.sitting && live.current.localSessionId && live.current.chairs[dockSeatOf(propId)]?.occupiedBy === live.current.localSessionId) {
@@ -391,7 +433,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         chair.style === "blanket" ? (
           <SeatPad key={chair.propId} x={chair.x - Math.sin(chair.rotationY) * 0.45} z={chair.z - Math.cos(chair.rotationY) * 0.45} wide onUse={() => sit(chair.propId)} />
         ) : (
-          <SeatPad key={chair.propId} x={chair.x} z={chair.z} wide={!chair.propId.startsWith("stool")} onUse={() => sit(chair.propId)} />
+          <SeatPad key={chair.propId} x={chair.x} z={chair.z} y={walkY(mapId, chair.x, chair.z)} wide={!chair.propId.startsWith("stool")} onUse={() => sit(chair.propId)} />
         )
       ))}
       {Object.values(toggleables).map((prop) =>
@@ -432,6 +474,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={{ ...prop, z: prop.z + 0.45 }} size={[1.2, 2.3, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "portal" ? (
           <PropPad key={prop.propId} prop={prop} size={[2.4, 2.9, 0.5]} onUse={() => activate(prop.propId)} />
+        ) : CASINO_PADS[prop.kind] ? (
+          <PropPad key={prop.propId} prop={{ ...prop, ...CASINO_PADS[prop.kind]!.at?.(prop) }} size={CASINO_PADS[prop.kind]!.size} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "plant" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.75, 1.4, 0.75]} onUse={() => activate(prop.propId)} />
         ) : null
@@ -445,7 +489,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
 
       {me && <LocalPlayerAvatar key={`${mapId}:${localSessionId}`} player={me} room={room} mapId={mapId} targetRef={targetRef} feed={feed} />}
       <OtherPlayers players={players} localSessionId={localSessionId} feed={feed} />
-      <ClickMarker targetRef={targetRef} rippleRef={rippleRef} />
+      <ClickMarker mapId={mapId} targetRef={targetRef} rippleRef={rippleRef} />
     </TimeOfDayContext.Provider>
   );
 }

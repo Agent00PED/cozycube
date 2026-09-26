@@ -8,22 +8,39 @@
 //     first spawn, not just empty
 //   - every seat's anchor height is a sane number (they are derived from shared/seats.ts cushions)
 //   - Mochi's stops can be stood beside, and her straight walks between them cross no furniture
-//   - the casino: its tables can be played from open ground, its game areas don't overlap (two
-//     panels at once), the cage window is in reach, the staff stand inside colliders (nobody walks
-//     through them), and every zone can be walked into
+//   - the casino: its tables can be played from open ground, the roulette's betting ground and the
+//     blackjack tables' never overlap (the crescent's tables may: the nearest is yours), every
+//     walk-up prop's spot is within the server's reach of it, the cage window, the machines, the
+//     tip jars, the bar, the gazette and the piano are in reach from where you stand (or sit), the
+//     staff stand inside colliders (nobody walks through them), every seat sits on a floor (not
+//     half on a step), every zone and both stages can be walked onto, and the crowd's spots are
+//     open ground
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, worldLimit } from "../shared/collision";
 import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES, MOCHI_WAYPOINTS } from "../shared/props";
 import { isReachable, type Point } from "../shared/pathfinding";
-import { isWalkUpProp, MAP_IDS, type MapId } from "../shared/types";
+import { INTERACT_RADIUS, isWalkUpProp, MAP_IDS, type MapId } from "../shared/types";
 import {
+  BAR_FRONT,
+  BAR_REACH,
   BLACKJACK_TABLES,
   CASHIER_FRONT,
   CASHIER_REACH,
   CASINO_NPCS,
+  CASINO_SEATS,
+  CASINO_STAGES,
   CASINO_ZONES,
+  GACHAPON_FRONT,
+  GAZETTE_REACH,
+  MACHINE_REACH,
+  PATRON_SPOTS,
+  PIANO_REACH,
   ROULETTE_BET_RADIUS,
   ROULETTE_CENTER,
+  TIP_JARS,
+  ZARA_FRONT,
+  barDistance,
   blackjackTableNear,
+  casinoFloorY,
 } from "../shared/worlds/casino";
 
 const failures: string[] = [];
@@ -78,14 +95,18 @@ for (const mapId of MAP_IDS) {
     else standable(mapId, home, a, `seat ${chair.propId} approach`);
   }
 
-  // --- walk-up props: approach open and reachable ---
+  // --- walk-up props: approach open and reachable, and within the server's reach of the prop ---
   for (const prop of MAP_TOGGLEABLES[mapId]) {
     if (!isWalkUpProp(prop.kind)) continue;
     const a = APPROACH_POINTS[prop.propId];
     if (!a) {
       checks++;
       fail(`${mapId}: walk-up prop ${prop.propId} has no approach point`);
-    } else standable(mapId, home, a, `prop ${prop.propId} approach`);
+      continue;
+    }
+    standable(mapId, home, a, `prop ${prop.propId} approach`);
+    checks++;
+    if (prop.kind !== "cat" && Math.hypot(a.x - prop.x, a.z - prop.z) > INTERACT_RADIUS) fail(`${mapId}: prop ${prop.propId}'s approach ${fmt(a)} is out of reach (${INTERACT_RADIUS}) of it`);
   }
 
   // --- Mochi: a spot beside each stop, and clear straight walks between them ---
@@ -133,18 +154,26 @@ for (const mapId of MAP_IDS) {
     }
   }
 
-  // no spot is in reach of two games at once (the client would open both panels)
+  // no spot is in reach of the roulette and a blackjack table at once (two boards to choose from);
+  // the crescent's tables may share ground, where the nearest one is yours
   for (let x = -13; x <= 13; x += 0.25) {
     for (let z = -13; z <= 13; z += 0.25) {
-      const tables = BLACKJACK_TABLES.filter((t) => Math.hypot(x - t.x, z - t.z) < t.reach);
+      const table = blackjackTableNear(x, z);
       const atRoulette = Math.hypot(x - ROULETTE_CENTER.x, z - ROULETTE_CENTER.z) < ROULETTE_BET_RADIUS;
-      if (tables.length + (atRoulette ? 1 : 0) > 1) {
-        fail(`${C}: ${fmt({ x, z })} is in reach of ${[atRoulette ? "roulette" : "", ...tables.map((t) => t.id)].filter(Boolean).join(" and ")}`);
+      if (table && atRoulette) {
+        fail(`${C}: ${fmt({ x, z })} is in reach of the roulette and ${table.id}`);
         x = z = 99; // one report is enough
       }
     }
   }
   checks++;
+  // each stool plays at its own table (the nearest), not a neighbour's
+  for (const s of CASINO_SEATS.filter((c) => c.propId.startsWith("seat_bj"))) {
+    checks++;
+    const want = `blackjack_0${s.propId.charAt(7)}`;
+    const got = blackjackTableNear(s.x, s.z)?.id;
+    if (got !== want) fail(`${C}: ${s.propId} plays at ${got ?? "no table"}, not ${want}`);
+  }
 
   // the cage window: its front is open, reachable, and within its own reach
   standable(C, home, CASHIER_FRONT, "the cage window");
@@ -156,6 +185,51 @@ for (const mapId of MAP_IDS) {
   }
   checks++;
   if (CASHIER_REACH < 0.5) fail(`${C}: the cage's reach ${CASHIER_REACH} is too tight to stand in`);
+
+  // the machines, the jars, the bar, the paper and the piano: in reach from where you stand
+  const inReach = (label: string, from: Point, to: Point, reach: number) => {
+    checks++;
+    if (Math.hypot(from.x - to.x, from.z - to.z) > reach) fail(`${C}: ${label} ${fmt(from)} is out of reach (${reach}) of ${fmt(to)}`);
+  };
+  const props = MAP_TOGGLEABLES[C];
+  const at = (id: string) => props.find((p) => p.propId === id)!;
+  inReach("Madame Zara's front", ZARA_FRONT, at("zara_booth"), MACHINE_REACH);
+  inReach("the capsule machine's front", GACHAPON_FRONT, at("capsule_machine"), MACHINE_REACH);
+  for (const [dealer, jar] of Object.entries(TIP_JARS)) {
+    inReach(`${dealer}'s tip jar front`, jar.front, jar, MACHINE_REACH);
+    standable(C, home, jar.front, `${dealer}'s tip jar front`);
+  }
+  checks++;
+  if (barDistance(BAR_FRONT.x, BAR_FRONT.z) > BAR_REACH) fail(`${C}: the bar's front ${fmt(BAR_FRONT)} is out of the bar's reach`);
+  for (const s of CASINO_SEATS.filter((c) => c.propId.startsWith("seat_bar"))) {
+    checks++;
+    if (barDistance(s.x, s.z) > BAR_REACH) fail(`${C}: ${s.propId} is out of the bar's reach: its sitter can't order`);
+  }
+  for (const s of CASINO_SEATS.filter((c) => c.propId.startsWith("seat_sofa"))) inReach(`${s.propId} (reading the paper)`, s, at("velvet_gazette"), GAZETTE_REACH);
+  inReach("the piano bench", CASINO_SEATS.find((c) => c.propId === "seat_piano")!, at("piano_keys"), PIANO_REACH);
+  inReach("the piano's front", APPROACH_POINTS.piano_keys, at("piano_keys"), PIANO_REACH);
+  inReach("the gazette's front", APPROACH_POINTS.velvet_gazette, at("velvet_gazette"), GAZETTE_REACH);
+
+  // every seat sits on a floor: the hall's, the pit's or the lounge's, never half on a step
+  const floors = new Set([0, ...CASINO_STAGES.map((st) => st.h)]);
+  for (const s of CASINO_SEATS) {
+    checks++;
+    if (!floors.has(s.floor)) fail(`${C}: ${s.propId} stands on a step (floor ${s.floor.toFixed(3)})`);
+  }
+  // both stages can be walked onto (up their steps)
+  for (const st of CASINO_STAGES) {
+    checks++;
+    let found = false;
+    for (let x = st.x0 + 0.5; x < st.x1 && !found; x += 0.5) for (let z = st.z0 + 0.5; z < st.z1 && !found; z += 0.5) found = casinoFloorY(x, z) === st.h && !isBlocked(x, z, C) && isReachable(C, home, { x, z });
+    if (!found) fail(`${C}: the ${st.id} stage can't be walked onto`);
+  }
+  // the crowd's spots: open ground (they walk through nobody, but not through furniture) you can reach
+  for (const [group, spots] of Object.entries(PATRON_SPOTS)) {
+    for (const p of Array.isArray(spots) ? spots : [spots]) {
+      checks++;
+      if (isBlocked(p.x, p.z, C, 0.25) || !isReachable(C, home, p)) fail(`${C}: the crowd's ${group} spot ${fmt(p)} is not open ground`);
+    }
+  }
 
   // every zone can be walked into
   for (const zone of CASINO_ZONES) {

@@ -6,6 +6,8 @@ import { ACTIVITY_STATUSES, DRINK_BASE_INFO, GESTURE_SECONDS, defaultLook, hashS
 import { AVATAR_HIP_Y, AVATAR_LIE_LIFT } from "@shared/seats";
 import { matte, noRaycast } from "../scene/kit";
 import { ModelBoundary } from "./ModelBoundary";
+import { CasinoAura } from "./CasinoAura";
+import { capsuleTitle } from "@shared/casino";
 import { canoeBob, canoePitch, canoeRoll } from "../scene/canoeMotion";
 import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
 
@@ -89,6 +91,16 @@ export interface AvatarProps {
   fed?: boolean;
   /** Fishing with the Starlight Composite: a shimmer of stars about the rod's tip. */
   rodAura?: boolean;
+  /** A capsule title worn over the name (shared/casino.ts CAPSULE_PRIZES id), "" for none. */
+  title?: string;
+  /** A drink's glow (PlayerState.aura): a casino drink shows round them (entities/CasinoAura.tsx). */
+  aura?: string;
+}
+
+/** A capsule title's words, over the name. */
+function titleText(id: string): string {
+  const prize = capsuleTitle(id);
+  return prize ? prize.name : "";
 }
 
 /** The overhead anchor: the nametag sits here, the badge, bubble and emotes stack above it. */
@@ -878,7 +890,7 @@ const RING_GEO = new THREE.RingGeometry(0.62, 0.7, 40);
 
 /** A player: the model, dressed and posed, with the nametag and the overhead overlays. */
 export const Avatar = memo(
-  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false }, ref) {
+  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false, title = "", aura = "" }, ref) {
     const outfit = useMemo(() => parseLook(look) ?? defaultLook(userId || username, color), [look, userId, username, color]);
     // every avatar breathes and glances round on its own clock, so a crowd never moves in unison
     const seed = useMemo(() => (hashString(userId || username) % 1000) / 100, [userId, username]);
@@ -900,7 +912,10 @@ export const Avatar = memo(
 
     const [crownTop, setCrownTop] = useState(0);
     const lying = pose === "lie";
-    const anchorY = lying ? LYING_ANCHOR_Y : Math.max(AVATAR_ANCHOR_Y, crownTop + CROWN_CLEARANCE);
+    const worn = titleText(title);
+    // a title rides just over the name, and lifts what floats over it
+    const nameY = lying ? LYING_ANCHOR_Y : Math.max(AVATAR_ANCHOR_Y, crownTop + CROWN_CLEARANCE);
+    const anchorY = nameY + (worn ? 0.15 : 0);
     const badge = isActivityStatus(status);
     const overheadY = anchorY + (badge ? 0.7 : 0.32);
 
@@ -915,9 +930,19 @@ export const Avatar = memo(
           </Suspense>
         </ModelBoundary>
 
+        {/* a drink from the casino's bar glows round them */}
+        {aura && <CasinoAura aura={aura} />}
+
         {/* the Billboard cancels the avatar's facing, so the name never turns or mirrors */}
+        {worn && (
+          <Billboard position={[0, nameY + 0.15, 0]}>
+            <Text font="/fonts/kenpixel.ttf" fontSize={0.11} maxWidth={1.8} textAlign="center" color="#ffd76a" anchorX="center" anchorY="middle" outlineColor="#3a1a10" outlineWidth={0.018}>
+              {worn}
+            </Text>
+          </Billboard>
+        )}
         {username && (
-          <Billboard position={[0, anchorY, 0]}>
+          <Billboard position={[0, nameY, 0]}>
             {/* `font` MUST stay set: without it troika-three-text reaches for a CDN font that
                 Discord's Activity CSP blocks */}
             <Text font="/fonts/kenpixel.ttf" fontSize={0.15} maxWidth={1.6} overflowWrap="break-word" textAlign="center" color={speaking ? "#8dffae" : "#ffffff"} anchorX="center" anchorY="middle" outlineColor="#000000" outlineWidth={0.02}>

@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type * as THREE from "three";
 import { type Gesture, type MapId, type PlayerState } from "@shared/types";
+import { walkY } from "@shared/collision";
 import { CAMPFIRE_LAYOUT, nearestFishingSpot } from "@shared/worlds/campfire";
 import { faceHeading } from "../systems/faceTargets";
 import { liveMotion, type MotionSample } from "../systems/liveMotion";
@@ -71,6 +72,8 @@ function avatarProps(player: PlayerState, feed: CrowdFeed) {
     bobberAt: bobberFor(player, feed.mapId),
     fed: player.fed > 0,
     rodAura: player.fishing.includes('"rod":"starlight"'),
+    title: player.title,
+    aura: player.aura,
   };
 }
 
@@ -162,7 +165,7 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
       const heading = faceHeading(p.sessionId, d.x, d.z);
       if (heading !== null) d.facing = turn(d.facing, heading, TURN_LERP);
     }
-    d.seatY += ((p.sitting ? p.sitY : 0) - d.seatY) * HEIGHT_LERP;
+    d.seatY += ((p.sitting ? p.sitY : walkY(feed.mapId, d.x, d.z)) - d.seatY) * HEIGHT_LERP;
     g.position.set(d.x, d.seatY, d.z);
     g.rotation.y = d.facing;
   });

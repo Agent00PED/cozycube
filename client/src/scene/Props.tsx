@@ -322,6 +322,6 @@ export function CampfirePuff({ x, y, z, kind, at }: { x: number; y: number; z: n
 }
 
 /** A seat's click target: an invisible pad over the cushion. */
-export function SeatPad({ x, z, wide, onUse }: { x: number; z: number; wide: boolean; onUse: () => void }) {
-  return <HitPad size={wide ? [1.05, 0.9, 1.05] : [0.6, 1.0, 0.6]} position={[x, wide ? 0.45 : 0.5, z]} onUse={onUse} />;
+export function SeatPad({ x, z, y = 0, wide, onUse }: { x: number; z: number; /** The floor under the seat (a stage's). */ y?: number; wide: boolean; onUse: () => void }) {
+  return <HitPad size={wide ? [1.05, 0.9, 1.05] : [0.6, 1.0, 0.6]} position={[x, y + (wide ? 0.45 : 0.5), z]} onUse={onUse} />;
 }

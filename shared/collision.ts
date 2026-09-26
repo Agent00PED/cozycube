@@ -1,7 +1,7 @@
 import { MAP_HALF, MAP_IDS, type MapId } from "./types";
 import { LOFT_OBSTACLES, LOFT_SPAWNS, NAV_LIMIT } from "./worlds/lounge";
 import { CAMP_OBSTACLES, CAMP_SPAWNS } from "./worlds/campfire";
-import { CASINO_OBSTACLES, CASINO_SPAWNS } from "./worlds/casino";
+import { CASINO_OBSTACLES, CASINO_SPAWNS, casinoFloorY } from "./worlds/casino";
 
 // Where you can stand. The lounge, the campfire and the casino are authored in shared/worlds/
 // (lounge.ts, campfire.ts, casino.ts); every other world is still an open square floor with one spawn in the middle
@@ -57,6 +57,12 @@ export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boo
     if (x + radius > b.minX && x - radius < b.maxX && z + radius > b.minZ && z - radius < b.maxZ) return true;
   }
   return false;
+}
+
+/** How high the floor is at (x, z): the casino's raised High-Roller Pit and Velvet Lounge (and the
+ *  steps up to them); every other world is flat. Where an avatar's feet go, where a click lands. */
+export function walkY(mapId: MapId, x: number, z: number): number {
+  return mapId === "velvet_casino" ? casinoFloorY(x, z) : 0;
 }
 
 export function clampToWorld(v: number, mapId: MapId = "cozy_lounge"): number {

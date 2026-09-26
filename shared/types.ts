@@ -65,8 +65,11 @@ export interface PlayerState {
   gloves: boolean;
   boxHits: number;
   boxKOs: number;
-  /** A temporary glow (from a blended drink): a colour, or "" for none. */
+  /** A temporary glow from a drink: a blended drink's colour, a casino drink ("casino:fizz",
+   *  "casino:martini", "casino:espresso"), or "" for none. */
   aura: string;
+  /** A title won from the casino's capsule machine, worn over the name ("" for none). */
+  title: string;
   /** Today's cozy checklist (a DailyChecklist as JSON). */
   daily: string;
   /** The angler's creel, rods, baits and records (a FishingProfile as JSON, shared/fishing.ts). */
@@ -251,8 +254,30 @@ export type ToggleableKind =
   | "angler"
   | "lumberjack"
   | "workbench"
+  | CasinoPropKind;
+
+/** The Velvet Casino's props (shared/worlds/casino.ts): the slot row, Mr. Vance's cage, the exit
+ *  doors, the game tables (walking up to one opens its board), the set dressing that answers a click
+ *  (the dice, the Turf Club, the coin pusher, the billiards, the baby grand), Madame Zara, the
+ *  capsule machine, the dealers' tip jars, Pippin's bar menu, The Velvet Gazette and the VIP room's
+ *  locked doors. */
+export type CasinoPropKind =
+  | "slot"
   | "cashier"
-  | "portal";
+  | "portal"
+  | "roulette"
+  | "blackjack"
+  | "craps"
+  | "derby"
+  | "pusher"
+  | "billiards"
+  | "piano"
+  | "gazette"
+  | "fortune"
+  | "gachapon"
+  | "tipjar"
+  | "barmenu"
+  | "vipdoor";
 
 // How a seat draws itself. "pad" and "blanket" seats have no geometry of their own — the
 // visible furniture is already drawn by the world (sofa cushions, beanbags, picnic blanket),
@@ -884,9 +909,21 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "angler" ||
     kind === "lumberjack" ||
     kind === "workbench" ||
-    kind === "cashier" ||
-    kind === "portal"
+    isCasinoProp(kind)
   );
+}
+
+const CASINO_PROP_KINDS: ReadonlySet<string> = new Set<CasinoPropKind>(["slot", "cashier", "portal", "roulette", "blackjack", "craps", "derby", "pusher", "billiards", "piano", "gazette", "fortune", "gachapon", "tipjar", "barmenu", "vipdoor"]);
+/** The casino's props: every one is walked up to. */
+export function isCasinoProp(kind: string): kind is CasinoPropKind {
+  return CASINO_PROP_KINDS.has(kind);
+}
+
+/** Props you can use without getting up from a seat within their reach (the server measures it):
+ *  the baby grand from its bench, Pippin's menu from a bar stool, a tip from the poker table, The
+ *  Velvet Gazette from the Chesterfield, and a blackjack table from one of its stools. */
+export function usableSeated(kind: ToggleableKind): boolean {
+  return kind === "piano" || kind === "barmenu" || kind === "tipjar" || kind === "gazette" || kind === "blackjack";
 }
 
 // --- world sizes ---
