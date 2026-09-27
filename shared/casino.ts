@@ -1,9 +1,10 @@
 // The Velvet Casino's rules: the Velvet Chip economy, every table's limits (the betting matrix and
-// its ALL IN), and the games played with chips: roulette, slots, blackjack, Boris's Three-Card
-// Poker, craps, the Mechanical Turf Club's derby and the coin pusher; and the house's extras (the
-// baby grand's pieces, Pippin's bar, Madame Zara, the capsule machine, the VIP room's door). Where
-// things stand (the tables, the slot row, Vance's cage) is the floor plan's business:
-// shared/worlds/casino.ts.
+// its ALL IN), and the games played with chips: roulette, slots (the Golden Vault too), the
+// blackjack tables' rounds, Three-Card Poker (in the hall and at the penthouse's high-limit table),
+// baccarat, craps, the Mechanical Turf Club's derby and the coin pusher's shared shelf; the
+// one-player machines' occupants (players and patrons), and the house's extras (the baby grand's
+// pieces, Pippin's bar, Madame Zara, the capsule machine, the VIP pass: shared/items.ts). Where
+// things stand is the floor plans' business: shared/worlds/casino.ts and casino_vip.ts.
 //
 // Shared between client and server — framework-agnostic (no THREE/Colyseus imports).
 
@@ -22,8 +23,9 @@ export const CHIP_EMOTE = "velvet-chip";
 export const COINS_PER_CHIP = 1;
 /** The cashier modal's quick amounts, each way: each adds to the amount (with "All" beside them). */
 export const CASHIER_AMOUNTS = [50, 100, 500] as const;
-/** The most chips anyone can hold (the same ceiling as coins, shared/types COIN_CAP). */
-export const CHIP_CAP = 99_999;
+/** The most chips anyone can hold: the penthouse's tables take 100,000 a bet and the Golden Vault
+ *  pays six figures, so chips go far past the coin purse's ceiling (shared/types COIN_CAP). */
+export const CHIP_CAP = 9_999_999;
 
 /** The casino's slice of the player record (stats JSON "casino"). */
 export interface CasinoProfile {
@@ -33,23 +35,26 @@ export interface CasinoProfile {
   /** The day (todayKey, UTC) Madame Zara last read this player's fortune, and which one it was. */
   fortuneDay: string;
   fortune: number;
+  /** The Black Velvet VIP Pass (shared/items.ts), held for good once bought (until pawned). */
+  vipPass: boolean;
 }
 
 export function emptyCasinoProfile(): CasinoProfile {
-  return { chips: 0, title: "", fortuneDay: "", fortune: -1 };
+  return { chips: 0, title: "", fortuneDay: "", fortune: -1, vipPass: false };
 }
 
 /** A saved profile read back from the database: anything malformed becomes an empty one, so a
  *  player saved before the casino opened simply has no chips (and one saved before the expansion
  *  no title, and no fortune told). */
 export function sanitizeCasinoProfile(raw: unknown): CasinoProfile {
-  const r = (raw ?? {}) as { chips?: unknown; title?: unknown; fortuneDay?: unknown; fortune?: unknown };
+  const r = (raw ?? {}) as { chips?: unknown; title?: unknown; fortuneDay?: unknown; fortune?: unknown; vipPass?: unknown };
   const chips = r.chips;
   return {
     chips: typeof chips === "number" && Number.isFinite(chips) && chips > 0 ? Math.min(CHIP_CAP, Math.floor(chips)) : 0,
     title: typeof r.title === "string" && isCasinoTitle(r.title) ? r.title : "",
     fortuneDay: typeof r.fortuneDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.fortuneDay) ? r.fortuneDay : "",
     fortune: typeof r.fortune === "number" && Number.isInteger(r.fortune) && r.fortune >= 0 && r.fortune < ZARA_FORTUNES.length ? r.fortune : -1,
+    vipPass: r.vipPass === true,
   };
 }
 
@@ -95,7 +100,7 @@ export function exchangeAmount(requested: unknown, available: number): number | 
 // so a stake outside it is refused whatever the client sends. A brass placard on each game's panel
 // reads "MIN: 25 | MAX ALL-IN: 1,000".
 
-export type TableId = "blackjack_casual" | "blackjack_high" | "poker" | "slots" | "slots_vip" | "roulette_inside" | "roulette_outside" | "craps" | "derby" | "pusher";
+export type TableId = "blackjack_casual" | "blackjack_high" | "poker" | "poker_vip" | "slots" | "slots_vault" | "baccarat" | "roulette_inside" | "roulette_outside" | "craps" | "derby" | "pusher";
 export interface TableLimit {
   name: string;
   min: number;
@@ -107,8 +112,11 @@ export const TABLE_LIMITS: Record<TableId, TableLimit> = {
   blackjack_high: { name: "Blackjack · Table 2 (High Stakes)", min: 100, max: 5000, presets: [100, 250, 500, 1000, 2500] },
   // the ante: the Play bet matches it, so an ante of 2,000 risks 4,000 in all
   poker: { name: "Three-Card Poker", min: 50, max: 2000, presets: [50, 100, 200, 500, 1000] },
+  // the penthouse's high-limit table: an ante of 50,000 risks 100,000 with the Play bet
+  poker_vip: { name: "High-Limit Three-Card Poker", min: 1000, max: 50000, presets: [1000, 2500, 5000, 10000, 25000] },
   slots: { name: "Neon Alley Slots", min: 10, max: 500, presets: [10, 25, 50, 100, 250] },
-  slots_vip: { name: "The VIP High-Stakes Slot", min: 100, max: 1000, presets: [100, 250, 500] },
+  slots_vault: { name: "The Golden Vault", min: 500, max: 10000, presets: [500, 1000, 2500, 5000] },
+  baccarat: { name: "High-Limit Baccarat", min: 2500, max: 100000, presets: [2500, 5000, 10000, 25000, 50000] },
   // per spot: a straight-up number pays 35:1, red/black/odd/even 1:1
   roulette_inside: { name: "Roulette · Inside (straight up)", min: 10, max: 500, presets: [10, 25, 50, 100] },
   roulette_outside: { name: "Roulette · Outside (even money)", min: 25, max: 2500, presets: [25, 50, 100, 250, 500] },
@@ -136,6 +144,13 @@ export function limitPlacard(limit: TableLimit): string {
 }
 /** Chips shown the casino's way: 1,250. */
 export const chipText = (n: number) => Math.floor(n).toLocaleString("en-US");
+/** Chips shown short where room is tight: 950, 12.5K, 1.2M. */
+export function chipShort(n: number): string {
+  const v = Math.floor(n);
+  if (v >= 1_000_000) return `${Math.floor(v / 100_000) / 10}M`;
+  if (v >= 10_000) return `${Math.floor(v / 100) / 10}K`;
+  return v.toLocaleString("en-US");
+}
 
 /** What Mr. Vance says to a player with no chips and no coins. */
 export const VANCE_BROKE_LINE = "Down on your luck, friend? Head to the Campfire to fish or chop wood, or claim your daily allowance!";
@@ -201,10 +216,11 @@ export interface RouletteResultBroadcast {
 
 // --- slots ----------------------------------------------------------------------------------
 
-/** The slot machine's limits: the VIP room's high-stakes machine has its own. */
-export const slotLimit = (propId: string) => TABLE_LIMITS[propId === VIP_SLOT_ID ? "slots_vip" : "slots"];
-/** The VIP room's machine. */
-export const VIP_SLOT_ID = "slot_vip";
+/** The slot machine's limits: the penthouse's Golden Vault has its own. */
+export const slotLimit = (propId: string) => TABLE_LIMITS[propId === VAULT_SLOT_ID ? "slots_vault" : "slots"];
+/** The penthouse's Golden Vault (the same reels and paytable, 500 to 10,000 a pull: three sevens at
+ *  the top stake pay 750,000). */
+export const VAULT_SLOT_ID = "slot_vault";
 export const SLOT_SYMBOLS = ["🍒", "🍋", "🔔", "🍀", "💎", "7"] as const;
 /** Payout multipliers (of the stake) for three of a kind, by symbol index. With the reels'
  *  weights (server/src/rooms/casino.ts: cherries common, sevens scarce) and a pair handing the
@@ -229,24 +245,55 @@ export interface Card {
   suit: string; // "♠" "♥" "♦" "♣"
 }
 export type BlackjackCard = Card;
-export type BlackjackPhase = "idle" | "player" | "dealer" | "done";
 export type BlackjackOutcome = "" | "blackjack" | "win" | "push" | "lose" | "bust";
-/** What the player sees: the dealer's hole card stays hidden until the dealer plays. */
-export interface BlackjackView {
-  phase: BlackjackPhase;
+
+// Each table runs its own rounds for the players on its stools (nobody bets standing up). The first
+// bet opens the betting window (BLACKJACK_BET_SECONDS; it closes early once everyone seated has
+// bet), then two cards to every hand and two to the dealer, one face down. Everyone plays their own
+// hands at once: hit, stand, double down on two cards, split a pair (up to BLACKJACK_MAX_HANDS
+// hands; split aces take one card each, and 21 after a split is not a blackjack). When every hand is
+// done, or the turn clock runs out (the rest stand), the dealer draws to 17 and the table settles.
+export const BLACKJACK_BET_SECONDS = 10;
+export const BLACKJACK_TURN_SECONDS = 30;
+export const BLACKJACK_SETTLE_SECONDS = 5;
+export const BLACKJACK_MAX_HANDS = 4;
+export type BlackjackTier = "blackjack_casual" | "blackjack_high";
+export type BlackjackTablePhase = "betting" | "playing" | "settled";
+export type BlackjackHandStatus = "playing" | "stood" | "bust" | "blackjack";
+export interface BlackjackHandView {
+  cards: Card[];
   bet: number;
-  player: BlackjackCard[];
-  dealer: BlackjackCard[];
-  holeHidden: boolean;
-  playerTotal: number;
-  dealerTotal: number;
+  total: number;
+  status: BlackjackHandStatus;
+  doubled: boolean;
   outcome: BlackjackOutcome;
   payout: number;
-  canDouble: boolean;
-  /** The table the hand is dealt at (its limits). */
-  table: "blackjack_casual" | "blackjack_high";
 }
-export type BlackjackAction = "deal" | "hit" | "stand" | "double";
+export interface BlackjackSeatView {
+  sessionId: string;
+  username: string;
+  /** The stool (its seat propId). */
+  stool: string;
+  /** The bet put down for the next deal (betting), or 0. */
+  bet: number;
+  hands: BlackjackHandView[];
+}
+/** Server -> everyone ("blackjackTable"): one table's round, as all can see it. */
+export interface BlackjackTableView {
+  tableId: string;
+  tier: BlackjackTier;
+  phase: BlackjackTablePhase;
+  /** Whole seconds left on the betting window or the turn clock (0: waiting for a first bet). */
+  timeLeft: number;
+  round: number;
+  dealer: Card[];
+  holeHidden: boolean;
+  dealerTotal: number;
+  seats: BlackjackSeatView[];
+}
+export type BlackjackAction = "bet" | "hit" | "stand" | "double" | "split";
+/** A pair to split: two cards of one rank. */
+export const canSplit = (cards: Card[]) => cards.length === 2 && cards[0].rank === cards[1].rank;
 /** Best total with aces as 11 where that does not bust, else 1. */
 export function blackjackTotal(cards: BlackjackCard[]): number {
   let total = 0;
@@ -264,8 +311,8 @@ export function blackjackTotal(cards: BlackjackCard[]): number {
   }
   return total;
 }
-/** Server -> everyone ("blackjackResult"): a hand settled at a table (Cedric knocks the felt for a
- *  natural). */
+/** Server -> everyone ("blackjackResult"): a hand settled at a table (its dealer knocks the felt for
+ *  a natural). */
 export interface BlackjackResult {
   sessionId: string;
   tableId: string;
@@ -336,6 +383,22 @@ export interface PokerView {
   /** Everything handed back (the stakes included), the ante bonus with it. */
   payout: number;
   bonus: number;
+  /** The table: the hall's, or the penthouse's high-limit one. */
+  table: "poker" | "poker_vip";
+  /** The high rollers playing their own hands beside you (the penthouse: Baron von Fox). */
+  company: PokerCompanion[];
+}
+/** A patron playing a hand of their own against the same dealer hand. */
+export interface PokerCompanion {
+  name: string;
+  emoji: string;
+  ante: number;
+  /** Face down until the hand is over. */
+  cards: Card[];
+  hand: string;
+  played: boolean;
+  outcome: PokerOutcome;
+  payout: number;
 }
 export type PokerMove = { action: "deal"; ante: number } | { action: "play" } | { action: "fold" };
 /** A played hand settled: what comes back (the stakes included), and the bonus in it. */
@@ -476,12 +539,18 @@ export interface DerbyState {
 
 // --- the coin pusher ----------------------------------------------------------------------------
 //
-// A brass dropper sweeps side to side over the shelf; drop a coin (2 to 25 chips) and where it lands
-// decides how well it pushes: dead centre sends the most over the edge. What falls is rolled with
-// odds that grow with the drop's accuracy: even a perfect drop returns about 95% over time, a wild
-// one under 60%. Now and then a Bonus Token drops instead: a free drop at the same stake.
+// One shelf for the whole room, kept between sessions (the room saves it with its scene): every drop
+// adds to the heap edging toward the precipice, and every push shoves a share of it over. A brass
+// dropper sweeps side to side; drop a coin (2 to 25 chips) and where it lands decides how much of it
+// makes the shelf (a wild drop rattles part of it into the house's gutter) and how hard it pushes.
+// Over time a dead-centre drop returns about 94% of its stakes, a wild one about 64%; what one drop
+// pays depends on the heap the last players left behind. Now and then a Bonus Token drops: a free
+// drop at the same stake.
 
 export const PUSHER_SWEEP_MS = 1600;
+/** The chips' worth the house heaps on a new shelf, and the most one can hold. */
+export const PUSHER_SHELF_START = 150;
+export const PUSHER_SHELF_MAX = 25_000;
 /** The dropper's place along the shelf (0 to 1) at `ms`: a steady sweep, there and back. */
 export function pusherBarPos(ms: number): number {
   const t = (((ms % (PUSHER_SWEEP_MS * 2)) + PUSHER_SWEEP_MS * 2) % (PUSHER_SWEEP_MS * 2)) / PUSHER_SWEEP_MS;
@@ -489,28 +558,29 @@ export function pusherBarPos(ms: number): number {
 }
 /** 1 dead centre, 0 at either end. */
 export const pusherAccuracy = (pos: number) => 1 - Math.min(1, Math.abs(Math.max(0, Math.min(1, pos)) - 0.5) * 2);
+/** The share of a drop that misses the shelf (the gutter: the house's): the truer, the less. */
+export const pusherGutter = (accuracy: number) => 0.06 + 0.3 * (1 - Math.max(0, Math.min(1, accuracy)));
 export type PusherOutcomeId = "none" | "trickle" | "push" | "shove" | "token" | "avalanche";
-export const PUSHER_OUTCOMES: { id: PusherOutcomeId; name: string; mult: number }[] = [
-  { id: "none", name: "The coins settle", mult: 0 },
-  { id: "trickle", name: "A trickle", mult: 1 },
-  { id: "push", name: "A good push", mult: 2 },
-  { id: "shove", name: "A great shove", mult: 3 },
-  { id: "token", name: "Bonus Token!", mult: 0 },
-  { id: "avalanche", name: "AVALANCHE!", mult: 10 },
+/** What a drop does to the heap: the share of the shelf it shoves over the edge (scaled by the
+ *  drop's accuracy), and how often. */
+export const PUSHER_OUTCOMES: { id: PusherOutcomeId; name: string; share: number; weight: number }[] = [
+  { id: "none", name: "The coins settle", share: 0, weight: 45 },
+  { id: "trickle", name: "A trickle", share: 0.03, weight: 30 },
+  { id: "push", name: "A good push", share: 0.08, weight: 16 },
+  { id: "shove", name: "A great shove", share: 0.18, weight: 6 },
+  { id: "token", name: "Bonus Token!", share: 0, weight: 1.8 },
+  { id: "avalanche", name: "AVALANCHE!", share: 0.5, weight: 1.2 },
 ];
-const PUSHER_WILD = [0.62, 0.22, 0.1, 0.035, 0.02, 0.005];
-const PUSHER_TRUE = [0.44, 0.28, 0.17, 0.065, 0.035, 0.01];
-/** The odds of each outcome for a drop this accurate. */
-export const pusherWeights = (accuracy: number) => PUSHER_WILD.map((w, i) => w + (PUSHER_TRUE[i] - w) * Math.max(0, Math.min(1, accuracy)));
-export function rollPusher(accuracy: number, roll: number): number {
-  const w = pusherWeights(accuracy);
-  let left = roll * w.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < w.length; i++) {
-    left -= w[i];
+export function rollPusher(roll: number): number {
+  let left = roll * PUSHER_OUTCOMES.reduce((a, o) => a + o.weight, 0);
+  for (let i = 0; i < PUSHER_OUTCOMES.length; i++) {
+    left -= PUSHER_OUTCOMES[i].weight;
     if (left < 0) return i;
   }
   return 0;
 }
+/** How many chips a push shoves off a shelf holding `shelf`. */
+export const pusherPush = (share: number, accuracy: number, shelf: number) => Math.floor(Math.max(0, shelf) * share * (0.6 + 0.4 * Math.max(0, Math.min(1, accuracy))));
 /** Server -> the dropper ("pusherResult"). */
 export interface PusherResult {
   stake: number;
@@ -522,6 +592,8 @@ export interface PusherResult {
   /** Free drops still held (their stakes). */
   tokens: number[];
   chips: number;
+  /** The shelf's heap after the drop (chips' worth). */
+  shelf: number;
 }
 
 // --- the baby grand -----------------------------------------------------------------------------
@@ -543,14 +615,114 @@ export interface PianoNote {
 export const PIANO_LOW = 60;
 export const PIANO_HIGH = 84;
 
-// --- the VIP room -------------------------------------------------------------------------------
+// --- baccarat (Punto Banco), in the Velvet Penthouse ------------------------------------------------
+//
+// One coup at a time for the table's seated players: the first bet opens a betting window
+// (BACCARAT_BET_SECONDS), then the shoe deals Player and Banker two cards each and the tableau
+// decides any third card. A winning Player bet pays 1:1, Banker 0.95:1 (the house's 5%), Tie 8:1;
+// on a tie, Player and Banker bets come back. Duchess Penelope bets every coup too.
 
-/** Bruno opens the VIP room's doors to a player holding this many chips, or wearing the right title. */
-export const VIP_MIN_CHIPS = 500;
-export const VIP_PASS_TITLE = "card_shark";
-export function vipWelcome(chips: number, ownsPassTitle: boolean): boolean {
-  return chips >= VIP_MIN_CHIPS || ownsPassTitle;
+export type BaccaratBet = "player" | "banker" | "tie";
+export const BACCARAT_BETS: BaccaratBet[] = ["player", "banker", "tie"];
+export const BACCARAT_INFO: Record<BaccaratBet, { name: string; pays: string }> = {
+  player: { name: "Player", pays: "1:1" },
+  banker: { name: "Banker", pays: "0.95:1" },
+  tie: { name: "Tie", pays: "8:1" },
+};
+export const BACCARAT_BET_SECONDS = 12;
+/** How long the cards take to come out, and the result stays up. */
+export const BACCARAT_DEAL_SECONDS = 5;
+export const BACCARAT_SETTLE_SECONDS = 5;
+/** A card's worth: aces 1, tens and faces 0. */
+export const baccaratValue = (c: Card) => (c.rank === "A" ? 1 : c.rank === "10" || c.rank === "J" || c.rank === "Q" || c.rank === "K" ? 0 : Number(c.rank));
+export const baccaratTotal = (cards: Card[]) => cards.reduce((t, c) => t + baccaratValue(c), 0) % 10;
+/** The banker's third card by the tableau: on `total`, given the player's third card (null: the
+ *  player stood). */
+export function bankerDraws(total: number, playerThird: Card | null): boolean {
+  if (playerThird === null) return total <= 5;
+  const p = baccaratValue(playerThird);
+  if (total <= 2) return true;
+  if (total === 3) return p !== 8;
+  if (total === 4) return p >= 2 && p <= 7;
+  if (total === 5) return p >= 4 && p <= 7;
+  if (total === 6) return p === 6 || p === 7;
+  return false;
 }
+/** One coup dealt from `draw` by the rules. */
+export function baccaratCoup(draw: () => Card): { player: Card[]; banker: Card[]; winner: BaccaratBet; natural: boolean } {
+  const player = [draw()];
+  const banker = [draw()];
+  player.push(draw());
+  banker.push(draw());
+  const pt = baccaratTotal(player);
+  const bt = baccaratTotal(banker);
+  const natural = pt >= 8 || bt >= 8;
+  if (!natural) {
+    let third: Card | null = null;
+    if (pt <= 5) {
+      third = draw();
+      player.push(third);
+    }
+    if (bankerDraws(bt, third)) banker.push(draw());
+  }
+  const p = baccaratTotal(player);
+  const b = baccaratTotal(banker);
+  return { player, banker, winner: p > b ? "player" : b > p ? "banker" : "tie", natural };
+}
+/** What a bet brings back on a coup (the stake included): a tie hands Player and Banker bets back. */
+export function baccaratReturn(bet: BaccaratBet, amount: number, winner: BaccaratBet): number {
+  if (winner === "tie") return bet === "tie" ? amount * 9 : amount;
+  if (bet !== winner) return 0;
+  return bet === "banker" ? Math.floor(amount * 1.95) : amount * 2;
+}
+export type BaccaratPhase = "betting" | "dealing" | "settled";
+export interface BaccaratStake {
+  sessionId: string;
+  username: string;
+  bet: BaccaratBet;
+  amount: number;
+}
+/** Server -> everyone ("baccaratState"). */
+export interface BaccaratState {
+  phase: BaccaratPhase;
+  /** Whole seconds left in this phase (0 while waiting for a first bet). */
+  timeLeft: number;
+  round: number;
+  stakes: BaccaratStake[];
+  player: Card[];
+  banker: Card[];
+  winner: BaccaratBet | "";
+  paid: { sessionId: string; username: string; amount: number }[];
+  /** The last coups' winners, newest first (the scoreboard). */
+  history: BaccaratBet[];
+}
+
+// --- the one-player machines: who is at them ----------------------------------------------------
+//
+// The slot row and the coin pusher are one player's at a time: a player playing one, or a patron
+// (the crowd takes a machine for a while now and then). The room syncs who (state.machines):
+// "" free, a player's sessionId, or a patron "npc:<Kind>:<tint>". Anyone else is refused with a
+// friendly word; a player may ask a patron to finish up ("Excuse me").
+
+export const NPC_PREFIX = "npc:";
+export const isNpcOccupant = (who: string) => who.startsWith(NPC_PREFIX);
+/** The crowd's figures (patrons.glb). */
+export const PATRON_KINDS = ["Rabbit", "Raccoon", "Feline"] as const;
+export type PatronKind = (typeof PATRON_KINDS)[number];
+/** A patron at a machine: its figure and its outfit's tint index. */
+export function npcOccupant(who: string): { kind: PatronKind; tint: number } | null {
+  if (!isNpcOccupant(who)) return null;
+  const [, kind, tint] = who.split(":");
+  return (PATRON_KINDS as readonly string[]).includes(kind) ? { kind: kind as PatronKind, tint: Number(tint) || 0 } : null;
+}
+export const OCCUPIED_LINE = "Someone is currently playing here! Please wait a moment or find an open machine.";
+/** How long a patron plays a machine, and how long a player keeps one without playing it. */
+export const NPC_MACHINE_SECONDS: [number, number] = [30, 60];
+export const PLAYER_MACHINE_HOLD_SECONDS = 20;
+/** A patron asked to finish up leaves after this spin (seconds), and the machine waits this long for
+ *  the one who asked. */
+export const EXCUSE_ME_SECONDS = 3;
+export const EXCUSE_ME_HOLD_SECONDS = 12;
 
 // --- the house's extras -----------------------------------------------------------------------
 //
@@ -686,7 +858,7 @@ export interface CapsuleResult {
 export const CELEBRATE_SLOT_MULTIPLIER = Math.min(...SLOT_TRIPLE);
 /** Wins this big (in chips) make the Big-Win marquee. */
 export const MARQUEE_MIN_WIN = 50;
-export type CasinoGame = "slots" | "roulette" | "blackjack" | "poker" | "craps" | "derby" | "pusher";
+export type CasinoGame = "slots" | "roulette" | "blackjack" | "poker" | "baccarat" | "craps" | "derby" | "pusher";
 /** Server -> everyone ("casinoWin"): a win for the marquee, and whether the hall celebrates it. */
 export interface CasinoWin {
   sessionId: string;
@@ -705,7 +877,7 @@ export interface CasinoWin {
  *  (or the house's pretzels) served. `seed` makes every client play it the same way; the dice and
  *  the race's winner are the server's. */
 export interface CasinoPropEvent {
-  kind: "craps" | "derby" | "pusher" | "billiards" | "vipdoor" | "fortune" | "tipjar" | "barmenu";
+  kind: "craps" | "derby" | "pusher" | "billiards" | "vipdoor" | "fortune" | "tipjar" | "barmenu" | "machine";
   propId: string;
   sessionId: string;
   seed: number;
@@ -716,8 +888,10 @@ export interface CasinoPropEvent {
   dealer?: "boris" | "vivienne";
   drink?: CasinoDrinkId;
   snack?: boolean;
-  /** The VIP room's door: whether Bruno let the player through (or out), or turned them away. */
+  /** The penthouse's doors: Bruno letting the player up (or back down), or turning them away. */
   vip?: "in" | "out" | "refused";
+  /** A patron asked to finish up at a machine. */
+  excused?: boolean;
 }
 
 /** Client -> server ("casino"): the capsule machine, wearing a title, Pippin's bar, and the games
@@ -732,11 +906,28 @@ export type CasinoPacket =
   | { type: "DERBY_BET"; horse: number; amount: number }
   | { type: "PUSHER_DROP"; stake: number; pos: number }
   | { type: "POOL_BREAK" }
+  | { type: "POOL_JOIN" }
+  | { type: "POOL_LEAVE" }
+  | { type: "POOL_SHOT"; shotId: number; angle: number; power: number; cue: { x: number; y: number } | null }
+  | { type: "POOL_SETTLE"; shotId: number; balls: { n: number; x: number; y: number; in: boolean }[]; potted: number[]; firstHit: number }
+  | { type: "BACCARAT_BET"; bet: BaccaratBet; amount: number }
+  | { type: "VIP_PASS_BUY" }
+  | { type: "VIP_PASS_PAWN" }
+  | { type: "EXCUSE_ME"; propId: string }
   | { type: "PIANO_RECITAL"; piece: PianoPieceId }
   | { type: "PIANO_STOP" }
   | { type: "PIANO_NOTE"; midi: number };
 /** Server -> client ("casinoNotice"): why something was refused (short of chips, too far away, a
- *  stake off the table's limits, or the moment has passed: the betting closed, a hand in play). */
+ *  stake off the table's limits, the moment passed (the betting closed, a hand in play), not seated
+ *  at the table, a machine someone else is at, or no VIP pass). */
 export interface CasinoNotice {
-  reason: "chips" | "far" | "limits" | "busy";
+  reason: "chips" | "far" | "limits" | "busy" | "seat" | "occupied" | "pass";
+}
+/** Server -> client ("vipPassResult"): a pass bought or pawned (or why not). */
+export interface VipPassResult {
+  ok: boolean;
+  kind: "buy" | "pawn";
+  chips: number;
+  hasPass: boolean;
+  reason?: "chips" | "far" | "have" | "none";
 }

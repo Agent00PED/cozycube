@@ -46,7 +46,6 @@ const RELAYED_MESSAGES = [
   "rouletteResult",
   "npcSay",
   "chatBubble",
-  "blackjackState",
   "openSlots",
   "allowance",
   "welcome",
@@ -119,6 +118,13 @@ const RELAYED_MESSAGES = [
   "blackjackResult",
   "pianoRecital",
   "pianoNote",
+  // the definitive overhaul: the blackjack tables' rounds, the penthouse's baccarat, the pool
+  // table's duel and its shots, and Mr. Vance's (or Bruno's) word on the VIP pass
+  "blackjackTable",
+  "baccaratState",
+  "poolState",
+  "poolShot",
+  "vipPassResult",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
@@ -204,6 +210,9 @@ interface UseColyseusRoomResult {
   roulette: RouletteSyncState;
   /** Roulette bets on the table this round, by sessionId (encodeBets strings). */
   bets: Record<string, string>;
+  /** Who is at each of the casino's one-player machines, by propId: "" free, a sessionId, or a
+   *  patron "npc:<Kind>:<tint>" (shared/casino.ts). */
+  machines: Record<string, string>;
   autoCycle: boolean;
   /** Persisted High Rollers (top balances), refreshed by the server every few seconds. */
   leaderboard: LeaderboardEntry[];
@@ -296,6 +305,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const messageListenersRef = useRef(new Set<RoomMessageListener>());
   const [roulette, setRoulette] = useState<RouletteSyncState>({ phase: "betting", timeLeft: 25, result: -1, spinId: 0 });
   const [bets, setBets] = useState<Record<string, string>>({});
+  const [machines, setMachines] = useState<Record<string, string>>({});
   const [autoCycle, setAutoCycleState] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [hearth, setHearth] = useState<HearthState>(EMPTY_HEARTH);
@@ -520,6 +530,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             connected: player.connected,
             coins: player.coins ?? 0,
             chips: player.chips ?? 0,
+            vipPass: !!player.vipPass,
             bag: player.bag ?? "",
             owned: player.owned ?? "",
             status: player.status ?? "",
@@ -654,6 +665,12 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
           })
         );
       }
+      if (room.state.machines) {
+        const setMachine = (value: string, propId: string) => setMachines((prev) => (prev[propId] === value ? prev : { ...prev, [propId]: value }));
+        room.state.machines.onAdd(setMachine);
+        room.state.machines.onChange(setMachine);
+        room.state.machines.onRemove((_v: string, propId: string) => setMachine("", propId));
+      }
       room.state.listen("autoCycle", (v: boolean) => setAutoCycleState(v));
       room.state.listen("leaderboard", (raw: string) => {
         try {
@@ -740,6 +757,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     retryNow,
     roulette,
     bets,
+    machines,
     autoCycle,
     leaderboard,
     hearth,

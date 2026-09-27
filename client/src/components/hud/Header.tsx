@@ -304,7 +304,7 @@ function ChipPurse({ chips, here }: { chips: number; here: boolean }) {
       title={here ? "Velvet Chips: what the casino's tables take. Buy and cash out at Mr. Vance's cage" : "Velvet Chips held: cash them in at Mr. Vance's cage in the Velvet Casino"}
       aria-label={`${chips} Velvet Chips`}
     >
-      <span key={bump} className={`flex items-center gap-1.5 font-bold tabular-nums text-amber-200 ${bump ? "cozy-coin-bump" : ""}`}>
+      <span key={bump} className={`flex items-center gap-1.5 tabular-nums text-amber-200 ${here ? "casino-numeral" : "font-bold"} ${bump ? "cozy-coin-bump" : ""}`}>
         <span className={ICON} aria-hidden>
           <VelvetChipIcon size="1.05em" />
         </span>

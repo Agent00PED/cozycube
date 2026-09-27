@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type { Group } from "three";
 import type { MapId, PlayerState } from "@shared/types";
-import { clampToWorld, isBlocked, walkY } from "@shared/collision";
+import { clampToRegion, isBlocked, walkY } from "@shared/collision";
 import { auraPace } from "@shared/casino";
 import { findPath, type Point } from "@shared/pathfinding";
 import { cameraFocus } from "../scene/cameraFocus";
@@ -72,9 +72,9 @@ function slideStep(pos: Point, dx: number, dz: number, mapId: MapId) {
   const sx = dx / steps;
   const sz = dz / steps;
   for (let i = 0; i < steps; i++) {
-    const nx = clampToWorld(pos.x + sx, mapId);
+    const nx = clampToRegion(mapId, pos.x, pos.z, pos.x + sx, pos.z).x;
     if (!isBlocked(nx, pos.z, mapId, PLAYER_RADIUS)) pos.x = nx;
-    const nz = clampToWorld(pos.z + sz, mapId);
+    const nz = clampToRegion(mapId, pos.x, pos.z, pos.x, pos.z + sz).z;
     if (!isBlocked(pos.x, nz, mapId, PLAYER_RADIUS)) pos.z = nz;
   }
 }

@@ -14,6 +14,7 @@ import {
 import { glass, hudText } from "./glass";
 import { chipTone } from "./BetControls";
 import { ChipAmount } from "./VelvetChipIcon";
+import { RouletteWheel } from "./RouletteWheel";
 
 const CONFETTI = Array.from({ length: 18 }, (_, i) => ({
   dx: `${Math.cos(i * 0.35 + 0.2) * (90 + (i % 4) * 30)}px`,
@@ -117,9 +118,11 @@ export function RoulettePanel({ roulette, myBets, chips, localSessionId, onPlace
   };
 
   return (
-    <div className="cozy-roulette" style={styles.panel} role="dialog" aria-label="Roulette betting board">
+    <div className="cozy-roulette casino-body" style={styles.panel} role="dialog" aria-label="Roulette betting board">
       <div style={styles.head}>
-        <span style={styles.title}>🎡 Roulette</span>
+        <span style={styles.title} className="casino-title">
+          🎡 <span className="gold-foil">Roulette</span>
+        </span>
         <span style={{ ...styles.phase, background: open ? "#2d9a5a" : roulette.phase === "spinning" ? "#b3202e" : "#8a6a2a" }}>{phaseLabel}</span>
         <span style={{ flex: 1 }} />
         <span style={styles.wallet} title="Your Velvet Chips">
@@ -137,8 +140,8 @@ export function RoulettePanel({ roulette, myBets, chips, localSessionId, onPlace
         </button>
       </div>
       <div style={styles.placards}>
-        <span style={styles.placard}>INSIDE · MIN: {chipText(INSIDE.min)} | MAX ALL-IN: {chipText(INSIDE.max)}</span>
-        <span style={styles.placard}>OUTSIDE · MIN: {chipText(OUTSIDE_LIMIT.min)} | MAX ALL-IN: {chipText(OUTSIDE_LIMIT.max)}</span>
+        <span style={styles.placard} className="casino-placard">INSIDE · MIN: {chipText(INSIDE.min)} | MAX ALL-IN: {chipText(INSIDE.max)}</span>
+        <span style={styles.placard} className="casino-placard">OUTSIDE · MIN: {chipText(OUTSIDE_LIMIT.min)} | MAX ALL-IN: {chipText(OUTSIDE_LIMIT.max)}</span>
       </div>
       <div style={styles.track}>
         <div style={{ ...styles.fill, width: `${frac * 100}%`, background: open ? "#6fd08c" : "#f2cf73" }} />
@@ -149,6 +152,12 @@ export function RoulettePanel({ roulette, myBets, chips, localSessionId, onPlace
           {CONFETTI.map((c, i) => (
             <i key={i} style={{ background: c.color, ["--dx" as string]: c.dx, ["--dy" as string]: c.dy, animationDelay: `${(i % 6) * 30}ms` } as CSSProperties} />
           ))}
+        </div>
+      )}
+      {/* the wheel, spinning over the felt once the bets are closed */}
+      {roulette.phase !== "betting" && (
+        <div style={styles.wheel}>
+          <RouletteWheel phase={roulette.phase} spinId={roulette.spinId} result={roulette.result} />
         </div>
       )}
       {outcome && roulette.phase !== "betting" && (
@@ -233,6 +242,7 @@ const styles: Record<string, CSSProperties> = {
   head: { display: "flex", alignItems: "center", gap: 8 },
   title: { fontWeight: 800, fontSize: 15, color: "#f2cf73" },
   phase: { fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 999, color: "#fff" },
+  wheel: { display: "flex", justifyContent: "center", padding: "4px 0 2px", filter: "drop-shadow(0 6px 14px rgba(0,0,0,0.5))" },
   wallet: { fontWeight: 800, fontSize: 13, fontVariantNumeric: "tabular-nums" },
   placards: { display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" },
   placard: {

@@ -4,16 +4,19 @@ import { Html } from "@react-three/drei";
 import type { Room } from "colyseus.js";
 import type { BoardGameView, ChairSyncState, MapId, PlayerState, TimeOfDay, ToggleableSyncState } from "@shared/types";
 import { GESTURE_SECONDS, MAP_HALF, isWalkUpProp, usableSeated } from "@shared/types";
-import { walkY } from "@shared/collision";
+import { isBlocked, walkY } from "@shared/collision";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
 import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf, nearestChopStation } from "@shared/worlds/campfire";
 import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireSky, CampfireWorld } from "./CampfireWorld";
 import { CASINO_URL, CasinoWorld } from "./CasinoWorld";
+import { CASINO_VIP_URL } from "./CasinoVipWorld";
 import { preloadCasinoStaff } from "../entities/CasinoStaff";
 import { preloadPatrons } from "../entities/AmbientPatrons";
-import { BAR_REACH, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, barDistance, blackjackTableNear, casinoFloorY, inVipRoom, nearGameTable } from "@shared/worlds/casino";
+import { BAR_REACH, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, TABLE_FULL_LINE, barDistance, casinoFloorY, seatedGameAt, seatedGameOf, tablePerimeter, type StandingTable } from "@shared/worlds/casino";
+import { VIP_FRAME, inPenthouse } from "@shared/worlds/casino_vip";
+import { pushToast } from "../components/hud/toastStore";
 import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
 import { BoardTablePad, CampfirePuff, Cat, FloorLamp, PLANT_BURST_SECONDS, PUFF_SECONDS, PlantBurst, PropPad, RadioProp, SeatPad } from "./Props";
@@ -119,14 +122,18 @@ const CASINO_PADS: Partial<Record<ToggleableSyncState["kind"], { size: [number, 
   gachapon: { size: [0.75, CL.gachapon.h, 0.75] },
   tipjar: { size: [0.3, 0.32, 0.3] },
   barmenu: { size: [0.75, 1.15, 0.75] },
-  vipdoor: { size: [CL.vip.gateW + 0.2, 1.8, 0.35] },
+  baccarat: { size: [2.2, 0.95, 1.4], at: (p) => ({ z: p.z + 0.3 }) },
+  vipdoor: { size: [CL.vipDoors.w + 0.2, CL.vipDoors.h, 0.35] },
 };
+/** The tables played standing, from any side: a click walks you to the nearest open spot round the rim. */
+const STANDING_TABLES: Record<string, StandingTable> = { roulette_table: "roulette", craps_table: "craps", derby_table: "derby", billiards_table: "billiards" };
+/** The penthouse's elevator doors (the way back down) take their own pad. */
+const ELEVATOR_PAD: [number, number, number] = [1.3, 2.3, 0.4];
 
-/** Whether a seated player (at cameraFocus) is in reach of a casino prop they can use sitting. */
+/** Whether a seated player (at cameraFocus) is in reach of a casino prop they can use sitting (the
+ *  seated games are their own seats' business: seatedGameOf). */
 function seatedReach(kind: ToggleableSyncState["kind"], prop: { x: number; z: number }): boolean {
   const d = Math.hypot(prop.x - cameraFocus.x, prop.z - cameraFocus.z);
-  if (kind === "blackjack") return !!blackjackTableNear(cameraFocus.x, cameraFocus.z);
-  if (kind === "poker") return nearGameTable("poker", cameraFocus.x, cameraFocus.z);
   if (kind === "barmenu") return barDistance(cameraFocus.x, cameraFocus.z) <= BAR_REACH;
   if (kind === "piano") return d <= PIANO_REACH;
   if (kind === "gazette") return d <= GAZETTE_REACH;
@@ -209,14 +216,20 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
     };
   }, [subscribeMessages]);
 
-  // the camera fits this world's floor with a margin (the lounge's own frame, or another world's size)
-  frame.size = mapId === "cozy_lounge" ? LOFT_FRAME.size : mapId === "campfire_night" ? CAMPFIRE_FRAME.size : mapId === "velvet_casino" ? CASINO_FRAME.size : MAP_HALF[mapId] * 2 + 0.8;
+  // the camera fits this world's floor with a margin (the lounge's own frame, or another world's
+  // size); up in the casino's penthouse, the penthouse's own
+  const up = mapId === "velvet_casino" && !!me && inPenthouse(me.x, me.z);
+  const casinoFrame = up ? VIP_FRAME : CASINO_FRAME;
+  frame.size = mapId === "cozy_lounge" ? LOFT_FRAME.size : mapId === "campfire_night" ? CAMPFIRE_FRAME.size : mapId === "velvet_casino" ? casinoFrame.size : MAP_HALF[mapId] * 2 + 0.8;
+  frame.x = mapId === "velvet_casino" ? casinoFrame.x : 0;
+  frame.z = mapId === "velvet_casino" ? casinoFrame.z : 0;
 
   // the other worlds' models are fetched quietly once the lounge is up, so travelling is instant
   useEffect(() => {
     const campfire = window.setTimeout(() => useGLTF.preload(CAMPFIRE_URL), 4000);
     const casino = window.setTimeout(() => {
       useGLTF.preload(CASINO_URL);
+      useGLTF.preload(CASINO_VIP_URL);
       preloadCasinoStaff();
       preloadPatrons();
     }, 7000);
@@ -321,23 +334,44 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   const stand = useCallback(() => live.current.room?.send("standUp"), []);
 
   const activate = useCallback(
-    (clicked: string) => {
-      const { room, toggleables, mapId, me } = live.current;
-      // the VIP room's doors are one pad: out through them from inside, in past Bruno from the stage
-      const propId = toggleables[clicked]?.kind === "vipdoor" ? (inVipRoom(cameraFocus.x, cameraFocus.z) ? "vip_exit" : "vip_door") : clicked;
+    (propId: string) => {
+      const { room, toggleables, mapId, me, chairs, localSessionId } = live.current;
       const prop = toggleables[propId];
       if (!prop) return;
+      // the casino's seated games (blackjack, poker, baccarat, the piano) are played from a seat: on
+      // one of the table's already, it opens right there; standing, you're walked to its nearest free
+      // seat (sitting down opens it). A full table says so, and the ones everyone can watch open for
+      // you to look on from the rail.
+      const game = mapId === "velvet_casino" ? seatedGameOf(propId) : undefined;
+      if (game) {
+        if (game.seats.some((s) => chairs[s]?.occupiedBy === localSessionId)) {
+          room?.send("useProp", { propId, x: cameraFocus.x, z: cameraFocus.z });
+          return;
+        }
+        let best: { id: string; d: number } | null = null;
+        for (const id of game.seats) {
+          const c = chairs[id];
+          if (!c || c.occupiedBy) continue;
+          const a = APPROACH_POINTS[id] ?? c;
+          const d = Math.hypot(a.x - cameraFocus.x, a.z - cameraFocus.z);
+          if (!best || d < best.d) best = { id, d };
+        }
+        if (best) {
+          sit(best.id);
+          return;
+        }
+        pushToast(TABLE_FULL_LINE, { emoji: "🪑" });
+        if (!game.spectate) return;
+      }
       // already sitting at the games table, or on a pouf by the radio: its panel opens right there, without getting up
       if ((prop.kind === "boardgame" || prop.kind === "radio") && me?.sitting) {
         window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: prop.kind, propId } }));
         return;
       }
-      // the casino's handful used from a seat in reach of them: the baby grand from its bench, the
-      // bar menu from a stool, a tip from a chair by the jar, the paper from the Chesterfield; a
-      // blackjack stool deals you in right there
-      if (me?.sitting && usableSeated(prop.kind) && seatedReach(prop.kind, prop)) {
-        if (prop.kind === "blackjack") window.dispatchEvent(new CustomEvent("cozy-open-blackjack"));
-        else room?.send("useProp", { propId, x: cameraFocus.x, z: cameraFocus.z });
+      // the casino's handful used from a seat in reach of them: the bar menu from a stool, a tip from
+      // a chair by the jar, the paper from the Chesterfield
+      if (me?.sitting && !game && usableSeated(prop.kind) && seatedReach(prop.kind, prop)) {
+        room?.send("useProp", { propId, x: cameraFocus.x, z: cameraFocus.z });
         return;
       }
       // sitting at a fishing spot already (the dock's edge, the canoe): cast from right there,
@@ -351,6 +385,20 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         room?.send("useProp", { propId, x: cameraFocus.x, z: cameraFocus.z });
         return;
       }
+      // the standing tables: up to the nearest open spot round the rim, whichever side you come from
+      const standing = mapId === "velvet_casino" && !game ? STANDING_TABLES[propId] : undefined;
+      if (standing) {
+        let best: { x: number; z: number; d: number } | null = null;
+        for (const q of tablePerimeter(standing)) {
+          if (isBlocked(q.x, q.z, mapId)) continue;
+          const d = Math.hypot(q.x - cameraFocus.x, q.z - cameraFocus.z);
+          if (!best || d < best.d) best = { ...q, d };
+        }
+        if (best) {
+          walkTo(best.x, best.z, { propId });
+          return;
+        }
+      }
       // Mochi is wherever her day has taken her; everything else has a fixed spot to stand
       if (prop.kind === "cat") {
         const s = mochiSpot(mapId, Date.now() / 1000);
@@ -360,8 +408,18 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         walkTo(at.x, at.z, { propId });
       }
     },
-    [walkTo]
+    [walkTo, sit]
   );
+
+  // sitting down at one of the casino's seated games (walked there by it, or by clicking the seat)
+  // opens its panel: the table's round, the hand against Boris (the piano's bench asks the HUD)
+  const mySeat = (localSessionId && Object.values(chairs).find((c) => c.occupiedBy === localSessionId)?.propId) || "";
+  useEffect(() => {
+    if (mapId !== "velvet_casino" || !mySeat) return;
+    const game = seatedGameAt(mySeat);
+    if (!game || game.kind === "piano") return;
+    live.current.room?.send("useProp", { propId: game.propId, x: cameraFocus.x, z: cameraFocus.z });
+  }, [mySeat, mapId]);
 
   const sitNearest = useCallback((): boolean => {
     const { chairs, localSessionId } = live.current;
@@ -426,7 +484,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       ) : mapId === "campfire_night" ? (
         <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} hearth={hearth} subscribeMessages={subscribeMessages} onDuck={(duck) => room?.send("duckPoke", { duck })} />
       ) : mapId === "velvet_casino" ? (
-        <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} />
+        <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} up={up} />
       ) : (
         <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />
       )}
@@ -478,7 +536,9 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={{ ...prop, z: prop.z + 0.45 }} size={[1.2, 2.3, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "portal" ? (
           <PropPad key={prop.propId} prop={prop} size={[2.4, 2.9, 0.5]} onUse={() => activate(prop.propId)} />
-        ) : prop.propId === "vip_exit" ? null : CASINO_PADS[prop.kind] ? (
+        ) : prop.propId === "vip_exit" ? (
+          <PropPad key={prop.propId} prop={{ ...prop, z: prop.z - 0.1 }} size={ELEVATOR_PAD} onUse={() => activate(prop.propId)} />
+        ) : CASINO_PADS[prop.kind] ? (
           <PropPad key={prop.propId} prop={{ ...prop, ...CASINO_PADS[prop.kind]!.at?.(prop) }} size={CASINO_PADS[prop.kind]!.size} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "plant" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.75, 1.4, 0.75]} onUse={() => activate(prop.propId)} />

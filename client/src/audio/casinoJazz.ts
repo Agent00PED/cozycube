@@ -7,18 +7,24 @@ import { getSoundSettings } from "./soundSettings";
 //   | Gm7 | C7 | Fmaj7 | D7 | Gm7 | C7 | Fmaj7 | C7 | Bbmaj7 | Bbm6 | Am7 | D7 | Gm7 | C7 | F6 | C7 |
 //
 //   upright bass   a walking line: the root on one, chord tones on two and three, a chromatic
-//                  step into the next bar's root on four; a warm pluck under a low-pass
-//   drums          the ride's swung "ding, ding-a ding", brushes on two and four with a soft swirl
-//                  between, a feathered bass drum on every beat
-//   keys           Rhodes-like comping: three-note shells (the third, the seventh, a colour tone)
-//                  on the Charleston and its cousins, a bell in the attack, a long decay
+//                  step into the next bar's root on four; a clean round tone (a sine with a quiet
+//                  triangle an octave up) under a low-pass that closes after the pluck
+//   drums          the ride's swung "ding, ding-a ding" kept low and dark, brushes on two and four
+//                  (a soft swish that swells in rather than clicks, filtered well below the hiss
+//                  range) with a slow swirl between, a feathered bass drum on every beat
+//   keys           a warm FM Rhodes comping: three-note shells (the third, the seventh, a colour
+//                  tone) on the Charleston and its cousins; each note a sine carrier with a 1:1
+//                  modulator whose depth falls away after the strike (the tine's bark mellowing
+//                  into a round tone), a faint bell partial in the attack, a long soft decay
 //   muted trumpet  now and then, a short phrase of swung eighths from the chord (a harmon-muted
 //                  buzz: a sawtooth through a narrow band-pass, a late vibrato)
 //
-// all through a short room echo and a gentle top-end roll-off, with a faint vinyl hiss. Arriving at
-// the casino fades it in and leaving fades it out (the campfire's cross-fade time). Its level is
-// the Settings panel's Casino Jazz fader. The notes are scheduled a little ahead on the audio
-// clock (the usual look-ahead scheduler), so a busy frame never makes the band drag.
+// all through a short room echo and a warm top-end roll-off. No noise bed, no record crackle: the
+// only noise in it is the brushes' and the ride's, band-limited and enveloped (the crowd under it,
+// audio/casinoCrowd.ts, is mixed a touch below the band). Arriving at the casino fades it in and
+// leaving fades it out (the campfire's cross-fade time). Its level is the Settings panel's Casino
+// Jazz fader. The notes are scheduled a little ahead on the audio clock (the usual look-ahead
+// scheduler), so a busy frame never makes the band drag.
 
 const FADE_S = 1.8;
 const BPM = 84;
@@ -66,7 +72,6 @@ export class CasinoJazz {
   private stopAt = 0;
   private nextBeat = 0;
   private beat = 0;
-  private hiss: AudioBufferSourceNode | null = null;
 
   private ensure(): AudioContext | null {
     if (this.ctx) return this.ctx;
@@ -83,7 +88,8 @@ export class CasinoJazz {
     // the band's bus: a gentle roll-off of the top, and a short room echo beside the dry sound
     const warm = c.createBiquadFilter();
     warm.type = "lowpass";
-    warm.frequency.value = 5200;
+    warm.frequency.value = 4200;
+    warm.Q.value = 0.5;
     warm.connect(this.level);
     this.bus = c.createGain();
     this.bus.connect(warm);
@@ -99,10 +105,15 @@ export class CasinoJazz {
     this.bus.connect(echo);
     echo.connect(dull).connect(back).connect(echo);
     dull.connect(wet).connect(warm);
-    // noise for the drums and the record's hiss
+    // noise for the brushes and the ride only (each hit filtered and enveloped): a pinkish tilt, so
+    // there is less top in it to begin with
     this.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
     const d = this.noise.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    let last = 0;
+    for (let i = 0; i < d.length; i++) {
+      last = last * 0.7 + (Math.random() * 2 - 1) * 0.3;
+      d[i] = last * 2.2;
+    }
     const unlock = () => {
       if (c.state === "suspended") void c.resume();
     };
@@ -114,7 +125,7 @@ export class CasinoJazz {
   /** The Casino Jazz fader, gently curved like the ambience's. */
   private fader() {
     const v = getSoundSettings().jazz;
-    return v * v * 0.9;
+    return v * v * 1.05;
   }
 
   refreshVolume() {
@@ -136,7 +147,6 @@ export class CasinoJazz {
       if (!this.timer) {
         this.nextBeat = now + 0.1;
         this.beat = 0;
-        this.startHiss();
         this.timer = window.setInterval(this.tick, TICK_MS);
       }
     } else {
@@ -151,7 +161,6 @@ export class CasinoJazz {
     if (!this.active && now > this.stopAt) {
       window.clearInterval(this.timer);
       this.timer = 0;
-      this.stopHiss();
       return;
     }
     if (this.nextBeat < now) this.nextBeat = now + 0.05; // back from a suspended context: pick up the beat
@@ -177,7 +186,7 @@ export class CasinoJazz {
       this.ride(t + SWING * BEAT, 0.55);
       this.brush(t, 1);
     } else {
-      this.brush(t + 0.5 * BEAT, 0.35); // the swirl between the hits
+      this.swirl(t); // the brush circling the head between the hits
     }
     this.kick(t);
     if (inBar !== 0) return;
@@ -187,20 +196,23 @@ export class CasinoJazz {
     if (bar % 4 === 2 && Math.random() < 0.55) this.phrase(chord, t + SWING * BEAT);
   }
 
+  /** The upright: a round sine body with a quiet triangle an octave up for the finger's edge, a
+   *  low-pass that opens on the pluck and closes over the note, sustained nearly to the next beat. */
   private bass(midi: number, t: number, accent: number) {
     const c = this.ctx!;
     const f = hz(midi);
     const lp = c.createBiquadFilter();
     lp.type = "lowpass";
-    lp.frequency.setValueAtTime(900, t);
-    lp.frequency.exponentialRampToValueAtTime(380, t + 0.35);
+    lp.Q.value = 0.7;
+    lp.frequency.setValueAtTime(720, t);
+    lp.frequency.exponentialRampToValueAtTime(260, t + 0.28);
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.32 * accent, t + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.09 * accent, t + 0.3);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + BEAT * 0.98);
+    g.gain.exponentialRampToValueAtTime(0.36 * accent, t + 0.018);
+    g.gain.exponentialRampToValueAtTime(0.16 * accent, t + 0.32);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + BEAT * 1.02);
     lp.connect(g).connect(this.bus!);
-    for (const [type, mul, lvl] of [["triangle", 1, 1], ["sine", 2, 0.25]] as const) {
+    for (const [type, mul, lvl] of [["sine", 1, 1], ["triangle", 2, 0.12]] as const) {
       const o = c.createOscillator();
       o.type = type;
       o.frequency.value = f * mul;
@@ -208,49 +220,64 @@ export class CasinoJazz {
       og.gain.value = lvl;
       o.connect(og).connect(lp);
       o.start(t);
-      o.stop(t + BEAT);
+      o.stop(t + BEAT * 1.05);
       o.onended = () => (o.disconnect(), og.disconnect());
     }
     window.setTimeout(() => (lp.disconnect(), g.disconnect()), (t - c.currentTime + BEAT + 0.2) * 1000);
   }
 
-  /** A short burst of filtered noise: the ride, the brushes. */
-  private hit(t: number, type: BiquadFilterType, freq: number, q: number, level: number, decay: number) {
+  /** A short burst of filtered noise (the ride, the brushes): band-limited top and bottom, and
+   *  shaped, so it never reads as hiss. `attack` > a few ms swells it in (a brush's swish). */
+  private hit(t: number, freq: number, q: number, level: number, decay: number, attack = 0.004, top = 6000) {
     const c = this.ctx!;
     const src = c.createBufferSource();
     src.buffer = this.noise;
     const f = c.createBiquadFilter();
-    f.type = type;
+    f.type = "bandpass";
     f.frequency.value = freq;
     f.Q.value = q;
+    const cap = c.createBiquadFilter();
+    cap.type = "lowpass";
+    cap.frequency.value = top;
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(level, t + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
-    src.connect(f).connect(g).connect(this.bus!);
+    g.gain.exponentialRampToValueAtTime(level, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
+    src.connect(f).connect(cap).connect(g).connect(this.bus!);
     src.start(t, Math.random() * 1.5);
-    src.stop(t + decay + 0.02);
-    src.onended = () => (src.disconnect(), f.disconnect(), g.disconnect());
+    src.stop(t + attack + decay + 0.02);
+    src.onended = () => (src.disconnect(), f.disconnect(), cap.disconnect(), g.disconnect());
   }
 
+  /** The ride: a dark, low wash of a cymbal, and a soft bell in it (a pair of detuned partials,
+   *  not one bright sine). */
   private ride(t: number, accent: number) {
-    this.hit(t, "bandpass", 7200, 1.4, 0.028 * accent, 0.32);
-    // the bell's ping in it
+    this.hit(t, 4300, 1.1, 0.017 * accent, 0.34, 0.003, 5200);
     const c = this.ctx!;
-    const o = c.createOscillator();
-    o.frequency.value = 5120;
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.004 * accent, t + 0.003);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
-    o.connect(g).connect(this.bus!);
-    o.start(t);
-    o.stop(t + 0.27);
-    o.onended = () => (o.disconnect(), g.disconnect());
+    g.gain.exponentialRampToValueAtTime(0.0026 * accent, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    g.connect(this.bus!);
+    for (const fq of [3180, 3437]) {
+      const o = c.createOscillator();
+      o.frequency.value = fq;
+      o.connect(g);
+      o.start(t);
+      o.stop(t + 0.32);
+      o.onended = () => o.disconnect();
+    }
+    window.setTimeout(() => g.disconnect(), (t - c.currentTime + 0.4) * 1000);
   }
 
+  /** A brush on the snare on two and four: a soft swish swelling in, low in the mids. */
   private brush(t: number, accent: number) {
-    this.hit(t, "bandpass", 2600, 0.7, 0.035 * accent, accent > 0.5 ? 0.16 : 0.3);
+    this.hit(t - 0.02, 1500, 0.8, 0.03 * accent, 0.2, 0.035, 3200);
+  }
+
+  /** The brush circling the head between the hits: a slow, quiet sweep. */
+  private swirl(t: number) {
+    this.hit(t + 0.25 * BEAT, 1100, 0.6, 0.009, BEAT * 0.45, BEAT * 0.3, 2400);
   }
 
   private kick(t: number) {
@@ -268,7 +295,8 @@ export class CasinoJazz {
     o.onended = () => (o.disconnect(), g.disconnect());
   }
 
-  /** A three-note shell voiced round middle C: the third, the seventh and the colour tone. */
+  /** A three-note shell voiced round middle C (the third, the seventh and the colour tone), each
+   *  note an FM Rhodes tine. */
   private comp(chord: Chord, t: number, accent: number) {
     const c = this.ctx!;
     const base = chord.root % 12 + 48; // the root's pitch class, from C3
@@ -280,30 +308,48 @@ export class CasinoJazz {
     });
     const lp = c.createBiquadFilter();
     lp.type = "lowpass";
-    lp.frequency.value = 1900;
+    lp.frequency.value = 2300;
+    lp.Q.value = 0.4;
     lp.connect(this.bus!);
     const len = BEAT * (0.9 + Math.random() * 0.8);
-    for (const m of notes) {
-      const f = hz(m);
-      const g = c.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.045 * accent, t + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.018 * accent, t + 0.45);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + len + 0.5);
-      g.connect(lp);
-      for (const [mul, lvl] of [[1, 1], [2, 0.18], [4.02, 0.05]]) {
-        const o = c.createOscillator();
-        o.frequency.value = f * mul;
-        const og = c.createGain();
-        og.gain.value = lvl;
-        o.connect(og).connect(g);
-        o.start(t);
-        o.stop(t + len + 0.55);
-        o.onended = () => (o.disconnect(), og.disconnect());
-      }
-      window.setTimeout(() => g.disconnect(), (t - c.currentTime + len + 0.7) * 1000);
+    // the notes of a chord land a hair apart, as fingers do
+    notes.forEach((m, k) => this.rhodes(hz(m), t + k * 0.012, len, accent, lp));
+    window.setTimeout(() => lp.disconnect(), (t - c.currentTime + len + 1.2) * 1000);
+  }
+
+  /** One Rhodes note by FM: a sine carrier, a 1:1 sine modulator whose depth starts bright and
+   *  settles (the tine's bark mellowing), and a faint high modulator for the strike's bell. */
+  private rhodes(f: number, t: number, len: number, accent: number, out: AudioNode) {
+    const c = this.ctx!;
+    const end = t + len + 0.9;
+    const carrier = c.createOscillator();
+    carrier.frequency.value = f;
+    const mod = c.createOscillator();
+    mod.frequency.value = f;
+    const depth = c.createGain();
+    depth.gain.setValueAtTime(f * 1.5 * accent, t);
+    depth.gain.exponentialRampToValueAtTime(f * 0.35, t + 0.5);
+    depth.gain.exponentialRampToValueAtTime(f * 0.12, t + len);
+    mod.connect(depth).connect(carrier.frequency);
+    const bell = c.createOscillator();
+    bell.frequency.value = f * 14;
+    const bellDepth = c.createGain();
+    bellDepth.gain.setValueAtTime(f * 0.9, t);
+    bellDepth.gain.exponentialRampToValueAtTime(f * 0.01, t + 0.07);
+    bell.connect(bellDepth).connect(carrier.frequency);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.05 * accent, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.022 * accent, t + 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, end);
+    carrier.connect(g).connect(out);
+    for (const o of [carrier, mod, bell]) {
+      o.start(t);
+      o.stop(end + 0.05);
     }
-    window.setTimeout(() => lp.disconnect(), (t - c.currentTime + len + 0.8) * 1000);
+    carrier.onended = () => {
+      for (const n of [carrier, mod, bell, depth, bellDepth, g]) n.disconnect();
+    };
   }
 
   /** A short muted-trumpet phrase: swung eighths from the chord, a late vibrato on the last note. */
@@ -348,30 +394,4 @@ export class CasinoJazz {
     }
   }
 
-  private startHiss() {
-    const c = this.ctx!;
-    if (this.hiss) return;
-    const src = c.createBufferSource();
-    src.buffer = this.noise;
-    src.loop = true;
-    const f = c.createBiquadFilter();
-    f.type = "bandpass";
-    f.frequency.value = 4200;
-    f.Q.value = 0.5;
-    const g = c.createGain();
-    g.gain.value = 0.004;
-    src.connect(f).connect(g).connect(this.level!);
-    src.start();
-    this.hiss = src;
-  }
-
-  private stopHiss() {
-    try {
-      this.hiss?.stop();
-    } catch {
-      // already stopped
-    }
-    this.hiss?.disconnect();
-    this.hiss = null;
-  }
 }

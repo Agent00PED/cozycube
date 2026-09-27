@@ -1,6 +1,6 @@
 import { Room, Client, OnMessageException, type RoomException } from "colyseus";
 import { Schema, type, MapSchema } from "@colyseus/schema";
-import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToWorld, isBlocked } from "../../../shared/collision";
+import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToRegion, isBlocked } from "../../../shared/collision";
 import { PersistenceQueue, getPlayerStore, newPlayerRecord, type PlayerRecord } from "../db/players";
 import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } from "./games";
 import { AWAY_PREFIX, BoardTable, type BoardSnapshot } from "./boardgame";
@@ -243,6 +243,8 @@ class Player extends Schema {
   @type("number") coins = STARTING_COINS;
   /** Velvet Chips (the record's casino.chips is the one kept). */
   @type("number") chips = 0;
+  /** Holds the Black Velvet VIP Pass (the record's casino.vipPass is the one kept). */
+  @type("boolean") vipPass = false;
   @type("string") bag = "";
   @type("string") owned = "";
   @type("string") status = "";
@@ -310,6 +312,9 @@ class HangoutState extends Schema {
   @type(RouletteSchema) roulette = new RouletteSchema();
   /** Roulette bets on the table this round, per sessionId, as encodeBets() strings. */
   @type({ map: "string" }) bets = new MapSchema<string>();
+  /** Who is at each of the casino's one-player machines: "" free, a sessionId, or a patron
+   *  "npc:<Kind>:<tint>" (shared/casino.ts). */
+  @type({ map: "string" }) machines = new MapSchema<string>();
   @type("boolean") autoCycle = false;
   /** The persisted High Rollers table (LeaderboardEntry[] as JSON), refreshed every few seconds. */
   @type("string") leaderboard = "[]";
@@ -465,6 +470,13 @@ export class HangoutRoom extends Room<HangoutState> {
         this.broadcast(type, payload, except ? { except } : undefined);
       },
       sendTo: (sessionId, type, payload) => this.sendTo(sessionId, type, payload),
+      seatOf: (sessionId) => {
+        let seat = "";
+        this.state.chairs.forEach((chair, id) => {
+          if (chair.occupiedBy === sessionId) seat = id;
+        });
+        return seat;
+      },
       teleport: (sessionId, x, z) => {
         const player = this.state.players.get(sessionId);
         if (!player || player.sitting) return;
@@ -727,7 +739,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!record) return;
     record.username = player.username;
     record.coins = player.coins;
-    record.casino = { ...record.casino, chips: player.chips, title: player.title };
+    record.casino = { ...record.casino, chips: player.chips, title: player.title, vipPass: player.vipPass };
     record.unlockedItems = player.owned ? player.owned.split(",") : [];
     const look = parseLook(player.look);
     record.equippedLook = look ? { ...toStoredLook(look) } : {};
@@ -737,7 +749,7 @@ export class HangoutRoom extends Room<HangoutState> {
     } catch {
       record.daily = null;
     }
-    const signature = `${record.coins}|${player.chips}|${player.title}|${record.casino.fortuneDay}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
+    const signature = `${record.coins}|${player.chips}|${player.title}|${player.vipPass}|${record.casino.fortuneDay}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
     if (signature === this.savedSignature.get(sessionId) && !now) return;
     this.savedSignature.set(sessionId, signature);
     this.queue.mark(record);
@@ -1145,14 +1157,15 @@ export class HangoutRoom extends Room<HangoutState> {
   // scene is saved beside the board game (db/boards.ts, under "<channel>#scene") whenever it
   // changes, and a room created again for the channel puts it back before anyone joins: the world
   // it was in, the hour, and the campfire's bonfire (its fuel, even at 0%: an out fire stays out
-  // until relit, nobody is ever moved for it), its Dutch oven and its picnic plates.
+  // until relit, nobody is ever moved for it), its Dutch oven and its picnic plates, and the casino's
+  // coin pusher's shelf.
 
   private sceneKey() {
     return `${this.boardStoreKey()}#scene`;
   }
 
   private sceneNow(): SavedScene {
-    return { map: this.state.currentMap, time: this.state.timeOfDay, fuel: this.state.fuel, stew: this.state.stew, picnic: this.state.picnic };
+    return { map: this.state.currentMap, time: this.state.timeOfDay, fuel: this.state.fuel, stew: this.state.stew, picnic: this.state.picnic, pusher: Math.floor(this.casino.shelf) };
   }
 
   private async saveScene() {
@@ -1188,6 +1201,8 @@ export class HangoutRoom extends Room<HangoutState> {
       const plates = parsePicnic(typeof scene.picnic === "string" ? scene.picnic : "");
       this.state.picnic = plates.length ? JSON.stringify(plates) : "";
       this.picnicAt = plates.map(() => Date.now());
+      // the casino's coin pusher: its shelf as the last players left it
+      this.casino.restoreShelf(scene.pusher);
       this.savedScene = JSON.stringify(this.sceneNow());
       console.log(`[room ${this.roomId}] scene restored for channel ${this.boardStoreKey()}: ${this.state.currentMap}, fire ${this.state.fuel}%`);
     } catch (err) {
@@ -2675,8 +2690,11 @@ export class HangoutRoom extends Room<HangoutState> {
     if (typeof x !== "number" || typeof z !== "number") return;
     if (!Number.isFinite(x) || !Number.isFinite(z)) return;
 
-    let goalX = clampToWorld(x, this.state.currentMap);
-    let goalZ = clampToWorld(z, this.state.currentMap);
+    // (kept on the floor the player stands on: the casino's hall and penthouse are joined only by
+    // Bruno's doors, never by a walk)
+    const kept = clampToRegion(this.state.currentMap, player.x, player.z, x, z);
+    let goalX = kept.x;
+    let goalZ = kept.z;
 
     // How far this player could honestly have walked since their last report.
     const now = Date.now();
@@ -2926,8 +2944,9 @@ export class HangoutRoom extends Room<HangoutState> {
         }
         break;
       case "slot":
-        // Walking up opens the machine's own panel; spins arrive as "spin_slots" with a stake.
-        this.sendTo(sessionId, "openSlots", { propId: prop.propId });
+        // Walking up opens the machine's own panel (unless someone is at it); spins arrive as
+        // "spin_slots" with a stake.
+        if (this.casino.claimMachine(sessionId, prop.propId)) this.sendTo(sessionId, "openSlots", { propId: prop.propId });
         break;
       case "stew": {
         if (!prop.on) return; // the pot is empty and being refilled
@@ -3246,6 +3265,7 @@ export class HangoutRoom extends Room<HangoutState> {
     record.username = player.username;
     player.coins = record.coins;
     player.chips = record.casino.chips;
+    player.vipPass = record.casino.vipPass;
     player.owned = record.unlockedItems.join(",");
     const title = record.casino.title;
     player.title = title && record.unlockedItems.includes(capsuleUnlock({ kind: "title", id: title })) ? title : "";
@@ -3422,6 +3442,7 @@ export class HangoutRoom extends Room<HangoutState> {
       record.casino = oldRecord.casino;
       player.coins = old.coins;
       player.chips = old.chips;
+      player.vipPass = old.vipPass;
       player.title = old.title;
       player.fishing = JSON.stringify(record.fishing);
       player.fed = old.fed;
@@ -3489,6 +3510,8 @@ interface SavedScene {
   fuel: number;
   stew: string;
   picnic: string;
+  /** The coin pusher's shelf (chips' worth). */
+  pusher?: number;
 }
 
 /** A burst of board changes is saved once, this long after the last. */

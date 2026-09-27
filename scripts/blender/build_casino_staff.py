@@ -1,6 +1,6 @@
 """The Velvet Casino's staff, regulars and crowd: builds boris.glb, vivienne.glb, jasper.glb,
-pippin.glb, bruno.glb, cedric.glb and patrons.glb in client/public/models/ (ONLY, a list of those
-names set in the namespace, builds just those).
+pippin.glb, bruno.glb, cedric.glb, gideon.glb, baron.glb, penelope.glb and patrons.glb in
+client/public/models/ (ONLY, a list of those names set in the namespace, builds just those).
 
 Run it inside Blender through the Live Bridge (POST {"code": ...}; queued, nothing comes back, and
 it execs with separate globals and locals, so run this file inside a namespace of its own with
@@ -31,9 +31,23 @@ it), with the nodes entities/CampNpc.tsx animates:
     Pippin      a penguin mixologist (a burgundy bow tie), flippers on the bar, a shaker in one,
                 a cocktail with a cherry on the counter in front of him
     Bruno       a bulldog bouncer in a black suit and dark glasses, an earpiece coiled to his
-                collar, arms folded, beside the VIP room's doors
+                collar, arms folded, beside the penthouse's gilded doors
     Cedric      a badger blackjack dealer in a green felt visor, a black waistcoat over a white
                 shirt with red arm garters, a deck in his left paw (both arms his own: he shuffles)
+    Gideon      a tall blue-grey greyhound dealing Table 2: a burgundy waistcoat over a white shirt,
+                gold arm garters, a black bow tie, a deck in his left paw (both arms his own)
+
+Up in the Velvet Penthouse (shared/worlds/casino_vip.ts), two high rollers sit at their tables, built
+seated on the seats casino_vip.glb draws under them (their origin at the seat's foot, facing +z,
+the seat's cushion height from shared/seats.ts):
+
+    Baron       Baron von Fox in white tails (a white tailcoat, its tails over the chair, a white
+                waistcoat and tie, a red carnation), a gold monocle on its chain; a champagne flute
+                in his right paw (his wave is a toast), his left paw on his cards at the table's end,
+                his brush of a tail hanging past the chair
+    Penelope    Duchess Penelope, a cream Pomeranian in a lilac satin gown and white opera gloves,
+                a diamond tiara with a sapphire, a diamond necklace and bracelet, a little lace fan
+                in her right paw, her plume of a tail over her back, on a baccarat stool
 
 Jasper's paws both rest on his knees (he claps, and paws at his machine's coin slot).
 
@@ -118,6 +132,32 @@ PALETTE = {
     "Visor": "#2F9E5B",
     "VisorBand": "#1F6B3E",
     "Garter": "#B3202E",
+    # Gideon
+    "GreyCoat": "#9496A4",
+    "GreyDark": "#6D6F7C",
+    "GreyLight": "#E4E1DC",
+    "Burgundy": "#6E1628",
+    "BurgundyDark": "#4E0E1C",
+    "GoldGarter": "#D4A548",
+    # Baron von Fox
+    "FoxFur": "#C4582A",
+    "FoxDeep": "#9A3E1A",
+    "FoxWhite": "#F4ECE0",
+    "WhiteTails": "#F1ECE2",
+    "WhiteSatin": "#DDD5C6",
+    "SilkWhite": "#FFFDF7",
+    "Champagne": "#F3D98A",
+    "Carnation": "#C2263A",
+    "MonocleGlass": "#DDEBF2",
+    # Duchess Penelope
+    "PomFur": "#F0CFA0",
+    "PomCream": "#FAEBD2",
+    "Gown": "#B59AD8",
+    "GownShade": "#9A7EC2",
+    "Glove": "#F8F4F6",
+    "Diamond": "#EEF8FF",
+    "Sapphire": "#3162C8",
+    "Lace": "#F2E6F4",
     # Bella and the chic feline
     "PatFurGinger": "#E3A15C",
     "PatFurCream": "#F4E3C8",
@@ -909,13 +949,239 @@ def build_patrons():
 
 
 # ---------------------------------------------------------------------------------------------
+# Gideon: the greyhound dealing Table 2 (high stakes). Tall and slim, standing, arms hanging loose
+# (the game swings them forward to shuffle and to knock the felt).
+
+
+def build_gideon(L):
+    coll, root = rig("Gideon")
+    B = Part()
+    for sx in (-1, 1):
+        cylinder(B, (sx * 0.08, 0.46, 0.0), (sx * 0.085, 0.08, 0.02), 0.055, "Trousers", r_end=0.05)
+        blob(B, sx * 0.085, 0.04, 0.08, 0.06, 0.04, 0.12, "Black", bottom=0.0)
+    blob(B, 0.0, 0.69, 0.0, 0.2, 0.27, 0.165, "TuxShirt", cuts=4)
+    blob(B, 0.0, 0.47, 0.0, 0.19, 0.09, 0.155, "Trousers", top=0.53)
+    blob(B, 0.0, 0.68, -0.005, 0.212, 0.21, 0.178, "Burgundy", cuts=4, top=0.87, bottom=0.51)
+    blob(B, 0.0, 0.77, 0.12, 0.07, 0.1, 0.07, "TuxShirt")  # the shirt in the waistcoat's V
+    for k, y in enumerate((0.72, 0.65, 0.58)):
+        blob(B, 0.0, y, 0.172 - k * 0.004, 0.013, 0.013, 0.008, "Brass", cuts=1)
+    blob(B, -0.1, 0.74, 0.15, 0.04, 0.012, 0.02, "BurgundyDark", cuts=1)  # a pocket welt
+    for sx in (-1, 1):
+        blob(B, sx * 0.042, 0.9, 0.13, 0.038, 0.022, 0.018, "Black", cuts=1)
+    blob(B, 0.0, 0.9, 0.142, 0.016, 0.018, 0.013, "Black", cuts=1)
+    cylinder(B, (-0.075, 0.6, 0.165), (0.065, 0.575, 0.165), 0.005, "Brass", sides=4)  # a watch chain
+    body = node("Gideon_Body", B, coll, root)
+
+    H = Part()
+    neck = (0.0, 0.9, 0.0)
+    cylinder(H, (0.0, 0.86, 0.0), (0.0, 1.03, 0.05), 0.075, "GreyCoat", sides=10, r_end=0.065)
+    blob(H, 0.0, 1.12, 0.03, 0.13, 0.12, 0.14, "GreyCoat", cuts=4)
+    blob(H, 0.0, 1.075, 0.2, 0.062, 0.058, 0.14, "GreyCoat", cuts=3)  # the long muzzle
+    blob(H, 0.0, 1.1, 0.17, 0.034, 0.075, 0.12, "GreyLight", cuts=2)  # the pale blaze
+    blob(H, 0.0, 1.045, 0.2, 0.05, 0.03, 0.1, "GreyLight", cuts=2)  # the chin
+    blob(H, 0.0, 1.085, 0.335, 0.026, 0.02, 0.018, "Nose", cuts=1)
+    eyes(H, 0.065, 1.15, 0.13, 0.021, 0.026)
+    for sx in (-1, 1):
+        blob(H, sx * 0.1, 1.2, -0.06, 0.065, 0.028, 0.075, "GreyDark", cuts=2, tilt=-0.5)  # rose ears, folded back
+        blob(H, sx * 0.1, 1.08, 0.12, 0.028, 0.016, 0.012, "Blush", cuts=1)
+    blob(H, 0.0, 0.9, 0.07, 0.085, 0.05, 0.07, "GreyLight")  # the throat, over the collar
+    node("Gideon_Head", H, coll, body, neck)
+
+    for sx, name in ((-1, "Gideon_ArmR"), (1, "Gideon_ArmL")):
+        A = Part()
+        shoulder = (sx * 0.2, 0.83, 0.0)
+        elbow = (sx * 0.235, 0.6, 0.03)
+        paw = (sx * 0.22, 0.41, 0.07)
+        arm(A, shoulder, elbow, paw, "TuxShirt", "TuxShirt", r=0.05, paw_size=0.044, paw_colour="GreyCoat")
+        g = lerp(shoulder, elbow, 0.55)
+        cylinder(A, (g[0], g[1] + 0.018, g[2]), (g[0], g[1] - 0.018, g[2]), 0.056, "GoldGarter", sides=10)
+        c = lerp(elbow, paw, 0.8)
+        blob(A, c[0], c[1], c[2], 0.05, 0.028, 0.05, "TuxShirt", cuts=1)
+        if sx > 0:
+            box(A, paw[0] - 0.035, paw[0] + 0.035, paw[1] - 0.02, paw[1] + 0.02, paw[2] + 0.02, paw[2] + 0.1, "CardRed")
+        node(name, A, coll, body, shoulder)
+
+    T = Part()
+    pts = [(0.0, 0.47, -0.14), (0.0, 0.34, -0.2), (0.0, 0.2, -0.22), (0.02, 0.12, -0.16)]
+    for a, b in zip(pts, pts[1:]):
+        cylinder(T, a, b, 0.025, "GreyCoat", sides=8, r_end=0.02)
+    node("Gideon_Tail", T, coll, body, pts[0])
+    return coll
+
+
+# ---------------------------------------------------------------------------------------------
+# Baron von Fox: seated on his chair at the end of the penthouse's poker table (its seat at the
+# pokerChair's cushion height; the table's end 0.55 in front of him, its rail at 0.72).
+
+
+def build_baron(cushions):
+    coll, root = rig("Baron")
+    s = cushions["pokerChair"]["top"]
+    B = Part()
+    for sx in (-1, 1):
+        cylinder(B, (sx * 0.1, s + 0.07, -0.02), (sx * 0.11, s + 0.07, 0.25), 0.08, "WhiteTails", sides=10)
+        blob(B, sx * 0.11, s + 0.07, 0.25, 0.078, 0.078, 0.078, "WhiteTails", cuts=2)
+        cylinder(B, (sx * 0.11, s + 0.05, 0.26), (sx * 0.11, 0.07, 0.3), 0.065, "WhiteTails", sides=10, r_end=0.058)
+        blob(B, sx * 0.11, 0.035, 0.36, 0.068, 0.035, 0.11, "Black", bottom=0.0)
+    blob(B, 0.0, s + 0.1, 0.0, 0.22, 0.1, 0.18, "WhiteTails")
+    blob(B, 0.0, s + 0.34, -0.02, 0.23, 0.24, 0.19, "WhiteTails", cuts=4)
+    blob(B, 0.0, s + 0.33, 0.1, 0.14, 0.17, 0.1, "SilkWhite")  # the waistcoat
+    blob(B, 0.0, s + 0.44, 0.15, 0.07, 0.08, 0.06, "TuxShirt")  # the shirt front
+    for sx in (-1, 1):
+        cylinder(B, (sx * 0.08, s + 0.5, 0.15), (sx * 0.15, s + 0.22, 0.16), 0.03, "WhiteSatin", sides=6)  # satin lapels
+        blob(B, sx * 0.04, s + 0.53, 0.19, 0.04, 0.022, 0.018, "SilkWhite", cuts=1)  # the white tie
+        blob(B, sx * 0.09, s - 0.06, -0.21, 0.065, 0.18, 0.03, "WhiteTails", cuts=2)  # the coat's tails over the seat
+    blob(B, 0.0, s + 0.53, 0.2, 0.017, 0.02, 0.014, "SilkWhite", cuts=1)
+    for k, y in enumerate((s + 0.36, s + 0.28)):
+        blob(B, 0.03, y, 0.2 - k * 0.004, 0.012, 0.012, 0.007, "Brass", cuts=1)
+    blob(B, 0.13, s + 0.46, 0.17, 0.035, 0.035, 0.025, "Carnation", cuts=2)  # the carnation
+    cylinder(B, (-0.08, s + 0.3, 0.19), (0.07, s + 0.27, 0.19), 0.005, "Brass", sides=4)  # a watch chain
+    blob(B, 0.0, s + 0.54, 0.08, 0.14, 0.05, 0.12, "FoxWhite")  # the white ruff at the collar
+    body = node("Baron_Body", B, coll, root)
+
+    H = Part()
+    neck = (0.0, s + 0.56, 0.0)
+    blob(H, 0.0, s + 0.74, 0.02, 0.19, 0.17, 0.18, "FoxFur", cuts=4)
+    for sx in (-1, 1):
+        blob(H, sx * 0.1, s + 0.67, 0.1, 0.1, 0.07, 0.08, "FoxWhite")  # the white cheeks
+        cylinder(H, (sx * 0.09, s + 0.84, 0.0), (sx * 0.15, s + 1.01, -0.03), 0.07, "FoxFur", sides=6, r_end=0.012)
+        cylinder(H, (sx * 0.135, s + 0.96, -0.02), (sx * 0.15, s + 1.01, -0.03), 0.028, "Black", sides=6, r_end=0.01)
+        cylinder(H, (sx * 0.09, s + 0.85, 0.02), (sx * 0.135, s + 0.97, 0.0), 0.035, "FoxWhite", sides=5, r_end=0.008)
+    blob(H, 0.0, s + 0.69, 0.19, 0.07, 0.055, 0.1, "FoxWhite")  # the muzzle
+    blob(H, 0.0, s + 0.705, 0.29, 0.03, 0.022, 0.018, "Nose", cuts=1)
+    eyes(H, 0.075, s + 0.78, 0.15, 0.022, 0.026)
+    for sx in (-1, 1):
+        blob(H, sx * 0.075, s + 0.815, 0.155, 0.04, 0.008, 0.012, "FoxDeep", cuts=1)  # a lordly brow
+    # the monocle on his right eye, its chain down to the lapel
+    mx, my, mz = -0.075, s + 0.78, 0.178
+    ring = [(mx + 0.038 * math.cos(2 * math.pi * k / 12), my + 0.038 * math.sin(2 * math.pi * k / 12), mz) for k in range(12)]
+    for k in range(12):
+        cylinder(H, ring[k], ring[(k + 1) % 12], 0.006, "Brass", sides=4)
+    blob(H, mx, my, mz - 0.002, 0.034, 0.034, 0.004, "MonocleGlass", cuts=1)
+    cylinder(H, (mx - 0.03, my - 0.03, mz), (-0.13, s + 0.6, 0.12), 0.003, "Brass", sides=4)
+    node("Baron_Head", H, coll, body, neck)
+
+    # his right paw raises a champagne flute (a wave from him is a toast); his left rests on his cards
+    A = Part()
+    shoulder = (-0.22, s + 0.46, 0.0)
+    elbow = (-0.28, s + 0.28, 0.14)
+    paw = (-0.17, s + 0.36, 0.3)
+    arm(A, shoulder, elbow, paw, "WhiteTails", "WhiteTails", r=0.062, paw_size=0.05, paw_colour="Black")
+    c = lerp(elbow, paw, 0.78)
+    blob(A, c[0], c[1], c[2], 0.056, 0.056, 0.03, "SilkWhite", cuts=1)
+    fx, fy, fz = paw[0], paw[1] + 0.03, paw[2] + 0.02
+    lathe(A, fx, fz, [(0, 0), (0.03, 0), (0.006, 0.01), (0.005, 0.07), (0.022, 0.1), (0.024, 0.2), (0, 0.2)], "Glass", segs=10, y0=fy - 0.06)
+    lathe(A, fx, fz, [(0, 0.085), (0.019, 0.1), (0.021, 0.17), (0, 0.17)], "Champagne", segs=10, y0=fy - 0.06)
+    node("Baron_ArmR", A, coll, body, shoulder)
+    A = Part()
+    shoulder = (0.22, s + 0.46, 0.0)
+    elbow = (0.29, s + 0.29, 0.15)
+    paw = (0.17, 0.74, 0.44)
+    arm(A, shoulder, elbow, paw, "WhiteTails", "WhiteTails", r=0.062, paw_size=0.05, paw_colour="Black")
+    c = lerp(elbow, paw, 0.78)
+    blob(A, c[0], c[1], c[2], 0.056, 0.056, 0.03, "SilkWhite", cuts=1)
+    for k in range(3):
+        box(A, paw[0] - 0.06 + k * 0.03, paw[0] + 0.0 + k * 0.03, 0.725, 0.73, paw[2] + 0.02, paw[2] + 0.1, "Card" if k != 1 else "CardRed")
+    node("Baron_ArmL", A, coll, body, shoulder)
+
+    # the brush: from under the coat's tails, down past the chair's side, a white tip
+    T = Part()
+    pts = [(0.12, s + 0.06, -0.16), (0.27, s - 0.02, -0.1), (0.32, s - 0.18, -0.02)]
+    for a, b in zip(pts, pts[1:]):
+        cylinder(T, a, b, 0.06, "FoxFur", sides=10, r_end=0.075)
+    blob(T, 0.32, s - 0.2, 0.0, 0.085, 0.1, 0.085, "FoxFur", cuts=3, fluff=0.08)
+    blob(T, 0.33, s - 0.3, 0.03, 0.06, 0.06, 0.06, "FoxWhite", cuts=2, fluff=0.08)
+    node("Baron_Tail", T, coll, body, pts[0])
+    return coll
+
+
+# ---------------------------------------------------------------------------------------------
+# Duchess Penelope: seated on her baccarat stool (the barStool's cushion height), the table's
+# rail 0.4 in front of her at 0.79.
+
+
+def build_penelope(cushions):
+    coll, root = rig("Penelope")
+    s = cushions["barStool"]["top"]
+    B = Part()
+    # the gown: a satin skirt falling over the stool to a flared hem, slippers on the foot ring
+    lathe(B, 0.0, 0.05, [(0, 0.2), (0.23, 0.2), (0.215, 0.26), (0.19, s - 0.05), (0.17, s + 0.08), (0.13, s + 0.16), (0, s + 0.16)], "Gown", segs=18)
+    lathe(B, 0.0, 0.05, [(0, 0.195), (0.235, 0.195), (0.235, 0.215), (0, 0.215)], "GownShade", segs=18)
+    for sx in (-1, 1):
+        blob(B, sx * 0.06, 0.215, 0.2, 0.04, 0.025, 0.06, "Gown", cuts=2)
+    blob(B, 0.0, s + 0.28, 0.0, 0.15, 0.15, 0.125, "PomFur", cuts=4)
+    blob(B, 0.0, s + 0.24, 0.005, 0.155, 0.12, 0.13, "Gown", cuts=4, top=s + 0.33)  # the bodice
+    blob(B, 0.0, s + 0.33, 0.005, 0.157, 0.012, 0.132, "GownShade", cuts=2)  # its satin edge
+    blob(B, 0.0, s + 0.42, 0.03, 0.19, 0.1, 0.17, "PomCream", cuts=4, fluff=0.12)  # the ruff
+    # the necklace: diamonds round the ruff's front, a sapphire drop
+    for k in range(9):
+        a = math.pi * (0.15 + 0.7 * k / 8)
+        blob(B, 0.13 * math.cos(a), s + 0.37 - 0.02 * math.sin(a), 0.03 + 0.13 * math.sin(a), 0.015, 0.015, 0.015, "Diamond", cuts=1)
+    blob(B, 0.0, s + 0.33, 0.165, 0.022, 0.03, 0.015, "Sapphire", cuts=2)
+    body = node("Penelope_Body", B, coll, root)
+
+    H = Part()
+    neck = (0.0, s + 0.44, 0.0)
+    hy = s + 0.6
+    blob(H, 0.0, hy, 0.02, 0.17, 0.15, 0.15, "PomFur", cuts=4, fluff=0.1)
+    blob(H, 0.0, hy - 0.04, 0.12, 0.1, 0.08, 0.07, "PomCream")
+    blob(H, 0.0, hy - 0.05, 0.17, 0.045, 0.035, 0.04, "PomCream", cuts=2)
+    blob(H, 0.0, hy - 0.04, 0.21, 0.02, 0.016, 0.014, "Nose", cuts=1)
+    eyes(H, 0.06, hy + 0.02, 0.15, 0.024, 0.028)
+    for sx in (-1, 1):
+        cylinder(H, (sx * 0.08, hy + 0.1, -0.01), (sx * 0.1, hy + 0.2, -0.02), 0.042, "PomFur", sides=6, r_end=0.008)
+        blob(H, sx * 0.1, hy - 0.04, 0.12, 0.03, 0.018, 0.012, "Blush", cuts=1)
+        for dy in (0.0, 0.012):
+            cylinder(H, (sx * 0.085, hy + 0.045 + dy, 0.155), (sx * 0.11, hy + 0.06 + dy * 1.4, 0.15), 0.004, "Eye", sides=4)  # lashes
+    # the tiara: a band of diamonds over her brow, five points, the sapphire in the middle
+    band_pts = [(0.12 * math.cos(math.pi * k / 10), hy + 0.12 + 0.02 * math.sin(math.pi * k / 10), 0.03 + 0.06 * math.sin(math.pi * k / 10)) for k in range(11)]
+    for a, b in zip(band_pts, band_pts[1:]):
+        cylinder(H, a, b, 0.008, "Diamond", sides=5)
+    for k, (px, py, pz) in enumerate(band_pts[1::2]):
+        tip = 0.07 if k == 2 else 0.045
+        cylinder(H, (px, py, pz), (px * 0.9, py + tip, pz), 0.012, "Diamond", sides=5, r_end=0.003)
+    blob(H, 0.0, hy + 0.17, 0.095, 0.02, 0.026, 0.012, "Sapphire", cuts=2)
+    node("Penelope_Head", H, coll, body, neck)
+
+    # opera gloves: a lace fan in her right paw, a diamond bracelet on her left, both on the rail
+    for sx, name in ((-1, "Penelope_ArmR"), (1, "Penelope_ArmL")):
+        A = Part()
+        shoulder = (sx * 0.14, s + 0.33, 0.02)
+        elbow = (sx * 0.18, s + 0.22, 0.15)
+        paw = (sx * 0.1, 0.79, 0.33)
+        arm(A, shoulder, elbow, paw, "PomFur", "Glove", r=0.04, paw_size=0.038, paw_colour="Glove")
+        if sx < 0:
+            for k in range(5):
+                a = -0.9 + 0.45 * k
+                cylinder(A, (paw[0], paw[1] + 0.02, paw[2]), (paw[0] + 0.1 * math.sin(a), paw[1] + 0.03 + 0.1 * math.cos(a), paw[2] + 0.02), 0.022, "Lace", sides=4, r_end=0.035)
+        else:
+            w = lerp(elbow, paw, 0.72)
+            for k in range(8):
+                a = 2 * math.pi * k / 8
+                blob(A, w[0] + 0.036 * math.cos(a), w[1] + 0.036 * math.sin(a), w[2], 0.012, 0.012, 0.012, "Diamond", cuts=1)
+        node(name, A, coll, body, shoulder)
+
+    T = Part()
+    pts = [(0.0, s + 0.18, -0.13), (0.0, s + 0.34, -0.22), (0.0, s + 0.45, -0.13)]
+    for a, b in zip(pts, pts[1:]):
+        cylinder(T, a, b, 0.07, "PomFur", sides=10, r_end=0.08)
+    blob(T, 0.0, s + 0.42, -0.14, 0.11, 0.09, 0.1, "PomCream", cuts=3, fluff=0.15)
+    node("Penelope_Tail", T, coll, body, pts[0])
+    return coll
+
+
+# ---------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------
 
 
 def read_cushions(root):
     src = open(os.path.join(root, "shared", "seats.ts"), encoding="utf-8").read()
-    m = re.search(r"\bbarStool: \{ y: (-?[0-9.]+), h: ([0-9.]+) \}", src)
-    y, h = float(m.group(1)), float(m.group(2))
-    return {"barStool": {"top": y + h / 2}}
+    out = {}
+    for name in ("barStool", "pokerChair"):
+        m = re.search(rf"\b{name}: \{{ y: (-?[0-9.]+), h: ([0-9.]+) \}}", src)
+        y, h = float(m.group(1)), float(m.group(2))
+        out[name] = {"top": y + h / 2}
+    return out
 
 
 def export(coll, path, extras=False):
@@ -956,7 +1222,7 @@ def main():
         cushions = read_cushions(root)
         result = {"ok": True}
         only = globals().get("ONLY")
-        for name, make in (("boris", lambda: build_boris(L)), ("vivienne", lambda: build_vivienne(L)), ("jasper", lambda: build_jasper(L, cushions)), ("pippin", lambda: build_pippin(L)), ("bruno", lambda: build_bruno(L)), ("cedric", lambda: build_cedric(L)), ("patrons", build_patrons)):
+        for name, make in (("boris", lambda: build_boris(L)), ("vivienne", lambda: build_vivienne(L)), ("jasper", lambda: build_jasper(L, cushions)), ("pippin", lambda: build_pippin(L)), ("bruno", lambda: build_bruno(L)), ("cedric", lambda: build_cedric(L)), ("gideon", lambda: build_gideon(L)), ("baron", lambda: build_baron(cushions)), ("penelope", lambda: build_penelope(cushions)), ("patrons", build_patrons)):
             if only and name not in only:
                 continue
             coll = make()

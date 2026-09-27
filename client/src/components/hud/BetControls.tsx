@@ -40,7 +40,7 @@ export function BetPicker({ limit, chips, value, onChange, share = 1, disabled =
         {limit.presets.map((n) => {
           const off = disabled || n > afford || n > limit.max;
           return (
-            <button key={n} type="button" disabled={off} onClick={() => onChange(n)} aria-pressed={value === n} className={`relative flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed bg-gradient-to-b text-[11px] font-black shadow-[0_3px_0_rgba(0,0,0,0.45)] transition-transform active:translate-y-0.5 disabled:opacity-30 ${chipTone(n)} ${value === n ? "ring-2 ring-amber-300 ring-offset-2 ring-offset-black/40 -translate-y-0.5" : ""}`}>
+            <button key={n} type="button" disabled={off} onClick={() => onChange(n)} aria-pressed={value === n} className={`casino-numeral relative flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed bg-gradient-to-b text-[11px] shadow-[0_3px_0_rgba(0,0,0,0.45)] transition-transform active:translate-y-0.5 disabled:opacity-30 ${chipTone(n)} ${value === n ? "ring-2 ring-amber-300 ring-offset-2 ring-offset-black/40 -translate-y-0.5" : ""}`}>
               {short(n)}
             </button>
           );
@@ -51,7 +51,7 @@ export function BetPicker({ limit, chips, value, onChange, share = 1, disabled =
       </div>
       <div className="flex items-center gap-2 text-xs">
         <span className="opacity-70">{label}:</span>
-        <span className="rounded-full bg-black/35 px-2.5 py-0.5 text-sm font-extrabold text-amber-100">
+        <span className="casino-numeral rounded-full border border-amber-300/30 bg-black/35 px-2.5 py-0.5 text-sm text-amber-100">
           <ChipAmount n={value} />
         </span>
         <span className="opacity-60">

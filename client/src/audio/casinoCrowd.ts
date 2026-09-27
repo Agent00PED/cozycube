@@ -67,10 +67,10 @@ export class CasinoCrowd {
     return c;
   }
 
-  /** The Casino Crowd fader, gently curved like the others. */
+  /** The Casino Crowd fader, gently curved like the others, and mixed a touch under the band. */
   private fader() {
     const v = getSoundSettings().crowd;
-    return v * v * 0.9;
+    return v * v * 0.72;
   }
 
   refreshVolume() {
@@ -104,7 +104,7 @@ export class CasinoCrowd {
   private startBeds() {
     if (this.beds.length) return;
     this.bed(480, 0.9, 0.05, 0.11, 0.02);
-    this.bed(1250, 1.1, 0.025, 0.07, 0.012);
+    this.bed(980, 1.1, 0.018, 0.07, 0.009);
   }
 
   private stopBeds() {

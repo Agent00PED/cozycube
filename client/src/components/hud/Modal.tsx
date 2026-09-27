@@ -35,24 +35,33 @@ export function Modal({
   }, [onClose]);
 
   const toneClass = tone === "felt" ? "bg-emerald-950/85 border-emerald-300/20" : tone === "velvet" ? "bg-[#2a1017]/90 border-amber-200/20" : "bg-stone-900/85 border-white/10";
+  // the casino's panels (felt and velvet): engraved gold titles, a brass-edged sheet, a velvet ribbon
+  const casino = tone !== "stone";
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/45 sm:items-center sm:p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
       <div
         role="dialog"
         aria-label={title}
-        className={`clay-sheet sm:clay-pop flex max-h-[85vh] ${fit ? "w-[90vw] sm:w-[90vw]" : "w-full"} flex-col overflow-hidden rounded-t-3xl border text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl ${toneClass}`}
+        className={`clay-sheet sm:clay-pop flex max-h-[85vh] ${fit ? "w-[90vw] sm:w-[90vw]" : "w-full"} flex-col overflow-hidden rounded-t-3xl border text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl ${toneClass} ${casino ? "casino-sheet casino-body" : ""}`}
         style={{ maxWidth: width }}
       >
         <div className="flex items-center gap-3 px-5 pt-4 pb-2">
           {icon && <span className="text-2xl">{icon}</span>}
-          <h2 className="font-cozy flex-1 text-lg font-extrabold tracking-wide">{title}</h2>
+          {casino ? (
+            <h2 className="casino-title flex-1">
+              <span className="gold-foil">{title}</span>
+            </h2>
+          ) : (
+            <h2 className="font-cozy flex-1 text-lg font-extrabold tracking-wide">{title}</h2>
+          )}
           <button type="button" onClick={onClose} className="clay-close" aria-label="Close">
             ✕
           </button>
         </div>
+        {casino && <div className="casino-ribbon" aria-hidden />}
         {placard && (
-          <div className="mx-5 mb-2 self-center rounded-md border border-[#6b4a12] bg-gradient-to-b from-[#f6dc8f] via-[#d9a843] to-[#9c6b1c] px-3 py-0.5 text-center font-serif text-[11px] font-black tracking-[0.18em] text-[#3a2206] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_2px_6px_rgba(0,0,0,0.45)]" style={{ textShadow: "0 1px 0 rgba(255,240,200,0.6)" }}>
+          <div className="casino-placard mx-5 mb-2 self-center rounded-md border border-[#6b4a12] bg-gradient-to-b from-[#f6dc8f] via-[#d9a843] to-[#9c6b1c] px-3 py-0.5 text-center text-[11px] tracking-[0.18em] text-[#3a2206] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_2px_6px_rgba(0,0,0,0.45)]" style={{ textShadow: "0 1px 0 rgba(255,240,200,0.6)" }}>
             {placard}
           </div>
         )}

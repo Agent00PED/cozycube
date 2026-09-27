@@ -1,5 +1,6 @@
 import type { MapId } from "./types";
-import { GRID_LIMIT, isBlocked } from "./collision";
+import { isBlocked, mapBounds, worldLimit } from "./collision";
+import { MAP_IDS } from "./types";
 
 // Grid A* over the same collision the server validates against.
 //
@@ -15,40 +16,53 @@ export interface Point {
 }
 
 const CELL = 0.25;
-// One grid size for every map (the largest, the 28x28 valley); smaller maps simply have their
-// outer cells blocked by isBlocked's per-map limit.
-const SIZE = Math.ceil((GRID_LIMIT * 2) / CELL) + 1;
 const PLAYER_RADIUS = 0.3;
 
-const gridCache = new Map<MapId, Uint8Array>();
-
-function toCell(v: number): number {
-  return Math.round((v + GRID_LIMIT) / CELL);
+// Each map's grid covers its own floor's bounds (the casino's spans its hall and the penthouse off
+// to the side), cells outside the floor blocked by isBlocked. Every grid's cells sit on one lattice,
+// the one the square worlds have always been sampled on (so their narrow passages stay as open as
+// they ever were).
+const LATTICE = Math.max(...MAP_IDS.map(worldLimit));
+const snapDown = (v: number) => Math.floor((v + LATTICE) / CELL - 1e-9) * CELL - LATTICE;
+interface Grid {
+  x0: number;
+  z0: number;
+  nx: number;
+  nz: number;
+  cells: Uint8Array;
 }
-function toWorld(c: number): number {
-  return c * CELL - GRID_LIMIT;
-}
+const gridCache = new Map<MapId, Grid>();
 
-/** 1 = walkable. Built once per map, lazily — about 5.8k collision tests. */
-function walkGrid(mapId: MapId): Uint8Array {
+const toCellX = (g: Grid, v: number) => Math.round((v - g.x0) / CELL);
+const toCellZ = (g: Grid, v: number) => Math.round((v - g.z0) / CELL);
+const toWorldX = (g: Grid, c: number) => g.x0 + c * CELL;
+const toWorldZ = (g: Grid, c: number) => g.z0 + c * CELL;
+
+/** 1 = walkable. Built once per map, lazily. */
+function walkGrid(mapId: MapId): Grid {
   let grid = gridCache.get(mapId);
   if (grid) return grid;
-  grid = new Uint8Array(SIZE * SIZE);
-  for (let cz = 0; cz < SIZE; cz++) {
-    for (let cx = 0; cx < SIZE; cx++) {
-      grid[cz * SIZE + cx] = isBlocked(toWorld(cx), toWorld(cz), mapId, PLAYER_RADIUS) ? 0 : 1;
+  const b = mapBounds(mapId);
+  const x0 = snapDown(b.x0);
+  const z0 = snapDown(b.z0);
+  const nx = Math.ceil((b.x1 - x0) / CELL) + 1;
+  const nz = Math.ceil((b.z1 - z0) / CELL) + 1;
+  grid = { x0, z0, nx, nz, cells: new Uint8Array(nx * nz) };
+  for (let cz = 0; cz < nz; cz++) {
+    for (let cx = 0; cx < nx; cx++) {
+      grid.cells[cz * nx + cx] = isBlocked(toWorldX(grid, cx), toWorldZ(grid, cz), mapId, PLAYER_RADIUS) ? 0 : 1;
     }
   }
   gridCache.set(mapId, grid);
   return grid;
 }
 
-function walkable(grid: Uint8Array, cx: number, cz: number): boolean {
-  return cx >= 0 && cz >= 0 && cx < SIZE && cz < SIZE && grid[cz * SIZE + cx] === 1;
+function walkable(grid: Grid, cx: number, cz: number): boolean {
+  return cx >= 0 && cz >= 0 && cx < grid.nx && cz < grid.nz && grid.cells[cz * grid.nx + cx] === 1;
 }
 
 /** Nearest walkable cell to (cx, cz), searching outward in rings. */
-function nearestWalkable(grid: Uint8Array, cx: number, cz: number, maxRing = 12): [number, number] | null {
+function nearestWalkable(grid: Grid, cx: number, cz: number, maxRing = 12): [number, number] | null {
   if (walkable(grid, cx, cz)) return [cx, cz];
   for (let r = 1; r <= maxRing; r++) {
     let best: [number, number] | null = null;
@@ -137,16 +151,18 @@ export function findPath(mapId: MapId, from: Point, to: Point): Point[] | null {
   if (!isBlocked(to.x, to.z, mapId, PLAYER_RADIUS) && hasLineOfWalk(mapId, from, to)) return [to];
 
   const grid = walkGrid(mapId);
-  const start = nearestWalkable(grid, toCell(from.x), toCell(from.z), 3);
-  const goal = nearestWalkable(grid, toCell(to.x), toCell(to.z));
+  const SIZE = grid.nx;
+  const start = nearestWalkable(grid, toCellX(grid, from.x), toCellZ(grid, from.z), 3);
+  const goal = nearestWalkable(grid, toCellX(grid, to.x), toCellZ(grid, to.z));
   if (!start || !goal) return null;
 
+  const total = grid.nx * grid.nz;
   const startId = start[1] * SIZE + start[0];
   const goalId = goal[1] * SIZE + goal[0];
-  const g = new Float32Array(SIZE * SIZE).fill(Infinity);
-  const came = new Int32Array(SIZE * SIZE).fill(-1);
-  const closed = new Uint8Array(SIZE * SIZE);
-  const open = new MinHeap(SIZE * SIZE);
+  const g = new Float32Array(total).fill(Infinity);
+  const came = new Int32Array(total).fill(-1);
+  const closed = new Uint8Array(total);
+  const open = new MinHeap(total);
 
   const h = (id: number) => {
     const dx = Math.abs((id % SIZE) - goal[0]);
@@ -191,7 +207,7 @@ export function findPath(mapId: MapId, from: Point, to: Point): Point[] | null {
   // Walk back, then string-pull: drop every waypoint you can see past.
   const cells: Point[] = [];
   for (let id = goalId; id !== -1 && id !== startId; id = came[id]) {
-    cells.push({ x: toWorld(id % SIZE), z: toWorld(Math.floor(id / SIZE)) });
+    cells.push({ x: toWorldX(grid, id % SIZE), z: toWorldZ(grid, Math.floor(id / SIZE)) });
   }
   cells.reverse();
   // End exactly on the requested point when it is itself walkable.

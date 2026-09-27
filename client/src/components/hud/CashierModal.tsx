@@ -1,23 +1,29 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { CASHIER_AMOUNTS, CHIP_CAP, VANCE_BROKE_LINE, type CashierResult } from "@shared/casino";
+import { CASHIER_AMOUNTS, CHIP_CAP, VANCE_BROKE_LINE, type CashierResult, type CasinoPacket } from "@shared/casino";
 import { COIN_CAP } from "@shared/types";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
 import { VelvetChipIcon } from "./VelvetChipIcon";
+import { VipPassCard } from "./VipPassModal";
 
 // Mr. Vance's cage, the Velvet Casino's Golden Cashier: coins into Velvet Chips and chips back into
 // coins, one for one, no fee. Pick a way, build an amount (quick adds, "All", or the slider), see
 // both purses as they will be, and exchange. The server has the last word (buyChips / cashOut, at
-// the window, within both caps) and answers with cashierResult; Mr. Vance says how it went.
+// the window, within both caps) and answers with cashierResult; Mr. Vance says how it went. The
+// third tab is the Black Velvet VIP Pass: bought here (or from Bruno) and pawned back here for half.
 
-type Mode = "buy" | "cashout";
+type Mode = "buy" | "cashout" | "vip";
 
 interface Props {
   coins: number;
   chips: number;
   onBuy: (amount: number | "all") => void;
   onCashOut: (amount: number | "all") => void;
+  /** You hold the Black Velvet VIP Pass. */
+  vipPass: boolean;
+  /** The pass's purchase and pawn (VIP_PASS_BUY / VIP_PASS_PAWN). */
+  send: (packet: CasinoPacket) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onClose: () => void;
 }
@@ -28,7 +34,7 @@ const PENDING_MS = 3000;
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
-export function CashierModal({ coins, chips, onBuy, onCashOut, subscribeMessages, onClose }: Props) {
+export function CashierModal({ coins, chips, onBuy, onCashOut, vipPass, send, subscribeMessages, onClose }: Props) {
   const [mode, setMode] = useState<Mode>("buy");
   const [amount, setAmount] = useState(0);
   /** "All" follows the balance, so it stays all of it even as the purse changes. */
@@ -102,7 +108,7 @@ export function CashierModal({ coins, chips, onBuy, onCashOut, subscribeMessages
 
   return (
     <Modal title="The Golden Cage" icon="🏦" onClose={onClose} width={460} tone="velvet">
-      <div className="flex flex-col gap-3 pb-2">
+      <div className="casino-body flex flex-col gap-3 pb-2">
         {/* the cage window: Mr. Vance behind brass bars, a sunburst fan above him */}
         <div className="relative overflow-hidden rounded-t-[140px] rounded-b-2xl border-2 border-amber-300/70 p-1" style={deco.frame}>
           <div className="relative flex items-end gap-3 overflow-hidden rounded-t-[132px] rounded-b-xl px-4 pb-3 pt-10" style={deco.window}>
@@ -111,18 +117,19 @@ export function CashierModal({ coins, chips, onBuy, onCashOut, subscribeMessages
               🦊
             </span>
             <div className={`clay-pop relative flex-1 rounded-2xl px-3 py-2 text-sm ${say.ok ? "bg-black/45" : "bg-rose-900/60"}`} key={say.text} role="status">
-              <div className="mb-0.5 text-[10px] font-bold uppercase tracking-[0.25em] text-amber-200/80">Mr. Vance</div>
-              {say.text}
+              <div className="casino-heading mb-0.5 text-[10px] uppercase tracking-[0.25em] text-amber-200/80">Mr. Vance</div>
+              <span className="casino-voice">{say.text}</span>
             </div>
           </div>
         </div>
 
         {/* which way */}
-        <div className="grid grid-cols-2 gap-1.5 rounded-full border border-amber-300/40 bg-black/30 p-1" role="tablist" aria-label="Exchange">
+        <div className="grid grid-cols-3 gap-1.5 rounded-full border border-amber-300/40 bg-black/30 p-1" role="tablist" aria-label="Exchange">
           {(
             [
               ["buy", <>Buy Chips <VelvetChipIcon /></>],
               ["cashout", "Cash Out 🪙"],
+              ["vip", "VIP Pass 🎫"],
             ] as [Mode, ReactNode][]
           ).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={mode === id} onClick={() => pickMode(id)} className={`min-h-10 rounded-full text-sm font-extrabold tracking-wide transition-transform active:scale-95 ${mode === id ? "bg-gradient-to-b from-amber-200 to-amber-400 text-[#3b1a0e] shadow-[0_2px_10px_rgba(242,207,115,0.45)]" : "text-amber-100/80 hover:bg-white/10"}`}>
@@ -131,6 +138,10 @@ export function CashierModal({ coins, chips, onBuy, onCashOut, subscribeMessages
           ))}
         </div>
 
+        {mode === "vip" ? (
+          <VipPassCard hasPass={vipPass} chips={chips} where="cage" send={send} subscribeMessages={subscribeMessages} />
+        ) : (
+          <>
         {/* the amount */}
         <div className="flex flex-col gap-2 rounded-2xl border border-amber-300/30 bg-black/25 p-3">
           <div className="flex items-baseline justify-between">
@@ -191,6 +202,8 @@ export function CashierModal({ coins, chips, onBuy, onCashOut, subscribeMessages
         <div className="text-center text-[11px] tracking-wide opacity-60">
           1 🪙 = 1 <VelvetChipIcon /> · no fee either way · your chips are kept until you cash them in
         </div>
+          </>
+        )}
       </div>
     </Modal>
   );

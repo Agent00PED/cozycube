@@ -41,11 +41,14 @@ hall costs six draw calls however much is in it:
                            fluted torch columns; the Golden Cage; the fern planters; Madame Zara's
                            booth (the lady herself inside) and the capsule machine in the nook by
                            the doors; the roulette table, the craps table, the two half-moon
-                           blackjack tables (Table 2 in blue baize) and their stools; the slot row
+                           blackjack tables against the east rail (Table 2 in blue baize), their
+                           racks, shoes and discard trays on the dealers' side and their stools on
+                           the floor's; the slot row
                            and its neon, the Turf Club's four-lane race table, the coin pusher; the
-                           poker table, its five chairs and the velvet ropes; the VIP room (its
-                           violet carpet, its rails and gilded arch, the high-stakes slot, a
-                           loveseat, a champagne bucket); the bar, the back bar (bottles, mirror, an
+                           poker table, its five chairs and the velvet ropes; the penthouse's gilded
+                           doors in the stage's back wall (fluted pilasters, a lintel of bulbs, a
+                           sunburst and a crown; the elevator's brass doors in the recess behind; a
+                           runner between two stanchions); the bar, the back bar (bottles, mirror, an
                            espresso machine), the stools, the billiards table and its low lamps, the
                            Chesterfield and its coffee table (The Velvet Gazette on it), the baby
                            grand; the dealers' tip jars; the brass rail along the front edges; four
@@ -58,8 +61,8 @@ hall costs six draw calls however much is in it:
     Prop_DerbyHorse      one horse and rider at the Turf Club's start (the game races four of it)
     Prop_PusherPlate     the coin pusher's sliding plate
     Prop_CueBall         the billiards table's cue ball
-    Prop_VipDoorL/R      the VIP room's two gilded door leaves (origins at their hinges: the game
-                         swings them open for Bruno's guests)
+    Prop_VipDoorL/R      the penthouse's two padded door leaves (origins at their hinges: the game
+                         swings them out into the room for Bruno's guests)
 
 Coordinates: the game's (x, y up, z) is Blender's (x, -z, y); `W` converts (and lifts whatever is
 built on a stage by its height), so every number below reads as in casino.ts.
@@ -827,10 +830,17 @@ def build_walls(M, L):
     d = L["doors"]
     dx0, dx1 = d["x"] - d["w"] / 2, d["x"] + d["w"] / 2
 
-    box(M, -h, h, 0.0, top, -h, face_z, "CS_Wall")
+    # the back wall, open for the penthouse's doors up on the stage (their recess and frame:
+    # build_vip_doors)
+    vd = L["vipDoors"]
+    vx0, vx1 = vd["x"] - vd["w"] / 2, vd["x"] + vd["w"] / 2
+    vtop = stage(L, "pit")["h"] + vd["h"]
+    box(M, -h, vx0, 0.0, top, -h, face_z, "CS_Wall")
+    box(M, vx1, h, 0.0, top, -h, face_z, "CS_Wall")
+    box(M, vx0, vx1, vtop, top, -h, face_z, "CS_Wall")
     box(M, -h, face_x, 0.0, top, face_z, h, "CS_Wall")
-    # wainscot, rail, crown and cornice, along both (the back wall's broken by the door frame)
-    for a, b in ((face_x, dx0 - 0.15), (dx1 + 0.15, h)):
+    # wainscot, rail, crown and cornice, along both (the back wall's broken by the two door frames)
+    for a, b in ((face_x, vx0 - 0.3), (vx1 + 0.3, dx0 - 0.15), (dx1 + 0.15, h)):
         box(M, a, b, 0.0, 1.1, face_z, face_z + 0.05, "CS_Wainscot")
         box(M, a, b, 1.1, 1.16, face_z, face_z + 0.07, "CS_Gold")
     box(M, face_x, face_x + 0.05, 0.0, 1.1, face_z + 0.05, h, "CS_Wainscot")
@@ -1044,7 +1054,7 @@ def build_mirror(M, L, p):
 
 
 def vip_leaf(D, hx, z, width, H, sign):
-    """One of the VIP room's gilded door leaves, from its hinge at hx across `width` (toward +x when
+    """One of the penthouse's gilded door leaves, from its hinge at hx across `width` (toward +x when
     `sign` is 1): padded oxblood leather in a gold frame, a diamond lattice, a ring pull."""
     xa, xb = sorted((hx, hx + sign * width))
     box(D, xa, xb, 0.05, H, z - 0.03, z + 0.03, "CS_Leather")
@@ -1087,101 +1097,87 @@ def loveseat(M, cx, cz, length, seat_top):
         blob(M, cx - hl + 0.2 + k * (length - 0.4) / 4, seat_top + 0.25, back + 0.205, 0.012, 0.012, 0.006, "CS_Gold", cuts=1)
 
 
-def build_vip(M, L, nodes):
-    """The VIP room on the High-Roller Stage (built on the stage): a violet carpet; low rails of
-    brass posts and velvet swags along its two open sides; a gilded arch over its doors (two padded
-    leaves: nodes, the game swings them open), VIP in bulbs across the arch; inside, the high-stakes
-    slot machine in black and gold against the back wall, a velvet loveseat and a champagne bucket."""
-    v = L["vip"]
-    face = wall_face(L)
-    x0, x1, z0, z1 = v["x0"], v["x1"], max(v["z0"], face), v["z1"]
-    box(M, x0 + 0.1, x1 - 0.1, 0.0, 0.004, z0 + 0.05, z1 - 0.1, "CS_VipCarpet")
-    frame_strips(M, x0 + 0.1, x1 - 0.1, z0 + 0.05, z1 - 0.1, 0.05, 0.0, 0.006, "CS_Inlay")
-    rail = v["rail"]
-    g, gw = v["gate"], v["gateW"]
-
-    def rail_run(a, b):
-        (ax, az), (bx, bz) = a, b
-        length = math.hypot(bx - ax, bz - az)
-        n = max(1, round(length / 0.6))
-        posts = [(ax + (bx - ax) * k / n, az + (bz - az) * k / n) for k in range(n + 1)]
-        box(M, min(ax, bx) - 0.05, max(ax, bx) + 0.05, 0.0, 0.18, min(az, bz) - 0.05, max(az, bz) + 0.05, "CS_Mahogany")
-        box(M, min(ax, bx) - 0.06, max(ax, bx) + 0.06, 0.18, 0.21, min(az, bz) - 0.06, max(az, bz) + 0.06, "CS_Gold")
-        for px, pz in posts:
-            cylinder(M, (px, 0.21, pz), (px, rail, pz), 0.025, "CS_Brass", sides=8)
-            blob(M, px, rail + 0.03, pz, 0.045, 0.045, 0.045, "CS_Brass", cuts=2)
-        cylinder(M, (ax, rail, az), (bx, rail, bz), 0.022, "CS_Brass", sides=8)
-        for (pa, qa), (pb, qb) in zip(posts, posts[1:]):
-            seg = 6
-            pts = [(pa + (pb - pa) * k / seg, rail - 0.08 - 0.16 * 4 * (k / seg) * (1 - k / seg), qa + (qb - qa) * k / seg) for k in range(seg + 1)]
-            for u, w in zip(pts, pts[1:]):
-                cylinder(M, u, w, 0.026, "CS_Velvet", sides=8)
-
-    # the front rail, broken by the doors; the side rail, down to the back wall
-    rail_run((x0 + 0.05, z1), (g - gw / 2 - 0.12, z1))
-    rail_run((g + gw / 2 + 0.12, z1), (x1, z1))
-    rail_run((x1, z1), (x1, z0 + 0.05))
-    # the gilded arch over the doors, and VIP in bulbs across it
-    ah = 2.05
+def build_vip_doors(M, L, nodes):
+    """The Velvet Penthouse's doors in the High-Roller Stage's back wall (built on the stage): a
+    gilded frame of fluted pilasters and a lintel of bulbs under an Art-Deco sunburst and a crown;
+    two padded leather leaves (nodes: the game swings them open into the room for Bruno's guests),
+    and behind them, in the wall's dark recess, the brass doors of the penthouse's elevator; a red
+    runner out across the stage between two brass stanchions."""
+    vd = L["vipDoors"]
+    h = L["half"]
+    face = -h + L["walls"]["t"]
+    x, w, H = vd["x"], vd["w"], vd["h"]
+    x0, x1 = x - w / 2, x + w / 2
+    # the elevator in the recess (the wall is open here: build_walls leaves the gap)
+    back = -h + 0.02
+    box(M, x0, x1, 0.0, H, back - 0.02, back, "CS_Black")
+    for a, b in ((x0 + 0.1, x - 0.01), (x + 0.01, x1 - 0.1)):
+        box(M, a, b, 0.05, H - 0.35, back, back + 0.02, "CS_Brass")
+        for k in range(4):
+            yk = 0.35 + k * (H - 0.8) / 3
+            box(M, a + 0.06, b - 0.06, yk, yk + 0.02, back + 0.02, back + 0.025, "CS_Gold")
+    box(M, x0 + 0.1, x1 - 0.1, H - 0.35, H - 0.3, back, back + 0.03, "CS_Gold")
+    blob(M, x, H - 0.18, back + 0.03, 0.07, 0.07, 0.02, "CS_Bulb", cuts=2)
+    box(M, x0, x1, 0.0, 0.004, back, face, "CS_Runner")
+    # the frame: fluted gold pilasters with brass capitals, a lintel set with bulbs
     for sx in (-1, 1):
-        px = g + sx * (gw / 2 + 0.06)
-        box(M, px - 0.06, px + 0.06, 0.0, ah, z1 - 0.07, z1 + 0.07, "CS_Gold")
-        lathe(M, px, z1, [(0, ah), (0.08, ah), (0.06, ah + 0.05), (0, ah + 0.07)], "CS_Brass", segs=10)
-    ar = gw / 2 + 0.06
-    for k in range(12):
-        a0, a1 = math.pi * k / 12, math.pi * (k + 1) / 12
-        pts = [(g + (ar - 0.1) * math.cos(a0), ah + (ar - 0.1) * math.sin(a0)), (g + ar * math.cos(a0), ah + ar * math.sin(a0)), (g + ar * math.cos(a1), ah + ar * math.sin(a1)), (g + (ar - 0.1) * math.cos(a1), ah + (ar - 0.1) * math.sin(a1))]
-        vslab(M, list(reversed(pts)), z1 - 0.05, z1 + 0.05, "CS_Gold")
-    sy = ah - 0.28
-    box(M, g - 0.36, g + 0.36, sy - 0.14, sy + 0.14, z1 - 0.02, z1 + 0.02, "CS_Black")
-    box(M, g - 0.38, g + 0.38, sy - 0.16, sy + 0.16, z1 - 0.015, z1 + 0.015, "CS_Gold")
-    zg = z1 + 0.035
-
-    def stroke(a, b):
-        cylinder(M, (a[0], a[1], zg), (b[0], b[1], zg), 0.014, "CS_Bulb", sides=6)
-
-    stroke((g - 0.3, sy + 0.09), (g - 0.22, sy - 0.09))  # V
-    stroke((g - 0.22, sy - 0.09), (g - 0.14, sy + 0.09))
-    stroke((g, sy + 0.09), (g, sy - 0.09))  # I
-    stroke((g + 0.14, sy + 0.09), (g + 0.14, sy - 0.09))  # P
-    bowl = [(g + 0.14 + 0.06 * math.sin(math.pi * k / 6), sy + 0.09 - 0.045 + 0.045 * math.cos(math.pi * k / 6)) for k in range(7)]
-    for k in range(6):
-        stroke(bowl[k], bowl[k + 1])
-    # the doors (the game swings them inward)
-    leaf_h = 1.25
-    for name, hx, sign in (("Prop_VipDoorL", g - gw / 2, 1), ("Prop_VipDoorR", g + gw / 2, -1)):
+        px = x + sx * (w / 2 + 0.09)
+        box(M, px - 0.09, px + 0.09, 0.0, H, face, face + 0.12, "CS_Gold")
+        for k in (-1, 0, 1):
+            box(M, px + k * 0.05 - 0.01, px + k * 0.05 + 0.01, 0.2, H - 0.25, face + 0.12, face + 0.13, "CS_Brass")
+        box(M, px - 0.12, px + 0.12, H - 0.18, H, face, face + 0.16, "CS_Brass")
+        box(M, px - 0.12, px + 0.12, 0.0, 0.12, face, face + 0.16, "CS_Brass")
+    lx0, lx1 = x0 - 0.2, x1 + 0.2
+    box(M, lx0, lx1, H, H + 0.2, face, face + 0.16, "CS_Gold")
+    box(M, lx0 + 0.04, lx1 - 0.04, H + 0.04, H + 0.16, face + 0.16, face + 0.17, "CS_Black")
+    n = 9
+    for k in range(n):
+        bx = lx0 + 0.14 + (lx1 - lx0 - 0.28) * k / (n - 1)
+        blob(M, bx, H + 0.1, face + 0.18, 0.028, 0.028, 0.02, "CS_Bulb", cuts=1)
+    # the sunburst over the lintel, a crown at its heart
+    cy = H + 0.2
+    r_in, r_out = 0.16, 0.62
+    wedges = 9
+    for k in range(wedges):
+        a0 = math.pi * k / wedges + 0.025
+        a1 = math.pi * (k + 1) / wedges - 0.025
+        pts = [(x + r_in * math.cos(a0), cy + r_in * math.sin(a0)), (x + r_out * math.cos(a0), cy + r_out * math.sin(a0)), (x + r_out * math.cos(a1), cy + r_out * math.sin(a1)), (x + r_in * math.cos(a1), cy + r_in * math.sin(a1))]
+        vslab(M, list(reversed(pts)), face, face + 0.05, "CS_Gold" if k % 2 == 0 else "CS_Bulb")
+    arc_o = [(x + 0.7 * math.cos(math.pi * k / 18), cy + 0.7 * math.sin(math.pi * k / 18)) for k in range(19)]
+    arc_i = [(x + r_out * math.cos(math.pi * k / 18), cy + r_out * math.sin(math.pi * k / 18)) for k in range(19)]
+    for k in range(18):
+        vslab(M, [arc_i[k], arc_o[k], arc_o[k + 1], arc_i[k + 1]], face, face + 0.08, "CS_Brass")
+    vslab(M, [(x + r_in * math.cos(math.pi * k / 10), cy + r_in * math.sin(math.pi * k / 10)) for k in range(11)], face, face + 0.08, "CS_Velvet")
+    # the crown: a band and five points, each with a pearl
+    cz = face + 0.09
+    box(M, x - 0.1, x + 0.1, cy + 0.03, cy + 0.07, cz - 0.01, cz + 0.01, "CS_Gold")
+    for k in range(5):
+        px = x - 0.08 + 0.04 * k
+        tip = cy + (0.15 if k % 2 == 0 else 0.12)
+        vslab(M, [(px - 0.02, cy + 0.07), (px + 0.02, cy + 0.07), (px, tip)], cz - 0.01, cz + 0.01, "CS_Gold")
+        blob(M, px, tip + 0.012, cz + 0.012, 0.012, 0.012, 0.01, "CS_Pearl", cuts=1)
+    # the leaves (the game swings them open toward the room)
+    for name, hx, sign in (("Prop_VipDoorL", x0, 1), ("Prop_VipDoorR", x1, -1)):
         D = Mesh()
-        vip_leaf(D, hx, z1, gw / 2 - 0.01, leaf_h, sign)
-        nodes.append({"name": name, "mesh": D, "origin": (hx, LIFT[0], z1), "force": "CS_Clay"})
-    # the high-stakes slot machine, facing +z: black lacquer and gold, a diamond on its crown
-    sx_, sz_ = v["slot"]["x"], v["slot"]["z"]
-    F = Frame(sx_, sz_, 0.0)
-    hw, hd, H = 0.45, 0.4, 1.8
-    F.box(M, -hw, hw, 0.0, 0.06, -hd, hd, "CS_Gold")
-    F.box(M, -hw + 0.02, hw - 0.02, 0.06, 0.8, -hd, hd, "CS_Black")
-    F.box(M, -hw, hw, 0.8, 0.86, -hd, hd + 0.02, "CS_Gold")
-    F.box(M, -hw + 0.05, hw - 0.05, 0.86, H - 0.22, -hd, hd - 0.15, "CS_Black")
-    F.box(M, -0.3, 0.3, 1.02, 1.36, hd - 0.17, hd - 0.14, "CS_SlotScreen")
-    for dx in (-0.1, 0.1):
-        F.box(M, dx - 0.012, dx + 0.012, 1.02, 1.36, hd - 0.14, hd - 0.13, "CS_Black")
-    for u0, u1, v0, v1 in ((-0.32, 0.32, 1.0, 1.02), (-0.32, 0.32, 1.36, 1.38), (-0.32, -0.3, 1.02, 1.36), (0.3, 0.32, 1.02, 1.36)):
-        F.box(M, u0, u1, v0, v1, hd - 0.15, hd - 0.12, "CS_Gold")
-    F.box(M, -0.36, 0.36, 0.86, 0.93, hd - 0.15, hd + 0.06, "CS_Gold")
-    F.box(M, -hw, hw, H - 0.22, H - 0.03, -hd, hd - 0.1, "CS_Black")
-    for y in (H - 0.18, H - 0.1):
-        F.box(M, -hw + 0.06, hw - 0.06, y - 0.015, y + 0.015, hd - 0.1, hd - 0.08, "CS_NeonPink")
-    F.box(M, -hw - 0.01, hw + 0.01, H - 0.03, H, -hd - 0.01, hd - 0.08, "CS_Gold")
-    F.blob(M, 0.0, H + 0.1, 0.0, 0.09, 0.1, 0.09, "CS_Crystal", cuts=2, n=1.4)
-    F.cyl(M, (hw + 0.02, 0.95, hd - 0.3), (hw + 0.07, 1.4, hd - 0.25), 0.018, "CS_Gold", sides=8)
-    F.blob(M, hw + 0.07, 1.44, hd - 0.25, 0.05, 0.05, 0.05, "CS_Red", cuts=2)
-    # the loveseat and the champagne bucket on its stand
-    ls = v["loveseat"]
-    loveseat(M, ls["x"], ls["z"], ls["len"], CUSHIONS["chesterfield"]["top"])
-    bk = v["bucket"]
-    lathe(M, bk["x"], bk["z"], [(0, 0), (0.14, 0), (0.12, 0.03), (0.02, 0.06), (0.02, 0.62), (0.08, 0.64), (0, 0.64)], "CS_Brass", segs=12)
-    lathe(M, bk["x"], bk["z"], [(0, 0.64), (0.1, 0.64), (0.13, 0.86), (0.12, 0.88), (0, 0.88)], "CS_Chrome", segs=14)
-    cylinder(M, (bk["x"] + 0.02, 0.8, bk["z"]), (bk["x"] + 0.07, 1.12, bk["z"] + 0.03), 0.035, "CS_BottleGreen", sides=8)
-    cylinder(M, (bk["x"] + 0.07, 1.12, bk["z"] + 0.03), (bk["x"] + 0.09, 1.2, bk["z"] + 0.04), 0.014, "CS_Gold", sides=6)
+        vip_leaf(D, hx, face + 0.05, w / 2 - 0.01, H - 0.05, sign)
+        nodes.append({"name": name, "mesh": D, "origin": (hx, LIFT[0], face + 0.05), "force": "CS_Clay"})
+    # the runner out across the stage, edged in gold
+    rw = vd["runner"] / 2
+    rz1 = face + 1.9
+    box(M, x - rw, x + rw, 0.0, 0.005, face + 0.12, rz1, "CS_Runner")
+    frame_strips(M, x - rw, x + rw, face + 0.12, rz1, 0.04, 0.0, 0.007, "CS_Inlay")
+    # the brass stanchions flanking it, a velvet rope from each back to a ring on the wall
+    for px in vd["posts"]:
+        pz = -9.1
+        lathe(M, px, pz, [(0, 0), (0.13, 0), (0.11, 0.04), (0, 0.045)], "CS_Brass", segs=12)
+        cylinder(M, (px, 0.04, pz), (px, 0.95, pz), 0.032, "CS_Brass", sides=8)
+        blob(M, px, 0.99, pz, 0.058, 0.058, 0.058, "CS_Gold", cuts=2)
+        wx = px + (0.35 if px < x else -0.35)
+        blob(M, wx, 0.86, face + 0.02, 0.04, 0.04, 0.02, "CS_Brass", cuts=1)
+        seg = 6
+        pts = [(px + (wx - px) * k / seg, 0.86 - 0.12 * 4 * (k / seg) * (1 - k / seg), pz + (face + 0.03 - pz) * k / seg) for k in range(seg + 1)]
+        for u, v in zip(pts, pts[1:]):
+            cylinder(M, u, v, 0.026, "CS_Velvet", sides=8)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1636,9 +1632,10 @@ def stool(M, x, z, seat_top):
 
 
 def build_blackjack(M, L, cushions):
-    """Two half-moon tables side by side, each turned to face the room (its dealer's flat side
-    toward Cedric, who deals both from between them): Table 1 in green baize, Table 2 (high stakes)
-    in blue, four stools round each curve; a card shoe on a little stand at Cedric's elbow."""
+    """Two half-moon tables against the east wall, each with its dealer behind its flat side (Cedric
+    at Table 1 in green baize, Gideon at Table 2, high stakes, in blue): the chip rack along the
+    dealer's edge, a card shoe and a discard tray either side of it, four stools round the curve
+    facing the dealer and the room behind them."""
     b = L["blackjack"]
     r = b["r"]
     top = b["top"]
@@ -1673,14 +1670,15 @@ def build_blackjack(M, L, cushions):
         for d2 in b["stoolAngles"]:
             hh = yaw + math.radians(d2)
             stool(M, tx + b["stoolR"] * math.sin(hh), tz + b["stoolR"] * math.cos(hh), seat)
-    # the card shoe on its stand, at Cedric's elbow between the tables
-    cd = L["npcs"]["cedric"]
-    sx_, sz_ = cd["x"] + 0.42, cd["z"] + 0.42
-    lathe(M, sx_, sz_, [(0, 0), (0.18, 0), (0.18, 0.04), (0.06, 0.1), (0.05, top - 0.06), (0.16, top - 0.02), (0, top - 0.02)], "CS_Mahogany", segs=12)
-    lathe(M, sx_, sz_, [(0, top - 0.02), (0.17, top - 0.02), (0.17, top), (0, top)], "CS_Gold", segs=12)
-    obox(M, sx_, sz_, yaw, -0.09, 0.09, -0.06, 0.06, top, top + 0.1, "CS_Mahogany")
-    obox(M, sx_, sz_, yaw, 0.09, 0.1, -0.05, 0.05, top + 0.02, top + 0.09, "CS_Card")
-    obox(M, sx_, sz_, yaw, -0.1, 0.1, -0.065, 0.065, top + 0.1, top + 0.115, "CS_Gold")
+        # the shoe on the felt at one end of the rack, its cards showing toward the players; the
+        # discard tray at the other
+        shx, shz = P(0.58, 0.16)
+        obox(M, shx, shz, yaw, -0.08, 0.08, -0.07, 0.07, top, top + 0.09, "CS_Mahogany")
+        obox(M, shx, shz, yaw, 0.08, 0.095, -0.055, 0.055, top + 0.01, top + 0.08, "CS_Card")
+        obox(M, shx, shz, yaw, -0.085, 0.085, -0.075, 0.075, top + 0.09, top + 0.1, "CS_Gold")
+        dhx, dhz = P(-0.58, 0.16)
+        obox(M, dhx, dhz, yaw, -0.07, 0.07, -0.06, 0.06, top, top + 0.02, "CS_Black")
+        obox(M, dhx, dhz, yaw, -0.055, 0.055, -0.045, 0.045, top + 0.02, top + 0.05, "CS_Card")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1915,7 +1913,7 @@ def build_pit(M, L, cushions, nodes):
         cylinder(M, (bx, 0.0, pz_), (bx, 0.86, pz_), 0.02 if k % n else 0.035, "CS_Brass", sides=8)
     for y in (0.3, 0.86):
         cylinder(M, (bx, y, bl["z0"]), (bx, y, bl["z1"]), 0.025, "CS_Brass", sides=8)
-    build_vip(M, L, nodes)
+    build_vip_doors(M, L, nodes)
 
 
 # ---------------------------------------------------------------------------------------------

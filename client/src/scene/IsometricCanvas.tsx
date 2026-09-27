@@ -124,8 +124,8 @@ function CameraRig() {
     const pan = (dx: number, dy: number) => {
       if (cameraSettings.mode === "follow") return; // locked on the player: no panning
       const perPixel = 1 / zoomRef.current; // orthographic: zoom is pixels per world unit
-      center.current.x = THREE.MathUtils.clamp(center.current.x - (dx * SCREEN_RIGHT.x + dy * SCREEN_DOWN.x) * perPixel, -PAN_LIMIT, PAN_LIMIT);
-      center.current.z = THREE.MathUtils.clamp(center.current.z - (dx * SCREEN_RIGHT.y + dy * SCREEN_DOWN.y) * perPixel, -PAN_LIMIT, PAN_LIMIT);
+      center.current.x = THREE.MathUtils.clamp(center.current.x - (dx * SCREEN_RIGHT.x + dy * SCREEN_DOWN.x) * perPixel, frame.x - PAN_LIMIT, frame.x + PAN_LIMIT);
+      center.current.z = THREE.MathUtils.clamp(center.current.z - (dx * SCREEN_RIGHT.y + dy * SCREEN_DOWN.y) * perPixel, frame.z - PAN_LIMIT, frame.z + PAN_LIMIT);
       cameraView.freeLook = true;
     };
 
@@ -243,10 +243,12 @@ function CameraRig() {
       }
     } else if (!cameraView.freeLook) {
       center.current.y = 0;
-      // free pan, following: lean toward the player, part of the way; free look leaves the centre where it was dragged
-      const gx = cameraFocus.hasTarget ? cameraFocus.x * FOLLOW : 0;
-      const gz = cameraFocus.hasTarget ? cameraFocus.z * FOLLOW : 0;
-      if (!snapped.current) center.current.set(gx, 0, gz);
+      // free pan, following: lean from the frame's middle toward the player, part of the way (a jump
+      // to another part of the world, the casino's penthouse, cuts there); free look leaves the
+      // centre where it was dragged
+      const gx = frame.x + (cameraFocus.hasTarget ? (cameraFocus.x - frame.x) * FOLLOW : 0);
+      const gz = frame.z + (cameraFocus.hasTarget ? (cameraFocus.z - frame.z) * FOLLOW : 0);
+      if (!snapped.current || Math.hypot(gx - center.current.x, gz - center.current.z) > FOLLOW_SNAP) center.current.set(gx, 0, gz);
       else {
         const t = frameLerp(FOLLOW_LERP, delta);
         center.current.x = THREE.MathUtils.lerp(center.current.x, gx, t);

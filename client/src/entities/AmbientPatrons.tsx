@@ -5,16 +5,21 @@ import * as THREE from "three";
 import type { Room } from "colyseus.js";
 import { walkY } from "@shared/collision";
 import { findPath, type Point } from "@shared/pathfinding";
-import { CASINO_LAYOUT as L, PATRON_SPOTS, ROULETTE_CENTER } from "@shared/worlds/casino";
+import { BLACKJACK_TABLES, CASINO_LAYOUT as L, CASINO_PROPS, PATRON_SPOTS, ROULETTE_CENTER, SINGLE_MACHINES } from "@shared/worlds/casino";
+import { npcOccupant } from "@shared/casino";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { modelUrl } from "../assetVersion";
 import { cameraFocus } from "../scene/cameraFocus";
 import { ModelBoundary } from "./ModelBoundary";
 
-// The Velvet Casino's crowd: a dozen chibi regulars drifting through the hall, and Bella the
-// cocktail bunny on her round between the tables with her brass tray, all drawn on this screen only
-// (the server never hears of them; they walk through players as if they were not there, though never
-// through the furniture: they path round it on the same grid players do).
+// The Velvet Casino's crowd: twenty-one chibi regulars drifting through the hall, the ones playing
+// the one-player machines, and Bella the cocktail bunny on her round between the tables with her
+// brass tray. The wanderers are drawn on this screen only (the server never hears of them; they walk
+// through players as if they were not there, though never through the furniture: they path round it
+// on the same grid players do). The machine players are the room's: when the server gives a slot or
+// the coin pusher to a patron (state.machines, "npc:<Kind>:<tint>"), that patron walks up to it and
+// plays (a pull of the lever, a coin dropped into the pusher) until it lets the machine go, then
+// steps back into the crowd and is gone; meanwhile no player can use it.
 //
 // Four figures from patrons.glb (scripts/blender/build_casino_staff.py): an evening-gowned rabbit, a
 // raccoon in a tailored suit, a chic feline in a cocktail dress and a pillbox hat, and Bella. Each is
@@ -27,13 +32,16 @@ import { ModelBoundary } from "./ModelBoundary";
 //
 // Each patron's evening, a little state machine over PATRON_SPOTS: in through the doors, to the
 // slot row (watching, cheering a win), the bar (a sip now and then), the roulette table (clapping
-// the number), now and then a detour by the lounge or the craps table, then out through the doors
-// again; a while later, someone new comes in.
+// the number), now and then a detour by the lounge, the blackjack tables, the promenade or the craps
+// table, then out through the doors again; a while later, someone new comes in.
 
 const URL = modelUrl("patrons.glb");
 const KINDS = ["Rabbit", "Raccoon", "Feline"] as const;
 type Kind = (typeof KINDS)[number];
-const PER_KIND = 4;
+const PER_KIND = 7;
+/** Each figure's extra instances for the machine players (the room lets patrons take up to three at
+ *  once; one more for a patron still stepping away from the last). */
+const MACHINE_SLOTS = 4;
 const WALK_SPEED = 1.05;
 const BELLA_SPEED = 0.9;
 /** Outfit tints: gowns, suits, cocktail dresses. */
@@ -49,10 +57,11 @@ const FURS: Record<Kind, string[]> = {
   Feline: ["#ffffff", "#f7d8b0", "#dcdcdc", "#c9a07a"],
 };
 
-/** The poses laid over the walk (the shader's aWalk.z). */
-const POSE = { none: 0, clap: 1, cheer: 2, sip: 3 } as const;
+/** The poses laid over the walk (the shader's aWalk.z): pull (a slot's lever) and drop (a coin into
+ *  the pusher) loop for as long as they are held. */
+const POSE = { none: 0, clap: 1, cheer: 2, sip: 3, pull: 4, drop: 5 } as const;
 type Pose = keyof typeof POSE;
-const POSE_S: Record<Pose, number> = { none: 0, clap: 1.8, cheer: 1.5, sip: 1.3 };
+const POSE_S: Record<Pose, number> = { none: 0, clap: 1.8, cheer: 1.5, sip: 1.3, pull: 0, drop: 0 };
 
 // --- the shader: the limbs round their pivots, the clothes tinted ------------------------------
 
@@ -85,6 +94,16 @@ mat3 chLimb(float limb) {
     } else if (pose > 2.5 && pose < 3.5 && side > 0.0) {
       ax = mix(ax, -2.05 + 0.08 * sin(uTime * 2.0 + ph), pw);
       az = mix(az, 0.5, pw);
+    } else if (pose > 3.5 && pose < 4.5 && side > 0.0) {
+      // a slot's lever: up to the handle, a yank down, a moment's wait for the reels
+      float cyc = fract((uTime + ph) / 2.6);
+      float yank = cyc < 0.3 ? cyc / 0.3 : cyc < 0.42 ? 1.0 - (cyc - 0.3) / 0.12 : 0.0;
+      ax = mix(ax, mix(-2.35, -0.75, 1.0 - yank), pw);
+      az = mix(az, 0.25, pw);
+    } else if (pose > 4.5 && pose < 5.5 && side > 0.0) {
+      // a coin into the pusher's slot: the paw out over it, a flick down now and then
+      ax = mix(ax, -1.45 + 0.3 * max(0.0, sin(uTime * 2.4 + ph)), pw);
+      az = mix(az, 0.15, pw);
     }
     return chRotX(ax) * chRotZ(az);
   }
@@ -170,16 +189,27 @@ function makeFigure(scene: THREE.Object3D, name: string, count: number): Figure 
   return { mesh, walk };
 }
 
-type Group = "slots" | "bar" | "roulette" | "craps" | "lounge";
-const GROUPS: Group[] = ["slots", "bar", "roulette", "craps", "lounge"];
+type Group = "slots" | "bar" | "roulette" | "craps" | "lounge" | "blackjack" | "promenade";
+const GROUPS: Group[] = ["slots", "bar", "roulette", "craps", "lounge", "blackjack", "promenade"];
 /** What each place's patrons look at. */
+const nearestTable = (p: Point) => BLACKJACK_TABLES.reduce((a, b) => (Math.hypot(b.x - p.x, b.z - p.z) < Math.hypot(a.x - p.x, a.z - p.z) ? b : a));
 const LOOK_AT: Record<Group, (p: Point) => Point> = {
   slots: (p) => ({ x: L.slots.x, z: p.z }),
   bar: (p) => ({ x: L.bar.x1, z: p.z }),
   roulette: () => ROULETTE_CENTER,
   craps: () => ({ x: L.craps.x, z: L.craps.z }),
   lounge: () => ({ x: L.billiards.x, z: L.billiards.z }),
+  blackjack: (p) => nearestTable(p),
+  promenade: () => ROULETTE_CENTER,
 };
+
+/** The one-player machines: where their player stands, and what they face. */
+const MACHINES = SINGLE_MACHINES.map((propId) => {
+  const prop = CASINO_PROPS.find((q) => q.propId === propId)!;
+  return { propId, at: { x: prop.approachX ?? prop.x, z: prop.approachZ ?? prop.z }, face: { x: prop.x, z: prop.z }, pose: (propId === "coin_pusher" ? "drop" : "pull") as Pose };
+});
+/** A machine player's walk up to it starts a few steps off, from the alley's aisle. */
+const MACHINE_FROM = (m: (typeof MACHINES)[number]): Point => ({ x: m.at.x + 2.2, z: m.at.z + 0.6 });
 
 interface Patron {
   kind: Kind;
@@ -210,11 +240,14 @@ interface Patron {
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 /** An evening's places, in order: the slots, the bar, the roulette; sometimes the lounge after the
- *  bar, or the craps table after the wheel. */
+ *  bar, a look at the blackjack tables or a stroll on the promenade, or the craps table after the
+ *  wheel. */
 function evening(): Group[] {
   const plan: Group[] = ["slots", "bar"];
   if (Math.random() < 0.35) plan.push("lounge");
+  if (Math.random() < 0.4) plan.push("blackjack");
   plan.push("roulette");
+  if (Math.random() < 0.35) plan.push("promenade");
   if (Math.random() < 0.3) plan.push("craps");
   return plan;
 }
@@ -236,16 +269,35 @@ export function AmbientPatrons({ subscribeMessages, room }: { subscribeMessages:
   return (
     <ModelBoundary what="patrons.glb" fallback={null}>
       <Suspense fallback={null}>
-        <Crowd subscribeMessages={subscribeMessages} />
+        <Crowd subscribeMessages={subscribeMessages} room={room} />
         <Bella room={room} />
       </Suspense>
     </ModelBoundary>
   );
 }
 
-function Crowd({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
+/** A patron at one of the one-player machines (the room's: state.machines). */
+interface Player {
+  propId: string;
+  who: string;
+  kind: Kind;
+  slot: number;
+  x: number;
+  z: number;
+  y: number;
+  heading: number;
+  path: Point[];
+  state: "walk" | "play" | "leave";
+  shown: number;
+  phase: number;
+  tint: number;
+}
+
+function Crowd({ subscribeMessages, room }: { subscribeMessages: (listener: RoomMessageListener) => () => void; room: Room | null }) {
   const { scene } = useGLTF(URL);
-  const figures = useMemo(() => Object.fromEntries(KINDS.map((k) => [k, makeFigure(scene, `Patron_${k}`, PER_KIND)])) as Record<Kind, Figure>, [scene]);
+  const figures = useMemo(() => Object.fromEntries(KINDS.map((k) => [k, makeFigure(scene, `Patron_${k}`, PER_KIND + MACHINE_SLOTS)])) as Record<Kind, Figure>, [scene]);
+  // the machine players, and which of each figure's extra instances are free for one
+  const players = useRef<Player[]>([]);
   useEffect(
     () => () => {
       for (const kind of KINDS) {
@@ -324,6 +376,7 @@ function Crowd({ subscribeMessages }: { subscribeMessages: (listener: RoomMessag
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const colored = useRef(false);
+  const hidden = useMemo(() => new THREE.Matrix4().makeScale(0, 0, 0), []);
 
   /** Sends a patron on to its next place (or out, or back to the doors to leave). */
   const route = (p: Patron) => {
@@ -416,6 +469,73 @@ function Crowd({ subscribeMessages }: { subscribeMessages: (listener: RoomMessag
       p.y += (walkY("velvet_casino", p.x, p.z) - p.y) * 0.2;
     }
 
+    // the machine players: the room hands a machine to a patron, who walks up and plays it until
+    // the room takes it back, then heads for the doors
+    const list = players.current;
+    for (const m of MACHINES) {
+      const who: string = room?.state?.machines?.get?.(m.propId) ?? "";
+      const at = list.find((q) => q.propId === m.propId && q.state !== "leave");
+      if (at && at.who !== who) {
+        // done: a few steps back into the crowd, fading as it goes
+        const away = MACHINE_FROM(m);
+        at.state = "leave";
+        at.path = findPath("velvet_casino", { x: at.x, z: at.z }, away) ?? [away];
+      }
+      const occupant = npcOccupant(who);
+      if (occupant && (!at || at.who !== who)) {
+        const kind = occupant.kind as Kind;
+        const used = new Set(list.filter((q) => q.kind === kind).map((q) => q.slot));
+        let slot = -1;
+        for (let k = PER_KIND; k < PER_KIND + MACHINE_SLOTS; k++) if (!used.has(k)) (slot = slot < 0 ? k : slot);
+        if (slot < 0) continue;
+        const from = MACHINE_FROM(m);
+        const q: Player = { propId: m.propId, who, kind, slot, x: from.x, z: from.z, y: 0, heading: Math.atan2(m.at.x - from.x, m.at.z - from.z), path: findPath("velvet_casino", from, m.at) ?? [m.at], state: "walk", shown: 0, phase: Math.random() * 10, tint: occupant.tint };
+        q.path.push(m.at);
+        list.push(q);
+        const fig = figures[kind];
+        fig.mesh.setColorAt(slot, new THREE.Color(OUTFITS[kind][occupant.tint % OUTFITS[kind].length]));
+        const fur = new THREE.Color(FURS[kind][occupant.tint % FURS[kind].length]);
+        (fig.mesh.geometry.getAttribute("aFur") as THREE.InstancedBufferAttribute).setXYZ(slot, fur.r, fur.g, fur.b);
+        if (fig.mesh.instanceColor) fig.mesh.instanceColor.needsUpdate = true;
+        (fig.mesh.geometry.getAttribute("aFur") as THREE.InstancedBufferAttribute).needsUpdate = true;
+      }
+    }
+    for (const q of list) {
+      const m = MACHINES.find((x) => x.propId === q.propId)!;
+      if (q.state === "play") {
+        q.heading = turn(q.heading, Math.atan2(m.face.x - q.x, m.face.z - q.z), 0.12);
+      } else {
+        const wp = q.path[0];
+        if (!wp) {
+          if (q.state === "walk") q.state = "play";
+        } else {
+          const dx = wp.x - q.x;
+          const dz = wp.z - q.z;
+          const d = Math.hypot(dx, dz);
+          const step = WALK_SPEED * dt;
+          if (d <= step) {
+            q.x = wp.x;
+            q.z = wp.z;
+            q.path.shift();
+          } else {
+            q.x += (dx / d) * step;
+            q.z += (dz / d) * step;
+          }
+          if (d > 0.01) q.heading = turn(q.heading, Math.atan2(dx, dz), 0.18);
+        }
+      }
+      q.shown = q.state === "leave" ? Math.max(0, q.shown - dt * 0.9) : Math.min(1, q.shown + dt * 2.5);
+      q.y += (walkY("velvet_casino", q.x, q.z) - q.y) * 0.2;
+    }
+    // gone out of the doors: their instance is free again
+    for (let i = list.length - 1; i >= 0; i--) {
+      const q = list[i];
+      if (q.state === "leave" && q.shown <= 0) {
+        figures[q.kind].mesh.setMatrixAt(q.slot, hidden);
+        list.splice(i, 1);
+      }
+    }
+
     for (const kind of KINDS) {
       const { mesh, walk } = figures[kind];
       for (const p of patrons) {
@@ -437,6 +557,19 @@ function Crowd({ subscribeMessages }: { subscribeMessages: (listener: RoomMessag
           mesh.setColorAt(p.slot, p.outfit);
           (mesh.geometry.getAttribute("aFur") as THREE.InstancedBufferAttribute).setXYZ(p.slot, p.fur.r, p.fur.g, p.fur.b);
         }
+      }
+      if (!colored.current) for (let k = PER_KIND; k < PER_KIND + MACHINE_SLOTS; k++) mesh.setMatrixAt(k, hidden);
+      for (const q of list) {
+        if (q.kind !== kind) continue;
+        const walking = q.state !== "play" && q.path.length > 0;
+        const scale = q.shown <= 0 ? 0.0001 : 0.25 + 0.75 * easeOut(q.shown);
+        dummy.position.set(q.x, q.y + (walking ? Math.abs(Math.sin(t * 8 + q.phase)) * 0.04 : 0), q.z);
+        dummy.rotation.set(0, q.heading, walking ? Math.sin(t * 8 + q.phase) * 0.04 : 0, "YXZ");
+        dummy.scale.set(scale, scale, scale);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(q.slot, dummy.matrix);
+        const m = MACHINES.find((x) => x.propId === q.propId)!;
+        walk.setXYZW(q.slot, q.phase, walking ? 1 : 0, q.state === "play" ? POSE[m.pose] : 0, q.state === "play" ? 1 : 0);
       }
       mesh.instanceMatrix.needsUpdate = true;
       walk.needsUpdate = true;

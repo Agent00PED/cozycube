@@ -6,22 +6,24 @@ import { BetPicker, ShortOfChips, clampStake } from "./BetControls";
 import { FlipCard } from "./PlayingCard";
 import { ChipAmount } from "./VelvetChipIcon";
 
-// Three-Card Poker at Boris's table on the High-Roller Stage. Put down an ante (keeping as much
-// again for the Play bet), and three cards come to you face up, three to Boris face down. Play (the
-// Play bet matches the ante) or fold; Boris turns his hand over, qualifying with a queen high or
-// better. The server deals and settles (the "POKER" packet, answered with pokerState); this turns
-// the cards over and says how it went.
+// Three-Card Poker at Boris's table on the High-Roller Stage, or at the penthouse's high-limit table
+// (Baron von Fox playing a hand of his own beside you). Put down an ante (keeping as much again for
+// the Play bet), and three cards come to you face up, three to Boris face down. Play (the Play bet
+// matches the ante) or fold; Boris turns his hand over, qualifying with a queen high or better. The
+// server deals and settles (the "POKER" packet, from one of the table's chairs, answered with
+// pokerState); this turns the cards over and says how it went.
 
 interface Props {
   view: PokerView | null;
+  /** The table you sit at: the hall's, or the penthouse's high-limit one. */
+  table: "poker" | "poker_vip";
   chips: number;
   coins: number;
   onMove: (move: PokerMove) => void;
   onClose: () => void;
 }
 
-const LIMIT = TABLE_LIMITS.poker;
-
+const BARON: Record<string, string> = { fold: "folds", noqualify: "paid (Boris didn't qualify)", win: "wins", lose: "loses", push: "pushes" };
 const OUTCOME: Record<string, string> = {
   fold: "You fold. Boris takes the ante.",
   noqualify: "Boris doesn't qualify (no queen high): your ante pays 1:1, the Play bet comes back.",
@@ -30,7 +32,11 @@ const OUTCOME: Record<string, string> = {
   push: "A tie: both bets come back.",
 };
 
-export function PokerModal({ view, chips, coins, onMove, onClose }: Props) {
+export function PokerModal({ view: anyView, table, chips, coins, onMove, onClose }: Props) {
+  // the last hand at the other table is not this table's
+  const view = anyView && anyView.table === table ? anyView : null;
+  const LIMIT = TABLE_LIMITS[table];
+  const vip = table === "poker_vip";
   const [stake, setStake] = useState<number>(LIMIT.presets[0]);
   const deciding = view?.phase === "decide";
   const done = view?.phase === "done";
@@ -67,8 +73,8 @@ export function PokerModal({ view, chips, coins, onMove, onClose }: Props) {
   const player = view?.player ?? [];
 
   return (
-    <Modal title="Three-Card Poker with Boris" icon="🐻‍❄️" onClose={onClose} width={560} tone="felt" placard={`ANTE ${limitPlacard(LIMIT)} · TOTAL RISK ${(LIMIT.max * 2).toLocaleString("en-US")}`}>
-      <div className="flex flex-col gap-3 pb-2">
+    <Modal title={vip ? "High-Limit Poker · The Penthouse" : "Three-Card Poker with Boris"} icon="🐻‍❄️" onClose={onClose} width={560} tone={vip ? "velvet" : "felt"} placard={`ANTE ${limitPlacard(LIMIT)} · TOTAL RISK ${(LIMIT.max * 2).toLocaleString("en-US")}`}>
+      <div className="casino-body flex flex-col gap-3 pb-2">
         {/* Boris's hand: face down until you play or fold */}
         <div className="rounded-3xl bg-black/25 p-3">
           <div className="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-widest opacity-70">
@@ -81,6 +87,29 @@ export function PokerModal({ view, chips, coins, onMove, onClose }: Props) {
               : <span className="text-xs opacity-40">—</span>}
           </div>
         </div>
+
+        {vip && (
+          <div className="flex items-center gap-3 rounded-3xl border border-amber-300/20 bg-black/25 p-3">
+            <span className="text-3xl">🦊</span>
+            <div className="min-w-0 flex-1">
+              <div className="casino-heading text-xs uppercase tracking-[0.2em] text-amber-200">Baron von Fox</div>
+              {view?.company[0] ? (
+                <div className="text-xs opacity-85">
+                  Antes <ChipAmount n={view.company[0].ante} />
+                  {done ? ` · ${view.company[0].hand}` : " · studying his cards"}
+                  {done && view.company[0].outcome && <span className="ml-1 font-bold text-amber-100">· {BARON[view.company[0].outcome] ?? ""}</span>}
+                </div>
+              ) : (
+                <div className="text-xs opacity-70">“Deal me in when you are ready, my friend.”</div>
+              )}
+            </div>
+            <div className="flex gap-1">
+              {view?.company[0]
+                ? [0, 1, 2].map((i) => <FlipCard key={`b${i}-${view.ante}-${player.map((c) => c.rank + c.suit).join("")}`} card={view.company[0].cards[i] ?? null} faceUp={done && view.company[0].cards.length === 3} delay={i * 140} />)
+                : null}
+            </div>
+          </div>
+        )}
 
         <div className="min-h-[2.5rem] text-center text-sm font-extrabold text-amber-200" role="status">
           {done && view ? (

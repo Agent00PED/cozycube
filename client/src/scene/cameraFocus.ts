@@ -17,8 +17,9 @@ export const cameraFocus = {
   y: 0,
 };
 
-/** How many world units the camera fits across the viewport: the current world sets it (its floor plus a margin). */
-export const frame = { size: 15.8 };
+/** How many world units the camera fits across the viewport, and the middle of what it frames: the
+ *  current world sets it (its floor plus a margin; the casino's penthouse stands off to the side). */
+export const frame = { size: 15.8, x: 0, z: 0 };
 
 // Free look: in the Free Pan camera mode, dragging with the right or middle mouse button (or two
 // fingers) releases the camera from the player so you can look round the room. It snaps back to

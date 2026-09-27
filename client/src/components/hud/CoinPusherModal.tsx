@@ -6,10 +6,12 @@ import { BetPicker, ShortOfChips, clampStake } from "./BetControls";
 import { ChipAmount, VelvetChipIcon } from "./VelvetChipIcon";
 
 // The coin pusher in Neon Alley: a brass dropper sweeps over the shelf; press DROP (or Space) and
-// the coin falls where the dropper is. The nearer the middle, the harder the shelf's plate shoves
-// the pile: the server rolls what goes over the edge on that accuracy (the "PUSHER_DROP" packet,
-// answered with pusherResult), from nothing, through a trickle, to an avalanche, and now and then a
-// Bonus Token (a free drop at the same stake).
+// the coin falls where the dropper is. The shelf's heap is the whole casino's and it stays put
+// between visits (the room keeps it, restarts and all): every drop adds to it (less what slips down
+// the gutter, more the wilder the drop), and each drop's push shoves a share of it over the edge,
+// harder the nearer the middle. The server rolls the push (the "PUSHER_DROP" packet, answered with
+// pusherResult and the heap as it stands): nothing, through a trickle, to an avalanche, and now and
+// then a Bonus Token (a free drop at the same stake). One player at a time.
 
 interface Props {
   result: PusherResult | null;
@@ -20,8 +22,10 @@ interface Props {
 }
 
 const LIMIT = TABLE_LIMITS.pusher;
-/** The shelf's pile: chips at rest, placed once. */
-const PILE = Array.from({ length: 34 }, (_, i) => ({ x: 6 + ((i * 37) % 88), y: 8 + ((i * 53) % 40), r: (i * 29) % 360 }));
+/** The shelf's pile: chips at rest, placed once (as many shown as the heap is big). */
+const PILE = Array.from({ length: 64 }, (_, i) => ({ x: 4 + ((i * 37) % 92), y: 6 + ((i * 53) % 46), r: (i * 29) % 360 }));
+/** How many of the pile's chips a heap of `shelf` chips' worth shows. */
+const pileCount = (shelf: number) => Math.max(6, Math.min(PILE.length, Math.round(Math.sqrt(Math.max(0, shelf)) * 2.2)));
 
 export function CoinPusherModal({ result, chips, coins, onDrop, onClose }: Props) {
   const [stake, setStake] = useState<number>(LIMIT.presets[0]);
@@ -121,7 +125,7 @@ export function CoinPusherModal({ result, chips, coins, onDrop, onClose }: Props
           {/* the shelf's pile and the sliding plate */}
           <div className="absolute bottom-10 left-[6%] right-[6%] top-[5.5rem] rounded-xl bg-[#4a1e12]/80">
             <div className="absolute inset-x-0 top-0 h-3 animate-[cozy-bob-kf_1.6s_ease-in-out_infinite] rounded-t-xl bg-gradient-to-b from-stone-300 to-stone-500" />
-            <Pile />
+            <Pile count={pileCount(result?.shelf ?? 150)} />
           </div>
           {/* the edge, and what goes over it */}
           <div className="absolute bottom-8 left-[6%] right-[6%] h-2 rounded bg-amber-300/70" />
@@ -132,6 +136,9 @@ export function CoinPusherModal({ result, chips, coins, onDrop, onClose }: Props
               </span>
             ))}
           <div className="absolute bottom-1 left-0 right-0 text-center text-[10px] font-bold uppercase tracking-[0.25em] text-amber-200/60">what falls is yours</div>
+          <div className="absolute right-3 top-6 rounded-full border border-amber-300/40 bg-black/50 px-2 py-0.5 text-[10px] font-bold text-amber-100">
+            The shelf: <ChipAmount n={result?.shelf ?? 0} />
+          </div>
         </div>
 
         <div className="h-6 text-center text-base font-extrabold text-amber-200" role="status">
@@ -164,16 +171,17 @@ export function CoinPusherModal({ result, chips, coins, onDrop, onClose }: Props
           DROP {free ? "(free)" : ""} · Space
         </button>
         <ShortOfChips limit={LIMIT} chips={chips} coins={coins} />
+        <div className="text-center text-[11px] opacity-60">The shelf is shared by everyone who plays, and stays where the last player left it.</div>
       </div>
     </Modal>
   );
 }
 
-/** The shelf's pile of chips: drawn once (no shadows, it never moves). */
-const Pile = memo(function Pile() {
+/** The shelf's pile of chips: redrawn only when its size changes (no shadows, it never moves). */
+const Pile = memo(function Pile({ count }: { count: number }) {
   return (
     <>
-      {PILE.map((c, i) => (
+      {PILE.slice(0, count).map((c, i) => (
         <span key={i} className="absolute text-base" style={{ left: `${c.x}%`, top: `${14 + c.y}%`, transform: `rotate(${c.r}deg)` }}>
           <VelvetChipIcon size="0.95em" style={{ filter: "none" }} />
         </span>

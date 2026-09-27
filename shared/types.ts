@@ -51,6 +51,8 @@ export interface PlayerState {
   coins: number;
   /** Velvet Chips: the casino's balance, bought and cashed out at Mr. Vance's cage. */
   chips: number;
+  /** Holds the Black Velvet VIP Pass (shared/items.ts): Bruno takes them up to the penthouse. */
+  vipPass: boolean;
   /** Carried catches and forage, encoded by encodeBag(). */
   bag: string;
   /** Comma-separated premium hats bought in the coin shop. */
@@ -267,6 +269,7 @@ export type CasinoPropKind =
   | "roulette"
   | "blackjack"
   | "poker"
+  | "baccarat"
   | "craps"
   | "derby"
   | "pusher"
@@ -913,7 +916,7 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
   );
 }
 
-const CASINO_PROP_KINDS: ReadonlySet<string> = new Set<CasinoPropKind>(["slot", "cashier", "portal", "roulette", "blackjack", "poker", "craps", "derby", "pusher", "billiards", "piano", "gazette", "fortune", "gachapon", "tipjar", "barmenu", "vipdoor"]);
+const CASINO_PROP_KINDS: ReadonlySet<string> = new Set<CasinoPropKind>(["slot", "cashier", "portal", "roulette", "blackjack", "poker", "baccarat", "craps", "derby", "pusher", "billiards", "piano", "gazette", "fortune", "gachapon", "tipjar", "barmenu", "vipdoor"]);
 /** The casino's props: every one is walked up to. */
 export function isCasinoProp(kind: string): kind is CasinoPropKind {
   return CASINO_PROP_KINDS.has(kind);
@@ -921,9 +924,10 @@ export function isCasinoProp(kind: string): kind is CasinoPropKind {
 
 /** Props you can use without getting up from a seat within their reach (the server measures it):
  *  the baby grand from its bench, Pippin's menu from a bar stool, a tip from the poker table, The
- *  Velvet Gazette from the Chesterfield, and a blackjack or poker table from one of its seats. */
+ *  Velvet Gazette from the Chesterfield, and a blackjack, poker or baccarat table from one of its
+ *  seats. */
 export function usableSeated(kind: ToggleableKind): boolean {
-  return kind === "piano" || kind === "barmenu" || kind === "tipjar" || kind === "gazette" || kind === "blackjack" || kind === "poker";
+  return kind === "piano" || kind === "barmenu" || kind === "tipjar" || kind === "gazette" || kind === "blackjack" || kind === "poker" || kind === "baccarat";
 }
 
 // --- world sizes ---

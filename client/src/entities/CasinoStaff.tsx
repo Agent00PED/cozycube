@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { BAR_SNACK, CASINO_DRINKS, VIP_SLOT_ID, pocketColor, type BlackjackResult, type CasinoPropEvent, type RouletteResultBroadcast, type SlotBroadcast } from "@shared/casino";
+import { BAR_SNACK, CASINO_DRINKS, VAULT_SLOT_ID, pocketColor, type BlackjackResult, type CasinoPropEvent, type RouletteResultBroadcast, type SlotBroadcast } from "@shared/casino";
 import { CASINO_NPCS, casinoZoneAt } from "@shared/worlds/casino";
+import { VIP_NPCS, inPenthouse } from "@shared/worlds/casino_vip";
+import { VIP_PASS } from "@shared/items";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { modelUrl } from "../assetVersion";
 import { distanceVolume, playSfx } from "../audio/sfx";
@@ -22,18 +24,24 @@ import { CampNpc, type NpcGesture, type NpcTalk } from "./CampNpc";
 //                    as you step up, has a word for every hand, and bows for a tip in his jar
 //   Madame Vivienne  the poodle croupier at the roulette wheel, rake in paw: she calls each number,
 //                    and curtsies for a tip in hers
-//   Cedric           the badger dealing both blackjack tables in his green visor and arm garters: he
+//   Cedric           the badger dealing blackjack Table 1 in his green visor and arm garters: he
 //                    shuffles now and then, and knocks the felt for a natural ("Clean 21!")
+//   Gideon           the greyhound in a burgundy waistcoat dealing Table 2, the high-stakes one:
+//                    the same shuffle and knock, and a drier word
 //   Jasper           the tuxedo cat on the stool at his own machine in Neon Alley: a win nearby and
 //                    he perks up and claps, purring; a loss and he paws at his coin slot, or dozes off
 //   Pippin           the penguin mixologist behind the bar, shaker in flipper (he gives it a rattle
 //                    now and then, ice flying): click him (or the menu by him) for the bar menu; he
 //                    waves and names each drink he serves, and the house's pretzels
-//   Bruno            the bulldog bouncer at the VIP room's doors, arms folded: he lets in a player
-//                    holding 500 chips or the Card Shark title, and bows them through
+//   Bruno            the bulldog bouncer at the penthouse's gilded doors, arms folded: he sells the
+//                    Black Velvet VIP Pass, and bows a pass holder into the elevator
 //
-// (boris.glb, vivienne.glb, jasper.glb, pippin.glb, bruno.glb and cedric.glb:
-// scripts/blender/build_casino_staff.py.)
+// Up in the Velvet Penthouse (shared/worlds/casino_vip.ts): Boris again, dealing the high-limit
+// poker table; Baron von Fox in white tails at its end, playing his own hands; Duchess Penelope in
+// her diamonds on a baccarat stool, wagering every coup.
+//
+// (boris.glb, vivienne.glb, jasper.glb, pippin.glb, bruno.glb, cedric.glb, gideon.glb, baron.glb
+// and penelope.glb: scripts/blender/build_casino_staff.py.)
 
 const URLS = {
   vance: modelUrl("vance.glb"),
@@ -43,6 +51,9 @@ const URLS = {
   pippin: modelUrl("pippin.glb"),
   bruno: modelUrl("bruno.glb"),
   cedric: modelUrl("cedric.glb"),
+  gideon: modelUrl("gideon.glb"),
+  baron: modelUrl("baron.glb"),
+  penelope: modelUrl("penelope.glb"),
 } as const;
 
 const FRENCH: Record<"red" | "black" | "green", string> = { red: "rouge", black: "noir", green: "vert" };
@@ -84,9 +95,40 @@ const VIVIENNE: NpcTalk = {
 
 const CEDRIC: NpcTalk = {
   height: 1.2,
-  clicked: ["Evening! Table 1's easy going, Table 2's for the brave. 🃏", "Cedric deals clean: I stand on seventeen, every time.", "Hit, stand, double: your call. A badger is patient. 🦡", "Two tables, one badger. I'm very quick with my paws."],
+  clicked: ["Evening! Table 1's easy going: pull up a stool. 🃏", "Cedric deals clean: I stand on seventeen, every time.", "Hit, stand, double, split: your call. A badger is patient. 🦡", "Gideon has the big table. I have the fun one."],
   on: {
-    blackjackResult: (p: BlackjackResult) => (p?.outcome === "win" ? (Math.random() < 0.5 ? "Nicely played. 🦡" : null) : p?.outcome === "bust" ? (Math.random() < 0.4 ? "Ooh, just over the line." : null) : null),
+    blackjackResult: (p: BlackjackResult) => (p?.tableId !== "blackjack_01" ? null : p.outcome === "win" ? (Math.random() < 0.5 ? "Nicely played. 🦡" : null) : p.outcome === "bust" ? (Math.random() < 0.4 ? "Ooh, just over the line." : null) : null),
+  },
+};
+
+const GIDEON: NpcTalk = {
+  height: 1.35,
+  clicked: ["Table 2. The stakes are high and the stools are comfortable. 🃏", "Gideon. I deal quickly and I never blink.", "Pairs may be split, doubles are welcome. Nerves are optional.", "The shoe holds four decks. I hold my composure."],
+  on: {
+    blackjackResult: (p: BlackjackResult) => (p?.tableId !== "blackjack_02" ? null : p.outcome === "win" ? (Math.random() < 0.5 ? "Well earned." : null) : p.outcome === "bust" ? (Math.random() < 0.4 ? "Twenty-two. A cruel number." : null) : null),
+  },
+};
+
+const BORIS_VIP: NpcTalk = {
+  height: 1.3,
+  clicked: ["Up here the antes are serious, friend. 🎩", "The Baron plays every hand. Try to keep up. ❄️", "Queen high to qualify, same as downstairs. Only the chips are bigger. 🐻‍❄️"],
+  greet: { inside: (x, z) => inPenthouse(x, z), lines: ["Welcome to the penthouse, friend. 🥂", "Ah, a pass holder! Sit, sit. 🃏"] },
+  on: BORIS.on,
+};
+
+const BARON: NpcTalk = {
+  height: 1.35,
+  clicked: ["Von Fox. Delighted. Do you play, or merely watch? 🦊", "One never counts one's chips at the table, darling.", "The champagne is from my own cellar. Well, the Duchess's.", "A queen high? How quaint."],
+  on: {
+    pokerResult: (p: { outcome: string; table?: string }) => (p?.table !== "poker_vip" ? null : p.outcome === "win" ? pick(["Bravo! Bravo! 🥂", "You have the paws of a champion."]) : p.outcome === "lose" ? (Math.random() < 0.5 ? "Chin up. The night is young. 🦊" : null) : null),
+  },
+};
+
+const DUCHESS: NpcTalk = {
+  height: 1.1,
+  clicked: ["Banker, always Banker. Five percent is a small price for elegance. 💎", "Penelope. Duchess, if you insist.", "Do sit beside me, the shoe is in a generous mood.", "These? Paste, darling. The real ones are in the vault. 💎"],
+  on: {
+    baccaratState: (p: { phase: string; winner: string }) => (p?.phase !== "settled" || Math.random() > 0.35 ? null : p.winner === "tie" ? "A tie! How thrilling. 💎" : p.winner === "banker" ? "Banker, naturally." : "Player? How common. 💎"),
   },
 };
 
@@ -108,23 +150,25 @@ const PIPPIN: NpcTalk = {
 
 const BRUNO: NpcTalk = {
   height: 1.3,
-  clicked: ["VIP room's through here. Five hundred chips in hand, or a Card Shark's title. 🕶️", "Name's Bruno. The list? You're on it if the chips say so. 📋", "High-stakes slot inside. A hundred a pull, minimum.", "Keep it classy in there, pal."],
+  clicked: ["The penthouse is upstairs. Black Velvet Pass holders only. 🕶️", `Name's Bruno. A pass is ${VIP_PASS.price.toLocaleString("en-US")} chips, and I sell 'em right here. 🎫`, "Baccarat, high-limit poker and the Golden Vault. All upstairs.", "Keep it classy up there, pal."],
   on: {
     casinoProp: (p: CasinoPropEvent) => {
       if (p?.kind !== "vipdoor") return null;
-      if (p.vip === "in") return pick(["Right this way. Enjoy the room. 🕶️", "Welcome in, high roller.", "Mind the velvet. Have a good one."]);
-      if (p.vip === "out") return Math.random() < 0.5 ? "Come back soon, high roller." : null;
-      return pick(["Five hundred chips, or a Card Shark's title. Rules are rules. 🕶️", "Not tonight, pal. Come back with a heavier purse.", "Members only. Win a few hands and we'll talk."]);
+      if (p.vip === "in") return pick(["Right this way. Enjoy the penthouse. 🕶️", "Welcome up, high roller.", "Mind the velvet. The elevator's all yours."]);
+      if (p.vip === "out") return Math.random() < 0.5 ? "Back down so soon? Come again, high roller." : null;
+      return pick(["No pass, no penthouse. Rules are rules. 🕶️", "Members only, pal. I can sell you a pass, though.", "The Black Velvet Pass opens these doors. Nothing else does."]);
     },
   },
 };
 
 // --- the little turns ---
-/** Cedric knocks the felt for a natural, whoever's it is. */
-const cedricGestures = (type: string, p: BlackjackResult) => (type === "blackjackResult" && p?.outcome === "blackjack" ? { gesture: "knock" as NpcGesture, line: "*Knocks table* Clean 21! 🃏" } : null);
+/** A dealer knocks the felt for a natural at their own table, whoever's it is. */
+const knockFor = (tableId: string, line: string) => (type: string, p: BlackjackResult) => (type === "blackjackResult" && p?.tableId === tableId && p.outcome === "blackjack" ? { gesture: "knock" as NpcGesture, line } : null);
+const cedricGestures = knockFor("blackjack_01", "*Knocks table* Clean 21! 🃏");
+const gideonGestures = knockFor("blackjack_02", "*Knocks table* Blackjack. Beautifully done.");
 /** Jasper's moods at the alley's slots (the VIP room's machine is out of his sight). */
 function jasperGestures(type: string, p: SlotBroadcast): { gesture: NpcGesture; line?: string } | null {
-  if (type !== "slotSpin" || !p || p.propId === VIP_SLOT_ID) return null;
+  if (type !== "slotSpin" || !p || p.propId === VAULT_SLOT_ID) return null;
   if (p.win > p.bet) return { gesture: "clap", line: pick(["Purrrr~ 😻 Lucky paws!", "Meow! Jackpot vibes! 😻", "*claps* Purrrrr~"]) };
   if (p.win > 0) return null;
   const r = Math.random();
@@ -136,8 +180,11 @@ const borisBows = tipFor("boris");
 const vivienneBows = tipFor("vivienne");
 const pippinServes = (type: string, p: CasinoPropEvent) => type === "casinoProp" && p?.kind === "barmenu";
 const brunoBows = (type: string, p: CasinoPropEvent) => type === "casinoProp" && p?.kind === "vipdoor" && p.vip === "in";
+/** The Baron raises his glass to a win at his table. */
+const baronToasts = (type: string, p: { outcome?: string; table?: string }) => type === "pokerResult" && p?.table === "poker_vip" && p.outcome === "win";
 
 const CEDRIC_IDLE = { gesture: "shuffle" as NpcGesture, every: 9 };
+const GIDEON_IDLE = { gesture: "shuffle" as NpcGesture, every: 11 };
 const PIPPIN_IDLE = { gesture: "shake" as NpcGesture, every: 13 };
 
 const standIn = (color: string, h: number) => {
@@ -155,6 +202,9 @@ const STAND_INS = {
   pippin: standIn("#1e2128", 0.95),
   bruno: standIn("#c99a6b", 1.2),
   cedric: standIn("#6d6a70", 1.1),
+  gideon: standIn("#b9a58e", 1.3),
+  baron: standIn("#d8742e", 1.2),
+  penelope: standIn("#f3e9f2", 1.0),
 };
 
 /** Set when Pippin rattles his shaker: the ice flies for a moment. */
@@ -165,6 +215,10 @@ export function CasinoStaff({ subscribeMessages }: { subscribeMessages: (listene
   const onCedric = (g: NpcGesture) => {
     if (g === "knock") playSfx("knock", heardFrom("cedric"));
     else if (g === "shuffle" && within("cedric", 4.5)) playSfx("card", heardFrom("cedric") * 0.5);
+  };
+  const onGideon = (g: NpcGesture) => {
+    if (g === "knock") playSfx("knock", heardFrom("gideon"));
+    else if (g === "shuffle" && within("gideon", 4.5)) playSfx("card", heardFrom("gideon") * 0.5);
   };
   const onJasper = (g: NpcGesture) => {
     if (g === "clap" && within("jasper", 7)) playSfx("purr", heardFrom("jasper"));
@@ -182,7 +236,12 @@ export function CasinoStaff({ subscribeMessages }: { subscribeMessages: (listene
       <CampNpc url={URLS.cedric} what="cedric.glb" prefix="Cedric" at={N.cedric} y={N.cedric.y} waveEvent="cedricWave" standIn={STAND_INS.cedric} subscribeMessages={subscribeMessages} talk={CEDRIC} gestureOn={cedricGestures} idle={CEDRIC_IDLE} onGesture={onCedric} fuseArm={false} />
       <CampNpc url={URLS.jasper} what="jasper.glb" prefix="Jasper" at={N.jasper} y={N.jasper.y} waveEvent="jasperWave" standIn={STAND_INS.jasper} subscribeMessages={subscribeMessages} talk={JASPER} gestureOn={jasperGestures} onGesture={onJasper} fuseArm={false} />
       <CampNpc url={URLS.pippin} what="pippin.glb" prefix="Pippin" at={N.pippin} y={N.pippin.y} waveEvent="pippinWave" standIn={STAND_INS.pippin} subscribeMessages={subscribeMessages} talk={PIPPIN} waveOn={pippinServes} idle={PIPPIN_IDLE} onGesture={onPippin} fuseArm={false} />
+      <CampNpc url={URLS.gideon} what="gideon.glb" prefix="Gideon" at={N.gideon} y={N.gideon.y} waveEvent="gideonWave" standIn={STAND_INS.gideon} subscribeMessages={subscribeMessages} talk={GIDEON} gestureOn={gideonGestures} idle={GIDEON_IDLE} onGesture={onGideon} fuseArm={false} />
       <CampNpc url={URLS.bruno} what="bruno.glb" prefix="Bruno" at={N.bruno} y={N.bruno.y} waveEvent="brunoWave" standIn={STAND_INS.bruno} subscribeMessages={subscribeMessages} talk={BRUNO} bowOn={brunoBows} />
+      {/* the Velvet Penthouse */}
+      <CampNpc url={URLS.boris} what="boris.glb" prefix="Boris" at={VIP_NPCS.borisVip} y={VIP_NPCS.borisVip.y} waveEvent="borisVipWave" standIn={STAND_INS.boris} subscribeMessages={subscribeMessages} talk={BORIS_VIP} />
+      <CampNpc url={URLS.baron} what="baron.glb" prefix="Baron" at={VIP_NPCS.baron} y={VIP_NPCS.baron.y} waveEvent="baronWave" standIn={STAND_INS.baron} subscribeMessages={subscribeMessages} talk={BARON} waveOn={baronToasts} />
+      <CampNpc url={URLS.penelope} what="penelope.glb" prefix="Penelope" at={VIP_NPCS.duchess} y={VIP_NPCS.duchess.y} waveEvent="penelopeWave" standIn={STAND_INS.penelope} subscribeMessages={subscribeMessages} talk={DUCHESS} fuseArm={false} />
       <ShakerIce />
     </>
   );

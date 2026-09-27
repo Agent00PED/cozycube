@@ -5,7 +5,8 @@ import * as THREE from "three";
 import type { Room } from "colyseus.js";
 import { walkY } from "@shared/collision";
 import { DERBY_HORSES, DERBY_LANES, DERBY_RACERS, DERBY_RACE_MS, SLOT_SYMBOLS, derbyPaces, derbyProgress, type CasinoGame, type CasinoPropEvent, type CasinoWin, type PianoNote, type PianoRecital } from "@shared/casino";
-import { CASINO_LAYOUT as L, CASINO_NPCS, CASINO_STAGES, TIP_JARS } from "@shared/worlds/casino";
+import { CASINO_LAYOUT as L, CASINO_NPCS, CASINO_STAGES, TIP_JARS, VIP_DOORS } from "@shared/worlds/casino";
+import { CasinoVipWorld } from "./CasinoVipWorld";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
@@ -40,11 +41,14 @@ import { pushToast } from "../components/hud/toastStore";
 //   the extras       the craps dice tumble to the thrower's roll; the Turf Club's four horses race
 //                    (the same race as its panel: shared derbyPaces); the coin pusher's plate slides;
 //                    the cue ball breaks the rack; Madame Zara's brass owl swivels, and hoots at a
-//                    reading; a tip in a dealer's jar sparkles; the VIP room's doors swing open for
-//                    Bruno's guests (every one a "casinoProp" message: all see it)
+//                    reading; a tip in a dealer's jar sparkles; the penthouse's gilded doors swing
+//                    open for Bruno's guests (every one a "casinoProp" message: all see it)
 //   the baby grand   a recital (pianoRecital) or a key played by hand (pianoNote), heard across the
 //                    hall, softer the further you stand from the piano (audio/piano.ts)
-//   the staff        Mr. Vance, Boris, Madame Vivienne, Jasper, Pippin, Bruno and Cedric (entities/CasinoStaff.tsx)
+//   the staff        Mr. Vance, Boris, Madame Vivienne, Jasper, Pippin, Bruno, Cedric and Gideon, and
+//                    upstairs Boris, Baron von Fox and Duchess Penelope (entities/CasinoStaff.tsx)
+//   the penthouse    the Velvet Penthouse off to the side of the hall (CasinoVipWorld): only one of
+//                    the two is drawn at a time, whichever you are in
 //   the crowd        the chibi regulars drifting between the tables and the bar, and Bella the
 //                    cocktail waitress on her round (entities/AmbientPatrons.tsx)
 //   the light        a warm fill, amber pools under the four chandeliers, washes along the walls,
@@ -70,6 +74,8 @@ interface CasinoWorldProps {
   room: Room | null;
   /** One-shot messages: the staff wave and talk on them, the extras play them out. */
   subscribeMessages: (listener: RoomMessageListener) => () => void;
+  /** You are up in the penthouse (the hall is not drawn, the penthouse is). */
+  up: boolean;
 }
 
 /** A module-level pulse the whole hall reads: set by a celebration, decaying. */
@@ -87,7 +93,7 @@ function whereIs(room: Room | null, sessionId: string): { x: number; z: number }
   return m ? { x: m.x, z: m.z } : null;
 }
 
-export function CasinoWorld({ onFloorClick, room, subscribeMessages }: CasinoWorldProps) {
+export function CasinoWorld({ onFloorClick, room, subscribeMessages, up }: CasinoWorldProps) {
   const floorClick = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -95,21 +101,24 @@ export function CasinoWorld({ onFloorClick, room, subscribeMessages }: CasinoWor
   };
   return (
     <group>
-      <CasinoBackdrop />
-      <mesh geometry={GEO.plane} material={CLICK_MAT} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} scale={[L.half * 2, L.half * 2, 1]} onPointerDown={floorClick} />
-      {/* the raised pit and lounge take their own clicks, at their height (the nearer hit wins) */}
-      {CASINO_STAGES.map((s) => (
-        <mesh key={s.id} geometry={GEO.plane} material={CLICK_MAT} rotation={[-Math.PI / 2, 0, 0]} position={[(s.x0 + s.x1) / 2, s.h + 0.02, (s.z0 + s.z1) / 2]} scale={[s.x1 - s.x0, s.z1 - s.z0, 1]} onPointerDown={floorClick} />
-      ))}
-      <ModelBoundary what="casino.glb" fallback={<StandIn />}>
-        <Suspense fallback={<StandIn />}>
-          <CasinoModel room={room} subscribeMessages={subscribeMessages} />
-        </Suspense>
-      </ModelBoundary>
+      <CasinoBackdrop night={up} />
+      <group visible={!up}>
+        <mesh geometry={GEO.plane} material={CLICK_MAT} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} scale={[L.half * 2, L.half * 2, 1]} onPointerDown={floorClick} />
+        {/* the raised pit and lounge take their own clicks, at their height (the nearer hit wins) */}
+        {CASINO_STAGES.map((s) => (
+          <mesh key={s.id} geometry={GEO.plane} material={CLICK_MAT} rotation={[-Math.PI / 2, 0, 0]} position={[(s.x0 + s.x1) / 2, s.h + 0.02, (s.z0 + s.z1) / 2]} scale={[s.x1 - s.x0, s.z1 - s.z0, 1]} onPointerDown={floorClick} />
+        ))}
+        <ModelBoundary what="casino.glb" fallback={<StandIn />}>
+          <Suspense fallback={<StandIn />}>
+            <CasinoModel room={room} subscribeMessages={subscribeMessages} />
+          </Suspense>
+        </ModelBoundary>
+        <AmbientPatrons subscribeMessages={subscribeMessages} room={room} />
+      </group>
+      <CasinoVipWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} up={up} />
       <CasinoStaff subscribeMessages={subscribeMessages} />
-      <AmbientPatrons subscribeMessages={subscribeMessages} room={room} />
       <Confetti room={room} subscribeMessages={subscribeMessages} />
-      <CasinoLights />
+      {up ? null : <CasinoLights />}
     </group>
   );
 }
@@ -308,7 +317,7 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
           if (ev.vip === "refused") playSfx("rattle");
           else {
             vipOpen.current = now;
-            playSfx("clack", heard(L.vip.gate, L.vip.z1));
+            playSfx("clack", heard(VIP_DOORS.x, VIP_DOORS.z));
           }
         } else if (ev.kind === "barmenu" && ev.drink) {
           playSfx("fizz", heard(L.bar.x1, CASINO_NPCS.pippin.z));
@@ -390,11 +399,11 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
       parts.cue.position.x = parts.cueRest.x + k * (L.billiards.len - 1.45);
       parts.cue.rotation.z = -parts.cue.position.x * 20;
     }
-    // the VIP room's doors: swung open for a guest going in or out, then eased shut
+    // the penthouse's gilded doors: swung open for a guest going up or coming down, then eased shut
     const v = now - vipOpen.current;
     const open = v < 0 ? 0 : v < 0.5 ? easeOut(v / 0.5) : v < 2.2 ? 1 : v < 3 ? 1 - easeInOut((v - 2.2) / 0.8) : 0;
     parts.vipDoors.forEach((d, i) => {
-      if (d) d.rotation.y = (i === 0 ? 1 : -1) * open * 1.35;
+      if (d) d.rotation.y = (i === 0 ? -1 : 1) * open * 1.35;
     });
     marquee.tick(now);
   });
@@ -408,7 +417,7 @@ const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2,
 
 // --- the Big-Win marquee ---------------------------------------------------------------------
 
-const GAME_ICON: Record<CasinoGame, string> = { slots: "🎰", roulette: "🎡", blackjack: "🃏", poker: "♠", craps: "🎲", derby: "🏇", pusher: "🪙" };
+const GAME_ICON: Record<CasinoGame, string> = { slots: "🎰", roulette: "🎡", blackjack: "🃏", poker: "♠", baccarat: "🂡", craps: "🎲", derby: "🏇", pusher: "🪙" };
 const REGULARS = ["Lady Honeysuckle", "Count Whiskerton", "The Baroness", "Sir Reginald", "Madame Plume", "Dr. Fluffington", "Captain Barnacles", "Duchess Marmalade", "Monsieur Truffle", "Old Tom Tabby"];
 const SCROLL_S = 7;
 
@@ -623,8 +632,8 @@ function CasinoLights() {
       <pointLight color="#ffc070" intensity={1.1 * lamp} distance={5} decay={2} position={[face + 0.8, lounge + 2.3, (L.bar.z0 + L.bar.z1) / 2]} castShadow={false} />
       <pointLight color="#ffe2a0" intensity={1.3 * lamp} distance={3.6} decay={2} position={[L.billiards.x, lounge + L.billiards.lamp - 0.2, L.billiards.z]} castShadow={false} />
       <pointLight color="#ffb866" intensity={0.8 * lamp} distance={4.5} decay={2} position={[L.coffee.x, lounge + 1.0, L.coffee.z]} castShadow={false} />
-      {/* the VIP room's own warm glow */}
-      <pointLight color="#ffb35c" intensity={1.0 * lamp} distance={4} decay={2} position={[(L.vip.x0 + L.vip.x1) / 2, 2.0, (L.vip.z0 + L.vip.z1) / 2]} castShadow={false} />
+      {/* the penthouse's gilded doors, lit up on the High-Roller Stage */}
+      <pointLight color="#ffc870" intensity={1.0 * lamp} distance={4} decay={2} position={[VIP_DOORS.x, 2.4, VIP_DOORS.z + 0.9]} castShadow={false} />
       {/* Neon Alley: a pink glow and a cyan one off the slot row */}
       <pointLight color="#ff4fa3" intensity={1.0} distance={5} decay={2} position={[pinkX, pinkY, L.slots.zs[1]]} castShadow={false} />
       <pointLight color="#4fe3ff" intensity={0.9} distance={5} decay={2} position={[pinkX, pinkY, L.slots.zs[4]]} castShadow={false} />
@@ -632,8 +641,9 @@ function CasinoLights() {
   );
 }
 
-/** Inside, there is no sky: a deep plum dark behind the hall, whatever the hour. */
-export function CasinoBackdrop() {
+/** Inside, there is no sky: a deep plum dark behind the hall, whatever the hour; up in the
+ *  penthouse, a midnight blue over the city's glow. */
+export function CasinoBackdrop({ night = false }: { night?: boolean }) {
   const scene = useThree((s) => s.scene);
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
@@ -642,15 +652,16 @@ export function CasinoBackdrop() {
     const g = canvas.getContext("2d");
     if (g) {
       const grad = g.createLinearGradient(0, 0, 0, 256);
-      grad.addColorStop(0, "#0e0709");
-      grad.addColorStop(1, "#22101a");
+      grad.addColorStop(0, night ? "#070a1c" : "#0e0709");
+      grad.addColorStop(0.7, night ? "#141a3a" : "#1a0c14");
+      grad.addColorStop(1, night ? "#3a2240" : "#22101a");
       g.fillStyle = grad;
       g.fillRect(0, 0, 2, 256);
     }
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
-  }, []);
+  }, [night]);
   useEffect(() => {
     const before = scene.background;
     scene.background = texture;

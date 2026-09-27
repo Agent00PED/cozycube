@@ -1,7 +1,7 @@
 import { MAP_HALF, MAP_IDS, type MapId } from "./types";
 import { LOFT_OBSTACLES, LOFT_SPAWNS, NAV_LIMIT } from "./worlds/lounge";
 import { CAMP_OBSTACLES, CAMP_SPAWNS } from "./worlds/campfire";
-import { CASINO_OBSTACLES, CASINO_SPAWNS, casinoFloorY } from "./worlds/casino";
+import { CASINO_OBSTACLES, CASINO_REGIONS, CASINO_SPAWNS, casinoFloorY } from "./worlds/casino";
 
 // Where you can stand. The lounge, the campfire and the casino are authored in shared/worlds/
 // (lounge.ts, campfire.ts, casino.ts); every other world is still an open square floor with one spawn in the middle
@@ -18,12 +18,32 @@ export interface AABB {
 export const WORLD_LIMIT = 9.4;
 export const SHORELINE_Z = 4.8;
 
-/** The furthest from the centre an avatar's origin may be, on either axis. */
+/** The furthest from the centre an avatar's origin may be, on either axis (a square world). */
 export function worldLimit(mapId: MapId): number {
   return mapId === "cozy_lounge" ? NAV_LIMIT : MAP_HALF[mapId] - 0.6;
 }
-/** The pathfinding grid is sized to the largest map. */
-export const GRID_LIMIT = Math.max(...MAP_IDS.map(worldLimit));
+
+/** A rectangle of floor an avatar's origin may stand in. */
+export interface Rect {
+  x0: number;
+  x1: number;
+  z0: number;
+  z1: number;
+}
+/** Each world's floor: one square, or (the casino) the hall and the penthouse off to its side. */
+const REGIONS: Record<MapId, Rect[]> = Object.fromEntries(
+  MAP_IDS.map((id) => {
+    const l = worldLimit(id);
+    return [id, id === "velvet_casino" ? CASINO_REGIONS : [{ x0: -l, x1: l, z0: -l, z1: l }]];
+  })
+) as Record<MapId, Rect[]>;
+export const walkRegions = (mapId: MapId): Rect[] => REGIONS[mapId];
+const inside = (r: Rect, x: number, z: number) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1;
+/** The rectangle all of a world's floor lies within (the pathfinding grid covers it). */
+export function mapBounds(mapId: MapId): Rect {
+  const rs = REGIONS[mapId];
+  return { x0: Math.min(...rs.map((r) => r.x0)), x1: Math.max(...rs.map((r) => r.x1)), z0: Math.min(...rs.map((r) => r.z0)), z1: Math.max(...rs.map((r) => r.z1)) };
+}
 
 const open = () => [] as AABB[];
 export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
@@ -51,8 +71,7 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
 
 /** True when a disc of `radius` at (x, z) is off the floor or overlaps furniture. */
 export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boolean {
-  const limit = worldLimit(mapId);
-  if (Math.abs(x) > limit || Math.abs(z) > limit) return true;
+  if (!REGIONS[mapId].some((r) => inside(r, x, z))) return true;
   for (const b of MAP_OBSTACLES[mapId]) {
     if (x + radius > b.minX && x - radius < b.maxX && z + radius > b.minZ && z - radius < b.maxZ) return true;
   }
@@ -65,7 +84,19 @@ export function walkY(mapId: MapId, x: number, z: number): number {
   return mapId === "velvet_casino" ? casinoFloorY(x, z) : 0;
 }
 
-export function clampToWorld(v: number, mapId: MapId = "cozy_lounge"): number {
-  const limit = worldLimit(mapId);
-  return Math.max(-limit, Math.min(limit, v));
+/** (x, z) kept on the floor of the region (from, fx, fz) stands in: a step never crosses the void
+ *  between two of a world's regions (the casino's hall and penthouse are joined only by Bruno). */
+export function clampToRegion(mapId: MapId, fx: number, fz: number, x: number, z: number): { x: number; z: number } {
+  const rs = REGIONS[mapId];
+  let r = rs.find((q) => inside(q, fx, fz));
+  if (!r) {
+    // off every floor (a stale position): the nearest region
+    let best = Infinity;
+    for (const q of rs) {
+      const d = Math.hypot(Math.max(q.x0 - fx, 0, fx - q.x1), Math.max(q.z0 - fz, 0, fz - q.z1));
+      if (d < best) (best = d), (r = q);
+    }
+  }
+  const q = r!;
+  return { x: Math.max(q.x0, Math.min(q.x1, x)), z: Math.max(q.z0, Math.min(q.z1, z)) };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SLOT_PAIR, SLOT_SYMBOLS, SLOT_TRIPLE, VIP_SLOT_ID, limitPlacard, slotLimit, type SlotBroadcast } from "@shared/casino";
+import { SLOT_PAIR, SLOT_SYMBOLS, SLOT_TRIPLE, VAULT_SLOT_ID, limitPlacard, slotLimit, type SlotBroadcast } from "@shared/casino";
 import { Modal } from "./Modal";
 import { BetPicker, ShortOfChips, clampStake } from "./BetControls";
 import { ChipAmount, VelvetChipIcon } from "./VelvetChipIcon";
@@ -8,7 +8,7 @@ import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 // A retro-cozy three-reel machine. The server rolls (spin_slots) and broadcasts the reels;
 // this panel spins its strips to land on them one after another, ticking as they go, then
 // lights the payline and bursts chips if it paid. Stakes and wins are Velvet Chips, within the
-// machine's limits (Neon Alley's, or the VIP room's high-stakes one), with an ALL IN up to its
+// machine's limits (Neon Alley's, or the penthouse's Golden Vault), with an ALL IN up to its
 // cap; a pair hands the stake back (a push), three of a kind pays the paytable.
 const SYMBOLS = SLOT_SYMBOLS as readonly string[];
 const N = SYMBOLS.length;
@@ -29,7 +29,7 @@ interface Props {
 
 export function SlotsModal({ propId, chips, coins, localSessionId, onSpin, subscribeMessages, onClose }: Props) {
   const limit = slotLimit(propId);
-  const vip = propId === VIP_SLOT_ID;
+  const vip = propId === VAULT_SLOT_ID;
   const [stake, setBet] = useState<number>(limit.presets[0]);
   const [spinning, setSpinning] = useState(false);
   const [lever, setLever] = useState(false);
@@ -105,7 +105,7 @@ export function SlotsModal({ propId, chips, coins, localSessionId, onSpin, subsc
   const strip = Array.from({ length: N * REPEATS }, (_, i) => SYMBOLS[i % N]);
 
   return (
-    <Modal title={vip ? "The VIP High-Stakes Reels" : "Lucky Reels"} icon={vip ? "💎" : "🎰"} onClose={onClose} width={460} tone="velvet" placard={limitPlacard(limit)}>
+    <Modal title={vip ? "The Golden Vault" : "Lucky Reels"} icon={vip ? "🏆" : "🎰"} onClose={onClose} width={460} tone="velvet" placard={limitPlacard(limit)}>
       <div className="flex flex-col items-center gap-4 pb-2">
         <div className="relative flex w-full items-stretch justify-center gap-3">
           {/* the cabinet window */}
