@@ -33,7 +33,7 @@ from mathutils import Vector
 
 COLLECTION = "Avatar"
 PREFIX = "AV_"
-TOP, BOTTOM = "hoodie", "sweats"
+TOP, BOTTOM = "hoodie", "joggers"
 # (label, yaw in degrees round from the front, pitch in degrees up)
 VIEWS = (("Front", 0, 4), ("Front 3/4", 45, 8), ("Profile", 90, 4), ("Rear 3/4", 135, 8))
 TILE = 300

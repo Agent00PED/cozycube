@@ -8,6 +8,7 @@ import {
   HAIR_STYLES,
   HATS,
   OUTFITS,
+  OUTFIT_ARCHETYPE_LABEL,
   OUTFIT_COLORS,
   OUTFIT_COLOR_NAMES,
   OUTFIT_FABRICS,
@@ -43,8 +44,9 @@ import { GEO, matte, noRaycast } from "../../scene/kit";
 // light over a velvet podium), beside the collection in its three price bands (Common, Rare,
 // Prestige: shared/economy.ts). Anything you pick is tried on the turntable at once; what you own
 // goes straight on (the room sees it, it is saved, and remembered locally too); what you don't is a
-// try-on, its cost totalled live under the list with [ Purchase & Equip ] (or a Revert back to what
-// you wear). The gachapon's pieces only come from the arcade, and the Velvet Pioneer set is claimed
+// try-on, its cost totalled live in a bar under the list with [ Purchase & Equip ] (or a Revert
+// back to what you wear); the bar is there only while something not yet yours is on, and what you
+// wear shows as "✓ Wearing" in the list. Each outfit is tagged with its cut (its archetype). The gachapon's pieces only come from the arcade, and the Velvet Pioneer set is claimed
 // free (0 coins) by the beta's players for two weeks after the wipe, its gold title with it.
 
 interface WardrobeProps {
@@ -305,13 +307,10 @@ export function WardrobeModal({ userId, username, initial, coins, owned, title, 
             Common {WARDROBE_BANDS.common.join("–")} · Rare {WARDROBE_BANDS.rare.join("–")} · Prestige {WARDROBE_BANDS.prestige.map((n) => n.toLocaleString()).join("–")} coins. Earn them fishing, chopping, carving, and on the daily checklist.
           </p>
 
-          {/* ---- the try-on's bill: live, and the one button that settles it ---- */}
-          <div className="sticky bottom-0 -mx-4 -mb-4 mt-auto border-t border-white/10 bg-stone-950/85 px-4 py-3 backdrop-blur" aria-live="polite">
-            {missing.length === 0 ? (
-              <div className="flex items-center justify-end gap-2 text-sm">
-                <span className={`${ACTION} bg-gradient-to-b from-pink-200 to-pink-400 text-pink-950`}>✓ Equipped</span>
-              </div>
-            ) : (
+          {/* ---- the try-on's bill: live, and the one button that settles it; only while trying on
+               something not yet yours (what you wear shows as "✓ Wearing" in the list) ---- */}
+          {missing.length > 0 && (
+            <div className="sticky bottom-0 -mx-4 -mb-4 mt-auto border-t border-white/10 bg-stone-950/85 px-4 py-3 backdrop-blur" aria-live="polite">
               <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap gap-1.5 text-xs">
                   {missing.map((m) => (
@@ -333,8 +332,8 @@ export function WardrobeModal({ userId, username, initial, coins, owned, title, 
                   </button>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -362,6 +361,7 @@ function ItemRow({ item, owned, wearing, canAfford = true, onPick }: { item: War
       <span className="min-w-0 flex-1">
         <b className="block break-words font-semibold leading-tight">{item.name}</b>
         <span className={`mt-0.5 inline-block rounded-full px-1.5 py-px text-[10px] font-bold uppercase tracking-wider ${TIER_BADGE[tier]}`}>{TIER_TEXT[tier as WardrobeTier] ?? tier}</span>
+        {item.archetype && <span className="ml-1 mt-0.5 inline-block rounded-full bg-black/25 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider text-stone-300">{OUTFIT_ARCHETYPE_LABEL[item.archetype]}</span>}
       </span>
       <span className={`shrink-0 text-xs font-bold tabular-nums ${owned ? "text-emerald-200" : canAfford ? "text-amber-200" : "text-rose-200/80"}`}>{wearing && owned ? "✓ Wearing" : owned ? "Owned" : item.pioneer ? "Claim" : item.gachaOnly ? "🔮" : `🪙 ${item.price.toLocaleString()}`}</span>
     </button>

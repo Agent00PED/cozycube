@@ -60,8 +60,8 @@ export const GEAR_PRICES = { canvas_gloves: 120, deerskin_gloves: 380, traction_
  *  one. (Starter pieces are free; the gachapon's and the Pioneer set are never sold.) */
 export type WardrobeTier = "common" | "rare" | "prestige";
 export const WARDROBE_BANDS: Record<WardrobeTier, readonly [number, number]> = {
-  common: [120, 200],
+  common: [120, 280],
   rare: [450, 800],
-  prestige: [1500, 2500],
+  prestige: [1500, 3200],
 };
 export const WARDROBE_TIER_LABEL: Record<WardrobeTier, string> = { common: "Common", rare: "Rare", prestige: "Prestige" };

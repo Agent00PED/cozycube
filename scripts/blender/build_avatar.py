@@ -21,9 +21,8 @@ runtime's swings are clean rotations about local axes (client/src/entities/rig.t
     Root                 an empty at the soles
       Body               everything that bobs, waddles and lies down
         Torso            the skin trunk, a soft pear; pivot at its base, so breathing grows it upward
-          Top_<id>       a top's body and collar: hoodie, tee, flannel, hawaiian, tuxedo, robe,
-                         yukata, jumpsuit (the runtime shows the outfit's one)
-        Bottom_<id>      a bottom's seat and waist: sweats, overalls, trousers, shorts, wide
+          Top_<id>       a top's body and collar (TOP_IDS; the runtime shows the outfit's one)
+        Bottom_<id>      a bottom's seat and waist (BOTTOM_IDS)
         Head             pivot at the neck base
           Eyes           pivot on the eye line: scaled in y to blink
           EyesHappy      joyful closed eyes (^ ^) on the same line, hidden until a happy moment
@@ -56,14 +55,15 @@ runtime's swings are clean rotations about local axes (client/src/entities/rig.t
         Guitar           an acoustic guitar resting across the lap (a child of Body), hidden until
                          she plays it on a log bench
       Bobber             the red and white float (a child of Root: the runtime puts it on the water)
-        LegL / LegR      pivots at the hips: skin leg and sneaker
-          Bottom_<id>_LegL / _LegR      the bottom's leg, swinging and folding with the leg
+        LegL / LegR      pivots at the hips: skin leg and bare foot, fused
+          Bottom_<id>_LegL / _LegR      the bottom's leg and the outfit's footwear, swinging and
+                         folding with the leg
 
 The hip height and the leg radius are read out of shared/seats.ts, where the seat anchors are
 derived from them: the legs are built to those numbers, so a seated avatar lands on the cushion.
 
 Materials are the runtime's tint contract: Mat_Skin, Mat_Hair, Mat_Shirt, Mat_Pants and Mat_Accent are
-recoloured per player from their look; Mat_Shoes and the face keep their own colours. The face is
+recoloured per player from their look; the footwear, the metals and the face keep their own colours. The face is
 painted on like Mochi's: flat sheets projected onto the head and lifted 0.002-0.004 along its
 normal, flush in profile and never coplanar with it.
 
@@ -81,17 +81,19 @@ is checked to keep clear of the ears (`ear_clearance`), and the build fails if o
 
 Tops and bottoms meet at one seam (SEAM_Z and its contract, beside the constants). The body is a
 skin mannequin: a trunk turned on a lathe round a drawn silhouette (`TRUNK_PROFILE`),
-arms fused with their hands (a slim wrist, a soft palm, a curved thumb), legs in sneakers (a fused
-canvas upper on a thick flat sole). The clothes are separate, swappable garments, each a closed,
+arms fused with their hands (a slim wrist, a soft palm, a curved thumb), legs ending in bare feet.
+The clothes are separate, swappable garments, each a closed,
 thick shell standing a set distance off the body (BOTTOM_OFF < TOP_OFF < OUTER_OFF, so no two
 surfaces ever share a depth) with its inner skin buried in it and rounded lips at its hems. A
 sleeve or a trouser leg starts in a ball round its joint's pivot, which turns in place however the
 joint swings, so nothing opens at a joint; a trouser leg is AVATAR_HIP_OFFSET round, so seated the
-trousers rest on the cushion. The hats are the wardrobe's twenty (`HATS`), each in its own colours.
+trousers rest on the cushion. Every outfit is cut to one of five archetypes (formal, robe,
+streetwear, summer, workwear: see the clothes section), and its bottom's legs carry its footwear.
+The hats are the wardrobe's twenty (`HATS`), each in its own colours.
 
 Every hair style and hat is its own object under Head, every garment piece its own object on its
-part. After export the Blender viewport is left tidy: only the body in the default hair (`cap`) and
-outfit (the hoodie and sweats) is shown; the other variants and the mug are disabled in the
+part. After export the Blender viewport is left tidy: only the body in the default hair (`short`)
+and outfit (the hoodie and joggers) is shown; the other variants and the mug are disabled in the
 viewport (still rendering, and re-enabled for every export).
 
 Blender object names are global to the file and Mochi already owns "Body" and "Head", so every
@@ -118,8 +120,8 @@ HAIR_STYLES = ("short", "bob", "curtain", "ponytail", "wavylong", "hero", "drill
 # the runtime hides under a hat that covers the crown (rig.ts HAIR_PROP_SUFFIX)
 HAIR_PROP_STYLES = ("ponytail", "topknot", "spacebuns")
 HAT_IDS = ("beret", "beanie", "flower", "headphones", "straw", "tophat", "bunny", "crown", "mochiears", "cozybeanie", "boonie", "bearcap", "headlamp", "frogbeanie", "catbeanie", "painterberet", "buckethat", "deerstalker", "goldglasses", "pioneercap")
-TOP_IDS = ("hoodie", "tee", "flannel", "hawaiian", "tuxedo", "robe", "yukata", "jumpsuit", "plaid", "puffer", "sweater", "smoking", "lounge")
-BOTTOM_IDS = ("sweats", "overalls", "trousers", "shorts", "wide", "waders", "garden", "blueprint", "lounge")
+TOP_IDS = ("hoodie", "tee", "thermal", "chambray", "plaid", "flannel", "puffer", "sweater", "lounge", "jumpsuit", "hawaiian", "swim", "robe", "yukata", "starry", "velvet", "tuxedo", "smoking", "pinstripe")
+BOTTOM_IDS = ("joggers", "cargo", "cyber", "lounge", "overalls", "garden", "blueprint", "waders", "workpants", "khakis", "board", "boxing", "yukata", "starry", "velvet", "tuxedo", "smoking", "pinstripe")
 TOP_PARTS = (("", "Torso"), ("_SleeveL", "ArmL"), ("_SleeveR", "ArmR"))  # (name suffix, parent)
 BOTTOM_PARTS = (("", "Body"), ("_LegL", "LegL"), ("_LegR", "LegR"))
 NODE_NAMES = (
@@ -218,9 +220,28 @@ PALETTE = {
     "Mat_Tweed": "#8A6E4B",
     "Mat_TweedDark": "#5E4A33",
     "Mat_PioneerBeret": "#4A6F9C",
+    # the wardrobe's archetypes: formal satin, metals, leathers, work boots, robes' trims
+    "Mat_Satin": "#16141B",  # black satin: lapels, a shawl collar, a stripe, a sash
+    "Mat_Crimson": "#B3122E",  # the tuxedo's bow tie
+    "Mat_Gold": "#E2B84E",  # cufflinks, a watch chain, an obi, tassels, a crest
+    "Mat_Leather": "#18161A",  # patent dress shoes and soles
+    "Mat_Pin": "#B9BDC9",  # a suit's pinstripes
+    "Mat_Star": "#E6EAF4",  # silver stars and constellations
+    "Mat_Buckle": "#C4CAD2",  # overalls' molded metal clips, boots' speed hooks
+    "Mat_WorkBoot": "#9A6434",  # tan work-boot leather
+    "Mat_Lug": "#2B2622",  # lug soles and their treads, laces
+    "Mat_Garden": "#5E9A4C",  # green rubber garden boots
+    "Mat_Saddle": "#7A4526",  # saddle-leather suspenders
+    "Mat_Suede": "#B98252",  # deck shoes
+    "Mat_Wood": "#C79A63",  # geta
+    "Mat_Velvet": "#5E1A2A",  # burgundy velvet slippers
 }
 # (metallic, roughness) for the few materials that are not matte clay
-FINISH = {"Mat_Crown": (0.85, 0.35), "Mat_Gem": (0.0, 0.3), "Mat_Headphone": (0.2, 0.45), "Mat_Steel": (0.6, 0.4)}
+FINISH = {
+    "Mat_Crown": (0.85, 0.35), "Mat_Gem": (0.0, 0.3), "Mat_Headphone": (0.2, 0.45), "Mat_Steel": (0.6, 0.4),
+    "Mat_Satin": (0.0, 0.32), "Mat_Crimson": (0.0, 0.45), "Mat_Gold": (0.85, 0.3), "Mat_Leather": (0.1, 0.22),
+    "Mat_Star": (0.6, 0.3), "Mat_Buckle": (0.8, 0.28), "Mat_Velvet": (0.0, 0.9),
+}
 ROUGHNESS = 0.8
 DECAL_LIFT = 0.002
 GLINT_LIFT = 0.004
@@ -529,7 +550,7 @@ def make_object(name, bm, pivot, collection, parent, parent_pivot, mats, closed=
 # anatomy: metres of the diorama, soles on Z = 0, about 1.13 tall with her hair
 
 LEG_X = 0.08  # close enough that the trouser legs' hip balls stay inside the hips (check_hips)
-ANKLE_Z = 0.09  # where the leg meets the sneaker's collar
+ANKLE_Z = 0.09  # where the leg meets the foot (and a sneaker's collar)
 ANKLE_R = 0.05
 SOLE_TOP = 0.028  # the rubber sole's thickness: the canvas sits on it
 TORSO_PIVOT = Vector((0, 0, 0.17))
@@ -553,7 +574,7 @@ WRIST_T = 0.2
 HAND_Z = 0.255
 # The clay pipeline for skin and canvas: (voxel size, smooth repeat, decimate ratio)
 ARM_FUSE = (0.0045, 3, 0.4)
-SHOE_FUSE = (0.005, 2, 0.5)
+LEG_FUSE = (0.0055, 3, 0.3)
 # Clothes. How far each layer's outer skin stands off the body (trousers, a top, a layer over a
 # top), distinct so no two surfaces ever lie at the same depth, and how deep each inner skin is
 # buried in it. A trouser leg's radius at the hip is AVATAR_HIP_OFFSET, read from shared/seats.ts.
@@ -808,7 +829,7 @@ def aim_frame(axis):
 
 
 # ---------------------------------------------------------------------------------------------
-# the body under the clothes: a skin trunk, arms with hands, legs in sneakers
+# the body under the clothes: a skin trunk, arms with hands, legs ending in bare feet
 
 
 TRUNK_CURVE = catmull_rom([(r * TRUNK_R[0], z) for r, z in TRUNK_PROFILE])
@@ -893,12 +914,14 @@ def stitch(bm, rings, poles=(None, None), cyclic=False, material=0):
 def trunk_shell(bm, v_lo, v_hi, off, material=0, close_lo=False, segs=32, rows=14, lip=4):
     """A garment round the trunk: a closed, thick shell whose outer skin stands `off` off the body
     between v_lo and v_hi, whose inner skin is buried GARMENT_IN inside it, the two rolling into
-    each other in a rounded lip at each open edge (a hem, a neckline). v_hi may be a function of
-    the angle round the body, for a garment whose top edge rises (the overalls' bib), and `off` a
-    function of the height, for one that stands further out above the seam than on the seat.
+    each other in a rounded lip at each open edge (a hem, a neckline). v_hi (and v_lo) may be a
+    function of the angle round the body, for a garment whose edge rises (the overalls' bib, a
+    V-neck, a robe parting below its belt), and `off` a function of the height, for one that stands
+    further out above the seam than on the seat.
     With close_lo it starts at the bottom of the seat instead, closed there (trousers)."""
     angles = [2 * math.pi * j / segs for j in range(segs)]
     top = v_hi if callable(v_hi) else (lambda a: v_hi)
+    low = v_lo if callable(v_lo) else (lambda a: v_lo)
     off_at = off if callable(off) else (lambda z: off)
 
     def ring(f, place, at_top=True):
@@ -906,7 +929,7 @@ def trunk_shell(bm, v_lo, v_hi, off, material=0, close_lo=False, segs=32, rows=1
         off the body it stands and how far it slides along the surface past its edge (the lips)."""
         pts = []
         for a in angles:
-            v = v_lo + (top(a) - v_lo) * f
+            v = low(a) + (top(a) - low(a)) * f
             p, n, t = trunk_frame(v)
             o, along = place(off_at(p.y))
             pts.append(lift3(p + n * o + t * (along if at_top else -along), a))
@@ -918,9 +941,10 @@ def trunk_shell(bm, v_lo, v_hi, off, material=0, close_lo=False, segs=32, rows=1
         return lambda o: ((o - GARMENT_IN) / 2 + (o + GARMENT_IN) / 2 * math.cos(th), (o + GARMENT_IN) / 2 * math.sin(th))
 
     fs = [i / rows for i in range(rows + 1)]
+    inner = [i / max(2, rows // 3) for i in range(max(2, rows // 3) + 1)]  # buried in the body: coarser
     rings = [ring(f, lambda o: (o, 0.0)) for f in fs]
     rings += [ring(1.0, lip_at(k)) for k in range(1, lip)]
-    rings += [ring(f, lambda o: (-GARMENT_IN, 0.0)) for f in reversed(fs)]
+    rings += [ring(f, lambda o: (-GARMENT_IN, 0.0)) for f in reversed(inner)]
     if close_lo:
         seat = trunk_frame(0.0)[0]
         bottom = lambda o: lift3(seat + Vector((0, -o)), 0.0)
@@ -951,16 +975,17 @@ def limb_profile(radius, length, cap=6, wall=12):
 def garment_profile(r_out, r_in, length, cap=5, wall=9, lip=4):
     """A sleeve's or a trouser leg's (t, r) profile, pole to pole: a ball round the joint's pivot,
     its outer wall down to the cuff, a rounded lip, its inner wall (inside the limb) back up, and
-    an inner ball."""
+    an inner ball. The inner wall and ball are buried in the limb, so they are drawn coarser."""
     ro0, ri0 = r_out(0.0), r_in(0.0)
     ts = [length * k / wall for k in range(wall + 1)]
+    inner = [length * k / max(2, wall // 3) for k in range(max(2, wall // 3) + 1)]
     ro, ri = r_out(length), r_in(length)
     half, mid = (ro - ri) / 2, (ro + ri) / 2
     prof = [(-ro0 * math.cos(th), ro0 * math.sin(th)) for th in (math.pi / 2 * k / cap for k in range(cap))]
     prof += [(t, r_out(t)) for t in ts]
     prof += [(length + half * math.sin(th), mid + half * math.cos(th)) for th in (math.pi * k / lip for k in range(1, lip))]
-    prof += [(t, r_in(t)) for t in reversed(ts)]
-    prof += [(-ri0 * math.sin(th), ri0 * math.cos(th)) for th in (math.pi / 2 * k / cap for k in range(1, cap + 1))]
+    prof += [(t, r_in(t)) for t in reversed(inner)]
+    prof += [(-ri0 * math.sin(th), ri0 * math.cos(th)) for th in (math.pi / 2 * k / 2 for k in range(1, 3))]
     return prof
 
 
@@ -1020,37 +1045,25 @@ def slab(centre, rx, ry, half_h, n_plan=2.4, n_side=6.0):
     return shape
 
 
-def sneaker_upper(bm, side):
-    """The sneaker's canvas: a rounded toe box, a heel that rises round the ankle, and a padded
-    collar round the ankle. Fused into one form afterwards."""
-    x = side * LEG_X
-    add_shaped(bm, 14, floored(blob(Vector((x, -0.035, 0.05)), AXES, Vector((0.064, 0.096, 0.046)), n=2.2), SOLE_TOP - 0.004))
-    add_shaped(bm, 12, floored(blob(Vector((x, 0.02, 0.064)), AXES, Vector((0.058, 0.052, 0.05))), SOLE_TOP - 0.004))
-    band(bm, Vector((x, 0.012, 0.106)), 0.062, 0.06, 0.013, 0.012, roundness=2.2, segs=48, sides=10)
-
-
-def sneaker_sole(bm, side):
-    """A thick, flat rubber sole, a little proud of the canvas all round, flush on the floor."""
-    add_shaped(bm, 12, slab(Vector((side * LEG_X, -0.028, SOLE_TOP / 2)), 0.071, 0.112, SOLE_TOP / 2))
-
-
-def sneaker_laces(bm, side):
-    """Three lace bars across the top of the toe box."""
-    x = side * LEG_X
-    for y in (-0.062, -0.041, -0.02):
-        z = 0.05 + 0.046 * math.sqrt(max(0.0, 1 - ((y + 0.035) / 0.096) ** 2)) + 0.002
-        slope = -math.atan(0.046 * ((y + 0.035) / 0.096**2) / math.sqrt(max(1e-4, 1 - ((y + 0.035) / 0.096) ** 2)))
-        c, s = math.cos(slope), math.sin(slope)
-        add_shaped(bm, 4, blob(Vector((x, y, z)), (Vector((1, 0, 0)), Vector((0, c, s)), Vector((0, -s, c))), Vector((0.027, 0.006, 0.005))))
-
-
 # ---------------------------------------------------------------------------------------------
 # clothes: every top is Top_<id> on the torso plus Top_<id>_SleeveL / _SleeveR on the arms; every
-# bottom is Bottom_<id> on the body plus Bottom_<id>_LegL / _LegR on the legs. Each piece is built
-# in the rest pose's world coordinates for the part it rides on.
+# bottom is Bottom_<id> on the body plus Bottom_<id>_LegL / _LegR on the legs, and a bottom's legs
+# carry the outfit's footwear (the bare legs end in bare feet). Each piece is built in the rest
+# pose's world coordinates for the part it rides on. Every outfit is cut to one of five
+# archetypes, none of them built on another's base:
+#   formal      a jacket over a shirt, 3D lapels standing proud of it, a bow tie or a tie, long
+#               straight trousers breaking over dress shoes
+#   robe        a robe down over the thighs (its skirt carried on the legs, so it walks and sits
+#               with them), wide bell sleeves, a crossed or shawl collar, a thick sash knotted
+#   streetwear  a hooded top, oversized sleeves gathered into ribbed cuffs, baggy joggers bunched
+#               into ankle cuffs, chunky sneakers on white soles
+#   summer      an open collar and a V at the throat, short sleeves cuffed at mid-bicep,
+#               knee-length shorts, bare shins, deck shoes or sandals
+#   workwear    overalls' thick straps on molded metal clips, deep box pockets, hammer loops,
+#               rolled cuffs, lace-up work boots on lug soles
 
 
-def deco(bm, v, a, off, half, material=0, roll=0.0, n=2.0, cuts=6):
+def deco(bm, v, a, off, half, material=0, roll=0.0, n=2.0, cuts=4):
     """A small shape laid on a garment's surface (a pocket, a button, a lapel), in the surface's
     own frame: half = (across, out, up)."""
     p, nrm = trunk_surf(v, a, off)
@@ -1064,15 +1077,15 @@ def strip(bm, points, radius, material=0):
     """A soft strip (a strap, a collar edge, a drawstring) along points laid on a garment."""
     path = []
     for a, b in zip(points, points[1:]):
-        path += [a.lerp(b, k / 6) for k in range(6)]
-    tube(bm, path + [points[-1]], lambda s: radius, sides=8, cap_rings=2, material=material)
+        path += [a.lerp(b, k / 3) for k in range(3)]
+    tube(bm, path + [points[-1]], lambda s: radius, sides=6, cap_rings=2, material=material)
 
 
 def neck_band(bm, r_frac, off, half_r, half_z, material=0):
     """A crew-neck band: a rounded rim round the neckline where the top ends, over its lip."""
     v = v_at_neck(r_frac)
     px, py = trunk_point(v, 0.0, off), trunk_point(v, math.pi / 2, off)
-    band(bm, Vector((0, 0, px.z + 0.004)), px.x, py.y, half_r, half_z, roundness=2.4, segs=56, sides=8, material=material)
+    band(bm, Vector((0, 0, px.z + 0.004)), px.x, py.y, half_r, half_z, roundness=2.4, segs=44, sides=8, material=material)
 
 
 def waist_band(bm, z, off, half_r, half_z, material=0):
@@ -1080,29 +1093,29 @@ def waist_band(bm, z, off, half_r, half_z, material=0):
     band's thickness is not scaled front to back as the shells' offsets are)."""
     v = v_at_z(z)
     px, py = trunk_point(v, 0.0, off), trunk_point(v, math.pi / 2, off)
-    band(bm, Vector((0, 0, z)), px.x, py.y, half_r, half_z, roundness=2.4, segs=56, sides=8, material=material)
+    band(bm, Vector((0, 0, z)), px.x, py.y, half_r, half_z, roundness=2.4, segs=40, sides=6, material=material)
 
 
 def top_body(bm, hem_z=SEAM_Z, neck=NECK_FRAC, off=TOP_OFF, material=0):
     trunk_shell(bm, v_at_z(hem_z), v_at_neck(neck), off, material)
 
 
-def sleeve(bm, side, length, material=0, loose=SLEEVE_LOOSE, flare=0.0, cuff=None):
+def sleeve(bm, side, length, material=0, loose=SLEEVE_LOOSE, flare=0.0, cuff=None, wall=9):
     """A sleeve round the arm, from a ball round the shoulder down to its cuff; `cuff` adds a band
     (its material index) round the cuff."""
     shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
     r_out = lambda t: arm_radius(t) + loose + flare * (t / length) ** 2
-    axis_lathe(bm, shoulder, garment_profile(r_out, lambda t: arm_radius(t) - GARMENT_IN, length), material=material)
+    axis_lathe(bm, shoulder, garment_profile(r_out, lambda t: arm_radius(t) - GARMENT_IN, length, wall=wall), material=material)
     if cuff is not None:
         r = r_out(length)
         band(bm, shoulder - UP * (length - 0.006), r + 0.002, r + 0.002, 0.009, 0.011, segs=28, sides=6, material=cuff)
 
 
-def pant_leg(bm, side, hip_y, leg_r, length, r_out, material=0, cuff=None, cuff_size=(0.01, 0.012)):
+def pant_leg(bm, side, hip_y, leg_r, length, r_out, material=0, cuff=None, cuff_size=(0.01, 0.012), wall=9):
     """A trouser leg round the leg, from a ball round the hip (radius AVATAR_HIP_OFFSET, so seated
     it rests on the cushion) down to its cuff."""
     hip = Vector((side * LEG_X, 0, hip_y))
-    axis_lathe(bm, hip, garment_profile(r_out, lambda t: leg_radius(leg_r)(t) - GARMENT_IN, length), material=material)
+    axis_lathe(bm, hip, garment_profile(r_out, lambda t: leg_radius(leg_r)(t) - GARMENT_IN, length, wall=wall), material=material)
     if cuff is not None:
         r = r_out(length)
         band(bm, hip - UP * (length - 0.008), r + 0.002, r + 0.002, *cuff_size, segs=32, sides=6, material=cuff)
@@ -1113,199 +1126,471 @@ def front(a_off=0.0):
     return -math.pi / 2 + a_off
 
 
-def top_hoodie(bm, part, side):
-    # a pullover hoodie: the hood bunched behind the neck, a kangaroo pocket, drawstrings
-    if part:
-        return sleeve(bm, side, LONG_SLEEVE, cuff=0)
-    top_body(bm)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.012, 0.026, 0.028)
-    add_shaped(bm, 12, blob(Vector((0, 0.15, 0.6)), AXES, Vector((0.14, 0.055, 0.07))))
-    deco(bm, v_at_z(0.3), front(), TOP_OFF + 0.004, Vector((0.1, 0.012, 0.048)), n=2.6, cuts=8)
+def from_front(a):
+    """How far angle `a` is round the body from straight ahead (0..pi)."""
+    return abs((a - front() + math.pi) % (2 * math.pi) - math.pi)
+
+
+def on_trunk(a, z, off):
+    """The point `off` out from the trunk at angle `a` and height z."""
+    return trunk_point(v_at_z(z), a, off)
+
+
+def neck_z(r_frac=NECK_FRAC):
+    return trunk_frame(v_at_neck(r_frac))[0].y
+
+
+def plunge(z_v, half, neck=NECK_FRAC):
+    """A neckline that plunges at the front into a V: its point at height z_v, `half` radians each
+    side of centre wide where it meets the collar. It is a trunk_shell's top edge; edge(z) is how
+    far round from the front the V's edge is at height z (lapels and collars are laid along it)."""
+    v_neck, z_n = v_at_neck(neck), neck_z(neck)
+
+    def top(a):
+        d = from_front(a)
+        return v_neck if d >= half else v_at_z(z_v + (z_n - z_v) * d / half)
+
+    top.edge = lambda z: half * max(0.0, min(1.0, (z - z_v) / (z_n - z_v)))
+    top.z_v, top.z_n, top.half = z_v, z_n, half
+    return top
+
+
+FUSED = []  # the pieces a garment's builder asks for as fused clay forms (see `fused`)
+GARMENT_FUSE = (0.007, 2, 0.28)  # (voxel size, smooth repeat, decimate ratio) for a boot, a sock
+HOOD_FUSE = (0.008, 2, 0.3)
+BOW_FUSE = (0.005, 2, 0.35)
+
+
+def fused(build_piece, material=0, fuse=GARMENT_FUSE):
+    """Build `build_piece(bm)` as its own form, voxel-fused into one seamless clay shape (a shoe's
+    upper, a hood, a bow), and join it to the garment piece being built (`material`: its index in
+    the garment's materials)."""
+    FUSED.append((build_piece, material, fuse))
+
+
+def flat_blob(centre, normal, up, half, n=2.0):
+    """A blob lying flat on a surface: its thin axis along `normal`, half = (across, out, up)."""
+    normal = normal.normalized()
+    up = (up - normal * up.dot(normal)).normalized()
+    return blob(centre, (up.cross(normal), normal, up), half, n)
+
+
+def surface_band(bm, inner, outer, off_lo, off_hi, material=0, across=4, per=3):
+    """A thick plate laid on the trunk between two edges, inner and outer [(angle, z)] (as many
+    points each, end to end): its underside off_lo off the body, its face off_hi (a number, or a
+    function of the angle and the height), closed all round. Lapels, collars, pockets, flaps."""
+    hi = off_hi if callable(off_hi) else (lambda a, z: off_hi)
+    ins, outs = [], []
+    for (p0, p1), (q0, q1) in zip(zip(inner, inner[1:]), zip(outer, outer[1:])):
+        for k in range(per):
+            f = k / per
+            ins.append((p0[0] + (p1[0] - p0[0]) * f, p0[1] + (p1[1] - p0[1]) * f))
+            outs.append((q0[0] + (q1[0] - q0[0]) * f, q0[1] + (q1[1] - q0[1]) * f))
+    ins.append(inner[-1])
+    outs.append(outer[-1])
+    grid = [[(a0 + (a1 - a0) * j / across, z0 + (z1 - z0) * j / across) for j in range(across + 1)] for (a0, z0), (a1, z1) in zip(ins, outs)]
+    top = [[bm.verts.new(on_trunk(a, z, hi(a, z))) for a, z in row] for row in grid]
+    bot = [[bm.verts.new(on_trunk(a, z, off_lo)) for a, z in row] for row in grid]
+    n, m = len(grid), across + 1
+    faces = []
+    for i in range(n - 1):
+        for j in range(m - 1):
+            faces.append(bm.faces.new((top[i][j], top[i + 1][j], top[i + 1][j + 1], top[i][j + 1])))
+            faces.append(bm.faces.new((bot[i][j], bot[i][j + 1], bot[i + 1][j + 1], bot[i + 1][j])))
+        for j in (0, m - 1):
+            faces.append(bm.faces.new((top[i][j], bot[i][j], bot[i + 1][j], top[i + 1][j])))
+    for i in (0, n - 1):
+        for j in range(m - 1):
+            faces.append(bm.faces.new((top[i][j], top[i][j + 1], bot[i][j + 1], bot[i][j])))
+    for f in faces:
+        f.material_index = material
+
+
+def body_normal(p):
+    """Out from the body's axis at p, up and out over the shoulders: a strap's surface normal."""
+    return (p - Vector((0, 0, max(0.2, min(p.z, 0.5))))).normalized()
+
+
+def axis_normal(cx, cy=0.0):
+    """Straight out from a vertical axis (a leg's, an arm's): the normal of a strap laid round it."""
+    return lambda p: Vector((p.x - cx, p.y - cy, 0.0)).normalized()
+
+
+def ribbon(bm, points, width, thick, material=0, normal=body_normal, sides=8, n=4.0, steps=3):
+    """A flat strap laid along `points` (on a surface): `width` across (a number, or a function of
+    s = 0..1 along it), standing `thick` out from the surface, a rounded rectangle in section and
+    closed at both ends. Straps, suspenders, a sash's tails, a collar's roll, a tie's blade."""
+    path = []
+    for a, b in zip(points, points[1:]):
+        path += [a.lerp(b, k / steps) for k in range(steps)]
+    path.append(points[-1])
+    lengths = arc_lengths(path)
+    total = lengths[-1] or 1.0
+    w_at = width if callable(width) else (lambda s: width)
+    rings = []
+    for i, p in enumerate(path):
+        t = (path[min(len(path) - 1, i + 1)] - path[max(0, i - 1)]).normalized()
+        nr = normal(p)
+        nr = (nr - t * nr.dot(t)).normalized()
+        across = t.cross(nr)
+        w = max(w_at(lengths[i] / total), 2e-4) / 2
+        ring = []
+        for k in range(sides):
+            th = 2 * math.pi * k / sides
+            c, s = math.cos(th), math.sin(th)
+            e = (abs(c) ** n + abs(s) ** n) ** (-1 / n)
+            ring.append(bm.verts.new(p + across * (c * e * w) + nr * (thick / 2 + s * e * thick / 2)))
+        rings.append((ring, p + nr * (thick / 2)))
+    faces = []
+    for (r0, _), (r1, _) in zip(rings, rings[1:]):
+        faces += [bm.faces.new((r0[k], r0[(k + 1) % sides], r1[(k + 1) % sides], r1[k])) for k in range(sides)]
+    for ring, c in (rings[0], rings[-1]):
+        cv = bm.verts.new(c)
+        faces += [bm.faces.new((cv, ring[(k + 1) % sides], ring[k])) for k in range(sides)]
+    for f in faces:
+        f.material_index = material
+
+
+def star(bm, p, nrm, up, radius, thick=0.0025, material=0):
+    """A little five-pointed star laid flat at p, facing `nrm`, a point toward `up`."""
+    nrm = nrm.normalized()
+    up = (up - nrm * up.dot(nrm)).normalized()
+    across = up.cross(nrm)
+    outline = []
+    for k in range(10):
+        th = math.pi / 2 + math.pi * k / 5
+        r = radius if k % 2 == 0 else radius * 0.42
+        outline.append(across * (math.cos(th) * r) + up * (math.sin(th) * r))
+    top = [bm.verts.new(p + o + nrm * thick) for o in outline]
+    bot = [bm.verts.new(p + o - nrm * thick * 0.5) for o in outline]
+    ct, cb = bm.verts.new(p + nrm * thick * 1.4), bm.verts.new(p - nrm * thick * 0.5)
+    faces = [bm.faces.new((ct, top[k], top[(k + 1) % 10])) for k in range(10)]
+    faces += [bm.faces.new((cb, bot[(k + 1) % 10], bot[k])) for k in range(10)]
+    faces += [bm.faces.new((top[k], bot[k], bot[(k + 1) % 10], top[(k + 1) % 10])) for k in range(10)]
+    for f in faces:
+        f.material_index = material
+
+
+def trunk_star(bm, d, z, off, radius, material):
+    """A star printed on a garment round the trunk, d round from the front at height z."""
+    p, n = trunk_surf(v_at_z(z), front(d), off)
+    star(bm, p, n, UP, radius, material=material)
+
+
+def leg_point(side, hip_y, t, phi, r):
+    """A point r out from a leg's axis, t down it from the hip, at angle phi round it (-pi/2 is
+    straight ahead)."""
+    return Vector((side * LEG_X + r * math.cos(phi), r * math.sin(phi), hip_y - t))
+
+
+def arm_point(side, t, phi, r):
+    """A point r out from an arm's axis, t down it from the shoulder, at angle phi round it."""
+    return Vector((side * SHOULDER.x + r * math.cos(phi), SHOULDER.y + r * math.sin(phi), SHOULDER.z - t))
+
+
+def outward(side):
+    """The angle round a leg or an arm pointing away from the body."""
+    return 0.0 if side > 0 else math.pi
+
+
+def leg_tube(bm, side, hip_y, leg_r, z_top, z_bot, extra, material=0, flare=0.0, segs=20):
+    """A closed tube round the leg from z_top down to z_bot, `extra` off the skin (a boot's shaft,
+    a sock), widening by `flare` toward the bottom, its ends softly rounded."""
+    hip = Vector((side * LEG_X, 0, hip_y))
+    t0, t1 = hip_y - z_top, hip_y - z_bot
+    leg = leg_radius(leg_r)
+    r = lambda t: max(leg(t), ANKLE_R) + extra + flare * (t - t0) / (t1 - t0)
+    e = min(0.006, extra)
+    prof = [(t0 - e, 0.0), (t0 - e, r(t0) - e), (t0 - e * 0.3, r(t0) - e * 0.3)]
+    prof += [(t0 + (t1 - t0) * k / 10, r(t0 + (t1 - t0) * k / 10)) for k in range(11)]
+    prof += [(t1 + e * 0.3, r(t1) - e * 0.3), (t1 + e, r(t1) - e), (t1 + e, 0.0)]
+    axis_lathe(bm, hip, prof, segs=segs, material=material)
+    return r
+
+
+def sleeve_stripes(bm, side, length, r_out, count, material, t0=0.025):
+    """Pinstripes down a sleeve."""
+    for k in range(count):
+        phi = 2 * math.pi * (k + 0.5) / count
+        pts = [arm_point(side, t, phi, r_out(t) + 0.0012) for t in (t0 + (length - 0.01 - t0) * i / 6 for i in range(7))]
+        tube(bm, pts, lambda _: 0.0016, sides=5, cap_rings=1, material=material)
+
+
+def bell_scale(bm, side, length, scale=1.25):
+    """Widen a robe's sleeve across (x) into a bell: nothing at the shoulder, `scale` at the cuff."""
+    cx = side * SHOULDER.x
+    for v in bm.verts:
+        k = max(0.0, min(1.0, (SHOULDER.z - v.co.z) / length))
+        v.co.x = cx + (v.co.x - cx) * (1 + (scale - 1) * smoothstep(0.0, 1.0, k))
+
+
+def bell_sleeve(bm, side, length=0.17, flare=0.05, material=0, cuff=None, scale=1.25):
+    """A robe's wide bell sleeve: loose from the shoulder and flaring toward the cuff, then widened
+    across by `scale` (1.25) so it hangs broad beside the body; `cuff` a band round its end."""
+    sleeve(bm, side, length, material, loose=0.02, flare=flare, wall=12)
+    if cuff is not None:
+        r = arm_radius(length) + 0.02 + flare + 0.001
+        band(bm, Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z)) - UP * (length - 0.006), r, r, 0.006, 0.009, segs=40, sides=6, material=cuff)
+
+
+def bulky_sleeve(bm, side, length, bulk, material=0, cuff=None, cuff_len=0.03):
+    """An oversized sleeve: roomy all the way down, then gathered into a snug ribbed cuff that it
+    bunches over."""
+    shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+    body_end = length - cuff_len
+
+    def r_out(t):
+        roomy = arm_radius(t) + SLEEVE_LOOSE + bulk * smoothstep(0.0, 0.06, t)
+        snug = arm_radius(t) + 0.012
+        return roomy + (snug - roomy) * smoothstep(body_end - 0.012, body_end + 0.004, t)
+
+    axis_lathe(bm, shoulder, garment_profile(r_out, lambda t: arm_radius(t) - GARMENT_IN, length, wall=14), material=material)
+    if cuff is not None:
+        for k in range(3):  # the rib's ridges
+            t = body_end + 0.007 + k * (cuff_len - 0.012) / 2
+            r = arm_radius(t) + 0.013
+            band(bm, shoulder - UP * t, r, r, 0.0025, 0.0035, segs=24, sides=6, material=cuff)
+    return r_out
+
+
+def rolled_sleeve(bm, side, rolled=0.12, material=0, roll=None, loose=SLEEVE_LOOSE):
+    """A long sleeve rolled up to the elbow: a fat turned-back roll at its end."""
+    sleeve(bm, side, rolled, material, loose=loose)
+    shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+    r = arm_radius(rolled) + loose + 0.006
+    band(bm, shoulder - UP * (rolled - 0.008), r, r, 0.011, 0.018, segs=28, sides=8, material=material if roll is None else roll)
+
+
+def jogger_leg(bm, side, hip_y, leg_r, pant_r, material=0, length=0.158, bulk=0.012, taper=0.012):
+    """A baggy jogger leg: roomy through the thigh, tapering down the shin into a snug ribbed ankle
+    cuff that it bunches over."""
+    hip = Vector((side * LEG_X, 0, hip_y))
+    cuff_len = 0.026
+    body_end = length - cuff_len
+    leg = leg_radius(leg_r)
+
+    def r_out(t):
+        roomy = pant_r + bulk * smoothstep(0.0, 0.05, t) - taper * smoothstep(0.05, body_end, t)
+        snug = leg(t) + 0.013
+        return roomy + (snug - roomy) * smoothstep(body_end - 0.014, body_end + 0.004, t)
+
+    axis_lathe(bm, hip, garment_profile(r_out, lambda t: leg(t) - GARMENT_IN, length, wall=14), material=material)
+    for k in range(3):
+        t = body_end + 0.006 + k * (cuff_len - 0.01) / 2
+        r = leg(t) + 0.014
+        band(bm, hip - UP * t, r, r, 0.0025, 0.0035, segs=24, sides=6, material=material)
+    return r_out
+
+
+def robe_skirt(bm, side, hip_y, leg_r, pant_r, length, flare, material=0, hem=None, edge=None):
+    """A robe's skirt round the leg (each leg carries its half, so it walks and sits with it): from
+    the hip, under the robe's body, flaring out to a hem `length` down; `hem` a turned band round
+    it, and on her right leg `edge` the over-panel's edge running down the front: the wrap."""
+    hip = Vector((side * LEG_X, 0, hip_y))
+    r_out = lambda t: pant_r + flare * smoothstep(0.05, length, t) ** 0.9
+    axis_lathe(bm, hip, garment_profile(r_out, lambda t: leg_radius(leg_r)(t) - GARMENT_IN, length, wall=12), material=material)
+    if hem is not None:
+        r = r_out(length) + 0.001
+        band(bm, hip - UP * (length - 0.006), r, r, 0.005, 0.008, segs=40, sides=6, material=hem)
+    if edge is not None and side < 0:
+        phi = -math.pi / 2 + 0.55  # the front, turned in toward her left leg
+        pts = [leg_point(side, hip_y, t, phi, r_out(t) + 0.0015) for t in (0.075, 0.11, 0.15, length - 0.006) if t <= length - 0.006]
+        ribbon(bm, pts, 0.012, 0.004, edge, normal=axis_normal(side * LEG_X))
+    return r_out
+
+
+def dress_trouser_leg(bm, side, hip_y, leg_r, pant_r, material=0, crease=True, length=0.2):
+    """A long, straight trouser leg down to the shoe, where it breaks over the vamp; a pressed
+    crease down its front."""
+    r_out = lambda t: pant_r - 0.021 * smoothstep(0.0, 0.13, t)
+    pant_leg(bm, side, hip_y, leg_r, length, r_out, material, wall=12)
+    if crease:
+        pts = [leg_point(side, hip_y, t, -math.pi / 2, r_out(t)) for t in (0.03, 0.09, 0.15, length - 0.012)]
+        ribbon(bm, pts, 0.006, 0.003, material, normal=axis_normal(side * LEG_X))
+    return r_out
+
+
+# ---------------------------------------------------------------------------------------------
+# footwear: every bottom's legs carry its shoes; the bare leg ends in a bare foot
+
+
+FOOT_FLOOR = 0.026  # the bare foot's sole: every sandal's footbed is this thick
+
+
+def foot_skin(bm, side):
+    """A soft bare foot at the end of the leg, its sole flat at FOOT_FLOOR: sandals and geta are
+    built under it, every shoe and boot round it."""
+    x = side * LEG_X
+    add_shaped(bm, 10, floored(blob(Vector((x, -0.024, 0.047)), AXES, Vector((0.04, 0.07, 0.026)), n=2.2), FOOT_FLOOR))
+    add_shaped(bm, 8, floored(blob(Vector((x, -0.074, 0.043)), AXES, Vector((0.038, 0.028, 0.019))), FOOT_FLOOR))
+
+
+def sneaker_upper(bm, side, hip_y, leg_r, high=False):
+    """The sneaker's canvas: a rounded toe box, a heel that rises round the ankle, and a padded
+    collar round the ankle (a high-top's carried up round the shin). Fused into one form."""
+    x = side * LEG_X
+    add_shaped(bm, 14, floored(blob(Vector((x, -0.035, 0.05)), AXES, Vector((0.064, 0.096, 0.046)), n=2.2), SOLE_TOP - 0.004))
+    add_shaped(bm, 12, floored(blob(Vector((x, 0.02, 0.064)), AXES, Vector((0.058, 0.052, 0.05))), SOLE_TOP - 0.004))
+    if high:
+        r = leg_tube(bm, side, hip_y, leg_r, 0.17, 0.05, 0.013)
+        band(bm, Vector((x, 0, 0.166)), r(hip_y - 0.166) + 0.004, r(hip_y - 0.166) + 0.004, 0.012, 0.012, roundness=2.2, segs=48, sides=10)
+    else:
+        band(bm, Vector((x, 0.012, 0.106)), 0.062, 0.06, 0.013, 0.012, roundness=2.2, segs=48, sides=10)
+
+
+def sneakers(bm, side, hip_y, leg_r, upper, sole, lace, high=False, stripe=None):
+    """Canvas sneakers on thick white rubber soles, laced; a high-top's canvas up round the ankle;
+    `stripe` a coloured band round the sole."""
+    x = side * LEG_X
+    fused(lambda b: sneaker_upper(b, side, hip_y, leg_r, high), upper, fuse=(0.006, 2, 0.28))
+    add_shaped(bm, 5, slab(Vector((x, -0.028, SOLE_TOP / 2)), 0.071, 0.112, SOLE_TOP / 2), material=sole)
+    for y in (-0.062, -0.041, -0.02):
+        z = 0.05 + 0.046 * math.sqrt(max(0.0, 1 - ((y + 0.035) / 0.096) ** 2)) + 0.002
+        slope = -math.atan(0.046 * ((y + 0.035) / 0.096**2) / math.sqrt(max(1e-4, 1 - ((y + 0.035) / 0.096) ** 2)))
+        c, s = math.cos(slope), math.sin(slope)
+        add_shaped(bm, 2, blob(Vector((x, y, z)), (Vector((1, 0, 0)), Vector((0, c, s)), Vector((0, -s, c))), Vector((0.027, 0.006, 0.005))), material=lace)
+    if stripe is not None:
+        add_shaped(bm, 5, slab(Vector((x, -0.028, SOLE_TOP * 0.55)), 0.0735, 0.1145, 0.0042), material=stripe)
+
+
+def dress_shoes(bm, side, leather, sole, cap=None, crest=None, slipper=False):
+    """Dress shoes: a long, low, glossy upper on a thin welted sole with a stacked heel. `cap` a
+    contrasting wing-tip toe and heel counter (a spectator); `slipper` a velvet Albert slipper's
+    lower, rounder cut, with `crest` embroidered in gold on its vamp."""
+    x = side * LEG_X
+    h = 0.033 if slipper else 0.036
+
+    def upper(b):
+        add_shaped(b, 12, floored(blob(Vector((x, -0.044, 0.042)), AXES, Vector((0.05, 0.097, h)), n=2.3), 0.011))
+        add_shaped(b, 10, floored(blob(Vector((x, 0.016, 0.048)), AXES, Vector((0.047, 0.047, h + 0.002))), 0.011))
+
+    fused(upper, leather, fuse=(0.0055, 2, 0.3))
+    add_shaped(bm, 5, slab(Vector((x, -0.036, 0.0062)), 0.054, 0.118, 0.0062), material=sole)
+    add_shaped(bm, 4, slab(Vector((x, 0.034, 0.0105)), 0.045, 0.034, 0.0105), material=sole)
+    if cap is not None:
+        add_shaped(bm, 6, floored(blob(Vector((x, -0.096, 0.036)), AXES, Vector((0.0485, 0.05, 0.03)), n=2.3), 0.011), material=cap)
+        add_shaped(bm, 6, floored(blob(Vector((x, 0.03, 0.044)), AXES, Vector((0.0475, 0.034, 0.033))), 0.011), material=cap)
+    if crest is not None:
+        vamp = Vector((x, -0.07, 0.042 + h * math.sqrt(1 - (0.026 / 0.097) ** 2)))
+        add_shaped(bm, 4, flat_blob(vamp, Vector((0, -0.35, 0.94)), Vector((0, 1, 0.35)), Vector((0.014, 0.003, 0.012)), n=2.4), material=crest)
+
+
+def work_boots(bm, side, hip_y, leg_r, leather, sole, lace, hooks, top_z=0.15, lugs=16):
+    """Rugged lace-up work boots: a bulbous toe box and a shaft up past the ankle fused into one
+    form with a padded collar, on a chunky sole whose lug treads stand out all round it, laced up
+    the front through metal speed hooks."""
+    x = side * LEG_X
+    r_top = max(leg_radius(leg_r)(hip_y - top_z), ANKLE_R) + 0.016
+
+    def upper(b):
+        add_shaped(b, 12, floored(blob(Vector((x, -0.046, 0.058)), AXES, Vector((0.066, 0.098, 0.048)), n=2.2), 0.028))
+        leg_tube(b, side, hip_y, leg_r, top_z, 0.03, 0.016)
+        band(b, Vector((x, 0, top_z - 0.004)), r_top + 0.004, r_top + 0.004, 0.009, 0.01, roundness=2.2, segs=40, sides=8)
+
+    fused(upper, leather)
+    add_shaped(bm, 6, slab(Vector((x, -0.034, 0.015)), 0.074, 0.122, 0.015), material=sole)
+    for k in range(lugs):  # the lug treads, standing out round the sole's rim
+        th = 2 * math.pi * (k + 0.5) / lugs
+        c, s = math.cos(th), math.sin(th)
+        kp = (abs(c) ** 2.4 + abs(s) ** 2.4) ** (-1 / 2.4)
+        p = Vector((x + 0.074 * c * kp, -0.034 + 0.122 * s * kp, 0.011))
+        add_shaped(bm, 1, blob(p, (Vector((-s, c, 0)), Vector((c, s, 0)), UP), Vector((0.009, 0.0065, 0.0095)), n=4.0), material=sole)
+    leg = leg_radius(leg_r)
+    for k in range(3):  # criss-cross laces and the speed hooks they wind round
+        z0, z1 = 0.092 + 0.018 * k, 0.11 + 0.018 * k
+        R0, R1 = max(leg(hip_y - z0), ANKLE_R) + 0.018, max(leg(hip_y - z1), ANKLE_R) + 0.018
+        for s in (-1, 1):
+            tube(bm, [leg_point(side, hip_y, hip_y - z0, -math.pi / 2 - s * 0.4, R0), leg_point(side, hip_y, hip_y - z1, -math.pi / 2 + s * 0.4, R1)], lambda _: 0.0032, sides=5, cap_rings=1, material=lace)
+            add_shaped(bm, 1, ellipsoid(leg_point(side, hip_y, hip_y - z1, -math.pi / 2 + s * 0.46, R1 + 0.002), Vector((0.0045, 0.0045, 0.0045))), material=hooks)
+
+
+def boxing_boots(bm, side, hip_y, leg_r, boot, sole, lace, stripe):
+    """Tall, slim boxing boots laced up to the calf, a band of gold round the top, thin soles."""
+    x = side * LEG_X
+    top_z = 0.215
+    r = lambda z: max(leg_radius(leg_r)(hip_y - z), ANKLE_R) + 0.012
+
+    def upper(b):
+        add_shaped(b, 12, floored(blob(Vector((x, -0.036, 0.047)), AXES, Vector((0.056, 0.094, 0.038)), n=2.2), 0.012))
+        leg_tube(b, side, hip_y, leg_r, top_z, 0.012, 0.012)
+
+    fused(upper, boot)
+    add_shaped(bm, 8, slab(Vector((x, -0.03, 0.006)), 0.06, 0.116, 0.006), material=sole)
+    band(bm, Vector((x, 0, top_z - 0.012)), r(top_z - 0.012) + 0.002, r(top_z - 0.012) + 0.002, 0.004, 0.009, segs=32, sides=6, material=stripe)
+    for k in range(5):
+        z0, z1 = 0.085 + 0.024 * k, 0.103 + 0.024 * k
+        for s in (-1, 1):
+            tube(bm, [leg_point(side, hip_y, hip_y - z0, -math.pi / 2 - s * 0.38, r(z0) + 0.0015), leg_point(side, hip_y, hip_y - z1, -math.pi / 2 + s * 0.38, r(z1) + 0.0015)], lambda _: 0.0028, sides=5, cap_rings=1, material=lace)
+
+
+def boat_shoes(bm, side, upper, sole, lace):
+    """Deck shoes: a soft moccasin upper on a thin white sole, rawhide lacing round the collar and
+    a little bow on the outside."""
+    x = side * LEG_X
+
+    def body(b):
+        add_shaped(b, 12, floored(blob(Vector((x, -0.042, 0.046)), AXES, Vector((0.054, 0.098, 0.034)), n=2.3), 0.016))
+        add_shaped(b, 10, floored(blob(Vector((x, 0.018, 0.047)), AXES, Vector((0.05, 0.046, 0.031))), 0.016))
+
+    fused(body, upper)
+    add_shaped(bm, 8, slab(Vector((x, -0.034, 0.009)), 0.058, 0.121, 0.009), material=sole)
+    band(bm, Vector((x, -0.035, 0.062)), 0.05, 0.094, 0.0032, 0.0032, roundness=2.0, segs=48, sides=6, material=lace)
+    knot = Vector((x + side * 0.05, -0.005, 0.066))
+    for dy in (-0.01, 0.01):
+        add_shaped(bm, 3, blob(knot + Vector((side * 0.004, dy, 0)), AXES, Vector((0.004, 0.009, 0.005))), material=lace)
+
+
+def thong_strap(bm, side, material, lift=0.0, radius=0.0065):
+    """A sandal's thong: a post between the toes and a strap over each side of the foot."""
+    x = side * LEG_X
+    post = Vector((x - side * 0.006, -0.088, FOOT_FLOOR + lift + 0.03))
+    tube(bm, [post - Vector((0, 0, 0.032)), post], lambda _: 0.0045, sides=6, cap_rings=1, material=material)
     for s in (-1, 1):
-        a = front(s * 0.22)
-        strip(bm, [trunk_point(v_at_z(z), a, TOP_OFF + 0.006) for z in (0.59, 0.55, 0.51)], 0.006, material=1)
+        tube(bm, quad_bezier(post, Vector((x + s * 0.03, -0.062, 0.088 + lift)), Vector((x + s * 0.046, -0.022, FOOT_FLOOR + lift + 0.004))), lambda _: radius, sides=8, cap_rings=2, material=material)
+    return post
 
 
-def top_tee(bm, part, side):
-    # a plain crew-neck tee
-    if part:
-        return sleeve(bm, side, SHORT_SLEEVE, cuff=0)
-    top_body(bm)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.016, 0.018)
+def flip_flops(bm, side, sole, strap):
+    """Beach flip-flops: a thick foam footbed under the bare foot and a thong strap."""
+    add_shaped(bm, 8, slab(Vector((side * LEG_X, -0.03, FOOT_FLOOR / 2)), 0.05, 0.112, FOOT_FLOOR / 2, n_plan=2.2), material=sole)
+    thong_strap(bm, side, strap)
 
 
-def top_flannel(bm, part, side):
-    # a flannel shirt with collar points, under a zipped puffer vest in the accent colour
-    if part:
-        return sleeve(bm, side, LONG_SLEEVE, cuff=0)
-    top_body(bm)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.015, 0.017)
-    for s in (-1, 1):
-        deco(bm, v_at_z(0.585), front(s * 0.3), TOP_OFF + 0.012, Vector((0.034, 0.008, 0.03)), roll=s * 0.5)
-    trunk_shell(bm, v_at_z(0.235), v_at_neck(0.86), OUTER_OFF, material=1)
-    strip(bm, [trunk_point(v_at_z(z), front(), OUTER_OFF + 0.002) for z in (0.57, 0.45, 0.33, 0.24)], 0.005, material=2)
+def geta(bm, side, wood, strap, knot=None):
+    """Wooden geta: a flat board on two teeth under the bare foot and a cloth thong strap (hanao),
+    knotted at the toe."""
+    x = side * LEG_X
+    add_shaped(bm, 8, slab(Vector((x, -0.03, 0.02)), 0.05, 0.108, 0.006, n_plan=4.0), material=wood)
+    for y in (-0.086, 0.03):
+        add_shaped(bm, 6, slab(Vector((x, y, 0.0075)), 0.046, 0.011, 0.0075, n_plan=6.0), material=wood)
+    post = thong_strap(bm, side, strap, radius=0.007)
+    add_shaped(bm, 4, ellipsoid(post, Vector((0.009, 0.009, 0.008))), material=strap if knot is None else knot)
 
 
-def top_hawaiian(bm, part, side):
-    # a loose short-sleeved camp shirt: a flat open collar, buttons, and white flowers printed on
-    if part:
-        return sleeve(bm, side, SHORT_SLEEVE, loose=0.02, flare=0.008, cuff=0)
-    top_body(bm)
-    for s in (-1, 1):
-        deco(bm, v_at_z(0.585), front(s * 0.42), TOP_OFF + 0.006, Vector((0.048, 0.008, 0.036)), roll=s * 0.35)
-    for z in (0.5, 0.41, 0.32):
-        deco(bm, v_at_z(z), front(), TOP_OFF + 0.002, Vector((0.009, 0.005, 0.009)), material=1, cuts=4)
-    for z, a in ((0.45, 0.9), (0.33, -0.7), (0.27, 1.6), (0.52, -1.9), (0.38, 2.6), (0.3, -2.4), (0.48, 1.9)):
-        v = v_at_z(z)
-        surf = lambda aa, vv: trunk_surf(vv, aa, TOP_OFF)
-        for k in range(5):
-            ang = 2 * math.pi * k / 5
-            patch(bm, surf, a + 0.07 * math.cos(ang), v + 0.02 * math.sin(ang), 0.065, 0.02, material=1, rings=2, segs=10)
-        patch(bm, surf, a, v, 0.035, 0.011, lift=0.003, material=0, rings=2, segs=10)
+def slides(bm, side, sole, strap):
+    """Pool slides: a thick white footbed and one broad strap over the instep."""
+    x = side * LEG_X
+    add_shaped(bm, 8, slab(Vector((x, -0.03, FOOT_FLOOR / 2)), 0.056, 0.116, FOOT_FLOOR / 2), material=sole)
+    arch = [Vector((x + 0.064 * math.cos(a), -0.045, FOOT_FLOOR + 0.058 * math.sin(a))) for a in (math.pi * k / 10 for k in range(11))]
+    ribbon(bm, arch, 0.05, 0.012, strap, normal=lambda p: (p - Vector((x, p.y, FOOT_FLOOR))).normalized())
 
 
-def top_tuxedo(bm, part, side):
-    # an evening jacket: a white shirt front, lapels and a bow tie in the accent colour, white cuffs
-    if part:
-        return sleeve(bm, side, LONG_SLEEVE, cuff=1)
-    top_body(bm)
-    deco(bm, v_at_z(0.52), front(), TOP_OFF + 0.002, Vector((0.05, 0.008, 0.078)), material=1)
-    for s in (-1, 1):
-        deco(bm, v_at_z(0.5), front(s * 0.4), TOP_OFF + 0.006, Vector((0.03, 0.009, 0.085)), material=2, roll=-s * 0.38, n=2.4)
-        deco(bm, v_at_z(0.585), front(s * 0.13), TOP_OFF + 0.014, Vector((0.022, 0.012, 0.016)), material=2)
-    deco(bm, v_at_z(0.585), front(), TOP_OFF + 0.018, Vector((0.009, 0.01, 0.011)), material=2, cuts=4)
+def socks(bm, side, hip_y, leg_r, top_z=0.13):
+    """Cosy socks: the foot a little plumper, the leg up to top_z (built to be fused)."""
+    x = side * LEG_X
+    add_shaped(bm, 10, floored(blob(Vector((x, -0.024, 0.048)), AXES, Vector((0.046, 0.076, 0.031)), n=2.2), FOOT_FLOOR))
+    add_shaped(bm, 8, floored(blob(Vector((x, -0.074, 0.044)), AXES, Vector((0.044, 0.034, 0.024))), FOOT_FLOOR))
+    leg_tube(bm, side, hip_y, leg_r, top_z, 0.045, 0.007)
 
 
-def top_robe(bm, part, side):
-    # a boxer's robe: long and loose, a white shawl collar and a tied white belt
-    if part:
-        return sleeve(bm, side, LONG_SLEEVE, loose=0.022, flare=0.01, cuff=1)
-    top_body(bm, hem_z=0.19, off=TOP_OFF + 0.006)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.016, 0.024, 0.026, material=1)
-    waist_band(bm, 0.3, TOP_OFF + 0.01, 0.012, 0.018, material=1)
-    deco(bm, v_at_z(0.3), front(0.15), TOP_OFF + 0.026, Vector((0.028, 0.016, 0.022)), material=1)
-    for s in (-1, 1):
-        a = front(0.15 + s * 0.06)
-        strip(bm, [trunk_point(v_at_z(z), a, TOP_OFF + 0.03) for z in (0.29, 0.25, 0.21)], 0.008, material=1)
-
-
-def top_yukata(bm, part, side):
-    # a cotton yukata: wide sleeves, the collar crossed left over right, an obi in the accent colour
-    # tied in a bow at the back
-    if part:
-        return sleeve(bm, side, 0.16, loose=0.02, flare=0.035, cuff=0)
-    top_body(bm, hem_z=0.19, off=TOP_OFF + 0.004)
-    # her left panel laps over her right: its edge runs from her left shoulder down to the obi; the
-    # right panel's edge shows only above the point where it passes under
-    over = [trunk_point(v_at_z(z), front(a), TOP_OFF + 0.016) for z, a in ((0.6, 0.85), (0.53, 0.42), (0.45, 0.05), (0.34, -0.3))]
-    under = [trunk_point(v_at_z(z), front(a), TOP_OFF + 0.012) for z, a in ((0.6, -0.85), (0.53, -0.42), (0.47, -0.08))]
-    strip(bm, over, 0.012, material=1)
-    strip(bm, under, 0.012, material=1)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.008, 0.012, 0.018, material=1)
-    waist_band(bm, 0.3, TOP_OFF + 0.012, 0.014, 0.045, material=2)
-    back = trunk_point(v_at_z(0.31), math.pi / 2, TOP_OFF + 0.04)
-    for s in (-1, 1):
-        add_shaped(bm, 8, blob(back + Vector((s * 0.05, 0.004, 0.0)), AXES, Vector((0.05, 0.02, 0.032))), material=2)
-    add_shaped(bm, 6, blob(back + Vector((0, 0.012, 0)), AXES, Vector((0.02, 0.02, 0.026))), material=2)
-
-
-def top_jumpsuit(bm, part, side):
-    # a retro-futurist jumpsuit, all one piece: the suit runs on from the collar down over the
-    # seat (the trouser legs carry on below it), belted in neon accent at the seam, with a high
-    # collar, a zip, a band round the chest and accent cuffs
-    if part:
-        return sleeve(bm, side, LONG_SLEEVE, cuff=1)
-    trunk_shell(bm, 0.004, v_at_neck(NECK_FRAC), TOP_OFF, close_lo=True)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.016, 0.032)
-    waist_band(bm, 0.46, TOP_OFF + 0.002, 0.006, 0.01, material=1)
-    waist_band(bm, SEAM_Z + 0.02, TOP_OFF + 0.002, 0.008, 0.016, material=1)
-    strip(bm, [trunk_point(v_at_z(z), front(), TOP_OFF + 0.002) for z in (0.6, 0.45, 0.3)], 0.005, material=1)
-
-
-def top_plaid(bm, part, side):
-    # a red-and-black buffalo-plaid flannel: dark bars round and down the body and round the
-    # sleeves, a collar, and suspenders (in the accent colour, brass clips) over the shoulders
-    if part:
-        # rolled up to the elbow: a shorter sleeve with a fat turned-back roll at its end
-        rolled = 0.12
-        sleeve(bm, side, rolled)
-        shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
-        band(bm, shoulder - UP * 0.055, arm_radius(0.055) + SLEEVE_LOOSE + 0.002, arm_radius(0.055) + SLEEVE_LOOSE + 0.002, 0.004, 0.013, segs=28, sides=6, material=1)
-        r = arm_radius(rolled) + SLEEVE_LOOSE + 0.006
-        band(bm, shoulder - UP * (rolled - 0.008), r, r, 0.011, 0.018, segs=28, sides=8, material=0)
-        band(bm, shoulder - UP * (rolled - 0.008), r + 0.002, r + 0.002, 0.004, 0.006, segs=28, sides=6, material=1)
-        return
-    top_body(bm)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.015, 0.017, material=1)
-    for z in (0.3, 0.41, 0.52):
-        waist_band(bm, z, TOP_OFF + 0.001, 0.004, 0.016, material=1)
-    for k in range(8):
-        a = front() + 2 * math.pi * (k + 0.5) / 8
-        strip(bm, [trunk_point(v_at_z(z), a, TOP_OFF + 0.002) for z in (0.24, 0.34, 0.44, 0.54)], 0.012, material=1)
-    for s in (-1, 1):
-        a_front, a_back = front(s * 0.3), math.pi / 2 - s * 0.36
-        off = TOP_OFF + 0.012
-        over = [Vector((s * 0.09, y, 0.0)) for y in (-0.05, 0.0, 0.05)]
-        pts = [trunk_point(v_at_z(z), a_front, off) for z in (SEAM_Z + 0.02, 0.36, 0.5, 0.58)]
-        pts += [Vector((p.x, p.y, trunk_point(v_at_neck(math.hypot(p.x, p.y / TRUNK_DEPTH) / TRUNK_R[0]), 0.0, 0.0).z + off)) for p in over]
-        pts += [trunk_point(v_at_z(z), a_back, off) for z in (0.58, 0.48, 0.36, SEAM_Z + 0.02)]
-        strip(bm, pts, 0.011, material=2)
-        # the steel buckle clips where the suspenders meet the waist, front and back
-        for z, a in ((SEAM_Z + 0.04, front(s * 0.3)), (SEAM_Z + 0.04, a_back)):
-            deco(bm, v_at_z(z), a, off + 0.008, Vector((0.02, 0.008, 0.024)), material=4, n=3.0, cuts=4)
-            deco(bm, v_at_z(z), a, off + 0.014, Vector((0.009, 0.004, 0.013)), material=3, cuts=3)
-
-
-def top_puffer(bm, part, side):
-    # a long-sleeved shirt under a mustard down vest: the vest stands well off it, quilted in
-    # plump rows, with a stand-up collar and a dark zip
-    if part:
-        return sleeve(bm, side, LONG_SLEEVE, cuff=0)
-    top_body(bm)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.015, 0.017)
-    off = OUTER_OFF + 0.01
-    trunk_shell(bm, v_at_z(0.23), v_at_neck(0.86), off, material=1)
-    for z in (0.275, 0.345, 0.415, 0.485, 0.55):
-        waist_band(bm, z, off - 0.004, 0.02, 0.03, material=1)  # a plump down baffle
-    neck_band(bm, 0.86, off + 0.008, 0.026, 0.045, material=3)  # the stand-up fleece collar
-    strip(bm, [trunk_point(v_at_z(z), front(), off + 0.012) for z in (0.6, 0.48, 0.36, 0.24)], 0.005, material=2)
-
-
-def bottom_waders(bm, part, side, hip_y, leg_r, pant_r):
-    # forest-green fishing waders: overalls cut high in a bib with straps and brass buckles, the
-    # legs running into chunky muddy boots
-    if part:
-        pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r + 0.004 - 0.006 * smoothstep(0.0, LONG_LEG, t))
-        hip = Vector((side * LEG_X, 0, hip_y))
-        rb = pant_r + 0.024  # thick rubber boots, well over the ankle and down over the shoe
-        top = hip - UP * (LONG_LEG - 0.11)
-        axis_lathe(bm, top, [(0.0, 0.0), (0.0, rb), (0.08, rb * 1.02), (0.12, rb * 1.05), (0.125, 0.0)], segs=22, material=2)
-        band(bm, top - UP * 0.004, rb + 0.006, rb + 0.006, 0.008, 0.013, segs=28, sides=6, material=2)  # the boot's top rim
-        band(bm, top - UP * 0.118, rb * 1.05 + 0.004, rb * 1.05 + 0.004, 0.006, 0.01, segs=28, sides=6, material=5)  # its muddy sole
-        for k in range(5):  # splashes of river mud
-            a = 2 * math.pi * k / 5 + side
-            add_shaped(bm, 4, blob(top - UP * (0.06 + 0.03 * (k % 2)) + Vector((math.cos(a) * rb, math.sin(a) * rb, 0)), AXES, Vector((0.012, 0.012, 0.009))), material=5)
-        return
-    bottom_overalls(bm, part, side, hip_y, leg_r, pant_r)
-    # a chest pouch on the bib, its flap in boot rubber, a steel tackle clip with a red lure on it
-    deco(bm, v_at_z(OVERALLS_BIB_Z - 0.06), front(), OVERALLS_OFF + 0.012, Vector((0.05, 0.014, 0.034)), n=3.0)
-    deco(bm, v_at_z(OVERALLS_BIB_Z - 0.035), front(), OVERALLS_OFF + 0.022, Vector((0.052, 0.008, 0.012)), material=2, n=3.0)
-    clip = trunk_point(v_at_z(OVERALLS_BIB_Z - 0.03), front(0.25), OVERALLS_OFF + 0.02)
-    band(bm, clip, 0.012, 0.012, 0.003, 0.003, segs=16, sides=6, material=3)
-    add_shaped(bm, 5, blob(clip - UP * 0.022, AXES, Vector((0.008, 0.006, 0.014))), material=4)
+# ---------------------------------------------------------------------------------------------
+# the five archetypes' pieces
 
 
 def waist(bm, off=BOTTOM_OFF, material=0):
     """The seat of a bottom worn under the top: from the bottom of the seat up to just under the
     top's hem (the seam contract), SEAM_CLEARANCE inside the top."""
     trunk_shell(bm, 0.004, v_at_z(SEAM_Z + SEAM_TUCK), off, material, close_lo=True)
-
-
-def bottom_sweats(bm, part, side, hip_y, leg_r, pant_r):
-    # soft sweatpants gathered into cuffs at the ankle
-    if part:
-        return pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r - 0.018 * smoothstep(0.02, 0.15, t), cuff=0, cuff_size=(0.012, 0.014))
-    waist(bm)
 
 
 OVERALLS_WAIST_Z = SEAM_Z + 0.06  # the overalls' back and sides: a little above the tee's hem
@@ -1328,194 +1613,1050 @@ def overalls_off(z):
     return BOTTOM_OFF + (OVERALLS_OFF - BOTTOM_OFF) * smoothstep(SEAT_TOP, SEAM_Z - 0.02, z)
 
 
-def bottom_overalls(bm, part, side, hip_y, leg_r, pant_r):
-    # denim overalls, worn OVER the tee as one continuous garment: the seat, the waist and the bib
-    # are a single shell whose top edge rises in front into the bib (the tee tucked inside it),
-    # with straps over the shoulders, brass buttons and rolled cuffs
-    if part:
-        return pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r - 0.012 * smoothstep(0.0, LONG_LEG, t), cuff=0, cuff_size=(0.0085, 0.011))
-    trunk_shell(bm, 0.004, overalls_top, overalls_off, close_lo=True, segs=48, rows=16)
+def jacket_off(z):
+    """A tailored jacket's stand-off: OUTER_OFF, a touch fuller over the hips."""
+    return OUTER_OFF + 0.006 * (1 - smoothstep(0.2, 0.3, z))
+
+
+def robe_off(z):
+    """A robe's stand-off: loose, flaring out below the sash."""
+    return TOP_OFF + 0.006 + 0.02 * (1 - smoothstep(0.19, 0.3, z))
+
+
+def formal_jacket(bm, v, hem_z=0.2, material=0):
+    """A tailored jacket over the shirt, open in a V at the front down to its button."""
+    trunk_shell(bm, v_at_z(hem_z), v, jacket_off, material, segs=48, rows=12)
+
+
+def dress_shirt(bm, material, lo_z=0.3):
+    """The shirt inside a jacket: from under the jacket up to a stand collar round the neck."""
+    trunk_shell(bm, v_at_z(lo_z), v_at_neck(NECK_FRAC), TOP_OFF, material, segs=40, rows=10)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.008, 0.012, 0.022, material=material)
+
+
+def lapels(bm, v, material, peak=True, width=0.17, roll=TOP_OFF + 0.04, low=OUTER_OFF - 0.006, quilt=None, piping=None, collar=True):
+    """Two 3D lapels folded back along the V from its point to the collar: solid plates standing up
+    to `roll` off the body (0.04 m proud of the shirt beneath), rolled highest along the V. Peaked,
+    their points rising up and out under the collar, or a shawl's smooth roll; `quilt` studs a
+    quilted shawl with stitched diamonds, `piping` edges it; `collar` carries the roll on round the
+    back of the neck."""
+    rows = []
+    for i in range(11):
+        u = i / 10
+        z = v.z_v + (v.z_n - v.z_v) * u
+        d = max(0.0, v.edge(z) - 0.02)
+        if peak:
+            if u <= 0.7:
+                w, dz = 0.02 + (width - 0.02) * smoothstep(0.0, 0.7, u), 0.0
+            elif u <= 0.8:
+                w, dz = width * 1.45, 0.028  # the peak's point
+            elif u <= 0.9:
+                w, dz = width * 0.75, -0.004  # the notch under it
+            else:
+                w, dz = width * 0.55, 0.0
+        else:
+            w, dz = 0.02 + (width - 0.02) * math.sin(math.pi / 2 * min(1.0, u / 0.75)), 0.0
+        rows.append((d, z, w, dz))
+    hi = lambda a, z: roll - 0.012 * smoothstep(0.0, 1.0, (from_front(a) - v.edge(z)) / width)
     for s in (-1, 1):
-        a_front, a_back = front(s * 0.36), math.pi / 2 - s * 0.42
+        inner = [(front(s * d), z) for d, z, w, dz in rows]
+        outer = [(front(s * (d + w)), z + dz) for d, z, w, dz in rows]
+        surface_band(bm, inner, outer, low, hi, material, across=4, per=2)
+        if piping is not None:
+            tube(bm, [on_trunk(a, z, hi(a, z) - 0.002) for a, z in outer], lambda _: 0.0045, sides=6, cap_rings=1, material=piping)
+        if quilt is not None:
+            for d, z, w, dz in rows[1:-1:2]:
+                for f in (0.3, 0.7):
+                    a = front(s * (d + w * f))
+                    p, n = trunk_surf(v_at_z(z), a, hi(a, z))
+                    add_shaped(bm, 1, flat_blob(p, n, UP, Vector((0.0085, 0.0035, 0.0085)), n=1.3), material=quilt)
+    if collar:
+        d0 = v.half - 0.05
+        back = [on_trunk(front(d0 + (2 * math.pi - 2 * d0) * k / 12), v.z_n + 0.004, low + 0.002) for k in range(13)]
+        ribbon(bm, back, 0.036, 0.011, material)
+
+
+def hood(material, lining=None, grow=0.0):
+    """A hood down on the back, fused into one clay form: its opening a thick rolled rim round the
+    neck, dipping in front where the drawstrings come out, the hood itself a soft pouch lying on the
+    upper back. `grow` sets it further out (over a puffy vest)."""
+    th = 0.35
+
+    def build(b):
+        frame = (Vector((1, 0, 0)), Vector((0, math.cos(th), math.sin(th))), Vector((0, -math.sin(th), math.cos(th))))
+        add_shaped(b, 12, blob(Vector((0, 0.19 + grow, 0.525)), frame, Vector((0.125 + grow, 0.045, 0.09)), n=2.3))
+        band(b, Vector((0, -0.008 + grow * 0.3, 0.585)), 0.152 + grow, 0.158 + grow, 0.024, 0.028, roundness=2.4, tilt=0.12, segs=56, sides=10)
+
+    fused(build, material, fuse=HOOD_FUSE)
+
+
+def drawstrings(bm, off, material, tip):
+    for s in (-1, 1):
+        a = front(s * 0.2)
+        pts = [on_trunk(a, z, off) for z in (0.556, 0.51, 0.46)]
+        strip(bm, pts, 0.0055, material=material)
+        add_shaped(bm, 4, ellipsoid(pts[-1] - UP * 0.01, Vector((0.0075, 0.0075, 0.013))), material=tip)
+
+
+def kangaroo_pocket(bm, off, material, z_lo=0.24, z_hi=0.36):
+    """A hoodie's pouch pocket: a 3D pouch across the belly, its hand openings slanting in."""
+    inner = [(front(-0.5), z_lo), (front(-0.42), (z_lo + z_hi) / 2), (front(-0.3), z_hi)]
+    outer = [(front(0.5), z_lo), (front(0.42), (z_lo + z_hi) / 2), (front(0.3), z_hi)]
+    surface_band(bm, inner, outer, off - 0.004, off + 0.012, material, across=8, per=2)
+
+
+def camp_collar(bm, v, material, off=TOP_OFF):
+    """A camp shirt's open collar: a flat collar lying back on each side of the V, its points
+    reaching down onto the chest, carried round the back of the neck."""
+    zs = (v.z_n, v.z_n - 0.035, v.z_n - 0.07, v.z_n - 0.105, v.z_v + 0.01)
+    ws = (0.14, 0.18, 0.21, 0.23, 0.2)
+    for s in (-1, 1):
+        inner = [(front(s * max(0.0, v.edge(z) - 0.01)), z) for z in zs]
+        outer = [(front(s * (max(0.0, v.edge(z) - 0.01) + w)), z - (0.03 if k == len(zs) - 1 else 0.0)) for k, (z, w) in enumerate(zip(zs, ws))]
+        surface_band(bm, inner, outer, off + 0.002, off + 0.013, material, across=4, per=2)
+    d0 = v.half - 0.02
+    back = [on_trunk(front(d0 + (2 * math.pi - 2 * d0) * k / 12), v.z_n + 0.004, off + 0.004) for k in range(13)]
+    ribbon(bm, back, 0.028, 0.009, material)
+
+
+def crossed_collar(bm, v, material, lining, off=TOP_OFF + 0.014, width=0.034, thick=0.009, low=(-0.42, 0.3)):
+    """A robe's collar crossed left over right: a broad band from the back of the neck over each
+    shoulder, her left panel's edge running down across her to her right hip, her right one's
+    showing only above where it passes under; a white under-collar peeking out along both edges."""
+    over = [on_trunk(front(v.edge(z) + 0.05), z, off) for z in (v.z_n - 0.005, v.z_n - 0.04, v.z_n - 0.08, v.z_v + 0.03)]
+    over += [on_trunk(front(d), z, off) for d, z in ((-0.1, v.z_v - 0.05), (-0.25, (v.z_v + low[1]) / 2 - 0.02), low)]
+    back = [on_trunk(front(v.half + 0.12 + (2 * math.pi - 2 * v.half - 0.24) * k / 10), v.z_n + 0.006, off) for k in range(11)]
+    under = [on_trunk(front(-(v.edge(z) + 0.05)), z, off - 0.004) for z in (v.z_n - 0.005, v.z_n - 0.04, v.z_n - 0.08, v.z_v + 0.02)]
+    path = list(reversed(over)) + back + under
+    if lining is not None:
+        ribbon(bm, [p - body_normal(p) * 0.004 for p in path], width + 0.014, thick * 0.7, lining)
+    ribbon(bm, path, width, thick, material)
+
+
+def obi(bm, material, z=0.31, half_z=0.045, off=TOP_OFF + 0.03, bow="back", cord=None):
+    """A thick sash round the waist (an obi) and its knotted bow, fused: two broad loops and two
+    tails behind (bow="back"), or a knot and two hanging ends at the side (bow="side"); `cord` a
+    thin cord tied round its middle."""
+    if half_z > 0:
+        waist_band(bm, z, off, 0.014, half_z, material=material)
+    if cord is not None:
+        waist_band(bm, z, off + 0.012, 0.004, 0.004, material=cord)
+    if bow == "back":
+        c = on_trunk(math.pi / 2, z, off + 0.02)
+
+        def knot(b):
+            add_shaped(b, 8, blob(c + Vector((0, 0.012, 0)), AXES, Vector((0.024, 0.022, 0.032))))
+            for s in (-1, 1):
+                add_shaped(b, 10, blob(c + Vector((s * 0.058, 0.008, 0.014)), AXES, Vector((0.05, 0.02, 0.034)), n=2.4))
+                add_shaped(b, 8, blob(c + Vector((s * 0.026, 0.014, -0.052)), AXES, Vector((0.022, 0.012, 0.046)), n=2.4))
+
+        fused(knot, material, fuse=BOW_FUSE)
+    else:
+        c = on_trunk(front(0.55), z, off + 0.014)
+        add_shaped(bm, 6, blob(c, AXES, Vector((0.022, 0.018, 0.02))), material=material)
+        for dx in (-0.012, 0.014):
+            ribbon(bm, [c + Vector((dx, -0.004, -0.012)), c + Vector((dx * 1.6, -0.01, -0.06)), c + Vector((dx * 1.9, -0.012, -0.1))], 0.018, 0.005, material)
+    return c
+
+
+def overalls_straps(bm, material, buckle, button, off=OVERALLS_OFF, cross=True, width=0.032, thick=0.008):
+    """Overalls' thick flat straps: from the bib's corners over the shoulders, crossing in an X down
+    the back to the waist, each fastened to the bib by a molded metal clip on a brass button."""
+    for s in (-1, 1):
+        o = off + (0.003 if s > 0 else 0.0)
+        down = [on_trunk(front(s * 0.36), z, o) for z in (OVERALLS_BIB_Z - 0.01, 0.53, 0.58)]
         over = [Vector((s * 0.088, y, 0.0)) for y in (-0.05, 0.0, 0.05)]
-        pts = [trunk_point(v_at_z(z), a_front, OVERALLS_OFF) for z in (OVERALLS_BIB_Z - 0.01, 0.53, 0.58)]
-        pts += [Vector((p.x, p.y, trunk_point(v_at_neck(math.hypot(p.x, p.y / TRUNK_DEPTH) / TRUNK_R[0]), 0.0, 0.0).z + OVERALLS_OFF)) for p in over]
-        pts += [trunk_point(v_at_z(z), a_back, OVERALLS_OFF) for z in (0.58, 0.5, 0.4, OVERALLS_WAIST_Z - 0.01)]
-        strip(bm, pts, 0.009)
-        deco(bm, v_at_z(OVERALLS_BIB_Z - 0.02), front(s * 0.36), OVERALLS_OFF + 0.004, Vector((0.012, 0.007, 0.012)), material=1, cuts=4)
+        over = [Vector((p.x, p.y, trunk_point(v_at_neck(math.hypot(p.x, p.y / TRUNK_DEPTH) / TRUNK_R[0]), 0.0, 0.0).z + o)) for p in over]
+        k = s if cross else -s
+        back = [on_trunk(math.pi / 2 - s * 0.36, 0.57, o), on_trunk(math.pi / 2 - s * 0.16, 0.5, o), on_trunk(math.pi / 2 + k * 0.08, 0.43, o), on_trunk(math.pi / 2 + k * 0.28, 0.36, o), on_trunk(math.pi / 2 + k * 0.42, OVERALLS_WAIST_Z - 0.006, o)] if cross else [on_trunk(math.pi / 2 - s * 0.42, z, o) for z in (0.57, 0.48, 0.38, OVERALLS_WAIST_Z - 0.006)]
+        ribbon(bm, down + over + back, width, thick, material)
+        # the clip: a molded metal frame over a brass button, the strap's end looped through it
+        p, n = trunk_surf(v_at_z(OVERALLS_BIB_Z - 0.018), front(s * 0.36), off + thick)
+        add_shaped(bm, 4, flat_blob(p, n, UP, Vector((0.024, 0.006, 0.02)), n=4.0), material=buckle)
+        add_shaped(bm, 3, flat_blob(p + n * 0.006 + UP * 0.004, n, UP, Vector((0.011, 0.004, 0.009)), n=3.0), material=buckle)
+        q, m = trunk_surf(v_at_z(OVERALLS_BIB_Z - 0.036), front(s * 0.36), off + 0.004)
+        add_shaped(bm, 3, flat_blob(q, m, UP, Vector((0.009, 0.005, 0.009))), material=button)
 
 
-def bottom_trousers(bm, part, side, hip_y, leg_r, pant_r):
-    # straight trousers with a waistband
+def pocket_box(bm, a0, a1, z0, z1, off, depth, material, rivet=None, flap=None):
+    """A deep 3D pocket: a box standing `depth` proud across a0..a1, z0..z1, a rolled top edge, and
+    rivets at its top corners."""
+    surface_band(bm, [(a0, z0), (a0, z1)], [(a1, z0), (a1, z1)], off - 0.004, off + depth, material, across=6, per=3)
+    ribbon(bm, [on_trunk(a0 + (a1 - a0) * k / 6, z1, off + depth - 0.004) for k in range(7)], 0.008, 0.006, material if flap is None else flap)
+    if rivet is not None:
+        for a in (a0, a1):
+            p, n = trunk_surf(v_at_z(z1 - 0.004), a, off + depth)
+            add_shaped(bm, 2, flat_blob(p, n, UP, Vector((0.0045, 0.003, 0.0045))), material=rivet)
+
+
+def leg_plate(bm, side, hip_y, t, phi, r, half, material, n=3.0):
+    """A flat piece laid on a trouser leg at angle phi round it, t down from the hip."""
+    p = leg_point(side, hip_y, t, phi, r)
+    add_shaped(bm, 4, flat_blob(p, Vector((math.cos(phi), math.sin(phi), 0)), UP, half, n=n), material=material)
+
+
+def hammer_loop(bm, side, hip_y, r_out, material):
+    """A carpenter's hammer loop: a strap looped off the outside of the thigh."""
+    phi = outward(side) - side * 0.35
+    pts = [leg_point(side, hip_y, t, phi, r_out(t) + dr) for t, dr in ((0.03, 0.0), (0.042, 0.016), (0.07, 0.022), (0.098, 0.016), (0.11, 0.0))]
+    ribbon(bm, pts, 0.018, 0.006, material, normal=axis_normal(side * LEG_X))
+
+
+def work_leg(bm, side, hip_y, leg_r, pant_r, material, cuff_size=(0.0095, 0.012), length=LONG_LEG):
+    """A sturdy straight work-trouser leg with a fat rolled cuff."""
+    r_out = lambda t: pant_r - 0.012 * smoothstep(0.0, length, t)
+    pant_leg(bm, side, hip_y, leg_r, length, r_out, material, cuff=material, cuff_size=cuff_size)
+    return r_out
+
+
+def sleeve_check(bm, side, r_out, rings, length, material, count=4):
+    """A buffalo check's dark bars round a sleeve and down it."""
+    shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+    for t in rings:
+        band(bm, shoulder - UP * t, r_out(t) + 0.001, r_out(t) + 0.001, 0.003, 0.012, segs=28, sides=6, material=material)
+    for k in range(count):
+        phi = 2 * math.pi * (k + 0.5) / count
+        strip(bm, [arm_point(side, t, phi, r_out(t) + 0.0015) for t in (0.03, 0.03 + (length - 0.03) / 2, length)], 0.01, material=material)
+
+
+def plaid_bars(bm, zs, off, count, material, lo=0.24, hi=0.54):
+    """A buffalo check's dark bars, round the body at heights zs and down it `count` times."""
+    for z in zs:
+        waist_band(bm, z, off, 0.004, 0.016, material=material)
+    for k in range(count):
+        a = front() + 2 * math.pi * (k + 0.5) / count
+        strip(bm, [on_trunk(a, z, off + 0.001) for z in (lo, (lo * 2 + hi) / 3, (lo + hi * 2) / 3, hi)], 0.012, material=material)
+
+
+def collar_points(bm, material, off=TOP_OFF, spread=0.3, z=0.585):
+    """A shirt collar's two points lying on the chest either side of the throat."""
+    for s in (-1, 1):
+        deco(bm, v_at_z(z), front(s * spread), off + 0.012, Vector((0.034, 0.008, 0.03)), material=material, roll=s * 0.5)
+
+
+# ---------------------------------------------------------------------------------------------
+# streetwear: a hooded top, oversized sleeves gathered into ribbed cuffs, baggy joggers and chunky
+# sneakers on white soles
+
+
+HOODIE_OFF = TOP_OFF + 0.012
+
+
+def top_hoodie(bm, part, side):
+    # a heavyweight pullover hoodie: the hood down on the back, a pouch pocket, drawstrings with
+    # tipped ends, a ribbed hem, oversized sleeves gathered into ribbed cuffs
+    SH, TR, AC = range(3)
     if part:
-        return pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r - 0.015 * smoothstep(0.0, LONG_LEG, t))
-    waist(bm)
+        return bulky_sleeve(bm, side, LONG_SLEEVE, 0.018, SH, cuff=SH)
+    top_body(bm, off=HOODIE_OFF)
+    waist_band(bm, SEAM_Z + 0.014, HOODIE_OFF - 0.002, 0.012, 0.02)
+    hood(SH)
+    band(bm, Vector((0, -0.008, 0.587)), 0.126, 0.132, 0.006, 0.016, roundness=2.2, tilt=0.12, segs=48, sides=6, material=AC)  # the lining at the hood's mouth
+    kangaroo_pocket(bm, HOODIE_OFF, SH)
+    drawstrings(bm, HOODIE_OFF + 0.012, TR, AC)
 
 
-def bottom_shorts(bm, part, side, hip_y, leg_r, pant_r):
-    # loose shorts to mid-thigh
+def top_flannel(bm, part, side):
+    # the Flannel Camp Vest: a buffalo-check flannel shirt with a pointed collar under a puffy
+    # quilted vest in the accent colour, zipped, with a stand collar; roomy sleeves checked round
+    SH, PL, AC, TR = range(4)
     if part:
-        return pant_leg(bm, side, hip_y, leg_r, SHORT_LEG, lambda t: pant_r + 0.012 * (t / SHORT_LEG) ** 1.2)
-    waist(bm)
+        r_out = bulky_sleeve(bm, side, LONG_SLEEVE, 0.012, SH, cuff=SH)
+        return sleeve_check(bm, side, r_out, (0.06, 0.12), 0.15, PL)
+    top_body(bm)
+    collar_points(bm, SH)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.015, 0.017)
+    off = OUTER_OFF + 0.014
+    trunk_shell(bm, v_at_z(0.225), v_at_neck(0.88), off, AC, segs=40, rows=12)
+    for z in (0.265, 0.325, 0.385, 0.445, 0.5):
+        waist_band(bm, z, off - 0.008, 0.013, 0.027, material=AC)  # the plump down baffles
+    neck_band(bm, 0.88, off + 0.004, 0.02, 0.03, material=AC)  # the stand collar
+    strip(bm, [on_trunk(front(), z, off + 0.014) for z in (0.57, 0.48, 0.38, 0.28, 0.23)], 0.005, material=TR)
 
 
-def bottom_wide(bm, part, side, hip_y, leg_r, pant_r):
-    # wide, flowing trousers that flare toward the ankle
+def top_puffer(bm, part, side):
+    # the Mustard Down Vest: a puffy quilted vest in mustard down over a hoodie, its hood fused on
+    # up the back of the vest, a dark zip; the hoodie's oversized sleeves gathered into cuffs
+    SH, PU, ZP = range(3)
     if part:
-        return pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r + 0.035 * (t / LONG_LEG) ** 1.5)
-    waist(bm)
+        return bulky_sleeve(bm, side, LONG_SLEEVE, 0.018, SH, cuff=SH)
+    top_body(bm, off=HOODIE_OFF)
+    waist_band(bm, SEAM_Z + 0.014, HOODIE_OFF - 0.002, 0.012, 0.02)
+    off = OUTER_OFF + 0.018
+    trunk_shell(bm, v_at_z(0.228), v_at_neck(0.9), off, PU, segs=40, rows=12)
+    for z in (0.27, 0.335, 0.4, 0.465, 0.525):
+        waist_band(bm, z, off - 0.008, 0.014, 0.029, material=PU)
+    hood(PU, grow=0.03)
+    strip(bm, [on_trunk(front(), z, off + 0.016) for z in (0.56, 0.47, 0.37, 0.27, 0.235)], 0.0055, material=ZP)
 
 
 def top_sweater(bm, part, side):
-    # an oversized cable-knit sweater: loose all over, a rolled crew neck, a ribbed hem and cuffs,
-    # and plaited cables twisting down the front and the back
+    # an oversized cable-knit sweater: loose all over, a rolled crew neck, a ribbed hem, plaited
+    # cables twisting down the front and the back, and bulky sleeves gathered into ribbed cuffs
     if part:
-        sleeve(bm, side, LONG_SLEEVE, loose=SLEEVE_LOOSE + 0.01, flare=0.004, cuff=0)
-        shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
-        r = arm_radius(LONG_SLEEVE - 0.03) + SLEEVE_LOOSE + 0.014
-        band(bm, shoulder - UP * (LONG_SLEEVE - 0.03), r, r, 0.005, 0.012, segs=28, sides=6)  # the ribbed cuff's second rib
-        return
-    top_body(bm, off=TOP_OFF + 0.01)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.024, 0.026, 0.028)  # the rolled collar
-    waist_band(bm, SEAM_Z + 0.022, TOP_OFF + 0.006, 0.01, 0.02)  # the ribbed hem
+        return bulky_sleeve(bm, side, LONG_SLEEVE, 0.02, 0, cuff=0, cuff_len=0.036)
+    top_body(bm, off=TOP_OFF + 0.012)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.026, 0.026, 0.028)
+    waist_band(bm, SEAM_Z + 0.02, TOP_OFF + 0.008, 0.012, 0.022)
     zs = [SEAM_Z + 0.045 + 0.02 * i for i in range(16) if SEAM_Z + 0.045 + 0.02 * i < 0.55]
     for base in (front(), math.pi / 2):
         for k in (-1, 0, 1):
             a0 = base + k * 0.46
             for ph in (0.0, math.pi):
-                strip(bm, [trunk_point(v_at_z(z), a0 + 0.045 * math.sin(z * 60 + ph), TOP_OFF + 0.013) for z in zs], 0.0075)
-
-
-def top_smoking(bm, part, side):
-    # a vintage smoking jacket in velvet: a quilted satin shawl collar and turned-back cuffs in the
-    # accent colour, a white shirt and a cravat in the V, a sash tied at the hip with gold tassels,
-    # and a pocket square
-    if part:
-        return sleeve(bm, side, LONG_SLEEVE, loose=SLEEVE_LOOSE + 0.004, cuff=1)
-    top_body(bm, hem_z=0.19, off=TOP_OFF + 0.004)
-    deco(bm, v_at_z(0.52), front(), TOP_OFF + 0.002, Vector((0.045, 0.008, 0.07)), material=2)  # the shirt front
-    deco(bm, v_at_z(0.565), front(), TOP_OFF + 0.012, Vector((0.022, 0.012, 0.03)), material=1)  # the cravat
-    for side_ in (-1, 1):
-        # the shawl collar: a wide satin roll from behind the neck down to the sash, each side
-        pts = [trunk_point(v_at_z(z), front(side_ * a), TOP_OFF + 0.016) for z, a in ((0.6, 0.66), (0.555, 0.44), (0.49, 0.25), (0.41, 0.12), (0.32, 0.05))]
-        strip(bm, pts, 0.019, material=1)
-        # its quilting: little stitched diamonds along it
-        for z, a in ((0.53, 0.35), (0.45, 0.19)):
-            deco(bm, v_at_z(z), front(side_ * a), TOP_OFF + 0.034, Vector((0.008, 0.004, 0.008)), material=1, roll=0.78, cuts=3)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.018, 0.02, 0.024, material=1)
-    waist_band(bm, 0.3, TOP_OFF + 0.012, 0.012, 0.018, material=1)  # the sash
-    knot = trunk_point(v_at_z(0.3), front(0.55), TOP_OFF + 0.03)
-    add_shaped(bm, 6, blob(knot, AXES, Vector((0.022, 0.018, 0.02))), material=1)
-    for dx in (-0.012, 0.014):
-        end = knot + Vector((dx * 1.6, -0.006, -0.085))
-        strip(bm, [knot + Vector((dx, 0, -0.01)), end], 0.007, material=1)
-        add_shaped(bm, 4, blob(end + Vector((0, 0, -0.012)), AXES, Vector((0.011, 0.011, 0.018))), material=3)  # a gold tassel
-    deco(bm, v_at_z(0.47), front(0.55), TOP_OFF + 0.012, Vector((0.022, 0.008, 0.016)), material=2)  # the pocket square
+                tube(bm, [on_trunk(a0 + 0.045 * math.sin(z * 60 + ph), z, TOP_OFF + 0.015) for z in zs], lambda _: 0.0075, sides=6, cap_rings=2)
 
 
 def top_lounge(bm, part, side):
-    # plaid loungewear: a soft button-up pajama top with a notched collar and contrast piping in the
-    # accent colour, a piped chest pocket, pearl buttons, and plaid bars round and down it
+    # Plaid Loungewear: a soft plaid zip hoodie, the hood down on the back lined in the accent
+    # colour, plaid bars round and down it, a white zip, pouch pockets, sleeves gathered at the cuff
+    SH, PL, AC, TR = range(4)
     if part:
-        sleeve(bm, side, LONG_SLEEVE, loose=SLEEVE_LOOSE + 0.006, cuff=2)
+        r_out = bulky_sleeve(bm, side, LONG_SLEEVE, 0.016, SH, cuff=AC)
         shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
-        for t in (0.07, 0.14):
-            r = arm_radius(t) + SLEEVE_LOOSE + 0.008
-            band(bm, shoulder - UP * t, r, r, 0.003, 0.009, segs=28, sides=6, material=1)
+        for t in (0.06, 0.125):
+            band(bm, shoulder - UP * t, r_out(t) + 0.001, r_out(t) + 0.001, 0.003, 0.01, segs=28, sides=6, material=PL)
         return
-    top_body(bm, off=TOP_OFF + 0.004)
-    neck_band(bm, NECK_FRAC, TOP_OFF + 0.01, 0.014, 0.016, material=2)
-    for side_ in (-1, 1):  # the notched collar's points
-        deco(bm, v_at_z(0.585), front(side_ * 0.32), TOP_OFF + 0.014, Vector((0.036, 0.008, 0.03)), material=2, roll=side_ * 0.45)
-    for z in (0.28, 0.39, 0.5):  # the plaid: bars round...
-        waist_band(bm, z, TOP_OFF + 0.005, 0.004, 0.014, material=1)
-    for k in range(8):  # ...and down
-        a = front() + 2 * math.pi * (k + 0.5) / 8
-        strip(bm, [trunk_point(v_at_z(z), a, TOP_OFF + 0.006) for z in (0.23, 0.33, 0.43, 0.53)], 0.01, material=1)
-    strip(bm, [trunk_point(v_at_z(z), front(0.03), TOP_OFF + 0.012) for z in (0.57, 0.45, 0.33, 0.23)], 0.005, material=2)  # the placket's piping
-    for z in (0.5, 0.41, 0.32):
-        deco(bm, v_at_z(z), front(-0.03), TOP_OFF + 0.014, Vector((0.009, 0.005, 0.009)), material=3, cuts=4)
-    deco(bm, v_at_z(0.47), front(0.5), TOP_OFF + 0.012, Vector((0.034, 0.008, 0.034)), material=0)  # the pocket
-    strip(bm, [trunk_point(v_at_z(0.502), front(a), TOP_OFF + 0.02) for a in (0.4, 0.5, 0.6)], 0.004, material=2)  # its piped edge
+    top_body(bm, off=HOODIE_OFF)
+    waist_band(bm, SEAM_Z + 0.014, HOODIE_OFF - 0.002, 0.012, 0.02, material=AC)
+    plaid_bars(bm, (0.3, 0.41, 0.52), HOODIE_OFF + 0.001, 8, PL, lo=0.24, hi=0.55)
+    hood(SH)
+    band(bm, Vector((0, -0.008, 0.587)), 0.126, 0.132, 0.006, 0.016, roundness=2.2, tilt=0.12, segs=48, sides=6, material=AC)
+    strip(bm, [on_trunk(front(), z, HOODIE_OFF + 0.004) for z in (0.56, 0.47, 0.37, 0.28, 0.225)], 0.006, material=TR)
+    for s in (-1, 1):  # the pouch pockets either side of the zip
+        surface_band(bm, [(front(s * 0.08), 0.25), (front(s * 0.08), 0.33)], [(front(s * 0.46), 0.25), (front(s * 0.36), 0.33)], HOODIE_OFF - 0.004, HOODIE_OFF + 0.01, SH, across=4, per=2)
 
 
-def bottom_garden(bm, part, side, hip_y, leg_r, pant_r):
-    # denim garden overalls: the bib and straps, a big patch pocket on the bib with a sunflower
-    # stitched on it, a trowel's wooden handle out of a hip pocket, and deep rolled cuffs
+def top_jumpsuit(bm, part, side):
+    # the Retro Cyber Jumpsuit, all one piece from a sculpted tech hood down over the seat (the
+    # legs carry on below): neon piping down the sides and across the chest, a neon zip, and
+    # oversized sleeves gathered into neon cuffs
+    SH, AC = range(2)
     if part:
-        return pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r - 0.01 * smoothstep(0.0, LONG_LEG, t), cuff=0, cuff_size=(0.014, 0.017))
-    bottom_overalls(bm, part, side, hip_y, leg_r, pant_r)
-    deco(bm, v_at_z(OVERALLS_BIB_Z - 0.065), front(), OVERALLS_OFF + 0.008, Vector((0.058, 0.01, 0.05)), n=3.0)  # the patch pocket
-    flower = trunk_point(v_at_z(OVERALLS_BIB_Z - 0.065), front(), OVERALLS_OFF + 0.022)
-    for k in range(8):
-        a = 2 * math.pi * k / 8
-        add_shaped(bm, 3, blob(flower + Vector((math.cos(a) * 0.019, 0, math.sin(a) * 0.019)), AXES, Vector((0.011, 0.005, 0.011))), material=2)
-    add_shaped(bm, 4, blob(flower + Vector((0, -0.004, 0)), AXES, Vector((0.012, 0.006, 0.012))), material=3)
-    hip = trunk_point(v_at_z(0.29), front(-1.05), OVERALLS_OFF + 0.012)
-    strip(bm, [hip, hip + Vector((-0.012, 0.004, 0.065))], 0.009, material=3)  # the trowel's handle
+        return bulky_sleeve(bm, side, LONG_SLEEVE, 0.016, SH, cuff=AC)
+    trunk_shell(bm, 0.004, v_at_neck(NECK_FRAC), TOP_OFF + 0.006, SH, close_lo=True)
+    hood(SH)
+    band(bm, Vector((0, -0.008, 0.611)), 0.152, 0.158, 0.008, 0.006, roundness=2.0, tilt=0.12, segs=48, sides=6, material=AC)  # the hood's neon rim
+    waist_band(bm, 0.46, TOP_OFF + 0.008, 0.005, 0.009, material=AC)
+    waist_band(bm, SEAM_Z + 0.02, TOP_OFF + 0.008, 0.008, 0.016, material=AC)
+    strip(bm, [on_trunk(front(), z, TOP_OFF + 0.008) for z in (0.56, 0.45, 0.33, 0.24)], 0.005, material=AC)
+    for a in (0.0, math.pi):  # piping down each side
+        strip(bm, [on_trunk(a, z, TOP_OFF + 0.008) for z in (0.5, 0.4, 0.3, 0.21)], 0.004, material=AC)
 
 
-def bottom_blueprint(bm, part, side, hip_y, leg_r, pant_r):
-    # the Velvet Pioneer's Blueprint Overalls: washed denim with pale stitched seams, and a brass
-    # folding ruler standing up out of the bib pocket beside a carpenter's pencil
+def bottom_joggers(bm, part, side, hip_y, leg_r, pant_r):
+    # baggy joggers bunched over ribbed ankle cuffs, and canvas sneakers on thick white soles
+    PA, SH, SO = range(3)
     if part:
-        pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r - 0.012 * smoothstep(0.0, LONG_LEG, t), cuff=2, cuff_size=(0.0085, 0.011))
-        hip = Vector((side * LEG_X, 0, hip_y))
-        r = pant_r - 0.004
-        strip(bm, [hip + Vector((side * (r + 0.002), 0, -t)) for t in (0.03, 0.08, 0.13)], 0.0025, material=2)  # the outside seam
-        return
-    bottom_overalls(bm, part, side, hip_y, leg_r, pant_r)
-    deco(bm, v_at_z(OVERALLS_BIB_Z - 0.07), front(0.12), OVERALLS_OFF + 0.008, Vector((0.05, 0.01, 0.042)), n=3.0)  # the bib pocket
-    strip(bm, [trunk_point(v_at_z(OVERALLS_BIB_Z - 0.03), front(a), OVERALLS_OFF + 0.018) for a in (-0.06, 0.12, 0.3)], 0.003, material=2)  # its stitched edge
-    ruler = trunk_point(v_at_z(OVERALLS_BIB_Z - 0.045), front(0.22), OVERALLS_OFF + 0.02)
-    add_shaped(bm, 3, blob(ruler + Vector((0, 0, 0.018)), AXES, Vector((0.01, 0.004, 0.05)), n=6.0), material=1)
-    for k in range(4):  # its brass hinges
-        add_shaped(bm, 2, blob(ruler + Vector((0, -0.004, -0.02 + 0.018 * k)), AXES, Vector((0.011, 0.003, 0.002)), n=4.0), material=1)
-    pencil = trunk_point(v_at_z(OVERALLS_BIB_Z - 0.045), front(0.02), OVERALLS_OFF + 0.02)
-    strip(bm, [pencil, pencil + Vector((0.004, 0, 0.065))], 0.0055, material=3)
-    for side_ in (-1, 1):  # pale seams down each side of the bib
-        strip(bm, [trunk_point(v_at_z(z), front(side_ * 0.4), OVERALLS_OFF + 0.004) for z in (OVERALLS_BIB_Z - 0.01, 0.4, 0.33)], 0.0025, material=2)
+        jogger_leg(bm, side, hip_y, leg_r, pant_r, PA)
+        return sneakers(bm, side, hip_y, leg_r, SH, SO, SO)
+    waist(bm)
+
+
+def bottom_cargo(bm, part, side, hip_y, leg_r, pant_r):
+    # cargo joggers: a flapped cargo pocket standing out on each thigh, ribbed cuffs, and trail
+    # sneakers with a stripe of the accent colour round their white soles
+    PA, SH, SO, AC = range(4)
+    if part:
+        r_out = jogger_leg(bm, side, hip_y, leg_r, pant_r, PA, bulk=0.014)
+        phi = outward(side) - side * 0.3
+        leg_plate(bm, side, hip_y, 0.075, phi, r_out(0.075) + 0.006, Vector((0.032, 0.012, 0.036)), PA)
+        leg_plate(bm, side, hip_y, 0.042, phi, r_out(0.042) + 0.014, Vector((0.034, 0.006, 0.011)), PA)  # its flap
+        return sneakers(bm, side, hip_y, leg_r, SH, SO, SO, stripe=AC)
+    waist(bm)
+
+
+def bottom_cyber(bm, part, side, hip_y, leg_r, pant_r):
+    # the jumpsuit's legs, baggy and tapering, a neon band at the knee, into neon high-top sneakers
+    PA, SH, SO, AC = range(4)
+    if part:
+        r_out = jogger_leg(bm, side, hip_y, leg_r, pant_r, PA, length=0.1, taper=0.008)
+        band(bm, Vector((side * LEG_X, 0, hip_y - 0.045)), r_out(0.045) + 0.001, r_out(0.045) + 0.001, 0.004, 0.006, segs=28, sides=6, material=AC)
+        return sneakers(bm, side, hip_y, leg_r, SH, SO, AC, high=True, stripe=AC)
+    waist(bm)
 
 
 def bottom_lounge(bm, part, side, hip_y, leg_r, pant_r):
-    # plaid pajama bottoms: loose legs with plaid bars round them (the top's plaid)
+    # plaid lounge joggers with plaid bars round them, cosy white socks and pool slides
+    PA, PL, TR, SO, AC = range(5)
     if part:
-        r_out = lambda t: pant_r + 0.006 + 0.01 * (t / LONG_LEG)
-        pant_leg(bm, side, hip_y, leg_r, LONG_LEG, r_out)
+        r_out = jogger_leg(bm, side, hip_y, leg_r, pant_r, PA, length=0.15, bulk=0.016)
         hip = Vector((side * LEG_X, 0, hip_y))
-        for t in (0.055, 0.105, 0.15):
-            r = r_out(t) + 0.002
-            band(bm, hip - UP * t, r, r, 0.003, 0.008, segs=28, sides=6, material=1)
+        for t in (0.05, 0.095):
+            band(bm, hip - UP * t, r_out(t) + 0.002, r_out(t) + 0.002, 0.003, 0.008, segs=28, sides=6, material=PL)
+        fused(lambda b: socks(b, side, hip_y, leg_r), TR)
+        return slides(bm, side, SO, AC)
+    waist(bm)
+
+
+# ---------------------------------------------------------------------------------------------
+# workwear: overalls' thick straps, molded metal clips, deep pockets and hammer loops, rolled
+# cuffs, and lace-up work boots on lug soles
+
+
+def bottom_overalls(bm, part, side, hip_y, leg_r, pant_r, pocket=True):
+    # Classic Denim Overalls, worn over the tee as one garment: the seat, the waist and the bib a
+    # single shell rising in front into the bib; thick straps crossing at the back and clipped on
+    # with molded metal buckles; a deep box pocket on the bib, brass side buttons and rivets; a
+    # hammer loop and a tool pocket on the legs, rolled cuffs, and tan work boots on lug soles
+    PA, BU, BK, BO, LU = range(5)
+    if part:
+        r_out = work_leg(bm, side, hip_y, leg_r, pant_r, PA)
+        if side > 0:
+            hammer_loop(bm, side, hip_y, r_out, PA)
+        else:
+            leg_plate(bm, side, hip_y, 0.07, outward(side) + 0.3, r_out(0.07) + 0.004, Vector((0.03, 0.009, 0.034)), PA)
+        return work_boots(bm, side, hip_y, leg_r, BO, LU, LU, BK)
+    trunk_shell(bm, 0.004, overalls_top, overalls_off, PA, close_lo=True, segs=40, rows=12)
+    overalls_straps(bm, PA, BK, BU)
+    if pocket:
+        pocket_box(bm, front(-0.2), front(0.2), 0.36, 0.44, OVERALLS_OFF, 0.018, PA, rivet=BU)
+    for s in (-1, 1):  # the side buttons at the hips
+        p, n = trunk_surf(v_at_z(0.255), front(s * 1.35), OVERALLS_OFF)
+        add_shaped(bm, 3, flat_blob(p, n, UP, Vector((0.009, 0.005, 0.009))), material=BU)
+
+
+def bottom_garden(bm, part, side, hip_y, leg_r, pant_r):
+    # Denim Garden Overalls: the overalls with a deep patch pocket on the bib, a sunflower stitched
+    # on it, a trowel's wooden handle out of a hip pocket, deep rolled cuffs, and green rubber
+    # garden boots on lug soles
+    PA, BU, BK, PC, WD, GB, LU = range(7)
+    if part:
+        r_out = work_leg(bm, side, hip_y, leg_r, pant_r, PA, cuff_size=(0.014, 0.017))
+        if side > 0:
+            hammer_loop(bm, side, hip_y, r_out, PA)
+        return work_boots(bm, side, hip_y, leg_r, GB, LU, LU, BK, top_z=0.16)
+    bottom_overalls(bm, "", side, hip_y, leg_r, pant_r, pocket=False)
+    pocket_box(bm, front(-0.24), front(0.24), 0.35, 0.45, OVERALLS_OFF, 0.016, PA, rivet=BU)
+    flower = on_trunk(front(), 0.4, OVERALLS_OFF + 0.018)
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        add_shaped(bm, 3, blob(flower + Vector((math.cos(a) * 0.019, -0.002, math.sin(a) * 0.019)), AXES, Vector((0.011, 0.005, 0.011))), material=PC)
+    add_shaped(bm, 4, blob(flower + Vector((0, -0.006, 0)), AXES, Vector((0.012, 0.006, 0.012))), material=WD)
+    hip = on_trunk(front(-1.05), 0.29, OVERALLS_OFF + 0.012)
+    strip(bm, [hip, hip + Vector((-0.012, 0.004, 0.065))], 0.009, material=WD)
+
+
+def bottom_blueprint(bm, part, side, hip_y, leg_r, pant_r):
+    # the Velvet Pioneer's Blueprint Overalls: washed denim with pale stitched seams, a brass
+    # folding ruler and a carpenter's pencil standing up out of the deep bib pocket, a hammer loop,
+    # and tan work boots on lug soles
+    PA, BU, BK, TR, WD, BO, LU = range(7)
+    if part:
+        r_out = work_leg(bm, side, hip_y, leg_r, pant_r, PA, cuff_size=(0.0085, 0.011))
+        strip(bm, [leg_point(side, hip_y, t, outward(side), r_out(t) + 0.001) for t in (0.03, 0.08, 0.13)], 0.0025, material=TR)
+        if side < 0:
+            hammer_loop(bm, side, hip_y, r_out, PA)
+        return work_boots(bm, side, hip_y, leg_r, BO, LU, LU, BK)
+    bottom_overalls(bm, "", side, hip_y, leg_r, pant_r)
+    strip(bm, [on_trunk(front(a), 0.44, OVERALLS_OFF + 0.019) for a in (-0.18, 0.0, 0.18)], 0.003, material=TR)
+    ruler = on_trunk(front(0.1), 0.43, OVERALLS_OFF + 0.012)
+    add_shaped(bm, 3, blob(ruler + Vector((0, 0, 0.03)), AXES, Vector((0.01, 0.004, 0.05)), n=6.0), material=BU)
+    for k in range(4):
+        add_shaped(bm, 2, blob(ruler + Vector((0, -0.004, -0.008 + 0.018 * k)), AXES, Vector((0.011, 0.003, 0.002)), n=4.0), material=BU)
+    pencil = on_trunk(front(-0.08), 0.43, OVERALLS_OFF + 0.012)
+    strip(bm, [pencil, pencil + Vector((0.004, 0, 0.075))], 0.0055, material=WD)
+    for s in (-1, 1):
+        strip(bm, [on_trunk(front(s * 0.4), z, OVERALLS_OFF + 0.004) for z in (OVERALLS_BIB_Z - 0.01, 0.4, 0.33)], 0.0025, material=TR)
+
+
+WADERS_TOP = (0.49, 0.44)  # chest waders' top edge: at the front, and round the back
+
+
+def waders_top(a):
+    f = 1 - smoothstep(0.3, 1.3, from_front(a))
+    return v_at_z(WADERS_TOP[1]) + (v_at_z(WADERS_TOP[0]) - v_at_z(WADERS_TOP[1])) * f
+
+
+def waders_off(z):
+    return BOTTOM_OFF + (OVERALLS_OFF + 0.006 - BOTTOM_OFF) * smoothstep(SEAT_TOP, SEAM_Z - 0.02, z)
+
+
+def bottom_waders(bm, part, side, hip_y, leg_r, pant_r):
+    # River Wader Dungarees: rubber chest waders cut high all round the chest, on webbing straps
+    # with side-release buckles, a wading belt, a chest tackle pouch with a lure clipped to it,
+    # the legs running into chunky laced wading boots on lug soles, splashed with river mud
+    PA, EL, ST, BO, LU, MU, RD = range(7)
+    if part:
+        L = 0.112
+        r_out = lambda t: pant_r + 0.004 * smoothstep(0.0, 0.03, t) - 0.004 * smoothstep(0.03, L, t)
+        pant_leg(bm, side, hip_y, leg_r, L, r_out, PA)
+        work_boots(bm, side, hip_y, leg_r, BO, LU, EL, ST, top_z=0.175, lugs=18)
+        for k in range(6):  # splashes of river mud
+            a = 2 * math.pi * k / 6 + side
+            r = max(leg_radius(leg_r)(hip_y - 0.07), ANKLE_R) + 0.018
+            add_shaped(bm, 3, blob(Vector((side * LEG_X + math.cos(a) * r, math.sin(a) * r, 0.05 + 0.03 * (k % 2))), AXES, Vector((0.012, 0.012, 0.009))), material=MU)
         return
+    trunk_shell(bm, 0.004, waders_top, waders_off, PA, close_lo=True, segs=40, rows=12)
+    for s in (-1, 1):
+        o = OVERALLS_OFF + 0.006
+        down = [on_trunk(front(s * 0.4), z, o) for z in (WADERS_TOP[0] - 0.005, 0.54, 0.585)]
+        over = [Vector((s * 0.09, y, 0.0)) for y in (-0.05, 0.0, 0.05)]
+        over = [Vector((p.x, p.y, trunk_point(v_at_neck(math.hypot(p.x, p.y / TRUNK_DEPTH) / TRUNK_R[0]), 0.0, 0.0).z + o)) for p in over]
+        back = [on_trunk(math.pi / 2 - s * 0.4, z, o) for z in (0.57, 0.51, WADERS_TOP[1] + 0.002)]
+        ribbon(bm, down + over + back, 0.026, 0.006, EL)
+        p, n = trunk_surf(v_at_z(0.525), front(s * 0.4), o + 0.006)
+        add_shaped(bm, 3, flat_blob(p, n, UP, Vector((0.017, 0.007, 0.022)), n=3.5), material=ST)
+    waist_band(bm, 0.285, waders_off(0.285) + 0.006, 0.007, 0.018, material=EL)  # the wading belt
+    p, n = trunk_surf(v_at_z(0.285), front(), waders_off(0.285) + 0.014)
+    add_shaped(bm, 3, flat_blob(p, n, UP, Vector((0.022, 0.006, 0.02)), n=3.5), material=ST)
+    pocket_box(bm, front(-0.2), front(0.2), 0.37, 0.45, OVERALLS_OFF + 0.004, 0.02, EL)
+    strip(bm, [on_trunk(front(a), 0.44, OVERALLS_OFF + 0.026) for a in (-0.16, 0.0, 0.16)], 0.0025, material=ST)  # its zip
+    clip = on_trunk(front(0.3), 0.43, OVERALLS_OFF + 0.03)
+    band(bm, clip, 0.011, 0.011, 0.003, 0.003, segs=16, sides=6, material=ST)
+    add_shaped(bm, 4, blob(clip - UP * 0.022, AXES, Vector((0.008, 0.006, 0.014))), material=RD)
+
+
+def bottom_workpants(bm, part, side, hip_y, leg_r, pant_r):
+    # the lumberjack's canvas work trousers: the shirt tucked into a waistband with belt loops,
+    # rolled cuffs, and tan work boots on lug soles
+    PA, BO, LU, BK = range(4)
+    if part:
+        work_leg(bm, side, hip_y, leg_r, pant_r, PA, cuff_size=(0.011, 0.014))
+        return work_boots(bm, side, hip_y, leg_r, BO, LU, LU, BK)
+    waist(bm)
+    waist_band(bm, 0.232, TOP_OFF + 0.008, 0.008, 0.02, material=PA)
+    for k in range(6):
+        a = front() + 2 * math.pi * (k + 0.5) / 6
+        p, n = trunk_surf(v_at_z(0.232), a, TOP_OFF + 0.016)
+        add_shaped(bm, 2, flat_blob(p, n, UP, Vector((0.006, 0.004, 0.022)), n=3.0), material=PA)
+
+
+def top_tee(bm, part, side):
+    # a crew-neck tee, its short sleeves turned up in a cuff (worn under overalls)
+    if part:
+        sleeve(bm, side, SHORT_SLEEVE, cuff=0)
+        return
+    top_body(bm)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.016, 0.018)
+
+
+def top_thermal(bm, part, side):
+    # a waffle-knit thermal henley under the waders: a buttoned placket at the throat, sleeves
+    # pushed up the forearm in soft bunches
+    SH, BU = range(2)
+    if part:
+        L = 0.15
+        sleeve(bm, side, L, SH, loose=SLEEVE_LOOSE + 0.002)
+        shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+        for t in (L - 0.035, L - 0.012):
+            r = arm_radius(t) + SLEEVE_LOOSE + 0.006
+            band(bm, shoulder - UP * t, r, r, 0.006, 0.01, segs=28, sides=6, material=SH)
+        return
+    top_body(bm)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.014, 0.02)
+    ribbon(bm, [on_trunk(front(), z, TOP_OFF) for z in (0.585, 0.53, 0.49)], 0.022, 0.004, SH)
+    for z in (0.565, 0.535, 0.505):
+        p, n = trunk_surf(v_at_z(z), front(), TOP_OFF + 0.004)
+        add_shaped(bm, 2, flat_blob(p, n, UP, Vector((0.006, 0.003, 0.006))), material=BU)
+
+
+def top_chambray(bm, part, side):
+    # the Pioneer's chambray work shirt under the Blueprint Overalls: a pointed collar, a buttoned
+    # placket, the sleeves rolled to the elbow
+    SH, BU = range(2)
+    if part:
+        return rolled_sleeve(bm, side, material=SH)
+    top_body(bm)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.014, 0.017)
+    collar_points(bm, SH)
+    for z in (0.56, 0.52):
+        p, n = trunk_surf(v_at_z(z), front(), TOP_OFF + 0.004)
+        add_shaped(bm, 2, flat_blob(p, n, UP, Vector((0.006, 0.003, 0.006))), material=BU)
+
+
+def top_plaid(bm, part, side):
+    # Lumberjack Suspenders: a red buffalo-check flannel with its sleeves rolled to the elbow, a
+    # neckerchief knotted at the throat, and leather Y-back suspenders: two straps up the front and
+    # over the shoulders, meeting in a leather patch between the shoulder blades and running down
+    # the back as one, clipped to the trousers' waistband with steel clips
+    SH, PL, LE, ST, AC = range(5)
+    if part:
+        rolled_sleeve(bm, side, material=SH, roll=SH)
+        sleeve_check(bm, side, lambda t: arm_radius(t) + SLEEVE_LOOSE, (0.055,), 0.1, PL)
+        shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+        r = arm_radius(0.12) + SLEEVE_LOOSE + 0.006
+        band(bm, shoulder - UP * 0.112, r + 0.009, r + 0.009, 0.004, 0.006, segs=28, sides=6, material=PL)  # a dark bar round the roll
+        return
+    top_body(bm)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.006, 0.015, 0.017, material=PL)
+    plaid_bars(bm, (0.3, 0.41, 0.52), TOP_OFF + 0.001, 8, PL)
+    # the neckerchief: a triangle over the chest under a knot at the throat
+    surface_band(bm, [(front(-0.2), 0.575), (front(-0.012), 0.5)], [(front(0.2), 0.575), (front(0.012), 0.5)], TOP_OFF + 0.004, TOP_OFF + 0.012, AC, across=4, per=3)
+    add_shaped(bm, 5, blob(on_trunk(front(), 0.575, TOP_OFF + 0.018), AXES, Vector((0.018, 0.014, 0.015))), material=AC)
+    off = TOP_OFF + 0.012
+    patch_at = (math.pi / 2, 0.46)
+    for s in (-1, 1):
+        a_front = front(s * 0.3)
+        down = [on_trunk(a_front, z, off) for z in (0.25, 0.36, 0.48, 0.575)]
+        over = [Vector((s * 0.09, y, 0.0)) for y in (-0.05, 0.0, 0.05)]
+        over = [Vector((p.x, p.y, trunk_point(v_at_neck(math.hypot(p.x, p.y / TRUNK_DEPTH) / TRUNK_R[0]), 0.0, 0.0).z + off)) for p in over]
+        back = [on_trunk(math.pi / 2 - s * 0.34, 0.575, off), on_trunk(math.pi / 2 - s * 0.14, 0.5, off), on_trunk(patch_at[0], patch_at[1] + 0.004, off)]
+        ribbon(bm, down + over + back, 0.026, 0.006, LE)
+        p, n = trunk_surf(v_at_z(0.255), a_front, off + 0.006)
+        add_shaped(bm, 3, flat_blob(p, n, UP, Vector((0.019, 0.006, 0.022)), n=3.5), material=ST)
+    ribbon(bm, [on_trunk(patch_at[0], z, off) for z in (patch_at[1], 0.37, 0.25)], 0.028, 0.006, LE)
+    surface_band(bm, [(math.pi / 2 - 0.16, patch_at[1] + 0.03), (math.pi / 2 - 0.02, patch_at[1] - 0.04)], [(math.pi / 2 + 0.16, patch_at[1] + 0.03), (math.pi / 2 + 0.02, patch_at[1] - 0.04)], off - 0.002, off + 0.01, LE, across=4, per=3)
+    p, n = trunk_surf(v_at_z(0.255), math.pi / 2, off + 0.006)
+    add_shaped(bm, 3, flat_blob(p, n, UP, Vector((0.019, 0.006, 0.022)), n=3.5), material=ST)
+
+
+# ---------------------------------------------------------------------------------------------
+# summer: an open camp collar and a V at the throat, short sleeves cuffed at mid-bicep,
+# knee-length shorts, bare shins, and deck shoes or sandals
+
+
+CAMP_V = plunge(0.455, 0.44)
+
+
+def camp_off(z):
+    return TOP_OFF + 0.004 + 0.008 * (1 - smoothstep(0.2, 0.3, z))  # boxy and untucked
+
+
+def top_hawaiian(bm, part, side):
+    # the Hawaiian Floral Set's camp shirt: an open camp collar lying back from a V that shows the
+    # collarbone, a buttoned placket below it, short roomy sleeves turned up at mid-bicep, and
+    # white hibiscus printed all over it
+    SH, TR, AC, BU = range(4)
+    if part:
+        L = 0.072
+        sleeve(bm, side, L, SH, loose=0.024, flare=0.01)
+        r = arm_radius(L) + 0.024 + 0.01 + 0.002
+        band(bm, Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z)) - UP * (L - 0.008), r, r, 0.006, 0.011, segs=28, sides=6, material=SH)
+        for phi in (0.6, 2.4, 4.2):
+            p = arm_point(side, 0.04, phi, arm_radius(0.04) + 0.03)
+            star(bm, p, Vector((math.cos(phi), math.sin(phi), 0)), UP, 0.016, thick=0.002, material=TR)
+        return
+    trunk_shell(bm, v_at_z(0.2), CAMP_V, camp_off, SH, segs=48, rows=12)
+    camp_collar(bm, CAMP_V, SH)
+    ribbon(bm, [on_trunk(front(), z, camp_off(z)) for z in (CAMP_V.z_v - 0.005, 0.36, 0.28, 0.205)], 0.02, 0.003, SH)
+    for z in (0.42, 0.35, 0.28):
+        p, n = trunk_surf(v_at_z(z), front(), camp_off(z) + 0.003)
+        add_shaped(bm, 2, flat_blob(p, n, UP, Vector((0.008, 0.004, 0.008))), material=BU)
+    for z, a in ((0.45, 0.9), (0.33, -0.7), (0.26, 1.6), (0.5, -2.2), (0.38, 2.6), (0.3, -2.4), (0.48, 1.9), (0.27, -1.1), (0.4, 0.2), (0.55, 2.9)):
+        v = v_at_z(z)
+        surf = lambda aa, vv: trunk_surf(vv, aa, camp_off(trunk_point(vv, aa).z))
+        for k in range(5):
+            ang = 2 * math.pi * k / 5
+            patch(bm, surf, a + 0.07 * math.cos(ang), v + 0.02 * math.sin(ang), 0.065, 0.02, material=TR, rings=2, segs=10)
+        patch(bm, surf, a, v, 0.035, 0.011, lift=0.003, material=AC, rings=2, segs=10)
+
+
+def tank_top(a):
+    """A tank top's top edge: broad straps from the neck out over the shoulders, a scoop at the
+    front and the back, and armholes cut down the sides."""
+    d = from_front(a)
+    neck = v_at_neck(NECK_FRAC)
+    front_scoop = 1 - smoothstep(0.12, 0.4, d)
+    back_scoop = 1 - smoothstep(0.12, 0.4, math.pi - d)
+    armhole = smoothstep(0.72, 1.02, d) * (1 - smoothstep(math.pi - 1.02, math.pi - 0.72, d))
+    return neck + (v_at_z(0.53) - neck) * front_scoop + (v_at_z(0.55) - neck) * back_scoop + (v_at_z(0.47) - neck) * armhole
+
+
+def top_swim(bm, part, side):
+    # the Beach Swim Set's striped tank: bare arms, a scoop neck, deep armholes, white stripes
+    SH, TR = range(2)
+    if part:
+        return
+    trunk_shell(bm, v_at_z(0.205), tank_top, TOP_OFF + 0.002, SH, segs=56, rows=12)
+    for z in (0.25, 0.3, 0.35, 0.4):
+        waist_band(bm, z, TOP_OFF + 0.004, 0.003, 0.011, material=TR)
+
+
+def bottom_khakis(bm, part, side, hip_y, leg_r, pant_r):
+    # knee-length khaki shorts with turned-up cuffs, bare shins, and suede deck shoes on white
+    # soles with rawhide laces
+    PA, SU, SO, LA = range(4)
+    if part:
+        L = 0.12
+        r_out = lambda t: pant_r + 0.016 * smoothstep(0.0, L, t)
+        pant_leg(bm, side, hip_y, leg_r, L, r_out, PA)
+        r = r_out(L) + 0.004
+        band(bm, Vector((side * LEG_X, 0, hip_y - (L - 0.01))), r, r, 0.006, 0.013, segs=32, sides=8, material=PA)
+        return boat_shoes(bm, side, SU, SO, LA)
+    waist(bm)
+
+
+def bottom_board(bm, part, side, hip_y, leg_r, pant_r):
+    # board shorts to the knee, a stripe of the accent colour down each side, and flip-flops
+    PA, AC, SO = range(3)
+    if part:
+        L = 0.13
+        r_out = lambda t: pant_r + 0.02 * smoothstep(0.0, L, t)
+        pant_leg(bm, side, hip_y, leg_r, L, r_out, PA)
+        ribbon(bm, [leg_point(side, hip_y, t, outward(side), r_out(t)) for t in (0.0, 0.04, 0.08, L - 0.004)], 0.024, 0.003, AC, normal=axis_normal(side * LEG_X))
+        return flip_flops(bm, side, SO, AC)
+    waist(bm)
+
+
+# ---------------------------------------------------------------------------------------------
+# robe: a robe down over the thighs (its skirt carried on the legs), wide bell sleeves, a crossed
+# or shawl collar, and a thick sash or obi knotted
+
+
+YUKATA_V = plunge(0.44, 0.45)
+
+
+def top_yukata(bm, part, side):
+    # the Indigo Bath Yukata: cotton to the shins, wide bell sleeves, the collar crossed left over
+    # right over a white under-collar, a pale print scattered over it, and an obi in the accent
+    # colour tied in a big bow at the back
+    SH, TR, AC = range(3)
+    if part:
+        bell_sleeve(bm, side, 0.17, 0.05, SH)
+        for t, phi in ((0.06, 0.4), (0.11, 2.0), (0.14, 4.0), (0.08, 5.2)):
+            p = arm_point(side, t, phi, arm_radius(t) + 0.02 + 0.05 * (t / 0.17) ** 2 + 0.001)
+            star(bm, p, Vector((math.cos(phi), math.sin(phi), 0)), UP, 0.01, thick=0.002, material=TR)
+        return bell_scale(bm, side, 0.17)
+    trunk_shell(bm, v_at_z(0.19), YUKATA_V, robe_off, SH, segs=48, rows=12)
+    crossed_collar(bm, YUKATA_V, SH, TR)
+    obi(bm, AC)
+    for d, z in ((0.9, 0.5), (1.5, 0.45), (2.2, 0.52), (2.9, 0.47), (3.6, 0.5), (4.3, 0.44), (5.0, 0.52), (5.5, 0.46), (1.2, 0.23), (2.6, 0.24), (3.9, 0.22), (5.2, 0.24)):
+        p, n = trunk_surf(v_at_z(z), front(d), robe_off(z))
+        star(bm, p, n, UP, 0.01, thick=0.002, material=TR)
+
+
+def top_starry(bm, part, side):
+    # the Starry Night Yukata: midnight silk embroidered with silver constellations, wide bell
+    # sleeves strewn with stars, the collar crossed over a silver under-collar, and a gold obi
+    # bound with a silver cord and tied in a bow at the back
+    SH, ST, GO = range(3)
+    if part:
+        bell_sleeve(bm, side, 0.17, 0.055, SH, cuff=ST)
+        r_at = lambda t: arm_radius(t) + 0.02 + 0.055 * (t / 0.17) ** 2 + 0.0015
+        spots = ((0.05, 0.3), (0.09, 1.0), (0.13, 0.6), (0.07, 3.4), (0.12, 4.4), (0.15, 2.2))
+        for t, phi in spots:
+            star(bm, arm_point(side, t, phi, r_at(t)), Vector((math.cos(phi), math.sin(phi), 0)), UP, 0.012, material=ST)
+        line = []
+        for (t0, p0), (t1, p1) in zip(spots[:2], spots[1:3]):
+            line += [arm_point(side, t0 + (t1 - t0) * k / 5, p0 + (p1 - p0) * k / 5, r_at(t0 + (t1 - t0) * k / 5)) for k in range(5)]
+        line.append(arm_point(side, spots[2][0], spots[2][1], r_at(spots[2][0])))
+        tube(bm, line, lambda _: 0.0014, sides=4, cap_rings=1, material=ST)
+        return bell_scale(bm, side, 0.17)
+    trunk_shell(bm, v_at_z(0.19), YUKATA_V, robe_off, SH, segs=48, rows=12)
+    crossed_collar(bm, YUKATA_V, SH, ST)
+    obi(bm, GO, cord=ST)
+    constellations = (
+        ((2.55, 0.52), (2.8, 0.49), (3.05, 0.48), (3.3, 0.46), (3.45, 0.42), (3.72, 0.41), (3.68, 0.375)),  # the Dipper, across the back
+        ((0.85, 0.52), (1.05, 0.46), (0.8, 0.4), (1.1, 0.39)),
+        ((-0.85, 0.53), (-1.15, 0.48), (-0.95, 0.41)),
+        ((1.6, 0.25), (1.9, 0.22), (2.2, 0.245)),
+        ((-1.7, 0.24), (-2.05, 0.215)),
+    )
+    for group in constellations:
+        for d, z in group:
+            trunk_star(bm, d, z, robe_off(z) + 0.001, 0.013, ST)
+        path = []
+        for (d0, z0), (d1, z1) in zip(group, group[1:]):
+            path += [on_trunk(front(d0 + (d1 - d0) * k / 5), z0 + (z1 - z0) * k / 5, robe_off(z0 + (z1 - z0) * k / 5) + 0.0015) for k in range(5)]
+        path.append(on_trunk(front(group[-1][0]), group[-1][1], robe_off(group[-1][1]) + 0.0015))
+        tube(bm, path, lambda _: 0.0014, sides=4, cap_rings=1, material=ST)
+    for d, z in ((1.9, 0.5), (-1.9, 0.47), (2.3, 0.4), (-2.5, 0.52), (-3.0, 0.3), (0.6, 0.22), (-0.6, 0.23), (4.6, 0.45)):
+        trunk_star(bm, d, z, robe_off(z) + 0.001, 0.009, ST)
+
+
+BOXING_V = plunge(0.31, 0.5)
+
+
+def boxing_hem(a):
+    """The boxing robe's lower edge: below the belt its front panels part in an inverted V, showing
+    the trunks' gold waistband."""
+    f = max(0.0, 1 - from_front(a) / 0.42)
+    return v_at_z(0.19) + (v_at_z(0.262) - v_at_z(0.19)) * f
+
+
+def top_robe(bm, part, side):
+    # the Boxing Robe: a satin robe to mid-thigh, a broad shawl collar and wide bell sleeves edged
+    # in contrast piping, a belt knotted at the front, its front parting below the belt, and a
+    # gold star on the back
+    SH, TR, GO = range(3)
+    if part:
+        bell_sleeve(bm, side, 0.175, 0.045, SH, cuff=TR)
+        return bell_scale(bm, side, 0.175)
+    trunk_shell(bm, boxing_hem, BOXING_V, robe_off, SH, segs=48, rows=12)
+    lapels(bm, BOXING_V, SH, peak=False, width=0.16, roll=TOP_OFF + 0.03, low=TOP_OFF + 0.002, piping=TR)
+    waist_band(bm, 0.3, TOP_OFF + 0.014, 0.011, 0.018, material=SH)  # the belt, piped
+    for z in (0.283, 0.317):
+        waist_band(bm, z, TOP_OFF + 0.02, 0.004, 0.003, material=TR)
+    obi(bm, SH, z=0.3, half_z=0.0, off=TOP_OFF + 0.014, bow="side")
+    p, n = trunk_surf(v_at_z(0.44), math.pi / 2, robe_off(0.44))
+    star(bm, p, n, UP, 0.05, thick=0.004, material=GO)
+
+
+VELVET_V = plunge(0.32, 0.55)
+
+
+def top_velvet(bm, part, side):
+    # Velvet Loungewear: a velvet dressing robe over silk pyjamas (the pyjama shirt's piped collar in
+    # the V), a quilted satin shawl collar and turn-back cuffs in the accent colour, wide bell
+    # sleeves, a satin sash knotted at the side, and a gold crest on the breast pocket
+    SH, AC, TR, GO, PJ = range(5)
+    if part:
+        bell_sleeve(bm, side, 0.175, 0.04, SH)
+        r = arm_radius(0.175) + 0.02 + 0.04 + 0.002
+        band(bm, Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z)) - UP * 0.16, r, r, 0.007, 0.018, segs=40, sides=8, material=AC)
+        return bell_scale(bm, side, 0.175)
+    trunk_shell(bm, v_at_z(0.3), v_at_neck(NECK_FRAC), TOP_OFF, PJ, segs=40, rows=10)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.008, 0.012, 0.018, material=TR)
+    trunk_shell(bm, v_at_z(0.19), VELVET_V, lambda z: robe_off(z) + 0.012, SH, segs=48, rows=12)
+    lapels(bm, VELVET_V, AC, peak=False, width=0.2, roll=TOP_OFF + 0.04, low=TOP_OFF + 0.012, quilt=AC)
+    obi(bm, AC, z=0.3, half_z=0.018, off=TOP_OFF + 0.028, bow="side")
+    pocket = (front(0.62), 0.45)
+    surface_band(bm, [(pocket[0] - 0.14, pocket[1] - 0.04), (pocket[0] - 0.14, pocket[1] + 0.03)], [(pocket[0] + 0.14, pocket[1] - 0.04), (pocket[0] + 0.14, pocket[1] + 0.03)], robe_off(0.45) + 0.008, robe_off(0.45) + 0.02, SH, across=4, per=2)
+    p, n = trunk_surf(v_at_z(pocket[1] - 0.005), pocket[0], robe_off(0.45) + 0.021)
+    star(bm, p, n, UP, 0.014, thick=0.003, material=GO)
+
+
+def bottom_yukata(bm, part, side, hip_y, leg_r, pant_r):
+    # the yukata's skirt to the shins, its overlapping front edge lined in white, and wooden geta
+    # on bare feet
+    SH, TR, WD, AC = range(4)
+    if part:
+        robe_skirt(bm, side, hip_y, leg_r, pant_r, 0.195, 0.048, SH, hem=SH, edge=TR)
+        for t, phi in ((0.1, 0.4), (0.15, 2.4), (0.13, 4.2), (0.17, 5.4)):
+            p = leg_point(side, hip_y, t, phi, pant_r + 0.048 * smoothstep(0.05, 0.195, t) ** 0.9 + 0.001)
+            star(bm, p, Vector((math.cos(phi), math.sin(phi), 0)), UP, 0.01, thick=0.002, material=TR)
+        return geta(bm, side, WD, AC)
+    waist(bm, material=SH)
+
+
+def bottom_starry(bm, part, side, hip_y, leg_r, pant_r):
+    # the Starry Night Yukata's skirt to the shins, strewn with silver stars, its front edge
+    # piped in silver, and lacquered geta with gold straps
+    SH, ST, WD, GO = range(4)
+    if part:
+        robe_skirt(bm, side, hip_y, leg_r, pant_r, 0.195, 0.05, SH, hem=ST, edge=ST)
+        for t, phi in ((0.09, 0.3 * side), (0.14, 2.3), (0.12, 3.9), (0.17, 5.0), (0.16, 1.2)):
+            p = leg_point(side, hip_y, t, phi, pant_r + 0.05 * smoothstep(0.05, 0.195, t) ** 0.9 + 0.001)
+            star(bm, p, Vector((math.cos(phi), math.sin(phi), 0)), UP, 0.012, material=ST)
+        return geta(bm, side, WD, GO)
+    waist(bm, material=SH)
+
+
+def bottom_boxing(bm, part, side, hip_y, leg_r, pant_r):
+    # the robe's skirt to mid-thigh edged in piping, satin trunks under it with a broad gold
+    # waistband (showing where the robe parts below its belt), and tall laced boxing boots
+    SH, TR, PA, GO, LE = range(5)
+    if part:
+        pant_leg(bm, side, hip_y, leg_r, 0.07, lambda t: pant_r - 0.003 + 0.004 * smoothstep(0.0, 0.07, t), PA)
+        robe_skirt(bm, side, hip_y, leg_r, pant_r, 0.1, 0.026, SH, hem=TR)
+        return boxing_boots(bm, side, hip_y, leg_r, TR, LE, GO, GO)
+    waist(bm, material=PA)
+    waist_band(bm, 0.236, BOTTOM_OFF + 0.01, 0.007, 0.017, material=GO)
+
+
+def bottom_velvet(bm, part, side, hip_y, leg_r, pant_r):
+    # the dressing robe's skirt to the knee over silk pyjama trousers piped at the hem, and velvet
+    # Albert slippers with a gold crest
+    SH, PA, TR, VE, GO = range(5)
+    if part:
+        r_pj = lambda t: pant_r - 0.004 + 0.012 * smoothstep(0.0, LONG_LEG, t)
+        pant_leg(bm, side, hip_y, leg_r, LONG_LEG + 0.01, r_pj, PA)
+        r = r_pj(LONG_LEG + 0.01) + 0.001
+        band(bm, Vector((side * LEG_X, 0, hip_y - LONG_LEG + 0.002)), r, r, 0.004, 0.005, segs=32, sides=6, material=TR)
+        robe_skirt(bm, side, hip_y, leg_r, pant_r, 0.125, 0.03, SH, hem=SH)
+        return dress_shoes(bm, side, VE, VE, crest=GO, slipper=True)
+    waist(bm, material=SH)
+
+
+# ---------------------------------------------------------------------------------------------
+# formal: a jacket over a shirt with 3D lapels, a bow tie or a tie, long straight trousers, dress
+# shoes
+
+
+TUX_V = plunge(0.335, 0.56)
+
+
+def formal_cuffs(bm, side, length, shirt, link=None):
+    """A white shirt cuff showing past the jacket's sleeve, a gold cufflink on it."""
+    shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+    r = arm_radius(length + 0.008) + 0.011
+    band(bm, shoulder - UP * (length + 0.006), r, r, 0.005, 0.011, segs=28, sides=6, material=shirt)
+    if link is not None:
+        add_shaped(bm, 3, ellipsoid(arm_point(side, length + 0.006, outward(side), r + 0.004), Vector((0.0055, 0.0055, 0.0055))), material=link)
+
+
+def top_tuxedo(bm, part, side):
+    # the Velvet Evening Tuxedo: a jacket over a pleated white dress shirt with onyx studs, peaked
+    # lapels in black satin standing proud of it, a crimson bow tie, a satin-covered button, jetted
+    # pockets, a pocket square in the accent colour, white cuffs and gold cufflinks
+    SH, TR, SA, CR, AC, GO = range(6)
+    if part:
+        sleeve(bm, side, LONG_SLEEVE - 0.012, SH, loose=SLEEVE_LOOSE + 0.002)
+        return formal_cuffs(bm, side, LONG_SLEEVE - 0.012, TR, GO)
+    dress_shirt(bm, TR)
+    for d in (-0.12, -0.06, 0.06, 0.12):  # the pleats
+        ribbon(bm, [on_trunk(front(d), z, TOP_OFF) for z in (0.36, 0.46, 0.56)], 0.008, 0.003, TR)
+    for z in (0.5, 0.45, 0.4):
+        p, n = trunk_surf(v_at_z(z), front(), TOP_OFF + 0.002)
+        add_shaped(bm, 2, flat_blob(p, n, UP, Vector((0.0055, 0.004, 0.0055))), material=SA)
+    formal_jacket(bm, TUX_V, material=SH)
+    lapels(bm, TUX_V, SA, peak=True, width=0.17)
+    c = on_trunk(front(), 0.572, TOP_OFF + 0.03)
+
+    def bow(b):
+        add_shaped(b, 6, blob(c, AXES, Vector((0.012, 0.011, 0.013))))
+        for s in (-1, 1):
+            add_shaped(b, 6, blob(c + Vector((s * 0.018, 0.002, 0.0)), AXES, Vector((0.012, 0.009, 0.012))))
+            add_shaped(b, 8, blob(c + Vector((s * 0.037, 0.004, 0.0)), AXES, Vector((0.016, 0.009, 0.02)), n=2.4))
+
+    fused(bow, CR, fuse=(0.0035, 2, 0.4))
+    p, n = trunk_surf(v_at_z(0.322), front(), jacket_off(0.322))
+    add_shaped(bm, 3, flat_blob(p, n, UP, Vector((0.011, 0.005, 0.011))), material=SA)
+    for s in (-1, 1):  # jetted hip pockets
+        ribbon(bm, [on_trunk(front(s * a), 0.262, jacket_off(0.262)) for a in (0.62, 0.78, 0.94)], 0.008, 0.004, SA)
+    ribbon(bm, [on_trunk(front(a), 0.455, jacket_off(0.455)) for a in (0.44, 0.58, 0.72)], 0.008, 0.004, SA)  # the breast pocket
+    add_shaped(bm, 4, blob(on_trunk(front(0.58), 0.47, jacket_off(0.47) + 0.006), AXES, Vector((0.02, 0.008, 0.013)), n=2.4), material=AC)
+
+
+SMOKING_V = plunge(0.3, 0.58)
+
+
+def top_smoking(bm, part, side):
+    # the Vintage Smoking Jacket: velvet, a quilted black satin shawl collar standing proud of a
+    # white shirt and a cravat in the accent colour, a black satin sash knotted at the hip with gold
+    # tassels on its ends, quilted satin turn-back cuffs, and a pocket square
+    SH, SA, TR, AC, GO = range(5)
+    if part:
+        L = LONG_SLEEVE - 0.01
+        sleeve(bm, side, L, SH, loose=SLEEVE_LOOSE + 0.004)
+        shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+        r = arm_radius(L - 0.02) + SLEEVE_LOOSE + 0.008
+        band(bm, shoulder - UP * (L - 0.018), r, r, 0.006, 0.022, segs=28, sides=8, material=SA)
+        for k in range(8):  # the cuffs' quilting
+            phi = 2 * math.pi * k / 8
+            p = arm_point(side, L - 0.018, phi, r + 0.006)
+            add_shaped(bm, 2, flat_blob(p, Vector((math.cos(phi), math.sin(phi), 0)), UP, Vector((0.007, 0.003, 0.007)), n=1.3), material=SA)
+        return formal_cuffs(bm, side, L, TR)
+    dress_shirt(bm, TR)
+    add_shaped(bm, 6, blob(on_trunk(front(), 0.55, TOP_OFF + 0.012), AXES, Vector((0.024, 0.014, 0.034))), material=AC)  # the cravat
+    formal_jacket(bm, SMOKING_V, hem_z=0.19, material=SH)
+    lapels(bm, SMOKING_V, SA, peak=False, width=0.2, quilt=SA)
+    waist_band(bm, 0.3, OUTER_OFF + 0.006, 0.012, 0.018, material=SA)  # the sash
+    knot = on_trunk(front(0.55), 0.3, OUTER_OFF + 0.024)
+    add_shaped(bm, 6, blob(knot, AXES, Vector((0.022, 0.018, 0.02))), material=SA)
+    for dx in (-0.012, 0.014):
+        end = knot + Vector((dx * 1.6, -0.006, -0.085))
+        ribbon(bm, [knot + Vector((dx, -0.002, -0.01)), end], 0.016, 0.005, SA)
+        add_shaped(bm, 4, blob(end + Vector((0, -0.004, -0.014)), AXES, Vector((0.011, 0.011, 0.018))), material=GO)  # a gold tassel
+    add_shaped(bm, 4, blob(on_trunk(front(0.62), 0.47, jacket_off(0.47) + 0.006), AXES, Vector((0.02, 0.008, 0.013)), n=2.4), material=AC)
+
+
+PIN_V = plunge(0.36, 0.52)
+
+
+def top_pinstripe(bm, part, side):
+    # the High Roller Pinstripe: a double-breasted pinstripe jacket with peaked lapels, six gold
+    # buttons, flap pockets, a gold pocket-watch chain draped from a button to the watch in her hip
+    # pocket, over a white shirt with a spread collar and a tie in the accent colour
+    SH, PI, TR, AC, GO = range(5)
+    if part:
+        L = LONG_SLEEVE - 0.012
+        sleeve(bm, side, L, SH, loose=SLEEVE_LOOSE + 0.002)
+        sleeve_stripes(bm, side, L, lambda t: arm_radius(t) + SLEEVE_LOOSE + 0.002, 7, PI)
+        for k in range(3):  # the cuff's buttons
+            add_shaped(bm, 2, ellipsoid(arm_point(side, L - 0.03 + 0.011 * k, outward(side) - side * 0.5, arm_radius(L - 0.03 + 0.011 * k) + SLEEVE_LOOSE + 0.004), Vector((0.004, 0.004, 0.004))), material=GO)
+        return formal_cuffs(bm, side, L, TR)
+    dress_shirt(bm, TR)
+    for s in (-1, 1):  # the spread collar's points
+        surface_band(bm, [(front(s * 0.05), 0.58), (front(s * 0.1), 0.603)], [(front(s * 0.26), 0.55), (front(s * 0.3), 0.598)], TOP_OFF + 0.004, TOP_OFF + 0.012, TR, across=3, per=2)
+    add_shaped(bm, 5, blob(on_trunk(front(), 0.572, TOP_OFF + 0.018), AXES, Vector((0.013, 0.011, 0.014))), material=AC)  # the tie's knot
+    ribbon(bm, [on_trunk(front(), z, TOP_OFF + 0.006) for z in (0.56, 0.5, 0.44, 0.39, 0.375)], lambda s: 0.022 + 0.014 * s if s < 0.85 else 0.034 * (1 - s) / 0.15 + 0.002, 0.005, AC)
+    formal_jacket(bm, PIN_V, hem_z=0.195, material=SH)
+    for k in range(30):  # the pinstripes
+        a = front() + 2 * math.pi * (k + 0.5) / 30
+        d = from_front(a)
+        z_top = 0.585 if d >= PIN_V.half else PIN_V.z_v + (PIN_V.z_n - PIN_V.z_v) * d / PIN_V.half - 0.012
+        if z_top < 0.24:
+            continue
+        tube(bm, [on_trunk(a, z, jacket_off(z) + 0.0012) for z in (0.2 + (z_top - 0.2) * i / 8 for i in range(9))], lambda _: 0.0017, sides=5, cap_rings=1, material=PI)
+    lapels(bm, PIN_V, SH, peak=True, width=0.19)
+    for s in (-1, 1):
+        for z in (0.34, 0.29, 0.245):
+            p, n = trunk_surf(v_at_z(z), front(s * 0.2), jacket_off(z))
+            add_shaped(bm, 2, flat_blob(p, n, UP, Vector((0.009, 0.005, 0.009))), material=GO)
+        surface_band(bm, [(front(s * 0.6), 0.25), (front(s * 0.6), 0.275)], [(front(s * 0.95), 0.25), (front(s * 0.95), 0.275)], jacket_off(0.26) - 0.002, jacket_off(0.26) + 0.007, SH, across=4, per=2)
+    a0, a1 = front(-0.2), front(-0.78)
+    pts = [on_trunk(a0 + (a1 - a0) * k / 14, 0.245 + 0.035 * k / 14 - 0.034 * math.sin(math.pi * k / 14), jacket_off(0.25) + 0.005) for k in range(15)]
+    for p, q in zip(pts, pts[1:]):  # the chain's links
+        add_shaped(bm, 1, blob((p + q) / 2, aim_frame(q - p), Vector((0.0042, 0.0026, (q - p).length * 0.62))), material=GO)
+    p, n = trunk_surf(v_at_z(0.283), a1, jacket_off(0.28) + 0.004)
+    add_shaped(bm, 4, flat_blob(p, n, UP, Vector((0.013, 0.004, 0.013))), material=GO)  # the watch's gold case, peeking out
+    add_shaped(bm, 4, blob(on_trunk(front(0.58), 0.47, jacket_off(0.47) + 0.006), AXES, Vector((0.02, 0.008, 0.012)), n=2.4), material=TR)
+
+
+def bottom_tuxedo(bm, part, side, hip_y, leg_r, pant_r):
+    # tuxedo trousers, straight to the shoe, a black satin stripe down each outer seam, and patent
+    # oxfords
+    PA, SA, LE = range(3)
+    if part:
+        r_out = dress_trouser_leg(bm, side, hip_y, leg_r, pant_r, PA, crease=False)
+        ribbon(bm, [leg_point(side, hip_y, t, outward(side), r_out(t)) for t in (0.0, 0.06, 0.12, 0.19)], 0.012, 0.003, SA, normal=axis_normal(side * LEG_X))
+        return dress_shoes(bm, side, LE, LE)
+    waist(bm)
+
+
+def bottom_smoking(bm, part, side, hip_y, leg_r, pant_r):
+    # pressed evening trousers and burgundy velvet Albert slippers with a gold crest
+    PA, VE, GO, LE = range(4)
+    if part:
+        dress_trouser_leg(bm, side, hip_y, leg_r, pant_r, PA)
+        return dress_shoes(bm, side, VE, LE, crest=GO, slipper=True)
+    waist(bm)
+
+
+def bottom_pinstripe(bm, part, side, hip_y, leg_r, pant_r):
+    # pinstriped trousers, pressed, and two-tone spectator oxfords: white with black wing-tip caps
+    PA, PI, TR, LE = range(4)
+    if part:
+        r_out = dress_trouser_leg(bm, side, hip_y, leg_r, pant_r, PA)
+        for k in range(8):
+            phi = 2 * math.pi * (k + 0.5) / 8
+            tube(bm, [leg_point(side, hip_y, t, phi, r_out(t) + 0.0012) for t in (0.012 + 0.182 * i / 7 for i in range(8))], lambda _: 0.0016, sides=5, cap_rings=1, material=PI)
+        return dress_shoes(bm, side, TR, LE, cap=LE)
     waist(bm)
 
 
 # each top and bottom: its materials, in material-index order, and its builder
 TOPS = {
-    "hoodie": (("Mat_Shirt", "Mat_Trim"), top_hoodie),
+    "hoodie": (("Mat_Shirt", "Mat_Trim", "Mat_Accent"), top_hoodie),
     "tee": (("Mat_Shirt",), top_tee),
-    "flannel": (("Mat_Shirt", "Mat_Accent", "Mat_Trim"), top_flannel),
-    "hawaiian": (("Mat_Shirt", "Mat_Trim"), top_hawaiian),
-    "tuxedo": (("Mat_Shirt", "Mat_Trim", "Mat_Accent"), top_tuxedo),
-    "robe": (("Mat_Shirt", "Mat_Trim"), top_robe),
-    "yukata": (("Mat_Shirt", "Mat_Trim", "Mat_Accent"), top_yukata),
-    "jumpsuit": (("Mat_Shirt", "Mat_Accent"), top_jumpsuit),
-    "plaid": (("Mat_Shirt", "Mat_Plaid", "Mat_Accent", "Mat_Button", "Mat_Steel"), top_plaid),
-    "puffer": (("Mat_Shirt", "Mat_Puffer", "Mat_Plaid", "Mat_Fleece"), top_puffer),
+    "thermal": (("Mat_Shirt", "Mat_Button"), top_thermal),
+    "chambray": (("Mat_Shirt", "Mat_Button"), top_chambray),
+    "plaid": (("Mat_Shirt", "Mat_Plaid", "Mat_Saddle", "Mat_Steel", "Mat_Accent"), top_plaid),
+    "flannel": (("Mat_Shirt", "Mat_Plaid", "Mat_Accent", "Mat_Trim"), top_flannel),
+    "puffer": (("Mat_Shirt", "Mat_Puffer", "Mat_Plaid"), top_puffer),
     "sweater": (("Mat_Shirt",), top_sweater),
-    "smoking": (("Mat_Shirt", "Mat_Accent", "Mat_Trim", "Mat_Button"), top_smoking),
     "lounge": (("Mat_Shirt", "Mat_Plaid", "Mat_Accent", "Mat_Trim"), top_lounge),
+    "jumpsuit": (("Mat_Shirt", "Mat_Accent"), top_jumpsuit),
+    "hawaiian": (("Mat_Shirt", "Mat_Trim", "Mat_Accent", "Mat_Button"), top_hawaiian),
+    "swim": (("Mat_Shirt", "Mat_Trim"), top_swim),
+    "robe": (("Mat_Shirt", "Mat_Trim", "Mat_Gold"), top_robe),
+    "yukata": (("Mat_Shirt", "Mat_Trim", "Mat_Accent"), top_yukata),
+    "starry": (("Mat_Shirt", "Mat_Star", "Mat_Gold"), top_starry),
+    "velvet": (("Mat_Shirt", "Mat_Accent", "Mat_Trim", "Mat_Gold", "Mat_Pants"), top_velvet),
+    "tuxedo": (("Mat_Shirt", "Mat_Trim", "Mat_Satin", "Mat_Crimson", "Mat_Accent", "Mat_Gold"), top_tuxedo),
+    "smoking": (("Mat_Shirt", "Mat_Satin", "Mat_Trim", "Mat_Accent", "Mat_Gold"), top_smoking),
+    "pinstripe": (("Mat_Shirt", "Mat_Pin", "Mat_Trim", "Mat_Accent", "Mat_Gold"), top_pinstripe),
 }
 BOTTOMS = {
-    "sweats": (("Mat_Pants",), bottom_sweats),
-    "overalls": (("Mat_Pants", "Mat_Button"), bottom_overalls),
-    "trousers": (("Mat_Pants",), bottom_trousers),
-    "shorts": (("Mat_Pants",), bottom_shorts),
-    "wide": (("Mat_Pants",), bottom_wide),
-    "waders": (("Mat_Pants", "Mat_Button", "Mat_Boot", "Mat_Steel", "Mat_BobberRed", "Mat_Mud"), bottom_waders),
-    "garden": (("Mat_Pants", "Mat_Button", "Mat_PetalCentre", "Mat_Cinnamon"), bottom_garden),
-    "blueprint": (("Mat_Pants", "Mat_Button", "Mat_Trim", "Mat_Stick"), bottom_blueprint),
-    "lounge": (("Mat_Pants", "Mat_Plaid", "Mat_Trim"), bottom_lounge),
+    "joggers": (("Mat_Pants", "Mat_Shoes", "Mat_Sole"), bottom_joggers),
+    "cargo": (("Mat_Pants", "Mat_Shoes", "Mat_Sole", "Mat_Accent"), bottom_cargo),
+    "cyber": (("Mat_Pants", "Mat_Shoes", "Mat_Sole", "Mat_Accent"), bottom_cyber),
+    "lounge": (("Mat_Pants", "Mat_Plaid", "Mat_Trim", "Mat_Sole", "Mat_Accent"), bottom_lounge),
+    "overalls": (("Mat_Pants", "Mat_Button", "Mat_Buckle", "Mat_WorkBoot", "Mat_Lug"), bottom_overalls),
+    "garden": (("Mat_Pants", "Mat_Button", "Mat_Buckle", "Mat_PetalCentre", "Mat_Cinnamon", "Mat_Garden", "Mat_Lug"), bottom_garden),
+    "blueprint": (("Mat_Pants", "Mat_Button", "Mat_Buckle", "Mat_Trim", "Mat_Stick", "Mat_WorkBoot", "Mat_Lug"), bottom_blueprint),
+    "waders": (("Mat_Pants", "Mat_Elastic", "Mat_Steel", "Mat_Boot", "Mat_Lug", "Mat_Mud", "Mat_BobberRed"), bottom_waders),
+    "workpants": (("Mat_Pants", "Mat_WorkBoot", "Mat_Lug", "Mat_Buckle"), bottom_workpants),
+    "khakis": (("Mat_Pants", "Mat_Suede", "Mat_Sole", "Mat_Cinnamon"), bottom_khakis),
+    "board": (("Mat_Pants", "Mat_Accent", "Mat_Sole"), bottom_board),
+    "boxing": (("Mat_Shirt", "Mat_Trim", "Mat_Pants", "Mat_Gold", "Mat_Leather"), bottom_boxing),
+    "yukata": (("Mat_Shirt", "Mat_Trim", "Mat_Wood", "Mat_Accent"), bottom_yukata),
+    "starry": (("Mat_Shirt", "Mat_Star", "Mat_Wood", "Mat_Gold"), bottom_starry),
+    "velvet": (("Mat_Shirt", "Mat_Pants", "Mat_Trim", "Mat_Velvet", "Mat_Gold"), bottom_velvet),
+    "tuxedo": (("Mat_Pants", "Mat_Satin", "Mat_Leather"), bottom_tuxedo),
+    "smoking": (("Mat_Pants", "Mat_Velvet", "Mat_Gold", "Mat_Leather"), bottom_smoking),
+    "pinstripe": (("Mat_Pants", "Mat_Pin", "Mat_Trim", "Mat_Leather"), bottom_pinstripe),
 }
 
 
@@ -3061,31 +4202,36 @@ def build(hip_y, leg_r, hip_off, covering):
     add_shaped(bm, 8, heart_shape)
     make_object("Heart", bm, heart_c, coll, root, origin, (mat["Mat_Heart"],))
 
-    # Legs: skin, pivots at the hips (AVATAR_LEG_RADIUS round there), tapering to the ankle, in
-    # sneakers: a fused canvas upper on a thick flat sole, flush on the floor, with laces
+    # Legs: skin, pivots at the hips (AVATAR_LEG_RADIUS round there), tapering to the ankle and a
+    # bare foot flat on the floor, fused into one form; the outfit's bottom brings the footwear
     legs, hips = {}, {}
     for name, side in (("LegL", 1), ("LegR", -1)):
         hip = Vector((side * LEG_X, 0, hip_y))
-        pieces = [
-            piece(name, lambda bm, side=side: leg_skin(bm, side, hip_y, leg_r), mat["Mat_Skin"], hip, coll),
-            piece(name + "_upper", lambda bm, side=side: sneaker_upper(bm, side), mat["Mat_Shoes"], hip, coll, fuse=SHOE_FUSE),
-            piece(name + "_sole", lambda bm, side=side: sneaker_sole(bm, side), mat["Mat_Sole"], hip, coll),
-            piece(name + "_laces", lambda bm, side=side: sneaker_laces(bm, side), mat["Mat_Sole"], hip, coll),
-        ]
-        legs[name], hips[name] = assemble(name, pieces, body, hip, origin), hip
+        skin = piece(name, lambda bm, side=side: (leg_skin(bm, side, hip_y, leg_r), foot_skin(bm, side)), mat["Mat_Skin"], hip, coll, fuse=LEG_FUSE)
+        legs[name], hips[name] = assemble(name, [skin], body, hip, origin), hip
 
     # Clothes: every top and bottom in pieces on the parts they move with (the runtime shows the
     # outfit's one of each): a top's body on the torso and its sleeves on the arms, a bottom's seat
-    # on the body and its legs on the legs
+    # on the body and its legs (with the shoes) on the legs; the fused forms a garment asks for (a
+    # shoe's upper, a hood, a bow) are built on their own, fused into clay and joined to its piece
     parts = {"Torso": (torso, TORSO_PIVOT, 0), "Body": (body, origin, 0), "ArmL": (arms["ArmL"], shoulders["ArmL"], 1), "ArmR": (arms["ArmR"], shoulders["ArmR"], -1), "LegL": (legs["LegL"], hips["LegL"], 1), "LegR": (legs["LegR"], hips["LegR"], -1)}
     assert tuple(TOPS) == TOP_IDS and tuple(BOTTOMS) == BOTTOM_IDS
     for kind, table, part_list, extra in (("Top", TOPS, TOP_PARTS, ()), ("Bottom", BOTTOMS, BOTTOM_PARTS, (hip_y, leg_r, hip_off))):
         for garment, (names, build_garment) in table.items():
+            mats = [mat[n] for n in names]
             for suffix, parent_name in part_list:
                 parent, pivot, side = parts[parent_name]
+                FUSED.clear()
                 bm = bmesh.new()
                 build_garment(bm, suffix, side, *extra)
-                make_object(f"{kind}_{garment}{suffix}", bm, pivot, coll, parent, pivot, [mat[n] for n in names])
+                if not bm.verts and not FUSED:  # nothing on this part (a tank top's bare arms)
+                    bm.free()
+                    continue
+                node = f"{kind}_{garment}{suffix}"
+                pieces = [make_object(node, bm, pivot, coll, None, Vector(), mats)]
+                for k, (build_piece, index, fuse) in enumerate(FUSED):
+                    pieces.append(piece(f"{node}_fused{k}", build_piece, mats[index], pivot, coll, fuse=fuse))
+                assemble(node, pieces, parent, pivot, pivot)
 
     wrong = sorted(o.name for o in coll.all_objects if o.name[len(PREFIX) :] not in NODE_NAMES)
     if wrong:
@@ -3104,8 +4250,8 @@ def build(hip_y, leg_r, hip_off, covering):
 
 
 DEFAULT_HAIR = "short"
-DEFAULT_TOP = "hoodie"  # the starter hoodie outfit
-DEFAULT_BOTTOM = "sweats"
+DEFAULT_TOP = "hoodie"  # the starter hoodie outfit, with its joggers
+DEFAULT_BOTTOM = "joggers"
 
 
 def is_variant(ob):

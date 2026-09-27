@@ -707,6 +707,17 @@ export type PremiumHat =
   // the Velvet Pioneer set (shared/items.ts): claimed, never sold
   | "pioneercap";
 
+/** An outfit's cut: every outfit is built on one of five bespoke silhouettes (scripts/blender/
+ *  build_avatar.py), none of them on another's base. */
+export type OutfitArchetype = "formal" | "robe" | "streetwear" | "summer" | "workwear";
+export const OUTFIT_ARCHETYPE_LABEL: Record<OutfitArchetype, string> = {
+  formal: "Formal",
+  robe: "Robe",
+  streetwear: "Streetwear",
+  summer: "Summer",
+  workwear: "Workwear",
+};
+
 /** A wardrobe item's place in the shop: a price band (shared/economy.ts WARDROBE_BANDS), or not for
  *  sale at all (a starter piece, the gachapon's, the Pioneer set's). */
 export interface WardrobeItem {
@@ -717,6 +728,8 @@ export interface WardrobeItem {
   gachaOnly?: boolean;
   /** One of the Velvet Pioneer set's (shared/items.ts): claimed free, never sold. */
   pioneer?: boolean;
+  /** An outfit's cut (outfits only). */
+  archetype?: OutfitArchetype;
 }
 
 // --- outfits: a whole look for the body, in one accent colour of your choosing ---
@@ -736,28 +749,36 @@ export type OutfitId =
   | "outfit_garden_overalls"
   | "outfit_smoking_jacket"
   | "outfit_plaid_lounge"
-  | "outfit_blueprint_overalls";
+  | "outfit_blueprint_overalls"
+  | "outfit_swim_set"
+  | "outfit_velvet_lounge"
+  | "outfit_yukata_starry"
+  | "outfit_pinstripe";
 export const OUTFITS: Record<OutfitId, WardrobeItem> = {
-  outfit_starter_hoodie: { name: "Cozy Hoodie & Sweats", emoji: "🧥", price: 0 },
-  outfit_starter_overalls: { name: "Classic Denim Overalls", emoji: "👖", price: 0 },
+  outfit_starter_hoodie: { name: "Cozy Hoodie & Sweats", emoji: "🧥", price: 0, archetype: "streetwear" },
+  outfit_starter_overalls: { name: "Classic Denim Overalls", emoji: "👖", price: 0, archetype: "workwear" },
   // common
-  outfit_garden_overalls: { name: "Denim Garden Overalls", emoji: "🌻", price: 160, tier: "common" },
-  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 180, tier: "common" },
-  outfit_red_plaid: { name: "Lumberjack Suspenders", emoji: "🟥", price: 200, tier: "common" },
+  outfit_garden_overalls: { name: "Denim Garden Overalls", emoji: "🌻", price: 160, tier: "common", archetype: "workwear" },
+  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 220, tier: "common", archetype: "streetwear" },
+  outfit_red_plaid: { name: "Lumberjack Suspenders", emoji: "🟥", price: 280, tier: "common", archetype: "workwear" },
   // rare
-  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 450, tier: "rare" },
-  outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 480, tier: "rare" },
-  outfit_puffer_vest: { name: "Mustard Down Vest", emoji: "🟨", price: 520, tier: "rare" },
-  outfit_wader_overalls: { name: "River Wader Dungarees", emoji: "🥾", price: 560, tier: "rare" },
-  outfit_plaid_lounge: { name: "Plaid Loungewear", emoji: "🛌", price: 600, tier: "rare" },
-  outfit_cable_sweater: { name: "Oversized Cable-Knit Sweater", emoji: "🧶", price: 700, tier: "rare" },
+  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 450, tier: "rare", archetype: "summer" },
+  outfit_swim_set: { name: "Beach Swim Set", emoji: "🩳", price: 480, tier: "rare", archetype: "summer" },
+  outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 520, tier: "rare", archetype: "robe" },
+  outfit_puffer_vest: { name: "Mustard Down Vest", emoji: "🟨", price: 520, tier: "rare", archetype: "streetwear" },
+  outfit_plaid_lounge: { name: "Plaid Loungewear", emoji: "🛌", price: 600, tier: "rare", archetype: "streetwear" },
+  outfit_wader_overalls: { name: "River Wader Dungarees", emoji: "🥾", price: 650, tier: "rare", archetype: "workwear" },
+  outfit_cable_sweater: { name: "Oversized Cable-Knit Sweater", emoji: "🧶", price: 700, tier: "rare", archetype: "streetwear" },
+  outfit_velvet_lounge: { name: "Velvet Loungewear", emoji: "🍇", price: 780, tier: "rare", archetype: "robe" },
   // prestige
-  outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 1600, tier: "prestige" },
-  outfit_tuxedo: { name: "Velvet Evening Tuxedo", emoji: "🎩", price: 1800, tier: "prestige" },
-  outfit_smoking_jacket: { name: "Vintage Smoking Jacket", emoji: "🍷", price: 2200, tier: "prestige" },
+  outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 1600, tier: "prestige", archetype: "robe" },
+  outfit_tuxedo: { name: "Velvet Evening Tuxedo", emoji: "🎩", price: 2000, tier: "prestige", archetype: "formal" },
+  outfit_smoking_jacket: { name: "Vintage Smoking Jacket", emoji: "🍷", price: 2400, tier: "prestige", archetype: "formal" },
+  outfit_yukata_starry: { name: "Starry Night Yukata", emoji: "🌌", price: 2800, tier: "prestige", archetype: "robe" },
+  outfit_pinstripe: { name: "High Roller Pinstripe", emoji: "💼", price: 3200, tier: "prestige", archetype: "formal" },
   // never sold
-  outfit_cyber: { name: "Retro Cyber Jumpsuit", emoji: "🕹️", price: 0, gachaOnly: true },
-  outfit_blueprint_overalls: { name: "Blueprint Overalls", emoji: "📐", price: 0, pioneer: true },
+  outfit_cyber: { name: "Retro Cyber Jumpsuit", emoji: "🕹️", price: 0, gachaOnly: true, archetype: "streetwear" },
+  outfit_blueprint_overalls: { name: "Blueprint Overalls", emoji: "📐", price: 0, pioneer: true, archetype: "workwear" },
 };
 export const OUTFIT_IDS = Object.keys(OUTFITS) as OutfitId[];
 export const STARTER_OUTFITS: OutfitId[] = ["outfit_starter_hoodie", "outfit_starter_overalls"];
@@ -871,9 +892,9 @@ export const OUTFIT_FABRICS: Record<OutfitId, { shirt: string; pants: string }> 
   outfit_starter_hoodie: { shirt: "#c85a44", pants: "#5a5a66" },
   outfit_starter_overalls: { shirt: "#e9c46a", pants: "#3f5f8a" },
   outfit_flannel_vest: { shirt: "#b3403a", pants: "#a08a60" },
-  outfit_hawaiian: { shirt: "#2a9d8f", pants: "#f5ecd8" },
+  outfit_hawaiian: { shirt: "#2a9d8f", pants: "#a08a60" },
   outfit_tuxedo: { shirt: "#1d1b22", pants: "#1d1b22" },
-  outfit_boxing: { shirt: "#c85a44", pants: "#f5ecd8" },
+  outfit_boxing: { shirt: "#b3403a", pants: "#1d1b22" },
   outfit_yukata: { shirt: "#2b3a6b", pants: "#2b3a6b" },
   outfit_cyber: { shirt: "#1d1b22", pants: "#1d1b22" },
   outfit_red_plaid: { shirt: "#b3403a", pants: "#3f5f8a" },
@@ -883,7 +904,11 @@ export const OUTFIT_FABRICS: Record<OutfitId, { shirt: string; pants: string }> 
   outfit_garden_overalls: { shirt: "#8aa67e", pants: "#3f5f8a" },
   outfit_smoking_jacket: { shirt: "#7d4e6d", pants: "#1d1b22" },
   outfit_plaid_lounge: { shirt: "#3d5a80", pants: "#2b3a6b" },
-  outfit_blueprint_overalls: { shirt: "#c85a44", pants: "#3f5f8a" },
+  outfit_blueprint_overalls: { shirt: "#6c8ebf", pants: "#3f5f8a" },
+  outfit_swim_set: { shirt: "#6c8ebf", pants: "#2b3a6b" },
+  outfit_velvet_lounge: { shirt: "#7d4e6d", pants: "#f5ecd8" },
+  outfit_yukata_starry: { shirt: "#1d1b22", pants: "#1d1b22" },
+  outfit_pinstripe: { shirt: "#2b3a6b", pants: "#2b3a6b" },
 };
 export const HATS: FreeAccessory[] = ACCESSORIES;
 export function isHat(v: unknown): v is Accessory {

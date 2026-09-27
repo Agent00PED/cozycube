@@ -306,7 +306,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 6,
     name: "The Living World & Atmosphere Sync",
-    range: "v0.6.0 – v0.6.4",
+    range: "v0.6.0 – v0.6.5",
     icon: "🌦️",
     blurb: "Skies that follow the hour and the weather, a surer step between worlds, and a new heart for the lounge.",
     patches: [
@@ -392,6 +392,30 @@ export const PATCH_ERAS: PatchEra[] = [
             "A missing script chunk after a deploy reloads the page onto the new build instead of freezing it.",
             "The penthouse's people (Boris, the Baron, the Duchess) no longer float in the night round the hall: each floor draws only its own.",
           ],
+        },
+      },
+      {
+        version: "0.6.5",
+        date: "2026-09-27",
+        title: "The Wardrobe, Re-Tailored",
+        summary: "Every outfit rebuilt on its own silhouette, footwear to match, four new looks, and a tidier boutique.",
+        changes: {
+          features: [
+            "Five cuts, each built from scratch: Formal (a jacket over a shirt with 3D lapels, a bow tie or a tie, long trousers, dress shoes), Robe (a robe over the thighs, wide bell sleeves, a knotted sash or obi), Streetwear (a hood down the back, gathered cuffs, baggy joggers, sneakers), Summer (an open collar, short sleeves, knee-length shorts, deck shoes or sandals) and Workwear (thick straps on metal clips, deep pockets, hammer loops, lug-soled work boots).",
+            "Every outfit brings its own footwear: oxfords, velvet slippers, spectators, geta, flip-flops, boxing boots, wading boots, garden boots and more.",
+            "New: the Starry Night Yukata (midnight silk, silver constellations, a gold obi), the High Roller Pinstripe (double-breasted, six gold buttons, a pocket-watch chain), the Beach Swim Set and Velvet Loungewear.",
+            "Each outfit in the boutique is tagged with its cut.",
+          ],
+          visuals: [
+            "The Velvet Evening Tuxedo's satin peaked lapels stand proud of a pleated shirt, with a crimson bow tie and patent oxfords.",
+            "The Vintage Smoking Jacket wears a quilted black satin shawl collar and a sash with gold tassels.",
+            "The olive tree that stood in front of Chloe and her mirror now grows in the kitchen's railing corner.",
+          ],
+          economy: [
+            "Wardrobe bands: Common 120–280, Rare 450–800, Prestige 1,500–3,200 coins.",
+            "New prices: Flannel Camp Vest 220, Lumberjack Suspenders 280, Boxing Robe & Shorts 520, River Wader Dungarees 650, Velvet Evening Tuxedo 2,000, Vintage Smoking Jacket 2,400. Anything already bought stays yours.",
+          ],
+          fixes: ["The boutique's bill shows only while you try on something you don't own yet; what you wear is marked ✓ Wearing in the list."],
         },
       },
     ],

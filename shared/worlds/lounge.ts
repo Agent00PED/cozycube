@@ -23,11 +23,11 @@ import type { BoardSide, CasinoPropKind } from "../types";
 //                it faces the fire across a round coffee table on the hearth rug
 //   left wall    the reading nook (wingback, floor lamp), the chaise, three tall windows
 //   back-right   THE KITCHEN: counter run on the back wall, an island with three stools under
-//                two pendants, a bistro table for two
+//                two pendants, a bistro table for two, an olive tree in the railing corner
 //   front-left   the games table (two chairs)
 //   front-right  the pouf circle round a low table, a floor lamp, plants
 //   front-left   by the last window, the Velvet Boutique: Chloe the cat maid beside her gilded
-//                cheval mirror (she opens the wardrobe)
+//                cheval mirror (she opens the wardrobe), nothing within 2 m in front of either
 //
 // Walkways: 1.8 or more between the sofa and the island's stools (2.8), between the stools and
 // the pouf circle (2.9), between the games table and the poufs (2.0), and between the games table
@@ -153,7 +153,7 @@ export const POUF_CIRCLE = {
 };
 export const PLANTS: (Pt & { kind: "fig" | "monstera" | "olive" })[] = [
   { x: -5.8, z: -0.9, kind: "fig" },
-  { x: -3.9, z: 5.7, kind: "olive" },
+  { x: 5.75, z: -4.98, kind: "olive" }, // in the kitchen's railing corner: Chloe's corner stays open
   { x: -0.1, z: 5.7, kind: "monstera" },
   { x: 5.65, z: 0.9, kind: "fig" },
   { x: 5.65, z: 5.65, kind: "olive" },
@@ -161,7 +161,7 @@ export const PLANTS: (Pt & { kind: "fig" | "monstera" | "olive" })[] = [
 /** Where you stand to water each plant (PLANTS, same order): just in front of its pot. */
 export const PLANT_APPROACH: Pt[] = [
   { x: -4.95, z: -0.9 },
-  { x: -3.9, z: 4.95 },
+  { x: 4.95, z: -4.9 },
   { x: -0.1, z: 4.95 },
   { x: 4.85, z: 0.9 },
   { x: 4.85, z: 5.35 },

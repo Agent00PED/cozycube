@@ -74,29 +74,38 @@ export const AVATAR_NODES = {
 export const AVATAR_VARIANT_PREFIX = {
   hair: "Hair_", // Hair_short, _bob, _curtain, _ponytail, _wavylong (free); Hair_hero, _drill, _topknot, _spacebuns, _afro (bought)
   hat: "Hat_", // Hat_beret, Hat_beanie, Hat_flower, Hat_headphones, Hat_straw, Hat_bunny, Hat_tophat, Hat_crown, Hat_mochiears, Hat_cozybeanie, Hat_boonie, Hat_bearcap, Hat_headlamp, Hat_frogbeanie, Hat_catbeanie, Hat_painterberet, Hat_buckethat, Hat_deerstalker, Hat_goldglasses, Hat_pioneercap
-  top: "Top_", // Top_hoodie, Top_tee, Top_flannel, Top_hawaiian, Top_tuxedo, Top_robe, Top_yukata, Top_jumpsuit, Top_plaid, Top_puffer, Top_sweater, Top_smoking, Top_lounge
-  bottom: "Bottom_", // Bottom_sweats, Bottom_overalls, Bottom_trousers, Bottom_shorts, Bottom_wide, Bottom_waders, Bottom_garden, Bottom_blueprint, Bottom_lounge
+  top: "Top_", // build_avatar.py TOP_IDS: hoodie, tee, thermal, chambray, plaid, flannel, puffer, sweater, lounge, jumpsuit, hawaiian, swim, robe, yukata, starry, velvet, tuxedo, smoking, pinstripe
+  bottom: "Bottom_", // BOTTOM_IDS (each with the outfit's footwear on its legs): joggers, cargo, cyber, lounge, overalls, garden, blueprint, waders, workpants, khakis, board, boxing, yukata, starry, velvet, tuxedo, smoking, pinstripe
 } as const;
 
-/** Each wardrobe outfit as the top and the bottom it is made of (their ids after the prefix). */
+/** Each wardrobe outfit as the top and the bottom it is made of (their ids after the prefix), by its
+ *  archetype (shared/types OUTFITS): the bottom's legs carry the outfit's own footwear. */
 export const OUTFIT_PARTS: Record<OutfitId, { top: string; bottom: string }> = {
-  outfit_starter_hoodie: { top: "hoodie", bottom: "sweats" },
-  outfit_starter_overalls: { top: "tee", bottom: "overalls" },
-  outfit_flannel_vest: { top: "flannel", bottom: "trousers" },
-  outfit_hawaiian: { top: "hawaiian", bottom: "shorts" },
-  outfit_tuxedo: { top: "tuxedo", bottom: "trousers" },
-  outfit_boxing: { top: "robe", bottom: "shorts" },
-  outfit_yukata: { top: "yukata", bottom: "wide" },
-  outfit_cyber: { top: "jumpsuit", bottom: "trousers" },
-  outfit_red_plaid: { top: "plaid", bottom: "trousers" },
-  outfit_puffer_vest: { top: "puffer", bottom: "trousers" },
-  outfit_wader_overalls: { top: "tee", bottom: "waders" },
-  // the Velvet Boutique's collection, and the Velvet Pioneer set's overalls
-  outfit_cable_sweater: { top: "sweater", bottom: "trousers" },
-  outfit_garden_overalls: { top: "tee", bottom: "garden" },
-  outfit_smoking_jacket: { top: "smoking", bottom: "trousers" },
+  // streetwear: a hooded top, gathered sleeves, baggy joggers, sneakers
+  outfit_starter_hoodie: { top: "hoodie", bottom: "joggers" },
+  outfit_flannel_vest: { top: "flannel", bottom: "cargo" },
+  outfit_puffer_vest: { top: "puffer", bottom: "joggers" },
+  outfit_cable_sweater: { top: "sweater", bottom: "joggers" },
   outfit_plaid_lounge: { top: "lounge", bottom: "lounge" },
-  outfit_blueprint_overalls: { top: "tee", bottom: "blueprint" },
+  outfit_cyber: { top: "jumpsuit", bottom: "cyber" },
+  // workwear: straps on metal clips, deep pockets, work boots on lug soles
+  outfit_starter_overalls: { top: "tee", bottom: "overalls" },
+  outfit_garden_overalls: { top: "tee", bottom: "garden" },
+  outfit_blueprint_overalls: { top: "chambray", bottom: "blueprint" },
+  outfit_wader_overalls: { top: "thermal", bottom: "waders" },
+  outfit_red_plaid: { top: "plaid", bottom: "workpants" },
+  // summer: an open collar, short sleeves, knee-length shorts, deck shoes or sandals
+  outfit_hawaiian: { top: "hawaiian", bottom: "khakis" },
+  outfit_swim_set: { top: "swim", bottom: "board" },
+  // robe: a robe over the thighs, bell sleeves, a knotted sash
+  outfit_boxing: { top: "robe", bottom: "boxing" },
+  outfit_yukata: { top: "yukata", bottom: "yukata" },
+  outfit_yukata_starry: { top: "starry", bottom: "starry" },
+  outfit_velvet_lounge: { top: "velvet", bottom: "velvet" },
+  // formal: a jacket with 3D lapels over a shirt, long trousers, dress shoes
+  outfit_tuxedo: { top: "tuxedo", bottom: "tuxedo" },
+  outfit_smoking_jacket: { top: "smoking", bottom: "smoking" },
+  outfit_pinstripe: { top: "pinstripe", bottom: "pinstripe" },
 };
 
 /** Hats that sit on the crown of the head. */
