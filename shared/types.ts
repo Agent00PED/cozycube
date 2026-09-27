@@ -112,7 +112,7 @@ export const DAILY_TASKS: Record<DailyTaskId, { label: string; emoji: string; go
   brew_coffee: { label: "Pull an espresso", emoji: "☕", goal: 1 },
   make_wish: { label: "Make a wish at the well", emoji: "🪙", goal: 1 },
 };
-export const DAILY_REWARD = 75;
+export const DAILY_REWARD = 30;
 export interface DailyChecklist {
   /** YYYY-MM-DD (UTC) the list was rolled for. */
   date: string;
@@ -130,7 +130,7 @@ export function parseDaily(raw: string | null | undefined): DailyChecklist | nul
 
 /** Time-in-room rewards: coins every VIBE_EVERY_MIN minutes, more when it is a party. */
 export const VIBE_EVERY_MIN = 10;
-export const VIBE_COINS = 15;
+export const VIBE_COINS = 5;
 export const VIBE_PARTY_SIZE = 3;
 export const VIBE_PARTY_MULTIPLIER = 1.5;
 export function parseStats(raw: string | null | undefined): PlayerStats {
@@ -1308,7 +1308,7 @@ export interface ConstellationDone {
   capped: boolean;
 }
 /** All three strokes of the chopping combo landed: this, and the log's firewood (ChopLog). */
-export const CHOP_CLEAN_COINS = 15;
+export const CHOP_CLEAN_COINS = 3;
 /** Swinging into a wood knot stuns the axe this long before the next try. */
 export const CHOP_STUN_S = 1.5;
 export interface ChopResult {
