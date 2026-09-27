@@ -6,7 +6,7 @@ import { CAMPFIRE_DAILY_COINS, DEFAULT_STATS, STARTER_UNLOCKS, STARTING_COINS, i
 /** The campfire coins earned on `day`, by activity. */
 export type CampfireCoins = { day: string } & Record<CampfireCoinKind, number>;
 export function emptyCampfireCoins(day: string): CampfireCoins {
-  return { day, fish: 0, roast: 0, star: 0, chop: 0, forage: 0 };
+  return { day, fish: 0, roast: 0, star: 0, chop: 0, forage: 0, slingshot: 0 };
 }
 
 // Player persistence: Railway PostgreSQL when DATABASE_URL is set, an in-memory store when it

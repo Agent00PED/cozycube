@@ -176,6 +176,10 @@ PALETTE = {
     "CF_Ceramic": "#F4EFE6",
     "CF_ClayFoot": "#D9A67A",
     "CF_TentSage": "#8FA37A",
+    # the braided rug round the hearth (its own materials: the game nudges them over the clearing)
+    "CF_RugRust": "#C8704A",
+    "CF_RugMustard": "#E8C25A",
+    "CF_RugSage": "#7D8F6A",
 }
 ROUGHNESS = {"CF_Ceramic": 0.45, "CF_Iron": 0.7, "CF_Stew": 0.45, "CF_Water": 0.25, "CF_Metal": 0.6, "CF_Glass": 0.4, "CF_Chrome": 0.45, "CF_Brass": 0.55, "CF_Steel": 0.5}
 # the ground decals' tops, a layer each over the moss (y = 0): patches, paths, then the clearing
@@ -1041,7 +1045,11 @@ def build_fence(L, coll):
                 else:
                     box(bm, min(ax, bx), max(ax, bx), y - 0.05, y + 0.05, az - 0.03, az + 0.03)
 
-    run([(f["xFrom"], at), (at, at)])
+    # the archway into the Whispering Woods breaks the front run: posts either side of it
+    arch = L["archway"]
+    gap0, gap1 = arch["x"] - arch["w"] / 2, arch["x"] + arch["w"] / 2
+    run([(f["xFrom"], at), (gap0, at)])
+    run([(gap1, at), (at, at)])
     run([(at, at), (at, f["zFrom"])])
     make_object("Campfire_Fence", bm, ["CF_Fence"], coll)
 
@@ -1594,11 +1602,12 @@ def build_canoe(L, cushions, coll):
     cylinder(bm, W(cx - 0.55, water + 0.18, cz - 0.05), W(cx + 0.5, water + 0.18, cz + 0.06), 0.015, 6, m=1)  # the paddle's shaft
     blob(bm, cx + 0.6, water + 0.18, cz + 0.07, 0.14, 0.012, 0.06, m=1, cuts=2)
     make_object("Prop_Canoe", bm, ["CF_Canoe", "CF_CanoeInner"], coll, origin=(cx, water, cz), recalc=False)
-    mark = bpy.data.objects.new("Seat_Canoe", None)
-    mark.empty_display_type = "ARROWS"
-    mark.empty_display_size = 0.2
-    mark.location = W(cx - 0.45, seat["top"], cz)
-    coll.objects.link(mark)
+    for name, sx in (("Seat_Canoe", -0.45), ("Seat_Canoe_Bow", 0.42)):
+        mark = bpy.data.objects.new(name, None)
+        mark.empty_display_type = "ARROWS"
+        mark.empty_display_size = 0.2
+        mark.location = W(cx + sx, seat["top"], cz)
+        coll.objects.link(mark)
 
 
 def build_fauna(L, coll):
@@ -1846,6 +1855,201 @@ def build_picnic_plates(L, coll):
         make_object(f"Picnic_Bbq_0{k + 1}", bm, ["CF_Pole", "CF_Meat", "CF_Pepper"], coll, origin=(x, top, z))
 
 
+# ---------------------------------------------------------------------------------------------
+# the living campfire: the braided rug round the hearth, floor cushions, the kettle stump and its
+# mugs, a guitar leaning on the curved log, the branch archway into the Whispering Woods, the
+# Whispering Pines Slingshot Gallery along the fence, and the splitting block
+
+
+def polar_pt(L, angle, r):
+    fx, fz = L["fire"]["x"], L["fire"]["z"]
+    a = math.radians(angle)
+    return fx + math.cos(a) * r, fz + math.sin(a) * r
+
+
+def band(bm, cx, cz, r0, r1, y0, y1, segs=64, m=0):
+    """A closed ring (a coil of the braided rug): r0..r1 round (cx, cz), domed from y0 to y1."""
+    rm = (r0 + r1) / 2
+    prof = [(r0, y0), (r0 + (r1 - r0) * 0.12, y1 * 0.85 + y0 * 0.15), (rm, y1), (r1 - (r1 - r0) * 0.12, y1 * 0.85 + y0 * 0.15), (r1, y0)]
+    rings = []
+    for r, y in prof:
+        ring = []
+        for k in range(segs):
+            a = 2 * math.pi * k / segs
+            ring.append(bm.verts.new(W(cx + r * math.cos(a), y, cz + r * math.sin(a))))
+        rings.append(ring)
+    for k in range(segs):
+        k1 = (k + 1) % segs
+        for ra, rb in zip(rings, rings[1:]):
+            f = bm.faces.new((ra[k], ra[k1], rb[k1], rb[k]))
+            f.material_index = m
+            f.smooth = True
+        f = bm.faces.new((rings[-1][k], rings[-1][k1], rings[0][k1], rings[0][k]))
+        f.material_index = m
+
+
+def xform_since(bm, before, matrix):
+    """Every vertex of the faces made since `before`, moved by `matrix` (Blender space)."""
+    verts = {v for f in faces_since(bm, before) for v in f.verts}
+    for v in verts:
+        v.co = matrix @ v.co
+
+
+def build_living(L, coll):
+    rng = random.Random(77)
+    bm = bmesh.new()
+    # materials: 0 rust, 1 mustard, 2 sage, 3 enamel blue, 4 iron, 5 bark, 6 cut wood, 7 plank,
+    # 8 red, 9 cream, 10 pine, 11 lantern glow
+    fx, fz = L["fire"]["x"], L["fire"]["z"]
+    fp = L["firepit"]
+    # --- the braided rug: coils round the hearth, rust, mustard and sage in turn ---
+    rug = fp["rug"]
+    r, k = rug["r0"], 0
+    while r < rug["r1"] - 0.02:
+        w = 0.14
+        band(bm, fx, fz, r, min(rug["r1"], r + w), LAYER_CLEARING + 0.004, LAYER_CLEARING + 0.022, segs=48, m=(0, 1, 2)[k % 3])
+        r += w + 0.004
+        k += 1
+    # --- floor cushions at the horseshoe's ends: plump, tufted ---
+    for i, c in enumerate(fp["cushions"]):
+        cx, cz = polar_pt(L, c["angle"], c["r"])
+        rounded_box(bm, cx, 0.13, cz, 0.3, 0.1, 0.3, (0, 2)[i % 2], (0, 2)[i % 2], 0.0, n=3.2, cuts=4)
+        blob(bm, cx, 0.235, cz, 0.04, 0.012, 0.04, m=9, cuts=2)
+    # --- the kettle stump: a short stump, an enamel kettle and two mugs ---
+    kx, kz = polar_pt(L, fp["kettle"]["angle"], fp["kettle"]["r"])
+    top = 0.42
+    cylinder(bm, W(kx, 0.0, kz), W(kx, top, kz), 0.26, 16, m=5, cap_m=6, wobble=0.05, rng=rng)
+    for j in range(3):
+        ra = j * 2.1 + 0.3
+        cylinder(bm, W(kx + math.cos(ra) * 0.18, 0.1, kz + math.sin(ra) * 0.18), W(kx + math.cos(ra) * 0.4, -0.02, kz + math.sin(ra) * 0.4), 0.055, 8, m=5, r_end=0.02)
+    lathe(bm, kx - 0.04, kz, [(0, 0.0), (0.1, 0.0), (0.13, 0.06), (0.12, 0.13), (0.07, 0.17), (0.02, 0.19), (0, 0.2)], segs=16, m=3, y0=top)
+    blob(bm, kx - 0.04, top + 0.21, kz, 0.022, 0.018, 0.022, m=4, cuts=2)
+    cylinder(bm, W(kx + 0.06, top + 0.07, kz), W(kx + 0.16, top + 0.15, kz), 0.022, 8, m=3, r_end=0.014)
+    for j in range(7):  # the bail handle, an arc over the lid
+        a0, a1 = math.pi * j / 7, math.pi * (j + 1) / 7
+        cylinder(bm, W(kx - 0.04 + math.cos(a0) * 0.1, top + 0.17 + math.sin(a0) * 0.08, kz), W(kx - 0.04 + math.cos(a1) * 0.1, top + 0.17 + math.sin(a1) * 0.08, kz), 0.008, 6, m=4)
+    for mx, mz in ((kx + 0.12, kz + 0.13), (kx + 0.02, kz - 0.15)):
+        lathe(bm, mx, mz, [(0, 0.0), (0.045, 0.0), (0.05, 0.08), (0, 0.08)], segs=12, m=9, y0=top)
+        lathe(bm, mx, mz, [(0, 0.079), (0.052, 0.079), (0.052, 0.09), (0, 0.09)], segs=12, m=3, y0=top)
+    # --- the guitar, standing on the rug at the curved log's end, leaning back on it, its face to
+    # the fire ---
+    gx, gz = polar_pt(L, fp["guitar"]["angle"], fp["guitar"]["r"])
+    ang = math.radians(fp["guitar"]["angle"])
+    before = set(bm.faces)
+    # built standing on the origin (neck up +z in Blender, face toward -y), then leaned and placed
+    for cy_, rx, rz in ((0.2, 0.2, 0.19), (0.48, 0.15, 0.14)):
+        blob(bm, 0.0, cy_, 0.0, rx, rz, 0.05, m=6, cuts=3, n=2.2)
+    blob(bm, 0.0, 0.34, -0.052, 0.045, 0.045, 0.004, m=4, cuts=2)  # the sound hole
+    box(bm, -0.025, 0.025, 0.55, 1.0, -0.035, 0.02, m=5)
+    box(bm, -0.04, 0.04, 1.0, 1.12, -0.03, 0.02, m=5)
+    box(bm, -0.012, 0.012, 0.12, 1.0, -0.052, -0.045, m=9)  # the strings, one pale strip
+    from mathutils import Matrix
+    lean = Matrix.Rotation(math.radians(18), 4, "X")
+    face = Matrix.Rotation(math.atan2(-(fx - gx), -(fz - gz)), 4, "Z")
+    xform_since(bm, before, Matrix.Translation(W(gx, 0.0, gz)) @ face @ lean)
+    # --- the archway into the Whispering Woods: two rough posts, a bent-branch arch, a garland,
+    # a lantern and a hanging board ---
+    ar = L["archway"]
+    ax, az, hw, h = ar["x"], ar["z"], ar["w"] / 2, ar["h"]
+    for sx in (-1, 1):
+        cylinder(bm, W(ax + sx * hw, -0.05, az), W(ax + sx * hw * 0.96, h - 0.35, az), 0.12, 12, m=5, cap_m=6, r_end=0.1, wobble=0.08, rng=rng)
+        blob(bm, ax + sx * hw, 0.06, az, 0.2, 0.1, 0.2, m=5, cuts=2, noise=0.15, rng=rng, flat_bottom=-0.02)
+    pts = []
+    for j in range(13):
+        t = j / 12
+        pts.append((ax + (t * 2 - 1) * hw * 0.96, h - 0.35 + math.sin(math.pi * t) * 0.42, az))
+    for (x0, y0, z0), (x1, y1, z1) in zip(pts, pts[1:]):
+        cylinder(bm, W(x0, y0, z0), W(x1, y1, z1), 0.085, 10, m=5)
+        blob(bm, x1, y1 + 0.04, z1 + 0.02, 0.13, 0.09, 0.12, m=10, cuts=2, noise=0.25, rng=rng)
+    lx, ly = ax, h + 0.07 - 0.35 + 0.42 - 0.3
+    cylinder(bm, W(lx, ly + 0.28, az), W(lx, ly + 0.14, az), 0.008, 6, m=4)
+    lathe(bm, lx, az, [(0, 0.0), (0.06, 0.0), (0.07, 0.1), (0.05, 0.14), (0, 0.15)], segs=10, m=11, y0=ly - 0.02)
+    lathe(bm, lx, az, [(0, 0.12), (0.075, 0.12), (0.03, 0.18), (0, 0.19)], segs=10, m=4, y0=ly - 0.02)
+    board_y = h - 0.75
+    for sx in (-0.42, 0.42):
+        cylinder(bm, W(ax + sx, board_y + 0.2, az - 0.02), W(ax + sx, h - 0.33, az - 0.02), 0.008, 6, m=6)
+    box(bm, ax - 0.55, ax + 0.55, board_y - 0.14, board_y + 0.14, az - 0.06, az - 0.01, m=7)
+    for j in range(3):  # three carved pines on the board, painted pine green
+        tx = ax - 0.3 + j * 0.3
+        blob(bm, tx, board_y + 0.01, az - 0.065, 0.06, 0.09, 0.008, m=10, cuts=2, n=1.4)
+    # --- the Whispering Pines Slingshot Gallery along the fence ---
+    g = L["gallery"]
+    gx0, gx1, gz0 = g["x"] - g["len"] / 2, g["x"] + g["len"] / 2, g["z"]
+    # the counter the shooter leans on: a plank top over a striped front
+    box(bm, gx0, gx1, 0.86, 0.94, gz0 - 0.2, gz0 + 0.2, m=7)
+    n_boards = 10
+    for j in range(n_boards):
+        x0 = gx0 + (gx1 - gx0) * j / n_boards
+        x1 = gx0 + (gx1 - gx0) * (j + 1) / n_boards
+        box(bm, x0 + 0.004, x1 - 0.004, 0.0, 0.86, gz0 - 0.17, gz0 + 0.17, m=8 if j % 2 == 0 else 9)
+    for sx in (gx0 + 0.06, gx1 - 0.06):
+        box(bm, sx - 0.05, sx + 0.05, 0.0, 0.86, gz0 - 0.15, gz0 + 0.15, m=5)
+    # a slingshot on the counter, and a tin of pebbles
+    sx_, sz_ = g["x"] + 0.5, gz0
+    cylinder(bm, W(sx_, 0.95, sz_), W(sx_ + 0.12, 0.95, sz_ + 0.02), 0.014, 6, m=5)
+    for d in (-1, 1):
+        cylinder(bm, W(sx_ + 0.12, 0.95, sz_ + 0.02), W(sx_ + 0.2, 0.95, sz_ + 0.02 + d * 0.05), 0.012, 6, m=5)
+    lathe(bm, g["x"] - 0.6, gz0, [(0, 0.0), (0.06, 0.0), (0.06, 0.07), (0, 0.07)], segs=12, m=4, y0=0.94)
+    # the three rails, rising away from the counter, each on its posts, with its targets
+    kinds = ("can", "duck", "owl")
+    heights = (0.5, 0.72, 0.94)
+    counts = (3, 3, 2)
+    for ri, (rz, ry) in enumerate(zip(g["rails"], heights)):
+        for px in (gx0 + 0.1, g["x"], gx1 - 0.1):
+            cylinder(bm, W(px, 0.0, rz), W(px, ry, rz), 0.035, 8, m=5)
+        cylinder(bm, W(gx0, ry, rz), W(gx1, ry, rz), 0.022, 8, m=4)
+        for j in range(counts[ri]):
+            tx = gx0 + (gx1 - gx0) * (j + 0.5 + (0.15 if ri == 1 else 0)) / counts[ri]
+            base = ry + 0.02
+            if kinds[ri] == "can":
+                lathe(bm, tx, rz, [(0, 0.0), (0.05, 0.0), (0.05, 0.13), (0, 0.13)], segs=12, m=9, y0=base)
+                lathe(bm, tx, rz, [(0, 0.04), (0.053, 0.04), (0.053, 0.09), (0, 0.09)], segs=12, m=8, y0=base)
+            elif kinds[ri] == "duck":
+                blob(bm, tx, base + 0.07, rz, 0.1, 0.06, 0.04, m=1, cuts=3)
+                blob(bm, tx + 0.07, base + 0.15, rz, 0.045, 0.045, 0.035, m=1, cuts=2)
+                blob(bm, tx + 0.12, base + 0.14, rz, 0.03, 0.012, 0.015, m=0, cuts=2)
+            else:
+                blob(bm, tx, base + 0.1, rz, 0.07, 0.1, 0.05, m=5, cuts=3)
+                for ex in (-0.028, 0.028):
+                    blob(bm, tx + ex, base + 0.14, rz - 0.045, 0.022, 0.022, 0.008, m=1, cuts=2)
+    # the backstop: hay bales along the back, a bullseye board at its middle
+    bz = g["back"]
+    for j in range(4):
+        bx_ = gx0 + 0.45 + j * (g["len"] - 0.9) / 3
+        rounded_box(bm, bx_, 0.3, bz, 0.42, 0.3, 0.26, 1, 1, 9.0, n=4.0, cuts=3)
+        for dx in (-0.2, 0.2):
+            box(bm, bx_ + dx - 0.015, bx_ + dx + 0.015, 0.0, 0.61, bz - 0.265, bz + 0.265, m=6)
+    for j, rr in enumerate((0.3, 0.22, 0.14, 0.06)):
+        before = set(bm.faces)
+        lathe(bm, 0.0, 0.0, [(0, 0.0), (rr, 0.0), (rr, 0.02 + j * 0.006), (0, 0.02 + j * 0.006)], segs=24, m=(8, 9)[j % 2])
+        xform_since(bm, before, Matrix.Translation(W(g["x"], 0.95, bz - 0.28)) @ Matrix.Rotation(math.radians(-90), 4, "X"))
+    # the gallery's sign on two posts at the counter's west end
+    sgx = gx0 - 0.35
+    for dz in (-0.28, 0.28):
+        cylinder(bm, W(sgx, 0.0, gz0 + dz), W(sgx, 1.55, gz0 + dz), 0.035, 8, m=5)
+    box(bm, sgx - 0.04, sgx + 0.02, 1.15, 1.5, gz0 - 0.36, gz0 + 0.36, m=7)
+    blob(bm, sgx - 0.05, 1.33, gz0, 0.01, 0.1, 0.1, m=8, cuts=2)
+    blob(bm, sgx - 0.055, 1.33, gz0, 0.01, 0.055, 0.055, m=9, cuts=2)
+    blob(bm, sgx - 0.06, 1.33, gz0, 0.01, 0.025, 0.025, m=8, cuts=2)
+    # --- the splitting block: a broad stump, a maul bitten into it, bundles of firewood beside ---
+    sb = L["splitblock"]
+    bx, bz2 = sb["x"], sb["z"]
+    cylinder(bm, W(bx, 0.0, bz2), W(bx, 0.45, bz2), 0.32, 16, m=5, cap_m=6, wobble=0.05, rng=rng)
+    cylinder(bm, W(bx + 0.05, 0.47, bz2), W(bx + 0.34, 0.86, bz2 + 0.06), 0.022, 8, m=7)
+    box(bm, bx - 0.06, bx + 0.1, 0.42, 0.52, bz2 - 0.03, bz2 + 0.03, m=4)
+    for j in range(2):
+        cx_, cz_ = bx + 0.62, bz2 - 0.25 + j * 0.46
+        for q in range(5):
+            a = q * 2 * math.pi / 5
+            ox, oy = math.cos(a) * 0.06, 0.1 + math.sin(a) * 0.06
+            cylinder(bm, W(cx_ + ox, oy, cz_ - 0.2), W(cx_ + ox, oy, cz_ + 0.2), 0.045, 6, m=6 if q % 2 else 5, cap_m=6)
+    for j in range(9):
+        a = rng.random() * 6.28
+        d = 0.4 + rng.random() * 0.35
+        box(bm, bx + math.cos(a) * d - 0.04, bx + math.cos(a) * d + 0.04, LAYER_CLEARING, LAYER_CLEARING + 0.02, bz2 + math.sin(a) * d - 0.02, bz2 + math.sin(a) * d + 0.02, m=6)
+    make_object("Camp_Living", bm, ["CF_RugRust", "CF_RugMustard", "CF_RugSage", "CF_EnamelRim", "CF_Metal", "CF_Bark", "CF_WoodCut", "CF_Plank", "CF_Checker", "CF_Cloth", "CF_Pine", "CF_LanternWarm"], coll)
+
+
 def build(root):
     purge()
     L = read_layout(root)
@@ -1874,6 +2078,7 @@ def build(root):
     build_forage(L, coll)
     build_hearth(L, coll)
     build_picnic_plates(L, coll)
+    build_living(L, coll)
     for ob in coll.all_objects:
         if ob.modifiers:
             bake_modifiers(ob)

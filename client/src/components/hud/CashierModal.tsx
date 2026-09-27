@@ -22,6 +22,7 @@ interface Props {
   onCashOut: (amount: number | "all") => void;
   /** You hold the Black Velvet VIP Pass. */
   vipPass: boolean;
+  wristbands: number;
   /** The pass's purchase and pawn (VIP_PASS_BUY / VIP_PASS_PAWN). */
   send: (packet: CasinoPacket) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
@@ -34,7 +35,7 @@ const PENDING_MS = 3000;
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
-export function CashierModal({ coins, chips, onBuy, onCashOut, vipPass, send, subscribeMessages, onClose }: Props) {
+export function CashierModal({ coins, chips, onBuy, onCashOut, vipPass, wristbands, send, subscribeMessages, onClose }: Props) {
   const [mode, setMode] = useState<Mode>("buy");
   const [amount, setAmount] = useState(0);
   /** "All" follows the balance, so it stays all of it even as the purse changes. */
@@ -139,7 +140,7 @@ export function CashierModal({ coins, chips, onBuy, onCashOut, vipPass, send, su
         </div>
 
         {mode === "vip" ? (
-          <VipPassCard hasPass={vipPass} chips={chips} where="cage" send={send} subscribeMessages={subscribeMessages} />
+          <VipPassCard hasPass={vipPass} wristbands={wristbands} coins={coins} where="cage" send={send} subscribeMessages={subscribeMessages} />
         ) : (
           <>
         {/* the amount */}

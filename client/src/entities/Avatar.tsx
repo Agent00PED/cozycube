@@ -779,7 +779,8 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
 
     // --- the skewer: level while carried, dipped over the fire; its pieces go as they are
     // eaten; a golden one steams ---
-    part.skewer.visible = holdingSkewer;
+    // (sitting round the campfire: a marshmallow on its stick, held out to the flames)
+    part.skewer.visible = holdingSkewer || (holding === "marshmallow" && pose !== "lie" && !guitarOn);
     part.skewer.rotation.x = -part.armR.rotation.x + (grilling ? SKEWER_OVER_FIRE : SKEWER_LEVEL);
     (["mallow", "bbq"] as const).forEach((f) => rig.skewerPieces[f].forEach((piece, i) => (piece.visible = f === food && i >= bt.eaten)));
     const steaming = holdingSkewer && !grilling && parseSnack(snack)?.quality === "golden" && bt.eaten < pieceCount;
@@ -885,11 +886,12 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
           </div>
         </Html>
       )}
-      {gesture?.kind === "nap" && (
-        <Html key={`nap:${gesture.at}`} position={[0.18, 1.05, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
-          <div className="cozy-zzz" aria-hidden>
+      {/* a nap (and anyone lying down: the hammock, the tents, a nap on the sofa): a drift of Zzz */}
+      {(gesture?.kind === "nap" || pose === "lie") && (
+        <Html key={pose === "lie" ? "lie" : `nap:${gesture?.at}`} position={pose === "lie" ? [0, 0.72, 0] : [0.18, 1.05, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
+          <div className={pose === "lie" ? "cozy-zzz cozy-zzz-loop" : "cozy-zzz"} aria-hidden>
             {["z", "Z", "z", "Z"].map((c, i) => (
-              <span key={i} style={{ animationDelay: `${i * 1.4}s` }}>
+              <span key={i} style={{ animationDelay: `${i * (pose === "lie" ? 0.65 : 1.4)}s` }}>
                 {c}
               </span>
             ))}

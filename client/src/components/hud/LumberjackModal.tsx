@@ -9,6 +9,47 @@ import { carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
+import { MAX_DAY_PERMITS, PERMIT_PRICES } from "@shared/economy";
+
+/** The Whispering Woods' permits: a Day Trip (one way in) or the Ranger's Badge (in for good). Sold
+ *  by Buster, at his stall or by the archway. */
+export function WoodsPermits({ profile, coins, send }: { profile: FishingProfile; coins: number; send: (packet: CampfirePacket) => void }) {
+  if (profile.ranger)
+    return (
+      <div className="flex flex-col items-center gap-1 rounded-2xl bg-emerald-400/15 px-3 py-3 text-center">
+        <span className="text-3xl">🎖️</span>
+        <b className="text-sm text-[#F7EBE1]">Ranger's Badge</b>
+        <span className="text-xs opacity-80">The Whispering Woods are yours: walk through the archway any time.</span>
+      </div>
+    );
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="m-0 text-center text-xs opacity-80">Beyond the archway at the fence's west end: trees to fell (T1 to T5), the rapids' wild fish, and Bramble's trading post.</p>
+      <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+        <span className="text-2xl">🎫</span>
+        <div className="flex min-w-0 flex-1 flex-col leading-tight">
+          <b className="text-sm">
+            Day Trip Permit <span className="font-normal opacity-70">×{profile.dayPermits}</span>
+          </b>
+          <span className="text-[11px] opacity-75">One trip in: stamped at the archway (come and go back out as you like)</span>
+        </div>
+        <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < PERMIT_PRICES.dayTrip || profile.dayPermits >= MAX_DAY_PERMITS} onClick={() => send({ type: "BUSTER", op: "buyPermit", permit: "dayTrip" })}>
+          {PERMIT_PRICES.dayTrip} 🪙
+        </button>
+      </div>
+      <div className="flex items-center gap-2 rounded-2xl border border-[#F5A623]/50 bg-[#F5A623]/10 px-2.5 py-2">
+        <span className="text-2xl">🎖️</span>
+        <div className="flex min-w-0 flex-1 flex-col leading-tight">
+          <b className="text-sm">Ranger's Badge</b>
+          <span className="text-[11px] opacity-75">The woods for good: no permit ever again</span>
+        </div>
+        <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < PERMIT_PRICES.rangerBadge} onClick={() => send({ type: "BUSTER", op: "buyPermit", permit: "ranger" })}>
+          {PERMIT_PRICES.rangerBadge.toLocaleString("en-US")} 🪙
+        </button>
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   profile: FishingProfile;
@@ -26,17 +67,18 @@ interface Props {
 // tier, and utility gear (gloves for the chopping meter, boots, an apron for the workbench). Every trade is the server's call
 // (BUSTER packets); his answer comes back as busterResult.
 
-type Tab = "sell" | "axes" | "gear" | "carrier";
+type Tab = "sell" | "axes" | "gear" | "carrier" | "permits";
 const TABS: [Tab, string][] = [
   ["sell", "🪙 Sell"],
   ["axes", "🪓 Axes"],
   ["gear", "🧤 Gear"],
   ["carrier", "🎒 Carrier"],
+  ["permits", "🌲 Woods"],
 ];
 const HELLO = "Howdy! Buster's the name, timber's the game. Got some wood for me? 🦫";
 
-export function LumberjackModal({ profile, coins, market, send, subscribeMessages, onClose }: Props) {
-  const [tab, setTab] = useState<Tab>("sell");
+export function LumberjackModal({ profile, coins, market, send, subscribeMessages, onClose, startTab = "sell" }: Props & { startTab?: Tab }) {
+  const [tab, setTab] = useState<Tab>(startTab);
   const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
   useEffect(
     () =>
@@ -133,6 +175,11 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                 </button>
               </div>
             )}
+            {WOOD_KINDS.some((k) => profile.wood[k] > 0) && (
+              <button type="button" className="clay-btn clay-btn-amber min-h-10 w-full text-xs" onClick={() => send({ type: "BUSTER", op: "sellAllWood" })}>
+                🪵 Sell All Logs · {WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0)} 🪙
+              </button>
+            )}
             <p className="m-0 text-center text-xs opacity-75">
               Carrying <b className="text-amber-200">{woodWorth + craftWorth} 🪙</b> of timber. Carve it at the workbench 🪚 by the tipi: worth far more!
             </p>
@@ -158,6 +205,9 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                     <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "equipAxe", axe: id })}>
                       Use
                     </button>
+                  ) : axe.tier >= 4 ? (
+                    // the Maple and Elderwood axes: Bramble's, in the Whispering Woods
+                    <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🐻 At Bramble's cabin in the woods</span>
                   ) : (
                     <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < axe.price} onClick={() => send({ type: "BUSTER", op: "buyAxe", axe: id })}>
                       {axe.price} 🪙
@@ -194,6 +244,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
             })}
           </div>
         )}
+
+        {tab === "permits" && <WoodsPermits profile={profile} coins={coins} send={send} />}
 
         {tab === "carrier" && (
           <div className="flex flex-col gap-1.5">

@@ -1,8 +1,9 @@
 // Shared between client and server — keep this file framework-agnostic (no THREE/Colyseus imports).
 
+import type { SlingShot } from "./slingshot";
 import type { BaitId, CreelFish, FishTier, RodId } from "./fishing";
 import type { FuelItem, StewIngredient } from "./bonfire";
-import type { AxeId, ChopLog, ChopVerdict, WoodKind } from "./chop";
+import type { AxeId, ChopLog, ChopVerdict, TreeKind, WoodKind } from "./chop";
 import type { Adhesive, CraftId, CraftMode, CraftOutcome } from "./crafting";
 import type { GearId } from "./gear";
 import { START_COINS, type WardrobeTier } from "./economy";
@@ -55,8 +56,10 @@ export interface PlayerState {
   coins: number;
   /** Velvet Chips: the casino's balance, bought and cashed out at Mr. Vance's cage. */
   chips: number;
-  /** Holds the Black Velvet VIP Pass (shared/items.ts): Bruno takes them up to the penthouse. */
+  /** Holds the Black Card (shared/items.ts VIP_PASS): Bruno takes them up to the penthouse. */
   vipPass: boolean;
+  /** Velvet VIP Wristbands held (shared/items.ts VIP_WRISTBAND): one ride up each. */
+  vipWristbands: number;
   /** Carried catches and forage, encoded by encodeBag(). */
   bag: string;
   /** Comma-separated premium hats bought in the coin shop. */
@@ -206,13 +209,20 @@ export const SPARKLE_SPOTS: { x: number; z: number }[] = [
 ];
 export const SPARKLE_RESPAWN_S = 30;
 
-export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "casino_vip" | "boxing_ring" | "japanese_onsen" | "retro_arcade" | "gaming_cafe";
+export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "casino_vip" | "boxing_ring" | "japanese_onsen" | "retro_arcade" | "gaming_cafe" | "whispering_woods";
 /**
  * Every world, in the fast-travel grid's order: two per row, a theme per row (cozy living,
- * vacation and spa, action and play, gaming and cyber); then the Velvet Penthouse (casino_vip),
- * which is never on the grid: Bruno's doors in the casino are the only way up.
+ * vacation and spa, action and play, gaming and cyber); then the Velvet Penthouse (casino_vip) and the
+ * Whispering Woods, never on the grid (HIDDEN_MAPS).
  */
-export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "japanese_onsen", "velvet_casino", "boxing_ring", "retro_arcade", "gaming_cafe", "casino_vip"];
+export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "japanese_onsen", "velvet_casino", "boxing_ring", "retro_arcade", "gaming_cafe", "casino_vip", "whispering_woods"];
+/** Worlds reached only from another (never on the fast-travel grid): the Velvet Penthouse (Bruno's
+ *  doors) and the Whispering Woods (the campfire's branch archway, with a permit). */
+export const HIDDEN_MAPS: ReadonlySet<MapId> = new Set<MapId>(["casino_vip", "whispering_woods"]);
+/** The campfire and the woods behind it: one 24-minute day between them (shared/daynight.ts). */
+export function isCampMap(map: string): boolean {
+  return map === "campfire_night" || map === "whispering_woods";
+}
 /** The casino's two floors: the hall and the penthouse (the High Rollers board shows on both). */
 export function isCasinoMap(map: string): boolean {
   return map === "velvet_casino" || map === "casino_vip";
@@ -336,6 +346,12 @@ export type ToggleableKind =
   | "lumberjack"
   | "workbench"
   | "boutique"
+  | "archway"
+  | "slingshot"
+  | "splitblock"
+  | "tree"
+  | "ranger"
+  | "animal"
   | CasinoPropKind;
 
 /** The Velvet Casino's props (shared/worlds/casino.ts): the slot row, Mr. Vance's cage, the exit
@@ -1099,6 +1115,12 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "lumberjack" ||
     kind === "workbench" ||
     kind === "boutique" ||
+    kind === "archway" ||
+    kind === "slingshot" ||
+    kind === "splitblock" ||
+    kind === "tree" ||
+    kind === "ranger" ||
+    kind === "animal" ||
     isCasinoProp(kind)
   );
 }
@@ -1119,7 +1141,7 @@ export function usableSeated(kind: ToggleableKind): boolean {
 
 // --- world sizes ---
 /** Half-width of each diorama slab. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, whispering_woods: 12, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
 export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 
@@ -1243,15 +1265,20 @@ export type SwimPattern = "sine" | "plunge" | "erratic" | "koi";
 /** A hooked fish at the campfire: the reel mini-game starts (FishingModal) for this fish (the
  *  server rolled its kind, length and stars; shared/fishing.ts FISH says how it fights), with the
  *  angler's rod, and a Sunken Treasure Chest may turn up in the column (`treasure`). */
+/** Server -> the angler ("starlightReel"): a fish is on the line. How it swims, and how big its
+ *  shadow is, but never what it is: the species (its name, its look, its rarity) is told only once
+ *  it is landed (fishCaught). */
 export interface StarlightReel {
-  fish: CreelFish;
+  swim: { speed: number; size: number; pattern: SwimPattern; barScale: number };
+  /** Its shadow's size in the water (0 a sliver of a fish, 1 a monster). */
+  shadow: number;
   rod: RodId;
   treasure: boolean;
 }
 /** A Sunken Treasure Chest held in the green bar until it opens pays this. */
 export const TREASURE_COINS = 25;
 /** How likely a chest is on a reel, by how rare the fish is. */
-export const TREASURE_CHANCE: Record<FishTier, number> = { common: 0.08, uncommon: 0.12, rare: 0.2, epic: 0.35, legendary: 0.65 };
+export const TREASURE_CHANCE: Record<FishTier, number> = { common: 0.08, uncommon: 0.12, rare: 0.2, legendary: 0.45, mythic: 0.75 };
 /** The shortest a real reel can take (the catch meter fills no faster): a quicker "caught" is not believed. */
 export const STARLIGHT_REEL_MIN_S = 2.0;
 /** A fish landed at the campfire: into the creel (Barnaby buys them), or, the creel full, let go
@@ -1270,7 +1297,7 @@ export interface FishCaught {
 /** The bobber stays under this long after a bite: tap in time and it is yours. */
 export const STARLIGHT_BITE_S = 1.0;
 /** Campfire coins a player can earn in a day, by activity (it all still happens past a cap, unpaid). */
-export const CAMPFIRE_DAILY_COINS = { fish: 250, roast: 60, star: 150, chop: 80, forage: 60 };
+export const CAMPFIRE_DAILY_COINS = { fish: 250, roast: 60, star: 150, chop: 80, forage: 60, slingshot: 300 };
 export type CampfireCoinKind = keyof typeof CAMPFIRE_DAILY_COINS;
 
 // --- the Campfire's telescope, chopping block and foraging ----------------------------------------
@@ -1417,6 +1444,22 @@ export interface ChopResult {
   pieces: number;
   coins: number;
   capped: boolean;
+  /** A Whispering Woods tree being felled (its node, its kind): clean, it fell. */
+  tree?: string;
+  treeKind?: TreeKind;
+}
+/** Server -> the woods ("treeFelled"): a tree came down (the client plays its fall, then shows its
+ *  stump). */
+export interface TreeFelled {
+  sessionId: string;
+  tree: string;
+  kind: TreeKind;
+}
+/** Server -> the player ("splitResult"): logs split into Firewood at the chopping block. */
+export interface SplitResult {
+  ok: boolean;
+  message: string;
+  firewood: number;
 }
 /** Picking a patch of mushrooms or a bush of night berries pays this; it grows back after FORAGE_REGROW_CAMP_S. */
 export const FORAGE_COINS = 5;
@@ -1440,7 +1483,8 @@ export type CampfirePacket =
   | { type: "STARGAZE"; on: boolean }
   | { type: "STAR_CATCH"; id: number }
   | { type: "CONSTELLATION"; id: ConstellationId }
-  | { type: "CHOP_START" }
+  | { type: "CHOP_START"; tree?: string }
+  | { type: "SPLIT_WOOD"; wood?: WoodKind }
   /** The swing, `t` seconds into the stroke's meter as the swinger saw it (sampled at the click). */
   | { type: "CHOP_STOP"; t?: number }
   | { type: "REEL_DONE"; caught: boolean; treasure: boolean }
@@ -1468,9 +1512,40 @@ export type CampfirePacket =
   | { type: "BUSTER"; op: "sellCraft"; slot: number | "all" }
   | { type: "BUSTER"; op: "sellResin"; count: number | "all" }
   | { type: "BUSTER"; op: "buyGear"; gear: GearId }
+  | { type: "BUSTER"; op: "buyPermit"; permit: "dayTrip" | "ranger" }
+  | { type: "BUSTER"; op: "sellAllWood" }
   /** The workbench: carve a piece, safe or pushing for a Masterwork (its wood from the carrier;
    *  answered with workbenchResult). */
-  | { type: "WORKBENCH"; recipe: CraftId; mode: CraftMode; adhesive?: Adhesive };
+  | { type: "WORKBENCH"; recipe: CraftId; mode: CraftMode; adhesive?: Adhesive }
+  /** The slingshot gallery: a round begins (answered with slingshotStarted), and its shots, reported
+   *  when it ends (the server replays them: slingshotResult). */
+  | { type: "SLINGSHOT_START" }
+  | { type: "SLINGSHOT_END"; shots: SlingShot[] };
+
+/** Server -> the shooter ("slingshotStarted"): the round's seed (the range follows from it), and
+ *  whether it plays for coins (the paid rounds left this hour). */
+export interface SlingshotStarted {
+  seed: number;
+  paid: boolean;
+  left: number;
+}
+/** Server -> the shooter ("slingshotResult"): the round as the server scored it. */
+export interface SlingshotResult {
+  ok: boolean;
+  score: number;
+  hits: number;
+  acorns: number;
+  streak: number;
+  /** The prize tier's coins and the Golden Acorns' (0 on a free round), and what was paid after
+   *  the day's cap. */
+  prize: number;
+  acornCoins: number;
+  coins: number;
+  capped: boolean;
+  eagle: boolean;
+  paid: boolean;
+  best: number;
+}
 
 /** How a carve at the workbench came out (sent to the carver). */
 export interface WorkbenchResult {

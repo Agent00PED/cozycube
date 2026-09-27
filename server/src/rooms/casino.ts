@@ -112,7 +112,7 @@ import {
   pinballTier,
 } from "../../../shared/casino";
 import { PINBALL_MAX_STEPS, PINBALL_STEPS_PER_S, replayPinball, validPinballInputs } from "../../../shared/pinball";
-import { VIP_PASS } from "../../../shared/items";
+import { MAX_WRISTBANDS, VIP_PASS, VIP_WRISTBAND } from "../../../shared/items";
 import { HOLDEM_BARON, HOLDEM_BORIS, HOLDEM_HIGH_ROLLERS, HOLDEM_REGULARS, holdemAct, holdemView, newHoldemHand, runHouse, type HoldemGame, type HoldemMove, type HoldemTable } from "../../../shared/holdem";
 import { PIANO_PIECES, isPianoPiece } from "../../../shared/pianoPieces";
 import { POOL_H, POOL_W, emptyPoolMatch, poolCueSpotFree, poolRack, ruleOnShot, type PoolBall, type PoolMatch, type PoolShotEvent } from "../../../shared/pool";
@@ -191,6 +191,7 @@ export interface Patron {
   title: string;
   aura: string;
   vipPass: boolean;
+  vipWristbands: number;
 }
 
 /** The room state the casino reads and writes. */
@@ -500,17 +501,26 @@ export class CasinoFloor {
     reply(true, amount);
   }
 
-  /** The Black Velvet VIP Pass: bought at the cage or from Bruno, pawned back only at the cage. */
-  private vipPass(sessionId: string, p: Patron, kind: "buy" | "pawn") {
-    const reply = (ok: boolean, reason?: VipPassResult["reason"]) => this.host.sendTo(sessionId, "vipPassResult", { ok, kind, chips: p.chips, hasPass: p.vipPass, reason } satisfies VipPassResult);
+  /** The Black Card (permanent) and the Velvet VIP Wristband (one ride up), bought for coins at the
+   *  cage or from Bruno; the card is pawned back only at the cage, for chips. */
+  private vipPass(sessionId: string, p: Patron, kind: "buy" | "pawn" | "wristband") {
+    const reply = (ok: boolean, reason?: VipPassResult["reason"]) =>
+      this.host.sendTo(sessionId, "vipPassResult", { ok, kind, coins: p.coins, chips: p.chips, hasPass: p.vipPass, wristbands: p.vipWristbands, reason } satisfies VipPassResult);
     const atCage = near(p, CASHIER_FRONT, CASHIER_REACH + CASHIER_SLACK);
     const atBruno = near(p, VIP_DOORS_FRONT, MACHINE_REACH + EXTRA_SLACK);
     if (kind === "buy") {
       if (!atCage && !atBruno) return reply(false, "far");
       if (p.vipPass) return reply(false, "have");
-      if (p.chips < VIP_PASS.price) return reply(false, "chips");
-      p.chips -= VIP_PASS.price;
+      if (p.coins < VIP_PASS.price) return reply(false, "coins");
+      p.coins -= VIP_PASS.price;
       p.vipPass = true;
+    } else if (kind === "wristband") {
+      if (!atCage && !atBruno) return reply(false, "far");
+      if (p.vipPass) return reply(false, "have");
+      if (p.vipWristbands >= MAX_WRISTBANDS) return reply(false, "full");
+      if (p.coins < VIP_WRISTBAND.price) return reply(false, "coins");
+      p.coins -= VIP_WRISTBAND.price;
+      p.vipWristbands += 1;
     } else {
       if (!atCage) return reply(false, "far");
       if (!p.vipPass) return reply(false, "none");
@@ -518,7 +528,7 @@ export class CasinoFloor {
       this.addChips(p, VIP_PASS.pawn);
     }
     this.host.persistNow(sessionId);
-    this.host.broadcast("emote", { sessionId, emoji: kind === "buy" ? VIP_PASS.emoji : CHIP_EMOTE });
+    this.host.broadcast("emote", { sessionId, emoji: kind === "buy" ? VIP_PASS.emoji : kind === "wristband" ? VIP_WRISTBAND.emoji : CHIP_EMOTE });
     reply(true);
   }
 
@@ -1732,9 +1742,14 @@ export class CasinoFloor {
     }
     if (!near(p, VIP_DOORS_FRONT, MACHINE_REACH + EXTRA_SLACK)) return this.refuse(sessionId, "far");
     if (!p.vipPass) {
-      this.host.sendTo(sessionId, "casinoProp", event("vipdoor", { vip: "refused" }));
-      this.host.sendTo(sessionId, "openPanel", { kind: "vippass", propId: "vip_door" });
-      return;
+      if (p.vipWristbands <= 0) {
+        this.host.sendTo(sessionId, "casinoProp", event("vipdoor", { vip: "refused" }));
+        this.host.sendTo(sessionId, "openPanel", { kind: "vippass", propId: "vip_door" });
+        return;
+      }
+      // a wristband: Bruno snips it at the doors (one ride up)
+      p.vipWristbands -= 1;
+      this.host.persistNow(sessionId);
     }
     this.host.broadcast("casinoProp", event("vipdoor", { vip: "in" }));
     this.host.travel(sessionId, "casino_vip", VIP_ARRIVAL);
@@ -1826,6 +1841,8 @@ export class CasinoFloor {
         return this.vipPass(sessionId, p, "buy");
       case "VIP_PASS_PAWN":
         return this.vipPass(sessionId, p, "pawn");
+      case "VIP_WRISTBAND_BUY":
+        return this.vipPass(sessionId, p, "wristband");
       case "HOLDEM_DEAL":
         return this.holdemDeal(sessionId, packet.buyIn);
       case "HOLDEM_MOVE":

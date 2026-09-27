@@ -28,7 +28,8 @@ export interface NametagTexture {
   dispose: () => void;
 }
 
-const dpr = () => Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio || 1, 2);
+/** Drawn at 2x at least (sharp Thai tone marks on any screen), 3x on the densest. */
+const dpr = () => Math.max(2, Math.min(typeof window === "undefined" ? 2 : window.devicePixelRatio || 1, 3));
 
 function draw(canvas: HTMLCanvasElement, text: string): { w: number; h: number } {
   const ctx = canvas.getContext("2d")!;

@@ -8,6 +8,8 @@ import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
 import { TimeOfDayContext, useLampBoost } from "./timeOfDay";
+import { useCampNight } from "./campDay";
+import { OcclusionDriver, ditherOccluder } from "./occlusionDither";
 import { CRITTER_TREAT, DUCK_DIVE_AT, DUCK_DIVE_S, STRING_BULBS, STRING_SWING, bindCampfireLife, campNow, duckPose } from "./campfireLife";
 import type { HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { playSfx } from "../audio/sfx";
@@ -43,8 +45,10 @@ import { COZY_AURA_FUEL, getBonfireVisualState, type BonfireUpdate } from "@shar
 //   the lanterns  on the dock's river corners and the picnic table, glowing
 //   the sky       a midnight-navy gradient (CampfireSky), with a cool moon over the island
 //
-// It is always night at the campfire (WorldScene wears the "night" hour here whatever the room's
-// clock says). Walking is a flat invisible plane over the island (the model never takes clicks),
+// The campfire keeps the camp's own 24-minute day (scene/campDay.tsx): a bright forest day and a
+// starlit night, eased over a minute at dawn and dusk; the stars, the fireflies and the moon follow
+// the night, the fire and the lanterns glow brighter after dark. The pines thin where they stand
+// between you and the camera (occlusionDither). Walking is a flat invisible plane over the island (the model never takes clicks),
 // as the lounge's floor is. No light casts a shadow; the effects are one instanced draw each.
 
 export const CAMPFIRE_URL = modelUrl("campfire.glb");
@@ -61,7 +65,7 @@ const TIPI_AWAKE = 1.5;
 const TIPI_ASLEEP = 0.1;
 /** The ground decals (moss patches, paths, the clearing), each nudged toward the camera in the
  *  depth test by its own polygon offset on top of its few millimetres of height: never a flicker. */
-const DECAL_OFFSET: Record<string, number> = { CF_GrassDark: -1, CF_GrassLight: -1, CF_Dirt: -2 };
+const DECAL_OFFSET: Record<string, number> = { CF_GrassDark: -1, CF_GrassLight: -1, CF_Dirt: -2, CF_RugRust: -4, CF_RugMustard: -4, CF_RugSage: -4 };
 const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 
 /** How much of the night's magic shows at each hour (fireflies, stars). */
@@ -172,6 +176,7 @@ export function CampfireWorld({ onFloorClick, players, toggleables, hearth, subs
       <DuckTargets onDuck={onDuck} />
       <Fireflies />
       <Stars />
+      <OcclusionDriver />
     </group>
   );
 }
@@ -192,7 +197,16 @@ function StandIn() {
 function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
   const { scene } = useGLTF(CAMPFIRE_URL);
   const boost = useLampBoost();
-  const life = useMemo(() => bindCampfireLife(scene, DECAL_OFFSET), [scene]);
+  const life = useMemo(() => {
+    const bound = bindCampfireLife(scene, DECAL_OFFSET);
+    // the pines (and their trunks) thin where they stand between you and the camera
+    scene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || Array.isArray(mesh.material)) return;
+      if (/^CF_(Pine|PineLight)$/.test(mesh.material.name) || mesh.name.startsWith("Campfire_Trees")) ditherOccluder(mesh.material);
+    });
+    return bound;
+  }, [scene]);
   // the ember bed's own colours, to go back to when the fire is relit
   const embers = useMemo(() => life.flicker.filter((m) => m.name === "CF_Ember").map((m) => ({ m, color: m.color.clone(), emissive: m.emissive.clone() })), [life]);
   const hearthNodes = useMemo(() => {
@@ -357,7 +371,9 @@ function JarLights({ live }: { live: React.MutableRefObject<Live> }) {
 /** The moon: a soft cool key from high over the back of the island (no shadow), and a faint
  *  blue-over-moss fill, so the island's edges and pines still read by it. */
 function Moonlight() {
-  const night = NIGHTNESS[useContext(TimeOfDayContext)];
+  const camp = useCampNight();
+  const hourNight = NIGHTNESS[useContext(TimeOfDayContext)];
+  const night = camp ?? hourNight;
   if (night <= 0) return null;
   return (
     <>
@@ -434,7 +450,7 @@ function Embers() {
 /** Fireflies drifting low over the river, among the pines and by the hammock, blinking; only after dark. */
 function Fireflies() {
   const hour = useContext(TimeOfDayContext);
-  const night = NIGHTNESS[hour];
+  const night = useCampNight() ?? NIGHTNESS[hour];
   const mesh = useRef<THREE.InstancedMesh>(null);
   const flies = useMemo(() => {
     const around = (x0: number, x1: number, z0: number, z1: number, n: number) =>
@@ -492,7 +508,7 @@ function Fireflies() {
  *  the sky behind it. Only after dark, brighter at night. */
 function Stars() {
   const hour = useContext(TimeOfDayContext);
-  const night = NIGHTNESS[hour];
+  const night = useCampNight() ?? NIGHTNESS[hour];
   const geometry = useMemo(() => {
     const pts: number[] = [];
     for (let i = 0; i < 220; i++) {

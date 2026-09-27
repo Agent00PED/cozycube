@@ -58,10 +58,24 @@ button { font: inherit; }
 /* the round close button every panel shares: the same 40px height and full rounding as the
    header's pills and the coin pill beside it */
 .clay-close { @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-base leading-none text-stone-100 outline outline-1 -outline-offset-1 outline-white/10 transition-transform duration-150 hover:bg-white/20 active:scale-95; }
-/* CozyCube's warm paper sheet (the cream Modal tone): oatmeal cream, a soft inner glow, cocoa ink */
-.cozy-cream-sheet { background: #FDFBF7; box-shadow: 0 20px 60px rgba(40, 24, 12, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.7); }
-.clay-close-cream { background: #F3EBDD; color: #6B4F3A; outline-color: rgba(107, 79, 58, 0.15); }
-.clay-close-cream:hover { background: #EADFCB; }
+/* Dark Cozy, CozyCube's own dress (every panel but the casino's tables): a warm oak card over
+   roasted cocoa, vanilla cream headings, oatmeal text, amber ember accents */
+:root {
+  --cozy-surface: #1C1614;
+  --cozy-surface-2: #231B18;
+  --cozy-oak: #2B201B;
+  --cozy-oak-2: #34271F;
+  --cozy-line: #4A3A30;
+  --cozy-cream: #F7EBE1;
+  --cozy-oat: #C9BDB5;
+  --cozy-amber: #F5A623;
+  --cozy-amber-2: #E69A28;
+}
+.cozy-oak-sheet { background: linear-gradient(180deg, #2E221C 0%, #2B201B 60%, #271D18 100%); box-shadow: 0 20px 60px rgba(10, 6, 4, 0.6), inset 0 1px 0 rgba(255, 226, 190, 0.07); }
+.clay-close-cozy { background: #3A2C25; color: #F7EBE1; outline-color: rgba(245, 166, 35, 0.18); }
+.clay-close-cozy:hover { background: #46352C; }
+.cozy-card { background: #231B18; border: 1px solid #3F3129; border-radius: 16px; }
+.cozy-pill { background: #3A2C25; color: #F7EBE1; border-radius: 999px; }
 .clay-icon-btn { @apply inline-flex h-12 w-12 items-center justify-center rounded-2xl text-xl transition-transform duration-150 hover:scale-105 active:scale-95; }
 
 /* drawers and modals ease in with a little overshoot */
@@ -186,6 +200,7 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
   100% { opacity: 0; transform: translate(calc(-50% + var(--sx)), -58px) scale(1.1) rotate(160deg); }
 }
 .cozy-zzz span { position: absolute; left: 0; bottom: 0; font: 800 16px "Fredoka", system-ui, sans-serif; color: #dfe6ff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); opacity: 0; animation: cozy-zzz-rise 2.6s ease-out forwards; }
+.cozy-zzz-loop span { animation-iteration-count: infinite; }
 @keyframes cozy-zzz-rise {
   0% { opacity: 0; transform: translate(0, 0) scale(0.6); }
   20% { opacity: 1; }

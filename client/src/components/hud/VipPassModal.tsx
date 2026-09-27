@@ -1,36 +1,40 @@
 import { useEffect, useRef, useState } from "react";
 import { chipText, type CasinoPacket, type VipPassResult } from "@shared/casino";
-import { VIP_PASS } from "@shared/items";
+import { MAX_WRISTBANDS, VIP_PASS, VIP_WRISTBAND } from "@shared/items";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
 import { VelvetChipIcon } from "./VelvetChipIcon";
 
-// The Black Velvet VIP Pass: bought for chips from Mr. Vance at the cage or from Bruno at the
-// penthouse's doors, kept in your account, and pawned back to Mr. Vance for half. With it, Bruno
-// takes you up to the Velvet Penthouse (its high-limit poker, baccarat and the Golden Vault). The
-// server has the last word (VIP_PASS_BUY / VIP_PASS_PAWN, answered with vipPassResult).
+// The Velvet Penthouse's two ways in, both for coins, from Mr. Vance at the cage or from Bruno at
+// the penthouse's doors: the Velvet VIP Wristband (one ride up: Bruno snips it at the doors) and The
+// Black Card (the penthouse for good, pawned back to Mr. Vance for half, in chips). The server has
+// the last word (VIP_WRISTBAND_BUY / VIP_PASS_BUY / VIP_PASS_PAWN, answered with vipPassResult).
 
 interface CardProps {
   hasPass: boolean;
-  chips: number;
+  wristbands: number;
+  coins: number;
   /** Where you are: the cage buys and pawns, Bruno only sells. */
   where: "cage" | "bruno";
   send: (packet: CasinoPacket) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
 }
 
+const coin = (n: number) => n.toLocaleString("en-US");
 const LINES: Record<string, string> = {
-  buy: "The Black Velvet Pass is yours. The penthouse awaits.",
-  pawn: `Pawned: ${chipText(VIP_PASS.pawn)} chips, counted twice. The pass stays with me until you want it again.`,
-  chips: `The pass is ${chipText(VIP_PASS.price)} Velvet Chips. Mr. Vance changes coins for chips at the cage.`,
+  buy: "The Black Card is yours. The penthouse is open to you, every night.",
+  wristband: "A Velvet VIP Wristband, snug on your wrist. Show it to Bruno at the doors.",
+  pawn: `Pawned: ${chipText(VIP_PASS.pawn)} chips, counted twice. The card stays with me until you want it again.`,
+  coins: "Not enough coins for that, I'm afraid.",
   far: "Step up to the window, if you please.",
-  have: "You already carry a pass: one is all anybody needs.",
-  none: "You have no pass to pawn, my friend.",
+  have: "You carry The Black Card: the penthouse is already yours.",
+  none: "You have no card to pawn, my friend.",
+  full: `${MAX_WRISTBANDS} wristbands is plenty for anybody.`,
 };
 
-/** The pass itself, and what you can do with it here. */
-export function VipPassCard({ hasPass, chips, where, send, subscribeMessages }: CardProps) {
+/** The wristband and the card, and what you can do with them here. */
+export function VipPassCard({ hasPass, wristbands, coins, where, send, subscribeMessages }: CardProps) {
   const [say, setSay] = useState<{ text: string; ok: boolean } | null>(null);
   const [pending, setPending] = useState(false);
   const timer = useRef(0);
@@ -41,7 +45,7 @@ export function VipPassCard({ hasPass, chips, where, send, subscribeMessages }: 
         const r = payload as VipPassResult;
         window.clearTimeout(timer.current);
         setPending(false);
-        if (r.ok) playSfx(r.kind === "buy" ? "jackpot" : "coins");
+        if (r.ok) playSfx(r.kind === "pawn" ? "coins" : "jackpot");
         setSay({ text: r.ok ? LINES[r.kind] : LINES[r.reason ?? "far"], ok: r.ok });
       }),
     [subscribeMessages]
@@ -58,8 +62,8 @@ export function VipPassCard({ hasPass, chips, where, send, subscribeMessages }: 
       <div className="vip-pass-card relative overflow-hidden rounded-2xl p-4">
         <div className="flex items-start justify-between">
           <div>
-            <div className="casino-heading gold-foil text-lg tracking-[0.3em]">BLACK VELVET</div>
-            <div className="casino-heading gold-foil text-[11px] tracking-[0.5em] opacity-90">VIP · PENTHOUSE PASS</div>
+            <div className="casino-heading gold-foil text-lg tracking-[0.3em]">THE BLACK CARD</div>
+            <div className="casino-heading gold-foil text-[11px] tracking-[0.5em] opacity-90">VELVET PENTHOUSE · FOR GOOD</div>
           </div>
           <span className="text-3xl" aria-hidden>
             {VIP_PASS.emoji}
@@ -67,9 +71,7 @@ export function VipPassCard({ hasPass, chips, where, send, subscribeMessages }: 
         </div>
         <div className="mt-6 flex items-end justify-between text-[11px] text-amber-100/80">
           <span>{hasPass ? "✦ Held in your account" : VIP_PASS.blurb}</span>
-          <span className="shrink-0 pl-2 font-bold text-amber-200">
-            {chipText(VIP_PASS.price)} <VelvetChipIcon />
-          </span>
+          <span className="shrink-0 pl-2 font-bold text-amber-200">{coin(VIP_PASS.price)} 🪙</span>
         </div>
       </div>
       {say && (
@@ -77,25 +79,29 @@ export function VipPassCard({ hasPass, chips, where, send, subscribeMessages }: 
           {say.text}
         </div>
       )}
-      {!hasPass ? (
-        <button type="button" disabled={pending || chips < VIP_PASS.price} onClick={() => act({ type: "VIP_PASS_BUY" })} className="clay-btn clay-btn-amber min-h-12 text-base">
-          {chips < VIP_PASS.price ? (
-            <>
-              Needs {chipText(VIP_PASS.price)} <VelvetChipIcon /> (you hold {chipText(chips)})
-            </>
-          ) : (
-            <>
-              Buy the Pass · {chipText(VIP_PASS.price)} <VelvetChipIcon />
-            </>
-          )}
+      {!hasPass && (
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" disabled={pending || coins < VIP_WRISTBAND.price || wristbands >= MAX_WRISTBANDS} onClick={() => act({ type: "VIP_WRISTBAND_BUY" })} className="clay-btn clay-btn-ghost flex min-h-14 flex-col items-center justify-center text-sm leading-tight">
+            <span>
+              {VIP_WRISTBAND.emoji} Wristband · {coin(VIP_WRISTBAND.price)} 🪙
+            </span>
+            <span className="text-[11px] opacity-75">one night{wristbands > 0 ? ` · you hold ${wristbands}` : ""}</span>
+          </button>
+          <button type="button" disabled={pending || coins < VIP_PASS.price} onClick={() => act({ type: "VIP_PASS_BUY" })} className="clay-btn clay-btn-amber flex min-h-14 flex-col items-center justify-center text-sm leading-tight">
+            <span>
+              {VIP_PASS.emoji} Black Card · {coin(VIP_PASS.price)} 🪙
+            </span>
+            <span className="text-[11px] opacity-80">for good</span>
+          </button>
+        </div>
+      )}
+      {hasPass && where === "cage" && (
+        <button type="button" disabled={pending} onClick={() => act({ type: "VIP_PASS_PAWN" })} className="clay-btn clay-btn-ghost min-h-12 text-sm">
+          Pawn The Black Card to Mr. Vance · +{chipText(VIP_PASS.pawn)} <VelvetChipIcon />
         </button>
-      ) : where === "cage" ? (
-        <button type="button" disabled={pending} onClick={() => act({ type: "VIP_PASS_PAWN" })} className="clay-btn clay-btn-ghost min-h-11 text-sm">
-          Pawn it back to Mr. Vance · +{chipText(VIP_PASS.pawn)} <VelvetChipIcon />
-        </button>
-      ) : null}
+      )}
       <div className="text-center text-[11px] opacity-60">
-        Pawned back at the cage for {chipText(VIP_PASS.pawn)} chips (half). Chips only: nothing here is bought with real money.
+        You hold {coin(coins)} 🪙. The Black Card pawns back at the cage for {chipText(VIP_PASS.pawn)} chips. Coins only: nothing here is bought with real money.
       </div>
     </div>
   );
@@ -107,8 +113,9 @@ interface Props extends Omit<CardProps, "where"> {
   onClose: () => void;
 }
 
-/** Bruno at the penthouse's gilded doors: a pass to sell, or the doors to open. */
-export function VipPassModal({ hasPass, chips, send, subscribeMessages, onGoUp, onClose }: Props) {
+/** Bruno at the penthouse's gilded doors: a wristband or a card to sell, or the doors to open. */
+export function VipPassModal({ hasPass, wristbands, coins, send, subscribeMessages, onGoUp, onClose }: Props) {
+  const canGo = hasPass || wristbands > 0;
   return (
     <Modal title="The Penthouse Doors" icon="🕶️" onClose={onClose} width={440} tone="velvet">
       <div className="casino-body flex flex-col gap-3 pb-2">
@@ -118,11 +125,11 @@ export function VipPassModal({ hasPass, chips, send, subscribeMessages, onGoUp, 
           </span>
           <div>
             <div className="casino-heading mb-0.5 text-[10px] uppercase tracking-[0.25em] text-amber-200/80">Bruno</div>
-            {hasPass ? "Evening. The pass checks out: the elevator's waiting for you." : "Members only, upstairs. A Black Velvet Pass gets you in, and I can sell you one right here."}
+            {hasPass ? "Evening. The Black Card checks out: the elevator's waiting for you." : wristbands > 0 ? "A wristband, good. I'll snip it at the doors: the elevator's waiting." : "Members only, upstairs. A wristband gets you in for the night, The Black Card for good. I sell both."}
           </div>
         </div>
-        <VipPassCard hasPass={hasPass} chips={chips} where="bruno" send={send} subscribeMessages={subscribeMessages} />
-        {hasPass && (
+        <VipPassCard hasPass={hasPass} wristbands={wristbands} coins={coins} where="bruno" send={send} subscribeMessages={subscribeMessages} />
+        {canGo && (
           <button type="button" onClick={onGoUp} className="clay-btn clay-btn-amber min-h-12 text-base">
             🛗 Take me up to the Penthouse
           </button>

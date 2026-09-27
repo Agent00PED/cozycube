@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { TimeOfDay, Weather } from "@shared/types";
+import { CampDaylightContext, campLook } from "./campDay";
 
 // The shared hour, as the scene wears it. Warm ambient light is the base of the whole look
 // (`#fff5e6` at about 0.8 at midday); the hour only tints it, dims it, changes the sky behind the
@@ -38,7 +39,10 @@ export function weatherLook(look: HourLook, weather: Weather): HourLook {
 }
 
 export function useHourLook(): HourLook {
-  return weatherLook(HOUR_LOOKS[useContext(TimeOfDayContext)], useContext(WeatherContext));
+  const hour = useContext(TimeOfDayContext);
+  const weather = useContext(WeatherContext);
+  const camp = useContext(CampDaylightContext);
+  return camp === null ? weatherLook(HOUR_LOOKS[hour], weather) : campLook(camp);
 }
 
 /** Multiplier for every artificial light in the scene at the current hour. */

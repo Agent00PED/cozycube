@@ -5,9 +5,12 @@ import { MAP_LABELS } from "./hud/Header";
 // The curtain between worlds: two burgundy velvet drapes sweep shut from either side (CURTAIN_S),
 // the destination's icon and name on a gold-fringed card between them with a cozy tip, and part
 // again once you have arrived (the new world's first frames settle behind them). A trip is only
-// yours: nobody else sees the curtain.
+// yours: nobody else sees the curtain. Between the campfire and the Whispering Woods (next door,
+// through the archway) there is no curtain: a forest mist rolls in and out in FOG_S instead.
 
 const CURTAIN_S = 0.35;
+const FOG_S = 0.2;
+const CAMP = new Set<MapId>(["campfire_night", "whispering_woods"]);
 
 const TIPS = [
   "Barnaby's prices change on the hour: his chalkboard shows what's ▲ up and ▼ down.",
@@ -25,28 +28,43 @@ const TIPS = [
   "Bigger creels and carriers cost more each tier, but carry far more.",
 ];
 
-export function WorldTransitionScreen({ destination }: { destination: MapId | null }) {
+export function WorldTransitionScreen({ destination, from }: { destination: MapId | null; from?: MapId }) {
   // stays mounted while the drapes part again after arrival
   const [shown, setShown] = useState<MapId | null>(destination);
   const [closing, setClosing] = useState(false);
+  // a walk through the archway (the campfire and the woods): the mist, decided as the trip starts
+  const [misty, setMisty] = useState(false);
   const tipIndex = useRef(Math.floor(Math.random() * TIPS.length));
   useEffect(() => {
     if (destination) {
       tipIndex.current = Math.floor(Math.random() * TIPS.length);
+      if (!shown) setMisty(!!from && CAMP.has(from) && CAMP.has(destination));
       setShown(destination);
       setClosing(false);
       return;
     }
     if (!shown) return;
     setClosing(true);
-    const t = window.setTimeout(() => {
-      setShown(null);
-      setClosing(false);
-    }, CURTAIN_S * 1000 + 40);
+    const t = window.setTimeout(
+      () => {
+        setShown(null);
+        setClosing(false);
+      },
+      (misty ? FOG_S : CURTAIN_S) * 1000 + 40
+    );
     return () => window.clearTimeout(t);
   }, [destination]); // eslint-disable-line react-hooks/exhaustive-deps
   const label = useMemo(() => (shown ? MAP_LABELS[shown] : null), [shown]);
   if (!shown || !label) return null;
+  if (misty)
+    return (
+      <div className={`cozy-mist fixed inset-0 z-[60] flex items-end justify-center pb-[18vh] ${closing ? "cozy-mist-out" : "cozy-mist-in"}`} role="status" aria-live="polite" aria-label={`Walking to ${label.name}`}>
+        <style>{CURTAIN_CSS}</style>
+        <span className="font-cozy rounded-full bg-[#1C1614]/40 px-4 py-1.5 text-sm font-bold tracking-widest text-[#F7EBE1]/90">
+          {label.icon} {label.name}
+        </span>
+      </div>
+    );
   const drape = `absolute top-0 h-full w-1/2 ${closing ? "cozy-curtain-open" : "cozy-curtain-close"}`;
   return (
     <div className="fixed inset-0 z-[60] overflow-hidden" role="status" aria-live="polite" aria-label={`Travelling to ${label.name}`}>
@@ -85,7 +103,18 @@ export const CURTAIN_CSS = `
 .cozy-curtain-card-out { animation: cozy-curtain-card-out ${CURTAIN_S * 0.6}s ease-in forwards; }
 @keyframes cozy-curtain-card-in { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes cozy-curtain-card-out { to { opacity: 0; transform: scale(0.97); } }
+.cozy-mist {
+  background:
+    radial-gradient(60% 45% at 30% 60%, rgba(214, 226, 218, 0.95), rgba(214, 226, 218, 0) 70%),
+    radial-gradient(55% 40% at 72% 42%, rgba(200, 216, 206, 0.95), rgba(200, 216, 206, 0) 70%),
+    linear-gradient(180deg, rgba(150, 172, 160, 0.92), rgba(196, 212, 200, 0.97));
+  backdrop-filter: blur(6px);
+}
+.cozy-mist-in { animation: cozy-mist-in ${FOG_S}s ease-out forwards; }
+.cozy-mist-out { animation: cozy-mist-out ${FOG_S}s ease-in forwards; }
+@keyframes cozy-mist-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cozy-mist-out { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .cozy-curtain-close, .cozy-curtain-open, .cozy-curtain-card-in, .cozy-curtain-card-out { animation-duration: 1ms; }
+  .cozy-curtain-close, .cozy-curtain-open, .cozy-curtain-card-in, .cozy-curtain-card-out, .cozy-mist-in, .cozy-mist-out { animation-duration: 1ms; }
 }
 `;

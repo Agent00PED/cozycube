@@ -27,14 +27,18 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "fire": { "x": 0, "z": 0, "ring": 0.62, "collider": 0.45 },
   "clearing": { "x": 0, "z": 0, "r": 4.4 },
   "firepit": {
-    "r": 3.0,
+    "r": 2.35,
     "pieces": [
-      { "id": "Long", "kind": "log", "angle": 288, "r": 3.05, "len": 2.9, "seats": ["L1", "L2", "L3"] },
-      { "id": "Medium", "kind": "log", "angle": 40, "r": 2.8, "len": 1.9, "seats": ["M1", "M2"] },
-      { "id": "Curved", "kind": "curved", "angle": 158, "r": 3.15, "arc": 38, "seats": ["C1", "C2"] },
-      { "id": "Stump", "kind": "stump", "angle": 116, "r": 2.7, "seats": ["01"] },
-      { "id": "Boulder", "kind": "boulder", "angle": 197, "r": 2.95, "seats": ["01"] }
-    ]
+      { "id": "Long", "kind": "log", "angle": 90, "r": 2.45, "len": 2.9, "seats": ["L1", "L2", "L3"] },
+      { "id": "Medium", "kind": "log", "angle": 20, "r": 2.3, "len": 1.9, "seats": ["M1", "M2"] },
+      { "id": "Curved", "kind": "curved", "angle": 160, "r": 2.45, "arc": 38, "seats": ["C1", "C2"] },
+      { "id": "Stump", "kind": "stump", "angle": 330, "r": 2.2, "seats": ["01"] },
+      { "id": "Boulder", "kind": "boulder", "angle": 210, "r": 2.3, "seats": ["01"] }
+    ],
+    "rug": { "r0": 0.9, "r1": 2.05 },
+    "cushions": [{ "angle": 238, "r": 2.35 }, { "angle": 302, "r": 2.35 }],
+    "kettle": { "angle": 55, "r": 3.3 },
+    "guitar": { "angle": 185, "r": 2.05 }
   },
   "tripod": { "legs": 0.9, "apex": 1.95, "potY": 1.0, "potR": 0.27 },
   "barnaby": { "x": 4.7, "z": -2.6, "yaw": -0.35 },
@@ -69,8 +73,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": -9.5, "z": -1.8, "s": 1.15 },
     { "x": -9.6, "z": 0.9, "s": 0.9 },
     { "x": 5.0, "z": 8.4, "s": 0.6 },
-    { "x": 4.6, "z": 5.6, "s": 0.55 },
-    { "x": -6.8, "z": 9.2, "s": 0.55 }
+    { "x": 4.6, "z": 5.6, "s": 0.55 }
   ],
   "rocks": [
     { "x": 6.1, "z": -5.2, "s": 0.7 },
@@ -78,7 +81,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": 10.0, "z": -1.2, "s": 0.55 },
     { "x": 9.95, "z": 2.6, "s": 0.5 },
     { "x": 9.8, "z": -7.6, "s": 0.6 },
-    { "x": -4.3, "z": 7.8, "s": 0.9 },
+    { "x": -10.0, "z": 5.6, "s": 0.8 },
     { "x": -8.0, "z": 2.8, "s": 0.6 },
     { "x": 3.8, "z": 8.6, "s": 0.5 },
     { "x": -8.4, "z": -8.4, "s": 0.8 },
@@ -92,7 +95,10 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   ],
   "fence": { "at": 10.35, "zFrom": 8.3, "xFrom": -10.1, "post": 1.25 },
   "picnic": { "x": 0, "z": 8.85 },
-  "telescope": { "x": -2.4, "z": 9.35 },
+  "telescope": { "x": 2.3, "z": 9.45 },
+  "archway": { "x": -8.4, "z": 10.35, "w": 1.8, "h": 2.6 },
+  "gallery": { "x": -4.4, "z": 7.4, "len": 3.4, "rails": [8.25, 8.85, 9.45], "back": 9.95 },
+  "splitblock": { "x": 2.3, "z": -4.7 },
   "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
   "campChair": { "x": 4.5, "z": -7.45 },
   "chops": [{ "x": -8.7, "z": -4.6 }, { "x": -6.5, "z": -8.1 }, { "x": -0.65, "z": -8.9, "halves": [] }, { "x": 1.75, "z": -6.65 }],
@@ -129,7 +135,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     "arms": [
       { "label": "Campfire", "to": [0, 0] },
       { "label": "Pier", "to": [5.5, 0] },
-      { "label": "Overlook", "to": [-2.4, 9.35] }
+      { "label": "Overlook", "to": [2.3, 9.45] }
     ]
   },
   "guitarCase": { "x": -7.4, "z": 3.3, "yaw": 0.5 },
@@ -137,7 +143,8 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "paths": [
     { "points": [[-2.9, -2.35, 2.2], [-3.45, -2.75, 1.5], [-4.0, -3.2, 1.05], [-4.6, -3.6, 1.0]] },
     { "points": [[0.15, 3.8, 2.2], [0.1, 4.5, 1.5], [0.05, 5.3, 1.2], [-0.2, 6.4, 1.3], [-0.3, 7.0, 1.35], [-0.35, 7.5, 1.3], [-0.3, 7.95, 1.6]] },
-    { "points": [[-0.05, 6.5, 1.5], [-0.7, 7.05, 1.0], [-1.5, 7.65, 0.85], [-2.4, 8.45, 0.9]] }
+    { "points": [[-0.05, 6.5, 1.5], [-1.4, 6.55, 1.0], [-2.9, 6.6, 0.95], [-4.4, 6.65, 1.1], [-6.2, 7.6, 1.0], [-7.6, 8.9, 1.0], [-8.4, 9.9, 1.2]] },
+    { "points": [[0.4, 6.7, 1.0], [1.2, 7.5, 0.9], [1.9, 8.3, 0.9], [2.3, 8.75, 1.0]] }
   ],
   "cascade": { "x": 7.2, "z": -9.95, "top": 0.5 },
   "spawns": [
@@ -462,6 +469,8 @@ export const CAMP_SEATS: CampSeat[] = [
   { propId: "seat_camper_chair", x: L.campChair.x, z: L.campChair.z, rotationY: 0, cushion: "campChair", style: "deckchair", approachX: L.campChair.x, approachZ: L.campChair.z + 0.9 },
   // the canoe's stern seat, facing out across the river (you fish from it): it rocks with the boat
   { propId: "seat_canoe", x: L.canoe.x - 0.45, z: L.canoe.z, rotationY: 0, cushion: "canoe", style: "wood", approachX: 6.6, approachZ: 1.5 },
+  // and its bow seat, for a second paddler (a passenger: the stern is the one who fishes)
+  { propId: "seat_canoe_bow", x: L.canoe.x + 0.42, z: L.canoe.z, rotationY: 0, cushion: "canoe", style: "wood", approachX: 6.6, approachZ: 1.5 },
   // the sitting stump beside the chopping block, facing the fire
   (() => {
     const toFire = unit(L.fire.x - L.stumpSeat.x, L.fire.z - L.stumpSeat.z);
@@ -476,6 +485,7 @@ export const CAMP_SEAT_LABELS: Record<string, string> = {
   seat_hammock: "🛌 Nap",
   ...Object.fromEntries(FISHING_SPOTS.filter((s) => s.seat.startsWith("seat_dock_")).map((s) => [s.seat, "🌊 Sit on the dock"])),
   seat_canoe: "🛶 Sit in the canoe",
+  seat_canoe_bow: "🛶 Ride in the bow",
 };
 
 /** Where a lie seat puts the avatar (its soles, heading and height), derived from its cushion. */
@@ -515,6 +525,24 @@ export const PICNIC_PLATE_SPOTS: Pt[] = L.picnicPlates.map(([dx, dz]) => ({ x: L
 /** Close enough to the picnic table to leave a skewer or take one. */
 export const PICNIC_REACH = 2.0;
 
+/** The archway into the Whispering Woods (on the fence line) and where you stand at it; where a
+ *  traveller back from the woods arrives (just inside it). */
+export const CAMP_ARCHWAY = L.archway;
+export const CAMP_ARCHWAY_FRONT: Pt = { x: L.archway.x, z: L.archway.z - 1.05 };
+export const CAMP_FROM_WOODS: Pt = { x: L.archway.x + 0.2, z: L.archway.z - 1.5 };
+/** The slingshot gallery: its counter (along x), its three target rails and its backstop, and where
+ *  you stand to shoot (in front of the counter, facing the fence). */
+export const GALLERY = L.gallery;
+export const GALLERY_FRONT: Pt = { x: L.gallery.x, z: L.gallery.z - 0.7 };
+/** The splitting block (logs into Firewood), and its front. */
+export const SPLITBLOCK = L.splitblock;
+export const SPLITBLOCK_FRONT: Pt = { x: L.splitblock.x - 0.8, z: L.splitblock.z };
+/** The firepit's cozy things: the braided rug round the fire, floor cushions, the side stump with its
+ *  tea kettle and mugs, the guitar leaning on the curved log (all laid out by the builder). */
+export const FIREPIT_DECOR = { rug: L.firepit.rug, cushions: L.firepit.cushions, kettle: L.firepit.kettle, guitar: L.firepit.guitar };
+const polar = (angle: number, r: number): Pt => ({ x: L.fire.x + Math.cos(angle * DEG) * r, z: L.fire.z + Math.sin(angle * DEG) * r });
+export const KETTLE_STUMP: Pt = polar(L.firepit.kettle.angle, L.firepit.kettle.r);
+
 export const CAMP_PROPS: PropSpec[] = [
   // the bonfire: walk up (or sit on a log) and roast a marshmallow or grill a skewer
   { propId: "bonfire", x: L.fire.x, z: L.fire.z, kind: "bonfire", color: "#ff8c32", defaultOn: true, approachX: L.fire.x, approachZ: L.fire.z + 1.35 },
@@ -538,6 +566,13 @@ export const CAMP_PROPS: PropSpec[] = [
   { propId: "buster", x: L.buster.x, z: L.buster.z, kind: "lumberjack", color: "#b3403a", defaultOn: true, approachX: BUSTER_FRONT.x, approachZ: BUSTER_FRONT.z },
   // the carpenter's workbench: carve split wood into artisan pieces
   { propId: "workbench", x: WORKBENCH.x, z: WORKBENCH.z, kind: "workbench", color: "#c98b4f", defaultOn: true, approachX: WORKBENCH_FRONT.x, approachZ: WORKBENCH_FRONT.z },
+  // the branch archway in the front fence's west end: the way into the Whispering Woods (a Day Trip
+  // Permit or the Ranger's Badge from Buster)
+  { propId: "woods_gate", x: L.archway.x, z: L.archway.z, kind: "archway", color: "#8a6a3f", defaultOn: true, approachX: CAMP_ARCHWAY_FRONT.x, approachZ: CAMP_ARCHWAY_FRONT.z },
+  // the Whispering Pines Slingshot Gallery on the grass by the fence: its counter
+  { propId: "slingshot_gallery", x: L.gallery.x, z: L.gallery.z, kind: "slingshot", color: "#c98b4f", defaultOn: true, approachX: GALLERY_FRONT.x, approachZ: GALLERY_FRONT.z },
+  // the splitting block by the woodpile: logs into Firewood
+  { propId: "splitblock_camp", x: L.splitblock.x, z: L.splitblock.z, kind: "splitblock", color: "#a8743d", defaultOn: true, approachX: SPLITBLOCK_FRONT.x, approachZ: SPLITBLOCK_FRONT.z },
   // the dark grove between the hammock and the tipi, alive with fireflies: catch some in a jar
   (() => {
     const toFire = unit(L.fire.x - L.fireflies.x, L.fire.z - L.fireflies.z);
@@ -634,6 +669,15 @@ export const CAMP_OBSTACLES: AABB[] = [
   ...AWNING_POLES.map((p) => around(p, 0.08)),
   around(L.campChair, 0.3),
   around(L.critter, 0.22),
+  // the kettle's side stump by the firepit
+  around(KETTLE_STUMP, 0.26),
+  // the slingshot gallery: its counter, the posts of its three rails and its hay-bale backstop
+  { minX: L.gallery.x - L.gallery.len / 2, maxX: L.gallery.x + L.gallery.len / 2, minZ: L.gallery.z - 0.28, maxZ: L.gallery.z + 0.28 },
+  { minX: L.gallery.x - L.gallery.len / 2 - 0.1, maxX: L.gallery.x + L.gallery.len / 2 + 0.1, minZ: L.gallery.rails[0] - 0.12, maxZ: L.gallery.back + 0.3 },
+  // the archway's two posts either side of its opening in the fence, and the splitting block
+  around({ x: L.archway.x - L.archway.w / 2 - 0.1, z: L.archway.z }, 0.18),
+  around({ x: L.archway.x + L.archway.w / 2 + 0.1, z: L.archway.z }, 0.18),
+  around(L.splitblock, 0.33),
   // the pole the lights are strung from, the sitting stump, the signpost
   around(L.stringPole, 0.1),
   around(L.stumpSeat, 0.22),

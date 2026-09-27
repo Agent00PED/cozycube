@@ -7,24 +7,36 @@ export interface CasinoItem {
   id: string;
   name: string;
   emoji: string;
-  /** What it costs, in Velvet Chips. */
+  /** What it costs, in coins. */
   price: number;
-  /** What Mr. Vance gives back for it at the cage (a pawn: half its price). */
+  /** What Mr. Vance gives back for it at the cage, in chips (a pawn: half its price; 0: not pawned). */
   pawn: number;
   blurb: string;
 }
 
-/** The Black Velvet VIP Pass: bought from Mr. Vance at the cage (or from Bruno at the penthouse
- *  doors), kept in your account for good, and shown to Bruno to ride up to the Velvet Penthouse. A
- *  player down on their luck can pawn it back to Mr. Vance for half. */
+/** The Black Card: the Velvet Penthouse's permanent pass, bought for coins from Mr. Vance at the
+ *  cage (or from Bruno at the penthouse doors), kept in your account for good. A player down on their
+ *  luck can pawn it back to Mr. Vance for half, in chips. (The account's `vipPass`.) */
 export const VIP_PASS: CasinoItem = {
   id: "vip_pass",
-  name: "Black Velvet VIP Pass",
-  emoji: "🎫",
-  price: 5000,
-  pawn: 2500,
-  blurb: "Your key to the Velvet Penthouse: high-limit poker, baccarat and the Golden Vault. Yours for good, or pawn it back to Mr. Vance for 2,500.",
+  name: "The Black Card",
+  emoji: "💳",
+  price: 6500,
+  pawn: 3250,
+  blurb: "The Velvet Penthouse for good: high-limit poker, baccarat and the Golden Vault, every night.",
 };
+/** The Velvet VIP Wristband: one ride up to the Velvet Penthouse (Bruno takes it at the doors), for
+ *  coins; wristbands keep in the account until used. A Black Card holder never needs one. */
+export const VIP_WRISTBAND: CasinoItem = {
+  id: "vip_wristband",
+  name: "Velvet VIP Wristband",
+  emoji: "🎟️",
+  price: 600,
+  pawn: 0,
+  blurb: "One night in the Velvet Penthouse: Bruno takes it at the doors.",
+};
+/** The most wristbands one account keeps. */
+export const MAX_WRISTBANDS = 20;
 
 // --- The Velvet Pioneer set -------------------------------------------------------------------------
 // A thank-you to everyone who played the beta: the accounts that existed before the Phase 3 wipe

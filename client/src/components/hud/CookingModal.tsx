@@ -29,7 +29,8 @@ export function CookingModal({ hearth, profile, bag, userId, fed, send, onClose 
   const aura = hasCozyAura(fuel);
   const served = stew.served.includes(userId);
   const gathering = stew.phase === "gathering" && stew.items.length < STEW_SLOTS;
-  const add = (ingredient: "mushroom" | "berry") => send({ type: "STEW_ADD", ingredient });
+  const add = (ingredient: "mushroom" | "berry" | "log") => send({ type: "STEW_ADD", ingredient });
+  const logs = WOOD_KINDS.reduce((n, k) => n + (profile.wood[k] ?? 0), 0);
   const fedLeft = `${Math.floor(fed / 60)}:${String(fed % 60).padStart(2, "0")}`;
   return (
     <Modal title="The Hearth" icon="🍲" onClose={onClose} width={440}>
@@ -83,7 +84,7 @@ export function CookingModal({ hearth, profile, bag, userId, fed, send, onClose 
             </div>
           )}
           {gathering && !pickFish && (
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-4 gap-1.5">
               <button type="button" className="clay-btn min-h-10 px-1 text-xs" disabled={profile.creel.length === 0} onClick={() => setPickFish(true)}>
                 🐟 Fish ×{profile.creel.length}
               </button>
@@ -93,8 +94,12 @@ export function CookingModal({ hearth, profile, bag, userId, fed, send, onClose 
               <button type="button" className="clay-btn min-h-10 px-1 text-xs" disabled={!items.berry} onClick={() => add("berry")}>
                 🫐 ×{items.berry ?? 0}
               </button>
+              <button type="button" className="clay-btn min-h-10 px-1 text-xs" disabled={logs === 0} onClick={() => add("log")} title="A log under the cauldron: with a fish in it, a Campfire Stew for everyone">
+                🪵 ×{logs}
+              </button>
             </div>
           )}
+          {gathering && !pickFish && <p className="m-0 text-[11px] text-[#F5A623]/90">🍲 One fish and one log make a Campfire Stew: when it's done, everyone in the camp is Well-Fed at once.</p>}
           {gathering && pickFish && (
             <div className="flex flex-col gap-1">
               <span className="text-xs opacity-75">Which fish goes in the pot?</span>

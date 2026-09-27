@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { CHOP_CLEAN_COINS, CHOP_STUN_S, type CampfirePacket, type ChopResult, type ChopSwing } from "@shared/types";
 import { CHOP_CRIT_COINS, CHOP_GRACE, CHOP_GREENS_TO_SPLIT, WOOD, CHOP_LOGS, CHOP_STROKE_NAMES, chopGold, chopKnot, chopMarker, chopZone, isGreen, type ChopStroke, type ChopVerdict } from "@shared/chop";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
+import { TREES } from "@shared/chop";
+import { FOREST_TREE_AT } from "@shared/worlds/forest";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
 
@@ -10,6 +12,9 @@ interface Props {
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   localSessionId: string;
   onClose: () => void;
+  /** A Whispering Woods tree to fell (its node id), instead of a log on a block: the same three
+   *  strokes, harder by its tier; clean, it comes down. */
+  tree?: string;
 }
 
 // The chopping block's 3-hit combo. Raise the hatchet (CHOP_START) and swing (the button, Space or
@@ -42,7 +47,9 @@ const CHIPS = Array.from({ length: 14 }, (_, i) => ({
   delay: (i % 4) * 0.03,
 }));
 
-export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose }: Props) {
+export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose, tree }: Props) {
+  const node = tree ? FOREST_TREE_AT.get(tree.replace(/^tree_/, "")) : undefined;
+  const treeInfo = node ? TREES[node.kind] : null;
   const [phase, setPhase] = useState<Phase>("ready");
   const [stroke, setStroke] = useState<(ChopStroke & { at: number }) | null>(null);
   const [result, setResult] = useState<ChopResult | null>(null);
@@ -140,7 +147,7 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
     setSwings([]);
     setCallout(null);
     setPhase("raising");
-    sendRef.current({ type: "CHOP_START" });
+    sendRef.current(node ? { type: "CHOP_START", tree: node.id } : { type: "CHOP_START" });
   };
   /** A swing, at `when` (the click's or key's own timestamp, on the performance clock the meter runs
    *  on): the needle's place at that very moment is what the server judges, and where it stays. */
@@ -170,6 +177,13 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // a tree that came down: nothing left to fell here, the panel closes by itself
+  useEffect(() => {
+    if (!result?.clean || !result.treeKind) return;
+    const t = window.setTimeout(onClose, 2000);
+    return () => window.clearTimeout(t);
+  }, [result, onClose]);
+
   // no answer to CHOP_START (no log on this block, the carrier full, the axe still stunned): back to ready
   useEffect(() => {
     if (phase !== "raising") return;
@@ -182,10 +196,19 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
   const current = stroke?.stroke ?? 1;
   const greens = swings.filter(isGreen).length;
   return (
-    <Modal title="Chop Firewood" icon="🪓" onClose={onClose} width={440}>
+    <Modal title={treeInfo ? `Fell a ${treeInfo.name}` : "Chop Firewood"} icon="🪓" onClose={onClose} width={440}>
       <div className="flex flex-col items-center gap-3 pb-2">
-        <p className="m-0 text-center text-sm opacity-80">Three swings: land {CHOP_GREENS_TO_SPLIT} in the green to split the log. The gold centre is a critical chop. Mind the red knot.</p>
-        {log && (
+        <p className="m-0 text-center text-sm opacity-80">
+          {treeInfo
+            ? `Three notches: land ${CHOP_GREENS_TO_SPLIT} in the green and down it comes (${treeInfo.logs} ${WOOD[treeInfo.wood].name} logs). A T${treeInfo.tier} tree: its green is narrower, its needle quicker.`
+            : `Three swings: land ${CHOP_GREENS_TO_SPLIT} in the green to split the log. The gold centre is a critical chop. Mind the red knot.`}
+        </p>
+        {treeInfo && (
+          <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold">
+            {WOOD[treeInfo.wood].emoji} {treeInfo.name} · <span className="font-normal opacity-80">Tier {treeInfo.tier}</span>
+          </div>
+        )}
+        {log && !treeInfo && (
           <div className={`rounded-full px-3 py-1 text-xs font-bold ${stroke?.log === "golden" || result?.log === "golden" ? "bg-amber-300/30 text-amber-100 shadow-[0_0_12px_rgba(255,209,102,0.5)]" : "bg-white/10"}`}>
             {log.emoji} {log.name} · <span className="font-normal opacity-80">{log.blurb}</span>
           </div>
@@ -248,9 +271,21 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
                 ))}
               </div>
             )}
-            <div className="text-lg font-semibold">{result.clean ? (result.wood === "charcoal" ? `✨ Golden Charcoal! ${result.greens} of 3 in the green` : `🪵 The log splits! ${result.greens} of 3 in the green`) : result.stunned ? "💫 The axe bit a knot!" : `😅 Only ${result.greens} of 3 in the green`}</div>
-            <div className={`text-sm ${result.clean ? "text-amber-200" : "opacity-70"}`}>
+            <div className="text-lg font-semibold">
               {result.clean
+                ? result.treeKind
+                  ? `🌲 Timber! The ${TREES[result.treeKind].name} comes down`
+                  : result.wood === "charcoal"
+                    ? `✨ Golden Charcoal! ${result.greens} of 3 in the green`
+                    : `🪵 The log splits! ${result.greens} of 3 in the green`
+                : result.stunned
+                  ? "💫 The axe bit a knot!"
+                  : `😅 Only ${result.greens} of 3 in the green`}
+            </div>
+            <div className={`text-sm ${result.clean ? "text-amber-200" : "opacity-70"}`}>
+              {result.clean && result.treeKind
+                ? `+${result.pieces} ${WOOD[result.wood].name} logs ${WOOD[result.wood].emoji}${result.coins > 0 ? ` · +${result.coins} 🪙` : ""} · it grows back from the stump`
+                : result.clean
                 ? `+${result.pieces} ${WOOD[result.wood].name} ${WOOD[result.wood].emoji}${result.pieces > 1 ? " (bonus!)" : ""}${result.coins > 0 ? ` · +${result.coins} 🪙` : " (today's chopping coins are all earned)"} · burn it or sell it to Buster`
                 : result.stunned
                   ? `Shake it off: the axe is ready again in ${CHOP_STUN_S}s`

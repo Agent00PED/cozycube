@@ -1,3 +1,4 @@
+import { FOREST_FISHING, FOREST_LAYOUT } from "@shared/worlds/forest";
 import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
@@ -42,7 +43,13 @@ export interface CrowdFeed {
 /** Where an angler's bobber floats on the campfire's river: out from the dock spot they fish from
  *  (each spot has its own float, and only one angler at a time). */
 export function bobberFor(player: PlayerState, mapId: MapId) {
-  if (mapId !== "campfire_night" || (player.action !== "fish" && player.action !== "reel" && player.action !== "afkfish")) return null;
+  if (player.action !== "fish" && player.action !== "reel" && player.action !== "afkfish") return null;
+  if (mapId === "whispering_woods") {
+    // the rapids: the float lands off the bank stone the angler stands on
+    const spot = FOREST_FISHING.reduce((a, b) => (Math.hypot(b.stand.x - player.x, b.stand.z - player.z) < Math.hypot(a.stand.x - player.x, a.stand.z - player.z) ? b : a));
+    return { x: spot.bobber.x, y: FOREST_LAYOUT.rapids.water, z: spot.bobber.z };
+  }
+  if (mapId !== "campfire_night") return null;
   const { bobber } = nearestFishingSpot(player.x, player.z);
   return { x: bobber.x, y: CAMPFIRE_LAYOUT.river.water, z: bobber.z };
 }

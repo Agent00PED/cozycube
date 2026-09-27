@@ -1,6 +1,7 @@
 import { WORLDS, WORLD_IDS } from "@shared/worlds";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, isCasinoMap, type MapId, type TimeOfDay, type Weather } from "@shared/types";
+import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, isCampMap, isCasinoMap, type MapId, type TimeOfDay, type Weather } from "@shared/types";
+import { isCampDay, minutesToTurn } from "@shared/daynight";
 import { netWorth } from "@shared/casino";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 import { useAnglerProfile } from "./anglerStore";
@@ -15,6 +16,7 @@ import { VelvetChipIcon } from "./VelvetChipIcon";
 export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: string }> = {
   ...(Object.fromEntries(WORLD_IDS.map((id) => [WORLDS[id].mapId, { icon: WORLDS[id].icon, name: WORLDS[id].name, tagline: WORLDS[id].tagline }])) as Record<MapId, { icon: string; name: string; tagline: string }>),
   casino_vip: { icon: "🥂", name: "Velvet Penthouse", tagline: "High-limit poker, baccarat and the Golden Vault" },
+  whispering_woods: { icon: "🌲", name: "Whispering Woods", tagline: "Felling, the rapids, and Bramble the Bear" },
 };
 
 interface HeaderProps {
@@ -54,6 +56,19 @@ interface HeaderProps {
 
 const TIME_LABELS: Record<TimeOfDay, string> = { sunrise: "🌅 Sunrise", day: "☀️ Day", sunset: "🌇 Sunset", night: "🌙 Night" };
 
+/** The camp's day or night, and the minutes until it turns (re-read every 20 s while there). */
+function useCampClock(on: boolean) {
+  const read = () => ({ day: isCampDay(Date.now()), left: minutesToTurn(Date.now()) });
+  const [clock, setClock] = useState(read);
+  useEffect(() => {
+    if (!on) return;
+    setClock(read());
+    const t = window.setInterval(() => setClock(read()), 20000);
+    return () => window.clearInterval(t);
+  }, [on]);
+  return clock;
+}
+
 function timeLabel(time: TimeOfDay) {
   const [icon, ...rest] = TIME_LABELS[time].split(" ");
   return { icon, name: rest.join(" ") };
@@ -92,10 +107,12 @@ export function Header(p: HeaderProps) {
   const toggle = (menu: "time" | "status" | "more" | "creel") => {
     setOpen((o) => (o === menu ? null : menu));
   };
-  // the campfire is always a starlit night and the casino never sees the sun: their hour does not
-  // follow the lounge's clock
-  const starlit = p.currentMap === "campfire_night" || isCasinoMap(p.currentMap);
-  const time = starlit ? { icon: "🌙", name: p.currentMap === "campfire_night" ? "Starlight" : "Late night" } : timeLabel(p.timeOfDay);
+  // the campfire and the woods keep the camp's own 24-minute day, and the casino never sees the sun:
+  // their hour does not follow the lounge's clock
+  const camp = isCampMap(p.currentMap);
+  const campClock = useCampClock(camp);
+  const starlit = camp || isCasinoMap(p.currentMap);
+  const time = camp ? { icon: campClock.day ? "☀️" : "🌙", name: `${campClock.day ? "Day" : "Night"} · ${campClock.left}m` } : starlit ? { icon: "🌙", name: "Late night" } : timeLabel(p.timeOfDay);
   // rain over the lounge shows on the hour's pill
   if (!starlit && p.weather === "rain") time.icon = "🌧️";
   const st = isActivityStatus(p.status) ? ACTIVITY_STATUSES[p.status] : null;
@@ -135,7 +152,7 @@ export function Header(p: HeaderProps) {
 
       {/* ---- centre: the hour (a pill from 640px; on phones it is in the ☰ sheet) ---- */}
       <div className="pointer-events-auto relative hidden shrink-0 sm:block">
-        <button type="button" onClick={() => toggle("time")} className={`${ICON_PILL} gap-2 xl:w-auto xl:px-3.5`} title={starlit ? (p.currentMap === "campfire_night" ? "Always a starlit night by the campfire" : "The casino never sees the sun") : `${time.name}${p.autoCycle ? " · Auto" : ""}: day and night`} aria-label="Day and night" aria-expanded={open === "time"} aria-haspopup="menu">
+        <button type="button" onClick={() => toggle("time")} className={`${ICON_PILL} gap-2 xl:w-auto xl:px-3.5`} title={camp ? `The camp's own day: ${campClock.day ? "night falls" : "the sun rises"} in about ${campClock.left} min (12 min of day, 12 of night)` : starlit ? "The casino never sees the sun" : `${time.name}${p.autoCycle ? " · Auto" : ""}: day and night`} aria-label="Day and night" aria-expanded={open === "time"} aria-haspopup="menu">
           <span className={ICON}>{time.icon}</span>
           <span className="hidden xl:inline">{p.autoCycle && !starlit ? `${time.name} · Auto` : time.name}</span>
           <span className="hidden text-xs opacity-60 xl:inline">▾</span>
@@ -153,7 +170,18 @@ export function Header(p: HeaderProps) {
         {/* Velvet Chips: bright in the casino; elsewhere a dimmed reminder, only while you hold some */}
         {(isCasinoMap(p.currentMap) || p.chips > 0) && <ChipPurse chips={p.chips} here={isCasinoMap(p.currentMap)} />}
         {/* the wood carrier: only at the campfire; the pill opens it (WoodCarrierModal) */}
-        {p.currentMap === "campfire_night" && (
+        {/* the backpack: everything the camp gives you (B) */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "backpack", propId: "backpack" } }))}
+          className={ICON_PILL}
+          title="Backpack (B): your wood, fish, tools and the Nature Logbook"
+          aria-label="Backpack"
+          aria-haspopup="dialog"
+        >
+          <span className={ICON}>🎒</span>
+        </button>
+        {camp && (
           <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "carrier", propId: "carrier" } }))}
@@ -168,8 +196,8 @@ export function Header(p: HeaderProps) {
             </span>
           </button>
         )}
-        {/* the Fish Creel: only where there is fishing (the campfire) */}
-        {p.currentMap === "campfire_night" && (
+        {/* the Fish Creel (the livewell): only where there is fishing (the campfire, the woods) */}
+        {camp && (
         <div className="relative shrink-0">
           <button type="button" onClick={() => toggle("creel")} className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`} title={`Fish Creel: ${angler.profile.creel.length} of ${angler.profile.slots}`} aria-label="Fish creel" aria-expanded={open === "creel"} aria-haspopup="dialog">
             <span className={ICON}>🪣</span>
@@ -245,8 +273,8 @@ function SheetSection({ title, children }: { title: string; children: ReactNode 
 
 /** The hours and the auto cycle, as a menu's rows or (in the phone sheet) as chips. */
 function TimeChoices({ p, close, chips = false }: { p: HeaderProps; close: () => void; chips?: boolean }) {
-  if (p.currentMap === "campfire_night" || isCasinoMap(p.currentMap)) {
-    return <p className={`m-0 whitespace-nowrap px-3 py-2 text-sm font-semibold opacity-80 ${chips ? "" : "text-left"}`}>🌙 {p.currentMap === "campfire_night" ? "Always a starlit night by the campfire" : "The casino never sees the sun"}</p>;
+  if (isCampMap(p.currentMap) || isCasinoMap(p.currentMap)) {
+    return <p className={`m-0 whitespace-nowrap px-3 py-2 text-sm font-semibold opacity-80 ${chips ? "" : "text-left"}`}>{isCampMap(p.currentMap) ? "🌗 The camp keeps its own day: 12 minutes of sun, 12 of stars" : "🌙 The casino never sees the sun"}</p>;
   }
   return (
     <>

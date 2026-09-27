@@ -306,7 +306,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 6,
     name: "The Living World & Atmosphere Sync",
-    range: "v0.6.0 – v0.6.8",
+    range: "v0.6.0 – v0.6.9",
     icon: "🌦️",
     blurb: "Skies that follow the hour and the weather, a surer step between worlds, and a new heart for the lounge.",
     patches: [
@@ -486,6 +486,45 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           fixes: [
             "Closing the pinball cabinet mid-game ends the game there, paid on the score so far.",
+          ],
+        },
+      },
+      {
+        version: "0.6.9",
+        date: "2026-09-28",
+        title: "The Living Campfire & the Whispering Woods",
+        summary: "The campfire keeps its own 24-minute day, a branch archway opens onto the Whispering Woods, a slingshot gallery sets up along the fence, and felling, fishing and the menus all get a cozy new coat.",
+        changes: {
+          features: [
+            "The Whispering Woods: walk through the branch archway at the campfire's west fence with a Day Trip Permit (200 coins, one trip in) or the Ranger's Badge (3,800 coins, for good), both from Buster.",
+            "Fell twenty trees in five tiers: Soft Pine, Silver Birch, Highland Cedar, Autumn Maple and the Whispering Elderwood in its ring of standing stones. Three notches in the green bring one down; it grows back from a stump, a sprout and a sapling.",
+            "The tree you're next to glows with a soft outline: click it, tap it or press E to fell it. Each tier needs an axe of its tier or better.",
+            "Bramble the Bear keeps a trading post in the woods: he buys your logs and fish, and sells the Golden Felling and Runic Elderwood axes and the Starlight and Moonlight rods.",
+            "Fish the woods' rapids from the bank: the wild waters hold their own legendaries and mythics.",
+            "Thirty freshwater fish now, fifteen that bite by day and fifteen by night, from Common to Mythic.",
+            "The Whispering Pines Slingshot Gallery: 45 seconds and 15 stones against tin cans, ducks and owls. Drag back on the sling to aim (dots show the flight), build a combo up to x4, and hit the Golden Acorn for 15 coins on the spot.",
+            "The splitting blocks (by the campfire's woodpile and in the woods) split your logs into Firewood bundles in one go: each feeds the bonfire 10%.",
+            "Put a fish and a log in the Dutch oven for a Campfire Stew: when it's done, everyone is Well-Fed at once.",
+            "The Backpack (B, or the 🎒 in the header): your wood, fish and tools, and the Nature Logbook with a silhouette for every fish and tree you haven't found yet.",
+            "The canoe seats two, a marshmallow on a stick comes to hand when you sit by the fire, and anyone lying in the hammock or a tent dozes with a drift of Zzz.",
+          ],
+          visuals: [
+            "The campfire and the woods keep their own 24-minute day: twelve minutes of sun and twelve of stars, the light, fog and sky easing through dawn and dusk.",
+            "The firepit is an intimate horseshoe round a braided rug, open to the tents, with floor cushions, a kettle on its stump and a guitar leaning by the logs.",
+            "Trees between you and the camera thin to let you through.",
+            "Reeling in, you only see the fish's shadow on the line: what it is waits until it's landed, then it turns on a stand with its weight.",
+            "Every panel, the lobby and the patch notes wear a dark cozy look: roasted cocoa, oak cards and amber embers.",
+            "Birdsong by day, crickets and an owl by night, and a woodpecker in the woods.",
+          ],
+          economy: [
+            "Axes and rods go up to tier five (Buster and Barnaby sell up to tier three), carriers hold up to 300 logs and livewells up to 200 fish.",
+            "The slingshot gallery pays 12, 28 or 60 coins by score (the top tier also brings the Eagle Eye: a wider green for ten minutes), for six paid rounds an hour.",
+            "Sell All Logs and Sell All Fish at Buster's, Barnaby's and Bramble's, at the hour's market prices.",
+            "The penthouse takes a Velvet VIP Wristband (600 coins, one visit) or The Black Card (6,500 coins, for good).",
+          ],
+          fixes: [
+            "Switch lounge counts you in your own lounge and marks it Current.",
+            "Nametags draw crisp at twice the resolution on every screen.",
           ],
         },
       },

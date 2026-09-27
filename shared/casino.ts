@@ -39,19 +39,21 @@ export interface CasinoProfile {
   /** The day (todayKey, UTC) Madame Zara last read this player's fortune, and which one it was. */
   fortuneDay: string;
   fortune: number;
-  /** The Black Velvet VIP Pass (shared/items.ts), held for good once bought (until pawned). */
+  /** The Black Card (shared/items.ts VIP_PASS), held for good once bought (until pawned). */
   vipPass: boolean;
+  /** Velvet VIP Wristbands held (one ride up each). */
+  wristbands: number;
 }
 
 export function emptyCasinoProfile(): CasinoProfile {
-  return { chips: 0, title: "", fortuneDay: "", fortune: -1, vipPass: false };
+  return { chips: 0, title: "", fortuneDay: "", fortune: -1, vipPass: false, wristbands: 0 };
 }
 
 /** A saved profile read back from the database: anything malformed becomes an empty one, so a
  *  player saved before the casino opened simply has no chips (and one saved before the expansion
  *  no title, and no fortune told). */
 export function sanitizeCasinoProfile(raw: unknown): CasinoProfile {
-  const r = (raw ?? {}) as { chips?: unknown; title?: unknown; fortuneDay?: unknown; fortune?: unknown; vipPass?: unknown };
+  const r = (raw ?? {}) as { chips?: unknown; title?: unknown; fortuneDay?: unknown; fortune?: unknown; vipPass?: unknown; wristbands?: unknown };
   const chips = r.chips;
   return {
     chips: typeof chips === "number" && Number.isFinite(chips) && chips > 0 ? Math.min(CHIP_CAP, Math.floor(chips)) : 0,
@@ -59,6 +61,7 @@ export function sanitizeCasinoProfile(raw: unknown): CasinoProfile {
     fortuneDay: typeof r.fortuneDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.fortuneDay) ? r.fortuneDay : "",
     fortune: typeof r.fortune === "number" && Number.isInteger(r.fortune) && r.fortune >= 0 && r.fortune < ZARA_FORTUNES.length ? r.fortune : -1,
     vipPass: r.vipPass === true,
+    wristbands: typeof r.wristbands === "number" && Number.isFinite(r.wristbands) ? Math.max(0, Math.min(20, Math.floor(r.wristbands))) : 0,
   };
 }
 
@@ -957,6 +960,7 @@ export type CasinoPacket =
   | { type: "BACCARAT_BET"; bet: BaccaratBet; amount: number }
   | { type: "VIP_PASS_BUY" }
   | { type: "VIP_PASS_PAWN" }
+  | { type: "VIP_WRISTBAND_BUY" }
   | { type: "EXCUSE_ME"; propId: string }
   | { type: "PIANO_RECITAL"; piece: PianoPieceId }
   | { type: "PIANO_STOP" }
@@ -967,11 +971,13 @@ export type CasinoPacket =
 export interface CasinoNotice {
   reason: "chips" | "far" | "limits" | "busy" | "seat" | "occupied" | "pass";
 }
-/** Server -> client ("vipPassResult"): a pass bought or pawned (or why not). */
+/** Server -> client ("vipPassResult"): a Black Card bought or pawned, or a wristband bought (or why not). */
 export interface VipPassResult {
   ok: boolean;
-  kind: "buy" | "pawn";
+  kind: "buy" | "pawn" | "wristband";
+  coins: number;
   chips: number;
   hasPass: boolean;
-  reason?: "chips" | "far" | "have" | "none";
+  wristbands: number;
+  reason?: "coins" | "far" | "have" | "none" | "full";
 }

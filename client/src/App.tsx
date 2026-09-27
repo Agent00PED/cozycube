@@ -25,7 +25,11 @@ import { CHLOE_WELCOME } from "./entities/ChloeMaid";
 import { setMarketRaw } from "./scene/marketStore";
 import type { PioneerInfo } from "@shared/items";
 import { loadSavedLook } from "./components/hud/lookStorage";
-import { FishingModal } from "./components/hud/FishingModal";
+import { FishingModal, type FishReveal } from "./components/hud/FishingModal";
+import { SlingshotModal } from "./components/hud/SlingshotModal";
+import { BrambleModal } from "./components/hud/BrambleModal";
+import { BackpackModal } from "./components/hud/BackpackModal";
+import { PermitsModal, SplitBlockModal } from "./components/hud/SplitBlockModal";
 import { GachaModal } from "./components/hud/GachaModal";
 import { ClawModal } from "./components/hud/ClawModal";
 import { RetroGameModal } from "./components/hud/RetroGameModal";
@@ -44,7 +48,7 @@ import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
 import { FORAGE_INFO, ITEMS, TREASURE_COINS, guildRoomKey, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
 import { LobbyModal } from "./components/LobbyModal";
-import { forgetLounge, rememberLounge, rejoinLounge } from "./systems/lounge";
+import { rememberLounge, rejoinLounge } from "./systems/lounge";
 import { rejoined, useUpdateWatch } from "./systems/lifecycle";
 import { type BaccaratState, type BaccaratTable, type BigSixState, type BlackjackTableView, type CrapsView, type DerbyState } from "@shared/casino";
 import type { PusherId } from "@shared/worlds/casino";
@@ -61,7 +65,7 @@ import { CoinPusherModal } from "./components/hud/CoinPusherModal";
 import { PinballModal } from "./components/hud/PinballModal";
 import { PoolModal } from "./components/hud/PoolModal";
 import { PianoModal } from "./components/hud/PianoModal";
-import { FISH, RODS, TIER_LABEL, isKingSize, stars } from "@shared/fishing";
+import { FISH, RODS, TIER_COLOR, TIER_LABEL, fishKg, isKingSize, stars } from "@shared/fishing";
 import { COZY_AURA_FUEL, LOW_FUEL, stewName, type BonfireUpdate, type StewUpdate } from "@shared/bonfire";
 import { CookingModal } from "./components/hud/CookingModal";
 import { BarnabyModal } from "./components/hud/BarnabyModal";
@@ -236,6 +240,7 @@ export default function App() {
     mapTransitioning,
     travellingTo,
     market,
+    forest,
     claimPioneer,
     connected,
     connectionIssue,
@@ -348,7 +353,15 @@ export default function App() {
   const closeFishing = useCallback(() => setFishOnLine(null), []);
   // the campfire's reel: a fish on the line at the dock
   const [starReel, setStarReel] = useState<StarlightReel | null>(null);
-  const closeStarReel = useCallback(() => setStarReel(null), []);
+  const [reelReveal, setReelReveal] = useState<FishReveal | null>(null);
+  const [reelEscaped, setReelEscaped] = useState(false);
+  const [reelNo, setReelNo] = useState(0);
+  const starReelRef = useRef(false);
+  starReelRef.current = !!starReel;
+  const closeStarReel = useCallback(() => {
+    setStarReel(null);
+    setReelReveal(null);
+  }, []);
   const [gachaResult, setGachaResult] = useState<GachaPrize | null>(null);
   const [clawResult, setClawResult] = useState<{ won: boolean; target: number } | null>(null);
   const [arcadeResult, setArcadeResult] = useState<{ coins: number } | null>(null);
@@ -360,6 +373,17 @@ export default function App() {
   // the casino's tables open only when asked (the dock, or a click on the table): never by walking past
   const [rouletteOpen, setRouletteOpen] = useState(false);
   const [fortune, setFortune] = useState<FortuneResult | null>(null);
+  // B opens (and closes) the backpack, whenever nothing is being typed and no other panel is up
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "KeyB" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      setPanel((p) => (p?.kind === "backpack" ? null : p ? p : { kind: "backpack", propId: "backpack" }));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const openPanel = useCallback((kind: string, propId: string) => {
     // a fresh panel starts with no stale result from last time
     setGachaResult(null);
@@ -490,8 +514,13 @@ export default function App() {
           openPanel(p.kind, p.propId);
         } else if (type === "fishOnLine") {
           setFishOnLine(payload as FishOnLine);
+        } else if (type === "fishEscaped") {
+          setReelEscaped(true);
         } else if (type === "starlightReel") {
           setStarReel(payload as StarlightReel);
+          setReelReveal(null);
+          setReelEscaped(false);
+          setReelNo((n) => n + 1);
         } else if (type === "gachaResult") {
           setGachaResult(payload as GachaPrize);
         } else if (type === "clawResult") {
@@ -512,8 +541,12 @@ export default function App() {
           if (c.sessionId === localIdRef.current) {
             const info = FISH[c.fish.s];
             const released = c.coins - c.treasure;
-            if (c.released) pushToast(released > 0 ? `Creel full! Released for +${released} coins` : "Creel full! Released back to the river", { emoji: "🪣", tone: released > 0 ? "coin" : undefined });
-            else pushToast(`${c.afk ? "💤 " : ""}${info.name} · ${c.fish.cm} cm ${stars(c.fish.q)}${isKingSize(c.fish) ? " · King Size 👑" : ""}${c.record ? " · New personal best!" : ""}`, { emoji: c.record ? "🏆" : info.emoji, silent: c.afk && !c.record, tone: c.record ? "win" : undefined });
+            // a reel still open: the fish is revealed there (its model turning, its weight)
+            const revealed = !c.afk && starReelRef.current;
+            if (revealed)
+              setReelReveal({ species: c.fish.s, name: info.name, emoji: info.emoji, tier: TIER_LABEL[info.tier], tierColor: TIER_COLOR[info.tier], cm: c.fish.cm, kg: fishKg(c.fish), stars: stars(c.fish.q), record: c.record, king: isKingSize(c.fish), released: c.released });
+            if (c.released) pushToast(released > 0 ? `Livewell full! Released for +${released} coins` : "Livewell full! Released back to the water", { emoji: "🪣", tone: released > 0 ? "coin" : undefined });
+            else if (!revealed) pushToast(`${c.afk ? "💤 " : ""}${info.name} · ${c.fish.cm} cm ${stars(c.fish.q)}${isKingSize(c.fish) ? " · King Size 👑" : ""}${c.record ? " · New personal best!" : ""}`, { emoji: c.record ? "🏆" : info.emoji, silent: c.afk && !c.record, tone: c.record ? "win" : undefined });
             // a new personal best: the catch held high, and a chime
             if (c.record) playSfx("trophy");
             if (c.treasure > 0) pushToast(`Sunken treasure! +${c.treasure} coins`, { emoji: "🧰", tone: "coin" });
@@ -727,11 +760,13 @@ export default function App() {
   useEffect(() => {
     if (connected) rejoined();
   }, [connected]);
-  // Settings' "Switch lounge": leave this lounge (the room hook lets go of it) for the selector
+  // Settings' "Switch lounge": the selector over the game, this lounge still yours (and counted)
+  // until another is picked; then the room hook leaves this one (consented: the seat is let go and
+  // the account saved at once) and joins the new one, all in memory
+  const [switching, setSwitching] = useState(false);
   const switchLounge = useCallback(() => {
     setSettingsOpen(false);
-    forgetLounge();
-    setLounge(null);
+    setSwitching(true);
   }, []);
 
   // The cozy loading screen covers the Discord handshake, the room join and the models loading.
@@ -771,6 +806,7 @@ export default function App() {
             subscribeEmotes={subscribeEmotes}
             subscribeMessages={subscribeMessages}
             hearth={hearth}
+            forest={forest}
           />
         </IsometricCanvas>
 
@@ -846,7 +882,7 @@ export default function App() {
           />
         )}
 
-        <WorldTransitionScreen destination={travellingTo} />
+        <WorldTransitionScreen destination={travellingTo} from={currentMap} />
 
         {worldsOpen && <WorldDrawer currentMap={currentMap} counts={mapCounts} disabled={mapTransitioning} onSelect={changeMap} onClose={() => setWorldsOpen(false)} />}
         {socialOpen && (
@@ -880,6 +916,18 @@ export default function App() {
           />
         )}
         {patchNotesOpen && <PatchNotesModal onClose={() => setPatchNotesOpen(false)} />}
+        {switching && auth && (
+          <LobbyModal
+            auth={auth}
+            guildKey={guildKey}
+            current={lounge}
+            onPick={(n) => {
+              setSwitching(false);
+              if (n !== lounge) pickLounge(n);
+            }}
+            onCancel={() => setSwitching(false)}
+          />
+        )}
         {fieldGuideOpen && <FieldGuideModal profile={angler.profile} market={market} onClose={() => setFieldGuideOpen(false)} />}
         {leaderboardOpen && isCasinoMap(currentMap) && <LeaderboardModal leaderboard={leaderboard} players={players} localName={localPlayer?.username ?? ""} onClose={() => setLeaderboardOpen(false)} />}
         {slotsProp && localPlayer && localSessionId && (
@@ -910,25 +958,25 @@ export default function App() {
         )}
         {starReel &&
           (() => {
-            const sp = FISH[starReel.fish.s];
             const rod = RODS[starReel.rod] ?? RODS.bamboo;
             return (
               <FishingModal
-                key={`${starReel.fish.s}:${starReel.fish.cm}:${localSessionId}`}
+                key={`reel:${reelNo}`}
                 fish={{
-                  emoji: sp.emoji,
-                  name: sp.name,
-                  speed: sp.speed,
-                  size: sp.size,
-                  pattern: sp.pattern,
-                  barScale: Math.min(1.3, sp.barScale * (1 + rod.barBonus)),
+                  emoji: "🐟",
+                  name: "fish",
+                  speed: starReel.swim.speed,
+                  size: starReel.swim.size,
+                  pattern: starReel.swim.pattern,
+                  barScale: Math.min(1.3, starReel.swim.barScale * (1 + rod.barBonus)),
                   tensionResist: rod.tensionResist,
-                  tier: TIER_LABEL[sp.tier],
-                  hint: `Something from the starlit river · ${rod.emoji} ${rod.name}`,
-                  detail: `${starReel.fish.cm} cm · ${stars(starReel.fish.q)} · into the creel`,
+                  hint: `${rod.emoji} ${rod.name}`,
                   treasure: starReel.treasure,
                   treasureReward: TREASURE_COINS,
+                  shadow: starReel.shadow,
                 }}
+                reveal={reelReveal}
+                escaped={reelEscaped}
                 onResult={(result, _quality, openedChest) => campfireSend({ type: "REEL_DONE", caught: result === "caught", treasure: openedChest })}
                 onClose={closeStarReel}
                 autoCloseMs={2200}
@@ -947,15 +995,33 @@ export default function App() {
         {panel?.kind === "radio" && <RadioModal radio={radio} send={radioSend} onClose={closePanel} />}
         {panel?.kind === "roast" && localSessionId && <RoastingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "stargaze" && localSessionId && <StargazingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
-        {panel?.kind === "woodchop" && localSessionId && <WoodChopModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
+        {panel?.kind === "woodchop" && localSessionId && <WoodChopModal key={panel.propId} tree={panel.propId.startsWith("tree_") ? panel.propId : undefined} send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
+        {panel?.kind === "splitblock" && <SplitBlockModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "slingshot" && <SlingshotModal send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "bramble" && localPlayer && <BrambleModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "backpack" && <BackpackModal profile={angler.profile} onClose={closePanel} />}
+        {panel?.kind === "permits" && localPlayer && (
+          <PermitsModal
+            profile={angler.profile}
+            coins={localPlayer.coins}
+            send={campfireSend}
+            subscribeMessages={subscribeMessages}
+            onEnter={() => {
+              setPanel(null);
+              interactBridge.current?.useProp("woods_gate");
+            }}
+            onClose={closePanel}
+          />
+        )}
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
         {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} send={campfireSend} onClose={closePanel} />}
         {panel?.kind === "workbench" && localPlayer && <WoodCraftModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
-        {panel?.kind === "cashier" && localPlayer && <CashierModal coins={localPlayer.coins} chips={localPlayer.chips} onBuy={buyChips} onCashOut={cashOut} vipPass={localPlayer.vipPass} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "cashier" && localPlayer && <CashierModal coins={localPlayer.coins} chips={localPlayer.chips} onBuy={buyChips} onCashOut={cashOut} vipPass={localPlayer.vipPass} wristbands={localPlayer.vipWristbands} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "vippass" && localPlayer && (
           <VipPassModal
             hasPass={localPlayer.vipPass}
-            chips={localPlayer.chips}
+            wristbands={localPlayer.vipWristbands}
+            coins={localPlayer.coins}
             send={casinoSend}
             subscribeMessages={subscribeMessages}
             onGoUp={() => {

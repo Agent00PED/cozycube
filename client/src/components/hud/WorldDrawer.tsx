@@ -9,6 +9,7 @@ import { WORLDS, WORLD_ROWS, type WorldConfig } from "@shared/worlds";
 const ART: Record<MapId, { sky: string; ground: string; props: string[] }> = {
   cozy_lounge: { sky: "from-orange-200 to-rose-200", ground: "bg-amber-700", props: ["🛋️", "🪴", "📺", "☕"] },
   campfire_night: { sky: "from-indigo-900 to-violet-800", ground: "bg-emerald-900", props: ["⛺", "🔥", "🌲", "✨"] },
+  whispering_woods: { sky: "from-emerald-950 to-teal-800", ground: "bg-green-900", props: ["🌲", "🪓", "🦌", "🍁"] },
   sunset_beach: { sky: "from-orange-300 to-fuchsia-400", ground: "bg-yellow-200", props: ["🌴", "🍹", "🏄", "🐚"] },
   velvet_casino: { sky: "from-rose-950 to-red-900", ground: "bg-red-900", props: ["🎰", "🎡", "🃏", "🥂"] },
   casino_vip: { sky: "from-stone-950 to-amber-900", ground: "bg-stone-900", props: ["🥂", "🃏", "🎫", "🌃"] },
@@ -20,7 +21,7 @@ const ART: Record<MapId, { sky: string; ground: string; props: string[] }> = {
 
 /** How many are in a world: the casino's card counts its penthouse too. */
 function countFor(world: WorldConfig, counts: Partial<Record<MapId, number>>): number {
-  return (counts[world.mapId] ?? 0) + (world.mapId === "velvet_casino" ? (counts.casino_vip ?? 0) : 0);
+  return (counts[world.mapId] ?? 0) + (world.mapId === "velvet_casino" ? (counts.casino_vip ?? 0) : 0) + (world.mapId === "campfire_night" ? (counts.whispering_woods ?? 0) : 0);
 }
 
 export function WorldDrawer({ currentMap, counts, disabled, onSelect, onClose }: { currentMap: MapId; counts: Partial<Record<MapId, number>>; disabled: boolean; onSelect: (m: MapId) => void; onClose: () => void }) {

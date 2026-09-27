@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
-import { WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
+import { FIREWOOD_FUEL, TREES, WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
+import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FOREST_ANIMALS, FOREST_TREE_AT } from "@shared/worlds/forest";
+import { forestTarget } from "../../scene/forestTarget";
 import type { HearthState } from "../../hooks/useColyseusRoom";
 import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, spotOfSeat } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
@@ -10,7 +12,7 @@ import { BAR_REACH, BLACKJACK_TABLES, CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, 
 import { VIP_ARRIVAL } from "@shared/worlds/casino_vip";
 import { isTouchUi } from "../../systems/inputMode";
 import { BAR_SNACK, CAPSULE_COST, DEALER_TIP, TABLE_LIMITS, VAULT_SLOT_ID, chipText, isNpcOccupant, slotLimit, type CasinoPacket } from "@shared/casino";
-import { VIP_PASS } from "@shared/items";
+import { VIP_PASS, VIP_WRISTBAND } from "@shared/items";
 import { pushToast } from "./toastStore";
 import { cameraFocus } from "../../scene/cameraFocus";
 import { interactBridge } from "../../scene/interactBridge";
@@ -117,6 +119,9 @@ interface Action {
     | "excuse"
     | "vip"
     | "exit"
+    | "travel"
+    | "slingshot"
+    | "split"
     | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
@@ -132,6 +137,25 @@ function woodOf(fishing: string): Partial<Record<WoodKind, number>> {
     return (JSON.parse(fishing || "{}") as { wood?: Partial<Record<WoodKind, number>> }).wood ?? {};
   } catch {
     return {};
+  }
+}
+
+/** The woods' permits in a synced camp profile. */
+function campOf(fishing: string): { ranger: boolean; dayPermits: number } {
+  try {
+    const v = JSON.parse(fishing || "{}") as { ranger?: boolean; dayPermits?: number };
+    return { ranger: v.ranger === true, dayPermits: Math.max(0, Number(v.dayPermits) || 0) };
+  } catch {
+    return { ranger: false, dayPermits: 0 };
+  }
+}
+
+/** The Firewood bundles in a synced camp profile. */
+function firewoodOf(fishing: string): number {
+  try {
+    return Math.max(0, Number((JSON.parse(fishing || "{}") as { firewood?: number }).firewood) || 0);
+  } catch {
+    return 0;
   }
 }
 
@@ -209,7 +233,11 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         // the humblest wood first (pine, then oak, then Golden Charcoal: it sells best to Buster)
         const wood = woodOf(player.fishing);
         const item = WOOD_KINDS.find((k) => (wood[k] ?? 0) > 0);
-        if (item && hearth.fuel > 0 && hearth.fuel < 100 && action !== "grill") {
+        // split Firewood first when there is some: it is what it is for
+        const firewood = firewoodOf(player.fishing);
+        if (firewood > 0 && hearth.fuel < 100 && action !== "grill") {
+          found.push({ key: `fuel:firewood:${firewood}`, type: "fuel", label: `🪵 Add Firewood ×${firewood}`, hint: `A bundle of split Firewood: +${FIREWOOD_FUEL}% to the fire`, run: () => onCampfire({ type: "ADD_FUEL", item: "firewood" }) });
+        } else if (item && hearth.fuel > 0 && hearth.fuel < 100 && action !== "grill") {
           const n = wood[item] ?? 0;
           found.push({ key: `fuel:${item}:${n}`, type: "fuel", label: `${WOOD[item].emoji} Add ${WOOD[item].name} ×${n}`, hint: "Build the fire up: above 70% everyone gets the Cozy Aura", run: () => onCampfire({ type: "ADD_FUEL", item }) });
         }
@@ -248,6 +276,48 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         } else if (bench && toBench <= WORKBENCH_REACH + 0.4) {
           const id = bench.propId;
           found.push({ key: `workbench:${id}`, type: "workbench", label: "🪚 Workbench", hint: "Carve your logs into artisan pieces worth far more", run: () => interactBridge.current?.useProp(id) });
+        }
+      }
+      // the camp's newer corners: the archway between the campfire and the woods, the slingshot
+      // gallery, the splitting blocks; in the woods, the tree in reach, Bramble, the animals
+      if ((mapId === "campfire_night" || mapId === "whispering_woods") && !sitting && action === "") {
+        const px = cameraFocus.x;
+        const pz = cameraFocus.z;
+        const arch = Object.values(toggleables).find((p) => p.kind === "archway");
+        if (arch && reach(arch) <= 2.0) {
+          const id = arch.propId;
+          const camp = campOf(player.fishing);
+          if (mapId === "whispering_woods") found.push({ key: `arch:${id}`, type: "travel", label: "🏕️ Back to the Campfire", hint: "Through the branch archway, back to the fire", run: () => interactBridge.current?.useProp(id) });
+          else
+            found.push({
+              key: `arch:${id}:${camp.ranger}:${camp.dayPermits}`,
+              type: "travel",
+              label: "🌲 Enter the Whispering Woods",
+              hint: camp.ranger ? "Your Ranger's Badge: the woods are yours" : camp.dayPermits > 0 ? `A Day Trip Permit is stamped on the way in (you hold ${camp.dayPermits})` : "You'll need a Day Trip Permit or the Ranger's Badge (Buster sells both)",
+              run: () => interactBridge.current?.useProp(id),
+            });
+        }
+        const gallery = Object.values(toggleables).find((p) => p.kind === "slingshot");
+        if (gallery && reach(gallery) <= 2.4) {
+          const id = gallery.propId;
+          found.push({ key: `sling:${id}`, type: "slingshot", label: "🎯 Slingshot Gallery", hint: "45 seconds, 15 stones: knock down the cans, ducks and owls (and the Golden Acorn!)", run: () => interactBridge.current?.useProp(id) });
+        }
+        const block = Object.values(toggleables).find((p) => p.kind === "splitblock");
+        if (block && reach(block) <= 1.9) {
+          const id = block.propId;
+          found.push({ key: `split:${id}`, type: "split", label: "🪓 Split Logs", hint: "Split your logs into Firewood bundles for the bonfire", run: () => interactBridge.current?.useProp(id) });
+        }
+        if (mapId === "whispering_woods") {
+          const tree = forestTarget.id ? FOREST_TREE_AT.get(forestTarget.id) : undefined;
+          if (tree) {
+            const info = TREES[tree.kind];
+            found.push({ key: `fell:${tree.id}`, type: "chop", label: `🪓 Fell ${info.name} · T${info.tier}`, hint: `Three notches in the green and it comes down (${info.logs} ${WOOD[info.wood].name} logs). Needs a T${info.tier} axe or better`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
+          }
+          if (Math.hypot(BRAMBLE_FRONT.x - px, BRAMBLE_FRONT.z - pz) <= BRAMBLE_REACH + 0.6) found.push({ key: "bramble", type: "barnaby", label: "🐻 Talk to Bramble", hint: "Sell wood and fish; the finest axes and rods in the land", run: () => interactBridge.current?.useProp("bramble") });
+          for (const a of FOREST_ANIMALS) {
+            if (Math.hypot(a.x - px, a.z - pz) > ANIMAL_REACH + 0.3) continue;
+            found.push({ key: `feed:${a.propId}`, type: "critter", label: a.kind === "deer" ? "🦌 Feed the Deer" : "🐇 Feed the Rabbits", hint: "A berry or a mushroom from your forage bag", run: () => interactBridge.current?.useProp(a.propId) });
+          }
         }
       }
       // the Velvet Casino: Mr. Vance's cage, the slot row, the roulette and blackjack tables, the doors
@@ -329,8 +399,9 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           const spot = up ? VIP_ARRIVAL : VIP_DOORS_FRONT;
           if (door && Math.hypot(spot.x - px, spot.z - pz) <= MACHINE_REACH + (up ? 0.4 : 0)) {
             if (up) found.push({ key: "vip:out", type: "vip", label: "🛗 Back Down to the Hall", hint: "The elevator down to the High-Roller Stage", run: use(door) });
-            else if (player.vipPass) found.push({ key: "vip:in", type: "vip", label: "🕶️ Up to the Penthouse", hint: "Bruno checks your Black Velvet Pass and rings the elevator", run: use(door) });
-            else found.push({ key: "vip:buy", type: "vip", label: "🎫 Bruno: VIP Pass", hint: `The penthouse is for Black Velvet Pass holders: ${chipText(VIP_PASS.price)} chips from Bruno or Mr. Vance`, run: use(door) });
+            else if (player.vipPass) found.push({ key: "vip:in", type: "vip", label: "🕶️ Up to the Penthouse", hint: "Bruno checks your Black Card and rings the elevator", run: use(door) });
+            else if (player.vipWristbands > 0) found.push({ key: "vip:in", type: "vip", label: "🎟️ Up to the Penthouse", hint: `Bruno snips one Velvet VIP Wristband (you hold ${player.vipWristbands})`, run: use(door) });
+            else found.push({ key: "vip:buy", type: "vip", label: "🎟️ Bruno: VIP Entry", hint: `A Velvet VIP Wristband (${VIP_WRISTBAND.price} coins, one night) or The Black Card (${VIP_PASS.price.toLocaleString("en-US")} coins, for good)`, run: use(door) });
           }
         }
         // what you can use standing or from a seat within reach: the tip jars, the bar, the paper, the piano

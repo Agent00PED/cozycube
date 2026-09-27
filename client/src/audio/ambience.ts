@@ -9,6 +9,11 @@ import { LoungeFolk } from "./loungeFolk";
 import { RainAmbience } from "./rain";
 import { WORLD_CROSSFADE_S } from "./sound";
 import { masterOut } from "./master";
+import { daylight } from "@shared/daynight";
+import { FOREST_LAYOUT } from "@shared/worlds/forest";
+
+/** The middle of the woods' rapids (east edge), for the rush's place. */
+const RAPIDS_X = (FOREST_LAYOUT.rapids.x0 + FOREST_LAYOUT.half) / 2;
 
 // Each world's ambient soundscape, generated in the browser like the radio (no audio files: the
 // Activity's sandbox and licensing). The Starlight Campfire's is four layers on one master gain:
@@ -17,6 +22,11 @@ import { masterOut } from "./master";
 //   the river    filtered noise swelling and ebbing, a brighter trickle over it
 //   the breeze   a low whoosh that comes and goes
 //   crickets     little three-pulse chirps, two of them, answering each other left and right
+//
+// It follows the camp's 24-minute day (shared/daynight.ts): the crickets and an owl's hoot by night,
+// birdsong by day, each easing in and out with the light. The Whispering Woods play the same
+// soundscape without the fire: the rapids rushing down the east edge in the river's place, and a
+// woodpecker by day.
 //
 // Arriving at the campfire fades it in; leaving fades it out (the half-second cross-fade with
 // whatever the next world plays: audio/sound.ts). The volume is the Settings panel's Ambience slider. Browsers keep audio
@@ -43,6 +53,11 @@ class CampfireAmbience {
   private stopAt = 0;
   private cricketAt = 0;
   private cricketSide = 1;
+  private birdAt = 0;
+  private owlAt = 8;
+  private peckAt = 5;
+  /** Which of the camp's worlds it plays: the campfire (the fire, the river) or the woods (the rapids). */
+  private map: "campfire_night" | "whispering_woods" = "campfire_night";
   private beds: AudioScheduledSourceNode[] = [];
   /** The placed layers: the fire (its beds and crackles) and the river. */
   private fire: { gain: GainNode; pan: StereoPannerNode } | null = null;
@@ -173,9 +188,27 @@ class CampfireAmbience {
         src.onended = () => (src.disconnect(), f.disconnect(), g.disconnect());
       }
     }
-    // crickets: a three-pulse chirp, alternating sides
+    const light = daylight(Date.now());
+    const out = this.channels?.forest ?? this.master;
+    // birdsong by day: a phrase of quick gliding notes, somewhere round you
+    if (now > this.birdAt) {
+      this.birdAt = now + 1.4 + Math.random() * 3.2;
+      if (Math.random() < light * 0.85) this.bird(c, out, now);
+    }
+    // an owl by night, now and then
+    if (now > this.owlAt) {
+      this.owlAt = now + 11 + Math.random() * 16;
+      if (Math.random() < (1 - light) * 0.9) this.owl(c, out, now);
+    }
+    // a woodpecker in the woods by day
+    if (now > this.peckAt) {
+      this.peckAt = now + 8 + Math.random() * 12;
+      if (this.map === "whispering_woods" && Math.random() < light) this.peck(c, out, now);
+    }
+    // crickets: a three-pulse chirp, alternating sides (by night: they fall quiet as the sun rises)
     if (now > this.cricketAt) {
       this.cricketAt = now + 0.7 + Math.random() * 0.9;
+      if (Math.random() > 1 - light * 0.95) return;
       this.cricketSide = -this.cricketSide;
       const pan = c.createStereoPanner();
       pan.pan.value = this.cricketSide * (0.3 + Math.random() * 0.4);
@@ -199,14 +232,103 @@ class CampfireAmbience {
     }
   };
 
+  /** A bird's phrase: three to six quick notes, each gliding, from one spot round you. */
+  private bird(c: AudioContext, out: AudioNode, now: number) {
+    const pan = c.createStereoPanner();
+    pan.pan.value = (Math.random() - 0.5) * 1.4;
+    pan.connect(out);
+    const base = 2300 + Math.random() * 1900;
+    const n = 3 + Math.floor(Math.random() * 4);
+    let t = now + 0.05;
+    for (let k = 0; k < n; k++) {
+      const len = 0.06 + Math.random() * 0.08;
+      const f0 = base * (0.85 + Math.random() * 0.35);
+      const o = c.createOscillator();
+      o.type = "sine";
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.exponentialRampToValueAtTime(f0 * (Math.random() < 0.5 ? 1.3 : 0.78), t + len);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.011 + Math.random() * 0.006, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g).connect(pan);
+      o.start(t);
+      o.stop(t + len + 0.02);
+      o.onended = () => (o.disconnect(), g.disconnect());
+      t += len + 0.03 + Math.random() * 0.07;
+    }
+    window.setTimeout(() => pan.disconnect(), (t - now) * 1000 + 300);
+  }
+
+  /** An owl's soft "hoo, hoo-hoo" from the dark. */
+  private owl(c: AudioContext, out: AudioNode, now: number) {
+    const pan = c.createStereoPanner();
+    pan.pan.value = (Math.random() - 0.5) * 1.2;
+    const lp = c.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 900;
+    lp.connect(pan).connect(out);
+    const notes = [0, 0.55, 0.85];
+    for (const [k, at] of notes.entries()) {
+      const t = now + 0.05 + at;
+      const len = k === 0 ? 0.42 : 0.26;
+      const o = c.createOscillator();
+      o.type = "triangle";
+      o.frequency.setValueAtTime(k === 0 ? 390 : 360, t);
+      o.frequency.linearRampToValueAtTime(k === 0 ? 350 : 330, t + len);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.03, t + 0.08);
+      g.gain.linearRampToValueAtTime(0.0001, t + len);
+      o.connect(g).connect(lp);
+      o.start(t);
+      o.stop(t + len + 0.05);
+      o.onended = () => (o.disconnect(), g.disconnect());
+    }
+    window.setTimeout(() => (lp.disconnect(), pan.disconnect()), 1800);
+  }
+
+  /** A woodpecker's drumming on a far trunk: a quick run of knocks, slowing a little. */
+  private peck(c: AudioContext, out: AudioNode, now: number) {
+    const pan = c.createStereoPanner();
+    pan.pan.value = (Math.random() - 0.5) * 1.5;
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1500 + Math.random() * 500;
+    bp.Q.value = 3;
+    bp.connect(pan).connect(out);
+    let t = now + 0.05;
+    for (let k = 0; k < 9 + Math.floor(Math.random() * 5); k++) {
+      const src = c.createBufferSource();
+      src.buffer = this.crackles[k % this.crackles.length];
+      const g = c.createGain();
+      g.gain.value = 0.08 * (1 - k * 0.04);
+      src.connect(g).connect(bp);
+      src.start(t);
+      src.onended = () => (src.disconnect(), g.disconnect());
+      t += 0.055 + k * 0.003;
+    }
+    window.setTimeout(() => (bp.disconnect(), pan.disconnect()), (t - now) * 1000 + 400);
+  }
+
   /** The fire and the river, placed round where you stand: nearer is louder (never quite silent,
-   *  so the camp is still there across the island), and each pans toward its side of the screen. */
+   *  so the camp is still there across the island), and each pans toward its side of the screen.
+   *  In the woods: no fire, and the rapids in the river's place, rushing down the east edge. */
   private place(now: number) {
     if (!this.fire || !this.river) return;
     const x = cameraFocus.x;
     const z = cameraFocus.z;
     // screen right is along (1, 0, -1): how far right of you a point is, in units
     const right = (px: number, pz: number) => ((px - x) - (pz - z)) / Math.SQRT2;
+    if (this.map === "whispering_woods") {
+      this.fire.gain.gain.setTargetAtTime(0, now, 0.25);
+      const rx = RAPIDS_X;
+      const rz = Math.max(-10.5, Math.min(10.5, z));
+      const dr = Math.max(0, Math.hypot(rx - x, rz - z) - 1);
+      this.river.gain.gain.setTargetAtTime(0.35 + 1.4 / (1 + (dr / 3.5) ** 2), now, 0.25);
+      this.river.pan.pan.setTargetAtTime(Math.max(-0.85, Math.min(0.85, right(rx, rz) / 5)), now, 0.25);
+      return;
+    }
     const f = CAMPFIRE_LAYOUT.fire;
     const df = Math.hypot(f.x - x, f.z - z);
     this.fire.gain.gain.setTargetAtTime(0.25 + 0.95 / (1 + (df / 3.5) ** 2), now, 0.25);
@@ -218,6 +340,11 @@ class CampfireAmbience {
     const dr = Math.max(0, Math.hypot(rx - x, rz - z) - (span.x1 - span.x0) / 2);
     this.river.gain.gain.setTargetAtTime(0.2 + 1.0 / (1 + (dr / 3) ** 2), now, 0.25);
     this.river.pan.pan.setTargetAtTime(Math.max(-0.85, Math.min(0.85, right(rx, rz) / 5)), now, 0.25);
+  }
+
+  /** Which camp world is playing: the campfire, or the woods (no fire, the rapids). */
+  setMap(map: MapId | null) {
+    if (map === "campfire_night" || map === "whispering_woods") this.map = map;
   }
 
   setActive(on: boolean) {
@@ -296,7 +423,8 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
   }, [mapId, raining]);
   useEffect(() => {
     campfire ??= new CampfireAmbience();
-    campfire.setActive(mapId === "campfire_night");
+    campfire.setMap(mapId);
+    campfire.setActive(mapId === "campfire_night" || mapId === "whispering_woods");
     // the casino's band and crowd (the hall's and the penthouse's) start only once someone has gone there
     const casino = mapId === "velvet_casino" || mapId === "casino_vip";
     if (casino) {

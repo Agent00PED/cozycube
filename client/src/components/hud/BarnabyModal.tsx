@@ -133,6 +133,9 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
                     <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => shop({ type: "BARNABY", op: "equipRod", rod: id })}>
                       Use
                     </button>
+                  ) : rod.tier >= 4 ? (
+                    // the legendary and mythic rods: Bramble's, in the Whispering Woods
+                    <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🐻 At Bramble's cabin in the woods</span>
                   ) : (
                     <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < rod.price} onClick={() => shop({ type: "BARNABY", op: "buyRod", rod: id })}>
                       {rod.price} 🪙

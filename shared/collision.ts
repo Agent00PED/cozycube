@@ -3,6 +3,7 @@ import { LOFT_OBSTACLES, LOFT_SPAWNS, NAV_LIMIT } from "./worlds/lounge";
 import { CAMP_OBSTACLES, CAMP_SPAWNS } from "./worlds/campfire";
 import { CASINO_OBSTACLES, CASINO_REGIONS, CASINO_SPAWNS, casinoFloorY } from "./worlds/casino";
 import { VIP_ARRIVAL, VIP_OBSTACLES, VIP_REGION } from "./worlds/casino_vip";
+import { FOREST_OBSTACLES, FOREST_SPAWNS } from "./worlds/forest";
 
 // Where you can stand. The lounge, the campfire and the casino are authored in shared/worlds/
 // (lounge.ts, campfire.ts, casino.ts); every other world is still an open square floor with one spawn in the middle
@@ -54,6 +55,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   sunset_beach: open(),
   velvet_casino: CASINO_OBSTACLES,
   casino_vip: VIP_OBSTACLES,
+  whispering_woods: FOREST_OBSTACLES,
   boxing_ring: open(),
   japanese_onsen: open(),
   retro_arcade: open(),
@@ -67,6 +69,7 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
   sunset_beach: centre(),
   velvet_casino: CASINO_SPAWNS,
   casino_vip: [VIP_ARRIVAL],
+  whispering_woods: FOREST_SPAWNS,
   boxing_ring: centre(),
   japanese_onsen: centre(),
   retro_arcade: centre(),

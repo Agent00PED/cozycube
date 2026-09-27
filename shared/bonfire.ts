@@ -29,7 +29,7 @@ export const LOW_FUEL = 20;
 export const COZY_AURA_LUCK = 0.15;
 
 /** What goes on the fire: split wood, or a handful of Sawdust (shared/crafting.ts SAWDUST_FUEL). */
-export type FuelItem = WoodKind | "sawdust";
+export type FuelItem = WoodKind | "sawdust" | "firewood";
 export function hasCozyAura(fuel: number): boolean {
   return fuel > COZY_AURA_FUEL;
 }
@@ -75,12 +75,18 @@ export interface BonfireUpdate {
 
 // --- the Dutch oven --------------------------------------------------------------------------------
 
-export type StewIngredient = "fish" | "mushroom" | "berry";
+export type StewIngredient = "fish" | "mushroom" | "berry" | "log";
 export const STEW_INGREDIENT_INFO: Record<StewIngredient, { name: string; emoji: string }> = {
-  fish: { name: "a fish from your creel", emoji: "🐟" },
+  fish: { name: "a fish from your livewell", emoji: "🐟" },
   mushroom: { name: "Spotted Red Mushrooms", emoji: "🍄" },
   berry: { name: "Glowing Night Berries", emoji: "🫐" },
+  log: { name: "a log from your carrier (the fire under the cauldron)", emoji: "🪵" },
 };
+/** The Campfire Stew: one fish and one log in the cauldron is enough, and once it is cooked everyone
+ *  in the room is Well-Fed (a quicker step, quicker bites) at once. */
+export function isCampfireStew(items: readonly { kind: StewIngredient }[]): boolean {
+  return items.some((i) => i.kind === "fish") && items.some((i) => i.kind === "log");
+}
 /** A pot takes three ingredients, from anyone. */
 export const STEW_SLOTS = 3;
 /** It simmers this long once the third goes in. */
@@ -117,6 +123,7 @@ export function parseStew(raw: string): StewState {
 /** The pot's name, from what is in it. */
 export function stewName(items: readonly { kind: StewIngredient }[]): string {
   const n = (k: StewIngredient) => items.filter((i) => i.kind === k).length;
+  if (isCampfireStew(items)) return "Campfire Stew";
   if (n("fish") >= 2) return "Hearty Fisherman's Stew";
   if (n("mushroom") >= 2) return "Forest Mushroom Stew";
   if (n("berry") >= 2) return "Starberry Compote";

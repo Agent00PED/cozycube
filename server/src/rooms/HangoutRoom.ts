@@ -32,9 +32,29 @@ import {
   rollCatch,
   rollFish as rollRiverFish,
   type BaitId,
+  type CatchLuck,
   type CreelFish,
   type FishId,
 } from "../../../shared/fishing";
+import { isCampDay } from "../../../shared/daynight";
+import { FIREWOOD_FUEL, TREES, WOOD_KINDS, isTreeKind, regrowth, treeStage, type TreeKind, type TreeStage } from "../../../shared/chop";
+import { ADVANCED_BENCH_MASTER, EAGLE_EYE_MS, EAGLE_EYE_ZONE, GOLDEN_ACORN_COINS, MAX_DAY_PERMITS, PERMIT_PRICES, RAPIDS_LUCK, SLINGSHOT_PAID_ROUNDS_PER_HOUR, SLINGSHOT_PRIZES } from "../../../shared/economy";
+import { SLING_ROUND_S, playSlingshot, slingPrize, validSlingShots } from "../../../shared/slingshot";
+import {
+  ANIMAL_REACH,
+  BRAMBLE_FRONT,
+  BRAMBLE_REACH,
+  FOREST_ANIMALS,
+  FOREST_FISHING,
+  FOREST_SPLITBLOCK_FRONT,
+  FOREST_TREE_AT,
+  FOREST_WORKBENCH,
+  FOREST_WORKBENCH_FRONT,
+  TREE_REACH,
+  WOODS_ARRIVAL,
+  treeNear,
+} from "../../../shared/worlds/forest";
+import { CAMP_ARCHWAY_FRONT, CAMP_FROM_WOODS, GALLERY_FRONT, SPLITBLOCK_FRONT } from "../../../shared/worlds/campfire";
 import {
   COZY_AURA_LUCK,
   FUEL_DECAY,
@@ -49,6 +69,7 @@ import {
   STEW_SLOTS,
   emptyStew,
   hasCozyAura,
+  isCampfireStew,
   parsePicnic,
   parseStew,
   stewName,
@@ -215,10 +236,16 @@ import {
   cleanDisplayName,
   MAP_SIGNATURE_TIME,
   isCasinoMap,
+  isCampMap,
+  HIDDEN_MAPS,
   isBlacklisted,
   isOutfitId,
   toStoredLook,
   type DailyTaskId,
+  type SlingshotResult,
+  type SlingshotStarted,
+  type SplitResult,
+  type TreeFelled,
   type FishOnLine,
   type FishingWater,
   type MochiAction,
@@ -261,8 +288,10 @@ class Player extends Schema {
   @type("number") coins = STARTING_COINS;
   /** Velvet Chips (the record's casino.chips is the one kept). */
   @type("number") chips = 0;
-  /** Holds the Black Velvet VIP Pass (the record's casino.vipPass is the one kept). */
+  /** Holds the Black Card, the penthouse's permanent pass (the record's casino.vipPass is the one kept). */
   @type("boolean") vipPass = false;
+  /** Velvet VIP Wristbands held: one ride up each (the record's casino.wristbands). */
+  @type("number") vipWristbands = 0;
   @type("string") bag = "";
   @type("string") owned = "";
   @type("string") status = "";
@@ -345,6 +374,9 @@ class HangoutState extends Schema {
   @type("number") fuel = FUEL_START;
   /** The Dutch oven over it (a StewState as JSON). */
   @type("string") stew = "";
+  /** The Whispering Woods' felled trees as they grow back: { node id: "stump" | "sprout" |
+   *  "sapling" } (a tree not listed is mature). */
+  @type("string") forest = "";
   /** Skewers left on the picnic table (PicnicPlate[] as JSON). */
   @type("string") picnic = "";
   /** The hour's sales at the camp's stalls (a MarketState as JSON: shared/market.ts). */
@@ -456,7 +488,17 @@ export class HangoutRoom extends Room<HangoutState> {
   private starSeq = 1;
   /** The chopping block: each combo in progress (the stroke it is on, its meter, timed here), and
    *  each player's last swing (a knot stuns the axe past it). */
-  private chops = new Map<string, { stroke: ChopStroke; startedAt: number; log: ChopLog; station: string; greens: number }>();
+  private chops = new Map<string, { stroke: ChopStroke; startedAt: number; log: ChopLog; station: string; greens: number; tree?: TreeKind }>();
+  /** The woods' felled trees (node id: when it fell), until each is mature again. */
+  private forestFelled = new Map<string, number>();
+  /** Who is fishing each of the rapids' spots (spot id: sessionId). */
+  private rapidsAnglers = new Map<string, string>();
+  private forestTickAt = 0;
+  private lastFeedAt = new Map<string, number>();
+  /** The slingshot gallery: each shooter's round under way, and when each account's paid rounds
+   *  of the last hour began. */
+  private slingRounds = new Map<string, { seed: number; startedAt: number; paid: boolean }>();
+  private slingPaidAt = new Map<string, number[]>();
   private lastChopAt = new Map<string, number>();
   private lastPunchAt = new Map<string, number>();
   private dizzyUntil = new Map<string, number>();
@@ -793,7 +835,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!record || isBlacklisted(player.username)) return;
     record.username = player.username;
     record.coins = player.coins;
-    record.casino = { ...record.casino, chips: player.chips, title: player.title, vipPass: player.vipPass };
+    record.casino = { ...record.casino, chips: player.chips, title: player.title, vipPass: player.vipPass, wristbands: player.vipWristbands };
     record.unlockedItems = player.owned ? player.owned.split(",") : [];
     const look = parseLook(player.look);
     record.equippedLook = look ? { ...toStoredLook(look) } : {};
@@ -803,7 +845,7 @@ export class HangoutRoom extends Room<HangoutState> {
     } catch {
       record.daily = null;
     }
-    const signature = `${record.coins}|${player.chips}|${player.title}|${player.vipPass}|${record.casino.fortuneDay}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
+    const signature = `${record.coins}|${player.chips}|${player.title}|${player.vipPass}|${player.vipWristbands}|${record.casino.fortuneDay}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
     if (signature === this.savedSignature.get(sessionId) && !now) return;
     this.savedSignature.set(sessionId, signature);
     this.queue.mark(record);
@@ -1720,6 +1762,10 @@ export class HangoutRoom extends Room<HangoutState> {
     // each world runs while someone is in it
     if (this.occupied("sunset_beach")) this.tickBall(dt);
     if (this.occupied("campfire_night")) this.tickCampfire(now);
+    if (this.occupied("whispering_woods")) {
+      if (!this.occupied("campfire_night")) this.tickCampfire(now);
+      this.tickForest(now);
+    } else if (this.forestFelled.size && now - this.forestTickAt > 5000) this.tickForest(now);
     if (this.occupied("velvet_casino") || this.occupied("casino_vip")) this.casino.tick(dt);
     // the hour rolls over: the camp's market opens fresh
     const market = parseMarket(this.state.market, now);
@@ -1822,7 +1868,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleCampfire(client: Client, packet: CampfirePacket) {
     const sessionId = client.sessionId;
     const player = this.state.players.get(sessionId);
-    if (!player || !packet || typeof packet !== "object" || player.map !== "campfire_night") return;
+    if (!player || !packet || typeof packet !== "object" || !isCampMap(player.map)) return;
     switch (packet.type) {
       case "ROAST_START": {
         // from beside the fire or from a log bench round it (a little slack for latency)
@@ -1905,6 +1951,10 @@ export class HangoutRoom extends Room<HangoutState> {
       }
       case "CHOP_START": {
         if (player.sitting || player.action !== "") return;
+        if (player.map === "whispering_woods") {
+          this.startFelling(client, player, typeof packet.tree === "string" ? packet.tree : "");
+          return;
+        }
         // the station you stand at: it needs a log on its block, and nobody else at it
         let station: ToggleableState | null = null;
         this.state.toggleables.forEach((prop) => {
@@ -1938,23 +1988,46 @@ export class HangoutRoom extends Room<HangoutState> {
         this.finishStarlightReel(sessionId, packet.caught === true, packet.treasure === true);
         return;
       }
+      case "SPLIT_WOOD": {
+        this.splitWood(sessionId, player, packet.wood);
+        return;
+      }
+      case "SLINGSHOT_START": {
+        if (player.map !== "campfire_night" || player.sitting || Math.hypot(player.x - GALLERY_FRONT.x, player.z - GALLERY_FRONT.z) > 2.4) return;
+        const now = Date.now();
+        // the paid rounds are counted by account (leaving and coming back doesn't reset them)
+        const recent = (this.slingPaidAt.get(player.userId) ?? []).filter((at) => now - at < 3_600_000);
+        const paid = recent.length < SLINGSHOT_PAID_ROUNDS_PER_HOUR;
+        if (paid) recent.push(now);
+        this.slingPaidAt.set(player.userId, recent);
+        const seed = Math.floor(Math.random() * 2 ** 31);
+        this.slingRounds.set(sessionId, { seed, startedAt: now, paid });
+        client.send("slingshotStarted", { seed, paid, left: SLINGSHOT_PAID_ROUNDS_PER_HOUR - recent.length } satisfies SlingshotStarted);
+        return;
+      }
+      case "SLINGSHOT_END": {
+        this.endSlingshot(sessionId, player, packet.shots);
+        return;
+      }
       case "ADD_FUEL": {
-        const item = isWoodKind(packet.item) || packet.item === "sawdust" ? packet.item : "pine";
+        if (player.map !== "campfire_night") return;
+        const item = isWoodKind(packet.item) || packet.item === "sawdust" || packet.item === "firewood" ? packet.item : "pine";
         const profile = this.records.get(sessionId)?.fishing;
         if (!profile || player.action === "grill") return;
         if (!this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) {
           client.send("campfireNotice", { message: "Walk over to the bonfire to feed it", emoji: "🔥" });
           return;
         }
-        if (!((item === "sawdust" ? profile.sawdust : profile.wood[item]) > 0)) return;
+        if (!((item === "sawdust" ? profile.sawdust : item === "firewood" ? profile.firewood : profile.wood[item]) > 0)) return;
         if (this.state.fuel >= FUEL_MAX) {
           client.send("campfireNotice", { message: "The fire's already roaring! Save that for later", emoji: "🔥" });
           return;
         }
         if (item === "sawdust") profile.sawdust -= 1;
+        else if (item === "firewood") profile.firewood -= 1;
         else profile.wood[item] -= 1;
         this.saveFishing(sessionId, player);
-        const amount = item === "sawdust" ? SAWDUST_FUEL : WOOD[item].fuel;
+        const amount = item === "sawdust" ? SAWDUST_FUEL : item === "firewood" ? FIREWOOD_FUEL : WOOD[item].fuel;
         this.state.fuel = Math.min(FUEL_MAX, this.state.fuel + amount);
         const update: BonfireUpdate = { fuel: this.state.fuel, sessionId, item, amount };
         this.toMap("campfire_night", "BONFIRE_STATE_UPDATE", update);
@@ -1963,7 +2036,7 @@ export class HangoutRoom extends Room<HangoutState> {
         return;
       }
       case "STEW_ADD": {
-        if (player.action === "grill" || !this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) return;
+        if (player.map !== "campfire_night" || player.action === "grill" || !this.nearProp(player, "bonfire", BONFIRE_REACH + 0.5)) return;
         const stew = parseStew(this.state.stew);
         if (stew.phase !== "gathering" || stew.items.length >= STEW_SLOTS) return;
         const kind = packet.ingredient;
@@ -1976,6 +2049,13 @@ export class HangoutRoom extends Room<HangoutState> {
           profile.creel.splice(slot, 1);
           fish = f.s;
           this.saveFishing(sessionId, player);
+        } else if (kind === "log") {
+          // the humblest wood in the carrier goes under the cauldron
+          const profile = this.records.get(sessionId)?.fishing;
+          const wood = profile && WOOD_KINDS.slice().sort((a, b) => WOOD[a].sell - WOOD[b].sell).find((k) => (profile.wood[k] ?? 0) > 0);
+          if (!profile || !wood) return;
+          profile.wood[wood] -= 1;
+          this.saveFishing(sessionId, player);
         } else if (kind === "mushroom" || kind === "berry") {
           const bag = parseBag(player.bag);
           if (!((bag[kind] ?? 0) > 0)) return;
@@ -1984,13 +2064,13 @@ export class HangoutRoom extends Room<HangoutState> {
           player.bag = encodeBag(bag);
         } else return;
         stew.items.push(fish ? { kind, by: player.username, fish } : { kind, by: player.username });
-        if (stew.items.length >= STEW_SLOTS) {
+        if (stew.items.length >= STEW_SLOTS || isCampfireStew(stew.items)) {
           stew.phase = "cooking";
           stew.progress = 0;
           this.stewCookAt = Date.now();
         }
         this.setStew(stew, "add", sessionId);
-        this.nearby(sessionId, "emote", { sessionId, emoji: fish ? FISH[fish].emoji : kind === "berry" ? "🫐" : "🍄" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: fish ? FISH[fish].emoji : kind === "berry" ? "🫐" : kind === "log" ? "🪵" : "🍄" });
         return;
       }
       case "STEW_SCOOP": {
@@ -2143,18 +2223,52 @@ export class HangoutRoom extends Room<HangoutState> {
 
   /** The axe comes down: a clean split pays and feeds the fire; a glancing blow does neither. */
   /** The chopping combo's next stroke: a fresh meter for it, timed from now. */
-  private startChopStroke(client: Client, stroke: ChopStrokeNo, log: ChopLog, station: string, greens = 0) {
+  private startChopStroke(client: Client, stroke: ChopStrokeNo, log: ChopLog, station: string, greens = 0, tree?: TreeKind) {
     const profile = this.records.get(client.sessionId)?.fishing;
-    const meter = rollChopStroke(stroke, log, Math.random, profile?.axe ?? "rusty", gloveSweetBonus(profile?.gear ?? []));
-    this.chops.set(client.sessionId, { stroke: meter, startedAt: Date.now(), log, station, greens });
+    const eagle = (profile?.eagleUntil ?? 0) > Date.now() ? EAGLE_EYE_ZONE : 0;
+    const meter = rollChopStroke(stroke, log, Math.random, profile?.axe ?? "rusty", gloveSweetBonus(profile?.gear ?? []), tree, eagle);
+    this.chops.set(client.sessionId, { stroke: meter, startedAt: Date.now(), log, station, greens, tree });
     client.send("chopStroke", meter);
+  }
+
+  /** The woods: a tree to fell (the one named, or the nearest within reach): mature, nobody else at
+   *  it, an axe of its tier or better, room in the carrier. Then the three-strike notch begins. */
+  private startFelling(client: Client, player: Player, nodeId: string) {
+    const sessionId = client.sessionId;
+    const node = (nodeId && FOREST_TREE_AT.get(nodeId.replace(/^tree_/, ""))) || treeNear(player.x, player.z, TREE_REACH + 0.3);
+    if (!node || Math.hypot(player.x - node.x, player.z - node.z) > TREE_REACH + 0.5) return;
+    if (Date.now() < (this.lastChopAt.get(sessionId) ?? 0) + CHOP_COOLDOWN_MS) return;
+    const tree = TREES[node.kind];
+    if (this.forestFelled.has(node.id)) {
+      client.send("campfireNotice", { message: `That ${tree.name} is still growing back`, emoji: "🌱" });
+      return;
+    }
+    if ([...this.chops.values()].some((c) => c.station === node.id)) {
+      client.send("campfireNotice", { message: `Someone's already felling that ${tree.name}`, emoji: "🪓" });
+      return;
+    }
+    const profile = this.records.get(sessionId)?.fishing;
+    if (!profile) return;
+    const axe = AXES[profile.axe];
+    if (axe.tier < tree.tier) {
+      const from = tree.tier >= 4 ? "Bramble at his cabin" : "Buster at the campfire";
+      client.send("campfireNotice", { message: `Your ${axe.name} (T${axe.tier}) can't bite into ${tree.name}: it takes a T${tree.tier} axe or better (${from} sells them)`, emoji: "🪓" });
+      return;
+    }
+    if (carrierLoad(profile) >= carrierCapacity(profile.carrierTier)) {
+      client.send("campfireNotice", { message: `Your wood carrier is full (${carrierCapacity(profile.carrierTier)}): split some into Firewood, sell it to Buster or Bramble, or burn it`, emoji: "🪵" });
+      return;
+    }
+    player.action = "chop";
+    player.actionProgress = 0;
+    this.startChopStroke(client, 1, "pine", node.id, 0, node.kind);
   }
 
   /** A swing lands (or the meter runs out: a miss). Gold is a critical chop (now and then +3 coins
    *  or a Pine Resin) and counts as green; green counts toward the split; a glancing blow or a miss
    *  carries on to the next stroke at a baseline pace; a knot stuns the axe and ends the combo.
    *  After the third stroke the log splits if enough of them landed green. */
-  private landChopSwing(client: Client, player: Player, chop: { stroke: ChopStroke; log: ChopLog; station: string; greens: number }, verdict: ChopVerdict) {
+  private landChopSwing(client: Client, player: Player, chop: { stroke: ChopStroke; log: ChopLog; station: string; greens: number; tree?: TreeKind }, verdict: ChopVerdict) {
     const sessionId = client.sessionId;
     const stroke = chop.stroke.stroke;
     let bonus: ChopSwing["bonus"] = "";
@@ -2178,7 +2292,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.playGesture(sessionId, "chop");
     const greens = chop.greens + (isGreen(verdict) ? 1 : 0);
     chop.greens = greens;
-    if (stroke < 3) this.startChopStroke(client, (stroke + 1) as ChopStrokeNo, chop.log, chop.station, greens);
+    if (stroke < 3) this.startChopStroke(client, (stroke + 1) as ChopStrokeNo, chop.log, chop.station, greens, chop.tree);
     else this.finishChop(sessionId, player, false, 3);
   }
 
@@ -2196,6 +2310,28 @@ export class HangoutRoom extends Room<HangoutState> {
     const log = CHOP_LOGS[chop.log];
     const profile = this.records.get(sessionId)?.fishing;
     let pieces = 0;
+    if (chop.tree) {
+      // a tree in the woods: clean, it comes down (its logs into the carrier, a stump left to grow back)
+      const kind = chop.tree;
+      const tree = TREES[kind];
+      if (clean && profile) {
+        coins = this.campfirePay(sessionId, player, "chop", CHOP_CLEAN_COINS + tree.tier);
+        const room = Math.max(0, carrierCapacity(profile.carrierTier) - carrierLoad(profile));
+        const logs = tree.logs + (Math.random() < AXES[profile.axe].doubleChance ? 1 : 0) + (Math.random() < bonusLogChance(profile.gear) ? 1 : 0);
+        pieces = Math.min(room, logs);
+        profile.wood[tree.wood] = Math.min(999, profile.wood[tree.wood] + pieces);
+        profile.felled[kind] = Math.min(999_999, (profile.felled[kind] ?? 0) + 1);
+        this.saveFishing(sessionId, player);
+        this.forestFelled.set(chop.station, Date.now());
+        this.syncForest();
+        this.toMap("whispering_woods", "treeFelled", { sessionId, tree: chop.station, kind } satisfies TreeFelled);
+      }
+      const result: ChopResult = { sessionId, clean, greens: chop.greens, stunned, stroke, log: chop.log, wood: tree.wood, pieces, coins, capped: clean && coins === 0, tree: chop.station, treeKind: kind };
+      this.toMap(player.map, "chopResult", result);
+      this.nearby(sessionId, "emote", { sessionId, emoji: clean ? "🌲" : stunned ? "💫" : "😅" });
+      this.persist(sessionId, player);
+      return;
+    }
     if (clean && profile) {
       coins = this.campfirePay(sessionId, player, "chop", CHOP_CLEAN_COINS + log.bonus);
       // the split log is yours: wood to burn or to sell to Buster (two, with the Golden Axe's luck),
@@ -2220,7 +2356,7 @@ export class HangoutRoom extends Room<HangoutState> {
       }
     }
     const result: ChopResult = { sessionId, clean, greens: chop.greens, stunned, stroke, log: chop.log, wood: log.wood, pieces, coins, capped: clean && coins === 0 };
-    this.toMap("campfire_night", "chopResult", result);
+    this.toMap(player.map, "chopResult", result);
     this.nearby(sessionId, "emote", { sessionId, emoji: clean ? "🪵" : stunned ? "💫" : "😅" });
     this.persist(sessionId, player);
   }
@@ -2370,14 +2506,22 @@ export class HangoutRoom extends Room<HangoutState> {
     const player = this.state.players.get(sessionId);
     if (!player || player.action !== "fish" || !this.biteUntil.has(sessionId)) return;
     this.biteUntil.delete(sessionId);
-    const species = this.pendingFish.get(sessionId)?.species ?? rollRiverFish("freshwater");
+    const species = this.pendingFish.get(sessionId)?.species ?? rollRiverFish("freshwater", this.catchLuck(sessionId, player));
     this.pendingFish.delete(sessionId);
-    const fish = rollCatch(species, { rareLuck: hasCozyAura(this.state.fuel) ? COZY_AURA_LUCK : 0 });
+    const fish = rollCatch(species, { rareLuck: this.catchLuck(sessionId, player).rareLuck });
     const treasure = Math.random() < TREASURE_CHANCE[FISH[species].tier];
     this.starReels.set(sessionId, { fish, startedAt: Date.now(), treasure });
     player.action = "reel";
     player.actionProgress = 0;
-    const reel: StarlightReel = { fish, rod: this.records.get(sessionId)?.fishing.rod ?? "bamboo", treasure };
+    // how it swims and how big its shadow is: never what it is (that is told once it is landed)
+    const sp = FISH[species];
+    const [lo, hi] = sp.cm;
+    const reel: StarlightReel = {
+      swim: { speed: sp.speed, size: sp.size, pattern: sp.pattern, barScale: sp.barScale * ((this.records.get(sessionId)?.fishing.eagleUntil ?? 0) > Date.now() ? 1.15 : 1) },
+      shadow: Math.max(0.1, Math.min(1, Math.sqrt(Math.max(1, fish.cm) / 260) * (0.85 + 0.3 * ((fish.cm - lo) / Math.max(1, hi - lo))))),
+      rod: this.records.get(sessionId)?.fishing.rod ?? "bamboo",
+      treasure,
+    };
     this.sendTo(sessionId, "starlightReel", reel);
   }
 
@@ -2402,12 +2546,22 @@ export class HangoutRoom extends Room<HangoutState> {
         this.saveFishing(sessionId, player);
       }
     }
-    const species = rollRiverFish("freshwater", { rareLuck: hasCozyAura(this.state.fuel) ? COZY_AURA_LUCK : 0, bait });
+    const species = rollRiverFish("freshwater", this.catchLuck(sessionId, player, bait));
     const total = biteSeconds(species, { fed: player.fed > 0, bait }) * 1000;
     const now = Date.now();
     this.pendingFish.set(sessionId, { species, castAt: now, total });
     this.fishBiteAt.set(sessionId, now + total);
     player.actionProgress = 0;
+  }
+
+  /** What can bite for this angler now: the hour's light (the day's fish or the night's), the
+   *  rapids (their own legendaries and mythics, and a richer water), the rod's reach (nothing rarer
+   *  than its tier), the Cozy Aura at the campfire, and the bait. */
+  private catchLuck(sessionId: string, player: Player, bait: BaitId | "" = ""): CatchLuck {
+    const profile = this.records.get(sessionId)?.fishing;
+    const rapids = player.map === "whispering_woods";
+    const aura = player.map === "campfire_night" && hasCozyAura(this.state.fuel) ? COZY_AURA_LUCK : 0;
+    return { rareLuck: aura + (rapids ? RAPIDS_LUCK : 0), bait, time: isCampDay(Date.now()) ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier };
   }
 
   private creelIsFull(sessionId: string): boolean {
@@ -2443,7 +2597,8 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private scheduleCampAfk(sessionId: string, now: number) {
-    const species = rollRiverFish("freshwater", { afk: true, rareLuck: hasCozyAura(this.state.fuel) ? COZY_AURA_LUCK : 0 });
+    const player = this.state.players.get(sessionId);
+    const species = rollRiverFish("freshwater", player ? { ...this.catchLuck(sessionId, player), afk: true } : { afk: true });
     const total = afkSeconds(species) * 1000;
     this.pendingFish.set(sessionId, { species, castAt: now, total });
     this.afkTotal.set(sessionId, total);
@@ -2471,7 +2626,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // a new personal best (not the first of its kind: that is only a first): held high overhead
     const record = best > 0 && fish.cm > best;
     const landed: FishCaught = { sessionId, fish, released, record, coins, treasure, afk };
-    this.toMap("campfire_night", "fishCaught", landed);
+    this.toMap(player.map, "fishCaught", landed);
     if (record && !afk) this.playGesture(sessionId, "trophy");
     this.nearby(sessionId, "emote", { sessionId, emoji: released ? "🪣" : record ? "🏆" : FISH[fish.s].emoji });
     this.saveFishing(sessionId, player);
@@ -2518,7 +2673,13 @@ export class HangoutRoom extends Room<HangoutState> {
         stew.progress = 1;
         stew.servings = STEW_SERVINGS;
         this.setStew(stew, "ready", "");
-        this.toMap("campfire_night", "campfireNotice", { message: `The ${stewName(stew.items)} is ready! Grab a bowl by the fire`, emoji: "🍲" });
+        if (isCampfireStew(stew.items)) {
+          // the Campfire Stew: the whole room is Well-Fed at once (a quicker step, quicker bites)
+          this.state.players.forEach((p, id) => {
+            if (p.connected) this.feed(id, p);
+          });
+          this.broadcast("campfireNotice", { message: "The Campfire Stew is ready: everyone is Well-Fed! A quicker step and quicker bites for a while", emoji: "🍲" });
+        } else this.toMap("campfire_night", "campfireNotice", { message: `The ${stewName(stew.items)} is ready! Grab a bowl by the fire`, emoji: "🍲" });
       } else {
         const progress = Math.floor(done * 20) / 20;
         if (progress !== stew.progress) {
@@ -2537,6 +2698,150 @@ export class HangoutRoom extends Room<HangoutState> {
     return Math.hypot(player.x - CAMPFIRE_LAYOUT.picnic.x, player.z - CAMPFIRE_LAYOUT.picnic.z) <= PICNIC_REACH + 0.4;
   }
 
+  /** The woods' felled trees, growing back: each one's look (stump, sprout, sapling) synced as it
+   *  changes, dropped from the list once it is mature again. */
+  private tickForest(now: number) {
+    if (now - this.forestTickAt < 1000) return;
+    this.forestTickAt = now;
+    let changed = false;
+    this.forestFelled.forEach((at, id) => {
+      const node = FOREST_TREE_AT.get(id);
+      if (!node || regrowth(node.kind, (now - at) / 1000) >= 1) {
+        this.forestFelled.delete(id);
+        changed = true;
+      }
+    });
+    const next = this.forestStages(now);
+    if (changed || next !== this.state.forest) this.state.forest = next;
+    // an angler on the bank who walked off (or left the woods) lets the eddy go
+    this.rapidsAnglers.forEach((sessionId, spotId) => {
+      const p = this.state.players.get(sessionId);
+      const spot = FOREST_FISHING.find((f) => f.propId === spotId);
+      const fishing = p && p.map === "whispering_woods" && (p.action === "fish" || p.action === "reel" || p.action === "rest");
+      if (!p || !spot || !fishing) {
+        this.rapidsAnglers.delete(spotId);
+        return;
+      }
+      if (Math.hypot(p.x - spot.stand.x, p.z - spot.stand.z) > FISHING_REACH + 1.2) {
+        this.rapidsAnglers.delete(spotId);
+        this.stopStarlight(sessionId, p);
+      }
+    });
+  }
+
+  private forestStages(now: number): string {
+    const out: Record<string, TreeStage> = {};
+    this.forestFelled.forEach((at, id) => {
+      const node = FOREST_TREE_AT.get(id);
+      if (node) out[id] = treeStage(regrowth(node.kind, (now - at) / 1000));
+    });
+    return Object.keys(out).length ? JSON.stringify(out) : "";
+  }
+
+  private syncForest() {
+    this.state.forest = this.forestStages(Date.now());
+  }
+
+  /** The branch archway: from the campfire into the Whispering Woods (the Ranger's Badge, or a Day
+   *  Trip Permit used up on the way in; neither: Buster's permits offered there), or back out. */
+  private useArchway(sessionId: string, player: Player) {
+    if (player.sitting) return;
+    if (player.map === "whispering_woods") {
+      this.travel(sessionId, player, "campfire_night", CAMP_FROM_WOODS);
+      return;
+    }
+    if (player.map !== "campfire_night") return;
+    const profile = this.records.get(sessionId)?.fishing;
+    if (!profile) return;
+    if (!profile.ranger) {
+      if (profile.dayPermits <= 0) {
+        this.sendTo(sessionId, "openPanel", { kind: "permits", propId: "woods_gate" });
+        return;
+      }
+      profile.dayPermits -= 1;
+      this.saveFishing(sessionId, player);
+      this.sendTo(sessionId, "campfireNotice", { message: `A Day Trip Permit, stamped. ${profile.dayPermits ? `(${profile.dayPermits} left)` : "Enjoy the woods!"}`, emoji: "🎫" });
+    }
+    this.travel(sessionId, player, "whispering_woods", WOODS_ARRIVAL);
+  }
+
+  /** A slingshot round's shots, replayed against its seeded range: the score, the prize tier (and
+   *  the Eagle Eye at the top), the Golden Acorns; paid only on a paid round, within the day's cap. */
+  private endSlingshot(sessionId: string, player: Player, raw: unknown) {
+    const round = this.slingRounds.get(sessionId);
+    if (!round) return;
+    this.slingRounds.delete(sessionId);
+    const elapsed = (Date.now() - round.startedAt) / 1000;
+    const shots = elapsed <= SLING_ROUND_S + 30 ? validSlingShots(raw, elapsed) : null;
+    const profile = this.records.get(sessionId)?.fishing;
+    const fail: SlingshotResult = { ok: false, score: 0, hits: 0, acorns: 0, streak: 0, prize: 0, acornCoins: 0, coins: 0, capped: false, eagle: false, paid: round.paid, best: profile?.slingBest ?? 0 };
+    if (!shots || !profile) return this.sendTo(sessionId, "slingshotResult", fail);
+    const run = playSlingshot(round.seed, shots);
+    const tier = slingPrize(SLINGSHOT_PRIZES, run.score);
+    const prize = round.paid ? (tier?.coins ?? 0) : 0;
+    const acornCoins = round.paid ? run.acorns * GOLDEN_ACORN_COINS : 0;
+    const coins = prize + acornCoins > 0 ? this.campfirePay(sessionId, player, "slingshot", prize + acornCoins) : 0;
+    const eagle = !!tier?.eagle;
+    if (eagle) profile.eagleUntil = Date.now() + EAGLE_EYE_MS;
+    profile.slingBest = Math.max(profile.slingBest, run.score);
+    this.saveFishing(sessionId, player);
+    this.persist(sessionId, player);
+    const result: SlingshotResult = { ok: true, score: run.score, hits: run.hits.length, acorns: run.acorns, streak: run.streak, prize, acornCoins, coins, capped: prize + acornCoins > coins, eagle, paid: round.paid, best: profile.slingBest };
+    this.sendTo(sessionId, "slingshotResult", result);
+    if (eagle) {
+      this.nearby(sessionId, "emote", { sessionId, emoji: "🦅" });
+      this.toMap("campfire_night", "campfireNotice", { message: `${player.username} scored ${run.score.toLocaleString("en-US")} at the slingshot gallery: Eagle Eye!`, emoji: "🦅" });
+    } else if (run.hits.length) this.nearby(sessionId, "emote", { sessionId, emoji: "🎯" });
+  }
+
+  /** The chopping block: logs into Firewood (every kind, or one), bundled beside the carrier. */
+  private splitWood(sessionId: string, player: Player, only: unknown) {
+    const profile = this.records.get(sessionId)?.fishing;
+    if (!profile) return;
+    const front = player.map === "whispering_woods" ? FOREST_SPLITBLOCK_FRONT : SPLITBLOCK_FRONT;
+    const reply = (ok: boolean, message: string) => this.sendTo(sessionId, "splitResult", { ok, message, firewood: profile.firewood } satisfies SplitResult);
+    if (Math.hypot(player.x - front.x, player.z - front.z) > 1.9) return reply(false, "Step up to the chopping block");
+    const kinds = isWoodKind(only) ? [only] : WOOD_KINDS;
+    let logs = 0;
+    let bundles = 0;
+    for (const k of kinds) {
+      const n = profile.wood[k] ?? 0;
+      if (n <= 0) continue;
+      logs += n;
+      bundles += n * WOOD[k].firewood;
+      profile.wood[k] = 0;
+    }
+    if (!logs) return reply(false, "No logs in your carrier to split");
+    profile.firewood = Math.min(9999, profile.firewood + bundles);
+    this.saveFishing(sessionId, player);
+    if (!player.sitting) this.playGesture(sessionId, "chop");
+    this.nearby(sessionId, "emote", { sessionId, emoji: "🪵" });
+    reply(true, `${logs} log${logs > 1 ? "s" : ""} split into ${bundles} bundles of Firewood`);
+  }
+
+  /** The woods' deer and rabbits: a berry or a mushroom from the forage bag, and a hop of joy. */
+  private feedAnimal(sessionId: string, player: Player, propId: string) {
+    const animal = FOREST_ANIMALS.find((a) => a.propId === propId);
+    if (!animal || player.sitting || Math.hypot(player.x - animal.x, player.z - animal.z) > ANIMAL_REACH + 0.5) return;
+    const now = Date.now();
+    if (now - (this.lastFeedAt.get(sessionId) ?? 0) < 3000) return;
+    const bag = parseBag(player.bag);
+    const treat = (["berry", "mushroom"] as const).find((k) => (bag[k] ?? 0) > 0);
+    if (!treat) {
+      this.sendTo(sessionId, "campfireNotice", { message: `The ${animal.kind === "deer" ? "deer" : "rabbits"} sniff hopefully: bring a berry or a mushroom from the campfire's pines`, emoji: animal.kind === "deer" ? "🦌" : "🐇" });
+      return;
+    }
+    this.lastFeedAt.set(sessionId, now);
+    bag[treat] = (bag[treat] ?? 0) - 1;
+    if (!bag[treat]) delete bag[treat];
+    player.bag = encodeBag(bag);
+    this.playGesture(sessionId, "toss");
+    const coins = this.campfirePay(sessionId, player, "forage", 2);
+    this.toMap("whispering_woods", "animalFed", { sessionId, propId: animal.propId, coins });
+    this.nearby(sessionId, "emote", { sessionId, emoji: animal.kind === "deer" ? "🦌" : "🐇" });
+    this.persist(sessionId, player);
+  }
+
   /** The carpenter's workbench between the tipi and Buster's stall: the recipe's wood comes out of
    *  the carrier and one carved piece goes in (a Masterwork now and then: finer with a finer axe).
    *  Answered with workbenchResult; Buster buys the pieces at his stall. */
@@ -2551,7 +2856,10 @@ export class HangoutRoom extends Room<HangoutState> {
       this.sendTo(sessionId, "workbenchResult", result);
       if (ok) this.saveFishing(sessionId, player);
     };
-    const near = Math.min(Math.hypot(player.x - WORKBENCH_FRONT.x, player.z - WORKBENCH_FRONT.z), Math.hypot(player.x - WORKBENCH.x, player.z - WORKBENCH.z)) <= WORKBENCH_REACH + 0.4;
+    const advanced = player.map === "whispering_woods";
+    const near = advanced
+      ? Math.min(Math.hypot(player.x - FOREST_WORKBENCH_FRONT.x, player.z - FOREST_WORKBENCH_FRONT.z), Math.hypot(player.x - FOREST_WORKBENCH.x, player.z - FOREST_WORKBENCH.z)) <= WORKBENCH_REACH + 0.5
+      : Math.min(Math.hypot(player.x - WORKBENCH_FRONT.x, player.z - WORKBENCH_FRONT.z), Math.hypot(player.x - WORKBENCH.x, player.z - WORKBENCH.z)) <= WORKBENCH_REACH + 0.4;
     if (!near) return reply(false, "Step up to the workbench to carve");
     const craft = CRAFTS[packet.recipe];
     if (!canCraft(profile.wood, packet.recipe)) return reply(false, `The ${craft.name} takes ${Object.entries(craft.needs).map(([k, n]) => `${n} ${WOOD[k as keyof typeof WOOD].name}`).join(" + ")}`);
@@ -2560,7 +2868,9 @@ export class HangoutRoom extends Room<HangoutState> {
     // the Adhesive Slot: the resin is brushed on (and spent) before the carve
     if (adhesive) profile.resin -= 1;
     const glue = adhesive ? { adhesive } : {};
-    const outcome = rollCraft(craftOdds(packet.recipe, mode, profile.gear, adhesive), Math.random());
+    // Bramble's advanced bench: finer tools, a little more of a Masterwork's chance
+    const odds = craftOdds(packet.recipe, mode, profile.gear, adhesive);
+    const outcome = rollCraft(advanced ? { ...odds, masterwork: odds.masterwork + Math.min(odds.normal, ADVANCED_BENCH_MASTER), normal: Math.max(0, odds.normal - ADVANCED_BENCH_MASTER) } : odds, Math.random());
     this.playGesture(sessionId, "chop");
     if (outcome === "broken") {
       // the safety net: half its wood back (rounded up, per kind; 75% with the apron), and sawdust
@@ -2585,7 +2895,9 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!record) return;
     const profile = record.fishing;
     const B = CAMPFIRE_LAYOUT.buster;
-    const near = Math.min(Math.hypot(player.x - BUSTER_FRONT.x, player.z - BUSTER_FRONT.z), Math.hypot(player.x - B.x, player.z - B.z)) <= BUSTER_REACH + 0.4;
+    // at Buster's stall, or at Bramble's counter in the woods (he trades wood and sells the top axes)
+    const atBramble = player.map === "whispering_woods" && Math.hypot(player.x - BRAMBLE_FRONT.x, player.z - BRAMBLE_FRONT.z) <= BRAMBLE_REACH + 0.4;
+    const near = atBramble || (player.map === "campfire_night" && Math.min(Math.hypot(player.x - BUSTER_FRONT.x, player.z - BUSTER_FRONT.z), Math.hypot(player.x - B.x, player.z - B.z)) <= BUSTER_REACH + 0.4);
     const reply = (ok: boolean, message: string, coins = 0) => {
       const result: BarnabyResult = { ok, message, coins };
       this.sendTo(sessionId, "busterResult", result);
@@ -2609,11 +2921,43 @@ export class HangoutRoom extends Room<HangoutState> {
         this.nearby(sessionId, "emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
         return reply(true, `${n} ${WOOD[packet.wood].name}? Fine timber! Here's ${earned} 🪙`, earned);
       }
+      case "sellAllWood": {
+        if (!near) return tooFar();
+        const goods = WOOD_KINDS.flatMap((k) => Array.from({ length: profile.wood[k] ?? 0 }, () => k));
+        if (!goods.length) return reply(false, "Your carrier's empty of logs!");
+        const run = priceRun(goods, woodGood, (k, mult) => woodPrice(k, mult), this.market());
+        this.state.market = JSON.stringify(run.after);
+        for (const k of WOOD_KINDS) profile.wood[k] = 0;
+        this.addCoins(player, run.total);
+        this.nearby(sessionId, "emote", { sessionId, emoji: run.total >= 100 ? "💰" : "🪙" });
+        return reply(true, `${goods.length} logs, the lot! Here's ${run.total} 🪙`, run.total);
+      }
+      case "buyPermit": {
+        // Buster's permits (at his stall, or at the archway into the woods)
+        const atGate = player.map === "campfire_night" && Math.hypot(player.x - CAMP_ARCHWAY_FRONT.x, player.z - CAMP_ARCHWAY_FRONT.z) <= 2.2;
+        if (!near && !atGate) return tooFar();
+        if (profile.ranger) return reply(false, "You carry the Ranger's Badge: the woods are yours already!");
+        if (packet.permit === "ranger") {
+          if (player.coins < PERMIT_PRICES.rangerBadge) return reply(false, `The Ranger's Badge is ${PERMIT_PRICES.rangerBadge.toLocaleString("en-US")} 🪙`);
+          this.addCoins(player, -PERMIT_PRICES.rangerBadge);
+          profile.ranger = true;
+          this.nearby(sessionId, "emote", { sessionId, emoji: "🎖️" });
+          return reply(true, "The Ranger's Badge! The Whispering Woods are open to you for good", -PERMIT_PRICES.rangerBadge);
+        }
+        if (packet.permit !== "dayTrip") return;
+        if (profile.dayPermits >= MAX_DAY_PERMITS) return reply(false, `${MAX_DAY_PERMITS} permits is plenty for anybody!`);
+        if (player.coins < PERMIT_PRICES.dayTrip) return reply(false, `A Day Trip Permit is ${PERMIT_PRICES.dayTrip} 🪙`);
+        this.addCoins(player, -PERMIT_PRICES.dayTrip);
+        profile.dayPermits += 1;
+        return reply(true, `A Day Trip Permit (you hold ${profile.dayPermits}): show it at the archway`, -PERMIT_PRICES.dayTrip);
+      }
       case "buyAxe": {
         if (!isAxeId(packet.axe)) return;
         const axe = AXES[packet.axe];
         if (profile.axes.includes(packet.axe)) return reply(false, `You've already got the ${axe.name}`);
         if (!near) return tooFar();
+        // Buster forges up to T3; Bramble in the woods sells the T4 and T5 axes
+        if (atBramble !== axe.tier >= 4) return reply(false, axe.tier >= 4 ? `The ${axe.name} comes from Bramble's cabin in the Whispering Woods` : `Buster at the campfire sells the ${axe.name}`);
         if (player.coins < axe.price) return reply(false, `The ${axe.name} is ${axe.price} 🪙. Keep chopping!`);
         this.addCoins(player, -axe.price);
         profile.axes.push(packet.axe);
@@ -2678,7 +3022,9 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!record) return;
     const profile = record.fishing;
     const B = CAMPFIRE_LAYOUT.barnaby;
-    const near = Math.min(Math.hypot(player.x - BARNABY_FRONT.x, player.z - BARNABY_FRONT.z), Math.hypot(player.x - B.x, player.z - B.z)) <= BARNABY_REACH + 0.4;
+    // at Barnaby's stall, or at Bramble's counter in the woods (he buys fish and sells the top rods)
+    const atBramble = player.map === "whispering_woods" && Math.hypot(player.x - BRAMBLE_FRONT.x, player.z - BRAMBLE_FRONT.z) <= BRAMBLE_REACH + 0.4;
+    const near = atBramble || (player.map === "campfire_night" && Math.min(Math.hypot(player.x - BARNABY_FRONT.x, player.z - BARNABY_FRONT.z), Math.hypot(player.x - B.x, player.z - B.z)) <= BARNABY_REACH + 0.4);
     const reply = (ok: boolean, message: string, coins = 0) => {
       const result: BarnabyResult = { ok, message, coins };
       this.sendTo(sessionId, "barnabyResult", result);
@@ -2712,6 +3058,8 @@ export class HangoutRoom extends Room<HangoutState> {
         const rod = RODS[packet.rod];
         if (profile.rods.includes(packet.rod)) return reply(false, `You've already got the ${rod.name}`);
         if (!near) return tooFar();
+        // Barnaby sells up to T3; Bramble in the woods sells the T4 and T5 rods
+        if (atBramble !== rod.tier >= 4) return reply(false, rod.tier >= 4 ? `The ${rod.name} comes from Bramble's cabin in the Whispering Woods` : `Barnaby at the campfire sells the ${rod.name}`);
         if (player.coins < rod.price) return reply(false, `The ${rod.name} is ${rod.price} 🪙. Keep at it!`);
         this.addCoins(player, -rod.price);
         profile.rods.push(packet.rod);
@@ -2767,7 +3115,12 @@ export class HangoutRoom extends Room<HangoutState> {
       // a chest the server rolled for this reel, held in the bar until it opened
       const treasure = reel.treasure && openedChest ? this.campfirePay(sessionId, player, "fish", TREASURE_COINS) : 0;
       this.landFish(sessionId, player, reel.fish, false, treasure);
-    } else this.nearby(sessionId, "emote", { sessionId, emoji: "💨" });
+    } else {
+      this.nearby(sessionId, "emote", { sessionId, emoji: "💨" });
+      // a catch the server could not accept (reeled in faster than any fish comes in): the reel's
+      // panel says it slipped the hook, instead of waiting on a reveal
+      if (caught) this.sendTo(sessionId, "fishEscaped", {});
+    }
     // the line goes back in only if the creel has room (a full one: rod stowed, no bait spent)
     if (this.creelIsFull(sessionId)) this.restByTheWater(sessionId, player);
     else this.waitForBite(sessionId, player, landed);
@@ -2858,7 +3211,7 @@ export class HangoutRoom extends Room<HangoutState> {
   /** A trip to another built world, for the one who asked (the penthouse only through Bruno). */
   private handleChangeMap(sessionId: string, mapId: unknown) {
     const player = this.state.players.get(sessionId);
-    if (!player || !isMapId(mapId) || mapId === player.map || mapId === "casino_vip") return;
+    if (!player || !isMapId(mapId) || mapId === player.map || HIDDEN_MAPS.has(mapId)) return;
     if (!Object.values(WORLDS).some((w) => w.mapId === mapId && w.built)) return;
     this.travel(sessionId, player, mapId);
   }
@@ -3030,6 +3383,8 @@ export class HangoutRoom extends Room<HangoutState> {
     player.dirX = 0;
     player.dirZ = 0;
     this.lastReportAt.delete(sessionId);
+    // round the fire: a stick with a marshmallow on it, straight into the flames
+    if (player.map === "campfire_night" && chair.style === "log" && player.action === "" && !player.holding && this.state.fuel > 0) this.handleRoast(sessionId);
   }
 
   private handleUseProp(sessionId: string, propId: string) {
@@ -3192,6 +3547,27 @@ export class HangoutRoom extends Room<HangoutState> {
         if (player.action === "fish" || player.action === "afkfish") this.handleReelIn(sessionId);
         else this.handleCastLine(sessionId, false, prop.propId);
         break;
+      case "archway":
+        this.useArchway(sessionId, player);
+        break;
+      case "tree":
+        // a tree: the felling panel (its three-strike notch starts from there)
+        if (player.action === "" && Math.hypot(player.x - prop.x, player.z - prop.z) <= TREE_REACH + 0.5) this.sendTo(sessionId, "openPanel", { kind: "woodchop", propId: prop.propId });
+        break;
+      case "splitblock":
+        this.sendTo(sessionId, "openPanel", { kind: "splitblock", propId: prop.propId });
+        break;
+      case "slingshot":
+        this.sendTo(sessionId, "openPanel", { kind: "slingshot", propId: prop.propId });
+        break;
+      case "ranger":
+        if (Math.hypot(player.x - prop.x, player.z - prop.z) > BRAMBLE_REACH + 1.2) return;
+        this.sendTo(sessionId, "openPanel", { kind: "bramble", propId: prop.propId });
+        this.toMap("whispering_woods", "brambleWave", { sessionId });
+        break;
+      case "animal":
+        this.feedAnimal(sessionId, player, prop.propId);
+        break;
       case "boardgame":
         // walking up to the table seats you at it (seat 1, or seat 2 opposite whoever has it);
         // with both seats taken you stay standing and the board opens for you to watch
@@ -3310,6 +3686,28 @@ export class HangoutRoom extends Room<HangoutState> {
     const player = this.state.players.get(sessionId);
     // (resting by the water with a full creel counts as free: the guard below decides)
     if (!player || (player.action !== "" && player.action !== "rest")) return;
+    // the woods' rapids: standing on the bank at one of its three spots (one angler to a spot)
+    if (player.map === "whispering_woods") {
+      if (player.sitting) return;
+      const spot = FOREST_FISHING.find((f) => f.propId === spotId) ?? FOREST_FISHING.reduce((a, b) => (Math.hypot(b.stand.x - player.x, b.stand.z - player.z) < Math.hypot(a.stand.x - player.x, a.stand.z - player.z) ? b : a));
+      if (Math.hypot(player.x - spot.stand.x, player.z - spot.stand.z) > FISHING_REACH + 0.8) return;
+      const holder = this.rapidsAnglers.get(spot.propId);
+      if (holder && holder !== sessionId && this.state.players.get(holder)?.map === "whispering_woods") {
+        this.sendTo(sessionId, "campfireNotice", { message: "Someone's fishing that eddy. Try the next one along the bank", emoji: "🎣" });
+        return;
+      }
+      if (this.creelIsFull(sessionId)) {
+        this.sendTo(sessionId, "campfireNotice", { message: "Your livewell's full: sell some fish to Bramble or Barnaby first", emoji: "🪣" });
+        return;
+      }
+      this.rapidsAnglers.set(spot.propId, sessionId);
+      if (player.action === "rest") this.putMugAway(player);
+      player.action = "fish";
+      player.actionProgress = 0;
+      this.starlight.add(sessionId);
+      this.waitForBite(sessionId, player, true);
+      return;
+    }
     // the campfire's river: from the dock's edge at one of its spots (one angler to a spot), sitting
     // with your legs over the water; a bite, a tap, then the reel
     if (player.map === "campfire_night") {
@@ -3398,6 +3796,7 @@ export class HangoutRoom extends Room<HangoutState> {
     player.coins = record.coins;
     player.chips = record.casino.chips;
     player.vipPass = record.casino.vipPass;
+    player.vipWristbands = record.casino.wristbands ?? 0;
     player.owned = record.unlockedItems.join(",");
     const title = record.casino.title;
     player.title = title && record.unlockedItems.includes(capsuleUnlock({ kind: "title", id: title })) ? title : "";
@@ -3504,6 +3903,8 @@ export class HangoutRoom extends Room<HangoutState> {
     this.stargazers.delete(sessionId);
     this.chops.delete(sessionId);
     this.lastChopAt.delete(sessionId);
+    this.slingRounds.delete(sessionId);
+    this.lastFeedAt.delete(sessionId);
     this.starReels.delete(sessionId);
     this.pendingFish.delete(sessionId);
     this.lastNetAt.delete(sessionId);
@@ -3604,6 +4005,7 @@ export class HangoutRoom extends Room<HangoutState> {
       player.coins = old.coins;
       player.chips = old.chips;
       player.vipPass = old.vipPass;
+      player.vipWristbands = old.vipWristbands;
       player.title = old.title;
       player.fishing = JSON.stringify(record.fishing);
       player.fed = old.fed;

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useProgress } from "@react-three/drei";
 import { closeActivity, inDiscordFrame } from "../hooks/useDiscordAuth";
 
-// The cozy loading screen: one warm cream card that carries the player from opening the Activity
+// The cozy loading screen (Dark Cozy: roasted cocoa, vanilla cream text, an amber bar) that carries the player from opening the Activity
 // to standing in the lounge, through three stages:
 //
 //   discord  the Discord SDK handshake            "Knocking on the door..."
@@ -37,7 +37,7 @@ const ASSET_TIMEOUT_MS = 15000;
 const FADE_MS = 500;
 /** How long the room stage waits before owning up and offering Reconnect. */
 const ROOM_TIMEOUT_MS = 10000;
-const BUTTON = "min-h-11 rounded-full bg-[#F4A15C] px-6 text-[15px] font-semibold text-[#3B2A1E] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_-3px_0_rgba(0,0,0,0.14),0_6px_16px_rgba(166,108,58,0.28)] transition-transform duration-150 hover:brightness-105 active:scale-95";
+const BUTTON = "min-h-11 rounded-full bg-[#F5A623] px-6 text-[15px] font-semibold text-[#2B201B] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_-3px_0_rgba(0,0,0,0.14),0_6px_16px_rgba(166,108,58,0.28)] transition-transform duration-150 hover:brightness-105 active:scale-95";
 
 interface LoadingScreenProps {
   stage: LoadStage;
@@ -110,7 +110,7 @@ export function LoadingScreen({ stage, error, issue, onReconnect, onRetry }: Loa
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-b from-[#FAF6EE] to-[#EFE7D8] px-4 text-[#4A3728] transition-opacity ease-out ${leaving ? "pointer-events-none opacity-0" : "opacity-100"}`}
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-b from-[#231B18] to-[#1C1614] px-4 text-[#F7EBE1] transition-opacity ease-out ${leaving ? "pointer-events-none opacity-0" : "opacity-100"}`}
       style={{ fontFamily: "var(--font-cozy)", transitionDuration: `${FADE_MS}ms` }}
       role={isError || napping ? "alert" : "status"}
       aria-live="polite"
@@ -120,11 +120,11 @@ export function LoadingScreen({ stage, error, issue, onReconnect, onRetry }: Loa
         <CozyMug mood={isError ? "sad" : napping ? "sleepy" : "happy"} />
         <div className="flex flex-col gap-1">
           <h1 className="m-0 text-[clamp(20px,5.5vw,26px)] font-semibold leading-tight tracking-[0.01em]">{copy.title}</h1>
-          <p className={`m-0 text-[15px] leading-snug ${isError ? "break-words text-[#9A4B3A]" : "text-[#4A3728]/70"}`}>
+          <p className={`m-0 text-[15px] leading-snug ${isError ? "break-words text-[#F2A38F]" : "text-[#C9BDB5]"}`}>
             {copy.detail}
             {!isError && !napping && <Dots />}
           </p>
-          {napping && issue && <p className="m-0 mt-1 break-words text-[12px] leading-snug text-[#4A3728]/50">{issue}</p>}
+          {napping && issue && <p className="m-0 mt-1 break-words text-[12px] leading-snug text-[#9C8B80]">{issue}</p>}
         </div>
         {isError ? (
           <div className="flex flex-col items-center gap-2">
@@ -133,7 +133,7 @@ export function LoadingScreen({ stage, error, issue, onReconnect, onRetry }: Loa
             </button>
             {/* stuck for good (Discord never answered): only a fresh start of the Activity helps */}
             {inDiscordFrame() && (
-              <button type="button" onClick={() => closeActivity("Start CozyCube again from the voice channel.")} className="min-h-11 rounded-full px-4 text-[13px] font-semibold text-[#4A3728]/70 underline underline-offset-2">
+              <button type="button" onClick={() => closeActivity("Start CozyCube again from the voice channel.")} className="min-h-11 rounded-full px-4 text-[13px] font-semibold text-[#C9BDB5] underline underline-offset-2">
                 Close the Activity and start it again
               </button>
             )}
@@ -143,8 +143,8 @@ export function LoadingScreen({ stage, error, issue, onReconnect, onRetry }: Loa
             🔄 Reconnect
           </button>
         ) : (
-          <div className="h-3.5 w-full rounded-full bg-[#E3D8C4] p-[3px] shadow-[inset_0_2px_3px_rgba(74,55,40,0.14)]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(bar * 100)} aria-label="Loading">
-            <div className="h-full rounded-full bg-gradient-to-r from-[#F7C98B] to-[#F4A15C] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] transition-[width] duration-500 ease-out" style={{ width: `${Math.max(6, bar * 100)}%` }} />
+          <div className="h-3.5 w-full rounded-full bg-[#3A2C25] p-[3px] shadow-[inset_0_2px_3px_rgba(0,0,0,0.3)]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(bar * 100)} aria-label="Loading">
+            <div className="h-full rounded-full bg-gradient-to-r from-[#F8C977] to-[#E69A28] shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] transition-[width] duration-500 ease-out" style={{ width: `${Math.max(6, bar * 100)}%` }} />
           </div>
         )}
       </div>
@@ -157,7 +157,7 @@ function Dots() {
   return (
     <span className="ml-1 inline-flex gap-[3px] align-middle" aria-hidden>
       {[0, 1, 2].map((i) => (
-        <span key={i} className="cozy-load-dot inline-block h-[5px] w-[5px] rounded-full bg-[#C98F5A]" style={{ animationDelay: `${i * 0.16}s` }} />
+        <span key={i} className="cozy-load-dot inline-block h-[5px] w-[5px] rounded-full bg-[#F5A623]" style={{ animationDelay: `${i * 0.16}s` }} />
       ))}
     </span>
   );
@@ -179,7 +179,7 @@ function CozyMug({ mood }: { mood: "happy" | "sad" | "sleepy" }) {
             <path key={x} className="cozy-load-steam" style={{ animationDelay: `${i * 0.55}s` }} d={`M${x} 40 q -6 -8 0 -16 q 6 -8 0 -16`} fill="none" stroke="#C9B79E" strokeWidth="4.5" strokeLinecap="round" />
           ))}
         {/* soft shadow on the table */}
-        <ellipse cx="54" cy="100" rx="34" ry="5" fill="#4A3728" opacity="0.12" />
+        <ellipse cx="54" cy="100" rx="34" ry="5" fill="#000" opacity="0.3" />
         {/* handle */}
         <path d="M80 56 q 18 0 18 14 q 0 14 -18 14" fill="none" stroke="#E7B98F" strokeWidth="8" strokeLinecap="round" />
         {/* body, a clay highlight down its left side, and a darker base */}

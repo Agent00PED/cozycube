@@ -36,26 +36,36 @@
 //   Hard Oak     the knots creep along the meter: two Firewood
 //   Golden Log   one in ten: a Golden Charcoal (double the fuel) and a bonus
 
-import { AXE_PRICES, CARRIER_PRICES, WOOD_PRICES } from "./economy";
+import { AXE_PRICES, CARRIER_CAPACITY, CARRIER_PRICES, WOOD_PRICES } from "./economy";
 
 export type ChopStrokeNo = 1 | 2 | 3;
 export type ChopLog = "pine" | "oak" | "golden";
 
-// --- the wood: what a clean split yields, kept (with the axe) in the player's camp profile ---
-export type WoodKind = "pine" | "oak" | "charcoal";
-export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal"];
-/** Each kind: what Buster pays for one, and how much it feeds the bonfire. */
-export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number; fuel: number }> = {
-  pine: { name: "Raw Softwood", emoji: "🪵", sell: WOOD_PRICES.pine, fuel: 25 },
-  oak: { name: "Hardwood", emoji: "🌳", sell: WOOD_PRICES.oak, fuel: 30 },
-  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: WOOD_PRICES.charcoal, fuel: 50 },
+// --- the wood: what a clean split or a felled tree yields, kept (with the axe) in the camp profile ---
+// The Timber Trail's three (a split log on its blocks) and the Whispering Woods' four (a felled tree:
+// its logs); a Soft Pine in the woods gives softwood like the trail's. All of it rides in the wood
+// carrier, sells to Buster, goes on the bonfire, or splits into Firewood at the chopping block.
+export type WoodKind = "pine" | "oak" | "charcoal" | "birch" | "cedar" | "maple" | "elderwood";
+export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal", "birch", "cedar", "maple", "elderwood"];
+/** Each kind: what Buster pays for one, how much it feeds the bonfire as it is, and the bundles of
+ *  Firewood it splits into at the chopping block (FIREWOOD_FUEL each: splitting first burns longer). */
+export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number; fuel: number; firewood: number }> = {
+  pine: { name: "Raw Softwood", emoji: "🪵", sell: WOOD_PRICES.pine, fuel: 25, firewood: 3 },
+  oak: { name: "Hardwood", emoji: "🌳", sell: WOOD_PRICES.oak, fuel: 30, firewood: 4 },
+  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: WOOD_PRICES.charcoal, fuel: 50, firewood: 7 },
+  birch: { name: "Silver Birch Log", emoji: "🤍", sell: WOOD_PRICES.birch, fuel: 30, firewood: 4 },
+  cedar: { name: "Highland Cedar Log", emoji: "🟫", sell: WOOD_PRICES.cedar, fuel: 35, firewood: 5 },
+  maple: { name: "Autumn Maple Log", emoji: "🍁", sell: WOOD_PRICES.maple, fuel: 40, firewood: 6 },
+  elderwood: { name: "Whispering Elderwood", emoji: "🌌", sell: WOOD_PRICES.elderwood, fuel: 60, firewood: 9 },
 };
+/** A bundle of Firewood (split at the chopping block) on the bonfire. */
+export const FIREWOOD_FUEL = 10;
 /** What Buster pays for one of `kind` at the hour's market multiplier (shared/market.ts). */
 export function woodPrice(kind: WoodKind, market = 1): number {
   return Math.max(1, Math.round(WOOD[kind].sell * market));
 }
 export function isWoodKind(v: unknown): v is WoodKind {
-  return v === "pine" || v === "oak" || v === "charcoal";
+  return typeof v === "string" && (WOOD_KINDS as string[]).includes(v);
 }
 
 /** What each log splits into. */
@@ -65,14 +75,50 @@ export const CHOP_LOGS: Record<ChopLog, { name: string; emoji: string; wood: Woo
   golden: { name: "Golden Log", emoji: "✨", wood: "charcoal", bonus: 4, blurb: "A rare golden log: Golden Charcoal burns twice as long" },
 };
 
-// --- the axes: Buster the Lumberjack sells them ---
-export type AxeId = "rusty" | "steel" | "golden";
-export const AXES: Record<AxeId, { name: string; emoji: string; price: number; zoneBonus: number; slow: number; doubleChance: number; blurb: string }> = {
-  rusty: { name: "Basic Flint Axe", emoji: "🪓", price: 0, zoneBonus: 0, slow: 0, doubleChance: 0, blurb: "It gets the job done. Mostly." },
-  steel: { name: "Iron Timber Axe", emoji: "⚒️", price: AXE_PRICES.iron, zoneBonus: 0.25, slow: 0, doubleChance: 0, blurb: "+25% green zone on every stroke." },
-  golden: { name: "Golden Felling Axe", emoji: "🌟", price: AXE_PRICES.golden, zoneBonus: 0.25, slow: 0.2, doubleChance: 0.3, blurb: "+25% green zone, a 20% slower needle, and a 30% chance of double wood." },
+// --- the axes, T1 to T5: an axe fells trees of its own tier and below (the Timber Trail's logs take
+// any); Buster sells T2 and T3, Bramble in the Whispering Woods T4 and T5 ---
+export type AxeId = "rusty" | "steel" | "tempered" | "golden" | "runic";
+export const AXES: Record<AxeId, { name: string; emoji: string; tier: number; price: number; zoneBonus: number; slow: number; doubleChance: number; blurb: string }> = {
+  rusty: { name: "Basic Flint Axe", emoji: "🪓", tier: 1, price: 0, zoneBonus: 0, slow: 0, doubleChance: 0, blurb: "T1: Soft Pine. It gets the job done. Mostly." },
+  steel: { name: "Iron Timber Axe", emoji: "⚒️", tier: 2, price: AXE_PRICES.iron, zoneBonus: 0.25, slow: 0, doubleChance: 0, blurb: "T2: fells Silver Birch. +25% green zone on every stroke." },
+  tempered: { name: "Tempered Steel Axe", emoji: "🔨", tier: 3, price: AXE_PRICES.tempered, zoneBonus: 0.25, slow: 0.1, doubleChance: 0.1, blurb: "T3: fells Highland Cedar. +25% green, a 10% slower needle, a 10% chance of double wood." },
+  golden: { name: "Golden Felling Axe", emoji: "🌟", tier: 4, price: AXE_PRICES.golden, zoneBonus: 0.25, slow: 0.2, doubleChance: 0.3, blurb: "T4: fells Autumn Maple. +25% green, a 20% slower needle, a 30% chance of double wood." },
+  runic: { name: "Runic Elderwood Axe", emoji: "🪄", tier: 5, price: AXE_PRICES.runic, zoneBonus: 0.35, slow: 0.25, doubleChance: 0.35, blurb: "T5: fells the Whispering Elderwood. +35% green, a 25% slower needle, a 35% chance of double wood." },
 };
 export const AXE_IDS = Object.keys(AXES) as AxeId[];
+/** The axes in tier order. */
+export const AXES_BY_TIER: AxeId[] = [...AXE_IDS].sort((a, b) => AXES[a].tier - AXES[b].tier);
+/** The best tier among the axes owned. */
+export function bestAxeTier(axes: readonly AxeId[]): number {
+  return axes.reduce((t, a) => Math.max(t, AXES[a]?.tier ?? 1), 1);
+}
+
+// --- the Whispering Woods' trees, T1 to T5 ---
+// A tree is felled with the three-strike notch (the same meter as the Timber Trail's blocks, harder
+// the higher its tier: a narrower sweet spot, a quicker needle); it drops its logs (into the carrier)
+// and leaves a stump that grows back through a sprout and a sapling to a mature tree.
+export type TreeKind = "soft_pine" | "birch" | "cedar" | "maple" | "elderwood";
+export const TREE_KINDS: TreeKind[] = ["soft_pine", "birch", "cedar", "maple", "elderwood"];
+export const TREES: Record<TreeKind, { name: string; emoji: string; tier: number; wood: WoodKind; logs: number; respawnS: number; wide: number; speed: number }> = {
+  soft_pine: { name: "Soft Pine", emoji: "🌲", tier: 1, wood: "pine", logs: 3, respawnS: 35, wide: 1.2, speed: 1 },
+  birch: { name: "Silver Birch", emoji: "🌳", tier: 2, wood: "birch", logs: 3, respawnS: 80, wide: 1.0, speed: 1.08 },
+  cedar: { name: "Highland Cedar", emoji: "🌲", tier: 3, wood: "cedar", logs: 3, respawnS: 160, wide: 0.86, speed: 1.16 },
+  maple: { name: "Autumn Maple", emoji: "🍁", tier: 4, wood: "maple", logs: 3, respawnS: 320, wide: 0.74, speed: 1.24 },
+  elderwood: { name: "Whispering Elderwood", emoji: "🌌", tier: 5, wood: "elderwood", logs: 3, respawnS: 650, wide: 0.62, speed: 1.32 },
+};
+export function isTreeKind(v: unknown): v is TreeKind {
+  return typeof v === "string" && (TREE_KINDS as string[]).includes(v);
+}
+/** A felled tree's growth back (0 a fresh stump, 1 mature again), `sinceS` seconds after the fall. */
+export function regrowth(kind: TreeKind, sinceS: number): number {
+  return Math.max(0, Math.min(1, sinceS / TREES[kind].respawnS));
+}
+/** Which of its four looks a tree shows at a growth: a stump (under 50%), a sprout (under 80%), a
+ *  sapling (under 100%), or mature (fellable). */
+export type TreeStage = "stump" | "sprout" | "sapling" | "mature";
+export function treeStage(growth: number): TreeStage {
+  return growth >= 1 ? "mature" : growth >= 0.8 ? "sapling" : growth >= 0.5 ? "sprout" : "stump";
+}
 
 // --- the wood carrier: what you carry your wood and crafted pieces in; Buster sells each next one ---
 export interface WoodCarrierTier {
@@ -83,13 +129,13 @@ export interface WoodCarrierTier {
   icon: string;
 }
 export const WOOD_CARRIER_TIERS: WoodCarrierTier[] = [
-  { id: "carrier_tier_1", name: "Twine Wood Strap", capacity: 10, price: CARRIER_PRICES[0], icon: "🪢" },
-  { id: "carrier_tier_2", name: "Canvas Bag", capacity: 15, price: CARRIER_PRICES[1], icon: "🎒" },
-  { id: "carrier_tier_3", name: "Reinforced Rig", capacity: 20, price: CARRIER_PRICES[2], icon: "🪵" },
-  { id: "carrier_tier_4", name: "Lumberjack Pack", capacity: 35, price: CARRIER_PRICES[3], icon: "📦" },
-  { id: "carrier_tier_5", name: "Forester Heavy Frame", capacity: 50, price: CARRIER_PRICES[4], icon: "🧰" },
-  { id: "carrier_tier_6", name: "Ironbound Hauling Sled", capacity: 75, price: CARRIER_PRICES[5], icon: "🛷" },
-  { id: "carrier_tier_7", name: "Starlight Beaver Rig", capacity: 100, price: CARRIER_PRICES[6], icon: "✨" },
+  { id: "carrier_tier_1", name: "Twine Wood Strap", capacity: CARRIER_CAPACITY[0], price: CARRIER_PRICES[0], icon: "🪢" },
+  { id: "carrier_tier_2", name: "Canvas Bag", capacity: CARRIER_CAPACITY[1], price: CARRIER_PRICES[1], icon: "🎒" },
+  { id: "carrier_tier_3", name: "Reinforced Rig", capacity: CARRIER_CAPACITY[2], price: CARRIER_PRICES[2], icon: "🪵" },
+  { id: "carrier_tier_4", name: "Lumberjack Pack", capacity: CARRIER_CAPACITY[3], price: CARRIER_PRICES[3], icon: "📦" },
+  { id: "carrier_tier_5", name: "Forester Heavy Frame", capacity: CARRIER_CAPACITY[4], price: CARRIER_PRICES[4], icon: "🧰" },
+  { id: "carrier_tier_6", name: "Ironbound Hauling Sled", capacity: CARRIER_CAPACITY[5], price: CARRIER_PRICES[5], icon: "🛷" },
+  { id: "carrier_tier_7", name: "Starlight Beaver Rig", capacity: CARRIER_CAPACITY[6], price: CARRIER_PRICES[6], icon: "✨" },
 ];
 /** A carrier tier (1-based, clamped), the next one up (null at the top), and a tier's capacity. */
 export function carrierTier(tier: number): WoodCarrierTier {
@@ -205,11 +251,13 @@ export function rollChopLog(rand: () => number = Math.random): ChopLog {
 }
 
 /** A fresh stroke's meter (the server rolls it; `rand` is Math.random there). `goldBonus`: how much
- *  wider gloves make its gold centre (shared/gear.ts gloveSweetBonus). */
-export function rollChopStroke(stroke: ChopStrokeNo, log: ChopLog, rand: () => number = Math.random, axe: AxeId = "rusty", goldBonus = 0): ChopStroke {
-  const wide = (log === "pine" ? 1.2 : log === "golden" ? 0.9 : 1) * (1 + AXES[axe].zoneBonus);
+ *  wider gloves make its gold centre (shared/gear.ts gloveSweetBonus). `tree`: a Whispering Woods tree
+ *  being felled (its tier narrows the sweet spot and quickens the needle); `zoneBonus`: extra green
+ *  (the Eagle Eye). */
+export function rollChopStroke(stroke: ChopStrokeNo, log: ChopLog, rand: () => number = Math.random, axe: AxeId = "rusty", goldBonus = 0, tree?: TreeKind, zoneBonus = 0): ChopStroke {
+  const wide = (tree ? TREES[tree].wide : log === "pine" ? 1.2 : log === "golden" ? 0.9 : 1) * (1 + AXES[axe].zoneBonus) * (1 + zoneBonus);
   const slow = 1 / (1 - AXES[axe].slow);
-  const needlePeriod = BASE_PERIOD / CHOP_SPEED[stroke];
+  const needlePeriod = BASE_PERIOD / CHOP_SPEED[stroke] / (tree ? TREES[tree].speed : 1);
   // the sweet spot patrols at PATROL x the needle's pace: one sweep of its range per needle pass, slowed
   const zonePeriod = PATROL[stroke] > 0 ? (needlePeriod * slow) / PATROL[stroke] : 0;
   // Hard Oak's knots creep on every stroke that has one; the Clean Cleave's knot always moves

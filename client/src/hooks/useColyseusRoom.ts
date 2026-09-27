@@ -138,6 +138,15 @@ const RELAYED_MESSAGES = [
   "pioneer",
   "server_restarting",
   "chloeWave",
+  // the living campfire and the Whispering Woods: a tree coming down, logs split into Firewood, the
+  // slingshot gallery's round and its score, an animal fed, Bramble's wave, a catch that slipped
+  "treeFelled",
+  "splitResult",
+  "slingshotStarted",
+  "slingshotResult",
+  "animalFed",
+  "brambleWave",
+  "fishEscaped",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
@@ -225,6 +234,9 @@ interface UseColyseusRoomResult {
   travellingTo: MapId | null;
   /** The camp's market this hour (shared/market.ts MarketState as JSON). */
   market: string;
+  /** The Whispering Woods' felled trees growing back ({ node id: stump | sprout | sapling } as JSON;
+   *  a tree not listed is mature). */
+  forest: string;
   connected: boolean;
   /** Why the last connection attempt failed or dropped, while it is being retried; null when fine. */
   connectionIssue: string | null;
@@ -331,6 +343,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
   const [travellingTo, setTravellingTo] = useState<MapId | null>(null);
   const travelTimer = useRef<number | undefined>(undefined);
   const [market, setMarket] = useState("");
+  const [forest, setForest] = useState("");
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const retryNowRef = useRef<(() => void) | null>(null);
@@ -584,6 +597,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
             coins: player.coins ?? 0,
             chips: player.chips ?? 0,
             vipPass: !!player.vipPass,
+            vipWristbands: player.vipWristbands ?? 0,
             bag: player.bag ?? "",
             owned: player.owned ?? "",
             status: player.status ?? "",
@@ -743,6 +757,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
       room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
       room.state.listen("weather", (w: string) => setWeatherState(isWeather(w) ? w : "clear"));
       room.state.listen("market", (raw: string) => setMarket(raw ?? ""));
+      room.state.listen("forest", (raw: string) => setForest(raw ?? ""));
 
       // the socket closed under us (a proxy timed it out, the network blinked, the server restarted).
       // The token is kept whatever the close code (a proxy's idle cut can look like a clean close):
@@ -842,6 +857,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
     mapTransitioning: travellingTo !== null,
     travellingTo,
     market,
+    forest,
     connected,
     connectionIssue,
     reconnect,

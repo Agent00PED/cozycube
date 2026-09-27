@@ -7,13 +7,15 @@
 // same tables in the reel, the creel and Barnaby's shop.
 
 import type { SwimPattern } from "./types";
-import { WOOD_CARRIER_TIERS, WOOD_KINDS, isAxeId, type AxeId, type WoodKind } from "./chop";
+import { TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, isAxeId, type AxeId, type TreeKind, type WoodKind } from "./chop";
 import { isCraftId, type CraftItem } from "./crafting";
 import { isGearId, type GearId } from "./gear";
-import { CREEL_PRICES, FISH_PRICES, TACKLE_PRICES } from "./economy";
+import { CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MAX_DAY_PERMITS, TACKLE_PRICES } from "./economy";
 
 export type Water = "freshwater" | "saltwater";
-export type FishTier = "common" | "uncommon" | "rare" | "epic" | "legendary";
+/** The five rarities, and the rod tier each needs (a rod lands its own rarity and below). */
+export type FishTier = "common" | "uncommon" | "rare" | "legendary" | "mythic";
+export const FISH_TIER_RANK: Record<FishTier, number> = { common: 1, uncommon: 2, rare: 3, legendary: 4, mythic: 5 };
 
 export interface FishSpecies {
   name: string;
@@ -33,26 +35,57 @@ export interface FishSpecies {
   size: number;
   pattern: SwimPattern;
   barScale: number;
+  /** When it bites: by day or by night (shared/daynight.ts). */
+  time: "day" | "night";
+  /** Only in the Whispering Woods' rapids (the legendaries and the mythics). */
+  rapids?: boolean;
+  /** Its heft: kilograms for a fish a metre long (a weight goes with the cube of its length). */
+  mass: number;
 }
 
 export const FISH = {
-  // freshwater: the Starlight Campfire's river. Commons are 70% of bites, uncommons 20%, rares 8%,
-  // legendaries 2% (shared/economy.ts FISH_TIER_ODDS, split by the weights); `cm` is the usual span
-  // (the bell curve's middle 95%: a fish longer than its top is King Size), `value` Barnaby's base
-  // price (shared/economy.ts FISH_PRICES)
-  minnow: { name: "Minnow", emoji: "🐟", water: "freshwater", tier: "common", weight: 40, bite: [3, 5], cm: [5, 11], value: FISH_PRICES.minnow, speed: 0.5, size: 0.5, pattern: "sine", barScale: 1 },
-  perch: { name: "Perch", emoji: "🐠", water: "freshwater", tier: "common", weight: 30, bite: [3, 6], cm: [15, 30], value: FISH_PRICES.perch, speed: 0.6, size: 0.55, pattern: "erratic", barScale: 1 },
-  trout: { name: "Trout", emoji: "🐟", water: "freshwater", tier: "uncommon", weight: 12, bite: [4, 7], cm: [25, 50], value: FISH_PRICES.trout, speed: 0.8, size: 0.7, pattern: "erratic", barScale: 0.95 },
-  catfish: { name: "Catfish", emoji: "🐡", water: "freshwater", tier: "uncommon", weight: 8, bite: [5, 8], cm: [35, 75], value: FISH_PRICES.catfish, speed: 0.85, size: 0.8, pattern: "plunge", barScale: 0.95 },
-  salmon: { name: "Salmon", emoji: "🐟", water: "freshwater", tier: "rare", weight: 5, bite: [6, 10], cm: [50, 85], value: FISH_PRICES.salmon, speed: 1.05, size: 0.85, pattern: "plunge", barScale: 0.9 },
-  sturgeon: { name: "Sturgeon", emoji: "🦈", water: "freshwater", tier: "rare", weight: 3, bite: [7, 11], cm: [90, 180], value: FISH_PRICES.sturgeon, speed: 1.1, size: 0.95, pattern: "plunge", barScale: 0.85 },
-  golden_arowana: { name: "Golden Arowana", emoji: "🐉", water: "freshwater", tier: "legendary", weight: 1.2, bite: [8, 13], cm: [60, 95], value: FISH_PRICES.golden_arowana, speed: 1.35, size: 0.95, pattern: "erratic", barScale: 0.75 },
-  abyssal_koi: { name: "Abyssal Koi", emoji: "🎏", water: "freshwater", tier: "legendary", weight: 0.8, bite: [9, 14], cm: [55, 90], value: FISH_PRICES.abyssal_koi, speed: 1.45, size: 1.0, pattern: "koi", barScale: 0.7 },
+  // freshwater: the Starlight Campfire's river and the Whispering Woods' rapids, fifteen kinds by day
+  // and fifteen by night. Of every bite, commons are 70%, uncommons 20%, rares 7.5%, legendaries 2%
+  // and mythics 0.5% (shared/economy.ts FISH_TIER_ODDS, split by the weights); the legendaries and
+  // mythics bite only in the rapids. `cm` is the usual span (the bell curve's middle 95%: a fish longer
+  // than its top is King Size), `value` Barnaby's base price (shared/economy.ts FISH_PRICES).
+  // by day
+  minnow: { name: "Minnow", emoji: "🐟", water: "freshwater", tier: "common", weight: 14, bite: [3, 5], cm: [5, 11], value: FISH_PRICES.minnow, speed: 0.5, size: 0.5, pattern: "sine", barScale: 1, time: "day", mass: 9 },
+  perch: { name: "Perch", emoji: "🐠", water: "freshwater", tier: "common", weight: 14, bite: [3, 6], cm: [15, 30], value: FISH_PRICES.perch, speed: 0.6, size: 0.55, pattern: "erratic", barScale: 1, time: "day", mass: 13 },
+  bluegill: { name: "Bluegill Sunfish", emoji: "🐠", water: "freshwater", tier: "common", weight: 14, bite: [3, 5], cm: [12, 24], value: FISH_PRICES.bluegill, speed: 0.55, size: 0.5, pattern: "sine", barScale: 1, time: "day", mass: 25 },
+  dace: { name: "Silver Dace", emoji: "🐟", water: "freshwater", tier: "common", weight: 14, bite: [3, 5], cm: [10, 20], value: FISH_PRICES.dace, speed: 0.55, size: 0.5, pattern: "sine", barScale: 1, time: "day", mass: 10 },
+  chub: { name: "Creek Chub", emoji: "🐟", water: "freshwater", tier: "common", weight: 14, bite: [3, 6], cm: [20, 40], value: FISH_PRICES.chub, speed: 0.6, size: 0.6, pattern: "erratic", barScale: 1, time: "day", mass: 12 },
+  trout: { name: "Trout", emoji: "🐟", water: "freshwater", tier: "uncommon", weight: 5, bite: [4, 7], cm: [25, 50], value: FISH_PRICES.trout, speed: 0.8, size: 0.7, pattern: "erratic", barScale: 0.95, time: "day", mass: 10 },
+  smallmouth_bass: { name: "Smallmouth Bass", emoji: "🐟", water: "freshwater", tier: "uncommon", weight: 5, bite: [4, 7], cm: [25, 50], value: FISH_PRICES.smallmouth_bass, speed: 0.85, size: 0.75, pattern: "plunge", barScale: 0.95, time: "day", mass: 14 },
+  grayling: { name: "Arctic Grayling", emoji: "🐟", water: "freshwater", tier: "uncommon", weight: 5, bite: [4, 7], cm: [25, 45], value: FISH_PRICES.grayling, speed: 0.8, size: 0.7, pattern: "sine", barScale: 0.95, time: "day", mass: 9 },
+  pike: { name: "Northern Pike", emoji: "🐊", water: "freshwater", tier: "uncommon", weight: 5, bite: [5, 8], cm: [45, 100], value: FISH_PRICES.pike, speed: 0.9, size: 0.8, pattern: "plunge", barScale: 0.92, time: "day", mass: 7 },
+  salmon: { name: "Salmon", emoji: "🐟", water: "freshwater", tier: "rare", weight: 2.5, bite: [6, 10], cm: [50, 85], value: FISH_PRICES.salmon, speed: 1.05, size: 0.85, pattern: "plunge", barScale: 0.9, time: "day", mass: 11 },
+  golden_trout: { name: "Golden Trout", emoji: "🐟", water: "freshwater", tier: "rare", weight: 2.5, bite: [6, 10], cm: [25, 50], value: FISH_PRICES.golden_trout, speed: 1.1, size: 0.8, pattern: "erratic", barScale: 0.88, time: "day", mass: 10 },
+  muskellunge: { name: "Muskellunge", emoji: "🐊", water: "freshwater", tier: "rare", weight: 2.5, bite: [7, 11], cm: [80, 140], value: FISH_PRICES.muskellunge, speed: 1.1, size: 0.95, pattern: "plunge", barScale: 0.85, time: "day", mass: 7 },
+  golden_arowana: { name: "Golden Arowana", emoji: "🐉", water: "freshwater", tier: "legendary", weight: 1, bite: [8, 13], cm: [60, 95], value: FISH_PRICES.golden_arowana, speed: 1.35, size: 0.95, pattern: "erratic", barScale: 0.75, time: "day", rapids: true, mass: 8 },
+  dawn_paddlefish: { name: "Dawn Paddlefish", emoji: "🦈", water: "freshwater", tier: "legendary", weight: 1, bite: [8, 13], cm: [100, 180], value: FISH_PRICES.dawn_paddlefish, speed: 1.3, size: 1.0, pattern: "plunge", barScale: 0.75, time: "day", rapids: true, mass: 7 },
+  sunfire_koi: { name: "Sunfire Koi", emoji: "🎏", water: "freshwater", tier: "mythic", weight: 0.5, bite: [10, 15], cm: [60, 100], value: FISH_PRICES.sunfire_koi, speed: 1.55, size: 1.0, pattern: "koi", barScale: 0.65, time: "day", rapids: true, mass: 14 },
+  // by night
+  bullhead: { name: "Brown Bullhead", emoji: "🐡", water: "freshwater", tier: "common", weight: 14, bite: [3, 5], cm: [15, 30], value: FISH_PRICES.bullhead, speed: 0.55, size: 0.55, pattern: "plunge", barScale: 1, time: "night", mass: 13 },
+  moon_shiner: { name: "Moon Shiner", emoji: "🐟", water: "freshwater", tier: "common", weight: 14, bite: [3, 5], cm: [6, 12], value: FISH_PRICES.moon_shiner, speed: 0.5, size: 0.45, pattern: "sine", barScale: 1, time: "night", mass: 8 },
+  stone_loach: { name: "Stone Loach", emoji: "🐟", water: "freshwater", tier: "common", weight: 14, bite: [3, 6], cm: [8, 14], value: FISH_PRICES.stone_loach, speed: 0.55, size: 0.45, pattern: "erratic", barScale: 1, time: "night", mass: 7 },
+  sculpin: { name: "Slimy Sculpin", emoji: "🐡", water: "freshwater", tier: "common", weight: 14, bite: [3, 5], cm: [8, 16], value: FISH_PRICES.sculpin, speed: 0.6, size: 0.5, pattern: "erratic", barScale: 1, time: "night", mass: 12 },
+  glass_eel: { name: "Glass Eel", emoji: "🐍", water: "freshwater", tier: "common", weight: 14, bite: [3, 6], cm: [20, 40], value: FISH_PRICES.glass_eel, speed: 0.6, size: 0.5, pattern: "sine", barScale: 1, time: "night", mass: 3 },
+  catfish: { name: "Catfish", emoji: "🐡", water: "freshwater", tier: "uncommon", weight: 5, bite: [5, 8], cm: [35, 75], value: FISH_PRICES.catfish, speed: 0.85, size: 0.8, pattern: "plunge", barScale: 0.95, time: "night", mass: 12 },
+  burbot: { name: "Burbot", emoji: "🐍", water: "freshwater", tier: "uncommon", weight: 5, bite: [5, 8], cm: [30, 60], value: FISH_PRICES.burbot, speed: 0.8, size: 0.75, pattern: "plunge", barScale: 0.95, time: "night", mass: 8 },
+  walleye: { name: "Walleye", emoji: "🐟", water: "freshwater", tier: "uncommon", weight: 5, bite: [5, 8], cm: [35, 65], value: FISH_PRICES.walleye, speed: 0.85, size: 0.75, pattern: "erratic", barScale: 0.95, time: "night", mass: 10 },
+  lantern_perch: { name: "Lantern Perch", emoji: "🏮", water: "freshwater", tier: "uncommon", weight: 5, bite: [4, 7], cm: [18, 32], value: FISH_PRICES.lantern_perch, speed: 0.8, size: 0.6, pattern: "sine", barScale: 0.95, time: "night", mass: 14 },
+  sturgeon: { name: "Sturgeon", emoji: "🦈", water: "freshwater", tier: "rare", weight: 2.5, bite: [7, 11], cm: [90, 180], value: FISH_PRICES.sturgeon, speed: 1.1, size: 0.95, pattern: "plunge", barScale: 0.85, time: "night", mass: 9 },
+  ghost_carp: { name: "Ghost Carp", emoji: "👻", water: "freshwater", tier: "rare", weight: 2.5, bite: [6, 10], cm: [45, 80], value: FISH_PRICES.ghost_carp, speed: 1.05, size: 0.9, pattern: "koi", barScale: 0.88, time: "night", mass: 16 },
+  silver_gar: { name: "Silver Gar", emoji: "🐊", water: "freshwater", tier: "rare", weight: 2.5, bite: [6, 10], cm: [60, 110], value: FISH_PRICES.silver_gar, speed: 1.1, size: 0.85, pattern: "erratic", barScale: 0.86, time: "night", mass: 5 },
+  abyssal_koi: { name: "Abyssal Koi", emoji: "🎏", water: "freshwater", tier: "legendary", weight: 1, bite: [9, 14], cm: [55, 90], value: FISH_PRICES.abyssal_koi, speed: 1.45, size: 1.0, pattern: "koi", barScale: 0.7, time: "night", rapids: true, mass: 15 },
+  starlight_eel: { name: "Starlight Eel", emoji: "🐍", water: "freshwater", tier: "legendary", weight: 1, bite: [9, 14], cm: [80, 150], value: FISH_PRICES.starlight_eel, speed: 1.4, size: 0.95, pattern: "sine", barScale: 0.72, time: "night", rapids: true, mass: 3 },
+  moonveil_leviathan: { name: "Moonveil Leviathan", emoji: "🐋", water: "freshwater", tier: "mythic", weight: 0.5, bite: [11, 16], cm: [150, 260], value: FISH_PRICES.moonveil_leviathan, speed: 1.6, size: 1.0, pattern: "plunge", barScale: 0.62, time: "night", rapids: true, mass: 10 },
   // saltwater: the Sunset Beach Bar's pier (registered for when it opens its waters)
-  sand_sardine: { name: "Sand Sardine", emoji: "🐟", water: "saltwater", tier: "common", weight: 42, bite: [3, 5], cm: [8, 18], value: 2, speed: 0.55, size: 0.5, pattern: "sine", barScale: 1 },
-  sunset_clownfish: { name: "Sunset Clownfish", emoji: "🐠", water: "saltwater", tier: "uncommon", weight: 30, bite: [4, 7], cm: [7, 14], value: 6, speed: 0.85, size: 0.6, pattern: "erratic", barScale: 1 },
-  prism_jellyfish: { name: "Prism Jellyfish", emoji: "🪼", water: "saltwater", tier: "rare", weight: 18, bite: [6, 10], cm: [15, 40], value: 14, speed: 0.75, size: 0.85, pattern: "sine", barScale: 0.9 },
-  pearl_whale: { name: "Abyssal Pearl Whale", emoji: "🐳", water: "saltwater", tier: "legendary", weight: 4, bite: [9, 14], cm: [120, 260], value: 120, speed: 1.35, size: 1.0, pattern: "plunge", barScale: 0.7 },
+  sand_sardine: { name: "Sand Sardine", emoji: "🐟", water: "saltwater", tier: "common", weight: 42, bite: [3, 5], cm: [8, 18], value: 2, speed: 0.55, size: 0.5, pattern: "sine", barScale: 1, time: "day", mass: 8 },
+  sunset_clownfish: { name: "Sunset Clownfish", emoji: "🐠", water: "saltwater", tier: "uncommon", weight: 30, bite: [4, 7], cm: [7, 14], value: 6, speed: 0.85, size: 0.6, pattern: "erratic", barScale: 1, time: "day", mass: 15 },
+  prism_jellyfish: { name: "Prism Jellyfish", emoji: "🪼", water: "saltwater", tier: "rare", weight: 18, bite: [6, 10], cm: [15, 40], value: 14, speed: 0.75, size: 0.85, pattern: "sine", barScale: 0.9, time: "night", mass: 4 },
+  pearl_whale: { name: "Abyssal Pearl Whale", emoji: "🐳", water: "saltwater", tier: "legendary", weight: 4, bite: [9, 14], cm: [120, 260], value: 120, speed: 1.35, size: 1.0, pattern: "plunge", barScale: 0.7, time: "night", mass: 10 },
 } as const satisfies Record<string, FishSpecies>;
 export type FishId = keyof typeof FISH;
 export const FISH_IDS = Object.keys(FISH) as FishId[];
@@ -63,14 +96,23 @@ export function fishOf(water: Water): FishId[] {
   return FISH_IDS.filter((id) => FISH[id].water === water);
 }
 
-export const TIER_LABEL: Record<FishTier, string> = { common: "Common", uncommon: "Uncommon", rare: "Rare", epic: "Epic", legendary: "Legendary ✨" };
-const RARE_TIERS: ReadonlySet<FishTier> = new Set(["rare", "epic", "legendary"]);
+export const TIER_LABEL: Record<FishTier, string> = { common: "Common", uncommon: "Uncommon", rare: "Rare", legendary: "Legendary ✨", mythic: "Mythic 🌌" };
+/** Each tier's colour on a chip (the reveal, the Nature Logbook). */
+export const TIER_COLOR: Record<FishTier, string> = { common: "#C9BDB5", uncommon: "#8fd3b6", rare: "#9ecbff", legendary: "#F5A623", mythic: "#ec7fa3" };
+const RARE_TIERS: ReadonlySet<FishTier> = new Set(["rare", "legendary", "mythic"]);
+/** A fish's weight (kg) from its length: its kind's heft, with the cube of its length. */
+export function fishKg(f: Pick<CreelFish, "s" | "cm">): number {
+  const m = f.cm / 100;
+  return Math.max(0.01, Math.round(FISH[f.s].mass * m * m * m * 100) / 100);
+}
 
 // --- rods and baits -----------------------------------------------------------------------------
 
 export interface Rod {
   name: string;
   emoji: string;
+  /** T1 to T5: the rarest fish it can land (a rod holds its own rarity and below: FISH_TIER_RANK). */
+  tier: number;
   price: number;
   /** The reel's green bar grows by this (0.2: +20%). */
   barBonus: number;
@@ -81,15 +123,21 @@ export interface Rod {
   blurb: string;
 }
 export const RODS = {
-  bamboo: { name: "Basic Bamboo Rod", emoji: "🎋", price: 0, barBonus: 0, tensionResist: 0, aura: false, blurb: "Light, springy and everyone's first." },
-  willow: { name: "Pro Carbon Rod", emoji: "🎣", price: TACKLE_PRICES.proRod, barBonus: 0.2, tensionResist: 0, aura: false, blurb: "+20% green reel bar." },
-  starlight: { name: "Starlight Master Rod", emoji: "🌠", price: TACKLE_PRICES.masterRod, barBonus: 0.2, tensionResist: 0.35, aura: true, blurb: "+20% bar, the line holds 35% longer, and a star aura." },
+  bamboo: { name: "Basic Bamboo Rod", emoji: "🎋", tier: 1, price: 0, barBonus: 0, tensionResist: 0, aura: false, blurb: "T1: common fish. Light, springy and everyone's first." },
+  willow: { name: "Pro Carbon Rod", emoji: "🎣", tier: 2, price: TACKLE_PRICES.proRod, barBonus: 0.2, tensionResist: 0, aura: false, blurb: "T2: lands uncommon fish. +20% green reel bar." },
+  heron: { name: "Heron Fiberglass Rod", emoji: "🪶", tier: 3, price: TACKLE_PRICES.heronRod, barBonus: 0.2, tensionResist: 0.15, aura: false, blurb: "T3: lands rare fish. +20% bar, the line holds 15% longer." },
+  starlight: { name: "Starlight Master Rod", emoji: "🌠", tier: 4, price: TACKLE_PRICES.masterRod, barBonus: 0.2, tensionResist: 0.35, aura: true, blurb: "T4: lands legendary fish. +20% bar, the line holds 35% longer, and a star aura." },
+  moonlight: { name: "Mythril Moonlight Rod", emoji: "🌙", tier: 5, price: TACKLE_PRICES.moonlightRod, barBonus: 0.3, tensionResist: 0.45, aura: true, blurb: "T5: lands mythic fish. +30% bar, the line holds 45% longer, and a moonlit aura." },
 } as const satisfies Record<string, Rod>;
 export type RodId = keyof typeof RODS;
 export const ROD_IDS = Object.keys(RODS) as RodId[];
 export function isRodId(v: unknown): v is RodId {
   return typeof v === "string" && v in RODS;
 }
+/** The rods in tier order. */
+export const RODS_BY_TIER: RodId[] = [...ROD_IDS].sort((a, b) => RODS[a].tier - RODS[b].tier);
+/** Whether a rod can land a fish of this rarity. */
+export const rodLands = (rod: RodId, tier: FishTier) => RODS[rod].tier >= FISH_TIER_RANK[tier];
 
 export interface Bait {
   name: string;
@@ -131,12 +179,12 @@ export interface CreelTier {
   icon: string;
 }
 export const CREEL_TIERS: CreelTier[] = [
-  { id: "creel_tier_1", name: "Wooden Pail", capacity: 5, price: CREEL_PRICES[0], icon: "🪵" },
-  { id: "creel_tier_2", name: "Woven Reed Creel", capacity: 10, price: CREEL_PRICES[1], icon: "🧺" },
-  { id: "creel_tier_3", name: "Canvas Bag", capacity: 15, price: CREEL_PRICES[2], icon: "🎒" },
-  { id: "creel_tier_4", name: "Ice Cooler", capacity: 25, price: CREEL_PRICES[3], icon: "🧊" },
-  { id: "creel_tier_5", name: "Pier Keepnet", capacity: 35, price: CREEL_PRICES[4], icon: "🕸️" },
-  { id: "creel_tier_6", name: "Starlight Deep Livewell", capacity: 50, price: CREEL_PRICES[5], icon: "✨" },
+  { id: "creel_tier_1", name: "Wooden Pail", capacity: CREEL_CAPACITY[0], price: CREEL_PRICES[0], icon: "🪵" },
+  { id: "creel_tier_2", name: "Woven Reed Livewell", capacity: CREEL_CAPACITY[1], price: CREEL_PRICES[1], icon: "🧺" },
+  { id: "creel_tier_3", name: "Canvas Livewell", capacity: CREEL_CAPACITY[2], price: CREEL_PRICES[2], icon: "🎒" },
+  { id: "creel_tier_4", name: "Ice Cooler Livewell", capacity: CREEL_CAPACITY[3], price: CREEL_PRICES[3], icon: "🧊" },
+  { id: "creel_tier_5", name: "Pier Keepnet", capacity: CREEL_CAPACITY[4], price: CREEL_PRICES[4], icon: "🕸️" },
+  { id: "creel_tier_6", name: "Starlight Deep Livewell", capacity: CREEL_CAPACITY[5], price: CREEL_PRICES[5], icon: "✨" },
 ];
 /** A creel tier (1-based, clamped), and the next one up (null at the top). */
 export function creelTier(tier: number): CreelTier {
@@ -187,9 +235,23 @@ export interface FishingProfile {
    *  Sawdust (from broken carvings; +15% on the bonfire) rides in a pouch, no slots either. */
   resin: number;
   sawdust: number;
+  /** Firewood bundles split at the chopping block (shared/chop.ts WOOD firewood): tied beside the
+   *  carrier, no slots; each feeds the bonfire FIREWOOD_FUEL. */
+  firewood: number;
+  /** The Whispering Woods: Day Trip Permits held (one used on each way in) and the Ranger's Badge
+   *  (in for good). */
+  dayPermits: number;
+  ranger: boolean;
+  /** The Eagle Eye (the slingshot gallery's best prize) until (epoch ms): wider green zones. */
+  eagleUntil: number;
+  /** The Nature Logbook's trees: how many of each kind this player has felled. */
+  felled: Partial<Record<TreeKind, number>>;
+  /** The slingshot gallery's best score. */
+  slingBest: number;
 }
 export function emptyFishingProfile(): FishingProfile {
-  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood: { pine: 0, oak: 0, charcoal: 0 }, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], gear: [], resin: 0, sawdust: 0 };
+  const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
+  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], gear: [], resin: 0, sawdust: 0, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0 };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -259,6 +321,17 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
   if (Array.isArray(r.gear)) p.gear = Array.from(new Set(r.gear.filter(isGearId)));
   p.resin = Math.max(0, Math.min(999, Math.round(Number(r.resin) || 0)));
   p.sawdust = Math.max(0, Math.min(999, Math.round(Number(r.sawdust) || 0)));
+  p.firewood = Math.max(0, Math.min(9999, Math.round(Number(r.firewood) || 0)));
+  p.dayPermits = Math.max(0, Math.min(MAX_DAY_PERMITS, Math.round(Number(r.dayPermits) || 0)));
+  p.ranger = r.ranger === true;
+  p.eagleUntil = Math.max(0, Number(r.eagleUntil) || 0);
+  p.slingBest = Math.max(0, Math.min(1_000_000, Math.round(Number(r.slingBest) || 0)));
+  if (r.felled && typeof r.felled === "object") {
+    for (const k of TREE_KINDS) {
+      const n = Math.round(Number((r.felled as Record<string, unknown>)[k]) || 0);
+      if (n > 0) p.felled[k] = Math.min(999_999, n);
+    }
+  }
   // the carrier's tier; one from before the tiers (levels 1-3: 6, 12, 20 logs) moves up to the
   // smallest tier that holds all it held, so nothing is lost in the move
   if (Number(r.carrierTier) >= 1) p.carrierTier = Math.min(WOOD_CARRIER_TIERS.length, Math.round(Number(r.carrierTier)));
@@ -290,19 +363,34 @@ export function stars(q: number): string {
 // --- rolling a catch ----------------------------------------------------------------------------
 
 export interface CatchLuck {
-  /** Extra weight on rare, epic and legendary fish (0.15: +15%), from the Cozy Aura. */
+  /** Extra weight on rare, legendary and mythic fish (0.15: +15%), from the Cozy Aura and the rapids. */
   rareLuck?: number;
   bait?: BaitId | "";
   /** Only the commons. */
   commonOnly?: boolean;
-  /** What an AFK line can bring up: commons, uncommons and rares (never an epic or a legendary). */
+  /** What an AFK line can bring up: commons, uncommons and rares (never a legendary or a mythic). */
   afk?: boolean;
+  /** The hour's light (shared/daynight.ts): only its fish bite. Omitted: either. */
+  time?: "day" | "night";
+  /** Fishing the Whispering Woods' rapids (its own legendaries and mythics bite there only). */
+  rapids?: boolean;
+  /** The rod's tier: nothing rarer than it can land bites. */
+  rodTier?: number;
 }
 
 /** What bites, weighted, with luck tipping it toward the rare end. */
 export function rollFish(water: Water, luck: CatchLuck = {}, rand: () => number = Math.random): FishId {
   const rareMul = (1 + (luck.rareLuck ?? 0)) * (luck.bait ? BAITS[luck.bait].rareMul : 1);
-  const pool = fishOf(water).filter((id) => (!luck.commonOnly || FISH[id].tier === "common") && (!luck.afk || AFK_CATCH_S[FISH[id].tier] !== null));
+  const reach = luck.rodTier ?? 5;
+  const pool = fishOf(water).filter(
+    (id) =>
+      (!luck.commonOnly || FISH[id].tier === "common") &&
+      (!luck.afk || AFK_CATCH_S[FISH[id].tier] !== null) &&
+      (!luck.time || FISH[id].time === luck.time) &&
+      (!(FISH[id] as FishSpecies).rapids || luck.rapids === true) &&
+      FISH_TIER_RANK[FISH[id].tier] <= reach
+  );
+  if (!pool.length) return fishOf(water)[0];
   const weightOf = (id: FishId) => FISH[id].weight * (RARE_TIERS.has(FISH[id].tier) ? rareMul : 1);
   let roll = rand() * pool.reduce((a, id) => a + weightOf(id), 0);
   for (const id of pool) {
@@ -359,8 +447,8 @@ export const AFK_CATCH_S: Record<FishTier, readonly [number, number] | null> = {
   common: [25, 30],
   uncommon: [30, 35],
   rare: [35, 45],
-  epic: null,
   legendary: null,
+  mythic: null,
 };
 /** How long an AFK line waits for this fish. */
 export function afkSeconds(species: FishId, rand: () => number = Math.random): number {

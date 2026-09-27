@@ -2,9 +2,9 @@ import { readFileSync } from "fs";
 import path from "path";
 
 // The client build this server serves (client/dist/build.json, stamped by client/vite.config.ts with
-// the same version every model URL carries). A client is told it on joining ("welcome"), and one
-// still running an older build (Discord's webview holding on to the page) counts down and reloads
-// onto this one. Outside production there is no stamped build: "dev", and nobody is sent anywhere.
+// the same version every model URL carries). A client is told it on joining ("welcome"); one still
+// running an older build is asked to start the Activity afresh (client/src/systems/lifecycle.ts:
+// never a reload of Discord's frame). Outside production there is no stamped build: "dev".
 function readBuild(): string {
   if (process.env.NODE_ENV !== "production") return "dev";
   try {

@@ -3,13 +3,15 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import type { Room } from "colyseus.js";
 import type { BoardGameView, ChairSyncState, MapId, PlayerState, TimeOfDay, ToggleableSyncState, Weather } from "@shared/types";
-import { GESTURE_SECONDS, MAP_HALF, isCasinoMap, isWalkUpProp, usableSeated } from "@shared/types";
+import { GESTURE_SECONDS, MAP_HALF, isCampMap, isCasinoMap, isWalkUpProp, usableSeated } from "@shared/types";
 import { isBlocked, walkY } from "@shared/collision";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
 import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf, nearestChopStation } from "@shared/worlds/campfire";
 import { useGLTF } from "@react-three/drei";
-import { CAMPFIRE_URL, CampfireSky, CampfireWorld } from "./CampfireWorld";
+import { CAMPFIRE_URL, CampfireWorld } from "./CampfireWorld";
+import { ForestWorld, FOREST_URL } from "./ForestWorld";
+import { CampDaylightContext, CampSky, campHour, campLook, useCampDaylight } from "./campDay";
 import { CASINO_URL, CasinoWorld } from "./CasinoWorld";
 import { CASINO_VIP_URL } from "./CasinoVipWorld";
 import { preloadCasinoStaff } from "../entities/CasinoStaff";
@@ -59,6 +61,8 @@ export interface WorldSceneProps {
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   /** The Campfire's hearth (the fire's fuel, the Dutch oven, the picnic plates). */
   hearth: HearthState;
+  /** The Whispering Woods' felled trees as they grow back (the room's state, JSON). */
+  forest: string;
 }
 
 /** An emote's bubble floats over its sender this long (it pops in, bobs, and fades). */
@@ -68,12 +72,13 @@ const BUBBLE_LIFETIME_MS = 4200;
 /** Warm ambient light and a soft key with no shadow map: the whole room's light, with the lamps' own
  *  point lights. The sky behind is the hour's and the weather's (BackgroundSky); indoors with a
  *  backdrop of its own (the casino's starfield), the campfire's starlit night, theirs. */
-function SceneLighting({ timeOfDay, weather, starlit, indoor }: { timeOfDay: TimeOfDay; weather: Weather; starlit: boolean; indoor: boolean }) {
-  const look = weatherLook(HOUR_LOOKS[timeOfDay], weather);
+function SceneLighting({ timeOfDay, weather, camp, indoor }: { timeOfDay: TimeOfDay; weather: Weather; camp: number | null; indoor: boolean }) {
+  // the camp (the campfire, the woods): its own 24-minute day, eased by the daylight
+  const look = camp !== null ? campLook(camp) : weatherLook(HOUR_LOOKS[timeOfDay], weather);
   const sky = useMemo(() => loungeSky(timeOfDay, weather), [timeOfDay, weather]);
   return (
     <>
-      {starlit ? <CampfireSky /> : indoor ? null : <BackgroundSky look={sky} />}
+      {camp !== null ? <CampSky daylight={camp} /> : indoor ? null : <BackgroundSky look={sky} />}
       <ambientLight color={look.ambientColor} intensity={look.ambient} />
       {/* the key only gives the clay its form: it never casts a shadow, and it comes from off the camera's axis */}
       <directionalLight position={[-14, 24, 10]} color={look.sunColor} intensity={look.sun} castShadow={false} />
@@ -192,7 +197,7 @@ function useCrowdEvents(subscribeEmotes: WorldSceneProps["subscribeEmotes"], sub
   return { emotes, gestures, bubbles };
 }
 
-export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth }: WorldSceneProps) {
+export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth, forest }: WorldSceneProps) {
   const me = localSessionId ? players[localSessionId] : undefined;
   const { emotes, gestures, bubbles } = useCrowdEvents(subscribeEmotes, subscribeMessages);
 
@@ -236,7 +241,10 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
 
   // the other worlds' models are fetched quietly once the lounge is up, so travelling is instant
   useEffect(() => {
-    const campfire = window.setTimeout(() => useGLTF.preload(CAMPFIRE_URL), 4000);
+    const campfire = window.setTimeout(() => {
+      useGLTF.preload(CAMPFIRE_URL);
+      useGLTF.preload(FOREST_URL);
+    }, 4000);
     // (Chloe's boutique is in the lounge itself: she comes at once)
     preloadChloe();
     const casino = window.setTimeout(() => {
@@ -483,17 +491,21 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   }, [board]);
   // whoever sits in the campfire's canoe rocks with it
   const canoeSitter = chairs.seat_canoe?.occupiedBy ?? "";
-  const rocking = useMemo<ReadonlySet<string>>(() => new Set(canoeSitter ? [canoeSitter] : []), [canoeSitter]);
+  const canoeBow = chairs.seat_canoe_bow?.occupiedBy ?? "";
+  const rocking = useMemo<ReadonlySet<string>>(() => new Set([canoeSitter, canoeBow].filter(Boolean)), [canoeSitter, canoeBow]);
   const feed = useMemo<CrowdFeed>(() => ({ speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId, rocking }), [speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId, rocking]);
 
-  // it is always a starlit night at the campfire, whatever the room's clock says
-  const starlit = mapId === "campfire_night";
-  const hour: TimeOfDay = starlit ? "night" : timeOfDay;
-  const sky: Weather = starlit || casino ? "clear" : weather;
+  // the campfire and the woods keep their own 24-minute day (shared/daynight.ts), whatever the
+  // room's clock says; the lounge keeps the room's hour and weather
+  const camp = isCampMap(mapId);
+  const daylight = useCampDaylight(camp);
+  const hour: TimeOfDay = camp ? campHour(daylight) : timeOfDay;
+  const sky: Weather = camp || casino ? "clear" : weather;
   return (
     <TimeOfDayContext.Provider value={hour}>
+      <CampDaylightContext.Provider value={camp ? daylight : null}>
       <WeatherContext.Provider value={sky}>
-      <SceneLighting timeOfDay={hour} weather={sky} starlit={starlit} indoor={casino} />
+      <SceneLighting timeOfDay={hour} weather={sky} camp={camp ? daylight : null} indoor={casino} />
       {mapId === "cozy_lounge" ? (
         <>
           <LoungeWorld onFloorClick={onFloorClick} />
@@ -501,6 +513,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         </>
       ) : mapId === "campfire_night" ? (
         <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} hearth={hearth} subscribeMessages={subscribeMessages} onDuck={(duck) => room?.send("duckPoke", { duck })} />
+      ) : mapId === "whispering_woods" ? (
+        <ForestWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} forest={forest} subscribeMessages={subscribeMessages} onUseProp={activate} />
       ) : casino ? (
         <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} up={up} />
       ) : (
@@ -558,6 +572,18 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={{ ...prop, z: prop.z - 0.1 }} size={ELEVATOR_PAD} onUse={() => activate(prop.propId)} />
         ) : CASINO_PADS[prop.kind] ? (
           <PropPad key={prop.propId} prop={{ ...prop, ...CASINO_PADS[prop.kind]!.at?.(prop) }} size={CASINO_PADS[prop.kind]!.size} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "archway" ? (
+          <PropPad key={prop.propId} prop={prop} size={[2.1, 2.7, 0.6]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "tree" ? (
+          <PropPad key={prop.propId} prop={prop} size={[1.1, 2.8, 1.1]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "ranger" ? (
+          <PropPad key={prop.propId} prop={prop} size={[1.0, 1.6, 1.0]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "animal" ? (
+          <PropPad key={prop.propId} prop={prop} size={[1.0, 1.0, 1.0]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "splitblock" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.9, 0.9, 0.9]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "slingshot" ? (
+          <PropPad key={prop.propId} prop={prop} size={[3.4, 1.3, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "plant" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.75, 1.4, 0.75]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "boutique" ? (
@@ -576,6 +602,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       <OtherPlayers players={players} localSessionId={localSessionId} feed={feed} />
       <ClickMarker mapId={mapId} targetRef={targetRef} rippleRef={rippleRef} />
       </WeatherContext.Provider>
+      </CampDaylightContext.Provider>
     </TimeOfDayContext.Provider>
   );
 }
