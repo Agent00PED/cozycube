@@ -8,9 +8,9 @@ import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
 import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, WORKBENCH, WORKBENCH_FRONT, WORKBENCH_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
-import { CRAFTS, RESIN_PRICE, SAWDUST_FUEL, canCraft, craftOdds, craftPrice, craftSalvage, isCraftId, isCraftMode, rollCraft } from "../../../shared/crafting";
+import { CRAFTS, RESIN_PRICE, SAWDUST_FUEL, canCraft, craftOdds, craftSalePrice, craftSalvage, isCraftId, isCraftMode, rollCraft } from "../../../shared/crafting";
 import { GEAR, bonusLogChance, gearPace, gloveSweetBonus, isGearId } from "../../../shared/gear";
-import { AXES, nextCarrierTier, CHOP_LOGS, CHOP_CRIT_CHANCE, CHOP_CRIT_COINS, CHOP_GREENS_TO_SPLIT, WOOD, isGreen, rollChopCooldown, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo, type ChopVerdict } from "../../../shared/chop";
+import { AXES, woodPrice, nextCarrierTier, CHOP_LOGS, CHOP_CRIT_CHANCE, CHOP_CRIT_COINS, CHOP_GREENS_TO_SPLIT, WOOD, isGreen, rollChopCooldown, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo, type ChopVerdict } from "../../../shared/chop";
 import {
   BAITS,
   afkSeconds,
@@ -57,7 +57,11 @@ import {
   type StewUpdate,
 } from "../../../shared/bonfire";
 import { emptyCampfireCoins } from "../db/players";
-import { MAP_CHAIRS, MAP_TOGGLEABLES, isFishingSeat, isWaterable, mochiSpot } from "../../../shared/props";
+import { MAP_CHAIRS, MAP_TOGGLEABLES, PROP_MAP, isFishingSeat, isWaterable, mochiSpot } from "../../../shared/props";
+import { WORLDS } from "../../../shared/worlds/index";
+import { BOUTIQUE, BOUTIQUE_REACH } from "../../../shared/worlds/lounge";
+import { craftGood, fishGood, parseMarket, priceRun, woodGood, type MarketState } from "../../../shared/market";
+import { PIONEER_SET, pioneerEligible, pioneerUntil, specialTitle, type PioneerInfo } from "../../../shared/items";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
 import {
   BITE_WINDOW_S,
@@ -202,6 +206,10 @@ import {
   hairUnlockId,
   isHairStyle,
   isMapId,
+  guildRoomKey,
+  MAP_SIGNATURE_TIME,
+  isCasinoMap,
+  isBlacklisted,
   isOutfitId,
   toStoredLook,
   type DailyTaskId,
@@ -211,11 +219,15 @@ import {
 } from "../../../shared/types";
 import { CASINO_EMOTES, auraPace, capsuleUnlock, netWorth, type BlackjackAction, type CashierRequest, type CasinoPacket } from "../../../shared/casino";
 import { CasinoFloor, RouletteSchema } from "./casino";
+import { getWipeAt } from "../db/players";
+import { BUILD_ID } from "../build";
 
 class Player extends Schema {
   @type("string") userId = "";
   @type("string") username = "";
   @type("string") avatarUrl = "";
+  /** The world this player is in (everyone in the guild shares the room; each walks their own way). */
+  @type("string") map: MapId = "cozy_lounge";
   @type("number") x = 0;
   @type("number") z = 2;
   @type("number") dirX = 0;
@@ -270,6 +282,8 @@ const KITCHEN_COOLDOWN_MS = 2000;
 
 class ChairState extends Schema {
   @type("string") propId = "";
+  /** The world the seat is in: every built world's seats live in the one room. */
+  @type("string") map = "";
   @type("number") x = 0;
   @type("number") z = 0;
   @type("number") rotationY = 0;
@@ -280,6 +294,8 @@ class ChairState extends Schema {
 
 class ToggleableState extends Schema {
   @type("string") propId = "";
+  /** The world the prop is in. */
+  @type("string") map = "";
   @type("number") x = 0;
   @type("number") y = 0;
   @type("number") z = 0;
@@ -305,9 +321,8 @@ class HangoutState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: ChairState }) chairs = new MapSchema<ChairState>();
   @type({ map: ToggleableState }) toggleables = new MapSchema<ToggleableState>();
-  @type("string") currentMap: MapId = "cozy_lounge";
+  /** The lounge's hour (the campfire and the casino keep their own night: MAP_SIGNATURE_TIME). */
   @type("string") timeOfDay: TimeOfDay = "day";
-  @type("boolean") mapTransitioning = false;
   @type(BallSchema) ball = new BallSchema();
   @type(RouletteSchema) roulette = new RouletteSchema();
   /** Roulette bets on the table this round, per sessionId, as encodeBets() strings. */
@@ -324,6 +339,8 @@ class HangoutState extends Schema {
   @type("string") stew = "";
   /** Skewers left on the picnic table (PicnicPlate[] as JSON). */
   @type("string") picnic = "";
+  /** The hour's sales at the camp's stalls (a MarketState as JSON: shared/market.ts). */
+  @type("string") market = "";
 }
 
 const CHAT_COOLDOWN_MS = 1200;
@@ -369,11 +386,6 @@ const PASTEL_COLORS = [
   "#b8b0ec", // lilac
   "#e8a8dd", // orchid
 ];
-const MAP_SIGNATURE_TIME: Partial<Record<MapId, TimeOfDay>> = {
-  sunset_beach: "sunset",
-  campfire_night: "night",
-  velvet_casino: "night",
-};
 const AUTO_CYCLE_SECONDS = 45; // each hour of the day lasts this long when Auto Cycle is on
 const GESTURE_COOLDOWN_MS = 1200;
 const COIN_CAP = 99999;
@@ -382,6 +394,11 @@ const ALLOWED_EMOTES = new Set<string>(EMOTES);
 export class HangoutRoom extends Room<HangoutState> {
   maxClients = 25;
   channelId = "";
+  /** The guild this room is for (guild_<id>): every channel in it joins this one instance. */
+  guildKey = "";
+  /** After a trip between worlds, move reports are not believed until then (ms): the ones still in
+   *  flight were walked on the world left behind. */
+  private arrivedUntil = new Map<string, number>();
   private lastEmoteAt = new Map<string, number>();
   private lastReportAt = new Map<string, number>();
   private lastKickAt = new Map<string, number>();
@@ -442,6 +459,8 @@ export class HangoutRoom extends Room<HangoutState> {
   private lastMatchaAt = new Map<string, number>();
   private lastDrinkAt = new Map<string, number>();
   private lastMochiAt = new Map<string, number>();
+  /** When each player's account was made (the Pioneer set's eligibility). */
+  private createdAt = new Map<string, number>();
   private board = new BoardTable();
   /** The casino's tables and Mr. Vance's cage (server/src/rooms/casino.ts), built with the state. */
   private casino!: CasinoFloor;
@@ -461,13 +480,12 @@ export class HangoutRoom extends Room<HangoutState> {
   private cycleClock = 0;
   private ballIdle = 0;
 
-  async onCreate(options: { channelId: string }) {
+  async onCreate(options: { guildKey?: string; guildId?: string; channelId: string }) {
     this.setState(new HangoutState());
     this.casino = new CasinoFloor(this.state, {
-      broadcast: (type, payload) => this.broadcast(type, payload),
       broadcastExcept: (sessionId, type, payload) => {
-        const except = this.clients.find((c) => c.sessionId === sessionId);
-        this.broadcast(type, payload, except ? { except } : undefined);
+        this.toMap("velvet_casino", type, payload, sessionId);
+        this.toMap("casino_vip", type, payload, sessionId);
       },
       sendTo: (sessionId, type, payload) => this.sendTo(sessionId, type, payload),
       seatOf: (sessionId) => {
@@ -485,6 +503,15 @@ export class HangoutRoom extends Room<HangoutState> {
         player.dirX = 0;
         player.dirZ = 0;
       },
+      travel: (sessionId, map, at) => {
+        const player = this.state.players.get(sessionId);
+        if (player && !player.sitting) this.travel(sessionId, player, map, at);
+      },
+      broadcast: (type, payload) => {
+        this.toMap("velvet_casino", type, payload);
+        this.toMap("casino_vip", type, payload);
+      },
+      shout: (type, payload) => this.broadcast(type, payload),
       later: (ms, fn) => void this.clock.setTimeout(fn, ms),
       tally: (sessionId, event) => {
         const player = this.state.players.get(sessionId);
@@ -520,10 +547,12 @@ export class HangoutRoom extends Room<HangoutState> {
     });
     this.autoDispose = false; // `autoDispose` is an accessor on the base Room class — assign, don't redeclare as a field.
     // NOTE: do not reassign `this.roomId` here — it breaks Colyseus's internal room
-    // registry/dispose bookkeeping. "1 Discord voice channel = 1 room" is achieved via
-    // `.filterBy(["channelId"])` on the room definition in server/src/index.ts instead.
-    this.channelId = options.channelId;
-    this.loadMapProps(this.state.currentMap);
+    // registry/dispose bookkeeping. "1 Discord guild = 1 room" is achieved via
+    // `.filterBy(["guildKey"])` on the room definition in server/src/index.ts instead.
+    this.channelId = String(options.channelId ?? "");
+    this.guildKey = String(options.guildKey || guildRoomKey(options.guildId, options.channelId));
+    this.loadAllProps();
+    this.state.market = JSON.stringify(parseMarket(""));
     // (the board game in this channel, if one was going when the server last stopped, is put back
     // at the end of onCreate: see restoreBoard)
 
@@ -561,7 +590,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // faced (moving, or standUp, gets you up again)
     this.onMessage("groundSit", (client, msg: { rotationY?: number }) => {
       const player = this.state.players.get(client.sessionId);
-      if (!player || player.sitting || player.action !== "" || player.gloves || this.state.mapTransitioning) return;
+      if (!player || player.sitting || player.action !== "" || player.gloves) return;
       const heading = Number(msg?.rotationY);
       player.sitting = true;
       player.sitPose = "cross";
@@ -573,13 +602,13 @@ export class HangoutRoom extends Room<HangoutState> {
     });
     // a tap on one of the campfire's ducks: it quacks and dives (everyone sees it)
     this.onMessage("duckPoke", (client, msg: { duck?: number }) => {
-      if (this.state.currentMap !== "campfire_night") return;
+      if (this.state.players.get(client.sessionId)?.map !== "campfire_night") return;
       const i = Number(msg?.duck);
       if (!Number.isInteger(i) || i < 0 || i >= DUCK_PATHS.length) return;
       const now = Date.now();
       if (now - (this.duckDivedAt[i] ?? 0) < DUCK_DIVE_COOLDOWN_MS) return;
       this.duckDivedAt[i] = now;
-      this.broadcast("duckDive", { duck: i, sessionId: client.sessionId });
+      this.toMap("campfire_night", "duckDive", { duck: i, sessionId: client.sessionId });
     });
 
     this.onMessage("setLook", (client, msg: { look: string }) => {
@@ -588,6 +617,7 @@ export class HangoutRoom extends Room<HangoutState> {
       if (!player || !look) return;
       // Premium hats, outfits and fancy hair have to have been bought (or won at the gachapon).
       if (isPremiumHat(look.hat) && !this.owns(player, look.hat)) return;
+      // (the Velvet Pioneer set is owned once claimed, like anything bought)
       if (!this.owns(player, look.outfit)) return;
       if (!this.ownsHair(player.owned.split(","), look.hairStyle)) return;
       player.look = encodeLook(look);
@@ -600,9 +630,11 @@ export class HangoutRoom extends Room<HangoutState> {
       player.color = msg.color;
     });
 
-    this.onMessage("changeMap", (_client, msg: { mapId: MapId }) => {
-      this.handleChangeMap(msg.mapId);
-    });
+    // a trip to another world: only the one who asked goes (Bruno's doors are the way up to the
+    // penthouse, never this)
+    this.onMessage("changeMap", (client, msg: { mapId: MapId }) => this.handleChangeMap(client.sessionId, msg?.mapId));
+    // the Velvet Pioneer set, free for the beta's players for two weeks after the wipe
+    this.onMessage("claim_pioneer", (client) => this.handleClaimPioneer(client.sessionId));
 
     this.onMessage("interactChair", (client, msg: { chairId: string; x?: number; z?: number }) => {
       const player = this.state.players.get(client.sessionId);
@@ -622,9 +654,10 @@ export class HangoutRoom extends Room<HangoutState> {
     // Time of day is shared ambience, like the lights: anyone can set it, everyone sees it.
     this.onMessage("setTimeOfDay", (client, msg: { timeOfDay: TimeOfDay }) => {
       if (!isTimeOfDay(msg?.timeOfDay)) return;
-      // the campfire is always a starlit night
-      if (this.state.currentMap === "campfire_night") {
-        this.sendTo(client.sessionId, "campfireNotice", { message: "It's always a starlit night by the campfire", emoji: "🌙" });
+      // the campfire is always a starlit night, and the casino never sees the sun
+      const map = this.state.players.get(client.sessionId)?.map;
+      if (map && MAP_SIGNATURE_TIME[map]) {
+        if (map === "campfire_night") this.sendTo(client.sessionId, "campfireNotice", { message: "It's always a starlit night by the campfire", emoji: "🌙" });
         return;
       }
       this.state.timeOfDay = msg.timeOfDay;
@@ -669,7 +702,7 @@ export class HangoutRoom extends Room<HangoutState> {
       if (player && player.holding === "jar") {
         // letting the fireflies go
         player.holding = "";
-        this.broadcast("emote", { sessionId: client.sessionId, emoji: "✨" });
+        this.nearby(client.sessionId, "emote", { sessionId: client.sessionId, emoji: "✨" });
       } else if (player && (player.holding === "coffee" || (player.holding === "skewer" && player.action !== "grill"))) {
         player.holding = "";
         player.drink = "";
@@ -711,7 +744,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // --- beach bar ---
     this.onMessage("blend_drink", (client, msg: { recipe: string; ingredients: string[] }) => this.handleBlend(client.sessionId, msg));
     // --- lounge ---
-    this.onMessage("set_record", (client, msg: { track: number }) => this.handleSetRecord(Number(msg?.track)));
+    this.onMessage("set_record", (client, msg: { track: number }) => this.handleSetRecord(client.sessionId, Number(msg?.track)));
     this.onMessage("board", (client, packet: BoardPacket) => this.handleBoardPacket(client, packet));
     // --- mochi ---
     this.onMessage("mochi_play", (client, msg: { action: string }) => this.handleMochi(client.sessionId, msg?.action));
@@ -736,7 +769,8 @@ export class HangoutRoom extends Room<HangoutState> {
   /** Copies the live state into the player's record and queues a debounced write if it changed. */
   private persist(sessionId: string, player: Player, now = false) {
     const record = this.records.get(sessionId);
-    if (!record) return;
+    // test and bot accounts are never recorded
+    if (!record || isBlacklisted(player.username)) return;
     record.username = player.username;
     record.coins = player.coins;
     record.casino = { ...record.casino, chips: player.chips, title: player.title, vipPass: player.vipPass };
@@ -776,7 +810,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (completed) {
       this.addCoins(player, DAILY_REWARD);
       this.sendTo(sessionId, "dailyComplete", { coins: DAILY_REWARD });
-      this.broadcast("emote", { sessionId, emoji: "🎀" });
+      this.nearby(sessionId, "emote", { sessionId, emoji: "🎀" });
     }
   }
 
@@ -798,7 +832,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (price <= 0 || player.coins < price) return; // gacha-only outfits are not for sale
     player.coins -= price;
     this.grant(player, outfit);
-    this.broadcast("emote", { sessionId, emoji: "👕" });
+    this.nearby(sessionId, "emote", { sessionId, emoji: "👕" });
   }
 
   /** A fancy hair style from the wardrobe's shop: recorded as hair_<style> with the other unlocks. */
@@ -809,12 +843,12 @@ export class HangoutRoom extends Room<HangoutState> {
     if (player.coins < price) return;
     player.coins -= price;
     this.grant(player, hairUnlockId(style));
-    this.broadcast("emote", { sessionId, emoji: HAIR_DEFINITIONS[style].emoji });
+    this.nearby(sessionId, "emote", { sessionId, emoji: HAIR_DEFINITIONS[style].emoji });
   }
 
   private handleGacha(sessionId: string) {
     const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "retro_arcade" || player.coins < GACHA_COST) return;
+    if (!player || player.map !== "retro_arcade" || player.coins < GACHA_COST) return;
     player.coins -= GACHA_COST;
     const prize = rollGacha(new Set(player.owned.split(",")));
     if (prize.kind === "hat" || prize.kind === "outfit") this.grant(player, prize.id);
@@ -823,12 +857,12 @@ export class HangoutRoom extends Room<HangoutState> {
     this.bumpStat(player, "gacha_pulls");
     this.daily(sessionId, player, "pull_gacha");
     this.sendTo(sessionId, "gachaResult", prize);
-    if (prize.kind === "hat" || prize.kind === "outfit") this.broadcast("emote", { sessionId, emoji: "✨" });
+    if (prize.kind === "hat" || prize.kind === "outfit") this.nearby(sessionId, "emote", { sessionId, emoji: "✨" });
   }
 
   private handleClaw(sessionId: string, aim: number) {
     const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "retro_arcade" || player.coins < CLAW_COST || !Number.isFinite(aim)) return;
+    if (!player || player.map !== "retro_arcade" || player.coins < CLAW_COST || !Number.isFinite(aim)) return;
     player.coins -= CLAW_COST;
     // the plush sits at a random spot; a claw dropped within a whisker of it usually grips
     const target = Math.random();
@@ -838,21 +872,21 @@ export class HangoutRoom extends Room<HangoutState> {
     if (won) {
       this.addItem(player, "plush");
       this.addCoins(player, CLAW_WIN_COINS);
-      this.broadcast("emote", { sessionId, emoji: "🧸" });
+      this.nearby(sessionId, "emote", { sessionId, emoji: "🧸" });
     }
     this.sendTo(sessionId, "clawResult", { won, target });
   }
 
   private handleArcadeScore(sessionId: string, score: number) {
     const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "retro_arcade" || !Number.isFinite(score) || score <= 0) return;
+    if (!player || player.map !== "retro_arcade" || !Number.isFinite(score) || score <= 0) return;
     const now = Date.now();
     if (now - (this.lastArcadeScoreAt.get(sessionId) ?? 0) < ARCADE_SCORE_COOLDOWN_S * 1000) return;
     this.lastArcadeScoreAt.set(sessionId, now);
     const coins = Math.min(ARCADE_COINS_MAX, Math.floor(score * ARCADE_COINS_PER_POINT));
     if (coins > 0) {
       this.addCoins(player, coins);
-      this.broadcast("emote", { sessionId, emoji: "🕹️" });
+      this.nearby(sessionId, "emote", { sessionId, emoji: "🕹️" });
     }
     this.sendTo(sessionId, "arcadeResult", { coins });
   }
@@ -863,7 +897,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (this.starlight.has(sessionId)) return this.hookStarlight(sessionId);
     const player = this.state.players.get(sessionId);
     if (!player || player.action !== "fish" || !this.biteUntil.has(sessionId)) return;
-    const water = MAP_WATER[this.state.currentMap] ?? "ocean";
+    const water = MAP_WATER[player.map] ?? "ocean";
     const fish = rollFish(water);
     this.biteUntil.delete(sessionId);
     this.hooked.set(sessionId, { fish, until: Date.now() + (REEL_SECONDS + 4) * 1000 });
@@ -879,17 +913,17 @@ export class HangoutRoom extends Room<HangoutState> {
     this.hooked.delete(sessionId);
     if (caught) {
       if (line.fish.item === "boot") {
-        this.broadcast("emote", { sessionId, emoji: "👢" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: "👢" });
       } else {
         this.addItem(player, line.fish.item);
         this.bumpStat(player, "fish_caught");
         this.daily(sessionId, player, "catch_fish");
-        this.broadcast("emote", { sessionId, emoji: ITEMS[line.fish.item].emoji });
+        this.nearby(sessionId, "emote", { sessionId, emoji: ITEMS[line.fish.item].emoji });
         // a clean reel-in (the bar never slipped) earns a little bonus
         if (quality >= 0.9) this.addCoins(player, 3);
       }
     } else {
-      this.broadcast("emote", { sessionId, emoji: "💨" });
+      this.nearby(sessionId, "emote", { sessionId, emoji: "💨" });
     }
     player.action = "fish";
     player.actionProgress = 0;
@@ -904,12 +938,12 @@ export class HangoutRoom extends Room<HangoutState> {
 
   private handleBoxingEnter(sessionId: string) {
     const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "boxing_ring" || player.sitting) return;
+    if (!player || player.map !== "boxing_ring" || player.sitting) return;
     if (!this.inRing(player)) return;
     player.gloves = true;
     player.boxHits = 0;
     player.boxKOs = 0;
-    this.broadcast("emote", { sessionId, emoji: "🥊" });
+    this.nearby(sessionId, "emote", { sessionId, emoji: "🥊" });
   }
 
   private handleBoxingExit(sessionId: string) {
@@ -923,26 +957,26 @@ export class HangoutRoom extends Room<HangoutState> {
   private handlePunch(sessionId: string, targetId: string) {
     const me = this.state.players.get(sessionId);
     const target = this.state.players.get(targetId);
-    if (!me || !target || sessionId === targetId) return;
+    if (!me || !target || sessionId === targetId || me.map !== target.map) return;
     if (!me.gloves || !target.gloves || me.action === "dizzy" || target.action === "dizzy") return;
     if (Math.hypot(me.x - target.x, me.z - target.z) > BOXING_REACH + 0.6) return;
     const now = Date.now();
     if (now - (this.lastPunchAt.get(sessionId) ?? 0) < PUNCH_COOLDOWN_MS) return;
     this.lastPunchAt.set(sessionId, now);
     target.boxHits += 1;
-    this.broadcast("punch", { from: sessionId, to: targetId, hits: target.boxHits });
+    this.nearby(sessionId, "punch", { from: sessionId, to: targetId, hits: target.boxHits });
     if (target.boxHits >= BOXING_KNOCKDOWN_HITS) {
       target.boxHits = 0;
       target.action = "dizzy";
       this.dizzyUntil.set(targetId, now + BOXING_DIZZY_S * 1000);
       me.boxKOs += 1;
-      this.broadcast("emote", { sessionId: targetId, emoji: "💫" });
+      this.nearby(targetId, "emote", { sessionId: targetId, emoji: "💫" });
       if (me.boxKOs >= BOXING_BOUT_KOS) {
         this.addCoins(me, BOXING_PURSE);
         this.bumpStat(me, "boxing_knockouts");
         this.daily(sessionId, me, "win_boxing");
-        this.broadcast("boxingResult", { winner: sessionId, winnerName: me.username, loser: targetId, loserName: target.username, purse: BOXING_PURSE });
-        this.broadcast("emote", { sessionId, emoji: "🏆" });
+        this.nearby(sessionId, "boxingResult", { winner: sessionId, winnerName: me.username, loser: targetId, loserName: target.username, purse: BOXING_PURSE });
+        this.nearby(sessionId, "emote", { sessionId, emoji: "🏆" });
         me.boxKOs = 0;
         target.boxKOs = 0;
       }
@@ -952,32 +986,32 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleTossCoin(sessionId: string, to: string) {
     const from = this.state.players.get(sessionId);
     const target = this.state.players.get(to);
-    if (!from || !target || from === target || !target.gloves || from.coins < BOXING_TIP) return;
+    if (!from || !target || from === target || from.map !== target.map || !target.gloves || from.coins < BOXING_TIP) return;
     from.coins -= BOXING_TIP;
     this.addCoins(target, BOXING_TIP);
-    this.broadcast("emote", { sessionId: to, emoji: "🪙" });
+    this.nearby(to, "emote", { sessionId: to, emoji: "🪙" });
   }
 
   // --- onsen ---------------------------------------------------------------------------------
 
   private handleSplash(sessionId: string) {
     const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "japanese_onsen") return;
+    if (!player || player.map !== "japanese_onsen") return;
     const now = Date.now();
     if (now - (this.lastGestureAt.get(sessionId) ?? 0) < GESTURE_COOLDOWN_MS) return;
     this.lastGestureAt.set(sessionId, now);
     let splashedSomeone = false;
     this.state.players.forEach((p, id) => {
-      if (id !== sessionId && Math.hypot(p.x - player.x, p.z - player.z) < 2.6) splashedSomeone = true;
+      if (id !== sessionId && p.map === player.map && Math.hypot(p.x - player.x, p.z - player.z) < 2.6) splashedSomeone = true;
     });
-    this.broadcast("splash", { sessionId, x: player.x, z: player.z });
-    this.broadcast("emote", { sessionId, emoji: "💦" });
+    this.nearby(sessionId, "splash", { sessionId, x: player.x, z: player.z });
+    this.nearby(sessionId, "emote", { sessionId, emoji: "💦" });
     if (splashedSomeone) this.daily(sessionId, player, "splash_water");
   }
 
   private handleWish(sessionId: string) {
     const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "japanese_onsen" || player.coins < WISH_COST) return;
+    if (!player || player.map !== "japanese_onsen" || player.coins < WISH_COST) return;
     player.coins -= WISH_COST;
     const fortune = FORTUNES[Math.floor(Math.random() * FORTUNES.length)];
     // once in a while the well gives back more than it took
@@ -985,12 +1019,12 @@ export class HangoutRoom extends Room<HangoutState> {
     if (lucky) this.addCoins(player, lucky);
     this.daily(sessionId, player, "make_wish");
     this.sendTo(sessionId, "wishResult", { fortune, lucky });
-    this.broadcast("emote", { sessionId, emoji: "🪙" });
+    this.nearby(sessionId, "emote", { sessionId, emoji: "🪙" });
   }
 
   private handleMatcha(sessionId: string, score: number) {
     const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "japanese_onsen" || !Number.isFinite(score)) return;
+    if (!player || player.map !== "japanese_onsen" || !Number.isFinite(score)) return;
     const now = Date.now();
     if (now - (this.lastMatchaAt.get(sessionId) ?? 0) < MATCHA_COOLDOWN_S * 1000) return;
     this.lastMatchaAt.set(sessionId, now);
@@ -999,14 +1033,14 @@ export class HangoutRoom extends Room<HangoutState> {
     player.holding = "coffee"; // a bowl of tea to carry, drawn like the mug
     player.drink = "";
     this.sendTo(sessionId, "matchaResult", { coins });
-    this.broadcast("emote", { sessionId, emoji: "🍵" });
+    this.nearby(sessionId, "emote", { sessionId, emoji: "🍵" });
   }
 
   // --- beach bar -----------------------------------------------------------------------------
 
   private handleBlend(sessionId: string, msg: { recipe: string; ingredients: string[] }) {
     const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "sunset_beach") return;
+    if (!player || player.map !== "sunset_beach") return;
     const recipe = DRINK_RECIPES.find((r) => r.id === msg?.recipe);
     if (!recipe || !Array.isArray(msg.ingredients)) return;
     const now = Date.now();
@@ -1019,7 +1053,7 @@ export class HangoutRoom extends Room<HangoutState> {
       this.auraUntil.set(sessionId, now + AURA_SECONDS * 1000);
       player.holding = "coffee";
       player.drink = "";
-      this.broadcast("emote", { sessionId, emoji: recipe.emoji });
+      this.nearby(sessionId, "emote", { sessionId, emoji: recipe.emoji });
     }
     this.sendTo(sessionId, "blendResult", { right, coins: right ? DRINK_REWARD : 0 });
   }
@@ -1031,7 +1065,7 @@ export class HangoutRoom extends Room<HangoutState> {
     let best: ToggleableState | undefined;
     let bestD = INTERACT_RADIUS;
     this.state.toggleables.forEach((prop) => {
-      if (prop.kind !== kind || (propId && prop.propId !== propId)) return;
+      if (prop.kind !== kind || prop.map !== player.map || (propId && prop.propId !== propId)) return;
       const d = Math.hypot(player.x - prop.x, player.z - prop.z);
       if (d <= bestD) {
         best = prop;
@@ -1044,7 +1078,7 @@ export class HangoutRoom extends Room<HangoutState> {
   /** Pours the drink the kitchen modal brewed (its brewing animation has already played) into the player's mug. */
   private handleKitchen(sessionId: string, packet: KitchenPacket) {
     const player = this.state.players.get(sessionId);
-    if (!player || packet?.type !== "KITCHEN_BREW" || this.state.currentMap !== "cozy_lounge") return;
+    if (!player || packet?.type !== "KITCHEN_BREW" || player.map !== "cozy_lounge") return;
     if (!(DRINK_BASES as readonly string[]).includes(packet.base) || !(DRINK_TOPPINGS as readonly string[]).includes(packet.topping)) return;
     if (!this.propInReach(player, "kitchen")) return;
     const now = Date.now();
@@ -1055,13 +1089,13 @@ export class HangoutRoom extends Room<HangoutState> {
     player.holding = "coffee";
     player.drink = encodeDrink(packet.base, packet.topping);
     this.daily(sessionId, player, "brew_coffee");
-    this.broadcast("emote", { sessionId, emoji: DRINK_BASE_INFO[packet.base].emoji });
+    this.nearby(sessionId, "emote", { sessionId, emoji: DRINK_BASE_INFO[packet.base].emoji });
   }
 
   /** Tunes the lounge radio for the whole room: its station and whether it plays are synced state. */
   private handleRadio(sessionId: string, packet: RadioPacket) {
     const player = this.state.players.get(sessionId);
-    if (!player || packet?.type !== "RADIO_UPDATE" || this.state.currentMap !== "cozy_lounge") return;
+    if (!player || packet?.type !== "RADIO_UPDATE" || player.map !== "cozy_lounge") return;
     const station = radioStationIndex(String(packet.station));
     if (station < 0 || station >= RADIO_STATIONS.length) return;
     // tuning is done at the radio (or from a pouf round its table)
@@ -1075,7 +1109,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private waterPlant(sessionId: string, plantId: string) {
     const player = this.state.players.get(sessionId);
     const record = this.records.get(sessionId);
-    if (!player || !record || this.state.currentMap !== "cozy_lounge" || !isWaterable(plantId)) return;
+    if (!player || !record || player.map !== "cozy_lounge" || !isWaterable(plantId)) return;
     const plant = this.propInReach(player, "plant", plantId);
     if (!plant) return;
     const today = todayKey();
@@ -1088,17 +1122,17 @@ export class HangoutRoom extends Room<HangoutState> {
     player.watered = record.plantsWatered.ids.join(",");
     this.addCoins(player, PLANT_WATER_COINS);
     const splash: PlantWatered = { type: "PLANT_WATERED", sessionId, plantId, coins: PLANT_WATER_COINS };
-    this.broadcast("plantWatered", splash);
-    this.broadcast("gesture", { sessionId, gesture: "water" });
+    this.toMap("cozy_lounge", "plantWatered", splash);
+    this.nearby(sessionId, "gesture", { sessionId, gesture: "water" });
     this.persist(sessionId, player);
   }
 
   // --- lounge: the jukebox and the board game ---------------------------------------------------
 
-  private handleSetRecord(track: number) {
-    if (this.state.currentMap !== "cozy_lounge") return;
+  private handleSetRecord(sessionId: string, track: number) {
+    const map = this.state.players.get(sessionId)?.map;
     this.state.toggleables.forEach((prop) => {
-      if (prop.kind !== "turntable") return;
+      if (prop.kind !== "turntable" || prop.map !== map) return;
       if (!Number.isFinite(track) || track < 0) {
         prop.on = false;
         return;
@@ -1128,7 +1162,7 @@ export class HangoutRoom extends Room<HangoutState> {
   // created again, each seat held for its player (by Discord user id) for RECONNECT_WINDOW_S.
 
   private boardStoreKey() {
-    return this.channelId || this.roomId;
+    return this.guildKey || this.channelId || this.roomId;
   }
 
   /** Saves the table soon (changes that come in a burst are written once). */
@@ -1165,11 +1199,10 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private sceneNow(): SavedScene {
-    return { map: this.state.currentMap, time: this.state.timeOfDay, fuel: this.state.fuel, stew: this.state.stew, picnic: this.state.picnic, pusher: Math.floor(this.casino.shelf) };
+    return { time: this.state.timeOfDay, fuel: this.state.fuel, stew: this.state.stew, picnic: this.state.picnic, pusher: Math.floor(this.casino.shelf) };
   }
 
   private async saveScene() {
-    if (this.state.mapTransitioning) return;
     const scene = this.sceneNow();
     const signature = JSON.stringify(scene);
     if (signature === this.savedScene) return;
@@ -1187,10 +1220,6 @@ export class HangoutRoom extends Room<HangoutState> {
     try {
       const scene = (await getBoardStore().load(this.sceneKey())) as unknown as Partial<SavedScene> | null;
       if (!scene) return;
-      if (isMapId(scene.map) && MAP_OBSTACLES[scene.map] && scene.map !== this.state.currentMap) {
-        this.state.currentMap = scene.map;
-        this.loadMapProps(scene.map);
-      }
       if (isTimeOfDay(scene.time)) this.state.timeOfDay = scene.time;
       if (typeof scene.fuel === "number" && Number.isFinite(scene.fuel)) this.state.fuel = Math.max(0, Math.min(FUEL_MAX, Math.round(scene.fuel)));
       // the pot and the plates come back as they were; a pot still cooking finishes from now
@@ -1204,7 +1233,7 @@ export class HangoutRoom extends Room<HangoutState> {
       // the casino's coin pusher: its shelf as the last players left it
       this.casino.restoreShelf(scene.pusher);
       this.savedScene = JSON.stringify(this.sceneNow());
-      console.log(`[room ${this.roomId}] scene restored for channel ${this.boardStoreKey()}: ${this.state.currentMap}, fire ${this.state.fuel}%`);
+      console.log(`[room ${this.roomId}] scene restored for ${this.boardStoreKey()}: fire ${this.state.fuel}%`);
     } catch (err) {
       console.error("[db] could not restore the scene:", err instanceof Error ? err.message : err);
     }
@@ -1230,7 +1259,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleBoardPacket(client: Client, packet: BoardPacket) {
     const sessionId = client.sessionId;
     const player = this.state.players.get(sessionId);
-    if (!player || !packet || typeof packet !== "object" || this.state.currentMap !== "cozy_lounge") return;
+    if (!player || !packet || typeof packet !== "object" || player.map !== "cozy_lounge") return;
     const t = this.board;
     let changed = false;
     switch (packet.type) {
@@ -1252,7 +1281,7 @@ export class HangoutRoom extends Room<HangoutState> {
       case "BOARD_MOVE":
         changed = !!packet.move && t.move(sessionId, packet.gameType, { from: Number(packet.move.from), to: Number(packet.move.to), promotion: packet.move.promotion });
         // the mover reaches over the table to play it (everyone sees the hand go out)
-        if (changed) this.broadcast("gesture", { sessionId, gesture: "reach" });
+        if (changed) this.nearby(sessionId, "gesture", { sessionId, gesture: "reach" });
         // refused (illegal, out of turn, or a board that moved on): say so, and resend the table
         // so a client drawing a stale board catches up
         else this.boardRefused(client, "That move isn't allowed");
@@ -1287,7 +1316,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.saveBoard(); // settled: the purse is never paid twice, restart or not
     if (!winner) return;
     this.addCoins(winner, BOARD_WIN_COINS);
-    this.broadcast("emote", { sessionId: winnerId, emoji: this.board.gameType === "chess" ? "♟️" : "⛀" });
+    this.nearby(winnerId, "emote", { sessionId: winnerId, emoji: this.board.gameType === "chess" ? "♟️" : "⛀" });
   }
 
   /**
@@ -1299,7 +1328,7 @@ export class HangoutRoom extends Room<HangoutState> {
    */
   private takeBoardSeat(sessionId: string, wanted?: BoardSide): boolean {
     const player = this.state.players.get(sessionId);
-    if (!player || this.state.currentMap !== "cozy_lounge" || this.state.mapTransitioning) return false;
+    if (!player || player.map !== "cozy_lounge") return false;
     const mine = this.board.sideOf(sessionId);
     if (mine && (!wanted || wanted === mine)) return true; // already there
     if (mine && this.board.underWay()) return false; // no swapping sides mid-game
@@ -1365,10 +1394,10 @@ export class HangoutRoom extends Room<HangoutState> {
     // she has to be in this world, and you have to be beside wherever she has wandered to
     let hasMochi = false;
     this.state.toggleables.forEach((prop) => {
-      if (prop.kind === "cat") hasMochi = true;
+      if (prop.kind === "cat" && prop.map === player.map) hasMochi = true;
     });
     if (!hasMochi) return;
-    const at = mochiSpot(this.state.currentMap, Date.now() / 1000);
+    const at = mochiSpot(player.map, Date.now() / 1000);
     if (Math.hypot(at.x - player.x, at.z - player.z) > INTERACT_RADIUS + 1.5) return;
     const now = Date.now();
     const key = `${sessionId}:${a}`;
@@ -1386,15 +1415,15 @@ export class HangoutRoom extends Room<HangoutState> {
       this.addCoins(player, coins);
     }
     this.state.toggleables.forEach((prop) => {
-      if (prop.kind === "cat") prop.boost = 2.5; // hearts and purring on the mascot
+      if (prop.kind === "cat" && prop.map === player.map) prop.boost = 2.5; // hearts and purring on the mascot
     });
-    this.broadcast("emote", { sessionId, emoji: a === "treat" ? "🐟" : "💕" });
+    this.nearby(sessionId, "emote", { sessionId, emoji: a === "treat" ? "🐟" : "💕" });
     this.sendTo(sessionId, "mochiResult", { action: a, coins, cooldown: false });
   }
 
   private async refreshLeaderboard() {
     try {
-      const top = await getPlayerStore().topNetWorth(10);
+      const top = (await getPlayerStore().topNetWorth(10)).filter((e) => !isBlacklisted(e.username));
       const json = JSON.stringify(top);
       if (json !== this.state.leaderboard) this.state.leaderboard = json;
     } catch (err) {
@@ -1416,7 +1445,7 @@ export class HangoutRoom extends Room<HangoutState> {
     record.lastDailyClaim = new Date();
     this.addCoins(player, ALLOWANCE_COINS);
     this.sendTo(sessionId, "allowance", { ok: true, coins: ALLOWANCE_COINS });
-    this.broadcast("emote", { sessionId, emoji: "🪙" });
+    this.nearby(sessionId, "emote", { sessionId, emoji: "🪙" });
     this.persist(sessionId, player, true);
   }
 
@@ -1429,36 +1458,63 @@ export class HangoutRoom extends Room<HangoutState> {
     const now = Date.now();
     if (now - (this.lastChatAt.get(sessionId) ?? 0) < CHAT_COOLDOWN_MS) return;
     this.lastChatAt.set(sessionId, now);
-    this.broadcast("chatBubble", { sessionId, text });
+    this.broadcast("chatBubble", { sessionId, text, map: player.map, username: player.username });
   }
 
-  private loadMapProps(mapId: MapId) {
+  /** Every world's seats and props, in the one room (their ids are unique across the worlds): each
+   *  player uses only those on their own map. */
+  private loadAllProps() {
     this.state.chairs.clear();
-    for (const chair of MAP_CHAIRS[mapId]) {
-      const state = new ChairState();
-      state.propId = chair.propId;
-      state.x = chair.x;
-      state.z = chair.z;
-      state.rotationY = chair.rotationY;
-      state.style = chair.style;
-      state.sitY = chair.sitY ?? 0;
-      this.state.chairs.set(chair.propId, state);
-    }
-
     this.state.toggleables.clear();
-    for (const prop of MAP_TOGGLEABLES[mapId]) {
-      const state = new ToggleableState();
-      state.propId = prop.propId;
-      state.x = prop.x;
-      state.y = prop.y ?? 0;
-      state.z = prop.z;
-      state.kind = prop.kind;
-      state.color = prop.color;
-      state.on = prop.defaultOn;
-      // a chopping station starts stocked: `track` is the logs on its block
-      if (state.kind === "woodchop") state.track = rollChopYield();
-      this.state.toggleables.set(prop.propId, state);
+    for (const mapId of Object.keys(MAP_CHAIRS) as MapId[]) {
+      for (const chair of MAP_CHAIRS[mapId]) {
+        const state = new ChairState();
+        state.propId = chair.propId;
+        state.map = mapId;
+        state.x = chair.x;
+        state.z = chair.z;
+        state.rotationY = chair.rotationY;
+        state.style = chair.style;
+        state.sitY = chair.sitY ?? 0;
+        this.state.chairs.set(chair.propId, state);
+      }
+      for (const prop of MAP_TOGGLEABLES[mapId]) {
+        const state = new ToggleableState();
+        state.propId = prop.propId;
+        state.map = mapId;
+        state.x = prop.x;
+        state.y = prop.y ?? 0;
+        state.z = prop.z;
+        state.kind = prop.kind;
+        state.color = prop.color;
+        state.on = prop.defaultOn;
+        // a chopping station starts stocked: `track` is the logs on its block
+        if (state.kind === "woodchop") state.track = rollChopYield();
+        this.state.toggleables.set(prop.propId, state);
+      }
     }
+  }
+
+  /** Whether anyone (connected) is on `map`: a world nobody is in stands still. */
+  private occupied(map: MapId): boolean {
+    let here = false;
+    this.state.players.forEach((p) => {
+      if (p.connected && p.map === map) here = true;
+    });
+    return here;
+  }
+
+  /** To everyone on `map` (but `except`): a world's own news (its fire, its ducks, its tables). */
+  private toMap(map: string, type: string, payload: unknown, except?: string) {
+    for (const c of this.clients) {
+      if (c.sessionId !== except && this.state.players.get(c.sessionId)?.map === map) c.send(type, payload);
+    }
+  }
+
+  /** To everyone on the same map as `sessionId` (their emotes and gestures: only they can see them). */
+  private nearby(sessionId: string, type: string, payload: unknown) {
+    const map = this.state.players.get(sessionId)?.map;
+    if (map) this.toMap(map, type, payload);
   }
 
   // Timed activities: the brew gauge, marshmallow toasting, and campfire flare-ups all advance
@@ -1521,7 +1577,7 @@ export class HangoutRoom extends Room<HangoutState> {
       const line = this.hooked.get(sessionId);
       if (line && now >= line.until) this.handleCatchFish(sessionId, false, 0);
       // soaking in the onsen
-      if (this.state.currentMap === "japanese_onsen" && player.sitting) {
+      if (player.map === "japanese_onsen" && player.sitting) {
         let inWater = false;
         this.state.chairs.forEach((chair) => {
           if (chair.occupiedBy === sessionId && chair.style === "onsen") inWater = true;
@@ -1558,15 +1614,15 @@ export class HangoutRoom extends Room<HangoutState> {
           player.drink = "";
           this.clearAction(player);
           this.daily(sessionId, player, "brew_coffee");
-          this.broadcast("emote", { sessionId, emoji: "☕" });
+          this.nearby(sessionId, "emote", { sessionId, emoji: "☕" });
           // A barista tip, at most once every ESPRESSO_TIP_COOLDOWN_S so it can't be farmed.
           if (now - (this.lastTipAt.get(sessionId) ?? 0) > ESPRESSO_TIP_COOLDOWN_S * 1000) {
             this.lastTipAt.set(sessionId, now);
             this.addCoins(player, ESPRESSO_TIP);
-            this.broadcast("emote", { sessionId, emoji: "🪙" });
+            this.nearby(sessionId, "emote", { sessionId, emoji: "🪙" });
           }
         }
-      } else if (player.action === "afkfish" && this.state.currentMap === "campfire_night") {
+      } else if (player.action === "afkfish" && player.map === "campfire_night") {
         // feet up, line in: a fish into the creel now and then, the rarer the longer the wait
         // (AFK_CATCH_S; the fish is rolled when the wait starts); the creel full, the rod is stowed
         // and the angler rests (no cast, no bait) until there is room again
@@ -1592,12 +1648,12 @@ export class HangoutRoom extends Room<HangoutState> {
           const roll = Math.random();
           if (roll < 0.4) {
             this.addCoins(player, 5 + Math.floor(Math.random() * 11));
-            this.broadcast("emote", { sessionId, emoji: "🪙" });
+            this.nearby(sessionId, "emote", { sessionId, emoji: "🪙" });
           } else {
             const fish: ItemId = roll < 0.8 ? "sardine" : "clownfish";
             this.addItem(player, fish);
             this.bumpStat(player, "fish_caught");
-            this.broadcast("emote", { sessionId, emoji: ITEMS[fish].emoji });
+            this.nearby(sessionId, "emote", { sessionId, emoji: ITEMS[fish].emoji });
           }
           this.scheduleAfkCatch(sessionId, now);
           player.actionProgress = 0;
@@ -1612,7 +1668,7 @@ export class HangoutRoom extends Room<HangoutState> {
             // too slow: it got away
             this.biteUntil.delete(sessionId);
             player.actionProgress = 0;
-            this.broadcast("emote", { sessionId, emoji: "💨" });
+            this.nearby(sessionId, "emote", { sessionId, emoji: "💨" });
             if (starlit) this.waitForBite(sessionId, player, false);
             else this.fishBiteAt.set(sessionId, now + randomBiteDelay());
           }
@@ -1630,11 +1686,15 @@ export class HangoutRoom extends Room<HangoutState> {
       }
     });
 
-    if (this.state.currentMap === "sunset_beach") this.tickBall(dt);
-    if (this.state.currentMap === "campfire_night") this.tickCampfire(now);
-    if (this.state.currentMap === "velvet_casino") this.casino.tick(dt);
+    // each world runs while someone is in it
+    if (this.occupied("sunset_beach")) this.tickBall(dt);
+    if (this.occupied("campfire_night")) this.tickCampfire(now);
+    if (this.occupied("velvet_casino") || this.occupied("casino_vip")) this.casino.tick(dt);
+    // the hour rolls over: the camp's market opens fresh
+    const market = parseMarket(this.state.market, now);
+    if (JSON.stringify(market) !== this.state.market) this.state.market = JSON.stringify(market);
 
-    if (this.state.autoCycle && this.state.currentMap !== "campfire_night") {
+    if (this.state.autoCycle) {
       this.cycleClock += dt;
       if (this.cycleClock >= AUTO_CYCLE_SECONDS) {
         this.cycleClock = 0;
@@ -1657,7 +1717,7 @@ export class HangoutRoom extends Room<HangoutState> {
 
   /** A gesture the server plays on someone (a chop, a pluck): everyone sees it. */
   private playGesture(sessionId: string, gesture: Gesture) {
-    this.broadcast("gesture", { sessionId, gesture });
+    this.nearby(sessionId, "gesture", { sessionId, gesture });
   }
 
   private handleGesture(sessionId: string, gesture: unknown) {
@@ -1667,8 +1727,8 @@ export class HangoutRoom extends Room<HangoutState> {
     const now = Date.now();
     if (now - (this.lastGestureAt.get(sessionId) ?? 0) < GESTURE_COOLDOWN_MS) return;
     this.lastGestureAt.set(sessionId, now);
-    this.broadcast("gesture", { sessionId, gesture });
-    this.broadcast("emote", { sessionId, emoji: GESTURE_EMOJI[gesture] });
+    this.nearby(sessionId, "gesture", { sessionId, gesture });
+    this.nearby(sessionId, "emote", { sessionId, emoji: GESTURE_EMOJI[gesture] });
   }
 
   private handleBuyHat(sessionId: string, hat: unknown) {
@@ -1680,7 +1740,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (player.coins < price) return;
     player.coins -= price;
     player.owned = [...owned, hat].join(",");
-    this.broadcast("emote", { sessionId, emoji: PREMIUM_HATS[hat].emoji });
+    this.nearby(sessionId, "emote", { sessionId, emoji: PREMIUM_HATS[hat].emoji });
   }
 
   private handleReelIn(sessionId: string) {
@@ -1702,7 +1762,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private nearProp(player: Player, kind: string, reach: number): boolean {
     let near = false;
     this.state.toggleables.forEach((prop) => {
-      if (prop.kind === kind && Math.hypot(player.x - prop.x, player.z - prop.z) <= reach) near = true;
+      if (prop.kind === kind && prop.map === player.map && Math.hypot(player.x - prop.x, player.z - prop.z) <= reach) near = true;
     });
     return near;
   }
@@ -1728,7 +1788,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleCampfire(client: Client, packet: CampfirePacket) {
     const sessionId = client.sessionId;
     const player = this.state.players.get(sessionId);
-    if (!player || !packet || typeof packet !== "object" || this.state.currentMap !== "campfire_night" || this.state.mapTransitioning) return;
+    if (!player || !packet || typeof packet !== "object" || player.map !== "campfire_night") return;
     switch (packet.type) {
       case "ROAST_START": {
         // from beside the fire or from a log bench round it (a little slack for latency)
@@ -1790,7 +1850,7 @@ export class HangoutRoom extends Room<HangoutState> {
         const coins = this.campfirePay(sessionId, player, "star", STAR_SPARK_COINS * multiplier);
         const caught: StarCaught = { sessionId, coins, capped: coins === 0, combo: gazer.combo, multiplier };
         client.send("starCaught", caught);
-        this.broadcast("emote", { sessionId, emoji: "🌠" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: "🌠" });
         this.persist(sessionId, player);
         return;
       }
@@ -1805,7 +1865,7 @@ export class HangoutRoom extends Room<HangoutState> {
         const coins = this.campfirePay(sessionId, player, "star", CONSTELLATION_COINS);
         const done: ConstellationDone = { sessionId, id: shape.id as ConstellationId, coins, capped: coins === 0 };
         client.send("constellationDone", done);
-        this.broadcast("emote", { sessionId, emoji: shape.emoji });
+        this.nearby(sessionId, "emote", { sessionId, emoji: shape.emoji });
         this.persist(sessionId, player);
         return;
       }
@@ -1814,7 +1874,7 @@ export class HangoutRoom extends Room<HangoutState> {
         // the station you stand at: it needs a log on its block, and nobody else at it
         let station: ToggleableState | null = null;
         this.state.toggleables.forEach((prop) => {
-          if (prop.kind !== "woodchop" || Math.hypot(player.x - prop.x, player.z - prop.z) > CHOP_REACH + 0.4) return;
+          if (prop.kind !== "woodchop" || prop.map !== player.map || Math.hypot(player.x - prop.x, player.z - prop.z) > CHOP_REACH + 0.4) return;
           if (!station || Math.hypot(player.x - prop.x, player.z - prop.z) < Math.hypot(player.x - station.x, player.z - station.z)) station = prop;
         });
         const at = station as ToggleableState | null;
@@ -1863,9 +1923,9 @@ export class HangoutRoom extends Room<HangoutState> {
         const amount = item === "sawdust" ? SAWDUST_FUEL : WOOD[item].fuel;
         this.state.fuel = Math.min(FUEL_MAX, this.state.fuel + amount);
         const update: BonfireUpdate = { fuel: this.state.fuel, sessionId, item, amount };
-        this.broadcast("BONFIRE_STATE_UPDATE", update);
+        this.toMap("campfire_night", "BONFIRE_STATE_UPDATE", update);
         if (!player.sitting) this.playGesture(sessionId, "toss");
-        this.broadcast("emote", { sessionId, emoji: "🔥" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: "🔥" });
         return;
       }
       case "STEW_ADD": {
@@ -1896,7 +1956,7 @@ export class HangoutRoom extends Room<HangoutState> {
           this.stewCookAt = Date.now();
         }
         this.setStew(stew, "add", sessionId);
-        this.broadcast("emote", { sessionId, emoji: fish ? FISH[fish].emoji : kind === "berry" ? "🫐" : "🍄" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: fish ? FISH[fish].emoji : kind === "berry" ? "🫐" : "🍄" });
         return;
       }
       case "STEW_SCOOP": {
@@ -1906,7 +1966,7 @@ export class HangoutRoom extends Room<HangoutState> {
         stew.servings -= 1;
         stew.served.push(player.userId);
         this.feed(sessionId, player);
-        this.broadcast("emote", { sessionId, emoji: "🥣" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: "🥣" });
         if (stew.servings <= 0) {
           this.stewReadyAt = 0;
           this.setStew(emptyStew(), "scoop", sessionId);
@@ -1928,7 +1988,7 @@ export class HangoutRoom extends Room<HangoutState> {
         player.snack = "";
         this.snackUntil.delete(sessionId);
         if (!player.sitting) this.playGesture(sessionId, "reach");
-        this.broadcast("emote", { sessionId, emoji: "🍢" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: "🍢" });
         return;
       }
       case "PICNIC_TAKE": {
@@ -1945,7 +2005,7 @@ export class HangoutRoom extends Room<HangoutState> {
         player.snack = encodeSnack(plate.food, plate.quality);
         this.snackUntil.set(sessionId, Date.now() + SNACK_SECONDS * 1000);
         this.feed(sessionId, player);
-        this.broadcast("emote", { sessionId, emoji: "😋" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: "😋" });
         return;
       }
       case "AFK": {
@@ -2042,8 +2102,8 @@ export class HangoutRoom extends Room<HangoutState> {
       this.daily(sessionId, player, "roast_marshmallow");
     }
     const result: RoastResult = { sessionId, food: roast.food, quality, coins, capped: quality === "golden" && coins === 0 };
-    this.broadcast("roastResult", result);
-    this.broadcast("emote", { sessionId, emoji: quality === "golden" ? "🤩" : quality === "charred" ? "😵" : "😋" });
+    this.toMap("campfire_night", "roastResult", result);
+    this.nearby(sessionId, "emote", { sessionId, emoji: quality === "golden" ? "🤩" : quality === "charred" ? "😵" : "😋" });
     this.persist(sessionId, player);
   }
 
@@ -2126,8 +2186,8 @@ export class HangoutRoom extends Room<HangoutState> {
       }
     }
     const result: ChopResult = { sessionId, clean, greens: chop.greens, stunned, stroke, log: chop.log, wood: log.wood, pieces, coins, capped: clean && coins === 0 };
-    this.broadcast("chopResult", result);
-    this.broadcast("emote", { sessionId, emoji: clean ? "🪵" : stunned ? "💫" : "😅" });
+    this.toMap("campfire_night", "chopResult", result);
+    this.nearby(sessionId, "emote", { sessionId, emoji: clean ? "🪵" : stunned ? "💫" : "😅" });
     this.persist(sessionId, player);
   }
 
@@ -2141,7 +2201,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.lastNetAt.set(sessionId, now);
     if (player.holding === "jar") {
       player.holding = "";
-      this.broadcast("emote", { sessionId, emoji: "✨" });
+      this.nearby(sessionId, "emote", { sessionId, emoji: "✨" });
       return;
     }
     // whatever was in hand is set down for the jar
@@ -2150,7 +2210,7 @@ export class HangoutRoom extends Room<HangoutState> {
     player.snack = "";
     this.snackUntil.delete(sessionId);
     this.playGesture(sessionId, "net");
-    this.broadcast("emote", { sessionId, emoji: "✨" });
+    this.nearby(sessionId, "emote", { sessionId, emoji: "✨" });
   }
 
   private stopStargazing(sessionId: string, player: Player) {
@@ -2170,8 +2230,8 @@ export class HangoutRoom extends Room<HangoutState> {
     this.addItem(player, spot.kind === "berries" ? "berry" : "mushroom");
     const coins = this.campfirePay(sessionId, player, "forage", FORAGE_COINS);
     const result: ForageResult = { sessionId, kind: spot.kind, coins, capped: coins === 0 };
-    this.broadcast("forageResult", result);
-    this.broadcast("emote", { sessionId, emoji: FORAGE_INFO[spot.kind].emoji });
+    this.toMap("campfire_night", "forageResult", result);
+    this.nearby(sessionId, "emote", { sessionId, emoji: FORAGE_INFO[spot.kind].emoji });
     this.persist(sessionId, player);
   }
 
@@ -2183,7 +2243,7 @@ export class HangoutRoom extends Room<HangoutState> {
       if (this.state.fuel > 0) {
         this.state.fuel = Math.max(0, this.state.fuel - FUEL_DECAY);
         const update: BonfireUpdate = { fuel: this.state.fuel, sessionId: "", item: "", amount: -FUEL_DECAY };
-        this.broadcast("BONFIRE_STATE_UPDATE", update);
+        this.toMap("campfire_night", "BONFIRE_STATE_UPDATE", update);
       }
     }
     this.tickStew(now);
@@ -2339,7 +2399,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (was !== "rest") {
       const capacity = this.records.get(sessionId)?.fishing.slots ?? 0;
       this.sendTo(sessionId, "creelFull", { capacity });
-      this.broadcast("emote", { sessionId, emoji: "☕" });
+      this.nearby(sessionId, "emote", { sessionId, emoji: "☕" });
     }
   }
 
@@ -2361,8 +2421,10 @@ export class HangoutRoom extends Room<HangoutState> {
   private landFish(sessionId: string, player: Player, fish: CreelFish, afk: boolean, treasure: number) {
     const profile = this.records.get(sessionId)?.fishing;
     if (!profile) return;
+    // the Field Guide's ledger: the longest of each kind, and how many landed
     const best = profile.records[fish.s] ?? 0;
     if (fish.cm > best) profile.records[fish.s] = fish.cm;
+    profile.caught[fish.s] = Math.min(999_999, (profile.caught[fish.s] ?? 0) + 1);
     let coins = treasure;
     let released = false;
     if (profile.creel.length < profile.slots) profile.creel.push(fish);
@@ -2372,10 +2434,18 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     this.bumpStat(player, "fish_caught");
     this.daily(sessionId, player, "catch_fish");
-    const landed: FishCaught = { sessionId, fish, released, record: fish.cm > best, coins, treasure, afk };
-    this.broadcast("fishCaught", landed);
-    this.broadcast("emote", { sessionId, emoji: released ? "🪣" : FISH[fish.s].emoji });
+    // a new personal best (not the first of its kind: that is only a first): held high overhead
+    const record = best > 0 && fish.cm > best;
+    const landed: FishCaught = { sessionId, fish, released, record, coins, treasure, afk };
+    this.toMap("campfire_night", "fishCaught", landed);
+    if (record && !afk) this.playGesture(sessionId, "trophy");
+    this.nearby(sessionId, "emote", { sessionId, emoji: released ? "🪣" : record ? "🏆" : FISH[fish.s].emoji });
     this.saveFishing(sessionId, player);
+  }
+
+  /** The camp's market as it stands this hour. */
+  private market(): MarketState {
+    return parseMarket(this.state.market);
   }
 
   /** The angler's profile changed: its synced copy follows, and it is queued for the database. */
@@ -2399,7 +2469,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private setStew(stew: StewState, event: StewUpdate["event"], sessionId: string) {
     this.state.stew = stew.items.length || stew.phase !== "gathering" ? JSON.stringify(stew) : "";
     const update: StewUpdate = { stew, event, sessionId };
-    this.broadcast("STEW_STATE_UPDATE", update);
+    this.toMap("campfire_night", "STEW_STATE_UPDATE", update);
   }
 
   /** The pot simmers once its third ingredient is in, then waits (warm) for bowls, then goes cold. */
@@ -2414,7 +2484,7 @@ export class HangoutRoom extends Room<HangoutState> {
         stew.progress = 1;
         stew.servings = STEW_SERVINGS;
         this.setStew(stew, "ready", "");
-        this.broadcast("campfireNotice", { message: `The ${stewName(stew.items)} is ready! Grab a bowl by the fire`, emoji: "🍲" });
+        this.toMap("campfire_night", "campfireNotice", { message: `The ${stewName(stew.items)} is ready! Grab a bowl by the fire`, emoji: "🍲" });
       } else {
         const progress = Math.floor(done * 20) / 20;
         if (progress !== stew.progress) {
@@ -2458,13 +2528,13 @@ export class HangoutRoom extends Room<HangoutState> {
       const salvaged = craftSalvage(packet.recipe, profile.gear);
       for (const [k, n] of Object.entries(salvaged) as [keyof typeof WOOD, number][]) profile.wood[k] = Math.min(999, profile.wood[k] + n);
       profile.sawdust = Math.min(999, profile.sawdust + 1);
-      this.broadcast("emote", { sessionId, emoji: "💥" });
+      this.nearby(sessionId, "emote", { sessionId, emoji: "💥" });
       const back = (Object.entries(salvaged) as [keyof typeof WOOD, number][]).map(([k, n]) => `${n} ${WOOD[k].emoji}`).join(" + ");
       return reply(true, `Craft Broken! Salvaged ${back} + 1 Sawdust`, { outcome, recipe: packet.recipe, salvaged, sawdust: 1 });
     }
     const m = outcome === "masterwork";
     profile.crafts.push({ c: packet.recipe, m });
-    this.broadcast("emote", { sessionId, emoji: m ? "✨" : craft.emoji });
+    this.nearby(sessionId, "emote", { sessionId, emoji: m ? "✨" : craft.emoji });
     reply(true, m ? `A Masterwork ${craft.name}! ✨ Buster will pay ${craft.master} 🪙 for it` : `A fine ${craft.name} ${craft.emoji}, worth ${craft.price} 🪙 at Buster's stall`, { outcome, recipe: packet.recipe });
   }
 
@@ -2489,10 +2559,14 @@ export class HangoutRoom extends Room<HangoutState> {
         const have = profile.wood[packet.wood];
         const n = packet.count === "all" ? have : Math.min(have, Math.max(1, Math.floor(Number(packet.count) || 1)));
         if (n <= 0) return reply(false, `No ${WOOD[packet.wood].name} to sell. The chopping block's right there!`);
-        const earned = n * WOOD[packet.wood].sell;
+        // one at a time at the hour's price: each sale knocks 2% off the next
+        const kind = packet.wood;
+        const run = priceRun(Array.from({ length: n }, () => kind), woodGood, (k, mult) => woodPrice(k, mult), this.market());
+        const earned = run.total;
+        this.state.market = JSON.stringify(run.after);
         profile.wood[packet.wood] -= n;
         this.addCoins(player, earned);
-        this.broadcast("emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
         return reply(true, `${n} ${WOOD[packet.wood].name}? Fine timber! Here's ${earned} 🪙`, earned);
       }
       case "buyAxe": {
@@ -2504,7 +2578,7 @@ export class HangoutRoom extends Room<HangoutState> {
         this.addCoins(player, -axe.price);
         profile.axes.push(packet.axe);
         profile.axe = packet.axe;
-        this.broadcast("emote", { sessionId, emoji: axe.emoji });
+        this.nearby(sessionId, "emote", { sessionId, emoji: axe.emoji });
         return reply(true, `The ${axe.name}, all yours. Mind your toes!`, -axe.price);
       }
       case "equipAxe": {
@@ -2538,18 +2612,20 @@ export class HangoutRoom extends Room<HangoutState> {
         const earned = n * RESIN_PRICE;
         profile.resin -= n;
         this.addCoins(player, earned);
-        this.broadcast("emote", { sessionId, emoji: "🪙" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: "🪙" });
         return reply(true, `${n} Pine Resin? Smells like the woods! Here's ${earned} 🪙`, earned);
       }
       case "sellCraft": {
         if (!near) return tooFar();
         const picked = packet.slot === "all" ? profile.crafts.map((_, k) => k) : [Math.floor(Number(packet.slot))].filter((k) => !!profile.crafts[k]);
         if (!picked.length) return reply(false, "No carved pieces to sell yet: try the workbench!");
-        const earned = picked.reduce((sum, k) => sum + craftPrice(profile.crafts[k]), 0);
+        const run = priceRun(picked.map((k) => profile.crafts[k]), (item) => craftGood(item.c), (item, mult) => craftSalePrice(item, mult), this.market());
+        const earned = run.total;
+        this.state.market = JSON.stringify(run.after);
         const first = profile.crafts[picked[0]];
         profile.crafts = profile.crafts.filter((_, k) => !picked.includes(k));
         this.addCoins(player, earned);
-        this.broadcast("emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
         return reply(true, picked.length > 1 ? `${picked.length} pieces of fine work! Here's ${earned} 🪙` : `${first.m ? "A Masterwork " : "A "}${CRAFTS[first.c].name}? Here's ${earned} 🪙`, earned);
       }
     }
@@ -2577,10 +2653,18 @@ export class HangoutRoom extends Room<HangoutState> {
         // a roaring fire puts Barnaby in a generous mood (the Cozy Aura: +15%)
         const aura = hasCozyAura(this.state.fuel) ? 1 + COZY_AURA_LUCK : 1;
         const first = profile.creel[picked[0]];
-        const earned = picked.reduce((sum, k) => sum + Math.round(fishValue(profile.creel[k]) * aura), 0);
+        // one at a time at the hour's price (each sale knocks 2% off the next of its kind); the best
+        // price each kind ever fetched goes in the Field Guide
+        const fish = picked.map((k) => profile.creel[k]);
+        const run = priceRun(fish, (f) => fishGood(f.s), (f, mult) => Math.round(fishValue(f, mult) * aura), this.market());
+        const earned = run.total;
+        fish.forEach((f, i) => {
+          if (run.prices[i] > (profile.best[f.s] ?? 0)) profile.best[f.s] = run.prices[i];
+        });
+        this.state.market = JSON.stringify(run.after);
         profile.creel = profile.creel.filter((_, k) => !picked.includes(k));
         this.addCoins(player, earned);
-        this.broadcast("emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
         return reply(true, picked.length > 1 ? `${picked.length} fine fish! Here's ${earned} 🪙` : `A lovely ${FISH[first.s].name}! Here's ${earned} 🪙`, earned);
       }
       case "buyRod": {
@@ -2592,7 +2676,7 @@ export class HangoutRoom extends Room<HangoutState> {
         this.addCoins(player, -rod.price);
         profile.rods.push(packet.rod);
         profile.rod = packet.rod;
-        this.broadcast("emote", { sessionId, emoji: rod.emoji });
+        this.nearby(sessionId, "emote", { sessionId, emoji: rod.emoji });
         return reply(true, `The ${rod.name} is yours. Tight lines!`, -rod.price);
       }
       case "equipRod": {
@@ -2643,7 +2727,7 @@ export class HangoutRoom extends Room<HangoutState> {
       // a chest the server rolled for this reel, held in the bar until it opened
       const treasure = reel.treasure && openedChest ? this.campfirePay(sessionId, player, "fish", TREASURE_COINS) : 0;
       this.landFish(sessionId, player, reel.fish, false, treasure);
-    } else this.broadcast("emote", { sessionId, emoji: "💨" });
+    } else this.nearby(sessionId, "emote", { sessionId, emoji: "💨" });
     // the line goes back in only if the creel has room (a full one: rod stowed, no bait spent)
     if (this.creelIsFull(sessionId)) this.restByTheWater(sessionId, player);
     else this.waitForBite(sessionId, player, landed);
@@ -2686,13 +2770,13 @@ export class HangoutRoom extends Room<HangoutState> {
   // the client had to reconcile away as a visible snap. Validating one stream keeps the server
   // in charge of collisions and bounds while leaving the walk perfectly smooth.
   private applyReportedPosition(player: Player, x?: number, z?: number, sessionId?: string) {
-    if (this.state.mapTransitioning) return;
+    if (sessionId && Date.now() < (this.arrivedUntil.get(sessionId) ?? 0)) return;
     if (typeof x !== "number" || typeof z !== "number") return;
     if (!Number.isFinite(x) || !Number.isFinite(z)) return;
 
     // (kept on the floor the player stands on: the casino's hall and penthouse are joined only by
     // Bruno's doors, never by a walk)
-    const kept = clampToRegion(this.state.currentMap, player.x, player.z, x, z);
+    const kept = clampToRegion(player.map, player.x, player.z, x, z);
     let goalX = kept.x;
     let goalZ = kept.z;
 
@@ -2725,73 +2809,77 @@ export class HangoutRoom extends Room<HangoutState> {
     }
 
     // Only a position properly inside furniture (or out in the sea) is refused.
-    const mapId = this.state.currentMap;
-    if (!isBlocked(goalX, goalZ, mapId, SANITY_RADIUS)) {
+    if (!isBlocked(goalX, goalZ, player.map, SANITY_RADIUS)) {
       player.x = goalX;
       player.z = goalZ;
     }
   }
 
-  private handleChangeMap(mapId: MapId) {
-    if (this.state.mapTransitioning) return;
-    if (!isMapId(mapId) || !MAP_OBSTACLES[mapId]) return;
-    this.state.players.forEach((p, id) => {
-      p.gloves = false;
-      p.boxHits = 0;
-      p.boxKOs = 0;
-      this.soakSeconds.delete(id);
-    });
-    this.hooked.clear();
-    this.pendingFish.clear();
-    this.board = new BoardTable();
-    this.saveBoard();
+  /** A trip to another built world, for the one who asked (the penthouse only through Bruno). */
+  private handleChangeMap(sessionId: string, mapId: unknown) {
+    const player = this.state.players.get(sessionId);
+    if (!player || !isMapId(mapId) || mapId === player.map || mapId === "casino_vip") return;
+    if (!Object.values(WORLDS).some((w) => w.mapId === mapId && w.built)) return;
+    this.travel(sessionId, player, mapId);
+  }
 
-    this.state.mapTransitioning = true;
-    // Each map has an hour it was built for. Arriving at the Sunset Beach Bar at midday would
-    // throw away the whole point of it, so the move sets the mood — anyone can change it back
-    // from the time bar straight afterwards.
-    const signatureTime = MAP_SIGNATURE_TIME[mapId];
-    if (signatureTime) this.state.timeOfDay = signatureTime;
+  /**
+   * Takes one player to another world: whatever they were doing in this one ends (a seat, a line in
+   * the river, a skewer in the fire, the gloves, a stake on a casino table: handed back), and they
+   * arrive at a spawn point (or `at`). Nobody else moves.
+   */
+  private travel(sessionId: string, player: Player, mapId: MapId, at?: { x: number; z: number }) {
+    if (player.sitting) this.handleStandUp(sessionId);
+    if (this.roasts.has(sessionId)) this.finishRoast(sessionId, player, "raw");
+    if (player.action === "chop") this.finishChop(sessionId, player, false, this.chops.get(sessionId)?.stroke.stroke ?? 1);
+    if (player.gloves) this.handleBoxingExit(sessionId);
+    this.soakSeconds.delete(sessionId);
+    this.hooked.delete(sessionId);
+    this.pendingFish.delete(sessionId);
+    this.biteUntil.delete(sessionId);
+    this.fishBiteAt.delete(sessionId);
+    this.afkTotal.delete(sessionId);
+    this.starlight.delete(sessionId);
+    this.starReels.delete(sessionId);
+    this.stargazers.delete(sessionId);
+    this.chops.delete(sessionId);
+    this.clearAction(player);
+    // a coffee survives the trip; a marshmallow on a stick doesn't make sense away from the fire
+    if (player.holding === "marshmallow" || player.holding === "skewer") {
+      player.holding = "";
+      player.toast = 0;
+      player.snack = "";
+      this.snackUntil.delete(sessionId);
+    }
+    // off the casino's floors (or from one to the other): every stake still open comes back, in chips
+    if (isCasinoMap(player.map)) this.casino.leaveFloor(sessionId);
+    // no longer watching the board game
+    if (this.board.watch(sessionId, "", false)) this.broadcastBoard();
 
-    this.state.players.forEach((p) => {
-      p.sitting = false;
-      this.clearAction(p);
-      // A coffee survives the trip; a marshmallow on a stick doesn't make sense away from the fire.
-      if (p.holding === "marshmallow" || p.holding === "skewer") {
-        p.holding = "";
-        p.toast = 0;
-        p.snack = "";
-      }
-    });
-    this.loadMapProps(mapId); // clears + repopulates chairs/toggleables, implicitly releasing all occupants
-    // Leaving the casino mid-round hands every stake back, in chips.
-    this.casino.closeTables();
-    this.regrowAt.clear();
-    this.biteUntil.clear();
-    this.fishBiteAt.clear();
-    this.roasts.clear();
-    this.snackUntil.clear();
-    this.starlight.clear();
-    this.stargazers.clear();
-    this.chops.clear();
-    this.starReels.clear();
-    this.lastReportAt.clear();
-    Object.assign(this.state.ball, BALL_HOME);
-    this.ballIdle = 0;
+    const spawn = at ?? this.spawnOn(mapId);
+    player.map = mapId;
+    player.x = spawn.x;
+    player.z = spawn.z;
+    player.dirX = 0;
+    player.dirZ = 0;
+    this.lastReportAt.delete(sessionId);
+    this.arrivedUntil.set(sessionId, Date.now() + ARRIVAL_GRACE_MS);
+    this.sendTo(sessionId, "travelled", { map: mapId, x: spawn.x, z: spawn.z });
+  }
 
-    const spawns = MAP_SPAWN_POINTS[mapId];
-    let i = 0;
-    this.state.players.forEach((p) => {
-      const spawn = spawns[i % spawns.length];
-      p.x = spawn.x;
-      p.z = spawn.z;
-      i++;
-    });
-
-    this.state.currentMap = mapId;
-    this.clock.setTimeout(() => {
-      this.state.mapTransitioning = false;
-    }, 1500);
+  /** A spawn point on `map`, the one fewest people stand near. */
+  private spawnOn(map: MapId): { x: number; z: number } {
+    const spawns = MAP_SPAWN_POINTS[map];
+    let best = spawns[0];
+    let crowd = Infinity;
+    for (const sp of spawns) {
+      let n = 0;
+      this.state.players.forEach((p) => {
+        if (p.map === map && Math.hypot(p.x - sp.x, p.z - sp.z) < 1.2) n++;
+      });
+      if (n < crowd) (crowd = n), (best = sp);
+    }
+    return best;
   }
 
   /**
@@ -2800,7 +2888,7 @@ export class HangoutRoom extends Room<HangoutState> {
    * and whenever their status changes, so an AFK nap starts and ends with the badge.
    */
   private settleInSeat(player: Player, chair: ChairState) {
-    const nap = player.status === "afk" ? MAP_CHAIRS[this.state.currentMap].find((c) => c.propId === chair.propId)?.nap : undefined;
+    const nap = player.status === "afk" ? MAP_CHAIRS[chair.map as MapId]?.find((c) => c.propId === chair.propId)?.nap : undefined;
     if (nap) {
       player.sitPose = "lie";
       player.x = nap.x;
@@ -2833,7 +2921,7 @@ export class HangoutRoom extends Room<HangoutState> {
       }
     });
 
-    const config = MAP_CHAIRS[this.state.currentMap].find((c) => c.propId === vacatedId);
+    const config = vacatedId ? MAP_CHAIRS[PROP_MAP[vacatedId]]?.find((c) => c.propId === vacatedId) : undefined;
     if (config) {
       player.x = config.approachX;
       player.z = config.approachZ;
@@ -2867,10 +2955,9 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private handleInteractChair(client: Client, chairId: string) {
-    if (this.state.mapTransitioning) return;
     const player = this.state.players.get(client.sessionId);
     const chair = this.state.chairs.get(chairId);
-    if (!player || !chair) return;
+    if (!player || !chair || chair.map !== player.map) return;
 
     if (player.sitting) {
       if (chair.occupiedBy === client.sessionId) this.handleStandUp(client.sessionId);
@@ -2904,10 +2991,9 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private handleUseProp(sessionId: string, propId: string) {
-    if (this.state.mapTransitioning) return;
     const player = this.state.players.get(sessionId);
     const prop = this.state.toggleables.get(propId);
-    if (!player || !prop) return;
+    if (!player || !prop || prop.map !== player.map) return;
 
     const kind = prop.kind as ToggleableKind;
     // Lights, the TV and the campfire work from across the room — that's what makes them feel
@@ -2918,7 +3004,7 @@ export class HangoutRoom extends Room<HangoutState> {
       // casino measures those reaches itself)
       if (player.sitting && !(kind === "fishing" && this.state.chairs.get(dockSeatOf(prop.propId))?.occupiedBy === sessionId) && !usableSeated(kind)) return;
       // Mochi wanders (mochiSpot, wall-clock), so her reach is measured from where she is now.
-      const at = kind === "cat" ? mochiSpot(this.state.currentMap, Date.now() / 1000) : prop;
+      const at = kind === "cat" ? mochiSpot(player.map, Date.now() / 1000) : prop;
       if (Math.hypot(player.x - at.x, player.z - at.z) > INTERACT_RADIUS) return;
     }
 
@@ -2951,13 +3037,13 @@ export class HangoutRoom extends Room<HangoutState> {
       case "stew": {
         if (!prop.on) return; // the pot is empty and being refilled
         prop.track = Math.min(STEW_STIRS, prop.track + 1);
-        this.broadcast("emote", { sessionId, emoji: "🥄" });
+        this.nearby(sessionId, "emote", { sessionId, emoji: "🥄" });
         if (prop.track >= STEW_STIRS) {
           // Stew's up: everyone round the fire gets a bowl.
           this.state.players.forEach((p, id) => {
-            if (!p.connected || Math.hypot(p.x - prop.x, p.z - prop.z) > STEW_RADIUS) return;
+            if (!p.connected || p.map !== prop.map || Math.hypot(p.x - prop.x, p.z - prop.z) > STEW_RADIUS) return;
             this.addCoins(p, STEW_REWARD);
-            this.broadcast("emote", { sessionId: id, emoji: "🍲" });
+            this.nearby(id, "emote", { sessionId: id, emoji: "🍲" });
           });
           prop.on = false;
           this.regrowAt.set(prop.propId, Date.now() + STEW_COOLDOWN_S * 1000);
@@ -2973,17 +3059,17 @@ export class HangoutRoom extends Room<HangoutState> {
         this.addItem(player, item);
         prop.on = false;
         this.regrowAt.set(prop.propId, Date.now() + FORAGE_REGROW_S * 1000);
-        this.broadcast("emote", { sessionId, emoji: ITEMS[item].emoji });
+        this.nearby(sessionId, "emote", { sessionId, emoji: ITEMS[item].emoji });
         break;
       }
       case "sparkle": {
         if (!prop.on) return; // already picked; another turns up soon
         if (Math.random() < 0.6) {
           this.addItem(player, "shell");
-          this.broadcast("emote", { sessionId, emoji: ITEMS.shell.emoji });
+          this.nearby(sessionId, "emote", { sessionId, emoji: ITEMS.shell.emoji });
         } else {
           this.addCoins(player, 3 + Math.floor(Math.random() * 8));
-          this.broadcast("emote", { sessionId, emoji: "🪙" });
+          this.nearby(sessionId, "emote", { sessionId, emoji: "🪙" });
         }
         prop.on = false;
         this.regrowAt.set(prop.propId, Date.now() + SPARKLE_RESPAWN_S * 1000);
@@ -3027,13 +3113,19 @@ export class HangoutRoom extends Room<HangoutState> {
         if (now - (this.lastTreatAt.get(sessionId) ?? 0) < TREAT_COOLDOWN_MS) return;
         this.lastTreatAt.set(sessionId, now);
         this.playGesture(sessionId, "toss");
-        this.broadcast("critterTreat", { sessionId });
+        this.toMap("campfire_night", "critterTreat", { sessionId });
         break;
       }
       case "lumberjack":
         if (Math.hypot(player.x - prop.x, player.z - prop.z) > BUSTER_REACH + 1.2) return;
         this.sendTo(sessionId, "openPanel", { kind: "buster", propId: prop.propId });
-        this.broadcast("busterWave", { sessionId });
+        this.toMap("campfire_night", "busterWave", { sessionId });
+        break;
+      case "boutique":
+        // Chloe at the Velvet Boutique (or her mirror): she curtsies, and the wardrobe opens
+        if (Math.min(Math.hypot(player.x - BOUTIQUE.chloe.x, player.z - BOUTIQUE.chloe.z), Math.hypot(player.x - BOUTIQUE.mirror.x, player.z - BOUTIQUE.mirror.z)) > BOUTIQUE_REACH + 1.0) return;
+        this.sendTo(sessionId, "openPanel", { kind: "boutique", propId: prop.propId });
+        this.toMap("cozy_lounge", "chloeWave", { sessionId });
         break;
       case "workbench":
         if (Math.hypot(player.x - prop.x, player.z - prop.z) > WORKBENCH_REACH + 1.0) return;
@@ -3043,7 +3135,7 @@ export class HangoutRoom extends Room<HangoutState> {
         // Mr. Vance's window: the cage modal (the exchange itself is "buyChips" / "cashOut"); he
         // waves, and everyone sees it
         this.sendTo(sessionId, "openPanel", { kind: "cashier", propId: prop.propId });
-        this.broadcast("vanceWave", { sessionId });
+        this.toMap("velvet_casino", "vanceWave", { sessionId });
         break;
       case "portal":
         // the casino's exit doors: the world drawer, to go back to the Lounge or anywhere else
@@ -3052,7 +3144,7 @@ export class HangoutRoom extends Room<HangoutState> {
       case "angler":
         if (Math.hypot(player.x - prop.x, player.z - prop.z) > BARNABY_REACH + 1.2) return;
         this.sendTo(sessionId, "openPanel", { kind: "barnaby", propId: prop.propId });
-        this.broadcast("barnabyWave", { sessionId });
+        this.toMap("campfire_night", "barnabyWave", { sessionId });
         break;
       case "fishing":
         if (player.action === "fish" || player.action === "afkfish") this.handleReelIn(sessionId);
@@ -3095,7 +3187,7 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     player.bag = encodeBag(bag);
     this.addCoins(player, earned);
-    this.broadcast("emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
+    this.nearby(sessionId, "emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
     this.sendTo(sessionId, "npcSay", { propId, text: `Thanks! Here's ${earned} 🪙` });
   }
 
@@ -3125,7 +3217,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const emoji = player.toast < 0.55 ? "😋" : player.toast <= 1.15 ? "🤩" : "😵";
     this.bumpStat(player, "marshmallows_roasted");
     this.daily(sessionId, player, "roast_marshmallow");
-    this.broadcast("emote", { sessionId, emoji });
+    this.nearby(sessionId, "emote", { sessionId, emoji });
     player.holding = "";
     player.toast = 0;
     this.clearAction(player);
@@ -3133,9 +3225,8 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private handleKick(sessionId: string, msg: { dirX: number; dirZ: number }) {
-    if (this.state.currentMap !== "sunset_beach") return;
     const player = this.state.players.get(sessionId);
-    if (!player || player.sitting) return;
+    if (!player || player.map !== "sunset_beach" || player.sitting) return;
     if (!Number.isFinite(msg?.dirX) || !Number.isFinite(msg?.dirZ)) return;
     const now = Date.now();
     if (now - (this.lastKickAt.get(sessionId) ?? 0) < KICK_COOLDOWN_MS) return;
@@ -3163,7 +3254,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private moveSparkle(prop: ToggleableState) {
     const taken = new Set<string>();
     this.state.toggleables.forEach((t) => {
-      if (t.kind === "sparkle" && t !== prop) taken.add(`${t.x},${t.z}`);
+      if (t.kind === "sparkle" && t.map === prop.map && t !== prop) taken.add(`${t.x},${t.z}`);
     });
     const free = SPARKLE_SPOTS.filter((s) => !taken.has(`${s.x},${s.z}`));
     const spot = free[Math.floor(Math.random() * free.length)];
@@ -3179,7 +3270,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!player || (player.action !== "" && player.action !== "rest")) return;
     // the campfire's river: from the dock's edge at one of its spots (one angler to a spot), sitting
     // with your legs over the water; a bite, a tap, then the reel
-    if (this.state.currentMap === "campfire_night") {
+    if (player.map === "campfire_night") {
       const spot = FISHING_SPOTS.find((f) => f.propId === spotId) ?? nearestFishingSpot(player.x, player.z);
       const seat = this.state.chairs.get(dockSeatOf(spot.propId));
       if (!seat) return;
@@ -3230,7 +3321,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const now = Date.now();
     if (now - (this.lastEmoteAt.get(sessionId) ?? 0) < EMOTE_COOLDOWN_MS) return; // spam guard
     this.lastEmoteAt.set(sessionId, now);
-    this.broadcast("emote", { sessionId, emoji });
+    this.nearby(sessionId, "emote", { sessionId, emoji });
   }
 
   private clearAction(player: Player) {
@@ -3245,10 +3336,9 @@ export class HangoutRoom extends Room<HangoutState> {
     player.username = String(options?.username || "Guest").slice(0, 100);
     player.avatarUrl = String(options?.avatarUrl ?? "");
     player.color = PASTEL_COLORS[Math.floor(Math.random() * PASTEL_COLORS.length)];
-    // Cycle through the spawn points instead of always using the first one, otherwise every
-    // player in the room materialises inside everybody else.
-    const spawns = MAP_SPAWN_POINTS[this.state.currentMap];
-    const spawn = spawns[this.state.players.size % spawns.length];
+    // everyone arrives in the lounge, at its least crowded spawn point
+    player.map = "cozy_lounge";
+    const spawn = this.spawnOn("cozy_lounge");
     player.x = spawn.x;
     player.z = spawn.z;
 
@@ -3269,6 +3359,7 @@ export class HangoutRoom extends Room<HangoutState> {
     player.owned = record.unlockedItems.join(",");
     const title = record.casino.title;
     player.title = title && record.unlockedItems.includes(capsuleUnlock({ kind: "title", id: title })) ? title : "";
+    this.createdAt.set(client.sessionId, record.createdAt?.getTime() ?? 0);
     player.watered = record.plantsWatered.day === todayKey() ? record.plantsWatered.ids.join(",") : "";
     player.stats = JSON.stringify(record.stats);
     const look = fromStoredLook(record.equippedLook as any);
@@ -3300,14 +3391,15 @@ export class HangoutRoom extends Room<HangoutState> {
     // straight back down on its chair and the game goes on
     const heldSide = this.board.reservedSide(player.userId);
     const heldChair = heldSide ? this.state.chairs.get(BOARD_SEAT_CHAIRS[heldSide]) : undefined;
-    if (heldSide && heldChair && !heldChair.occupiedBy && this.state.currentMap === "cozy_lounge") {
+    if (heldSide && heldChair && !heldChair.occupiedBy && player.map === "cozy_lounge") {
       this.board.claim(heldSide, client.sessionId);
       this.seatPlayer(client.sessionId, player, heldChair);
       resumedSeat = true;
     }
     if (isNew) this.persist(client.sessionId, player, true);
     else this.savedSignature.set(client.sessionId, "");
-    this.sendTo(client.sessionId, "welcome", { isNew, coins: player.coins });
+    this.sendTo(client.sessionId, "welcome", { isNew, coins: player.coins, build: BUILD_ID });
+    this.sendTo(client.sessionId, "pioneer", this.pioneerInfo(client.sessionId, player));
     // a game already on at the board table: the newcomer's avatars know whose turn it is
     if (this.board.seats.w || this.board.seats.b) this.sendTo(client.sessionId, "boardState", this.boardView());
     // back in their seat at the board: everyone sees the new session there, and their board reopens
@@ -3315,6 +3407,31 @@ export class HangoutRoom extends Room<HangoutState> {
       this.broadcastBoard();
       this.sendTo(client.sessionId, "openPanel", { kind: "boardgame", propId: "board_table" });
     }
+  }
+
+  /** The Velvet Pioneer set, for this player: can they claim it, have they, and until when. */
+  private pioneerInfo(sessionId: string, player: Player): PioneerInfo {
+    const wipeAt = getWipeAt();
+    const owned = player.owned.split(",");
+    const claimed = owned.includes(PIONEER_SET.hat) && owned.includes(PIONEER_SET.outfit) && owned.includes(capsuleUnlock({ kind: "title", id: PIONEER_SET.title }));
+    return { eligible: pioneerEligible(this.createdAt.get(sessionId) ?? 0, wipeAt), claimed, until: pioneerUntil(wipeAt) };
+  }
+
+  /** Claims the Velvet Pioneer set (0 coins): the cap, the overalls and the title, for an account
+   *  from before the wipe, inside its two weeks. */
+  private handleClaimPioneer(sessionId: string) {
+    const player = this.state.players.get(sessionId);
+    if (!player) return;
+    const info = this.pioneerInfo(sessionId, player);
+    if (!info.eligible || info.claimed) return this.sendTo(sessionId, "pioneer", info);
+    this.grant(player, PIONEER_SET.hat);
+    this.grant(player, PIONEER_SET.outfit);
+    this.grant(player, capsuleUnlock({ kind: "title", id: PIONEER_SET.title }));
+    // the title goes on at once, in gold
+    if (specialTitle(PIONEER_SET.title)) player.title = PIONEER_SET.title;
+    this.persist(sessionId, player, true);
+    this.nearby(sessionId, "emote", { sessionId, emoji: "🛠️" });
+    this.sendTo(sessionId, "pioneer", { ...this.pioneerInfo(sessionId, player), justClaimed: true });
   }
 
   private ownsOutfit(unlocked: string[], outfit: string): boolean {
@@ -3335,6 +3452,8 @@ export class HangoutRoom extends Room<HangoutState> {
       this.payBoardWinner();
     }
     this.vibeAt.delete(sessionId);
+    this.arrivedUntil.delete(sessionId);
+    this.createdAt.delete(sessionId);
     this.soakSeconds.delete(sessionId);
     this.roasts.delete(sessionId);
     this.snackUntil.delete(sessionId);
@@ -3447,6 +3566,7 @@ export class HangoutRoom extends Room<HangoutState> {
       player.fishing = JSON.stringify(record.fishing);
       player.fed = old.fed;
     }
+    player.map = old.map;
     player.x = old.x;
     player.z = old.z;
     player.sitting = old.sitting;
@@ -3488,6 +3608,8 @@ export class HangoutRoom extends Room<HangoutState> {
    * go. The next server puts the game back and holds the seats for their players.
    */
   onBeforeShutdown() {
+    // a deploy: every client counts down and reloads onto the new build
+    this.broadcast("server_restarting", { inS: 3 });
     this.boardFrozen = true;
     void this.writeBoard().finally(() => super.onBeforeShutdown());
   }
@@ -3503,9 +3625,8 @@ export class HangoutRoom extends Room<HangoutState> {
 
 /** How often the room checks whether its scene changed (and saves it if so). */
 const SCENE_SAVE_EVERY_S = 3;
-/** A channel's scene, as saved (restoreScene). */
+/** A guild's scene, as saved (restoreScene). */
 interface SavedScene {
-  map: MapId;
   time: TimeOfDay;
   fuel: number;
   stew: string;
@@ -3526,6 +3647,9 @@ const CHOP_COOLDOWN_MS = 900;
 /** Between treats for the raccoon (per player), and between a duck's dives. */
 const TREAT_COOLDOWN_MS = 2000;
 const DUCK_DIVE_COOLDOWN_MS = 1800;
+/** How long after a trip between worlds the reports walked on the old one are ignored. */
+const ARRIVAL_GRACE_MS = 700;
+
 /** Sitting cross-legged on the ground: the avatar's height, derived from the ground "cushion". */
 const GROUND_SIT_Y = Math.round(seatAnchorY(CUSHIONS.ground) * 1000) / 1000;
 

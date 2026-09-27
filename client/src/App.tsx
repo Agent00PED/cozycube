@@ -18,7 +18,13 @@ import { cameraFocus } from "./scene/cameraFocus";
 import { MochiPlayroomModal } from "./entities/MochiPlayroomModal";
 import { ActionDock } from "./components/hud/ActionDock";
 import { Joystick } from "./components/hud/Joystick";
-import { Wardrobe } from "./components/hud/Wardrobe";
+import { WardrobeModal } from "./components/hud/WardrobeModal";
+import { FieldGuideModal } from "./components/hud/FieldGuideModal";
+import { UpdateToast } from "./components/hud/UpdateToast";
+import { WorldTransitionScreen } from "./components/WorldTransitionScreen";
+import { CHLOE_WELCOME } from "./entities/ChloeMaid";
+import { setMarketRaw } from "./scene/marketStore";
+import type { PioneerInfo } from "@shared/items";
 import { loadSavedLook } from "./components/hud/lookStorage";
 import { FishingModal } from "./components/hud/FishingModal";
 import { GachaModal } from "./components/hud/GachaModal";
@@ -49,7 +55,7 @@ import { DerbyModal } from "./components/hud/DerbyModal";
 import { CoinPusherModal } from "./components/hud/CoinPusherModal";
 import { PoolModal } from "./components/hud/PoolModal";
 import { PianoModal } from "./components/hud/PianoModal";
-import { FISH, RODS, TIER_LABEL, stars } from "@shared/fishing";
+import { FISH, RODS, TIER_LABEL, isKingSize, stars } from "@shared/fishing";
 import { COZY_AURA_FUEL, LOW_FUEL, stewName, type BonfireUpdate, type StewUpdate } from "@shared/bonfire";
 import { CookingModal } from "./components/hud/CookingModal";
 import { BarnabyModal } from "./components/hud/BarnabyModal";
@@ -63,6 +69,8 @@ import { installKeyboard, isTouchDevice } from "./systems/input";
 import {
   ACHIEVEMENTS,
   EMOTES,
+  isCasinoMap,
+  type MapId,
   defaultLook,
   parseLook,
   parseStats,
@@ -191,6 +199,15 @@ const GLOBAL_CSS = `
 .cozy-zzz:nth-child(3) { animation-delay: 1.6s; }
 @keyframes cozy-zzz { 0% { opacity: 0; transform: translate(0, 0) scale(0.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(14px, -34px) scale(1.2); } }
 @media (max-width: 768px) { .cozy-hud-label { display: none; } }
+/* The Velvet Pioneer's title over the name: glowing gold, breathing slowly. */
+.cozy-title-gold {
+  display: inline-block; white-space: nowrap; font: 800 11px var(--font-cozy); letter-spacing: 0.08em;
+  background: linear-gradient(180deg, #fff6c8 0%, #ffd76a 45%, #d9a22a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 4px rgba(255, 200, 80, 0.85)) drop-shadow(0 1px 0 rgba(60, 30, 5, 0.9));
+  animation: cozy-title-glow 2.6s ease-in-out infinite; pointer-events: none; user-select: none;
+}
+.cozy-title-gold .cozy-title-emoji { background: none; -webkit-text-fill-color: initial; color: initial; }
+@keyframes cozy-title-glow { 0%, 100% { filter: drop-shadow(0 0 3px rgba(255, 200, 80, 0.6)) drop-shadow(0 1px 0 rgba(60, 30, 5, 0.9)); } 50% { filter: drop-shadow(0 0 9px rgba(255, 215, 110, 1)) drop-shadow(0 1px 0 rgba(60, 30, 5, 0.9)); } }
 `;
 
 export default function App() {
@@ -198,12 +215,16 @@ export default function App() {
   const {
     room,
     players,
+    allPlayers,
     chairs,
     toggleables,
     localSessionId,
     currentMap,
     timeOfDay,
     mapTransitioning,
+    travellingTo,
+    market,
+    claimPioneer,
     connected,
     connectionIssue,
     reconnect,
@@ -285,6 +306,10 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
+  // opened by Chloe at her boutique: she greets you in it
+  const [wardrobeGreeting, setWardrobeGreeting] = useState<string | undefined>(undefined);
+  const [fieldGuideOpen, setFieldGuideOpen] = useState(false);
+  const [pioneer, setPioneer] = useState<PioneerInfo | null>(null);
   const [slotsProp, setSlotsProp] = useState<string | null>(null);
   // the blackjack table whose panel is open, and every table's round as the room tells it
   const [blackjackOpen, setBlackjackOpen] = useState<string | null>(null);
@@ -296,7 +321,10 @@ export default function App() {
   const [crapsView, setCrapsView] = useState<CrapsView | null>(null);
   const [derbyState, setDerbyState] = useState<DerbyState | null>(null);
   const [pusherResult, setPusherResult] = useState<PusherResult | null>(null);
-  const closeWardrobe = useCallback(() => setWardrobeOpen(false), []);
+  const closeWardrobe = useCallback(() => {
+    setWardrobeOpen(false);
+    setWardrobeGreeting(undefined);
+  }, []);
 
   // --- titan infinity panels: whichever prop you walked up to (openPanel), and its results ---
   const [panel, setPanel] = useState<{ kind: string; propId: string } | null>(null);
@@ -331,6 +359,12 @@ export default function App() {
       setWorldsOpen(true);
       return;
     }
+    // Chloe at the Velvet Boutique: the wardrobe, with her welcome
+    if (kind === "boutique") {
+      setWardrobeGreeting(CHLOE_WELCOME);
+      setWardrobeOpen(true);
+      return;
+    }
     // the casino's tables: their own boards, not a panel
     if (kind === "roulette") {
       setRouletteOpen(true);
@@ -353,8 +387,17 @@ export default function App() {
 
   // --- one-shot server messages: results, openings, welcomes ---
   const localIdRef = useRef(localSessionId);
-  // the world's ambient soundscape (the campfire's), faded in and out with the world
-  useWorldAmbience(currentMap, hearth.fuel);
+  // the world's soundscape (the lounge's folk-jazz trio, resting while its radio plays; the
+  // campfire's; the casino's band), cross-faded in half a second as you travel
+  const radioOn = Object.values(toggleables).some((t) => t.kind === "radio" && t.on);
+  useWorldAmbience(currentMap, hearth.fuel, radioOn);
+  // the camp's market, for the chalkboard by Barnaby's stall
+  useEffect(() => setMarketRaw(market), [market]);
+  // where the chat came from, for a line said in another world
+  const allPlayersRef = useRef(allPlayers);
+  allPlayersRef.current = allPlayers;
+  const currentMapRef = useRef<MapId>(currentMap);
+  currentMapRef.current = currentMap;
   // which panel is open, for the message handler below (a roast's result shows in its own panel)
   const panelKindRef = useRef<string | undefined>(undefined);
   panelKindRef.current = panel?.kind;
@@ -409,6 +452,20 @@ export default function App() {
           const a = payload as { ok: boolean; coins?: number; retryInS?: number };
           if (a.ok) pushToast(`The house tops you up: +${a.coins} coins`, { emoji: "🎁", tone: "coin" });
           else pushToast(`Allowance again in ${Math.ceil((a.retryInS ?? 0) / 60)} min`, { emoji: "⏳" });
+        } else if (type === "pioneer") {
+          const info = payload as PioneerInfo & { justClaimed?: boolean };
+          setPioneer({ eligible: info.eligible, claimed: info.claimed, until: info.until });
+          if (info.justClaimed) {
+            playSfx("jackpot");
+            pushToast("The Velvet Pioneer set is yours: thank you for playing the beta!", { emoji: "🛠️", tone: "win" });
+          } else if (info.eligible && !info.claimed) pushToast("Beta player? The Velvet Pioneer set is yours to claim, free, in the wardrobe", { emoji: "🛠️", tone: "arrive" });
+        } else if (type === "chatBubble") {
+          // chat reaches every world: a line from someone elsewhere shows as a toast, with where
+          const c = payload as { sessionId: string; text: string; map?: MapId; username?: string };
+          if (c.sessionId !== localIdRef.current && c.map && c.map !== currentMapRef.current) {
+            const where = MAP_LABELS[c.map];
+            pushToast(`${where?.icon ?? "💬"} ${c.username ?? allPlayersRef.current[c.sessionId]?.username ?? "Someone"}: ${c.text}`, { emoji: "💬", silent: true });
+          }
         } else if (type === "welcome") {
           const w = payload as { isNew: boolean; coins: number };
           pushToast(w.isNew ? `Welcome to CozyCube! Here are ${w.coins} coins to start` : `Welcome back! Your ${w.coins} coins are right where you left them`, { emoji: w.isNew ? "🎀" : "👋", tone: "arrive" });
@@ -440,7 +497,9 @@ export default function App() {
             const info = FISH[c.fish.s];
             const released = c.coins - c.treasure;
             if (c.released) pushToast(released > 0 ? `Creel full! Released for +${released} coins` : "Creel full! Released back to the river", { emoji: "🪣", tone: released > 0 ? "coin" : undefined });
-            else pushToast(`${c.afk ? "💤 " : ""}${info.name} · ${c.fish.cm} cm ${stars(c.fish.q)}${c.record ? " · New record!" : ""}`, { emoji: info.emoji, silent: c.afk });
+            else pushToast(`${c.afk ? "💤 " : ""}${info.name} · ${c.fish.cm} cm ${stars(c.fish.q)}${isKingSize(c.fish) ? " · King Size 👑" : ""}${c.record ? " · New personal best!" : ""}`, { emoji: c.record ? "🏆" : info.emoji, silent: c.afk && !c.record, tone: c.record ? "win" : undefined });
+            // a new personal best: the catch held high, and a chime
+            if (c.record) playSfx("trophy");
             if (c.treasure > 0) pushToast(`Sunken treasure! +${c.treasure} coins`, { emoji: "🧰", tone: "coin" });
             playSfx("catch");
           }
@@ -557,15 +616,19 @@ export default function App() {
     prevStats.current = me.stats;
   }, [me?.stats]); // eslint-disable-line react-hooks/exhaustive-deps
   const seenPlayers = useRef<Set<string> | null>(null);
+  const seenOn = useRef<MapId | null>(null);
   useEffect(() => {
     const ids = new Set(Object.keys(players));
+    // arriving in a world yourself, everyone already there is not news
+    if (seenOn.current !== currentMap) seenPlayers.current = null;
+    seenOn.current = currentMap;
     if (seenPlayers.current) {
       for (const id of ids) {
         if (!seenPlayers.current.has(id) && id !== localSessionId) pushToast(`${players[id].username} arrived`, { emoji: "🚪", tone: "arrive", silent: true });
       }
     }
     seenPlayers.current = ids;
-  }, [players, localSessionId]);
+  }, [players, localSessionId, currentMap]);
 
   // --- joystick: touch devices only ---
   const showJoystick = isTouchDevice();
@@ -590,7 +653,7 @@ export default function App() {
     if (!atBlackjack) setBlackjackOpen(null);
   }, [atBlackjack]);
   useEffect(() => {
-    if (currentMap !== "velvet_casino") {
+    if (!isCasinoMap(currentMap)) {
       setSlotsProp(null);
       setBlackjackOpen(null);
       setBlackjackViews({});
@@ -621,7 +684,7 @@ export default function App() {
   const panelTable = panel ? GAME_PANELS[panel.propId] : undefined;
   const seatedOnly = panel && panelKind === "poker" ? seatedGameOf(panel.propId) : undefined;
   const awayFromPanel =
-    currentMap === "velvet_casino" &&
+    isCasinoMap(currentMap) &&
     !!me &&
     !!panelKind &&
     ((panelTable !== undefined && !nearGameTable(panelTable, me.x, me.z, 0.5)) || (!!seatedOnly && !seatedOnly.seats.includes(mySeat)) || (panelKind === "piano" && (mySeat !== "seat_piano" || Math.hypot(me.x - PIANO_AT.x, me.z - PIANO_AT.z) > PIANO_REACH + 0.5)));
@@ -637,6 +700,12 @@ export default function App() {
   // the angler's creel, rods and baits (the room's copy, or the one mirrored locally until it syncs)
   const angler = useAnglerProfile(me?.userId ?? "", me?.fishing ?? "", me?.coins ?? 0);
   const playerCount = useMemo(() => Object.values(players).filter((p) => p.connected).length, [players]);
+  // who is in each world (the fast-travel cards)
+  const mapCounts = useMemo(() => {
+    const counts: Partial<Record<MapId, number>> = {};
+    for (const p of Object.values(allPlayers)) if (p.connected) counts[p.map] = (counts[p.map] ?? 0) + 1;
+    return counts;
+  }, [allPlayers]);
 
   // The cozy loading screen covers the Discord handshake, the room join and the models loading.
   // It is the second child of the same fragment on every path below, so React keeps it as one
@@ -697,8 +766,11 @@ export default function App() {
           userId={localPlayer?.userId ?? ""}
           fishing={localPlayer?.fishing ?? ""}
           bag={localPlayer?.bag ?? ""}
+          market={market}
+          onOpenFieldGuide={() => setFieldGuideOpen(true)}
         />
         <Toasts />
+        <UpdateToast subscribeMessages={subscribeMessages} />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
 
         {localPlayer && localSessionId && (
@@ -750,12 +822,12 @@ export default function App() {
           </div>
         )}
 
-        {mapTransitioning && <StatusScreen text="Changing scene..." overlay />}
+        <WorldTransitionScreen destination={travellingTo} />
 
-        {worldsOpen && <WorldDrawer currentMap={currentMap} playerCount={playerCount} disabled={mapTransitioning} onSelect={changeMap} onClose={() => setWorldsOpen(false)} />}
+        {worldsOpen && <WorldDrawer currentMap={currentMap} counts={mapCounts} disabled={mapTransitioning} onSelect={changeMap} onClose={() => setWorldsOpen(false)} />}
         {socialOpen && (
           <SideDrawer
-            players={players}
+            players={allPlayers}
             localSessionId={localSessionId}
             speakingUserIds={voice.speakingUserIds}
             latency={latency}
@@ -774,7 +846,8 @@ export default function App() {
           />
         )}
         {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
-        {leaderboardOpen && <LeaderboardModal leaderboard={leaderboard} players={players} localName={localPlayer?.username ?? ""} onClose={() => setLeaderboardOpen(false)} />}
+        {fieldGuideOpen && <FieldGuideModal profile={angler.profile} market={market} onClose={() => setFieldGuideOpen(false)} />}
+        {leaderboardOpen && isCasinoMap(currentMap) && <LeaderboardModal leaderboard={leaderboard} players={players} localName={localPlayer?.username ?? ""} onClose={() => setLeaderboardOpen(false)} />}
         {slotsProp && localPlayer && localSessionId && (
           <SlotsModal propId={slotsProp} chips={localPlayer.chips} coins={localPlayer.coins} localSessionId={localSessionId} onSpin={spinSlots} subscribeMessages={subscribeMessages} onClose={() => setSlotsProp(null)} />
         )}
@@ -881,21 +954,26 @@ export default function App() {
         {panel?.kind === "pool" && localSessionId && <PoolModal match={poolMatch} localSessionId={localSessionId} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "piano" && localSessionId && <PianoModal localSessionId={localSessionId} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {fortune && <FortuneModal fortune={fortune} onClose={() => setFortune(null)} />}
-        {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
-        {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
 
         {wardrobeOpen && localPlayer && (
-          <Wardrobe
+          <WardrobeModal
             userId={localPlayer.userId}
             username={localPlayer.username}
             initial={parseLook(localPlayer.look) ?? defaultLook(localPlayer.userId || localPlayer.username, localPlayer.color)}
             coins={localPlayer.coins}
             owned={localPlayer.owned}
+            title={localPlayer.title}
+            pioneer={pioneer}
+            greeting={wardrobeGreeting}
             onBuy={(hat: PremiumHat) => buyHat(hat)}
             onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)}
             onBuyHair={(style: HairStyle) => buyHair(style)}
+            onClaimPioneer={claimPioneer}
+            onWearTitle={(id) => casinoSend({ type: "EQUIP_TITLE", id })}
             onApply={setLook}
             onClose={closeWardrobe}
           />

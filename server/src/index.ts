@@ -35,9 +35,10 @@ const gameServer = new Server({ transport: new WebSocketTransport({ server: http
 
 // Client connects via ws(s)://<host>/colyseus in dev (see client/vite.config.ts proxy rewrite)
 // or ws(s)://<host> directly in production (see useColyseusRoom.ts). filterBy partitions
-// matchmaking by channelId, so joinOrCreate({ channelId }) from two different Discord voice
-// channels always lands in two separate rooms.
-gameServer.define("hangout_room", HangoutRoom).filterBy(["channelId"]);
+// matchmaking by guild (shared/types guildRoomKey: "guild_<id>"), so everyone who launches the
+// Activity anywhere in one Discord server lands in the same persistent instance, and each walks
+// its worlds on their own.
+gameServer.define("hangout_room", HangoutRoom).filterBy(["guildKey"]);
 
 if (process.env.NODE_ENV === "production") {
   // Single-service deploy (Railway, etc.): serve the already-built client bundle from this

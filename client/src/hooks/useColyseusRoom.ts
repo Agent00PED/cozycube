@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
 import type { DiscordAuthInfo } from "./useDiscordAuth";
 import { liveMotion, recordMotion } from "../systems/liveMotion";
@@ -22,6 +22,7 @@ import type {
   ToggleableKind,
   ToggleableSyncState,
 } from "@shared/types";
+import { MAP_SIGNATURE_TIME, guildRoomKey, isMapId } from "@shared/types";
 import { type BlackjackAction, type CasinoPacket, type RoulettePhase, type RouletteSyncState } from "@shared/casino";
 
 import { parsePicnic, parseStew, FUEL_START, type PicnicPlate, type StewState } from "@shared/bonfire";
@@ -125,6 +126,11 @@ const RELAYED_MESSAGES = [
   "poolState",
   "poolShot",
   "vipPassResult",
+  // Phase 3: a trip between worlds (yours), the Velvet Pioneer set, a deploy on its way, Chloe's curtsy
+  "travelled",
+  "pioneer",
+  "server_restarting",
+  "chloeWave",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */
 const PING_EVERY_MS = 5000;
@@ -171,6 +177,10 @@ function joinWithin(join: Promise<Room>, ms: number): Promise<Room> {
     );
   });
 }
+/** The curtain stays drawn this long after you arrive (the new world's first frames settle behind it),
+ *  and gives up after TRAVEL_GIVE_UP_MS if the trip never happens. */
+const TRAVEL_SETTLE_MS = 380;
+const TRAVEL_GIVE_UP_MS = 4000;
 /** Movement alone reaches React state at most this often (the frame loops read liveMotion). */
 const MOTION_FLUSH_MS = 200;
 const MOTION_KEYS: ReadonlySet<string> = new Set(["x", "z", "dirX", "dirZ"]);
@@ -188,13 +198,24 @@ export interface BallSnapshot extends BallSyncState {
 
 interface UseColyseusRoomResult {
   room: Room | null;
+  /** Everyone on your world (the only ones drawn, collided with and heard in the scene). */
   players: Record<string, PlayerState>;
+  /** Everyone in the guild's room, whatever world they are in (the roster, the world drawer's counts). */
+  allPlayers: Record<string, PlayerState>;
+  /** Your world's seats and props (every built world's live in the room; these are the ones here). */
   chairs: Record<string, ChairSyncState>;
   toggleables: Record<string, ToggleableSyncState>;
   localSessionId: string | null;
+  /** The world you are in (your own: everyone walks the guild's worlds on their own). */
   currentMap: MapId;
+  /** Your world's hour: its own (the campfire's night) or the lounge's clock. */
   timeOfDay: TimeOfDay;
+  /** A trip between worlds is under way (the curtain is drawn): from asking until you arrive. */
   mapTransitioning: boolean;
+  /** Where the trip under way is going (the curtain shows it), null when none. */
+  travellingTo: MapId | null;
+  /** The camp's market this hour (shared/market.ts MarketState as JSON). */
+  market: string;
   connected: boolean;
   /** Why the last connection attempt failed or dropped, while it is being retried; null when fine. */
   connectionIssue: string | null;
@@ -238,6 +259,8 @@ interface UseColyseusRoomResult {
   setColor: (color: string) => void;
   setLook: (look: string) => void;
   changeMap: (mapId: MapId) => void;
+  /** Claims the Velvet Pioneer set (shared/items.ts), answered with "pioneer". */
+  claimPioneer: () => void;
   setTimeOfDay: (timeOfDay: TimeOfDay) => void;
   sendEmote: (emoji: string) => void;
   setSpeaking: (speaking: boolean) => void;
@@ -290,9 +313,10 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [chairs, setChairs] = useState<Record<string, ChairSyncState>>({});
   const [toggleables, setToggleables] = useState<Record<string, ToggleableSyncState>>({});
   const [localSessionId, setLocalSessionId] = useState<string | null>(null);
-  const [currentMap, setCurrentMap] = useState<MapId>("cozy_lounge");
-  const [timeOfDay, setTimeOfDayState] = useState<TimeOfDay>("day");
-  const [mapTransitioning, setMapTransitioning] = useState(false);
+  const [lobbyTime, setTimeOfDayState] = useState<TimeOfDay>("day");
+  const [travellingTo, setTravellingTo] = useState<MapId | null>(null);
+  const travelTimer = useRef<number | undefined>(undefined);
+  const [market, setMarket] = useState("");
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const retryNowRef = useRef<(() => void) | null>(null);
@@ -398,9 +422,13 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       // prefix must be omitted there, or every connection attempt 404s.
       const wsPath = import.meta.env.DEV ? "/colyseus" : "";
       const client = new Client(`${protocol}//${window.location.host}${wsPath}`);
-      const reconnectKey = `${RECONNECT_KEY_PREFIX}${auth!.channelId}`;
+      const guildKey = guildRoomKey(auth!.guildId, auth!.channelId);
+      // (per user too: two tabs of one browser in one guild are two players, not one seat)
+      const reconnectKey = `${RECONNECT_KEY_PREFIX}${guildKey}:${auth!.userId}`;
       const savedToken = localStorage.getItem(reconnectKey);
       const joinOptions = {
+        guildKey,
+        guildId: auth!.guildId ?? "",
         channelId: auth!.channelId,
         userId: auth!.userId,
         username: auth!.username,
@@ -508,6 +536,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             userId: player.userId,
             username: player.username,
             avatarUrl: player.avatarUrl,
+            map: isMapId(player.map) ? player.map : "cozy_lounge",
             x: player.x,
             y: 0,
             z: player.z,
@@ -577,6 +606,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             ...prev,
             [propId]: {
               propId,
+              map: chair.map as MapId,
               x: chair.x,
               z: chair.z,
               rotationY: chair.rotationY,
@@ -604,6 +634,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
             ...prev,
             [propId]: {
               propId,
+              map: prop.map as MapId,
               x: prop.x,
               y: prop.y,
               z: prop.z,
@@ -685,9 +716,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       room.state.listen("stew", (raw: string) => setHearth((h) => ({ ...h, stew: parseStew(raw ?? "") })));
       room.state.listen("picnic", (raw: string) => setHearth((h) => ({ ...h, picnic: parsePicnic(raw ?? "") })));
 
-      room.state.listen("currentMap", (map: MapId) => setCurrentMap(map));
       room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
-      room.state.listen("mapTransitioning", (val: boolean) => setMapTransitioning(val));
+      room.state.listen("market", (raw: string) => setMarket(raw ?? ""));
 
       // the socket closed under us (a proxy timed it out, the network blinked, the server restarted).
       // The token is kept whatever the close code (a proxy's idle cut can look like a clean close):
@@ -717,7 +747,38 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     };
     // Re-join when the identity of the target room changes, or on reconnect().
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth?.channelId, auth?.userId, reconnectNonce]);
+  }, [auth?.guildId, auth?.channelId, auth?.userId, reconnectNonce]);
+
+  // your world is your own player's; the scene, the seats and the props are that world's
+  const currentMap: MapId = (localSessionId && players[localSessionId]?.map) || "cozy_lounge";
+  const worldPlayers = useMemo(() => Object.fromEntries(Object.entries(players).filter(([, p]) => p.map === currentMap)), [players, currentMap]);
+  const worldChairs = useMemo(() => Object.fromEntries(Object.entries(chairs).filter(([, c]) => c.map === currentMap)), [chairs, currentMap]);
+  const worldToggleables = useMemo(() => Object.fromEntries(Object.entries(toggleables).filter(([, t]) => t.map === currentMap)), [toggleables, currentMap]);
+  const timeOfDay = MAP_SIGNATURE_TIME[currentMap] ?? lobbyTime;
+
+  // the curtain: drawn when you ask to go (or the server takes you: Bruno's doors), opened once your
+  // own player is on the new world; never held longer than a few seconds
+  const arrived = travellingTo !== null && currentMap === travellingTo;
+  useEffect(() => {
+    if (!arrived) return;
+    const t = window.setTimeout(() => setTravellingTo(null), TRAVEL_SETTLE_MS);
+    return () => window.clearTimeout(t);
+  }, [arrived]);
+  const beginTravel = useCallback((mapId: MapId) => {
+    setTravellingTo(mapId);
+    window.clearTimeout(travelTimer.current);
+    travelTimer.current = window.setTimeout(() => setTravellingTo(null), TRAVEL_GIVE_UP_MS);
+  }, []);
+  useEffect(() => () => window.clearTimeout(travelTimer.current), []);
+  useEffect(() => {
+    const listener: RoomMessageListener = (type, payload) => {
+      if (type === "travelled" && isMapId(payload?.map)) beginTravel(payload.map);
+    };
+    messageListenersRef.current.add(listener);
+    return () => {
+      messageListenersRef.current.delete(listener);
+    };
+  }, [beginTravel]);
 
   const send = (type: string, payload?: unknown) => roomRef.current?.send(type, payload);
 
@@ -743,13 +804,16 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
 
   return {
     room: roomRef.current,
-    players,
-    chairs,
-    toggleables,
+    players: worldPlayers,
+    allPlayers: players,
+    chairs: worldChairs,
+    toggleables: worldToggleables,
     localSessionId,
     currentMap,
     timeOfDay,
-    mapTransitioning,
+    mapTransitioning: travellingTo !== null,
+    travellingTo,
+    market,
     connected,
     connectionIssue,
     reconnect,
@@ -778,7 +842,12 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     subscribeMessages,
     setColor: (color) => send("setColor", { color }),
     setLook: (look) => send("setLook", { look }),
-    changeMap: (mapId) => send("changeMap", { mapId }),
+    changeMap: (mapId) => {
+      if (mapId === currentMap) return;
+      beginTravel(mapId);
+      send("changeMap", { mapId });
+    },
+    claimPioneer: () => send("claim_pioneer"),
     setTimeOfDay: (t) => send("setTimeOfDay", { timeOfDay: t }),
     sendEmote: (emoji) => send("emote", { emoji }),
     setSpeaking,

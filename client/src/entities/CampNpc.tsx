@@ -78,6 +78,9 @@ export interface CampNpcProps {
   onGesture?: (gesture: NpcGesture) => void;
   /** Keep the left arm its own node (for gestures with both arms); fused into the body otherwise. */
   fuseArm?: boolean;
+  /** Draw only this node of the model (and what hangs from it): a model holding more than the one
+   *  character (Chloe and her mirror, in chloe_maid.glb). The whole scene when omitted. */
+  node?: string;
 }
 
 const pick = (lines: string[]) => lines[Math.floor(Math.random() * lines.length)];
@@ -176,9 +179,15 @@ export function CampNpc(props: CampNpcProps) {
   );
 }
 
-function NpcModel({ url, prefix, at, waveAt, bowAt, gesture, fuseArm = true }: CampNpcProps & { waveAt: MutableRefObject<number>; bowAt: MutableRefObject<number>; gesture: MutableRefObject<{ kind: NpcGesture; at: number }> }) {
+function NpcModel({ url, prefix, at, waveAt, bowAt, gesture, fuseArm = true, node }: CampNpcProps & { waveAt: MutableRefObject<number>; bowAt: MutableRefObject<number>; gesture: MutableRefObject<{ kind: NpcGesture; at: number }> }) {
   const { scene } = useGLTF(url);
-  const model = useMemo(() => scene.clone(true), [scene]);
+  const model = useMemo(() => {
+    const root = (node && scene.getObjectByName(node)) || scene;
+    const copy = root.clone(true);
+    // (a node drawn on its own stands at the component's place, not where it sat in the file)
+    if (root !== scene) copy.position.set(0, 0, 0);
+    return copy;
+  }, [scene, node]);
   const parts = useMemo(() => {
     const get = (name: string) => model.getObjectByName(`${prefix}_${name}`) ?? null;
     model.traverse((o) => {

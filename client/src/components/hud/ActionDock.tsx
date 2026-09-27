@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { PLANT_WATER_COINS, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
+import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
 import type { HearthState } from "../../hooks/useColyseusRoom";
 import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, spotOfSeat } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
-import { BOARD_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
+import { BOARD_REACH, BOUTIQUE, BOUTIQUE_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { BAR_REACH, BLACKJACK_TABLES, CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, GACHAPON_FRONT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, ROULETTE_BET_RADIUS, ROULETTE_CENTER, TIP_JARS, VIP_DOORS_FRONT, ZARA_FRONT, barDistance, nearGameTable, seatedGameOf, type CasinoGameTable } from "@shared/worlds/casino";
-import { VIP_ARRIVAL, inPenthouse } from "@shared/worlds/casino_vip";
+import { VIP_ARRIVAL } from "@shared/worlds/casino_vip";
 import { BAR_SNACK, CAPSULE_COST, DEALER_TIP, TABLE_LIMITS, VAULT_SLOT_ID, chipText, isNpcOccupant, slotLimit, type CasinoPacket } from "@shared/casino";
 import { VIP_PASS } from "@shared/items";
 import { pushToast } from "./toastStore";
@@ -71,6 +71,7 @@ interface Action {
   key: string;
   type:
     | "sit"
+    | "boutique"
     | "pet"
     | "board"
     | "brew"
@@ -247,7 +248,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         }
       }
       // the Velvet Casino: Mr. Vance's cage, the slot row, the roulette and blackjack tables, the doors
-      if (mapId === "velvet_casino") {
+      if (isCasinoMap(mapId)) {
         const px = cameraFocus.x;
         const pz = cameraFocus.z;
         if (!sitting) {
@@ -275,7 +276,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
               found.push({ key: `slots:${id}`, type: "slots", label: id === VAULT_SLOT_ID ? "🏆 Golden Vault" : "🎰 Play Slots", hint: `Stake ${chipText(limit.min)} to ${chipText(limit.max)} chips: three of a kind pays up to 75x`, run: () => interactBridge.current?.useProp(id) });
             }
           }
-          if (!inPenthouse(px, pz) && Math.hypot(ROULETTE_CENTER.x - px, ROULETTE_CENTER.z - pz) < ROULETTE_BET_RADIUS) {
+          if (mapId === "velvet_casino" && Math.hypot(ROULETTE_CENTER.x - px, ROULETTE_CENTER.z - pz) < ROULETTE_BET_RADIUS) {
             found.push({ key: "roulette", type: "roulette", label: "🎡 Roulette", hint: "Open the betting board: chips on red, black, odd, even or a number", run: () => window.dispatchEvent(new CustomEvent("cozy-open-roulette")) });
           }
           const doors = Object.values(toggleables).find((p) => p.kind === "portal");
@@ -317,7 +318,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           }
           // Bruno's gilded doors on the stage: up to the penthouse with a pass (or one to buy); in
           // the penthouse, the elevator back down
-          const up = inPenthouse(px, pz);
+          const up = mapId === "casino_vip";
           const door = toggleables[up ? "vip_exit" : "vip_door"];
           const spot = up ? VIP_ARRIVAL : VIP_DOORS_FRONT;
           if (door && Math.hypot(spot.x - px, spot.z - pz) <= MACHINE_REACH + (up ? 0.4 : 0)) {
@@ -445,6 +446,11 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         found.push({ key: `radio:${id}`, type: "radio", label: "📻 Tune Radio", run: () => interactBridge.current?.useProp(id) });
       }
       if (!sitting) {
+        // Chloe at the Velvet Boutique, by her cheval mirror
+        const boutique = toggleables.boutique_chloe;
+        if (boutique && Math.min(Math.hypot(BOUTIQUE.chloe.x - cameraFocus.x, BOUTIQUE.chloe.z - cameraFocus.z), Math.hypot(BOUTIQUE.approach.x - cameraFocus.x, BOUTIQUE.approach.z - cameraFocus.z)) <= BOUTIQUE_REACH) {
+          found.push({ key: "boutique", type: "boutique", label: "🎀 The Velvet Boutique", hint: "Chloe's latest collection: try it on in the mirror", run: () => interactBridge.current?.useProp("boutique_chloe") });
+        }
         // the coffee machine
         const kitchen = Object.values(toggleables).find((p) => p.kind === "kitchen");
         if (kitchen && reach(kitchen) <= KITCHEN_REACH) {

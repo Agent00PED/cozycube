@@ -5,6 +5,7 @@ import type { FuelItem, StewIngredient } from "./bonfire";
 import type { AxeId, ChopLog, ChopVerdict, WoodKind } from "./chop";
 import type { CraftId, CraftMode, CraftOutcome } from "./crafting";
 import type { GearId } from "./gear";
+import { START_COINS, type WardrobeTier } from "./economy";
 
 /** "dangle": sitting on an edge (the campfire's dock), legs hanging down and swinging.
  *  "cross": sitting cross-legged right on the ground (the Sit emote, away from any seat). */
@@ -20,6 +21,9 @@ export interface PlayerState {
   userId: string;
   username: string;
   avatarUrl: string;
+  /** The world this player is in: everyone in a guild shares one room, and each walks their own
+   *  way between its worlds (a player is drawn, collided with and heard only on their own map). */
+  map: MapId;
   x: number;
   y: number; // height, mostly fixed for a flat diorama room
   z: number;
@@ -202,15 +206,32 @@ export const SPARKLE_SPOTS: { x: number; z: number }[] = [
 ];
 export const SPARKLE_RESPAWN_S = 30;
 
-export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "boxing_ring" | "japanese_onsen" | "retro_arcade" | "gaming_cafe";
+export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "casino_vip" | "boxing_ring" | "japanese_onsen" | "retro_arcade" | "gaming_cafe";
 /**
  * Every world, in the fast-travel grid's order: two per row, a theme per row (cozy living,
- * vacation and spa, action and play, gaming and cyber).
+ * vacation and spa, action and play, gaming and cyber); then the Velvet Penthouse (casino_vip),
+ * which is never on the grid: Bruno's doors in the casino are the only way up.
  */
-export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "japanese_onsen", "velvet_casino", "boxing_ring", "retro_arcade", "gaming_cafe"];
+export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "japanese_onsen", "velvet_casino", "boxing_ring", "retro_arcade", "gaming_cafe", "casino_vip"];
+/** The casino's two floors: the hall and the penthouse (the High Rollers board shows on both). */
+export function isCasinoMap(map: string): boolean {
+  return map === "velvet_casino" || map === "casino_vip";
+}
 export function isMapId(v: unknown): v is MapId {
   return typeof v === "string" && (MAP_IDS as string[]).includes(v);
 }
+
+/** The room a join goes to: one per Discord guild, so everyone in a server (whatever voice channel
+ *  they launched from) shares one instance and walks its worlds freely; a DM or a group DM, with no
+ *  guild, gets one of its own. Sent as the join's `guildKey` (the server's matchmaking filter). */
+export function guildRoomKey(guildId: string | null | undefined, channelId: string | null | undefined): string {
+  const guild = String(guildId ?? "").trim();
+  return guild ? `guild_${guild}` : `channel_${String(channelId ?? "").trim() || "local"}`;
+}
+
+/** The hour a world keeps whatever the lounge's clock says: the campfire is always a starlit night,
+ *  and the casino's floors never see the sun. */
+export const MAP_SIGNATURE_TIME: Partial<Record<MapId, TimeOfDay>> = { campfire_night: "night", velvet_casino: "night", casino_vip: "night" };
 
 /** Shared lighting mood. Purely presentational, but synced so the room reads the same for everyone. */
 export type TimeOfDay = "sunrise" | "day" | "sunset" | "night";
@@ -256,6 +277,7 @@ export type ToggleableKind =
   | "angler"
   | "lumberjack"
   | "workbench"
+  | "boutique"
   | CasinoPropKind;
 
 /** The Velvet Casino's props (shared/worlds/casino.ts): the slot row, Mr. Vance's cage, the exit
@@ -290,6 +312,8 @@ export type SeatStyle = "gaming" | "log" | "pad" | "stool" | "armchair" | "wood"
 // Runtime (synced) state of an interactive prop — mirrors the server's ChairState/ToggleableState schema.
 export interface ChairSyncState {
   propId: string;
+  /** The world the seat is in (every built world's seats live in the one room). */
+  map: MapId;
   x: number;
   z: number;
   rotationY: number;
@@ -300,6 +324,8 @@ export interface ChairSyncState {
 
 export interface ToggleableSyncState {
   propId: string;
+  /** The world the prop is in. */
+  map: MapId;
   x: number;
   y: number;
   z: number;
@@ -337,12 +363,13 @@ export const SYSTEM_EMOJI = ["🥂", "💤", "💃", "🪙", "💰", "🎰", "�
  * on its own when something happens (SERVER_GESTURES): watering a plant, reaching over the board
  * to make a move.
  */
-export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss", "belly"] as const;
+export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss", "belly", "trophy"] as const;
 export type Gesture = (typeof GESTURES)[number];
-export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8, belly: 2.6 };
-export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪", belly: "😋" };
-/** Gestures only the server starts (a client asking for one is ignored). */
-export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net", "toss"]);
+export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8, belly: 2.6, trophy: 2.4 };
+export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪", belly: "😋", trophy: "🏆" };
+/** Gestures only the server starts (a client asking for one is ignored): "trophy" is the catch held
+ *  high over the head for a new personal best. */
+export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net", "toss", "trophy"]);
 export function isGesture(v: unknown): v is Gesture {
   return typeof v === "string" && (GESTURES as readonly string[]).includes(v);
 }
@@ -352,7 +379,7 @@ export interface GestureBroadcast {
 }
 
 // --- economy ---
-export const STARTING_COINS = 150;
+export const STARTING_COINS = START_COINS;
 /** The stew pot by the campfire: stir it this many times and it feeds everyone round the fire. */
 export const STEW_STIRS = 5;
 export const STEW_REWARD = 4;
@@ -638,23 +665,77 @@ export const LOFI_TRACKS = ["Rainy Window", "Late Night Study", "Sunday Coffee"]
 // client computes the same answer, it survives reconnects and map changes, and it costs the
 // room state nothing.
 export type FreeAccessory = "beret" | "beanie" | "flower" | "headphones" | "none";
-export type PremiumHat = "straw" | "bunny" | "tophat" | "crown" | "mochiears" | "cozybeanie" | "boonie" | "bearcap" | "headlamp";
+export type PremiumHat =
+  | "straw"
+  | "bunny"
+  | "tophat"
+  | "crown"
+  | "mochiears"
+  | "cozybeanie"
+  | "boonie"
+  | "bearcap"
+  | "headlamp"
+  // the Velvet Boutique's collection (Chloe's, in the lounge)
+  | "frogbeanie"
+  | "catbeanie"
+  | "painterberet"
+  | "buckethat"
+  | "deerstalker"
+  | "goldglasses"
+  // the Velvet Pioneer set (shared/items.ts): claimed, never sold
+  | "pioneercap";
+
+/** A wardrobe item's place in the shop: a price band (shared/economy.ts WARDROBE_BANDS), or not for
+ *  sale at all (a starter piece, the gachapon's, the Pioneer set's). */
+export interface WardrobeItem {
+  name: string;
+  emoji: string;
+  price: number;
+  tier?: WardrobeTier;
+  gachaOnly?: boolean;
+  /** One of the Velvet Pioneer set's (shared/items.ts): claimed free, never sold. */
+  pioneer?: boolean;
+}
 
 // --- outfits: a whole look for the body, in one accent colour of your choosing ---
-export type OutfitId = "outfit_starter_hoodie" | "outfit_starter_overalls" | "outfit_flannel_vest" | "outfit_hawaiian" | "outfit_tuxedo" | "outfit_boxing" | "outfit_yukata" | "outfit_cyber" | "outfit_red_plaid" | "outfit_puffer_vest" | "outfit_wader_overalls";
-export const OUTFITS: Record<OutfitId, { name: string; emoji: string; price: number; gachaOnly?: boolean }> = {
+export type OutfitId =
+  | "outfit_starter_hoodie"
+  | "outfit_starter_overalls"
+  | "outfit_flannel_vest"
+  | "outfit_hawaiian"
+  | "outfit_tuxedo"
+  | "outfit_boxing"
+  | "outfit_yukata"
+  | "outfit_cyber"
+  | "outfit_red_plaid"
+  | "outfit_puffer_vest"
+  | "outfit_wader_overalls"
+  | "outfit_cable_sweater"
+  | "outfit_garden_overalls"
+  | "outfit_smoking_jacket"
+  | "outfit_plaid_lounge"
+  | "outfit_blueprint_overalls";
+export const OUTFITS: Record<OutfitId, WardrobeItem> = {
   outfit_starter_hoodie: { name: "Cozy Hoodie & Sweats", emoji: "🧥", price: 0 },
   outfit_starter_overalls: { name: "Classic Denim Overalls", emoji: "👖", price: 0 },
-  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 350 },
-  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 420 },
-  outfit_tuxedo: { name: "Velvet Evening Tuxedo", emoji: "🎩", price: 650 },
-  outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 450 },
-  outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 950 },
+  // common
+  outfit_garden_overalls: { name: "Denim Garden Overalls", emoji: "🌻", price: 160, tier: "common" },
+  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 180, tier: "common" },
+  outfit_red_plaid: { name: "Lumberjack Suspenders", emoji: "🟥", price: 200, tier: "common" },
+  // rare
+  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 450, tier: "rare" },
+  outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 480, tier: "rare" },
+  outfit_puffer_vest: { name: "Mustard Down Vest", emoji: "🟨", price: 520, tier: "rare" },
+  outfit_wader_overalls: { name: "River Wader Dungarees", emoji: "🥾", price: 560, tier: "rare" },
+  outfit_plaid_lounge: { name: "Plaid Loungewear", emoji: "🛌", price: 600, tier: "rare" },
+  outfit_cable_sweater: { name: "Oversized Cable-Knit Sweater", emoji: "🧶", price: 700, tier: "rare" },
+  // prestige
+  outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 1600, tier: "prestige" },
+  outfit_tuxedo: { name: "Velvet Evening Tuxedo", emoji: "🎩", price: 1800, tier: "prestige" },
+  outfit_smoking_jacket: { name: "Vintage Smoking Jacket", emoji: "🍷", price: 2200, tier: "prestige" },
+  // never sold
   outfit_cyber: { name: "Retro Cyber Jumpsuit", emoji: "🕹️", price: 0, gachaOnly: true },
-  // the campfire collection
-  outfit_red_plaid: { name: "Lumberjack Suspenders", emoji: "🟥", price: 380 },
-  outfit_puffer_vest: { name: "Mustard Down Vest", emoji: "🟨", price: 520 },
-  outfit_wader_overalls: { name: "River Wader Dungarees", emoji: "🥾", price: 650 },
+  outfit_blueprint_overalls: { name: "Blueprint Overalls", emoji: "📐", price: 0, pioneer: true },
 };
 export const OUTFIT_IDS = Object.keys(OUTFITS) as OutfitId[];
 export const STARTER_OUTFITS: OutfitId[] = ["outfit_starter_hoodie", "outfit_starter_overalls"];
@@ -666,17 +747,27 @@ export const STARTER_UNLOCKS = ["outfit_starter_hoodie", "outfit_starter_overall
 export type Accessory = FreeAccessory | PremiumHat;
 const ACCESSORIES: FreeAccessory[] = ["beret", "beanie", "flower", "headphones", "none"];
 /** The coin shop: premium hats and their prices. */
-export const PREMIUM_HATS: Record<PremiumHat, { name: string; price: number; emoji: string; gachaOnly?: boolean }> = {
-  straw: { name: "Straw Sunhat", price: 180, emoji: "👒" },
-  bunny: { name: "Bunny Ears", price: 320, emoji: "🐰" },
-  tophat: { name: "Top Hat", price: 850, emoji: "🎩" },
-  crown: { name: "Gilded Crown", price: 1100, emoji: "👑" },
+export const PREMIUM_HATS: Record<PremiumHat, WardrobeItem> = {
+  // common
+  cozybeanie: { name: "Cozy Knit Beanie", price: 120, emoji: "🧡", tier: "common" },
+  headlamp: { name: "Spelunker Headlamp", price: 150, emoji: "🔦", tier: "common" },
+  straw: { name: "Straw Sunhat", price: 160, emoji: "👒", tier: "common" },
+  frogbeanie: { name: "Frog Knit Beanie", price: 180, emoji: "🐸", tier: "common" },
+  catbeanie: { name: "Cat Knit Beanie", price: 180, emoji: "🐈", tier: "common" },
+  painterberet: { name: "Painter's Beret", price: 200, emoji: "🎨", tier: "common" },
+  // rare
+  buckethat: { name: "Fisherman Bucket Hat", price: 450, emoji: "🪣", tier: "rare" },
+  boonie: { name: "Angler Boonie Hat", price: 480, emoji: "🎣", tier: "rare" },
+  bunny: { name: "Bunny Ears", price: 520, emoji: "🐰", tier: "rare" },
+  deerstalker: { name: "Deerstalker Cap", price: 600, emoji: "🔍", tier: "rare" },
+  bearcap: { name: "Fleece Bear Cap", price: 650, emoji: "🐻", tier: "rare" },
+  goldglasses: { name: "Gold Wire-Frame Glasses", price: 800, emoji: "👓", tier: "rare" },
+  // prestige
+  tophat: { name: "Top Hat", price: 1500, emoji: "🎩", tier: "prestige" },
+  crown: { name: "Gilded Crown", price: 2500, emoji: "👑", tier: "prestige" },
+  // never sold
   mochiears: { name: "Mochi Ears", price: 0, emoji: "🐱", gachaOnly: true },
-  // the campfire collection
-  cozybeanie: { name: "Cozy Knit Beanie", price: 160, emoji: "🧡" },
-  boonie: { name: "Angler Boonie Hat", price: 360, emoji: "🎣" },
-  bearcap: { name: "Fleece Bear Cap", price: 440, emoji: "🐻" },
-  headlamp: { name: "Spelunker Headlamp", price: 210, emoji: "🔦" },
+  pioneercap: { name: "Pioneer Cap", price: 0, emoji: "⚙️", pioneer: true },
 };
 export const PREMIUM_HAT_IDS = Object.keys(PREMIUM_HATS) as PremiumHat[];
 export function isPremiumHat(v: unknown): v is PremiumHat {
@@ -713,17 +804,17 @@ export const HAIR_COLOR_NAMES = ["Soft black", "Chocolate", "Blonde", "Terracott
 export const HAIR_STYLES = ["short", "bob", "curtain", "ponytail", "wavylong", "hero", "drill", "topknot", "spacebuns", "afro"] as const;
 export type HairStyle = (typeof HAIR_STYLES)[number];
 /** The hair catalogue: five free starter styles, and the fancy ones sold in the wardrobe (price in coins). */
-export const HAIR_DEFINITIONS: Record<HairStyle, { name: string; emoji: string; price: number }> = {
+export const HAIR_DEFINITIONS: Record<HairStyle, WardrobeItem> = {
   short: { name: "Cozy Crop", emoji: "✂️", price: 0 },
   bob: { name: "Layered Bob", emoji: "💇", price: 0 },
   curtain: { name: "Curtain Shag", emoji: "🍃", price: 0 },
   ponytail: { name: "High Ponytail", emoji: "💁", price: 0 },
   wavylong: { name: "Soft Waves", emoji: "🌊", price: 0 },
-  hero: { name: "Anime Hero", emoji: "⚡", price: 580 },
-  drill: { name: "Twin Drills", emoji: "🎀", price: 420 },
-  topknot: { name: "Samurai Topknot", emoji: "🎋", price: 680 },
-  spacebuns: { name: "Festival Space Buns", emoji: "🐼", price: 380 },
-  afro: { name: "Cloud Afro", emoji: "☁️", price: 620 },
+  hero: { name: "Anime Hero", emoji: "⚡", price: 600, tier: "rare" },
+  drill: { name: "Twin Drills", emoji: "🎀", price: 500, tier: "rare" },
+  topknot: { name: "Samurai Topknot", emoji: "🎋", price: 700, tier: "rare" },
+  spacebuns: { name: "Festival Space Buns", emoji: "🐼", price: 450, tier: "rare" },
+  afro: { name: "Cloud Afro", emoji: "☁️", price: 650, tier: "rare" },
 };
 export const STARTER_HAIR: HairStyle[] = HAIR_STYLES.filter((s) => HAIR_DEFINITIONS[s].price === 0);
 export function isHairStyle(v: unknown): v is HairStyle {
@@ -766,6 +857,11 @@ export const OUTFIT_FABRICS: Record<OutfitId, { shirt: string; pants: string }> 
   outfit_red_plaid: { shirt: "#b3403a", pants: "#3f5f8a" },
   outfit_puffer_vest: { shirt: "#3d5a80", pants: "#6b4f3a" },
   outfit_wader_overalls: { shirt: "#e9c46a", pants: "#3f5b3a" },
+  outfit_cable_sweater: { shirt: "#d98e8e", pants: "#6b4f3a" },
+  outfit_garden_overalls: { shirt: "#8aa67e", pants: "#3f5f8a" },
+  outfit_smoking_jacket: { shirt: "#7d4e6d", pants: "#1d1b22" },
+  outfit_plaid_lounge: { shirt: "#3d5a80", pants: "#2b3a6b" },
+  outfit_blueprint_overalls: { shirt: "#c85a44", pants: "#3f5f8a" },
 };
 export const HATS: FreeAccessory[] = ACCESSORIES;
 export function isHat(v: unknown): v is Accessory {
@@ -912,6 +1008,7 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "angler" ||
     kind === "lumberjack" ||
     kind === "workbench" ||
+    kind === "boutique" ||
     isCasinoProp(kind)
   );
 }
@@ -932,9 +1029,14 @@ export function usableSeated(kind: ToggleableKind): boolean {
 
 // --- world sizes ---
 /** Half-width of each diorama slab. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 7.5, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
 export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
+
+/** Test and bot accounts: never saved to the database and never shown on the High Rollers board. */
+export function isBlacklisted(username: string): boolean {
+  return /^tester\d{1,4}$/i.test(username) || /^verifybot/i.test(username);
+}
 
 /** Persisted top balances, synced to every room. */
 export interface LeaderboardEntry {

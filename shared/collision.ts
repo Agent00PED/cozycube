@@ -2,6 +2,7 @@ import { MAP_HALF, MAP_IDS, type MapId } from "./types";
 import { LOFT_OBSTACLES, LOFT_SPAWNS, NAV_LIMIT } from "./worlds/lounge";
 import { CAMP_OBSTACLES, CAMP_SPAWNS } from "./worlds/campfire";
 import { CASINO_OBSTACLES, CASINO_REGIONS, CASINO_SPAWNS, casinoFloorY } from "./worlds/casino";
+import { VIP_ARRIVAL, VIP_OBSTACLES, VIP_REGION } from "./worlds/casino_vip";
 
 // Where you can stand. The lounge, the campfire and the casino are authored in shared/worlds/
 // (lounge.ts, campfire.ts, casino.ts); every other world is still an open square floor with one spawn in the middle
@@ -30,11 +31,12 @@ export interface Rect {
   z0: number;
   z1: number;
 }
-/** Each world's floor: one square, or (the casino) the hall and the penthouse off to its side. */
+/** Each world's floor: a square round the origin, or (the casino) its hall's floor plan, or (the
+ *  penthouse) the suite's floor, which sits where it was authored, off at VIP_OFFSET. */
 const REGIONS: Record<MapId, Rect[]> = Object.fromEntries(
   MAP_IDS.map((id) => {
     const l = worldLimit(id);
-    return [id, id === "velvet_casino" ? CASINO_REGIONS : [{ x0: -l, x1: l, z0: -l, z1: l }]];
+    return [id, id === "velvet_casino" ? CASINO_REGIONS : id === "casino_vip" ? [VIP_REGION] : [{ x0: -l, x1: l, z0: -l, z1: l }]];
   })
 ) as Record<MapId, Rect[]>;
 export const walkRegions = (mapId: MapId): Rect[] => REGIONS[mapId];
@@ -51,6 +53,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   campfire_night: CAMP_OBSTACLES,
   sunset_beach: open(),
   velvet_casino: CASINO_OBSTACLES,
+  casino_vip: VIP_OBSTACLES,
   boxing_ring: open(),
   japanese_onsen: open(),
   retro_arcade: open(),
@@ -63,6 +66,7 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
   campfire_night: CAMP_SPAWNS,
   sunset_beach: centre(),
   velvet_casino: CASINO_SPAWNS,
+  casino_vip: [VIP_ARRIVAL],
   boxing_ring: centre(),
   japanese_onsen: centre(),
   retro_arcade: centre(),
@@ -85,7 +89,7 @@ export function walkY(mapId: MapId, x: number, z: number): number {
 }
 
 /** (x, z) kept on the floor of the region (from, fx, fz) stands in: a step never crosses the void
- *  between two of a world's regions (the casino's hall and penthouse are joined only by Bruno). */
+ *  between two of a world's regions. */
 export function clampToRegion(mapId: MapId, fx: number, fz: number, x: number, z: number): { x: number; z: number } {
   const rs = REGIONS[mapId];
   let r = rs.find((q) => inside(q, fx, fz));

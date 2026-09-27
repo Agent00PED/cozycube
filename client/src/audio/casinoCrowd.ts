@@ -1,3 +1,4 @@
+import { WORLD_CROSSFADE_S } from "./sound";
 import { getSoundSettings } from "./soundSettings";
 
 // The Velvet Casino's crowd, under the jazz: synthesized in the browser like the rest of the
@@ -14,7 +15,8 @@ import { getSoundSettings } from "./soundSettings";
 // Its level is the Settings panel's Casino Crowd fader; arriving at the casino fades it in and
 // leaving fades it out, with the jazz. The bits are scheduled a little ahead on the audio clock.
 
-const FADE_S = 1.8;
+// a trip hands the world's sound over in the travel curtain's half second (audio/sound.ts)
+const FADE_S = WORLD_CROSSFADE_S;
 const TICK_MS = 80;
 /** Vowel-ish formant pairs (Hz): ah, eh, ee, oh, oo. */
 const VOWELS: [number, number][] = [

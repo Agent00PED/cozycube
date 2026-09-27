@@ -12,6 +12,7 @@ import { CRITTER_TREAT, DUCK_DIVE_AT, DUCK_DIVE_S, STRING_BULBS, STRING_SWING, b
 import type { HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { playSfx } from "../audio/sfx";
 import { Barnaby, Buster } from "../entities/Barnaby";
+import { BarnabyChalkboard } from "../entities/BarnabyChalkboard";
 import { COZY_AURA_FUEL, getBonfireVisualState, type BonfireUpdate } from "@shared/bonfire";
 
 // The Starlight Campfire (map 2). The island itself is one Blender model, campfire.glb
@@ -161,6 +162,7 @@ export function CampfireWorld({ onFloorClick, players, toggleables, hearth, subs
       <StewSteam live={live} />
       <ChopBillboards toggleables={toggleables} />
       <Barnaby subscribeMessages={subscribeMessages} />
+      <BarnabyChalkboard />
       <Buster subscribeMessages={subscribeMessages} />
       <Moonlight />
       <Embers />

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
 import { BAITS, BAIT_IDS, CREEL_TIERS, FISH, RODS, ROD_IDS, TIER_LABEL, fishValue, nextCreelTier, stars, type FishingProfile } from "@shared/fishing";
 import { COZY_AURA_LUCK, hasCozyAura } from "@shared/bonfire";
+import { fishGood, marketDirection, parseMarket, priceRun } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -10,14 +11,17 @@ interface Props {
   profile: FishingProfile;
   coins: number;
   fuel: number;
+  /** The camp's market this hour (shared/market.ts MarketState as JSON). */
+  market: string;
   send: (packet: CampfirePacket) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
+  onOpenFieldGuide: () => void;
   onClose: () => void;
 }
 
 // Barnaby the Angler's stall by the dock: he buys the creel (each fish by its kind, length and
-// stars, 15% more while the bonfire's Cozy Aura is up), sells rods and bait, and stitches more
-// slots onto the creel. Every sale is the server's call (BARNABY packets); his answer comes back as
+// stars, at the hour's market price, 15% more while the bonfire's Cozy Aura is up; each fish sold
+// knocks 2% off the next of its kind), sells rods and bait, and stitches more slots onto the creel. Every sale is the server's call (BARNABY packets); his answer comes back as
 // barnabyResult and shows in his speech bubble.
 
 type Tab = "sell" | "rods" | "bait" | "creel";
@@ -29,7 +33,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 const HELLO = "Evenin', friend! Name's Barnaby. Got a creel full of fish for me? 🦦";
 
-export function BarnabyModal({ profile, coins, fuel, send, subscribeMessages, onClose }: Props) {
+export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("sell");
   const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
   useEffect(
@@ -44,9 +48,11 @@ export function BarnabyModal({ profile, coins, fuel, send, subscribeMessages, on
     [subscribeMessages]
   );
   const shop = (packet: Extract<CampfirePacket, { type: "BARNABY" }>) => send(packet);
-  const aura = hasCozyAura(fuel);
-  const price = (v: number) => Math.round(v * (aura ? 1 + COZY_AURA_LUCK : 1));
-  const worth = profile.creel.reduce((sum, f) => sum + price(fishValue(f)), 0);
+  const aura = hasCozyAura(fuel) ? 1 + COZY_AURA_LUCK : 1;
+  const hour = parseMarket(market);
+  // each fish at the price it would fetch alone, and the whole creel as the server will settle it
+  const single = (f: (typeof profile.creel)[number]) => priceRun([f], (x) => fishGood(x.s), (x, mult) => Math.round(fishValue(x, mult) * aura), hour).total;
+  const worth = priceRun(profile.creel, (f) => fishGood(f.s), (f, mult) => Math.round(fishValue(f, mult) * aura), hour).total;
   const next = nextCreelTier(profile.creelTier);
 
   return (
@@ -72,7 +78,7 @@ export function BarnabyModal({ profile, coins, fuel, send, subscribeMessages, on
 
         {tab === "sell" && (
           <div className="flex flex-col gap-2">
-            {aura && <div className="rounded-xl bg-amber-300/15 px-2.5 py-1.5 text-xs text-amber-100">✨ Cozy Aura: the roaring fire has Barnaby paying 15% more</div>}
+            {aura > 1 && <div className="rounded-xl bg-amber-300/15 px-2.5 py-1.5 text-xs text-amber-100">✨ Cozy Aura: the roaring fire has Barnaby paying 15% more</div>}
             {profile.creel.length === 0 ? (
               <p className="m-0 py-4 text-center text-sm opacity-70">Your creel is empty. Cast a line from the dock or the canoe!</p>
             ) : (
@@ -85,11 +91,11 @@ export function BarnabyModal({ profile, coins, fuel, send, subscribeMessages, on
                       <div className="flex min-w-0 flex-1 flex-col leading-tight">
                         <b className="truncate text-sm">{sp.name}</b>
                         <span className="text-[11px] opacity-75">
-                          {f.cm} cm · <span className="text-amber-200">{stars(f.q)}</span> · {TIER_LABEL[sp.tier]}
+                          {f.cm} cm · <span className="text-amber-200">{stars(f.q)}</span> · {TIER_LABEL[sp.tier]} <Trend dir={marketDirection(fishGood(f.s), hour)} />
                         </span>
                       </div>
                       <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => shop({ type: "BARNABY", op: "sell", slot: i })}>
-                        {price(fishValue(f))} 🪙
+                        {single(f)} 🪙
                       </button>
                     </div>
                   );
@@ -99,6 +105,12 @@ export function BarnabyModal({ profile, coins, fuel, send, subscribeMessages, on
             <button type="button" className="clay-btn clay-btn-amber min-h-11 w-full" disabled={profile.creel.length === 0} onClick={() => shop({ type: "BARNABY", op: "sell", slot: "all" })}>
               Sell the whole creel · {worth} 🪙
             </button>
+            <div className="flex items-center justify-between gap-2 text-[11px] opacity-75">
+              <span>Prices change on the hour (see the chalkboard); each sale knocks 2% off the next of its kind.</span>
+              <button type="button" onClick={onOpenFieldGuide} className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 font-semibold hover:bg-white/15">
+                📖 Field Guide
+              </button>
+            </div>
           </div>
         )}
 
@@ -199,4 +211,9 @@ export function BarnabyModal({ profile, coins, fuel, send, subscribeMessages, on
       </div>
     </Modal>
   );
+}
+
+/** The hour's trend for a good, against the hour before. */
+export function Trend({ dir }: { dir: "up" | "down" | "flat" }) {
+  return dir === "up" ? <span className="font-bold text-emerald-300">▲</span> : dir === "down" ? <span className="font-bold text-rose-300">▼</span> : <span className="opacity-60">▪</span>;
 }

@@ -25,6 +25,8 @@ import type { BoardSide, CasinoPropKind } from "../types";
 //                two pendants, a bistro table for two
 //   front-left   the games table (two chairs)
 //   front-right  the pouf circle round a low table, a floor lamp, plants
+//   front-left   by the last window, the Velvet Boutique: Chloe the cat maid beside her gilded
+//                cheval mirror (she opens the wardrobe)
 //
 // Walkways: 1.9 between the counter and the island, 2.2 between the island and the bistro
 // table, 1.0 or more everywhere else; nothing is narrower than the avatar (0.6) needs.
@@ -167,6 +169,16 @@ export const COFFEE_MACHINE = { x: 2.25, z: -6.98, approach: { x: 2.25, z: -5.9 
 export const KITCHEN_REACH = 1.8;
 export const RADIO_REACH = 2.2;
 export const PLANT_REACH = 1.6;
+/** The Velvet Boutique by the left wall's front window: Chloe the cat maid, and her gilded cheval
+ *  mirror angled to the room (chloe_maid.glb: scripts/blender/build_staff.py). Talking to either
+ *  opens the wardrobe. */
+export const BOUTIQUE = {
+  chloe: { x: -6.5, z: 4.25, yaw: Math.PI / 3 },
+  mirror: { x: -6.8, z: 5.3, yaw: FACE_POS_X - 0.3 },
+  /** Where you stand to be served. */
+  approach: { x: -5.55, z: 4.95 },
+};
+export const BOUTIQUE_REACH = 2.2;
 export const FLOOR_LAMPS = [
   { propId: "lamp_read", ...READING.lamp, color: "#ffc47a" },
   { propId: "lamp_pouf", x: 6.4, z: 4.2, color: "#ffe0b2" },
@@ -232,7 +244,7 @@ export interface PropSpec {
   x: number;
   y?: number;
   z: number;
-  kind: "lamp" | "cat" | "boardgame" | "kitchen" | "radio" | "plant" | "bonfire" | "fishing" | "telescope" | "woodchop" | "foraging" | "fireflies" | "critter" | "angler" | "lumberjack" | "workbench" | CasinoPropKind;
+  kind: "lamp" | "cat" | "boardgame" | "kitchen" | "radio" | "plant" | "bonfire" | "fishing" | "telescope" | "woodchop" | "foraging" | "fireflies" | "critter" | "angler" | "lumberjack" | "workbench" | "boutique" | CasinoPropKind;
   color: string;
   defaultOn: boolean;
   approachX?: number;
@@ -256,6 +268,9 @@ export const LOFT_PROPS: PropSpec[] = [
   ...PLANTS.map((p, i): PropSpec => ({ propId: `plant_${i + 1}`, x: p.x, z: p.z, kind: "plant", color: "#6d9a5e", defaultOn: true, approachX: PLANT_APPROACH[i].x, approachZ: PLANT_APPROACH[i].z, waterable: true })),
   // Mochi sleeps on the hearth rug and wanders from there (LOFT_MOCHI)
   { propId: "mochi", x: MOCHI_HEARTH.x, z: MOCHI_HEARTH.z, kind: "cat", color: "#f0a860", defaultOn: true, approachX: MOCHI_HEARTH.ax, approachZ: MOCHI_HEARTH.az },
+  // the Velvet Boutique: Chloe and her mirror (either one opens the wardrobe)
+  { propId: "boutique_chloe", x: BOUTIQUE.chloe.x, z: BOUTIQUE.chloe.z, kind: "boutique", color: "#b3263a", defaultOn: true, approachX: BOUTIQUE.approach.x, approachZ: BOUTIQUE.approach.z },
+  { propId: "boutique_mirror", x: BOUTIQUE.mirror.x, z: BOUTIQUE.mirror.z, kind: "boutique", color: "#e0b44a", defaultOn: true, approachX: BOUTIQUE.approach.x, approachZ: BOUTIQUE.approach.z },
 ];
 
 /** One stop on Mochi's day. `pass` stops are just corners on the way: she doesn't rest there. */
@@ -320,6 +335,9 @@ export const LOFT_OBSTACLES: AABB[] = [
   around({ x: FLOOR_LAMPS[1].x, z: FLOOR_LAMPS[1].z }, 0.25),
   // the plants
   ...PLANTS.map((p) => around(p, 0.32)),
+  // the boutique: Chloe, and the mirror's feet
+  around(BOUTIQUE.chloe, 0.3),
+  around(BOUTIQUE.mirror, 0.38),
 ];
 
 /** Everyone arrives along the open front and walks in. */

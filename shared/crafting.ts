@@ -13,6 +13,7 @@
 
 import type { WoodKind } from "./chop";
 import { APRON_BREAK_CUT, salvageRate, type GearId } from "./gear";
+import { CARVED_PRICE } from "./economy";
 
 export type CraftMode = "safe" | "push";
 export interface CraftOutcomeOdds {
@@ -45,8 +46,8 @@ export const WOOD_RECIPES: WoodRecipe[] = [
     name: "Carved Chibi Totem",
     tier: "common",
     ingredients: { pine: 2 },
-    baseSellPrice: 18,
-    masterworkPrice: 31,
+    baseSellPrice: CARVED_PRICE,
+    masterworkPrice: 14,
     odds: { safe: { normal: 0.95, masterwork: 0.05, breakChance: 0.0 }, push: { normal: 0.65, masterwork: 0.25, breakChance: 0.1 } },
     description: "Hand-carved pocket bear charm",
     icon: "🧸",
@@ -55,9 +56,9 @@ export const WOOD_RECIPES: WoodRecipe[] = [
     id: "craft_plank",
     name: "Polished Oak Plank",
     tier: "uncommon",
-    ingredients: { oak: 2 },
-    baseSellPrice: 40,
-    masterworkPrice: 68,
+    ingredients: { oak: 1 },
+    baseSellPrice: CARVED_PRICE,
+    masterworkPrice: 14,
     odds: { safe: { normal: 0.92, masterwork: 0.06, breakChance: 0.02 }, push: { normal: 0.55, masterwork: 0.3, breakChance: 0.15 } },
     description: "Sanded smooth furniture timber",
     // (not 🪵: that is Soft Pine's own mark in the carrier)
@@ -68,8 +69,8 @@ export const WOOD_RECIPES: WoodRecipe[] = [
     name: "Rustic Birdhouse",
     tier: "rare",
     ingredients: { pine: 2, oak: 1 },
-    baseSellPrice: 65,
-    masterworkPrice: 110,
+    baseSellPrice: 18,
+    masterworkPrice: 31,
     odds: { safe: { normal: 0.88, masterwork: 0.07, breakChance: 0.05 }, push: { normal: 0.45, masterwork: 0.35, breakChance: 0.2 } },
     description: "Cozy nesting box for forest birds",
     icon: "🏡",
@@ -79,8 +80,8 @@ export const WOOD_RECIPES: WoodRecipe[] = [
     name: "Aromatic Pine Briquette",
     tier: "epic",
     ingredients: { pine: 1, gold: 1 },
-    baseSellPrice: 95,
-    masterworkPrice: 162,
+    baseSellPrice: 28,
+    masterworkPrice: 48,
     odds: { safe: { normal: 0.84, masterwork: 0.08, breakChance: 0.08 }, push: { normal: 0.35, masterwork: 0.4, breakChance: 0.25 } },
     description: "Slow-burning scented camp briquette",
     // (not ✨: that marks Golden Charcoal, and a Masterwork)
@@ -91,8 +92,8 @@ export const WOOD_RECIPES: WoodRecipe[] = [
     name: "Forest Guardian Mask",
     tier: "legendary",
     ingredients: { oak: 2, gold: 1 },
-    baseSellPrice: 160,
-    masterworkPrice: 272,
+    baseSellPrice: 45,
+    masterworkPrice: 77,
     odds: { safe: { normal: 0.78, masterwork: 0.1, breakChance: 0.12 }, push: { normal: 0.25, masterwork: 0.45, breakChance: 0.3 } },
     description: "Intricate tribal spirit mask",
     icon: "🎭",
@@ -141,6 +142,10 @@ export interface CraftItem {
 export function craftPrice(item: CraftItem): number {
   return item.m ? CRAFTS[item.c].master : CRAFTS[item.c].price;
 }
+/** What Buster pays for a piece at the hour's market multiplier (shared/market.ts). */
+export function craftSalePrice(item: CraftItem, market = 1): number {
+  return Math.max(1, Math.round(craftPrice(item) * market));
+}
 
 /** Whether the wood at hand covers a recipe. */
 export function canCraft(wood: Record<WoodKind, number>, id: CraftId): boolean {
@@ -174,4 +179,4 @@ export function craftSalvage(id: CraftId, gear: readonly GearId[]): Partial<Reco
 /** Sawdust, from a broken carving: a handful on the bonfire is worth this much fuel. */
 export const SAWDUST_FUEL = 15;
 /** Pine Resin, from a critical chop: Buster buys it at this (less than a log: a keepsake, not a living). */
-export const RESIN_PRICE = 3;
+export const RESIN_PRICE = 1;

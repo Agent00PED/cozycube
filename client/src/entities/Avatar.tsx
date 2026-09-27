@@ -8,6 +8,7 @@ import { matte, noRaycast } from "../scene/kit";
 import { ModelBoundary } from "./ModelBoundary";
 import { CasinoAura } from "./CasinoAura";
 import { capsuleTitle } from "@shared/casino";
+import { specialTitle } from "@shared/items";
 import { canoeBob, canoePitch, canoeRoll } from "../scene/canoeMotion";
 import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
 import { EmoteGlyph } from "../components/hud/VelvetChipIcon";
@@ -98,7 +99,8 @@ export interface AvatarProps {
   aura?: string;
 }
 
-/** A capsule title's words, over the name. */
+/** A capsule title's words, over the name (a special title, the Velvet Pioneer's, is drawn apart:
+ *  in glowing gold, and with an emoji WebGL text cannot draw). */
 function titleText(id: string): string {
   const prize = capsuleTitle(id);
   return prize ? prize.name : "";
@@ -139,6 +141,8 @@ const CROSS_LEG_Y = 0.9;
 const CROSS_ARM = -0.75;
 // the cheer: both arms up
 const CHEER_ARM = -2.6;
+/** A new personal best held high: both arms straight up over the head. */
+const TROPHY_ARM = -2.95;
 // the heart: both hands together at the chest while it floats up
 const HEART_ARM = -1.15;
 // the toss to the raccoon: back, then up and over
@@ -528,7 +532,7 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
     }
     // gestures, while standing still (and a move at the board, played from the chair)
     const gAge = gesture ? (performance.now() - gesture.at) / 1000 : Infinity;
-    const g = gesture && gAge < GESTURE_SECONDS[gesture.kind] && !walking && (pose === "stand" || gesture.kind === "reach" || (gesture.kind === "belly" && pose !== "lie")) ? gesture.kind : null;
+    const g = gesture && gAge < GESTURE_SECONDS[gesture.kind] && !walking && (pose === "stand" || gesture.kind === "reach" || ((gesture.kind === "belly" || gesture.kind === "trophy") && pose !== "lie")) ? gesture.kind : null;
     const holdingCup = holding === "coffee" && pose !== "lie" && !fishing;
     // the reach: out over REACH_OUT, held REACH_HOLD, back over REACH_OUT (eased both ways)
     const reach = g === "reach" ? THREE.MathUtils.smoothstep(Math.min(gAge, 2 * REACH_OUT + REACH_HOLD - gAge) / REACH_OUT, 0, 1) : 0;
@@ -546,6 +550,10 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
       legs = [Math.max(0, Math.sin(gAge * 7)) * -0.4, Math.max(0, -Math.sin(gAge * 7)) * -0.4];
     } else if (g === "cheers") {
       armL = armR = CHEER_ARM + Math.sin(gAge * 9) * 0.12;
+    } else if (g === "trophy") {
+      // the catch held high: both arms up in a quick lift, pumping twice for joy
+      const lift = THREE.MathUtils.smoothstep(gAge / 0.25, 0, 1) * (1 - THREE.MathUtils.smoothstep((gAge - GESTURE_SECONDS.trophy + 0.35) / 0.35, 0, 1));
+      armL = armR = TROPHY_ARM * lift + Math.abs(Math.sin(gAge * 7)) * 0.18 * lift;
     } else if (g === "heart") {
       armL = armR = HEART_ARM;
     } else if (g === "belly") {
@@ -840,6 +848,18 @@ function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, st
           </Html>
         )}
       </group>
+      {/* a new personal best: a trophy and sparkles over the raised catch */}
+      {gesture?.kind === "trophy" && (
+        <Html key={`trophy:${gesture.at}`} position={[0, 1.45, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
+          <div className="cozy-sparkles" aria-hidden>
+            {["✨", "🏆", "⭐", "✨"].map((c, i) => (
+              <span key={i} style={{ "--sx": `${(i - 1.5) * 18}px`, animationDelay: `${i * 0.1}s` } as React.CSSProperties}>
+                {c}
+              </span>
+            ))}
+          </div>
+        </Html>
+      )}
       {/* the cheer's sparkles and the nap's Zzz, played once each time (keyed on the gesture) */}
       {gesture?.kind === "cheers" && (
         <Html key={`cheer:${gesture.at}`} position={[0, 1.25, 0]} center zIndexRange={[3, 0]} style={{ pointerEvents: "none" }}>
@@ -914,9 +934,10 @@ export const Avatar = memo(
     const [crownTop, setCrownTop] = useState(0);
     const lying = pose === "lie";
     const worn = titleText(title);
+    const special = specialTitle(title);
     // a title rides just over the name, and lifts what floats over it
     const nameY = lying ? LYING_ANCHOR_Y : Math.max(AVATAR_ANCHOR_Y, crownTop + CROWN_CLEARANCE);
-    const anchorY = nameY + (worn ? 0.15 : 0);
+    const anchorY = nameY + (worn || special ? 0.15 : 0);
     const badge = isActivityStatus(status);
     const overheadY = anchorY + (badge ? 0.7 : 0.32);
 
@@ -941,6 +962,15 @@ export const Avatar = memo(
               {worn}
             </Text>
           </Billboard>
+        )}
+        {/* the Velvet Pioneer's title: glowing gold over the name (a DOM overlay: it has an emoji) */}
+        {special && (
+          <Html position={[0, nameY + 0.16, 0]} center zIndexRange={[2, 0]} style={{ pointerEvents: "none" }}>
+            <span className="cozy-title-gold">
+              {/* the emoji keeps its own colours: only the words are gilded */}
+              {special.name.split(/(\p{Extended_Pictographic}️?)/u).map((part, i) => (i % 2 ? <span key={i} className="cozy-title-emoji">{part}</span> : part))}
+            </span>
+          </Html>
         )}
         {username && (
           <Billboard position={[0, nameY, 0]}>

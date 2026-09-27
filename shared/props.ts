@@ -3,6 +3,7 @@ import type { MapId, SeatStyle, ToggleableKind } from "./types";
 import { LOFT_MOCHI, LOFT_PROPS, LOFT_SEATS } from "./worlds/lounge";
 import { CAMP_PROPS, CAMP_SEATS, lieSeatPose } from "./worlds/campfire";
 import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
+import { VIP_PROPS, VIP_SEATS } from "./worlds/casino_vip";
 
 // The per-map tables of things you can sit on and things you can use, with the approach point of
 // each (where you stand to use it, and where you land when you get up). The built worlds' come from
@@ -38,6 +39,19 @@ export interface ToggleableConfig {
 
 const round = (v: number) => Math.round(v * 1000) / 1000;
 
+function casinoSeat(s: (typeof CASINO_SEATS)[number]): ChairConfig {
+  return {
+    propId: s.propId,
+    x: round(s.x),
+    z: round(s.z),
+    rotationY: round(s.rotationY),
+    style: s.style,
+    approachX: round(s.approachX),
+    approachZ: round(s.approachZ),
+    sitY: round(s.floor + seatAnchorY(CUSHIONS[s.cushion])),
+  };
+}
+
 export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   cozy_lounge: LOFT_SEATS.map((s) => ({
     propId: s.propId,
@@ -67,16 +81,9 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   }),
   // the casino: stools, chairs, the ottoman, the Chesterfield and the piano bench, all drawn by
   // casino.glb; a seat on the pit or the lounge's dais sits that much higher
-  velvet_casino: CASINO_SEATS.map((s) => ({
-    propId: s.propId,
-    x: round(s.x),
-    z: round(s.z),
-    rotationY: round(s.rotationY),
-    style: s.style,
-    approachX: round(s.approachX),
-    approachZ: round(s.approachZ),
-    sitY: round(s.floor + seatAnchorY(CUSHIONS[s.cushion])),
-  })),
+  velvet_casino: CASINO_SEATS.map(casinoSeat),
+  // the Velvet Penthouse: its high-limit poker chairs and its baccarat stools
+  casino_vip: VIP_SEATS.map(casinoSeat),
   sunset_beach: [],
   boxing_ring: [],
   japanese_onsen: [],
@@ -88,12 +95,19 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
   cozy_lounge: LOFT_PROPS,
   campfire_night: CAMP_PROPS,
   velvet_casino: CASINO_PROPS,
+  casino_vip: VIP_PROPS,
   sunset_beach: [],
   boxing_ring: [],
   japanese_onsen: [],
   retro_arcade: [],
   gaming_cafe: [],
 };
+
+/** The world each seat and prop is in, by prop id (every prop id is unique across the worlds: one
+ *  room holds them all, npm run check-layout makes sure). */
+export const PROP_MAP: Record<string, MapId> = {};
+for (const [map, list] of Object.entries(MAP_CHAIRS) as [MapId, ChairConfig[]][]) for (const c of list) PROP_MAP[c.propId] = map;
+for (const [map, list] of Object.entries(MAP_TOGGLEABLES) as [MapId, ToggleableConfig[]][]) for (const t of list) PROP_MAP[t.propId] = map;
 
 /** Where to stand for each seat and walk-up prop, by prop id. */
 export const APPROACH_POINTS: Record<string, { x: number; z: number }> = {};

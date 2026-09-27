@@ -4,9 +4,9 @@ import type { PropSpec, SeatSpec } from "./lounge";
 
 // The Velvet Penthouse: the Velvet Casino's private 10x10 high-roller suite, reached only through
 // the gilded doors Bruno guards in the hall (with a Black Velvet VIP Pass: shared/items.ts) and left
-// by its elevator. A Discord channel's room shares one map, so the suite is a part of the casino's
-// map rather than a map of its own: it floats well off to the side of the hall (OFFSET), out of the
-// hall's view and its crowd's reach, and the camera frames it on its own while you are up there.
+// by its elevator. It is a map of its own (casino_vip): Bruno's doors carry a pass holder there, the
+// elevator back to the hall. Its floor sits where the suite was first authored, off to the side of
+// the hall's (OFFSET), and the camera frames it on its own (VIP_FRAME).
 //
 // Authored ONCE, here, in the suite's own coordinates (x and z from -5 to 5, the two tall window
 // walls at x = -5 and z = -5 looking out over the city's lights, the front open to the camera):
@@ -18,7 +18,7 @@ import type { PropSpec, SeatSpec } from "./lounge";
 //   VIP_OBSTACLES  what you walk round;  VIP_NPCS  Boris dealing, Baron von Fox and Duchess
 //                  Penelope at their tables
 //
-// Everything exported is in the casino's world coordinates (the layout plus OFFSET).
+// Everything exported is in the map's world coordinates (the layout plus OFFSET).
 
 export const VIP_LAYOUT = /* layout:begin */ {
   "half": 5,

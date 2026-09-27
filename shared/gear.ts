@@ -3,6 +3,8 @@
 // every effect (the chopping meter's gold band, the bonus log, the walking pace, the workbench's
 // odds and salvage), and the client draws them from the same functions.
 
+import { GEAR_PRICES } from "./economy";
+
 export type GearId = "canvas_gloves" | "deerskin_gloves" | "traction_boots" | "leather_apron";
 
 export interface Gear {
@@ -13,10 +15,10 @@ export interface Gear {
 }
 
 export const GEAR: Record<GearId, Gear> = {
-  canvas_gloves: { name: "Canvas Work Gloves", emoji: "🧤", price: 280, blurb: "+15% gold sweet spot on the chopping meter" },
-  deerskin_gloves: { name: "Deerskin Grip Gloves", emoji: "🥊", price: 750, blurb: "+30% gold sweet spot, and a 10% chance of a bonus log per split" },
-  traction_boots: { name: "Forester Traction Boots", emoji: "🥾", price: 550, blurb: "+15% walking pace while you carry timber" },
-  leather_apron: { name: "Artisan Leather Apron", emoji: "🦺", price: 900, blurb: "10% less chance to break a carving, and 75% salvage (not 50%) when one breaks" },
+  canvas_gloves: { name: "Canvas Work Gloves", emoji: "🧤", price: GEAR_PRICES.canvas_gloves, blurb: "+15% gold sweet spot on the chopping meter" },
+  deerskin_gloves: { name: "Deerskin Grip Gloves", emoji: "🥊", price: GEAR_PRICES.deerskin_gloves, blurb: "+30% gold sweet spot, and a 10% chance of a bonus log per split" },
+  traction_boots: { name: "Forester Traction Boots", emoji: "🥾", price: GEAR_PRICES.traction_boots, blurb: "+15% walking pace while you carry timber" },
+  leather_apron: { name: "Artisan Leather Apron", emoji: "🦺", price: GEAR_PRICES.leather_apron, blurb: "10% less chance to break a carving, and 75% salvage (not 50%) when one breaks" },
 };
 export const GEAR_IDS = Object.keys(GEAR) as GearId[];
 export function isGearId(v: unknown): v is GearId {

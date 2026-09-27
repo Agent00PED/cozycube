@@ -3,7 +3,7 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import type { Room } from "colyseus.js";
 import type { BoardGameView, ChairSyncState, MapId, PlayerState, TimeOfDay, ToggleableSyncState } from "@shared/types";
-import { GESTURE_SECONDS, MAP_HALF, isWalkUpProp, usableSeated } from "@shared/types";
+import { GESTURE_SECONDS, MAP_HALF, isCasinoMap, isWalkUpProp, usableSeated } from "@shared/types";
 import { isBlocked, walkY } from "@shared/collision";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
@@ -15,7 +15,8 @@ import { CASINO_VIP_URL } from "./CasinoVipWorld";
 import { preloadCasinoStaff } from "../entities/CasinoStaff";
 import { preloadPatrons } from "../entities/AmbientPatrons";
 import { BAR_REACH, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, TABLE_FULL_LINE, barDistance, casinoFloorY, seatedGameAt, seatedGameOf, tablePerimeter, type StandingTable } from "@shared/worlds/casino";
-import { VIP_FRAME, inPenthouse } from "@shared/worlds/casino_vip";
+import { VIP_FRAME } from "@shared/worlds/casino_vip";
+import { ChloeMaid, preloadChloe } from "../entities/ChloeMaid";
 import { pushToast } from "../components/hud/toastStore";
 import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
@@ -217,16 +218,19 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   }, [subscribeMessages]);
 
   // the camera fits this world's floor with a margin (the lounge's own frame, or another world's
-  // size); up in the casino's penthouse, the penthouse's own
-  const up = mapId === "velvet_casino" && !!me && inPenthouse(me.x, me.z);
+  // size); in the penthouse (a world of its own, drawn by the casino's scene), the penthouse's own
+  const up = mapId === "casino_vip";
   const casinoFrame = up ? VIP_FRAME : CASINO_FRAME;
-  frame.size = mapId === "cozy_lounge" ? LOFT_FRAME.size : mapId === "campfire_night" ? CAMPFIRE_FRAME.size : mapId === "velvet_casino" ? casinoFrame.size : MAP_HALF[mapId] * 2 + 0.8;
-  frame.x = mapId === "velvet_casino" ? casinoFrame.x : 0;
-  frame.z = mapId === "velvet_casino" ? casinoFrame.z : 0;
+  const casino = isCasinoMap(mapId);
+  frame.size = mapId === "cozy_lounge" ? LOFT_FRAME.size : mapId === "campfire_night" ? CAMPFIRE_FRAME.size : casino ? casinoFrame.size : MAP_HALF[mapId] * 2 + 0.8;
+  frame.x = casino ? casinoFrame.x : 0;
+  frame.z = casino ? casinoFrame.z : 0;
 
   // the other worlds' models are fetched quietly once the lounge is up, so travelling is instant
   useEffect(() => {
     const campfire = window.setTimeout(() => useGLTF.preload(CAMPFIRE_URL), 4000);
+    // (Chloe's boutique is in the lounge itself: she comes at once)
+    preloadChloe();
     const casino = window.setTimeout(() => {
       useGLTF.preload(CASINO_URL);
       useGLTF.preload(CASINO_VIP_URL);
@@ -342,7 +346,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       // one of the table's already, it opens right there; standing, you're walked to its nearest free
       // seat (sitting down opens it). A full table says so, and the ones everyone can watch open for
       // you to look on from the rail.
-      const game = mapId === "velvet_casino" ? seatedGameOf(propId) : undefined;
+      const game = isCasinoMap(mapId) ? seatedGameOf(propId) : undefined;
       if (game) {
         if (game.seats.some((s) => chairs[s]?.occupiedBy === localSessionId)) {
           room?.send("useProp", { propId, x: cameraFocus.x, z: cameraFocus.z });
@@ -415,7 +419,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   // opens its panel: the table's round, the hand against Boris (the piano's bench asks the HUD)
   const mySeat = (localSessionId && Object.values(chairs).find((c) => c.occupiedBy === localSessionId)?.propId) || "";
   useEffect(() => {
-    if (mapId !== "velvet_casino" || !mySeat) return;
+    if (!isCasinoMap(mapId) || !mySeat) return;
     const game = seatedGameAt(mySeat);
     if (!game || game.kind === "piano") return;
     live.current.room?.send("useProp", { propId: game.propId, x: cameraFocus.x, z: cameraFocus.z });
@@ -478,12 +482,15 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   const hour: TimeOfDay = starlit ? "night" : timeOfDay;
   return (
     <TimeOfDayContext.Provider value={hour}>
-      <SceneLighting timeOfDay={hour} starlit={starlit} indoor={mapId === "velvet_casino"} />
+      <SceneLighting timeOfDay={hour} starlit={starlit} indoor={casino} />
       {mapId === "cozy_lounge" ? (
-        <LoungeWorld onFloorClick={onFloorClick} />
+        <>
+          <LoungeWorld onFloorClick={onFloorClick} />
+          <ChloeMaid subscribeMessages={subscribeMessages} />
+        </>
       ) : mapId === "campfire_night" ? (
         <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} hearth={hearth} subscribeMessages={subscribeMessages} onDuck={(duck) => room?.send("duckPoke", { duck })} />
-      ) : mapId === "velvet_casino" ? (
+      ) : casino ? (
         <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} up={up} />
       ) : (
         <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />
@@ -542,6 +549,9 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={{ ...prop, ...CASINO_PADS[prop.kind]!.at?.(prop) }} size={CASINO_PADS[prop.kind]!.size} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "plant" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.75, 1.4, 0.75]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "boutique" ? (
+          // Chloe, and her cheval mirror: a click on either opens the wardrobe
+          <PropPad key={prop.propId} prop={prop} size={prop.propId === "boutique_mirror" ? [0.9, 1.8, 0.5] : [0.7, 1.3, 0.7]} onUse={() => activate(prop.propId)} />
         ) : null
       )}
       {puffs.map((p) => (

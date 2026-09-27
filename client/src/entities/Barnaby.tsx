@@ -24,7 +24,8 @@ function Crate({ x }: { x: number }) {
 }
 
 export function Barnaby({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
-  return <CampNpc url={BARNABY_URL} what="barnaby.glb" prefix="Barnaby" at={L.barnaby} waveEvent="barnabyWave" standIn={<Crate x={0.62} />} subscribeMessages={subscribeMessages} />;
+  // (only Barnaby and his stall: his chalkboard is drawn apart, painted with the hour's prices)
+  return <CampNpc url={BARNABY_URL} what="barnaby.glb" prefix="Barnaby" node="Barnaby" at={L.barnaby} waveEvent="barnabyWave" standIn={<Crate x={0.62} />} subscribeMessages={subscribeMessages} />;
 }
 
 export function Buster({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {

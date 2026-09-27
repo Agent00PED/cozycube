@@ -1,7 +1,7 @@
 import type { AABB } from "../collision";
 import type { SeatStyle } from "../types";
 import type { PropSpec, SeatSpec } from "./lounge";
-import { VIP_OBSTACLES, VIP_POKER, VIP_BACCARAT, VIP_PROPS, VIP_REGION, VIP_SEATS } from "./casino_vip";
+import { VIP_POKER, VIP_BACCARAT } from "./casino_vip";
 
 // The Velvet Casino: a compact mid-century Art-Deco hall on a 20x20 slab, run by and for dapper
 // animals. Two tall back walls (x = -10 and z = -10, inner faces at -9.8), the front (+x and +z)
@@ -346,14 +346,10 @@ export const VIP_DOORS = { x: L.vipDoors.x, z: -L.half + L.walls.t + 0.15 };
 /** Where you stand to ask Bruno, and where the elevator sets you down again. */
 export const VIP_DOORS_FRONT = { x: L.vipDoors.x, z: -L.half + 1.55 };
 
-// --- the walkable floor: the hall and the penthouse -------------------------------------------------
+// --- the walkable floor --------------------------------------------------------------------------
 
-/** The casino's floor: the hall, and the penthouse off to its side (each a rectangle you walk in,
- *  its edges a margin in from the walls). */
-export const CASINO_REGIONS = [
-  { x0: -L.half + 0.6, x1: L.half - 0.6, z0: -L.half + 0.6, z1: L.half - 0.6 },
-  VIP_REGION,
-];
+/** The hall's floor, a margin in from the walls (the penthouse is a map of its own: casino_vip.ts). */
+export const CASINO_REGIONS = [{ x0: -L.half + 0.6, x1: L.half - 0.6, z0: -L.half + 0.6, z1: L.half - 0.6 }];
 
 // --- Mr. Vance's cage, the exit doors, the foyer's machines -------------------------------------
 
@@ -419,8 +415,6 @@ export const CASINO_SEATS: CasinoSeat[] = [
   ...L.sofa.seats.map((x, i): CasinoSeat => onFloor({ propId: `seat_sofa_${i + 1}`, x, z: L.sofa.z, rotationY: FACE_POS_Z, cushion: "chesterfield", style: "armchair", approachX: x, approachZ: L.sofa.z + 0.75 })),
   // the grand piano's bench: facing the keys (the piano's tail toward the camera); in from its open side
   onFloor({ propId: "seat_piano", x: L.piano.x, z: L.piano.bench, rotationY: FACE_POS_Z, cushion: "pianoBench", style: "pad", approachX: L.piano.x + L.piano.benchSide, approachZ: L.piano.bench }),
-  // the penthouse's high-limit poker and baccarat seats (shared/worlds/casino_vip.ts)
-  ...VIP_SEATS,
 ];
 
 // --- props ------------------------------------------------------------------------------------
@@ -456,7 +450,6 @@ export const CASINO_PROPS: PropSpec[] = [
   // the exit doors: back to the Lounge (or anywhere, through the world drawer)
   prop("casino_exit", EXIT_DOORS, "portal", "#d4a93c", EXIT_FRONT, 0),
   // the Velvet Penthouse's tables, its Golden Vault and its elevator
-  ...VIP_PROPS,
 ];
 
 // --- the games played sitting down --------------------------------------------------------------
@@ -593,8 +586,6 @@ export const CASINO_OBSTACLES: AABB[] = [
   centred(L.pusher, L.pusher.d / 2, L.pusher.w / 2),
   // the planters out front
   ...L.planters.map((p) => around(p, 0.4)),
-  // the Velvet Penthouse, off to the side
-  ...VIP_OBSTACLES,
 ];
 
 export const CASINO_SPAWNS: Pt[] = L.spawns;

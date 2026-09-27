@@ -24,6 +24,12 @@ on the ground, facing +z; the game places and turns it (CAMPFIRE_LAYOUT.barnaby)
         Barnaby_ArmL    his left arm and the bamboo rod in its paw (pivots at the shoulder)
         Barnaby_Tail    his flat otter tail (pivots where it joins: it sways)
       Barnaby_Stall     the tackle crate, the fish on ice and the BAIT & TACKLE board
+    Chalkboard          his outdoor A-frame chalkboard beside him, a root of its own (the game draws
+                        it apart from him), placed and turned in his frame by the Campfire's layout
+                        (CAMPFIRE_LAYOUT.barnabyBoard, read from shared/worlds/campfire.ts)
+      Chalkboard_Frame  the easel: its wooden frame, legs and chalk tray
+      Chalkboard_Face   the slate, a single quad UV-mapped 0..1 in its own material: the game
+                        paints the hour's prices on it (the camp's market, with its arrows)
 
 Coordinates: the game's (x, y up, z) is Blender's (x, -z, y); `W` converts.
 """
@@ -31,6 +37,7 @@ Coordinates: the game's (x, y up, z) is Blender's (x, -z, y); `W` converts.
 import json
 import math
 import os
+import re
 import traceback
 
 import bmesh
@@ -66,6 +73,7 @@ PALETTE = {
     "BN_FishPink": "#E88E8E",
     "BN_Board": "#2F3A33",
     "BN_Chalk": "#F2EEE2",
+    "BN_ChalkFace": "#26302A",
 }
 ROUGHNESS = {"BN_Eye": 0.35, "BN_Nose": 0.5, "BN_Ice": 0.55, "BN_Brass": 0.6, "BN_Reel": 0.6}
 
@@ -268,6 +276,40 @@ SHOULDER_R = (-0.235, 0.53, 0.02)
 SHOULDER_L = (0.235, 0.53, 0.02)
 TAIL_ROOT = (0.0, 0.2, -0.2)
 STALL = (0.62, 0.0, 0.05)
+# the chalkboard's slate: its bottom and top edges (the board leans back), and half its width
+FACE_BOTTOM = (0.27, 0.105)
+FACE_TOP = (0.95, -0.015)
+FACE_HALF = 0.28
+
+
+def read_board(root):
+    """Where the chalkboard stands in Barnaby's frame, from the Campfire's layout."""
+    src = open(os.path.join(root, "shared", "worlds", "campfire.ts"), encoding="utf-8").read()
+    layout = json.loads(re.search(r"/\* layout:begin \*/(.*?)/\* layout:end \*/", src, re.S).group(1))
+    return layout["barnabyBoard"]
+
+
+def chalk_face(coll, parent):
+    """The slate: one quad facing +z (wound so its normal faces front), UV-mapped 0..1 from its
+    bottom-left corner, in its own material (the game paints the prices on it)."""
+    (yb, zb), (yt, zt), h = FACE_BOTTOM, FACE_TOP, FACE_HALF
+    bm = bmesh.new()
+    corners = [(-h, yb, zb), (h, yb, zb), (h, yt, zt), (-h, yt, zt)]
+    verts = [bm.verts.new(W(*c)) for c in corners]
+    face = bm.faces.new(verts)
+    uv = bm.loops.layers.uv.new("UVMap")
+    for loop, (u, v) in zip(face.loops, ((0, 0), (1, 0), (1, 1), (0, 1))):
+        loop[uv].uv = (u, v)
+    me = bpy.data.meshes.new("Chalkboard_FaceMesh")
+    bm.to_mesh(me)
+    bm.free()
+    m = material("BN_ChalkFace")
+    m.use_backface_culling = False
+    me.materials.append(m)
+    ob = bpy.data.objects.new("Chalkboard_Face", me)
+    coll.objects.link(ob)
+    place(ob, parent, (0.0, 0.0, 0.0))
+    return ob
 
 
 def build(root):
@@ -370,6 +412,33 @@ def build(root):
     texts = [lettering(coll, "BAIT &", (bx, 0.925, bz + 0.053), 0.075, "BN_Chalk"), lettering(coll, "TACKLE", (bx, 0.83, bz + 0.053), 0.075, "BN_Chalk")]
     with bpy.context.temp_override(object=stall, active_object=stall, selected_objects=[stall, *texts], selected_editable_objects=[stall, *texts]):
         bpy.ops.object.join()
+
+    # --- the outdoor chalkboard: an A-frame easel beside him, turned toward the fire ---
+    spot = read_board(root)
+    board = bpy.data.objects.new("Chalkboard", None)
+    board.empty_display_type = "PLAIN_AXES"
+    coll.objects.link(board)
+    board["pivot"] = [0.0, 0.0, 0.0]
+    board.location = W(spot["x"], 0.0, spot["z"])
+    board.rotation_euler = (0.0, 0.0, spot["yaw"])
+    (yb, zb), (yt, zt), h = FACE_BOTTOM, FACE_TOP, FACE_HALF
+    bm = bmesh.new()
+    # the frame round the slate: rails along the leaning face, just proud of it
+    lean = lambda y: zb + (zt - zb) * (y - yb) / (yt - yb)
+    for x in (-h - 0.02, h + 0.02):
+        cylinder(bm, (x, 0.0, lean(0.0) + 0.01), (x, yt + 0.06, lean(yt + 0.06)), 0.022, 8, m=0)  # a front leg, up the side
+    for y in (yb - 0.02, yt + 0.02):
+        cylinder(bm, (-h - 0.03, y, lean(y) - 0.004), (h + 0.03, y, lean(y) - 0.004), 0.02, 8, m=0)
+    box(bm, -h, h, yb - 0.01, yt + 0.01, lean(0.6) - 0.045, lean(0.6) - 0.02, m=1)  # the board behind the slate
+    # the chalk tray along the bottom, a stub of chalk on it
+    box(bm, -h - 0.02, h + 0.02, yb - 0.06, yb - 0.035, lean(yb) - 0.01, lean(yb) + 0.05, m=0)
+    box(bm, 0.1, 0.16, yb - 0.035, yb - 0.018, lean(yb) + 0.012, lean(yb) + 0.03, m=2)
+    # the back legs of the A-frame, and the hinge at the top
+    for x in (-h + 0.02, h - 0.02):
+        cylinder(bm, (x, yt + 0.05, lean(yt + 0.05) - 0.03), (x, 0.0, -0.36), 0.02, 8, m=0)
+    cylinder(bm, (-h, yt + 0.06, lean(yt + 0.06) - 0.02), (h, yt + 0.06, lean(yt + 0.06) - 0.02), 0.014, 6, m=0)
+    make_object("Chalkboard_Frame", bm, ["BN_CrateDark", "BN_Board", "BN_Chalk"], coll, board, (0.0, 0.0, 0.0))
+    chalk_face(coll, board)
     return coll
 
 

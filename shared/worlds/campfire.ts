@@ -38,6 +38,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   },
   "tripod": { "legs": 0.9, "apex": 1.95, "potY": 1.0, "potR": 0.27 },
   "barnaby": { "x": 4.7, "z": -2.6, "yaw": -0.35 },
+  "barnabyBoard": { "x": -0.8, "z": 0.2, "yaw": 0.35 },
   "buster": { "x": -1.77, "z": -8.47, "yaw": 0.25 },
   "picnicPlates": [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]],
   "river": {
@@ -483,6 +484,13 @@ export function lieSeatPose(seat: CampSeat) {
 }
 
 /** Where you stand to talk to Barnaby: in front of him. */
+/** Barnaby's outdoor chalkboard (the hour's prices), where it stands in the world: its place in his
+ *  own frame (CAMPFIRE_LAYOUT.barnabyBoard, which build_barnaby.py reads too), turned with him. */
+export const BARNABY_BOARD = {
+  x: L.barnaby.x + L.barnabyBoard.x * Math.cos(L.barnaby.yaw) + L.barnabyBoard.z * Math.sin(L.barnaby.yaw),
+  z: L.barnaby.z - L.barnabyBoard.x * Math.sin(L.barnaby.yaw) + L.barnabyBoard.z * Math.cos(L.barnaby.yaw),
+  yaw: L.barnaby.yaw + L.barnabyBoard.yaw,
+};
 export const BARNABY_FRONT = { x: L.barnaby.x + Math.sin(L.barnaby.yaw) * 0.95, z: L.barnaby.z + Math.cos(L.barnaby.yaw) * 0.95 };
 /** Close enough to Barnaby to trade. */
 export const BARNABY_REACH = 1.8;
@@ -641,6 +649,8 @@ export const CAMP_OBSTACLES: AABB[] = [
   // Barnaby and his tackle crate
   around(L.barnaby, 0.34),
   around({ x: L.barnaby.x + Math.cos(L.barnaby.yaw) * 0.62, z: L.barnaby.z - Math.sin(L.barnaby.yaw) * 0.62 }, 0.26),
+  // his chalkboard, beside him (its easel's feet)
+  around(BARNABY_BOARD, 0.32),
 ];
 
 export const CAMP_SPAWNS: Pt[] = L.spawns;

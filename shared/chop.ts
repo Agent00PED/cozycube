@@ -36,6 +36,8 @@
 //   Hard Oak     the knots creep along the meter: two Firewood
 //   Golden Log   one in ten: a Golden Charcoal (double the fuel) and a bonus
 
+import { AXE_PRICES, CARRIER_PRICES, WOOD_PRICES } from "./economy";
+
 export type ChopStrokeNo = 1 | 2 | 3;
 export type ChopLog = "pine" | "oak" | "golden";
 
@@ -44,10 +46,14 @@ export type WoodKind = "pine" | "oak" | "charcoal";
 export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal"];
 /** Each kind: what Buster pays for one, and how much it feeds the bonfire. */
 export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number; fuel: number }> = {
-  pine: { name: "Soft Pine", emoji: "🪵", sell: 4, fuel: 25 },
-  oak: { name: "Hard Oak", emoji: "🌳", sell: 10, fuel: 30 },
-  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: 25, fuel: 50 },
+  pine: { name: "Raw Softwood", emoji: "🪵", sell: WOOD_PRICES.pine, fuel: 25 },
+  oak: { name: "Hardwood", emoji: "🌳", sell: WOOD_PRICES.oak, fuel: 30 },
+  charcoal: { name: "Golden Charcoal", emoji: "✨", sell: WOOD_PRICES.charcoal, fuel: 50 },
 };
+/** What Buster pays for one of `kind` at the hour's market multiplier (shared/market.ts). */
+export function woodPrice(kind: WoodKind, market = 1): number {
+  return Math.max(1, Math.round(WOOD[kind].sell * market));
+}
 export function isWoodKind(v: unknown): v is WoodKind {
   return v === "pine" || v === "oak" || v === "charcoal";
 }
@@ -55,16 +61,16 @@ export function isWoodKind(v: unknown): v is WoodKind {
 /** What each log splits into. */
 export const CHOP_LOGS: Record<ChopLog, { name: string; emoji: string; wood: WoodKind; bonus: number; blurb: string }> = {
   pine: { name: "Soft Pine", emoji: "🌲", wood: "pine", bonus: 0, blurb: "Soft wood: a wide sweet spot" },
-  oak: { name: "Hard Oak", emoji: "🌳", wood: "oak", bonus: 5, blurb: "Hard wood: its knots move" },
-  golden: { name: "Golden Log", emoji: "✨", wood: "charcoal", bonus: 15, blurb: "A rare golden log: Golden Charcoal burns twice as long" },
+  oak: { name: "Hard Oak", emoji: "🌳", wood: "oak", bonus: 1, blurb: "Hard wood: its knots move" },
+  golden: { name: "Golden Log", emoji: "✨", wood: "charcoal", bonus: 4, blurb: "A rare golden log: Golden Charcoal burns twice as long" },
 };
 
 // --- the axes: Buster the Lumberjack sells them ---
 export type AxeId = "rusty" | "steel" | "golden";
 export const AXES: Record<AxeId, { name: string; emoji: string; price: number; zoneBonus: number; slow: number; doubleChance: number; blurb: string }> = {
-  rusty: { name: "Rusty Hatchet", emoji: "🪓", price: 0, zoneBonus: 0, slow: 0, doubleChance: 0, blurb: "It gets the job done. Mostly." },
-  steel: { name: "Steel Camp Axe", emoji: "⚒️", price: 300, zoneBonus: 0.25, slow: 0, doubleChance: 0, blurb: "+25% green zone on every stroke." },
-  golden: { name: "Golden Lumberjack Axe", emoji: "🌟", price: 900, zoneBonus: 0.25, slow: 0.2, doubleChance: 0.3, blurb: "+25% green zone, a 20% slower needle, and a 30% chance of double wood." },
+  rusty: { name: "Basic Flint Axe", emoji: "🪓", price: 0, zoneBonus: 0, slow: 0, doubleChance: 0, blurb: "It gets the job done. Mostly." },
+  steel: { name: "Iron Timber Axe", emoji: "⚒️", price: AXE_PRICES.iron, zoneBonus: 0.25, slow: 0, doubleChance: 0, blurb: "+25% green zone on every stroke." },
+  golden: { name: "Golden Felling Axe", emoji: "🌟", price: AXE_PRICES.golden, zoneBonus: 0.25, slow: 0.2, doubleChance: 0.3, blurb: "+25% green zone, a 20% slower needle, and a 30% chance of double wood." },
 };
 export const AXE_IDS = Object.keys(AXES) as AxeId[];
 
@@ -77,13 +83,13 @@ export interface WoodCarrierTier {
   icon: string;
 }
 export const WOOD_CARRIER_TIERS: WoodCarrierTier[] = [
-  { id: "carrier_tier_1", name: "Twine Wood Strap", capacity: 10, price: 0, icon: "🪢" },
-  { id: "carrier_tier_2", name: "Canvas Timber Bag", capacity: 15, price: 180, icon: "🎒" },
-  { id: "carrier_tier_3", name: "Reinforced Wood Rig", capacity: 20, price: 450, icon: "🪵" },
-  { id: "carrier_tier_4", name: "Lumberjack Pack", capacity: 35, price: 1200, icon: "📦" },
-  { id: "carrier_tier_5", name: "Forester Heavy Frame", capacity: 50, price: 2600, icon: "🧰" },
-  { id: "carrier_tier_6", name: "Ironbound Hauling Sled", capacity: 75, price: 4800, icon: "🛷" },
-  { id: "carrier_tier_7", name: "Starlight Beaver Rig", capacity: 100, price: 8500, icon: "✨" },
+  { id: "carrier_tier_1", name: "Twine Wood Strap", capacity: 10, price: CARRIER_PRICES[0], icon: "🪢" },
+  { id: "carrier_tier_2", name: "Canvas Bag", capacity: 15, price: CARRIER_PRICES[1], icon: "🎒" },
+  { id: "carrier_tier_3", name: "Reinforced Rig", capacity: 20, price: CARRIER_PRICES[2], icon: "🪵" },
+  { id: "carrier_tier_4", name: "Lumberjack Pack", capacity: 35, price: CARRIER_PRICES[3], icon: "📦" },
+  { id: "carrier_tier_5", name: "Forester Heavy Frame", capacity: 50, price: CARRIER_PRICES[4], icon: "🧰" },
+  { id: "carrier_tier_6", name: "Ironbound Hauling Sled", capacity: 75, price: CARRIER_PRICES[5], icon: "🛷" },
+  { id: "carrier_tier_7", name: "Starlight Beaver Rig", capacity: 100, price: CARRIER_PRICES[6], icon: "✨" },
 ];
 /** A carrier tier (1-based, clamped), the next one up (null at the top), and a tier's capacity. */
 export function carrierTier(tier: number): WoodCarrierTier {

@@ -8,6 +8,9 @@ export interface DiscordAuthInfo {
   username: string;
   avatarUrl: string;
   channelId: string;
+  /** The Discord server the Activity was launched in (null in a DM or a group DM): everyone in one
+   *  guild shares one room (shared/types guildRoomKey). */
+  guildId: string | null;
   /** The live SDK, so feature hooks (voice activity) can subscribe to events after login. */
   sdk: DiscordSdkInstance;
   /** True only inside a real Discord Activity iframe. */
@@ -95,13 +98,15 @@ export function useDiscordAuth(): AuthState {
         // Mock Mode: `?channelId=xxx&username=yyy` lets multiple plain browser tabs
         // simulate different players joining the same room without going through Discord at all.
         const mockChannelId = params.get("channelId") ?? "local-test-channel";
+        // (`?guildId=` puts mock tabs from different "channels" in one guild's room, as Discord would)
+        const mockGuildId = params.get("guildId") ?? "local-test-guild";
         const mockUsername = params.get("username") ?? `Tester${Math.floor(Math.random() * 1000)}`;
 
         console.log("[useDiscordAuth] embedded?", embedded, "clientId:", clientId, "search:", window.location.search);
 
         const sdk = embedded
           ? new DiscordSDK(clientId)
-          : new DiscordSDKMock(clientId, null, mockChannelId, null);
+          : new DiscordSDKMock(clientId, mockGuildId, mockChannelId, null);
 
         if (!embedded) {
           const mockUserId = `mock-${mockUsername}`;
@@ -185,6 +190,7 @@ export function useDiscordAuth(): AuthState {
             username: authResult.user.global_name ?? authResult.user.username,
             avatarUrl,
             channelId: sdk.channelId ?? mockChannelId,
+            guildId: sdk.guildId ?? (embedded ? null : mockGuildId),
             sdk,
             embedded,
             voiceScopeGranted: embedded && grantedScopes.includes("rpc.voice.read"),

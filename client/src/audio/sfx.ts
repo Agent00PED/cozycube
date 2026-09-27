@@ -76,6 +76,8 @@ export type Sfx =
   | "crit"
   | "woodSnap"
   | "masterwork"
+  // a new personal best, held high: the Field Guide's chime
+  | "trophy"
   // the casino's
   | "jackpot"
   | "sparkle"
@@ -117,6 +119,11 @@ export function playSfx(kind: Sfx, volume = 1) {
     [784, 1047, 1319].forEach((f) => tone(c, t + 0.42, f, f * 1.005, 0.9, 0.06, "sawtooth"));
     [0.5, 0.58, 0.67, 0.73, 0.82, 0.9, 1.0, 1.08].forEach((d, i) => tone(c, t + d, 1800 + (i % 3) * 300, 2100 + (i % 3) * 300, 0.12, 0.05, "triangle"));
     noise(c, t + 0.45, 0.8, 0.05, 7000);
+  } else if (kind === "trophy") {
+    // a new personal best: a bright chime up the major chord, a held sparkle over it
+    [784, 988, 1175, 1568].forEach((f, i) => tone(c, t + i * 0.08, f, f, 0.55, 0.06, "sine"));
+    [1568, 2093].forEach((f) => tone(c, t + 0.34, f, f * 1.003, 0.8, 0.035, "triangle"));
+    noise(c, t + 0.3, 0.5, 0.03, 8000);
   } else if (kind === "sparkle") {
     // a tip in the jar: bright little pings running up, a shimmer
     [1568, 2093, 2637, 3136].forEach((f, i) => tone(c, t + i * 0.06, f, f, 0.35, 0.05, "sine"));

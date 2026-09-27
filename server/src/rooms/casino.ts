@@ -129,8 +129,9 @@ import {
   type CasinoGameTable,
   type TipDealer,
 } from "../../../shared/worlds/casino";
-import { VIP_ARRIVAL, inPenthouse } from "../../../shared/worlds/casino_vip";
-import { COIN_CAP, INTERACT_RADIUS } from "../../../shared/types";
+import { VIP_ARRIVAL } from "../../../shared/worlds/casino_vip";
+import { COIN_CAP, INTERACT_RADIUS, isCasinoMap, type MapId } from "../../../shared/types";
+import { specialTitle } from "../../../shared/items";
 import { todayKey } from "./games";
 
 // The Velvet Casino's tables: the shared roulette wheel, the two blackjack tables' rounds (up to four
@@ -165,6 +166,8 @@ export class RouletteSchema extends Schema {
 export interface Patron {
   userId: string;
   username: string;
+  /** The world they are in: the casino's rules only ever apply on its two floors. */
+  map: string;
   x: number;
   z: number;
   coins: number;
@@ -177,7 +180,6 @@ export interface Patron {
 
 /** The room state the casino reads and writes. */
 export interface CasinoState {
-  currentMap: string;
   roulette: RouletteSchema;
   /** Roulette bets on the table this round, per sessionId, as encodeBets() strings. */
   bets: MapSchema<string>;
@@ -196,12 +198,17 @@ export interface SlotProp {
 
 /** What the casino asks of the room. */
 export interface CasinoHost {
+  /** To everyone on the casino's floors (the hall and the penthouse). */
   broadcast(type: string, payload: unknown): void;
+  /** To everyone in the guild, whatever world they are in (a jackpot is news everywhere). */
+  shout(type: string, payload: unknown): void;
   /** To everyone but the one who did it (a note they already heard). */
   broadcastExcept(sessionId: string, type: string, payload: unknown): void;
   sendTo(sessionId: string, type: string, payload: unknown): void;
-  /** Moves a standing player (through Bruno's doors): their client snaps to it. */
+  /** Moves a standing player on their floor: their client snaps to it. */
   teleport(sessionId: string, x: number, z: number): void;
+  /** Takes a standing player to another world (Bruno's doors, the elevator), set down at `at`. */
+  travel(sessionId: string, map: MapId, at: { x: number; z: number }): void;
   /** The seat (a chair's propId) the player sits on, or "". */
   seatOf(sessionId: string): string;
   /** Runs `fn` after `ms` on the room's clock. */
@@ -367,8 +374,9 @@ export class CasinoFloor {
     for (const id of SINGLE_MACHINES) this.nextPatronAt.set(id, now + rand(4, 30) * 1000);
   }
 
-  private get open() {
-    return this.state.currentMap === "velvet_casino";
+  /** Whether a player is on one of the casino's floors (nothing here is played from anywhere else). */
+  private inCasino(p: Patron | undefined): p is Patron {
+    return !!p && isCasinoMap(p.map);
   }
 
   private addChips(p: Patron, amount: number) {
@@ -378,7 +386,7 @@ export class CasinoFloor {
   /** A win for the marquee (big enough), and the hall's celebration (a jackpot, a number hit). */
   private announce(sessionId: string, p: Patron, amount: number, game: CasinoGame, detail: string, celebrate: boolean) {
     if (!celebrate && amount < MARQUEE_MIN_WIN) return;
-    this.host.broadcast("casinoWin", { sessionId, username: p.username, amount, game, detail, celebrate } satisfies CasinoWin);
+    this.host.shout("casinoWin", { sessionId, username: p.username, amount, game, detail, celebrate } satisfies CasinoWin);
   }
 
   /** Why something was refused, to the one who tried. */
@@ -399,7 +407,7 @@ export class CasinoFloor {
   /** The player, if they are in the casino within reach of `game`'s table (else a "far" notice). */
   private atTable(sessionId: string, game: CasinoGameTable): Patron | undefined {
     const p = this.state.players.get(sessionId);
-    if (!p || !this.open) return undefined;
+    if (!this.inCasino(p)) return undefined;
     if (!nearGameTable(game, p.x, p.z, GAME_SLACK)) {
       this.refuse(sessionId, "far");
       return undefined;
@@ -410,7 +418,7 @@ export class CasinoFloor {
   /** The player, if seated on one of `seats` (else a "seat" notice). */
   private seatedAt(sessionId: string, seats: readonly string[]): Patron | undefined {
     const p = this.state.players.get(sessionId);
-    if (!p || !this.open) return undefined;
+    if (!this.inCasino(p)) return undefined;
     if (!seats.includes(this.host.seatOf(sessionId))) {
       this.refuse(sessionId, "seat");
       return undefined;
@@ -426,7 +434,7 @@ export class CasinoFloor {
     const p = this.state.players.get(sessionId);
     if (!p) return;
     const reply = (ok: boolean, amount: number, reason?: CashierResult["reason"]) => this.host.sendTo(sessionId, "cashierResult", { ok, kind, amount, coins: p.coins, chips: p.chips, reason } satisfies CashierResult);
-    if (!this.open || Math.hypot(p.x - CASHIER_FRONT.x, p.z - CASHIER_FRONT.z) > CASHIER_REACH + CASHIER_SLACK) return reply(false, 0, "far");
+    if (p.map !== "velvet_casino" || Math.hypot(p.x - CASHIER_FRONT.x, p.z - CASHIER_FRONT.z) > CASHIER_REACH + CASHIER_SLACK) return reply(false, 0, "far");
     // what can move: what the balance drawn on holds, and no more than the other has room for
     const available = kind === "buy" ? Math.min(p.coins, CHIP_CAP - p.chips) : Math.min(p.chips, COIN_CAP - p.coins);
     const amount = exchangeAmount(requested, available);
@@ -526,9 +534,8 @@ export class CasinoFloor {
    *  straight-up number 10 to 500, an even-money spot 25 to 2,500) and the round's within
    *  MAX_BET_TOTAL. */
   placeBet(sessionId: string, msg: { kind: string; amount: number }) {
-    if (!this.open || this.state.roulette.phase !== "betting") return;
     const p = this.state.players.get(sessionId);
-    if (!p || !isBetKind(msg?.kind)) return;
+    if (!this.inCasino(p) || this.state.roulette.phase !== "betting" || !isBetKind(msg?.kind)) return;
     const amount = Number(msg.amount);
     if (!Number.isInteger(amount) || amount < 1) return;
     if (Math.hypot(p.x - ROULETTE_CENTER.x, p.z - ROULETTE_CENTER.z) > ROULETTE_BET_RADIUS + ROULETTE_SLACK) return;
@@ -633,7 +640,7 @@ export class CasinoFloor {
    *  land. A machine someone else is at refuses you. */
   spinSlot(sessionId: string, prop: SlotProp | undefined, bet: number) {
     const p = this.state.players.get(sessionId);
-    if (!p || !prop || prop.kind !== "slot" || !this.open) return;
+    if (!this.inCasino(p) || !prop || prop.kind !== "slot") return;
     if (tableStake(bet, slotLimit(prop.propId)) === null) return this.refuse(sessionId, "limits");
     if (p.chips < bet) return this.refuse(sessionId, "chips");
     if (Math.hypot(p.x - prop.x, p.z - prop.z) > INTERACT_RADIUS + SLOT_SLACK) return;
@@ -697,7 +704,7 @@ export class CasinoFloor {
     const stool = this.host.seatOf(sessionId);
     const t = this.tables.find((x) => x.stools.includes(stool));
     const p = this.state.players.get(sessionId);
-    if (!p || !this.open) return;
+    if (!this.inCasino(p)) return;
     if (!t) return this.refuse(sessionId, "seat");
     const action = msg?.action;
     let seat = t.seats.find((s) => s.sessionId === sessionId);
@@ -894,7 +901,7 @@ export class CasinoFloor {
     const chair = this.host.seatOf(sessionId);
     const table: "poker" | "poker_vip" | null = HALL_POKER_SEATS.includes(chair) ? "poker" : VIP_POKER_SEATS.includes(chair) ? "poker_vip" : null;
     const p = this.state.players.get(sessionId);
-    if (!p || !this.open || !move || typeof move !== "object") return;
+    if (!this.inCasino(p) || !move || typeof move !== "object") return;
     if (!table) return this.refuse(sessionId, "seat");
     let game = this.pokerHands.get(sessionId);
     if (move.action === "deal") {
@@ -1359,7 +1366,7 @@ export class CasinoFloor {
    *  room has already checked the general reach (INTERACT_RADIUS); the finer ones are here. */
   useProp(sessionId: string, prop: SlotProp) {
     const p = this.state.players.get(sessionId);
-    if (!p || !this.open) return;
+    if (!this.inCasino(p)) return;
     const event = (kind: CasinoPropEvent["kind"], extra: Partial<CasinoPropEvent> = {}) => ({ kind, propId: prop.propId, sessionId, seed: seed(), ...extra }) satisfies CasinoPropEvent;
     const panel = (kind: string) => this.host.sendTo(sessionId, "openPanel", { kind, propId: prop.propId });
     switch (prop.kind) {
@@ -1437,9 +1444,9 @@ export class CasinoFloor {
    *  elevator brings you back down to the stage. */
   private vipDoor(sessionId: string, p: Patron, leaving: boolean, event: (kind: CasinoPropEvent["kind"], extra?: Partial<CasinoPropEvent>) => CasinoPropEvent) {
     if (p.sitting || !this.ready(sessionId, "vipdoor")) return;
-    if (leaving || inPenthouse(p.x, p.z)) {
-      this.host.teleport(sessionId, VIP_DOORS_FRONT.x, VIP_DOORS_FRONT.z);
+    if (leaving || p.map === "casino_vip") {
       this.host.broadcast("casinoProp", event("vipdoor", { vip: "out" }));
+      this.host.travel(sessionId, "velvet_casino", VIP_DOORS_FRONT);
       return;
     }
     if (!near(p, VIP_DOORS_FRONT, MACHINE_REACH + EXTRA_SLACK)) return this.refuse(sessionId, "far");
@@ -1448,8 +1455,8 @@ export class CasinoFloor {
       this.host.sendTo(sessionId, "openPanel", { kind: "vippass", propId: "vip_door" });
       return;
     }
-    this.host.teleport(sessionId, VIP_ARRIVAL.x, VIP_ARRIVAL.z);
     this.host.broadcast("casinoProp", event("vipdoor", { vip: "in" }));
+    this.host.travel(sessionId, "casino_vip", VIP_ARRIVAL);
   }
 
   /** Madame Zara: one reading a day (the same one if you ask again), a lucky one with chips in it. */
@@ -1495,12 +1502,12 @@ export class CasinoFloor {
       // a title is worn everywhere, once won: "" takes it off
       const id = String(packet.id ?? "");
       if (id === "") p.title = "";
-      else if (isCasinoTitle(id) && this.host.owns(sessionId, capsuleUnlock({ kind: "title", id }))) p.title = id;
+      else if ((isCasinoTitle(id) || specialTitle(id)) && this.host.owns(sessionId, capsuleUnlock({ kind: "title", id }))) p.title = id;
       else return;
       this.host.persistNow(sessionId);
       return;
     }
-    if (!this.open) return;
+    if (!this.inCasino(p)) return;
     switch (packet.type) {
       case "CAPSULE_PULL": {
         if (!near(p, GACHAPON_FRONT, MACHINE_REACH + EXTRA_SLACK)) return this.refuse(sessionId, "far");
@@ -1621,24 +1628,31 @@ export class CasinoFloor {
   /** The room moving to another map: every stake still in play is handed back (a blackjack hand, a
    *  baccarat stake, a poker ante, a pass line, a ticket before the off; a race already run is paid),
    *  and the tables wait for the casino to open again. */
+  /** A player off the casino's floors (to another world, or from the hall to the penthouse and
+   *  back): every stake they have open comes back, in chips, and they are off every table. */
+  leaveFloor(sessionId: string) {
+    const p = this.state.players.get(sessionId);
+    if (!p) return;
+    const poker = this.pokerHands.get(sessionId);
+    if (poker?.phase === "decide") this.addChips(p, poker.ante);
+    const dice = this.crapsGames.get(sessionId);
+    if (dice?.pass) this.addChips(p, dice.pass);
+    for (const t of this.tables) {
+      const s = t.seats.find((q) => q.sessionId === sessionId);
+      if (!s) continue;
+      this.addChips(p, s.bet + (t.phase === "playing" ? s.hands.reduce((a, h) => a + h.bet, 0) : 0));
+      t.seats = t.seats.filter((q) => q !== s);
+      this.bjSend(t);
+    }
+    if (this.bacc.phase !== "settled") this.addChips(p, this.bacc.stakes.filter((s) => s.sessionId === sessionId).reduce((a, s) => a + s.amount, 0));
+    this.bacc.stakes = this.bacc.stakes.filter((s) => s.sessionId !== sessionId);
+    this.pokerHands.delete(sessionId);
+    this.crapsGames.delete(sessionId);
+    this.release(sessionId);
+  }
+
   closeTables() {
-    this.state.players.forEach((p, sessionId) => {
-      const poker = this.pokerHands.get(sessionId);
-      if (poker?.phase === "decide") this.addChips(p, poker.ante);
-      const dice = this.crapsGames.get(sessionId);
-      if (dice?.pass) this.addChips(p, dice.pass);
-      for (const t of this.tables) {
-        const s = t.seats.find((q) => q.sessionId === sessionId);
-        if (!s) continue;
-        this.addChips(p, s.bet + (t.phase === "playing" ? s.hands.reduce((a, h) => a + h.bet, 0) : 0));
-        t.seats = t.seats.filter((q) => q !== s);
-      }
-      if (this.bacc.phase !== "settled") this.addChips(p, this.bacc.stakes.filter((s) => s.sessionId === sessionId).reduce((a, s) => a + s.amount, 0));
-      this.bacc.stakes = this.bacc.stakes.filter((s) => s.sessionId !== sessionId);
-      this.pokerHands.delete(sessionId);
-      this.crapsGames.delete(sessionId);
-      this.release(sessionId);
-    });
+    this.state.players.forEach((_p, sessionId) => this.leaveFloor(sessionId));
     // (release has handed every ticket bought before the off back, and paid every race won)
     this.state.bets.clear();
     this.pokerHands.clear();

@@ -3,20 +3,27 @@ import type { MapId } from "@shared/types";
 import { WORLDS, WORLD_ROWS, type WorldConfig } from "@shared/worlds";
 
 // Illustrated fast travel: a drawer from the left with a little diorama card per world, two to a
-// row and a theme per row (WORLD_ROWS). The whole voice channel shares one room, so "Here" is
-// where everyone is right now; a world whose scene is not built yet says "Soon".
+// row and a theme per row (WORLD_ROWS). Everyone in the Discord server shares one room and walks
+// its worlds on their own: a trip takes only you, each card counts who is there now, and a world
+// whose scene is not built yet says "Soon" (and cannot be picked).
 const ART: Record<MapId, { sky: string; ground: string; props: string[] }> = {
   cozy_lounge: { sky: "from-orange-200 to-rose-200", ground: "bg-amber-700", props: ["🛋️", "🪴", "📺", "☕"] },
   campfire_night: { sky: "from-indigo-900 to-violet-800", ground: "bg-emerald-900", props: ["⛺", "🔥", "🌲", "✨"] },
   sunset_beach: { sky: "from-orange-300 to-fuchsia-400", ground: "bg-yellow-200", props: ["🌴", "🍹", "🏄", "🐚"] },
   velvet_casino: { sky: "from-rose-950 to-red-900", ground: "bg-red-900", props: ["🎰", "🎡", "🃏", "🥂"] },
+  casino_vip: { sky: "from-stone-950 to-amber-900", ground: "bg-stone-900", props: ["🥂", "🃏", "🎫", "🌃"] },
   boxing_ring: { sky: "from-slate-700 to-slate-900", ground: "bg-red-800", props: ["🥊", "🔔", "🏆", "🐦"] },
   japanese_onsen: { sky: "from-pink-200 to-emerald-200", ground: "bg-emerald-700", props: ["♨️", "🌸", "🍵", "🏮"] },
   retro_arcade: { sky: "from-fuchsia-800 to-indigo-950", ground: "bg-indigo-900", props: ["🕹️", "🔮", "🧸", "👾"] },
   gaming_cafe: { sky: "from-cyan-800 to-slate-900", ground: "bg-slate-700", props: ["🖥️", "🍜", "🎧", "⌨️"] },
 };
 
-export function WorldDrawer({ currentMap, playerCount, disabled, onSelect, onClose }: { currentMap: MapId; playerCount: number; disabled: boolean; onSelect: (m: MapId) => void; onClose: () => void }) {
+/** How many are in a world: the casino's card counts its penthouse too. */
+function countFor(world: WorldConfig, counts: Partial<Record<MapId, number>>): number {
+  return (counts[world.mapId] ?? 0) + (world.mapId === "velvet_casino" ? (counts.casino_vip ?? 0) : 0);
+}
+
+export function WorldDrawer({ currentMap, counts, disabled, onSelect, onClose }: { currentMap: MapId; counts: Partial<Record<MapId, number>>; disabled: boolean; onSelect: (m: MapId) => void; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -32,14 +39,14 @@ export function WorldDrawer({ currentMap, playerCount, disabled, onSelect, onClo
             ✕
           </button>
         </div>
-        <p className="text-xs opacity-70">Everyone in the channel travels together. Pick a world and the whole room comes along.</p>
+        <p className="text-xs opacity-70">Everyone in the server shares these worlds. A trip takes only you: friends stay where they are, and chat reaches every world.</p>
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           {WORLD_ROWS.map((row) => (
             <section key={row.theme} className="contents" aria-label={row.theme}>
               <h3 className="col-span-2 mt-1 px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-amber-200/70">{row.theme}</h3>
               {row.worlds.map((id) => (
-                <WorldCard key={id} world={WORLDS[id]} here={WORLDS[id].mapId === currentMap} playerCount={playerCount} disabled={disabled} onPick={() => {
-                  if (WORLDS[id].mapId !== currentMap) onSelect(WORLDS[id].mapId);
+                <WorldCard key={id} world={WORLDS[id]} here={WORLDS[id].mapId === currentMap || (id === "casino" && currentMap === "casino_vip")} playerCount={countFor(WORLDS[id], counts)} disabled={disabled || !WORLDS[id].built} onPick={() => {
+                  if (WORLDS[id].mapId !== currentMap && WORLDS[id].built) onSelect(WORLDS[id].mapId);
                   onClose();
                 }} />
               ))}
@@ -72,8 +79,8 @@ function WorldCard({ world, here, playerCount, disabled, onPick }: { world: Worl
             {emoji}
           </span>
         ))}
-        {/* the whole channel travels together, so only the world you are in has people: its badge counts them */}
-        {here ? <Badge className="bg-amber-300 text-amber-950">Here · 👥 {playerCount}</Badge> : !world.built && <Badge className="bg-stone-900/70 text-stone-200">Soon</Badge>}
+        {/* where you are, who is where, and the worlds still being built */}
+        {here ? <Badge className="bg-amber-300 text-amber-950">Here · 👥 {playerCount}</Badge> : !world.built ? <Badge className="bg-stone-900/70 text-stone-200">Soon</Badge> : playerCount > 0 && <Badge className="bg-emerald-300 text-emerald-950">👥 {playerCount}</Badge>}
       </div>
       <div className="flex items-start gap-2 px-3 py-2">
         {/* the icon gives its room back on a phone-narrow card */}

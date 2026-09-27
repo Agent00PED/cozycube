@@ -11,14 +11,18 @@
 //   - the casino: its tables can be played from open ground, the roulette's betting ground and the
 //     blackjack tables' never overlap (the two tables' may: the nearest is yours), every seat at the
 //     poker tables and every game table's front are within its reach, the standing tables can be
-//     played from all round their rims, the penthouse is shut to anyone walking (its seats and
-//     machine are reached from the elevator, where Bruno sets you down) and nothing of it reaches
-//     the hall's grid, every
+//     played from all round their rims, every
 //     walk-up prop's spot is within the server's reach of it, the cage window, the machines, the
 //     tip jars, the bar, the gazette and the piano are in reach from where you stand (or sit), the
 //     staff stand inside colliders (nobody walks through them), every seat sits on a floor (not
 //     half on a step), every zone and both stages can be walked onto, and the crowd's spots are
 //     open ground
+//   - the Velvet Penthouse (a map of its own: casino_vip): its seats in reach of their tables, its
+//     staff inside colliders, the elevator (where Bruno sets you down: its spawn) open, and Bruno's
+//     doors open ground on the hall's stage
+//   - the lounge's Velvet Boutique: Chloe and her mirror stand inside colliders, her counter's spot
+//     in reach of both; the campfire's chalkboard stands in a collider beside Barnaby
+//   - every built world (the fast-travel grid's, and the penthouse) has seats or props
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, walkRegions, worldLimit } from "../shared/collision";
 import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES, MOCHI_WAYPOINTS } from "../shared/props";
 import { isReachable, type Point } from "../shared/pathfinding";
@@ -52,20 +56,18 @@ import {
   type CasinoGameTable,
   type StandingTable,
 } from "../shared/worlds/casino";
-import { VIP_ARRIVAL, VIP_NPCS, VIP_SEATS, inPenthouse } from "../shared/worlds/casino_vip";
+import { VIP_ARRIVAL, VIP_NPCS, VIP_SEATS } from "../shared/worlds/casino_vip";
+import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
+import { BARNABY_BOARD } from "../shared/worlds/campfire";
+import { WORLDS } from "../shared/worlds/index";
 
 const failures: string[] = [];
 const fail = (msg: string) => failures.push(msg);
 const fmt = (p: Point) => `(${p.x.toFixed(2)}, ${p.z.toFixed(2)})`;
 let checks = 0;
 
-/** Where a point is walked to from: the spawn, or (for the casino's penthouse, which nobody walks
- *  into) the elevator where Bruno sets you down. */
-const startFor = (mapId: MapId, home: Point, at: Point) => (mapId === "velvet_casino" && inPenthouse(at.x, at.z) ? VIP_ARRIVAL : home);
-
 /** Open and reachable on foot from `home`; reports what is wrong under `label`. */
 function standable(mapId: MapId, home: Point, at: Point, label: string): boolean {
-  home = startFor(mapId, home, at);
   checks++;
   if (isBlocked(at.x, at.z, mapId)) {
     fail(`${mapId}: ${label} ${fmt(at)} is blocked`);
@@ -201,19 +203,11 @@ for (const mapId of MAP_IDS) {
     checks++;
     if (!nearGameTable("poker", s.x, s.z)) fail(`${C}: ${s.propId} is out of the poker table's reach`);
   }
-  for (const s of VIP_SEATS.filter((c) => c.propId.startsWith("seat_vpoker"))) {
-    checks++;
-    if (!nearGameTable("poker_vip", s.x, s.z)) fail(`${C}: ${s.propId} is out of the high-limit poker table's reach`);
-  }
-  for (const s of VIP_SEATS.filter((c) => c.propId.startsWith("seat_bacc"))) {
-    checks++;
-    if (!nearGameTable("baccarat", s.x, s.z)) fail(`${C}: ${s.propId} is out of the baccarat table's reach`);
-  }
   const gameProp: Record<CasinoGameTable, string> = { poker: "poker_table", poker_vip: "vip_poker_table", baccarat: "baccarat_table", craps: "craps_table", derby: "derby_table", pusher: "coin_pusher", billiards: "billiards_table" };
   for (const game of Object.keys(CASINO_GAME_TABLES) as CasinoGameTable[]) {
     const a = APPROACH_POINTS[gameProp[game]];
     checks++;
-    if (!a || !nearGameTable(game, a.x, a.z)) fail(`${C}: the ${game} table's front ${a ? fmt(a) : "(none)"} is out of its reach`);
+    if (!a || !nearGameTable(game, a.x, a.z)) fail(`${game === "poker_vip" || game === "baccarat" ? "casino_vip" : C}: the ${game} table's front ${a ? fmt(a) : "(none)"} is out of its reach`);
   }
 
   // the standing tables: open ground all round their rims, and every open spot within reach (you
@@ -235,17 +229,8 @@ for (const mapId of MAP_IDS) {
     }
   }
 
-  // the penthouse: nobody walks in from the hall, Bruno's doors are open ground on the stage, and the
-  // elevator's spot is open (the generic checks above walk to the suite's seats and props from it)
-  checks++;
-  if (isReachable(C, home, VIP_ARRIVAL)) fail(`${C}: the penthouse ${fmt(VIP_ARRIVAL)} can be walked into from the hall`);
+  // Bruno's doors up to the penthouse: open ground on the stage
   standable(C, home, VIP_DOORS_FRONT, "Bruno's doors (the stage)");
-  checks++;
-  if (isBlocked(VIP_ARRIVAL.x, VIP_ARRIVAL.z, C)) fail(`${C}: the penthouse's elevator ${fmt(VIP_ARRIVAL)} is blocked`);
-  for (const [id, npc] of Object.entries(VIP_NPCS)) {
-    checks++;
-    if (!isBlocked(npc.x, npc.z, C, 0.05)) fail(`${C}: ${id} stands on open floor ${fmt(npc)}: give them a collider`);
-  }
 
   // the staff stand inside colliders, so nobody walks through them
   for (const [id, npc] of Object.entries(CASINO_NPCS)) {
@@ -304,9 +289,53 @@ for (const mapId of MAP_IDS) {
   for (const zone of CASINO_ZONES) {
     checks++;
     let found = false;
-    for (let x = zone.x0 + 0.5; x < zone.x1 && !found; x += 0.5) for (let z = zone.z0 + 0.5; z < zone.z1 && !found; z += 0.5) found = !isBlocked(x, z, C) && isReachable(C, startFor(C, home, { x, z }), { x, z });
+    for (let x = zone.x0 + 0.5; x < zone.x1 && !found; x += 0.5) for (let z = zone.z0 + 0.5; z < zone.z1 && !found; z += 0.5) found = !isBlocked(x, z, C) && isReachable(C, home, { x, z });
     if (!found) fail(`${C}: the ${zone.name} has no ground you can walk to`);
   }
+}
+
+// --- the Velvet Penthouse: a map of its own, reached only through Bruno's doors ---
+{
+  const V: MapId = "casino_vip";
+  checks++;
+  if (MAP_SPAWN_POINTS[V][0] !== VIP_ARRIVAL) fail(`${V}: its spawn is not the elevator ${fmt(VIP_ARRIVAL)}`);
+  checks++;
+  if (isBlocked(VIP_ARRIVAL.x, VIP_ARRIVAL.z, V)) fail(`${V}: the elevator ${fmt(VIP_ARRIVAL)} is blocked`);
+  for (const s of VIP_SEATS.filter((c) => c.propId.startsWith("seat_vpoker"))) {
+    checks++;
+    if (!nearGameTable("poker_vip", s.x, s.z)) fail(`${V}: ${s.propId} is out of the high-limit poker table's reach`);
+  }
+  for (const s of VIP_SEATS.filter((c) => c.propId.startsWith("seat_bacc"))) {
+    checks++;
+    if (!nearGameTable("baccarat", s.x, s.z)) fail(`${V}: ${s.propId} is out of the baccarat table's reach`);
+  }
+  for (const [id, npc] of Object.entries(VIP_NPCS)) {
+    checks++;
+    if (!isBlocked(npc.x, npc.z, V, 0.05)) fail(`${V}: ${id} stands on open floor ${fmt(npc)}: give them a collider`);
+  }
+  // nothing of the penthouse is on the hall's floor, and nothing of the hall on the penthouse's
+  checks++;
+  if (!isBlocked(VIP_ARRIVAL.x, VIP_ARRIVAL.z, "velvet_casino")) fail(`${V}: the elevator ${fmt(VIP_ARRIVAL)} is open floor in the hall too`);
+}
+
+// --- the lounge's Velvet Boutique, and the campfire's chalkboard ---
+{
+  const Lg: MapId = "cozy_lounge";
+  for (const [id, at] of [["Chloe", BOUTIQUE.chloe], ["the cheval mirror", BOUTIQUE.mirror]] as const) {
+    checks++;
+    if (!isBlocked(at.x, at.z, Lg, 0.05)) fail(`${Lg}: ${id} stands on open floor ${fmt(at)}: give them a collider`);
+    checks++;
+    if (Math.hypot(BOUTIQUE.approach.x - at.x, BOUTIQUE.approach.z - at.z) > BOUTIQUE_REACH + 1.0) fail(`${Lg}: the boutique's spot ${fmt(BOUTIQUE.approach)} is out of reach of ${id}`);
+  }
+  standable(Lg, MAP_SPAWN_POINTS[Lg][0], BOUTIQUE.approach, "the boutique's spot");
+  checks++;
+  if (!isBlocked(BARNABY_BOARD.x, BARNABY_BOARD.z, "campfire_night", 0.05)) fail(`campfire_night: Barnaby's chalkboard stands on open floor ${fmt(BARNABY_BOARD)}: give it a collider`);
+}
+
+// --- every built world has something in it ---
+for (const w of Object.values(WORLDS).filter((w) => w.built)) {
+  checks++;
+  if (MAP_CHAIRS[w.mapId].length + MAP_TOGGLEABLES[w.mapId].length === 0) fail(`${w.mapId}: a built world with no seats and no props`);
 }
 
 if (failures.length === 0) {

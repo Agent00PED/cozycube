@@ -1,3 +1,4 @@
+import { WORLD_CROSSFADE_S } from "./sound";
 import { getSoundSettings } from "./soundSettings";
 
 // The Velvet Casino's soundscape: a small late-night jazz combo, synthesized in the browser like the
@@ -26,7 +27,8 @@ import { getSoundSettings } from "./soundSettings";
 // Jazz fader. The notes are scheduled a little ahead on the audio clock (the usual look-ahead
 // scheduler), so a busy frame never makes the band drag.
 
-const FADE_S = 1.8;
+// a trip hands the world's sound over in the travel curtain's half second (audio/sound.ts)
+const FADE_S = WORLD_CROSSFADE_S;
 const BPM = 84;
 const BEAT = 60 / BPM;
 /** Where a swung off-beat falls, in beats after its beat. */

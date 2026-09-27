@@ -10,7 +10,19 @@ const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "ut
 const ASSET_VERSION = `${pkg.version}-${Date.now().toString(36)}`;
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    // the build's stamp, for the server: it tells every joining client which build it serves, and a
+    // client on an older one reloads (server/src/build.ts)
+    {
+      name: "build-stamp",
+      apply: "build",
+      generateBundle() {
+        this.emitFile({ type: "asset", fileName: "build.json", source: JSON.stringify({ build: ASSET_VERSION }) });
+      },
+    },
+  ],
   define: {
     __ASSET_VERSION__: JSON.stringify(ASSET_VERSION),
   },

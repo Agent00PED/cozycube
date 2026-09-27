@@ -1,6 +1,6 @@
 import { WORLDS, WORLD_IDS } from "@shared/worlds";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, type MapId, type TimeOfDay } from "@shared/types";
+import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, isCasinoMap, type MapId, type TimeOfDay } from "@shared/types";
 import { netWorth } from "@shared/casino";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 import { useAnglerProfile } from "./anglerStore";
@@ -10,10 +10,12 @@ import { carrierCapacity } from "@shared/chop";
 import { setCameraMode, useCameraMode } from "../../scene/cameraFocus";
 import { VelvetChipIcon } from "./VelvetChipIcon";
 
-/** Each map's icon, name and tagline, from the world table (shared/worlds). */
-export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: string }> = Object.fromEntries(
-  WORLD_IDS.map((id) => [WORLDS[id].mapId, { icon: WORLDS[id].icon, name: WORLDS[id].name, tagline: WORLDS[id].tagline }])
-) as Record<MapId, { icon: string; name: string; tagline: string }>;
+/** Each map's icon, name and tagline, from the world table (shared/worlds), and the penthouse's
+ *  (it is on no fast-travel card: Bruno's doors are the way up). */
+export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: string }> = {
+  ...(Object.fromEntries(WORLD_IDS.map((id) => [WORLDS[id].mapId, { icon: WORLDS[id].icon, name: WORLDS[id].name, tagline: WORLDS[id].tagline }])) as Record<MapId, { icon: string; name: string; tagline: string }>),
+  casino_vip: { icon: "🥂", name: "Velvet Penthouse", tagline: "High-limit poker, baccarat and the Golden Vault" },
+};
 
 interface HeaderProps {
   currentMap: MapId;
@@ -39,6 +41,9 @@ interface HeaderProps {
   fishing: string;
   /** The session bag (the pantry: foraged mushrooms and berries). */
   bag: string;
+  /** The camp's market this hour (the creel's worth follows it). */
+  market: string;
+  onOpenFieldGuide: () => void;
 }
 
 const TIME_LABELS: Record<TimeOfDay, string> = { sunrise: "🌅 Sunrise", day: "☀️ Day", sunset: "🌇 Sunset", night: "🌙 Night" };
@@ -81,9 +86,10 @@ export function Header(p: HeaderProps) {
   const toggle = (menu: "time" | "status" | "more" | "creel") => {
     setOpen((o) => (o === menu ? null : menu));
   };
-  // the campfire is always a starlit night: its hour does not follow the room's clock
-  const starlit = p.currentMap === "campfire_night";
-  const time = starlit ? { icon: "🌙", name: "Starlight" } : timeLabel(p.timeOfDay);
+  // the campfire is always a starlit night and the casino never sees the sun: their hour does not
+  // follow the lounge's clock
+  const starlit = p.currentMap === "campfire_night" || isCasinoMap(p.currentMap);
+  const time = starlit ? { icon: "🌙", name: p.currentMap === "campfire_night" ? "Starlight" : "Late night" } : timeLabel(p.timeOfDay);
   const st = isActivityStatus(p.status) ? ACTIVITY_STATUSES[p.status] : null;
   const map = MAP_LABELS[p.currentMap];
   // the camera: locked on you (follow), or free to pan with a right- or middle-drag
@@ -96,7 +102,8 @@ export function Header(p: HeaderProps) {
       onClick: () => setCameraMode(camera === "follow" ? "free_pan" : "follow"),
     },
     { icon: "👗", label: "Wardrobe", onClick: p.onOpenWardrobe },
-    { icon: "🏆", label: "High Rollers", onClick: p.onOpenLeaderboard },
+    // the High Rollers board is the casino's: shown on its two floors only
+    ...(isCasinoMap(p.currentMap) ? [{ icon: "🏆", label: "High Rollers", onClick: p.onOpenLeaderboard }] : []),
     { icon: "⚙️", label: "Settings", onClick: p.onOpenSettings },
     { icon: "💬", label: "Social", title: "Emotes, chat and who's here", onClick: p.onOpenSocial, active: p.socialOpen },
   ];
@@ -120,7 +127,7 @@ export function Header(p: HeaderProps) {
 
       {/* ---- centre: the hour (a pill from 640px; on phones it is in the ☰ sheet) ---- */}
       <div className="pointer-events-auto relative hidden shrink-0 sm:block">
-        <button type="button" onClick={() => toggle("time")} className={`${ICON_PILL} gap-2 xl:w-auto xl:px-3.5`} title={starlit ? "Always a starlit night by the campfire" : `${time.name}${p.autoCycle ? " · Auto" : ""}: day and night`} aria-label="Day and night" aria-expanded={open === "time"} aria-haspopup="menu">
+        <button type="button" onClick={() => toggle("time")} className={`${ICON_PILL} gap-2 xl:w-auto xl:px-3.5`} title={starlit ? (p.currentMap === "campfire_night" ? "Always a starlit night by the campfire" : "The casino never sees the sun") : `${time.name}${p.autoCycle ? " · Auto" : ""}: day and night`} aria-label="Day and night" aria-expanded={open === "time"} aria-haspopup="menu">
           <span className={ICON}>{time.icon}</span>
           <span className="hidden xl:inline">{p.autoCycle && !starlit ? `${time.name} · Auto` : time.name}</span>
           <span className="hidden text-xs opacity-60 xl:inline">▾</span>
@@ -136,7 +143,7 @@ export function Header(p: HeaderProps) {
       <div className="pointer-events-auto ml-auto flex shrink-0 flex-nowrap items-center gap-2">
         <CoinWallet coins={p.coins} chips={p.chips} onClaim={p.onClaimAllowance} />
         {/* Velvet Chips: bright in the casino; elsewhere a dimmed reminder, only while you hold some */}
-        {(p.currentMap === "velvet_casino" || p.chips > 0) && <ChipPurse chips={p.chips} here={p.currentMap === "velvet_casino"} />}
+        {(isCasinoMap(p.currentMap) || p.chips > 0) && <ChipPurse chips={p.chips} here={isCasinoMap(p.currentMap)} />}
         {/* the wood carrier: only at the campfire; the pill opens it (WoodCarrierModal) */}
         {p.currentMap === "campfire_night" && (
           <button
@@ -164,7 +171,7 @@ export function Header(p: HeaderProps) {
           </button>
           {open === "creel" && (
             <Menu alignRight>
-              <CreelPopover profile={angler.profile} live={angler.live} />
+              <CreelPopover profile={angler.profile} live={angler.live} market={p.market} onOpenFieldGuide={() => (setOpen(null), p.onOpenFieldGuide())} />
             </Menu>
           )}
         </div>
@@ -232,8 +239,8 @@ function SheetSection({ title, children }: { title: string; children: ReactNode 
 
 /** The hours and the auto cycle, as a menu's rows or (in the phone sheet) as chips. */
 function TimeChoices({ p, close, chips = false }: { p: HeaderProps; close: () => void; chips?: boolean }) {
-  if (p.currentMap === "campfire_night") {
-    return <p className={`m-0 whitespace-nowrap px-3 py-2 text-sm font-semibold opacity-80 ${chips ? "" : "text-left"}`}>🌙 Always a starlit night by the campfire</p>;
+  if (p.currentMap === "campfire_night" || isCasinoMap(p.currentMap)) {
+    return <p className={`m-0 whitespace-nowrap px-3 py-2 text-sm font-semibold opacity-80 ${chips ? "" : "text-left"}`}>🌙 {p.currentMap === "campfire_night" ? "Always a starlit night by the campfire" : "The casino never sees the sun"}</p>;
   }
   return (
     <>

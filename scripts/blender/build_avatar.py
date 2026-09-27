@@ -87,7 +87,7 @@ thick shell standing a set distance off the body (BOTTOM_OFF < TOP_OFF < OUTER_O
 surfaces ever share a depth) with its inner skin buried in it and rounded lips at its hems. A
 sleeve or a trouser leg starts in a ball round its joint's pivot, which turns in place however the
 joint swings, so nothing opens at a joint; a trouser leg is AVATAR_HIP_OFFSET round, so seated the
-trousers rest on the cushion. The hats are the wardrobe's nine (`HATS`), each in its own colours.
+trousers rest on the cushion. The hats are the wardrobe's twenty (`HATS`), each in its own colours.
 
 Every hair style and hat is its own object under Head, every garment piece its own object on its
 part. After export the Blender viewport is left tidy: only the body in the default hair (`cap`) and
@@ -117,9 +117,9 @@ HAIR_STYLES = ("short", "bob", "curtain", "ponytail", "wavylong", "hero", "drill
 # Styles whose raised part (a tail, buns, a knot) is its own child node, Hair_<style>_Prop, which
 # the runtime hides under a hat that covers the crown (rig.ts HAIR_PROP_SUFFIX)
 HAIR_PROP_STYLES = ("ponytail", "topknot", "spacebuns")
-HAT_IDS = ("beret", "beanie", "flower", "headphones", "straw", "tophat", "bunny", "crown", "mochiears", "cozybeanie", "boonie", "bearcap", "headlamp")
-TOP_IDS = ("hoodie", "tee", "flannel", "hawaiian", "tuxedo", "robe", "yukata", "jumpsuit", "plaid", "puffer")
-BOTTOM_IDS = ("sweats", "overalls", "trousers", "shorts", "wide", "waders")
+HAT_IDS = ("beret", "beanie", "flower", "headphones", "straw", "tophat", "bunny", "crown", "mochiears", "cozybeanie", "boonie", "bearcap", "headlamp", "frogbeanie", "catbeanie", "painterberet", "buckethat", "deerstalker", "goldglasses", "pioneercap")
+TOP_IDS = ("hoodie", "tee", "flannel", "hawaiian", "tuxedo", "robe", "yukata", "jumpsuit", "plaid", "puffer", "sweater", "smoking", "lounge")
+BOTTOM_IDS = ("sweats", "overalls", "trousers", "shorts", "wide", "waders", "garden", "blueprint", "lounge")
 TOP_PARTS = (("", "Torso"), ("_SleeveL", "ArmL"), ("_SleeveR", "ArmR"))  # (name suffix, parent)
 BOTTOM_PARTS = (("", "Body"), ("_LegL", "LegL"), ("_LegR", "LegR"))
 NODE_NAMES = (
@@ -207,6 +207,17 @@ PALETTE = {
     "Mat_Boot": "#4A3A2E",  # muddy wader boots
     "Mat_Mud": "#6B5236",  # splashes of river mud on them
     "Mat_Fleece": "#F1ECDD",  # the puffer's stand-up fleece collar
+    # the Velvet Boutique's hats, and the Velvet Pioneer's cap
+    "Mat_Frog": "#7CC46A",
+    "Mat_FrogCuff": "#5E9E4E",
+    "Mat_CatKnit": "#4A4550",
+    "Mat_CatCuff": "#3A3540",
+    "Mat_PainterBeret": "#2B3A6B",
+    "Mat_Bucket": "#D9B45A",
+    "Mat_BucketStitch": "#A8843A",
+    "Mat_Tweed": "#8A6E4B",
+    "Mat_TweedDark": "#5E4A33",
+    "Mat_PioneerBeret": "#4A6F9C",
 }
 # (metallic, roughness) for the few materials that are not matte clay
 FINISH = {"Mat_Crown": (0.85, 0.35), "Mat_Gem": (0.0, 0.3), "Mat_Headphone": (0.2, 0.45), "Mat_Steel": (0.6, 0.4)}
@@ -1355,6 +1366,130 @@ def bottom_wide(bm, part, side, hip_y, leg_r, pant_r):
     waist(bm)
 
 
+def top_sweater(bm, part, side):
+    # an oversized cable-knit sweater: loose all over, a rolled crew neck, a ribbed hem and cuffs,
+    # and plaited cables twisting down the front and the back
+    if part:
+        sleeve(bm, side, LONG_SLEEVE, loose=SLEEVE_LOOSE + 0.01, flare=0.004, cuff=0)
+        shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+        r = arm_radius(LONG_SLEEVE - 0.03) + SLEEVE_LOOSE + 0.014
+        band(bm, shoulder - UP * (LONG_SLEEVE - 0.03), r, r, 0.005, 0.012, segs=28, sides=6)  # the ribbed cuff's second rib
+        return
+    top_body(bm, off=TOP_OFF + 0.01)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.024, 0.026, 0.028)  # the rolled collar
+    waist_band(bm, SEAM_Z + 0.022, TOP_OFF + 0.006, 0.01, 0.02)  # the ribbed hem
+    zs = [SEAM_Z + 0.045 + 0.02 * i for i in range(16) if SEAM_Z + 0.045 + 0.02 * i < 0.55]
+    for base in (front(), math.pi / 2):
+        for k in (-1, 0, 1):
+            a0 = base + k * 0.46
+            for ph in (0.0, math.pi):
+                strip(bm, [trunk_point(v_at_z(z), a0 + 0.045 * math.sin(z * 60 + ph), TOP_OFF + 0.013) for z in zs], 0.0075)
+
+
+def top_smoking(bm, part, side):
+    # a vintage smoking jacket in velvet: a quilted satin shawl collar and turned-back cuffs in the
+    # accent colour, a white shirt and a cravat in the V, a sash tied at the hip with gold tassels,
+    # and a pocket square
+    if part:
+        return sleeve(bm, side, LONG_SLEEVE, loose=SLEEVE_LOOSE + 0.004, cuff=1)
+    top_body(bm, hem_z=0.19, off=TOP_OFF + 0.004)
+    deco(bm, v_at_z(0.52), front(), TOP_OFF + 0.002, Vector((0.045, 0.008, 0.07)), material=2)  # the shirt front
+    deco(bm, v_at_z(0.565), front(), TOP_OFF + 0.012, Vector((0.022, 0.012, 0.03)), material=1)  # the cravat
+    for side_ in (-1, 1):
+        # the shawl collar: a wide satin roll from behind the neck down to the sash, each side
+        pts = [trunk_point(v_at_z(z), front(side_ * a), TOP_OFF + 0.016) for z, a in ((0.6, 0.66), (0.555, 0.44), (0.49, 0.25), (0.41, 0.12), (0.32, 0.05))]
+        strip(bm, pts, 0.019, material=1)
+        # its quilting: little stitched diamonds along it
+        for z, a in ((0.53, 0.35), (0.45, 0.19)):
+            deco(bm, v_at_z(z), front(side_ * a), TOP_OFF + 0.034, Vector((0.008, 0.004, 0.008)), material=1, roll=0.78, cuts=3)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.018, 0.02, 0.024, material=1)
+    waist_band(bm, 0.3, TOP_OFF + 0.012, 0.012, 0.018, material=1)  # the sash
+    knot = trunk_point(v_at_z(0.3), front(0.55), TOP_OFF + 0.03)
+    add_shaped(bm, 6, blob(knot, AXES, Vector((0.022, 0.018, 0.02))), material=1)
+    for dx in (-0.012, 0.014):
+        end = knot + Vector((dx * 1.6, -0.006, -0.085))
+        strip(bm, [knot + Vector((dx, 0, -0.01)), end], 0.007, material=1)
+        add_shaped(bm, 4, blob(end + Vector((0, 0, -0.012)), AXES, Vector((0.011, 0.011, 0.018))), material=3)  # a gold tassel
+    deco(bm, v_at_z(0.47), front(0.55), TOP_OFF + 0.012, Vector((0.022, 0.008, 0.016)), material=2)  # the pocket square
+
+
+def top_lounge(bm, part, side):
+    # plaid loungewear: a soft button-up pajama top with a notched collar and contrast piping in the
+    # accent colour, a piped chest pocket, pearl buttons, and plaid bars round and down it
+    if part:
+        sleeve(bm, side, LONG_SLEEVE, loose=SLEEVE_LOOSE + 0.006, cuff=2)
+        shoulder = Vector((side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+        for t in (0.07, 0.14):
+            r = arm_radius(t) + SLEEVE_LOOSE + 0.008
+            band(bm, shoulder - UP * t, r, r, 0.003, 0.009, segs=28, sides=6, material=1)
+        return
+    top_body(bm, off=TOP_OFF + 0.004)
+    neck_band(bm, NECK_FRAC, TOP_OFF + 0.01, 0.014, 0.016, material=2)
+    for side_ in (-1, 1):  # the notched collar's points
+        deco(bm, v_at_z(0.585), front(side_ * 0.32), TOP_OFF + 0.014, Vector((0.036, 0.008, 0.03)), material=2, roll=side_ * 0.45)
+    for z in (0.28, 0.39, 0.5):  # the plaid: bars round...
+        waist_band(bm, z, TOP_OFF + 0.005, 0.004, 0.014, material=1)
+    for k in range(8):  # ...and down
+        a = front() + 2 * math.pi * (k + 0.5) / 8
+        strip(bm, [trunk_point(v_at_z(z), a, TOP_OFF + 0.006) for z in (0.23, 0.33, 0.43, 0.53)], 0.01, material=1)
+    strip(bm, [trunk_point(v_at_z(z), front(0.03), TOP_OFF + 0.012) for z in (0.57, 0.45, 0.33, 0.23)], 0.005, material=2)  # the placket's piping
+    for z in (0.5, 0.41, 0.32):
+        deco(bm, v_at_z(z), front(-0.03), TOP_OFF + 0.014, Vector((0.009, 0.005, 0.009)), material=3, cuts=4)
+    deco(bm, v_at_z(0.47), front(0.5), TOP_OFF + 0.012, Vector((0.034, 0.008, 0.034)), material=0)  # the pocket
+    strip(bm, [trunk_point(v_at_z(0.502), front(a), TOP_OFF + 0.02) for a in (0.4, 0.5, 0.6)], 0.004, material=2)  # its piped edge
+
+
+def bottom_garden(bm, part, side, hip_y, leg_r, pant_r):
+    # denim garden overalls: the bib and straps, a big patch pocket on the bib with a sunflower
+    # stitched on it, a trowel's wooden handle out of a hip pocket, and deep rolled cuffs
+    if part:
+        return pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r - 0.01 * smoothstep(0.0, LONG_LEG, t), cuff=0, cuff_size=(0.014, 0.017))
+    bottom_overalls(bm, part, side, hip_y, leg_r, pant_r)
+    deco(bm, v_at_z(OVERALLS_BIB_Z - 0.065), front(), OVERALLS_OFF + 0.008, Vector((0.058, 0.01, 0.05)), n=3.0)  # the patch pocket
+    flower = trunk_point(v_at_z(OVERALLS_BIB_Z - 0.065), front(), OVERALLS_OFF + 0.022)
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        add_shaped(bm, 3, blob(flower + Vector((math.cos(a) * 0.019, 0, math.sin(a) * 0.019)), AXES, Vector((0.011, 0.005, 0.011))), material=2)
+    add_shaped(bm, 4, blob(flower + Vector((0, -0.004, 0)), AXES, Vector((0.012, 0.006, 0.012))), material=3)
+    hip = trunk_point(v_at_z(0.29), front(-1.05), OVERALLS_OFF + 0.012)
+    strip(bm, [hip, hip + Vector((-0.012, 0.004, 0.065))], 0.009, material=3)  # the trowel's handle
+
+
+def bottom_blueprint(bm, part, side, hip_y, leg_r, pant_r):
+    # the Velvet Pioneer's Blueprint Overalls: washed denim with pale stitched seams, and a brass
+    # folding ruler standing up out of the bib pocket beside a carpenter's pencil
+    if part:
+        pant_leg(bm, side, hip_y, leg_r, LONG_LEG, lambda t: pant_r - 0.012 * smoothstep(0.0, LONG_LEG, t), cuff=2, cuff_size=(0.0085, 0.011))
+        hip = Vector((side * LEG_X, 0, hip_y))
+        r = pant_r - 0.004
+        strip(bm, [hip + Vector((side * (r + 0.002), 0, -t)) for t in (0.03, 0.08, 0.13)], 0.0025, material=2)  # the outside seam
+        return
+    bottom_overalls(bm, part, side, hip_y, leg_r, pant_r)
+    deco(bm, v_at_z(OVERALLS_BIB_Z - 0.07), front(0.12), OVERALLS_OFF + 0.008, Vector((0.05, 0.01, 0.042)), n=3.0)  # the bib pocket
+    strip(bm, [trunk_point(v_at_z(OVERALLS_BIB_Z - 0.03), front(a), OVERALLS_OFF + 0.018) for a in (-0.06, 0.12, 0.3)], 0.003, material=2)  # its stitched edge
+    ruler = trunk_point(v_at_z(OVERALLS_BIB_Z - 0.045), front(0.22), OVERALLS_OFF + 0.02)
+    add_shaped(bm, 3, blob(ruler + Vector((0, 0, 0.018)), AXES, Vector((0.01, 0.004, 0.05)), n=6.0), material=1)
+    for k in range(4):  # its brass hinges
+        add_shaped(bm, 2, blob(ruler + Vector((0, -0.004, -0.02 + 0.018 * k)), AXES, Vector((0.011, 0.003, 0.002)), n=4.0), material=1)
+    pencil = trunk_point(v_at_z(OVERALLS_BIB_Z - 0.045), front(0.02), OVERALLS_OFF + 0.02)
+    strip(bm, [pencil, pencil + Vector((0.004, 0, 0.065))], 0.0055, material=3)
+    for side_ in (-1, 1):  # pale seams down each side of the bib
+        strip(bm, [trunk_point(v_at_z(z), front(side_ * 0.4), OVERALLS_OFF + 0.004) for z in (OVERALLS_BIB_Z - 0.01, 0.4, 0.33)], 0.0025, material=2)
+
+
+def bottom_lounge(bm, part, side, hip_y, leg_r, pant_r):
+    # plaid pajama bottoms: loose legs with plaid bars round them (the top's plaid)
+    if part:
+        r_out = lambda t: pant_r + 0.006 + 0.01 * (t / LONG_LEG)
+        pant_leg(bm, side, hip_y, leg_r, LONG_LEG, r_out)
+        hip = Vector((side * LEG_X, 0, hip_y))
+        for t in (0.055, 0.105, 0.15):
+            r = r_out(t) + 0.002
+            band(bm, hip - UP * t, r, r, 0.003, 0.008, segs=28, sides=6, material=1)
+        return
+    waist(bm)
+
+
 # each top and bottom: its materials, in material-index order, and its builder
 TOPS = {
     "hoodie": (("Mat_Shirt", "Mat_Trim"), top_hoodie),
@@ -1367,6 +1502,9 @@ TOPS = {
     "jumpsuit": (("Mat_Shirt", "Mat_Accent"), top_jumpsuit),
     "plaid": (("Mat_Shirt", "Mat_Plaid", "Mat_Accent", "Mat_Button", "Mat_Steel"), top_plaid),
     "puffer": (("Mat_Shirt", "Mat_Puffer", "Mat_Plaid", "Mat_Fleece"), top_puffer),
+    "sweater": (("Mat_Shirt",), top_sweater),
+    "smoking": (("Mat_Shirt", "Mat_Accent", "Mat_Trim", "Mat_Button"), top_smoking),
+    "lounge": (("Mat_Shirt", "Mat_Plaid", "Mat_Accent", "Mat_Trim"), top_lounge),
 }
 BOTTOMS = {
     "sweats": (("Mat_Pants",), bottom_sweats),
@@ -1375,6 +1513,9 @@ BOTTOMS = {
     "shorts": (("Mat_Pants",), bottom_shorts),
     "wide": (("Mat_Pants",), bottom_wide),
     "waders": (("Mat_Pants", "Mat_Button", "Mat_Boot", "Mat_Steel", "Mat_BobberRed", "Mat_Mud"), bottom_waders),
+    "garden": (("Mat_Pants", "Mat_Button", "Mat_PetalCentre", "Mat_Cinnamon"), bottom_garden),
+    "blueprint": (("Mat_Pants", "Mat_Button", "Mat_Trim", "Mat_Stick"), bottom_blueprint),
+    "lounge": (("Mat_Pants", "Mat_Plaid", "Mat_Trim"), bottom_lounge),
 }
 
 
@@ -2366,6 +2507,160 @@ def hat_headlamp(bm):
     add_shaped(bm, 8, blob(lamp + Vector((0, -0.03, 0.0)), AXES, Vector((0.034, 0.01, 0.028))), material=2)
 
 
+def paint(bm, material):
+    """Every face in `bm` in one material slot."""
+    for f in bm.faces:
+        f.material_index = material
+
+
+def knit_dome(bm, height=0.27, slope=0.18):
+    """A knit beanie's dome over the hair, down to the brow in front and lower at the back."""
+
+    def shape(d):
+        q = superellipsoid(d, 2.2)
+        w = Vector((0, 0.015, 0.915)) + Vector((q.x * 0.3, q.y * 0.31, q.z * height))
+        cut = 0.95 - slope * w.y
+        w.z = cut + soft_floor(w.z - cut, 0.01)
+        return w
+
+    add_shaped(bm, 18, shape)
+
+
+def hat_frogbeanie(bm):
+    # a frog beanie: a green knit dome and folded cuff, two big round eyes on top (a green lid, a
+    # white eye, a dark pupil), and a little smile stitched on the cuff
+    slope = 0.18
+    knit_dome(bm, 0.27, slope)
+    band(bm, Vector((0, 0.015, 0.985)), 0.294, 0.304, 0.014, 0.034, roundness=3.0, tilt=-math.atan(slope), material=1)
+    for side in (-1, 1):
+        eye = Vector((side * 0.12, -0.03, 1.15))
+        add_shaped(bm, 10, blob(eye, AXES, Vector((0.075, 0.07, 0.068))))
+        add_shaped(bm, 8, blob(eye + Vector((0, -0.045, 0.008)), AXES, Vector((0.052, 0.032, 0.05))), material=2)
+        add_shaped(bm, 6, blob(eye + Vector((0, -0.072, 0.01)), AXES, Vector((0.026, 0.012, 0.03))), material=3)
+    smile = [Vector((0.075 * x, -0.33, 1.032 - 0.016 * (1 - x * x))) for x in (-1.0, -0.5, 0.0, 0.5, 1.0)]
+    tube(bm, smile, lambda s: 0.005, sides=6, cap_rings=2, material=4)
+
+
+def hat_catbeanie(bm):
+    # a cat beanie: a charcoal knit dome and cuff with two pointed cat ears, pink inside
+    slope = 0.18
+    knit_dome(bm, 0.26, slope)
+    band(bm, Vector((0, 0.015, 0.985)), 0.294, 0.304, 0.014, 0.034, roundness=3.0, tilt=-math.atan(slope), material=1)
+    for side in (-1, 1):
+        base = Vector((side * 0.17, 0.02, 1.09))
+        across, through, along = aim_frame(Vector((side * 0.45, 0.05, 1.0)))
+        centre = base + along * 0.065
+        add_shaped(bm, 10, blob(centre, (across, through, along), Vector((0.078, 0.036, 0.095)), n=1.5))
+        front = through if through.y < 0 else -through
+        add_shaped(bm, 8, blob(centre + front * 0.027 - along * 0.008, (across, through, along), Vector((0.044, 0.012, 0.06)), n=1.5), material=2)
+
+
+def hat_painterberet(bm):
+    # a painter's beret: big, soft and slumped well over to one side on its band, a stalk on top,
+    # and dabs of red, yellow and mint paint on it
+    band(bm, Vector((0, 0.01, 1.03)), 0.182, 0.19, 0.016, 0.018, material=1)
+    top = bmesh.new()
+    add_shaped(top, 14, blob(Vector((0.06, 0.02, 1.09)), AXES, Vector((0.29, 0.3, 0.075)), n=2.2))
+    tube(top, line(Vector((0.06, 0.02, 1.15)), Vector((0.06, 0.02, 1.2)), 4), lambda s: 0.013, sides=10, cap_rings=3)
+    for a, r, m in ((0.4, 0.18, 2), (2.1, 0.2, 3), (3.9, 0.15, 4), (5.2, 0.22, 2)):
+        rim = math.sqrt(max(0.0, 1 - (r / 0.29) ** 2))
+        at = Vector((0.06 + r * math.cos(a), 0.02 + r * math.sin(a), 1.09 + 0.075 * rim + 0.002))
+        add_shaped(top, 4, blob(at, AXES, Vector((0.027, 0.027, 0.008))), material=m)
+    tilt_about(top, Vector((0.06, 0.02, 1.09)), rx=-0.14, ry=0.38)
+    merge_into(bm, top)
+
+
+def hat_buckethat(bm):
+    # a fisherman's bucket hat: a round crown with a flat top, a short brim sloping down all round,
+    # and rows of stitching round the brim and the band
+    def crown(d):
+        q = superellipsoid(d, 3.0)
+        w = Vector((0, 0.015, 0.99)) + Vector((q.x * 0.285, q.y * 0.295, q.z * 0.16))
+        w.z = 0.975 + soft_floor(w.z - 0.975, 0.008)
+        return w
+
+    add_shaped(bm, 16, crown)
+    slope = lambda r: -0.11 * max(0.0, (r - 0.27) / 0.12)
+    disc(bm, Vector((0, 0.015, 0.975)), 0.2, 0.39, 0.016, lambda r, a: slope(r))
+    band(bm, Vector((0, 0.015, 1.0)), 0.29, 0.3, 0.012, 0.024, material=1)
+    for r in (0.31, 0.35):
+        band(bm, Vector((0, 0.015, 0.975 + slope(r) + 0.009)), r, r + 0.01, 0.0025, 0.0025, segs=72, sides=6, material=1)
+    tilt_about(bm, Vector((0, 0.0, 0.975)), rx=-0.12)
+
+
+def hat_deerstalker(bm):
+    # a tweed deerstalker: a snug crown, a peak at the front and another at the back, the ear flaps
+    # tied up over the crown with a little bow, and a button on top
+    slope = 0.1
+
+    def shape(d):
+        q = superellipsoid(d, 2.3)
+        w = Vector((0, 0.015, 0.93)) + Vector((q.x * 0.3, q.y * 0.31, q.z * 0.23))
+        cut = 0.96 - slope * w.y
+        w.z = cut + soft_floor(w.z - cut, 0.01)
+        return w
+
+    add_shaped(bm, 18, shape)
+    for s in (-1, 1):  # -1: the front peak, 1: the back one, each drooping outward
+        peak = bmesh.new()
+        add_shaped(peak, 10, blob(Vector((0, s * 0.34 + 0.015, 0.975 - s * 0.012)), AXES, Vector((0.19, 0.1, 0.013)), n=2.4))
+        tilt_about(peak, Vector((0, s * 0.27 + 0.015, 0.975)), rx=-s * 0.3)
+        paint(peak, 1)
+        merge_into(bm, peak)
+    for side in (-1, 1):
+        add_shaped(bm, 8, blob(Vector((side * 0.29, 0.015, 1.03)), AXES, Vector((0.03, 0.13, 0.085)), n=2.6), material=1)  # an ear flap, folded up
+    bow = Vector((0, 0.02, 1.17))
+    for side in (-1, 1):
+        add_shaped(bm, 6, blob(bow + Vector((side * 0.036, 0, 0)), AXES, Vector((0.032, 0.016, 0.02))), material=1)
+        tube(bm, [Vector((side * 0.3, 0.015, 1.09)), Vector((side * 0.2, 0.02, 1.16)), bow + Vector((side * 0.02, 0, 0))], lambda t: 0.004, sides=6, cap_rings=2, material=1)
+    add_shaped(bm, 5, blob(bow, AXES, Vector((0.014, 0.014, 0.016))), material=1)
+
+
+def hat_goldglasses(bm):
+    # gold wire-frame glasses: two round rims before the eyes, a bridge arching over the nose, and
+    # the arms running back along the sides of the head to the ears
+    rims = []
+    for s in (-1, 1):
+        p, n = HEAD.surf(s * 0.34, EYE_PITCH)
+        c = p + n * 0.045
+        ring_torus(bm, c, n, 0.066, 0.0062, segs=40, sides=8)
+        rims.append((s, c, n))
+    (_, cl, _), (_, cr, _) = rims
+    mid = (cl + cr) / 2 + Vector((0, -0.012, 0.022))
+    tube(bm, [cl.lerp(cr, 0.19), mid, cr.lerp(cl, 0.19)], lambda t: 0.005, sides=6, cap_rings=2)
+    for s, c, n in rims:
+        out = Vector((s, 0, 0))
+        e = (out - n * out.dot(n)).normalized()
+        start = c + e * 0.066
+        p1, n1 = HEAD.surf(s * 0.95, EYE_PITCH + 0.05)
+        p2, n2 = HEAD.surf(s * (EAR_YAW - 0.12), EYE_PITCH + 0.12)
+        tube(bm, [start, p1 + n1 * 0.042, p2 + n2 * 0.03], lambda t: 0.0048, sides=6, cap_rings=2)
+
+
+def hat_pioneercap(bm):
+    # the Pioneer Cap: an artisan's beret in washed denim, neat on its band and tipped back to the
+    # right, with a miniature brass gear pinned on the band at the left temple
+    band(bm, Vector((0, 0.01, 1.03)), 0.182, 0.19, 0.016, 0.018, material=1)
+    top = bmesh.new()
+    add_shaped(top, 14, blob(Vector((-0.02, 0.02, 1.085)), AXES, Vector((0.26, 0.27, 0.072)), n=2.2))
+    tube(top, line(Vector((-0.02, 0.02, 1.145)), Vector((-0.02, 0.02, 1.185)), 4), lambda s: 0.012, sides=10, cap_rings=3)
+    tilt_about(top, Vector((-0.02, 0.02, 1.085)), rx=-0.1, ry=-0.28)
+    merge_into(bm, top)
+    gear = bmesh.new()
+    at = Vector((0.172, -0.094, 1.035))
+    axis = Vector((0.88, -0.47, 0.06)).normalized()
+    at = at + axis * 0.02
+    ring_torus(gear, at, axis, 0.026, 0.008, segs=24, sides=6)
+    across, through, _ = aim_frame(axis)
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        radial = across * math.cos(a) + through * math.sin(a)
+        add_shaped(gear, 2, blob(at + radial * 0.036, (radial, radial.cross(axis), axis), Vector((0.008, 0.007, 0.006)), n=4.0))
+    add_shaped(gear, 3, blob(at, AXES, Vector((0.01, 0.01, 0.01))))
+    paint(gear, 2)
+    merge_into(bm, gear)
+
+
 # each hat: its builder and its materials, in material-index order
 HATS = {
     "beret": (hat_beret, ("Mat_Beret", "Mat_BeretBand")),
@@ -2381,6 +2676,13 @@ HATS = {
     "boonie": (hat_boonie, ("Mat_Khaki", "Mat_KhakiBand", "Mat_BobberRed", "Mat_BobberWhite")),
     "bearcap": (hat_bearcap, ("Mat_BearFleece", "Mat_BearInner")),
     "headlamp": (hat_headlamp, ("Mat_Elastic", "Mat_LampBody", "Mat_LampGlow")),
+    "frogbeanie": (hat_frogbeanie, ("Mat_Frog", "Mat_FrogCuff", "Mat_BobberWhite", "Mat_Eye", "Mat_Mouth")),
+    "catbeanie": (hat_catbeanie, ("Mat_CatKnit", "Mat_CatCuff", "Mat_BunnyInner")),
+    "painterberet": (hat_painterberet, ("Mat_PainterBeret", "Mat_BeretBand", "Mat_BobberRed", "Mat_PetalCentre", "Mat_Can")),
+    "buckethat": (hat_buckethat, ("Mat_Bucket", "Mat_BucketStitch")),
+    "deerstalker": (hat_deerstalker, ("Mat_Tweed", "Mat_TweedDark")),
+    "goldglasses": (hat_goldglasses, ("Mat_Crown",)),
+    "pioneercap": (hat_pioneercap, ("Mat_PioneerBeret", "Mat_BeretBand", "Mat_Button")),
 }
 
 

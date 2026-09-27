@@ -1,3 +1,4 @@
+import { MAP_LABELS } from "./Header";
 import { useEffect, useState } from "react";
 import { ACTIVITY_STATUSES, CAMPFIRE_QUICK_CHATS, CHAT_MAX_CHARS, DAILY_REWARD, DAILY_TASKS, QUICK_CHATS, isActivityStatus, parseDaily, parseStats, type Gesture, type MapId, type PlayerState } from "@shared/types";
 import { CASINO_EMOTES, capsuleUnlock } from "@shared/casino";
@@ -154,7 +155,7 @@ export function SideDrawer(props: SideDrawerProps) {
         {/* who's here */}
         <section className="shrink-0">
           <h3 className="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-widest opacity-60">
-            <span>Here now · {list.length}</span>
+            <span>In the server · {list.length}</span>
             <span className={pingTone(latency)}>{latency > 0 ? `${latency} ms` : ""}</span>
           </h3>
           <ul className="flex flex-col gap-1">
@@ -168,6 +169,10 @@ export function SideDrawer(props: SideDrawerProps) {
                     <span className="flex-1 truncate font-bold">
                       {p.username}
                       {isMe && <span className="font-normal opacity-60"> (you)</span>}
+                    </span>
+                    {/* the world they are in (everyone walks the server's worlds on their own) */}
+                    <span className={`w-5 text-center ${p.map === props.mapId ? "" : "opacity-60"}`} title={MAP_LABELS[p.map]?.name}>
+                      {MAP_LABELS[p.map]?.icon}
                     </span>
                     <span className="w-5 text-center">{speaking ? "🔊" : statusIcon(p)}</span>
                     <span className={`w-14 text-right text-xs tabular-nums ${pingTone(p.ping)}`}>{p.ping > 0 ? `${p.ping} ms` : "—"}</span>

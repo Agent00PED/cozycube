@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { emptyFishingProfile, sanitizeFishingProfile, type FishingProfile } from "../../../shared/fishing";
 import { emptyCasinoProfile, netWorth, sanitizeCasinoProfile, type CasinoProfile } from "../../../shared/casino";
-import { CAMPFIRE_DAILY_COINS, DEFAULT_STATS, STARTER_UNLOCKS, STARTING_COINS, type CampfireCoinKind, type DailyChecklist, type PlayerStats } from "../../../shared/types";
+import { CAMPFIRE_DAILY_COINS, DEFAULT_STATS, STARTER_UNLOCKS, STARTING_COINS, isBlacklisted, type CampfireCoinKind, type DailyChecklist, type PlayerStats } from "../../../shared/types";
 
 /** The campfire coins earned on `day`, by activity. */
 export type CampfireCoins = { day: string } & Record<CampfireCoinKind, number>;
@@ -13,6 +13,15 @@ export function emptyCampfireCoins(day: string): CampfireCoins {
 // is not (local dev, offline tests). Both speak the same interface, so the room never knows
 // which it is talking to. Writes are queued and debounced (a wallet that changes five times in
 // a second is written once), and flushed immediately for a player who leaves.
+//
+// The Phase 3 wipe: the game keeps its players in `players_v3`. The first server to start on this
+// build copies every account over from the old `players` table with a fresh start (50 coins, 0
+// chips, the starter wardrobe, an empty camp profile: the Wooden Pail, the Twine Wood Strap, the
+// Basic Bamboo Rod and Flint Axe, no bait, no gear), keeping each account's name, lifetime stats
+// and the day it was made (the Velvet Pioneer set's claim), and dropping the test accounts. The old
+// table is left exactly as it was: it is the backup, and a server still running the old build during
+// a rolling deploy writes only to it, never over the wiped accounts. `game_meta` notes when the wipe
+// ran (under "wipe_phase3"), so it runs once.
 
 export interface PlayerRecord {
   discordId: string;
@@ -35,6 +44,8 @@ export interface PlayerRecord {
   /** Velvet Chips (stats JSON "casino"); a record saved before the casino opened reads as 0. */
   casino: CasinoProfile;
   lastDailyClaim: Date | null;
+  /** When the account was made (the Velvet Pioneer set is for accounts from before the wipe). */
+  createdAt: Date | null;
 }
 
 export interface LeaderboardEntry {
@@ -55,14 +66,27 @@ export interface PlayerStore {
 }
 
 export function newPlayerRecord(discordId: string, username: string): PlayerRecord {
-  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: emptyCampfireCoins(""), fishing: emptyFishingProfile(), casino: emptyCasinoProfile(), lastDailyClaim: null };
+  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: emptyCampfireCoins(""), fishing: emptyFishingProfile(), casino: emptyCasinoProfile(), lastDailyClaim: null, createdAt: new Date() };
+}
+
+/** The table the game keeps its players in since the Phase 3 wipe (the old `players` is the backup). */
+const PLAYERS = "players_v3";
+const LEGACY_PLAYERS = "players";
+const WIPE_KEY = "wipe_phase3";
+/** The blacklist (shared/types isBlacklisted), as SQL over a username column. */
+const BLACKLIST_SQL = `(username ~* '^tester[0-9]{1,4}$' OR username ~* '^verifybot')`;
+
+/** When the Phase 3 wipe ran (epoch ms), 0 if it has not (or the store is not PostgreSQL). */
+let wipeAt = 0;
+export function getWipeAt(): number {
+  return wipeAt;
 }
 
 const SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS players (
+CREATE TABLE IF NOT EXISTS ${PLAYERS} (
   discord_id VARCHAR(64) PRIMARY KEY,
   username VARCHAR(100) NOT NULL,
-  coins INTEGER DEFAULT 150,
+  coins INTEGER DEFAULT ${STARTING_COINS},
   unlocked_items JSONB DEFAULT '["outfit_starter_hoodie", "outfit_starter_overalls", "hat_none"]'::jsonb,
   equipped_look JSONB DEFAULT '{"skinColor":"#fcd5ce","hairStyle":"short","hairColor":"#4a3525","outfit":"outfit_starter_hoodie","outfitColor":"#a8e6cf","hat":"none","shirtColor":"#c85a44","pantsColor":"#5a5a66"}'::jsonb,
   stats JSONB DEFAULT '{"roulette_wins":0,"blackjack_wins":0,"slots_spins":0,"fish_caught":0,"marshmallows_roasted":0,"boxing_knockouts":0,"gacha_pulls":0,"mochi_pets":0,"time_spent_mins":0}'::jsonb,
@@ -70,8 +94,59 @@ CREATE TABLE IF NOT EXISTS players (
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_players_coins ON players (coins DESC);
+CREATE INDEX IF NOT EXISTS idx_players_v3_coins ON ${PLAYERS} (coins DESC);
+CREATE TABLE IF NOT EXISTS game_meta (
+  key VARCHAR(64) PRIMARY KEY,
+  value JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
 `;
+
+/**
+ * The Phase 3 wipe, once (under an advisory lock, so two servers starting together cannot both run
+ * it): every account in the old table is carried into the new one with a fresh start, the test
+ * accounts left behind. Returns when it ran (epoch ms).
+ */
+async function wipeOnce(pool: Pool): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(7340033)");
+    const done = await client.query("SELECT value FROM game_meta WHERE key = $1", [WIPE_KEY]);
+    if (done.rows[0]) {
+      await client.query("COMMIT");
+      return Number(done.rows[0].value?.at) || 0;
+    }
+    const at = Date.now();
+    const legacy = await client.query("SELECT to_regclass($1) IS NOT NULL AS present", [`public.${LEGACY_PLAYERS}`]);
+    let carried = 0;
+    if (legacy.rows[0]?.present) {
+      // the wallet back to 50 coins and 0 chips, the wardrobe back to the starter pieces (nothing
+      // worn: the look is re-derived), and the camp and casino profiles gone (they come back empty:
+      // the Wooden Pail, the Twine Wood Strap, the Basic Bamboo Rod and Flint Axe, no wood, no fish)
+      const res = await client.query(
+        `INSERT INTO ${PLAYERS} (discord_id, username, coins, unlocked_items, equipped_look, stats, last_daily_claim, created_at, updated_at)
+         SELECT discord_id, username, $1, $2::jsonb, '{}'::jsonb,
+                COALESCE(stats, '{}'::jsonb) - 'fishing' - 'campfire_coins' - 'casino',
+                NULL, COALESCE(created_at, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP
+         FROM ${LEGACY_PLAYERS}
+         WHERE NOT ${BLACKLIST_SQL}
+         ON CONFLICT (discord_id) DO NOTHING`,
+        [STARTING_COINS, JSON.stringify(STARTER_UNLOCKS)]
+      );
+      carried = res.rowCount ?? 0;
+    }
+    await client.query("INSERT INTO game_meta (key, value) VALUES ($1, $2::jsonb)", [WIPE_KEY, JSON.stringify({ at, carried, backup: LEGACY_PLAYERS })]);
+    await client.query("COMMIT");
+    console.log(`[db] Phase 3 wipe: ${carried} accounts carried into ${PLAYERS} with a fresh start (the old ${LEGACY_PLAYERS} table is kept as the backup)`);
+    return at;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 function rowToRecord(row: any): PlayerRecord {
   const raw = row.stats && typeof row.stats === "object" ? { ...row.stats } : {};
@@ -104,6 +179,7 @@ function rowToRecord(row: any): PlayerRecord {
     fishing,
     casino,
     lastDailyClaim: row.last_daily_claim ? new Date(row.last_daily_claim) : null,
+    createdAt: row.created_at ? new Date(row.created_at) : null,
   };
 }
 
@@ -130,17 +206,21 @@ class PostgresStore implements PlayerStore {
   static async connect(url: string): Promise<PostgresStore> {
     const pool = createPool(url);
     await pool.query(SCHEMA_SQL);
+    wipeAt = await wipeOnce(pool);
+    // test and bot accounts are never kept (the room never saves one; this clears any that slipped in)
+    const gone = await pool.query(`DELETE FROM ${PLAYERS} WHERE ${BLACKLIST_SQL}`);
+    if (gone.rowCount) console.log(`[db] removed ${gone.rowCount} blacklisted test accounts`);
     return new PostgresStore(pool);
   }
 
   async load(discordId: string) {
-    const res = await this.pool.query("SELECT * FROM players WHERE discord_id = $1", [discordId]);
+    const res = await this.pool.query(`SELECT * FROM ${PLAYERS} WHERE discord_id = $1`, [discordId]);
     return res.rows[0] ? rowToRecord(res.rows[0]) : null;
   }
 
   async upsert(r: PlayerRecord) {
     await this.pool.query(
-      `INSERT INTO players (discord_id, username, coins, unlocked_items, equipped_look, stats, last_daily_claim, updated_at)
+      `INSERT INTO ${PLAYERS} (discord_id, username, coins, unlocked_items, equipped_look, stats, last_daily_claim, updated_at)
        VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, CURRENT_TIMESTAMP)
        ON CONFLICT (discord_id) DO UPDATE SET
          username = EXCLUDED.username,
@@ -160,7 +240,8 @@ class PostgresStore implements PlayerStore {
       `SELECT username, coins, chips, coins + chips AS worth FROM (
          SELECT username, coins, updated_at,
            CASE WHEN jsonb_typeof(stats->'casino'->'chips') = 'number' THEN floor((stats->'casino'->>'chips')::numeric)::int ELSE 0 END AS chips
-         FROM players
+         FROM ${PLAYERS}
+         WHERE NOT ${BLACKLIST_SQL}
        ) p
        ORDER BY worth DESC, updated_at ASC LIMIT $1`,
       [limit]
@@ -179,13 +260,15 @@ class MemoryStore implements PlayerStore {
   private rows = new Map<string, PlayerRecord>();
   async load(discordId: string) {
     const r = this.rows.get(discordId);
-    return r ? { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins }, casino: { ...r.casino } } : null;
+    return r ? { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins }, casino: { ...r.casino }, fishing: sanitizeFishingProfile(JSON.parse(JSON.stringify(r.fishing))) } : null;
   }
   async upsert(r: PlayerRecord) {
-    this.rows.set(r.discordId, { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins }, casino: { ...r.casino } });
+    if (isBlacklisted(r.username)) return;
+    this.rows.set(r.discordId, { ...r, createdAt: this.rows.get(r.discordId)?.createdAt ?? r.createdAt ?? new Date(), unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins }, casino: { ...r.casino } });
   }
   async topNetWorth(limit: number) {
     return [...this.rows.values()]
+      .filter((r) => !isBlacklisted(r.username))
       .map((r) => ({ username: r.username, coins: r.coins, chips: r.casino.chips, worth: netWorth(r.coins, r.casino.chips) }))
       .sort((a, b) => b.worth - a.worth)
       .slice(0, limit);
@@ -202,11 +285,13 @@ export async function initPlayerStore(): Promise<PlayerStore> {
   if (!url) {
     console.warn("[db] DATABASE_URL is not set: player progress is kept in memory for this process only. Attach a Railway PostgreSQL service to persist it.");
     store = new MemoryStore();
+    // (nothing to wipe in memory: the wipe is now, so a record seeded as older can claim the Pioneer set)
+    wipeAt = Date.now();
     return store;
   }
   try {
     store = await PostgresStore.connect(url);
-    console.log("[db] connected to PostgreSQL; players table ready");
+    console.log(`[db] connected to PostgreSQL; ${PLAYERS} table ready (wipe of ${new Date(wipeAt).toISOString()})`);
   } catch (err) {
     console.error("[db] PostgreSQL unavailable, falling back to the in-memory store:", err instanceof Error ? err.message : err);
     store = new MemoryStore();

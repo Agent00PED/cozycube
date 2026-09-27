@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { AXES, AXE_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier } from "@shared/chop";
-import { CRAFTS, RESIN_PRICE, craftPrice } from "@shared/crafting";
+import { AXES, AXE_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier, woodPrice } from "@shared/chop";
+import { CRAFTS, RESIN_PRICE, craftSalePrice } from "@shared/crafting";
+import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
+import { Trend } from "./BarnabyModal";
 import { GEAR, GEAR_IDS } from "@shared/gear";
 import { carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -11,6 +13,8 @@ import { Modal } from "./Modal";
 interface Props {
   profile: FishingProfile;
   coins: number;
+  /** The camp's market this hour (shared/market.ts MarketState as JSON). */
+  market: string;
   send: (packet: CampfirePacket) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onClose: () => void;
@@ -31,7 +35,7 @@ const TABS: [Tab, string][] = [
 ];
 const HELLO = "Howdy! Buster's the name, timber's the game. Got some wood for me? 🦫";
 
-export function LumberjackModal({ profile, coins, send, subscribeMessages, onClose }: Props) {
+export function LumberjackModal({ profile, coins, market, send, subscribeMessages, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("sell");
   const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
   useEffect(
@@ -45,8 +49,11 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
       }),
     [subscribeMessages]
   );
-  const woodWorth = WOOD_KINDS.reduce((sum, k) => sum + profile.wood[k] * WOOD[k].sell, 0) + profile.resin * RESIN_PRICE;
-  const craftWorth = profile.crafts.reduce((sum, c) => sum + craftPrice(c), 0);
+  // at the hour's prices, each sale knocking 2% off the next of its kind (as the server settles it)
+  const hour = parseMarket(market);
+  const woodRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => woodPrice(x, mult), hour).total;
+  const woodWorth = WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0) + profile.resin * RESIN_PRICE;
+  const craftWorth = priceRun(profile.crafts, (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total;
   const next = nextCarrierTier(profile.carrierTier);
   return (
     <Modal title="Buster's Firewood" icon="🪓" onClose={onClose} width={460}>
@@ -79,14 +86,14 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
                       {WOOD[k].name} <span className="font-normal opacity-70">×{have}</span>
                     </b>
                     <span className="text-[11px] opacity-75">
-                      {WOOD[k].sell} 🪙 each · or +{WOOD[k].fuel}% on the fire
+                      {woodRun(k, 1)} 🪙 this hour <Trend dir={marketDirection(woodGood(k), hour)} /> · or +{WOOD[k].fuel}% on the fire
                     </span>
                   </div>
                   <button type="button" className="clay-btn min-h-9 px-3 text-xs" disabled={have < 1} onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: 1 })}>
                     Sell 1
                   </button>
                   <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={have < 1} onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: "all" })}>
-                    All · {have * WOOD[k].sell} 🪙
+                    All · {woodRun(k, have)} 🪙
                   </button>
                 </div>
               );
@@ -116,7 +123,7 @@ export function LumberjackModal({ profile, coins, send, subscribeMessages, onClo
                         {item.m && <span className="ml-1 text-amber-200">Masterwork ✨</span>}
                       </b>
                       <button type="button" className="clay-btn min-h-8 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: i })}>
-                        {craftPrice(item)} 🪙
+                        {priceRun([item], (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total} 🪙
                       </button>
                     </div>
                   ))}

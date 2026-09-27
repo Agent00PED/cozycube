@@ -1,12 +1,14 @@
-import type { LeaderboardEntry, PlayerState } from "@shared/types";
+import { isBlacklisted, type LeaderboardEntry, type PlayerState } from "@shared/types";
 import { netWorth } from "@shared/casino";
 import { Modal } from "./Modal";
 
 /** The High Rollers board: persisted top fortunes (PostgreSQL), and who is in the room now. A
- *  fortune is net worth: coins and Velvet Chips together. */
-export function LeaderboardModal({ leaderboard, players, localName, onClose }: { leaderboard: LeaderboardEntry[]; players: Record<string, PlayerState>; localName: string; onClose: () => void }) {
+ *  fortune is net worth: coins and Velvet Chips together. Test and bot accounts are never on it
+ *  (the server leaves them out; this never shows one either). */
+export function LeaderboardModal({ leaderboard: all, players, localName, onClose }: { leaderboard: LeaderboardEntry[]; players: Record<string, PlayerState>; localName: string; onClose: () => void }) {
+  const leaderboard = all.filter((e) => !isBlacklisted(e.username));
   const here = Object.values(players)
-    .filter((p) => p.connected)
+    .filter((p) => p.connected && !isBlacklisted(p.username))
     .sort((a, b) => netWorth(b.coins, b.chips) - netWorth(a.coins, a.chips));
   const medal = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`);
   return (

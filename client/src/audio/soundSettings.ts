@@ -16,6 +16,8 @@ export interface SoundSettings {
   forest: number;
   /** The Velvet Casino's jazz combo (audio/casinoJazz.ts), 0..1. */
   jazz: number;
+  /** The Cozy Lounge's folk-jazz trio (audio/loungeFolk.ts), 0..1. */
+  lounge: number;
   /** The Velvet Casino's crowd: the murmur, the clink of glasses, chips clicking (audio/casinoCrowd.ts), 0..1. */
   crowd: number;
   /** The one-shot effects: chimes, splashes, chops. */
@@ -23,7 +25,7 @@ export interface SoundSettings {
 }
 
 const KEY = "cozy-sound-settings";
-const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, jazz: 0.5, crowd: 0.5, effects: true };
+const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, jazz: 0.5, lounge: 0.45, crowd: 0.5, effects: true };
 
 function load(): SoundSettings {
   try {
@@ -35,6 +37,7 @@ function load(): SoundSettings {
       river: level(raw?.river),
       forest: level(raw?.forest),
       jazz: typeof raw?.jazz === "number" ? Math.max(0, Math.min(1, raw.jazz)) : DEFAULTS.jazz,
+      lounge: typeof raw?.lounge === "number" ? Math.max(0, Math.min(1, raw.lounge)) : DEFAULTS.lounge,
       crowd: typeof raw?.crowd === "number" ? Math.max(0, Math.min(1, raw.crowd)) : DEFAULTS.crowd,
       effects: typeof raw?.effects === "boolean" ? raw.effects : DEFAULTS.effects,
     };

@@ -73,9 +73,9 @@ export const AVATAR_NODES = {
  */
 export const AVATAR_VARIANT_PREFIX = {
   hair: "Hair_", // Hair_short, _bob, _curtain, _ponytail, _wavylong (free); Hair_hero, _drill, _topknot, _spacebuns, _afro (bought)
-  hat: "Hat_", // Hat_beret, Hat_beanie, Hat_flower, Hat_headphones, Hat_straw, Hat_bunny, Hat_tophat, Hat_crown, Hat_mochiears, Hat_cozybeanie, Hat_boonie, Hat_bearcap, Hat_headlamp
-  top: "Top_", // Top_hoodie, Top_tee, Top_flannel, Top_hawaiian, Top_tuxedo, Top_robe, Top_yukata, Top_jumpsuit, Top_plaid, Top_puffer
-  bottom: "Bottom_", // Bottom_sweats, Bottom_overalls, Bottom_trousers, Bottom_shorts, Bottom_wide, Bottom_waders
+  hat: "Hat_", // Hat_beret, Hat_beanie, Hat_flower, Hat_headphones, Hat_straw, Hat_bunny, Hat_tophat, Hat_crown, Hat_mochiears, Hat_cozybeanie, Hat_boonie, Hat_bearcap, Hat_headlamp, Hat_frogbeanie, Hat_catbeanie, Hat_painterberet, Hat_buckethat, Hat_deerstalker, Hat_goldglasses, Hat_pioneercap
+  top: "Top_", // Top_hoodie, Top_tee, Top_flannel, Top_hawaiian, Top_tuxedo, Top_robe, Top_yukata, Top_jumpsuit, Top_plaid, Top_puffer, Top_sweater, Top_smoking, Top_lounge
+  bottom: "Bottom_", // Bottom_sweats, Bottom_overalls, Bottom_trousers, Bottom_shorts, Bottom_wide, Bottom_waders, Bottom_garden, Bottom_blueprint, Bottom_lounge
 } as const;
 
 /** Each wardrobe outfit as the top and the bottom it is made of (their ids after the prefix). */
@@ -91,10 +91,16 @@ export const OUTFIT_PARTS: Record<OutfitId, { top: string; bottom: string }> = {
   outfit_red_plaid: { top: "plaid", bottom: "trousers" },
   outfit_puffer_vest: { top: "puffer", bottom: "trousers" },
   outfit_wader_overalls: { top: "tee", bottom: "waders" },
+  // the Velvet Boutique's collection, and the Velvet Pioneer set's overalls
+  outfit_cable_sweater: { top: "sweater", bottom: "trousers" },
+  outfit_garden_overalls: { top: "tee", bottom: "garden" },
+  outfit_smoking_jacket: { top: "smoking", bottom: "trousers" },
+  outfit_plaid_lounge: { top: "lounge", bottom: "lounge" },
+  outfit_blueprint_overalls: { top: "tee", bottom: "blueprint" },
 };
 
 /** Hats that sit on the crown of the head. */
-export const CROWN_HATS: ReadonlySet<string> = new Set(["beret", "beanie", "straw", "tophat", "crown", "cozybeanie", "boonie", "bearcap"]);
+export const CROWN_HATS: ReadonlySet<string> = new Set(["beret", "beanie", "straw", "tophat", "crown", "cozybeanie", "boonie", "bearcap", "frogbeanie", "catbeanie", "painterberet", "buckethat", "deerstalker", "pioneercap"]);
 /**
  * A style's raised part (the ponytail's tail and scrunchie, the space buns, the topknot) is its own
  * child node, Hair_<style>_Prop. Under a hat that covers the crown it is hidden and the rest of the
