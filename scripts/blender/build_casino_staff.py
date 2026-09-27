@@ -1,6 +1,7 @@
 """The Velvet Casino's staff, regulars and crowd: builds boris.glb, vivienne.glb, jasper.glb,
-pippin.glb, bruno.glb, cedric.glb, gideon.glb, baron.glb, penelope.glb and patrons.glb in
-client/public/models/ (ONLY, a list of those names set in the namespace, builds just those).
+pippin.glb, bruno.glb, cedric.glb, gideon.glb, scarlett.glb, baron.glb, penelope.glb and
+patrons.glb in client/public/models/ (ONLY, a list of those names set in the namespace, builds just
+those).
 
 Run it inside Blender through the Live Bridge (POST {"code": ...}; queued, nothing comes back, and
 it execs with separate globals and locals, so run this file inside a namespace of its own with
@@ -36,6 +37,10 @@ it), with the nodes entities/CampNpc.tsx animates:
                 shirt with red arm garters, a deck in his left paw (both arms his own: he shuffles)
     Gideon      a tall blue-grey greyhound dealing Table 2: a burgundy waistcoat over a white shirt,
                 gold arm garters, a black bow tie, a deck in his left paw (both arms his own)
+    Scarlett    a red panda dealing Punto Banco at the hall's kidney-shaped baccarat table: russet
+                fur, white cheeks and brows, dark legs and arms, a black waistcoat over a white shirt
+                with a gold bow tie and a dealer's pin, a ringed tail; a paddle for the cards in her
+                left paw (both arms her own)
 
 Up in the Velvet Penthouse (shared/worlds/casino_vip.ts), two high rollers sit at their tables, built
 seated on the seats casino_vip.glb draws under them (their origin at the seat's foot, facing +z,
@@ -51,9 +56,12 @@ the seat's cushion height from shared/seats.ts):
 
 Jasper's paws both rest on his knees (he claps, and paws at his machine's coin slot).
 
-The crowd (patrons.glb) is four chibi figures (big heads, short bodies, stubby limbs) the game
+The crowd (patrons.glb) is nine chibi figures (big heads, short bodies, stubby limbs) the game
 instances: an evening-gowned rabbit, a raccoon in a tailored suit, a chic feline in a cocktail dress
-and a pillbox hat, and Bella the cocktail bunny with her brass tray. Each is ONE node at the origin,
+and a pillbox hat, a dapper fox in a cream dinner jacket and a maroon bow tie, a round panda in a
+tweed overcoat, a gentleman owl in a top hat and a monocle, a tall greyhound in a pinstriped double-
+breasted suit, a chic otter in a fringed 1920s flapper dress and a feathered headband, and Bella the
+cocktail bunny with her brass tray. Each is ONE node at the origin,
 facing +z, feet on the floor, one draw call, rigged for a shader instead of bones: every vertex
 carries, in its UV, which limb it belongs to (u: 0 the body and head, 1 the right arm, 2 the left, 3
 the right leg, 4 the left, 5 the tail) and whether it is clothing the game tints (v, as the game
@@ -175,6 +183,34 @@ PALETTE = {
     "PatCloth": "#E6E6E6",
     "PatClothShade": "#BDBDBD",
     "PatClothLight": "#FAFAFA",
+    # Scarlett
+    "PandaRed": "#C4552A",
+    "PandaDeep": "#8E3517",
+    "PandaDark": "#3A1E14",
+    "PandaWhite": "#F6EFE6",
+    "GoldBow": "#D4A548",
+    "Paddle": "#6B3A22",
+    # the new regulars (fixed colours: the game doesn't tint these)
+    "FoxOrange": "#D2692E",
+    "FoxCream": "#F4ECE0",
+    "BowMaroon": "#6E1628",
+    "ShirtWhite": "#F1F3F6",
+    "PandaFur": "#F4F2EC",
+    "PandaBlack": "#201D1E",
+    "TweedFleck": "#E8DCC0",
+    "OwlFeather": "#7A5A3A",
+    "OwlBreast": "#D9C3A0",
+    "OwlAmber": "#F2A33A",
+    "OwlBeak": "#D8A24A",
+    "HatBlack": "#141214",
+    "MonocleGold": "#D9B45A",
+    "GreyhoundFur": "#A9A7B0",
+    "GreyhoundLight": "#E7E4DF",
+    "PinStripe": "#D9D6CF",
+    "OtterFur": "#7B5236",
+    "OtterCream": "#D9C4A4",
+    "Feather": "#F3E4F0",
+    "Jewel": "#3FA7A0",
 }
 
 
@@ -945,6 +981,261 @@ def build_patrons():
     chibi_arms(P, "PatFurWhite", "PatFurWhite", r=0.036, skip_left=True)
     limbed(P, "tail", lambda: blob(P, 0.0, 0.34, -0.17, 0.055, 0.055, 0.055, "PatFurWhite", cuts=2))
     chibi_node("Patron_Bella", P, coll, PIVOTS)
+
+    build_new_regulars(coll)
+    return coll
+
+
+def build_new_regulars(coll):
+    """The five regulars the remaster brought: a dapper fox, a round panda, a gentleman owl, a tall
+    greyhound and a chic otter (their outfits are PatCloth, tinted by the game)."""
+    # a dapper fox: a cream dinner jacket (the game tints it among creams), black trousers, a white
+    # shirt front and a maroon bow tie, a red boutonniere; tall pointed ears, a white-tipped brush
+    P = Part()
+    chibi_legs(P, "FoxOrange", "HatBlack", trousers="HatBlack", r=0.045)
+    limbed(P, "body", lambda: (
+        blob(P, 0.0, 0.43, 0.0, 0.15, 0.17, 0.125, "PatCloth", cuts=3),
+        blob(P, 0.0, 0.3, 0.0, 0.145, 0.05, 0.12, "PatClothShade", cuts=2),
+        blob(P, 0.0, 0.48, 0.1, 0.05, 0.08, 0.04, "ShirtWhite", cuts=1),
+        [blob(P, sx * 0.035, 0.565, 0.13, 0.03, 0.02, 0.014, "BowMaroon", cuts=1) for sx in (-1, 1)],
+        blob(P, 0.0, 0.565, 0.14, 0.012, 0.014, 0.01, "BowMaroon", cuts=1),
+        blob(P, 0.09, 0.5, 0.125, 0.018, 0.018, 0.012, "Carnation", cuts=1),
+        [blob(P, sx * 0.07, 0.49, 0.115, 0.02, 0.08, 0.012, "PatClothLight", cuts=1) for sx in (-1, 1)],
+        chibi_head(P, "FoxOrange", "FoxCream", "Nose"),
+        [blob(P, sx * 0.1, 0.71, 0.1, 0.07, 0.05, 0.06, "FoxCream", cuts=2) for sx in (-1, 1)],
+        [cylinder(P, (sx * 0.1, 0.87, -0.01), (sx * 0.16, 1.07, -0.02), 0.065, "FoxOrange", sides=6, r_end=0.01) for sx in (-1, 1)],
+        [cylinder(P, (sx * 0.14, 1.0, -0.018), (sx * 0.16, 1.07, -0.02), 0.028, "HatBlack", sides=6, r_end=0.006) for sx in (-1, 1)],
+        [cylinder(P, (sx * 0.1, 0.88, 0.012), (sx * 0.145, 1.0, -0.003), 0.035, "FoxCream", sides=5, r_end=0.006) for sx in (-1, 1)],
+    ))
+    chibi_arms(P, "PatCloth", "HatBlack", r=0.043)
+
+    def fox_tail():
+        pts = [(0.0, 0.28, -0.12), (0.05, 0.25, -0.26), (0.1, 0.3, -0.38), (0.12, 0.42, -0.44)]
+        for k, (a, b) in enumerate(zip(pts, pts[1:])):
+            r = 0.06 + 0.02 * k
+            cylinder(P, a, b, r, "FoxOrange", sides=8, r_end=r + 0.015)
+        blob(P, 0.12, 0.46, -0.45, 0.085, 0.08, 0.085, "FoxCream", cuts=2)
+
+    limbed(P, "tail", fox_tail)
+    chibi_node("Patron_Fox", P, coll, PIVOTS)
+
+    # a round panda in a tweed overcoat: a long coat flecked with cream (the game tints it among
+    # browns and heathers), its buttons, a scarf; black ears and eye patches
+    P = Part()
+    chibi_legs(P, "PandaBlack", "PandaBlack", r=0.055)
+    import random
+
+    rnd = random.Random(5)
+
+    def panda_body():
+        lathe(P, 0.0, 0.0, [(0, 0.14), (0.21, 0.14), (0.225, 0.2), (0.2, 0.42), (0.16, 0.54), (0, 0.54)], "PatCloth", segs=18)
+        blob(P, 0.0, 0.46, 0.0, 0.2, 0.14, 0.17, "PatCloth", cuts=3)
+        for k in range(26):
+            a = rnd.uniform(-2.4, 2.4)
+            y = rnd.uniform(0.2, 0.52)
+            r = 0.215 - (y - 0.2) * 0.12
+            blob(P, r * math.sin(a), y, r * math.cos(a), 0.012, 0.005, 0.008, "TweedFleck", cuts=1)
+        for k, y in enumerate((0.44, 0.36, 0.28)):
+            blob(P, 0.0, y, 0.205 + k * 0.004, 0.016, 0.016, 0.009, "Brass", cuts=1)
+        blob(P, 0.0, 0.55, 0.02, 0.15, 0.045, 0.13, "BowMaroon", cuts=2)  # the scarf
+        blob(P, 0.07, 0.47, 0.15, 0.03, 0.07, 0.015, "BowMaroon", cuts=1)
+        chibi_head(P, "PandaFur", "PandaFur", "PandaBlack")
+        for sx in (-1, 1):
+            blob(P, sx * 0.075, 0.785, 0.14, 0.045, 0.05, 0.03, "PandaBlack", cuts=2)  # the eye patches
+            blob(P, sx * 0.14, 0.93, -0.02, 0.06, 0.055, 0.035, "PandaBlack", cuts=2)
+        eyes(P, 0.075, 0.785, 0.17, 0.018, 0.022)
+
+    limbed(P, "body", panda_body)
+    chibi_arms(P, "PatCloth", "PandaBlack", r=0.05)
+    limbed(P, "tail", lambda: blob(P, 0.0, 0.3, -0.22, 0.05, 0.05, 0.04, "PandaFur", cuts=2))
+    chibi_node("Patron_Panda", P, coll, PIVOTS)
+
+    # a gentleman owl: a tailcoat (tinted) over a pale breast, a top hat with a maroon band and a
+    # gold monocle on its chain, great amber eyes and a hooked beak, ear tufts
+    P = Part()
+    chibi_legs(P, "OwlFeather", "OwlBeak", trousers="PatClothShade", r=0.042)
+
+    def owl_body():
+        blob(P, 0.0, 0.44, 0.0, 0.16, 0.18, 0.14, "PatCloth", cuts=3)
+        blob(P, 0.0, 0.46, 0.1, 0.085, 0.13, 0.05, "OwlBreast", cuts=2)
+        for k in range(4):
+            blob(P, 0.0, 0.52 - k * 0.05, 0.145, 0.05, 0.012, 0.01, "OwlFeather", cuts=1)
+        blob(P, 0.0, 0.3, -0.06, 0.14, 0.12, 0.08, "PatClothShade", cuts=2)  # the tails of the coat
+        blob(P, 0.0, 0.77, 0.0, 0.21, 0.19, 0.19, "OwlFeather", cuts=4)
+        for sx in (-1, 1):
+            blob(P, sx * 0.08, 0.78, 0.14, 0.075, 0.08, 0.04, "OwlBreast", cuts=2)  # the facial disc
+            blob(P, sx * 0.08, 0.79, 0.165, 0.042, 0.042, 0.02, "OwlAmber", cuts=2)
+            blob(P, sx * 0.08, 0.79, 0.18, 0.022, 0.022, 0.012, "Eye", cuts=1)
+            blob(P, sx * 0.07, 0.805, 0.19, 0.007, 0.007, 0.005, "Glint", cuts=1)
+            cylinder(P, (sx * 0.12, 0.92, 0.03), (sx * 0.17, 1.04, 0.0), 0.03, "OwlFeather", sides=5, r_end=0.005)
+        cylinder(P, (0.0, 0.76, 0.18), (0.0, 0.7, 0.215), 0.022, "OwlBeak", sides=6, r_end=0.004)
+        # the top hat, and the monocle
+        lathe(P, 0.0, -0.01, [(0, 0.93), (0.19, 0.93), (0.19, 0.95), (0.11, 0.95), (0.11, 1.17), (0.12, 1.19), (0, 1.19)], "HatBlack", segs=16)
+        lathe(P, 0.0, -0.01, [(0, 0.96), (0.115, 0.96), (0.115, 1.0), (0, 1.0)], "BowMaroon", segs=16)
+        ring_o = [(0.08 + 0.05 * math.cos(2 * math.pi * k / 12), 0.79 + 0.05 * math.sin(2 * math.pi * k / 12)) for k in range(12)]
+        for (a0, b0), (a1, b1) in zip(ring_o, ring_o[1:] + ring_o[:1]):
+            cylinder(P, (a0, b0, 0.19), (a1, b1, 0.19), 0.007, "MonocleGold", sides=4)
+        cylinder(P, (0.12, 0.76, 0.19), (0.13, 0.55, 0.15), 0.004, "MonocleGold", sides=4)
+
+    limbed(P, "body", owl_body)
+    chibi_arms(P, "PatCloth", "OwlFeather", r=0.042)
+    limbed(P, "tail", lambda: blob(P, 0.0, 0.26, -0.17, 0.09, 0.04, 0.07, "OwlFeather", cuts=2, tilt=0.5))
+    chibi_node("Patron_Owl", P, coll, PIVOTS)
+
+    # a tall greyhound in a pinstriped double-breasted suit: long legs, a long muzzle, rose ears, a
+    # white pocket square, two rows of brass buttons
+    TALL = {"armR": (-0.14, 0.64, 0.0), "armL": (0.14, 0.64, 0.0), "legR": (-0.07, 0.36, 0.0), "legL": (0.07, 0.36, 0.0), "tail": (0.0, 0.4, -0.12)}
+    P = Part()
+    for sx, limb in ((-1, "legR"), (1, "legL")):
+        hip = TALL[limb]
+
+        def leg(sx=sx, hip=hip):
+            cylinder(P, hip, (sx * 0.075, 0.07, 0.01), 0.042, "PatClothShade", sides=8, r_end=0.038)
+            blob(P, sx * 0.075, 0.04, 0.06, 0.05, 0.035, 0.09, "HatBlack", bottom=0.0, cuts=2)
+
+        limbed(P, limb, leg)
+
+    def hound_body():
+        blob(P, 0.0, 0.55, 0.0, 0.14, 0.2, 0.115, "PatCloth", cuts=3)
+        blob(P, 0.0, 0.39, 0.0, 0.135, 0.05, 0.11, "PatClothShade", cuts=2)
+        for k in range(7):
+            a = -1.2 + 2.4 * k / 6
+            cylinder(P, (0.142 * math.sin(a), 0.38, 0.117 * math.cos(a)), (0.13 * math.sin(a), 0.7, 0.105 * math.cos(a)), 0.004, "PinStripe", sides=4)
+        blob(P, 0.0, 0.64, 0.1, 0.045, 0.07, 0.035, "ShirtWhite", cuts=1)
+        blob(P, 0.0, 0.7, 0.115, 0.03, 0.015, 0.012, "BowMaroon", cuts=1)
+        for sx in (-1, 1):
+            for k, y in enumerate((0.58, 0.5)):
+                blob(P, sx * 0.05, y, 0.112, 0.012, 0.012, 0.008, "Brass", cuts=1)
+        blob(P, -0.08, 0.62, 0.1, 0.025, 0.015, 0.01, "ShirtWhite", cuts=1)  # the pocket square
+        cylinder(P, (0.0, 0.72, 0.0), (0.0, 0.86, 0.04), 0.06, "GreyhoundFur", sides=10, r_end=0.052)
+        blob(P, 0.0, 0.95, 0.02, 0.13, 0.12, 0.13, "GreyhoundFur", cuts=4)
+        blob(P, 0.0, 0.9, 0.17, 0.055, 0.05, 0.12, "GreyhoundFur", cuts=3)
+        blob(P, 0.0, 0.93, 0.15, 0.03, 0.07, 0.1, "GreyhoundLight", cuts=2)
+        blob(P, 0.0, 0.905, 0.29, 0.022, 0.018, 0.015, "Nose", cuts=1)
+        eyes(P, 0.06, 0.98, 0.11, 0.019, 0.023)
+        for sx in (-1, 1):
+            # rose ears, folded back along the skull, darker than the face
+            blob(P, sx * 0.085, 1.03, -0.07, 0.035, 0.022, 0.085, "GreyhoundFur", cuts=2, tilt=-0.9)
+            blob(P, sx * 0.1, 1.035, -0.02, 0.02, 0.012, 0.035, "GreyhoundLight", cuts=1, tilt=-0.9)
+            blob(P, sx * 0.09, 0.91, 0.1, 0.025, 0.014, 0.01, "Blush", cuts=1)
+
+    limbed(P, "body", hound_body)
+    for sx, limb in ((-1, "armR"), (1, "armL")):
+        sh = TALL[limb]
+
+        def hound_arm(sx=sx, sh=sh):
+            el = (sx * 0.18, 0.52, 0.02)
+            pw = (sx * 0.19, 0.4, 0.05)
+            cylinder(P, sh, el, 0.04, "PatCloth", sides=8, r_end=0.037)
+            blob(P, el[0], el[1], el[2], 0.038, 0.038, 0.038, "PatCloth", cuts=2)
+            cylinder(P, el, pw, 0.034, "PatCloth", sides=8, r_end=0.032)
+            blob(P, pw[0], pw[1], pw[2], 0.036, 0.032, 0.04, "GreyhoundFur", cuts=2)
+
+        limbed(P, limb, hound_arm)
+
+    def hound_tail():
+        pts = [(0.0, 0.4, -0.12), (0.0, 0.3, -0.18), (0.02, 0.2, -0.2), (0.04, 0.14, -0.14)]
+        for a, b in zip(pts, pts[1:]):
+            cylinder(P, a, b, 0.02, "GreyhoundFur", sides=6, r_end=0.016)
+
+    limbed(P, "tail", hound_tail)
+    chibi_node("Patron_Greyhound", P, coll, TALL)
+
+    # a chic otter in a fringed 1920s flapper dress (tinted), a long string of pearls, a black
+    # headband with a white feather and a jewel; a long tapering tail
+    P = Part()
+    chibi_legs(P, "OtterFur", "Heel", r=0.038)
+
+    def otter_body():
+        lathe(P, 0.0, 0.0, [(0, 0.2), (0.15, 0.2), (0.15, 0.3), (0.135, 0.5), (0, 0.5)], "PatCloth", segs=16)
+        blob(P, 0.0, 0.47, 0.0, 0.12, 0.08, 0.1, "PatCloth", cuts=3)
+        for row, y in enumerate((0.34, 0.27, 0.2)):
+            n = 18
+            for k in range(n):
+                a = 2 * math.pi * (k + 0.5 * (row % 2)) / n
+                r = 0.152 + row * 0.004
+                cylinder(P, (r * math.sin(a), y + 0.02, r * math.cos(a)), (r * 1.04 * math.sin(a), y - 0.07, r * 1.04 * math.cos(a)), 0.008, "PatClothShade", sides=3)
+        blob(P, 0.0, 0.55, 0.02, 0.09, 0.04, 0.08, "OtterCream", cuts=2)
+        for k in range(11):
+            a = math.radians(-70 + 14 * k)
+            blob(P, 0.1 * math.sin(a), 0.5 - 0.06 * math.cos(a) ** 2, 0.03 + 0.09 * math.cos(a), 0.011, 0.011, 0.011, "Pearl", cuts=1)
+        chibi_head(P, "OtterFur", "OtterCream", "Nose")
+        for sx in (-1, 1):
+            blob(P, sx * 0.15, 0.88, 0.0, 0.035, 0.035, 0.025, "OtterFur", cuts=1)
+            cylinder(P, (sx * 0.06, 0.71, 0.17), (sx * 0.22, 0.72, 0.18), 0.003, "OtterCream", sides=4)
+        lathe(P, 0.0, 0.0, [(0, 0.86), (0.2, 0.86), (0.205, 0.89), (0, 0.89)], "HatBlack", segs=16)
+        blob(P, 0.09, 0.9, 0.13, 0.02, 0.02, 0.012, "Jewel", cuts=1)
+        cylinder(P, (0.1, 0.9, 0.1), (0.16, 1.12, 0.0), 0.028, "Feather", sides=6, r_end=0.006)
+        blob(P, 0.14, 1.03, 0.04, 0.035, 0.09, 0.02, "Feather", cuts=2)
+
+    limbed(P, "body", otter_body)
+    chibi_arms(P, "OtterFur", "OtterFur", r=0.034)
+
+    def otter_tail():
+        pts = [(0.0, 0.3, -0.12), (0.02, 0.2, -0.24), (0.06, 0.12, -0.36), (0.1, 0.08, -0.46)]
+        for k, (a, b) in enumerate(zip(pts, pts[1:])):
+            cylinder(P, a, b, 0.05 - k * 0.013, "OtterFur", sides=8, r_end=0.04 - k * 0.013)
+
+    limbed(P, "tail", otter_tail)
+    chibi_node("Patron_Otter", P, coll, PIVOTS)
+
+
+# ---------------------------------------------------------------------------------------------
+# Scarlett: the red panda dealing the hall's baccarat table from the notch of its flat side. Standing,
+# arms hanging loose (the game swings them forward to shuffle and to knock the felt).
+
+
+def build_scarlett(L):
+    coll, root = rig("Scarlett")
+    B = Part()
+    for sx in (-1, 1):
+        cylinder(B, (sx * 0.095, 0.34, 0.0), (sx * 0.1, 0.08, 0.02), 0.065, "PandaDark", r_end=0.06)
+        blob(B, sx * 0.1, 0.04, 0.07, 0.07, 0.04, 0.11, "Black", bottom=0.0)
+    blob(B, 0.0, 0.53, 0.0, 0.23, 0.25, 0.2, "TuxShirt", cuts=4)
+    blob(B, 0.0, 0.34, 0.0, 0.225, 0.1, 0.19, "Trousers", top=0.41)
+    blob(B, 0.0, 0.52, -0.005, 0.242, 0.2, 0.212, "TuxVest", cuts=4, top=0.69, bottom=0.36)
+    blob(B, 0.0, 0.59, 0.14, 0.08, 0.1, 0.075, "TuxShirt")
+    for k, y in enumerate((0.54, 0.47, 0.4)):
+        blob(B, 0.0, y, 0.205 - k * 0.005, 0.013, 0.013, 0.008, "Brass", cuts=1)
+    for sx in (-1, 1):
+        blob(B, sx * 0.045, 0.71, 0.16, 0.042, 0.026, 0.02, "GoldBow", cuts=1)
+    blob(B, 0.0, 0.71, 0.175, 0.018, 0.02, 0.014, "GoldBow", cuts=1)
+    blob(B, 0.12, 0.6, 0.19, 0.022, 0.022, 0.008, "Brass", cuts=1)  # the dealer's pin
+    body = node("Scarlett_Body", B, coll, root)
+
+    H = Part()
+    neck = (0.0, 0.73, 0.0)
+    blob(H, 0.0, 0.91, 0.0, 0.2, 0.17, 0.18, "PandaRed", cuts=4)
+    blob(H, 0.0, 0.86, 0.13, 0.1, 0.075, 0.08, "PandaWhite")  # the white muzzle
+    for sx in (-1, 1):
+        blob(H, sx * 0.1, 0.87, 0.12, 0.055, 0.06, 0.05, "PandaWhite", cuts=2)  # the cheeks
+        blob(H, sx * 0.075, 0.99, 0.15, 0.035, 0.018, 0.012, "PandaWhite", cuts=1)  # the brows
+        blob(H, sx * 0.075, 0.9, 0.16, 0.03, 0.05, 0.02, "PandaDeep", cuts=1)  # the tear marks
+        blob(H, sx * 0.16, 1.05, -0.02, 0.06, 0.06, 0.03, "PandaRed", cuts=2)  # big round ears
+        blob(H, sx * 0.16, 1.05, 0.0, 0.045, 0.045, 0.012, "PandaWhite", cuts=1)
+    blob(H, 0.0, 0.87, 0.21, 0.028, 0.02, 0.016, "Nose", cuts=1)
+    eyes(H, 0.075, 0.95, 0.17, 0.022, 0.026)
+    node("Scarlett_Head", H, coll, body, neck)
+
+    for sx, name in ((-1, "Scarlett_ArmR"), (1, "Scarlett_ArmL")):
+        A = Part()
+        shoulder = (sx * 0.23, 0.63, 0.0)
+        elbow = (sx * 0.26, 0.45, 0.03)
+        paw = (sx * 0.24, 0.3, 0.07)
+        arm(A, shoulder, elbow, paw, "TuxShirt", "TuxShirt", r=0.054, paw_size=0.046, paw_colour="PandaDark")
+        c = lerp(elbow, paw, 0.8)
+        blob(A, c[0], c[1], c[2], 0.052, 0.028, 0.052, "TuxShirt", cuts=1)
+        if sx > 0:
+            cylinder(A, (paw[0], paw[1], paw[2] + 0.02), (paw[0], paw[1] - 0.02, paw[2] + 0.3), 0.012, "Paddle", sides=6)
+            box(A, paw[0] - 0.04, paw[0] + 0.04, paw[1] - 0.035, paw[1] - 0.02, paw[2] + 0.28, paw[2] + 0.38, "Paddle")
+        node(name, A, coll, body, shoulder)
+
+    T = Part()
+    pts = [(0.0, 0.34, -0.16), (0.03, 0.28, -0.3), (0.08, 0.3, -0.42), (0.1, 0.4, -0.5)]
+    for k, (a, b) in enumerate(zip(pts, pts[1:])):
+        cylinder(T, a, b, 0.07, "PandaRed" if k % 2 == 0 else "PandaDeep", sides=10, r_end=0.065)
+        blob(T, b[0], b[1], b[2], 0.068, 0.068, 0.068, "PandaDeep" if k % 2 == 0 else "PandaRed", cuts=2)
+    node("Scarlett_Tail", T, coll, body, pts[0])
     return coll
 
 
@@ -1222,7 +1513,7 @@ def main():
         cushions = read_cushions(root)
         result = {"ok": True}
         only = globals().get("ONLY")
-        for name, make in (("boris", lambda: build_boris(L)), ("vivienne", lambda: build_vivienne(L)), ("jasper", lambda: build_jasper(L, cushions)), ("pippin", lambda: build_pippin(L)), ("bruno", lambda: build_bruno(L)), ("cedric", lambda: build_cedric(L)), ("gideon", lambda: build_gideon(L)), ("baron", lambda: build_baron(cushions)), ("penelope", lambda: build_penelope(cushions)), ("patrons", build_patrons)):
+        for name, make in (("boris", lambda: build_boris(L)), ("vivienne", lambda: build_vivienne(L)), ("jasper", lambda: build_jasper(L, cushions)), ("pippin", lambda: build_pippin(L)), ("bruno", lambda: build_bruno(L)), ("cedric", lambda: build_cedric(L)), ("gideon", lambda: build_gideon(L)), ("scarlett", lambda: build_scarlett(L)), ("baron", lambda: build_baron(cushions)), ("penelope", lambda: build_penelope(cushions)), ("patrons", build_patrons)):
             if only and name not in only:
                 continue
             coll = make()

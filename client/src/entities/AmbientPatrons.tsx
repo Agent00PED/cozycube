@@ -5,14 +5,14 @@ import * as THREE from "three";
 import type { Room } from "colyseus.js";
 import { walkY } from "@shared/collision";
 import { findPath, type Point } from "@shared/pathfinding";
-import { BLACKJACK_TABLES, CASINO_LAYOUT as L, CASINO_PROPS, PATRON_SPOTS, ROULETTE_CENTER, SINGLE_MACHINES } from "@shared/worlds/casino";
-import { npcOccupant } from "@shared/casino";
+import { BIG_SIX, BLACKJACK_TABLES, CASINO_LAYOUT as L, CASINO_PROPS, PATRON_SPOTS, ROULETTE_CENTER, SINGLE_MACHINES } from "@shared/worlds/casino";
+import { PATRON_KINDS, npcOccupant } from "@shared/casino";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { modelUrl } from "../assetVersion";
 import { cameraFocus } from "../scene/cameraFocus";
 import { ModelBoundary } from "./ModelBoundary";
 
-// The Velvet Casino's crowd: twenty-one chibi regulars drifting through the hall, the ones playing
+// The Velvet Casino's crowd: twenty-four chibi regulars drifting through the hall, the ones playing
 // the one-player machines, and Bella the cocktail bunny on her round between the tables with her
 // brass tray. The wanderers are drawn on this screen only (the server never hears of them; they walk
 // through players as if they were not there, though never through the furniture: they path round it
@@ -21,9 +21,13 @@ import { ModelBoundary } from "./ModelBoundary";
 // plays (a pull of the lever, a coin dropped into the pusher) until it lets the machine go, then
 // steps back into the crowd and is gone; meanwhile no player can use it.
 //
-// Four figures from patrons.glb (scripts/blender/build_casino_staff.py): an evening-gowned rabbit, a
-// raccoon in a tailored suit, a chic feline in a cocktail dress and a pillbox hat, and Bella. Each is
-// ONE instanced mesh (a draw call apiece, four for the whole crowd), rigged for a shader instead of
+// Nine figures from patrons.glb (scripts/blender/build_casino_staff.py): an evening-gowned rabbit, a
+// raccoon in a tailored suit, a chic feline in a cocktail dress and a pillbox hat, a dapper fox in a
+// cream dinner jacket and a maroon bow tie, a round panda in a tweed overcoat, a gentleman owl in a
+// top hat and monocle, a tall greyhound in a pinstriped double-breasted suit, a chic otter in a
+// fringed 1920s flapper dress and a feathered headband, and Bella. No two stand alike: each patron
+// is drawn 0.85 to 1.25 times the figure's height, and a touch wider or slimmer with it. Each figure
+// is ONE instanced mesh (a draw call apiece, nine for the whole crowd), rigged for a shader instead of
 // bones: every vertex knows its limb (the model's u: body, right arm, left arm, right leg, left leg,
 // tail) and whether it is clothing (v). The vertex shader swings each limb round its pivot from a
 // per-patron walk (phase, stride), and a pose laid over it (a clap, a cheer, a sip); it tints each
@@ -32,30 +36,49 @@ import { ModelBoundary } from "./ModelBoundary";
 //
 // Each patron's evening, a little state machine over PATRON_SPOTS: in through the doors, to the
 // slot row (watching, cheering a win), the bar (a sip now and then), the roulette table (clapping
-// the number), now and then a detour by the lounge, the blackjack tables, the promenade or the craps
-// table, then out through the doors again; a while later, someone new comes in.
+// the number), now and then a detour by the lounge, the blackjack tables, the Big Six (watching its
+// spin), the promenade or the craps table, then out through the doors again; a while later, someone
+// new comes in.
 
 const URL = modelUrl("patrons.glb");
-const KINDS = ["Rabbit", "Raccoon", "Feline"] as const;
+const KINDS = PATRON_KINDS;
 type Kind = (typeof KINDS)[number];
-const PER_KIND = 7;
+const PER_KIND = 3;
 /** Each figure's extra instances for the machine players (the room lets patrons take up to three at
  *  once; one more for a patron still stepping away from the last). */
 const MACHINE_SLOTS = 4;
 const WALK_SPEED = 1.05;
 const BELLA_SPEED = 0.9;
-/** Outfit tints: gowns, suits, cocktail dresses. */
+/** Outfit tints: gowns, suits, cocktail dresses; the fox's cream dinner jackets, the panda's tweeds,
+ *  the owl's tailcoats, the greyhound's pinstripe suits, the otter's flapper dresses. */
 const OUTFITS: Record<Kind, string[]> = {
   Rabbit: ["#b3263e", "#2a4fa8", "#1f7a4f", "#e8d3a2", "#7b4ba8"],
   Raccoon: ["#3a3a46", "#22305a", "#5a2448", "#a8845a", "#2f4a3a"],
   Feline: ["#1c1c22", "#c2415b", "#2f6fb0", "#e0b44a", "#6b3aa8"],
+  Fox: ["#f2ead8", "#ece2cc", "#f6efe0", "#e6dac0", "#efe4d2"],
+  Panda: ["#7a6a4f", "#6b5a44", "#5e6a4a", "#8a7358", "#6a5a5e"],
+  Owl: ["#1f2230", "#2e1f2a", "#26302a", "#3a2c22", "#222226"],
+  Greyhound: ["#2a3346", "#33333d", "#2d2a3a", "#243a36", "#3a3040"],
+  Otter: ["#c9a24a", "#b3263e", "#1c1c22", "#2f6fb0", "#e8d3a2"],
 };
 /** Fur tints: gentle variations on the model's own colours. */
 const FURS: Record<Kind, string[]> = {
   Rabbit: ["#ffffff", "#f3e6d4", "#d9c2a4", "#e6e6ec"],
   Raccoon: ["#ffffff", "#ece6dc", "#dcdce6", "#f2ebe0"],
   Feline: ["#ffffff", "#f7d8b0", "#dcdcdc", "#c9a07a"],
+  Fox: ["#ffffff", "#f5dcc4", "#e8c9a8", "#fff1e0"],
+  Panda: ["#ffffff", "#f2ede4", "#ece8e0", "#f7f2ea"],
+  Owl: ["#ffffff", "#e8d8c4", "#d4c4ae", "#f0e4d4"],
+  Greyhound: ["#ffffff", "#e4dccf", "#d0d0d8", "#c9b8a4"],
+  Otter: ["#ffffff", "#ecd9c0", "#d9c2a4", "#c8a882"],
 };
+/** A patron's build: 0.85 to 1.25 of the figure's height, and a width that goes with it (a little
+ *  more or less, as people are). */
+function build(kind: Kind): { h: number; w: number } {
+  const h = 0.85 + Math.random() * 0.4;
+  const w = Math.pow(h, 0.55) * (0.93 + Math.random() * 0.17) * (kind === "Panda" ? 1.06 : kind === "Greyhound" ? 0.94 : 1);
+  return { h, w };
+}
 
 /** The poses laid over the walk (the shader's aWalk.z): pull (a slot's lever) and drop (a coin into
  *  the pusher) loop for as long as they are held. */
@@ -189,8 +212,8 @@ function makeFigure(scene: THREE.Object3D, name: string, count: number): Figure 
   return { mesh, walk };
 }
 
-type Group = "slots" | "bar" | "roulette" | "craps" | "lounge" | "blackjack" | "promenade";
-const GROUPS: Group[] = ["slots", "bar", "roulette", "craps", "lounge", "blackjack", "promenade"];
+type Group = "slots" | "bar" | "roulette" | "craps" | "lounge" | "blackjack" | "promenade" | "bigsix";
+const GROUPS: Group[] = ["slots", "bar", "roulette", "craps", "lounge", "blackjack", "promenade", "bigsix"];
 /** What each place's patrons look at. */
 const nearestTable = (p: Point) => BLACKJACK_TABLES.reduce((a, b) => (Math.hypot(b.x - p.x, b.z - p.z) < Math.hypot(a.x - p.x, a.z - p.z) ? b : a));
 const LOOK_AT: Record<Group, (p: Point) => Point> = {
@@ -201,6 +224,7 @@ const LOOK_AT: Record<Group, (p: Point) => Point> = {
   lounge: () => ({ x: L.billiards.x, z: L.billiards.z }),
   blackjack: (p) => nearestTable(p),
   promenade: () => ROULETTE_CENTER,
+  bigsix: () => BIG_SIX,
 };
 
 /** The one-player machines: where their player stands, and what they face. */
@@ -216,6 +240,9 @@ interface Patron {
   slot: number; // its instance index within its kind
   fur: THREE.Color;
   outfit: THREE.Color;
+  /** Its build: height and width, over the figure's own. */
+  h: number;
+  w: number;
   x: number;
   z: number;
   y: number;
@@ -246,6 +273,7 @@ function evening(): Group[] {
   const plan: Group[] = ["slots", "bar"];
   if (Math.random() < 0.35) plan.push("lounge");
   if (Math.random() < 0.4) plan.push("blackjack");
+  if (Math.random() < 0.35) plan.push("bigsix");
   plan.push("roulette");
   if (Math.random() < 0.35) plan.push("promenade");
   if (Math.random() < 0.3) plan.push("craps");
@@ -291,6 +319,8 @@ interface Player {
   shown: number;
   phase: number;
   tint: number;
+  h: number;
+  w: number;
 }
 
 function Crowd({ subscribeMessages, room }: { subscribeMessages: (listener: RoomMessageListener) => () => void; room: Room | null }) {
@@ -318,6 +348,7 @@ function Crowd({ subscribeMessages, room }: { subscribeMessages: (listener: Room
         const p: Patron = {
           kind,
           slot: i,
+          ...build(kind),
           fur: new THREE.Color(FURS[kind][(i + k) % FURS[kind].length]),
           outfit: new THREE.Color(OUTFITS[kind][(i * 2 + k) % OUTFITS[kind].length]),
           x: PATRON_SPOTS.doors.x,
@@ -489,7 +520,7 @@ function Crowd({ subscribeMessages, room }: { subscribeMessages: (listener: Room
         for (let k = PER_KIND; k < PER_KIND + MACHINE_SLOTS; k++) if (!used.has(k)) (slot = slot < 0 ? k : slot);
         if (slot < 0) continue;
         const from = MACHINE_FROM(m);
-        const q: Player = { propId: m.propId, who, kind, slot, x: from.x, z: from.z, y: 0, heading: Math.atan2(m.at.x - from.x, m.at.z - from.z), path: findPath("velvet_casino", from, m.at) ?? [m.at], state: "walk", shown: 0, phase: Math.random() * 10, tint: occupant.tint };
+        const q: Player = { propId: m.propId, who, kind, slot, x: from.x, z: from.z, y: 0, heading: Math.atan2(m.at.x - from.x, m.at.z - from.z), path: findPath("velvet_casino", from, m.at) ?? [m.at], state: "walk", shown: 0, phase: Math.random() * 10, tint: occupant.tint, ...build(kind) };
         q.path.push(m.at);
         list.push(q);
         const fig = figures[kind];
@@ -538,6 +569,12 @@ function Crowd({ subscribeMessages, room }: { subscribeMessages: (listener: Room
 
     for (const kind of KINDS) {
       const { mesh, walk } = figures[kind];
+      // only as many instances are drawn as the highest one in use (the machine players' spares
+      // cost nothing while they wait)
+      let top = -1;
+      for (const p of patrons) if (p.kind === kind && p.shown > 0) top = Math.max(top, p.slot);
+      for (const q of list) if (q.kind === kind) top = Math.max(top, q.slot);
+      mesh.count = top + 1;
       for (const p of patrons) {
         if (p.kind !== kind) continue;
         const walking = (p.state === "walk" || p.state === "exit") && p.path.length > 0;
@@ -549,7 +586,7 @@ function Crowd({ subscribeMessages, room }: { subscribeMessages: (listener: Room
         const scale = p.shown <= 0 ? 0.0001 : 0.25 + 0.75 * easeOut(p.shown);
         dummy.position.set(p.x, p.y + lift, p.z);
         dummy.rotation.set(0, p.heading, sway, "YXZ");
-        dummy.scale.set(scale, scale * squash, scale);
+        dummy.scale.set(scale * p.w, scale * p.h * squash, scale * p.w);
         dummy.updateMatrix();
         mesh.setMatrixAt(p.slot, dummy.matrix);
         walk.setXYZW(p.slot, p.phase, walking ? 1 : 0, POSE[p.pose], pw);
@@ -565,7 +602,7 @@ function Crowd({ subscribeMessages, room }: { subscribeMessages: (listener: Room
         const scale = q.shown <= 0 ? 0.0001 : 0.25 + 0.75 * easeOut(q.shown);
         dummy.position.set(q.x, q.y + (walking ? Math.abs(Math.sin(t * 8 + q.phase)) * 0.04 : 0), q.z);
         dummy.rotation.set(0, q.heading, walking ? Math.sin(t * 8 + q.phase) * 0.04 : 0, "YXZ");
-        dummy.scale.set(scale, scale, scale);
+        dummy.scale.set(scale * q.w, scale * q.h, scale * q.w);
         dummy.updateMatrix();
         mesh.setMatrixAt(q.slot, dummy.matrix);
         const m = MACHINES.find((x) => x.propId === q.propId)!;

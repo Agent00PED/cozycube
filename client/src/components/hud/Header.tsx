@@ -44,6 +44,10 @@ interface HeaderProps {
   /** The camp's market this hour (the creel's worth follows it). */
   market: string;
   onOpenFieldGuide: () => void;
+  /** The connection, for the status orb: up, trying again, and the last round trip (ms). */
+  connected: boolean;
+  reconnecting: boolean;
+  latency: number;
 }
 
 const TIME_LABELS: Record<TimeOfDay, string> = { sunrise: "🌅 Sunrise", day: "☀️ Day", sunset: "🌇 Sunset", night: "🌙 Night" };
@@ -178,10 +182,8 @@ export function Header(p: HeaderProps) {
         )}
 
         <div className="relative hidden shrink-0 sm:block">
-          <button type="button" onClick={() => toggle("status")} className={`${ICON_PILL} gap-2 lg:w-auto lg:px-3.5`} title={st ? `Status: ${st.label}` : "Set your status"} aria-label="Status" aria-expanded={open === "status"} aria-haspopup="menu">
-            <span className={ICON}>{st ? st.emoji : "🟢"}</span>
-            <span className="hidden lg:inline">{st ? st.label : "Status"}</span>
-            <span className="hidden text-xs opacity-60 lg:inline">▾</span>
+          <button type="button" onClick={() => toggle("status")} className={ICON_PILL} title={orbTitle(p, st?.label)} aria-label={orbTitle(p, st?.label)} aria-expanded={open === "status"} aria-haspopup="menu">
+            <StatusOrb tone={orbTone(p)} />
           </button>
           {open === "status" && (
             <Menu alignRight>
@@ -258,6 +260,32 @@ function TimeChoices({ p, close, chips = false }: { p: HeaderProps; close: () =>
         {p.autoCycle ? "on" : "off"}
       </MenuItem>
     </>
+  );
+}
+
+/** The connection as the orb shows it: green (a good line), amber (a slow one, or reconnecting),
+ *  red (no line). */
+function orbTone(p: HeaderProps): "good" | "slow" | "down" {
+  if (!p.connected) return p.reconnecting ? "slow" : "down";
+  return p.latency > 250 ? "slow" : "good";
+}
+function orbTitle(p: HeaderProps, status?: string): string {
+  const line = !p.connected ? (p.reconnecting ? "Reconnecting…" : "Offline") : `Connected · ${p.latency > 0 ? `${Math.round(p.latency)} ms ping` : "measuring ping…"}`;
+  return `${line}
+Status: ${status ?? "Available"} (tap to change)`;
+}
+const ORB: Record<"good" | "slow" | "down", string> = {
+  good: "bg-emerald-400 shadow-[0_0_8px_2px_rgba(52,211,153,0.75)]",
+  slow: "bg-amber-400 shadow-[0_0_8px_2px_rgba(251,191,36,0.75)]",
+  down: "bg-rose-500 shadow-[0_0_8px_2px_rgba(244,63,94,0.75)]",
+};
+/** A small glowing orb, breathing gently. */
+function StatusOrb({ tone }: { tone: "good" | "slow" | "down" }) {
+  return (
+    <span className="relative flex h-3.5 w-3.5 items-center justify-center" aria-hidden>
+      <span className={`absolute inset-0 animate-ping rounded-full opacity-40 ${ORB[tone].split(" ")[0]}`} style={{ animationDuration: "2.4s" }} />
+      <span className={`relative h-3.5 w-3.5 rounded-full ${ORB[tone]}`} />
+    </span>
   );
 }
 

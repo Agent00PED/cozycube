@@ -49,15 +49,17 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🎡 Roulette]   within betting reach of the roulette table, from any side: the betting board
 //   [🃏 Blackjack]  at a blackjack table: standing, it walks you to its nearest free stool (sitting
 //                    down deals you in); a full table, [👀 Watch Blackjack]
-//   [♠ Poker] / [🂡 Baccarat]  the same, at the poker tables and the penthouse's baccarat table
+//   [♠ Texas Hold'em] / [🂡 Baccarat]  the same, at the poker tables and both baccarat tables (Scarlett's
+//                    in the hall, the penthouse's)
 //   [🔮 Madame Zara]  at her booth: today's fortune (the owl hoots)
 //   [🎁 Capsule Machine]  at the capsule machine: titles and emotes, for chips
 //   [🪙 Tip 5 Chips]  at a dealer's tip jar (or a chair beside Boris's): they bow, the jar sparkles
 //   [🍸 Bar Menu]   at the bar, standing or on a stool: Pippin's drinks
 //   [📰 Read the Gazette]  by the coffee table, or on the Chesterfield
 //   [🎹 Play Piano] on the baby grand's bench, or beside it: an arpeggio the lounge hears
-//   [🎲 Roll Dice] / [🏇 Start a Race] / [🪙 Push a Coin] / [🎱 Break the Rack]  at the craps table,
-//                    the Turf Club, the coin pusher and the billiards table: just for fun
+//   [🎡 Big Six] / [🎲 Craps] / [🏇 Turf Club] / [🪙 Coin Pusher] / [🎱 Play Pool] / [🎯 Darts]  at the
+//                    Big Six's ledge, the craps table, the Turf Club, the coin pusher, the billiards
+//                    table and the darts board's oche
 //   [🕶️ Penthouse]  at Bruno's gilded doors on the stage: up in the elevator with a VIP pass, or
 //                    [🎫 VIP Pass] to buy one; in the penthouse, [🛗 Back Down] at the elevator
 //   [🚪 Leave Casino]  at the exit doors: the world drawer
@@ -109,6 +111,8 @@ interface Action {
     | "pusher"
     | "billiards"
     | "baccarat"
+    | "bigsix"
+    | "darts"
     | "excuse"
     | "vip"
     | "exit"
@@ -299,11 +303,13 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           const capsule = kindNear("gachapon", 1.5);
           if (capsule && Math.hypot(GACHAPON_FRONT.x - px, GACHAPON_FRONT.z - pz) <= MACHINE_REACH) found.push({ key: "capsule", type: "capsule", label: "🎁 Capsule Machine", hint: `A title or an emote for ${CAPSULE_COST} chips`, run: use(capsule) });
           // the tables played from a panel beside them
-          const games: [Exclude<CasinoGameTable, "poker" | "poker_vip" | "baccarat">, string, string, string][] = [
+          const games: [Exclude<CasinoGameTable, "poker" | "poker_vip" | "baccarat" | "baccarat_hall">, string, string, string][] = [
+            ["bigsix", "big_six", "🎡 Big Six", `The Big Six wheel: 1x to the 40x Joker (${chipText(TABLE_LIMITS.bigsix.min)} to ${chipText(TABLE_LIMITS.bigsix.max)} a bet)`],
             ["craps", "craps_table", "🎲 Craps", `Your own dice: Pass Line, Field or Any 7 (${chipText(TABLE_LIMITS.craps.min)} to ${chipText(TABLE_LIMITS.craps.max)} a bet)`],
             ["derby", "derby_table", "🏇 Turf Club", `A ticket on one of four clockwork horses (${chipText(TABLE_LIMITS.derby.min)} to ${chipText(TABLE_LIMITS.derby.max)})`],
             ["pusher", "coin_pusher", "🪙 Coin Pusher", "Drop a coin in the green: the better the drop, the bigger the push"],
             ["billiards", "billiards_table", "🎱 Play Pool", "8-ball on the lounge's table: a rack of your own, or a match against a friend"],
+            ["darts", "darts_board", "🎯 Darts", "The pub darts board: 501 or Cricket, solo or a match (for bragging rights)"],
           ];
           for (const [game, propId, label, hint] of games) {
             const p = toggleables[propId];
@@ -347,9 +353,10 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           const full = !mine && game.seats.every((s) => chairs[s]?.occupiedBy && chairs[s].occupiedBy !== localSessionId);
           found.push({ key: `${type}:${propId}:${full}`, type, label: full ? (game.spectate ? watch : `${label} · Full`) : label, hint: full ? "Table is full — please wait or spectate" : hint, run: () => interactBridge.current?.useProp(propId) });
         };
-        seated("poker_table", nearGameTable("poker", px, pz), "♠ Three-Card Poker", "", `Ante ${chipText(TABLE_LIMITS.poker.min)} to ${chipText(TABLE_LIMITS.poker.max)} against Boris: take a chair, play or fold`, "poker");
-        seated("vip_poker_table", nearGameTable("poker_vip", px, pz), "♠ High-Limit Poker", "", `Ante ${chipText(TABLE_LIMITS.poker_vip.min)} to ${chipText(TABLE_LIMITS.poker_vip.max)} with Boris and Baron von Fox`, "poker");
+        seated("poker_table", nearGameTable("poker", px, pz), "♠ Texas Hold'em", "", `No-Limit Hold'em with Boris and the regulars: buy in for ${chipText(TABLE_LIMITS.poker.min)} to ${chipText(TABLE_LIMITS.poker.max)}`, "poker");
+        seated("vip_poker_table", nearGameTable("poker_vip", px, pz), "♠ High-Limit Hold'em", "", `Buy in for ${chipText(TABLE_LIMITS.poker_vip.min)} to ${chipText(TABLE_LIMITS.poker_vip.max)} with Boris and Baron von Fox`, "poker");
         seated("baccarat_table", nearGameTable("baccarat", px, pz), "🂡 Baccarat", "👀 Watch Baccarat", `Punto Banco, ${chipText(TABLE_LIMITS.baccarat.min)} to ${chipText(TABLE_LIMITS.baccarat.max)} a coup: Player, Banker or Tie`, "baccarat");
+        seated("hall_baccarat_table", nearGameTable("baccarat_hall", px, pz), "🂡 Baccarat", "👀 Watch Baccarat", `Scarlett's Punto Banco, ${chipText(TABLE_LIMITS.baccarat_hall.min)} to ${chipText(TABLE_LIMITS.baccarat_hall.max)} a coup: Player, Banker or Tie`, "baccarat");
         const paper = toggleables.velvet_gazette;
         if (paper && Math.hypot(paper.x - px, paper.z - pz) <= GAZETTE_REACH) found.push({ key: "gazette", type: "gazette", label: "📰 Read the Gazette", hint: "The Velvet Gazette: tonight's big wins and the house's gossip", run: () => interactBridge.current?.useProp(paper.propId) });
         const keys = toggleables.piano_keys;

@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { BACCARAT_BETS, BACCARAT_INFO, TABLE_LIMITS, baccaratTotal, limitPlacard, type BaccaratBet, type BaccaratState, type Card } from "@shared/casino";
+import { BACCARAT_BETS, BACCARAT_INFO, TABLE_LIMITS, baccaratTotal, limitPlacard, type BaccaratBet, type BaccaratState, type BaccaratTable, type Card } from "@shared/casino";
 import { Modal } from "./Modal";
 import { BetPicker, ShortOfChips, clampStake } from "./BetControls";
 import { ChipAmount } from "./VelvetChipIcon";
 import { CardFace } from "./PlayingCard";
 import { playSfx } from "../../audio/sfx";
 
-// Punto Banco at the Velvet Penthouse: back Player, Banker or the Tie from one of the table's
-// stools. The first bet opens the betting window, the shoe deals both hands and the tableau decides
-// any third card; the server settles (shared/casino.ts baccaratCoup), and Duchess Penelope has a
-// wager of her own on every coup. Standing, you watch the coup from the rail.
+// Punto Banco at either table: Scarlett's kidney-shaped one in the hall, or the Velvet Penthouse's.
+// Back Player, Banker or the Tie from one of the table's stools. The first bet opens the betting
+// window, the shoe deals both hands and the tableau decides any third card; the server settles
+// (shared/casino.ts baccaratCoup), and upstairs Duchess Penelope has a wager of her own on every
+// coup. Standing, you watch the coup from the rail.
 
 interface Props {
+  table: BaccaratTable;
   state: BaccaratState | null;
   localSessionId: string;
   seated: boolean;
@@ -24,7 +26,6 @@ interface Props {
   onClose: () => void;
 }
 
-const LIMIT = TABLE_LIMITS.baccarat;
 const TONE: Record<BaccaratBet, string> = {
   player: "from-[#2c5aa8] to-[#173766] border-sky-200/60",
   banker: "from-[#a8323f] to-[#661722] border-rose-200/60",
@@ -63,7 +64,11 @@ function useDealt(state: BaccaratState | null): { player: number; banker: number
   return shown;
 }
 
-export function BaccaratModal({ state, localSessionId, seated, chips, coins, onBet, onTakeSeat, seatFree, onClose }: Props) {
+export function BaccaratModal({ table, state: anyState, localSessionId, seated, chips, coins, onBet, onTakeSeat, seatFree, onClose }: Props) {
+  // the other table's coup is not this one's
+  const state = anyState && anyState.table === table ? anyState : null;
+  const LIMIT = TABLE_LIMITS[table];
+  const hall = table === "baccarat_hall";
   const [pick, setPick] = useState<BaccaratBet>("banker");
   const [stake, setStake] = useState<number>(LIMIT.presets[0]);
   const amount = clampStake(stake, LIMIT, chips);
@@ -96,7 +101,7 @@ export function BaccaratModal({ state, localSessionId, seated, chips, coins, onB
     const total = cards.length ? baccaratTotal(cards) : null;
     const wins = settled && state?.winner === side;
     return (
-      <div className={`flex flex-1 flex-col items-center gap-2 rounded-3xl border p-3 ${wins ? "border-amber-300 bg-amber-200/10 shadow-[0_0_18px_rgba(255,210,110,0.35)]" : "border-white/10 bg-black/25"}`}>
+      <div className={`flex flex-1 flex-col items-center justify-center gap-3 rounded-3xl border p-3 ${wins ? "border-amber-300 bg-amber-200/10 shadow-[0_0_18px_rgba(255,210,110,0.35)]" : "border-white/10 bg-black/25"}`}>
         <div className="casino-heading text-sm uppercase tracking-[0.25em]" style={{ color: side === "player" ? "#9cc8ff" : "#ffb0b8" }}>
           {side === "player" ? "Player" : "Banker"}
           {total !== null && <span className="ml-2 text-amber-100">{total}</span>}
@@ -114,43 +119,41 @@ export function BaccaratModal({ state, localSessionId, seated, chips, coins, onB
   };
 
   return (
-    <Modal title="Baccarat · The Penthouse" icon="🂡" onClose={onClose} width={640} tone="velvet" placard={limitPlacard(LIMIT)}>
-      <div className="casino-body flex flex-col gap-3 pb-2">
-        {/* the scoreboard: the last coups, newest on the right */}
-        <div className="flex items-center gap-2 rounded-2xl bg-black/30 px-3 py-2">
-          <span className="casino-heading text-[10px] uppercase tracking-[0.2em] text-amber-200/80">Bead road</span>
-          <div className="flex flex-1 flex-wrap gap-1">
-            {[...(state?.history ?? [])]
-              .reverse()
-              .slice(-24)
-              .map((w, i) => (
-                <span key={i} className={`flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-black text-white ${BEAD[w]}`}>
-                  {w === "player" ? "P" : w === "banker" ? "B" : "T"}
-                </span>
-              ))}
+    <Modal landscape title={hall ? "Baccarat · Scarlett's Table" : "Baccarat · The Penthouse"} icon="🂡" onClose={onClose} tone={hall ? "felt" : "velvet"} placard={limitPlacard(LIMIT)}>
+      <div className="casino-body flex min-h-0 flex-1 gap-4">
+        <div className="flex min-h-0 flex-[1.2] flex-col gap-3">
+          {/* the scoreboard: the last coups, newest on the right */}
+          <div className="flex items-center gap-2 rounded-2xl bg-black/30 px-3 py-2">
+            <span className="casino-heading text-[10px] uppercase tracking-[0.2em] text-amber-200/80">Bead road</span>
+            <div className="flex flex-1 flex-wrap gap-1">
+              {[...(state?.history ?? [])]
+                .reverse()
+                .slice(-24)
+                .map((w, i) => (
+                  <span key={i} className={`flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-black text-white ${BEAD[w]}`}>
+                    {w === "player" ? "P" : w === "banker" ? "B" : "T"}
+                  </span>
+                ))}
+            </div>
+            <span className="rounded-full border border-amber-300/40 bg-black/40 px-2.5 py-0.5 text-[11px] font-bold text-amber-100">
+              {phase === "betting" ? (left ? `No more bets in ${left}s` : "Place your bets") : phase === "dealing" ? "Dealing…" : state?.winner === "tie" ? "Tie!" : `${state?.winner === "player" ? "Player" : "Banker"} wins`}
+            </span>
           </div>
-          <span className="rounded-full border border-amber-300/40 bg-black/40 px-2.5 py-0.5 text-[11px] font-bold text-amber-100">
-            {phase === "betting" ? (left ? `No more bets in ${left}s` : "Place your bets") : phase === "dealing" ? "Dealing…" : state?.winner === "tie" ? "Tie!" : `${state?.winner === "player" ? "Player" : "Banker"} wins`}
-          </span>
-        </div>
-
-        <div className="flex gap-2">
-          {hand("player")}
-          {hand("banker")}
-        </div>
-
-        {/* the table's wagers this coup */}
-        {!!state?.stakes.length && (
-          <div className="flex flex-wrap justify-center gap-1.5 text-[11px]">
-            {state.stakes.map((s, i) => (
+          <div className="flex min-h-0 flex-1 gap-3 rounded-[2.5rem] border-[6px] border-[#4a2616] bg-[radial-gradient(ellipse_at_center,#237a4e,#123f29)] p-4 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]">
+            {hand("player")}
+            {hand("banker")}
+          </div>
+          {/* the table's wagers this coup */}
+          <div className="flex min-h-[1.5rem] flex-wrap justify-center gap-1.5 text-[11px]">
+            {(state?.stakes ?? []).map((s, i) => (
               <span key={i} className={`rounded-full px-2 py-0.5 ${s.sessionId === localSessionId ? "bg-amber-300/25 text-amber-100" : "bg-white/10"}`}>
                 {s.username.startsWith("Duchess") ? "💎 " : ""}
                 {s.username} · {BACCARAT_INFO[s.bet].name} <ChipAmount n={s.amount} />
               </span>
             ))}
           </div>
-        )}
-
+        </div>
+        <div className="flex min-h-0 w-[24rem] min-w-0 flex-col justify-center gap-3">
         {!seated ? (
           <div className="flex flex-col items-center gap-2 rounded-2xl bg-black/25 p-3 text-center text-sm">
             <span className="opacity-80">You're watching from the rail. Baccarat is played from a stool.</span>
@@ -166,7 +169,7 @@ export function BaccaratModal({ state, localSessionId, seated, chips, coins, onB
           <div className="flex flex-col items-center gap-2">
             <div className="grid w-full grid-cols-3 gap-2">
               {BACCARAT_BETS.map((b) => (
-                <button key={b} type="button" onClick={() => setPick(b)} aria-pressed={pick === b} className={`flex flex-col items-center rounded-2xl border-2 bg-gradient-to-b px-2 py-2 text-white shadow-[0_3px_0_rgba(0,0,0,0.45)] transition-transform active:translate-y-0.5 ${TONE[b]} ${pick === b ? "ring-2 ring-amber-300 ring-offset-2 ring-offset-black/40" : "opacity-80"}`}>
+                <button key={b} type="button" onClick={() => setPick(b)} aria-pressed={pick === b} className={`flex flex-col items-center rounded-2xl border-2 bg-gradient-to-b px-2 py-3 text-white shadow-[0_3px_0_rgba(0,0,0,0.45)] transition-transform active:translate-y-0.5 ${TONE[b]} ${pick === b ? "ring-2 ring-amber-300 ring-offset-2 ring-offset-black/40" : "opacity-80"}`}>
                   <span className="casino-heading text-sm tracking-[0.15em]">{BACCARAT_INFO[b].name}</span>
                   <span className="text-[11px] opacity-85">pays {BACCARAT_INFO[b].pays}</span>
                   {mine.find((s) => s.bet === b) && (
@@ -178,13 +181,13 @@ export function BaccaratModal({ state, localSessionId, seated, chips, coins, onB
               ))}
             </div>
             <BetPicker limit={LIMIT} chips={chips} value={amount} onChange={setStake} />
-            <button type="button" disabled={chips < amount || chips < LIMIT.min} onClick={() => onBet(pick, amount)} className="clay-btn clay-btn-amber min-h-12 px-8 text-base">
+            <button type="button" disabled={chips < amount || chips < LIMIT.min} onClick={() => onBet(pick, amount)} className="clay-btn clay-btn-amber min-h-12 w-full text-base">
               Bet {BACCARAT_INFO[pick].name} · <ChipAmount n={amount} />
             </button>
             <ShortOfChips limit={LIMIT} chips={chips} coins={coins} />
           </div>
         ) : (
-          <div className="min-h-[3rem] text-center text-sm">
+          <div className="flex min-h-[6rem] items-center justify-center rounded-2xl bg-black/25 text-center text-sm">
             {settled && mine.length ? (
               won > 0 ? (
                 <span className="rounded-full bg-amber-300 px-3 py-1 font-extrabold text-amber-950">
@@ -198,7 +201,8 @@ export function BaccaratModal({ state, localSessionId, seated, chips, coins, onB
             )}
           </div>
         )}
-        <p className="text-center text-[11px] opacity-60">Player pays 1:1 · Banker 0.95:1 (5% to the house) · Tie 8:1, and a tie returns Player and Banker bets</p>
+        <p className="text-center text-[11px] opacity-60">Player pays 1:1 · Banker 0.95:1 (5% to the house) · Tie 8:1, and a tie returns Player and Banker bets{hall ? " · Scarlett deals" : ""}</p>
+        </div>
       </div>
     </Modal>
   );

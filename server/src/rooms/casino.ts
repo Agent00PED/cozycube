@@ -3,7 +3,12 @@ import {
   BACCARAT_BET_SECONDS,
   BACCARAT_DEAL_SECONDS,
   BACCARAT_SETTLE_SECONDS,
+  BACCARAT_TABLES,
   BAR_SNACK,
+  BIG_SIX_BET_SECONDS,
+  BIG_SIX_SEGMENTS,
+  BIG_SIX_SETTLE_SECONDS,
+  BIG_SIX_SPIN_MS,
   BLACKJACK_BET_SECONDS,
   BLACKJACK_MAX_HANDS,
   BLACKJACK_SETTLE_SECONDS,
@@ -44,20 +49,19 @@ import {
   blackjackTotal,
   canSplit,
   capsuleUnlock,
+  bigSixReturn,
   crapsReturn,
-  dealerQualifies,
   drinkAura,
   encodeBets,
   exchangeAmount,
   fortuneFor,
   isBetKind,
+  isBigSixBet,
   isCasinoDrink,
   isCasinoTitle,
   isNpcOccupant,
   parseBets,
   pocketColor,
-  pokerHand,
-  pokerSettle,
   pusherAccuracy,
   pusherGutter,
   pusherPush,
@@ -71,6 +75,11 @@ import {
   type BaccaratPhase,
   type BaccaratStake,
   type BaccaratState,
+  type BaccaratTable,
+  type BigSixBet,
+  type BigSixPhase,
+  type BigSixStake,
+  type BigSixState,
   type BlackjackAction,
   type BlackjackHandStatus,
   type BlackjackOutcome,
@@ -96,16 +105,14 @@ import {
   type FortuneResult,
   type PianoNote,
   type PianoRecital,
-  type PokerCompanion,
-  type PokerMove,
-  type PokerOutcome,
-  type PokerPhase,
-  type PokerView,
+  type PokerResult,
   type PusherResult,
   type RoulettePhase,
   type VipPassResult,
 } from "../../../shared/casino";
 import { VIP_PASS } from "../../../shared/items";
+import { HOLDEM_BARON, HOLDEM_BORIS, HOLDEM_HIGH_ROLLERS, HOLDEM_REGULARS, holdemAct, holdemView, newHoldemHand, runHouse, type HoldemGame, type HoldemMove, type HoldemTable } from "../../../shared/holdem";
+import { DARTS_SURROUND, dartAt, dartsThrow, emptyDartsMatch, startDarts, type DartsMatch } from "../../../shared/darts";
 import { PIANO_PIECES, isPianoPiece } from "../../../shared/pianoPieces";
 import { POOL_H, POOL_W, emptyPoolMatch, poolCueSpotFree, poolRack, ruleOnShot, type PoolBall, type PoolMatch, type PoolShotEvent } from "../../../shared/pool";
 import {
@@ -136,11 +143,13 @@ import { todayKey } from "./games";
 
 // The Velvet Casino's tables: the shared roulette wheel, the two blackjack tables' rounds (up to four
 // seated players each, one dealer hand, splits and doubles), the slot machines (the penthouse's
-// Golden Vault too), Three-Card Poker (the hall's table and the penthouse's high-limit one, where
-// Baron von Fox plays a hand beside you), the penthouse's baccarat, your own dice at the craps
-// table, the Mechanical Turf Club's one race for the room, the coin pusher's shelf (kept between
-// sessions), the lounge's two-player 8-ball match, and Mr. Vance's cage, where coins become Velvet
-// Chips and back and the Black Velvet VIP Pass is bought and pawned. Every stake is within its
+// Golden Vault too), No-Limit Texas Hold'em (your own hand against Boris and the house's regulars,
+// in the hall and at the penthouse's high-limit table with Baron von Fox: shared/holdem.ts), the two
+// baccarat tables (the hall's and the penthouse's), the Big Six wheel's one spin for the room, your
+// own dice at the craps table, the Mechanical Turf Club's one race for the room, the coin pusher's
+// shelf (kept between sessions; the patrons who play it feed it too), the lounge's two-player 8-ball
+// and darts matches, and Mr. Vance's cage, where coins become Velvet Chips and back and the Black
+// Velvet VIP Pass is bought and pawned. Every stake is within its
 // table's limits (shared/casino TABLE_LIMITS), and the seated games are played seated. The room owns
 // the synced state (the wheel and its bets, who is at the one-player machines) and the side effects
 // (messages, timers, stats); this owns the rules, the money and the hands, the way BoardTable owns a
@@ -257,18 +266,20 @@ interface BjTable {
   dealer: Card[];
   seats: BjSeat[];
 }
-// --- Three-Card Poker: one hand per player, against Boris ---
-interface PokerGame {
-  table: "poker" | "poker_vip";
+// --- a baccarat table's coup ---
+interface BaccTable {
+  table: BaccaratTable;
+  seats: readonly string[];
+  phase: BaccaratPhase;
+  clock: number;
+  round: number;
+  stakes: BaccaratStake[];
   player: Card[];
-  dealer: Card[];
-  ante: number;
-  play: number;
-  phase: PokerPhase;
-  outcome: PokerOutcome;
-  payout: number;
-  bonus: number;
-  company: (PokerCompanion & { hidden: Card[] })[];
+  banker: Card[];
+  winner: BaccaratBet | "";
+  paid: BaccaratState["paid"];
+  history: BaccaratBet[];
+  shoe: Card[];
 }
 // --- craps: each player's own point and pass line ---
 interface CrapsGame {
@@ -334,12 +345,23 @@ const POOL_OVER_MS = 8000;
 /** The seats of each seated table. */
 const HALL_POKER_SEATS = ["seat_poker_1", "seat_poker_2", "seat_poker_3", "seat_poker_4", "seat_poker_5"];
 const VIP_POKER_SEATS = ["seat_vpoker_1", "seat_vpoker_2", "seat_vpoker_3"];
-const BACCARAT_SEATS = ["seat_bacc_1", "seat_bacc_2", "seat_bacc_3"];
+const BACCARAT_SEATS: Record<BaccaratTable, string[]> = {
+  baccarat: ["seat_bacc_1", "seat_bacc_2", "seat_bacc_3"],
+  baccarat_hall: ["seat_hbacc_1", "seat_hbacc_2", "seat_hbacc_3", "seat_hbacc_4", "seat_hbacc_5"],
+};
+/** The patrons at the coin pusher drop a chip or three onto its shelf about this often (seconds). */
+const NPC_PUSHER_DROP_S: [number, number] = [4, 8];
+/** A darts turn left alone this long passes to the other player; a match over clears after this. */
+const DARTS_TURN_MS = 45_000;
+const DARTS_OVER_MS = 10_000;
 
 export class CasinoFloor {
   private phaseClock = ROULETTE_PHASE_SECONDS.betting;
   private readonly tables: BjTable[] = BLACKJACK_TABLES.map((t) => ({ id: t.id, tier: t.tier, stools: t.stools, dealerName: t.dealer === "gideon" ? "Gideon" : "Cedric", phase: "betting", clock: 0, round: 0, deck: freshDeck(4), dealer: [], seats: [] }));
-  private readonly pokerHands = new Map<string, PokerGame>();
+  /** Each player's hand of Hold'em (their own, against the house), and where the button sits for
+   *  their next one. */
+  private readonly holdem = new Map<string, HoldemGame>();
+  private readonly holdemButton = new Map<string, number>();
   private readonly crapsGames = new Map<string, CrapsGame>();
   /** Each player's last use of each prop kind (the cooldowns above). */
   private readonly lastUse = new Map<string, number>();
@@ -347,8 +369,18 @@ export class CasinoFloor {
    *  winning tickets are owed at the finish line. */
   private derby: { phase: DerbyPhase; clock: number; raceId: number; winner: number; seed: number; tickets: DerbyTicket[]; paid: DerbyState["paid"] } = { phase: "idle", clock: 0, raceId: 0, winner: -1, seed: 0, tickets: [], paid: [] };
   private readonly derbyOwed = new Map<string, number>();
-  /** The penthouse's baccarat: one coup at a time. */
-  private bacc: { phase: BaccaratPhase; clock: number; round: number; stakes: BaccaratStake[]; player: Card[]; banker: Card[]; winner: BaccaratBet | ""; paid: BaccaratState["paid"]; history: BaccaratBet[]; shoe: Card[] } = { phase: "betting", clock: 0, round: 0, stakes: [], player: [], banker: [], winner: "", paid: [], history: [], shoe: freshDeck(6) };
+  /** The two baccarat tables (the hall's, the penthouse's): one coup at a time each. */
+  private readonly baccs: Record<BaccaratTable, BaccTable> = {
+    baccarat: { table: "baccarat", seats: BACCARAT_SEATS.baccarat, phase: "betting", clock: 0, round: 0, stakes: [], player: [], banker: [], winner: "", paid: [], history: [], shoe: freshDeck(6) },
+    baccarat_hall: { table: "baccarat_hall", seats: BACCARAT_SEATS.baccarat_hall, phase: "betting", clock: 0, round: 0, stakes: [], player: [], banker: [], winner: "", paid: [], history: [], shoe: freshDeck(6) },
+  };
+  /** The Big Six wheel: one spin at a time for the room. */
+  private six: { phase: BigSixPhase; clock: number; spinId: number; result: number; prevResult: number; stakes: BigSixStake[]; paid: BigSixState["paid"]; history: BigSixBet[] } = { phase: "betting", clock: 0, spinId: 0, result: -1, prevResult: -1, stakes: [], paid: [], history: [] };
+  /** The lounge's darts match (solo practice is the client's own). */
+  private darts: DartsMatch = emptyDartsMatch();
+  private dartsAt = 0;
+  /** When the patron at the coin pusher next drops a coin. */
+  private npcPusherAt = 0;
   /** The coin pusher's shelf: the chips' worth heaped on it (kept with the room's scene). */
   shelf = PUSHER_SHELF_START;
   /** Free drops at the coin pusher (their stakes), per player. */
@@ -482,8 +514,10 @@ export class CasinoFloor {
     this.tickDerby(dt);
     this.tickBlackjack(dt);
     this.tickBaccarat(dt);
+    this.tickBigSix(dt);
     this.tickMachines();
     this.tickPool();
+    this.tickDarts();
     const r = this.state.roulette;
     this.phaseClock -= dt;
     const shown = Math.max(0, Math.ceil(this.phaseClock));
@@ -595,6 +629,14 @@ export class CasinoFloor {
           this.state.machines.set(id, "");
           this.nextPatronAt.set(id, now + rand(15, 45) * 1000);
           npcs--;
+        } else if (id === "coin_pusher" && now >= this.npcPusherAt) {
+          // a patron at the coin pusher: a real chip or three onto the shelf (it's there for the
+          // next player to push over), the plate sliding for everyone to see
+          this.npcPusherAt = now + rand(NPC_PUSHER_DROP_S[0], NPC_PUSHER_DROP_S[1]) * 1000;
+          if (this.npcPusherAt - now > 0 && this.shelf < PUSHER_SHELF_MAX) {
+            this.shelf = Math.min(PUSHER_SHELF_MAX, this.shelf + 1 + Math.floor(Math.random() * 3));
+            this.host.broadcast("casinoProp", { kind: "pusher", propId: "coin_pusher", sessionId: who, seed: Math.floor(this.shelf) } satisfies CasinoPropEvent);
+          }
         }
         continue;
       }
@@ -699,8 +741,9 @@ export class CasinoFloor {
   }
 
   /** A move at the table your stool belongs to: a bet while the window is open, then hit, stand,
-   *  double or split on your hand in play. */
-  blackjack(sessionId: string, msg: { action: BlackjackAction; bet?: number }) {
+   *  double or split on a hand of yours in play (`hand`: which, once you've split: each plays on its
+   *  own; the first still in play when none is named). */
+  blackjack(sessionId: string, msg: { action: BlackjackAction; bet?: number; hand?: number }) {
     const stool = this.host.seatOf(sessionId);
     const t = this.tables.find((x) => x.stools.includes(stool));
     const p = this.state.players.get(sessionId);
@@ -731,7 +774,8 @@ export class CasinoFloor {
       return this.bjSend(t);
     }
     if (t.phase !== "playing" || !seat) return;
-    const hand = seat.hands.find((h) => h.status === "playing");
+    const named = Number.isInteger(msg.hand) ? seat.hands[msg.hand as number] : undefined;
+    const hand = named && named.status === "playing" ? named : seat.hands.find((h) => h.status === "playing");
     if (!hand) return;
     if (action === "hit") {
       hand.cards.push(this.bjDraw(t));
@@ -872,186 +916,259 @@ export class CasinoFloor {
     this.bjSend(t);
   }
 
-  // --- Three-Card Poker ------------------------------------------------------------------------
+  // --- Texas Hold'em ------------------------------------------------------------------------------
 
-  private pokerView(game: PokerGame): PokerView {
-    const done = game.phase === "done";
-    const dealer = done ? pokerHand(game.dealer) : null;
-    return {
-      phase: game.phase,
-      ante: game.ante,
-      play: game.play,
-      player: game.player,
-      dealer: done ? game.dealer : [],
-      playerHand: game.player.length ? pokerHand(game.player).name : "",
-      dealerHand: dealer?.name ?? "",
-      qualifies: !!dealer && dealerQualifies(dealer),
-      outcome: game.outcome,
-      payout: game.payout,
-      bonus: game.bonus,
-      table: game.table,
-      company: game.company.map(({ hidden, ...c }) => ({ ...c, cards: done ? hidden : [], hand: done ? c.hand : "" })),
-    };
-  }
-
-  /** A hand against Boris, at the table your chair belongs to (the hall's, or the penthouse's
-   *  high-limit one): deal (the ante goes down, and you must hold as much again for the Play bet),
-   *  then play or fold. */
-  poker(sessionId: string, move: PokerMove) {
+  /** The table a chair belongs to (the hall's or the penthouse's), if it is a poker chair. */
+  private pokerTableOf(sessionId: string): HoldemTable | null {
     const chair = this.host.seatOf(sessionId);
-    const table: "poker" | "poker_vip" | null = HALL_POKER_SEATS.includes(chair) ? "poker" : VIP_POKER_SEATS.includes(chair) ? "poker_vip" : null;
-    const p = this.state.players.get(sessionId);
-    if (!this.inCasino(p) || !move || typeof move !== "object") return;
-    if (!table) return this.refuse(sessionId, "seat");
-    let game = this.pokerHands.get(sessionId);
-    if (move.action === "deal") {
-      if (game?.phase === "decide") return this.refuse(sessionId, "busy");
-      const ante = tableStake(move.ante, TABLE_LIMITS[table]);
-      if (ante === null) return this.refuse(sessionId, "limits");
-      if (p.chips < ante * 2) return this.refuse(sessionId, "chips");
-      p.chips -= ante;
-      const deck = freshDeck();
-      game = { table, player: [deck.pop()!, deck.pop()!, deck.pop()!], dealer: [deck.pop()!, deck.pop()!, deck.pop()!], ante, play: 0, phase: "decide", outcome: "", payout: 0, bonus: 0, company: [] };
-      // at the penthouse's table, Baron von Fox plays a hand of his own against the same dealer
-      if (table === "poker_vip") {
-        const hidden = [deck.pop()!, deck.pop()!, deck.pop()!];
-        game.company.push({ name: "Baron von Fox", emoji: "🦊", ante: pick(TABLE_LIMITS.poker_vip.presets), cards: [], hand: "", played: false, outcome: "", payout: 0, hidden });
-      }
-      this.pokerHands.set(sessionId, game);
-    } else if (!game || game.phase !== "decide") {
-      return;
-    } else if (move.action === "fold") {
-      game.phase = "done";
-      game.outcome = "fold";
-      this.settleCompany(game);
-      this.host.broadcast("pokerResult", { sessionId, outcome: "fold", hand: pokerHand(game.player).name, table: game.table });
-    } else if (move.action === "play") {
-      if (p.chips < game.ante) return this.refuse(sessionId, "chips");
-      p.chips -= game.ante;
-      game.play = game.ante;
-      const mine = pokerHand(game.player);
-      const settled = pokerSettle(game.ante, mine, pokerHand(game.dealer));
-      game.phase = "done";
-      game.outcome = settled.outcome;
-      game.payout = settled.payout;
-      game.bonus = settled.bonus;
-      if (settled.payout > 0) this.addChips(p, settled.payout);
-      this.settleCompany(game);
-      this.host.broadcast("pokerResult", { sessionId, outcome: settled.outcome, hand: mine.name, table: game.table });
-      const profit = settled.payout - game.ante * 2;
-      if (profit > 0) {
-        this.host.broadcast("emote", { sessionId, emoji: mine.rank >= 4 ? "💰" : CHIP_EMOTE });
-        this.announce(sessionId, p, settled.payout, "poker", mine.rank >= 3 ? `${mine.name} vs Boris` : "beats Boris", mine.rank >= 4);
-      }
-    } else {
-      return;
-    }
-    this.host.sendTo(sessionId, "pokerState", this.pokerView(game));
+    return HALL_POKER_SEATS.includes(chair) ? "poker" : VIP_POKER_SEATS.includes(chair) ? "poker_vip" : null;
   }
 
-  /** The Baron's hand: he plays a queen-six-four or better (the book), and it is settled against the
-   *  same dealer hand (his chips are his own affair). */
-  private settleCompany(game: PokerGame) {
-    const dealer = pokerHand(game.dealer);
-    for (const c of game.company) {
-      const hand = pokerHand(c.hidden);
-      const v = hand.values;
-      c.hand = hand.name;
-      c.played = hand.rank > 0 || v[0] > 12 || (v[0] === 12 && (v[1] > 6 || (v[1] === 6 && v[2] >= 4)));
-      if (!c.played) {
-        c.outcome = "fold";
-        c.payout = 0;
-        continue;
-      }
-      const s = pokerSettle(c.ante, hand, dealer);
-      c.outcome = s.outcome;
-      c.payout = s.payout;
+  private holdemSend(sessionId: string, table: HoldemTable) {
+    this.host.sendTo(sessionId, "holdemState", holdemView(this.holdem.get(sessionId) ?? null, table));
+  }
+
+  /** The table's view for someone sitting down (their hand in play, if any). */
+  holdemFor(sessionId: string) {
+    const game = this.holdem.get(sessionId);
+    const table = game?.table ?? this.pokerTableOf(sessionId) ?? "poker";
+    this.holdemSend(sessionId, table);
+  }
+
+  /** A new hand at the table your chair belongs to: the buy-in (within the table's limits) comes off
+   *  your chips, and Boris and the house's players sit in with as much. */
+  private holdemDeal(sessionId: string, buyIn: unknown) {
+    const table = this.pokerTableOf(sessionId);
+    const p = this.state.players.get(sessionId);
+    if (!this.inCasino(p)) return;
+    if (!table) return this.refuse(sessionId, "seat");
+    const current = this.holdem.get(sessionId);
+    if (current && !current.over) return this.refuse(sessionId, "busy");
+    const stake = tableStake(buyIn, TABLE_LIMITS[table]);
+    if (stake === null) return this.refuse(sessionId, "limits");
+    if (p.chips < stake) return this.refuse(sessionId, "chips");
+    p.chips -= stake;
+    // the house's players: Boris, and one or two of the hall's regulars (upstairs, the Baron, and a
+    // high roller now and then)
+    const pool = [...(table === "poker" ? HOLDEM_REGULARS : HOLDEM_HIGH_ROLLERS)].sort(() => Math.random() - 0.5);
+    const bots = table === "poker" ? [HOLDEM_BORIS, ...pool.slice(0, Math.random() < 0.5 ? 1 : 2)] : [HOLDEM_BORIS, HOLDEM_BARON, ...(Math.random() < 0.5 ? pool.slice(0, 1) : [])];
+    const button = ((this.holdemButton.get(sessionId) ?? Math.floor(Math.random() * 3)) + 1) % (bots.length + 1);
+    this.holdemButton.set(sessionId, button);
+    const game = newHoldemHand(table, { name: p.username, emoji: "🎩" }, bots, stake, button, freshDeck());
+    runHouse(game);
+    this.holdem.set(sessionId, game);
+    this.holdemSettle(sessionId, p, game);
+    this.holdemSend(sessionId, table);
+  }
+
+  /** Your move in your hand (fold, check, call, raise to, all in); the house answers at once. */
+  private holdemMove(sessionId: string, move: HoldemMove) {
+    const p = this.state.players.get(sessionId);
+    const game = this.holdem.get(sessionId);
+    if (!this.inCasino(p) || !game || game.over || !move || typeof move !== "object") return;
+    const you = game.seats.findIndex((q) => q.human);
+    if (game.toAct !== you) return;
+    if (!holdemAct(game, you, move)) return this.refuse(sessionId, "limits");
+    runHouse(game);
+    this.holdemSettle(sessionId, p, game);
+    this.holdemSend(sessionId, game.table);
+  }
+
+  /** A hand over: your stack (and what you won in it) comes back to your chips, once; Boris has a
+   *  word for it. */
+  private holdemSettle(sessionId: string, p: Patron, game: HoldemGame) {
+    if (!game.over || (game as HoldemGame & { paid?: boolean }).paid) return;
+    (game as HoldemGame & { paid?: boolean }).paid = true;
+    const you = game.seats.find((q) => q.human)!;
+    this.addChips(p, you.stack);
+    const net = you.stack - game.buyIn;
+    const winners = game.seats.filter((q) => q.won > 0);
+    const outcome: PokerResult["outcome"] = you.folded ? "fold" : you.won > 0 ? (winners.length > 1 ? "split" : "win") : "lose";
+    this.host.broadcast("pokerResult", { sessionId, table: game.table, outcome, hand: you.hand, net } satisfies PokerResult);
+    if (net > 0) {
+      this.host.broadcast("emote", { sessionId, emoji: net >= game.buyIn ? "💰" : CHIP_EMOTE });
+      this.announce(sessionId, p, you.won, "poker", you.hand ? `${you.hand} at Hold'em` : "takes the pot", you.hand === "Royal Flush" || you.hand === "Straight Flush" || you.hand === "Four of a Kind");
     }
+  }
+
+  /** A hand still in play ended without you (you stood up, left the casino, or lost the line): it is
+   *  folded, and what is left of your stack comes back. */
+  private holdemFold(sessionId: string) {
+    const game = this.holdem.get(sessionId);
+    const p = this.state.players.get(sessionId);
+    if (!game) return;
+    if (!game.over && p) {
+      const you = game.seats.find((q) => q.human)!;
+      // the chips in the pot stay there, as at any table; the rest of the stack is yours
+      this.addChips(p, you.stack);
+      (game as HoldemGame & { paid?: boolean }).paid = true;
+    }
+    this.holdem.delete(sessionId);
   }
 
   // --- baccarat ---------------------------------------------------------------------------------
 
-  private baccState(): BaccaratState {
-    const b = this.bacc;
-    return { phase: b.phase, timeLeft: Math.max(0, Math.ceil(b.clock)), round: b.round, stakes: b.stakes, player: b.player, banker: b.banker, winner: b.winner, paid: b.paid, history: b.history };
+  private baccState(b: BaccTable): BaccaratState {
+    return { table: b.table, phase: b.phase, timeLeft: Math.max(0, Math.ceil(b.clock)), round: b.round, stakes: b.stakes, player: b.player, banker: b.banker, winner: b.winner, paid: b.paid, history: b.history };
   }
 
-  baccaratFor(sessionId: string) {
-    this.host.sendTo(sessionId, "baccaratState", this.baccState());
+  /** The table a baccarat prop is (the hall's kidney table, or the penthouse's). */
+  private baccOf(propId: string): BaccTable {
+    return propId === BACCARAT_TABLES.baccarat_hall.propId ? this.baccs.baccarat_hall : this.baccs.baccarat;
   }
 
-  /** A stake on Player, Banker or Tie from a baccarat stool, while the window is open. */
+  baccaratFor(sessionId: string, propId: string) {
+    this.host.sendTo(sessionId, "baccaratState", this.baccState(this.baccOf(propId)));
+  }
+
+  /** A stake on Player, Banker or Tie from a stool at either table, while its window is open. */
   private baccaratBet(sessionId: string, bet: unknown, amount: unknown) {
-    const p = this.seatedAt(sessionId, BACCARAT_SEATS);
+    const seat = this.host.seatOf(sessionId);
+    const b = Object.values(this.baccs).find((t) => t.seats.includes(seat));
+    if (!b) return this.refuse(sessionId, "seat");
+    const p = this.seatedAt(sessionId, b.seats);
     if (!p) return;
-    const b = this.bacc;
     if (b.phase !== "betting") return this.refuse(sessionId, "busy");
     if (bet !== "player" && bet !== "banker" && bet !== "tie") return;
-    const stake = tableStake(amount, TABLE_LIMITS.baccarat);
+    const limit = TABLE_LIMITS[b.table];
+    const stake = tableStake(amount, limit);
     if (stake === null) return this.refuse(sessionId, "limits");
     if (p.chips < stake) return this.refuse(sessionId, "chips");
     p.chips -= stake;
     const mine = b.stakes.find((s) => s.sessionId === sessionId && s.bet === bet);
-    if (mine && mine.amount + stake <= TABLE_LIMITS.baccarat.max) mine.amount += stake;
+    if (mine && mine.amount + stake <= limit.max) mine.amount += stake;
     else if (mine) {
       this.addChips(p, stake);
       return this.refuse(sessionId, "limits");
     } else b.stakes.push({ sessionId, username: p.username, bet, amount: stake });
     if (b.clock <= 0) {
       b.clock = BACCARAT_BET_SECONDS;
-      // the Duchess never lets a coup go by without a wager of her own
-      b.stakes.push({ sessionId: "npc:duchess", username: "Duchess Penelope", bet: Math.random() < 0.7 ? "banker" : Math.random() < 0.8 ? "player" : "tie", amount: pick(TABLE_LIMITS.baccarat.presets) });
+      // upstairs, the Duchess never lets a coup go by without a wager of her own
+      if (b.table === "baccarat") b.stakes.push({ sessionId: "npc:duchess", username: "Duchess Penelope", bet: Math.random() < 0.7 ? "banker" : Math.random() < 0.8 ? "player" : "tie", amount: pick(TABLE_LIMITS.baccarat.presets) });
     }
-    this.host.broadcast("baccaratState", this.baccState());
+    this.host.broadcast("baccaratState", this.baccState(b));
   }
 
   private tickBaccarat(dt: number) {
-    const b = this.bacc;
-    if (b.clock <= 0) return;
-    b.clock -= dt;
-    if (b.clock > 0) return;
-    if (b.phase === "betting") {
-      if (b.shoe.length < 20) b.shoe = freshDeck(6);
-      const coup = baccaratCoup(() => b.shoe.pop()!);
-      b.round += 1;
-      b.player = coup.player;
-      b.banker = coup.banker;
-      b.winner = coup.winner;
-      b.phase = "dealing";
-      b.clock = BACCARAT_DEAL_SECONDS;
-    } else if (b.phase === "dealing") {
-      // the cards are all out: the table settles
-      const winner = b.winner as BaccaratBet;
-      const owed = new Map<string, number>();
-      for (const s of b.stakes) {
-        if (s.sessionId.startsWith("npc:")) continue;
-        owed.set(s.sessionId, (owed.get(s.sessionId) ?? 0) + baccaratReturn(s.bet, s.amount, winner));
+    for (const b of Object.values(this.baccs)) {
+      if (b.clock <= 0) continue;
+      b.clock -= dt;
+      if (b.clock > 0) continue;
+      if (b.phase === "betting") {
+        if (b.shoe.length < 20) b.shoe = freshDeck(6);
+        const coup = baccaratCoup(() => b.shoe.pop()!);
+        b.round += 1;
+        b.player = coup.player;
+        b.banker = coup.banker;
+        b.winner = coup.winner;
+        b.phase = "dealing";
+        b.clock = BACCARAT_DEAL_SECONDS;
+      } else if (b.phase === "dealing") {
+        // the cards are all out: the table settles
+        const winner = b.winner as BaccaratBet;
+        const owed = new Map<string, number>();
+        for (const s of b.stakes) {
+          if (s.sessionId.startsWith("npc:")) continue;
+          owed.set(s.sessionId, (owed.get(s.sessionId) ?? 0) + baccaratReturn(s.bet, s.amount, winner));
+        }
+        b.paid = [];
+        for (const [sessionId, amount] of owed) {
+          const p = this.state.players.get(sessionId);
+          if (!p || amount <= 0) continue;
+          this.addChips(p, amount);
+          b.paid.push({ sessionId, username: p.username, amount });
+          const staked = b.stakes.filter((s) => s.sessionId === sessionId).reduce((a, s) => a + s.amount, 0);
+          if (amount > staked) {
+            this.host.broadcast("emote", { sessionId, emoji: CHIP_EMOTE });
+            this.announce(sessionId, p, amount, "baccarat", `${winner === "tie" ? "a tie" : winner} wins`, winner === "tie");
+          }
+        }
+        b.history = [winner, ...b.history].slice(0, 12);
+        b.phase = "settled";
+        b.clock = BACCARAT_SETTLE_SECONDS;
+      } else {
+        b.phase = "betting";
+        b.clock = 0;
+        b.stakes = [];
+        b.player = [];
+        b.banker = [];
+        b.winner = "";
+        b.paid = [];
       }
-      b.paid = [];
+      this.host.broadcast("baccaratState", this.baccState(b));
+    }
+  }
+
+  // --- the Big Six wheel ------------------------------------------------------------------------------
+
+  private sixState(): BigSixState {
+    const w = this.six;
+    return { phase: w.phase, timeLeft: Math.max(0, Math.ceil(w.clock)), spinId: w.spinId, result: w.result, prevResult: w.prevResult, stakes: w.stakes, paid: w.paid, history: w.history };
+  }
+
+  bigSixFor(sessionId: string) {
+    this.host.sendTo(sessionId, "bigSixState", this.sixState());
+  }
+
+  /** A stake on a segment, standing at the wheel's ledge while bets are open (the first opens them). */
+  private bigSixBet(sessionId: string, bet: unknown, amount: unknown) {
+    const p = this.atTable(sessionId, "bigsix");
+    if (!p) return;
+    const w = this.six;
+    if (w.phase !== "betting") return this.refuse(sessionId, "busy");
+    if (!isBigSixBet(bet)) return;
+    const limit = TABLE_LIMITS.bigsix;
+    const stake = tableStake(amount, limit);
+    if (stake === null) return this.refuse(sessionId, "limits");
+    if (p.chips < stake) return this.refuse(sessionId, "chips");
+    const mine = w.stakes.find((s) => s.sessionId === sessionId && s.bet === bet);
+    if (mine && mine.amount + stake > limit.max) return this.refuse(sessionId, "limits");
+    p.chips -= stake;
+    if (mine) mine.amount += stake;
+    else w.stakes.push({ sessionId, username: p.username, bet, amount: stake });
+    if (w.clock <= 0) w.clock = BIG_SIX_BET_SECONDS;
+    this.host.broadcast("bigSixState", this.sixState());
+  }
+
+  private tickBigSix(dt: number) {
+    const w = this.six;
+    if (w.clock <= 0) return;
+    const before = Math.ceil(w.clock);
+    w.clock -= dt;
+    if (w.clock > 0) {
+      // a whole-second countdown while bets are open, every few seconds
+      if (w.phase === "betting" && Math.ceil(w.clock) !== before && Math.ceil(w.clock) % 3 === 0) this.host.broadcast("bigSixState", this.sixState());
+      return;
+    }
+    if (w.phase === "betting") {
+      w.prevResult = w.result;
+      w.result = Math.floor(Math.random() * BIG_SIX_SEGMENTS.length);
+      w.spinId += 1;
+      w.phase = "spinning";
+      w.clock = BIG_SIX_SPIN_MS / 1000 + 0.4;
+    } else if (w.phase === "spinning") {
+      const landed = BIG_SIX_SEGMENTS[w.result];
+      const owed = new Map<string, number>();
+      for (const s of w.stakes) owed.set(s.sessionId, (owed.get(s.sessionId) ?? 0) + bigSixReturn(s.bet, s.amount, landed));
+      w.paid = [];
       for (const [sessionId, amount] of owed) {
         const p = this.state.players.get(sessionId);
         if (!p || amount <= 0) continue;
         this.addChips(p, amount);
-        b.paid.push({ sessionId, username: p.username, amount });
-        const staked = b.stakes.filter((s) => s.sessionId === sessionId).reduce((a, s) => a + s.amount, 0);
-        if (amount > staked) {
-          this.host.broadcast("emote", { sessionId, emoji: CHIP_EMOTE });
-          this.announce(sessionId, p, amount, "baccarat", `${winner === "tie" ? "a tie" : winner} wins`, winner === "tie");
-        }
+        w.paid.push({ sessionId, username: p.username, amount });
+        this.host.broadcast("emote", { sessionId, emoji: landed === "joker" || landed === "20" ? "💰" : CHIP_EMOTE });
+        this.announce(sessionId, p, amount, "bigsix", landed === "joker" ? "the Joker on the Big Six" : `${landed}x on the Big Six`, landed === "joker");
       }
-      b.history = [winner, ...b.history].slice(0, 12);
-      b.phase = "settled";
-      b.clock = BACCARAT_SETTLE_SECONDS;
+      w.history = [landed, ...w.history].slice(0, 14);
+      w.phase = "settled";
+      w.clock = BIG_SIX_SETTLE_SECONDS;
     } else {
-      b.phase = "betting";
-      b.clock = 0;
-      b.stakes = [];
-      b.player = [];
-      b.banker = [];
-      b.winner = "";
-      b.paid = [];
+      w.phase = "betting";
+      w.clock = 0;
+      w.stakes = [];
+      w.paid = [];
     }
-    this.host.broadcast("baccaratState", this.baccState());
+    this.host.broadcast("bigSixState", this.sixState());
   }
 
   // --- craps ------------------------------------------------------------------------------------
@@ -1324,6 +1441,73 @@ export class CasinoFloor {
     }
   }
 
+  // --- the lounge's darts match -------------------------------------------------------------------------
+
+  private dartsSend() {
+    this.host.broadcast("dartsState", this.darts);
+  }
+
+  dartsFor(sessionId: string) {
+    this.host.sendTo(sessionId, "dartsState", this.darts);
+  }
+
+  /** Stepping up to the oche for a match: the first to join picks the game (501 or Cricket) and
+   *  waits; the second joins it and the first to join throws first. */
+  private dartsJoin(sessionId: string, p: Patron, game: unknown) {
+    if (!nearGameTable("darts", p.x, p.z, GAME_SLACK)) return this.refuse(sessionId, "far");
+    if (this.darts.phase === "over") this.darts = emptyDartsMatch();
+    const m = this.darts;
+    if (m.phase !== "waiting" || m.players.some((q) => q.sessionId === sessionId) || m.players.length >= 2) return this.dartsFor(sessionId);
+    if (m.players.length === 0) {
+      this.darts = { ...emptyDartsMatch(game === "cricket" ? "cricket" : "501"), players: [{ sessionId, username: p.username, remaining: 501, marks: [0, 0, 0, 0, 0, 0, 0], points: 0, darts: 0 }] };
+      this.darts.say = `${p.username} is looking for a game of ${this.darts.game === "cricket" ? "Cricket" : "501"}`;
+    } else {
+      const first = m.players[0];
+      this.darts = startDarts(m.game, [first, { sessionId, username: p.username }]);
+      this.dartsAt = Date.now();
+    }
+    this.dartsSend();
+  }
+
+  private dartsLeave(sessionId: string) {
+    const m = this.darts;
+    const i = m.players.findIndex((q) => q.sessionId === sessionId);
+    if (i < 0) return;
+    if (m.phase === "playing") {
+      const other = m.players[1 - i];
+      this.darts = { ...m, phase: "over", winner: other.sessionId, say: `${m.players[i].username} left the oche: ${other.username} wins` };
+      this.dartsAt = Date.now();
+    } else this.darts = emptyDartsMatch();
+    this.dartsSend();
+  }
+
+  /** A dart from the one whose throw it is, landed where their client says (the board scores it). */
+  private dartsThrowAt(sessionId: string, x: unknown, y: unknown) {
+    const m = this.darts;
+    if (m.phase !== "playing" || m.players[m.turn]?.sessionId !== sessionId) return;
+    const dx = Number(x);
+    const dy = Number(y);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) > DARTS_SURROUND) return;
+    this.darts = dartsThrow(m, dartAt(dx, dy));
+    this.dartsAt = Date.now();
+    this.dartsSend();
+  }
+
+  private tickDarts() {
+    const m = this.darts;
+    const now = Date.now();
+    if (m.phase === "playing" && now - this.dartsAt > DARTS_TURN_MS) {
+      // the thrower has wandered off: their turn passes, the darts not thrown missing
+      const next = (m.turn + 1) % m.players.length;
+      this.darts = { ...m, turn: next, thrown: [], turnStart: m.players[next].remaining, lastTurn: { player: m.turn, hits: m.thrown, bust: false }, say: `${m.players[m.turn].username} took too long: ${m.players[next].username} to throw` };
+      this.dartsAt = now;
+      this.dartsSend();
+    } else if (m.phase === "over" && now - this.dartsAt > DARTS_OVER_MS) {
+      this.darts = emptyDartsMatch();
+      this.dartsSend();
+    }
+  }
+
   // --- the baby grand ---------------------------------------------------------------------------
 
   /** At the piano: seated on its bench. */
@@ -1383,12 +1567,29 @@ export class CasinoFloor {
         break;
       }
       case "poker":
-        if (nearGameTable(prop.propId === "vip_poker_table" ? "poker_vip" : "poker", p.x, p.z, GAME_SLACK)) panel("poker");
+        if (nearGameTable(prop.propId === "vip_poker_table" ? "poker_vip" : "poker", p.x, p.z, GAME_SLACK)) {
+          panel("poker");
+          this.holdemFor(sessionId);
+        }
         break;
-      case "baccarat":
-        if (nearGameTable("baccarat", p.x, p.z, GAME_SLACK)) {
+      case "baccarat": {
+        const hall = prop.propId === BACCARAT_TABLES.baccarat_hall.propId;
+        if (nearGameTable(hall ? "baccarat_hall" : "baccarat", p.x, p.z, GAME_SLACK)) {
           panel("baccarat");
-          this.baccaratFor(sessionId);
+          this.baccaratFor(sessionId, prop.propId);
+        }
+        break;
+      }
+      case "bigsix":
+        if (nearGameTable("bigsix", p.x, p.z, GAME_SLACK)) {
+          panel("bigsix");
+          this.bigSixFor(sessionId);
+        }
+        break;
+      case "darts":
+        if (nearGameTable("darts", p.x, p.z, GAME_SLACK)) {
+          panel("darts");
+          this.dartsFor(sessionId);
         }
         break;
       case "craps":
@@ -1545,8 +1746,18 @@ export class CasinoFloor {
         return this.vipPass(sessionId, p, "buy");
       case "VIP_PASS_PAWN":
         return this.vipPass(sessionId, p, "pawn");
-      case "POKER":
-        return this.poker(sessionId, packet.move);
+      case "HOLDEM_DEAL":
+        return this.holdemDeal(sessionId, packet.buyIn);
+      case "HOLDEM_MOVE":
+        return this.holdemMove(sessionId, packet.move);
+      case "BIGSIX_BET":
+        return this.bigSixBet(sessionId, packet.bet, packet.amount);
+      case "DARTS_JOIN":
+        return this.dartsJoin(sessionId, p, packet.game);
+      case "DARTS_LEAVE":
+        return this.dartsLeave(sessionId);
+      case "DARTS_THROW":
+        return this.dartsThrowAt(sessionId, packet.x, packet.y);
       case "BACCARAT_BET":
         return this.baccaratBet(sessionId, packet.bet, packet.amount);
       case "CRAPS_ROLL":
@@ -1579,11 +1790,11 @@ export class CasinoFloor {
 
   // --- comings and goings ---------------------------------------------------------------------
 
-  /** A player leaving the room: their bets on the wheel, a blackjack bet or baccarat stake put down
-   *  before the deal, and a ticket bought before the off come back to them; a derby win already
-   *  decided is paid; hands in play are stood and settled without them, a poker hand in play is
-   *  folded and a pass line on its point is forfeit, as at any table (the room saves them straight
-   *  after). */
+  /** A player leaving the room: their bets on the wheel, a blackjack bet, a baccarat stake or a Big
+   *  Six stake put down before the deal or the spin, and a ticket bought before the off come back to
+   *  them; a derby win already decided is paid; hands in play are stood and settled without them, a
+   *  Hold'em hand in play is folded (what is left of the stack comes back) and a pass line on its
+   *  point is forfeit, as at any table (the room saves them straight after). */
   release(sessionId: string) {
     this.refundBets(sessionId);
     const p = this.state.players.get(sessionId);
@@ -1599,15 +1810,24 @@ export class CasinoFloor {
       }
       this.bjSend(t);
     }
-    if (this.bacc.phase === "betting") {
-      const mine = this.bacc.stakes.filter((s) => s.sessionId === sessionId);
+    for (const b of Object.values(this.baccs)) {
+      if (b.phase !== "betting") continue;
+      const mine = b.stakes.filter((s) => s.sessionId === sessionId);
+      if (!mine.length) continue;
+      if (p) this.addChips(p, mine.reduce((a, s) => a + s.amount, 0));
+      b.stakes = b.stakes.filter((s) => s.sessionId !== sessionId);
+      this.host.broadcast("baccaratState", this.baccState(b));
+    }
+    if (this.six.phase === "betting") {
+      const mine = this.six.stakes.filter((s) => s.sessionId === sessionId);
       if (mine.length) {
         if (p) this.addChips(p, mine.reduce((a, s) => a + s.amount, 0));
-        this.bacc.stakes = this.bacc.stakes.filter((s) => s.sessionId !== sessionId);
-        this.host.broadcast("baccaratState", this.baccState());
+        this.six.stakes = this.six.stakes.filter((s) => s.sessionId !== sessionId);
+        this.host.broadcast("bigSixState", this.sixState());
       }
     }
-    this.pokerHands.delete(sessionId);
+    this.holdemFold(sessionId);
+    this.holdemButton.delete(sessionId);
     this.crapsGames.delete(sessionId);
     const d = this.derby;
     if (d.phase === "betting") {
@@ -1620,21 +1840,17 @@ export class CasinoFloor {
     this.pusherTokens.delete(sessionId);
     for (const id of SINGLE_MACHINES) if (this.state.machines.get(id) === sessionId) this.state.machines.set(id, "");
     this.poolLeave(sessionId);
+    this.dartsLeave(sessionId);
     this.pianoStop(sessionId);
     this.noteBucket.delete(sessionId);
     for (const key of this.lastUse.keys()) if (key.startsWith(`${sessionId}:`)) this.lastUse.delete(key);
   }
 
-  /** The room moving to another map: every stake still in play is handed back (a blackjack hand, a
-   *  baccarat stake, a poker ante, a pass line, a ticket before the off; a race already run is paid),
-   *  and the tables wait for the casino to open again. */
   /** A player off the casino's floors (to another world, or from the hall to the penthouse and
    *  back): every stake they have open comes back, in chips, and they are off every table. */
   leaveFloor(sessionId: string) {
     const p = this.state.players.get(sessionId);
     if (!p) return;
-    const poker = this.pokerHands.get(sessionId);
-    if (poker?.phase === "decide") this.addChips(p, poker.ante);
     const dice = this.crapsGames.get(sessionId);
     if (dice?.pass) this.addChips(p, dice.pass);
     for (const t of this.tables) {
@@ -1644,9 +1860,12 @@ export class CasinoFloor {
       t.seats = t.seats.filter((q) => q !== s);
       this.bjSend(t);
     }
-    if (this.bacc.phase !== "settled") this.addChips(p, this.bacc.stakes.filter((s) => s.sessionId === sessionId).reduce((a, s) => a + s.amount, 0));
-    this.bacc.stakes = this.bacc.stakes.filter((s) => s.sessionId !== sessionId);
-    this.pokerHands.delete(sessionId);
+    for (const b of Object.values(this.baccs)) {
+      if (b.phase !== "settled") this.addChips(p, b.stakes.filter((s) => s.sessionId === sessionId).reduce((a, s) => a + s.amount, 0));
+      b.stakes = b.stakes.filter((s) => s.sessionId !== sessionId);
+    }
+    if (this.six.phase !== "settled") this.addChips(p, this.six.stakes.filter((s) => s.sessionId === sessionId).reduce((a, s) => a + s.amount, 0));
+    this.six.stakes = this.six.stakes.filter((s) => s.sessionId !== sessionId);
     this.crapsGames.delete(sessionId);
     this.release(sessionId);
   }
@@ -1655,13 +1874,15 @@ export class CasinoFloor {
     this.state.players.forEach((_p, sessionId) => this.leaveFloor(sessionId));
     // (release has handed every ticket bought before the off back, and paid every race won)
     this.state.bets.clear();
-    this.pokerHands.clear();
+    this.holdem.clear();
     this.crapsGames.clear();
     this.derbyOwed.clear();
     this.derby = { phase: "idle", clock: 0, raceId: this.derby.raceId, winner: -1, seed: 0, tickets: [], paid: [] };
     for (const t of this.tables) Object.assign(t, { phase: "betting", clock: 0, dealer: [], seats: [] });
-    this.bacc = { ...this.bacc, phase: "betting", clock: 0, stakes: [], player: [], banker: [], winner: "", paid: [] };
+    for (const b of Object.values(this.baccs)) Object.assign(b, { phase: "betting", clock: 0, stakes: [], player: [], banker: [], winner: "", paid: [] });
+    this.six = { ...this.six, phase: "betting", clock: 0, stakes: [], paid: [] };
     this.pool = emptyPoolMatch();
+    this.darts = emptyDartsMatch();
     this.recital = null;
     for (const id of SINGLE_MACHINES) this.state.machines.set(id, "");
     this.reserved.clear();
@@ -1683,12 +1904,15 @@ export class CasinoFloor {
       map.delete(fromId);
       map.set(toId, v);
     };
-    move(this.pokerHands);
+    move(this.holdem);
+    move(this.holdemButton);
     move(this.crapsGames);
     move(this.derbyOwed);
     move(this.pusherTokens);
     for (const t of this.tables) for (const s of t.seats) if (s.sessionId === fromId) s.sessionId = toId;
-    for (const s of this.bacc.stakes) if (s.sessionId === fromId) s.sessionId = toId;
+    for (const b of Object.values(this.baccs)) for (const s of b.stakes) if (s.sessionId === fromId) s.sessionId = toId;
+    for (const s of this.six.stakes) if (s.sessionId === fromId) s.sessionId = toId;
+    for (const q of this.darts.players) if (q.sessionId === fromId) q.sessionId = toId;
     for (const t of this.derby.tickets) if (t.sessionId === fromId) t.sessionId = toId;
     for (const q of this.pool.players) if (q.sessionId === fromId) q.sessionId = toId;
     for (const id of SINGLE_MACHINES) if (this.state.machines.get(id) === fromId) this.state.machines.set(id, toId);

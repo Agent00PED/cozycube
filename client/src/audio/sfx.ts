@@ -95,7 +95,10 @@ export type Sfx =
   | "coinDrop"
   | "knock"
   | "purr"
-  | "gallop";
+  | "gallop"
+  // the definitive remaster's: the Big Six's flapper over a peg, a dart into the board
+  | "clicker"
+  | "dart";
 
 /** A sound from somewhere in the world, heard from where you stand: full up close, fading with
  *  distance (and never quite gone within the room). */
@@ -249,6 +252,15 @@ export function playSfx(kind: Sfx, volume = 1) {
     noise(c, t, 0.025, 0.14, 4200);
     tone(c, t + 0.03, 1568, 1568, 0.28, 0.05, "sine");
     tone(c, t + 0.08, 2093, 2093, 0.3, 0.035, "sine");
+  } else if (kind === "clicker") {
+    // the Big Six's leather flapper snapping over a peg: a dry tick with a little knock under it
+    noise(c, t, 0.018, 0.2, 3600);
+    tone(c, t, 820, 520, 0.03, 0.05, "square");
+  } else if (kind === "dart") {
+    // a dart into the sisal: a short whoosh, then a dull thock
+    noise(c, t, 0.08, 0.05, 2600);
+    tone(c, t + 0.08, 240, 150, 0.08, 0.16, "sine");
+    noise(c, t + 0.08, 0.03, 0.14, 1400);
   } else if (kind === "card") {
     // a card dealt or turned: a papery swish and a light snap
     noise(c, t, 0.09, 0.14, 5200);

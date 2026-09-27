@@ -14,7 +14,7 @@ import { CASINO_URL, CasinoWorld } from "./CasinoWorld";
 import { CASINO_VIP_URL } from "./CasinoVipWorld";
 import { preloadCasinoStaff } from "../entities/CasinoStaff";
 import { preloadPatrons } from "../entities/AmbientPatrons";
-import { BAR_REACH, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, TABLE_FULL_LINE, barDistance, casinoFloorY, seatedGameAt, seatedGameOf, tablePerimeter, type StandingTable } from "@shared/worlds/casino";
+import { BAR_REACH, BIG_SIX, BIG_SIX_SPOTS, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, TABLE_FULL_LINE, barDistance, casinoFloorY, seatedGameAt, seatedGameOf, tablePerimeter, type StandingTable } from "@shared/worlds/casino";
 import { VIP_FRAME } from "@shared/worlds/casino_vip";
 import { ChloeMaid, preloadChloe } from "../entities/ChloeMaid";
 import { pushToast } from "../components/hud/toastStore";
@@ -117,13 +117,16 @@ const CASINO_PADS: Partial<Record<ToggleableSyncState["kind"], { size: [number, 
   derby: { size: [CL.derby.w, 1.1, CL.derby.len] },
   pusher: { size: [CL.pusher.d, CL.pusher.h, CL.pusher.w] },
   billiards: { size: [CL.billiards.len, 1.0, CL.billiards.w] },
-  piano: { size: [CL.piano.len, 1.1, CL.piano.w], at: () => ({ x: CL.piano.x, z: CL.piano.z, y: casinoFloorY(CL.piano.x, CL.piano.z) }) },
+  piano: { size: [CL.piano.w, 1.1, CL.piano.len], at: () => ({ x: CL.piano.x, z: CL.piano.z, y: casinoFloorY(CL.piano.x, CL.piano.z) }) },
   gazette: { size: [CL.coffee.lx, 0.3, CL.coffee.lz], at: (p) => ({ y: p.y - 0.12 }) },
   fortune: { size: [1.2, CL.zara.h, 1.2] },
   gachapon: { size: [0.75, CL.gachapon.h, 0.75] },
   tipjar: { size: [0.3, 0.32, 0.3] },
   barmenu: { size: [0.75, 1.15, 0.75] },
-  baccarat: { size: [2.2, 0.95, 1.4], at: (p) => ({ z: p.z + 0.3 }) },
+  baccarat: { size: [2.4, 0.95, 1.5], at: (p) => ({ z: p.z + (p.propId === "hall_baccarat_table" ? 0.2 : 0.3) }) },
+  // the Big Six: the wheel and its ledge together; the darts board on the wall
+  bigsix: { size: [1.7, 2.5, 1.7], at: () => ({ x: (BIG_SIX.x + BIG_SIX.ledge.x) / 2, z: (BIG_SIX.z + BIG_SIX.ledge.z) / 2, y: 0 }) },
+  darts: { size: [0.3, 0.9, 0.95], at: (p) => ({ y: p.y - 0.45 }) },
   vipdoor: { size: [CL.vipDoors.w + 0.2, CL.vipDoors.h, 0.35] },
 };
 /** The tables played standing, from any side: a click walks you to the nearest open spot round the rim. */
@@ -390,10 +393,11 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         return;
       }
       // the standing tables: up to the nearest open spot round the rim, whichever side you come from
+      // (the Big Six: the nearest open spot along its ledge)
       const standing = mapId === "velvet_casino" && !game ? STANDING_TABLES[propId] : undefined;
-      if (standing) {
+      if (standing || (mapId === "velvet_casino" && propId === "big_six")) {
         let best: { x: number; z: number; d: number } | null = null;
-        for (const q of tablePerimeter(standing)) {
+        for (const q of standing ? tablePerimeter(standing) : BIG_SIX_SPOTS) {
           if (isBlocked(q.x, q.z, mapId)) continue;
           const d = Math.hypot(q.x - cameraFocus.x, q.z - cameraFocus.z);
           if (!best || d < best.d) best = { ...q, d };

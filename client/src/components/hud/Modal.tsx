@@ -12,6 +12,7 @@ export function Modal({
   width = 480,
   tone = "stone",
   fit = false,
+  landscape = false,
   placard,
 }: {
   title: string;
@@ -23,6 +24,9 @@ export function Modal({
   tone?: "stone" | "felt" | "velvet";
   /** Sized to fit the viewport whole (90vw, never over 85vh), with no scrolling: for panels laid out to fit (the reel). */
   fit?: boolean;
+  /** A 16:9 table in landscape (90vw by 85vh, at most 1200 by 720), laid out to fit with no
+   *  scrolling at all: the casino's games. */
+  landscape?: boolean;
   /** A brass placard under the title: a casino table's limits ("MIN: 25 | MAX ALL-IN: 1,000"). */
   placard?: string;
 }) {
@@ -39,14 +43,14 @@ export function Modal({
   const casino = tone !== "stone";
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/45 sm:items-center sm:p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
+    <div className={`fixed inset-0 z-[60] flex justify-center bg-black/45 ${landscape ? "items-center p-2" : "items-end sm:items-center sm:p-4"}`} onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
       <div
         role="dialog"
         aria-label={title}
-        className={`clay-sheet sm:clay-pop flex max-h-[85vh] ${fit ? "w-[90vw] sm:w-[90vw]" : "w-full"} flex-col overflow-hidden rounded-t-3xl border text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl ${toneClass} ${casino ? "casino-sheet casino-body" : ""}`}
-        style={{ maxWidth: width }}
+        className={`clay-sheet sm:clay-pop flex ${landscape ? "h-[85vh] max-h-[720px] w-[90vw] rounded-3xl" : `max-h-[85vh] ${fit ? "w-[90vw] sm:w-[90vw]" : "w-full"} rounded-t-3xl sm:rounded-3xl`} flex-col overflow-hidden border text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md ${toneClass} ${casino ? "casino-sheet casino-body" : ""}`}
+        style={{ maxWidth: landscape ? 1200 : width }}
       >
-        <div className="flex items-center gap-3 px-5 pt-4 pb-2">
+        <div className={`flex items-center gap-3 px-5 ${landscape ? "pt-2.5 pb-1" : "pt-4 pb-2"}`}>
           {icon && <span className="text-2xl">{icon}</span>}
           {casino ? (
             <h2 className="casino-title flex-1">
@@ -61,11 +65,11 @@ export function Modal({
         </div>
         {casino && <div className="casino-ribbon" aria-hidden />}
         {placard && (
-          <div className="casino-placard mx-5 mb-2 self-center rounded-md border border-[#6b4a12] bg-gradient-to-b from-[#f6dc8f] via-[#d9a843] to-[#9c6b1c] px-3 py-0.5 text-center text-[11px] tracking-[0.18em] text-[#3a2206] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_2px_6px_rgba(0,0,0,0.45)]" style={{ textShadow: "0 1px 0 rgba(255,240,200,0.6)" }}>
+          <div className="casino-placard mx-5 mb-1.5 self-center rounded-md border border-[#6b4a12] bg-gradient-to-b from-[#f6dc8f] via-[#d9a843] to-[#9c6b1c] px-3 py-0.5 text-center text-[11px] tracking-[0.18em] text-[#3a2206] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_2px_6px_rgba(0,0,0,0.45)]" style={{ textShadow: "0 1px 0 rgba(255,240,200,0.6)" }}>
             {placard}
           </div>
         )}
-        <div className={fit ? "flex min-h-0 flex-1 flex-col justify-between overflow-hidden px-4 pb-[max(14px,env(safe-area-inset-bottom))]" : "scrollbar-none overflow-y-auto px-5 pb-[max(20px,env(safe-area-inset-bottom))]"}>{children}</div>
+        <div className={landscape ? "flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3" : fit ? "flex min-h-0 flex-1 flex-col justify-between overflow-hidden px-4 pb-[max(14px,env(safe-area-inset-bottom))]" : "scrollbar-none overflow-y-auto px-5 pb-[max(20px,env(safe-area-inset-bottom))]"}>{children}</div>
       </div>
     </div>,
     document.body

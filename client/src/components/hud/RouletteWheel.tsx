@@ -11,7 +11,10 @@ interface Props {
   phase: RoulettePhase;
   spinId: number;
   result: number;
-  size?: number;
+  /** Pixels, or any CSS length (the big wheel fills its box). */
+  size?: number | string;
+  /** Called as the ivory ball, dropping in, rattles over a pocket's fret. */
+  onRattle?: () => void;
 }
 
 const N = WHEEL_ORDER.length;
@@ -21,7 +24,10 @@ const FILL = { red: "#b3202e", black: "#1c1c22", green: "#1f8a4c" } as const;
 const RUN_S = ROULETTE_PHASE_SECONDS.spinning - 0.6;
 const easeOut = (x: number) => 1 - Math.pow(1 - x, 3);
 
-export function RouletteWheel({ phase, spinId, result, size = 150 }: Props) {
+export function RouletteWheel({ phase, spinId, result, size = 150, onRattle }: Props) {
+  const rattle = useRef(onRattle);
+  rattle.current = onRattle;
+  const fret = useRef(-1);
   const wheel = useRef<SVGGElement>(null);
   const ball = useRef<SVGCircleElement>(null);
   const run = useRef<{ spinId: number; at: number; w0: number; W: number; b0: number; B: number; idle: number } | null>(null);
@@ -52,8 +58,17 @@ export function RouletteWheel({ phase, spinId, result, size = 150 }: Props) {
         if (u < 1) {
           angle.current.w = r.w0 + r.W * easeOut(u);
           angle.current.b = r.b0 - r.B * easeOut(u);
-          // the ball runs the outer track, then spirals down into the pockets over the last third
+          // the ball runs the outer track, then spirals down into the pockets over the last third,
+          // rattling over the frets as it goes
           rad = u < 0.66 ? 0.9 : 0.9 - ((u - 0.66) / 0.34) * 0.22 + Math.abs(Math.sin(u * 40)) * 0.02 * (1 - u);
+          if (u > 0.62) {
+            const rel = ((((angle.current.b - angle.current.w) % 360) + 360) % 360) / STEP;
+            const f = Math.floor(rel);
+            if (f !== fret.current) {
+              fret.current = f;
+              rattle.current?.();
+            }
+          }
         } else {
           // settled: the ball rides its pocket as the wheel idles on
           r.idle += 12 * dt;
@@ -90,7 +105,7 @@ export function RouletteWheel({ phase, spinId, result, size = 150 }: Props) {
   );
 
   return (
-    <svg viewBox="-100 -100 200 200" width={size} height={size} aria-label="The roulette wheel" role="img">
+    <svg viewBox="-100 -100 200 200" width={typeof size === "number" ? size : undefined} height={typeof size === "number" ? size : undefined} style={typeof size === "string" ? { width: size, height: size } : undefined} aria-label="The roulette wheel" role="img">
       <defs>
         <radialGradient id="rw-bowl" cx="50%" cy="50%" r="50%">
           <stop offset="70%" stopColor="#5a2a14" />

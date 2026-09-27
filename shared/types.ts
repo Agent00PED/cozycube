@@ -281,8 +281,9 @@ export type ToggleableKind =
   | CasinoPropKind;
 
 /** The Velvet Casino's props (shared/worlds/casino.ts): the slot row, Mr. Vance's cage, the exit
- *  doors, the game tables (walking up to one opens its panel: the wheel, blackjack, poker, the dice,
- *  the Turf Club, the coin pusher, the billiards, the baby grand), Madame Zara, the capsule machine,
+ *  doors, the game tables (walking up to one opens its panel: the wheel, blackjack, poker, baccarat,
+ *  the Big Six, the dice, the Turf Club, the coin pusher, the billiards, the darts board, the baby
+ *  grand), Madame Zara, the capsule machine,
  *  the dealers' tip jars, Pippin's bar menu, The Velvet Gazette and the VIP room's doors. */
 export type CasinoPropKind =
   | "slot"
@@ -296,6 +297,8 @@ export type CasinoPropKind =
   | "derby"
   | "pusher"
   | "billiards"
+  | "bigsix"
+  | "darts"
   | "piano"
   | "gazette"
   | "fortune"
@@ -1013,7 +1016,7 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
   );
 }
 
-const CASINO_PROP_KINDS: ReadonlySet<string> = new Set<CasinoPropKind>(["slot", "cashier", "portal", "roulette", "blackjack", "poker", "baccarat", "craps", "derby", "pusher", "billiards", "piano", "gazette", "fortune", "gachapon", "tipjar", "barmenu", "vipdoor"]);
+const CASINO_PROP_KINDS: ReadonlySet<string> = new Set<CasinoPropKind>(["slot", "cashier", "portal", "roulette", "blackjack", "poker", "baccarat", "craps", "derby", "pusher", "billiards", "bigsix", "darts", "piano", "gazette", "fortune", "gachapon", "tipjar", "barmenu", "vipdoor"]);
 /** The casino's props: every one is walked up to. */
 export function isCasinoProp(kind: string): kind is CasinoPropKind {
   return CASINO_PROP_KINDS.has(kind);

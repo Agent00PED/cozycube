@@ -19,6 +19,10 @@ import { Modal } from "./Modal";
 //
 // Aim: point behind the cue ball (the cue lies on the pointer's side, the dotted line shows where
 // the ball goes), press and pull back, let go: the further the pull, the harder the shot.
+//
+// Walking up asks which it's to be (Solo Practice or a 2-Player Match); the table is drawn 2:1 in
+// its walnut frame, fitted to the panel whole (every pocket, cushion and the cue in view), the power
+// meter under it: nothing to scroll.
 
 interface Props {
   match: PoolMatch | null;
@@ -29,6 +33,30 @@ interface Props {
 }
 
 type Mode = "solo" | "match";
+/** The canvas: the table (POOL_W by POOL_H) in a walnut frame that makes it 2:1. */
+const FRAME_X = (POOL_H * 2 - POOL_W) / 2;
+const CANVAS_W = POOL_W + FRAME_X * 2;
+
+/** The largest box of `ratio` (width / height) that fits the element. */
+function useFit(ratio: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      const fw = Math.min(w, h * ratio);
+      setSize({ w: Math.floor(fw), h: Math.floor(fw / ratio) });
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ratio]);
+  return { ref, size };
+}
 const BEST_KEY = "cozy-pool-best";
 const COLORS = ["#f4f1ea", "#f2c230", "#2f5fd0", "#d8322b", "#6a3aa8", "#f07c1c", "#1f8a4c", "#7a1f2e", "#141414"];
 const colorOf = (n: number) => COLORS[n === 0 ? 0 : n === 8 ? 8 : ((n - 1) % 8) + 1];
@@ -36,7 +64,20 @@ const leftOf = (balls: PoolBall[], g: PoolGroup | null) => (g ? balls.filter((b)
 
 export function PoolModal({ match, localSessionId, send, subscribeMessages, onClose }: Props) {
   const inMatch = !!match && match.players.some((p) => p.sessionId === localSessionId);
-  const [mode, setMode] = useState<Mode>(inMatch ? "match" : "solo");
+  // walking up asks which it's to be (unless you're already in the room's match)
+  const [mode, setModeRaw] = useState<Mode>(inMatch ? "match" : "solo");
+  const [choosing, setChoosing] = useState(!inMatch);
+  const setMode = (m: Mode) => {
+    setModeRaw(m);
+    setChoosing(false);
+  };
+  const choose = (m: Mode) => {
+    setMode(m);
+    // a match: take the open place at the table if there is one
+    const cur = matchRef.current;
+    if (m === "match" && cur && cur.phase !== "playing" && !cur.players.some((p) => p.sessionId === localSessionId) && cur.players.length < 2) send({ type: "POOL_JOIN" });
+  };
+  const fit = useFit(CANVAS_W / POOL_H);
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const matchRef = useRef(match);
@@ -185,7 +226,7 @@ export function PoolModal({ match, localSessionId, send, subscribeMessages, onCl
     const c = canvas.current!;
     const ctx = c.getContext("2d")!;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    c.width = POOL_W * dpr;
+    c.width = CANVAS_W * dpr;
     c.height = POOL_H * dpr;
     ctx.scale(dpr, dpr);
     let raf = 0;
@@ -213,7 +254,11 @@ export function PoolModal({ match, localSessionId, send, subscribeMessages, onCl
           finishRef.current(run);
         }
       } else acc = 0;
+      ctx.save();
+      frame2to1(ctx);
+      ctx.translate(FRAME_X, 0);
       draw(ctx, sim.current ? sim.current.sim.snapshot() : table.current, sim.current ? null : aim.current, placingRef.current);
+      ctx.restore();
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -223,7 +268,7 @@ export function PoolModal({ match, localSessionId, send, subscribeMessages, onCl
   // --- the pointer: place the cue ball (ball in hand), then drag back and let go ---
   const toTable = (e: React.PointerEvent) => {
     const r = canvas.current!.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * POOL_W, y: ((e.clientY - r.top) / r.height) * POOL_H };
+    return { x: ((e.clientX - r.left) / r.width) * CANVAS_W - FRAME_X, y: ((e.clientY - r.top) / r.height) * POOL_H };
   };
   const canShoot = () => !sim.current && (modeRef.current === "solo" || myTurnRef.current);
   const cueAt = () => placingRef.current ?? table.current[0];
@@ -288,87 +333,117 @@ export function PoolModal({ match, localSessionId, send, subscribeMessages, onCl
             : match.say;
 
   return (
-    <Modal title="The 8-Ball Table" icon="🎱" onClose={onClose} width={660} tone="felt">
-      <div className="casino-body flex flex-col gap-2 pb-2">
-        <div className="grid grid-cols-2 gap-1.5 rounded-full border border-amber-300/30 bg-black/30 p-1" role="tablist" aria-label="Game">
-          {(
-            [
-              ["solo", "Solo Rack"],
-              ["match", "Two-Player Match"],
-            ] as [Mode, string][]
-          ).map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={mode === id} onClick={() => setMode(id)} className={`min-h-9 rounded-full text-sm font-extrabold transition-transform active:scale-95 ${mode === id ? "bg-gradient-to-b from-amber-200 to-amber-400 text-[#3b1a0e]" : "text-amber-100/80 hover:bg-white/10"}`}>
-              {label}
-            </button>
-          ))}
+    <Modal landscape title="The 8-Ball Table" icon="🎱" onClose={onClose} tone="felt">
+      <div className="casino-body relative flex min-h-0 flex-1 flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <button type="button" onClick={() => setChoosing(true)} className="rounded-full border border-amber-300/30 bg-black/30 px-3 py-1 font-extrabold text-amber-100 hover:bg-white/10">
+            {mode === "solo" ? "🎯 Solo Practice" : "👥 2-Player Match"} ▾
+          </button>
+          {mode === "solo" ? (
+            <>
+              <span className="font-bold">
+                {soloGroup ? (
+                  <>
+                    You're on <b className="text-amber-200">{soloGroup}</b> ({leftOf(table.current, soloGroup)} left)
+                  </>
+                ) : (
+                  "Open table"
+                )}
+              </span>
+              <span className="opacity-70">
+                Shots: {shots}
+                {best ? ` · best clear: ${best}` : ""}
+              </span>
+              <button type="button" onClick={() => soloRack("A fresh rack: break when you're ready")} className="clay-btn clay-btn-ghost min-h-8 px-3 text-xs">
+                Re-rack
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                {(match?.players ?? []).map((p, i) => (
+                  <span key={p.sessionId} className={`rounded-full px-2.5 py-1 font-bold ${match?.phase === "playing" && match.turn === i ? "bg-amber-300 text-amber-950" : "bg-white/10"}`}>
+                    {p.username}
+                    {p.group ? ` · ${p.group}` : ""}
+                    {match?.phase === "playing" && match.turn === i ? " 🎯" : ""}
+                  </span>
+                ))}
+                {match && match.players.length < 2 && <span className="rounded-full bg-white/5 px-2.5 py-1 opacity-60">waiting for a challenger</span>}
+              </div>
+              <div className="flex gap-1.5">
+                {match?.phase === "waiting" && !me && match.players.length < 2 && (
+                  <button type="button" onClick={() => send({ type: "POOL_JOIN" })} className="clay-btn clay-btn-amber min-h-8 px-4 text-xs">
+                    Join the Table
+                  </button>
+                )}
+                {match?.phase === "over" && (
+                  <button type="button" onClick={() => send({ type: "POOL_JOIN" })} className="clay-btn clay-btn-amber min-h-8 px-4 text-xs">
+                    New Match
+                  </button>
+                )}
+                {me && match?.phase !== "over" && (
+                  <button type="button" onClick={() => send({ type: "POOL_LEAVE" })} className="clay-btn clay-btn-ghost min-h-8 px-4 text-xs">
+                    {match?.phase === "playing" ? "Concede" : "Leave"}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
-        {mode === "solo" ? (
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-bold">
-              {soloGroup ? (
-                <>
-                  You're on <b className="text-amber-200">{soloGroup}</b> ({leftOf(table.current, soloGroup)} left)
-                </>
-              ) : (
-                "Open table"
-              )}
-            </span>
-            <span className="opacity-70">
-              Shots: {shots}
-              {best ? ` · best clear: ${best}` : ""}
-            </span>
+        <div ref={fit.ref} className="flex min-h-0 flex-1 items-center justify-center">
+          <canvas ref={canvas} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} className="touch-none rounded-2xl shadow-[0_8px_24px_rgba(0,0,0,0.5)]" style={{ width: fit.size.w || undefined, height: fit.size.h || undefined, aspectRatio: `${CANVAS_W} / ${POOL_H}`, cursor: mode === "match" && !myTurn ? "default" : "crosshair" }} aria-label="The pool table: drag back to aim and shoot" />
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-200/80">Power</span>
+          <div className="h-3 flex-1 overflow-hidden rounded-full bg-black/40">
+            <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-300 to-rose-500" style={{ width: `${power * 100}%` }} />
           </div>
-        ) : (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div className="flex flex-wrap gap-1.5">
-              {(match?.players ?? []).map((p, i) => (
-                <span key={p.sessionId} className={`rounded-full px-2.5 py-1 font-bold ${match?.phase === "playing" && match.turn === i ? "bg-amber-300 text-amber-950" : "bg-white/10"}`}>
-                  {p.username}
-                  {p.group ? ` · ${p.group}` : ""}
-                  {match?.phase === "playing" && match.turn === i ? " 🎯" : ""}
-                </span>
-              ))}
-              {match && match.players.length < 2 && <span className="rounded-full bg-white/5 px-2.5 py-1 opacity-60">waiting for a challenger</span>}
-            </div>
-            {match?.phase === "waiting" && !me && match.players.length < 2 && (
-              <button type="button" onClick={() => send({ type: "POOL_JOIN" })} className="clay-btn clay-btn-amber min-h-9 px-4 text-xs">
-                Join the Table
-              </button>
-            )}
-            {match?.phase === "over" && (
-              <button type="button" onClick={() => send({ type: "POOL_JOIN" })} className="clay-btn clay-btn-amber min-h-9 px-4 text-xs">
-                New Match
-              </button>
-            )}
-            {me && match?.phase !== "over" && (
-              <button type="button" onClick={() => send({ type: "POOL_LEAVE" })} className="clay-btn clay-btn-ghost min-h-9 px-4 text-xs">
-                {match?.phase === "playing" ? "Concede" : "Leave"}
-              </button>
-            )}
-          </div>
-        )}
-
-        <canvas ref={canvas} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} className="w-full touch-none rounded-2xl shadow-[0_8px_24px_rgba(0,0,0,0.5)]" style={{ aspectRatio: `${POOL_W} / ${POOL_H}`, cursor: mode === "match" && !myTurn ? "default" : "crosshair" }} aria-label="The pool table: drag back to aim and shoot" />
-        <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/40">
-          <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-300 to-rose-500" style={{ width: `${power * 100}%` }} />
         </div>
         <div className="min-h-[1.25rem] text-center text-sm font-bold text-amber-100" role="status">
           {status}
+          {mode === "match" && <span className="ml-2 text-[11px] font-normal opacity-60">Fouls (a scratch, no ball hit, the wrong ball first) give ball in hand.</span>}
         </div>
-        {mode === "solo" && (
-          <div className="flex justify-center">
-            <button type="button" onClick={() => soloRack("A fresh rack: break when you're ready")} className="clay-btn clay-btn-ghost min-h-9 px-4 text-xs">
-              Re-rack
-            </button>
+
+        {choosing && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-black/55 backdrop-blur-[2px]">
+            <div className="flex w-[min(34rem,90%)] flex-col items-center gap-3 rounded-3xl border border-amber-300/40 bg-[#123524]/95 p-5 shadow-2xl">
+              <div className="casino-title text-lg">
+                <span className="gold-foil">How will you play?</span>
+              </div>
+              <div className="grid w-full grid-cols-2 gap-3">
+                <button type="button" onClick={() => choose("solo")} className="clay-btn clay-btn-amber flex min-h-24 flex-col items-center justify-center gap-1 text-base">
+                  <span className="text-3xl">🎯</span>
+                  Solo Practice
+                  <span className="text-[11px] font-normal opacity-80">a rack of your own</span>
+                </button>
+                <button type="button" onClick={() => choose("match")} className="clay-btn clay-btn-mint flex min-h-24 flex-col items-center justify-center gap-1 text-base">
+                  <span className="text-3xl">👥</span>
+                  2-Player Match
+                  <span className="text-[11px] font-normal opacity-80">{match && match.players.length === 1 && !me ? `take on ${match.players[0].username}` : match?.phase === "playing" && !me ? "watch the match" : "wait for a challenger"}</span>
+                </button>
+              </div>
+            </div>
           </div>
-        )}
-        {mode === "match" && (
-          <p className="text-center text-[11px] opacity-60">Fouls (a scratch, no ball hit, the wrong ball first) give ball in hand. Clear your group, then sink the 8.</p>
         )}
       </div>
     </Modal>
   );
+}
+
+/** The walnut frame round the table, making the canvas 2:1. */
+function frame2to1(ctx: CanvasRenderingContext2D) {
+  const g = ctx.createLinearGradient(0, 0, 0, POOL_H);
+  g.addColorStop(0, "#3a1d0e");
+  g.addColorStop(1, "#24110a");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, CANVAS_W, POOL_H);
+  ctx.fillStyle = "#c9a24a";
+  for (const x of [FRAME_X / 2, CANVAS_W - FRAME_X / 2]) {
+    ctx.beginPath();
+    ctx.arc(x, POOL_H / 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 /** The table: the rails and their diamonds, the cloth, the pockets, the balls, and the cue with its

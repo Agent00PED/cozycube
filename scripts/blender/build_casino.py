@@ -13,47 +13,65 @@ height from its cushion in shared/seats.ts (barStool, pokerChair, clubChair, ott
 chesterfield): the same numbers the walkable floor, the colliders and the seat anchors are derived
 from. A mid-century Art-Deco hall in matte clay, every material opaque.
 
-Every colour is a VERTEX colour, and the faces share six materials by finish, so the whole static
-hall costs six draw calls however much is in it:
+Every colour is a VERTEX colour, and the faces share seven materials by finish, so the whole
+static hall costs seven draw calls however much is in it:
 
     CS_Clay     matte (roughness 0.85): the carpet, the walls, wood, velvet, felt, leaves, fur
     CS_Sheen    a touch smoother (0.5): gold, brass, chrome, black lacquer, marble, mirror, leather
+    CS_Polish   the lounge's dark oak herringbone parquet (0.35)
+    CS_Gloss    Neon Alley's polished obsidian tiles and the foyer's diamond marble (0.15)
     CS_Glow     the lamps' bulbs, the chandeliers' crystal, the slot screens, the torches' flames,
                 Madame Zara's crystal ball (the game draws it unlit, at full brightness)
     CS_Neon     Neon Alley's pink and cyan tubes and floor strip (unlit, breathing)
-    CS_Decal1   the zone floors lying on the carpet (the foyer's marble, the alley's terrazzo)
-    CS_Decal2   what lies on those, and on the felt: the gold inlays, the runner, the tables' markings
+    CS_Decal2   what lies on a floor, a wall or the felt: the carpet's and the wallpaper's damask, the
+                twin brass border, the marble's gilded veins, the runner, the tables' markings
+
+Some light is painted in: the Art-Deco sconces' up and down beams and the picture lights wash the
+walls and the canvases, and Neon Alley's tubes (and its slot screens) shine back off the obsidian
+where the camera would see their reflections (bake_light): vertex colours, no lights, no textures.
 
 (the game nudges the two decal layers toward the camera in the depth test: never a flicker).
 
     Casino_Static        everything that stands still, merged into ONE object:
-                           the 20x20 slab and its floors (burgundy velvet carpet with gold inlays: a
-                           sunburst round the roulette table, a frame round the blackjack tables; a
-                           black and white marble checker in the foyer with a velvet runner from
-                           the doors; dark terrazzo edged with a cyan neon strip in Neon Alley),
-                           brass divider strips where one floor meets another; the High-Roller Stage
-                           raised 0.35 (emerald carpet, brass-nosed double steps in the middle of its
-                           front, brass cheeks where the ropes end, a brass balustrade to the
-                           lounge) and the Velvet Lounge raised 0.25 (mahogany planks, two steps all
-                           along its open sides); the two back walls (oxblood, mahogany wainscot,
-                           gold rail and crown, fluted pilasters, fan sconces), the grand doors, the
-                           Big-Win marquee's frame, the ancestral portraits, a sunburst mirror; two
-                           fluted torch columns; the Golden Cage; the fern planters; Madame Zara's
-                           booth (the lady herself inside) and the capsule machine in the nook by
-                           the doors; the roulette table, the craps table, the two half-moon
-                           blackjack tables against the east rail (Table 2 in blue baize), their
-                           racks, shoes and discard trays on the dealers' side and their stools on
-                           the floor's; the slot row
-                           and its neon, the Turf Club's four-lane race table, the coin pusher; the
-                           poker table, its five chairs and the velvet ropes; the penthouse's gilded
-                           doors in the stage's back wall (fluted pilasters, a lintel of bulbs, a
-                           sunburst and a crown; the elevator's brass doors in the recess behind; a
-                           runner between two stanchions); the bar, the back bar (bottles, mirror, an
-                           espresso machine), the stools, the billiards table and its low lamps, the
-                           Chesterfield and its coffee table (The Velvet Gazette on it), the baby
-                           grand; the dealers' tip jars; the brass rail along the front edges; four
-                           crystal chandeliers
+                           the 20x20 slab and its floors, laid round each other (no zone lies on
+                           another): the burgundy Art-Deco damask carpet (ogee cartouches in a
+                           half-drop repeat, little stars between) with the twin brass inlay framing
+                           the central pit (a stepped fan in each corner) and a gold sunburst round
+                           the roulette table; a harlequin of high-gloss diamond marble in the foyer,
+                           gilded veins wandering across it, a velvet runner in from the doors; Neon
+                           Alley's polished obsidian tiles (the neon's reflections painted on them)
+                           edged with a cyan neon strip; brass divider strips where floors meet; the
+                           High-Roller Stage raised 0.35 (emerald carpet, brass-nosed double steps in
+                           the middle of its front, brass cheeks where the ropes end, a brass
+                           balustrade to the lounge) and the Velvet Lounge raised 0.25 (dark oak
+                           herringbone, two steps all along its open sides); the two back walls (a
+                           fluted walnut wainscot to 1.2 above the floor under a gilt chair rail,
+                           burgundy velvet wallpaper in gold damask, a gold crown and walnut cornice,
+                           fluted walnut pilasters, Art-Deco twin-beam sconces whose beams are
+                           painted up and down the wall), the grand doors, the Big-Win marquee's
+                           frame, the Baroque gold-leaf portraits and the 1920s posters under their
+                           picture lights, a sunburst mirror; two fluted torch columns; the Golden
+                           Cage; the areca palms in fluted brass urns; Madame Zara's booth (the lady
+                           herself inside) and the capsule machine in the nook by the doors; the Big
+                           Six's cabinet, crest, flapper and betting ledge; the roulette table, the
+                           craps table, Scarlett's kidney-shaped baccarat table and its five stools,
+                           the two half-moon blackjack tables against the east rail (Table 2 in blue
+                           baize), their racks, shoes and discard trays on the dealers' side and their
+                           stools on the floor's; the emerald horseshoe booths and their glass
+                           cocktail tables; the slot row and its neon, the Turf Club's four-lane race
+                           table, the coin pusher; the poker table, its five chairs and the velvet
+                           ropes; the penthouse's gilded doors in the stage's back wall (fluted
+                           pilasters, a lintel of bulbs, a sunburst and a crown; the elevator's brass
+                           doors in the recess behind; a runner between two stanchions); the bar, the
+                           back bar (bottles, mirror, an espresso machine), the stools, the billiards
+                           table and its low lamps, the pub darts board in its open cabinet on the
+                           wall behind it and the brass oche, the Chesterfield and its coffee table
+                           (The Velvet Gazette on it), the baby grand on the dais's front-right apron
+                           (its lid propped open to the floor, its harp and strings showing) and the
+                           stage spotlight on its stand; the dealers' tip jars; the brass rail along
+                           the front edges; four crystal chandeliers
     Prop_RouletteWheel   the wheel (its origin at its centre on the felt): the game spins it
+    Prop_BigSixWheel     the Big Six's wheel (its origin at its hub): the game turns it about its facing
     Prop_Marquee         the Big-Win marquee's screen: a quad with UVs the game paints the news on
     Prop_ZaraOwl         Madame Zara's animatronic brass owl on her booth's roof,
       Prop_ZaraOwlHead   its head (pivoting at the neck: it swivels, and hoots at a reading)
@@ -189,21 +207,56 @@ PALETTE = {
     # the overhaul
     "CS_VipCarpet": "#3A1446",
     "CS_FeltBlue": "#1C3F6E",
+    # the definitive remaster: the floors and the walls
+    "CS_Damask": "#772238",
+    "CS_DamaskGold": "#8A5E2E",
+    "CS_Oak": "#4A2A17",
+    "CS_OakDark": "#36200F",
+    "CS_OakLight": "#5A351D",
+    "CS_Obsidian": "#0D0B11",
+    "CS_ObsidianLight": "#15121B",
+    "CS_Grout": "#2A2330",
+    "CS_GlossMarbleLight": "#EEE7DA",
+    "CS_GlossMarbleDark": "#17141A",
+    "CS_Vein": "#D6B25C",
+    "CS_Walnut": "#40261A",
+    "CS_WalnutDark": "#26150C",
+    "CS_Wallpaper": "#57152A",
+    "CS_WallDamask": "#98703A",
+    # ... and the new pieces: booths, darts, the Big Six, palms, posters
+    "CS_EmeraldLeather": "#1E5C43",
+    "CS_EmeraldTuft": "#113B2A",
+    "CS_DartCream": "#E8DCBC",
+    "CS_DartRed": "#B5262F",
+    "CS_DartGreen": "#1D7A46",
+    "CS_Chalk": "#26302B",
+    "CS_Cane": "#7C8F3E",
+    "CS_Areca": "#3F7A3A",
+    "CS_ArecaLight": "#5E9444",
+    "CS_SixSky": "#4F9FD8",
+    "CS_SixGreen": "#2E8A57",
+    "CS_SixViolet": "#7B4FC4",
+    "CS_SixOrange": "#E0842C",
+    "CS_Teal": "#1F5E63",
 }
 
 # which of the six shared materials each colour is painted with
 GLOW = {"CS_Bulb", "CS_Crystal", "CS_SlotScreen", "CS_Flame", "CS_FlameCore", "CS_CrystalBall", "CS_StarGlow"}
 NEON = {"CS_NeonPink", "CS_NeonCyan"}
 DECAL1 = {"CS_FloorMarbleLight", "CS_FloorMarbleDark", "CS_Terrazzo"}
-DECAL2 = {"CS_Runner", "CS_Inlay", "CS_FeltRed", "CS_FeltBlack", "CS_FeltLine", "CS_FeltGold", "CS_FeltZero", "CS_Card", "CS_Ink"}
+DECAL2 = {"CS_Runner", "CS_Inlay", "CS_FeltRed", "CS_FeltBlack", "CS_FeltLine", "CS_FeltGold", "CS_FeltZero", "CS_Card", "CS_Ink", "CS_Damask", "CS_DamaskGold", "CS_Vein", "CS_WallDamask"}
+# the floors that shine: the lounge's oak parquet, and the alley's obsidian and the foyer's marble
+POLISH = {"CS_Oak", "CS_OakDark", "CS_OakLight"}
+GLOSS = {"CS_Obsidian", "CS_ObsidianLight", "CS_GlossMarbleLight", "CS_GlossMarbleDark"}
 SHEEN = {
     "CS_Gold", "CS_Brass", "CS_Chrome", "CS_ChromeDark", "CS_Black", "CS_Mirror", "CS_MarbleLight", "CS_MarbleDark", "CS_JarGlass", "CS_Bronze", "CS_Copper",
     "CS_Coin", "CS_Leather", "CS_LeatherDark", "CS_Pearl", "CS_DieRed", "CS_Pip", "CS_OwlEye",
     "CS_BallYellow", "CS_BallBlue", "CS_BallRed", "CS_BallPurple", "CS_BallOrange", "CS_BallGreen", "CS_BallMaroon",
     "CS_CapRed", "CS_CapBlue", "CS_CapYellow", "CS_CapGreen", "CS_CapPink", "CS_CapPurple", "CS_CapWhite",
     "CS_BottleGreen", "CS_BottleAmber", "CS_BottleRuby", "CS_Ivory",
+    "CS_EmeraldLeather", "CS_EmeraldTuft", "CS_SixSky", "CS_SixGreen", "CS_SixViolet", "CS_SixOrange",
 }
-CATEGORIES = {"CS_Clay": 0.85, "CS_Sheen": 0.5, "CS_Glow": 0.8, "CS_Neon": 0.8, "CS_Decal1": 0.8, "CS_Decal2": 0.65}
+CATEGORIES = {"CS_Clay": 0.85, "CS_Sheen": 0.5, "CS_Glow": 0.8, "CS_Neon": 0.8, "CS_Decal1": 0.8, "CS_Decal2": 0.65, "CS_Polish": 0.35, "CS_Gloss": 0.15}
 
 
 def category(name):
@@ -215,6 +268,10 @@ def category(name):
         return "CS_Decal1"
     if name in DECAL2:
         return "CS_Decal2"
+    if name in POLISH:
+        return "CS_Polish"
+    if name in GLOSS:
+        return "CS_Gloss"
     if name in SHEEN:
         return "CS_Sheen"
     return "CS_Clay"
@@ -320,12 +377,81 @@ class Mesh:
     def __init__(self):
         self.bm = bmesh.new()
         self.mats = []
+        # the static hall's painted light (bake_light); the nodes have none
+        self.lit = False
+        # faces built flat keep the facing they were given (made before any face: a layer added
+        # later would invalidate the faces already held)
+        self.bm.faces.layers.int.new("flat")
 
     def m(self, name):
         """The slot of colour `name` in this mesh (added on first use)."""
         if name not in self.mats:
             self.mats.append(name)
         return self.mats.index(name)
+
+    def flat_layer(self):
+        return self.bm.faces.layers.int.get("flat") or self.bm.faces.layers.int.new("flat")
+
+
+def poly_area(pts):
+    return 0.5 * abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, pts[1:] + pts[:1])))
+
+
+def flat(M, pts, mat, normal):
+    """One flat polygon through the game points `pts`, facing along the game vector `normal`: a
+    tile, a plank, a decal. Built single-sided and kept that way (never turned by the normals'
+    recalculation, which a lone face could fool)."""
+    if len(pts) < 3:
+        return None
+    bm = M.bm
+    vs = [bm.verts.new(W(*q)) for q in pts]
+    try:
+        f = bm.faces.new(vs)
+    except ValueError:
+        return None
+    f.material_index = M.m(mat)
+    f.normal_update()
+    want = Vector((normal[0], -normal[2], normal[1]))
+    if f.normal.dot(want) < 0:
+        f.normal_flip()
+    f[M.flat_layer()] = 1
+    return f
+
+
+def floor_poly(M, pts2, y, mat):
+    """A flat (x, z) polygon lying at height y, facing up."""
+    if len(pts2) >= 3 and poly_area(pts2) > 1e-6:
+        flat(M, [(x, y, z) for x, z in pts2], mat, (0.0, 1.0, 0.0))
+
+
+def clip_rect(poly, x0, x1, z0, z1):
+    """A polygon clipped to a rectangle (Sutherland-Hodgman)."""
+
+    def clip(pts, inside, inter):
+        out = []
+        for i in range(len(pts)):
+            a, b = pts[i - 1], pts[i]
+            ia, ib = inside(a), inside(b)
+            if ib:
+                if not ia:
+                    out.append(inter(a, b))
+                out.append(b)
+            elif ia:
+                out.append(inter(a, b))
+        return out
+
+    def at_x(k):
+        return lambda a, b: (k, a[1] + (b[1] - a[1]) * (k - a[0]) / (b[0] - a[0]))
+
+    def at_z(k):
+        return lambda a, b: (a[0] + (b[0] - a[0]) * (k - a[1]) / (b[1] - a[1]), k)
+
+    pts = list(poly)
+    for inside, inter in ((lambda q: q[0] >= x0, at_x(x0)), (lambda q: q[0] <= x1, at_x(x1)), (lambda q: q[1] >= z0, at_z(z0)), (lambda q: q[1] <= z1, at_z(z1))):
+        if not pts:
+            break
+        pts = clip(pts, inside, inter)
+    return pts
 
 
 def rounded_rect(x0, x1, z0, z1, r, per_corner=6):
@@ -534,6 +660,118 @@ def purge():
                 block.remove(item)
 
 
+# The painted light (bake_light): each a function of a vertex's game position and colour, applied to
+# the static hall's faces near what it lights. Filled in by build() from the layout.
+LIGHTS = []
+
+
+def bake_light(bm, col):
+    """Paints the light in: every loop's colour through every light that reaches it."""
+    for f in bm.faces:
+        for loop in f.loops:
+            co = loop.vert.co
+            gx, gy, gz = co.x, co.z, -co.y
+            c = loop[col]
+            rgb = (c[0], c[1], c[2])
+            changed = False
+            for fn in LIGHTS:
+                out = fn(gx, gy, gz, rgb)
+                if out is not None:
+                    rgb = out
+                    changed = True
+            if changed:
+                loop[col] = (min(1.0, rgb[0]), min(1.0, rgb[1]), min(1.0, rgb[2]), 1.0)
+
+
+def soft_window(v, a, b, edge):
+    """1 between a and b, easing to 0 over `edge` either side."""
+    return max(0.0, min(1.0, (v - a) / edge + 0.5)) * max(0.0, min(1.0, (b - v) / edge + 0.5))
+
+
+def wall_lights(L, sconces, pictures):
+    """The sconces' up and down beams on the walls (and what hangs on them), and each picture's lamp
+    on its canvas. `sconces`: (wall, u, y); `pictures`: (wall, u, y_top, half width)."""
+    face = wall_face(L)
+    warm = lin("#FFC98A")
+
+    def fn(gx, gy, gz, rgb):
+        on_z = gz - face < 0.3
+        on_x = gx - face < 0.3
+        if not (on_z or on_x):
+            return None
+        k = 0.0
+        for wall, u, y in sconces:
+            if (wall == "z" and not on_z) or (wall == "x" and not on_x):
+                continue
+            du = (gx if wall == "z" else gz) - u
+            if abs(du) > 1.6:
+                continue
+            dv = gy - y
+            core = math.exp(-(du * du + dv * dv) / 0.03)
+            beam = 0.0
+            if abs(dv) > 0.02:
+                up = dv > 0
+                reach = abs(dv)
+                spread = 0.07 + reach * 0.42  # the beam's half width, widening as it goes
+                across = max(0.0, 1.0 - (abs(du) / spread) ** 2)
+                beam = across * math.exp(-reach / (1.6 if up else 1.1)) * (1.0 if up else 0.85)
+            k += 2.2 * core + 2.4 * beam
+        for wall, u, ytop, hw in pictures:
+            if (wall == "z" and not on_z) or (wall == "x" and not on_x):
+                continue
+            du = (gx if wall == "z" else gz) - u
+            if abs(du) > hw + 0.1 or gy > ytop + 0.05 or gy < ytop - 1.4:
+                continue
+            k += 0.9 * soft_window(du, -hw, hw, 0.2) * math.exp(-(ytop - gy) / 0.45)
+        if k <= 0.003:
+            return None
+        return (rgb[0] * (1 + 1.5 * k) + warm[0] * 0.05 * k, rgb[1] * (1 + 1.5 * k) + warm[1] * 0.05 * k, rgb[2] * (1 + 1.5 * k) + warm[2] * 0.05 * k)
+
+    return fn
+
+
+def neon_reflection(L):
+    """Neon Alley's tubes and slot screens shining back off the polished obsidian: where the camera
+    (looking down (-1, -1, -1)) sees each one's mirror image, a point at height h on the wall at
+    (x, z) shows on the floor at (x + h, z + h), blurred as a gloss would blur it."""
+    face = wall_face(L)
+    ne = L["neon"]
+    z0, z1, yb = ne["from"], ne["to"], ne["y"]
+    cyan, pink, screen = lin("#4FE3FF"), lin("#FF4FA3"), lin("#FFE9B0")
+    a = next(z for z in L["zones"] if z["id"] == "alley")
+    s = L["slots"]
+    tubes = [(yb - 0.08, cyan, 0.17, 0.75), (yb + 0.38, cyan, 0.2, 0.55), (yb + 0.15, pink, 0.24, 0.95)]
+    xs = face + 0.05
+    machines = [(z, k) for k, z in enumerate(s["zs"])] + [(s["jasper"], -1)]
+    top = s["h"] - 0.12
+
+    def fn(gx, gy, gz, rgb):
+        if gy > 0.02 or not (a["x0"] <= gx <= a["x1"] and a["z0"] <= gz <= a["z1"]):
+            return None
+        add = [0.0, 0.0, 0.0]
+        for h, c, sig, k in tubes:
+            dx = gx - (xs + h)
+            if abs(dx) > 3 * sig:
+                continue
+            i = k * math.exp(-dx * dx / (2 * sig * sig)) * soft_window(gz - h, z0, z1, 0.5)
+            add = [add[j] + c[j] * i for j in range(3)]
+        for z, k in machines:
+            # the screen's warm glow, and the machine's own little neon over it
+            sx, sy = s["x"] + s["d"] / 2 - 0.15, 1.19
+            dx, dz = gx - (sx + sy), gz - (z + sy)
+            i = 0.4 * math.exp(-dx * dx / 0.05 - dz * dz / 0.16)
+            add = [add[j] + screen[j] * i for j in range(3)]
+            c = screen if k < 0 else (cyan if k % 2 == 0 else pink)
+            dx, dz = gx - (sx + top), gz - (z + top)
+            i = 0.45 * math.exp(-dx * dx / 0.03 - dz * dz / 0.12)
+            add = [add[j] + c[j] * i for j in range(3)]
+        if max(add) < 0.002:
+            return None
+        return (rgb[0] + add[0] * 0.6, rgb[1] + add[1] * 0.6, rgb[2] + add[2] * 0.6)
+
+    return fn
+
+
 def material(name):
     """A shared finish: its colour comes from the faces' vertex colours."""
     m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
@@ -563,8 +801,14 @@ def make_object(name, M, coll, origin=None, force=None, parent=None, recalc=True
     material (`force`: one finish for the whole object, a single draw call). Its faces are turned to
     face outward first (the three.js runtime culls back faces)."""
     bm = M.bm
+    lay_flat = bm.faces.layers.int.get("flat")
+    if lay_flat is not None:
+        flat_verts = list({v for f in bm.faces if f[lay_flat] for v in f.verts})
+        if flat_verts:
+            bmesh.ops.remove_doubles(bm, verts=flat_verts, dist=1e-5)
     if recalc:
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+        lay = bm.faces.layers.int.get("flat")
+        bmesh.ops.recalc_face_normals(bm, faces=[f for f in bm.faces if not (lay and f[lay])])
     cats = []
     if coloured:
         col = bm.loops.layers.float_color.new("Col")
@@ -576,6 +820,8 @@ def make_object(name, M, coll, origin=None, force=None, parent=None, recalc=True
             if cat not in cats:
                 cats.append(cat)
             f.material_index = cats.index(cat)
+        if M.lit and LIGHTS:
+            bake_light(bm, col)
     else:
         cats = [force or "CS_Screen"]
         for f in bm.faces:
@@ -613,9 +859,8 @@ def make_object(name, M, coll, origin=None, force=None, parent=None, recalc=True
 # brass dividers
 
 
-FLOOR_ZONE = 0.006  # a zone's floor over the carpet
 INLAY = 0.004  # a gold inlay over the carpet
-INLAY_ON_ZONE = FLOOR_ZONE + 0.003  # ... and over a zone's floor
+DAMASK = 0.0015  # the damask's motifs, flat on the carpet and the wallpaper
 
 
 def zone(L, zid):
@@ -630,34 +875,125 @@ def frame_strips(M, x0, x1, z0, z1, w, y0, y1, mat):
     box(M, x1 - w, x1, y0, y1, z0 + w, z1 - w, mat)
 
 
+def damask_motif():
+    """One Royal Damask motif, in a unit cell (u across, v up, both -0.5 to 0.5): an ogee cartouche
+    (a pointed onion outline), a lozenge at its heart, four acanthus leaves round it, a trefoil
+    finial and a stem, and a half palmette at either side. (polygon, "body" or "accent") pairs."""
+    out = []
+    n = 14
+
+    def half(width, v0, v1):
+        pts = []
+        for k in range(n + 1):
+            t = k / n
+            v = v0 + (v1 - v0) * t
+            w = width * math.sin(math.pi * t) ** 0.85 * (1 - 0.42 * t ** 3)
+            pts.append((w, v))
+        return pts
+
+    outer = half(0.3, -0.44, 0.44)
+    inner = half(0.25, -0.395, 0.395)
+    for sx in (-1, 1):
+        for k in range(n):
+            quad = [(sx * outer[k][0], outer[k][1]), (sx * outer[k + 1][0], outer[k + 1][1]), (sx * inner[k + 1][0], inner[k + 1][1]), (sx * inner[k][0], inner[k][1])]
+            if poly_area(quad) > 1e-6:
+                out.append((quad, "body"))
+    out.append(([(0.0, 0.2), (0.075, 0.0), (0.0, -0.2), (-0.075, 0.0)], "accent"))
+
+    def leaf(cx, cv, ang, length, width):
+        pts = []
+        for k in range(8):
+            t = k / 8 * 2 * math.pi
+            r = 1.0 if k != 0 else 1.6  # the leaf's point
+            lu, lv = math.cos(t) * length * r, math.sin(t) * width
+            pts.append((cx + lu * math.cos(ang) - lv * math.sin(ang), cv + lu * math.sin(ang) + lv * math.cos(ang)))
+        return pts
+
+    for sx in (-1, 1):
+        out.append((leaf(sx * 0.13, 0.13, math.radians(90 - sx * 50), 0.075, 0.035), "body"))
+        out.append((leaf(sx * 0.13, -0.15, math.radians(-90 + sx * 50), 0.07, 0.032), "body"))
+    for cx, cv, r in ((0.0, 0.515, 0.036), (-0.048, 0.487, 0.03), (0.048, 0.487, 0.03)):
+        out.append(([(cx + r * math.cos(2 * math.pi * k / 6), cv + r * math.sin(2 * math.pi * k / 6)) for k in range(6)], "body"))
+    out.append(([(-0.018, -0.44), (0.018, -0.44), (0.012, -0.5), (-0.012, -0.5)], "body"))
+    for sx in (-1, 1):
+        arc = [(sx * (0.5 - 0.1 * math.cos(math.radians(a))), 0.16 * math.sin(math.radians(a))) for a in range(-80, 81, 20)]
+        inner_arc = [(sx * (0.5 - 0.05 * math.cos(math.radians(a))), 0.11 * math.sin(math.radians(a))) for a in range(80, -81, -20)]
+        out.append((arc + inner_arc, "body"))
+    return out
+
+
+DAMASK_MOTIF = damask_motif()
+
+
+def lay_damask(M, place, size, body, accent):
+    """One motif through `place((u, v)) -> game point`, `size` across."""
+    normal = place(None)
+    for pts, part in DAMASK_MOTIF:
+        flat(M, [place((u * size, v * size)) for u, v in pts], body if part == "body" else accent, normal)
+
+
+def pit_border(L):
+    """The twin brass inlay that frames the central gaming pit: round the craps and roulette tables,
+    the blackjack tables and the baccarat table (x0, x1, z0, z1, corner radius)."""
+    return (-3.9, 9.3, -2.4, 9.3, 0.7)
+
+
 def build_floor(M, L):
     h = L["half"]
-    # the slab: dark sides, the burgundy velvet carpet on top (the whole main floor)
-    slab(M, [(-h, -h), (h, -h), (h, h), (-h, h)], -0.6, 0.0, "CS_Slab", top="CS_Carpet")
-
-    # 1 the foyer: a black and white marble checker, a velvet runner in from the doors
+    face = wall_face(L)
     f = zone(L, "foyer")
-    cols, rows = 12, 8
-    tw, td = (f["x1"] - f["x0"]) / cols, (f["z1"] - f["z0"]) / rows
-    for i in range(cols):
-        for j in range(rows):
-            box(M, f["x0"] + i * tw, f["x0"] + (i + 1) * tw, 0.0, FLOOR_ZONE, f["z0"] + j * td, f["z0"] + (j + 1) * td, "CS_FloorMarbleLight" if (i + j) % 2 == 0 else "CS_FloorMarbleDark")
-    ru = L["runner"]
-    rw = ru["w"] / 2
-    runner_end = ru["z1"]
-    box(M, ru["x"] - rw, ru["x"] + rw, FLOOR_ZONE, FLOOR_ZONE + 0.004, -h + 0.2, runner_end, "CS_Runner")
-    for sx in (-1, 1):
-        x = ru["x"] + sx * rw
-        box(M, min(x, x - sx * 0.07), max(x, x - sx * 0.07), FLOOR_ZONE + 0.004, FLOOR_ZONE + 0.009, -h + 0.2, runner_end, "CS_Inlay")
-    frame_strips(M, f["x0"], f["x1"], f["z0"], f["z1"], 0.08, FLOOR_ZONE, INLAY_ON_ZONE, "CS_Inlay")
-
-    # 3 Neon Alley: dark terrazzo, a cyan neon strip just inside its open edge
     a = zone(L, "alley")
-    box(M, a["x0"], a["x1"], 0.0, FLOOR_ZONE, a["z0"], a["z1"], "CS_Terrazzo")
-    box(M, a["x1"] - 0.11, a["x1"] - 0.05, FLOOR_ZONE, INLAY_ON_ZONE + 0.002, a["z0"] + 0.1, a["z1"] - 0.1, "CS_NeonCyan")
+    # the slab's dark sides and underside (its top is the floors, laid round each other)
+    slab(M, [(-h, -h), (h, -h), (h, h), (-h, h)], -0.6, -0.002, "CS_Slab")
 
-    # 2 the main floor: a gold octagon and a sunburst round the roulette table
+    # 2 the main floor: burgundy Art-Deco damask carpet everywhere the foyer and the alley are not
+    for x0, x1, z0, z1 in ((-h, f["x0"], -h, a["z0"]), (f["x0"], h, f["z1"], a["z0"]), (a["x1"], h, a["z0"], a["z1"]), (-h, h, a["z1"], h)):
+        floor_poly(M, [(x0, z0), (x1, z0), (x1, z1), (x0, z1)], 0.0, "CS_Carpet")
+    # the damask: a half-drop repeat over the open carpet (none under the stages, round the
+    # roulette's sunburst, across the brass border, or under the tables)
+    bx0, bx1, bz0, bz1, br = pit_border(L)
     rx, rz = L["roulette"]["x"], L["roulette"]["z"]
+    skip = [(s["x0"] - s["depth"], s["x1"] + s["depth"], s["z0"] - s["depth"], s["z1"] + s["depth"]) for s in L["stages"]]
+    skip += [(f["x0"], h, -h, f["z1"]), (-h, a["x1"], a["z0"], a["z1"])]
+    cr = L["craps"]
+    skip.append((cr["x"] - cr["len"] / 2 - 0.1, cr["x"] + cr["len"] / 2 + 0.1, cr["z"] - cr["w"] / 2 - 0.1, cr["z"] + cr["w"] / 2 + 0.1))
+    hb = L["hallBaccarat"]
+    skip.append((hb["x"] - hb["a"], hb["x"] + hb["a"], hb["z"] - 0.4, hb["z"] + hb["b"]))
+    for t in L["blackjack"]["tables"]:
+        skip.append((t["x"] - 1.1, t["x"] + 0.7, t["z"] - 1.1, t["z"] + 1.1))
+    step = 1.1
+    size = 0.92
+    col = 0
+    x = -h + step / 2
+    while x < h:
+        z = -h + step / 2 + (step / 2 if col % 2 else 0.0)
+        while z < h:
+            ok = not any(x0 - 0.35 < x < x1 + 0.35 and z0 - 0.35 < z < z1 + 0.35 for x0, x1, z0, z1 in skip)
+            ok = ok and math.hypot(x - rx, z - rz) > L["roulette"]["sunburst"] + 0.5
+            near_border = min(abs(x - bx0), abs(x - bx1)) < 0.6 and bz0 - 0.6 < z < bz1 + 0.6 or min(abs(z - bz0), abs(z - bz1)) < 0.6 and bx0 - 0.6 < x < bx1 + 0.6
+            ok = ok and not near_border and -h + 0.5 < x < h - 0.5 and -h + 0.5 < z < h - 0.5
+            if ok:
+                lay_damask(M, lambda uv, x=x, z=z: (0.0, 1.0, 0.0) if uv is None else (x + uv[0], DAMASK, z - uv[1]), size, "CS_Damask", "CS_DamaskGold")
+            # a little four-point star between the motifs
+            sx_, sz_ = x + step / 2, z + step / 4
+            if not any(x0 - 0.2 < sx_ < x1 + 0.2 and z0 - 0.2 < sz_ < z1 + 0.2 for x0, x1, z0, z1 in skip) and math.hypot(sx_ - rx, sz_ - rz) > L["roulette"]["sunburst"] + 0.3 and -h + 0.3 < sx_ < h - 0.3 and -h + 0.3 < sz_ < h - 0.3:
+                if not (min(abs(sx_ - bx0), abs(sx_ - bx1)) < 0.3 and bz0 - 0.3 < sz_ < bz1 + 0.3 or min(abs(sz_ - bz0), abs(sz_ - bz1)) < 0.3 and bx0 - 0.3 < sx_ < bx1 + 0.3):
+                    floor_poly(M, [(sx_, sz_ - 0.07), (sx_ + 0.02, sz_ - 0.02), (sx_ + 0.07, sz_), (sx_ + 0.02, sz_ + 0.02), (sx_, sz_ + 0.07), (sx_ - 0.02, sz_ + 0.02), (sx_ - 0.07, sz_), (sx_ - 0.02, sz_ - 0.02)], DAMASK, "CS_DamaskGold")
+            z += step
+        x += step
+        col += 1
+    # the twin brass border round the pit, a stepped Deco fan in each corner
+    for inset in (0.0, 0.16):
+        o = rounded_rect(bx0 + inset, bx1 - inset, bz0 + inset, bz1 - inset, br - inset, per_corner=10)
+        i = rounded_rect(bx0 + inset + 0.055, bx1 - inset - 0.055, bz0 + inset + 0.055, bz1 - inset - 0.055, br - inset - 0.055, per_corner=10)
+        band(M, o, i, 0.0, INLAY, "CS_Inlay")
+    for cx, cz, a0 in ((bx0 + br, bz0 + br, math.pi), (bx1 - br, bz0 + br, 1.5 * math.pi), (bx1 - br, bz1 - br, 0.0), (bx0 + br, bz1 - br, 0.5 * math.pi)):
+        for k in range(3):
+            r1 = 0.2 + k * 0.1
+            pts = [(cx + r1 * math.cos(a0 + math.pi / 2 * t / 6), cz + r1 * math.sin(a0 + math.pi / 2 * t / 6)) for t in range(7)]
+            pts_in = [(cx + (r1 - 0.035) * math.cos(a0 + math.pi / 2 * t / 6), cz + (r1 - 0.035) * math.sin(a0 + math.pi / 2 * t / 6)) for t in range(6, -1, -1)]
+            floor_poly(M, pts + pts_in, INLAY * 0.5, "CS_Inlay")
+    # a gold octagon and a sunburst round the roulette table
     sun = L["roulette"]["sunburst"]
     band(M, circle(rx, rz, 2.4, 8), circle(rx, rz, 2.33, 8), 0.0, INLAY, "CS_Inlay")
     for k in range(16):
@@ -665,19 +1001,87 @@ def build_floor(M, L):
         a1 = 2 * math.pi * (k + 0.65) / 16
         am = (a0 + a1) / 2
         slab(M, [(rx + 2.48 * math.cos(a0), rz + 2.48 * math.sin(a0)), (rx + sun * math.cos(am), rz + sun * math.sin(am)), (rx + 2.48 * math.cos(a1), rz + 2.48 * math.sin(a1))], 0.0, INLAY, "CS_Inlay")
-    # ... and a gold frame round the two blackjack tables and their dealer, a lozenge on it out from
-    # each table
-    b = L["blackjack"]
-    ts = b["tables"]
-    reach = b["stoolR"] + 0.95
-    fx0 = L["npcs"]["cedric"]["x"] - 0.75
-    fx1 = max(t["x"] for t in ts) + reach
-    fz0 = min(t["z"] for t in ts) - reach
-    fz1 = max(t["z"] for t in ts) + reach
-    band(M, rounded_rect(fx0, fx1, fz0, fz1, 0.7), rounded_rect(fx0 + 0.06, fx1 - 0.06, fz0 + 0.06, fz1 - 0.06, 0.64), 0.0, INLAY, "CS_Inlay")
-    for t in ts:
-        mx, mz = fx1 - 0.03, t["z"]
-        slab(M, [(mx - 0.22, mz), (mx, mz - 0.22), (mx + 0.22, mz), (mx, mz + 0.22)], 0.0, INLAY + 0.001, "CS_Inlay")
+
+    # 1 the foyer: high-gloss diamond checkerboard marble with gilded veins, a velvet runner in
+    # from the doors
+    # a harlequin: rhombi long along (1, 1), the camera's up and down, so they stand as tall diamonds
+    # on the screen
+    fx0, fx1, fz0, fz1 = f["x0"], f["x1"], f["z0"], f["z1"]
+    import random
+
+    rnd = random.Random(7)
+    d1, d2 = 1.5, 0.62  # the long diagonal (along (1, 1)) and the short one (along (1, -1))
+    ux, uz = 1 / math.sqrt(2), 1 / math.sqrt(2)
+    vx, vz = 1 / math.sqrt(2), -1 / math.sqrt(2)
+    ax_, az_ = ux * d1 / 2 + vx * d2 / 2, uz * d1 / 2 + vz * d2 / 2
+    bx2, bz2 = ux * d1 / 2 - vx * d2 / 2, uz * d1 / 2 - vz * d2 / 2
+    ocx, ocz = (fx0 + fx1) / 2, (fz0 + fz1) / 2
+    n_ = 16
+    for i in range(-n_, n_ + 1):
+        for j in range(-n_, n_ + 1):
+            cx = ocx + i * ax_ + j * bx2
+            cz = ocz + i * az_ + j * bz2
+            if not (fx0 - d1 < cx < fx1 + d1 and fz0 - d1 < cz < fz1 + d1):
+                continue
+            diamond = [(cx - ux * d1 / 2, cz - uz * d1 / 2), (cx + vx * d2 / 2, cz + vz * d2 / 2), (cx + ux * d1 / 2, cz + uz * d1 / 2), (cx - vx * d2 / 2, cz - vz * d2 / 2)]
+            pts = clip_rect(diamond, fx0, fx1, fz0, fz1)
+            if len(pts) < 3 or poly_area(pts) < 1e-4:
+                continue
+            light = (i + j) % 2 == 0
+            floor_poly(M, pts, 0.0, "CS_GlossMarbleLight" if light else "CS_GlossMarbleDark")
+            # a gilded vein across some of them: from one edge to another, wandering a little
+            if rnd.random() < 0.4 and poly_area(pts) > d1 * d2 / 2 * 0.9:
+                e0 = rnd.randrange(4)
+                e1 = (e0 + 2) % 4 if rnd.random() < 0.6 else (e0 + 1) % 4
+                t0, t1 = rnd.uniform(0.25, 0.75), rnd.uniform(0.25, 0.75)
+                pa = tuple(diamond[e0][k] + (diamond[(e0 + 1) % 4][k] - diamond[e0][k]) * t0 for k in range(2))
+                pb = tuple(diamond[e1][k] + (diamond[(e1 + 1) % 4][k] - diamond[e1][k]) * t1 for k in range(2))
+                steps = 7
+                path = []
+                for k in range(steps + 1):
+                    t = k / steps
+                    wob = math.sin(t * math.pi * 2.3 + rnd.random()) * 0.04 * math.sin(t * math.pi)
+                    px = pa[0] + (pb[0] - pa[0]) * t
+                    pz = pa[1] + (pb[1] - pa[1]) * t
+                    nx, nz = -(pb[1] - pa[1]), pb[0] - pa[0]
+                    ln = math.hypot(nx, nz) or 1
+                    path.append((px + nx / ln * wob, pz + nz / ln * wob))
+                w = 0.007 + rnd.random() * 0.006
+                for (ax, az), (bx_, bz_) in zip(path, path[1:]):
+                    nx, nz = -(bz_ - az), bx_ - ax
+                    ln = math.hypot(nx, nz) or 1
+                    nx, nz = nx / ln * w, nz / ln * w
+                    quad = clip_rect([(ax - nx, az - nz), (bx_ - nx, bz_ - nz), (bx_ + nx, bz_ + nz), (ax + nx, az + nz)], fx0, fx1, fz0, fz1)
+                    floor_poly(M, quad, 0.0012, "CS_Vein")
+    ru = L["runner"]
+    rw = ru["w"] / 2
+    box(M, ru["x"] - rw, ru["x"] + rw, 0.0, 0.004, -h + 0.2, ru["z1"], "CS_Runner")
+    for sx in (-1, 1):
+        xx = ru["x"] + sx * rw
+        box(M, min(xx, xx - sx * 0.07), max(xx, xx - sx * 0.07), 0.004, 0.008, -h + 0.2, ru["z1"], "CS_Inlay")
+    frame_strips(M, fx0, fx1, fz0, fz1, 0.08, 0.0, INLAY, "CS_Inlay")
+
+    # 3 Neon Alley: polished obsidian tiles (the neon shines back off them: neon_reflection), a
+    # cyan neon strip just inside its open edge
+    tile, grout = 0.56, 0.018
+    ax0, ax1, az0, az1 = a["x0"], a["x1"], a["z0"], a["z1"]
+    nx_ = int(math.ceil((ax1 - ax0) / tile))
+    nz_ = int(math.ceil((az1 - az0) / tile))
+    for i in range(nx_):
+        for j in range(nz_):
+            tx0 = ax1 - (i + 1) * tile + grout / 2
+            tx1 = ax1 - i * tile - grout / 2
+            tz0 = az0 + j * tile + grout / 2
+            tz1 = az0 + (j + 1) * tile - grout / 2
+            mat = "CS_Obsidian" if (i + j) % 2 == 0 else "CS_ObsidianLight"
+            # each tile in 4 x 4, so the painted reflections have somewhere to be
+            for u in range(4):
+                for v in range(4):
+                    q = clip_rect([(tx0 + (tx1 - tx0) * u / 4, tz0 + (tz1 - tz0) * v / 4), (tx0 + (tx1 - tx0) * (u + 1) / 4, tz0 + (tz1 - tz0) * v / 4), (tx0 + (tx1 - tx0) * (u + 1) / 4, tz0 + (tz1 - tz0) * (v + 1) / 4), (tx0 + (tx1 - tx0) * u / 4, tz0 + (tz1 - tz0) * (v + 1) / 4)], ax0, ax1, az0, az1)
+                    floor_poly(M, q, 0.0, mat)
+    # the grout between them (a floor of its own, a hair under the tiles)
+    floor_poly(M, [(ax0, az0), (ax1, az0), (ax1, az1), (ax0, az1)], -0.0015, "CS_Grout")
+    box(M, a["x1"] - 0.11, a["x1"] - 0.05, 0.0, 0.006, a["z0"] + 0.1, a["z1"] - 0.1, "CS_NeonCyan")
 
 
 def divider(M, a, b):
@@ -738,24 +1142,47 @@ def tread_boxes(s, k):
     return out
 
 
+def herringbone(M, x0, x1, z0, z1, y):
+    """Dark oak herringbone parquet over a rectangle at height y: planks W wide and L = 5W long,
+    laid in zig-zag runs along (1, 1) (the camera's up-and-down: the spines stand upright on the
+    screen), three tones of oak, clipped at the edges."""
+    import random
+
+    rnd = random.Random(11)
+    Wp = 0.11
+    Lp = Wp * 5
+    tones = ("CS_Oak", "CS_OakDark", "CS_OakLight", "CS_Oak")
+    span = (x1 - x0) + (z1 - z0)
+    kmax = int(span / Wp) + 12
+    mmax = int(span / Lp) + 4
+    for m in range(-mmax, mmax + 1):
+        for k in range(-kmax, kmax + 1):
+            ox = x0 + k * Wp + m * Lp
+            oz = z0 + k * Wp - m * Lp
+            for rx0, rx1, rz0, rz1 in ((ox, ox + Lp, oz, oz + Wp), (ox, ox + Wp, oz + Wp, oz + Wp + Lp)):
+                if rx1 < x0 or rx0 > x1 or rz1 < z0 or rz0 > z1:
+                    continue
+                q = clip_rect([(rx0, rz0), (rx1, rz0), (rx1, rz1), (rx0, rz1)], x0, x1, z0, z1)
+                if len(q) >= 3 and poly_area(q) > 1e-5:
+                    floor_poly(M, q, y, tones[rnd.randrange(len(tones))])
+
+
 def build_stages(M, L):
     face = wall_face(L)
     for s in L["stages"]:
         h = s["h"]
         pit = s["id"] == "pit"
-        top_mat = "CS_PitCarpet" if pit else "CS_Plank"
+        top_mat = "CS_PitCarpet" if pit else "CS_Oak"
         trim = "CS_Brass" if pit else "CS_MahoganyDark"
         x0, z0 = max(s["x0"], face), max(s["z0"], face)
         x1, z1 = s["x1"], min(s["z1"], L["half"])
-        # the block, and its top: emerald carpet, or mahogany planks in two tones
-        box(M, x0, x1, 0.0, h - 0.03, z0, z1, "CS_Mahogany")
+        # the block, and its top: emerald carpet, or dark oak herringbone parquet
         if pit:
+            box(M, x0, x1, 0.0, h - 0.03, z0, z1, "CS_Mahogany")
             box(M, x0, x1, h - 0.03, h, z0, z1, "CS_PitCarpet")
         else:
-            n = max(1, int(round((z1 - z0) / 0.35)))
-            step = (z1 - z0) / n
-            for k in range(n):
-                box(M, x0, x1, h - 0.03, h, z0 + k * step, z0 + (k + 1) * step, "CS_Plank" if k % 2 == 0 else "CS_PlankDark")
+            box(M, x0, x1, 0.0, h - 0.002, z0, z1, "CS_Mahogany")
+            herringbone(M, x0, x1, z0, z1, h)
         # the edge trim along every side that faces the room: a nosing proud of the edge, a gold line under it
         room_edges = [e for e in ("x1", "z1", "z0", "x0") if not (e == "z0" and z0 <= face + 1e-6) and not (e == "x0" and x0 <= face + 1e-6)]
         for e in room_edges:
@@ -818,76 +1245,174 @@ def build_stages(M, L):
 
 
 # ---------------------------------------------------------------------------------------------
-# the walls: oxblood over a mahogany wainscot, gold rail and crown, pilasters, fan sconces, doors
+# the walls: a two-tier wainscot (dark fluted walnut to 1.2 above the floor, a gilt chair rail),
+# burgundy velvet wallpaper in gold damask above it, a gold crown and cornice, fluted pilasters,
+# Art-Deco twin-beam sconces every three metres or so (their beams painted up and down the walls:
+# wall_lights), the doors
+
+
+def wall_runs(L):
+    """Each wall's stretches between its doors, and the floor's height along them: (wall, u0, u1,
+    floor), u along the wall (x on the back wall, z on the left one)."""
+    h = L["half"]
+    face = wall_face(L)
+    d = L["doors"]
+    vd = L["vipDoors"]
+    lounge = stage(L, "lounge")
+    pit = stage(L, "pit")
+    vx0, vx1 = vd["x"] - vd["w"] / 2, vd["x"] + vd["w"] / 2
+    dx0, dx1 = d["x"] - d["w"] / 2, d["x"] + d["w"] / 2
+    return [
+        ("z", face, lounge["x1"], lounge["h"]),
+        ("z", lounge["x1"], vx0 - 0.3, pit["h"]),
+        ("z", vx1 + 0.3, pit["x1"], pit["h"]),
+        ("z", pit["x1"], dx0 - 0.15, 0.0),
+        ("z", dx1 + 0.15, h, 0.0),
+        ("x", face, lounge["z1"], lounge["h"]),
+        ("x", lounge["z1"], h, 0.0),
+    ]
+
+
+def wall_quad(M, L, wall, u0, u1, v0, v1, d, mat):
+    """A flat rectangle on a wall (u along it, v up), `d` out of it, facing into the room."""
+    face = wall_face(L)
+    if wall == "z":
+        flat(M, [(u0, v0, face + d), (u1, v0, face + d), (u1, v1, face + d), (u0, v1, face + d)], mat, (0.0, 0.0, 1.0))
+    else:
+        flat(M, [(face + d, v0, u0), (face + d, v0, u1), (face + d, v1, u1), (face + d, v1, u0)], mat, (1.0, 0.0, 0.0))
+
+
+def wall_box(M, L, wall, u0, u1, v0, v1, d0, d1, mat):
+    face = wall_face(L)
+    if wall == "z":
+        box(M, u0, u1, v0, v1, face + d0, face + d1, mat)
+    else:
+        box(M, face + d0, face + d1, v0, v1, u0, u1, mat)
+
+
+def wall_blocked(L, wall, u, v):
+    """Whether a spot on a wall is hidden behind something standing against it (no damask there)."""
+    for w, u0, u1, v0, v1 in WALL_FEATURES:
+        if w == wall and u0 <= u <= u1 and v0 <= v <= v1:
+            return True
+    return False
+
+
+WALL_FEATURES = []
 
 
 def build_walls(M, L):
     h = L["half"]
     t = L["walls"]["t"]
     top = L["walls"]["h"]
-    face_z = -h + t  # the back wall's inner face
-    face_x = -h + t  # the left wall's inner face
+    face = wall_face(L)
     d = L["doors"]
     dx0, dx1 = d["x"] - d["w"] / 2, d["x"] + d["w"] / 2
 
-    # the back wall, open for the penthouse's doors up on the stage (their recess and frame:
-    # build_vip_doors)
+    # the masonry, its room face a hair behind the wallpaper; open for the penthouse's doors up on
+    # the stage (their recess and frame: build_vip_doors)
     vd = L["vipDoors"]
     vx0, vx1 = vd["x"] - vd["w"] / 2, vd["x"] + vd["w"] / 2
     vtop = stage(L, "pit")["h"] + vd["h"]
-    box(M, -h, vx0, 0.0, top, -h, face_z, "CS_Wall")
-    box(M, vx1, h, 0.0, top, -h, face_z, "CS_Wall")
-    box(M, vx0, vx1, vtop, top, -h, face_z, "CS_Wall")
-    box(M, -h, face_x, 0.0, top, face_z, h, "CS_Wall")
-    # wainscot, rail, crown and cornice, along both (the back wall's broken by the two door frames)
-    for a, b in ((face_x, vx0 - 0.3), (vx1 + 0.3, dx0 - 0.15), (dx1 + 0.15, h)):
-        box(M, a, b, 0.0, 1.1, face_z, face_z + 0.05, "CS_Wainscot")
-        box(M, a, b, 1.1, 1.16, face_z, face_z + 0.07, "CS_Gold")
-    box(M, face_x, face_x + 0.05, 0.0, 1.1, face_z + 0.05, h, "CS_Wainscot")
-    box(M, face_x, face_x + 0.07, 1.1, 1.16, face_z + 0.07, h, "CS_Gold")
-    box(M, face_x, h, top - 0.25, top - 0.15, face_z, face_z + 0.06, "CS_Gold")
-    box(M, face_x, h, top - 0.15, top, face_z, face_z + 0.12, "CS_Mahogany")
-    box(M, face_x, face_x + 0.06, top - 0.25, top - 0.15, face_z + 0.06, h, "CS_Gold")
-    box(M, face_x, face_x + 0.12, top - 0.15, top, face_z + 0.12, h, "CS_Mahogany")
+    back = face - 0.004
+    box(M, -h, vx0, 0.0, top, -h, back, "CS_Wall")
+    box(M, vx1, h, 0.0, top, -h, back, "CS_Wall")
+    box(M, vx0, vx1, vtop, top, -h, back, "CS_Wall")
+    box(M, -h, back, 0.0, top, back, h, "CS_Wall")
 
-    # fluted pilasters between the sconces, gold capitals and bases
-    def pilaster_z(x):
-        box(M, x - 0.15, x + 0.15, 1.16, top - 0.25, face_z, face_z + 0.07, "CS_Mahogany")
+    crown = top - 0.25
+    for wall, u0, u1, fl in wall_runs(L):
+        rail = fl + 1.2
+        # the wainscot: a walnut skirting, the panel, its reeds, a gilt chair rail and a walnut cap
+        wall_box(M, L, wall, u0, u1, 0.0, fl + 0.13, 0.0, 0.07, "CS_WalnutDark")
+        wall_box(M, L, wall, u0, u1, fl + 0.13, rail, 0.0, 0.035, "CS_WalnutDark")
+        u = u0 + 0.06
+        while u < u1 - 0.05:
+            wall_box(M, L, wall, u, min(u + 0.05, u1 - 0.02), fl + 0.19, rail - 0.1, 0.035, 0.048, "CS_Walnut")
+            u += 0.085
+        wall_box(M, L, wall, u0, u1, fl + 0.13, fl + 0.17, 0.0, 0.05, "CS_Walnut")
+        wall_box(M, L, wall, u0, u1, rail - 0.1, rail - 0.04, 0.0, 0.05, "CS_Walnut")
+        wall_box(M, L, wall, u0, u1, rail - 0.04, rail + 0.02, 0.0, 0.075, "CS_Gold")
+        wall_box(M, L, wall, u0, u1, rail + 0.02, rail + 0.05, 0.0, 0.06, "CS_Walnut")
+        # the wallpaper: burgundy velvet in a fine grid (so the sconces' light has somewhere to
+        # fall), and gold damask on it in a half-drop repeat
+        v0 = rail + 0.05
+        nu = max(1, int(math.ceil((u1 - u0) / 0.2)))
+        nv = max(1, int(math.ceil((crown - v0) / 0.2)))
+        for i in range(nu):
+            for j in range(nv):
+                wall_quad(M, L, wall, u0 + (u1 - u0) * i / nu, u0 + (u1 - u0) * (i + 1) / nu, v0 + (crown - v0) * j / nv, v0 + (crown - v0) * (j + 1) / nv, 0.0, "CS_Wallpaper")
+        su, sv = 0.66, 0.74
+        size = 0.56
+        col = int(math.floor((u0 + 50) / su))
+        uu = (col + 0.5) * su - 50
+        while uu < u1:
+            vv = v0 + sv / 2 + (sv / 2 if col % 2 else 0.0) - sv
+            while vv < crown:
+                if u0 + size * 0.45 < uu < u1 - size * 0.45 and v0 + size * 0.5 < vv < crown - size * 0.5 and not wall_blocked(L, wall, uu, vv):
+                    if wall == "z":
+                        place = lambda uv, uu=uu, vv=vv: (0.0, 0.0, 1.0) if uv is None else (uu + uv[0], vv + uv[1], face + DAMASK)
+                    else:
+                        place = lambda uv, uu=uu, vv=vv: (1.0, 0.0, 0.0) if uv is None else (face + DAMASK, vv + uv[1], uu - uv[0])
+                    lay_damask(M, place, size, "CS_WallDamask", "CS_WallDamask")
+                vv += sv
+            uu += su
+            col += 1
+    # the crown: a gold band and a walnut cornice, along both walls
+    box(M, face, h, crown, crown + 0.1, face, face + 0.06, "CS_Gold")
+    box(M, face, h, crown + 0.1, top, face, face + 0.12, "CS_Walnut")
+    box(M, face, face + 0.06, crown, crown + 0.1, face + 0.06, h, "CS_Gold")
+    box(M, face, face + 0.12, crown + 0.1, top, face + 0.12, h, "CS_Walnut")
+    for k in range(3):
+        box(M, face, h, crown + 0.1 + k * 0.05, crown + 0.12 + k * 0.05, face + 0.12, face + 0.13 + k * 0.012, "CS_WalnutDark")
+        box(M, face + 0.12, face + 0.13 + k * 0.012, crown + 0.1 + k * 0.05, crown + 0.12 + k * 0.05, face + 0.13, h, "CS_WalnutDark")
+
+    # fluted walnut pilasters where the walls' floors change, and between the rooms
+    def pilaster(wall, u, fl):
+        wall_box(M, L, wall, u - 0.15, u + 0.15, fl + 1.2, crown, 0.0, 0.08, "CS_Walnut")
         for k in (-1, 0, 1):
-            box(M, x + k * 0.08 - 0.012, x + k * 0.08 + 0.012, 1.3, top - 0.45, face_z + 0.07, face_z + 0.08, "CS_Gold")
-        box(M, x - 0.19, x + 0.19, top - 0.45, top - 0.25, face_z, face_z + 0.1, "CS_Gold")
+            wall_box(M, L, wall, u + k * 0.08 - 0.012, u + k * 0.08 + 0.012, fl + 1.36, crown - 0.2, 0.08, 0.09, "CS_Gold")
+        wall_box(M, L, wall, u - 0.19, u + 0.19, crown - 0.2, crown, 0.0, 0.11, "CS_Gold")
+        wall_box(M, L, wall, u - 0.19, u + 0.19, fl + 1.2, fl + 1.3, 0.0, 0.1, "CS_Gold")
 
-    def pilaster_x(z):
-        box(M, face_x, face_x + 0.07, 1.16, top - 0.25, z - 0.15, z + 0.15, "CS_Mahogany")
-        for k in (-1, 0, 1):
-            box(M, face_x + 0.07, face_x + 0.08, 1.3, top - 0.45, z + k * 0.08 - 0.012, z + k * 0.08 + 0.012, "CS_Gold")
-        box(M, face_x, face_x + 0.1, top - 0.45, top - 0.25, z - 0.19, z + 0.19, "CS_Gold")
+    lounge = stage(L, "lounge")
+    pit = stage(L, "pit")
+    for x, fl in ((lounge["x1"], pit["h"]), (-1.2, pit["h"]), (pit["x1"], 0.0), (7.97, 0.0)):
+        pilaster("z", x, fl)
+    for z, fl in ((-4.05, lounge["h"]), (lounge["z1"], lounge["h"]), (8.3, 0.0)):
+        pilaster("x", z, fl)
 
-    for x in (-4.2, -1.2, 3.0, 7.97):
-        pilaster_z(x)
-    for z in (-4.05, 0.3, 8.3):
-        pilaster_x(z)
-
-    # fan sconces: a brass plate, a glowing shade, a gold cap
+    # the Art-Deco twin-beam sconces (on a pilaster's face where one stands): a stepped brass back
+    # plate, a fluted stem, a frosted glass tulip opening up and another down, gilt collars (their
+    # light: wall_lights)
     y = L["sconces"]["y"]
-    for x in L["sconces"]["onBackZ"]:
-        box(M, x - 0.11, x + 0.11, y - 0.17, y + 0.17, face_z, face_z + 0.03, "CS_Brass")
-        vslab(M, [(x - 0.1, y - 0.1), (x + 0.1, y - 0.1), (x + 0.16, y + 0.1), (x - 0.16, y + 0.1)], face_z + 0.03, face_z + 0.11, "CS_Bulb")
-        box(M, x - 0.18, x + 0.18, y + 0.1, y + 0.14, face_z + 0.03, face_z + 0.13, "CS_Gold")
-    for z in L["sconces"]["onBackX"]:
-        box(M, face_x, face_x + 0.03, y - 0.17, y + 0.17, z - 0.11, z + 0.11, "CS_Brass")
-        xslab(M, [(z - 0.1, y - 0.1), (z + 0.1, y - 0.1), (z + 0.16, y + 0.1), (z - 0.16, y + 0.1)], face_x + 0.03, face_x + 0.11, "CS_Bulb")
-        box(M, face_x + 0.03, face_x + 0.13, y + 0.1, y + 0.14, z - 0.18, z + 0.18, "CS_Gold")
+    piers = [("z", x) for x in (lounge["x1"], -1.2, pit["x1"], 7.97)] + [("x", z) for z in (-4.05, lounge["z1"], 8.3)]
+    for wall, key in (("z", "onBackZ"), ("x", "onBackX")):
+        for u in L["sconces"][key]:
+            fl = floor_y(L, u, face + 0.3) if wall == "z" else floor_y(L, face + 0.3, u)
+            sy = y + fl
+            d0 = 0.09 if any(w == wall and abs(q - u) < 0.2 for w, q in piers) else 0.0
+            for k, (hw, hv) in enumerate(((0.1, 0.22), (0.075, 0.28), (0.05, 0.34))):
+                wall_box(M, L, wall, u - hw, u + hw, sy - hv, sy + hv, d0, d0 + 0.015 + k * 0.012, "CS_Brass" if k != 1 else "CS_Gold")
+            wall_box(M, L, wall, u - 0.018, u + 0.018, sy - 0.16, sy + 0.16, d0 + 0.04, d0 + 0.09, "CS_Gold")
+            for sign in (1, -1):
+                c0 = sy + sign * 0.14
+                wall_box(M, L, wall, u - 0.05, u + 0.05, min(c0, c0 + sign * 0.03), max(c0, c0 + sign * 0.03), d0 + 0.03, d0 + 0.13, "CS_Gold")
+                for j in range(4):
+                    r1 = 0.035 + j * 0.018
+                    a_, b_ = c0 + sign * (0.03 + j * 0.035), c0 + sign * (0.03 + (j + 1) * 0.035)
+                    wall_box(M, L, wall, u - r1, u + r1, min(a_, b_), max(a_, b_), d0 + 0.08 - r1, d0 + 0.08 + r1, "CS_Bulb")
 
     # the grand double doors: a gold frame, mahogany leaves with gold fluting and brass pulls, and a
     # glowing fan transom above them
+    face_z = face
     dh = d["h"]
     box(M, dx0 - 0.15, dx0, 0.0, dh + 0.12, face_z, face_z + 0.1, "CS_Gold")
     box(M, dx1, dx1 + 0.15, 0.0, dh + 0.12, face_z, face_z + 0.1, "CS_Gold")
     box(M, dx0 - 0.15, dx1 + 0.15, dh, dh + 0.12, face_z, face_z + 0.1, "CS_Gold")
     mid = d["x"]
     for a, b in ((dx0, mid - 0.01), (mid + 0.01, dx1)):
-        box(M, a, b, 0.0, dh, face_z, face_z + 0.06, "CS_Mahogany")
+        box(M, a, b, 0.0, dh, face_z - 0.004, face_z + 0.06, "CS_Mahogany")
         w = b - a
         for k in (0.25, 0.5, 0.75):
             xk = a + w * k
@@ -955,26 +1480,150 @@ def build_marquee(M, L, nodes):
     nodes.append({"name": "Prop_Marquee", "mesh": S, "origin": (mid, (sy0 + sy1) / 2, sz), "coloured": False, "recalc": False})
 
 
-def build_frame(M, L, wall, at, yc, w, h, canvas):
-    """A gilded frame on a wall round a dark canvas; returns the canvas's depth (the sitter's ground)."""
+def build_frame(M, L, wall, at, yc, w, h, canvas, slim=False, light=True):
+    """A Baroque gold-leaf frame on a wall round a dark canvas (a sight edge, a gilt ogee, a brass
+    bead, the outer moulding, carved corners, a shell crest; a slim gilt frame for a poster), and a
+    brass picture light over it (its light: wall_lights). Returns the canvas's depth."""
     wbox(M, L, wall, at, -w / 2, w / 2, yc - h / 2, yc + h / 2, 0.0, 0.03, canvas)
-    for u0, u1, v0, v1 in ((-w / 2, w / 2, yc - h / 2, yc - h / 2 + 0.08), (-w / 2, w / 2, yc + h / 2 - 0.08, yc + h / 2), (-w / 2, -w / 2 + 0.08, yc - h / 2 + 0.08, yc + h / 2 - 0.08), (w / 2 - 0.08, w / 2, yc - h / 2 + 0.08, yc + h / 2 - 0.08)):
-        wbox(M, L, wall, at, u0, u1, v0, v1, 0.0, 0.07, "CS_Gold")
-    for u0, u1, v0, v1 in ((-w / 2 + 0.08, w / 2 - 0.08, yc - h / 2 + 0.08, yc - h / 2 + 0.1), (-w / 2 + 0.08, w / 2 - 0.08, yc + h / 2 - 0.1, yc + h / 2 - 0.08), (-w / 2 + 0.08, -w / 2 + 0.1, yc - h / 2 + 0.1, yc + h / 2 - 0.1), (w / 2 - 0.1, w / 2 - 0.08, yc - h / 2 + 0.1, yc + h / 2 - 0.1)):
-        wbox(M, L, wall, at, u0, u1, v0, v1, 0.0, 0.045, "CS_MahoganyDark")
-    for su in (-1, 1):
-        for sv in (-1, 1):
-            wblob(M, L, wall, at, su * (w / 2 - 0.04), yc + sv * (h / 2 - 0.04), 0.075, 0.04, 0.04, 0.02, "CS_Gold", cuts=1)
-    wblob(M, L, wall, at, 0.0, yc + h / 2 + 0.02, 0.06, 0.09, 0.05, 0.02, "CS_Gold", cuts=2)  # the crest
-    wbox(M, L, wall, at, -0.13, 0.13, yc - h / 2 - 0.11, yc - h / 2 - 0.04, 0.0, 0.015, "CS_Brass")  # the name plate
+    W2, H2 = w / 2, h / 2
+
+    def ring(i, o, d, mat):
+        wbox(M, L, wall, at, -W2 - o, W2 + o, yc + H2 + i, yc + H2 + o, 0.0, d, mat)
+        wbox(M, L, wall, at, -W2 - o, W2 + o, yc - H2 - o, yc - H2 - i, 0.0, d, mat)
+        wbox(M, L, wall, at, -W2 - o, -W2 - i, yc - H2 - i, yc + H2 + i, 0.0, d, mat)
+        wbox(M, L, wall, at, W2 + i, W2 + o, yc - H2 - i, yc + H2 + i, 0.0, d, mat)
+
+    if slim:
+        ring(0.0, 0.015, 0.04, "CS_Black")
+        ring(0.015, 0.045, 0.055, "CS_Gold")
+        top = yc + H2 + 0.045
+    else:
+        ring(0.0, 0.02, 0.045, "CS_MahoganyDark")
+        ring(0.02, 0.05, 0.07, "CS_Gold")
+        ring(0.05, 0.065, 0.085, "CS_Brass")
+        ring(0.065, 0.11, 0.06, "CS_Gold")
+        for su in (-1, 1):
+            for sv in (-1, 1):
+                wblob(M, L, wall, at, su * (W2 + 0.075), yc + sv * (H2 + 0.075), 0.08, 0.06, 0.06, 0.028, "CS_Gold", cuts=2)
+                wblob(M, L, wall, at, su * (W2 + 0.02), yc + sv * (H2 + 0.11), 0.06, 0.04, 0.02, 0.015, "CS_Gold", cuts=1)
+        # the crest: a scallop shell of gilt ribs over two scrolls
+        cy = yc + H2 + 0.1
+        for k in range(7):
+            a0 = math.pi * (0.08 + 0.84 * k / 7)
+            a1 = math.pi * (0.08 + 0.84 * (k + 1) / 7) - 0.03
+            wshape(M, L, wall, at, [(0.02 * math.cos((a0 + a1) / 2), cy), (0.15 * math.cos(a0), cy + 0.15 * math.sin(a0)), (0.15 * math.cos(a1), cy + 0.15 * math.sin(a1))], 0.0, 0.05, "CS_Gold")
+        for su in (-1, 1):
+            wblob(M, L, wall, at, su * 0.13, cy + 0.01, 0.05, 0.05, 0.03, 0.02, "CS_Gold", cuts=2)
+        wbox(M, L, wall, at, -0.13, 0.13, yc - H2 - 0.1, yc - H2 - 0.04, 0.06, 0.075, "CS_Brass")  # the name plate
+        top = cy + 0.15
+    if not light:
+        return 0.03
+    # the picture light: a brass arm off the wall, a bar lamp, its glowing lip
+    ly = top + 0.12
+    wbar(M, L, wall, at, (0.0, ly - 0.08), (0.0, ly), 0.02, 0.012, "CS_Brass", sides=6)
+    wbox(M, L, wall, at, -0.03, 0.03, ly - 0.02, ly + 0.02, 0.0, 0.16, "CS_Brass")
+    wbar(M, L, wall, at, (-w * 0.33, ly), (w * 0.33, ly), 0.17, 0.028, "CS_Brass", sides=10)
+    wbox(M, L, wall, at, -w * 0.32, w * 0.32, ly - 0.035, ly - 0.022, 0.15, 0.19, "CS_Bulb")
     return 0.03
+
+
+def clip_uv(pts, w, h, yc):
+    """(u, v) points clipped to a canvas w by h centred at (0, yc)."""
+    return clip_rect(pts, -w / 2, w / 2, yc - h / 2, yc + h / 2)
+
+
+def build_poster(M, L, p):
+    """A 1920s Art-Deco casino poster in a slim gilt frame: the Turf Club's racer under a rising sun,
+    a champagne coupe in a burst of bubbles, a roulette wheel, a pair of dice under a stepped arch."""
+    wall, at, yc, design = p["wall"], p["at"], p["y"], p["design"]
+    w, h = p.get("w", 0.6), p.get("h", 0.86)
+    ground = {"derby": "CS_Canvas3", "champagne": "CS_Canvas2", "roulette": "CS_Black", "dice": "CS_Teal"}[design]
+    d0 = build_frame(M, L, wall, at, yc, w, h, ground, slim=True, light=p.get("light", True))
+    # the design is drawn for a 0.6 by 0.86 sheet: scaled to this one
+    k = min(w / 0.6, h / 0.86)
+    at_ = at
+    layer = [d0]
+
+    def shape(pts, mat):
+        pts = [(u * k, yc + (v - yc) * k) for u, v in pts]
+        q = clip_uv(pts, w - 0.02, h - 0.02, yc)
+        if len(q) >= 3 and poly_area(q) > 1e-6:
+            layer[0] += 0.0015
+            wshape(M, L, wall, at, q, d0, layer[0] + 0.002, mat)
+
+    def disc(cu, cv, r, mat, n=16):
+        shape([(cu + r * math.cos(2 * math.pi * k / n), cv + r * math.sin(2 * math.pi * k / n)) for k in range(n)], mat)
+
+    def rect(u0, u1, v0, v1, mat):
+        shape([(u0, v0), (u1, v0), (u1, v1), (u0, v1)], mat)
+
+    # the title: a gold band and a thinner one under it, and a line of "type"
+    rect(-0.22, 0.22, yc + 0.31, yc + 0.36, "CS_Gold")
+    rect(-0.16, 0.16, yc + 0.275, yc + 0.29, "CS_Gold")
+    if design == "derby":
+        for k in range(9):
+            a0 = math.pi * (0.06 + 0.88 * k / 9)
+            a1 = a0 + math.pi * 0.88 / 18
+            shape([(0.0, yc - 0.22), (0.7 * math.cos(a0), yc - 0.22 + 0.7 * math.sin(a0)), (0.7 * math.cos(a1), yc - 0.22 + 0.7 * math.sin(a1))], "CS_Gold")
+        disc(0.0, yc - 0.22, 0.12, "CS_Amber")
+        rect(-0.3, 0.3, yc - 0.43, yc - 0.22, "CS_Emerald")
+        rect(-0.3, 0.3, yc - 0.235, yc - 0.215, "CS_Red")
+        # the racer, mid-gallop, and its jockey
+        cv = yc - 0.05
+        shape([(-0.12 + 0.12 * math.cos(2 * math.pi * k / 14), cv + 0.055 * math.sin(2 * math.pi * k / 14)) for k in range(14)], "CS_Ivory")
+        shape([(-0.02, cv + 0.03), (0.06, cv + 0.12), (0.1, cv + 0.1), (0.03, cv + 0.0)], "CS_Ivory")
+        shape([(0.05, cv + 0.1), (0.13, cv + 0.12), (0.14, cv + 0.08), (0.08, cv + 0.07)], "CS_Ivory")
+        for lu, lv, du in ((-0.2, cv - 0.02, -0.08), (-0.16, cv - 0.03, 0.02), (-0.06, cv - 0.03, -0.02), (-0.02, cv - 0.02, 0.09)):
+            shape([(lu, lv), (lu + 0.02, lv), (lu + du + 0.02, lv - 0.12), (lu + du, lv - 0.12)], "CS_Ivory")
+        shape([(-0.24, cv + 0.02), (-0.33, cv - 0.06), (-0.3, cv + 0.04)], "CS_Ivory")
+        shape([(-0.07, cv + 0.05), (-0.02, cv + 0.05), (-0.03, cv + 0.12), (-0.07, cv + 0.11)], "CS_Red")
+        disc(-0.05, cv + 0.14, 0.025, "CS_Red", n=8)
+    elif design == "champagne":
+        for k, r in enumerate((0.26, 0.21, 0.16)):
+            ring_o = [(r * math.cos(math.pi * t / 12), yc - 0.02 + r * math.sin(math.pi * t / 12)) for t in range(13)]
+            ring_i = [((r - 0.015) * math.cos(math.pi * t / 12), yc - 0.02 + (r - 0.015) * math.sin(math.pi * t / 12)) for t in range(12, -1, -1)]
+            shape(ring_o + ring_i, "CS_Gold")
+        bowl = [(0.13 * math.cos(math.pi + math.pi * t / 10), yc + 0.03 + 0.09 * math.sin(math.pi + math.pi * t / 10)) for t in range(11)]
+        shape(bowl, "CS_Pearl")
+        shape([(0.11 * math.cos(math.pi + math.pi * t / 10), yc + 0.025 + 0.07 * math.sin(math.pi + math.pi * t / 10)) for t in range(11)], "CS_Amber")
+        rect(-0.008, 0.008, yc - 0.25, yc - 0.06, "CS_Pearl")
+        shape([(0.07 * math.cos(2 * math.pi * k / 12), yc - 0.255 + 0.015 * math.sin(2 * math.pi * k / 12)) for k in range(12)], "CS_Pearl")
+        for k in range(9):
+            disc(-0.1 + 0.025 * k + 0.02 * math.sin(k * 2.1), yc + 0.08 + 0.04 * k, 0.008 + 0.004 * (k % 3), "CS_Pearl", n=8)
+    elif design == "roulette":
+        cv = yc + 0.0
+        disc(0.0, cv, 0.22, "CS_Gold", n=24)
+        for k in range(16):
+            a0, a1 = 2 * math.pi * k / 16, 2 * math.pi * (k + 1) / 16
+            shape([(0.2 * math.cos(a0), cv + 0.2 * math.sin(a0)), (0.2 * math.cos(a1), cv + 0.2 * math.sin(a1)), (0.12 * math.cos(a1), cv + 0.12 * math.sin(a1)), (0.12 * math.cos(a0), cv + 0.12 * math.sin(a0))], "CS_Red" if k % 2 else "CS_MahoganyDark")
+        disc(0.0, cv, 0.11, "CS_Mahogany", n=16)
+        disc(0.0, cv, 0.035, "CS_Gold", n=10)
+        for k in range(4):
+            a = math.pi / 4 + math.pi / 2 * k
+            shape([(0.01 * math.cos(a + 1.57), cv + 0.01 * math.sin(a + 1.57)), (0.1 * math.cos(a), cv + 0.1 * math.sin(a)), (0.01 * math.cos(a - 1.57), cv + 0.01 * math.sin(a - 1.57))], "CS_Gold")
+        disc(0.17, cv + 0.02, 0.014, "CS_Ivory", n=8)
+        rect(-0.3, 0.3, yc - 0.34, yc - 0.3, "CS_Red")
+    else:  # dice
+        for k in range(3):
+            r = 0.26 - k * 0.05
+            ring_o = [(r * math.cos(math.pi * t / 10), yc + 0.02 + r * math.sin(math.pi * t / 10)) for t in range(11)]
+            ring_i = [((r - 0.012) * math.cos(math.pi * t / 10), yc + 0.02 + (r - 0.012) * math.sin(math.pi * t / 10)) for t in range(10, -1, -1)]
+            shape(ring_o + ring_i, "CS_Gold")
+        for cu, cv, ang, pips in ((-0.08, yc - 0.12, 0.25, [(-1, -1), (0, 0), (1, 1)]), (0.1, yc - 0.08, -0.2, [(-1, -1), (-1, 1), (1, -1), (1, 1), (0, 0)])):
+            sz = 0.075
+            corners = [(-sz, -sz), (sz, -sz), (sz, sz), (-sz, sz)]
+            shape([(cu + a * math.cos(ang) - b * math.sin(ang), cv + a * math.sin(ang) + b * math.cos(ang)) for a, b in corners], "CS_Ivory")
+            for pa, pb in pips:
+                a, b = pa * 0.042, pb * 0.042
+                disc(cu + a * math.cos(ang) - b * math.sin(ang), cv + a * math.sin(ang) + b * math.cos(ang), 0.012, "CS_Black", n=6)
+        rect(-0.3, 0.3, yc - 0.3, yc - 0.27, "CS_Gold")
 
 
 def build_portrait(M, L, p):
     """An ancestor of the house, in oils: a bust in low relief on a dark ground."""
     wall, at, yc, who = p["wall"], p["at"], p["y"], p["subject"]
     ground = {"fox": "CS_Canvas1", "bear": "CS_Canvas3", "owl": "CS_Canvas2", "poodle": "CS_Canvas1", "cat": "CS_Canvas2"}[who]
-    d0 = build_frame(M, L, wall, at, yc, 0.9, 0.8, ground)
+    d0 = build_frame(M, L, wall, at, yc, p.get("w", 0.9), p.get("h", 0.8), ground)
 
     def B(u, v, d, hu, hv, hd, mat, cuts=2):
         wblob(M, L, wall, at, u, yc + v, d0 + d, hu, hv, hd, mat, cuts=cuts)
@@ -1268,32 +1917,35 @@ def build_cage(M, L):
     box(M, x1 - 0.2, x1, 0.0, counter, face_z, front, "CS_Mahogany")
 
 
-def palm(M, x, z, s=1.0):
-    """A potted palm: a black lacquered urn with a gold band, a leaning trunk, drooping fronds."""
-    lathe(M, x, z, [(0, 0), (0.26 * s, 0), (0.33 * s, 0.18 * s), (0.36 * s, 0.46 * s), (0.3 * s, 0.5 * s), (0, 0.5 * s)], "CS_Black", segs=14)
-    lathe(M, x, z, [(0, 0.4 * s), (0.365 * s, 0.4 * s), (0.365 * s, 0.44 * s), (0, 0.44 * s)], "CS_Gold", segs=14)
-    top = (x + 0.06 * s, 1.75 * s, z + 0.04 * s)
-    cylinder(M, (x, 0.45 * s, z), top, 0.07 * s, "CS_Trunk", sides=8, r_end=0.05 * s)
-    for k in range(7):
-        yaw = 2 * math.pi * k / 7 + 0.3
-        fx, fz = math.sin(yaw), math.cos(yaw)
-        blob(M, top[0] + fx * 0.42 * s, top[1] - 0.05 * s, top[2] + fz * 0.42 * s, 0.5 * s, 0.035 * s, 0.13 * s, "CS_Leaf", cuts=2, yaw=yaw - math.pi / 2, droop=0.22 * s)
+def areca(M, x, z):
+    """An areca palm in a fluted Art-Deco brass urn: a cluster of slender golden-green canes, their
+    feathery fronds arching out high over the walkway (the urn is all that stands in the way)."""
+    lathe(M, x, z, [(0, 0), (0.2, 0), (0.24, 0.05), (0.2, 0.1), (0.26, 0.4), (0.3, 0.5), (0.27, 0.53), (0, 0.53)], "CS_Brass", segs=16)
+    lathe(M, x, z, [(0, 0.3), (0.285, 0.3), (0.29, 0.34), (0, 0.34)], "CS_Black", segs=16)
+    for k in range(10):
+        a = 2 * math.pi * k / 10
+        cylinder(M, (x + 0.215 * math.cos(a), 0.12, z + 0.215 * math.sin(a)), (x + 0.27 * math.cos(a), 0.44, z + 0.27 * math.sin(a)), 0.012, "CS_Gold", sides=4)
+    lathe(M, x, z, [(0, 0.5), (0.26, 0.5), (0.26, 0.52), (0, 0.52)], "CS_Trunk", segs=12)
+    import random
 
-
-def fern(M, x, z):
-    """A planter out front: a lacquered urn with a gold band and a round fern, all within the
-    urn's collider (a palm's fronds would reach over the walkway)."""
-    lathe(M, x, z, [(0, 0), (0.24, 0), (0.3, 0.16), (0.33, 0.42), (0.28, 0.46), (0, 0.46)], "CS_Black", segs=14)
-    lathe(M, x, z, [(0, 0.36), (0.335, 0.36), (0.335, 0.4), (0, 0.4)], "CS_Gold", segs=14)
-    blob(M, x, 0.62, z, 0.3, 0.2, 0.3, "CS_Leaf", cuts=3)
-    for k in range(6):
-        yaw = 2 * math.pi * k / 6
-        blob(M, x + 0.16 * math.sin(yaw), 0.66, z + 0.16 * math.cos(yaw), 0.18, 0.03, 0.07, "CS_Leaf", cuts=2, yaw=yaw - math.pi / 2, droop=0.08)
+    rnd = random.Random(int(x * 100 + z * 10))
+    for c in range(4):
+        a = 2 * math.pi * c / 4 + rnd.random()
+        lean = 0.12 + rnd.random() * 0.1
+        h = 1.25 + rnd.random() * 0.5
+        base = (x + 0.06 * math.cos(a), 0.5, z + 0.06 * math.sin(a))
+        tip = (x + lean * math.cos(a), h, z + lean * math.sin(a))
+        cylinder(M, base, tip, 0.022, "CS_Cane", sides=6, r_end=0.014)
+        for k in range(4):
+            yaw = a + (k - 1.5) * 0.9 + rnd.random() * 0.3
+            fx, fz = math.sin(yaw), math.cos(yaw)
+            cx, cz = tip[0] + fx * 0.3, tip[2] + fz * 0.3
+            blob(M, cx, tip[1] - 0.02, cz, 0.36, 0.022, 0.1, "CS_Areca" if k % 2 else "CS_ArecaLight", cuts=2, yaw=yaw - math.pi / 2, droop=0.2)
 
 
 def build_foyer(M, L, cushions):
-    for p in L["planters"]:
-        fern(M, p["x"], p["z"])
+    for p in L["palms"]:
+        areca(M, p["x"], p["z"])
 
 
 class Frame:
@@ -2012,26 +2664,64 @@ def build_bar(M, L, cushions):
 
 
 def build_piano(M, L, cushions):
+    """The baby grand on the lounge's front-right apron: its keyboard toward the room, its tail to the
+    back wall, the pianist facing the wall with the floor on their right, where the lid opens (at 45
+    degrees, on its stick, its gold harp and strings showing under it); the bench; and a brass stage
+    spotlight on a stand at the dais's corner, trained on the keys (the game lights it)."""
     pn = L["piano"]
     px, pz = pn["x"], pn["z"]
-    hl, hw = pn["len"] / 2, pn["w"] / 2
-    shape = [(-1, -1), (1, -1), (1, -0.28), (0.8, 0.28), (0.47, 0.62), (0.0, 0.86), (-0.53, 1.0), (-1, 1.0)]
-    outline = [(px + a * hl, pz + c * hw) for a, c in shape]
-    slab(M, outline, 0.55, pn["top"] - 0.05, "CS_Black")
-    slab(M, outline, pn["top"] - 0.05, pn["top"], "CS_Black")
-    for a, c in ((-0.8, -0.7), (0.8, -0.7), (-0.4, 0.8)):
-        lathe(M, px + a * hl, pz + c * hw, [(0, 0), (0.06, 0), (0.05, 0.05), (0.07, 0.5), (0, 0.55)], "CS_Black", segs=10)
-    kz0, kz1 = pz - hw - 0.2, pz - hw
-    box(M, px - hl + 0.08, px + hl - 0.08, 0.66, 0.72, kz0, kz1, "CS_Black")
-    box(M, px - hl + 0.12, px + hl - 0.12, 0.72, 0.745, kz0 + 0.02, kz1, "CS_Ivory")
+    hw, hl = pn["w"] / 2, pn["len"] / 2
+    top = pn["top"]
+    # across: -1 the bass side (straight), +1 the treble (curved); along: -1 the tail, +1 the keys
+    shape = [(-1, 1), (1, 1), (1, 0.3), (0.86, -0.15), (0.6, -0.52), (0.2, -0.8), (-0.4, -0.96), (-1, -1)]
+    outline = [(px + a * hw, pz + c * hl) for a, c in shape]
+    inset = [(px + a * (hw - 0.06), pz + c * (hl - 0.06)) for a, c in shape]
+    slab(M, outline, 0.58, top - 0.08, "CS_Black")
+    band(M, outline, inset, top - 0.08, top, "CS_Black")
+    # the gold harp (the iron frame) and the strings under the lid
+    harp = [(px + a * (hw - 0.1), pz + min(c, 0.72) * (hl - 0.1)) for a, c in shape]
+    slab(M, harp, top - 0.08, top - 0.05, "CS_Gold")
+    for k in range(9):
+        sx = px - hw + 0.18 + (2 * hw - 0.36) * k / 8
+        cylinder(M, (sx, top - 0.045, pz + hl * 0.62), (sx, top - 0.045, pz - hl * (0.2 + 0.6 * (1 - k / 8))), 0.004, "CS_Chrome", sides=4)
+    for a, c in ((-0.78, 0.72), (0.78, 0.72), (-0.35, -0.8)):
+        lathe(M, px + a * hw, pz + c * hl, [(0, 0), (0.06, 0), (0.05, 0.05), (0.075, 0.5), (0.05, 0.58), (0, 0.58)], "CS_Black", segs=10)
+        lathe(M, px + a * hw, pz + c * hl, [(0, 0.0), (0.055, 0.0), (0.055, 0.03), (0, 0.03)], "CS_Brass", segs=10)
+    # the keyboard
+    kz0, kz1 = pz + hl, pz + hl + 0.2
+    box(M, px - hw + 0.04, px + hw - 0.04, 0.62, 0.72, kz0 - 0.02, kz1, "CS_Black")
+    box(M, px - hw + 0.1, px + hw - 0.1, 0.72, 0.745, kz0, kz1 - 0.02, "CS_Ivory")
     nkeys = 22
     for j in range(nkeys):
         if j % 7 in (2, 6):
             continue
-        kx = px - hl + 0.12 + (2 * hl - 0.24) * (j + 0.7) / nkeys
-        box(M, kx - 0.012, kx + 0.012, 0.745, 0.765, kz0 + 0.1, kz1, "CS_Black")
-    vslab(M, [(px - 0.35, pn["top"]), (px + 0.35, pn["top"]), (px + 0.35, pn["top"] + 0.28), (px - 0.35, pn["top"] + 0.28)], kz1 + 0.05, kz1 + 0.08, "CS_Black")
-    box(M, px - 0.08, px + 0.08, 0.05, 0.55, kz1 + 0.1, kz1 + 0.14, "CS_Gold")
+        kx = px - hw + 0.1 + (2 * hw - 0.2) * (j + 0.7) / nkeys
+        box(M, kx - 0.012, kx + 0.012, 0.745, 0.765, kz0, kz0 + 0.1, "CS_Black")
+    for sx in (-1, 1):
+        box(M, px + sx * (hw - 0.04) - 0.04, px + sx * (hw - 0.04) + 0.04, 0.62, 0.8, kz0 - 0.02, kz1, "CS_Black")
+    # the music desk, a sheet of music on it
+    vslab(M, [(px - 0.36, top), (px + 0.36, top), (px + 0.36, top + 0.26), (px - 0.36, top + 0.26)], kz0 - 0.14, kz0 - 0.11, "CS_Black")
+    vslab(M, [(px - 0.16, top + 0.04), (px + 0.1, top + 0.04), (px + 0.1, top + 0.22), (px - 0.16, top + 0.22)], kz0 - 0.11, kz0 - 0.1, "CS_Paper")
+    # the lyre and its pedals
+    box(M, px - 0.07, px + 0.07, 0.04, 0.6, kz0 - 0.12, kz0 - 0.06, "CS_Black")
+    for dx in (-0.05, 0.0, 0.05):
+        box(M, px + dx - 0.012, px + dx + 0.012, 0.04, 0.06, kz0 - 0.06, kz0 + 0.04, "CS_Gold")
+    # the lid, hinged on the bass side and propped open 45 degrees: its underside to the floor
+    hx = px - hw
+    ca, sa = math.cos(math.radians(pn["lid"])), math.sin(math.radians(pn["lid"]))
+    lid = [(hx + (x - hx) * ca, top + 0.02 + (x - hx) * sa, z) for x, z in outline]
+    under = [(hx + (x - hx) * ca + 0.02 * sa, top + (x - hx) * sa - 0.02 * ca + 0.02, z) for x, z in outline]
+    bm = M.bm
+    va = [bm.verts.new(W(*q)) for q in lid]
+    vb = [bm.verts.new(W(*q)) for q in under]
+    bm.faces.new(va).material_index = M.m("CS_Black")
+    bm.faces.new(list(reversed(vb))).material_index = M.m("CS_Black")
+    for i in range(len(va)):
+        j = (i + 1) % len(va)
+        bm.faces.new((va[i], va[j], vb[j], vb[i])).material_index = M.m("CS_Black")
+    stick_x = px + 0.28
+    cylinder(M, (stick_x, top, pz - 0.1), (hx + (stick_x - hx) / ca * ca, top + (stick_x - hx) / ca * sa - 0.01, pz - 0.1), 0.012, "CS_Black", sides=6)
+    # the bench, facing the keys
     bz = pn["bench"]
     btop = cushions["pianoBench"]["top"]
     box(M, px - 0.45, px + 0.45, btop - 0.06, btop, bz - 0.18, bz + 0.18, "CS_Velvet")
@@ -2039,6 +2729,24 @@ def build_piano(M, L, cushions):
     for a in (-0.4, 0.4):
         for c in (-0.14, 0.14):
             cylinder(M, (px + a, 0.0, bz + c), (px + a, btop - 0.1, bz + c), 0.025, "CS_Black", sides=6)
+    # the spotlight: a brass tripod, a pole, a black Deco can with a brass cowl, its lens aglow
+    sp = pn["spot"]
+    sx, sz, sh = sp["x"], sp["z"], sp["h"]
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.4
+        cylinder(M, (sx, 0.55, sz), (sx + 0.22 * math.cos(a), 0.0, sz + 0.22 * math.sin(a)), 0.012, "CS_Brass", sides=6)
+    cylinder(M, (sx, 0.0, sz), (sx, sh - 0.12, sz), 0.02, "CS_Brass", sides=8)
+    lathe(M, sx, sz, [(0, 0.5), (0.04, 0.5), (0.04, 0.6), (0, 0.6)], "CS_Brass", segs=10)
+    kx, ky, kz = px, 0.8, pz + hl + 0.05
+    dx, dy, dz = kx - sx, ky - sh, kz - sz
+    ln = math.sqrt(dx * dx + dy * dy + dz * dz)
+    dx, dy, dz = dx / ln, dy / ln, dz / ln
+    a0 = (sx - dx * 0.14, sh - dy * 0.14, sz - dz * 0.14)
+    a1 = (sx + dx * 0.16, sh + dy * 0.16, sz + dz * 0.16)
+    cylinder(M, a0, a1, 0.085, "CS_Black", sides=12, r_end=0.1)
+    cylinder(M, a1, (a1[0] + dx * 0.05, a1[1] + dy * 0.05, a1[2] + dz * 0.05), 0.105, "CS_Brass", sides=12, r_end=0.11)
+    cylinder(M, (a1[0] + dx * 0.02, a1[1] + dy * 0.02, a1[2] + dz * 0.02), (a1[0] + dx * 0.035, a1[1] + dy * 0.035, a1[2] + dz * 0.035), 0.085, "CS_Bulb", sides=12)
+    cylinder(M, (sx, sh - 0.12, sz), (sx, sh, sz), 0.03, "CS_Brass", sides=8)
 
 
 def build_billiards(M, L, nodes):
@@ -2166,11 +2874,300 @@ def build_chesterfield(M, L, cushions):
         blob(M, cx + 0.3 + 0.03 * math.cos(k * 1.6), top + 0.035, cz + 0.1 + 0.03 * math.sin(k * 1.6), 0.018, 0.012, 0.018, "CS_CapWhite", cuts=1)
 
 
+def build_darts(M, L):
+    """The pub darts board on the lounge's back wall behind the pool table: a mahogany cabinet with
+    its doors swung open (a chalk scoreboard inside each), the board (sisal cream and black, the
+    doubles and trebles in red and green, the bull), three darts in it, and a brass oche on the floor
+    where you throw from."""
+    dt = L["darts"]
+    face = wall_face(L)
+    zc, yc, r = dt["z"], dt["y"], dt["r"]
+    # the cabinet behind the board, and its doors open at the sides
+    box(M, face, face + 0.1, yc - 0.42, yc + 0.42, zc - 0.42, zc + 0.42, "CS_Mahogany")
+    box(M, face + 0.1, face + 0.11, yc - 0.4, yc + 0.4, zc - 0.4, zc + 0.4, "CS_MahoganyDark")
+    for sz_ in (-1, 1):
+        hz = zc + sz_ * 0.42
+        ang = math.radians(70)
+        ex, ez = face + 0.1 + math.sin(ang) * 0.42, hz + sz_ * math.cos(ang) * 0.42
+        pts = [(face + 0.1, hz), (ex, ez)]
+        nxz = (-(ez - hz), ex - (face + 0.1))
+        ln = math.hypot(*nxz)
+        t = 0.03
+        ox, oz = nxz[0] / ln * t * sz_, nxz[1] / ln * t * sz_
+        slab(M, [pts[0], pts[1], (pts[1][0] - ox, pts[1][1] - oz), (pts[0][0] - ox, pts[0][1] - oz)], yc - 0.42, yc + 0.42, "CS_Mahogany")
+        # the chalkboard on its inside, and its chalk
+        ix = (ex - face - 0.1) / 0.42
+        iz = (ez - hz) / 0.42
+        board = [(face + 0.1 + ix * 0.05 + ox * 1.2, hz + iz * 0.05 + oz * 1.2), (face + 0.1 + ix * 0.37 + ox * 1.2, hz + iz * 0.37 + oz * 1.2)]
+        nrm = (ox / t, 0.0, oz / t)
+        for yy0, yy1, mat in ((yc - 0.35, yc + 0.35, "CS_Chalk"),):
+            flat(M, [(board[0][0], yy0, board[0][1]), (board[1][0], yy0, board[1][1]), (board[1][0], yy1, board[1][1]), (board[0][0], yy1, board[0][1])], mat, nrm)
+        for k in range(6):
+            yy = yc + 0.28 - k * 0.1
+            f0, f1 = 0.08, 0.2 + (k % 3) * 0.05
+            flat(M, [(face + 0.1 + ix * f0 + ox * 1.3, yy, hz + iz * f0 + oz * 1.3), (face + 0.1 + ix * f1 + ox * 1.3, yy, hz + iz * f1 + oz * 1.3), (face + 0.1 + ix * f1 + ox * 1.3, yy + 0.012, hz + iz * f1 + oz * 1.3), (face + 0.1 + ix * f0 + ox * 1.3, yy + 0.012, hz + iz * f0 + oz * 1.3)], "CS_Paper", nrm)
+        wall_box(M, L, "x", hz - 0.015, hz + 0.015, yc + 0.28, yc + 0.34, 0.09, 0.12, "CS_Brass")
+        wall_box(M, L, "x", hz - 0.015, hz + 0.015, yc - 0.34, yc - 0.28, 0.09, 0.12, "CS_Brass")
+    # the board: its black surround, the number ring, then the beds, rings and bull, each flat on it
+    bx = face + 0.13
+    xslab(M, [(zc + 0.3 * math.cos(2 * math.pi * k / 32), yc + 0.3 * math.sin(2 * math.pi * k / 32)) for k in range(32)], face + 0.11, bx, "CS_Black")
+    order = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
+    rings = (6.35 / 170, 15.9 / 170, 99 / 170, 107 / 170, 162 / 170, 1.0)
+
+    def wedge(r0, r1, a0, a1, mat, d):
+        n = 3
+        pts = [(r1 * math.cos(a0 + (a1 - a0) * k / n), r1 * math.sin(a0 + (a1 - a0) * k / n)) for k in range(n + 1)]
+        pts += [(r0 * math.cos(a1 - (a1 - a0) * k / n), r0 * math.sin(a1 - (a1 - a0) * k / n)) for k in range(n + 1)]
+        # the board faces +x: its "right" (as you face it) is -z
+        flat(M, [(bx + d, yc + v * r, zc - u * r) for u, v in pts], mat, (1.0, 0.0, 0.0))
+
+    for i, n in enumerate(order):
+        c = math.radians(90 - i * 18)
+        a0, a1 = c - math.radians(9), c + math.radians(9)
+        dark = i % 2 == 0
+        bed = "CS_Black" if dark else "CS_DartCream"
+        ring = "CS_DartRed" if dark else "CS_DartGreen"
+        wedge(rings[1], rings[2], a0, a1, bed, 0.001)
+        wedge(rings[2], rings[3], a0, a1, ring, 0.001)
+        wedge(rings[3], rings[4], a0, a1, bed, 0.001)
+        wedge(rings[4], rings[5], a0, a1, ring, 0.001)
+        # a little brass number tab
+        tu, tv = 1.12 * math.cos(c), 1.12 * math.sin(c)
+        flat(M, [(bx + 0.001, yc + (tv - 0.035) * r, zc - (tu - 0.035) * r), (bx + 0.001, yc + (tv - 0.035) * r, zc - (tu + 0.035) * r), (bx + 0.001, yc + (tv + 0.035) * r, zc - (tu + 0.035) * r), (bx + 0.001, yc + (tv + 0.035) * r, zc - (tu - 0.035) * r)], "CS_Brass", (1.0, 0.0, 0.0))
+    flat(M, [(bx + 0.001, yc + rings[1] * r * math.sin(2 * math.pi * k / 12), zc - rings[1] * r * math.cos(2 * math.pi * k / 12)) for k in range(12)], "CS_DartGreen", (1.0, 0.0, 0.0))
+    flat(M, [(bx + 0.002, yc + rings[0] * r * math.sin(2 * math.pi * k / 10), zc - rings[0] * r * math.cos(2 * math.pi * k / 10)) for k in range(10)], "CS_DartRed", (1.0, 0.0, 0.0))
+    # three darts in it: brass barrels, their flights in red
+    for du, dv in ((0.02, 0.61), (-0.2, 0.4), (0.33, -0.15)):
+        tip = (bx, yc + dv * r, zc - du * r)
+        tail = (bx + 0.13, yc + dv * r + 0.01, zc - du * r - 0.01)
+        cylinder(M, tip, tail, 0.006, "CS_Brass", sides=5)
+        blob(M, tail[0], tail[1], tail[2], 0.012, 0.03, 0.03, "CS_Red", cuts=1)
+    # the oche, a brass strip on the floor
+    ox = dt["oche"]
+    box(M, ox - 0.03, ox + 0.03, 0.0, 0.006, zc - 0.45, zc + 0.45, "CS_Brass")
+
+
 def build_lounge(M, L, cushions, nodes):
     build_bar(M, L, cushions)
     build_piano(M, L, cushions)
     build_billiards(M, L, nodes)
     build_chesterfield(M, L, cushions)
+    build_darts(M, L)
+
+
+def build_bigsix(M, L, nodes):
+    """The Big Six wheel where the foyer meets the floor, turned to face the room: an Art-Deco
+    cabinet (mahogany, fluted gold, a sunburst on its front) with a gilt fan crest of bulbs over the
+    wheel, the axle's post and the leather flapper at the top that clicks over the pegs; a betting
+    ledge before it, its six segments laid out on the felt. The wheel itself is a node
+    (Prop_BigSixWheel, its origin at the hub): the game turns it about its facing."""
+    b = L["bigSix"]
+    F = Frame(b["x"], b["z"], b["yaw"])
+    R = b["r"]
+    hub = b["hub"]
+    # the cabinet
+    F.box(M, -0.72, 0.72, 0.0, 0.08, -0.26, 0.26, "CS_Black")
+    F.box(M, -0.7, 0.7, 0.08, 0.76, -0.24, 0.24, "CS_Mahogany")
+    F.box(M, -0.74, 0.74, 0.76, 0.8, -0.28, 0.28, "CS_Gold")
+    for lx in (-0.62, 0.62):
+        for k in (-1, 0, 1):
+            F.box(M, lx + k * 0.035 - 0.008, lx + k * 0.035 + 0.008, 0.14, 0.7, 0.24, 0.252, "CS_Gold")
+    for k in range(7):
+        a0 = math.pi * (0.1 + 0.8 * k / 7)
+        a1 = math.pi * (0.1 + 0.8 * (k + 1) / 7) - 0.04
+        F.face_slab(M, [(0.0, 0.14), (0.36 * math.cos(a0), 0.14 + 0.36 * math.sin(a0)), (0.36 * math.cos(a1), 0.14 + 0.36 * math.sin(a1))], 0.24, 0.252, "CS_Gold")
+    # the posts either side of the wheel and the axle's post behind it
+    for lx in (-(R + 0.12), R + 0.12):
+        F.cyl(M, (lx, 0.8, -0.05), (lx, hub + R * 0.55, -0.05), 0.045, "CS_Gold", sides=10)
+        F.blob(M, lx, hub + R * 0.55 + 0.05, -0.05, 0.06, 0.06, 0.06, "CS_Gold", cuts=2)
+    F.box(M, -0.07, 0.07, 0.8, hub, -0.2, -0.1, "CS_Mahogany")
+    F.cyl(M, (0.0, hub, -0.1), (0.0, hub, -0.02), 0.05, "CS_Gold", sides=12)
+    # the crest over it: a gilt fan and its bulbs
+    cy = hub + R + 0.12
+    for k in range(9):
+        a0 = math.pi * (0.04 + 0.92 * k / 9)
+        a1 = math.pi * (0.04 + 0.92 * (k + 1) / 9) - 0.03
+        F.face_slab(M, [(0.1 * math.cos((a0 + a1) / 2), cy + 0.1 * math.sin((a0 + a1) / 2)), (0.48 * math.cos(a0), cy + 0.48 * math.sin(a0)), (0.48 * math.cos(a1), cy + 0.48 * math.sin(a1))], -0.12, -0.08, "CS_Gold" if k % 2 else "CS_Brass")
+        am = (a0 + a1) / 2
+        F.blob(M, 0.5 * math.cos(am), cy + 0.5 * math.sin(am), -0.08, 0.025, 0.025, 0.025, "CS_Bulb", cuts=1)
+    F.cyl(M, (-0.12, cy - 0.02, -0.1), (0.12, cy - 0.02, -0.1), 0.03, "CS_Gold", sides=8)
+    # the flapper: a gold bracket from behind, a leather tongue hanging over the rim at the top
+    F.cyl(M, (0.0, hub + R + 0.06, -0.08), (0.0, hub + R + 0.06, 0.07), 0.012, "CS_Gold", sides=6)
+    F.face_slab(M, [(-0.025, hub + R + 0.06), (0.025, hub + R + 0.06), (0.012, hub + R - 0.1), (-0.012, hub + R - 0.1)], 0.07, 0.085, "CS_Leather")
+    # the betting ledge: a mahogany counter on a gilt plinth, green felt, the six segments on it
+    lz = b["ledge"]
+    lw = b["ledgeW"] / 2
+    top = b["top"]
+    F.box(M, -lw, lw, 0.0, 0.08, lz - 0.2, lz + 0.2, "CS_Black")
+    F.box(M, -lw + 0.02, lw - 0.02, 0.08, top - 0.06, lz - 0.17, lz + 0.17, "CS_Mahogany")
+    F.box(M, -lw - 0.02, lw + 0.02, top - 0.06, top - 0.01, lz - 0.21, lz + 0.21, "CS_Mahogany")
+    F.box(M, -lw + 0.04, lw - 0.04, top - 0.01, top, lz - 0.17, lz + 0.17, "CS_Felt")
+    F.box(M, -lw - 0.025, lw + 0.025, top - 0.075, top - 0.06, lz - 0.215, lz + 0.215, "CS_Gold")
+    colours = ("CS_Ivory", "CS_SixSky", "CS_SixGreen", "CS_SixViolet", "CS_SixOrange", "CS_Black")
+    cw = (2 * lw - 0.16) / 6
+    for k, c in enumerate(colours):
+        l0 = -lw + 0.08 + k * cw + 0.012
+        F.box(M, l0, l0 + cw - 0.024, top, top + 0.003, lz - 0.1, lz + 0.1, c)
+        F.box(M, l0 + 0.02, l0 + cw - 0.044, top + 0.003, top + 0.005, lz - 0.02, lz + 0.02, "CS_FeltGold" if k != 5 else "CS_Gold")
+    # the wheel: a disc on its axle, 53 lacquered segments, a gilt rim with a peg between each two,
+    # and a gold star on the hub
+    Wm = Mesh()
+    segs = b["segments"]
+    n = len(segs)
+    colour = {"1": "CS_Ivory", "2": "CS_SixSky", "5": "CS_SixGreen", "10": "CS_SixViolet", "20": "CS_SixOrange", "joker": "CS_Black"}
+    fwd = (math.sin(b["yaw"]), math.cos(b["yaw"]))
+    across = (math.cos(b["yaw"]), -math.sin(b["yaw"]))
+
+    def wp(r, theta, f):
+        """A point on the wheel: `r` out from the hub at angle `theta` (clockwise from the top as you
+        face it), `f` out of its face toward the room."""
+        u, v = r * math.sin(theta), r * math.cos(theta)
+        return (b["x"] + across[0] * u + fwd[0] * f, hub + v, b["z"] + across[1] * u + fwd[1] * f)
+
+    def ring_band(r0, r1, f0, f1, mat, steps=n * 2):
+        bm = Wm.bm
+        outer = [bm.verts.new(W(*wp(r1, 2 * math.pi * k / steps, f1))) for k in range(steps)]
+        inner = [bm.verts.new(W(*wp(r0, 2 * math.pi * k / steps, f1))) for k in range(steps)]
+        outer_b = [bm.verts.new(W(*wp(r1, 2 * math.pi * k / steps, f0))) for k in range(steps)]
+        for k in range(steps):
+            j = (k + 1) % steps
+            bm.faces.new((outer[k], outer[j], inner[j], inner[k])).material_index = Wm.m(mat)
+            bm.faces.new((outer_b[k], outer_b[j], outer[j], outer[k])).material_index = Wm.m(mat)
+
+    # the disc's back and edge
+    bm = Wm.bm
+    back = [bm.verts.new(W(*wp(R - 0.02, 2 * math.pi * k / 64, 0.0))) for k in range(64)]
+    frontv = [bm.verts.new(W(*wp(R - 0.02, 2 * math.pi * k / 64, 0.04))) for k in range(64)]
+    bm.faces.new(back).material_index = Wm.m("CS_Mahogany")
+    for k in range(64):
+        j = (k + 1) % 64
+        bm.faces.new((back[k], back[j], frontv[j], frontv[k])).material_index = Wm.m("CS_Mahogany")
+    for k, sym in enumerate(segs):
+        t0 = 2 * math.pi * k / n + 0.004
+        t1 = 2 * math.pi * (k + 1) / n - 0.004
+        pts = [wp(0.2, t0, 0.045), wp(R - 0.08, t0, 0.045), wp(R - 0.08, (t0 + t1) / 2, 0.045), wp(R - 0.08, t1, 0.045), wp(0.2, t1, 0.045)]
+        flat(Wm, pts, colour[sym], (fwd[0], 0.0, fwd[1]))
+        # the segment's mark: a pip for each x in its name (a star for the Joker), toward the rim
+        mid = (t0 + t1) / 2
+        marks = {"1": 1, "2": 2, "5": 3, "10": 4, "20": 5, "joker": 0}[sym]
+        for m in range(marks):
+            cx = wp(R - 0.14 - m * 0.075, mid, 0.047)
+            q = [wp(R - 0.14 - m * 0.075 + 0.018 * math.cos(a), mid + 0.018 * math.sin(a) / (R - 0.14 - m * 0.075), 0.047) for a in (0.0, 1.57, 3.14, 4.71)]
+            flat(Wm, q, "CS_Gold" if sym != "1" else "CS_MahoganyDark", (fwd[0], 0.0, fwd[1]))
+        if sym == "joker":
+            for m in range(5):
+                a = 2 * math.pi * m / 5
+                rr = R - 0.2
+                q = [wp(rr, mid, 0.048), wp(rr + 0.08 * math.cos(a), mid + 0.08 * math.sin(a) / rr, 0.048), wp(rr + 0.03 * math.cos(a + 0.6), mid + 0.03 * math.sin(a + 0.6) / rr, 0.048)]
+                flat(Wm, q, "CS_Gold", (fwd[0], 0.0, fwd[1]))
+    # the spokes' dividers, the gilt rim, the pegs
+    for k in range(n):
+        t = 2 * math.pi * k / n
+        q = [wp(0.2, t - 0.0035, 0.046), wp(R - 0.08, t - 0.0035, 0.046), wp(R - 0.08, t + 0.0035, 0.046), wp(0.2, t + 0.0035, 0.046)]
+        flat(Wm, q, "CS_Gold", (fwd[0], 0.0, fwd[1]))
+        cylinder(Wm, wp(R - 0.03, t, 0.04), wp(R - 0.03, t, 0.1), 0.007, "CS_Chrome", sides=5)
+    ring_band(R - 0.08, R, 0.0, 0.06, "CS_Gold", steps=96)
+    ring_band(0.12, 0.2, 0.0, 0.06, "CS_Gold", steps=32)
+    for m in range(8):
+        a = 2 * math.pi * m / 8
+        q = [wp(0.0, 0.0, 0.065), wp(0.13, a - 0.25, 0.065), wp(0.19, a, 0.065), wp(0.13, a + 0.25, 0.065)]
+        flat(Wm, q, "CS_Gold" if m % 2 else "CS_Brass", (fwd[0], 0.0, fwd[1]))
+    nodes.append({"name": "Prop_BigSixWheel", "mesh": Wm, "origin": (b["x"], hub, b["z"]), "force": "CS_Sheen"})
+
+
+def build_hall_baccarat(M, L, cushions):
+    """The hall's kidney-shaped Punto Banco table beside the craps table: its players' curve toward
+    the room, Scarlett in the notch of its flat side; green baize with the PLAYER and BANKER boxes and
+    each place's three betting spots, a padded rail round the curve, the chip rack, the shoe and the
+    discard tray; five velvet stools."""
+    t = L["hallBaccarat"]
+    x, z, a, b = t["x"], t["z"], t["a"], t["b"]
+    top = t["top"]
+
+    def outline(ia, ib, notch):
+        # the players' curve, carried on round the ends toward the dealer
+        pts = [(x + ia * math.sin(math.radians(d)), z + ib * math.cos(math.radians(d))) for d in range(118, -119, -8)]
+        # the dealer's side, bowed in to hold the dealer
+        ex, ez = ia * math.sin(math.radians(118)), ib * math.cos(math.radians(118))
+        for k in range(1, 12):
+            u = 1 - 2 * k / 12
+            pts.append((x + u * ex, z + ez + notch * (1 - u * u)))
+        return pts
+
+    o = outline(a, b, 0.33)
+    i = outline(a - 0.12, b - 0.12, 0.33)
+    for sx in (-0.55, 0.55):
+        lathe(M, x + sx, z + 0.1, [(0, 0), (0.24, 0), (0.24, 0.04), (0.08, 0.1), (0.07, top - 0.16), (0.2, top - 0.1), (0, top - 0.1)], "CS_Mahogany", segs=14)
+    slab(M, o, top - 0.1, top - 0.02, "CS_Mahogany")
+    slab(M, i, top - 0.02, top, "CS_Felt")
+    arc_o = [(x + (a + 0.03) * math.sin(math.radians(d)), z + (b + 0.03) * math.cos(math.radians(d))) for d in range(-90, 91, 10)]
+    arc_i = [(x + (a - 0.12) * math.sin(math.radians(d)), z + (b - 0.12) * math.cos(math.radians(d))) for d in range(-90, 91, 10)]
+    band(M, arc_o, arc_i, top - 0.02, top + 0.05, "CS_Velvet", closed=False)
+
+    # the felt's markings: the PLAYER and BANKER card boxes, and each place's three spots
+    for sx, mat in ((-0.3, "CS_FeltLine"), (0.3, "CS_FeltRed")):
+        frame_strips(M, x + sx - 0.17, x + sx + 0.17, z + 0.05, z + 0.25, 0.012, top, top + 0.003, mat)
+    band(M, [(x + 0.95 * math.sin(math.radians(d)), z + 0.52 * math.cos(math.radians(d))) for d in range(-80, 81, 10)], [(x + 0.93 * math.sin(math.radians(d)), z + 0.5 * math.cos(math.radians(d))) for d in range(-80, 81, 10)], top, top + 0.003, "CS_FeltGold", closed=False)
+    for deg in t["stoolAngles"]:
+        r_ = math.radians(deg)
+        for k, (rr, mat) in enumerate(((0.62, "CS_FeltRed"), (0.7, "CS_FeltLine"), (0.54, "CS_FeltGold"))):
+            cx, cz = x + math.sin(r_) * (a * rr / 0.82) * 0.82, z + math.cos(r_) * b * rr / 0.82 * 0.82
+            obox(M, cx, cz, r_, -0.025, 0.025, -0.06, 0.06, top, top + 0.003, mat)
+    # the rack by the notch, the shoe and the discard tray either side of it
+    obox(M, x, z - 0.02, 0.0, -0.06, 0.06, -0.3, 0.3, top, top + 0.03, "CS_Black")
+    for k, mat in enumerate(("CS_Red", "CS_Ivory", "CS_Gold", "CS_Black", "CS_Red", "CS_Ivory")):
+        obox(M, x - 0.25 + k * 0.1, z - 0.02, 0.0, -0.05, 0.05, -0.04, 0.04, top + 0.03, top + 0.045, mat)
+    obox(M, x + 0.66, z - 0.22, -0.3, -0.08, 0.08, -0.07, 0.07, top, top + 0.09, "CS_Mahogany")
+    obox(M, x + 0.66, z - 0.22, -0.3, 0.08, 0.095, -0.055, 0.055, top + 0.01, top + 0.08, "CS_Card")
+    obox(M, x - 0.66, z - 0.22, 0.3, -0.07, 0.07, -0.06, 0.06, top, top + 0.02, "CS_Black")
+    for sx in (-0.3, 0.3):
+        for k in range(2):
+            obox(M, x + sx - 0.05 + k * 0.1, z + 0.14, 0.0, -0.07, 0.07, -0.045, 0.045, top, top + 0.004, "CS_Card")
+    seat = cushions["barStool"]["top"]
+    for deg in t["stoolAngles"]:
+        r_ = math.radians(deg)
+        stool(M, x + math.sin(r_) * t["stoolA"], z + math.cos(r_) * t["stoolB"], seat)
+
+
+def build_booths(M, L, cushions):
+    """The emerald horseshoe booths either side of the stage's steps: deep-buttoned green leather on
+    a black plinth with a brass kick, a rolled top along the curved back, and in each a low round
+    cocktail table of glass on a brass pedestal (two coupes on it)."""
+    bo = L["booths"]
+    seat = cushions["chesterfield"]["top"]
+    for bx, bz in bo["at"]:
+        F = Frame(bx, bz, bo["yaw"])
+        R = bo["r"]
+
+        def arc(r, a0=100, a1=260, n=16):
+            return [F.p(r * math.sin(math.radians(a0 + (a1 - a0) * k / n)), 0.0, r * math.cos(math.radians(a0 + (a1 - a0) * k / n)))[::2] for k in range(n + 1)]
+
+        band(M, arc(R - 0.05), arc(0.33), 0.0, 0.1, "CS_Black", closed=False)
+        band(M, arc(R - 0.04), arc(R - 0.07), 0.02, 0.07, "CS_Brass", closed=False)
+        band(M, arc(R - 0.12), arc(0.3), 0.1, seat, "CS_EmeraldLeather", closed=False)
+        band(M, arc(R + 0.02, 92, 268), arc(R - 0.12, 92, 268), 0.1, 0.98, "CS_EmeraldLeather", closed=False)
+        # the rolled top and the buttons on the back
+        pts = arc(R - 0.05, 92, 268, 18)
+        for (ax, az), (bx_, bz_) in zip(pts, pts[1:]):
+            cylinder(M, (ax, 0.98, az), (bx_, 0.98, bz_), 0.065, "CS_EmeraldLeather", sides=8)
+        for row in range(3):
+            for k in range(11):
+                ang = 104 + 152 * (k + (0.5 if row % 2 else 0)) / 11
+                if ang > 256:
+                    continue
+                px_, _, pz_ = F.p((R - 0.125) * math.sin(math.radians(ang)), 0.0, (R - 0.125) * math.cos(math.radians(ang)))
+                blob(M, px_, seat + 0.14 + row * 0.16, pz_, 0.013, 0.013, 0.013, "CS_EmeraldTuft", cuts=1)
+        for k in range(8):
+            ang = 108 + 144 * k / 7
+            px_, _, pz_ = F.p((R - 0.2) * math.sin(math.radians(ang)), 0.0, (R - 0.2) * math.cos(math.radians(ang)))
+            blob(M, px_, seat + 0.003, pz_, 0.012, 0.006, 0.012, "CS_EmeraldTuft", cuts=1)
+        # the cocktail table: a brass pedestal, a glass top in a brass ring, two coupes
+        lathe(M, bx, bz, [(0, 0), (0.16, 0), (0.15, 0.03), (0.03, 0.06), (0.025, 0.44), (0.05, 0.46), (0, 0.46)], "CS_Brass", segs=14)
+        lathe(M, bx, bz, [(0, 0.46), (0.27, 0.46), (0.27, 0.48), (0, 0.48)], "CS_JarGlass", segs=24)
+        band(M, circle(bx, bz, 0.28, 24), circle(bx, bz, 0.265, 24), 0.455, 0.485, "CS_Brass")
+        for dx, dz in ((-0.08, 0.05), (0.09, -0.04)):
+            lathe(M, bx + dx, bz + dz, [(0, 0.0), (0.03, 0.0), (0.005, 0.01), (0.005, 0.07), (0.05, 0.1), (0.055, 0.12), (0, 0.12)], "CS_JarGlass", segs=10, y0=0.48)
+            blob(M, bx + dx, 0.48 + 0.11, bz + dz, 0.04, 0.012, 0.04, "CS_Amber", cuts=1)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -2226,7 +3223,40 @@ def build(root):
     coll = bpy.data.collections.new(COLLECTION)
     bpy.context.scene.collection.children.link(coll)
     M = Mesh()
+    M.lit = True
     nodes = []
+    face = wall_face(L)
+    lounge_h = stage(L, "lounge")["h"]
+    # what stands against the walls (no damask behind it), and where the light falls
+    WALL_FEATURES.clear()
+    d = L["doors"]
+    vd = L["vipDoors"]
+    WALL_FEATURES.extend([
+        ("z", d["x"] - d["w"] / 2 - 0.25, d["x"] + d["w"] / 2 + 0.25, 0.0, 9.0),
+        ("z", vd["x"] - vd["w"] / 2 - 0.35, vd["x"] + vd["w"] / 2 + 0.35, 0.0, 9.0),
+        ("z", L["cage"]["x0"] - 0.1, 10.0, 0.0, 3.3),
+        ("z", L["marquee"]["x"] - L["marquee"]["w"] / 2 - 0.1, L["marquee"]["x"] + L["marquee"]["w"] / 2 + 0.1, L["marquee"]["y"] - L["marquee"]["h"] / 2 - 0.1, 9.0),
+        ("z", L["zara"]["x"] - 0.8, L["zara"]["x"] + 0.8, 0.0, L["zara"]["h"] + 0.1),
+        ("x", L["bar"]["z0"] - 0.2, L["bar"]["z1"] + 0.1, 0.0, 3.35),
+        ("x", L["neon"]["from"] - 0.3, L["neon"]["to"] + 0.3, 0.0, L["neon"]["y"] + 0.55),
+        ("x", L["darts"]["z"] - 0.5, L["darts"]["z"] + 0.5, lounge_h + L["darts"]["y"] - 0.5, lounge_h + L["darts"]["y"] + 0.5),
+    ])
+    for m in L["mirrors"]:
+        WALL_FEATURES.append((m["wall"], m["at"] - 0.7, m["at"] + 0.7, m["y"] - 0.7, m["y"] + 0.7))
+    pictures = []
+    for p in L["paintings"] + L["posters"]:
+        w_, h_ = (p.get("w", 0.9), p.get("h", 0.8)) if "subject" in p else (p.get("w", 0.6), p.get("h", 0.86))
+        WALL_FEATURES.append((p["wall"], p["at"] - w_ / 2 - 0.2, p["at"] + w_ / 2 + 0.2, p["y"] - h_ / 2 - 0.2, p["y"] + h_ / 2 + 0.5))
+        if p.get("light", True):
+            pictures.append((p["wall"], p["at"], p["y"] + h_ / 2, w_ / 2))
+    sconces = []
+    for wall, key in (("z", "onBackZ"), ("x", "onBackX")):
+        for u in L["sconces"][key]:
+            fl = floor_y(L, u, face + 0.3) if wall == "z" else floor_y(L, face + 0.3, u)
+            sconces.append((wall, u, L["sconces"]["y"] + fl))
+            WALL_FEATURES.append((wall, u - 0.25, u + 0.25, L["sconces"]["y"] + fl - 0.45, L["sconces"]["y"] + fl + 0.45))
+    LIGHTS.clear()
+    LIGHTS.extend([wall_lights(L, sconces, pictures), neon_reflection(L)])
     build_floor(M, L)
     build_dividers(M, L)
     build_stages(M, L)
@@ -2234,6 +3264,8 @@ def build(root):
     build_marquee(M, L, nodes)
     for p in L["paintings"]:
         build_portrait(M, L, p)
+    for p in L["posters"]:
+        build_poster(M, L, p)
     for p in L["mirrors"]:
         build_mirror(M, L, p)
     build_pillars(M, L)
@@ -2244,6 +3276,9 @@ def build(root):
     build_roulette(M, L)
     build_craps(M, L, nodes)
     build_blackjack(M, L, cushions)
+    build_hall_baccarat(M, L, cushions)
+    build_bigsix(M, L, nodes)
+    build_booths(M, L, cushions)
     build_alley(M, L)
     build_derby(M, L, nodes)
     build_pusher(M, L, nodes)

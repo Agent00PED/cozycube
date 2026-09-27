@@ -22,10 +22,27 @@ interface Props {
 }
 
 const LIMIT = TABLE_LIMITS.pusher;
-/** The shelf's pile: chips at rest, placed once (as many shown as the heap is big). */
-const PILE = Array.from({ length: 64 }, (_, i) => ({ x: 4 + ((i * 37) % 92), y: 6 + ((i * 53) % 46), r: (i * 29) % 360 }));
+/** The shelf's pile: chips heaped the way a pusher heaps them, in drifts and clumps (thickest toward
+ *  the edge, where the plate has shoved them), some leaning on others; placed once from a fixed
+ *  seed, drawn back to front, as many shown as the heap is big. */
+const PILE = (() => {
+  let seed = 20240917;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const gauss = () => Math.sqrt(-2 * Math.log(rnd() || 1e-6)) * Math.cos(2 * Math.PI * rnd());
+  const clumps = Array.from({ length: 9 }, () => ({ x: 8 + rnd() * 84, y: 30 + Math.pow(rnd(), 0.6) * 62, w: 0.6 + rnd() * 0.9 }));
+  const out: { x: number; y: number; r: number; s: number; lift: number }[] = [];
+  for (let i = 0; i < 110; i++) {
+    // most in a clump; a few strays between
+    const c = clumps[Math.floor(rnd() * clumps.length)];
+    const stray = rnd() < 0.14;
+    const x = stray ? 4 + rnd() * 92 : c.x + gauss() * 6.5 * c.w;
+    const y = stray ? 12 + rnd() * 84 : c.y + gauss() * 7 * c.w;
+    out.push({ x: Math.max(2, Math.min(96, x)), y: Math.max(4, Math.min(94, y)), r: rnd() * 360, s: 0.85 + rnd() * 0.3, lift: stray ? 0 : Math.max(0, gauss()) * 5 });
+  }
+  return out;
+})();
 /** How many of the pile's chips a heap of `shelf` chips' worth shows. */
-const pileCount = (shelf: number) => Math.max(6, Math.min(PILE.length, Math.round(Math.sqrt(Math.max(0, shelf)) * 2.2)));
+const pileCount = (shelf: number) => Math.max(8, Math.min(PILE.length, Math.round(Math.sqrt(Math.max(0, shelf)) * 2.6)));
 
 export function CoinPusherModal({ result, chips, coins, onDrop, onClose }: Props) {
   const [stake, setStake] = useState<number>(LIMIT.presets[0]);
@@ -104,10 +121,10 @@ export function CoinPusherModal({ result, chips, coins, onDrop, onClose }: Props
   const outcome = shown ? PUSHER_OUTCOMES.find((o) => o.id === shown.outcome) : null;
 
   return (
-    <Modal title="The Coin Pusher" icon="🪙" onClose={onClose} width={480} tone="velvet" placard={limitPlacard(LIMIT)}>
-      <div className="flex flex-col items-center gap-3 pb-2">
+    <Modal landscape title="The Coin Pusher" icon="🪙" onClose={onClose} tone="velvet" placard={limitPlacard(LIMIT)}>
+      <div className="flex min-h-0 flex-1 gap-4">
         {/* the cabinet: the dropper's rail, the shelf and its plate, the edge */}
-        <div className="relative h-56 w-full overflow-hidden rounded-3xl border-4 border-amber-300/70 bg-gradient-to-b from-[#3a0f1c] to-[#1c070d] shadow-[inset_0_0_30px_rgba(0,0,0,0.7)]">
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-3xl border-4 border-amber-300/70 bg-gradient-to-b from-[#3a0f1c] to-[#1c070d] shadow-[inset_0_0_30px_rgba(0,0,0,0.7)]">
           {/* the sweet spot and the rail */}
           <div className="absolute left-[8%] right-[8%] top-3 h-2 rounded-full bg-black/50" />
           <div className="absolute top-2 h-4 w-[12%] -translate-x-1/2 rounded-full bg-emerald-400/35" style={{ left: "50%" }} />
@@ -123,7 +140,7 @@ export function CoinPusherModal({ result, chips, coins, onDrop, onClose }: Props
             </div>
           )}
           {/* the shelf's pile and the sliding plate */}
-          <div className="absolute bottom-10 left-[6%] right-[6%] top-[5.5rem] rounded-xl bg-[#4a1e12]/80">
+          <div className="absolute bottom-10 left-[6%] right-[6%] top-[5.5rem] overflow-hidden rounded-xl bg-[#4a1e12]/80">
             <div className="absolute inset-x-0 top-0 h-3 animate-[cozy-bob-kf_1.6s_ease-in-out_infinite] rounded-t-xl bg-gradient-to-b from-stone-300 to-stone-500" />
             <Pile count={pileCount(result?.shelf ?? 150)} />
           </div>
@@ -141,7 +158,8 @@ export function CoinPusherModal({ result, chips, coins, onDrop, onClose }: Props
           </div>
         </div>
 
-        <div className="h-6 text-center text-base font-extrabold text-amber-200" role="status">
+        <div className="flex w-[22rem] min-w-0 flex-col items-center justify-center gap-3">
+        <div className="min-h-6 text-center text-base font-extrabold text-amber-200" role="status">
           {shown && outcome ? (
             <>
               {outcome.name}
@@ -171,19 +189,24 @@ export function CoinPusherModal({ result, chips, coins, onDrop, onClose }: Props
           DROP {free ? "(free)" : ""} · Space
         </button>
         <ShortOfChips limit={LIMIT} chips={chips} coins={coins} />
-        <div className="text-center text-[11px] opacity-60">The shelf is shared by everyone who plays, and stays where the last player left it.</div>
+        <div className="text-center text-[11px] opacity-60">The shelf is shared by everyone who plays (and the patrons who drop a chip or two), and stays where the last player left it.</div>
+        </div>
       </div>
     </Modal>
   );
 }
 
-/** The shelf's pile of chips: redrawn only when its size changes (no shadows, it never moves). */
+/** The shelf's pile of chips: redrawn only when its size changes (it never moves), back to front so
+ *  the nearer chips lie over the farther ones, the heaped ones lifted a little on the rest. */
 const Pile = memo(function Pile({ count }: { count: number }) {
+  const shown = PILE.slice(0, count)
+    .map((c, i) => ({ ...c, i }))
+    .sort((a, b) => a.y - b.y);
   return (
     <>
-      {PILE.slice(0, count).map((c, i) => (
-        <span key={i} className="absolute text-base" style={{ left: `${c.x}%`, top: `${14 + c.y}%`, transform: `rotate(${c.r}deg)` }}>
-          <VelvetChipIcon size="0.95em" style={{ filter: "none" }} />
+      {shown.map((c) => (
+        <span key={c.i} className="absolute text-lg" style={{ left: `${c.x}%`, top: `calc(${c.y}% - ${c.lift}px)`, transform: `translate(-50%, -50%) rotate(${c.r}deg) scale(${c.s}, ${c.s * 0.82})`, zIndex: Math.round(c.y) }}>
+          <VelvetChipIcon size="1.4em" style={{ filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.45))" }} />
         </span>
       ))}
     </>

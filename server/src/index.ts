@@ -1,6 +1,7 @@
 import "dotenv/config"; // loads server/.env into process.env — nothing after this reads env vars before it runs
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import path from "path";
 import { createServer } from "http";
 import { Server } from "colyseus";
@@ -50,6 +51,9 @@ if (process.env.NODE_ENV === "production") {
   // Registered after /api so it never shadows that route; Colyseus's own matchmake/WS
   // handling is independent of Express's routing table, so ordering relative to it doesn't matter.
   const clientDist = path.resolve(process.cwd(), "client/dist");
+  // gzip on the way out: the models are the big downloads (the casino's hall is ~5.6 MB of vertex
+  // data, ~1.2 MB gzipped), and every script and stylesheet with them
+  app.use(compression());
   // Caching, per kind of file: the page itself is always revalidated (so Discord's webview picks up
   // a new deploy at once), the fingerprinted bundle under /assets is cached for good, and the
   // models (versioned by a ?v= per build) for a day.

@@ -111,7 +111,9 @@ const RELAYED_MESSAGES = [
   "casinoNotice",
   // the casino's panel games: Boris's poker, your dice, the Turf Club's race, the coin pusher; the
   // blackjack tables' results (Cedric's cue), the baby grand's recitals and notes
-  "pokerState",
+  "holdemState",
+  "bigSixState",
+  "dartsState",
   "pokerResult",
   "crapsState",
   "derbyState",
@@ -244,7 +246,8 @@ interface UseColyseusRoomResult {
   setAutoCycle: (on: boolean) => void;
   claimAllowance: () => void;
   spinSlots: (propId: string, bet: number) => void;
-  blackjackAction: (action: BlackjackAction, bet?: number) => void;
+  /** A move at your blackjack table: a bet, or hit / stand / double / split on your hand in play (`hand`: which of your split hands). */
+  blackjackAction: (action: BlackjackAction, bet?: number, hand?: number) => void;
   sendChat: (text: string) => void;
   sendGesture: (gesture: string) => void;
   buyHat: (hat: string) => void;
@@ -829,7 +832,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     setAutoCycle: (on) => send("setAutoCycle", { on }),
     claimAllowance: () => send("claim_allowance"),
     spinSlots: (propId, bet) => send("spin_slots", { propId, bet }),
-    blackjackAction: (action, bet) => send("blackjack_action", { action, bet }),
+    blackjackAction: (action, bet, hand) => send("blackjack_action", { action, bet, hand }),
     sendChat: (text) => send("chat_bubble", { text }),
     sendGesture: (gesture) => send("gesture", { gesture }),
     groundSit: (rotationY) => send("groundSit", { rotationY }),

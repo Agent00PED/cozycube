@@ -24,8 +24,12 @@ import { ModelBoundary } from "./ModelBoundary";
 //
 // And some have little turns of their own (`gestureOn`, `idle`): Cedric shuffling his deck and
 // knocking the felt for a natural, Jasper pawing at his coin slot, dozing off or perking up to clap,
-// Pippin working his shaker. A gesture that needs both arms keeps the left one its own
-// (`fuseArm={false}`: one more draw call).
+// Pippin working his shaker. A gesture that needs both arms moves the left one too
+// (`fuseArm={false}`); otherwise it stays still (it holds the rake, the lever, the shaker, the cards).
+//
+// However many parts move, each character is ONE draw call: the parts painted with the body's
+// material are fused into a single skinned mesh whose bones are those very parts (skinParts), so
+// the breathing, the head's turn, a wave and a bow move the skin exactly as they moved the parts.
 
 /** How near the local player comes before they look their way. */
 const NOTICE = 4.5;
@@ -76,7 +80,7 @@ export interface CampNpcProps {
   idle?: { gesture: NpcGesture; every: number };
   /** Told as each gesture starts (a sound, a sprinkle of ice). */
   onGesture?: (gesture: NpcGesture) => void;
-  /** Keep the left arm its own node (for gestures with both arms); fused into the body otherwise. */
+  /** Leave the left arm still (the default); false moves it too, for gestures with both arms. */
   fuseArm?: boolean;
   /** Draw only this node of the model (and what hangs from it): a model holding more than the one
    *  character (Chloe and her mirror, in chloe_maid.glb). The whole scene when omitted. */
@@ -193,18 +197,8 @@ function NpcModel({ url, prefix, at, waveAt, bowAt, gesture, fuseArm = true, nod
     model.traverse((o) => {
       o.raycast = noRaycast;
     });
-    // the left arm never moves on its own (it holds the rake, the lever, the shaker, the cards):
-    // fused into the body, it costs no draw call of its own
     const body = get("Body") as THREE.Mesh | null;
-    const armL = get("ArmL") as THREE.Mesh | null;
-    if (fuseArm && body?.isMesh && armL?.isMesh && armL.parent === body && armL.material === body.material) {
-      armL.updateMatrix();
-      const merged = mergeGeometries([body.geometry, armL.geometry.clone().applyMatrix4(armL.matrix)]);
-      if (merged) {
-        body.geometry = merged;
-        armL.removeFromParent();
-      }
-    }
+    skinParts(model, body, prefix);
     const armR = get("ArmR");
     const leftArm = fuseArm ? null : get("ArmL");
     return {
@@ -267,6 +261,61 @@ function NpcModel({ url, prefix, at, waveAt, bowAt, gesture, fuseArm = true, nod
   });
 
   return <primitive object={model} />;
+}
+
+// the parts, once fused into the skin, are never drawn themselves (but still move, as its bones)
+const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
+
+/** Fuses every part of `model` painted with the body's material into ONE skinned mesh at the
+ *  model's root: each part becomes a bone of it (the part itself: its transform, as animated, is
+ *  what moves its vertices), and is hidden. Parts in another material (a stall, a held prop) stay
+ *  as they are. Nothing happens if the parts can't be merged (the model then draws as before). */
+function skinParts(model: THREE.Object3D, body: THREE.Mesh | null, prefix: string) {
+  if (model.userData.skinned || !body?.isMesh || Array.isArray(body.material)) return;
+  model.userData.skinned = true;
+  const material = body.material;
+  const parts: THREE.Mesh[] = [];
+  model.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh && m.material === material) parts.push(m);
+  });
+  if (parts.length < 2) return;
+  model.updateMatrixWorld(true);
+  const toRoot = model.matrixWorld.clone().invert();
+  // the attributes every part has (a merge needs one set), and all indexed or none
+  const names = Object.keys(parts[0].geometry.attributes).filter((a) => parts.every((p) => p.geometry.attributes[a]));
+  const indexed = parts.every((p) => p.geometry.index);
+  const geos = parts.map((p, i) => {
+    const src = indexed ? p.geometry : p.geometry.index ? p.geometry.toNonIndexed() : p.geometry;
+    const g = new THREE.BufferGeometry();
+    for (const a of names) g.setAttribute(a, src.attributes[a].clone());
+    if (indexed && src.index) g.setIndex(src.index.clone());
+    g.applyMatrix4(toRoot.clone().multiply(p.matrixWorld));
+    const n = g.attributes.position.count;
+    const index = new Uint16Array(n * 4);
+    const weight = new Float32Array(n * 4);
+    for (let v = 0; v < n; v++) {
+      index[v * 4] = i;
+      weight[v * 4] = 1;
+    }
+    g.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(index, 4));
+    g.setAttribute("skinWeight", new THREE.Float32BufferAttribute(weight, 4));
+    return g;
+  });
+  const merged = mergeGeometries(geos);
+  if (!merged) return;
+  const skin = new THREE.SkinnedMesh(merged, material);
+  skin.name = `${prefix}_Skin`;
+  skin.raycast = noRaycast;
+  skin.castShadow = body.castShadow;
+  skin.receiveShadow = body.receiveShadow;
+  model.add(skin);
+  skin.updateMatrixWorld(true);
+  skin.bind(new THREE.Skeleton(parts as unknown as THREE.Bone[], parts.map((p) => p.matrixWorld.clone().invert())), skin.matrixWorld);
+  // culled by a sphere round the bind pose, grown for a raised arm or a bow
+  skin.computeBoundingSphere();
+  skin.boundingSphere!.radius *= 1.35;
+  for (const p of parts) p.material = HIDDEN;
 }
 
 /** An arm's turn for a gesture (added to its rest pose): `side` 1 the right arm, -1 the left. Arms

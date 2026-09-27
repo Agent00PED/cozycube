@@ -1,8 +1,8 @@
 import type { Card } from "@shared/casino";
 
 // The casino's playing cards for the panels: a face (rank and suit in the corner, the suit big in
-// the middle), the house's burgundy back, and a card that turns over from its back to its face
-// (Three-Card Poker's reveal). `delay` staggers a hand turning over one card after another.
+// the middle), the house's burgundy back, and a card that turns over from its back to its face.
+// `delay` staggers a hand turning over one card after another.
 
 export function CardFace({ card }: { card: Card }) {
   const red = card.suit === "♥" || card.suit === "♦";

@@ -44,12 +44,16 @@ import { WoodChopModal } from "./components/hud/WoodChopModal";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
 import { FORAGE_INFO, ITEMS, TREASURE_COINS, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
-import { type BaccaratState, type BlackjackTableView, type CrapsView, type DerbyState, type PokerView, type PusherResult } from "@shared/casino";
+import { type BaccaratState, type BaccaratTable, type BigSixState, type BlackjackTableView, type CrapsView, type DerbyState, type PusherResult } from "@shared/casino";
+import type { HoldemView } from "@shared/holdem";
+import type { DartsMatch } from "@shared/darts";
 import { BLACKJACK_TABLES, CASINO_PROPS, PIANO_REACH, nearGameTable, seatedGameOf, ROULETTE_BET_RADIUS, ROULETTE_CENTER, type CasinoGameTable } from "@shared/worlds/casino";
 import { BaccaratModal } from "./components/hud/BaccaratModal";
 import type { PoolMatch } from "@shared/pool";
 import { VipPassModal } from "./components/hud/VipPassModal";
 import { PokerModal } from "./components/hud/PokerModal";
+import { BigSixModal } from "./components/hud/BigSixModal";
+import { DartsModal } from "./components/hud/DartsModal";
 import { CrapsModal } from "./components/hud/CrapsModal";
 import { DerbyModal } from "./components/hud/DerbyModal";
 import { CoinPusherModal } from "./components/hud/CoinPusherModal";
@@ -91,7 +95,7 @@ import { BAR_SNACK, CASINO_DRINKS, CHIP_EMOTE, OCCUPIED_LINE, type CasinoNotice,
 
 /** The casino's panel games, and the table each one is played at (the panel closes when you walk
  *  away from it): by the panel's prop (the two poker tables share a panel). */
-const GAME_PANELS: Record<string, CasinoGameTable> = { poker_table: "poker", vip_poker_table: "poker_vip", baccarat_table: "baccarat", craps_table: "craps", derby_table: "derby", coin_pusher: "pusher", billiards_table: "billiards" };
+const GAME_PANELS: Record<string, CasinoGameTable> = { poker_table: "poker", vip_poker_table: "poker_vip", baccarat_table: "baccarat", hall_baccarat_table: "baccarat_hall", craps_table: "craps", derby_table: "derby", coin_pusher: "pusher", billiards_table: "billiards", big_six: "bigsix", darts_board: "darts" };
 const PIANO_AT = CASINO_PROPS.find((p) => p.propId === "piano_keys")!;
 /** Why the house said no, for a toast. */
 const NOTICE_TEXT: Record<CasinoNotice["reason"], string> = {
@@ -166,14 +170,9 @@ const GLOBAL_CSS = `
   transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 10;
 }
 .cozy-bottom-stack > * { pointer-events: auto; }
-.cozy-roulette { animation: cozy-menu-in 200ms ease-out; }
 @media (max-width: 767px) {
-  .cozy-roulette-wrap { left: 0 !important; right: 0 !important; bottom: 0 !important; transform: none !important; }
-  .cozy-roulette { width: 100% !important; border-radius: 20px 20px 0 0 !important; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)) !important; animation: cozy-sheet-up 240ms cubic-bezier(0.2, 0.9, 0.3, 1) !important; }
   .cozy-roulette .cozy-hint { display: none; }
-  .cozy-roulette .cozy-felt-grid { grid-template-rows: repeat(3, 24px) !important; }
 }
-@keyframes cozy-sheet-up { from { transform: translateY(100%); } }
 .cozy-confetti { position: absolute; left: 50%; top: 40%; width: 0; height: 0; pointer-events: none; }
 .cozy-confetti i { position: absolute; width: 7px; height: 11px; border-radius: 2px; animation: cozy-confetti 1.2s cubic-bezier(0.2, 0.7, 0.4, 1) forwards; }
 @keyframes cozy-confetti { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(540deg); opacity: 0; } }
@@ -314,10 +313,13 @@ export default function App() {
   // the blackjack table whose panel is open, and every table's round as the room tells it
   const [blackjackOpen, setBlackjackOpen] = useState<string | null>(null);
   const [blackjackViews, setBlackjackViews] = useState<Record<string, BlackjackTableView>>({});
-  const [baccarat, setBaccarat] = useState<BaccaratState | null>(null);
+  // each baccarat table's coup (the hall's and the penthouse's), the Big Six's spin, the darts match
+  const [baccarat, setBaccarat] = useState<Partial<Record<BaccaratTable, BaccaratState>>>({});
+  const [bigSix, setBigSix] = useState<BigSixState | null>(null);
+  const [darts, setDarts] = useState<DartsMatch | null>(null);
   const [poolMatch, setPoolMatch] = useState<PoolMatch | null>(null);
   // the casino's panel games: the server's latest word on each
-  const [pokerView, setPokerView] = useState<PokerView | null>(null);
+  const [holdemView, setHoldemView] = useState<HoldemView | null>(null);
   const [crapsView, setCrapsView] = useState<CrapsView | null>(null);
   const [derbyState, setDerbyState] = useState<DerbyState | null>(null);
   const [pusherResult, setPusherResult] = useState<PusherResult | null>(null);
@@ -437,11 +439,16 @@ export default function App() {
           const v = payload as BlackjackTableView;
           setBlackjackViews((prev) => ({ ...prev, [v.tableId]: v }));
         } else if (type === "baccaratState") {
-          setBaccarat(payload as BaccaratState);
+          const b = payload as BaccaratState;
+          setBaccarat((prev) => ({ ...prev, [b.table]: b }));
+        } else if (type === "bigSixState") {
+          setBigSix(payload as BigSixState);
+        } else if (type === "dartsState") {
+          setDarts(payload as DartsMatch);
         } else if (type === "poolState") {
           setPoolMatch(payload as PoolMatch);
-        } else if (type === "pokerState") {
-          setPokerView(payload as PokerView);
+        } else if (type === "holdemState") {
+          setHoldemView(payload as HoldemView);
         } else if (type === "crapsState") {
           setCrapsView(payload as CrapsView);
         } else if (type === "derbyState") {
@@ -657,11 +664,13 @@ export default function App() {
       setSlotsProp(null);
       setBlackjackOpen(null);
       setBlackjackViews({});
-      setBaccarat(null);
+      setBaccarat({});
+      setBigSix(null);
+      setDarts(null);
       setPoolMatch(null);
       setRouletteOpen(false);
       setFortune(null);
-      setPokerView(null);
+      setHoldemView(null);
       setCrapsView(null);
       setPusherResult(null);
     }
@@ -768,6 +777,9 @@ export default function App() {
           bag={localPlayer?.bag ?? ""}
           market={market}
           onOpenFieldGuide={() => setFieldGuideOpen(true)}
+          connected={connected}
+          reconnecting={reconnecting}
+          latency={latency}
         />
         <Toasts />
         <UpdateToast subscribeMessages={subscribeMessages} />
@@ -808,18 +820,16 @@ export default function App() {
         )}
 
         {showRoulette && localPlayer && localSessionId && (
-          <div className="cozy-roulette-wrap" style={roulettePanelStyle}>
-            <RoulettePanel
-              roulette={roulette}
-              myBets={bets[localSessionId] ?? ""}
-              chips={localPlayer.chips}
-              localSessionId={localSessionId}
-              onPlaceBet={placeBet}
-              onClearBets={clearBets}
-              subscribeMessages={subscribeMessages}
-              onClose={() => setRouletteOpen(false)}
-            />
-          </div>
+          <RoulettePanel
+            roulette={roulette}
+            myBets={bets[localSessionId] ?? ""}
+            chips={localPlayer.chips}
+            localSessionId={localSessionId}
+            onPlaceBet={placeBet}
+            onClearBets={clearBets}
+            subscribeMessages={subscribeMessages}
+            onClose={() => setRouletteOpen(false)}
+          />
         )}
 
         <WorldTransitionScreen destination={travellingTo} />
@@ -931,23 +941,30 @@ export default function App() {
             onClose={closePanel}
           />
         )}
-        {panel?.kind === "baccarat" && localPlayer && localSessionId && (
-          <BaccaratModal
-            state={baccarat}
-            localSessionId={localSessionId}
-            seated={!!seatedGameOf("baccarat_table")?.seats.includes(mySeat)}
-            seatFree={!!seatedGameOf("baccarat_table")?.seats.some((s) => !chairs[s]?.occupiedBy)}
-            chips={localPlayer.chips}
-            coins={localPlayer.coins}
-            onBet={(bet, amount) => casinoSend({ type: "BACCARAT_BET", bet, amount })}
-            onTakeSeat={() => interactBridge.current?.useProp("baccarat_table")}
-            onClose={closePanel}
-          />
-        )}
+        {panel?.kind === "baccarat" && localPlayer && localSessionId && (() => {
+          const table: BaccaratTable = panel.propId === "hall_baccarat_table" ? "baccarat_hall" : "baccarat";
+          const game = seatedGameOf(panel.propId);
+          return (
+            <BaccaratModal
+              table={table}
+              state={baccarat[table] ?? null}
+              localSessionId={localSessionId}
+              seated={!!game?.seats.includes(mySeat)}
+              seatFree={!!game?.seats.some((s) => !chairs[s]?.occupiedBy)}
+              chips={localPlayer.chips}
+              coins={localPlayer.coins}
+              onBet={(bet, amount) => casinoSend({ type: "BACCARAT_BET", bet, amount })}
+              onTakeSeat={() => interactBridge.current?.useProp(panel.propId)}
+              onClose={closePanel}
+            />
+          );
+        })()}
+        {panel?.kind === "bigsix" && localPlayer && localSessionId && <BigSixModal state={bigSix} localSessionId={localSessionId} chips={localPlayer.chips} coins={localPlayer.coins} onBet={(bet, amount) => casinoSend({ type: "BIGSIX_BET", bet, amount })} onClose={closePanel} />}
+        {panel?.kind === "darts" && localSessionId && <DartsModal match={darts} localSessionId={localSessionId} send={casinoSend} onClose={closePanel} />}
         {panel?.kind === "barmenu" && localPlayer && localSessionId && <BarMenuModal chips={localPlayer.chips} aura={localPlayer.aura} localSessionId={localSessionId} onOrder={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "capsule" && localPlayer && <CapsuleModal chips={localPlayer.chips} owned={localPlayer.owned} title={localPlayer.title} onSend={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "gazette" && <GazetteModal leaderboard={leaderboard} onClose={closePanel} />}
-        {panel?.kind === "poker" && localPlayer && <PokerModal view={pokerView} table={panel.propId === "vip_poker_table" ? "poker_vip" : "poker"} chips={localPlayer.chips} coins={localPlayer.coins} onMove={(move) => casinoSend({ type: "POKER", move })} onClose={closePanel} />}
+        {panel?.kind === "poker" && localPlayer && <PokerModal view={holdemView} table={panel.propId === "vip_poker_table" ? "poker_vip" : "poker"} chips={localPlayer.chips} coins={localPlayer.coins} onDeal={(buyIn) => casinoSend({ type: "HOLDEM_DEAL", buyIn })} onMove={(move) => casinoSend({ type: "HOLDEM_MOVE", move })} onClose={closePanel} />}
         {panel?.kind === "craps" && localPlayer && <CrapsModal view={crapsView} chips={localPlayer.chips} coins={localPlayer.coins} onRoll={(stakes) => casinoSend({ type: "CRAPS_ROLL", stakes })} onClose={closePanel} />}
         {panel?.kind === "derby" && localPlayer && localSessionId && <DerbyModal state={derbyState} chips={localPlayer.chips} coins={localPlayer.coins} localSessionId={localSessionId} onBet={(horse, amount) => casinoSend({ type: "DERBY_BET", horse, amount })} onClose={closePanel} />}
         {panel?.kind === "pusher" && localPlayer && <CoinPusherModal result={pusherResult} chips={localPlayer.chips} coins={localPlayer.coins} onDrop={(stake, pos) => casinoSend({ type: "PUSHER_DROP", stake, pos })} onClose={closePanel} />}
@@ -1011,13 +1028,6 @@ function StatusScreen({ text, isError, overlay }: { text: string; isError?: bool
 }
 
 const rootStyle: CSSProperties = { position: "relative", width: "100vw", height: "100vh", overflow: "hidden" };
-const roulettePanelStyle: CSSProperties = {
-  position: "absolute",
-  left: "50%",
-  bottom: "calc(max(18px, env(safe-area-inset-bottom)) + 64px)",
-  transform: "translateX(-50%)",
-  zIndex: 14,
-};
 const bottomRightStyle: CSSProperties = {
   position: "absolute",
   right: "max(16px, env(safe-area-inset-right))",

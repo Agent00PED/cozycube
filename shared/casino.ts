@@ -1,12 +1,17 @@
 // The Velvet Casino's rules: the Velvet Chip economy, every table's limits (the betting matrix and
 // its ALL IN), and the games played with chips: roulette, slots (the Golden Vault too), the
-// blackjack tables' rounds, Three-Card Poker (in the hall and at the penthouse's high-limit table),
-// baccarat, craps, the Mechanical Turf Club's derby and the coin pusher's shared shelf; the
-// one-player machines' occupants (players and patrons), and the house's extras (the baby grand's
-// pieces, Pippin's bar, Madame Zara, the capsule machine, the VIP pass: shared/items.ts). Where
-// things stand is the floor plans' business: shared/worlds/casino.ts and casino_vip.ts.
+// blackjack tables' rounds, Texas Hold'em's limits (its rules: shared/holdem.ts), baccarat (the
+// hall's table and the penthouse's), the Big Six wheel, craps, the Mechanical Turf Club's derby and
+// the coin pusher's shared shelf; the one-player machines' occupants (players and patrons), and the
+// house's extras (the baby grand's pieces, Pippin's bar, Madame Zara, the capsule machine, the VIP
+// pass: shared/items.ts). Where things stand is the floor plans' business: shared/worlds/casino.ts
+// and casino_vip.ts (the Big Six's wheel is laid out there); the lounge's darts: shared/darts.ts.
 //
 // Shared between client and server — framework-agnostic (no THREE/Colyseus imports).
+
+import { BIG_SIX_WHEEL } from "./worlds/casino";
+import type { DartsGame } from "./darts";
+import type { HoldemMove } from "./holdem";
 
 // --- Velvet Chips ---------------------------------------------------------------------------
 //
@@ -100,7 +105,7 @@ export function exchangeAmount(requested: unknown, available: number): number | 
 // so a stake outside it is refused whatever the client sends. A brass placard on each game's panel
 // reads "MIN: 25 | MAX ALL-IN: 1,000".
 
-export type TableId = "blackjack_casual" | "blackjack_high" | "poker" | "poker_vip" | "slots" | "slots_vault" | "baccarat" | "roulette_inside" | "roulette_outside" | "craps" | "derby" | "pusher";
+export type TableId = "blackjack_casual" | "blackjack_high" | "poker" | "poker_vip" | "slots" | "slots_vault" | "baccarat" | "baccarat_hall" | "bigsix" | "roulette_inside" | "roulette_outside" | "craps" | "derby" | "pusher";
 export interface TableLimit {
   name: string;
   min: number;
@@ -110,13 +115,15 @@ export interface TableLimit {
 export const TABLE_LIMITS: Record<TableId, TableLimit> = {
   blackjack_casual: { name: "Blackjack · Table 1 (Casual)", min: 25, max: 1000, presets: [25, 50, 100, 250, 500] },
   blackjack_high: { name: "Blackjack · Table 2 (High Stakes)", min: 100, max: 5000, presets: [100, 250, 500, 1000, 2500] },
-  // the ante: the Play bet matches it, so an ante of 2,000 risks 4,000 in all
-  poker: { name: "Three-Card Poker", min: 50, max: 2000, presets: [50, 100, 200, 500, 1000] },
-  // the penthouse's high-limit table: an ante of 50,000 risks 100,000 with the Play bet
-  poker_vip: { name: "High-Limit Three-Card Poker", min: 1000, max: 50000, presets: [1000, 2500, 5000, 10000, 25000] },
+  // Hold'em's buy-in for a hand (every seat starts with as much; blinds 5/10)
+  poker: { name: "Texas Hold'em · No Limit", min: 100, max: 2000, presets: [100, 250, 500, 1000, 2000] },
+  // the penthouse's high-limit table (blinds 250/500)
+  poker_vip: { name: "High-Limit Hold'em", min: 5000, max: 50000, presets: [5000, 10000, 25000, 50000] },
   slots: { name: "Neon Alley Slots", min: 10, max: 500, presets: [10, 25, 50, 100, 250] },
   slots_vault: { name: "The Golden Vault", min: 500, max: 10000, presets: [500, 1000, 2500, 5000] },
   baccarat: { name: "High-Limit Baccarat", min: 2500, max: 100000, presets: [2500, 5000, 10000, 25000, 50000] },
+  baccarat_hall: { name: "Baccarat · Punto Banco", min: 25, max: 2500, presets: [25, 50, 100, 250, 500] },
+  bigsix: { name: "The Big Six Wheel", min: 10, max: 1000, presets: [10, 25, 50, 100, 250] },
   // per spot: a straight-up number pays 35:1, red/black/odd/even 1:1
   roulette_inside: { name: "Roulette · Inside (straight up)", min: 10, max: 500, presets: [10, 25, 50, 100] },
   roulette_outside: { name: "Roulette · Outside (even money)", min: 25, max: 2500, presets: [25, 50, 100, 250, 500] },
@@ -126,8 +133,7 @@ export const TABLE_LIMITS: Record<TableId, TableLimit> = {
 };
 
 /** ALL IN: everything you hold up to the table's cap, or 0 when that is under its minimum.
- *  `share`: the part of the chips one stake may take (Three-Card Poker's ante keeps half back for
- *  the Play bet that matches it). */
+ *  `share`: the part of the chips one stake may take. */
 export function allInBet(chips: number, limit: TableLimit, share = 1): number {
   const n = Math.min(Math.floor(Math.max(0, chips) * share), limit.max);
   return n >= limit.min ? n : 0;
@@ -239,7 +245,7 @@ export interface SlotBroadcast {
 
 // --- blackjack ------------------------------------------------------------------------------
 
-/** A playing card (blackjack and Three-Card Poker deal from the same 52). */
+/** A playing card (blackjack, Hold'em and baccarat deal from the same 52). */
 export interface Card {
   rank: string; // "A", "2".."10", "J", "Q", "K"
   suit: string; // "♠" "♥" "♦" "♣"
@@ -319,96 +325,17 @@ export interface BlackjackResult {
   outcome: BlackjackOutcome;
 }
 
-// --- Three-Card Poker, against Boris ------------------------------------------------------------
-//
-// An ante within the table's limits; three cards each, yours face up, Boris's face down. Fold (the
-// ante is lost) or Play (a second bet the size of the ante). Boris plays with a queen high or
-// better: when he doesn't, the ante pays 1:1 and the Play bet comes back; when he does, the better
-// hand takes both bets 1:1 (a tie pushes both). A straight or better also pays an ante bonus,
-// whatever Boris holds. Three cards rank straight flush, three of a kind, straight, flush, pair,
-// high card (a straight is rarer than a flush with three cards).
+// --- Texas Hold'em: the rules live in shared/holdem.ts ----------------------------------------------
 
-export const POKER_RANKS = ["High Card", "Pair", "Flush", "Straight", "Three of a Kind", "Straight Flush"] as const;
-export type PokerRank = 0 | 1 | 2 | 3 | 4 | 5;
-/** The ante bonus, in antes, on a played hand of this rank (on top of the rest). */
-export const POKER_ANTE_BONUS: Partial<Record<PokerRank, number>> = { 3: 1, 4: 4, 5: 5 };
-const RANK_VALUE: Record<string, number> = { "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, J: 11, Q: 12, K: 13, A: 14 };
-export const cardValue = (c: Card) => RANK_VALUE[c.rank] ?? 0;
-export interface PokerHand {
-  rank: PokerRank;
-  name: string;
-  /** What breaks a tie, highest first. */
-  values: number[];
-}
-export function pokerHand(cards: Card[]): PokerHand {
-  const v = cards.map(cardValue).sort((a, b) => b - a);
-  const flush = cards.every((c) => c.suit === cards[0].suit);
-  let straightHigh = 0;
-  if (v[0] - v[1] === 1 && v[1] - v[2] === 1) straightHigh = v[0];
-  else if (v[0] === 14 && v[1] === 3 && v[2] === 2) straightHigh = 3; // A-2-3, the lowest straight
-  const trips = v[0] === v[2];
-  let rank: PokerRank = 0;
-  let values = v;
-  if (straightHigh && flush) (rank = 5), (values = [straightHigh]);
-  else if (trips) (rank = 4), (values = [v[0]]);
-  else if (straightHigh) (rank = 3), (values = [straightHigh]);
-  else if (flush) rank = 2;
-  else if (v[0] === v[1] || v[1] === v[2]) (rank = 1), (values = [v[1], v[0] === v[1] ? v[2] : v[0]]);
-  return { rank, name: POKER_RANKS[rank], values };
-}
-/** Above 0 when `a` beats `b`, 0 on a tie. */
-export function comparePoker(a: PokerHand, b: PokerHand): number {
-  if (a.rank !== b.rank) return a.rank - b.rank;
-  for (let i = 0; i < Math.max(a.values.length, b.values.length); i++) {
-    const d = (a.values[i] ?? 0) - (b.values[i] ?? 0);
-    if (d) return d;
-  }
-  return 0;
-}
-/** Boris plays with a queen high or better. */
-export const dealerQualifies = (h: PokerHand) => h.rank > 0 || h.values[0] >= 12;
-export type PokerPhase = "idle" | "decide" | "done";
-export type PokerOutcome = "" | "fold" | "win" | "lose" | "push" | "noqualify";
-export interface PokerView {
-  phase: PokerPhase;
-  ante: number;
-  play: number;
-  player: Card[];
-  /** Boris's cards: face down (empty) until you play or fold. */
-  dealer: Card[];
-  playerHand: string;
-  dealerHand: string;
-  qualifies: boolean;
-  outcome: PokerOutcome;
-  /** Everything handed back (the stakes included), the ante bonus with it. */
-  payout: number;
-  bonus: number;
-  /** The table: the hall's, or the penthouse's high-limit one. */
+/** Server -> everyone ("pokerResult"): a hand of Hold'em over (Boris has a word for it). */
+export interface PokerResult {
+  sessionId: string;
   table: "poker" | "poker_vip";
-  /** The high rollers playing their own hands beside you (the penthouse: Baron von Fox). */
-  company: PokerCompanion[];
-}
-/** A patron playing a hand of their own against the same dealer hand. */
-export interface PokerCompanion {
-  name: string;
-  emoji: string;
-  ante: number;
-  /** Face down until the hand is over. */
-  cards: Card[];
+  /** "win" (you took a pot), "lose", "fold", "split". */
+  outcome: "win" | "lose" | "fold" | "split";
+  /** Your hand's name at the showdown ("" if it never came to one). */
   hand: string;
-  played: boolean;
-  outcome: PokerOutcome;
-  payout: number;
-}
-export type PokerMove = { action: "deal"; ante: number } | { action: "play" } | { action: "fold" };
-/** A played hand settled: what comes back (the stakes included), and the bonus in it. */
-export function pokerSettle(ante: number, player: PokerHand, dealer: PokerHand): { outcome: PokerOutcome; payout: number; bonus: number } {
-  const bonus = ante * (POKER_ANTE_BONUS[player.rank] ?? 0);
-  if (!dealerQualifies(dealer)) return { outcome: "noqualify", payout: ante * 3 + bonus, bonus };
-  const c = comparePoker(player, dealer);
-  if (c > 0) return { outcome: "win", payout: ante * 4 + bonus, bonus };
-  if (c === 0) return { outcome: "push", payout: ante * 2 + bonus, bonus };
-  return { outcome: "lose", payout: bonus, bonus };
+  net: number;
 }
 
 // --- craps: your own dice at the table ----------------------------------------------------------
@@ -615,12 +542,20 @@ export interface PianoNote {
 export const PIANO_LOW = 60;
 export const PIANO_HIGH = 84;
 
-// --- baccarat (Punto Banco), in the Velvet Penthouse ------------------------------------------------
+// --- baccarat (Punto Banco): the hall's kidney table and the Velvet Penthouse's ------------------------
 //
-// One coup at a time for the table's seated players: the first bet opens a betting window
+// Each table runs one coup at a time for its seated players: the first bet opens a betting window
 // (BACCARAT_BET_SECONDS), then the shoe deals Player and Banker two cards each and the tableau
 // decides any third card. A winning Player bet pays 1:1, Banker 0.95:1 (the house's 5%), Tie 8:1;
-// on a tie, Player and Banker bets come back. Duchess Penelope bets every coup too.
+// on a tie, Player and Banker bets come back. Scarlett the red panda deals the hall's table, at its
+// own limits (baccarat_hall); upstairs, Duchess Penelope bets every coup too.
+
+export type BaccaratTable = "baccarat" | "baccarat_hall";
+/** Each table's seated game (shared/worlds SEATED_GAMES) and its dealer. */
+export const BACCARAT_TABLES: Record<BaccaratTable, { propId: string; dealer: string; seatPrefix: string }> = {
+  baccarat: { propId: "baccarat_table", dealer: "Duchess Penelope's table", seatPrefix: "seat_bacc_" },
+  baccarat_hall: { propId: "hall_baccarat_table", dealer: "Scarlett", seatPrefix: "seat_hbacc_" },
+};
 
 export type BaccaratBet = "player" | "banker" | "tie";
 export const BACCARAT_BETS: BaccaratBet[] = ["player", "banker", "tie"];
@@ -682,8 +617,9 @@ export interface BaccaratStake {
   bet: BaccaratBet;
   amount: number;
 }
-/** Server -> everyone ("baccaratState"). */
+/** Server -> everyone ("baccaratState"): one table's coup. */
 export interface BaccaratState {
+  table: BaccaratTable;
   phase: BaccaratPhase;
   /** Whole seconds left in this phase (0 while waiting for a first bet). */
   timeLeft: number;
@@ -697,6 +633,75 @@ export interface BaccaratState {
   history: BaccaratBet[];
 }
 
+// --- the Big Six wheel ------------------------------------------------------------------------------
+//
+// An upright wheel of 53 segments where the foyer meets the floor: 24 pay 1x, 15 2x, 7 5x, 4 10x, 2
+// 20x and one Joker 40x (a winning bet pays that many times the stake, and the stake back). One wheel
+// for the room: the first bet opens the betting window, then the croupier's hand sends it round, its
+// leather flapper clicking over the pegs, and it settles on the segment the server drew (every client
+// turns it the same way from spinId and result). Bets are placed standing at its ledge.
+
+export type BigSixBet = "1" | "2" | "5" | "10" | "20" | "joker";
+export const BIG_SIX_BETS: BigSixBet[] = ["1", "2", "5", "10", "20", "joker"];
+export const BIG_SIX_INFO: Record<BigSixBet, { name: string; pays: number; colour: string; ink: string }> = {
+  "1": { name: "1x", pays: 1, colour: "#f2e8d5", ink: "#3a2206" },
+  "2": { name: "2x", pays: 2, colour: "#4f9fd8", ink: "#ffffff" },
+  "5": { name: "5x", pays: 5, colour: "#2e8a57", ink: "#ffffff" },
+  "10": { name: "10x", pays: 10, colour: "#7b4fc4", ink: "#ffffff" },
+  "20": { name: "20x", pays: 20, colour: "#e0842c", ink: "#ffffff" },
+  joker: { name: "Joker", pays: 40, colour: "#161214", ink: "#f6dc8f" },
+};
+/** The wheel's segments in order (shared/worlds/casino.ts lays it out; casino.glb paints it). */
+export const BIG_SIX_SEGMENTS = BIG_SIX_WHEEL as readonly BigSixBet[];
+export const isBigSixBet = (v: unknown): v is BigSixBet => typeof v === "string" && (BIG_SIX_BETS as readonly string[]).includes(v);
+export const BIG_SIX_BET_SECONDS = 18;
+/** The spin, from the croupier's pull to the flapper's last click. */
+export const BIG_SIX_SPIN_MS = 7500;
+export const BIG_SIX_SETTLE_SECONDS = 5;
+/** What a bet brings back (the stake included) when the wheel stops on `landed`. */
+export const bigSixReturn = (bet: BigSixBet, amount: number, landed: BigSixBet) => (bet === landed ? amount * (BIG_SIX_INFO[bet].pays + 1) : 0);
+const TAU = Math.PI * 2;
+/** The wheel's turn (radians, anticlockwise as you face it: the segments pass the flapper at the top
+ *  in their order) at which segment `k` sits under the flapper; 0 before any spin. */
+export function bigSixRest(k: number): number {
+  return k < 0 ? 0 : ((k + 0.5) / BIG_SIX_SEGMENTS.length) * TAU;
+}
+/** Where the wheel stands `ms` into the spin from `from` (the last result) to `to`: six turns and a
+ *  little, a quick start and a long slow ease to rest (every client turns it the same way). */
+export function bigSixSpinAngle(from: number, to: number, ms: number): number {
+  const a = bigSixRest(from);
+  const b = a + 6 * TAU + ((((bigSixRest(to) - a) % TAU) + TAU) % TAU);
+  const t = Math.max(0, Math.min(1, ms / BIG_SIX_SPIN_MS));
+  return a + (b - a) * (1 - Math.pow(1 - t, 3.2));
+}
+/** The segment under the flapper at turn `angle`. */
+export const bigSixUnder = (angle: number) => {
+  const n = BIG_SIX_SEGMENTS.length;
+  return ((Math.floor((angle / TAU) * n) % n) + n) % n;
+};
+export type BigSixPhase = "betting" | "spinning" | "settled";
+export interface BigSixStake {
+  sessionId: string;
+  username: string;
+  bet: BigSixBet;
+  amount: number;
+}
+/** Server -> everyone ("bigSixState"). */
+export interface BigSixState {
+  phase: BigSixPhase;
+  /** Whole seconds left in this phase (0 while waiting for a first bet). */
+  timeLeft: number;
+  spinId: number;
+  /** The segment the wheel stops on (an index into BIG_SIX_SEGMENTS), -1 before the first spin, and
+   *  the one it stood on before this spin (where it turns from). */
+  result: number;
+  prevResult: number;
+  stakes: BigSixStake[];
+  paid: { sessionId: string; username: string; amount: number }[];
+  /** The last spins' results, newest first. */
+  history: BigSixBet[];
+}
+
 // --- the one-player machines: who is at them ----------------------------------------------------
 //
 // The slot row and the coin pusher are one player's at a time: a player playing one, or a patron
@@ -706,8 +711,11 @@ export interface BaccaratState {
 
 export const NPC_PREFIX = "npc:";
 export const isNpcOccupant = (who: string) => who.startsWith(NPC_PREFIX);
-/** The crowd's figures (patrons.glb). */
-export const PATRON_KINDS = ["Rabbit", "Raccoon", "Feline"] as const;
+/** The crowd's figures (patrons.glb): an evening-gowned rabbit, a raccoon in a tailored suit, a chic
+ *  feline, a dapper fox in a cream dinner jacket, a round panda in a tweed overcoat, a gentleman owl
+ *  in a top hat and monocle, a tall greyhound in a pinstripe double-breasted suit, and an otter in a
+ *  fringed flapper dress. */
+export const PATRON_KINDS = ["Rabbit", "Raccoon", "Feline", "Fox", "Panda", "Owl", "Greyhound", "Otter"] as const;
 export type PatronKind = (typeof PATRON_KINDS)[number];
 /** A patron at a machine: its figure and its outfit's tint index. */
 export function npcOccupant(who: string): { kind: PatronKind; tint: number } | null {
@@ -858,7 +866,7 @@ export interface CapsuleResult {
 export const CELEBRATE_SLOT_MULTIPLIER = Math.min(...SLOT_TRIPLE);
 /** Wins this big (in chips) make the Big-Win marquee. */
 export const MARQUEE_MIN_WIN = 50;
-export type CasinoGame = "slots" | "roulette" | "blackjack" | "poker" | "baccarat" | "craps" | "derby" | "pusher";
+export type CasinoGame = "slots" | "roulette" | "blackjack" | "poker" | "baccarat" | "bigsix" | "craps" | "derby" | "pusher";
 /** Server -> everyone ("casinoWin"): a win for the marquee, and whether the hall celebrates it. */
 export interface CasinoWin {
   sessionId: string;
@@ -901,7 +909,12 @@ export type CasinoPacket =
   | { type: "EQUIP_TITLE"; id: string }
   | { type: "BAR_ORDER"; drink: CasinoDrinkId }
   | { type: "BAR_SNACK" }
-  | { type: "POKER"; move: PokerMove }
+  | { type: "HOLDEM_DEAL"; buyIn: number }
+  | { type: "HOLDEM_MOVE"; move: HoldemMove }
+  | { type: "BIGSIX_BET"; bet: BigSixBet; amount: number }
+  | { type: "DARTS_JOIN"; game: DartsGame }
+  | { type: "DARTS_LEAVE" }
+  | { type: "DARTS_THROW"; x: number; y: number }
   | { type: "CRAPS_ROLL"; stakes: CrapsStakes }
   | { type: "DERBY_BET"; horse: number; amount: number }
   | { type: "PUSHER_DROP"; stake: number; pos: number }

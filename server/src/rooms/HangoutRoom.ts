@@ -721,7 +721,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("claim_allowance", (client) => this.handleClaimAllowance(client.sessionId));
     this.onMessage("buy_item", (client, msg: { item: string }) => this.handleBuyHat(client.sessionId, msg?.item));
     this.onMessage("spin_slots", (client, msg: { propId: string; bet: number }) => this.casino.spinSlot(client.sessionId, this.state.toggleables.get(String(msg?.propId ?? "")), Number(msg?.bet)));
-    this.onMessage("blackjack_action", (client, msg: { action: BlackjackAction; bet?: number }) => this.casino.blackjack(client.sessionId, msg));
+    this.onMessage("blackjack_action", (client, msg: { action: BlackjackAction; bet?: number; hand?: number }) => this.casino.blackjack(client.sessionId, msg));
     this.onMessage("chat_bubble", (client, msg: { text: string }) => this.handleChat(client.sessionId, msg?.text));
     // --- outfits, gachapon and the arcade ---
     this.onMessage("buy_outfit", (client, msg: { outfit: string }) => this.handleBuyOutfit(client.sessionId, msg?.outfit));

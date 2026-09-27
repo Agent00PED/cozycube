@@ -4,8 +4,8 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { Room } from "colyseus.js";
 import { walkY } from "@shared/collision";
-import { DERBY_HORSES, DERBY_LANES, DERBY_RACERS, DERBY_RACE_MS, SLOT_SYMBOLS, derbyPaces, derbyProgress, type CasinoGame, type CasinoPropEvent, type CasinoWin, type PianoNote, type PianoRecital } from "@shared/casino";
-import { CASINO_LAYOUT as L, CASINO_NPCS, CASINO_STAGES, TIP_JARS, VIP_DOORS } from "@shared/worlds/casino";
+import { BIG_SIX_SPIN_MS, DERBY_HORSES, DERBY_LANES, DERBY_RACERS, DERBY_RACE_MS, SLOT_SYMBOLS, bigSixRest, bigSixSpinAngle, bigSixUnder, derbyPaces, derbyProgress, type BigSixState, type CasinoGame, type CasinoPropEvent, type CasinoWin, type PianoNote, type PianoRecital } from "@shared/casino";
+import { BIG_SIX, CASINO_LAYOUT as L, CASINO_NPCS, CASINO_STAGES, LOUNGE_Y, TIP_JARS, VIP_DOORS } from "@shared/worlds/casino";
 import { CasinoVipWorld } from "./CasinoVipWorld";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
@@ -19,6 +19,7 @@ import { liveMotion } from "../systems/liveMotion";
 import { distanceVolume, playSfx } from "../audio/sfx";
 import { playPianoNote, startRecital, stopRecital } from "../audio/piano";
 import { pushToast } from "../components/hud/toastStore";
+import { bigSixPanel } from "../components/hud/bigSixPanel";
 
 // The Velvet Casino (map 3). The hall is one Blender model, casino.glb
 // (scripts/blender/build_casino.py, laid out from shared/worlds/casino.ts): everything that stands
@@ -32,6 +33,8 @@ import { pushToast } from "../components/hud/toastStore";
 //   the floor        clicks land on the hall's floor, or on the raised pit's and lounge's tops
 //   the wheel        turns slowly while bets are open, spins up when the croupier launches it and
 //                    runs down over the spin (the room's roulette phase)
+//   the Big Six      the upright wheel by the foyer turns with the room's spin (bigSixState: the same
+//                    turn as its panel's, shared bigSixSpinAngle), its flapper clicking over the pegs
 //   the neon         Neon Alley's tubes and floor strip breathe, with the odd flutter
 //   the marquee      the Big-Win board over the main floor: the room's wins as they happen (a
 //                    "casinoWin" message), the house's regulars' in between, scrolling in a ring of
@@ -53,7 +56,8 @@ import { pushToast } from "../components/hud/toastStore";
 //                    cocktail waitress on her round (entities/AmbientPatrons.tsx)
 //   the light        a warm fill, amber pools under the four chandeliers, washes along the walls,
 //                    the banker's lamp, the back bar, the billiards lamps, the Chesterfield's lamp,
-//                    and a pink and a cyan glow off the slot row
+//                    a pink and a cyan glow off the slot row, and the stage spotlight's warm-white
+//                    cone on the baby grand's keys (the sconces' beams are painted on the walls)
 //
 // No light casts a shadow, and nothing hangs low over the floor between the camera and the tables.
 
@@ -227,6 +231,8 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
       cue: get("Prop_CueBall"),
       cueRest: get("Prop_CueBall")?.position.clone() ?? null,
       vipDoors: [get("Prop_VipDoorL"), get("Prop_VipDoorR")],
+      six: get("Prop_BigSixWheel"),
+      sixRest: get("Prop_BigSixWheel")?.quaternion.clone() ?? null,
     };
   }, [scene, marquee.texture]);
   useEffect(
@@ -247,6 +253,8 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
   const push = useRef(-99);
   const breakAt = useRef(-99);
   const vipOpen = useRef(-99);
+  // the Big Six: where it rests, and the spin under way (from the room's bigSixState)
+  const six = useRef({ prev: -1, result: -1, spinId: -1, spinning: false, at: 0, under: -1 });
   // the baby grand, heard from where you stand (and silent once you leave the casino)
   useEffect(() => () => stopRecital(), []);
   useEffect(
@@ -261,6 +269,13 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
         }
         if (type === "pianoNote") {
           playPianoNote((payload as PianoNote).midi, fromPiano());
+          return;
+        }
+        if (type === "bigSixState") {
+          const w = payload as BigSixState;
+          const c = six.current;
+          if (w.phase === "spinning" && w.spinId !== c.spinId) Object.assign(c, { prev: w.prevResult, result: w.result, spinId: w.spinId, spinning: true, at: performance.now() });
+          else if (w.phase !== "spinning") Object.assign(c, { result: w.result, spinning: false });
           return;
         }
         if (type === "casinoWin") {
@@ -405,19 +420,34 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
     parts.vipDoors.forEach((d, i) => {
       if (d) d.rotation.y = (i === 0 ? -1 : 1) * open * 1.35;
     });
+    // the Big Six: turned about its facing, from the last result to this one; its flapper clicks
+    // for anyone not watching it on its own panel (which clicks for itself)
+    if (parts.six && parts.sixRest) {
+      const c = six.current;
+      const ms = performance.now() - c.at;
+      if (c.spinning && ms > BIG_SIX_SPIN_MS) c.spinning = false;
+      const a = c.spinning ? bigSixSpinAngle(c.prev, c.result, ms) : bigSixRest(c.result);
+      tmpQ.setFromAxisAngle(SIX_AXIS, a);
+      parts.six.quaternion.copy(tmpQ).multiply(parts.sixRest);
+      const under = bigSixUnder(a);
+      if (c.spinning && under !== c.under && !bigSixPanel.open) playSfx("clicker", distanceVolume(cameraFocus.x, cameraFocus.z, BIG_SIX.x, BIG_SIX.z, 5) * 0.5);
+      c.under = under;
+    }
     marquee.tick(now);
   });
 
   return <primitive object={scene} />;
 }
 
+/** The Big Six wheel's axle: along its facing, toward the room. */
+const SIX_AXIS = new THREE.Vector3(Math.sin(BIG_SIX.yaw), 0, Math.cos(BIG_SIX.yaw));
 const easeOut = (x: number) => 1 - (1 - x) * (1 - x);
 const easeIn = (x: number) => x * x;
 const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
 
 // --- the Big-Win marquee ---------------------------------------------------------------------
 
-const GAME_ICON: Record<CasinoGame, string> = { slots: "🎰", roulette: "🎡", blackjack: "🃏", poker: "♠", baccarat: "🂡", craps: "🎲", derby: "🏇", pusher: "🪙" };
+const GAME_ICON: Record<CasinoGame, string> = { slots: "🎰", roulette: "🎡", blackjack: "🃏", poker: "♠", baccarat: "🂡", bigsix: "🎡", craps: "🎲", derby: "🏇", pusher: "🪙" };
 const REGULARS = ["Lady Honeysuckle", "Count Whiskerton", "The Baroness", "Sir Reginald", "Madame Plume", "Dr. Fluffington", "Captain Barnacles", "Duchess Marmalade", "Monsieur Truffle", "Old Tom Tabby"];
 const SCROLL_S = 7;
 
@@ -632,11 +662,45 @@ function CasinoLights() {
       <pointLight color="#ffc070" intensity={1.1 * lamp} distance={5} decay={2} position={[face + 0.8, lounge + 2.3, (L.bar.z0 + L.bar.z1) / 2]} castShadow={false} />
       <pointLight color="#ffe2a0" intensity={1.3 * lamp} distance={3.6} decay={2} position={[L.billiards.x, lounge + L.billiards.lamp - 0.2, L.billiards.z]} castShadow={false} />
       <pointLight color="#ffb866" intensity={0.8 * lamp} distance={4.5} decay={2} position={[L.coffee.x, lounge + 1.0, L.coffee.z]} castShadow={false} />
+      <PianoSpotlight lamp={lamp} />
       {/* the penthouse's gilded doors, lit up on the High-Roller Stage */}
       <pointLight color="#ffc870" intensity={1.0 * lamp} distance={4} decay={2} position={[VIP_DOORS.x, 2.4, VIP_DOORS.z + 0.9]} castShadow={false} />
       {/* Neon Alley: a pink glow and a cyan one off the slot row */}
       <pointLight color="#ff4fa3" intensity={1.0} distance={5} decay={2} position={[pinkX, pinkY, L.slots.zs[1]]} castShadow={false} />
       <pointLight color="#4fe3ff" intensity={0.9} distance={5} decay={2} position={[pinkX, pinkY, L.slots.zs[4]]} castShadow={false} />
+    </>
+  );
+}
+
+/** The stage spotlight on its stand at the lounge's corner, trained on the baby grand's keys: a
+ *  warm-white spot (no shadow) and the faint cone of its beam in the air (one draw call). */
+const SPOT_FROM = new THREE.Vector3(L.piano.spot.x, LOUNGE_Y + L.piano.spot.h, L.piano.spot.z);
+const SPOT_TO = new THREE.Vector3(L.piano.x, LOUNGE_Y + 0.78, L.piano.z + L.piano.len / 2 + 0.02);
+const BEAM_MAT = new THREE.MeshBasicMaterial({ color: "#fff0d0", transparent: true, opacity: 0.075, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+function PianoSpotlight({ lamp }: { lamp: number }) {
+  const target = useMemo(() => {
+    const o = new THREE.Object3D();
+    o.position.copy(SPOT_TO);
+    return o;
+  }, []);
+  const beam = useMemo(() => {
+    const length = SPOT_FROM.distanceTo(SPOT_TO);
+    // a cone from the lamp (its tip) to a pool round the keys, open at both ends
+    const geo = new THREE.CylinderGeometry(0.1, 0.62, length, 24, 1, true);
+    geo.translate(0, -length / 2, 0);
+    const mesh = new THREE.Mesh(geo, BEAM_MAT);
+    mesh.position.copy(SPOT_FROM);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), SPOT_TO.clone().sub(SPOT_FROM).normalize());
+    mesh.raycast = noRaycast;
+    mesh.renderOrder = 2;
+    return mesh;
+  }, []);
+  useEffect(() => () => beam.geometry.dispose(), [beam]);
+  return (
+    <>
+      <primitive object={target} />
+      <primitive object={beam} />
+      <spotLight color="#fff1d6" intensity={7 * lamp} distance={5} angle={0.42} penumbra={0.65} decay={1.4} position={SPOT_FROM} target={target} castShadow={false} />
     </>
   );
 }

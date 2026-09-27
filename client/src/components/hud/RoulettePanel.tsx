@@ -11,10 +11,11 @@ import {
   type RouletteResultBroadcast,
   type RouletteSyncState,
 } from "@shared/casino";
-import { glass, hudText } from "./glass";
 import { chipTone } from "./BetControls";
 import { ChipAmount } from "./VelvetChipIcon";
 import { RouletteWheel } from "./RouletteWheel";
+import { Modal } from "./Modal";
+import { playSfx } from "../../audio/sfx";
 
 const CONFETTI = Array.from({ length: 18 }, (_, i) => ({
   dx: `${Math.cos(i * 0.35 + 0.2) * (90 + (i % 4) * 30)}px`,
@@ -50,11 +51,12 @@ const OUTSIDE = [
 // The real table layout: three rows, top row 3-6-9…36, twelve columns.
 const ROWS = [3, 2, 1].map((r) => Array.from({ length: 12 }, (_, c) => c * 3 + r));
 
-// The roulette table as a proper on-screen board: pick a chip (or [ ALL IN ]), tap the felt. Every
-// spot has its limits: a straight-up number takes 10 to 500 chips and pays 35:1, red, black, odd
-// and even take 25 to 2,500 and pay 1:1 (the brass placards say so); a spot you can't bet with the
-// chip in hand is dimmed. It shows the phase countdown, what you have on the table, and (after each
-// spin) the number and what you won or lost, while the wallet in the top bar ticks over.
+// The roulette table in two acts, each the whole panel. While bets are open, the felt: pick a chip
+// (or [ ALL IN ]), tap a spot. Every spot has its limits: a straight-up number takes 10 to 500 chips
+// and pays 35:1, red, black, odd and even take 25 to 2,500 and pay 1:1 (the brass placards say so);
+// a spot you can't bet with the chip in hand is dimmed. When Madame Vivienne launches the ball the
+// panel slides over to the wheel, large, the ivory ball running the track and rattling down into its
+// pocket; then the number and what you won or lost, and back to the felt for the next round.
 export function RoulettePanel({ roulette, myBets, chips, localSessionId, onPlaceBet, onClearBets, subscribeMessages, onClose }: RoulettePanelProps) {
   const [chip, setChip] = useState<number>(CHIP_VALUES[0]);
   const [outcome, setOutcome] = useState<{ result: number; text: ReactNode; win: boolean } | null>(null);
@@ -117,128 +119,112 @@ export function RoulettePanel({ roulette, myBets, chips, localSessionId, onPlace
     );
   };
 
+  const spinning = roulette.phase !== "betting";
+  const rattleAt = useRef(0);
+  const onRattle = () => {
+    const now = performance.now();
+    if (now - rattleAt.current < 55) return;
+    rattleAt.current = now;
+    playSfx("clack", 0.18 + Math.random() * 0.12);
+  };
+  const riding = Object.entries(bets);
+
   return (
-    <div className="cozy-roulette casino-body" style={styles.panel} role="dialog" aria-label="Roulette betting board">
-      <div style={styles.head}>
-        <span style={styles.title} className="casino-title">
-          🎡 <span className="gold-foil">Roulette</span>
-        </span>
-        <span style={{ ...styles.phase, background: open ? "#2d9a5a" : roulette.phase === "spinning" ? "#b3202e" : "#8a6a2a" }}>{phaseLabel}</span>
-        <span style={{ flex: 1 }} />
-        <span style={styles.wallet} title="Your Velvet Chips">
-          <ChipAmount n={chips} />
-        </span>
-        <button
-          type="button"
-          style={styles.close}
-          onClick={() => {
-            onClose();
-          }}
-          aria-label="Close the betting board"
-        >
-          ✕
-        </button>
-      </div>
-      <div style={styles.placards}>
-        <span style={styles.placard} className="casino-placard">INSIDE · MIN: {chipText(INSIDE.min)} | MAX ALL-IN: {chipText(INSIDE.max)}</span>
-        <span style={styles.placard} className="casino-placard">OUTSIDE · MIN: {chipText(OUTSIDE_LIMIT.min)} | MAX ALL-IN: {chipText(OUTSIDE_LIMIT.max)}</span>
-      </div>
-      <div style={styles.track}>
-        <div style={{ ...styles.fill, width: `${frac * 100}%`, background: open ? "#6fd08c" : "#f2cf73" }} />
-      </div>
+    <Modal landscape title="Roulette" icon="🎡" onClose={onClose} tone="felt" placard={`INSIDE · MIN ${chipText(INSIDE.min)} | MAX ${chipText(INSIDE.max)}  ·  OUTSIDE · MIN ${chipText(OUTSIDE_LIMIT.min)} | MAX ${chipText(OUTSIDE_LIMIT.max)}`}>
+      <div className="cozy-roulette casino-body relative flex min-h-0 flex-1 flex-col gap-2" role="group" aria-label="Roulette">
+        <div style={styles.head}>
+          <span style={{ ...styles.phase, background: open ? "#2d9a5a" : roulette.phase === "spinning" ? "#b3202e" : "#8a6a2a" }}>{phaseLabel}</span>
+          <div style={{ ...styles.track, flex: 1 }}>
+            <div style={{ ...styles.fill, width: `${frac * 100}%`, background: open ? "#6fd08c" : "#f2cf73" }} />
+          </div>
+          <span style={styles.wallet} title="Your Velvet Chips">
+            <ChipAmount n={chips} />
+          </span>
+        </div>
 
-      {outcome?.win && roulette.phase !== "betting" && (
-        <div className="cozy-confetti" aria-hidden>
-          {CONFETTI.map((c, i) => (
-            <i key={i} style={{ background: c.color, ["--dx" as string]: c.dx, ["--dy" as string]: c.dy, animationDelay: `${(i % 6) * 30}ms` } as CSSProperties} />
-          ))}
-        </div>
-      )}
-      {/* the wheel, spinning over the felt once the bets are closed */}
-      {roulette.phase !== "betting" && (
-        <div style={styles.wheel}>
-          <RouletteWheel phase={roulette.phase} spinId={roulette.spinId} result={roulette.result} />
-        </div>
-      )}
-      {outcome && roulette.phase !== "betting" && (
-        <div style={{ ...styles.outcome, background: outcome.win ? "rgba(111,208,140,0.25)" : "rgba(255,255,255,0.08)" }}>
-          <span style={{ ...styles.ball, background: POCKET_BG[pocketColor(outcome.result)] }}>{outcome.result}</span>
-          <span className={outcome.win ? "cozy-coin-bump" : undefined}>{outcome.text}</span>
-        </div>
-      )}
-
-      <div style={styles.felt}>
-        <div className="cozy-felt-grid" style={styles.grid}>
-          {cell("n0", "0", POCKET_BG.green, "#fff", { gridRow: "1 / span 3", gridColumn: 1 })}
-          {ROWS.map((row, r) =>
-            row.map((n, c) => (
-              <div key={n} style={{ gridRow: r + 1, gridColumn: c + 2, display: "flex" }}>
-                {cell(`n${n}`, String(n), POCKET_BG[pocketColor(n)])}
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl">
+          <div className="flex h-full w-[200%] transition-transform duration-700 ease-in-out" style={{ transform: spinning ? "translateX(-50%)" : "translateX(0)" }}>
+            {/* act one: the felt */}
+            <div className="flex h-full w-1/2 flex-col gap-2 pr-2">
+              <div style={{ ...styles.felt, flex: 1, minHeight: 0 }}>
+                <div className="cozy-felt-grid" style={{ ...styles.grid, flex: 1, minHeight: 0 }}>
+                  {cell("n0", "0", POCKET_BG.green, "#fff", { gridRow: "1 / span 3", gridColumn: 1 })}
+                  {ROWS.map((row, r) =>
+                    row.map((n, c) => (
+                      <div key={n} style={{ gridRow: r + 1, gridColumn: c + 2, display: "flex" }}>
+                        {cell(`n${n}`, String(n), POCKET_BG[pocketColor(n)])}
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div style={styles.outside}>{OUTSIDE.map((o) => cell(o.kind, o.label, o.bg, o.fg, { flex: 1, height: 44, fontSize: 15 }))}</div>
               </div>
-            ))
-          )}
+              <div style={styles.foot}>
+                <div style={styles.chips}>
+                  {CHIP_VALUES.map((v) => (
+                    <button key={v} type="button" onClick={() => setChip(v)} disabled={v > chips} aria-pressed={chip === v} className={`bg-gradient-to-b ${chipTone(v)}`} style={{ ...styles.chip, opacity: v > chips ? 0.35 : 1, ...(chip === v ? styles.chipOn : null) }}>
+                      {v}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setChip(ALL_IN)} disabled={chips <= 0} aria-pressed={chip === ALL_IN} style={{ ...styles.allIn, ...(chip === ALL_IN ? styles.allInOn : null) }} title="Tap a spot to put down as much as it takes: its cap, the round's, or all your chips">
+                    [ ALL IN ]
+                  </button>
+                </div>
+                <span style={styles.staked}>
+                  On the table: <b>{chipText(staked)}</b> / {chipText(MAX_BET_TOTAL)}
+                </span>
+                {staked > 0 && open && (
+                  <button type="button" style={styles.clear} onClick={() => onClearBets()}>
+                    Take back
+                  </button>
+                )}
+                <span style={{ flex: 1 }} />
+                <span className="cozy-hint" style={styles.hint}>Red · Black · Odd · Even pay 1:1 · a single number pays 35:1</span>
+              </div>
+            </div>
+            {/* act two: the wheel */}
+            <div className="relative flex h-full w-1/2 items-center justify-center gap-6 pl-2">
+              <div className="flex aspect-square h-full max-w-[62%] items-center justify-center" style={{ filter: "drop-shadow(0 10px 22px rgba(0,0,0,0.55))" }}>
+                <RouletteWheel phase={roulette.phase} spinId={roulette.spinId} result={roulette.result} size="100%" onRattle={spinning ? onRattle : undefined} />
+              </div>
+              <div className="flex w-56 flex-col gap-2">
+                <div className="rounded-2xl bg-black/30 p-3 text-sm">
+                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.25em] text-amber-200/80">Riding on this spin</div>
+                  {riding.length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {riding.slice(0, 12).map(([k, v]) => (
+                        <span key={k} className="rounded-full bg-white/10 px-2 py-0.5 text-[11px]">
+                          {k.startsWith("n") ? k.slice(1) : k.toUpperCase()} · {chipText(v)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="opacity-60">Nothing: watching this one.</span>
+                  )}
+                </div>
+                {outcome && (
+                  <div className={`rounded-2xl p-3 text-center ${outcome.win ? "bg-amber-300 text-amber-950" : "bg-black/35"}`}>
+                    <span style={{ ...styles.ball, width: 52, height: 52, fontSize: 22, margin: "0 auto 6px", background: POCKET_BG[pocketColor(outcome.result)], color: "#fff" }}>{outcome.result}</span>
+                    <div className={`text-base font-extrabold ${outcome.win ? "cozy-coin-bump" : ""}`}>{outcome.text}</div>
+                  </div>
+                )}
+              </div>
+              {outcome?.win && (
+                <div className="cozy-confetti" aria-hidden>
+                  {CONFETTI.map((c, i) => (
+                    <i key={i} style={{ background: c.color, ["--dx" as string]: c.dx, ["--dy" as string]: c.dy, animationDelay: `${(i % 6) * 30}ms` } as CSSProperties} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <div style={styles.outside}>{OUTSIDE.map((o) => cell(o.kind, o.label, o.bg, o.fg, { flex: 1, height: 30 }))}</div>
       </div>
-
-      <div style={styles.foot}>
-        <div style={styles.chips}>
-          {CHIP_VALUES.map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => {
-                setChip(v);
-              }}
-              disabled={v > chips}
-              aria-pressed={chip === v}
-              className={`bg-gradient-to-b ${chipTone(v)}`}
-              style={{ ...styles.chip, opacity: v > chips ? 0.35 : 1, ...(chip === v ? styles.chipOn : null) }}
-            >
-              {v}
-            </button>
-          ))}
-          <button type="button" onClick={() => setChip(ALL_IN)} disabled={chips <= 0} aria-pressed={chip === ALL_IN} style={{ ...styles.allIn, ...(chip === ALL_IN ? styles.allInOn : null) }} title="Tap a spot to put down as much as it takes: its cap, the round's, or all your chips">
-            [ ALL IN ]
-          </button>
-        </div>
-        <span style={styles.staked}>
-          On the table: <b>{chipText(staked)}</b> / {chipText(MAX_BET_TOTAL)}
-        </span>
-        {staked > 0 && open && (
-          <button
-            type="button"
-            style={styles.clear}
-            onClick={() => {
-              onClearBets();
-            }}
-          >
-            Take back
-          </button>
-        )}
-      </div>
-      <span className="cozy-hint" style={styles.hint}>Red · Black · Odd · Even pay 1:1 · a single number pays 35:1</span>
-    </div>
+    </Modal>
   );
 }
 
 const styles: Record<string, CSSProperties> = {
-  panel: {
-    ...glass,
-    ...hudText,
-    backdropFilter: "blur(16px) saturate(150%)",
-    border: "1px solid rgba(242, 207, 115, 0.45)",
-    color: "#fff3dc",
-    borderRadius: 22,
-    padding: 12,
-    width: "min(500px, calc(100vw - 24px))",
-    position: "relative",
-    background: "rgba(38, 16, 20, 0.72)",
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
-  },
   head: { display: "flex", alignItems: "center", gap: 8 },
   title: { fontWeight: 800, fontSize: 15, color: "#f2cf73" },
   phase: { fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 999, color: "#fff" },
@@ -264,7 +250,7 @@ const styles: Record<string, CSSProperties> = {
   outcome: { display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 12, fontWeight: 700, fontSize: 14 },
   ball: { width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center", fontWeight: 800, color: "#fff", boxShadow: "0 0 0 2px #f2cf73" },
   felt: { background: "#1c6b3f", borderRadius: 14, padding: 6, display: "flex", flexDirection: "column", gap: 5, boxShadow: "inset 0 0 0 2px rgba(242,207,115,0.5)" },
-  grid: { display: "grid", gridTemplateColumns: "1.1fr repeat(12, 1fr)", gridTemplateRows: "repeat(3, 26px)", gap: 3 },
+  grid: { display: "grid", gridTemplateColumns: "1.1fr repeat(12, 1fr)", gridTemplateRows: "repeat(3, minmax(0, 1fr))", gap: 4 },
   outside: { display: "flex", gap: 4 },
   cell: {
     position: "relative",
@@ -274,7 +260,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 6,
     fontFamily: "var(--font-cozy)",
     fontWeight: 800,
-    fontSize: 12,
+    fontSize: 16,
     padding: 0,
     transition: "transform 100ms ease, filter 100ms ease",
   },

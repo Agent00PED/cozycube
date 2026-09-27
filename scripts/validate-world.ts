@@ -42,6 +42,8 @@ import {
   GAZETTE_REACH,
   MACHINE_REACH,
   PATRON_SPOTS,
+  BIG_SIX_SPOTS,
+  DARTS_OCHE,
   PIANO_REACH,
   ROULETTE_BET_RADIUS,
   ROULETTE_CENTER,
@@ -203,7 +205,7 @@ for (const mapId of MAP_IDS) {
     checks++;
     if (!nearGameTable("poker", s.x, s.z)) fail(`${C}: ${s.propId} is out of the poker table's reach`);
   }
-  const gameProp: Record<CasinoGameTable, string> = { poker: "poker_table", poker_vip: "vip_poker_table", baccarat: "baccarat_table", craps: "craps_table", derby: "derby_table", pusher: "coin_pusher", billiards: "billiards_table" };
+  const gameProp: Record<CasinoGameTable, string> = { poker: "poker_table", poker_vip: "vip_poker_table", baccarat: "baccarat_table", baccarat_hall: "hall_baccarat_table", craps: "craps_table", derby: "derby_table", pusher: "coin_pusher", billiards: "billiards_table", bigsix: "big_six", darts: "darts_board" };
   for (const game of Object.keys(CASINO_GAME_TABLES) as CasinoGameTable[]) {
     const a = APPROACH_POINTS[gameProp[game]];
     checks++;
@@ -231,6 +233,12 @@ for (const mapId of MAP_IDS) {
 
   // Bruno's doors up to the penthouse: open ground on the stage
   standable(C, home, VIP_DOORS_FRONT, "Bruno's doors (the stage)");
+  // the Big Six's ledge: every spot you bet from is open, reachable and in reach of the ledge; the
+  // darts oche too
+  BIG_SIX_SPOTS.forEach((p, i) => {
+    if (standable(C, home, p, `the Big Six's spot ${i + 1}`) && !nearGameTable("bigsix", p.x, p.z)) fail(`${C}: the Big Six's spot ${i + 1} ${fmt(p)} is out of its reach`);
+  });
+  standable(C, home, DARTS_OCHE, "the darts oche");
 
   // the staff stand inside colliders, so nobody walks through them
   for (const [id, npc] of Object.entries(CASINO_NPCS)) {
