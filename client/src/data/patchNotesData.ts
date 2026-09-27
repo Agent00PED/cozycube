@@ -306,7 +306,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 6,
     name: "The Living World & Atmosphere Sync",
-    range: "v0.6.0 – v0.6.7",
+    range: "v0.6.0 – v0.6.8",
     icon: "🌦️",
     blurb: "Skies that follow the hour and the weather, a surer step between worlds, and a new heart for the lounge.",
     patches: [
@@ -461,6 +461,31 @@ export const PATCH_ERAS: PatchEra[] = [
             "Updates no longer end on \"Couldn't reach Discord: Timed out waiting for Discord SDK handshake\": the Activity never reloads itself, and your Discord login is kept in memory.",
             "Settings → Switch lounge takes you back to the lobby at once, without a reload.",
             "The loading screen's Try again logs in again without reloading, with a Close Activity button if Discord never answers.",
+          ],
+        },
+      },
+      {
+        version: "0.6.8",
+        date: "2026-09-28",
+        title: "Pinball for Chips & a Cozier Welcome",
+        summary: "Velvet Nights plays for chips in a snug arcade cabinet, the pool table moves up by the Big Six, the coin pusher's coins tumble for real, and the lobby and Patch Notes put on CozyCube's warm paper.",
+        changes: {
+          features: [
+            "Velvet Nights pinball is played for chips: pick a credit of 10, 25, 50 or 100 and pull the plunger for three balls. Score 3,000 for your stake back, 5,000 for 1.5x, 10,000 for 2.5x and 20,000 or more for the 5x Jackpot.",
+            "The pinball panel is now a compact arcade cabinet: the playfield on the left, your stake, score, payout tiers and the plunger on the right.",
+          ],
+          visuals: [
+            "The 8-ball table now stands on the Velvet Lounge's oak parquet, in front of the Big Six wheel.",
+            "The velvet ropes round craps are gone, and roulette and craps sit a little closer to the blackjack tables: an open, balanced floor.",
+            "Coins dropped into the pusher tumble down the brass pegs as spinning discs (no more thin slivers), and they tip face-on as they fall into the tray.",
+            "The pusher's plate glides in a smooth sine stroke, and the coins it shoves slide on a little before settling.",
+            "The lounge selector and the Patch Notes wear CozyCube's own warm cream paper and rounded letters, the selector over the Starlight Campfire at night.",
+          ],
+          economy: [
+            "A pinball game is scored on the server, which replays your flips and launches, so every payout is earned. A steady game about breaks even, and great ones win big.",
+          ],
+          fixes: [
+            "Closing the pinball cabinet mid-game ends the game there, paid on the score so far.",
           ],
         },
       },

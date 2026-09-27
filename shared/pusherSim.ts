@@ -7,10 +7,12 @@
 // the house's gutter in that corner. Coins that have stopped moving sleep (skipped until
 // something touches them), and a shelf never holds more than PUSHER_MAX_COINS: the server runs this
 // at a fixed step for each pusher and sends the shelf to whoever is playing it; the client only
-// draws what it is sent.
+// draws what it is sent. A coin that is shoved keeps sliding for a moment after (its velocity,
+// damped by the felt's friction each step), so a push ripples through the pile and spills over the
+// edge instead of stopping dead.
 //
 // Units: the shelf is 1 wide (x, 0 at the left) and 1 deep (y, 0 at the back wall, 1 at the edge).
-// Only + - * / and sqrt, so any runtime steps it the same.
+// Only the server steps a shelf, so the one authority's arithmetic is the shelf's.
 
 export const SHELF_W = 1;
 export const SHELF_D = 1;
@@ -37,6 +39,8 @@ export const SHELF_STEP_S = 1 / 30;
 const REST_EPS = 1e-4;
 const SLEEP_S = 0.6;
 const RELAX_PASSES = 4;
+/** How much of a step's slide a coin keeps into the next (the felt's friction takes the rest). */
+const SLIDE_KEEP = 0.55;
 
 export interface ShelfCoin {
   id: number;
@@ -46,6 +50,9 @@ export interface ShelfCoin {
   v: number;
   /** Seconds it has lain still (asleep past SLEEP_S). */
   still: number;
+  /** Its slide (per step), carried into the next step and damped. */
+  vx?: number;
+  vy?: number;
 }
 export interface Shelf {
   coins: ShelfCoin[];
@@ -61,13 +68,10 @@ export interface ShelfFall {
   gutter: boolean;
 }
 
-/** Where the plate's face is at simulated time t. */
+/** Where the plate's face is at simulated time t: a continuous sine stroke, in and out. */
 export function platePos(t: number): number {
   const u = (((t % PLATE_PERIOD_S) + PLATE_PERIOD_S) % PLATE_PERIOD_S) / PLATE_PERIOD_S;
-  // a smooth in-and-out (a triangle eased at its ends: no trig, so every runtime agrees)
-  const tri = u < 0.5 ? u * 2 : 2 - u * 2;
-  const eased = tri * tri * (3 - 2 * tri);
-  return PLATE_BACK + (PLATE_FRONT - PLATE_BACK) * eased;
+  return PLATE_BACK + ((PLATE_FRONT - PLATE_BACK) * (1 - Math.cos(2 * Math.PI * u))) / 2;
 }
 
 const clampX = (x: number) => Math.max(COIN_R, Math.min(SHELF_W - COIN_R, x));
@@ -133,8 +137,14 @@ export function stepShelf(shelf: Shelf): ShelfFall[] {
   const x0 = new Float64Array(n);
   const y0 = new Float64Array(n);
   for (let i = 0; i < n; i++) {
-    x0[i] = coins[i].x;
-    y0[i] = coins[i].y;
+    const c = coins[i];
+    x0[i] = c.x;
+    y0[i] = c.y;
+    // still sliding from the last step: on it goes (the felt takes some of it each step)
+    if (c.vx || c.vy) {
+      c.x = clampX(c.x + (c.vx ?? 0));
+      c.y += c.vy ?? 0;
+    }
   }
   const pinned = (c: ShelfCoin) => advancing && c.y - COIN_R <= plate + 1e-6;
   const pushByPlate = () => {
@@ -191,8 +201,13 @@ export function stepShelf(shelf: Shelf): ShelfFall[] {
       falls.push({ id: c.id, x: c.x, v: c.v, gutter: c.x < GUTTER_W });
       continue;
     }
-    const moved = Math.abs(c.x - x0[i]) + Math.abs(c.y - y0[i]);
+    const mx = c.x - x0[i];
+    const my = c.y - y0[i];
+    const moved = Math.abs(mx) + Math.abs(my);
     c.still = moved < REST_EPS ? c.still + SHELF_STEP_S : 0;
+    // the slide it carries on with (never back toward the plate: the plate only ever pushes)
+    c.vx = moved < REST_EPS ? 0 : mx * SLIDE_KEEP;
+    c.vy = moved < REST_EPS ? 0 : Math.max(0, my) * SLIDE_KEEP;
     kept.push(c);
   }
   shelf.coins = kept;

@@ -105,9 +105,13 @@ import {
   type PusherEvent,
   type PusherPurse,
   type PusherView,
+  type PinballResult,
+  type PinballStarted,
   type RoulettePhase,
   type VipPassResult,
+  pinballTier,
 } from "../../../shared/casino";
+import { PINBALL_MAX_STEPS, PINBALL_STEPS_PER_S, replayPinball, validPinballInputs } from "../../../shared/pinball";
 import { VIP_PASS } from "../../../shared/items";
 import { HOLDEM_BARON, HOLDEM_BORIS, HOLDEM_HIGH_ROLLERS, HOLDEM_REGULARS, holdemAct, holdemView, newHoldemHand, runHouse, type HoldemGame, type HoldemMove, type HoldemTable } from "../../../shared/holdem";
 import { PIANO_PIECES, isPianoPiece } from "../../../shared/pianoPieces";
@@ -123,6 +127,7 @@ import {
   GACHAPON_FRONT,
   GAZETTE_REACH,
   MACHINE_REACH,
+  PINBALL_MACHINES,
   PIANO_REACH,
   ROULETTE_BET_RADIUS,
   ROULETTE_CENTER,
@@ -607,6 +612,50 @@ export class CasinoFloor {
     this.state.bets.delete(sessionId);
   }
 
+  // --- the pinball machines ----------------------------------------------------------------------
+
+  private pinballs = new Map<string, { gameId: number; propId: string; stake: number; startedAt: number }>();
+  private pinballSeq = 0;
+
+  /** A credit into a pinball cabinet you stand at (the stake within its limits), taken as the first
+   *  ball is launched: the game's id comes back. A new credit ends any game left open. */
+  pinballStart(sessionId: string, propId: unknown, stake: unknown) {
+    const m = PINBALL_MACHINES.find((q) => q.propId === propId);
+    if (!m) return;
+    const p = this.atTable(sessionId, "pinball");
+    if (!p) return;
+    const n = tableStake(stake, TABLE_LIMITS.pinball);
+    if (n === null) return this.refuse(sessionId, "limits");
+    if (p.chips < n) return this.refuse(sessionId, "chips");
+    if (!this.claimMachine(sessionId, m.propId)) return;
+    p.chips -= n;
+    const gameId = ++this.pinballSeq;
+    this.pinballs.set(sessionId, { gameId, propId: m.propId, stake: n, startedAt: Date.now() });
+    this.host.sendTo(sessionId, "pinballStarted", { propId: m.propId, gameId, stake: n, chips: p.chips } satisfies PinballStarted);
+  }
+
+  /**
+   * A game's end (the last ball drained, or the panel closed mid-game): the server plays it again
+   * from its inputs (shared/pinball.ts, in slices so the room never stalls) and pays the score it
+   * finds, by its tier. The game can't have run longer than the time since its credit went in.
+   */
+  async pinballEnd(sessionId: string, gameId: unknown, steps: unknown, inputs: unknown) {
+    const game = this.pinballs.get(sessionId);
+    if (!game || game.gameId !== gameId) return;
+    this.pinballs.delete(sessionId);
+    if (!validPinballInputs(inputs) || !Number.isInteger(steps) || (steps as number) < 0) return;
+    const elapsedS = (Date.now() - game.startedAt) / 1000;
+    const allowed = Math.min(PINBALL_MAX_STEPS, Math.ceil((elapsedS + 3) * PINBALL_STEPS_PER_S));
+    const played = await replayPinball(inputs, Math.min(steps as number, allowed), 20_000);
+    const tier = pinballTier(played.score);
+    const mult = tier?.mult ?? 0;
+    const payout = Math.floor(game.stake * mult);
+    const p = this.state.players.get(sessionId);
+    if (p && payout > 0) this.addChips(p, payout);
+    this.host.sendTo(sessionId, "pinballResult", { propId: game.propId, gameId: game.gameId, score: played.score, mult, payout, chips: p?.chips ?? 0 } satisfies PinballResult);
+    if (p && mult >= 5) this.announce(sessionId, p, payout, "pinball", `a ${played.score.toLocaleString("en-US")} Jackpot on Velvet Nights`, true);
+  }
+
   // --- the one-player machines -----------------------------------------------------------------
 
   /** Whether the player may use a one-player machine now (free, theirs, or kept for them), taking it
@@ -656,7 +705,9 @@ export class CasinoFloor {
         const p = this.state.players.get(who);
         const prop = PROP_AT.get(id);
         const gone = !p || !prop || Math.hypot(p.x - prop.x, p.z - prop.z) > INTERACT_RADIUS + 1;
-        if (gone || now >= until) {
+        // (a pinball game in progress keeps its cabinet, however long it runs)
+        const playing = this.pinballs.get(who)?.propId === id;
+        if (gone || (now >= until && !playing)) {
           this.state.machines.set(id, "");
           this.nextPatronAt.set(id, now + rand(10, 30) * 1000);
         }
@@ -1634,8 +1685,10 @@ export class CasinoFloor {
         break;
       }
       case "pinball":
-        // free play: the machine's physics and score are the player's own (the panel)
-        if (nearGameTable("pinball", p.x, p.z, GAME_SLACK)) panel("pinball");
+        // the panel; a credit goes in with the first ball (PINBALL_START)
+        if (!nearGameTable("pinball", p.x, p.z, GAME_SLACK)) break;
+        if (!this.claimMachine(sessionId, prop.propId)) break;
+        panel("pinball");
         break;
       case "billiards":
         if (nearGameTable("billiards", p.x, p.z, GAME_SLACK)) {
@@ -1790,6 +1843,10 @@ export class CasinoFloor {
       case "PUSHER_CLOSE":
         this.pusherWatch.delete(sessionId);
         return;
+      case "PINBALL_START":
+        return this.pinballStart(sessionId, packet.propId, packet.stake);
+      case "PINBALL_END":
+        return void this.pinballEnd(sessionId, packet.gameId, packet.steps, packet.inputs);
       case "EXCUSE_ME":
         return this.excuseMe(sessionId, p, packet.propId);
       case "POOL_BREAK":
@@ -1892,6 +1949,8 @@ export class CasinoFloor {
     if (this.six.phase !== "settled") this.addChips(p, this.six.stakes.filter((s) => s.sessionId === sessionId).reduce((a, s) => a + s.amount, 0));
     this.six.stakes = this.six.stakes.filter((s) => s.sessionId !== sessionId);
     this.crapsGames.delete(sessionId);
+    // a pinball game left on the floor is over where it stands (nothing more to pay without its end)
+    this.pinballs.delete(sessionId);
     this.release(sessionId);
   }
 

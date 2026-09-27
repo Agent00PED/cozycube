@@ -6,7 +6,7 @@ import type { Room } from "colyseus.js";
 import { walkY } from "@shared/collision";
 import { BackgroundSky, CASINO_SKY, CASINO_VIP_SKY } from "./BackgroundSky";
 import { BIG_SIX_SPIN_MS, DERBY_HORSES, DERBY_LANES, DERBY_RACERS, DERBY_RACE_MS, SLOT_SYMBOLS, bigSixRest, bigSixSpinAngle, bigSixUnder, derbyPaces, derbyProgress, type BigSixState, type CasinoGame, type CasinoPropEvent, type CasinoWin, type PianoNote, type PianoRecital } from "@shared/casino";
-import { BIG_SIX, CASINO_LAYOUT as L, CASINO_NPCS, CASINO_STAGES, COIN_PUSHERS, LOUNGE_Y, TIP_JARS, VIP_DOORS } from "@shared/worlds/casino";
+import { BIG_SIX, BILLIARDS_ALONG_Z, CASINO_LAYOUT as L, CASINO_NPCS, CASINO_STAGES, COIN_PUSHERS, LOUNGE_Y, TIP_JARS, VIP_DOORS, casinoFloorY } from "@shared/worlds/casino";
 import { CasinoVipWorld } from "./CasinoVipWorld";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
@@ -415,8 +415,15 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
     if (parts.cue && parts.cueRest) {
       const b = now - breakAt.current;
       const k = b < 0 ? 0 : b < 0.45 ? easeIn(b / 0.45) : b < 2.2 ? 1 : b < 3.2 ? 1 - easeInOut(b - 2.2) : 0;
-      parts.cue.position.x = parts.cueRest.x + k * (L.billiards.len - 1.45);
-      parts.cue.rotation.z = -parts.cue.position.x * 20;
+      // (along the table's length: north to south on the lounge's dais)
+      const run = k * (L.billiards.len - 1.45);
+      if (BILLIARDS_ALONG_Z) {
+        parts.cue.position.z = parts.cueRest.z + run;
+        parts.cue.rotation.x = parts.cue.position.z * 20;
+      } else {
+        parts.cue.position.x = parts.cueRest.x + run;
+        parts.cue.rotation.z = -parts.cue.position.x * 20;
+      }
     }
     // the penthouse's gilded doors: swung open for a guest going up or coming down, then eased shut
     const v = now - vipOpen.current;
@@ -451,7 +458,7 @@ const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2,
 
 // --- the Big-Win marquee ---------------------------------------------------------------------
 
-const GAME_ICON: Record<CasinoGame, string> = { slots: "🎰", roulette: "🎡", blackjack: "🃏", poker: "♠", baccarat: "🂡", bigsix: "🎡", craps: "🎲", derby: "🏇", pusher: "🪙" };
+const GAME_ICON: Record<CasinoGame, string> = { slots: "🎰", roulette: "🎡", blackjack: "🃏", poker: "♠", baccarat: "🂡", bigsix: "🎡", craps: "🎲", derby: "🏇", pusher: "🪙", pinball: "🕹️" };
 const REGULARS = ["Lady Honeysuckle", "Count Whiskerton", "The Baroness", "Sir Reginald", "Madame Plume", "Dr. Fluffington", "Captain Barnacles", "Duchess Marmalade", "Monsieur Truffle", "Old Tom Tabby"];
 const SCROLL_S = 7;
 
@@ -664,7 +671,7 @@ function CasinoLights() {
       {/* the banker's lamp in the cage, the back bar, the billiards lamp, the lounge's candles */}
       <pointLight color="#ffd98a" intensity={0.9 * lamp} distance={4} decay={2} position={[L.cage.window - 0.85, 1.5, L.cage.z1 - 0.4]} castShadow={false} />
       <pointLight color="#ffc070" intensity={1.1 * lamp} distance={5} decay={2} position={[face + 0.8, lounge + 2.3, (L.bar.z0 + L.bar.z1) / 2]} castShadow={false} />
-      <pointLight color="#ffe2a0" intensity={1.3 * lamp} distance={3.6} decay={2} position={[L.billiards.x, L.billiards.lamp - 0.2, L.billiards.z]} castShadow={false} />
+      <pointLight color="#ffe2a0" intensity={1.3 * lamp} distance={3.6} decay={2} position={[L.billiards.x, casinoFloorY(L.billiards.x, L.billiards.z) + L.billiards.lamp - 0.2, L.billiards.z]} castShadow={false} />
       <pointLight color="#ffb866" intensity={0.8 * lamp} distance={4.5} decay={2} position={[L.coffee.x, lounge + 1.0, L.coffee.z]} castShadow={false} />
       <PianoSpotlight lamp={lamp} />
       {/* the penthouse's gilded doors, lit up on the High-Roller Stage */}

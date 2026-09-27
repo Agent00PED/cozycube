@@ -104,7 +104,7 @@ export function exchangeAmount(requested: unknown, available: number): number | 
 // so a stake outside it is refused whatever the client sends. A brass placard on each game's panel
 // reads "MIN: 25 | MAX ALL-IN: 1,000".
 
-export type TableId = "blackjack_casual" | "blackjack_high" | "poker" | "poker_vip" | "slots" | "slots_vault" | "baccarat" | "baccarat_hall" | "bigsix" | "roulette_inside" | "roulette_outside" | "craps" | "derby" | "pusher" | "pusher_high";
+export type TableId = "blackjack_casual" | "blackjack_high" | "poker" | "poker_vip" | "slots" | "slots_vault" | "baccarat" | "baccarat_hall" | "bigsix" | "roulette_inside" | "roulette_outside" | "craps" | "derby" | "pusher" | "pusher_high" | "pinball";
 export interface TableLimit {
   name: string;
   min: number;
@@ -130,6 +130,7 @@ export const TABLE_LIMITS: Record<TableId, TableLimit> = {
   derby: { name: "The Mechanical Turf Club", min: 10, max: 250, presets: [10, 25, 50, 100] },
   pusher: { name: "The Coin Pusher", min: 2, max: 25, presets: [2, 5, 10] },
   pusher_high: { name: "The High-Roller Pusher", min: 25, max: 250, presets: [25, 50, 100] },
+  pinball: { name: "Velvet Nights Pinball", min: 10, max: 100, presets: [10, 25, 50, 100] },
 };
 
 /** ALL IN: everything you hold up to the table's cap, or 0 when that is under its minimum.
@@ -518,6 +519,41 @@ export interface PusherPurse {
   free?: boolean;
 }
 
+// --- the pinball machines ------------------------------------------------------------------------
+//
+// Velvet Nights, played for chips: a credit (10 to 100) buys three balls, taken as the first ball is
+// launched; when the game is over the score is paid by its tier (the stake times the multiple, the
+// stake itself back at 1x). The score paid on is the server's own: it replays the game from the
+// player's inputs (shared/pinball.ts), so a game can't be claimed, only played. Closing the panel
+// mid-game ends it there, paid on the score so far. The tiers and the table's points are
+// calibrated together (a steady player about breaks even, a good one comes out ahead).
+
+/** The score tiers, best first: at or over `score` pays the stake times `mult`. */
+export const PINBALL_TIERS: readonly { score: number; mult: number; label: string }[] = [
+  { score: 20000, mult: 5, label: "Jackpot" },
+  { score: 10000, mult: 2.5, label: "Wizard" },
+  { score: 5000, mult: 1.5, label: "Hot Streak" },
+  { score: 3000, mult: 1, label: "Replay" },
+];
+/** A score's tier (null: under the lowest). */
+export const pinballTier = (score: number) => PINBALL_TIERS.find((t) => score >= t.score) ?? null;
+/** Server -> the player: their credit is in (its game id, what it cost, their chips now). */
+export interface PinballStarted {
+  propId: string;
+  gameId: number;
+  stake: number;
+  chips: number;
+}
+/** Server -> the player: the game as the server replayed it, and what it paid. */
+export interface PinballResult {
+  propId: string;
+  gameId: number;
+  score: number;
+  mult: number;
+  payout: number;
+  chips: number;
+}
+
 // --- the baby grand -----------------------------------------------------------------------------
 
 /** What the piano plays by itself (shared/pianoPieces.ts holds the notes): public-domain pieces and
@@ -861,7 +897,7 @@ export interface CapsuleResult {
 export const CELEBRATE_SLOT_MULTIPLIER = Math.min(...SLOT_TRIPLE);
 /** Wins this big (in chips) make the Big-Win marquee. */
 export const MARQUEE_MIN_WIN = 50;
-export type CasinoGame = "slots" | "roulette" | "blackjack" | "poker" | "baccarat" | "bigsix" | "craps" | "derby" | "pusher";
+export type CasinoGame = "slots" | "roulette" | "blackjack" | "poker" | "baccarat" | "bigsix" | "craps" | "derby" | "pusher" | "pinball";
 /** Server -> everyone ("casinoWin"): a win for the marquee, and whether the hall celebrates it. */
 export interface CasinoWin {
   sessionId: string;
@@ -911,6 +947,8 @@ export type CasinoPacket =
   | { type: "DERBY_BET"; horse: number; amount: number }
   | { type: "PUSHER_DROP"; propId: PusherId; stake: number; pos: number }
   | { type: "PUSHER_CLOSE" }
+  | { type: "PINBALL_START"; propId: string; stake: number }
+  | { type: "PINBALL_END"; propId: string; gameId: number; steps: number; inputs: number[] }
   | { type: "POOL_BREAK" }
   | { type: "POOL_JOIN" }
   | { type: "POOL_LEAVE" }

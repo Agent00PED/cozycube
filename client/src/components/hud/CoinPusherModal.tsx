@@ -27,10 +27,18 @@ interface Props {
 }
 
 type Coin = { id: number; x: number; y: number; v: number };
-type Falling = { x: number; v: number; gutter: boolean; at: number; paid: boolean };
-type Dropping = { path: number[]; landed: boolean; v: number; at: number; from: number };
+type Falling = { x: number; v: number; gutter: boolean; at: number; paid: boolean; spin: number };
+/** A coin on its way down the pegs: its path, and how it tumbles (its turn in the picture's plane,
+ *  its spin per second, kicked afresh at every peg, and the row it last hit). */
+type Dropping = { path: number[]; landed: boolean; v: number; at: number; from: number; phi: number; omega: number; row: number };
 
 const DROP_ROW_MS = 110;
+/** A falling coin is a disc tilted this far toward you (the shelf's own angle), shown as an ellipse
+ *  this much shallower than it is wide, and a peg kicks it into a spin of up to 15 degrees a frame. */
+const COIN_TILT = (35 * Math.PI) / 180;
+const COIN_SQUASH = Math.sin(COIN_TILT);
+const MAX_SPIN = ((15 * Math.PI) / 180) * 60;
+const kick = () => (Math.random() < 0.5 ? -1 : 1) * MAX_SPIN * (0.35 + Math.random() * 0.65);
 /** A coin's colours by its value: the chip colours of the casino (white 2, red 5, green 25, black
  *  100, purple 250 and up). */
 function coinTone(v: number): [string, string] {
@@ -83,14 +91,14 @@ export function CoinPusherModal({ propId, chips, coins, subscribeMessages, onDro
           const e = payload as PusherEvent;
           if (e.propId !== propId) return;
           if (e.kind === "drop") {
-            dropping.current = { path: e.path, landed: e.landed, v: e.v, at: now, from: aimPos.current };
+            dropping.current = { path: e.path, landed: e.landed, v: e.v, at: now, from: aimPos.current, phi: Math.random() * Math.PI, omega: kick(), row: -1 };
             e.path.forEach((_, i) => window.setTimeout(() => playSfx("peg", 0.7), DROP_ROW_MS * (i + 1)));
             window.setTimeout(() => {
               playSfx(e.landed ? "coinDrop" : "drain", 0.8);
               setBusy(false);
             }, DROP_ROW_MS * (e.path.length + 1));
           } else {
-            for (const f of e.falls) falling.current.push({ x: f.x, v: f.v, gutter: f.gutter, at: now, paid: !f.gutter && e.paid > 0 });
+            for (const f of e.falls) falling.current.push({ x: f.x, v: f.v, gutter: f.gutter, at: now, paid: !f.gutter && e.paid > 0, spin: (Math.random() - 0.5) * 0.8 });
             if (e.paid > 0) {
               setLastPaid({ n: e.paid, at: now });
               playSfx(e.paid >= bet * 10 ? "jackpot" : "coins");
@@ -111,6 +119,7 @@ export function CoinPusherModal({ propId, chips, coins, subscribeMessages, onDro
     const el = canvas.current;
     if (!el) return;
     let raf = 0;
+    let lastFrame = performance.now();
     const draw = () => {
       raf = requestAnimationFrame(draw);
       const box = el.getBoundingClientRect();
@@ -124,9 +133,11 @@ export function CoinPusherModal({ propId, chips, coins, subscribeMessages, onDro
       const ctx = el.getContext("2d");
       if (!ctx) return;
       const now = performance.now();
-      paint(ctx, W, H, now);
+      const dt = Math.min(0.1, (now - lastFrame) / 1000);
+      lastFrame = now;
+      paint(ctx, W, H, now, dt);
     };
-    const paint = (ctx: CanvasRenderingContext2D, W: number, H: number, now: number) => {
+    const paint = (ctx: CanvasRenderingContext2D, W: number, H: number, now: number, dt: number) => {
       ctx.clearRect(0, 0, W, H);
       const s = shelf.current;
       // --- the layout: the peg board over the shelf, the tray under it
@@ -227,27 +238,32 @@ export function CoinPusherModal({ propId, chips, coins, subscribeMessages, onDro
       }
       const plate = platePos(s.t + (now - s.tAt) / 1000);
       list.sort((a, b) => a.y - b.y);
-      const drawCoin = (x: number, y: number, v: number, lift = 0, alpha = 1) => {
-        const rx = COIN_R * widthAt(Math.min(1, Math.max(0, y)));
-        const ry = rx * 0.5;
-        const px = sx(x, Math.min(1, y));
-        const py = sy(Math.min(1, y)) - lift;
+      /** A coin as a disc seen at an angle: its rim (a darker ellipse under it, its thickness), its
+       *  face, and the gold ring on the face; `rot` turns it in the picture's plane, `squash` is how
+       *  shallow it looks (0.5 lying on the shelf). */
+      const disc = (px: number, py: number, rx: number, v: number, squash: number, rot: number, alpha: number) => {
+        const ry = rx * squash;
         const [face, edge] = coinTone(v);
+        const thick = rx * 0.22 * Math.sqrt(Math.max(0, 1 - squash * squash)) + rx * 0.08;
         ctx.globalAlpha = alpha;
         ctx.fillStyle = edge;
         ctx.beginPath();
-        ctx.ellipse(px, py + ry * 0.45, rx, ry, 0, 0, Math.PI * 2);
+        ctx.ellipse(px - Math.sin(rot) * thick, py + Math.cos(rot) * thick, rx, ry, rot, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = face;
         ctx.beginPath();
-        ctx.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2);
+        ctx.ellipse(px, py, rx, ry, rot, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = "#e8c35a";
         ctx.lineWidth = Math.max(1, rx * 0.16);
         ctx.beginPath();
-        ctx.ellipse(px, py, rx * 0.78, ry * 0.78, 0, 0, Math.PI * 2);
+        ctx.ellipse(px, py, rx * 0.78, ry * 0.78, rot, 0, Math.PI * 2);
         ctx.stroke();
         ctx.globalAlpha = 1;
+      };
+      const drawCoin = (x: number, y: number, v: number, lift = 0, alpha = 1, rot = 0, squash = 0.5) => {
+        const rx = COIN_R * widthAt(Math.min(1, Math.max(0, y)));
+        disc(sx(x, Math.min(1, y)), sy(Math.min(1, y)) - lift, rx, v, squash, rot, alpha);
       };
       // the plate: a chrome block across the back, its face at `plate`
       const plateTop = sy(0) - H * 0.03;
@@ -275,7 +291,8 @@ export function CoinPusherModal({ propId, chips, coins, subscribeMessages, onDro
       falling.current = falling.current.filter((f) => now - f.at < 900);
       for (const f of falling.current) {
         const u = (now - f.at) / 900;
-        drawCoin(f.x, 1, f.v, -H * 0.13 * u * u, 1 - u * 0.4);
+        // tipping forward off the lip: it turns face-on as it drops
+        drawCoin(f.x, 1, f.v, -H * 0.13 * u * u, 1 - u * 0.4, f.spin * u, 0.5 + 0.4 * Math.min(1, u * 1.6));
         if (f.paid && u < 0.8) {
           ctx.fillStyle = `rgba(255,230,140,${1 - u})`;
           ctx.font = `800 ${Math.round(H * 0.03)}px system-ui, sans-serif`;
@@ -297,16 +314,16 @@ export function CoinPusherModal({ propId, chips, coins, subscribeMessages, onDro
           const y1 = r < rows ? rowY(r) : d.landed ? sy(PLATE_FRONT * 0.5) : boardTop + boardH;
           const px = bx(x0 + (x1 - x0) * f);
           const py = y0 + (y1 - y0) * f - Math.sin(Math.PI * f) * H * 0.012;
-          const [face, edge] = coinTone(d.v);
-          const rr = COIN_R * boardW;
-          ctx.fillStyle = edge;
-          ctx.beginPath();
-          ctx.ellipse(px, py + rr * 0.15, rr * 0.35, rr, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = face;
-          ctx.beginPath();
-          ctx.ellipse(px, py, rr * 0.3, rr, 0, 0, Math.PI * 2);
-          ctx.fill();
+          // a peg's knock: a fresh spin, one way or the other
+          if (r !== d.row) {
+            d.row = r;
+            if (r > 0) d.omega = kick();
+          }
+          d.phi += d.omega * dt;
+          // a disc tilted toward you at the shelf's angle, spinning as it rattles down, with a
+          // little wobble of its tilt as it tumbles
+          const wobble = 0.12 * Math.sin(d.phi * 1.7);
+          disc(px, py, COIN_R * boardW, d.v, Math.min(0.85, COIN_SQUASH + wobble), d.phi, 1);
         }
       }
     };

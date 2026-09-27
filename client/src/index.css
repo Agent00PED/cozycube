@@ -58,6 +58,10 @@ button { font: inherit; }
 /* the round close button every panel shares: the same 40px height and full rounding as the
    header's pills and the coin pill beside it */
 .clay-close { @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-base leading-none text-stone-100 outline outline-1 -outline-offset-1 outline-white/10 transition-transform duration-150 hover:bg-white/20 active:scale-95; }
+/* CozyCube's warm paper sheet (the cream Modal tone): oatmeal cream, a soft inner glow, cocoa ink */
+.cozy-cream-sheet { background: #FDFBF7; box-shadow: 0 20px 60px rgba(40, 24, 12, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.7); }
+.clay-close-cream { background: #F3EBDD; color: #6B4F3A; outline-color: rgba(107, 79, 58, 0.15); }
+.clay-close-cream:hover { background: #EADFCB; }
 .clay-icon-btn { @apply inline-flex h-12 w-12 items-center justify-center rounded-2xl text-xl transition-transform duration-150 hover:scale-105 active:scale-95; }
 
 /* drawers and modals ease in with a little overshoot */

@@ -121,6 +121,8 @@ const RELAYED_MESSAGES = [
   "pusherView",
   "pusherEvent",
   "pusherPurse",
+  "pinballStarted",
+  "pinballResult",
   "blackjackResult",
   "pianoRecital",
   "pianoNote",

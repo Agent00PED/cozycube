@@ -21,7 +21,7 @@ export function Modal({
   icon,
   onClose,
   children,
-  width = 480,
+  width,
   tone = "stone",
   fit = false,
   landscape = false,
@@ -33,7 +33,7 @@ export function Modal({
   children: ReactNode;
   width?: number;
   /** A tinted variant for the casino tables. */
-  tone?: "stone" | "felt" | "velvet";
+  tone?: "stone" | "felt" | "velvet" | "cream";
   /** Sized to fit the viewport whole (90vw, never over 85vh), with no scrolling: for panels laid out to fit (the reel). */
   fit?: boolean;
   /** A 16:9 table in landscape (90vw by 85vh, at most 1200 by 720), laid out to fit with no
@@ -50,17 +50,27 @@ export function Modal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const toneClass = tone === "felt" ? "bg-emerald-950/85 border-emerald-300/20" : tone === "velvet" ? "bg-[#2a1017]/90 border-amber-200/20" : "bg-stone-900/85 border-white/10";
-  // the casino's panels (felt and velvet): engraved gold titles, a brass-edged sheet, a velvet ribbon
-  const casino = tone !== "stone";
+  const toneClass =
+    tone === "felt"
+      ? "bg-emerald-950/85 border-emerald-300/20 text-stone-100"
+      : tone === "velvet"
+        ? "bg-[#2a1017]/90 border-amber-200/20 text-stone-100"
+        : tone === "cream"
+          ? "cozy-cream-sheet border-[#E9DFCC] text-[#4A3728]"
+          : "bg-stone-900/85 border-white/10 text-stone-100";
+  // the casino's panels (felt and velvet): engraved gold titles, a brass-edged sheet, a velvet ribbon;
+  // the cream sheet is CozyCube's own warm paper (Settings' Patch Notes)
+  const casino = tone === "felt" || tone === "velvet";
+  const cream = tone === "cream";
+  const round = cream ? "rounded-[20px]" : "rounded-3xl";
 
   return createPortal(
     <div className={`fixed inset-0 z-[60] flex justify-center bg-black/45 ${landscape ? "items-center p-2" : "items-end sm:items-center sm:p-4"}`} style={SAFE_AREA} onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
       <div
         role="dialog"
         aria-label={title}
-        className={`clay-sheet sm:clay-pop flex ${landscape ? "max-h-[720px] w-[90vw] rounded-3xl" : `max-h-[85vh] ${fit ? "w-[90vw] sm:w-[90vw]" : "w-full"} rounded-t-3xl sm:rounded-3xl`} flex-col overflow-hidden border text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md ${toneClass} ${casino ? "casino-sheet casino-body" : ""}`}
-        style={{ maxWidth: landscape ? 1200 : width, height: landscape ? SAFE_LANDSCAPE_H : undefined }}
+        className={`clay-sheet sm:clay-pop flex ${landscape ? `max-h-[720px] w-[90vw] ${round}` : `max-h-[85vh] ${fit ? "w-[90vw] sm:w-[90vw]" : "w-full"} rounded-t-3xl ${cream ? "sm:rounded-[20px]" : "sm:rounded-3xl"}`} flex-col overflow-hidden border shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md ${toneClass} ${casino ? "casino-sheet casino-body" : ""}`}
+        style={{ maxWidth: landscape ? (width ?? 1200) : (width ?? 480), height: landscape ? SAFE_LANDSCAPE_H : undefined }}
       >
         <div className={`flex items-center gap-3 px-5 ${landscape ? "pt-2.5 pb-1" : "pt-4 pb-2"}`}>
           {icon && <span className="text-2xl">{icon}</span>}
@@ -69,9 +79,9 @@ export function Modal({
               <span className="gold-foil">{title}</span>
             </h2>
           ) : (
-            <h2 className="font-cozy flex-1 text-lg font-extrabold tracking-wide">{title}</h2>
+            <h2 className={`font-cozy flex-1 text-lg tracking-wide ${cream ? "font-bold text-[#4A3728]" : "font-extrabold"}`}>{title}</h2>
           )}
-          <button type="button" onClick={onClose} className="clay-close" aria-label="Close">
+          <button type="button" onClick={onClose} className={cream ? "clay-close clay-close-cream" : "clay-close"} aria-label="Close">
             ✕
           </button>
         </div>

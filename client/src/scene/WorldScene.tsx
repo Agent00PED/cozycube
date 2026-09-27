@@ -14,7 +14,7 @@ import { CASINO_URL, CasinoWorld } from "./CasinoWorld";
 import { CASINO_VIP_URL } from "./CasinoVipWorld";
 import { preloadCasinoStaff } from "../entities/CasinoStaff";
 import { preloadPatrons } from "../entities/AmbientPatrons";
-import { BAR_REACH, BIG_SIX, BIG_SIX_SPOTS, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, TABLE_FULL_LINE, barDistance, casinoFloorY, seatedGameAt, seatedGameOf, tablePerimeter, type StandingTable } from "@shared/worlds/casino";
+import { BAR_REACH, BIG_SIX, BIG_SIX_SPOTS, BILLIARDS_HX, BILLIARDS_HZ, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, TABLE_FULL_LINE, barDistance, casinoFloorY, seatedGameAt, seatedGameOf, tablePerimeter, type StandingTable } from "@shared/worlds/casino";
 import { VIP_FRAME } from "@shared/worlds/casino_vip";
 import { ChloeMaid, preloadChloe } from "../entities/ChloeMaid";
 import { pushToast } from "../components/hud/toastStore";
@@ -121,7 +121,7 @@ const CASINO_PADS: Partial<Record<ToggleableSyncState["kind"], { size: [number, 
   craps: { size: [CL.craps.len, 1.0, CL.craps.w] },
   derby: { size: [CL.derby.w, 1.1, CL.derby.len] },
   pusher: { size: [CL.pusher.d, CL.pusher.h, CL.pusher.w] },
-  billiards: { size: [CL.billiards.len, 1.0, CL.billiards.w] },
+  billiards: { size: [BILLIARDS_HX * 2, 1.0, BILLIARDS_HZ * 2] },
   piano: { size: [CL.piano.w, 1.1, CL.piano.len], at: () => ({ x: CL.piano.x, z: CL.piano.z, y: casinoFloorY(CL.piano.x, CL.piano.z) }) },
   gazette: { size: [CL.coffee.lx, 0.3, CL.coffee.lz], at: (p) => ({ y: p.y - 0.12 }) },
   fortune: { size: [1.2, CL.zara.h, 1.2] },

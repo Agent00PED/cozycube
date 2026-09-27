@@ -953,7 +953,7 @@ def lay_damask(M, place, size, body, accent):
 def pit_border(L):
     """The twin brass inlay that frames the central gaming pit: round the craps and roulette tables,
     the blackjack tables and the baccarat table (x0, x1, z0, z1, corner radius)."""
-    return (-3.9, 9.3, -2.4, 9.3, 0.7)
+    return (-2.7, 9.3, -2.4, 9.3, 0.7)
 
 
 def build_floor(M, L):
@@ -2249,12 +2249,6 @@ def die_mesh(cx, cy, cz):
     return D
 
 
-def build_craps_ropes(M, L):
-    """The velvet ropes framing the craps table on its open sides."""
-    for rope in L["craps"].get("ropes", []):
-        velvet_rope(M, rope["a"], rope["b"])
-
-
 def build_craps(M, L, nodes):
     """The craps table: a mahogany tub on two pedestals, a black padded rail, the felt bed laid out
     (the pass line, don't pass, come, the field, the centre bets), the stick on the rail, chips in
@@ -2844,69 +2838,90 @@ def build_piano(M, L, cushions):
 
 
 def build_billiards(M, L, nodes):
-    """The billiards table under its brass lamp: turned mahogany legs, green baize, cushion rails
-    with ivory sights, six pockets, the balls racked at the foot, a cue laid by, and the cue ball (a
-    node: the game rolls it at a break)."""
+    """The billiards table under its brass lamp, up on the lounge's dais: turned mahogany legs,
+    green baize, cushion rails with ivory sights, six pockets, the balls racked at the foot, a cue
+    laid by, and the cue ball (a node: the game rolls it at a break). `along`: the axis its length
+    runs on ("z": north-south, the head to the north); everything is laid out in the table's own
+    (u along it, v across it) and turned onto the floor by P."""
     b = L["billiards"]
     x, z = b["x"], b["z"]
+    AZ = b.get("along", "x") == "z"
     hl, hw = b["len"] / 2, b["w"] / 2
     top = b["top"]
-    x0, x1, z0, z1 = x - hl, x + hl, z - hw, z + hw
-    for lx in (x0 + 0.22, x, x1 - 0.22):
-        for lz in (z0 + 0.2, z1 - 0.2):
-            lathe(M, lx, lz, [(0, 0), (0.09, 0), (0.08, 0.06), (0.05, 0.12), (0.075, 0.3), (0.06, 0.5), (0.08, top - 0.24), (0, top - 0.24)], "CS_Mahogany", segs=12)
-            lathe(M, lx, lz, [(0, 0.1), (0.07, 0.1), (0.07, 0.125), (0, 0.125)], "CS_Gold", segs=12)
+
+    def P(u, v):
+        return (x - v, z + u) if AZ else (x + u, z + v)
+
+    def B(u0, u1, y0, y1, v0, v1, mat):
+        (a0, c0), (a1, c1) = P(u0, v0), P(u1, v1)
+        box(M, min(a0, a1), max(a0, a1), y0, y1, min(c0, c1), max(c0, c1), mat)
+
+    def O(u, y, v, ru, ry, rv, mat, cuts=1, mesh=None):
+        px, pz = P(u, v)
+        blob(mesh or M, px, y, pz, rv if AZ else ru, ry, ru if AZ else rv, mat, cuts=cuts)
+
+    def T(u, v, profile, mat, segs=12):
+        px, pz = P(u, v)
+        lathe(M, px, pz, profile, mat, segs=segs)
+
+    def C(a, bb, r, mat, sides, r_end=None):
+        (ax, az), (bx, bz) = P(a[0], a[2]), P(bb[0], bb[2])
+        cylinder(M, (ax, a[1], az), (bx, bb[1], bz), r, mat, sides=sides, r_end=r_end)
+
+    u0, u1, v0, v1 = -hl, hl, -hw, hw
+    for lu in (u0 + 0.22, 0.0, u1 - 0.22):
+        for lv in (v0 + 0.2, v1 - 0.2):
+            T(lu, lv, [(0, 0), (0.09, 0), (0.08, 0.06), (0.05, 0.12), (0.075, 0.3), (0.06, 0.5), (0.08, top - 0.24), (0, top - 0.24)], "CS_Mahogany")
+            T(lu, lv, [(0, 0.1), (0.07, 0.1), (0.07, 0.125), (0, 0.125)], "CS_Gold")
     felt = top - 0.04
-    box(M, x0 + 0.08, x1 - 0.08, top - 0.25, top - 0.1, z0 + 0.08, z1 - 0.08, "CS_Mahogany")
-    box(M, x0 + 0.08, x1 - 0.08, top - 0.26, top - 0.25, z0 + 0.08, z1 - 0.08, "CS_Gold")
-    box(M, x0 + 0.14, x1 - 0.14, top - 0.1, felt, z0 + 0.14, z1 - 0.14, "CS_Felt")
-    rails = ((x0, x1, z0, z0 + 0.14), (x0, x1, z1 - 0.14, z1), (x0, x0 + 0.14, z0 + 0.14, z1 - 0.14), (x1 - 0.14, x1, z0 + 0.14, z1 - 0.14))
-    for a, bb, c, d in rails:
-        box(M, a, bb, top - 0.1, top, c, d, "CS_Mahogany")
-    for a, bb, c, d in ((x0 + 0.14, x1 - 0.14, z0 + 0.14, z0 + 0.18), (x0 + 0.14, x1 - 0.14, z1 - 0.18, z1 - 0.14), (x0 + 0.14, x0 + 0.18, z0 + 0.18, z1 - 0.18), (x1 - 0.18, x1 - 0.14, z0 + 0.18, z1 - 0.18)):
-        box(M, a, bb, felt, top - 0.01, c, d, "CS_FeltDark")
+    B(u0 + 0.08, u1 - 0.08, top - 0.25, top - 0.1, v0 + 0.08, v1 - 0.08, "CS_Mahogany")
+    B(u0 + 0.08, u1 - 0.08, top - 0.26, top - 0.25, v0 + 0.08, v1 - 0.08, "CS_Gold")
+    B(u0 + 0.14, u1 - 0.14, top - 0.1, felt, v0 + 0.14, v1 - 0.14, "CS_Felt")
+    for a, bb, c, d in ((u0, u1, v0, v0 + 0.14), (u0, u1, v1 - 0.14, v1), (u0, u0 + 0.14, v0 + 0.14, v1 - 0.14), (u1 - 0.14, u1, v0 + 0.14, v1 - 0.14)):
+        B(a, bb, top - 0.1, top, c, d, "CS_Mahogany")
+    for a, bb, c, d in ((u0 + 0.14, u1 - 0.14, v0 + 0.14, v0 + 0.18), (u0 + 0.14, u1 - 0.14, v1 - 0.18, v1 - 0.14), (u0 + 0.14, u0 + 0.18, v0 + 0.18, v1 - 0.18), (u1 - 0.18, u1 - 0.14, v0 + 0.18, v1 - 0.18)):
+        B(a, bb, felt, top - 0.01, c, d, "CS_FeltDark")
     for k in range(1, 8):
         if k == 4:
             continue
-        sx = x0 + 0.14 + (x1 - x0 - 0.28) * k / 8
-        for zz in (z0 + 0.07, z1 - 0.07):
-            blob(M, sx, top + 0.003, zz, 0.012, 0.004, 0.008, "CS_Ivory", cuts=1)
+        su = u0 + 0.14 + (u1 - u0 - 0.28) * k / 8
+        for vv in (v0 + 0.07, v1 - 0.07):
+            O(su, top + 0.003, vv, 0.012, 0.004, 0.008, "CS_Ivory")
     for k in range(1, 4):
-        sz = z0 + 0.14 + (z1 - z0 - 0.28) * k / 4
-        for xx in (x0 + 0.07, x1 - 0.07):
-            blob(M, xx, top + 0.003, sz, 0.008, 0.004, 0.012, "CS_Ivory", cuts=1)
-    for px, pz in ((x0 + 0.15, z0 + 0.15), (x0 + 0.15, z1 - 0.15), (x1 - 0.15, z0 + 0.15), (x1 - 0.15, z1 - 0.15), (x, z0 + 0.12), (x, z1 - 0.12)):
-        lathe(M, px, pz, [(0, felt - 0.02), (0.065, felt - 0.02), (0.07, top + 0.004), (0, top + 0.004)], "CS_Gold", segs=12)
-        lathe(M, px, pz, [(0, felt - 0.019), (0.05, felt - 0.019), (0.05, top + 0.006), (0, top + 0.006)], "CS_Black", segs=12)
+        sv = v0 + 0.14 + (v1 - v0 - 0.28) * k / 4
+        for uu in (u0 + 0.07, u1 - 0.07):
+            O(uu, top + 0.003, sv, 0.008, 0.004, 0.012, "CS_Ivory")
+    for pu, pv in ((u0 + 0.15, v0 + 0.15), (u0 + 0.15, v1 - 0.15), (u1 - 0.15, v0 + 0.15), (u1 - 0.15, v1 - 0.15), (0.0, v0 + 0.12), (0.0, v1 - 0.12)):
+        T(pu, pv, [(0, felt - 0.02), (0.065, felt - 0.02), (0.07, top + 0.004), (0, top + 0.004)], "CS_Gold")
+        T(pu, pv, [(0, felt - 0.019), (0.05, felt - 0.019), (0.05, top + 0.006), (0, top + 0.006)], "CS_Black")
     # the rack of fifteen at the foot spot, the apex toward the head
     R = 0.028
     colours = ("CS_BallYellow", "CS_BallBlue", "CS_BallRed", "CS_BallPurple", "CS_BallOrange", "CS_BallGreen", "CS_BallMaroon", "CS_Black")
-    fx = x1 - 0.62
+    fu = u1 - 0.62
     k = 0
     for row in range(5):
         for j in range(row + 1):
-            bx = fx + row * R * 1.75
-            bz = z + (j - row / 2) * R * 2.02
-            blob(M, bx, felt + R, bz, R, R, R, "CS_Black" if (row, j) == (2, 1) else colours[k % 7], cuts=2)
+            O(fu + row * R * 1.75, felt + R, (j - row / 2) * R * 2.02, R, R, R, "CS_Black" if (row, j) == (2, 1) else colours[k % 7], cuts=2)
             k += 1
     # a cue laid along the near rail
-    cylinder(M, (x0 + 0.35, top + 0.012, z1 - 0.05), (x1 - 0.5, top + 0.009, z1 - 0.05), 0.013, "CS_MahoganyDark", sides=6, r_end=0.007)
+    C((u0 + 0.35, top + 0.012, v1 - 0.05), (u1 - 0.5, top + 0.009, v1 - 0.05), 0.013, "CS_MahoganyDark", 6, r_end=0.007)
     # the cue ball, at the head spot
-    C = Mesh()
-    hx = x0 + 0.62
-    blob(C, hx, felt + R, z, R, R, R, "CS_Ivory", cuts=2)
-    nodes.append({"name": "Prop_CueBall", "mesh": C, "origin": (hx, felt + R + LIFT[0], z), "force": "CS_Sheen"})
-    # the lamp: a brass bar on two rods, three green glass shades with their bulbs
+    Cb = Mesh()
+    hu = u0 + 0.62
+    O(hu, felt + R, 0.0, R, R, R, "CS_Ivory", cuts=2, mesh=Cb)
+    cx, cz = P(hu, 0.0)
+    nodes.append({"name": "Prop_CueBall", "mesh": Cb, "origin": (cx, felt + R + LIFT[0], cz), "force": "CS_Sheen"})
+    # the lamp: a brass bar along the table on two rods, three green glass shades with their bulbs
     ly = b["lamp"]
-    cylinder(M, (x - 0.85, ly + 0.14, z), (x + 0.85, ly + 0.14, z), 0.022, "CS_Brass", sides=8)
-    for sx in (-0.85, 0.85):
-        blob(M, x + sx, ly + 0.14, z, 0.03, 0.03, 0.03, "CS_Brass", cuts=1)
-        cylinder(M, (x + sx * 0.8, ly + 0.14, z), (x + sx * 0.8, 3.55 - LIFT[0], z), 0.008, "CS_Brass", sides=5)
-        lathe(M, x + sx * 0.8, z, [(0, 3.55 - LIFT[0]), (0.06, 3.55 - LIFT[0]), (0.04, 3.59 - LIFT[0]), (0, 3.6 - LIFT[0])], "CS_Brass", segs=10)
-    for sx in (-0.58, 0.0, 0.58):
-        cylinder(M, (x + sx, ly + 0.14, z), (x + sx, ly + 0.08, z), 0.01, "CS_Brass", sides=6)
-        lathe(M, x + sx, z, [(0, ly - 0.035), (0.16, ly - 0.05), (0.155, ly - 0.01), (0.06, ly + 0.07), (0, ly + 0.085)], "CS_ShadeGreen", segs=16)
-        blob(M, x + sx, ly - 0.055, z, 0.05, 0.03, 0.05, "CS_Bulb", cuts=1)
+    C((-0.85, ly + 0.14, 0.0), (0.85, ly + 0.14, 0.0), 0.022, "CS_Brass", 8)
+    for su in (-0.85, 0.85):
+        O(su, ly + 0.14, 0.0, 0.03, 0.03, 0.03, "CS_Brass")
+        C((su * 0.8, ly + 0.14, 0.0), (su * 0.8, 3.55 - LIFT[0], 0.0), 0.008, "CS_Brass", 5)
+        T(su * 0.8, 0.0, [(0, 3.55 - LIFT[0]), (0.06, 3.55 - LIFT[0]), (0.04, 3.59 - LIFT[0]), (0, 3.6 - LIFT[0])], "CS_Brass", segs=10)
+    for su in (-0.58, 0.0, 0.58):
+        C((su, ly + 0.14, 0.0), (su, ly + 0.08, 0.0), 0.01, "CS_Brass", 6)
+        T(su, 0.0, [(0, ly - 0.035), (0.16, ly - 0.05), (0.155, ly - 0.01), (0.06, ly + 0.07), (0, ly + 0.085)], "CS_ShadeGreen", segs=16)
+        O(su, ly - 0.055, 0.0, 0.05, 0.03, 0.05, "CS_Bulb")
 
 
 def build_chesterfield(M, L, cushions):
@@ -3374,12 +3389,10 @@ def build(root):
     build_gachapon(M, L)
     build_roulette(M, L)
     build_craps(M, L, nodes)
-    build_craps_ropes(M, L)
     build_cocktails(M, L, cushions)
     build_blackjack(M, L, cushions)
     build_hall_baccarat(M, L, cushions)
     build_booths(M, L, cushions)
-    build_billiards(M, L, nodes)
     build_alley(M, L)
     build_pinballs(M, L)
     build_derby(M, L, nodes)
@@ -3389,6 +3402,7 @@ def build(root):
         build_pit(M, L, cushions, nodes)
     with lifted(stage(L, "lounge")["h"]):
         build_lounge(M, L, cushions, nodes)
+        build_billiards(M, L, nodes)
     build_rail(M, L)
     build_chandeliers(M, L)
     make_object("Casino_Static", M, coll)

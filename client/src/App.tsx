@@ -1004,7 +1004,7 @@ export default function App() {
             }}
           />
         )}
-        {panel?.kind === "pinball" && <PinballModal onClose={closePanel} />}
+        {panel?.kind === "pinball" && <PinballModal key={panel.propId} propId={panel.propId} chips={localPlayer?.chips ?? 0} subscribeMessages={subscribeMessages} send={casinoSend} onClose={closePanel} />}
         {panel?.kind === "pool" && localSessionId && <PoolModal match={poolMatch} localSessionId={localSessionId} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "piano" && localSessionId && <PianoModal localSessionId={localSessionId} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {fortune && <FortuneModal fortune={fortune} onClose={() => setFortune(null)} />}
