@@ -24,7 +24,7 @@ import type {
   ToggleableKind,
   ToggleableSyncState,
 } from "@shared/types";
-import { MAP_SIGNATURE_TIME, guildRoomKey, isMapId, isWeather } from "@shared/types";
+import { MAP_SIGNATURE_TIME, guildRoomKey, isMapId, isWeather, loungeRoomKey } from "@shared/types";
 import { type BlackjackAction, type CasinoPacket, type RoulettePhase, type RouletteSyncState } from "@shared/casino";
 
 import { parsePicnic, parseStew, FUEL_START, type PicnicPlate, type StewState } from "@shared/bonfire";
@@ -115,11 +115,12 @@ const RELAYED_MESSAGES = [
   // blackjack tables' results (Cedric's cue), the baby grand's recitals and notes
   "holdemState",
   "bigSixState",
-  "dartsState",
   "pokerResult",
   "crapsState",
   "derbyState",
-  "pusherResult",
+  "pusherView",
+  "pusherEvent",
+  "pusherPurse",
   "blackjackResult",
   "pianoRecital",
   "pianoNote",
@@ -314,7 +315,9 @@ interface UseColyseusRoomResult {
   subscribeEmotes: (listener: EmoteListener) => () => void;
 }
 
-export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomResult {
+/** `lounge`: the lounge picked on the selector (shared/types LOUNGE_COUNT); nothing connects until
+ *  there is one. */
+export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | null): UseColyseusRoomResult {
   const roomRef = useRef<Room | null>(null);
   const [, forceRender] = useState(0); // room is exposed via ref; bump this when it changes identity
   const [players, setPlayers] = useState<Record<string, PlayerState>>({});
@@ -346,7 +349,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const ballRef = useRef<BallSnapshot | null>(null);
 
   useEffect(() => {
-    if (!auth) return;
+    if (!auth || lounge === null) return;
     let disposed = false;
     let connecting = false;
     let attempt = 0;
@@ -439,7 +442,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       // prefix must be omitted there, or every connection attempt 404s.
       const wsPath = import.meta.env.DEV ? "/colyseus" : "";
       const client = new Client(`${protocol}//${window.location.host}${wsPath}`);
-      const guildKey = guildRoomKey(auth!.guildId, auth!.channelId);
+      // the picked lounge of the guild's (Velvet Lounge 01 is the guild's own room key)
+      const guildKey = loungeRoomKey(guildRoomKey(auth!.guildId, auth!.channelId), lounge!);
       // (per user too: two tabs of one browser in one guild are two players, not one seat)
       const reconnectKey = `${RECONNECT_KEY_PREFIX}${guildKey}:${auth!.userId}`;
       const savedToken = localStorage.getItem(reconnectKey);
@@ -766,7 +770,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     };
     // Re-join when the identity of the target room changes, or on reconnect().
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth?.guildId, auth?.channelId, auth?.userId, reconnectNonce]);
+  }, [auth?.guildId, auth?.channelId, auth?.userId, lounge, reconnectNonce]);
 
   // your world is your own player's; the scene, the seats and the props are that world's
   const currentMap: MapId = (localSessionId && players[localSessionId]?.map) || "cozy_lounge";

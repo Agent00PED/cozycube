@@ -13,6 +13,7 @@ import { canoeBob, canoePitch, canoeRoll } from "../scene/canoeMotion";
 import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
 import { EmoteGlyph } from "../components/hud/VelvetChipIcon";
 import { useNameplateSettings } from "./nameplateSettings";
+import { Nametag } from "./Nametag";
 
 // The player avatar: a chibi clay figurine authored in Blender (scripts/blender/build_avatar.py)
 // and loaded from client/public/models/avatar.glb. This file loads it, dresses it from the
@@ -1019,11 +1020,8 @@ export const Avatar = memo(
         {showName && (
           <group ref={nameRef} position={[0, nameY, 0]}>
             <Billboard>
-              {/* `font` MUST stay set: without it troika-three-text reaches for a CDN font that
-                  Discord's Activity CSP blocks */}
-              <Text font="/fonts/kenpixel.ttf" fontSize={NAME_SIZE} maxWidth={1.6} overflowWrap="break-word" textAlign="center" color={speaking ? "#8dffae" : "#ffffff"} anchorX="center" anchorY="middle" outlineColor="#000000" outlineWidth={0.02}>
-                {username}
-              </Text>
+              {/* drawn on a canvas (entities/nametagCanvas.ts): any script shows, Thai's marks and all */}
+              <Nametag text={username} size={NAME_SIZE} color={speaking ? "#8dffae" : "#ffffff"} />
             </Billboard>
           </group>
         )}

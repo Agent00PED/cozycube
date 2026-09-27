@@ -306,7 +306,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 6,
     name: "The Living World & Atmosphere Sync",
-    range: "v0.6.0 – v0.6.5",
+    range: "v0.6.0 – v0.6.6",
     icon: "🌦️",
     blurb: "Skies that follow the hour and the weather, a surer step between worlds, and a new heart for the lounge.",
     patches: [
@@ -416,6 +416,35 @@ export const PATCH_ERAS: PatchEra[] = [
             "New prices: Flannel Camp Vest 220, Lumberjack Suspenders 280, Boxing Robe & Shorts 520, River Wader Dungarees 650, Velvet Evening Tuxedo 2,000, Vintage Smoking Jacket 2,400. Anything already bought stays yours.",
           ],
           fixes: ["The boutique's bill shows only while you try on something you don't own yet; what you wear is marked ✓ Wearing in the list."],
+        },
+      },
+      {
+        version: "0.6.6",
+        date: "2026-09-27",
+        title: "Three Lounges & a Playable Arcade",
+        summary: "Pick your lounge, flip real pinball, feed a coin pusher that pushes real coins, and find the casino floor opened up.",
+        changes: {
+          features: [
+            "Choose your lounge: every server now has three, Velvet Lounge 01, 02 and 03, each its own evening with its own fire, tables and company (25 guests each). The lobby shows how full each is, your ping, and where the friends playing with you in your call are (👥 Friends Here); Quick Join takes you to them, or else to the liveliest lounge with room. Settings → Switch lounge brings the lobby back.",
+            "Velvet Nights Pinball is playable: pop bumpers, slingshots, a bank of drop targets, rollover lanes that raise your multiplier, a plunger you pull and let go, three balls a game and your best score kept. ← / A and → / D flip; on a touch screen tap the left or right half, and drag the plunger down.",
+            "The coin pushers push real coins: every coin on the shelf is its own, it rattles down the brass pegs where you drop it, the plate shoves the pile, and whatever goes over the edge into the tray is yours. The shelf is shared and stays as the last player left it.",
+            "The gold-trimmed High-Roller Pusher stands beside the house's.",
+            "Lucky Reels is played by its lever: grab the handle and pull it down (or press Space).",
+          ],
+          visuals: [
+            "The casino floor, opened up: the hall's baccarat on navy felt with a lit bead road, craps behind velvet ropes with two cocktail tables, leather stools and palms, the emerald booth moved to the right rail so the stage stairs are clear, the Big Six against the stage's left wall, and the pool table out on the open floor with room to walk round it.",
+            "Names in Thai, and in every other script, now show properly on the nametags, drawn sharp on high-density screens with room for tone marks.",
+            "Chloe's boutique drops its greeting banner, and the bill hides while you look at something you already own.",
+          ],
+          economy: [
+            "The High-Roller Pusher takes 25 to 250 chips a coin; the house's pusher keeps 2 to 25.",
+            "Over time a well-aimed pusher coin brings back about 92% of its stake; a wild one down the outer lanes, less.",
+          ],
+          fixes: [
+            "The pub darts board is gone; its wall is the Big Six's now.",
+            "Buttons are at least 48 pixels to tap, keyboard hints hide on touch screens, and panels keep clear of notches and Discord's overlays.",
+            "Sound starts the moment you pick a lounge.",
+          ],
         },
       },
     ],

@@ -3,7 +3,19 @@ import { createPortal } from "react-dom";
 
 // The one modal shell every panel uses: a frosted clay card centred on desktop, a bottom sheet
 // on phones, closed by the X, the backdrop or Escape. Rendered through a portal so it always
-// sits above the canvas and the rest of the HUD.
+// sits above the canvas and the rest of the HUD, inside the safe area (a notch, Discord's own
+// overlays): the backdrop is padded by the safe-area insets and a landscape sheet's height leaves
+// room for them.
+
+/** The backdrop's padding: at least its own, and never under a notch or Discord's overlays. */
+export const SAFE_AREA = {
+  paddingTop: "max(8px, env(safe-area-inset-top))",
+  paddingBottom: "max(8px, env(safe-area-inset-bottom))",
+  paddingLeft: "max(8px, env(safe-area-inset-left))",
+  paddingRight: "max(8px, env(safe-area-inset-right))",
+} as const;
+/** A landscape sheet's height: 85% of the screen, less the safe area's insets. */
+const SAFE_LANDSCAPE_H = "min(85vh, calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px))";
 export function Modal({
   title,
   icon,
@@ -43,12 +55,12 @@ export function Modal({
   const casino = tone !== "stone";
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex justify-center bg-black/45 ${landscape ? "items-center p-2" : "items-end sm:items-center sm:p-4"}`} onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
+    <div className={`fixed inset-0 z-[60] flex justify-center bg-black/45 ${landscape ? "items-center p-2" : "items-end sm:items-center sm:p-4"}`} style={SAFE_AREA} onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
       <div
         role="dialog"
         aria-label={title}
-        className={`clay-sheet sm:clay-pop flex ${landscape ? "h-[85vh] max-h-[720px] w-[90vw] rounded-3xl" : `max-h-[85vh] ${fit ? "w-[90vw] sm:w-[90vw]" : "w-full"} rounded-t-3xl sm:rounded-3xl`} flex-col overflow-hidden border text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md ${toneClass} ${casino ? "casino-sheet casino-body" : ""}`}
-        style={{ maxWidth: landscape ? 1200 : width }}
+        className={`clay-sheet sm:clay-pop flex ${landscape ? "max-h-[720px] w-[90vw] rounded-3xl" : `max-h-[85vh] ${fit ? "w-[90vw] sm:w-[90vw]" : "w-full"} rounded-t-3xl sm:rounded-3xl`} flex-col overflow-hidden border text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md ${toneClass} ${casino ? "casino-sheet casino-body" : ""}`}
+        style={{ maxWidth: landscape ? 1200 : width, height: landscape ? SAFE_LANDSCAPE_H : undefined }}
       >
         <div className={`flex items-center gap-3 px-5 ${landscape ? "pt-2.5 pb-1" : "pt-4 pb-2"}`}>
           {icon && <span className="text-2xl">{icon}</span>}

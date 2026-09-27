@@ -187,6 +187,19 @@ def swept(P, pts, r, c, sides=8, r_end=None):
 # Blender plumbing: vertex-coloured clay
 
 
+def studio(root, call, *args):
+    """The Blender studio (scripts/blender/studio.py, run fresh from disk): "begin" before the
+    build (a headless run joins the master file), "finish" after the export (the collections to
+    their place on the studio grid, the .blend saved). A studio failure never fails the export."""
+    path = os.path.join(root, "scripts", "blender", "studio.py")
+    ns = {"__name__": "studio"}
+    try:
+        exec(compile(open(path, encoding="utf-8").read(), path, "exec"), ns)
+        return ns[call](root, *args)
+    except Exception:
+        return {"error": traceback.format_exc()}
+
+
 def purge(name):
     old = bpy.data.collections.get(name)
     for o in list(old.all_objects) if old else []:
@@ -482,6 +495,7 @@ def main():
     report = globals().get("REPORT_PATH")
     try:
         root_dir = repo_root()
+        studio(root_dir, "begin")
         purge(COLLECTION)
         coll = bpy.data.collections.new(COLLECTION)
         bpy.context.scene.collection.children.link(coll)
@@ -491,6 +505,7 @@ def main():
         out = os.path.join(root_dir, "client", "public", "models", "chloe_maid.glb")
         export(coll, out)
         result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), **summary(coll)}
+        result["studio"] = studio(root_dir, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}
     print(json.dumps(result, indent=1))

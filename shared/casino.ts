@@ -2,15 +2,14 @@
 // its ALL IN), and the games played with chips: roulette, slots (the Golden Vault too), the
 // blackjack tables' rounds, Texas Hold'em's limits (its rules: shared/holdem.ts), baccarat (the
 // hall's table and the penthouse's), the Big Six wheel, craps, the Mechanical Turf Club's derby and
-// the coin pusher's shared shelf; the one-player machines' occupants (players and patrons), and the
+// the coin pushers' shelves; the one-player machines' occupants (players and patrons), and the
 // house's extras (the baby grand's pieces, Pippin's bar, Madame Zara, the capsule machine, the VIP
 // pass: shared/items.ts). Where things stand is the floor plans' business: shared/worlds/casino.ts
-// and casino_vip.ts (the Big Six's wheel is laid out there); the lounge's darts: shared/darts.ts.
+// and casino_vip.ts (the Big Six's wheel is laid out there).
 //
 // Shared between client and server — framework-agnostic (no THREE/Colyseus imports).
 
-import { BIG_SIX_WHEEL } from "./worlds/casino";
-import type { DartsGame } from "./darts";
+import { BIG_SIX_WHEEL, type PusherId } from "./worlds/casino";
 import type { HoldemMove } from "./holdem";
 
 // --- Velvet Chips ---------------------------------------------------------------------------
@@ -105,7 +104,7 @@ export function exchangeAmount(requested: unknown, available: number): number | 
 // so a stake outside it is refused whatever the client sends. A brass placard on each game's panel
 // reads "MIN: 25 | MAX ALL-IN: 1,000".
 
-export type TableId = "blackjack_casual" | "blackjack_high" | "poker" | "poker_vip" | "slots" | "slots_vault" | "baccarat" | "baccarat_hall" | "bigsix" | "roulette_inside" | "roulette_outside" | "craps" | "derby" | "pusher";
+export type TableId = "blackjack_casual" | "blackjack_high" | "poker" | "poker_vip" | "slots" | "slots_vault" | "baccarat" | "baccarat_hall" | "bigsix" | "roulette_inside" | "roulette_outside" | "craps" | "derby" | "pusher" | "pusher_high";
 export interface TableLimit {
   name: string;
   min: number;
@@ -130,6 +129,7 @@ export const TABLE_LIMITS: Record<TableId, TableLimit> = {
   craps: { name: "Craps", min: 25, max: 1000, presets: [25, 50, 100, 250, 500] },
   derby: { name: "The Mechanical Turf Club", min: 10, max: 250, presets: [10, 25, 50, 100] },
   pusher: { name: "The Coin Pusher", min: 2, max: 25, presets: [2, 5, 10] },
+  pusher_high: { name: "The High-Roller Pusher", min: 25, max: 250, presets: [25, 50, 100] },
 };
 
 /** ALL IN: everything you hold up to the table's cap, or 0 when that is under its minimum.
@@ -464,20 +464,19 @@ export interface DerbyState {
   seed: number;
 }
 
-// --- the coin pusher ----------------------------------------------------------------------------
+// --- the coin pushers ---------------------------------------------------------------------------
 //
-// One shelf for the whole room, kept between sessions (the room saves it with its scene): every drop
-// adds to the heap edging toward the precipice, and every push shoves a share of it over. A brass
-// dropper sweeps side to side; drop a coin (2 to 25 chips) and where it lands decides how much of it
-// makes the shelf (a wild drop rattles part of it into the house's gutter) and how hard it pushes.
-// Over time a dead-centre drop returns about 94% of its stakes, a wild one about 64%; what one drop
-// pays depends on the heap the last players left behind. Now and then a Bonus Token drops: a free
-// drop at the same stake.
+// Two machines side by side in Neon Alley: the house's (2 to 25 chips a coin) and the gold-trimmed
+// High-Roller Pusher (25 to 250). Each has a real shelf of coins (shared/pusherSim.ts, run by the
+// server and kept with the room's scene): a brass dropper sweeps across the top; drop a coin and it
+// rattles down the pegs onto the shelf (an outer lane sends it down a side chute, to the house), the
+// motorised plate shoves, and what goes over the front edge into the tray is yours for a while
+// after your last coin (a coin going over hugging the left rail finds the house's gutter). Over time
+// a well-aimed coin brings back about 92% of what it costs, a wild one about 79%; what one coin brings
+// depends on the coins the last players (and the patrons, who drop real chips on them) left behind.
+// Now and then a Bonus Token drops: a free coin at the same stake.
 
 export const PUSHER_SWEEP_MS = 1600;
-/** The chips' worth the house heaps on a new shelf, and the most one can hold. */
-export const PUSHER_SHELF_START = 150;
-export const PUSHER_SHELF_MAX = 25_000;
 /** The dropper's place along the shelf (0 to 1) at `ms`: a steady sweep, there and back. */
 export function pusherBarPos(ms: number): number {
   const t = (((ms % (PUSHER_SWEEP_MS * 2)) + PUSHER_SWEEP_MS * 2) % (PUSHER_SWEEP_MS * 2)) / PUSHER_SWEEP_MS;
@@ -485,42 +484,38 @@ export function pusherBarPos(ms: number): number {
 }
 /** 1 dead centre, 0 at either end. */
 export const pusherAccuracy = (pos: number) => 1 - Math.min(1, Math.abs(Math.max(0, Math.min(1, pos)) - 0.5) * 2);
-/** The share of a drop that misses the shelf (the gutter: the house's): the truer, the less. */
-export const pusherGutter = (accuracy: number) => 0.06 + 0.3 * (1 - Math.max(0, Math.min(1, accuracy)));
-export type PusherOutcomeId = "none" | "trickle" | "push" | "shove" | "token" | "avalanche";
-/** What a drop does to the heap: the share of the shelf it shoves over the edge (scaled by the
- *  drop's accuracy), and how often. */
-export const PUSHER_OUTCOMES: { id: PusherOutcomeId; name: string; share: number; weight: number }[] = [
-  { id: "none", name: "The coins settle", share: 0, weight: 45 },
-  { id: "trickle", name: "A trickle", share: 0.03, weight: 30 },
-  { id: "push", name: "A good push", share: 0.08, weight: 16 },
-  { id: "shove", name: "A great shove", share: 0.18, weight: 6 },
-  { id: "token", name: "Bonus Token!", share: 0, weight: 1.8 },
-  { id: "avalanche", name: "AVALANCHE!", share: 0.5, weight: 1.2 },
-];
-export function rollPusher(roll: number): number {
-  let left = roll * PUSHER_OUTCOMES.reduce((a, o) => a + o.weight, 0);
-  for (let i = 0; i < PUSHER_OUTCOMES.length; i++) {
-    left -= PUSHER_OUTCOMES[i].weight;
-    if (left < 0) return i;
-  }
-  return 0;
+/** Each pusher: its name, its stakes, and the shelf the house lays out when it is new (coins of the
+ *  table minimum, so a fresh shelf is no windfall). */
+export const PUSHER_MACHINES: Record<PusherId, { name: string; limit: "pusher" | "pusher_high"; seedCoins: number; seedValue: number }> = {
+  coin_pusher: { name: "The Coin Pusher", limit: "pusher", seedCoins: 63, seedValue: 2 },
+  coin_pusher_high: { name: "The High-Roller Pusher", limit: "pusher_high", seedCoins: 63, seedValue: 25 },
+};
+/** A coin's chance of dropping a Bonus Token (a free coin at the same stake). */
+export const PUSHER_TOKEN_CHANCE = 0.02;
+/** Coins going over the edge are the last dropper's this long after their last coin (then the house's). */
+export const PUSHER_CREDIT_MS = 10_000;
+/** Server -> the player at a pusher ("pusherView"), about ten times a second: the shelf now (its
+ *  simulated time, for the plate, and its coins: shared/pusherSim.ts packShelf). */
+export interface PusherView {
+  propId: PusherId;
+  t: number;
+  coins: number[];
 }
-/** How many chips a push shoves off a shelf holding `shelf`. */
-export const pusherPush = (share: number, accuracy: number, shelf: number) => Math.floor(Math.max(0, shelf) * share * (0.6 + 0.4 * Math.max(0, Math.min(1, accuracy))));
-/** Server -> the dropper ("pusherResult"). */
-export interface PusherResult {
-  stake: number;
-  pos: number;
-  outcome: PusherOutcomeId;
-  payout: number;
-  /** A free drop was spent on this one. */
-  free: boolean;
-  /** Free drops still held (their stakes). */
-  tokens: number[];
+/** Server -> the player at a pusher ("pusherEvent"): a coin dropped (its path down the pegs, and
+ *  whether it made the shelf or went down a chute), or coins over the edge (and what that paid you). */
+export type PusherEvent =
+  | { propId: PusherId; kind: "drop"; path: number[]; landed: boolean; id: number; v: number }
+  | { propId: PusherId; kind: "fall"; falls: { id: number; x: number; v: number; gutter: boolean }[]; paid: number };
+/** Server -> the player ("pusherPurse"): their chips and free coins at a pusher, after a drop or a
+ *  payout. */
+export interface PusherPurse {
+  propId: PusherId;
   chips: number;
-  /** The shelf's heap after the drop (chips' worth). */
-  shelf: number;
+  /** Free coins held at this pusher (their stakes). */
+  tokens: number[];
+  /** Chips just paid out, and whether a free coin was just spent. */
+  paid?: number;
+  free?: boolean;
 }
 
 // --- the baby grand -----------------------------------------------------------------------------
@@ -704,7 +699,7 @@ export interface BigSixState {
 
 // --- the one-player machines: who is at them ----------------------------------------------------
 //
-// The slot row and the coin pusher are one player's at a time: a player playing one, or a patron
+// The slot row and the coin pushers are one player's at a time: a player playing one, or a patron
 // (the crowd takes a machine for a while now and then). The room syncs who (state.machines):
 // "" free, a player's sessionId, or a patron "npc:<Kind>:<tint>". Anyone else is refused with a
 // friendly word; a player may ask a patron to finish up ("Excuse me").
@@ -912,12 +907,10 @@ export type CasinoPacket =
   | { type: "HOLDEM_DEAL"; buyIn: number }
   | { type: "HOLDEM_MOVE"; move: HoldemMove }
   | { type: "BIGSIX_BET"; bet: BigSixBet; amount: number }
-  | { type: "DARTS_JOIN"; game: DartsGame }
-  | { type: "DARTS_LEAVE" }
-  | { type: "DARTS_THROW"; x: number; y: number }
   | { type: "CRAPS_ROLL"; stakes: CrapsStakes }
   | { type: "DERBY_BET"; horse: number; amount: number }
-  | { type: "PUSHER_DROP"; stake: number; pos: number }
+  | { type: "PUSHER_DROP"; propId: PusherId; stake: number; pos: number }
+  | { type: "PUSHER_CLOSE" }
   | { type: "POOL_BREAK" }
   | { type: "POOL_JOIN" }
   | { type: "POOL_LEAVE" }

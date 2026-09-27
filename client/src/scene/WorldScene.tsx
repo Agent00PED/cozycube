@@ -129,9 +129,9 @@ const CASINO_PADS: Partial<Record<ToggleableSyncState["kind"], { size: [number, 
   tipjar: { size: [0.3, 0.32, 0.3] },
   barmenu: { size: [0.75, 1.15, 0.75] },
   baccarat: { size: [2.4, 0.95, 1.5], at: (p) => ({ z: p.z + (p.propId === "hall_baccarat_table" ? 0.2 : 0.3) }) },
-  // the Big Six: the wheel and its ledge together; the darts board on the wall
-  bigsix: { size: [1.7, 2.5, 1.7], at: () => ({ x: (BIG_SIX.x + BIG_SIX.ledge.x) / 2, z: (BIG_SIX.z + BIG_SIX.ledge.z) / 2, y: 0 }) },
-  darts: { size: [0.3, 0.9, 0.95], at: (p) => ({ y: p.y - 0.45 }) },
+  // the Big Six: the wheel and its ledge together (up on the lounge's dais); the pinball cabinets
+  bigsix: { size: [1.7, 2.5, 1.7], at: () => ({ x: (BIG_SIX.x + BIG_SIX.ledge.x) / 2, z: (BIG_SIX.z + BIG_SIX.ledge.z) / 2, y: casinoFloorY((BIG_SIX.x + BIG_SIX.ledge.x) / 2, (BIG_SIX.z + BIG_SIX.ledge.z) / 2) }) },
+  pinball: { size: [CL.pinball.len, 1.9, CL.pinball.w] },
   vipdoor: { size: [CL.vipDoors.w + 0.2, CL.vipDoors.h, 0.35] },
 };
 /** The tables played standing, from any side: a click walks you to the nearest open spot round the rim. */

@@ -4,6 +4,8 @@ import { setMasterVolume, useMasterVolume } from "../../audio/master";
 import { setCameraMode, useCameraMode, type CameraMode } from "../../scene/cameraFocus";
 import { setNameplateSettings, useNameplateSettings } from "../../entities/nameplateSettings";
 import { LATEST_PATCH } from "../../data/patchNotesData";
+import { markLobby } from "../../systems/lounge";
+import { reloadCleanly } from "../../systems/lifecycle";
 
 /** Settings: the sound (the worlds' ambience and the little effects), what floats over everyone's
  *  head, the camera, the controls, and the way into the Patch Notes (which closes Settings as it
@@ -85,7 +87,10 @@ export function SettingsPanel({ onClose, onOpenPatchNotes }: { onClose: () => vo
         <section className="flex flex-col gap-3 rounded-3xl bg-white/5 p-4">
           <h3 className="text-xs font-bold uppercase tracking-widest opacity-60">Controls</h3>
           <div className="text-sm">
-            Tap floor to move on Touch devices · <kbd className="rounded bg-white/10 px-1">W A S D</kbd> or Click to move on Desktop
+            <span className="touch-hint">Tap the floor to move.</span>
+            <span className="kbd-hint">
+              <kbd className="rounded bg-white/10 px-1">W A S D</kbd> or click the floor to move.
+            </span>
           </div>
           <p className="m-0 text-[11px] opacity-55">Tap or click a seat, a prop or a person to walk up to it and use it.</p>
         </section>
@@ -93,6 +98,10 @@ export function SettingsPanel({ onClose, onOpenPatchNotes }: { onClose: () => vo
         <button type="button" onClick={onOpenPatchNotes} className="clay-btn clay-btn-amber flex min-h-12 w-full items-center justify-center gap-2 text-sm font-extrabold">
           📜 Patch Notes
           <span className="rounded-full bg-amber-950/80 px-2 py-0.5 text-[11px] font-black tracking-wide text-amber-200">v{LATEST_PATCH.version}</span>
+        </button>
+        {/* back to the lounge selector: the page reloads to it */}
+        <button type="button" onClick={() => (markLobby(), void reloadCleanly())} className="clay-btn clay-btn-ghost min-h-12 w-full">
+          🛋️ Switch lounge
         </button>
       </div>
     </Modal>

@@ -16,3 +16,8 @@ dist/
 
 # Local board-game saves (server/src/db/boards.ts, when DATABASE_URL is not set)
 .data/
+
+# The Blender studio's master file (scripts/blender/studio.py) and Blender's backups
+/models/
+*.blend
+*.blend1

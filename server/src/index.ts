@@ -10,6 +10,7 @@ import { HangoutRoom } from "./rooms/HangoutRoom";
 import { tokenRouter } from "./routes/token";
 import { getPlayerStore, initPlayerStore } from "./db/players";
 import { getBoardStore, initBoardStore } from "./db/boards";
+import { loungesHandler } from "./rooms/lounges";
 
 const app = express();
 app.use(cors());
@@ -24,6 +25,9 @@ app.get("/api/leaderboard", async (_req, res) => {
   }
 });
 
+// The lounge selector: how full each of a guild's lounges is (and where the player's friends are).
+app.post("/api/lounges", loungesHandler);
+
 const httpServer = createServer(app);
 // The transport is named explicitly: on 0.15 passing `server` straight to `new Server` still
 // works but logs a deprecation warning at every start, and 0.16 drops it altogether.
@@ -36,9 +40,9 @@ const gameServer = new Server({ transport: new WebSocketTransport({ server: http
 
 // Client connects via ws(s)://<host>/colyseus in dev (see client/vite.config.ts proxy rewrite)
 // or ws(s)://<host> directly in production (see useColyseusRoom.ts). filterBy partitions
-// matchmaking by guild (shared/types guildRoomKey: "guild_<id>"), so everyone who launches the
-// Activity anywhere in one Discord server lands in the same persistent instance, and each walks
-// its worlds on their own.
+// matchmaking by room key: a guild's lounge (shared/types loungeRoomKey: "guild_<id>" for Velvet
+// Lounge 01, "guild_<id>~2" and "~3" for the others), so everyone who picks the same lounge anywhere
+// in one Discord server lands in the same persistent instance, and each walks its worlds on their own.
 gameServer.define("hangout_room", HangoutRoom).filterBy(["guildKey"]);
 
 if (process.env.NODE_ENV === "production") {

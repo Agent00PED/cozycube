@@ -42,6 +42,24 @@ export function masterOut(ctx: AudioContext): AudioNode {
   return out;
 }
 
+/** From a tap (the lounge selector's): wakes every audio context made so far, and `also` (the
+ *  effects' own), each with a silent blip, so a phone lets them all sound from here on. */
+export function unlockAudio(also?: AudioContext | null) {
+  const all = new Set(outs.keys());
+  if (also) all.add(also);
+  all.forEach((ctx) => {
+    if (ctx.state === "suspended") void ctx.resume();
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, 22050);
+      src.connect(ctx.destination);
+      src.start(0);
+    } catch {
+      // a closed context: nothing to wake
+    }
+  });
+}
+
 export function getMasterVolume(): number {
   return volume;
 }

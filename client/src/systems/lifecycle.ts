@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { markRejoin } from "./lounge";
 
 // The page's way out: a reload onto a new build (the version handshake, a deploy's restart, a chunk
 // that no longer exists), done cleanly so the Discord Activity comes back by itself instead of
@@ -65,8 +66,10 @@ async function waitForServer(newerThan?: string): Promise<void> {
   }
 }
 
-/** Replaces the page with itself: every query parameter Discord gave the frame stays. */
+/** Replaces the page with itself: every query parameter Discord gave the frame stays, and the
+ *  page comes back into the lounge it was in (systems/lounge.ts). */
 export function replacePage() {
+  markRejoin();
   window.location.replace(window.location.href);
 }
 

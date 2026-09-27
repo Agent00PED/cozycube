@@ -149,7 +149,7 @@ export function PianoModal({ localSessionId, send, subscribeMessages, onClose }:
 
         {mode === "play" && (
           <>
-            <div className="text-center text-xs opacity-70">Tap the keys, or play on your keyboard: Z S X D C V… from middle C, Q 2 W 3 E R… an octave up. Everyone in the hall hears you.</div>
+            <div className="text-center text-xs opacity-70">Tap the keys<span className="kbd-hint">, or play on your keyboard: Z S X D C V… from middle C, Q 2 W 3 E R… an octave up</span>. Everyone in the hall hears you.</div>
             {/* the keyboard: white keys in a row, black ones over the gaps */}
             <div className="relative mx-auto h-40 w-full select-none touch-none" style={{ maxWidth: 580 }}>
               <div className="flex h-full w-full gap-[2px] rounded-b-xl bg-black/60 p-[2px]">

@@ -1,20 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { SLOT_PAIR, SLOT_SYMBOLS, SLOT_TRIPLE, VAULT_SLOT_ID, limitPlacard, slotLimit, type SlotBroadcast } from "@shared/casino";
 import { Modal } from "./Modal";
 import { BetPicker, ShortOfChips, clampStake } from "./BetControls";
 import { ChipAmount, VelvetChipIcon } from "./VelvetChipIcon";
+import { playSfx } from "../../audio/sfx";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 
 // A retro-cozy three-reel machine. The server rolls (spin_slots) and broadcasts the reels;
 // this panel spins its strips to land on them one after another, ticking as they go, then
 // lights the payline and bursts chips if it paid. Stakes and wins are Velvet Chips, within the
 // machine's limits (Neon Alley's, or the penthouse's Golden Vault), with an ALL IN up to its
-// cap; a pair hands the stake back (a push), three of a kind pays the paytable.
+// cap; a pair hands the stake back (a push), three of a kind pays the paytable. The lever is the
+// only way to spin: drag its knob down (or tap it) and it ratchets down with a clunk.
 const SYMBOLS = SLOT_SYMBOLS as readonly string[];
 const N = SYMBOLS.length;
 const ROW = 72; // px per symbol row
 const REPEATS = 40; // strip length in symbol sets: enough for many spins before a silent reset
 const STOP_MS = [900, 1350, 1800];
+/** How far the lever's knob travels (px), and how far down a drag must bring it to pull. */
+const LEVER_TRAVEL = 64;
+const LEVER_PULL = 0.6;
 
 interface Props {
   propId: string;
@@ -91,13 +96,48 @@ export function SlotsModal({ propId, chips, coins, localSessionId, onSpin, subsc
 
   // the stake follows the purse (it can't be more than you hold, nor under the machine's minimum)
   const bet = spinning ? stake : clampStake(stake, limit, chips);
+  const canPull = !spinning && chips >= bet && bet >= limit.min;
   const pull = () => {
-    if (spinning || chips < bet || bet < limit.min) return;
+    if (!canPull) return;
     setLever(true);
+    playSfx("lever");
     window.setTimeout(() => setLever(false), 450);
     setResult(null);
     onSpin(propId, bet);
   };
+  // the lever: drag the knob down past LEVER_PULL of its travel (or just tap it) to pull
+  const drag = useRef<{ y0: number; id: number; moved: boolean } | null>(null);
+  const [leverDrag, setLeverDrag] = useState(0);
+  const onLeverDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!canPull) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { y0: e.clientY, id: e.pointerId, moved: false };
+  };
+  const onLeverMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const f = Math.max(0, Math.min(1, (e.clientY - d.y0) / LEVER_TRAVEL));
+    if (f > 0.08) d.moved = true;
+    setLeverDrag(f);
+  };
+  const onLeverUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    const f = leverDrag;
+    setLeverDrag(0);
+    if (!d.moved || f >= LEVER_PULL) pull();
+  };
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || e.repeat) return;
+      e.preventDefault();
+      pull();
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  });
+  const knobY = lever ? LEVER_TRAVEL : leverDrag * LEVER_TRAVEL;
 
   const landedAll = !spinning && !!result && landed === 3;
   const won = landedAll && result!.win > bet;
@@ -132,11 +172,29 @@ export function SlotsModal({ propId, chips, coins, localSessionId, onSpin, subsc
                 </span>
               ))}
           </div>
-          {/* the lever */}
-          <button type="button" onClick={pull} disabled={spinning || chips < bet} className="relative flex w-12 flex-col items-center justify-start disabled:opacity-50" aria-label="Pull the lever" title="Pull!">
-            <span className={`h-16 w-2 rounded-full bg-stone-300 transition-transform duration-300 ${lever ? "translate-y-10 scale-y-50" : ""}`} style={{ transformOrigin: "bottom" }} />
-            <span className={`-mt-1 h-7 w-7 rounded-full bg-gradient-to-b from-red-400 to-red-600 shadow-lg transition-transform duration-300 ${lever ? "translate-y-10" : ""}`} />
-            <span className="mt-1 h-10 w-4 rounded-b-xl bg-stone-600" />
+          {/* the lever: a chrome arm on a pivot in the cabinet's side, a red knob on top; drag it
+              down (or tap it) to spin */}
+          <button
+            type="button"
+            onPointerDown={onLeverDown}
+            onPointerMove={onLeverMove}
+            onPointerUp={onLeverUp}
+            onPointerCancel={() => ((drag.current = null), setLeverDrag(0))}
+            onKeyDown={(e) => (e.key === "Enter" ? pull() : undefined)}
+            disabled={!canPull}
+            className="relative flex w-16 touch-none select-none flex-col items-center disabled:opacity-50"
+            aria-label="Pull the lever to spin"
+            title="Pull the lever"
+          >
+            <span className="relative mt-1 h-[124px] w-full">
+              {/* the arm, swinging down about its pivot as the knob comes down */}
+              <span className="absolute bottom-3 left-1/2 w-2.5 -translate-x-1/2 rounded-full bg-gradient-to-r from-stone-400 via-stone-100 to-stone-500 shadow" style={{ height: `${Math.max(18, 92 - knobY * 1.1)}px`, transition: drag.current ? "none" : "height 250ms cubic-bezier(0.3, 1.4, 0.6, 1)" }} />
+              {/* the knob */}
+              <span className="absolute left-1/2 h-11 w-11 -translate-x-1/2 rounded-full bg-[radial-gradient(circle_at_35%_30%,#ff9a9a,#d91e2a_55%,#7a0a12)] shadow-[0_4px_10px_rgba(0,0,0,0.5)]" style={{ top: `${knobY}px`, transition: drag.current ? "none" : "top 250ms cubic-bezier(0.3, 1.4, 0.6, 1)" }} />
+              {/* the pivot's housing on the cabinet's side */}
+              <span className="absolute bottom-0 left-1/2 h-7 w-9 -translate-x-1/2 rounded-lg bg-gradient-to-b from-amber-300 to-amber-700 shadow-inner" />
+            </span>
+            <span className="kbd-hint mt-1 text-[10px] font-bold uppercase tracking-wider text-amber-200/70">Space</span>
           </button>
         </div>
 
@@ -152,14 +210,11 @@ export function SlotsModal({ propId, chips, coins, localSessionId, onSpin, subsc
           ) : landedAll ? (
             "So close! Try again?"
           ) : (
-            "Pick a stake and pull the lever"
+            "Pick a stake and pull the lever down"
           )}
         </div>
 
         <BetPicker limit={limit} chips={chips} value={bet} onChange={setBet} disabled={spinning} />
-        <button type="button" onClick={pull} disabled={spinning || chips < bet || chips < limit.min} className="clay-btn clay-btn-rose min-h-11 px-10">
-          SPIN
-        </button>
         <ShortOfChips limit={limit} chips={chips} coins={coins} />
 
         <details className="w-full rounded-2xl bg-white/5 px-4 py-2 text-xs">

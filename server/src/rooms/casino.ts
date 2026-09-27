@@ -34,9 +34,9 @@ import {
   PIANO_HIGH,
   PIANO_LOW,
   PLAYER_MACHINE_HOLD_SECONDS,
-  PUSHER_OUTCOMES,
-  PUSHER_SHELF_MAX,
-  PUSHER_SHELF_START,
+  PUSHER_CREDIT_MS,
+  PUSHER_MACHINES,
+  PUSHER_TOKEN_CHANCE,
   ROULETTE_PHASE_SECONDS,
   SLOT_PAIR,
   SLOT_SYMBOLS,
@@ -62,12 +62,8 @@ import {
   isNpcOccupant,
   parseBets,
   pocketColor,
-  pusherAccuracy,
-  pusherGutter,
-  pusherPush,
   rollCapsule,
   rollDerby,
-  rollPusher,
   rouletteLimit,
   slotLimit,
   tableStake,
@@ -106,21 +102,24 @@ import {
   type PianoNote,
   type PianoRecital,
   type PokerResult,
-  type PusherResult,
+  type PusherEvent,
+  type PusherPurse,
+  type PusherView,
   type RoulettePhase,
   type VipPassResult,
 } from "../../../shared/casino";
 import { VIP_PASS } from "../../../shared/items";
 import { HOLDEM_BARON, HOLDEM_BORIS, HOLDEM_HIGH_ROLLERS, HOLDEM_REGULARS, holdemAct, holdemView, newHoldemHand, runHouse, type HoldemGame, type HoldemMove, type HoldemTable } from "../../../shared/holdem";
-import { DARTS_SURROUND, dartAt, dartsThrow, emptyDartsMatch, startDarts, type DartsMatch } from "../../../shared/darts";
 import { PIANO_PIECES, isPianoPiece } from "../../../shared/pianoPieces";
 import { POOL_H, POOL_W, emptyPoolMatch, poolCueSpotFree, poolRack, ruleOnShot, type PoolBall, type PoolMatch, type PoolShotEvent } from "../../../shared/pool";
+import { PUSHER_MAX_COINS, SHELF_STEP_S, landCoin, landsOnShelf, loadShelf, packShelf, pegPath, saveShelf, seedShelf, shelfAwake, stepShelf, type Shelf, type ShelfFall } from "../../../shared/pusherSim";
 import {
   BAR_REACH,
   BLACKJACK_TABLES,
   CASHIER_FRONT,
   CASHIER_REACH,
   CASINO_PROPS,
+  COIN_PUSHERS,
   GACHAPON_FRONT,
   GAZETTE_REACH,
   MACHINE_REACH,
@@ -134,6 +133,7 @@ import {
   barDistance,
   nearGameTable,
   type CasinoGameTable,
+  type PusherId,
   type TipDealer,
 } from "../../../shared/worlds/casino";
 import { VIP_ARRIVAL } from "../../../shared/worlds/casino_vip";
@@ -146,9 +146,10 @@ import { todayKey } from "./games";
 // Golden Vault too), No-Limit Texas Hold'em (your own hand against Boris and the house's regulars,
 // in the hall and at the penthouse's high-limit table with Baron von Fox: shared/holdem.ts), the two
 // baccarat tables (the hall's and the penthouse's), the Big Six wheel's one spin for the room, your
-// own dice at the craps table, the Mechanical Turf Club's one race for the room, the coin pusher's
-// shelf (kept between sessions; the patrons who play it feed it too), the lounge's two-player 8-ball
-// and darts matches, and Mr. Vance's cage, where coins become Velvet Chips and back and the Black
+// own dice at the craps table, the Mechanical Turf Club's one race for the room, the two coin
+// pushers' shelves of real coins (simulated here: shared/pusherSim.ts; kept between sessions, the
+// patrons who play them feed them too), the pinball cabinets' panel, the floor's two-player 8-ball
+// match, and Mr. Vance's cage, where coins become Velvet Chips and back and the Black
 // Velvet VIP Pass is bought and pawned. Every stake is within its
 // table's limits (shared/casino TABLE_LIMITS), and the seated games are played seated. The room owns
 // the synced state (the wheel and its bets, who is at the one-player machines) and the side effects
@@ -349,11 +350,16 @@ const BACCARAT_SEATS: Record<BaccaratTable, string[]> = {
   baccarat: ["seat_bacc_1", "seat_bacc_2", "seat_bacc_3"],
   baccarat_hall: ["seat_hbacc_1", "seat_hbacc_2", "seat_hbacc_3", "seat_hbacc_4", "seat_hbacc_5"],
 };
-/** The patrons at the coin pusher drop a chip or three onto its shelf about this often (seconds). */
+/** The patrons at a coin pusher drop a coin (the table minimum) about this often (seconds). */
 const NPC_PUSHER_DROP_S: [number, number] = [4, 8];
-/** A darts turn left alone this long passes to the other player; a match over clears after this. */
-const DARTS_TURN_MS = 45_000;
-const DARTS_OVER_MS = 10_000;
+/** How often the player at a pusher is sent its shelf. */
+const PUSHER_VIEW_MS = 100;
+/** A pusher's run of payouts this big (times the last stake, and at least MARQUEE_MIN_WIN) within
+ *  PUSHER_BURST_MS makes the marquee. */
+const PUSHER_BURST_X = 20;
+const PUSHER_BURST_MS = 6000;
+const pusherGame = (id: PusherId): CasinoGameTable => (id === "coin_pusher_high" ? "pusher_high" : "pusher");
+const newShelf = (id: PusherId) => seedShelf(PUSHER_MACHINES[id].seedCoins, PUSHER_MACHINES[id].seedValue, Math.random);
 
 export class CasinoFloor {
   private phaseClock = ROULETTE_PHASE_SECONDS.betting;
@@ -376,15 +382,20 @@ export class CasinoFloor {
   };
   /** The Big Six wheel: one spin at a time for the room. */
   private six: { phase: BigSixPhase; clock: number; spinId: number; result: number; prevResult: number; stakes: BigSixStake[]; paid: BigSixState["paid"]; history: BigSixBet[] } = { phase: "betting", clock: 0, spinId: 0, result: -1, prevResult: -1, stakes: [], paid: [], history: [] };
-  /** The lounge's darts match (solo practice is the client's own). */
-  private darts: DartsMatch = emptyDartsMatch();
-  private dartsAt = 0;
-  /** When the patron at the coin pusher next drops a coin. */
-  private npcPusherAt = 0;
-  /** The coin pusher's shelf: the chips' worth heaped on it (kept with the room's scene). */
-  shelf = PUSHER_SHELF_START;
-  /** Free drops at the coin pusher (their stakes), per player. */
-  private readonly pusherTokens = new Map<string, number[]>();
+  /** When the patron at each coin pusher next drops a coin. */
+  private readonly npcPusherAt = new Map<PusherId, number>();
+  /** Each coin pusher's shelf of coins (kept with the room's scene), and the simulated time owed it. */
+  private readonly shelves = new Map<PusherId, Shelf>(COIN_PUSHERS.map((m) => [m.propId, newShelf(m.propId)]));
+  private readonly shelfLag = new Map<PusherId, number>();
+  /** Whose the coins going over each pusher's edge are now (the last dropper's, for a while). */
+  private readonly pusherCredit = new Map<PusherId, { sessionId: string; until: number; stake: number }>();
+  /** Who has a pusher's panel open (sent its shelf ten times a second), and when they last were. */
+  private readonly pusherWatch = new Map<string, PusherId>();
+  private pusherViewAt = 0;
+  /** A player's run of pusher payouts (the marquee's). */
+  private readonly pusherBurst = new Map<string, { amount: number; at: number; stake: number; told: boolean }>();
+  /** Free coins (their stakes), per player, per pusher. */
+  private readonly pusherTokens = new Map<string, Partial<Record<PusherId, number[]>>>();
   /** The one-player machines: when each occupant's time is up, when a patron may next come, and a
    *  machine kept for the player who asked a patron to finish up. */
   private readonly machineUntil = new Map<string, number>();
@@ -517,7 +528,7 @@ export class CasinoFloor {
     this.tickBigSix(dt);
     this.tickMachines();
     this.tickPool();
-    this.tickDarts();
+    this.tickPushers(dt);
     const r = this.state.roulette;
     this.phaseClock -= dt;
     const shown = Math.max(0, Math.ceil(this.phaseClock));
@@ -629,14 +640,15 @@ export class CasinoFloor {
           this.state.machines.set(id, "");
           this.nextPatronAt.set(id, now + rand(15, 45) * 1000);
           npcs--;
-        } else if (id === "coin_pusher" && now >= this.npcPusherAt) {
-          // a patron at the coin pusher: a real chip or three onto the shelf (it's there for the
-          // next player to push over), the plate sliding for everyone to see
-          this.npcPusherAt = now + rand(NPC_PUSHER_DROP_S[0], NPC_PUSHER_DROP_S[1]) * 1000;
-          if (this.npcPusherAt - now > 0 && this.shelf < PUSHER_SHELF_MAX) {
-            this.shelf = Math.min(PUSHER_SHELF_MAX, this.shelf + 1 + Math.floor(Math.random() * 3));
-            this.host.broadcast("casinoProp", { kind: "pusher", propId: "coin_pusher", sessionId: who, seed: Math.floor(this.shelf) } satisfies CasinoPropEvent);
-          }
+        } else if (this.shelves.has(id as PusherId) && now >= (this.npcPusherAt.get(id as PusherId) ?? 0)) {
+          // a patron at a coin pusher: a real coin (the table minimum) down the pegs onto the shelf
+          // (it's there for the next player to push over), the plate sliding for everyone to see
+          const pid = id as PusherId;
+          this.npcPusherAt.set(pid, now + rand(NPC_PUSHER_DROP_S[0], NPC_PUSHER_DROP_S[1]) * 1000);
+          const path = pegPath(0.5 + (Math.random() - 0.5) * 0.3, Math.random);
+          const at = path[path.length - 1];
+          if (landsOnShelf(at)) landCoin(this.shelves.get(pid)!, at, PUSHER_MACHINES[pid].seedValue);
+          this.host.broadcast("casinoProp", { kind: "pusher", propId: pid, sessionId: who, seed: 0 } satisfies CasinoPropEvent);
         }
         continue;
       }
@@ -1313,46 +1325,128 @@ export class CasinoFloor {
     this.host.sendTo(sessionId, "derbyState", this.derbyState());
   }
 
-  // --- the coin pusher --------------------------------------------------------------------------
+  // --- the coin pushers --------------------------------------------------------------------------
 
-  /** A coin dropped where the dropper was (`pos`, 0 to 1): a free drop if one is held, else the
-   *  stake within the pusher's limits. Most of it lands on the shared shelf (the truer the drop, the
-   *  more), and the push shoves a share of the heap over the edge. */
-  pusherDrop(sessionId: string, stake: unknown, pos: unknown) {
-    const p = this.atTable(sessionId, "pusher");
+  /** A coin dropped at a pusher where its dropper was (`pos`, 0 to 1): a free coin if one is held
+   *  there, else the stake within that pusher's limits. It rattles down the pegs (the server's roll)
+   *  onto the shelf, or down a side chute to the house; what goes over the edge from now on is the
+   *  dropper's for PUSHER_CREDIT_MS after this coin. */
+  pusherDrop(sessionId: string, propId: unknown, stake: unknown, pos: unknown) {
+    const m = COIN_PUSHERS.find((q) => q.propId === propId);
+    if (!m) return;
+    const p = this.atTable(sessionId, pusherGame(m.propId));
     if (!p) return;
     if (!this.ready(sessionId, "pusher")) return;
-    const tokens = this.pusherTokens.get(sessionId) ?? [];
+    const mine = this.pusherTokens.get(sessionId) ?? {};
+    const held = mine[m.propId] ?? [];
+    const free = held.length > 0;
     let s: number;
-    const free = tokens.length > 0;
     if (!free) {
-      const n = tableStake(stake, TABLE_LIMITS.pusher);
+      const n = tableStake(stake, TABLE_LIMITS[PUSHER_MACHINES[m.propId].limit]);
       if (n === null) return this.refuse(sessionId, "limits");
       if (p.chips < n) return this.refuse(sessionId, "chips");
       s = n;
-    } else s = tokens[0];
-    if (!this.claimMachine(sessionId, "coin_pusher")) return;
-    if (free) tokens.shift();
+    } else s = held[0];
+    const shelf = this.shelves.get(m.propId)!;
+    if (shelf.coins.length >= PUSHER_MAX_COINS) return this.refuse(sessionId, "busy");
+    if (!this.claimMachine(sessionId, m.propId)) return;
+    if (free) held.shift();
     else p.chips -= s;
-    const at = Math.max(0, Math.min(1, Number(pos) || 0));
-    const accuracy = pusherAccuracy(at);
-    this.shelf = Math.min(PUSHER_SHELF_MAX, this.shelf + s * (1 - pusherGutter(accuracy)));
-    const outcome = PUSHER_OUTCOMES[rollPusher(Math.random())];
-    const payout = pusherPush(outcome.share, accuracy, this.shelf);
-    this.shelf = Math.max(0, this.shelf - payout);
-    if (outcome.id === "token") tokens.push(s);
-    this.pusherTokens.set(sessionId, tokens);
-    if (payout > 0) this.addChips(p, payout);
-    const shelf = Math.floor(this.shelf);
-    this.host.sendTo(sessionId, "pusherResult", { stake: s, pos: at, outcome: outcome.id, payout, free, tokens, chips: p.chips, shelf } satisfies PusherResult);
-    this.host.broadcast("casinoProp", { kind: "pusher", propId: "coin_pusher", sessionId, seed: shelf } satisfies CasinoPropEvent);
-    if (outcome.id === "avalanche" && payout > 0) this.announce(sessionId, p, payout, "pusher", "an avalanche of chips", true);
+    const path = pegPath(Math.max(0, Math.min(1, Number(pos) || 0)), Math.random);
+    const landing = path[path.length - 1];
+    const landed = landsOnShelf(landing);
+    const coin = landed ? landCoin(shelf, landing, s) : null;
+    if (Math.random() < PUSHER_TOKEN_CHANCE) held.push(s);
+    mine[m.propId] = held;
+    this.pusherTokens.set(sessionId, mine);
+    this.pusherCredit.set(m.propId, { sessionId, until: Date.now() + PUSHER_CREDIT_MS, stake: s });
+    this.pusherWatch.set(sessionId, m.propId);
+    this.host.sendTo(sessionId, "pusherEvent", { propId: m.propId, kind: "drop", path, landed, id: coin?.id ?? 0, v: s } satisfies PusherEvent);
+    this.host.sendTo(sessionId, "pusherPurse", { propId: m.propId, chips: p.chips, tokens: held, free } satisfies PusherPurse);
+    this.host.broadcast("casinoProp", { kind: "pusher", propId: m.propId, sessionId, seed: s } satisfies CasinoPropEvent);
   }
 
-  /** The shelf a saved scene brings back. */
-  restoreShelf(v: unknown) {
-    const n = Number(v);
-    if (Number.isFinite(n) && n >= 0) this.shelf = Math.min(PUSHER_SHELF_MAX, n);
+  /** Opening a pusher's panel: its shelf and the player's purse there, and the shelf ten times a
+   *  second from then on. */
+  pusherOpen(sessionId: string, p: Patron, propId: PusherId) {
+    this.pusherWatch.set(sessionId, propId);
+    const shelf = this.shelves.get(propId)!;
+    this.host.sendTo(sessionId, "pusherView", { propId, t: shelf.t, coins: packShelf(shelf) } satisfies PusherView);
+    this.host.sendTo(sessionId, "pusherPurse", { propId, chips: p.chips, tokens: this.pusherTokens.get(sessionId)?.[propId] ?? [] } satisfies PusherPurse);
+  }
+
+  /** The shelves at a fixed step while anything on one moves (or someone is watching it), what goes
+   *  over the edges paid out, and the shelves sent to the players at them. */
+  private tickPushers(dt: number) {
+    const now = Date.now();
+    for (const [sid, id] of this.pusherWatch) {
+      const p = this.state.players.get(sid);
+      if (!p || !this.inCasino(p) || !nearGameTable(pusherGame(id), p.x, p.z, GAME_SLACK + 0.5)) this.pusherWatch.delete(sid);
+    }
+    const watched = new Set(this.pusherWatch.values());
+    for (const m of COIN_PUSHERS) {
+      const shelf = this.shelves.get(m.propId)!;
+      if (!watched.has(m.propId) && !shelfAwake(shelf)) {
+        this.shelfLag.set(m.propId, 0);
+        continue;
+      }
+      let lag = (this.shelfLag.get(m.propId) ?? 0) + dt;
+      const falls: ShelfFall[] = [];
+      for (let k = 0; lag >= SHELF_STEP_S && k < 12; k++) {
+        falls.push(...stepShelf(shelf));
+        lag -= SHELF_STEP_S;
+      }
+      this.shelfLag.set(m.propId, Math.min(lag, SHELF_STEP_S));
+      if (falls.length) this.pusherFalls(m.propId, falls, now);
+    }
+    if (this.pusherWatch.size && now - this.pusherViewAt >= PUSHER_VIEW_MS) {
+      this.pusherViewAt = now;
+      for (const [sid, id] of this.pusherWatch) {
+        const shelf = this.shelves.get(id)!;
+        this.host.sendTo(sid, "pusherView", { propId: id, t: shelf.t, coins: packShelf(shelf) } satisfies PusherView);
+      }
+    }
+  }
+
+  /** Coins over a pusher's edge: those into the tray paid to whoever's they are now (the last
+   *  dropper, while their credit runs; the house's otherwise), the gutter's the house's. */
+  private pusherFalls(propId: PusherId, falls: ShelfFall[], now: number) {
+    const credit = this.pusherCredit.get(propId);
+    const owner = credit && credit.until > now ? credit.sessionId : "";
+    const to = owner ? this.state.players.get(owner) : undefined;
+    let paid = 0;
+    if (to) for (const f of falls) if (!f.gutter) paid += f.v;
+    if (to && paid > 0) {
+      this.addChips(to, paid);
+      this.host.sendTo(owner, "pusherPurse", { propId, chips: to.chips, tokens: this.pusherTokens.get(owner)?.[propId] ?? [], paid } satisfies PusherPurse);
+      let burst = this.pusherBurst.get(owner);
+      if (!burst || now - burst.at > PUSHER_BURST_MS) burst = { amount: 0, at: now, stake: credit!.stake, told: false };
+      burst.amount += paid;
+      burst.at = now;
+      this.pusherBurst.set(owner, burst);
+      if (!burst.told && burst.amount >= Math.max(MARQUEE_MIN_WIN, burst.stake * PUSHER_BURST_X)) {
+        burst.told = true;
+        this.announce(owner, to, burst.amount, "pusher", "a cascade of coins", true);
+      }
+    }
+    for (const [sid, id] of this.pusherWatch) {
+      if (id === propId) this.host.sendTo(sid, "pusherEvent", { propId, kind: "fall", falls: falls.map((f) => ({ id: f.id, x: f.x, v: f.v, gutter: f.gutter })), paid: sid === owner ? paid : 0 } satisfies PusherEvent);
+    }
+    this.host.broadcast("casinoProp", { kind: "pusher", propId, sessionId: owner, seed: falls.length } satisfies CasinoPropEvent);
+  }
+
+  /** The shelves as the room saves them (shared/pusherSim.ts saveShelf). */
+  saveShelves(): Record<string, number[]> {
+    const out: Record<string, number[]> = {};
+    for (const [id, shelf] of this.shelves) out[id] = saveShelf(shelf);
+    return out;
+  }
+
+  /** The shelves a saved scene brings back (a shelf it has none for, or an unreadable one, is laid
+   *  out new). */
+  restoreShelves(v: unknown) {
+    const saved = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+    for (const m of COIN_PUSHERS) this.shelves.set(m.propId, loadShelf(saved[m.propId]) ?? newShelf(m.propId));
   }
 
   // --- the lounge's 8-ball match -----------------------------------------------------------------
@@ -1441,73 +1535,6 @@ export class CasinoFloor {
     }
   }
 
-  // --- the lounge's darts match -------------------------------------------------------------------------
-
-  private dartsSend() {
-    this.host.broadcast("dartsState", this.darts);
-  }
-
-  dartsFor(sessionId: string) {
-    this.host.sendTo(sessionId, "dartsState", this.darts);
-  }
-
-  /** Stepping up to the oche for a match: the first to join picks the game (501 or Cricket) and
-   *  waits; the second joins it and the first to join throws first. */
-  private dartsJoin(sessionId: string, p: Patron, game: unknown) {
-    if (!nearGameTable("darts", p.x, p.z, GAME_SLACK)) return this.refuse(sessionId, "far");
-    if (this.darts.phase === "over") this.darts = emptyDartsMatch();
-    const m = this.darts;
-    if (m.phase !== "waiting" || m.players.some((q) => q.sessionId === sessionId) || m.players.length >= 2) return this.dartsFor(sessionId);
-    if (m.players.length === 0) {
-      this.darts = { ...emptyDartsMatch(game === "cricket" ? "cricket" : "501"), players: [{ sessionId, username: p.username, remaining: 501, marks: [0, 0, 0, 0, 0, 0, 0], points: 0, darts: 0 }] };
-      this.darts.say = `${p.username} is looking for a game of ${this.darts.game === "cricket" ? "Cricket" : "501"}`;
-    } else {
-      const first = m.players[0];
-      this.darts = startDarts(m.game, [first, { sessionId, username: p.username }]);
-      this.dartsAt = Date.now();
-    }
-    this.dartsSend();
-  }
-
-  private dartsLeave(sessionId: string) {
-    const m = this.darts;
-    const i = m.players.findIndex((q) => q.sessionId === sessionId);
-    if (i < 0) return;
-    if (m.phase === "playing") {
-      const other = m.players[1 - i];
-      this.darts = { ...m, phase: "over", winner: other.sessionId, say: `${m.players[i].username} left the oche: ${other.username} wins` };
-      this.dartsAt = Date.now();
-    } else this.darts = emptyDartsMatch();
-    this.dartsSend();
-  }
-
-  /** A dart from the one whose throw it is, landed where their client says (the board scores it). */
-  private dartsThrowAt(sessionId: string, x: unknown, y: unknown) {
-    const m = this.darts;
-    if (m.phase !== "playing" || m.players[m.turn]?.sessionId !== sessionId) return;
-    const dx = Number(x);
-    const dy = Number(y);
-    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) > DARTS_SURROUND) return;
-    this.darts = dartsThrow(m, dartAt(dx, dy));
-    this.dartsAt = Date.now();
-    this.dartsSend();
-  }
-
-  private tickDarts() {
-    const m = this.darts;
-    const now = Date.now();
-    if (m.phase === "playing" && now - this.dartsAt > DARTS_TURN_MS) {
-      // the thrower has wandered off: their turn passes, the darts not thrown missing
-      const next = (m.turn + 1) % m.players.length;
-      this.darts = { ...m, turn: next, thrown: [], turnStart: m.players[next].remaining, lastTurn: { player: m.turn, hits: m.thrown, bust: false }, say: `${m.players[m.turn].username} took too long: ${m.players[next].username} to throw` };
-      this.dartsAt = now;
-      this.dartsSend();
-    } else if (m.phase === "over" && now - this.dartsAt > DARTS_OVER_MS) {
-      this.darts = emptyDartsMatch();
-      this.dartsSend();
-    }
-  }
-
   // --- the baby grand ---------------------------------------------------------------------------
 
   /** At the piano: seated on its bench. */
@@ -1586,12 +1613,6 @@ export class CasinoFloor {
           this.bigSixFor(sessionId);
         }
         break;
-      case "darts":
-        if (nearGameTable("darts", p.x, p.z, GAME_SLACK)) {
-          panel("darts");
-          this.dartsFor(sessionId);
-        }
-        break;
       case "craps":
         if (nearGameTable("craps", p.x, p.z, GAME_SLACK)) {
           panel("craps");
@@ -1604,11 +1625,17 @@ export class CasinoFloor {
           this.derbyFor(sessionId);
         }
         break;
-      case "pusher":
-        if (!nearGameTable("pusher", p.x, p.z, GAME_SLACK)) break;
+      case "pusher": {
+        const m = COIN_PUSHERS.find((q) => q.propId === prop.propId);
+        if (!m || !nearGameTable(pusherGame(m.propId), p.x, p.z, GAME_SLACK)) break;
         if (!this.claimMachine(sessionId, prop.propId)) break;
         panel("pusher");
-        this.host.sendTo(sessionId, "pusherResult", { stake: 0, pos: 0.5, outcome: "none", payout: 0, free: false, tokens: this.pusherTokens.get(sessionId) ?? [], chips: p.chips, shelf: Math.floor(this.shelf) } satisfies PusherResult);
+        this.pusherOpen(sessionId, p, m.propId);
+        break;
+      }
+      case "pinball":
+        // free play: the machine's physics and score are the player's own (the panel)
+        if (nearGameTable("pinball", p.x, p.z, GAME_SLACK)) panel("pinball");
         break;
       case "billiards":
         if (nearGameTable("billiards", p.x, p.z, GAME_SLACK)) {
@@ -1752,12 +1779,6 @@ export class CasinoFloor {
         return this.holdemMove(sessionId, packet.move);
       case "BIGSIX_BET":
         return this.bigSixBet(sessionId, packet.bet, packet.amount);
-      case "DARTS_JOIN":
-        return this.dartsJoin(sessionId, p, packet.game);
-      case "DARTS_LEAVE":
-        return this.dartsLeave(sessionId);
-      case "DARTS_THROW":
-        return this.dartsThrowAt(sessionId, packet.x, packet.y);
       case "BACCARAT_BET":
         return this.baccaratBet(sessionId, packet.bet, packet.amount);
       case "CRAPS_ROLL":
@@ -1765,7 +1786,10 @@ export class CasinoFloor {
       case "DERBY_BET":
         return this.derbyBet(sessionId, packet.horse, packet.amount);
       case "PUSHER_DROP":
-        return this.pusherDrop(sessionId, packet.stake, packet.pos);
+        return this.pusherDrop(sessionId, packet.propId, packet.stake, packet.pos);
+      case "PUSHER_CLOSE":
+        this.pusherWatch.delete(sessionId);
+        return;
       case "EXCUSE_ME":
         return this.excuseMe(sessionId, p, packet.propId);
       case "POOL_BREAK":
@@ -1838,9 +1862,10 @@ export class CasinoFloor {
     if (owed && p) this.addChips(p, owed);
     this.derbyOwed.delete(sessionId);
     this.pusherTokens.delete(sessionId);
+    this.pusherWatch.delete(sessionId);
+    this.pusherBurst.delete(sessionId);
     for (const id of SINGLE_MACHINES) if (this.state.machines.get(id) === sessionId) this.state.machines.set(id, "");
     this.poolLeave(sessionId);
-    this.dartsLeave(sessionId);
     this.pianoStop(sessionId);
     this.noteBucket.delete(sessionId);
     for (const key of this.lastUse.keys()) if (key.startsWith(`${sessionId}:`)) this.lastUse.delete(key);
@@ -1882,7 +1907,6 @@ export class CasinoFloor {
     for (const b of Object.values(this.baccs)) Object.assign(b, { phase: "betting", clock: 0, stakes: [], player: [], banker: [], winner: "", paid: [] });
     this.six = { ...this.six, phase: "betting", clock: 0, stakes: [], paid: [] };
     this.pool = emptyPoolMatch();
-    this.darts = emptyDartsMatch();
     this.recital = null;
     for (const id of SINGLE_MACHINES) this.state.machines.set(id, "");
     this.reserved.clear();
@@ -1909,10 +1933,12 @@ export class CasinoFloor {
     move(this.crapsGames);
     move(this.derbyOwed);
     move(this.pusherTokens);
+    move(this.pusherWatch);
+    move(this.pusherBurst);
+    for (const credit of this.pusherCredit.values()) if (credit.sessionId === fromId) credit.sessionId = toId;
     for (const t of this.tables) for (const s of t.seats) if (s.sessionId === fromId) s.sessionId = toId;
     for (const b of Object.values(this.baccs)) for (const s of b.stakes) if (s.sessionId === fromId) s.sessionId = toId;
     for (const s of this.six.stakes) if (s.sessionId === fromId) s.sessionId = toId;
-    for (const q of this.darts.players) if (q.sessionId === fromId) q.sessionId = toId;
     for (const t of this.derby.tickets) if (t.sessionId === fromId) t.sessionId = toId;
     for (const q of this.pool.players) if (q.sessionId === fromId) q.sessionId = toId;
     for (const id of SINGLE_MACHINES) if (this.state.machines.get(id) === fromId) this.state.machines.set(id, toId);

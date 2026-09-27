@@ -478,6 +478,19 @@ class Form:
 # scene plumbing
 
 
+def studio(root, call, *args):
+    """The Blender studio (scripts/blender/studio.py, run fresh from disk): "begin" before the
+    build (a headless run joins the master file), "finish" after the export (the collections to
+    their place on the studio grid, the .blend saved). A studio failure never fails the export."""
+    path = os.path.join(root, "scripts", "blender", "studio.py")
+    ns = {"__name__": "studio"}
+    try:
+        exec(compile(open(path, encoding="utf-8").read(), path, "exec"), ns)
+        return ns[call](root, *args)
+    except Exception:
+        return {"error": traceback.format_exc()}
+
+
 def purge():
     """Remove the previous build: the Avatar collection and everything in it (Mochi is untouched)."""
     old = bpy.data.collections.get(COLLECTION)
@@ -4356,11 +4369,13 @@ def main():
     try:
         root = repo_root()
         hip_y, leg_r, hip_off = seat_constants(root)
+        studio(root, "begin")
         coll = build(hip_y, leg_r, hip_off, hair_covering_ears(root))
         out = os.path.join(root, "client", "public", "models", "avatar.glb")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         export(coll, out)
         result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), "hip_y": hip_y, "leg_radius": leg_r, "hip_offset": hip_off, **summary(coll)}
+        result["studio"] = studio(root, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}
     print(json.dumps(result, indent=1))

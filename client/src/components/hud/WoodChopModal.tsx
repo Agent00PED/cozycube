@@ -269,7 +269,7 @@ export function WoodChopModal({ send, subscribeMessages, localSessionId, onClose
           </button>
         )}
         <p className="m-0 text-[11px] opacity-60">
-          Space or Enter works too · logs split: {splits} · each +{CHOP_CLEAN_COINS} 🪙
+          <span className="kbd-hint">Space or Enter works too · </span>logs split: {splits} · each +{CHOP_CLEAN_COINS} 🪙
         </p>
       </div>
     </Modal>

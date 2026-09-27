@@ -5,6 +5,7 @@ import { useProgress } from "@react-three/drei";
 // to standing in the lounge, through three stages:
 //
 //   discord  the Discord SDK handshake            "Knocking on the door..."
+//   lobby    the lounge selector over it          "Choosing a lounge..."
 //   room     joining the Colyseus room            "Fluffing the cushions..."
 //   assets   the lounge's models loading          "Setting up the cozy lounge..."
 //
@@ -18,15 +19,16 @@ import { useProgress } from "@react-three/drei";
 // progress animation, says so ("Lost connection while napping..."), and offers Reconnect, which
 // tears the connection down and restarts the handshake at once (retries carry on meanwhile).
 
-export type LoadStage = "discord" | "room" | "assets" | "error";
+export type LoadStage = "discord" | "lobby" | "room" | "assets" | "error";
 
 const COPY: Record<Exclude<LoadStage, "error">, { title: string; detail: string }> = {
   discord: { title: "Knocking on the door...", detail: "Connecting to Discord" },
+  lobby: { title: "Choosing a lounge...", detail: "Three lounges tonight" },
   room: { title: "Fluffing the cushions...", detail: "Joining room" },
   assets: { title: "Setting up the cozy lounge...", detail: "Unpacking the furniture" },
 };
 /** Where the bar sits at each stage; the models' own progress fills the last stretch. */
-const BAR_AT = { discord: 0.12, room: 0.4, assets: 0.55 };
+const BAR_AT = { discord: 0.12, lobby: 0.26, room: 0.4, assets: 0.55 };
 /** The models count as loaded once nothing has been loading for this long. */
 const SETTLE_MS = 450;
 /** Never hold the lounge hostage: a model that stalls still shows its stand-in (ModelBoundary). */

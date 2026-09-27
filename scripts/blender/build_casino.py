@@ -58,14 +58,17 @@ where the camera would see their reflections (bake_light): vertex colours, no li
                            the two half-moon blackjack tables against the east rail (Table 2 in blue
                            baize), their racks, shoes and discard trays on the dealers' side and their
                            stools on the floor's; the emerald horseshoe booths and their glass
-                           cocktail tables; the slot row and its neon, the Turf Club's four-lane race
-                           table, the coin pusher; the poker table, its five chairs and the velvet
+                           cocktail tables; the craps table's brass posts and velvet ropes, the two
+                           high-top cocktail tables and their leather stools, the baccarat's LED bead
+                           road; the billiards table and its low lamps on the floor's flank; the slot
+                           row and its neon, the pinball cabinets, the Turf Club's four-lane race
+                           table, the two coin pushers (the High-Roller's black and gold, a crown on
+                           its crest); the poker table, its five chairs and the velvet
                            ropes; the penthouse's gilded doors in the stage's back wall (fluted
                            pilasters, a lintel of bulbs, a sunburst and a crown; the elevator's brass
                            doors in the recess behind; a runner between two stanchions); the bar, the
-                           back bar (bottles, mirror, an espresso machine), the stools, the billiards
-                           table and its low lamps, the pub darts board in its open cabinet on the
-                           wall behind it and the brass oche, the Chesterfield and its coffee table
+                           back bar (bottles, mirror, an espresso machine), the stools, the
+                           Chesterfield and its coffee table
                            (The Velvet Gazette on it), the baby grand on the dais's front-right apron
                            (its lid propped open to the floor, its harp and strings showing) and the
                            stage spotlight on its stand; the dealers' tip jars; the brass rail along
@@ -78,6 +81,7 @@ where the camera would see their reflections (bake_light): vertex colours, no li
     Prop_CrapsDie1/2     the two dice on the craps felt (origins at their centres: the game rolls them)
     Prop_DerbyHorse      one horse and rider at the Turf Club's start (the game races four of it)
     Prop_PusherPlate     the coin pusher's sliding plate
+    Prop_PusherPlateHigh the High-Roller Pusher's
     Prop_CueBall         the billiards table's cue ball
     Prop_VipDoorL/R      the penthouse's two padded door leaves (origins at their hinges: the game
                          swings them out into the room for Bruno's guests)
@@ -223,13 +227,9 @@ PALETTE = {
     "CS_WalnutDark": "#26150C",
     "CS_Wallpaper": "#57152A",
     "CS_WallDamask": "#98703A",
-    # ... and the new pieces: booths, darts, the Big Six, palms, posters
+    # ... and the new pieces: booths, the Big Six, palms, posters
     "CS_EmeraldLeather": "#1E5C43",
     "CS_EmeraldTuft": "#113B2A",
-    "CS_DartCream": "#E8DCBC",
-    "CS_DartRed": "#B5262F",
-    "CS_DartGreen": "#1D7A46",
-    "CS_Chalk": "#26302B",
     "CS_Cane": "#7C8F3E",
     "CS_Areca": "#3F7A3A",
     "CS_ArecaLight": "#5E9444",
@@ -238,10 +238,15 @@ PALETTE = {
     "CS_SixViolet": "#7B4FC4",
     "CS_SixOrange": "#E0842C",
     "CS_Teal": "#1F5E63",
+    # the ecosystem overhaul: the hall baccarat's navy felt, its bead-road sign's LEDs
+    "CS_FeltNavy": "#0F2042",
+    "CS_LedRed": "#FF4A4A",
+    "CS_LedBlue": "#4A9BFF",
+    "CS_LedGreen": "#4AFF95",
 }
 
 # which of the six shared materials each colour is painted with
-GLOW = {"CS_Bulb", "CS_Crystal", "CS_SlotScreen", "CS_Flame", "CS_FlameCore", "CS_CrystalBall", "CS_StarGlow"}
+GLOW = {"CS_Bulb", "CS_Crystal", "CS_SlotScreen", "CS_Flame", "CS_FlameCore", "CS_CrystalBall", "CS_StarGlow", "CS_LedRed", "CS_LedBlue", "CS_LedGreen"}
 NEON = {"CS_NeonPink", "CS_NeonCyan"}
 DECAL1 = {"CS_FloorMarbleLight", "CS_FloorMarbleDark", "CS_Terrazzo"}
 DECAL2 = {"CS_Runner", "CS_Inlay", "CS_FeltRed", "CS_FeltBlack", "CS_FeltLine", "CS_FeltGold", "CS_FeltZero", "CS_Card", "CS_Ink", "CS_Damask", "CS_DamaskGold", "CS_Vein", "CS_WallDamask"}
@@ -646,6 +651,19 @@ def wbar(M, L, wall, at, a, b, d, r, mat, sides=8):
 
 # ---------------------------------------------------------------------------------------------
 # Blender plumbing: six shared materials, vertex colours
+
+
+def studio(root, call, *args):
+    """The Blender studio (scripts/blender/studio.py, run fresh from disk): "begin" before the
+    build (a headless run joins the master file), "finish" after the export (the collections to
+    their place on the studio grid, the .blend saved). A studio failure never fails the export."""
+    path = os.path.join(root, "scripts", "blender", "studio.py")
+    ns = {"__name__": "studio"}
+    try:
+        exec(compile(open(path, encoding="utf-8").read(), path, "exec"), ns)
+        return ns[call](root, *args)
+    except Exception:
+        return {"error": traceback.format_exc()}
 
 
 def purge():
@@ -2231,6 +2249,12 @@ def die_mesh(cx, cy, cz):
     return D
 
 
+def build_craps_ropes(M, L):
+    """The velvet ropes framing the craps table on its open sides."""
+    for rope in L["craps"].get("ropes", []):
+        velvet_rope(M, rope["a"], rope["b"])
+
+
 def build_craps(M, L, nodes):
     """The craps table: a mahogany tub on two pedestals, a black padded rail, the felt bed laid out
     (the pass line, don't pass, come, the field, the centre bets), the stick on the rail, chips in
@@ -2499,15 +2523,16 @@ def build_derby(M, L, nodes):
     nodes.append({"name": "Prop_DerbyHorse", "mesh": horse_mesh(hx, hy, hz), "origin": (hx, hy, hz), "force": "CS_Clay"})
 
 
-def build_pusher(M, L, nodes):
-    """The coin pusher, facing the room (+x): a red and gold cabinet, its playfield open behind gold
-    posts (a mirrored back, two chrome shelves heaped with coins), a lit marquee on top, a coin tray
-    at the front; the pushing plate is a node of its own (the game slides it)."""
-    p = L["pusher"]
+def build_pusher(M, L, nodes, key="pusher", node="Prop_PusherPlate", high=False):
+    """A coin pusher, facing the room (+x): a red and gold cabinet (the High-Roller's black lacquer,
+    banded in gold), its playfield open behind gold posts (a mirrored back, two chrome shelves heaped
+    with coins), a lit marquee on top, a coin tray at the front; the pushing plate is a node of its
+    own (the game slides it)."""
+    p = L[key]
     x, z = p["x"], p["z"]
     hd, hw, H = p["d"] / 2, p["w"] / 2, p["h"]
     x0, x1, z0, z1 = x - hd, x + hd, z - hw, z + hw
-    body = "CS_SlotBody"
+    body = "CS_Black" if high else "CS_SlotBody"
     box(M, x0, x1, 0.0, 0.06, z0, z1, "CS_Black")
     box(M, x0, x1 - 0.02, 0.06, 0.62, z0, z1, body)
     for a, b, c_, e in ((0.12, 0.15, z0 + 0.08, z1 - 0.08), (0.52, 0.55, z0 + 0.08, z1 - 0.08), (0.15, 0.52, z0 + 0.08, z0 + 0.11), (0.15, 0.52, z1 - 0.11, z1 - 0.08)):
@@ -2542,11 +2567,22 @@ def build_pusher(M, L, nodes):
         blob(M, x1 + 0.015, H - 0.16, z0 + 0.1 + k * (z1 - z0 - 0.2) / 6, 0.018, 0.018, 0.018, "CS_Bulb", cuts=1)
     cylinder(M, (x1 + 0.02, (1.53 + H - 0.16) / 2, z0 + 0.12), (x1 + 0.02, (1.53 + H - 0.16) / 2, z1 - 0.12), 0.016, "CS_NeonPink", sides=8)
     box(M, x0 - 0.01, x1 + 0.01, H - 0.08, H, z0 - 0.01, z1 + 0.01, "CS_Gold")
+    if high:
+        # the High-Roller's gold: bands round the base and the marquee, a crown crest on top
+        for y in (0.06, 0.6, 1.45):
+            box(M, x0 - 0.012, x1 + 0.012, y, y + 0.03, z0 - 0.012, z1 + 0.012, "CS_Gold")
+        for zz in (z0, z1):
+            box(M, x0 - 0.012, x0 + 0.03, 0.06, H, zz - 0.012, zz + 0.012, "CS_Gold")
+        for k in range(5):
+            h_ = 0.1 + 0.05 * (k % 2)
+            cz = z0 + 0.12 + k * (z1 - z0 - 0.24) / 4
+            box(M, x1 - 0.12, x1 - 0.04, H, H + h_, cz - 0.03, cz + 0.03, "CS_Gold")
+            blob(M, x1 - 0.08, H + h_ + 0.025, cz, 0.025, 0.025, 0.025, "CS_Bulb", cuts=1)
     # the plate
     P = Mesh()
-    box(P, x0 + 0.06, x0 + 0.36, 0.7, 0.8, z0 + 0.07, z1 - 0.07, "CS_Chrome")
+    box(P, x0 + 0.06, x0 + 0.36, 0.7, 0.8, z0 + 0.07, z1 - 0.07, "CS_Gold" if high else "CS_Chrome")
     box(P, x0 + 0.34, x0 + 0.36, 0.7, 0.8, z0 + 0.07, z1 - 0.07, "CS_ChromeDark")
-    nodes.append({"name": "Prop_PusherPlate", "mesh": P, "origin": (x0 + 0.21, 0.7, z), "force": "CS_Sheen"})
+    nodes.append({"name": node, "mesh": P, "origin": (x0 + 0.21, 0.7, z), "force": "CS_Sheen"})
 
 
 # ---------------------------------------------------------------------------------------------
@@ -2568,6 +2604,22 @@ def chair(M, x, z, yaw, seat_top):
         for up in (0.18, 0.36):
             px, pz = x + f[0] * -0.205 + r[0] * b, z + f[1] * -0.205 + r[1] * b
             blob(M, px, seat_top + up, pz, 0.012, 0.012, 0.012, "CS_Gold", cuts=1)
+
+
+def velvet_rope(M, a, b):
+    """Brass stanchions a pace apart from a to b, a velvet rope sagging between each two."""
+    (ax, az), (bx, bz) = a, b
+    n = max(1, round(math.hypot(bx - ax, bz - az) / 1.3))
+    posts = [(ax + (bx - ax) * k / n, az + (bz - az) * k / n) for k in range(n + 1)]
+    for px, pz in posts:
+        lathe(M, px, pz, [(0, 0), (0.12, 0), (0.1, 0.04), (0, 0.045)], "CS_Brass", segs=12)
+        cylinder(M, (px, 0.04, pz), (px, 0.9, pz), 0.03, "CS_Brass", sides=8)
+        blob(M, px, 0.93, pz, 0.052, 0.052, 0.052, "CS_Brass", cuts=2)
+    for (pa, qa), (pb, qb) in zip(posts, posts[1:]):
+        seg = 8
+        pts = [(pa + (pb - pa) * k / seg, 0.84 - 0.14 * 4 * (k / seg) * (1 - k / seg), qa + (qb - qa) * k / seg) for k in range(seg + 1)]
+        for u, v in zip(pts, pts[1:]):
+            cylinder(M, u, v, 0.028, "CS_Velvet", sides=8)
 
 
 def build_pit(M, L, cushions, nodes):
@@ -2597,18 +2649,7 @@ def build_pit(M, L, cushions, nodes):
     jx, jz = L["tipJars"]["boris"]
     tip_jar(M, jx, jz, top)
     for rope in L["ropes"]:
-        (ax, az), (bx, bz) = rope["a"], rope["b"]
-        n = max(1, round(math.hypot(bx - ax, bz - az) / 1.3))
-        posts = [(ax + (bx - ax) * k / n, az + (bz - az) * k / n) for k in range(n + 1)]
-        for px, pz in posts:
-            lathe(M, px, pz, [(0, 0), (0.12, 0), (0.1, 0.04), (0, 0.045)], "CS_Brass", segs=12)
-            cylinder(M, (px, 0.04, pz), (px, 0.9, pz), 0.03, "CS_Brass", sides=8)
-            blob(M, px, 0.93, pz, 0.052, 0.052, 0.052, "CS_Brass", cuts=2)
-        for (pa, qa), (pb, qb) in zip(posts, posts[1:]):
-            seg = 8
-            pts = [(pa + (pb - pa) * k / seg, 0.84 - 0.14 * 4 * (k / seg) * (1 - k / seg), qa + (qb - qa) * k / seg) for k in range(seg + 1)]
-            for u, v in zip(pts, pts[1:]):
-                cylinder(M, u, v, 0.028, "CS_Velvet", sides=8)
+        velvet_rope(M, rope["a"], rope["b"])
     # the brass balustrade along the stage's side over the lounge
     bl = L["balustrade"]
     bx = bl["x"]
@@ -2927,89 +2968,15 @@ def build_chesterfield(M, L, cushions):
         blob(M, cx + 0.3 + 0.03 * math.cos(k * 1.6), top + 0.035, cz + 0.1 + 0.03 * math.sin(k * 1.6), 0.018, 0.012, 0.018, "CS_CapWhite", cuts=1)
 
 
-def build_darts(M, L):
-    """The pub darts board on the lounge's back wall behind the pool table: a mahogany cabinet with
-    its doors swung open (a chalk scoreboard inside each), the board (sisal cream and black, the
-    doubles and trebles in red and green, the bull), three darts in it, and a brass oche on the floor
-    where you throw from."""
-    dt = L["darts"]
-    face = wall_face(L)
-    zc, yc, r = dt["z"], dt["y"], dt["r"]
-    # the cabinet behind the board, and its doors open at the sides
-    box(M, face, face + 0.1, yc - 0.42, yc + 0.42, zc - 0.42, zc + 0.42, "CS_Mahogany")
-    box(M, face + 0.1, face + 0.11, yc - 0.4, yc + 0.4, zc - 0.4, zc + 0.4, "CS_MahoganyDark")
-    for sz_ in (-1, 1):
-        hz = zc + sz_ * 0.42
-        ang = math.radians(70)
-        ex, ez = face + 0.1 + math.sin(ang) * 0.42, hz + sz_ * math.cos(ang) * 0.42
-        pts = [(face + 0.1, hz), (ex, ez)]
-        nxz = (-(ez - hz), ex - (face + 0.1))
-        ln = math.hypot(*nxz)
-        t = 0.03
-        ox, oz = nxz[0] / ln * t * sz_, nxz[1] / ln * t * sz_
-        slab(M, [pts[0], pts[1], (pts[1][0] - ox, pts[1][1] - oz), (pts[0][0] - ox, pts[0][1] - oz)], yc - 0.42, yc + 0.42, "CS_Mahogany")
-        # the chalkboard on its inside, and its chalk
-        ix = (ex - face - 0.1) / 0.42
-        iz = (ez - hz) / 0.42
-        board = [(face + 0.1 + ix * 0.05 + ox * 1.2, hz + iz * 0.05 + oz * 1.2), (face + 0.1 + ix * 0.37 + ox * 1.2, hz + iz * 0.37 + oz * 1.2)]
-        nrm = (ox / t, 0.0, oz / t)
-        for yy0, yy1, mat in ((yc - 0.35, yc + 0.35, "CS_Chalk"),):
-            flat(M, [(board[0][0], yy0, board[0][1]), (board[1][0], yy0, board[1][1]), (board[1][0], yy1, board[1][1]), (board[0][0], yy1, board[0][1])], mat, nrm)
-        for k in range(6):
-            yy = yc + 0.28 - k * 0.1
-            f0, f1 = 0.08, 0.2 + (k % 3) * 0.05
-            flat(M, [(face + 0.1 + ix * f0 + ox * 1.3, yy, hz + iz * f0 + oz * 1.3), (face + 0.1 + ix * f1 + ox * 1.3, yy, hz + iz * f1 + oz * 1.3), (face + 0.1 + ix * f1 + ox * 1.3, yy + 0.012, hz + iz * f1 + oz * 1.3), (face + 0.1 + ix * f0 + ox * 1.3, yy + 0.012, hz + iz * f0 + oz * 1.3)], "CS_Paper", nrm)
-        wall_box(M, L, "x", hz - 0.015, hz + 0.015, yc + 0.28, yc + 0.34, 0.09, 0.12, "CS_Brass")
-        wall_box(M, L, "x", hz - 0.015, hz + 0.015, yc - 0.34, yc - 0.28, 0.09, 0.12, "CS_Brass")
-    # the board: its black surround, the number ring, then the beds, rings and bull, each flat on it
-    bx = face + 0.13
-    xslab(M, [(zc + 0.3 * math.cos(2 * math.pi * k / 32), yc + 0.3 * math.sin(2 * math.pi * k / 32)) for k in range(32)], face + 0.11, bx, "CS_Black")
-    order = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
-    rings = (6.35 / 170, 15.9 / 170, 99 / 170, 107 / 170, 162 / 170, 1.0)
-
-    def wedge(r0, r1, a0, a1, mat, d):
-        n = 3
-        pts = [(r1 * math.cos(a0 + (a1 - a0) * k / n), r1 * math.sin(a0 + (a1 - a0) * k / n)) for k in range(n + 1)]
-        pts += [(r0 * math.cos(a1 - (a1 - a0) * k / n), r0 * math.sin(a1 - (a1 - a0) * k / n)) for k in range(n + 1)]
-        # the board faces +x: its "right" (as you face it) is -z
-        flat(M, [(bx + d, yc + v * r, zc - u * r) for u, v in pts], mat, (1.0, 0.0, 0.0))
-
-    for i, n in enumerate(order):
-        c = math.radians(90 - i * 18)
-        a0, a1 = c - math.radians(9), c + math.radians(9)
-        dark = i % 2 == 0
-        bed = "CS_Black" if dark else "CS_DartCream"
-        ring = "CS_DartRed" if dark else "CS_DartGreen"
-        wedge(rings[1], rings[2], a0, a1, bed, 0.001)
-        wedge(rings[2], rings[3], a0, a1, ring, 0.001)
-        wedge(rings[3], rings[4], a0, a1, bed, 0.001)
-        wedge(rings[4], rings[5], a0, a1, ring, 0.001)
-        # a little brass number tab
-        tu, tv = 1.12 * math.cos(c), 1.12 * math.sin(c)
-        flat(M, [(bx + 0.001, yc + (tv - 0.035) * r, zc - (tu - 0.035) * r), (bx + 0.001, yc + (tv - 0.035) * r, zc - (tu + 0.035) * r), (bx + 0.001, yc + (tv + 0.035) * r, zc - (tu + 0.035) * r), (bx + 0.001, yc + (tv + 0.035) * r, zc - (tu - 0.035) * r)], "CS_Brass", (1.0, 0.0, 0.0))
-    flat(M, [(bx + 0.001, yc + rings[1] * r * math.sin(2 * math.pi * k / 12), zc - rings[1] * r * math.cos(2 * math.pi * k / 12)) for k in range(12)], "CS_DartGreen", (1.0, 0.0, 0.0))
-    flat(M, [(bx + 0.002, yc + rings[0] * r * math.sin(2 * math.pi * k / 10), zc - rings[0] * r * math.cos(2 * math.pi * k / 10)) for k in range(10)], "CS_DartRed", (1.0, 0.0, 0.0))
-    # three darts in it: brass barrels, their flights in red
-    for du, dv in ((0.02, 0.61), (-0.2, 0.4), (0.33, -0.15)):
-        tip = (bx, yc + dv * r, zc - du * r)
-        tail = (bx + 0.13, yc + dv * r + 0.01, zc - du * r - 0.01)
-        cylinder(M, tip, tail, 0.006, "CS_Brass", sides=5)
-        blob(M, tail[0], tail[1], tail[2], 0.012, 0.03, 0.03, "CS_Red", cuts=1)
-    # the oche, a brass strip on the floor
-    ox = dt["oche"]
-    box(M, ox - 0.03, ox + 0.03, 0.0, 0.006, zc - 0.45, zc + 0.45, "CS_Brass")
-
-
 def build_lounge(M, L, cushions, nodes):
     build_bar(M, L, cushions)
     build_piano(M, L, cushions)
-    build_billiards(M, L, nodes)
     build_chesterfield(M, L, cushions)
-    build_darts(M, L)
+    build_bigsix(M, L, nodes)
 
 
 def build_bigsix(M, L, nodes):
-    """The Big Six wheel where the foyer meets the floor, turned to face the room: an Art-Deco
+    """The Big Six wheel flush against the lounge's wall, facing the room: an Art-Deco
     cabinet (mahogany, fluted gold, a sunburst on its front) with a gilt fan crest of bulbs over the
     wheel, the axle's post and the leather flapper at the top that clicks over the pegs; a betting
     ledge before it, its six segments laid out on the felt. The wheel itself is a node
@@ -3125,7 +3092,7 @@ def build_bigsix(M, L, nodes):
         a = 2 * math.pi * m / 8
         q = [wp(0.0, 0.0, 0.065), wp(0.13, a - 0.25, 0.065), wp(0.19, a, 0.065), wp(0.13, a + 0.25, 0.065)]
         flat(Wm, q, "CS_Gold" if m % 2 else "CS_Brass", (fwd[0], 0.0, fwd[1]))
-    nodes.append({"name": "Prop_BigSixWheel", "mesh": Wm, "origin": (b["x"], hub, b["z"]), "force": "CS_Sheen"})
+    nodes.append({"name": "Prop_BigSixWheel", "mesh": Wm, "origin": (b["x"], hub + LIFT[0], b["z"]), "force": "CS_Sheen"})
 
 
 def build_hall_baccarat(M, L, cushions):
@@ -3160,7 +3127,7 @@ def build_hall_baccarat(M, L, cushions):
         lx, lz = P(sx, 0.1)
         lathe(M, lx, lz, [(0, 0), (0.24, 0), (0.24, 0.04), (0.08, 0.1), (0.07, top - 0.16), (0.2, top - 0.1), (0, top - 0.1)], "CS_Mahogany", segs=14)
     slab(M, o, top - 0.1, top - 0.02, "CS_Mahogany")
-    slab(M, i, top - 0.02, top, "CS_Felt")
+    slab(M, i, top - 0.02, top, "CS_FeltNavy" if t.get("felt") == "navy" else "CS_Felt")
     arc_o = [P((a + 0.03) * math.sin(math.radians(d)), (b + 0.03) * math.cos(math.radians(d))) for d in range(-90, 91, 10)]
     arc_i = [P((a - 0.12) * math.sin(math.radians(d)), (b - 0.12) * math.cos(math.radians(d))) for d in range(-90, 91, 10)]
     band(M, arc_o, arc_i, top - 0.02, top + 0.05, "CS_Velvet", closed=False)
@@ -3194,6 +3161,71 @@ def build_hall_baccarat(M, L, cushions):
     for deg in t["stoolAngles"]:
         r_ = math.radians(deg)
         stool(M, *P(math.sin(r_) * t["stoolA"], math.cos(r_) * t["stoolB"]), seat)
+    if t.get("beadRoad"):
+        build_bead_road(M, t["beadRoad"])
+
+
+# a Punto Banco bead road: the coups in columns, red for the Banker, blue for the Player, green for
+# a tie (a fixed evening's run of them; the sign is decoration)
+BEAD_ROAD = "BBPBTPPBBBPBPPTBBPBBPPPBBTPBPBBPPBPBBBTP"
+
+
+def build_bead_road(M, br):
+    """The bead-road sign beside the baccarat table: a slim digital board on a brass post, its LEDs
+    in six rows (the last coups: red, blue, green), a gold header; lit on both faces, so the players
+    and the room alike can read it."""
+    F = Frame(br["x"], br["z"], br.get("yaw", 0.0))
+    F.lathe(M, 0.0, 0.0, [(0, 0), (0.16, 0), (0.14, 0.04), (0, 0.05)], "CS_Brass", segs=12)
+    F.cyl(M, (0.0, 0.04, 0.0), (0.0, 1.12, 0.0), 0.028, "CS_Brass", sides=8)
+    w, y0, y1 = 0.3, 1.1, 1.52
+    F.box(M, -w - 0.03, w + 0.03, y0 - 0.03, y1 + 0.08, -0.04, 0.04, "CS_Gold")
+    F.box(M, -w, w, y0, y1, -0.045, 0.045, "CS_Screen")
+    F.box(M, -w, w, y1, y1 + 0.06, -0.047, 0.047, "CS_Black")
+    for k in range(5):
+        F.blob(M, -w + 0.06 + k * (2 * w - 0.12) / 4, y1 + 0.03, 0.0, 0.012, 0.012, 0.05, "CS_Bulb", cuts=1)
+    rows, cols = 6, 8
+    cell = (2 * w - 0.06) / cols
+    for c in range(cols):
+        for r_ in range(rows):
+            ch = BEAD_ROAD[(c * rows + r_) % len(BEAD_ROAD)]
+            mat = {"B": "CS_LedRed", "P": "CS_LedBlue", "T": "CS_LedGreen"}[ch]
+            lx = -w + 0.03 + cell * (c + 0.5)
+            y = y1 - 0.035 - r_ * (y1 - y0 - 0.06) / rows
+            for side in (-1, 1):
+                F.blob(M, lx, y, side * 0.047, 0.018, 0.018, 0.006, mat, cuts=1)
+
+
+def build_cocktails(M, L, cushions):
+    """The high-top cocktail tables in the carpet beyond the craps ropes: a round black-marble top in
+    a brass ring on a slim brass column and a weighted foot, a candle and a coupe on it, and a
+    leather-topped stool either side."""
+    ct = L["cocktails"]
+    top, r = ct["top"], ct["r"]
+    seat = cushions["barStool"]["top"]
+    for t in ct["tables"]:
+        x, z = t["x"], t["z"]
+        lathe(M, x, z, [(0, 0), (0.26, 0), (0.24, 0.04), (0.06, 0.07), (0.035, 0.12), (0.03, top - 0.08), (0.07, top - 0.05), (0, top - 0.05)], "CS_Brass", segs=16)
+        lathe(M, x, z, [(0, top - 0.05), (r, top - 0.05), (r + 0.01, top - 0.02), (r, top), (0, top)], "CS_MarbleDark", segs=24)
+        band(M, circle(x, z, r + 0.015, 24), circle(x, z, r - 0.01, 24), top - 0.055, top + 0.005, "CS_Brass")
+        lathe(M, x + 0.06, z - 0.05, [(0, 0), (0.035, 0), (0.035, 0.06), (0, 0.06)], "CS_JarGlass", segs=10, y0=top)
+        blob(M, x + 0.06, top + 0.075, z - 0.05, 0.012, 0.022, 0.012, "CS_Flame", cuts=1)
+        lathe(M, x - 0.08, z + 0.06, [(0, 0.0), (0.03, 0.0), (0.005, 0.01), (0.005, 0.07), (0.05, 0.1), (0.055, 0.12), (0, 0.12)], "CS_JarGlass", segs=10, y0=top)
+        blob(M, x - 0.08, top + 0.11, z + 0.06, 0.04, 0.012, 0.04, "CS_Amber", cuts=1)
+        for side in (-1, 1):
+            leather_stool(M, x + side * ct["stoolR"], z, seat)
+
+
+def leather_stool(M, x, z, seat_top):
+    """A bar stool with a buttoned oxblood-leather seat: a brass foot, post and foot ring."""
+    lathe(M, x, z, [(0, 0), (0.17, 0), (0.16, 0.03), (0, 0.035)], "CS_Brass", segs=14)
+    cylinder(M, (x, 0.03, z), (x, seat_top - 0.07, z), 0.028, "CS_Brass", sides=8)
+    ring = 8
+    for k in range(ring):
+        a0, a1 = 2 * math.pi * k / ring, 2 * math.pi * (k + 1) / ring
+        cylinder(M, (x + 0.14 * math.cos(a0), 0.2, z + 0.14 * math.sin(a0)), (x + 0.14 * math.cos(a1), 0.2, z + 0.14 * math.sin(a1)), 0.012, "CS_Brass", sides=6)
+    lathe(M, x, z, [(0, seat_top - 0.07), (0.19, seat_top - 0.07), (0.21, seat_top - 0.035), (0.19, seat_top), (0, seat_top)], "CS_Leather", segs=16)
+    blob(M, x, seat_top + 0.002, z, 0.012, 0.004, 0.012, "CS_LeatherDark", cuts=1)
+    lathe(M, x, z, [(0, seat_top - 0.08), (0.2, seat_top - 0.08), (0.2, seat_top - 0.065), (0, seat_top - 0.065)], "CS_Gold", segs=16)
 
 
 def build_booths(M, L, cushions):
@@ -3306,7 +3338,7 @@ def build(root):
         ("z", L["zara"]["x"] - 0.8, L["zara"]["x"] + 0.8, 0.0, L["zara"]["h"] + 0.1),
         ("x", L["bar"]["z0"] - 0.2, L["bar"]["z1"] + 0.1, 0.0, 3.35),
         ("x", L["neon"]["from"] - 0.3, L["neon"]["to"] + 0.3, 0.0, L["neon"]["y"] + 0.55),
-        ("x", L["darts"]["z"] - 0.5, L["darts"]["z"] + 0.5, lounge_h + L["darts"]["y"] - 0.5, lounge_h + L["darts"]["y"] + 0.5),
+        ("x", L["bigSix"]["z"] - 0.98, L["bigSix"]["z"] + 0.98, 0.0, lounge_h + L["bigSix"]["hub"] + L["bigSix"]["r"] + 0.75),
     ])
     for m in L["mirrors"]:
         WALL_FEATURES.append((m["wall"], m["at"] - 0.7, m["at"] + 0.7, m["y"] - 0.7, m["y"] + 0.7))
@@ -3342,14 +3374,17 @@ def build(root):
     build_gachapon(M, L)
     build_roulette(M, L)
     build_craps(M, L, nodes)
+    build_craps_ropes(M, L)
+    build_cocktails(M, L, cushions)
     build_blackjack(M, L, cushions)
     build_hall_baccarat(M, L, cushions)
-    build_bigsix(M, L, nodes)
     build_booths(M, L, cushions)
+    build_billiards(M, L, nodes)
     build_alley(M, L)
     build_pinballs(M, L)
     build_derby(M, L, nodes)
     build_pusher(M, L, nodes)
+    build_pusher(M, L, nodes, key="pusherHigh", node="Prop_PusherPlateHigh", high=True)
     with lifted(stage(L, "pit")["h"]):
         build_pit(M, L, cushions, nodes)
     with lifted(stage(L, "lounge")["h"]):
@@ -3407,11 +3442,13 @@ def main():
     report = globals().get("REPORT_PATH")
     try:
         root = repo_root()
+        studio(root, "begin")
         coll, L, cushions = build(root)
         out = os.path.join(root, "client", "public", "models", "casino.glb")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         export(coll, out)
         result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), **summary(coll, L, cushions)}
+        result["studio"] = studio(root, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}
     print(json.dumps(result, indent=1))

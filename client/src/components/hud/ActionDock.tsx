@@ -8,6 +8,7 @@ import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, BOUTIQUE, BOUTIQUE_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { BAR_REACH, BLACKJACK_TABLES, CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, GACHAPON_FRONT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, ROULETTE_BET_RADIUS, ROULETTE_CENTER, TIP_JARS, VIP_DOORS_FRONT, ZARA_FRONT, barDistance, nearGameTable, seatedGameOf, type CasinoGameTable } from "@shared/worlds/casino";
 import { VIP_ARRIVAL } from "@shared/worlds/casino_vip";
+import { isTouchUi } from "../../systems/inputMode";
 import { BAR_SNACK, CAPSULE_COST, DEALER_TIP, TABLE_LIMITS, VAULT_SLOT_ID, chipText, isNpcOccupant, slotLimit, type CasinoPacket } from "@shared/casino";
 import { VIP_PASS } from "@shared/items";
 import { pushToast } from "./toastStore";
@@ -57,9 +58,9 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🍸 Bar Menu]   at the bar, standing or on a stool: Pippin's drinks
 //   [📰 Read the Gazette]  by the coffee table, or on the Chesterfield
 //   [🎹 Play Piano] on the baby grand's bench, or beside it: an arpeggio the lounge hears
-//   [🎡 Big Six] / [🎲 Craps] / [🏇 Turf Club] / [🪙 Coin Pusher] / [🎱 Play Pool] / [🎯 Darts]  at the
-//                    Big Six's ledge, the craps table, the Turf Club, the coin pusher, the billiards
-//                    table and the darts board's oche
+//   [🎡 Big Six] / [🎲 Craps] / [🏇 Turf Club] / [🪙 Coin Pusher] / [👑 High-Roller Pusher] /
+//   [🎱 Play Pool] / [🕹️ Pinball]  at the Big Six's ledge, the craps table, the Turf Club, either coin
+//                    pusher, the billiards table and the pinball cabinets
 //   [🕶️ Penthouse]  at Bruno's gilded doors on the stage: up in the elevator with a VIP pass, or
 //                    [🎫 VIP Pass] to buy one; in the penthouse, [🛗 Back Down] at the elevator
 //   [🚪 Leave Casino]  at the exit doors: the world drawer
@@ -112,7 +113,7 @@ interface Action {
     | "billiards"
     | "baccarat"
     | "bigsix"
-    | "darts"
+    | "pinball"
     | "excuse"
     | "vip"
     | "exit"
@@ -164,8 +165,6 @@ interface DockProps {
 }
 
 const SCAN_MS = 120;
-/** A keyboard to press Space on (not a phone or tablet, where the pill is the way up). */
-const HAS_KEYBOARD = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: fine)").matches;
 
 export function ActionDock({ player, players, mapId, chairs, toggleables, localSessionId, hearth, machines, onWater, onCampfire, onCasino }: DockProps) {
   const [actions, setActions] = useState<Action[]>([]);
@@ -308,14 +307,15 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
             ["craps", "craps_table", "🎲 Craps", `Your own dice: Pass Line, Field or Any 7 (${chipText(TABLE_LIMITS.craps.min)} to ${chipText(TABLE_LIMITS.craps.max)} a bet)`],
             ["derby", "derby_table", "🏇 Turf Club", `A ticket on one of four clockwork horses (${chipText(TABLE_LIMITS.derby.min)} to ${chipText(TABLE_LIMITS.derby.max)})`],
             ["pusher", "coin_pusher", "🪙 Coin Pusher", "Drop a coin in the green: the better the drop, the bigger the push"],
-            ["billiards", "billiards_table", "🎱 Play Pool", "8-ball on the lounge's table: a rack of your own, or a match against a friend"],
-            ["darts", "darts_board", "🎯 Darts", "The pub darts board: 501 or Cricket, solo or a match (for bragging rights)"],
+            ["pusher_high", "coin_pusher_high", "👑 High-Roller Pusher", "The gold-trimmed pusher: bigger coins, bigger cascades"],
+            ["billiards", "billiards_table", "🎱 Play Pool", "8-ball on the floor's table: a rack of your own, or a match against a friend"],
+            ["pinball", "pinball_01", "🕹️ Pinball", "A vintage pinball machine: free play, for the high score"],
           ];
           for (const [game, propId, label, hint] of games) {
             const p = toggleables[propId];
             if (!p || !nearGameTable(game, px, pz)) continue;
             // the coin pusher is one player's at a time, like the slots
-            const who = game === "pusher" ? (machines[propId] ?? "") : "";
+            const who = game === "pusher" || game === "pusher_high" ? (machines[propId] ?? "") : "";
             if (who && who !== localSessionId) {
               const npc = isNpcOccupant(who);
               found.push({ key: `pusher:busy`, type: "pusher", label: npc ? "[ In Use by Patron ]" : "[ In Use ]", hint: "Someone is currently playing here! Please wait a moment or find an open machine.", disabled: true, run: () => {} });
@@ -499,7 +499,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       }
 
       if (sitting) {
-        found.push({ key: "stand", type: "stand", label: HAS_KEYBOARD ? "🧍 Stand up · Space" : "🧍 Stand up", hint: "Press Space or move to stand up", run: () => interactBridge.current?.stand() });
+        found.push({ key: "stand", type: "stand", label: isTouchUi() ? "🧍 Stand up" : "🧍 Stand up · Space", hint: "Press Space or move to stand up", run: () => interactBridge.current?.stand() });
       } else {
         const px = cameraFocus.x;
         const pz = cameraFocus.z;

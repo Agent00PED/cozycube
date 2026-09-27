@@ -221,12 +221,55 @@ export function isMapId(v: unknown): v is MapId {
   return typeof v === "string" && (MAP_IDS as string[]).includes(v);
 }
 
+/** A name as shown over a head and in chat: the letters, combining marks and digits of every
+ *  script (Thai's consonants, its vowels and tone marks: U+0E00-U+0E7F, stay whole), spaces,
+ *  punctuation and symbols (emoji); control, zero-width and other invisible characters go, runs of
+ *  spaces fold to one, and it is at most 32 characters (Discord's own limit). Nothing left: `fallback`. */
+export function cleanDisplayName(raw: unknown, fallback = "Guest"): string {
+  const name = String(raw ?? "")
+    .normalize("NFC")
+    .replace(/[^\p{L}\p{M}\p{N}\p{Zs}\p{P}\p{S}฀-๿]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return Array.from(name).slice(0, 32).join("") || fallback;
+}
+
 /** The room a join goes to: one per Discord guild, so everyone in a server (whatever voice channel
  *  they launched from) shares one instance and walks its worlds freely; a DM or a group DM, with no
  *  guild, gets one of its own. Sent as the join's `guildKey` (the server's matchmaking filter). */
 export function guildRoomKey(guildId: string | null | undefined, channelId: string | null | undefined): string {
   const guild = String(guildId ?? "").trim();
   return guild ? `guild_${guild}` : `channel_${String(channelId ?? "").trim() || "local"}`;
+}
+
+/**
+ * The lounges: every guild has LOUNGE_COUNT instances of the whole game, each its own persistent
+ * room (its own scene, fire, coin pushers and board game), picked on the lounge selector after
+ * the splash. Lounge 1 is the guild's original room (its key unchanged, so what it kept stays);
+ * the others are keyed apart. Each holds LOUNGE_CAPACITY players (the room's maxClients).
+ */
+export const LOUNGE_COUNT = 3;
+export const LOUNGE_CAPACITY = 25;
+export const loungeName = (lounge: number) => `Velvet Lounge ${String(lounge).padStart(2, "0")}`;
+export function isLounge(v: unknown): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= LOUNGE_COUNT;
+}
+/** The room key (the join's `guildKey`) of a guild's lounge. */
+export function loungeRoomKey(guildKey: string, lounge: number): string {
+  return lounge === 1 ? guildKey : `${guildKey}~${lounge}`;
+}
+/** POST /api/lounges: the guild's key and the Discord ids of the player's voice-channel friends. */
+export interface LoungesRequest {
+  guildKey: string;
+  friends?: string[];
+}
+/** Each lounge's head count, and how many of those friends are in it. */
+export interface LoungeInfo {
+  lounge: number;
+  name: string;
+  players: number;
+  capacity: number;
+  friends: number;
 }
 
 /** The hour a world keeps whatever the lounge's clock says: the campfire is always a starlit night,
@@ -297,8 +340,8 @@ export type ToggleableKind =
 
 /** The Velvet Casino's props (shared/worlds/casino.ts): the slot row, Mr. Vance's cage, the exit
  *  doors, the game tables (walking up to one opens its panel: the wheel, blackjack, poker, baccarat,
- *  the Big Six, the dice, the Turf Club, the coin pusher, the billiards, the darts board, the baby
- *  grand), Madame Zara, the capsule machine,
+ *  the Big Six, the dice, the Turf Club, the two coin pushers, the billiards, the pinball cabinets,
+ *  the baby grand), Madame Zara, the capsule machine,
  *  the dealers' tip jars, Pippin's bar menu, The Velvet Gazette and the VIP room's doors. */
 export type CasinoPropKind =
   | "slot"
@@ -313,7 +356,7 @@ export type CasinoPropKind =
   | "pusher"
   | "billiards"
   | "bigsix"
-  | "darts"
+  | "pinball"
   | "piano"
   | "gazette"
   | "fortune"
@@ -1060,7 +1103,7 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
   );
 }
 
-const CASINO_PROP_KINDS: ReadonlySet<string> = new Set<CasinoPropKind>(["slot", "cashier", "portal", "roulette", "blackjack", "poker", "baccarat", "craps", "derby", "pusher", "billiards", "bigsix", "darts", "piano", "gazette", "fortune", "gachapon", "tipjar", "barmenu", "vipdoor"]);
+const CASINO_PROP_KINDS: ReadonlySet<string> = new Set<CasinoPropKind>(["slot", "cashier", "portal", "roulette", "blackjack", "poker", "baccarat", "craps", "derby", "pusher", "billiards", "bigsix", "pinball", "piano", "gazette", "fortune", "gachapon", "tipjar", "barmenu", "vipdoor"]);
 /** The casino's props: every one is walked up to. */
 export function isCasinoProp(kind: string): kind is CasinoPropKind {
   return CASINO_PROP_KINDS.has(kind);

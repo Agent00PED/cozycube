@@ -291,6 +291,19 @@ def stroke(bm, path, width, project, lift=DECAL_LIFT, material=0, across=4, tape
 # scene plumbing
 
 
+def studio(root, call, *args):
+    """The Blender studio (scripts/blender/studio.py, run fresh from disk): "begin" before the
+    build (a headless run joins the master file), "finish" after the export (the collections to
+    their place on the studio grid, the .blend saved). A studio failure never fails the export."""
+    path = os.path.join(root, "scripts", "blender", "studio.py")
+    ns = {"__name__": "studio"}
+    try:
+        exec(compile(open(path, encoding="utf-8").read(), path, "exec"), ns)
+        return ns[call](root, *args)
+    except Exception:
+        return {"error": traceback.format_exc()}
+
+
 def purge():
     """Remove the previous build: the Mochi collection and everything in it (nothing else is touched)."""
     old = bpy.data.collections.get(COLLECTION)
@@ -649,11 +662,14 @@ def repo_root():
 def main():
     report = globals().get("REPORT_PATH")
     try:
+        root = repo_root()
+        studio(root, "begin")
         coll = build()
-        out = os.path.join(repo_root(), "client", "public", "models", "cat.glb")
+        out = os.path.join(root, "client", "public", "models", "cat.glb")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         export(coll, out)
         result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), **summary(coll)}
+        result["studio"] = studio(root, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}
     print(json.dumps(result, indent=1))

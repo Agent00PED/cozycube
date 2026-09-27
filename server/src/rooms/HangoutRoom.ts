@@ -4,6 +4,7 @@ import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToRegion, isBlocked } from "../..
 import { PersistenceQueue, getPlayerStore, newPlayerRecord, type PlayerRecord } from "../db/players";
 import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } from "./games";
 import { AWAY_PREFIX, BoardTable, type BoardSnapshot } from "./boardgame";
+import { registerRoom, unregisterRoom } from "./lounges";
 import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
 import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, WORKBENCH, WORKBENCH_FRONT, WORKBENCH_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
@@ -211,6 +212,7 @@ import {
   isHairStyle,
   isMapId,
   guildRoomKey,
+  cleanDisplayName,
   MAP_SIGNATURE_TIME,
   isCasinoMap,
   isBlacklisted,
@@ -557,6 +559,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // `.filterBy(["guildKey"])` on the room definition in server/src/index.ts instead.
     this.channelId = String(options.channelId ?? "");
     this.guildKey = String(options.guildKey || guildRoomKey(options.guildId, options.channelId));
+    // the lounge selector counts who is here (rooms/lounges.ts)
+    registerRoom(this.guildKey, this);
     this.loadAllProps();
     this.state.market = JSON.stringify(parseMarket(""));
     // (the board game in this channel, if one was going when the server last stopped, is put back
@@ -1218,14 +1222,14 @@ export class HangoutRoom extends Room<HangoutState> {
   // changes, and a room created again for the channel puts it back before anyone joins: the world
   // it was in, the hour, and the campfire's bonfire (its fuel, even at 0%: an out fire stays out
   // until relit, nobody is ever moved for it), its Dutch oven and its picnic plates, and the casino's
-  // coin pusher's shelf.
+  // coin pushers' shelves (every coin on them).
 
   private sceneKey() {
     return `${this.boardStoreKey()}#scene`;
   }
 
   private sceneNow(): SavedScene {
-    return { time: this.state.timeOfDay, weather: this.state.weather, fuel: this.state.fuel, stew: this.state.stew, picnic: this.state.picnic, pusher: Math.floor(this.casino.shelf) };
+    return { time: this.state.timeOfDay, weather: this.state.weather, fuel: this.state.fuel, stew: this.state.stew, picnic: this.state.picnic, pushers: this.casino.saveShelves() };
   }
 
   private async saveScene() {
@@ -1257,8 +1261,8 @@ export class HangoutRoom extends Room<HangoutState> {
       const plates = parsePicnic(typeof scene.picnic === "string" ? scene.picnic : "");
       this.state.picnic = plates.length ? JSON.stringify(plates) : "";
       this.picnicAt = plates.map(() => Date.now());
-      // the casino's coin pusher: its shelf as the last players left it
-      this.casino.restoreShelf(scene.pusher);
+      // the casino's coin pushers: their shelves as the last players left them
+      this.casino.restoreShelves(scene.pushers);
       this.savedScene = JSON.stringify(this.sceneNow());
       console.log(`[room ${this.roomId}] scene restored for ${this.boardStoreKey()}: fire ${this.state.fuel}%`);
     } catch (err) {
@@ -3371,7 +3375,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const player = new Player();
     // The Discord user id keys the persisted record; a session id stands in when there is none.
     player.userId = String(options?.userId || `guest_${client.sessionId}`);
-    player.username = String(options?.username || "Guest").slice(0, 100);
+    player.username = cleanDisplayName(options?.username);
     player.avatarUrl = String(options?.avatarUrl ?? "");
     player.color = PASTEL_COLORS[Math.floor(Math.random() * PASTEL_COLORS.length)];
     // everyone arrives in the lounge, at its least crowded spawn point
@@ -3652,7 +3656,17 @@ export class HangoutRoom extends Room<HangoutState> {
     void this.writeBoard().finally(() => super.onBeforeShutdown());
   }
 
+  /** Discord ids of everyone connected (the lounge selector's head count). */
+  connectedUserIds(): string[] {
+    const out: string[] = [];
+    this.state.players.forEach((p) => {
+      if (p.connected) out.push(p.userId);
+    });
+    return out;
+  }
+
   async onDispose() {
+    unregisterRoom(this.guildKey, this);
     clearTimeout(this.boardSaveTimer);
     if (!this.boardFrozen) await this.writeBoard();
     await this.queue.flush();
@@ -3671,8 +3685,9 @@ interface SavedScene {
   fuel: number;
   stew: string;
   picnic: string;
-  /** The coin pusher's shelf (chips' worth). */
-  pusher?: number;
+  /** The coin pushers' shelves (shared/pusherSim.ts saveShelf, by pusher). A scene saved before the
+   *  shelves had coins kept only a number (`pusher`): its shelves are laid out new. */
+  pushers?: Record<string, number[]>;
 }
 
 /** A burst of board changes is saved once, this long after the last. */

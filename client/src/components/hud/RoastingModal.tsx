@@ -113,7 +113,7 @@ export function RoastingModal({ send, subscribeMessages, localSessionId, onClose
             <button type="button" className="clay-btn clay-btn-amber min-h-12 w-full max-w-[260px] text-[16px]" disabled={phase !== "roasting"} onClick={stop}>
               {phase === "heating" ? "Over the fire…" : phase === "judging" ? "Taking a look…" : "🔥 Pull it out!"}
             </button>
-            <p className="m-0 text-[11px] opacity-60">Space or Enter works too</p>
+            <p className="kbd-hint m-0 text-[11px] opacity-60">Space or Enter works too</p>
           </>
         )}
 

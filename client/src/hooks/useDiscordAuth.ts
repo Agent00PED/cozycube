@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DiscordSDK, DiscordSDKMock } from "@discord/embedded-app-sdk";
+import { cleanDisplayName } from "@shared/types";
 
 export type DiscordSdkInstance = DiscordSDK | DiscordSDKMock;
 
@@ -100,7 +101,7 @@ export function useDiscordAuth(): AuthState {
         const mockChannelId = params.get("channelId") ?? "local-test-channel";
         // (`?guildId=` puts mock tabs from different "channels" in one guild's room, as Discord would)
         const mockGuildId = params.get("guildId") ?? "local-test-guild";
-        const mockUsername = params.get("username") ?? `Tester${Math.floor(Math.random() * 1000)}`;
+        const mockUsername = cleanDisplayName(params.get("username"), `Tester${Math.floor(Math.random() * 1000)}`);
 
         console.log("[useDiscordAuth] embedded?", embedded, "clientId:", clientId, "search:", window.location.search);
 
@@ -187,7 +188,7 @@ export function useDiscordAuth(): AuthState {
         setState({
           auth: {
             userId: authResult.user.id,
-            username: authResult.user.global_name ?? authResult.user.username,
+            username: cleanDisplayName(authResult.user.global_name ?? authResult.user.username),
             avatarUrl,
             channelId: sdk.channelId ?? mockChannelId,
             guildId: sdk.guildId ?? (embedded ? null : mockGuildId),

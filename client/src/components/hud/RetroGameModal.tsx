@@ -140,7 +140,10 @@ export function RetroGameModal({ result, onScore, onClose }: Props) {
           {pad([0, 1], "▼")}
           {pad([1, 0], "▶")}
         </div>
-        <p className="text-xs opacity-60">Arrow keys or WASD steer. Eat the pink pixels.</p>
+        <p className="text-xs opacity-60">
+          <span className="kbd-hint">Arrow keys or WASD steer. </span>
+          <span className="touch-hint">Tap the arrows to steer. </span>Eat the pink pixels.
+        </p>
       </div>
     </Modal>
   );

@@ -36,6 +36,7 @@ import { WARDROBE_BANDS, WARDROBE_TIER_LABEL, type WardrobeTier } from "@shared/
 import { PIONEER_SET, SPECIAL_TITLES, type PioneerInfo } from "@shared/items";
 import { capsuleUnlock } from "@shared/casino";
 import { saveLook } from "./lookStorage";
+import { SAFE_AREA } from "./Modal";
 import { Avatar } from "../../entities/Avatar";
 import { GEO, matte, noRaycast } from "../../scene/kit";
 
@@ -60,7 +61,7 @@ interface WardrobeProps {
   title: string;
   /** What the server said about the Velvet Pioneer set (null: not yet heard). */
   pioneer: PioneerInfo | null;
-  /** Opened by Chloe at her boutique: she greets you at the top. */
+  /** Opened at Chloe's boutique (set: the panel is titled The Velvet Boutique; her words are not shown). */
   greeting?: string;
   onApply: (encoded: string) => void;
   onBuy: (hat: PremiumHat) => void;
@@ -193,7 +194,7 @@ export function WardrobeModal({ userId, username, initial, coins, owned, title, 
   const ownsPioneerTitle = ownedIds.has(capsuleUnlock({ kind: "title", id: PIONEER_SET.title }));
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/50 p-0 backdrop-blur-[3px] sm:items-center sm:p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
+    <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/50 p-0 backdrop-blur-[3px] sm:items-center sm:p-4" style={SAFE_AREA} onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
       <div className="clay-sheet sm:clay-pop font-cozy flex max-h-[90vh] w-full max-w-[860px] flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-stone-900/90 text-stone-100 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md sm:rounded-3xl md:flex-row" role="dialog" aria-label="Wardrobe">
         {/* ---- the studio turntable, and the quick colour bar under it ---- */}
         <div className="flex shrink-0 flex-col bg-[radial-gradient(circle_at_50%_35%,#4a2a3c_0%,#221820_62%,#140f16_100%)] md:min-h-[460px] md:w-[280px] lg:w-[300px]">
@@ -243,24 +244,12 @@ export function WardrobeModal({ userId, username, initial, coins, owned, title, 
             </button>
           </div>
 
-          {greeting && (
-            <div className="flex items-start gap-3 rounded-2xl bg-[#3a1020]/70 p-3 text-sm outline outline-1 -outline-offset-1 outline-rose-200/20">
-              <span className="text-3xl leading-none" aria-hidden>
-                🐈‍⬛
-              </span>
-              <div>
-                <div className="mb-0.5 text-[10px] font-bold uppercase tracking-[0.25em] text-rose-200/80">Chloe</div>
-                {greeting}
-              </div>
-            </div>
-          )}
-
           {pioneer?.eligible || pioneer?.claimed ? <PioneerCard info={pioneer} ownsTitle={ownsPioneerTitle} wearing={title === PIONEER_SET.title} titleName={pioneerTitle?.name ?? ""} onClaim={onClaimPioneer} onWearTitle={onWearTitle} onTryOn={() => wearOutfit(PIONEER_SET.outfit)} /> : null}
 
           {/* one segmented track; each tab sizes to its label */}
           <div className="flex gap-1 rounded-full bg-black/30 p-1 outline outline-1 -outline-offset-1 outline-white/10" role="tablist" aria-label="Wardrobe categories">
             {TABS.map((t) => (
-              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`flex h-10 flex-auto items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-[13px] font-semibold leading-none transition-transform duration-150 active:scale-95 sm:px-3 sm:text-sm ${tab === t.id ? "bg-[#fff4e0] text-stone-900 shadow-[0_2px_8px_rgba(0,0,0,0.35),inset_0_-2px_0_rgba(120,70,0,0.14)]" : "text-stone-200 hover:bg-white/10"}`}>
+              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`flex h-12 flex-auto items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-[13px] font-semibold leading-none transition-transform duration-150 active:scale-95 sm:px-3 sm:text-sm ${tab === t.id ? "bg-[#fff4e0] text-stone-900 shadow-[0_2px_8px_rgba(0,0,0,0.35),inset_0_-2px_0_rgba(120,70,0,0.14)]" : "text-stone-200 hover:bg-white/10"}`}>
                 <span className="text-base leading-none max-[419px]:hidden" aria-hidden>
                   {t.emoji}
                 </span>
@@ -340,7 +329,7 @@ export function WardrobeModal({ userId, username, initial, coins, owned, title, 
   );
 }
 
-const ACTION = "inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-full px-3.5 text-xs font-bold leading-none transition-transform duration-150";
+const ACTION = "inline-flex h-12 shrink-0 items-center justify-center gap-1 rounded-full px-3.5 text-xs font-bold leading-none transition-transform duration-150";
 
 const TIER_BADGE: Record<string, string> = {
   starter: "bg-white/10 text-stone-200",

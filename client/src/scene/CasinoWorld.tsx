@@ -6,7 +6,7 @@ import type { Room } from "colyseus.js";
 import { walkY } from "@shared/collision";
 import { BackgroundSky, CASINO_SKY, CASINO_VIP_SKY } from "./BackgroundSky";
 import { BIG_SIX_SPIN_MS, DERBY_HORSES, DERBY_LANES, DERBY_RACERS, DERBY_RACE_MS, SLOT_SYMBOLS, bigSixRest, bigSixSpinAngle, bigSixUnder, derbyPaces, derbyProgress, type BigSixState, type CasinoGame, type CasinoPropEvent, type CasinoWin, type PianoNote, type PianoRecital } from "@shared/casino";
-import { BIG_SIX, CASINO_LAYOUT as L, CASINO_NPCS, CASINO_STAGES, LOUNGE_Y, TIP_JARS, VIP_DOORS } from "@shared/worlds/casino";
+import { BIG_SIX, CASINO_LAYOUT as L, CASINO_NPCS, CASINO_STAGES, COIN_PUSHERS, LOUNGE_Y, TIP_JARS, VIP_DOORS } from "@shared/worlds/casino";
 import { CasinoVipWorld } from "./CasinoVipWorld";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
@@ -228,8 +228,8 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
       diceRest: dice.map((d) => ({ p: d.position.clone(), q: d.quaternion.clone() })),
       horse,
       horses,
-      plate: get("Prop_PusherPlate"),
-      plateRest: get("Prop_PusherPlate")?.position.clone() ?? null,
+      // the two coin pushers' plates (the house's and the High-Roller's), each sliding on its own
+      plates: (["Prop_PusherPlate", "Prop_PusherPlateHigh"] as const).map((name, i) => ({ node: get(name), rest: get(name)?.position.clone() ?? null, propId: COIN_PUSHERS[i].propId })),
       cue: get("Prop_CueBall"),
       cueRest: get("Prop_CueBall")?.position.clone() ?? null,
       vipDoors: [get("Prop_VipDoorL"), get("Prop_VipDoorR")],
@@ -252,7 +252,7 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
   const roll = useRef<Roll | null>(null);
   const race = useRef<Race | null>(null);
   const hoot = useRef(-99);
-  const push = useRef(-99);
+  const push = useRef<Record<string, number>>({});
   const breakAt = useRef(-99);
   const vipOpen = useRef(-99);
   // the Big Six: where it rests, and the spin under way (from the room's bigSixState)
@@ -318,8 +318,9 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
           const near = Math.hypot(cameraFocus.x - L.derby.x, cameraFocus.z - L.derby.z) < 5;
           if (near) window.setTimeout(() => pushToast(`${DERBY_HORSES[w]} wins by a whisker!`, { emoji: "🏆", tone: "win" }), DERBY_RACE_MS - 400);
         } else if (ev.kind === "pusher") {
-          push.current = now;
-          playSfx("coins", heard(L.pusher.x, L.pusher.z) * (mine ? 0.5 : 1));
+          const machine = COIN_PUSHERS.find((m) => m.propId === ev.propId) ?? COIN_PUSHERS[0];
+          push.current[machine.propId] = now;
+          playSfx("coins", heard(machine.x, machine.z) * (mine ? 0.5 : 1));
         } else if (ev.kind === "billiards") {
           breakAt.current = now;
           if (!mine) window.setTimeout(() => playSfx("clack", heard(L.billiards.x, L.billiards.z)), 450);
@@ -404,10 +405,11 @@ function CasinoModel({ room, subscribeMessages }: { room: Room | null; subscribe
       }
       parts.horses.instanceMatrix.needsUpdate = true;
     }
-    // the coin pusher's plate: always sliding, briskly for a moment after a push
-    if (parts.plate && parts.plateRest) {
-      const brisk = now - push.current < 2 ? 2.4 : 1;
-      parts.plate.position.x = parts.plateRest.x + 0.06 * Math.sin(t * 1.4 * brisk);
+    // the coin pushers' plates: always sliding, briskly for a moment after a push
+    for (const plate of parts.plates) {
+      if (!plate.node || !plate.rest) continue;
+      const brisk = now - (push.current[plate.propId] ?? -99) < 2 ? 2.4 : 1;
+      plate.node.position.x = plate.rest.x + 0.06 * Math.sin(t * 1.4 * brisk + (plate.propId === "coin_pusher_high" ? 1.3 : 0));
     }
     // the cue ball: a break into the rack, then back to the head spot
     if (parts.cue && parts.cueRest) {
@@ -662,7 +664,7 @@ function CasinoLights() {
       {/* the banker's lamp in the cage, the back bar, the billiards lamp, the lounge's candles */}
       <pointLight color="#ffd98a" intensity={0.9 * lamp} distance={4} decay={2} position={[L.cage.window - 0.85, 1.5, L.cage.z1 - 0.4]} castShadow={false} />
       <pointLight color="#ffc070" intensity={1.1 * lamp} distance={5} decay={2} position={[face + 0.8, lounge + 2.3, (L.bar.z0 + L.bar.z1) / 2]} castShadow={false} />
-      <pointLight color="#ffe2a0" intensity={1.3 * lamp} distance={3.6} decay={2} position={[L.billiards.x, lounge + L.billiards.lamp - 0.2, L.billiards.z]} castShadow={false} />
+      <pointLight color="#ffe2a0" intensity={1.3 * lamp} distance={3.6} decay={2} position={[L.billiards.x, L.billiards.lamp - 0.2, L.billiards.z]} castShadow={false} />
       <pointLight color="#ffb866" intensity={0.8 * lamp} distance={4.5} decay={2} position={[L.coffee.x, lounge + 1.0, L.coffee.z]} castShadow={false} />
       <PianoSpotlight lamp={lamp} />
       {/* the penthouse's gilded doors, lit up on the High-Roller Stage */}

@@ -536,11 +536,13 @@ def main_vip():
     report = globals().get("REPORT_PATH")
     try:
         root = _root()
+        studio(root, "begin")
         coll, V, cushions = build(root)
         out = os.path.join(root, "client", "public", "models", "casino_vip.glb")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         export(coll, out)
         result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), **summary(coll)}
+        result["studio"] = studio(root, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}
     print(json.dumps(result, indent=1))

@@ -97,9 +97,15 @@ export type Sfx =
   | "knock"
   | "purr"
   | "gallop"
-  // the definitive remaster's: the Big Six's flapper over a peg, a dart into the board
+  // the definitive remaster's: the Big Six's flapper over a peg
   | "clicker"
-  | "dart";
+  // Lucky Reels' lever; the pinball machine's flippers, bumpers, plunger and drain; a pusher coin on a peg
+  | "lever"
+  | "flipper"
+  | "bumper"
+  | "plunger"
+  | "drain"
+  | "peg";
 
 /** A sound from somewhere in the world, heard from where you stand: full up close, fading with
  *  distance (and never quite gone within the room). */
@@ -257,11 +263,30 @@ export function playSfx(kind: Sfx, volume = 1) {
     // the Big Six's leather flapper snapping over a peg: a dry tick with a little knock under it
     noise(c, t, 0.018, 0.2, 3600);
     tone(c, t, 820, 520, 0.03, 0.05, "square");
-  } else if (kind === "dart") {
-    // a dart into the sisal: a short whoosh, then a dull thock
-    noise(c, t, 0.08, 0.05, 2600);
-    tone(c, t + 0.08, 240, 150, 0.08, 0.16, "sine");
-    noise(c, t + 0.08, 0.03, 0.14, 1400);
+  } else if (kind === "lever") {
+    // the reel machine's lever: a ratchet clicking down its teeth, then the heavy clunk of the catch
+    [0, 0.045, 0.085, 0.12, 0.15].forEach((d, i) => noise(c, t + d, 0.018, 0.12, 3200 - i * 250));
+    tone(c, t + 0.2, 150, 80, 0.12, 0.2, "square");
+    noise(c, t + 0.2, 0.06, 0.18, 900);
+  } else if (kind === "flipper") {
+    // a flipper's solenoid: a snap and a short woody thwack
+    noise(c, t, 0.03, 0.2, 2600);
+    tone(c, t, 220, 110, 0.06, 0.14, "square");
+  } else if (kind === "bumper") {
+    // a pop bumper: a bright electric pop and a ring
+    tone(c, t, 880, 1320, 0.05, 0.12, "square");
+    tone(c, t + 0.03, 1760, 1700, 0.18, 0.05, "sine");
+    noise(c, t, 0.04, 0.12, 5000);
+  } else if (kind === "plunger") {
+    // the plunger let go: a spring's twang up
+    tone(c, t, 90, 380, 0.16, 0.14, "sawtooth");
+    noise(c, t, 0.1, 0.06, 1800);
+  } else if (kind === "drain") {
+    // the ball down the drain: a falling hum
+    tone(c, t, 420, 70, 0.6, 0.1, "triangle");
+  } else if (kind === "peg") {
+    // a coin off a brass peg: a tiny tink
+    tone(c, t, 2600 + Math.random() * 900, 2400, 0.05, 0.035, "sine");
   } else if (kind === "card") {
     // a card dealt or turned: a papery swish and a light snap
     noise(c, t, 0.09, 0.14, 5200);

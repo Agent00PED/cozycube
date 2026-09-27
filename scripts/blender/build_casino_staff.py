@@ -344,6 +344,19 @@ def lerp(a, b, t):
 # Blender plumbing: one vertex-coloured clay material for every node
 
 
+def studio(root, call, *args):
+    """The Blender studio (scripts/blender/studio.py, run fresh from disk): "begin" before the
+    build (a headless run joins the master file), "finish" after the export (the collections to
+    their place on the studio grid, the .blend saved). A studio failure never fails the export."""
+    path = os.path.join(root, "scripts", "blender", "studio.py")
+    ns = {"__name__": "studio"}
+    try:
+        exec(compile(open(path, encoding="utf-8").read(), path, "exec"), ns)
+        return ns[call](root, *args)
+    except Exception:
+        return {"error": traceback.format_exc()}
+
+
 def purge(name):
     old = bpy.data.collections.get(name)
     for o in list(old.all_objects) if old else []:
@@ -1513,6 +1526,8 @@ def main():
         cushions = read_cushions(root)
         result = {"ok": True}
         only = globals().get("ONLY")
+        studio(root, "begin")
+        built = []
         for name, make in (("boris", lambda: build_boris(L)), ("vivienne", lambda: build_vivienne(L)), ("jasper", lambda: build_jasper(L, cushions)), ("pippin", lambda: build_pippin(L)), ("bruno", lambda: build_bruno(L)), ("cedric", lambda: build_cedric(L)), ("gideon", lambda: build_gideon(L)), ("scarlett", lambda: build_scarlett(L)), ("baron", lambda: build_baron(cushions)), ("penelope", lambda: build_penelope(cushions)), ("patrons", build_patrons)):
             if only and name not in only:
                 continue
@@ -1521,6 +1536,8 @@ def main():
             out = os.path.join(root, "client", "public", "models", f"{name}.glb")
             export(coll, out, extras=name == "patrons")
             result[name] = {"bytes": os.path.getsize(out), **summary(coll)}
+            built.append(coll)
+        result["studio"] = studio(root, "finish", built)
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}
     print(json.dumps(result, indent=1))
