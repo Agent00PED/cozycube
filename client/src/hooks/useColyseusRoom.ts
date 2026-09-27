@@ -424,8 +424,9 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
     window.addEventListener("online", nudge);
     document.addEventListener("visibilitychange", onVisible);
     retryNowRef.current = nudge;
-    // the page is reloading onto a new build: let go of the room now (not consented, so the seat is
-    // held for the reloaded page's token) and never try to reconnect while it goes
+    // a soft restart or an outdated build (systems/lifecycle.ts): let go of the room now, its
+    // listeners and all (not consented, so the seat is held for the remounted game's token), and
+    // never try to reconnect from this run: the remounted game's own run joins
     const offShutdown = onShutdown(() => {
       disposed = true;
       window.clearTimeout(retryTimer);

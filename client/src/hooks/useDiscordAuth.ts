@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { DiscordSDK, DiscordSDKMock } from "@discord/embedded-app-sdk";
+import { useCallback, useEffect, useState } from "react";
+import { DiscordSDK, DiscordSDKMock, RPCCloseCodes } from "@discord/embedded-app-sdk";
 import { cleanDisplayName } from "@shared/types";
 
 export type DiscordSdkInstance = DiscordSDK | DiscordSDKMock;
@@ -32,6 +32,21 @@ interface AuthState {
 const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID as string | undefined;
 const HANDSHAKE_TIMEOUT_MS = 30_000; // bumped from 15s to give slow tunnels (ngrok free tier, cold start) more headroom
 
+// The Discord session belongs to the page, not to a component: the SDK is made once, its handshake
+// happens once, the login happens once, and all of it is kept in memory for the life of the page.
+// Discord's parent window greets an Activity's frame a single time: a second DiscordSDK (or the
+// same frame reloaded) posts a handshake nobody answers, and the page hangs on "Timed out waiting
+// for Discord SDK handshake". So nothing in the game ever makes another SDK or reloads the frame:
+// an update or a server restart remounts the game in memory (systems/lifecycle.ts), and the
+// remounted tree's useDiscordAuth is handed the session it already has, at once.
+
+let sdk: DiscordSdkInstance | null = null;
+let embeddedFrame = false;
+/** Discord's handshake has completed (sdk.ready() resolved): it is never waited on again. */
+let isSdkReady = false;
+let session: DiscordAuthInfo | null = null;
+let login: Promise<DiscordAuthInfo> | null = null;
+
 // The SDK's postMessage handshake rejects with this when the page's actual origin doesn't
 // match what Discord's client expects for the Activity it launched — almost always either
 // (a) the page was opened directly by its tunnel/localhost URL instead of via the rocket-icon
@@ -52,7 +67,7 @@ function describeAuthError(err: unknown): string {
     );
   }
   if (/already authing/i.test(message)) {
-    return "Discord RPC error 4002 (Already authing) — a duplicate authorize() call slipped through. This is a bug in useDiscordAuth.ts's re-invocation guard, not a Portal/tunnel issue.";
+    return "Discord RPC error 4002 (Already authing) — a second authorize() slipped through while the first was still running.";
   }
   return message;
 }
@@ -63,154 +78,167 @@ function isEmbeddedInDiscord(): boolean {
   return new URLSearchParams(window.location.search).has("frame_id");
 }
 
-export function useDiscordAuth(): AuthState {
-  const [state, setState] = useState<AuthState>({ auth: null, loading: true, error: null });
+/** The page's one SDK (its constructor posts the handshake, so it is made exactly once). */
+function theSdk(): DiscordSdkInstance {
+  if (sdk) return sdk;
+  embeddedFrame = isEmbeddedInDiscord();
+  const params = new URLSearchParams(window.location.search);
+  const clientId = CLIENT_ID ?? "mock-client-id";
+  console.log("[useDiscordAuth] embedded?", embeddedFrame, "clientId:", clientId, "search:", window.location.search);
+  if (embeddedFrame) {
+    sdk = new DiscordSDK(clientId);
+    return sdk;
+  }
+  // Mock Mode: `?channelId=xxx&username=yyy` lets multiple plain browser tabs simulate different
+  // players joining the same room without going through Discord at all (`?guildId=` puts mock tabs
+  // from different "channels" in one guild's room, as Discord would).
+  const mockChannelId = params.get("channelId") ?? "local-test-channel";
+  const mockGuildId = params.get("guildId") ?? "local-test-guild";
+  const mockUsername = cleanDisplayName(params.get("username"), `Tester${Math.floor(Math.random() * 1000)}`);
+  const mock = new DiscordSDKMock(clientId, mockGuildId, mockChannelId, null);
+  const mockUserId = `mock-${mockUsername}`;
+  mock._updateCommandMocks({
+    authorize: async () => ({ code: "mock_code" }),
+    authenticate: async () => ({
+      access_token: "mock_token",
+      user: { id: mockUserId, username: mockUsername, discriminator: "0", public_flags: 0, avatar: null, global_name: mockUsername },
+      scopes: [],
+      expires: new Date(Date.now() + 3600_000).toISOString(),
+      application: { id: "mock-app", description: "", name: "Hangout (mock)" },
+    }),
+  });
+  sdk = mock;
+  return sdk;
+}
 
-  // React 18 StrictMode double-invokes this effect in dev (mount -> cleanup -> mount again)
-  // to surface missing-cleanup bugs. sdk.commands.authorize() is a one-shot RPC call on
-  // Discord's side — calling it twice in quick succession gets the second call rejected with
-  // RPC error 4002 "Already authing". This ref persists across that synthetic double-invoke
-  // (it's the same component instance, not a real remount), so the second invocation's `run()`
-  // never starts at all.
-  const isAuthingRef = useRef(false);
+async function logIn(): Promise<DiscordAuthInfo> {
+  const discord = theSdk();
+  const clientId = CLIENT_ID ?? "mock-client-id";
+  if (!isSdkReady) {
+    console.log("[useDiscordAuth] calling sdk.ready()...");
+    await discord.ready();
+    isSdkReady = true;
+    console.log("[useDiscordAuth] sdk.ready() resolved");
+  }
+
+  const authorize = (scope: readonly (typeof VOICE_SCOPES)[number][]) =>
+    discord.commands.authorize({ client_id: clientId, response_type: "code", state: "", prompt: "none", scope: [...scope] });
+  // Ask for voice-read so we can show who's talking. If Discord refuses that scope for this app (not
+  // enabled for it, or the user declines), fall back to identify-only instead of failing: a missing
+  // speaking indicator must never cost anyone the ability to log in.
+  let code: string;
+  try {
+    ({ code } = await authorize(VOICE_SCOPES));
+  } catch (voiceErr) {
+    console.warn("[useDiscordAuth] authorize with rpc.voice.read failed, retrying identify-only:", voiceErr);
+    ({ code } = await authorize(BASE_SCOPES));
+  }
+
+  let accessToken: string;
+  if (embeddedFrame) {
+    // client_secret exchange must happen server-side — see server/src/routes/token.ts
+    const res = await fetch("/api/token", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(`token exchange failed (${res.status}): ${data.error ?? JSON.stringify(data)}`);
+    accessToken = data.access_token;
+  } else {
+    accessToken = "mock_token";
+  }
+
+  const authResult = await discord.commands.authenticate({ access_token: accessToken });
+  const avatarUrl = authResult.user.avatar
+    ? `https://cdn.discordapp.com/avatars/${authResult.user.id}/${authResult.user.avatar}.png`
+    : `https://cdn.discordapp.com/embed/avatars/${Number(authResult.user.discriminator ?? "0") % 5}.png`;
+  const grantedScopes = (authResult.scopes ?? []) as string[];
+  const params = new URLSearchParams(window.location.search);
+  session = {
+    userId: authResult.user.id,
+    username: cleanDisplayName(authResult.user.global_name ?? authResult.user.username),
+    avatarUrl,
+    channelId: discord.channelId ?? params.get("channelId") ?? "local-test-channel",
+    guildId: discord.guildId ?? (embeddedFrame ? null : (params.get("guildId") ?? "local-test-guild")),
+    sdk: discord,
+    embedded: embeddedFrame,
+    voiceScopeGranted: embeddedFrame && grantedScopes.includes("rpc.voice.read"),
+  };
+  return session;
+}
+
+/** The page's Discord session: the one in memory, or the login in flight (started once; a failed
+ *  login may be tried again, on the same SDK, without a second handshake). */
+export function connectDiscord(): Promise<DiscordAuthInfo> {
+  if (session) return Promise.resolve(session);
+  if (!login) {
+    login = logIn().catch((err) => {
+      login = null;
+      throw err;
+    });
+  }
+  return login;
+}
+
+/** The session once logged in (null before): for code outside React (the update screens). */
+export function discordSession(): DiscordAuthInfo | null {
+  return session;
+}
+
+/** Whether the page runs inside Discord's Activity frame (not a plain browser tab). */
+export function inDiscordFrame(): boolean {
+  return sdk ? embeddedFrame : isEmbeddedInDiscord();
+}
+
+/** Asks Discord to close the Activity (it can then be started again from the voice channel, onto
+ *  the build being served). Needs no handshake: the SDK posts it straight to Discord's window. */
+export function closeActivity(message: string) {
+  try {
+    theSdk().close(RPCCloseCodes.CLOSE_NORMAL, message);
+  } catch (err) {
+    console.warn("[useDiscordAuth] close failed:", err);
+  }
+}
+
+/** The Discord session for a component: at once if the page already has it (a remounted game never
+ *  waits on the handshake again), else the login, given HANDSHAKE_TIMEOUT_MS before the screen says
+ *  so (a login that still lands after that is taken). `retry`: try the login again, in memory. */
+export function useDiscordAuth(): AuthState & { retry: () => void } {
+  const [state, setState] = useState<AuthState>(() => (session ? { auth: session, loading: false, error: null } : { auth: null, loading: true, error: null }));
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   useEffect(() => {
-    if (isAuthingRef.current) return;
-    isAuthingRef.current = true;
-
-    // sdk.ready()/authorize() can hang indefinitely if the postMessage handshake with the
-    // Discord client never completes (CSP blocking it, a stale iframe, a misconfigured
-    // Root Mapping) — without this, the UI sits on "Connecting to Discord..." forever with
-    // no signal that anything is wrong.
-    const timeoutId = window.setTimeout(() => {
-      setState({
-        auth: null,
-        loading: false,
-        error: "Timed out waiting for Discord SDK handshake — check DevTools Console/Network for CSP or WSS errors.",
-      });
-    }, HANDSHAKE_TIMEOUT_MS);
-
-    async function run() {
-      try {
-        const embedded = isEmbeddedInDiscord();
-        const params = new URLSearchParams(window.location.search);
-        const clientId = CLIENT_ID ?? "mock-client-id";
-
-        // Mock Mode: `?channelId=xxx&username=yyy` lets multiple plain browser tabs
-        // simulate different players joining the same room without going through Discord at all.
-        const mockChannelId = params.get("channelId") ?? "local-test-channel";
-        // (`?guildId=` puts mock tabs from different "channels" in one guild's room, as Discord would)
-        const mockGuildId = params.get("guildId") ?? "local-test-guild";
-        const mockUsername = cleanDisplayName(params.get("username"), `Tester${Math.floor(Math.random() * 1000)}`);
-
-        console.log("[useDiscordAuth] embedded?", embedded, "clientId:", clientId, "search:", window.location.search);
-
-        const sdk = embedded
-          ? new DiscordSDK(clientId)
-          : new DiscordSDKMock(clientId, mockGuildId, mockChannelId, null);
-
-        if (!embedded) {
-          const mockUserId = `mock-${mockUsername}`;
-          (sdk as DiscordSDKMock)._updateCommandMocks({
-            authorize: async () => ({ code: "mock_code" }),
-            authenticate: async () => ({
-              access_token: "mock_token",
-              user: {
-                id: mockUserId,
-                username: mockUsername,
-                discriminator: "0",
-                public_flags: 0,
-                avatar: null,
-                global_name: mockUsername,
-              },
-              scopes: [],
-              expires: new Date(Date.now() + 3600_000).toISOString(),
-              application: { id: "mock-app", description: "", name: "Hangout (mock)" },
-            }),
-          });
-        }
-
-        console.log("[useDiscordAuth] calling sdk.ready()...");
-        await sdk.ready();
-        console.log("[useDiscordAuth] sdk.ready() resolved");
-
-        console.log("[useDiscordAuth] calling sdk.commands.authorize()...");
-        const authorize = (scope: readonly (typeof VOICE_SCOPES)[number][]) =>
-          sdk.commands.authorize({
-            client_id: clientId,
-            response_type: "code",
-            state: "",
-            prompt: "none",
-            scope: [...scope],
-          });
-
-        // Ask for voice-read so we can show who's talking. If Discord refuses that scope for this
-        // app (not enabled for it, or the user declines), fall back to identify-only instead of
-        // failing: a missing speaking indicator must never cost anyone the ability to log in.
-        let code: string;
-        try {
-          ({ code } = await authorize(VOICE_SCOPES));
-        } catch (voiceErr) {
-          console.warn("[useDiscordAuth] authorize with rpc.voice.read failed, retrying identify-only:", voiceErr);
-          ({ code } = await authorize(BASE_SCOPES));
-        }
-
-        console.log("[useDiscordAuth] authorize() resolved, got code");
-
-        let accessToken: string;
-        if (embedded) {
-          // client_secret exchange must happen server-side — see server/src/routes/token.ts
-          console.log("[useDiscordAuth] calling POST /api/token...");
-          const res = await fetch("/api/token", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code }),
-          });
-          const data = await res.json();
-          console.log("[useDiscordAuth] /api/token responded", res.status, data);
-          if (!res.ok) {
-            throw new Error(`token exchange failed (${res.status}): ${data.error ?? JSON.stringify(data)}`);
-          }
-          accessToken = data.access_token;
-        } else {
-          accessToken = "mock_token";
-        }
-
-        const authResult = await sdk.commands.authenticate({ access_token: accessToken });
-        window.clearTimeout(timeoutId);
-
-        const avatarUrl = authResult.user.avatar
-          ? `https://cdn.discordapp.com/avatars/${authResult.user.id}/${authResult.user.avatar}.png`
-          : `https://cdn.discordapp.com/embed/avatars/${Number(authResult.user.discriminator ?? "0") % 5}.png`;
-
-        const grantedScopes = (authResult.scopes ?? []) as string[];
-
-        setState({
-          auth: {
-            userId: authResult.user.id,
-            username: cleanDisplayName(authResult.user.global_name ?? authResult.user.username),
-            avatarUrl,
-            channelId: sdk.channelId ?? mockChannelId,
-            guildId: sdk.guildId ?? (embedded ? null : mockGuildId),
-            sdk,
-            embedded,
-            voiceScopeGranted: embedded && grantedScopes.includes("rpc.voice.read"),
-          },
-          loading: false,
-          error: null,
-        });
-      } catch (err) {
-        console.error("[useDiscordAuth] run() threw:", err);
-        window.clearTimeout(timeoutId);
-        setState({ auth: null, loading: false, error: describeAuthError(err) });
-      }
+    if (session) {
+      const s = session;
+      setState((prev) => (prev.auth === s ? prev : { auth: s, loading: false, error: null }));
+      return;
     }
+    let live = true;
+    setState((prev) => (prev.loading ? prev : { auth: null, loading: true, error: null }));
+    // sdk.ready()/authorize() can hang indefinitely if the postMessage handshake with the Discord
+    // client never completes (CSP blocking it, a misconfigured Root Mapping): the screen says so
+    // instead of sitting on "Connecting to Discord..." forever. Once the handshake is done, there
+    // is nothing left to time out.
+    const timeoutId = isSdkReady
+      ? undefined
+      : window.setTimeout(() => {
+          if (live) setState({ auth: null, loading: false, error: "Timed out waiting for Discord SDK handshake — check DevTools Console/Network for CSP or WSS errors." });
+        }, HANDSHAKE_TIMEOUT_MS);
+    // (StrictMode's double effect, a remount, a retry: all share the one login in flight)
+    connectDiscord().then(
+      (auth) => {
+        window.clearTimeout(timeoutId);
+        if (live) setState({ auth, loading: false, error: null });
+      },
+      (err) => {
+        console.error("[useDiscordAuth] login failed:", err);
+        window.clearTimeout(timeoutId);
+        if (live) setState({ auth: null, loading: false, error: describeAuthError(err) });
+      }
+    );
+    return () => {
+      live = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [attempt]);
 
-    run();
-    // No cleanup function: `run()` already clears `timeoutId` itself on both success and
-    // failure. Returning one here would fire between StrictMode's two dev-mode invocations
-    // and disarm the hang-detection timeout for the one real run that's actually in flight.
-  }, []);
-
-  return state;
+  return { ...state, retry };
 }

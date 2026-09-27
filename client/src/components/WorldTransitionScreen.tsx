@@ -68,7 +68,7 @@ export function WorldTransitionScreen({ destination }: { destination: MapId | nu
   );
 }
 
-const CURTAIN_CSS = `
+export const CURTAIN_CSS = `
 .cozy-velvet {
   background:
     repeating-linear-gradient(90deg, rgba(0,0,0,0.28) 0 6px, rgba(255,255,255,0.04) 14px, rgba(0,0,0,0.22) 26px),

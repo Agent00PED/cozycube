@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useProgress } from "@react-three/drei";
+import { closeActivity, inDiscordFrame } from "../hooks/useDiscordAuth";
 
 // The cozy loading screen: one warm cream card that carries the player from opening the Activity
 // to standing in the lounge, through three stages:
@@ -46,9 +47,12 @@ interface LoadingScreenProps {
   issue?: string;
   /** Tear the connection down and start the handshake again. */
   onReconnect?: () => void;
+  /** The error stage's "Try again": the Discord login again, in memory (the page is never reloaded:
+   *  inside Discord's frame a reload hangs on the SDK's handshake). */
+  onRetry?: () => void;
 }
 
-export function LoadingScreen({ stage, error, issue, onReconnect }: LoadingScreenProps) {
+export function LoadingScreen({ stage, error, issue, onReconnect, onRetry }: LoadingScreenProps) {
   const { active, progress } = useProgress();
   const [assetsDone, setAssetsDone] = useState(false);
   const [gone, setGone] = useState(false);
@@ -123,9 +127,17 @@ export function LoadingScreen({ stage, error, issue, onReconnect }: LoadingScree
           {napping && issue && <p className="m-0 mt-1 break-words text-[12px] leading-snug text-[#4A3728]/50">{issue}</p>}
         </div>
         {isError ? (
-          <button type="button" onClick={() => window.location.reload()} className={BUTTON}>
-            Try again
-          </button>
+          <div className="flex flex-col items-center gap-2">
+            <button type="button" onClick={onRetry} className={BUTTON}>
+              Try again
+            </button>
+            {/* stuck for good (Discord never answered): only a fresh start of the Activity helps */}
+            {inDiscordFrame() && (
+              <button type="button" onClick={() => closeActivity("Start CozyCube again from the voice channel.")} className="min-h-11 rounded-full px-4 text-[13px] font-semibold text-[#4A3728]/70 underline underline-offset-2">
+                Close the Activity and start it again
+              </button>
+            )}
+          </div>
         ) : napping ? (
           <button type="button" onClick={knockAgain} className={`${BUTTON} px-7 text-[16px]`}>
             🔄 Reconnect

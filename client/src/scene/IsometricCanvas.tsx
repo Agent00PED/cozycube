@@ -73,7 +73,7 @@ const DPR_RANGE: [number, number] = [1, Math.min(typeof window === "undefined" ?
 
 export function IsometricCanvas({ children }: { children: React.ReactNode }) {
   const [glLost, setGlLost] = useState(false);
-  // the page is reloading onto a new build: stop drawing
+  // the game is letting go (a soft restart, an outdated build): stop drawing
   const down = useShuttingDown();
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
@@ -100,7 +100,7 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
       </Canvas>
       {glLost && (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(10,10,16,0.9)", color: "#ff8a8a", font: "14px sans-serif", padding: 24, textAlign: "center" }}>
-          The 3D renderer lost its GPU context. Try reloading the Activity.
+          The 3D renderer lost its GPU context. Close the Activity and start it again from Discord.
         </div>
       )}
     </div>

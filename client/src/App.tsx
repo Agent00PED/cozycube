@@ -20,7 +20,6 @@ import { ActionDock } from "./components/hud/ActionDock";
 import { WardrobeModal } from "./components/hud/WardrobeModal";
 import { PatchNotesModal } from "./components/hud/PatchNotesModal";
 import { FieldGuideModal } from "./components/hud/FieldGuideModal";
-import { UpdateToast } from "./components/hud/UpdateToast";
 import { WorldTransitionScreen } from "./components/WorldTransitionScreen";
 import { CHLOE_WELCOME } from "./entities/ChloeMaid";
 import { setMarketRaw } from "./scene/marketStore";
@@ -45,7 +44,8 @@ import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
 import { FORAGE_INFO, ITEMS, TREASURE_COINS, guildRoomKey, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
 import { LobbyModal } from "./components/LobbyModal";
-import { rememberLounge, takeRejoinLounge } from "./systems/lounge";
+import { forgetLounge, rememberLounge, rejoinLounge } from "./systems/lounge";
+import { rejoined, useUpdateWatch } from "./systems/lifecycle";
 import { type BaccaratState, type BaccaratTable, type BigSixState, type BlackjackTableView, type CrapsView, type DerbyState } from "@shared/casino";
 import type { PusherId } from "@shared/worlds/casino";
 import type { HoldemView } from "@shared/holdem";
@@ -211,17 +211,11 @@ const GLOBAL_CSS = `
 `;
 
 export default function App() {
-  const { auth, loading: authLoading, error: authError } = useDiscordAuth();
-  // the lounge picked on the selector (a reload onto a new build goes straight back into it)
+  const { auth, loading: authLoading, error: authError, retry: retryAuth } = useDiscordAuth();
+  // the lounge picked on the selector (a soft restart remounts the game straight back into it: the
+  // Discord session is still in memory, so the lounge is known from the first render)
   const guildKey = auth ? guildRoomKey(auth.guildId, auth.channelId) : "";
-  const [lounge, setLounge] = useState<number | null>(null);
-  const rejoinChecked = useRef(false);
-  useEffect(() => {
-    if (!guildKey || rejoinChecked.current) return;
-    rejoinChecked.current = true;
-    const back = takeRejoinLounge(guildKey);
-    if (back !== null) setLounge(back);
-  }, [guildKey]);
+  const [lounge, setLounge] = useState<number | null>(() => (auth ? rejoinLounge(guildRoomKey(auth.guildId, auth.channelId)) : null));
   const pickLounge = useCallback(
     (n: number) => {
       rememberLounge(guildKey, n);
@@ -726,6 +720,20 @@ export default function App() {
     return counts;
   }, [allPlayers]);
 
+  // the version handshake and a deploy's restart (systems/lifecycle.ts): a soft restart in memory,
+  // or the ask to start the Activity afresh when new code is live; never a reload of the frame
+  useUpdateWatch(subscribeMessages);
+  // back in the room after a soft restart: the "Updating" curtain lifts
+  useEffect(() => {
+    if (connected) rejoined();
+  }, [connected]);
+  // Settings' "Switch lounge": leave this lounge (the room hook lets go of it) for the selector
+  const switchLounge = useCallback(() => {
+    setSettingsOpen(false);
+    forgetLounge();
+    setLounge(null);
+  }, []);
+
   // The cozy loading screen covers the Discord handshake, the room join and the models loading.
   // It is the second child of the same fragment on every path below, so React keeps it as one
   // element from the first frame until it fades out over the lounge. A join that fails or a
@@ -737,7 +745,7 @@ export default function App() {
     return (
       <>
         {null}
-        <LoadingScreen stage={loadStage} error={loadError} issue={connectionIssue ?? undefined} onReconnect={reconnect} />
+        <LoadingScreen stage={loadStage} error={loadError} issue={connectionIssue ?? undefined} onReconnect={reconnect} onRetry={retryAuth} />
         {loadStage === "lobby" && auth && <LobbyModal auth={auth} guildKey={guildKey} onPick={pickLounge} />}
       </>
     );
@@ -795,7 +803,6 @@ export default function App() {
           latency={latency}
         />
         <Toasts />
-        <UpdateToast subscribeMessages={subscribeMessages} />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
 
         {localPlayer && localSessionId && (
@@ -865,6 +872,7 @@ export default function App() {
         {settingsOpen && (
           <SettingsPanel
             onClose={() => setSettingsOpen(false)}
+            onSwitchLounge={switchLounge}
             onOpenPatchNotes={() => {
               setSettingsOpen(false);
               setPatchNotesOpen(true);

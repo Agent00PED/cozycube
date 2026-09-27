@@ -4,13 +4,11 @@ import { setMasterVolume, useMasterVolume } from "../../audio/master";
 import { setCameraMode, useCameraMode, type CameraMode } from "../../scene/cameraFocus";
 import { setNameplateSettings, useNameplateSettings } from "../../entities/nameplateSettings";
 import { LATEST_PATCH } from "../../data/patchNotesData";
-import { markLobby } from "../../systems/lounge";
-import { reloadCleanly } from "../../systems/lifecycle";
 
 /** Settings: the sound (the worlds' ambience and the little effects), what floats over everyone's
  *  head, the camera, the controls, and the way into the Patch Notes (which closes Settings as it
  *  opens). The lounge radio keeps its own volume in its panel. */
-export function SettingsPanel({ onClose, onOpenPatchNotes }: { onClose: () => void; onOpenPatchNotes: () => void }) {
+export function SettingsPanel({ onClose, onOpenPatchNotes, onSwitchLounge }: { onClose: () => void; onOpenPatchNotes: () => void; onSwitchLounge: () => void }) {
   const sound = useSoundSettings();
   const master = useMasterVolume();
   const camera = useCameraMode();
@@ -99,8 +97,8 @@ export function SettingsPanel({ onClose, onOpenPatchNotes }: { onClose: () => vo
           📜 Patch Notes
           <span className="rounded-full bg-amber-950/80 px-2 py-0.5 text-[11px] font-black tracking-wide text-amber-200">v{LATEST_PATCH.version}</span>
         </button>
-        {/* back to the lounge selector: the page reloads to it */}
-        <button type="button" onClick={() => (markLobby(), void reloadCleanly())} className="clay-btn clay-btn-ghost min-h-12 w-full">
+        {/* back to the lounge selector, in memory: this lounge's room is left, the selector shows */}
+        <button type="button" onClick={onSwitchLounge} className="clay-btn clay-btn-ghost min-h-12 w-full">
           🛋️ Switch lounge
         </button>
       </div>

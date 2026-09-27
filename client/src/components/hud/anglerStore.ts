@@ -1,7 +1,7 @@
 // The angler's profile (creel, rods, baits, records) as the HUD reads it. The server keeps the real
 // one in the player's record and syncs it on the player (PlayerState.fishing); this mirrors the
 // last one seen, with the wallet, into localStorage per user, so the creel shows at once on a
-// reload, a reconnect or a room switch, before the room has synced (and never replaces it).
+// fresh start, a reconnect or a room switch, before the room has synced (and never replaces it).
 
 import { useEffect, useMemo } from "react";
 import { emptyFishingProfile, sanitizeFishingProfile, type FishingProfile } from "@shared/fishing";

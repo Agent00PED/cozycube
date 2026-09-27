@@ -1,46 +1,29 @@
-// Which of the guild's lounges this page is in (shared/types LOUNGE_COUNT), kept for the tab's
-// session: a reload onto a new build (systems/lifecycle.ts) goes straight back into the same lounge,
-// while opening the Activity afresh shows the lounge selector again. Settings' "Switch lounge"
-// reloads to the selector.
+// Which of the guild's lounges this page is in (shared/types LOUNGE_COUNT), kept in memory: a soft
+// restart (systems/lifecycle.ts: a server restart, remounting the game) goes straight back into the
+// same lounge, while opening the Activity afresh shows the lounge selector. Settings' "Switch lounge"
+// simply goes back to the selector (App).
 
-const loungeKey = (guildKey: string) => `cozy-lounge:${guildKey}`;
-const REJOIN_KEY = "cozy-rejoin";
-
-function get(key: string): string | null {
-  try {
-    return sessionStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-function put(key: string, value: string | null) {
-  try {
-    if (value === null) sessionStorage.removeItem(key);
-    else sessionStorage.setItem(key, value);
-  } catch {
-    // storage blocked: the selector simply shows again
-  }
-}
+let current: { guildKey: string; lounge: number } | null = null;
+let rejoin = false;
 
 export function rememberLounge(guildKey: string, lounge: number) {
-  put(loungeKey(guildKey), String(lounge));
+  current = { guildKey, lounge };
+  rejoin = false;
 }
 
-/** Before a reload onto a new build: come back into the lounge we are in. */
+/** Back to the selector: nothing to come back into. */
+export function forgetLounge() {
+  current = null;
+  rejoin = false;
+}
+
+/** Before the game remounts in a soft restart: come back into the lounge we are in. */
 export function markRejoin() {
-  if (get(REJOIN_KEY) !== "lobby") put(REJOIN_KEY, "1");
+  rejoin = current !== null;
 }
 
-/** Before a reload to the lounge selector (Settings' "Switch lounge"). */
-export function markLobby() {
-  put(REJOIN_KEY, "lobby");
-}
-
-/** The lounge to go straight back into (a reload onto a new build), once; null: show the selector. */
-export function takeRejoinLounge(guildKey: string): number | null {
-  const flag = get(REJOIN_KEY);
-  put(REJOIN_KEY, null);
-  if (flag !== "1") return null;
-  const n = Number(get(loungeKey(guildKey)));
-  return Number.isInteger(n) && n >= 1 ? n : null;
+/** The lounge to go straight back into after a soft restart; null: show the selector. A pure read
+ *  (React may call a state initializer twice): the mark lasts until a lounge is picked or left. */
+export function rejoinLounge(guildKey: string): number | null {
+  return rejoin && current?.guildKey === guildKey ? current.lounge : null;
 }

@@ -13,18 +13,36 @@ import "@fontsource/noto-sans-thai/700.css";
 import "./index.css";
 import App from "./App";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { installPreloadErrorReload } from "./systems/lifecycle";
+import { ReconnectCurtain, UpdateRequiredScreen } from "./components/UpdateScreens";
+import { installPreloadErrorHandler, useLifecycle } from "./systems/lifecycle";
 import { installInputMode } from "./systems/inputMode";
 
-// a chunk from an older build that a new deploy no longer serves: reload onto the new one
-installPreloadErrorReload();
+// a chunk from an older build that a new deploy no longer serves: ask for a fresh start of the Activity
+installPreloadErrorHandler();
 // touch or keyboard: hides the keyboard hints and widens the tap targets on touch
 installInputMode();
+
+/**
+ * The game by the page's lifecycle (systems/lifecycle.ts), never by reloading: a soft restart
+ * unmounts it behind the "Updating" curtain (the scene, its GPU buffers and its sounds let go) and
+ * mounts a fresh one (`generation`) that rejoins the same lounge with the Discord session kept in
+ * memory; an outdated build unmounts it for good and asks for a fresh start of the Activity.
+ */
+function Root() {
+  const { phase, generation } = useLifecycle();
+  if (phase === "outdated") return <UpdateRequiredScreen />;
+  return (
+    <>
+      {phase !== "restarting" && <App key={generation} />}
+      {(phase === "restarting" || phase === "rejoining") && <ReconnectCurtain />}
+    </>
+  );
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      <Root />
     </ErrorBoundary>
   </React.StrictMode>
 );

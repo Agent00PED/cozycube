@@ -306,7 +306,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 6,
     name: "The Living World & Atmosphere Sync",
-    range: "v0.6.0 – v0.6.6",
+    range: "v0.6.0 – v0.6.7",
     icon: "🌦️",
     blurb: "Skies that follow the hour and the weather, a surer step between worlds, and a new heart for the lounge.",
     patches: [
@@ -444,6 +444,23 @@ export const PATCH_ERAS: PatchEra[] = [
             "The pub darts board is gone; its wall is the Big Six's now.",
             "Buttons are at least 48 pixels to tap, keyboard hints hide on touch screens, and panels keep clear of notches and Discord's overlays.",
             "Sound starts the moment you pick a lounge.",
+          ],
+        },
+      },
+      {
+        version: "0.6.7",
+        date: "2026-09-28",
+        title: "No More Stuck Doors",
+        summary: "Updates and server restarts reconnect you in place, without ever reloading the Activity.",
+        changes: {
+          features: [
+            "When the lounge's server restarts, a velvet curtain reads \"Updating CozyCube to latest patch... Reconnecting\" and you're put straight back into the same lounge, with no lobby and no reload.",
+            "When an update brings new features, a card says so and a Close Activity button closes it for you: start CozyCube again from your voice channel to get them.",
+          ],
+          fixes: [
+            "Updates no longer end on \"Couldn't reach Discord: Timed out waiting for Discord SDK handshake\": the Activity never reloads itself, and your Discord login is kept in memory.",
+            "Settings → Switch lounge takes you back to the lobby at once, without a reload.",
+            "The loading screen's Try again logs in again without reloading, with a Close Activity button if Discord never answers.",
           ],
         },
       },

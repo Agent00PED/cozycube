@@ -3650,7 +3650,9 @@ export class HangoutRoom extends Room<HangoutState> {
    * go. The next server puts the game back and holds the seats for their players.
    */
   onBeforeShutdown() {
-    // a deploy: every client counts down and reloads onto the new build
+    // a deploy or a restart: every client lets go of the room and rejoins in memory once the server
+    // is back, or asks its player to start the Activity afresh if new client code is live
+    // (client/src/systems/lifecycle.ts); never a reload of Discord's frame
     this.broadcast("server_restarting", { inS: 3 });
     this.boardFrozen = true;
     void this.writeBoard().finally(() => super.onBeforeShutdown());

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { onShutdown } from "../systems/lifecycle";
+import { onResume, onShutdown } from "../systems/lifecycle";
 
 // The Master Volume: one gain at the root of every sound the game makes. The engines each run their
 // own AudioContext (made on first use: the worlds' soundscapes, the lounge's music and radio, the
@@ -91,9 +91,15 @@ export function useMasterVolume(): number {
   );
 }
 
-// the page reloading onto a new build: every context falls silent at once
+// a soft restart or an outdated build (systems/lifecycle.ts): every context falls silent at once,
+// and wakes again as the game comes back (the page has been tapped before: no new gesture needed)
 onShutdown(() => {
   outs.forEach((_, ctx) => {
     void ctx.suspend().catch(() => {});
+  });
+});
+onResume(() => {
+  outs.forEach((_, ctx) => {
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
   });
 });
