@@ -105,7 +105,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                   <b className="text-sm">
                     Pine Resin <span className="font-normal opacity-70">×{profile.resin}</span>
                   </b>
-                  <span className="text-[11px] opacity-75">{RESIN_PRICE} 🪙 each · from critical chops</span>
+                  <span className="text-[11px] opacity-75">{RESIN_PRICE} 🪙 each · spares from critical chops (a carrier slot each)</span>
                 </div>
                 <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellResin", count: "all" })}>
                   All · {profile.resin * RESIN_PRICE} 🪙

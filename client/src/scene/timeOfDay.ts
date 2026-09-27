@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { TimeOfDay } from "@shared/types";
+import type { TimeOfDay, Weather } from "@shared/types";
 
 // The shared hour, as the scene wears it. Warm ambient light is the base of the whole look
 // (`#fff5e6` at about 0.8 at midday); the hour only tints it, dims it, changes the sky behind the
@@ -24,9 +24,21 @@ export const HOUR_LOOKS: Record<TimeOfDay, HourLook> = {
 };
 
 export const TimeOfDayContext = createContext<TimeOfDay>("day");
+/** The weather outside (the lounge's; everywhere else is always clear). */
+export const WeatherContext = createContext<Weather>("clear");
+
+export function useWeather(): Weather {
+  return useContext(WeatherContext);
+}
+
+/** The hour's look under the weather: rain dims and cools the daylight, and the lamps come up. */
+export function weatherLook(look: HourLook, weather: Weather): HourLook {
+  if (weather !== "rain") return look;
+  return { ...look, ambient: look.ambient * 0.86, sun: look.sun * 0.55, sunColor: "#c6d0dc", lampBoost: Math.max(look.lampBoost * 1.15, 1.25) };
+}
 
 export function useHourLook(): HourLook {
-  return HOUR_LOOKS[useContext(TimeOfDayContext)];
+  return weatherLook(HOUR_LOOKS[useContext(TimeOfDayContext)], useContext(WeatherContext));
 }
 
 /** Multiplier for every artificial light in the scene at the current hour. */

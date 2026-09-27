@@ -1,5 +1,5 @@
 import { MAP_HALF, MAP_IDS, type MapId } from "./types";
-import { LOFT_OBSTACLES, LOFT_SPAWNS, NAV_LIMIT } from "./worlds/lounge";
+import { LOFT_OBSTACLES, LOFT_SPAWNS, NAV_LIMIT, loungeFloorY } from "./worlds/lounge";
 import { CAMP_OBSTACLES, CAMP_SPAWNS } from "./worlds/campfire";
 import { CASINO_OBSTACLES, CASINO_REGIONS, CASINO_SPAWNS, casinoFloorY } from "./worlds/casino";
 import { VIP_ARRIVAL, VIP_OBSTACLES, VIP_REGION } from "./worlds/casino_vip";
@@ -83,9 +83,10 @@ export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boo
 }
 
 /** How high the floor is at (x, z): the casino's raised High-Roller Pit and Velvet Lounge (and the
- *  steps up to them); every other world is flat. Where an avatar's feet go, where a click lands. */
+ *  steps up to them), the lounge's Sunken Living Nook a step down; every other world is flat.
+ *  Where an avatar's feet go, where a click lands. */
 export function walkY(mapId: MapId, x: number, z: number): number {
-  return mapId === "velvet_casino" ? casinoFloorY(x, z) : 0;
+  return mapId === "velvet_casino" ? casinoFloorY(x, z) : mapId === "cozy_lounge" ? loungeFloorY(x, z) : 0;
 }
 
 /** (x, z) kept on the floor of the region (from, fx, fz) stands in: a step never crosses the void

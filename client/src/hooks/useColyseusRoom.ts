@@ -19,10 +19,11 @@ import type {
   SeatStyle,
   SitPose,
   TimeOfDay,
+  Weather,
   ToggleableKind,
   ToggleableSyncState,
 } from "@shared/types";
-import { MAP_SIGNATURE_TIME, guildRoomKey, isMapId } from "@shared/types";
+import { MAP_SIGNATURE_TIME, guildRoomKey, isMapId, isWeather } from "@shared/types";
 import { type BlackjackAction, type CasinoPacket, type RoulettePhase, type RouletteSyncState } from "@shared/casino";
 
 import { parsePicnic, parseStew, FUEL_START, type PicnicPlate, type StewState } from "@shared/bonfire";
@@ -212,6 +213,8 @@ interface UseColyseusRoomResult {
   currentMap: MapId;
   /** Your world's hour: its own (the campfire's night) or the lounge's clock. */
   timeOfDay: TimeOfDay;
+  /** The weather outside: the lounge's (shared by the guild); the campfire and the casino are always clear. */
+  weather: Weather;
   /** A trip between worlds is under way (the curtain is drawn): from asking until you arrive. */
   mapTransitioning: boolean;
   /** Where the trip under way is going (the curtain shows it), null when none. */
@@ -265,6 +268,7 @@ interface UseColyseusRoomResult {
   /** Claims the Velvet Pioneer set (shared/items.ts), answered with "pioneer". */
   claimPioneer: () => void;
   setTimeOfDay: (timeOfDay: TimeOfDay) => void;
+  setWeather: (weather: Weather) => void;
   sendEmote: (emoji: string) => void;
   setSpeaking: (speaking: boolean) => void;
   roast: () => void;
@@ -317,6 +321,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const [toggleables, setToggleables] = useState<Record<string, ToggleableSyncState>>({});
   const [localSessionId, setLocalSessionId] = useState<string | null>(null);
   const [lobbyTime, setTimeOfDayState] = useState<TimeOfDay>("day");
+  const [lobbyWeather, setWeatherState] = useState<Weather>("clear");
   const [travellingTo, setTravellingTo] = useState<MapId | null>(null);
   const travelTimer = useRef<number | undefined>(undefined);
   const [market, setMarket] = useState("");
@@ -533,7 +538,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       room.state.players.onAdd((player: any, sessionId: string) => {
         let last: PlayerState | null = null;
         const sync = () => {
-          recordMotion(sessionId, player.x, player.z, player.moveSeq ?? 0);
+          recordMotion(sessionId, player.x, player.z, player.moveSeq ?? 0, performance.now(), isMapId(player.map) ? player.map : "cozy_lounge");
           const snapshot: PlayerState = {
             sessionId,
             userId: player.userId,
@@ -720,6 +725,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
       room.state.listen("picnic", (raw: string) => setHearth((h) => ({ ...h, picnic: parsePicnic(raw ?? "") })));
 
       room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
+      room.state.listen("weather", (w: string) => setWeatherState(isWeather(w) ? w : "clear"));
       room.state.listen("market", (raw: string) => setMarket(raw ?? ""));
 
       // the socket closed under us (a proxy timed it out, the network blinked, the server restarted).
@@ -758,6 +764,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
   const worldChairs = useMemo(() => Object.fromEntries(Object.entries(chairs).filter(([, c]) => c.map === currentMap)), [chairs, currentMap]);
   const worldToggleables = useMemo(() => Object.fromEntries(Object.entries(toggleables).filter(([, t]) => t.map === currentMap)), [toggleables, currentMap]);
   const timeOfDay = MAP_SIGNATURE_TIME[currentMap] ?? lobbyTime;
+  const weather: Weather = MAP_SIGNATURE_TIME[currentMap] ? "clear" : lobbyWeather;
 
   // the curtain: drawn when you ask to go (or the server takes you: Bruno's doors), opened once your
   // own player is on the new world; never held longer than a few seconds
@@ -814,6 +821,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     localSessionId,
     currentMap,
     timeOfDay,
+    weather,
     mapTransitioning: travellingTo !== null,
     travellingTo,
     market,
@@ -852,6 +860,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     },
     claimPioneer: () => send("claim_pioneer"),
     setTimeOfDay: (t) => send("setTimeOfDay", { timeOfDay: t }),
+    setWeather: (w) => send("setWeather", { weather: w }),
     sendEmote: (emoji) => send("emote", { emoji }),
     setSpeaking,
     roast: () => send("roast"),

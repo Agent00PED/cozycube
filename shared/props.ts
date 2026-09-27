@@ -38,6 +38,8 @@ export interface ToggleableConfig {
 }
 
 const round = (v: number) => Math.round(v * 1000) / 1000;
+/** A nap pose on a seat whose floor is `floor` (the lounge's pit) rather than the loft's. */
+const onFloor = <T extends { y: number }>(pose: T, floor: number): T => (floor ? { ...pose, y: round(pose.y + floor) } : pose);
 
 function casinoSeat(s: (typeof CASINO_SEATS)[number]): ChairConfig {
   return {
@@ -61,8 +63,9 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     style: "pad" as const,
     approachX: s.approachX,
     approachZ: s.approachZ,
-    sitY: round(seatAnchorY(CUSHIONS[s.cushion])),
-    nap: s.nap && napPose(CUSHIONS[s.cushion], s.nap.head, s.nap.dir),
+    // a seat in the nook's pit sits that much lower
+    sitY: round((s.floor ?? 0) + seatAnchorY(CUSHIONS[s.cushion])),
+    nap: s.nap && onFloor(napPose(CUSHIONS[s.cushion], s.nap.head, s.nap.dir), s.floor ?? 0),
   })),
   // the campfire: the log benches (sit, facing the fire), and the hammock and the tipi, which you
   // lie down in: a lie seat's position, heading and height are where its lying avatar goes

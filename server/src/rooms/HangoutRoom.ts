@@ -8,7 +8,7 @@ import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
 import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CHOP_REACH, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, WORKBENCH, WORKBENCH_FRONT, WORKBENCH_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
-import { CRAFTS, RESIN_PRICE, SAWDUST_FUEL, canCraft, craftOdds, craftSalePrice, craftSalvage, isCraftId, isCraftMode, rollCraft } from "../../../shared/crafting";
+import { ADHESIVES, CRAFTS, RESIN_PRICE, SAWDUST_FUEL, canCraft, craftOdds, craftSalePrice, craftSalvage, isAdhesive, isCraftId, isCraftMode, rollCraft } from "../../../shared/crafting";
 import { GEAR, bonusLogChance, gearPace, gloveSweetBonus, isGearId } from "../../../shared/gear";
 import { AXES, woodPrice, nextCarrierTier, CHOP_LOGS, CHOP_CRIT_CHANCE, CHOP_CRIT_COINS, CHOP_GREENS_TO_SPLIT, WOOD, isGreen, rollChopCooldown, carrierCapacity, rollChopYield, isAxeId, isWoodKind, judgeChop, rollChopLog, rollChopStroke, type ChopLog, type ChopStroke, type ChopStrokeNo, type ChopVerdict } from "../../../shared/chop";
 import {
@@ -115,6 +115,10 @@ import {
   PREMIUM_HATS,
   STARTING_COINS,
   TIMES_OF_DAY,
+  RAIN_START_CHANCE,
+  RAIN_STOP_CHANCE,
+  isWeather,
+  type Weather,
   encodeBag,
   isGesture,
   isPremiumHat,
@@ -323,6 +327,8 @@ class HangoutState extends Schema {
   @type({ map: ToggleableState }) toggleables = new MapSchema<ToggleableState>();
   /** The lounge's hour (the campfire and the casino keep their own night: MAP_SIGNATURE_TIME). */
   @type("string") timeOfDay: TimeOfDay = "day";
+  /** The lounge's weather outside its windows (the campfire and the casino are always clear). */
+  @type("string") weather: Weather = "clear";
   @type(BallSchema) ball = new BallSchema();
   @type(RouletteSchema) roulette = new RouletteSchema();
   /** Roulette bets on the table this round, per sessionId, as encodeBets() strings. */
@@ -558,9 +564,12 @@ export class HangoutRoom extends Room<HangoutState> {
 
     this.setSimulationInterval((dtMs) => this.tick(dtMs / 1000), TICK_MS);
 
-    this.onMessage("move", (client, msg: { dirX: number; dirZ: number; x?: number; z?: number; seq?: number }) => {
+    this.onMessage("move", (client, msg: { dirX: number; dirZ: number; x?: number; z?: number; seq?: number; map?: string }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+      // a report walked on the world you just left (sent before the trip reached the client) never
+      // moves you on the new one: its spot is the old world's
+      if (typeof msg?.map === "string" && msg.map !== player.map) return;
       if (player.sitting) {
         // walking off a seat gets you up: nobody is ever held on a chair by a missed "standUp"
         // (one sent into a dying connection, say) while their client thinks they are walking
@@ -666,6 +675,13 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("setAutoCycle", (_client, msg: { on: boolean }) => {
       this.state.autoCycle = msg?.on === true;
       this.cycleClock = 0;
+    });
+    // the weather, like the hour: anyone in the lounge can bring the rain in or clear it away
+    this.onMessage("setWeather", (client, msg: { weather: Weather }) => {
+      if (!isWeather(msg?.weather)) return;
+      const map = this.state.players.get(client.sessionId)?.map;
+      if (map && MAP_SIGNATURE_TIME[map]) return;
+      this.state.weather = msg.weather;
     });
 
     this.onMessage("gesture", (client, msg: { gesture: string }) => this.handleGesture(client.sessionId, msg?.gesture));
@@ -825,9 +841,18 @@ export class HangoutRoom extends Room<HangoutState> {
 
   // --- outfits, gachapon, arcade -------------------------------------------------------------
 
+  /** At the Velvet Boutique in the lounge, by Chloe or her cheval mirror: the only place the
+   *  wardrobe sells (wearing what you own works anywhere). Says so if not. */
+  private atBoutique(sessionId: string, player: Player): boolean {
+    const near = player.map === "cozy_lounge" && Math.min(Math.hypot(player.x - BOUTIQUE.chloe.x, player.z - BOUTIQUE.chloe.z), Math.hypot(player.x - BOUTIQUE.mirror.x, player.z - BOUTIQUE.mirror.z)) <= BOUTIQUE_REACH + 1.0;
+    if (!near) this.sendTo(sessionId, "campfireNotice", { message: "New clothes are Chloe's: visit the Velvet Boutique in the lounge", emoji: "👗" });
+    return near;
+  }
+
   private handleBuyOutfit(sessionId: string, outfit: unknown) {
     const player = this.state.players.get(sessionId);
     if (!player || !isOutfitId(outfit) || this.owns(player, outfit)) return;
+    if (!this.atBoutique(sessionId, player)) return;
     const price = outfitPrice(outfit);
     if (price <= 0 || player.coins < price) return; // gacha-only outfits are not for sale
     player.coins -= price;
@@ -839,6 +864,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleBuyHair(sessionId: string, style: unknown) {
     const player = this.state.players.get(sessionId);
     if (!player || !isHairStyle(style) || this.ownsHair(player.owned.split(","), style)) return;
+    if (!this.atBoutique(sessionId, player)) return;
     const price = HAIR_DEFINITIONS[style].price;
     if (player.coins < price) return;
     player.coins -= price;
@@ -1199,7 +1225,7 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   private sceneNow(): SavedScene {
-    return { time: this.state.timeOfDay, fuel: this.state.fuel, stew: this.state.stew, picnic: this.state.picnic, pusher: Math.floor(this.casino.shelf) };
+    return { time: this.state.timeOfDay, weather: this.state.weather, fuel: this.state.fuel, stew: this.state.stew, picnic: this.state.picnic, pusher: Math.floor(this.casino.shelf) };
   }
 
   private async saveScene() {
@@ -1221,6 +1247,7 @@ export class HangoutRoom extends Room<HangoutState> {
       const scene = (await getBoardStore().load(this.sceneKey())) as unknown as Partial<SavedScene> | null;
       if (!scene) return;
       if (isTimeOfDay(scene.time)) this.state.timeOfDay = scene.time;
+      if (isWeather(scene.weather)) this.state.weather = scene.weather;
       if (typeof scene.fuel === "number" && Number.isFinite(scene.fuel)) this.state.fuel = Math.max(0, Math.min(FUEL_MAX, Math.round(scene.fuel)));
       // the pot and the plates come back as they were; a pot still cooking finishes from now
       const stew = parseStew(typeof scene.stew === "string" ? scene.stew : "");
@@ -1700,6 +1727,8 @@ export class HangoutRoom extends Room<HangoutState> {
         this.cycleClock = 0;
         const i = TIMES_OF_DAY.indexOf(this.state.timeOfDay);
         this.state.timeOfDay = TIMES_OF_DAY[(i + 1) % TIMES_OF_DAY.length];
+        // and the sky may change its mind: a shower rolls in, or blows over
+        if (this.state.weather === "clear" ? Math.random() < RAIN_START_CHANCE : Math.random() < RAIN_STOP_CHANCE) this.state.weather = this.state.weather === "clear" ? "rain" : "clear";
       }
     }
   }
@@ -1736,6 +1765,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!player || !isPremiumHat(hat)) return;
     const owned = player.owned ? player.owned.split(",") : [];
     if (owned.includes(hat)) return;
+    if (!this.atBoutique(sessionId, player)) return;
     const price = PREMIUM_HATS[hat].price;
     if (player.coins < price) return;
     player.coins -= price;
@@ -2127,9 +2157,10 @@ export class HangoutRoom extends Room<HangoutState> {
     let coins = 0;
     if (verdict === "gold" && Math.random() < CHOP_CRIT_CHANCE) {
       // a coin bonus counts toward the day's chopping coins (none once they are all earned); a
-      // resin, the other half of the time
+      // resin, the other half of the time (it takes a carrier slot: a full carrier pays the coins)
       const profile = this.records.get(sessionId)?.fishing;
-      if (Math.random() < 0.5) {
+      const roomForResin = !!profile && carrierLoad(profile) < carrierCapacity(profile.carrierTier);
+      if (Math.random() < 0.5 || !roomForResin) {
         coins = this.campfirePay(sessionId, player, "chop", CHOP_CRIT_COINS);
         if (coins > 0) bonus = "coins";
       } else if (profile) {
@@ -2510,6 +2541,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const record = this.records.get(sessionId);
     if (!record || !isCraftId(packet.recipe)) return;
     const mode = isCraftMode(packet.mode) ? packet.mode : "safe";
+    const adhesive = isAdhesive(packet.adhesive) ? packet.adhesive : "";
     const profile = record.fishing;
     const reply = (ok: boolean, message: string, extra: Partial<WorkbenchResult> = {}) => {
       const result: WorkbenchResult = { ok, message, ...extra };
@@ -2520,8 +2552,12 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!near) return reply(false, "Step up to the workbench to carve");
     const craft = CRAFTS[packet.recipe];
     if (!canCraft(profile.wood, packet.recipe)) return reply(false, `The ${craft.name} takes ${Object.entries(craft.needs).map(([k, n]) => `${n} ${WOOD[k as keyof typeof WOOD].name}`).join(" + ")}`);
+    if (adhesive && profile.resin < 1) return reply(false, "No Pine Resin for the Adhesive Slot: land a gold chop on the meter");
     for (const [k, n] of Object.entries(craft.needs) as [keyof typeof WOOD, number][]) profile.wood[k] -= n;
-    const outcome = rollCraft(craftOdds(packet.recipe, mode, profile.gear), Math.random());
+    // the Adhesive Slot: the resin is brushed on (and spent) before the carve
+    if (adhesive) profile.resin -= 1;
+    const glue = adhesive ? { adhesive } : {};
+    const outcome = rollCraft(craftOdds(packet.recipe, mode, profile.gear, adhesive), Math.random());
     this.playGesture(sessionId, "chop");
     if (outcome === "broken") {
       // the safety net: half its wood back (rounded up, per kind; 75% with the apron), and sawdust
@@ -2530,12 +2566,13 @@ export class HangoutRoom extends Room<HangoutState> {
       profile.sawdust = Math.min(999, profile.sawdust + 1);
       this.nearby(sessionId, "emote", { sessionId, emoji: "💥" });
       const back = (Object.entries(salvaged) as [keyof typeof WOOD, number][]).map(([k, n]) => `${n} ${WOOD[k].emoji}`).join(" + ");
-      return reply(true, `Craft Broken! Salvaged ${back} + 1 Sawdust`, { outcome, recipe: packet.recipe, salvaged, sawdust: 1 });
+      return reply(true, `Craft Broken! Salvaged ${back} + 1 Sawdust`, { outcome, recipe: packet.recipe, salvaged, sawdust: 1, ...glue });
     }
     const m = outcome === "masterwork";
     profile.crafts.push({ c: packet.recipe, m });
     this.nearby(sessionId, "emote", { sessionId, emoji: m ? "✨" : craft.emoji });
-    reply(true, m ? `A Masterwork ${craft.name}! ✨ Buster will pay ${craft.master} 🪙 for it` : `A fine ${craft.name} ${craft.emoji}, worth ${craft.price} 🪙 at Buster's stall`, { outcome, recipe: packet.recipe });
+    const note = adhesive ? ` (${ADHESIVES[adhesive].emoji} ${ADHESIVES[adhesive].name})` : "";
+    reply(true, m ? `A Masterwork ${craft.name}!${note} ✨ Buster will pay ${craft.master} 🪙 for it` : `A fine ${craft.name} ${craft.emoji}${note}, worth ${craft.price} 🪙 at Buster's stall`, { outcome, recipe: packet.recipe, ...glue });
   }
 
   /** Buster the Lumberjack's stall: he buys split wood and carved pieces (near him) and sells axes
@@ -2856,6 +2893,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // no longer watching the board game
     if (this.board.watch(sessionId, "", false)) this.broadcastBoard();
 
+    // the spawn is the server's word (MAP_SPAWN_POINTS: on the new world's floor, inside its rails):
+    // position, heading and the echo all start again there, before the client lifts its curtain
     const spawn = at ?? this.spawnOn(mapId);
     player.map = mapId;
     player.x = spawn.x;
@@ -3628,6 +3667,8 @@ const SCENE_SAVE_EVERY_S = 3;
 /** A guild's scene, as saved (restoreScene). */
 interface SavedScene {
   time: TimeOfDay;
+  /** The lounge's weather (a scene saved before the weather had none: clear). */
+  weather?: Weather;
   fuel: number;
   stew: string;
   picnic: string;

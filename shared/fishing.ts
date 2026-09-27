@@ -182,8 +182,9 @@ export interface FishingProfile {
   crafts: CraftItem[];
   /** Buster's utility gear owned (shared/gear.ts): it works for good once bought. */
   gear: GearId[];
-  /** Pine Resin (from critical chops; Buster buys it) and Sawdust (from broken carvings; +15% on
-   *  the bonfire). Small things: they ride in a pouch, not in the carrier's slots. */
+  /** Pine Resin (from critical chops): each takes a slot in the wood carrier, glues a carving at
+   *  the workbench's Adhesive Slot, and Buster buys it. Sawdust (from broken carvings; +15% on the
+   *  bonfire) is a small thing: it rides in a pouch, not in the carrier's slots. */
   resin: number;
   sawdust: number;
 }
@@ -194,9 +195,9 @@ export function emptyFishingProfile(): FishingProfile {
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
   return WOOD_KINDS.reduce((sum, k) => sum + (p.wood[k] ?? 0), 0);
 }
-/** How full the wood carrier is: every log and every crafted piece takes a slot. */
-export function carrierLoad(p: Pick<FishingProfile, "wood" | "crafts">): number {
-  return woodCount(p) + p.crafts.length;
+/** How full the wood carrier is: every log, every crafted piece and every Pine Resin takes a slot. */
+export function carrierLoad(p: Pick<FishingProfile, "wood" | "crafts" | "resin">): number {
+  return woodCount(p) + p.crafts.length + (p.resin ?? 0);
 }
 /** A profile read back from storage (or the network), with anything unknown or broken dropped. */
 export function sanitizeFishingProfile(raw: unknown): FishingProfile {

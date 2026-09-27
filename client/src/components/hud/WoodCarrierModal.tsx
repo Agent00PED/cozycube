@@ -13,12 +13,13 @@ interface Props {
 }
 
 // The wood carrier, opened from the header's 🪵 pill: every slot in a five-wide grid (the logs,
-// then the carved pieces, then the empty slots), and two tabs. Raw Timber: the stacks of each wood,
-// each with a quick Feed Fire (at the bonfire). Artisan Crafts: the pieces from Buster's workbench,
-// a Masterwork ✨ in a gold frame. The pantry (foraged mushrooms and berries) sits at the foot.
+// then the carved pieces, then the Pine Resin, then the empty slots), and two tabs. Raw Timber: the
+// stacks of each wood, each with a quick Feed Fire (at the bonfire), the resin and the sawdust
+// pouch. Artisan Crafts: the pieces from Buster's workbench, a Masterwork ✨ in a gold frame. The
+// pantry (foraged mushrooms and berries) sits at the foot.
 
 type Tab = "raw" | "crafts";
-type Slot = { kind: "wood"; wood: WoodKind } | { kind: "craft"; index: number } | { kind: "empty" };
+type Slot = { kind: "wood"; wood: WoodKind } | { kind: "craft"; index: number } | { kind: "resin" } | { kind: "empty" };
 
 export function WoodCarrierModal({ profile, bag, send, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("raw");
@@ -27,6 +28,7 @@ export function WoodCarrierModal({ profile, bag, send, onClose }: Props) {
   const slots: Slot[] = [
     ...WOOD_KINDS.flatMap((w) => Array.from({ length: profile.wood[w] }, (): Slot => ({ kind: "wood", wood: w }))),
     ...profile.crafts.map((_, index): Slot => ({ kind: "craft", index })),
+    ...Array.from({ length: profile.resin }, (): Slot => ({ kind: "resin" })),
     ...Array.from({ length: Math.max(0, tier.capacity - load) }, (): Slot => ({ kind: "empty" })),
   ];
   const pantry = parseBag(bag);
@@ -35,7 +37,7 @@ export function WoodCarrierModal({ profile, bag, send, onClose }: Props) {
     <Modal title={`${tier.icon} ${tier.name}`} icon="🪵" onClose={onClose} width={460}>
       <div className="flex flex-col gap-3 pb-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="opacity-80">Logs and carved pieces, one slot each</span>
+          <span className="opacity-80">Logs, carved pieces and resin, one slot each</span>
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums ${load >= tier.capacity ? "bg-rose-400/30 text-rose-100" : "bg-white/10"}`}>
             {load}/{tier.capacity}
           </span>
@@ -44,6 +46,13 @@ export function WoodCarrierModal({ profile, bag, send, onClose }: Props) {
         <div className="grid max-h-[32vh] grid-cols-5 gap-2 overflow-y-auto pr-0.5" aria-label="Carrier slots">
           {slots.map((s, i) => {
             if (s.kind === "empty") return <div key={i} className="aspect-square rounded-xl border border-dashed border-white/25 bg-white/[0.03]" aria-hidden />;
+            if (s.kind === "resin") {
+              return (
+                <div key={i} className="flex aspect-square items-center justify-center rounded-xl bg-amber-500/15 text-xl" title="Pine Resin">
+                  🍯
+                </div>
+              );
+            }
             if (s.kind === "wood") {
               return (
                 <div key={i} className="flex aspect-square items-center justify-center rounded-xl bg-white/10 text-xl" title={WOOD[s.wood].name}>
@@ -115,11 +124,11 @@ export function WoodCarrierModal({ profile, bag, send, onClose }: Props) {
                       <b className="text-sm">
                         Pine Resin <span className="font-normal opacity-70">×{profile.resin}</span>
                       </b>
-                      <span className="text-[11px] opacity-75">{RESIN_PRICE} 🪙 each at Buster's · from critical chops</span>
+                      <span className="text-[11px] opacity-75">A slot each · glues a carving at the workbench · {RESIN_PRICE} 🪙 at Buster's</span>
                     </div>
                   </div>
                 )}
-                <p className="m-0 text-[10.5px] opacity-55">The pouch: small things, no carrier slots.</p>
+                {profile.sawdust > 0 && <p className="m-0 text-[10.5px] opacity-55">Sawdust rides in the pouch: no carrier slots.</p>}
               </div>
             )}
             {(pantry.mushroom || pantry.berry) && (

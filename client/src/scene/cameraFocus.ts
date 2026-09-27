@@ -15,6 +15,8 @@ export const cameraFocus = {
   facing: 0,
   /** How high the local player's feet are (a raised stage, a seat). */
   y: 0,
+  /** Bumped when the local player lands on another world: the camera cuts to them (no sweep). */
+  cut: 0,
 };
 
 /** How many world units the camera fits across the viewport, and the middle of what it frames: the

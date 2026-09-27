@@ -148,6 +148,8 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
     if (!d.ready || Math.hypot(dx, dz) > SNAP_DISTANCE) {
       d.x = goal.x;
       d.z = goal.z;
+      // first seen (arriving from another world, say): feet straight on the floor there
+      if (!d.ready) d.seatY = p.sitting ? p.sitY : walkY(feed.mapId, d.x, d.z);
       d.ready = true;
     } else {
       d.x = goal.x;

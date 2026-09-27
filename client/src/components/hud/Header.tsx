@@ -1,6 +1,6 @@
 import { WORLDS, WORLD_IDS } from "@shared/worlds";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, isCasinoMap, type MapId, type TimeOfDay } from "@shared/types";
+import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, isCasinoMap, type MapId, type TimeOfDay, type Weather } from "@shared/types";
 import { netWorth } from "@shared/casino";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 import { useAnglerProfile } from "./anglerStore";
@@ -23,6 +23,9 @@ interface HeaderProps {
   onOpenWorlds: () => void;
   timeOfDay: TimeOfDay;
   onSelectTime: (t: TimeOfDay) => void;
+  /** The lounge's weather, and a way to change it (like the hour, it is the whole guild's). */
+  weather: Weather;
+  onSelectWeather: (w: Weather) => void;
   autoCycle: boolean;
   onToggleAutoCycle: () => void;
   coins: number;
@@ -31,7 +34,6 @@ interface HeaderProps {
   onClaimAllowance: () => void;
   status: string;
   onSetStatus: (status: string) => void;
-  onOpenWardrobe: () => void;
   onOpenLeaderboard: () => void;
   onOpenSettings: () => void;
   onOpenSocial: () => void;
@@ -94,6 +96,8 @@ export function Header(p: HeaderProps) {
   // follow the lounge's clock
   const starlit = p.currentMap === "campfire_night" || isCasinoMap(p.currentMap);
   const time = starlit ? { icon: "🌙", name: p.currentMap === "campfire_night" ? "Starlight" : "Late night" } : timeLabel(p.timeOfDay);
+  // rain over the lounge shows on the hour's pill
+  if (!starlit && p.weather === "rain") time.icon = "🌧️";
   const st = isActivityStatus(p.status) ? ACTIVITY_STATUSES[p.status] : null;
   const map = MAP_LABELS[p.currentMap];
   // the camera: locked on you (follow), or free to pan with a right- or middle-drag
@@ -105,7 +109,7 @@ export function Header(p: HeaderProps) {
       title: camera === "follow" ? "Camera: following you (tap for Free Pan: right- or middle-drag to look round)" : "Camera: Free Pan, right- or middle-drag to look round (tap to follow you again)",
       onClick: () => setCameraMode(camera === "follow" ? "free_pan" : "follow"),
     },
-    { icon: "👗", label: "Wardrobe", onClick: p.onOpenWardrobe },
+    // (the wardrobe is Chloe's, at the Velvet Boutique in the lounge: talk to her or her mirror)
     // the High Rollers board is the casino's: shown on its two floors only
     ...(isCasinoMap(p.currentMap) ? [{ icon: "🏆", label: "High Rollers", onClick: p.onOpenLeaderboard }] : []),
     { icon: "⚙️", label: "Settings", onClick: p.onOpenSettings },
@@ -193,7 +197,7 @@ export function Header(p: HeaderProps) {
         </div>
 
 
-        <div className="hidden items-center gap-2 sm:flex" role="toolbar" aria-label="Camera, wardrobe, High Rollers, settings and social">
+        <div className="hidden items-center gap-2 sm:flex" role="toolbar" aria-label="Camera, High Rollers, settings and social">
           {actions.map((a) => (
             <button key={a.label} type="button" onClick={() => a.onClick()} className={`${ICON_PILL} ${a.active ? "bg-stone-600/90" : ""}`} title={a.title ?? a.label} aria-label={a.title ?? a.label} aria-pressed={a.active}>
               <span className={ICON}>{a.icon}</span>
@@ -254,6 +258,13 @@ function TimeChoices({ p, close, chips = false }: { p: HeaderProps; close: () =>
           </MenuItem>
         );
       })}
+      {!chips && <div className="my-1 h-px bg-white/10" />}
+      <MenuItem chip={chips} active={p.weather === "clear"} onClick={() => (p.onSelectWeather("clear"), close())}>
+        🌤️ Clear skies
+      </MenuItem>
+      <MenuItem chip={chips} active={p.weather === "rain"} onClick={() => (p.onSelectWeather("rain"), close())}>
+        🌧️ Rain
+      </MenuItem>
       {!chips && <div className="my-1 h-px bg-white/10" />}
       <MenuItem chip={chips} active={p.autoCycle} onClick={() => p.onToggleAutoCycle()}>
         ⏱️ Auto {chips ? "" : "cycle "}

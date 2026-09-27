@@ -179,6 +179,23 @@ export class BoardTable {
   private checkers = newCheckers();
   /** The winner's session id, once a decisive game has been settled (the purse is paid once). */
   private settled = false;
+  /** The players' clocks: each side's thinking time this game (ms), whose is running and since
+   *  when. A clock runs only while both are seated and the game is on; a restart starts them afresh. */
+  private clock: Record<BoardSide, number> = { w: 0, b: 0 };
+  private running: BoardSide | "" = "";
+  private runningSince = 0;
+
+  /** Stops the running clock (banking its time) and starts `next`'s ("" for none). */
+  private pressClock(next: BoardSide | "") {
+    const now = Date.now();
+    if (this.running) this.clock[this.running] += now - this.runningSince;
+    this.running = next;
+    this.runningSince = now;
+  }
+  /** Both at the table and the game on: the side to move's clock runs. */
+  private startClockIfPlaying() {
+    if (!this.running && this.bothSeated() && !this.result) this.pressClock(this.turn());
+  }
 
   /**
    * The same player back on a new session (their old connection was lost with its token): their
@@ -271,6 +288,7 @@ export class BoardTable {
   /** The player a held seat was waiting for is back: the seat is theirs again, the game goes on. */
   claim(side: BoardSide, sessionId: string) {
     this.seats[side] = sessionId;
+    this.startClockIfPlaying();
   }
 
   sideOf(sessionId: string): BoardSide | "" {
@@ -301,12 +319,15 @@ export class BoardTable {
     this.lastMove = null;
     this.plies = 0;
     this.settled = false;
+    this.clock = { w: 0, b: 0 };
+    this.running = "";
   }
 
   private end(result: BoardSide | "draw", reason: string) {
     this.result = result;
     this.reason = reason;
     this.drawOffer = "";
+    this.pressClock("");
   }
 
   sit(sessionId: string, name: string, seat: BoardSide): boolean {
@@ -322,6 +343,7 @@ export class BoardTable {
     this.seats[seat] = sessionId;
     this.names[seat] = name;
     this.watchers.delete(sessionId);
+    this.startClockIfPlaying();
     return true;
   }
 
@@ -378,6 +400,8 @@ export class BoardTable {
     this.lastMove = { from, to };
     this.plies++;
     if (this.drawOffer) this.drawOffer = "";
+    // the mover's clock stops and the next to move's starts (a checkers chain keeps the same side's)
+    this.pressClock(this.result ? "" : this.turn());
     return true;
   }
 
@@ -455,6 +479,8 @@ export class BoardTable {
       drawOffer: this.drawOffer,
       fen: chess ? this.chess.fen() : "",
       moves: this.plies,
+      clocks: { w: this.clock.w + (this.running === "w" ? Date.now() - this.runningSince : 0), b: this.clock.b + (this.running === "b" ? Date.now() - this.runningSince : 0) },
+      clockSide: this.running,
       watchers: [...this.watchers.entries()].filter(([id]) => !this.sideOf(id)).map(([, name]) => name),
     };
   }

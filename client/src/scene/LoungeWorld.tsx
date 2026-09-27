@@ -1,11 +1,12 @@
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useContext, useEffect, useMemo, useRef } from "react";
 import { modelUrl } from "../assetVersion";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { B, Cyl, GEO, RB, Sph, StaticBatch, Stem, makePlankTexture, makeTileTexture, matte, noMerge, noRaycast, seeded } from "./kit";
-import { useLampBoost } from "./timeOfDay";
+import { TimeOfDayContext, useLampBoost, useWeather } from "./timeOfDay";
+import type { TimeOfDay } from "@shared/types";
 import { CUSHIONS } from "@shared/seats";
 import {
   CHAISE,
@@ -15,6 +16,7 @@ import {
   HEARTH,
   KITCHEN,
   LOFT_HALF,
+  NOOK,
   PLANTS,
   POUF_CIRCLE,
   RADIO,
@@ -168,6 +170,8 @@ const mid = (a: number, b: number) => (a + b) / 2;
 
 export function LoungeWorld({ onFloorClick }: { onFloorClick: (x: number, z: number) => void }) {
   const c = useLoftMaterials();
+  const floor = useMemo(() => floorGeometry(), []);
+  useEffect(() => () => floor.dispose(), [floor]);
   const floorClick = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -176,18 +180,24 @@ export function LoungeWorld({ onFloorClick }: { onFloorClick: (x: number, z: num
 
   return (
     <group>
-      {/* the floor is its own thin plane and the ONLY click target for walking: a box would also
-          return hits on its sides and underside and send you to nonsensical places */}
-      <mesh geometry={GEO.plane} material={c.floor} rotation={[-Math.PI / 2, 0, 0]} scale={[HALF * 2, HALF * 2, 1]} onPointerDown={floorClick} />
+      {/* the floor is its own thin sheet and the ONLY click target for walking (a box would also
+          return hits on its sides and underside and send you to nonsensical places): the loft's
+          planks round the nook, and the nook's pit a step down */}
+      <mesh geometry={floor} material={c.floor} onPointerDown={floorClick} />
       <StaticBatch>
         <Slab c={c} />
         <KitchenTile c={c} />
         <Walls c={c} />
         <Windows c={c} />
         <Hearth c={c} />
+        <LogBasket c={c} />
         <Bookcases c={c} />
-        <Sectional c={c} />
-        <CoffeeTable c={c} />
+        <NookRim c={c} />
+        {/* the nook's furniture stands on the pit's floor */}
+        <group position={[0, -NOOK.depth, 0]}>
+          <Sectional c={c} />
+          <CoffeeTable c={c} />
+        </group>
         <ReadingNook c={c} />
         <Chaise c={c} />
         <Kitchen c={c} />
@@ -202,6 +212,7 @@ export function LoungeWorld({ onFloorClick }: { onFloorClick: (x: number, z: num
       </StaticBatch>
       <Fire c={c} />
       <PendantLights c={c} />
+      <WindowWeather c={c} />
       {/* a missing or broken props.glb just leaves the counters bare: the room never fails */}
       <ModelBoundary what="props.glb" fallback={null}>
         <Suspense fallback={null}>
@@ -234,16 +245,18 @@ interface Placement {
 
 const HOB_TOP = KITCHEN.counter.height + 0.022; // on the burners
 const ISLAND_MID = { x: (KITCHEN.island.x0 + KITCHEN.island.x1) / 2, z: (KITCHEN.island.z0 + KITCHEN.island.z1) / 2 };
-// The throw pillows stand on the seat cushions (their top is 0.36) and lean back 16-17 degrees
-// against the back cushions, well behind where a napping head goes (shared/worlds/lounge.ts nap).
-const PILLOW_BASE = CUSHIONS.sofa.y + CUSHIONS.sofa.h / 2 - 0.01;
+// The throw pillows stand on the seat cushions (their top is 0.36, down in the nook's pit) and lean
+// back 16-17 degrees against the back cushions, well behind where a napping head goes
+// (shared/worlds/lounge.ts nap).
+const PILLOW_BASE = CUSHIONS.sofa.y + CUSHIONS.sofa.h / 2 - 0.01 - NOOK.depth;
 const PILLOW_TILT = 0.28;
+const PILLOW_Z = SOFA.runZ - 0.06;
 
 const PLACEMENTS: Placement[] = [
   // the sectional: one at each end of the run, one in the corner; and one in the wingback
-  { name: "Prop_Pillow", p: [-6.1, PILLOW_BASE, -2.64], heading: Math.PI + 0.2, tilt: PILLOW_TILT, tint: "#c4714a" },
-  { name: "Prop_Pillow", p: [-3.5, PILLOW_BASE, -2.64], heading: Math.PI - 0.3, tilt: PILLOW_TILT, tint: "#d9a441" },
-  { name: "Prop_Pillow", p: [-6.82, PILLOW_BASE, -2.68], heading: (3 * Math.PI) / 4, tilt: PILLOW_TILT, tint: "#f3e9d6" },
+  { name: "Prop_Pillow", p: [SOFA.corner.x + 0.7, PILLOW_BASE, PILLOW_Z], heading: 0.2, tilt: PILLOW_TILT, tint: "#c4714a" },
+  { name: "Prop_Pillow", p: [SOFA.run.x1 - 0.55, PILLOW_BASE, PILLOW_Z], heading: -0.3, tilt: PILLOW_TILT, tint: "#d9a441" },
+  { name: "Prop_Pillow", p: [SOFA.corner.x - 0.02, PILLOW_BASE, SOFA.corner.z - 0.02], heading: Math.PI / 4, tilt: PILLOW_TILT, tint: "#f3e9d6" },
   { name: "Prop_Pillow", p: [READING.chair.x - 0.13, CUSHIONS.wingback.y + CUSHIONS.wingback.h / 2 - 0.01, READING.chair.z + 0.05], heading: Math.PI / 2 - 0.25, tilt: 0.3, tint: "#d9a441" },
   // the kitchen counter: the toaster where the espresso machine stood, a fruit bowl; the hob's
   // Dutch oven and kettle
@@ -258,8 +271,8 @@ const PLACEMENTS: Placement[] = [
   // the coffee machine at the counter (brew a drink there) and the radio on the green rug's low table
   { name: "Prop_CoffeeMachine", p: [COFFEE_MACHINE.x, KITCHEN.counter.height, COFFEE_MACHINE.z] },
   { name: "Prop_Radio", p: [RADIO.x, POUF_CIRCLE.table.height, RADIO.z], heading: -0.5 },
-  // the coffee table's tray
-  { name: "Prop_Mug", p: [COFFEE_TABLE.x + 0.14, COFFEE_TABLE.height + 0.022, COFFEE_TABLE.z - 0.06], heading: 2.2, tint: "#e9dfd0" },
+  // the coffee table's tray, down in the nook
+  { name: "Prop_Mug", p: [COFFEE_TABLE.x + 0.14, COFFEE_TABLE.height + 0.022 - NOOK.depth, COFFEE_TABLE.z - 0.06], heading: 2.2, tint: "#e9dfd0" },
 ];
 
 /** The Blender props, each copy placed, leaned and recoloured, then baked into one draw per material. */
@@ -310,12 +323,77 @@ function LoftProps() {
 
 useGLTF.preload(PROPS_URL);
 
-/** The diorama slab under the floor: a chunky walnut block with a lighter lip, like a model on a table. */
+/**
+ * The floor's planks: the loft's floor round the nook in four sheets, and the nook's pit a step
+ * down, one geometry. The UVs are the whole floor's, so the planks run on unbroken across the cut.
+ */
+function floorGeometry(): THREE.BufferGeometry {
+  const p = NOOK.pit;
+  const sheets: [number, number, number, number, number][] = [
+    // x0, x1, z0, z1, y
+    [-HALF, HALF, -HALF, p.z0, 0],
+    [-HALF, HALF, p.z1, HALF, 0],
+    [-HALF, p.x0, p.z0, p.z1, 0],
+    [p.x1, HALF, p.z0, p.z1, 0],
+    [p.x0, p.x1, p.z0, p.z1, -NOOK.depth],
+  ];
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const index: number[] = [];
+  for (const [x0, x1, z0, z1, y] of sheets) {
+    const base = pos.length / 3;
+    for (const [x, z] of [
+      [x0, z1],
+      [x1, z1],
+      [x1, z0],
+      [x0, z0],
+    ]) {
+      pos.push(x, y, z);
+      uv.push((x + HALF) / (HALF * 2), (HALF - z) / (HALF * 2));
+    }
+    index.push(base, base + 1, base + 2, base, base + 2, base + 3); // wound to face up
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
+
+/** The diorama slab under the floor: a chunky walnut block with a lighter lip, like a model on a
+ *  table. The lip is a ring round the edge, so nothing covers the nook's pit. */
 function Slab({ c }: { c: Mats }) {
+  const lip = 0.6;
+  const along = HALF * 2 + 0.02;
+  const inset = HALF - lip / 2 + 0.01;
   return (
     <group>
-      <B p={[0, -0.67, 0]} s={[HALF * 2, 1.3, HALF * 2]} m={c.slab} />
-      <B p={[0, -0.09, 0]} s={[HALF * 2 + 0.02, 0.14, HALF * 2 + 0.02]} m={c.slabTop} />
+      <B p={[0, -0.74, 0]} s={[HALF * 2, 1.16, HALF * 2]} m={c.slab} />
+      <B p={[0, -0.09, inset]} s={[along, 0.14, lip]} m={c.slabTop} />
+      <B p={[0, -0.09, -inset]} s={[along, 0.14, lip]} m={c.slabTop} />
+      <B p={[inset, -0.09, 0]} s={[lip, 0.14, along]} m={c.slabTop} />
+      <B p={[-inset, -0.09, 0]} s={[lip, 0.14, along]} m={c.slabTop} />
+    </group>
+  );
+}
+
+/** The nook's rim: the step's faces down to the pit (the two the camera sees, behind the sofa's
+ *  backs) and an oak coping round the edge, so the step reads at a glance. */
+function NookRim({ c }: { c: Mats }) {
+  const p = NOOK.pit;
+  const d = NOOK.depth;
+  const w = 0.1;
+  return (
+    <group>
+      <B p={[p.x0 - 0.01, -d / 2, mid(p.z0, p.z1)]} s={[0.02, d, p.z1 - p.z0]} m={c.oak} />
+      <B p={[mid(p.x0, p.x1), -d / 2, p.z0 - 0.01]} s={[p.x1 - p.x0, d, 0.02]} m={c.oak} />
+      {/* the coping, flush round the pit and just proud of the planks */}
+      <B p={[mid(p.x0 - w, p.x1 + w), 0.012, p.z0 - w / 2]} s={[p.x1 - p.x0 + w * 2, 0.024, w]} m={c.oakLight} />
+      <B p={[mid(p.x0 - w, p.x1 + w), 0.012, p.z1 + w / 2]} s={[p.x1 - p.x0 + w * 2, 0.024, w]} m={c.oakLight} />
+      <B p={[p.x0 - w / 2, 0.012, mid(p.z0, p.z1)]} s={[w, 0.024, p.z1 - p.z0]} m={c.oakLight} />
+      <B p={[p.x1 + w / 2, 0.012, mid(p.z0, p.z1)]} s={[w, 0.024, p.z1 - p.z0]} m={c.oakLight} />
     </group>
   );
 }
@@ -407,6 +485,232 @@ function Windows({ c }: { c: Mats }) {
         </group>
       ))}
     </group>
+  );
+}
+
+// ---------------------------------------------------------------------------------------
+// The light through the windows, and the rain on them
+// ---------------------------------------------------------------------------------------
+
+/** How the windows look at an hour: the glass's own colour and glow, the light falling through
+ *  them (its colour, how strong the shafts and the pools on the floor are, and how high it comes
+ *  from: a high sun lays short pools by the wall, a low one long streaks across the floor), and the
+ *  directional light it throws into the room. */
+interface WindowLook {
+  pane: string;
+  paneGlow: string;
+  paneGlowAmt: number;
+  shaft: string;
+  shaftAmt: number;
+  /** The light's elevation, radians above the horizon. */
+  elev: number;
+  lightAmt: number;
+}
+const WINDOW_CLEAR: Record<TimeOfDay, WindowLook> = {
+  sunrise: { pane: "#ffd9c4", paneGlow: "#ffbf94", paneGlowAmt: 0.55, shaft: "#ffd7b0", shaftAmt: 0.22, elev: 0.5, lightAmt: 0.35 },
+  // day: warm golden light from high up (#FFF4D6)
+  day: { pane: "#cfeaf7", paneGlow: "#a8d6ee", paneGlowAmt: 0.55, shaft: "#fff4d6", shaftAmt: 0.26, elev: 0.78, lightAmt: 0.45 },
+  // sunset: deep amber, low and long (#FFB366)
+  sunset: { pane: "#ffc48a", paneGlow: "#ff9a48", paneGlowAmt: 0.65, shaft: "#ffb366", shaftAmt: 0.32, elev: 0.36, lightAmt: 0.55 },
+  // night: a cool silver moonbeam (#D0E0FF)
+  night: { pane: "#27355e", paneGlow: "#34497f", paneGlowAmt: 0.5, shaft: "#d0e0ff", shaftAmt: 0.15, elev: 0.66, lightAmt: 0.25 },
+};
+/** Under rain: dim, diffuse light, grey glass. */
+const WINDOW_RAIN: Record<TimeOfDay, WindowLook> = {
+  sunrise: { pane: "#a4acb4", paneGlow: "#8d98a3", paneGlowAmt: 0.4, shaft: "#c3cbd4", shaftAmt: 0.06, elev: 1.0, lightAmt: 0.14 },
+  day: { pane: "#aab4bd", paneGlow: "#909ca8", paneGlowAmt: 0.42, shaft: "#c8d1da", shaftAmt: 0.06, elev: 1.05, lightAmt: 0.16 },
+  sunset: { pane: "#7c7f8c", paneGlow: "#6b6e80", paneGlowAmt: 0.38, shaft: "#b6b2bb", shaftAmt: 0.05, elev: 1.0, lightAmt: 0.12 },
+  night: { pane: "#1c2330", paneGlow: "#253043", paneGlowAmt: 0.4, shaft: "#aebbd0", shaftAmt: 0.04, elev: 1.0, lightAmt: 0.08 },
+};
+
+/** How far into the room the light may reach on the floor: the nook's pit starts there. */
+const LIGHT_REACH_X = NOOK.pit.x0 - 0.05;
+/** The shafts' glass edge: just inside the left wall. */
+const GLASS_X = -INNER;
+const SHAFT_VERTS_PER_WINDOW = 4 * 4; // four faces: top, bottom, the two sides
+const POOL_Y = 0.05; // over the rugs
+
+/**
+ * The window light: soft shafts slanting in through the left wall's three windows onto pools on the
+ * floor (additive, no depth write), a directional light from the same side, the glass taking the
+ * hour's colour, and, while it rains, drops sliding down every pane. Everything eases to a new hour
+ * or weather over a couple of seconds.
+ */
+function WindowWeather({ c }: { c: Mats }) {
+  const hour = useContext(TimeOfDayContext);
+  const weather = useWeather();
+  const look = (weather === "rain" ? WINDOW_RAIN : WINDOW_CLEAR)[hour];
+  const raining = weather === "rain";
+
+  const { geometry, material } = useMemo(() => {
+    const count = WINDOWS.length * (SHAFT_VERTS_PER_WINDOW + 4);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
+    const index: number[] = [];
+    for (let q = 0; q < count / 4; q++) index.push(q * 4, q * 4 + 1, q * 4 + 2, q * 4, q * 4 + 2, q * 4 + 3);
+    g.setIndex(index);
+    const m = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+    return { geometry: g, material: m };
+  }, []);
+  useEffect(
+    () => () => {
+      geometry.dispose();
+      material.dispose();
+    },
+    [geometry, material]
+  );
+
+  const light = useRef<THREE.DirectionalLight>(null);
+  const eased = useRef({ elev: -1, shaft: new THREE.Color(look.shaft), shaftAmt: 0, pane: new THREE.Color(look.pane), glow: new THREE.Color(look.paneGlow), glowAmt: look.paneGlowAmt, lightAmt: look.lightAmt });
+  const targets = useMemo(() => ({ shaft: new THREE.Color(look.shaft), pane: new THREE.Color(look.pane), glow: new THREE.Color(look.paneGlow) }), [look]);
+
+  useFrame((_, delta) => {
+    const e = eased.current;
+    const k = 1 - Math.exp(-Math.min(delta, 0.1) * 1.7);
+    e.shaft.lerp(targets.shaft, k);
+    e.pane.lerp(targets.pane, k);
+    e.glow.lerp(targets.glow, k);
+    e.shaftAmt += (look.shaftAmt - e.shaftAmt) * k;
+    e.glowAmt += (look.paneGlowAmt - e.glowAmt) * k;
+    e.lightAmt += (look.lightAmt - e.lightAmt) * k;
+    // the glass: the batch shares this material, so the whole window row changes with it
+    c.pane.color.copy(e.pane);
+    c.pane.emissive.copy(e.glow);
+    c.pane.emissiveIntensity = e.glowAmt;
+    material.color.copy(e.shaft);
+    material.opacity = e.shaftAmt;
+    // the light's height: re-lay the shafts only when it has moved
+    const elev = e.elev < 0 ? look.elev : e.elev + (look.elev - e.elev) * k;
+    if (Math.abs(elev - e.elev) > 0.0005) {
+      e.elev = elev;
+      layShafts(geometry, elev);
+    }
+    if (light.current) {
+      light.current.color.copy(e.shaft);
+      light.current.intensity = e.lightAmt;
+      light.current.position.set(-HALF - Math.cos(elev) * 10, Math.sin(elev) * 10, 1);
+    }
+  });
+
+  return (
+    <group userData={noMerge}>
+      {/* from outside the left wall's windows, into the room and down */}
+      <directionalLight ref={light} castShadow={false} />
+      <mesh geometry={geometry} material={material} frustumCulled={false} renderOrder={3} raycast={noRaycast} />
+      {raining && <RainOnGlass />}
+    </group>
+  );
+}
+
+/**
+ * The shafts and pools for light at `elev`: each window's opening extruded along the light until it
+ * meets the floor (or the nook's rim), bright at the glass and fading as it goes, and the pool it
+ * lays on the floor. Vertex colours carry the fade (the material's colour and opacity the hour's).
+ */
+function layShafts(g: THREE.BufferGeometry, elev: number) {
+  const pos = g.getAttribute("position") as THREE.BufferAttribute;
+  const col = g.getAttribute("color") as THREE.BufferAttribute;
+  const run = 1 / Math.tan(Math.max(0.2, elev)); // across per unit fallen
+  // where a ray through the glass at height y comes down (stopping at the nook's rim)
+  const land = (y: number): [number, number] => {
+    const x = GLASS_X + y * run;
+    return x <= LIGHT_REACH_X ? [x, 0] : [LIGHT_REACH_X, y - (LIGHT_REACH_X - GLASS_X) / run];
+  };
+  let v = 0;
+  const put = (x: number, y: number, z: number, a: number) => {
+    pos.setXYZ(v, x, y, z);
+    col.setXYZ(v, a, a, a);
+    v++;
+  };
+  for (const w of WINDOWS) {
+    const z0 = w.z0 + 0.1;
+    const z1 = w.z1 - 0.1;
+    const y0 = WINDOW_Y.y0 + 0.1;
+    const y1 = WINDOW_Y.y1 - 0.1;
+    const [xa, ya] = land(y0);
+    const [xb, yb] = land(y1);
+    const near = 0.55; // the glow at the glass
+    const far = 0.12; // and where it lands
+    // the top face and the bottom face (glass edge to floor)
+    put(GLASS_X, y1, z0, near), put(GLASS_X, y1, z1, near), put(xb, yb, z1, far), put(xb, yb, z0, far);
+    put(GLASS_X, y0, z0, near), put(GLASS_X, y0, z1, near), put(xa, ya, z1, far), put(xa, ya, z0, far);
+    // the two sides
+    put(GLASS_X, y1, z1, near), put(GLASS_X, y0, z1, near), put(xa, ya, z1, far), put(xb, yb, z1, far);
+    put(GLASS_X, y1, z0, near), put(GLASS_X, y0, z0, near), put(xa, ya, z0, far), put(xb, yb, z0, far);
+    // the pool on the floor, the window's shape stretched by the light's slant
+    const p0 = Math.min(xa, LIGHT_REACH_X);
+    const p1 = Math.min(xb, LIGHT_REACH_X);
+    put(p0, POOL_Y, z0, 0.75), put(p0, POOL_Y, z1, 0.75), put(p1, POOL_Y, z1, 0.45), put(p1, POOL_Y, z0, 0.45);
+  }
+  pos.needsUpdate = true;
+  col.needsUpdate = true;
+  g.computeBoundingSphere();
+}
+
+const GLASS_VERT = /* glsl */ `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+// Drops on a pane: beads clinging to the glass, and runs sliding down it, each leaving a thin trail.
+// uSize is the pane in world units, so a drop is the same size on every window.
+const GLASS_FRAG = /* glsl */ `
+uniform float uTime;
+uniform vec2 uSize;
+varying vec2 vUv;
+float hash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+void main() {
+  vec2 w = vUv * uSize;
+  // beads: a hashed scatter, a few centimetres apart
+  vec2 g = w * 14.0;
+  vec2 id = floor(g);
+  vec2 f = fract(g) - 0.5;
+  float h = hash(id);
+  vec2 off = (vec2(hash(id + 1.3), hash(id + 2.7)) - 0.5) * 0.6;
+  float r = 0.1 + 0.14 * hash(id + 5.1);
+  float bead = step(0.55, h) * smoothstep(r, r * 0.35, length(f - off));
+  // runs: a column every ~7 cm, some of them carrying a drop down at their own pace
+  float cols = uSize.x * 14.0;
+  float cx = vUv.x * cols;
+  float c = floor(cx);
+  float ch = hash(vec2(c, 3.7));
+  float fx = (fract(cx) - 0.5) / 14.0; // metres from the column's middle
+  float head = 1.0 - fract(uTime * (0.08 + ch * 0.12) + ch * 7.0);
+  float dy = (vUv.y - head) * uSize.y;
+  float drop = step(0.5, ch) * smoothstep(0.03, 0.012, length(vec2(fx, dy * 0.8)));
+  float trail = step(0.5, ch) * step(0.0, dy) * smoothstep(0.35, 0.0, dy) * smoothstep(0.008, 0.002, abs(fx));
+  float a = max(bead * 0.5, max(drop * 0.8, trail * 0.3));
+  gl_FragColor = vec4(vec3(0.9, 0.94, 0.98), a);
+  #include <colorspace_fragment>
+}`;
+
+/** Rain on the glass: a sheet of drops just inside each pane (the left wall's three and the kitchen's). */
+function RainOnGlass() {
+  const panes = useMemo(() => {
+    const k = KITCHEN.window;
+    const list: { p: V3; r: V3; w: number; h: number }[] = WINDOWS.map((w) => ({ p: [GLASS_X - 0.06, mid(WINDOW_Y.y0, WINDOW_Y.y1), mid(w.z0, w.z1)] as V3, r: [0, Math.PI / 2, 0] as V3, w: w.z1 - w.z0 - 0.2, h: WINDOW_Y.y1 - WINDOW_Y.y0 - 0.2 }));
+    list.push({ p: [mid(k.x0, k.x1), mid(k.y0, k.y1), -INNER - 0.06], r: [0, 0, 0], w: k.x1 - k.x0 - 0.2, h: k.y1 - k.y0 - 0.2 });
+    return list.map((pane) => ({
+      ...pane,
+      material: new THREE.ShaderMaterial({ vertexShader: GLASS_VERT, fragmentShader: GLASS_FRAG, transparent: true, depthWrite: false, toneMapped: false, uniforms: { uTime: { value: 0 }, uSize: { value: new THREE.Vector2(pane.w, pane.h) } } }),
+    }));
+  }, []);
+  useEffect(() => () => panes.forEach((p) => p.material.dispose()), [panes]);
+  useFrame(({ clock }) => {
+    for (const p of panes) p.material.uniforms.uTime.value = clock.elapsedTime;
+  });
+  return (
+    <>
+      {panes.map((p, i) => (
+        <mesh key={i} geometry={GEO.plane} material={p.material} position={p.p} rotation={p.r} scale={[p.w, p.h, 1]} raycast={noRaycast} renderOrder={4} />
+      ))}
+    </>
   );
 }
 
@@ -530,13 +834,15 @@ function Bookcase({ box, seed, c }: { box: { x0: number; x1: number; z0: number;
 }
 
 // ---------------------------------------------------------------------------------------
-// The conversation lounge: a closed L-shaped sectional, the coffee table, the rug
+// The Sunken Living Nook: a closed L-shaped sectional, the coffee table, the rug
 // ---------------------------------------------------------------------------------------
 
 /**
- * The corner sectional. One continuous base and back wrap the corner (no gaps, no missing corner
- * geometry): a long run facing the fire, a return leg down the left wall, and the corner cell
- * where they meet. Every seat cushion sits at CUSHIONS.sofa, which is where the seat anchors come from.
+ * The nook's sectional, in the pit's own frame (LoungeWorld stands it on the pit's floor). One
+ * continuous base and back wrap the corner (no gaps, no missing corner geometry): a long run with
+ * its back along the pit's back edge, a return leg down its left edge, and the corner cell where
+ * they meet, all facing the room. Every seat cushion sits at CUSHIONS.sofa, which is where the
+ * seat anchors come from.
  */
 function Sectional({ c }: { c: Mats }) {
   const { run, leg } = SOFA;
@@ -553,29 +859,43 @@ function Sectional({ c }: { c: Mats }) {
       {/* the plinth, run and leg in one L */}
       <RB p={[mid(run.x0, run.x1), 0.14, mid(run.z0, run.z1)]} s={[run.x1 - run.x0, 0.28, run.z1 - run.z0]} m={c.oliveDeep} />
       <RB p={[mid(leg.x0, leg.x1), 0.14, mid(leg.z0, leg.z1)]} s={[leg.x1 - leg.x0, 0.28, leg.z1 - leg.z0]} m={c.oliveDeep} />
-      {/* the backs wrap the corner: along the run's rear, and down the leg's wall side */}
-      <RB p={[mid(run.x0, run.x1 - 0.25), backY, run.z1 - 0.15]} s={[run.x1 - 0.25 - run.x0, backH, 0.3]} m={c.olive} />
-      <RB p={[run.x0 + 0.15, backY, mid(leg.z0 + 0.25, run.z1)]} s={[0.3, backH, run.z1 - leg.z0 - 0.25]} m={c.olive} />
+      {/* the backs wrap the corner: along the run's rear (the pit's back edge), and down the leg's (its left edge) */}
+      <RB p={[mid(run.x0, run.x1 - 0.25), backY, run.z0 + 0.15]} s={[run.x1 - 0.25 - run.x0, backH, 0.3]} m={c.olive} />
+      <RB p={[run.x0 + 0.15, backY, mid(run.z0, leg.z1 - 0.25)]} s={[0.3, backH, leg.z1 - 0.25 - run.z0]} m={c.olive} />
       {/* arms at the two open ends */}
       <RB p={[run.x1 - 0.125, 0.36, mid(run.z0, run.z1)]} s={[0.25, 0.52, run.z1 - run.z0]} m={c.olive} />
-      <RB p={[mid(leg.x0, leg.x1), 0.36, leg.z0 + 0.125]} s={[leg.x1 - leg.x0, 0.52, 0.25]} m={c.olive} />
+      <RB p={[mid(leg.x0, leg.x1), 0.36, leg.z1 - 0.125]} s={[leg.x1 - leg.x0, 0.52, 0.25]} m={c.olive} />
       {/* seat cushions, and a soft back cushion behind each */}
       {cells.map((cell, i) => (
         <group key={i}>
-          <RB p={[cell.alongX ? cell.x : cell.x + 0.05, cush.y, cell.alongX ? cell.z - 0.05 : cell.z]} s={cell.alongX ? [0.96, cush.h, 0.84] : [0.84, cush.h, 0.96]} m={c.oliveSoft} />
-          <RB p={cell.alongX ? [cell.x, 0.62, run.z1 - 0.34] : [leg.x0 + 0.34, 0.62, cell.z]} s={cell.alongX ? [0.9, 0.5, 0.16] : [0.16, 0.5, 0.9]} r={cell.alongX ? [-0.16, 0, 0] : [0, 0, 0.16]} m={c.oliveSoft} />
+          <RB p={[cell.alongX ? cell.x : cell.x + 0.05, cush.y, cell.alongX ? cell.z + 0.05 : cell.z]} s={cell.alongX ? [0.96, cush.h, 0.84] : [0.84, cush.h, 0.96]} m={c.oliveSoft} />
+          <RB p={cell.alongX ? [cell.x, 0.62, run.z0 + 0.34] : [leg.x0 + 0.34, 0.62, cell.z]} s={cell.alongX ? [0.9, 0.5, 0.16] : [0.16, 0.5, 0.9]} r={cell.alongX ? [0.16, 0, 0] : [0, 0, 0.16]} m={c.oliveSoft} />
         </group>
       ))}
       {/* its throw pillows are Blender props (LoftProps) */}
       {/* four little feet */}
       {[
-        [run.x0 + 0.1, run.z0 + 0.1],
         [run.x1 - 0.1, run.z0 + 0.1],
         [run.x1 - 0.1, run.z1 - 0.1],
-        [leg.x1 - 0.1, leg.z0 + 0.1],
+        [leg.x1 - 0.1, leg.z1 - 0.1],
+        [leg.x0 + 0.1, leg.z1 - 0.1],
       ].map(([x, z], i) => (
         <Cyl key={i} p={[x, 0.02, z]} s={[0.07, 0.04, 0.07]} m={c.walnut} />
       ))}
+    </group>
+  );
+}
+
+/** A woven basket of split logs beside the hearth. */
+function LogBasket({ c }: { c: Mats }) {
+  const b = HEARTH.logBasket;
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <Cyl p={[0, 0.15, 0]} s={[b.r * 2, 0.3, b.r * 2]} m={c.linen} />
+      <Cyl p={[0, 0.3, 0]} s={[b.r * 2 + 0.04, 0.04, b.r * 2 + 0.04]} m={c.oak} />
+      <Cyl p={[-0.08, 0.35, 0.02]} s={[0.1, 0.5, 0.1]} r={[0, 0.3, Math.PI / 2]} m={c.walnut} />
+      <Cyl p={[0.08, 0.36, -0.06]} s={[0.1, 0.48, 0.1]} r={[0, -0.25, Math.PI / 2]} m={c.oak} />
+      <Cyl p={[0, 0.44, 0]} s={[0.09, 0.46, 0.09]} r={[0, 0.9, Math.PI / 2]} m={c.walnut} />
     </group>
   );
 }
@@ -907,20 +1227,23 @@ function PoufCircle({ c }: { c: Mats }) {
 // ---------------------------------------------------------------------------------------
 
 /** A two-tone woven rug: a thin slab (so it has an edge, not a decal), its inner field a step higher. */
-function Rug({ x, z, rx, rz, outer, inner }: { x: number; z: number; rx: number; rz: number; outer: THREE.Material; inner: THREE.Material }) {
+function Rug({ x, z, rx, rz, outer, inner, y = 0 }: { x: number; z: number; rx: number; rz: number; outer: THREE.Material; inner: THREE.Material; y?: number }) {
   return (
     <group>
-      <Cyl p={[x, 0.015, z]} s={[rx * 2, 0.03, rz * 2]} m={outer} />
-      <Cyl p={[x, 0.0225, z]} s={[rx * 1.62, 0.045, rz * 1.62]} m={inner} />
+      <Cyl p={[x, y + 0.015, z]} s={[rx * 2, 0.03, rz * 2]} m={outer} />
+      <Cyl p={[x, y + 0.0225, z]} s={[rx * 1.62, 0.045, rz * 1.62]} m={inner} />
     </group>
   );
 }
 
 function Rugs({ c }: { c: Mats }) {
   const h = HEARTH.rug;
+  const n = NOOK.rug;
   return (
     <group>
-      <Rug x={h.x} z={h.z} rx={h.rx} rz={h.rz} outer={c.terracottaDeep} inner={c.creamDeep} />
+      {/* the nook's big rug, on the pit's floor; Mochi's mat by the hearth */}
+      <Rug x={n.x} z={n.z} rx={n.rx} rz={n.rz} y={-NOOK.depth} outer={c.terracottaDeep} inner={c.creamDeep} />
+      <Rug x={h.x} z={h.z} rx={h.rx} rz={h.rz} outer={c.rugWoolDeep} inner={c.rugWool} />
       <Rug x={SUN_PATCH.x} z={SUN_PATCH.z} rx={SUN_PATCH.rx} rz={SUN_PATCH.rz} outer={c.rugWoolDeep} inner={c.rugWool} />
       <Rug x={POUF_CIRCLE.rug.x} z={POUF_CIRCLE.rug.z} rx={POUF_CIRCLE.rug.r} rz={POUF_CIRCLE.rug.r} outer={c.rugMossDeep} inner={c.rugMoss} />
       <Rug x={GAMES.table.x} z={GAMES.table.z} rx={1.5} rz={1.5} outer={c.rugRoseDeep} inner={c.rugRose} />
@@ -1040,7 +1363,7 @@ function Frame({ p, rotY, w, h, art, art2, c }: { p: V3; rotY: number; w: number
 }
 
 function WallArt({ c }: { c: Mats }) {
-  // on the plaster behind the sofa's leg, the left wall's blank stretch (rotY pi/2: facing +x)
+  // on the left wall's blank stretch by the hearth (rotY pi/2: facing +x)
   return (
     <group>
       <Frame p={[-INNER + 0.03, 1.75, -4.7]} rotY={Math.PI / 2} w={0.9} h={0.65} art={c.olive} art2={c.mustard} c={c} />

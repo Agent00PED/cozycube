@@ -3,7 +3,8 @@ import { useSyncExternalStore } from "react";
 // The game's own sound settings (the lounge radio keeps its volume in its panel): the ambience
 // mixer, a fader for each channel of a world's soundscape (at the campfire: the fire's crackle,
 // the river, and the forest's breeze and crickets), the casino's jazz and its crowd (the murmur,
-// glasses and chips), and whether the little effects (a catch's chime, a chop) play. Kept in this browser; a private window or blocked storage just starts from
+// glasses and chips), the rain on the lounge's windows, and whether the little effects (a catch's
+// chime, a chop) play. Kept in this browser; a private window or blocked storage just starts from
 // the defaults. A single Ambience level saved before the mixer sets all three faders.
 
 export type AmbienceChannel = "fire" | "river" | "forest";
@@ -20,12 +21,14 @@ export interface SoundSettings {
   lounge: number;
   /** The Velvet Casino's crowd: the murmur, the clink of glasses, chips clicking (audio/casinoCrowd.ts), 0..1. */
   crowd: number;
+  /** The rain on the lounge's windows when it rains (audio/ambience.ts), 0..1. */
+  rain: number;
   /** The one-shot effects: chimes, splashes, chops. */
   effects: boolean;
 }
 
 const KEY = "cozy-sound-settings";
-const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, jazz: 0.5, lounge: 0.45, crowd: 0.5, effects: true };
+const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, jazz: 0.5, lounge: 0.45, crowd: 0.5, rain: 0.5, effects: true };
 
 function load(): SoundSettings {
   try {
@@ -39,6 +42,7 @@ function load(): SoundSettings {
       jazz: typeof raw?.jazz === "number" ? Math.max(0, Math.min(1, raw.jazz)) : DEFAULTS.jazz,
       lounge: typeof raw?.lounge === "number" ? Math.max(0, Math.min(1, raw.lounge)) : DEFAULTS.lounge,
       crowd: typeof raw?.crowd === "number" ? Math.max(0, Math.min(1, raw.crowd)) : DEFAULTS.crowd,
+      rain: typeof raw?.rain === "number" ? Math.max(0, Math.min(1, raw.rain)) : DEFAULTS.rain,
       effects: typeof raw?.effects === "boolean" ? raw.effects : DEFAULTS.effects,
     };
   } catch {

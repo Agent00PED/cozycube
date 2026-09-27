@@ -1,12 +1,16 @@
 import { Modal } from "./Modal";
 import { setSoundSettings, useSoundSettings } from "../../audio/soundSettings";
 import { setCameraMode, useCameraMode, type CameraMode } from "../../scene/cameraFocus";
+import { setNameplateSettings, useNameplateSettings } from "../../entities/nameplateSettings";
+import { LATEST_PATCH } from "../../data/patchNotesData";
 
-/** Settings: the sound (the worlds' ambience and the little effects), the camera and the controls.
- *  The lounge radio keeps its own volume in its panel. */
-export function SettingsPanel({ onClose }: { onClose: () => void }) {
+/** Settings: the sound (the worlds' ambience and the little effects), what floats over everyone's
+ *  head, the camera, the controls, and the way into the Patch Notes (which closes Settings as it
+ *  opens). The lounge radio keeps its own volume in its panel. */
+export function SettingsPanel({ onClose, onOpenPatchNotes }: { onClose: () => void; onOpenPatchNotes: () => void }) {
   const sound = useSoundSettings();
   const camera = useCameraMode();
+  const plates = useNameplateSettings();
   return (
     <Modal title="Settings" icon="⚙️" onClose={onClose} width={420}>
       <div className="flex flex-col gap-4 pb-2">
@@ -21,6 +25,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               ["forest", "🍃 Forest & Crickets"],
               ["jazz", "🎷 Casino Jazz"],
               ["crowd", "🥂 Casino Crowd"],
+              ["rain", "🌧️ Window Rain"],
             ] as const
           ).map(([k, label]) => (
             <label key={k} className="flex items-center gap-3 text-sm">
@@ -34,7 +39,24 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             <input type="checkbox" checked={sound.effects} onChange={(e) => setSoundSettings({ effects: e.target.checked })} className="h-5 w-5 accent-amber-300" aria-label="Sound effects" />
             <span className="opacity-70">{sound.effects ? "On" : "Off"}</span>
           </label>
-          <p className="m-0 text-[11px] opacity-55">The lounge's folk-jazz trio (it rests while the radio plays), the campfire's soundscape, channel by channel (the crackle fades out if the bonfire goes out), the casino's jazz combo and its crowd (the murmur, glasses and chips). The lounge radio has its own volume in its panel.</p>
+          <p className="m-0 text-[11px] opacity-55">The lounge's folk-jazz trio (it rests while the radio plays) and the rain on its windows when it rains, the campfire's soundscape, channel by channel (the crackle fades out if the bonfire goes out), the casino's jazz combo and its crowd (the murmur, glasses and chips). The lounge radio has its own volume in its panel.</p>
+        </section>
+        <section className="flex flex-col gap-3 rounded-3xl bg-white/5 p-4">
+          <h3 className="text-xs font-bold uppercase tracking-widest opacity-60">Display</h3>
+          {(
+            [
+              ["showTitles", "🏷️", "Show Player Titles"],
+              ["showNames", "🪪", "Show Player Names"],
+            ] as const
+          ).map(([k, icon, label]) => (
+            <label key={k} className="flex items-center gap-3 text-sm">
+              <span className="w-44 shrink-0">
+                {icon} {label}
+              </span>
+              <input type="checkbox" checked={plates[k]} onChange={(e) => setNameplateSettings({ [k]: e.target.checked })} className="h-5 w-5 accent-amber-300" aria-label={label} />
+              <span className="opacity-70">{plates[k] ? "On" : "Off"}</span>
+            </label>
+          ))}
         </section>
         <section className="flex flex-col gap-3 rounded-3xl bg-white/5 p-4">
           <h3 className="text-xs font-bold uppercase tracking-widest opacity-60">Camera</h3>
@@ -55,9 +77,15 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         <section className="flex flex-col gap-3 rounded-3xl bg-white/5 p-4">
           <h3 className="text-xs font-bold uppercase tracking-widest opacity-60">Controls</h3>
           <div className="text-sm">
-            <b>Move:</b> tap or click the floor, or hold <kbd className="rounded bg-white/10 px-1">W A S D</kbd> / arrows. Phones get a joystick.
+            Tap floor to move on Touch devices · <kbd className="rounded bg-white/10 px-1">W A S D</kbd> or Click to move on Desktop
           </div>
+          <p className="m-0 text-[11px] opacity-55">Tap or click a seat, a prop or a person to walk up to it and use it.</p>
         </section>
+        {/* the history: closes Settings as the Patch Notes open */}
+        <button type="button" onClick={onOpenPatchNotes} className="clay-btn clay-btn-amber flex min-h-12 w-full items-center justify-center gap-2 text-sm font-extrabold">
+          📜 Patch Notes
+          <span className="rounded-full bg-amber-950/80 px-2 py-0.5 text-[11px] font-black tracking-wide text-amber-200">v{LATEST_PATCH.version}</span>
+        </button>
       </div>
     </Modal>
   );

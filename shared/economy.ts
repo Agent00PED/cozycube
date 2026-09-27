@@ -44,6 +44,9 @@ export const TACKLE_PRICES = {
 export const WOOD_PRICES = { pine: 2, oak: 5, charcoal: 12 } as const;
 /** A plain carved piece or a plank off the workbench. */
 export const CARVED_PRICE = 8;
+/** What Buster pays for a Pine Resin (from a critical chop): worth keeping for the workbench's
+ *  Adhesive Slot, worth selling when the carrier is full. */
+export const RESIN_BUY_PRICE = 10;
 /** The axes (the flint one is everyone's). */
 export const AXE_PRICES = { iron: 250, golden: 950 } as const;
 /** The wood carriers' prices, tier 1 (the Twine Wood Strap, everyone's) to tier 7. */

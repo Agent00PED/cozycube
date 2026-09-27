@@ -4,6 +4,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { Room } from "colyseus.js";
 import { walkY } from "@shared/collision";
+import { BackgroundSky, CASINO_SKY, CASINO_VIP_SKY } from "./BackgroundSky";
 import { BIG_SIX_SPIN_MS, DERBY_HORSES, DERBY_LANES, DERBY_RACERS, DERBY_RACE_MS, SLOT_SYMBOLS, bigSixRest, bigSixSpinAngle, bigSixUnder, derbyPaces, derbyProgress, type BigSixState, type CasinoGame, type CasinoPropEvent, type CasinoWin, type PianoNote, type PianoRecital } from "@shared/casino";
 import { BIG_SIX, CASINO_LAYOUT as L, CASINO_NPCS, CASINO_STAGES, LOUNGE_Y, TIP_JARS, VIP_DOORS } from "@shared/worlds/casino";
 import { CasinoVipWorld } from "./CasinoVipWorld";
@@ -705,34 +706,8 @@ function PianoSpotlight({ lamp }: { lamp: number }) {
   );
 }
 
-/** Inside, there is no sky: a deep plum dark behind the hall, whatever the hour; up in the
- *  penthouse, a midnight blue over the city's glow. */
+/** The night round the casino, whatever the lounge's hour: a deep midnight-indigo starfield over a
+ *  warm amber horizon glow behind the hall; up in the penthouse, the same stars over the city's glow. */
 export function CasinoBackdrop({ night = false }: { night?: boolean }) {
-  const scene = useThree((s) => s.scene);
-  const texture = useMemo(() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 2;
-    canvas.height = 256;
-    const g = canvas.getContext("2d");
-    if (g) {
-      const grad = g.createLinearGradient(0, 0, 0, 256);
-      grad.addColorStop(0, night ? "#070a1c" : "#0e0709");
-      grad.addColorStop(0.7, night ? "#141a3a" : "#1a0c14");
-      grad.addColorStop(1, night ? "#3a2240" : "#22101a");
-      g.fillStyle = grad;
-      g.fillRect(0, 0, 2, 256);
-    }
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  }, [night]);
-  useEffect(() => {
-    const before = scene.background;
-    scene.background = texture;
-    return () => {
-      scene.background = before;
-      texture.dispose();
-    };
-  }, [scene, texture]);
-  return null;
+  return <BackgroundSky look={night ? CASINO_VIP_SKY : CASINO_SKY} />;
 }

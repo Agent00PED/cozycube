@@ -17,7 +17,7 @@ import { gearPace } from "@shared/gear";
 // The local player's locomotion. Three inputs, one controller:
 //   - click-to-move: the scene sets `targetRef` from a floor raycast, and the shared pathfinder
 //     routes round the furniture
-//   - WASD / arrow keys and the on-screen joystick, both through worldMoveDirection()
+//   - WASD / arrow keys, through worldMoveDirection() (touch has no stick: a tap is a click-to-move)
 //   - arriving on a target sits on its seat or uses its prop
 //
 // The CLIENT is the authority on where you are: every step is collided here with the SAME test
@@ -117,11 +117,16 @@ export function useLocalPlayerMovement(
   const standRequestedAtRef = useRef(-Infinity);
   const reconcilerRef = useRef(new Reconciler());
   const seenVersionRef = useRef(0);
+  /** The trips to another world already snapped to (liveMotion's jumps). */
+  const seenJumpsRef = useRef(liveMotion.get(player.sessionId)?.jumps ?? 0);
 
-  // the first position is the server's
+  // the first position is the server's, feet on the floor there (a new world mounts this afresh:
+  // the camera cuts to it instead of sweeping in from the last world's spot)
   useEffect(() => {
     if (initializedRef.current) return;
     posRef.current = { x: player.x, z: player.z };
+    seatYRef.current = player.sitting ? player.sitY : walkY(mapId, player.x, player.z);
+    cameraFocus.cut++;
     initializedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -151,6 +156,19 @@ export function useLocalPlayerMovement(
     // reconcile with the server's copy of us: only a real error moves us, eased; a teleport snaps
     const reconciler = reconcilerRef.current;
     const live = liveMotion.get(player.sessionId);
+    if (live && live.jumps !== seenJumpsRef.current) {
+      // the server took us to another world: stand on its spawn at once, feet on its floor (no
+      // glide, no settling down from the last world's stage), with nothing left in flight
+      seenJumpsRef.current = live.jumps;
+      seenVersionRef.current = live.version;
+      pos.x = live.x;
+      pos.z = live.z;
+      velocityRef.current = 0;
+      targetRef.current = null;
+      reconciler.reset();
+      seatYRef.current = walkY((live.map || mapId) as MapId, pos.x, pos.z);
+      cameraFocus.cut++;
+    }
     if (player.sitting) {
       pos.x = player.x; // seated, the server places us
       pos.z = player.z;
@@ -183,7 +201,7 @@ export function useLocalPlayerMovement(
         room.send("standUp");
       }
     } else {
-      // held keys or the joystick take over from any click-to-move target
+      // held keys take over from any click-to-move target
       if (steer && targetRef.current) targetRef.current = null;
       const target = targetRef.current;
       const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * gearPaceRef.current * auraPaceRef.current;
@@ -254,7 +272,8 @@ export function useLocalPlayerMovement(
         if ((dirChanged || moving) && sendTimerRef.current >= SEND_INTERVAL) {
           sendTimerRef.current = 0;
           lastSentDirRef.current = { x: dirX, z: dirZ };
-          room.send("move", { dirX, dirZ, x: pos.x, z: pos.z, seq: reconciler.report(pos.x, pos.z) });
+          // the world rides along: a report from the world just left is refused by the server
+          room.send("move", { dirX, dirZ, x: pos.x, z: pos.z, seq: reconciler.report(pos.x, pos.z), map: mapId });
         }
       }
     }

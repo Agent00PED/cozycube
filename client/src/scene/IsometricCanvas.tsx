@@ -14,7 +14,7 @@ import { cameraFocus, cameraSettings, cameraView, frame } from "./cameraFocus";
 //             player stays the size they are in the lounge; the wheel or a pinch zooms round you
 //   free_pan  the classic view: the camera leans toward you, part of the way (FOLLOW); a right- or
 //             middle-drag (or a two-finger drag) pans it anywhere over the room, and the moment you
-//             move (a click-to-move, WASD, the joystick) it eases back
+//             move (a click- or tap-to-move, WASD) it eases back
 
 const ISO_ANGLE = Math.atan(1 / Math.sqrt(2)); // ~35.264 deg
 /** Orthographic, so this only has to keep the whole room in front of the near plane. */
@@ -206,7 +206,19 @@ function CameraRig() {
   }, [gl]);
 
   const snapped = useRef(false);
+  const seenCut = useRef(cameraFocus.cut);
+  const cutFrames = useRef(0);
   useFrame((_, rawDelta) => {
+    // a trip to another world: cut straight to the spawn, zoom and all (for a few frames, so the
+    // player's own frame loop has written where they landed)
+    if (seenCut.current !== cameraFocus.cut) {
+      seenCut.current = cameraFocus.cut;
+      cutFrames.current = 3;
+    }
+    if (cutFrames.current > 0) {
+      cutFrames.current--;
+      snapped.current = false;
+    }
     const delta = Math.min(rawDelta, 0.1);
     const cam = camera as THREE.OrthographicCamera;
 

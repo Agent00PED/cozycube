@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { MapId } from "@shared/types";
 import { AMBIENCE_CHANNELS, getSoundSettings, subscribeSoundSettings, type AmbienceChannel } from "./soundSettings";
 import { cameraFocus } from "../scene/cameraFocus";
@@ -6,6 +6,7 @@ import { CAMPFIRE_LAYOUT, RIVER_Z, riverSpan } from "@shared/worlds/campfire";
 import { CasinoJazz } from "./casinoJazz";
 import { CasinoCrowd } from "./casinoCrowd";
 import { LoungeFolk } from "./loungeFolk";
+import { RainAmbience } from "./rain";
 import { WORLD_CROSSFADE_S } from "./sound";
 
 // Each world's ambient soundscape, generated in the browser like the radio (no audio files: the
@@ -267,13 +268,14 @@ let campfire: CampfireAmbience | null = null;
 let folk: LoungeFolk | null = null;
 let jazz: CasinoJazz | null = null;
 let crowd: CasinoCrowd | null = null;
+let rain: RainAmbience | null = null;
 
 /** Plays the world's ambience while you are in it: the Cozy Lounge's folk-jazz trio (quiet while the
- *  lounge's radio plays), the Starlight Campfire's soundscape, the Velvet Casino's jazz and its crowd
- *  (on both of its floors). Travelling cross-fades them in half a second (audio/sound.ts): the one
- *  you leave fades out as the one you arrive at fades in. `fuel` is the Campfire's bonfire (its
- *  crackle follows it). */
-export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = false) {
+ *  lounge's radio plays) and the rain on its windows when it rains, the Starlight Campfire's
+ *  soundscape, the Velvet Casino's jazz and its crowd (on both of its floors). Travelling
+ *  cross-fades them in half a second (audio/sound.ts): the one you leave fades out as the one you
+ *  arrive at fades in. `fuel` is the Campfire's bonfire (its crackle follows it). */
+export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = false, raining = false) {
   useEffect(() => {
     folk ??= new LoungeFolk();
     folk.setActive(mapId === "cozy_lounge", radioPlaying);
@@ -282,6 +284,15 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
     campfire ??= new CampfireAmbience();
     campfire.setFuel(fuel);
   }, [fuel]);
+  // the rain: made only once it first rains while you are in the lounge; a trip cross-fades it, the
+  // weather turning rolls it in or out more slowly
+  const lastMap = useRef(mapId);
+  useEffect(() => {
+    const on = mapId === "cozy_lounge" && raining;
+    if (on) rain ??= new RainAmbience();
+    rain?.setActive(on, lastMap.current !== mapId);
+    lastMap.current = mapId;
+  }, [mapId, raining]);
   useEffect(() => {
     campfire ??= new CampfireAmbience();
     campfire.setActive(mapId === "campfire_night");
@@ -301,6 +312,7 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
         folk?.refreshVolume();
         jazz?.refreshVolume();
         crowd?.refreshVolume();
+        rain?.refreshVolume();
       }),
     []
   );
@@ -310,6 +322,7 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
       folk?.setActive(false, false);
       jazz?.setActive(false);
       crowd?.setActive(false);
+      rain?.setActive(false, true);
     },
     []
   );

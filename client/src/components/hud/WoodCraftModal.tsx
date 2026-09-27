@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CampfirePacket, WorkbenchResult } from "@shared/types";
 import { WOOD, WOOD_KINDS, carrierCapacity, type WoodKind } from "@shared/chop";
-import { CRAFTS, CRAFT_IDS, canCraft, craftOdds, craftPrice, type CraftMode } from "@shared/crafting";
+import { ADHESIVES, CRAFTS, CRAFT_IDS, canCraft, craftOdds, craftPrice, type Adhesive, type CraftMode } from "@shared/crafting";
 import { salvageRate } from "@shared/gear";
 import { carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -19,8 +19,10 @@ interface Props {
 // into artisan pieces, then sell them at Buster's. Each carve is one of two modes (shared/crafting.ts):
 // a Safe Carve (low risk, a modest Masterwork chance) or a Masterwork Push (a much better chance of a
 // Masterwork ✨, +70% value, and a real chance the piece breaks). A break salvages half the wood
-// (75% with the Artisan Leather Apron) and a pile of Sawdust for the bonfire. Every carve is the
-// server's call (WORKBENCH packets); its answer comes back as workbenchResult.
+// (75% with the Artisan Leather Apron) and a pile of Sawdust for the bonfire. The Adhesive Slot takes
+// a Pine Resin from the carrier for the next carve: a Resin Bond (it can't break) or a Resin
+// Gilding (+25% Masterwork chance). Every carve is the server's call (WORKBENCH packets); its answer
+// comes back as workbenchResult.
 
 const HELLO = "Pick a mode and a piece to carve. The wood comes straight out of your carrier.";
 const MODES: [CraftMode, string, string][] = [
@@ -35,6 +37,9 @@ const pct = (p: number) => `${Math.round(p * 100)}%`;
 
 export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Props) {
   const [mode, setMode] = useState<CraftMode>("safe");
+  const [adhesive, setAdhesive] = useState<Adhesive>("");
+  // out of resin: the slot empties itself
+  const glue: Adhesive = profile.resin > 0 ? adhesive : "";
   const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
   /** The last carve's outcome, shown big (its key replays the flash). */
   const [last, setLast] = useState<{ key: number; result: WorkbenchResult } | null>(null);
@@ -88,6 +93,34 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
             🪵 {load}/{capacity}
           </span>
         </div>
+        {/* the Adhesive Slot: a Pine Resin for the next carve, bonded or gilded */}
+        <div className="flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-2.5 py-1.5">
+          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 text-xl ${glue ? "border-amber-300 bg-amber-300/20 shadow-[0_0_10px_rgba(252,211,77,0.45)]" : "border-dashed border-white/25"}`} title="Adhesive Slot">
+            {glue ? "🍯" : ""}
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col leading-tight">
+            <b className="text-xs">
+              Adhesive Slot <span className="font-normal opacity-70">· 🍯 Pine Resin ×{profile.resin}</span>
+            </b>
+            <span className="text-[10.5px] opacity-75">{glue ? `${ADHESIVES[glue].emoji} ${ADHESIVES[glue].name}: ${ADHESIVES[glue].blurb} (1 resin per carve)` : profile.resin > 0 ? "Brush on a resin: bond it, or gild it" : "Land a gold chop for Pine Resin"}</span>
+          </div>
+          <div className="flex shrink-0 gap-1" role="radiogroup" aria-label="Adhesive">
+            {(["", "bond", "gild"] as Adhesive[]).map((a) => (
+              <button
+                key={a || "none"}
+                type="button"
+                role="radio"
+                aria-checked={glue === a}
+                disabled={a !== "" && profile.resin < 1}
+                title={a ? `${ADHESIVES[a].name}: ${ADHESIVES[a].blurb}` : "No adhesive"}
+                onClick={() => setAdhesive(a)}
+                className={`min-h-9 rounded-xl px-2 text-[11px] font-bold transition-transform active:scale-95 disabled:opacity-35 ${glue === a ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}
+              >
+                {a ? `${ADHESIVES[a].emoji} ${a === "bond" ? "Bond" : "Gild"}` : "None"}
+              </button>
+            ))}
+          </div>
+        </div>
         {/* the mode: safe, or pushing for a Masterwork */}
         <div className="flex gap-1.5" role="radiogroup" aria-label="Carving mode">
           {MODES.map(([id, label, blurb]) => (
@@ -100,7 +133,7 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
           {CRAFT_IDS.map((id) => {
             const craft = CRAFTS[id];
             const ok = canCraft(profile.wood, id);
-            const odds = craftOdds(id, mode, profile.gear);
+            const odds = craftOdds(id, mode, profile.gear, glue);
             return (
               <div key={id} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
                 <span className="text-2xl">{craft.emoji}</span>
@@ -117,7 +150,7 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
                     <span className={odds.breakChance > 0 ? "text-rose-200" : "opacity-60"}>💥 {pct(odds.breakChance)}</span>
                   </span>
                 </div>
-                <button type="button" className={`clay-btn ${mode === "push" ? "" : "clay-btn-amber"} min-h-9 px-3 text-xs`} disabled={!ok} onClick={() => send({ type: "WORKBENCH", recipe: id, mode })}>
+                <button type="button" className={`clay-btn ${mode === "push" ? "" : "clay-btn-amber"} min-h-9 px-3 text-xs`} disabled={!ok} onClick={() => send({ type: "WORKBENCH", recipe: id, mode, adhesive: glue })}>
                   {mode === "push" ? "Push" : "Carve"}
                 </button>
               </div>

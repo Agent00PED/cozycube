@@ -21,6 +21,7 @@ const TIPS = [
   "A bowl of stew keeps you Well-Fed: a bouncier step and quicker bites.",
   "Water the lounge's plants once a day each for a few coins.",
   "Gold on the chopping meter is a critical chop: now and then a coin or a Pine Resin.",
+  "A Pine Resin in the workbench's Adhesive Slot bonds a carving so it can't break, or gilds it for a Masterwork.",
   "Bigger creels and carriers cost more each tier, but carry far more.",
 ];
 

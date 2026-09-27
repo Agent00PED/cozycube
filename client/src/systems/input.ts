@@ -1,18 +1,19 @@
-// Continuous movement input: WASD / arrow keys on a keyboard, the on-screen joystick on touch.
-// Both write the same screen-space vector here; the movement hook turns it into a world
-// direction relative to the isometric camera every frame. A plain module object, like
-// cameraFocus: it changes many times a second and nothing about it belongs in React state.
+// Continuous movement input: WASD / arrow keys on a keyboard. They write a screen-space vector
+// here; the movement hook turns it into a world direction relative to the isometric camera every
+// frame. A plain module object, like cameraFocus: it changes many times a second and nothing about
+// it belongs in React state. (Touch has no stick: a tap on the floor walks you there, and a tap on
+// a seat, a prop or a person walks you up to it and uses it, the scene's raycast either way.)
 
 export const moveInput = {
   /** Screen-space direction, -1..1 on each axis (x right, y up), length <= 1. */
   x: 0,
   y: 0,
-  /** True while a key or the joystick is actively driving. */
+  /** True while a key is actively driving. */
   active: false,
 };
 
 // The camera looks along (1, 1, 1): screen-right is the ground diagonal (+x, -z) and
-// screen-up is (-x, -z). Both normalised, so a full stick is a full walking speed.
+// screen-up is (-x, -z). Both normalised, so a held key is a full walking speed.
 const RIGHT = { x: Math.SQRT1_2, z: -Math.SQRT1_2 };
 const UP = { x: -Math.SQRT1_2, z: -Math.SQRT1_2 };
 
@@ -41,8 +42,6 @@ function keyVector() {
   return { x: x / n, y: y / n, any: x !== 0 || y !== 0 };
 }
 
-let joystickActive = false;
-
 /** Space was pressed since the movement hook last looked: seated, it means "stand up". */
 let standPressed = false;
 /** Whether Space was pressed since the last call (and forget it either way). */
@@ -50,21 +49,6 @@ export function consumeStandPress(): boolean {
   const pressed = standPressed;
   standPressed = false;
   return pressed;
-}
-
-/** The joystick writes here; a null clears it (finger lifted). */
-export function setJoystick(vector: { x: number; y: number } | null) {
-  joystickActive = !!vector;
-  if (vector) {
-    moveInput.x = vector.x;
-    moveInput.y = vector.y;
-    moveInput.active = true;
-  } else {
-    const k = keyVector();
-    moveInput.x = k.x;
-    moveInput.y = k.y;
-    moveInput.active = k.any;
-  }
 }
 
 function isTyping(e: KeyboardEvent): boolean {
@@ -75,7 +59,6 @@ function isTyping(e: KeyboardEvent): boolean {
 /** Listens for WASD / arrows for the app's lifetime; returns the teardown. */
 export function installKeyboard(): () => void {
   const sync = () => {
-    if (joystickActive) return;
     const k = keyVector();
     moveInput.x = k.x;
     moveInput.y = k.y;
@@ -114,7 +97,7 @@ export function installKeyboard(): () => void {
   };
 }
 
-/** Touch-first devices get the joystick; `matchMedia` is the honest test, touch events the fallback. */
+/** A touch-first device (the controls hint says so); `matchMedia` is the honest test, touch events the fallback. */
 export function isTouchDevice(): boolean {
   if (typeof window === "undefined") return false;
   if (window.matchMedia?.("(pointer: coarse)").matches) return true;

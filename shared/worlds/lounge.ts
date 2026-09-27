@@ -18,8 +18,10 @@ import type { BoardSide, CasinoPropKind } from "../types";
 //
 // Zones, as the camera sees them (x runs right-and-down, z left-and-down):
 //   back-left    THE HEARTH: brick chimney breast in the back wall with the firebox, flanked by
-//                built-in shelves; a closed L-shaped corner sofa tucked into the corner faces
-//                it across a round coffee table on the hearth rug
+//                built-in shelves, Mochi's hearth mat and the log basket in front of it
+//   centre       THE SUNKEN LIVING NOOK: a conversation pit a step down (NOOK) in the middle of
+//                the loft, the L-shaped sectional's backs along its back and left edges, facing
+//                the room over a round coffee table on the big wool rug (everyone arrives here)
 //   left wall    the reading nook (wingback, floor lamp), the chaise, three tall windows
 //   back-right   THE KITCHEN: counter run on the back wall, an island with three stools under
 //                two pendants, a bistro table for two
@@ -29,7 +31,9 @@ import type { BoardSide, CasinoPropKind } from "../types";
 //                cheval mirror (she opens the wardrobe)
 //
 // Walkways: 1.9 between the counter and the island, 2.2 between the island and the bistro
-// table, 1.0 or more everywhere else; nothing is narrower than the avatar (0.6) needs.
+// table, 2.1 between the nook and the reading nook and chaise, 1.6 between the nook and the games
+// table, 1.0 or more everywhere else: the entry, Chloe's corner, the kitchen counter and the chess
+// nook all join round the pit's rim, and nothing is narrower than the avatar (0.6) needs.
 
 type Box = { x0: number; x1: number; z0: number; z1: number };
 type Pt = { x: number; z: number };
@@ -64,28 +68,49 @@ export const HEARTH = {
   mantelY: 1.12,
   /** The stone hearth slab in front of the firebox (flat, walkable). */
   stone: { x0: -5.9, x1: -3.5, z0: -6.5, z1: -5.9 } as Box,
-  /** The rug the coffee table and Mochi's spot share. */
-  rug: { x: -4.6, z: -4.9, rx: 2.0, rz: 1.5 },
+  /** Mochi's hearth mat, in front of the fire. */
+  rug: { x: -4.7, z: -5.2, rx: 1.35, rz: 0.7 },
+  /** A woven basket of split logs beside the fire. */
+  logBasket: { x: -6.55, z: -6.2, r: 0.3 },
   bookcaseL: { x0: -7.3, x1: -6.0, z0: -7.3, z1: -6.9, height: 2.3 },
   bookcaseR: { x0: -3.4, x1: -2.3, z0: -7.3, z1: -6.9, height: 2.3 },
 };
 
-/** The closed L-shaped corner sofa, tucked into the back-left corner facing the hearth. */
+/**
+ * The Sunken Living Nook: a conversation pit in the middle of the loft, `depth` below the floor.
+ * The sectional's backs run along its back (z0) and left (x0) edges; its front and right edges are
+ * open, a single step down all along. Everything in it (the sofa, the coffee table, the rug) stands
+ * on the pit's floor; walking in, you go down the step (loungeFloorY).
+ */
+export const NOOK = {
+  pit: { x0: -4.2, x1: 0.8, z0: -2.4, z1: 1.6 } as Box,
+  depth: 0.15,
+  /** The big wool rug on the pit's floor, under the coffee table and the sofa's front. */
+  rug: { x: -1.6, z: -0.5, rx: 2.1, rz: 1.8 },
+};
+
+/** The floor's height at (x, z): the loft's floor, or the nook's pit a step down. */
+export function loungeFloorY(x: number, z: number): number {
+  const p = NOOK.pit;
+  return x > p.x0 && x < p.x1 && z > p.z0 && z < p.z1 ? -NOOK.depth : 0;
+}
+
+/** The closed L-shaped sectional in the nook: its backs on the pit's back and left edges, facing the room. */
 export const SOFA = {
-  /** The long run (facing the fire) and the return leg along the left wall. */
-  run: { x0: -7.3, x1: -3.05, z0: -3.2, z1: -2.2 } as Box,
-  leg: { x0: -7.3, x1: -6.3, z0: -5.45, z1: -3.2 } as Box,
+  /** The long run along the pit's back edge (facing +z) and the return leg down its left edge (facing +x). */
+  run: { x0: -4.2, x1: 0.05, z0: -2.4, z1: -1.4 } as Box,
+  leg: { x0: -4.2, x1: -3.2, z0: -1.4, z1: 0.85 } as Box,
   /** Seat cushion centres: three along the run, the corner cell, two down the return leg. */
-  runXs: [-5.8, -4.8, -3.8],
-  runZ: -2.7,
-  corner: { x: -6.8, z: -2.7 },
-  legZs: [-3.7, -4.7],
-  legX: -6.8,
+  runXs: [-2.7, -1.7, -0.7],
+  runZ: -1.9,
+  corner: { x: -3.7, z: -1.9 },
+  legZs: [-0.9, 0.1],
+  legX: -3.7,
   seatH: 0.36,
   backH: 0.85,
   armH: 0.62,
 };
-export const COFFEE_TABLE = { x: -4.6, z: -5.0, radius: 0.5, height: 0.34 };
+export const COFFEE_TABLE = { x: -1.35, z: 0.15, radius: 0.5, height: 0.34 };
 
 // --- the kitchen ---
 export const KITCHEN = {
@@ -198,6 +223,8 @@ export interface SeatSpec {
   /** Where you stand to sit, and where you land when you get up. */
   approachX: number;
   approachZ: number;
+  /** The floor under the seat, when it is not the loft's (the nook's pit: -NOOK.depth). */
+  floor?: number;
   /**
    * A long seat you can nap on: going AFK there, you lie down along it, your head resting at
    * `head` (just inside an arm, or against the chaise's bolster) and pointing `dir` along the
@@ -208,17 +235,21 @@ export interface SeatSpec {
 }
 
 // Napping on the sectional: along the run the head points to the free end's arm (+x), down the
-// leg to its arm (-z), each head a quarter-cushion from its seat's centre toward that arm and
+// leg to its arm (+z), each head a quarter-cushion from its seat's centre toward that arm and
 // forward of the back cushions (the throw pillows lean against them); on the chaise, toward the
 // bolster at its head end.
-const RUN_NAP_Z = -2.98;
-const LEG_NAP_X = -6.6;
+const RUN_NAP_Z = SOFA.runZ + 0.28;
+const LEG_NAP_X = SOFA.legX + 0.2;
+/** Where you stand to sit on the run (and the corner), and on the leg: on the pit's floor, clear of the coffee table. */
+const RUN_APPROACH_Z = -0.75;
+const LEG_APPROACH_X = -2.55;
+const PIT = -NOOK.depth;
 
 export const LOFT_SEATS: SeatSpec[] = [
-  // the corner sofa, facing the hearth: three along the run, the corner cell, two down the return leg
-  ...SOFA.runXs.map((x, i): SeatSpec => ({ propId: `sofa_run_${i + 1}`, x, z: SOFA.runZ, rotationY: FACE_NEG_Z, cushion: "sofa", approachX: x, approachZ: -3.9, nap: { head: { x: x + 0.25, z: RUN_NAP_Z }, dir: { x: 1, z: 0 } } })),
-  { propId: "sofa_corner", x: SOFA.corner.x, z: SOFA.corner.z, rotationY: (3 * Math.PI) / 4, cushion: "sofa", approachX: -5.8, approachZ: -3.9 },
-  ...SOFA.legZs.map((z, i): SeatSpec => ({ propId: `sofa_leg_${i + 1}`, x: SOFA.legX, z, rotationY: FACE_POS_X, cushion: "sofa", approachX: -5.6, approachZ: z, nap: { head: { x: LEG_NAP_X, z: z - 0.25 }, dir: { x: 0, z: -1 } } })),
+  // the sectional in the nook, facing the room: three along the run, the corner cell, two down the return leg
+  ...SOFA.runXs.map((x, i): SeatSpec => ({ propId: `sofa_run_${i + 1}`, x, z: SOFA.runZ, rotationY: FACE_POS_Z, cushion: "sofa", approachX: x, approachZ: RUN_APPROACH_Z, floor: PIT, nap: { head: { x: x + 0.25, z: RUN_NAP_Z }, dir: { x: 1, z: 0 } } })),
+  { propId: "sofa_corner", x: SOFA.corner.x, z: SOFA.corner.z, rotationY: Math.PI / 4, cushion: "sofa", approachX: SOFA.corner.x + 0.95, approachZ: RUN_APPROACH_Z, floor: PIT },
+  ...SOFA.legZs.map((z, i): SeatSpec => ({ propId: `sofa_leg_${i + 1}`, x: SOFA.legX, z, rotationY: FACE_POS_X, cushion: "sofa", approachX: LEG_APPROACH_X, approachZ: z, floor: PIT, nap: { head: { x: LEG_NAP_X, z: z + 0.25 }, dir: { x: 0, z: 1 } } })),
   // the reading nook and the chaise, on the left wall
   { propId: "nook_wingback", x: READING.chair.x, z: READING.chair.z, rotationY: FACE_POS_X, cushion: "wingback", approachX: -5.6, approachZ: READING.chair.z },
   { propId: "chaise", x: CHAISE.x, z: CHAISE.z, rotationY: FACE_POS_X, cushion: "chaise", approachX: -5.6, approachZ: CHAISE.z, nap: { head: { x: CHAISE.x + 0.08, z: CHAISE.z + 0.3 }, dir: { x: 0, z: 1 } } },
@@ -253,7 +284,7 @@ export interface PropSpec {
   waterable?: boolean;
 }
 
-/** Mochi's home: the hearth rug, beside the coffee table. */
+/** Mochi's home: her mat by the hearth. */
 const MOCHI_HEARTH = { x: -3.7, z: -5.8, ax: -3.7, az: -4.9 };
 
 export const LOFT_PROPS: PropSpec[] = [
@@ -266,7 +297,7 @@ export const LOFT_PROPS: PropSpec[] = [
   { propId: "kitchen_brew", x: COFFEE_MACHINE.x, z: COFFEE_MACHINE.z, kind: "kitchen", color: "#c4714a", defaultOn: true, approachX: COFFEE_MACHINE.approach.x, approachZ: COFFEE_MACHINE.approach.z },
   { propId: "radio", x: RADIO.x, y: POUF_CIRCLE.table.height, z: RADIO.z, kind: "radio", color: "#9cc9b4", defaultOn: false, approachX: RADIO.approach.x, approachZ: RADIO.approach.z },
   ...PLANTS.map((p, i): PropSpec => ({ propId: `plant_${i + 1}`, x: p.x, z: p.z, kind: "plant", color: "#6d9a5e", defaultOn: true, approachX: PLANT_APPROACH[i].x, approachZ: PLANT_APPROACH[i].z, waterable: true })),
-  // Mochi sleeps on the hearth rug and wanders from there (LOFT_MOCHI)
+  // Mochi sleeps on her hearth mat and wanders from there (LOFT_MOCHI)
   { propId: "mochi", x: MOCHI_HEARTH.x, z: MOCHI_HEARTH.z, kind: "cat", color: "#f0a860", defaultOn: true, approachX: MOCHI_HEARTH.ax, approachZ: MOCHI_HEARTH.az },
   // the Velvet Boutique: Chloe and her mirror (either one opens the wardrobe)
   { propId: "boutique_chloe", x: BOUTIQUE.chloe.x, z: BOUTIQUE.chloe.z, kind: "boutique", color: "#b3263a", defaultOn: true, approachX: BOUTIQUE.approach.x, approachZ: BOUTIQUE.approach.z },
@@ -286,17 +317,18 @@ export interface MochiStop {
 }
 
 /**
- * Mochi's day: the hearth rug (facing the fire), the sunlit window bay, the kitchen mat by the
- * hob, and home again. The sofa stands between the hearth and the windows, so each leg between
- * them is routed through `pass` corners that keep her clear of it: the validator samples every
- * straight leg against the colliders.
+ * Mochi's day: her hearth mat (facing the fire), the sunlit window bay, the kitchen mat by the
+ * hob, and home again. She keeps to the loft's floor, round the nook's rim (never down in the pit),
+ * so each leg is routed through `pass` corners behind the sofa and along the left wall: the
+ * validator samples every straight leg against the colliders.
  */
+const MOCHI_BEHIND_SOFA: MochiStop = { x: -5.0, z: -3.0, ax: -5.0, az: -3.0, pass: true };
 export const LOFT_MOCHI: MochiStop[] = [
   { ...MOCHI_HEARTH, face: FACE_NEG_Z },
-  { x: -2.4, z: -3.6, ax: -2.4, az: -3.6, pass: true },
-  { x: -2.4, z: -1.2, ax: -2.4, az: -1.2, pass: true },
-  { x: SUN_PATCH.x, z: SUN_PATCH.z, ax: -4.3, az: SUN_PATCH.z, face: FACE_NEG_X }, // the window bay, facing the glass
-  { x: -2.4, z: -1.2, ax: -2.4, az: -1.2, pass: true },
+  MOCHI_BEHIND_SOFA,
+  { x: SUN_PATCH.x, z: SUN_PATCH.z, ax: -4.6, az: SUN_PATCH.z, face: FACE_NEG_X }, // the window bay, facing the glass
+  MOCHI_BEHIND_SOFA,
+  { x: -0.6, z: -3.2, ax: -0.6, az: -3.2, pass: true },
   { x: -0.3, z: -5.2, ax: -0.3, az: -5.2, pass: true },
   { x: 3.4, z: -5.6, ax: 3.4, az: -5.05, face: FACE_NEG_Z }, // the kitchen mat, by the hob
 ];
@@ -305,11 +337,12 @@ const box = (b: Box): AABB => ({ minX: b.x0, maxX: b.x1, minZ: b.z0, maxZ: b.z1 
 const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
 
 export const LOFT_OBSTACLES: AABB[] = [
-  // the hearth and its shelves
+  // the hearth, its shelves and the log basket
   box(HEARTH.breast),
   box(HEARTH.bookcaseL),
   box(HEARTH.bookcaseR),
-  // the sectional (the seat cells on it are seats; the furniture itself is solid) and its table
+  around(HEARTH.logBasket, HEARTH.logBasket.r),
+  // the sectional in the nook (the seat cells on it are seats; the furniture itself is solid) and its table
   box(SOFA.run),
   box(SOFA.leg),
   around(COFFEE_TABLE, COFFEE_TABLE.radius),
@@ -340,11 +373,12 @@ export const LOFT_OBSTACLES: AABB[] = [
   around(BOUTIQUE.mirror, 0.38),
 ];
 
-/** Everyone arrives along the open front and walks in. */
+/** Everyone arrives on the nook's rug in the middle of the loft (the centre first), on the pit's
+ *  floor: the server places you here on every trip in (MAP_SPAWN_POINTS). */
 export const LOFT_SPAWNS: Pt[] = [
-  { x: 0.5, z: 6.2 },
-  { x: -0.7, z: 6.4 },
-  { x: 1.7, z: 6.3 },
-  { x: 4.2, z: 6.3 },
-  { x: 2.9, z: 6.4 },
+  { x: 0, z: 0 },
+  { x: 0.3, z: 0.95 },
+  { x: -0.85, z: 1.15 },
+  { x: 0.45, z: -0.7 },
+  { x: -0.2, z: -0.95 },
 ];

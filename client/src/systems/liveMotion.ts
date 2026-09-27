@@ -15,6 +15,8 @@ export interface MotionSample {
 }
 
 export interface LiveMotion {
+  /** The world the player is on. */
+  map: string;
   x: number;
   z: number;
   /** The number of the last movement report the server applied (0: none yet). */
@@ -23,6 +25,8 @@ export interface LiveMotion {
   version: number;
   /** Recent positions as they arrived, oldest first: the remote players' interpolation buffer. */
   samples: MotionSample[];
+  /** Counts the trips to another world: each one is a hard snap to the spawn (resetMotion). */
+  jumps: number;
 }
 
 const MAX_SAMPLES = 24;
@@ -34,12 +38,25 @@ const REPORT_SPACING_MS = 1000 / 16;
 export const liveMotion = new Map<string, LiveMotion>();
 
 /** Record the server's latest copy of a player's motion; returns whether anything changed. */
-export function recordMotion(sessionId: string, x: number, z: number, seq: number, now = performance.now()): boolean {
+export function recordMotion(sessionId: string, x: number, z: number, seq: number, now = performance.now(), map = ""): boolean {
   const m = liveMotion.get(sessionId);
   if (!m) {
-    liveMotion.set(sessionId, { x, z, seq, version: 1, samples: [{ t: now, x, z }] });
+    liveMotion.set(sessionId, { map, x, z, seq, version: 1, samples: [{ t: now, x, z }], jumps: 0 });
     return true;
   }
+  if (map && m.map && map !== m.map) {
+    // a trip to another world: the buffer starts again at the spawn (nobody glides in from where
+    // they stood in the last world), and the local mover snaps there (jumps)
+    m.map = map;
+    m.x = x;
+    m.z = z;
+    m.seq = seq;
+    m.version++;
+    m.jumps++;
+    m.samples = [{ t: now, x, z }];
+    return true;
+  }
+  if (map) m.map = map;
   if (m.x === x && m.z === z && m.seq === seq) return false;
   if (m.x !== x || m.z !== z) {
     // after standing still, the player was still where they stood until one report ago: without

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import type { Room } from "colyseus.js";
-import type { BoardGameView, ChairSyncState, MapId, PlayerState, TimeOfDay, ToggleableSyncState } from "@shared/types";
+import type { BoardGameView, ChairSyncState, MapId, PlayerState, TimeOfDay, ToggleableSyncState, Weather } from "@shared/types";
 import { GESTURE_SECONDS, MAP_HALF, isCasinoMap, isWalkUpProp, usableSeated } from "@shared/types";
 import { isBlocked, walkY } from "@shared/collision";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
@@ -22,7 +22,8 @@ import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/u
 import { LoungeWorld } from "./LoungeWorld";
 import { BoardTablePad, CampfirePuff, Cat, FloorLamp, PLANT_BURST_SECONDS, PUFF_SECONDS, PlantBurst, PropPad, RadioProp, SeatPad } from "./Props";
 import { ClickMarker } from "./ClickMarker";
-import { HOUR_LOOKS, TimeOfDayContext } from "./timeOfDay";
+import { HOUR_LOOKS, TimeOfDayContext, WeatherContext, weatherLook } from "./timeOfDay";
+import { BackgroundSky, loungeSky } from "./BackgroundSky";
 import { cameraFocus, frame, requestRecenter } from "./cameraFocus";
 import { interactBridge } from "./interactBridge";
 import { GEO, StaticBatch, matte, noRaycast } from "./kit";
@@ -51,6 +52,8 @@ export interface WorldSceneProps {
   localSessionId: string | null;
   mapId: MapId;
   timeOfDay: TimeOfDay;
+  /** The lounge's weather (clear everywhere else). */
+  weather: Weather;
   speakingUserIds: ReadonlySet<string>;
   subscribeEmotes: (listener: EmoteListener) => () => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
@@ -63,12 +66,14 @@ const EMOTE_LIFETIME_MS = 3000;
 const BUBBLE_LIFETIME_MS = 4200;
 
 /** Warm ambient light and a soft key with no shadow map: the whole room's light, with the lamps' own
- *  point lights. Indoors with a backdrop of its own (the casino), the hour's sky is not drawn. */
-function SceneLighting({ timeOfDay, starlit, indoor }: { timeOfDay: TimeOfDay; starlit: boolean; indoor: boolean }) {
-  const look = HOUR_LOOKS[timeOfDay];
+ *  point lights. The sky behind is the hour's and the weather's (BackgroundSky); indoors with a
+ *  backdrop of its own (the casino's starfield), the campfire's starlit night, theirs. */
+function SceneLighting({ timeOfDay, weather, starlit, indoor }: { timeOfDay: TimeOfDay; weather: Weather; starlit: boolean; indoor: boolean }) {
+  const look = weatherLook(HOUR_LOOKS[timeOfDay], weather);
+  const sky = useMemo(() => loungeSky(timeOfDay, weather), [timeOfDay, weather]);
   return (
     <>
-      {starlit ? <CampfireSky /> : indoor ? null : <color attach="background" args={[look.sky]} />}
+      {starlit ? <CampfireSky /> : indoor ? null : <BackgroundSky look={sky} />}
       <ambientLight color={look.ambientColor} intensity={look.ambient} />
       {/* the key only gives the clay its form: it never casts a shadow, and it comes from off the camera's axis */}
       <directionalLight position={[-14, 24, 10]} color={look.sunColor} intensity={look.sun} castShadow={false} />
@@ -187,7 +192,7 @@ function useCrowdEvents(subscribeEmotes: WorldSceneProps["subscribeEmotes"], sub
   return { emotes, gestures, bubbles };
 }
 
-export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, speakingUserIds, subscribeEmotes, subscribeMessages, hearth }: WorldSceneProps) {
+export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth }: WorldSceneProps) {
   const me = localSessionId ? players[localSessionId] : undefined;
   const { emotes, gestures, bubbles } = useCrowdEvents(subscribeEmotes, subscribeMessages);
 
@@ -484,9 +489,11 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   // it is always a starlit night at the campfire, whatever the room's clock says
   const starlit = mapId === "campfire_night";
   const hour: TimeOfDay = starlit ? "night" : timeOfDay;
+  const sky: Weather = starlit || casino ? "clear" : weather;
   return (
     <TimeOfDayContext.Provider value={hour}>
-      <SceneLighting timeOfDay={hour} starlit={starlit} indoor={casino} />
+      <WeatherContext.Provider value={sky}>
+      <SceneLighting timeOfDay={hour} weather={sky} starlit={starlit} indoor={casino} />
       {mapId === "cozy_lounge" ? (
         <>
           <LoungeWorld onFloorClick={onFloorClick} />
@@ -568,6 +575,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       {me && <LocalPlayerAvatar key={`${mapId}:${localSessionId}`} player={me} room={room} mapId={mapId} targetRef={targetRef} feed={feed} />}
       <OtherPlayers players={players} localSessionId={localSessionId} feed={feed} />
       <ClickMarker mapId={mapId} targetRef={targetRef} rippleRef={rippleRef} />
+      </WeatherContext.Provider>
     </TimeOfDayContext.Provider>
   );
 }

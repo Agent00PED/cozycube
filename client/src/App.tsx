@@ -17,8 +17,8 @@ import { interactBridge } from "./scene/interactBridge";
 import { cameraFocus } from "./scene/cameraFocus";
 import { MochiPlayroomModal } from "./entities/MochiPlayroomModal";
 import { ActionDock } from "./components/hud/ActionDock";
-import { Joystick } from "./components/hud/Joystick";
 import { WardrobeModal } from "./components/hud/WardrobeModal";
+import { PatchNotesModal } from "./components/hud/PatchNotesModal";
 import { FieldGuideModal } from "./components/hud/FieldGuideModal";
 import { UpdateToast } from "./components/hud/UpdateToast";
 import { WorldTransitionScreen } from "./components/WorldTransitionScreen";
@@ -69,7 +69,7 @@ import { WoodCarrierModal } from "./components/hud/WoodCarrierModal";
 import { CampfireStatus } from "./components/hud/CampfireStatus";
 import { useAnglerProfile } from "./components/hud/anglerStore";
 import { BoxingHud } from "./components/hud/BoxingHud";
-import { installKeyboard, isTouchDevice } from "./systems/input";
+import { installKeyboard } from "./systems/input";
 import {
   ACHIEVEMENTS,
   EMOTES,
@@ -185,10 +185,9 @@ const GLOBAL_CSS = `
 .cozy-purr { animation: cozy-purr 0.18s ease-in-out infinite; }
 @keyframes cozy-purr { 0%, 100% { transform: translate(-50%, -50%) translateX(-1px); } 50% { transform: translate(-50%, -50%) translateX(1px) rotate(-1deg); } }
 @keyframes cozy-bob { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg) translateY(2px); } }
-/* With a joystick on the left, the bottom stack keeps to the centre-right on phones. */
+/* On phones the bottom stack spans the width, centred (touch moves by tapping the floor). */
 @media (max-width: 560px) {
-  .cozy-bottom-stack { left: auto; right: 12px; transform: none; align-items: flex-end; max-width: calc(100vw - 170px); }
-  .cozy-bottom-stack.no-joystick { left: 12px; right: 12px; align-items: center; max-width: none; }
+  .cozy-bottom-stack { left: 12px; right: 12px; transform: none; align-items: center; max-width: none; }
 }
 .cozy-menu { animation: cozy-menu-in 160ms ease-out; }
 @keyframes cozy-menu-in { from { opacity: 0; transform: translateY(-6px) scale(0.97); } }
@@ -200,7 +199,7 @@ const GLOBAL_CSS = `
 @media (max-width: 768px) { .cozy-hud-label { display: none; } }
 /* The Velvet Pioneer's title over the name: glowing gold, breathing slowly. */
 .cozy-title-gold {
-  display: inline-block; white-space: nowrap; font: 800 11px var(--font-cozy); letter-spacing: 0.08em;
+  display: inline-block; white-space: nowrap; font: 800 10px var(--font-cozy); letter-spacing: 0.06em; line-height: 1.2;
   background: linear-gradient(180deg, #fff6c8 0%, #ffd76a 45%, #d9a22a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 0 4px rgba(255, 200, 80, 0.85)) drop-shadow(0 1px 0 rgba(60, 30, 5, 0.9));
   animation: cozy-title-glow 2.6s ease-in-out infinite; pointer-events: none; user-select: none;
@@ -220,6 +219,7 @@ export default function App() {
     localSessionId,
     currentMap,
     timeOfDay,
+    weather,
     mapTransitioning,
     travellingTo,
     market,
@@ -252,6 +252,7 @@ export default function App() {
     subscribeMessages,
     changeMap,
     setTimeOfDay,
+    setWeather,
     sendEmote,
     setSpeaking,
     roast,
@@ -303,6 +304,7 @@ export default function App() {
   const [worldsOpen, setWorldsOpen] = useState(false);
   const [socialOpen, setSocialOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [patchNotesOpen, setPatchNotesOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
   // opened by Chloe at her boutique: she greets you in it
@@ -392,7 +394,7 @@ export default function App() {
   // the world's soundscape (the lounge's folk-jazz trio, resting while its radio plays; the
   // campfire's; the casino's band), cross-faded in half a second as you travel
   const radioOn = Object.values(toggleables).some((t) => t.kind === "radio" && t.on);
-  useWorldAmbience(currentMap, hearth.fuel, radioOn);
+  useWorldAmbience(currentMap, hearth.fuel, radioOn, weather === "rain");
   // the camp's market, for the chalkboard by Barnaby's stall
   useEffect(() => setMarketRaw(market), [market]);
   // where the chat came from, for a line said in another world
@@ -465,7 +467,7 @@ export default function App() {
           if (info.justClaimed) {
             playSfx("jackpot");
             pushToast("The Velvet Pioneer set is yours: thank you for playing the beta!", { emoji: "🛠️", tone: "win" });
-          } else if (info.eligible && !info.claimed) pushToast("Beta player? The Velvet Pioneer set is yours to claim, free, in the wardrobe", { emoji: "🛠️", tone: "arrive" });
+          } else if (info.eligible && !info.claimed) pushToast("Beta player? The Velvet Pioneer set is yours to claim, free, at Chloe's Velvet Boutique in the lounge", { emoji: "🛠️", tone: "arrive" });
         } else if (type === "chatBubble") {
           // chat reaches every world: a line from someone elsewhere shows as a toast, with where
           const c = payload as { sessionId: string; text: string; map?: MapId; username?: string };
@@ -637,9 +639,6 @@ export default function App() {
     seenPlayers.current = ids;
   }, [players, localSessionId, currentMap]);
 
-  // --- joystick: touch devices only ---
-  const showJoystick = isTouchDevice();
-
   // --- table proximity: the roulette board and the blackjack panel follow you to the tables ---
   const atRoulette = currentMap === "velvet_casino" && !!me && !me.sitting && Math.hypot(me.x - ROULETTE_CENTER.x, me.z - ROULETTE_CENTER.z) < ROULETTE_BET_RADIUS;
   // the seat you are on (the seated games' panels follow it)
@@ -747,6 +746,7 @@ export default function App() {
             localSessionId={localSessionId}
             mapId={currentMap}
             timeOfDay={timeOfDay}
+            weather={weather}
             speakingUserIds={voice.speakingUserIds}
             subscribeEmotes={subscribeEmotes}
             subscribeMessages={subscribeMessages}
@@ -760,6 +760,8 @@ export default function App() {
           onOpenWorlds={() => setWorldsOpen(true)}
           timeOfDay={timeOfDay}
           onSelectTime={setTimeOfDay}
+          weather={weather}
+          onSelectWeather={setWeather}
           autoCycle={autoCycle}
           onToggleAutoCycle={() => setAutoCycle(!autoCycle)}
           coins={localPlayer?.coins ?? 0}
@@ -767,7 +769,6 @@ export default function App() {
           onClaimAllowance={claimAllowance}
           status={localPlayer?.status ?? ""}
           onSetStatus={setStatus}
-          onOpenWardrobe={() => setWardrobeOpen(true)}
           onOpenLeaderboard={() => setLeaderboardOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSocial={() => setSocialOpen((o) => !o)}
@@ -786,7 +787,7 @@ export default function App() {
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
 
         {localPlayer && localSessionId && (
-          <div className={`cozy-bottom-stack ${showJoystick ? "" : "no-joystick"}`}>
+          <div className="cozy-bottom-stack">
             <ActivityBar
               subscribeMessages={subscribeMessages}
               player={localPlayer}
@@ -812,12 +813,6 @@ export default function App() {
         )}
 
         {currentMap === "campfire_night" && localPlayer && !mapTransitioning && <CampfireStatus hearth={hearth} fed={localPlayer.fed} />}
-
-        {showJoystick && localPlayer && (
-          <div className="pointer-events-none fixed z-20" style={{ left: "max(16px, env(safe-area-inset-left))", bottom: "max(16px, env(safe-area-inset-bottom))" }}>
-            <Joystick />
-          </div>
-        )}
 
         {showRoulette && localPlayer && localSessionId && (
           <RoulettePanel
@@ -855,7 +850,16 @@ export default function App() {
             onClose={() => setSocialOpen(false)}
           />
         )}
-        {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && (
+          <SettingsPanel
+            onClose={() => setSettingsOpen(false)}
+            onOpenPatchNotes={() => {
+              setSettingsOpen(false);
+              setPatchNotesOpen(true);
+            }}
+          />
+        )}
+        {patchNotesOpen && <PatchNotesModal onClose={() => setPatchNotesOpen(false)} />}
         {fieldGuideOpen && <FieldGuideModal profile={angler.profile} market={market} onClose={() => setFieldGuideOpen(false)} />}
         {leaderboardOpen && isCasinoMap(currentMap) && <LeaderboardModal leaderboard={leaderboard} players={players} localName={localPlayer?.username ?? ""} onClose={() => setLeaderboardOpen(false)} />}
         {slotsProp && localPlayer && localSessionId && (

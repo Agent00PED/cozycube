@@ -3,7 +3,7 @@
 import type { BaitId, CreelFish, FishTier, RodId } from "./fishing";
 import type { FuelItem, StewIngredient } from "./bonfire";
 import type { AxeId, ChopLog, ChopVerdict, WoodKind } from "./chop";
-import type { CraftId, CraftMode, CraftOutcome } from "./crafting";
+import type { Adhesive, CraftId, CraftMode, CraftOutcome } from "./crafting";
 import type { GearId } from "./gear";
 import { START_COINS, type WardrobeTier } from "./economy";
 
@@ -239,6 +239,21 @@ export const TIMES_OF_DAY: TimeOfDay[] = ["sunrise", "day", "sunset", "night"];
 export function isTimeOfDay(v: unknown): v is TimeOfDay {
   return typeof v === "string" && (TIMES_OF_DAY as string[]).includes(v);
 }
+
+/**
+ * The lounge's weather outside its windows, shared by the whole guild like its hour: clear skies, or
+ * a soft rain (an overcast slate sky, streaks falling past the loft, drops running down the panes,
+ * dim light through them and the rain's hush in the ambience). The campfire's night and the casino's
+ * are always clear.
+ */
+export type Weather = "clear" | "rain";
+export const WEATHERS: Weather[] = ["clear", "rain"];
+export function isWeather(v: unknown): v is Weather {
+  return v === "clear" || v === "rain";
+}
+/** With Auto Cycle on, each new hour may bring rain in (or clear it away): these chances. */
+export const RAIN_START_CHANCE = 0.25;
+export const RAIN_STOP_CHANCE = 0.5;
 
 export type ToggleableKind =
   | "tv"
@@ -571,6 +586,10 @@ export interface BoardGameView {
   fen: string;
   /** Plies played in this game. */
   moves: number;
+  /** Each side's thinking time this game, in ms, as of this view (the running one keeps counting
+   *  from when it arrived), and whose clock is running ("" while the game waits or is over). */
+  clocks?: Record<BoardSide, number>;
+  clockSide?: BoardSide | "";
   /** Who has the board open and is not playing. */
   watchers: string[];
   /**
@@ -1383,7 +1402,7 @@ export type CampfirePacket =
   | { type: "BUSTER"; op: "buyGear"; gear: GearId }
   /** The workbench: carve a piece, safe or pushing for a Masterwork (its wood from the carrier;
    *  answered with workbenchResult). */
-  | { type: "WORKBENCH"; recipe: CraftId; mode: CraftMode };
+  | { type: "WORKBENCH"; recipe: CraftId; mode: CraftMode; adhesive?: Adhesive };
 
 /** How a carve at the workbench came out (sent to the carver). */
 export interface WorkbenchResult {
@@ -1394,6 +1413,8 @@ export interface WorkbenchResult {
   recipe?: CraftId;
   salvaged?: Partial<Record<WoodKind, number>>;
   sawdust?: number;
+  /** The Pine Resin spent in the Adhesive Slot on this carve, if one was. */
+  adhesive?: Adhesive;
 }
 
 /** One swing of a chopping combo, as it landed (sent to the chopper): where it hit, and a critical

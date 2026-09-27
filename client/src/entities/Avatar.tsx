@@ -12,6 +12,7 @@ import { specialTitle } from "@shared/items";
 import { canoeBob, canoePitch, canoeRoll } from "../scene/canoeMotion";
 import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
 import { EmoteGlyph } from "../components/hud/VelvetChipIcon";
+import { useNameplateSettings } from "./nameplateSettings";
 
 // The player avatar: a chibi clay figurine authored in Blender (scripts/blender/build_avatar.py)
 // and loaded from client/public/models/avatar.glb. This file loads it, dresses it from the
@@ -108,6 +109,17 @@ function titleText(id: string): string {
 
 /** The overhead anchor: the nametag sits here, the badge, bubble and emotes stack above it. */
 export const AVATAR_ANCHOR_Y = 1.25;
+
+// The nameplate, sized to the camera: the name is NAME_SIZE world units tall, but never drawn
+// smaller or larger on screen than NAME_PX (a close zoom would blow it up, a far one shrink it to
+// nothing); the title over it is a micro badge (TITLE_PX, about 10px) standing TITLE_GAP_PX clear
+// of the name's top. Orthographic: the camera's zoom is its pixels per world unit.
+const NAME_SIZE = 0.15;
+const NAME_PX = { min: 8, max: 14 };
+const TITLE_SIZE = 0.1;
+const TITLE_PX = { min: 7, max: 10 };
+const TITLE_GAP_PX = 4;
+const clampPx = (v: number, r: { min: number; max: number }) => Math.max(r.min, Math.min(r.max, v));
 /** How far the nametag floats above the top of the head's hair or hat, when that reaches past AVATAR_ANCHOR_Y. */
 const CROWN_CLEARANCE = 0.08;
 const LYING_ANCHOR_Y = 0.72;
@@ -933,11 +945,38 @@ export const Avatar = memo(
 
     const [crownTop, setCrownTop] = useState(0);
     const lying = pose === "lie";
-    const worn = titleText(title);
-    const special = specialTitle(title);
+    // the name and the title over it, each of which Settings can hide
+    const plates = useNameplateSettings();
+    const showName = !!username && plates.showNames;
+    const worn = plates.showTitles ? titleText(title) : "";
+    const special = plates.showTitles ? specialTitle(title) : null;
     // a title rides just over the name, and lifts what floats over it
     const nameY = lying ? LYING_ANCHOR_Y : Math.max(AVATAR_ANCHOR_Y, crownTop + CROWN_CLEARANCE);
     const anchorY = nameY + (worn || special ? 0.15 : 0);
+
+    // the nameplate follows the camera's zoom: the name and the title clamped to their pixel
+    // sizes, and the title kept TITLE_GAP_PX over the name's top (or where the name would be)
+    const nameRef = useRef<THREE.Group>(null);
+    const titleRef = useRef<THREE.Group>(null);
+    const specialRef = useRef<THREE.Group>(null);
+    const specialText = useRef<HTMLSpanElement>(null);
+    const lastTitlePx = useRef(0);
+    useFrame(({ camera }) => {
+      const zoom = (camera as THREE.OrthographicCamera).zoom || 1;
+      const nameK = clampPx(NAME_SIZE * zoom, NAME_PX) / (NAME_SIZE * zoom);
+      nameRef.current?.scale.setScalar(nameK);
+      const titlePx = clampPx(TITLE_SIZE * zoom, TITLE_PX);
+      const base = nameY + (showName ? (NAME_SIZE * nameK) / 2 : 0) + TITLE_GAP_PX / zoom;
+      if (titleRef.current) {
+        titleRef.current.position.y = base;
+        titleRef.current.scale.setScalar(titlePx / (TITLE_SIZE * zoom));
+      }
+      if (specialRef.current) specialRef.current.position.y = base + (titlePx * 0.6) / zoom;
+      if (specialText.current && Math.abs(lastTitlePx.current - titlePx) > 0.05) {
+        lastTitlePx.current = titlePx;
+        specialText.current.style.fontSize = `${titlePx.toFixed(1)}px`;
+      }
+    });
     const badge = isActivityStatus(status);
     const overheadY = anchorY + (badge ? 0.7 : 0.32);
 
@@ -955,31 +994,38 @@ export const Avatar = memo(
         {/* a drink from the casino's bar glows round them */}
         {aura && <CasinoAura aura={aura} />}
 
-        {/* the Billboard cancels the avatar's facing, so the name never turns or mirrors */}
+        {/* the Billboard cancels the avatar's facing, so the name never turns or mirrors; the
+            title is a micro badge standing just clear of the name's top (its bottom on the line) */}
         {worn && (
-          <Billboard position={[0, nameY + 0.15, 0]}>
-            <Text font="/fonts/kenpixel.ttf" fontSize={0.11} maxWidth={1.8} textAlign="center" color="#ffd76a" anchorX="center" anchorY="middle" outlineColor="#3a1a10" outlineWidth={0.018}>
-              {worn}
-            </Text>
-          </Billboard>
+          <group ref={titleRef} position={[0, nameY + 0.1, 0]}>
+            <Billboard>
+              <Text font="/fonts/kenpixel.ttf" fontSize={TITLE_SIZE} maxWidth={2.4} textAlign="center" color="#ffd76a" anchorX="center" anchorY="bottom" outlineColor="#3a1a10" outlineWidth={0.016}>
+                {worn}
+              </Text>
+            </Billboard>
+          </group>
         )}
         {/* the Velvet Pioneer's title: glowing gold over the name (a DOM overlay: it has an emoji) */}
         {special && (
-          <Html position={[0, nameY + 0.16, 0]} center zIndexRange={[2, 0]} style={{ pointerEvents: "none" }}>
-            <span className="cozy-title-gold">
-              {/* the emoji keeps its own colours: only the words are gilded */}
-              {special.name.split(/(\p{Extended_Pictographic}️?)/u).map((part, i) => (i % 2 ? <span key={i} className="cozy-title-emoji">{part}</span> : part))}
-            </span>
-          </Html>
+          <group ref={specialRef} position={[0, nameY + 0.16, 0]}>
+            <Html center zIndexRange={[2, 0]} style={{ pointerEvents: "none" }}>
+              <span ref={specialText} className="cozy-title-gold">
+                {/* the emoji keeps its own colours: only the words are gilded */}
+                {special.name.split(/(\p{Extended_Pictographic}️?)/u).map((part, i) => (i % 2 ? <span key={i} className="cozy-title-emoji">{part}</span> : part))}
+              </span>
+            </Html>
+          </group>
         )}
-        {username && (
-          <Billboard position={[0, nameY, 0]}>
-            {/* `font` MUST stay set: without it troika-three-text reaches for a CDN font that
-                Discord's Activity CSP blocks */}
-            <Text font="/fonts/kenpixel.ttf" fontSize={0.15} maxWidth={1.6} overflowWrap="break-word" textAlign="center" color={speaking ? "#8dffae" : "#ffffff"} anchorX="center" anchorY="middle" outlineColor="#000000" outlineWidth={0.02}>
-              {username}
-            </Text>
-          </Billboard>
+        {showName && (
+          <group ref={nameRef} position={[0, nameY, 0]}>
+            <Billboard>
+              {/* `font` MUST stay set: without it troika-three-text reaches for a CDN font that
+                  Discord's Activity CSP blocks */}
+              <Text font="/fonts/kenpixel.ttf" fontSize={NAME_SIZE} maxWidth={1.6} overflowWrap="break-word" textAlign="center" color={speaking ? "#8dffae" : "#ffffff"} anchorX="center" anchorY="middle" outlineColor="#000000" outlineWidth={0.02}>
+                {username}
+              </Text>
+            </Billboard>
+          </group>
         )}
 
         {/* emoji need the platform's colour-emoji font, which WebGL text cannot use, so these are

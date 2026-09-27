@@ -308,8 +308,7 @@ export function WardrobeModal({ userId, username, initial, coins, owned, title, 
           {/* ---- the try-on's bill: live, and the one button that settles it ---- */}
           <div className="sticky bottom-0 -mx-4 -mb-4 mt-auto border-t border-white/10 bg-stone-950/85 px-4 py-3 backdrop-blur" aria-live="polite">
             {missing.length === 0 ? (
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="opacity-75">Everything you're wearing is yours.</span>
+              <div className="flex items-center justify-end gap-2 text-sm">
                 <span className={`${ACTION} bg-gradient-to-b from-pink-200 to-pink-400 text-pink-950`}>✓ Equipped</span>
               </div>
             ) : (
