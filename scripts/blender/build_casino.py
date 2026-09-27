@@ -948,7 +948,9 @@ def build_floor(M, L):
 
     # 2 the main floor: burgundy Art-Deco damask carpet everywhere the foyer and the alley are not
     for x0, x1, z0, z1 in ((-h, f["x0"], -h, a["z0"]), (f["x0"], h, f["z1"], a["z0"]), (a["x1"], h, a["z0"], a["z1"]), (-h, h, a["z1"], h)):
-        floor_poly(M, [(x0, z0), (x1, z0), (x1, z1), (x0, z1)], 0.0, "CS_Carpet")
+        # (the alley runs to the front railing: no strip of carpet is left in front of it)
+        if x1 - x0 > 1e-6 and z1 - z0 > 1e-6:
+            floor_poly(M, [(x0, z0), (x1, z0), (x1, z1), (x0, z1)], 0.0, "CS_Carpet")
     # the damask: a half-drop repeat over the open carpet (none under the stages, round the
     # roulette's sunburst, across the brass border, or under the tables)
     bx0, bx1, bz0, bz1, br = pit_border(L)
@@ -958,7 +960,10 @@ def build_floor(M, L):
     cr = L["craps"]
     skip.append((cr["x"] - cr["len"] / 2 - 0.1, cr["x"] + cr["len"] / 2 + 0.1, cr["z"] - cr["w"] / 2 - 0.1, cr["z"] + cr["w"] / 2 + 0.1))
     hb = L["hallBaccarat"]
-    skip.append((hb["x"] - hb["a"], hb["x"] + hb["a"], hb["z"] - 0.4, hb["z"] + hb["b"]))
+    if hb.get("face", 1) > 0:
+        skip.append((hb["x"] - hb["a"], hb["x"] + hb["a"], hb["z"] - 0.4, hb["z"] + hb["b"]))
+    else:
+        skip.append((hb["x"] - hb["a"], hb["x"] + hb["a"], hb["z"] - hb["b"], hb["z"] + 0.4))
     for t in L["blackjack"]["tables"]:
         skip.append((t["x"] - 1.1, t["x"] + 0.7, t["z"] - 1.1, t["z"] + 1.1))
     step = 1.1
@@ -2389,6 +2394,54 @@ def build_alley(M, L):
         box(M, face_x, face_x + 0.08, yb - 0.14, yb + 0.44, z - 0.03, z + 0.03, "CS_Gold")
 
 
+def build_pinballs(M, L):
+    """Two vintage pinball cabinets at the end of the slot row, their backboxes against the wall and
+    their flipper ends toward the aisle: a lacquered cabinet on chrome legs, a lit playfield under
+    glass (pop bumpers, the flippers, a plunger), a coin door, and a backbox with a glowing
+    backglass framed in neon."""
+    pb = L["pinball"]
+    face_x = wall_face(L)
+    x0, x1 = face_x + 0.02, face_x + 0.02 + pb["len"]
+    hw = pb["w"] / 2
+    lo, hi = 0.74, 0.74 + 0.22
+    back = x0 + 0.24
+    for k, z in enumerate(pb["zs"]):
+        neon = "CS_NeonCyan" if k % 2 == 0 else "CS_NeonPink"
+        body = "CS_SlotBody"
+        # chrome legs, a black kick plate
+        for lx in (x0 + 0.34, x1 - 0.08):
+            for sz in (-1, 1):
+                cylinder(M, (lx, 0.0, z + sz * (hw - 0.06)), (lx, lo, z + sz * (hw - 0.06)), 0.025, "CS_Chrome", sides=8)
+        # the cabinet: deeper at the back than at the flipper end (the playfield slopes toward you)
+        vslab(M, [(back, lo), (x1, lo), (x1, lo + 0.18), (back, hi + 0.08)], z - hw, z + hw, body)
+        box(M, x1 - 0.02, x1 + 0.005, lo + 0.03, lo + 0.15, z - hw + 0.04, z + hw - 0.04, "CS_Chrome")
+        # the playfield under its glass: lit, with three pop bumpers, two flippers and the plunger lane
+        vslab(M, [(back + 0.02, hi + 0.075), (x1 - 0.03, lo + 0.175), (x1 - 0.03, lo + 0.185), (back + 0.02, hi + 0.085)], z - hw + 0.04, z + hw - 0.04, "CS_SlotScreen")
+        for bx_, bz_, mat in ((0.45, -0.12, "CS_Red"), (0.45, 0.12, "CS_Gold"), (0.62, 0.0, neon)):
+            px = back + bx_
+            py = (hi + 0.085) + ((lo + 0.185) - (hi + 0.085)) * (px - back - 0.02) / (x1 - back - 0.05)
+            lathe(M, px, z + bz_, [(0, 0), (0.05, 0), (0.05, 0.035), (0, 0.035)], mat, segs=10, y0=py)
+        for sz in (-1, 1):
+            px = x1 - 0.2
+            py = (hi + 0.085) + ((lo + 0.185) - (hi + 0.085)) * (px - back - 0.02) / (x1 - back - 0.05)
+            obox(M, px, z + sz * 0.08, math.pi / 2 - sz * 0.5, -0.06, 0.06, -0.015, 0.015, py, py + 0.02, "CS_Ivory")
+        cylinder(M, (x1 - 0.005, lo + 0.1, z + hw - 0.1), (x1 + 0.08, lo + 0.1, z + hw - 0.1), 0.012, "CS_Chrome", sides=6)
+        blob(M, x1 + 0.09, lo + 0.1, z + hw - 0.1, 0.02, 0.02, 0.02, "CS_Red", cuts=1)
+        # the rails along the glass
+        for sz in (-1, 1):
+            cylinder(M, (back, hi + 0.1, z + sz * (hw - 0.02)), (x1, lo + 0.2, z + sz * (hw - 0.02)), 0.016, "CS_Chrome", sides=6)
+        # the backbox and its backglass
+        box(M, x0, back, lo, hi + 0.95, z - hw + 0.02, z + hw - 0.02, body)
+        box(M, back - 0.005, back + 0.01, hi + 0.3, hi + 0.85, z - hw + 0.08, z + hw - 0.08, "CS_SlotScreen")
+        for y in (hi + 0.27, hi + 0.88):
+            box(M, back, back + 0.02, y - 0.012, y + 0.012, z - hw + 0.06, z + hw - 0.06, neon)
+        for sz in (-1, 1):
+            box(M, back, back + 0.02, hi + 0.27, hi + 0.88, z + sz * (hw - 0.07) - 0.012, z + sz * (hw - 0.07) + 0.012, neon)
+        box(M, x0 - 0.01, back + 0.02, hi + 0.95, hi + 0.99, z - hw, z + hw, "CS_Chrome")
+        for j in range(5):
+            blob(M, back + 0.02, hi + 0.2, z - hw + 0.1 + j * (pb["w"] - 0.2) / 4, 0.016, 0.016, 0.016, "CS_Bulb", cuts=1)
+
+
 def horse_mesh(hx, hy, hz):
     """One of the Turf Club's horses and its rider, a tin figurine on a brass peg, facing +z (the
     silks and the coat are pale: the game tints each of the five)."""
@@ -3077,56 +3130,70 @@ def build_bigsix(M, L, nodes):
 
 def build_hall_baccarat(M, L, cushions):
     """The hall's kidney-shaped Punto Banco table beside the craps table: its players' curve toward
-    the room, Scarlett in the notch of its flat side; green baize with the PLAYER and BANKER boxes and
-    each place's three betting spots, a padded rail round the curve, the chip rack, the shoe and the
-    discard tray; five velvet stools."""
+    the middle of the floor (uniform with the blackjack tables), Scarlett in the notch of its flat
+    side toward the front rail; green baize with the PLAYER and BANKER boxes and each place's three
+    betting spots, a padded rail round the curve, the chip rack, the shoe and the discard tray; five
+    velvet stools. Authored with the curve toward +z; `face` -1 turns the whole table about (every
+    offset from its centre turned by half a turn)."""
     t = L["hallBaccarat"]
     x, z, a, b = t["x"], t["z"], t["a"], t["b"]
+    fz = t.get("face", 1)
+    turn = 0.0 if fz > 0 else math.pi
     top = t["top"]
+
+    def P(dx, dz):
+        return (x + fz * dx, z + fz * dz)
 
     def outline(ia, ib, notch):
         # the players' curve, carried on round the ends toward the dealer
-        pts = [(x + ia * math.sin(math.radians(d)), z + ib * math.cos(math.radians(d))) for d in range(118, -119, -8)]
+        pts = [P(ia * math.sin(math.radians(d)), ib * math.cos(math.radians(d))) for d in range(118, -119, -8)]
         # the dealer's side, bowed in to hold the dealer
         ex, ez = ia * math.sin(math.radians(118)), ib * math.cos(math.radians(118))
         for k in range(1, 12):
             u = 1 - 2 * k / 12
-            pts.append((x + u * ex, z + ez + notch * (1 - u * u)))
+            pts.append(P(u * ex, ez + notch * (1 - u * u)))
         return pts
 
     o = outline(a, b, 0.33)
     i = outline(a - 0.12, b - 0.12, 0.33)
     for sx in (-0.55, 0.55):
-        lathe(M, x + sx, z + 0.1, [(0, 0), (0.24, 0), (0.24, 0.04), (0.08, 0.1), (0.07, top - 0.16), (0.2, top - 0.1), (0, top - 0.1)], "CS_Mahogany", segs=14)
+        lx, lz = P(sx, 0.1)
+        lathe(M, lx, lz, [(0, 0), (0.24, 0), (0.24, 0.04), (0.08, 0.1), (0.07, top - 0.16), (0.2, top - 0.1), (0, top - 0.1)], "CS_Mahogany", segs=14)
     slab(M, o, top - 0.1, top - 0.02, "CS_Mahogany")
     slab(M, i, top - 0.02, top, "CS_Felt")
-    arc_o = [(x + (a + 0.03) * math.sin(math.radians(d)), z + (b + 0.03) * math.cos(math.radians(d))) for d in range(-90, 91, 10)]
-    arc_i = [(x + (a - 0.12) * math.sin(math.radians(d)), z + (b - 0.12) * math.cos(math.radians(d))) for d in range(-90, 91, 10)]
+    arc_o = [P((a + 0.03) * math.sin(math.radians(d)), (b + 0.03) * math.cos(math.radians(d))) for d in range(-90, 91, 10)]
+    arc_i = [P((a - 0.12) * math.sin(math.radians(d)), (b - 0.12) * math.cos(math.radians(d))) for d in range(-90, 91, 10)]
     band(M, arc_o, arc_i, top - 0.02, top + 0.05, "CS_Velvet", closed=False)
 
     # the felt's markings: the PLAYER and BANKER card boxes, and each place's three spots
     for sx, mat in ((-0.3, "CS_FeltLine"), (0.3, "CS_FeltRed")):
-        frame_strips(M, x + sx - 0.17, x + sx + 0.17, z + 0.05, z + 0.25, 0.012, top, top + 0.003, mat)
-    band(M, [(x + 0.95 * math.sin(math.radians(d)), z + 0.52 * math.cos(math.radians(d))) for d in range(-80, 81, 10)], [(x + 0.93 * math.sin(math.radians(d)), z + 0.5 * math.cos(math.radians(d))) for d in range(-80, 81, 10)], top, top + 0.003, "CS_FeltGold", closed=False)
+        (ax_, az_), (bx_, bz_) = P(sx - 0.17, 0.05), P(sx + 0.17, 0.25)
+        frame_strips(M, min(ax_, bx_), max(ax_, bx_), min(az_, bz_), max(az_, bz_), 0.012, top, top + 0.003, mat)
+    band(M, [P(0.95 * math.sin(math.radians(d)), 0.52 * math.cos(math.radians(d))) for d in range(-80, 81, 10)], [P(0.93 * math.sin(math.radians(d)), 0.5 * math.cos(math.radians(d))) for d in range(-80, 81, 10)], top, top + 0.003, "CS_FeltGold", closed=False)
     for deg in t["stoolAngles"]:
         r_ = math.radians(deg)
         for k, (rr, mat) in enumerate(((0.62, "CS_FeltRed"), (0.7, "CS_FeltLine"), (0.54, "CS_FeltGold"))):
-            cx, cz = x + math.sin(r_) * (a * rr / 0.82) * 0.82, z + math.cos(r_) * b * rr / 0.82 * 0.82
-            obox(M, cx, cz, r_, -0.025, 0.025, -0.06, 0.06, top, top + 0.003, mat)
+            cx, cz = P(math.sin(r_) * a * rr, math.cos(r_) * b * rr)
+            obox(M, cx, cz, r_ + turn, -0.025, 0.025, -0.06, 0.06, top, top + 0.003, mat)
     # the rack by the notch, the shoe and the discard tray either side of it
-    obox(M, x, z - 0.02, 0.0, -0.06, 0.06, -0.3, 0.3, top, top + 0.03, "CS_Black")
+    rx_, rz_ = P(0.0, -0.02)
+    obox(M, rx_, rz_, turn, -0.06, 0.06, -0.3, 0.3, top, top + 0.03, "CS_Black")
     for k, mat in enumerate(("CS_Red", "CS_Ivory", "CS_Gold", "CS_Black", "CS_Red", "CS_Ivory")):
-        obox(M, x - 0.25 + k * 0.1, z - 0.02, 0.0, -0.05, 0.05, -0.04, 0.04, top + 0.03, top + 0.045, mat)
-    obox(M, x + 0.66, z - 0.22, -0.3, -0.08, 0.08, -0.07, 0.07, top, top + 0.09, "CS_Mahogany")
-    obox(M, x + 0.66, z - 0.22, -0.3, 0.08, 0.095, -0.055, 0.055, top + 0.01, top + 0.08, "CS_Card")
-    obox(M, x - 0.66, z - 0.22, 0.3, -0.07, 0.07, -0.06, 0.06, top, top + 0.02, "CS_Black")
+        cx, cz = P(-0.25 + k * 0.1, -0.02)
+        obox(M, cx, cz, turn, -0.05, 0.05, -0.04, 0.04, top + 0.03, top + 0.045, mat)
+    sx_, sz_ = P(0.66, -0.22)
+    obox(M, sx_, sz_, -0.3 + turn, -0.08, 0.08, -0.07, 0.07, top, top + 0.09, "CS_Mahogany")
+    obox(M, sx_, sz_, -0.3 + turn, 0.08, 0.095, -0.055, 0.055, top + 0.01, top + 0.08, "CS_Card")
+    dx_, dz_ = P(-0.66, -0.22)
+    obox(M, dx_, dz_, 0.3 + turn, -0.07, 0.07, -0.06, 0.06, top, top + 0.02, "CS_Black")
     for sx in (-0.3, 0.3):
         for k in range(2):
-            obox(M, x + sx - 0.05 + k * 0.1, z + 0.14, 0.0, -0.07, 0.07, -0.045, 0.045, top, top + 0.004, "CS_Card")
+            cx, cz = P(sx - 0.05 + k * 0.1, 0.14)
+            obox(M, cx, cz, turn, -0.07, 0.07, -0.045, 0.045, top, top + 0.004, "CS_Card")
     seat = cushions["barStool"]["top"]
     for deg in t["stoolAngles"]:
         r_ = math.radians(deg)
-        stool(M, x + math.sin(r_) * t["stoolA"], z + math.cos(r_) * t["stoolB"], seat)
+        stool(M, *P(math.sin(r_) * t["stoolA"], math.cos(r_) * t["stoolB"]), seat)
 
 
 def build_booths(M, L, cushions):
@@ -3280,6 +3347,7 @@ def build(root):
     build_bigsix(M, L, nodes)
     build_booths(M, L, cushions)
     build_alley(M, L)
+    build_pinballs(M, L)
     build_derby(M, L, nodes)
     build_pusher(M, L, nodes)
     with lifted(stage(L, "pit")["h"]):

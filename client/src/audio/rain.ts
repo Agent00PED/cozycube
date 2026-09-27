@@ -1,5 +1,6 @@
 import { getSoundSettings } from "./soundSettings";
 import { WORLD_CROSSFADE_S } from "./sound";
+import { masterOut } from "./master";
 
 // The rain on the Cozy Lounge's windows, generated in the browser like the rest (no audio files):
 // a soft, close ASMR rain, heard while it rains over the loft (the room's weather, shared by the
@@ -39,7 +40,7 @@ export class RainAmbience {
     this.master.gain.value = 0;
     this.level = c.createGain();
     this.level.gain.value = this.fader();
-    this.master.connect(this.level).connect(c.destination);
+    this.master.connect(this.level).connect(masterOut(c));
     // three seconds of pink-ish noise (a running average tilts white noise down toward the lows)
     this.noise = c.createBuffer(1, c.sampleRate * 3, c.sampleRate);
     const d = this.noise.getChannelData(0);

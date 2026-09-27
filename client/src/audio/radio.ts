@@ -1,3 +1,4 @@
+import { masterOut } from "./master";
 // The lounge radio's music, generated in the browser with the Web Audio API: no audio files, no
 // streams (Discord's Activity sandbox blocks outside hosts, and nothing here needs a licence).
 //
@@ -192,7 +193,7 @@ export class RadioEngine {
     const ctx = new Ctx();
     this.ctx = ctx;
     this.master = ctx.createGain();
-    this.master.connect(ctx.destination);
+    this.master.connect(masterOut(ctx));
     this.applyGain();
     // two seconds of white noise, shared by the drums and the beds
     const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);

@@ -233,7 +233,10 @@ const STAND_INS = {
 /** Set when Pippin rattles his shaker: the ice flies for a moment. */
 const shaker = { at: -99 };
 
-export function CasinoStaff({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
+/** The staff of the floor you are on: the hall's, or (`up`) the penthouse's. The other floor's are
+ *  not mounted at all: the penthouse stands off to the side of the hall at VIP_OFFSET, so its people
+ *  would float in the night round the hall (and the hall's round the penthouse) when zoomed out. */
+export function CasinoStaff({ subscribeMessages, up }: { subscribeMessages: (listener: RoomMessageListener) => () => void; up: boolean }) {
   const N = CASINO_NPCS;
   const onCedric = (g: NpcGesture) => {
     if (g === "knock") playSfx("knock", heardFrom("cedric"));
@@ -255,6 +258,16 @@ export function CasinoStaff({ subscribeMessages }: { subscribeMessages: (listene
     shaker.at = performance.now() / 1000;
     if (within("pippin", 6)) playSfx("shaker", heardFrom("pippin") * 0.7);
   };
+  if (up) {
+    return (
+      <>
+        {/* the Velvet Penthouse */}
+        <CampNpc url={URLS.boris} what="boris.glb" prefix="Boris" at={VIP_NPCS.borisVip} y={VIP_NPCS.borisVip.y} waveEvent="borisVipWave" standIn={STAND_INS.boris} subscribeMessages={subscribeMessages} talk={BORIS_VIP} />
+        <CampNpc url={URLS.baron} what="baron.glb" prefix="Baron" at={VIP_NPCS.baron} y={VIP_NPCS.baron.y} waveEvent="baronWave" standIn={STAND_INS.baron} subscribeMessages={subscribeMessages} talk={BARON} waveOn={baronToasts} />
+        <CampNpc url={URLS.penelope} what="penelope.glb" prefix="Penelope" at={VIP_NPCS.duchess} y={VIP_NPCS.duchess.y} waveEvent="penelopeWave" standIn={STAND_INS.penelope} subscribeMessages={subscribeMessages} talk={DUCHESS} fuseArm={false} />
+      </>
+    );
+  }
   return (
     <>
       <CampNpc url={URLS.vance} what="vance.glb" prefix="Vance" at={N.vance} y={N.vance.y} waveEvent="vanceWave" standIn={STAND_INS.vance} subscribeMessages={subscribeMessages} />
@@ -266,10 +279,6 @@ export function CasinoStaff({ subscribeMessages }: { subscribeMessages: (listene
       <CampNpc url={URLS.gideon} what="gideon.glb" prefix="Gideon" at={N.gideon} y={N.gideon.y} waveEvent="gideonWave" standIn={STAND_INS.gideon} subscribeMessages={subscribeMessages} talk={GIDEON} gestureOn={gideonGestures} idle={GIDEON_IDLE} onGesture={onGideon} fuseArm={false} />
       <CampNpc url={URLS.bruno} what="bruno.glb" prefix="Bruno" at={N.bruno} y={N.bruno.y} waveEvent="brunoWave" standIn={STAND_INS.bruno} subscribeMessages={subscribeMessages} talk={BRUNO} bowOn={brunoBows} />
       <CampNpc url={URLS.scarlett} what="scarlett.glb" prefix="Scarlett" at={N.scarlett} y={N.scarlett.y} waveEvent="scarlettWave" standIn={STAND_INS.scarlett} subscribeMessages={subscribeMessages} talk={SCARLETT} gestureOn={scarlettGestures} idle={SCARLETT_IDLE} onGesture={onScarlett} fuseArm={false} />
-      {/* the Velvet Penthouse */}
-      <CampNpc url={URLS.boris} what="boris.glb" prefix="Boris" at={VIP_NPCS.borisVip} y={VIP_NPCS.borisVip.y} waveEvent="borisVipWave" standIn={STAND_INS.boris} subscribeMessages={subscribeMessages} talk={BORIS_VIP} />
-      <CampNpc url={URLS.baron} what="baron.glb" prefix="Baron" at={VIP_NPCS.baron} y={VIP_NPCS.baron.y} waveEvent="baronWave" standIn={STAND_INS.baron} subscribeMessages={subscribeMessages} talk={BARON} waveOn={baronToasts} />
-      <CampNpc url={URLS.penelope} what="penelope.glb" prefix="Penelope" at={VIP_NPCS.duchess} y={VIP_NPCS.duchess.y} waveEvent="penelopeWave" standIn={STAND_INS.penelope} subscribeMessages={subscribeMessages} talk={DUCHESS} fuseArm={false} />
       <ShakerIce />
     </>
   );

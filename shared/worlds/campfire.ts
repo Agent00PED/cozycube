@@ -96,7 +96,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
   "campChair": { "x": 4.5, "z": -7.45 },
   "chops": [{ "x": -8.7, "z": -4.6 }, { "x": -6.5, "z": -8.1 }, { "x": -0.65, "z": -8.9, "halves": [] }, { "x": 1.75, "z": -6.65 }],
-  "workbench": { "x": -4.2, "z": -7.35, "len": 1.4, "w": 0.62, "top": 0.86 },
+  "workbench": { "x": -4.2, "z": -8.35, "len": 1.4, "w": 0.62, "top": 0.86 },
   "critter": { "x": 3.4, "z": -6.2 },
   "canoe": { "x": 8.0, "z": 2.62, "len": 2.0 },
   "cleat": { "x": 6.95, "z": 1.8 },
@@ -106,7 +106,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "z": 5.2, "rx": 0.45, "rz": 0.95, "speed": 0.12 }
   ],
   "forage": [
-    { "kind": "mushroom", "x": -5.2, "z": -8.8 },
+    { "kind": "mushroom", "x": -5.75, "z": -9.0 },
     { "kind": "berries", "x": -8.6, "z": -1.1 },
     { "kind": "mushroom", "x": -8.7, "z": 1.7 },
     { "kind": "berries", "x": 0.5, "z": -8.9 }

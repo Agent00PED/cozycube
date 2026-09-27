@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DRINK_BASES, DRINK_BASE_INFO, DRINK_TOPPINGS, DRINK_TOPPING_INFO, KITCHEN_BREW_SECONDS, type DrinkBase, type DrinkTopping, type KitchenPacket } from "@shared/types";
 import { Modal } from "./Modal";
+import { masterOut } from "../../audio/master";
 
 interface Props {
   send: (packet: KitchenPacket) => void;
@@ -159,7 +160,7 @@ function playBubbles(existing: AudioContext | null): AudioContext | null {
     g.gain.exponentialRampToValueAtTime(0.05, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
     o.connect(g);
-    g.connect(ctx.destination);
+    g.connect(masterOut(ctx));
     o.start(t);
     o.stop(t + 0.1);
     o.onended = () => (o.disconnect(), g.disconnect());

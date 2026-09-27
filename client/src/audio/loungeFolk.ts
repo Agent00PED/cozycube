@@ -1,5 +1,6 @@
 import { getSoundSettings } from "./soundSettings";
 import { WORLD_CROSSFADE_S, crossfade } from "./sound";
+import { masterOut } from "./master";
 
 // The Cozy Lounge's soundscape: a little folk-jazz trio by the fireplace, synthesized in the browser
 // like the casino's combo (no audio files). An easy two-feel at 92 bpm round an 8-bar form in G:
@@ -59,7 +60,7 @@ export class LoungeFolk {
     this.ctx = c;
     this.master = c.createGain();
     this.master.gain.value = 0;
-    this.master.connect(c.destination);
+    this.master.connect(masterOut(c));
     this.level = c.createGain();
     this.level.gain.value = this.fader();
     this.level.connect(this.master);

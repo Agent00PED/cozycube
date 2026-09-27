@@ -2,6 +2,7 @@ import type { PianoPieceId } from "@shared/casino";
 import { PIANO_PIECES } from "@shared/pianoPieces";
 import { getSoundSettings } from "./soundSettings";
 import { sharedAudio } from "./sfx";
+import { masterOut } from "./master";
 
 // The Velvet Lounge's baby grand, synthesized: each note a warm hammered tone (a triangle with two
 // softer overtones through a gentle low-pass, a quick bloom and a long decay that is shorter up the
@@ -58,7 +59,7 @@ export function playPianoNote(midi: number, volume = 1) {
   if (!c) return;
   const out = c.createGain();
   out.gain.value = Math.max(0, Math.min(1, volume));
-  out.connect(c.destination);
+  out.connect(masterOut(c));
   strike(c, out, c.currentTime + 0.005, midi, 0.9, 0.85);
   window.setTimeout(() => out.disconnect(), 4500);
 }
@@ -75,7 +76,7 @@ export function startRecital(piece: PianoPieceId, volume: () => number) {
   const events = PIANO_PIECES[piece].events;
   const master = c.createGain();
   master.gain.value = volume();
-  master.connect(c.destination);
+  master.connect(masterOut(c));
   const t0 = c.currentTime + 0.15;
   let next = 0;
   const tick = () => {

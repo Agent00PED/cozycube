@@ -306,7 +306,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 6,
     name: "The Living World & Atmosphere Sync",
-    range: "v0.6.0 – v0.6.3",
+    range: "v0.6.0 – v0.6.4",
     icon: "🌦️",
     blurb: "Skies that follow the hour and the weather, a surer step between worlds, and a new heart for the lounge.",
     patches: [
@@ -366,6 +366,32 @@ export const PATCH_ERAS: PatchEra[] = [
         summary: "The whole history, in the game.",
         changes: {
           features: ["These patch notes: every update since the first lounge, era by era, from Settings."],
+        },
+      },
+      {
+        version: "0.6.4",
+        date: "2026-09-27",
+        title: "A Cozier Lounge & a Smoother Casino",
+        summary: "A snugger loft, a casino floor that flows, a master volume, and updates that reload by themselves.",
+        changes: {
+          features: [
+            "Master Volume in Settings: one slider over the music, the ambience and every effect (80% to start).",
+            "Two vintage pinball cabinets at the end of Neon Alley's slot row.",
+          ],
+          visuals: [
+            "The Cozy Lounge is a quarter smaller and cozier: the L-shaped sofa and the hearth rug are back in front of the fireplace, with 1.8m walkways round the kitchen island, the chess table and Chloe's corner.",
+            "The Big Six wheel moves to the floor's left flank, framing the way into Neon Alley: the entrance from the foyer is wide open.",
+            "Neon Alley's obsidian tiles run all the way to the front rail; the Turf Club and the coin pusher step toward it.",
+            "Scarlett's baccarat table is turned about: its felt and stools face the middle of the floor, like the blackjack tables.",
+            "The way up to Pippin's bar is clear: one booth gone, the pool table moved over, the bar stools tucked in.",
+            "Buster's workbench stands back by the pines, leaving a wide path between it and the tipi.",
+          ],
+          economy: ["Pine Resin is sap, not wood: it rides in its own jar beside the carrier, taking no slots and with no limit."],
+          fixes: [
+            "Updates reload the Activity by themselves: the page lets go of the room, the renderer and the audio, waits for the server to answer, and comes back with Discord's parameters intact.",
+            "A missing script chunk after a deploy reloads the page onto the new build instead of freezing it.",
+            "The penthouse's people (Boris, the Baron, the Duchess) no longer float in the night round the hall: each floor draws only its own.",
+          ],
         },
       },
     ],

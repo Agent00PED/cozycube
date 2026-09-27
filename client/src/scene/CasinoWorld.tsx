@@ -121,7 +121,8 @@ export function CasinoWorld({ onFloorClick, room, subscribeMessages, up }: Casin
         <AmbientPatrons subscribeMessages={subscribeMessages} room={room} />
       </group>
       <CasinoVipWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} up={up} />
-      <CasinoStaff subscribeMessages={subscribeMessages} />
+      {/* only the floor you are on has its people: the penthouse's never float round the hall */}
+      <CasinoStaff subscribeMessages={subscribeMessages} up={up} />
       <Confetti room={room} subscribeMessages={subscribeMessages} />
       {up ? null : <CasinoLights />}
     </group>

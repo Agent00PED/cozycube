@@ -10,6 +10,10 @@ import "@fontsource-variable/playfair-display";
 import "./index.css";
 import App from "./App";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { installPreloadErrorReload } from "./systems/lifecycle";
+
+// a chunk from an older build that a new deploy no longer serves: reload onto the new one
+installPreloadErrorReload();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

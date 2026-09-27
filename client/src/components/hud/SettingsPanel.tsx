@@ -1,5 +1,6 @@
 import { Modal } from "./Modal";
 import { setSoundSettings, useSoundSettings } from "../../audio/soundSettings";
+import { setMasterVolume, useMasterVolume } from "../../audio/master";
 import { setCameraMode, useCameraMode, type CameraMode } from "../../scene/cameraFocus";
 import { setNameplateSettings, useNameplateSettings } from "../../entities/nameplateSettings";
 import { LATEST_PATCH } from "../../data/patchNotesData";
@@ -9,6 +10,7 @@ import { LATEST_PATCH } from "../../data/patchNotesData";
  *  opens). The lounge radio keeps its own volume in its panel. */
 export function SettingsPanel({ onClose, onOpenPatchNotes }: { onClose: () => void; onOpenPatchNotes: () => void }) {
   const sound = useSoundSettings();
+  const master = useMasterVolume();
   const camera = useCameraMode();
   const plates = useNameplateSettings();
   return (
@@ -16,6 +18,12 @@ export function SettingsPanel({ onClose, onOpenPatchNotes }: { onClose: () => vo
       <div className="flex flex-col gap-4 pb-2">
         <section className="flex flex-col gap-3 rounded-3xl bg-white/5 p-4">
           <h3 className="text-xs font-bold uppercase tracking-widest opacity-60">Sound</h3>
+          {/* everything at once: the music, the worlds' ambience and the effects */}
+          <label className="flex items-center gap-3 rounded-2xl bg-amber-300/10 px-2 py-1.5 text-sm font-bold">
+            <span className="w-36 shrink-0">🔊 Master Volume</span>
+            <input type="range" min={0} max={100} step={1} value={Math.round(master * 100)} onChange={(e) => setMasterVolume(Number(e.target.value) / 100)} className="flex-1 accent-amber-400" aria-label="Master Volume" />
+            <span className="w-9 text-right tabular-nums opacity-80">{Math.round(master * 100)}%</span>
+          </label>
           {/* the ambience mixer: a fader per channel */}
           {(
             [

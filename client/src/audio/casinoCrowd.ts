@@ -1,5 +1,6 @@
 import { WORLD_CROSSFADE_S } from "./sound";
 import { getSoundSettings } from "./soundSettings";
+import { masterOut } from "./master";
 
 // The Velvet Casino's crowd, under the jazz: synthesized in the browser like the rest of the
 // soundscape (no audio files: the Activity's sandbox and licensing).
@@ -49,7 +50,7 @@ export class CasinoCrowd {
     this.ctx = c;
     this.master = c.createGain();
     this.master.gain.value = 0;
-    this.master.connect(c.destination);
+    this.master.connect(masterOut(c));
     this.level = c.createGain();
     this.level.gain.value = this.fader();
     this.level.connect(this.master);

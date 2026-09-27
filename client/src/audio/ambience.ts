@@ -8,6 +8,7 @@ import { CasinoCrowd } from "./casinoCrowd";
 import { LoungeFolk } from "./loungeFolk";
 import { RainAmbience } from "./rain";
 import { WORLD_CROSSFADE_S } from "./sound";
+import { masterOut } from "./master";
 
 // Each world's ambient soundscape, generated in the browser like the radio (no audio files: the
 // Activity's sandbox and licensing). The Starlight Campfire's is four layers on one master gain:
@@ -59,7 +60,7 @@ class CampfireAmbience {
     this.ctx = c;
     this.master = c.createGain();
     this.master.gain.value = 0;
-    this.master.connect(c.destination);
+    this.master.connect(masterOut(c));
     const channel = () => {
       const g = c.createGain();
       g.connect(this.master!);

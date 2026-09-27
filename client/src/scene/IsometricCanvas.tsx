@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { WALL_HEIGHT } from "@shared/worlds/lounge";
 import { cameraFocus, cameraSettings, cameraView, frame } from "./cameraFocus";
+import { useShuttingDown } from "../systems/lifecycle";
 
 // The isometric camera. Orthographic, looking along (1, 1, 1), with its zoom fitted to the world's
 // floor (the lounge's 15x15 loft, walls and slab fill the viewport), then nudged a little closer.
@@ -72,9 +73,12 @@ const DPR_RANGE: [number, number] = [1, Math.min(typeof window === "undefined" ?
 
 export function IsometricCanvas({ children }: { children: React.ReactNode }) {
   const [glLost, setGlLost] = useState(false);
+  // the page is reloading onto a new build: stop drawing
+  const down = useShuttingDown();
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <Canvas
+        frameloop={down ? "never" : "always"}
         orthographic
         shadows={false}
         dpr={DPR_RANGE}

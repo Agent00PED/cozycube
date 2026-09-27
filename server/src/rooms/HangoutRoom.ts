@@ -2157,10 +2157,9 @@ export class HangoutRoom extends Room<HangoutState> {
     let coins = 0;
     if (verdict === "gold" && Math.random() < CHOP_CRIT_CHANCE) {
       // a coin bonus counts toward the day's chopping coins (none once they are all earned); a
-      // resin, the other half of the time (it takes a carrier slot: a full carrier pays the coins)
+      // resin, the other half of the time (it rides in its own jar: a full carrier doesn't matter)
       const profile = this.records.get(sessionId)?.fishing;
-      const roomForResin = !!profile && carrierLoad(profile) < carrierCapacity(profile.carrierTier);
-      if (Math.random() < 0.5 || !roomForResin) {
+      if (Math.random() < 0.5) {
         coins = this.campfirePay(sessionId, player, "chop", CHOP_CRIT_COINS);
         if (coins > 0) bonus = "coins";
       } else if (profile) {

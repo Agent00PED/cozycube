@@ -5,6 +5,7 @@ import type { MochiAction } from "@shared/types";
 import { Modal } from "../components/hud/Modal";
 import { GEO, matte, noRaycast } from "../scene/kit";
 import { MochiModel, restDrive, type MochiDrive } from "./Mochi";
+import { masterOut } from "../audio/master";
 
 // Mochi's playroom: her own little 3D viewport (a separate <Canvas>, ambient light at 1.0 and two
 // warm point lights) with three things to do.
@@ -49,7 +50,7 @@ function usePurr() {
     const amp = ctx.createGain();
     amp.gain.value = 0.5;
     pulse.connect(depth).connect(amp.gain);
-    noise.connect(low).connect(amp).connect(gain).connect(ctx.destination);
+    noise.connect(low).connect(amp).connect(gain).connect(masterOut(ctx));
     noise.start();
     pulse.start();
     ref.current = {

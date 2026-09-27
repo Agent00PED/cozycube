@@ -5,6 +5,7 @@
 // world (the dice, the piano across the lounge) can be played quieter the further away it is.
 
 import { getSoundSettings } from "./soundSettings";
+import { masterOut } from "./master";
 
 let ctx: AudioContext | null = null;
 /** The volume of the sound being made (0..1): what playSfx was asked for. */
@@ -32,7 +33,7 @@ function tone(c: AudioContext, at: number, from: number, to: number, length: num
   g.gain.setValueAtTime(0.0001, at);
   g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain * level), at + 0.012);
   g.gain.exponentialRampToValueAtTime(0.0001, at + length);
-  o.connect(g).connect(c.destination);
+  o.connect(g).connect(masterOut(c));
   o.start(at);
   o.stop(at + length + 0.02);
   o.onended = () => (o.disconnect(), g.disconnect());
@@ -49,7 +50,7 @@ function noise(c: AudioContext, at: number, length: number, gain: number, cutoff
   filter.frequency.value = cutoff;
   const g = c.createGain();
   g.gain.value = gain * level;
-  src.connect(filter).connect(g).connect(c.destination);
+  src.connect(filter).connect(g).connect(masterOut(c));
   src.start(at);
   src.onended = () => (src.disconnect(), filter.disconnect(), g.disconnect());
 }

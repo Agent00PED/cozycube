@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Client, Room } from "colyseus.js";
 import type { DiscordAuthInfo } from "./useDiscordAuth";
 import { liveMotion, recordMotion } from "../systems/liveMotion";
+import { onShutdown } from "../systems/lifecycle";
 import type {
   BallSyncState,
   ChairSyncState,
@@ -420,6 +421,14 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
     window.addEventListener("online", nudge);
     document.addEventListener("visibilitychange", onVisible);
     retryNowRef.current = nudge;
+    // the page is reloading onto a new build: let go of the room now (not consented, so the seat is
+    // held for the reloaded page's token) and never try to reconnect while it goes
+    const offShutdown = onShutdown(() => {
+      disposed = true;
+      window.clearTimeout(retryTimer);
+      retryTimer = undefined;
+      if (live) retire(live, false);
+    });
 
     async function connect() {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -742,6 +751,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null): UseColyseusRoomRe
 
     return () => {
       disposed = true;
+      offShutdown();
       retryNowRef.current = null;
       setReconnecting(false);
       window.clearTimeout(retryTimer);
