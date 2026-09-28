@@ -7,6 +7,7 @@ import { CAMPFIRE_LAYOUT as L, DOCK_PILINGS, DUCK_PATHS, RIVER_Z, riverSpan } fr
 import { parseWorldEvent } from "@shared/types";
 import { parseTrees } from "@shared/chop";
 import { FellableTrees } from "./FellableTrees";
+import { WildCritters } from "./WildCritters";
 import { SurgeRipples } from "./SurgeRipples";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
@@ -191,6 +192,7 @@ export function CampfireWorld({ onFloorClick, players, localSessionId, toggleabl
       <BulbGlows />
       <FoamRings />
       <DuckTargets onDuck={onDuck} />
+      <WildCritters mapId="campfire_night" />
       <Fireflies />
       <Stars />
       <OcclusionDriver />

@@ -188,7 +188,7 @@ LAYER_CLEARING = 0.022
 # glowing things: (strength) of an emission in their own colour
 EMISSION = {"CF_Ember": 2.2, "CF_FlameOuter": 3.0, "CF_FlameInner": 4.0, "CF_LanternGlass": 2.5, "CF_Bulb": 3.0, "CF_BerryGlow": 2.0, "CF_LanternWarm": 2.6}
 # thin sheets seen from both sides
-DOUBLE_SIDED = {"CF_TentSage", "CF_Canvas", "CF_CanvasStripe", "CF_Hammock", "CF_HammockStripe", "CF_Checker", "CF_VanCream", "CF_Cooler", "CF_AwningStripe", "CF_Canoe", "CF_CanoeInner"}
+DOUBLE_SIDED = {"CF_GrassDark", "CF_TentSage", "CF_Canvas", "CF_CanvasStripe", "CF_Hammock", "CF_HammockStripe", "CF_Checker", "CF_VanCream", "CF_Cooler", "CF_AwningStripe", "CF_Canoe", "CF_CanoeInner"}
 
 
 def _lin(c):
@@ -1000,6 +1000,10 @@ def build_rocks(L, coll):
             px, pz = u["x"] + rr * math.cos(a), u["z"] + rr * math.sin(a)
             w = 0.07 + 0.07 * rng.random()
             blob(bm, px, 0.012, pz, w, 0.035, w * (0.7 + 0.3 * rng.random()), m=q % 2, cuts=3, noise=0.05, rng=rng, flat_bottom=-0.3)
+    # the mossy stones along the river's banks, half in the water (their moss is in the deco)
+    for k, (x, water, z, sz) in enumerate(river_mossy(L)):
+        blob(bm, x, water + 0.04, z, 0.3 * sz, 0.21 * sz, 0.26 * sz, m=k % 2, cuts=4, noise=0.1, rng=rng, flat_bottom=-0.3)
+        blob(bm, x + (0.26 if k % 2 else -0.26) * sz, water + 0.01, z + 0.2 * sz, 0.14 * sz, 0.1 * sz, 0.12 * sz, m=(k + 1) % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.2)
     make_object("Campfire_Rocks", bm, ["CF_Stone", "CF_StoneDark"], coll)
 
 
@@ -1025,6 +1029,61 @@ def build_fence(L, coll):
     run([(f["xFrom"], at), (at, at)])
     run([(at, at), (at, f["zFrom"])])
     make_object("Campfire_Fence", bm, ["CF_Fence"], coll)
+
+
+# the props the undergrowth keeps its distance from (a fern never pokes through a stall or a tent)
+KEEP_CLEAR = ("tent", "woodpile", "workbench", "buster", "busterBoard", "barnaby", "splitblock", "van", "campChair", "critter", "owl", "guitarCase", "groundLantern", "stringPole", "signpost", "telescope", "picnic", "gallery", "archway", "fireflies")
+
+
+def near_prop(L, x, z, pad):
+    return any(k in L and math.hypot(x - L[k]["x"], z - L[k]["z"]) < pad for k in KEEP_CLEAR)
+
+
+def river_mossy(L):
+    """The mossy stones along the river: each half in the water at a bank's lip (inside the river's
+    own collider: never in anyone's way), clear of the dock, the anglers' spots and the crossings.
+    (x, water, z, size) each."""
+    out = []
+    water = L["river"]["water"]
+    d = L["dock"]
+    spots = [(f["stand"]["x"], f["stand"]["z"]) for f in L["fishing"]] + [(f["bobber"]["x"], f["bobber"]["z"]) for f in L["fishing"]]
+    for k, z in enumerate((-8.1, -6.4, -5.3, -3.2, -2.0, 1.2, 2.6, 4.4, 5.9, 7.9, 8.8)):
+        span = river_span(L, z)
+        if span is None:
+            continue
+        x = span[0] + 0.14 if k % 2 == 0 else span[1] - 0.14
+        if near_path(L, x, z, 0.5) or any(math.hypot(x - sx, z - sz) < 1.2 for sx, sz in spots) or (d["z0"] - 0.6 <= z <= d["z1"] + 0.6 and x < d["x1"] + 0.6):
+            continue
+        out.append((x, water, z, 0.75 + 0.3 * ((k * 37) % 5) / 4))
+    return out
+
+
+def curved_fern(bm, x, z, s, rng, m):
+    """A fern: seven fronds arching up out of the crown and drooping to their tips, each folded along
+    its midrib and tapering at both ends (in the dark grass green, a double-sided material)."""
+    n = 7
+    a0 = rng.random() * 6.28
+    for k in range(n):
+        a = a0 + 2 * math.pi * k / n + rng.uniform(-0.2, 0.2)
+        length = (0.34 + 0.12 * rng.random()) * s
+        height = (0.2 + 0.07 * rng.random()) * s
+        dx, dz = math.cos(a), math.sin(a)
+        px, pz = -dz, dx
+        segs = 6
+        pts = []
+        for i in range(segs + 1):
+            u = i / segs
+            y = height * (1.7 * u - 1.25 * u * u) + 0.01
+            w = 0.062 * s * math.sin(math.pi * min(1.0, u * 1.04)) ** 0.6 + 0.004
+            pts.append((x + dx * length * u, y, z + dz * length * u, w))
+        # (the frond's midrib and edges on shared, smooth vertices; its material is double-sided)
+        rows = [(bm.verts.new(W(fx, fy, fz)), bm.verts.new(W(fx + px * w, fy - w * 0.35, fz + pz * w)), bm.verts.new(W(fx - px * w, fy - w * 0.35, fz - pz * w))) for fx, fy, fz, w in pts]
+        for i in range(segs):
+            (m0, l0, r0), (m1, l1, r1) = rows[i], rows[i + 1]
+            for quad in ((m0, l0, l1, m1), (m0, m1, r1, r0)):
+                f = bm.faces.new(quad)
+                f.material_index = m
+                f.smooth = True
 
 
 def build_deco(L, coll):
@@ -1135,6 +1194,23 @@ def build_deco(L, coll):
         if f["kind"] == "berries":
             for dx, dz, s in ((0, 0, 1.0), (0.2, 0.12, 0.7), (-0.18, 0.1, 0.65)):
                 blob(bm, f["x"] + dx, 0.22 * s, f["z"] + dz, 0.3 * s, 0.26 * s, 0.28 * s, m=2, cuts=2, noise=0.1, rng=rng, flat_bottom=-0.03)
+    # the living pass: curved ferns at the pines' feet (on their outer side, away from the paths,
+    # the river, the clearing and the props), and the moss on the river's stones
+    fr = random.Random(77)
+    c = L["clearing"]
+    for n, t in enumerate(L["trees"] + [{"x": f["x"], "z": f["z"], "s": 1.0} for f in L["fellTrees"]]):
+        for k in range(2):
+            a = fr.random() * 6.28
+            rr = (0.6 + 0.35 * fr.random()) * max(0.8, t["s"])
+            x, z = t["x"] + rr * math.cos(a), t["z"] + rr * math.sin(a)
+            # (only the side away from the island's middle: the approach you fell from stays open)
+            if (x - t["x"]) * -t["x"] + (z - t["z"]) * -t["z"] > 0.25 * math.hypot(t["x"], t["z"]):
+                continue
+            if near_path(L, x, z, 0.2) or in_river(L, x, z, 0.4) or math.hypot(x - c["x"], z - c["z"]) < c["r"] + 0.5 or near_prop(L, x, z, 1.4):
+                continue
+            curved_fern(bm, x, z, 0.85 + 0.35 * fr.random(), fr, 2)
+    for x, water, z, sz in river_mossy(L):
+        blob(bm, x - 0.02, water + 0.04 + 0.19 * sz, z, 0.22 * sz, 0.055 * sz, 0.19 * sz, m=2, cuts=3, noise=0.12, rng=fr)
     make_object("Campfire_Deco", bm, ["CF_MushCap", "CF_MushStem", "CF_GrassDark", "CF_Petal", "CF_PetalYellow", "CF_Bark", "CF_WoodCut", "CF_BushLeaf", "CF_WildBerry", "CF_MushBrown"], coll)
 
 
@@ -1914,10 +1990,23 @@ def build_living(L, coll):
         rounded_box(bm, bx_, 0.3, bz, 0.42, 0.3, 0.26, 1, 1, 9.0, n=4.0, cuts=3)
         for dx in (-0.2, 0.2):
             box(bm, bx_ + dx - 0.015, bx_ + dx + 0.015, 0.0, 0.61, bz - 0.265, bz + 0.265, m=6)
+    # the bullseye: one target sign, anchored: a plank board on two posts planted just behind the
+    # bales (between them and the fence: nothing runs through the hay), standing clear above them,
+    # its rings stacked toward the counter off the board's face, each 8 mm proud of the one behind
+    # (no two faces share a plane: no flicker); from behind, the board hides them
+    tz = bz + 0.3
+    ty = 1.2
+    for dx in (-0.36, 0.36):
+        cylinder(bm, W(g["x"] + dx, 0.0, tz + 0.02), W(g["x"] + dx, ty + 0.4, tz + 0.02), 0.03, 8, m=5)
+    box(bm, g["x"] - 0.42, g["x"] + 0.42, ty - 0.36, ty + 0.36, tz, tz + 0.04, m=7)
     for j, rr in enumerate((0.3, 0.22, 0.14, 0.06)):
         before = set(bm.faces)
-        lathe(bm, 0.0, 0.0, [(0, 0.0), (rr, 0.0), (rr, 0.02 + j * 0.006), (0, 0.02 + j * 0.006)], segs=24, m=(8, 9)[j % 2])
-        xform_since(bm, before, Matrix.Translation(W(g["x"], 0.95, bz - 0.28)) @ Matrix.Rotation(math.radians(-90), 4, "X"))
+        lathe(bm, 0.0, 0.0, [(0, 0.0), (rr, 0.0), (rr, 0.012), (0, 0.012)], segs=24, m=(8, 9)[j % 2])
+        xform_since(bm, before, Matrix.Translation(W(g["x"], ty, tz - 0.002 - 0.008 * j)) @ Matrix.Rotation(math.radians(-90), 4, "X"))
+        # (and painted on its back too, facing the camera over the fence, stepped out the same way)
+        before = set(bm.faces)
+        lathe(bm, 0.0, 0.0, [(0, 0.0), (rr, 0.0), (rr, 0.012), (0, 0.012)], segs=24, m=(8, 9)[j % 2])
+        xform_since(bm, before, Matrix.Translation(W(g["x"], ty, tz + 0.042 + 0.008 * j)) @ Matrix.Rotation(math.radians(90), 4, "X"))
     # the gallery's sign on two posts at the counter's west end
     sgx = gx0 - 0.35
     for dz in (-0.28, 0.28):

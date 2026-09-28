@@ -652,6 +652,29 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.6.14",
+        date: "2026-09-28",
+        title: "The Clean Split & a Living Wood",
+        summary: "A rhythm game at the splitting block, a tidier workbench, wild rabbits, squirrels and deer on both camp maps, curved ferns and mossy stones, Buster's board moved out of the way, and a snappier slingshot gallery.",
+        changes: {
+          features: [
+            "The splitting block is a rhythm game now: a log stands on the block and the axe is raised while a marker glides up and down a gauge. Strike (Space, a click or a tap) on its golden sweet spot. Hit the gold for a thunderous clean split of 3-5 logs and a bonus bundle of Firewood; the sweet spot splits two; anywhere else the axe glances off, so strike again. Clean strikes in a row quicken the gauge.",
+            "Carrying more than 15 logs? Bulk Process All splits the whole carrier at once, at the plain yield (no clean-split bonuses).",
+            "Wild rabbits, red squirrels and dappled does now roam the campfire and the Whispering Woods. They amble and hop about their own patch, stop to sniff the air and nibble the grass, and bolt if anyone comes within 3 m. The squirrels curl up in their dreys at night.",
+          ],
+          visuals: [
+            "The workbench is decluttered: just its title on top, the materials in a swipeable carousel (a mouse wheel scrolls it sideways), the recipes, and a slim footer with the Mode (🛡️ Safe / 🔥 Push) and Resin (🍯 None / Bond / Gild) dropdowns.",
+            "Buster's chalkboard now stands behind his stall by the log rack, against the pines, facing the path to the archway. The way to Buster and the workbench is clear.",
+            "Curved ferns grow at the pines' feet on both maps, mossy stones line the campfire's river and the woods' banks, and red mushroom patches cluster round the woods' tree roots.",
+            "Slingshot gallery: a struck target springs and wobbles on its peg before it drops, a big bouncy score (+150) floats up, and every hit lands with a crisp wooden knock.",
+          ],
+          fixes: [
+            "The gallery's bullseye no longer flickers or clips through the rails and hay: it's one target board on two posts behind the bales.",
+            "On a touch screen the gallery's targets are 15% easier to hit, for a fingertip's blunter aim.",
+          ],
+        },
+      },
     ],
   },
 ];

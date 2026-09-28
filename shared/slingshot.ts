@@ -22,6 +22,9 @@ export const SLING_MAX_DEPTH = 3.1;
 export const SLING_DEPTH_TOLERANCE = 0.32;
 /** The stone's own radius, added to a target's. */
 export const SLING_STONE_R = 0.025;
+/** On a touch screen a finger is a blunter aim: every target's hitbox (and its depth band) this
+ *  much wider. */
+export const SLING_TOUCH_REACH = 1.15;
 /** A knocked-down target is back up after this long. */
 export const SLING_DOWN_S = 1.6;
 /** The multiplier tops out here. */
@@ -128,9 +131,12 @@ export function slingMult(streak: number): number {
   return Math.min(SLING_MAX_COMBO, 1 + Math.floor(streak / 3));
 }
 
-/** Plays a round's shots against its range: what each one hit, the score, the Golden Acorns. */
-export function playSlingshot(seed: number, shots: readonly SlingShot[]): SlingRun {
+/** Plays a round's shots against its range: what each one hit, the score, the Golden Acorns
+ *  (`touch`: played on a touch screen, the hitboxes SLING_TOUCH_REACH wider). */
+export function playSlingshot(seed: number, shots: readonly SlingShot[], touch = false): SlingRun {
   const range = slingRange(seed);
+  const reach = touch ? SLING_TOUCH_REACH : 1;
+  const depthTol = SLING_DEPTH_TOLERANCE * reach;
   const downUntil = new Map<string, number>();
   const acornHit = new Set<number>();
   const hits: SlingHit[] = [];
@@ -142,18 +148,18 @@ export function playSlingshot(seed: number, shots: readonly SlingShot[]): SlingR
     const at = s.t + slingFlight(s.d);
     let hit: { rail: number; target: number; x: number; points: number } | null = null;
     // the Golden Acorn first (it flies above the far rail, in its own lane)
-    if (Math.abs(s.d - SLING_ACORN.depth) <= SLING_DEPTH_TOLERANCE) {
+    if (Math.abs(s.d - SLING_ACORN.depth) <= depthTol) {
       for (let k = 0; k < range.acorns.length && !hit; k++) {
         if (acornHit.has(k)) continue;
         const x = slingAcornX(range, k, at);
-        if (x !== null && Math.abs(x - s.x) <= SLING_ACORN.radius + SLING_STONE_R) {
+        if (x !== null && Math.abs(x - s.x) <= (SLING_ACORN.radius + SLING_STONE_R) * reach) {
           acornHit.add(k);
           hit = { rail: -1, target: k, x, points: SLING_ACORN.points };
         }
       }
     }
     if (!hit) {
-      const rail = SLING_RAILS.findIndex((R) => Math.abs(s.d - R.depth) <= SLING_DEPTH_TOLERANCE);
+      const rail = SLING_RAILS.findIndex((R) => Math.abs(s.d - R.depth) <= depthTol);
       if (rail >= 0) {
         const R = SLING_RAILS[rail];
         let bestGap = Infinity;
@@ -161,7 +167,7 @@ export function playSlingshot(seed: number, shots: readonly SlingShot[]): SlingR
           if ((downUntil.get(`${rail}:${i}`) ?? -1) > at) continue;
           const x = slingTargetX(range, rail, i, at);
           const gap = Math.abs(x - s.x);
-          if (gap <= R.radius + SLING_STONE_R && gap < bestGap) {
+          if (gap <= (R.radius + SLING_STONE_R) * reach && gap < bestGap) {
             bestGap = gap;
             hit = { rail, target: i, x, points: R.points };
           }

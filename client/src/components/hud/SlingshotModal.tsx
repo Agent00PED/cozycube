@@ -20,6 +20,7 @@ import {
 } from "@shared/slingshot";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
+import { isTouchUi } from "../../systems/inputMode";
 import { Modal } from "./Modal";
 
 // The Whispering Pines Slingshot Gallery, a cozy carnival booth: paper lanterns strung under a
@@ -75,7 +76,7 @@ export function SlingshotModal({ send, subscribeMessages, onClose }: { send: (pa
     if (g.ended) return;
     g.ended = true;
     setPhase("scoring");
-    sendRef.current({ type: "SLINGSHOT_END", shots: g.shots });
+    sendRef.current({ type: "SLINGSHOT_END", shots: g.shots, touch: isTouchUi() });
   }, []);
 
   useEffect(
@@ -296,9 +297,16 @@ export function SlingshotModal({ send, subscribeMessages, onClose }: { send: (pa
         ctx.fillRect(lx - r * 0.35, ly + r * 0.92, r * 0.7, r * 0.2);
       }
       const range = g.range ?? slingRange(1);
-      const run = playing ? playSlingshot(g.seed, g.shots.filter((s) => s.t <= t)) : null;
+      const run = playing ? playSlingshot(g.seed, g.shots.filter((s) => s.t <= t), isTouchUi()) : null;
       const downUntil = new Map<string, number>();
-      if (run) for (const hit of run.hits) if (hit.rail >= 0) downUntil.set(`${hit.rail}:${hit.target}`, hit.at + SLING_DOWN_S);
+      // (each struck target's moment: it springs and wobbles on its peg a beat before it drops)
+      const struckAt = new Map<string, number>();
+      if (run)
+        for (const hit of run.hits)
+          if (hit.rail >= 0) {
+            downUntil.set(`${hit.rail}:${hit.target}`, hit.at + SLING_DOWN_S);
+            struckAt.set(`${hit.rail}:${hit.target}`, hit.at);
+          }
       // the rails, far to near, and their targets
       for (let ri = SLING_RAILS.length - 1; ri >= 0; ri--) {
         const R = SLING_RAILS[ri];
@@ -312,8 +320,11 @@ export function SlingshotModal({ send, subscribeMessages, onClose }: { send: (pa
         for (let i = 0; i < R.count; i++) {
           const x = slingTargetX(range, ri, i, t);
           const sx = xOf(x, R.depth);
-          const down = (downUntil.get(`${ri}:${i}`) ?? -1) > t;
-          drawTarget(ctx, R.kind, sx, y, (R.radius / SLING_SPAN) * w * 0.46 * s, down);
+          const hitSince = t - (struckAt.get(`${ri}:${i}`) ?? -99);
+          const down = (downUntil.get(`${ri}:${i}`) ?? -1) > t && hitSince >= WOBBLE_S;
+          // a spring recoil: a damped wobble on its peg, then flat
+          const wobble = hitSince >= 0 && hitSince < WOBBLE_S ? 0.55 * Math.exp((-hitSince / WOBBLE_S) * 2.2) * Math.sin(hitSince * 38) : 0;
+          drawTarget(ctx, R.kind, sx, y, (R.radius / SLING_SPAN) * w * 0.46 * s, down, wobble);
         }
       }
       // the Golden Acorn skimming the branches
@@ -363,20 +374,32 @@ export function SlingshotModal({ send, subscribeMessages, onClose }: { send: (pa
           const d = hit.rail < 0 ? SLING_ACORN.depth : SLING_RAILS[hit.rail].depth;
           g.popups.push({ x: xOf(hit.x, d), y: yOf(d) - 20, text: hit.rail < 0 ? `🌰 +${hit.points} · +${GOLDEN_ACORN_COINS}🪙` : `+${hit.points}${hit.mult > 1 ? ` x${hit.mult}` : ""}`, at: performance.now(), gold: hit.rail < 0 || hit.mult >= 3 });
           g.pops.push({ x: xOf(hit.x, d), y: yOf(d) - 10 * scaleOf(d), at: performance.now(), gold: hit.rail < 0 });
-          playSfx("pop");
+          // a crisp wooden knock, and the target's spring
+          playSfx("woodHit");
           if (hit.rail < 0) playSfx("golden");
+          else playSfx("pop", 0.6);
         }
         g.announced = run.hits.length;
       }
-      g.popups = g.popups.filter((p) => performance.now() - p.at < 900);
+      // the score, floating up: popped in big and bouncy, outlined, then fading as it rises
+      g.popups = g.popups.filter((p) => performance.now() - p.at < 1100);
       for (const p of g.popups) {
-        const a = (performance.now() - p.at) / 900;
-        ctx.globalAlpha = 1 - a;
-        ctx.fillStyle = p.gold ? "#F5A623" : "#F7EBE1";
-        ctx.font = "800 18px Fredoka, system-ui, sans-serif";
+        const a = (performance.now() - p.at) / 1100;
+        const pop = a < 0.18 ? 0.6 + (a / 0.18) * 0.65 : a < 0.3 ? 1.25 - ((a - 0.18) / 0.12) * 0.25 : 1;
+        ctx.save();
+        ctx.globalAlpha = a < 0.7 ? 1 : 1 - (a - 0.7) / 0.3;
+        ctx.translate(p.x, p.y - a * 44);
+        ctx.rotate(Math.sin(a * 9) * 0.06);
+        ctx.scale(pop, pop);
+        ctx.font = `800 ${p.gold ? 30 : 26}px "Fredoka Variable", Fredoka, system-ui, sans-serif`;
         ctx.textAlign = "center";
-        ctx.fillText(p.text, p.x, p.y - a * 30);
-        ctx.globalAlpha = 1;
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "rgba(43, 32, 27, 0.9)";
+        ctx.strokeText(p.text, 0, 0);
+        ctx.fillStyle = p.gold ? "#FFC94A" : "#FFF4DC";
+        ctx.fillText(p.text, 0, 0);
+        ctx.restore();
       }
       // the crosshair where the pointer is, and the sling (its next acorn being cocked for a quarter
       // of a second after each shot)
@@ -404,7 +427,7 @@ export function SlingshotModal({ send, subscribeMessages, onClose }: { send: (pa
       if (playing) {
         const time = Math.max(0, SLING_ROUND_S - t);
         const shotsLeft = SLING_SHOTS - g.shots.length;
-        const all = playSlingshot(g.seed, g.shots.filter((s) => s.t <= t));
+        const all = playSlingshot(g.seed, g.shots.filter((s) => s.t <= t), isTouchUi());
         let streak = 0;
         for (let i = g.shots.length - 1; i >= 0; i--) {
           const landed = g.shots[i].t <= t;
@@ -497,9 +520,14 @@ export function SlingshotModal({ send, subscribeMessages, onClose }: { send: (pa
   );
 }
 
-function drawTarget(ctx: CanvasRenderingContext2D, kind: string, x: number, y: number, r: number, down: boolean) {
+/** How long a struck target springs on its peg before it drops (s). */
+const WOBBLE_S = 0.35;
+
+function drawTarget(ctx: CanvasRenderingContext2D, kind: string, x: number, y: number, r: number, down: boolean, wobble = 0) {
   ctx.save();
   ctx.translate(x, y);
+  // (struck: rocking on its peg, round its foot)
+  if (wobble) ctx.rotate(wobble);
   // the peg it rides on, and every cutout's plywood edge (a dark outline round the paint)
   ctx.fillStyle = "#4a3222";
   ctx.fillRect(-1.5, -2, 3, 8);

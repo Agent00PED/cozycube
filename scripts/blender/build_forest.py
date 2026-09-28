@@ -867,6 +867,41 @@ def build_deco(L, coll):
     rng = random.Random(31)
     bm = bmesh.new()
     # 0 tuft, 1 fern, 2 pink, 3 yellow, 4 blue, 5 cap, 6 stem, 7 leaf pile, 8 maple gold
+
+    def fern(x, z, s=1.0):
+        # fronds arching up out of the crown and drooping to their tips, each folded along its
+        # midrib and tapering at both ends (the fern's material is double-sided)
+        for k in range(7):
+            a = 2 * math.pi * k / 7 + rng.random() * 0.6
+            length = (0.34 + 0.12 * rng.random()) * s
+            height = (0.2 + 0.07 * rng.random()) * s
+            dx, dz = math.cos(a), math.sin(a)
+            px, pz = -dz, dx
+            pts = []
+            for i in range(7):
+                u = i / 6
+                y = height * (1.7 * u - 1.25 * u * u) + 0.01
+                w = 0.062 * s * math.sin(math.pi * min(1.0, u * 1.04)) ** 0.6 + 0.004
+                pts.append((x + dx * length * u, y, z + dz * length * u, w))
+            # (the midrib and edges on shared, smooth vertices)
+            rows = [(bm.verts.new(W(fx, fy, fz)), bm.verts.new(W(fx + px * w, fy - w * 0.35, fz + pz * w)), bm.verts.new(W(fx - px * w, fy - w * 0.35, fz - pz * w))) for fx, fy, fz, w in pts]
+            for i in range(6):
+                (m0, l0, r0), (m1, l1, r1) = rows[i], rows[i + 1]
+                for quad in ((m0, l0, l1, m1), (m0, m1, r1, r0)):
+                    f = bm.faces.new(quad)
+                    f.material_index = 1
+                    f.smooth = True
+
+    def mushrooms(x, z, n=3):
+        # a patch of red-capped mushrooms (the odd one leaning)
+        for k in range(n):
+            a = rng.random() * 6.28
+            rr = 0.04 + 0.14 * rng.random()
+            mx, mz = x + rr * math.cos(a), z + rr * math.sin(a)
+            s = 0.75 + rng.random() * 0.55
+            cylinder(bm, W(mx, 0.0, mz), W(mx, 0.08 * s, mz), 0.02 * s, 6, m=6)
+            lathe(bm, mx, mz, [(0, 0.0), (0.06 * s, 0.0), (0.05 * s, 0.03 * s), (0, 0.045 * s)], segs=8, m=5, y0=0.075 * s)
+
     placed = 0
     tries = 0
     while placed < 120 and tries < 3000:
@@ -881,15 +916,7 @@ def build_deco(L, coll):
             for k in range(3):
                 blob(bm, x + rng.uniform(-0.15, 0.15), 0.03, z + rng.uniform(-0.15, 0.15), 0.16, 0.035, 0.13, m=7 if k % 2 else 8, cuts=2, noise=0.2, rng=rng)
         elif zn in ("birch", "shrine") and roll < 0.45:
-            # a fern: fronds fanned out from the middle
-            for k in range(5):
-                a = 2 * math.pi * k / 5 + rng.random()
-                tip = W(x + math.cos(a) * 0.32, 0.18, z + math.sin(a) * 0.32)
-                base = W(x, 0.01, z)
-                side = Vector((-math.sin(a), -math.cos(a), 0)) * 0.05
-                mid = base.lerp(tip, 0.5) + Vector((0, 0, 0.1))
-                vs = [bm.verts.new(base), bm.verts.new(mid + side), bm.verts.new(tip), bm.verts.new(mid - side)]
-                bm.faces.new(vs).material_index = 1
+            fern(x, z, 0.85)
         elif roll < 0.72:
             # a grass tuft: three thin blades
             for k in range(4):
@@ -914,17 +941,6 @@ def build_deco(L, coll):
                 lathe(bm, mx, mz, [(0, 0.0), (0.06 * s, 0.0), (0.05 * s, 0.03 * s), (0, 0.045 * s)], segs=8, m=5, y0=0.075 * s)
         placed += 1
 
-    def fern(x, z, s=1.0):
-        # fronds fanned out from the middle
-        for k in range(6):
-            a = 2 * math.pi * k / 6 + rng.random()
-            tip = W(x + math.cos(a) * 0.36 * s, 0.2 * s, z + math.sin(a) * 0.36 * s)
-            base = W(x, 0.01, z)
-            side = Vector((-math.sin(a), -math.cos(a), 0)) * 0.055 * s
-            mid = base.lerp(tip, 0.5) + Vector((0, 0, 0.11 * s))
-            vs = [bm.verts.new(base), bm.verts.new(mid + side), bm.verts.new(tip), bm.verts.new(mid - side)]
-            bm.faces.new(vs).material_index = 1
-
     # ferns at the fellable trees' feet (clear of paths, water and the approach you fell from)
     for t in L["trees"]:
         for k in range(2):
@@ -936,6 +952,16 @@ def build_deco(L, coll):
                 continue
             if clear_spot(L, x, z, 0.2):
                 fern(x, z, 0.8 + 0.4 * rng.random())
+    # red mushroom patches among the fellable trees' roots (on the far side, like the ferns)
+    for t in L["trees"]:
+        a = rng.random() * 6.28
+        for k in range(3):
+            rr = 0.75 + 0.3 * rng.random()
+            x, z = t["x"] + rr * math.cos(a + k * 2.1), t["z"] + rr * math.sin(a + k * 2.1)
+            if (x - t["x"]) * -t["x"] + (z - t["z"]) * -t["z"] > 0.4 * math.hypot(t["x"], t["z"]) or not clear_spot(L, x, z, 0.15):
+                continue
+            mushrooms(x, z, 3 + (k % 2))
+            break
     # low wild berry bushes along the trail's margins and the groves' edges
     bushes = 0
     tries = 0
@@ -994,6 +1020,9 @@ def build_rocks(L, coll):
                 if in_rounded(bx, bz, a, 0.78) and all(math.hypot(bx - f["stand"]["x"], bz - f["stand"]["z"]) > 1.2 for f in L["fishing"]) and not near_path(L, bx, bz, 0.2):
                     sc = 0.7 + rng.random() * 0.6
                     blob(bm, bx, 0.02, bz, 0.22 * sc, 0.14 * sc, 0.26 * sc, m=k % 2, cuts=2, noise=0.15, rng=rng, flat_bottom=-0.2)
+                    # (every other one mossy: a soft green cap on its top)
+                    if i % 2 == 0:
+                        blob(bm, bx - 0.02, 0.02 + 0.12 * sc, bz, 0.17 * sc, 0.045 * sc, 0.2 * sc, m=2, cuts=2, noise=0.2, rng=rng)
     # the Cedar Ridge's boulders, off the paths and away from the trees
     placed = 0
     tries = 0

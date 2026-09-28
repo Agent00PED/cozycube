@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CampfirePacket, WorkbenchResult } from "@shared/types";
 import { BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "@shared/chop";
 import { ADHESIVES, BENCH_IDS, CRAFTS, CRAFT_FILTERS, SALVAGE_RATE, canCraft, craftOdds, craftPrice, needsList, type Adhesive, type CraftId, type CraftMaterial, type CraftMode } from "@shared/crafting";
@@ -22,13 +22,14 @@ interface Props {
 // chance) or a Masterwork Push (a much better chance of a Masterwork ✨, +70% value, and a real chance
 // the piece breaks; a break salvages half the logs and a pile of Sawdust). The Adhesive Slot takes a
 // Pine Resin for the next carve: a Resin Bond (it can't break) or a Resin Gilding (+25% Masterwork
-// chance). Every carve is the server's call (WORKBENCH packets); its answer comes back as
-// workbenchResult.
+// chance). Laid out for the list: only the title on top, the material filter a swipeable carousel
+// (a mouse wheel scrolls it sideways), the recipes, and a compact foot with the mode and the resin
+// as pill dropdowns. Every carve is the server's call (WORKBENCH packets); its answer shows for a
+// moment over the list (workbenchResult: a Masterwork in gold, a break in rose).
 
-const HELLO = "Pick a material, a mode and a piece. What it takes comes straight out of your carrier.";
 const MODES: [CraftMode, string, string][] = [
-  ["safe", "🛡️ Safe Carve", "Low risk, a modest Masterwork chance"],
-  ["push", "🔥 Masterwork Push", "A far better Masterwork chance, but it may break"],
+  ["safe", "🛡️ Safe", "Safe Carve: low risk, a modest Masterwork chance"],
+  ["push", "🔥 Push", "Masterwork Push: a far better Masterwork chance, but it may break"],
 ];
 const TIER_TONE: Record<string, string> = { common: "text-white/70", uncommon: "text-emerald-200", rare: "text-sky-200", epic: "text-violet-200", legendary: "text-amber-200" };
 const SHORT: Partial<Record<WoodKind, string>> = { pine: "Pine", birch: "Birch", cedar: "Cedar", maple: "Maple", elderwood: "Elder", oak: "Oak", charcoal: "Charcoal" };
@@ -59,129 +60,133 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
   const [adhesive, setAdhesive] = useState<Adhesive>("");
   // out of resin: the slot empties itself
   const glue: Adhesive = profile.resin > 0 ? adhesive : "";
-  const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
-  /** The last carve's outcome, shown big (its key replays the flash). */
+  /** The last carve's answer, for a moment over the list (its key replays the pop). */
   const [last, setLast] = useState<{ key: number; result: WorkbenchResult } | null>(null);
   useEffect(
     () =>
       subscribeMessages((type, payload) => {
         if (type !== "workbenchResult") return;
         const r = payload as WorkbenchResult;
-        setSay({ text: r.message, ok: r.ok && r.outcome !== "broken" });
-        if (r.outcome) setLast({ key: performance.now(), result: r });
+        setLast({ key: performance.now(), result: r });
         if (r.outcome === "broken") playSfx("woodSnap");
         else if (r.outcome === "masterwork") playSfx("masterwork");
         else if (r.ok) playSfx("chop");
       }),
     [subscribeMessages]
   );
-  const carved = profile.crafts.reduce((sum, c) => sum + craftPrice(c), 0);
-  const outcome = last?.result.outcome;
+  useEffect(() => {
+    if (!last) return;
+    const t = window.setTimeout(() => setLast(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [last]);
+  // the filter carousel: a mouse wheel scrolls it sideways
+  const rail = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = rail.current;
+    if (!el) return;
+    const wheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => el.removeEventListener("wheel", wheel);
+  }, []);
   const stock = { wood: profile.wood, firewood: profile.firewood, resin: profile.resin, byproducts: profile.byproducts };
   const made = (id: CraftId) => (CRAFTS[id].use === "roastingStick" ? profile.roastingStick : CRAFTS[id].use === "packFrame" ? profile.packFrame : CRAFTS[id].use === "tackleBox" ? profile.tackleBox : false);
   const shown = BENCH_IDS.filter((id) => filter === "all" || CRAFTS[id].material === filter);
+  const outcome = last?.result.outcome;
+  const pill = "appearance-none rounded-full border border-white/15 bg-white/10 py-1.5 pl-2.5 pr-6 text-[12px] font-bold text-[#F7EBE1] outline-none transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-[#F5A623]/70";
   return (
     <Modal title="Workbench" icon="🪚" onClose={onClose} width={520} pinned fixedHeight={660}>
-      <div className="flex shrink-0 flex-col gap-2 pb-2">
-        {/* the last carve: a Masterwork flashes gold, a break shows what was salvaged */}
-        {last && outcome === "broken" ? (
-          <div key={last.key} className="clay-pop rounded-2xl border border-rose-300/40 bg-rose-400/15 px-3 py-1.5 text-center" role="status">
-            <div className="text-sm font-bold">💥 Craft Broken!</div>
-            <div className="text-xs opacity-85">
-              Salvaged {(Object.entries(last.result.salvaged ?? {}) as [WoodKind, number][]).map(([k, n]) => `${n} ${WOOD[k].emoji}`).join(" + ")} + {last.result.sawdust ?? 1} Sawdust 🪚
-            </div>
-          </div>
-        ) : last && outcome === "masterwork" ? (
-          <div key={last.key} className="cozy-masterwork clay-pop rounded-2xl border-2 border-amber-300 bg-amber-300/15 px-3 py-1.5 text-center text-sm font-bold text-amber-100 shadow-[0_0_18px_rgba(252,211,77,0.55)]" role="status">
-            {say.text}
-          </div>
-        ) : (
-          <div className={`clay-pop line-clamp-2 rounded-2xl px-3 py-1.5 text-[13px] ${say.ok ? "bg-white/10" : "bg-rose-400/15"}`} key={say.text} role="status">
-            {say.text}
-          </div>
-        )}
-        {/* the Adhesive Slot: a Pine Resin for the next carve, bonded or gilded */}
-        <div className="flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-2.5 py-1">
-          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 text-lg ${glue ? "border-amber-300 bg-amber-300/20 shadow-[0_0_10px_rgba(252,211,77,0.45)]" : "border-dashed border-white/25"}`} title="Adhesive Slot">
-            {glue ? "🍯" : ""}
-          </span>
-          <div className="flex min-w-0 flex-1 flex-col leading-tight">
-            <b className="text-xs">
-              Adhesive Slot <span className="font-normal opacity-70">· 🍯 Pine Resin ×{profile.resin}</span>
-            </b>
-            <span className="truncate text-[10.5px] opacity-75">{glue ? `${ADHESIVES[glue].emoji} ${ADHESIVES[glue].name}: ${ADHESIVES[glue].blurb}` : profile.resin > 0 ? "Brush on a resin: bond it, or gild it" : "Land a gold chop for Pine Resin"}</span>
-          </div>
-          <div className="flex shrink-0 gap-1" role="radiogroup" aria-label="Adhesive">
-            {(["", "bond", "gild"] as Adhesive[]).map((a) => (
-              <button key={a || "none"} type="button" role="radio" aria-checked={glue === a} disabled={a !== "" && profile.resin < 1} title={a ? `${ADHESIVES[a].name}: ${ADHESIVES[a].blurb}` : "No adhesive"} onClick={() => setAdhesive(a)} className={`min-h-9 rounded-xl px-2 font-bold transition-transform active:scale-95 disabled:opacity-35 ${glue === a ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
-                <span className="text-[11px]">{a ? `${ADHESIVES[a].emoji} ${a === "bond" ? "Bond" : "Gild"}` : "None"}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        {/* the mode: safe, or pushing for a Masterwork */}
-        <div className="flex gap-1.5" role="radiogroup" aria-label="Carving mode">
-          {MODES.map(([id, label, blurb]) => (
-            <button key={id} type="button" role="radio" aria-checked={mode === id} title={blurb} onClick={() => setMode(id)} className={`min-h-9 flex-1 rounded-2xl px-2 font-bold transition-transform active:scale-95 ${mode === id ? (id === "push" ? "bg-rose-300 text-rose-950" : "bg-amber-300 text-amber-950") : "bg-white/10 hover:bg-white/15"}`}>
-              <span className="text-xs">{label}</span>
-            </button>
-          ))}
-        </div>
-        {/* the material filter: one main material's recipes */}
-        <div className="scrollbar-none -mx-1 flex gap-1 overflow-x-auto px-1" role="tablist" aria-label="Material">
-          {CRAFT_FILTERS.map((f) => (
-            <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} onClick={() => setFilter(f.id)} className={`min-h-8 shrink-0 whitespace-nowrap rounded-full px-2.5 font-bold transition-transform active:scale-95 ${filter === f.id ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10 hover:bg-white/15"}`}>
-              <span className="text-[11px]">
-                {f.emoji} {f.label}
-              </span>
-            </button>
-          ))}
-        </div>
+      {/* the material carousel: swipe it, or scroll it with the wheel */}
+      <div ref={rail} className="scrollbar-none flex shrink-0 overflow-x-auto whitespace-nowrap" style={{ gap: 8, paddingBottom: 6, WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }} role="tablist" aria-label="Material">
+        {CRAFT_FILTERS.map((f) => (
+          <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} onClick={() => setFilter(f.id)} className={`min-h-9 shrink-0 rounded-full px-3 font-bold transition-transform active:scale-95 ${filter === f.id ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10 hover:bg-white/15"}`}>
+            <span className="text-[12px]">
+              {f.emoji} {f.label}
+            </span>
+          </button>
+        ))}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto border-t border-white/10 py-2 pr-1">
-        {shown.map((id) => {
-          const craft = CRAFTS[id];
-          const once = craft.use !== "sell";
-          const done = made(id);
-          const crateFull = !once && profile.crafts.filter((c) => c.c === id).length >= MAX_CRAFT_STACK;
-          const ok = canCraft(stock, id) && !done && !crateFull;
-          const odds = craftOdds(id, mode, glue);
-          return (
-            <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${once ? "border border-[#8fd3b6]/40 bg-[#8fd3b6]/10" : "bg-white/10"}`}>
-              <span className="text-2xl">{craft.emoji}</span>
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
-                <b className="text-sm">
-                  {craft.name} <span className={`text-[10px] font-semibold uppercase tracking-wide ${TIER_TONE[craft.tier]}`}>{once ? "for good" : craft.tier}</span>
-                </b>
-                <Needs id={id} profile={profile} />
-                <span className="text-[10.5px] opacity-80">
-                  {once ? (
-                    craft.description
-                  ) : (
-                    <>
-                      → <b className="text-amber-200">{craft.price} 🪙</b> · ✨ {craft.master} 🪙 · <span className="text-amber-200">✨ {pct(odds.masterwork)}</span> · <span className={odds.breakChance > 0 ? "text-rose-200" : "opacity-60"}>💥 {pct(odds.breakChance)}</span>
-                      {craft.special ? <span className="opacity-80"> · {craft.special === "torch" ? "🌙 night stride" : "🪔 burn at the bonfire"}</span> : null}
-                    </>
-                  )}
-                </span>
+      {/* the recipes: the only thing that scrolls; the bench's answer floats over its foot */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto border-t border-white/10 py-2 pr-1">
+          {shown.map((id) => {
+            const craft = CRAFTS[id];
+            const once = craft.use !== "sell";
+            const done = made(id);
+            const crateFull = !once && profile.crafts.filter((c) => c.c === id).length >= MAX_CRAFT_STACK;
+            const ok = canCraft(stock, id) && !done && !crateFull;
+            const odds = craftOdds(id, mode, glue);
+            return (
+              <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${once ? "border border-[#8fd3b6]/40 bg-[#8fd3b6]/10" : "bg-white/10"}`}>
+                <span className="text-2xl">{craft.emoji}</span>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+                  <b className="text-sm">
+                    {craft.name} <span className={`text-[10px] font-semibold uppercase tracking-wide ${once ? "text-[#8fd3b6]" : TIER_TONE[craft.tier]}`}>{once ? "heirloom" : craft.tier}</span>
+                  </b>
+                  <Needs id={id} profile={profile} />
+                  <span className="text-[10.5px] opacity-80">
+                    {once ? (
+                      craft.description
+                    ) : (
+                      <>
+                        → <b className="text-amber-200">{craft.price} 🪙</b> · ✨ {craft.master} 🪙 · <span className="text-amber-200">✨ {pct(odds.masterwork)}</span> · <span className={odds.breakChance > 0 ? "text-rose-200" : "opacity-60"}>💥 {pct(odds.breakChance)}</span>
+                        {craft.special ? <span className="opacity-80"> · {craft.special === "torch" ? "🌙 night stride" : "🪔 burn at the bonfire"}</span> : null}
+                      </>
+                    )}
+                  </span>
+                </div>
+                <button type="button" className={`clay-btn ${once || mode !== "push" ? "clay-btn-amber" : ""} min-h-9 shrink-0 justify-center px-0`} style={{ width: 88, minWidth: 88 }} disabled={!ok} onClick={() => send({ type: "WORKBENCH", recipe: id, mode, adhesive: once ? "" : glue })} title={done ? "Made once, yours for good" : crateFull ? `The crate holds ${MAX_CRAFT_STACK} of a kind` : undefined}>
+                  <span className="whitespace-nowrap text-[12px]">{done ? "Max Crafted" : crateFull ? "Crate full" : once ? "Make" : mode === "push" ? "Push" : "Carve"}</span>
+                </button>
               </div>
-              <button type="button" className={`clay-btn ${once || mode !== "push" ? "clay-btn-amber" : ""} min-h-9 shrink-0 justify-center px-0 text-xs`} style={{ width: 88, minWidth: 88 }} disabled={!ok} onClick={() => send({ type: "WORKBENCH", recipe: id, mode, adhesive: once ? "" : glue })} title={done ? "Made once, yours for good" : crateFull ? `The crate holds ${MAX_CRAFT_STACK} of a kind` : undefined}>
-                {done ? "Max Crafted" : crateFull ? "Crate full" : once ? "Make" : mode === "push" ? "Push" : "Carve"}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-      <p className="m-0 shrink-0 border-t border-white/10 pt-2 text-center text-[11px] opacity-75">
-        A broken carving gives back {pct(SALVAGE_RATE)} of its logs and a pile of Sawdust. Things made for good never break.
-        {profile.crafts.length > 0 && (
-          <>
-            {" "}
-            {profile.crafts.length} carved {profile.crafts.length === 1 ? "piece" : "pieces"} worth <b className="text-amber-200">{carved} 🪙</b>.
-          </>
+            );
+          })}
+        </div>
+        {last && (
+          <div
+            key={last.key}
+            className={`clay-pop pointer-events-none absolute bottom-2 left-1/2 z-10 max-w-[92%] -translate-x-1/2 rounded-2xl px-3 py-1.5 text-center text-[12.5px] font-semibold leading-snug shadow-lg ${outcome === "masterwork" ? "cozy-masterwork border-2 border-amber-300 bg-[#3a2a12] text-amber-100 shadow-[0_0_18px_rgba(252,211,77,0.55)]" : outcome === "broken" || !last.result.ok ? "bg-rose-950/95 text-rose-100 ring-1 ring-rose-300/50" : "bg-[#2B201B] text-[#F7EBE1] ring-1 ring-[#F5A623]/60"}`}
+            role="status"
+          >
+            {outcome === "broken" ? `💥 Craft Broken! Salvaged ${(Object.entries(last.result.salvaged ?? {}) as [WoodKind, number][]).map(([k, n]) => `${n} ${WOOD[k].emoji}`).join(" + ")} + ${last.result.sawdust ?? 1} Sawdust 🪚` : last.result.message}
+          </div>
         )}
-      </p>
+      </div>
+
+      {/* the foot: what a break gives back, and the mode and the resin as pill dropdowns */}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-t border-white/10 pt-2">
+        <span className="min-w-0 text-[11px] leading-tight opacity-75">Broken: {pct(SALVAGE_RATE)} refund · Heirloom: unbreakable</span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <label className="relative flex items-center gap-1 text-[11px] opacity-90">
+            <span className="hidden sm:inline">Mode:</span>
+            <select value={mode} onChange={(e) => setMode(e.target.value as CraftMode)} className={pill} title={MODES.find((m) => m[0] === mode)?.[2]} aria-label="Carving mode">
+              {MODES.map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute right-2 text-[10px]">▾</span>
+          </label>
+          <label className="relative flex items-center gap-1 text-[11px] opacity-90">
+            <span className="hidden sm:inline">Resin:</span>
+            <select value={glue} onChange={(e) => setAdhesive(e.target.value as Adhesive)} className={pill} title={glue ? `${ADHESIVES[glue].name}: ${ADHESIVES[glue].blurb} (1 Pine Resin a carve; you hold ${profile.resin})` : `Pine Resin ×${profile.resin}: bond a carving (it can't break) or gild it (+25% Masterwork)`} aria-label="Adhesive">
+              <option value="">🍯 None</option>
+              <option value="bond" disabled={profile.resin < 1}>
+                {ADHESIVES.bond.emoji} Bond
+              </option>
+              <option value="gild" disabled={profile.resin < 1}>
+                {ADHESIVES.gild.emoji} Gild
+              </option>
+            </select>
+            <span className="pointer-events-none absolute right-2 text-[10px]">▾</span>
+          </label>
+        </div>
+      </div>
     </Modal>
   );
 }

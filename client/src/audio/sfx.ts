@@ -108,7 +108,11 @@ export type Sfx =
   | "peg"
   // the carnival gallery's slingshot: the band's twang as an acorn flies, a wooden target's pop
   | "twang"
-  | "pop";
+  | "pop"
+  // a crisp wooden impact (a gallery target struck); the splitting block's clean split and its glance
+  | "woodHit"
+  | "bigSplit"
+  | "glance";
 
 /** A sound from somewhere in the world, heard from where you stand: full up close, fading with
  *  distance (and never quite gone within the room). */
@@ -191,6 +195,23 @@ export function playSfx(kind: Sfx, volume = 1) {
     tone(c, t, 220, 140, 0.09, 0.12, "sawtooth");
     tone(c, t, 440, 300, 0.07, 0.05, "triangle");
     noise(c, t + 0.01, 0.06, 0.08, 3200);
+  } else if (kind === "woodHit") {
+    // a hard little knock on plywood: a bright click, a hollow tock, a short rattle
+    noise(c, t, 0.018, 0.35, 5200);
+    tone(c, t, 1250, 760, 0.05, 0.2, "triangle");
+    tone(c, t + 0.005, 420, 300, 0.09, 0.18, "sine");
+    noise(c, t + 0.03, 0.05, 0.08, 2600);
+  } else if (kind === "bigSplit") {
+    // a log splitting clean: a deep thump, the crack of the grain tearing, halves clattering down
+    tone(c, t, 110, 55, 0.28, 0.35, "sine");
+    noise(c, t, 0.09, 0.45, 3200);
+    tone(c, t + 0.02, 380, 160, 0.12, 0.15, "square");
+    noise(c, t + 0.14, 0.06, 0.18, 1800);
+    tone(c, t + 0.18, 300, 220, 0.07, 0.12, "triangle");
+  } else if (kind === "glance") {
+    // the axe glancing off: a dull clunk and a scrape
+    tone(c, t, 180, 140, 0.08, 0.2, "triangle");
+    noise(c, t + 0.02, 0.12, 0.08, 1200);
   } else if (kind === "pop") {
     // a wooden target knocked flat: a round cork-like pop and a woody tock
     tone(c, t, 900, 240, 0.07, 0.22, "sine");

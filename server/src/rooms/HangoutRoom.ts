@@ -61,6 +61,7 @@ import {
   woodsSpotOfSeat,
 } from "../../../shared/worlds/forest";
 import { CAMP_ARCHWAY_FRONT, CAMP_FROM_WOODS, GALLERY_FRONT, SPLITBLOCK_FRONT } from "../../../shared/worlds/campfire";
+import { BULK_MIN_LOGS, SPLIT_GOLD_BONUS, SPLIT_HIT_BATCH, SPLIT_IDLE_S, SPLIT_PAUSE_S, judgeSplit, rollGoldBatch, rollSplitSwing, type SplitSwing } from "../../../shared/splitting";
 import {
   COZY_AURA_LUCK,
   FUEL_DECAY,
@@ -257,6 +258,8 @@ import {
   type SlingshotResult,
   type SlingshotStarted,
   type SplitResult,
+  type SplitStrike,
+  type SplitSwingPacket,
   type TreeFelled,
   type FishOnLine,
   type FishingWater,
@@ -506,6 +509,9 @@ export class HangoutRoom extends Room<HangoutState> {
   private starSeq = 1;
   /** Felling under way: each feller's tree and the swing's ring (timed from `startedAt`). */
   private fells = new Map<string, { tree: string; swing: FellSwing; startedAt: number }>();
+  /** Each splitter at the chopping block: the gauge's swing, when its clock started, the wood they
+   *  put on the block and their run of clean strikes. */
+  private splits = new Map<string, { swing: SplitSwing; startedAt: number; wood: WoodKind; streak: number }>();
   /** Every fellable tree's life (shared/worlds/trees.ts): its stage, size, rounds landed and needed,
    *  and when it fell (its regrowth); a Titan's only while its event stands. */
   /** Every fellable tree's state; `quick` a tree struck gold by someone wearing the Ancient Ring of
@@ -2043,7 +2049,19 @@ export class HangoutRoom extends Room<HangoutState> {
         return;
       }
       case "SPLIT_WOOD": {
-        this.splitWood(sessionId, player, packet.wood);
+        this.splitWood(sessionId, player);
+        return;
+      }
+      case "SPLIT_START": {
+        this.startSplit(sessionId, player, packet.wood);
+        return;
+      }
+      case "SPLIT_STRIKE": {
+        this.strikeSplit(sessionId, player, packet.t);
+        return;
+      }
+      case "SPLIT_STOP": {
+        this.splits.delete(sessionId);
         return;
       }
       case "SLINGSHOT_START": {
@@ -2060,7 +2078,7 @@ export class HangoutRoom extends Room<HangoutState> {
         return;
       }
       case "SLINGSHOT_END": {
-        this.endSlingshot(sessionId, player, packet.shots);
+        this.endSlingshot(sessionId, player, packet.shots, packet.touch === true);
         return;
       }
       case "BURN_INCENSE": {
@@ -2770,6 +2788,18 @@ export class HangoutRoom extends Room<HangoutState> {
       // a feller who stopped swinging lets the tree go (its notch stays)
       if (now - fell.startedAt > FELL_IDLE_S * 1000) this.cancelFell(sessionId, player);
     });
+    this.splits.forEach((split, sessionId) => {
+      const player = this.state.players.get(sessionId);
+      if (!player) {
+        this.splits.delete(sessionId);
+        return;
+      }
+      // a splitter who wandered off, or stopped striking, lets the block go (a strike picks it up again)
+      if (!this.atSplitBlock(player) || now - split.startedAt > SPLIT_IDLE_S * 1000) {
+        this.splits.delete(sessionId);
+        this.splitReply(sessionId, false, "The axe rests on the block: strike to pick it up again");
+      }
+    });
     this.stargazers.forEach((gazer, sessionId) => {
       const player = this.state.players.get(sessionId);
       if (!player || player.action !== "stargaze") {
@@ -3084,7 +3114,7 @@ export class HangoutRoom extends Room<HangoutState> {
 
   /** A slingshot round's shots, replayed against its seeded range: the score, the prize tier (and
    *  the Eagle Eye at the top), the Golden Acorns; paid only on a paid round, within the day's cap. */
-  private endSlingshot(sessionId: string, player: Player, raw: unknown) {
+  private endSlingshot(sessionId: string, player: Player, raw: unknown, touch = false) {
     const round = this.slingRounds.get(sessionId);
     if (!round) return;
     this.slingRounds.delete(sessionId);
@@ -3093,7 +3123,8 @@ export class HangoutRoom extends Room<HangoutState> {
     const profile = this.records.get(sessionId)?.fishing;
     const fail: SlingshotResult = { ok: false, score: 0, hits: 0, acorns: 0, streak: 0, prize: 0, acornCoins: 0, coins: 0, capped: false, eagle: false, paid: round.paid, best: profile?.slingBest ?? 0 };
     if (!shots || !profile) return this.sendTo(sessionId, "slingshotResult", fail);
-    const run = playSlingshot(round.seed, shots);
+    // (played on a touch screen: the same round replayed with a finger's wider hitboxes)
+    const run = playSlingshot(round.seed, shots, touch);
     const tier = slingPrize(SLINGSHOT_PRIZES, run.score);
     const prize = round.paid ? (tier?.coins ?? 0) : 0;
     const acornCoins = round.paid ? run.acorns * GOLDEN_ACORN_COINS : 0;
@@ -3111,18 +3142,105 @@ export class HangoutRoom extends Room<HangoutState> {
     } else if (run.hits.length) this.nearby(sessionId, "emote", { sessionId, emoji: "🎯" });
   }
 
-  /** The chopping block: logs into Firewood (every kind, or one), bundled beside the carrier. */
-  private splitWood(sessionId: string, player: Player, only: unknown) {
+  // --- the chopping block (shared/splitting.ts): the rhythm of the split, and Bulk Process All ------
+
+  private atSplitBlock(player: Player) {
+    return player.map === "campfire_night" && Math.hypot(player.x - SPLITBLOCK_FRONT.x, player.z - SPLITBLOCK_FRONT.z) <= 1.9;
+  }
+  /** The wood to put on the block: the one asked for while there is some, else the first kind held. */
+  private splitKind(profile: FishingProfile, want: unknown): WoodKind | null {
+    if (isWoodKind(want) && (profile.wood[want] ?? 0) > 0) return want;
+    return WOOD_KINDS.find((k) => (profile.wood[k] ?? 0) > 0) ?? null;
+  }
+  private splitReply(sessionId: string, ok: boolean, message: string) {
+    const firewood = this.records.get(sessionId)?.fishing?.firewood ?? 0;
+    this.sendTo(sessionId, "splitResult", { ok, message, firewood } satisfies SplitResult);
+  }
+
+  /** Up to the block: a log on it, and the gauge's first swing. */
+  private startSplit(sessionId: string, player: Player, want: unknown) {
     const profile = this.records.get(sessionId)?.fishing;
     if (!profile) return;
-    if (player.map !== "campfire_night") return;
-    const front = SPLITBLOCK_FRONT;
-    const reply = (ok: boolean, message: string) => this.sendTo(sessionId, "splitResult", { ok, message, firewood: profile.firewood } satisfies SplitResult);
-    if (Math.hypot(player.x - front.x, player.z - front.z) > 1.9) return reply(false, "Step up to the chopping block");
-    const kinds = isWoodKind(only) ? [only] : WOOD_KINDS;
+    if (!this.atSplitBlock(player)) return this.splitReply(sessionId, false, "Step up to the chopping block");
+    const wood = this.splitKind(profile, want);
+    if (!wood) return this.splitReply(sessionId, false, "No logs in your carrier to split");
+    this.sendSplitSwing(sessionId, wood, this.splits.get(sessionId)?.streak ?? 0, 0);
+  }
+
+  /** The block's next swing: a fresh gauge, its clock starting after `pauseS`. */
+  private sendSplitSwing(sessionId: string, wood: WoodKind, streak: number, pauseS: number) {
+    const swing = rollSplitSwing(streak);
+    this.splits.set(sessionId, { swing, startedAt: Date.now() + pauseS * 1000, wood, streak });
+    this.sendTo(sessionId, "splitSwing", { ...swing, pause: pauseS, wood } satisfies SplitSwingPacket);
+  }
+
+  /** A strike on the block, judged on the gauge's clock like a felling swing (the press's own time
+   *  when the connection could have given it). Gold: a clean split, a batch of logs and a bonus
+   *  bundle. A hit: two logs. A miss glances off: strike again. */
+  private strikeSplit(sessionId: string, player: Player, told: unknown) {
+    const split = this.splits.get(sessionId);
+    const profile = this.records.get(sessionId)?.fishing;
+    if (!split || !profile) return;
+    if (!this.atSplitBlock(player)) {
+      this.splits.delete(sessionId);
+      return this.splitReply(sessionId, false, "Step up to the chopping block");
+    }
+    const raw = (Date.now() - split.startedAt) / 1000;
+    if (raw < -0.05) return; // (the pause after a strike: the gauge hasn't set off)
+    const rtt = Math.min(1, Math.max(0, player.ping) / 1000);
+    const said = typeof told === "number" && Number.isFinite(told) ? told : NaN;
+    const t = said <= raw + 0.05 && said >= raw - rtt - 0.35 ? said : raw - rtt / 2;
+    const verdict = judgeSplit(split.swing, Math.max(0, t));
+    const first = this.splitKind(profile, split.wood);
+    if (!first) {
+      this.splits.delete(sessionId);
+      return this.splitReply(sessionId, false, "No logs left to split");
+    }
     let logs = 0;
     let bundles = 0;
-    for (const k of kinds) {
+    let bonus = 0;
+    if (verdict !== "miss") {
+      // the log on the block first, then whatever else the carrier holds
+      let want = verdict === "gold" ? rollGoldBatch() : SPLIT_HIT_BATCH;
+      for (let k = this.splitKind(profile, split.wood); k && want > 0; k = this.splitKind(profile, split.wood)) {
+        const n = Math.min(want, profile.wood[k] ?? 0);
+        // (the Forester's Toolbelt: half as many bundles again)
+        bundles += Math.round(n * WOOD[k].firewood * splitYield(profile.worn));
+        takeLogs(profile, k, n);
+        logs += n;
+        want -= n;
+      }
+      if (verdict === "gold") bonus = SPLIT_GOLD_BONUS;
+      profile.firewood = Math.min(9999, profile.firewood + bundles + bonus);
+      this.saveFishing(sessionId, player);
+    }
+    if (!player.sitting) this.playGesture(sessionId, "chop");
+    const streak = verdict === "miss" ? 0 : split.streak + 1;
+    const left = WOOD_KINDS.reduce((sum, k) => sum + (profile.wood[k] ?? 0), 0);
+    this.sendTo(sessionId, "splitStrike", { verdict, wood: first, logs, bundles, bonus, firewood: profile.firewood, left, streak } satisfies SplitStrike);
+    if (verdict === "gold") this.nearby(sessionId, "emote", { sessionId, emoji: "💥" });
+    const next = this.splitKind(profile, split.wood);
+    if (next) this.sendSplitSwing(sessionId, next, streak, verdict === "miss" ? 0.15 : SPLIT_PAUSE_S);
+    else {
+      this.splits.delete(sessionId);
+      this.nearby(sessionId, "emote", { sessionId, emoji: "🪵" });
+      this.persist(sessionId, player);
+    }
+  }
+
+  /** Bulk Process All: a stack of more than BULK_MIN_LOGS logs split at once into Firewood, at the
+   *  plain yield (no gold batches, no bonus bundles). */
+  private splitWood(sessionId: string, player: Player) {
+    const profile = this.records.get(sessionId)?.fishing;
+    if (!profile) return;
+    const reply = (ok: boolean, message: string) => this.splitReply(sessionId, ok, message);
+    if (!this.atSplitBlock(player)) return reply(false, "Step up to the chopping block");
+    const held = WOOD_KINDS.reduce((sum, k) => sum + (profile.wood[k] ?? 0), 0);
+    if (held <= BULK_MIN_LOGS) return reply(false, `Bulk Process All is for a stack of more than ${BULK_MIN_LOGS} logs: split these on the block`);
+    this.splits.delete(sessionId);
+    let logs = 0;
+    let bundles = 0;
+    for (const k of WOOD_KINDS) {
       const n = profile.wood[k] ?? 0;
       if (n <= 0) continue;
       logs += n;
@@ -3136,6 +3254,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!player.sitting) this.playGesture(sessionId, "chop");
     this.nearby(sessionId, "emote", { sessionId, emoji: "🪵" });
     reply(true, `${logs} log${logs > 1 ? "s" : ""} split into ${bundles} bundles of Firewood`);
+    this.persist(sessionId, player);
   }
 
   /** The woods' deer and rabbits: a berry or a mushroom from the forage bag, and a hop of joy. */
@@ -3669,6 +3788,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (player.sitting) this.handleStandUp(sessionId);
     if (this.roasts.has(sessionId)) this.finishRoast(sessionId, player, "raw");
     if (player.action === "chop") this.cancelFell(sessionId, player);
+    this.splits.delete(sessionId);
     if (player.gloves) this.handleBoxingExit(sessionId);
     this.soakSeconds.delete(sessionId);
     this.hooked.delete(sessionId);
@@ -4374,6 +4494,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.starlight.delete(sessionId);
     this.stargazers.delete(sessionId);
     this.fells.delete(sessionId);
+    this.splits.delete(sessionId);
     this.lastChopAt.delete(sessionId);
     this.slingRounds.delete(sessionId);
     this.lastFeedAt.delete(sessionId);

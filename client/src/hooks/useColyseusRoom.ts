@@ -143,6 +143,8 @@ const RELAYED_MESSAGES = [
   // slingshot gallery's round and its score, an animal fed, Bramble's wave, a catch that slipped
   "treeFelled",
   "splitResult",
+  "splitSwing",
+  "splitStrike",
   "slingshotStarted",
   "slingshotResult",
   "animalFed",

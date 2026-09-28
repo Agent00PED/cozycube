@@ -40,7 +40,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "tripod": { "legs": 0.9, "apex": 1.95, "potY": 1.0, "potR": 0.27 },
   "barnaby": { "x": 4.7, "z": -2.6, "yaw": -0.35 },
   "barnabyBoard": { "x": -0.8, "z": 0.2, "yaw": 0.35 },
-  "busterBoard": { "x": -3.05, "z": -6.85, "yaw": 0.42 },
+  "busterBoard": { "x": -2.1, "z": -9.6, "yaw": 0.44 },
   "buster": { "x": -1.77, "z": -8.47, "yaw": 0.25 },
   "picnicPlates": [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]],
   "river": {
@@ -467,8 +467,9 @@ export function lieSeatPose(seat: CampSeat) {
 /** Where you stand to talk to Barnaby: in front of him. */
 /** Barnaby's outdoor chalkboard (the hour's prices), where it stands in the world: its place in his
  *  own frame (CAMPFIRE_LAYOUT.barnabyBoard, which build_barnaby.py reads too), turned with him. */
-/** Buster's chalkboard (the same easel as Barnaby's, from barnaby.glb): the timber's prices, on the
- *  open ground between his stall and the workbench, facing the fire. */
+/** Buster's chalkboard (the same easel as Barnaby's, from barnaby.glb): the timber's prices, behind
+ *  his stall beside his log rack, against the pine line, turned to the path to the archway (the
+ *  way to the workbench and to him kept open). */
 export const BUSTER_BOARD = L.busterBoard;
 export const BARNABY_BOARD = {
   x: L.barnaby.x + L.barnabyBoard.x * Math.cos(L.barnaby.yaw) + L.barnabyBoard.z * Math.sin(L.barnaby.yaw),

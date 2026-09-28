@@ -10,7 +10,8 @@ every time (exec, never import), so a long-lived Live Bridge session always runs
     Studio_Casino     (80, 0)   the Velvet Casino and its penthouse (at its place beside the hall);
                                 Mr. Vance, the staff and the patrons in a line in front of it
     Studio_Forest     (120, 0)  the Whispering Woods diorama; Bramble the bear and the fish (every
-                                species on its stand, in rows) in front of it
+                                species on its stand, in rows) in front of it, and the wild
+                                critters (the rabbit, the squirrel and the deer) beside Bramble
     Studio_Wardrobe   (0, 30)   the avatar in every outfit (client/src/entities/rig.ts
                                 OUTFIT_PARTS), 2 m apart along x: the built rig first (the starter
                                 hoodie), then a linked copy per outfit (its meshes shared)
@@ -49,6 +50,7 @@ PLACES = {
     "Forest": ("Forest", "world"),
     "Bramble": ("Forest", (-4.0, -16.0)),
     "Fish": ("Forest", (5.0, -17.0)),
+    "Critters": ("Forest", (-9.0, -16.0)),
 }
 # The casino's staff and regulars (build_casino_staff.py), in a line after Mr. Vance.
 for _k, _name in enumerate(("Boris", "Vivienne", "Jasper", "Pippin", "Bruno", "Cedric", "Gideon", "Scarlett", "Baron", "Penelope")):

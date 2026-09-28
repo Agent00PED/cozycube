@@ -6,6 +6,7 @@ import type { FuelItem, StewIngredient } from "./bonfire";
 import type { AxeId, ByproductId, FellVerdict, TreeKind, WoodKind } from "./chop";
 import type { Adhesive, CraftId, CraftMode, CraftOutcome } from "./crafting";
 import type { GearId } from "./gear";
+import type { SplitSwing, SplitVerdict } from "./splitting";
 import { START_COINS, type WardrobeTier } from "./economy";
 
 /** "dangle": sitting on an edge (the campfire's dock), legs hanging down and swinging.
@@ -1493,11 +1494,30 @@ export function parseWorldEvent(raw: string): WorldEvent | null {
     return null;
   }
 }
-/** Server -> the player ("splitResult"): logs split into Firewood at the chopping block. */
+/** Server -> the player ("splitResult"): a word from the chopping block (a refusal, the block let
+ *  go, or Bulk Process All's whole stack split at once). */
 export interface SplitResult {
   ok: boolean;
   message: string;
   firewood: number;
+}
+/** Server -> the splitter ("splitSwing"): the next swing's gauge (shared/splitting.ts), its clock
+ *  starting `pause` s from now, and the wood on the block. */
+export interface SplitSwingPacket extends SplitSwing {
+  pause: number;
+  wood: WoodKind;
+}
+/** Server -> the splitter ("splitStrike"): how a strike landed. A gold one split a batch of logs and
+ *  a bonus bundle; a hit two logs; a miss glanced off. `left`: logs still in the carrier. */
+export interface SplitStrike {
+  verdict: SplitVerdict;
+  wood: WoodKind;
+  logs: number;
+  bundles: number;
+  bonus: number;
+  firewood: number;
+  left: number;
+  streak: number;
 }
 /** Picking a patch of mushrooms or a bush of night berries pays this; it grows back after FORAGE_REGROW_CAMP_S. */
 export const FORAGE_COINS = 5;
@@ -1523,7 +1543,14 @@ export type CampfirePacket =
   | { type: "CONSTELLATION"; id: ConstellationId }
   /** Up to a tree (its node id) to fell it: answered with its swing's ring (fellSwing). */
   | { type: "CHOP_START"; tree: string }
-  | { type: "SPLIT_WOOD"; wood?: WoodKind }
+  /** Up to the chopping block (with a wood to put on it first): answered with its gauge (splitSwing). */
+  | { type: "SPLIT_START"; wood?: WoodKind }
+  /** A strike, `t` seconds into the gauge as the splitter saw it (sampled at the press). */
+  | { type: "SPLIT_STRIKE"; t?: number }
+  /** Stepping back from the block (the panel closed). */
+  | { type: "SPLIT_STOP" }
+  /** Bulk Process All: a stack of more than BULK_MIN_LOGS logs split at once, at the plain yield. */
+  | { type: "SPLIT_WOOD" }
   /** The swing, `t` seconds into the ring as the swinger saw it (sampled at the press). */
   | { type: "CHOP_STOP"; t?: number }
   /** Stepping back from the tree (the panel closed): its notch stays for whoever comes next. */
@@ -1572,7 +1599,7 @@ export type CampfirePacket =
   /** The slingshot gallery: a round begins (answered with slingshotStarted), and its shots, reported
    *  when it ends (the server replays them: slingshotResult). */
   | { type: "SLINGSHOT_START" }
-  | { type: "SLINGSHOT_END"; shots: SlingShot[] };
+  | { type: "SLINGSHOT_END"; shots: SlingShot[]; touch?: boolean };
 
 /** Server -> the shooter ("slingshotStarted"): the round's seed (the range follows from it), and
  *  whether it plays for coins (the paid rounds left this hour). */

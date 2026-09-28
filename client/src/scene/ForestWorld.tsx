@@ -16,6 +16,7 @@ import { cameraFocus } from "./cameraFocus";
 import { CampDaylightContext } from "./campDay";
 import { OcclusionDriver, ditherOccluder } from "./occlusionDither";
 import { FellableTrees } from "./FellableTrees";
+import { WildCritters } from "./WildCritters";
 import { SurgeRipples } from "./SurgeRipples";
 import { WoodsFauna } from "./WoodsFauna";
 
@@ -141,6 +142,7 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
       <CampNpc url={BRAMBLE_URL} what="bramble.glb" prefix="Bramble" at={L.bramble} waveEvent="brambleWave" standIn={<BrambleStandIn />} subscribeMessages={subscribeMessages} talk={BRAMBLE_TALK} />
       <CampNpc url={FINLEY_URL} what="finley.glb" prefix="Finley" at={FINLEY} waveEvent="finleyWave" standIn={<FinleyStandIn />} subscribeMessages={subscribeMessages} talk={FINLEY_TALK} />
       <ForestLights />
+      <WildCritters mapId="whispering_woods" />
       <Fireflies />
       <OcclusionDriver />
     </group>
