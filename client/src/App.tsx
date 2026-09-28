@@ -43,12 +43,13 @@ import { RadioModal } from "./components/hud/RadioModal";
 import { useRadio } from "./hooks/useRadio";
 import { RoastingModal } from "./components/hud/RoastingModal";
 import { StargazingModal } from "./components/hud/StargazingModal";
-import { WoodChopModal } from "./components/hud/WoodChopModal";
+import { FellingModal } from "./components/hud/FellingModal";
+import { WonderBadge } from "./components/hud/WonderBadge";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
 import { FORAGE_INFO, ITEMS, TREASURE_COINS, guildRoomKey, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
 import { LobbyModal } from "./components/LobbyModal";
-import { rememberLounge, rejoinLounge } from "./systems/lounge";
+import { forgetLounge, rememberLounge, rejoinLounge } from "./systems/lounge";
 import { rejoined, useUpdateWatch } from "./systems/lifecycle";
 import { type BaccaratState, type BaccaratTable, type BigSixState, type BlackjackTableView, type CrapsView, type DerbyState } from "@shared/casino";
 import type { PusherId } from "@shared/worlds/casino";
@@ -240,12 +241,14 @@ export default function App() {
     mapTransitioning,
     travellingTo,
     market,
-    forest,
+    trees,
+    worldEvent,
     claimPioneer,
     connected,
     connectionIssue,
     reconnect,
     reconnecting,
+    loungeFull,
     retryNow,
     setLook,
     roulette,
@@ -306,6 +309,13 @@ export default function App() {
     groundSit,
     mochiPlay,
   } = useColyseusRoom(auth, lounge);
+  // the lounge filled up before we got in (15 at most): back to the selector to pick another
+  useEffect(() => {
+    if (!loungeFull) return;
+    forgetLounge();
+    setLounge(null);
+    pushToast("That lounge just filled up (15 players): pick another one", { emoji: "🚪" });
+  }, [loungeFull]);
 
   const voice = useVoiceActivity(auth, setSpeaking);
   const turntable = Object.values(toggleables).find((t) => t.kind === "turntable");
@@ -553,8 +563,8 @@ export default function App() {
             playSfx("catch");
           }
         } else if (type === "creelFull") {
-          const f = payload as { capacity?: number };
-          pushToast(`Creel full (${f.capacity ?? 0}/${f.capacity ?? 0})! Rod stowed: sell some fish to Barnaby`, { emoji: "🪣", silent: true });
+          const f = payload as { capacity?: number; held?: number };
+          pushToast(`Livewell full (${f.held ?? f.capacity ?? 0}/${f.capacity ?? 0})! Rod stowed: sell some fish to Barnaby or Bramble`, { emoji: "🪣", silent: true });
         } else if (type === "BONFIRE_STATE_UPDATE") {
           // wood on the fire: a whoosh for everyone; the fire crossing into the Cozy Aura, or sinking low
           const u = payload as BonfireUpdate;
@@ -806,7 +816,8 @@ export default function App() {
             subscribeEmotes={subscribeEmotes}
             subscribeMessages={subscribeMessages}
             hearth={hearth}
-            forest={forest}
+            trees={trees}
+            worldEvent={worldEvent}
           />
         </IsometricCanvas>
 
@@ -838,6 +849,7 @@ export default function App() {
           reconnecting={reconnecting}
           latency={latency}
         />
+        <WonderBadge worldEvent={worldEvent} currentMap={currentMap} />
         <Toasts />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
 
@@ -995,7 +1007,7 @@ export default function App() {
         {panel?.kind === "radio" && <RadioModal radio={radio} send={radioSend} onClose={closePanel} />}
         {panel?.kind === "roast" && localSessionId && <RoastingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "stargaze" && localSessionId && <StargazingModal send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
-        {panel?.kind === "woodchop" && localSessionId && <WoodChopModal key={panel.propId} tree={panel.propId.startsWith("tree_") ? panel.propId : undefined} send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
+        {panel?.kind === "fell" && localSessionId && <FellingModal key={panel.propId} tree={panel.propId} send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "splitblock" && <SplitBlockModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "slingshot" && <SlingshotModal send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "bramble" && localPlayer && <BrambleModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}

@@ -1,54 +1,31 @@
-// The campfire's 3-hit wood-chopping combo, as both sides see it: the server rolls each stroke's
-// meter (rollChopStroke) and judges a swing on its own clock (judgeChop); the client draws the very
-// same meter from the same functions, so what you see is what is judged.
+// Felling trees, as both sides see it: the server rolls each swing's radial timing ring
+// (rollFellSwing) and judges a swing on its own clock (judgeFell); the client draws the very same
+// ring from the same functions, so what you see is what is judged.
 //
-// On every stroke the needle ping-pongs across the meter, bouncing off each end (it never runs out
-// at the right edge: the stroke only ends when you swing, or after a few passes).
+// Precision Radial Felling: on the trunk's cross-section a timing ring contracts from the bark toward
+// the heart, looping, over a golden sweet-spot ring. A swing (Space, a click, or the CHOP button)
+// is judged by where the contracting ring was at that moment:
 //
-//   Stroke 1  Notch Cut      the slowest needle (x1.0), a wide (30%) sweet spot that holds still,
-//                            and no knots
-//   Stroke 2  Wedge Split    quicker (x1.35): a 20% sweet spot patrolling slowly back and forth,
-//                            and one knot that stays put
-//   Stroke 3  Clean Cleave   the quickest (x1.6): a narrow (12%) golden sweet spot patrolling a
-//                            little quicker, and a knot that moves too: the real test
+//   gold   on the golden sweet spot's centre: a critical, crisp chop (now and then a coin or a Pine
+//          Resin); it counts as a hit
+//   hit    within the sweet spot's band
+//   miss   anywhere else: the notch doesn't deepen, swing again
 //
-// Each sweet spot is green with a gold centre (a third of it; gloves from Buster widen the gold),
-// and a swing lands in one of five places, judged at the needle's place when it was made (the
-// client samples it at the click, and the server checks that time is one the connection could have
-// given: see HangoutRoom's CHOP_STOP):
-//
-//   gold    the centre: a critical, crisp chop (a burst of chips, and now and then +3 coins or a
-//           Pine Resin); it counts as green too
-//   green   a normal hit
-//   edge    just outside the green (CHOP_GRACE): a glancing blow
-//   miss    anywhere else
-//   knot    the red knot: the axe is stunned and the combo is lost
-//
-// A glancing blow or a miss doesn't end the combo: the chopping carries on to the next stroke at a
-// baseline pace. At the end, the log splits (one log, as the wood carrier holds) if at least
-// CHOP_GREENS_TO_SPLIT of its three strokes landed green or gold.
-//
-// Each stroke has a wood knot too, a red patch on the meter: swinging into it stuns the axe (the
-// combo is lost, and the block needs a moment before the next try). And the log on the block is
-// one of three (rolled once per combo):
-//
-//   Soft Pine    a wider sweet spot: one Firewood
-//   Hard Oak     the knots creep along the meter: two Firewood
-//   Golden Log   one in ten: a Golden Charcoal (double the fuel) and a bonus
+// A tree takes several rounds (a hit each) to come down, rolled when it grows to maturity (T1 1-2,
+// T2 2-3, T3 2-4, T4 3-4, T5 3-5, the Colossal Titan 5-6). Its damage stays in the tree (the room's
+// state) if the feller walks off. Each round that lands drops something: a log (every time on a T1,
+// less often up the tiers) or the tier's by-product (bark, resin, amber, shavings), so the rare woods
+// never flood the market. A felled tree leaves a stump as wide as its trunk, and grows back through a
+// sprout and a sapling to a new mature tree of a newly rolled size (0.85x to 1.35x): the bigger the
+// tree, the more its logs are worth (the log's value scales with its tree's size squared).
 
 import { AXE_PRICES, CARRIER_CAPACITY, CARRIER_PRICES, WOOD_PRICES } from "./economy";
 
-export type ChopStrokeNo = 1 | 2 | 3;
-export type ChopLog = "pine" | "oak" | "golden";
-
-// --- the wood: what a clean split or a felled tree yields, kept (with the axe) in the camp profile ---
-// The Timber Trail's three (a split log on its blocks) and the Whispering Woods' four (a felled tree:
-// its logs); a Soft Pine in the woods gives softwood like the trail's. All of it rides in the wood
-// carrier, sells to Buster, goes on the bonfire, or splits into Firewood at the chopping block.
+// --- the wood: what a felled tree yields, kept (with the axe) in the camp profile ---
 export type WoodKind = "pine" | "oak" | "charcoal" | "birch" | "cedar" | "maple" | "elderwood";
 export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal", "birch", "cedar", "maple", "elderwood"];
 /** Each kind: what Buster pays for one, how much it feeds the bonfire as it is, and the bundles of
- *  Firewood it splits into at the chopping block (FIREWOOD_FUEL each: splitting first burns longer). */
+ *  Firewood it splits into at the splitting block (FIREWOOD_FUEL each: splitting first burns longer). */
 export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number; fuel: number; firewood: number }> = {
   pine: { name: "Raw Softwood", emoji: "🪵", sell: WOOD_PRICES.pine, fuel: 25, firewood: 3 },
   oak: { name: "Hardwood", emoji: "🌳", sell: WOOD_PRICES.oak, fuel: 30, firewood: 4 },
@@ -58,57 +35,128 @@ export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number;
   maple: { name: "Autumn Maple Log", emoji: "🍁", sell: WOOD_PRICES.maple, fuel: 40, firewood: 6 },
   elderwood: { name: "Whispering Elderwood", emoji: "🌌", sell: WOOD_PRICES.elderwood, fuel: 60, firewood: 9 },
 };
-/** A bundle of Firewood (split at the chopping block) on the bonfire. */
+/** A bundle of Firewood (split at the splitting block) on the bonfire. */
 export const FIREWOOD_FUEL = 10;
 /** What Buster pays for one of `kind` at the hour's market multiplier (shared/market.ts). */
-export function woodPrice(kind: WoodKind, market = 1): number {
-  return Math.max(1, Math.round(WOOD[kind].sell * market));
+/** A log's price: its wood's, at the hour's market, times its size's worth (a tree's scale squared,
+ *  logMultiplier; a held stack's average, woodAverage): Math.round(base x scale^2). */
+export function woodPrice(kind: WoodKind, market = 1, size = 1): number {
+  return Math.max(1, Math.round(WOOD[kind].sell * market * size));
 }
 export function isWoodKind(v: unknown): v is WoodKind {
   return typeof v === "string" && (WOOD_KINDS as string[]).includes(v);
 }
 
-/** What each log splits into. */
-export const CHOP_LOGS: Record<ChopLog, { name: string; emoji: string; wood: WoodKind; bonus: number; blurb: string }> = {
-  pine: { name: "Soft Pine", emoji: "🌲", wood: "pine", bonus: 0, blurb: "Soft wood: a wide sweet spot" },
-  oak: { name: "Hard Oak", emoji: "🌳", wood: "oak", bonus: 1, blurb: "Hard wood: its knots move" },
-  golden: { name: "Golden Log", emoji: "✨", wood: "charcoal", bonus: 4, blurb: "A rare golden log: Golden Charcoal burns twice as long" },
-};
+// --- a log's worth: its tree's size squared. The carrier counts logs by kind, and keeps beside each
+// count the sum of its logs' value multipliers (`woodValue`), so a big tree's logs sell for more
+// (a profile from before carries its logs at 1x). ---
+export interface WoodHold {
+  wood: Record<WoodKind, number>;
+  woodValue: Partial<Record<WoodKind, number>>;
+}
+/** A log's value multiplier from its tree's size: `Math.round(basePrice * scale^2)` a log. */
+export const logMultiplier = (treeScale: number) => treeScale * treeScale;
+/** The value units held of a kind (its logs' multipliers, summed). */
+export function woodUnits(p: WoodHold, kind: WoodKind): number {
+  const n = p.wood[kind] ?? 0;
+  const v = p.woodValue[kind];
+  return n <= 0 ? 0 : v === undefined || !Number.isFinite(v) || v <= 0 ? n : v;
+}
+/** The average multiplier of the logs held of a kind (1 with none). */
+export function woodAverage(p: WoodHold, kind: WoodKind): number {
+  const n = p.wood[kind] ?? 0;
+  return n > 0 ? woodUnits(p, kind) / n : 1;
+}
+/** `n` logs of `kind`, each worth `mult`, into the carrier. */
+export function addLogs(p: WoodHold, kind: WoodKind, n: number, mult = 1) {
+  if (n <= 0) return;
+  const units = woodUnits(p, kind);
+  p.wood[kind] = (p.wood[kind] ?? 0) + n;
+  p.woodValue[kind] = Math.round((units + n * mult) * 1000) / 1000;
+}
+/** `n` logs of `kind` out of the carrier (at their average worth): the value units they carried. */
+export function takeLogs(p: WoodHold, kind: WoodKind, n: number): number {
+  const have = p.wood[kind] ?? 0;
+  const take = Math.max(0, Math.min(have, n));
+  if (take <= 0) return 0;
+  const avg = woodAverage(p, kind);
+  p.wood[kind] = have - take;
+  if (p.wood[kind] <= 0) delete p.woodValue[kind];
+  else p.woodValue[kind] = Math.round(avg * (have - take) * 1000) / 1000;
+  return avg * take;
+}
 
-// --- the axes, T1 to T5: an axe fells trees of its own tier and below (the Timber Trail's logs take
-// any); Buster sells T2 and T3, Bramble in the Whispering Woods T4 and T5 ---
+// --- the axes, T1 to T5: an axe fells trees of its own tier and below; Buster sells T2 and T3,
+// Bramble in the Whispering Woods T4 and T5 ---
 export type AxeId = "rusty" | "steel" | "tempered" | "golden" | "runic";
-export const AXES: Record<AxeId, { name: string; emoji: string; tier: number; price: number; zoneBonus: number; slow: number; doubleChance: number; blurb: string }> = {
-  rusty: { name: "Basic Flint Axe", emoji: "🪓", tier: 1, price: 0, zoneBonus: 0, slow: 0, doubleChance: 0, blurb: "T1: Soft Pine. It gets the job done. Mostly." },
-  steel: { name: "Iron Timber Axe", emoji: "⚒️", tier: 2, price: AXE_PRICES.iron, zoneBonus: 0.25, slow: 0, doubleChance: 0, blurb: "T2: fells Silver Birch. +25% green zone on every stroke." },
-  tempered: { name: "Tempered Steel Axe", emoji: "🔨", tier: 3, price: AXE_PRICES.tempered, zoneBonus: 0.25, slow: 0.1, doubleChance: 0.1, blurb: "T3: fells Highland Cedar. +25% green, a 10% slower needle, a 10% chance of double wood." },
-  golden: { name: "Golden Felling Axe", emoji: "🌟", tier: 4, price: AXE_PRICES.golden, zoneBonus: 0.25, slow: 0.2, doubleChance: 0.3, blurb: "T4: fells Autumn Maple. +25% green, a 20% slower needle, a 30% chance of double wood." },
-  runic: { name: "Runic Elderwood Axe", emoji: "🪄", tier: 5, price: AXE_PRICES.runic, zoneBonus: 0.35, slow: 0.25, doubleChance: 0.35, blurb: "T5: fells the Whispering Elderwood. +35% green, a 25% slower needle, a 35% chance of double wood." },
+export const AXES: Record<AxeId, { name: string; emoji: string; tier: number; price: number; zoneBonus: number; slow: number; blurb: string }> = {
+  rusty: { name: "Basic Flint Axe", emoji: "🪓", tier: 1, price: 0, zoneBonus: 0, slow: 0, blurb: "T1: Soft Pine. It gets the job done. Mostly." },
+  steel: { name: "Iron Timber Axe", emoji: "⚒️", tier: 2, price: AXE_PRICES.iron, zoneBonus: 0.2, slow: 0, blurb: "T2: fells Silver Birch. A 20% wider sweet spot." },
+  tempered: { name: "Tempered Steel Axe", emoji: "🔨", tier: 3, price: AXE_PRICES.tempered, zoneBonus: 0.2, slow: 0.1, blurb: "T3: fells Highland Cedar. A 20% wider sweet spot, the ring 10% slower." },
+  golden: { name: "Golden Felling Axe", emoji: "🌟", tier: 4, price: AXE_PRICES.golden, zoneBonus: 0.25, slow: 0.15, blurb: "T4: fells Autumn Maple. A 25% wider sweet spot, the ring 15% slower." },
+  runic: { name: "Runic Elderwood Axe", emoji: "🪄", tier: 5, price: AXE_PRICES.runic, zoneBonus: 0.3, slow: 0.2, blurb: "T5: fells the Whispering Elderwood. A 30% wider sweet spot, the ring 20% slower." },
 };
 export const AXE_IDS = Object.keys(AXES) as AxeId[];
 /** The axes in tier order. */
 export const AXES_BY_TIER: AxeId[] = [...AXE_IDS].sort((a, b) => AXES[a].tier - AXES[b].tier);
-/** The best tier among the axes owned. */
-export function bestAxeTier(axes: readonly AxeId[]): number {
-  return axes.reduce((t, a) => Math.max(t, AXES[a]?.tier ?? 1), 1);
+export function isAxeId(v: unknown): v is AxeId {
+  return typeof v === "string" && v in AXES;
 }
 
-// --- the Whispering Woods' trees, T1 to T5 ---
-// A tree is felled with the three-strike notch (the same meter as the Timber Trail's blocks, harder
-// the higher its tier: a narrower sweet spot, a quicker needle); it drops its logs (into the carrier)
-// and leaves a stump that grows back through a sprout and a sapling to a mature tree.
+// --- the trees, T1 to T5 (the campfire's Soft Pines round its clearing; the Whispering Woods' all
+// five), and the Colossal Titan a world event raises in the woods ---
 export type TreeKind = "soft_pine" | "birch" | "cedar" | "maple" | "elderwood";
 export const TREE_KINDS: TreeKind[] = ["soft_pine", "birch", "cedar", "maple", "elderwood"];
-export const TREES: Record<TreeKind, { name: string; emoji: string; tier: number; wood: WoodKind; logs: number; respawnS: number; wide: number; speed: number }> = {
-  soft_pine: { name: "Soft Pine", emoji: "🌲", tier: 1, wood: "pine", logs: 3, respawnS: 35, wide: 1.2, speed: 1 },
-  birch: { name: "Silver Birch", emoji: "🌳", tier: 2, wood: "birch", logs: 3, respawnS: 80, wide: 1.0, speed: 1.08 },
-  cedar: { name: "Highland Cedar", emoji: "🌲", tier: 3, wood: "cedar", logs: 3, respawnS: 160, wide: 0.86, speed: 1.16 },
-  maple: { name: "Autumn Maple", emoji: "🍁", tier: 4, wood: "maple", logs: 3, respawnS: 320, wide: 0.74, speed: 1.24 },
-  elderwood: { name: "Whispering Elderwood", emoji: "🌌", tier: 5, wood: "elderwood", logs: 3, respawnS: 650, wide: 0.62, speed: 1.32 },
+export interface TreeInfo {
+  name: string;
+  emoji: string;
+  tier: number;
+  wood: WoodKind;
+  respawnS: number;
+  /** The rounds (hits) it takes to fell one, rolled per tree: [least, most]. */
+  rounds: [number, number];
+  /** How often a round that lands drops a log (else the tier's by-product). */
+  logChance: number;
+  /** The by-products a round drops when it isn't a log, half and half. */
+  byproducts: [Byproduct, Byproduct];
+  /** Its trunk's diameter at 1x (cm): the Logbook's record, and the stump's width. */
+  trunkCm: number;
+  /** The sweet spot's width on its ring (a share of the radius), and how long one contraction takes (s). */
+  sweet: number;
+  period: number;
+  lore: string;
+}
+/** What a by-product turns into in the pack: a Pine Resin, Sawdust (kindling), or a Firewood bundle. */
+export interface Byproduct {
+  name: string;
+  emoji: string;
+  give: "resin" | "sawdust" | "firewood";
+}
+const RESIN: Byproduct = { name: "Resin", emoji: "🍯", give: "resin" };
+export const TREES: Record<TreeKind, TreeInfo> = {
+  soft_pine: { name: "Soft Pine", emoji: "🌲", tier: 1, wood: "pine", respawnS: 35, rounds: [1, 2], logChance: 1, byproducts: [RESIN, RESIN], trunkCm: 32, sweet: 0.16, period: 1.7, lore: "Quick to grow and quick to fall: the camp's everyday firewood, sticky with sap." },
+  birch: { name: "Silver Birch", emoji: "🌳", tier: 2, wood: "birch", respawnS: 80, rounds: [2, 3], logChance: 0.8, byproducts: [{ name: "Birch Bark", emoji: "📜", give: "sawdust" }, RESIN], trunkCm: 28, sweet: 0.14, period: 1.55, lore: "Its paper-white bark peels in curls: the best kindling in the woods." },
+  cedar: { name: "Highland Cedar", emoji: "🌲", tier: 3, wood: "cedar", respawnS: 160, rounds: [2, 4], logChance: 0.7, byproducts: [{ name: "Amber Resin", emoji: "🍯", give: "resin" }, { name: "Firewood Shavings", emoji: "🪵", give: "firewood" }], trunkCm: 46, sweet: 0.12, period: 1.4, lore: "Fragrant red heartwood that keeps the moths away and the rain out." },
+  maple: { name: "Autumn Maple", emoji: "🍁", tier: 4, wood: "maple", respawnS: 320, rounds: [3, 4], logChance: 0.6, byproducts: [{ name: "Maple Amber", emoji: "🍯", give: "resin" }, { name: "Twigs", emoji: "🌿", give: "sawdust" }], trunkCm: 55, sweet: 0.105, period: 1.28, lore: "Forever golden: its leaves never quite fall, and its sap turns to amber." },
+  elderwood: { name: "Whispering Elderwood", emoji: "🌌", tier: 5, wood: "elderwood", respawnS: 650, rounds: [3, 5], logChance: 0.5, byproducts: [{ name: "Ancient Shavings", emoji: "✨", give: "sawdust" }, RESIN], trunkCm: 92, sweet: 0.09, period: 1.15, lore: "Older than the stones round it. They say it hums to itself on quiet nights." },
 };
 export function isTreeKind(v: unknown): v is TreeKind {
   return typeof v === "string" && (TREE_KINDS as string[]).includes(v);
 }
+/** The Colossal Titan: a 2x Autumn Maple a world event raises in the woods, 5-6 rounds, any axe;
+ *  it comes down in 4-6 heavy logs worth 3x each. */
+export const TITAN = { kind: "maple" as TreeKind, scale: 2, rounds: [5, 6] as [number, number], logs: [4, 6] as [number, number], mult: 3, sweet: 0.12, period: 1.35, name: "Colossal Titan Maple" };
+/** A tree's size: rolled each time it grows to maturity. */
+export const TREE_SCALE: [number, number] = [0.85, 1.35];
+export function rollTreeScale(rand: () => number = Math.random): number {
+  return Math.round((TREE_SCALE[0] + rand() * (TREE_SCALE[1] - TREE_SCALE[0])) * 100) / 100;
+}
+export function rollTreeRounds(range: [number, number], rand: () => number = Math.random): number {
+  return range[0] + Math.floor(rand() * (range[1] - range[0] + 1));
+}
+/** A tree's trunk diameter (cm) at its size. */
+export const trunkCm = (kind: TreeKind, scale: number) => Math.round(TREES[kind].trunkCm * scale);
+
 /** A felled tree's growth back (0 a fresh stump, 1 mature again), `sinceS` seconds after the fall. */
 export function regrowth(kind: TreeKind, sinceS: number): number {
   return Math.max(0, Math.min(1, sinceS / TREES[kind].respawnS));
@@ -118,6 +166,65 @@ export function regrowth(kind: TreeKind, sinceS: number): number {
 export type TreeStage = "stump" | "sprout" | "sapling" | "mature";
 export function treeStage(growth: number): TreeStage {
   return growth >= 1 ? "mature" : growth >= 0.8 ? "sapling" : growth >= 0.5 ? "sprout" : "stump";
+}
+/** A tree as the room syncs it (state.trees, by node id): its stage, its size, the rounds landed on
+ *  it and the rounds it takes. */
+export interface TreeSync {
+  stage: TreeStage;
+  scale: number;
+  dmg: number;
+  rounds: number;
+}
+export function parseTrees(raw: string): Record<string, TreeSync> {
+  try {
+    const v = raw ? JSON.parse(raw) : {};
+    return v && typeof v === "object" ? (v as Record<string, TreeSync>) : {};
+  } catch {
+    return {};
+  }
+}
+
+// --- the swing: a timing ring contracting over the trunk's cross-section toward a sweet-spot ring ---
+export interface FellSwing {
+  /** The tree's node, its kind (the Titan: a maple), the round under way and the rounds it takes. */
+  tree: string;
+  kind: TreeKind;
+  round: number;
+  rounds: number;
+  /** The sweet spot's ring: its radius (a share of the trunk's), its band's half-width, and its gold centre's. */
+  sweet: number;
+  band: number;
+  gold: number;
+  /** One contraction of the timing ring, bark to heart (s); it loops. */
+  period: number;
+}
+export type FellVerdict = "gold" | "hit" | "miss";
+/** A gold swing: its chance of a bonus, and the bonus (coins, or else a Pine Resin). */
+export const FELL_CRIT_CHANCE = 0.4;
+export const FELL_CRIT_COINS = 2;
+/** The pause after a round that lands before the next swing's ring (s): the chips fly. */
+export const FELL_ROUND_PAUSE_S = 0.4;
+
+/** The timing ring's radius `t` seconds into the swing: from the bark (1) to the heart (0), looping. */
+export function fellRing(s: FellSwing, t: number): number {
+  const phase = (Math.max(0, t) / s.period) % 1;
+  return 1 - phase;
+}
+/** A swing `t` seconds into it: on the gold centre, in the sweet band, or a miss. */
+export function judgeFell(s: FellSwing, t: number): FellVerdict {
+  const d = Math.abs(fellRing(s, t) - s.sweet);
+  return d <= s.gold ? "gold" : d <= s.band ? "hit" : "miss";
+}
+/** A fresh swing's ring (the server rolls it): the sweet spot somewhere in the trunk's middle, its
+ *  band widened by the axe (and the Eagle Eye, `zoneBonus`), its gold by the gloves (`goldBonus`),
+ *  the ring slowed by the axe. A bigger tree's ring is a touch slower, the heavier rounds a touch
+ *  quicker. */
+export function rollFellSwing(tree: string, kind: TreeKind, round: number, rounds: number, axe: AxeId, rand: () => number = Math.random, goldBonus = 0, zoneBonus = 0, titan = false): FellSwing {
+  const info = TREES[kind];
+  const sweetW = (titan ? TITAN.sweet : info.sweet) * (1 + AXES[axe].zoneBonus) * (1 + zoneBonus);
+  const period = (titan ? TITAN.period : info.period) / (1 - AXES[axe].slow) / (1 + 0.04 * (round - 1));
+  const sweet = 0.3 + rand() * 0.35;
+  return { tree, kind, round, rounds, sweet, band: sweetW / 2, gold: Math.min(sweetW / 2, (sweetW / 2) * 0.38 * (1 + goldBonus)), period };
 }
 
 // --- the wood carrier: what you carry your wood and crafted pieces in; Buster sells each next one ---
@@ -134,8 +241,6 @@ export const WOOD_CARRIER_TIERS: WoodCarrierTier[] = [
   { id: "carrier_tier_3", name: "Reinforced Rig", capacity: CARRIER_CAPACITY[2], price: CARRIER_PRICES[2], icon: "🪵" },
   { id: "carrier_tier_4", name: "Lumberjack Pack", capacity: CARRIER_CAPACITY[3], price: CARRIER_PRICES[3], icon: "📦" },
   { id: "carrier_tier_5", name: "Forester Heavy Frame", capacity: CARRIER_CAPACITY[4], price: CARRIER_PRICES[4], icon: "🧰" },
-  { id: "carrier_tier_6", name: "Ironbound Hauling Sled", capacity: CARRIER_CAPACITY[5], price: CARRIER_PRICES[5], icon: "🛷" },
-  { id: "carrier_tier_7", name: "Starlight Beaver Rig", capacity: CARRIER_CAPACITY[6], price: CARRIER_PRICES[6], icon: "✨" },
 ];
 /** A carrier tier (1-based, clamped), the next one up (null at the top), and a tier's capacity. */
 export function carrierTier(tier: number): WoodCarrierTier {
@@ -146,135 +251,4 @@ export function nextCarrierTier(tier: number): WoodCarrierTier | null {
 }
 export function carrierCapacity(tier: number): number {
   return carrierTier(tier).capacity;
-}
-export function isAxeId(v: unknown): v is AxeId {
-  return typeof v === "string" && v in AXES;
-}
-
-export interface ChopStroke {
-  stroke: ChopStrokeNo;
-  log: ChopLog;
-  /** How long the stroke waits for a swing before it counts as a miss. */
-  duration: number;
-  /** The sweet spot: its centre and width (fractions of the meter), and its swing (amplitude and period in s; 0: still). */
-  zoneCenter: number;
-  zoneWidth: number;
-  /** The gold centre of the sweet spot (a critical chop): its width, centred in it. */
-  goldWidth: number;
-  zoneSwing: number;
-  zonePeriod: number;
-  /** The needle's round trip, end to end and back (s). */
-  needlePeriod: number;
-  /** The wood knot: where it starts, how wide it is, and (Hard Oak) how far and how fast it creeps. */
-  knotFrom: number;
-  knotWidth: number;
-  knotSwing: number;
-  knotPeriod: number;
-}
-
-export const CHOP_STROKE_NAMES: Record<ChopStrokeNo, string> = { 1: "Notch Cut", 2: "Wedge Split", 3: "Clean Cleave" };
-/** How far outside the green a swing is a glancing blow, not a miss (a fraction of the meter: 5%). */
-export const CHOP_GRACE = 0.05;
-/** The sweet spot's gold centre: this share of it (before gloves widen it). */
-export const CHOP_GOLD_SHARE = 0.34;
-/** A log splits if at least this many of its three strokes land green or gold. */
-export const CHOP_GREENS_TO_SPLIT = 2;
-/** A gold (critical) swing: its chance of a bonus, and the bonus (coins, or else a Pine Resin). */
-export const CHOP_CRIT_CHANCE = 0.5;
-export const CHOP_CRIT_COINS = 3;
-export type ChopVerdict = "gold" | "hit" | "edge" | "knot" | "miss";
-/** The needle's round trip on the first stroke (s), and each stroke's speed on it. */
-const BASE_PERIOD = 3.2;
-export const CHOP_SPEED: Record<ChopStrokeNo, number> = { 1: 1.0, 2: 1.35, 3: 1.6 };
-/** How fast each stroke's sweet spot patrols, against its needle (0: it holds still). */
-const PATROL: Record<ChopStrokeNo, number> = { 1: 0, 2: 0.35, 3: 0.5 };
-/** A chopping station holds this many logs each time it is stocked; once they are split its block
- *  rests CHOP_COOLDOWN_S (a whole number of seconds, rolled each time) before fresh ones arrive. */
-export const MAX_CHOP_YIELD = 3;
-export const CHOP_COOLDOWN_S = [20, 25] as const;
-export function rollChopYield(): number {
-  return MAX_CHOP_YIELD;
-}
-export function rollChopCooldown(rand: () => number = Math.random): number {
-  return CHOP_COOLDOWN_S[0] + Math.floor(rand() * (CHOP_COOLDOWN_S[1] - CHOP_COOLDOWN_S[0] + 1));
-}
-
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-
-/** Where the needle is, `t` seconds into the stroke: a ping-pong from 0 to 1 and back. */
-export function chopMarker(s: ChopStroke, t: number): number {
-  const phase = (t / s.needlePeriod) % 1;
-  return phase < 0.5 ? phase * 2 : 2 - phase * 2;
-}
-
-/** The sweet spot, `t` seconds into the stroke: [from, to]. */
-export function chopZone(s: ChopStroke, t: number): [number, number] {
-  const c = s.zoneCenter + (s.zonePeriod > 0 ? s.zoneSwing * Math.sin((2 * Math.PI * t) / s.zonePeriod) : 0);
-  return [clamp01(c - s.zoneWidth / 2), clamp01(c + s.zoneWidth / 2)];
-}
-
-/** The knot, `t` seconds into the stroke: [from, to]. */
-export function chopKnot(s: ChopStroke, t: number): [number, number] {
-  const from = s.knotFrom + (s.knotPeriod > 0 ? s.knotSwing * Math.sin((2 * Math.PI * t) / s.knotPeriod) : 0);
-  return [clamp01(from), clamp01(from + s.knotWidth)];
-}
-
-/** The sweet spot's gold centre, `t` seconds into the stroke: [from, to]. */
-export function chopGold(s: ChopStroke, t: number): [number, number] {
-  const [a, b] = chopZone(s, t);
-  const c = (a + b) / 2;
-  const w = Math.min(b - a, s.goldWidth);
-  return [clamp01(c - w / 2), clamp01(c + w / 2)];
-}
-
-/** A swing `t` seconds into the stroke: into the gold centre, the green, its glancing edge, the
- *  knot, or nowhere. */
-export function judgeChop(s: ChopStroke, t: number): ChopVerdict {
-  const m = chopMarker(s, t);
-  const [a, b] = chopZone(s, t);
-  const [g0, g1] = chopGold(s, t);
-  // the sweet spot wins where the two touch: a creeping knot never steals a clean swing
-  if (m >= g0 && m <= g1) return "gold";
-  if (m >= a && m <= b) return "hit";
-  if (m >= a - CHOP_GRACE && m <= b + CHOP_GRACE) return "edge";
-  if (s.knotWidth <= 0) return "miss"; // (the Notch Cut has no knot)
-  const [k0, k1] = chopKnot(s, t);
-  return m >= k0 && m <= k1 ? "knot" : "miss";
-}
-/** Whether a swing counts toward the split (green, or its gold centre). */
-export const isGreen = (v: ChopVerdict) => v === "gold" || v === "hit";
-
-/** Which log goes on the block for a combo. */
-export function rollChopLog(rand: () => number = Math.random): ChopLog {
-  const r = rand();
-  return r < 0.1 ? "golden" : r < 0.45 ? "oak" : "pine";
-}
-
-/** A fresh stroke's meter (the server rolls it; `rand` is Math.random there). `goldBonus`: how much
- *  wider gloves make its gold centre (shared/gear.ts gloveSweetBonus). `tree`: a Whispering Woods tree
- *  being felled (its tier narrows the sweet spot and quickens the needle); `zoneBonus`: extra green
- *  (the Eagle Eye). */
-export function rollChopStroke(stroke: ChopStrokeNo, log: ChopLog, rand: () => number = Math.random, axe: AxeId = "rusty", goldBonus = 0, tree?: TreeKind, zoneBonus = 0): ChopStroke {
-  const wide = (tree ? TREES[tree].wide : log === "pine" ? 1.2 : log === "golden" ? 0.9 : 1) * (1 + AXES[axe].zoneBonus) * (1 + zoneBonus);
-  const slow = 1 / (1 - AXES[axe].slow);
-  const needlePeriod = BASE_PERIOD / CHOP_SPEED[stroke] / (tree ? TREES[tree].speed : 1);
-  // the sweet spot patrols at PATROL x the needle's pace: one sweep of its range per needle pass, slowed
-  const zonePeriod = PATROL[stroke] > 0 ? (needlePeriod * slow) / PATROL[stroke] : 0;
-  // Hard Oak's knots creep on every stroke that has one; the Clean Cleave's knot always moves
-  const creep = log === "oak" || stroke === 3 ? { knotSwing: stroke === 3 ? 0.16 : 0.1, knotPeriod: (stroke === 3 ? 2.6 : 2.2) + rand() * 0.8 } : { knotSwing: 0, knotPeriod: 0 };
-  // the stroke waits three round trips of the needle for a swing
-  const make = (m: Omit<ChopStroke, "stroke" | "log" | "duration" | "knotSwing" | "knotPeriod" | "goldWidth">): ChopStroke => ({ stroke, log, ...m, goldWidth: Math.min(m.zoneWidth, m.zoneWidth * CHOP_GOLD_SHARE * (1 + goldBonus)), needlePeriod: m.needlePeriod * slow, duration: m.needlePeriod * slow * 3, ...creep });
-  if (stroke === 1) {
-    // a wide sweet spot holding still somewhere near the middle, and no knots at all
-    const zoneCenter = 0.35 + rand() * 0.3;
-    return { ...make({ zoneCenter, zoneWidth: 0.3 * wide, zoneSwing: 0, zonePeriod: 0, needlePeriod, knotFrom: 0, knotWidth: 0 }), knotSwing: 0, knotPeriod: 0 };
-  }
-  if (stroke === 2) {
-    // a 20% sweet spot patrolling the middle; one knot out near an end, clear of its patrol
-    const early = rand() < 0.5;
-    return make({ zoneCenter: 0.5, zoneWidth: 0.2 * wide, zoneSwing: 0.2, zonePeriod, needlePeriod, knotFrom: early ? 0.02 : 0.9, knotWidth: 0.07 });
-  }
-  // a narrow golden sweet spot patrolling a little quicker, and a knot roaming the other half
-  const right = rand() < 0.5;
-  return make({ zoneCenter: right ? 0.64 : 0.36, zoneWidth: 0.12 * wide, zoneSwing: 0.16, zonePeriod, needlePeriod, knotFrom: right ? 0.18 : 0.75, knotWidth: 0.07 });
 }

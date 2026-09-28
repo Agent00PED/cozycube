@@ -4,7 +4,7 @@ import { LOFT_MOCHI, LOFT_PROPS, LOFT_SEATS } from "./worlds/lounge";
 import { CAMP_PROPS, CAMP_SEATS, lieSeatPose } from "./worlds/campfire";
 import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
 import { VIP_PROPS, VIP_SEATS } from "./worlds/casino_vip";
-import { FOREST_PROPS } from "./worlds/forest";
+import { FOREST_PROPS, FOREST_SEATS } from "./worlds/forest";
 
 // The per-map tables of things you can sit on and things you can use, with the approach point of
 // each (where you stand to use it, and where you land when you get up). The built worlds' come from
@@ -85,8 +85,17 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   velvet_casino: CASINO_SEATS.map(casinoSeat),
   // the Velvet Penthouse: its high-limit poker chairs and its baccarat stools
   casino_vip: VIP_SEATS.map(casinoSeat),
-  // the Whispering Woods: no seats (a walk in the wood)
-  whispering_woods: [],
+  // the Whispering Woods: the river bank's log and rock, to sit and fish from
+  whispering_woods: FOREST_SEATS.map((s) => ({
+    propId: s.propId,
+    x: s.x,
+    z: s.z,
+    rotationY: s.rotationY,
+    style: "wood" as const,
+    approachX: s.approachX,
+    approachZ: s.approachZ,
+    sitY: round(seatAnchorY(CUSHIONS[s.cushion])),
+  })),
   sunset_beach: [],
   boxing_ring: [],
   japanese_onsen: [],

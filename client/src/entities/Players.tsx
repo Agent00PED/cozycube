@@ -45,9 +45,9 @@ export interface CrowdFeed {
 export function bobberFor(player: PlayerState, mapId: MapId) {
   if (player.action !== "fish" && player.action !== "reel" && player.action !== "afkfish") return null;
   if (mapId === "whispering_woods") {
-    // the rapids: the float lands off the bank stone the angler stands on
+    // the river: the float lands off the bank spot the angler stands (or sits) at
     const spot = FOREST_FISHING.reduce((a, b) => (Math.hypot(b.stand.x - player.x, b.stand.z - player.z) < Math.hypot(a.stand.x - player.x, a.stand.z - player.z) ? b : a));
-    return { x: spot.bobber.x, y: FOREST_LAYOUT.rapids.water, z: spot.bobber.z };
+    return { x: spot.bobber.x, y: FOREST_LAYOUT.river.water, z: spot.bobber.z };
   }
   if (mapId !== "campfire_night") return null;
   const { bobber } = nearestFishingSpot(player.x, player.z);

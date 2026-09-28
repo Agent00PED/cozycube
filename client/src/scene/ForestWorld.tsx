@@ -2,9 +2,9 @@ import { Suspense, useContext, useEffect, useMemo, useRef, useState } from "reac
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import type { PlayerState } from "@shared/types";
-import { TREES, type TreeKind, type TreeStage } from "@shared/chop";
-import { FOREST_ANIMALS, FOREST_LAYOUT as L, FOREST_TREES, TREE_REACH, type ForestTree } from "@shared/worlds/forest";
+import { parseWorldEvent, type PlayerState } from "@shared/types";
+import { parseTrees } from "@shared/chop";
+import { FOREST_ANIMALS, FOREST_LAYOUT as L, FOREST_TREES } from "@shared/worlds/forest";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -14,23 +14,21 @@ import { GEO, matte, noRaycast } from "./kit";
 import { cameraFocus } from "./cameraFocus";
 import { CampDaylightContext } from "./campDay";
 import { OcclusionDriver, ditherOccluder } from "./occlusionDither";
-import { forestTarget } from "./forestTarget";
+import { FellableTrees } from "./FellableTrees";
+import { SurgeRipples } from "./SurgeRipples";
 
 // The Whispering Woods (map "whispering_woods"), behind the campfire's archway. The island is one
 // Blender model, forest.glb (scripts/blender/build_forest.py, laid out from shared/worlds/forest.ts):
 // this file loads it and brings it to life.
 //
-//   the trees     the twenty trees you fell, drawn from the model's Tree_<kind>_<stage> looks, one
-//                 instanced draw per part per look in use: each at its node, as the room says it is
-//                 growing back (stump, sprout, sapling, mature). One coming down swings over, away
-//                 from whoever felled it, bounces and sinks away, the stump already under it
-//   the target    the nearest mature tree within reach of you wears a soft white outline: a click,
-//                 a tap or E fells it
+//   the trees     the twenty trees you fell (and a Colossal Titan while one stands): FellableTrees,
+//                 from trees.glb, each its own size, as the room says it is growing back
 //   Bramble       the bear ranger at his counter (bramble.glb): he trades wood and fish, sells the
 //                 top axes and rods, and his cabin's windows glow at night
 //   the animals   the deer grazing by the glen's path, looking up now and then; the rabbits hopping
 //                 by the splitting block; fed, they hop for joy
-//   the rapids    the water running down the east edge, its foam streaming
+//   the river     meandering in off the north edge and out off the east, its water flowing and its
+//                 foam streaming round the rocks; a King-Size Surge's golden ripples on it
 //   the wind      the canopy sways; trees between you and the camera thin to let you through
 //   the light     the camp's 24-minute day (campDay): fireflies and the elderwood's glow by night
 
@@ -40,9 +38,11 @@ export const BRAMBLE_URL = modelUrl("bramble.glb");
 const FOREST_TIME = { value: 0 };
 const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 /** The ground decals, each nudged toward the camera in the depth test. */
-const DECAL_OFFSET: Record<string, number> = { FW_BirchFloor: -1, FW_RidgeFloor: -1, FW_GlenFloor: -1, FW_ShrineFloor: -1, FW_StoneDark: -1, FW_Dirt: -2 };
+const DECAL_OFFSET: Record<string, number> = { FW_Meadow: -1, FW_StoneDark: -1, FW_Bank: -2, FW_Dirt: -2 };
 /** What thins when it stands between you and the camera. */
 const OCCLUDERS = /^FW_(Pine|Birch|Cedar|Maple|Elder|Log|Roof|PlankDark|Bark)/;
+/** The river's water: its height (the surge's ripples float on it). */
+const WATER_Y = L.river.water;
 /** Foliage that sways in the wind. */
 const SWAYERS = /^FW_(PineNeedle|BirchLeaf|CedarNeedle|MapleLeaf|ElderLeaf)/;
 
@@ -79,7 +79,7 @@ function flowRapids(m: THREE.Material, foam: boolean) {
       "#include <color_fragment>",
       foam
         ? `#include <color_fragment>
-        // the foam streams down the rapids (toward the camera), breaking up and re-forming
+        // the foam streams along the river, breaking up and re-forming
         float fw = sin(vFlowPos.z * 3.1 - uTime * 3.4 + sin(vFlowPos.x * 5.0) * 1.5);
         diffuseColor.a *= 0.25 + 0.75 * smoothstep(-0.3, 0.7, fw);`
         : `#include <color_fragment>
@@ -92,28 +92,13 @@ function flowRapids(m: THREE.Material, foam: boolean) {
   m.needsUpdate = true;
 }
 
-/** A tree's yaw at its node: fixed per node, so every client plants it the same way round. */
-function yawOf(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 10007;
-  return (h / 10007) * Math.PI * 2;
-}
-
-function parseStages(raw: string): Record<string, TreeStage> {
-  try {
-    const v = raw ? JSON.parse(raw) : {};
-    return v && typeof v === "object" ? (v as Record<string, TreeStage>) : {};
-  } catch {
-    return {};
-  }
-}
-
 interface ForestWorldProps {
   onFloorClick: (x: number, z: number) => void;
   players: Record<string, PlayerState>;
   localSessionId: string | null;
-  /** The room's growing-back trees (JSON: node id -> stage; missing = mature). */
-  forest: string;
+  /** The room's trees (shared/chop.ts TreeSync as JSON) and its living wonder (WorldEvent as JSON). */
+  trees: string;
+  worldEvent: string;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onUseProp: (propId: string) => void;
 }
@@ -122,15 +107,16 @@ const BRAMBLE_TALK: NpcTalk = {
   height: 1.6,
   greet: {
     inside: (x, z) => Math.hypot(x - L.counter.x, z - L.counter.z) < 3.2,
-    lines: ["Welcome to my trading post, friend", "Mind the rapids, they've got a mind of their own", "Fine day for felling, isn't it?", "Bring me good timber and I'll pay you fair"],
+    lines: ["Welcome to my trading post, friend", "Mind the river, it wanders where it likes", "Fine day for felling, isn't it?", "Bring me good timber and I'll pay you fair"],
   },
   on: {
     treeFelled: () => (Math.random() < 0.25 ? "Timberrr!" : null),
   },
 };
 
-export function ForestWorld({ onFloorClick, players, localSessionId, forest, subscribeMessages, onUseProp }: ForestWorldProps) {
-  const stages = useMemo(() => parseStages(forest), [forest]);
+export function ForestWorld({ onFloorClick, players, localSessionId, trees, worldEvent, subscribeMessages, onUseProp }: ForestWorldProps) {
+  const treeState = useMemo(() => parseTrees(trees), [trees]);
+  const wonder = useMemo(() => parseWorldEvent(worldEvent), [worldEvent]);
   const floorClick = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -139,29 +125,16 @@ export function ForestWorld({ onFloorClick, players, localSessionId, forest, sub
   useFrame((_, dt) => {
     FOREST_TIME.value += dt;
   });
-  // E fells the tree you are next to (the same as a click on it)
-  const target = useRef<ForestTree | null>(null);
-  const useRefProp = useRef(onUseProp);
-  useRefProp.current = onUseProp;
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.code !== "KeyE" || e.repeat) return;
-      const el = document.activeElement as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
-      if (document.querySelector('[role="dialog"]')) return;
-      if (target.current) useRefProp.current(`tree_${target.current.id}`);
-    };
-    window.addEventListener("keydown", down);
-    return () => window.removeEventListener("keydown", down);
-  }, []);
   return (
     <group>
       <mesh geometry={GEO.plane} material={CLICK_MAT} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} scale={[L.half * 2, L.half * 2, 1]} onPointerDown={floorClick} />
       <ModelBoundary what="forest.glb" fallback={<StandIn />}>
         <Suspense fallback={<StandIn />}>
-          <ForestModel stages={stages} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} target={target} />
+          <ForestModel subscribeMessages={subscribeMessages} />
         </Suspense>
       </ModelBoundary>
+      <FellableTrees mapId="whispering_woods" trees={treeState} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onUseProp={onUseProp} />
+      <SurgeRipples event={wonder} mapId="whispering_woods" waterY={WATER_Y} />
       <CampNpc url={BRAMBLE_URL} what="bramble.glb" prefix="Bramble" at={L.bramble} waveEvent="brambleWave" standIn={<BrambleStandIn />} subscribeMessages={subscribeMessages} talk={BRAMBLE_TALK} />
       <ForestLights />
       <Fireflies />
@@ -185,39 +158,14 @@ function BrambleStandIn() {
   return <mesh geometry={GEO.box} material={BRAMBLE_STAND_IN} position={[0, 0.6, 0]} scale={[0.6, 1.2, 0.5]} raycast={noRaycast} />;
 }
 
-interface TemplatePart {
-  geometry: THREE.BufferGeometry;
-  material: THREE.Material;
-  matrix: THREE.Matrix4;
-}
-
-const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: "#ffffff", side: THREE.BackSide, transparent: true, opacity: 0.85, depthWrite: false });
-OUTLINE_MAT.onBeforeCompile = (shader) => {
-  shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\ntransformed += normal * 0.055;");
-};
-
-interface Falling {
-  id: string;
-  kind: TreeKind;
-  at: number;
-  x: number;
-  z: number;
-  /** The way it falls (a unit vector on the ground). */
-  dx: number;
-  dz: number;
-}
-const FALL_S = 1.25;
-const SINK_S = 0.9;
-
-function ForestModel({ stages, players, localSessionId, subscribeMessages, target }: { stages: Record<string, TreeStage>; players: Record<string, PlayerState>; localSessionId: string | null; subscribeMessages: (listener: RoomMessageListener) => () => void; target: React.MutableRefObject<ForestTree | null> }) {
+function ForestModel({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
   const { scene } = useGLTF(FOREST_URL);
-  const livePlayers = useRef(players);
-  livePlayers.current = players;
   // the model's materials: the decals nudged forward, the foliage swaying, the occluders dithering,
-  // the rapids flowing; the tree looks lifted out as templates (drawn instanced below)
-  const templates = useMemo(() => {
-    const out = new Map<string, TemplatePart[]>();
+  // the river flowing
+  useMemo(() => {
     scene.traverse((o) => {
+      // (an older model's tree looks: trees.glb draws the trees now)
+      if (o.name.startsWith("Tree_")) o.visible = false;
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.raycast = noRaycast;
@@ -234,180 +182,12 @@ function ForestModel({ stages, players, localSessionId, subscribeMessages, targe
       if (SWAYERS.test(m.name)) swayFoliage(m);
       if (OCCLUDERS.test(m.name)) ditherOccluder(m);
     });
-    scene.updateMatrixWorld(true);
-    for (const kind of Object.keys(TREES) as TreeKind[]) {
-      for (const stage of ["stump", "sprout", "sapling", "mature"] as TreeStage[]) {
-        const node = scene.getObjectByName(`Tree_${kind}_${stage}`);
-        if (!node) continue;
-        node.visible = false;
-        const inv = node.matrixWorld.clone().invert();
-        const parts: TemplatePart[] = [];
-        node.traverse((o) => {
-          const mesh = o as THREE.Mesh;
-          if (mesh.isMesh) parts.push({ geometry: mesh.geometry, material: mesh.material as THREE.Material, matrix: inv.clone().multiply(mesh.matrixWorld) });
-        });
-        out.set(`${kind}:${stage}`, parts);
-      }
-    }
-    return out;
   }, [scene]);
-
-  // one instanced mesh per part of every look, as many instances as there are trees of its kind
-  const instanced = useMemo(() => {
-    const out: { key: string; mesh: THREE.InstancedMesh; part: TemplatePart }[] = [];
-    templates.forEach((parts, key) => {
-      const kind = key.split(":")[0] as TreeKind;
-      const most = FOREST_TREES.filter((t) => t.kind === kind).length;
-      for (const part of parts) {
-        const mesh = new THREE.InstancedMesh(part.geometry, part.material, most);
-        mesh.count = 0;
-        mesh.frustumCulled = false;
-        mesh.raycast = noRaycast;
-        out.push({ key, mesh, part });
-      }
-    });
-    return out;
-  }, [templates]);
-  useEffect(
-    () => () => {
-      instanced.forEach((i) => i.mesh.dispose());
-      forestTarget.id = null;
-    },
-    [instanced]
-  );
-  // (re)place every tree as its stage changes
-  useEffect(() => {
-    const byKey = new Map<string, ForestTree[]>();
-    for (const t of FOREST_TREES) {
-      const key = `${t.kind}:${stages[t.id] ?? "mature"}`;
-      byKey.set(key, [...(byKey.get(key) ?? []), t]);
-    }
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const up = new THREE.Vector3(0, 1, 0);
-    for (const { key, mesh, part } of instanced) {
-      const trees = byKey.get(key) ?? [];
-      trees.forEach((t, i) => {
-        q.setFromAxisAngle(up, yawOf(t.id));
-        m.compose(new THREE.Vector3(t.x, 0, t.z), q, new THREE.Vector3(1, 1, 1)).multiply(part.matrix);
-        mesh.setMatrixAt(i, m);
-      });
-      mesh.count = trees.length;
-      mesh.instanceMatrix.needsUpdate = true;
-    }
-  }, [instanced, stages]);
-
-  // a tree coming down: the room says who felled it; it swings over away from them
-  const [falling, setFalling] = useState<Falling[]>([]);
-  useEffect(
-    () =>
-      subscribeMessages((type, payload) => {
-        if (type !== "treeFelled") return;
-        const node = FOREST_TREES.find((t) => t.id === payload?.tree);
-        if (!node) return;
-        const who = livePlayers.current[payload.sessionId];
-        let dx = who ? node.x - who.x : 1;
-        let dz = who ? node.z - who.z : 0;
-        const d = Math.hypot(dx, dz) || 1;
-        dx /= d;
-        dz /= d;
-        setFalling((f) => [...f.filter((x) => performance.now() / 1000 - x.at < FALL_S + SINK_S), { id: node.id, kind: node.kind, at: performance.now() / 1000, x: node.x, z: node.z, dx, dz }]);
-        if (Math.hypot(node.x - cameraFocus.x, node.z - cameraFocus.z) < 14) {
-          playSfx("woodSnap");
-          window.setTimeout(() => playSfx("thunk"), FALL_S * 1000 - 120);
-        }
-      }),
-    [subscribeMessages]
-  );
-  useEffect(() => {
-    if (!falling.length) return;
-    const t = window.setTimeout(() => setFalling((f) => f.filter((x) => performance.now() / 1000 - x.at < FALL_S + SINK_S)), (FALL_S + SINK_S) * 1000 + 50);
-    return () => window.clearTimeout(t);
-  }, [falling]);
-
-  // the nearest mature tree in reach of you: outlined, and E fells it
-  const [outlined, setOutlined] = useState<string | null>(null);
-  useFrame(() => {
-    let best: ForestTree | null = null;
-    let bestD = TREE_REACH;
-    for (const t of FOREST_TREES) {
-      if ((stages[t.id] ?? "mature") !== "mature") continue;
-      const d = Math.hypot(t.x - cameraFocus.x, t.z - cameraFocus.z);
-      if (d <= bestD) {
-        bestD = d;
-        best = t;
-      }
-    }
-    const me = localSessionId ? livePlayers.current[localSessionId] : null;
-    if (me && me.action !== "") best = null;
-    target.current = best;
-    const id = best?.id ?? null;
-    forestTarget.id = id;
-    if (id !== outlined) setOutlined(id);
-  });
-
   return (
     <>
       <primitive object={scene} />
-      {instanced.map(({ key, mesh, part }, i) => (
-        <primitive key={`${key}:${i}:${part.geometry.uuid}`} object={mesh} />
-      ))}
-      {falling.map((f) => (
-        <FallingTree key={`${f.id}:${f.at}`} fall={f} parts={templates.get(`${f.kind}:mature`) ?? []} />
-      ))}
-      {outlined && <TreeOutline tree={FOREST_TREES.find((t) => t.id === outlined)!} parts={templates.get(`${FOREST_TREES.find((t) => t.id === outlined)!.kind}:mature`) ?? []} />}
       <Animals scene={scene} subscribeMessages={subscribeMessages} />
     </>
-  );
-}
-
-/** The target tree's soft white rim (an inverted hull, pulsing a little). */
-function TreeOutline({ tree, parts }: { tree: ForestTree; parts: TemplatePart[] }) {
-  const group = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
-    OUTLINE_MAT.opacity = 0.55 + 0.25 * Math.sin(clock.elapsedTime * 4);
-  });
-  return (
-    <group ref={group} position={[tree.x, 0, tree.z]} rotation={[0, yawOf(tree.id), 0]}>
-      {parts.map((p, i) => (
-        <mesh key={i} geometry={p.geometry} material={OUTLINE_MAT} matrixAutoUpdate={false} matrix={p.matrix} raycast={noRaycast} renderOrder={2} />
-      ))}
-      <Html position={[0, 0.25, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
-        <div className="rounded-full border border-[#4A3A30] bg-[#231B18]/85 px-2 py-0.5 text-[11px] font-bold text-[#F7EBE1] shadow" style={{ whiteSpace: "nowrap" }}>
-          🪓 {TREES[tree.kind].name} · T{TREES[tree.kind].tier} <span className="opacity-70">(E)</span>
-        </div>
-      </Html>
-    </group>
-  );
-}
-
-/** A felled tree: over it goes (easing in, as trees do), a bounce as it lands, then it sinks away. */
-function FallingTree({ fall, parts }: { fall: Falling; parts: TemplatePart[] }) {
-  const pivot = useRef<THREE.Group>(null);
-  const axis = useMemo(() => new THREE.Vector3(fall.dz, 0, -fall.dx), [fall]);
-  const yaw = yawOf(fall.id);
-  useFrame(() => {
-    const g = pivot.current;
-    if (!g) return;
-    const t = performance.now() / 1000 - fall.at;
-    const u = Math.min(1, t / FALL_S);
-    let angle = (Math.PI / 2) * u * u * u;
-    if (t > FALL_S) angle = Math.PI / 2 - 0.06 * Math.exp(-(t - FALL_S) * 9) * Math.abs(Math.sin((t - FALL_S) * 20));
-    g.quaternion.setFromAxisAngle(axis, angle);
-    const sink = Math.max(0, t - FALL_S - 0.25) / (SINK_S - 0.25);
-    g.position.y = -sink * 0.9;
-    g.scale.setScalar(1 - sink * 0.3);
-  });
-  return (
-    <group position={[fall.x, 0, fall.z]}>
-      <group ref={pivot}>
-        <group rotation={[0, yaw, 0]}>
-          {parts.map((p, i) => (
-            <mesh key={i} geometry={p.geometry} material={p.material} matrixAutoUpdate={false} matrix={p.matrix} raycast={noRaycast} />
-          ))}
-        </group>
-      </group>
-    </group>
   );
 }
 

@@ -35,18 +35,16 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
     Pier_Lantern_Glow   the lanterns' glass (the game lights them)
     Seat_Tent           the canvas tipi, flap open toward the fire, poles out of its crown, a mat
                         and a pillow inside
-    Seat_Hammock        the striped hammock, its spreader bars and ropes (its pines are trees)
-    Campfire_Trees      the pines along the back edges and the hammock's two
+    Campfire_Trees      the pines along the back edges (the Soft Pines you fell round the clearing
+                        are not here: the game draws them from trees.glb, each its own size)
     Campfire_Rocks      river boulders
     Campfire_Fence      the rustic rail fence along the front edges
     Campfire_Deco       mushrooms, wildflowers, bushes, lily pads with lotus flowers, reeds and the
                         woodpile
     Campfire_Glamping   everything else that stands still: the picnic table (gingham runner,
                         camping lantern, enamel mugs, a cooler), the brass telescope, the vintage
-                        camper van with its striped awning and camp chair, the light pole, the
-                        chopping stump and the canoe's cleat and rope
-    Prop_WoodChop_0N_Hatchet  each chopping station's hatchet, bitten into its stump (hidden while
-                        someone chops there), and Prop_WoodChop_0N_Log the log on its block
+                        camper van with its striped awning and camp chair, the light pole and the
+                        canoe's cleat and rope
     Prop_Workbench      the carpenter's workbench back by the north pines between the tipi and
                         Buster's stall (a plank top,
                         a face vise, a shelf of boards, a tool rack with a saw, a mallet and chisels,
@@ -176,7 +174,8 @@ PALETTE = {
     "CF_Ceramic": "#F4EFE6",
     "CF_ClayFoot": "#D9A67A",
     "CF_TentSage": "#8FA37A",
-    # the braided rug round the hearth (its own materials: the game nudges them over the clearing)
+    # the gallery's painted ducks and owls' eyes (the braided rug they were made for is gone: the
+    # firepit is river stones, raw logs and boulders now)
     "CF_RugRust": "#C8704A",
     "CF_RugMustard": "#E8C25A",
     "CF_RugSage": "#7D8F6A",
@@ -952,43 +951,6 @@ def build_tent(L, cushions, coll):
     thick.thickness = 0.025
 
 
-def build_hammock(L, cushions, coll):
-    hm = L["hammock"]
-    ax, az, bx, bz, top = hm["a"]["x"], hm["a"]["z"], hm["b"]["x"], hm["b"]["z"], hm["top"]
-    length = math.hypot(bx - ax, bz - az)
-    ux, uz = (bx - ax) / length, (bz - az) / length  # along the hammock, a -> b
-    vx, vz = -uz, ux  # across it
-    bottom = cushions["hammock"]["top"]
-    inset = 0.55
-    end_y = bottom + 0.34
-    half_w = 0.42
-    bm = bmesh.new()
-
-    def fabric(u, v):
-        s = 2 * u - 1
-        w = 2 * v - 1
-        y = bottom + (end_y - bottom) * s * s + 0.16 * w * w * (1 - 0.6 * s * s)
-        width = half_w * (1 - 0.55 * s * s)
-        t = inset + (length - 2 * inset) * u
-        return W(ax + ux * t + vx * width * w, y, az + uz * t + vz * width * w)
-
-    sheet(bm, 20, 10, fabric, m_of=lambda i, j: 1 if j in (2, 3, 6, 7) else 0)
-    for t, pine_x, pine_z, sgn in ((inset, ax, az, 1), (length - inset, bx, bz, -1)):
-        ex, ez = ax + ux * t, az + uz * t
-        # the spreader bar across the end, ropes from its ends to the pine, a wrap round the trunk
-        cylinder(bm, W(ex - vx * half_w * 0.5, end_y + 0.01, ez - vz * half_w * 0.5), W(ex + vx * half_w * 0.5, end_y + 0.01, ez + vz * half_w * 0.5), 0.025, 8, m=2)
-        tie = W(pine_x + ux * sgn * 0.17, top, pine_z + uz * sgn * 0.17)
-        for s in (-1, 1):
-            cylinder(bm, W(ex + vx * s * half_w * 0.5, end_y + 0.01, ez + vz * s * half_w * 0.5), tie, 0.014, 6, m=3)
-        ring = [W(pine_x + 0.19 * math.cos(a), top, pine_z + 0.19 * math.sin(a)) for a in (2 * math.pi * k / 12 for k in range(13))]
-        for pa, pb in zip(ring, ring[1:]):
-            cylinder(bm, pa, pb, 0.022, 6, m=3)
-    make_object("Seat_Hammock", bm, ["CF_Hammock", "CF_HammockStripe", "CF_Pole", "CF_Rope"], coll)
-    ob = bpy.data.objects["Seat_Hammock"]
-    thick = ob.modifiers.new("Fabric", "SOLIDIFY")
-    thick.thickness = 0.02
-
-
 def pine(bm, x, z, s, rng, light):
     lathe(bm, x, z, [(0, 0.0), (0.16 * s, 0.0), (0.14 * s, 0.75 * s), (0, 0.8 * s)], segs=9, m=0, jitter=0.1, rng=rng)
     yaw = rng.random() * 3
@@ -1003,7 +965,6 @@ def build_trees(L, coll):
     rng = random.Random(21)
     bm = bmesh.new()
     spots = [(t["x"], t["z"], t["s"]) for t in L["trees"]]
-    spots += [(L["hammock"]["a"]["x"], L["hammock"]["a"]["z"], 1.0), (L["hammock"]["b"]["x"], L["hammock"]["b"]["z"], 1.05)]
     for i, (x, z, s) in enumerate(spots):
         pine(bm, x, z, s, rng, light=i % 2 == 1)
     # the bare branch the owl perches on, out through its pine's lowest boughs
@@ -1045,11 +1006,7 @@ def build_fence(L, coll):
                 else:
                     box(bm, min(ax, bx), max(ax, bx), y - 0.05, y + 0.05, az - 0.03, az + 0.03)
 
-    # the archway into the Whispering Woods breaks the front run: posts either side of it
-    arch = L["archway"]
-    gap0, gap1 = arch["x"] - arch["w"] / 2, arch["x"] + arch["w"] / 2
-    run([(f["xFrom"], at), (gap0, at)])
-    run([(gap1, at), (at, at)])
+    run([(f["xFrom"], at), (at, at)])
     run([(at, at), (at, f["zFrom"])])
     make_object("Campfire_Fence", bm, ["CF_Fence"], coll)
 
@@ -1316,14 +1273,6 @@ def build_glamping(L, cushions, coll):
         a = 2 * math.pi * k / 5
         blob(bm, sp["x"] + 0.14 * math.cos(a), 0.04, sp["z"] + 0.14 * math.sin(a), 0.07, 0.05, 0.06, m=m["CF_Metal"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.01)
 
-    # --- the chopping stumps (either side of the tipi, beside Buster, at the woodpile), split halves
-    # beside each (on the sides its "halves" lists: none by Buster, where they would crowd him) ---
-    for ch in L["chops"]:
-        cylinder(bm, W(ch["x"], 0.0, ch["z"]), W(ch["x"], 0.36, ch["z"]), 0.25, 14, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
-        for sgn in ch.get("halves", (-1, 1)):
-            a0 = W(ch["x"] + sgn * 0.45, 0.07, ch["z"] + 0.3)
-            cylinder(bm, a0, a0 + W(0.12 * sgn, 0, 0.3) - W(0, 0, 0), 0.08, 8, m=m["CF_WoodCut"], cap_m=m["CF_Bark"])
-
     # --- the grove: a guitar case lying open on the grass (plush lining, a few coins), and a warm
     # camping lantern on the ground beside it ---
     gc = L["guitarCase"]
@@ -1373,10 +1322,6 @@ def build_glamping(L, cushions, coll):
         cylinder(bm, W(gl["x"] + sx * 0.055, 0.22, gl["z"]), W(gl["x"] + sx * 0.03, 0.34, gl["z"]), 0.006, 4, m=m["CF_Metal"])
     cylinder(bm, W(gl["x"] - 0.03, 0.34, gl["z"]), W(gl["x"] + 0.03, 0.34, gl["z"]), 0.006, 4, m=m["CF_Metal"])
 
-    # --- the sitting stump beside the chopping block (its top the stump cushion's) ---
-    ss = L["stumpSeat"]
-    cylinder(bm, W(ss["x"], 0.0, ss["z"]), W(ss["x"], cushions["stump"]["top"], ss["z"]), 0.22, 14, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
-
     # --- the canoe's cleat on the dock, and its rope ---
     cl = L["cleat"]
     deck = L["dock"]["deck"]
@@ -1391,7 +1336,7 @@ def build_glamping(L, cushions, coll):
     make_object("Campfire_Glamping", bm, M, coll)
     # the seats, marked where each sitter goes (on the cushion's top)
     marks = [(f"Seat_Picnic_0{b * 2 + k + 1}", (px + sx * 0.42, bench["top"], pz + side * 0.68)) for b, side in enumerate((-1, 1)) for k, sx in enumerate((-1, 1))]
-    marks += [("Seat_CamperChair", (chx, seat["top"], chz)), ("Seat_ChopStump", (ss["x"], cushions["stump"]["top"], ss["z"]))]
+    marks += [("Seat_CamperChair", (chx, seat["top"], chz))]
     marks += [(f"Seat_Dock_0{i + 1}", (L["dock"]["x1"] - 0.12, cushions["dock"]["top"], f["stand"]["z"])) for i, f in enumerate(L["fishing"])]
     for name, at in marks:
         mark = bpy.data.objects.new(name, None)
@@ -1400,7 +1345,7 @@ def build_glamping(L, cushions, coll):
         mark.location = W(*at)
         coll.objects.link(mark)
     # the interactive ones, marked by name where they stand (their geometry is in the object above)
-    for name, at in (("Prop_Telescope", (tx, 0.95, tz)), ("Prop_WoodChop", (ch["x"], 0.36, ch["z"])), ("Prop_PicnicTable", (px, 0.72, pz)), ("Prop_CamperVan", (vx, 0.0, vz)), ("Prop_Fireflies", (L["fireflies"]["x"], 0.0, L["fireflies"]["z"]))):
+    for name, at in (("Prop_Telescope", (tx, 0.95, tz)), ("Prop_PicnicTable", (px, 0.72, pz)), ("Prop_CamperVan", (vx, 0.0, vz)), ("Prop_Fireflies", (L["fireflies"]["x"], 0.0, L["fireflies"]["z"]))):
         mark = bpy.data.objects.new(name, None)
         mark.empty_display_type = "PLAIN_AXES"
         mark.location = W(*at)
@@ -1460,22 +1405,6 @@ def build_signpost(L, coll):
         ob.data.materials.append(material("CF_Wire"))
     with bpy.context.temp_override(object=sign, active_object=sign, selected_objects=[sign, *texts], selected_editable_objects=[sign, *texts]):
         bpy.ops.object.join()
-
-
-def build_hatchet(L, coll):
-    """Each chopping station's hatchet, bitten into its stump's rim, and the log standing on the
-    block waiting to be split: their own nodes (Prop_WoodChop_0N_Hatchet, _Log), so the game can
-    take the hatchet up and clear the log once it is split (it comes back a little later)."""
-    for k, ch in enumerate(L["chops"]):
-        p0 = (ch["x"] - 0.15, 0.37, ch["z"] + 0.1)
-        bm = bmesh.new()
-        cylinder(bm, W(*p0), W(p0[0] + 0.1, p0[1] + 0.33, p0[2] + 0.2), 0.018, 8, m=1)
-        blob(bm, p0[0] - 0.01, p0[1] + 0.01, p0[2] - 0.01, 0.1, 0.055, 0.016, m=0, cuts=2, n=3.0)
-        make_object(f"Prop_WoodChop_0{k + 1}_Hatchet", bm, ["CF_Steel", "CF_Pole"], coll, origin=p0)
-        lx, lz = ch["x"] + 0.05, ch["z"] - 0.04
-        bm = bmesh.new()
-        cylinder(bm, W(lx, 0.36, lz), W(lx, 0.66, lz), 0.13, 12, m=0, cap_m=1)
-        make_object(f"Prop_WoodChop_0{k + 1}_Log", bm, ["CF_Bark", "CF_WoodCut"], coll, origin=(lx, 0.36, lz))
 
 
 def build_workbench(L, coll):
@@ -1856,9 +1785,10 @@ def build_picnic_plates(L, coll):
 
 
 # ---------------------------------------------------------------------------------------------
-# the living campfire: the braided rug round the hearth, floor cushions, the kettle stump and its
-# mugs, a guitar leaning on the curved log, the branch archway into the Whispering Woods, the
-# Whispering Pines Slingshot Gallery along the fence, and the splitting block
+# the living campfire: the branch archway into the Whispering Woods (a trailhead at the head of the
+# north path, beside Buster, opening south onto the camp), the Whispering Pines Slingshot Gallery
+# along the fence, and the splitting block. The firepit keeps only what nature gives it: river
+# stones, raw log benches and boulders (no rug, cushions, kettle or guitar)
 
 
 def polar_pt(L, angle, r):
@@ -1902,53 +1832,9 @@ def build_living(L, coll):
     # 8 red, 9 cream, 10 pine, 11 lantern glow
     fx, fz = L["fire"]["x"], L["fire"]["z"]
     fp = L["firepit"]
-    # --- the braided rug: coils round the hearth, rust, mustard and sage in turn ---
-    rug = fp["rug"]
-    r, k = rug["r0"], 0
-    while r < rug["r1"] - 0.02:
-        w = 0.14
-        band(bm, fx, fz, r, min(rug["r1"], r + w), LAYER_CLEARING + 0.004, LAYER_CLEARING + 0.022, segs=48, m=(0, 1, 2)[k % 3])
-        r += w + 0.004
-        k += 1
-    # --- floor cushions at the horseshoe's ends: plump, tufted ---
-    for i, c in enumerate(fp["cushions"]):
-        cx, cz = polar_pt(L, c["angle"], c["r"])
-        rounded_box(bm, cx, 0.13, cz, 0.3, 0.1, 0.3, (0, 2)[i % 2], (0, 2)[i % 2], 0.0, n=3.2, cuts=4)
-        blob(bm, cx, 0.235, cz, 0.04, 0.012, 0.04, m=9, cuts=2)
-    # --- the kettle stump: a short stump, an enamel kettle and two mugs ---
-    kx, kz = polar_pt(L, fp["kettle"]["angle"], fp["kettle"]["r"])
-    top = 0.42
-    cylinder(bm, W(kx, 0.0, kz), W(kx, top, kz), 0.26, 16, m=5, cap_m=6, wobble=0.05, rng=rng)
-    for j in range(3):
-        ra = j * 2.1 + 0.3
-        cylinder(bm, W(kx + math.cos(ra) * 0.18, 0.1, kz + math.sin(ra) * 0.18), W(kx + math.cos(ra) * 0.4, -0.02, kz + math.sin(ra) * 0.4), 0.055, 8, m=5, r_end=0.02)
-    lathe(bm, kx - 0.04, kz, [(0, 0.0), (0.1, 0.0), (0.13, 0.06), (0.12, 0.13), (0.07, 0.17), (0.02, 0.19), (0, 0.2)], segs=16, m=3, y0=top)
-    blob(bm, kx - 0.04, top + 0.21, kz, 0.022, 0.018, 0.022, m=4, cuts=2)
-    cylinder(bm, W(kx + 0.06, top + 0.07, kz), W(kx + 0.16, top + 0.15, kz), 0.022, 8, m=3, r_end=0.014)
-    for j in range(7):  # the bail handle, an arc over the lid
-        a0, a1 = math.pi * j / 7, math.pi * (j + 1) / 7
-        cylinder(bm, W(kx - 0.04 + math.cos(a0) * 0.1, top + 0.17 + math.sin(a0) * 0.08, kz), W(kx - 0.04 + math.cos(a1) * 0.1, top + 0.17 + math.sin(a1) * 0.08, kz), 0.008, 6, m=4)
-    for mx, mz in ((kx + 0.12, kz + 0.13), (kx + 0.02, kz - 0.15)):
-        lathe(bm, mx, mz, [(0, 0.0), (0.045, 0.0), (0.05, 0.08), (0, 0.08)], segs=12, m=9, y0=top)
-        lathe(bm, mx, mz, [(0, 0.079), (0.052, 0.079), (0.052, 0.09), (0, 0.09)], segs=12, m=3, y0=top)
-    # --- the guitar, standing on the rug at the curved log's end, leaning back on it, its face to
-    # the fire ---
-    gx, gz = polar_pt(L, fp["guitar"]["angle"], fp["guitar"]["r"])
-    ang = math.radians(fp["guitar"]["angle"])
-    before = set(bm.faces)
-    # built standing on the origin (neck up +z in Blender, face toward -y), then leaned and placed
-    for cy_, rx, rz in ((0.2, 0.2, 0.19), (0.48, 0.15, 0.14)):
-        blob(bm, 0.0, cy_, 0.0, rx, rz, 0.05, m=6, cuts=3, n=2.2)
-    blob(bm, 0.0, 0.34, -0.052, 0.045, 0.045, 0.004, m=4, cuts=2)  # the sound hole
-    box(bm, -0.025, 0.025, 0.55, 1.0, -0.035, 0.02, m=5)
-    box(bm, -0.04, 0.04, 1.0, 1.12, -0.03, 0.02, m=5)
-    box(bm, -0.012, 0.012, 0.12, 1.0, -0.052, -0.045, m=9)  # the strings, one pale strip
     from mathutils import Matrix
-    lean = Matrix.Rotation(math.radians(18), 4, "X")
-    face = Matrix.Rotation(math.atan2(-(fx - gx), -(fz - gz)), 4, "Z")
-    xform_since(bm, before, Matrix.Translation(W(gx, 0.0, gz)) @ face @ lean)
     # --- the archway into the Whispering Woods: two rough posts, a bent-branch arch, a garland,
-    # a lantern and a hanging board ---
+    # a lantern and a hanging board on its camp side (south, +z: toward the fire and the camera) ---
     ar = L["archway"]
     ax, az, hw, h = ar["x"], ar["z"], ar["w"] / 2, ar["h"]
     for sx in (-1, 1):
@@ -1967,11 +1853,14 @@ def build_living(L, coll):
     lathe(bm, lx, az, [(0, 0.12), (0.075, 0.12), (0.03, 0.18), (0, 0.19)], segs=10, m=4, y0=ly - 0.02)
     board_y = h - 0.75
     for sx in (-0.42, 0.42):
-        cylinder(bm, W(ax + sx, board_y + 0.2, az - 0.02), W(ax + sx, h - 0.33, az - 0.02), 0.008, 6, m=6)
-    box(bm, ax - 0.55, ax + 0.55, board_y - 0.14, board_y + 0.14, az - 0.06, az - 0.01, m=7)
+        cylinder(bm, W(ax + sx, board_y + 0.2, az + 0.02), W(ax + sx, h - 0.33, az + 0.02), 0.008, 6, m=6)
+    box(bm, ax - 0.55, ax + 0.55, board_y - 0.14, board_y + 0.14, az + 0.01, az + 0.06, m=7)
     for j in range(3):  # three carved pines on the board, painted pine green
         tx = ax - 0.3 + j * 0.3
-        blob(bm, tx, board_y + 0.01, az - 0.065, 0.06, 0.09, 0.008, m=10, cuts=2, n=1.4)
+        blob(bm, tx, board_y + 0.01, az + 0.065, 0.06, 0.09, 0.008, m=10, cuts=2, n=1.4)
+    # the trail's first steps into the trees beyond it: a few flat stones on the moss
+    for j in range(2):
+        blob(bm, ax + (j - 0.5) * 0.2 + rng.uniform(-0.04, 0.04), 0.02, az - 0.3 - j * 0.26, 0.15, 0.035, 0.11, m=5, cuts=2, noise=0.1, rng=rng, flat_bottom=-0.01)
     # --- the Whispering Pines Slingshot Gallery along the fence ---
     g = L["gallery"]
     gx0, gx1, gz0 = g["x"] - g["len"] / 2, g["x"] + g["len"] / 2, g["z"]
@@ -2063,13 +1952,11 @@ def build(root):
     build_dock(L, coll)
     build_tent(L, cushions, coll)
     build_tent2(L, cushions, coll)
-    build_hammock(L, cushions, coll)
     build_trees(L, coll)
     build_rocks(L, coll)
     build_fence(L, coll)
     build_deco(L, coll)
     build_glamping(L, cushions, coll)
-    build_hatchet(L, coll)
     build_workbench(L, coll)
     build_signpost(L, coll)
     build_canoe(L, cushions, coll)
@@ -2120,7 +2007,6 @@ def summary(coll, L, cushions):
         "firepitSeatHeights": {k: v[1] for k, v in marks.items() if k.startswith(("Seat_Log_L", "Seat_Log_M", "Seat_Log_C", "Seat_Stump_0", "Seat_Boulder_0"))},
         "logCushionTop": cushions["log"]["top"],
         "tentMatTop": cushions["tentMat"]["top"],
-        "hammockCushionTop": cushions["hammock"]["top"],
         "water": L["river"]["water"],
         "drawCallsApprox": sum(v["materials"] for v in out.values()),
         "tris": sum(v["tris"] for v in out.values()),

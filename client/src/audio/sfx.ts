@@ -105,7 +105,10 @@ export type Sfx =
   | "bumper"
   | "plunger"
   | "drain"
-  | "peg";
+  | "peg"
+  // the carnival gallery's slingshot: the band's twang as an acorn flies, a wooden target's pop
+  | "twang"
+  | "pop";
 
 /** A sound from somewhere in the world, heard from where you stand: full up close, fading with
  *  distance (and never quite gone within the room). */
@@ -183,6 +186,16 @@ export function playSfx(kind: Sfx, volume = 1) {
       [1047, 0.76],
     ];
     notes.forEach(([f, d]) => tone(c, t + d, f, f, 0.16, 0.07, "triangle"));
+  } else if (kind === "twang") {
+    // the sling's band let go: a quick rubbery twang and a whoosh
+    tone(c, t, 220, 140, 0.09, 0.12, "sawtooth");
+    tone(c, t, 440, 300, 0.07, 0.05, "triangle");
+    noise(c, t + 0.01, 0.06, 0.08, 3200);
+  } else if (kind === "pop") {
+    // a wooden target knocked flat: a round cork-like pop and a woody tock
+    tone(c, t, 900, 240, 0.07, 0.22, "sine");
+    noise(c, t, 0.03, 0.25, 4200);
+    tone(c, t + 0.03, 520, 380, 0.08, 0.1, "triangle");
   } else if (kind === "bite") {
     // the bobber goes under: a plop and a little splash
     tone(c, t, 520, 170, 0.2, 0.18);

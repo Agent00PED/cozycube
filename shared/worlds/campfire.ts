@@ -6,15 +6,16 @@ import type { PropSpec, SeatSpec } from "./lounge";
 // The Starlight Campfire: a floating island of midnight forest soil and moss, a bonfire ringed by
 // four fallen-log benches (two seats each) in the middle, a river winding down the east side with
 // a wide boardwalk dock out over it (three fishing spots side by side), a canvas tipi on the
-// north-west, a hammock slung between two pines on the open west side, a woodpile on the north,
-// pines along the back edges and a rustic fence along the front. Authored ONCE, here:
+// north-west, a woodpile on the north, eight Soft Pines round the clearing you fell (they grow back),
+// the branch archway into the Whispering Woods at the head of the north path beside Buster, pines
+// along the back edges and a rustic fence along the front. Authored ONCE, here:
 //
 //   CAMPFIRE_LAYOUT   where everything is (plain JSON between the markers: scripts/blender/
 //                     build_campfire.py reads the very same text to build campfire.glb, so the
 //                     model and the walkable floor can never disagree)
 //   riverSpan         the river's banks at any z, from its spline (build_campfire.py has the same
 //                     function, line for line)
-//   CAMP_SEATS        the logs (sit, facing the fire), the hammock and the tent (lie, eyes shut)
+//   CAMP_SEATS        the logs (sit, facing the fire), and the tents (lie, eyes shut)
 //   CAMP_PROPS        the bonfire (roast and grill) and the dock's three fishing spots
 //   CAMP_OBSTACLES    what you walk round; CAMP_SPAWNS  where you arrive (the path facing the fire)
 //
@@ -34,11 +35,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
       { "id": "Curved", "kind": "curved", "angle": 160, "r": 2.45, "arc": 38, "seats": ["C1", "C2"] },
       { "id": "Stump", "kind": "stump", "angle": 330, "r": 2.2, "seats": ["01"] },
       { "id": "Boulder", "kind": "boulder", "angle": 210, "r": 2.3, "seats": ["01"] }
-    ],
-    "rug": { "r0": 0.9, "r1": 2.05 },
-    "cushions": [{ "angle": 238, "r": 2.35 }, { "angle": 302, "r": 2.35 }],
-    "kettle": { "angle": 55, "r": 3.3 },
-    "guitar": { "angle": 185, "r": 2.05 }
+    ]
   },
   "tripod": { "legs": 0.9, "apex": 1.95, "potY": 1.0, "potR": 0.27 },
   "barnaby": { "x": 4.7, "z": -2.6, "yaw": -0.35 },
@@ -59,21 +56,27 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "lanterns": [{ "x": 7.12, "z": -1.72 }, { "x": 7.12, "z": 1.72 }],
   "tent": { "x": -6.3, "z": -5.0, "r": 1.35, "h": 3.0, "opening": 70 },
   "tent2": { "x": -7.8, "z": -2.35, "len": 1.9, "w": 1.55, "h": 1.25 },
-  "hammock": { "a": { "x": -9.0, "z": 7.0 }, "b": { "x": -6.5, "z": 4.5 }, "top": 1.25 },
   "woodpile": { "x": 1.0, "z": -7.0 },
   "trees": [
     { "x": -9.2, "z": -9.5, "s": 1.1 },
     { "x": -5.9, "z": -9.6, "s": 0.9 },
     { "x": -3.5, "z": -9.6, "s": 1.15 },
-    { "x": -0.3, "z": -9.7, "s": 0.85 },
     { "x": 1.3, "z": -10.0, "s": 0.95 },
     { "x": 9.5, "z": -9.4, "s": 0.9 },
     { "x": -9.6, "z": -6.5, "s": 1.0 },
     { "x": -10.0, "z": -4.0, "s": 0.85 },
     { "x": -9.5, "z": -1.8, "s": 1.15 },
-    { "x": -9.6, "z": 0.9, "s": 0.9 },
-    { "x": 5.0, "z": 8.4, "s": 0.6 },
-    { "x": 4.6, "z": 5.6, "s": 0.55 }
+    { "x": -9.6, "z": 0.9, "s": 0.9 }
+  ],
+  "fellTrees": [
+    { "x": -4.6, "z": 2.6 },
+    { "x": -5.3, "z": -0.4 },
+    { "x": -3.0, "z": -4.6 },
+    { "x": 2.8, "z": -3.6 },
+    { "x": 3.2, "z": 4.2 },
+    { "x": 4.6, "z": 5.6 },
+    { "x": 5.0, "z": 8.4 },
+    { "x": -3.1, "z": 4.9 }
   ],
   "rocks": [
     { "x": 6.1, "z": -5.2, "s": 0.7 },
@@ -96,12 +99,11 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "fence": { "at": 10.35, "zFrom": 8.3, "xFrom": -10.1, "post": 1.25 },
   "picnic": { "x": 0, "z": 8.85 },
   "telescope": { "x": 2.3, "z": 9.45 },
-  "archway": { "x": -8.4, "z": 10.35, "w": 1.8, "h": 2.6 },
+  "archway": { "x": -0.1, "z": -9.95, "w": 1.8, "h": 2.6 },
   "gallery": { "x": -4.4, "z": 7.4, "len": 3.4, "rails": [8.25, 8.85, 9.45], "back": 9.95 },
   "splitblock": { "x": 2.3, "z": -4.7 },
   "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
   "campChair": { "x": 4.5, "z": -7.45 },
-  "chops": [{ "x": -8.7, "z": -4.6 }, { "x": -6.5, "z": -8.1 }, { "x": -0.65, "z": -8.9, "halves": [] }, { "x": 1.75, "z": -6.65 }],
   "workbench": { "x": -4.2, "z": -8.35, "len": 1.4, "w": 0.62, "top": 0.86 },
   "critter": { "x": 3.4, "z": -6.2 },
   "canoe": { "x": 8.0, "z": 2.62, "len": 2.0 },
@@ -115,20 +117,18 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "kind": "mushroom", "x": -5.75, "z": -9.0 },
     { "kind": "berries", "x": -8.6, "z": -1.1 },
     { "kind": "mushroom", "x": -8.7, "z": 1.7 },
-    { "kind": "berries", "x": 0.5, "z": -8.9 }
+    { "kind": "berries", "x": -4.6, "z": -7.2 }
   ],
   "stringPole": { "x": -4.0, "z": -1.2, "h": 2.2 },
   "strings": [
     { "a": [-6.3, 2.65, -5.0], "b": [-3.76, 1.6, -9.18], "sag": 0.45 },
     { "a": [-6.3, 2.65, -5.0], "b": [-9.15, 1.6, -2.15], "sag": 0.45 },
     { "a": [-6.3, 2.65, -5.0], "b": [-4.0, 2.15, -1.2], "sag": 0.4 },
-    { "a": [-4.0, 2.15, -1.2], "b": [-6.3, 1.5, 4.04], "sag": 0.5 },
     { "a": [0.05, 1.25, -9.42], "b": [3.05, 1.55, -6.925], "sag": 0.35 },
     { "a": [3.05, 1.55, -6.925], "b": [5.15, 1.55, -6.925], "sag": 0.22 }
   ],
   "fenceLights": { "y": 0.78, "sag": 0.2, "every": 2 },
   "fireflies": { "x": -7.6, "z": 0.2 },
-  "stumpSeat": { "x": 0.7, "z": -5.65 },
   "signpost": {
     "x": 0.85,
     "z": 6.75,
@@ -143,7 +143,8 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "paths": [
     { "points": [[-2.9, -2.35, 2.2], [-3.45, -2.75, 1.5], [-4.0, -3.2, 1.05], [-4.6, -3.6, 1.0]] },
     { "points": [[0.15, 3.8, 2.2], [0.1, 4.5, 1.5], [0.05, 5.3, 1.2], [-0.2, 6.4, 1.3], [-0.3, 7.0, 1.35], [-0.35, 7.5, 1.3], [-0.3, 7.95, 1.6]] },
-    { "points": [[-0.05, 6.5, 1.5], [-1.4, 6.55, 1.0], [-2.9, 6.6, 0.95], [-4.4, 6.65, 1.1], [-6.2, 7.6, 1.0], [-7.6, 8.9, 1.0], [-8.4, 9.9, 1.2]] },
+    { "points": [[-0.05, 6.5, 1.5], [-1.4, 6.55, 1.0], [-2.9, 6.6, 0.95], [-4.4, 6.65, 1.1]] },
+    { "points": [[-0.35, -3.9, 2.0], [-0.45, -5.3, 1.4], [-0.35, -6.9, 1.25], [-0.2, -8.3, 1.3], [-0.1, -9.2, 1.6]] },
     { "points": [[0.4, 6.7, 1.0], [1.2, 7.5, 0.9], [1.9, 8.3, 0.9], [2.3, 8.75, 1.0]] }
   ],
   "cascade": { "x": 7.2, "z": -9.95, "top": 0.5 },
@@ -239,25 +240,16 @@ export function nearestFishingSpot(x: number, z: number) {
 
 // --- the living camp: the telescope, the chopping block, foraging, lights and wildlife ----------
 
-/** The Northern Timber Trail: four chopping stations in two pairs. The tipi's: one either side of
- *  it (between it and the A-frame tent, and in the north pines behind its right). The workshop's:
- *  one beside Buster on his open side, between him and the pine and the berry bush (he and the
- *  workbench stand back in the north pines, leaving the ground before them open), and one at the
- *  woodpile by the camper. `halves`: which sides the split halves lie on (default both). Each block yields MAX_CHOP_YIELD
- *  logs, then rests CHOP_COOLDOWN_S (rolled) for fresh ones; you step up to it from the fire's side. */
-export const CHOP_STATIONS = L.chops.map((c, i) => {
-  const toFire = unit(L.fire.x - c.x, L.fire.z - c.z);
-  return { propId: `woodchop_0${i + 1}`, x: c.x, z: c.z, approachX: c.x + toFire.x * 0.9, approachZ: c.z + toFire.z * 0.9 };
+/** The Soft Pines round the clearing that you fell (the radial felling, shared/chop.ts): each one's
+ *  node id, and where you stand to fell it (a step toward the fire). They grow back from their
+ *  stumps, a new size each time. */
+export const CAMP_TREES = L.fellTrees.map((t, i) => {
+  const toFire = unit(L.fire.x - t.x, L.fire.z - t.z);
+  return { id: `camp_pine_${i + 1}`, kind: "soft_pine" as const, x: t.x, z: t.z, approachX: t.x + toFire.x * 1.05, approachZ: t.z + toFire.z * 1.05 };
 });
-/** The chopping station nearest a point. */
-export function nearestChopStation(x: number, z: number) {
-  return CHOP_STATIONS.reduce((best, s) => (Math.hypot(s.x - x, s.z - z) < Math.hypot(best.x - x, best.z - z) ? s : best));
-}
 
 /** Close enough to the telescope's eyepiece to look through it. */
 export const STARGAZE_REACH = 1.4;
-/** Close enough to the chopping block to swing at it. */
-export const CHOP_REACH = 1.4;
 /** Close enough to a mushroom patch or a berry bush to pick it. */
 export const FORAGE_REACH = 1.3;
 /** Close enough to the grove's fireflies to sweep the net through them. */
@@ -324,15 +316,6 @@ export const FORAGE_SPOTS = L.forage.map((f, i) => {
 
 /** The way the tipi opens: toward the fire (and so toward the camera). */
 export const TENT_OPENS = unit(L.fire.x - L.tent.x, L.fire.z - L.tent.z);
-/** The hammock hangs from pine a to pine b (across the screen, so neither pine hides it): its
- *  middle, the way along it, and the side facing the camera (you climb in from there). */
-const HAMMOCK = (() => {
-  const { a, b } = L.hammock;
-  const along = unit(b.x - a.x, b.z - a.z);
-  const across = along.x + along.z >= 0 ? { x: along.z, z: -along.x } : { x: -along.z, z: along.x };
-  const front = across.x + across.z >= 0 ? across : { x: -across.x, z: -across.z };
-  return { mid: { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 }, along, front, length: Math.hypot(b.x - a.x, b.z - a.z) };
-})();
 
 /** Each log bench round the fire: its middle, the way along it (tangent to the fire), and its two
  *  seats, L and R as the sitter sees them facing the fire. */
@@ -382,7 +365,7 @@ export const FIREPIT = (L.firepit.pieces as readonly FirepitPiece[]).map((p) => 
 
 /**
  * A seat you lie down on: where your head rests, and the way it points (toward the back of the
- * tent, along the hammock). The server lies you down there with your eyes shut.
+ * tent). The server lies you down there with your eyes shut.
  */
 export interface LieSpec {
   head: Pt;
@@ -417,17 +400,6 @@ export const CAMP_SEATS: CampSeat[] = [
       return { propId: at.propId, x: at.x, z: at.z, rotationY: facing(at.x, at.z, L.fire), cushion: piece.cushion, style: "log", approachX: at.x - out.x * FRONT_MOUNT, approachZ: at.z - out.z * FRONT_MOUNT };
     })
   ),
-  // the hammock, along its length, head toward pine b; climb in from the camera's side
-  {
-    propId: "seat_hammock",
-    x: HAMMOCK.mid.x,
-    z: HAMMOCK.mid.z,
-    rotationY: 0,
-    cushion: "hammock",
-    approachX: HAMMOCK.mid.x + HAMMOCK.front.x * 1.1,
-    approachZ: HAMMOCK.mid.z + HAMMOCK.front.z * 1.1,
-    lie: { head: { x: HAMMOCK.mid.x + HAMMOCK.along.x * 0.6, z: HAMMOCK.mid.z + HAMMOCK.along.z * 0.6 }, dir: HAMMOCK.along },
-  },
   // the tipi: lie on the mat inside, head to the back, feet to the open flap
   {
     propId: "seat_tent",
@@ -471,18 +443,12 @@ export const CAMP_SEATS: CampSeat[] = [
   { propId: "seat_canoe", x: L.canoe.x - 0.45, z: L.canoe.z, rotationY: 0, cushion: "canoe", style: "wood", approachX: 6.6, approachZ: 1.5 },
   // and its bow seat, for a second paddler (a passenger: the stern is the one who fishes)
   { propId: "seat_canoe_bow", x: L.canoe.x + 0.42, z: L.canoe.z, rotationY: 0, cushion: "canoe", style: "wood", approachX: 6.6, approachZ: 1.5 },
-  // the sitting stump beside the chopping block, facing the fire
-  (() => {
-    const toFire = unit(L.fire.x - L.stumpSeat.x, L.fire.z - L.stumpSeat.z);
-    return { propId: "seat_chop_stump", x: L.stumpSeat.x, z: L.stumpSeat.z, rotationY: facing(L.stumpSeat.x, L.stumpSeat.z, L.fire), cushion: "stump", style: "wood", approachX: L.stumpSeat.x + toFire.x * 0.85, approachZ: L.stumpSeat.z + toFire.z * 0.85 } satisfies CampSeat;
-  })(),
 ];
 
-/** What the action dock offers for a seat you lie in: you rest in the tent and nap in the hammock. */
+/** What the action dock offers for a seat you lie in (you rest in the tents), and the fishing seats. */
 export const CAMP_SEAT_LABELS: Record<string, string> = {
   seat_tent: "⛺ Rest",
   seat_tent_02: "⛺ Rest",
-  seat_hammock: "🛌 Nap",
   ...Object.fromEntries(FISHING_SPOTS.filter((s) => s.seat.startsWith("seat_dock_")).map((s) => [s.seat, "🌊 Sit on the dock"])),
   seat_canoe: "🛶 Sit in the canoe",
   seat_canoe_bow: "🛶 Ride in the bow",
@@ -525,11 +491,12 @@ export const PICNIC_PLATE_SPOTS: Pt[] = L.picnicPlates.map(([dx, dz]) => ({ x: L
 /** Close enough to the picnic table to leave a skewer or take one. */
 export const PICNIC_REACH = 2.0;
 
-/** The archway into the Whispering Woods (on the fence line) and where you stand at it; where a
- *  traveller back from the woods arrives (just inside it). */
+/** The archway into the Whispering Woods: a forest trailhead at the head of the north path, beside
+ *  Buster's stall, opening south onto the camp; where you stand at it, and where a traveller back
+ *  from the woods arrives (just in front of it). */
 export const CAMP_ARCHWAY = L.archway;
-export const CAMP_ARCHWAY_FRONT: Pt = { x: L.archway.x, z: L.archway.z - 1.05 };
-export const CAMP_FROM_WOODS: Pt = { x: L.archway.x + 0.2, z: L.archway.z - 1.5 };
+export const CAMP_ARCHWAY_FRONT: Pt = { x: L.archway.x, z: L.archway.z + 1.05 };
+export const CAMP_FROM_WOODS: Pt = { x: L.archway.x + 0.3, z: L.archway.z + 1.6 };
 /** The slingshot gallery: its counter (along x), its three target rails and its backstop, and where
  *  you stand to shoot (in front of the counter, facing the fence). */
 export const GALLERY = L.gallery;
@@ -537,11 +504,6 @@ export const GALLERY_FRONT: Pt = { x: L.gallery.x, z: L.gallery.z - 0.7 };
 /** The splitting block (logs into Firewood), and its front. */
 export const SPLITBLOCK = L.splitblock;
 export const SPLITBLOCK_FRONT: Pt = { x: L.splitblock.x - 0.8, z: L.splitblock.z };
-/** The firepit's cozy things: the braided rug round the fire, floor cushions, the side stump with its
- *  tea kettle and mugs, the guitar leaning on the curved log (all laid out by the builder). */
-export const FIREPIT_DECOR = { rug: L.firepit.rug, cushions: L.firepit.cushions, kettle: L.firepit.kettle, guitar: L.firepit.guitar };
-const polar = (angle: number, r: number): Pt => ({ x: L.fire.x + Math.cos(angle * DEG) * r, z: L.fire.z + Math.sin(angle * DEG) * r });
-export const KETTLE_STUMP: Pt = polar(L.firepit.kettle.angle, L.firepit.kettle.r);
 
 export const CAMP_PROPS: PropSpec[] = [
   // the bonfire: walk up (or sit on a log) and roast a marshmallow or grill a skewer
@@ -550,9 +512,8 @@ export const CAMP_PROPS: PropSpec[] = [
   ...FISHING_SPOTS.map((s): PropSpec => ({ propId: s.propId, x: s.stand.x + (s.seat === "seat_canoe" ? 0 : 0.25), z: s.stand.z, kind: "fishing", color: "#7fb7d6", defaultOn: true, approachX: s.approach.x, approachZ: s.approach.z })),
   // the brass telescope by the front fence: look up and catch shooting stars
   { propId: "telescope", x: L.telescope.x, z: L.telescope.z, kind: "telescope", color: "#d9a441", defaultOn: true, approachX: L.telescope.x, approachZ: L.telescope.z - 0.85 },
-  // the chopping stations (the woodpile, the grove, the fork): split a log to feed the fire; `on`
-  // while a log waits on the block
-  ...CHOP_STATIONS.map((s): PropSpec => ({ propId: s.propId, x: s.x, z: s.z, kind: "woodchop", color: "#c98b4f", defaultOn: true, approachX: s.approachX, approachZ: s.approachZ })),
+  // the Soft Pines round the clearing: fell them (E, a click or a tap), they grow back
+  ...CAMP_TREES.map((t): PropSpec => ({ propId: `tree_${t.id}`, x: t.x, z: t.z, kind: "tree", color: "#4f7a3a", defaultOn: true, approachX: t.approachX, approachZ: t.approachZ })),
   // mushrooms and berries under the pines; `on` while there is something to pick
   ...FORAGE_SPOTS.map((f): PropSpec => ({ propId: f.propId, x: f.x, z: f.z, kind: "foraging", color: f.kind === "berries" ? "#8f7bff" : "#d9483b", defaultOn: true, approachX: f.approachX, approachZ: f.approachZ })),
   // the raccoon by the camper van: toss it a treat
@@ -566,14 +527,14 @@ export const CAMP_PROPS: PropSpec[] = [
   { propId: "buster", x: L.buster.x, z: L.buster.z, kind: "lumberjack", color: "#b3403a", defaultOn: true, approachX: BUSTER_FRONT.x, approachZ: BUSTER_FRONT.z },
   // the carpenter's workbench: carve split wood into artisan pieces
   { propId: "workbench", x: WORKBENCH.x, z: WORKBENCH.z, kind: "workbench", color: "#c98b4f", defaultOn: true, approachX: WORKBENCH_FRONT.x, approachZ: WORKBENCH_FRONT.z },
-  // the branch archway in the front fence's west end: the way into the Whispering Woods (a Day Trip
-  // Permit or the Ranger's Badge from Buster)
+  // the branch archway at the head of the north path, beside Buster: the trailhead into the
+  // Whispering Woods (a Day Trip Permit or the Ranger's Badge from Buster)
   { propId: "woods_gate", x: L.archway.x, z: L.archway.z, kind: "archway", color: "#8a6a3f", defaultOn: true, approachX: CAMP_ARCHWAY_FRONT.x, approachZ: CAMP_ARCHWAY_FRONT.z },
   // the Whispering Pines Slingshot Gallery on the grass by the fence: its counter
   { propId: "slingshot_gallery", x: L.gallery.x, z: L.gallery.z, kind: "slingshot", color: "#c98b4f", defaultOn: true, approachX: GALLERY_FRONT.x, approachZ: GALLERY_FRONT.z },
   // the splitting block by the woodpile: logs into Firewood
   { propId: "splitblock_camp", x: L.splitblock.x, z: L.splitblock.z, kind: "splitblock", color: "#a8743d", defaultOn: true, approachX: SPLITBLOCK_FRONT.x, approachZ: SPLITBLOCK_FRONT.z },
-  // the dark grove between the hammock and the tipi, alive with fireflies: catch some in a jar
+  // the dark grove west of the tipi, alive with fireflies: catch some in a jar
   (() => {
     const toFire = unit(L.fire.x - L.fireflies.x, L.fire.z - L.fireflies.z);
     return { propId: "fireflies", x: L.fireflies.x, z: L.fireflies.z, kind: "fireflies", color: "#e8ff8a", defaultOn: true, approachX: L.fireflies.x + toFire.x * 0.9, approachZ: L.fireflies.z + toFire.z * 0.9 } satisfies PropSpec;
@@ -584,8 +545,6 @@ export const CAMP_PROPS: PropSpec[] = [
 
 const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
 
-/** The two pines the hammock hangs between, at its ends. */
-export const HAMMOCK_PINES: Pt[] = [L.hammock.a, L.hammock.b];
 
 /** The river as boxes: thin slices down its length, each spanning its banks there (a little in
  *  from them, so you can walk to the water's edge), with the dock left open. */
@@ -649,17 +608,11 @@ export const CAMP_OBSTACLES: AABB[] = [
     minZ: TENT2.z - (Math.abs(TENT2.open.z) * TENT2.len + Math.abs(TENT2.across.z) * TENT2.w) / 2 + 0.12,
     maxZ: TENT2.z + (Math.abs(TENT2.open.z) * TENT2.len + Math.abs(TENT2.across.z) * TENT2.w) / 2 - 0.12,
   },
-  // the woodpile (its chopping stump inside its box), and the trail's other chopping stumps
+  // the woodpile
   { minX: L.woodpile.x - 0.6, maxX: L.woodpile.x + 1.0, minZ: L.woodpile.z - 0.5, maxZ: L.woodpile.z + 0.6 },
-  ...CHOP_STATIONS.slice(0, 3).map((s) => around(s, 0.3)),
-  // the hammock (it hangs across a diagonal: small boxes along it) and its two pines
-  ...Array.from({ length: 6 }, (_, k) => {
-    const t = (k + 0.5) / 6 - 0.5;
-    return around({ x: HAMMOCK.mid.x + HAMMOCK.along.x * t * HAMMOCK.length, z: HAMMOCK.mid.z + HAMMOCK.along.z * t * HAMMOCK.length }, 0.36);
-  }),
-  ...HAMMOCK_PINES.map((p) => around(p, 0.42)),
-  // the pines' trunks and the boulders
+  // the pines' trunks (the Soft Pines you fell too: a stump is in the way as well) and the boulders
   ...L.trees.map((t) => around(t, 0.42 * Math.max(0.8, t.s))),
+  ...CAMP_TREES.map((t) => around(t, 0.36)),
   ...L.rocks.map((r) => around(r, 0.45 * r.s)),
   // the picnic table, its benches and the cooler at its end; the telescope's tripod
   { minX: L.picnic.x - 0.92, maxX: L.picnic.x + 1.5, minZ: L.picnic.z - 0.78, maxZ: L.picnic.z + 0.78 },
@@ -669,18 +622,15 @@ export const CAMP_OBSTACLES: AABB[] = [
   ...AWNING_POLES.map((p) => around(p, 0.08)),
   around(L.campChair, 0.3),
   around(L.critter, 0.22),
-  // the kettle's side stump by the firepit
-  around(KETTLE_STUMP, 0.26),
   // the slingshot gallery: its counter, the posts of its three rails and its hay-bale backstop
   { minX: L.gallery.x - L.gallery.len / 2, maxX: L.gallery.x + L.gallery.len / 2, minZ: L.gallery.z - 0.28, maxZ: L.gallery.z + 0.28 },
   { minX: L.gallery.x - L.gallery.len / 2 - 0.1, maxX: L.gallery.x + L.gallery.len / 2 + 0.1, minZ: L.gallery.rails[0] - 0.12, maxZ: L.gallery.back + 0.3 },
-  // the archway's two posts either side of its opening in the fence, and the splitting block
+  // the archway's two posts either side of its opening, and the splitting block
   around({ x: L.archway.x - L.archway.w / 2 - 0.1, z: L.archway.z }, 0.18),
   around({ x: L.archway.x + L.archway.w / 2 + 0.1, z: L.archway.z }, 0.18),
   around(L.splitblock, 0.33),
-  // the pole the lights are strung from, the sitting stump, the signpost
+  // the pole the lights are strung from, the signpost
   around(L.stringPole, 0.1),
-  around(L.stumpSeat, 0.22),
   around(L.signpost, 0.12),
   // the guitar case lying open in the grove, and the lantern on the grass beside it
   around(L.guitarCase, 0.5),

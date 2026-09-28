@@ -279,7 +279,9 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
   };
   const { zoneY, fishY, meter, inZone, timeLeft, tension, chestY, chest, chestOpen } = view;
   const straining = tension > 0.65;
-  const pct = Math.round(meter * 100);
+  // the catch as a percentage: the number beside the bar and the bar's fill are this one value
+  const catchProgress = Math.round(meter * 100);
+  const pct = catchProgress;
   return (
     <Modal title={done === "caught" ? "Landed!" : done === "lost" ? "Gone…" : "Something's on the line!"} icon="🎣" onClose={close} width={780} fit>
       <div className="flex min-h-0 flex-col gap-3 sm:flex-row">
@@ -390,8 +392,9 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
                 <div className="w-full rounded-full transition-[height] duration-100" style={{ height: `${tension * 100}%`, background: straining ? "#ff5a4f" : "#E69A28" }} />
               </div>
               {/* the catch */}
-              <div className="flex w-6 shrink-0 flex-col justify-end overflow-hidden rounded-full bg-white/10" style={{ height: barH }} aria-label="Catch progress">
-                <div className="w-full rounded-full transition-[height] duration-100" style={{ height: `${meter * 100}%`, background: meter > 0.66 ? "#8fd3b6" : meter > 0.33 ? "#F5A623" : "#ec7fa3" }} />
+              {/* the catch: an amber fill bound to the very number shown beside it (catchProgress, 0-100) */}
+              <div className="relative w-6 shrink-0 overflow-hidden rounded-full bg-white/10" style={{ height: barH }} role="progressbar" aria-label="Catch progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={catchProgress}>
+                <div className="absolute bottom-0 left-0 right-0 rounded-full bg-[#F5A623] shadow-[0_0_8px_rgba(245,166,35,0.6)]" style={{ height: `${Math.min(100, Math.max(0, catchProgress))}%`, transition: "height 0.15s ease-out" }} />
               </div>
               <div className="flex w-[104px] flex-col justify-between py-0.5 text-sm">
                 <div>

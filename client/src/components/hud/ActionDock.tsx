@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
-import { FIREWOOD_FUEL, TREES, WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
-import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FOREST_ANIMALS, FOREST_TREE_AT } from "@shared/worlds/forest";
-import { forestTarget } from "../../scene/forestTarget";
+import { FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
+import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FOREST_ANIMALS, FOREST_FISHING, woodsSpotOfSeat } from "@shared/worlds/forest";
+import { FELL_TREE_AT } from "@shared/worlds/trees";
+import { treeTarget } from "../../scene/treeTarget";
 import type { HearthState } from "../../hooks/useColyseusRoom";
-import { BONFIRE_REACH, CAMP_SEAT_LABELS, CHOP_REACH, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, spotOfSeat } from "@shared/worlds/campfire";
+import { BONFIRE_REACH, CAMP_SEAT_LABELS, CRITTER_REACH, FIREFLY_REACH, FISHING_REACH, FORAGE_REACH, FORAGE_SPOTS, STARGAZE_REACH, dockSeatOf, spotOfSeat } from "@shared/worlds/campfire";
 import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, BOUTIQUE, BOUTIQUE_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { BAR_REACH, BLACKJACK_TABLES, CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, GACHAPON_FRONT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, ROULETTE_BET_RADIUS, ROULETTE_CENTER, TIP_JARS, VIP_DOORS_FRONT, ZARA_FRONT, barDistance, nearGameTable, seatedGameOf, type CasinoGameTable } from "@shared/worlds/casino";
@@ -33,7 +34,12 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🪵 Add Firewood]  there too, with firewood (or Golden Charcoal) in your bag
 //   [🍲 Dutch Oven] / [🥣 Scoop Stew]  there too: the hearth's panel, or a bowl when the stew's up
 //   [🍢 Leave on Table] / [🍢 Grab a Skewer]  at the picnic table, a skewer in hand or on a plate
-//   [💤 AFK Mode: OFF] / [💤 AFK Mode: ON]  sitting at a fishing spot (the dock's edge, the canoe)
+//   [🎣 Manual Reel] [☕ Auto AFK]  at a fishing spot (the dock's edge or the canoe at the campfire;
+//                    the woods' river bank, standing or on its log or rock): cast and reel by hand,
+//                    or feet up with the line in (12-16s a common, up to 90s a mythic; never a King
+//                    Size); fishing by hand, [☕ Auto AFK]; AFK, [🎣 Manual Reel]
+//   [🪓 Fell Soft Pine · T1]  the grown tree in reach (the campfire's pines, the woods' trees, a
+//                    Colossal Titan): the radial felling panel
 //   [🦦 Talk to Barnaby]  at the angler's tackle stall by the dock
 //   [🪓 Talk to Buster]  at the lumberjack's firewood stall by the woodpile
 //   [🎣 Go Fishing]  at the dock: sit on its edge at the nearest free spot and cast; sitting on the
@@ -219,8 +225,8 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
             key: `relight:${item ?? "none"}`,
             type: "roast",
             label: "🔥 Relight Bonfire (Requires 1 Wood)",
-            hint: item ? `Put a ${WOOD[item].name} on the embers` : "Chop a log at one of the stations on the Timber Trail first",
-            run: () => (item ? onCampfire({ type: "ADD_FUEL", item }) : pushToast("You need a log to relight the fire: chop one on the Timber Trail", { emoji: "🪵" })),
+            hint: item ? `Put a ${WOOD[item].name} on the embers` : "Fell a Soft Pine round the clearing for a log first",
+            run: () => (item ? onCampfire({ type: "ADD_FUEL", item }) : pushToast("You need a log to relight the fire: fell a Soft Pine round the clearing", { emoji: "🪵" })),
           });
         } else {
           // seated, the panel opens where you are; standing, you walk up to the fire first
@@ -307,12 +313,13 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           const id = block.propId;
           found.push({ key: `split:${id}`, type: "split", label: "🪓 Split Logs", hint: "Split your logs into Firewood bundles for the bonfire", run: () => interactBridge.current?.useProp(id) });
         }
+        const tree = treeTarget.id ? FELL_TREE_AT.get(treeTarget.id) : undefined;
+        if (tree && tree.map === mapId) {
+          const info = TREES[tree.kind];
+          if (tree.titan) found.push({ key: `fell:${tree.id}`, type: "chop", label: `🌳 Fell the ${TITAN.name}`, hint: `${TITAN.rounds[0]}-${TITAN.rounds[1]} rounds on the ring, any axe: ${TITAN.logs[0]}-${TITAN.logs[1]} heavy logs worth ${TITAN.mult}x each`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
+          else found.push({ key: `fell:${tree.id}`, type: "chop", label: `🪓 Fell ${info.name} · T${info.tier}`, hint: `Land ${info.rounds[0]}-${info.rounds[1]} rounds on the ring and it comes down (${WOOD[info.wood].name} logs, bigger trees worth more). Needs a T${info.tier} axe or better`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
+        }
         if (mapId === "whispering_woods") {
-          const tree = forestTarget.id ? FOREST_TREE_AT.get(forestTarget.id) : undefined;
-          if (tree) {
-            const info = TREES[tree.kind];
-            found.push({ key: `fell:${tree.id}`, type: "chop", label: `🪓 Fell ${info.name} · T${info.tier}`, hint: `Three notches in the green and it comes down (${info.logs} ${WOOD[info.wood].name} logs). Needs a T${info.tier} axe or better`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
-          }
           if (Math.hypot(BRAMBLE_FRONT.x - px, BRAMBLE_FRONT.z - pz) <= BRAMBLE_REACH + 0.6) found.push({ key: "bramble", type: "barnaby", label: "🐻 Talk to Bramble", hint: "Sell wood and fish; the finest axes and rods in the land", run: () => interactBridge.current?.useProp("bramble") });
           for (const a of FOREST_ANIMALS) {
             if (Math.hypot(a.x - px, a.z - pz) > ANIMAL_REACH + 0.3) continue;
@@ -439,54 +446,44 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           seated(table.id, Math.hypot(table.x - px, table.z - pz) < table.reach, `🃏 Blackjack · ${table.label}`, `👀 Watch ${table.label}`, `${table.tier === "blackjack_high" ? "High stakes" : "Casual"}: ${chipText(limit.min)} to ${chipText(limit.max)} chips, ${dealer} stands on 17, blackjack pays 3:2`, "blackjack");
         }
       }
-      // the dock: sitting on its edge, cast from there; standing, sit down at the nearest free spot
+      // a fishing spot: at the campfire, sitting on the dock's edge or in the canoe; in the woods, on
+      // the river bank (standing at a spot, or sitting on its log or rock). There: cast and reel by
+      // hand, or feet up (AFK) with the line in
       const mySeat = Object.values(chairs).find((c) => c.occupiedBy === localSessionId);
-      const mySpot = mySeat ? spotOfSeat(mySeat.propId) : undefined;
+      const woodsStand = mapId === "whispering_woods" && !sitting ? FOREST_FISHING.find((f) => Math.hypot(f.stand.x - cameraFocus.x, f.stand.z - cameraFocus.z) <= FISHING_REACH + 0.8) : undefined;
+      const mySpot = mySeat ? (spotOfSeat(mySeat.propId) ?? woodsSpotOfSeat(mySeat.propId)) : woodsStand?.propId;
+      const AFK_HINT = "Feet up, line in: a common every 12-16s, rarer fish longer (up to 90s for a mythic; premium bait a quarter quicker). Never a King Size: those take a hand on the reel";
       if (mySpot && action === "") {
-        // sitting on the dock's edge or in the canoe: cast from there
         const id = mySpot;
-        found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Cast Line", hint: "Cast into the river; tap when the bobber dips, then reel it in", run: () => interactBridge.current?.useProp(id) });
+        found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Manual Reel", hint: "Cast into the river; tap when the bobber dips, then reel it in (in a King-Size Surge, 4 in 10 are King Size)", run: () => interactBridge.current?.useProp(id) });
+        found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
       }
-      // sitting at a spot with the line in (or about to be): feet up, and let the fish come to you
+      if (mySpot && action === "fish") found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
+      if (mySpot && action === "afkfish") found.push({ key: "afk:off", type: "afk", label: "🎣 Manual Reel", hint: "Back to watching the bobber: tap when it dips, then reel it in", run: () => onCampfire({ type: "AFK", on: false }) });
+      // the livewell full: resting by the water with a mug until there's room again
       if (mySpot && action === "rest") {
-        found.push({ key: "afk:resume", type: "afk", label: "🎣 Resume Fishing", hint: "Once there's room in the creel (sell to Barnaby), back to AFK fishing", run: () => onCampfire({ type: "AFK", on: true }) });
-      }
-      if (mySpot && (action === "" || action === "fish" || action === "afkfish")) {
-        const on = action === "afkfish";
-        found.push({ key: `afk:${on}`, type: "afk", label: on ? "💤 AFK Mode: ON" : "💤 AFK Mode: OFF", hint: on ? "A fish into the creel every 25-45s (the rarer, the longer). Tap to watch the bobber again" : "Feet up: a fish into the creel every 25-45s, the rarer the longer", run: () => onCampfire({ type: "AFK", on: !on }) });
+        found.push({ key: "afk:resume", type: "afk", label: "☕ Resume Auto AFK", hint: "Once there's room in the livewell (sell to Barnaby or Bramble), back to AFK fishing", run: () => onCampfire({ type: "AFK", on: true }) });
       }
       if (!mySpot && !sitting && action === "") {
         let spot: { id: string; d: number } | null = null;
         for (const p of Object.values(toggleables)) {
           if (p.kind !== "fishing") continue;
-          const seat = chairs[dockSeatOf(p.propId)];
+          const seat = chairs[dockSeatOf(p.propId) || (FOREST_FISHING.find((f) => f.propId === p.propId)?.seat ?? "")];
           if (seat && seat.occupiedBy && seat.occupiedBy !== localSessionId) continue; // someone's fishing there
           const d = reach(p);
           if (d <= FISHING_REACH + 1.6 && (!spot || d < spot.d)) spot = { id: p.propId, d };
         }
         if (spot) {
           const id = spot.id;
-          found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: "Sit on the dock's edge and cast; tap when the bobber dips, then reel it in", run: () => interactBridge.current?.useProp(id) });
+          found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: mapId === "whispering_woods" ? "Step up to the bank (or sit on its log or rock) and cast; then reel by hand, or Auto AFK" : "Sit on the dock's edge and cast; then reel by hand, or Auto AFK", run: () => interactBridge.current?.useProp(id) });
         }
       }
-      // the telescope, the chopping block and the foraging patches: walk up to them
+      // the telescope, the raccoon, the fireflies and the foraging patches: walk up to them
       if (!sitting && action === "") {
         const tele = Object.values(toggleables).find((p) => p.kind === "telescope");
         if (tele && reach(tele) <= STARGAZE_REACH + 0.3) {
           const id = tele.propId;
           found.push({ key: `gaze:${id}`, type: "stargaze", label: "🔭 Stargaze", hint: "Look through the telescope: tap shooting stars for +10 coins", run: () => interactBridge.current?.useProp(id) });
-        }
-        // the nearest of the three chopping stations: its log, or the wait for the next one
-        let block: { p: ToggleableSyncState; d: number } | null = null;
-        for (const p of Object.values(toggleables)) {
-          if (p.kind !== "woodchop") continue;
-          const d = reach(p);
-          if (d <= CHOP_REACH + 0.3 && (!block || d < block.d)) block = { p, d };
-        }
-        if (block) {
-          const id = block.p.propId;
-          if (block.p.on) found.push({ key: `chop:${id}`, type: "chop", label: "🪓 Chop Firewood", hint: "Split the log in three clean swings: firewood to burn or sell", run: () => interactBridge.current?.useProp(id) });
-          else found.push({ key: `chop:${id}:wait`, type: "chop", label: "🪵 Next log soon…", hint: "This block's next log arrives in under half a minute. Three more stations round the camp!", run: () => pushToast("A fresh log is on its way to this block. Try another station!", { emoji: "🪵" }) });
         }
         const raccoon = Object.values(toggleables).find((p) => p.kind === "critter");
         if (raccoon && reach(raccoon) <= CRITTER_REACH + 0.3) {

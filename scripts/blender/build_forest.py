@@ -1,4 +1,5 @@
-"""The Whispering Woods diorama: builds client/public/models/forest.glb.
+"""The Whispering Woods diorama: builds client/public/models/forest.glb, and the felling trees'
+looks in client/public/models/trees.glb (the campfire's Soft Pines use them too).
 
 Run it inside Blender through the Live Bridge (POST {"code": ...}: run this file inside a namespace
 of its own with REPO_ROOT and REPORT_PATH set in it; the summary or the traceback goes to
@@ -11,25 +12,38 @@ shared/worlds/forest.ts (the JSON between its layout markers, read as is). A sty
 like the Campfire's, every material opaque and matte (the water a little glossier), the same
 night-and-day friendly palette. Nodes:
 
-    Forest_Ground       the floating island: meadow grass on top, soil down its bevelled sides, the
-                        rapids' channel cut down the east edge (a dark bed, stone walls)
+    Forest_Ground       the floating island: grass on top, soil down its bevelled sides, the river's
+                        channel carved along its meandering spline (a dark bed, stone walls), out
+                        through the island's north and east edges
     Forest_Underside    the rock beneath, tapering away
-    Forest_Floors       each zone's floor over the meadow: the Birch Grove's pale grass, the Cedar
-                        Ridge's stony turf, the Golden Glen's fallen leaves, the Shrine's moss
+    Forest_Meadow       the island's top as a fine grid, its grass coloured vertex by vertex: the
+                        Birch Grove's pale grass, the Cedar Ridge's stony turf, the Golden Glen's
+                        fallen gold and the Shrine's moss blend into one another along wandering,
+                        organic edges (no rectangles), fairy rings of brighter grass where a
+                        Colossal Titan can sprout, the colour easing back to the base grass at the
+                        river's banks and the island's rim (FW_Meadow: one vertex-colour material)
+    Forest_Banks        damp dark earth along both banks of the river
+    Forest_Floors       the Shrine's flagstones round the elderwood
     Forest_Paths        the dirt trails from the archway through the wood
     Forest_Deco         grass tufts, ferns, wildflowers, mushrooms and leaf piles
-    Forest_Rocks        the rapids' rocks, the bank stones, the ridge's boulders, the shrine's ring of
-                        standing stones (their runes glowing faintly) and its flagstone floor
+    Forest_Rocks        the river's rocks, the bank stones and the pebbles at its water line, the
+                        ridge's boulders, the shrine's ring of standing stones (their runes glowing
+                        faintly)
     Forest_Vista        twenty-five tall pines along the back and side edges (never felled)
-    Forest_Structures   the branch archway back to the campfire, Bramble's log cabin (warm windows,
-                        a stone chimney), his store counter and hanging sign, the advanced
-                        workbench, the splitting block and its firewood, the rapids' fishing stones
-    Forest_Water        the rapids' water surface (the game runs it through a flowing shader), and
-                        the white foam round the rocks (FW_Foam)
+    Forest_Structures   the branch archway back to the campfire, Bramble's log cabin (flush with the
+                        eastern tree line: warm windows, a stone chimney), his store counter and
+                        hanging sign, the advanced workbench, the splitting block and its firewood,
+                        the river's fishing spots (a flat stone out over the water, a raw log and a
+                        boulder to sit on, each with a little fish sign)
+    Forest_Water        the river's water surface along the spline, spilling over the island's edge
+                        at both ends (the game runs it through a flowing shader), and the white
+                        foam round the rocks, along the banks and at the spills (FW_Foam)
+
+trees.glb (its own file, Forest_Trees):
     Tree_<kind>_<stage> the felling trees' looks, each at the origin, its pivot at the trunk's foot
-                        (the game places one per node, instanced, and swings a mature one down when
-                        it falls): kind soft_pine, birch, cedar, maple, elderwood; stage stump,
-                        sprout, sapling, mature
+                        (the game places one per node, instanced, each at its own size, and swings a
+                        mature one down when it falls): kind soft_pine, birch, cedar, maple,
+                        elderwood; stage stump, sprout, sapling, mature
     Animal_Deer         the deer by the Golden Glen's path (Animal_Deer_Head: pivots at the neck,
                         she grazes and looks up)
     Animal_Rabbit_1..3  three rabbits by the Border's splitting block (they hop)
@@ -63,6 +77,8 @@ PALETTE = {
     "FW_GlenFloor": "#C98B3A",
     "FW_ShrineFloor": "#3F6B4A",
     "FW_Dirt": "#8B6B4C",
+    "FW_Bank": "#4C5A36",
+    "FW_Pebble": "#A39C90",
     "FW_Tuft": "#5E8A48",
     "FW_Fern": "#3F7446",
     "FW_Petal": "#F2B8C6",
@@ -120,8 +136,13 @@ ROUGHNESS = {"FW_Water": 0.25, "FW_Iron": 0.6, "FW_Window": 0.5, "FW_Honey": 0.4
 EMISSION = {"FW_Window": 2.4, "FW_Rune": 1.8, "FW_ElderLeafGlow": 1.6, "FW_Wisp": 3.0}
 DOUBLE_SIDED = {"FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_Foam", "FW_Cloth"}
 
+LAYER_MEADOW = 0.004
 LAYER_FLOOR = 0.008
+LAYER_BANK = 0.012
 LAYER_PATH = 0.016
+# the meadow's biomes (each zone's `floor`), blended by vertex colour
+BIOME = {"meadow": "#6F9A55", "birch": "#8FAE6B", "ridge": "#7F8C68", "glen": "#B48A46", "shrine": "#3F6B4A"}
+FAIRY_RING = "#A3CC72"
 TREE_KINDS = ("soft_pine", "birch", "cedar", "maple", "elderwood")
 STAGES = ("stump", "sprout", "sapling", "mature")
 
@@ -147,6 +168,17 @@ def repo_root():
     if "__file__" in globals() and __file__.endswith("build_forest.py"):
         return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     return os.environ.get("COZYCUBE_ROOT", os.getcwd())
+
+
+def read_cushions(root):
+    """The seats' cushions (shared/seats.ts): the fishing log's and boulder's tops are the game's."""
+    src = open(os.path.join(root, "shared", "seats.ts"), encoding="utf-8").read()
+    out = {}
+    for name in ("log", "boulder"):
+        m = re.search(rf"\b{name}: \{{ y: (-?[0-9.]+), h: ([0-9.]+) \}}", src)
+        y, h = float(m.group(1)), float(m.group(2))
+        out[name] = {"y": y, "h": h, "top": y + h / 2}
+    return out
 
 
 def read_layout(root):
@@ -186,6 +218,75 @@ def near_path(L, x, z, pad):
             if math.hypot(x - (ax + dx * t), z - (az + dz * t)) < max(aw, bw) / 2 + pad:
                 return True
     return False
+
+
+# --- the river: the same Catmull-Rom spline as shared/worlds/forest.ts forestRiver ([x, z,
+# halfWidth] points, in off the north edge and out off the east) ---
+RIVER_FRAMES = {}
+
+
+def river_samples(L, per=10):
+    P = L["river"]["points"]
+    at = lambda k: P[max(0, min(len(P) - 1, k))]
+    out = []
+    for i in range(len(P) - 1):
+        for k in range(per):
+            u = k / per
+            out.append(tuple(catmull(at(i - 1)[d], at(i)[d], at(i + 1)[d], at(i + 2)[d], u) for d in range(3)))
+    out.append(tuple(P[-1]))
+    return out
+
+
+def river_frame(L, per=10):
+    """Each sample of the river: its centre (x, z), half-width, tangent (tx, tz) and left normal."""
+    if per not in RIVER_FRAMES:
+        S = river_samples(L, per)
+        out = []
+        for i, (x, z, w) in enumerate(S):
+            ax, az = S[max(0, i - 1)][:2]
+            bx, bz = S[min(len(S) - 1, i + 1)][:2]
+            tx, tz = bx - ax, bz - az
+            d = math.hypot(tx, tz) or 1
+            tx, tz = tx / d, tz / d
+            out.append((x, z, w, tx, tz, -tz, tx))
+        RIVER_FRAMES[per] = out
+    return RIVER_FRAMES[per]
+
+
+def river_dist(L, x, z):
+    """How far (x, z) is from the river's centre line, and the river's half-width there."""
+    F = river_frame(L, 12)
+    best = (1e9, 1.0)
+    for (ax, az, aw, *_), (bx, bz, bw, *_) in zip(F, F[1:]):
+        dx, dz = bx - ax, bz - az
+        t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
+        d = math.hypot(x - (ax + dx * t), z - (az + dz * t))
+        if d < best[0]:
+            best = (d, aw + (bw - aw) * t)
+    return best
+
+
+def in_rounded(x, z, a, r):
+    """Inside the rounded square |x|, |z| <= a with corners of radius r."""
+    ax, az = abs(x), abs(z)
+    if ax > a or az > a:
+        return False
+    if ax > a - r and az > a - r:
+        return math.hypot(ax - (a - r), az - (a - r)) <= r
+    return True
+
+
+def rim_dist(x, z, a, r):
+    """How far inside the rounded square's edge (x, z) is."""
+    ax, az = abs(x), abs(z)
+    if ax > a - r and az > a - r:
+        return r - math.hypot(ax - (a - r), az - (a - r))
+    return a - max(ax, az)
+
+
+def smooth(e0, e1, x):
+    t = max(0.0, min(1.0, (x - e0) / (e1 - e0)))
+    return t * t * (3 - 2 * t)
 
 
 def rounded_rect(x0, x1, z0, z1, r, per_corner=8):
@@ -438,7 +539,7 @@ def bake_modifiers(ob):
 
 def build_ground(L, coll):
     half = L["half"]
-    rp = L["rapids"]
+    depth = L["river"]["depth"]
     bm = bmesh.new()
     slab(bm, rounded_rect(-half, half, -half, half, 1.1, 10), -1.1, 0.0, 0)
     ground = make_object("Forest_Ground", bm, ["FW_Grass", "FW_Soil", "FW_Bed", "FW_StoneDark"], coll)
@@ -447,13 +548,19 @@ def build_ground(L, coll):
     bev.segments = 4
     bev.limit_method = "ANGLE"
     bake_modifiers(ground)
-    # the rapids' channel: down the east edge, a rim of rock left at the island's edge
-    x0, x1 = rp["x0"], half - 0.62
-    z0, z1 = -half + 0.7, half - 0.7
+    # the river's channel: a ribbon along the spline, its banks at the half-width, carried a metre
+    # past both ends so it cuts clean out through the island's edges
+    F = river_frame(L, 10)
+    lefts, rights = [], []
+    for k, (x, z, w, tx, tz, nx, nz) in enumerate(F):
+        ext = -1.2 if k == 0 else 1.2 if k == len(F) - 1 else 0.0
+        cx, cz = x + tx * ext, z + tz * ext
+        lefts.append((cx + nx * w, cz + nz * w))
+        rights.append((cx - nx * w, cz - nz * w))
     bm = bmesh.new()
-    slab(bm, rounded_rect(x0, x1, z0, z1, 0.5, 6), -0.55, 1.0, 0)
-    cutter = make_object("FW_RapidsCutter", bm, ["FW_Soil"], coll)
-    dig = ground.modifiers.new("Rapids", "BOOLEAN")
+    slab(bm, lefts + list(reversed(rights)), -depth, 1.0, 0)
+    cutter = make_object("FW_RiverCutter", bm, ["FW_Soil"], coll)
+    dig = ground.modifiers.new("River", "BOOLEAN")
     dig.operation = "DIFFERENCE"
     dig.object = cutter
     try:
@@ -466,7 +573,8 @@ def build_ground(L, coll):
         c = poly.center
         gx, gy, gz = c.x, c.z, -c.y
         up = poly.normal.z
-        in_channel = x0 - 0.05 <= gx <= x1 + 0.05 and z0 - 0.05 <= gz <= z1 + 0.05 and gy < -0.02
+        d, w = river_dist(L, gx, gz)
+        in_channel = d <= w + 0.06 and gy < -0.02
         if in_channel:
             poly.material_index = 2 if up > 0.6 else 3
         elif up > 0.55 and gy > -0.4:
@@ -493,58 +601,207 @@ def build_ground(L, coll):
     for f in bm.faces:
         f.smooth = True
     make_object("Forest_Underside", bm, ["FW_SoilDeep"], coll)
-    # the water, and the foam round the rocks and in streaks down the rapids
+
+
+def build_water(L, coll):
+    """The river's surface along the spline (its rows clipped to the island, the last ones clamped to
+    its edge), spilling over the edge at both ends, and its foam: round the rocks, streaks along the
+    banks with the flow, and a lip where it spills."""
+    half = L["half"]
+    water = L["river"]["water"]
+    lim = half - 0.02
+    clamp = lambda v: max(-lim, min(lim, v))
+    F = river_frame(L, 10)
+    inside = [i for i, (x, z, *_) in enumerate(F) if abs(x) <= lim and abs(z) <= lim]
+    i0, i1 = max(0, inside[0] - 1), min(len(F) - 1, inside[-1] + 1)
     bm = bmesh.new()
-    rows, cols = 44, 6
-    verts = [[bm.verts.new(W(x0 + 0.02 + (x1 - x0 - 0.04) * j / cols, rp["water"], z0 + 0.02 + (z1 - z0 - 0.04) * i / rows)) for j in range(cols + 1)] for i in range(rows + 1)]
-    for i in range(rows):
-        for j in range(cols):
-            f = bm.faces.new((verts[i][j], verts[i][j + 1], verts[i + 1][j + 1], verts[i + 1][j]))
-            f.material_index = 0
-            f.smooth = True
+    rows = []
+    for x, z, w, tx, tz, nx, nz in F[i0 : i1 + 1]:
+        ww = w - 0.015
+        rows.append(((clamp(x + nx * ww), clamp(z + nz * ww)), (clamp(x - nx * ww), clamp(z - nz * ww)), (tx, tz)))
+    verts = [(bm.verts.new(W(l[0], water, l[1])), bm.verts.new(W(r[0], water, r[1]))) for l, r, _ in rows]
+    for (a0, a1), (b0, b1) in zip(verts, verts[1:]):
+        f = bm.faces.new((a0, a1, b1, b0))
+        f.material_index = 0
+        f.smooth = True
+    # the spills: over the island's edge at both ends, a sheet of water falling away and a lip of foam
+    for (l, r, (tx, tz)), out in ((rows[0], -1.0), (rows[-1], 1.0)):
+        ox, oz = tx * out, tz * out
+        top = [bm.verts.new(W(l[0], water, l[1])), bm.verts.new(W(r[0], water, r[1]))]
+        low = [bm.verts.new(W(l[0] + ox * 0.14, water - 0.62, l[1] + oz * 0.14)), bm.verts.new(W(r[0] + ox * 0.14, water - 0.62, r[1] + oz * 0.14))]
+        sheet = bm.faces.new((top[0], top[1], low[1], low[0]))
+        sheet.material_index = 0
+        sheet.normal_update()
+        if sheet.normal.dot(W(ox, 0.0, oz)) < 0:
+            sheet.normal_flip()
+        mid = [bm.verts.new(W(l[0] + ox * 0.05, water - 0.03, l[1] + oz * 0.05)), bm.verts.new(W(r[0] + ox * 0.05, water - 0.03, r[1] + oz * 0.05))]
+        lip = [bm.verts.new(W(l[0] - ox * 0.18, water + 0.01, l[1] - oz * 0.18)), bm.verts.new(W(r[0] - ox * 0.18, water + 0.01, r[1] - oz * 0.18))]
+        bm.faces.new((lip[0], lip[1], mid[1], mid[0])).material_index = 1
     rng = random.Random(8)
-    for rx, rz, s in rp["rocks"]:
+    for rx, rz, sc in L["river"]["rocks"]:
         for k in range(3):
             a = rng.random() * 6.28
-            fx, fz = rx + math.cos(a) * s * 0.9, rz + math.sin(a) * s * 0.9
-            outline = wobbly_circle(fx, fz, 0.18 + 0.1 * rng.random(), 10, 0.25, rng)
-            lo = [bm.verts.new(W(x, rp["water"] + 0.012, z)) for x, z in outline]
-            bm.faces.new(lo).material_index = 1
-    for k in range(26):
-        fx = x0 + 0.3 + rng.random() * (x1 - x0 - 0.6)
-        fz = z0 + 0.5 + rng.random() * (z1 - z0 - 1.0)
-        ln = 0.5 + rng.random() * 0.8
-        outline = [(fx + 0.05 * math.cos(a), fz + ln / 2 * math.sin(a)) for a in (2 * math.pi * k2 / 10 for k2 in range(10))]
-        bm.faces.new([bm.verts.new(W(x, rp["water"] + 0.008, z)) for x, z in outline]).material_index = 1
+            fx, fz = rx + math.cos(a) * sc * 0.9, rz + math.sin(a) * sc * 0.9
+            outline = wobbly_circle(fx, fz, 0.16 + 0.1 * rng.random(), 10, 0.25, rng)
+            bm.faces.new([bm.verts.new(W(x, water + 0.012, z)) for x, z in outline]).material_index = 1
+    # streaks of foam along the banks, lying with the flow
+    Fs = river_frame(L, 12)
+    for k in range(34):
+        x, z, w, tx, tz, nx, nz = Fs[rng.randrange(2, len(Fs) - 2)]
+        side = rng.choice((-1, 1))
+        off = w * (0.55 + 0.35 * rng.random()) * side
+        fx, fz = x + nx * off, z + nz * off
+        if abs(fx) > lim - 0.3 or abs(fz) > lim - 0.3:
+            continue
+        ln = 0.35 + rng.random() * 0.55
+        outline = [(fx + tx * ln / 2 * math.cos(a) + nx * 0.045 * math.sin(a), fz + tz * ln / 2 * math.cos(a) + nz * 0.045 * math.sin(a)) for a in (2 * math.pi * k2 / 10 for k2 in range(10))]
+        bm.faces.new([bm.verts.new(W(x2, water + 0.008, z2)) for x2, z2 in outline]).material_index = 1
     for f in bm.faces:
         f.normal_update()
-        if f.normal.z < 0:
+        if f.normal.z < 0 and f.material_index == 1:
+            f.normal_flip()
+    for f in bm.faces:
+        if f.material_index == 0 and abs(f.normal.z) > 0.5 and f.normal.z < 0:
             f.normal_flip()
     make_object("Forest_Water", bm, ["FW_Water", "FW_Foam"], coll, recalc=False)
 
 
+def vc_material(name):
+    """A vertex-colour material: its base colour is the mesh's "Col" corner colours."""
+    m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    try:
+        m.use_nodes = True
+    except AttributeError:
+        pass
+    nodes, links = m.node_tree.nodes, m.node_tree.links
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    attr = next((n for n in nodes if n.type == "VERTEX_COLOR"), None) or nodes.new("ShaderNodeVertexColor")
+    attr.layer_name = "Col"
+    links.new(attr.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.88
+    bsdf.inputs["Metallic"].default_value = 0.0
+    m.roughness = 0.88
+    m.use_backface_culling = True
+    return m
+
+
+def biome_color(L, x, z):
+    """The meadow's colour at (x, z): each zone's grass blended in along wandering edges (the point
+    warped by a few slow sines before it is measured against the zone), a little mottling, a fairy
+    ring round each of the Titan's clearings, and the base grass again at the banks and the rim."""
+    wx = x + 0.9 * math.sin(z * 0.45 + 1.3) + 0.45 * math.sin(z * 1.15 + 0.4)
+    wz = z + 0.9 * math.sin(x * 0.4 + 2.1) + 0.45 * math.sin(x * 1.25 + 1.1)
+    base = lin(BIOME["meadow"])
+    acc = [0.0, 0.0, 0.0]
+    tot = 0.0
+    for zn in L["zones"]:
+        f = zn["floor"]
+        if f not in BIOME or f == "meadow":
+            continue
+        dx = max(zn["x0"] - wx, 0.0, wx - zn["x1"])
+        dz = max(zn["z0"] - wz, 0.0, wz - zn["z1"])
+        outside = math.hypot(dx, dz)
+        depth = min(wx - zn["x0"], zn["x1"] - wx, wz - zn["z0"], zn["z1"] - wz)
+        d = outside if outside > 0 else -depth
+        w = smooth(1.6, -1.4, d)
+        if w <= 0:
+            continue
+        c = lin(BIOME[f])
+        tot += w
+        for k in range(3):
+            acc[k] += c[k] * w
+    if tot > 1:
+        acc = [a / tot for a in acc]
+        tot = 1.0
+    col = [base[k] * (1 - tot) + acc[k] for k in range(3)]
+    mottle = 1 + 0.06 * math.sin(x * 1.7 + z * 0.6) * math.sin(z * 1.3 - x * 0.4) + 0.04 * math.sin(x * 3.1 + 0.7) * math.sin(z * 2.7)
+    col = [c * mottle for c in col]
+    ring = lin(FAIRY_RING)
+    for tx, tz in L["titanSpots"]:
+        r = math.hypot(x - tx, z - tz)
+        k = math.exp(-(((r - 1.3) / 0.2) ** 2)) * 0.7
+        col = [c * (1 - k) + ring[i] * k for i, c in enumerate(col)]
+    grass = lin(PALETTE["FW_Grass"])
+    d, w = river_dist(L, x, z)
+    ease = max(smooth(0.9, 0.0, d - w), smooth(0.7, 0.0, rim_dist(x, z, L["half"] - 0.36, 0.78)))
+    return [c * (1 - ease) + grass[i] * ease for i, c in enumerate(col)]
+
+
+def build_meadow(L, coll):
+    """The island's top as a fine grid of grass, coloured vertex by vertex (biome_color), over the
+    ground's own top; the grid leaves the river's channel open."""
+    a = L["half"] - 0.36
+    step = 0.24
+    n = int(round(2 * a / step)) + 1
+    xs = [-a + i * (2 * a) / (n - 1) for i in range(n)]
+    bm = bmesh.new()
+    V = [[bm.verts.new(W(x, LAYER_MEADOW, z)) for z in xs] for x in xs]
+    wet = [[river_dist(L, x, z) for z in xs] for x in xs]
+    for i in range(n - 1):
+        for j in range(n - 1):
+            corners = ((i, j), (i, j + 1), (i + 1, j + 1), (i + 1, j))
+            if not all(in_rounded(xs[p], xs[q], a, 0.78) for p, q in corners):
+                continue
+            if any(wet[p][q][0] < wet[p][q][1] + 0.03 for p, q in corners):
+                continue
+            bm.faces.new([V[p][q] for p, q in corners])
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    col = bm.loops.layers.float_color.new("Col")
+    cache = {}
+    for f in bm.faces:
+        f.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()
+        for loop in f.loops:
+            v = loop.vert
+            key = (round(v.co.x, 4), round(v.co.y, 4))
+            if key not in cache:
+                cache[key] = (*biome_color(L, v.co.x, -v.co.y), 1.0)
+            loop[col] = cache[key]
+    me = bpy.data.meshes.new("Forest_MeadowMesh")
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(vc_material("FW_Meadow"))
+    attr = me.color_attributes.get("Col")
+    if attr is not None:
+        me.color_attributes.active_color = attr
+    ob = bpy.data.objects.new("Forest_Meadow", me)
+    coll.objects.link(ob)
+    ob["origin"] = [0.0, 0.0, 0.0]
+    return ob
+
+
+def build_banks(L, coll):
+    """Damp dark earth along both banks, from the channel's lip out a little over the meadow (on the
+    island's flat top only)."""
+    a = L["half"] - 0.36
+    F = river_frame(L, 12)
+    bm = bmesh.new()
+    for side in (1, -1):
+        prev = None
+        for x, z, w, tx, tz, nx, nz in F:
+            wob = 0.06 * math.sin(x * 2.3 + z * 1.7 + side)
+            inner = (x + nx * side * (w - 0.03), z + nz * side * (w - 0.03))
+            outer = (x + nx * side * (w + 0.4 + wob), z + nz * side * (w + 0.4 + wob))
+            if in_rounded(*inner, a, 0.78) and in_rounded(*outer, a, 0.78):
+                vi = bm.verts.new(W(inner[0], LAYER_BANK, inner[1]))
+                vo = bm.verts.new(W(outer[0], LAYER_BANK, outer[1]))
+                if prev:
+                    bm.faces.new((prev[0], prev[1], vo, vi))
+                prev = (vi, vo)
+            else:
+                prev = None
+    for f in bm.faces:
+        f.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()
+    make_object("Forest_Banks", bm, ["FW_Bank"], coll, recalc=False)
+
+
 def build_floors(L, coll):
-    """Each zone's floor over the meadow, inset from its neighbours (a seam of meadow between)."""
+    """The shrine's flagstone floor round the elderwood (the zones' grass is the meadow's colour)."""
     rng = random.Random(5)
     bm = bmesh.new()
-    mats = {"birch": 0, "ridge": 1, "glen": 2, "shrine": 3}
-    lim = L["half"] - 0.75
-    for zn in L["zones"]:
-        if zn["floor"] not in mats:
-            continue
-        x0, x1 = max(-lim, zn["x0"] + 0.22), min(L["rapids"]["x0"] - 0.35, lim, zn["x1"] - 0.22)
-        z0, z1 = max(-lim, zn["z0"] + 0.22), min(lim, zn["z1"] - 0.22)
-        outline = rounded_rect(x0, x1, z0, z1, 0.9, 8)
-        # a gentle wobble along the edge
-        wob = []
-        for k, (x, z) in enumerate(outline):
-            cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
-            dx, dz = x - cx, z - cz
-            d = math.hypot(dx, dz) or 1
-            a = 0.08 * math.sin(k * 1.3 + rng.random())
-            wob.append((x - dx / d * abs(a), z - dz / d * abs(a)))
-        slab(bm, wob, -0.02, LAYER_FLOOR, mats[zn["floor"]])
-    # the shrine's flagstone floor round the elderwood
     sh = L["shrine"]
     for k in range(18):
         a = 2 * math.pi * k / 18 + 0.1
@@ -552,8 +809,8 @@ def build_floors(L, coll):
             if ring == 0 and k % 2:
                 continue
             cx, cz = sh["x"] + math.cos(a) * rr, sh["z"] + math.sin(a) * rr
-            slab(bm, wobbly_circle(cx, cz, 0.24, 8, 0.15, rng), -0.02, LAYER_FLOOR + 0.006, 4)
-    make_object("Forest_Floors", bm, ["FW_BirchFloor", "FW_RidgeFloor", "FW_GlenFloor", "FW_ShrineFloor", "FW_StoneDark"], coll)
+            slab(bm, wobbly_circle(cx, cz, 0.24, 8, 0.15, rng), -0.02, LAYER_FLOOR + 0.006, 0)
+    make_object("Forest_Floors", bm, ["FW_StoneDark"], coll)
 
 
 def build_paths(L, coll):
@@ -575,8 +832,16 @@ def zone_of(L, x, z):
 
 
 def clear_spot(L, x, z, r):
-    """Open ground: off the paths, clear of the trees, the structures and the rapids."""
-    if near_path(L, x, z, r + 0.15) or x > L["rapids"]["x0"] - 0.4 - r or max(abs(x), abs(z)) > L["half"] - 1.0:
+    """Open ground: off the paths, clear of the trees, the structures, the river and the Titan's
+    clearings."""
+    if near_path(L, x, z, r + 0.15) or max(abs(x), abs(z)) > L["half"] - 1.0:
+        return False
+    d, w = river_dist(L, x, z)
+    if d < w + 0.55 + r:
+        return False
+    if any(math.hypot(x - tx, z - tz) < 1.75 + r for tx, tz in L["titanSpots"]):
+        return False
+    if any(math.hypot(x - f["stand"]["x"], z - f["stand"]["z"]) < 1.0 + r for f in L["fishing"]):
         return False
     if any(math.hypot(x - t["x"], z - t["z"]) < 0.9 + r for t in L["trees"]):
         return False
@@ -650,6 +915,17 @@ def build_deco(L, coll):
                 cylinder(bm, W(mx, 0.0, mz), W(mx, 0.08 * s, mz), 0.02 * s, 6, m=6)
                 lathe(bm, mx, mz, [(0, 0.0), (0.06 * s, 0.0), (0.05 * s, 0.03 * s), (0, 0.045 * s)], segs=8, m=5, y0=0.075 * s)
         placed += 1
+    # the fairy rings: a ring of little red mushrooms round each clearing where a Colossal Titan can
+    # sprout (the grass inside them is brighter: the meadow's colour)
+    for tx, tz in L["titanSpots"]:
+        for k in range(13):
+            a = 2 * math.pi * k / 13 + rng.uniform(-0.12, 0.12)
+            mx, mz = tx + math.cos(a) * 1.3, tz + math.sin(a) * 1.3
+            if near_path(L, mx, mz, 0.08):
+                continue
+            h = 0.07 + rng.random() * 0.05
+            cylinder(bm, W(mx, 0.0, mz), W(mx, h, mz), 0.018, 6, m=6)
+            blob(bm, mx, h + 0.012, mz, 0.045, 0.028, 0.045, m=5, cuts=2, flat_bottom=None)
     make_object("Forest_Deco", bm, ["FW_Tuft", "FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_MushCap", "FW_MushStem", "FW_LeafPile", "FW_MapleLeafGold"], coll)
 
 
@@ -664,18 +940,35 @@ def shrine_stones(L):
 def build_rocks(L, coll):
     rng = random.Random(33)
     bm = bmesh.new()
-    rp = L["rapids"]
-    # the rapids' rocks, half out of the water; the bank's stones along its edge
-    for rx, rz, s in rp["rocks"]:
-        blob(bm, rx, rp["water"] + 0.05, rz, 0.5 * s, 0.3 * s, 0.42 * s, m=0, cuts=3, noise=0.12, rng=rng)
-    z = -L["half"] + 1.0
+    rv = L["river"]
+    water = rv["water"]
+    a = L["half"] - 0.4
+    # the river's rocks, half out of the water
+    for rx, rz, s in rv["rocks"]:
+        blob(bm, rx, water + 0.05, rz, 0.5 * s, 0.3 * s, 0.42 * s, m=0, cuts=3, noise=0.12, rng=rng)
+    # along both banks: stones on the lip now and then, and pebbles all along the water line (the
+    # pebble bed showing at the edges), clear of the fishing spots
+    F = river_frame(L, 12)
     k = 0
-    while z < L["half"] - 1.0:
-        if all(abs(z - f["stand"]["z"]) > 0.7 for f in L["fishing"]):
-            s = 0.8 + rng.random() * 0.5
-            blob(bm, rp["x0"] - 0.05, 0.02, z, 0.22 * s, 0.14 * s, 0.26 * s, m=k % 2, cuts=2, noise=0.15, rng=rng, flat_bottom=-0.2)
-        z += 0.55 + rng.random() * 0.3
-        k += 1
+    for side in (1, -1):
+        for i, (x, z, w, tx, tz, nx, nz) in enumerate(F):
+            for sub in range(2):
+                u = sub * 0.5
+                if i + 1 >= len(F):
+                    break
+                x2, z2, w2 = F[i + 1][0], F[i + 1][1], F[i + 1][2]
+                cx, cz, cw = x + (x2 - x) * u, z + (z2 - z) * u, w + (w2 - w) * u
+                px, pz = cx + nx * side * (cw - 0.07), cz + nz * side * (cw - 0.07)
+                if not in_rounded(px, pz, a, 0.78) or any(math.hypot(px - f["stand"]["x"], pz - f["stand"]["z"]) < 1.1 for f in L["fishing"]):
+                    continue
+                ps = 0.05 + rng.random() * 0.05
+                blob(bm, px + rng.uniform(-0.05, 0.05), water + 0.015, pz + rng.uniform(-0.05, 0.05), ps * 1.3, ps * 0.55, ps, m=4 if k % 3 else 1, cuts=1, noise=0.15, rng=rng)
+                k += 1
+            if i % 3 == 0:
+                bx, bz = x + nx * side * (w + 0.14), z + nz * side * (w + 0.14)
+                if in_rounded(bx, bz, a, 0.78) and all(math.hypot(bx - f["stand"]["x"], bz - f["stand"]["z"]) > 1.2 for f in L["fishing"]) and not near_path(L, bx, bz, 0.2):
+                    sc = 0.7 + rng.random() * 0.6
+                    blob(bm, bx, 0.02, bz, 0.22 * sc, 0.14 * sc, 0.26 * sc, m=k % 2, cuts=2, noise=0.15, rng=rng, flat_bottom=-0.2)
     # the Cedar Ridge's boulders, off the paths and away from the trees
     placed = 0
     tries = 0
@@ -696,7 +989,7 @@ def build_rocks(L, coll):
         blob(bm, x, h - 0.02, zz, 0.18, 0.06, 0.15, m=2, cuts=2, noise=0.25, rng=rng)
         ix, iz = -math.cos(a), -math.sin(a)  # toward the elderwood
         blob(bm, x + ix * 0.15, h * 0.55, zz + iz * 0.15, 0.06, 0.1, 0.06, m=3, cuts=1, n=1.4)
-    make_object("Forest_Rocks", bm, ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Rune"], coll)
+    make_object("Forest_Rocks", bm, ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Rune", "FW_Pebble"], coll)
 
 
 def pine(bm, x, z, s, rng, light, bark=0, needle=1, needle_light=2):
@@ -721,7 +1014,7 @@ def build_vista(L, coll):
 # what Bramble built: the archway, his cabin and counter, the workbench, the splitting block
 
 
-def build_structures(L, coll):
+def build_structures(L, cushions, coll):
     rng = random.Random(55)
     bm = bmesh.new()
     # materials: 0 bark, 1 log, 2 cut wood, 3 plank, 4 plank dark, 5 roof, 6 window, 7 iron,
@@ -882,14 +1175,33 @@ def build_structures(L, coll):
             cylinder(bm, W(fx + ox, oy, fz2 - 0.2), W(fx + ox, oy, fz2 + 0.2), 0.045, 6, m=2 if q % 2 else 0, cap_m=2)
         cylinder(bm, W(fx, 0.1, fz2 - 0.05), W(fx, 0.1, fz2 - 0.03), 0.13, 10, m=9)
         cylinder(bm, W(fx, 0.1, fz2 + 0.03), W(fx, 0.1, fz2 + 0.05), 0.13, 10, m=9)
-    # --- the rapids' fishing spots: a flat stone out over the water, a little fish sign ---
-    rp = L["rapids"]
+    # --- the river's fishing spots, each facing the water: a flat stone out over it to stand on, a
+    # raw fallen log or a smooth boulder to sit on (their tops the log and boulder cushions', the
+    # game's seats), and a little fish sign on a stake behind ---
     for f in L["fishing"]:
         sx, sz = f["stand"]["x"], f["stand"]["z"]
-        slab(bm, wobbly_circle(sx + 0.55, sz, 0.42, 10, 0.1, rng), -0.3, 0.035, 8)
-        cylinder(bm, W(sx - 0.2, 0.0, sz - 0.55), W(sx - 0.2, 0.75, sz - 0.55), 0.03, 6, m=0)
-        box(bm, sx - 0.36, sx - 0.04, 0.6, 0.78, sz - 0.58, sz - 0.54, m=3)
-        blob(bm, sx - 0.2, 0.69, sz - 0.53, 0.09, 0.035, 0.006, m=11, cuts=2)
+        fx, fz = f.get("face", (f["bobber"]["x"] - sx, f["bobber"]["z"] - sz))
+        d = math.hypot(fx, fz) or 1
+        fx, fz = fx / d, fz / d
+        ax_, az_ = -fz, fx  # along the bank
+        seat = f.get("seat")
+        if seat == "log":
+            radius = cushions["log"]["h"] / 2
+            cy = cushions["log"]["y"]
+            e0 = W(sx - ax_ * 0.7, cy, sz - az_ * 0.7)
+            e1 = W(sx + ax_ * 0.7, cy, sz + az_ * 0.7)
+            cylinder(bm, e0, e1, radius, 14, m=0, cap_m=2, wobble=0.04, rng=rng)
+            # a stub of a branch, and moss on its back
+            cylinder(bm, W(sx + ax_ * 0.35, cy + radius * 0.6, sz + az_ * 0.35), W(sx + ax_ * 0.45 - fx * 0.12, cy + radius + 0.12, sz + az_ * 0.45 - fz * 0.12), 0.035, 7, m=0, r_end=0.02)
+        elif seat == "rock":
+            top = cushions["boulder"]["top"]
+            blob(bm, sx, top / 2 - 0.02, sz, 0.4, top / 2 + 0.02, 0.34, m=8, cuts=4, n=2.6, noise=0.05, rng=rng, flat_bottom=-0.05)
+        else:
+            slab(bm, wobbly_circle(sx + fx * 0.55, sz + fz * 0.55, 0.42, 10, 0.1, rng), -0.3, 0.035, 8)
+        px, pz = sx - fx * 0.55 + ax_ * 0.45, sz - fz * 0.55 + az_ * 0.45
+        cylinder(bm, W(px, 0.0, pz), W(px, 0.75, pz), 0.03, 6, m=0)
+        box(bm, px - 0.16, px + 0.16, 0.6, 0.78, pz - 0.02, pz + 0.02, m=3)
+        blob(bm, px, 0.69, pz + 0.025, 0.09, 0.035, 0.006, m=11, cuts=2)
     make_object("Forest_Structures", bm, ["FW_Bark", "FW_Log", "FW_WoodCut", "FW_Plank", "FW_PlankDark", "FW_Roof", "FW_Window", "FW_Iron", "FW_Stone", "FW_Rope", "FW_Honey", "FW_Cloth", "FW_Red", "FW_PineNeedle"], coll)
 
 
@@ -1122,21 +1434,36 @@ def build_animals(L, coll):
 # ---------------------------------------------------------------------------------------------
 
 
+TREES_COLLECTION = "Forest_Trees"
+
+
 def build(root):
     purge()
+    old = bpy.data.collections.get(TREES_COLLECTION)
+    for o in list(old.all_objects) if old else []:
+        bpy.data.objects.remove(o, do_unlink=True)
+    if old:
+        bpy.data.collections.remove(old)
+    RIVER_FRAMES.clear()
     L = read_layout(root)
+    cushions = read_cushions(root)
     coll = bpy.data.collections.new(COLLECTION)
     bpy.context.scene.collection.children.link(coll)
     build_ground(L, coll)
+    build_meadow(L, coll)
+    build_banks(L, coll)
+    build_water(L, coll)
     build_floors(L, coll)
     build_paths(L, coll)
     build_deco(L, coll)
     build_rocks(L, coll)
     build_vista(L, coll)
-    build_structures(L, coll)
-    trees = build_trees(coll)
+    build_structures(L, cushions, coll)
     build_animals(L, coll)
-    return coll, L, trees
+    tcoll = bpy.data.collections.new(TREES_COLLECTION)
+    bpy.context.scene.collection.children.link(tcoll)
+    trees = build_trees(tcoll)
+    return coll, tcoll, L, trees
 
 
 def export(coll, path):
@@ -1175,11 +1502,17 @@ def main():
     try:
         root = repo_root()
         studio(root, "begin")
-        coll, L, trees = build(root)
+        coll, tcoll, L, trees = build(root)
         out = os.path.join(root, "client", "public", "models", "forest.glb")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         export(coll, out)
-        result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), "trees": trees, **summary(coll)}
+        tout = os.path.join(root, "client", "public", "models", "trees.glb")
+        export(tcoll, tout)
+        result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), "treesGlb": tout, "treesBytes": os.path.getsize(tout), "trees": trees, **summary(coll)}
+        # (the tree looks sit at the origin: not in the studio's grid)
+        for o in list(tcoll.all_objects):
+            bpy.data.objects.remove(o, do_unlink=True)
+        bpy.data.collections.remove(tcoll)
         result["studio"] = studio(root, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}

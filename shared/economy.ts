@@ -52,10 +52,11 @@ export const FISH_PRICES = {
 /** How often each rarity bites, of every bite (the weights split it between the kinds). */
 export const FISH_TIER_ODDS = { common: 0.7, uncommon: 0.2, rare: 0.075, legendary: 0.02, mythic: 0.005 } as const;
 
-/** The livewells' prices, tier 1 (the Wooden Pail, everyone's) to tier 6. */
-export const CREEL_PRICES = [0, 80, 180, 400, 850, 1600] as const;
-/** What each livewell tier holds (fish). */
-export const CREEL_CAPACITY = [8, 20, 40, 80, 140, 200] as const;
+/** The livewells' prices, tier 1 (the Wooden Pail, everyone's) to tier 5. */
+export const CREEL_PRICES = [0, 80, 180, 400, 850] as const;
+/** What each livewell tier holds (fish). A player already holding more keeps it all: only new
+ *  catches wait for room (the soft clamp). */
+export const CREEL_CAPACITY = [5, 12, 25, 45, 70] as const;
 
 /** The tackle: bait by the pack; the rods, T2 and T3 from Barnaby, T4 and T5 from Bramble in the
  *  Whispering Woods. */
@@ -80,10 +81,13 @@ export const CARVED_PRICE = 8;
 export const RESIN_BUY_PRICE = 10;
 /** The axes (the flint one, T1, is everyone's): T2 and T3 from Buster, T4 and T5 from Bramble. */
 export const AXE_PRICES = { iron: 250, tempered: 700, golden: 1600, runic: 3400 } as const;
-/** The wood carriers' prices, tier 1 (the Twine Wood Strap, everyone's) to tier 7, and what each
- *  holds (logs and carved pieces). */
-export const CARRIER_PRICES = [0, 80, 180, 400, 850, 1600, 2800] as const;
-export const CARRIER_CAPACITY = [15, 30, 60, 100, 150, 220, 300] as const;
+/** The wood carriers' prices, tier 1 (the Twine Wood Strap, everyone's) to tier 5, and what each
+ *  holds (logs and carved pieces). A player already carrying more keeps it all: only new wood
+ *  waits for room (the soft clamp). */
+export const CARRIER_PRICES = [0, 80, 180, 400, 850] as const;
+export const CARRIER_CAPACITY = [8, 18, 35, 60, 100] as const;
+/** What Buster pays for a bundle of split Firewood. */
+export const FIREWOOD_PRICE = 5;
 /** Buster's forest permits: a Day Trip (one way in through the archway, used on entering) and the
  *  Ranger's Badge (the Whispering Woods for good). */
 export const PERMIT_PRICES = { dayTrip: 200, rangerBadge: 3800 } as const;
@@ -92,18 +96,20 @@ export const MAX_DAY_PERMITS = 10;
 
 // --- the Whispering Pines Slingshot Gallery ---------------------------------------------------------
 
-/** A round's prize by its score: the tiers (the best one also brings the Eagle Eye). */
+/** A round's prize by its score: the tiers (the best one also brings the Eagle Eye). Calibrated for
+ *  the hitscan gallery with simulated shooters (scratch runs of 4,000 rounds each): a casual one's
+ *  median is about 1,900, an average one's 3,100, a good one's 4,850, a sharp one's 5,800. */
 export const SLINGSHOT_PRIZES = [
-  { score: 3000, coins: 60, eagle: true },
-  { score: 1800, coins: 28, eagle: false },
-  { score: 800, coins: 12, eagle: false },
+  { score: 5000, coins: 60, eagle: true },
+  { score: 3000, coins: 28, eagle: false },
+  { score: 1500, coins: 12, eagle: false },
 ] as const;
 /** A Golden Acorn hit: coins at once. */
 export const GOLDEN_ACORN_COINS = 15;
 /** How many rounds a player may play for coins an hour (after that, for fun). */
 export const SLINGSHOT_PAID_ROUNDS_PER_HOUR = 6;
 /** The Eagle Eye (the gallery's top prize): how long it lasts, and how much wider it makes the
- *  chopping meter's green and gold (a share of the bar). */
+ *  felling ring's golden sweet band (a share of the trunk's radius). */
 export const EAGLE_EYE_MS = 10 * 60_000;
 export const EAGLE_EYE_ZONE = 0.04;
 /** The rapids' richer water: added to the rare luck of every cast there. */

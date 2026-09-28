@@ -43,7 +43,7 @@ export function SplitBlockModal({ profile, send, subscribeMessages, onClose }: {
           </div>
         </div>
         {kinds.length === 0 ? (
-          <p className="m-0 rounded-2xl bg-white/5 px-3 py-3 text-center text-sm opacity-80">No logs in your carrier. Chop some on the Timber Trail, or fell a tree in the Whispering Woods.</p>
+          <p className="m-0 rounded-2xl bg-white/5 px-3 py-3 text-center text-sm opacity-80">No logs in your carrier. Fell a Soft Pine round the clearing, or a tree in the Whispering Woods.</p>
         ) : (
           <div className="flex flex-col gap-1.5">
             {kinds.map((k) => (

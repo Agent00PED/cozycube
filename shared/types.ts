@@ -3,7 +3,7 @@
 import type { SlingShot } from "./slingshot";
 import type { BaitId, CreelFish, FishTier, RodId } from "./fishing";
 import type { FuelItem, StewIngredient } from "./bonfire";
-import type { AxeId, ChopLog, ChopVerdict, TreeKind, WoodKind } from "./chop";
+import type { AxeId, FellVerdict, TreeKind, WoodKind } from "./chop";
 import type { Adhesive, CraftId, CraftMode, CraftOutcome } from "./crafting";
 import type { GearId } from "./gear";
 import { START_COINS, type WardrobeTier } from "./economy";
@@ -253,20 +253,26 @@ export function guildRoomKey(guildId: string | null | undefined, channelId: stri
 }
 
 /**
- * The lounges: every guild has LOUNGE_COUNT instances of the whole game, each its own persistent
- * room (its own scene, fire, coin pushers and board game), picked on the lounge selector after
- * the splash. Lounge 1 is the guild's original room (its key unchanged, so what it kept stays);
- * the others are keyed apart. Each holds LOUNGE_CAPACITY players (the room's maxClients).
+ * The lounges: LOUNGE_COUNT instances of the whole game shared by EVERY Discord server (Velvet
+ * Lounge 01 is the same room whichever server you launch it from), each its own persistent room
+ * (its own scene, fire, coin pushers and board game), picked on the lounge selector after the
+ * splash. Each holds LOUNGE_CAPACITY players (the room's maxClients); a full one refuses the join.
  */
 export const LOUNGE_COUNT = 3;
-export const LOUNGE_CAPACITY = 25;
+export const LOUNGE_CAPACITY = 15;
+/** The join error a full lounge answers with (the client goes back to the selector). */
+export const LOUNGE_FULL = "LOUNGE_FULL";
 export const loungeName = (lounge: number) => `Velvet Lounge ${String(lounge).padStart(2, "0")}`;
 export function isLounge(v: unknown): v is number {
   return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= LOUNGE_COUNT;
 }
-/** The room key (the join's `guildKey`) of a guild's lounge. */
-export function loungeRoomKey(guildKey: string, lounge: number): string {
-  return lounge === 1 ? guildKey : `${guildKey}~${lounge}`;
+/** The room key (the join's `guildKey`) of a lounge: global, the same from every Discord server. */
+export function loungeRoomKey(lounge: number): string {
+  return `lounge_${String(lounge).padStart(2, "0")}`;
+}
+/** Whether a join's key is one of the lounges' (nothing else ever makes a room). */
+export function isLoungeRoomKey(key: unknown): key is string {
+  return typeof key === "string" && /^lounge_\d{2}$/.test(key) && isLounge(Number(key.slice(7)));
 }
 /** POST /api/lounges: the guild's key and the Discord ids of the player's voice-channel friends. */
 export interface LoungesRequest {
@@ -338,7 +344,6 @@ export type ToggleableKind =
   | "bonfire"
   | "fishing"
   | "telescope"
-  | "woodchop"
   | "foraging"
   | "fireflies"
   | "critter"
@@ -1107,7 +1112,6 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "bonfire" ||
     kind === "fishing" ||
     kind === "telescope" ||
-    kind === "woodchop" ||
     kind === "foraging" ||
     kind === "fireflies" ||
     kind === "critter" ||
@@ -1424,36 +1428,67 @@ export interface ConstellationDone {
   coins: number;
   capped: boolean;
 }
-/** All three strokes of the chopping combo landed: this, and the log's firewood (ChopLog). */
-export const CHOP_CLEAN_COINS = 3;
-/** Swinging into a wood knot stuns the axe this long before the next try. */
-export const CHOP_STUN_S = 1.5;
-export interface ChopResult {
-  sessionId: string;
-  /** The log split: at least CHOP_GREENS_TO_SPLIT of the three strokes landed green or gold. */
-  clean: boolean;
-  /** How many strokes landed green or gold. */
-  greens: number;
-  /** The swing hit a wood knot. */
-  stunned: boolean;
-  /** The stroke it ended on (3 when clean). */
-  stroke: number;
-  /** The log on the block, and (clean) what it split into (two with the Golden Axe's luck). */
-  log: ChopLog;
-  wood: WoodKind;
-  pieces: number;
-  coins: number;
-  capped: boolean;
-  /** A Whispering Woods tree being felled (its node, its kind): clean, it fell. */
-  tree?: string;
-  treeKind?: TreeKind;
+/** A tree felled (its last round landed): these coins (by tier, before the day's cap). */
+export const FELL_COINS = [0, 3, 4, 5, 6, 8] as const;
+/** What a round that lands drops: a log (its wood, worth its tree's size squared) or the tier's
+ *  by-product (resin, sawdust or a Firewood bundle), or nothing (the carrier full). */
+export interface FellDrop {
+  kind: "log" | "byproduct" | "none";
+  name: string;
+  emoji: string;
+  wood?: WoodKind;
+  /** A log's value multiplier (1.8 for a 1.35x tree, 3 for a Titan's). */
+  mult?: number;
+  count: number;
 }
-/** Server -> the woods ("treeFelled"): a tree came down (the client plays its fall, then shows its
- *  stump). */
+/** Server -> the feller ("fellResult"): a swing, as it landed, and what came of it. */
+export interface FellResult {
+  sessionId: string;
+  tree: string;
+  kind: TreeKind;
+  verdict: FellVerdict;
+  /** The rounds landed on the tree now, and the rounds it takes. */
+  dmg: number;
+  rounds: number;
+  drop: FellDrop;
+  /** A gold swing's bonus (a coin or two, or a Pine Resin), and the coins for felling it. */
+  bonus: "" | "coins" | "resin";
+  coins: number;
+  /** The last round landed: down it comes. */
+  felled: boolean;
+  /** The day's felling coins are all earned. */
+  capped: boolean;
+}
+/** Server -> the tree's world ("treeFelled"): a tree came down (the client plays its fall, then
+ *  shows its stump). */
 export interface TreeFelled {
   sessionId: string;
   tree: string;
   kind: TreeKind;
+  scale: number;
+}
+
+// --- the living wonders: one world event at a time, in the room's state for everyone (late joiners
+// too) ---
+/** A King-Size Fish Surge: golden ripples and bubbles on a stretch of water; a hand-reeled catch
+ *  whose float lands in them is King Size four times in ten. The Colossal Titan: a 2x tree in the
+ *  woods, 5-6 rounds, 4-6 heavy logs worth 3x each. */
+export type WorldEvent =
+  | { kind: "surge"; map: MapId; x: number; z: number; r: number; until: number }
+  | { kind: "titan"; map: MapId; id: string; x: number; z: number; until: number };
+/** The wait between one wonder and the next (minutes), how long a surge lasts, and a Titan waits
+ *  to be felled (s). */
+export const WORLD_EVENT_EVERY_MIN = [45, 60] as const;
+export const SURGE_S = 240;
+export const TITAN_S = 1200;
+export const SURGE_KING_CHANCE = 0.4;
+export function parseWorldEvent(raw: string): WorldEvent | null {
+  try {
+    const v = raw ? JSON.parse(raw) : null;
+    return v && (v.kind === "surge" || v.kind === "titan") ? (v as WorldEvent) : null;
+  } catch {
+    return null;
+  }
 }
 /** Server -> the player ("splitResult"): logs split into Firewood at the chopping block. */
 export interface SplitResult {
@@ -1483,10 +1518,13 @@ export type CampfirePacket =
   | { type: "STARGAZE"; on: boolean }
   | { type: "STAR_CATCH"; id: number }
   | { type: "CONSTELLATION"; id: ConstellationId }
-  | { type: "CHOP_START"; tree?: string }
+  /** Up to a tree (its node id) to fell it: answered with its swing's ring (fellSwing). */
+  | { type: "CHOP_START"; tree: string }
   | { type: "SPLIT_WOOD"; wood?: WoodKind }
-  /** The swing, `t` seconds into the stroke's meter as the swinger saw it (sampled at the click). */
+  /** The swing, `t` seconds into the ring as the swinger saw it (sampled at the press). */
   | { type: "CHOP_STOP"; t?: number }
+  /** Stepping back from the tree (the panel closed): its notch stays for whoever comes next. */
+  | { type: "CHOP_CANCEL" }
   | { type: "REEL_DONE"; caught: boolean; treasure: boolean }
   /** A split log (or Golden Charcoal) onto the bonfire. */
   | { type: "ADD_FUEL"; item: FuelItem }
@@ -1511,6 +1549,7 @@ export type CampfirePacket =
   /** Sell Buster your carved pieces (one, or all), or your Pine Resin; buy a piece of his gear. */
   | { type: "BUSTER"; op: "sellCraft"; slot: number | "all" }
   | { type: "BUSTER"; op: "sellResin"; count: number | "all" }
+  | { type: "BUSTER"; op: "sellFirewood"; count: number | "all" }
   | { type: "BUSTER"; op: "buyGear"; gear: GearId }
   | { type: "BUSTER"; op: "buyPermit"; permit: "dayTrip" | "ranger" }
   | { type: "BUSTER"; op: "sellAllWood" }
@@ -1558,16 +1597,6 @@ export interface WorkbenchResult {
   sawdust?: number;
   /** The Pine Resin spent in the Adhesive Slot on this carve, if one was. */
   adhesive?: Adhesive;
-}
-
-/** One swing of a chopping combo, as it landed (sent to the chopper): where it hit, and a critical
- *  (gold) swing's bonus if it had one. */
-export interface ChopSwing {
-  sessionId: string;
-  stroke: number;
-  verdict: ChopVerdict;
-  bonus: "" | "coins" | "resin";
-  coins: number;
 }
 
 /** Barnaby's answer to a shop request (sent to the one who asked). */

@@ -7,7 +7,8 @@ import { GESTURE_SECONDS, MAP_HALF, isCampMap, isCasinoMap, isWalkUpProp, usable
 import { isBlocked, walkY } from "@shared/collision";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
-import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf, nearestChopStation } from "@shared/worlds/campfire";
+import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf } from "@shared/worlds/campfire";
+import { FELL_TREES, FELL_TREE_AT } from "@shared/worlds/trees";
 import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireWorld } from "./CampfireWorld";
 import { ForestWorld, FOREST_URL } from "./ForestWorld";
@@ -62,7 +63,9 @@ export interface WorldSceneProps {
   /** The Campfire's hearth (the fire's fuel, the Dutch oven, the picnic plates). */
   hearth: HearthState;
   /** The Whispering Woods' felled trees as they grow back (the room's state, JSON). */
-  forest: string;
+  /** The room's trees (shared/chop.ts TreeSync as JSON) and its living wonder (WorldEvent as JSON). */
+  trees: string;
+  worldEvent: string;
 }
 
 /** An emote's bubble floats over its sender this long (it pops in, bobs, and fades). */
@@ -197,7 +200,7 @@ function useCrowdEvents(subscribeEmotes: WorldSceneProps["subscribeEmotes"], sub
   return { emotes, gestures, bubbles };
 }
 
-export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth, forest }: WorldSceneProps) {
+export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth, trees, worldEvent }: WorldSceneProps) {
   const me = localSessionId ? players[localSessionId] : undefined;
   const { emotes, gestures, bubbles } = useCrowdEvents(subscribeEmotes, subscribeMessages);
 
@@ -284,9 +287,15 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         const fz = CAMPFIRE_LAYOUT.fire.z - who.z;
         const d = Math.hypot(fx, fz) || 1;
         add({ x: who.x + (fx / d) * 0.55, y: 0.55, z: who.z + (fz / d) * 0.55, kind: "smoke" });
-      } else if (type === "chopResult" && payload.clean) {
-        const block = nearestChopStation(who.x, who.z);
-        add({ x: block.x, y: 0.45, z: block.z, kind: "chips" });
+      } else if (type === "fellResult" && payload.verdict !== "miss") {
+        // woodchips off the trunk, on the feller's side
+        const tree = FELL_TREE_AT.get(payload.tree);
+        if (tree) {
+          const dx = who.x - tree.x;
+          const dz = who.z - tree.z;
+          const d = Math.hypot(dx, dz) || 1;
+          add({ x: tree.x + (dx / d) * 0.35, y: 0.6, z: tree.z + (dz / d) * 0.35, kind: "chips" });
+        }
       } else if (type === "fishCaught") {
         // off this angler's own float (the one out from their spot on the dock)
         const b = bobberFor(who, "campfire_night");
@@ -299,20 +308,21 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
     };
   }, [subscribeMessages]);
 
-  // anglers face their float and cooks face the fire, whichever way they stood
+  // anglers face their float, cooks the fire and fellers their tree, whichever way they stood
   useEffect(() => {
-    if (mapId !== "campfire_night") return;
+    if (mapId !== "campfire_night" && mapId !== "whispering_woods") return;
+    const trees = FELL_TREES.filter((t) => t.map === mapId);
     const timer = window.setInterval(() => {
       for (const p of Object.values(livePlayers.current)) {
         if (p.sitting) continue;
-        const float = bobberFor(p, "campfire_night");
+        const float = bobberFor(p, mapId);
         if (float) faceToward(p.sessionId, float.x, float.z, 0.6);
+        else if (p.action === "chop") {
+          const tree = trees.reduce<(typeof trees)[number] | null>((a, b) => (!a || Math.hypot(b.x - p.x, b.z - p.z) < Math.hypot(a.x - p.x, a.z - p.z) ? b : a), null);
+          if (tree) faceToward(p.sessionId, tree.x, tree.z, 0.6);
+        } else if (mapId !== "campfire_night") continue;
         else if (p.action === "grill") faceToward(p.sessionId, CAMPFIRE_LAYOUT.fire.x, CAMPFIRE_LAYOUT.fire.z, 0.6);
         else if (p.action === "stargaze") faceToward(p.sessionId, CAMPFIRE_LAYOUT.telescope.x, CAMPFIRE_LAYOUT.telescope.z, 0.6);
-        else if (p.action === "chop") {
-          const block = nearestChopStation(p.x, p.z);
-          faceToward(p.sessionId, block.x, block.z, 0.6);
-        }
       }
     }, 250);
     return () => window.clearInterval(timer);
@@ -512,9 +522,9 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <ChloeMaid subscribeMessages={subscribeMessages} />
         </>
       ) : mapId === "campfire_night" ? (
-        <CampfireWorld onFloorClick={onFloorClick} players={players} toggleables={toggleables} hearth={hearth} subscribeMessages={subscribeMessages} onDuck={(duck) => room?.send("duckPoke", { duck })} />
+        <CampfireWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} toggleables={toggleables} hearth={hearth} trees={trees} worldEvent={worldEvent} subscribeMessages={subscribeMessages} onUseProp={activate} onDuck={(duck) => room?.send("duckPoke", { duck })} />
       ) : mapId === "whispering_woods" ? (
-        <ForestWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} forest={forest} subscribeMessages={subscribeMessages} onUseProp={activate} />
+        <ForestWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} trees={trees} worldEvent={worldEvent} subscribeMessages={subscribeMessages} onUseProp={activate} />
       ) : casino ? (
         <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} up={up} />
       ) : (
@@ -547,8 +557,6 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={prop} size={[0.9, 0.5, 1.1]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "telescope" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.8, 1.4, 0.8]} onUse={() => activate(prop.propId)} />
-        ) : prop.kind === "woodchop" ? (
-          <PropPad key={prop.propId} prop={prop} size={[0.7, 0.8, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "lumberjack" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.8, 1.3, 0.8]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "workbench" ? (
@@ -575,7 +583,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         ) : prop.kind === "archway" ? (
           <PropPad key={prop.propId} prop={prop} size={[2.1, 2.7, 0.6]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "tree" ? (
-          <PropPad key={prop.propId} prop={prop} size={[1.1, 2.8, 1.1]} onUse={() => activate(prop.propId)} />
+          // a grown tree (a stump or a sapling takes no click); a Colossal Titan's trunk is wider
+          prop.on ? <PropPad key={prop.propId} prop={prop} size={prop.propId.startsWith("tree_titan_") ? [2.0, 4.6, 2.0] : [1.1, 2.8, 1.1]} onUse={() => activate(prop.propId)} /> : null
         ) : prop.kind === "ranger" ? (
           <PropPad key={prop.propId} prop={prop} size={[1.0, 1.6, 1.0]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "animal" ? (

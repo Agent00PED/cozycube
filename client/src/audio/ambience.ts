@@ -10,10 +10,10 @@ import { RainAmbience } from "./rain";
 import { WORLD_CROSSFADE_S } from "./sound";
 import { masterOut } from "./master";
 import { daylight } from "@shared/daynight";
-import { FOREST_LAYOUT } from "@shared/worlds/forest";
+import { forestRiver } from "@shared/worlds/forest";
 
-/** The middle of the woods' rapids (east edge), for the rush's place. */
-const RAPIDS_X = (FOREST_LAYOUT.rapids.x0 + FOREST_LAYOUT.half) / 2;
+/** The woods' river, sampled along its meander: the murmur comes from its nearest reach. */
+const WOODS_RIVER = forestRiver(4);
 
 // Each world's ambient soundscape, generated in the browser like the radio (no audio files: the
 // Activity's sandbox and licensing). The Starlight Campfire's is four layers on one master gain:
@@ -25,7 +25,7 @@ const RAPIDS_X = (FOREST_LAYOUT.rapids.x0 + FOREST_LAYOUT.half) / 2;
 //
 // It follows the camp's 24-minute day (shared/daynight.ts): the crickets and an owl's hoot by night,
 // birdsong by day, each easing in and out with the light. The Whispering Woods play the same
-// soundscape without the fire: the rapids rushing down the east edge in the river's place, and a
+// soundscape without the fire: the meandering river in the campfire river's place, and a
 // woodpecker by day.
 //
 // Arriving at the campfire fades it in; leaving fades it out (the half-second cross-fade with
@@ -56,7 +56,7 @@ class CampfireAmbience {
   private birdAt = 0;
   private owlAt = 8;
   private peckAt = 5;
-  /** Which of the camp's worlds it plays: the campfire (the fire, the river) or the woods (the rapids). */
+  /** Which of the camp's worlds it plays: the campfire (the fire, the river) or the woods (the river). */
   private map: "campfire_night" | "whispering_woods" = "campfire_night";
   private beds: AudioScheduledSourceNode[] = [];
   /** The placed layers: the fire (its beds and crackles) and the river. */
@@ -313,7 +313,7 @@ class CampfireAmbience {
 
   /** The fire and the river, placed round where you stand: nearer is louder (never quite silent,
    *  so the camp is still there across the island), and each pans toward its side of the screen.
-   *  In the woods: no fire, and the rapids in the river's place, rushing down the east edge. */
+   *  In the woods: no fire, and the meandering river in the campfire river's place. */
   private place(now: number) {
     if (!this.fire || !this.river) return;
     const x = cameraFocus.x;
@@ -322,9 +322,8 @@ class CampfireAmbience {
     const right = (px: number, pz: number) => ((px - x) - (pz - z)) / Math.SQRT2;
     if (this.map === "whispering_woods") {
       this.fire.gain.gain.setTargetAtTime(0, now, 0.25);
-      const rx = RAPIDS_X;
-      const rz = Math.max(-10.5, Math.min(10.5, z));
-      const dr = Math.max(0, Math.hypot(rx - x, rz - z) - 1);
+      const [rx, rz, rw] = WOODS_RIVER.reduce((a, b) => (Math.hypot(b[0] - x, b[1] - z) < Math.hypot(a[0] - x, a[1] - z) ? b : a));
+      const dr = Math.max(0, Math.hypot(rx - x, rz - z) - rw);
       this.river.gain.gain.setTargetAtTime(0.35 + 1.4 / (1 + (dr / 3.5) ** 2), now, 0.25);
       this.river.pan.pan.setTargetAtTime(Math.max(-0.85, Math.min(0.85, right(rx, rz) / 5)), now, 0.25);
       return;
@@ -342,7 +341,7 @@ class CampfireAmbience {
     this.river.pan.pan.setTargetAtTime(Math.max(-0.85, Math.min(0.85, right(rx, rz) / 5)), now, 0.25);
   }
 
-  /** Which camp world is playing: the campfire, or the woods (no fire, the rapids). */
+  /** Which camp world is playing: the campfire, or the woods (no fire, the river). */
   setMap(map: MapId | null) {
     if (map === "campfire_night" || map === "whispering_woods") this.map = map;
   }

@@ -7,12 +7,13 @@
 // scores them itself (the same functions, only + - * / and floor: the same numbers everywhere).
 // The range is a flat plan: x runs across it (-SPAN..SPAN, a target wraps round off one side and
 // back in the other), depth runs away from the shooter (the rails at 0, 1 and 2, the acorn's
-// lane at 2.7). A shot is aimed at a point (x, depth) and lands there after its flight.
+// lane at 2.7). A shot is hitscan: aimed at a point (x, depth), it strikes there the instant it is
+// loosed (no lead to judge), then a quarter of a second to cock the next acorn.
 
 export const SLING_ROUND_S = 45;
 export const SLING_SHOTS = 15;
-/** The least time between two shots (a new stone into the pouch). */
-export const SLING_RELOAD_S = 0.55;
+/** The least time between two shots (the next acorn cocked into the pouch). */
+export const SLING_RELOAD_S = 0.25;
 /** How far across the range the rails run (a target wraps round at either end). */
 export const SLING_SPAN = 1.25;
 /** How far away a shot can be aimed (a little past the acorn's lane). */
@@ -116,9 +117,9 @@ export function slingAcornX(range: SlingRange, k: number, t: number): number | n
   return f.dir * (-SLING_SPAN + (t - f.at) * SLING_ACORN.speed);
 }
 
-/** How long a shot aimed `d` away is in the air. */
-export function slingFlight(d: number): number {
-  return 0.22 + 0.11 * d;
+/** How long a shot aimed `d` away is in the air: none (hitscan, whatever the distance). */
+export function slingFlight(_d: number): number {
+  return 0;
 }
 
 /** The multiplier a hit earns after `streak` hits in a row: three at x1, three at x2, three at x3,

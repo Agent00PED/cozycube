@@ -14,9 +14,11 @@ import type { PropSpec } from "./lounge";
 //   The Golden Glen     the back west, three Autumn Maples (T4) in gold leaves, and the deer
 //   The Elderwood Shrine the back, one Whispering Elderwood (T5) inside a ring of mossy stones
 //
-// Round them: the rapids down the east edge (three fishing spots on the bank: the wild fish, the
-// legendaries and mythics among them), Bramble the Bear's cabin at the front (him in front of it,
-// facing out over his store counter) and his advanced workbench beside it, a splitting block for
+// Round them: a meandering river (in off the north edge, out off the east, its banks strewn with
+// pebbles and rocks; four fishing spots on its bank, two of them a log and a rock to sit on: the wild
+// fish, the legendaries and mythics among them), Bramble the Bear's trading post in the south-east,
+// its cabin flush against the eastern tree line and an open clearing before his counter, his
+// advanced workbench beside it, a splitting block for
 // Firewood, and twenty-five vista pines along the back and side edges (not for felling). The layout below is plain JSON between the markers, read as-is by
 // scripts/blender/build_forest.py, which builds forest.glb (the diorama, and each tree kind's four
 // looks, stump to mature, for the client to place at its node).
@@ -57,16 +59,23 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "id": "elder_1", "kind": "elderwood", "x": 3.2, "z": -9.0 }
   ],
   "shrine": { "x": 3.2, "z": -9.0, "r": 1.9, "stones": 7 },
-  "rapids": { "x0": 9.3, "x1": 12, "water": -0.2, "rocks": [[10.2, -9.5, 0.5], [11.1, -6.8, 0.45], [10.0, -4.4, 0.4], [11.2, -1.2, 0.55], [10.4, 2.0, 0.4], [11.0, 5.2, 0.5], [10.1, 8.4, 0.45], [11.3, 10.6, 0.4]] },
+  "river": {
+    "points": [[7.4, -13.2, 0.8], [7.9, -10.5, 0.85], [7.0, -8.2, 1.0], [8.3, -6.0, 1.1], [9.8, -4.4, 1.2], [11.0, -2.2, 1.0], [13.4, -1.2, 0.9]],
+    "water": -0.2,
+    "depth": 0.55,
+    "rocks": [[7.3, -11.6, 0.45], [6.6, -7.4, 0.4], [8.9, -5.1, 0.5], [10.9, -3.4, 0.45], [10.2, -1.6, 0.4], [8.6, -9.6, 0.35]]
+  },
   "fishing": [
-    { "stand": { "x": 8.55, "z": -3.2 }, "bobber": { "x": 10.4, "z": -3.2 } },
-    { "stand": { "x": 8.55, "z": 0.6 }, "bobber": { "x": 10.5, "z": 0.6 } },
-    { "stand": { "x": 8.55, "z": 4.2 }, "bobber": { "x": 10.4, "z": 4.2 } }
+    { "stand": { "x": 5.65, "z": -8.6 }, "bobber": { "x": 7.0, "z": -8.5 } },
+    { "stand": { "x": 6.55, "z": -5.78 }, "bobber": { "x": 7.77, "z": -6.69 }, "seat": "log", "face": [0.8, -0.6] },
+    { "stand": { "x": 8.58, "z": -3.24 }, "bobber": { "x": 10.0, "z": -4.05 }, "seat": "rock", "face": [0.87, -0.5] },
+    { "stand": { "x": 10.66, "z": -0.71 }, "bobber": { "x": 11.4, "z": -1.95 } }
   ],
-  "cabin": { "x": 6.2, "z": 6.9, "w": 3.6, "d": 2.5, "h": 2.6 },
-  "counter": { "x": 6.2, "z": 9.35, "len": 2.0, "w": 0.55, "top": 0.7 },
-  "bramble": { "x": 6.2, "z": 8.65, "yaw": 0 },
-  "workbench": { "x": 1.4, "z": 9.4, "len": 1.6, "w": 0.72, "top": 0.9 },
+  "cabin": { "x": 9.85, "z": 5.35, "w": 3.2, "d": 2.4, "h": 2.6 },
+  "counter": { "x": 9.85, "z": 7.7, "len": 2.0, "w": 0.55, "top": 0.7 },
+  "bramble": { "x": 9.85, "z": 7.0, "yaw": 0 },
+  "workbench": { "x": 6.4, "z": 6.5, "len": 1.6, "w": 0.72, "top": 0.9 },
+  "titanSpots": [[-6.7, -6.6], [0.8, 3.6], [-8.1, 6.4]],
   "splitblock": { "x": -0.9, "z": 5.6 },
   "animals": [
     { "id": "deer", "kind": "deer", "x": -1.8, "z": -4.9 },
@@ -74,16 +83,17 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   ],
   "vista": [
     [-11.2, -11.3, 1.2], [-9.3, -11.4, 1.0], [-7.4, -11.3, 1.15], [-5.5, -11.4, 0.95], [-3.6, -11.3, 1.1], [-1.7, -11.4, 1.0], [0.2, -11.4, 1.2],
-    [2.0, -11.5, 0.95], [5.1, -11.4, 1.1], [7.0, -11.3, 1.0], [8.6, -11.5, 1.05],
+    [2.0, -11.5, 0.95], [5.1, -11.4, 1.1], [9.9, -11.2, 1.0], [8.9, 2.95, 1.0], [11.3, 2.7, 1.05],
     [-11.4, -9.2, 1.1], [-11.5, -7.1, 0.95], [-11.3, -5.0, 1.15], [-11.4, -2.8, 1.0], [-11.5, -0.6, 1.1], [-11.3, 1.6, 0.95], [-11.4, 5.8, 1.05], [-11.5, 7.9, 1.0],
-    [-11.3, 10.9, 0.9], [-11.4, 3.7, 1.0], [3.6, -11.6, 1.0], [-10.2, -10.2, 0.95], [11.7, -10.8, 1.1], [11.8, -8.2, 0.95]
+    [-11.3, 10.9, 0.9], [-11.4, 3.7, 1.0], [3.6, -11.6, 1.0], [11.7, -10.8, 1.1], [11.8, -8.2, 0.95]
   ],
   "paths": [
-    { "points": [[-9.0, 10.8, 1.6], [-7.4, 8.9, 1.5], [-4.6, 7.1, 1.4], [-1.6, 6.4, 1.4], [1.6, 6.2, 1.4], [3.8, 9.0, 1.3], [5.4, 10.4, 1.3]] },
-    { "points": [[-1.6, 6.4, 1.3], [-1.9, 3.2, 1.2], [-1.4, 0.0, 1.2], [-1.2, -3.2, 1.2], [-0.4, -5.8, 1.2], [1.8, -7.9, 1.2]] },
+    { "points": [[-9.0, 10.8, 1.6], [-7.4, 8.9, 1.5], [-4.6, 7.4, 1.4], [-1.6, 7.0, 1.4], [1.8, 7.5, 1.4], [5.0, 8.3, 1.3], [7.6, 8.85, 1.3], [9.85, 9.0, 1.5]] },
+    { "points": [[-1.6, 7.0, 1.3], [-1.9, 3.2, 1.2], [-1.4, 0.0, 1.2], [-1.2, -3.2, 1.2], [-0.4, -5.8, 1.2], [1.8, -7.9, 1.2]] },
     { "points": [[-1.4, 0.0, 1.1], [-3.2, -0.2, 1.0], [-6.2, 0.4, 1.0]] },
     { "points": [[-0.9, -3.8, 1.0], [-3.4, -5.4, 1.0], [-6.0, -6.8, 1.0]] },
-    { "points": [[1.2, 1.2, 1.0], [4.4, 0.4, 1.0], [7.6, 0.6, 1.0]] }
+    { "points": [[1.2, 1.2, 1.0], [4.2, 0.4, 1.0], [6.4, -1.4, 1.0], [7.7, -2.6, 1.0]] },
+    { "points": [[5.0, 8.3, 1.0], [6.0, 7.3, 0.9], [6.4, 5.4, 0.9]] }
   ],
   "spawns": [{ "x": -9.0, "z": 9.7 }, { "x": -8.2, "z": 9.2 }, { "x": -9.6, "z": 9.0 }]
 } /* layout:end */;
@@ -122,8 +132,55 @@ export function treeNear(x: number, z: number, reach = TREE_REACH): ForestTree |
   return best;
 }
 
-/** The rapids' fishing spots on the bank: where you stand and where the bobber lands. */
-export const FOREST_FISHING = L.fishing.map((f, i) => ({ propId: `woods_fishing_${i + 1}`, stand: f.stand, bobber: f.bobber, approach: { x: f.stand.x - 0.55, z: f.stand.z } }));
+// --- the river: a Catmull-Rom spline through `river.points` ([x, z, halfWidth], from off the north
+// edge to off the east); build_forest.py digs and fills it from the very same function ---
+const catmull = (p0: number, p1: number, p2: number, p3: number, u: number) => 0.5 * (2 * p1 + (p2 - p0) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (3 * p1 - p0 - 3 * p2 + p3) * u * u * u);
+/** The river's centre line sampled `per` times a span: [x, z, halfWidth] each. */
+export function forestRiver(per = 6): [number, number, number][] {
+  const P = L.river.points;
+  const at = (k: number) => P[Math.max(0, Math.min(P.length - 1, k))];
+  const out: [number, number, number][] = [];
+  for (let i = 0; i < P.length - 1; i++) {
+    for (let k = 0; k < per; k++) {
+      const u = k / per;
+      out.push([0, 1, 2].map((d) => catmull(at(i - 1)[d], at(i)[d], at(i + 1)[d], at(i + 2)[d], u)) as [number, number, number]);
+    }
+  }
+  out.push([...P[P.length - 1]] as [number, number, number]);
+  return out;
+}
+
+/** The river's fishing spots on the bank: where you stand (or the seat: a log or a rock to sit on,
+ *  facing the water), where the float lands, and where you step up from. */
+export const FOREST_FISHING = L.fishing.map((f, i) => {
+  const seatKind = (f as { seat?: string }).seat;
+  const seat = seatKind ? `seat_woods_${seatKind}` : "";
+  const faced = (f as { face?: number[] }).face;
+  const face = faced ? { x: faced[0], z: faced[1] } : { x: f.bobber.x - f.stand.x, z: f.bobber.z - f.stand.z };
+  const d = Math.hypot(face.x, face.z) || 1;
+  return { propId: `woods_fishing_${i + 1}`, seat, stand: f.stand, bobber: f.bobber, face: { x: face.x / d, z: face.z / d }, approach: { x: f.stand.x - (face.x / d) * 0.75, z: f.stand.z - (face.z / d) * 0.75 } };
+});
+/** The woods' fishing seats (the log and the rock on the bank): you sit facing the water, and fish
+ *  (by hand, or AFK) from there. */
+export const FOREST_SEATS = FOREST_FISHING.filter((f) => f.seat).map((f) => ({
+  propId: f.seat,
+  x: f.stand.x,
+  z: f.stand.z,
+  rotationY: Math.atan2(f.face.x, f.face.z),
+  cushion: (f.seat === "seat_woods_rock" ? "boulder" : "log") as "boulder" | "log",
+  approachX: f.approach.x,
+  approachZ: f.approach.z,
+}));
+/** The woods' fishing spot a seat belongs to. */
+export const woodsSpotOfSeat = (seat: string) => (seat ? FOREST_FISHING.find((f) => f.seat === seat)?.propId : undefined);
+/** Where the Colossal Titan can sprout (a world event: one of these clearings). */
+export const TITAN_SPOTS: Pt[] = L.titanSpots.map(([x, z]) => ({ x, z }));
+/** The Titan's trunk, and where you fell it from (a step toward the middle of the wood). */
+export const TITAN_TRUNK = 0.8;
+export function titanApproach(p: Pt): Pt {
+  const d = Math.hypot(p.x, p.z) || 1;
+  return { x: p.x - (p.x / d) * 1.7, z: p.z - (p.z / d) * 1.7 };
+}
 
 /** Bramble the Bear behind his counter, and where you stand to trade with him. */
 export const BRAMBLE = L.bramble;
@@ -152,6 +209,11 @@ export const FOREST_PROPS: PropSpec[] = [
   { propId: "workbench_adv", x: L.workbench.x, z: L.workbench.z, kind: "workbench", color: "#c98b4f", defaultOn: true, approachX: FOREST_WORKBENCH_FRONT.x, approachZ: FOREST_WORKBENCH_FRONT.z },
   { propId: "splitblock_woods", x: L.splitblock.x, z: L.splitblock.z, kind: "splitblock", color: "#a8743d", defaultOn: true, approachX: FOREST_SPLITBLOCK_FRONT.x, approachZ: FOREST_SPLITBLOCK_FRONT.z },
   ...FOREST_ANIMALS.map((a): PropSpec => ({ propId: a.propId, x: a.x, z: a.z, kind: "animal", color: "#b88a5a", defaultOn: true, approachX: a.approachX, approachZ: a.approachZ })),
+  // the fairy rings where a Colossal Titan can sprout: `on` only while one stands there
+  ...TITAN_SPOTS.map((p, i): PropSpec => {
+    const a = titanApproach(p);
+    return { propId: `tree_titan_${i + 1}`, x: p.x, z: p.z, kind: "tree", color: "#e8a93a", defaultOn: false, approachX: a.x, approachZ: a.z };
+  }),
 ];
 
 /** The shrine's standing stones: a ring round the elderwood with a gap (SHRINE_GAP) toward the
@@ -172,8 +234,11 @@ export const FOREST_OBSTACLES: AABB[] = [
   ...FOREST_TREES.map((t) => around(t, TRUNK)),
   // the vista pines on the cliff edges
   ...L.vista.map(([x, z, s]) => around({ x, z }, 0.45 * s)),
-  // the rapids, bank to edge
-  { minX: L.rapids.x0, maxX: L.half + 1, minZ: -L.half - 1, maxZ: L.half + 1 },
+  // the river: small boxes down its length, a little in from its banks (you walk to the water's edge)
+  ...forestRiver(10).map(([x, z, w]) => around({ x, z }, Math.max(0.2, w - 0.22))),
+  // the rocks in and by it, and the fishing seats (a log, a rock)
+  ...L.river.rocks.map(([x, z, s]) => around({ x, z }, 0.4 * s)),
+  ...FOREST_SEATS.map((st) => around(st, 0.2)),
   // Bramble's cabin, his counter and him behind it; the workbench, the splitting block
   { minX: L.cabin.x - L.cabin.w / 2, maxX: L.cabin.x + L.cabin.w / 2, minZ: L.cabin.z - L.cabin.d / 2, maxZ: L.cabin.z + L.cabin.d / 2 },
   { minX: L.counter.x - L.counter.len / 2, maxX: L.counter.x + L.counter.len / 2, minZ: L.bramble.z - 0.35, maxZ: L.counter.z + L.counter.w / 2 },
@@ -186,5 +251,7 @@ export const FOREST_OBSTACLES: AABB[] = [
   ...SHRINE_STONES.map((p) => around(p, 0.22)),
   // the deer and the rabbits
   ...L.animals.map((a) => around(a, 0.35)),
+  // the heart of each fairy ring (where a Titan's trunk rises during its event)
+  ...TITAN_SPOTS.map((p) => around(p, 0.45)),
 ];
 export const FOREST_SPAWNS: Pt[] = L.spawns;

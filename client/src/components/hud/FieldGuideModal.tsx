@@ -36,7 +36,7 @@ export function FieldGuideModal({ profile, market, onClose }: { profile: Fishing
             <Page key={id} id={id} profile={profile} mult={marketMultiplier(fishGood(id), hour)} dir={marketDirection(fishGood(id), hour)} />
           ))}
         </div>
-        <p className="m-0 text-[11px] opacity-60">A King Size fish is longer than its kind's usual span (about one in fifty). Barnaby's prices move every hour; each fish sold knocks 2% off the next of its kind.</p>
+        <p className="m-0 text-[11px] opacity-60">A King Size fish is longer than its kind's usual span and worth 2.5x (about one in fifty reeled by hand, four in ten inside a King-Size Surge's golden ripples, never on an AFK line). Barnaby's prices move every hour; each fish sold knocks 2% off the next of its kind.</p>
       </div>
     </Modal>
   );

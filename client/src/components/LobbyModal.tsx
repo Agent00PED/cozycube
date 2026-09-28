@@ -154,7 +154,6 @@ export function LobbyModal({ auth, guildKey, onPick, current = null, onCancel }:
                       <span className="text-xs tabular-nums text-[#C9BDB5]">
                         {l.players}/{l.capacity}
                       </span>
-                      {full && !here && <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-200">Full</span>}
                     </span>
                   </span>
                   {l.friends > 0 && (
@@ -165,7 +164,7 @@ export function LobbyModal({ auth, guildKey, onPick, current = null, onCancel }:
                   {here ? (
                     <span className="shrink-0 rounded-full border border-[#F5C26B] bg-gradient-to-b from-[#F8D48A] to-[#E69A28] px-2.5 py-1 text-[12px] font-bold text-[#3A2206] shadow-[0_0_12px_rgba(245,166,35,0.35)]">[ 🟢 Current ]</span>
                   ) : (
-                    <span className={`shrink-0 rounded-full px-3 py-1 text-[13px] font-bold ${mine ? "bg-[#F5A623] text-[#2B201B]" : "bg-[#3A2C25] text-[#F8C977]"}`}>{mine ? "Joining…" : "Join ›"}</span>
+                    <span className={`shrink-0 rounded-full px-3 py-1 text-[13px] font-bold ${full ? "bg-rose-500/15 text-rose-200" : mine ? "bg-[#F5A623] text-[#2B201B]" : "bg-[#3A2C25] text-[#F8C977]"}`}>{full ? "[ FULL ]" : mine ? "Joining…" : "Join ›"}</span>
                   )}
                 </button>
               </li>

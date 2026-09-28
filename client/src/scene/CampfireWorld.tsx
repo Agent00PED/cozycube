@@ -3,7 +3,11 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState, TimeOfDay, ToggleableSyncState } from "@shared/types";
-import { CAMPFIRE_LAYOUT as L, CHOP_STATIONS, DOCK_PILINGS, DUCK_PATHS, RIVER_Z, riverSpan } from "@shared/worlds/campfire";
+import { CAMPFIRE_LAYOUT as L, DOCK_PILINGS, DUCK_PATHS, RIVER_Z, riverSpan } from "@shared/worlds/campfire";
+import { parseWorldEvent } from "@shared/types";
+import { parseTrees } from "@shared/chop";
+import { FellableTrees } from "./FellableTrees";
+import { SurgeRipples } from "./SurgeRipples";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
@@ -36,7 +40,10 @@ import { COZY_AURA_FUEL, getBonfireVisualState, type BonfireUpdate } from "@shar
 //                 low and billowing while it is dying (a warning), a steady column when cozy,
 //                 thin fast wisps when it blazes, none at all once it is out
 //   embers        sparks lifting off the fire and winking out
-//   fireflies     green-gold, drifting and blinking over the river, the pines and the hammock
+//   fireflies     green-gold, drifting and blinking over the river and among the pines
+//   the pines     the Soft Pines round the clearing that you fell (FellableTrees, trees.glb), each
+//                 its own size, growing back from their stumps; a King-Size Surge's golden ripples
+//                 on the river
 //   stars         a field of them round the floating island
 //   string lights warm bulbs strung between the tipi, a pole, the pines and the camper's awning,
 //                 and along the front fence: each bulb has a soft glow, and a few warm lights
@@ -97,11 +104,19 @@ interface CampfireWorldProps extends Live {
   hearth: HearthState;
   onFloorClick: (x: number, z: number) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
+  localSessionId: string | null;
+  /** The room's trees (shared/chop.ts TreeSync as JSON) and its living wonder (WorldEvent as JSON). */
+  trees: string;
+  worldEvent: string;
+  /** A prop used (a tree, by the E key). */
+  onUseProp: (propId: string) => void;
   /** A tap on one of the ducks (the room tells everyone it dives). */
   onDuck: (duck: number) => void;
 }
 
-export function CampfireWorld({ onFloorClick, players, toggleables, hearth, subscribeMessages, onDuck }: CampfireWorldProps) {
+export function CampfireWorld({ onFloorClick, players, localSessionId, toggleables, hearth, trees, worldEvent, subscribeMessages, onUseProp, onDuck }: CampfireWorldProps) {
+  const treeState = useMemo(() => parseTrees(trees), [trees]);
+  const wonder = useMemo(() => parseWorldEvent(worldEvent), [worldEvent]);
   // the latest state for the frame loop, without re-rendering the island on every change
   const live = useRef<Live>({ players, toggleables, hearth });
   live.current = { players, toggleables, hearth };
@@ -164,7 +179,8 @@ export function CampfireWorld({ onFloorClick, players, toggleables, hearth, subs
       <FireLight live={live} />
       <JarLights live={live} />
       <StewSteam live={live} />
-      <ChopBillboards toggleables={toggleables} />
+      <FellableTrees mapId="campfire_night" trees={treeState} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onUseProp={onUseProp} />
+      <SurgeRipples event={wonder} mapId="campfire_night" waterY={L.river.water} />
       <Barnaby subscribeMessages={subscribeMessages} />
       <BarnabyChalkboard />
       <Buster subscribeMessages={subscribeMessages} />
@@ -447,7 +463,7 @@ function Embers() {
   return <instancedMesh ref={mesh} args={[SPARK_GEO, EMBER_MAT, COUNT]} raycast={noRaycast} frustumCulled={false} />;
 }
 
-/** Fireflies drifting low over the river, among the pines and by the hammock, blinking; only after dark. */
+/** Fireflies drifting low over the river and among the pines, blinking; only after dark. */
 function Fireflies() {
   const hour = useContext(TimeOfDayContext);
   const night = useCampNight() ?? NIGHTNESS[hour];
@@ -455,7 +471,6 @@ function Fireflies() {
   const flies = useMemo(() => {
     const around = (x0: number, x1: number, z0: number, z1: number, n: number) =>
       Array.from({ length: n }, () => ({ x: x0 + Math.random() * (x1 - x0), z: z0 + Math.random() * (z1 - z0), y: 0.35 + Math.random() * 1.1, phase: Math.random() * 6.28, rate: 0.6 + Math.random() * 0.9, wander: 0.25 + Math.random() * 0.45 }));
-    const h = L.hammock;
     // over the water, all the way down the river
     const river = Array.from({ length: 16 }, (_, i) => {
       const z = RIVER_Z.from + 0.8 + ((RIVER_Z.to - RIVER_Z.from - 1.6) * (i + Math.random())) / 16;
@@ -464,11 +479,11 @@ function Fireflies() {
     });
     return [
       ...river,
-      // the grove between the hammock and the tipi, thick with them (catch some in a jar)
+      // the grove west of the tipi, thick with them (catch some in a jar)
       ...around(L.fireflies.x - 1.3, L.fireflies.x + 1.3, L.fireflies.z - 1.3, L.fireflies.z + 1.3, 12),
       ...around(-9.5, -6, -9, 1.5, 7),
       ...around(-4, 6, -9.5, -7.5, 6),
-      ...around(Math.min(h.a.x, h.b.x) - 0.5, Math.max(h.a.x, h.b.x) + 0.5, Math.min(h.a.z, h.b.z) - 0.5, Math.max(h.a.z, h.b.z) + 0.5, 5),
+      ...around(-8.5, -5.5, 3.5, 7.5, 5),
     ];
   }, []);
   const halo = useRef<THREE.InstancedMesh>(null);
@@ -648,41 +663,6 @@ function BulbGlows() {
     m.instanceMatrix.needsUpdate = true;
   });
   return <instancedMesh ref={mesh} args={[SPARK_GEO, GLOW_MAT, STRING_BULBS.length]} raycast={noRaycast} frustumCulled={false} renderOrder={2} />;
-}
-
-/** Over a chopping station on the Timber Trail that is cooling down (bare, waiting for fresh logs), a
- *  small floating countdown; nothing at all over one that is ready. The server says how long the
- *  wait is (the station's `boost`) when it goes bare; the countdown runs here, from when that was
- *  seen, and the badge goes the moment it reaches 0. */
-function ChopBillboards({ toggleables }: { toggleables: Record<string, ToggleableSyncState> }) {
-  const bareSince = useRef<Record<string, number>>({});
-  const [, setTick] = useState(0);
-  const stations = CHOP_STATIONS.map((s) => toggleables[s.propId]).filter((s): s is ToggleableSyncState => !!s);
-  const now = performance.now();
-  for (const s of stations) {
-    if (!s.on) bareSince.current[s.propId] ??= now;
-    else delete bareSince.current[s.propId];
-  }
-  const waiting = stations.some((s) => !s.on);
-  useEffect(() => {
-    if (!waiting) return;
-    const id = window.setInterval(() => setTick((n) => n + 1), 500);
-    return () => window.clearInterval(id);
-  }, [waiting]);
-  return (
-    <>
-      {stations.map((s) => {
-        if (s.on) return null;
-        const left = Math.max(0, Math.ceil((s.boost || 20) - (now - (bareSince.current[s.propId] ?? now)) / 1000));
-        if (left <= 0) return null;
-        return (
-          <Html key={s.propId} position={[s.x, 1.15, s.z]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
-            <div className="cozy-chop-sign">⏳ {left}s</div>
-          </Html>
-        );
-      })}
-    </>
-  );
 }
 
 const STEAM_MAT = new THREE.MeshBasicMaterial({ color: "#f3efe8", transparent: true, opacity: 0.2, depthWrite: false });

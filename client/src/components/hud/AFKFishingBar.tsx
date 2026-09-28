@@ -25,11 +25,14 @@ export function AFKFishingBar({ player, localSessionId, subscribeMessages }: { p
   );
   const progress = Math.max(0, Math.min(1, player.actionProgress));
   const resting = player.action === "rest";
-  const capacity = useMemo(() => {
+  // the livewell: how many it holds and its size (a livewell from before the downsizing may hold
+  // more than its size: it keeps them all, and takes no more until it is under)
+  const { held, capacity } = useMemo(() => {
     try {
-      return sanitizeFishingProfile(JSON.parse(player.fishing || "{}")).slots;
+      const p = sanitizeFishingProfile(JSON.parse(player.fishing || "{}"));
+      return { held: p.creel.length, capacity: p.slots };
     } catch {
-      return 0;
+      return { held: 0, capacity: 0 };
     }
   }, [player.fishing]);
   // one soft chime as the creel fills and the rod is stowed (on the change, never repeated)
@@ -40,12 +43,12 @@ export function AFKFishingBar({ player, localSessionId, subscribeMessages }: { p
   }, [resting]);
   if (resting) {
     return (
-      <div className="cozy-afk-pill cozy-afk-full pointer-events-none flex items-center gap-3 rounded-full border border-amber-300/40 bg-black/40 px-5 py-2.5 text-white shadow-xl backdrop-blur-md" role="status" aria-label="Creel full: resting by the water">
+      <div className="cozy-afk-pill cozy-afk-full pointer-events-none flex items-center gap-3 rounded-full border border-amber-300/40 bg-black/40 px-5 py-2.5 text-white shadow-xl backdrop-blur-md" role="status" aria-label="Livewell full: resting by the water">
         <span className="text-xl leading-none" aria-hidden>
           🪣
         </span>
         <span className="text-[12px] font-semibold text-amber-100">
-          Creel Full! ({capacity}/{capacity}) · Resting by the water ☕
+          Livewell full ({held}/{capacity}) · Resting by the water ☕
         </span>
       </div>
     );

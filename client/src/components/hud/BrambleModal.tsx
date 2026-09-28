@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { AXES, AXES_BY_TIER, TREES, WOOD, WOOD_KINDS, woodPrice, type TreeKind } from "@shared/chop";
+import { AXES, AXES_BY_TIER, TREES, WOOD, WOOD_KINDS, woodAverage, woodPrice, type TreeKind } from "@shared/chop";
+import { FIREWOOD_PRICE } from "@shared/economy";
 import { FISH, RODS, RODS_BY_TIER, fishValue, type FishingProfile } from "@shared/fishing";
 import { fishGood, parseMarket, priceRun, woodGood } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -48,7 +49,7 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
   );
   const hour = parseMarket(market);
   const logs = WOOD_KINDS.flatMap((k) => Array.from({ length: profile.wood[k] ?? 0 }, () => k));
-  const logsWorth = priceRun(logs, woodGood, (k, mult) => woodPrice(k, mult), hour).total;
+  const logsWorth = priceRun(logs, woodGood, (k, mult) => woodPrice(k, mult, woodAverage(profile, k)), hour).total;
   const fishWorth = priceRun(profile.creel, (f) => fishGood(f.s), (f, mult) => fishValue(f, mult), hour).total;
   return (
     <Modal title="Bramble's Trading Post" icon="🐻" onClose={onClose} width={480}>
@@ -83,6 +84,11 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
             <button type="button" className="clay-btn clay-btn-amber min-h-11 w-full" disabled={logs.length === 0} onClick={() => send({ type: "BUSTER", op: "sellAllWood" })}>
               🪵 Sell All Logs ({logs.length}) · {logsWorth} 🪙
             </button>
+            {profile.firewood > 0 && (
+              <button type="button" className="clay-btn clay-btn-amber min-h-11 w-full" onClick={() => send({ type: "BUSTER", op: "sellFirewood", count: "all" })}>
+                🔥 Sell Firewood ({profile.firewood}) · {profile.firewood * FIREWOOD_PRICE} 🪙
+              </button>
+            )}
             <button type="button" className="clay-btn clay-btn-amber min-h-11 w-full" disabled={profile.creel.length === 0} onClick={() => send({ type: "BARNABY", op: "sell", slot: "all" })}>
               🐟 Sell All Fish ({profile.creel.length}) · {fishWorth} 🪙
             </button>
@@ -151,7 +157,7 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
                 </div>
               );
             })}
-            <p className="m-0 text-center text-[11px] opacity-70">The rapids hold the woods' legendaries and mythics: {Object.values(FISH).filter((f) => "rapids" in f && f.rapids).length} of them, and only a T4 or T5 rod lands them.</p>
+            <p className="m-0 text-center text-[11px] opacity-70">The river holds the woods' legendaries and mythics: {Object.values(FISH).filter((f) => "rapids" in f && f.rapids).length} of them, and only a T4 or T5 rod lands them.</p>
           </div>
         )}
 
@@ -165,7 +171,7 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
                   <div className="flex min-w-0 flex-1 flex-col leading-tight">
                     <b className="text-sm">{t.name}</b>
                     <span className="text-[11px] opacity-75">
-                      {t.logs} {WOOD[t.wood].name} logs · grows back in {t.respawnS >= 60 ? `${Math.round(t.respawnS / 60)} min` : `${t.respawnS}s`}
+                      {t.rounds[0]}-{t.rounds[1]} rounds · {Math.round(t.logChance * 100)}% a {WOOD[t.wood].name} log a round · grows back in {t.respawnS >= 60 ? `${Math.round(t.respawnS / 60)} min` : `${t.respawnS}s`}
                     </span>
                   </div>
                   <span className="text-xs opacity-80">felled ×{profile.felled[k] ?? 0}</span>

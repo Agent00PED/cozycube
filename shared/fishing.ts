@@ -183,8 +183,7 @@ export const CREEL_TIERS: CreelTier[] = [
   { id: "creel_tier_2", name: "Woven Reed Livewell", capacity: CREEL_CAPACITY[1], price: CREEL_PRICES[1], icon: "🧺" },
   { id: "creel_tier_3", name: "Canvas Livewell", capacity: CREEL_CAPACITY[2], price: CREEL_PRICES[2], icon: "🎒" },
   { id: "creel_tier_4", name: "Ice Cooler Livewell", capacity: CREEL_CAPACITY[3], price: CREEL_PRICES[3], icon: "🧊" },
-  { id: "creel_tier_5", name: "Pier Keepnet", capacity: CREEL_CAPACITY[4], price: CREEL_PRICES[4], icon: "🕸️" },
-  { id: "creel_tier_6", name: "Starlight Deep Livewell", capacity: CREEL_CAPACITY[5], price: CREEL_PRICES[5], icon: "✨" },
+  { id: "creel_tier_5", name: "Starlight Deep Livewell", capacity: CREEL_CAPACITY[4], price: CREEL_PRICES[4], icon: "✨" },
 ];
 /** A creel tier (1-based, clamped), and the next one up (null at the top). */
 export function creelTier(tier: number): CreelTier {
@@ -204,7 +203,8 @@ export const CREEL_RELEASE_COINS = 1;
  *  (the longest of each kind), and how long they have left being Well-Fed. */
 export interface FishingProfile {
   creel: CreelFish[];
-  /** The creel's tier (1-6, CREEL_TIERS), and its capacity (always that tier's). */
+  /** The livewell's tier (1-5, CREEL_TIERS), and its capacity (always that tier's; a creel from
+   *  before the downsizing may hold more: it keeps them, and takes no more until it is under). */
   creelTier: number;
   slots: number;
   rod: RodId;
@@ -221,10 +221,13 @@ export interface FishingProfile {
   fedUntil: number;
   /** The camp's other kit: split wood by kind (to burn or sell to Buster), and the axe in hand and those owned. */
   wood: Record<WoodKind, number>;
+  /** Beside each count, the sum of its logs' value multipliers (a big tree's logs are worth more:
+   *  shared/chop.ts logMultiplier; missing: 1x each). */
+  woodValue: Partial<Record<WoodKind, number>>;
   axe: AxeId;
   axes: AxeId[];
-  /** The wood carrier's tier (1-7, shared/chop.ts WOOD_CARRIER_TIERS): how many slots it has for
-   *  logs and crafted pieces together. */
+  /** The wood carrier's tier (1-5, shared/chop.ts WOOD_CARRIER_TIERS): how many slots it has for
+   *  logs and crafted pieces together (the soft clamp: a load from before stays, new wood waits). */
   carrierTier: number;
   /** Crafted pieces from Buster's workbench, each in a carrier slot (shared/crafting.ts). */
   crafts: CraftItem[];
@@ -248,10 +251,14 @@ export interface FishingProfile {
   felled: Partial<Record<TreeKind, number>>;
   /** The slingshot gallery's best score. */
   slingBest: number;
+  /** The Logbook's Timber Collection: the widest trunk felled of each kind (cm), and the most a
+   *  single log of each wood ever sold for. */
+  trunkRecord: Partial<Record<TreeKind, number>>;
+  bestLog: Partial<Record<WoodKind, number>>;
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], gear: [], resin: 0, sawdust: 0, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0 };
+  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], gear: [], resin: 0, sawdust: 0, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {} };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -279,7 +286,8 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
       if (!isFishId(fish?.s)) continue;
       const q = Number(fish.q);
       p.creel.push({ s: fish.s, cm: Math.max(1, Math.round(Number(fish.cm) || 1)), q: q === 3 ? 3 : q === 2 ? 2 : 1 });
-      if (p.creel.length >= p.slots) break;
+      // (the soft clamp: a creel over its tier's slots keeps every fish; only new catches wait)
+      if (p.creel.length >= 999) break;
     }
   }
   if (Array.isArray(r.rods)) p.rods = Array.from(new Set(["bamboo" as RodId, ...r.rods.filter(isRodId)]));
@@ -309,6 +317,13 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
   if (r.wood && typeof r.wood === "object") {
     for (const k of WOOD_KINDS) p.wood[k] = Math.max(0, Math.min(999, Math.round(Number((r.wood as Record<string, unknown>)[k]) || 0)));
   }
+  if (r.woodValue && typeof r.woodValue === "object") {
+    for (const k of WOOD_KINDS) {
+      const v = Number((r.woodValue as Record<string, unknown>)[k]);
+      // at most 9x a log (a Titan's are 3x, a 1.35x tree's 1.8x)
+      if (p.wood[k] > 0 && v > 0 && Number.isFinite(v)) p.woodValue[k] = Math.min(v, p.wood[k] * 9);
+    }
+  }
   if (Array.isArray(r.axes)) p.axes = Array.from(new Set(["rusty" as AxeId, ...r.axes.filter(isAxeId)]));
   p.axe = isAxeId(r.axe) && p.axes.includes(r.axe) ? r.axe : "rusty";
   if (Array.isArray(r.crafts)) {
@@ -326,6 +341,18 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
   p.ranger = r.ranger === true;
   p.eagleUntil = Math.max(0, Number(r.eagleUntil) || 0);
   p.slingBest = Math.max(0, Math.min(1_000_000, Math.round(Number(r.slingBest) || 0)));
+  if (r.trunkRecord && typeof r.trunkRecord === "object") {
+    for (const k of TREE_KINDS) {
+      const cm = Math.round(Number((r.trunkRecord as Record<string, unknown>)[k]) || 0);
+      if (cm > 0) p.trunkRecord[k] = Math.min(999, cm);
+    }
+  }
+  if (r.bestLog && typeof r.bestLog === "object") {
+    for (const k of WOOD_KINDS) {
+      const c = Math.round(Number((r.bestLog as Record<string, unknown>)[k]) || 0);
+      if (c > 0) p.bestLog[k] = Math.min(99_999, c);
+    }
+  }
   if (r.felled && typeof r.felled === "object") {
     for (const k of TREE_KINDS) {
       const n = Math.round(Number((r.felled as Record<string, unknown>)[k]) || 0);
@@ -345,14 +372,16 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
 /** What Barnaby pays for a fish: its kind's value, more for a long one, far more for stars, half as
  *  much again for a King Size one; `market` is the hour's price for its kind (shared/market.ts). */
 export const STAR_VALUE = [1, 1.5, 2.2] as const;
-export const KING_SIZE_VALUE = 1.5;
+export const KING_SIZE_VALUE = 2.5;
 export function fishValue(f: CreelFish, market = 1): number {
   const sp = FISH[f.s];
   const [lo, hi] = sp.cm;
   const frac = hi > lo ? Math.max(0, Math.min(1, (f.cm - lo) / (hi - lo))) : 0.5;
   return Math.max(1, Math.round(sp.value * (0.8 + 0.4 * frac) * STAR_VALUE[f.q - 1] * (isKingSize(f) ? KING_SIZE_VALUE : 1) * market));
 }
-/** Longer than its kind's usual span: a King Size fish (about one in fifty), crowned in gold. */
+/** Longer than its kind's usual span: a King Size fish (about one in fifty on a hand-reeled line,
+ *  four in ten in a King-Size Surge's golden ripples, never on an AFK line), worth 2.5x and crowned
+ *  in gold in the Logbook. */
 export function isKingSize(f: Pick<CreelFish, "s" | "cm">): boolean {
   return f.cm > FISH[f.s].cm[1];
 }
@@ -368,8 +397,10 @@ export interface CatchLuck {
   bait?: BaitId | "";
   /** Only the commons. */
   commonOnly?: boolean;
-  /** What an AFK line can bring up: commons, uncommons and rares (never a legendary or a mythic). */
+  /** An AFK line: never a King Size fish. */
   afk?: boolean;
+  /** The chance a hand-reeled catch is King Size (a King-Size Surge's golden ripples: 0.4). */
+  king?: number;
   /** The hour's light (shared/daynight.ts): only its fish bite. Omitted: either. */
   time?: "day" | "night";
   /** Fishing the Whispering Woods' rapids (its own legendaries and mythics bite there only). */
@@ -411,7 +442,10 @@ function gauss(rand: () => number): number {
  *  the span's top, is rare; a long one leans silver, and luck can make it gold. */
 export function rollCatch(species: FishId, luck: CatchLuck = {}, rand: () => number = Math.random): CreelFish {
   const [lo, hi] = FISH[species].cm;
-  const z = Math.max(-3, Math.min(3.5, gauss(rand)));
+  let z = Math.max(-3, Math.min(3.5, gauss(rand)));
+  // a surge's King Size (beyond the usual span); an AFK line never lands one
+  if (!luck.afk && luck.king && rand() < luck.king) z = 2.15 + rand() * 1.3;
+  if (luck.afk) z = Math.min(z, 1.95);
   const cm = Math.max(1, Math.round((lo + hi) / 2 + (z * (hi - lo)) / 4));
   const gold = 0.06 + (luck.rareLuck ?? 0) * 0.2 + (z > 1.2 ? 0.1 : 0);
   const silver = 0.22 + (z > 0.5 ? 0.15 : 0);
@@ -441,17 +475,19 @@ export const WELL_FED_BITE_BONUS_S = 2;
 
 // --- AFK fishing at the campfire ------------------------------------------------------------------
 
-/** Line in, feet up: a fish into the creel every so often, the rarer the longer the wait (seconds,
- *  min and max; null: never on an AFK line). */
+/** Line in, feet up (at the campfire's dock and canoe, or the woods' river bank): a fish into the
+ *  livewell every so often, the rarer the longer the wait (seconds, min and max). */
 export const AFK_CATCH_S: Record<FishTier, readonly [number, number] | null> = {
-  common: [25, 30],
-  uncommon: [30, 35],
+  common: [12, 16],
+  uncommon: [20, 26],
   rare: [35, 45],
-  legendary: null,
-  mythic: null,
+  legendary: [55, 65],
+  mythic: [75, 90],
 };
+/** Premium bait (the Lucky Chum) on an AFK line: every wait this much shorter. */
+export const AFK_PREMIUM_BAIT = 0.75;
 /** How long an AFK line waits for this fish. */
-export function afkSeconds(species: FishId, rand: () => number = Math.random): number {
+export function afkSeconds(species: FishId, rand: () => number = Math.random, bait: BaitId | "" = ""): number {
   const [lo, hi] = AFK_CATCH_S[FISH[species].tier] ?? [45, 45];
-  return lo + (hi - lo) * rand();
+  return (lo + (hi - lo) * rand()) * (bait === "stardrop" ? AFK_PREMIUM_BAIT : 1);
 }

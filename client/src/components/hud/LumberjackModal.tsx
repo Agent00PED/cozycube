@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { AXES, AXE_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier, woodPrice } from "@shared/chop";
+import { AXES, AXE_IDS, FIREWOOD_FUEL, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
+import { FIREWOOD_PRICE } from "@shared/economy";
 import { CRAFTS, RESIN_PRICE, craftSalePrice } from "@shared/crafting";
 import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import { Trend } from "./BarnabyModal";
@@ -24,7 +25,7 @@ export function WoodsPermits({ profile, coins, send }: { profile: FishingProfile
     );
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="m-0 text-center text-xs opacity-80">Beyond the archway at the fence's west end: trees to fell (T1 to T5), the rapids' wild fish, and Bramble's trading post.</p>
+      <p className="m-0 text-center text-xs opacity-80">Through the archway at the head of the north path, beside my stall: trees to fell (T1 to T5), the river's wild fish, and Bramble's trading post.</p>
       <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
         <span className="text-2xl">🎫</span>
         <div className="flex min-w-0 flex-1 flex-col leading-tight">
@@ -64,7 +65,7 @@ interface Props {
 // Buster the Lumberjack's stall by the woodpile. He buys your split wood (Soft Pine, Hard Oak,
 // Golden Charcoal), the Pine Resin from critical chops and the artisan pieces carved at the
 // workbench beside his stall (WoodCraftModal); he sells better axes, bigger wood carriers tier by
-// tier, and utility gear (gloves for the chopping meter, boots, an apron for the workbench). Every trade is the server's call
+// tier, and utility gear (gloves for the felling ring's gold, boots, an apron for the workbench). Every trade is the server's call
 // (BUSTER packets); his answer comes back as busterResult.
 
 type Tab = "sell" | "axes" | "gear" | "carrier" | "permits";
@@ -91,10 +92,11 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
       }),
     [subscribeMessages]
   );
-  // at the hour's prices, each sale knocking 2% off the next of its kind (as the server settles it)
+  // at the hour's prices, each sale knocking 2% off the next of its kind (as the server settles it),
+  // each log worth its tree's size (the stack's average: a big tree's logs fetch more)
   const hour = parseMarket(market);
-  const woodRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => woodPrice(x, mult), hour).total;
-  const woodWorth = WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0) + profile.resin * RESIN_PRICE;
+  const woodRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => woodPrice(x, mult, woodAverage(profile, x)), hour).total;
+  const woodWorth = WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0) + profile.resin * RESIN_PRICE + profile.firewood * FIREWOOD_PRICE;
   const craftWorth = priceRun(profile.crafts, (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total;
   const next = nextCarrierTier(profile.carrierTier);
   return (
@@ -128,7 +130,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                       {WOOD[k].name} <span className="font-normal opacity-70">×{have}</span>
                     </b>
                     <span className="text-[11px] opacity-75">
-                      {woodRun(k, 1)} 🪙 this hour <Trend dir={marketDirection(woodGood(k), hour)} /> · or +{WOOD[k].fuel}% on the fire
+                      {woodRun(k, 1)} 🪙 this hour <Trend dir={marketDirection(woodGood(k), hour)} />
+                      {have > 0 && woodAverage(profile, k) > 1.01 ? ` · big logs ×${woodAverage(profile, k).toFixed(2)}` : ""} · or +{WOOD[k].fuel}% on the fire
                     </span>
                   </div>
                   <button type="button" className="clay-btn min-h-9 px-3 text-xs" disabled={have < 1} onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: 1 })}>
@@ -140,6 +143,20 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                 </div>
               );
             })}
+            {profile.firewood > 0 && (
+              <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+                <span className="text-2xl">🔥</span>
+                <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <b className="text-sm">
+                    Firewood bundles <span className="font-normal opacity-70">×{profile.firewood}</span>
+                  </b>
+                  <span className="text-[11px] opacity-75">{FIREWOOD_PRICE} 🪙 a bundle · or +{FIREWOOD_FUEL}% on the bonfire</span>
+                </div>
+                <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellFirewood", count: "all" })}>
+                  All · {profile.firewood * FIREWOOD_PRICE} 🪙
+                </button>
+              </div>
+            )}
             {profile.resin > 0 && (
               <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
                 <span className="text-2xl">🍯</span>
@@ -147,7 +164,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                   <b className="text-sm">
                     Pine Resin <span className="font-normal opacity-70">×{profile.resin}</span>
                   </b>
-                  <span className="text-[11px] opacity-75">{RESIN_PRICE} 🪙 each · from critical chops · its own jar, 0 carrier slots</span>
+                  <span className="text-[11px] opacity-75">{RESIN_PRICE} 🪙 each · from gold swings and by-products · its own jar, 0 carrier slots</span>
                 </div>
                 <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellResin", count: "all" })}>
                   All · {profile.resin * RESIN_PRICE} 🪙
@@ -250,7 +267,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
         {tab === "carrier" && (
           <div className="flex flex-col gap-1.5">
             <p className="m-0 text-center text-xs opacity-75">
-              Every log and carved piece takes a slot ({carrierLoad(profile)}/{carrierCapacity(profile.carrierTier)} now). A full carrier means no more chopping.
+              Every log and carved piece takes a slot ({carrierLoad(profile)}/{carrierCapacity(profile.carrierTier)} now). A full carrier means no more felling until you sell or split some (nothing is ever thrown away).
             </p>
             <div className="flex max-h-[34vh] flex-col gap-1.5 overflow-y-auto pr-1">
               {WOOD_CARRIER_TIERS.map((t, i) => {

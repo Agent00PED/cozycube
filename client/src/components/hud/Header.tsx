@@ -16,7 +16,7 @@ import { VelvetChipIcon } from "./VelvetChipIcon";
 export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: string }> = {
   ...(Object.fromEntries(WORLD_IDS.map((id) => [WORLDS[id].mapId, { icon: WORLDS[id].icon, name: WORLDS[id].name, tagline: WORLDS[id].tagline }])) as Record<MapId, { icon: string; name: string; tagline: string }>),
   casino_vip: { icon: "🥂", name: "Velvet Penthouse", tagline: "High-limit poker, baccarat and the Golden Vault" },
-  whispering_woods: { icon: "🌲", name: "Whispering Woods", tagline: "Felling, the rapids, and Bramble the Bear" },
+  whispering_woods: { icon: "🌲", name: "Whispering Woods", tagline: "Felling, the winding river, and Bramble the Bear" },
 };
 
 interface HeaderProps {

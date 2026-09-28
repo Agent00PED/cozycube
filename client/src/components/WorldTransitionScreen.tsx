@@ -6,10 +6,11 @@ import { MAP_LABELS } from "./hud/Header";
 // the destination's icon and name on a gold-fringed card between them with a cozy tip, and part
 // again once you have arrived (the new world's first frames settle behind them). A trip is only
 // yours: nobody else sees the curtain. Between the campfire and the Whispering Woods (next door,
-// through the archway) there is no curtain: a forest mist rolls in and out in FOG_S instead.
+// through the archway) there is no curtain: a dark cocoa dusk with drifting fog fades in and out in
+// FOG_S, a softly glowing pine over "Entering the Whispering Woods..." (or back to the campfire).
 
 const CURTAIN_S = 0.35;
-const FOG_S = 0.2;
+const FOG_S = 0.3;
 const CAMP = new Set<MapId>(["campfire_night", "whispering_woods"]);
 
 const TIPS = [
@@ -23,7 +24,9 @@ const TIPS = [
   "Mr. Vance changes coins into Velvet Chips (and back) one for one.",
   "A bowl of stew keeps you Well-Fed: a bouncier step and quicker bites.",
   "Water the lounge's plants once a day each for a few coins.",
-  "Gold on the chopping meter is a critical chop: now and then a coin or a Pine Resin.",
+  "Swing when the felling ring meets the gold: a critical swing, now and then a coin or a Pine Resin.",
+  "A bigger tree's logs are worth more: size squared. Watch for the Colossal Titan in the woods!",
+  "A King-Size Surge's golden ripples: reel by hand in them for a 4 in 10 King Size catch.",
   "A Pine Resin in the workbench's Adhesive Slot bonds a carving so it can't break, or gilds it for a Masterwork.",
   "Bigger creels and carriers cost more each tier, but carry far more.",
 ];
@@ -56,15 +59,19 @@ export function WorldTransitionScreen({ destination, from }: { destination: MapI
   }, [destination]); // eslint-disable-line react-hooks/exhaustive-deps
   const label = useMemo(() => (shown ? MAP_LABELS[shown] : null), [shown]);
   if (!shown || !label) return null;
-  if (misty)
+  if (misty) {
+    const woods = shown === "whispering_woods";
     return (
-      <div className={`cozy-mist fixed inset-0 z-[60] flex items-end justify-center pb-[18vh] ${closing ? "cozy-mist-out" : "cozy-mist-in"}`} role="status" aria-live="polite" aria-label={`Walking to ${label.name}`}>
+      <div className={`cozy-mist fixed inset-0 z-[60] flex flex-col items-center justify-center gap-3 ${closing ? "cozy-mist-out" : "cozy-mist-in"}`} role="status" aria-live="polite" aria-label={woods ? "Entering the Whispering Woods" : `Walking to ${label.name}`}>
         <style>{CURTAIN_CSS}</style>
-        <span className="font-cozy rounded-full bg-[#1C1614]/40 px-4 py-1.5 text-sm font-bold tracking-widest text-[#F7EBE1]/90">
-          {label.icon} {label.name}
+        <span className="cozy-mist-fog" aria-hidden />
+        <span className="cozy-pine-glow text-6xl" aria-hidden>
+          {woods ? "🌲" : "🔥"}
         </span>
+        <b className="font-cozy relative text-base tracking-[0.2em] text-[#F7EBE1]">{woods ? "Entering the Whispering Woods..." : "Back to the Starlight Campfire..."}</b>
       </div>
     );
+  }
   const drape = `absolute top-0 h-full w-1/2 ${closing ? "cozy-curtain-open" : "cozy-curtain-close"}`;
   return (
     <div className="fixed inset-0 z-[60] overflow-hidden" role="status" aria-live="polite" aria-label={`Travelling to ${label.name}`}>
@@ -104,17 +111,31 @@ export const CURTAIN_CSS = `
 @keyframes cozy-curtain-card-in { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes cozy-curtain-card-out { to { opacity: 0; transform: scale(0.97); } }
 .cozy-mist {
-  background:
-    radial-gradient(60% 45% at 30% 60%, rgba(214, 226, 218, 0.95), rgba(214, 226, 218, 0) 70%),
-    radial-gradient(55% 40% at 72% 42%, rgba(200, 216, 206, 0.95), rgba(200, 216, 206, 0) 70%),
-    linear-gradient(180deg, rgba(150, 172, 160, 0.92), rgba(196, 212, 200, 0.97));
-  backdrop-filter: blur(6px);
+  background: radial-gradient(90% 70% at 50% 45%, #3a2a22 0%, #231915 60%, #140e0b 100%);
+  overflow: hidden;
 }
+.cozy-mist-fog {
+  position: absolute; inset: -20%;
+  background:
+    radial-gradient(40% 25% at 25% 70%, rgba(210, 200, 185, 0.22), rgba(210, 200, 185, 0) 70%),
+    radial-gradient(45% 30% at 75% 35%, rgba(200, 190, 175, 0.18), rgba(200, 190, 175, 0) 70%),
+    radial-gradient(35% 20% at 55% 85%, rgba(220, 210, 195, 0.2), rgba(220, 210, 195, 0) 70%);
+  filter: blur(8px);
+  animation: cozy-fog-drift 3s ease-in-out infinite alternate;
+}
+@keyframes cozy-fog-drift { from { transform: translateX(-3%); } to { transform: translateX(3%); } }
+.cozy-pine-glow {
+  position: relative;
+  filter: drop-shadow(0 0 10px rgba(143, 240, 170, 0.75)) drop-shadow(0 0 24px rgba(245, 190, 90, 0.45));
+  animation: cozy-pine-pulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes cozy-pine-pulse { from { transform: scale(0.97); opacity: 0.9; } to { transform: scale(1.04); opacity: 1; } }
 .cozy-mist-in { animation: cozy-mist-in ${FOG_S}s ease-out forwards; }
 .cozy-mist-out { animation: cozy-mist-out ${FOG_S}s ease-in forwards; }
 @keyframes cozy-mist-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cozy-mist-out { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .cozy-curtain-close, .cozy-curtain-open, .cozy-curtain-card-in, .cozy-curtain-card-out, .cozy-mist-in, .cozy-mist-out { animation-duration: 1ms; }
+  .cozy-mist-fog, .cozy-pine-glow { animation: none; }
 }
 `;

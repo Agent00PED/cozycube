@@ -528,6 +528,38 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.6.10",
+        date: "2026-09-28",
+        title: "Living Wonders & the Radial Felling",
+        summary: "Every Discord server now shares the same three lounges, trees come down round by round on a new radial dial, the woods get a winding river, the slingshot fires in a flash, and a Colossal Titan or a King-Size Surge can turn up for everyone.",
+        changes: {
+          features: [
+            "The three Velvet Lounges are open to every Discord server at once: meet players from other communities. Each lounge holds 15, and a full one shows [ FULL ].",
+            "Precision Radial Felling: a round dial over the trunk's rings, a ring closing in from the bark. Swing when it meets the gold (Space, a click, or the big CHOP button on a phone). Bigger trees take more rounds, the dial stays open between them, and the notch stays in the tree if you step away.",
+            "Every round that lands drops a log (or bark, resin and shavings from the tougher trees), and a big tree's logs are worth more: size squared.",
+            "Eight Soft Pines round the campfire's clearing to fell, each its own size, growing back from their stumps.",
+            "Living wonders, shared by everyone in the lounge: a King-Size Fish Surge (golden ripples where 4 in 10 hand-reeled catches are King Size, worth 2.5x) or a Colossal Titan maple in the woods (any axe, 5-6 rounds, heavy logs worth 3x).",
+            "Fish by hand or feet up at every spot: [ 🎣 Manual Reel ] or [ ☕ Auto AFK ], at the campfire's dock and on the woods' river bank, standing or on its log or boulder.",
+            "AFK fishing is quicker: a common every 12-16 seconds, a mythic in 75-90, and premium bait a quarter faster. It stops by itself with a gentle notice when your livewell is full.",
+            "The Logbook's Day and Night pages crown your King Size records, the Ocean page waits for the beach, and the new Timber Collection keeps each tree's story, your widest trunk, your count and your best log sale.",
+            "Buster buys Firewood bundles at 5 coins each.",
+          ],
+          visuals: [
+            "The Whispering Woods' groves blend into one another naturally, a meandering river winds through them and spills off the island, and Bramble's cabin sits snug against the eastern pines.",
+            "The campfire is back to nature: river stones, raw logs and boulders round the fire, and the archway into the woods now stands at the head of the north path beside Buster.",
+            "Walking into the woods: a cocoa-dark fog, a glowing pine and \"Entering the Whispering Woods...\".",
+            "The slingshot gallery is a cozy carnival booth: paper lanterns, painted wooden targets, a crosshair, and every shot a flash and a pop.",
+          ],
+          economy: [
+            "Wood carriers hold 8, 18, 35, 60 or 100 and livewells 5, 12, 25, 45 or 70. Anything you already carry is kept: new catches and logs just wait until there's room.",
+            "The slingshot's prizes are set for instant shots: 1,500, 3,000 and 5,000 points.",
+          ],
+          fixes: [
+            "The fishing reel's catch bar fills exactly with the number beside it.",
+          ],
+        },
+      },
     ],
   },
 ];

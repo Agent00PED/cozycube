@@ -24,7 +24,7 @@ import type {
   ToggleableKind,
   ToggleableSyncState,
 } from "@shared/types";
-import { MAP_SIGNATURE_TIME, guildRoomKey, isMapId, isWeather, loungeRoomKey } from "@shared/types";
+import { LOUNGE_FULL, MAP_SIGNATURE_TIME, isMapId, isWeather, loungeRoomKey } from "@shared/types";
 import { type BlackjackAction, type CasinoPacket, type RoulettePhase, type RouletteSyncState } from "@shared/casino";
 
 import { parsePicnic, parseStew, FUEL_START, type PicnicPlate, type StewState } from "@shared/bonfire";
@@ -87,8 +87,10 @@ const RELAYED_MESSAGES = [
   "critterTreat",
   "duckDive",
   "starCaught",
-  "chopStroke",
-  "chopResult",
+  // the radial felling: each swing's ring, and how it landed
+  "fellSwing",
+  "fellResult",
+  "fellStop",
   "forageResult",
   // the hearth: wood on the fire (or it burning down), the Dutch oven; Barnaby's stall
   "BONFIRE_STATE_UPDATE",
@@ -98,7 +100,6 @@ const RELAYED_MESSAGES = [
   "busterResult",
   "busterWave",
   "workbenchResult",
-  "chopSwing",
   "creelFull",
   // the casino: Mr. Vance's answer at the cage (an exchange, or why not), and his wave as it opens
   "cashierResult",
@@ -234,9 +235,11 @@ interface UseColyseusRoomResult {
   travellingTo: MapId | null;
   /** The camp's market this hour (shared/market.ts MarketState as JSON). */
   market: string;
-  /** The Whispering Woods' felled trees growing back ({ node id: stump | sprout | sapling } as JSON;
-   *  a tree not listed is mature). */
-  forest: string;
+  /** Every fellable tree on the camp's maps ({ node id: { stage, scale, dmg, rounds } } as JSON:
+   *  shared/chop.ts TreeSync), a Colossal Titan's too while it stands. */
+  trees: string;
+  /** The living wonder under way (shared/types WorldEvent as JSON; "" when none). */
+  worldEvent: string;
   connected: boolean;
   /** Why the last connection attempt failed or dropped, while it is being retried; null when fine. */
   connectionIssue: string | null;
@@ -247,6 +250,8 @@ interface UseColyseusRoomResult {
    * HUD and any open panel stay on screen (the last state, frozen) while this is true.
    */
   reconnecting: boolean;
+  /** The lounge picked refused the join: it is full (15 players). */
+  loungeFull: boolean;
   /** Skip the backoff wait and try to reconnect right now (the reconnecting pill's button). */
   retryNow: () => void;
   roulette: RouletteSyncState;
@@ -343,9 +348,13 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
   const [travellingTo, setTravellingTo] = useState<MapId | null>(null);
   const travelTimer = useRef<number | undefined>(undefined);
   const [market, setMarket] = useState("");
-  const [forest, setForest] = useState("");
+  const [trees, setTrees] = useState("");
+  const [worldEvent, setWorldEvent] = useState("");
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
+  /** The lounge picked was full when we tried to join it. */
+  const [loungeFull, setLoungeFull] = useState(false);
+  useEffect(() => setLoungeFull(false), [lounge]);
   const retryNowRef = useRef<(() => void) | null>(null);
   const retryNow = useCallback(() => retryNowRef.current?.(), []);
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
@@ -420,7 +429,13 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
         await connect();
         attempt = 0;
       } catch (err) {
-        scheduleRetry(describeFailure(err));
+        const reason = describeFailure(err);
+        // a full lounge: no retrying into it, back to the selector (App)
+        if (reason.includes(LOUNGE_FULL)) {
+          setLoungeFull(true);
+          return;
+        }
+        scheduleRetry(reason);
       } finally {
         connecting = false;
       }
@@ -458,8 +473,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
       // prefix must be omitted there, or every connection attempt 404s.
       const wsPath = import.meta.env.DEV ? "/colyseus" : "";
       const client = new Client(`${protocol}//${window.location.host}${wsPath}`);
-      // the picked lounge of the guild's (Velvet Lounge 01 is the guild's own room key)
-      const guildKey = loungeRoomKey(guildRoomKey(auth!.guildId, auth!.channelId), lounge!);
+      // the picked lounge: global, the same room from every Discord server
+      const guildKey = loungeRoomKey(lounge!);
       // (per user too: two tabs of one browser in one guild are two players, not one seat)
       const reconnectKey = `${RECONNECT_KEY_PREFIX}${guildKey}:${auth!.userId}`;
       const savedToken = localStorage.getItem(reconnectKey);
@@ -757,7 +772,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
       room.state.listen("timeOfDay", (t: TimeOfDay) => setTimeOfDayState(t));
       room.state.listen("weather", (w: string) => setWeatherState(isWeather(w) ? w : "clear"));
       room.state.listen("market", (raw: string) => setMarket(raw ?? ""));
-      room.state.listen("forest", (raw: string) => setForest(raw ?? ""));
+      room.state.listen("trees", (raw: string) => setTrees(raw ?? ""));
+      room.state.listen("worldEvent", (raw: string) => setWorldEvent(raw ?? ""));
 
       // the socket closed under us (a proxy timed it out, the network blinked, the server restarted).
       // The token is kept whatever the close code (a proxy's idle cut can look like a clean close):
@@ -857,11 +873,13 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
     mapTransitioning: travellingTo !== null,
     travellingTo,
     market,
-    forest,
+    trees,
+    worldEvent,
     connected,
     connectionIssue,
     reconnect,
     reconnecting,
+    loungeFull,
     retryNow,
     roulette,
     bets,
