@@ -26,7 +26,9 @@
 //     inside the ropes), the neutral corners inside them, every ring-out landing open floor, Coach
 //     Bruno inside a collider with his counter's spot in reach, the chalkboard's and the gym's spots
 //     in reach, the bleachers' front open (where a beaten fighter stands when every seat there is
-//     taken), and the ring itself closed to every spectator
+//     taken), and the ring itself closed to every spectator; the regulars: Jimmy the Slugger and Kip
+//     at the heavy bag inside colliders (Jimmy's spot open, reachable and in reach), the fans'
+//     bleacher seats taken out of the seats nobody else may sit on
 //   - every built world (the fast-travel grid's, and the penthouse) has seats or props
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, walkRegions, worldLimit } from "../shared/collision";
 import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES, MOCHI_WAYPOINTS } from "../shared/props";
@@ -67,7 +69,7 @@ import { VAULT_SLOTS, VIP_ARRIVAL, VIP_NPCS, VIP_SEATS } from "../shared/worlds/
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
-import { CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, NEUTRAL_CORNERS, RING, RING_BENCH_FRONT, RING_CORNERS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
+import { BAG_BOXER, CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, JIMMY, JIMMY_FRONT, JIMMY_REACH, NEUTRAL_CORNERS, RING, RING_BENCH_FRONT, RING_CORNERS, RING_FANS, RING_SEATS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
 
 const failures: string[] = [];
 const fail = (msg: string) => failures.push(msg);
@@ -404,6 +406,17 @@ for (const mapId of MAP_IDS) {
   }
   // a beaten fighter with every bleacher seat taken stands in front of them, on open floor
   standable(R, home, RING_BENCH_FRONT, "the bleachers' front (a beaten fighter's spot)");
+  // the regulars: Jimmy by the Blue Corner's steps, Kip at the heavy bag, the fans on the bleachers
+  for (const [label, at] of [["Jimmy the Slugger", JIMMY], ["Kip at the heavy bag", BAG_BOXER]] as const) {
+    checks++;
+    if (!isBlocked(at.x, at.z, R, 0.05)) fail(`${R}: ${label} stands on open floor ${fmt(at)}: give them a collider`);
+  }
+  standable(R, home, JIMMY_FRONT, "Jimmy the Slugger");
+  near("Jimmy's spot", JIMMY_FRONT, JIMMY, JIMMY_REACH);
+  for (const fan of RING_FANS) {
+    checks++;
+    if (RING_SEATS.some((s) => s.propId === fan.seat)) fail(`${R}: ${fan.node} sits on ${fan.seat}, which is still a seat anyone can take`);
+  }
 }
 
 // --- every built world has something in it ---

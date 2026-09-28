@@ -81,6 +81,7 @@ import { BoxingHud } from "./components/hud/BoxingHud";
 import { useRingTakeover } from "./systems/boutStore";
 import { RingsideModal } from "./components/hud/RingsideModal";
 import { ProShopModal } from "./components/hud/ProShopModal";
+import { SparModal } from "./components/hud/SparModal";
 import { TouchControls } from "./components/hud/TouchControls";
 import type { BoutResult } from "@shared/boxing";
 import { installKeyboard } from "./systems/input";
@@ -639,7 +640,8 @@ export default function App() {
         } else if (type === "boxNotice") {
           // the Velvet Ring said no, or yes (a ticket in, gloves bought): its own panels say so there
           const n = payload as { message?: string; emoji?: string; ok?: boolean };
-          if (panelKindRef.current !== "ringside" && panelKindRef.current !== "proshop") pushToast(String(n?.message ?? ""), { emoji: n?.emoji ?? "🥊", tone: n?.ok ? "win" : undefined });
+          const own = panelKindRef.current === "ringside" || panelKindRef.current === "proshop" || (panelKindRef.current === "spar" && !n?.ok);
+          if (!own) pushToast(String(n?.message ?? ""), { emoji: n?.emoji ?? "🥊", tone: n?.ok ? "win" : undefined });
         } else if (type === "boxBelt") {
           // a belt won: the whole room hears of it, wherever they are
           const b = payload as { name: string; sessionId: string };
@@ -1137,6 +1139,7 @@ export default function App() {
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
         {panel?.kind === "ringside" && localPlayer && localSessionId && <RingsideModal localSessionId={localSessionId} coins={localPlayer.coins} send={boxingSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "spar" && localSessionId && <SparModal localSessionId={localSessionId} send={boxingSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "proshop" && localPlayer && <ProShopModal boxing={localPlayer.boxing} coins={localPlayer.coins} inRing={!!localPlayer.corner} send={boxingSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
 
         {wardrobeOpen && localPlayer && (

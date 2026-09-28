@@ -369,10 +369,10 @@ export type ToggleableKind =
   | CasinoPropKind;
 
 /** The Velvet Ring's props (shared/worlds/boxing_ring.ts): the corner steps (step in as Red or
- *  Blue), the ringside chalkboard (the bets), Coach Bruno's pro shop, the heavy bag, the speed bag
- *  and the balance-beam scale. */
-export type RingPropKind = "ringcorner" | "chalkboard" | "coach" | "heavybag" | "speedbag" | "scale";
-const RING_PROP_KINDS: ReadonlySet<string> = new Set<RingPropKind>(["ringcorner", "chalkboard", "coach", "heavybag", "speedbag", "scale"]);
+ *  Blue), the ringside chalkboard (the bets), Coach Bruno's pro shop, Jimmy the Slugger (a spar),
+ *  the heavy bag, the speed bag and the balance-beam scale. */
+export type RingPropKind = "ringcorner" | "chalkboard" | "coach" | "spar" | "heavybag" | "speedbag" | "scale";
+const RING_PROP_KINDS: ReadonlySet<string> = new Set<RingPropKind>(["ringcorner", "chalkboard", "coach", "spar", "heavybag", "speedbag", "scale"]);
 export function isRingProp(kind: string): kind is RingPropKind {
   return RING_PROP_KINDS.has(kind);
 }

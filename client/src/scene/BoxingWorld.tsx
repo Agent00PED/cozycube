@@ -1,15 +1,17 @@
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { CORNER_NAME, METHOD_LABEL, STAMINA_MAX, oddsText, type BoutResult, type BoxEvent, type RopeSide } from "@shared/boxing";
-import { COACH_BRUNO, RING, RING_LAYOUT as R, RING_FLOOR_Y } from "@shared/worlds/boxing_ring";
+import { CORNER_NAME, JIMMY_ID, JIMMY_NAME, METHOD_LABEL, SPAR_TIERS, STAMINA_MAX, gloveLook, oddsText, type BotTier, type BoutResult, type BoxEvent, type RopeSide } from "@shared/boxing";
+import { OUTFIT_FABRICS, defaultLook, encodeLook } from "@shared/types";
+import { BAG_BOXER, COACH_BRUNO, JIMMY, RING, RING_FANS, RING_LAYOUT as R, RING_FLOOR_Y, onRing } from "@shared/worlds/boxing_ring";
+import { Avatar } from "../entities/Avatar";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
 import { modelUrl } from "../assetVersion";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { boutLive, fightersOf, getBout, getBoutClock, subscribeBout } from "../systems/boutStore";
-import { advanceCombatClock, clearFight, drawnAt, hitstop, playMove, playReact, punchIn, ringFx, shake, slowMo } from "../systems/fightAnim";
+import { advanceCombatClock, clearFight, drawnAt, fighterSpot, hitstop, playMove, playReact, punchIn, ringFx, shake, slowMo } from "../systems/fightAnim";
 import { resetCombatPrediction } from "../systems/combatInput";
 import { worldToScreen } from "../systems/input";
 import { liveMotion } from "../systems/liveMotion";
@@ -44,9 +46,16 @@ import { GEO, matte, noRaycast } from "./kit";
 // shake (a nudge for an M1, a shudder for an M2) and a Perfect Dodge's slow-mo pulse, white flash
 // and punch-in. The particles: sweat thrown off a head snapped back, a spark where a punch lands.
 // Under the local fighter's feet a faint arc shows their stamina (and, inside it, their guard).
+//
+// The regulars: Jimmy the Slugger, the sparring partner (the player's own avatar, in the Boxing
+// Robe & Shorts), bouncing in his stance by the Blue Corner's steps until someone calls him in, then
+// in his corner fighting as the bout says (his spot is the server's, eased); two fans on the
+// bleachers who clap (and cheer a knockdown); Kip the kangaroo working the heavy bag, the bag
+// swinging to his one-two (ring_regulars.glb through CampNpc: a draw call each).
 
 export const BOXING_RING_URL = modelUrl("boxing_ring.glb");
 export const COACH_BRUNO_URL = modelUrl("coach_bruno.glb");
+export const RING_REGULARS_URL = modelUrl("ring_regulars.glb");
 
 const CLICK_MAT = new THREE.MeshBasicMaterial({ visible: false });
 const DECAL_OFFSET: Record<string, number> = { CS_Decal1: -1, CS_Decal2: -3 };
@@ -82,6 +91,8 @@ export function BoxingWorld({ onFloorClick, subscribeMessages, localSessionId }:
       <ChalkDust />
       <RingParticles />
       <StaminaArc localSessionId={localSessionId} />
+      <SparringJimmy subscribeMessages={subscribeMessages} />
+      <RingRegulars subscribeMessages={subscribeMessages} />
       <CampNpc
         url={COACH_BRUNO_URL}
         what="coach_bruno.glb"
@@ -160,11 +171,13 @@ function coachCalls(type: string, p: any): { gesture: "perk" | "clap" | "knock";
     if (ev.kind === "bell" && ev.ring === "start") return { gesture: "perk", line: ev.round === 1 ? "Touch gloves... FIGHT! 🔔" : `Round ${ev.round}! 🔔` };
     if (ev.kind === "knockdown") return { gesture: "perk", line: pick([`Down goes ${nameOf(ev.to)}! 💥`, `${nameOf(ev.to)} is down! 💥`]) };
     if (ev.kind === "count") return { gesture: "knock", line: ev.n >= 10 ? "TEN! That's the fight! 🔔" : `${ev.n}!` };
-    if (ev.kind === "up") return { gesture: "clap", line: `${nameOf(ev.to)} beats the count! 🥊` };
+    if (ev.kind === "up" && ev.beat) return { gesture: "clap", line: `${nameOf(ev.to)} beats the count! 🥊` };
+    if (ev.kind === "round") return { gesture: "perk", line: ev.winner ? `Round ${ev.round} to ${getBout()[ev.winner].name || CORNER_NAME[ev.winner]}! 🔔` : `Round ${ev.round}: too close to call! 🔔` };
     if (ev.kind === "ringout") return { gesture: "perk", line: "THROUGH THE ROPES! Ring-Out! 💥" };
   }
   if (type === "boxResult") {
     const r = p as BoutResult;
+    if (r.spar) return { gesture: "clap", line: r.winner ? `Good spar! ${r.winnerName} takes it. 🥊` : "Good spar, both of you! 🥊" };
     if (r.method === "nocontest") return { gesture: "perk", line: r.stays ? `No Contest! Every bet goes back. ${r.winnerName} holds the ring. 🤚` : "No Contest! Every bet goes back. 🤚" };
     if (r.method === "draw") return { gesture: "perk", line: "The judges call it a draw! 🤝" };
     return { gesture: "clap", line: r.belt ? `A NEW CHAMPION! ${r.winnerName}! 🏆` : r.reign > 1 ? `${r.winnerName} wins by ${METHOD_LABEL[r.method]}: ${r.reign} in a row! Who's next? 🏆` : `${r.winnerName} wins by ${METHOD_LABEL[r.method]}! Who's next? 🏆` };
@@ -236,7 +249,7 @@ function RingModel({ subscribeMessages }: { subscribeMessages: Props["subscribeM
     [parts]
   );
 
-  // the ropes kicked, the bags struck
+  // the ropes kicked, the bags struck (a player's flurry, and Kip's one-two, softer)
   const bag = useRef({ x: 0, z: 0, vx: 0, vz: 0, flurryUntil: 0, nextHit: 0 });
   const speed = useRef({ until: 0 });
   useEffect(
@@ -283,6 +296,11 @@ function RingModel({ subscribeMessages }: { subscribeMessages: Props["subscribeM
       b.vx += 0.9;
       b.nextHit = now + 380;
       playSfx("jab", distanceVolume(cameraFocus.x, cameraFocus.z, R.heavyBag.x, R.heavyBag.z, 4) * 0.7);
+    }
+    if (now < kip.until && now >= kip.next) {
+      b.vx += 0.5;
+      kip.next = now + 285;
+      playSfx("jab", distanceVolume(cameraFocus.x, cameraFocus.z, R.heavyBag.x, R.heavyBag.z, 3) * 0.22);
     }
     b.vx += (-BAG_OMEGA * BAG_OMEGA * b.x - BAG_DAMP * b.vx) * dt;
     b.x += b.vx * dt;
@@ -343,7 +361,7 @@ function useSlate() {
       timer = 0;
       const b = getBout();
       const clock = getBoutClock();
-      const key = JSON.stringify([b.phase, b.round, clock, b.count, b.red.name, b.blue.name, b.pools, b.result, Object.keys(b.bets).length]);
+      const key = JSON.stringify([b.phase, b.round, clock, b.count, b.red.name, b.blue.name, b.pools, b.result, Object.keys(b.bets).length, b.rounds, b.spar]);
       if (key === last) return;
       last = key;
       chalk(s.canvas, b, clock);
@@ -402,9 +420,15 @@ function chalk(canvas: HTMLCanvasElement, b: ReturnType<typeof getBout>, clock: 
   const mm = `${Math.floor(clock / 60)}:${String(clock % 60).padStart(2, "0")}`;
   const status = b.phase === "fight" ? `ROUND ${b.round} · ${mm}` : b.phase === "count" ? `COUNT: ${b.count}` : b.phase === "warmup" ? `WARM-UP · BETS OPEN ${mm}` : b.phase === "rest" ? `ROUND ${b.round + 1} IN ${mm}` : PHASE_LINE[b.phase] ?? "";
   text(status, W / 2, 186, 30, b.phase === "count" ? "#ffd166" : "#efeadd");
-  // the odds
-  text(`ODDS  ${oddsText(b.pools, "red")}  |  ${oddsText(b.pools, "blue")}`, W / 2, 238, 26);
-  text(`POOLS  ${b.pools.red} 🪙  |  ${b.pools.blue} 🪙`, W / 2, 274, 22);
+  if (b.rounds.length > 0) text(`ROUNDS  ${b.rounds.map((r) => (r === "draw" ? "=" : r === "red" ? "RED" : "BLUE")).join(" · ")}`, W / 2, 214, 18, "#f2d88a");
+  // the odds (a spar: none)
+  if (b.spar) {
+    text(`SPARRING: ${SPAR_TIERS[b.spar].name.toUpperCase()}`, W / 2, 246, 26, "#cfe8c4");
+    text("NO BETS · NO RECORD", W / 2, 278, 18);
+  } else {
+    text(`ODDS  ${oddsText(b.pools, "red")}  |  ${oddsText(b.pools, "blue")}`, W / 2, 246, 26);
+    text(`POOLS  ${b.pools.red} 🪙  |  ${b.pools.blue} 🪙`, W / 2, 278, 22);
+  }
   // the last result
   let last = "Step into a corner to fight";
   try {
@@ -612,7 +636,10 @@ function useRingEvents(subscribeMessages: Props["subscribeMessages"], localSessi
             break;
           case "up":
             playMove(ev.to, "getup");
-            ringCrowdRoar(0.6);
+            if (ev.beat) ringCrowdRoar(0.6);
+            break;
+          case "round":
+            ringCrowdRoar(ev.winner ? 0.7 : 0.35);
             break;
           case "bell":
             playSfx("bell", near);
@@ -788,5 +815,159 @@ function StaminaArc({ localSessionId }: { localSessionId: string | null }) {
       <mesh geometry={ARC_GEO} material={mats.stamina} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} renderOrder={3} />
       <mesh geometry={GUARD_ARC_GEO} material={mats.guard} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} renderOrder={3} />
     </group>
+  );
+}
+
+// --- the regulars: Jimmy the Slugger, the fans, Kip at the heavy bag --------------------------------
+
+/** Kip's one-two on the heavy bag: while it lasts, the bag is struck (RingModel swings it). */
+const kip = { until: 0, next: 0 };
+
+const JIMMY_LOOK = encodeLook({ ...defaultLook("bot:jimmy-the-slugger"), outfit: "outfit_boxing", ...OUTFIT_FABRICS.outfit_boxing, hat: "none" });
+const JIMMY_LINES: Record<BotTier, string[]> = {
+  rookie: ["Go easy on me! 😅", "Just a light spar, yeah? 🥊"],
+  contender: ["Let's see what you've got! 🥊", "Gloves up, champ! 🥊"],
+  champion: ["You sure about this? 😏", "I don't go easy. 🥊"],
+};
+const pickLine = (lines: string[]) => lines[Math.floor(Math.random() * lines.length)];
+/** Where the bout has Jimmy (his corner), or null while he waits by the steps. */
+const jimmyCorner = () => {
+  const b = getBout();
+  return b.red.sessionId === JIMMY_ID ? "red" : b.blue.sessionId === JIMMY_ID ? "blue" : null;
+};
+
+/** Jimmy the Slugger: the player's own avatar, by the Blue Corner's steps in his stance until he is
+ *  called in, then where the bout has him (eased between its reports; a quick walk when he climbs
+ *  in or goes home), squared up to whoever he spars, a word now and then. */
+function SparringJimmy({ subscribeMessages }: { subscribeMessages: Props["subscribeMessages"] }) {
+  const group = useRef<THREE.Group>(null);
+  const speedRef = useRef(0);
+  const drawn = useRef({ x: JIMMY.x, z: JIMMY.z, y: 0, facing: JIMMY.yaw });
+  const corner = useSyncExternalStore(subscribeBout, jimmyCorner, jimmyCorner);
+  const [bubble, setBubble] = useState<{ id: number; text: string } | null>(null);
+  const bubbleId = useRef(0);
+  useEffect(() => {
+    const say = (text: string) => {
+      const id = ++bubbleId.current;
+      setBubble({ id, text });
+      window.setTimeout(() => setBubble((b) => (b?.id === id ? null : b)), 2600);
+    };
+    return subscribeMessages((type, payload) => {
+      if (type === "boxEvent") {
+        const ev = payload as BoxEvent;
+        const b = getBout();
+        const tier = b.red.sessionId === JIMMY_ID ? b.red.bot : b.blue.bot;
+        if (ev.kind === "enter" && ev.by === JIMMY_ID) say(pickLine(JIMMY_LINES[(tier || "contender") as BotTier]));
+        else if (ev.kind === "round" && tier) {
+          const his = jimmyCorner();
+          if (ev.winner && ev.winner === his) say(pickLine(["That's how it's done! 💪", "One for me! 🔔"]));
+          else if (ev.winner) say(pickLine(["Oof, good shot! 😵", "Okay, okay, you got that one."]));
+        }
+      } else if (type === "boxResult" && (payload as BoutResult).spar) say("Good work out there! Again sometime? 🥊");
+    });
+  }, [subscribeMessages]);
+  useEffect(() => () => void drawnAt.delete(JIMMY_ID), []);
+  useFrame((_, raw) => {
+    const g = group.current;
+    if (!g) return;
+    const dt = Math.min(raw, 0.1);
+    const b = getBout();
+    const c = jimmyCorner();
+    const me = c ? b[c] : null;
+    const tx = me ? me.x : JIMMY.x;
+    const tz = me ? me.z : JIMMY.z;
+    const d = drawn.current;
+    const dx = tx - d.x;
+    const dz = tz - d.z;
+    const far = Math.hypot(dx, dz);
+    const before = { x: d.x, z: d.z };
+    if (far > 2.5) {
+      // climbing in, or going home: a brisk walk there
+      const step = Math.min(far, 5 * dt);
+      d.x += (dx / far) * step;
+      d.z += (dz / far) * step;
+    } else {
+      const k = 1 - Math.pow(1 - 0.22, dt * 60);
+      d.x += dx * k;
+      d.z += dz * k;
+    }
+    const moved = Math.hypot(d.x - before.x, d.z - before.z);
+    speedRef.current += (Math.min(1, moved / Math.max(dt, 1e-3) / 3) - speedRef.current) * 0.3;
+    const foe = me ? (c === "red" ? b.blue : b.red) : null;
+    const at = foe ? fighterSpot(foe) : null;
+    const goal = at ? Math.atan2(at.x - d.x, at.z - d.z) : moved > 0.004 ? Math.atan2(d.x - before.x, d.z - before.z) : JIMMY.yaw;
+    let turn = (goal - d.facing) % (Math.PI * 2);
+    if (turn > Math.PI) turn -= Math.PI * 2;
+    if (turn < -Math.PI) turn += Math.PI * 2;
+    d.facing += turn * 0.22;
+    d.y += ((onRing(d.x, d.z) && me ? RING_FLOOR_Y : 0) - d.y) * 0.25;
+    g.position.set(d.x, d.y, d.z);
+    g.rotation.y = d.facing;
+    if (me) drawnAt.set(JIMMY_ID, { x: d.x, z: d.z });
+    else drawnAt.delete(JIMMY_ID);
+  });
+  return (
+    <Avatar
+      ref={group}
+      userId="bot:jimmy-the-slugger"
+      look={JIMMY_LOOK}
+      color="#c8453a"
+      username={JIMMY_NAME}
+      pose="stand"
+      speedRef={speedRef}
+      sessionId={JIMMY_ID}
+      gloves={gloveLook("red", corner ?? "blue")}
+      bubble={bubble}
+    />
+  );
+}
+
+/** The fans on the bleachers (clapping now and then, and at every knockdown and result) and Kip at
+ *  the heavy bag (his one-two, all night). */
+function RingRegulars({ subscribeMessages }: { subscribeMessages: Props["subscribeMessages"] }) {
+  const cheer = (type: string, p: any): { gesture: "clap" } | null => {
+    if (type === "boxResult") return { gesture: "clap" };
+    if (type === "boxEvent" && ((p as BoxEvent).kind === "knockdown" || (p as BoxEvent).kind === "round" || (p as BoxEvent).kind === "perfect")) return { gesture: "clap" };
+    return null;
+  };
+  return (
+    <>
+      {RING_FANS.map((fan) => (
+        <CampNpc
+          key={fan.node}
+          url={RING_REGULARS_URL}
+          what="ring_regulars.glb"
+          node={fan.node}
+          prefix={fan.node}
+          at={{ x: fan.x, z: fan.z, yaw: fan.yaw }}
+          y={fan.y}
+          waveEvent={`${fan.node}:wave`}
+          standIn={null}
+          subscribeMessages={subscribeMessages}
+          gestureOn={cheer}
+          idle={{ gesture: "clap", every: 9 }}
+          fuseArm={false}
+          talk={{ height: 1.3, clicked: fan.node === "RingFan_Raccoon" ? ["Best seats in the house! 🍿", "C'mon, Red! 📣", "Did you see that dodge?! ⚡"] : ["Go Blue! 💙", "I never miss a fight night. 🥊", "Ooh, that was close!"] }}
+        />
+      ))}
+      <CampNpc
+        url={RING_REGULARS_URL}
+        what="ring_regulars.glb"
+        node="BagBoxer"
+        prefix="BagBoxer"
+        at={{ x: BAG_BOXER.x, z: BAG_BOXER.z, yaw: BAG_BOXER.yaw }}
+        waveEvent="BagBoxer:wave"
+        standIn={null}
+        subscribeMessages={subscribeMessages}
+        idle={{ gesture: "punch", every: 2.2 }}
+        fuseArm={false}
+        onGesture={(g) => {
+          if (g !== "punch") return;
+          kip.until = performance.now() + 2200;
+          kip.next = 0;
+        }}
+        talk={{ height: 1.35, clicked: ["One-two, one-two! 🥊", "Kip's the name. Heavy bag's the game. 🦘", "Stamina's everything, mate. ⚡"] }}
+      />
+    </>
   );
 }

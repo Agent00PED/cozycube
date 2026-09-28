@@ -24,7 +24,8 @@ import { ModelBoundary } from "./ModelBoundary";
 //
 // And some have little turns of their own (`gestureOn`, `idle`): Cedric shuffling his deck and
 // knocking the felt for a natural, Jasper pawing at his coin slot, dozing off or perking up to clap,
-// Pippin working his shaker. A gesture that needs both arms moves the left one too
+// Pippin working his shaker, the Velvet Ring's regulars clapping from the bleachers and Kip the
+// kangaroo's one-two on the heavy bag. A gesture that needs both arms moves the left one too
 // (`fuseArm={false}`); otherwise it stays still (it holds the rake, the lever, the shaker, the cards).
 //
 // However many parts move, each character is ONE draw call: the parts painted with the body's
@@ -43,8 +44,8 @@ const REACT_GAP_MS = 5000;
 const BUBBLE_MS = 4000;
 
 /** A little turn of their own, and how long each lasts (seconds). */
-export type NpcGesture = "clap" | "paw" | "sleep" | "perk" | "knock" | "shake" | "shuffle";
-const GESTURE_S: Record<NpcGesture, number> = { clap: 1.8, paw: 1.5, sleep: 4.5, perk: 1.0, knock: 1.1, shake: 1.8, shuffle: 2.4 };
+export type NpcGesture = "clap" | "paw" | "sleep" | "perk" | "knock" | "shake" | "shuffle" | "punch";
+const GESTURE_S: Record<NpcGesture, number> = { clap: 1.8, paw: 1.5, sleep: 4.5, perk: 1.0, knock: 1.1, shake: 1.8, shuffle: 2.4, punch: 2.4 };
 // the click pad is never drawn (no draw call), but it still takes the click
 const PAD = new THREE.MeshBasicMaterial({ visible: false });
 
@@ -334,6 +335,11 @@ function gestureArm(g: NpcGesture, s: number, k: number, side: 1 | -1): { x: num
     case "shake":
       // the shaker up by the shoulder, rattled hard
       return side === -1 ? { x: (-1.5 + 0.28 * Math.sin(s * 30)) * k, z: -0.25 * k } : { x: -0.25 * k, z: 0 };
+    case "punch": {
+      // a one-two on the heavy bag, again and again: each arm driven out in turn from the guard
+      const beat = Math.max(0, Math.sin(s * 11 + (side === 1 ? 0 : Math.PI)));
+      return { x: -0.95 * beat * beat * k, z: side * 0.12 * beat * k };
+    }
     case "shuffle":
       // both paws in front, riffling the deck: one then the other
       return { x: (-0.95 + 0.12 * Math.sin(s * 12 + (side === 1 ? 0 : Math.PI))) * k, z: side * (0.3 + 0.08 * Math.sin(s * 12)) * k };

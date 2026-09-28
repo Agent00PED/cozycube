@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.1",
+    range: "v0.7.0–v0.7.2",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -786,6 +786,30 @@ export const PATCH_ERAS: PatchEra[] = [
             "The wood carrier and livewell gauges show only where you gather (the campfire, the woods, the beach), not in the lounge, the casino or the ring. B follows suit.",
             "A fighter in a live bout has the whole top of the screen: the header fades away and comes back when the bout ends.",
             "A No Contest never costs the fighter still standing: they keep the ring.",
+          ],
+        },
+      },
+      {
+        version: "0.7.2",
+        date: "2026-09-29",
+        title: "Sparring Night",
+        summary: "Bouts are best of three rounds, the guard stays up as long as you hold it, and Jimmy the Slugger spars anyone in a free ring. A new floating joystick on every map, a combat cluster sized to your screen, and a ringside camera that always shows the whole ring.",
+        changes: {
+          features: [
+            "Best of three: a K.O., a T.K.O., a Ring-Out or the judges' card wins a round. Both fighters go back to their corners patched up to full for the next one, and the first to two rounds takes the bout.",
+            "Jimmy the Slugger waits by the Blue Corner's steps: spar him at Rookie, Contender or Champion. A whole bout with no purse, no record and no bets. The fighter waiting alone in the ring can call him in too.",
+            "The guard stays up for as long as you hold it: it only drops when you let go, your stamina runs dry or it breaks.",
+            "A new floating joystick on every map for phones and tablets: put your thumb down anywhere in the lower left and it appears right there. Drag past the rim and it follows your thumb, and it always steers the way you push on screen, whatever the camera.",
+          ],
+          visuals: [
+            "A cyan aura shows a raised guard, M1s leave a white trail, and a dash leaves a ghost behind for a moment.",
+            "Round pips on the fight HUD and a ROUND N... FIGHT! banner at every bell.",
+            "The ringside camera sits a little lower and wider: the whole canvas, the ropes, the steps and the apron always stay in view, from a phone to a 4:3 tablet.",
+            "New regulars at the Velvet Ring: two fans on the bleachers who clap along, and Kip the kangaroo working the heavy bag all night.",
+          ],
+          fixes: [
+            "The touch combat cluster is sized to your screen, and the key hints on a PC fold into a small capsule that fades four seconds after the first bell.",
+            "The guard no longer drops by itself partway through a hold.",
           ],
         },
       },

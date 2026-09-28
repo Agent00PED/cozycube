@@ -17,6 +17,7 @@ import { isCampDay } from "@shared/daynight";
 import { clampToRing } from "@shared/worlds/boxing_ring";
 import { FIGHTER_GAP } from "@shared/boxing";
 import { getBout } from "./boutStore";
+import { fighterSpot } from "./fightAnim";
 
 // The local player's locomotion. Three inputs, one controller:
 //   - click-to-move: the scene sets `targetRef` from a floor raycast, and the shared pathfinder
@@ -237,8 +238,9 @@ export function useLocalPlayerMovement(
       const bout = getBout();
       const mine = bout.red.sessionId === player.sessionId ? bout.red : bout.blue.sessionId === player.sessionId ? bout.blue : null;
       const theirs = mine === bout.red ? bout.blue : mine === bout.blue ? bout.red : null;
-      const at = theirs?.sessionId ? liveMotion.get(theirs.sessionId) : undefined;
-      if (at && at.map === mapId) foe = { x: at.x, z: at.z };
+      // (Jimmy the Slugger has no player: his spot is the bout's, eased where he is drawn)
+      const at = theirs?.sessionId ? (theirs.bot ? fighterSpot(theirs) : liveMotion.get(theirs.sessionId)) : undefined;
+      if (at && (!("map" in at) || at.map === mapId)) foe = { x: at.x, z: at.z };
       frozen = !!mine && (mine.state === "down" || mine.state === "out" || mine.state === "stun" || mine.state === "stagger" || mine.state === "hurt" || mine.state === "dash");
       ringPace = mine?.state === "block" ? GUARD_PACE : mine?.state === "attack" ? PUNCH_PACE : 1;
     }

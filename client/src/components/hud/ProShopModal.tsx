@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BELT_STREAK, BOUT_PURSE, COUNTER_BONUS, DASH, GLOVES, GLOVE_IDS, GUARD, KNOCKDOWNS_TKO, MOVES, NO_CONTEST_S, PURSES_PER_HOUR, RINGOUT_HEALTH, ROUNDS, ROUND_S, STAMINA, WARMUP_S, parseBoxingProfile, wearsBelt, type BoxingPacket, type GloveId } from "@shared/boxing";
+import { BELT_STREAK, BOUT_PURSE, COUNTER_BONUS, DASH, GLOVES, GLOVE_IDS, GUARD, JIMMY_NAME, KNOCKDOWNS_TKO, MOVES, NO_CONTEST_S, PURSES_PER_HOUR, REST_S, RINGOUT_HEALTH, ROUNDS, ROUNDS_TO_WIN, ROUND_S, STAMINA, WARMUP_S, parseBoxingProfile, wearsBelt, type BoxingPacket, type GloveId } from "@shared/boxing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -95,15 +95,18 @@ export function ProShopModal({ boxing, coins, inRing, send, subscribeMessages, o
         <details className="rounded-2xl bg-black/20 px-3 py-2 text-xs leading-relaxed">
           <summary className="cursor-pointer text-sm font-bold text-[#F7EBE1]">🐶 The coach's rules of the ring</summary>
           <ul className="mt-2 list-disc space-y-1 pl-4 opacity-85">
-            <li>👑 King of the Hill: step up to either corner's steps to get in line. Two in the ring: a {WARMUP_S} s countdown (bets at the chalkboard), then up to {ROUNDS} rounds of {ROUND_S} s. The winner stays on, patched up; the next in line steps in.</li>
-            <li>❤️ Health (100) is what a clean punch takes, and it doesn't come back in a round. At 0 you're down: mash to beat the ten-count (the second one's harder). A third knockdown is a T.K.O.</li>
+            <li>👑 King of the Hill: step up to either corner's steps to get in line. Two in the ring: a {WARMUP_S} s countdown (bets at the chalkboard), then best of {ROUNDS} rounds of {ROUND_S} s: the first to {ROUNDS_TO_WIN} rounds takes the bout. The winner stays on; the next in line steps in.</li>
+            <li>🔔 A round is won by a K.O. (the ten-count), a T.K.O. ({KNOCKDOWNS_TKO} knockdowns in it), a Ring-Out, or on the judges' card at its bell. Then {REST_S} s back in the corners, patched up to full health and stamina.</li>
+            <li>❤️ Health (100) is what a clean punch takes, and it doesn't come back in a round. At 0 you're down: mash to beat the ten-count (the second one's harder), or the round is theirs.</li>
             <li>⚡ Stamina (100) pays for every punch, dash and second of guard; {STAMINA.idle} s after your last it's back at {STAMINA.regen} a second. Run it dry and you're Exhausted until it's back to {STAMINA.recover}: no dash, no guard, slow hands. No cooldowns: only stamina.</li>
             <li>👊 M1: the string. {MOVES.jab.name}, {MOVES.straight.name}, {MOVES.leadhook.name}: thrown on the beat each one lands before they recover from the last.</li>
             <li>🥊 M2: the {MOVES.smash.name}. A big wind-up ({MOVES.smash.windup} s), a big hit, heavy knockback, {MOVES.smash.guard} off a guard. Guard within its first 0.15 s and it's a Feint.</li>
             <li>🛡️ Guard (hold): {Math.round(GUARD.mitigate * 100)}% off every punch, {GUARD.drain} stamina a second. Each punch chips the guard's meter (an M1 {MOVES.jab.guard}, the M2 {MOVES.smash.guard}); at 0 it breaks and you're dazed {GUARD.breakStun} s.</li>
             <li>💨 Dash ({DASH.stamina} stamina): a slip left or right, a sway back, a step in. Dash within {DASH.perfect} s of a punch landing: a Perfect Dodge. They whiff and stagger, and your next punch is a Counter (x{COUNTER_BONUS}).</li>
             <li>Backed on the ropes at {RINGOUT_HEALTH} health or less? One M2 sends you through them: Ring-Out.</li>
-            <li>A win pays {BOUT_PURSE} 🪙 ({PURSES_PER_HOUR} purses an hour). A bout over in under {NO_CONTEST_S} s, or a loser who never threw a punch, is a No Contest: nothing paid. {KNOCKDOWNS_TKO} knockdowns is a T.K.O.</li>
+            <li>🛡️ The guard stays up as long as you hold it: until you let go, your stamina runs dry or it breaks.</li>
+            <li>A win pays {BOUT_PURSE} 🪙 ({PURSES_PER_HOUR} purses an hour). A bout over in under {NO_CONTEST_S} s, or a loser who never threw a punch, is a No Contest: nothing paid.</li>
+            <li>🥊 {JIMMY_NAME}, by the Blue Corner's steps, spars anyone in a free ring: Rookie, Contender or Champion. No purse, no record, no bets.</li>
           </ul>
         </details>
         {inRing && <div className="text-center text-[11px] opacity-60">Gloves are laced before you step in: change them after the bout.</div>}

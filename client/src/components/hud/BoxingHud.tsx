@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { CORNER_COLOR, CORNER_NAME, DASH, GUARD_MAX, HEALTH_MAX, KNOCKDOWNS_TKO, METHOD_LABEL, MOVES, ROUNDS, STAMINA_MAX, oddsText, parseBet, type BoutResult, type BoxingPacket, type Corner, type FighterView } from "@shared/boxing";
+import { CORNER_COLOR, CORNER_NAME, DASH, GUARD_MAX, HEALTH_MAX, JIMMY_NAME, METHOD_LABEL, MOVES, ROUNDS, SPAR_TIERS, STAMINA_MAX, oddsText, parseBet, type BoutResult, type BoxEvent, type BoxingPacket, type Corner, type FighterView, type RoundWinner } from "@shared/boxing";
 import type { PlayerState } from "@shared/types";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { boutLive, cornerOfSession, useBout, useBoutClock } from "../../systems/boutStore";
@@ -13,23 +13,27 @@ import { glass, hudText, pillButton } from "./glass";
 //
 //   a fighter's     (a live bout: the countdown, the rounds, a count, the rest) the top of the screen
 //   banners         is theirs alone (the game's own header fades away, App.tsx): Red on the left and
-//                   Blue mirrored on the right, each a portrait, the name, a thick Health bar, the
-//                   gold Stamina and the cyan Guard; in the middle the round's clock and the
-//                   knockdown pips (three and it's a T.K.O.)
-//   a spectator's   a compact banner under the header: both fighters' health and pips, the clock,
-//   banner          the odds while the bets are open, who is next in line, your ticket
-//   comic badges    at the centre of the screen: ⚡ PERFECT DODGE, 💥 COUNTER! (x1.4), 🛡️ GUARD
-//                   BREAK, 😮‍💨 EXHAUSTED, 💥 RING-OUT!, and the count: 🔔 KNOCKDOWN: 1... 2... 3...
-//   the result      the winner, how, the purse, the belt, and whether they hold the ring
-//   a fighter's own the controls: on a keyboard and mouse their hints; on a touch screen the combat
-//                   cluster (bottom right: the 76 px 👊 M1, the 🥊 M2 over it, 💨 Dash to its left,
-//                   🛡️ Block under it: each squeezes when pressed and dims when out of stamina, no
-//                   cooldowns anywhere); down on the canvas, the call to mash; out of a round, Step
-//                   Down (a forfeit once the bell has gone: Throw in the Towel)
+//                   Blue mirrored on the right, each a portrait, the name (this round's knockdowns
+//                   as 💫), a thick Health bar, the gold Stamina and the cyan Guard; in the middle
+//                   the clock, the round (1/3 to 3/3), the three round pips lit in the colour of
+//                   whoever took each round, and Throw in the Towel
+//   a spectator's   a compact banner under the header: both fighters' health, the round pips and
+//   banner          the clock, the odds while the bets are open, a spar's setting, who is next
+//   the centre      ROUND 2... FIGHT! at each bell, each round's winner at its end, the comic badges
+//                   (⚡ PERFECT DODGE, 💥 COUNTER! (x1.4), 🛡️ GUARD BREAK, 😮‍💨 EXHAUSTED, 💥 RING-OUT!),
+//                   the count (🔔 KNOCKDOWN: 1... 2... 3...), the result
+//   a fighter's own on a keyboard and mouse, a compact capsule of the controls in the bottom-left
+//                   corner (faded away 4 s after the opening bell); on a touch screen the combat
+//                   cluster (bottom right, sized to the screen: the M1 clamp(84px, 11vmin, 120px),
+//                   the M2 over it, Dash to its left, Block under it, each clamp(56px, 7.5vmin,
+//                   80px): each squeezes when pressed and dims when out of stamina, no cooldowns);
+//                   down on the canvas, the call to mash; between bouts, Step Down (and, alone in
+//                   the ring, a spar with Jimmy)
 //   the line        a spectator waiting for the ring: their place, and a way out of it
 //   the flashes     red for a hit taken, white (and the world gone grey a moment) for a Perfect Dodge
 //
-// The controls themselves are systems/combatInput.ts; the camera, scene/actionCamera.ts (on while the
+// The controls themselves are systems/combatInput.ts (one set of moves for the HUD's life: a guard
+// held stays up however often the HUD redraws); the camera, scene/actionCamera.ts (on while the
 // local fighter's bout is live: this HUD tells it).
 
 interface Props {
@@ -42,7 +46,7 @@ interface Props {
 
 const mmss = (secs: number) => `${Math.floor(secs / 60)}:${String(Math.max(0, secs) % 60).padStart(2, "0")}`;
 
-export function BoxingHud({ me, localSessionId, players, send }: Props) {
+export function BoxingHud({ me, localSessionId, players, send, subscribeMessages }: Props) {
   const bout = useBout();
   const clock = useBoutClock();
   const touch = useTouchUi();
@@ -54,7 +58,11 @@ export function BoxingHud({ me, localSessionId, players, send }: Props) {
   const live = boutLive(phase);
   const ringActive = inRing && live;
   const downed = inRing && phase === "count" && mine?.state === "down";
-  const moves = useMemo(() => makeMoves(send, localSessionId), [send, localSessionId]);
+  // one set of moves for as long as the HUD is up: the room's `send` changes identity with every
+  // redraw of the app, and a new set would drop a guard still held (the keys' listeners renewed)
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const moves = useMemo(() => makeMoves((p) => sendRef.current(p), localSessionId), [localSessionId]);
   useCombatInput(inRing && (phase === "fight" || phase === "warmup" || phase === "count"), moves);
   useEffect(() => {
     combatInput.downed = downed;
@@ -76,10 +84,23 @@ export function BoxingHud({ me, localSessionId, players, send }: Props) {
     []
   );
 
-  // the flashes and the comic badges (BoxingWorld raises them)
+  // the controls' capsule: shown through the countdown, faded away 4 s after the opening bell
+  const [hintsGone, setHintsGone] = useState(false);
+  useEffect(() => {
+    if (phase === "warmup" || phase === "open") setHintsGone(false);
+    if (phase === "fight" && bout.round === 1) {
+      const t = window.setTimeout(() => setHintsGone(true), 4000);
+      return () => window.clearTimeout(t);
+    }
+  }, [phase, bout.round]);
+
+  // the flashes, the comic badges (BoxingWorld raises them) and the rounds' banners
   const [flash, setFlash] = useState<{ tone: "white" | "red" | "gold"; id: number } | null>(null);
   const [badges, setBadges] = useState<{ id: number; text: string; tone: string }[]>([]);
+  const [banner, setBanner] = useState<{ id: number; text: string; sub?: string; colour?: string } | null>(null);
   const fxId = useRef(0);
+  const boutRef = useRef(bout);
+  boutRef.current = bout;
   useEffect(() => {
     const timers = new Set<number>();
     const later = (ms: number, fn: () => void) => {
@@ -100,12 +121,28 @@ export function BoxingHud({ me, localSessionId, players, send }: Props) {
         later(1300, () => setBadges((b) => b.filter((x) => x.id !== id)));
       }
     });
+    // ROUND 2... FIGHT! at each bell, and who took the round at its end
+    const offRounds = subscribeMessages((type, payload) => {
+      if (type !== "boxEvent") return;
+      const ev = payload as BoxEvent;
+      let next: { text: string; sub?: string; colour?: string } | null = null;
+      if (ev.kind === "bell" && ev.ring === "start") next = { text: `ROUND ${ev.round}... FIGHT!`, sub: ev.round === ROUNDS ? "The final round" : undefined };
+      else if (ev.kind === "round") {
+        const b = boutRef.current;
+        next = ev.winner ? { text: `ROUND ${ev.round}: ${(b[ev.winner].name || CORNER_NAME[ev.winner]).toUpperCase()}`, sub: METHOD_LABEL[ev.method], colour: CORNER_COLOR[ev.winner] } : { text: `ROUND ${ev.round}: DRAWN`, sub: "The judges couldn't split them" };
+      }
+      if (!next) return;
+      const id = ++fxId.current;
+      setBanner({ id, ...next });
+      later(ev.kind === "round" ? 2400 : 1700, () => setBanner((b) => (b?.id === id ? null : b)));
+    });
     return () => {
       off();
+      offRounds();
       timers.forEach((t) => window.clearTimeout(t));
       document.documentElement.classList.remove("cozy-ring-mono");
     };
-  }, []);
+  }, [subscribeMessages]);
   useEffect(() => {
     if (!flash) return;
     const t = window.setTimeout(() => setFlash(null), 380);
@@ -123,6 +160,7 @@ export function BoxingHud({ me, localSessionId, players, send }: Props) {
   const place = bout.queue.indexOf(localSessionId);
   const avatar = (id: string) => players[id]?.avatarUrl ?? "";
   const downedName = phase === "count" ? (bout.red.state === "down" ? bout.red.name : bout.blue.state === "down" ? bout.blue.name : "") : "";
+  const aloneInRing = inRing && phase === "open" && !foe?.sessionId && bout.queue.length === 0;
 
   return (
     <>
@@ -133,12 +171,13 @@ export function BoxingHud({ me, localSessionId, players, send }: Props) {
           <FighterPanel corner="red" f={bout.red} avatar={avatar(bout.red.sessionId)} you={corner === "red"} />
           <div style={bannerMiddle}>
             <div style={bigClock}>{phase === "count" ? `${bout.count}` : mmss(clock)}</div>
-            <div style={phaseLabel}>{phase === "warmup" ? "THE BELL IN" : phase === "rest" ? `ROUND ${bout.round + 1} IN` : phase === "count" ? "THE COUNT" : `ROUND ${bout.round}/${ROUNDS}`}</div>
-            <div style={pipRow}>
-              <Pips n={bout.red.knockdowns} colour={CORNER_COLOR.red} />
-              <span style={{ opacity: 0.4 }}>·</span>
-              <Pips n={bout.blue.knockdowns} colour={CORNER_COLOR.blue} flip />
-            </div>
+            <div style={phaseLabel}>{phase === "warmup" ? (bout.spar ? "SPAR IN" : "THE BELL IN") : phase === "rest" ? `ROUND ${bout.round + 1}/${ROUNDS} IN` : phase === "count" ? "THE COUNT" : `ROUND ${bout.round}/${ROUNDS}`}</div>
+            <RoundPips rounds={bout.rounds} />
+            {!downed && (
+              <button type="button" style={towelBtn} onClick={() => send({ type: "LEAVE_RING" })} title={phase === "warmup" ? "Back down the steps" : "Leaving mid-bout is a forfeit"}>
+                {phase === "warmup" ? "👋 Step Down" : "🏳️ Towel"}
+              </button>
+            )}
           </div>
           <FighterPanel corner="blue" f={bout.blue} avatar={avatar(bout.blue.sessionId)} you={corner === "blue"} flip />
         </div>
@@ -149,11 +188,13 @@ export function BoxingHud({ me, localSessionId, players, send }: Props) {
               <SpecSide corner="red" f={bout.red} />
               <div style={specMiddle}>
                 <div style={specClock}>{phase === "count" ? `${bout.count}` : phase === "open" ? "🥊" : mmss(clock)}</div>
-                <div style={tiny}>{phase === "fight" ? `R${bout.round}` : phase === "warmup" ? "BELL IN" : phase === "rest" ? "REST" : phase === "count" ? "COUNT" : phase === "result" ? "RESULT" : "OPEN"}</div>
+                <div style={tiny}>{phase === "fight" ? `R${bout.round}/${ROUNDS}` : phase === "warmup" ? "BELL IN" : phase === "rest" ? "REST" : phase === "count" ? "COUNT" : phase === "result" ? "RESULT" : "OPEN"}</div>
+                <RoundPips rounds={bout.rounds} small />
               </div>
               <SpecSide corner="blue" f={bout.blue} flip />
             </div>
-            {phase === "warmup" && <div style={specLine}>🎟️ Bets open at the chalkboard · {oddsText(bout.pools, "red")} / {oddsText(bout.pools, "blue")}</div>}
+            {bout.spar && <div style={specLine}>🥊 A spar with {JIMMY_NAME} ({SPAR_TIERS[bout.spar].name}): no bets, no record</div>}
+            {phase === "warmup" && !bout.spar && <div style={specLine}>🎟️ Bets open at the chalkboard · {oddsText(bout.pools, "red")} / {oddsText(bout.pools, "blue")}</div>}
             {phase === "open" && anyone && !inRing && <div style={specLine}>👑 {bout.red.name || bout.blue.name} holds the ring: step up to a corner to challenge</div>}
             {bout.queue.length > 0 && (
               <div style={specLine}>
@@ -170,8 +211,14 @@ export function BoxingHud({ me, localSessionId, players, send }: Props) {
         )
       )}
 
-      {/* the centre of the screen: the comic badges, the count, the result */}
+      {/* the centre of the screen: the round's banner, the comic badges, the count, the result */}
       <div style={centreStack} aria-live="polite">
+        {banner && (
+          <div key={banner.id} className="cozy-ring-round" style={roundBanner}>
+            <div style={{ color: banner.colour ?? "#fff4d6" }}>{banner.text}</div>
+            {banner.sub && <div style={roundSub}>{banner.sub}</div>}
+          </div>
+        )}
         {phase === "count" && (
           <div key="count" style={{ ...badge, ...BADGE_TONE.gold, animation: "none" }}>
             🔔 KNOCKDOWN{downedName ? ` (${downedName})` : ""}: {Array.from({ length: bout.count }, (_, i) => i + 1).slice(-4).join("... ")}
@@ -191,9 +238,11 @@ export function BoxingHud({ me, localSessionId, players, send }: Props) {
                   🏆 <span style={{ color: CORNER_COLOR[result.winner] }}>{result.winnerName}</span> wins by {METHOD_LABEL[result.method]}
                 </div>
                 <div style={dim}>
-                  {result.purse > 0 && `+${result.purse} 🪙 purse · `}
-                  {result.belt ? "👑 NEW VELVET CHAMPION · " : ""}
-                  {result.stays ? (result.reign > 1 ? `holds the ring: ${result.reign} in a row` : "holds the ring for the next challenger") : ""}
+                  {result.rounds.length > 0 && `Rounds ${result.rounds.map((r) => (r === "draw" ? "=" : r === "red" ? "R" : "B")).join(" ")}`}
+                  {result.spar ? ` · a spar (${SPAR_TIERS[result.spar].name}): no purse, no record` : ""}
+                  {!result.spar && result.purse > 0 && ` · +${result.purse} 🪙 purse`}
+                  {result.belt ? " · 👑 NEW VELVET CHAMPION" : ""}
+                  {result.stays ? (result.reign > 1 ? ` · holds the ring: ${result.reign} in a row` : " · holds the ring for the next challenger") : ""}
                 </div>
               </>
             ) : (
@@ -205,29 +254,30 @@ export function BoxingHud({ me, localSessionId, players, send }: Props) {
         )}
       </div>
 
-      {inRing && (
-        <div className="cozy-hud-block" style={touch ? fighterBarTouch : fighterBar}>
-          {downed && mine ? (
-            <MashPrompt taps={mine.taps} need={mine.need} knockdowns={mine.knockdowns} touch={touch} onTap={() => moves.m1()} />
-          ) : (
-            <>
-              {phase === "open" && <div style={pill}>👑 You hold the ring{mine && mine.reign > 0 ? ` (${mine.reign} in a row)` : ""}: waiting for a challenger…</div>}
-              {phase === "warmup" && <div style={pill}>🔔 The bell in {clock}s: shadowbox, stretch, stare them down</div>}
-              {phase === "rest" && <div style={pill}>🪣 Catch your breath: round {bout.round + 1} in {clock}s</div>}
-              {phase === "result" && result && (result.stays && result.winner === corner ? <div style={pill}>🏆 You hold the ring: the next in line steps in</div> : <div style={pill}>🚶 Off to the bleachers…</div>)}
-              {!touch && (phase === "fight" || phase === "warmup") && <KeyHints />}
-            </>
-          )}
-          {(phase === "open" || phase === "warmup" || phase === "result") && (
+      {inRing && downed && mine && (
+        <div className="cozy-hud-block" style={fighterBar}>
+          <MashPrompt taps={mine.taps} need={mine.need} knockdowns={mine.knockdowns} touch={touch} onTap={() => moves.m1()} />
+        </div>
+      )}
+      {inRing && !live && (
+        <div className="cozy-hud-block" style={fighterBar}>
+          {phase === "open" && <div style={pill}>👑 You hold the ring{mine && mine.reign > 0 ? ` (${mine.reign} in a row)` : ""}: waiting for a challenger…</div>}
+          {phase === "result" && result && (result.spar || (result.stays && result.winner === corner) ? <div style={pill}>🏆 The ring is still yours</div> : <div style={pill}>🚶 Off to the bleachers…</div>)}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+            {aloneInRing && (
+              <button type="button" style={sparBtn} onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "spar", propId: "spar" } }))}>
+                🥊 Spar with Jimmy
+              </button>
+            )}
             <button type="button" style={ghostBtn} onClick={() => send({ type: "LEAVE_RING" })}>
               👋 Step Down
             </button>
-          )}
-          {(phase === "fight" || phase === "rest") && !downed && (
-            <button type="button" style={{ ...ghostBtn, minHeight: 34, padding: "6px 12px", fontSize: 12 }} onClick={() => send({ type: "LEAVE_RING" })} title="Leaving mid-bout is a forfeit">
-              🏳️ Throw in the Towel
-            </button>
-          )}
+          </div>
+        </div>
+      )}
+      {inRing && live && !touch && (
+        <div className="kbd-hint cozy-hud-block" style={{ ...hintCapsule, opacity: hintsGone ? 0 : 1 }} aria-hidden={hintsGone || undefined}>
+          <b>LMB</b> M1 · <b>RMB</b> M2 · <b>F / Shift</b> hold Guard · <b>Space + WASD</b> Dash · <b>M2 → F</b> Feint
         </div>
       )}
 
@@ -240,7 +290,7 @@ export function BoxingHud({ me, localSessionId, players, send }: Props) {
         </div>
       )}
 
-      {inRing && touch && (phase === "fight" || phase === "warmup") && !downed && mine && <CombatCluster moves={moves} f={mine} />}
+      {inRing && touch && live && !downed && mine && <CombatCluster moves={moves} f={mine} />}
     </>
   );
 }
@@ -261,7 +311,9 @@ function FighterPanel({ corner, f, avatar, you, flip = false }: { corner: Corner
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3, alignItems: flip ? "flex-end" : "flex-start" }}>
         <div style={{ ...panelName, flexDirection: flip ? "row-reverse" : "row" }}>
           <span style={nameText}>{f.name || "—"}</span>
+          {f.bot && <span style={botTag}>{SPAR_TIERS[f.bot].emoji} {SPAR_TIERS[f.bot].name}</span>}
           {f.reign > 0 && <span title="Bouts won in a row on this hill">👑{f.reign > 1 ? f.reign : ""}</span>}
+          {f.knockdowns > 0 && <span title="Knockdowns this round (three is a T.K.O.)">{"💫".repeat(f.knockdowns)}</span>}
           {f.away && <span title="Connection dropped: the bout waits a moment">📡</span>}
           {f.counter && <span style={counterTag}>⚡ COUNTER</span>}
         </div>
@@ -282,14 +334,16 @@ function Gauge({ value, max, colour, height, flip, title, blink = false }: { val
   );
 }
 
-/** Knockdowns as pips: ⚫ one scored against them, ⚪ still to go (KNOCKDOWNS_TKO is a T.K.O.). */
-function Pips({ n, colour, flip = false }: { n: number; colour: string; flip?: boolean }) {
-  const pips = Array.from({ length: KNOCKDOWNS_TKO }, (_, i) => i < n);
+/** The bout's three rounds as pips: each lit in the colour of whoever took it (grey, drawn), open
+ *  ones hollow. */
+function RoundPips({ rounds, small = false }: { rounds: RoundWinner[]; small?: boolean }) {
+  const d = small ? 8 : 11;
   return (
-    <span style={{ display: "inline-flex", gap: 3, flexDirection: flip ? "row-reverse" : "row" }} title={`${n} knockdown${n === 1 ? "" : "s"} (${KNOCKDOWNS_TKO}: T.K.O.)`}>
-      {pips.map((on, i) => (
-        <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: on ? "#111" : "#f4efe6", border: `2px solid ${colour}` }} />
-      ))}
+    <span style={{ display: "inline-flex", gap: small ? 3 : 5 }} title={`Rounds: ${rounds.join(", ") || "none yet"} (two takes the bout)`}>
+      {Array.from({ length: ROUNDS }, (_, i) => {
+        const r = rounds[i];
+        return <span key={i} style={{ width: d, height: d, borderRadius: "50%", background: r ? (r === "draw" ? "#8a8580" : CORNER_COLOR[r]) : "rgba(255,255,255,0.1)", border: `2px solid ${r ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.45)"}`, boxShadow: r && r !== "draw" ? `0 0 8px ${CORNER_COLOR[r]}` : "none" }} />;
+      })}
     </span>
   );
 }
@@ -301,13 +355,9 @@ function SpecSide({ corner, f, flip = false }: { corner: Corner; f: FighterView;
         <span>{corner === "red" ? "🔴" : "🔵"}</span>
         <span style={nameText}>{f.name || "—"}</span>
         {f.reign > 0 && <span>👑</span>}
+        {f.knockdowns > 0 && <span>{"💫".repeat(f.knockdowns)}</span>}
       </div>
-      {f.sessionId && (
-        <div style={{ display: "flex", alignItems: "center", gap: 5, width: "100%", flexDirection: flip ? "row-reverse" : "row" }}>
-          <Gauge value={f.health} max={HEALTH_MAX} colour={f.health > 50 ? "#57d97a" : f.health > 25 ? "#f2b84e" : "#f0524a"} height={8} flip={flip} title="Health" />
-          <Pips n={f.knockdowns} colour={CORNER_COLOR[corner]} flip={flip} />
-        </div>
-      )}
+      {f.sessionId && <Gauge value={f.health} max={HEALTH_MAX} colour={f.health > 50 ? "#57d97a" : f.health > 25 ? "#f2b84e" : "#f0524a"} height={8} flip={flip} title="Health" />}
     </div>
   );
 }
@@ -327,57 +377,49 @@ function MashPrompt({ taps, need, knockdowns, touch, onTap }: { taps: number; ne
   );
 }
 
-function KeyHints() {
-  return (
-    <div className="kbd-hint" style={hintsRow}>
-      <span style={keyHint}>
-        <b>Left click</b> M1 string
-      </span>
-      <span style={keyHint}>
-        <b>Right click</b> M2 Smash
-      </span>
-      <span style={keyHint}>
-        <b>Hold F / Shift</b> Guard
-      </span>
-      <span style={keyHint}>
-        <b>Space + WASD</b> Dash
-      </span>
-      <span style={keyHint}>
-        <b>M2 → F</b> Feint
-      </span>
-    </div>
-  );
-}
-
 // --- the touch combat cluster: M1 in the middle, M2 over it, Dash left, Block under -------------------
 
 function CombatCluster({ moves, f }: { moves: Moves; f: FighterView }) {
   const tired = f.exhausted;
   return (
     <div className="cozy-hud-block touch-hint" style={cluster} aria-label="Combat controls">
-      <RoundButton size={76} at={{ right: 30, bottom: 66 }} emoji="👊" label="M1" dim={tired} onDown={() => moves.m1()} />
-      <RoundButton size={50} at={{ right: 43, bottom: 152 }} emoji="🥊" label="M2" dim={tired || f.stamina < MOVES.smash.stamina} onDown={() => moves.m2()} />
-      <RoundButton size={50} at={{ right: 116, bottom: 79 }} emoji="💨" label="Dash" dim={tired || f.stamina < DASH.stamina} onDown={() => moves.dash()} />
-      <RoundButton size={50} at={{ right: 43, bottom: 6 }} emoji="🛡️" label="Block" dim={tired} onDown={() => moves.guard(true)} onUp={() => moves.guard(false)} />
+      <RoundButton big at={{ right: "0px", bottom: "calc(var(--sat) + var(--gap))" }} emoji="👊" label="M1" dim={tired} onDown={() => moves.m1()} />
+      <RoundButton at={{ right: "calc((var(--m1) - var(--sat)) / 2)", bottom: "calc(var(--sat) + var(--m1) + 2 * var(--gap))" }} emoji="🥊" label="M2" dim={tired || f.stamina < MOVES.smash.stamina} onDown={() => moves.m2()} />
+      <RoundButton at={{ right: "calc(var(--m1) + var(--gap))", bottom: "calc(var(--sat) + var(--gap) + (var(--m1) - var(--sat)) / 2)" }} emoji="💨" label="Dash" dim={tired || f.stamina < DASH.stamina} onDown={() => moves.dash()} />
+      <RoundButton at={{ right: "calc((var(--m1) - var(--sat)) / 2)", bottom: "0px" }} emoji="🛡️" label="Block" dim={tired} onDown={() => moves.guard(true)} onUp={() => moves.guard(false)} />
     </div>
   );
 }
 
 /** A round button: it squeezes to 90% while pressed and dims to 35% when the stamina won't carry
- *  it; a held one (Block) lets go wherever the thumb slides off. */
-function RoundButton({ size, at, emoji, label, dim, onDown, onUp }: { size: number; at: { right: number; bottom: number }; emoji: string; label: string; dim: boolean; onDown: () => void; onUp?: () => void }) {
+ *  it; a held one (Block) holds for as long as its own thumb stays down, wherever it slides. */
+function RoundButton({ big = false, at, emoji, label, dim, onDown, onUp }: { big?: boolean; at: { right: string; bottom: string }; emoji: string; label: string; dim: boolean; onDown: () => void; onUp?: () => void }) {
   const [pressed, setPressed] = useState(false);
-  const release = () => {
+  const holding = useRef<number | null>(null);
+  const onUpRef = useRef(onUp);
+  onUpRef.current = onUp;
+  // gone from the screen with a thumb still on it (the bout over): let go of what it held
+  useEffect(
+    () => () => {
+      if (holding.current !== null) onUpRef.current?.();
+    },
+    []
+  );
+  const release = (id: number) => {
+    if (holding.current !== id) return;
+    holding.current = null;
     setPressed(false);
     onUp?.();
   };
+  const size = big ? "var(--m1)" : "var(--sat)";
   return (
     <button
       type="button"
       aria-label={label}
-      style={{ ...roundBtn, width: size, height: size, right: at.right, bottom: at.bottom, fontSize: size * 0.4, opacity: dim ? 0.35 : 1, transform: pressed ? "scale(0.9)" : "scale(1)" }}
+      style={{ ...roundBtn, width: size, height: size, right: at.right, bottom: at.bottom, fontSize: `calc(${size} * 0.38)`, opacity: dim ? 0.35 : 1, transform: pressed ? "scale(0.9)" : "scale(1)" }}
       onPointerDown={(e) => {
         e.preventDefault();
+        holding.current = e.pointerId;
         setPressed(true);
         onDown();
         // (held: the release comes back here even if the thumb slides off)
@@ -387,13 +429,12 @@ function RoundButton({ size, at, emoji, label, dim, onDown, onUp }: { size: numb
           // a pointer the browser no longer tracks: the press still counts
         }
       }}
-      onPointerUp={release}
-      onPointerCancel={release}
-      onLostPointerCapture={() => setPressed(false)}
+      onPointerUp={(e) => release(e.pointerId)}
+      onPointerCancel={(e) => release(e.pointerId)}
       onContextMenu={(e) => e.preventDefault()}
     >
       <span aria-hidden>{emoji}</span>
-      <span style={{ ...roundLabel, fontSize: size > 60 ? 11 : 9 }}>{label}</span>
+      <span style={{ ...roundLabel, fontSize: big ? 12 : 10 }}>{label}</span>
     </button>
   );
 }
@@ -422,10 +463,11 @@ const fightBanner: CSSProperties = {
 const panel: CSSProperties = { ...glass, flex: 1, minWidth: 0, maxWidth: 420, display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 16, border: "1px solid rgba(255,255,255,0.12)" };
 const panelName: CSSProperties = { display: "flex", alignItems: "center", gap: 5, fontWeight: 900, fontSize: 14, minWidth: 0, maxWidth: "100%" };
 const counterTag: CSSProperties = { fontSize: 10, fontWeight: 900, color: "#3b2410", background: "#ffd76a", borderRadius: 999, padding: "1px 6px", whiteSpace: "nowrap", boxShadow: "0 0 10px rgba(255, 200, 80, 0.8)" };
-const bannerMiddle: CSSProperties = { ...glass, flexShrink: 0, minWidth: 92, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, padding: "4px 10px", borderRadius: 16, marginLeft: "auto", marginRight: "auto" };
+const botTag: CSSProperties = { fontSize: 10, fontWeight: 800, color: "#f7ead2", background: "rgba(0,0,0,0.35)", borderRadius: 999, padding: "1px 6px", whiteSpace: "nowrap" };
+const bannerMiddle: CSSProperties = { ...glass, flexShrink: 0, minWidth: 96, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "4px 10px 6px", borderRadius: 16, marginLeft: "auto", marginRight: "auto" };
 const bigClock: CSSProperties = { fontSize: 24, fontWeight: 900, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: "#fff8ec" };
-const phaseLabel: CSSProperties = { fontSize: 10, fontWeight: 800, letterSpacing: 0.6, color: "#d6cfc7" };
-const pipRow: CSSProperties = { display: "flex", alignItems: "center", gap: 5 };
+const phaseLabel: CSSProperties = { fontSize: 10, fontWeight: 800, letterSpacing: 0.6, color: "#d6cfc7", whiteSpace: "nowrap" };
+const towelBtn: CSSProperties = { ...pillButton, pointerEvents: "auto", minHeight: 26, padding: "3px 10px", fontSize: 11, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.14)" };
 const nameText: CSSProperties = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const track: CSSProperties = { width: "100%", borderRadius: 999, background: "rgba(255,255,255,0.13)", overflow: "hidden", display: "flex" };
 const fill: CSSProperties = { height: "100%", borderRadius: 999, transition: "width 110ms linear" };
@@ -445,14 +487,16 @@ const spectatorBanner: CSSProperties = {
 };
 const specRow: CSSProperties = { display: "flex", alignItems: "center", gap: 8 };
 const specName: CSSProperties = { display: "flex", alignItems: "center", gap: 4, fontWeight: 800, fontSize: 13, minWidth: 0, maxWidth: "100%" };
-const specMiddle: CSSProperties = { display: "flex", flexDirection: "column", alignItems: "center", minWidth: 54 };
+const specMiddle: CSSProperties = { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minWidth: 58 };
 const specClock: CSSProperties = { fontSize: 17, fontWeight: 900, fontVariantNumeric: "tabular-nums", color: "#fff8ec", lineHeight: 1.1 };
 const specLine: CSSProperties = { marginTop: 4, textAlign: "center", fontSize: 12, fontWeight: 700, color: "#e8dccf" };
 const tiny: CSSProperties = { fontSize: 11, fontWeight: 700, color: "#d6cfc7", letterSpacing: 0.4 };
 const dim: CSSProperties = { color: "#d8cfc4", fontWeight: 700, fontSize: 13, marginTop: 2 };
 
-const centreStack: CSSProperties = { position: "fixed", left: "50%", top: "30%", transform: "translateX(-50%)", zIndex: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, pointerEvents: "none", width: "min(560px, calc(100vw - 24px))" };
+const centreStack: CSSProperties = { position: "fixed", left: "50%", top: "28%", transform: "translateX(-50%)", zIndex: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, pointerEvents: "none", width: "min(620px, calc(100vw - 24px))" };
 const badge: CSSProperties = { fontFamily: "var(--font-cozy)", fontSize: "clamp(22px, 5vw, 40px)", fontWeight: 900, letterSpacing: 1, textAlign: "center", WebkitTextStroke: "1px rgba(0,0,0,0.35)", animation: "cozy-ring-badge 1.3s ease-out forwards" };
+const roundBanner: CSSProperties = { fontFamily: "var(--font-cozy)", fontSize: "clamp(28px, 7vw, 58px)", fontWeight: 900, letterSpacing: 2, textAlign: "center", lineHeight: 1.05, WebkitTextStroke: "1.5px rgba(0,0,0,0.45)", textShadow: "0 0 22px rgba(255, 200, 90, 0.7), 0 4px 0 #3a1a08" };
+const roundSub: CSSProperties = { fontSize: "clamp(13px, 2.6vw, 20px)", fontWeight: 800, letterSpacing: 1, color: "#fff4d6", WebkitTextStroke: "0", textShadow: "0 2px 6px rgba(0,0,0,0.7)", marginTop: 4 };
 const resultCard: CSSProperties = { ...glass, ...hudText, borderRadius: 18, padding: "10px 18px", textAlign: "center" };
 
 const fighterBar: CSSProperties = {
@@ -468,15 +512,43 @@ const fighterBar: CSSProperties = {
   pointerEvents: "auto",
   maxWidth: "calc(100vw - 24px)",
 };
-/** On a touch screen the bar rides above the combat cluster (bottom right), never under it. */
-const fighterBarTouch: CSSProperties = { ...fighterBar, left: "max(16px, env(safe-area-inset-left))", transform: "none", bottom: "max(236px, calc(env(safe-area-inset-bottom) + 230px))", alignItems: "flex-start", maxWidth: "min(340px, calc(100vw - 32px))" };
 const queueBar: CSSProperties = { ...fighterBar, flexDirection: "row", flexWrap: "wrap", justifyContent: "center" };
+/** The keyboard's controls, docked small in the bottom-left corner (faded after the opening bell). */
+const hintCapsule: CSSProperties = {
+  ...hudText,
+  position: "fixed",
+  left: "max(14px, env(safe-area-inset-left))",
+  bottom: "max(14px, env(safe-area-inset-bottom))",
+  zIndex: 12,
+  background: "rgba(20, 16, 14, 0.48)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  backdropFilter: "blur(8px)",
+  WebkitBackdropFilter: "blur(8px)",
+  borderRadius: 999,
+  padding: "5px 12px",
+  fontSize: 11,
+  whiteSpace: "nowrap",
+  pointerEvents: "none",
+  transition: "opacity 500ms ease",
+};
 const pill: CSSProperties = { ...glass, ...hudText, borderRadius: 999, padding: "8px 14px", fontSize: 13, fontWeight: 700, textAlign: "center" };
-const hintsRow: CSSProperties = { ...glass, ...hudText, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10, borderRadius: 14, padding: "6px 12px", fontSize: 12 };
-const keyHint: CSSProperties = { whiteSpace: "nowrap" };
 const ghostBtn: CSSProperties = { ...pillButton, background: "rgba(28, 25, 23, 0.72)", border: "1px solid rgba(255,255,255,0.14)", minHeight: 40 };
+const sparBtn: CSSProperties = { ...pillButton, minHeight: 40, background: "linear-gradient(180deg, #ffd166, #f4a83a)", color: "#3b2410" };
 const mashBtn: CSSProperties = { ...pillButton, fontSize: 18, fontWeight: 900, padding: "16px 26px", minHeight: 64, background: "linear-gradient(180deg, #ffd166, #f4a83a)", color: "#3b2410", boxShadow: "0 6px 22px rgba(255, 190, 60, 0.6)", touchAction: "manipulation" };
-const cluster: CSSProperties = { position: "absolute", right: "max(18px, calc(env(safe-area-inset-right) + 12px))", bottom: "max(22px, calc(env(safe-area-inset-bottom) + 16px))", width: 180, height: 206, zIndex: 13, pointerEvents: "none" };
+/** The cluster, sized to the screen: the M1 and the satellites round it (their sizes as CSS
+ *  variables, every position worked out from them), clear of the glass's bottom edge. */
+const cluster = {
+  "--m1": "clamp(84px, 11vmin, 120px)",
+  "--sat": "clamp(56px, 7.5vmin, 80px)",
+  "--gap": "10px",
+  position: "absolute",
+  right: "max(clamp(24px, 4vw, 50px), env(safe-area-inset-right))",
+  bottom: "max(clamp(32px, 5vh, 60px), env(safe-area-inset-bottom))",
+  width: "calc(var(--m1) + var(--sat) + var(--gap))",
+  height: "calc(var(--m1) + 2 * var(--sat) + 2 * var(--gap))",
+  zIndex: 13,
+  pointerEvents: "none",
+} as CSSProperties;
 const roundBtn: CSSProperties = {
   position: "absolute",
   borderRadius: "50%",

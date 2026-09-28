@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { GUARD_MAX, HEALTH_MAX, STAMINA_MAX, poolsOf, type BoutView, type FighterState, type FighterView } from "@shared/boxing";
+import { GUARD_MAX, HEALTH_MAX, STAMINA_MAX, isBotTier, isCorner, poolsOf, type BoutView, type FighterState, type FighterView, type RoundWinner } from "@shared/boxing";
 
 // The Velvet Ring's bout as the room's state carries it (server/src/rooms/boxing.ts BoutSchema),
 // kept OUT of React state like liveMotion: a fighter's stamina moves up to twenty times a second,
@@ -7,9 +7,9 @@ import { GUARD_MAX, HEALTH_MAX, STAMINA_MAX, poolsOf, type BoutView, type Fighte
 // rest of the app would re-render for nothing). The room hook writes it (setBoutFromSchema); readers
 // take a snapshot (getBout) in a frame loop or subscribe (useBout).
 
-const emptyFighter = (): FighterView => ({ sessionId: "", name: "", health: HEALTH_MAX, stamina: STAMINA_MAX, guard: GUARD_MAX, state: "", exhausted: false, counter: false, knockdowns: 0, taps: 0, need: 0, dealt: 0, gloves: "red", away: false, reign: 0 });
+const emptyFighter = (): FighterView => ({ sessionId: "", name: "", health: HEALTH_MAX, stamina: STAMINA_MAX, guard: GUARD_MAX, state: "", exhausted: false, counter: false, knockdowns: 0, taps: 0, need: 0, dealt: 0, gloves: "red", away: false, reign: 0, wins: 0, bot: "", x: 0, z: 0 });
 
-let bout: BoutView = { phase: "open", round: 0, count: 0, red: emptyFighter(), blue: emptyFighter(), bets: {}, pools: { red: 0, blue: 0 }, result: "", queue: [], now: 0 };
+let bout: BoutView = { phase: "open", round: 0, count: 0, red: emptyFighter(), blue: emptyFighter(), bets: {}, pools: { red: 0, blue: 0 }, result: "", queue: [], rounds: [], spar: "", now: 0 };
 /** Whole seconds left on the phase's clock (the server's `clock`). */
 let clock = 0;
 const listeners = new Set<() => void>();
@@ -41,6 +41,10 @@ export function setBoutFromSchema(s: any) {
     gloves: f?.gloves === "tiger" ? "tiger" : "red",
     away: !!f?.away,
     reign: Number(f?.reign ?? 0),
+    wins: Number(f?.wins ?? 0),
+    bot: isBotTier(f?.bot) ? f.bot : "",
+    x: Number(f?.x ?? 0),
+    z: Number(f?.z ?? 0),
   });
   const bets: Record<string, string> = {};
   s.bets?.forEach?.((v: string, k: string) => (bets[k] = v));
@@ -57,6 +61,10 @@ export function setBoutFromSchema(s: any) {
     pools: poolsOf(Object.values(bets)),
     result: s.result ?? "",
     queue,
+    rounds: String(s.rounds ?? "")
+      .split(",")
+      .filter((r): r is RoundWinner => isCorner(r) || r === "draw"),
+    spar: isBotTier(s.spar) ? s.spar : "",
     now: Date.now(),
   };
   listeners.forEach((l) => l());

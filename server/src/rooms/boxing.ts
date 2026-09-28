@@ -20,6 +20,9 @@ import {
   GUARD,
   GUARD_MAX,
   HEALTH_MAX,
+  JIMMY_ID,
+  JIMMY_NAME,
+  KNOCKDOWN_POINTS,
   KNOCKDOWNS_TKO,
   M1_CHAIN,
   MAX_TAPS_PER_S,
@@ -30,14 +33,16 @@ import {
   QUEUE_MAX,
   RECOVER_HEALTH,
   RECOVER_TAPS,
-  REST_HEALTH,
   REST_S,
   RESULT_S,
   RINGOUT_HEALTH,
   ROPE_BOUNCE,
   ROPE_STUN_S,
   ROUNDS,
+  ROUNDS_TO_WIN,
   ROUND_S,
+  SPAR_TIERS,
+  SPAR_WARMUP_S,
   STAMINA,
   STAMINA_MAX,
   STRIKE_SLACK,
@@ -48,6 +53,7 @@ import {
   cardScore,
   dashSide,
   encodeBet,
+  isBotTier,
   isCorner,
   isGloveId,
   judgeStrike,
@@ -57,6 +63,7 @@ import {
   parseBet,
   poolsOf,
   settleBets,
+  type BotTier,
   type BoutMethod,
   type BoutPhase,
   type BoutResult,
@@ -68,8 +75,9 @@ import {
   type FighterState,
   type GloveId,
   type RopeSide,
+  type RoundWinner,
 } from "../../../shared/boxing";
-import { CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG_FRONT, NEUTRAL_CORNERS, RING, RING_CORNERS, RING_INNER, SPEED_BAG_FRONT, WEIGH_SCALE_FRONT, clampToRing, onRing, ringOutLanding } from "../../../shared/worlds/boxing_ring";
+import { CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG_FRONT, JIMMY, JIMMY_FRONT, JIMMY_REACH, NEUTRAL_CORNERS, RING, RING_CORNERS, RING_INNER, SPEED_BAG_FRONT, WEIGH_SCALE_FRONT, clampToRing, onRing, ringOutLanding } from "../../../shared/worlds/boxing_ring";
 import { hashString, type Gesture } from "../../../shared/types";
 
 // The Velvet Ring on the server: one bout at a time for the room, judged here and only here (the
@@ -78,19 +86,30 @@ import { hashString, type Gesture } from "../../../shared/types";
 //
 // King of the Hill: the corner steps are a queue (`queue`, first in line first). In an open ring
 // the first two in line fill the corners and the countdown starts; when a bout ends the winner stays
-// in their corner, patched up to full, the loser is walked to the bleachers (the room seats them),
-// and the next in line steps in against the winner.
+// in their corner, the loser is walked to the bleachers (the room seats them), and the next in line
+// steps in against the winner.
+//
+// Best of three: a round goes to whoever wins it by K.O. (the ten-count), T.K.O. (a third knockdown
+// in it), Ring-Out, or at its bell on the judges' round card (`roundOver`); between rounds both
+// fighters go back to their corners patched up to full; the first to ROUNDS_TO_WIN takes the bout.
 //
 // No cooldowns: a fighter acts whenever they are free (standing, or guarding), and a press in the
 // last BUFFER_S of a move, a dash or a hitstun is kept and thrown the moment it ends. Every punch is
 // a wind-up, a landing and an endlag: the button starts the wind-up (everyone sees it: a `swing`
 // event), the punch is judged the moment it lands (judgeStrike: a Perfect Dodge, out of reach,
 // blocked or clean) against where the two fighters stand on the server then, and the fighter is
-// free again at the end of its endlag. Landings and endings are timed to the millisecond (the host's
-// `later`), and the room's tick settles anything a timer missed. The server moves fighters itself
-// (their corner, a knockback, the ropes' bounce, a dash, a neutral corner for the count, a ring-out
-// onto the floor) with `place`, which also has the room ignore their own position reports for a
-// moment so the move sticks.
+// free again at the end of its endlag. A guard stays up as long as its button is held (and comes
+// back up by itself after a punch, a hitstun or a spell of exhaustion). Landings and endings are
+// timed to the millisecond (the host's `later`), and the room's tick settles anything a timer
+// missed. The server moves fighters itself (their corner, a knockback, the ropes' bounce, a dash, a
+// neutral corner for the count, a ring-out onto the floor) with `place`, which also has the room
+// ignore their own position reports for a moment so the move sticks.
+//
+// Sparring: Jimmy the Slugger (JIMMY_ID) is a fighter with no player behind him: he keeps his own
+// position here (`Bot`), and his hands are `botThink` (moving in, circling, strings, the Heavy
+// Smash, a feint) and `botReact` (a guard, or a Perfect Dodge, at a reaction time of his setting),
+// through the very same moves as anyone. A sparring bout pays no purse, touches no record, takes no
+// bets, and whoever sparred him keeps the ring after it; Jimmy goes back to his spot.
 //
 // Fair play: a fighter whose connection drops has FORFEIT_GRACE_S to come back, the bout frozen
 // meanwhile; a bout decided in under NO_CONTEST_S, or whose loser never threw a punch, is a No
@@ -115,6 +134,12 @@ export class FighterSchema extends Schema {
   @type("string") gloves: GloveId = "red";
   @type("boolean") away = false;
   @type("number") reign = 0;
+  @type("number") wins = 0;
+  /** A sparring bot's setting ("" for a player) and where he stands (a player's position is the
+   *  room's own). */
+  @type("string") bot = "";
+  @type("number") x = 0;
+  @type("number") z = 0;
 }
 
 /** The bout, as the room's state carries it (shared/boxing.ts BoutView). */
@@ -134,6 +159,10 @@ export class BoutSchema extends Schema {
   @type("string") result = "";
   /** Who is waiting for the ring (session ids), first in line first. */
   @type(["string"]) queue = new ArraySchema<string>();
+  /** Who took each round so far ("red,draw,..."). */
+  @type("string") rounds = "";
+  /** A sparring bout's setting ("" for a real bout). */
+  @type("string") spar = "";
 }
 
 /** What the ring needs of a player. */
@@ -183,6 +212,36 @@ export interface RingHost {
 /** A press kept for the moment the fighter is free again. */
 type Buffered = { kind: "m1" } | { kind: "m2" } | { kind: "dash"; dx: number; dz: number };
 
+/** A sparring bot's body and mind: where he stands, and what he means to do next. */
+interface Bot {
+  tier: BotTier;
+  x: number;
+  z: number;
+  /** The next moment he may start something of his own (ms). */
+  next: number;
+  /** M1s still to throw of the string he started. */
+  combo: number;
+  /** The way he circles (+1 / -1), and until when. */
+  circle: number;
+  circleUntil: number;
+  /** His next tap on the canvas, while down (ms). */
+  mashNext: number;
+  /** When his own M2's wind-up is to be pulled back (a feint), 0 for none. */
+  feintAt: number;
+  /** Until when his hands wait (a dodge or a guard planned against a punch on its way), ms. */
+  holdUntil: number;
+}
+
+/** How each of Jimmy's settings fights: his pace (m/s), how long he thinks between openings (s),
+ *  the length of his strings, how often he reaches for the M2 (and feints it), his guard and his
+ *  reaction time (s), how often he Perfect Dodges a punch slow enough to see, when he backs off to
+ *  breathe (stamina), and his taps a second on the canvas. */
+const BOT_SKILL: Record<BotTier, { speed: number; think: [number, number]; string: [number, number]; smash: number; feint: number; guard: number; reaction: number; dodge: number; breathe: number; mash: number; idle: number }> = {
+  rookie: { speed: 1.4, think: [1.1, 1.9], string: [1, 1], smash: 0, feint: 0, guard: 0.12, reaction: 0.34, dodge: 0, breathe: 0, mash: 6, idle: 0.3 },
+  contender: { speed: 2.1, think: [0.55, 0.95], string: [2, 3], smash: 0.14, feint: 0, guard: 0.45, reaction: 0.22, dodge: 0, breathe: 25, mash: 9, idle: 0.1 },
+  champion: { speed: 2.5, think: [0.35, 0.6], string: [2, 3], smash: 0.2, feint: 0.35, guard: 0.5, reaction: 0.16, dodge: 0.5, breathe: 30, mash: 11, idle: 0 },
+};
+
 interface Fighter {
   sessionId: string;
   corner: Corner;
@@ -199,7 +258,8 @@ interface Fighter {
   chain: number;
   chainUntil: number;
   buffered: Buffered | null;
-  /** The guard button is held (a guard goes back up by itself after a punch or a hitstun). */
+  /** The guard button is held (a guard goes back up by itself after a punch, a hitstun, a daze or
+   *  a spell of exhaustion). */
   guardHeld: boolean;
   exhausted: boolean;
   /** The last punch, dash or second of guarding (ms): stamina comes back STAMINA.idle after it. */
@@ -211,10 +271,16 @@ interface Fighter {
   counterUntil: number;
   /** Shadowboxing in the countdown: the next swing or dash waits till then (ms). */
   shadowUntil: number;
+  /** Knockdowns this round (KNOCKDOWNS_TKO is a T.K.O.), and over the whole bout (the card). */
   knockdowns: number;
+  knockdownsBout: number;
   taps: number;
   tapTimes: number[];
+  /** Damage dealt over the bout (the card), and this round (the round's card). */
   dealt: number;
+  roundDealt: number;
+  /** Rounds won this bout. */
+  wins: number;
   /** Punches thrown this bout (a loser with none: a No Contest). */
   strikes: number;
   gloves: GloveId;
@@ -222,6 +288,8 @@ interface Fighter {
   awayAt: number;
   /** Bouts won in a row on this hill. */
   reign: number;
+  /** A sparring bot's body and mind (null: a player). */
+  bot: Bot | null;
 }
 
 /** A server-authored move holds this long against the fighter's own reports. */
@@ -232,6 +300,7 @@ const REACH_SLACK = 1.2;
 const GYM_COOLDOWN_MS = 2600;
 const HOUR_MS = 60 * 60 * 1000;
 const NEVER = -1e15;
+const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
 function newFighter(sessionId: string, corner: Corner, name: string, gloves: GloveId): Fighter {
   return {
@@ -255,23 +324,28 @@ function newFighter(sessionId: string, corner: Corner, name: string, gloves: Glo
     counterUntil: 0,
     shadowUntil: 0,
     knockdowns: 0,
+    knockdownsBout: 0,
     taps: 0,
     tapTimes: [],
     dealt: 0,
+    roundDealt: 0,
+    wins: 0,
     strikes: 0,
     gloves,
     away: false,
     awayAt: 0,
     reign: 0,
+    bot: null,
   };
 }
 
-/** A fighter fresh for a round (or a bout): full stamina and guard, nothing in hand. */
+/** A fighter fresh for a moment of the bout (the bell, a count beaten): full stamina and guard,
+ *  nothing in hand (the guard back up if its button is held). */
 function freshen(f: Fighter, now: number) {
   f.stamina = STAMINA_MAX;
   f.guard = GUARD_MAX;
   f.exhausted = false;
-  f.state = "";
+  f.state = f.guardHeld ? "block" : "";
   f.stateUntil = 0;
   f.pending = null;
   f.chain = 0;
@@ -283,6 +357,23 @@ function freshen(f: Fighter, now: number) {
   f.counterUntil = 0;
   f.taps = 0;
   f.tapTimes = [];
+}
+
+/** A fighter fresh for a round: patched up to full, the round's knockdowns and card cleared. */
+function freshRound(f: Fighter, now: number) {
+  freshen(f, now);
+  f.health = HEALTH_MAX;
+  f.knockdowns = 0;
+  f.roundDealt = 0;
+}
+
+/** A fighter fresh for a whole bout. */
+function freshBout(f: Fighter, now: number) {
+  freshRound(f, now);
+  f.wins = 0;
+  f.dealt = 0;
+  f.strikes = 0;
+  f.knockdownsBout = 0;
 }
 
 /** Weight classes for the balance-beam scale. */
@@ -308,6 +399,8 @@ export class BoxingRing {
   private count = 0;
   private downed: Corner | null = null;
   private readonly fighters: Partial<Record<Corner, Fighter>> = {};
+  /** Who took each round of this bout. */
+  private readonly roundLog: RoundWinner[] = [];
   /** Waiting for the ring, first in line first, each with the corner whose steps they joined at. */
   private readonly queue: { sessionId: string; corner: Corner }[] = [];
   /** The result on the board: the corner that holds the ring after it (null: both step down), and
@@ -344,6 +437,26 @@ export class BoxingRing {
     return !!f && (f.state === "down" || f.state === "out");
   }
 
+  /** Where a fighter stands: a player's own position, or a bot's. */
+  private at(f: Fighter): { x: number; z: number } | null {
+    if (f.bot) return { x: f.bot.x, z: f.bot.z };
+    const p = this.host.player(f.sessionId);
+    return p ? { x: p.x, z: p.z } : null;
+  }
+
+  /** Move a fighter (a player through the room, a bot here). */
+  private put(f: Fighter, x: number, z: number, holdMs: number) {
+    if (f.bot) {
+      f.bot.x = x;
+      f.bot.z = z;
+    } else this.host.place(f.sessionId, x, z, holdMs);
+  }
+
+  /** The sparring bout's setting, while Jimmy is one of the fighters. */
+  private sparTier(): BotTier | null {
+    return this.fighters.red?.bot?.tier ?? this.fighters.blue?.bot?.tier ?? null;
+  }
+
   // --- the props --------------------------------------------------------------------------------------
 
   /** A Velvet Ring prop used (the room has checked the map and the reach). */
@@ -362,6 +475,9 @@ export class BoxingRing {
       case "coach_bruno":
         this.host.sendTo(sessionId, "openPanel", { kind: "proshop", propId });
         this.host.toMap("ringProp", { kind: "coach", sessionId });
+        return;
+      case "ring_jimmy":
+        this.host.sendTo(sessionId, "openPanel", { kind: "spar", propId });
         return;
       case "heavy_bag":
       case "speed_bag":
@@ -437,26 +553,27 @@ export class BoxingRing {
       if (!p || !p.connected || p.map !== "boxing_ring" || this.cornerOf(q.sessionId)) continue;
       this.stepIn(q.sessionId, p, this.fighters[q.corner] ? otherCorner(q.corner) : q.corner, now);
     }
-    if (this.fighters.red && this.fighters.blue) {
-      this.phase = "warmup";
-      this.round = 0;
-      this.phaseEnd = now + WARMUP_S * 1000;
-      this.clearBets();
-      for (const f of [this.fighters.red, this.fighters.blue]) {
-        freshen(f, now);
-        f.health = HEALTH_MAX;
-        f.knockdowns = 0;
-        f.dealt = 0;
-        f.strikes = 0;
-        const at = RING_CORNERS[f.corner].inside;
-        this.host.place(f.sessionId, at.x, at.z, PLACE_MS.corner);
-      }
-    }
+    if (this.fighters.red && this.fighters.blue) this.countdown(now, WARMUP_S);
     this.sync();
   }
 
+  /** Both corners filled: the countdown to the first bell (the betting open, a real bout's only). */
+  private countdown(now: number, seconds: number) {
+    this.phase = "warmup";
+    this.round = 0;
+    this.phaseEnd = now + seconds * 1000;
+    this.roundLog.length = 0;
+    this.clearBets();
+    for (const f of [this.fighters.red, this.fighters.blue]) {
+      if (!f) continue;
+      freshBout(f, now);
+      const at = RING_CORNERS[f.corner].inside;
+      this.put(f, at.x, at.z, PLACE_MS.corner);
+    }
+  }
+
   /** Up the steps into `corner`: the gloves on (their own pair, in the corner's colour if Classic). */
-  private stepIn(sessionId: string, p: RingPlayer, corner: Corner, now: number) {
+  private stepIn(sessionId: string, p: RingPlayer, corner: Corner, now: number, quiet = false) {
     if (p.sitting) this.host.unseat(sessionId);
     const profile = this.host.profile(sessionId);
     const gloves: GloveId = profile && isGloveId(profile.worn) ? profile.worn : "red";
@@ -470,14 +587,43 @@ export class BoxingRing {
     this.host.place(sessionId, at.x, at.z, PLACE_MS.corner);
     this.event({ kind: "enter", by: sessionId, corner });
     const foe = this.fighters[otherCorner(corner)];
-    this.host.sendTo(sessionId, "boxNotice", { message: foe ? `You're up! Into the ${CORNER_NAME[corner]} against ${foe.name}` : `Into the ${CORNER_NAME[corner]}: waiting for a challenger`, emoji: "🥊", ok: true });
+    if (!quiet) this.host.sendTo(sessionId, "boxNotice", { message: foe ? `You're up! Into the ${CORNER_NAME[corner]} against ${foe.name}` : `Into the ${CORNER_NAME[corner]}: waiting for a challenger`, emoji: "🥊", ok: true });
+  }
+
+  /** Jimmy the Slugger called in (from beside him, or by the fighter waiting alone in the ring): he
+   *  climbs into the free corner and a sparring bout's short countdown starts. */
+  private spar(sessionId: string, tier: unknown, now: number) {
+    if (!isBotTier(tier)) return;
+    const p = this.host.player(sessionId);
+    if (!p || p.map !== "boxing_ring") return;
+    if (this.cornerOf(JIMMY_ID)) return this.notice(sessionId, `${JIMMY_NAME} is already in the ring`, "🥊");
+    const mine = this.cornerOf(sessionId);
+    if (mine) {
+      if (this.phase !== "open" || this.fighters[otherCorner(mine)]) return this.notice(sessionId, "Jimmy spars when the ring is yours alone", "🥊");
+      if (this.queue.length > 0) return this.notice(sessionId, "Someone's waiting in line: they step in first", "🎟️");
+    } else {
+      if (Math.hypot(p.x - JIMMY_FRONT.x, p.z - JIMMY_FRONT.z) > JIMMY_REACH + REACH_SLACK) return;
+      if (this.phase !== "open" || this.fighters.red || this.fighters.blue || this.queue.length > 0) return this.notice(sessionId, "The ring's busy: Jimmy spars when it's free (or get in line at a corner)", "🥊");
+      if (p.sitting || p.action !== "") return this.notice(sessionId, "Finish what you're doing first", "🥊");
+      this.unqueue(sessionId, false);
+      this.stepIn(sessionId, p, "red", now, true); // (Jimmy's own notice follows)
+    }
+    const corner = otherCorner(this.cornerOf(sessionId)!);
+    const jimmy = newFighter(JIMMY_ID, corner, JIMMY_NAME, "red");
+    jimmy.bot = { tier, x: JIMMY.x, z: JIMMY.z, next: 0, combo: 0, circle: Math.random() < 0.5 ? 1 : -1, circleUntil: 0, mashNext: 0, feintAt: 0, holdUntil: 0 };
+    this.fighters[corner] = jimmy;
+    this.event({ kind: "enter", by: JIMMY_ID, corner });
+    this.countdown(now, SPAR_WARMUP_S);
+    this.host.sendTo(sessionId, "boxNotice", { message: `${JIMMY_NAME} (${SPAR_TIERS[tier].name}) climbs in: best of three, no purse, no record`, emoji: SPAR_TIERS[tier].emoji, ok: true });
+    this.sync();
   }
 
   /**
    * A fighter going (back down the steps, off to another world, gone from the room): before the
    * bell the bets come back and the other waits on for the next in line; mid-bout it is a forfeit
    * (the one who stays holds the ring). A bettor gone from the room gets their stake back; anyone
-   * in line gives up their place.
+   * in line gives up their place. Jimmy never holds the ring alone: whoever sparred him leaving,
+   * he goes too.
    */
   leave(sessionId: string, why: "ring" | "travel" | "gone") {
     this.unqueue(sessionId, false);
@@ -493,6 +639,7 @@ export class BoxingRing {
       delete this.fighters[corner];
       this.release(sessionId, corner);
       this.event({ kind: "leave", by: sessionId, corner });
+      this.sendJimmyHome();
       this.fill(now);
     } else if (this.phase === "result") {
       if (this.stayer === corner) this.stayer = null;
@@ -505,11 +652,23 @@ export class BoxingRing {
       this.fighters[corner]!.away = false;
       this.end("forfeit", otherCorner(corner), now);
       if (this.loserId === sessionId) this.loserId = null;
+      if (this.stayer === corner) this.stayer = null;
       delete this.fighters[corner];
       this.release(sessionId, corner);
       this.event({ kind: "leave", by: sessionId, corner });
     }
     this.sync();
+  }
+
+  /** Jimmy left alone in the ring (whoever sparred him gone): back to his spot. */
+  private sendJimmyHome() {
+    for (const c of ["red", "blue"] as const) {
+      const f = this.fighters[c];
+      if (!f?.bot || this.fighters[otherCorner(c)]) continue;
+      delete this.fighters[c];
+      this.event({ kind: "leave", by: f.sessionId, corner: c });
+      if (this.phase === "warmup") this.phase = "open";
+    }
   }
 
   /** Out of the ring: the gloves come off, and anyone still standing on it (in the hall) is set
@@ -560,7 +719,7 @@ export class BoxingRing {
    *  they give up their corner at once. */
   dropped(sessionId: string) {
     const f = this.fighterOf(sessionId);
-    if (!f) return;
+    if (!f || f.bot) return;
     if (this.phase === "fight" || this.phase === "count" || this.phase === "rest") {
       f.away = true;
       f.awayAt = Date.now();
@@ -633,6 +792,8 @@ export class BoxingRing {
         return this.leave(sessionId, "ring");
       case "LEAVE_QUEUE":
         return this.unqueue(sessionId, true);
+      case "SPAR":
+        return this.spar(sessionId, packet.tier, now);
     }
   }
 
@@ -699,6 +860,9 @@ export class BoxingRing {
     this.event({ kind: "swing", by: f.sessionId, move, tired, counter, windup, total, shadow: false });
     this.wake(windup * 1000);
     this.wake(total * 1000);
+    // Jimmy sees it coming (at his reaction time)
+    const foe = this.fighters[otherCorner(f.corner)];
+    if (foe?.bot) this.botReact(foe, f.pending.at, now);
   }
 
   /** Stamina spent: run dry, Exhausted (the guard drops). */
@@ -712,10 +876,15 @@ export class BoxingRing {
     }
   }
 
+  /** The guard's button: held, the guard stays up (for as long as it is held: only a Guard Break or
+   *  running dry takes it down); let go, it drops. Early in an M2's wind-up it is the Feint. */
   private guard(sessionId: string, on: boolean, now: number) {
     const f = this.fighterOf(sessionId);
     if (!f || f.away) return;
-    if (this.phase !== "fight" && this.phase !== "warmup") return;
+    if (this.phase !== "fight" && this.phase !== "warmup") {
+      f.guardHeld = on;
+      return;
+    }
     f.guardHeld = on;
     if (this.phase === "fight") this.step(now);
     if (on) {
@@ -762,10 +931,10 @@ export class BoxingRing {
   /** The dash itself: DASH.distance the way asked (straight back from the other fighter, asked
    *  none), never through them, inside the ropes. */
   private slide(f: Fighter, dx: number, dz: number, now: number, shadow: boolean) {
-    const me = this.host.player(f.sessionId);
+    const me = this.at(f);
     if (!me) return;
     const foe = this.fighters[otherCorner(f.corner)];
-    const them = foe ? this.host.player(foe.sessionId) : undefined;
+    const them = foe ? this.at(foe) : null;
     const facing = them ? { x: them.x - me.x, z: them.z - me.z } : { x: 0, z: -1 };
     let dir = { x: dx, z: dz };
     const len = Math.hypot(dir.x, dir.z);
@@ -785,7 +954,7 @@ export class BoxingRing {
         to = side === "F" ? clampToRing(me.x + dir.x * Math.max(0, along), me.z + dir.z * Math.max(0, along)) : d > 1e-3 ? clampToRing(them.x + (ox / d) * FIGHTER_GAP, them.z + (oz / d) * FIGHTER_GAP) : { x: me.x, z: me.z };
       }
     }
-    this.host.place(f.sessionId, to.x, to.z, PLACE_MS.dash);
+    this.put(f, to.x, to.z, PLACE_MS.dash);
     if (!shadow) {
       if (f.state === "block") f.state = "";
       this.spend(f, DASH.stamina, now);
@@ -812,6 +981,7 @@ export class BoxingRing {
   private bet(sessionId: string, side: unknown, raw: unknown) {
     const p = this.host.player(sessionId);
     if (!p || p.map !== "boxing_ring") return;
+    if (this.sparTier()) return this.notice(sessionId, "A sparring bout takes no bets", "🎟️");
     if (this.phase !== "warmup") return this.notice(sessionId, "Bets are taken during the countdown, before the bell", "🎟️");
     if (this.cornerOf(sessionId)) return this.notice(sessionId, "Fighters can't bet on their own bout", "🥊");
     if (!isCorner(side)) return;
@@ -876,6 +1046,7 @@ export class BoxingRing {
           const gone = away.sessionId;
           this.end("forfeit", otherCorner(away.corner), now);
           if (this.loserId === gone) this.loserId = null;
+          if (this.stayer === away.corner) this.stayer = null;
           delete this.fighters[away.corner];
           this.release(gone, away.corner);
         } else this.shift(dt * 1000);
@@ -888,11 +1059,13 @@ export class BoxingRing {
         if (this.queue.length > 0) this.fill(now);
         break;
       case "warmup":
+        this.botWarmup(now);
         if (now >= this.phaseEnd) this.startRound(1, now);
         break;
       case "fight":
         this.step(now);
         if (this.phase === "fight") this.pools(dt, now);
+        if (this.phase === "fight") this.bots(dt, now);
         if (this.phase === "fight" && now >= this.phaseEnd) this.endRound(now);
         break;
       case "count":
@@ -910,11 +1083,11 @@ export class BoxingRing {
   }
 
   /** Fighters and people in line who are no longer on the map (a trip the room didn't tell us of,
-   *  a lost session). */
+   *  a lost session). A bot has no player: he goes when whoever he spars does. */
   private prune() {
     for (const c of ["red", "blue"] as const) {
       const f = this.fighters[c];
-      if (!f) continue;
+      if (!f || f.bot) continue;
       const p = this.host.player(f.sessionId);
       if (!p) {
         if (this.phase === "fight" || this.phase === "count" || this.phase === "rest") this.end("forfeit", otherCorner(c), Date.now());
@@ -925,6 +1098,7 @@ export class BoxingRing {
           this.refundAll();
           this.phase = "open";
         }
+        if (this.phase === "open") this.sendJimmyHome();
       } else if (p.map !== "boxing_ring") this.leave(f.sessionId, "travel");
     }
     for (let i = this.queue.length - 1; i >= 0; i--) {
@@ -952,6 +1126,10 @@ export class BoxingRing {
         f.pending.at += ms;
         f.pending.started += ms;
       }
+      if (f.bot) {
+        f.bot.next += ms;
+        f.bot.circleUntil += ms;
+      }
     }
   }
 
@@ -963,13 +1141,10 @@ export class BoxingRing {
     for (const c of ["red", "blue"] as const) {
       const f = this.fighters[c];
       if (!f) continue;
-      const held = f.guardHeld;
-      freshen(f, now);
-      f.guardHeld = held;
-      if (held) f.state = "block";
-      if (round === 1) f.health = HEALTH_MAX;
+      freshRound(f, now);
+      if (f.bot) f.bot.next = now + rand(400, 900);
       const at = RING_CORNERS[c].inside;
-      this.host.place(f.sessionId, at.x, at.z, PLACE_MS.corner);
+      this.put(f, at.x, at.z, PLACE_MS.corner);
     }
     this.event({ kind: "bell", round, ring: "start" });
   }
@@ -1030,7 +1205,11 @@ export class BoxingRing {
       } else if (f.state !== "attack" && f.state !== "dash" && now - f.actedAt >= STAMINA.idle * 1000) {
         f.stamina = Math.min(STAMINA_MAX, f.stamina + STAMINA.regen * dt);
       }
-      if (f.exhausted && f.stamina >= STAMINA.recover) f.exhausted = false;
+      if (f.exhausted && f.stamina >= STAMINA.recover) {
+        f.exhausted = false;
+        // (the guard's button still held: back up it goes)
+        if (f.guardHeld && f.state === "") f.state = "block";
+      }
       if (f.state !== "block" && f.state !== "stun" && now - f.guardHitAt >= GUARD.regenDelay * 1000) f.guard = Math.min(GUARD_MAX, f.guard + GUARD.regen * dt);
     }
   }
@@ -1040,8 +1219,8 @@ export class BoxingRing {
     const shot = f.pending!;
     f.pending = null;
     const foe = this.fighters[otherCorner(f.corner)];
-    const me = this.host.player(f.sessionId);
-    const them = foe ? this.host.player(foe.sessionId) : undefined;
+    const me = this.at(f);
+    const them = foe ? this.at(foe) : null;
     if (!foe || !me || !them) return;
     const dx = them.x - me.x;
     const dz = them.z - me.z;
@@ -1064,20 +1243,24 @@ export class BoxingRing {
         foe.counterUntil = now + COUNTER_WINDOW_S * 1000;
         this.wake(WHIFF_STAGGER_S * 1000);
         this.event({ kind: "perfect", by: foe.sessionId, to: f.sessionId, move: shot.move });
+        // (Jimmy never wastes a Counter)
+        if (foe.bot) this.botLater(foe, rand(70, 130), () => this.attack(foe.sessionId, "m1", Date.now()));
         return;
       case "block":
         foe.health = Math.max(0, foe.health - outcome.damage);
         foe.guard = Math.max(0, foe.guard - outcome.guard);
         foe.guardHitAt = now;
         f.dealt += outcome.damage;
+        f.roundDealt += outcome.damage;
         this.event({ kind: "block", by: f.sessionId, to: foe.sessionId, move: shot.move, damage: outcome.damage, dir: [dir.x, dir.z] });
         if (outcome.guardBreak) this.guardBreak(f, foe, them, dir, now);
-        else this.push(foe, them, dir, spec.knockback * 0.35, false, now);
+        else this.push(f, foe, them, dir, spec.knockback * 0.35, false, now);
         if (foe.health <= 0 && this.phase === "fight") this.knockDown(f, foe, now);
         return;
       case "hit": {
         foe.health = Math.max(0, foe.health - outcome.damage);
         f.dealt += outcome.damage;
+        f.roundDealt += outcome.damage;
         // a clean hit knocks whatever they were doing out of them: a hitstun
         foe.pending = null;
         foe.buffered = null;
@@ -1086,7 +1269,7 @@ export class BoxingRing {
         foe.stateUntil = now + spec.hitstun * 1000;
         this.wake(spec.hitstun * 1000);
         this.event({ kind: "hit", by: f.sessionId, to: foe.sessionId, move: shot.move, damage: outcome.damage, counter: shot.counter, interrupt: outcome.interrupt, dir: [dir.x, dir.z] });
-        const out = this.push(foe, them, dir, spec.knockback, heavy, now);
+        const out = this.push(f, foe, them, dir, spec.knockback, heavy, now);
         if (out) return;
         if (foe.health <= 0) this.knockDown(f, foe, now);
         return;
@@ -1105,46 +1288,42 @@ export class BoxingRing {
     foe.chain = 0;
     this.wake(GUARD.breakStun * 1000);
     this.event({ kind: "guardbreak", by: by.sessionId, to: foe.sessionId });
-    this.push(foe, at, dir, GUARD.breakKnockback, false, now);
+    this.push(by, foe, at, dir, GUARD.breakKnockback, false, now);
   }
 
   /**
    * Knocks `foe` (standing at `at`) back along `dir` by `by`. Into the ropes: an M2 on a fighter
-   * at half health or less sends them through (Ring-Out: returns true, the bout over); otherwise
-   * they bounce back off them, stunned a moment after an M2.
+   * at half health or less sends them through (Ring-Out: the round is `puncher`'s; returns true);
+   * otherwise they bounce back off them, stunned a moment after an M2.
    */
-  private push(foe: Fighter, at: { x: number; z: number }, dir: { x: number; z: number }, by: number, heavy: boolean, now: number): boolean {
+  private push(puncher: Fighter, foe: Fighter, at: { x: number; z: number }, dir: { x: number; z: number }, by: number, heavy: boolean, now: number): boolean {
     if (by <= 0) return false;
     const tx = at.x + dir.x * by;
     const tz = at.z + dir.z * by;
     const overX = tx > RING_INNER.x1 ? tx - RING_INNER.x1 : tx < RING_INNER.x0 ? tx - RING_INNER.x0 : 0;
     const overZ = tz > RING_INNER.z1 ? tz - RING_INNER.z1 : tz < RING_INNER.z0 ? tz - RING_INNER.z0 : 0;
     if (overX === 0 && overZ === 0) {
-      this.host.place(foe.sessionId, tx, tz, PLACE_MS.knock);
+      this.put(foe, tx, tz, PLACE_MS.knock);
       return false;
     }
     const side: RopeSide = Math.abs(overX) >= Math.abs(overZ) ? (overX > 0 ? "e" : "w") : overZ > 0 ? "s" : "n";
     if (heavy && foe.health <= RINGOUT_HEALTH) {
-      // launched through the ropes onto the floor: Ring-Out
+      // launched through the ropes onto the floor: Ring-Out, the round over (the next one, if there
+      // is one, starts back in their corner)
       const land = ringOutLanding(side, side === "e" || side === "w" ? tz - RING.z : tx - RING.x);
       foe.state = "out";
       foe.pending = null;
       foe.buffered = null;
-      this.host.place(foe.sessionId, land.x, land.z, PLACE_MS.corner);
-      const p = this.host.player(foe.sessionId);
-      if (p) {
-        p.corner = "";
-        p.gloves = "";
-      }
+      this.put(foe, land.x, land.z, PLACE_MS.corner);
       this.event({ kind: "ringout", to: foe.sessionId, side });
-      this.end("ringout", otherCorner(foe.corner), now);
+      this.roundOver(puncher.corner, "ringout", now);
       return true;
     }
     // off the ropes: back in from them
     const kept = clampToRing(tx, tz);
     const bounce = heavy ? ROPE_BOUNCE : 0;
     const back = clampToRing(kept.x - (side === "e" ? bounce : side === "w" ? -bounce : 0), kept.z - (side === "s" ? bounce : side === "n" ? -bounce : 0));
-    this.host.place(foe.sessionId, back.x, back.z, PLACE_MS.knock);
+    this.put(foe, back.x, back.z, PLACE_MS.knock);
     if (heavy && (foe.state === "hurt" || foe.state === "")) {
       foe.state = "hurt";
       foe.stateUntil = Math.max(foe.stateUntil, now + ROPE_STUN_S * 1000);
@@ -1155,10 +1334,11 @@ export class BoxingRing {
     return false;
   }
 
-  /** `foe` goes down: a third time is a T.K.O.; otherwise Coach Bruno counts, and `by` waits in a
-   *  neutral corner. */
+  /** `foe` goes down: a third time this round is a T.K.O. (the round is `by`'s); otherwise Coach
+   *  Bruno counts, and `by` waits in a neutral corner. */
   private knockDown(by: Fighter, foe: Fighter, now: number) {
     foe.knockdowns++;
+    foe.knockdownsBout++;
     foe.pending = null;
     foe.buffered = null;
     by.pending = null;
@@ -1167,89 +1347,114 @@ export class BoxingRing {
     this.event({ kind: "knockdown", to: foe.sessionId, knockdowns: foe.knockdowns });
     foe.state = "down";
     if (foe.knockdowns >= KNOCKDOWNS_TKO) {
-      this.end("tko", by.corner, now);
+      this.roundOver(by.corner, "tko", now);
       return;
     }
     foe.taps = 0;
     foe.tapTimes = [];
+    if (foe.bot) foe.bot.mashNext = now + rand(500, 900);
     this.phase = "count";
     this.roundLeft = Math.max(0, this.phaseEnd - now);
     this.countAt = now;
     this.count = 0;
     this.downed = foe.corner;
     // the standing fighter to the neutral corner further from the one down
-    const down = this.host.player(foe.sessionId);
+    const down = this.at(foe);
     const corner = down ? NEUTRAL_CORNERS.reduce((a, b) => (Math.hypot(b.x - down.x, b.z - down.z) > Math.hypot(a.x - down.x, a.z - down.z) ? b : a)) : NEUTRAL_CORNERS[0];
-    this.host.place(by.sessionId, corner.x, corner.z, PLACE_MS.corner);
+    this.put(by, corner.x, corner.z, PLACE_MS.corner);
   }
 
   private tickCount(dt: number, now: number) {
     const f = this.downed ? this.fighters[this.downed] : undefined;
     const other = this.downed ? this.fighters[otherCorner(this.downed)] : undefined;
     if (!f || !other) return;
+    // Jimmy mashes at his setting's pace
+    if (f.bot && now >= f.bot.mashNext) {
+      f.bot.mashNext = now + 1000 / BOT_SKILL[f.bot.tier].mash;
+      this.mash(f.sessionId, now);
+    }
     // the taps fade: getting up takes a flurry, not a patient tap now and then
     f.taps = Math.max(0, f.taps - TAP_DECAY_PER_S * dt);
     const need = RECOVER_TAPS[Math.min(RECOVER_TAPS.length - 1, f.knockdowns - 1)];
     if (f.taps >= need && this.count >= MIN_COUNT_UP) {
       // up before ten (a push-up off the canvas): back to it, with a little health found
-      const held = f.guardHeld;
       freshen(f, now);
-      f.guardHeld = held;
       f.health = RECOVER_HEALTH[Math.min(RECOVER_HEALTH.length - 1, f.knockdowns - 1)];
       f.stamina = Math.max(60, f.stamina);
-      other.state = "";
+      other.state = other.guardHeld ? "block" : "";
       other.pending = null;
       this.phase = "fight";
       this.phaseEnd = now + this.roundLeft;
       this.downed = null;
       this.count = 0;
-      this.event({ kind: "up", to: f.sessionId });
+      this.event({ kind: "up", to: f.sessionId, beat: true });
       return;
     }
     const n = Math.floor((now - this.countAt) / (COUNT_STEP_S * 1000)) + 1;
     if (n > this.count) {
       this.count = Math.min(COUNT_TO, n);
       this.event({ kind: "count", n: this.count, to: f.sessionId });
-      if (this.count >= COUNT_TO) this.end("ko", other.corner, now);
+      // counted out: the round (not yet the bout) is the other's
+      if (this.count >= COUNT_TO) this.roundOver(other.corner, "ko", now);
     }
   }
 
+  /** The round's bell: the judges' round card (damage dealt this round, and the knockdowns scored in
+   *  it) decides it; level, it is drawn. */
   private endRound(now: number) {
-    this.event({ kind: "bell", round: this.round, ring: "end" });
-    if (this.round < ROUNDS) {
-      this.phase = "rest";
-      this.phaseEnd = now + REST_S * 1000;
-      for (const c of ["red", "blue"] as const) {
-        const f = this.fighters[c];
-        if (!f) continue;
-        freshen(f, now);
-        f.health = Math.min(HEALTH_MAX, f.health + REST_HEALTH);
-        const at = RING_CORNERS[c].inside;
-        this.host.place(f.sessionId, at.x, at.z, PLACE_MS.corner);
-      }
-      return;
-    }
-    // the final bell: the judges' cards
     const red = this.fighters.red!;
     const blue = this.fighters.blue!;
-    const r = cardScore(red.dealt, blue.knockdowns);
-    const b = cardScore(blue.dealt, red.knockdowns);
-    if (r === b) this.end("draw", null, now);
-    else this.end("decision", r > b ? "red" : "blue", now);
+    const r = red.roundDealt + blue.knockdowns * KNOCKDOWN_POINTS;
+    const b = blue.roundDealt + red.knockdowns * KNOCKDOWN_POINTS;
+    this.roundOver(r === b ? null : r > b ? "red" : "blue", "decision", now);
+  }
+
+  /** A round decided (`winner` null: drawn): its point, then the rest before the next, or the bout's
+   *  end (two rounds won; or three fought: the rounds won, then the judges' cards over the bout). */
+  private roundOver(winner: Corner | null, method: BoutMethod, now: number) {
+    if (this.phase !== "fight" && this.phase !== "count") return;
+    const red = this.fighters.red;
+    const blue = this.fighters.blue;
+    if (!red || !blue) return;
+    this.roundLog.push(winner ?? "draw");
+    if (winner) this.fighters[winner]!.wins++;
+    this.event({ kind: "round", round: this.round, winner, method });
+    this.event({ kind: "bell", round: this.round, ring: "end" });
+    this.downed = null;
+    this.count = 0;
+    const decided: Corner | null = red.wins >= ROUNDS_TO_WIN ? "red" : blue.wins >= ROUNDS_TO_WIN ? "blue" : null;
+    if (decided) return this.end(method, decided, now);
+    if (this.round >= ROUNDS) {
+      if (red.wins !== blue.wins) return this.end("decision", red.wins > blue.wins ? "red" : "blue", now);
+      const r = cardScore(red.dealt, blue.knockdownsBout);
+      const b = cardScore(blue.dealt, red.knockdownsBout);
+      return r === b ? this.end("draw", null, now) : this.end("decision", r > b ? "red" : "blue", now);
+    }
+    // the rest: both back to their corners, patched up to full (a fighter down or out gets up)
+    this.phase = "rest";
+    this.phaseEnd = now + REST_S * 1000;
+    for (const f of [red, blue]) {
+      if (f.state === "down" || f.state === "out") this.event({ kind: "up", to: f.sessionId, beat: false });
+      freshRound(f, now);
+      const at = RING_CORNERS[f.corner].inside;
+      this.put(f, at.x, at.z, PLACE_MS.corner);
+    }
   }
 
   /** The bout is over: the records, the purse, the belt, the bets; the result on the board. The
-   *  winner holds the ring (patched up to full), and the loser is walked to the bleachers a moment
-   *  later; a draw (or a stop with no winner) clears the ring. */
+   *  winner holds the ring, and the loser is walked to the bleachers a moment later; a draw (or a
+   *  stop with no winner) clears the ring. A sparring bout pays and records nothing: whoever
+   *  sparred Jimmy keeps the ring either way, and he goes home. */
   private end(method: BoutMethod, winner: Corner | null, now: number) {
     if (this.phase === "result" || this.phase === "open") return;
     const seconds = this.firstBell ? Math.max(0, (now - this.firstBell) / 1000) : 0;
     const w = winner ? this.fighters[winner] : undefined;
     const l = winner ? this.fighters[otherCorner(winner)] : undefined;
+    const spar = this.sparTier();
     // a fixed fight pays nobody: too quick, or a loser who never threw a punch (the one standing
     // still holds the ring)
-    let counted = !!(winner && w);
-    if (winner && (!w || !boutCounts(seconds, l ? l.strikes : 1))) {
+    let counted = !!(winner && w) && !spar;
+    if (winner && !spar && (!w || !boutCounts(seconds, l ? l.strikes : 1))) {
       method = "nocontest";
       counted = false;
     }
@@ -1293,15 +1498,14 @@ export class BoxingRing {
       this.host.tally(w.sessionId, knockout);
       if (belt) this.host.shout("boxBelt", { name: w.name, sessionId: w.sessionId });
     }
-    // King of the Hill: the winner stays on, patched up to full
-    const stays = !!(winner && w);
-    if (stays && w) {
-      if (counted) w.reign++;
-      const held = w.guardHeld;
-      freshen(w, now);
-      w.guardHeld = held;
-      w.health = HEALTH_MAX;
-      this.host.gesture(w.sessionId, "trophy");
+    // King of the Hill: the winner stays on (a spar: whoever sparred Jimmy, won or lost)
+    const human = spar ? (["red", "blue"] as const).find((c) => this.fighters[c] && !this.fighters[c]!.bot) ?? null : null;
+    const stayCorner: Corner | null = spar ? human : winner && w ? winner : null;
+    const stay = stayCorner ? this.fighters[stayCorner] : undefined;
+    if (stay) {
+      if (counted && stay === w) stay.reign++;
+      freshRound(stay, now);
+      if (!spar || stay === w) this.host.gesture(stay.sessionId, "trophy");
     }
     const result: BoutResult = {
       winner,
@@ -1310,8 +1514,10 @@ export class BoxingRing {
       method,
       purse,
       belt,
-      stays,
-      reign: stays && w ? w.reign : 0,
+      stays: !spar && !!stay,
+      reign: !spar && stay ? stay.reign : 0,
+      rounds: [...this.roundLog],
+      ...(spar ? { spar } : {}),
       payouts,
       round: Math.max(1, this.round),
       seconds: Math.round(seconds),
@@ -1321,8 +1527,9 @@ export class BoxingRing {
     this.phase = "result";
     this.phaseEnd = now + RESULT_S * 1000;
     this.benchAt = now + BENCH_AFTER_S * 1000;
-    this.stayer = stays ? winner : null;
-    this.loserId = stays && l ? l.sessionId : null;
+    this.stayer = stayCorner;
+    // (Jimmy is never walked to the bleachers: he goes home when the result has been read)
+    this.loserId = !spar && stay && l && l !== stay ? l.sessionId : null;
     this.downed = null;
     this.count = 0;
     for (const c of ["red", "blue"] as const) {
@@ -1334,11 +1541,11 @@ export class BoxingRing {
       if (f.state !== "down" && f.state !== "out") f.state = "";
     }
     this.clearBets(false);
-    console.log(`[ring] ${METHOD_LABEL[method]}${winner ? `: ${result.winnerName} over ${result.loserName}` : ""} (round ${result.round}, ${result.seconds}s, purse ${purse}${stays ? `, stays on (${result.reign})` : ""})`);
+    console.log(`[ring] ${spar ? `spar (${spar}) ` : ""}${METHOD_LABEL[method]}${winner ? `: ${result.winnerName} over ${result.loserName}` : ""} (rounds ${this.roundLog.join("-") || "none"}, ${result.seconds}s, purse ${purse}${result.stays ? `, stays on (${result.reign})` : ""})`);
   }
 
   /** The result has been read: the winner back in their corner waiting for the next in line (a
-   *  draw: both down the steps), the ring open again. */
+   *  draw: both down the steps; Jimmy home), the ring open again. */
   private afterResult(now: number) {
     if (this.loserId) this.benchLoser();
     const stay = this.stayer ? this.fighters[this.stayer] : undefined;
@@ -1346,21 +1553,19 @@ export class BoxingRing {
       const f = this.fighters[c];
       if (!f || f === stay) continue;
       delete this.fighters[c];
-      this.release(f.sessionId, c);
+      if (f.bot) this.event({ kind: "leave", by: f.sessionId, corner: c });
+      else this.release(f.sessionId, c);
     }
     if (stay) {
-      freshen(stay, now);
-      stay.health = HEALTH_MAX;
-      stay.knockdowns = 0;
-      stay.dealt = 0;
-      stay.strikes = 0;
+      freshBout(stay, now);
       const at = RING_CORNERS[stay.corner].inside;
-      this.host.place(stay.sessionId, at.x, at.z, PLACE_MS.corner);
+      this.put(stay, at.x, at.z, PLACE_MS.corner);
     }
     this.stayer = null;
     this.phase = "open";
     this.round = 0;
     this.firstBell = 0;
+    this.roundLog.length = 0;
     this.fill(now);
   }
 
@@ -1372,11 +1577,148 @@ export class BoxingRing {
       const f = this.fighters[c];
       if (!f) continue;
       delete this.fighters[c];
-      this.release(f.sessionId, c);
+      if (!f.bot) this.release(f.sessionId, c);
     }
     this.phase = "open";
     this.round = 0;
     this.firstBell = 0;
+    this.roundLog.length = 0;
+  }
+
+  // --- Jimmy the Slugger's hands -------------------------------------------------------------------------
+
+  /** Run a bot's move in `ms`, if he is still in this bout's fight then. */
+  private botLater(f: Fighter, ms: number, act: () => void) {
+    this.host.later(Math.max(0, Math.round(ms)), () => {
+      if (this.phase !== "fight" || this.fighters[f.corner] !== f) return;
+      act();
+      this.sync();
+    });
+  }
+
+  /** The other fighter's punch coming at Jimmy, landing at `landAt` (ms): at his reaction time, a
+   *  guard (let go again once it has landed), or, the Champion, a Perfect Dodge of a punch slow
+   *  enough to see coming (never a snap jab). */
+  private botReact(f: Fighter, landAt: number, now: number) {
+    const b = f.bot!;
+    const skill = BOT_SKILL[b.tier];
+    if (f.exhausted || !(f.state === "" || f.state === "block" || f.state === "attack")) return;
+    const react = now + skill.reaction * 1000 * rand(0.85, 1.2);
+    const dodgeAt = landAt - rand(20, 60);
+    // (mid-punch, he can only dodge or guard if that punch is done by then)
+    const freeBy = f.state === "attack" ? f.stateUntil : now;
+    if (skill.dodge > 0 && Math.random() < skill.dodge && dodgeAt >= Math.max(react, freeBy)) {
+      // the read: the rest of his string dropped, his hands held until the punch is past
+      b.combo = 0;
+      f.buffered = null;
+      b.holdUntil = landAt + 60;
+      const me = this.at(f);
+      const foe = this.fighters[otherCorner(f.corner)];
+      const them = foe ? this.at(foe) : null;
+      const side = Math.random() < 0.5 ? 1 : -1;
+      const fx = them && me ? them.x - me.x : 1;
+      const fz = them && me ? them.z - me.z : 0;
+      const fl = Math.hypot(fx, fz) || 1;
+      this.botLater(f, dodgeAt - now, () => this.dash(f.sessionId, (-fz / fl) * side, (fx / fl) * side, Date.now()));
+      return;
+    }
+    if (f.state === "block") {
+      this.botLater(f, landAt - now + rand(200, 400), () => this.guard(f.sessionId, false, Date.now()));
+      return;
+    }
+    if (Math.random() < skill.guard && Math.max(react, freeBy) < landAt - 10) {
+      b.combo = 0;
+      f.buffered = null;
+      b.holdUntil = landAt + 60;
+      this.botLater(f, Math.max(react, freeBy) - now, () => this.guard(f.sessionId, true, Date.now()));
+      this.botLater(f, landAt - now + rand(220, 420), () => this.guard(f.sessionId, false, Date.now()));
+    }
+  }
+
+  /** The countdown: Jimmy bounces in his corner and shadowboxes now and then. */
+  private botWarmup(now: number) {
+    for (const c of ["red", "blue"] as const) {
+      const f = this.fighters[c];
+      if (!f?.bot || now < f.bot.next) continue;
+      f.bot.next = now + rand(1400, 2600);
+      this.shadow(f, Math.random() < 0.2 ? "m2" : "m1", now);
+    }
+  }
+
+  /** A tick of each bot's bout: in to punching range (or back out of it to breathe), circling,
+   *  his strings and his Heavy Smash (a feint of it now and then). */
+  private bots(dt: number, now: number) {
+    for (const c of ["red", "blue"] as const) {
+      const f = this.fighters[c];
+      const foe = this.fighters[otherCorner(c)];
+      if (!f?.bot || !foe) continue;
+      const b = f.bot;
+      const skill = BOT_SKILL[b.tier];
+      const me = this.at(f);
+      const them = this.at(foe);
+      if (!me || !them) continue;
+      const dx = them.x - me.x;
+      const dz = them.z - me.z;
+      const dist = Math.hypot(dx, dz) || 1e-3;
+      const ux = dx / dist;
+      const uz = dz / dist;
+      // his feet: in to arm's length, or back off to breathe; circling between (not while busy)
+      const pace = f.state === "block" ? 0.5 : f.state === "attack" ? 0.6 : f.state === "" ? 1 : 0;
+      if (pace > 0) {
+        const tired = f.exhausted || f.stamina < skill.breathe;
+        const want = tired ? 2.3 : 1.02;
+        const radial = Math.max(-1, Math.min(1, (dist - want) * 2.5));
+        if (now >= b.circleUntil) {
+          b.circle = Math.random() < 0.5 ? 1 : -1;
+          b.circleUntil = now + rand(1400, 3000);
+        }
+        const lateral = b.tier === "rookie" ? 0 : b.circle * 0.45;
+        const vx = (ux * radial + -uz * lateral) * skill.speed * pace;
+        const vz = (uz * radial + ux * lateral) * skill.speed * pace;
+        let nx = me.x + vx * dt;
+        let nz = me.z + vz * dt;
+        const gx = nx - them.x;
+        const gz = nz - them.z;
+        const gap = Math.hypot(gx, gz);
+        if (gap < FIGHTER_GAP) {
+          nx = them.x + (gx / (gap || 1)) * FIGHTER_GAP;
+          nz = them.z + (gz / (gap || 1)) * FIGHTER_GAP;
+        }
+        const kept = clampToRing(nx, nz);
+        b.x = kept.x;
+        b.z = kept.z;
+      }
+      // a feint: his own M2 pulled back early, and a jab thrown in its place
+      if (b.feintAt && now >= b.feintAt) {
+        b.feintAt = 0;
+        this.guard(f.sessionId, true, now);
+        this.guard(f.sessionId, false, now);
+        this.botLater(f, rand(60, 120), () => this.attack(f.sessionId, "m1", Date.now()));
+        continue;
+      }
+      // his hands: the rest of a string (pressed into the buffer as each punch ends), or an opening
+      const inReach = dist <= MOVES.jab.reach + 0.05;
+      if (now < b.holdUntil) continue;
+      if (b.combo > 0 && !f.buffered && (this.free(f) || (f.state === "attack" && !f.pending && f.stateUntil - now <= BUFFER_S * 1000))) {
+        if (inReach) {
+          b.combo--;
+          this.attack(f.sessionId, "m1", now);
+        } else b.combo = 0;
+        continue;
+      }
+      if (now < b.next || !this.free(f) || !inReach || f.exhausted) continue;
+      b.next = now + rand(skill.think[0], skill.think[1]) * 1000;
+      if (Math.random() < skill.idle) continue;
+      if (f.state === "block") this.guard(f.sessionId, false, now);
+      const smash = foe.state === "block" ? skill.smash * 2 : skill.smash;
+      if (Math.random() < smash) {
+        this.attack(f.sessionId, "m2", now);
+        if (Math.random() < skill.feint) b.feintAt = now + rand(50, 110);
+      } else {
+        b.combo = Math.round(rand(skill.string[0], skill.string[1])) - 1;
+        this.attack(f.sessionId, "m1", now);
+      }
+    }
   }
 
   // --- the bets -----------------------------------------------------------------------------------------
@@ -1441,12 +1783,20 @@ export class BoxingRing {
       set("gloves", f?.gloves ?? "red");
       set("away", f?.away ?? false);
       set("reign", f?.reign ?? 0);
+      set("wins", f?.wins ?? 0);
+      set("bot", f?.bot?.tier ?? "");
+      set("x", f?.bot ? Math.round(f.bot.x * 100) / 100 : 0);
+      set("z", f?.bot ? Math.round(f.bot.z * 100) / 100 : 0);
     }
     const line = this.queue.map((q) => q.sessionId);
     if (b.queue.length !== line.length || line.some((id, i) => b.queue[i] !== id)) {
       b.queue.clear();
       for (const id of line) b.queue.push(id);
     }
+    const rounds = this.roundLog.join(",");
+    if (b.rounds !== rounds) b.rounds = rounds;
+    const spar = this.sparTier() ?? "";
+    if (b.spar !== spar) b.spar = spar;
     for (const id of [...b.bets.keys()]) if (!this.bets.has(id)) b.bets.delete(id);
     for (const [id, v] of this.bets) if (b.bets.get(id) !== v) b.bets.set(id, v);
     const pools = poolsOf(this.bets.values());

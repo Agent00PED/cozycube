@@ -12,7 +12,7 @@ import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlay
 import { Avatar, type FloatingEmote } from "./Avatar";
 import { getBout } from "../systems/boutStore";
 import { beltUntilOf, gloveLook } from "@shared/boxing";
-import { drawnAt } from "../systems/fightAnim";
+import { drawnAt, fighterSpot } from "../systems/fightAnim";
 
 // The people in the scene: your own avatar, driven by the locomotion hook, and every other
 // connected player, eased toward the position the server relays. Both are the same Avatar
@@ -204,9 +204,8 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
 /** Where the fighter `sessionId` is up against stands now (undefined: not in a bout). */
 function fighterFoe(sessionId: string): { x: number; z: number } | undefined {
   const b = getBout();
-  const other = b.red.sessionId === sessionId ? b.blue.sessionId : b.blue.sessionId === sessionId ? b.red.sessionId : "";
-  const at = other ? liveMotion.get(other) : undefined;
-  return at ? { x: at.x, z: at.z } : undefined;
+  const other = b.red.sessionId === sessionId ? b.blue : b.blue.sessionId === sessionId ? b.red : null;
+  return (other && fighterSpot(other)) ?? undefined;
 }
 
 /** Everyone else in the room: the remote half of the Colyseus player map. */

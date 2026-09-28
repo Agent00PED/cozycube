@@ -1,5 +1,5 @@
 import { forwardRef, memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Billboard, Html, Text, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { ACTIVITY_STATUSES, DRINK_BASE_INFO, GESTURE_SECONDS, defaultLook, hashString, isActivityStatus, parseDrink, parseLook, parseSnack, type Gesture, type HeldItem, type Look, type PlayerAction, type RoastFood, type RoastQuality, type SitPose } from "@shared/types";
@@ -933,7 +933,7 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
       {gloves && (
         <ModelBoundary what="boxing_gloves.glb" fallback={null}>
           <Suspense fallback={null}>
-            <AvatarGloves rig={rig} kind={gloves} aura={smashAura} />
+            <AvatarGloves rig={rig} kind={gloves} aura={smashAura} sessionId={sessionId} fight={fight} />
           </Suspense>
         </ModelBoundary>
       )}
@@ -1055,11 +1055,129 @@ function auraMaterial() {
   });
 }
 
+// --- the ring's telegraphs, on a fighter -------------------------------------------------------------
+//
+//   the guard's shield   while guarding: a cyan arc before the chest (at most 40%), flaring when a
+//                        punch lands in the shell
+//   the strike trails    a crisp white motion arc on each punch as it lands: a straight streak off
+//                        the lead shoulder for the jab (the rear one for the straight), a swept arc
+//                        for the lead hook (level), the Heavy Smash (overhead) and the uppercut
+//   the dash's ghost     a translucent afterimage left where a dash started (the i-frames' blur)
+//
+// All in the fighter's own frame (the avatar faces +z, its left hand at +x), additive, never a
+// shadow; the meshes are this fighter's own and made only while they wear gloves.
+
+const SHIELD_GEO = new THREE.CylinderGeometry(0.46, 0.46, 0.78, 32, 1, true, -1.2, 2.4);
+const SHIELD_COLOR = new THREE.Color("#5fd4ff");
+const STREAK_GEO = new THREE.PlaneGeometry(1, 1);
+const ARC_GEO = new THREE.RingGeometry(0.3, 0.44, 48, 1);
+const TRAIL_VS = "varying vec2 vUv; varying vec3 vP; void main() { vUv = uv; vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }";
+
+function shieldMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    uniforms: { opacity: { value: 0 }, color: { value: SHIELD_COLOR } },
+    vertexShader: TRAIL_VS,
+    // brightest at its middle band, fading to its top and bottom edges and its two sides
+    fragmentShader: "uniform float opacity; uniform vec3 color; varying vec2 vUv; void main() { float band = sin(vUv.y * 3.14159); float side = sin(vUv.x * 3.14159); float rim = 0.55 + 0.45 * smoothstep(0.8, 1.0, band); gl_FragColor = vec4(color * opacity * band * side * rim * 1.6, 1.0); }",
+  });
+}
+
+function streakMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    uniforms: { opacity: { value: 0 } },
+    vertexShader: TRAIL_VS,
+    // a streak: clear at its tail, white at its head (uv.x), soft top and bottom (uv.y)
+    fragmentShader: "uniform float opacity; varying vec2 vUv; void main() { float a = pow(vUv.x, 1.6) * sin(vUv.y * 3.14159); gl_FragColor = vec4(vec3(1.0) * opacity * a, 1.0); }",
+  });
+}
+
+function arcMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    uniforms: { opacity: { value: 0 }, from: { value: 0 }, to: { value: 1 } },
+    vertexShader: TRAIL_VS,
+    // the swept part of the ring only, from `from` to `to` (radians, either way round), clear at
+    // its tail and white at its head, soft across its width
+    fragmentShader:
+      "uniform float opacity; uniform float from; uniform float to; varying vec3 vP; void main() { float a = atan(vP.y, vP.x); float span = to - from; float k = (a - from) / span; if (k < -0.02) { a += 6.28318 * sign(span); k = (a - from) / span; } if (k < 0.0 || k > 1.0) discard; float r = length(vP.xy); float across = sin(clamp((r - 0.3) / 0.14, 0.0, 1.0) * 3.14159); gl_FragColor = vec4(vec3(1.0) * opacity * pow(k, 1.4) * across, 1.0); }",
+  });
+}
+
+/** Where each punch's trail sits and sweeps, in the fighter's own frame. */
+const TRAILS: Partial<Record<string, { kind: "streak"; x: number; y: number } | { kind: "arc"; plane: "level" | "upright"; at: [number, number, number]; from: number; to: number }>> = {
+  jab: { kind: "streak", x: 0.17, y: 0.56 },
+  straight: { kind: "streak", x: -0.12, y: 0.54 },
+  // level, seen from above: +x (the lead side) is 0, the front (+z) is -PI/2
+  leadhook: { kind: "arc", plane: "level", at: [0, 0.56, 0.08], from: 0.35, to: -2.1 },
+  // upright, beside the rear shoulder: the back is 0, up is PI/2, the front PI
+  smash: { kind: "arc", plane: "upright", at: [-0.16, 0.6, 0.06], from: 0.7, to: 3.75 },
+  uppercut: { kind: "arc", plane: "upright", at: [-0.14, 0.42, 0.12], from: 4.1, to: 1.85 },
+};
+
+const GHOST_MAT_PROTO = new THREE.MeshBasicMaterial({ color: "#cfeeff", transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending });
+
+/** Every mesh of the fighter that is shown right now (its own and its ancestors' visibility). */
+function shownMeshes(root: THREE.Object3D): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  const walk = (o: THREE.Object3D) => {
+    if (!o.visible) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh && !(m.material instanceof THREE.ShaderMaterial)) out.push(m);
+    o.children.forEach(walk);
+  };
+  walk(root);
+  return out;
+}
+
 /** The boxing gloves on the hands: each a copy of its glove from boxing_gloves.glb (Glove_<look>_L/R:
  *  red, blue or tiger), hung on the arm where the hand is (the arm's own motion carries it); the
- *  rear glove carries the M2's shimmer. */
-function AvatarGloves({ rig, kind, aura }: { rig: Rig; kind: string; aura: React.MutableRefObject<number> }) {
+ *  rear glove carries the M2's shimmer; and the ring's telegraphs (the guard's shield, the strike
+ *  trails, the dash's ghost). */
+function AvatarGloves({ rig, kind, aura, sessionId, fight }: { rig: Rig; kind: string; aura: React.MutableRefObject<number>; sessionId: string; fight: FighterState | null }) {
   const { scene } = useGLTF(GLOVES_URL);
+  const world = useThree((st) => st.scene);
+  const fx = useMemo(() => {
+    const shield = new THREE.Mesh(SHIELD_GEO, shieldMaterial());
+    shield.position.set(0, 0.52, 0.02);
+    const streak = new THREE.Mesh(STREAK_GEO, streakMaterial());
+    // the streak's length along +z (turned by y), then rolled about that length to face the camera
+    // (outermost: the ZYX order), so it reads as a ribbon from the side, behind or above
+    streak.rotation.order = "ZYX";
+    streak.rotation.y = -Math.PI / 2;
+    const arc = new THREE.Mesh(ARC_GEO, arcMaterial());
+    for (const m of [shield, streak, arc]) {
+      m.raycast = noRaycast;
+      m.visible = false;
+      m.renderOrder = 5;
+      m.frustumCulled = false;
+      rig.root.add(m);
+    }
+    return { shield, streak, arc, shieldShown: 0, ghosts: [] as { group: THREE.Group; mat: THREE.MeshBasicMaterial; at: number }[], lastDash: -1, view: new THREE.Vector3(), turn: new THREE.Quaternion() };
+  }, [rig]);
+  useEffect(
+    () => () => {
+      for (const m of [fx.shield, fx.streak, fx.arc]) {
+        rig.root.remove(m);
+        (m.material as THREE.Material).dispose();
+      }
+      for (const g of fx.ghosts) {
+        world.remove(g.group);
+        g.mat.dispose();
+      }
+    },
+    [fx, rig, world]
+  );
   const haze = useMemo(() => {
     const mesh = new THREE.Mesh(AURA_GEO, auraMaterial());
     mesh.raycast = noRaycast;
@@ -1094,14 +1212,83 @@ function AvatarGloves({ rig, kind, aura }: { rig: Rig; kind: string; aura: React
     };
   }, [scene, rig, kind, haze]);
   useEffect(() => () => (haze.material as THREE.ShaderMaterial).dispose(), [haze]);
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }, delta) => {
     const k = aura.current;
     haze.visible = k > 0.02;
-    if (!haze.visible) return;
-    const m = haze.material as THREE.ShaderMaterial;
-    m.uniforms.amount.value = k;
-    m.uniforms.time.value = clock.elapsedTime;
-    haze.scale.setScalar(0.7 + 0.8 * k);
+    if (haze.visible) {
+      const m = haze.material as THREE.ShaderMaterial;
+      m.uniforms.amount.value = k;
+      m.uniforms.time.value = clock.elapsedTime;
+      haze.scale.setScalar(0.7 + 0.8 * k);
+    }
+    const anim = fightAnimOf(sessionId);
+    // the guard's shield: eased up to 40% while guarding, a flare when a punch lands in it
+    const flare = anim.react?.kind === "blockhit" ? 0.5 * (1 - anim.reactAge / 0.2) : 0;
+    fx.shieldShown += ((fight === "block" ? 0.4 : 0) - fx.shieldShown) * Math.min(1, delta * 14);
+    const shieldOn = fx.shieldShown + flare;
+    fx.shield.visible = shieldOn > 0.01;
+    (fx.shield.material as THREE.ShaderMaterial).uniforms.opacity.value = shieldOn;
+    // the strike's trail: swept in as the punch lands, gone a beat after
+    const move = anim.move;
+    const trail = move ? TRAILS[move.kind] : undefined;
+    fx.streak.visible = false;
+    fx.arc.visible = false;
+    if (move && trail) {
+      const w = move.windup ?? 0.1;
+      const a = anim.moveAge;
+      const sweep = THREE.MathUtils.smoothstep((a - (w - 0.07)) / 0.08, 0, 1);
+      const fade = 1 - THREE.MathUtils.smoothstep((a - w) / 0.13, 0, 1);
+      const on = sweep * fade;
+      if (on > 0.01) {
+        if (trail.kind === "streak") {
+          fx.streak.visible = true;
+          const len = 0.2 + 0.42 * sweep;
+          fx.streak.position.set(trail.x, trail.y, 0.12 + len / 2);
+          fx.streak.scale.set(len, 0.08, 1);
+          camera.getWorldDirection(fx.view);
+          fx.view.applyQuaternion(rig.root.getWorldQuaternion(fx.turn).invert());
+          fx.streak.rotation.z = Math.atan2(fx.view.y, fx.view.x);
+          (fx.streak.material as THREE.ShaderMaterial).uniforms.opacity.value = 0.95 * on;
+        } else {
+          fx.arc.visible = true;
+          fx.arc.position.set(trail.at[0], trail.at[1], trail.at[2]);
+          if (trail.plane === "level") fx.arc.rotation.set(-Math.PI / 2, 0, 0);
+          else fx.arc.rotation.set(0, Math.PI / 2, 0);
+          const u = (fx.arc.material as THREE.ShaderMaterial).uniforms;
+          u.from.value = trail.from;
+          u.to.value = trail.from + (trail.to - trail.from) * sweep;
+          u.opacity.value = 0.9 * on;
+        }
+      }
+    }
+    // the dash's ghost: the fighter's silhouette left behind where it started, fading out
+    if (move && move.kind.startsWith("dash") && move.at !== fx.lastDash) {
+      fx.lastDash = move.at;
+      const mat = GHOST_MAT_PROTO.clone();
+      const group = new THREE.Group();
+      group.matrixAutoUpdate = false;
+      rig.root.updateWorldMatrix(true, true);
+      for (const mesh of shownMeshes(rig.root)) {
+        const g = new THREE.Mesh(mesh.geometry, mat);
+        g.matrixAutoUpdate = false;
+        g.matrix.copy(mesh.matrixWorld);
+        g.raycast = noRaycast;
+        g.renderOrder = 4;
+        group.add(g);
+      }
+      world.add(group);
+      fx.ghosts.push({ group, mat, at: clock.elapsedTime });
+    }
+    for (let i = fx.ghosts.length - 1; i >= 0; i--) {
+      const g = fx.ghosts[i];
+      const age = clock.elapsedTime - g.at;
+      g.mat.opacity = 0.35 * Math.max(0, 1 - age / 0.24);
+      if (age >= 0.24) {
+        world.remove(g.group);
+        g.mat.dispose();
+        fx.ghosts.splice(i, 1);
+      }
+    }
   });
   return null;
 }

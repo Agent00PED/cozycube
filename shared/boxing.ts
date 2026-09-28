@@ -5,11 +5,16 @@
 // only: no Colyseus, no three.js.
 //
 //   The hill    King of the Hill: the ring's steps are a queue. The first two in line fill the
-//               corners, a 15 s countdown opens the ringside betting, then the bell and up to three
-//               90 s rounds. The winner stays on the canvas in their corner, patched up to full, and
-//               the next in line steps in against them; the loser is walked to the bleachers. It
-//               ends by K.O. (the ten-count), T.K.O. (a third knockdown, a forfeit), Ring-Out
-//               (launched through the ropes) or the judges' decision.
+//               corners, a 15 s countdown opens the ringside betting, then the bell: best of three
+//               rounds. A round is won by a K.O. (the ten-count), a T.K.O. (a third knockdown in it),
+//               a Ring-Out (launched through the ropes) or, at its 90 s bell, on the judges' round
+//               card; between rounds both fighters go back to their corners patched up to full, and
+//               the first to two rounds takes the bout. The winner stays on the canvas in their
+//               corner, and the next in line steps in against them; the loser is walked to the
+//               bleachers. A fighter who leaves or drops mid-bout forfeits it.
+//   Sparring    Jimmy the Slugger, by the Blue Corner's steps, spars anyone in a free ring (or the
+//               champion waiting in it): Rookie, Contender or Champion, a whole bout with no purse,
+//               no record and no bets, fought by the server's own hands (the same moves and rules).
 //   No cooldowns. Every move is gated by Stamina, its own frames (a wind-up, then endlag) and an
 //               input buffer (a button pressed in the last BUFFER_S of a move comes out the moment
 //               it ends).
@@ -62,7 +67,11 @@ export const M1_CHAIN: readonly BoxMove[] = ["jab", "straight", "leadhook"];
 export function isM1(move: BoxMove): boolean {
   return move !== "smash";
 }
-/** How a bout ended. */
+/** A round's winner as the bout keeps it ("draw": the judges could not split them). */
+export type RoundWinner = Corner | "draw";
+/** Rounds to win to take the bout (best of ROUNDS). */
+export const ROUNDS_TO_WIN = 2;
+/** How a bout (or a round) ended. */
 export type BoutMethod = "ko" | "tko" | "ringout" | "decision" | "forfeit" | "draw" | "nocontest";
 export const METHOD_LABEL: Record<BoutMethod, string> = {
   ko: "K.O.",
@@ -197,8 +206,8 @@ export const WARMUP_S = 15;
 export const ROUNDS = 3;
 export const ROUND_S = 90;
 export const REST_S = 5;
-/** Health back between rounds. */
-export const REST_HEALTH = 15;
+/** A sparring bout's countdown (there is nothing to bet on). */
+export const SPAR_WARMUP_S = 6;
 /** The result on the board this long; the loser is walked to the bleachers after BENCH_AFTER_S. */
 export const RESULT_S = 6;
 export const BENCH_AFTER_S = 2.5;
@@ -210,6 +219,26 @@ export const NO_CONTEST_S = 15;
 export const FORFEIT_GRACE_S = 5;
 /** The judges' card: damage dealt, plus this much a knockdown scored. */
 export const KNOCKDOWN_POINTS = 20;
+
+// --- the sparring partner ----------------------------------------------------------------------
+
+/** Jimmy the Slugger's three settings: how he fights, and what the panel says of it. */
+export type BotTier = "rookie" | "contender" | "champion";
+export const BOT_TIERS: readonly BotTier[] = ["rookie", "contender", "champion"];
+export function isBotTier(v: unknown): v is BotTier {
+  return v === "rookie" || v === "contender" || v === "champion";
+}
+export const SPAR_TIERS: Record<BotTier, { name: string; emoji: string; blurb: string }> = {
+  rookie: { name: "Rookie", emoji: "🥉", blurb: "Slow single jabs, hardly guards. Learn the string, the guard and the dash." },
+  contender: { name: "Contender", emoji: "🥈", blurb: "Throws full strings, raises the shell, breaks guards with the Heavy Smash." },
+  champion: { name: "Champion", emoji: "🥇", blurb: "Feints the Smash, Perfect Dodges yours and counters hard. Bring your best." },
+};
+/** The sparring partner's session in the bout (a bot never has a player of its own). */
+export const JIMMY_ID = "bot:jimmy";
+export const JIMMY_NAME = "Jimmy the Slugger";
+export function isBotId(id: string | null | undefined): boolean {
+  return !!id && id.startsWith("bot:");
+}
 
 // --- the purse, the bets, the belt ------------------------------------------------------------
 
@@ -375,7 +404,8 @@ export function beltUntilOf(raw: string | null | undefined): number {
 
 /** Client -> server, on the "boxing" channel. `DASH`'s (dx, dz) is the way to go, in the world
  *  (none: straight back from the other fighter). `LEAVE_RING` steps down (a forfeit mid-bout);
- *  `LEAVE_QUEUE` gives up a place in line (the corner steps join it: the ring's props). */
+ *  `LEAVE_QUEUE` gives up a place in line (the corner steps join it: the ring's props); `SPAR` calls
+ *  Jimmy the Slugger in (from beside him, or waiting alone in the ring). */
 export type BoxingPacket =
   | { type: "M1" }
   | { type: "M2" }
@@ -386,7 +416,8 @@ export type BoxingPacket =
   | { type: "BUY_GLOVES"; id: GloveId }
   | { type: "WEAR_GLOVES"; id: GloveId }
   | { type: "LEAVE_RING" }
-  | { type: "LEAVE_QUEUE" };
+  | { type: "LEAVE_QUEUE" }
+  | { type: "SPAR"; tier: BotTier };
 
 /** One fighter as the room's state carries it (mirrors the server's FighterSchema). */
 export interface FighterView {
@@ -411,6 +442,13 @@ export interface FighterView {
   away: boolean;
   /** Bouts won in a row on this hill (the King of the Hill's count). */
   reign: number;
+  /** Rounds won in this bout (ROUNDS_TO_WIN takes it). `knockdowns` are this round's. */
+  wins: number;
+  /** The sparring partner's setting ("" for a player), and where he stands (a player's position is
+   *  their own, in the room's players). */
+  bot: BotTier | "";
+  x: number;
+  z: number;
 }
 
 /** The bout as the room's state carries it (mirrors the server's BoutSchema). */
@@ -428,6 +466,10 @@ export interface BoutView {
   result: string;
   /** Who is waiting for the ring, first in line first (session ids). */
   queue: string[];
+  /** Each round fought so far: who took it. */
+  rounds: RoundWinner[];
+  /** A sparring bout against Jimmy: his setting ("" for a real bout). */
+  spar: BotTier | "";
   /** The client's clock when this snapshot arrived. */
   now: number;
 }
@@ -445,6 +487,10 @@ export interface BoutResult {
   /** The winner holds the ring for the next challenger (King of the Hill), and their run there. */
   stays: boolean;
   reign: number;
+  /** Who took each round. */
+  rounds: RoundWinner[];
+  /** A sparring bout's setting (no purse, no record, no bets). */
+  spar?: BotTier;
   /** How the pools paid out: each bettor's return, by name. */
   payouts: { name: string; side: Corner; stake: number; paid: number }[];
   round: number;
@@ -471,7 +517,8 @@ export type BoxEvent =
   | { kind: "ringout"; to: string; side: RopeSide }
   | { kind: "knockdown"; to: string; knockdowns: number }
   | { kind: "count"; n: number; to: string }
-  | { kind: "up"; to: string }
+  | { kind: "up"; to: string; beat: boolean }
+  | { kind: "round"; round: number; winner: Corner | null; method: BoutMethod }
   | { kind: "bell"; round: number; ring: "start" | "end" }
   | { kind: "enter"; by: string; corner: Corner }
   | { kind: "leave"; by: string; corner: Corner }

@@ -163,12 +163,32 @@ export const GYM_REACH = 1.5;
 /** The timekeeper's bell, on the judges' table. */
 export const RING_BELL = { x: R.bell.x + R.bell.len / 2 - 0.35, z: R.bell.z };
 
+// --- the regulars -----------------------------------------------------------------------------------
+
+/** Jimmy the Slugger, the sparring partner, waiting by the Blue Corner's steps (facing the room),
+ *  and where you stand to call him in. */
+export const JIMMY = { x: 5.55, z: -3.25, yaw: FACE_POS_Z };
+export const JIMMY_FRONT: Pt = { x: JIMMY.x, z: JIMMY.z + 0.95 };
+export const JIMMY_REACH = 1.6;
+/** A boxer working the heavy bag from its west side, all day long (ring_regulars.glb). */
+export const BAG_BOXER = { x: R.heavyBag.x - 0.88, z: R.heavyBag.z + 0.1, yaw: FACE_POS_X };
+
 // --- seats ------------------------------------------------------------------------------------------
 
 export type RingSeat = SeatSpec & { style: SeatStyle; floor: number };
 
 const bleacherX = (tier: number) => -RING_WALL + (R.bleachers.tiers - tier) * R.bleachers.depth - 0.16;
 const BLEACHER_FRONT = -RING_WALL + R.bleachers.tiers * R.bleachers.depth;
+/** Two regulars cheering from the bleachers (ring_regulars.glb, seated): their seats are theirs,
+ *  never offered to anyone else. `n` is the seat's number on the tiers. */
+export const RING_FANS = [
+  { node: "RingFan_Raccoon", n: 4 },
+  { node: "RingFan_Rabbit", n: 9 },
+].map(({ node, n }) => {
+  const tier = Math.floor((n - 1) / R.bleachers.seats.length);
+  return { node, seat: `ring_bleacher_${n}`, x: bleacherX(tier), z: R.bleachers.seats[(n - 1) % R.bleachers.seats.length], y: tier * R.bleachers.rise, yaw: FACE_POS_X };
+});
+const FAN_SEATS = new Set(RING_FANS.map((f) => f.seat));
 /** Where a beaten fighter stands when every bleacher seat is taken (open floor at their front). */
 export const RING_BENCH_FRONT: Pt = { x: BLEACHER_FRONT + 0.55, z: 0 };
 export const RING_SEATS: RingSeat[] = [
@@ -177,7 +197,9 @@ export const RING_SEATS: RingSeat[] = [
     R.bleachers.seats.map(
       (z, i): RingSeat => ({ propId: `ring_bleacher_${tier * R.bleachers.seats.length + i + 1}`, x: bleacherX(tier), z, rotationY: FACE_POS_X, cushion: "bleacher", style: "bleacher", approachX: BLEACHER_FRONT + 0.5, approachZ: z, floor: tier * R.bleachers.rise })
     )
-  ).flat(),
+  )
+    .flat()
+    .filter((seat) => !FAN_SEATS.has(seat.propId)),
   // the Chesterfields: two to a sofa, facing the ring
   ...R.sofas.flatMap((s, k) => [-0.45, 0.45].map((dz, i): RingSeat => ({ propId: `ring_sofa_${k * 2 + i + 1}`, x: s.x + 0.08, z: s.z + dz, rotationY: FACE_POS_X, cushion: "chesterfield", style: "armchair", approachX: s.x + 0.95, approachZ: s.z + dz, floor: 0 }))),
   // the cocktail tables' leather stools, either side of each table
@@ -200,6 +222,7 @@ export const RING_PROPS: PropSpec[] = [
   prop("ring_blue", RING_CORNERS.blue.steps, "ringcorner", "#3a6fd8", RING_CORNERS.blue.foot),
   prop("ring_chalkboard", CHALKBOARD, "chalkboard", "#2f3a30", CHALKBOARD_FRONT),
   prop("coach_bruno", { x: COACH_BRUNO.x, z: R.shop.counterZ }, "coach", "#c99a6b", COACH_FRONT),
+  prop("ring_jimmy", JIMMY, "spar", "#c8453a", JIMMY_FRONT),
   prop("heavy_bag", HEAVY_BAG, "heavybag", "#7a2a22", HEAVY_BAG_FRONT),
   prop("speed_bag", SPEED_BAG, "speedbag", "#8a3a2a", SPEED_BAG_FRONT, R.speedBag.y),
   prop("weigh_scale", WEIGH_SCALE, "scale", "#b8b0a0", WEIGH_SCALE_FRONT),
@@ -230,6 +253,9 @@ export const RING_OBSTACLES: AABB[] = [
   rect(R.scale.x - 0.45, R.scale.x + 0.45, -RING_WALL, R.scale.z + 0.35),
   around(HEAVY_BAG, 0.3),
   rect(R.speedBag.x - 0.45, R.speedBag.x + 0.45, -RING_WALL, -RING_WALL + 0.55),
+  // Jimmy the Slugger by the Blue Corner's steps, and the boxer at the heavy bag
+  around(JIMMY, 0.3),
+  around(BAG_BOXER, 0.3),
   // the pro shop: the counter and everything behind it (Coach Bruno, the back bar); the trophy case
   rect(R.shop.x0, R.half, -RING_WALL, R.shop.counterZ + R.shop.counterD / 2),
   rect(R.trophy.x - R.trophy.w / 2, R.trophy.x + R.trophy.w / 2, -RING_WALL, -RING_WALL + R.trophy.d),

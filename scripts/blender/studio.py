@@ -55,6 +55,9 @@ PLACES = {
     "BoxingRing": ("Boxing", "world"),
     "BoxingGloves": ("Boxing", (-3.0, -14.0)),
     "CoachBruno": ("Boxing", (1.0, -14.0)),
+    "RingFan_Raccoon": ("Boxing", (3.0, -14.0)),
+    "RingFan_Rabbit": ("Boxing", (5.0, -14.0)),
+    "BagBoxer": ("Boxing", (7.0, -14.0)),
 }
 # The casino's staff and regulars (build_casino_staff.py), in a line after Mr. Vance.
 for _k, _name in enumerate(("Boris", "Vivienne", "Jasper", "Pippin", "Bruno", "Cedric", "Gideon", "Scarlett", "Baron", "Penelope")):

@@ -1,4 +1,5 @@
 import type { BoxMove, DashSide } from "@shared/boxing";
+import { liveMotion } from "./liveMotion";
 
 // The Velvet Ring's animation feed and its screen juice, kept OUT of React state (like liveMotion):
 // the avatars read it in their frame loops, the camera and the HUD in theirs.
@@ -185,3 +186,14 @@ export function ringFx(fx: RingFx) {
 
 /** Each player's drawn position (the remote ones' interpolated spot; your own is cameraFocus). */
 export const drawnAt = new Map<string, { x: number; z: number }>();
+
+/** Where a fighter is: drawn (the remote ones' interpolated spot, Jimmy's eased one), else as the
+ *  server last had them (a player's relayed position, a bot's own in the bout). */
+export function fighterSpot(f: { sessionId: string; bot: string; x: number; z: number }): { x: number; z: number } | null {
+  if (!f.sessionId) return null;
+  const drawn = drawnAt.get(f.sessionId);
+  if (drawn) return drawn;
+  if (f.bot) return { x: f.x, z: f.z };
+  const live = liveMotion.get(f.sessionId);
+  return live ? { x: live.x, z: live.z } : null;
+}

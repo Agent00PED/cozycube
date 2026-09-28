@@ -12,7 +12,7 @@ import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, BOUTIQUE, BOUTIQUE_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { BAR_REACH, BLACKJACK_TABLES, CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, GACHAPON_FRONT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, ROULETTE_BET_RADIUS, ROULETTE_CENTER, TIP_JARS, VIP_DOORS_FRONT, ZARA_FRONT, barDistance, nearGameTable, seatedGameOf, type CasinoGameTable } from "@shared/worlds/casino";
 import { VIP_ARRIVAL } from "@shared/worlds/casino_vip";
-import { CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG_FRONT, RING_CORNERS, SPEED_BAG_FRONT, WEIGH_SCALE_FRONT } from "@shared/worlds/boxing_ring";
+import { CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG_FRONT, JIMMY_FRONT, JIMMY_REACH, RING_CORNERS, SPEED_BAG_FRONT, WEIGH_SCALE_FRONT } from "@shared/worlds/boxing_ring";
 import { GLOVES, QUEUE_MAX, WARMUP_S } from "@shared/boxing";
 import { getBout } from "../../systems/boutStore";
 import { isTouchUi } from "../../systems/inputMode";
@@ -82,6 +82,7 @@ import { glass, hudText, pillButton } from "./glass";
 //                    in line already, [🎟️ In Line (#n) · Leave the Line]
 //   [🎟️ Ringside Betting]  at the ringside chalkboard: the bout, the pools, the odds, a ticket
 //   [🐶 Talk to Coach Bruno]  at the pro shop's counter: the gloves, your record, the rules
+//   [🥊 Spar with Jimmy]  by the Blue Corner's steps: Jimmy the Slugger's sparring card
 //   [🥊 Hit the Heavy Bag] / [🥊 Work the Speed Bag] / [⚖️ Weigh In]  at the gym's fixtures
 //   [🧍 Stand up · Space]  while you are sitting, always (a panel closed, a reconnect: never stuck);
 //                    Space or any movement key does the same
@@ -481,6 +482,8 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         if (toBoard <= CHALKBOARD_REACH + 0.4) found.push({ key: "chalkboard", type: "chalkboard", d: toBoard, label: "🎟️ Ringside Betting", hint: "The contenders, the pools and the live odds: back a corner during the warm-up", run: () => interactBridge.current?.useProp("ring_chalkboard") });
         const toCoach = Math.hypot(COACH_FRONT.x - px, COACH_FRONT.z - pz);
         if (toCoach <= COACH_REACH + 0.4) found.push({ key: "coach", type: "coach", d: toCoach, label: "🐶 Talk to Coach Bruno", hint: "Gloves, your record, the belt and the rules of the ring", run: () => interactBridge.current?.useProp("coach_bruno") });
+        const toJimmy = Math.hypot(JIMMY_FRONT.x - px, JIMMY_FRONT.z - pz);
+        if (toJimmy <= JIMMY_REACH) found.push({ key: "spar", type: "coach", d: toJimmy, label: "🥊 Spar with Jimmy", hint: "Rookie, Contender or Champion: a best-of-three bout with no purse and no record", run: () => interactBridge.current?.useProp("ring_jimmy") });
         for (const [id, front, label, hint] of [
           ["heavy_bag", HEAVY_BAG_FRONT, "🥊 Hit the Heavy Bag", "A flurry on the bag: good for the soul"],
           ["speed_bag", SPEED_BAG_FRONT, "🥊 Work the Speed Bag", "Rat-a-tat-tat"],
