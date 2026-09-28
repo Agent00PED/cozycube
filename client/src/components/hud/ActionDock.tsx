@@ -12,6 +12,9 @@ import { APPROACH_POINTS, isWaterable, mochiSpot } from "@shared/props";
 import { BOARD_REACH, BOUTIQUE, BOUTIQUE_REACH, KITCHEN_REACH, MOCHI_REACH, PLANT_REACH, RADIO_REACH, SEAT_REACH } from "@shared/worlds/lounge";
 import { BAR_REACH, BLACKJACK_TABLES, CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, GACHAPON_FRONT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, ROULETTE_BET_RADIUS, ROULETTE_CENTER, TIP_JARS, VIP_DOORS_FRONT, ZARA_FRONT, barDistance, nearGameTable, seatedGameOf, type CasinoGameTable } from "@shared/worlds/casino";
 import { VIP_ARRIVAL } from "@shared/worlds/casino_vip";
+import { CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG_FRONT, RING_CORNERS, SPEED_BAG_FRONT, WEIGH_SCALE_FRONT } from "@shared/worlds/boxing_ring";
+import { CORNER_NAME, GLOVES, WARMUP_S } from "@shared/boxing";
+import { getBout } from "../../systems/boutStore";
 import { isTouchUi } from "../../systems/inputMode";
 import { BAR_SNACK, CAPSULE_COST, DEALER_TIP, TABLE_LIMITS, chipText, isNpcOccupant, isVaultSlot, slotLimit, type CasinoPacket } from "@shared/casino";
 import { VIP_PASS, VIP_WRISTBAND } from "@shared/items";
@@ -74,6 +77,11 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🕶️ Penthouse]  at Bruno's gilded doors on the stage: up in the elevator with a VIP pass, or
 //                    [🎫 VIP Pass] to buy one; in the penthouse, [🛗 Back Down] at the elevator
 //   [🚪 Leave Casino]  at the exit doors: the world drawer
+//   [🥊 Enter the Red Corner] / [🥊 Enter the Blue Corner]  at the foot of a corner's steps in the
+//                    Velvet Ring (a corner taken, or a bout on: greyed out, saying so)
+//   [🎟️ Ringside Betting]  at the ringside chalkboard: the bout, the pools, the odds, a ticket
+//   [🐶 Talk to Coach Bruno]  at the pro shop's counter: the gloves, your record, the rules
+//   [🥊 Hit the Heavy Bag] / [🥊 Work the Speed Bag] / [⚖️ Weigh In]  at the gym's fixtures
 //   [🧍 Stand up · Space]  while you are sitting, always (a panel closed, a reconnect: never stuck);
 //                    Space or any movement key does the same
 //
@@ -130,6 +138,10 @@ interface Action {
     | "travel"
     | "slingshot"
     | "split"
+    | "ring"
+    | "chalkboard"
+    | "coach"
+    | "gym"
     | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
@@ -157,7 +169,11 @@ const E_PRIORITY: Partial<Record<Action["type"], number>> = {
   capsule: 1,
   vip: 1,
   tip: 1,
+  coach: 1,
   workbench: 2,
+  ring: 2,
+  chalkboard: 2,
+  gym: 2,
   split: 2,
   slingshot: 2,
   board: 2,
@@ -199,6 +215,11 @@ function pickE(actions: readonly Action[]): Action | null {
     if (!best || rank < bestRank || (rank === bestRank && (a.d ?? 0) < (best.d ?? 0))) best = a;
   }
   return best;
+}
+
+/** The gloves laced for the next bout, from a synced fighter's record (PlayerState.boxing). */
+function parseWorn(boxing: string): keyof typeof GLOVES {
+  return /"worn":"tiger"/.test(boxing) ? "tiger" : "red";
 }
 
 /** The split wood in a synced camp profile (PlayerState.fishing). */
@@ -423,6 +444,42 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
             if (Math.hypot(a.x - px, a.z - pz) > ANIMAL_REACH + 0.3) continue;
             found.push({ key: `feed:${a.propId}`, type: "critter", label: a.kind === "deer" ? "🦌 Feed the Deer" : "🐇 Feed the Rabbits", hint: "A berry or a mushroom from your forage bag", run: () => interactBridge.current?.useProp(a.propId) });
           }
+        }
+      }
+      // the Velvet Ring: the corner steps (step in as Red or Blue), the chalkboard, Coach Bruno, the gym
+      if (mapId === "boxing_ring" && !sitting && !player.corner) {
+        const px = cameraFocus.x;
+        const pz = cameraFocus.z;
+        const bout = getBout();
+        for (const c of ["red", "blue"] as const) {
+          const k = RING_CORNERS[c];
+          const d = Math.min(Math.hypot(k.foot.x - px, k.foot.z - pz), Math.hypot(k.steps.x - px, k.steps.z - pz));
+          if (d > CORNER_REACH + 0.4) continue;
+          const holder = bout[c].name;
+          const busy = bout.phase !== "open";
+          const id = c === "red" ? "ring_red" : "ring_blue";
+          const gloves = GLOVES[parseWorn(player.boxing)];
+          found.push({
+            key: `corner:${c}:${holder}:${busy}`,
+            type: "ring",
+            d,
+            disabled: !!holder || busy,
+            label: holder ? `🥊 ${holder} holds the ${c === "red" ? "Red" : "Blue"} Corner` : busy ? "🔔 A bout is on" : `🥊 Enter the ${CORNER_NAME[c]}`,
+            hint: holder || busy ? "One bout at a time: grab a seat or a ticket at the chalkboard" : `Step up the steps in your ${gloves.name}: a ${WARMUP_S}s warm-up once both corners are filled, then the bell`,
+            run: () => interactBridge.current?.useProp(id),
+          });
+        }
+        const toBoard = Math.hypot(CHALKBOARD_FRONT.x - px, CHALKBOARD_FRONT.z - pz);
+        if (toBoard <= CHALKBOARD_REACH + 0.4) found.push({ key: "chalkboard", type: "chalkboard", d: toBoard, label: "🎟️ Ringside Betting", hint: "The contenders, the pools and the live odds: back a corner during the warm-up", run: () => interactBridge.current?.useProp("ring_chalkboard") });
+        const toCoach = Math.hypot(COACH_FRONT.x - px, COACH_FRONT.z - pz);
+        if (toCoach <= COACH_REACH + 0.4) found.push({ key: "coach", type: "coach", d: toCoach, label: "🐶 Talk to Coach Bruno", hint: "Gloves, your record, the belt and the rules of the ring", run: () => interactBridge.current?.useProp("coach_bruno") });
+        for (const [id, front, label, hint] of [
+          ["heavy_bag", HEAVY_BAG_FRONT, "🥊 Hit the Heavy Bag", "A flurry on the bag: good for the soul"],
+          ["speed_bag", SPEED_BAG_FRONT, "🥊 Work the Speed Bag", "Rat-a-tat-tat"],
+          ["weigh_scale", WEIGH_SCALE_FRONT, "⚖️ Weigh In", "Your weight class, and the record the hall knows you by"],
+        ] as const) {
+          const d = Math.hypot(front.x - px, front.z - pz);
+          if (d <= GYM_REACH + 0.2) found.push({ key: id, type: "gym", d, label, hint, run: () => interactBridge.current?.useProp(id) });
         }
       }
       // the Velvet Casino: Mr. Vance's cage, the slot row, the roulette and blackjack tables, the doors
@@ -712,7 +769,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
   if (actions.length === 0) return null;
   const eKey = pickE(actions)?.key;
   return (
-    <div style={dockStyle} role="toolbar" aria-label="Actions">
+    <div className="action-dock" style={dockStyle} role="toolbar" aria-label="Actions">
       {actions.map((a) => (
         <button key={a.key} type="button" className={a.disabled ? undefined : "cozy-action"} style={a.disabled ? busyStyle : actionStyle} onClick={a.run} disabled={a.disabled} aria-disabled={a.disabled} title={a.hint}>
           {a.label}

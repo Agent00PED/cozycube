@@ -13,6 +13,12 @@ import { modelUrl } from "../assetVersion";
 
 export const AVATAR_URL = modelUrl("avatar.glb");
 export const MOCHI_URL = modelUrl("cat.glb");
+/** The Velvet Ring's boxing gloves (scripts/blender/build_boxing_ring.py): Glove_<red|tiger>_<L|R>,
+ *  each at the hand, knuckles down the arm. */
+export const GLOVES_URL = modelUrl("boxing_gloves.glb");
+/** Where a glove hangs on ArmL / ArmR (the arm's own frame, its pivot at the shoulder): the hand
+ *  (build_avatar.py HAND_Z below SHOULDER). */
+export const GLOVE_HAND = { x: 0, y: -0.245, z: 0.004 };
 
 /** Avatar nodes the runtime animates. Every one must exist; pivots sit at the joint. */
 export const AVATAR_NODES = {

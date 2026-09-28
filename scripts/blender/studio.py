@@ -12,6 +12,7 @@ every time (exec, never import), so a long-lived Live Bridge session always runs
     Studio_Forest     (120, 0)  the Whispering Woods diorama; Bramble the bear and the fish (every
                                 species on its stand, in rows) in front of it, and the wild
                                 critters (the rabbit, the squirrel and the deer) beside Bramble
+    Studio_Boxing     (160, 0)  the Velvet Ring; the boxing gloves and Coach Bruno in front of it
     Studio_Wardrobe   (0, 30)   the avatar in every outfit (client/src/entities/rig.ts
                                 OUTFIT_PARTS), 2 m apart along x: the built rig first (the starter
                                 hoodie), then a linked copy per outfit (its meshes shared)
@@ -31,7 +32,7 @@ import bpy
 from mathutils import Vector
 
 MASTER = os.path.join("models", "master_world.blend")
-WORLDS = {"Lounge": (0.0, 0.0), "Campfire": (40.0, 0.0), "Casino": (80.0, 0.0), "Forest": (120.0, 0.0), "Wardrobe": (0.0, 30.0)}
+WORLDS = {"Lounge": (0.0, 0.0), "Campfire": (40.0, 0.0), "Casino": (80.0, 0.0), "Forest": (120.0, 0.0), "Boxing": (160.0, 0.0), "Wardrobe": (0.0, 30.0)}
 WARDROBE_STEP = 2.0
 # Where each builder's collections go: their world, and either "world" (the diorama's own origin on
 # the world's corner of the grid) or the point their bounding box is centred on, from the world's.
@@ -51,6 +52,9 @@ PLACES = {
     "Bramble": ("Forest", (-4.0, -16.0)),
     "Fish": ("Forest", (5.0, -17.0)),
     "Critters": ("Forest", (-9.0, -16.0)),
+    "BoxingRing": ("Boxing", "world"),
+    "BoxingGloves": ("Boxing", (-3.0, -14.0)),
+    "CoachBruno": ("Boxing", (1.0, -14.0)),
 }
 # The casino's staff and regulars (build_casino_staff.py), in a line after Mr. Vance.
 for _k, _name in enumerate(("Boris", "Vivienne", "Jasper", "Pippin", "Bruno", "Cedric", "Gideon", "Scarlett", "Baron", "Penelope")):

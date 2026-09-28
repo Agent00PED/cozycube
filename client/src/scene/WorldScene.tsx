@@ -20,6 +20,10 @@ import { preloadPatrons } from "../entities/AmbientPatrons";
 import { BAR_REACH, BIG_SIX, BIG_SIX_SPOTS, BILLIARDS_HX, BILLIARDS_HZ, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, TABLE_FULL_LINE, barDistance, casinoFloorY, seatedGameAt, seatedGameOf, tablePerimeter, type StandingTable } from "@shared/worlds/casino";
 import { VIP_FRAME } from "@shared/worlds/casino_vip";
 import { ChloeMaid, preloadChloe } from "../entities/ChloeMaid";
+import { BOXING_RING_URL, BoxingWorld, COACH_BRUNO_URL } from "./BoxingWorld";
+import { GLOVES_URL } from "../entities/rig";
+import { COACH_BRUNO } from "@shared/worlds/boxing_ring";
+import { combatInput } from "../systems/combatInput";
 import { pushToast } from "../components/hud/toastStore";
 import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { LoungeWorld } from "./LoungeWorld";
@@ -39,7 +43,8 @@ import type { FloatingEmote } from "../entities/Avatar";
 // The scene root: the world and everything alive in it.
 //
 //   - warm ambient light and the sky for the hour
-//   - the world itself (the lounge, the campfire, the casino; the other five are still an empty floor)
+//   - the world itself (the lounge, the campfire and its woods, the casino, the Velvet Ring; the other
+//     four are still an empty floor)
 //   - seats and interactive props, drawn from the server's synced state
 //   - you (LocalPlayerAvatar) and everyone else (OtherPlayers)
 //   - click-to-move: the floor, a seat or Mochi is a walk order, and seats and props act on arrival
@@ -92,7 +97,7 @@ function SceneLighting({ timeOfDay, weather, camp, indoor }: { timeOfDay: TimeOf
 const FLOOR = matte("#8b8f86", 0.85);
 const SLAB = matte("#4a3a2c", 0.85);
 
-/** The other five worlds: a bare floor and a sign, until each is rebuilt. */
+/** The other four worlds: a bare floor and a sign, until each is rebuilt. */
 function EmptyWorld({ mapId, onFloorClick }: { mapId: MapId; onFloorClick: (x: number, z: number) => void }) {
   const half = MAP_HALF[mapId];
   return (
@@ -256,9 +261,15 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       preloadCasinoStaff();
       preloadPatrons();
     }, 7000);
+    const ring = window.setTimeout(() => {
+      useGLTF.preload(BOXING_RING_URL);
+      useGLTF.preload(COACH_BRUNO_URL);
+      useGLTF.preload(GLOVES_URL);
+    }, 9000);
     return () => {
       window.clearTimeout(campfire);
       window.clearTimeout(casino);
+      window.clearTimeout(ring);
     };
   }, []);
 
@@ -336,6 +347,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   live.current = { room, me, chairs, toggleables, localSessionId, mapId };
 
   const walkTo = useCallback((x: number, z: number, then?: Pick<MoveTarget, "seatId" | "propId">) => {
+    // a fighter in the ring moves with the keys or the joystick: a left click there is a Jab
+    if (combatInput.active) return;
     const { room, me } = live.current;
     if (me?.sitting) room?.send("standUp"); // the queued walk carries on once you are up
     targetRef.current = { x, z, ...then };
@@ -527,6 +540,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         <ForestWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} trees={trees} worldEvent={worldEvent} subscribeMessages={subscribeMessages} onUseProp={activate} />
       ) : casino ? (
         <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} up={up} />
+      ) : mapId === "boxing_ring" ? (
+        <BoxingWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} />
       ) : (
         <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />
       )}
@@ -595,6 +610,19 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={prop} size={[3.4, 1.3, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "plant" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.75, 1.4, 0.75]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "ringcorner" ? (
+          // the Velvet Ring: the corner steps, the chalkboard, Coach Bruno at his counter, the gym's fixtures
+          <PropPad key={prop.propId} prop={prop} size={[1.0, 1.1, 1.0]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "chalkboard" ? (
+          <PropPad key={prop.propId} prop={prop} size={[1.3, 1.9, 0.6]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "coach" ? (
+          <PropPad key={prop.propId} prop={{ ...prop, x: COACH_BRUNO.x, z: COACH_BRUNO.z, y: COACH_BRUNO.y }} size={[0.9, 1.4, 0.9]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "heavybag" ? (
+          <PropPad key={prop.propId} prop={{ ...prop, y: 0.5 }} size={[0.55, 1.3, 0.55]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "speedbag" ? (
+          <PropPad key={prop.propId} prop={{ ...prop, y: prop.y - 0.1 }} size={[0.6, 0.6, 0.6]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "scale" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.7, 1.6, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "boutique" ? (
           // Chloe, and her cheval mirror: a click on either opens the wardrobe
           <PropPad key={prop.propId} prop={prop} size={prop.propId === "boutique_mirror" ? [0.9, 1.8, 0.5] : [0.7, 1.3, 0.7]} onUse={() => activate(prop.propId)} />

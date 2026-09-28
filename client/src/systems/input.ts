@@ -1,8 +1,10 @@
-// Continuous movement input: WASD / arrow keys on a keyboard. They write a screen-space vector
-// here; the movement hook turns it into a world direction relative to the isometric camera every
-// frame. A plain module object, like cameraFocus: it changes many times a second and nothing about
-// it belongs in React state. (Touch has no stick: a tap on the floor walks you there, and a tap on
-// a seat, a prop or a person walks you up to it and uses it, the scene's raycast either way.)
+// Continuous movement input: WASD / arrow keys on a keyboard, and on a touch screen the floating
+// joystick (components/hud/TouchControls.tsx: a thumb put down in the screen's lower-left). They
+// write screen-space vectors here; the movement hook turns them into a world direction relative to
+// the isometric camera every frame. Plain module objects, like cameraFocus: they change many times
+// a second and nothing about them belongs in React state. A tap on the floor still walks you there,
+// and a tap on a seat, a prop or a person walks you up to it and uses it (the scene's raycast):
+// the joystick takes over only once the thumb drags.
 
 export const moveInput = {
   /** Screen-space direction, -1..1 on each axis (x right, y up), length <= 1. */
@@ -17,17 +19,38 @@ export const moveInput = {
 const RIGHT = { x: Math.SQRT1_2, z: -Math.SQRT1_2 };
 const UP = { x: -Math.SQRT1_2, z: -Math.SQRT1_2 };
 
-/** The current input as a world-space direction (unit length or shorter), or null when idle. */
-export function worldMoveDirection(): { x: number; z: number; strength: number } | null {
-  if (!moveInput.active) return null;
-  const len = Math.hypot(moveInput.x, moveInput.y);
-  if (len < 0.05) return null;
-  const sx = moveInput.x;
-  const sy = moveInput.y;
+/** The touch joystick's thumb: a screen-space direction (-1..1, y up), `active` once it drags past
+ *  its dead zone, `held` while a thumb is on it at all (a second finger is then not a pinch). */
+export const stickInput = {
+  x: 0,
+  y: 0,
+  active: false,
+  held: false,
+};
+
+/** The screen-space direction held right now (the keys first, then the joystick), or null. */
+export function heldScreenDirection(): { x: number; y: number } | null {
+  if (moveInput.active) return { x: moveInput.x, y: moveInput.y };
+  if (stickInput.active) return { x: stickInput.x, y: stickInput.y };
+  return null;
+}
+
+/** A screen-space direction as a world one (unit length). */
+export function screenToWorld(sx: number, sy: number): { x: number; z: number } {
   const x = RIGHT.x * sx + UP.x * sy;
   const z = RIGHT.z * sx + UP.z * sy;
   const n = Math.hypot(x, z) || 1;
-  return { x: x / n, z: z / n, strength: Math.min(1, len) };
+  return { x: x / n, z: z / n };
+}
+
+/** The current input as a world-space direction (unit length or shorter), or null when idle. */
+export function worldMoveDirection(): { x: number; z: number; strength: number } | null {
+  const held = heldScreenDirection();
+  if (!held) return null;
+  const len = Math.hypot(held.x, held.y);
+  if (len < 0.05) return null;
+  const w = screenToWorld(held.x, held.y);
+  return { x: w.x, z: w.z, strength: Math.min(1, len) };
 }
 
 const keys = new Set<string>();

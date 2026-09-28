@@ -71,7 +71,7 @@ export function Modal({
   const round = cozy ? "rounded-[20px]" : "rounded-3xl";
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex justify-center ${cozy ? "bg-[#1C1614]/60" : "bg-black/45"} ${landscape ? "items-center p-2" : "items-end sm:items-center sm:p-4"}`} style={SAFE_AREA} onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
+    <div className={`ui-modal fixed inset-0 z-[60] flex justify-center ${cozy ? "bg-[#1C1614]/60" : "bg-black/45"} ${landscape ? "items-center p-2" : "items-end sm:items-center sm:p-4"}`} style={SAFE_AREA} onPointerDown={(e) => e.target === e.currentTarget && onClose()} role="presentation">
       <div
         role="dialog"
         aria-label={title}

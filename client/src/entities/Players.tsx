@@ -10,6 +10,8 @@ import { faceHeading } from "../systems/faceTargets";
 import { liveMotion, type MotionSample } from "../systems/liveMotion";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
 import { Avatar, type FloatingEmote } from "./Avatar";
+import { getBout } from "../systems/boutStore";
+import { beltUntilOf } from "@shared/boxing";
 
 // The people in the scene: your own avatar, driven by the locomotion hook, and every other
 // connected player, eased toward the position the server relays. Both are the same Avatar
@@ -81,6 +83,11 @@ function avatarProps(player: PlayerState, feed: CrowdFeed) {
     rodAura: player.fishing.includes('"rod":"starlight"'),
     title: player.title,
     aura: player.aura,
+    // the Velvet Ring: the gloves while in it, the fighter's state (their own subscription), and the
+    // Velvet Championship Belt over the name while it is worn
+    sessionId: player.sessionId,
+    gloves: player.corner ? player.gloves || "red" : "",
+    champion: beltUntilOf(player.boxing) > Date.now(),
   };
 }
 
@@ -102,6 +109,8 @@ const INTERP_DELAY_MS = 120;
 const MAX_COAST_MS = 100;
 const SNAP_DISTANCE = 4; // a bigger jump is a teleport (a map change, standing up): don't glide across the room
 const FULL_SPEED = 3; // units/s, the walking speed
+/** How much faster than a walk a step may look (bunched reports) and still be coasted on. */
+const MAX_WALK_OVER = 2.5;
 const HEIGHT_LERP = 0.2;
 const TURN_LERP = 0.22;
 
@@ -111,6 +120,9 @@ function sampleAt(samples: MotionSample[], t: number): { x: number; z: number } 
   if (t >= last.t) {
     const prev = samples[samples.length - 2];
     if (!prev || last.t - prev.t <= 0) return last;
+    // a step no walk could make (the server setting someone down: a corner of the ring, a
+    // knockback, a slip) is never coasted on: they would be drawn metres past where they landed
+    if (Math.hypot(last.x - prev.x, last.z - prev.z) / ((last.t - prev.t) / 1000) > FULL_SPEED * MAX_WALK_OVER) return last;
     const ahead = Math.min(t - last.t, MAX_COAST_MS) / (last.t - prev.t);
     return { x: last.x + (last.x - prev.x) * ahead, z: last.z + (last.z - prev.z) * ahead };
   }
@@ -168,8 +180,12 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
     const speed = p.sitting || delta <= 0 ? 0 : Math.min(1, moved / delta / FULL_SPEED);
     speedRef.current += (speed - speedRef.current) * 0.3;
 
+    const foe = p.corner && feed.mapId === "boxing_ring" ? fighterFoe(p.sessionId) : undefined;
     if (p.sitting) d.facing = p.sitRotationY;
-    else if (moved <= 0.002) {
+    else if (foe && Math.hypot(foe.x - d.x, foe.z - d.z) > 0.05) {
+      // a fighter squares up to the other one, whichever way they step
+      d.facing = turn(d.facing, Math.atan2(foe.x - d.x, foe.z - d.z), TURN_LERP);
+    } else if (moved <= 0.002) {
       // standing still with something to face (the plant being watered): turn to it
       const heading = faceHeading(p.sessionId, d.x, d.z);
       if (heading !== null) d.facing = turn(d.facing, heading, TURN_LERP);
@@ -181,6 +197,14 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
 
   return <Avatar ref={groupRef} speedRef={speedRef} {...avatarProps(player, feed)} />;
 });
+
+/** Where the fighter `sessionId` is up against stands now (undefined: not in a bout). */
+function fighterFoe(sessionId: string): { x: number; z: number } | undefined {
+  const b = getBout();
+  const other = b.red.sessionId === sessionId ? b.blue.sessionId : b.blue.sessionId === sessionId ? b.red.sessionId : "";
+  const at = other ? liveMotion.get(other) : undefined;
+  return at ? { x: at.x, z: at.z } : undefined;
+}
 
 /** Everyone else in the room: the remote half of the Colyseus player map. */
 export function OtherPlayers({ players, localSessionId, feed }: { players: Record<string, PlayerState>; localSessionId: string | null; feed: CrowdFeed }) {

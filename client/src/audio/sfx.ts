@@ -112,7 +112,17 @@ export type Sfx =
   // a crisp wooden impact (a gallery target struck); the splitting block's clean split and its glance
   | "woodHit"
   | "bigSplit"
-  | "glance";
+  | "glance"
+  // the Velvet Ring's: a jab's snap, a heavy hook's thud, a punch into the guard, a Perfect Parry's
+  // golden ding, the timekeeper's bell, a slip's whoosh, a fighter hitting the canvas, the ropes
+  | "jab"
+  | "hook"
+  | "blocked"
+  | "parry"
+  | "bell"
+  | "whoosh"
+  | "fall"
+  | "ropes";
 
 /** A sound from somewhere in the world, heard from where you stand: full up close, fading with
  *  distance (and never quite gone within the room). */
@@ -351,6 +361,43 @@ export function playSfx(kind: Sfx, volume = 1) {
   } else if (kind === "gallop") {
     // clockwork hooves: a quick run of clicks
     for (let i = 0; i < 6; i++) noise(c, t + i * 0.09 + (i % 2) * 0.03, 0.03, 0.12, 2600);
+  } else if (kind === "jab") {
+    // leather on a jaw: a quick smack and a thump
+    noise(c, t, 0.04, 0.4, 1400);
+    tone(c, t, 150, 70, 0.1, 0.2, "sine");
+  } else if (kind === "hook") {
+    // a heavy hook: a deep thud, a slap on top, a grunt of air
+    tone(c, t, 110, 45, 0.22, 0.32, "sine");
+    noise(c, t, 0.07, 0.45, 900);
+    noise(c, t + 0.03, 0.18, 0.08, 400);
+  } else if (kind === "blocked") {
+    // into the gloves: a muffled pat
+    noise(c, t, 0.05, 0.22, 600);
+    tone(c, t, 200, 120, 0.07, 0.1, "sine");
+  } else if (kind === "parry") {
+    // a Perfect Parry: a bright golden ding over a swish
+    noise(c, t, 0.08, 0.1, 5000);
+    [1319, 1976, 2637].forEach((f, i) => tone(c, t + 0.02 + i * 0.015, f, f, 0.7, 0.06 - i * 0.012, "sine"));
+  } else if (kind === "bell") {
+    // the timekeeper's bell: three rings of a brass gong
+    [0, 0.34, 0.68].forEach((d) => {
+      [932, 2331, 3542].forEach((f, i) => tone(c, t + d, f, f * 0.998, 1.1 - i * 0.3, 0.07 - i * 0.02, "sine"));
+      noise(c, t + d, 0.03, 0.12, 4200);
+    });
+  } else if (kind === "whoosh") {
+    // a slip, a swing through the air
+    noise(c, t, 0.18, 0.1, 1800);
+    noise(c, t + 0.04, 0.12, 0.06, 3200);
+  } else if (kind === "fall") {
+    // a fighter hits the canvas: a heavy thump, the boards answering
+    tone(c, t, 90, 40, 0.35, 0.35, "sine");
+    noise(c, t, 0.2, 0.2, 300);
+    tone(c, t + 0.12, 70, 40, 0.2, 0.12, "sine");
+  } else if (kind === "ropes") {
+    // into the ropes: a creak and a springy twang
+    tone(c, t, 95, 70, 0.4, 0.12, "sawtooth");
+    tone(c, t, 190, 150, 0.3, 0.05, "triangle");
+    noise(c, t, 0.12, 0.1, 700);
   } else if (kind === "pluck") {
     // picking: a soft snap and a bright blip
     noise(c, t, 0.05, 0.12, 3500);

@@ -13,7 +13,7 @@ const ART: Record<MapId, { sky: string; ground: string; props: string[] }> = {
   sunset_beach: { sky: "from-orange-300 to-fuchsia-400", ground: "bg-yellow-200", props: ["🌴", "🍹", "🏄", "🐚"] },
   velvet_casino: { sky: "from-rose-950 to-red-900", ground: "bg-red-900", props: ["🎰", "🎡", "🃏", "🥂"] },
   casino_vip: { sky: "from-stone-950 to-amber-900", ground: "bg-stone-900", props: ["🥂", "🃏", "🎫", "🌃"] },
-  boxing_ring: { sky: "from-slate-700 to-slate-900", ground: "bg-red-800", props: ["🥊", "🔔", "🏆", "🐦"] },
+  boxing_ring: { sky: "from-indigo-950 to-rose-950", ground: "bg-[#6e1a2a]", props: ["🥊", "🔔", "🏆", "🎟️"] },
   japanese_onsen: { sky: "from-pink-200 to-emerald-200", ground: "bg-emerald-700", props: ["♨️", "🌸", "🍵", "🏮"] },
   retro_arcade: { sky: "from-fuchsia-800 to-indigo-950", ground: "bg-indigo-900", props: ["🕹️", "🔮", "🧸", "👾"] },
   gaming_cafe: { sky: "from-cyan-800 to-slate-900", ground: "bg-slate-700", props: ["🖥️", "🍜", "🎧", "⌨️"] },

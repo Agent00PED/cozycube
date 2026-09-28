@@ -14,7 +14,7 @@ import { START_COINS, type WardrobeTier } from "./economy";
 export type SitPose = "sit" | "lie" | "dangle" | "cross";
 /** "jar": a glass jar of fireflies caught at the campfire, glowing in the left hand. */
 export type HeldItem = "" | "coffee" | "marshmallow" | "skewer" | "jar";
-/** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is a boxing knockdown. */
+/** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is stunned in the ring. */
 /** "rest": sitting at a fishing spot with the rod stowed and a warm mug, the creel full. */
 export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar" | "stargaze" | "chop" | "rest";
 
@@ -71,10 +71,12 @@ export interface PlayerState {
   stats: string;
   /** Round-trip latency to the server in ms, as the client last measured it. */
   ping: number;
-  /** Boxing: wearing the big gloves (inside the ring), hits taken this round, knockdowns scored. */
-  gloves: boolean;
-  boxHits: number;
-  boxKOs: number;
+  /** The Velvet Ring: the corner this player fights from while they are in the ring ("" outside it:
+   *  a spectator), and the gloves they wear there (shared/boxing.ts GloveId). */
+  corner: string;
+  gloves: string;
+  /** Their fighter's record (a BoxingProfile as JSON, shared/boxing.ts): wins, streak, the belt. */
+  boxing: string;
   /** A temporary glow from a drink: a blended drink's colour, a casino drink ("casino:fizz",
    *  "casino:martini", "casino:espresso"), or "" for none. */
   aura: string;
@@ -290,8 +292,8 @@ export interface LoungeInfo {
 }
 
 /** The hour a world keeps whatever the lounge's clock says: the campfire is always a starlit night,
- *  and the casino's floors never see the sun. */
-export const MAP_SIGNATURE_TIME: Partial<Record<MapId, TimeOfDay>> = { campfire_night: "night", velvet_casino: "night", casino_vip: "night" };
+ *  and the casino's floors and the Velvet Ring's fight nights never see the sun. */
+export const MAP_SIGNATURE_TIME: Partial<Record<MapId, TimeOfDay>> = { campfire_night: "night", velvet_casino: "night", casino_vip: "night", boxing_ring: "night" };
 
 /** Shared lighting mood. Purely presentational, but synced so the room reads the same for everyone. */
 export type TimeOfDay = "sunrise" | "day" | "sunset" | "night";
@@ -358,7 +360,17 @@ export type ToggleableKind =
   | "tree"
   | "ranger"
   | "animal"
+  | RingPropKind
   | CasinoPropKind;
+
+/** The Velvet Ring's props (shared/worlds/boxing_ring.ts): the corner steps (step in as Red or
+ *  Blue), the ringside chalkboard (the bets), Coach Bruno's pro shop, the heavy bag, the speed bag
+ *  and the balance-beam scale. */
+export type RingPropKind = "ringcorner" | "chalkboard" | "coach" | "heavybag" | "speedbag" | "scale";
+const RING_PROP_KINDS: ReadonlySet<string> = new Set<RingPropKind>(["ringcorner", "chalkboard", "coach", "heavybag", "speedbag", "scale"]);
+export function isRingProp(kind: string): kind is RingPropKind {
+  return RING_PROP_KINDS.has(kind);
+}
 
 /** The Velvet Casino's props (shared/worlds/casino.ts): the slot row, Mr. Vance's cage, the exit
  *  doors, the game tables (walking up to one opens its panel: the wheel, blackjack, poker, baccarat,
@@ -446,13 +458,16 @@ export const SYSTEM_EMOJI = ["🥂", "💤", "💃", "🪙", "💰", "🎰", "�
  * on its own when something happens (SERVER_GESTURES): watering a plant, reaching over the board
  * to make a move.
  */
-export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss", "belly", "trophy"] as const;
+export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss", "belly", "trophy", "jab", "hook", "uppercut", "slipL", "slipR", "slipB", "bag"] as const;
 export type Gesture = (typeof GESTURES)[number];
-export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8, belly: 2.6, trophy: 2.4 };
-export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪", belly: "😋", trophy: "🏆" };
+export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8, belly: 2.6, trophy: 2.4, jab: 0.4, hook: 0.75, uppercut: 0.45, slipL: 0.45, slipR: 0.45, slipB: 0.45, bag: 2.4 };
+export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪", belly: "😋", trophy: "🏆", jab: "👊", hook: "🥊", uppercut: "💥", slipL: "💨", slipR: "💨", slipB: "💨", bag: "🥊" };
 /** Gestures only the server starts (a client asking for one is ignored): "trophy" is the catch held
- *  high over the head for a new personal best. */
-export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net", "toss", "trophy"]);
+ *  high over the head for a new personal best; the ring's punches and slips, and a flurry on the gym's
+ *  heavy bag ("bag"), are the Velvet Ring's (shared/boxing.ts). */
+export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net", "toss", "trophy", "jab", "hook", "uppercut", "slipL", "slipR", "slipB", "bag"]);
+/** The ring's gestures, played even while the fighter moves (the others wait for them to stand still). */
+export const FIGHT_GESTURES: ReadonlySet<Gesture> = new Set(["jab", "hook", "uppercut", "slipL", "slipR", "slipB"]);
 export function isGesture(v: unknown): v is Gesture {
   return typeof v === "string" && (GESTURES as readonly string[]).includes(v);
 }
@@ -538,15 +553,7 @@ export function encodeBag(bag: Bag): string {
     .join(",");
 }
 
-// --- boxing ring ---
-export const BOXING_RING = { x: 0, z: 0, half: 3.2, height: 0.5 };
-export const BOXING_REACH = 1.7;
-export const PUNCH_COOLDOWN_MS = 650;
-export const BOXING_KNOCKDOWN_HITS = 3;
-export const BOXING_DIZZY_S = 3;
-export const BOXING_BOUT_KOS = 2;
-export const BOXING_PURSE = 20;
-export const BOXING_TIP = 5;
+// (the Velvet Ring's rules: shared/boxing.ts)
 
 // --- japanese onsen ---
 export const ONSEN_POOL = { x0: -3.4, x1: 3.4, z0: -2.6, z1: 2.6, depth: 0.42 };
@@ -1126,6 +1133,7 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "tree" ||
     kind === "ranger" ||
     kind === "animal" ||
+    isRingProp(kind) ||
     isCasinoProp(kind)
   );
 }
@@ -1146,7 +1154,7 @@ export function usableSeated(kind: ToggleableKind): boolean {
 
 // --- world sizes ---
 /** Half-width of each diorama slab. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, whispering_woods: 12, boxing_ring: 12, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, whispering_woods: 12, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
 export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 

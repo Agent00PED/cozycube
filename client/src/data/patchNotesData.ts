@@ -1,5 +1,5 @@
 // CozyCube's patch notes, as the in-game Patch Notes panel shows them (PatchNotesModal): the whole
-// history of the Activity in six eras, from the first lounge to the living, weathered world, each
+// history of the Activity in seven eras, from the first lounge to the living, weathered world, each
 // patch's changes grouped under four badges. Newest last within an era; the panel opens on the
 // newest era. Plain data: adding a patch is adding an entry (and bumping the client's version).
 
@@ -24,7 +24,7 @@ export interface PatchNote {
 }
 
 export interface PatchEra {
-  /** 1 to 6. */
+  /** 1 to 7. */
   era: number;
   name: string;
   /** Its first and last versions, as the timeline labels them. */
@@ -306,7 +306,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 6,
     name: "The Living World & Atmosphere Sync",
-    range: "v0.6.0 – v0.6.9",
+    range: "v0.6.0 – v0.6.15",
     icon: "🌦️",
     blurb: "Skies that follow the hour and the weather, a surer step between worlds, and a new heart for the lounge.",
     patches: [
@@ -705,6 +705,53 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           fixes: [
             "The penthouse's walk-up seating now reaches its poker and baccarat seats.",
+          ],
+        },
+      },
+    ],
+  },
+  {
+    era: 7,
+    name: "Fight Nights at the Velvet Ring",
+    range: "v0.7.0",
+    icon: "🥊",
+    blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
+    patches: [
+      {
+        version: "0.7.0",
+        date: "2026-09-29",
+        title: "The Velvet Ring",
+        summary: "The Boxing Gym becomes the Velvet Ring: a brick-and-parquet fight hall with a raised canvas under a dome lamp, a server-judged brawler of jabs, hooks, guards, parries and slips, knockdowns and the ten-count, ringside betting on the chalkboard, Coach Bruno's pro shop, the Velvet Championship Belt, and a floating joystick on every map.",
+        changes: {
+          features: [
+            "The Velvet Ring is open on the fast-travel grid: step up the Red or Blue corner's steps to fight. When both corners are filled, a 20-second warm-up opens the betting, then the bell: up to three 45-second rounds.",
+            "Two gauges: Stamina (swings and the guard spend it, it comes back fast; swing with too little and your punches go slow and soft) and Composure (a clean punch takes it away, and it doesn't come back during a round).",
+            "Jab (quick, cheap, and it knocks a Heavy Hook out of its wind-up), Heavy Hook (hard, drives them toward the ropes), Guard (75% less damage; raise it just as a punch lands for a Perfect Parry, a golden flash, and a free Counter Uppercut), and Sway (a slip that nothing touches).",
+            "Knockdowns: at zero composure you hit the canvas and Coach Bruno counts to ten. Mash to get up (the second knockdown is much harder to beat); a third is a T.K.O.",
+            "Ring-Outs: with little composure left and your back on the ropes, one Heavy Hook sends you through them.",
+            "Ringside betting at the chalkboard in the lounge: back Red or Blue during the warm-up, pari-mutuel, with the live odds chalked up for the room.",
+            "Coach Bruno's pro shop: the Tiger Stripe Mitts, your record, the belt and the rules of the ring. The heavy bag, the speed bag and the balance-beam scale in the gym are yours to use.",
+            "The Velvet Championship Belt: win three bouts in a row and it shines over your name for 24 hours.",
+            "A floating joystick on every map on phones and tablets: put your thumb down in the screen's lower left and drag. A tap there still walks you to the spot or up to a seat or a prop.",
+            "In the ring on a touch screen: a combat cluster at the bottom right (Jab, and round it Block, Heavy Hook and Dodge, each with its cooldown sweeping round it). On a keyboard and mouse: left click Jab, right click Heavy Hook, Space Guard, R with WASD to Sway.",
+          ],
+          visuals: [
+            "Warm red brick over oak wainscoting, steel sash windows onto a starry night, burgundy velvet drapes, aged herringbone parquet and black-and-white tiles, and a yellow neon THE VELVET RING over the lockers.",
+            "A cream canvas with a faded gold star, padded Red, Blue and neutral corners, ropes that bow and spring back when a fighter is driven into them, and the dome lamp's beam with chalk dust drifting through it.",
+            "Boxing gloves on your hands in the ring, a fighter's stance, guards, punches and slips, stars when you're stunned, and a flat-out fall on the canvas.",
+            "Coach Bruno, the casino's bouncer by night, in his burgundy hoodie with a whistle and a mouthguard: he calls every round and every count.",
+            "A ringside crowd that roars at the big punches, the timekeeper's bell, and a thud for every jab and hook.",
+          ],
+          economy: [
+            "A win pays a 30-coin purse (six purses an hour).",
+            "Bets are 50 to 300 coins, one ticket a bout. Winners share the losers' pool; the house keeps 5% of the winnings.",
+            "The Tiger Stripe Mitts: 850 coins at Coach Bruno's, and every jab costs 10% less stamina. The Classic Red Gloves are free.",
+          ],
+          fixes: [
+            "Fair fights: a bout decided in under 15 seconds, or one whose loser never threw a punch, is a No Contest. Nothing is paid and every ticket comes back.",
+            "A fighter whose connection drops mid-bout has 5 seconds to come back while the bout waits; after that it's a forfeit. A server restart mid-bout is a No Contest.",
+            "Spectators can't walk onto the canvas: only fighters stepping in at the corners can.",
+            "Other players no longer overshoot on your screen when the server moves them in a single step.",
           ],
         },
       },

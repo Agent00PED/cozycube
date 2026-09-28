@@ -219,13 +219,6 @@ import {
   type PlantPacket,
   type PlantWatered,
   type RadioPacket,
-  BOXING_BOUT_KOS,
-  BOXING_DIZZY_S,
-  BOXING_KNOCKDOWN_HITS,
-  BOXING_PURSE,
-  BOXING_REACH,
-  BOXING_RING,
-  BOXING_TIP,
   CLAW_COST,
   CLAW_WIN_COINS,
   DAILY_REWARD,
@@ -240,7 +233,6 @@ import {
   MOCHI_ACTION_COOLDOWN_S,
   MOCHI_SCRITCH_COINS,
   ONSEN_SOAK_S,
-  PUNCH_COOLDOWN_MS,
   REEL_SECONDS,
   STARTER_OUTFITS,
   VIBE_COINS,
@@ -263,6 +255,7 @@ import {
   HIDDEN_MAPS,
   isBlacklisted,
   isOutfitId,
+  isRingProp,
   toStoredLook,
   type DailyTaskId,
   type SlingshotResult,
@@ -277,6 +270,9 @@ import {
 } from "../../../shared/types";
 import { CASINO_EMOTES, auraPace, capsuleUnlock, netWorth, type BlackjackAction, type CashierRequest, type CasinoPacket } from "../../../shared/casino";
 import { CasinoFloor, RouletteSchema } from "./casino";
+import { BoutSchema, BoxingRing } from "./boxing";
+import type { BoxingPacket } from "../../../shared/boxing";
+import { clampToRing } from "../../../shared/worlds/boxing_ring";
 import { getWipeAt } from "../db/players";
 import { BUILD_ID } from "../build";
 
@@ -322,9 +318,12 @@ class Player extends Schema {
   @type("string") status = "";
   @type("string") stats = JSON.stringify(DEFAULT_STATS);
   @type("number") ping = 0;
-  @type("boolean") gloves = false;
-  @type("number") boxHits = 0;
-  @type("number") boxKOs = 0;
+  /** The Velvet Ring: the corner fought from while in the ring ("" outside it), the gloves worn
+   *  there, and the fighter's record (shared/boxing.ts BoxingProfile as JSON; the record's copy is
+   *  the one kept). */
+  @type("string") corner = "";
+  @type("string") gloves = "";
+  @type("string") boxing = "";
   @type("string") aura = "";
   /** A capsule title worn over the name (shared/casino.ts CAPSULE_PRIZES), "" for none. */
   @type("string") title = "";
@@ -411,6 +410,8 @@ class HangoutState extends Schema {
   @type("string") market = "";
   /** Forest Whisper Incense burning at the bonfire: rare-fish luck for everyone until (epoch ms). */
   @type("number") incenseUntil = 0;
+  /** The Velvet Ring's bout (server/src/rooms/boxing.ts): its phase, clock, fighters and bets. */
+  @type(BoutSchema) bout = new BoutSchema();
 }
 
 const CHAT_COOLDOWN_MS = 1200;
@@ -542,8 +543,6 @@ export class HangoutRoom extends Room<HangoutState> {
   private slingRounds = new Map<string, { seed: number; startedAt: number; paid: boolean }>();
   private slingPaidAt = new Map<string, number[]>();
   private lastChopAt = new Map<string, number>();
-  private lastPunchAt = new Map<string, number>();
-  private dizzyUntil = new Map<string, number>();
   private auraUntil = new Map<string, number>();
   private vibeAt = new Map<string, number>();
   private soakSeconds = new Map<string, number>();
@@ -554,6 +553,8 @@ export class HangoutRoom extends Room<HangoutState> {
   /** When each player's account was made (the Pioneer set's eligibility). */
   private createdAt = new Map<string, number>();
   private board = new BoardTable();
+  /** The Velvet Ring's bout (created with the state, in onCreate). */
+  private boxing!: BoxingRing;
   /** The casino's tables and Mr. Vance's cage (server/src/rooms/casino.ts), built with the state. */
   private casino!: CasinoFloor;
   /** When each player last poured a drink at the kitchenette. */
@@ -642,6 +643,43 @@ export class HangoutRoom extends Room<HangoutState> {
         this.auraUntil.set(sessionId, Date.now() + seconds * 1000);
       },
     });
+    this.boxing = new BoxingRing(this.state.bout, {
+      player: (sessionId) => this.state.players.get(sessionId),
+      toMap: (type, payload) => this.toMap("boxing_ring", type, payload),
+      shout: (type, payload) => this.broadcast(type, payload),
+      sendTo: (sessionId, type, payload) => this.sendTo(sessionId, type, payload),
+      place: (sessionId, x, z, holdMs) => {
+        const player = this.state.players.get(sessionId);
+        if (!player) return;
+        player.x = x;
+        player.z = z;
+        player.dirX = 0;
+        player.dirZ = 0;
+        // their own reports (walked before the move reached them) are not believed for a moment
+        this.lastReportAt.delete(sessionId);
+        this.arrivedUntil.set(sessionId, Date.now() + holdMs);
+      },
+      gesture: (sessionId, gesture) => this.playGesture(sessionId, gesture),
+      emote: (sessionId, emoji) => this.nearby(sessionId, "emote", { sessionId, emoji }),
+      addCoins: (sessionId, amount) => {
+        const player = this.state.players.get(sessionId);
+        if (player) this.addCoins(player, amount);
+      },
+      profile: (sessionId) => this.records.get(sessionId)?.boxing,
+      saveProfile: (sessionId) => {
+        const player = this.state.players.get(sessionId);
+        const record = this.records.get(sessionId);
+        if (!player || !record) return;
+        player.boxing = JSON.stringify(record.boxing);
+        this.persist(sessionId, player, true);
+      },
+      tally: (sessionId, knockout) => {
+        const player = this.state.players.get(sessionId);
+        if (!player) return;
+        if (knockout) this.bumpStat(player, "boxing_knockouts");
+        this.daily(sessionId, player, "win_boxing");
+      },
+    });
     this.autoDispose = false; // `autoDispose` is an accessor on the base Room class — assign, don't redeclare as a field.
     // NOTE: do not reassign `this.roomId` here — it breaks Colyseus's internal room
     // registry/dispose bookkeeping. "1 Discord guild = 1 room" is achieved via
@@ -700,7 +738,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // faced (moving, or standUp, gets you up again)
     this.onMessage("groundSit", (client, msg: { rotationY?: number }) => {
       const player = this.state.players.get(client.sessionId);
-      if (!player || player.sitting || player.action !== "" || player.gloves) return;
+      if (!player || player.sitting || player.action !== "" || player.corner) return;
       const heading = Number(msg?.rotationY);
       player.sitting = true;
       player.sitPose = "cross";
@@ -849,11 +887,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // --- fishing: hook the bite, then settle the tension game ---
     this.onMessage("hook", (client) => this.handleHook(client.sessionId));
     this.onMessage("catch_fish", (client, msg: { result: string; quality?: number }) => this.handleCatchFish(client.sessionId, msg?.result === "caught", Number(msg?.quality ?? 0)));
-    // --- boxing ---
-    this.onMessage("boxing_enter", (client) => this.handleBoxingEnter(client.sessionId));
-    this.onMessage("boxing_exit", (client) => this.handleBoxingExit(client.sessionId));
-    this.onMessage("boxing_punch", (client, msg: { target: string }) => this.handlePunch(client.sessionId, String(msg?.target ?? "")));
-    this.onMessage("toss_coin", (client, msg: { to: string }) => this.handleTossCoin(client.sessionId, String(msg?.to ?? "")));
+    // --- the Velvet Ring: punches, guards, slips, the count's taps, the bets, the gloves ---
+    this.onMessage("boxing", (client, packet: BoxingPacket) => this.boxing.packet(client.sessionId, packet));
     // --- onsen ---
     this.onMessage("splash", (client) => this.handleSplash(client.sessionId));
     this.onMessage("make_wish", (client) => this.handleWish(client.sessionId));
@@ -912,7 +947,7 @@ export class HangoutRoom extends Room<HangoutState> {
     } catch {
       record.daily = null;
     }
-    const signature = `${record.coins}|${player.chips}|${player.title}|${player.vipPass}|${player.vipWristbands}|${record.casino.fortuneDay}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}`;
+    const signature = `${record.coins}|${player.chips}|${player.title}|${player.vipPass}|${player.vipWristbands}|${record.casino.fortuneDay}|${player.fishing}|${player.owned}|${player.look}|${player.stats}|${player.daily}|${record.mochiCoinsDay}|${record.plantsWatered.day}:${record.plantsWatered.ids.join(",")}|${Object.values(record.campfireCoins).join(":")}|${record.lastDailyClaim?.getTime() ?? 0}|${player.boxing}`;
     if (signature === this.savedSignature.get(sessionId) && !now) return;
     this.savedSignature.set(sessionId, signature);
     this.queue.mark(record);
@@ -1067,68 +1102,6 @@ export class HangoutRoom extends Room<HangoutState> {
     player.action = "fish";
     player.actionProgress = 0;
     this.fishBiteAt.set(sessionId, Date.now() + randomBiteDelay());
-  }
-
-  // --- boxing --------------------------------------------------------------------------------
-
-  private inRing(p: Player): boolean {
-    return Math.abs(p.x - BOXING_RING.x) < BOXING_RING.half && Math.abs(p.z - BOXING_RING.z) < BOXING_RING.half;
-  }
-
-  private handleBoxingEnter(sessionId: string) {
-    const player = this.state.players.get(sessionId);
-    if (!player || player.map !== "boxing_ring" || player.sitting) return;
-    if (!this.inRing(player)) return;
-    player.gloves = true;
-    player.boxHits = 0;
-    player.boxKOs = 0;
-    this.nearby(sessionId, "emote", { sessionId, emoji: "🥊" });
-  }
-
-  private handleBoxingExit(sessionId: string) {
-    const player = this.state.players.get(sessionId);
-    if (!player) return;
-    player.gloves = false;
-    player.boxHits = 0;
-    player.boxKOs = 0;
-  }
-
-  private handlePunch(sessionId: string, targetId: string) {
-    const me = this.state.players.get(sessionId);
-    const target = this.state.players.get(targetId);
-    if (!me || !target || sessionId === targetId || me.map !== target.map) return;
-    if (!me.gloves || !target.gloves || me.action === "dizzy" || target.action === "dizzy") return;
-    if (Math.hypot(me.x - target.x, me.z - target.z) > BOXING_REACH + 0.6) return;
-    const now = Date.now();
-    if (now - (this.lastPunchAt.get(sessionId) ?? 0) < PUNCH_COOLDOWN_MS) return;
-    this.lastPunchAt.set(sessionId, now);
-    target.boxHits += 1;
-    this.nearby(sessionId, "punch", { from: sessionId, to: targetId, hits: target.boxHits });
-    if (target.boxHits >= BOXING_KNOCKDOWN_HITS) {
-      target.boxHits = 0;
-      target.action = "dizzy";
-      this.dizzyUntil.set(targetId, now + BOXING_DIZZY_S * 1000);
-      me.boxKOs += 1;
-      this.nearby(targetId, "emote", { sessionId: targetId, emoji: "💫" });
-      if (me.boxKOs >= BOXING_BOUT_KOS) {
-        this.addCoins(me, BOXING_PURSE);
-        this.bumpStat(me, "boxing_knockouts");
-        this.daily(sessionId, me, "win_boxing");
-        this.nearby(sessionId, "boxingResult", { winner: sessionId, winnerName: me.username, loser: targetId, loserName: target.username, purse: BOXING_PURSE });
-        this.nearby(sessionId, "emote", { sessionId, emoji: "🏆" });
-        me.boxKOs = 0;
-        target.boxKOs = 0;
-      }
-    }
-  }
-
-  private handleTossCoin(sessionId: string, to: string) {
-    const from = this.state.players.get(sessionId);
-    const target = this.state.players.get(to);
-    if (!from || !target || from === target || from.map !== target.map || !target.gloves || from.coins < BOXING_TIP) return;
-    from.coins -= BOXING_TIP;
-    this.addCoins(target, BOXING_TIP);
-    this.nearby(to, "emote", { sessionId: to, emoji: "🪙" });
   }
 
   // --- onsen ---------------------------------------------------------------------------------
@@ -1743,11 +1716,7 @@ export class HangoutRoom extends Room<HangoutState> {
         this.bumpStat(player, "time_spent_mins", VIBE_EVERY_MIN);
         this.sendTo(sessionId, "vibe", { coins, party: here >= VIBE_PARTY_SIZE });
       }
-      // knockdowns wear off; drink auras fade; a fish on the line gets away if nobody reels
-      if (player.action === "dizzy" && now >= (this.dizzyUntil.get(sessionId) ?? 0)) {
-        this.clearAction(player);
-        player.boxHits = 0;
-      }
+      // drink auras fade; a fish on the line gets away if nobody reels
       if (player.aura && now >= (this.auraUntil.get(sessionId) ?? 0)) player.aura = "";
       const line = this.hooked.get(sessionId);
       if (line && now >= line.until) this.handleCatchFish(sessionId, false, 0);
@@ -1867,6 +1836,8 @@ export class HangoutRoom extends Room<HangoutState> {
     this.tickTrees(now);
     this.tickWonder(now);
     if (this.occupied("velvet_casino") || this.occupied("casino_vip")) this.casino.tick(dt);
+    // the Velvet Ring's bout (its clocks run whoever is watching: a fighter away holds it)
+    this.boxing.tick(dt);
     // the hour rolls over: the camp's market opens fresh
     const market = parseMarket(this.state.market, now);
     if (JSON.stringify(market) !== this.state.market) this.state.market = JSON.stringify(market);
@@ -3825,9 +3796,12 @@ export class HangoutRoom extends Room<HangoutState> {
     if (typeof x !== "number" || typeof z !== "number") return;
     if (!Number.isFinite(x) || !Number.isFinite(z)) return;
 
+    // a fighter walks only inside the ropes, and not at all while down on the canvas
+    const fighter = player.corner !== "" && player.map === "boxing_ring";
+    if (fighter && sessionId && this.boxing.pinned(sessionId)) return;
     // (kept on the floor the player stands on: the casino's hall and penthouse are joined only by
     // Bruno's doors, never by a walk)
-    const kept = clampToRegion(player.map, player.x, player.z, x, z);
+    const kept = fighter ? clampToRing(x, z) : clampToRegion(player.map, player.x, player.z, x, z);
     let goalX = kept.x;
     let goalZ = kept.z;
 
@@ -3859,8 +3833,13 @@ export class HangoutRoom extends Room<HangoutState> {
       goalZ = player.z + (dz / dist) * allowed;
     }
 
-    // Only a position properly inside furniture (or out in the sea) is refused.
-    if (!isBlocked(goalX, goalZ, player.map, SANITY_RADIUS)) {
+    // Only a position properly inside furniture (or out in the sea) is refused (a fighter stands on
+    // the ring, which is furniture to everyone else: the ropes, clampToRing above, are theirs).
+    if (fighter) {
+      const inside = clampToRing(goalX, goalZ);
+      player.x = inside.x;
+      player.z = inside.z;
+    } else if (!isBlocked(goalX, goalZ, player.map, SANITY_RADIUS)) {
       player.x = goalX;
       player.z = goalZ;
     }
@@ -3884,7 +3863,8 @@ export class HangoutRoom extends Room<HangoutState> {
     if (this.roasts.has(sessionId)) this.finishRoast(sessionId, player, "raw");
     if (player.action === "chop") this.cancelFell(sessionId, player);
     this.splits.delete(sessionId);
-    if (player.gloves) this.handleBoxingExit(sessionId);
+    // out of the ring (mid-bout, a forfeit)
+    this.boxing.leave(sessionId, "travel");
     this.soakSeconds.delete(sessionId);
     this.hooked.delete(sessionId);
     this.pendingFish.delete(sessionId);
@@ -4012,6 +3992,8 @@ export class HangoutRoom extends Room<HangoutState> {
     const player = this.state.players.get(client.sessionId);
     const chair = this.state.chairs.get(chairId);
     if (!player || !chair || chair.map !== player.map) return;
+    // a fighter sits only on their corner's stool between rounds (the ring puts them there)
+    if (player.corner) return;
 
     if (player.sitting) {
       if (chair.occupiedBy === client.sessionId) this.handleStandUp(client.sessionId);
@@ -4035,7 +4017,6 @@ export class HangoutRoom extends Room<HangoutState> {
   /** Sits a player on a (free) chair: the chair is theirs, and they settle into it. */
   private seatPlayer(sessionId: string, player: Player, chair: ChairState) {
     if (player.action === "brew") this.clearAction(player);
-    if (player.gloves) this.handleBoxingExit(sessionId); // gloves come off to sit down
     chair.occupiedBy = sessionId;
     player.sitting = true;
     this.settleInSeat(player, chair);
@@ -4051,6 +4032,8 @@ export class HangoutRoom extends Room<HangoutState> {
     const player = this.state.players.get(sessionId);
     const prop = this.state.toggleables.get(propId);
     if (!player || !prop || prop.map !== player.map) return;
+    // in the ring, a fighter's hands are in gloves (they leave through the HUD)
+    if (player.corner) return;
 
     const kind = prop.kind as ToggleableKind;
     // Lights, the TV and the campfire work from across the room — that's what makes them feel
@@ -4065,6 +4048,11 @@ export class HangoutRoom extends Room<HangoutState> {
       if (Math.hypot(player.x - at.x, player.z - at.z) > INTERACT_RADIUS) return;
     }
 
+    // the Velvet Ring's corners, chalkboard, Coach Bruno and the gym's fixtures
+    if (isRingProp(kind)) {
+      this.boxing.useProp(sessionId, prop.propId);
+      return;
+    }
     // the casino's tables, machines, jars and set dressing (the slots, the cage and the doors below)
     if (isCasinoProp(kind) && kind !== "slot" && kind !== "cashier" && kind !== "portal") {
       this.casino.useProp(sessionId, prop);
@@ -4499,6 +4487,7 @@ export class HangoutRoom extends Room<HangoutState> {
     record.daily = daily;
     player.daily = JSON.stringify(daily);
     player.fishing = JSON.stringify(record.fishing);
+    player.boxing = JSON.stringify(record.boxing);
     player.fed = Math.max(0, Math.ceil((record.fishing.fedUntil - Date.now()) / 1000));
     this.vibeAt.set(client.sessionId, Date.now());
     this.records.set(client.sessionId, record);
@@ -4598,8 +4587,10 @@ export class HangoutRoom extends Room<HangoutState> {
     this.lastNetAt.delete(sessionId);
     this.lastTreatAt.delete(sessionId);
     this.hooked.delete(sessionId);
-    // Bets on the wheel and an unfinished blackjack hand come back, in chips.
+    // Bets on the wheel and an unfinished blackjack hand come back, in chips; a ticket on the bout,
+    // in coins (and a fighter's bout is forfeit).
     this.casino.release(sessionId);
+    this.boxing.leave(sessionId, "gone");
     if (player.userId) this.wallets.set(player.userId, { coins: player.coins, bag: player.bag, owned: player.owned });
     // Flush straight to the database: nothing pending may be lost with the player gone.
     this.persist(sessionId, player, true);
@@ -4635,6 +4626,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // of chess survives the blip. Only if they do not come back in time are they got up.
     this.persist(sessionId, player, true);
     player.connected = false;
+    // a fighter's bout waits a moment for them (then it is a forfeit)
+    this.boxing.dropped(sessionId);
     try {
       const back = await this.allowReconnection(client, RECONNECT_WINDOW_S);
       if (this.state.players.get(sessionId) !== player) {
@@ -4642,6 +4635,7 @@ export class HangoutRoom extends Room<HangoutState> {
         return;
       }
       player.connected = true;
+      this.boxing.back(sessionId);
       this.welcomeBack(back);
     } catch {
       if (this.state.players.get(sessionId) !== player) return;
@@ -4690,6 +4684,8 @@ export class HangoutRoom extends Room<HangoutState> {
       record.fishing = oldRecord.fishing;
       record.campfireCoins = oldRecord.campfireCoins;
       record.casino = oldRecord.casino;
+      record.boxing = oldRecord.boxing;
+      player.boxing = JSON.stringify(record.boxing);
       player.coins = old.coins;
       player.chips = old.chips;
       player.vipPass = old.vipPass;
@@ -4710,8 +4706,10 @@ export class HangoutRoom extends Room<HangoutState> {
     });
     const seated = this.board.transfer(oldId, sessionId);
     // bets on the wheel and a hand at the blackjack table move over before the old session goes
-    // (removing it would hand them back to a player about to vanish)
+    // (removing it would hand them back to a player about to vanish); a corner in the ring and a
+    // ticket on the bout too
     this.casino.transfer(oldId, sessionId);
+    this.boxing.transfer(oldId, sessionId);
     this.removePlayer(oldId); // quietly: the chair and the seat have already moved on
     return seated;
   }
@@ -4744,6 +4742,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // is back, or asks its player to start the Activity afresh if new client code is live
     // (client/src/systems/lifecycle.ts); never a reload of Discord's frame
     this.broadcast("server_restarting", { inS: 3 });
+    // a bout in the Velvet Ring stops as a No Contest (every ticket back), not a string of forfeits
+    this.boxing.abandon();
     this.boardFrozen = true;
     void this.writeBoard().finally(() => super.onBeforeShutdown());
   }

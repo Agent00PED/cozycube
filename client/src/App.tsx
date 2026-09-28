@@ -78,6 +78,10 @@ import { WoodCarrierModal } from "./components/hud/WoodCarrierModal";
 import { CampfireStatus } from "./components/hud/CampfireStatus";
 import { useAnglerProfile } from "./components/hud/anglerStore";
 import { BoxingHud } from "./components/hud/BoxingHud";
+import { RingsideModal } from "./components/hud/RingsideModal";
+import { ProShopModal } from "./components/hud/ProShopModal";
+import { TouchControls } from "./components/hud/TouchControls";
+import type { BoutResult } from "@shared/boxing";
 import { installKeyboard } from "./systems/input";
 import {
   ACHIEVEMENTS,
@@ -295,10 +299,7 @@ export default function App() {
     arcadeScore,
     hook,
     catchFish,
-    boxingEnter,
-    boxingExit,
-    punch,
-    tossCoin,
+    boxingSend,
     splash,
     makeWish,
     matchaWhisk,
@@ -619,11 +620,19 @@ export default function App() {
           pushToast("The plant is happy and hydrated!", { emoji: "🌿" });
         } else if (type === "mochiResult") {
           setMochiResult(payload as { action: MochiAction; coins: number; cooldown: boolean });
-        } else if (type === "boxingResult") {
-          const r = payload as { winner: string; winnerName: string; loser: string; loserName: string; purse: number };
-          pushToast(`${r.winnerName} knocked out ${r.loserName}! +${r.purse} purse`, { emoji: "🥊", tone: "win", silent: true });
-        } else if (type === "punch") {
-          const p = payload as { from: string; to: string; hits: number };
+        } else if (type === "boxNotice") {
+          // the Velvet Ring said no, or yes (a ticket in, gloves bought): its own panels say so there
+          const n = payload as { message?: string; emoji?: string; ok?: boolean };
+          if (panelKindRef.current !== "ringside" && panelKindRef.current !== "proshop") pushToast(String(n?.message ?? ""), { emoji: n?.emoji ?? "🥊", tone: n?.ok ? "win" : undefined });
+        } else if (type === "boxBelt") {
+          // a belt won: the whole room hears of it, wherever they are
+          const b = payload as { name: string; sessionId: string };
+          if (b.sessionId === localIdRef.current) playSfx("jackpot");
+          pushToast(b.sessionId === localIdRef.current ? "Three in a row: the Velvet Championship Belt is yours for 24 hours!" : `${b.name} won the Velvet Championship Belt at the Velvet Ring!`, { emoji: "🏆", tone: "win" });
+        } else if (type === "boxResult") {
+          const r = payload as BoutResult;
+          const me = localIdRef.current ? allPlayersRef.current[localIdRef.current] : undefined;
+          if (me && r.winner && r.winnerName === me.username) pushToast(r.purse > 0 ? `You win by ${r.method === "decision" ? "decision" : "knockout"}! +${r.purse} coins purse` : "You win! (no purse left this hour)", { emoji: "🏆", tone: "win" });
         } else if (type === "dailyComplete") {
           pushToast(`Daily checklist done! +${(payload as { coins: number }).coins} coins`, { emoji: "📋", tone: "win" });
         } else if (type === "vibe") {
@@ -881,12 +890,15 @@ export default function App() {
               onHook={hook}
               onSplash={splash}
             />
-            {currentMap === "boxing_ring" && <BoxingHud me={localPlayer} players={players} onPunch={punch} onExit={boxingExit} onToss={tossCoin} />}
             <ActionDock player={localPlayer} players={players} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} hearth={hearth} machines={machines} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} onCampfire={campfireSend} onCasino={casinoSend} />
           </div>
         )}
 
         {currentMap === "campfire_night" && localPlayer && !mapTransitioning && <CampfireStatus hearth={hearth} fed={localPlayer.fed} />}
+        {/* the Velvet Ring: the scoreboard, a fighter's controls, the count, the result */}
+        {currentMap === "boxing_ring" && localPlayer && localSessionId && !mapTransitioning && <BoxingHud me={localPlayer} localSessionId={localSessionId} send={boxingSend} subscribeMessages={subscribeMessages} />}
+        {/* the floating joystick, on every map, on a touch screen */}
+        <TouchControls enabled={!mapTransitioning} />
 
         {showRoulette && localPlayer && localSessionId && (
           <RoulettePanel
@@ -1102,6 +1114,8 @@ export default function App() {
         {panel?.kind === "finley" && localPlayer && <BarnabyModal keeper="finley" profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
+        {panel?.kind === "ringside" && localPlayer && localSessionId && <RingsideModal localSessionId={localSessionId} coins={localPlayer.coins} send={boxingSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "proshop" && localPlayer && <ProShopModal boxing={localPlayer.boxing} coins={localPlayer.coins} inRing={!!localPlayer.corner} send={boxingSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
 
         {wardrobeOpen && localPlayer && (
           <WardrobeModal

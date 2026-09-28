@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { emptyFishingProfile, sanitizeFishingProfile, type FishingProfile } from "../../../shared/fishing";
 import { retiredGearRefund } from "../../../shared/gear";
 import { emptyCasinoProfile, netWorth, sanitizeCasinoProfile, type CasinoProfile } from "../../../shared/casino";
+import { emptyBoxingProfile, sanitizeBoxingProfile, type BoxingProfile } from "../../../shared/boxing";
 import { CAMPFIRE_DAILY_COINS, DEFAULT_STATS, STARTER_UNLOCKS, STARTING_COINS, isBlacklisted, type CampfireCoinKind, type DailyChecklist, type PlayerStats } from "../../../shared/types";
 
 /** The campfire coins earned on `day`, by activity. */
@@ -44,6 +45,8 @@ export interface PlayerRecord {
   fishing: FishingProfile;
   /** Velvet Chips (stats JSON "casino"); a record saved before the casino opened reads as 0. */
   casino: CasinoProfile;
+  /** The Velvet Ring's fighter record (stats JSON "boxing"): wins, the streak, the belt, the gloves. */
+  boxing: BoxingProfile;
   lastDailyClaim: Date | null;
   /** When the account was made (the Velvet Pioneer set is for accounts from before the wipe). */
   createdAt: Date | null;
@@ -67,7 +70,7 @@ export interface PlayerStore {
 }
 
 export function newPlayerRecord(discordId: string, username: string): PlayerRecord {
-  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: emptyCampfireCoins(""), fishing: emptyFishingProfile(), casino: emptyCasinoProfile(), lastDailyClaim: null, createdAt: new Date() };
+  return { discordId, username, coins: STARTING_COINS, unlockedItems: [...STARTER_UNLOCKS], equippedLook: {}, stats: { ...DEFAULT_STATS }, daily: null, mochiCoinsDay: "", plantsWatered: { day: "", ids: [] }, campfireCoins: emptyCampfireCoins(""), fishing: emptyFishingProfile(), casino: emptyCasinoProfile(), boxing: emptyBoxingProfile(), lastDailyClaim: null, createdAt: new Date() };
 }
 
 /** The table the game keeps its players in since the Phase 3 wipe (the old `players` is the backup). */
@@ -169,6 +172,8 @@ function rowToRecord(row: any): PlayerRecord {
   delete raw.fishing;
   const casino = sanitizeCasinoProfile(raw.casino);
   delete raw.casino;
+  const boxing = sanitizeBoxingProfile(raw.boxing);
+  delete raw.boxing;
   return {
     discordId: row.discord_id,
     username: row.username,
@@ -182,6 +187,7 @@ function rowToRecord(row: any): PlayerRecord {
     campfireCoins,
     fishing,
     casino,
+    boxing,
     lastDailyClaim: row.last_daily_claim ? new Date(row.last_daily_claim) : null,
     createdAt: row.created_at ? new Date(row.created_at) : null,
   };
@@ -189,7 +195,7 @@ function rowToRecord(row: any): PlayerRecord {
 
 /** The stats column carries the checklist, Mochi's coin day, today's watered plants, the camp profile and the casino's chips alongside the counters. */
 function statsColumn(r: PlayerRecord): string {
-  return JSON.stringify({ ...r.stats, daily: r.daily, mochi_coins_day: r.mochiCoinsDay, plants_watered: r.plantsWatered, campfire_coins: r.campfireCoins, fishing: r.fishing, casino: r.casino });
+  return JSON.stringify({ ...r.stats, daily: r.daily, mochi_coins_day: r.mochiCoinsDay, plants_watered: r.plantsWatered, campfire_coins: r.campfireCoins, fishing: r.fishing, casino: r.casino, boxing: r.boxing });
 }
 
 /** A connection pool to the database at `url` (the player store and the board store each keep one). */
@@ -264,11 +270,11 @@ class MemoryStore implements PlayerStore {
   private rows = new Map<string, PlayerRecord>();
   async load(discordId: string) {
     const r = this.rows.get(discordId);
-    return r ? { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins }, casino: { ...r.casino }, fishing: sanitizeFishingProfile(JSON.parse(JSON.stringify(r.fishing))) } : null;
+    return r ? { ...r, unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins }, casino: { ...r.casino }, boxing: sanitizeBoxingProfile(JSON.parse(JSON.stringify(r.boxing))), fishing: sanitizeFishingProfile(JSON.parse(JSON.stringify(r.fishing))) } : null;
   }
   async upsert(r: PlayerRecord) {
     if (isBlacklisted(r.username)) return;
-    this.rows.set(r.discordId, { ...r, createdAt: this.rows.get(r.discordId)?.createdAt ?? r.createdAt ?? new Date(), unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins }, casino: { ...r.casino } });
+    this.rows.set(r.discordId, { ...r, createdAt: this.rows.get(r.discordId)?.createdAt ?? r.createdAt ?? new Date(), unlockedItems: [...r.unlockedItems], stats: { ...r.stats }, equippedLook: { ...r.equippedLook }, daily: r.daily ? JSON.parse(JSON.stringify(r.daily)) : null, plantsWatered: { day: r.plantsWatered.day, ids: [...r.plantsWatered.ids] }, campfireCoins: { ...r.campfireCoins }, casino: { ...r.casino }, boxing: sanitizeBoxingProfile(JSON.parse(JSON.stringify(r.boxing))) });
   }
   async topNetWorth(limit: number) {
     return [...this.rows.values()]

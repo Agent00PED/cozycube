@@ -4,10 +4,11 @@ import { CAMP_OBSTACLES, CAMP_SPAWNS } from "./worlds/campfire";
 import { CASINO_OBSTACLES, CASINO_REGIONS, CASINO_SPAWNS, casinoFloorY } from "./worlds/casino";
 import { VIP_ARRIVAL, VIP_OBSTACLES, VIP_REGION } from "./worlds/casino_vip";
 import { FOREST_OBSTACLES, FOREST_SPAWNS } from "./worlds/forest";
+import { RING_FLOOR_Y, RING_OBSTACLES, RING_SPAWNS, onRing } from "./worlds/boxing_ring";
 
-// Where you can stand. The lounge, the campfire and the casino are authored in shared/worlds/
-// (lounge.ts, campfire.ts, casino.ts); every other world is still an open square floor with one spawn in the middle
-// until it is rebuilt.
+// Where you can stand. The lounge, the campfire, the woods, the casino and the Velvet Ring are
+// authored in shared/worlds/ (lounge.ts, campfire.ts, forest.ts, casino.ts, boxing_ring.ts); every
+// other world is still an open square floor with one spawn in the middle until it is rebuilt.
 
 export interface AABB {
   minX: number;
@@ -56,7 +57,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   velvet_casino: CASINO_OBSTACLES,
   casino_vip: VIP_OBSTACLES,
   whispering_woods: FOREST_OBSTACLES,
-  boxing_ring: open(),
+  boxing_ring: RING_OBSTACLES,
   japanese_onsen: open(),
   retro_arcade: open(),
   gaming_cafe: open(),
@@ -70,7 +71,7 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
   velvet_casino: CASINO_SPAWNS,
   casino_vip: [VIP_ARRIVAL],
   whispering_woods: FOREST_SPAWNS,
-  boxing_ring: centre(),
+  boxing_ring: RING_SPAWNS,
   japanese_onsen: centre(),
   retro_arcade: centre(),
   gaming_cafe: centre(),
@@ -86,9 +87,12 @@ export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boo
 }
 
 /** How high the floor is at (x, z): the casino's raised High-Roller Pit and Velvet Lounge (and the
- *  steps up to them); every other world is flat. Where an avatar's feet go, where a click lands. */
+ *  steps up to them), the Velvet Ring's canvas (only a fighter stands there); every other world is
+ *  flat. Where an avatar's feet go, where a click lands. */
 export function walkY(mapId: MapId, x: number, z: number): number {
-  return mapId === "velvet_casino" ? casinoFloorY(x, z) : 0;
+  if (mapId === "velvet_casino") return casinoFloorY(x, z);
+  if (mapId === "boxing_ring") return onRing(x, z) ? RING_FLOOR_Y : 0;
+  return 0;
 }
 
 /** (x, z) kept on the floor of the region (from, fx, fz) stands in: a step never crosses the void

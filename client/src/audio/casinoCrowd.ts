@@ -29,6 +29,9 @@ const VOWELS: [number, number][] = [
 ];
 
 export class CasinoCrowd {
+  /** The casino's crowd (glasses, chips, far-off slot bells), or the Velvet Ring's (the murmur and
+   *  the glasses, louder, and a roar when a punch lands: `roar`). */
+  constructor(private readonly hall: "casino" | "ring" = "casino") {}
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private level: GainNode | null = null;
@@ -241,12 +244,13 @@ export class CasinoCrowd {
     const ahead = now + 0.1;
     if (now >= this.nextVoice) {
       this.voice(ahead);
-      this.nextVoice = now + 0.12 + Math.random() * 0.45;
+      this.nextVoice = now + (this.hall === "ring" ? 0.08 + Math.random() * 0.3 : 0.12 + Math.random() * 0.45);
     }
     if (now >= this.nextClink) {
       this.clink(ahead);
       this.nextClink = now + 1.6 + Math.random() * 4;
     }
+    if (this.hall === "ring") return;
     if (now >= this.nextChips) {
       this.chips(ahead);
       this.nextChips = now + 1.4 + Math.random() * 3.6;
@@ -256,6 +260,30 @@ export class CasinoCrowd {
       this.nextBell = now + 9 + Math.random() * 14;
     }
   };
+
+  /** The ringside crowd reacting: an "ooh" at a clean hit, a roar at a knockdown or a knockout
+   *  (`size` 0..1): a swell of voices over a wash of noise. */
+  roar(size: number) {
+    const c = this.ctx;
+    if (!c || c.state !== "running" || !this.active || !this.level || !this.noise) return;
+    const at = c.currentTime + 0.02;
+    const len = 0.6 + size * 1.8;
+    const src = c.createBufferSource();
+    src.buffer = this.noise;
+    const f = c.createBiquadFilter();
+    f.type = "bandpass";
+    f.frequency.value = 700 + size * 500;
+    f.Q.value = 0.8;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.05 + size * 0.14, at + 0.08 + size * 0.2);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    src.connect(f).connect(g).connect(this.level);
+    src.start(at, Math.random(), len + 0.1);
+    src.onended = () => (src.disconnect(), f.disconnect(), g.disconnect());
+    const voices = Math.round(4 + size * 14);
+    for (let k = 0; k < voices; k++) this.voice(at + Math.random() * len * 0.6);
+  }
 
   setActive(on: boolean) {
     const c = on ? this.ensure() : this.ctx;

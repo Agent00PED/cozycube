@@ -5,6 +5,7 @@ import { CAMP_PROPS, CAMP_SEATS, lieSeatPose } from "./worlds/campfire";
 import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
 import { VIP_PROPS, VIP_SEATS } from "./worlds/casino_vip";
 import { FOREST_PROPS, FOREST_SEATS } from "./worlds/forest";
+import { RING_PROPS, RING_SEATS } from "./worlds/boxing_ring";
 
 // The per-map tables of things you can sit on and things you can use, with the approach point of
 // each (where you stand to use it, and where you land when you get up). The built worlds' come from
@@ -40,7 +41,8 @@ export interface ToggleableConfig {
 
 const round = (v: number) => Math.round(v * 1000) / 1000;
 
-function casinoSeat(s: (typeof CASINO_SEATS)[number]): ChairConfig {
+/** A seat on a raised floor (the casino's stages, the ring's tiers): its cushion over that floor. */
+function casinoSeat(s: (typeof CASINO_SEATS)[number] | (typeof RING_SEATS)[number]): ChairConfig {
   return {
     propId: s.propId,
     x: round(s.x),
@@ -96,8 +98,10 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     approachZ: s.approachZ,
     sitY: round(seatAnchorY(CUSHIONS[s.cushion])),
   })),
+  // the Velvet Ring: the tiered benches, the Chesterfields, the cocktail stools, the ringside and
+  // judges' chairs, the gym's bench (drawn by boxing_ring.glb; a tier's bench sits that much higher)
+  boxing_ring: RING_SEATS.map(casinoSeat),
   sunset_beach: [],
-  boxing_ring: [],
   japanese_onsen: [],
   retro_arcade: [],
   gaming_cafe: [],
@@ -109,8 +113,8 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
   velvet_casino: CASINO_PROPS,
   casino_vip: VIP_PROPS,
   whispering_woods: FOREST_PROPS,
+  boxing_ring: RING_PROPS,
   sunset_beach: [],
-  boxing_ring: [],
   japanese_onsen: [],
   retro_arcade: [],
   gaming_cafe: [],

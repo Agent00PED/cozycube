@@ -4,7 +4,7 @@ import { Modal } from "./Modal";
 
 // The Patch Notes: CozyCube's whole history, from Settings. A 16:9 landscape sheet in Dark Cozy (a
 // warm oak card on roasted cocoa, vanilla cream headings, oatmeal text, amber accents; Fredoka): on
-// the left the six eras as carved wooden tabs on a timeline, on the right the chosen era's patches,
+// the left the seven eras as carved wooden tabs on a timeline, on the right the chosen era's patches,
 // newest first, each with its changes under four soft badges (new features, visuals, economy,
 // fixes). Only the changelog scrolls; the timeline always fits (on a narrow screen it becomes a strip
 // of era tabs over the changelog).
@@ -16,7 +16,7 @@ const BADGE_TONE: Record<string, string> = {
   fixes: "bg-emerald-400/15 text-emerald-200 border-emerald-300/25",
 };
 /** Each era's medallion, a soft glow of its own. */
-const ERA_TONE = ["bg-[#F5A623]/25", "bg-sky-400/25", "bg-emerald-400/25", "bg-violet-400/25", "bg-rose-400/25", "bg-amber-300/25"];
+const ERA_TONE = ["bg-[#F5A623]/25", "bg-sky-400/25", "bg-emerald-400/25", "bg-violet-400/25", "bg-rose-400/25", "bg-amber-300/25", "bg-red-500/25"];
 
 export function PatchNotesModal({ onClose }: { onClose: () => void }) {
   // the newest era first
@@ -31,7 +31,7 @@ export function PatchNotesModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Patch Notes" icon="📜" onClose={onClose} landscape>
       <div className="flex min-h-0 flex-1 flex-col gap-3 sm:flex-row">
-        {/* ---- the timeline: the six eras, as carved wooden tabs ---- */}
+        {/* ---- the timeline: the seven eras, as carved wooden tabs ---- */}
         <nav aria-label="Eras" className="flex shrink-0 gap-1.5 overflow-x-auto pb-1 sm:w-[250px] sm:flex-col sm:gap-1.5 sm:overflow-visible sm:pb-0">
           {PATCH_ERAS.map((e, i) => {
             const on = i === era;

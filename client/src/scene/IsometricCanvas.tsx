@@ -4,6 +4,8 @@ import * as THREE from "three";
 import { WALL_HEIGHT } from "@shared/worlds/lounge";
 import { cameraFocus, cameraSettings, cameraView, frame } from "./cameraFocus";
 import { useShuttingDown } from "../systems/lifecycle";
+import { stickInput } from "../systems/input";
+import { combatInput } from "../systems/combatInput";
 
 // The isometric camera. Orthographic, looking along (1, 1, 1), with its zoom fitted to the world's
 // floor (the lounge's 15x15 loft, walls and slab fill the viewport), then nudged a little closer.
@@ -141,6 +143,8 @@ function CameraRig() {
     // right or middle button drag: pan. (The left button is click-to-move and belongs to the scene.)
     let dragging: { x: number; y: number } | null = null;
     const onPointerDown = (e: PointerEvent) => {
+      // (in the ring the right button throws the Heavy Hook: no panning then)
+      if (e.button === 2 && combatInput.active) return;
       if (e.button === 1 || e.button === 2) {
         e.preventDefault(); // no middle-click autoscroll
         dragging = { x: e.clientX, y: e.clientY };
@@ -173,7 +177,8 @@ function CameraRig() {
     const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
     const mid = (t: TouchList) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) pinch = { dist: dist(e.touches), zoom: userZoom.current, mid: mid(e.touches) };
+      // (a thumb on the joystick and a finger elsewhere is not a pinch)
+      if (e.touches.length === 2 && !stickInput.held) pinch = { dist: dist(e.touches), zoom: userZoom.current, mid: mid(e.touches) };
     };
     const onTouchMove = (e: TouchEvent) => {
       if (e.touches.length !== 2 || !pinch) return;

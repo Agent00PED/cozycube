@@ -14,12 +14,17 @@ import { Reconciler } from "./reconcile";
 import { WELL_FED_SPEED } from "@shared/fishing";
 import { SMORE_PACE, TORCH_NIGHT_PACE } from "@shared/crafting";
 import { isCampDay } from "@shared/daynight";
+import { clampToRing } from "@shared/worlds/boxing_ring";
+import { getBout } from "./boutStore";
 
 // The local player's locomotion. Three inputs, one controller:
 //   - click-to-move: the scene sets `targetRef` from a floor raycast, and the shared pathfinder
 //     routes round the furniture
 //   - WASD / arrow keys, through worldMoveDirection() (touch has no stick: a tap is a click-to-move)
 //   - arriving on a target sits on its seat or uses its prop
+//   - in the Velvet Ring, a fighter walks only inside the ropes (a click is a straight walk there, no
+//     path round anything), never through the other fighter, not at all while down or stunned, and
+//     always squared up to them
 //
 // The CLIENT is the authority on where you are: every step is collided here with the SAME test
 // the server runs (shared/collision.ts), inside the strict floor bounds (NAV_LIMIT), and the
@@ -46,6 +51,28 @@ const SEND_INTERVAL = 1 / 16;
 const DIR_CHANGE_EPSILON = 0.2;
 const COLLIDE_SUBSTEP = 0.12; // long steps are split so a corner can't be skipped
 const PLAYER_RADIUS = 0.3;
+
+/** How close two fighters' origins come (their bodies just touch). */
+const FIGHTER_GAP = 0.72;
+
+/** A fighter's step: inside the ropes, and never into the other fighter (slid round them). */
+function ringStep(pos: Point, dx: number, dz: number, foe: Point | null) {
+  const next = clampToRing(pos.x + dx, pos.z + dz);
+  if (foe) {
+    const ox = next.x - foe.x;
+    const oz = next.z - foe.z;
+    const d = Math.hypot(ox, oz);
+    if (d < FIGHTER_GAP) {
+      const k = d > 1e-4 ? FIGHTER_GAP / d : 0;
+      const kept = k ? clampToRing(foe.x + ox * k, foe.z + oz * k) : { x: pos.x, z: pos.z };
+      pos.x = kept.x;
+      pos.z = kept.z;
+      return;
+    }
+  }
+  pos.x = next.x;
+  pos.z = next.z;
+}
 
 export interface MoveTarget {
   x: number;
@@ -114,6 +141,9 @@ export function useLocalPlayerMovement(
       return 0;
     }
   }, [player.fishing]);
+  // in the Velvet Ring as a fighter: inside the ropes, squared up to the other fighter
+  const inRingRef = useRef(false);
+  inRingRef.current = !!player.corner && mapId === "boxing_ring";
   const velocityRef = useRef(0);
   const facingRef = useRef(0);
   const sendTimerRef = useRef(0);
@@ -195,7 +225,21 @@ export function useLocalPlayerMovement(
       pos.z += ease.z;
     }
 
-    const steer = worldMoveDirection();
+    // the ring: the other fighter (where they are now), and whether we can move at all
+    const ring = inRingRef.current;
+    let foe: Point | null = null;
+    let frozen = false;
+    if (ring) {
+      const bout = getBout();
+      const mine = bout.red.sessionId === player.sessionId ? bout.red : bout.blue.sessionId === player.sessionId ? bout.blue : null;
+      const theirs = mine === bout.red ? bout.blue : mine === bout.blue ? bout.red : null;
+      const at = theirs?.sessionId ? liveMotion.get(theirs.sessionId) : undefined;
+      if (at && at.map === mapId) foe = { x: at.x, z: at.z };
+      frozen = !!mine && (mine.state === "down" || mine.state === "out" || mine.state === "stun" || mine.state === "stagger");
+    }
+    const step = (dx: number, dz: number) => (ring ? ringStep(pos, dx, dz, foe) : slideStep(pos, dx, dz, mapId));
+
+    const steer = frozen ? null : worldMoveDirection();
 
     // Space, like steering, gets you up from a seat (a click does the same through the scene)
     const standPressed = consumeStandPress();
@@ -210,7 +254,7 @@ export function useLocalPlayerMovement(
       }
     } else {
       // held keys take over from any click-to-move target
-      if (steer && targetRef.current) targetRef.current = null;
+      if ((steer || frozen) && targetRef.current) targetRef.current = null;
       const target = targetRef.current;
       const torch = torchRef.current && isCampMap(mapId) && !isCampDay(Date.now()) ? TORCH_NIGHT_PACE : 1;
       const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * (smoreUntilRef.current > Date.now() ? SMORE_PACE : 1);
@@ -219,10 +263,11 @@ export function useLocalPlayerMovement(
         dirZ = steer.z;
         const cap = pace * (0.35 + 0.65 * steer.strength);
         velocityRef.current = Math.min(cap, velocityRef.current + ACCELERATION * delta);
-        slideStep(pos, dirX * velocityRef.current * delta, dirZ * velocityRef.current * delta, mapId);
+        step(dirX * velocityRef.current * delta, dirZ * velocityRef.current * delta);
         facingRef.current = lerpAngle(facingRef.current, Math.atan2(dirX, dirZ), TURN_LERP);
       } else if (target) {
-        if (!target.path) target.path = findPath(mapId, pos, { x: target.x, z: target.z }) ?? [];
+        // (in the ring: straight there, inside the ropes)
+        if (!target.path) target.path = ring ? [clampToRing(target.x, target.z)] : (findPath(mapId, pos, { x: target.x, z: target.z }) ?? []);
         const path = target.path;
         const waypoint = path[0];
         if (waypoint) {
@@ -235,12 +280,13 @@ export function useLocalPlayerMovement(
             dirZ = dz / distance;
             const cap = isFinal && distance < ARRIVE_RADIUS ? pace * Math.max(0.35, distance / ARRIVE_RADIUS) : pace;
             velocityRef.current = Math.min(cap, velocityRef.current + ACCELERATION * delta);
-            const step = Math.min(velocityRef.current * delta, distance);
+            const stride = Math.min(velocityRef.current * delta, distance);
             const before = { x: pos.x, z: pos.z };
-            slideStep(pos, dirX * step, dirZ * step, mapId);
-            // wedged against something the path didn't expect: re-plan from here
-            if (Math.hypot(pos.x - before.x, pos.z - before.z) < step * 0.05) {
-              target.path = findPath(mapId, pos, { x: target.x, z: target.z }) ?? [];
+            step(dirX * stride, dirZ * stride);
+            // wedged against something the path didn't expect: re-plan from here (in the ring,
+            // against the other fighter: stop there)
+            if (Math.hypot(pos.x - before.x, pos.z - before.z) < stride * 0.05) {
+              target.path = ring ? [] : (findPath(mapId, pos, { x: target.x, z: target.z }) ?? []);
               if (target.path.length === 0) targetRef.current = null;
             }
             facingRef.current = lerpAngle(facingRef.current, Math.atan2(dirX, dirZ), TURN_LERP);
@@ -291,7 +337,10 @@ export function useLocalPlayerMovement(
     // seated, the seat's height; standing, the floor's (the casino's raised pit and lounge, their steps)
     seatYRef.current += ((player.sitting ? player.sitY : walkY(mapId, pos.x, pos.z)) - seatYRef.current) * SEAT_HEIGHT_LERP;
     if (player.sitting) facingRef.current = player.sitRotationY;
-    else if (dirX === 0 && dirZ === 0) {
+    else if (ring && foe && Math.hypot(foe.x - pos.x, foe.z - pos.z) > 0.05) {
+      // squared up to the other fighter, whichever way we step
+      facingRef.current = lerpAngle(facingRef.current, Math.atan2(foe.x - pos.x, foe.z - pos.z), TURN_LERP);
+    } else if (dirX === 0 && dirZ === 0) {
       // standing still with something to face (the plant being watered): turn to it
       const heading = faceHeading(player.sessionId, pos.x, pos.z);
       if (heading !== null) facingRef.current = lerpAngle(facingRef.current, heading, TURN_LERP);

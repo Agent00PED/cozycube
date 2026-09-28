@@ -1,6 +1,6 @@
 import type { AABB } from "../collision";
 import type { CushionId } from "../seats";
-import type { BoardSide, CasinoPropKind } from "../types";
+import type { BoardSide, CasinoPropKind, RingPropKind } from "../types";
 
 // The Loft: the cozy lounge's whole floor plan, authored once.
 //
@@ -252,7 +252,7 @@ export interface PropSpec {
   x: number;
   y?: number;
   z: number;
-  kind: "lamp" | "cat" | "boardgame" | "kitchen" | "radio" | "plant" | "bonfire" | "fishing" | "telescope" | "foraging" | "fireflies" | "critter" | "angler" | "lumberjack" | "workbench" | "boutique" | "archway" | "slingshot" | "splitblock" | "tree" | "ranger" | "animal" | CasinoPropKind;
+  kind: "lamp" | "cat" | "boardgame" | "kitchen" | "radio" | "plant" | "bonfire" | "fishing" | "telescope" | "foraging" | "fireflies" | "critter" | "angler" | "lumberjack" | "workbench" | "boutique" | "archway" | "slingshot" | "splitblock" | "tree" | "ranger" | "animal" | RingPropKind | CasinoPropKind;
   color: string;
   defaultOn: boolean;
   approachX?: number;

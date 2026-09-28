@@ -93,6 +93,9 @@ export const CUSHIONS = {
   ottoman: { y: 0.19, h: 0.38 }, // the foyer's round tufted ottoman -> 0.38
   pianoBench: { y: 0.36, h: 0.06 }, // the grand piano's bench -> 0.39
   chesterfield: { y: 0.3, h: 0.12 }, // the lounge's tufted leather Chesterfield -> 0.36
+  // --- the Velvet Ring's (shared/worlds/boxing_ring.ts; scripts/blender/build_boxing_ring.py reads them) ---
+  bleacher: { y: 0.42, h: 0.06 }, // a tier's bench plank, over the tier it stands on -> 0.45
+  gymBench: { y: 0.42, h: 0.06 }, // the gym's bench, towels folded on it -> 0.45
   // --- anywhere ---
   ground: { y: 0.02, h: 0.04 }, // sitting cross-legged on the grass (the Sit emote) -> 0.04, hips at ~0.14
 } as const satisfies Record<string, Cushion>;

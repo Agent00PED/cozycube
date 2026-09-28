@@ -22,6 +22,10 @@
 //     doors open ground on the hall's stage
 //   - the lounge's Velvet Boutique: Chloe and her mirror stand inside colliders, her counter's spot
 //     in reach of both; the campfire's chalkboard stands in a collider beside Barnaby
+//   - the Velvet Ring: its corners (their steps' feet open, reachable and in reach of the steps;
+//     inside the ropes), the neutral corners inside them, every ring-out landing open floor, Coach
+//     Bruno inside a collider with his counter's spot in reach, the chalkboard's and the gym's spots
+//     in reach, and the ring itself closed to every spectator
 //   - every built world (the fast-travel grid's, and the penthouse) has seats or props
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, walkRegions, worldLimit } from "../shared/collision";
 import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES, MOCHI_WAYPOINTS } from "../shared/props";
@@ -62,6 +66,7 @@ import { VAULT_SLOTS, VIP_ARRIVAL, VIP_NPCS, VIP_SEATS } from "../shared/worlds/
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
+import { CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, NEUTRAL_CORNERS, RING, RING_CORNERS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
 
 const failures: string[] = [];
 const fail = (msg: string) => failures.push(msg);
@@ -345,6 +350,57 @@ for (const mapId of MAP_IDS) {
   standable(Lg, MAP_SPAWN_POINTS[Lg][0], BOUTIQUE.approach, "the boutique's spot");
   checks++;
   if (!isBlocked(BARNABY_BOARD.x, BARNABY_BOARD.z, "campfire_night", 0.05)) fail(`campfire_night: Barnaby's chalkboard stands on open floor ${fmt(BARNABY_BOARD)}: give it a collider`);
+}
+
+// --- the Velvet Ring ---
+{
+  const R: MapId = "boxing_ring";
+  const home = MAP_SPAWN_POINTS[R][0];
+  const near = (label: string, from: Point, to: Point, reach: number) => {
+    checks++;
+    if (Math.hypot(from.x - to.x, from.z - to.z) > reach) fail(`${R}: ${label} ${fmt(from)} is out of reach (${reach}) of ${fmt(to)}`);
+  };
+  for (const c of ["red", "blue"] as const) {
+    const k = RING_CORNERS[c];
+    standable(R, home, k.foot, `the ${c} corner's steps`);
+    near(`the ${c} corner's foot`, k.foot, k.steps, CORNER_REACH);
+    checks++;
+    if (outsideRopes(k.inside.x, k.inside.z, 0.3)) fail(`${R}: the ${c} corner ${fmt(k.inside)} is outside the ropes`);
+  }
+  for (const n of NEUTRAL_CORNERS) {
+    checks++;
+    if (outsideRopes(n.x, n.z, 0.3)) fail(`${R}: the neutral corner ${fmt(n)} is outside the ropes`);
+  }
+  // wherever a fighter is launched through the ropes, they land on open floor
+  for (const side of ["n", "s", "e", "w"] as const) {
+    for (let a = -2.6; a <= 2.6; a += 0.65) {
+      const at = ringOutLanding(side, a);
+      checks++;
+      if (isBlocked(at.x, at.z, R)) fail(`${R}: a ring-out through the ${side} ropes lands inside furniture at ${fmt(at)}`);
+    }
+  }
+  // nobody walks onto the canvas: every point of it is closed to a spectator
+  for (let x = RING.x - RING.rope; x <= RING.x + RING.rope; x += 0.5) {
+    for (let z = RING.z - RING.rope; z <= RING.z + RING.rope; z += 0.5) {
+      checks++;
+      if (!isBlocked(x, z, R)) {
+        fail(`${R}: ${fmt({ x, z })} on the canvas is open to spectators`);
+        x = z = 99;
+      }
+    }
+  }
+  checks++;
+  if (!isBlocked(COACH_BRUNO.x, COACH_BRUNO.z, R, 0.05)) fail(`${R}: Coach Bruno stands on open floor ${fmt(COACH_BRUNO)}: give him a collider`);
+  standable(R, home, COACH_FRONT, "Coach Bruno's counter");
+  near("Coach Bruno's counter spot", COACH_FRONT, { x: COACH_BRUNO.x, z: COACH_FRONT.z }, COACH_REACH);
+  checks++;
+  if (!isBlocked(CHALKBOARD.x, CHALKBOARD.z, R, 0.05)) fail(`${R}: the chalkboard stands on open floor ${fmt(CHALKBOARD)}`);
+  standable(R, home, CHALKBOARD_FRONT, "the chalkboard");
+  near("the chalkboard's spot", CHALKBOARD_FRONT, CHALKBOARD, CHALKBOARD_REACH);
+  for (const [label, front, at] of [["the heavy bag", HEAVY_BAG_FRONT, HEAVY_BAG], ["the speed bag", SPEED_BAG_FRONT, SPEED_BAG_FRONT], ["the scale", WEIGH_SCALE_FRONT, WEIGH_SCALE]] as const) {
+    standable(R, home, front, label);
+    near(`${label}'s spot`, front, at, GYM_REACH + 0.5);
+  }
 }
 
 // --- every built world has something in it ---

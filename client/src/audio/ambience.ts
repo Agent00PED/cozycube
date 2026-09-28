@@ -395,7 +395,13 @@ let campfire: CampfireAmbience | null = null;
 let folk: LoungeFolk | null = null;
 let jazz: CasinoJazz | null = null;
 let crowd: CasinoCrowd | null = null;
+let ringCrowd: CasinoCrowd | null = null;
 let rain: RainAmbience | null = null;
+
+/** The Velvet Ring's crowd reacting (a hit, a knockdown, a knockout), when it is playing. */
+export function ringCrowdRoar(size: number) {
+  ringCrowd?.roar(size);
+}
 
 /** Plays the world's ambience while you are in it: the Cozy Lounge's folk-jazz trio (quiet while the
  *  lounge's radio plays) and the rain on its windows when it rains, the Starlight Campfire's
@@ -432,6 +438,9 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
     }
     jazz?.setActive(casino);
     crowd?.setActive(casino);
+    // the Velvet Ring: its own crowd at ringside (the Casino Crowd fader), and no band
+    if (mapId === "boxing_ring") ringCrowd ??= new CasinoCrowd("ring");
+    ringCrowd?.setActive(mapId === "boxing_ring");
   }, [mapId]);
   useEffect(
     () =>
@@ -440,6 +449,7 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
         folk?.refreshVolume();
         jazz?.refreshVolume();
         crowd?.refreshVolume();
+        ringCrowd?.refreshVolume();
         rain?.refreshVolume();
       }),
     []
@@ -450,6 +460,7 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
       folk?.setActive(false, false);
       jazz?.setActive(false);
       crowd?.setActive(false);
+      ringCrowd?.setActive(false);
       rain?.setActive(false, true);
     },
     []

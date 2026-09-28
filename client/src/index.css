@@ -191,6 +191,20 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
 @keyframes cozy-afk-zzz-kf { 0% { opacity: 0; transform: translate(0, 4px) scale(0.7); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -12px) scale(1.2); } }
 @media (prefers-reduced-motion: reduce) { .cozy-star-aura span { animation: none; opacity: 0.8; } .cozy-afk-pill, .cozy-afk-rod, .cozy-afk-zzz { animation: none; } }
 
+/* the Velvet Ring: a Perfect Parry's golden flash, a hit's red flush */
+@keyframes cozy-ring-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+/* the Velvet Ring: stars circling over a fighter who is stunned, staggered or down */
+.cozy-dizzy { position: relative; width: 0; height: 0; pointer-events: none; }
+.cozy-dizzy span { position: absolute; left: -8px; top: -8px; font-size: 15px; animation: cozy-dizzy-orbit 1s linear infinite; }
+@keyframes cozy-dizzy-orbit {
+  0% { transform: translate(-22px, 0) scale(0.8); z-index: 1; }
+  25% { transform: translate(0, 7px) scale(1.05); }
+  50% { transform: translate(22px, 0) scale(0.8); }
+  75% { transform: translate(0, -7px) scale(0.6); opacity: 0.75; }
+  100% { transform: translate(-22px, 0) scale(0.8); }
+}
+@media (prefers-reduced-motion: reduce) { .cozy-dizzy span { animation: none; } }
+
 /* the Cheer gesture's sparkles, rising and scattering; the Sleep gesture's Zzz drifting up */
 .cozy-sparkles, .cozy-zzz { position: relative; width: 0; height: 0; pointer-events: none; }
 .cozy-sparkles span { position: absolute; left: 0; bottom: 0; font-size: 15px; opacity: 0; animation: cozy-sparkle-rise 1.6s ease-out forwards; }

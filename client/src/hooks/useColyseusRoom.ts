@@ -26,6 +26,8 @@ import type {
 } from "@shared/types";
 import { LOUNGE_FULL, MAP_SIGNATURE_TIME, isMapId, isWeather, loungeRoomKey } from "@shared/types";
 import { type BlackjackAction, type CasinoPacket, type RoulettePhase, type RouletteSyncState } from "@shared/casino";
+import type { BoxingPacket } from "@shared/boxing";
+import { setBoutFromSchema } from "../systems/boutStore";
 
 import { parsePicnic, parseStew, FUEL_START, type PicnicPlate, type StewState } from "@shared/bonfire";
 
@@ -58,8 +60,13 @@ const RELAYED_MESSAGES = [
   "gachaResult",
   "clawResult",
   "arcadeResult",
-  "punch",
-  "boxingResult",
+  // the Velvet Ring: what happens in the ring (for its effects), a bout's result, a word for you, a
+  // belt won (to everyone), the gym's fixtures and Coach Bruno
+  "boxEvent",
+  "boxResult",
+  "boxNotice",
+  "boxBelt",
+  "ringProp",
   "splash",
   "wishResult",
   "matchaResult",
@@ -313,10 +320,8 @@ interface UseColyseusRoomResult {
   /** Fishing: a bite was noticed; then the reel minigame's outcome. */
   hook: () => void;
   catchFish: (result: "caught" | "lost", quality: number) => void;
-  boxingEnter: () => void;
-  boxingExit: () => void;
-  punch: (target: string) => void;
-  tossCoin: (to: string) => void;
+  /** The Velvet Ring: a punch, the guard, a slip, a tap to get up, a bet, the gloves (BoxingPacket). */
+  boxingSend: (packet: BoxingPacket) => void;
   splash: () => void;
   makeWish: () => void;
   matchaWhisk: (score: number) => void;
@@ -624,9 +629,9 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
             status: player.status ?? "",
             stats: player.stats ?? "",
             ping: player.ping ?? 0,
-            gloves: !!player.gloves,
-            boxHits: player.boxHits ?? 0,
-            boxKOs: player.boxKOs ?? 0,
+            corner: player.corner ?? "",
+            gloves: player.gloves ?? "",
+            boxing: player.boxing ?? "",
             aura: player.aura ?? "",
             title: player.title ?? "",
             daily: player.daily ?? "",
@@ -781,6 +786,24 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
       room.state.listen("trees", (raw: string) => setTrees(raw ?? ""));
       room.state.listen("worldEvent", (raw: string) => setWorldEvent(raw ?? ""));
       room.state.listen("incenseUntil", (at: number) => setIncenseUntil(Number(at) || 0));
+      // the Velvet Ring's bout: into its own store (a fighter's stamina moves twenty times a second;
+      // only the ring's HUD, its chalkboard and the fighters' avatars listen). Followed through
+      // `listen` like the roulette: the object at join time can be a placeholder.
+      let boutAttached: any = null;
+      const attachBout = (b: any) => {
+        if (!b || b === boutAttached) return;
+        boutAttached = b;
+        const sync = () => setBoutFromSchema(b);
+        b.onChange(sync);
+        b.red?.onChange?.(sync);
+        b.blue?.onChange?.(sync);
+        b.bets?.onAdd?.(sync);
+        b.bets?.onChange?.(sync);
+        b.bets?.onRemove?.(sync);
+        sync();
+      };
+      room.state.listen("bout", attachBout);
+      attachBout(room.state.bout);
 
       // the socket closed under us (a proxy timed it out, the network blinked, the server restarted).
       // The token is kept whatever the close code (a proxy's idle cut can look like a clean close):
@@ -936,10 +959,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
     arcadeScore: (score) => send("arcade_score", { score }),
     hook: () => send("hook"),
     catchFish: (result, quality) => send("catch_fish", { result, quality }),
-    boxingEnter: () => send("boxing_enter"),
-    boxingExit: () => send("boxing_exit"),
-    punch: (target) => send("boxing_punch", { target }),
-    tossCoin: (to) => send("toss_coin", { to }),
+    boxingSend: (packet) => send("boxing", packet),
     splash: () => send("splash"),
     makeWish: () => send("make_wish"),
     matchaWhisk: (score) => send("matcha_whisk", { score }),
