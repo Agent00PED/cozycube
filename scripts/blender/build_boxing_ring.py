@@ -40,9 +40,10 @@ numbers the colliders, the fighters' bounds and the seat anchors are derived fro
     Prop_SpeedBag       the speed bag (origin at its swivel: the game rattles it)
     Prop_ChalkSlate     the chalkboard's slate: a quad with UVs the game chalks the bout on
 
-    boxing_gloves.glb   Glove_red_L / _R and Glove_tiger_L / _R: a boxing glove each (the Classic
-                        Red Gloves, the Tiger Stripe Mitts), its origin at the hand (the game hangs
-                        it on the avatar's ArmL / ArmR where the hand is), knuckles down the arm
+    boxing_gloves.glb   Glove_red_L / _R, Glove_blue_L / _R and Glove_tiger_L / _R: a boxing glove
+                        each (the Classic Gloves in the Red and the Blue Corner's colours, the Tiger
+                        Stripe Mitts), its origin at the hand (the game hangs it on the avatar's
+                        ArmL / ArmR where the hand is), knuckles down the arm
 
 Some light is painted in (bake_light): the dome lamp's warm pool on the canvas and round the ring,
 the neon's yellow glow on the brick, the trophy case's downlight; no textures.
@@ -139,6 +140,8 @@ PALETTE.update(
         # the gloves
         "BX_GloveRed": "#C62A2A",
         "BX_GloveRedDark": "#8E1A1C",
+        "BX_GloveBlue": "#2E62C8",
+        "BX_GloveBlueDark": "#1C3C82",
         "BX_GloveWhite": "#F2EEE6",
         "BX_TigerOrange": "#E8862A",
         "BX_TigerBlack": "#1C1614",
@@ -147,7 +150,7 @@ PALETTE.update(
 SKY = {"BX_SkyTop", "BX_SkyMid", "BX_SkyLow", "BX_Star", "BX_Moon"}
 NEON |= {"BX_Neon", "BX_NeonWarm"}
 POLISH |= {"BX_Parquet", "BX_ParquetDark", "BX_ParquetLight", "BX_TileWhite", "BX_TileBlack"}
-SHEEN |= {"BX_Steel", "BX_SteelDark", "BX_Bucket", "BX_Water", "BX_BagLeather", "BX_SpeedBag", "BX_BeltStrap", "BX_Jewel", "BX_Rubber", "BX_GloveRed", "BX_GloveRedDark", "BX_TigerOrange", "BX_TigerBlack"}
+SHEEN |= {"BX_Steel", "BX_SteelDark", "BX_Bucket", "BX_Water", "BX_BagLeather", "BX_SpeedBag", "BX_BeltStrap", "BX_Jewel", "BX_Rubber", "BX_GloveRed", "BX_GloveRedDark", "BX_GloveBlue", "BX_GloveBlueDark", "BX_TigerOrange", "BX_TigerBlack"}
 DECAL2 |= {"BX_Star1", "BX_PosterInk", "BX_Poster1", "BX_Poster2"}
 CATEGORIES["CS_Sky"] = 0.8
 _kit_category = category
@@ -1115,6 +1118,7 @@ def build_gloves(root):
     bpy.context.scene.collection.children.link(coll)
     for side in ("L", "R"):
         glove(f"Glove_red_{side}", side, "BX_GloveRed", "BX_GloveRedDark", False, coll)
+        glove(f"Glove_blue_{side}", side, "BX_GloveBlue", "BX_GloveBlueDark", False, coll)
         glove(f"Glove_tiger_{side}", side, "BX_TigerOrange", "BX_TigerBlack", True, coll)
     return coll
 

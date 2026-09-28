@@ -14,10 +14,29 @@ export const moveInput = {
   active: false,
 };
 
-// The camera looks along (1, 1, 1): screen-right is the ground diagonal (+x, -z) and
-// screen-up is (-x, -z). Both normalised, so a held key is a full walking speed.
+// The isometric camera looks along (1, 1, 1): screen-right is the ground diagonal (+x, -z) and
+// screen-up is (-x, -z). Both normalised, so a held key is a full walking speed. The camera rig
+// keeps them in step with the camera as it is (the Velvet Ring's action camera turns round the
+// fighters: a held key still walks the way it points on screen).
 const RIGHT = { x: Math.SQRT1_2, z: -Math.SQRT1_2 };
 const UP = { x: -Math.SQRT1_2, z: -Math.SQRT1_2 };
+
+/** The camera's screen-right and screen-up along the ground (unit vectors), each frame. */
+export function setScreenAxes(rx: number, rz: number, ux: number, uz: number) {
+  const r = Math.hypot(rx, rz);
+  const u = Math.hypot(ux, uz);
+  if (r < 1e-4 || u < 1e-4) return;
+  RIGHT.x = rx / r;
+  RIGHT.z = rz / r;
+  UP.x = ux / u;
+  UP.z = uz / u;
+}
+
+/** A world direction as the screen sees it: how much of it runs right, and how much up (the
+ *  camera's own right and up along the ground). */
+export function worldToScreen(dx: number, dz: number): { x: number; y: number } {
+  return { x: dx * RIGHT.x + dz * RIGHT.z, y: dx * UP.x + dz * UP.z };
+}
 
 /** The touch joystick's thumb: a screen-space direction (-1..1, y up), `active` once it drags past
  *  its dead zone, `held` while a thumb is on it at all (a second finger is then not a pinch). */

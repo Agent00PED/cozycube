@@ -13,7 +13,7 @@ import { BOARD_REACH, BOUTIQUE, BOUTIQUE_REACH, KITCHEN_REACH, MOCHI_REACH, PLAN
 import { BAR_REACH, BLACKJACK_TABLES, CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, GACHAPON_FRONT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, ROULETTE_BET_RADIUS, ROULETTE_CENTER, TIP_JARS, VIP_DOORS_FRONT, ZARA_FRONT, barDistance, nearGameTable, seatedGameOf, type CasinoGameTable } from "@shared/worlds/casino";
 import { VIP_ARRIVAL } from "@shared/worlds/casino_vip";
 import { CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG_FRONT, RING_CORNERS, SPEED_BAG_FRONT, WEIGH_SCALE_FRONT } from "@shared/worlds/boxing_ring";
-import { CORNER_NAME, GLOVES, WARMUP_S } from "@shared/boxing";
+import { GLOVES, QUEUE_MAX, WARMUP_S } from "@shared/boxing";
 import { getBout } from "../../systems/boutStore";
 import { isTouchUi } from "../../systems/inputMode";
 import { BAR_SNACK, CAPSULE_COST, DEALER_TIP, TABLE_LIMITS, chipText, isNpcOccupant, isVaultSlot, slotLimit, type CasinoPacket } from "@shared/casino";
@@ -77,8 +77,9 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🕶️ Penthouse]  at Bruno's gilded doors on the stage: up in the elevator with a VIP pass, or
 //                    [🎫 VIP Pass] to buy one; in the penthouse, [🛗 Back Down] at the elevator
 //   [🚪 Leave Casino]  at the exit doors: the world drawer
-//   [🥊 Enter the Red Corner] / [🥊 Enter the Blue Corner]  at the foot of a corner's steps in the
-//                    Velvet Ring (a corner taken, or a bout on: greyed out, saying so)
+//   [🥊 Step Into Ring]  at the foot of either corner's steps in the Velvet Ring: King of the Hill's
+//                    line (an open corner at once; a bout on or others waiting: into the line, #n);
+//                    in line already, [🎟️ In Line (#n) · Leave the Line]
 //   [🎟️ Ringside Betting]  at the ringside chalkboard: the bout, the pools, the odds, a ticket
 //   [🐶 Talk to Coach Bruno]  at the pro shop's counter: the gloves, your record, the rules
 //   [🥊 Hit the Heavy Bag] / [🥊 Work the Speed Bag] / [⚖️ Weigh In]  at the gym's fixtures
@@ -451,23 +452,30 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         const px = cameraFocus.x;
         const pz = cameraFocus.z;
         const bout = getBout();
+        // the corner steps: the line for the ring (King of the Hill), from whichever corner is nearer
+        let steps: { c: "red" | "blue"; d: number } | null = null;
         for (const c of ["red", "blue"] as const) {
           const k = RING_CORNERS[c];
           const d = Math.min(Math.hypot(k.foot.x - px, k.foot.z - pz), Math.hypot(k.steps.x - px, k.steps.z - pz));
-          if (d > CORNER_REACH + 0.4) continue;
-          const holder = bout[c].name;
-          const busy = bout.phase !== "open";
-          const id = c === "red" ? "ring_red" : "ring_blue";
+          if (d <= CORNER_REACH + 0.4 && (!steps || d < steps.d)) steps = { c, d };
+        }
+        if (steps) {
+          const id = steps.c === "red" ? "ring_red" : "ring_blue";
+          const place = bout.queue.indexOf(localSessionId);
+          const holder = bout.red.name || bout.blue.name;
+          const straightIn = bout.phase === "open" && (!bout.red.sessionId || !bout.blue.sessionId) && bout.queue.length === 0;
           const gloves = GLOVES[parseWorn(player.boxing)];
-          found.push({
-            key: `corner:${c}:${holder}:${busy}`,
-            type: "ring",
-            d,
-            disabled: !!holder || busy,
-            label: holder ? `🥊 ${holder} holds the ${c === "red" ? "Red" : "Blue"} Corner` : busy ? "🔔 A bout is on" : `🥊 Enter the ${CORNER_NAME[c]}`,
-            hint: holder || busy ? "One bout at a time: grab a seat or a ticket at the chalkboard" : `Step up the steps in your ${gloves.name}: a ${WARMUP_S}s warm-up once both corners are filled, then the bell`,
-            run: () => interactBridge.current?.useProp(id),
-          });
+          if (place >= 0) found.push({ key: `ringline:out:${place}`, type: "ring", d: steps.d, label: `🎟️ In Line (#${place + 1}) · Leave the Line`, hint: "Step out of the line for the ring", run: () => interactBridge.current?.useProp(id) });
+          else
+            found.push({
+              key: `ringline:in:${straightIn}:${bout.queue.length}:${holder}`,
+              type: "ring",
+              d: steps.d,
+              disabled: !straightIn && bout.queue.length >= QUEUE_MAX,
+              label: straightIn ? "🥊 Step Into Ring" : `🥊 Step Into Ring · Join the Line (#${bout.queue.length + 1})`,
+              hint: straightIn ? (holder ? `Challenge ${holder} in your ${gloves.name}: a ${WARMUP_S}s countdown, then the bell` : `Up the steps in your ${gloves.name}: the next one in challenges you`) : bout.queue.length >= QUEUE_MAX ? "The line is full: grab a seat and watch one" : "King of the Hill: the winner stays on, and you're in after the ones ahead of you",
+              run: () => interactBridge.current?.useProp(id),
+            });
         }
         const toBoard = Math.hypot(CHALKBOARD_FRONT.x - px, CHALKBOARD_FRONT.z - pz);
         if (toBoard <= CHALKBOARD_REACH + 0.4) found.push({ key: "chalkboard", type: "chalkboard", d: toBoard, label: "🎟️ Ringside Betting", hint: "The contenders, the pools and the live odds: back a corner during the warm-up", run: () => interactBridge.current?.useProp("ring_chalkboard") });

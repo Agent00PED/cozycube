@@ -169,6 +169,8 @@ export type RingSeat = SeatSpec & { style: SeatStyle; floor: number };
 
 const bleacherX = (tier: number) => -RING_WALL + (R.bleachers.tiers - tier) * R.bleachers.depth - 0.16;
 const BLEACHER_FRONT = -RING_WALL + R.bleachers.tiers * R.bleachers.depth;
+/** Where a beaten fighter stands when every bleacher seat is taken (open floor at their front). */
+export const RING_BENCH_FRONT: Pt = { x: BLEACHER_FRONT + 0.55, z: 0 };
 export const RING_SEATS: RingSeat[] = [
   // the tiered benches: three to a tier, facing the ring; stepped up to from the floor in front
   ...Array.from({ length: R.bleachers.tiers }, (_, tier) =>

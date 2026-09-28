@@ -55,6 +55,54 @@ function noise(c: AudioContext, at: number, length: number, gain: number, cutoff
   src.onended = () => (src.disconnect(), filter.disconnect(), g.disconnect());
 }
 
+/** A puff of noise through a band-pass whose centre sweeps from `from` to `to` Hz: a swoosh. */
+function sweep(c: AudioContext, at: number, length: number, gain: number, from: number, to: number) {
+  const buffer = c.createBuffer(1, Math.ceil(c.sampleRate * length), c.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const src = c.createBufferSource();
+  src.buffer = buffer;
+  const filter = c.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.Q.value = 1.4;
+  filter.frequency.setValueAtTime(from, at);
+  filter.frequency.exponentialRampToValueAtTime(to, at + length);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain * level), at + length * 0.35);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + length);
+  src.connect(filter).connect(g).connect(masterOut(c));
+  src.start(at);
+  src.onended = () => (src.disconnect(), filter.disconnect(), g.disconnect());
+}
+
+/** A trainer squeaking across the canvas: a bright buzz wobbling fast. */
+function screech(c: AudioContext, at: number, length: number, gain: number) {
+  const o = c.createOscillator();
+  o.type = "sawtooth";
+  o.frequency.setValueAtTime(2100, at);
+  o.frequency.linearRampToValueAtTime(2500, at + length);
+  const lfo = c.createOscillator();
+  lfo.frequency.value = 38;
+  const depth = c.createGain();
+  depth.gain.value = 160;
+  lfo.connect(depth).connect(o.frequency);
+  const filter = c.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = 2400;
+  filter.Q.value = 3;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain * level), at + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + length);
+  o.connect(filter).connect(g).connect(masterOut(c));
+  o.start(at);
+  lfo.start(at);
+  o.stop(at + length + 0.02);
+  lfo.stop(at + length + 0.02);
+  o.onended = () => (o.disconnect(), lfo.disconnect(), depth.disconnect(), filter.disconnect(), g.disconnect());
+}
+
 export type Sfx =
   | "bite"
   | "catch"
@@ -122,7 +170,19 @@ export type Sfx =
   | "bell"
   | "whoosh"
   | "fall"
-  | "ropes";
+  | "ropes"
+  // the Velvet Ring's fight (the procedural stand-ins for audio/ringAudio.ts's files): a light
+  // punch's snap (a sine's pitch dropping), a heavy one's crunch, a Perfect Dodge's ding, a Guard
+  // Break's glass-and-leather crunch, a fighter on the canvas, a swoosh of air (filtered noise
+  // swept up), a trainer's screech on the canvas, the winner's fanfare
+  | "punchLight"
+  | "punchHeavy"
+  | "parryDing"
+  | "glassBreak"
+  | "canvasThud"
+  | "swoosh"
+  | "skid"
+  | "fanfare";
 
 /** A sound from somewhere in the world, heard from where you stand: full up close, fading with
  *  distance (and never quite gone within the room). */
@@ -379,11 +439,53 @@ export function playSfx(kind: Sfx, volume = 1) {
     noise(c, t, 0.08, 0.1, 5000);
     [1319, 1976, 2637].forEach((f, i) => tone(c, t + 0.02 + i * 0.015, f, f, 0.7, 0.06 - i * 0.012, "sine"));
   } else if (kind === "bell") {
-    // the timekeeper's bell: three rings of a brass gong
+    // the timekeeper's bell: three rings, each two sines an octave apart (880 and 1760 Hz) dying away
     [0, 0.34, 0.68].forEach((d) => {
-      [932, 2331, 3542].forEach((f, i) => tone(c, t + d, f, f * 0.998, 1.1 - i * 0.3, 0.07 - i * 0.02, "sine"));
-      noise(c, t + d, 0.03, 0.12, 4200);
+      tone(c, t + d, 880, 878, 1.2, 0.08, "sine");
+      tone(c, t + d, 1760, 1757, 0.9, 0.045, "sine");
+      noise(c, t + d, 0.02, 0.1, 4200);
     });
+  } else if (kind === "punchLight") {
+    // a clean M1: a low sine's pitch dropping, a leather snap on top
+    tone(c, t, 190, 58, 0.11, 0.32, "sine");
+    tone(c, t, 95, 48, 0.09, 0.14, "triangle");
+    noise(c, t, 0.035, 0.28, 1900);
+  } else if (kind === "punchHeavy") {
+    // an M2 landing: a deep triangle falling away, a crunch, the body of the blow
+    tone(c, t, 125, 34, 0.34, 0.36, "triangle");
+    tone(c, t, 72, 30, 0.38, 0.3, "sine");
+    noise(c, t, 0.08, 0.5, 750);
+    noise(c, t + 0.02, 0.22, 0.12, 260);
+  } else if (kind === "parryDing") {
+    // a Perfect Dodge: a bright ding an octave over itself, a shimmer of air
+    sweep(c, t, 0.14, 0.09, 1800, 6500);
+    [1319, 2637].forEach((f, i) => tone(c, t + 0.015, f, f, 0.8, 0.07 - i * 0.03, "sine"));
+    tone(c, t + 0.05, 1976, 1976, 0.6, 0.025, "sine");
+  } else if (kind === "glassBreak") {
+    // a Guard Break: a crunch of leather, glass shattering over it and tinkling down
+    noise(c, t, 0.12, 0.45, 900);
+    for (let i = 0; i < 6; i++) noise(c, t + 0.01 + i * 0.022, 0.03, 0.22 - i * 0.025, 3200 + i * 650);
+    [4200, 5300, 6100, 4700].forEach((f, i) => tone(c, t + 0.03 + i * 0.05, f, f * 0.55, 0.28, 0.028, "sine"));
+  } else if (kind === "canvasThud") {
+    // a fighter hitting the canvas: a heavy thump, the boards answering
+    tone(c, t, 85, 34, 0.42, 0.42, "sine");
+    noise(c, t, 0.22, 0.24, 260);
+    tone(c, t + 0.13, 66, 38, 0.22, 0.14, "sine");
+  } else if (kind === "swoosh") {
+    // a punch or a slip through the air: noise swept up through a band
+    sweep(c, t, 0.2, 0.18, 700, 3200);
+  } else if (kind === "skid") {
+    // a trainer screeching across the canvas
+    screech(c, t, 0.2, 0.05);
+    noise(c, t, 0.16, 0.05, 3000);
+  } else if (kind === "fanfare") {
+    // the winner stays on: a short brass fanfare up the chord and a held top
+    [523, 659, 784].forEach((f, i) => {
+      tone(c, t + i * 0.11, f, f, 0.16, 0.07, "square");
+      tone(c, t + i * 0.11, f * 2, f * 2, 0.14, 0.03, "triangle");
+    });
+    tone(c, t + 0.33, 1047, 1047, 0.7, 0.07, "square");
+    tone(c, t + 0.33, 784, 784, 0.7, 0.04, "triangle");
   } else if (kind === "whoosh") {
     // a slip, a swing through the air
     noise(c, t, 0.18, 0.1, 1800);

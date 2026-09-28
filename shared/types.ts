@@ -226,6 +226,11 @@ export const HIDDEN_MAPS: ReadonlySet<MapId> = new Set<MapId>(["casino_vip", "wh
 export function isCampMap(map: string): boolean {
   return map === "campfire_night" || map === "whispering_woods";
 }
+/** The worlds you gather in (the wood carrier's and the livewell's gauges show only there): the
+ *  campfire and the woods behind it, the beach (and an ocean, once there is one). */
+export function isGatheringMap(map: string): boolean {
+  return isCampMap(map) || map === "sunset_beach" || map === "ocean";
+}
 /** The casino's two floors: the hall and the penthouse (the High Rollers board shows on both). */
 export function isCasinoMap(map: string): boolean {
   return map === "velvet_casino" || map === "casino_vip";
@@ -456,18 +461,17 @@ export const SYSTEM_EMOJI = ["🥂", "💤", "💃", "🪙", "💰", "🎰", "�
 /**
  * Full-body gestures: the social ones (the emote bar's second row), and the ones the server plays
  * on its own when something happens (SERVER_GESTURES): watering a plant, reaching over the board
- * to make a move.
+ * to make a move. (The Velvet Ring's punches, guards, dashes and hit reactions are not gestures:
+ * they come with the bout's own events, client/src/systems/fightAnim.ts.)
  */
-export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss", "belly", "trophy", "jab", "hook", "uppercut", "slipL", "slipR", "slipB", "bag"] as const;
+export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss", "belly", "trophy", "bag"] as const;
 export type Gesture = (typeof GESTURES)[number];
-export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8, belly: 2.6, trophy: 2.4, jab: 0.4, hook: 0.75, uppercut: 0.45, slipL: 0.45, slipR: 0.45, slipB: 0.45, bag: 2.4 };
-export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪", belly: "😋", trophy: "🏆", jab: "👊", hook: "🥊", uppercut: "💥", slipL: "💨", slipR: "💨", slipB: "💨", bag: "🥊" };
+export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8, belly: 2.6, trophy: 2.4, bag: 2.4 };
+export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪", belly: "😋", trophy: "🏆", bag: "🥊" };
 /** Gestures only the server starts (a client asking for one is ignored): "trophy" is the catch held
- *  high over the head for a new personal best; the ring's punches and slips, and a flurry on the gym's
- *  heavy bag ("bag"), are the Velvet Ring's (shared/boxing.ts). */
-export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net", "toss", "trophy", "jab", "hook", "uppercut", "slipL", "slipR", "slipB", "bag"]);
-/** The ring's gestures, played even while the fighter moves (the others wait for them to stand still). */
-export const FIGHT_GESTURES: ReadonlySet<Gesture> = new Set(["jab", "hook", "uppercut", "slipL", "slipR", "slipB"]);
+ *  high over the head for a new personal best (and a bout won); a flurry on the Velvet Ring's heavy
+ *  bag ("bag") is the gym's. */
+export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net", "toss", "trophy", "bag"]);
 export function isGesture(v: unknown): v is Gesture {
   return typeof v === "string" && (GESTURES as readonly string[]).includes(v);
 }

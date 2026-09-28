@@ -15,6 +15,7 @@ import { WELL_FED_SPEED } from "@shared/fishing";
 import { SMORE_PACE, TORCH_NIGHT_PACE } from "@shared/crafting";
 import { isCampDay } from "@shared/daynight";
 import { clampToRing } from "@shared/worlds/boxing_ring";
+import { FIGHTER_GAP } from "@shared/boxing";
 import { getBout } from "./boutStore";
 
 // The local player's locomotion. Three inputs, one controller:
@@ -22,9 +23,10 @@ import { getBout } from "./boutStore";
 //     routes round the furniture
 //   - WASD / arrow keys, through worldMoveDirection() (touch has no stick: a tap is a click-to-move)
 //   - arriving on a target sits on its seat or uses its prop
-//   - in the Velvet Ring, a fighter walks only inside the ropes (a click is a straight walk there, no
-//     path round anything), never through the other fighter, not at all while down or stunned, and
-//     always squared up to them
+//   - in the Velvet Ring, a fighter shuffles only inside the ropes (a click is a straight walk there
+//     between bouts, no path round anything), never through the other fighter, slower behind a guard
+//     or mid-punch, not at all while reeling from a hit, dazed, staggered, dashing (the server moves
+//     them) or down, and always squared up to them
 //
 // The CLIENT is the authority on where you are: every step is collided here with the SAME test
 // the server runs (shared/collision.ts), inside the strict floor bounds (NAV_LIMIT), and the
@@ -52,8 +54,9 @@ const DIR_CHANGE_EPSILON = 0.2;
 const COLLIDE_SUBSTEP = 0.12; // long steps are split so a corner can't be skipped
 const PLAYER_RADIUS = 0.3;
 
-/** How close two fighters' origins come (their bodies just touch). */
-const FIGHTER_GAP = 0.72;
+/** A fighter's pace behind a raised guard, and in the middle of a punch. */
+const GUARD_PACE = 0.5;
+const PUNCH_PACE = 0.6;
 
 /** A fighter's step: inside the ropes, and never into the other fighter (slid round them). */
 function ringStep(pos: Point, dx: number, dz: number, foe: Point | null) {
@@ -229,13 +232,15 @@ export function useLocalPlayerMovement(
     const ring = inRingRef.current;
     let foe: Point | null = null;
     let frozen = false;
+    let ringPace = 1;
     if (ring) {
       const bout = getBout();
       const mine = bout.red.sessionId === player.sessionId ? bout.red : bout.blue.sessionId === player.sessionId ? bout.blue : null;
       const theirs = mine === bout.red ? bout.blue : mine === bout.blue ? bout.red : null;
       const at = theirs?.sessionId ? liveMotion.get(theirs.sessionId) : undefined;
       if (at && at.map === mapId) foe = { x: at.x, z: at.z };
-      frozen = !!mine && (mine.state === "down" || mine.state === "out" || mine.state === "stun" || mine.state === "stagger");
+      frozen = !!mine && (mine.state === "down" || mine.state === "out" || mine.state === "stun" || mine.state === "stagger" || mine.state === "hurt" || mine.state === "dash");
+      ringPace = mine?.state === "block" ? GUARD_PACE : mine?.state === "attack" ? PUNCH_PACE : 1;
     }
     const step = (dx: number, dz: number) => (ring ? ringStep(pos, dx, dz, foe) : slideStep(pos, dx, dz, mapId));
 
@@ -257,7 +262,7 @@ export function useLocalPlayerMovement(
       if ((steer || frozen) && targetRef.current) targetRef.current = null;
       const target = targetRef.current;
       const torch = torchRef.current && isCampMap(mapId) && !isCampDay(Date.now()) ? TORCH_NIGHT_PACE : 1;
-      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * (smoreUntilRef.current > Date.now() ? SMORE_PACE : 1);
+      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * (smoreUntilRef.current > Date.now() ? SMORE_PACE : 1) * ringPace;
       if (steer) {
         dirX = steer.x;
         dirZ = steer.z;

@@ -11,7 +11,8 @@ import { liveMotion, type MotionSample } from "../systems/liveMotion";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
 import { Avatar, type FloatingEmote } from "./Avatar";
 import { getBout } from "../systems/boutStore";
-import { beltUntilOf } from "@shared/boxing";
+import { beltUntilOf, gloveLook } from "@shared/boxing";
+import { drawnAt } from "../systems/fightAnim";
 
 // The people in the scene: your own avatar, driven by the locomotion hook, and every other
 // connected player, eased toward the position the server relays. Both are the same Avatar
@@ -86,7 +87,7 @@ function avatarProps(player: PlayerState, feed: CrowdFeed) {
     // the Velvet Ring: the gloves while in it, the fighter's state (their own subscription), and the
     // Velvet Championship Belt over the name while it is worn
     sessionId: player.sessionId,
-    gloves: player.corner ? player.gloves || "red" : "",
+    gloves: player.corner ? gloveLook(player.gloves, player.corner) : "",
     champion: beltUntilOf(player.boxing) > Date.now(),
   };
 }
@@ -193,6 +194,8 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
     d.seatY += ((p.sitting ? p.sitY : walkY(feed.mapId, d.x, d.z)) - d.seatY) * HEIGHT_LERP;
     g.position.set(d.x, d.seatY, d.z);
     g.rotation.y = d.facing;
+    // (the ring's action camera frames the two fighters where they are drawn)
+    if (p.corner) drawnAt.set(p.sessionId, { x: d.x, z: d.z });
   });
 
   return <Avatar ref={groupRef} speedRef={speedRef} {...avatarProps(player, feed)} />;

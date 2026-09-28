@@ -1,6 +1,6 @@
 import { WORLDS, WORLD_IDS } from "@shared/worlds";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, isCampMap, isCasinoMap, type MapId, type TimeOfDay, type Weather } from "@shared/types";
+import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, isCampMap, isCasinoMap, isGatheringMap, type MapId, type TimeOfDay, type Weather } from "@shared/types";
 import { isCampDay, minutesToTurn } from "@shared/daynight";
 import { netWorth } from "@shared/casino";
 import { useAnimatedNumber } from "./useAnimatedNumber";
@@ -50,6 +50,9 @@ interface HeaderProps {
   connected: boolean;
   reconnecting: boolean;
   latency: number;
+  /** A fighter's live bout at the Velvet Ring: the header fades away (the ring's banners take the
+   *  top of the screen) and nothing on it takes a click until it is back. */
+  away?: boolean;
 }
 
 const TIME_LABELS: Record<TimeOfDay, string> = { sunrise: "🌅 Sunrise", day: "☀️ Day", sunset: "🌇 Sunset", night: "🌙 Night" };
@@ -132,7 +135,7 @@ export function Header(p: HeaderProps) {
   ];
 
   return (
-    <div ref={rootRef} className="font-cozy pointer-events-none fixed left-0 right-0 z-30 flex flex-nowrap items-center justify-between gap-2" style={{ top: "max(8px, env(safe-area-inset-top))", paddingRight: "max(8px, env(safe-area-inset-right))", paddingLeft: "max(8px, env(safe-area-inset-left))" }}>
+    <div ref={rootRef} className={`font-cozy pointer-events-none fixed left-0 right-0 z-30 flex flex-nowrap items-center justify-between gap-2 ${p.away ? "cozy-hud-away" : "cozy-hud-back"}`} aria-hidden={p.away || undefined} style={{ top: "max(8px, env(safe-area-inset-top))", paddingRight: "max(8px, env(safe-area-inset-right))", paddingLeft: "max(8px, env(safe-area-inset-left))" }}>
       {/* ---- left: the world and who is in it, one capsule ---- */}
       <div className={`pointer-events-auto ${PILL_SHELL}`}>
         <button type="button" onClick={() => p.onOpenWorlds()} className="flex h-full min-w-10 items-center justify-center gap-2 rounded-full pl-3 pr-2.5 transition-transform duration-150 hover:bg-white/10 active:scale-95 lg:pl-3.5" title="Fast travel" aria-haspopup="dialog" aria-label={`${map.name}: fast travel`}>
@@ -168,33 +171,38 @@ export function Header(p: HeaderProps) {
         {/* Velvet Chips: bright in the casino; elsewhere a dimmed reminder, only while you hold some */}
         {(isCasinoMap(p.currentMap) || p.chips > 0) && <ChipPurse chips={p.chips} here={isCasinoMap(p.currentMap)} />}
         {/* the resource gauges: the wood carrier (WoodCarrierModal) and the livewell
-            (FishLivewellModal), each its own drawer (B opens the last one) */}
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "carrier", propId: "carrier" } }))}
-          className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-          title={`Wood carrier (B): ${carrierLoad(angler.profile)} of ${carrierCap(angler.profile)} slots`}
-          aria-label="Wood carrier"
-          aria-haspopup="dialog"
-        >
-          <span className={ICON}>🪵</span>
-          <span className={`font-bold tabular-nums ${carrierLoad(angler.profile) >= carrierCap(angler.profile) ? "text-rose-200" : "text-amber-100"}`}>
-            {carrierLoad(angler.profile)}/{carrierCap(angler.profile)}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "livewell", propId: "livewell" } }))}
-          className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-          title={`Livewell (B): ${angler.profile.creel.length} of ${livewellCap(angler.profile)} fish`}
-          aria-label="Livewell"
-          aria-haspopup="dialog"
-        >
-          <span className={ICON}>🪣</span>
-          <span className={`font-bold tabular-nums ${angler.profile.creel.length >= livewellCap(angler.profile) ? "text-amber-300" : "text-sky-100"}`}>
-            {angler.profile.creel.length}/{livewellCap(angler.profile)}
-          </span>
-        </button>
+            (FishLivewellModal), each its own drawer (B opens the last one); only where you gather
+            (the campfire and the woods, the beach): the lounge, the casino and the ring have none */}
+        {isGatheringMap(p.currentMap) && (
+          <>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "carrier", propId: "carrier" } }))}
+              className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
+              title={`Wood carrier (B): ${carrierLoad(angler.profile)} of ${carrierCap(angler.profile)} slots`}
+              aria-label="Wood carrier"
+              aria-haspopup="dialog"
+            >
+              <span className={ICON}>🪵</span>
+              <span className={`font-bold tabular-nums ${carrierLoad(angler.profile) >= carrierCap(angler.profile) ? "text-rose-200" : "text-amber-100"}`}>
+                {carrierLoad(angler.profile)}/{carrierCap(angler.profile)}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "livewell", propId: "livewell" } }))}
+              className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
+              title={`Livewell (B): ${angler.profile.creel.length} of ${livewellCap(angler.profile)} fish`}
+              aria-label="Livewell"
+              aria-haspopup="dialog"
+            >
+              <span className={ICON}>🪣</span>
+              <span className={`font-bold tabular-nums ${angler.profile.creel.length >= livewellCap(angler.profile) ? "text-amber-300" : "text-sky-100"}`}>
+                {angler.profile.creel.length}/{livewellCap(angler.profile)}
+              </span>
+            </button>
+          </>
+        )}
 
         <div className="relative hidden shrink-0 sm:block">
           <button type="button" onClick={() => toggle("status")} className={ICON_PILL} title={orbTitle(p, st?.label)} aria-label={orbTitle(p, st?.label)} aria-expanded={open === "status"} aria-haspopup="menu">

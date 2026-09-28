@@ -29,9 +29,9 @@ const TIPS = [
   "A King-Size Surge's golden ripples: reel by hand in them for a 4 in 10 King Size catch.",
   "A Pine Resin in the workbench's Adhesive Slot bonds a carving so it can't break, or gilds it for a Masterwork.",
   "Bigger creels and carriers cost more each tier, but carry far more.",
-  "In the Velvet Ring, raise your guard just as a punch lands for a Perfect Parry: your next jab is a free Counter Uppercut.",
+  "In the Velvet Ring, dash just before a punch lands for a Perfect Dodge: your next punch is a Counter (x1.4).",
   "Three wins in a row at the Velvet Ring and the Championship Belt shines over your name for a day 🏆",
-  "Watch the ringside chalkboard: bets on the next bout open in its 20-second warm-up.",
+  "Watch the ringside chalkboard: bets on the next bout open in its 15-second countdown.",
 ];
 
 export function WorldTransitionScreen({ destination, from }: { destination: MapId | null; from?: MapId }) {

@@ -4,8 +4,9 @@ import * as THREE from "three";
 import { WALL_HEIGHT } from "@shared/worlds/lounge";
 import { cameraFocus, cameraSettings, cameraView, frame } from "./cameraFocus";
 import { useShuttingDown } from "../systems/lifecycle";
-import { stickInput } from "../systems/input";
+import { setScreenAxes, stickInput } from "../systems/input";
 import { combatInput } from "../systems/combatInput";
+import { actionCam, actionEase, actionPose, stepActionBlend } from "./actionCamera";
 
 // The isometric camera. Orthographic, looking along (1, 1, 1), with its zoom fitted to the world's
 // floor (the lounge's 15x15 loft, walls and slab fill the viewport), then nudged a little closer.
@@ -18,6 +19,11 @@ import { combatInput } from "../systems/combatInput";
 //   free_pan  the classic view: the camera leans toward you, part of the way (FOLLOW); a right- or
 //             middle-drag (or a two-finger drag) pans it anywhere over the room, and the moment you
 //             move (a click- or tap-to-move, WASD) it eases back
+//
+// A fighter in a live bout at the Velvet Ring gets the ring's action camera instead (actionCamera.ts:
+// low and side on, tracking the two fighters), blended in and out over 0.8 s; while it is on, the
+// wheel, a pinch and a drag leave the camera alone. Either way the screen's right and up along the
+// ground go to the movement input each frame (WASD walks the way it points on screen).
 
 const ISO_ANGLE = Math.atan(1 / Math.sqrt(2)); // ~35.264 deg
 /** Orthographic, so this only has to keep the whole room in front of the near plane. */
@@ -137,14 +143,15 @@ function CameraRig() {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (actionCam.want) return; // (the ring's action camera frames the fight itself)
       userZoom.current = clampZoom(userZoom.current * Math.exp(-e.deltaY * 0.0015));
     };
 
     // right or middle button drag: pan. (The left button is click-to-move and belongs to the scene.)
     let dragging: { x: number; y: number } | null = null;
     const onPointerDown = (e: PointerEvent) => {
-      // (in the ring the right button throws the Heavy Hook: no panning then)
-      if (e.button === 2 && combatInput.active) return;
+      // (in the ring the right button throws the M2, and the action camera frames the fight: no panning)
+      if ((e.button === 2 && combatInput.active) || actionCam.want) return;
       if (e.button === 1 || e.button === 2) {
         e.preventDefault(); // no middle-click autoscroll
         dragging = { x: e.clientX, y: e.clientY };
@@ -178,10 +185,10 @@ function CameraRig() {
     const mid = (t: TouchList) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
     const onTouchStart = (e: TouchEvent) => {
       // (a thumb on the joystick and a finger elsewhere is not a pinch)
-      if (e.touches.length === 2 && !stickInput.held) pinch = { dist: dist(e.touches), zoom: userZoom.current, mid: mid(e.touches) };
+      if (e.touches.length === 2 && !stickInput.held && !actionCam.want) pinch = { dist: dist(e.touches), zoom: userZoom.current, mid: mid(e.touches) };
     };
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 2 || !pinch) return;
+      if (e.touches.length !== 2 || !pinch || actionCam.want) return;
       e.preventDefault();
       userZoom.current = clampZoom(pinch.zoom * (dist(e.touches) / pinch.dist));
       const m = mid(e.touches);
@@ -217,6 +224,7 @@ function CameraRig() {
   const snapped = useRef(false);
   const seenCut = useRef(cameraFocus.cut);
   const cutFrames = useRef(0);
+  const act = useRef({ pos: new THREE.Vector3(), look: new THREE.Vector3(), zoom: 30, isoPos: new THREE.Vector3(), isoLook: new THREE.Vector3() });
   useFrame((_, rawDelta) => {
     // a trip to another world: cut straight to the spawn, zoom and all (for a few frames, so the
     // player's own frame loop has written where they landed)
@@ -282,6 +290,24 @@ function CameraRig() {
     const c = center.current;
     cam.position.set(ISO_DIR.x + c.x, ISO_DIR.y + c.y, ISO_DIR.z + c.z);
     cam.lookAt(c.x, c.y, c.z);
+
+    // the Velvet Ring's action camera, blended over the usual one
+    if (stepActionBlend(delta)) {
+      const a = act.current;
+      actionPose(delta, size, a);
+      const e = actionEase();
+      a.isoPos.copy(cam.position);
+      a.isoLook.copy(c);
+      cam.position.lerpVectors(a.isoPos, a.pos, e);
+      cam.lookAt(a.isoLook.lerp(a.look, e));
+      // (zoom eased in its logarithm: the jump from the room to the ring stays even)
+      cam.zoom = Math.exp(THREE.MathUtils.lerp(Math.log(zoomRef.current), Math.log(a.zoom), e));
+      cam.updateProjectionMatrix();
+    }
+    // the screen's right and up along the ground, for the keys and the joystick
+    cam.updateMatrixWorld();
+    const m = cam.matrixWorld.elements;
+    setScreenAxes(m[0], m[2], -m[8], -m[10]);
   });
   return null;
 }

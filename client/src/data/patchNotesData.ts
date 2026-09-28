@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0",
+    range: "v0.7.0–v0.7.1",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -752,6 +752,40 @@ export const PATCH_ERAS: PatchEra[] = [
             "A fighter whose connection drops mid-bout has 5 seconds to come back while the bout waits; after that it's a forfeit. A server restart mid-bout is a No Contest.",
             "Spectators can't walk onto the canvas: only fighters stepping in at the corners can.",
             "Other players no longer overshoot on your screen when the server moves them in a single step.",
+          ],
+        },
+      },
+      {
+        version: "0.7.1",
+        date: "2026-09-29",
+        title: "Untitled Fight Night",
+        summary: "The Velvet Ring fights like Untitled Boxing Game: no cooldowns, only stamina, a three-punch string, a telegraphed Heavy Smash you can feint, dashes and Perfect Dodges, a guard that breaks; King of the Hill in the ring; a new animation suite, a low ringside action camera, an arcade HUD and multi-touch controls.",
+        changes: {
+          features: [
+            "King of the Hill: step up to a corner to get in line. The winner stays on in their corner, patched up to full, and the next in line steps in against them; the loser is walked to the bleachers. The champion can Step Down between bouts.",
+            "No more cooldowns: every move is gated by stamina, its own frames and a short input buffer. Run your stamina dry and you're Exhausted until it's back to 25: no dash, no guard, slow hands.",
+            "M1 (left click) is a three-punch string: the Snap Jab, the Corkscrew Straight and the Leaping Lead Hook. Thrown on the beat, it's a true combo.",
+            "M2 (right click) is the Heavy Smash: a big telegraphed wind-up, a crushing overhand and heavy knockback. Raise your guard in its first 0.15 s to Feint.",
+            "Guard (hold F or Shift) takes 80% off every punch, and its meter takes the chip damage: at zero it's a Guard Break, gloves flung wide and dazed.",
+            "Dash (Space with WASD): slip left or right, sway back, or step in. Dash just as a punch lands for a Perfect Dodge: they whiff and stagger, and your next punch is a Counter (x1.4).",
+            "Health replaces Composure, and rounds are 90 seconds. The countdown before the bell (and the betting window) is 15 seconds.",
+            "On phones and tablets: a new combat cluster (the big M1, M2 above it, Dash to its left, Block under it). It squeezes when pressed, dims when you're out of stamina, and never fights the joystick for your thumbs.",
+            "Every fight sound has a synthesized stand-in, so the ring is never silent, even where no recorded sample ships.",
+          ],
+          visuals: [
+            "A new boxing animation suite: the peek-a-boo stance with its heel-toe bounce, a low Ring Shuffle, snappy punches with real wind-ups, the High Shell, slips and sways, flinches and whiplash, a Guard Break's daze, a knockdown sprawl and a push-up back to your feet, and a victory pose for the one who stays.",
+            "A ringside action camera for the two fighters: low, side on and tracking the pair, tightening in an exchange, shaking with every clean hit, and freezing a beat on impact. Perfect Dodges get a slow-mo pulse and a flash.",
+            "An arcade fight HUD: portraits, health, stamina and guard bars, the clock and knockdown pips across the top, comic badges in the middle, and a stamina arc under your feet. Spectators get a compact banner under the header.",
+            "Classic gloves now come in your corner's colour: red or blue.",
+            "The Heavy Smash's wind-up shimmers the air round your rear glove; sweat flies off a snapped head and a spark flashes where a punch lands.",
+          ],
+          economy: [
+            "The Tiger Stripe Mitts now make every M1 10% cheaper.",
+          ],
+          fixes: [
+            "The wood carrier and livewell gauges show only where you gather (the campfire, the woods, the beach), not in the lounge, the casino or the ring. B follows suit.",
+            "A fighter in a live bout has the whole top of the screen: the header fades away and comes back when the bout ends.",
+            "A No Contest never costs the fighter still standing: they keep the ring.",
           ],
         },
       },

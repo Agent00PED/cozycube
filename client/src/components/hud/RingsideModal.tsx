@@ -6,7 +6,7 @@ import { useBout, useBoutClock } from "../../systems/boutStore";
 import { Modal } from "./Modal";
 
 // The ringside chalkboard in the Velvet Ring's lounge: the contenders, the bout, the pools and the
-// live odds, and your ticket. During the warm-up (the 20 s between both corners filling and the
+// live odds, and your ticket. During the countdown (the 15 s between both corners filling and the
 // bell) a spectator backs Red or Blue, BET_MIN to BET_MAX coins, one ticket a bout; pari-mutuel: the
 // winners share the losers' pool (the house keeps HOUSE_RAKE of the winnings), and a No Contest or
 // a draw hands every ticket back. The server takes the bet (BET) and says how it went (boxNotice).
@@ -126,7 +126,7 @@ export function RingsideModal({ localSessionId, coins, send, subscribeMessages, 
           </div>
         )}
         <div className="text-center text-[11px] leading-snug opacity-60">
-          Bets {BET_MIN}-{BET_MAX} 🪙, one ticket a bout, placed in the warm-up. Winners share the losers' pool; the house keeps {Math.round(HOUSE_RAKE * 100)}% of the winnings. A bout decided in under {NO_CONTEST_S}s, or one whose loser never threw a punch, is a No Contest: every ticket back. You hold {coins.toLocaleString("en-US")} 🪙.
+          Bets {BET_MIN}-{BET_MAX} 🪙, one ticket a bout, placed in the countdown before the bell. Winners share the losers' pool; the house keeps {Math.round(HOUSE_RAKE * 100)}% of the winnings. A bout decided in under {NO_CONTEST_S}s, or one whose loser never threw a punch, is a No Contest: every ticket back. You hold {coins.toLocaleString("en-US")} 🪙.
         </div>
       </div>
     </Modal>

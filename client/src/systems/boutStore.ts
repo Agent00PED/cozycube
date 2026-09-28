@@ -1,15 +1,15 @@
 import { useSyncExternalStore } from "react";
-import { COMPOSURE_MAX, STAMINA_MAX, poolsOf, type BoutView, type FighterState, type FighterView } from "@shared/boxing";
+import { GUARD_MAX, HEALTH_MAX, STAMINA_MAX, poolsOf, type BoutView, type FighterState, type FighterView } from "@shared/boxing";
 
 // The Velvet Ring's bout as the room's state carries it (server/src/rooms/boxing.ts BoutSchema),
 // kept OUT of React state like liveMotion: a fighter's stamina moves up to twenty times a second,
 // and only the ring's own HUD, its chalkboard and the fighters' avatars want to hear about it (the
-// rest of the app would re-render for nothing). The room hook writes it (setBout); readers take a
-// snapshot (getBout) in a frame loop or subscribe (useBout).
+// rest of the app would re-render for nothing). The room hook writes it (setBoutFromSchema); readers
+// take a snapshot (getBout) in a frame loop or subscribe (useBout).
 
-const emptyFighter = (): FighterView => ({ sessionId: "", name: "", stamina: STAMINA_MAX, composure: COMPOSURE_MAX, state: "", knockdowns: 0, taps: 0, need: 0, dealt: 0, hookReady: 0, guardReady: 0, swayReady: 0, counterUntil: 0, gloves: "red", away: false });
+const emptyFighter = (): FighterView => ({ sessionId: "", name: "", health: HEALTH_MAX, stamina: STAMINA_MAX, guard: GUARD_MAX, state: "", exhausted: false, counter: false, knockdowns: 0, taps: 0, need: 0, dealt: 0, gloves: "red", away: false, reign: 0 });
 
-let bout: BoutView = { phase: "open", round: 0, until: 0, count: 0, red: emptyFighter(), blue: emptyFighter(), bets: {}, pools: { red: 0, blue: 0 }, result: "", now: 0 };
+let bout: BoutView = { phase: "open", round: 0, count: 0, red: emptyFighter(), blue: emptyFighter(), bets: {}, pools: { red: 0, blue: 0 }, result: "", queue: [], now: 0 };
 /** Whole seconds left on the phase's clock (the server's `clock`). */
 let clock = 0;
 const listeners = new Set<() => void>();
@@ -21,36 +21,42 @@ export function getBoutClock(): number {
   return clock;
 }
 
-/** Read from the room's BoutSchema (and its fighters and bets), whenever any of it changes. */
+/** Read from the room's BoutSchema (and its fighters, bets and queue), whenever any of it changes. */
 export function setBoutFromSchema(s: any) {
   if (!s) return;
   const fighter = (f: any): FighterView => ({
     ...emptyFighter(),
     sessionId: f?.sessionId ?? "",
     name: f?.name ?? "",
+    health: Number(f?.health ?? HEALTH_MAX),
     stamina: Number(f?.stamina ?? STAMINA_MAX),
-    composure: Number(f?.composure ?? COMPOSURE_MAX),
+    guard: Number(f?.guard ?? GUARD_MAX),
     state: f?.state ?? "",
+    exhausted: !!f?.exhausted,
+    counter: !!f?.counter,
     knockdowns: Number(f?.knockdowns ?? 0),
     taps: Number(f?.taps ?? 0),
     need: Number(f?.need ?? 0),
     dealt: Number(f?.dealt ?? 0),
     gloves: f?.gloves === "tiger" ? "tiger" : "red",
     away: !!f?.away,
+    reign: Number(f?.reign ?? 0),
   });
   const bets: Record<string, string> = {};
   s.bets?.forEach?.((v: string, k: string) => (bets[k] = v));
+  const queue: string[] = [];
+  s.queue?.forEach?.((id: string) => queue.push(id));
   clock = Number(s.clock ?? 0);
   bout = {
     phase: s.phase ?? "open",
     round: Number(s.round ?? 0),
-    until: 0,
     count: Number(s.count ?? 0),
     red: fighter(s.red),
     blue: fighter(s.blue),
     bets,
     pools: poolsOf(Object.values(bets)),
     result: s.result ?? "",
+    queue,
     now: Date.now(),
   };
   listeners.forEach((l) => l());
@@ -84,4 +90,24 @@ export function cornerOfSession(b: BoutView, sessionId: string | null | undefine
   if (b.red.sessionId === sessionId) return "red";
   if (b.blue.sessionId === sessionId) return "blue";
   return null;
+}
+
+/** The fighter a session is, in this bout, and the one they face. */
+export function fightersOf(b: BoutView, sessionId: string | null | undefined): { mine: FighterView | null; theirs: FighterView | null } {
+  const c = cornerOfSession(b, sessionId);
+  if (!c) return { mine: null, theirs: null };
+  return { mine: b[c], theirs: b[c === "red" ? "blue" : "red"] };
+}
+
+/** A bout is being fought (the countdown, a round, a count, the rest between rounds): the ring's
+ *  own camera and HUD take over for its fighters. */
+export function boutLive(phase: BoutView["phase"]): boolean {
+  return phase === "warmup" || phase === "fight" || phase === "count" || phase === "rest";
+}
+
+/** Whether `sessionId` is fighting a live bout right now (the ring's banners take the top of the
+ *  screen): re-renders only when that changes. */
+export function useRingTakeover(sessionId: string | null | undefined): boolean {
+  const pick = () => !!sessionId && boutLive(bout.phase) && cornerOfSession(bout, sessionId) !== null;
+  return useSyncExternalStore(subscribeBout, pick, pick);
 }

@@ -272,7 +272,7 @@ import { CASINO_EMOTES, auraPace, capsuleUnlock, netWorth, type BlackjackAction,
 import { CasinoFloor, RouletteSchema } from "./casino";
 import { BoutSchema, BoxingRing } from "./boxing";
 import type { BoxingPacket } from "../../../shared/boxing";
-import { clampToRing } from "../../../shared/worlds/boxing_ring";
+import { RING_BENCH_FRONT, RING_SEATS, clampToRing } from "../../../shared/worlds/boxing_ring";
 import { getWipeAt } from "../db/players";
 import { BUILD_ID } from "../build";
 
@@ -678,6 +678,29 @@ export class HangoutRoom extends Room<HangoutState> {
         if (!player) return;
         if (knockout) this.bumpStat(player, "boxing_knockouts");
         this.daily(sessionId, player, "win_boxing");
+      },
+      later: (ms, fn) => {
+        this.clock.setTimeout(fn, ms);
+      },
+      unseat: (sessionId) => this.handleStandUp(sessionId),
+      bench: (sessionId) => {
+        // the beaten fighter to the bleachers: the lowest free seat nearest the ring's middle (none
+        // free, standing at the front of them)
+        const player = this.state.players.get(sessionId);
+        if (!player || player.map !== "boxing_ring" || player.sitting) return;
+        const seat = RING_SEATS.filter((s) => s.propId.startsWith("ring_bleacher_"))
+          .map((s) => ({ s, chair: this.state.chairs.get(s.propId) }))
+          .filter((c) => c.chair && !c.chair.occupiedBy)
+          .sort((a, b) => a.s.floor - b.s.floor || Math.abs(a.s.z) - Math.abs(b.s.z))[0];
+        this.lastReportAt.delete(sessionId);
+        this.arrivedUntil.set(sessionId, Date.now() + 800);
+        if (seat?.chair) this.seatPlayer(sessionId, player, seat.chair);
+        else {
+          player.x = RING_BENCH_FRONT.x;
+          player.z = RING_BENCH_FRONT.z;
+          player.dirX = 0;
+          player.dirZ = 0;
+        }
       },
     });
     this.autoDispose = false; // `autoDispose` is an accessor on the base Room class — assign, don't redeclare as a field.

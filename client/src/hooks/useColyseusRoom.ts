@@ -800,6 +800,10 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
         b.bets?.onAdd?.(sync);
         b.bets?.onChange?.(sync);
         b.bets?.onRemove?.(sync);
+        // (the line for the ring: King of the Hill)
+        b.queue?.onAdd?.(sync);
+        b.queue?.onChange?.(sync);
+        b.queue?.onRemove?.(sync);
         sync();
       };
       room.state.listen("bout", attachBout);

@@ -2,16 +2,22 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { CORNER_NAME, METHOD_LABEL, oddsText, type BoutResult, type BoxEvent, type RopeSide } from "@shared/boxing";
+import { CORNER_NAME, METHOD_LABEL, STAMINA_MAX, oddsText, type BoutResult, type BoxEvent, type RopeSide } from "@shared/boxing";
 import { COACH_BRUNO, RING, RING_LAYOUT as R, RING_FLOOR_Y } from "@shared/worlds/boxing_ring";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
 import { modelUrl } from "../assetVersion";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
-import { getBout, getBoutClock, subscribeBout } from "../systems/boutStore";
+import { boutLive, fightersOf, getBout, getBoutClock, subscribeBout } from "../systems/boutStore";
+import { advanceCombatClock, clearFight, drawnAt, hitstop, playMove, playReact, punchIn, ringFx, shake, slowMo } from "../systems/fightAnim";
+import { resetCombatPrediction } from "../systems/combatInput";
+import { worldToScreen } from "../systems/input";
+import { liveMotion } from "../systems/liveMotion";
 import { distanceVolume, playSfx } from "../audio/sfx";
+import { loadRingSounds, playRingSound } from "../audio/ringAudio";
 import { ringCrowdRoar } from "../audio/ambience";
 import { cameraFocus } from "./cameraFocus";
+import { actionEase } from "./actionCamera";
 import { GEO, matte, noRaycast } from "./kit";
 
 // The Velvet Ring (shared/worlds/boxing_ring.ts): a vintage boxing hall, one Blender model,
@@ -27,8 +33,17 @@ import { GEO, matte, noRaycast } from "./kit";
 //
 // The dome lamp over the ring lights it: a warm spotlight, a faint beam and chalk dust drifting
 // through it. Coach Bruno keeps the pro shop (coach_bruno.glb through CampNpc) and counts the
-// knockdowns. The ring's sounds (every punch, the bell, the crowd) play here, heard from where you
-// stand. Nothing casts a shadow.
+// knockdowns. Nothing casts a shadow.
+//
+// The fight itself plays here, from the room's boxEvents (useRingEvents): every punch, feint and
+// dash starts its animation on the fighter (systems/fightAnim.ts; your own were already started
+// when you pressed), every landing its reaction (a flinch, a whiplash, a punch into the shell, a
+// Guard Break, a knockdown, a push-up back up), its sound (audio/ringAudio.ts: the samples, or
+// their synthesized stand-ins) and its screen juice: a hitstop for everyone watching (the combat
+// clock stops: 0.05 s for an M1, 0.1 s for an M2), and for the two fighters the action camera's
+// shake (a nudge for an M1, a shudder for an M2) and a Perfect Dodge's slow-mo pulse, white flash
+// and punch-in. The particles: sweat thrown off a head snapped back, a spark where a punch lands.
+// Under the local fighter's feet a faint arc shows their stamina (and, inside it, their guard).
 
 export const BOXING_RING_URL = modelUrl("boxing_ring.glb");
 export const COACH_BRUNO_URL = modelUrl("coach_bruno.glb");
@@ -40,15 +55,18 @@ const LAMP_Y = R.lamp.y;
 interface Props {
   onFloorClick: (x: number, z: number) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
+  localSessionId: string | null;
 }
 
-export function BoxingWorld({ onFloorClick, subscribeMessages }: Props) {
+export function BoxingWorld({ onFloorClick, subscribeMessages, localSessionId }: Props) {
   const click = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     onFloorClick(e.point.x, e.point.z);
   };
-  useRingSounds(subscribeMessages);
+  useRingEvents(subscribeMessages, localSessionId);
+  // the fight anims' clock (it stops for a hitstop)
+  useFrame((_, delta) => advanceCombatClock(Math.min(delta, 0.1)));
   return (
     <group>
       {/* the floor, and the canvas over the ring (a click there lands where it looks) */}
@@ -62,6 +80,8 @@ export function BoxingWorld({ onFloorClick, subscribeMessages }: Props) {
       <RingLights />
       <SpotBeam />
       <ChalkDust />
+      <RingParticles />
+      <StaminaArc localSessionId={localSessionId} />
       <CampNpc
         url={COACH_BRUNO_URL}
         what="coach_bruno.glb"
@@ -108,13 +128,14 @@ const nameOf = (sessionId: string) => {
 const COACH_TALK: NpcTalk = {
   height: 1.3,
   clicked: [
-    "Gloves up, champ! Step into a corner when you're ready. 🥊",
-    "Jab to keep 'em honest, hook to finish 'em. 🐶",
-    "Raise the guard just before a punch lands: that's a Perfect Parry! 🛡️",
-    "Out of stamina? Your punches go soft. Breathe, then swing. ⚡",
-    "Backed on the ropes with nothing left? One hook and you're sleeping in the front row. 💥",
+    "Gloves up, champ! Step up to a corner to get in line: the winner stays on. 🥊",
+    "Jab, straight, hook: throw the string on the beat and it's a true combo. 👊",
+    "Dash just before a punch lands: that's a Perfect Dodge, and your next one's a Counter! ⚡",
+    "Run your stamina dry and you're Exhausted: no dash, no guard, slow hands. Breathe! 😮‍💨",
+    "Smash a guard twice and it breaks. Guard too early on your own Smash and it's a Feint. 🛡️",
+    "Backed on the ropes at half health? One Heavy Smash and you're sleeping in the front row. 💥",
     "Three wins in a row and the belt's yours for a day. 🏆",
-    "Tiger Stripe Mitts: cheaper jabs, fiercer look. 🐯",
+    "Tiger Stripe Mitts: cheaper M1s, fiercer look. 🐯",
   ],
   greet: {
     inside: (x, z) => x > R.shop.x0 - 1.4 && z < R.shop.counterZ + 2.2,
@@ -122,9 +143,11 @@ const COACH_TALK: NpcTalk = {
   },
   on: {
     boxEvent: (ev: BoxEvent) => {
-      if (ev.kind === "parry") return Math.random() < 0.6 ? "Perfect Parry! Beautiful! 🛡️✨" : null;
-      if (ev.kind === "interrupt") return Math.random() < 0.5 ? "Jab beats the hook! 👊" : null;
-      if (ev.kind === "guardbreak") return "Guard's broken! Keep that stamina up! ⚡";
+      if (ev.kind === "perfect") return Math.random() < 0.6 ? "Perfect Dodge! Make 'em pay! ⚡" : null;
+      if (ev.kind === "hit" && ev.counter) return "COUNTER! What a shot! 💥";
+      if (ev.kind === "hit" && ev.interrupt && ev.move !== "smash") return Math.random() < 0.4 ? "Beat 'em to the punch! 👊" : null;
+      if (ev.kind === "guardbreak") return "Guard's broken! Cover up! 🛡️";
+      if (ev.kind === "feint") return Math.random() < 0.3 ? "Ooh, a feint! Sneaky! 😏" : null;
       return null;
     },
   },
@@ -142,9 +165,9 @@ function coachCalls(type: string, p: any): { gesture: "perk" | "clap" | "knock";
   }
   if (type === "boxResult") {
     const r = p as BoutResult;
-    if (r.method === "nocontest") return { gesture: "perk", line: "No Contest! Every bet goes back. 🤚" };
+    if (r.method === "nocontest") return { gesture: "perk", line: r.stays ? `No Contest! Every bet goes back. ${r.winnerName} holds the ring. 🤚` : "No Contest! Every bet goes back. 🤚" };
     if (r.method === "draw") return { gesture: "perk", line: "The judges call it a draw! 🤝" };
-    return { gesture: "clap", line: r.belt ? `A NEW CHAMPION! ${r.winnerName}! 🏆` : `${r.winnerName} wins by ${METHOD_LABEL[r.method]}! 🏆` };
+    return { gesture: "clap", line: r.belt ? `A NEW CHAMPION! ${r.winnerName}! 🏆` : r.reign > 1 ? `${r.winnerName} wins by ${METHOD_LABEL[r.method]}: ${r.reign} in a row! Who's next? 🏆` : `${r.winnerName} wins by ${METHOD_LABEL[r.method]}! Who's next? 🏆` };
   }
   return null;
 }
@@ -427,13 +450,20 @@ const BEAM_MAT = new THREE.ShaderMaterial({
   depthWrite: false,
   blending: THREE.AdditiveBlending,
   side: THREE.DoubleSide,
-  uniforms: { color: { value: new THREE.Color("#ffdca0") } },
+  uniforms: { color: { value: new THREE.Color("#ffdca0") }, strength: { value: 1 } },
   vertexShader: "varying float vH; void main() { vH = position.y / " + BEAM_H.toFixed(3) + " + 0.5; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-  fragmentShader: "uniform vec3 color; varying float vH; void main() { gl_FragColor = vec4(color * (0.02 + 0.09 * pow(vH, 1.6)), 1.0); }",
+  fragmentShader: "uniform vec3 color; uniform float strength; varying float vH; void main() { gl_FragColor = vec4(color * (0.02 + 0.09 * pow(vH, 1.6)) * strength, 1.0); }",
 });
-/** The lamp's beam: a faint cone of light from the dome down onto the canvas. */
+/** The lamp's beam: a faint cone of light from the dome down onto the canvas (faded out under the
+ *  action camera: from down at the ring's edge it looks along the cone's wall, a glare). */
 function SpotBeam() {
-  return <mesh geometry={BEAM_GEO} material={BEAM_MAT} position={[RING.x, RING_FLOOR_Y + BEAM_H / 2, RING.z]} raycast={noRaycast} renderOrder={5} />;
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const k = 1 - actionEase();
+    BEAM_MAT.uniforms.strength.value = k;
+    if (ref.current) ref.current.visible = k > 0.02;
+  });
+  return <mesh ref={ref} geometry={BEAM_GEO} material={BEAM_MAT} position={[RING.x, RING_FLOOR_Y + BEAM_H / 2, RING.z]} raycast={noRaycast} renderOrder={5} />;
 }
 
 const MOTES = 70;
@@ -463,10 +493,21 @@ function ChalkDust() {
   return <instancedMesh ref={ref} args={[MOTE_GEO, MOTE_MAT, MOTES]} raycast={noRaycast} frustumCulled={false} />;
 }
 
-// --- the ring's sounds -----------------------------------------------------------------------------
+// --- the fight: every boxEvent's animation, sound and juice ------------------------------------
 
-/** Every punch, guard, slip and bell of the bout, heard from where you stand (the crowd with them). */
-function useRingSounds(subscribeMessages: Props["subscribeMessages"]) {
+/** Where a fighter is drawn now (your own: where you are). */
+function drawnSpot(sessionId: string, localSessionId: string | null) {
+  if (sessionId === localSessionId) return { x: cameraFocus.x, z: cameraFocus.z };
+  return drawnAt.get(sessionId) ?? liveMotion.get(sessionId) ?? null;
+}
+
+/** Every punch, guard, dash and bell of the bout: its animation on the fighters, its sound (heard
+ *  from where you stand), its particles, and its juice (the hitstop everyone sees; the shake, the
+ *  flashes and the slow-mo for the two in the ring). */
+function useRingEvents(subscribeMessages: Props["subscribeMessages"], localSessionId: string | null) {
+  useEffect(() => {
+    void loadRingSounds();
+  }, []);
   useEffect(
     () =>
       subscribeMessages((type, payload) => {
@@ -475,32 +516,82 @@ function useRingSounds(subscribeMessages: Props["subscribeMessages"]) {
           const r = payload as BoutResult;
           ringCrowdRoar(r.winner ? 1 : 0.35);
           if (r.winner) playSfx("bell", near);
+          if (r.stays && r.winner) {
+            // King of the Hill: the winner stays on, gloves up
+            const id = getBout()[r.winner].sessionId;
+            if (id) playMove(id, "victory");
+            if (r.method !== "nocontest") window.setTimeout(() => playSfx("fanfare", near), 450);
+          }
           return;
         }
         if (type !== "boxEvent") return;
         const ev = payload as BoxEvent;
+        const mine = (id: string) => !!localSessionId && id === localSessionId;
         switch (ev.kind) {
           case "swing":
-            playSfx("whoosh", near * (ev.move === "hook" ? 0.6 : 0.35));
+            playMove(ev.by, ev.move, { windup: ev.windup, total: ev.total });
+            playSfx("swoosh", near * (ev.move === "smash" ? 0.55 : 0.3));
             break;
-          case "hit":
-            playSfx(ev.move === "jab" ? "jab" : "hook", near);
-            ringCrowdRoar(ev.move === "jab" ? 0.12 : 0.4);
+          case "feint":
+            playMove(ev.by, "feint");
+            playSfx("swoosh", near * 0.8);
             break;
+          case "hit": {
+            const heavy = ev.move === "smash";
+            // (which way the head snaps: the punch's way, as the victim sees it)
+            playReact(ev.to, heavy ? "whiplash" : "flinch", ev.move === "jab" || ev.move === "leadhook" ? 1 : -1);
+            playRingSound(heavy ? "punch_heavy" : "punch_light", near);
+            if (heavy) playSfx("skid", near * 0.8);
+            ringCrowdRoar(heavy ? 0.5 : ev.counter ? 0.45 : 0.12);
+            hitstop(heavy ? 0.1 : 0.05);
+            const at = drawnSpot(ev.to, localSessionId);
+            if (at) {
+              burst(at, ev.dir, heavy ? 14 : ev.counter ? 8 : 4, heavy);
+              spark(at, ev.dir, heavy || ev.counter);
+            }
+            if (mine(ev.by) || mine(ev.to)) {
+              const d = worldToScreen(ev.dir[0], ev.dir[1]);
+              if (heavy) shake(0.25, 0.15, null);
+              else shake(0.08, 0.05, { x: d.x, y: d.y * 0.4 });
+              if (mine(ev.to)) ringFx({ kind: "flash", tone: "red" });
+            }
+            if (ev.counter) ringFx({ kind: "badge", text: "💥 COUNTER! (x1.4)", tone: "red" });
+            break;
+          }
           case "block":
-            playSfx("blocked", near);
-            break;
-          case "parry":
-            playSfx("parry", near);
-            ringCrowdRoar(0.45);
+            playReact(ev.to, "blockhit");
+            playSfx("blocked", near * (ev.move === "smash" ? 1 : 0.8));
+            if (ev.move === "smash") playSfx("punchLight", near * 0.4);
             break;
           case "whiff":
-          case "sway":
-            playSfx("whoosh", near * 0.5);
+            playSfx("swoosh", near * 0.25);
             break;
-          case "interrupt":
+          case "perfect":
+            playMove(ev.by, "perfect");
+            playRingSound("parry_ding", near);
+            ringCrowdRoar(0.45);
+            slowMo(0.2, 0.3);
+            ringFx({ kind: "badge", text: "⚡ PERFECT DODGE", tone: "gold" });
+            if (mine(ev.by) || mine(ev.to)) {
+              ringFx({ kind: "mono" });
+              ringFx({ kind: "flash", tone: "white" });
+              punchIn();
+            }
+            break;
           case "guardbreak":
-            playSfx("hook", near * 0.7);
+            playReact(ev.to, "guardbreak");
+            playRingSound("guard_break", near);
+            ringCrowdRoar(0.5);
+            hitstop(0.08);
+            ringFx({ kind: "badge", text: "🛡️ GUARD BREAK", tone: "cyan" });
+            if (mine(ev.by) || mine(ev.to)) shake(0.18, 0.12, null);
+            break;
+          case "dash":
+            playMove(ev.by, `dash${ev.side}`);
+            playSfx("swoosh", near * 0.35);
+            break;
+          case "exhausted":
+            if (mine(ev.to)) ringFx({ kind: "badge", text: "😮‍💨 EXHAUSTED", tone: "white" });
             break;
           case "ropes":
             playSfx("ropes", near);
@@ -508,22 +599,194 @@ function useRingSounds(subscribeMessages: Props["subscribeMessages"]) {
             break;
           case "ringout":
             playSfx("ropes", near);
-            playSfx("fall", near);
+            playReact(ev.to, "knockdown");
+            playRingSound("canvas_thud", near);
             ringCrowdRoar(1);
+            ringFx({ kind: "badge", text: "💥 RING-OUT!", tone: "red" });
             break;
           case "knockdown":
-            playSfx("fall", near);
+            playReact(ev.to, "knockdown");
+            window.setTimeout(() => playRingSound("canvas_thud", near), 380);
             ringCrowdRoar(0.85);
+            if (mine(ev.to)) ringFx({ kind: "flash", tone: "red" });
             break;
           case "up":
+            playMove(ev.to, "getup");
             ringCrowdRoar(0.6);
             break;
           case "bell":
             playSfx("bell", near);
-            if (ev.ring === "start") ringCrowdRoar(0.4);
+            if (ev.ring === "start") {
+              ringCrowdRoar(0.4);
+              const b = getBout();
+              for (const id of [b.red.sessionId, b.blue.sessionId]) if (id) clearFight(id);
+              if (localSessionId && fightersOf(b, localSessionId).mine) resetCombatPrediction();
+            }
+            break;
+          case "enter":
+          case "leave":
+            clearFight(ev.by);
+            if (mine(ev.by)) resetCombatPrediction();
             break;
         }
       }),
-    [subscribeMessages]
+    [subscribeMessages, localSessionId]
+  );
+}
+
+// --- the particles: sweat off a snapped head, a spark where a punch lands ------------------------
+
+const DROPS = 64;
+const DROP_GEO = new THREE.SphereGeometry(0.026, 6, 5);
+const DROP_MAT = new THREE.MeshBasicMaterial({ color: "#dff4ff", transparent: true, opacity: 0.85, depthWrite: false });
+const SPARKS = 4;
+const SPARK_GEO = new THREE.RingGeometry(0.07, 0.13, 24);
+interface Drop {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  life: number;
+}
+const drops: Drop[] = [];
+const sparks: { x: number; y: number; z: number; age: number; big: boolean }[] = [];
+let sparkNext = 0;
+
+/** Sweat thrown off a head (`n` drops, the punch's way). */
+function burst(at: { x: number; z: number }, dir: [number, number], n: number, heavy: boolean) {
+  for (let i = 0; i < n; i++) {
+    if (drops.length >= DROPS) drops.shift();
+    const spread = (Math.random() - 0.5) * 1.6;
+    const speed = (heavy ? 1.8 : 1.1) * (0.6 + Math.random() * 0.8);
+    drops.push({
+      x: at.x,
+      y: RING_FLOOR_Y + 0.95 + Math.random() * 0.1,
+      z: at.z,
+      vx: dir[0] * speed - dir[1] * spread,
+      vy: 1.0 + Math.random() * (heavy ? 1.6 : 0.9),
+      vz: dir[1] * speed + dir[0] * spread,
+      life: 0.55 + Math.random() * 0.25,
+    });
+  }
+}
+
+/** A flash of a ring where the punch lands (just in front of the one hit). */
+function spark(at: { x: number; z: number }, dir: [number, number], big: boolean) {
+  sparks[sparkNext] = { x: at.x - dir[0] * 0.25, y: RING_FLOOR_Y + 0.78, z: at.z - dir[1] * 0.25, age: 0, big };
+  sparkNext = (sparkNext + 1) % SPARKS;
+}
+
+function RingParticles() {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const sparkMeshes = useMemo(
+    () =>
+      Array.from({ length: SPARKS }, () => {
+        const m = new THREE.Mesh(SPARK_GEO, new THREE.MeshBasicMaterial({ color: "#fff1c9", transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false }));
+        m.visible = false;
+        m.raycast = noRaycast;
+        m.renderOrder = 6;
+        return m;
+      }),
+    []
+  );
+  useEffect(() => () => sparkMeshes.forEach((m) => (m.material as THREE.Material).dispose()), [sparkMeshes]);
+  useFrame(({ camera }, raw) => {
+    const dt = Math.min(raw, 0.05);
+    const mesh = ref.current;
+    if (mesh) {
+      for (let i = drops.length - 1; i >= 0; i--) {
+        const d = drops[i];
+        d.life -= dt;
+        d.vy -= 9.8 * dt;
+        d.x += d.vx * dt;
+        d.y += d.vy * dt;
+        d.z += d.vz * dt;
+        if (d.life <= 0 || d.y < RING_FLOOR_Y - 1.2) drops.splice(i, 1);
+      }
+      for (let i = 0; i < DROPS; i++) {
+        const d = drops[i];
+        if (d) {
+          dummy.position.set(d.x, d.y, d.z);
+          dummy.scale.setScalar(Math.max(0.01, Math.min(1, d.life * 2.2)));
+        } else dummy.scale.setScalar(0);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      }
+      mesh.count = Math.max(1, drops.length);
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.visible = drops.length > 0;
+    }
+    sparks.forEach((s, i) => {
+      const m = sparkMeshes[i];
+      if (!s || !m) return;
+      s.age += dt;
+      const k = s.age / 0.18;
+      m.visible = k < 1;
+      if (!m.visible) return;
+      m.position.set(s.x, s.y, s.z);
+      m.quaternion.copy(camera.quaternion);
+      m.scale.setScalar((s.big ? 1.6 : 1) * (0.8 + k * 2.6));
+      (m.material as THREE.MeshBasicMaterial).opacity = 1 - k;
+      (m.material as THREE.MeshBasicMaterial).color.set(s.big ? "#ffc27a" : "#fff1c9");
+    });
+  });
+  return (
+    <>
+      <instancedMesh ref={ref} args={[DROP_GEO, DROP_MAT, DROPS]} raycast={noRaycast} frustumCulled={false} visible={false} />
+      {sparkMeshes.map((m, i) => (
+        <primitive key={i} object={m} />
+      ))}
+    </>
+  );
+}
+
+// --- the stamina arc under the local fighter's feet -----------------------------------------------
+
+const ARC_GEO = new THREE.RingGeometry(0.4, 0.5, 64, 1);
+const GUARD_ARC_GEO = new THREE.RingGeometry(0.33, 0.37, 64, 1);
+function arcMaterial(color: string, opacity: number) {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: { frac: { value: 1 }, color: { value: new THREE.Color(color) }, opacity: { value: opacity } },
+    vertexShader: "varying vec2 vP; void main() { vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+    // the arc fills clockwise from the front, both ways round: a smile that shrinks toward the back
+    fragmentShader:
+      "uniform float frac; uniform vec3 color; uniform float opacity; varying vec2 vP; void main() { float a = abs(atan(vP.x, -vP.y)) / 3.14159265; if (a > frac) discard; gl_FragColor = vec4(color, opacity); }",
+  });
+}
+
+/** A faint arc on the canvas under the local fighter: their stamina (gold; red while Exhausted),
+ *  and their guard's meter inside it (cyan). */
+function StaminaArc({ localSessionId }: { localSessionId: string | null }) {
+  const group = useRef<THREE.Group>(null);
+  const mats = useMemo(() => ({ stamina: arcMaterial("#f2c14e", 0.45), guard: arcMaterial("#5fd4ff", 0.35) }), []);
+  useEffect(() => () => (mats.stamina.dispose(), mats.guard.dispose()), [mats]);
+  const shown = useRef({ stamina: 1, guard: 1 });
+  useFrame(({ clock }) => {
+    const g = group.current;
+    if (!g) return;
+    const b = getBout();
+    const { mine } = fightersOf(b, localSessionId);
+    const on = !!mine && boutLive(b.phase) && mine.state !== "down" && mine.state !== "out";
+    g.visible = on;
+    if (!on || !mine) return;
+    g.position.set(cameraFocus.x, cameraFocus.y + 0.018, cameraFocus.z);
+    g.rotation.y = cameraFocus.facing;
+    const s = shown.current;
+    s.stamina += (mine.stamina / STAMINA_MAX - s.stamina) * 0.25;
+    s.guard += (mine.guard / 100 - s.guard) * 0.25;
+    mats.stamina.uniforms.frac.value = s.stamina;
+    mats.guard.uniforms.frac.value = s.guard;
+    (mats.stamina.uniforms.color.value as THREE.Color).set(mine.exhausted ? (Math.sin(clock.elapsedTime * 10) > 0 ? "#ff5a4f" : "#b8322b") : "#f2c14e");
+  });
+  return (
+    <group ref={group} visible={false}>
+      <mesh geometry={ARC_GEO} material={mats.stamina} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} renderOrder={3} />
+      <mesh geometry={GUARD_ARC_GEO} material={mats.guard} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast} renderOrder={3} />
+    </group>
   );
 }

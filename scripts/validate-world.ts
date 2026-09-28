@@ -25,7 +25,8 @@
 //   - the Velvet Ring: its corners (their steps' feet open, reachable and in reach of the steps;
 //     inside the ropes), the neutral corners inside them, every ring-out landing open floor, Coach
 //     Bruno inside a collider with his counter's spot in reach, the chalkboard's and the gym's spots
-//     in reach, and the ring itself closed to every spectator
+//     in reach, the bleachers' front open (where a beaten fighter stands when every seat there is
+//     taken), and the ring itself closed to every spectator
 //   - every built world (the fast-travel grid's, and the penthouse) has seats or props
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, walkRegions, worldLimit } from "../shared/collision";
 import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES, MOCHI_WAYPOINTS } from "../shared/props";
@@ -66,7 +67,7 @@ import { VAULT_SLOTS, VIP_ARRIVAL, VIP_NPCS, VIP_SEATS } from "../shared/worlds/
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
-import { CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, NEUTRAL_CORNERS, RING, RING_CORNERS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
+import { CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, NEUTRAL_CORNERS, RING, RING_BENCH_FRONT, RING_CORNERS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
 
 const failures: string[] = [];
 const fail = (msg: string) => failures.push(msg);
@@ -401,6 +402,8 @@ for (const mapId of MAP_IDS) {
     standable(R, home, front, label);
     near(`${label}'s spot`, front, at, GYM_REACH + 0.5);
   }
+  // a beaten fighter with every bleacher seat taken stands in front of them, on open floor
+  standable(R, home, RING_BENCH_FRONT, "the bleachers' front (a beaten fighter's spot)");
 }
 
 // --- every built world has something in it ---

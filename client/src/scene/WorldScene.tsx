@@ -541,7 +541,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       ) : casino ? (
         <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} up={up} />
       ) : mapId === "boxing_ring" ? (
-        <BoxingWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} />
+        <BoxingWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} localSessionId={localSessionId} />
       ) : (
         <EmptyWorld mapId={mapId} onFloorClick={onFloorClick} />
       )}

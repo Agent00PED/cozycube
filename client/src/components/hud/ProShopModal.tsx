@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { BELT_STREAK, BOUT_PURSE, GLOVES, GLOVE_IDS, GUARD, KNOCKDOWNS_TKO, MOVES, NO_CONTEST_S, PURSES_PER_HOUR, RINGOUT_COMPOSURE, SWAY, parseBoxingProfile, wearsBelt, type BoxingPacket, type GloveId } from "@shared/boxing";
+import { BELT_STREAK, BOUT_PURSE, COUNTER_BONUS, DASH, GLOVES, GLOVE_IDS, GUARD, KNOCKDOWNS_TKO, MOVES, NO_CONTEST_S, PURSES_PER_HOUR, RINGOUT_HEALTH, ROUNDS, ROUND_S, STAMINA, WARMUP_S, parseBoxingProfile, wearsBelt, type BoxingPacket, type GloveId } from "@shared/boxing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
 
 // Coach Bruno's pro shop in the Velvet Ring: your fighter's record (wins and losses, knockouts, the
-// streak and the Velvet Championship Belt), the gloves (the Classic Reds are everyone's; the Tiger
-// Stripe Mitts are 850 coins and make a jab cheaper) to buy and to lace on for the next bout, and
+// streak and the Velvet Championship Belt), the gloves (the Classic pair is everyone's, laced in
+// their corner's colour; the Tiger Stripe Mitts are 850 coins and make every M1 cheaper) to buy and
+// to lace on for the next bout, and
 // the coach's word on how a bout goes. The server sells and laces (BUY_GLOVES, WEAR_GLOVES) and says
 // so (boxNotice).
 
@@ -94,14 +95,15 @@ export function ProShopModal({ boxing, coins, inRing, send, subscribeMessages, o
         <details className="rounded-2xl bg-black/20 px-3 py-2 text-xs leading-relaxed">
           <summary className="cursor-pointer text-sm font-bold text-[#F7EBE1]">🐶 The coach's rules of the ring</summary>
           <ul className="mt-2 list-disc space-y-1 pl-4 opacity-85">
-            <li>Step up the Red or Blue corner's steps. Two fighters in: a 20 s warm-up (bets at the chalkboard), then the bell. Three rounds of 45 s.</li>
-            <li>⚡ Stamina (100) pays for every swing and the guard, and comes back fast. Swing with too little and you're slow and soft.</li>
-            <li>🧠 Composure (100) is what a clean punch takes away, and it doesn't come back in a round. At 0 you're down: mash to beat the ten-count. A third knockdown is a T.K.O.</li>
-            <li>👊 Jab: quick ({MOVES.jab.windup}s), cheap, and it knocks a hook out of its wind-up. 🥊 Heavy Hook: {MOVES.hook.windup}s wind-up, hits hard, drives them toward the ropes ({MOVES.hook.cooldown}s cooldown).</li>
-            <li>🛡️ Guard: 75% less damage, {GUARD.maxHold}s at most. Raise it within {GUARD.parry}s of a punch landing: a Perfect Parry, and your next jab is a free Counter Uppercut. Hold it until your stamina is gone and it breaks.</li>
-            <li>💨 Sway: a slip with {SWAY.iframes}s of nothing touching you ({SWAY.cooldown}s cooldown).</li>
-            <li>Backed on the ropes with {RINGOUT_COMPOSURE} composure or less? One hook sends you through them: Ring-Out.</li>
-            <li>A win pays {BOUT_PURSE} 🪙 ({PURSES_PER_HOUR} purses an hour). A bout over in under {NO_CONTEST_S}s, or a loser who never threw a thing, is a No Contest: nothing paid. {KNOCKDOWNS_TKO} knockdowns is a T.K.O.</li>
+            <li>👑 King of the Hill: step up to either corner's steps to get in line. Two in the ring: a {WARMUP_S} s countdown (bets at the chalkboard), then up to {ROUNDS} rounds of {ROUND_S} s. The winner stays on, patched up; the next in line steps in.</li>
+            <li>❤️ Health (100) is what a clean punch takes, and it doesn't come back in a round. At 0 you're down: mash to beat the ten-count (the second one's harder). A third knockdown is a T.K.O.</li>
+            <li>⚡ Stamina (100) pays for every punch, dash and second of guard; {STAMINA.idle} s after your last it's back at {STAMINA.regen} a second. Run it dry and you're Exhausted until it's back to {STAMINA.recover}: no dash, no guard, slow hands. No cooldowns: only stamina.</li>
+            <li>👊 M1: the string. {MOVES.jab.name}, {MOVES.straight.name}, {MOVES.leadhook.name}: thrown on the beat each one lands before they recover from the last.</li>
+            <li>🥊 M2: the {MOVES.smash.name}. A big wind-up ({MOVES.smash.windup} s), a big hit, heavy knockback, {MOVES.smash.guard} off a guard. Guard within its first 0.15 s and it's a Feint.</li>
+            <li>🛡️ Guard (hold): {Math.round(GUARD.mitigate * 100)}% off every punch, {GUARD.drain} stamina a second. Each punch chips the guard's meter (an M1 {MOVES.jab.guard}, the M2 {MOVES.smash.guard}); at 0 it breaks and you're dazed {GUARD.breakStun} s.</li>
+            <li>💨 Dash ({DASH.stamina} stamina): a slip left or right, a sway back, a step in. Dash within {DASH.perfect} s of a punch landing: a Perfect Dodge. They whiff and stagger, and your next punch is a Counter (x{COUNTER_BONUS}).</li>
+            <li>Backed on the ropes at {RINGOUT_HEALTH} health or less? One M2 sends you through them: Ring-Out.</li>
+            <li>A win pays {BOUT_PURSE} 🪙 ({PURSES_PER_HOUR} purses an hour). A bout over in under {NO_CONTEST_S} s, or a loser who never threw a punch, is a No Contest: nothing paid. {KNOCKDOWNS_TKO} knockdowns is a T.K.O.</li>
           </ul>
         </details>
         {inRing && <div className="text-center text-[11px] opacity-60">Gloves are laced before you step in: change them after the bout.</div>}

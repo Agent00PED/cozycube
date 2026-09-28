@@ -78,6 +78,7 @@ import { WoodCarrierModal } from "./components/hud/WoodCarrierModal";
 import { CampfireStatus } from "./components/hud/CampfireStatus";
 import { useAnglerProfile } from "./components/hud/anglerStore";
 import { BoxingHud } from "./components/hud/BoxingHud";
+import { useRingTakeover } from "./systems/boutStore";
 import { RingsideModal } from "./components/hud/RingsideModal";
 import { ProShopModal } from "./components/hud/ProShopModal";
 import { TouchControls } from "./components/hud/TouchControls";
@@ -87,6 +88,7 @@ import {
   ACHIEVEMENTS,
   EMOTES,
   isCasinoMap,
+  isGatheringMap,
   type MapId,
   defaultLook,
   parseLook,
@@ -391,9 +393,11 @@ export default function App() {
   // whenever nothing is being typed and no other panel is up; their logbooks open over them
   const lastDrawer = useRef<"carrier" | "livewell">("carrier");
   const [logbook, setLogbook] = useState<"fish" | "timber" | null>(null);
+  // (the drawers are the gathering maps' only: the campfire, the woods, the beach)
+  const gatherRef = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "KeyB" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.code !== "KeyB" || e.repeat || e.ctrlKey || e.metaKey || e.altKey || !gatherRef.current) return;
       const el = document.activeElement as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
       setPanel((p) => (p?.kind === "carrier" || p?.kind === "livewell" ? null : p ? p : { kind: lastDrawer.current, propId: lastDrawer.current }));
@@ -455,6 +459,18 @@ export default function App() {
   allPlayersRef.current = allPlayers;
   const currentMapRef = useRef<MapId>(currentMap);
   currentMapRef.current = currentMap;
+  gatherRef.current = isGatheringMap(currentMap);
+  // off to a world without drawers (the lounge, the casino, the ring): an open one closes
+  useEffect(() => {
+    if (!isGatheringMap(currentMap)) setPanel((p) => (p?.kind === "carrier" || p?.kind === "livewell" ? null : p));
+  }, [currentMap]);
+  // the Velvet Ring: a fighter's live bout takes the top of the screen (the header fades away)
+  const ringTakeover = useRingTakeover(currentMap === "boxing_ring" ? localSessionId : null);
+  // stepping into the ring from the chalkboard or Coach Bruno's counter: their panel closes
+  const inRing = !!(localSessionId && players[localSessionId]?.corner);
+  useEffect(() => {
+    if (inRing) setPanel((p) => (p?.kind === "ringside" || p?.kind === "proshop" ? null : p));
+  }, [inRing]);
   // which panel is open, for the message handler below (a roast's result shows in its own panel)
   const panelKindRef = useRef<string | undefined>(undefined);
   panelKindRef.current = panel?.kind;
@@ -632,7 +648,10 @@ export default function App() {
         } else if (type === "boxResult") {
           const r = payload as BoutResult;
           const me = localIdRef.current ? allPlayersRef.current[localIdRef.current] : undefined;
-          if (me && r.winner && r.winnerName === me.username) pushToast(r.purse > 0 ? `You win by ${r.method === "decision" ? "decision" : "knockout"}! +${r.purse} coins purse` : "You win! (no purse left this hour)", { emoji: "🏆", tone: "win" });
+          if (me && r.winner && r.winnerName === me.username) {
+            if (r.method === "nocontest") pushToast("No Contest: no record, no purse, but the ring is still yours", { emoji: "🤚" });
+            else pushToast(r.purse > 0 ? `You win by ${r.method === "decision" ? "decision" : "knockout"}! +${r.purse} coins purse${r.stays ? ": you hold the ring" : ""}` : `You win! (no purse left this hour)${r.stays ? " You hold the ring" : ""}`, { emoji: "🏆", tone: "win" });
+          }
         } else if (type === "dailyComplete") {
           pushToast(`Daily checklist done! +${(payload as { coins: number }).coins} coins`, { emoji: "📋", tone: "win" });
         } else if (type === "vibe") {
@@ -864,8 +883,11 @@ export default function App() {
           connected={connected}
           reconnecting={reconnecting}
           latency={latency}
+          away={ringTakeover}
         />
-        <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} buffs={angler.profile.buffs} />
+        <div className={ringTakeover ? "cozy-hud-away" : "cozy-hud-back"}>
+          <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} buffs={angler.profile.buffs} />
+        </div>
         <Toasts />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
 
@@ -896,7 +918,7 @@ export default function App() {
 
         {currentMap === "campfire_night" && localPlayer && !mapTransitioning && <CampfireStatus hearth={hearth} fed={localPlayer.fed} />}
         {/* the Velvet Ring: the scoreboard, a fighter's controls, the count, the result */}
-        {currentMap === "boxing_ring" && localPlayer && localSessionId && !mapTransitioning && <BoxingHud me={localPlayer} localSessionId={localSessionId} send={boxingSend} subscribeMessages={subscribeMessages} />}
+        {currentMap === "boxing_ring" && localPlayer && localSessionId && !mapTransitioning && <BoxingHud me={localPlayer} localSessionId={localSessionId} players={players} send={boxingSend} subscribeMessages={subscribeMessages} />}
         {/* the floating joystick, on every map, on a touch screen */}
         <TouchControls enabled={!mapTransitioning} />
 
