@@ -6,9 +6,8 @@
 //   Masterwork Push   a much better chance of a Masterwork ✨ (+70% value), and a real chance the
 //                     piece breaks
 //
-// A broken carving isn't a total loss: half its wood comes back (rounded up, per kind; 75% with the
-// Artisan Leather Apron, which also takes 10 points off every break chance), and a pile of Sawdust
-// to throw on the bonfire (+15% fuel). The server rolls every carve (HangoutRoom's WORKBENCH) and
+// A broken carving isn't a total loss: half its wood comes back (rounded up, per kind), and a pile
+// of Sawdust to throw on the bonfire (+15% fuel). The server rolls every carve (HangoutRoom's WORKBENCH) and
 // keeps the pieces in the player's camp profile (FishingProfile.crafts); Buster buys them.
 //
 // The Adhesive Slot: one Pine Resin brushed on before a carve, either way it is spent:
@@ -17,7 +16,6 @@
 //   Resin Gilding   +25 points of Masterwork chance (taken from a plain success first)
 
 import type { WoodKind } from "./chop";
-import { APRON_BREAK_CUT, salvageRate, type GearId } from "./gear";
 import { CARVED_PRICE, RESIN_BUY_PRICE } from "./economy";
 
 export type CraftMode = "safe" | "push";
@@ -169,13 +167,11 @@ export function isAdhesive(v: unknown): v is Adhesive {
   return v === "" || v === "bond" || v === "gild";
 }
 
-/** A carve's odds in a mode, with the gear on and a resin in the Adhesive Slot: the Artisan
- *  Leather Apron moves 10 points of the break chance to a normal success; a Resin Bond moves all
- *  of it; a Resin Gilding adds 25 points of Masterwork chance (from a normal success first). */
-export function craftOdds(id: CraftId, mode: CraftMode, gear: readonly GearId[], adhesive: Adhesive = ""): CraftOutcomeOdds {
-  const o = CRAFTS[id].odds[mode];
-  const cut = gear.includes("leather_apron") ? Math.min(o.breakChance, APRON_BREAK_CUT) : 0;
-  const odds = { normal: o.normal + cut, masterwork: o.masterwork, breakChance: o.breakChance - cut };
+/** A carve's odds in a mode, with a resin in the Adhesive Slot: a Resin Bond moves all of the break
+ *  chance to a normal success; a Resin Gilding adds 25 points of Masterwork chance (from a normal
+ *  success first). */
+export function craftOdds(id: CraftId, mode: CraftMode, adhesive: Adhesive = ""): CraftOutcomeOdds {
+  const odds = { ...CRAFTS[id].odds[mode] };
   if (adhesive === "bond") return { normal: odds.normal + odds.breakChance, masterwork: odds.masterwork, breakChance: 0 };
   if (adhesive === "gild") {
     const fromNormal = Math.min(odds.normal, GILD_MASTERWORK_BONUS);
@@ -193,11 +189,12 @@ export function rollCraft(odds: CraftOutcomeOdds, r: number): CraftOutcome {
   return "normal";
 }
 
-/** What a broken carving gives back: half of each kind of its wood, rounded up (75% with the apron). */
-export function craftSalvage(id: CraftId, gear: readonly GearId[]): Partial<Record<WoodKind, number>> {
-  const rate = salvageRate(gear);
+/** How much of a broken carving's wood comes back. */
+export const SALVAGE_RATE = 0.5;
+/** What a broken carving gives back: half of each kind of its wood, rounded up. */
+export function craftSalvage(id: CraftId): Partial<Record<WoodKind, number>> {
   const back: Partial<Record<WoodKind, number>> = {};
-  for (const [k, n] of Object.entries(CRAFTS[id].needs) as [WoodKind, number][]) back[k] = Math.ceil(n * rate);
+  for (const [k, n] of Object.entries(CRAFTS[id].needs) as [WoodKind, number][]) back[k] = Math.ceil(n * SALVAGE_RATE);
   return back;
 }
 

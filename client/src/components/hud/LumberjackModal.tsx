@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { AXES, AXE_IDS, BYPRODUCTS, BYPRODUCT_IDS, FIREWOOD_FUEL, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
-import { FIREWOOD_PRICE } from "@shared/economy";
+import { AXES, AXE_IDS, BYPRODUCTS, BYPRODUCT_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
+import { FIREWOOD_PRICE, MAX_DAY_PERMITS, PERMIT_PRICES } from "@shared/economy";
 import { CRAFTS, RESIN_PRICE, craftSalePrice } from "@shared/crafting";
 import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
-import { Trend } from "./BarnabyModal";
-import { GEAR, GEAR_IDS } from "@shared/gear";
-import { carrierLoad, type FishingProfile } from "@shared/fishing";
+import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
-import { Modal } from "./Modal";
-import { MAX_DAY_PERMITS, PERMIT_PRICES } from "@shared/economy";
+import { FooterBook, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, type ShopTab } from "./ShopShell";
 
 /** The Whispering Woods' permits: a Day Trip (one way in) or the Ranger's Badge (in for good). Sold
  *  by Buster, at his stall or by the archway. */
@@ -59,27 +56,27 @@ interface Props {
   market: string;
   send: (packet: CampfirePacket) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
+  onOpenCollection: () => void;
   onClose: () => void;
 }
 
-// Buster the Lumberjack's stall by the woodpile. He buys your split wood (Soft Pine, Hard Oak,
-// Golden Charcoal), the Pine Resin from critical chops and the artisan pieces carved at the
-// workbench beside his stall (WoodCraftModal); he sells better axes, bigger wood carriers tier by
-// tier, and utility gear (gloves for the felling ring's gold, boots, an apron for the workbench). Every trade is the server's call
-// (BUSTER packets); his answer comes back as busterResult.
+// Buster the Lumberjack's stall by the woodpile, on the shops' fixed-anchor counter (ShopShell). He
+// buys your logs (at the hour's prices, each worth its tree's size), the felling's by-products, the
+// Pine Resin, Firewood and the pieces carved at the workbench beside his stall; he sells axes up to
+// T3 and the woods' permits, bigger wood carriers tier by tier, and the woodcutter's gear up to T3
+// (the rest is Bramble's, in the woods). Every trade is the server's call (BUSTER packets); his
+// answer comes back as busterResult.
 
-type Tab = "sell" | "axes" | "gear" | "carrier" | "permits";
-const TABS: [Tab, string][] = [
-  ["sell", "🪙 Sell"],
-  ["axes", "🪓 Axes"],
-  ["gear", "🧤 Gear"],
-  ["carrier", "🎒 Carrier"],
-  ["permits", "🌲 Woods"],
+const TABS: [ShopTab, string, string][] = [
+  ["trade", "🪙", "Trade/Sell"],
+  ["tools", "🪓", "Tools"],
+  ["storage", "🎒", "Storage"],
+  ["gear", "💍", "Gear"],
 ];
 const HELLO = "Howdy! Buster's the name, timber's the game. Got some wood for me? 🦫";
 
-export function LumberjackModal({ profile, coins, market, send, subscribeMessages, onClose, startTab = "sell" }: Props & { startTab?: Tab }) {
-  const [tab, setTab] = useState<Tab>(startTab);
+export function LumberjackModal({ profile, coins, market, send, subscribeMessages, onOpenCollection, onClose }: Props) {
+  const [tab, setTab] = useState<ShopTab>("trade");
   const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
   useEffect(
     () =>
@@ -96,225 +93,198 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
   // each log worth its tree's size (the stack's average: a big tree's logs fetch more)
   const hour = parseMarket(market);
   const woodRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => woodPrice(x, mult, woodAverage(profile, x)), hour).total;
-  const woodWorth = WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0) + profile.resin * RESIN_PRICE + profile.firewood * FIREWOOD_PRICE + BYPRODUCT_IDS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
+  const logs = WOOD_KINDS.reduce((n, k) => n + (profile.wood[k] ?? 0), 0);
+  const logsWorth = WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0);
+  const byCount = BYPRODUCT_IDS.reduce((n, k) => n + (profile.byproducts[k] ?? 0), 0);
+  const byWorth = BYPRODUCT_IDS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
   const craftWorth = priceRun(profile.crafts, (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total;
   const next = nextCarrierTier(profile.carrierTier);
+  const held = WOOD_KINDS.filter((k) => profile.wood[k] > 0);
   return (
-    <Modal title="Buster's Firewood" icon="🪓" onClose={onClose} width={460}>
-      <div className="flex flex-col gap-3 pb-2">
-        <div className="flex items-start gap-2">
-          <span className="text-4xl leading-none" aria-hidden>
-            🦫
-          </span>
-          <div className={`clay-pop relative flex-1 rounded-2xl px-3 py-2 text-sm ${say.ok ? "bg-white/10" : "bg-rose-400/15"}`} key={say.text} role="status">
-            {say.text}
-          </div>
+    <ShopShell
+      title="Buster's Firewood"
+      icon="🪓"
+      keeper="🦫"
+      say={say}
+      tabs={TABS}
+      tab={tab}
+      onTab={setTab}
+      onClose={onClose}
+      sellBar={
+        <div className="grid grid-cols-2 gap-1.5">
+          <SellAllButton label="🪵 Sell All Logs" count={logs} coins={logsWorth} onClick={() => send({ type: "BUSTER", op: "sellAllWood" })} />
+          <SellAllButton label="✨ Sell All Byproducts" count={byCount} coins={byWorth} onClick={() => send({ type: "BUSTER", op: "sellByproducts", item: "all" })} />
         </div>
-        <div className="flex gap-1.5" role="tablist">
-          {TABS.map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`min-h-9 flex-1 rounded-full px-1.5 text-[11px] font-bold transition-transform active:scale-95 ${tab === id ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {tab === "sell" && (
-          <div className="flex flex-col gap-1.5">
-            {WOOD_KINDS.map((k) => {
-              const have = profile.wood[k];
-              return (
-                <div key={k} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
-                  <span className="text-2xl">{WOOD[k].emoji}</span>
-                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <b className="text-sm">
-                      {WOOD[k].name} <span className="font-normal opacity-70">×{have}</span>
-                    </b>
-                    <span className="text-[11px] opacity-75">
-                      {woodRun(k, 1)} 🪙 this hour <Trend dir={marketDirection(woodGood(k), hour)} />
-                      {have > 0 && woodAverage(profile, k) > 1.01 ? ` · big logs ×${woodAverage(profile, k).toFixed(2)}` : ""} · or +{WOOD[k].fuel}% on the fire
-                    </span>
-                  </div>
-                  <button type="button" className="clay-btn min-h-9 px-3 text-xs" disabled={have < 1} onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: 1 })}>
-                    Sell 1
-                  </button>
-                  <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={have < 1} onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: "all" })}>
-                    All · {woodRun(k, have)} 🪙
-                  </button>
-                </div>
-              );
-            })}
-            {BYPRODUCT_IDS.filter((k) => (profile.byproducts[k] ?? 0) > 0).map((k) => (
+      }
+      footer={
+        <>
+          <MarketClock market={hour} goods={[...held.map(woodGood), ...profile.crafts.map((c) => craftGood(c.c))]} />
+          <FooterBook label="📖 Timber Collection" onClick={onOpenCollection} />
+        </>
+      }
+    >
+      {tab === "trade" && (
+        <div className="flex flex-col gap-1.5">
+          {held.map((k) => {
+            const have = profile.wood[k];
+            return (
               <div key={k} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
-                <span className="text-2xl">{BYPRODUCTS[k].emoji}</span>
+                <span className="text-2xl">{WOOD[k].emoji}</span>
                 <div className="flex min-w-0 flex-1 flex-col leading-tight">
                   <b className="text-sm">
-                    {BYPRODUCTS[k].name} <span className="font-normal opacity-70">×{profile.byproducts[k]}</span>
+                    {WOOD[k].name} <span className="font-normal opacity-70">×{have}</span>
                   </b>
                   <span className="text-[11px] opacity-75">
-                    {BYPRODUCTS[k].price} 🪙 each · {BYPRODUCTS[k].blurb}
+                    {woodRun(k, 1)} 🪙 this hour <Trend dir={marketDirection(woodGood(k), hour)} />
+                    {woodAverage(profile, k) > 1.01 ? ` · big logs ×${woodAverage(profile, k).toFixed(2)}` : ""}
                   </span>
                 </div>
-                <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellByproducts", item: k })}>
-                  All · {(profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price} 🪙
+                <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: 1 })}>
+                  Sell 1
+                </button>
+                <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: "all" })}>
+                  All · {woodRun(k, have)} 🪙
                 </button>
               </div>
-            ))}
-            {profile.firewood > 0 && (
-              <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
-                <span className="text-2xl">🔥</span>
-                <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                  <b className="text-sm">
-                    Firewood bundles <span className="font-normal opacity-70">×{profile.firewood}</span>
-                  </b>
-                  <span className="text-[11px] opacity-75">{FIREWOOD_PRICE} 🪙 a bundle · or +{FIREWOOD_FUEL}% on the bonfire</span>
-                </div>
-                <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellFirewood", count: "all" })}>
-                  All · {profile.firewood * FIREWOOD_PRICE} 🪙
-                </button>
+            );
+          })}
+          {BYPRODUCT_IDS.filter((k) => (profile.byproducts[k] ?? 0) > 0).map((k) => (
+            <div key={k} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+              <span className="text-2xl">{BYPRODUCTS[k].emoji}</span>
+              <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                <b className="text-sm">
+                  {BYPRODUCTS[k].name} <span className="font-normal opacity-70">×{profile.byproducts[k]}</span>
+                </b>
+                <span className="text-[11px] opacity-75">{BYPRODUCTS[k].price} 🪙 each</span>
               </div>
-            )}
-            {profile.resin > 0 && (
-              <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
-                <span className="text-2xl">🍯</span>
-                <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                  <b className="text-sm">
-                    Pine Resin <span className="font-normal opacity-70">×{profile.resin}</span>
-                  </b>
-                  <span className="text-[11px] opacity-75">{RESIN_PRICE} 🪙 each · from gold swings and by-products · its own jar, 0 carrier slots</span>
-                </div>
-                <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellResin", count: "all" })}>
-                  All · {profile.resin * RESIN_PRICE} 🪙
-                </button>
-              </div>
-            )}
-            {profile.crafts.length > 0 && (
-              <div className="flex flex-col gap-1.5 border-t border-white/10 pt-2">
-                <div className="flex max-h-[20vh] flex-col gap-1 overflow-y-auto pr-1">
-                  {profile.crafts.map((item, i) => (
-                    <div key={i} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${item.m ? "border-2 border-amber-300 bg-amber-300/10" : "bg-white/10"}`}>
-                      <span className="text-xl">{CRAFTS[item.c].emoji}</span>
-                      <b className="flex-1 text-xs">
-                        {CRAFTS[item.c].name}
-                        {item.m && <span className="ml-1 text-amber-200">Masterwork ✨</span>}
-                      </b>
-                      <button type="button" className="clay-btn min-h-8 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: i })}>
-                        {priceRun([item], (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total} 🪙
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <button type="button" className="clay-btn clay-btn-amber min-h-10 w-full text-xs" onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: "all" })}>
-                  Sell every carved piece · {craftWorth} 🪙
-                </button>
-              </div>
-            )}
-            {WOOD_KINDS.some((k) => profile.wood[k] > 0) && (
-              <button type="button" className="clay-btn clay-btn-amber min-h-10 w-full text-xs" onClick={() => send({ type: "BUSTER", op: "sellAllWood" })}>
-                🪵 Sell All Logs · {WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0)} 🪙
+              <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellByproducts", item: k })}>
+                All · {(profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price} 🪙
               </button>
-            )}
-            <p className="m-0 text-center text-xs opacity-75">
-              Carrying <b className="text-amber-200">{woodWorth + craftWorth} 🪙</b> of timber. Carve it at the workbench 🪚 by the tipi: worth far more!
-            </p>
-          </div>
-        )}
-
-        {tab === "axes" && (
-          <div className="flex flex-col gap-1.5">
-            {AXE_IDS.map((id) => {
-              const axe = AXES[id];
-              const owned = profile.axes.includes(id);
-              const using = profile.axe === id;
-              return (
-                <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${using ? "bg-emerald-400/20" : "bg-white/10"}`}>
-                  <span className="text-2xl">{axe.emoji}</span>
-                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <b className="text-sm">{axe.name}</b>
-                    <span className="text-[11px] opacity-75">{axe.blurb}</span>
-                  </div>
-                  {using ? (
-                    <span className="px-2 text-xs font-bold text-emerald-200">In hand</span>
-                  ) : owned ? (
-                    <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "equipAxe", axe: id })}>
-                      Use
-                    </button>
-                  ) : axe.tier >= 4 ? (
-                    // the Maple and Elderwood axes: Bramble's, in the Whispering Woods
-                    <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🐻 At Bramble's cabin in the woods</span>
-                  ) : (
-                    <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < axe.price} onClick={() => send({ type: "BUSTER", op: "buyAxe", axe: id })}>
-                      {axe.price} 🪙
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {tab === "gear" && (
-          <div className="flex flex-col gap-1.5">
-            <p className="m-0 text-center text-xs opacity-75">Buy it once and it works for good: no need to put it on.</p>
-            {GEAR_IDS.map((id) => {
-              const g = GEAR[id];
-              const owned = profile.gear.includes(id);
-              return (
-                <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${owned ? "bg-emerald-400/20" : "bg-white/10"}`}>
-                  <span className="text-2xl">{g.emoji}</span>
-                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <b className="text-sm">{g.name}</b>
-                    <span className="text-[11px] opacity-75">{g.blurb}</span>
-                  </div>
-                  {owned ? (
-                    <span className="px-2 text-xs font-bold text-emerald-200">Owned</span>
-                  ) : (
-                    <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < g.price} onClick={() => send({ type: "BUSTER", op: "buyGear", gear: id })}>
-                      {g.price} 🪙
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {tab === "permits" && <WoodsPermits profile={profile} coins={coins} send={send} />}
-
-        {tab === "carrier" && (
-          <div className="flex flex-col gap-1.5">
-            <p className="m-0 text-center text-xs opacity-75">
-              Every log and carved piece takes a slot ({carrierLoad(profile)}/{carrierCapacity(profile.carrierTier)} now). A full carrier means no more felling until you sell or split some (nothing is ever thrown away).
-            </p>
-            <div className="flex max-h-[34vh] flex-col gap-1.5 overflow-y-auto pr-1">
-              {WOOD_CARRIER_TIERS.map((t, i) => {
-                const tier = i + 1;
-                const using = tier === profile.carrierTier;
-                const have = tier <= profile.carrierTier;
-                return (
-                  <div key={t.id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${using ? "bg-emerald-400/20" : have ? "bg-white/5 opacity-60" : "bg-white/10"}`}>
-                    <span className="text-xl">{t.icon}</span>
-                    <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                      <b className="text-sm">{t.name}</b>
-                      <span className="text-[11px] opacity-75">{t.capacity} slots</span>
-                    </div>
-                    {using ? (
-                      <span className="px-2 text-xs font-bold text-emerald-200">In use</span>
-                    ) : have ? (
-                      <span className="px-2 text-xs opacity-60">Outgrown</span>
-                    ) : next?.id === t.id ? (
-                      <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < t.price} onClick={() => send({ type: "BUSTER", op: "upgradeCarrier" })}>
-                        {t.price.toLocaleString()} 🪙
-                      </button>
-                    ) : (
-                      <span className="px-2 text-xs opacity-50">{t.price.toLocaleString()} 🪙</span>
-                    )}
-                  </div>
-                );
-              })}
             </div>
-          </div>
-        )}
-      </div>
-    </Modal>
+          ))}
+          {profile.firewood > 0 && (
+            <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+              <span className="text-2xl">🔥</span>
+              <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                <b className="text-sm">
+                  Firewood bundles <span className="font-normal opacity-70">×{profile.firewood}</span>
+                </b>
+                <span className="text-[11px] opacity-75">{FIREWOOD_PRICE} 🪙 a bundle</span>
+              </div>
+              <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellFirewood", count: "all" })}>
+                All · {profile.firewood * FIREWOOD_PRICE} 🪙
+              </button>
+            </div>
+          )}
+          {profile.resin > 0 && (
+            <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+              <span className="text-2xl">🍯</span>
+              <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                <b className="text-sm">
+                  Pine Resin <span className="font-normal opacity-70">×{profile.resin}</span>
+                </b>
+                <span className="text-[11px] opacity-75">{RESIN_PRICE} 🪙 each · from gold swings</span>
+              </div>
+              <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellResin", count: "all" })}>
+                All · {profile.resin * RESIN_PRICE} 🪙
+              </button>
+            </div>
+          )}
+          {profile.crafts.length > 0 && (
+            <>
+              <b className="mt-1 text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Carved pieces</b>
+              {profile.crafts.map((item, i) => (
+                <div key={i} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${item.m ? "border-2 border-amber-300 bg-amber-300/10" : "bg-white/10"}`}>
+                  <span className="text-xl">{CRAFTS[item.c].emoji}</span>
+                  <b className="flex-1 text-xs">
+                    {CRAFTS[item.c].name}
+                    {item.m && <span className="ml-1 text-amber-200">Masterwork ✨</span>}
+                  </b>
+                  <button type="button" className="clay-btn min-h-8 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: i })}>
+                    {priceRun([item], (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total} 🪙
+                  </button>
+                </div>
+              ))}
+              <button type="button" className="clay-btn clay-btn-amber min-h-10 w-full text-xs" onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: "all" })}>
+                Sell every carved piece · {craftWorth} 🪙
+              </button>
+            </>
+          )}
+          {!held.length && !byCount && !profile.firewood && !profile.resin && !profile.crafts.length && <p className="m-0 py-6 text-center text-sm opacity-70">Nothing to trade yet. The Soft Pines round the clearing are yours to fell!</p>}
+          <p className="m-0 pt-1 text-center text-[11px] opacity-70">Carve your logs at the workbench 🪚 by the tipi: worth far more!</p>
+        </div>
+      )}
+
+      {tab === "tools" && (
+        <div className="flex flex-col gap-1.5">
+          <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Axes</b>
+          {AXE_IDS.map((id) => {
+            const axe = AXES[id];
+            const owned = profile.axes.includes(id);
+            const using = profile.axe === id;
+            return (
+              <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${using ? "bg-emerald-400/20" : "bg-white/10"}`}>
+                <span className="text-2xl">{axe.emoji}</span>
+                <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <b className="text-sm">{axe.name}</b>
+                  <span className="text-[11px] opacity-75">{axe.blurb}</span>
+                </div>
+                {using ? (
+                  <span className="px-2 text-xs font-bold text-emerald-200">In hand</span>
+                ) : owned ? (
+                  <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "equipAxe", axe: id })}>
+                    Use
+                  </button>
+                ) : axe.tier >= 4 ? (
+                  // the Maple and Elderwood axes: Bramble's, in the Whispering Woods
+                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🐻 At Bramble's cabin in the woods</span>
+                ) : (
+                  <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < axe.price} onClick={() => send({ type: "BUSTER", op: "buyAxe", axe: id })}>
+                    {axe.price.toLocaleString("en-US")} 🪙
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          <b className="mt-1 text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">The Whispering Woods</b>
+          <WoodsPermits profile={profile} coins={coins} send={send} />
+        </div>
+      )}
+
+      {tab === "storage" && (
+        <div className="flex flex-col gap-1.5">
+          <p className="m-0 text-center text-xs opacity-75">
+            Every log and carved piece takes a slot ({carrierLoad(profile)}/{carrierCap(profile)} now). A full carrier means no more felling until you sell or split some (nothing is ever thrown away).
+          </p>
+          {WOOD_CARRIER_TIERS.map((t, i) => {
+            const tier = i + 1;
+            const using = tier === profile.carrierTier;
+            const have = tier <= profile.carrierTier;
+            return (
+              <div key={t.id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${using ? "bg-emerald-400/20" : have ? "bg-white/5 opacity-60" : "bg-white/10"}`}>
+                <span className="text-xl">{t.icon}</span>
+                <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <b className="text-sm">{t.name}</b>
+                  <span className="text-[11px] opacity-75">{t.capacity} slots</span>
+                </div>
+                {using ? (
+                  <span className="px-2 text-xs font-bold text-emerald-200">In use</span>
+                ) : have ? (
+                  <span className="px-2 text-xs opacity-60">Outgrown</span>
+                ) : next?.id === t.id ? (
+                  <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < t.price} onClick={() => send({ type: "BUSTER", op: "upgradeCarrier" })}>
+                    {t.price.toLocaleString("en-US")} 🪙
+                  </button>
+                ) : (
+                  <span className="px-2 text-xs opacity-50">{t.price.toLocaleString("en-US")} 🪙</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === "gear" && <GearShopList craft="wood" maxTier={3} elsewhere="🐻 At Bramble's cabin in the woods" profile={profile} coins={coins} onBuy={(id) => send({ type: "BUSTER", op: "buyGear", gear: id })} send={send} />}
+    </ShopShell>
   );
 }

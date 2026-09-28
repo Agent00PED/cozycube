@@ -951,9 +951,9 @@ def build_tent(L, cushions, coll):
     thick.thickness = 0.025
 
 
-def pine(bm, x, z, s, rng, light):
+def pine(bm, x, z, s, rng, light, yaw=None):
     lathe(bm, x, z, [(0, 0.0), (0.16 * s, 0.0), (0.14 * s, 0.75 * s), (0, 0.8 * s)], segs=9, m=0, jitter=0.1, rng=rng)
-    yaw = rng.random() * 3
+    yaw = rng.random() * 3 if yaw is None else yaw
     tiers = ((1.05, 0.55, 1.15), (0.82, 1.25, 1.0), (0.58, 1.9, 0.95))
     for k, (rad, base, tall) in enumerate(tiers):
         R, y0, H = rad * s, base * s, tall * s
@@ -964,9 +964,9 @@ def pine(bm, x, z, s, rng, light):
 def build_trees(L, coll):
     rng = random.Random(21)
     bm = bmesh.new()
-    spots = [(t["x"], t["z"], t["s"]) for t in L["trees"]]
-    for i, (x, z, s) in enumerate(spots):
-        pine(bm, x, z, s, rng, light=i % 2 == 1)
+    # (each at its own size, and turned its own way where the layout says: the west edge's stagger)
+    for i, t in enumerate(L["trees"]):
+        pine(bm, t["x"], t["z"], t["s"], rng, light=i % 2 == 1, yaw=t.get("yaw"))
     # the bare branch the owl perches on, out through its pine's lowest boughs
     o = L["owl"]
     cylinder(bm, W(o["tree"]["x"], o["y"] - 0.1, o["tree"]["z"]), W(o["x"] + 0.12, o["y"] - 0.03, o["z"] + 0.12), 0.04, 7, m=0, r_end=0.026)
@@ -984,6 +984,16 @@ def build_rocks(L, coll):
         blob(bm, r["x"], 0.12 * s, r["z"], 0.5 * s, 0.36 * s, 0.42 * s, m=i % 2, cuts=4, noise=0.1, rng=rng, flat_bottom=-0.3)
         if i % 3 == 0:  # a smaller one tucked beside it
             blob(bm, r["x"] + 0.45 * s, 0.05, r["z"] + 0.3 * s, 0.22 * s, 0.16 * s, 0.2 * s, m=(i + 1) % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.2)
+    # smooth river stones along the tipi-to-gallery walk: a few flat pebbles in a loose drift
+    for u in L.get("undergrowth", []):
+        if u["kind"] != "stones":
+            continue
+        for q in range(5):
+            a = rng.random() * 6.28
+            rr = 0.12 + 0.3 * rng.random()
+            px, pz = u["x"] + rr * math.cos(a), u["z"] + rr * math.sin(a)
+            w = 0.07 + 0.07 * rng.random()
+            blob(bm, px, 0.012, pz, w, 0.035, w * (0.7 + 0.3 * rng.random()), m=q % 2, cuts=3, noise=0.05, rng=rng, flat_bottom=-0.3)
     make_object("Campfire_Rocks", bm, ["CF_Stone", "CF_StoneDark"], coll)
 
 
@@ -1027,6 +1037,33 @@ def build_deco(L, coll):
             s = 0.65 + 0.55 * rng.random()
             lathe(bm, x, z, [(0, 0.0), (0.035 * s, 0.0), (0.03 * s, 0.1 * s), (0, 0.11 * s)], segs=8, m=1)
             lathe(bm, x, z, [(0, 0.08 * s), (0.09 * s, 0.09 * s), (0.07 * s, 0.14 * s), (0, 0.17 * s)], segs=10, m=0 if (n + k) % 3 else 9)
+    # the undergrowth the layout places: wild red-capped mushroom patches, low berry bushes, and
+    # wildflower tufts along the fence by the telescope
+    for u in L.get("undergrowth", []):
+        ux, uz = u["x"], u["z"]
+        if u["kind"] == "mushrooms":
+            for k in range(4):
+                a = rng.random() * 6.28
+                rr = 0.08 + 0.2 * rng.random()
+                x, z = ux + rr * math.cos(a), uz + rr * math.sin(a)
+                s = 0.7 + 0.6 * rng.random()
+                lathe(bm, x, z, [(0, 0.0), (0.035 * s, 0.0), (0.03 * s, 0.1 * s), (0, 0.11 * s)], segs=8, m=1)
+                lathe(bm, x, z, [(0, 0.08 * s), (0.09 * s, 0.09 * s), (0.07 * s, 0.14 * s), (0, 0.17 * s)], segs=10, m=0)
+        elif u["kind"] == "berries":
+            for k in range(2):
+                bx, bz = ux + 0.2 * (k - 0.5), uz + 0.08 * (k - 0.5)
+                blob(bm, bx, 0.14, bz, 0.26, 0.2, 0.24, m=7, cuts=3, noise=0.08, rng=rng, flat_bottom=-0.05)
+                for q in range(6):
+                    a = rng.random() * 6.28
+                    blob(bm, bx + math.cos(a) * 0.22, 0.14 + rng.uniform(-0.04, 0.1), bz + math.sin(a) * 0.2, 0.028, 0.028, 0.028, m=8, cuts=1)
+        elif u["kind"] == "flowers":
+            for k in range(5):
+                a = rng.random() * 6.28
+                rr = 0.05 + 0.16 * rng.random()
+                x, z = ux + rr * math.cos(a), uz + rr * math.sin(a)
+                h = 0.13 + 0.07 * rng.random()
+                cylinder(bm, W(x, 0.0, z), W(x, h, z), 0.012, 5, m=2)
+                blob(bm, x, h + 0.01, z, 0.045, 0.03, 0.045, m=3 if k % 2 else 4, cuts=2, n=2.0)
     # wildflowers round the edge of the clearing
     c = L["clearing"]
     for k in range(22):

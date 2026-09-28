@@ -109,11 +109,15 @@ export function CookingModal({ hearth, profile, bag, userId, fed, send, onClose 
                     key={i}
                     type="button"
                     className="clay-btn min-h-9 px-2 text-xs"
+                    // (a locked fish stays out of the pot: unlock it in the livewell first)
+                    disabled={!!f.l}
+                    title={f.l ? "Locked - unlock it in the livewell to cook it" : undefined}
                     onClick={() => {
                       send({ type: "STEW_ADD", ingredient: "fish", slot: i });
                       setPickFish(false);
                     }}
                   >
+                    {f.l ? "🔒 " : ""}
                     {FISH[f.s].emoji} {f.cm} cm {stars(f.q)}
                   </button>
                 ))}

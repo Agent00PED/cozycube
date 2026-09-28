@@ -10,8 +10,8 @@ import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worl
 import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, WORKBENCH, WORKBENCH_FRONT, WORKBENCH_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
 import { ADHESIVES, CRAFTS, RESIN_PRICE, SAWDUST_FUEL, canCraft, craftOdds, craftSalePrice, craftSalvage, isAdhesive, isCraftId, isCraftMode, rollCraft } from "../../../shared/crafting";
-import { GEAR, bonusLogChance, gearPace, gloveSweetBonus, isGearId } from "../../../shared/gear";
-import { AXES, woodPrice, nextCarrierTier, WOOD, carrierCapacity, isAxeId, isWoodKind, addLogs, takeLogs, woodAverage, logMultiplier, rollFellSwing, judgeFell, rollTreeScale, rollTreeRounds, trunkCm, FELL_CRIT_CHANCE, FELL_CRIT_COINS, FELL_ROUND_PAUSE_S, TITAN, type FellSwing, type FellVerdict } from "../../../shared/chop";
+import { DRYAD_GROWTH, GEAR, LUCKY_BELL_KING, LUCKY_BELL_WARN_S, baitSaveChance, biteHaste, bonusLogChance, byproductBonus, dryadChance, feltRingSlow, goldBonus, goldStarBonus, hasLuckyBell, heftBonus, isGearId, missDeepens, nightRareLuck, quickRegrow, splitYield, wearGear, type GearId } from "../../../shared/gear";
+import { AXES, woodPrice, nextCarrierTier, WOOD, isAxeId, isWoodKind, addLogs, takeLogs, woodAverage, logMultiplier, rollFellSwing, judgeFell, rollTreeScale, rollTreeRounds, trunkCm, FELL_CRIT_CHANCE, FELL_CRIT_COINS, FELL_ROUND_PAUSE_S, TITAN, type FellSwing, type FellVerdict } from "../../../shared/chop";
 import {
   BAITS,
   afkSeconds,
@@ -22,9 +22,11 @@ import {
   WELL_FED_SPEED,
   biteSeconds,
   woodCount,
+  carrierCap,
   carrierLoad,
   creelFull,
   creelTier,
+  livewellCap,
   nextCreelTier,
   fishValue,
   isBaitId,
@@ -502,7 +504,12 @@ export class HangoutRoom extends Room<HangoutState> {
   private fells = new Map<string, { tree: string; swing: FellSwing; startedAt: number }>();
   /** Every fellable tree's life (shared/worlds/trees.ts): its stage, size, rounds landed and needed,
    *  and when it fell (its regrowth); a Titan's only while its event stands. */
-  private trees = new Map<string, { stage: TreeStage; scale: number; dmg: number; rounds: number; fellAt: number }>();
+  /** Every fellable tree's state; `quick` a tree struck gold by someone wearing the Ancient Ring of
+   *  Oak (it grows back sooner), `grown` one the Dryad's Sprout Amulet has already grown this time. */
+  private trees = new Map<string, { stage: TreeStage; scale: number; dmg: number; rounds: number; fellAt: number; quick?: boolean; grown?: boolean }>();
+  /** Finley's Lucky Bell: the surge it has already rung for (its start time), and where it will be. */
+  private bellRungFor = 0;
+  private nextSurgeSpot: { map: MapId; at: { x: number; z: number } } | null = null;
   /** When the next living wonder comes (epoch ms), and which came last (they take turns). */
   private nextWonderAt = Date.now() + wonderGap();
   private lastWonder: "surge" | "titan" = Math.random() < 0.5 ? "surge" : "titan";
@@ -846,8 +853,10 @@ export class HangoutRoom extends Room<HangoutState> {
     if (process.env.NODE_ENV !== "production") {
       this.onMessage("devWorldEvent", (_client, kind: unknown) => {
         this.endWonder(false);
-        // "auto": the room's own clock comes due now (the next wonder in turn, as in production)
+        // "auto": the room's own clock comes due now (the next wonder in turn, as in production);
+        // "soon": due in 35 s (a Lucky Bell rings first, if a surge is next)
         if (kind === "auto") this.nextWonderAt = 0;
+        else if (kind === "soon") this.nextWonderAt = Date.now() + (LUCKY_BELL_WARN_S + 5) * 1000;
         else this.startWonder(kind === "titan" ? "titan" : "surge");
       });
     }
@@ -1771,7 +1780,8 @@ export class HangoutRoom extends Room<HangoutState> {
         if (progress !== player.actionProgress) player.actionProgress = progress;
         if (now >= at) {
           const species = this.pendingFish.get(sessionId)?.species ?? rollRiverFish("freshwater", { afk: true });
-          this.landFish(sessionId, player, rollCatch(species, { afk: true }), true, 0);
+          const worn = this.records.get(sessionId)?.fishing.worn ?? [];
+          this.landFish(sessionId, player, rollCatch(species, { afk: true, goldStar: goldStarBonus(worn), heft: heftBonus(worn) }), true, 0);
           if (this.creelIsFull(sessionId)) this.restByTheWater(sessionId, player);
           else {
             this.scheduleCampAfk(sessionId, now);
@@ -1933,7 +1943,11 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleCampfire(client: Client, packet: CampfirePacket) {
     const sessionId = client.sessionId;
     const player = this.state.players.get(sessionId);
-    if (!player || !packet || typeof packet !== "object" || !isCampMap(player.map)) return;
+    if (!player || !packet || typeof packet !== "object") return;
+    // the drawers' own changes (a fish locked, gear put on, the rod, bait or axe in hand) work on
+    // every map, as the drawers do; everything else happens at the camp
+    const anywhere = packet.type === "GEAR" || (packet.type === "BARNABY" && (packet.op === "lockFish" || packet.op === "equipRod" || packet.op === "equipBait")) || (packet.type === "BUSTER" && packet.op === "equipAxe");
+    if (!isCampMap(player.map) && !anywhere) return;
     switch (packet.type) {
       case "ROAST_START": {
         // from beside the fire or from a log bench round it (a little slack for latency)
@@ -2082,6 +2096,10 @@ export class HangoutRoom extends Room<HangoutState> {
           const slot = Math.floor(Number(packet.slot));
           const f = profile?.creel[slot];
           if (!profile || !f) return;
+          if (f.l) {
+            this.sendTo(sessionId, "campfireNotice", { message: `Your ${FISH[f.s].name} is locked: unlock it in the livewell to cook it`, emoji: "🔒" });
+            return;
+          }
           profile.creel.splice(slot, 1);
           fish = f.s;
           this.saveFishing(sessionId, player);
@@ -2210,6 +2228,10 @@ export class HangoutRoom extends Room<HangoutState> {
         this.handleBuster(sessionId, player, packet);
         return;
       }
+      case "GEAR": {
+        this.handleGear(sessionId, player, packet);
+        return;
+      }
       case "WORKBENCH": {
         this.handleWorkbench(sessionId, player, packet);
         return;
@@ -2303,9 +2325,16 @@ export class HangoutRoom extends Room<HangoutState> {
       client.send("campfireNotice", { message: `Your ${axe.name} (T${axe.tier}) can't bite into ${name}: it takes a T${info.tier} axe or better (${from} sells them)`, emoji: "🪓" });
       return;
     }
-    if (carrierLoad(profile) >= carrierCapacity(profile.carrierTier)) {
-      client.send("campfireNotice", { message: `Your wood carrier is full (${carrierLoad(profile)}/${carrierCapacity(profile.carrierTier)}): split some into Firewood, sell it, or burn it`, emoji: "🪵" });
+    if (carrierLoad(profile) >= carrierCap(profile)) {
+      client.send("campfireNotice", { message: `Your wood carrier is full (${carrierLoad(profile)}/${carrierCap(profile)}): split some into Firewood, sell it, or burn it`, emoji: "🪵" });
       return;
+    }
+    // the Dryad's Sprout Amulet: now and then the tree grows as you set your axe to it (once a growth)
+    if (!node.titan && tree.dmg === 0 && !tree.grown && Math.random() < dryadChance(profile.worn)) {
+      tree.grown = true;
+      tree.scale = Math.round((tree.scale + DRYAD_GROWTH) * 100) / 100;
+      this.syncTrees();
+      client.send("campfireNotice", { message: `🌱 Your Dryad's Sprout Amulet glows: the ${name} grows before your eyes (now ${tree.scale.toFixed(2)}x)`, emoji: "🌱" });
     }
     player.action = "chop";
     player.actionProgress = tree.dmg / tree.rounds;
@@ -2319,7 +2348,8 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!tree) return;
     const profile = this.records.get(client.sessionId)?.fishing;
     const eagle = (profile?.eagleUntil ?? 0) > Date.now() ? EAGLE_EYE_ZONE : 0;
-    const swing = rollFellSwing(node.id, node.kind, tree.dmg + 1, tree.rounds, profile?.axe ?? "rusty", Math.random, gloveSweetBonus(profile?.gear ?? []), eagle, node.titan);
+    const worn = profile?.worn ?? [];
+    const swing = rollFellSwing(node.id, node.kind, tree.dmg + 1, tree.rounds, profile?.axe ?? "rusty", Math.random, goldBonus(worn), eagle, node.titan, feltRingSlow(worn));
     this.fells.set(client.sessionId, { tree: node.id, swing, startedAt: Date.now() + pauseS * 1000 });
     client.send("fellSwing", { ...swing, pause: pauseS });
   }
@@ -2341,6 +2371,14 @@ export class HangoutRoom extends Room<HangoutState> {
     let drop: FellDrop = { kind: "none", name: "", emoji: "", count: 0 };
     let felled = false;
     let capped = false;
+    // the Titan-Grip Gauntlets: a miss still deepens the notch (but drops nothing)
+    const grip = verdict === "miss" && missDeepens(profile.worn);
+    if (grip) {
+      tree.dmg = Math.min(tree.rounds, tree.dmg + 1);
+      felled = tree.dmg >= tree.rounds;
+    }
+    // the Ancient Ring of Oak: a tree struck gold grows back sooner
+    if (verdict === "gold" && quickRegrow(profile.worn) > 0) tree.quick = true;
     if (verdict !== "miss") {
       tree.dmg = Math.min(tree.rounds, tree.dmg + 1);
       if (verdict === "gold" && Math.random() < FELL_CRIT_CHANCE) {
@@ -2368,7 +2406,7 @@ export class HangoutRoom extends Room<HangoutState> {
       if (heavy) drop = heavy;
     }
     this.saveFishing(sessionId, player);
-    const result: FellResult = { sessionId, tree: node.id, kind: node.kind, verdict, dmg, rounds: tree.rounds, drop, bonus, coins, felled, capped };
+    const result: FellResult = { sessionId, tree: node.id, kind: node.kind, verdict, dmg, rounds: tree.rounds, drop, bonus, coins, felled, capped, ...(grip ? { grip: true } : {}) };
     client.send("fellResult", result);
     this.syncTrees();
     if (felled) {
@@ -2380,7 +2418,7 @@ export class HangoutRoom extends Room<HangoutState> {
       this.persist(sessionId, player);
     } else {
       // the next swing: after the round's chips have flown (a miss: at once)
-      this.sendFellSwing(client, node, verdict === "miss" ? 0.15 : FELL_ROUND_PAUSE_S);
+      this.sendFellSwing(client, node, verdict === "miss" && !grip ? 0.15 : FELL_ROUND_PAUSE_S);
     }
   }
 
@@ -2395,13 +2433,19 @@ export class HangoutRoom extends Room<HangoutState> {
       return { kind: "byproduct", name: BYPRODUCTS[id].name, emoji: BYPRODUCTS[id].emoji, count: 1 };
     };
     if (node.titan) return pouch("leafAmber");
-    const room = carrierCapacity(profile.carrierTier) - carrierLoad(profile);
+    const room = carrierCap(profile) - carrierLoad(profile);
     if (room > 0 && Math.random() < info.logChance) {
       const mult = logMultiplier(scale);
-      // the Deerskin Grip Gloves: now and then a second log off the same round
-      const n = room > 1 && Math.random() < bonusLogChance(profile.gear) ? 2 : 1;
+      // the Deerskin Felling Gloves: now and then a second log off the same round
+      const n = room > 1 && Math.random() < bonusLogChance(profile.worn) ? 2 : 1;
       addLogs(profile, info.wood, n, mult);
-      return { kind: "log", name: WOOD[info.wood].name, emoji: WOOD[info.wood].emoji, wood: info.wood, mult: Math.round(mult * 100) / 100, count: n };
+      const drop: FellDrop = { kind: "log", name: WOOD[info.wood].name, emoji: WOOD[info.wood].emoji, wood: info.wood, mult: Math.round(mult * 100) / 100, count: n };
+      // the Amber Resin Band: the tree's by-product too, now and then
+      if (info.byproduct && Math.random() < byproductBonus(profile.worn)) {
+        const extra = pouch(info.byproduct);
+        drop.also = { name: extra.name, emoji: extra.emoji };
+      }
+      return drop;
     }
     // no log this round (its luck, or a full carrier): the tier's by-product (a T1 pine has none)
     return info.byproduct ? pouch(info.byproduct) : { kind: "none", name: "", emoji: "", count: 0 };
@@ -2421,7 +2465,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (node.titan) {
       const wood = TREES[node.kind].wood;
       const logs = rollTreeRounds(TITAN.logs);
-      const room = Math.max(0, carrierCapacity(profile.carrierTier) - carrierLoad(profile));
+      const room = Math.max(0, carrierCap(profile) - carrierLoad(profile));
       const got = Math.min(logs, room);
       addLogs(profile, wood, got, TITAN.mult);
       heavy = { kind: "log", name: `heavy ${WOOD[wood].name}`, emoji: WOOD[wood].emoji, wood, mult: TITAN.mult, count: got };
@@ -2430,7 +2474,9 @@ export class HangoutRoom extends Room<HangoutState> {
       this.endWonder(true);
     } else {
       tree.stage = "stump";
-      tree.fellAt = Date.now();
+      // (struck gold with the Ancient Ring of Oak: it starts a fifth of the way back already)
+      tree.fellAt = Date.now() - (tree.quick ? 0.2 * TREES[node.kind].respawnS * 1000 : 0);
+      tree.quick = false;
       tree.dmg = 0;
     }
     this.fells.forEach((f, id) => {
@@ -2479,6 +2525,7 @@ export class HangoutRoom extends Room<HangoutState> {
         tree.rounds = rollTreeRounds(TREES[node.kind].rounds);
         tree.dmg = 0;
         tree.fellAt = 0;
+        tree.grown = false;
       }
     });
     if (changed) this.syncTrees();
@@ -2523,6 +2570,15 @@ export class HangoutRoom extends Room<HangoutState> {
    *  until someone fells it (and the next wonder waits for that). */
   private tickWonder(now: number) {
     const ev = parseWorldEvent(this.state.worldEvent);
+    // Finley's Lucky Bell: thirty seconds before a surge, its wearers hear where it will be
+    if (!ev && this.lastWonder === "titan" && this.nextWonderAt > 0 && now >= this.nextWonderAt - LUCKY_BELL_WARN_S * 1000 && this.bellRungFor !== this.nextWonderAt) {
+      this.bellRungFor = this.nextWonderAt;
+      this.nextSurgeSpot = this.pickSurgeSpot();
+      const where = this.nextSurgeSpot.map === "campfire_night" ? "by the campfire's dock" : "on the Whispering Woods' river";
+      this.clients.forEach((c) => {
+        if (hasLuckyBell(this.records.get(c.sessionId)?.fishing.worn ?? [])) c.send("campfireNotice", { message: `Your Lucky Bell is ringing! A King-Size Surge in ${LUCKY_BELL_WARN_S} seconds, ${where}`, emoji: "🔔" });
+      });
+    }
     if (ev && ev.until > 0 && now > ev.until) {
       this.endWonder(true);
     } else if (!ev && now >= this.nextWonderAt && this.clients.length > 0) {
@@ -2536,8 +2592,9 @@ export class HangoutRoom extends Room<HangoutState> {
     const now = Date.now();
     let ev: WorldEvent;
     if (kind === "surge") {
-      const spots = [...FISHING_SPOTS.map((f) => ({ map: "campfire_night" as MapId, at: f.bobber })), ...FOREST_FISHING.map((f) => ({ map: "whispering_woods" as MapId, at: f.bobber }))];
-      const spot = spots[Math.floor(Math.random() * spots.length)];
+      // (where the Lucky Bell said it would be, if it rang)
+      const spot = this.nextSurgeSpot ?? this.pickSurgeSpot();
+      this.nextSurgeSpot = null;
       ev = { kind: "surge", map: spot.map, x: spot.at.x, z: spot.at.z, r: 1.6, until: now + SURGE_S * 1000 };
       const where = spot.map === "campfire_night" ? "by the campfire's dock" : "on the Whispering Woods' river";
       this.broadcast("campfireNotice", { message: `The water's shimmering gold ${where}! A King-Size Surge for four minutes: reel by hand in the ripples and 4 in 10 catches are King Size`, emoji: "✨" });
@@ -2552,6 +2609,12 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     this.lastWonder = kind;
     this.state.worldEvent = JSON.stringify(ev);
+  }
+
+  /** A stretch of water for a surge: a fishing spot's, at the campfire or in the woods. */
+  private pickSurgeSpot(): { map: MapId; at: { x: number; z: number } } {
+    const spots = [...FISHING_SPOTS.map((f) => ({ map: "campfire_night" as MapId, at: f.bobber })), ...FOREST_FISHING.map((f) => ({ map: "whispering_woods" as MapId, at: f.bobber }))];
+    return spots[Math.floor(Math.random() * spots.length)];
   }
 
   /** The wonder ends (felled, faded or replaced): the Titan's tree goes, and the next is due. */
@@ -2574,7 +2637,9 @@ export class HangoutRoom extends Room<HangoutState> {
     const ev = parseWorldEvent(this.state.worldEvent);
     if (!ev || ev.kind !== "surge" || ev.map !== player.map) return 0;
     const bob = this.bobberOf(sessionId, player);
-    return bob && Math.hypot(bob.x - ev.x, bob.z - ev.z) <= ev.r + 0.6 ? SURGE_KING_CHANCE : 0;
+    if (!bob || Math.hypot(bob.x - ev.x, bob.z - ev.z) > ev.r + 0.6) return 0;
+    // Finley's Lucky Bell: five in ten
+    return hasLuckyBell(this.records.get(sessionId)?.fishing.worn ?? []) ? LUCKY_BELL_KING : SURGE_KING_CHANCE;
   }
 
   /** Where this angler's float is: their spot's (a dock seat, the canoe, a woods spot or seat). */
@@ -2741,7 +2806,8 @@ export class HangoutRoom extends Room<HangoutState> {
     this.biteUntil.delete(sessionId);
     const species = this.pendingFish.get(sessionId)?.species ?? rollRiverFish("freshwater", this.catchLuck(sessionId, player));
     this.pendingFish.delete(sessionId);
-    const fish = rollCatch(species, { rareLuck: this.catchLuck(sessionId, player).rareLuck, king: this.surgeKing(sessionId, player) });
+    const worn = this.records.get(sessionId)?.fishing.worn ?? [];
+    const fish = rollCatch(species, { rareLuck: this.catchLuck(sessionId, player).rareLuck, king: this.surgeKing(sessionId, player), goldStar: goldStarBonus(worn), heft: heftBonus(worn) });
     const treasure = Math.random() < TREASURE_CHANCE[FISH[species].tier];
     this.starReels.set(sessionId, { fish, startedAt: Date.now(), treasure });
     player.action = "reel";
@@ -2769,7 +2835,8 @@ export class HangoutRoom extends Room<HangoutState> {
     let bait: BaitId | "" = "";
     if (profile?.bait && (profile.baits[profile.bait] ?? 0) > 0) {
       bait = profile.bait;
-      if (consumeBait) {
+      // (the Tackle Master's Holster: a bait lasts a fifth longer, one cast in six on the house)
+      if (consumeBait && Math.random() >= baitSaveChance(profile.worn)) {
         const left = (profile.baits[bait] ?? 0) - 1;
         if (left > 0) profile.baits[bait] = left;
         else {
@@ -2780,7 +2847,8 @@ export class HangoutRoom extends Room<HangoutState> {
       }
     }
     const species = rollRiverFish("freshwater", this.catchLuck(sessionId, player, bait));
-    const total = biteSeconds(species, { fed: player.fed > 0, bait, night: !isCampDay(Date.now()) }) * 1000;
+    const day = isCampDay(Date.now());
+    const total = biteSeconds(species, { fed: player.fed > 0, bait, night: !day, haste: biteHaste(profile?.worn ?? [], day) }) * 1000;
     const now = Date.now();
     this.pendingFish.set(sessionId, { species, castAt: now, total });
     this.fishBiteAt.set(sessionId, now + total);
@@ -2794,7 +2862,9 @@ export class HangoutRoom extends Room<HangoutState> {
     const profile = this.records.get(sessionId)?.fishing;
     const rapids = player.map === "whispering_woods";
     const aura = player.map === "campfire_night" && hasCozyAura(this.state.fuel) ? COZY_AURA_LUCK : 0;
-    return { rareLuck: aura + (rapids ? RAPIDS_LUCK : 0), bait, time: isCampDay(Date.now()) ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier };
+    const day = isCampDay(Date.now());
+    // (the Moonlit Abyssal Ring: by night, the rare and nocturnal fish a quarter likelier)
+    return { rareLuck: aura + (rapids ? RAPIDS_LUCK : 0) + nightRareLuck(profile?.worn ?? [], !day), bait, time: day ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier };
   }
 
   private creelIsFull(sessionId: string): boolean {
@@ -2819,7 +2889,7 @@ export class HangoutRoom extends Room<HangoutState> {
     player.drink = "";
     if (was !== "rest") {
       const kit = this.records.get(sessionId)?.fishing;
-      this.sendTo(sessionId, "creelFull", { capacity: kit?.slots ?? 0, held: kit?.creel.length ?? 0 });
+      this.sendTo(sessionId, "creelFull", { capacity: kit ? livewellCap(kit) : 0, held: kit?.creel.length ?? 0 });
       this.nearby(sessionId, "emote", { sessionId, emoji: "☕" });
     }
   }
@@ -2835,7 +2905,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // premium bait (the Lucky Chum) on the hook: every wait a quarter shorter
     const profile = this.records.get(sessionId)?.fishing;
     const bait = profile && profile.bait && (profile.baits[profile.bait] ?? 0) > 0 ? profile.bait : "";
-    const total = afkSeconds(species, Math.random, bait) * 1000;
+    const total = afkSeconds(species, Math.random, bait, biteHaste(profile?.worn ?? [], isCampDay(now))) * 1000;
     this.pendingFish.set(sessionId, { species, castAt: now, total });
     this.afkTotal.set(sessionId, total);
     this.fishBiteAt.set(sessionId, now + total);
@@ -2852,7 +2922,7 @@ export class HangoutRoom extends Room<HangoutState> {
     profile.caught[fish.s] = Math.min(999_999, (profile.caught[fish.s] ?? 0) + 1);
     let coins = treasure;
     let released = false;
-    if (profile.creel.length < profile.slots) profile.creel.push(fish);
+    if (profile.creel.length < livewellCap(profile)) profile.creel.push(fish);
     else {
       released = true;
       coins += this.campfirePay(sessionId, player, "fish", CREEL_RELEASE_COINS);
@@ -3001,7 +3071,8 @@ export class HangoutRoom extends Room<HangoutState> {
       const n = profile.wood[k] ?? 0;
       if (n <= 0) continue;
       logs += n;
-      bundles += n * WOOD[k].firewood;
+      // (the Forester's Toolbelt: half as many bundles again)
+      bundles += Math.round(n * WOOD[k].firewood * splitYield(profile.worn));
       takeLogs(profile, k, n);
     }
     if (!logs) return reply(false, "No logs in your carrier to split");
@@ -3062,12 +3133,12 @@ export class HangoutRoom extends Room<HangoutState> {
     if (adhesive) profile.resin -= 1;
     const glue = adhesive ? { adhesive } : {};
     // Bramble's advanced bench: finer tools, a little more of a Masterwork's chance
-    const odds = craftOdds(packet.recipe, mode, profile.gear, adhesive);
+    const odds = craftOdds(packet.recipe, mode, adhesive);
     const outcome = rollCraft(advanced ? { ...odds, masterwork: odds.masterwork + Math.min(odds.normal, ADVANCED_BENCH_MASTER), normal: Math.max(0, odds.normal - ADVANCED_BENCH_MASTER) } : odds, Math.random());
     this.playGesture(sessionId, "chop");
     if (outcome === "broken") {
-      // the safety net: half its wood back (rounded up, per kind; 75% with the apron), and sawdust
-      const salvaged = craftSalvage(packet.recipe, profile.gear);
+      // the safety net: half its wood back (rounded up, per kind), and sawdust
+      const salvaged = craftSalvage(packet.recipe);
       for (const [k, n] of Object.entries(salvaged) as [keyof typeof WOOD, number][]) addLogs(profile, k, Math.min(n, 999 - profile.wood[k]));
       profile.sawdust = Math.min(999, profile.sawdust + 1);
       this.nearby(sessionId, "emote", { sessionId, emoji: "💥" });
@@ -3184,11 +3255,9 @@ export class HangoutRoom extends Room<HangoutState> {
         if (!isGearId(packet.gear)) return;
         if (!near) return tooFar();
         const gear = GEAR[packet.gear];
-        if (profile.gear.includes(packet.gear)) return reply(false, `You've already got the ${gear.name}!`);
-        if (player.coins < gear.price) return reply(false, `The ${gear.name} is ${gear.price} 🪙`);
-        this.addCoins(player, -gear.price);
-        profile.gear.push(packet.gear);
-        return reply(true, `${gear.emoji} The ${gear.name}! ${gear.blurb}`, -gear.price);
+        if (gear.craft !== "wood") return reply(false, `${theGear(gear.name)}? That's angling kit: ask Barnaby or Finley`);
+        if (!atBramble && gear.tier >= 4) return reply(false, `${theGear(gear.name)} comes from Bramble's cabin in the Whispering Woods`);
+        return this.buyGear(sessionId, player, profile, packet.gear, reply);
       }
       case "sellByproducts": {
         // the felling's by-products, at their flat prices (one kind, or every pouch)
@@ -3245,6 +3314,40 @@ export class HangoutRoom extends Room<HangoutState> {
     }
   }
 
+  /** A piece of gear bought (the shop has already checked it sells it): paid for, owned for good, and
+   *  worn at once (whatever it displaces comes off, still owned). */
+  private buyGear(sessionId: string, player: Player, profile: FishingProfile, id: GearId, reply: (ok: boolean, message: string, coins?: number) => void) {
+    const gear = GEAR[id];
+    if (profile.gear.includes(id)) return reply(false, `You've already got ${theGear(gear.name, false)}!`);
+    if (player.coins < gear.price) return reply(false, `${theGear(gear.name)} is ${gear.price.toLocaleString("en-US")} 🪙`);
+    this.addCoins(player, -gear.price);
+    profile.gear.push(id);
+    const { worn, removed } = wearGear(profile.worn, id);
+    profile.worn = worn;
+    this.nearby(sessionId, "emote", { sessionId, emoji: gear.emoji });
+    const off = removed.length ? ` (took off ${removed.map((r) => theGear(GEAR[r].name, false)).join(" and ")})` : "";
+    return reply(true, `${gear.emoji} ${theGear(gear.name)}, on and working${off}! ${gear.blurb}`, -gear.price);
+  }
+
+  /** Putting on or taking off a piece of gear you own (anywhere: the drawers' gear tabs). */
+  private handleGear(sessionId: string, player: Player, packet: Extract<CampfirePacket, { type: "GEAR" }>) {
+    const profile = this.records.get(sessionId)?.fishing;
+    if (!profile || !isGearId(packet.gear) || !profile.gear.includes(packet.gear)) return;
+    const gear = GEAR[packet.gear];
+    if (packet.op === "unequip") {
+      if (!profile.worn.includes(packet.gear)) return;
+      profile.worn = profile.worn.filter((g) => g !== packet.gear);
+      this.saveFishing(sessionId, player);
+      this.sendTo(sessionId, "campfireNotice", { message: `Took off ${theGear(gear.name, false)}`, emoji: gear.emoji });
+      return;
+    }
+    const { worn, removed } = wearGear(profile.worn, packet.gear);
+    profile.worn = worn;
+    this.saveFishing(sessionId, player);
+    const off = removed.length ? `, in place of ${removed.map((r) => theGear(GEAR[r].name, false)).join(" and ")}` : "";
+    this.sendTo(sessionId, "campfireNotice", { message: `${gear.name} on${off}`, emoji: gear.emoji });
+  }
+
   /** Barnaby's stall: selling the creel (near him), buying rods, bait and a bigger creel (near him),
    *  and switching rod or bait (anywhere). */
   private handleBarnaby(sessionId: string, player: Player, packet: Extract<CampfirePacket, { type: "BARNABY" }>) {
@@ -3265,8 +3368,11 @@ export class HangoutRoom extends Room<HangoutState> {
     switch (packet.op) {
       case "sell": {
         if (!near) return tooFar();
-        const picked = packet.slot === "all" ? profile.creel.map((_, k) => k) : [Math.floor(Number(packet.slot))].filter((k) => !!profile.creel[k]);
-        if (!picked.length) return reply(false, "Your creel's empty! The river's right there 🎣");
+        // (a locked fish never goes: Sell All passes it by, and alone it is refused)
+        const one = Math.floor(Number(packet.slot));
+        if (packet.slot !== "all" && profile.creel[one]?.l) return reply(false, `That ${FISH[profile.creel[one].s].name} is locked: unlock it to sell`);
+        const picked = packet.slot === "all" ? profile.creel.map((f, k) => (f.l ? -1 : k)).filter((k) => k >= 0) : [one].filter((k) => !!profile.creel[k]);
+        if (!picked.length) return reply(false, profile.creel.length ? "Every fish in there is locked: nothing to sell!" : "Your creel's empty! The river's right there 🎣");
         // a roaring fire puts Barnaby in a generous mood (the Cozy Aura: +15%)
         const aura = hasCozyAura(this.state.fuel) ? 1 + COZY_AURA_LUCK : 1;
         const first = profile.creel[picked[0]];
@@ -3319,6 +3425,23 @@ export class HangoutRoom extends Room<HangoutState> {
         else if (isBaitId(packet.bait) && (profile.baits[packet.bait] ?? 0) > 0) profile.bait = packet.bait;
         else return;
         return reply(true, profile.bait ? `${BAITS[profile.bait].emoji} ${BAITS[profile.bait].name} on the hook` : "No bait on the hook");
+      }
+      case "buyGear": {
+        if (!isGearId(packet.gear)) return;
+        if (!near) return tooFar();
+        const gear = GEAR[packet.gear];
+        if (gear.craft !== "fish") return reply(false, `${theGear(gear.name)}? That's woodcutter's kit: ask Buster or Bramble`);
+        if (!atFinley && gear.tier >= 4) return reply(false, `${theGear(gear.name)} comes from Finley, on his boulder by the woods' river`);
+        return this.buyGear(sessionId, player, profile, packet.gear, reply);
+      }
+      case "lockFish": {
+        // a favourite: locked, no sale takes it (anywhere: it is your own livewell)
+        const slot = Math.floor(Number(packet.slot));
+        const f = profile.creel[slot];
+        if (!f || f.s !== packet.fish) return;
+        if (packet.locked) f.l = true;
+        else delete f.l;
+        return reply(true, packet.locked ? `🔒 Your ${FISH[f.s].name} is locked: it's staying with you` : `🔓 Your ${FISH[f.s].name} is unlocked`);
       }
       case "upgradeCreel": {
         if (!near) return tooFar();
@@ -3406,8 +3529,7 @@ export class HangoutRoom extends Room<HangoutState> {
 
     // How far this player could honestly have walked since their last report.
     const now = Date.now();
-    const kit = sessionId ? this.records.get(sessionId)?.fishing : undefined;
-    const pace = (player.fed > 0 ? WELL_FED_SPEED : 1) * (kit ? gearPace(kit.gear, carrierLoad(kit) > 0) : 1) * auraPace(player.aura);
+    const pace = (player.fed > 0 ? WELL_FED_SPEED : 1) * auraPace(player.aura);
     let allowed = MAX_REPORT_STEP * pace;
     if (sessionId) {
       const last = this.lastReportAt.get(sessionId);
@@ -4362,6 +4484,12 @@ const CHOP_COOLDOWN_MS = 900;
 /** A feller idle this long (no swing) lets the tree go. */
 const FELL_IDLE_S = 25;
 /** The wait before the next living wonder: 45 to 60 minutes. */
+/** A piece of gear named in a sentence: "the Amber Resin Band", but a keeper's own piece keeps
+ *  its owner's name alone ("Finley's Lucky Bell"). */
+function theGear(name: string, capital = true): string {
+  return name.startsWith("Finley's ") ? name : `${capital ? "The" : "the"} ${name}`;
+}
+
 function wonderGap(): number {
   return (WORLD_EVENT_EVERY_MIN[0] + Math.random() * (WORLD_EVENT_EVERY_MIN[1] - WORLD_EVENT_EVERY_MIN[0])) * 60_000;
 }

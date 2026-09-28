@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FishCaught, PlayerState } from "@shared/types";
-import { fishValue, sanitizeFishingProfile } from "@shared/fishing";
+import { fishValue, livewellCap, sanitizeFishingProfile } from "@shared/fishing";
 import { playSfx } from "../../audio/sfx";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 
@@ -30,7 +30,7 @@ export function AFKFishingBar({ player, localSessionId, subscribeMessages }: { p
   const { held, capacity } = useMemo(() => {
     try {
       const p = sanitizeFishingProfile(JSON.parse(player.fishing || "{}"));
-      return { held: p.creel.length, capacity: p.slots };
+      return { held: p.creel.length, capacity: livewellCap(p) };
     } catch {
       return { held: 0, capacity: 0 };
     }

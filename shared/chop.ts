@@ -223,13 +223,13 @@ export function judgeFell(s: FellSwing, t: number): FellVerdict {
   return d <= s.gold ? "gold" : d <= s.band ? "hit" : "miss";
 }
 /** A fresh swing's ring (the server rolls it): the sweet spot somewhere in the trunk's middle, its
- *  band widened by the axe (and the Eagle Eye, `zoneBonus`), its gold by the gloves (`goldBonus`),
- *  the ring slowed by the axe. A bigger tree's ring is a touch slower, the heavier rounds a touch
- *  quicker. */
-export function rollFellSwing(tree: string, kind: TreeKind, round: number, rounds: number, axe: AxeId, rand: () => number = Math.random, goldBonus = 0, zoneBonus = 0, titan = false): FellSwing {
+ *  band widened by the axe (and the Eagle Eye, `zoneBonus`), its gold by the Titan-Grip Gauntlets
+ *  (`goldBonus`), the ring slowed by the axe and the Deerskin Felling Gloves (`slowBonus`). The
+ *  heavier rounds come a touch quicker. */
+export function rollFellSwing(tree: string, kind: TreeKind, round: number, rounds: number, axe: AxeId, rand: () => number = Math.random, goldBonus = 0, zoneBonus = 0, titan = false, slowBonus = 0): FellSwing {
   const info = TREES[kind];
   const sweetW = (titan ? TITAN.sweet : info.sweet) * (1 + AXES[axe].zoneBonus) * (1 + zoneBonus);
-  const period = (titan ? TITAN.period : info.period) / (1 - AXES[axe].slow) / (1 + 0.04 * (round - 1));
+  const period = (titan ? TITAN.period : info.period) / (1 - AXES[axe].slow) / (1 - slowBonus) / (1 + 0.04 * (round - 1));
   const sweet = 0.3 + rand() * 0.35;
   return { tree, kind, round, rounds, sweet, band: sweetW / 2, gold: Math.min(sweetW / 2, (sweetW / 2) * 0.38 * (1 + goldBonus)), period };
 }

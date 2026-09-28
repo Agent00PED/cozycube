@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import type { CampfirePacket, WorkbenchResult } from "@shared/types";
-import { WOOD, WOOD_KINDS, carrierCapacity, type WoodKind } from "@shared/chop";
-import { ADHESIVES, CRAFTS, CRAFT_IDS, canCraft, craftOdds, craftPrice, type Adhesive, type CraftMode } from "@shared/crafting";
-import { salvageRate } from "@shared/gear";
-import { carrierLoad, type FishingProfile } from "@shared/fishing";
+import { WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
+import { ADHESIVES, CRAFTS, CRAFT_IDS, SALVAGE_RATE, canCraft, craftOdds, craftPrice, type Adhesive, type CraftMode } from "@shared/crafting";
+import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -19,7 +18,7 @@ interface Props {
 // into artisan pieces, then sell them at Buster's. Each carve is one of two modes (shared/crafting.ts):
 // a Safe Carve (low risk, a modest Masterwork chance) or a Masterwork Push (a much better chance of a
 // Masterwork ✨, +70% value, and a real chance the piece breaks). A break salvages half the wood
-// (75% with the Artisan Leather Apron) and a pile of Sawdust for the bonfire. The Adhesive Slot takes
+// and a pile of Sawdust for the bonfire. The Adhesive Slot takes
 // a Pine Resin from the carrier for the next carve: a Resin Bond (it can't break) or a Resin
 // Gilding (+25% Masterwork chance). Every carve is the server's call (WORKBENCH packets); its answer
 // comes back as workbenchResult.
@@ -57,9 +56,8 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
     [subscribeMessages]
   );
   const load = carrierLoad(profile);
-  const capacity = carrierCapacity(profile.carrierTier);
+  const capacity = carrierCap(profile);
   const carved = profile.crafts.reduce((sum, c) => sum + craftPrice(c), 0);
-  const apron = profile.gear.includes("leather_apron");
   const outcome = last?.result.outcome;
   return (
     <Modal title="Workbench" icon="🪚" onClose={onClose} width={480}>
@@ -133,7 +131,7 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
           {CRAFT_IDS.map((id) => {
             const craft = CRAFTS[id];
             const ok = canCraft(profile.wood, id);
-            const odds = craftOdds(id, mode, profile.gear, glue);
+            const odds = craftOdds(id, mode, glue);
             return (
               <div key={id} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
                 <span className="text-2xl">{craft.emoji}</span>
@@ -158,7 +156,7 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
           })}
         </div>
         <p className="m-0 text-center text-xs opacity-75">
-          A broken carving gives back {pct(salvageRate(profile.gear))} of its wood and a pile of Sawdust{apron ? " (your apron: 10% less breakage)" : ""}.
+          A broken carving gives back {pct(SALVAGE_RATE)} of its wood and a pile of Sawdust.
           {profile.crafts.length > 0 && (
             <>
               {" "}

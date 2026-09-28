@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { emptyFishingProfile, sanitizeFishingProfile, type FishingProfile } from "../../../shared/fishing";
+import { retiredGearRefund } from "../../../shared/gear";
 import { emptyCasinoProfile, netWorth, sanitizeCasinoProfile, type CasinoProfile } from "../../../shared/casino";
 import { CAMPFIRE_DAILY_COINS, DEFAULT_STATS, STARTER_UNLOCKS, STARTING_COINS, isBlacklisted, type CampfireCoinKind, type DailyChecklist, type PlayerStats } from "../../../shared/types";
 
@@ -162,13 +163,16 @@ function rowToRecord(row: any): PlayerRecord {
   for (const kind of Object.keys(CAMPFIRE_DAILY_COINS) as CampfireCoinKind[]) campfireCoins[kind] = Number(cc?.[kind]) || 0;
   delete raw.campfire_coins;
   const fishing = sanitizeFishingProfile(raw.fishing);
+  // the gear retired with the slot system (the canvas gloves, the boots, the apron) is paid back:
+  // the sanitized profile no longer holds it, and the next save writes both together
+  const refund = retiredGearRefund((raw.fishing as { gear?: unknown } | undefined)?.gear);
   delete raw.fishing;
   const casino = sanitizeCasinoProfile(raw.casino);
   delete raw.casino;
   return {
     discordId: row.discord_id,
     username: row.username,
-    coins: Number(row.coins ?? STARTING_COINS),
+    coins: Number(row.coins ?? STARTING_COINS) + refund,
     unlockedItems: Array.isArray(row.unlocked_items) ? row.unlocked_items.map(String) : [...STARTER_UNLOCKS],
     equippedLook: row.equipped_look && typeof row.equipped_look === "object" ? row.equipped_look : {},
     stats: { ...DEFAULT_STATS, ...raw },

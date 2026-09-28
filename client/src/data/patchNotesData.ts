@@ -590,6 +590,33 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.6.12",
+        date: "2026-09-28",
+        title: "Gear Slots, Fish Locks & Tidy Counters",
+        summary: "Twelve new pieces of gear worn in four slots, a lock for your favourite fish, shop counters with Sell All always in reach, matching drawers for wood and fish, and a more natural campfire and woods.",
+        changes: {
+          features: [
+            "Gear slots: hands, waist, two rings and a charm. Twelve pieces, six for the woodcutter and six for the angler, all mixable; a new piece goes straight on, and a third ring takes the oldest one's place. Swap them any time from either drawer's gear tab.",
+            "Woodcutter's gear (Buster up to tier 3, Bramble every tier): Amber Resin Band, Deerskin Felling Gloves, Forester's Toolbelt, Ancient Ring of Oak, Dryad's Sprout Amulet and the Titan-Grip Gauntlets.",
+            "Angler's gear (Barnaby up to tier 3, Finley every tier): Sunburst River Band, Neoprene Wader Gloves, Tackle Master's Holster, Moonlit Abyssal Ring, Golden Scale Ring and Finley's Lucky Bell, which chimes 30 seconds before a King-Size Surge.",
+            "Lock your favourite fish: tap 🔓 on its card in the livewell or at the shop. A locked fish gets an amber frame, Sell All passes it by, and it stays out of the stew.",
+            "Every shop has the same counter: the tabs on top, Sell All right under them (no scrolling), one list that scrolls, and the hour's market clock with the Field Guide or Timber Collection at the foot.",
+            "The wood drawer matches the fish drawer: two-column cards (trunk, size, stars and worth for each wood) in Timber, Byproducts, Crafts & Fuel and Axe & Gear tabs.",
+          ],
+          visuals: [
+            "The campfire's west pines are staggered in size and spacing, with a wide open walk from the tipi to the slingshot gallery and the picnic table, lined with river stones, mushrooms and berry bushes; wildflowers and a berry shrub by the telescope.",
+            "The Whispering Woods: an open clearing in front of Bramble's counter and workbench, a birch grove spaced as it would grow, trees round the archway's meadow, and a Titan clearing on the Cedar Ridge instead.",
+          ],
+          economy: [
+            "The retired Canvas Work Gloves, Traction Boots and Leather Apron are paid back in full; the Deerskin gloves carry over and go straight on.",
+          ],
+          fixes: [
+            "Locking fish, switching rods, bait and axes, and changing gear now work from the drawers on every map, not only at the camp.",
+            "The fish drawer no longer lists rod-switch buttons (switch rods at the shops), and the wood drawer no longer shows fire-fuel previews.",
+          ],
+        },
+      },
     ],
   },
 ];

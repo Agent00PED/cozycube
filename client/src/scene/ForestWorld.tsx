@@ -22,7 +22,7 @@ import { WoodsFauna } from "./WoodsFauna";
 // Blender model, forest.glb (scripts/blender/build_forest.py, laid out from shared/worlds/forest.ts):
 // this file loads it and brings it to life.
 //
-//   the trees     the twenty-five trees you fell (and a Colossal Titan while one stands): FellableTrees,
+//   the trees     the twenty-six trees you fell (and a Colossal Titan while one stands): FellableTrees,
 //                 from trees.glb, each its own size, as the room says it is growing back
 //   Bramble       the bear ranger at his counter (bramble.glb): he trades wood and fish, sells the
 //                 top axes and rods, and his cabin's windows glow at night

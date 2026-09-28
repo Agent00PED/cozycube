@@ -6,6 +6,7 @@ import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
 import { WoodsPermits } from "./LumberjackModal";
+import { splitYield } from "@shared/gear";
 
 // The splitting block (by the campfire's woodpile, and at the woods' border): every log in the
 // carrier split into bundles of Firewood at once (Quick Split All), or one kind at a time. Firewood
@@ -29,7 +30,10 @@ export function SplitBlockModal({ profile, send, subscribeMessages, onClose }: {
     [subscribeMessages]
   );
   const kinds = WOOD_KINDS.filter((k) => (profile.wood[k] ?? 0) > 0);
-  const bundles = kinds.reduce((sum, k) => sum + (profile.wood[k] ?? 0) * WOOD[k].firewood, 0);
+  // (the Forester's Toolbelt: half as many bundles again, as the server splits them)
+  const yieldMul = splitYield(profile.worn);
+  const bundlesOf = (k: (typeof WOOD_KINDS)[number]) => Math.round((profile.wood[k] ?? 0) * WOOD[k].firewood * yieldMul);
+  const bundles = kinds.reduce((sum, k) => sum + bundlesOf(k), 0);
   return (
     <Modal title="Splitting Block" icon="🪓" onClose={onClose} width={440}>
       <div className="flex flex-col gap-3 pb-2">
@@ -53,10 +57,10 @@ export function SplitBlockModal({ profile, send, subscribeMessages, onClose }: {
                   <b className="text-sm">
                     {WOOD[k].name} <span className="font-normal opacity-70">×{profile.wood[k]}</span>
                   </b>
-                  <span className="text-[11px] opacity-75">each log splits into {WOOD[k].firewood} bundles</span>
+                  <span className="text-[11px] opacity-75">each log splits into {Math.round(WOOD[k].firewood * yieldMul * 10) / 10} bundles{yieldMul > 1 ? " (your toolbelt)" : ""}</span>
                 </div>
                 <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => send({ type: "SPLIT_WOOD", wood: k })}>
-                  Split · {(profile.wood[k] ?? 0) * WOOD[k].firewood} 🪵
+                  Split · {bundlesOf(k)} 🪵
                 </button>
               </div>
             ))}

@@ -25,6 +25,7 @@ export function Modal({
   tone = "cozy",
   fit = false,
   landscape = false,
+  pinned = false,
   placard,
 }: {
   title: string;
@@ -39,6 +40,9 @@ export function Modal({
   /** A 16:9 table in landscape (90vw by 85vh, at most 1200 by 720), laid out to fit with no
    *  scrolling at all: the casino's games. */
   landscape?: boolean;
+  /** Laid out as fixed bands round one scrolling region of its own (the shops, the drawers): the
+   *  sheet itself never scrolls. */
+  pinned?: boolean;
   /** A brass placard under the title: a casino table's limits ("MIN: 25 | MAX ALL-IN: 1,000"). */
   placard?: string;
 }) {
@@ -90,7 +94,7 @@ export function Modal({
             {placard}
           </div>
         )}
-        <div className={landscape ? "flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3" : fit ? "flex min-h-0 flex-1 flex-col justify-between overflow-hidden px-4 pb-[max(14px,env(safe-area-inset-bottom))]" : "scrollbar-none overflow-y-auto px-5 pb-[max(20px,env(safe-area-inset-bottom))]"}>{children}</div>
+        <div className={landscape ? "flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3" : pinned ? "flex min-h-0 flex-1 flex-col overflow-hidden px-5 pb-[max(14px,env(safe-area-inset-bottom))]" : fit ? "flex min-h-0 flex-1 flex-col justify-between overflow-hidden px-4 pb-[max(14px,env(safe-area-inset-bottom))]" : "scrollbar-none overflow-y-auto px-5 pb-[max(20px,env(safe-area-inset-bottom))]"}>{children}</div>
       </div>
     </div>,
     document.body

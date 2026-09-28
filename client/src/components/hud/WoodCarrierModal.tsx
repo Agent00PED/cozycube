@@ -1,151 +1,160 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ITEMS, parseBag, type CampfirePacket } from "@shared/types";
-import { AXES, AXES_BY_TIER, BYPRODUCTS, BYPRODUCT_IDS, TREES, WOOD, WOOD_KINDS, carrierTier, woodAverage, type TreeKind, type WoodKind } from "@shared/chop";
-import { CRAFTS, RESIN_PRICE, SAWDUST_FUEL, craftPrice } from "@shared/crafting";
-import { GEAR, GEAR_IDS } from "@shared/gear";
-import { carrierLoad, type FishingProfile } from "@shared/fishing";
+import { AXES, BYPRODUCTS, BYPRODUCT_IDS, TREES, WOOD, WOOD_KINDS, carrierTier, trunkCm, woodAverage, woodPrice, type TreeKind, type WoodKind } from "@shared/chop";
+import { CRAFTS, RESIN_PRICE, craftPrice } from "@shared/crafting";
+import { FIREWOOD_PRICE } from "@shared/economy";
+import { carrierBonus } from "@shared/gear";
+import { carrierCap, carrierLoad, stars, type FishingProfile } from "@shared/fishing";
+import { marketMultiplier, parseMarket, woodGood } from "@shared/market";
 import { Modal } from "./Modal";
+import { GearSlots } from "./GearSlots";
 
 interface Props {
   profile: FishingProfile;
   bag: string;
+  market: string;
   send: (packet: CampfirePacket) => void;
   onClose: () => void;
   /** The Timber Collection (the wood's own logbook). */
   onOpenCollection: () => void;
 }
 
-// The wood drawer, opened from the header's 🪵 gauge (or B): the carrier's every slot in a five-wide
-// grid (the logs, then the carved pieces, then the empty slots), and three tabs. Timber: each wood's
-// stack and its logs' size value (a big tree's logs are worth more), with a quick Feed Fire (at the
-// bonfire); beside the carrier (no slots), the felling's by-products (Birch Bark, Amber Resin,
-// Golden Leaf Amber, Ancient Wood Shavings: they feed the fire too), the resin jar, the sawdust pouch
-// and the Firewood. Crafts: the workbench's pieces, a Masterwork ✨ in a gold frame. Axe: the axe in
-// hand and what it fells (the others you own a tap away), Buster's gear, the woods' permits. And a
-// way into the Timber Collection.
+// The wood drawer, opened from the header's 🪵 gauge (or B), laid out like the fish drawer: how full
+// the carrier is, four tabs, one scrolling list of two-column cards. Timber: each wood's stack (its
+// logs' trunk and size, stars for a big tree's, what it fetches this hour). Byproducts: the felling's
+// pouches and the resin jar, beside the carrier (no slots). Crafts & Fuel: the workbench's pieces (a
+// Masterwork ✨ in a gold frame), the Firewood and the sawdust, the forage pantry. Axe & Gear: the
+// axe in hand and what it fells, the gear worn slot by slot, the woods' permits. The bonfire is fed
+// at the bonfire, not from here.
 
-type Tab = "timber" | "crafts" | "axe";
-type Slot = { kind: "wood"; wood: WoodKind } | { kind: "craft"; index: number } | { kind: "empty" };
+type Tab = "timber" | "byproducts" | "crafts" | "gear";
+const TABS: [Tab, string, string][] = [
+  ["timber", "🪵", "Timber"],
+  ["byproducts", "🍯", "Byproducts"],
+  ["crafts", "🪚", "Crafts & Fuel"],
+  ["gear", "🪓", "Axe & Gear"],
+];
+/** Each wood's tree (its trunk's width); the old camp woods have none. */
+const TREE_OF: Partial<Record<WoodKind, TreeKind>> = Object.fromEntries((Object.keys(TREES) as TreeKind[]).map((k) => [TREES[k].wood, k]));
 
 function minutesLeft(until: number) {
   const m = Math.ceil((until - Date.now()) / 60000);
   return m > 0 ? `${m} min` : "";
 }
 
-export function WoodCarrierModal({ profile, bag, send, onClose, onOpenCollection }: Props) {
+/** A stack's stars by its logs' size: a big tree's ★★★ (1.2x and up), a fair one's ★★. */
+const sizeStars = (scale: number) => (scale >= 1.2 ? 3 : scale >= 1 ? 2 : 1);
+
+export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCollection }: Props) {
   const [tab, setTab] = useState<Tab>("timber");
+  const hour = parseMarket(market);
   const tier = carrierTier(profile.carrierTier);
+  const cap = carrierCap(profile);
   const load = carrierLoad(profile);
-  const slots: Slot[] = [
-    ...WOOD_KINDS.flatMap((w) => Array.from({ length: profile.wood[w] }, (): Slot => ({ kind: "wood", wood: w }))),
-    ...profile.crafts.map((_, index): Slot => ({ kind: "craft", index })),
-    ...Array.from({ length: Math.max(0, tier.capacity - load) }, (): Slot => ({ kind: "empty" })),
-  ];
   const pantry = parseBag(bag);
-  const craftWorth = profile.crafts.reduce((sum, c) => sum + craftPrice(c), 0);
   const axe = AXES[profile.axe];
   const fells = (Object.keys(TREES) as TreeKind[]).filter((k) => TREES[k].tier <= axe.tier).map((k) => TREES[k].name);
   const felled = Object.values(profile.felled).reduce((a, b) => a + (b ?? 0), 0);
+  const held = WOOD_KINDS.filter((w) => profile.wood[w] > 0);
+  const each = (w: WoodKind) => woodPrice(w, marketMultiplier(woodGood(w), hour), woodAverage(profile, w));
+  const worth = held.reduce((sum, w) => sum + each(w) * profile.wood[w], 0);
+  const bonus = carrierBonus(profile.worn);
   return (
-    <Modal title={`${tier.icon} ${tier.name}`} icon="🪵" onClose={onClose} width={480}>
-      <div className="flex flex-col gap-3 pb-2">
-        <div className="flex items-center justify-between gap-2 text-sm">
-          <span className="opacity-80">Logs and carved pieces, one slot each</span>
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums ${load >= tier.capacity ? "bg-rose-400/30 text-rose-100" : "bg-white/10"}`} title={load > tier.capacity ? "Over capacity: everything is kept, but no more wood comes in until you sell some" : undefined}>
-            {load}/{tier.capacity}
+    <Modal title={`${tier.icon} ${tier.name}`} icon="🪵" onClose={onClose} width={480} pinned>
+      <div className="flex shrink-0 flex-col gap-2 pb-2">
+        <div className="flex items-center gap-2 text-xs">
+          <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full" style={{ width: `${Math.min(100, (load / Math.max(1, cap)) * 100)}%`, background: load >= cap ? "#ec7fa3" : "#F5A623" }} />
+          </div>
+          <b className={`tabular-nums ${load > cap ? "text-rose-300" : ""}`} title={load > cap ? "Over capacity: everything is kept, but no more wood comes in until you sell some" : bonus ? `+${bonus} slots from your toolbelt` : undefined}>
+            {load}/{cap}
+          </b>
+          <span className="opacity-75">
+            logs worth <b className="text-amber-200">{worth} 🪙</b> this hour
           </span>
         </div>
-        {/* every slot, five to a row */}
-        <div className="grid max-h-[24vh] grid-cols-5 gap-2 overflow-y-auto pr-0.5" aria-label="Carrier slots">
-          {slots.map((s, i) => {
-            if (s.kind === "empty") return <div key={i} className="aspect-square rounded-xl border border-dashed border-white/25 bg-white/[0.03]" aria-hidden />;
-            if (s.kind === "wood") {
-              return (
-                <div key={i} className="flex aspect-square items-center justify-center rounded-xl bg-white/10 text-xl" title={WOOD[s.wood].name}>
-                  {WOOD[s.wood].emoji}
-                </div>
-              );
-            }
-            const item = profile.crafts[s.index];
-            const craft = CRAFTS[item.c];
-            return (
-              <div key={i} className={`flex aspect-square items-center justify-center rounded-xl text-xl ${item.m ? "border-2 border-amber-300 bg-amber-300/15 shadow-[0_0_10px_rgba(252,211,77,0.45)]" : "bg-white/10"}`} title={`${item.m ? "Masterwork ✨ " : ""}${craft.name} · ${craftPrice(item)} 🪙`}>
-                {craft.emoji}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex gap-1.5" role="tablist">
-          {(
-            [
-              ["timber", "🪵 Timber"],
-              ["crafts", "🎨 Crafts"],
-              ["axe", "🪓 Axe & Gear"],
-            ] as const
-          ).map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`min-h-9 flex-1 rounded-full px-2 text-xs font-bold transition-transform active:scale-95 ${tab === id ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
-              {label}
+        <div className="flex gap-1" role="tablist">
+          {TABS.map(([id, emoji, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`min-h-9 min-w-0 flex-1 whitespace-nowrap rounded-full px-1 text-[10.5px] font-bold transition-transform active:scale-95 ${tab === id ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10 hover:bg-white/15"}`}>
+              <span className="text-[10.5px]">
+                <span className="hidden sm:inline">{emoji} </span>
+                {label}
+              </span>
             </button>
           ))}
         </div>
+      </div>
 
-        {tab === "timber" && (
-          <div className="flex max-h-[30vh] flex-col gap-1.5 overflow-y-auto pr-1">
-            {WOOD_KINDS.filter((w) => profile.wood[w] > 0).map((w) => (
-              <div key={w} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-1.5">
-                <span className="text-2xl">{WOOD[w].emoji}</span>
-                <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                  <b className="text-sm">
-                    {WOOD[w].name} <span className="font-normal opacity-70">×{profile.wood[w]}</span>
-                  </b>
-                  <span className="text-[11px] opacity-75">
-                    {woodAverage(profile, w) > 1.01 ? <span className="text-amber-200">size ×{woodAverage(profile, w).toFixed(2)} · </span> : null}+{WOOD[w].fuel}% on the fire
-                  </span>
-                </div>
-                <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "ADD_FUEL", item: w })} title="At the bonfire">
-                  🔥 Feed Fire
-                </button>
-              </div>
-            ))}
-            {WOOD_KINDS.every((w) => profile.wood[w] < 1) && <p className="m-0 py-2 text-center text-sm opacity-70">No logs yet. Fell a tree: the campfire's Soft Pines, or the Whispering Woods.</p>}
-            <b className="mt-1 text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Beside the carrier (no slots)</b>
-            <div className="grid grid-cols-2 gap-1.5 text-xs">
-              {BYPRODUCT_IDS.map((k) => {
-                const n = profile.byproducts[k] ?? 0;
+      <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1" style={{ maxHeight: "52vh" }}>
+        {tab === "timber" &&
+          (held.length === 0 ? (
+            <Empty>No logs yet. Fell a tree: the campfire's Soft Pines, or the Whispering Woods.</Empty>
+          ) : (
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {held.map((w) => {
+                const avg = woodAverage(profile, w);
+                const scale = Math.sqrt(avg);
+                const tree = TREE_OF[w];
                 return (
-                  <div key={k} className={`flex items-center gap-1.5 rounded-2xl px-2 py-1.5 ${n ? "bg-white/10" : "bg-white/5 opacity-55"}`} title={`${BYPRODUCTS[k].blurb} · ${BYPRODUCTS[k].price} 🪙 at Bramble's or Buster's`}>
-                    <span className="text-lg">{BYPRODUCTS[k].emoji}</span>
-                    <span className="min-w-0 flex-1 truncate">{BYPRODUCTS[k].name}</span>
-                    <b className="tabular-nums">×{n}</b>
-                    {k === "shavings" && n > 0 && (
-                      <button type="button" className="clay-btn min-h-7 px-2 text-[10px]" onClick={() => send({ type: "ADD_FUEL", item: "shavings" })} title="At the bonfire">
-                        🔥
-                      </button>
-                    )}
-                  </div>
+                  <Card key={w} emoji={WOOD[w].emoji} title={WOOD[w].name} count={profile.wood[w]} gold={scale >= 1.2}>
+                    <span className="text-[11px] opacity-80">
+                      {tree ? `⌀ ${trunkCm(tree, scale)} cm · ` : ""}
+                      {scale.toFixed(2)}x · <span className="text-amber-200">{stars(sizeStars(scale))}</span>
+                    </span>
+                    <span className="text-[10px] tabular-nums opacity-75">
+                      {each(w)} 🪙 each · <b className="text-amber-200">{each(w) * profile.wood[w]} 🪙</b>
+                    </span>
+                  </Card>
                 );
               })}
-              <div className={`flex items-center gap-1.5 rounded-2xl px-2 py-1.5 ${profile.firewood ? "bg-white/10" : "bg-white/5 opacity-55"}`}>
-                <span className="text-lg">🔥</span>
-                <span className="min-w-0 flex-1 truncate">Firewood</span>
-                <b className="tabular-nums">×{profile.firewood}</b>
+            </div>
+          ))}
+
+        {tab === "byproducts" && (
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {BYPRODUCT_IDS.map((k) => {
+              const n = profile.byproducts[k] ?? 0;
+              return (
+                <Card key={k} emoji={BYPRODUCTS[k].emoji} title={BYPRODUCTS[k].name} count={n} dim={!n}>
+                  <span className="truncate text-[11px] opacity-75">{BYPRODUCTS[k].blurb.split(":")[0]}</span>
+                  <span className="text-[10px] tabular-nums opacity-75">
+                    {BYPRODUCTS[k].price} 🪙 each{n ? <b className="text-amber-200"> · {n * BYPRODUCTS[k].price} 🪙</b> : null}
+                  </span>
+                </Card>
+              );
+            })}
+            <Card emoji="🍯" title="Pine Resin" count={profile.resin} dim={!profile.resin}>
+              <span className="text-[11px] opacity-75">From gold swings; glues a carving</span>
+              <span className="text-[10px] tabular-nums opacity-75">{RESIN_PRICE} 🪙 each at Buster's</span>
+            </Card>
+            <p className="col-span-full m-0 pt-1 text-center text-[11px] opacity-70">They ride beside the carrier: no slots. Buster and Bramble buy them.</p>
+          </div>
+        )}
+
+        {tab === "crafts" && (
+          <div className="flex flex-col gap-1.5">
+            {profile.crafts.length === 0 ? (
+              <Empty>No carved pieces yet. A workbench turns logs into totems, planks, birdhouses and more.</Empty>
+            ) : (
+              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                {profile.crafts.map((item, i) => (
+                  <Card key={i} emoji={CRAFTS[item.c].emoji} title={CRAFTS[item.c].name} gold={item.m}>
+                    <span className="text-[11px] opacity-80">{item.m ? <span className="text-amber-200">Masterwork ✨</span> : "Carved"} · 1 slot</span>
+                    <span className="text-[10px] tabular-nums text-amber-200">{craftPrice(item)} 🪙</span>
+                  </Card>
+                ))}
               </div>
-              <div className={`flex items-center gap-1.5 rounded-2xl px-2 py-1.5 ${profile.resin ? "bg-white/10" : "bg-white/5 opacity-55"}`} title={`Glues a carving at the workbench · ${RESIN_PRICE} 🪙 at Buster's`}>
-                <span className="text-lg">🍯</span>
-                <span className="min-w-0 flex-1 truncate">Pine Resin</span>
-                <b className="tabular-nums">×{profile.resin}</b>
-              </div>
-              {profile.sawdust > 0 && (
-                <div className="flex items-center gap-1.5 rounded-2xl bg-white/10 px-2 py-1.5">
-                  <span className="text-lg">🪚</span>
-                  <span className="min-w-0 flex-1 truncate">Sawdust</span>
-                  <b className="tabular-nums">×{profile.sawdust}</b>
-                  <button type="button" className="clay-btn min-h-7 px-2 text-[10px]" onClick={() => send({ type: "ADD_FUEL", item: "sawdust" })} title={`+${SAWDUST_FUEL}% at the bonfire`}>
-                    🔥
-                  </button>
-                </div>
-              )}
+            )}
+            <b className="mt-1 text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Fuel (no slots)</b>
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              <Card emoji="🔥" title="Firewood" count={profile.firewood} dim={!profile.firewood}>
+                <span className="text-[11px] opacity-75">Split at the chopping block</span>
+                <span className="text-[10px] tabular-nums opacity-75">{FIREWOOD_PRICE} 🪙 a bundle</span>
+              </Card>
+              <Card emoji="🪚" title="Sawdust" count={profile.sawdust} dim={!profile.sawdust}>
+                <span className="text-[11px] opacity-75">From a broken carving</span>
+                <span className="text-[10px] opacity-75">For the bonfire</span>
+              </Card>
             </div>
             {(pantry.mushroom || pantry.berry) && (
               <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
@@ -157,32 +166,7 @@ export function WoodCarrierModal({ profile, bag, send, onClose, onOpenCollection
           </div>
         )}
 
-        {tab === "crafts" && (
-          <div className="flex flex-col gap-1.5">
-            {profile.crafts.length === 0 ? (
-              <p className="m-0 py-3 text-center text-sm opacity-70">No carved pieces yet. A workbench turns logs into totems, planks, birdhouses and more.</p>
-            ) : (
-              <div className="flex max-h-[26vh] flex-col gap-1.5 overflow-y-auto pr-1">
-                {profile.crafts.map((item, i) => {
-                  const craft = CRAFTS[item.c];
-                  return (
-                    <div key={i} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${item.m ? "border-2 border-amber-300 bg-amber-300/10" : "bg-white/10"}`}>
-                      <span className="text-2xl">{craft.emoji}</span>
-                      <b className="flex-1 text-sm">
-                        {craft.name}
-                        {item.m && <span className="ml-1 text-amber-200">Masterwork ✨</span>}
-                      </b>
-                      <span className="text-xs font-bold tabular-nums text-amber-200">{craftPrice(item)} 🪙</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {profile.crafts.length > 0 && <p className="m-0 text-center text-xs opacity-75">Worth {craftWorth} 🪙 at Buster's stall</p>}
-          </div>
-        )}
-
-        {tab === "axe" && (
+        {tab === "gear" && (
           <div className="flex flex-col gap-2 text-xs">
             <div className="flex items-center gap-2 rounded-2xl border border-[#F5A623]/50 bg-[#F5A623]/10 px-2.5 py-2">
               <span className="text-3xl">{axe.emoji}</span>
@@ -196,22 +180,7 @@ export function WoodCarrierModal({ profile, bag, send, onClose, onOpenCollection
                 </span>
               </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {AXES_BY_TIER.filter((id) => profile.axes.includes(id) && id !== profile.axe).map((id) => (
-                <button key={id} type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "equipAxe", axe: id })}>
-                  {AXES[id].emoji} Use the {AXES[id].name}
-                </button>
-              ))}
-            </div>
-            <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Gear</b>
-            <div className="flex flex-wrap gap-1.5">
-              {GEAR_IDS.filter((id) => profile.gear.includes(id)).map((id) => (
-                <span key={id} className="rounded-full bg-white/10 px-2.5 py-1" title={GEAR[id].blurb}>
-                  {GEAR[id].emoji} {GEAR[id].name}
-                </span>
-              ))}
-              {!profile.gear.length && <span className="opacity-60">None yet: Buster sells gloves, boots and an apron</span>}
-            </div>
+            <GearSlots profile={profile} send={send} craft="wood" />
             <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">The Whispering Woods</b>
             <div className="flex flex-wrap gap-1.5">
               {profile.ranger ? <span className="rounded-full border border-[#F5A623]/60 bg-[#F5A623]/15 px-2.5 py-1">🎖️ Ranger's Badge</span> : <span className="rounded-full bg-white/10 px-2.5 py-1">🎫 Day Trip Permits ×{profile.dayPermits}</span>}
@@ -219,12 +188,32 @@ export function WoodCarrierModal({ profile, bag, send, onClose, onOpenCollection
             </div>
           </div>
         )}
-
-        <button type="button" onClick={onOpenCollection} className="flex min-h-11 items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2 text-left text-sm font-semibold transition-transform duration-150 hover:bg-white/15 active:scale-95">
-          <span>📖 Timber Collection</span>
-          <span className="text-xs opacity-70">each tree's story, widest trunk and best sale ›</span>
-        </button>
       </div>
+
+      <button type="button" onClick={onOpenCollection} className="mt-2 flex min-h-11 shrink-0 items-center justify-between gap-2 rounded-2xl bg-white/10 px-3 py-2 text-left text-sm font-semibold transition-transform duration-150 hover:bg-white/15 active:scale-95">
+        <span>📖 Timber Collection</span>
+        <span className="text-xs opacity-70">each tree's story, widest trunk and best sale ›</span>
+      </button>
     </Modal>
   );
+}
+
+/** One of the drawer's cards: an icon, a name (and a count), two lines under it. */
+function Card({ emoji, title, count, gold, dim, children }: { emoji: string; title: string; count?: number; gold?: boolean; dim?: boolean; children: ReactNode }) {
+  return (
+    <div className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${gold ? "bg-[#F5A623]/15 ring-1 ring-[#F5A623]/70" : "bg-white/10"} ${dim ? "opacity-50" : ""}`}>
+      <span className="text-2xl">{emoji}</span>
+      <div className="flex min-w-0 flex-1 flex-col leading-tight">
+        <b className="flex min-w-0 items-baseline gap-1 text-xs text-[#F7EBE1]">
+          <span className="truncate">{title}</span>
+          {count !== undefined && <span className="shrink-0 font-normal tabular-nums opacity-70">×{count}</span>}
+        </b>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Empty({ children }: { children: ReactNode }) {
+  return <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">{children}</p>;
 }

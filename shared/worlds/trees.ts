@@ -4,7 +4,7 @@ import { CAMP_TREES } from "./campfire";
 import { FOREST_TREES, TITAN_SPOTS, TREE_REACH, titanApproach } from "./forest";
 
 // Every tree you can fell, on both maps: the campfire's Soft Pines round its clearing, the Whispering
-// Woods' twenty-five, and the three clearings where a Colossal Titan can sprout (a world event: only one
+// Woods' twenty-six, and the three clearings where a Colossal Titan can sprout (a world event: only one
 // at a time, and only while it stands). Each by its node id (unique across maps; its prop is
 // `tree_<id>`), with the map it stands on, its kind, and where you fell it from.
 

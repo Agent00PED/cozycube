@@ -20,6 +20,7 @@ import { ActionDock } from "./components/hud/ActionDock";
 import { WardrobeModal } from "./components/hud/WardrobeModal";
 import { PatchNotesModal } from "./components/hud/PatchNotesModal";
 import { FieldGuideModal } from "./components/hud/FieldGuideModal";
+import { tensionCut } from "@shared/gear";
 import { WorldTransitionScreen } from "./components/WorldTransitionScreen";
 import { CHLOE_WELCOME } from "./entities/ChloeMaid";
 import { setMarketRaw } from "./scene/marketStore";
@@ -986,7 +987,8 @@ export default function App() {
                   size: starReel.swim.size,
                   pattern: starReel.swim.pattern,
                   barScale: Math.min(1.3, starReel.swim.barScale * (1 + rod.barBonus)),
-                  tensionResist: rod.tensionResist,
+                  // (and the Neoprene Wader Gloves: the tension builds a fifth slower again)
+                  tensionResist: 1 - (1 - rod.tensionResist) * (1 - tensionCut(angler.profile.worn)),
                   hint: `${rod.emoji} ${rod.name}`,
                   treasure: starReel.treasure,
                   treasureReward: TREASURE_COINS,
@@ -1015,7 +1017,7 @@ export default function App() {
         {panel?.kind === "fell" && localSessionId && <FellingModal key={panel.propId} tree={panel.propId} send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "splitblock" && <SplitBlockModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "slingshot" && <SlingshotModal send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
-        {panel?.kind === "bramble" && localPlayer && <BrambleModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "bramble" && localPlayer && <BrambleModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("timber")} onClose={closePanel} />}
         {panel?.kind === "livewell" && <FishLivewellModal profile={angler.profile} market={market} send={campfireSend} onClose={closePanel} onOpenCollection={() => setLogbook("fish")} />}
         {logbook && <LogbookModal mode={logbook} profile={angler.profile} onClose={() => setLogbook(null)} />}
         {panel?.kind === "permits" && localPlayer && (
@@ -1032,7 +1034,7 @@ export default function App() {
           />
         )}
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
-        {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} send={campfireSend} onClose={closePanel} onOpenCollection={() => setLogbook("timber")} />}
+        {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} market={market} send={campfireSend} onClose={closePanel} onOpenCollection={() => setLogbook("timber")} />}
         {panel?.kind === "workbench" && localPlayer && <WoodCraftModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "cashier" && localPlayer && <CashierModal coins={localPlayer.coins} chips={localPlayer.chips} onBuy={buyChips} onCashOut={cashOut} vipPass={localPlayer.vipPass} wristbands={localPlayer.vipWristbands} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "vippass" && localPlayer && (
@@ -1092,7 +1094,7 @@ export default function App() {
         {panel?.kind === "pool" && localSessionId && <PoolModal match={poolMatch} localSessionId={localSessionId} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "piano" && localSessionId && <PianoModal localSessionId={localSessionId} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {fortune && <FortuneModal fortune={fortune} onClose={() => setFortune(null)} />}
-        {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("timber")} onClose={closePanel} />}
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
         {panel?.kind === "finley" && localPlayer && <BarnabyModal keeper="finley" profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
 

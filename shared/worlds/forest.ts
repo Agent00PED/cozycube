@@ -8,10 +8,13 @@ import type { PropSpec } from "./lounge";
 // (shared/daynight.ts) and, like every world, the one room: walking through the archway is a trip,
 // not a new connection.
 //
-//   The Border          the way in from the archway, meadow and three Soft Pines (T1), and the
-//                       trail on to Bramble's lined with birches and cedars
-//   The Birch Grove     the west, eight Silver Birches (T2), and the rabbits
-//   The Cedar Ridge     the middle east, five Highland Cedars (T3) on their stony ridge
+//   The Border          the way in from the archway, meadow and four Soft Pines (T1) with a birch
+//                       among them, and the trail on to Bramble's with birches and cedars along
+//                       its margins (none within 5 m of his counter or workbench)
+//   The Birch Grove     the west, eight Silver Birches (T2) spaced as they grow (3.5-4.5 m apart,
+//                       no rows), and the rabbits
+//   The Cedar Ridge     the middle east, five Highland Cedars (T3) on their stony ridge, and a
+//                       clearing where a Colossal Titan can rise
 //   The Golden Glen     the back west, three Autumn Maples (T4) in gold leaves, and the deer
 //   The Elderwood Shrine the back, one Whispering Elderwood (T5) inside a ring of mossy stones
 //
@@ -40,17 +43,18 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   "archway": { "x": -9.0, "z": 11.5, "w": 1.9, "h": 2.7 },
   "arrival": { "x": -9.0, "z": 9.7 },
   "trees": [
-    { "id": "border_1", "kind": "soft_pine", "x": -6.2, "z": 8.3 },
+    { "id": "border_1", "kind": "soft_pine", "x": -6.3, "z": 10.3 },
     { "id": "border_2", "kind": "soft_pine", "x": -3.0, "z": 9.5 },
     { "id": "border_3", "kind": "soft_pine", "x": 0.2, "z": 8.1 },
-    { "id": "birch_1", "kind": "birch", "x": -10.0, "z": 3.9 },
-    { "id": "birch_2", "kind": "birch", "x": -7.8, "z": 2.4 },
-    { "id": "birch_3", "kind": "birch", "x": -10.2, "z": -0.2 },
-    { "id": "birch_4", "kind": "birch", "x": -7.4, "z": -1.5 },
-    { "id": "birch_5", "kind": "birch", "x": -4.9, "z": 1.3 },
-    { "id": "birch_6", "kind": "birch", "x": -9.4, "z": -3.6 },
-    { "id": "birch_7", "kind": "birch", "x": -6.4, "z": -4.5 },
-    { "id": "birch_8", "kind": "birch", "x": -4.2, "z": -2.6 },
+    { "id": "border_4", "kind": "soft_pine", "x": -10.0, "z": 7.2 },
+    { "id": "birch_1", "kind": "birch", "x": -9.9, "z": 4.4 },
+    { "id": "birch_2", "kind": "birch", "x": -6.6, "z": 2.0 },
+    { "id": "birch_3", "kind": "birch", "x": -9.9, "z": -0.4 },
+    { "id": "birch_4", "kind": "birch", "x": -6.6, "z": -1.6 },
+    { "id": "birch_5", "kind": "birch", "x": -3.0, "z": 1.1 },
+    { "id": "birch_6", "kind": "birch", "x": -9.0, "z": -4.6 },
+    { "id": "birch_7", "kind": "birch", "x": -3.6, "z": -3.7 },
+    { "id": "birch_8", "kind": "birch", "x": -5.1, "z": 5.3 },
     { "id": "cedar_1", "kind": "cedar", "x": 3.0, "z": 3.1 },
     { "id": "cedar_2", "kind": "cedar", "x": 5.8, "z": 1.6 },
     { "id": "cedar_3", "kind": "cedar", "x": 2.6, "z": -0.8 },
@@ -61,11 +65,12 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "id": "maple_3", "kind": "maple", "x": -3.0, "z": -7.4 },
     { "id": "elder_1", "kind": "elderwood", "x": 3.2, "z": -9.0 },
     { "id": "birch_9", "kind": "birch", "x": 2.2, "z": 9.9 },
-    { "id": "birch_10", "kind": "birch", "x": 5.2, "z": 10.2 },
-    { "id": "birch_11", "kind": "birch", "x": 6.3, "z": 6.4 },
-    { "id": "cedar_6", "kind": "cedar", "x": 3.6, "z": 6.0 },
-    { "id": "cedar_7", "kind": "cedar", "x": 7.9, "z": 10.6 }
+    { "id": "birch_10", "kind": "birch", "x": -7.6, "z": 6.2 },
+    { "id": "birch_11", "kind": "birch", "x": 9.2, "z": 1.2 },
+    { "id": "cedar_6", "kind": "cedar", "x": 2.6, "z": 6.0 },
+    { "id": "cedar_7", "kind": "cedar", "x": -0.5, "z": 10.5 }
   ],
+
   "shrine": { "x": 3.2, "z": -9.0, "r": 1.9, "stones": 7 },
   "river": {
     "points": [[7.4, -13.2, 0.8], [7.9, -10.5, 0.85], [7.0, -8.2, 1.0], [8.3, -6.0, 1.1], [9.8, -4.4, 1.2], [11.0, -2.2, 1.0], [13.4, -1.2, 0.9]],
@@ -85,7 +90,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   "workbench": { "x": 7.45, "z": 7.75, "len": 1.6, "w": 0.72, "top": 0.9 },
   "finley": { "x": 9.3, "z": -1.9, "yaw": 2.45 },
   "birds": [[-11.4, 5.8], [-11.3, -5.0], [-9.3, -11.4], [2.0, -11.5], [8.9, 2.95]],
-  "titanSpots": [[-6.7, -6.6], [0.8, 3.6], [-8.1, 6.4]],
+  "titanSpots": [[-6.7, -6.6], [0.8, 3.6], [0.8, -3.4]],
   "animals": [
     { "id": "deer", "kind": "deer", "x": -1.8, "z": -4.9 },
     { "id": "rabbits", "kind": "rabbits", "x": -2.6, "z": 5.4 }
@@ -118,7 +123,7 @@ export const TREE_REACH = 2.5;
 /** A tree's trunk (you walk round it, stump or mature). */
 const TRUNK = 0.42;
 
-/** The twenty-five trees you can fell: their node ids, kinds and places, and the spot you fell from
+/** The twenty-six trees you can fell: their node ids, kinds and places, and the spot you fell from
  *  (a step toward the middle of the wood). */
 export const FOREST_TREES = L.trees.map((t) => {
   const d = Math.hypot(t.x, t.z) || 1;

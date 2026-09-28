@@ -5,8 +5,7 @@ import { isCampDay, minutesToTurn } from "@shared/daynight";
 import { netWorth } from "@shared/casino";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 import { useAnglerProfile } from "./anglerStore";
-import { carrierLoad } from "@shared/fishing";
-import { carrierCapacity } from "@shared/chop";
+import { carrierCap, carrierLoad, livewellCap } from "@shared/fishing";
 import { setCameraMode, useCameraMode } from "../../scene/cameraFocus";
 import { VelvetChipIcon } from "./VelvetChipIcon";
 
@@ -174,26 +173,26 @@ export function Header(p: HeaderProps) {
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "carrier", propId: "carrier" } }))}
           className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-          title={`Wood carrier (B): ${carrierLoad(angler.profile)} of ${carrierCapacity(angler.profile.carrierTier)} slots`}
+          title={`Wood carrier (B): ${carrierLoad(angler.profile)} of ${carrierCap(angler.profile)} slots`}
           aria-label="Wood carrier"
           aria-haspopup="dialog"
         >
           <span className={ICON}>🪵</span>
-          <span className={`font-bold tabular-nums ${carrierLoad(angler.profile) >= carrierCapacity(angler.profile.carrierTier) ? "text-rose-200" : "text-amber-100"}`}>
-            {carrierLoad(angler.profile)}/{carrierCapacity(angler.profile.carrierTier)}
+          <span className={`font-bold tabular-nums ${carrierLoad(angler.profile) >= carrierCap(angler.profile) ? "text-rose-200" : "text-amber-100"}`}>
+            {carrierLoad(angler.profile)}/{carrierCap(angler.profile)}
           </span>
         </button>
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "livewell", propId: "livewell" } }))}
           className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-          title={`Livewell (B): ${angler.profile.creel.length} of ${angler.profile.slots} fish`}
+          title={`Livewell (B): ${angler.profile.creel.length} of ${livewellCap(angler.profile)} fish`}
           aria-label="Livewell"
           aria-haspopup="dialog"
         >
           <span className={ICON}>🪣</span>
-          <span className={`font-bold tabular-nums ${angler.profile.creel.length >= angler.profile.slots ? "text-amber-300" : "text-sky-100"}`}>
-            {angler.profile.creel.length}/{angler.profile.slots}
+          <span className={`font-bold tabular-nums ${angler.profile.creel.length >= livewellCap(angler.profile) ? "text-amber-300" : "text-sky-100"}`}>
+            {angler.profile.creel.length}/{livewellCap(angler.profile)}
           </span>
         </button>
 

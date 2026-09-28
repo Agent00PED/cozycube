@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { BAITS, BAIT_IDS, CREEL_TIERS, FISH, RODS, ROD_IDS, TIER_LABEL, fishValue, nextCreelTier, stars, type FishingProfile } from "@shared/fishing";
+import { BAITS, BAIT_IDS, CREEL_TIERS, RODS, ROD_IDS, fishValue, livewellCap, nextCreelTier, type FishingProfile } from "@shared/fishing";
+import { livewellBonus } from "@shared/gear";
 import { COZY_AURA_LUCK, hasCozyAura } from "@shared/bonfire";
 import { fishGood, marketDirection, parseMarket, priceRun } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
-import { Modal } from "./Modal";
+import { FishCard, FooterBook, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, lockPacket, type ShopTab } from "./ShopShell";
 
 interface Props {
   profile: FishingProfile;
@@ -17,29 +18,30 @@ interface Props {
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onOpenFieldGuide: () => void;
   onClose: () => void;
-  /** Who keeps this shop: Barnaby at the campfire (rods up to T3), or Finley the River Otter on the
-   *  woods' river (every rod, T1 to T5). Both buy fish and sell bait and livewells. */
+  /** Who keeps this shop: Barnaby at the campfire (rods and the angler's gear up to T3), or Finley
+   *  the River Otter on the woods' river (every tier). Both buy fish and sell bait and livewells. */
   keeper?: "barnaby" | "finley";
 }
 
-// Barnaby the Angler's stall by the dock: he buys the creel (each fish by its kind, length and
-// stars, at the hour's market price, 15% more while the bonfire's Cozy Aura is up; each fish sold
-// knocks 2% off the next of its kind), sells rods and bait, and stitches more slots onto the creel. Every sale is the server's call (BARNABY packets); his answer comes back as
-// barnabyResult and shows in his speech bubble.
+// Barnaby the Angler's stall by the dock (and Finley's boulder on the woods' river), on the shops'
+// fixed-anchor counter (ShopShell): Sell All Unlocked Fish always in reach, each fish a card with its
+// lock (a locked fish stays: Sell All passes it by, and its own sell button is off), rods and bait,
+// the livewells, and the angler's gear. The hour's price for each fish (15% more while the bonfire's
+// Cozy Aura is up; each sale knocks 2% off the next of its kind). Every trade is the server's call
+// (BARNABY packets); the answer comes back as barnabyResult, in the keeper's word.
 
-type Tab = "sell" | "rods" | "bait" | "creel";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "sell", label: "🐟 Sell" },
-  { id: "rods", label: "🎣 Rods" },
-  { id: "bait", label: "🪱 Bait" },
-  { id: "creel", label: "🪣 Creel" },
+const TABS: [ShopTab, string, string][] = [
+  ["trade", "🪙", "Trade/Sell"],
+  ["tools", "🎣", "Tools"],
+  ["storage", "🪣", "Storage"],
+  ["gear", "💍", "Gear"],
 ];
 const HELLO = "Evenin', friend! Name's Barnaby. Got a creel full of fish for me? 🦦";
 const FINLEY_HELLO = "Shh, they're biting! I'm Finley. Fish to sell, a rod to try, or a pack of bait? 🦦🎣";
 
 export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose, keeper = "barnaby" }: Props) {
   const finley = keeper === "finley";
-  const [tab, setTab] = useState<Tab>("sell");
+  const [tab, setTab] = useState<ShopTab>("trade");
   const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: finley ? FINLEY_HELLO : HELLO, ok: true });
   useEffect(
     () =>
@@ -55,173 +57,141 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
   const shop = (packet: Extract<CampfirePacket, { type: "BARNABY" }>) => send(packet);
   const aura = hasCozyAura(fuel) ? 1 + COZY_AURA_LUCK : 1;
   const hour = parseMarket(market);
-  // each fish at the price it would fetch alone, and the whole creel as the server will settle it
-  const single = (f: (typeof profile.creel)[number]) => priceRun([f], (x) => fishGood(x.s), (x, mult) => Math.round(fishValue(x, mult) * aura), hour).total;
-  const worth = priceRun(profile.creel, (f) => fishGood(f.s), (f, mult) => Math.round(fishValue(f, mult) * aura), hour).total;
+  const price = (f: (typeof profile.creel)[number]) => priceRun([f], (x) => fishGood(x.s), (x, mult) => Math.round(fishValue(x, mult) * aura), hour).total;
+  // Sell All: every unlocked fish, as the server will settle it (one at a time, each nudging the next)
+  const unlocked = profile.creel.filter((f) => !f.l);
+  const unlockedWorth = priceRun(unlocked, (f) => fishGood(f.s), (f, mult) => Math.round(fishValue(f, mult) * aura), hour).total;
   const next = nextCreelTier(profile.creelTier);
+  const bonus = livewellBonus(profile.worn);
+  const who = finley ? "Finley" : "Barnaby";
 
   return (
-    <Modal title={finley ? "Finley's River Tackle" : "Barnaby's Bait & Tackle"} icon={finley ? "🎣" : "🦦"} onClose={onClose} width={460}>
-      <div className="flex flex-col gap-3 pb-2">
-        {/* Barnaby says */}
-        <div className="flex items-start gap-2">
-          <span className="text-4xl leading-none" aria-hidden>
-            🦦
-          </span>
-          <div className={`clay-pop relative flex-1 rounded-2xl px-3 py-2 text-sm ${say.ok ? "bg-white/10" : "bg-rose-400/15"}`} key={say.text} role="status">
-            {say.text}
-          </div>
+    <ShopShell
+      title={finley ? "Finley's River Tackle" : "Barnaby's Bait & Tackle"}
+      icon={finley ? "🎣" : "🦦"}
+      keeper="🦦"
+      say={say}
+      tabs={TABS}
+      tab={tab}
+      onTab={setTab}
+      onClose={onClose}
+      sellBar={<SellAllButton label="🐟 Sell All Unlocked Fish" count={unlocked.length} coins={unlockedWorth} onClick={() => shop({ type: "BARNABY", op: "sell", slot: "all" })} />}
+      footer={
+        <>
+          <MarketClock market={hour} goods={profile.creel.map((f) => fishGood(f.s))} />
+          <FooterBook label="📖 Field Guide" onClick={onOpenFieldGuide} />
+        </>
+      }
+    >
+      {tab === "trade" && (
+        <div className="flex flex-col gap-1.5">
+          {aura > 1 && <div className="rounded-xl bg-amber-300/15 px-2.5 py-1.5 text-xs text-amber-100">✨ Cozy Aura: the roaring campfire has {who} paying 15% more</div>}
+          {profile.creel.length === 0 ? (
+            <p className="m-0 py-6 text-center text-sm opacity-70">Your livewell is empty. Cast a line from the dock, the canoe, or the woods' river bank!</p>
+          ) : (
+            profile.creel.map((f, i) => <FishCard key={i} fish={f} price={price(f)} trend={<Trend dir={marketDirection(fishGood(f.s), hour)} />} onToggleLock={() => send(lockPacket(f, i))} onSell={() => shop({ type: "BARNABY", op: "sell", slot: i })} />)
+          )}
+          {profile.creel.some((f) => f.l) && <p className="m-0 pt-1 text-center text-[11px] opacity-70">🔒 Locked fish stay in your livewell: Sell All passes them by.</p>}
         </div>
+      )}
 
-        <div className="flex gap-1.5" role="tablist">
-          {TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`min-h-9 flex-1 rounded-full px-2 text-xs font-bold transition-transform active:scale-95 ${tab === t.id ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {tab === "sell" && (
-          <div className="flex flex-col gap-2">
-            {aura > 1 && <div className="rounded-xl bg-amber-300/15 px-2.5 py-1.5 text-xs text-amber-100">✨ Cozy Aura: the roaring campfire has {finley ? "Finley" : "Barnaby"} paying 15% more</div>}
-            {profile.creel.length === 0 ? (
-              <p className="m-0 py-4 text-center text-sm opacity-70">Your creel is empty. Cast a line from the dock or the canoe!</p>
-            ) : (
-              <div className="flex max-h-[240px] flex-col gap-1.5 overflow-y-auto pr-1">
-                {profile.creel.map((f, i) => {
-                  const sp = FISH[f.s];
-                  return (
-                    <div key={i} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-1.5">
-                      <span className="text-2xl">{sp.emoji}</span>
-                      <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                        <b className="truncate text-sm">{sp.name}</b>
-                        <span className="text-[11px] opacity-75">
-                          {f.cm} cm · <span className="text-amber-200">{stars(f.q)}</span> · {TIER_LABEL[sp.tier]} <Trend dir={marketDirection(fishGood(f.s), hour)} />
-                        </span>
-                      </div>
-                      <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => shop({ type: "BARNABY", op: "sell", slot: i })}>
-                        {single(f)} 🪙
-                      </button>
-                    </div>
-                  );
-                })}
+      {tab === "tools" && (
+        <div className="flex flex-col gap-1.5">
+          <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Rods</b>
+          {ROD_IDS.map((id) => {
+            const rod = RODS[id];
+            const owned = profile.rods.includes(id);
+            const using = profile.rod === id;
+            return (
+              <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${using ? "bg-emerald-400/20" : rod.tier >= 4 ? "border border-[#F5A623]/40 bg-[#F5A623]/10" : "bg-white/10"}`}>
+                <span className="text-2xl">{rod.emoji}</span>
+                <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <b className="text-sm">{rod.name}</b>
+                  <span className="text-[11px] opacity-75">{rod.blurb}</span>
+                </div>
+                {using ? (
+                  <span className="px-2 text-xs font-bold text-emerald-200">In hand</span>
+                ) : owned ? (
+                  <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => shop({ type: "BARNABY", op: "equipRod", rod: id })}>
+                    Use
+                  </button>
+                ) : rod.tier >= 4 && !finley ? (
+                  // the legendary and mythic rods: Finley's, on the Whispering Woods' river
+                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🦦 At Finley's boulder on the woods' river</span>
+                ) : (
+                  <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < rod.price} onClick={() => shop({ type: "BARNABY", op: "buyRod", rod: id })}>
+                    {rod.price.toLocaleString("en-US")} 🪙
+                  </button>
+                )}
               </div>
-            )}
-            <button type="button" className="clay-btn clay-btn-amber min-h-11 w-full" disabled={profile.creel.length === 0} onClick={() => shop({ type: "BARNABY", op: "sell", slot: "all" })}>
-              Sell the whole creel · {worth} 🪙
-            </button>
-            <div className="flex items-center justify-between gap-2 text-[11px] opacity-75">
-              <span>Prices change on the hour (see the chalkboard); each sale knocks 2% off the next of its kind.</span>
-              <button type="button" onClick={onOpenFieldGuide} className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 font-semibold hover:bg-white/15">
-                📖 Field Guide
-              </button>
-            </div>
-          </div>
-        )}
-
-        {tab === "rods" && (
-          <div className="flex flex-col gap-1.5">
-            {ROD_IDS.map((id) => {
-              const rod = RODS[id];
-              const owned = profile.rods.includes(id);
-              const using = profile.rod === id;
-              return (
-                <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${using ? "bg-emerald-400/20" : "bg-white/10"}`}>
-                  <span className="text-2xl">{rod.emoji}</span>
-                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <b className="text-sm">{rod.name}</b>
-                    <span className="text-[11px] opacity-75">{rod.blurb}</span>
-                  </div>
-                  {using ? (
-                    <span className="px-2 text-xs font-bold text-emerald-200">In hand</span>
-                  ) : owned ? (
-                    <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => shop({ type: "BARNABY", op: "equipRod", rod: id })}>
-                      Use
-                    </button>
-                  ) : rod.tier >= 4 && !finley ? (
-                    // the legendary and mythic rods: Finley's, on the Whispering Woods' river
-                    <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🦦 At Finley's boulder on the woods' river</span>
-                  ) : (
-                    <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < rod.price} onClick={() => shop({ type: "BARNABY", op: "buyRod", rod: id })}>
-                      {rod.price} 🪙
+            );
+          })}
+          <b className="mt-1 text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Bait</b>
+          {BAIT_IDS.map((id) => {
+            const bait = BAITS[id];
+            const have = profile.baits[id] ?? 0;
+            const on = profile.bait === id;
+            return (
+              <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${on ? "bg-emerald-400/20" : "bg-white/10"}`}>
+                <span className="text-2xl">{bait.emoji}</span>
+                <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <b className="text-sm">
+                    {bait.name} <span className="font-normal opacity-70">×{have}</span>
+                  </b>
+                  <span className="text-[11px] opacity-75">
+                    {bait.blurb} Pack of {bait.pack}, one per cast.
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <button type="button" className="clay-btn clay-btn-amber min-h-8 px-3 text-xs" disabled={coins < bait.price} onClick={() => shop({ type: "BARNABY", op: "buyBait", bait: id })}>
+                    {bait.price} 🪙
+                  </button>
+                  {have > 0 && (
+                    <button type="button" className="clay-btn min-h-8 px-3 text-xs" onClick={() => shop({ type: "BARNABY", op: "equipBait", bait: on ? "" : id })}>
+                      {on ? "Unhook" : "Hook it"}
                     </button>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-        {tab === "bait" && (
-          <div className="flex flex-col gap-1.5">
-            {BAIT_IDS.map((id) => {
-              const bait = BAITS[id];
-              const have = profile.baits[id] ?? 0;
-              const on = profile.bait === id;
-              return (
-                <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${on ? "bg-emerald-400/20" : "bg-white/10"}`}>
-                  <span className="text-2xl">{bait.emoji}</span>
-                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <b className="text-sm">
-                      {bait.name} <span className="font-normal opacity-70">×{have}</span>
-                    </b>
-                    <span className="text-[11px] opacity-75">
-                      {bait.blurb} Pack of {bait.pack}, one per cast.
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <button type="button" className="clay-btn clay-btn-amber min-h-8 px-3 text-xs" disabled={coins < bait.price} onClick={() => shop({ type: "BARNABY", op: "buyBait", bait: id })}>
-                      {bait.price} 🪙
-                    </button>
-                    {have > 0 && (
-                      <button type="button" className="clay-btn min-h-8 px-3 text-xs" onClick={() => shop({ type: "BARNABY", op: "equipBait", bait: on ? "" : id })}>
-                        {on ? "Unhook" : "Hook it"}
-                      </button>
-                    )}
-                  </div>
+      {tab === "storage" && (
+        <div className="flex flex-col gap-1.5">
+          <p className="m-0 text-center text-xs opacity-75">
+            A full livewell stows the rod until you sell some fish ({profile.creel.length}/{livewellCap(profile)} now{bonus ? `, +${bonus} from your holster` : ""}). Each one in turn holds more:
+          </p>
+          {CREEL_TIERS.map((t, i) => {
+            const tier = i + 1;
+            const have = tier <= profile.creelTier;
+            const using = tier === profile.creelTier;
+            return (
+              <div key={t.id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${using ? "bg-emerald-400/20" : have ? "bg-white/5 opacity-60" : "bg-white/10"}`}>
+                <span className="text-xl">{t.icon}</span>
+                <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <b className="text-sm">{t.name}</b>
+                  <span className="text-[11px] opacity-75">{t.capacity} fish</span>
                 </div>
-              );
-            })}
-          </div>
-        )}
+                {using ? (
+                  <span className="px-2 text-xs font-bold text-emerald-200">In use</span>
+                ) : have ? (
+                  <span className="px-2 text-xs opacity-60">Outgrown</span>
+                ) : next?.id === t.id ? (
+                  <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < t.price} onClick={() => shop({ type: "BARNABY", op: "upgradeCreel" })}>
+                    {t.price.toLocaleString("en-US")} 🪙
+                  </button>
+                ) : (
+                  <span className="px-2 text-xs opacity-50">{t.price.toLocaleString("en-US")} 🪙</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-        {tab === "creel" && (
-          <div className="flex flex-col gap-1.5">
-            <p className="m-0 text-center text-xs opacity-75">A full creel means the rod is stowed until you sell some fish. Each creel in turn holds more:</p>
-            {CREEL_TIERS.map((t, i) => {
-              const tier = i + 1;
-              const have = tier <= profile.creelTier;
-              const using = tier === profile.creelTier;
-              const isNext = next?.id === t.id;
-              return (
-                <div key={t.id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${using ? "bg-emerald-400/20" : have ? "bg-white/5 opacity-60" : "bg-white/10"}`}>
-                  <span className="text-xl">{t.icon}</span>
-                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                    <b className="text-sm">{t.name}</b>
-                    <span className="text-[11px] opacity-75">{t.capacity} fish</span>
-                  </div>
-                  {using ? (
-                    <span className="px-2 text-xs font-bold text-emerald-200">In use</span>
-                  ) : have ? (
-                    <span className="px-2 text-xs opacity-60">Outgrown</span>
-                  ) : isNext ? (
-                    <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < t.price} onClick={() => shop({ type: "BARNABY", op: "upgradeCreel" })}>
-                      {t.price.toLocaleString()} 🪙
-                    </button>
-                  ) : (
-                    <span className="px-2 text-xs opacity-50">{t.price.toLocaleString()} 🪙</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </Modal>
+      {tab === "gear" && <GearShopList craft="fish" maxTier={finley ? 5 : 3} elsewhere="🦦 At Finley's boulder on the woods' river" profile={profile} coins={coins} onBuy={(id) => shop({ type: "BARNABY", op: "buyGear", gear: id })} send={send} />}
+    </ShopShell>
   );
-}
-
-/** The hour's trend for a good, against the hour before. */
-export function Trend({ dir }: { dir: "up" | "down" | "flat" }) {
-  return dir === "up" ? <span className="font-bold text-emerald-300">▲</span> : dir === "down" ? <span className="font-bold text-rose-300">▼</span> : <span className="opacity-60">▪</span>;
 }

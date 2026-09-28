@@ -135,6 +135,8 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
           const lines: string[] = [];
           if (r.drop.kind === "log") lines.push(`+${r.drop.count} ${r.drop.emoji} ${r.drop.name} log${r.drop.count > 1 ? "s" : ""}${r.drop.mult && r.drop.mult !== 1 ? ` ×${r.drop.mult.toFixed(2)}` : ""}`);
           else if (r.drop.kind === "byproduct") lines.push(`+${r.drop.count} ${r.drop.emoji} ${r.drop.name}`);
+          if (r.drop.also) lines.push(`+1 ${r.drop.also.emoji} ${r.drop.also.name} (your resin band)`);
+          if (r.grip) lines.push("🦾 Your gauntlets bit in: the notch still deepens");
           if (r.bonus === "resin") lines.push("+1 🍯 Pine Resin");
           if (r.coins > 0) lines.push(`+${r.coins} 🪙`);
           if (r.felled && r.capped) lines.push("(today's felling coins all earned)");

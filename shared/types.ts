@@ -1,7 +1,7 @@
 // Shared between client and server — keep this file framework-agnostic (no THREE/Colyseus imports).
 
 import type { SlingShot } from "./slingshot";
-import type { BaitId, CreelFish, FishTier, RodId } from "./fishing";
+import type { BaitId, CreelFish, FishId, FishTier, RodId } from "./fishing";
 import type { FuelItem, StewIngredient } from "./bonfire";
 import type { AxeId, ByproductId, FellVerdict, TreeKind, WoodKind } from "./chop";
 import type { Adhesive, CraftId, CraftMode, CraftOutcome } from "./crafting";
@@ -1440,6 +1440,8 @@ export interface FellDrop {
   /** A log's value multiplier (1.8 for a 1.35x tree, 3 for a Titan's). */
   mult?: number;
   count: number;
+  /** A by-product that came off with the log (the Amber Resin Band). */
+  also?: { name: string; emoji: string };
 }
 /** Server -> the feller ("fellResult"): a swing, as it landed, and what came of it. */
 export interface FellResult {
@@ -1458,6 +1460,8 @@ export interface FellResult {
   felled: boolean;
   /** The day's felling coins are all earned. */
   capped: boolean;
+  /** A miss the Titan-Grip Gauntlets turned into a deeper notch (nothing dropped). */
+  grip?: true;
 }
 /** Server -> the tree's world ("treeFelled"): a tree came down (the client plays its fall, then
  *  shows its stump). */
@@ -1541,6 +1545,12 @@ export type CampfirePacket =
   | { type: "BARNABY"; op: "buyBait"; bait: BaitId }
   | { type: "BARNABY"; op: "equipBait"; bait: BaitId | "" }
   | { type: "BARNABY"; op: "upgradeCreel" }
+  /** The angler's gear (Barnaby T1-T3, Finley T1-T5), and a fish locked as a favourite or let go
+   *  again (its slot, and its kind to be sure it is the one meant). */
+  | { type: "BARNABY"; op: "buyGear"; gear: GearId }
+  | { type: "BARNABY"; op: "lockFish"; slot: number; fish: FishId; locked: boolean }
+  /** Putting on or taking off a piece of gear you own (anywhere). */
+  | { type: "GEAR"; op: "equip" | "unequip"; gear: GearId }
   /** Buster the Lumberjack's stall: sell split wood (one, or all of a kind), buy or switch axes. */
   | { type: "BUSTER"; op: "sell"; wood: WoodKind; count: number | "all" }
   | { type: "BUSTER"; op: "buyAxe" | "equipAxe"; axe: AxeId }
