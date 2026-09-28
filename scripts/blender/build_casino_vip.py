@@ -22,10 +22,14 @@ Every colour is a vertex colour over the hall's shared finishes, plus one of its
                          elevator's brass doors and its floor dial; the champagne
                          fountain's marble basin and its tower of coupes; the high-limit poker table
                          (violet baize, black leather rail) with its three chairs and the Baron's at
-                         its end, chips stacked high; the half-moon baccarat table (its Player,
-                         Banker and Tie boxes before each stool, the shoe) and its stools, the
-                         Duchess's among them; the Golden Vault slot machine; a velvet loveseat under
-                         the windows; two potted palms; the brass rail along the open front (nothing
+                         its end, chips stacked high; the half-moon baccarat table, turned
+                         (`face`) so its dealer's flat side faces the elevator and the room (its
+                         Player, Banker and Tie boxes before each stool, the shoe) and its stools,
+                         the Duchess's among them; the penthouse's blackjack table (the hall's
+                         half-moon in emerald felt, three stools); the twin Golden Vault slot
+                         machines side by side against the western glass, an Art-Deco jukebox
+                         beside them; a velvet loveseat under
+                         the windows; two areca palms in brass urns (the hall's); the brass rail along the open front (nothing
                          hangs from the ceiling: it would come between the camera and the tables;
                          the game lights the room)
     Prop_FountainTop   the tower's crowning coupe and the bottle pouring into it (the game turns
@@ -59,6 +63,10 @@ exec(compile(_hall[: _hall.index("def build(root):")], "build_casino.py", "exec"
 
 COLLECTION = "CasinoVip"
 REPO_ROOT = _root()
+# (the suite's floor layers: a zone's floor over the carpet, an inlay over a zone's floor; the hall's
+# own builder has since dropped these names)
+FLOOR_ZONE = 0.006
+INLAY_ON_ZONE = FLOOR_ZONE + 0.003
 
 PALETTE.update(
     {
@@ -230,7 +238,10 @@ def build_walls(M, V):
         return [(a0 + (a1 - a0) * k / n, a0 + (a1 - a0) * (k + 1) / n) for k in range(n)]
 
     back_runs = [(face + 0.05, ex0 - 0.1, 5), (ex1 + 0.1, h - 0.05, 2)]
-    left_runs = [(face + 0.05, V["vault"]["z"] - V["vault"]["w"] / 2 - 0.2, 5), (V["vault"]["z"] + V["vault"]["w"] / 2 + 0.2, h - 0.05, 2)]
+    # (the left wall's glass runs either side of the twin vaults and the jukebox beside them)
+    zlo = min(V["vault"]["zs"]) - V["vault"]["w"] / 2
+    zhi = max(max(V["vault"]["zs"]) + V["vault"]["w"] / 2, V["jukebox"]["z"] + V["jukebox"]["w"] / 2)
+    left_runs = [(face + 0.05, zlo - 0.2, 5), (zhi + 0.2, h - 0.05, 1)]
     seed = 7
     for a0, a1, n in back_runs:
         city_panel(M, "z", a0, a1, wy0, wy1, face, seed)
@@ -360,51 +371,100 @@ def build_poker(M, V, cushions):
 
 
 def build_baccarat(M, V, cushions):
+    """The half-moon baccarat table, turned by its `face` (degrees: 180 puts its curve, and the
+    players, toward the room's middle and the elevator, the dealer's flat side toward the front)."""
     b = V["baccarat"]
     cx, cz = b["x"], b["z"]
     r, top = b["r"], b["top"]
+    f = math.radians(b.get("face", 0))
+    cf, sf = math.cos(f), math.sin(f)
+
+    def P(lx, lz):
+        # a point in the table's own frame (its curve toward +z) out into the suite
+        return (cx + lx * cf + lz * sf, cz - lx * sf + lz * cf)
 
     def arc(rad, n=28, a0=-90.0, a1=90.0):
-        return [(cx + rad * math.sin(math.radians(a0 + (a1 - a0) * k / n)), cz + rad * math.cos(math.radians(a0 + (a1 - a0) * k / n))) for k in range(n + 1)]
+        return [P(rad * math.sin(math.radians(a0 + (a1 - a0) * k / n)), rad * math.cos(math.radians(a0 + (a1 - a0) * k / n))) for k in range(n + 1)]
 
     for sx in (-1, 1):
-        lathe(M, cx + sx * 0.5, cz + 0.35, [(0, 0), (0.24, 0), (0.24, 0.04), (0.08, 0.1), (0.07, top - 0.16), (0.2, top - 0.1), (0, top - 0.1)], "CS_Black", segs=14)
-        lathe(M, cx + sx * 0.5, cz + 0.35, [(0, 0.04), (0.245, 0.04), (0.245, 0.06), (0, 0.06)], "CS_Gold", segs=14)
+        px, pz = P(sx * 0.5, 0.35)
+        lathe(M, px, pz, [(0, 0), (0.24, 0), (0.24, 0.04), (0.08, 0.1), (0.07, top - 0.16), (0.2, top - 0.1), (0, top - 0.1)], "CS_Black", segs=14)
+        lathe(M, px, pz, [(0, 0.04), (0.245, 0.04), (0.245, 0.06), (0, 0.06)], "CS_Gold", segs=14)
     slab(M, arc(r), top - 0.1, top - 0.02, "CS_Black")
     slab(M, arc(r - 0.12), top - 0.02, top, "CS_FeltBacc")
     band(M, arc(r + 0.02), arc(r - 0.12), top - 0.02, top + 0.05, "CS_Leather", closed=False)
     band(M, arc(r + 0.03), arc(r + 0.015), top - 0.035, top - 0.015, "CS_Gold", closed=False)
-    box(M, cx - r, cx + r, top - 0.02, top + 0.03, cz - 0.02, cz + 0.08, "CS_Black")
+    ex, ez = P(0.0, 0.03)
+    obox(M, ex, ez, f, -0.05, 0.05, -r, r, top - 0.02, top + 0.03, "CS_Black")
     # the markings: a gold arc, then before each player's place the Player, Banker and Tie boxes
     band(M, arc(0.5), arc(0.485), top, top + 0.003, "CS_FeltGold", closed=False)
     for deg in b["stoolAngles"] + [b["duchess"]]:
         a = math.radians(deg)
         for rad, mat in ((0.92, "CS_BaccBlue"), (0.76, "CS_BaccRed"), (0.62, "CS_BaccGreen")):
-            px, pz = cx + rad * math.sin(a), cz + rad * math.cos(a)
-            obox(M, px, pz, a, -0.055, 0.055, -0.1, 0.1, top, top + 0.003, mat)
+            px, pz = P(rad * math.sin(a), rad * math.cos(a))
+            obox(M, px, pz, a + f, -0.055, 0.055, -0.1, 0.1, top, top + 0.003, mat)
     # the shoe and the discard tray on the dealer's flat side, a paddle laid by
-    obox(M, cx + 0.45, cz + 0.18, 0.0, -0.07, 0.07, -0.1, 0.1, top, top + 0.09, "CS_Black")
-    obox(M, cx + 0.45, cz + 0.18, 0.0, 0.07, 0.085, -0.07, 0.07, top + 0.01, top + 0.08, "CS_Card")
-    obox(M, cx + 0.45, cz + 0.18, 0.0, -0.075, 0.075, -0.105, 0.105, top + 0.09, top + 0.1, "CS_Gold")
-    obox(M, cx - 0.45, cz + 0.16, 0.0, -0.06, 0.06, -0.08, 0.08, top, top + 0.025, "CS_Gold")
-    cylinder(M, (cx - 0.1, top + 0.01, cz + 0.2), (cx + 0.25, top + 0.01, cz + 0.2), 0.01, "CS_Mahogany", sides=6)
-    obox(M, cx - 0.15, cz + 0.2, math.pi / 2, -0.05, 0.05, -0.04, 0.04, top, top + 0.012, "CS_Mahogany")
+    px, pz = P(0.45, 0.18)
+    obox(M, px, pz, f, -0.07, 0.07, -0.1, 0.1, top, top + 0.09, "CS_Black")
+    obox(M, px, pz, f, 0.07, 0.085, -0.07, 0.07, top + 0.01, top + 0.08, "CS_Card")
+    obox(M, px, pz, f, -0.075, 0.075, -0.105, 0.105, top + 0.09, top + 0.1, "CS_Gold")
+    px, pz = P(-0.45, 0.16)
+    obox(M, px, pz, f, -0.06, 0.06, -0.08, 0.08, top, top + 0.025, "CS_Gold")
+    cylinder(M, (P(-0.1, 0.2)[0], top + 0.01, P(-0.1, 0.2)[1]), (P(0.25, 0.2)[0], top + 0.01, P(0.25, 0.2)[1]), 0.01, "CS_Mahogany", sides=6)
+    px, pz = P(-0.15, 0.2)
+    obox(M, px, pz, math.pi / 2 + f, -0.05, 0.05, -0.04, 0.04, top, top + 0.012, "CS_Mahogany")
     # the stools (the Duchess's among them)
     seat = cushions["barStool"]["top"]
     for deg in b["stoolAngles"] + [b["duchess"]]:
         a = math.radians(deg)
-        stool(M, cx + b["stoolR"] * math.sin(a), cz + b["stoolR"] * math.cos(a), seat)
+        stool(M, *P(b["stoolR"] * math.sin(a), b["stoolR"] * math.cos(a)), seat)
     # the Duchess's glass of champagne at her place
     a = math.radians(b["duchess"])
-    coupe(M, cx + 0.98 * math.sin(a) + 0.08, cz + 0.98 * math.cos(a) - 0.05, top, 1.0)
+    coupe(M, *P(0.98 * math.sin(a) + 0.08, 0.98 * math.cos(a) - 0.05), top, 1.0)
 
 
-def build_vault(M, V):
-    """The Golden Vault against the left window wall, facing the room: a gold cabinet with a bank
-    vault's door on its front (spoked wheel, bolts), three reels in a gold frame, a marquee of
+def build_vip_blackjack(M, V, cushions):
+    """The penthouse's blackjack table: the hall's half-moon (build_blackjack) in emerald felt, its
+    curve toward the room, three stools on it, the dealer behind its flat side."""
+    b = V["blackjack"]
+    build_blackjack(M, {"blackjack": {"tables": [{"x": b["x"], "z": b["z"], "felt": b.get("felt", "green")}], "yaw": b["yaw"], "r": b["r"], "top": b["top"], "stoolR": b["stoolR"], "stoolAngles": b["stoolAngles"]}}, cushions)
+
+
+def build_jukebox(M, V):
+    """A little Art-Deco jukebox against the left window wall, facing the room: a walnut cabinet
+    under a round-topped arch, a glowing tube round the arch and down its sides, a record window, a
+    chrome grille with gold bars, on a black plinth."""
+    j = V["jukebox"]
+    F = Frame(j["x"], j["z"], math.pi / 2)
+    hw, hd, H = j["w"] / 2, j["d"] / 2, j["h"]
+    body = H - hw
+    F.box(M, -hw - 0.02, hw + 0.02, 0.0, 0.07, -hd, hd + 0.02, "CS_Black")
+    F.box(M, -hw, hw, 0.07, body, -hd, hd, "CS_Mahogany")
+    # the arch: a half disc on top, its glowing tube just inside the rim, and the tube down the sides
+    arch = [(hw * math.cos(math.pi * k / 16), body + hw * math.sin(math.pi * k / 16)) for k in range(17)]
+    F.face_slab(M, arch, -hd, hd, "CS_Mahogany")
+    for k in range(16):
+        a0, a1 = math.pi * k / 16, math.pi * (k + 1) / 16
+        ro, ri = hw - 0.04, hw - 0.1
+        F.face_slab(M, [(ro * math.cos(a0), body + ro * math.sin(a0)), (ro * math.cos(a1), body + ro * math.sin(a1)), (ri * math.cos(a1), body + ri * math.sin(a1)), (ri * math.cos(a0), body + ri * math.sin(a0))], hd, hd + 0.02, "CS_Bulb")
+    for sx in (-1, 1):
+        F.box(M, sx * (hw - 0.1), sx * (hw - 0.04), 0.2, body, hd, hd + 0.02, "CS_Bulb")
+    # the record window, the chrome grille and its gold bars, the coin slot
+    F.box(M, -0.2, 0.2, body - 0.26, body + 0.08, hd, hd + 0.012, "CS_Glass")
+    F.box(M, -hw + 0.12, hw - 0.12, 0.2, 0.62, hd, hd + 0.01, "CS_Chrome")
+    for k in range(5):
+        u = -hw + 0.16 + k * (2 * hw - 0.32) / 4
+        F.box(M, u - 0.012, u + 0.012, 0.2, 0.62, hd + 0.01, hd + 0.02, "CS_Gold")
+    F.box(M, -0.2, 0.2, 0.68, 0.74, hd, hd + 0.015, "CS_Gold")
+    F.box(M, -0.03, 0.03, 0.7, 0.72, hd + 0.015, hd + 0.02, "CS_Black")
+
+
+def build_vault(M, V, z):
+    """A Golden Vault against the left window wall at `z`, facing the room: a gold cabinet with a
+    bank vault's door on its front (spoked wheel, bolts), three reels in a gold frame, a marquee of
     chasing bulbs under a crown, a lever with a ruby knob."""
     v = V["vault"]
-    F = Frame(v["x"], v["z"], math.pi / 2)
+    F = Frame(v["x"], z, math.pi / 2)
     hw, hd, H = v["w"] / 2, v["d"] / 2, v["h"]
     F.box(M, -hw - 0.02, hw + 0.02, 0.0, 0.08, -hd, hd + 0.02, "CS_Black")
     F.box(M, -hw, hw, 0.08, 0.95, -hd, hd, "CS_VaultGold")
@@ -457,7 +517,7 @@ def build_room(M, V, cushions):
     ls = V["loveseat"]
     loveseat(M, ls["x"], ls["z"], ls["len"], cushions["chesterfield"]["top"])
     for p in V["planters"]:
-        palm(M, p["x"], p["z"], 0.95)
+        areca(M, p["x"], p["z"])
     # the brass rail along the open front, low (the camera looks over it)
     h = V["half"]
     e = h - 0.1
@@ -493,7 +553,10 @@ def build(root):
     build_fountain(M, V, nodes)
     build_poker(M, V, cushions)
     build_baccarat(M, V, cushions)
-    build_vault(M, V)
+    build_vip_blackjack(M, V, cushions)
+    for z in V["vault"]["zs"]:
+        build_vault(M, V, z)
+    build_jukebox(M, V)
     build_room(M, V, cushions)
     shift_mesh(M, ox, oz)
     make_object("Casino_VipStatic", M, coll)

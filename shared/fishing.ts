@@ -10,7 +10,7 @@ import type { SwimPattern } from "./types";
 import { BYPRODUCT_IDS, TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, isAxeId, type AxeId, type ByproductId, type TreeKind, type WoodKind } from "./chop";
 import { PACK_FRAME_SLOTS, TACKLE_BOX_SLOTS, isCraftId, type CraftItem } from "./crafting";
 import { carrierBonus, fitWorn, isGearId, livewellBonus, type GearId } from "./gear";
-import { CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MAX_DAY_PERMITS, TACKLE_PRICES } from "./economy";
+import { ACTIVE_TIER_ODDS, AFK_BAITED_TIER_ODDS, AFK_UNBAITED_TIER_ODDS, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MAX_DAY_PERMITS, POUCH_CAPACITY, TACKLE_PRICES, type TierOdds } from "./economy";
 
 export type Water = "freshwater" | "saltwater";
 /** The five rarities, and the rod tier each needs (a rod lands its own rarity and below). */
@@ -45,9 +45,9 @@ export interface FishSpecies {
 
 export const FISH = {
   // freshwater: the Starlight Campfire's river and the Whispering Woods' rapids, fifteen kinds by day
-  // and fifteen by night. Of every bite, commons are 70%, uncommons 20%, rares 7.5%, legendaries 2%
-  // and mythics 0.5% (shared/economy.ts FISH_TIER_ODDS, split by the weights); the legendaries and
-  // mythics bite only in the rapids. `cm` is the usual span (the bell curve's middle 95%: a fish longer
+  // and fifteen by night. What rarity bites follows the rod's tier and the line (hand-reeled or AFK:
+  // shared/economy.ts ACTIVE_TIER_ODDS, AFK_BAITED_TIER_ODDS), split between a rarity's kinds by
+  // their weights; the legendaries and mythics bite only in the rapids. `cm` is the usual span (the bell curve's middle 95%: a fish longer
   // than its top is King Size), `value` Barnaby's base price (shared/economy.ts FISH_PRICES).
   // by day
   minnow: { name: "Minnow", emoji: "🐟", water: "freshwater", tier: "common", weight: 14, bite: [3, 5], cm: [5, 11], value: FISH_PRICES.minnow, speed: 0.5, size: 0.5, pattern: "sine", barScale: 1, time: "day", mass: 9 },
@@ -99,7 +99,6 @@ export function fishOf(water: Water): FishId[] {
 export const TIER_LABEL: Record<FishTier, string> = { common: "Common", uncommon: "Uncommon", rare: "Rare", legendary: "Legendary ✨", mythic: "Mythic 🌌" };
 /** Each tier's colour on a chip (the reveal, the Nature Logbook). */
 export const TIER_COLOR: Record<FishTier, string> = { common: "#C9BDB5", uncommon: "#8fd3b6", rare: "#9ecbff", legendary: "#F5A623", mythic: "#ec7fa3" };
-const RARE_TIERS: ReadonlySet<FishTier> = new Set(["rare", "legendary", "mythic"]);
 /** A fish's weight (kg) from its length: its kind's heft, with the cube of its length. */
 export function fishKg(f: Pick<CreelFish, "s" | "cm">): number {
   const m = f.cm / 100;
@@ -118,16 +117,19 @@ export interface Rod {
   barBonus: number;
   /** Line tension builds this much slower (0.35: 35% slower). */
   tensionResist: number;
+  /** How long the fish can run out of the green before the line's tension starts to climb (s):
+   *  the higher the rod, the more forgiving. */
+  tensionWindow: number;
   /** A starry shimmer about the angler while it is in hand. */
   aura: boolean;
   blurb: string;
 }
 export const RODS = {
-  bamboo: { name: "Basic Bamboo Rod", emoji: "🎋", tier: 1, price: 0, barBonus: 0, tensionResist: 0, aura: false, blurb: "T1: common fish. Light, springy and everyone's first." },
-  willow: { name: "Pro Carbon Rod", emoji: "🎣", tier: 2, price: TACKLE_PRICES.proRod, barBonus: 0.2, tensionResist: 0, aura: false, blurb: "T2: lands uncommon fish. +20% green reel bar." },
-  heron: { name: "Heron Fiberglass Rod", emoji: "🪶", tier: 3, price: TACKLE_PRICES.heronRod, barBonus: 0.2, tensionResist: 0.15, aura: false, blurb: "T3: lands rare fish. +20% bar, the line holds 15% longer." },
-  starlight: { name: "Starlight Master Rod", emoji: "🌠", tier: 4, price: TACKLE_PRICES.masterRod, barBonus: 0.2, tensionResist: 0.35, aura: true, blurb: "T4: lands legendary fish. +20% bar, the line holds 35% longer, and a star aura." },
-  moonlight: { name: "Mythril Moonlight Rod", emoji: "🌙", tier: 5, price: TACKLE_PRICES.moonlightRod, barBonus: 0.3, tensionResist: 0.45, aura: true, blurb: "T5: lands mythic fish. +30% bar, the line holds 45% longer, and a moonlit aura." },
+  bamboo: { name: "Basic Bamboo Rod", emoji: "🎋", tier: 1, price: 0, barBonus: 0, tensionResist: 0, tensionWindow: 0.8, aura: false, blurb: "T1: commons, now and then an uncommon. Light, springy and everyone's first. A 0.8 s tension window." },
+  willow: { name: "Pro Carbon Rod", emoji: "🎣", tier: 2, price: TACKLE_PRICES.proRod, barBonus: 0.2, tensionResist: 0, tensionWindow: 1.0, aura: false, blurb: "T2: up to rare fish. +20% green reel bar, a 1.0 s tension window." },
+  heron: { name: "Heron Fiberglass Rod", emoji: "🪶", tier: 3, price: TACKLE_PRICES.heronRod, barBonus: 0.2, tensionResist: 0.15, tensionWindow: 1.2, aura: false, blurb: "T3: up to legendary fish. +20% bar, the line holds 15% longer, a 1.2 s tension window." },
+  starlight: { name: "Starlight Master Rod", emoji: "🌠", tier: 4, price: TACKLE_PRICES.masterRod, barBonus: 0.2, tensionResist: 0.35, tensionWindow: 1.5, aura: true, blurb: "T4: up to mythic fish. +20% bar, the line holds 35% longer, a 1.5 s tension window, and a star aura." },
+  moonlight: { name: "Mythril Moonlight Rod", emoji: "🌙", tier: 5, price: TACKLE_PRICES.moonlightRod, barBonus: 0.3, tensionResist: 0.45, tensionWindow: 1.8, aura: true, blurb: "T5: the best odds of the rare end. +30% bar, the line holds 45% longer, a 1.8 s tension window, and a moonlit aura." },
 } as const satisfies Record<string, Rod>;
 export type RodId = keyof typeof RODS;
 export const ROD_IDS = Object.keys(RODS) as RodId[];
@@ -136,8 +138,14 @@ export function isRodId(v: unknown): v is RodId {
 }
 /** The rods in tier order. */
 export const RODS_BY_TIER: RodId[] = [...ROD_IDS].sort((a, b) => RODS[a].tier - RODS[b].tier);
-/** Whether a rod can land a fish of this rarity. */
-export const rodLands = (rod: RodId, tier: FishTier) => RODS[rod].tier >= FISH_TIER_RANK[tier];
+/** Whether a rod's odds reach a fish of this rarity at all (on a hand-reeled line). */
+export const rodLands = (rod: RodId, tier: FishTier) => (ACTIVE_TIER_ODDS[RODS[rod].tier - 1]?.[tier] ?? 0) > 0;
+
+/** A boss fish (a legendary or a mythic) on the reel: its green sweet spot 60% smaller (a share of
+ *  the bar's full height), and its fake runs (a feint to one end, snapping back) and thrashing. The
+ *  better rods hold the line longer, but it still takes a steady hand to land one. */
+export const BOSS_TIERS: ReadonlySet<FishTier> = new Set(["legendary", "mythic"]);
+export const BOSS_ZONE = 0.4;
 
 export interface Bait {
   name: string;
@@ -218,6 +226,9 @@ export function creelFull(p: Pick<FishingProfile, "creel" | "slots" | "worn" | "
 }
 /** A full creel: a fresh common catch goes back in the river, and this is paid for letting it go. */
 export const CREEL_RELEASE_COINS = 1;
+/** A landed fish sheds a Fish Scale into the pouches this often (a hand-reeled one; an AFK one far
+ *  less): the Otter-Carved Hook Charm's carving. */
+export const SCALE_CHANCE = { active: 0.35, afk: 0.1 } as const;
 
 /** Everything the angler carries between visits: the creel, their rods and baits, their records
  *  (the longest of each kind), and how long they have left being Well-Fed. */
@@ -249,8 +260,8 @@ export interface FishingProfile {
   /** The wood carrier's tier (1-5, shared/chop.ts WOOD_CARRIER_TIERS): how many slots it has for
    *  logs and crafted pieces together (the soft clamp: a load from before stays, new wood waits). */
   carrierTier: number;
-  /** Carved pieces from the workbenches, stacked in their own crate (shared/crafting.ts: no carrier
-   *  slots, up to MAX_CRAFT_STACK of a kind). */
+  /** The craft stash: carved pieces, consumables and trade goods from the workbenches, in
+   *  CRAFT_STASH_SLOTS stacks of up to CRAFT_SLOT_STACK a kind (no carrier slots). */
   crafts: CraftItem[];
   /** The things carved once, for good: the Marshmallow Roasting Stick, the Lumberjack Pack Frame
    *  (+5 carrier slots), the Reinforced Tackle Box (+3 livewell slots). */
@@ -262,11 +273,13 @@ export interface FishingProfile {
   gear: GearId[];
   worn: GearId[];
   /** Pine Resin (from critical chops): sap, not wood, so it rides in its own jar beside the carrier
-   *  (no slots, no limit); it glues a carving at the workbench's Adhesive Slot, and Buster buys it.
-   *  Sawdust (from broken carvings; +15% on the bonfire) rides in a pouch, no slots either. */
+   *  (no log slots); it glues a carving at the workbench's Adhesive Slot, and Buster buys it. Sawdust
+   *  (from broken carvings; +15% on the bonfire) rides in a pouch. Both share the pouches' room with
+   *  the by-products (pouchCap: it grows with the carrier). */
   resin: number;
   sawdust: number;
-  /** The felling's by-products, each in its own pouch beside the carrier (no slots). */
+  /** The felling's by-products (and the Fish Scales off a landed fish), each in its own pouch beside
+   *  the carrier (no log slots; the pouches' room, pouchCap). */
   byproducts: Partial<Record<ByproductId, number>>;
   /** Firewood bundles split at the chopping block (shared/chop.ts WOOD firewood): tied beside the
    *  carrier, no slots; each feeds the bonfire FIREWOOD_FUEL. */
@@ -285,25 +298,90 @@ export interface FishingProfile {
    *  single log of each wood ever sold for. */
   trunkRecord: Partial<Record<TreeKind, number>>;
   bestLog: Partial<Record<WoodKind, number>>;
+  /** Harvesting fatigue (anti server-hopping): when this player last felled an Autumn Maple (T4), a
+   *  Whispering Elderwood (T5) and a Colossal Titan (epoch ms, the server's clock), and in which
+   *  lounge. The same class can't be felled in another lounge until its rest is over. */
+  lastFelledT4At: number;
+  lastFelledT5At: number;
+  lastFelledTitanAt: number;
+  felledIn: Partial<Record<FatigueClass, string>>;
+  /** The workbench's consumables in effect: each buff until (epoch ms, the server's clock). */
+  buffs: Partial<Record<BuffKey, number>>;
+}
+/** The consumables' buffs (shared/crafting.ts BUFFS): kept here by key. */
+export type BuffKey = "smore" | "wax" | "scent";
+export const BUFF_KEYS: BuffKey[] = ["smore", "wax", "scent"];
+/** Whether a buff is on (at the server's clock, or near enough on the client's). */
+export const buffOn = (p: Pick<FishingProfile, "buffs">, key: BuffKey, now = Date.now()) => (p.buffs[key] ?? 0) > now;
+
+/** Harvesting fatigue: the trees whose felling tires a player's arms (a T4, a T5, a Titan), and how
+ *  long before another of the same can be felled in a different lounge. In the lounge where it was
+ *  felled nothing changes (its own trees grow back on their own clock). */
+export type FatigueClass = "t4" | "t5" | "titan";
+export const FATIGUE_MS: Record<FatigueClass, number> = { t4: 8 * 60_000, t5: 15 * 60_000, titan: 45 * 60_000 };
+const FATIGUE_FIELD: Record<FatigueClass, "lastFelledT4At" | "lastFelledT5At" | "lastFelledTitanAt"> = { t4: "lastFelledT4At", t5: "lastFelledT5At", titan: "lastFelledTitanAt" };
+/** A tree's fatigue class (none for T1-T3). */
+export function fatigueClass(tier: number, titan: boolean): FatigueClass | null {
+  return titan ? "titan" : tier === 5 ? "t5" : tier === 4 ? "t4" : null;
+}
+/** How long (ms) this player must rest before felling a tree of this class in `lounge` (0: free). */
+export function fatigueLeft(p: Pick<FishingProfile, "lastFelledT4At" | "lastFelledT5At" | "lastFelledTitanAt" | "felledIn">, cls: FatigueClass, lounge: string, now = Date.now()): number {
+  const at = p[FATIGUE_FIELD[cls]];
+  const where = p.felledIn[cls];
+  if (!at || !where || where === lounge) return 0;
+  return Math.max(0, at + FATIGUE_MS[cls] - now);
+}
+/** A felling of this class noted (the time and the lounge). */
+export function noteFelled(p: Pick<FishingProfile, "lastFelledT4At" | "lastFelledT5At" | "lastFelledTitanAt" | "felledIn">, cls: FatigueClass, lounge: string, now = Date.now()) {
+  p[FATIGUE_FIELD[cls]] = now;
+  p.felledIn[cls] = lounge;
+}
+/** "7m 12s" for the fatigue toast. */
+export function restText(ms: number): string {
+  const s = Math.max(1, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
+/** The pouches beside the carrier (the by-products, Pine Resin and Sawdust together): how full they
+ *  are, and their room (it grows with the carrier's tier: 30 to 250). */
+export function pouchLoad(p: Pick<FishingProfile, "byproducts" | "resin" | "sawdust">): number {
+  return BYPRODUCT_IDS.reduce((sum, k) => sum + (p.byproducts[k] ?? 0), 0) + p.resin + p.sawdust;
+}
+export function pouchCap(p: Pick<FishingProfile, "carrierTier">): number {
+  return POUCH_CAPACITY[Math.max(1, Math.min(POUCH_CAPACITY.length, Math.round(p.carrierTier) || 1)) - 1];
+}
+/** Room in the pouches for `n` more (the soft clamp: pouches over their room keep all they hold). */
+export const pouchRoom = (p: Pick<FishingProfile, "byproducts" | "resin" | "sawdust" | "carrierTier">) => Math.max(0, pouchCap(p) - pouchLoad(p));
+
+/** The craft stash: its slots in use (each kind, Masterworks apart, a slot per CRAFT_SLOT_STACK),
+ *  and whether one more of a kind fits (the soft clamp: a stash over its slots keeps everything). */
+export function stashSlots(items: readonly CraftItem[]): number {
+  const n = new Map<string, number>();
+  for (const it of items) n.set(`${it.c}${it.m ? "*" : ""}`, (n.get(`${it.c}${it.m ? "*" : ""}`) ?? 0) + 1);
+  let slots = 0;
+  for (const c of n.values()) slots += Math.ceil(c / CRAFT_SLOT_STACK);
+  return slots;
+}
+export function stashFits(items: readonly CraftItem[], add: CraftItem): boolean {
+  return stashSlots([...items, add]) <= CRAFT_STASH_SLOTS;
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], roastingStick: false, packFrame: false, tackleBox: false, gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {} };
+  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], roastingStick: false, packFrame: false, tackleBox: false, gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {} };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
   return WOOD_KINDS.reduce((sum, k) => sum + (p.wood[k] ?? 0), 0);
 }
-/** How full the wood carrier is: every log takes a slot (the carved pieces stack in their own
- *  crate, up to MAX_CRAFT_STACK of a kind; Pine Resin, Sawdust, the by-products and Firewood ride
- *  beside it: none take a slot). */
+/** How full the wood carrier is: every log takes a slot (the workbench's pieces sit in the craft
+ *  stash; Pine Resin, Sawdust and the by-products in the pouches; Firewood ties on beside it). */
 export function carrierLoad(p: Pick<FishingProfile, "wood">): number {
   return woodCount(p);
 }
-/** The most carved pieces of one kind the crate stacks. */
-export const MAX_CRAFT_STACK = 99;
-/** The carrier's room: its tier's slots, the Forester's Toolbelt's five more, and the Lumberjack
- *  Pack Frame's five (carved once, for good). */
+/** The most of one kind a stash slot stacks (a kind past it takes a second slot). */
+export const MAX_CRAFT_STACK = CRAFT_SLOT_STACK;
+/** The carrier's room: its tier's slots, the Forester's Toolbelt's five more (or the Lumberjack's
+ *  Carved Belt's six), and the Lumberjack Pack Frame's five (carved once, for good). */
 export function carrierCap(p: Pick<FishingProfile, "carrierTier" | "worn" | "packFrame">): number {
   return carrierCapacity(p.carrierTier) + carrierBonus(p.worn) + (p.packFrame ? PACK_FRAME_SLOTS : 0);
 }
@@ -408,6 +486,21 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
       if (n > 0) p.felled[k] = Math.min(999_999, n);
     }
   }
+  p.lastFelledT4At = Math.max(0, Number(r.lastFelledT4At) || 0);
+  p.lastFelledT5At = Math.max(0, Number(r.lastFelledT5At) || 0);
+  p.lastFelledTitanAt = Math.max(0, Number(r.lastFelledTitanAt) || 0);
+  if (r.felledIn && typeof r.felledIn === "object") {
+    for (const k of ["t4", "t5", "titan"] as const) {
+      const v = (r.felledIn as Record<string, unknown>)[k];
+      if (typeof v === "string" && v.length <= 64) p.felledIn[k] = v;
+    }
+  }
+  if (r.buffs && typeof r.buffs === "object") {
+    for (const k of BUFF_KEYS) {
+      const until = Number((r.buffs as Record<string, unknown>)[k]) || 0;
+      if (until > 0) p.buffs[k] = until;
+    }
+  }
   // the carrier's tier; one from before the tiers (levels 1-3: 6, 12, 20 logs) moves up to the
   // smallest tier that holds all it held, so nothing is lost in the move
   if (Number(r.carrierTier) >= 1) p.carrierTier = Math.min(WOOD_CARRIER_TIERS.length, Math.round(Number(r.carrierTier)));
@@ -461,24 +554,47 @@ export interface CatchLuck {
   heft?: number;
 }
 
-/** What bites, weighted, with luck tipping it toward the rare end. */
+export const FISH_TIERS: FishTier[] = ["common", "uncommon", "rare", "legendary", "mythic"];
+/** The odds of each rarity on a line: the rod's tier (1-5) on a hand-reeled line; on an AFK line,
+ *  the baited odds by rod (or commons only, unbaited). A hand-reeled line's rare end is tipped by
+ *  `rareMul` (the bait, the rapids, the Cozy Aura, the incense); an AFK line's odds are as given. */
+export function tierOdds(rodTier: number, afk: boolean, baited: boolean, rareMul = 1): TierOdds {
+  const t = Math.max(1, Math.min(5, Math.round(rodTier) || 1)) - 1;
+  if (afk) return baited ? AFK_BAITED_TIER_ODDS[t] : AFK_UNBAITED_TIER_ODDS;
+  const base = ACTIVE_TIER_ODDS[t];
+  if (rareMul === 1) return base;
+  const tipped = { ...base, rare: base.rare * rareMul, legendary: base.legendary * rareMul, mythic: base.mythic * rareMul };
+  const sum = FISH_TIERS.reduce((a, k) => a + tipped[k], 0);
+  return { common: tipped.common / sum, uncommon: tipped.uncommon / sum, rare: tipped.rare / sum, legendary: tipped.legendary / sum, mythic: tipped.mythic / sum };
+}
+
+/** What bites: a rarity by the odds of the rod and the line (tierOdds), then one of that rarity's
+ *  kinds, weighted. A rarity with nothing of it in this water at this hour (the legendaries and
+ *  mythics off the rapids) is left out, its share spread over the rest in proportion. An AFK line's
+ *  odds hold no mythic (should one ever bite, the server snaps the line: the colossal fish
+ *  escapes). */
 export function rollFish(water: Water, luck: CatchLuck = {}, rand: () => number = Math.random): FishId {
   const rareMul = (1 + (luck.rareLuck ?? 0)) * (luck.bait ? baitEffect(luck.bait, luck.time === "night").rareMul : 1);
-  const reach = luck.rodTier ?? 5;
-  const pool = fishOf(water).filter(
-    (id) =>
-      (!luck.commonOnly || FISH[id].tier === "common") &&
-      (!luck.afk || AFK_CATCH_S[FISH[id].tier] !== null) &&
-      (!luck.time || FISH[id].time === luck.time) &&
-      (!(FISH[id] as FishSpecies).rapids || luck.rapids === true) &&
-      FISH_TIER_RANK[FISH[id].tier] <= reach
-  );
+  const odds = luck.commonOnly ? AFK_UNBAITED_TIER_ODDS : tierOdds(luck.rodTier ?? 1, !!luck.afk, !!luck.bait, rareMul);
+  const swims = (id: FishId) => (!luck.time || FISH[id].time === luck.time) && (!(FISH[id] as FishSpecies).rapids || luck.rapids === true);
+  // (only the rarities that swim here: the rest of the odds shared out among them in proportion)
+  const here = FISH_TIERS.filter((k) => odds[k] > 0 && fishOf(water).some((id) => FISH[id].tier === k && swims(id)));
+  const total = here.reduce((a, k) => a + odds[k], 0);
+  let roll = rand() * total;
+  let tier: FishTier = here[0] ?? "common";
+  for (const k of here) {
+    roll -= odds[k];
+    if (roll < 0) {
+      tier = k;
+      break;
+    }
+  }
+  const pool = fishOf(water).filter((id) => FISH[id].tier === tier && swims(id));
   if (!pool.length) return fishOf(water)[0];
-  const weightOf = (id: FishId) => FISH[id].weight * (RARE_TIERS.has(FISH[id].tier) ? rareMul : 1);
-  let roll = rand() * pool.reduce((a, id) => a + weightOf(id), 0);
+  let pick = rand() * pool.reduce((a, id) => a + FISH[id].weight, 0);
   for (const id of pool) {
-    roll -= weightOf(id);
-    if (roll <= 0) return id;
+    pick -= FISH[id].weight;
+    if (pick <= 0) return id;
   }
   return pool[0];
 }
@@ -533,13 +649,15 @@ export const WELL_FED_BITE_BONUS_S = 2;
 // --- AFK fishing at the campfire ------------------------------------------------------------------
 
 /** Line in, feet up (at the campfire's dock and canoe, or the woods' river bank): a fish into the
- *  livewell every so often, the rarer the longer the wait (seconds, min and max). */
+ *  livewell every so often, the rarer the longer the wait (seconds, min and max), paced so an AFK
+ *  line earns about 4-6 coins a minute on a starter rod (a hand-reeled one several times that). An
+ *  AFK line never lands a mythic. */
 export const AFK_CATCH_S: Record<FishTier, readonly [number, number] | null> = {
-  common: [12, 16],
-  uncommon: [20, 26],
-  rare: [35, 45],
-  legendary: [55, 65],
-  mythic: [75, 90],
+  common: [44, 58],
+  uncommon: [62, 82],
+  rare: [100, 130],
+  legendary: [150, 180],
+  mythic: null,
 };
 /** Premium bait (the Lucky Chum) on an AFK line: every wait this much shorter. */
 export const AFK_PREMIUM_BAIT = 0.75;

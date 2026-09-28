@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { CampfirePacket, WorkbenchResult } from "@shared/types";
 import { BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "@shared/chop";
-import { ADHESIVES, BENCH_IDS, CRAFTS, CRAFT_FILTERS, SALVAGE_RATE, canCraft, craftOdds, craftPrice, needsList, type Adhesive, type CraftId, type CraftMaterial, type CraftMode } from "@shared/crafting";
-import { MAX_CRAFT_STACK, type FishingProfile } from "@shared/fishing";
+import { ADHESIVES, BENCH_IDS, CRAFTS, CRAFT_FILTERS, SALVAGE_RATE, canCraft, craftMatches, craftOdds, craftPrice, isOnce, needsList, type Adhesive, type CraftFilter, type CraftId, type CraftMode } from "@shared/crafting";
+import { CRAFT_STASH_SLOTS } from "@shared/economy";
+import { stashFits, stashSlots, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
@@ -15,9 +16,11 @@ interface Props {
 }
 
 // The workbench (Buster's between the tipi and his stall, Bramble's advanced one in the woods): carve
-// logs, Firewood, Pine Resin and the felling's by-products (shared/crafting.ts) into pieces to sell,
-// or into things made once, for good (the Marshmallow Roasting Stick, the Lumberjack Pack Frame, the
-// Reinforced Tackle Box: [ Max Crafted ] once made). A filter bar narrows the recipes to one main
+// logs, Firewood, Pine Resin, Sawdust and the by-products (shared/crafting.ts) into Artisan Trade
+// Goods to sell, Passive Relics carved once and worn in a gear slot, consumables for a buff a while
+// (into the craft stash, used from the wood drawer), or things made once, for good (the Marshmallow
+// Roasting Stick, the Lumberjack Pack Frame, the Reinforced Tackle Box: [ Max Crafted ] once made).
+// The filter carousel narrows the recipes to a category (Relics, Consumables, Trade Goods) or a main
 // material. Each piece to sell is one of two modes: a Safe Carve (low risk, a modest Masterwork
 // chance) or a Masterwork Push (a much better chance of a Masterwork ✨, +70% value, and a real chance
 // the piece breaks; a break salvages half the logs and a pile of Sawdust). The Adhesive Slot takes a
@@ -33,7 +36,7 @@ const MODES: [CraftMode, string, string][] = [
 ];
 const TIER_TONE: Record<string, string> = { common: "text-white/70", uncommon: "text-emerald-200", rare: "text-sky-200", epic: "text-violet-200", legendary: "text-amber-200" };
 const SHORT: Partial<Record<WoodKind, string>> = { pine: "Pine", birch: "Birch", cedar: "Cedar", maple: "Maple", elderwood: "Elder", oak: "Oak", charcoal: "Charcoal" };
-const BY_SHORT: Record<ByproductId, string> = { bark: "Bark", amber: "Amber", leafAmber: "Leaf Amber", shavings: "Shavings" };
+const BY_SHORT: Record<ByproductId, string> = { bark: "Bark", amber: "Amber", leafAmber: "Leaf Amber", shavings: "Shavings", scales: "Scales" };
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 
 /** A recipe's needs as chips, each red while you are short of it. */
@@ -42,8 +45,8 @@ function Needs({ id, profile }: { id: CraftId; profile: FishingProfile }) {
     <span className="flex flex-wrap gap-1">
       {needsList(id).map(({ key, n }) => {
         const [kind, what] = key.split(":");
-        const have = kind === "wood" ? (profile.wood[what as WoodKind] ?? 0) : kind === "by" ? (profile.byproducts[what as ByproductId] ?? 0) : kind === "firewood" ? profile.firewood : profile.resin;
-        const label = kind === "wood" ? `${WOOD[what as WoodKind].emoji} ${SHORT[what as WoodKind]}` : kind === "by" ? `${BYPRODUCTS[what as ByproductId].emoji} ${BY_SHORT[what as ByproductId]}` : kind === "firewood" ? "🔥 Firewood" : "🍯 Pine Resin";
+        const have = kind === "wood" ? (profile.wood[what as WoodKind] ?? 0) : kind === "by" ? (profile.byproducts[what as ByproductId] ?? 0) : kind === "firewood" ? profile.firewood : kind === "sawdust" ? profile.sawdust : profile.resin;
+        const label = kind === "wood" ? `${WOOD[what as WoodKind].emoji} ${SHORT[what as WoodKind]}` : kind === "by" ? `${BYPRODUCTS[what as ByproductId].emoji} ${BY_SHORT[what as ByproductId]}` : kind === "firewood" ? "🔥 Firewood" : kind === "sawdust" ? "🪚 Sawdust" : "🍯 Pine Resin";
         return (
           <span key={key} className={`whitespace-nowrap rounded-full px-1.5 py-px text-[10px] font-bold tabular-nums ${have >= n ? "bg-white/10 text-[#F7EBE1]" : "bg-rose-500/20 text-rose-200"}`} title={`You have ${have}`}>
             {n} {label}
@@ -56,7 +59,7 @@ function Needs({ id, profile }: { id: CraftId; profile: FishingProfile }) {
 
 export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Props) {
   const [mode, setMode] = useState<CraftMode>("safe");
-  const [filter, setFilter] = useState<CraftMaterial | "all">("all");
+  const [filter, setFilter] = useState<CraftFilter>("all");
   const [adhesive, setAdhesive] = useState<Adhesive>("");
   // out of resin: the slot empties itself
   const glue: Adhesive = profile.resin > 0 ? adhesive : "";
@@ -92,9 +95,13 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
     el.addEventListener("wheel", wheel, { passive: false });
     return () => el.removeEventListener("wheel", wheel);
   }, []);
-  const stock = { wood: profile.wood, firewood: profile.firewood, resin: profile.resin, byproducts: profile.byproducts };
-  const made = (id: CraftId) => (CRAFTS[id].use === "roastingStick" ? profile.roastingStick : CRAFTS[id].use === "packFrame" ? profile.packFrame : CRAFTS[id].use === "tackleBox" ? profile.tackleBox : false);
-  const shown = BENCH_IDS.filter((id) => filter === "all" || CRAFTS[id].material === filter);
+  const stock = { wood: profile.wood, firewood: profile.firewood, resin: profile.resin, sawdust: profile.sawdust, byproducts: profile.byproducts };
+  const made = (id: CraftId) => {
+    const c = CRAFTS[id];
+    return c.use === "roastingStick" ? profile.roastingStick : c.use === "packFrame" ? profile.packFrame : c.use === "tackleBox" ? profile.tackleBox : c.use === "relic" && c.gear ? profile.gear.includes(c.gear) : false;
+  };
+  const shown = BENCH_IDS.filter((id) => craftMatches(CRAFTS[id], filter));
+  const slots = stashSlots(profile.crafts);
   const outcome = last?.result.outcome;
   const pill = "appearance-none rounded-full border border-white/15 bg-white/10 py-1.5 pl-2.5 pr-6 text-[12px] font-bold text-[#F7EBE1] outline-none transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-[#F5A623]/70";
   return (
@@ -115,21 +122,22 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
         <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto border-t border-white/10 py-2 pr-1">
           {shown.map((id) => {
             const craft = CRAFTS[id];
-            const once = craft.use !== "sell";
+            const once = isOnce(craft.use);
+            const consumable = craft.use === "consumable";
             const done = made(id);
-            const crateFull = !once && profile.crafts.filter((c) => c.c === id).length >= MAX_CRAFT_STACK;
+            const crateFull = !once && !stashFits(profile.crafts, { c: id, m: false });
             const ok = canCraft(stock, id) && !done && !crateFull;
             const odds = craftOdds(id, mode, glue);
             return (
-              <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${once ? "border border-[#8fd3b6]/40 bg-[#8fd3b6]/10" : "bg-white/10"}`}>
+              <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${once ? "border border-[#8fd3b6]/40 bg-[#8fd3b6]/10" : consumable ? "border border-[#f5c46b]/35 bg-[#f5c46b]/10" : "bg-white/10"}`}>
                 <span className="text-2xl">{craft.emoji}</span>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
                   <b className="text-sm">
-                    {craft.name} <span className={`text-[10px] font-semibold uppercase tracking-wide ${once ? "text-[#8fd3b6]" : TIER_TONE[craft.tier]}`}>{once ? "heirloom" : craft.tier}</span>
+                    {craft.name} <span className={`text-[10px] font-semibold uppercase tracking-wide ${once ? "text-[#8fd3b6]" : consumable ? "text-amber-200" : TIER_TONE[craft.tier]}`}>{craft.use === "relic" ? "relic" : once ? "heirloom" : consumable ? "consumable" : craft.trade ? `${craft.tier} · trade` : craft.tier}</span>
                   </b>
                   <Needs id={id} profile={profile} />
                   <span className="text-[10.5px] opacity-80">
-                    {once ? (
+                    {once || consumable ? (
                       craft.description
                     ) : (
                       <>
@@ -139,8 +147,8 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
                     )}
                   </span>
                 </div>
-                <button type="button" className={`clay-btn ${once || mode !== "push" ? "clay-btn-amber" : ""} min-h-9 shrink-0 justify-center px-0`} style={{ width: 88, minWidth: 88 }} disabled={!ok} onClick={() => send({ type: "WORKBENCH", recipe: id, mode, adhesive: once ? "" : glue })} title={done ? "Made once, yours for good" : crateFull ? `The crate holds ${MAX_CRAFT_STACK} of a kind` : undefined}>
-                  <span className="whitespace-nowrap text-[12px]">{done ? "Max Crafted" : crateFull ? "Crate full" : once ? "Make" : mode === "push" ? "Push" : "Carve"}</span>
+                <button type="button" className={`clay-btn ${once || consumable || mode !== "push" ? "clay-btn-amber" : ""} min-h-9 shrink-0 justify-center px-0`} style={{ width: 88, minWidth: 88 }} disabled={!ok} onClick={() => send({ type: "WORKBENCH", recipe: id, mode, adhesive: once || consumable ? "" : glue })} title={done ? (craft.use === "relic" ? "Carved once: wear it from the drawers' gear tab" : "Made once, yours for good") : crateFull ? `The craft stash is full (${CRAFT_STASH_SLOTS} slots)` : undefined}>
+                  <span className="whitespace-nowrap text-[12px]">{done ? "Max Crafted" : crateFull ? "Stash full" : once || consumable ? "Make" : mode === "push" ? "Push" : "Carve"}</span>
                 </button>
               </div>
             );
@@ -159,7 +167,12 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
 
       {/* the foot: what a break gives back, and the mode and the resin as pill dropdowns */}
       <div className="flex shrink-0 items-center justify-between gap-2 border-t border-white/10 pt-2">
-        <span className="min-w-0 text-[11px] leading-tight opacity-75">Broken: {pct(SALVAGE_RATE)} refund · Heirloom: unbreakable</span>
+        <span className="min-w-0 text-[11px] leading-tight opacity-75">
+          Broken: {pct(SALVAGE_RATE)} refund · Heirloom: unbreakable ·{" "}
+          <span className={slots >= CRAFT_STASH_SLOTS ? "font-bold text-rose-200" : ""}>
+            Stash {slots}/{CRAFT_STASH_SLOTS}
+          </span>
+        </span>
         <div className="flex shrink-0 items-center gap-1.5">
           <label className="relative flex items-center gap-1 text-[11px] opacity-90">
             <span className="hidden sm:inline">Mode:</span>

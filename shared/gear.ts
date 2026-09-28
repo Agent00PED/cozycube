@@ -1,7 +1,8 @@
 // The accessories: kit bought once and worn in four slots (two hands' worth of gloves is one pair,
 // a belt at the waist, a ring on each of two fingers, a charm about the neck). The woodcutter's are
 // sold by Buster (T1-T3) and Bramble (T1-T5), the angler's by Barnaby (T1-T3) and Finley (T1-T5);
-// any of them goes in any slot of its kind, so a loadout mixes both crafts. They live in the camp
+// the workbench's three Passive Relics are carved once, never sold (`craft` "bench"); any of them
+// goes in any slot of its kind, so a loadout mixes the crafts. They live in the camp
 // profile (FishingProfile.gear owned, .worn on, oldest first); the server applies every effect and
 // the client draws them from the same functions.
 
@@ -25,14 +26,18 @@ export type GearId =
   | "sunburst_band"
   | "moonlit_ring"
   | "golden_scale_ring"
-  | "lucky_bell";
+  | "lucky_bell"
+  // the workbench's Passive Relics
+  | "carved_belt"
+  | "hook_charm"
+  | "bark_bangle";
 
 export interface Gear {
   name: string;
   emoji: string;
   slot: GearSlot;
-  /** Whose shops sell it: the woodcutter's or the angler's. */
-  craft: "wood" | "fish";
+  /** Whose shops sell it: the woodcutter's or the angler's; "bench": carved at the workbench. */
+  craft: "wood" | "fish" | "bench";
   /** T1-T3 at the campfire's stalls; T4-T5 only in the woods (Bramble, Finley). */
   tier: number;
   price: number;
@@ -54,13 +59,17 @@ export const GEAR: Record<GearId, Gear> = {
   moonlit_ring: { name: "Moonlit Abyssal Ring", emoji: "🌙", slot: "finger", craft: "fish", tier: 3, price: GEAR_PRICES.moonlit_ring, blurb: "By night, rare and nocturnal fish 25% likelier" },
   golden_scale_ring: { name: "Golden Scale Ring", emoji: "🪙", slot: "finger", craft: "fish", tier: 4, price: GEAR_PRICES.golden_scale_ring, blurb: "+15% chance of a ★★★ fish, and every fish 15% heavier" },
   lucky_bell: { name: "Finley's Lucky Bell", emoji: "🔔", slot: "charm", craft: "fish", tier: 5, price: GEAR_PRICES.lucky_bell, blurb: "Chimes 30 s before a King-Size Surge, and a surge's catches are King Size 5 in 10" },
+  // the workbench's Passive Relics (carved once: shared/crafting.ts)
+  carved_belt: { name: "Lumberjack's Carved Belt", emoji: "🎗️", slot: "waist", craft: "bench", tier: 3, price: 0, blurb: "+6 carrier slots, and the splitting block's gauge runs 15% slower" },
+  hook_charm: { name: "Otter-Carved Hook Charm", emoji: "🦦", slot: "charm", craft: "bench", tier: 2, price: 0, blurb: "On a legendary or mythic fish: the line holds 0.5 s longer before its tension climbs, and the green is 25% bigger" },
+  bark_bangle: { name: "Amber Bark Bangle", emoji: "📿", slot: "finger", craft: "bench", tier: 4, price: 0, blurb: "+20% by-products while felling: a round that drops a log sheds its tree's by-product too" },
 };
 export const GEAR_IDS = Object.keys(GEAR) as GearId[];
 export function isGearId(v: unknown): v is GearId {
   return typeof v === "string" && v in GEAR;
 }
 /** One craft's gear, humblest first. */
-export const gearOf = (craft: "wood" | "fish"): GearId[] => GEAR_IDS.filter((id) => GEAR[id].craft === craft).sort((a, b) => GEAR[a].tier - GEAR[b].tier || GEAR[a].price - GEAR[b].price);
+export const gearOf = (craft: "wood" | "fish" | "bench"): GearId[] => GEAR_IDS.filter((id) => GEAR[id].craft === craft).sort((a, b) => GEAR[a].tier - GEAR[b].tier || GEAR[a].price - GEAR[b].price);
 
 /** Putting a piece on: whatever it displaces comes off (the slot's one piece, or the oldest of two
  *  rings). Returns the new worn list (oldest first) and what came off. */
@@ -94,11 +103,18 @@ export const bonusLogChance = (worn: Worn) => (on(worn, "deerskin_gloves") ? 0.1
 export const goldBonus = (worn: Worn) => (on(worn, "titan_gauntlets") ? 0.25 : 0);
 /** The Titan-Grip Gauntlets: a miss still deepens the notch (it drops nothing). */
 export const missDeepens = (worn: Worn) => on(worn, "titan_gauntlets");
-/** The Forester's Toolbelt: more carrier slots, and more Firewood from a split. */
-export const carrierBonus = (worn: Worn) => (on(worn, "forester_belt") ? 5 : 0);
+/** The Forester's Toolbelt (or the Lumberjack's Carved Belt): more carrier slots, and more Firewood
+ *  from a split. */
+export const carrierBonus = (worn: Worn) => (on(worn, "forester_belt") ? 5 : 0) + (on(worn, "carved_belt") ? 6 : 0);
 export const splitYield = (worn: Worn) => (on(worn, "forester_belt") ? 1.5 : 1);
-/** The Amber Resin Band: a round that drops a log also sheds its tree's by-product this often. */
-export const byproductBonus = (worn: Worn) => (on(worn, "resin_band") ? 0.15 : 0);
+/** The Lumberjack's Carved Belt: the splitting block's gauge this much slower. */
+export const splitSlow = (worn: Worn) => (on(worn, "carved_belt") ? 0.15 : 0);
+/** The Amber Resin Band and the Amber Bark Bangle: a round that drops a log also sheds its tree's
+ *  by-product this often. */
+export const byproductBonus = (worn: Worn) => (on(worn, "resin_band") ? 0.15 : 0) + (on(worn, "bark_bangle") ? 0.2 : 0);
+/** The Otter-Carved Hook Charm, on a legendary or mythic fish: the tension window this much longer
+ *  (s), and the green this much bigger. */
+export const giantGrip = (worn: Worn) => (on(worn, "hook_charm") ? { window: 0.5, zone: 0.25 } : { window: 0, zone: 0 });
 /** The Ancient Ring of Oak: a tree struck gold grows back this much sooner. */
 export const quickRegrow = (worn: Worn) => (on(worn, "oak_ring") ? 0.2 : 0);
 /** The Dryad's Sprout Amulet: the chance a tree grows as you start on it, and by how much. */

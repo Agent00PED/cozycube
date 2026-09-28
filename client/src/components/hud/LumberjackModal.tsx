@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
 import { AXES, AXE_IDS, BYPRODUCTS, BYPRODUCT_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
 import { FIREWOOD_PRICE, MAX_DAY_PERMITS, PERMIT_PRICES } from "@shared/economy";
-import { CRAFTS, RESIN_PRICE, craftSalePrice } from "@shared/crafting";
+import { CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks } from "@shared/crafting";
 import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -88,7 +88,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
       }),
     [subscribeMessages]
   );
-  // at the hour's prices, each sale knocking 2% off the next of its kind (as the server settles it),
+  // at the hour's prices, past 30 of a kind sold each knocking 2% off the next (as the server settles it),
   // each log worth its tree's size (the stack's average: a big tree's logs fetch more)
   const hour = parseMarket(market);
   const woodRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => woodPrice(x, mult, woodAverage(profile, x)), hour).total;
@@ -96,7 +96,10 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
   const logsWorth = WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0);
   const byCount = BYPRODUCT_IDS.reduce((n, k) => n + (profile.byproducts[k] ?? 0), 0);
   const byWorth = BYPRODUCT_IDS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
-  const craftWorth = priceRun(profile.crafts, (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total;
+  // the stash's pieces to sell (its consumables are for using), a row a stack
+  const forSale = profile.crafts.filter((c) => CRAFTS[c.c].price > 0);
+  const craftWorth = priceRun(forSale, (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total;
+  const saleStacks = craftStacks(forSale).map((st) => ({ ...st, at: profile.crafts.findIndex((c) => c.c === st.item.c && c.m === st.item.m) }));
   const next = nextCarrierTier(profile.carrierTier);
   const held = WOOD_KINDS.filter((k) => profile.wood[k] > 0);
   return (
@@ -188,17 +191,17 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
               </button>
             </div>
           )}
-          {profile.crafts.length > 0 && (
+          {forSale.length > 0 && (
             <>
               <b className="mt-1 text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Carved pieces</b>
-              {profile.crafts.map((item, i) => (
-                <div key={i} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${item.m ? "border-2 border-amber-300 bg-amber-300/10" : "bg-white/10"}`}>
+              {saleStacks.map(({ item, n, at }) => (
+                <div key={`${item.c}:${item.m}`} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${item.m ? "border-2 border-amber-300 bg-amber-300/10" : "bg-white/10"}`}>
                   <span className="text-xl">{CRAFTS[item.c].emoji}</span>
                   <b className="flex-1 text-xs">
-                    {CRAFTS[item.c].name}
+                    {CRAFTS[item.c].name} <span className="font-normal opacity-70">×{n}</span>
                     {item.m && <span className="ml-1 text-amber-200">Masterwork ✨</span>}
                   </b>
-                  <button type="button" className="clay-btn min-h-8 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: i })}>
+                  <button type="button" className="clay-btn min-h-8 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: at })} title="Sell one">
                     <span className="whitespace-nowrap text-[12px]">{priceRun([item], (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total} 🪙</span>
                   </button>
                 </div>
@@ -208,7 +211,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
               </button>
             </>
           )}
-          {!held.length && !byCount && !profile.firewood && !profile.resin && !profile.crafts.length && <p className="m-0 py-6 text-center text-sm opacity-70">Nothing to trade yet. The Soft Pines round the clearing are yours to fell!</p>}
+          {!held.length && !byCount && !profile.firewood && !profile.resin && !forSale.length && <p className="m-0 py-6 text-center text-sm opacity-70">Nothing to trade yet. The Soft Pines round the clearing are yours to fell!</p>}
           <p className="m-0 pt-1 text-center text-[11px] opacity-70">Carve your logs at the workbench 🪚 by the tipi: worth far more!</p>
         </div>
       )}
@@ -252,7 +255,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
       {tab === "storage" && (
         <div className="flex flex-col gap-1.5">
           <p className="m-0 text-center text-xs opacity-75">
-            Every log takes a slot ({carrierLoad(profile)}/{carrierCap(profile)} now; carved pieces stack in their own crate). A full carrier means no more felling until you sell or split some (nothing is ever thrown away).
+            Every log takes a slot ({carrierLoad(profile)}/{carrierCap(profile)} now; carved pieces go in the craft stash; the pouches grow with the carrier: 30 to 250). A full carrier means no more felling until you sell or split some (nothing is ever thrown away).
           </p>
           {WOOD_CARRIER_TIERS.map((t, i) => {
             const tier = i + 1;

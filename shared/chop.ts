@@ -19,7 +19,7 @@
 // sprout and a sapling to a new mature tree of a newly rolled size (0.85x to 1.35x): the bigger the
 // tree, the more its logs are worth (the log's value scales with its tree's size squared).
 
-import { AXE_PRICES, BYPRODUCT_PRICES, CARRIER_CAPACITY, CARRIER_PRICES, SHAVINGS_FUEL, WOOD_PRICES } from "./economy";
+import { AXE_PRICES, BYPRODUCT_PRICES, CARRIER_CAPACITY, CARRIER_PRICES, SHAVINGS_FUEL, TITAN_YIELD, WOOD_PRICES } from "./economy";
 
 // --- the wood: what a felled tree yields, kept (with the axe) in the camp profile ---
 export type WoodKind = "pine" | "oak" | "charcoal" | "birch" | "cedar" | "maple" | "elderwood";
@@ -126,16 +126,18 @@ export interface TreeInfo {
   period: number;
   lore: string;
 }
-/** The felling's by-products, one per tier from T2 (a round that lands but drops no log): they ride
- *  beside the carrier in their own pouches (no slots), and Bramble (or Buster) buys them. Ancient
- *  Wood Shavings also feed the bonfire. */
-export type ByproductId = "bark" | "amber" | "leafAmber" | "shavings";
-export const BYPRODUCT_IDS: ByproductId[] = ["bark", "amber", "leafAmber", "shavings"];
+/** The felling's by-products, one per tier from T2 (a round that lands but drops no log), and the
+ *  Fish Scales a landed fish sheds: they ride beside the carrier in the pouches (no log slots; their
+ *  room grows with the carrier), and Bramble (or Buster) buys them. Ancient Wood Shavings also feed
+ *  the bonfire. */
+export type ByproductId = "bark" | "amber" | "leafAmber" | "shavings" | "scales";
+export const BYPRODUCT_IDS: ByproductId[] = ["bark", "amber", "leafAmber", "shavings", "scales"];
 export const BYPRODUCTS: Record<ByproductId, { name: string; emoji: string; price: number; fuel?: number; blurb: string }> = {
   bark: { name: "Birch Bark", emoji: "📜", price: BYPRODUCT_PRICES.bark, blurb: "Paper-white curls off a Silver Birch" },
   amber: { name: "Amber Resin", emoji: "🍯", price: BYPRODUCT_PRICES.amber, blurb: "Fragrant red sap from a Highland Cedar" },
   leafAmber: { name: "Golden Leaf Amber", emoji: "🍂", price: BYPRODUCT_PRICES.leafAmber, blurb: "An Autumn Maple's leaf caught in golden sap" },
   shavings: { name: "Ancient Wood Shavings", emoji: "✨", price: BYPRODUCT_PRICES.shavings, fuel: SHAVINGS_FUEL, blurb: `Elderwood curls that hum: +${SHAVINGS_FUEL}% on the bonfire` },
+  scales: { name: "Fish Scales", emoji: "💠", price: BYPRODUCT_PRICES.scales, blurb: "Shed by a landed fish: the Otter-Carved Hook Charm's inlay" },
 };
 export function isByproductId(v: unknown): v is ByproductId {
   return typeof v === "string" && (BYPRODUCT_IDS as string[]).includes(v);
@@ -151,8 +153,11 @@ export function isTreeKind(v: unknown): v is TreeKind {
   return typeof v === "string" && (TREE_KINDS as string[]).includes(v);
 }
 /** The Colossal Titan: a 2x Autumn Maple a world event raises in the woods, 5-6 rounds, any axe;
- *  it comes down in 4-6 heavy logs worth 3x each. */
-export const TITAN = { kind: "maple" as TreeKind, scale: 2, rounds: [5, 6] as [number, number], logs: [4, 6] as [number, number], mult: 3, sweet: 0.12, period: 1.35, name: "Colossal Titan Maple" };
+ *  it comes down in 4-6 heavy logs worth TITAN_YIELD (750) together at an even market. */
+export const TITAN = { kind: "maple" as TreeKind, scale: 2, rounds: [5, 6] as [number, number], logs: [4, 6] as [number, number], sweet: 0.12, period: 1.35, name: "Colossal Titan Maple" };
+/** Each of a Titan's `n` heavy logs' value multiplier (on a maple log's price): together worth
+ *  TITAN_YIELD at an even market. */
+export const titanLogMult = (n: number) => Math.round((TITAN_YIELD / Math.max(1, n) / WOOD_PRICES.maple) * 1000) / 1000;
 /** A tree's size: rolled each time it grows to maturity. */
 export const TREE_SCALE: [number, number] = [0.85, 1.35];
 export function rollTreeScale(rand: () => number = Math.random): number {

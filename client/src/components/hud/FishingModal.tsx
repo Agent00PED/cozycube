@@ -26,8 +26,9 @@ const GRAVITY = 645;
 const LIFT = 1180;
 /** How lively the fish swim, and how hard an erratic one kicks. */
 const SWIM = 0.7;
-/** Extra seconds a line holds, from slack to snapping, while the fish runs free. */
-const TENSION_GRACE_S = 2.5;
+/** Extra seconds a line holds, from slack to snapping, while the fish runs free (after the rod's
+ *  tension window: the time it may run out of the green before the tension starts to climb). */
+const TENSION_GRACE_S = 1.0;
 
 const FishViewer = lazy(() => import("./FishViewer"));
 
@@ -55,6 +56,11 @@ export interface FishProfile {
   tier?: string;
   /** The rod's grip on the line: tension builds this much slower (0.35: 35%). */
   tensionResist?: number;
+  /** How long the fish may run out of the green before the tension starts to climb (s). */
+  tensionWindow?: number;
+  /** A boss fish (a legendary or a mythic): fake runs (a feint to one end, snapping back) and
+   *  thrashing; its green is small (barScale). */
+  boss?: boolean;
   /** A line under the name once it is landed (its length and stars). */
   detail?: string;
   /** The anti-spoiler: the fish is only a shadow this big (0.1-1) until it is landed, and its
@@ -123,7 +129,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
   const [done, setDone] = useState<"caught" | "lost" | null>(null);
   const [snapped, setSnapped] = useState(false);
   const holding = useRef(false);
-  const sim = useRef({ zoneY: barH - zoneH, zoneV: 0, fishY: barH / 2, fishV: 0, fishTarget: barH / 2, meter: 0.3, inTime: 0, total: 0, t: 0, nextDart: 0.6, plunge: -1, tension: 0, warnAt: 0, chestAt: 2.5 + Math.random() * 2, chestY: -1, chest: 0, chestOpen: false, chestGone: 0 });
+  const sim = useRef({ zoneY: barH - zoneH, zoneV: 0, fishY: barH / 2, fishV: 0, fishTarget: barH / 2, meter: 0.3, inTime: 0, total: 0, t: 0, nextDart: 0.6, plunge: -1, tension: 0, warnAt: 0, chestAt: 2.5 + Math.random() * 2, chestY: -1, chest: 0, chestOpen: false, chestGone: 0, outFor: 0, nextFeint: 1.2 + Math.random(), feintUntil: 0, feintBack: 0 });
   const doneRef = useRef(false);
   const resultRef = useRef(onResult);
   resultRef.current = onResult;
@@ -192,6 +198,25 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
         }
         wobble = Math.sin(s.t * 11) * 7;
       }
+      // a boss: now and then a fake run to one end of the column (a feint), then it snaps back; and
+      // it thrashes all the while
+      if (fish.boss) {
+        if (s.feintUntil === 0 && s.t >= s.nextFeint) {
+          s.feintBack = s.fishTarget;
+          s.feintUntil = s.t + 0.25 + Math.random() * 0.15;
+          s.nextFeint = s.t + 1.1 + Math.random() * 0.8;
+          s.fishV += (s.fishY < span / 2 ? 1 : -1) * 230 * scale;
+        }
+        if (s.feintUntil > 0) {
+          if (s.t < s.feintUntil) s.fishTarget = s.fishY < span / 2 && s.fishV > 0 ? span : s.fishV < 0 ? 0 : s.fishTarget;
+          else {
+            s.fishTarget = s.feintBack;
+            s.fishV *= -0.6;
+            s.feintUntil = 0;
+          }
+        }
+        wobble += Math.sin(s.t * 23) * 6 * scale + (Math.random() - 0.5) * 7 * scale;
+      }
       const pull = (10 + fish.speed * 16) * SWIM;
       s.fishV += ((s.fishTarget - s.fishY) * pull - s.fishV * (4 + fish.speed * 2)) * dt;
       s.fishY = Math.max(0, Math.min(span, s.fishY + s.fishV * dt));
@@ -200,7 +225,10 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
       const inside = centre > s.zoneY && centre < s.zoneY + zoneH;
       s.meter = Math.max(0, Math.min(1, s.meter + (inside ? 0.26 : -0.06 - fish.size * 0.04) * dt));
       const pullRate = (0.35 + fish.size * 0.2) * (1 - (fish.tensionResist ?? 0));
-      s.tension = Math.max(0, Math.min(1, s.tension + (inside ? -0.5 : 1 / (1 / pullRate + TENSION_GRACE_S)) * dt));
+      // (the rod's tension window: out of the green this long before the tension starts to climb)
+      s.outFor = inside ? 0 : s.outFor + dt;
+      const climbing = !inside && s.outFor > (fish.tensionWindow ?? 0.8);
+      s.tension = Math.max(0, Math.min(1, s.tension + (inside ? -0.5 : climbing ? 1 / (1 / pullRate + TENSION_GRACE_S) : 0) * dt));
       if (s.tension > 0.65 && s.t - s.warnAt > 0.45) {
         s.warnAt = s.t;
         playSfx("tension");
@@ -357,7 +385,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
               )}
             </div>
           ) : (
-            <div className="pointer-events-none absolute left-3 top-2 text-[11px] font-bold uppercase tracking-widest text-[#C9BDB5]/70">{mystery ? "A shadow on the line…" : fish.hint}</div>
+            <div className={`pointer-events-none absolute left-3 top-2 text-[11px] font-bold uppercase tracking-widest ${fish.boss && mystery ? "text-amber-300" : "text-[#C9BDB5]/70"}`}>{mystery ? (fish.boss ? "💀 A colossal shadow thrashes on the line!" : "A shadow on the line…") : fish.hint}</div>
           )}
         </div>
 

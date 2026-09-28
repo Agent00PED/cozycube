@@ -15,7 +15,7 @@ const CAMP = new Set<MapId>(["campfire_night", "whispering_woods"]);
 
 const TIPS = [
   "Barnaby's prices change on the hour: his chalkboard shows what's ▲ up and ▼ down.",
-  "Every fish you sell knocks 2% off the next of its kind this hour. Spread your sales out!",
+  "Sell more than 30 of one kind in an hour and its price starts to slide. What nobody sells climbs back up!",
   "A King Size catch earns a gold crown in your Field Guide 👑",
   "Chat reaches every world: say hi to friends at the campfire from the casino.",
   "Chloe's cheval mirror lets you try an outfit on before you buy it.",

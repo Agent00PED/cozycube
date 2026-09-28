@@ -21,8 +21,8 @@ export const VIP_PASS: CasinoItem = {
   id: "vip_pass",
   name: "The Black Card",
   emoji: "💳",
-  price: 7500,
-  pawn: 3750,
+  price: 8500,
+  pawn: 4250,
   blurb: "The Velvet Penthouse for good: high-limit poker, baccarat and the Golden Vault, every night.",
 };
 /** The Velvet VIP Wristband: one ride up to the Velvet Penthouse (Bruno takes it at the doors), for

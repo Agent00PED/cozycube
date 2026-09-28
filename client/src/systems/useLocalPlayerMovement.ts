@@ -12,7 +12,7 @@ import { faceHeading } from "./faceTargets";
 import { liveMotion } from "./liveMotion";
 import { Reconciler } from "./reconcile";
 import { WELL_FED_SPEED } from "@shared/fishing";
-import { TORCH_NIGHT_PACE } from "@shared/crafting";
+import { SMORE_PACE, TORCH_NIGHT_PACE } from "@shared/crafting";
 import { isCampDay } from "@shared/daynight";
 
 // The local player's locomotion. Three inputs, one controller:
@@ -103,6 +103,15 @@ export function useLocalPlayerMovement(
       return ((JSON.parse(player.fishing || "{}") as { crafts?: { c?: string }[] }).crafts ?? []).some((c) => c?.c === "amber_torch");
     } catch {
       return false;
+    }
+  }, [player.fishing]);
+  // a Campfire S'more eaten: 15% quicker a while (the server allows for it)
+  const smoreUntilRef = useRef(0);
+  smoreUntilRef.current = useMemo(() => {
+    try {
+      return Number((JSON.parse(player.fishing || "{}") as { buffs?: { smore?: number } }).buffs?.smore) || 0;
+    } catch {
+      return 0;
     }
   }, [player.fishing]);
   const velocityRef = useRef(0);
@@ -204,7 +213,7 @@ export function useLocalPlayerMovement(
       if (steer && targetRef.current) targetRef.current = null;
       const target = targetRef.current;
       const torch = torchRef.current && isCampMap(mapId) && !isCampDay(Date.now()) ? TORCH_NIGHT_PACE : 1;
-      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch;
+      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * (smoreUntilRef.current > Date.now() ? SMORE_PACE : 1);
       if (steer) {
         dirX = steer.x;
         dirZ = steer.z;

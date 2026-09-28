@@ -856,7 +856,7 @@ export default function App() {
           reconnecting={reconnecting}
           latency={latency}
         />
-        <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} />
+        <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} buffs={angler.profile.buffs} />
         <Toasts />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
 
@@ -990,6 +990,8 @@ export default function App() {
                   barScale: Math.min(1.3, starReel.swim.barScale * (1 + rod.barBonus)),
                   // (and the Neoprene Wader Gloves: the tension builds a fifth slower again)
                   tensionResist: 1 - (1 - rod.tensionResist) * (1 - tensionCut(angler.profile.worn)),
+                  tensionWindow: starReel.window ?? rod.tensionWindow,
+                  boss: starReel.boss === true,
                   hint: `${rod.emoji} ${rod.name}`,
                   treasure: starReel.treasure,
                   treasureReward: TREASURE_COINS,

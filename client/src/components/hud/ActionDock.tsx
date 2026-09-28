@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
+import { TITAN_YIELD } from "@shared/economy";
 import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ANIMALS, FOREST_FISHING, FOREST_WORKBENCH_FRONT, woodsSpotOfSeat } from "@shared/worlds/forest";
 import { FELL_TREE_AT } from "@shared/worlds/trees";
 import { treeTarget } from "../../scene/treeTarget";
@@ -12,7 +13,7 @@ import { BOARD_REACH, BOUTIQUE, BOUTIQUE_REACH, KITCHEN_REACH, MOCHI_REACH, PLAN
 import { BAR_REACH, BLACKJACK_TABLES, CASHIER_FRONT, CASHIER_REACH, EXIT_FRONT, GACHAPON_FRONT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, ROULETTE_BET_RADIUS, ROULETTE_CENTER, TIP_JARS, VIP_DOORS_FRONT, ZARA_FRONT, barDistance, nearGameTable, seatedGameOf, type CasinoGameTable } from "@shared/worlds/casino";
 import { VIP_ARRIVAL } from "@shared/worlds/casino_vip";
 import { isTouchUi } from "../../systems/inputMode";
-import { BAR_SNACK, CAPSULE_COST, DEALER_TIP, TABLE_LIMITS, VAULT_SLOT_ID, chipText, isNpcOccupant, slotLimit, type CasinoPacket } from "@shared/casino";
+import { BAR_SNACK, CAPSULE_COST, DEALER_TIP, TABLE_LIMITS, chipText, isNpcOccupant, isVaultSlot, slotLimit, type CasinoPacket } from "@shared/casino";
 import { VIP_PASS, VIP_WRISTBAND } from "@shared/items";
 import { pushToast } from "./toastStore";
 import { cameraFocus } from "../../scene/cameraFocus";
@@ -36,7 +37,7 @@ import { glass, hudText, pillButton } from "./glass";
 //   [🍢 Leave on Table] / [🍢 Grab a Skewer]  at the picnic table, a skewer in hand or on a plate
 //   [🎣 Manual Reel] [☕ Auto AFK]  at a fishing spot (the dock's edge or the canoe at the campfire;
 //                    the woods' river bank, standing or on its log or rock): cast and reel by hand,
-//                    or feet up with the line in (12-16s a common, up to 90s a mythic; never a King
+//                    or feet up with the line in (44-58s a common, up to 180s a legendary; never a King
 //                    Size); fishing by hand, [☕ Auto AFK]; AFK, [🎣 Manual Reel]
 //   [🪓 Fell Soft Pine · T1]  the grown tree in reach (the campfire's pines, the woods' trees, a
 //                    Colossal Titan): the radial felling panel
@@ -410,7 +411,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         if (tree && tree.map === mapId) {
           const info = TREES[tree.kind];
           const d = Math.hypot(tree.x - cameraFocus.x, tree.z - cameraFocus.z);
-          if (tree.titan) found.push({ key: `fell:${tree.id}`, type: "chop", d, label: `🌳 Fell the ${TITAN.name}`, hint: `${TITAN.rounds[0]}-${TITAN.rounds[1]} rounds on the ring, any axe: ${TITAN.logs[0]}-${TITAN.logs[1]} heavy logs worth ${TITAN.mult}x each`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
+          if (tree.titan) found.push({ key: `fell:${tree.id}`, type: "chop", d, label: `🌳 Fell the ${TITAN.name}`, hint: `${TITAN.rounds[0]}-${TITAN.rounds[1]} rounds on the ring, any axe: ${TITAN.logs[0]}-${TITAN.logs[1]} heavy logs worth ${TITAN_YIELD} 🪙 together`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
           else found.push({ key: `fell:${tree.id}`, type: "chop", d, label: `🪓 Fell ${info.name} · T${info.tier}`, hint: `Land ${info.rounds[0]}-${info.rounds[1]} rounds on the ring and it comes down (${WOOD[info.wood].name} logs, bigger trees worth more). Needs a T${info.tier} axe or better`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
         }
         if (mapId === "whispering_woods") {
@@ -450,7 +451,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
               found.push({ key: `slots:${id}:busy`, type: "slots", label: npc ? "[ In Use by Patron ]" : "[ In Use ]", hint: "Someone is currently playing here! Please wait a moment or find an open machine.", disabled: true, run: () => {} });
               if (npc) found.push({ key: `excuse:${id}`, type: "excuse", label: "[ 💬 Excuse Me ]", hint: "Ask the patron, nicely, to finish up: the machine is held for you a moment", run: () => onCasino({ type: "EXCUSE_ME", propId: id }) });
             } else {
-              found.push({ key: `slots:${id}`, type: "slots", label: id === VAULT_SLOT_ID ? "🏆 Golden Vault" : "🎰 Play Slots", hint: `Stake ${chipText(limit.min)} to ${chipText(limit.max)} chips: three of a kind pays up to 75x`, run: () => interactBridge.current?.useProp(id) });
+              found.push({ key: `slots:${id}`, type: "slots", label: isVaultSlot(id) ? "🏆 Golden Vault" : "🎰 Play Slots", hint: `Stake ${chipText(limit.min)} to ${chipText(limit.max)} chips: three of a kind pays up to 75x`, run: () => interactBridge.current?.useProp(id) });
             }
           }
           if (mapId === "velvet_casino" && Math.hypot(ROULETTE_CENTER.x - px, ROULETTE_CENTER.z - pz) < ROULETTE_BET_RADIUS) {
@@ -549,7 +550,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       const mySeat = Object.values(chairs).find((c) => c.occupiedBy === localSessionId);
       const woodsStand = mapId === "whispering_woods" && !sitting ? FOREST_FISHING.find((f) => Math.hypot(f.stand.x - cameraFocus.x, f.stand.z - cameraFocus.z) <= FISHING_REACH + 0.8) : undefined;
       const mySpot = mySeat ? (spotOfSeat(mySeat.propId) ?? woodsSpotOfSeat(mySeat.propId)) : woodsStand?.propId;
-      const AFK_HINT = "Feet up, line in: a common every 12-16s, rarer fish longer (up to 90s for a mythic; premium bait a quarter quicker). Never a King Size: those take a hand on the reel";
+      const AFK_HINT = "Feet up, line in: a common every 44-58s, rarer fish longer (baited only; up to three minutes for a legendary; premium bait a quarter quicker). Never a King Size or a mythic: those take a hand on the reel";
       if (mySpot && action === "") {
         const id = mySpot;
         found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Manual Reel", hint: "Cast into the river; tap when the bobber dips, then reel it in (in a King-Size Surge, 4 in 10 are King Size)", run: () => interactBridge.current?.useProp(id) });

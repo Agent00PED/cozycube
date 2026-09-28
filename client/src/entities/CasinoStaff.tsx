@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { BAR_SNACK, CASINO_DRINKS, VAULT_SLOT_ID, pocketColor, type BaccaratState, type BlackjackResult, type CasinoPropEvent, type PokerResult, type RouletteResultBroadcast, type SlotBroadcast } from "@shared/casino";
+import { BAR_SNACK, CASINO_DRINKS, isVaultSlot, pocketColor, type BaccaratState, type BlackjackResult, type CasinoPropEvent, type PokerResult, type RouletteResultBroadcast, type SlotBroadcast } from "@shared/casino";
 import { CASINO_NPCS, casinoZoneAt } from "@shared/worlds/casino";
 import { VIP_NPCS, inPenthouse } from "@shared/worlds/casino_vip";
 import { VIP_PASS } from "@shared/items";
@@ -189,7 +189,7 @@ const cedricGestures = knockFor("blackjack_01", "*Knocks table* Clean 21! 🃏")
 const gideonGestures = knockFor("blackjack_02", "*Knocks table* Blackjack. Beautifully done.");
 /** Jasper's moods at the alley's slots (the VIP room's machine is out of his sight). */
 function jasperGestures(type: string, p: SlotBroadcast): { gesture: NpcGesture; line?: string } | null {
-  if (type !== "slotSpin" || !p || p.propId === VAULT_SLOT_ID) return null;
+  if (type !== "slotSpin" || !p || isVaultSlot(p.propId)) return null;
   if (p.win > p.bet) return { gesture: "clap", line: pick(["Purrrr~ 😻 Lucky paws!", "Meow! Jackpot vibes! 😻", "*claps* Purrrrr~"]) };
   if (p.win > 0) return null;
   const r = Math.random();
@@ -265,6 +265,9 @@ export function CasinoStaff({ subscribeMessages, up }: { subscribeMessages: (lis
         <CampNpc url={URLS.boris} what="boris.glb" prefix="Boris" at={VIP_NPCS.borisVip} y={VIP_NPCS.borisVip.y} waveEvent="borisVipWave" standIn={STAND_INS.boris} subscribeMessages={subscribeMessages} talk={BORIS_VIP} />
         <CampNpc url={URLS.baron} what="baron.glb" prefix="Baron" at={VIP_NPCS.baron} y={VIP_NPCS.baron.y} waveEvent="baronWave" standIn={STAND_INS.baron} subscribeMessages={subscribeMessages} talk={BARON} waveOn={baronToasts} />
         <CampNpc url={URLS.penelope} what="penelope.glb" prefix="Penelope" at={VIP_NPCS.duchess} y={VIP_NPCS.duchess.y} waveEvent="penelopeWave" standIn={STAND_INS.penelope} subscribeMessages={subscribeMessages} talk={DUCHESS} fuseArm={false} />
+        {/* the penthouse's dealers: Scarlett at the baccarat (facing the elevator and the room), Gideon at the blackjack table */}
+        <CampNpc url={URLS.scarlett} what="scarlett.glb" prefix="Scarlett" at={VIP_NPCS.scarlettVip} y={VIP_NPCS.scarlettVip.y} waveEvent="scarlettVipWave" standIn={STAND_INS.scarlett} subscribeMessages={subscribeMessages} />
+        <CampNpc url={URLS.gideon} what="gideon.glb" prefix="Gideon" at={VIP_NPCS.gideonVip} y={VIP_NPCS.gideonVip.y} waveEvent="gideonVipWave" standIn={STAND_INS.gideon} subscribeMessages={subscribeMessages} />
       </>
     );
   }

@@ -10,9 +10,19 @@
 //                     piece breaks
 //
 // A broken carving isn't a total loss: half its logs come back (rounded up, per kind), and a pile of
-// Sawdust to throw on the bonfire. The pieces stack in their own crate (up to 99 of a kind), not in
-// the wood carrier's slots. The things made for good always come out right, once each. The server
-// rolls every carve (HangoutRoom's WORKBENCH) and keeps it all in the camp profile.
+// Sawdust to throw on the bonfire. The pieces go in the craft stash (12 slots of up to 99 a kind), not
+// in the wood carrier's slots. Besides the pieces to sell there are three more kinds of recipe:
+//
+//   Passive Relics     carved once, then worn in a gear slot (shared/gear.ts: the Lumberjack's Carved
+//                      Belt, the Otter-Carved Hook Charm, the Amber Bark Bangle), like the things made
+//                      for good (the roasting stick, the pack frame, the tackle box)
+//   Consumables        carved as often as you like, into the stash, and used from the wood drawer for
+//                      a buff a while (BUFFS: a S'more's quicker step, Grip Wax's wider gold, a Scent
+//                      Pouch's quick commons)
+//   Trade Goods        pure profit: the pieces to sell to Buster or Bramble
+//
+// The relics, the things made for good and the consumables always come out right. The server rolls
+// every carve (HangoutRoom's WORKBENCH) and keeps it all in the camp profile.
 //
 // The Adhesive Slot: one Pine Resin brushed on before a carve, either way it is spent:
 //
@@ -21,6 +31,8 @@
 
 import type { ByproductId, WoodKind } from "./chop";
 import { CARVED_PRICE, RESIN_BUY_PRICE } from "./economy";
+import type { BuffKey } from "./fishing";
+import type { GearId } from "./gear";
 
 export type CraftMode = "safe" | "push";
 export interface CraftOutcomeOdds {
@@ -42,10 +54,15 @@ const ODDS: Record<CraftTier, CraftOdds> = {
   legendary: { safe: { normal: 0.78, masterwork: 0.1, breakChance: 0.12 }, push: { normal: 0.25, masterwork: 0.45, breakChance: 0.3 } },
 };
 
-/** A recipe's main material: the bench's filter. */
+/** A recipe's main material, and its category: the bench's filters (a material, or a category). */
 export type CraftMaterial = "pine" | "birch" | "cedar" | "maple" | "elderwood" | "resins";
-export const CRAFT_FILTERS: { id: CraftMaterial | "all"; emoji: string; label: string }[] = [
+export type CraftCategory = "relics" | "consumables" | "trade";
+export type CraftFilter = CraftMaterial | CraftCategory | "all";
+export const CRAFT_FILTERS: { id: CraftFilter; emoji: string; label: string }[] = [
   { id: "all", emoji: "✨", label: "All" },
+  { id: "relics", emoji: "🧿", label: "Relics" },
+  { id: "consumables", emoji: "🍡", label: "Consumables" },
+  { id: "trade", emoji: "💰", label: "Trade Goods" },
   { id: "pine", emoji: "🌲", label: "Soft Pine" },
   { id: "birch", emoji: "🪵", label: "Birch" },
   { id: "cedar", emoji: "🌲", label: "Cedar" },
@@ -54,16 +71,31 @@ export const CRAFT_FILTERS: { id: CraftMaterial | "all"; emoji: string; label: s
   { id: "resins", emoji: "🍯", label: "Resins & Byproducts" },
 ];
 
-/** What a recipe takes: logs by kind, Firewood bundles, Pine Resin, and the felling's by-products. */
+/** What a recipe takes: logs by kind, Firewood bundles, Pine Resin, Sawdust, and the by-products. */
 export interface CraftNeeds {
   wood?: Partial<Record<WoodKind, number>>;
   firewood?: number;
   resin?: number;
+  sawdust?: number;
   byproducts?: Partial<Record<ByproductId, number>>;
 }
 
-/** What a finished recipe is: a piece to sell (into the crate), or a thing made once, for good. */
-export type CraftUse = "sell" | "roastingStick" | "packFrame" | "tackleBox";
+/** What a finished recipe is: a piece to sell (into the stash), a thing made once for good, a Passive
+ *  Relic (carved once, worn in a gear slot), or a consumable (into the stash, used for a buff). */
+export type CraftUse = "sell" | "roastingStick" | "packFrame" | "tackleBox" | "relic" | "consumable";
+/** Whether a recipe is carved once (a thing for good, or a relic). */
+export const isOnce = (use: CraftUse) => use !== "sell" && use !== "consumable";
+
+/** The consumables' buffs: what each does, and for how long. */
+export const BUFFS: Record<BuffKey, { name: string; emoji: string; ms: number; blurb: string }> = {
+  smore: { name: "S'more Sugar Rush", emoji: "🍫", ms: 15 * 60_000, blurb: "+15% walking pace" },
+  wax: { name: "Pitch Grip", emoji: "🕯️", ms: 10 * 60_000, blurb: "+20% gold sweet spot (felling and splitting)" },
+  scent: { name: "Herbal Scent", emoji: "🌿", ms: 15 * 60_000, blurb: "Common fish bite within 5 s of a cast" },
+};
+/** A S'more's step, Grip Wax's gold, a Scent Pouch's quickest common bite (s). */
+export const SMORE_PACE = 1.15;
+export const WAX_GOLD = 1.2;
+export const SCENT_BITE_S = 5;
 /** The things made for good, and what each gives. */
 export const PACK_FRAME_SLOTS = 5;
 export const TACKLE_BOX_SLOTS = 3;
@@ -89,7 +121,18 @@ export interface Craft {
   special?: "torch" | "incense";
   /** Off the bench now (the old camp woods' pieces): still in some crates, still bought. */
   retired?: boolean;
+  /** A Passive Relic's gear piece (use "relic"), and a consumable's buff (use "consumable"). */
+  gear?: GearId;
+  buff?: BuffKey;
+  /** One of the bench's Artisan Trade Goods (the pure-profit pieces). */
+  trade?: boolean;
 }
+/** A recipe's category on the bench's filter. */
+export function craftCategory(c: Craft): CraftCategory {
+  return c.use === "consumable" || c.special === "incense" ? "consumables" : isOnce(c.use) ? "relics" : "trade";
+}
+/** Whether a recipe shows under a filter (its material, or its category). */
+export const craftMatches = (c: Craft, f: CraftFilter) => f === "all" || c.material === f || craftCategory(c) === f;
 
 const piece = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, price: number, description: string, extra: Partial<Craft> = {}): Craft => ({
   name,
@@ -104,7 +147,9 @@ const piece = (name: string, emoji: string, tier: CraftTier, material: CraftMate
   description,
   ...extra,
 });
-const forGood = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, use: Exclude<CraftUse, "sell">, description: string): Craft => ({ name, emoji, tier, material, needs, price: 0, master: 0, odds: ODDS[tier], use, description });
+const forGood = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, use: Exclude<CraftUse, "sell" | "relic" | "consumable">, description: string): Craft => ({ name, emoji, tier, material, needs, price: 0, master: 0, odds: ODDS[tier], use, description });
+const relic = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, gear: GearId, description: string): Craft => ({ name, emoji, tier, material, needs, price: 0, master: 0, odds: ODDS[tier], use: "relic", gear, description });
+const consumable = (name: string, emoji: string, material: CraftMaterial, needs: CraftNeeds, buff: BuffKey, description: string): Craft => ({ name, emoji, tier: "common", material, needs, price: 0, master: 0, odds: ODDS.common, use: "consumable", buff, description });
 
 /** A piece's id in the camp profile (kept short, and stable). */
 export type CraftId =
@@ -123,6 +168,17 @@ export type CraftId =
   | "rune_tablet"
   | "grand_clock"
   | "whisper_incense"
+  // the Passive Relics, the consumables and the Artisan Trade Goods
+  | "carved_belt"
+  | "hook_charm"
+  | "bark_bangle"
+  | "smore"
+  | "grip_wax"
+  | "scent_pouch"
+  | "forest_diorama"
+  | "cedar_clock"
+  | "rocking_chair"
+  | "runic_totem"
   // retired
   | "totem"
   | "plank"
@@ -152,6 +208,19 @@ export const CRAFTS: Record<CraftId, Craft> = {
   grand_clock: piece("Elderwood Grand Clock", "🕰️", "legendary", "elderwood", { wood: { elderwood: 4 }, byproducts: { shavings: 6 } }, 1650, "The masterpiece: it keeps the forest's own time"),
   // resins and by-products
   whisper_incense: piece("Forest Whisper Incense", "🪔", "uncommon", "resins", { resin: 5, byproducts: { shavings: 3 } }, 210, `Burn it at the bonfire: ${INCENSE_MS / 60_000} minutes of rare-fish luck for everyone in the room`, { special: "incense" }),
+  // the Passive Relics: carved once, worn in a gear slot
+  carved_belt: relic("Lumberjack's Carved Belt", "🎗️", "rare", "cedar", { wood: { cedar: 6 }, resin: 8 }, "carved_belt", "Waist relic: +6 carrier slots, and the splitting gauge runs 15% slower"),
+  hook_charm: relic("Otter-Carved Hook Charm", "🦦", "uncommon", "birch", { wood: { birch: 8 }, byproducts: { scales: 4 } }, "hook_charm", "Charm relic: a steadier line on legendary and mythic fish (a longer tension window, a bigger green)"),
+  bark_bangle: relic("Amber Bark Bangle", "📿", "epic", "pine", { wood: { pine: 10 }, byproducts: { leafAmber: 4 } }, "bark_bangle", "Finger relic: +20% by-product drops while felling"),
+  // the consumables: into the stash, used from the wood drawer
+  smore: consumable("Campfire S'more Snack", "🍫", "pine", { wood: { pine: 2 }, firewood: 1 }, "smore", "Eat it: +15% walking pace for 15 minutes"),
+  grip_wax: consumable("Pine Pitch Grip Wax", "🕯️", "resins", { resin: 4, sawdust: 6 }, "wax", "Rub it on: the gold sweet spot 20% bigger (felling and splitting) for 10 minutes"),
+  scent_pouch: consumable("Herbal Scent Pouch", "🌿", "resins", { byproducts: { bark: 5, leafAmber: 3 } }, "scent", "Hang it on your line: common fish bite within 5 seconds of a cast for 15 minutes"),
+  // the Artisan Trade Goods: pure profit
+  forest_diorama: piece("Whittled Forest Diorama", "🏞️", "uncommon", "birch", { wood: { birch: 5 }, byproducts: { bark: 4 } }, 105, "A tiny birch grove under glass, bark-roofed", { trade: true }),
+  cedar_clock: piece("Carved Cedar Wall Clock", "⏰", "rare", "cedar", { wood: { cedar: 6 }, byproducts: { amber: 4 } }, 280, "Red cedar, amber numerals, a steady tick", { trade: true }),
+  rocking_chair: piece("Grand Maple Rocking Chair", "🛋️", "epic", "maple", { wood: { maple: 5 }, byproducts: { leafAmber: 3 } }, 620, "Golden maple that rocks like a slow breeze", { trade: true }),
+  runic_totem: piece("Elder Runic Totem", "🪬", "legendary", "elderwood", { wood: { elderwood: 3 }, byproducts: { shavings: 4 } }, 1250, "Its runes glow faintly when the woods are quiet", { trade: true }),
   // retired from the bench (the old camp woods): still bought
   totem: piece("Carved Chibi Totem", "🧸", "common", "pine", { wood: { pine: 2 } }, CARVED_PRICE, "Hand-carved pocket bear charm", { master: 14, retired: true }),
   plank: piece("Polished Oak Plank", "🟫", "uncommon", "pine", { wood: { oak: 1 } }, CARVED_PRICE, "Sanded smooth furniture timber", { master: 14, retired: true }),
@@ -198,6 +267,7 @@ export interface CraftStock {
   wood: Record<WoodKind, number>;
   firewood: number;
   resin: number;
+  sawdust: number;
   byproducts: Partial<Record<ByproductId, number>>;
 }
 /** Whether the stock at hand covers a recipe. */
@@ -207,6 +277,7 @@ export function canCraft(stock: CraftStock, id: CraftId): boolean {
     (Object.entries(n.wood ?? {}) as [WoodKind, number][]).every(([k, c]) => (stock.wood[k] ?? 0) >= c) &&
     stock.firewood >= (n.firewood ?? 0) &&
     stock.resin >= (n.resin ?? 0) &&
+    stock.sawdust >= (n.sawdust ?? 0) &&
     (Object.entries(n.byproducts ?? {}) as [ByproductId, number][]).every(([k, c]) => (stock.byproducts[k] ?? 0) >= c)
   );
 }
@@ -217,6 +288,7 @@ export function needsList(id: CraftId): { key: string; n: number }[] {
     ...(Object.entries(n.wood ?? {}) as [WoodKind, number][]).map(([k, c]) => ({ key: `wood:${k}`, n: c })),
     ...(n.firewood ? [{ key: "firewood", n: n.firewood }] : []),
     ...(n.resin ? [{ key: "resin", n: n.resin }] : []),
+    ...(n.sawdust ? [{ key: "sawdust", n: n.sawdust }] : []),
     ...(Object.entries(n.byproducts ?? {}) as [ByproductId, number][]).map(([k, c]) => ({ key: `by:${k}`, n: c })),
   ];
 }

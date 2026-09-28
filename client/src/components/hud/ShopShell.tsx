@@ -110,7 +110,7 @@ export function MarketClock({ market, goods }: { market: MarketState; goods: Mar
   const up = unique.filter((g) => marketDirection(g, market) === "up").length;
   const down = unique.filter((g) => marketDirection(g, market) === "down").length;
   return (
-    <span className="flex min-w-0 items-center gap-1.5 opacity-85" title="Every good's price moves on the hour (50% to 200% of its base), and each sale knocks 2% off the next of its kind">
+    <span className="flex min-w-0 items-center gap-1.5 opacity-85" title="Supply and demand, room by room (70% to 130% of its base): past 30 of a kind sold in the hour, each knocks 2% off the next; a good left unsold, burned or carved opens the next hour 3% higher">
       <span aria-hidden>🕰️</span>
       <span className="truncate">
         Market turns in <b className="tabular-nums text-[#F7EBE1]">{`${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`}</b>

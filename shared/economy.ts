@@ -14,53 +14,86 @@ export const START_CHIPS = 0;
 // --- the river ------------------------------------------------------------------------------------
 
 /** Barnaby's base price for an average one-star fish of each kind (the day's fifteen and the
- *  night's fifteen, shared/fishing.ts FISH), by rarity: a common 5-8, an uncommon 28-40, a rare
- *  75-110, a legendary 380-480 (a hard fight on the reel), a mythic 1,500-1,800. */
+ *  night's fifteen, shared/fishing.ts FISH), by rarity, calibrated to real time at the river: a
+ *  common 4 (the AFK line's fodder), an uncommon 18, a rare 70, a legendary 380-420 (a hard fight on
+ *  the reel), a mythic 1,500 (the pinnacle trophy). A hand-reeled line on a starter rod earns about
+ *  18-45 coins a minute; an AFK line about 4-6 (AFK_CATCH_S paces it). */
+export const FISH_TIER_PRICE = { common: 4, uncommon: 18, rare: 70, legendary: 400, mythic: 1500 } as const;
 export const FISH_PRICES = {
   // by day
-  minnow: 5,
-  perch: 7,
-  bluegill: 6,
-  dace: 5,
-  chub: 8,
-  trout: 30,
-  smallmouth_bass: 34,
-  grayling: 32,
-  pike: 38,
-  salmon: 80,
-  golden_trout: 95,
-  muskellunge: 110,
+  minnow: 4,
+  perch: 4,
+  bluegill: 4,
+  dace: 4,
+  chub: 4,
+  trout: 18,
+  smallmouth_bass: 18,
+  grayling: 18,
+  pike: 18,
+  salmon: 70,
+  golden_trout: 70,
+  muskellunge: 70,
   golden_arowana: 400,
-  dawn_paddlefish: 440,
+  dawn_paddlefish: 420,
   sunfire_koi: 1500,
   // by night
-  bullhead: 6,
-  moon_shiner: 5,
-  stone_loach: 7,
-  sculpin: 6,
-  glass_eel: 8,
-  catfish: 36,
-  burbot: 33,
-  walleye: 40,
-  lantern_perch: 28,
-  sturgeon: 105,
-  ghost_carp: 85,
-  silver_gar: 100,
-  abyssal_koi: 480,
+  bullhead: 4,
+  moon_shiner: 4,
+  stone_loach: 4,
+  sculpin: 4,
+  glass_eel: 4,
+  catfish: 18,
+  burbot: 18,
+  walleye: 18,
+  lantern_perch: 18,
+  sturgeon: 70,
+  ghost_carp: 70,
+  silver_gar: 70,
+  abyssal_koi: 410,
   starlight_eel: 380,
-  moonveil_leviathan: 1800,
+  moonveil_leviathan: 1500,
 } as const;
-/** How often each rarity bites, of every bite (the weights split it between the kinds). */
-export const FISH_TIER_ODDS = { common: 0.7, uncommon: 0.2, rare: 0.075, legendary: 0.02, mythic: 0.005 } as const;
 
-/** The livewells' prices, tier 1 (the Wooden Pail, everyone's) to tier 5. */
-export const CREEL_PRICES = [0, 80, 180, 400, 850] as const;
+/** What bites, by the rod's tier (T1 to T5): the odds of each rarity. A hand-reeled line (the
+ *  angler working the reel and the line's tension) reaches the rare end far more than an AFK one;
+ *  an AFK line without bait brings in only commons, and an AFK line never lands a mythic (one that
+ *  bites snaps the line). The bait, the rapids and the Cozy Aura tip a hand-reeled line's odds
+ *  further toward the rare end; an AFK line's odds are exactly these. (The legendaries and mythics
+ *  swim only in the Whispering Woods' rapids: elsewhere a roll that high lands the rarest fish that
+ *  swims there.) */
+export interface TierOdds {
+  common: number;
+  uncommon: number;
+  rare: number;
+  legendary: number;
+  mythic: number;
+}
+export const ACTIVE_TIER_ODDS: readonly TierOdds[] = [
+  { common: 0.85, uncommon: 0.15, rare: 0, legendary: 0, mythic: 0 },
+  { common: 0.6, uncommon: 0.33, rare: 0.07, legendary: 0, mythic: 0 },
+  { common: 0.38, uncommon: 0.42, rare: 0.18, legendary: 0.02, mythic: 0 },
+  { common: 0.24, uncommon: 0.38, rare: 0.3, legendary: 0.07, mythic: 0.01 },
+  { common: 0.15, uncommon: 0.32, rare: 0.38, legendary: 0.12, mythic: 0.03 },
+];
+export const AFK_BAITED_TIER_ODDS: readonly TierOdds[] = [
+  { common: 0.94, uncommon: 0.06, rare: 0, legendary: 0, mythic: 0 },
+  { common: 0.75, uncommon: 0.23, rare: 0.02, legendary: 0, mythic: 0 },
+  { common: 0.55, uncommon: 0.34, rare: 0.105, legendary: 0.005, mythic: 0 },
+  { common: 0.42, uncommon: 0.38, rare: 0.188, legendary: 0.012, mythic: 0 },
+  { common: 0.3, uncommon: 0.42, rare: 0.26, legendary: 0.02, mythic: 0 },
+];
+export const AFK_UNBAITED_TIER_ODDS: TierOdds = { common: 1, uncommon: 0, rare: 0, legendary: 0, mythic: 0 };
+
+/** The livewells' prices, tier 1 (the Wooden Pail, everyone's) to tier 5: the storage tiers' sinks
+ *  (300, 950, 2,600, 6,500), the same as the wood carriers'. */
+export const CREEL_PRICES = [0, 300, 950, 2600, 6500] as const;
 /** What each livewell tier holds (fish). A player already holding more keeps it all: only new
  *  catches wait for room (the soft clamp). */
 export const CREEL_CAPACITY = [5, 12, 25, 45, 70] as const;
 
 /** The tackle: bait by the pack (five kinds, from Barnaby or Finley); the rods, T2 and T3 from
- *  Barnaby, every tier from Finley on the Whispering Woods' river. */
+ *  Barnaby, every tier from Finley on the Whispering Woods' river (the tool tiers' sinks: 250, 850,
+ *  2,400, 6,000, the same as the axes'). */
 export const TACKLE_PRICES = {
   basicBait: 15, // Earthworms x5
   cornDough: 20, // Sweet Corn Dough x5
@@ -68,35 +101,46 @@ export const TACKLE_PRICES = {
   dragonflyLarva: 45, // Dragonfly Larva x3
   luckyChum: 50, // Stardust Pellets x3
   proRod: 250,
-  heronRod: 650,
-  masterRod: 1600,
-  moonlightRod: 3400,
+  heronRod: 850,
+  masterRod: 2400,
+  moonlightRod: 6000,
 } as const;
 
 // --- the woodpile -----------------------------------------------------------------------------------
 
-/** Buster's base price for a 1x log (a log's worth scales with its tree's size squared): the camp's
- *  Soft Pine (3-5 a log), the old hardwood and golden charcoal, and the Whispering Woods' birch
- *  (10-16), cedar (28-42), maple (60-120) and elderwood (250-400). */
-export const WOOD_PRICES = { pine: 4, oak: 5, charcoal: 12, birch: 12, cedar: 32, maple: 80, elderwood: 290 } as const;
+/** Buster's base price for a 1x log (a log's worth scales with its tree's size squared), calibrated
+ *  to a tree's labour: the camp's Soft Pine 4 (9-12 a tree), the old hardwood and golden charcoal,
+ *  and the Whispering Woods' birch 9 (20-30 a tree), cedar 20 (50-70), maple 48 (150-190) and
+ *  elderwood 120 (480-600). */
+export const WOOD_PRICES = { pine: 4, oak: 5, charcoal: 12, birch: 9, cedar: 20, maple: 48, elderwood: 120 } as const;
+/** A Colossal Titan's heavy logs are worth this much together at an even market (whatever their
+ *  number): a big day, not a fortune. */
+export const TITAN_YIELD = 750;
 /** A plain carved piece or a plank off the workbench. */
 export const CARVED_PRICE = 8;
 /** What Buster pays for a Pine Resin (from a critical chop): worth keeping for the workbench's
  *  Adhesive Slot, worth selling when the carrier is full. */
 export const RESIN_BUY_PRICE = 10;
 /** The axes (the flint one, T1, is everyone's): T2 and T3 from Buster, T4 and T5 from Bramble. */
-export const AXE_PRICES = { iron: 250, tempered: 700, golden: 1600, runic: 3400 } as const;
-/** The wood carriers' prices, tier 1 (the Twine Wood Strap, everyone's) to tier 5, and what each
- *  holds (logs and carved pieces). A player already carrying more keeps it all: only new wood
- *  waits for room (the soft clamp). */
-export const CARRIER_PRICES = [0, 80, 180, 400, 850] as const;
+export const AXE_PRICES = { iron: 250, tempered: 850, golden: 2400, runic: 6000 } as const;
+/** The wood carriers' prices, tier 1 (the Twine Wood Strap, everyone's) to tier 5, what each holds
+ *  (logs), and the room its pouches have beside it (the by-products, Pine Resin and Sawdust
+ *  together): the pouches grow with the carrier, never bought apart. A player already carrying more
+ *  keeps it all: only new wood (or a new by-product) waits for room (the soft clamp). */
+export const CARRIER_PRICES = [0, 300, 950, 2600, 6500] as const;
 export const CARRIER_CAPACITY = [8, 18, 35, 60, 100] as const;
-/** What Buster pays for a bundle of split Firewood: a Soft Pine log's three bundles are worth about
- *  the log (no profit in splitting to sell: Firewood is for the bonfire). */
+export const POUCH_CAPACITY = [30, 60, 100, 160, 250] as const;
+/** The craft stash beside the carrier: this many slots, each a stack of up to CRAFT_SLOT_STACK of a
+ *  kind (carved pieces, consumables, trade goods; never logs). */
+export const CRAFT_STASH_SLOTS = 12;
+export const CRAFT_SLOT_STACK = 99;
+/** What Buster pays for a bundle of split Firewood, fixed (the hour's market never moves it): a Soft
+ *  Pine log's three bundles fetch 6, the finer woods' far less than their logs (Firewood is for the
+ *  bonfire). */
 export const FIREWOOD_PRICE = 2;
 /** The felling's by-products (a round on a T2-T5 tree that drops no log): what Bramble and Buster
  *  pay for each, and how much of the bonfire a handful of Ancient Wood Shavings feeds (%). */
-export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35 } as const;
+export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1 } as const;
 export const SHAVINGS_FUEL = 15;
 /** Buster's forest permits: a Day Trip (one way in through the archway, used on entering) and the
  *  Ranger's Badge (the Whispering Woods for good). */
@@ -151,15 +195,16 @@ export const RETIRED_GEAR_PRICES: Record<string, number> = { canvas_gloves: 120,
  *  one. (Starter pieces are free; the gachapon's and the Pioneer set are never sold.) */
 export type WardrobeTier = "common" | "rare" | "prestige";
 export const WARDROBE_BANDS: Record<WardrobeTier, readonly [number, number]> = {
-  common: [120, 280],
-  rare: [450, 800],
-  prestige: [1500, 3200],
+  common: [800, 950],
+  rare: [1800, 3200],
+  prestige: [4000, 8000],
 };
-/** The outfits (whole sets) sit higher, the wardrobe's big sinks: an everyday or rare set 1,200 to
- *  2,500, a prestige set 3,500 to 6,000. The bands above are the hats' and the hair's. */
+/** The outfits (whole sets) are the wardrobe's big sinks: an everyday set about 2,200 (the overalls),
+ *  a rare archetype about 5,500, a prestige one up to 8,000. The bands above are the hats' and the
+ *  hair's (a cozy hat 800). */
 export const OUTFIT_BANDS: Record<WardrobeTier, readonly [number, number]> = {
-  common: [1200, 1500],
-  rare: [1600, 2500],
-  prestige: [3500, 6000],
+  common: [2000, 2400],
+  rare: [4800, 6000],
+  prestige: [7000, 8000],
 };
 export const WARDROBE_TIER_LABEL: Record<WardrobeTier, string> = { common: "Common", rare: "Rare", prestige: "Prestige" };

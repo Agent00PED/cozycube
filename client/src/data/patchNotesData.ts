@@ -675,6 +675,39 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.6.15",
+        date: "2026-09-28",
+        title: "Time-to-Earn & the Penthouse Restaged",
+        summary: "A real-time economy: prices tuned to the minutes they take, a supply-and-demand market, rod-by-rod fishing odds and boss fish, harvesting fatigue against lounge-hopping, pouches that grow with your carrier, a 12-slot craft stash, ten new workbench recipes, and a restaged penthouse with a blackjack table and twin Golden Vaults.",
+        changes: {
+          features: [
+            "Harvesting fatigue: fell an Autumn Maple, a Whispering Elderwood or a Colossal Titan in one lounge and you can't fell another in a different lounge for 8, 15 or 45 minutes. In the lounge where you felled it, nothing changes.",
+            "What bites now depends on your rod and on how you fish. Reeling by hand, a T1 rod lands commons with the odd uncommon, and a T5 lands rare fish 38% of the time, legendaries 12% and mythics 3% in the Whispering Woods' rapids. An AFK line brings in only commons without bait. With bait it gets up to 2% legendaries on a T5, never a mythic: if one ever bites, the line snaps.",
+            "Legendary and mythic fish are boss fights: a green 60% smaller, fake runs and thrashing. Every rod has a tension window before the line starts to strain, from 0.8 s (T1) to 1.8 s (T5).",
+            "Ten new workbench recipes, under new Relics, Consumables and Trade Goods filters. Passive Relics are carved once and worn in a gear slot: the Lumberjack's Carved Belt (+6 carrier slots, a slower splitting gauge), the Otter-Carved Hook Charm (steadier on boss fish) and the Amber Bark Bangle (+20% by-products). Consumables: a Campfire S'more (+15% walking pace), Pine Pitch Grip Wax (a bigger gold sweet spot) and a Herbal Scent Pouch (quick commons). Trade goods: the Whittled Forest Diorama, the Carved Cedar Wall Clock, the Grand Maple Rocking Chair and the Elder Runic Totem.",
+            "Fish Scales: a landed fish sheds one now and then, for the Hook Charm's inlay.",
+            "The craft stash: 12 slots of up to 99 each, in the wood drawer's Crafts & Fuel tab, where you use your consumables.",
+            "The Velvet Penthouse gets a new blackjack table in its southern lounge (Gideon dealing, three stools, 1,000 to 25,000), and a second Golden Vault beside the first against the western glass.",
+          ],
+          visuals: [
+            "The penthouse's baccarat table is turned round: Scarlett deals facing the elevator and the room, and the players sit on its curve facing her. A little Art-Deco jukebox glows beside the twin vaults.",
+            "Your consumables' buffs show as slim pills under the header, counting down.",
+            "The wood drawer's Byproducts tab shows how full your pouches are.",
+          ],
+          economy: [
+            "Fish base prices: commons 4 coins, uncommons 18, rares 70, legendaries 380-420, mythics 1,500. An AFK line waits longer (a common every 44-58 s): about 4-6 coins a minute on a starter rod, several times that by hand.",
+            "Timber, per 1x log: Soft Pine 4, Birch 9, Cedar 20, Maple 48, Elderwood 120. A Colossal Titan's heavy logs are worth 750 together. Firewood stays at 2 coins a bundle.",
+            "Supply and demand: every price moves between 70% and 130% of its base. Past 30 of a kind sold in your lounge in an hour, each sale knocks 2% off the next; anything left unsold, burned or carved opens the next hour 3% higher. The chalkboards forecast the climber.",
+            "Tools: T2 250, T3 850, T4 2,400, T5 6,000 (rods and axes). Storage: T2 300, T3 950, T4 2,600, T5 6,500 (carriers and livewells).",
+            "The pouches (by-products, resin and sawdust) grow with your wood carrier: 30, 60, 100, 160 and 250.",
+            "The Black Card is 8,500 coins (pawned for 4,250). Chloe's wardrobe: cozy hats from 800, everyday outfits about 2,200, rare archetypes about 5,500, prestige sets up to 8,000.",
+          ],
+          fixes: [
+            "The penthouse's walk-up seating now reaches its poker and baccarat seats.",
+          ],
+        },
+      },
     ],
   },
 ];

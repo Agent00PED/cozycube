@@ -47,10 +47,11 @@ export function judgeSplit(s: SplitSwing, t: number): SplitVerdict {
   return d <= s.gold ? "gold" : d <= s.band ? "hit" : "miss";
 }
 /** A fresh swing's gauge (the server rolls it): the sweet spot somewhere in the middle half, the
- *  marker a touch quicker as the rhythm builds (`streak`: clean strikes in a row, up to 6). */
-export function rollSplitSwing(streak = 0, rand: () => number = Math.random): SplitSwing {
-  const period = 1.05 / (1 + 0.04 * Math.min(6, Math.max(0, streak)));
-  return { period, sweet: 0.3 + rand() * 0.4, band: 0.11, gold: 0.04 };
+ *  marker a touch quicker as the rhythm builds (`streak`: clean strikes in a row, up to 6), slowed by
+ *  the Lumberjack's Carved Belt (`slow`), its gold widened by Pine Pitch Grip Wax (`goldMul`). */
+export function rollSplitSwing(streak = 0, rand: () => number = Math.random, slow = 0, goldMul = 1): SplitSwing {
+  const period = (1.05 * (1 + slow)) / (1 + 0.04 * Math.min(6, Math.max(0, streak)));
+  return { period, sweet: 0.3 + rand() * 0.4, band: 0.11, gold: Math.min(0.11, 0.04 * goldMul) };
 }
 /** How many logs a gold strike splits (3-5). */
 export function rollGoldBatch(rand: () => number = Math.random): number {

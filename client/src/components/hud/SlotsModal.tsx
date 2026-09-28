@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { SLOT_PAIR, SLOT_SYMBOLS, SLOT_TRIPLE, VAULT_SLOT_ID, limitPlacard, slotLimit, type SlotBroadcast } from "@shared/casino";
+import { SLOT_PAIR, SLOT_SYMBOLS, SLOT_TRIPLE, isVaultSlot, limitPlacard, slotLimit, type SlotBroadcast } from "@shared/casino";
 import { Modal } from "./Modal";
 import { BetPicker, ShortOfChips, clampStake } from "./BetControls";
 import { ChipAmount, VelvetChipIcon } from "./VelvetChipIcon";
@@ -34,7 +34,7 @@ interface Props {
 
 export function SlotsModal({ propId, chips, coins, localSessionId, onSpin, subscribeMessages, onClose }: Props) {
   const limit = slotLimit(propId);
-  const vip = propId === VAULT_SLOT_ID;
+  const vip = isVaultSlot(propId);
   const [stake, setBet] = useState<number>(limit.presets[0]);
   const [spinning, setSpinning] = useState(false);
   const [lever, setLever] = useState(false);

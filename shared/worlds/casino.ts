@@ -1,7 +1,7 @@
 import type { AABB } from "../collision";
 import type { SeatStyle } from "../types";
 import type { PropSpec, SeatSpec } from "./lounge";
-import { VIP_POKER, VIP_BACCARAT } from "./casino_vip";
+import { VIP_POKER, VIP_BACCARAT, VIP_BLACKJACK, VIP_SEATS } from "./casino_vip";
 
 // The Velvet Casino: a compact mid-century Art-Deco hall on a 20x20 slab, run by and for dapper
 // animals. Two tall back walls (x = -10 and z = -10, inner faces at -9.8), the front (+x and +z)
@@ -296,23 +296,29 @@ export const BILLIARDS_HZ = BILLIARDS_ALONG_Z ? L.billiards.len / 2 : L.billiard
 export const ROULETTE_CENTER = { x: L.roulette.x, z: L.roulette.z };
 export const ROULETTE_BET_RADIUS = L.roulette.reach;
 
-export type BlackjackTier = "blackjack_casual" | "blackjack_high";
-/** The two half-moon blackjack tables, side by side: each one's players' curve toward the floor
- *  (`yaw`: the way the curve faces), its dealer behind the flat side (`dealer`). You play seated on
- *  one of its stools, at its limits (`tier`); `reach` is how near its middle counts as at it. */
-export const BLACKJACK_TABLES = L.blackjack.tables.map((t, i) => ({
+export type BlackjackTier = "blackjack_casual" | "blackjack_high" | "blackjack_vip";
+/** The hall's two half-moon blackjack tables, side by side: each one's players' curve toward the
+ *  floor (`yaw`: the way the curve faces), its dealer behind the flat side (`dealer`). You play
+ *  seated on one of its stools, at its limits (`tier`); `reach` is how near its middle counts as at
+ *  it. */
+const HALL_BLACKJACK = L.blackjack.tables.map((t, i) => ({
   id: `blackjack_0${i + 1}`,
   x: t.x,
   z: t.z,
   yaw: L.blackjack.yaw,
   r: L.blackjack.r,
   reach: L.blackjack.reach,
+  stoolR: L.blackjack.stoolR,
   tier: t.tier as BlackjackTier,
   label: `Table ${i + 1}`,
   dealer: t.dealer as "cedric" | "gideon",
+  map: "velvet_casino" as "velvet_casino" | "casino_vip",
   /** The stools' seat propIds. */
   stools: L.blackjack.stoolAngles.map((_, k) => `seat_bj${i + 1}_${k + 1}`),
 }));
+/** Every blackjack table: the hall's two and the penthouse's (shared/worlds/casino_vip.ts), each on
+ *  its own map (the penthouse's seats, prop and colliders are the penthouse's). */
+export const BLACKJACK_TABLES: typeof HALL_BLACKJACK = [...HALL_BLACKJACK, VIP_BLACKJACK];
 /** The nearest blackjack table within reach of (x, z) (plus `slack`: the server allows a little
  *  more than the client shows, for lag), if any: where two reaches overlap, the nearer is yours. */
 export function blackjackTableNear(x: number, z: number, slack = 0) {
@@ -508,7 +514,7 @@ const COCKTAIL_STOOLS = L.cocktails.tables.flatMap((t, ti) =>
 
 export const CASINO_SEATS: CasinoSeat[] = [
   // the blackjack tables: four stools round each curve, facing the dealer; you step up from behind
-  ...BLACKJACK_TABLES.flatMap((t, ti) =>
+  ...HALL_BLACKJACK.flatMap((t, ti) =>
     L.blackjack.stoolAngles.map((deg, k): CasinoSeat => {
       const out = heading(t.yaw + deg * DEG);
       const x = t.x + out.x * L.blackjack.stoolR;
@@ -543,7 +549,7 @@ export const CASINO_PROPS: PropSpec[] = [
   ...SLOT_MACHINES.map((s): PropSpec => prop(s.propId, s, "slot", "#ff4fa3", { x: s.approachX, z: s.approachZ }, s.y)),
   // the tables: walking up to one (or clicking it) opens its panel; nothing ever opens by itself
   prop("roulette_table", ROULETTE_CENTER, "roulette", "#1f6b45", { x: L.roulette.x, z: L.roulette.z + L.roulette.w / 2 + 0.95 }),
-  ...BLACKJACK_TABLES.map((t): PropSpec => prop(t.id, t, "blackjack", "#1f6b45", blackjackFront(t))),
+  ...HALL_BLACKJACK.map((t): PropSpec => prop(t.id, t, "blackjack", "#1f6b45", blackjackFront(t))),
   prop("poker_table", L.poker, "poker", "#1f6b45", { x: L.poker.x, z: L.poker.chairZ + 0.85 }),
   prop("craps_table", L.craps, "craps", "#1f6b45", { x: L.craps.x, z: L.craps.z + L.craps.w / 2 + 0.75 }),
   prop("derby_table", L.derby, "derby", "#2f6b3f", { x: L.derby.x + L.derby.w / 2 + 0.7, z: L.derby.z }),
@@ -585,7 +591,7 @@ export interface SeatedGame {
   seats: string[];
   spectate: boolean;
 }
-const seatsLike = (prefix: string) => CASINO_SEATS.filter((s) => s.propId.startsWith(prefix)).map((s) => s.propId);
+const seatsLike = (prefix: string) => [...CASINO_SEATS, ...VIP_SEATS].filter((s) => s.propId.startsWith(prefix)).map((s) => s.propId);
 export const SEATED_GAMES: SeatedGame[] = [
   ...BLACKJACK_TABLES.map((t): SeatedGame => ({ propId: t.id, kind: "blackjack", seats: t.stools, spectate: true })),
   { propId: "poker_table", kind: "poker", seats: seatsLike("seat_poker_"), spectate: false },
@@ -676,7 +682,7 @@ export const CASINO_OBSTACLES: AABB[] = [
   // their stools and Cedric between them; the craps table
   centred(L.roulette, L.roulette.len / 2, L.roulette.w / 2),
   around(L.npcs.vivienne, 0.32),
-  ...BLACKJACK_TABLES.flatMap(halfMoonBoxes),
+  ...HALL_BLACKJACK.flatMap(halfMoonBoxes),
   ...seatBox("seat_bj", 0.22),
   around(L.npcs.cedric, 0.34),
   around(L.npcs.gideon, 0.34),

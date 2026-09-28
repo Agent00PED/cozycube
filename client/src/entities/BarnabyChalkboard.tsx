@@ -17,7 +17,7 @@ import { BARNABY_URL } from "./Barnaby";
 // change next, and a teaser for the hour to come (the trends are seeded by the hour, so the next
 // one is known: worth holding, or locking, until then). Barnaby's, beside his stall, has every
 // fish in the river; Buster's, by the woodpile, the timber and its by-products. Each is redrawn as
-// the market moves (every sale knocks 2% off the next of its kind) and on the hour.
+// the market moves (past 30 of a kind sold in an hour, each knocks 2% off the next) and on the hour.
 
 const W = 512;
 const H = 640;
@@ -103,7 +103,7 @@ function foot(ctx: CanvasRenderingContext2D, next: { name: string; pct: number }
   }
   ctx.font = `500 19px ${FONT}`;
   ctx.fillStyle = CREAM;
-  ctx.fillText("each sale: -2% on the next of its kind", W / 2, H - 28);
+  ctx.fillText("past 30 sold an hour: -2% each; unsold: +3% next hour", W / 2, H - 28);
 }
 
 const RIVER_FISH = FISH_IDS.filter((id) => FISH[id].water === "freshwater");
@@ -116,7 +116,7 @@ function paintFish(ctx: CanvasRenderingContext2D, market: MarketState, now: numb
     128,
     H - 108
   );
-  const next = forecast(RIVER_FISH.map(fishGood), now);
+  const next = forecast(RIVER_FISH.map(fishGood), market, now);
   foot(ctx, next ? { name: FISH[next.good.slice(5) as FishId].name, pct: next.pct } : null);
 }
 
@@ -131,7 +131,7 @@ function paintTimber(ctx: CanvasRenderingContext2D, market: MarketState, now: nu
     { emoji: "🔥", name: "Firewood bundle", price: FIREWOOD_PRICE },
   ];
   rows(ctx, list, 128, H - 108);
-  const next = forecast(TIMBER.map(woodGood), now);
+  const next = forecast(TIMBER.map(woodGood), market, now);
   foot(ctx, next ? { name: WOOD[next.good.slice(5) as WoodKind].name, pct: next.pct } : null);
 }
 

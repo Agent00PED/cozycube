@@ -58,7 +58,7 @@ import {
   type CasinoGameTable,
   type StandingTable,
 } from "../shared/worlds/casino";
-import { VIP_ARRIVAL, VIP_NPCS, VIP_SEATS } from "../shared/worlds/casino_vip";
+import { VAULT_SLOTS, VIP_ARRIVAL, VIP_NPCS, VIP_SEATS } from "../shared/worlds/casino_vip";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
@@ -164,13 +164,15 @@ for (const mapId of MAP_IDS) {
   if (2.3 >= ROULETTE_BET_RADIUS) fail(`${C}: the roulette ring (2.3) is outside the betting radius ${ROULETTE_BET_RADIUS}`);
 
   // blackjack: each table's stools are within its reach (you play seated), and it can be reached
+  // (the penthouse's table on its own map)
   for (const t of BLACKJACK_TABLES) {
-    const stools = MAP_CHAIRS[C].filter((s) => blackjackTableNear(s.x, s.z)?.id === t.id);
+    const stools = MAP_CHAIRS[t.map].filter((s) => blackjackTableNear(s.x, s.z)?.id === t.id);
     checks++;
-    if (stools.length === 0) fail(`${C}: ${t.id} has no stools within its reach ${t.reach}`);
+    if (stools.length !== t.stools.length) fail(`${t.map}: ${t.id} has ${stools.length} stools within its reach ${t.reach}, not ${t.stools.length}`);
     for (const s of stools) {
       checks++;
-      if (!blackjackTableNear(s.approachX, s.approachZ, 0.8)) fail(`${C}: ${s.propId}'s approach is out of ${t.id}'s reach`);
+      if (!t.stools.includes(s.propId)) fail(`${t.map}: ${s.propId} is in ${t.id}'s reach but not one of its stools`);
+      if (!blackjackTableNear(s.approachX, s.approachZ, 0.8)) fail(`${t.map}: ${s.propId}'s approach is out of ${t.id}'s reach`);
     }
   }
 
@@ -320,6 +322,8 @@ for (const mapId of MAP_IDS) {
     checks++;
     if (!nearGameTable("baccarat", s.x, s.z)) fail(`${V}: ${s.propId} is out of the baccarat table's reach`);
   }
+  // the twin Golden Vaults: each one's front open and reachable from the elevator
+  for (const v of VAULT_SLOTS) standable(V, VIP_ARRIVAL, v.approach, v.propId);
   for (const [id, npc] of Object.entries(VIP_NPCS)) {
     checks++;
     if (!isBlocked(npc.x, npc.z, V, 0.05)) fail(`${V}: ${id} stands on open floor ${fmt(npc)}: give them a collider`);

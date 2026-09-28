@@ -163,7 +163,7 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
       {tab === "storage" && (
         <div className="flex flex-col gap-1.5">
           <p className="m-0 text-center text-xs opacity-75">
-            Every log takes a slot ({carrierLoad(profile)}/{carrierCap(profile)} now). Carved pieces stack in their own crate; by-products and Firewood ride beside it.
+            Every log takes a slot ({carrierLoad(profile)}/{carrierCap(profile)} now). Carved pieces go in the craft stash (12 slots); the pouches (by-products, resin, sawdust) grow with the carrier.
           </p>
           {WOOD_CARRIER_TIERS.map((t, i) => {
             const tier = i + 1;

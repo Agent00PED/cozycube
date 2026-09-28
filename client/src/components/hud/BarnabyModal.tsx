@@ -27,7 +27,7 @@ interface Props {
 // fixed-anchor counter (ShopShell): Sell All Unlocked Fish always in reach, each fish a card with its
 // lock (a locked fish stays: Sell All passes it by, and its own sell button is off), rods and bait,
 // the livewells, and the angler's gear. The hour's price for each fish (15% more while the bonfire's
-// Cozy Aura is up; each sale knocks 2% off the next of its kind). Every trade is the server's call
+// Cozy Aura is up; past 30 of a kind sold in the hour, each knocks 2% off the next). Every trade is the server's call
 // (BARNABY packets); the answer comes back as barnabyResult, in the keeper's word.
 
 const TABS: [ShopTab, string, string][] = [

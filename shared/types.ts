@@ -823,24 +823,24 @@ export const OUTFITS: Record<OutfitId, WardrobeItem> = {
   outfit_starter_hoodie: { name: "Cozy Hoodie & Sweats", emoji: "🧥", price: 0, archetype: "streetwear" },
   outfit_starter_overalls: { name: "Classic Denim Overalls", emoji: "👖", price: 0, archetype: "workwear" },
   // common
-  outfit_garden_overalls: { name: "Denim Garden Overalls", emoji: "🌻", price: 1200, tier: "common", archetype: "workwear" },
-  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 1350, tier: "common", archetype: "streetwear" },
-  outfit_red_plaid: { name: "Lumberjack Suspenders", emoji: "🟥", price: 1500, tier: "common", archetype: "workwear" },
+  outfit_garden_overalls: { name: "Denim Garden Overalls", emoji: "🌻", price: 2200, tier: "common", archetype: "workwear" },
+  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 2000, tier: "common", archetype: "streetwear" },
+  outfit_red_plaid: { name: "Lumberjack Suspenders", emoji: "🟥", price: 2400, tier: "common", archetype: "workwear" },
   // rare
-  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 1600, tier: "rare", archetype: "summer" },
-  outfit_swim_set: { name: "Beach Swim Set", emoji: "🩳", price: 1700, tier: "rare", archetype: "summer" },
-  outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 1800, tier: "rare", archetype: "robe" },
-  outfit_puffer_vest: { name: "Mustard Down Vest", emoji: "🟨", price: 1800, tier: "rare", archetype: "streetwear" },
-  outfit_plaid_lounge: { name: "Plaid Loungewear", emoji: "🛌", price: 2000, tier: "rare", archetype: "streetwear" },
-  outfit_wader_overalls: { name: "River Wader Dungarees", emoji: "🥾", price: 2100, tier: "rare", archetype: "workwear" },
-  outfit_cable_sweater: { name: "Oversized Cable-Knit Sweater", emoji: "🧶", price: 2300, tier: "rare", archetype: "streetwear" },
-  outfit_velvet_lounge: { name: "Velvet Loungewear", emoji: "🍇", price: 2500, tier: "rare", archetype: "robe" },
+  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 4800, tier: "rare", archetype: "summer" },
+  outfit_swim_set: { name: "Beach Swim Set", emoji: "🩳", price: 4950, tier: "rare", archetype: "summer" },
+  outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 5050, tier: "rare", archetype: "robe" },
+  outfit_puffer_vest: { name: "Mustard Down Vest", emoji: "🟨", price: 5050, tier: "rare", archetype: "streetwear" },
+  outfit_plaid_lounge: { name: "Plaid Loungewear", emoji: "🛌", price: 5350, tier: "rare", archetype: "streetwear" },
+  outfit_wader_overalls: { name: "River Wader Dungarees", emoji: "🥾", price: 5450, tier: "rare", archetype: "workwear" },
+  outfit_cable_sweater: { name: "Oversized Cable-Knit Sweater", emoji: "🧶", price: 5750, tier: "rare", archetype: "streetwear" },
+  outfit_velvet_lounge: { name: "Velvet Loungewear", emoji: "🍇", price: 6000, tier: "rare", archetype: "robe" },
   // prestige
-  outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 3500, tier: "prestige", archetype: "robe" },
-  outfit_tuxedo: { name: "Velvet Evening Tuxedo", emoji: "🎩", price: 4200, tier: "prestige", archetype: "formal" },
-  outfit_smoking_jacket: { name: "Vintage Smoking Jacket", emoji: "🍷", price: 4800, tier: "prestige", archetype: "formal" },
-  outfit_yukata_starry: { name: "Starry Night Yukata", emoji: "🌌", price: 5400, tier: "prestige", archetype: "robe" },
-  outfit_pinstripe: { name: "High Roller Pinstripe", emoji: "💼", price: 6000, tier: "prestige", archetype: "formal" },
+  outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 7000, tier: "prestige", archetype: "robe" },
+  outfit_tuxedo: { name: "Velvet Evening Tuxedo", emoji: "🎩", price: 7300, tier: "prestige", archetype: "formal" },
+  outfit_smoking_jacket: { name: "Vintage Smoking Jacket", emoji: "🍷", price: 7500, tier: "prestige", archetype: "formal" },
+  outfit_yukata_starry: { name: "Starry Night Yukata", emoji: "🌌", price: 7750, tier: "prestige", archetype: "robe" },
+  outfit_pinstripe: { name: "High Roller Pinstripe", emoji: "💼", price: 8000, tier: "prestige", archetype: "formal" },
   // never sold
   outfit_cyber: { name: "Retro Cyber Jumpsuit", emoji: "🕹️", price: 0, gachaOnly: true, archetype: "streetwear" },
   outfit_blueprint_overalls: { name: "Blueprint Overalls", emoji: "📐", price: 0, pioneer: true, archetype: "workwear" },
@@ -857,22 +857,22 @@ const ACCESSORIES: FreeAccessory[] = ["beret", "beanie", "flower", "headphones",
 /** The coin shop: premium hats and their prices. */
 export const PREMIUM_HATS: Record<PremiumHat, WardrobeItem> = {
   // common
-  cozybeanie: { name: "Cozy Knit Beanie", price: 120, emoji: "🧡", tier: "common" },
-  headlamp: { name: "Spelunker Headlamp", price: 150, emoji: "🔦", tier: "common" },
-  straw: { name: "Straw Sunhat", price: 160, emoji: "👒", tier: "common" },
-  frogbeanie: { name: "Frog Knit Beanie", price: 180, emoji: "🐸", tier: "common" },
-  catbeanie: { name: "Cat Knit Beanie", price: 180, emoji: "🐈", tier: "common" },
-  painterberet: { name: "Painter's Beret", price: 200, emoji: "🎨", tier: "common" },
+  cozybeanie: { name: "Cozy Knit Beanie", price: 800, emoji: "🧡", tier: "common" },
+  headlamp: { name: "Spelunker Headlamp", price: 850, emoji: "🔦", tier: "common" },
+  straw: { name: "Straw Sunhat", price: 850, emoji: "👒", tier: "common" },
+  frogbeanie: { name: "Frog Knit Beanie", price: 850, emoji: "🐸", tier: "common" },
+  catbeanie: { name: "Cat Knit Beanie", price: 850, emoji: "🐈", tier: "common" },
+  painterberet: { name: "Painter's Beret", price: 900, emoji: "🎨", tier: "common" },
   // rare
-  buckethat: { name: "Fisherman Bucket Hat", price: 450, emoji: "🪣", tier: "rare" },
-  boonie: { name: "Angler Boonie Hat", price: 480, emoji: "🎣", tier: "rare" },
-  bunny: { name: "Bunny Ears", price: 520, emoji: "🐰", tier: "rare" },
-  deerstalker: { name: "Deerstalker Cap", price: 600, emoji: "🔍", tier: "rare" },
-  bearcap: { name: "Fleece Bear Cap", price: 650, emoji: "🐻", tier: "rare" },
-  goldglasses: { name: "Gold Wire-Frame Glasses", price: 800, emoji: "👓", tier: "rare" },
+  buckethat: { name: "Fisherman Bucket Hat", price: 1800, emoji: "🪣", tier: "rare" },
+  boonie: { name: "Angler Boonie Hat", price: 1900, emoji: "🎣", tier: "rare" },
+  bunny: { name: "Bunny Ears", price: 2100, emoji: "🐰", tier: "rare" },
+  deerstalker: { name: "Deerstalker Cap", price: 2400, emoji: "🔍", tier: "rare" },
+  bearcap: { name: "Fleece Bear Cap", price: 2600, emoji: "🐻", tier: "rare" },
+  goldglasses: { name: "Gold Wire-Frame Glasses", price: 3200, emoji: "👓", tier: "rare" },
   // prestige
-  tophat: { name: "Top Hat", price: 1500, emoji: "🎩", tier: "prestige" },
-  crown: { name: "Gilded Crown", price: 2500, emoji: "👑", tier: "prestige" },
+  tophat: { name: "Top Hat", price: 4000, emoji: "🎩", tier: "prestige" },
+  crown: { name: "Gilded Crown", price: 6350, emoji: "👑", tier: "prestige" },
   // never sold
   mochiears: { name: "Mochi Ears", price: 0, emoji: "🐱", gachaOnly: true },
   pioneercap: { name: "Pioneer Cap", price: 0, emoji: "⚙️", pioneer: true },
@@ -918,11 +918,11 @@ export const HAIR_DEFINITIONS: Record<HairStyle, WardrobeItem> = {
   curtain: { name: "Curtain Shag", emoji: "🍃", price: 0 },
   ponytail: { name: "High Ponytail", emoji: "💁", price: 0 },
   wavylong: { name: "Soft Waves", emoji: "🌊", price: 0 },
-  hero: { name: "Anime Hero", emoji: "⚡", price: 600, tier: "rare" },
-  drill: { name: "Twin Drills", emoji: "🎀", price: 500, tier: "rare" },
-  topknot: { name: "Samurai Topknot", emoji: "🎋", price: 700, tier: "rare" },
-  spacebuns: { name: "Festival Space Buns", emoji: "🐼", price: 450, tier: "rare" },
-  afro: { name: "Cloud Afro", emoji: "☁️", price: 650, tier: "rare" },
+  hero: { name: "Anime Hero", emoji: "⚡", price: 2400, tier: "rare" },
+  drill: { name: "Twin Drills", emoji: "🎀", price: 2000, tier: "rare" },
+  topknot: { name: "Samurai Topknot", emoji: "🎋", price: 2800, tier: "rare" },
+  spacebuns: { name: "Festival Space Buns", emoji: "🐼", price: 1800, tier: "rare" },
+  afro: { name: "Cloud Afro", emoji: "☁️", price: 2600, tier: "rare" },
 };
 export const STARTER_HAIR: HairStyle[] = HAIR_STYLES.filter((s) => HAIR_DEFINITIONS[s].price === 0);
 export function isHairStyle(v: unknown): v is HairStyle {
@@ -1279,6 +1279,12 @@ export interface StarlightReel {
   shadow: number;
   rod: RodId;
   treasure: boolean;
+  /** How long the fish can run out of the green before the line's tension climbs (s: the rod's
+   *  window, and on a boss the Otter-Carved Hook Charm's half second). */
+  window: number;
+  /** A boss fish (a legendary or a mythic: its rarity, never its kind): a green 60% smaller, fake
+   *  runs and thrashing. */
+  boss?: boolean;
 }
 /** A Sunken Treasure Chest held in the green bar until it opens pays this. */
 export const TREASURE_COINS = 25;
@@ -1298,6 +1304,8 @@ export interface FishCaught {
   /** Coins from a Sunken Treasure Chest opened in the reel (0: none). */
   treasure: number;
   afk: boolean;
+  /** It shed a Fish Scale into the pouches. */
+  scale?: true;
 }
 /** The bobber stays under this long after a bite: tap in time and it is yours. */
 export const STARLIGHT_BITE_S = 1.0;
@@ -1443,6 +1451,8 @@ export interface FellDrop {
   count: number;
   /** A by-product that came off with the log (the Amber Resin Band). */
   also?: { name: string; emoji: string };
+  /** No by-product this round: the pouches are full (their room grows with the carrier). */
+  pouchesFull?: boolean;
 }
 /** Server -> the feller ("fellResult"): a swing, as it landed, and what came of it. */
 export interface FellResult {
@@ -1551,6 +1561,8 @@ export type CampfirePacket =
   | { type: "SPLIT_STOP" }
   /** Bulk Process All: a stack of more than BULK_MIN_LOGS logs split at once, at the plain yield. */
   | { type: "SPLIT_WOOD" }
+  /** A consumable from the craft stash, used (anywhere): its buff (shared/crafting.ts BUFFS). */
+  | { type: "USE_CONSUMABLE"; craft: CraftId }
   /** The swing, `t` seconds into the ring as the swinger saw it (sampled at the press). */
   | { type: "CHOP_STOP"; t?: number }
   /** Stepping back from the tree (the panel closed): its notch stays for whoever comes next. */

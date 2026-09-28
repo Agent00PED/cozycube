@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { ITEMS, parseBag, type CampfirePacket } from "@shared/types";
 import { AXES, BYPRODUCTS, BYPRODUCT_IDS, TREES, WOOD, WOOD_KINDS, carrierTier, trunkCm, woodAverage, woodPrice, type TreeKind, type WoodKind } from "@shared/chop";
-import { CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks } from "@shared/crafting";
-import { FIREWOOD_PRICE } from "@shared/economy";
+import { BUFFS, CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks, type CraftItem } from "@shared/crafting";
+import { CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, FIREWOOD_PRICE } from "@shared/economy";
 import { carrierBonus } from "@shared/gear";
-import { carrierCap, carrierLoad, stars, type FishingProfile } from "@shared/fishing";
+import { buffOn, carrierCap, carrierLoad, pouchCap, pouchLoad, stars, type FishingProfile } from "@shared/fishing";
 import { craftGood, marketMultiplier, parseMarket, woodGood } from "@shared/market";
 import { Modal } from "./Modal";
 import { GearSlots } from "./GearSlots";
@@ -22,9 +22,11 @@ interface Props {
 
 // The wood drawer, opened from the header's 🪵 gauge (or B), laid out like the fish drawer: how full
 // the carrier is, four tabs, one scrolling list of two-column cards. Timber: each wood's stack (its
-// logs' trunk and size, stars for a big tree's, what it fetches this hour). Byproducts: the felling's
-// pouches and the resin jar, beside the carrier (no slots). Crafts & Fuel: the workbench's pieces (a
-// Masterwork ✨ in a gold frame), the Firewood and the sawdust, the forage pantry. Axe & Gear: the
+// logs' trunk and size, stars for a big tree's, what it fetches this hour). Byproducts: the pouches
+// (the felling's by-products, the Fish Scales, the resin jar, and the sawdust with them: their room
+// grows with the carrier, 30 to 250). Crafts & Fuel: the craft stash (12 slots of up to 99 a kind:
+// carved pieces, a Masterwork ✨ in a gold frame, and consumables with a Use button), the Firewood
+// and the sawdust, the forage pantry. Axe & Gear: the
 // axe in hand and what it fells, the gear worn slot by slot, the woods' permits. The bonfire is fed
 // at the bonfire, not from here.
 
@@ -60,6 +62,8 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
   const each = (w: WoodKind) => woodPrice(w, marketMultiplier(woodGood(w), hour), woodAverage(profile, w));
   const worth = held.reduce((sum, w) => sum + each(w) * profile.wood[w], 0);
   const bonus = carrierBonus(profile.worn);
+  // the craft stash's slots: each kind (Masterworks apart) a slot per CRAFT_SLOT_STACK
+  const stash = craftStacks(profile.crafts).flatMap((st): { item: CraftItem; n: number }[] => Array.from({ length: Math.ceil(st.n / CRAFT_SLOT_STACK) }, (_, k) => ({ item: st.item, n: Math.min(CRAFT_SLOT_STACK, st.n - k * CRAFT_SLOT_STACK) })));
   return (
     <Modal title={`${tier.icon} ${tier.name}`} icon="🪵" onClose={onClose} width={520} pinned fixedHeight={600}>
       <div className="flex shrink-0 flex-col gap-2 pb-2">
@@ -116,6 +120,7 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
 
         {tab === "byproducts" && (
           <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            <Meter label="Pouches" load={pouchLoad(profile)} cap={pouchCap(profile)} note="by-products, resin and sawdust: they grow with the carrier" />
             {BYPRODUCT_IDS.map((k) => {
               const n = profile.byproducts[k] ?? 0;
               return (
@@ -131,26 +136,39 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
               <span className="text-[11px] opacity-75">From gold swings; glues a carving</span>
               <span className="text-[10px] tabular-nums opacity-75">{RESIN_PRICE} 🪙 each at Buster's</span>
             </Card>
-            <p className="col-span-full m-0 pt-1 text-center text-[11px] opacity-70">They ride beside the carrier: no slots. Buster and Bramble buy them.</p>
+            <p className="col-span-full m-0 pt-1 text-center text-[11px] opacity-70">They ride beside the carrier (no log slots): a bigger carrier, bigger pouches. Buster and Bramble buy them.</p>
           </div>
         )}
 
         {tab === "crafts" && (
           <div className="flex flex-col gap-1.5">
-            {profile.crafts.length === 0 ? (
-              <Empty>No carved pieces yet. A workbench turns logs into totems, planks, birdhouses and more.</Empty>
-            ) : (
-              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                {craftStacks(profile.crafts).map((st) => (
-                  <Card key={`${st.item.c}:${st.item.m}`} emoji={CRAFTS[st.item.c].emoji} title={CRAFTS[st.item.c].name} count={st.n} gold={st.item.m}>
-                    <span className="text-[11px] opacity-80">{st.item.m ? <span className="text-amber-200">Masterwork ✨</span> : "Carved"} · its own crate</span>
-                    <span className="flex items-center gap-1.5 text-[10px] tabular-nums">
-                      <TrendBadge price={craftSalePrice(st.item, marketMultiplier(craftGood(st.item.c), hour))} mult={marketMultiplier(craftGood(st.item.c), hour)} />
+            <Meter label="Craft stash" load={stash.length} cap={CRAFT_STASH_SLOTS} note={`slots of up to ${CRAFT_SLOT_STACK} a kind`} unit="slots" />
+            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+              {Array.from({ length: Math.max(CRAFT_STASH_SLOTS, stash.length) }, (_, i) => {
+                const st = stash[i];
+                if (!st) return <div key={`empty:${i}`} className="flex min-h-[86px] items-center justify-center rounded-2xl border border-dashed border-white/15 text-[10px] opacity-40" aria-label="An empty stash slot">empty</div>;
+                const craft = CRAFTS[st.item.c];
+                const usable = craft.use === "consumable" && craft.buff;
+                const mult = marketMultiplier(craftGood(st.item.c), hour);
+                return (
+                  <div key={`${st.item.c}:${st.item.m}:${i}`} className={`flex min-h-[86px] flex-col items-center justify-between gap-0.5 rounded-2xl px-1.5 py-1.5 text-center ${st.item.m ? "bg-[#F5A623]/15 ring-1 ring-[#F5A623]/70" : usable ? "bg-[#f5c46b]/10 ring-1 ring-[#f5c46b]/35" : "bg-white/10"}`} title={`${craft.name}${st.item.m ? " (Masterwork)" : ""}: ${craft.description}`}>
+                    <span className="relative text-2xl leading-none">
+                      {craft.emoji}
+                      <span className="absolute -bottom-1 -right-3 rounded-full bg-[#2B201B] px-1 text-[10px] font-bold tabular-nums text-[#F7EBE1] ring-1 ring-white/15">×{st.n}</span>
                     </span>
-                  </Card>
-                ))}
-              </div>
-            )}
+                    <span className="line-clamp-2 w-full text-[10px] font-semibold leading-tight text-[#F7EBE1]">{craft.name}</span>
+                    {usable ? (
+                      <button type="button" className="clay-btn clay-btn-amber min-h-8 w-full justify-center px-1" onClick={() => send({ type: "USE_CONSUMABLE", craft: st.item.c })} title={`${BUFFS[craft.buff!].name}: ${BUFFS[craft.buff!].blurb} for ${BUFFS[craft.buff!].ms / 60_000} min`}>
+                        <span className="text-[11px]">{buffOn(profile, craft.buff!) ? "Refresh" : "Use"}</span>
+                      </button>
+                    ) : craft.price > 0 ? (
+                      <TrendBadge price={craftSalePrice(st.item, mult)} mult={mult} />
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+            {profile.crafts.length === 0 && <p className="m-0 text-center text-[11px] opacity-70">Carve at a workbench: trade goods to sell, consumables to use from here.</p>}
             <b className="mt-1 text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Fuel (no slots)</b>
             <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               <Card emoji="🔥" title="Firewood" count={profile.firewood} dim={!profile.firewood}>
@@ -216,6 +234,22 @@ function Card({ emoji, title, count, gold, dim, children }: { emoji: string; tit
         </b>
         {children}
       </div>
+    </div>
+  );
+}
+
+/** A capacity bar: the pouches' room, the stash's slots. */
+function Meter({ label, load, cap, note, unit }: { label: string; load: number; cap: number; note: string; unit?: string }) {
+  return (
+    <div className="col-span-full flex items-center gap-2 text-[11px]">
+      <b className="shrink-0 text-[#F7EBE1]">{label}</b>
+      <div className="h-2 min-w-[60px] flex-1 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full" style={{ width: `${Math.min(100, (load / Math.max(1, cap)) * 100)}%`, background: load >= cap ? "#ec7fa3" : "#8fd3b6" }} />
+      </div>
+      <b className={`shrink-0 tabular-nums ${load >= cap ? "text-rose-300" : ""}`} title={load > cap ? "Over their room: everything is kept, but nothing more comes in until you sell or use some" : note}>
+        {load}/{cap}
+        {unit ? ` ${unit}` : ""}
+      </b>
     </div>
   );
 }

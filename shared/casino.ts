@@ -107,7 +107,7 @@ export function exchangeAmount(requested: unknown, available: number): number | 
 // so a stake outside it is refused whatever the client sends. A brass placard on each game's panel
 // reads "MIN: 25 | MAX ALL-IN: 1,000".
 
-export type TableId = "blackjack_casual" | "blackjack_high" | "poker" | "poker_vip" | "slots" | "slots_vault" | "baccarat" | "baccarat_hall" | "bigsix" | "roulette_inside" | "roulette_outside" | "craps" | "derby" | "pusher" | "pusher_high" | "pinball";
+export type TableId = "blackjack_casual" | "blackjack_high" | "blackjack_vip" | "poker" | "poker_vip" | "slots" | "slots_vault" | "baccarat" | "baccarat_hall" | "bigsix" | "roulette_inside" | "roulette_outside" | "craps" | "derby" | "pusher" | "pusher_high" | "pinball";
 export interface TableLimit {
   name: string;
   min: number;
@@ -117,6 +117,8 @@ export interface TableLimit {
 export const TABLE_LIMITS: Record<TableId, TableLimit> = {
   blackjack_casual: { name: "Blackjack · Table 1 (Casual)", min: 25, max: 1000, presets: [25, 50, 100, 250, 500] },
   blackjack_high: { name: "Blackjack · Table 2 (High Stakes)", min: 100, max: 5000, presets: [100, 250, 500, 1000, 2500] },
+  // the penthouse's table (Gideon dealing upstairs)
+  blackjack_vip: { name: "Blackjack · Penthouse (High Limit)", min: 1000, max: 25000, presets: [1000, 2500, 5000, 10000, 25000] },
   // Hold'em's buy-in for a hand (every seat starts with as much; blinds 5/10)
   poker: { name: "Texas Hold'em · No Limit", min: 100, max: 2000, presets: [100, 250, 500, 1000, 2000] },
   // the penthouse's high-limit table (blinds 250/500)
@@ -227,7 +229,9 @@ export interface RouletteResultBroadcast {
 // --- slots ----------------------------------------------------------------------------------
 
 /** The slot machine's limits: the penthouse's Golden Vault has its own. */
-export const slotLimit = (propId: string) => TABLE_LIMITS[propId === VAULT_SLOT_ID ? "slots_vault" : "slots"];
+export const slotLimit = (propId: string) => TABLE_LIMITS[isVaultSlot(propId) ? "slots_vault" : "slots"];
+/** One of the penthouse's twin Golden Vaults (slot_vault, slot_vault_2). */
+export const isVaultSlot = (propId: string) => propId === VAULT_SLOT_ID || propId.startsWith(`${VAULT_SLOT_ID}_`);
 /** The penthouse's Golden Vault (the same reels and paytable, 500 to 10,000 a pull: three sevens at
  *  the top stake pay 750,000). */
 export const VAULT_SLOT_ID = "slot_vault";
@@ -267,7 +271,7 @@ export const BLACKJACK_BET_SECONDS = 10;
 export const BLACKJACK_TURN_SECONDS = 30;
 export const BLACKJACK_SETTLE_SECONDS = 5;
 export const BLACKJACK_MAX_HANDS = 4;
-export type BlackjackTier = "blackjack_casual" | "blackjack_high";
+export type BlackjackTier = "blackjack_casual" | "blackjack_high" | "blackjack_vip";
 export type BlackjackTablePhase = "betting" | "playing" | "settled";
 export type BlackjackHandStatus = "playing" | "stood" | "bust" | "blackjack";
 export interface BlackjackHandView {
