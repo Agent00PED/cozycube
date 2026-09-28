@@ -147,6 +147,7 @@ const RELAYED_MESSAGES = [
   "slingshotResult",
   "animalFed",
   "brambleWave",
+  "finleyWave",
   "fishEscaped",
 ] as const;
 /** How often the client times a round trip for the roster's ping column. */

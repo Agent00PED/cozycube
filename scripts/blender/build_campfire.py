@@ -62,8 +62,6 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
                         sways from there); its child Stew_Contents is the stew's surface (the game
                         shows and tints it from the pot's ingredients)
     Picnic_Plates       four glazed off-white ceramic plates and two ceramic mugs on the picnic table
-    Seat_Tent_02        the second tent: a small sage canvas A-frame on the upper-left lawn, door
-                        toward the fire, a mat and pillow inside
     Picnic_Skewer_0N    a skewer of toasted marshmallows on plate N, and Picnic_Bbq_0N a BBQ
                         skewer (the game shows what friends have left there)
 
@@ -121,6 +119,8 @@ PALETTE = {
     "CF_Mat": "#7D8F6A",
     "CF_Pillow": "#E8D6B0",
     "CF_MushCap": "#C9523F",
+    "CF_MushBrown": "#9A6A45",
+    "CF_WildBerry": "#C8374A",
     "CF_MushStem": "#EFE3CF",
     "CF_Petal": "#F2B8C6",
     "CF_PetalYellow": "#F4D35E",
@@ -1014,14 +1014,19 @@ def build_fence(L, coll):
 def build_deco(L, coll):
     rng = random.Random(44)
     bm = bmesh.new()
-    # little red mushrooms at the feet of some pines
-    for t in L["trees"][::3]:
-        for k in range(3):
-            a = rng.random() * 6.28
-            x, z = t["x"] + (0.55 + 0.2 * rng.random()) * math.cos(a), t["z"] + (0.55 + 0.2 * rng.random()) * math.sin(a)
-            s = 0.8 + 0.5 * rng.random()
+    # the undergrowth: a cluster of wild mushrooms (red caps, and brown) among every pine's roots,
+    # clear of the paths, the river and the clearing
+    for n, t in enumerate(L["trees"]):
+        a0 = rng.random() * 6.28
+        for k in range(2 + (n % 3)):
+            a = a0 + (k - 1) * 0.55 + rng.uniform(-0.15, 0.15)
+            rr = (0.5 + 0.22 * rng.random()) * max(0.8, t["s"])
+            x, z = t["x"] + rr * math.cos(a), t["z"] + rr * math.sin(a)
+            if near_path(L, x, z, 0.1) or in_river(L, x, z, 0.3) or math.hypot(x - L["clearing"]["x"], z - L["clearing"]["z"]) < L["clearing"]["r"] + 0.2:
+                continue
+            s = 0.65 + 0.55 * rng.random()
             lathe(bm, x, z, [(0, 0.0), (0.035 * s, 0.0), (0.03 * s, 0.1 * s), (0, 0.11 * s)], segs=8, m=1)
-            lathe(bm, x, z, [(0, 0.08 * s), (0.09 * s, 0.09 * s), (0.07 * s, 0.14 * s), (0, 0.17 * s)], segs=10, m=0)
+            lathe(bm, x, z, [(0, 0.08 * s), (0.09 * s, 0.09 * s), (0.07 * s, 0.14 * s), (0, 0.17 * s)], segs=10, m=0 if (n + k) % 3 else 9)
     # wildflowers round the edge of the clearing
     c = L["clearing"]
     for k in range(22):
@@ -1061,10 +1066,15 @@ def build_deco(L, coll):
             cylinder(bm, W(x, water, z), W(x + 0.05 * (rng.random() - 0.5), water + h, z), 0.018, 5, m=2, r_end=0.008)
             if k % 3 == 0:  # a cattail
                 cylinder(bm, W(x, water + h * 0.72, z), W(x, water + h * 0.9, z), 0.035, 6, m=5)
-    # round bushes at the front corners
-    for x, z, s in ((-9.1, 9.3, 0.9), (9.2, 9.3, 0.8)):
+    # round bushes at the fence's corners, wild red berries tucked in their leaves
+    fence = L["fence"]
+    for x, z, s in ((fence["xFrom"] + 0.9, fence["at"] - 1.05, 0.9), (fence["at"] - 1.15, fence["at"] - 1.05, 0.8), (fence["at"] - 0.95, fence["zFrom"] + 0.35, 0.7)):
         for k in range(3):
-            blob(bm, x + 0.35 * (k - 1) * s, 0.3 * s, z + 0.2 * ((k % 2) - 0.5) * s, 0.42 * s, 0.36 * s, 0.4 * s, m=2, cuts=3, noise=0.08, rng=rng, flat_bottom=-0.05)
+            bx, bz = x + 0.35 * (k - 1) * s, z + 0.2 * ((k % 2) - 0.5) * s
+            blob(bm, bx, 0.3 * s, bz, 0.42 * s, 0.36 * s, 0.4 * s, m=7, cuts=3, noise=0.08, rng=rng, flat_bottom=-0.05)
+            for q in range(5):
+                a = rng.random() * 6.28
+                blob(bm, bx + math.cos(a) * 0.36 * s, 0.3 * s + rng.uniform(-0.08, 0.16) * s, bz + math.sin(a) * 0.34 * s, 0.03, 0.03, 0.03, m=8, cuts=1)
     # the woodpile: split logs stacked three, two, one, beside a chopping stump
     wx, wz = L["woodpile"]["x"], L["woodpile"]["z"]
     for row, count in enumerate((3, 2, 1)):
@@ -1077,7 +1087,7 @@ def build_deco(L, coll):
         if f["kind"] == "berries":
             for dx, dz, s in ((0, 0, 1.0), (0.2, 0.12, 0.7), (-0.18, 0.1, 0.65)):
                 blob(bm, f["x"] + dx, 0.22 * s, f["z"] + dz, 0.3 * s, 0.26 * s, 0.28 * s, m=2, cuts=2, noise=0.1, rng=rng, flat_bottom=-0.03)
-    make_object("Campfire_Deco", bm, ["CF_MushCap", "CF_MushStem", "CF_GrassDark", "CF_Petal", "CF_PetalYellow", "CF_Bark", "CF_WoodCut"], coll)
+    make_object("Campfire_Deco", bm, ["CF_MushCap", "CF_MushStem", "CF_GrassDark", "CF_Petal", "CF_PetalYellow", "CF_Bark", "CF_WoodCut", "CF_BushLeaf", "CF_WildBerry", "CF_MushBrown"], coll)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1657,58 +1667,6 @@ def build_forage(L, coll):
         make_object(f"Forage_0{i + 1}_Yield", bm, mats, coll, origin=(x, 0.0, z))
 
 
-def build_tent2(L, cushions, coll):
-    """The second tent: a small A-frame of sage canvas on the upper-left lawn, its ridge pointing
-    at the fire and its door flaps tied back on that end; a closed back, a ridge pole on two
-    uprights, guy ropes to pegs, and a mat and pillow inside to lie on (the tentMat cushion)."""
-    t = L["tent2"]
-    cx, cz, length, width, h = t["x"], t["z"], t["len"], t["w"], t["h"]
-    fx, fz = L["fire"]["x"], L["fire"]["z"]
-    ox, oz = fx - cx, fz - cz
-    d = math.hypot(ox, oz)
-    ox, oz = ox / d, oz / d
-    ax, az = -oz, ox  # across: the way the canvas slopes down to each side
-    at = lambda u, s, y: W(cx + ox * u + ax * s, y, cz + oz * u + az * s)  # u along, s across
-    bm = bmesh.new()
-    half = length / 2
-    for side in (-1, 1):
-        def panel(u, v, side=side):
-            # a touch of sag between the poles, and the canvas flaring out a little at the hem
-            along = -half + length * u
-            sag = 0.05 * math.sin(math.pi * u) * v
-            return at(along, side * (width / 2) * (1 - v) * (1 + 0.04 * (1 - v)), 0.02 + (h - 0.02) * v - sag)
-        sheet(bm, 8, 6, panel, m_of=lambda i, j: 1 if j == 0 else 0)
-    # the closed back
-    vs = [bm.verts.new(p) for p in (at(-half, -width / 2 * 1.04, 0.02), at(-half, width / 2 * 1.04, 0.02), at(-half, 0.0, h))]
-    bm.faces.new(vs).material_index = 0
-    # the door flaps, folded back and tied either side of the open front
-    for side in (-1, 1):
-        vs = [bm.verts.new(p) for p in (at(half, 0.0, h * 0.95), at(half, side * width / 2 * 1.04, 0.02), at(half - 0.12, side * width * 0.72, 0.1))]
-        bm.faces.new(vs).material_index = 1
-    # the ridge pole on its two uprights, a rope from each end to a peg
-    cylinder(bm, at(-half - 0.06, 0.0, h + 0.02), at(half + 0.08, 0.0, h + 0.02), 0.022, 6, m=2)
-    for u in (-half, half):
-        cylinder(bm, at(u, 0.0, 0.0), at(u, 0.0, h + 0.1), 0.025, 6, m=2)
-        e = 1 if u > 0 else -1
-        peg = at(u + e * 0.55, 0.0, 0.0)
-        cylinder(bm, at(u, 0.0, h + 0.06), peg + Vector((0, 0, 0.04)), 0.007, 4, m=3)
-        cylinder(bm, peg + Vector((0, 0, -0.02)), peg + Vector((0, 0, 0.08)), 0.015, 5, m=2)
-    for side in (-1, 1):  # the side guy lines
-        for u in (-half * 0.6, half * 0.6):
-            hem = at(u, side * width / 2 * 1.04, 0.05)
-            peg = at(u, side * (width / 2 + 0.35), 0.0)
-            cylinder(bm, hem, peg + Vector((0, 0, 0.04)), 0.006, 4, m=3)
-            cylinder(bm, peg + Vector((0, 0, -0.02)), peg + Vector((0, 0, 0.07)), 0.013, 5, m=2)
-    # the mat and a pillow at the back
-    mat_len, mat_w = 1.35, 0.6
-    outline = [(cx + ox * su * mat_len / 2 + ax * sv * mat_w / 2, cz + oz * su * mat_len / 2 + az * sv * mat_w / 2) for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
-    slab(bm, outline, 0.0, cushions["tentMat"]["top"], m=4)
-    blob(bm, cx - ox * 0.62, cushions["tentMat"]["top"] + 0.05, cz - oz * 0.62, 0.2, 0.06, 0.13, m=5, cuts=3, n=2.8)
-    ob = make_object("Seat_Tent_02", bm, ["CF_TentSage", "CF_Canvas", "CF_Pole", "CF_Rope", "CF_Mat", "CF_Pillow"], coll)
-    thick = ob.modifiers.new("Canvas", "SOLIDIFY")
-    thick.thickness = 0.02
-
-
 def build_hearth(L, coll):
     """The communal Dutch oven: a tripod of three poles lashed over the fire, and the cast-iron pot
     hung from its apex on a short chain, low enough for the flames to lick its base."""
@@ -1951,7 +1909,6 @@ def build(root):
     build_logs(L, cushions, coll)
     build_dock(L, coll)
     build_tent(L, cushions, coll)
-    build_tent2(L, cushions, coll)
     build_trees(L, coll)
     build_rocks(L, coll)
     build_fence(L, coll)

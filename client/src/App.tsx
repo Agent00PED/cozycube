@@ -28,7 +28,8 @@ import { loadSavedLook } from "./components/hud/lookStorage";
 import { FishingModal, type FishReveal } from "./components/hud/FishingModal";
 import { SlingshotModal } from "./components/hud/SlingshotModal";
 import { BrambleModal } from "./components/hud/BrambleModal";
-import { BackpackModal } from "./components/hud/BackpackModal";
+import { FishLivewellModal } from "./components/hud/FishLivewellModal";
+import { LogbookModal } from "./components/hud/LogbookModal";
 import { PermitsModal, SplitBlockModal } from "./components/hud/SplitBlockModal";
 import { GachaModal } from "./components/hud/GachaModal";
 import { ClawModal } from "./components/hud/ClawModal";
@@ -383,13 +384,16 @@ export default function App() {
   // the casino's tables open only when asked (the dock, or a click on the table): never by walking past
   const [rouletteOpen, setRouletteOpen] = useState(false);
   const [fortune, setFortune] = useState<FortuneResult | null>(null);
-  // B opens (and closes) the backpack, whenever nothing is being typed and no other panel is up
+  // the resource drawers (the header's 🪵 and 🪣 gauges): B opens (and closes) the one opened last,
+  // whenever nothing is being typed and no other panel is up; their logbooks open over them
+  const lastDrawer = useRef<"carrier" | "livewell">("carrier");
+  const [logbook, setLogbook] = useState<"fish" | "timber" | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== "KeyB" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
       const el = document.activeElement as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
-      setPanel((p) => (p?.kind === "backpack" ? null : p ? p : { kind: "backpack", propId: "backpack" }));
+      setPanel((p) => (p?.kind === "carrier" || p?.kind === "livewell" ? null : p ? p : { kind: lastDrawer.current, propId: lastDrawer.current }));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -423,6 +427,7 @@ export default function App() {
       setBlackjackOpen(propId);
       return;
     }
+    if (kind === "carrier" || kind === "livewell") lastDrawer.current = kind;
     setPanel({ kind, propId });
   }, []);
   useEffect(() => {
@@ -1011,7 +1016,8 @@ export default function App() {
         {panel?.kind === "splitblock" && <SplitBlockModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "slingshot" && <SlingshotModal send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "bramble" && localPlayer && <BrambleModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
-        {panel?.kind === "backpack" && <BackpackModal profile={angler.profile} onClose={closePanel} />}
+        {panel?.kind === "livewell" && <FishLivewellModal profile={angler.profile} market={market} send={campfireSend} onClose={closePanel} onOpenCollection={() => setLogbook("fish")} />}
+        {logbook && <LogbookModal mode={logbook} profile={angler.profile} onClose={() => setLogbook(null)} />}
         {panel?.kind === "permits" && localPlayer && (
           <PermitsModal
             profile={angler.profile}
@@ -1026,7 +1032,7 @@ export default function App() {
           />
         )}
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
-        {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} send={campfireSend} onClose={closePanel} />}
+        {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} send={campfireSend} onClose={closePanel} onOpenCollection={() => setLogbook("timber")} />}
         {panel?.kind === "workbench" && localPlayer && <WoodCraftModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "cashier" && localPlayer && <CashierModal coins={localPlayer.coins} chips={localPlayer.chips} onBuy={buyChips} onCashOut={cashOut} vipPass={localPlayer.vipPass} wristbands={localPlayer.vipWristbands} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "vippass" && localPlayer && (
@@ -1088,6 +1094,7 @@ export default function App() {
         {fortune && <FortuneModal fortune={fortune} onClose={() => setFortune(null)} />}
         {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
+        {panel?.kind === "finley" && localPlayer && <BarnabyModal keeper="finley" profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
 

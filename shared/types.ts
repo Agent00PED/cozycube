@@ -3,7 +3,7 @@
 import type { SlingShot } from "./slingshot";
 import type { BaitId, CreelFish, FishTier, RodId } from "./fishing";
 import type { FuelItem, StewIngredient } from "./bonfire";
-import type { AxeId, FellVerdict, TreeKind, WoodKind } from "./chop";
+import type { AxeId, ByproductId, FellVerdict, TreeKind, WoodKind } from "./chop";
 import type { Adhesive, CraftId, CraftMode, CraftOutcome } from "./crafting";
 import type { GearId } from "./gear";
 import { START_COINS, type WardrobeTier } from "./economy";
@@ -1472,15 +1472,14 @@ export interface TreeFelled {
 // too) ---
 /** A King-Size Fish Surge: golden ripples and bubbles on a stretch of water; a hand-reeled catch
  *  whose float lands in them is King Size four times in ten. The Colossal Titan: a 2x tree in the
- *  woods, 5-6 rounds, 4-6 heavy logs worth 3x each. */
+ *  woods, 5-6 rounds (a Golden Leaf Amber each), 4-6 heavy logs worth 3x each; the two take turns. */
 export type WorldEvent =
   | { kind: "surge"; map: MapId; x: number; z: number; r: number; until: number }
   | { kind: "titan"; map: MapId; id: string; x: number; z: number; until: number };
-/** The wait between one wonder and the next (minutes), how long a surge lasts, and a Titan waits
- *  to be felled (s). */
+/* (a Titan's `until` is 0: it stands until it is felled) */
+/** The wait between one wonder and the next (minutes), and how long a surge lasts (s). */
 export const WORLD_EVENT_EVERY_MIN = [45, 60] as const;
 export const SURGE_S = 240;
-export const TITAN_S = 1200;
 export const SURGE_KING_CHANCE = 0.4;
 export function parseWorldEvent(raw: string): WorldEvent | null {
   try {
@@ -1550,6 +1549,8 @@ export type CampfirePacket =
   | { type: "BUSTER"; op: "sellCraft"; slot: number | "all" }
   | { type: "BUSTER"; op: "sellResin"; count: number | "all" }
   | { type: "BUSTER"; op: "sellFirewood"; count: number | "all" }
+  /** The felling's by-products (one kind, or every pouch at once), to Bramble or Buster. */
+  | { type: "BUSTER"; op: "sellByproducts"; item: ByproductId | "all" }
   | { type: "BUSTER"; op: "buyGear"; gear: GearId }
   | { type: "BUSTER"; op: "buyPermit"; permit: "dayTrip" | "ranger" }
   | { type: "BUSTER"; op: "sellAllWood" }

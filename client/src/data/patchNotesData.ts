@@ -560,6 +560,36 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.6.11",
+        date: "2026-09-28",
+        title: "Drawers, Finley & the Forest's Gifts",
+        summary: "Your wood and your fish each get a drawer of their own, Finley the river otter sets up shop in the woods, every tree tier leaves a little gift behind, and nobody vanishes behind a tree any more.",
+        changes: {
+          features: [
+            "Two drawers instead of a backpack: the 🪵 gauge opens your wood (every log and its size, the by-products, Firewood, resin, carvings, your axe's stats) and the 🪣 gauge your fish (length, weight, stars, your rod, your baits, the livewell's room), on every map. B reopens whichever you had open last.",
+            "📖 Timber Collection and 📖 Fish Collection open from their drawers: the trees' lore and your records, and the Day, Night and Ocean pages.",
+            "Meet Finley the river otter, fishing from his boulder on the woods' river: he buys every fish and sells rods up to tier five, livewells and every bait pack.",
+            "Five bait packs: Earthworms, Sweet Corn Dough, Glow-Crickets (at their best by night), Dragonfly Larva and Stardust Pellets.",
+            "Bramble is the woods' forester now: logs, Firewood and by-products bought, every axe from tier one to five and the wood carriers sold, with the advanced workbench right beside his counter.",
+            "A felling round that brings no log leaves its tree's gift instead: Birch Bark, Amber Resin, Golden Leaf Amber from the maples and the Titan, or Ancient Wood Shavings from the Elderwood.",
+            "The living wonders take turns: a King-Size Surge, then a Colossal Titan that stands until someone fells it (even across a server restart), each announced to the whole room.",
+          ],
+          visuals: [
+            "A tree between you and the camera thins to a light 30% screen, and your silhouette glows warm through it: no more vanishing into the pines.",
+            "The Whispering Woods: songbirds on the pines' lower boughs that scatter when you walk up, butterflies over the meadows by day, fireflies along the riverbanks by evening, and birches and cedars lining the trail to Bramble's cabin.",
+            "The fairy rings are gone: a Colossal Titan rises from plain grass in its clearing.",
+            "The campfire is tidier: the little A-frame tent is gone (the tipi stays), the splitting block stands on open grass in front of the camper van, and wild mushrooms and berry bushes grow among the roots and the fence's corners.",
+          ],
+          economy: [
+            "By-products sell to Buster or Bramble: Birch Bark 2, Amber Resin 5, Golden Leaf Amber 12 and Ancient Wood Shavings 30 coins, or the shavings feed the bonfire 15%.",
+            "The slingshot's prizes are back to 800 (12 coins), 1,800 (28 coins) and 3,000 points (60 coins and the Eagle Eye).",
+          ],
+          fixes: [
+            "The Deerskin Grip Gloves' bonus log drops again on the radial felling.",
+          ],
+        },
+      },
     ],
   },
 ];

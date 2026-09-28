@@ -29,7 +29,7 @@ export const LOW_FUEL = 20;
 export const COZY_AURA_LUCK = 0.15;
 
 /** What goes on the fire: split wood, or a handful of Sawdust (shared/crafting.ts SAWDUST_FUEL). */
-export type FuelItem = WoodKind | "sawdust" | "firewood";
+export type FuelItem = WoodKind | "sawdust" | "firewood" | "shavings";
 export function hasCozyAura(fuel: number): boolean {
   return fuel > COZY_AURA_FUEL;
 }

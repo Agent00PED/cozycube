@@ -19,9 +19,8 @@ night-and-day friendly palette. Nodes:
     Forest_Meadow       the island's top as a fine grid, its grass coloured vertex by vertex: the
                         Birch Grove's pale grass, the Cedar Ridge's stony turf, the Golden Glen's
                         fallen gold and the Shrine's moss blend into one another along wandering,
-                        organic edges (no rectangles), fairy rings of brighter grass where a
-                        Colossal Titan can sprout, the colour easing back to the base grass at the
-                        river's banks and the island's rim (FW_Meadow: one vertex-colour material)
+                        organic edges (no rectangles), the colour easing back to the base grass at
+                        the river's banks and the island's rim (FW_Meadow: one vertex-colour material)
     Forest_Banks        damp dark earth along both banks of the river
     Forest_Floors       the Shrine's flagstones round the elderwood
     Forest_Paths        the dirt trails from the archway through the wood
@@ -32,7 +31,8 @@ night-and-day friendly palette. Nodes:
     Forest_Vista        twenty-five tall pines along the back and side edges (never felled)
     Forest_Structures   the branch archway back to the campfire, Bramble's log cabin (flush with the
                         eastern tree line: warm windows, a stone chimney), his store counter and
-                        hanging sign, the advanced workbench, the splitting block and its firewood,
+                        hanging sign, the advanced workbench right beside the counter (worked from
+                        the trail side),
                         the river's fishing spots (a flat stone out over the water, a raw log and a
                         boulder to sit on, each with a little fish sign)
     Forest_Water        the river's water surface along the spline, spilling over the island's edge
@@ -44,6 +44,10 @@ trees.glb (its own file, Forest_Trees):
                         (the game places one per node, instanced, each at its own size, and swings a
                         mature one down when it falls): kind soft_pine, birch, cedar, maple,
                         elderwood; stage stump, sprout, sapling, mature
+    Fauna_Bird_Body     a little songbird (robin-breasted: the game tints each one), its wings
+    Fauna_Bird_WingL/R  apart (each node's origin is its shoulder: the game flaps them), all at the
+                        origin: the game instances them on the vista pines' lower boughs
+    Fauna_Butterfly_*   a butterfly the same way (Body, WingL, WingR), pale wings the game tints
     Animal_Deer         the deer by the Golden Glen's path (Animal_Deer_Head: pivots at the neck,
                         she grazes and looks up)
     Animal_Rabbit_1..3  three rabbits by the Border's splitting block (they hop)
@@ -142,7 +146,6 @@ LAYER_BANK = 0.012
 LAYER_PATH = 0.016
 # the meadow's biomes (each zone's `floor`), blended by vertex colour
 BIOME = {"meadow": "#6F9A55", "birch": "#8FAE6B", "ridge": "#7F8C68", "glen": "#B48A46", "shrine": "#3F6B4A"}
-FAIRY_RING = "#A3CC72"
 TREE_KINDS = ("soft_pine", "birch", "cedar", "maple", "elderwood")
 STAGES = ("stump", "sprout", "sapling", "mature")
 
@@ -687,8 +690,8 @@ def vc_material(name):
 
 def biome_color(L, x, z):
     """The meadow's colour at (x, z): each zone's grass blended in along wandering edges (the point
-    warped by a few slow sines before it is measured against the zone), a little mottling, a fairy
-    ring round each of the Titan's clearings, and the base grass again at the banks and the rim."""
+    warped by a few slow sines before it is measured against the zone), a little mottling, and the
+    base grass again at the banks and the rim."""
     wx = x + 0.9 * math.sin(z * 0.45 + 1.3) + 0.45 * math.sin(z * 1.15 + 0.4)
     wz = z + 0.9 * math.sin(x * 0.4 + 2.1) + 0.45 * math.sin(x * 1.25 + 1.1)
     base = lin(BIOME["meadow"])
@@ -716,11 +719,6 @@ def biome_color(L, x, z):
     col = [base[k] * (1 - tot) + acc[k] for k in range(3)]
     mottle = 1 + 0.06 * math.sin(x * 1.7 + z * 0.6) * math.sin(z * 1.3 - x * 0.4) + 0.04 * math.sin(x * 3.1 + 0.7) * math.sin(z * 2.7)
     col = [c * mottle for c in col]
-    ring = lin(FAIRY_RING)
-    for tx, tz in L["titanSpots"]:
-        r = math.hypot(x - tx, z - tz)
-        k = math.exp(-(((r - 1.3) / 0.2) ** 2)) * 0.7
-        col = [c * (1 - k) + ring[i] * k for i, c in enumerate(col)]
     grass = lin(PALETTE["FW_Grass"])
     d, w = river_dist(L, x, z)
     ease = max(smooth(0.9, 0.0, d - w), smooth(0.7, 0.0, rim_dist(x, z, L["half"] - 0.36, 0.78)))
@@ -853,7 +851,7 @@ def clear_spot(L, x, z, r):
     wb = L["workbench"]
     if abs(x - wb["x"]) < wb["len"] / 2 + 0.7 and abs(z - wb["z"]) < 1.3:
         return False
-    for p in (L["splitblock"], L["arrival"], *L["animals"]):
+    for p in (L["finley"], L["arrival"], *L["animals"]):
         if math.hypot(x - p["x"], z - p["z"]) < 1.0 + r:
             return False
     sh = L["shrine"]
@@ -915,17 +913,6 @@ def build_deco(L, coll):
                 cylinder(bm, W(mx, 0.0, mz), W(mx, 0.08 * s, mz), 0.02 * s, 6, m=6)
                 lathe(bm, mx, mz, [(0, 0.0), (0.06 * s, 0.0), (0.05 * s, 0.03 * s), (0, 0.045 * s)], segs=8, m=5, y0=0.075 * s)
         placed += 1
-    # the fairy rings: a ring of little red mushrooms round each clearing where a Colossal Titan can
-    # sprout (the grass inside them is brighter: the meadow's colour)
-    for tx, tz in L["titanSpots"]:
-        for k in range(13):
-            a = 2 * math.pi * k / 13 + rng.uniform(-0.12, 0.12)
-            mx, mz = tx + math.cos(a) * 1.3, tz + math.sin(a) * 1.3
-            if near_path(L, mx, mz, 0.08):
-                continue
-            h = 0.07 + rng.random() * 0.05
-            cylinder(bm, W(mx, 0.0, mz), W(mx, h, mz), 0.018, 6, m=6)
-            blob(bm, mx, h + 0.012, mz, 0.045, 0.028, 0.045, m=5, cuts=2, flat_bottom=None)
     make_object("Forest_Deco", bm, ["FW_Tuft", "FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_MushCap", "FW_MushStem", "FW_LeafPile", "FW_MapleLeafGold"], coll)
 
 
@@ -1145,36 +1132,22 @@ def build_structures(L, cushions, coll):
     box(bm, wx0 + 0.08, wx1 - 0.08, 0.2, 0.26, wz0 + 0.08, wz1 - 0.08, m=4)  # the lower shelf
     for q in range(4):
         cylinder(bm, W(wx0 + 0.25 + q * 0.12, 0.3, wz0 + 0.15), W(wx0 + 0.25 + q * 0.12, 0.3, wz1 - 0.15), 0.045, 7, m=1, cap_m=2)
-    box(bm, wx0 - 0.02, wx0 + 0.16, wt, wt + 0.12, wz0 - 0.04, wz0 + 0.1, m=7)  # the vise
-    cylinder(bm, W(wx0 + 0.07, wt + 0.06, wz0 - 0.04), W(wx0 + 0.07, wt + 0.06, wz0 - 0.2), 0.015, 6, m=7)
-    # the tool rack along the back: a board on two posts, saws, a mallet, chisels
+    box(bm, wx0 - 0.02, wx0 + 0.16, wt, wt + 0.12, wz1 - 0.1, wz1 + 0.04, m=7)  # the vise, on the trail side
+    cylinder(bm, W(wx0 + 0.07, wt + 0.06, wz1 + 0.04), W(wx0 + 0.07, wt + 0.06, wz1 + 0.2), 0.015, 6, m=7)
+    # the tool rack along the back (toward the cabin): a board on two posts, saws, a mallet, chisels
     for px in (wx0 + 0.06, wx1 - 0.06):
-        box(bm, px - 0.04, px + 0.04, wt, wt + 0.75, wz1 - 0.06, wz1 - 0.01, m=4)
-    box(bm, wx0 + 0.02, wx1 - 0.02, wt + 0.3, wt + 0.72, wz1 - 0.05, wz1 - 0.02, m=3)
-    box(bm, wx0 + 0.25, wx0 + 0.65, wt + 0.45, wt + 0.6, wz1 - 0.08, wz1 - 0.06, m=7)  # a saw's blade
-    box(bm, wx0 + 0.18, wx0 + 0.27, wt + 0.44, wt + 0.61, wz1 - 0.09, wz1 - 0.05, m=1)
-    cylinder(bm, W(wx1 - 0.4, wt + 0.35, wz1 - 0.08), W(wx1 - 0.4, wt + 0.6, wz1 - 0.08), 0.015, 6, m=1)
-    blob(bm, wx1 - 0.4, wt + 0.64, wz1 - 0.08, 0.07, 0.045, 0.045, m=1, cuts=2)
+        box(bm, px - 0.04, px + 0.04, wt, wt + 0.75, wz0 + 0.01, wz0 + 0.06, m=4)
+    box(bm, wx0 + 0.02, wx1 - 0.02, wt + 0.3, wt + 0.72, wz0 + 0.02, wz0 + 0.05, m=3)
+    box(bm, wx0 + 0.25, wx0 + 0.65, wt + 0.45, wt + 0.6, wz0 + 0.06, wz0 + 0.08, m=7)  # a saw's blade
+    box(bm, wx0 + 0.18, wx0 + 0.27, wt + 0.44, wt + 0.61, wz0 + 0.05, wz0 + 0.09, m=1)
+    cylinder(bm, W(wx1 - 0.4, wt + 0.35, wz0 + 0.08), W(wx1 - 0.4, wt + 0.6, wz0 + 0.08), 0.015, 6, m=1)
+    blob(bm, wx1 - 0.4, wt + 0.64, wz0 + 0.08, 0.07, 0.045, 0.045, m=1, cuts=2)
     for q in range(3):
-        cylinder(bm, W(wx1 - 0.25 + q * 0.06, wt + 0.4, wz1 - 0.08), W(wx1 - 0.25 + q * 0.06, wt + 0.6, wz1 - 0.08), 0.012, 6, m=7 if q % 2 else 1)
+        cylinder(bm, W(wx1 - 0.25 + q * 0.06, wt + 0.4, wz0 + 0.08), W(wx1 - 0.25 + q * 0.06, wt + 0.6, wz0 + 0.08), 0.012, 6, m=7 if q % 2 else 1)
     # a carving in progress on the bench, shavings round it
     blob(bm, wb["x"] + 0.1, wt + 0.08, wb["z"], 0.12, 0.08, 0.09, m=2, cuts=2)
     for q in range(6):
         blob(bm, wb["x"] + rng.uniform(-0.4, 0.5), wt + 0.01, wb["z"] + rng.uniform(-0.25, 0.25), 0.03, 0.008, 0.02, m=2, cuts=1)
-    # --- the splitting block and its firewood ---
-    sb = L["splitblock"]
-    bx, bz = sb["x"], sb["z"]
-    cylinder(bm, W(bx, 0.0, bz), W(bx, 0.45, bz), 0.32, 16, m=0, cap_m=2, wobble=0.05, rng=rng)
-    cylinder(bm, W(bx + 0.05, 0.47, bz), W(bx + 0.34, 0.86, bz + 0.06), 0.022, 8, m=3)
-    box(bm, bx - 0.06, bx + 0.1, 0.42, 0.52, bz - 0.03, bz + 0.03, m=7)
-    for j in range(2):
-        fx, fz2 = bx - 0.62, bz - 0.25 + j * 0.46
-        for q in range(5):
-            a = q * 2 * math.pi / 5
-            ox, oy = math.cos(a) * 0.06, 0.1 + math.sin(a) * 0.06
-            cylinder(bm, W(fx + ox, oy, fz2 - 0.2), W(fx + ox, oy, fz2 + 0.2), 0.045, 6, m=2 if q % 2 else 0, cap_m=2)
-        cylinder(bm, W(fx, 0.1, fz2 - 0.05), W(fx, 0.1, fz2 - 0.03), 0.13, 10, m=9)
-        cylinder(bm, W(fx, 0.1, fz2 + 0.03), W(fx, 0.1, fz2 + 0.05), 0.13, 10, m=9)
     # --- the river's fishing spots, each facing the water: a flat stone out over it to stand on, a
     # raw fallen log or a smooth boulder to sit on (their tops the log and boulder cushions', the
     # game's seats), and a little fish sign on a stake behind ---
@@ -1364,6 +1337,75 @@ def build_trees(coll):
 # the animals
 
 
+def fauna_node(name, parts, coll, pivot=(0.0, 0.0, 0.0)):
+    """`parts`: [(bmesh-building function, colour hex)] into one vertex-coloured node whose origin is
+    the game point `pivot` (a wing's shoulder, the body's feet)."""
+    bm = bmesh.new()
+    col = None
+    colours = []
+    for build, hexc in parts:
+        before = set(bm.faces)
+        build(bm)
+        colours.append((set(bm.faces) - before, hexc))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    col = bm.loops.layers.float_color.new("Col")
+    for faces, hexc in colours:
+        rgba = (*lin(hexc), 1.0)
+        for f in faces:
+            f.material_index = 0
+            for loop in f.loops:
+                loop[col] = rgba
+    shift = W(*pivot)
+    for v in bm.verts:
+        v.co -= shift
+    me = bpy.data.meshes.new(name + "Mesh")
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(vc_material("FW_Clay"))
+    attr = me.color_attributes.get("Col")
+    if attr is not None:
+        me.color_attributes.active_color = attr
+    ob = bpy.data.objects.new(name, me)
+    coll.objects.link(ob)
+    ob.location = W(*pivot)
+    return ob
+
+
+def build_fauna(coll):
+    """Fauna_Bird_*: a round little songbird perched at its feet (0, 0, 0), facing +z, its wings
+    folded against its sides (their nodes' origins at the shoulders). Fauna_Butterfly_*: a slim body
+    and two broad pale wings from its back (origins at the hinge). Pale where the game tints them."""
+    # the bird: 0.2 m long; a warm brown back, a pale breast (tinted per bird), a gold beak
+    fauna_node("Fauna_Bird_Body", [
+        (lambda bm: blob(bm, 0.0, 0.085, 0.0, 0.07, 0.065, 0.085, m=0, cuts=3), "#8A6A4E"),
+        (lambda bm: blob(bm, 0.0, 0.075, 0.035, 0.055, 0.05, 0.055, m=0, cuts=2), "#F2E6D8"),
+        (lambda bm: blob(bm, 0.0, 0.155, 0.045, 0.05, 0.048, 0.05, m=0, cuts=3), "#7A5B42"),
+        (lambda bm: blob(bm, 0.0, 0.15, 0.1, 0.014, 0.012, 0.022, m=0, cuts=1), "#E8B84A"),
+        (lambda bm: blob(bm, 0.028, 0.165, 0.075, 0.009, 0.009, 0.006, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, -0.028, 0.165, 0.075, 0.009, 0.009, 0.006, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, 0.0, 0.09, -0.1, 0.03, 0.012, 0.05, m=0, cuts=1), "#5E4632"),
+        (lambda bm: cylinder(bm, W(0.02, 0.03, 0.0), W(0.02, 0.0, 0.01), 0.006, 5, m=0), "#C9A06A"),
+        (lambda bm: cylinder(bm, W(-0.02, 0.03, 0.0), W(-0.02, 0.0, 0.01), 0.006, 5, m=0), "#C9A06A"),
+    ], coll)
+    for sx, name in ((1, "Fauna_Bird_WingL"), (-1, "Fauna_Bird_WingR")):
+        shoulder = (sx * 0.06, 0.11, 0.01)
+        fauna_node(name, [
+            (lambda bm, sx=sx: blob(bm, sx * 0.075, 0.095, -0.03, 0.018, 0.045, 0.07, m=0, cuts=2), "#6E5038"),
+        ], coll, pivot=shoulder)
+    # the butterfly: a dark slim body, two broad rounded wings (upper and lower lobes), pale
+    fauna_node("Fauna_Butterfly_Body", [
+        (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.01, 0.01, 0.04, m=0, cuts=2), "#2E2622"),
+        (lambda bm: cylinder(bm, W(0.004, 0.005, 0.035), W(0.02, 0.02, 0.06), 0.002, 4, m=0), "#2E2622"),
+        (lambda bm: cylinder(bm, W(-0.004, 0.005, 0.035), W(-0.02, 0.02, 0.06), 0.002, 4, m=0), "#2E2622"),
+    ], coll)
+    for sx, name in ((1, "Fauna_Butterfly_WingL"), (-1, "Fauna_Butterfly_WingR")):
+        fauna_node(name, [
+            (lambda bm, sx=sx: blob(bm, sx * 0.04, 0.0, 0.012, 0.035, 0.004, 0.03, m=0, cuts=2), "#FFF6E2"),
+            (lambda bm, sx=sx: blob(bm, sx * 0.03, 0.0, -0.022, 0.024, 0.004, 0.02, m=0, cuts=2), "#F4E4C8"),
+            (lambda bm, sx=sx: blob(bm, sx * 0.05, 0.001, 0.018, 0.008, 0.004, 0.008, m=0, cuts=1), "#3A2E28"),
+        ], coll, pivot=(sx * 0.008, 0.0, 0.0))
+
+
 def build_animals(L, coll):
     # the deer: a chibi doe with little antler nubs, grazing by the path, facing the glen
     a = next(x for x in L["animals"] if x["kind"] == "deer")
@@ -1460,6 +1502,7 @@ def build(root):
     build_vista(L, coll)
     build_structures(L, cushions, coll)
     build_animals(L, coll)
+    build_fauna(coll)
     tcoll = bpy.data.collections.new(TREES_COLLECTION)
     bpy.context.scene.collection.children.link(tcoll)
     trees = build_trees(tcoll)
@@ -1493,7 +1536,7 @@ def summary(coll):
         lo = [min(w[k] for w in ws) for k in range(3)]
         hi = [max(w[k] for w in ws) for k in range(3)]
         out[o.name] = {"tris": sum(len(p.vertices) - 2 for p in o.data.polygons), "x": [round(lo[0], 2), round(hi[0], 2)], "y": [round(lo[2], 2), round(hi[2], 2)], "z": [round(-hi[1], 2), round(-lo[1], 2)], "materials": len(o.data.materials)}
-    static = {k: v for k, v in out.items() if not k.startswith(("Tree_", "Animal_"))}
+    static = {k: v for k, v in out.items() if not k.startswith(("Tree_", "Animal_", "Fauna_"))}
     return {"objects": out, "tris": sum(v["tris"] for v in out.values()), "staticDrawCalls": sum(v["materials"] for v in static.values())}
 
 

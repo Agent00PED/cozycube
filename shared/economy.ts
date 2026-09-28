@@ -58,11 +58,14 @@ export const CREEL_PRICES = [0, 80, 180, 400, 850] as const;
  *  catches wait for room (the soft clamp). */
 export const CREEL_CAPACITY = [5, 12, 25, 45, 70] as const;
 
-/** The tackle: bait by the pack; the rods, T2 and T3 from Barnaby, T4 and T5 from Bramble in the
- *  Whispering Woods. */
+/** The tackle: bait by the pack (five kinds, from Barnaby or Finley); the rods, T2 and T3 from
+ *  Barnaby, every tier from Finley on the Whispering Woods' river. */
 export const TACKLE_PRICES = {
-  basicBait: 15, // x5
-  luckyChum: 50, // x3
+  basicBait: 15, // Earthworms x5
+  cornDough: 20, // Sweet Corn Dough x5
+  glowCricket: 35, // Glow-Crickets x4
+  dragonflyLarva: 45, // Dragonfly Larva x3
+  luckyChum: 50, // Stardust Pellets x3
   proRod: 250,
   heronRod: 650,
   masterRod: 1600,
@@ -88,6 +91,10 @@ export const CARRIER_PRICES = [0, 80, 180, 400, 850] as const;
 export const CARRIER_CAPACITY = [8, 18, 35, 60, 100] as const;
 /** What Buster pays for a bundle of split Firewood. */
 export const FIREWOOD_PRICE = 5;
+/** The felling's by-products (a round on a T2-T5 tree that drops no log): what Bramble and Buster
+ *  pay for each, and how much of the bonfire a handful of Ancient Wood Shavings feeds (%). */
+export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 12, shavings: 30 } as const;
+export const SHAVINGS_FUEL = 15;
 /** Buster's forest permits: a Day Trip (one way in through the archway, used on entering) and the
  *  Ranger's Badge (the Whispering Woods for good). */
 export const PERMIT_PRICES = { dayTrip: 200, rangerBadge: 3800 } as const;
@@ -96,13 +103,12 @@ export const MAX_DAY_PERMITS = 10;
 
 // --- the Whispering Pines Slingshot Gallery ---------------------------------------------------------
 
-/** A round's prize by its score: the tiers (the best one also brings the Eagle Eye). Calibrated for
- *  the hitscan gallery with simulated shooters (scratch runs of 4,000 rounds each): a casual one's
- *  median is about 1,900, an average one's 3,100, a good one's 4,850, a sharp one's 5,800. */
+/** A round's prize by its score: the tiers (the best one also brings the Eagle Eye), kept within
+ *  easy reach on a phone. */
 export const SLINGSHOT_PRIZES = [
-  { score: 5000, coins: 60, eagle: true },
-  { score: 3000, coins: 28, eagle: false },
-  { score: 1500, coins: 12, eagle: false },
+  { score: 3000, coins: 60, eagle: true },
+  { score: 1800, coins: 28, eagle: false },
+  { score: 800, coins: 12, eagle: false },
 ] as const;
 /** A Golden Acorn hit: coins at once. */
 export const GOLDEN_ACORN_COINS = 15;

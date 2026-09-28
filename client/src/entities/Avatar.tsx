@@ -95,6 +95,8 @@ export interface AvatarProps {
   fed?: boolean;
   /** Fishing with the Starlight Composite: a shimmer of stars about the rod's tip. */
   rodAura?: boolean;
+  /** You: an x-ray silhouette shows through anything standing between you and the camera. */
+  xray?: boolean;
   /** A capsule title worn over the name (shared/casino.ts CAPSULE_PRIZES id), "" for none. */
   title?: string;
   /** A drink's glow (PlayerState.aura): a casino drink shows round them (entities/CasinoAura.tsx). */
@@ -419,7 +421,40 @@ function useRig(): Rig {
   return rig;
 }
 
+/** The x-ray silhouette: each part of you drawn again in a warm flat glow, only where something is
+ *  in front of it (depth "greater"), just before you are (render order 1 against your 2, the world's
+ *  0), so it never shows through your own parts; pulled a touch toward the camera so the ground
+ *  under your feet never lights it. One opaque pass: no sorting. */
+const XRAY_MAT = new THREE.MeshBasicMaterial({ color: "#ffe2b0", depthWrite: false, depthFunc: THREE.GreaterDepth, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -60, toneMapped: false });
+function useXray(root: THREE.Object3D, on: boolean) {
+  useEffect(() => {
+    if (!on) return;
+    const made: { mesh: THREE.Mesh; ghost: THREE.Mesh; order: number }[] = [];
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || (mesh as unknown as { isLine?: boolean }).isLine || mesh.userData.xrayGhost) return;
+      const ghost = new THREE.Mesh(mesh.geometry, XRAY_MAT);
+      ghost.userData.xrayGhost = true;
+      ghost.raycast = noRaycast;
+      ghost.renderOrder = 1;
+      ghost.frustumCulled = false;
+      made.push({ mesh, ghost, order: mesh.renderOrder });
+    });
+    for (const m of made) {
+      m.mesh.renderOrder = 2;
+      m.mesh.add(m.ghost);
+    }
+    return () => {
+      for (const m of made) {
+        m.mesh.remove(m.ghost);
+        m.mesh.renderOrder = m.order;
+      }
+    };
+  }, [root, on]);
+}
+
 interface RigProps {
+  xray: boolean;
   look: Look;
   pose: CharacterPose;
   speedRef: React.MutableRefObject<number>;
@@ -442,8 +477,9 @@ interface RigProps {
   onCrownTop: (y: number) => void;
 }
 
-function AvatarModel({ look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, awaiting, snack, actionProgress, bobberAt, onHook, fed, rodAura, onCrownTop }: RigProps) {
+function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, awaiting, snack, actionProgress, bobberAt, onHook, fed, rodAura, onCrownTop }: RigProps) {
   const rig = useRig();
+  useXray(rig.root, xray);
   const shirtGoal = useRef(new THREE.Color());
   const walkPhase = useRef(0);
   const blink = useRef({ next: 2 + Math.random() * 3, t: 0 });
@@ -926,7 +962,7 @@ const RING_GEO = new THREE.RingGeometry(0.62, 0.7, 40);
 
 /** A player: the model, dressed and posed, with the nametag and the overhead overlays. */
 export const Avatar = memo(
-  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false, title = "", aura = "" }, ref) {
+  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false, title = "", aura = "", xray = false }, ref) {
     const outfit = useMemo(() => parseLook(look) ?? defaultLook(userId || username, color), [look, userId, username, color]);
     // every avatar breathes and glances round on its own clock, so a crowd never moves in unison
     const seed = useMemo(() => (hashString(userId || username) % 1000) / 100, [userId, username]);
@@ -990,7 +1026,7 @@ export const Avatar = memo(
 
         <ModelBoundary what="avatar.glb" fallback={<StandIn />}>
           <Suspense fallback={<StandIn />}>
-            <AvatarModel look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} fed={fed} rodAura={rodAura} onCrownTop={setCrownTop} />
+            <AvatarModel xray={xray} look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} fed={fed} rodAura={rodAura} onCrownTop={setCrownTop} />
           </Suspense>
         </ModelBoundary>
 

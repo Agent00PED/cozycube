@@ -68,6 +68,9 @@ const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: "#ffffff", side: THREE.
 OUTLINE_MAT.onBeforeCompile = (shader) => {
   shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\ntransformed += normal * 0.055;");
 };
+// (the rim clears away where its tree stands over you: otherwise it would fill the tree's dither
+// holes, a lattice where you should be)
+ditherOccluder(OUTLINE_MAT, 0);
 
 interface Falling {
   id: string;

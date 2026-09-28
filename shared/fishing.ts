@@ -7,7 +7,7 @@
 // same tables in the reel, the creel and Barnaby's shop.
 
 import type { SwimPattern } from "./types";
-import { TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, isAxeId, type AxeId, type TreeKind, type WoodKind } from "./chop";
+import { BYPRODUCT_IDS, TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, isAxeId, type AxeId, type ByproductId, type TreeKind, type WoodKind } from "./chop";
 import { isCraftId, type CraftItem } from "./crafting";
 import { isGearId, type GearId } from "./gear";
 import { CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MAX_DAY_PERMITS, TACKLE_PRICES } from "./economy";
@@ -149,12 +149,25 @@ export interface Bait {
   biteMul: number;
   /** Rare, epic and legendary fish bite this many times as often. */
   rareMul: number;
+  /** After dark it works differently (the Glow-Crickets shine by night). */
+  night?: { biteMul: number; rareMul: number };
   blurb: string;
 }
+/** Finley's (and Barnaby's) bait packs, humblest first. The first and last keep their old ids (a
+ *  pack bought before is the same pack). Stardust Pellets are the premium bait: an AFK line on them
+ *  waits a quarter less. */
 export const BAITS = {
-  glowworm: { name: "Basic Bait", emoji: "🪱", price: TACKLE_PRICES.basicBait, pack: 5, biteMul: 0.6, rareMul: 1, blurb: "Bites come 40% sooner." },
-  stardrop: { name: "Lucky Chum", emoji: "🦐", price: TACKLE_PRICES.luckyChum, pack: 3, biteMul: 1, rareMul: 2.5, blurb: "Rare and legendary fish bite 2.5x as often." },
+  glowworm: { name: "Earthworms", emoji: "🪱", price: TACKLE_PRICES.basicBait, pack: 5, biteMul: 0.6, rareMul: 1, blurb: "Bites come 40% sooner." },
+  corn: { name: "Sweet Corn Dough", emoji: "🌽", price: TACKLE_PRICES.cornDough, pack: 5, biteMul: 0.75, rareMul: 1.3, blurb: "Bites 25% sooner, and rarer fish a little more often." },
+  cricket: { name: "Glow-Crickets", emoji: "🦗", price: TACKLE_PRICES.glowCricket, pack: 4, biteMul: 0.85, rareMul: 1.1, night: { biteMul: 0.5, rareMul: 1.8 }, blurb: "By night: bites twice as fast and rare fish 1.8x as often." },
+  larva: { name: "Dragonfly Larva", emoji: "🐛", price: TACKLE_PRICES.dragonflyLarva, pack: 3, biteMul: 0.9, rareMul: 2, blurb: "Rare fish bite twice as often." },
+  stardrop: { name: "Stardust Pellets", emoji: "🌟", price: TACKLE_PRICES.luckyChum, pack: 3, biteMul: 1, rareMul: 2.5, blurb: "Rare and legendary fish bite 2.5x as often; AFK lines wait a quarter less." },
 } as const satisfies Record<string, Bait>;
+/** A bait's pull right now (the Glow-Crickets' by night). */
+export function baitEffect(bait: BaitId, night: boolean): { biteMul: number; rareMul: number } {
+  const b: Bait = BAITS[bait];
+  return night && b.night ? b.night : { biteMul: b.biteMul, rareMul: b.rareMul };
+}
 export type BaitId = keyof typeof BAITS;
 export const BAIT_IDS = Object.keys(BAITS) as BaitId[];
 export function isBaitId(v: unknown): v is BaitId {
@@ -238,6 +251,8 @@ export interface FishingProfile {
    *  Sawdust (from broken carvings; +15% on the bonfire) rides in a pouch, no slots either. */
   resin: number;
   sawdust: number;
+  /** The felling's by-products, each in its own pouch beside the carrier (no slots). */
+  byproducts: Partial<Record<ByproductId, number>>;
   /** Firewood bundles split at the chopping block (shared/chop.ts WOOD firewood): tied beside the
    *  carrier, no slots; each feeds the bonfire FIREWOOD_FUEL. */
   firewood: number;
@@ -258,7 +273,7 @@ export interface FishingProfile {
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], gear: [], resin: 0, sawdust: 0, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {} };
+  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], gear: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {} };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -336,6 +351,12 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
   if (Array.isArray(r.gear)) p.gear = Array.from(new Set(r.gear.filter(isGearId)));
   p.resin = Math.max(0, Math.min(999, Math.round(Number(r.resin) || 0)));
   p.sawdust = Math.max(0, Math.min(999, Math.round(Number(r.sawdust) || 0)));
+  if (r.byproducts && typeof r.byproducts === "object") {
+    for (const k of BYPRODUCT_IDS) {
+      const n = Math.max(0, Math.min(999, Math.round(Number((r.byproducts as Record<string, unknown>)[k]) || 0)));
+      if (n > 0) p.byproducts[k] = n;
+    }
+  }
   p.firewood = Math.max(0, Math.min(9999, Math.round(Number(r.firewood) || 0)));
   p.dayPermits = Math.max(0, Math.min(MAX_DAY_PERMITS, Math.round(Number(r.dayPermits) || 0)));
   p.ranger = r.ranger === true;
@@ -411,7 +432,7 @@ export interface CatchLuck {
 
 /** What bites, weighted, with luck tipping it toward the rare end. */
 export function rollFish(water: Water, luck: CatchLuck = {}, rand: () => number = Math.random): FishId {
-  const rareMul = (1 + (luck.rareLuck ?? 0)) * (luck.bait ? BAITS[luck.bait].rareMul : 1);
+  const rareMul = (1 + (luck.rareLuck ?? 0)) * (luck.bait ? baitEffect(luck.bait, luck.time === "night").rareMul : 1);
   const reach = luck.rodTier ?? 5;
   const pool = fishOf(water).filter(
     (id) =>
@@ -456,10 +477,10 @@ export function rollCatch(species: FishId, luck: CatchLuck = {}, rand: () => num
 
 /** Seconds from the cast to the bite: the kind's own range, sooner with glowworms, two seconds
  *  sooner while Well-Fed, never under a second and a half. */
-export function biteSeconds(species: FishId, opts: { fed?: boolean; bait?: BaitId | "" } = {}, rand: () => number = Math.random): number {
+export function biteSeconds(species: FishId, opts: { fed?: boolean; bait?: BaitId | ""; night?: boolean } = {}, rand: () => number = Math.random): number {
   const [lo, hi] = FISH[species].bite;
   let s = lo + (hi - lo) * rand();
-  if (opts.bait) s *= BAITS[opts.bait].biteMul;
+  if (opts.bait) s *= baitEffect(opts.bait, !!opts.night).biteMul;
   if (opts.fed) s -= WELL_FED_BITE_BONUS_S;
   return Math.max(1.5, s);
 }

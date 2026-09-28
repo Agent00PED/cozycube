@@ -14,9 +14,10 @@ export function WonderBadge({ worldEvent, currentMap }: { worldEvent: string; cu
     return () => window.clearInterval(t);
   }, [ev]);
   if (!ev || !isCampMap(currentMap)) return null;
-  const left = Math.max(0, Math.ceil((ev.until - Date.now()) / 1000));
+  // (a Titan stands until it is felled: no clock)
+  const left = ev.until > 0 ? Math.max(0, Math.ceil((ev.until - Date.now()) / 1000)) : Infinity;
   if (left <= 0) return null;
-  const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+  const clock = Number.isFinite(left) ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : "until felled";
   const text =
     ev.kind === "surge"
       ? `✨ King-Size Surge ${ev.map === "campfire_night" ? "by the campfire's dock" : "on the woods' river"} · reel by hand`

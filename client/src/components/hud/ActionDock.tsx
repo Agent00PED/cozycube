@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
-import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FOREST_ANIMALS, FOREST_FISHING, woodsSpotOfSeat } from "@shared/worlds/forest";
+import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ANIMALS, FOREST_FISHING, FOREST_WORKBENCH_FRONT, woodsSpotOfSeat } from "@shared/worlds/forest";
 import { FELL_TREE_AT } from "@shared/worlds/trees";
 import { treeTarget } from "../../scene/treeTarget";
 import type { HearthState } from "../../hooks/useColyseusRoom";
@@ -40,7 +40,8 @@ import { glass, hudText, pillButton } from "./glass";
 //                    Size); fishing by hand, [☕ Auto AFK]; AFK, [🎣 Manual Reel]
 //   [🪓 Fell Soft Pine · T1]  the grown tree in reach (the campfire's pines, the woods' trees, a
 //                    Colossal Titan): the radial felling panel
-//   [🦦 Talk to Barnaby]  at the angler's tackle stall by the dock
+//   [🦦 Talk to Barnaby]  at the angler's tackle stall by the dock (in the woods, [🦦 Talk to Finley]
+//                    by his boulder on the river, and [🐻 Talk to Bramble] at his counter)
 //   [🪓 Talk to Buster]  at the lumberjack's firewood stall by the woodpile
 //   [🎣 Go Fishing]  at the dock: sit on its edge at the nearest free spot and cast; sitting on the
 //                    edge already, [🎣 Cast Line]
@@ -265,15 +266,15 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       }
       // Barnaby's tackle stall by the dock
       if (mapId === "campfire_night" && !sitting) {
-        const angler = Object.values(toggleables).find((p) => p.kind === "angler");
+        const angler = toggleables.barnaby;
         if (angler && Math.min(reach(angler), Math.hypot(BARNABY_FRONT.x - cameraFocus.x, BARNABY_FRONT.z - cameraFocus.z)) <= BARNABY_REACH + 0.6) {
           const id = angler.propId;
           found.push({ key: `barnaby:${id}`, type: "barnaby", label: "🦦 Talk to Barnaby", hint: "Sell your creel, buy rods and bait", run: () => interactBridge.current?.useProp(id) });
         }
         // Buster's stall and the workbench beside it: only the nearer one is offered, so walking up
         // to either never shows the other's button too
-        const lumberjack = Object.values(toggleables).find((p) => p.kind === "lumberjack");
-        const bench = Object.values(toggleables).find((p) => p.kind === "workbench");
+        const lumberjack = toggleables.buster;
+        const bench = toggleables.workbench;
         const toBuster = lumberjack ? Math.min(reach(lumberjack), Math.hypot(BUSTER_FRONT.x - cameraFocus.x, BUSTER_FRONT.z - cameraFocus.z)) : Infinity;
         const toBench = bench ? Math.min(reach(bench), Math.hypot(WORKBENCH_FRONT.x - cameraFocus.x, WORKBENCH_FRONT.z - cameraFocus.z)) : Infinity;
         if (lumberjack && toBuster <= BUSTER_REACH + 0.6 && toBuster <= toBench) {
@@ -320,7 +321,10 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           else found.push({ key: `fell:${tree.id}`, type: "chop", label: `🪓 Fell ${info.name} · T${info.tier}`, hint: `Land ${info.rounds[0]}-${info.rounds[1]} rounds on the ring and it comes down (${WOOD[info.wood].name} logs, bigger trees worth more). Needs a T${info.tier} axe or better`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
         }
         if (mapId === "whispering_woods") {
-          if (Math.hypot(BRAMBLE_FRONT.x - px, BRAMBLE_FRONT.z - pz) <= BRAMBLE_REACH + 0.6) found.push({ key: "bramble", type: "barnaby", label: "🐻 Talk to Bramble", hint: "Sell wood and fish; the finest axes and rods in the land", run: () => interactBridge.current?.useProp("bramble") });
+          if (Math.hypot(BRAMBLE_FRONT.x - px, BRAMBLE_FRONT.z - pz) <= BRAMBLE_REACH + 0.6) found.push({ key: "bramble", type: "barnaby", label: "🐻 Talk to Bramble", hint: "The forester: sell logs and by-products, buy any axe and a bigger carrier", run: () => interactBridge.current?.useProp("bramble") });
+          // Bramble's advanced workbench, right beside his counter
+          if (Math.hypot(FOREST_WORKBENCH_FRONT.x - px, FOREST_WORKBENCH_FRONT.z - pz) <= WORKBENCH_REACH + 0.6) found.push({ key: "workbench_adv", type: "workbench", label: "🪚 Advanced Workbench", hint: "Bramble's bench: finer tools, a better chance of a Masterwork", run: () => interactBridge.current?.useProp("workbench_adv") });
+          if (Math.hypot(FINLEY_FRONT.x - px, FINLEY_FRONT.z - pz) <= FINLEY_REACH + 0.6) found.push({ key: "finley", type: "barnaby", label: "🦦 Talk to Finley", hint: "The river's angler: sell fish, buy any rod, a bigger livewell and bait", run: () => interactBridge.current?.useProp("finley") });
           for (const a of FOREST_ANIMALS) {
             if (Math.hypot(a.x - px, a.z - pz) > ANIMAL_REACH + 0.3) continue;
             found.push({ key: `feed:${a.propId}`, type: "critter", label: a.kind === "deer" ? "🦌 Feed the Deer" : "🐇 Feed the Rabbits", hint: "A berry or a mushroom from your forage bag", run: () => interactBridge.current?.useProp(a.propId) });
@@ -462,7 +466,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       if (mySpot && action === "afkfish") found.push({ key: "afk:off", type: "afk", label: "🎣 Manual Reel", hint: "Back to watching the bobber: tap when it dips, then reel it in", run: () => onCampfire({ type: "AFK", on: false }) });
       // the livewell full: resting by the water with a mug until there's room again
       if (mySpot && action === "rest") {
-        found.push({ key: "afk:resume", type: "afk", label: "☕ Resume Auto AFK", hint: "Once there's room in the livewell (sell to Barnaby or Bramble), back to AFK fishing", run: () => onCampfire({ type: "AFK", on: true }) });
+        found.push({ key: "afk:resume", type: "afk", label: "☕ Resume Auto AFK", hint: "Once there's room in the livewell (sell to Barnaby or Finley), back to AFK fishing", run: () => onCampfire({ type: "AFK", on: true }) });
       }
       if (!mySpot && !sitting && action === "") {
         let spot: { id: string; d: number } | null = null;

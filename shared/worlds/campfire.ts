@@ -55,7 +55,6 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   ],
   "lanterns": [{ "x": 7.12, "z": -1.72 }, { "x": 7.12, "z": 1.72 }],
   "tent": { "x": -6.3, "z": -5.0, "r": 1.35, "h": 3.0, "opening": 70 },
-  "tent2": { "x": -7.8, "z": -2.35, "len": 1.9, "w": 1.55, "h": 1.25 },
   "woodpile": { "x": 1.0, "z": -7.0 },
   "trees": [
     { "x": -9.2, "z": -9.5, "s": 1.1 },
@@ -101,7 +100,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "telescope": { "x": 2.3, "z": 9.45 },
   "archway": { "x": -0.1, "z": -9.95, "w": 1.8, "h": 2.6 },
   "gallery": { "x": -4.4, "z": 7.4, "len": 3.4, "rails": [8.25, 8.85, 9.45], "back": 9.95 },
-  "splitblock": { "x": 2.3, "z": -4.7 },
+  "splitblock": { "x": 4.9, "z": -5.7 },
   "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
   "campChair": { "x": 4.5, "z": -7.45 },
   "workbench": { "x": -4.2, "z": -8.35, "len": 1.4, "w": 0.62, "top": 0.86 },
@@ -381,14 +380,6 @@ export const dockSeatOf = (spotPropId: string) => FISHING_SPOTS.find((f) => f.pr
 /** The fishing spot of a seat, if it is one. */
 export const spotOfSeat = (seatId: string) => FISHING_SPOTS.find((f) => f.seat === seatId)?.propId;
 
-/** The second tent: a small A-frame on the upper-left lawn, its door toward the fire (`open`), its
- *  ridge along that way; `across` is the way its two canvas sides slope down. */
-export const TENT2 = (() => {
-  const t = L.tent2;
-  const open = unit(L.fire.x - t.x, L.fire.z - t.z);
-  return { ...t, open, across: { x: -open.z, z: open.x } };
-})();
-
 /** The campfire's seats. */
 export const CAMP_SEATS: CampSeat[] = [
   // the firepit's nine seats, each facing the fire (all "log" seats: play the guitar, roast from
@@ -410,17 +401,6 @@ export const CAMP_SEATS: CampSeat[] = [
     approachX: L.tent.x + TENT_OPENS.x * 2.1,
     approachZ: L.tent.z + TENT_OPENS.z * 2.1,
     lie: { head: { x: L.tent.x - TENT_OPENS.x * 0.35, z: L.tent.z - TENT_OPENS.z * 0.35 }, dir: { x: -TENT_OPENS.x, z: -TENT_OPENS.z } },
-  },
-  // the A-frame: lie on its mat, head to the back, feet to the door
-  {
-    propId: "seat_tent_02",
-    x: TENT2.x,
-    z: TENT2.z,
-    rotationY: 0,
-    cushion: "tentMat",
-    approachX: TENT2.x + TENT2.open.x * (TENT2.len / 2 + 0.75),
-    approachZ: TENT2.z + TENT2.open.z * (TENT2.len / 2 + 0.75),
-    lie: { head: { x: TENT2.x - TENT2.open.x * 0.35, z: TENT2.z - TENT2.open.z * 0.35 }, dir: { x: -TENT2.open.x, z: -TENT2.open.z } },
   },
   // the dock's river edge at each fishing spot: sit with your legs over the water, rod out
   ...FISHING_SPOTS.filter((s) => s.seat.startsWith("seat_dock_")).map((s): CampSeat => ({ propId: s.seat, x: L.dock.x1 - 0.12, z: s.stand.z, rotationY: Math.PI / 2, cushion: "dock", style: "dock", approachX: s.stand.x, approachZ: s.stand.z })),
@@ -532,7 +512,7 @@ export const CAMP_PROPS: PropSpec[] = [
   { propId: "woods_gate", x: L.archway.x, z: L.archway.z, kind: "archway", color: "#8a6a3f", defaultOn: true, approachX: CAMP_ARCHWAY_FRONT.x, approachZ: CAMP_ARCHWAY_FRONT.z },
   // the Whispering Pines Slingshot Gallery on the grass by the fence: its counter
   { propId: "slingshot_gallery", x: L.gallery.x, z: L.gallery.z, kind: "slingshot", color: "#c98b4f", defaultOn: true, approachX: GALLERY_FRONT.x, approachZ: GALLERY_FRONT.z },
-  // the splitting block by the woodpile: logs into Firewood
+  // the splitting block on the open grass in front of the camper van: logs into Firewood
   { propId: "splitblock_camp", x: L.splitblock.x, z: L.splitblock.z, kind: "splitblock", color: "#a8743d", defaultOn: true, approachX: SPLITBLOCK_FRONT.x, approachZ: SPLITBLOCK_FRONT.z },
   // the dark grove west of the tipi, alive with fireflies: catch some in a jar
   (() => {
@@ -600,14 +580,8 @@ export const CAMP_OBSTACLES: AABB[] = [
   ...riverBoxes(),
   // the dock's lantern posts
   ...L.lanterns.map((p) => around(p, 0.12)),
-  // the tipi (you lie down inside it: the seat is within its box, as a sofa's is), and the A-frame
+  // the tipi (you lie down inside it: the seat is within its box, as a sofa's is)
   around(L.tent, L.tent.r - 0.15),
-  {
-    minX: TENT2.x - (Math.abs(TENT2.open.x) * TENT2.len + Math.abs(TENT2.across.x) * TENT2.w) / 2 + 0.12,
-    maxX: TENT2.x + (Math.abs(TENT2.open.x) * TENT2.len + Math.abs(TENT2.across.x) * TENT2.w) / 2 - 0.12,
-    minZ: TENT2.z - (Math.abs(TENT2.open.z) * TENT2.len + Math.abs(TENT2.across.z) * TENT2.w) / 2 + 0.12,
-    maxZ: TENT2.z + (Math.abs(TENT2.open.z) * TENT2.len + Math.abs(TENT2.across.z) * TENT2.w) / 2 - 0.12,
-  },
   // the woodpile
   { minX: L.woodpile.x - 0.6, maxX: L.woodpile.x + 1.0, minZ: L.woodpile.z - 0.5, maxZ: L.woodpile.z + 0.6 },
   // the pines' trunks (the Soft Pines you fell too: a stump is in the way as well) and the boulders

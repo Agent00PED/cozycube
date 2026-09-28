@@ -8,7 +8,8 @@ import type { PropSpec } from "./lounge";
 // (shared/daynight.ts) and, like every world, the one room: walking through the archway is a trip,
 // not a new connection.
 //
-//   The Border          the way in from the archway, meadow and three Soft Pines (T1)
+//   The Border          the way in from the archway, meadow and three Soft Pines (T1), and the
+//                       trail on to Bramble's lined with birches and cedars
 //   The Birch Grove     the west, eight Silver Birches (T2), and the rabbits
 //   The Cedar Ridge     the middle east, five Highland Cedars (T3) on their stony ridge
 //   The Golden Glen     the back west, three Autumn Maples (T4) in gold leaves, and the deer
@@ -16,10 +17,12 @@ import type { PropSpec } from "./lounge";
 //
 // Round them: a meandering river (in off the north edge, out off the east, its banks strewn with
 // pebbles and rocks; four fishing spots on its bank, two of them a log and a rock to sit on: the wild
-// fish, the legendaries and mythics among them), Bramble the Bear's trading post in the south-east,
-// its cabin flush against the eastern tree line and an open clearing before his counter, his
-// advanced workbench beside it, a splitting block for
-// Firewood, and twenty-five vista pines along the back and side edges (not for felling). The layout below is plain JSON between the markers, read as-is by
+// fish, the legendaries and mythics among them), Finley the River Otter on his boulder by the lower
+// river (the woods' angler: fish, rods, livewells, bait), Bramble the Bear's trading post in the
+// south-east (the woods' forester: logs and by-products, axes, carriers), its cabin flush against
+// the eastern tree line and an open clearing before his counter, his advanced workbench right beside
+// it, birds on the vista pines' lower boughs, and twenty-five vista pines along the back and side
+// edges (not for felling). The layout below is plain JSON between the markers, read as-is by
 // scripts/blender/build_forest.py, which builds forest.glb (the diorama, and each tree kind's four
 // looks, stump to mature, for the client to place at its node).
 
@@ -56,7 +59,12 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "id": "maple_1", "kind": "maple", "x": -8.6, "z": -8.4 },
     { "id": "maple_2", "kind": "maple", "x": -5.6, "z": -9.8 },
     { "id": "maple_3", "kind": "maple", "x": -3.0, "z": -7.4 },
-    { "id": "elder_1", "kind": "elderwood", "x": 3.2, "z": -9.0 }
+    { "id": "elder_1", "kind": "elderwood", "x": 3.2, "z": -9.0 },
+    { "id": "birch_9", "kind": "birch", "x": 2.2, "z": 9.9 },
+    { "id": "birch_10", "kind": "birch", "x": 5.2, "z": 10.2 },
+    { "id": "birch_11", "kind": "birch", "x": 6.3, "z": 6.4 },
+    { "id": "cedar_6", "kind": "cedar", "x": 3.6, "z": 6.0 },
+    { "id": "cedar_7", "kind": "cedar", "x": 7.9, "z": 10.6 }
   ],
   "shrine": { "x": 3.2, "z": -9.0, "r": 1.9, "stones": 7 },
   "river": {
@@ -74,9 +82,10 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   "cabin": { "x": 9.85, "z": 5.35, "w": 3.2, "d": 2.4, "h": 2.6 },
   "counter": { "x": 9.85, "z": 7.7, "len": 2.0, "w": 0.55, "top": 0.7 },
   "bramble": { "x": 9.85, "z": 7.0, "yaw": 0 },
-  "workbench": { "x": 6.4, "z": 6.5, "len": 1.6, "w": 0.72, "top": 0.9 },
+  "workbench": { "x": 7.45, "z": 7.75, "len": 1.6, "w": 0.72, "top": 0.9 },
+  "finley": { "x": 9.3, "z": -1.9, "yaw": 2.45 },
+  "birds": [[-11.4, 5.8], [-11.3, -5.0], [-9.3, -11.4], [2.0, -11.5], [8.9, 2.95]],
   "titanSpots": [[-6.7, -6.6], [0.8, 3.6], [-8.1, 6.4]],
-  "splitblock": { "x": -0.9, "z": 5.6 },
   "animals": [
     { "id": "deer", "kind": "deer", "x": -1.8, "z": -4.9 },
     { "id": "rabbits", "kind": "rabbits", "x": -2.6, "z": 5.4 }
@@ -92,8 +101,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "points": [[-1.6, 7.0, 1.3], [-1.9, 3.2, 1.2], [-1.4, 0.0, 1.2], [-1.2, -3.2, 1.2], [-0.4, -5.8, 1.2], [1.8, -7.9, 1.2]] },
     { "points": [[-1.4, 0.0, 1.1], [-3.2, -0.2, 1.0], [-6.2, 0.4, 1.0]] },
     { "points": [[-0.9, -3.8, 1.0], [-3.4, -5.4, 1.0], [-6.0, -6.8, 1.0]] },
-    { "points": [[1.2, 1.2, 1.0], [4.2, 0.4, 1.0], [6.4, -1.4, 1.0], [7.7, -2.6, 1.0]] },
-    { "points": [[5.0, 8.3, 1.0], [6.0, 7.3, 0.9], [6.4, 5.4, 0.9]] }
+    { "points": [[1.2, 1.2, 1.0], [4.2, 0.4, 1.0], [6.4, -1.4, 1.0], [7.7, -2.6, 1.0]] }
   ],
   "spawns": [{ "x": -9.0, "z": 9.7 }, { "x": -8.2, "z": 9.2 }, { "x": -9.6, "z": 9.0 }]
 } /* layout:end */;
@@ -110,7 +118,7 @@ export const TREE_REACH = 2.5;
 /** A tree's trunk (you walk round it, stump or mature). */
 const TRUNK = 0.42;
 
-/** The twenty trees you can fell: their node ids, kinds and places, and the spot you fell from
+/** The twenty-five trees you can fell: their node ids, kinds and places, and the spot you fell from
  *  (a step toward the middle of the wood). */
 export const FOREST_TREES = L.trees.map((t) => {
   const d = Math.hypot(t.x, t.z) || 1;
@@ -186,12 +194,25 @@ export function titanApproach(p: Pt): Pt {
 export const BRAMBLE = L.bramble;
 export const BRAMBLE_FRONT: Pt = { x: L.counter.x, z: L.counter.z + L.counter.w / 2 + 0.7 };
 export const BRAMBLE_REACH = 1.9;
-/** The advanced workbench beside the cabin, and where you stand at it. */
+/** The advanced workbench right beside Bramble's counter, and where you stand at it (on the trail,
+ *  as at the counter). */
 export const FOREST_WORKBENCH = L.workbench;
-export const FOREST_WORKBENCH_FRONT: Pt = { x: L.workbench.x, z: L.workbench.z - L.workbench.w / 2 - 0.65 };
-/** The splitting block (logs into Firewood), and its front. */
-export const FOREST_SPLITBLOCK = L.splitblock;
-export const FOREST_SPLITBLOCK_FRONT: Pt = { x: L.splitblock.x, z: L.splitblock.z - 0.85 };
+export const FOREST_WORKBENCH_FRONT: Pt = { x: L.workbench.x, z: L.workbench.z + L.workbench.w / 2 + 0.65 };
+/** Finley the River Otter on his boulder by the lower river (facing the water: `yaw`), and where
+ *  you stand to trade with him (behind him, off the end of the ridge's path). */
+export const FINLEY = L.finley;
+export const FINLEY_FRONT: Pt = { x: L.finley.x - Math.sin(L.finley.yaw) * 1.1, z: L.finley.z - Math.cos(L.finley.yaw) * 1.1 };
+export const FINLEY_REACH = 1.9;
+/** The songbirds on the vista pines' lower boughs (the side toward the middle of the wood): each
+ *  perch's place, its height on the bough (the pine's lowest tier, as build_forest.py grows it) and
+ *  the way the bird faces. They fly off when someone comes near, and back later; by day only. */
+export const FOREST_BIRDS = L.birds.map(([px, pz], i) => {
+  const pine = L.vista.find(([x, z]) => x === px && z === pz) ?? [px, pz, 1];
+  const S = pine[2] * 1.55;
+  const d = Math.hypot(px, pz) || 1;
+  const r = 0.9 * 1.05 * S;
+  return { id: i, x: px - (px / d) * r, z: pz - (pz / d) * r, y: 0.729 * S, yaw: Math.atan2(-px, -pz) };
+});
 /** The branch archway back to the campfire, and where you stand at it. */
 export const WOODS_ARCHWAY = L.archway;
 export const WOODS_ARCHWAY_FRONT: Pt = { x: L.archway.x, z: L.archway.z - 1.05 };
@@ -207,9 +228,9 @@ export const FOREST_PROPS: PropSpec[] = [
   ...FOREST_FISHING.map((f): PropSpec => ({ propId: f.propId, x: f.stand.x + 0.25, z: f.stand.z, kind: "fishing", color: "#7fb7d6", defaultOn: true, approachX: f.approach.x, approachZ: f.approach.z })),
   { propId: "bramble", x: L.bramble.x, z: L.bramble.z, kind: "ranger", color: "#7a4e2d", defaultOn: true, approachX: BRAMBLE_FRONT.x, approachZ: BRAMBLE_FRONT.z },
   { propId: "workbench_adv", x: L.workbench.x, z: L.workbench.z, kind: "workbench", color: "#c98b4f", defaultOn: true, approachX: FOREST_WORKBENCH_FRONT.x, approachZ: FOREST_WORKBENCH_FRONT.z },
-  { propId: "splitblock_woods", x: L.splitblock.x, z: L.splitblock.z, kind: "splitblock", color: "#a8743d", defaultOn: true, approachX: FOREST_SPLITBLOCK_FRONT.x, approachZ: FOREST_SPLITBLOCK_FRONT.z },
+  { propId: "finley", x: L.finley.x, z: L.finley.z, kind: "angler", color: "#8a5a34", defaultOn: true, approachX: FINLEY_FRONT.x, approachZ: FINLEY_FRONT.z },
   ...FOREST_ANIMALS.map((a): PropSpec => ({ propId: a.propId, x: a.x, z: a.z, kind: "animal", color: "#b88a5a", defaultOn: true, approachX: a.approachX, approachZ: a.approachZ })),
-  // the fairy rings where a Colossal Titan can sprout: `on` only while one stands there
+  // the clearings where a Colossal Titan can sprout: `on` only while one stands there
   ...TITAN_SPOTS.map((p, i): PropSpec => {
     const a = titanApproach(p);
     return { propId: `tree_titan_${i + 1}`, x: p.x, z: p.z, kind: "tree", color: "#e8a93a", defaultOn: false, approachX: a.x, approachZ: a.z };
@@ -239,11 +260,11 @@ export const FOREST_OBSTACLES: AABB[] = [
   // the rocks in and by it, and the fishing seats (a log, a rock)
   ...L.river.rocks.map(([x, z, s]) => around({ x, z }, 0.4 * s)),
   ...FOREST_SEATS.map((st) => around(st, 0.2)),
-  // Bramble's cabin, his counter and him behind it; the workbench, the splitting block
+  // Bramble's cabin, his counter and him behind it; the workbench beside it; Finley's boulder
   { minX: L.cabin.x - L.cabin.w / 2, maxX: L.cabin.x + L.cabin.w / 2, minZ: L.cabin.z - L.cabin.d / 2, maxZ: L.cabin.z + L.cabin.d / 2 },
   { minX: L.counter.x - L.counter.len / 2, maxX: L.counter.x + L.counter.len / 2, minZ: L.bramble.z - 0.35, maxZ: L.counter.z + L.counter.w / 2 },
   { minX: L.workbench.x - L.workbench.len / 2, maxX: L.workbench.x + L.workbench.len / 2, minZ: L.workbench.z - L.workbench.w / 2, maxZ: L.workbench.z + L.workbench.w / 2 },
-  around(L.splitblock, 0.35),
+  around(L.finley, 0.42),
   // the archway's posts either side of its opening
   around({ x: L.archway.x - L.archway.w / 2 - 0.1, z: L.archway.z }, 0.18),
   around({ x: L.archway.x + L.archway.w / 2 + 0.1, z: L.archway.z }, 0.18),
@@ -251,7 +272,5 @@ export const FOREST_OBSTACLES: AABB[] = [
   ...SHRINE_STONES.map((p) => around(p, 0.22)),
   // the deer and the rabbits
   ...L.animals.map((a) => around(a, 0.35)),
-  // the heart of each fairy ring (where a Titan's trunk rises during its event)
-  ...TITAN_SPOTS.map((p) => around(p, 0.45)),
 ];
 export const FOREST_SPAWNS: Pt[] = L.spawns;

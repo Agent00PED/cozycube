@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { AXES, AXE_IDS, FIREWOOD_FUEL, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
+import { AXES, AXE_IDS, BYPRODUCTS, BYPRODUCT_IDS, FIREWOOD_FUEL, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
 import { FIREWOOD_PRICE } from "@shared/economy";
 import { CRAFTS, RESIN_PRICE, craftSalePrice } from "@shared/crafting";
 import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
@@ -96,7 +96,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
   // each log worth its tree's size (the stack's average: a big tree's logs fetch more)
   const hour = parseMarket(market);
   const woodRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => woodPrice(x, mult, woodAverage(profile, x)), hour).total;
-  const woodWorth = WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0) + profile.resin * RESIN_PRICE + profile.firewood * FIREWOOD_PRICE;
+  const woodWorth = WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0) + profile.resin * RESIN_PRICE + profile.firewood * FIREWOOD_PRICE + BYPRODUCT_IDS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
   const craftWorth = priceRun(profile.crafts, (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total;
   const next = nextCarrierTier(profile.carrierTier);
   return (
@@ -143,6 +143,22 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                 </div>
               );
             })}
+            {BYPRODUCT_IDS.filter((k) => (profile.byproducts[k] ?? 0) > 0).map((k) => (
+              <div key={k} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+                <span className="text-2xl">{BYPRODUCTS[k].emoji}</span>
+                <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <b className="text-sm">
+                    {BYPRODUCTS[k].name} <span className="font-normal opacity-70">×{profile.byproducts[k]}</span>
+                  </b>
+                  <span className="text-[11px] opacity-75">
+                    {BYPRODUCTS[k].price} 🪙 each · {BYPRODUCTS[k].blurb}
+                  </span>
+                </div>
+                <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellByproducts", item: k })}>
+                  All · {(profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price} 🪙
+                </button>
+              </div>
+            ))}
             {profile.firewood > 0 && (
               <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
                 <span className="text-2xl">🔥</span>

@@ -19,7 +19,7 @@
 // sprout and a sapling to a new mature tree of a newly rolled size (0.85x to 1.35x): the bigger the
 // tree, the more its logs are worth (the log's value scales with its tree's size squared).
 
-import { AXE_PRICES, CARRIER_CAPACITY, CARRIER_PRICES, WOOD_PRICES } from "./economy";
+import { AXE_PRICES, BYPRODUCT_PRICES, CARRIER_CAPACITY, CARRIER_PRICES, SHAVINGS_FUEL, WOOD_PRICES } from "./economy";
 
 // --- the wood: what a felled tree yields, kept (with the axe) in the camp profile ---
 export type WoodKind = "pine" | "oak" | "charcoal" | "birch" | "cedar" | "maple" | "elderwood";
@@ -117,8 +117,8 @@ export interface TreeInfo {
   rounds: [number, number];
   /** How often a round that lands drops a log (else the tier's by-product). */
   logChance: number;
-  /** The by-products a round drops when it isn't a log, half and half. */
-  byproducts: [Byproduct, Byproduct];
+  /** What a round that lands drops when it isn't a log (none on a T1 tree: always a log). */
+  byproduct: ByproductId | null;
   /** Its trunk's diameter at 1x (cm): the Logbook's record, and the stump's width. */
   trunkCm: number;
   /** The sweet spot's width on its ring (a share of the radius), and how long one contraction takes (s). */
@@ -126,19 +126,26 @@ export interface TreeInfo {
   period: number;
   lore: string;
 }
-/** What a by-product turns into in the pack: a Pine Resin, Sawdust (kindling), or a Firewood bundle. */
-export interface Byproduct {
-  name: string;
-  emoji: string;
-  give: "resin" | "sawdust" | "firewood";
+/** The felling's by-products, one per tier from T2 (a round that lands but drops no log): they ride
+ *  beside the carrier in their own pouches (no slots), and Bramble (or Buster) buys them. Ancient
+ *  Wood Shavings also feed the bonfire. */
+export type ByproductId = "bark" | "amber" | "leafAmber" | "shavings";
+export const BYPRODUCT_IDS: ByproductId[] = ["bark", "amber", "leafAmber", "shavings"];
+export const BYPRODUCTS: Record<ByproductId, { name: string; emoji: string; price: number; fuel?: number; blurb: string }> = {
+  bark: { name: "Birch Bark", emoji: "📜", price: BYPRODUCT_PRICES.bark, blurb: "Paper-white curls off a Silver Birch" },
+  amber: { name: "Amber Resin", emoji: "🍯", price: BYPRODUCT_PRICES.amber, blurb: "Fragrant red sap from a Highland Cedar" },
+  leafAmber: { name: "Golden Leaf Amber", emoji: "🍂", price: BYPRODUCT_PRICES.leafAmber, blurb: "An Autumn Maple's leaf caught in golden sap" },
+  shavings: { name: "Ancient Wood Shavings", emoji: "✨", price: BYPRODUCT_PRICES.shavings, fuel: SHAVINGS_FUEL, blurb: `Elderwood curls that hum: +${SHAVINGS_FUEL}% on the bonfire` },
+};
+export function isByproductId(v: unknown): v is ByproductId {
+  return typeof v === "string" && (BYPRODUCT_IDS as string[]).includes(v);
 }
-const RESIN: Byproduct = { name: "Resin", emoji: "🍯", give: "resin" };
 export const TREES: Record<TreeKind, TreeInfo> = {
-  soft_pine: { name: "Soft Pine", emoji: "🌲", tier: 1, wood: "pine", respawnS: 35, rounds: [1, 2], logChance: 1, byproducts: [RESIN, RESIN], trunkCm: 32, sweet: 0.16, period: 1.7, lore: "Quick to grow and quick to fall: the camp's everyday firewood, sticky with sap." },
-  birch: { name: "Silver Birch", emoji: "🌳", tier: 2, wood: "birch", respawnS: 80, rounds: [2, 3], logChance: 0.8, byproducts: [{ name: "Birch Bark", emoji: "📜", give: "sawdust" }, RESIN], trunkCm: 28, sweet: 0.14, period: 1.55, lore: "Its paper-white bark peels in curls: the best kindling in the woods." },
-  cedar: { name: "Highland Cedar", emoji: "🌲", tier: 3, wood: "cedar", respawnS: 160, rounds: [2, 4], logChance: 0.7, byproducts: [{ name: "Amber Resin", emoji: "🍯", give: "resin" }, { name: "Firewood Shavings", emoji: "🪵", give: "firewood" }], trunkCm: 46, sweet: 0.12, period: 1.4, lore: "Fragrant red heartwood that keeps the moths away and the rain out." },
-  maple: { name: "Autumn Maple", emoji: "🍁", tier: 4, wood: "maple", respawnS: 320, rounds: [3, 4], logChance: 0.6, byproducts: [{ name: "Maple Amber", emoji: "🍯", give: "resin" }, { name: "Twigs", emoji: "🌿", give: "sawdust" }], trunkCm: 55, sweet: 0.105, period: 1.28, lore: "Forever golden: its leaves never quite fall, and its sap turns to amber." },
-  elderwood: { name: "Whispering Elderwood", emoji: "🌌", tier: 5, wood: "elderwood", respawnS: 650, rounds: [3, 5], logChance: 0.5, byproducts: [{ name: "Ancient Shavings", emoji: "✨", give: "sawdust" }, RESIN], trunkCm: 92, sweet: 0.09, period: 1.15, lore: "Older than the stones round it. They say it hums to itself on quiet nights." },
+  soft_pine: { name: "Soft Pine", emoji: "🌲", tier: 1, wood: "pine", respawnS: 35, rounds: [1, 2], logChance: 1, byproduct: null, trunkCm: 32, sweet: 0.16, period: 1.7, lore: "Quick to grow and quick to fall: the camp's everyday firewood, sticky with sap." },
+  birch: { name: "Silver Birch", emoji: "🌳", tier: 2, wood: "birch", respawnS: 80, rounds: [2, 3], logChance: 0.8, byproduct: "bark", trunkCm: 28, sweet: 0.14, period: 1.55, lore: "Its paper-white bark peels in curls: the best kindling in the woods." },
+  cedar: { name: "Highland Cedar", emoji: "🌲", tier: 3, wood: "cedar", respawnS: 160, rounds: [2, 4], logChance: 0.7, byproduct: "amber", trunkCm: 46, sweet: 0.12, period: 1.4, lore: "Fragrant red heartwood that keeps the moths away and the rain out." },
+  maple: { name: "Autumn Maple", emoji: "🍁", tier: 4, wood: "maple", respawnS: 320, rounds: [3, 4], logChance: 0.6, byproduct: "leafAmber", trunkCm: 55, sweet: 0.105, period: 1.28, lore: "Forever golden: its leaves never quite fall, and its sap turns to amber." },
+  elderwood: { name: "Whispering Elderwood", emoji: "🌌", tier: 5, wood: "elderwood", respawnS: 650, rounds: [3, 5], logChance: 0.5, byproduct: "shavings", trunkCm: 92, sweet: 0.09, period: 1.15, lore: "Older than the stones round it. They say it hums to itself on quiet nights." },
 };
 export function isTreeKind(v: unknown): v is TreeKind {
   return typeof v === "string" && (TREE_KINDS as string[]).includes(v);

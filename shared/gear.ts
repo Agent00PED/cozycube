@@ -1,6 +1,6 @@
 // Buster's utility gear: kit you buy once at his stall (the 🧤 Gear tab) and that works for good
 // from then on, no equipping. It lives in the camp profile (FishingProfile.gear); the server applies
-// every effect (the chopping meter's gold band, the bonus log, the walking pace, the workbench's
+// every effect (the felling ring's gold band, the bonus log, the walking pace, the workbench's
 // odds and salvage), and the client draws them from the same functions.
 
 import { GEAR_PRICES } from "./economy";
@@ -15,8 +15,8 @@ export interface Gear {
 }
 
 export const GEAR: Record<GearId, Gear> = {
-  canvas_gloves: { name: "Canvas Work Gloves", emoji: "🧤", price: GEAR_PRICES.canvas_gloves, blurb: "+15% gold sweet spot on the chopping meter" },
-  deerskin_gloves: { name: "Deerskin Grip Gloves", emoji: "🥊", price: GEAR_PRICES.deerskin_gloves, blurb: "+30% gold sweet spot, and a 10% chance of a bonus log per split" },
+  canvas_gloves: { name: "Canvas Work Gloves", emoji: "🧤", price: GEAR_PRICES.canvas_gloves, blurb: "+15% gold sweet spot on the felling ring" },
+  deerskin_gloves: { name: "Deerskin Grip Gloves", emoji: "🥊", price: GEAR_PRICES.deerskin_gloves, blurb: "+30% gold sweet spot on the felling ring, and a 10% chance of a bonus log per round" },
   traction_boots: { name: "Forester Traction Boots", emoji: "🥾", price: GEAR_PRICES.traction_boots, blurb: "+15% walking pace while you carry timber" },
   leather_apron: { name: "Artisan Leather Apron", emoji: "🦺", price: GEAR_PRICES.leather_apron, blurb: "10% less chance to break a carving, and 75% salvage (not 50%) when one breaks" },
 };
@@ -25,7 +25,7 @@ export function isGearId(v: unknown): v is GearId {
   return typeof v === "string" && v in GEAR;
 }
 
-/** How much wider the gloves make the chopping meter's gold band (the better pair counts). */
+/** How much wider the gloves make the felling ring's gold band (the better pair counts). */
 export function gloveSweetBonus(gear: readonly GearId[]): number {
   return gear.includes("deerskin_gloves") ? 0.3 : gear.includes("canvas_gloves") ? 0.15 : 0;
 }

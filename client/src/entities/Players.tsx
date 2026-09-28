@@ -89,7 +89,7 @@ export function LocalPlayerAvatar({ player, room, mapId, targetRef, feed }: { pl
   const groupRef = useRef<THREE.Group>(null);
   const speedRef = useRef(0);
   useLocalPlayerMovement(groupRef, room, player, targetRef, speedRef, mapId);
-  return <Avatar ref={groupRef} speedRef={speedRef} {...avatarProps(player, feed)} onHook={room ? () => room.send("hook") : undefined} />;
+  return <Avatar ref={groupRef} speedRef={speedRef} {...avatarProps(player, feed)} onHook={room ? () => room.send("hook") : undefined} xray />;
 }
 
 // Remote players are drawn a little in the past, interpolated between the positions the server

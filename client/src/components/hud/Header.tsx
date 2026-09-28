@@ -5,7 +5,6 @@ import { isCampDay, minutesToTurn } from "@shared/daynight";
 import { netWorth } from "@shared/casino";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 import { useAnglerProfile } from "./anglerStore";
-import { CreelPopover } from "./CreelPopover";
 import { carrierLoad } from "@shared/fishing";
 import { carrierCapacity } from "@shared/chop";
 import { setCameraMode, useCameraMode } from "../../scene/cameraFocus";
@@ -169,49 +168,34 @@ export function Header(p: HeaderProps) {
         <CoinWallet coins={p.coins} chips={p.chips} onClaim={p.onClaimAllowance} />
         {/* Velvet Chips: bright in the casino; elsewhere a dimmed reminder, only while you hold some */}
         {(isCasinoMap(p.currentMap) || p.chips > 0) && <ChipPurse chips={p.chips} here={isCasinoMap(p.currentMap)} />}
-        {/* the wood carrier: only at the campfire; the pill opens it (WoodCarrierModal) */}
-        {/* the backpack: everything the camp gives you (B) */}
+        {/* the resource gauges: the wood carrier (WoodCarrierModal) and the livewell
+            (FishLivewellModal), each its own drawer (B opens the last one) */}
         <button
           type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "backpack", propId: "backpack" } }))}
-          className={ICON_PILL}
-          title="Backpack (B): your wood, fish, tools and the Nature Logbook"
-          aria-label="Backpack"
+          onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "carrier", propId: "carrier" } }))}
+          className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
+          title={`Wood carrier (B): ${carrierLoad(angler.profile)} of ${carrierCapacity(angler.profile.carrierTier)} slots`}
+          aria-label="Wood carrier"
           aria-haspopup="dialog"
         >
-          <span className={ICON}>🎒</span>
+          <span className={ICON}>🪵</span>
+          <span className={`font-bold tabular-nums ${carrierLoad(angler.profile) >= carrierCapacity(angler.profile.carrierTier) ? "text-rose-200" : "text-amber-100"}`}>
+            {carrierLoad(angler.profile)}/{carrierCapacity(angler.profile.carrierTier)}
+          </span>
         </button>
-        {camp && (
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "carrier", propId: "carrier" } }))}
-            className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-            title={`Wood carrier: ${carrierLoad(angler.profile)} of ${carrierCapacity(angler.profile.carrierTier)} slots`}
-            aria-label="Wood carrier"
-            aria-haspopup="dialog"
-          >
-            <span className={ICON}>🪵</span>
-            <span className={`font-bold tabular-nums ${carrierLoad(angler.profile) >= carrierCapacity(angler.profile.carrierTier) ? "text-rose-200" : "text-amber-100"}`}>
-              {carrierLoad(angler.profile)}/{carrierCapacity(angler.profile.carrierTier)}
-            </span>
-          </button>
-        )}
-        {/* the Fish Creel (the livewell): only where there is fishing (the campfire, the woods) */}
-        {camp && (
-        <div className="relative shrink-0">
-          <button type="button" onClick={() => toggle("creel")} className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`} title={`Fish Creel: ${angler.profile.creel.length} of ${angler.profile.slots}`} aria-label="Fish creel" aria-expanded={open === "creel"} aria-haspopup="dialog">
-            <span className={ICON}>🪣</span>
-            <span className={`font-bold tabular-nums ${angler.profile.creel.length >= angler.profile.slots ? "text-amber-300" : "text-sky-100"}`}>
-              {angler.profile.creel.length}/{angler.profile.slots}
-            </span>
-          </button>
-          {open === "creel" && (
-            <Menu alignRight>
-              <CreelPopover profile={angler.profile} live={angler.live} market={p.market} onOpenFieldGuide={() => (setOpen(null), p.onOpenFieldGuide())} />
-            </Menu>
-          )}
-        </div>
-        )}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "livewell", propId: "livewell" } }))}
+          className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
+          title={`Livewell (B): ${angler.profile.creel.length} of ${angler.profile.slots} fish`}
+          aria-label="Livewell"
+          aria-haspopup="dialog"
+        >
+          <span className={ICON}>🪣</span>
+          <span className={`font-bold tabular-nums ${angler.profile.creel.length >= angler.profile.slots ? "text-amber-300" : "text-sky-100"}`}>
+            {angler.profile.creel.length}/{angler.profile.slots}
+          </span>
+        </button>
 
         <div className="relative hidden shrink-0 sm:block">
           <button type="button" onClick={() => toggle("status")} className={ICON_PILL} title={orbTitle(p, st?.label)} aria-label={orbTitle(p, st?.label)} aria-expanded={open === "status"} aria-haspopup="menu">

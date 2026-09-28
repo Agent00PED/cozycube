@@ -3,10 +3,10 @@ import * as THREE from "three";
 import { cameraFocus } from "./cameraFocus";
 
 // Dithered occlusion: a tree (or a cabin's wall) standing between the camera and you thins to a
-// screen-door 35% where it covers you, so you are never lost behind the pines. A material patch
+// screen-door 30% where it covers you (and your x-ray silhouette glows through what stays: Avatar), so you are never lost behind the pines. A material patch
 // (it chains after any patch already on the material, the pines' wind sway): each fragment of it
 // that is nearer the camera than you, above ankle height, and within a metre of the line from you
-// to the camera, is kept on a 4x4 Bayer pattern (35% of it, easing up to all of it at the rim).
+// to the camera, is kept on a 4x4 Bayer pattern (30% of it, easing up to all of it at the rim).
 // No transparency, no sorting: it stays one opaque draw.
 
 const U = {
@@ -14,11 +14,12 @@ const U = {
   uOccToCam: { value: new THREE.Vector3(1, 1, 1).normalize() },
   uOccOn: { value: 0 },
 };
-/** How much of an occluder stays over you (35%), and how wide the clear window is round you. */
-const KEEP = 0.35;
+/** How much of an occluder stays over you (30%), and how wide the clear window is round you. */
+const KEEP = 0.3;
 const RADIUS = 1.05;
 
-export function ditherOccluder(m: THREE.Material) {
+/** `keep`: how much of it stays over you (the trees' 30%; an outline's 0: gone). */
+export function ditherOccluder(m: THREE.Material, keep = KEEP) {
   if (m.userData.occDither) return;
   m.userData.occDither = true;
   const prev = m.onBeforeCompile;
@@ -55,14 +56,14 @@ export function ditherOccluder(m: THREE.Material) {
           float occAlong = dot(occD, uOccToCam);
           float occR = length(occD - uOccToCam * occAlong);
           if (occAlong > 0.35 && occR < ${RADIUS.toFixed(2)}) {
-            float occKeep = mix(${KEEP.toFixed(2)}, 1.0, smoothstep(${(RADIUS * 0.6).toFixed(2)}, ${RADIUS.toFixed(2)}, occR));
+            float occKeep = mix(${keep.toFixed(2)}, 1.0, smoothstep(${(RADIUS * 0.6).toFixed(2)}, ${RADIUS.toFixed(2)}, occR));
             int occI = int(mod(gl_FragCoord.x, 4.0)) + int(mod(gl_FragCoord.y, 4.0)) * 4;
             if ((OCC_BAYER[occI] + 0.5) / 16.0 > occKeep) discard;
           }
         }`
       );
   };
-  m.customProgramCacheKey = () => prevKey + "|occ-dither";
+  m.customProgramCacheKey = () => prevKey + "|occ-dither" + keep;
   m.needsUpdate = true;
 }
 

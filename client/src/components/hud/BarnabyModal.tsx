@@ -17,6 +17,9 @@ interface Props {
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onOpenFieldGuide: () => void;
   onClose: () => void;
+  /** Who keeps this shop: Barnaby at the campfire (rods up to T3), or Finley the River Otter on the
+   *  woods' river (every rod, T1 to T5). Both buy fish and sell bait and livewells. */
+  keeper?: "barnaby" | "finley";
 }
 
 // Barnaby the Angler's stall by the dock: he buys the creel (each fish by its kind, length and
@@ -32,10 +35,12 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "creel", label: "🪣 Creel" },
 ];
 const HELLO = "Evenin', friend! Name's Barnaby. Got a creel full of fish for me? 🦦";
+const FINLEY_HELLO = "Shh, they're biting! I'm Finley. Fish to sell, a rod to try, or a pack of bait? 🦦🎣";
 
-export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose }: Props) {
+export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose, keeper = "barnaby" }: Props) {
+  const finley = keeper === "finley";
   const [tab, setTab] = useState<Tab>("sell");
-  const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
+  const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: finley ? FINLEY_HELLO : HELLO, ok: true });
   useEffect(
     () =>
       subscribeMessages((type, payload) => {
@@ -56,7 +61,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
   const next = nextCreelTier(profile.creelTier);
 
   return (
-    <Modal title="Barnaby's Bait & Tackle" icon="🦦" onClose={onClose} width={460}>
+    <Modal title={finley ? "Finley's River Tackle" : "Barnaby's Bait & Tackle"} icon={finley ? "🎣" : "🦦"} onClose={onClose} width={460}>
       <div className="flex flex-col gap-3 pb-2">
         {/* Barnaby says */}
         <div className="flex items-start gap-2">
@@ -78,7 +83,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
 
         {tab === "sell" && (
           <div className="flex flex-col gap-2">
-            {aura > 1 && <div className="rounded-xl bg-amber-300/15 px-2.5 py-1.5 text-xs text-amber-100">✨ Cozy Aura: the roaring fire has Barnaby paying 15% more</div>}
+            {aura > 1 && <div className="rounded-xl bg-amber-300/15 px-2.5 py-1.5 text-xs text-amber-100">✨ Cozy Aura: the roaring campfire has {finley ? "Finley" : "Barnaby"} paying 15% more</div>}
             {profile.creel.length === 0 ? (
               <p className="m-0 py-4 text-center text-sm opacity-70">Your creel is empty. Cast a line from the dock or the canoe!</p>
             ) : (
@@ -133,9 +138,9 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
                     <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => shop({ type: "BARNABY", op: "equipRod", rod: id })}>
                       Use
                     </button>
-                  ) : rod.tier >= 4 ? (
-                    // the legendary and mythic rods: Bramble's, in the Whispering Woods
-                    <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🐻 At Bramble's cabin in the woods</span>
+                  ) : rod.tier >= 4 && !finley ? (
+                    // the legendary and mythic rods: Finley's, on the Whispering Woods' river
+                    <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🦦 At Finley's boulder on the woods' river</span>
                   ) : (
                     <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < rod.price} onClick={() => shop({ type: "BARNABY", op: "buyRod", rod: id })}>
                       {rod.price} 🪙

@@ -4,7 +4,7 @@ import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { parseWorldEvent, type PlayerState } from "@shared/types";
 import { parseTrees } from "@shared/chop";
-import { FOREST_ANIMALS, FOREST_LAYOUT as L, FOREST_TREES } from "@shared/worlds/forest";
+import { FINLEY, FOREST_ANIMALS, FOREST_LAYOUT as L, FOREST_TREES, forestRiver } from "@shared/worlds/forest";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -16,12 +16,13 @@ import { CampDaylightContext } from "./campDay";
 import { OcclusionDriver, ditherOccluder } from "./occlusionDither";
 import { FellableTrees } from "./FellableTrees";
 import { SurgeRipples } from "./SurgeRipples";
+import { WoodsFauna } from "./WoodsFauna";
 
 // The Whispering Woods (map "whispering_woods"), behind the campfire's archway. The island is one
 // Blender model, forest.glb (scripts/blender/build_forest.py, laid out from shared/worlds/forest.ts):
 // this file loads it and brings it to life.
 //
-//   the trees     the twenty trees you fell (and a Colossal Titan while one stands): FellableTrees,
+//   the trees     the twenty-five trees you fell (and a Colossal Titan while one stands): FellableTrees,
 //                 from trees.glb, each its own size, as the room says it is growing back
 //   Bramble       the bear ranger at his counter (bramble.glb): he trades wood and fish, sells the
 //                 top axes and rods, and his cabin's windows glow at night
@@ -34,6 +35,7 @@ import { SurgeRipples } from "./SurgeRipples";
 
 export const FOREST_URL = modelUrl("forest.glb");
 export const BRAMBLE_URL = modelUrl("bramble.glb");
+export const FINLEY_URL = modelUrl("finley.glb");
 
 const FOREST_TIME = { value: 0 };
 const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
@@ -136,6 +138,7 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
       <FellableTrees mapId="whispering_woods" trees={treeState} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onUseProp={onUseProp} />
       <SurgeRipples event={wonder} mapId="whispering_woods" waterY={WATER_Y} />
       <CampNpc url={BRAMBLE_URL} what="bramble.glb" prefix="Bramble" at={L.bramble} waveEvent="brambleWave" standIn={<BrambleStandIn />} subscribeMessages={subscribeMessages} talk={BRAMBLE_TALK} />
+      <CampNpc url={FINLEY_URL} what="finley.glb" prefix="Finley" at={FINLEY} waveEvent="finleyWave" standIn={<FinleyStandIn />} subscribeMessages={subscribeMessages} talk={FINLEY_TALK} />
       <ForestLights />
       <Fireflies />
       <OcclusionDriver />
@@ -152,6 +155,18 @@ function StandIn() {
       <mesh geometry={GEO.plane} material={STAND_IN_TOP} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} scale={[L.half * 2, L.half * 2, 1]} raycast={noRaycast} />
     </group>
   );
+}
+const FINLEY_TALK: NpcTalk = {
+  height: 1.3,
+  clicked: ["Shh... they're biting!", "Fish to sell? I'll give you a fair price", "The legendaries hide in the deep bends", "Tight lines, friend!"],
+  greet: {
+    inside: (x, z) => Math.hypot(x - FINLEY.x, z - FINLEY.z) < 3.0,
+    lines: ["Oh! A visitor. Keep your voice down, the trout are shy", "Finley's the name, fish are the game", "Glow-Crickets work wonders after dark, you know", "Bring me your catch: I pay fair"],
+  },
+};
+const FINLEY_STAND_IN = matte("#8a5a34", 0.85);
+function FinleyStandIn() {
+  return <mesh geometry={GEO.box} material={FINLEY_STAND_IN} position={[0, 0.45, 0]} scale={[0.6, 0.9, 0.5]} raycast={noRaycast} />;
 }
 const BRAMBLE_STAND_IN = matte("#7a5236", 0.85);
 function BrambleStandIn() {
@@ -187,6 +202,7 @@ function ForestModel({ subscribeMessages }: { subscribeMessages: (listener: Room
     <>
       <primitive object={scene} />
       <Animals scene={scene} subscribeMessages={subscribeMessages} />
+      <WoodsFauna scene={scene} />
     </>
   );
 }
@@ -279,7 +295,9 @@ function ForestLights() {
 
 const FIREFLY_GEO = new THREE.SphereGeometry(0.035, 6, 4);
 const FIREFLY_MAT = new THREE.MeshBasicMaterial({ color: "#d6ff7a", toneMapped: false, transparent: true });
-const FIREFLY_COUNT = 46;
+const FIREFLY_COUNT = 54;
+/** The river's course (inside the island), for the fireflies along its banks. */
+const RIVER_BANKS = forestRiver(6).filter(([x, z]) => Math.abs(x) < 11.3 && Math.abs(z) < 11.3);
 /** Fireflies drifting over the glen, the shrine and the birches, blinking: by night only. */
 function Fireflies() {
   const d = useContext(CampDaylightContext) ?? 0;
@@ -292,7 +310,13 @@ function Fireflies() {
   const seeds = useMemo(
     () =>
       Array.from({ length: FIREFLY_COUNT }, (_, i) => {
-        const zone = i % 3 === 0 ? { x: -6, z: -8.5, r: 4 } : i % 3 === 1 ? { x: 3.2, z: -9, r: 3 } : { x: -7.5, z: 0.5, r: 4.5 };
+        if (i % 3 === 2) {
+          // along the river's banks, low over the water's edge
+          const [rx, rz, rw] = RIVER_BANKS[Math.floor(Math.random() * RIVER_BANKS.length)];
+          const side = Math.random() < 0.5 ? 1 : -1;
+          return { x: rx + side * (rw + 0.2 + Math.random() * 0.5), z: rz + (Math.random() - 0.5) * 0.6, y: 0.25 + Math.random() * 0.8, p: Math.random() * 10, s: 0.25 + Math.random() * 0.35 };
+        }
+        const zone = i % 3 === 0 ? { x: -6, z: -8.5, r: 4 } : { x: -7.5, z: 0.5, r: 4.5 };
         return { x: zone.x + (Math.random() - 0.5) * zone.r * 2, z: zone.z + (Math.random() - 0.5) * zone.r * 2, y: 0.5 + Math.random() * 1.6, p: Math.random() * 10, s: 0.3 + Math.random() * 0.5 };
       }),
     []
@@ -321,3 +345,4 @@ function Fireflies() {
 }
 
 useGLTF.preload(BRAMBLE_URL);
+useGLTF.preload(FINLEY_URL);
