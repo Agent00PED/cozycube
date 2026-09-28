@@ -8,7 +8,7 @@
 
 import type { SwimPattern } from "./types";
 import { BYPRODUCT_IDS, TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, isAxeId, type AxeId, type ByproductId, type TreeKind, type WoodKind } from "./chop";
-import { isCraftId, type CraftItem } from "./crafting";
+import { PACK_FRAME_SLOTS, TACKLE_BOX_SLOTS, isCraftId, type CraftItem } from "./crafting";
 import { carrierBonus, fitWorn, isGearId, livewellBonus, type GearId } from "./gear";
 import { CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MAX_DAY_PERMITS, TACKLE_PRICES } from "./economy";
 
@@ -207,12 +207,13 @@ export function creelTier(tier: number): CreelTier {
 export function nextCreelTier(tier: number): CreelTier | null {
   return CREEL_TIERS[Math.round(tier)] ?? null;
 }
-/** The livewell's room: its tier's slots, and the Tackle Master's Holster's four more. */
-export function livewellCap(p: Pick<FishingProfile, "slots" | "worn">): number {
-  return p.slots + livewellBonus(p.worn);
+/** The livewell's room: its tier's slots, the Tackle Master's Holster's four more, and the
+ *  Reinforced Tackle Box's three (carved once, for good). */
+export function livewellCap(p: Pick<FishingProfile, "slots" | "worn" | "tackleBox">): number {
+  return p.slots + livewellBonus(p.worn) + (p.tackleBox ? TACKLE_BOX_SLOTS : 0);
 }
 /** Whether the creel has no room for another fish. */
-export function creelFull(p: Pick<FishingProfile, "creel" | "slots" | "worn">): boolean {
+export function creelFull(p: Pick<FishingProfile, "creel" | "slots" | "worn" | "tackleBox">): boolean {
   return p.creel.length >= livewellCap(p);
 }
 /** A full creel: a fresh common catch goes back in the river, and this is paid for letting it go. */
@@ -248,8 +249,14 @@ export interface FishingProfile {
   /** The wood carrier's tier (1-5, shared/chop.ts WOOD_CARRIER_TIERS): how many slots it has for
    *  logs and crafted pieces together (the soft clamp: a load from before stays, new wood waits). */
   carrierTier: number;
-  /** Crafted pieces from Buster's workbench, each in a carrier slot (shared/crafting.ts). */
+  /** Carved pieces from the workbenches, stacked in their own crate (shared/crafting.ts: no carrier
+   *  slots, up to MAX_CRAFT_STACK of a kind). */
   crafts: CraftItem[];
+  /** The things carved once, for good: the Marshmallow Roasting Stick, the Lumberjack Pack Frame
+   *  (+5 carrier slots), the Reinforced Tackle Box (+3 livewell slots). */
+  roastingStick: boolean;
+  packFrame: boolean;
+  tackleBox: boolean;
   /** The accessories owned (shared/gear.ts), and those worn (oldest first: a third ring takes the
    *  oldest one's place); only what is worn works. */
   gear: GearId[];
@@ -281,20 +288,24 @@ export interface FishingProfile {
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {} };
+  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], roastingStick: false, packFrame: false, tackleBox: false, gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {} };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
   return WOOD_KINDS.reduce((sum, k) => sum + (p.wood[k] ?? 0), 0);
 }
-/** How full the wood carrier is: every log and every carved piece takes a slot (Pine Resin and
- *  Sawdust ride beside it and take none). */
-export function carrierLoad(p: Pick<FishingProfile, "wood" | "crafts">): number {
-  return woodCount(p) + p.crafts.length;
+/** How full the wood carrier is: every log takes a slot (the carved pieces stack in their own
+ *  crate, up to MAX_CRAFT_STACK of a kind; Pine Resin, Sawdust, the by-products and Firewood ride
+ *  beside it: none take a slot). */
+export function carrierLoad(p: Pick<FishingProfile, "wood">): number {
+  return woodCount(p);
 }
-/** The carrier's room: its tier's slots, and the Forester's Toolbelt's five more. */
-export function carrierCap(p: Pick<FishingProfile, "carrierTier" | "worn">): number {
-  return carrierCapacity(p.carrierTier) + carrierBonus(p.worn);
+/** The most carved pieces of one kind the crate stacks. */
+export const MAX_CRAFT_STACK = 99;
+/** The carrier's room: its tier's slots, the Forester's Toolbelt's five more, and the Lumberjack
+ *  Pack Frame's five (carved once, for good). */
+export function carrierCap(p: Pick<FishingProfile, "carrierTier" | "worn" | "packFrame">): number {
+  return carrierCapacity(p.carrierTier) + carrierBonus(p.worn) + (p.packFrame ? PACK_FRAME_SLOTS : 0);
 }
 /** A profile read back from storage (or the network), with anything unknown or broken dropped. */
 export function sanitizeFishingProfile(raw: unknown): FishingProfile {
@@ -360,6 +371,9 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
       if (p.crafts.length >= 999) break;
     }
   }
+  p.roastingStick = r.roastingStick === true;
+  p.packFrame = r.packFrame === true;
+  p.tackleBox = r.tackleBox === true;
   if (Array.isArray(r.gear)) p.gear = Array.from(new Set(r.gear.filter(isGearId)));
   // what is worn (a profile from before the slots: everything owned that fits goes on)
   p.worn = fitWorn(Array.isArray(r.worn) ? r.worn.filter(isGearId) : p.gear, p.gear);

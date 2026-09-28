@@ -2,9 +2,9 @@ import { useState } from "react";
 import { BAITS, BAIT_IDS, FISH_TIER_RANK, RODS, TIER_LABEL, creelTier, fishValue, livewellCap, type FishingProfile } from "@shared/fishing";
 import { livewellBonus } from "@shared/gear";
 import type { CampfirePacket } from "@shared/types";
-import { fishGood, marketDirection, marketMultiplier, parseMarket } from "@shared/market";
+import { fishGood, marketMultiplier, parseMarket } from "@shared/market";
 import { Modal } from "./Modal";
-import { FishCard, Trend, lockPacket } from "./ShopShell";
+import { FishCard, lockPacket } from "./ShopShell";
 import { GearSlots } from "./GearSlots";
 
 interface Props {
@@ -42,7 +42,7 @@ export function FishLivewellModal({ profile, market, send, onClose, onOpenCollec
   const lands = TIER_NAMES.filter((t) => FISH_TIER_RANK[t] <= rod.tier).map((t) => TIER_LABEL[t].replace(" ✨", "").replace(" 🌌", ""));
   const bonus = livewellBonus(profile.worn);
   return (
-    <Modal title={`${tier.icon} ${tier.name}`} icon="🪣" onClose={onClose} width={480} pinned>
+    <Modal title={`${tier.icon} ${tier.name}`} icon="🪣" onClose={onClose} width={520} pinned fixedHeight={600}>
       <div className="flex shrink-0 flex-col gap-2 pb-2">
         <div className="flex items-center gap-2 text-xs">
           <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/10">
@@ -69,14 +69,14 @@ export function FishLivewellModal({ profile, market, send, onClose, onOpenCollec
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1" style={{ maxHeight: "52vh" }}>
+      <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1">
         {tab === "fish" &&
           (held === 0 ? (
             <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Your livewell is empty. Cast from the campfire's dock, the canoe, or the woods' river bank.</p>
           ) : (
             <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {profile.creel.map((f, i) => (
-                <FishCard key={i} fish={f} price={fishValue(f, marketMultiplier(fishGood(f.s), hour))} trend={<Trend dir={marketDirection(fishGood(f.s), hour)} />} onToggleLock={() => send(lockPacket(f, i))} />
+                <FishCard key={i} fish={f} price={fishValue(f, marketMultiplier(fishGood(f.s), hour))} mult={marketMultiplier(fishGood(f.s), hour)} onToggleLock={() => send(lockPacket(f, i))} />
               ))}
             </div>
           ))}

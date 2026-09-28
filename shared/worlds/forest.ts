@@ -64,7 +64,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "id": "maple_2", "kind": "maple", "x": -5.6, "z": -9.8 },
     { "id": "maple_3", "kind": "maple", "x": -3.0, "z": -7.4 },
     { "id": "elder_1", "kind": "elderwood", "x": 3.2, "z": -9.0 },
-    { "id": "birch_9", "kind": "birch", "x": 2.2, "z": 9.9 },
+    { "id": "birch_9", "kind": "birch", "x": 4.0, "z": 9.9 },
     { "id": "birch_10", "kind": "birch", "x": -7.6, "z": 6.2 },
     { "id": "birch_11", "kind": "birch", "x": 9.2, "z": 1.2 },
     { "id": "cedar_6", "kind": "cedar", "x": 2.6, "z": 6.0 },

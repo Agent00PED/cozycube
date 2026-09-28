@@ -96,23 +96,13 @@ export interface FellableTreesProps {
 }
 
 export function FellableTrees(props: FellableTreesProps) {
-  // E fells the tree you are next to (the same as a click on it)
-  const useProp = useRef(props.onUseProp);
-  useProp.current = props.onUseProp;
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.code !== "KeyE" || e.repeat) return;
-      const el = document.activeElement as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
-      if (document.querySelector('[role="dialog"]')) return;
-      if (treeTarget.id) useProp.current(`tree_${treeTarget.id}`);
-    };
-    window.addEventListener("keydown", down);
-    return () => {
-      window.removeEventListener("keydown", down);
+  // (E on the tree in reach is the action dock's universal E: its "Fell" action is this tree)
+  useEffect(
+    () => () => {
       treeTarget.id = null;
-    };
-  }, []);
+    },
+    []
+  );
   useFrame((_, dt) => {
     TREE_TIME.value += dt;
   });

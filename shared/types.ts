@@ -822,24 +822,24 @@ export const OUTFITS: Record<OutfitId, WardrobeItem> = {
   outfit_starter_hoodie: { name: "Cozy Hoodie & Sweats", emoji: "🧥", price: 0, archetype: "streetwear" },
   outfit_starter_overalls: { name: "Classic Denim Overalls", emoji: "👖", price: 0, archetype: "workwear" },
   // common
-  outfit_garden_overalls: { name: "Denim Garden Overalls", emoji: "🌻", price: 160, tier: "common", archetype: "workwear" },
-  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 220, tier: "common", archetype: "streetwear" },
-  outfit_red_plaid: { name: "Lumberjack Suspenders", emoji: "🟥", price: 280, tier: "common", archetype: "workwear" },
+  outfit_garden_overalls: { name: "Denim Garden Overalls", emoji: "🌻", price: 1200, tier: "common", archetype: "workwear" },
+  outfit_flannel_vest: { name: "Flannel Camp Vest", emoji: "🪵", price: 1350, tier: "common", archetype: "streetwear" },
+  outfit_red_plaid: { name: "Lumberjack Suspenders", emoji: "🟥", price: 1500, tier: "common", archetype: "workwear" },
   // rare
-  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 450, tier: "rare", archetype: "summer" },
-  outfit_swim_set: { name: "Beach Swim Set", emoji: "🩳", price: 480, tier: "rare", archetype: "summer" },
-  outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 520, tier: "rare", archetype: "robe" },
-  outfit_puffer_vest: { name: "Mustard Down Vest", emoji: "🟨", price: 520, tier: "rare", archetype: "streetwear" },
-  outfit_plaid_lounge: { name: "Plaid Loungewear", emoji: "🛌", price: 600, tier: "rare", archetype: "streetwear" },
-  outfit_wader_overalls: { name: "River Wader Dungarees", emoji: "🥾", price: 650, tier: "rare", archetype: "workwear" },
-  outfit_cable_sweater: { name: "Oversized Cable-Knit Sweater", emoji: "🧶", price: 700, tier: "rare", archetype: "streetwear" },
-  outfit_velvet_lounge: { name: "Velvet Loungewear", emoji: "🍇", price: 780, tier: "rare", archetype: "robe" },
+  outfit_hawaiian: { name: "Hawaiian Floral Set", emoji: "🌺", price: 1600, tier: "rare", archetype: "summer" },
+  outfit_swim_set: { name: "Beach Swim Set", emoji: "🩳", price: 1700, tier: "rare", archetype: "summer" },
+  outfit_boxing: { name: "Boxing Robe & Shorts", emoji: "🥊", price: 1800, tier: "rare", archetype: "robe" },
+  outfit_puffer_vest: { name: "Mustard Down Vest", emoji: "🟨", price: 1800, tier: "rare", archetype: "streetwear" },
+  outfit_plaid_lounge: { name: "Plaid Loungewear", emoji: "🛌", price: 2000, tier: "rare", archetype: "streetwear" },
+  outfit_wader_overalls: { name: "River Wader Dungarees", emoji: "🥾", price: 2100, tier: "rare", archetype: "workwear" },
+  outfit_cable_sweater: { name: "Oversized Cable-Knit Sweater", emoji: "🧶", price: 2300, tier: "rare", archetype: "streetwear" },
+  outfit_velvet_lounge: { name: "Velvet Loungewear", emoji: "🍇", price: 2500, tier: "rare", archetype: "robe" },
   // prestige
-  outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 1600, tier: "prestige", archetype: "robe" },
-  outfit_tuxedo: { name: "Velvet Evening Tuxedo", emoji: "🎩", price: 2000, tier: "prestige", archetype: "formal" },
-  outfit_smoking_jacket: { name: "Vintage Smoking Jacket", emoji: "🍷", price: 2400, tier: "prestige", archetype: "formal" },
-  outfit_yukata_starry: { name: "Starry Night Yukata", emoji: "🌌", price: 2800, tier: "prestige", archetype: "robe" },
-  outfit_pinstripe: { name: "High Roller Pinstripe", emoji: "💼", price: 3200, tier: "prestige", archetype: "formal" },
+  outfit_yukata: { name: "Indigo Bath Yukata", emoji: "👘", price: 3500, tier: "prestige", archetype: "robe" },
+  outfit_tuxedo: { name: "Velvet Evening Tuxedo", emoji: "🎩", price: 4200, tier: "prestige", archetype: "formal" },
+  outfit_smoking_jacket: { name: "Vintage Smoking Jacket", emoji: "🍷", price: 4800, tier: "prestige", archetype: "formal" },
+  outfit_yukata_starry: { name: "Starry Night Yukata", emoji: "🌌", price: 5400, tier: "prestige", archetype: "robe" },
+  outfit_pinstripe: { name: "High Roller Pinstripe", emoji: "💼", price: 6000, tier: "prestige", archetype: "formal" },
   // never sold
   outfit_cyber: { name: "Retro Cyber Jumpsuit", emoji: "🕹️", price: 0, gachaOnly: true, archetype: "streetwear" },
   outfit_blueprint_overalls: { name: "Blueprint Overalls", emoji: "📐", price: 0, pioneer: true, archetype: "workwear" },
@@ -1531,6 +1531,8 @@ export type CampfirePacket =
   | { type: "REEL_DONE"; caught: boolean; treasure: boolean }
   /** A split log (or Golden Charcoal) onto the bonfire. */
   | { type: "ADD_FUEL"; item: FuelItem }
+  /** Forest Whisper Incense from the crate onto the bonfire: rare-fish luck for the whole room. */
+  | { type: "BURN_INCENSE" }
   /** An ingredient into the Dutch oven: a fish from the creel (by its slot), mushrooms or berries. */
   | { type: "STEW_ADD"; ingredient: StewIngredient; slot?: number }
   | { type: "STEW_SCOOP" }

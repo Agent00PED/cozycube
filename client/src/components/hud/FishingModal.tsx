@@ -75,6 +75,8 @@ export interface FishReveal {
   record: boolean;
   king: boolean;
   released: boolean;
+  /** A legendary or a mythic: locked the moment it lands (no Sell All takes it). */
+  locked?: boolean;
 }
 
 interface Props {
@@ -316,6 +318,11 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
                       {reveal.cm} cm · {reveal.kg.toLocaleString("en-US", { maximumFractionDigits: 2 })} kg · {reveal.stars}
                     </span>
                     {reveal.record && <span className="text-sm font-bold text-[#F5A623]">🏆 New personal best!</span>}
+                    {reveal.locked && !reveal.released && (
+                      <span className="cozy-autolock rounded-full border border-[#F5A623] bg-gradient-to-b from-[#ffe08a] to-[#F5A623] px-3 py-1 text-xs font-extrabold uppercase tracking-widest text-[#2B201B]" title="Protected from Sell All: unlock it in the livewell to sell">
+                        🔒 Auto-Locked
+                      </span>
+                    )}
                     {chestOpen && <span className="text-sm font-bold text-[#F5A623]">🧰 Sunken treasure! +{fish.treasureReward ?? 0} 🪙</span>}
                     <span className="text-xs opacity-70">{reveal.released ? "Your livewell's full: back into the water it goes." : "Into the livewell it goes."}</span>
                   </>

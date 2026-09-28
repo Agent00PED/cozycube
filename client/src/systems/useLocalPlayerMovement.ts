@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type { Group } from "three";
-import type { MapId, PlayerState } from "@shared/types";
+import { isCampMap, type MapId, type PlayerState } from "@shared/types";
 import { clampToRegion, isBlocked, walkY } from "@shared/collision";
 import { auraPace } from "@shared/casino";
 import { findPath, type Point } from "@shared/pathfinding";
@@ -12,6 +12,8 @@ import { faceHeading } from "./faceTargets";
 import { liveMotion } from "./liveMotion";
 import { Reconciler } from "./reconcile";
 import { WELL_FED_SPEED } from "@shared/fishing";
+import { TORCH_NIGHT_PACE } from "@shared/crafting";
+import { isCampDay } from "@shared/daynight";
 
 // The local player's locomotion. Three inputs, one controller:
 //   - click-to-move: the scene sets `targetRef` from a floor raycast, and the shared pathfinder
@@ -94,6 +96,15 @@ export function useLocalPlayerMovement(
   // an espresso from the casino's bar: 20% quicker for a minute (the server allows for it)
   const auraPaceRef = useRef(1);
   auraPaceRef.current = auraPace(player.aura);
+  // a Resin Amber Torch carried: 10% quicker at the camp by night (the server allows for it)
+  const torchRef = useRef(false);
+  torchRef.current = useMemo(() => {
+    try {
+      return ((JSON.parse(player.fishing || "{}") as { crafts?: { c?: string }[] }).crafts ?? []).some((c) => c?.c === "amber_torch");
+    } catch {
+      return false;
+    }
+  }, [player.fishing]);
   const velocityRef = useRef(0);
   const facingRef = useRef(0);
   const sendTimerRef = useRef(0);
@@ -192,7 +203,8 @@ export function useLocalPlayerMovement(
       // held keys take over from any click-to-move target
       if (steer && targetRef.current) targetRef.current = null;
       const target = targetRef.current;
-      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current;
+      const torch = torchRef.current && isCampMap(mapId) && !isCampDay(Date.now()) ? TORCH_NIGHT_PACE : 1;
+      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch;
       if (steer) {
         dirX = steer.x;
         dirZ = steer.z;

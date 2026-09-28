@@ -10,9 +10,11 @@ import { SAFE_AREA } from "./Modal";
 
 // The Precision Radial Felling panel: a round dial over the tree's trunk, cut across (its bark, its
 // growth rings, its heart). A timing ring contracts from the bark toward the heart, over and over;
-// press when it meets the golden sweet-spot ring (Space or a click on the dial; on a touch screen,
-// the big round [ CHOP ] button). Its bright centre is a critical swing (now and then a coin or two,
-// or a Pine Resin). Each swing that lands is a round: the notch deepens, chips fly, the round's drop
+// press when it meets the golden sweet-spot ring (Space or a click on the dial; on a touch screen, a
+// tap anywhere). Its bright centre is a critical swing (now and then a coin or two, or a Pine
+// Resin). Each swing that lands is a round: the notch, a radial sector cut in through the bark,
+// deepens toward 70% of the trunk's radius on the last (0.7 x (round / rounds)^0.85: a two-round tree
+// 40% then 70%, a five-round one 18, 32, 45, 58, 70%), chips fly, the round's drop
 // comes (a log worth the tree's size squared, or the tier's by-product), and after a 0.4 s pause the
 // next round's ring starts, the panel open all the while, until the last round brings it down. A miss
 // only costs the time. Leave and the notch stays in the tree for whoever comes next.
@@ -272,21 +274,30 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
         g.lineTo(Math.cos(c.a + 0.05) * R * c.len, Math.sin(c.a + 0.05) * R * c.len);
         g.stroke();
       }
-      // the notch: a wedge cut in from the right, deeper with every round landed
+      // the notch: a radial sector cut in from the right, clean through the bark (its outer edge an
+      // arc beyond the rim) to an apex inside the trunk; the tree comes down when it reaches 70% of
+      // the radius, on the last round: 0.7 x (round / rounds)^0.85
       const { dmg: d, rounds: n } = dmgRef.current;
-      const depth = n > 0 ? Math.min(1, d / n) : 0;
+      const depth = n > 0 && d > 0 ? 0.7 * Math.pow(Math.min(1, d / n), 0.85) : 0;
       if (depth > 0) {
-        const tip = R * (1.08 - depth * 0.95);
-        const half = 0.18 + depth * 0.32;
+        const apex = R * (1 - depth);
+        const outer = R * 1.1 + 4 * dpr;
+        const half = 0.2 + depth * 0.45;
         g.beginPath();
-        g.moveTo(tip, 0);
-        g.lineTo(R * 1.2, -R * half);
-        g.lineTo(R * 1.2, R * half);
+        g.moveTo(apex, 0);
+        g.lineTo(Math.cos(-half) * outer, Math.sin(-half) * outer);
+        g.arc(0, 0, outer, -half, half);
         g.closePath();
         g.fillStyle = "#1c1410";
         g.fill();
+        // the two cut faces, fresh sapwood, meeting at the apex
+        g.beginPath();
+        g.moveTo(Math.cos(-half) * R * 1.02, Math.sin(-half) * R * 1.02);
+        g.lineTo(apex, 0);
+        g.lineTo(Math.cos(half) * R * 1.02, Math.sin(half) * R * 1.02);
         g.strokeStyle = look.sap;
         g.lineWidth = Math.max(1.5, W * 0.006);
+        g.lineJoin = "round";
         g.stroke();
       }
       const s = swingRef.current;
@@ -365,7 +376,20 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
           ? "Timber! 🌲"
           : `Round ${Math.min(rounds, dmg + 1)} of ${rounds}`;
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#1C1614]/60" style={SAFE_AREA} onPointerDown={(e) => e.target === e.currentTarget && close()} role="presentation">
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-[#1C1614]/60"
+      style={{ ...SAFE_AREA, touchAction: "manipulation" }}
+      onPointerDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        // on a touch screen a tap anywhere is a swing (the ✕ closes); with a mouse, a click off
+        // the dial leaves
+        if (touch) {
+          e.preventDefault();
+          strike(e.timeStamp || performance.now());
+        } else close();
+      }}
+      role="presentation"
+    >
       <div role="dialog" aria-label={`Felling a ${name}`} className="clay-pop relative flex flex-col items-center gap-2">
         <div className="flex items-center gap-2 rounded-full border border-[#4A3A30] bg-[#231B18]/90 py-1 pl-3 pr-1 shadow-lg">
           <span className="text-lg" aria-hidden>
@@ -414,25 +438,11 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
           {phase === "swing" || phase === "judging" ? (
             <>
               <span className="kbd-hint"> · Space or click when the ring meets the gold</span>
-              <span className="touch-hint"> · CHOP when the ring meets the gold</span>
+              <span className="touch-hint"> · Tap anywhere when the ring meets the gold</span>
             </>
           ) : null}
         </div>
       </div>
-      {touch && (
-        <button
-          type="button"
-          aria-label="Chop"
-          className="fixed flex items-center justify-center rounded-full border-4 border-[#2B201B] bg-gradient-to-b from-[#FFC45C] to-[#E08A1E] text-lg font-extrabold tracking-widest text-[#2B201B] shadow-[0_10px_30px_rgba(0,0,0,0.5)] active:scale-95"
-          style={{ width: 112, height: 112, right: "max(20px, calc(env(safe-area-inset-right) + 12px))", bottom: "max(24px, calc(env(safe-area-inset-bottom) + 16px))", touchAction: "manipulation" }}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            strike(e.timeStamp || performance.now());
-          }}
-        >
-          CHOP
-        </button>
-      )}
     </div>,
     document.body
   );

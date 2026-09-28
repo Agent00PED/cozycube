@@ -245,6 +245,7 @@ export default function App() {
     market,
     trees,
     worldEvent,
+    incenseUntil,
     claimPioneer,
     connected,
     connectionIssue,
@@ -560,9 +561,9 @@ export default function App() {
             // a reel still open: the fish is revealed there (its model turning, its weight)
             const revealed = !c.afk && starReelRef.current;
             if (revealed)
-              setReelReveal({ species: c.fish.s, name: info.name, emoji: info.emoji, tier: TIER_LABEL[info.tier], tierColor: TIER_COLOR[info.tier], cm: c.fish.cm, kg: fishKg(c.fish), stars: stars(c.fish.q), record: c.record, king: isKingSize(c.fish), released: c.released });
+              setReelReveal({ species: c.fish.s, name: info.name, emoji: info.emoji, tier: TIER_LABEL[info.tier], tierColor: TIER_COLOR[info.tier], cm: c.fish.cm, kg: fishKg(c.fish), stars: stars(c.fish.q), record: c.record, king: isKingSize(c.fish), released: c.released, locked: !!c.fish.l });
             if (c.released) pushToast(released > 0 ? `Livewell full! Released for +${released} coins` : "Livewell full! Released back to the water", { emoji: "🪣", tone: released > 0 ? "coin" : undefined });
-            else if (!revealed) pushToast(`${c.afk ? "💤 " : ""}${info.name} · ${c.fish.cm} cm ${stars(c.fish.q)}${isKingSize(c.fish) ? " · King Size 👑" : ""}${c.record ? " · New personal best!" : ""}`, { emoji: c.record ? "🏆" : info.emoji, silent: c.afk && !c.record, tone: c.record ? "win" : undefined });
+            else if (!revealed) pushToast(`${c.afk ? "💤 " : ""}${info.name} · ${c.fish.cm} cm ${stars(c.fish.q)}${isKingSize(c.fish) ? " · King Size 👑" : ""}${c.record ? " · New personal best!" : ""}${c.fish.l ? " · 🔒 Auto-Locked" : ""}`, { emoji: c.record ? "🏆" : info.emoji, silent: c.afk && !c.record && !c.fish.l, tone: c.record || c.fish.l ? "win" : undefined });
             // a new personal best: the catch held high, and a chime
             if (c.record) playSfx("trophy");
             if (c.treasure > 0) pushToast(`Sunken treasure! +${c.treasure} coins`, { emoji: "🧰", tone: "coin" });
@@ -855,7 +856,7 @@ export default function App() {
           reconnecting={reconnecting}
           latency={latency}
         />
-        <WonderBadge worldEvent={worldEvent} currentMap={currentMap} />
+        <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} />
         <Toasts />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
 

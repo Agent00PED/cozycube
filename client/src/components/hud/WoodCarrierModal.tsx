@@ -1,13 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { ITEMS, parseBag, type CampfirePacket } from "@shared/types";
 import { AXES, BYPRODUCTS, BYPRODUCT_IDS, TREES, WOOD, WOOD_KINDS, carrierTier, trunkCm, woodAverage, woodPrice, type TreeKind, type WoodKind } from "@shared/chop";
-import { CRAFTS, RESIN_PRICE, craftPrice } from "@shared/crafting";
+import { CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks } from "@shared/crafting";
 import { FIREWOOD_PRICE } from "@shared/economy";
 import { carrierBonus } from "@shared/gear";
 import { carrierCap, carrierLoad, stars, type FishingProfile } from "@shared/fishing";
-import { marketMultiplier, parseMarket, woodGood } from "@shared/market";
+import { craftGood, marketMultiplier, parseMarket, woodGood } from "@shared/market";
 import { Modal } from "./Modal";
 import { GearSlots } from "./GearSlots";
+import { TrendBadge } from "./ShopShell";
 
 interface Props {
   profile: FishingProfile;
@@ -60,7 +61,7 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
   const worth = held.reduce((sum, w) => sum + each(w) * profile.wood[w], 0);
   const bonus = carrierBonus(profile.worn);
   return (
-    <Modal title={`${tier.icon} ${tier.name}`} icon="🪵" onClose={onClose} width={480} pinned>
+    <Modal title={`${tier.icon} ${tier.name}`} icon="🪵" onClose={onClose} width={520} pinned fixedHeight={600}>
       <div className="flex shrink-0 flex-col gap-2 pb-2">
         <div className="flex items-center gap-2 text-xs">
           <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/10">
@@ -85,7 +86,7 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1" style={{ maxHeight: "52vh" }}>
+      <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1">
         {tab === "timber" &&
           (held.length === 0 ? (
             <Empty>No logs yet. Fell a tree: the campfire's Soft Pines, or the Whispering Woods.</Empty>
@@ -101,8 +102,11 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
                       {tree ? `⌀ ${trunkCm(tree, scale)} cm · ` : ""}
                       {scale.toFixed(2)}x · <span className="text-amber-200">{stars(sizeStars(scale))}</span>
                     </span>
-                    <span className="text-[10px] tabular-nums opacity-75">
-                      {each(w)} 🪙 each · <b className="text-amber-200">{each(w) * profile.wood[w]} 🪙</b>
+                    <span className="flex items-center gap-1.5 text-[10px] tabular-nums">
+                      <TrendBadge price={each(w)} mult={marketMultiplier(woodGood(w), hour)} />
+                      <span className="opacity-75">
+                        all <b className="text-amber-200">{each(w) * profile.wood[w]} 🪙</b>
+                      </span>
                     </span>
                   </Card>
                 );
@@ -137,10 +141,12 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
               <Empty>No carved pieces yet. A workbench turns logs into totems, planks, birdhouses and more.</Empty>
             ) : (
               <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                {profile.crafts.map((item, i) => (
-                  <Card key={i} emoji={CRAFTS[item.c].emoji} title={CRAFTS[item.c].name} gold={item.m}>
-                    <span className="text-[11px] opacity-80">{item.m ? <span className="text-amber-200">Masterwork ✨</span> : "Carved"} · 1 slot</span>
-                    <span className="text-[10px] tabular-nums text-amber-200">{craftPrice(item)} 🪙</span>
+                {craftStacks(profile.crafts).map((st) => (
+                  <Card key={`${st.item.c}:${st.item.m}`} emoji={CRAFTS[st.item.c].emoji} title={CRAFTS[st.item.c].name} count={st.n} gold={st.item.m}>
+                    <span className="text-[11px] opacity-80">{st.item.m ? <span className="text-amber-200">Masterwork ✨</span> : "Carved"} · its own crate</span>
+                    <span className="flex items-center gap-1.5 text-[10px] tabular-nums">
+                      <TrendBadge price={craftSalePrice(st.item, marketMultiplier(craftGood(st.item.c), hour))} mult={marketMultiplier(craftGood(st.item.c), hour)} />
+                    </span>
                   </Card>
                 ))}
               </div>

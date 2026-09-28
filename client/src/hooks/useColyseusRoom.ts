@@ -241,6 +241,8 @@ interface UseColyseusRoomResult {
   trees: string;
   /** The living wonder under way (shared/types WorldEvent as JSON; "" when none). */
   worldEvent: string;
+  /** Forest Whisper Incense burning at the bonfire until (epoch ms; 0 none): luck for everyone. */
+  incenseUntil: number;
   connected: boolean;
   /** Why the last connection attempt failed or dropped, while it is being retried; null when fine. */
   connectionIssue: string | null;
@@ -351,6 +353,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
   const [market, setMarket] = useState("");
   const [trees, setTrees] = useState("");
   const [worldEvent, setWorldEvent] = useState("");
+  const [incenseUntil, setIncenseUntil] = useState(0);
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   /** The lounge picked was full when we tried to join it. */
@@ -775,6 +778,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
       room.state.listen("market", (raw: string) => setMarket(raw ?? ""));
       room.state.listen("trees", (raw: string) => setTrees(raw ?? ""));
       room.state.listen("worldEvent", (raw: string) => setWorldEvent(raw ?? ""));
+      room.state.listen("incenseUntil", (at: number) => setIncenseUntil(Number(at) || 0));
 
       // the socket closed under us (a proxy timed it out, the network blinked, the server restarted).
       // The token is kept whatever the close code (a proxy's idle cut can look like a clean close):
@@ -876,6 +880,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
     market,
     trees,
     worldEvent,
+    incenseUntil,
     connected,
     connectionIssue,
     reconnect,

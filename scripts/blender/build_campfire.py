@@ -986,6 +986,12 @@ def build_rocks(L, coll):
             blob(bm, r["x"] + 0.45 * s, 0.05, r["z"] + 0.3 * s, 0.22 * s, 0.16 * s, 0.2 * s, m=(i + 1) % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.2)
     # smooth river stones along the tipi-to-gallery walk: a few flat pebbles in a loose drift
     for u in L.get("undergrowth", []):
+        if u["kind"] == "mossy":
+            # a mossy river stone: one rounded boulder and a smaller one leaning on it (the moss on
+            # their tops is in the deco, in its grass green)
+            blob(bm, u["x"], 0.1, u["z"], 0.34, 0.24, 0.3, m=0, cuts=4, noise=0.08, rng=rng, flat_bottom=-0.3)
+            blob(bm, u["x"] + 0.3, 0.05, u["z"] + 0.18, 0.17, 0.13, 0.15, m=1, cuts=3, noise=0.08, rng=rng, flat_bottom=-0.2)
+            continue
         if u["kind"] != "stones":
             continue
         for q in range(5):
@@ -1024,9 +1030,10 @@ def build_fence(L, coll):
 def build_deco(L, coll):
     rng = random.Random(44)
     bm = bmesh.new()
-    # the undergrowth: a cluster of wild mushrooms (red caps, and brown) among every pine's roots,
-    # clear of the paths, the river and the clearing
-    for n, t in enumerate(L["trees"]):
+    # the undergrowth: a cluster of wild mushrooms (red caps, and brown) among every pine's roots
+    # (the fellable Soft Pines' too: by their stumps once felled), clear of the paths, the river and
+    # the clearing
+    for n, t in enumerate(L["trees"] + [{"x": f["x"], "z": f["z"], "s": 1.0} for f in L["fellTrees"]]):
         a0 = rng.random() * 6.28
         for k in range(2 + (n % 3)):
             a = a0 + (k - 1) * 0.55 + rng.uniform(-0.15, 0.15)
@@ -1041,7 +1048,11 @@ def build_deco(L, coll):
     # wildflower tufts along the fence by the telescope
     for u in L.get("undergrowth", []):
         ux, uz = u["x"], u["z"]
-        if u["kind"] == "mushrooms":
+        if u["kind"] == "mossy":
+            # the moss on a mossy stone's top (the stone is with the rocks)
+            blob(bm, ux - 0.02, 0.29, uz - 0.02, 0.26, 0.07, 0.22, m=2, cuts=3, noise=0.12, rng=rng)
+            blob(bm, ux + 0.3, 0.16, uz + 0.18, 0.12, 0.04, 0.1, m=2, cuts=2, noise=0.12, rng=rng)
+        elif u["kind"] == "mushrooms":
             for k in range(4):
                 a = rng.random() * 6.28
                 rr = 0.08 + 0.2 * rng.random()

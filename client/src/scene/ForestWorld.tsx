@@ -4,6 +4,7 @@ import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { parseWorldEvent, type PlayerState } from "@shared/types";
 import { parseTrees } from "@shared/chop";
+import { isBlocked } from "@shared/collision";
 import { FINLEY, FOREST_ANIMALS, FOREST_LAYOUT as L, FOREST_TREES, forestRiver } from "@shared/worlds/forest";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
@@ -207,13 +208,39 @@ function ForestModel({ subscribeMessages }: { subscribeMessages: (listener: Room
   );
 }
 
-/** The deer grazes and looks up; the rabbits hop about; fed, they hop for joy (and hearts rise). */
+/** How far the deer and the rabbits wander from home (m), and the deer's walking pace (m/s). */
+const DEER_ROAM = 1.4;
+const RABBIT_ROAM = 1.0;
+const DEER_PACE = 0.32;
+/** A spot to wander to: round home, on open ground. */
+function roamSpot(home: { x: number; z: number }, roam: number): { x: number; z: number } {
+  for (let k = 0; k < 8; k++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = roam * (0.35 + 0.65 * Math.random());
+    const p = { x: home.x + Math.cos(a) * r, z: home.z + Math.sin(a) * r };
+    if (!isBlocked(p.x, p.z, "whispering_woods", 0.35)) return p;
+  }
+  return { ...home };
+}
+
+/** The deer wanders its little trail near the glen's path, grazing and looking up at each stop; the
+ *  rabbits hop about near home; fed, they hop for joy (and hearts rise). */
 function Animals({ scene, subscribeMessages }: { scene: THREE.Object3D; subscribeMessages: (listener: RoomMessageListener) => () => void }) {
   const parts = useMemo(() => {
     const deer = scene.getObjectByName("Animal_Deer") ?? null;
     const head = scene.getObjectByName("Animal_Deer_Head") ?? null;
     const rabbits = [1, 2, 3].map((k) => scene.getObjectByName(`Animal_Rabbit_${k}`)).filter((o): o is THREE.Object3D => !!o);
-    return { deer, deerY: deer?.position.y ?? 0, head, headRest: head?.rotation.x ?? 0, rabbits: rabbits.map((r) => ({ node: r, y: r.position.y, yaw: r.rotation.y, next: Math.random() * 3, hopAt: -99 })) };
+    const deerHome = deer ? { x: deer.position.x, z: deer.position.z } : { x: 0, z: 0 };
+    return {
+      deer,
+      deerY: deer?.position.y ?? 0,
+      deerHome,
+      // the deer's walk: where it is headed, and until when it grazes where it stands
+      deerWalk: { to: { ...deerHome }, grazeUntil: 3 + Math.random() * 3, yaw: deer?.rotation.y ?? 0 },
+      head,
+      headRest: head?.rotation.x ?? 0,
+      rabbits: rabbits.map((r) => ({ node: r, y: r.position.y, home: { x: r.position.x, z: r.position.z }, yaw: r.rotation.y, next: Math.random() * 3, hopAt: -99, from: { x: r.position.x, z: r.position.z }, to: { x: r.position.x, z: r.position.z } })),
+    };
   }, [scene]);
   const [hearts, setHearts] = useState<{ id: string; at: number } | null>(null);
   const fedAt = useRef<Record<string, number>>({});
@@ -232,7 +259,9 @@ function Animals({ scene, subscribeMessages }: { scene: THREE.Object3D; subscrib
     const t = window.setTimeout(() => setHearts(null), 2200);
     return () => window.clearTimeout(t);
   }, [hearts]);
-  useFrame(({ clock }) => {
+  const dtRef = useRef(0);
+  useFrame(({ clock }, dt) => {
+    dtRef.current = dt;
     const t = clock.elapsedTime;
     const now = performance.now() / 1000;
     if (parts.head) {
@@ -246,19 +275,54 @@ function Animals({ scene, subscribeMessages }: { scene: THREE.Object3D; subscrib
     if (parts.deer) {
       const j = now - (fedAt.current.animal_deer ?? -99);
       parts.deer.position.y = parts.deerY + (j < 1.2 ? Math.abs(Math.sin(j * Math.PI * 2.5)) * 0.12 : 0);
+      // its wander: graze a while, then amble to the next spot near home (never while being fed)
+      const w = parts.deerWalk;
+      const dx = w.to.x - parts.deer.position.x;
+      const dz = w.to.z - parts.deer.position.z;
+      const d = Math.hypot(dx, dz);
+      if (t < w.grazeUntil || j < 2) {
+        // grazing (the head's cycle above)
+      } else if (d > 0.03) {
+        const step = Math.min(d, DEER_PACE * Math.min(0.1, dtRef.current));
+        parts.deer.position.x += (dx / d) * step;
+        parts.deer.position.z += (dz / d) * step;
+        w.yaw = Math.atan2(dx, dz);
+      } else {
+        w.to = roamSpot(parts.deerHome, DEER_ROAM);
+        w.grazeUntil = t + 4 + Math.random() * 5;
+      }
+      let turn = w.yaw - parts.deer.rotation.y;
+      turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+      parts.deer.rotation.y += turn * 0.06;
     }
     const fed = now - (fedAt.current.animal_rabbits ?? -99) < 2;
     for (const r of parts.rabbits) {
       // now and then a hop (and sometimes a turn); fed, a bouncing fit of joy
       if (t > r.next) {
+        // a hop to a spot near home (turning to face it)
         r.hopAt = t;
         r.next = t + 1.8 + Math.random() * 2.6;
-        if (Math.random() < 0.35) r.yaw += (Math.random() - 0.5) * 1.6;
+        r.from = { x: r.node.position.x, z: r.node.position.z };
+        const near = roamSpot(r.home, RABBIT_ROAM);
+        const dx = near.x - r.from.x;
+        const dz = near.z - r.from.z;
+        const d = Math.hypot(dx, dz);
+        // (a hop is short: a quarter metre at most toward it)
+        const step = Math.min(0.25, d);
+        r.to = d > 0.01 ? { x: r.from.x + (dx / d) * step, z: r.from.z + (dz / d) * step } : { ...r.from };
+        if (d > 0.01) r.yaw = Math.atan2(dx, dz);
       }
       const since = t - r.hopAt;
+      const k = Math.min(1, since / 0.35);
+      if (!fed) {
+        r.node.position.x = r.from.x + (r.to.x - r.from.x) * k;
+        r.node.position.z = r.from.z + (r.to.z - r.from.z) * k;
+      }
       const hop = fed ? Math.abs(Math.sin(t * 9)) * 0.16 : since < 0.35 ? Math.sin((since / 0.35) * Math.PI) * 0.12 : 0;
       r.node.position.y = r.y + hop;
-      r.node.rotation.y += (r.yaw - r.node.rotation.y) * 0.08;
+      let turn = r.yaw - r.node.rotation.y;
+      turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+      r.node.rotation.y += turn * 0.08;
     }
   });
   const at = hearts ? FOREST_ANIMALS.find((a) => a.propId === hearts.id) : null;

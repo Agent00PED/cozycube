@@ -3,10 +3,10 @@ import type { BarnabyResult, CampfirePacket } from "@shared/types";
 import { BAITS, BAIT_IDS, CREEL_TIERS, RODS, ROD_IDS, fishValue, livewellCap, nextCreelTier, type FishingProfile } from "@shared/fishing";
 import { livewellBonus } from "@shared/gear";
 import { COZY_AURA_LUCK, hasCozyAura } from "@shared/bonfire";
-import { fishGood, marketDirection, parseMarket, priceRun } from "@shared/market";
+import { fishGood, marketMultiplier, parseMarket, priceRun } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
-import { FishCard, FooterBook, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, lockPacket, type ShopTab } from "./ShopShell";
+import { FishCard, FooterBook, GearShopList, MarketClock, SellAllButton, ShopShell, lockPacket, type ShopNotice, type ShopTab } from "./ShopShell";
 
 interface Props {
   profile: FishingProfile;
@@ -36,19 +36,17 @@ const TABS: [ShopTab, string, string][] = [
   ["storage", "🪣", "Storage"],
   ["gear", "💍", "Gear"],
 ];
-const HELLO = "Evenin', friend! Name's Barnaby. Got a creel full of fish for me? 🦦";
-const FINLEY_HELLO = "Shh, they're biting! I'm Finley. Fish to sell, a rod to try, or a pack of bait? 🦦🎣";
 
 export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose, keeper = "barnaby" }: Props) {
   const finley = keeper === "finley";
   const [tab, setTab] = useState<ShopTab>("trade");
-  const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: finley ? FINLEY_HELLO : HELLO, ok: true });
+  const [notice, setNotice] = useState<ShopNotice | null>(null);
   useEffect(
     () =>
       subscribeMessages((type, payload) => {
         if (type !== "barnabyResult") return;
         const r = payload as BarnabyResult;
-        setSay({ text: r.message, ok: r.ok });
+        setNotice({ text: r.message, ok: r.ok });
         if (r.ok && r.coins > 0) playSfx("coins");
         else if (r.ok) playSfx("pluck");
       }),
@@ -69,8 +67,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
     <ShopShell
       title={finley ? "Finley's River Tackle" : "Barnaby's Bait & Tackle"}
       icon={finley ? "🎣" : "🦦"}
-      keeper="🦦"
-      say={say}
+      notice={notice}
       tabs={TABS}
       tab={tab}
       onTab={setTab}
@@ -89,7 +86,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
           {profile.creel.length === 0 ? (
             <p className="m-0 py-6 text-center text-sm opacity-70">Your livewell is empty. Cast a line from the dock, the canoe, or the woods' river bank!</p>
           ) : (
-            profile.creel.map((f, i) => <FishCard key={i} fish={f} price={price(f)} trend={<Trend dir={marketDirection(fishGood(f.s), hour)} />} onToggleLock={() => send(lockPacket(f, i))} onSell={() => shop({ type: "BARNABY", op: "sell", slot: i })} />)
+            profile.creel.map((f, i) => <FishCard key={i} fish={f} price={price(f)} mult={marketMultiplier(fishGood(f.s), hour)} onToggleLock={() => send(lockPacket(f, i))} onSell={() => shop({ type: "BARNABY", op: "sell", slot: i })} />)
           )}
           {profile.creel.some((f) => f.l) && <p className="m-0 pt-1 text-center text-[11px] opacity-70">🔒 Locked fish stay in your livewell: Sell All passes them by.</p>}
         </div>

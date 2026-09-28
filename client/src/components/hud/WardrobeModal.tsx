@@ -32,7 +32,7 @@ import {
   type PremiumHat,
   type WardrobeItem,
 } from "@shared/types";
-import { WARDROBE_BANDS, WARDROBE_TIER_LABEL, type WardrobeTier } from "@shared/economy";
+import { OUTFIT_BANDS, WARDROBE_BANDS, WARDROBE_TIER_LABEL, type WardrobeTier } from "@shared/economy";
 import { PIONEER_SET, SPECIAL_TITLES, type PioneerInfo } from "@shared/items";
 import { capsuleUnlock } from "@shared/casino";
 import { saveLook } from "./lookStorage";
@@ -293,7 +293,12 @@ export function WardrobeModal({ userId, username, initial, coins, owned, title, 
             )}
           </div>
           <p className="text-xs opacity-60">
-            Common {WARDROBE_BANDS.common.join("–")} · Rare {WARDROBE_BANDS.rare.join("–")} · Prestige {WARDROBE_BANDS.prestige.map((n) => n.toLocaleString()).join("–")} coins. Earn them fishing, chopping, carving, and on the daily checklist.
+            {(() => {
+              // the outfits (whole sets) have their own, higher bands
+              const b = tab === "outfits" ? OUTFIT_BANDS : WARDROBE_BANDS;
+              const band = (t: WardrobeTier) => b[t].map((n) => n.toLocaleString("en-US")).join("–");
+              return `Common ${band("common")} · Rare ${band("rare")} · Prestige ${band("prestige")} coins.`;
+            })()} Earn them fishing, chopping, carving, and on the daily checklist.
           </p>
 
           {/* ---- the try-on's bill: live, and the one button that settles it; only while trying on

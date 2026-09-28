@@ -6,17 +6,23 @@ import { marketDirection, msUntilNextHour, type MarketGood, type MarketState } f
 import { Modal } from "./Modal";
 
 // The shopkeepers' counter, one layout for all four (Buster, Bramble, Barnaby, Finley), in fixed
-// bands so the one-click sales are always in reach: the keeper's word and the tabs on top, the Sell
-// All bar straight under them, one scrolling list of cards in the middle (the only thing that
-// scrolls), and the hour's market clock and the collection button pinned to the foot.
+// bands: the title and the tabs on top, one scrolling list of cards in the middle (the only thing
+// that scrolls), and pinned to the foot the Sell All bar (on the Trade/Sell tab only) over the hour's
+// market clock and the collection button. The keeper's answer to a trade shows for a moment as a
+// toast over the list.
 
 export type ShopTab = "trade" | "tools" | "storage" | "gear";
+
+/** The keeper's answer to the last trade (a new object each time, so the same words show again). */
+export interface ShopNotice {
+  text: string;
+  ok: boolean;
+}
 
 export function ShopShell({
   title,
   icon,
-  keeper,
-  say,
+  notice,
   tabs,
   tab,
   onTab,
@@ -27,51 +33,55 @@ export function ShopShell({
 }: {
   title: string;
   icon: string;
-  /** The keeper's face beside their word. */
-  keeper: string;
-  say: { text: string; ok: boolean };
+  notice: ShopNotice | null;
   /** Each tab: its id, its emoji (hidden on a phone's narrow sheet) and its name. */
   tabs: [ShopTab, string, string][];
   tab: ShopTab;
   onTab: (tab: ShopTab) => void;
-  /** The Sell All buttons (under the tabs, on every tab). */
+  /** The Sell All buttons (pinned to the foot, on the Trade/Sell tab only). */
   sellBar: ReactNode;
   footer: ReactNode;
   onClose: () => void;
   children: ReactNode;
 }) {
+  // the keeper's answer, for a moment
+  const [shown, setShown] = useState<ShopNotice | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    setShown(notice);
+    const t = window.setTimeout(() => setShown(null), 2600);
+    return () => window.clearTimeout(t);
+  }, [notice]);
   return (
     <Modal title={title} icon={icon} onClose={onClose} width={480} pinned>
-      {/* tier 1: the keeper's word and the tabs */}
-      <div className="flex shrink-0 flex-col gap-2 pb-2">
-        <div className="flex items-start gap-2">
-          <span className="text-3xl leading-none" aria-hidden>
-            {keeper}
-          </span>
-          <div className={`clay-pop relative line-clamp-2 flex-1 rounded-2xl px-3 py-1.5 text-[13px] leading-snug ${say.ok ? "bg-white/10" : "bg-rose-400/15"}`} key={say.text} role="status">
-            {say.text}
+      {/* the tabs, straight under the title */}
+      <div className="flex shrink-0 gap-1.5 pb-2" role="tablist">
+        {tabs.map(([id, emoji, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => onTab(id)} className={`min-h-9 min-w-0 flex-1 whitespace-nowrap rounded-full px-1 text-[11px] font-bold transition-transform active:scale-95 ${tab === id ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10 hover:bg-white/15"}`}>
+            {/* (the size on a span: a button's own font is the page's, index.css) */}
+            <span className="text-[11px]">
+              <span className="hidden sm:inline">{emoji} </span>
+              {label}
+            </span>
+          </button>
+        ))}
+      </div>
+      {/* the cards: the only region that scrolls; the keeper's answer floats over its foot */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto border-t border-white/10 py-2 pr-1" style={{ maxHeight: "52vh" }}>
+          {children}
+        </div>
+        {shown && (
+          <div key={shown.text + String(shown.ok)} className={`clay-pop pointer-events-none absolute bottom-2 left-1/2 z-10 max-w-[92%] -translate-x-1/2 rounded-2xl px-3 py-1.5 text-center text-[12.5px] font-semibold leading-snug shadow-lg ${shown.ok ? "bg-[#2B201B] text-[#F7EBE1] ring-1 ring-[#F5A623]/60" : "bg-rose-950/95 text-rose-100 ring-1 ring-rose-300/50"}`} role="status">
+            {shown.text}
           </div>
-        </div>
-        <div className="flex gap-1.5" role="tablist">
-          {tabs.map(([id, emoji, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => onTab(id)} className={`min-h-9 min-w-0 flex-1 whitespace-nowrap rounded-full px-1 text-[11px] font-bold transition-transform active:scale-95 ${tab === id ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10 hover:bg-white/15"}`}>
-              {/* (the size on a span: a button's own font is the page's, index.css) */}
-              <span className="text-[11px]">
-                <span className="hidden sm:inline">{emoji} </span>
-                {label}
-              </span>
-            </button>
-          ))}
-        </div>
+        )}
       </div>
-      {/* tier 2: sell everything, one click, no scrolling */}
-      <div className="flex shrink-0 flex-col gap-1.5 border-b border-white/10 pb-2">{sellBar}</div>
-      {/* tier 3: the cards, the only region that scrolls */}
-      <div className="min-h-0 flex-1 overflow-y-auto py-2 pr-1" style={{ maxHeight: "52vh" }}>
-        {children}
+      {/* the foot: Sell All (Trade/Sell only), then the hour's market and the collection */}
+      <div className="flex shrink-0 flex-col gap-1.5 border-t border-white/10 pt-2">
+        {tab === "trade" && sellBar}
+        <div className="flex items-center justify-between gap-2 text-[11px]">{footer}</div>
       </div>
-      {/* tier 4: the hour's market and the collection */}
-      <div className="flex shrink-0 items-center justify-between gap-2 border-t border-white/10 pt-2 text-[11px]">{footer}</div>
     </Modal>
   );
 }
@@ -124,6 +134,22 @@ export function FooterBook({ label, onClick }: { label: string; onClick: () => v
   );
 }
 
+/** A good's price against its base this hour, as a badge: [ 28 🪙 +16% ▲ ] emerald, [ 18 🪙 -10% ▼ ]
+ *  crimson, [ 20 🪙 0% ▬ ] vanilla (`mult`: the hour's market multiplier, sales included). */
+export function TrendBadge({ price, mult }: { price?: number; mult: number }) {
+  const pct = Math.round((mult - 1) * 100);
+  const tone = pct > 0 ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-300" : pct < 0 ? "border-rose-400/50 bg-rose-500/15 text-rose-300" : "border-[#F7EBE1]/30 bg-[#F7EBE1]/10 text-[#F3E3C3]";
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-1.5 py-px text-[10px] font-bold tabular-nums ${tone}`} title="This hour's price against its base (the market moves on the hour)">
+      {price !== undefined && <span className="text-[#F7EBE1]">{price} 🪙</span>}
+      <span>
+        {pct > 0 ? "+" : ""}
+        {pct}% {pct > 0 ? "▲" : pct < 0 ? "▼" : "▬"}
+      </span>
+    </span>
+  );
+}
+
 /** The hour's trend for a good, against the hour before. */
 export function Trend({ dir }: { dir: "up" | "down" | "flat" }) {
   return dir === "up" ? <span className="font-bold text-emerald-300">▲</span> : dir === "down" ? <span className="font-bold text-rose-300">▼</span> : <span className="opacity-60">▪</span>;
@@ -131,7 +157,7 @@ export function Trend({ dir }: { dir: "up" | "down" | "flat" }) {
 
 /** A fish's card: its kind, length, weight and stars, what it fetches, and its lock (a locked fish
  *  wears an amber frame and a badge, and no sale takes it). `onSell`: a shop's sell button. */
-export function FishCard({ fish, price, onToggleLock, onSell, trend }: { fish: CreelFish; price: number; onToggleLock: () => void; onSell?: () => void; trend?: ReactNode }) {
+export function FishCard({ fish, price, mult, onToggleLock, onSell }: { fish: CreelFish; price: number; /** The hour's market multiplier for its kind (the % badge). */ mult: number; onToggleLock: () => void; onSell?: () => void }) {
   const sp = FISH[fish.s];
   const king = isKingSize(fish);
   const locked = !!fish.l;
@@ -149,25 +175,28 @@ export function FishCard({ fish, price, onToggleLock, onSell, trend }: { fish: C
         <span className="text-[11px] opacity-80">
           {fish.cm} cm · {fishKg(fish)} kg · <span className="text-amber-200">{stars(fish.q)}</span>
         </span>
-        <span className="text-[10px] leading-tight">
+        <span className="flex items-center gap-1.5 text-[10px] leading-tight">
           <b style={{ color: TIER_COLOR[sp.tier] }}>{TIER_LABEL[sp.tier]}</b>
-          <span className="tabular-nums opacity-75">
-            {" "}
-            · {price} 🪙 {trend}
-          </span>
+          {/* (at a shop the price is on its sell button: the badge says only how the hour stands) */}
+          <TrendBadge price={onSell ? undefined : price} mult={mult} />
         </span>
       </div>
-      <button type="button" onClick={onToggleLock} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base transition-transform active:scale-90 ${locked ? "bg-[#F5A623]/30" : "bg-white/10 hover:bg-white/15"}`} aria-pressed={locked} aria-label={locked ? `Unlock the ${sp.name}` : `Lock the ${sp.name}`} title={locked ? "Locked: tap to unlock" : "Lock it: no sale will take it"}>
+      <button type="button" onClick={onToggleLock} className={`flex h-9 shrink-0 items-center justify-center rounded-full text-base transition-transform active:scale-90 ${locked ? "bg-[#F5A623]/30" : "bg-white/10 hover:bg-white/15"}`} style={LOCK_COLUMN} aria-pressed={locked} aria-label={locked ? `Unlock the ${sp.name}` : `Lock the ${sp.name}`} title={locked ? "Locked: tap to unlock" : "Lock it: no sale will take it"}>
         {locked ? "🔒" : "🔓"}
       </button>
       {onSell && (
-        <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 px-3 text-xs" disabled={locked} onClick={onSell} title={locked ? "Locked - Unlock to sell" : undefined}>
-          {locked ? "🔒" : `${price} 🪙`}
+        <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} disabled={locked} onClick={onSell} title={locked ? "Locked - Unlock to sell" : undefined}>
+          <span className="whitespace-nowrap text-[12px]">{locked ? "🔒" : `${price} 🪙`}</span>
         </button>
       )}
     </div>
   );
 }
+
+/** The cards' right-hand columns, fixed so every lock and every price lines up down the list: the
+ *  sell button (a shop's price badge) and the lock beside it. */
+export const PRICE_COLUMN = { width: 88, minWidth: 88, textAlign: "center" } as const;
+export const LOCK_COLUMN = { width: 36, minWidth: 36, marginRight: 8 } as const;
 
 /** The lock packet for a creel slot. */
 export const lockPacket = (fish: CreelFish, slot: number): CampfirePacket => ({ type: "BARNABY", op: "lockFish", slot, fish: fish.s, locked: !fish.l });

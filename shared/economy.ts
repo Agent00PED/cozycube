@@ -14,40 +14,41 @@ export const START_CHIPS = 0;
 // --- the river ------------------------------------------------------------------------------------
 
 /** Barnaby's base price for an average one-star fish of each kind (the day's fifteen and the
- *  night's fifteen, shared/fishing.ts FISH). */
+ *  night's fifteen, shared/fishing.ts FISH), by rarity: a common 5-8, an uncommon 28-40, a rare
+ *  75-110, a legendary 380-480 (a hard fight on the reel), a mythic 1,500-1,800. */
 export const FISH_PRICES = {
   // by day
-  minnow: 3,
-  perch: 5,
-  bluegill: 4,
-  dace: 3,
-  chub: 6,
-  trout: 12,
-  smallmouth_bass: 16,
-  grayling: 14,
-  pike: 20,
-  salmon: 40,
-  golden_trout: 55,
-  muskellunge: 70,
-  golden_arowana: 170,
-  dawn_paddlefish: 210,
-  sunfire_koi: 720,
+  minnow: 5,
+  perch: 7,
+  bluegill: 6,
+  dace: 5,
+  chub: 8,
+  trout: 30,
+  smallmouth_bass: 34,
+  grayling: 32,
+  pike: 38,
+  salmon: 80,
+  golden_trout: 95,
+  muskellunge: 110,
+  golden_arowana: 400,
+  dawn_paddlefish: 440,
+  sunfire_koi: 1500,
   // by night
-  bullhead: 4,
-  moon_shiner: 3,
-  stone_loach: 5,
-  sculpin: 4,
-  glass_eel: 6,
-  catfish: 18,
-  burbot: 15,
-  walleye: 20,
-  lantern_perch: 13,
-  sturgeon: 65,
-  ghost_carp: 48,
-  silver_gar: 58,
-  abyssal_koi: 250,
-  starlight_eel: 190,
-  moonveil_leviathan: 850,
+  bullhead: 6,
+  moon_shiner: 5,
+  stone_loach: 7,
+  sculpin: 6,
+  glass_eel: 8,
+  catfish: 36,
+  burbot: 33,
+  walleye: 40,
+  lantern_perch: 28,
+  sturgeon: 105,
+  ghost_carp: 85,
+  silver_gar: 100,
+  abyssal_koi: 480,
+  starlight_eel: 380,
+  moonveil_leviathan: 1800,
 } as const;
 /** How often each rarity bites, of every bite (the weights split it between the kinds). */
 export const FISH_TIER_ODDS = { common: 0.7, uncommon: 0.2, rare: 0.075, legendary: 0.02, mythic: 0.005 } as const;
@@ -74,9 +75,10 @@ export const TACKLE_PRICES = {
 
 // --- the woodpile -----------------------------------------------------------------------------------
 
-/** Buster's base price for wood: the Timber Trail's softwood, hardwood and golden charcoal, and the
- *  Whispering Woods' birch, cedar, maple and elderwood. */
-export const WOOD_PRICES = { pine: 2, oak: 5, charcoal: 12, birch: 8, cedar: 16, maple: 30, elderwood: 70 } as const;
+/** Buster's base price for a 1x log (a log's worth scales with its tree's size squared): the camp's
+ *  Soft Pine (3-5 a log), the old hardwood and golden charcoal, and the Whispering Woods' birch
+ *  (10-16), cedar (28-42), maple (60-120) and elderwood (250-400). */
+export const WOOD_PRICES = { pine: 4, oak: 5, charcoal: 12, birch: 12, cedar: 32, maple: 80, elderwood: 290 } as const;
 /** A plain carved piece or a plank off the workbench. */
 export const CARVED_PRICE = 8;
 /** What Buster pays for a Pine Resin (from a critical chop): worth keeping for the workbench's
@@ -89,11 +91,12 @@ export const AXE_PRICES = { iron: 250, tempered: 700, golden: 1600, runic: 3400 
  *  waits for room (the soft clamp). */
 export const CARRIER_PRICES = [0, 80, 180, 400, 850] as const;
 export const CARRIER_CAPACITY = [8, 18, 35, 60, 100] as const;
-/** What Buster pays for a bundle of split Firewood. */
-export const FIREWOOD_PRICE = 5;
+/** What Buster pays for a bundle of split Firewood: a Soft Pine log's three bundles are worth about
+ *  the log (no profit in splitting to sell: Firewood is for the bonfire). */
+export const FIREWOOD_PRICE = 2;
 /** The felling's by-products (a round on a T2-T5 tree that drops no log): what Bramble and Buster
  *  pay for each, and how much of the bonfire a handful of Ancient Wood Shavings feeds (%). */
-export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 12, shavings: 30 } as const;
+export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35 } as const;
 export const SHAVINGS_FUEL = 15;
 /** Buster's forest permits: a Day Trip (one way in through the archway, used on entering) and the
  *  Ranger's Badge (the Whispering Woods for good). */
@@ -151,5 +154,12 @@ export const WARDROBE_BANDS: Record<WardrobeTier, readonly [number, number]> = {
   common: [120, 280],
   rare: [450, 800],
   prestige: [1500, 3200],
+};
+/** The outfits (whole sets) sit higher, the wardrobe's big sinks: an everyday or rare set 1,200 to
+ *  2,500, a prestige set 3,500 to 6,000. The bands above are the hats' and the hair's. */
+export const OUTFIT_BANDS: Record<WardrobeTier, readonly [number, number]> = {
+  common: [1200, 1500],
+  rare: [1600, 2500],
+  prestige: [3500, 6000],
 };
 export const WARDROBE_TIER_LABEL: Record<WardrobeTier, string> = { common: "Common", rare: "Rare", prestige: "Prestige" };

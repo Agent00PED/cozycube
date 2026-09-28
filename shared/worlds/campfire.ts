@@ -40,6 +40,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "tripod": { "legs": 0.9, "apex": 1.95, "potY": 1.0, "potR": 0.27 },
   "barnaby": { "x": 4.7, "z": -2.6, "yaw": -0.35 },
   "barnabyBoard": { "x": -0.8, "z": 0.2, "yaw": 0.35 },
+  "busterBoard": { "x": -3.05, "z": -6.85, "yaw": 0.42 },
   "buster": { "x": -1.77, "z": -8.47, "yaw": 0.25 },
   "picnicPlates": [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]],
   "river": {
@@ -157,6 +158,15 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "kind": "mushrooms", "x": -7.9, "z": -3.4 },
     { "kind": "berries", "x": -5.3, "z": -2.3 },
     { "kind": "berries", "x": -8.5, "z": 6.55 },
+    { "kind": "berries", "x": -8.4, "z": -5.7 },
+    { "kind": "berries", "x": -10.3, "z": -2.95 },
+    { "kind": "berries", "x": -10.1, "z": 0.5 },
+    { "kind": "berries", "x": -10.35, "z": 3.35 },
+    { "kind": "berries", "x": -8.3, "z": 6.9 },
+    { "kind": "mossy", "x": -8.4, "z": 1.1 },
+    { "kind": "mossy", "x": -8.55, "z": -3.6 },
+    { "kind": "mossy", "x": -5.2, "z": -0.9 },
+    { "kind": "mossy", "x": -8.35, "z": 4.7 },
     { "kind": "flowers", "x": 1.45, "z": 9.95 },
     { "kind": "flowers", "x": 3.2, "z": 10.0 },
     { "kind": "flowers", "x": 3.95, "z": 9.55 },
@@ -457,6 +467,9 @@ export function lieSeatPose(seat: CampSeat) {
 /** Where you stand to talk to Barnaby: in front of him. */
 /** Barnaby's outdoor chalkboard (the hour's prices), where it stands in the world: its place in his
  *  own frame (CAMPFIRE_LAYOUT.barnabyBoard, which build_barnaby.py reads too), turned with him. */
+/** Buster's chalkboard (the same easel as Barnaby's, from barnaby.glb): the timber's prices, on the
+ *  open ground between his stall and the workbench, facing the fire. */
+export const BUSTER_BOARD = L.busterBoard;
 export const BARNABY_BOARD = {
   x: L.barnaby.x + L.barnabyBoard.x * Math.cos(L.barnaby.yaw) + L.barnabyBoard.z * Math.sin(L.barnaby.yaw),
   z: L.barnaby.z - L.barnabyBoard.x * Math.sin(L.barnaby.yaw) + L.barnabyBoard.z * Math.cos(L.barnaby.yaw),
@@ -634,6 +647,7 @@ export const CAMP_OBSTACLES: AABB[] = [
   around({ x: L.barnaby.x + Math.cos(L.barnaby.yaw) * 0.62, z: L.barnaby.z - Math.sin(L.barnaby.yaw) * 0.62 }, 0.26),
   // his chalkboard, beside him (its easel's feet)
   around(BARNABY_BOARD, 0.32),
+  around(BUSTER_BOARD, 0.32),
 ];
 
 export const CAMP_SPAWNS: Pt[] = L.spawns;

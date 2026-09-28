@@ -26,6 +26,7 @@ export function Modal({
   fit = false,
   landscape = false,
   pinned = false,
+  fixedHeight,
   placard,
 }: {
   title: string;
@@ -43,6 +44,8 @@ export function Modal({
   /** Laid out as fixed bands round one scrolling region of its own (the shops, the drawers): the
    *  sheet itself never scrolls. */
   pinned?: boolean;
+  /** A sheet of one fixed height (px, never over 85vh): its tabs never make it jump (the drawers). */
+  fixedHeight?: number;
   /** A brass placard under the title: a casino table's limits ("MIN: 25 | MAX ALL-IN: 1,000"). */
   placard?: string;
 }) {
@@ -73,7 +76,7 @@ export function Modal({
         role="dialog"
         aria-label={title}
         className={`clay-sheet sm:clay-pop flex ${landscape ? `max-h-[720px] w-[90vw] ${round}` : `max-h-[85vh] ${fit ? "w-[90vw] sm:w-[90vw]" : "w-full"} rounded-t-3xl ${cozy ? "sm:rounded-[20px]" : "sm:rounded-3xl"}`} flex-col overflow-hidden border shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md ${toneClass} ${casino ? "casino-sheet casino-body" : ""}`}
-        style={{ maxWidth: landscape ? (width ?? 1200) : (width ?? 480), height: landscape ? SAFE_LANDSCAPE_H : undefined }}
+        style={{ maxWidth: landscape ? (width ?? 1200) : (width ?? 480), height: landscape ? SAFE_LANDSCAPE_H : fixedHeight ? `min(${fixedHeight}px, 85vh)` : undefined }}
       >
         <div className={`flex items-center gap-3 px-5 ${landscape ? "pt-2.5 pb-1" : "pt-4 pb-2"}`}>
           {icon && <span className="text-2xl">{icon}</span>}

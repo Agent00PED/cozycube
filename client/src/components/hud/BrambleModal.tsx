@@ -6,7 +6,7 @@ import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import { marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
-import { FooterBook, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, type ShopTab } from "./ShopShell";
+import { FooterBook, PRICE_COLUMN, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, type ShopNotice, type ShopTab } from "./ShopShell";
 
 // Bramble the Bear's trading post in the Whispering Woods: the woods' forester, on the shops'
 // fixed-anchor counter (ShopShell). He buys your logs (at the camp's hour's prices, each log worth its
@@ -21,7 +21,6 @@ const TABS: [ShopTab, string, string][] = [
   ["storage", "🎒", "Storage"],
   ["gear", "💍", "Gear"],
 ];
-const HELLO = "Well now, a visitor! Bramble's the name, forester of these woods. Timber to sell, an axe to try, or a bigger carrier? 🐻";
 
 interface Props {
   profile: FishingProfile;
@@ -35,13 +34,13 @@ interface Props {
 
 export function BrambleModal({ profile, coins, market, send, subscribeMessages, onOpenCollection, onClose }: Props) {
   const [tab, setTab] = useState<ShopTab>("trade");
-  const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
+  const [notice, setNotice] = useState<ShopNotice | null>(null);
   useEffect(
     () =>
       subscribeMessages((type, payload) => {
         if (type !== "busterResult") return;
         const r = payload as BarnabyResult;
-        setSay({ text: r.message, ok: r.ok });
+        setNotice({ text: r.message, ok: r.ok });
         if (r.ok && r.coins > 0) playSfx("coins");
         else if (r.ok) playSfx("chime");
       }),
@@ -59,8 +58,7 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
     <ShopShell
       title="Bramble's Trading Post"
       icon="🐻"
-      keeper="🐻"
-      say={say}
+      notice={notice}
       tabs={TABS}
       tab={tab}
       onTab={setTab}
@@ -92,8 +90,8 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
                   {woodAverage(profile, k) > 1.01 ? ` · big logs ×${woodAverage(profile, k).toFixed(2)}` : ""}
                 </span>
               </div>
-              <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: "all" })}>
-                All · {logRun(k, profile.wood[k])} 🪙
+              <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: "all" })}>
+                <span className="whitespace-nowrap text-[12px]">All · {logRun(k, profile.wood[k])} 🪙</span>
               </button>
             </div>
           ))}
@@ -106,8 +104,8 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
                 </b>
                 <span className="text-[11px] opacity-75">{BYPRODUCTS[k].price} 🪙 each</span>
               </div>
-              <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellByproducts", item: k })}>
-                All · {(profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price} 🪙
+              <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sellByproducts", item: k })}>
+                <span className="whitespace-nowrap text-[12px]">All · {(profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price} 🪙</span>
               </button>
             </div>
           ))}
@@ -120,8 +118,8 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
                 </b>
                 <span className="text-[11px] opacity-75">{FIREWOOD_PRICE} 🪙 a bundle</span>
               </div>
-              <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellFirewood", count: "all" })}>
-                All · {profile.firewood * FIREWOOD_PRICE} 🪙
+              <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sellFirewood", count: "all" })}>
+                <span className="whitespace-nowrap text-[12px]">All · {profile.firewood * FIREWOOD_PRICE} 🪙</span>
               </button>
             </div>
           )}
@@ -165,7 +163,7 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
       {tab === "storage" && (
         <div className="flex flex-col gap-1.5">
           <p className="m-0 text-center text-xs opacity-75">
-            Every log and carved piece takes a slot ({carrierLoad(profile)}/{carrierCap(profile)} now). By-products and Firewood ride beside it.
+            Every log takes a slot ({carrierLoad(profile)}/{carrierCap(profile)} now). Carved pieces stack in their own crate; by-products and Firewood ride beside it.
           </p>
           {WOOD_CARRIER_TIERS.map((t, i) => {
             const tier = i + 1;

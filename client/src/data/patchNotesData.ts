@@ -617,6 +617,41 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.6.13",
+        date: "2026-09-28",
+        title: "The Workbench Matrix & a Fairer Market",
+        summary: "Fifteen workbench recipes with a material filter, a rebalanced market with a next-hour forecast on two chalkboards, cleaner shops and drawers, AFK fishing that uses your bait, a true radial notch in the felling, and E for everything.",
+        changes: {
+          features: [
+            "The workbench has fifteen recipes to filter by material: Soft Pine, Birch, Cedar, Maple, Elderwood, and Resins & Byproducts. They use logs, Firewood, Pine Resin and the felling's by-products, from a Rustic Camp Stool to the Elderwood Grand Clock (1,650 coins).",
+            "Made once, for good: the Marshmallow Roasting Stick (sit on a log bench by the fire and there's a marshmallow on it), the Lumberjack Pack Frame (+5 carrier slots) and the Reinforced Tackle Box (+3 livewell slots).",
+            "A Resin Amber Torch in your crate lights your way: 10% quicker at the camp by night. Burn Forest Whisper Incense at the bonfire and rare fish bite 20% more for everyone in the room for 10 minutes.",
+            "Carved pieces stack in their own crate (up to 99 of a kind) and no longer take up wood carrier slots.",
+            "E does the best thing in reach: talk to a keeper, then use a station, then a tree or the water, then a seat. It never fires while you're typing or have a panel open, and the action it will take wears an E.",
+            "AFK fishing uses the bait on your hook, one per catch, with its full speed and rarity; when it runs out, the line carries on unbaited and tells you so.",
+            "A legendary or mythic fish comes up locked (🔒 Auto-Locked), safe from Sell All.",
+            "Buster has his own chalkboard now, and both boards chalk up a forecast: the good most in demand next hour.",
+          ],
+          visuals: [
+            "The shops lose the speech bubble: title and tabs on top, the list in the middle, and Sell All pinned to the bottom on the Trade/Sell tab only. Every price button and lock lines up in its column; the keeper's answer pops up for a moment.",
+            "The wood and fish drawers keep one fixed size across every tab, and each fish and log shows this hour's price against its base (+16% ▲, -10% ▼).",
+            "Felling cuts a true radial notch through the bark, deepening to 70% of the trunk on the last round. On a phone, tap anywhere to swing (no CHOP button).",
+            "The Whispering Woods: the deer wanders its trail and the rabbits hop about, ferns grow at the trees' feet and berry bushes along the trail, and the trail birch by Bramble's cabin stepped aside so the Soft Pine behind it shows.",
+            "The campfire's western lawn has more berry shrubs, mossy river stones and mushrooms at every pine's roots.",
+          ],
+          economy: [
+            "Fish are worth far more: commons 5-8 coins, uncommons 28-40, rares 75-110, legendaries 380-480, mythics 1,500-1,800.",
+            "Timber, per 1x log: Soft Pine 4, Birch 12, Cedar 32, Maple 80, Elderwood 290 (bigger trees still worth more). Golden Leaf Amber 15, Ancient Wood Shavings 35.",
+            "Firewood sells for 2 coins a bundle: it's for the bonfire now, not a profit loop.",
+            "The Black Card is 7,500 coins (pawned for 3,750); the wristband stays 600.",
+            "Chloe's outfits are the wardrobe's big goal: everyday and rare sets 1,200-2,500 coins, prestige sets 3,500-6,000. Hats and hair keep their prices.",
+          ],
+          fixes: [
+            "The shops' and the workbench's price buttons no longer wrap onto two lines.",
+          ],
+        },
+      },
     ],
   },
 ];

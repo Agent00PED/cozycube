@@ -913,6 +913,44 @@ def build_deco(L, coll):
                 cylinder(bm, W(mx, 0.0, mz), W(mx, 0.08 * s, mz), 0.02 * s, 6, m=6)
                 lathe(bm, mx, mz, [(0, 0.0), (0.06 * s, 0.0), (0.05 * s, 0.03 * s), (0, 0.045 * s)], segs=8, m=5, y0=0.075 * s)
         placed += 1
+
+    def fern(x, z, s=1.0):
+        # fronds fanned out from the middle
+        for k in range(6):
+            a = 2 * math.pi * k / 6 + rng.random()
+            tip = W(x + math.cos(a) * 0.36 * s, 0.2 * s, z + math.sin(a) * 0.36 * s)
+            base = W(x, 0.01, z)
+            side = Vector((-math.sin(a), -math.cos(a), 0)) * 0.055 * s
+            mid = base.lerp(tip, 0.5) + Vector((0, 0, 0.11 * s))
+            vs = [bm.verts.new(base), bm.verts.new(mid + side), bm.verts.new(tip), bm.verts.new(mid - side)]
+            bm.faces.new(vs).material_index = 1
+
+    # ferns at the fellable trees' feet (clear of paths, water and the approach you fell from)
+    for t in L["trees"]:
+        for k in range(2):
+            a = rng.random() * 6.28
+            rr = 1.15 + 0.3 * rng.random()
+            x, z = t["x"] + rr * math.cos(a), t["z"] + rr * math.sin(a)
+            # (not on the side you fell it from: toward the middle of the wood)
+            if (x - t["x"]) * -t["x"] + (z - t["z"]) * -t["z"] > 0.4 * math.hypot(t["x"], t["z"]):
+                continue
+            if clear_spot(L, x, z, 0.2):
+                fern(x, z, 0.8 + 0.4 * rng.random())
+    # low wild berry bushes along the trail's margins and the groves' edges
+    bushes = 0
+    tries = 0
+    while bushes < 10 and tries < 800:
+        tries += 1
+        x, z = rng.uniform(-10.5, 8.5), rng.uniform(-10.5, 10.5)
+        if zone_of(L, x, z) not in ("border", "birch", "cedar") or not clear_spot(L, x, z, 0.45):
+            continue
+        for k in range(2):
+            bx, bz = x + 0.22 * (k - 0.5), z + 0.1 * (k - 0.5)
+            blob(bm, bx, 0.15, bz, 0.26, 0.2, 0.24, m=1, cuts=3, noise=0.08, rng=rng, flat_bottom=-0.05)
+            for q in range(6):
+                a = rng.random() * 6.28
+                blob(bm, bx + math.cos(a) * 0.22, 0.16 + rng.uniform(-0.04, 0.1), bz + math.sin(a) * 0.2, 0.028, 0.028, 0.028, m=5, cuts=1)
+        bushes += 1
     make_object("Forest_Deco", bm, ["FW_Tuft", "FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_MushCap", "FW_MushStem", "FW_LeafPile", "FW_MapleLeafGold"], coll)
 
 

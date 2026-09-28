@@ -273,3 +273,6 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
 .vip-pass-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 35%, rgba(255, 236, 170, 0.18) 50%, transparent 65%); transform: translateX(-100%); animation: vip-sheen 3.6s ease-in-out 0.4s infinite; pointer-events: none; }
 @keyframes vip-sheen { 0%, 60% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .vip-pass-card::after { animation: none; } }
+/* a legendary or mythic catch's Auto-Locked badge: a slow golden glow */
+.cozy-autolock { box-shadow: 0 0 14px rgba(245, 166, 35, 0.75); animation: cozy-autolock-glow 1.6s ease-in-out infinite alternate; }
+@keyframes cozy-autolock-glow { from { box-shadow: 0 0 8px rgba(245, 166, 35, 0.45); } to { box-shadow: 0 0 22px rgba(255, 214, 110, 0.95); } }

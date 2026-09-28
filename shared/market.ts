@@ -69,6 +69,22 @@ export function marketDirection(good: MarketGood, market: MarketState, now = Dat
   return is > was * 1.02 ? "up" : is < was * 0.98 ? "down" : "flat";
 }
 
+/** The next hour's opening trend for a good: the trends are seeded by the hour, so it is known
+ *  ahead (the chalkboards' forecast: worth holding, or locking, until then). */
+export function nextHourTrend(good: MarketGood, now = Date.now()): number {
+  return marketTrend(good, marketHour(now) + 1);
+}
+/** Of these goods, the one most in demand next hour, and how far above (or below) its base it
+ *  opens (a whole percent). */
+export function forecast(goods: readonly MarketGood[], now = Date.now()): { good: MarketGood; pct: number } | null {
+  let best: { good: MarketGood; pct: number } | null = null;
+  for (const good of goods) {
+    const pct = Math.round((nextHourTrend(good, now) - 1) * 100);
+    if (!best || pct > best.pct) best = { good, pct };
+  }
+  return best;
+}
+
 /** Counts one sale of a good (the next one sells 2% lower). */
 export function recordSale(market: MarketState, good: MarketGood, now = Date.now()): MarketState {
   const hour = marketHour(now);

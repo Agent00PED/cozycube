@@ -135,7 +135,69 @@ interface Action {
   hint?: string;
   /** Shown, but not to be pressed (a machine somebody else is playing). */
   disabled?: boolean;
+  /** How far its target is (m), where the dock measures it: E reaches only 2.8 m. */
+  d?: number;
   run: () => void;
+}
+
+// The universal E: the one interaction a key press means, from what the dock offers right now. Never
+// while you are typing (chat, a name) or while a panel is open. Within E_REACH, by priority: a shop
+// or someone to talk to first, then a station (a workbench, the splitting block, a table, a
+// machine), then a resource (a tree, the water, a patch to forage), then a seat; the nearest of a
+// rank wins (the dock's order where it doesn't measure).
+const E_REACH = 2.8;
+const E_PRIORITY: Partial<Record<Action["type"], number>> = {
+  barnaby: 1,
+  buster: 1,
+  boutique: 1,
+  cashier: 1,
+  bar: 1,
+  fortune: 1,
+  capsule: 1,
+  vip: 1,
+  tip: 1,
+  workbench: 2,
+  split: 2,
+  slingshot: 2,
+  board: 2,
+  brew: 2,
+  stew: 2,
+  roast: 2,
+  travel: 2,
+  stargaze: 2,
+  radio: 2,
+  piano: 2,
+  slots: 2,
+  roulette: 2,
+  blackjack: 2,
+  poker: 2,
+  craps: 2,
+  derby: 2,
+  pusher: 2,
+  billiards: 2,
+  baccarat: 2,
+  bigsix: 2,
+  pinball: 2,
+  gazette: 2,
+  chop: 3,
+  fish: 3,
+  forage: 3,
+  fireflies: 3,
+  critter: 3,
+  water: 3,
+  pet: 3,
+  sit: 4,
+};
+/** The action E means among these (none: nothing to do). */
+function pickE(actions: readonly Action[]): Action | null {
+  let best: Action | null = null;
+  for (const a of actions) {
+    const rank = E_PRIORITY[a.type];
+    if (!rank || a.disabled || (a.d ?? 0) > E_REACH) continue;
+    const bestRank = best ? (E_PRIORITY[best.type] ?? 9) : 9;
+    if (!best || rank < bestRank || (rank === bestRank && (a.d ?? 0) < (best.d ?? 0))) best = a;
+  }
+  return best;
 }
 
 /** The split wood in a synced camp profile (PlayerState.fishing). */
@@ -154,6 +216,16 @@ function campOf(fishing: string): { ranger: boolean; dayPermits: number } {
     return { ranger: v.ranger === true, dayPermits: Math.max(0, Number(v.dayPermits) || 0) };
   } catch {
     return { ranger: false, dayPermits: 0 };
+  }
+}
+
+/** The Forest Whisper Incense sticks in a synced camp profile's crate. */
+function incenseOf(fishing: string): number {
+  try {
+    const crafts = (JSON.parse(fishing || "{}") as { crafts?: { c?: string }[] }).crafts ?? [];
+    return crafts.filter((c) => c?.c === "whisper_incense").length;
+  } catch {
+    return 0;
   }
 }
 
@@ -201,6 +273,23 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
   const [actions, setActions] = useState<Action[]>([]);
   const latest = useRef({ players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire, hearth, player, machines, onCasino });
   latest.current = { players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire, hearth, player, machines, onCasino };
+  const actionsRef = useRef<Action[]>([]);
+
+  // E: the best action in reach (pickE), never while typing or with a panel open
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== "KeyE" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      const best = pickE(actionsRef.current);
+      if (!best) return;
+      e.preventDefault();
+      best.run();
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, []);
 
   useEffect(() => {
     let lastKey = "";
@@ -248,6 +337,9 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           const n = wood[item] ?? 0;
           found.push({ key: `fuel:${item}:${n}`, type: "fuel", label: `${WOOD[item].emoji} Add ${WOOD[item].name} ×${n}`, hint: "Build the fire up: above 70% everyone gets the Cozy Aura", run: () => onCampfire({ type: "ADD_FUEL", item }) });
         }
+        // Forest Whisper Incense from the crate onto the fire: luck for the whole room
+        const incense = incenseOf(player.fishing);
+        if (incense > 0 && hearth.fuel > 0 && action !== "grill") found.push({ key: `incense:${incense}`, type: "fuel", label: `🪔 Burn Incense ×${incense}`, hint: "Forest Whisper Incense on the bonfire: rare fish likelier for everyone in the room for 10 minutes", run: () => onCampfire({ type: "BURN_INCENSE" }) });
         const stew = hearth.stew;
         const ready = stew.phase === "ready" && stew.servings > 0 && !stew.served.includes(player.userId);
         const open = () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "cooking", propId: "bonfire" } }));
@@ -317,8 +409,9 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         const tree = treeTarget.id ? FELL_TREE_AT.get(treeTarget.id) : undefined;
         if (tree && tree.map === mapId) {
           const info = TREES[tree.kind];
-          if (tree.titan) found.push({ key: `fell:${tree.id}`, type: "chop", label: `🌳 Fell the ${TITAN.name}`, hint: `${TITAN.rounds[0]}-${TITAN.rounds[1]} rounds on the ring, any axe: ${TITAN.logs[0]}-${TITAN.logs[1]} heavy logs worth ${TITAN.mult}x each`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
-          else found.push({ key: `fell:${tree.id}`, type: "chop", label: `🪓 Fell ${info.name} · T${info.tier}`, hint: `Land ${info.rounds[0]}-${info.rounds[1]} rounds on the ring and it comes down (${WOOD[info.wood].name} logs, bigger trees worth more). Needs a T${info.tier} axe or better`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
+          const d = Math.hypot(tree.x - cameraFocus.x, tree.z - cameraFocus.z);
+          if (tree.titan) found.push({ key: `fell:${tree.id}`, type: "chop", d, label: `🌳 Fell the ${TITAN.name}`, hint: `${TITAN.rounds[0]}-${TITAN.rounds[1]} rounds on the ring, any axe: ${TITAN.logs[0]}-${TITAN.logs[1]} heavy logs worth ${TITAN.mult}x each`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
+          else found.push({ key: `fell:${tree.id}`, type: "chop", d, label: `🪓 Fell ${info.name} · T${info.tier}`, hint: `Land ${info.rounds[0]}-${info.rounds[1]} rounds on the ring and it comes down (${WOOD[info.wood].name} logs, bigger trees worth more). Needs a T${info.tier} axe or better`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
         }
         if (mapId === "whispering_woods") {
           if (Math.hypot(BRAMBLE_FRONT.x - px, BRAMBLE_FRONT.z - pz) <= BRAMBLE_REACH + 0.6) found.push({ key: "bramble", type: "barnaby", label: "🐻 Talk to Bramble", hint: "The forester: sell logs and by-products, buy any axe and a bigger carrier", run: () => interactBridge.current?.useProp("bramble") });
@@ -586,7 +679,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         }
         if (seat) {
           const id = seat.id;
-          found.push({ key: `sit:${id}`, type: "sit", label: CAMP_SEAT_LABELS[id] ?? "🛋️ Sit", run: () => interactBridge.current?.sit(id) });
+          found.push({ key: `sit:${id}`, type: "sit", d: seat.d, label: CAMP_SEAT_LABELS[id] ?? "🛋️ Sit", run: () => interactBridge.current?.sit(id) });
         }
 
         // Mochi is wherever her day has taken her, not at her home spot
@@ -601,6 +694,8 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         }
       }
 
+      // (E reads the freshest list, run closures and all)
+      actionsRef.current = found;
       // only touch React state when the set of buttons really changed
       const key = found.map((a) => a.key).join("|");
       if (key !== lastKey) {
@@ -614,11 +709,17 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
   }, []);
 
   if (actions.length === 0) return null;
+  const eKey = pickE(actions)?.key;
   return (
     <div style={dockStyle} role="toolbar" aria-label="Actions">
       {actions.map((a) => (
         <button key={a.key} type="button" className={a.disabled ? undefined : "cozy-action"} style={a.disabled ? busyStyle : actionStyle} onClick={a.run} disabled={a.disabled} aria-disabled={a.disabled} title={a.hint}>
           {a.label}
+          {a.key === eKey && (
+            <span className="kbd-hint" style={eHintStyle} aria-hidden>
+              E
+            </span>
+          )}
         </button>
       ))}
     </div>
@@ -626,6 +727,8 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
 }
 
 const dockStyle: CSSProperties = { ...glass, ...hudText, display: "flex", gap: 8, padding: 6, borderRadius: 999 };
+/** The key cap on the action E would take. */
+const eHintStyle: CSSProperties = { marginLeft: 8, padding: "1px 6px", borderRadius: 6, border: "1px solid rgba(59, 36, 16, 0.45)", background: "rgba(255, 255, 255, 0.35)", fontSize: 11, fontWeight: 900 };
 const actionStyle: CSSProperties = {
   ...pillButton,
   background: "linear-gradient(180deg, #ffd166, #f4a83a)",

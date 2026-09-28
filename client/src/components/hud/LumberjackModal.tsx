@@ -7,7 +7,7 @@ import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@sh
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
-import { FooterBook, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, type ShopTab } from "./ShopShell";
+import { FooterBook, PRICE_COLUMN, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, type ShopNotice, type ShopTab } from "./ShopShell";
 
 /** The Whispering Woods' permits: a Day Trip (one way in) or the Ranger's Badge (in for good). Sold
  *  by Buster, at his stall or by the archway. */
@@ -73,17 +73,16 @@ const TABS: [ShopTab, string, string][] = [
   ["storage", "🎒", "Storage"],
   ["gear", "💍", "Gear"],
 ];
-const HELLO = "Howdy! Buster's the name, timber's the game. Got some wood for me? 🦫";
 
 export function LumberjackModal({ profile, coins, market, send, subscribeMessages, onOpenCollection, onClose }: Props) {
   const [tab, setTab] = useState<ShopTab>("trade");
-  const [say, setSay] = useState<{ text: string; ok: boolean }>({ text: HELLO, ok: true });
+  const [notice, setNotice] = useState<ShopNotice | null>(null);
   useEffect(
     () =>
       subscribeMessages((type, payload) => {
         if (type !== "busterResult") return;
         const r = payload as BarnabyResult;
-        setSay({ text: r.message, ok: r.ok });
+        setNotice({ text: r.message, ok: r.ok });
         if (r.ok && r.coins > 0) playSfx("coins");
         else if (r.ok) playSfx("chop");
       }),
@@ -104,8 +103,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
     <ShopShell
       title="Buster's Firewood"
       icon="🪓"
-      keeper="🦫"
-      say={say}
+      notice={notice}
       tabs={TABS}
       tab={tab}
       onTab={setTab}
@@ -139,11 +137,11 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                     {woodAverage(profile, k) > 1.01 ? ` · big logs ×${woodAverage(profile, k).toFixed(2)}` : ""}
                   </span>
                 </div>
-                <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: 1 })}>
-                  Sell 1
+                <button type="button" className="clay-btn min-h-9 shrink-0 justify-center px-0 text-xs" style={{ width: 64, minWidth: 64 }} onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: 1 })}>
+                  <span className="whitespace-nowrap text-[12px]">Sell 1</span>
                 </button>
-                <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: "all" })}>
-                  All · {woodRun(k, have)} 🪙
+                <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sell", wood: k, count: "all" })}>
+                  <span className="whitespace-nowrap text-[12px]">All · {woodRun(k, have)} 🪙</span>
                 </button>
               </div>
             );
@@ -157,8 +155,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                 </b>
                 <span className="text-[11px] opacity-75">{BYPRODUCTS[k].price} 🪙 each</span>
               </div>
-              <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellByproducts", item: k })}>
-                All · {(profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price} 🪙
+              <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sellByproducts", item: k })}>
+                <span className="whitespace-nowrap text-[12px]">All · {(profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price} 🪙</span>
               </button>
             </div>
           ))}
@@ -171,8 +169,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                 </b>
                 <span className="text-[11px] opacity-75">{FIREWOOD_PRICE} 🪙 a bundle</span>
               </div>
-              <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellFirewood", count: "all" })}>
-                All · {profile.firewood * FIREWOOD_PRICE} 🪙
+              <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sellFirewood", count: "all" })}>
+                <span className="whitespace-nowrap text-[12px]">All · {profile.firewood * FIREWOOD_PRICE} 🪙</span>
               </button>
             </div>
           )}
@@ -185,8 +183,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                 </b>
                 <span className="text-[11px] opacity-75">{RESIN_PRICE} 🪙 each · from gold swings</span>
               </div>
-              <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellResin", count: "all" })}>
-                All · {profile.resin * RESIN_PRICE} 🪙
+              <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sellResin", count: "all" })}>
+                <span className="whitespace-nowrap text-[12px]">All · {profile.resin * RESIN_PRICE} 🪙</span>
               </button>
             </div>
           )}
@@ -200,8 +198,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                     {CRAFTS[item.c].name}
                     {item.m && <span className="ml-1 text-amber-200">Masterwork ✨</span>}
                   </b>
-                  <button type="button" className="clay-btn min-h-8 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: i })}>
-                    {priceRun([item], (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total} 🪙
+                  <button type="button" className="clay-btn min-h-8 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sellCraft", slot: i })}>
+                    <span className="whitespace-nowrap text-[12px]">{priceRun([item], (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total} 🪙</span>
                   </button>
                 </div>
               ))}
@@ -254,7 +252,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
       {tab === "storage" && (
         <div className="flex flex-col gap-1.5">
           <p className="m-0 text-center text-xs opacity-75">
-            Every log and carved piece takes a slot ({carrierLoad(profile)}/{carrierCap(profile)} now). A full carrier means no more felling until you sell or split some (nothing is ever thrown away).
+            Every log takes a slot ({carrierLoad(profile)}/{carrierCap(profile)} now; carved pieces stack in their own crate). A full carrier means no more felling until you sell or split some (nothing is ever thrown away).
           </p>
           {WOOD_CARRIER_TIERS.map((t, i) => {
             const tier = i + 1;
