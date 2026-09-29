@@ -47,6 +47,8 @@ export const AVATAR_NODES = {
   wateringCan: "WateringCan",
   /** A camp hatchet in the right hand, pivot at the hand, blade on the underside: shown while chopping firewood. */
   hatchet: "Hatchet",
+  /** A miner's pickaxe in the right hand, pivot at the hand: shown while prospecting in the Glimmering Caverns. */
+  pickaxe: "Pickaxe",
   /** A little firefly net in the right hand, pivot at the hand: shown for the swipe at the fireflies. */
   net: "Net",
   /** A glowing jar of fireflies in the LEFT hand, pivot at the hand: shown while holding one. */

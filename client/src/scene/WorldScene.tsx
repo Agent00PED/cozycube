@@ -23,6 +23,10 @@ import { ChloeMaid, preloadChloe } from "../entities/ChloeMaid";
 import { BOXING_RING_URL, BoxingWorld, COACH_BRUNO_URL, RING_REGULARS_URL } from "./BoxingWorld";
 import { GLOVES_URL } from "../entities/rig";
 import { COACH_BRUNO } from "@shared/worlds/boxing_ring";
+import { CAVERNS_CAMERA, CAVE_ADIT, ORE_NODE_AT, cavernsFloorY, oreNodeOf } from "@shared/worlds/caverns";
+import { ORE_KINDS, oreCenterY } from "@shared/caverns_mining";
+import { CAVERNS_URL, CavernsWorld, GUS_URL } from "./CavernsWorld";
+import { prospectStore, useProspect } from "../systems/prospectStore";
 import { combatInput } from "../systems/combatInput";
 import { pushToast } from "../components/hud/toastStore";
 import type { EmoteListener, HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -71,6 +75,10 @@ export interface WorldSceneProps {
   /** The room's trees (shared/chop.ts TreeSync as JSON) and its living wonder (WorldEvent as JSON). */
   trees: string;
   worldEvent: string;
+  /** The Glimmering Caverns' ore nodes (shared/caverns_mining.ts OreSyncState as JSON). */
+  ores: string;
+  /** A strike on the node being prospected, where the pickaxe landed (the rock's local direction). */
+  onStrike: (node: string, dir: [number, number, number]) => void;
 }
 
 /** An emote's bubble floats over its sender this long (it pops in, bobs, and fades). */
@@ -92,6 +100,15 @@ function SceneLighting({ timeOfDay, weather, camp, indoor }: { timeOfDay: TimeOf
       <directionalLight position={[-14, 24, 10]} color={look.sunColor} intensity={look.sun} castShadow={false} />
     </>
   );
+}
+
+/** An ore node's pad: over its rock, sized by its kind (the Monolith's is a tall one), on its floor. */
+function OrePad({ prop, onUse }: { prop: ToggleableSyncState; onUse: () => void }) {
+  const node = oreNodeOf(prop.propId);
+  if (!node) return null;
+  const r = ORE_KINDS[node.kind].radius * 2.1;
+  const h = oreCenterY(node.kind) * 2;
+  return <PropPad prop={{ ...prop, x: node.x, z: node.z, y: cavernsFloorY(node.x, node.z) }} size={[r, h, r]} onUse={onUse} />;
 }
 
 const FLOOR = matte("#8b8f86", 0.85);
@@ -205,9 +222,11 @@ function useCrowdEvents(subscribeEmotes: WorldSceneProps["subscribeEmotes"], sub
   return { emotes, gestures, bubbles };
 }
 
-export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth, trees, worldEvent }: WorldSceneProps) {
+export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth, trees, worldEvent, ores, onStrike }: WorldSceneProps) {
   const me = localSessionId ? players[localSessionId] : undefined;
   const { emotes, gestures, bubbles } = useCrowdEvents(subscribeEmotes, subscribeMessages);
+  // a node's close-up in the caverns: the rock's own proxy takes the pointer (the nodes' pads step aside)
+  const prospecting = useProspect() !== null;
 
   // a watered plant's splash (drops from the waterer's can, then sparkles), shown for
   // PLANT_BURST_SECONDS; the waterer turns to face the plant for the pour
@@ -246,6 +265,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   frame.size = mapId === "cozy_lounge" ? LOFT_FRAME.size : mapId === "campfire_night" ? CAMPFIRE_FRAME.size : casino ? casinoFrame.size : MAP_HALF[mapId] * 2 + 0.8;
   frame.x = casino ? casinoFrame.x : 0;
   frame.z = casino ? casinoFrame.z : 0;
+  // (the caverns keep the camera's look inside their shell: no void past the walls)
+  frame.bounds = mapId === "glimmering_caverns" ? CAVERNS_CAMERA : null;
 
   // the other worlds' models are fetched quietly once the lounge is up, so travelling is instant
   useEffect(() => {
@@ -267,10 +288,16 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       useGLTF.preload(RING_REGULARS_URL);
       useGLTF.preload(GLOVES_URL);
     }, 9000);
+    // (the caverns lie behind the woods: fetched last)
+    const caverns = window.setTimeout(() => {
+      useGLTF.preload(CAVERNS_URL);
+      useGLTF.preload(GUS_URL);
+    }, 11000);
     return () => {
       window.clearTimeout(campfire);
       window.clearTimeout(casino);
       window.clearTimeout(ring);
+      window.clearTimeout(caverns);
     };
   }, []);
 
@@ -308,9 +335,12 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           const d = Math.hypot(dx, dz) || 1;
           add({ x: tree.x + (dx / d) * 0.35, y: 0.6, z: tree.z + (dz / d) * 0.35, kind: "chips" });
         }
+      } else if (type === "splash" && who.map === "glimmering_caverns") {
+        // a splash in the caverns' onsen: drops thrown up off the water round the bather
+        add({ x: payload.x, y: walkY(who.map, payload.x, payload.z) - 0.1, z: payload.z, kind: "splash" });
       } else if (type === "fishCaught") {
         // off this angler's own float (the one out from their spot on the dock)
-        const b = bobberFor(who, "campfire_night");
+        const b = bobberFor(who, who.map);
         if (b) add({ x: b.x, y: b.y, z: b.z, kind: "splash" });
       }
     });
@@ -322,13 +352,22 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
 
   // anglers face their float, cooks the fire and fellers their tree, whichever way they stood
   useEffect(() => {
-    if (mapId !== "campfire_night" && mapId !== "whispering_woods") return;
+    if (mapId !== "campfire_night" && mapId !== "whispering_woods" && mapId !== "glimmering_caverns") return;
     const trees = FELL_TREES.filter((t) => t.map === mapId);
     const timer = window.setInterval(() => {
       for (const p of Object.values(livePlayers.current)) {
         if (p.sitting) continue;
         const float = bobberFor(p, mapId);
         if (float) faceToward(p.sessionId, float.x, float.z, 0.6);
+        else if (p.action === "mine") {
+          // a miner squares up to their rock (the nearest node)
+          let best: { x: number; z: number; d: number } | null = null;
+          for (const n of ORE_NODE_AT.values()) {
+            const d = Math.hypot(n.x - p.x, n.z - p.z);
+            if (!best || d < best.d) best = { x: n.x, z: n.z, d };
+          }
+          if (best) faceToward(p.sessionId, best.x, best.z, 0.6);
+        }
         else if (p.action === "chop") {
           const tree = trees.reduce<(typeof trees)[number] | null>((a, b) => (!a || Math.hypot(b.x - p.x, b.z - p.z) < Math.hypot(a.x - p.x, a.z - p.z) ? b : a), null);
           if (tree) faceToward(p.sessionId, tree.x, tree.z, 0.6);
@@ -348,8 +387,9 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   live.current = { room, me, chairs, toggleables, localSessionId, mapId };
 
   const walkTo = useCallback((x: number, z: number, then?: Pick<MoveTarget, "seatId" | "propId">) => {
-    // a fighter in the ring moves with the keys or the joystick: a left click there is a Jab
-    if (combatInput.active) return;
+    // a fighter in the ring moves with the keys or the joystick: a left click there is a Jab; a
+    // prospector's clicks are strikes on the rock (stepping back is the HUD's, or Escape)
+    if (combatInput.active || prospectStore.active) return;
     const { room, me } = live.current;
     if (me?.sitting) room?.send("standUp"); // the queued walk carries on once you are up
     targetRef.current = { x, z, ...then };
@@ -382,6 +422,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       const { room, toggleables, mapId, me, chairs, localSessionId } = live.current;
       const prop = toggleables[propId];
       if (!prop) return;
+      // (in a node's close-up the rock is the whole interface)
+      if (prospectStore.active) return;
       // the casino's seated games (blackjack, poker, baccarat, the piano) are played from a seat: on
       // one of the table's already, it opens right there; standing, you're walked to its nearest free
       // seat (sitting down opens it). A full table says so, and the ones everyone can watch open for
@@ -529,7 +571,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
     <TimeOfDayContext.Provider value={hour}>
       <CampDaylightContext.Provider value={camp ? daylight : null}>
       <WeatherContext.Provider value={sky}>
-      <SceneLighting timeOfDay={hour} weather={sky} camp={camp ? daylight : null} indoor={casino} />
+      {mapId !== "glimmering_caverns" && <SceneLighting timeOfDay={hour} weather={sky} camp={camp ? daylight : null} indoor={casino} />}
       {mapId === "cozy_lounge" ? (
         <>
           <LoungeWorld onFloorClick={onFloorClick} />
@@ -541,6 +583,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         <ForestWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} trees={trees} worldEvent={worldEvent} subscribeMessages={subscribeMessages} onUseProp={activate} />
       ) : casino ? (
         <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} up={up} />
+      ) : mapId === "glimmering_caverns" ? (
+        <CavernsWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} ores={ores} subscribeMessages={subscribeMessages} onStrike={onStrike} />
       ) : mapId === "boxing_ring" ? (
         <BoxingWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} localSessionId={localSessionId} />
       ) : (
@@ -629,6 +673,19 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={{ ...prop, y: prop.y - 0.1 }} size={[0.6, 0.6, 0.6]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "scale" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.7, 1.6, 0.7]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "adit" ? (
+          // the old mine adit: at the woods' cliff, or the tunnel's mouth down in the caverns
+          <PropPad key={prop.propId} prop={prop} size={[CAVE_ADIT.w + 0.3, CAVE_ADIT.h + 0.2, 0.7]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "miner" || prop.kind === "prospector" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.9, 1.5, 0.9]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "forge" ? (
+          <PropPad key={prop.propId} prop={prop} size={[2.0, 2.2, 1.4]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "anvil" ? (
+          <PropPad key={prop.propId} prop={prop} size={[1.0, 1.0, 0.8]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "ore" ? (
+          // a node you can mine (a broken one is rubble until it grows back: nothing to click; in a
+          // close-up, the rock's proxy is struck instead)
+          prop.on && !prospecting ? <OrePad key={prop.propId} prop={prop} onUse={() => activate(prop.propId)} /> : null
         ) : prop.kind === "boutique" ? (
           // Chloe, and her cheval mirror: a click on either opens the wardrobe
           <PropPad key={prop.propId} prop={prop} size={prop.propId === "boutique_mirror" ? [0.9, 1.8, 0.5] : [0.7, 1.3, 0.7]} onUse={() => activate(prop.propId)} />

@@ -1,4 +1,5 @@
 import { FOREST_FISHING, FOREST_LAYOUT } from "@shared/worlds/forest";
+import { CAVE_FISHING, CAVE_POOL } from "@shared/worlds/caverns";
 import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
@@ -51,6 +52,11 @@ export function bobberFor(player: PlayerState, mapId: MapId) {
     // the river: the float lands off the bank spot the angler stands (or sits) at
     const spot = FOREST_FISHING.reduce((a, b) => (Math.hypot(b.stand.x - player.x, b.stand.z - player.z) < Math.hypot(a.stand.x - player.x, a.stand.z - player.z) ? b : a));
     return { x: spot.bobber.x, y: FOREST_LAYOUT.river.water, z: spot.bobber.z };
+  }
+  if (mapId === "glimmering_caverns") {
+    // the Grotto Pool: off the pier spot they stand at
+    const spot = CAVE_FISHING.reduce((a, b) => (Math.hypot(b.stand.x - player.x, b.stand.z - player.z) < Math.hypot(a.stand.x - player.x, a.stand.z - player.z) ? b : a));
+    return { x: spot.bobber.x, y: CAVE_POOL.water, z: spot.bobber.z };
   }
   if (mapId !== "campfire_night") return null;
   const { bobber } = nearestFishingSpot(player.x, player.z);

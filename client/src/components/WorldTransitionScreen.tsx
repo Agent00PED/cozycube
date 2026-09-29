@@ -7,11 +7,15 @@ import { MAP_LABELS } from "./hud/Header";
 // again once you have arrived (the new world's first frames settle behind them). A trip is only
 // yours: nobody else sees the curtain. Between the campfire and the Whispering Woods (next door,
 // through the archway) there is no curtain: a dark cocoa dusk with drifting fog fades in and out in
-// FOG_S, a softly glowing pine over "Entering the Whispering Woods..." (or back to the campfire).
+// FOG_S, a softly glowing pine over "Entering the Whispering Woods..." (or back to the campfire);
+// down the old mine adit between the woods and the Glimmering Caverns, the same fade through the
+// dark of the tunnel, a miner's lantern swinging over "Descending into the Glimmering Caverns..."
+// (or back up to the woods).
 
 const CURTAIN_S = 0.35;
 const FOG_S = 0.3;
 const CAMP = new Set<MapId>(["campfire_night", "whispering_woods"]);
+const ADIT = new Set<MapId>(["whispering_woods", "glimmering_caverns"]);
 
 const TIPS = [
   "Barnaby's prices change on the hour: his chalkboard shows what's ▲ up and ▼ down.",
@@ -32,19 +36,23 @@ const TIPS = [
   "In the Velvet Ring, dash just before a punch lands for a Perfect Dodge: your next punch is a Counter (x1.4).",
   "Three wins in a row at the Velvet Ring and the Championship Belt shines over your name for a day 🏆",
   "Watch the ringside chalkboard: bets on the next bout open in its 15-second countdown.",
+  "Every rock in the Glimmering Caverns has a weak spot: watch for the glow in its cracks, the glint, the dust.",
+  "Sixty seconds in the caverns' onsen: the Deep Warmth, a quicker step on every map for 20 minutes ♨️",
+  "Many hands on one rock and everyone takes home more: +40% for each friend who strikes it too.",
 ];
 
 export function WorldTransitionScreen({ destination, from }: { destination: MapId | null; from?: MapId }) {
   // stays mounted while the drapes part again after arrival
   const [shown, setShown] = useState<MapId | null>(destination);
   const [closing, setClosing] = useState(false);
-  // a walk through the archway (the campfire and the woods): the mist, decided as the trip starts
-  const [misty, setMisty] = useState(false);
+  // a walk through the archway (the campfire and the woods), or down the adit (the woods and the
+  // caverns): the mist or the tunnel's dark, decided as the trip starts
+  const [misty, setMisty] = useState<"camp" | "adit" | null>(null);
   const tipIndex = useRef(Math.floor(Math.random() * TIPS.length));
   useEffect(() => {
     if (destination) {
       tipIndex.current = Math.floor(Math.random() * TIPS.length);
-      if (!shown) setMisty(!!from && CAMP.has(from) && CAMP.has(destination));
+      if (!shown) setMisty(!from ? null : CAMP.has(from) && CAMP.has(destination) ? "camp" : ADIT.has(from) && ADIT.has(destination) ? "adit" : null);
       setShown(destination);
       setClosing(false);
       return;
@@ -62,6 +70,19 @@ export function WorldTransitionScreen({ destination, from }: { destination: MapI
   }, [destination]); // eslint-disable-line react-hooks/exhaustive-deps
   const label = useMemo(() => (shown ? MAP_LABELS[shown] : null), [shown]);
   if (!shown || !label) return null;
+  if (misty === "adit") {
+    const down = shown === "glimmering_caverns";
+    return (
+      <div className={`cozy-mist cozy-adit fixed inset-0 z-[60] flex flex-col items-center justify-center gap-3 ${closing ? "cozy-mist-out" : "cozy-mist-in"}`} role="status" aria-live="polite" aria-label={down ? "Descending into the Glimmering Caverns" : "Back up to the Whispering Woods"}>
+        <style>{CURTAIN_CSS}</style>
+        <span className="cozy-mist-fog" aria-hidden />
+        <span className={`${down ? "cozy-lantern-swing" : "cozy-pine-glow"} text-6xl`} aria-hidden>
+          {down ? "🏮" : "🌲"}
+        </span>
+        <b className="font-cozy relative text-base tracking-[0.2em] text-[#F7EBE1]">{down ? "Descending into the Glimmering Caverns..." : "Climbing back up to the Whispering Woods..."}</b>
+      </div>
+    );
+  }
   if (misty) {
     const woods = shown === "whispering_woods";
     return (
@@ -133,12 +154,28 @@ export const CURTAIN_CSS = `
   animation: cozy-pine-pulse 1.2s ease-in-out infinite alternate;
 }
 @keyframes cozy-pine-pulse { from { transform: scale(0.97); opacity: 0.9; } to { transform: scale(1.04); opacity: 1; } }
+.cozy-adit {
+  background: radial-gradient(80% 60% at 50% 45%, #1d2230 0%, #11131c 55%, #07060c 100%);
+}
+.cozy-adit .cozy-mist-fog {
+  background:
+    radial-gradient(40% 25% at 25% 70%, rgba(0, 240, 255, 0.12), rgba(0, 240, 255, 0) 70%),
+    radial-gradient(45% 30% at 75% 35%, rgba(157, 0, 255, 0.12), rgba(157, 0, 255, 0) 70%),
+    radial-gradient(35% 20% at 55% 85%, rgba(255, 179, 71, 0.14), rgba(255, 179, 71, 0) 70%);
+}
+.cozy-lantern-swing {
+  position: relative;
+  transform-origin: 50% 0%;
+  filter: drop-shadow(0 0 12px rgba(255, 179, 71, 0.85)) drop-shadow(0 0 28px rgba(255, 140, 60, 0.45));
+  animation: cozy-lantern-swing 1.1s ease-in-out infinite alternate;
+}
+@keyframes cozy-lantern-swing { from { transform: rotate(-9deg); } to { transform: rotate(9deg); } }
 .cozy-mist-in { animation: cozy-mist-in ${FOG_S}s ease-out forwards; }
 .cozy-mist-out { animation: cozy-mist-out ${FOG_S}s ease-in forwards; }
 @keyframes cozy-mist-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cozy-mist-out { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .cozy-curtain-close, .cozy-curtain-open, .cozy-curtain-card-in, .cozy-curtain-card-out, .cozy-mist-in, .cozy-mist-out { animation-duration: 1ms; }
-  .cozy-mist-fog, .cozy-pine-glow { animation: none; }
+  .cozy-mist-fog, .cozy-pine-glow, .cozy-lantern-swing { animation: none; }
 }
 `;

@@ -25,7 +25,10 @@ import type { PropSpec } from "./lounge";
 // south-east (the woods' forester: logs and by-products, axes, carriers), its cabin flush against
 // the eastern tree line and an open clearing before his counter, his advanced workbench right beside
 // it, birds on the vista pines' lower boughs, and twenty-five vista pines along the back and side
-// edges (not for felling). The layout below is plain JSON between the markers, read as-is by
+// edges (not for felling). Behind the Golden Glen's Autumn Maples, set into a mossy outcrop on the
+// western cliff and half hidden by ferns and vines, an old mine adit: the way down to the Glimmering
+// Caverns, kept by Old Flint the Badger (his lantern helmet, his leather apron): meeting him hands
+// you the Rusted Pickaxe, and the adit is open to you for good. The layout below is plain JSON between the markers, read as-is by
 // scripts/blender/build_forest.py, which builds forest.glb (the diorama, and each tree kind's four
 // looks, stump to mature, for the client to place at its node).
 
@@ -98,7 +101,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   "vista": [
     [-11.2, -11.3, 1.2], [-9.3, -11.4, 1.0], [-7.4, -11.3, 1.15], [-5.5, -11.4, 0.95], [-3.6, -11.3, 1.1], [-1.7, -11.4, 1.0], [0.2, -11.4, 1.2],
     [2.0, -11.5, 0.95], [5.1, -11.4, 1.1], [9.9, -11.2, 1.0], [8.9, 2.95, 1.0], [11.3, 2.7, 1.05],
-    [-11.4, -9.2, 1.1], [-11.5, -7.1, 0.95], [-11.3, -5.0, 1.15], [-11.4, -2.8, 1.0], [-11.5, -0.6, 1.1], [-11.3, 1.6, 0.95], [-11.4, 5.8, 1.05], [-11.5, 7.9, 1.0],
+    [-11.4, -9.2, 1.1], [-11.5, -6.35, 0.95], [-11.3, -5.0, 1.15], [-11.4, -2.8, 1.0], [-11.5, -0.6, 1.1], [-11.3, 1.6, 0.95], [-11.4, 5.8, 1.05], [-11.5, 7.9, 1.0],
     [-11.3, 10.9, 0.9], [-11.4, 3.7, 1.0], [3.6, -11.6, 1.0], [11.7, -10.8, 1.1], [11.8, -8.2, 0.95]
   ],
   "paths": [
@@ -106,8 +109,11 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "points": [[-1.6, 7.0, 1.3], [-1.9, 3.2, 1.2], [-1.4, 0.0, 1.2], [-1.2, -3.2, 1.2], [-0.4, -5.8, 1.2], [1.8, -7.9, 1.2]] },
     { "points": [[-1.4, 0.0, 1.1], [-3.2, -0.2, 1.0], [-6.2, 0.4, 1.0]] },
     { "points": [[-0.9, -3.8, 1.0], [-3.4, -5.4, 1.0], [-6.0, -6.8, 1.0]] },
-    { "points": [[1.2, 1.2, 1.0], [4.2, 0.4, 1.0], [6.4, -1.4, 1.0], [7.7, -2.6, 1.0]] }
+    { "points": [[1.2, 1.2, 1.0], [4.2, 0.4, 1.0], [6.4, -1.4, 1.0], [7.7, -2.6, 1.0]] },
+    { "points": [[-6.0, -6.8, 0.8], [-8.0, -7.3, 0.7], [-10.2, -7.85, 0.7]] }
   ],
+  "adit": { "x": -11.55, "z": -7.85, "w": 1.3, "h": 2.2, "outcrop": { "x0": -12.3, "x1": -11.0, "z0": -8.9, "z1": -6.85, "h": 2.9 } },
+  "flint": { "x": -10.45, "z": -9.2, "yaw": 1.2 },
   "spawns": [{ "x": -9.0, "z": 9.7 }, { "x": -8.2, "z": 9.2 }, { "x": -9.6, "z": 9.0 }]
 } /* layout:end */;
 
@@ -223,6 +229,15 @@ export const WOODS_ARCHWAY = L.archway;
 export const WOODS_ARCHWAY_FRONT: Pt = { x: L.archway.x, z: L.archway.z - 1.05 };
 /** Where a traveller arrives from the campfire (just inside the archway). */
 export const WOODS_ARRIVAL: Pt = L.arrival;
+/** The old mine adit down to the Glimmering Caverns (set into its outcrop, facing into the wood),
+ *  where you stand at it, and where a traveller back up from the caverns arrives. */
+export const FOREST_ADIT = L.adit;
+export const FOREST_ADIT_FRONT: Pt = { x: L.adit.x + 1.15, z: L.adit.z };
+export const WOODS_FROM_CAVERNS: Pt = { x: L.adit.x + 1.5, z: L.adit.z + 0.2 };
+/** Old Flint the Badger beside it (facing the path in: `yaw`), and where you stand to talk to him. */
+export const OLD_FLINT = L.flint;
+export const OLD_FLINT_FRONT: Pt = { x: L.flint.x + Math.sin(L.flint.yaw) * 1.0, z: L.flint.z + Math.cos(L.flint.yaw) * 1.0 };
+export const OLD_FLINT_REACH = 1.9;
 /** The deer and the rabbits: fed from the forage bag (a berry or a mushroom). */
 export const FOREST_ANIMALS = L.animals.map((a) => ({ ...a, propId: `animal_${a.id}`, approachX: a.x + 0.95, approachZ: a.z + 0.25 }));
 export const ANIMAL_REACH = 1.8;
@@ -234,6 +249,8 @@ export const FOREST_PROPS: PropSpec[] = [
   { propId: "bramble", x: L.bramble.x, z: L.bramble.z, kind: "ranger", color: "#7a4e2d", defaultOn: true, approachX: BRAMBLE_FRONT.x, approachZ: BRAMBLE_FRONT.z },
   { propId: "workbench_adv", x: L.workbench.x, z: L.workbench.z, kind: "workbench", color: "#c98b4f", defaultOn: true, approachX: FOREST_WORKBENCH_FRONT.x, approachZ: FOREST_WORKBENCH_FRONT.z },
   { propId: "finley", x: L.finley.x, z: L.finley.z, kind: "angler", color: "#8a5a34", defaultOn: true, approachX: FINLEY_FRONT.x, approachZ: FINLEY_FRONT.z },
+  { propId: "woods_adit", x: L.adit.x + 0.5, z: L.adit.z, kind: "adit", color: "#6f5a3f", defaultOn: true, approachX: FOREST_ADIT_FRONT.x, approachZ: FOREST_ADIT_FRONT.z },
+  { propId: "old_flint", x: L.flint.x, z: L.flint.z, kind: "miner", color: "#ffb347", defaultOn: true, approachX: OLD_FLINT_FRONT.x, approachZ: OLD_FLINT_FRONT.z },
   ...FOREST_ANIMALS.map((a): PropSpec => ({ propId: a.propId, x: a.x, z: a.z, kind: "animal", color: "#b88a5a", defaultOn: true, approachX: a.approachX, approachZ: a.approachZ })),
   // the clearings where a Colossal Titan can sprout: `on` only while one stands there
   ...TITAN_SPOTS.map((p, i): PropSpec => {
@@ -277,5 +294,8 @@ export const FOREST_OBSTACLES: AABB[] = [
   ...SHRINE_STONES.map((p) => around(p, 0.22)),
   // the deer and the rabbits
   ...L.animals.map((a) => around(a, 0.35)),
+  // the adit's mossy outcrop on the western cliff, and Old Flint beside it
+  { minX: L.adit.outcrop.x0, maxX: L.adit.outcrop.x1, minZ: L.adit.outcrop.z0, maxZ: L.adit.outcrop.z1 },
+  around(L.flint, 0.35),
 ];
 export const FOREST_SPAWNS: Pt[] = L.spawns;

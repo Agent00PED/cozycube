@@ -78,6 +78,14 @@ import { WoodCarrierModal } from "./components/hud/WoodCarrierModal";
 import { CampfireStatus } from "./components/hud/CampfireStatus";
 import { useAnglerProfile } from "./components/hud/anglerStore";
 import { BoxingHud } from "./components/hud/BoxingHud";
+import { OreSatchelDrawer } from "./components/hud/OreSatchelDrawer";
+import { GusShopModal } from "./components/hud/GusShopModal";
+import { ForgeModal } from "./components/hud/ForgeModal";
+import { GeodeModal } from "./components/hud/GeodeModal";
+import { FlintModal } from "./components/hud/FlintModal";
+import { ProspectingHud } from "./components/hud/ProspectingHud";
+import { prospectStore } from "./systems/prospectStore";
+import { CAVERNS_CHANNELS, ORE_ITEMS, type CaveLoot, type CaveProspect, type CavernsResult, type IngotId, type OreItemId } from "@shared/caverns_mining";
 import { useRingTakeover } from "./systems/boutStore";
 import { RingsideModal } from "./components/hud/RingsideModal";
 import { ProShopModal } from "./components/hud/ProShopModal";
@@ -253,6 +261,7 @@ export default function App() {
     trees,
     worldEvent,
     incenseUntil,
+    ores,
     claimPioneer,
     connected,
     connectionIssue,
@@ -313,6 +322,7 @@ export default function App() {
     radioSend,
     plantSend,
     campfireSend,
+    cavernsSend,
     groundSit,
     mochiPlay,
   } = useColyseusRoom(auth, lounge);
@@ -390,9 +400,9 @@ export default function App() {
   // the casino's tables open only when asked (the dock, or a click on the table): never by walking past
   const [rouletteOpen, setRouletteOpen] = useState(false);
   const [fortune, setFortune] = useState<FortuneResult | null>(null);
-  // the resource drawers (the header's 🪵 and 🪣 gauges): B opens (and closes) the one opened last,
-  // whenever nothing is being typed and no other panel is up; their logbooks open over them
-  const lastDrawer = useRef<"carrier" | "livewell">("carrier");
+  // the resource drawers (the header's 🪵, 🪣 and ⛏️ gauges): B opens (and closes) the one opened
+  // last, whenever nothing is being typed and no other panel is up; their logbooks open over them
+  const lastDrawer = useRef<"carrier" | "livewell" | "satchel">("carrier");
   const [logbook, setLogbook] = useState<"fish" | "timber" | null>(null);
   // (the drawers are the gathering maps' only: the campfire, the woods, the beach)
   const gatherRef = useRef(false);
@@ -401,7 +411,7 @@ export default function App() {
       if (e.code !== "KeyB" || e.repeat || e.ctrlKey || e.metaKey || e.altKey || !gatherRef.current) return;
       const el = document.activeElement as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
-      setPanel((p) => (p?.kind === "carrier" || p?.kind === "livewell" ? null : p ? p : { kind: lastDrawer.current, propId: lastDrawer.current }));
+      setPanel((p) => (p?.kind === "carrier" || p?.kind === "livewell" || p?.kind === "satchel" ? null : p ? p : { kind: lastDrawer.current, propId: lastDrawer.current }));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -435,7 +445,7 @@ export default function App() {
       setBlackjackOpen(propId);
       return;
     }
-    if (kind === "carrier" || kind === "livewell") lastDrawer.current = kind;
+    if (kind === "carrier" || kind === "livewell" || kind === "satchel") lastDrawer.current = kind;
     setPanel({ kind, propId });
   }, []);
   useEffect(() => {
@@ -463,7 +473,9 @@ export default function App() {
   gatherRef.current = isGatheringMap(currentMap);
   // off to a world without drawers (the lounge, the casino, the ring): an open one closes
   useEffect(() => {
-    if (!isGatheringMap(currentMap)) setPanel((p) => (p?.kind === "carrier" || p?.kind === "livewell" ? null : p));
+    if (!isGatheringMap(currentMap)) setPanel((p) => (p?.kind === "carrier" || p?.kind === "livewell" || p?.kind === "satchel" ? null : p));
+    // (a node's close-up never outlives the caverns)
+    if (currentMap !== "glimmering_caverns") prospectStore.close();
   }, [currentMap]);
   // the Velvet Ring: a fighter's live bout takes the top of the screen (the header fades away)
   const ringTakeover = useRingTakeover(currentMap === "boxing_ring" ? localSessionId : null);
@@ -629,6 +641,28 @@ export default function App() {
             const info = FORAGE_INFO[f.kind];
             pushToast(f.coins > 0 ? `${info.name}! +${f.coins} coins` : `${info.name}! (today's foraging coins are all earned)`, { emoji: info.emoji, tone: f.coins > 0 ? "coin" : undefined });
           }
+        } else if (type === "caveProspect") {
+          prospectStore.open(payload as CaveProspect);
+        } else if (type === "caveProspectEnd") {
+          prospectStore.close();
+        } else if (type === "caveWeak") {
+          const w = payload as { node: string; weak: [number, number, number] };
+          prospectStore.weak(w.node, w.weak);
+        } else if (type === "caveLoot") {
+          const l = payload as CaveLoot;
+          const what = (Object.entries(l.items) as [OreItemId, number][]).map(([id, n]) => `${ORE_ITEMS[id].emoji} ${n} ${ORE_ITEMS[id].name}`).join(" · ");
+          if (what) pushToast(`${l.perfect ? "Perfect shatter! " : ""}${what}${l.mult > 1 ? ` (co-op +${Math.round((l.mult - 1) * 100)}%)` : ""}`, { emoji: "⛏️", tone: "coin", silent: true });
+          if (l.lost > 0) pushToast(`Your satchel's full: ${l.lost} left behind in the rubble`, { emoji: "🎒" });
+          if (l.items.core_fragment || l.items.pristine_geode) playSfx("jackpot");
+        } else if (type === "caveForge") {
+          const f = payload as { done: Partial<Record<IngotId, number>>; tray: number; left: number };
+          const what = (Object.entries(f.done) as [IngotId, number][]).map(([id, n]) => `${n} ${ORE_ITEMS[id].name}${n > 1 ? "s" : ""}`).join(", ");
+          if (what && panelKindRef.current !== "forge") pushToast(`The Ancient Forge: ${what} ready${f.tray > 0 ? ` (${f.tray} on its tray: your satchel's full)` : ""}`, { emoji: "🔥", silent: f.tray === 0 });
+        } else if (type === "cavernsResult") {
+          // (the caverns' panels say so in their own)
+          const r = payload as CavernsResult;
+          const own = panelKindRef.current === "gus" || panelKindRef.current === "forge" || panelKindRef.current === "anvil";
+          if (!own) pushToast(r.message, { emoji: r.ok ? "⛏️" : "🪨", tone: r.ok && (r.coins ?? 0) > 0 ? "coin" : undefined });
         } else if (type === "compassPulse") {
           // the Heartwood Compass stirs: a Colossal has risen (its pill under the header points the way)
           playSfx("chime");
@@ -863,6 +897,8 @@ export default function App() {
             hearth={hearth}
             trees={trees}
             worldEvent={worldEvent}
+            ores={ores}
+            onStrike={(node, dir) => cavernsSend(CAVERNS_CHANNELS.strike, { node, dir, seq: Date.now() })}
           />
         </IsometricCanvas>
 
@@ -896,7 +932,7 @@ export default function App() {
           away={ringTakeover}
         />
         <div className={ringTakeover ? "cozy-hud-away" : "cozy-hud-back"}>
-          <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} buffs={angler.profile.buffs} worn={angler.profile.worn} />
+          <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} buffs={angler.profile.buffs} worn={angler.profile.worn} warmUntil={angler.profile.deepWarmthUntil} />
         </div>
         <Toasts />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
@@ -922,13 +958,15 @@ export default function App() {
               onHook={hook}
               onSplash={splash}
             />
-            <ActionDock player={localPlayer} players={players} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} hearth={hearth} machines={machines} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} onCampfire={campfireSend} onCasino={casinoSend} />
+            <ActionDock player={localPlayer} players={players} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} hearth={hearth} machines={machines} ores={ores} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} onCampfire={campfireSend} onCasino={casinoSend} onCaverns={cavernsSend} subscribeMessages={subscribeMessages} />
           </div>
         )}
 
         {currentMap === "campfire_night" && localPlayer && !mapTransitioning && <CampfireStatus hearth={hearth} fed={localPlayer.fed} />}
         {/* the Velvet Ring: the scoreboard, a fighter's controls, the count, the result */}
         {currentMap === "boxing_ring" && localPlayer && localSessionId && !mapTransitioning && <BoxingHud me={localPlayer} localSessionId={localSessionId} players={players} send={boxingSend} subscribeMessages={subscribeMessages} />}
+        {/* the Glimmering Caverns: prospecting's one control (the rock is the rest) */}
+        {currentMap === "glimmering_caverns" && !mapTransitioning && <ProspectingHud send={cavernsSend} />}
         {/* the floating joystick, on every map, on a touch screen */}
         <TouchControls enabled={!mapTransitioning} />
 
@@ -970,6 +1008,8 @@ export default function App() {
         )}
         {settingsOpen && (
           <SettingsPanel
+            mapId={currentMap}
+            raining={weather === "rain"}
             onClose={() => setSettingsOpen(false)}
             onSwitchLounge={switchLounge}
             onOpenPatchNotes={() => {
@@ -1086,6 +1126,11 @@ export default function App() {
           />
         )}
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
+        {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} onClose={closePanel} />}
+        {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
+        {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} market={market} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "anvil" && localPlayer && <GeodeModal profile={angler.profile} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "flint" && <FlintModal first={panel.propId === "old_flint:first"} onClose={closePanel} />}
         {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} market={market} send={campfireSend} onClose={closePanel} onOpenCollection={() => setLogbook("timber")} />}
         {panel?.kind === "workbench" && localPlayer && <WoodCraftModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "cashier" && localPlayer && <CashierModal coins={localPlayer.coins} chips={localPlayer.chips} onBuy={buyChips} onCashOut={cashOut} vipPass={localPlayer.vipPass} wristbands={localPlayer.vipWristbands} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}

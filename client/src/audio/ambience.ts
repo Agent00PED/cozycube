@@ -11,6 +11,7 @@ import { WORLD_CROSSFADE_S } from "./sound";
 import { masterOut } from "./master";
 import { daylight } from "@shared/daynight";
 import { forestRiver } from "@shared/worlds/forest";
+import { refreshCavernsVolume, setCavernsActive } from "./cavernAmbience";
 
 /** The woods' river, sampled along its meander: the murmur comes from its nearest reach. */
 const WOODS_RIVER = forestRiver(4);
@@ -81,7 +82,7 @@ class CampfireAmbience {
       g.connect(this.master!);
       return g;
     };
-    this.channels = { fire: channel(), river: channel(), forest: channel() };
+    this.channels = { fire: channel(), river: channel(), forest: channel(), wind: channel() };
     for (const k of AMBIENCE_CHANNELS) this.channels[k].gain.value = this.channelLevel(k);
     const placed = (into: GainNode) => {
       const gain = c.createGain();
@@ -146,6 +147,11 @@ class CampfireAmbience {
     this.bed("bandpass", 650, 0.6, 0.11, 0.13, 0.05, this.river!.gain); // the river
     this.bed("bandpass", 2400, 1.2, 0.022, 0.31, 0.012, this.river!.gain); // its trickle
     this.bed("lowpass", 300, 0.5, 0.05, 0.05, 0.05, this.channels!.forest); // the breeze
+    // the woods' wind in the trees: a canopy rustling in gusts, a deeper sigh under it (its channel is
+    // the woods' only: silent at the campfire)
+    this.bed("bandpass", 2100, 0.7, 0.03, 0.09, 0.028, this.channels!.wind);
+    this.bed("bandpass", 1100, 0.8, 0.025, 0.06, 0.02, this.channels!.wind);
+    this.bed("lowpass", 240, 0.6, 0.06, 0.04, 0.05, this.channels!.wind);
   }
 
   private stopBeds() {
@@ -343,7 +349,10 @@ class CampfireAmbience {
 
   /** Which camp world is playing: the campfire, or the woods (no fire, the river). */
   setMap(map: MapId | null) {
-    if (map === "campfire_night" || map === "whispering_woods") this.map = map;
+    if ((map === "campfire_night" || map === "whispering_woods") && map !== this.map) {
+      this.map = map;
+      this.refreshVolume();
+    }
   }
 
   setActive(on: boolean) {
@@ -368,7 +377,9 @@ class CampfireAmbience {
   private channelLevel(k: AmbienceChannel) {
     const v = getSoundSettings()[k];
     const fire = k === "fire" ? (this.fuel <= 0 ? 0 : 0.45 + 0.55 * Math.min(1, this.fuel / 50)) : 1;
-    return v * v * 0.9 * fire;
+    // (the wind in the trees is the woods' own)
+    const here = k === "wind" && this.map !== "whispering_woods" ? 0 : 1;
+    return v * v * 0.9 * fire * here;
   }
 
   refreshVolume() {
@@ -441,6 +452,8 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
     // the Velvet Ring: its own crowd at ringside (the Casino Crowd fader), and no band
     if (mapId === "boxing_ring") ringCrowd ??= new CasinoCrowd("ring");
     ringCrowd?.setActive(mapId === "boxing_ring");
+    // the Glimmering Caverns: its reverb and drips, its crystals, its onsen's steam
+    setCavernsActive(mapId === "glimmering_caverns");
   }, [mapId]);
   useEffect(
     () =>
@@ -451,6 +464,7 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
         crowd?.refreshVolume();
         ringCrowd?.refreshVolume();
         rain?.refreshVolume();
+        refreshCavernsVolume();
       }),
     []
   );
@@ -462,6 +476,7 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
       crowd?.setActive(false);
       ringCrowd?.setActive(false);
       rain?.setActive(false, true);
+      setCavernsActive(false);
     },
     []
   );

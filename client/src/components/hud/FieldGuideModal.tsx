@@ -18,7 +18,8 @@ const TIER_TONE: Record<string, string> = {
 };
 
 export function FieldGuideModal({ profile, market, onClose }: { profile: FishingProfile; market: string; onClose: () => void }) {
-  const species = useMemo(() => FISH_IDS.filter((id) => FISH[id].water === "freshwater"), []);
+  // (the river's and the woods', and the Glimmering Caverns' Grotto Pool)
+  const species = useMemo(() => FISH_IDS.filter((id) => FISH[id].water === "freshwater" || FISH[id].water === "cavewater"), []);
   const hour = parseMarket(market);
   const found = species.filter((id) => (profile.caught[id] ?? 0) > 0 || (profile.records[id] ?? 0) > 0);
   const crowns = species.filter((id) => (profile.records[id] ?? 0) > 0 && isKingSize({ s: id, cm: profile.records[id]! }));

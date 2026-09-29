@@ -11,9 +11,14 @@ import { BYPRODUCT_IDS, TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapac
 import { CRAFTS, isCraftId, type CraftId, type CraftItem } from "./crafting";
 import { MAIL_MAX, PROFILE_VERSION, migratePlayerInventory } from "./migrate";
 import { carrierBonus, fitWorn, isGearId, livewellBonus, type GearId } from "./gear";
+import { CAVE_FISH } from "./caverns_fishing";
+import { isPickaxeId, isIngotId, isOreKind, FORGE_QUEUE_MAX, type IngotId, type OreKind, type PickaxeId } from "./caverns_mining";
+import { sanitizeSatchel, type SatchelStack } from "./satchel";
 import { ACTIVE_TIER_ODDS, AFK_BAITED_TIER_ODDS, AFK_UNBAITED_TIER_ODDS, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MAX_DAY_PERMITS, POUCH_CAPACITY, TACKLE_PRICES, type TierOdds } from "./economy";
 
-export type Water = "freshwater" | "saltwater";
+/** The waters: the camp's rivers, the beach's sea (registered), and the Glimmering Caverns' Grotto
+ *  Pool (shared/caverns_fishing.ts). */
+export type Water = "freshwater" | "saltwater" | "cavewater";
 /** The five rarities, and the rod tier each needs (a rod lands its own rarity and below). */
 export type FishTier = "common" | "uncommon" | "rare" | "legendary" | "mythic";
 export const FISH_TIER_RANK: Record<FishTier, number> = { common: 1, uncommon: 2, rare: 3, legendary: 4, mythic: 5 };
@@ -36,8 +41,8 @@ export interface FishSpecies {
   size: number;
   pattern: SwimPattern;
   barScale: number;
-  /** When it bites: by day or by night (shared/daynight.ts). */
-  time: "day" | "night";
+  /** When it bites: by day or by night (shared/daynight.ts); underground, at any hour. */
+  time: "day" | "night" | "any";
   /** Only in the Whispering Woods' rapids (the legendaries and the mythics). */
   rapids?: boolean;
   /** Its heft: kilograms for a fish a metre long (a weight goes with the cube of its length). */
@@ -87,6 +92,8 @@ export const FISH = {
   sunset_clownfish: { name: "Sunset Clownfish", emoji: "🐠", water: "saltwater", tier: "uncommon", weight: 30, bite: [4, 7], cm: [7, 14], value: 6, speed: 0.85, size: 0.6, pattern: "erratic", barScale: 1, time: "day", mass: 15 },
   prism_jellyfish: { name: "Prism Jellyfish", emoji: "🪼", water: "saltwater", tier: "rare", weight: 18, bite: [6, 10], cm: [15, 40], value: 14, speed: 0.75, size: 0.85, pattern: "sine", barScale: 0.9, time: "night", mass: 4 },
   pearl_whale: { name: "Abyssal Pearl Whale", emoji: "🐳", water: "saltwater", tier: "legendary", weight: 4, bite: [9, 14], cm: [120, 260], value: 120, speed: 1.35, size: 1.0, pattern: "plunge", barScale: 0.7, time: "night", mass: 10 },
+  // cavewater: the Glimmering Caverns' Grotto Pool, six kinds biting at any hour (shared/caverns_fishing.ts)
+  ...CAVE_FISH,
 } as const satisfies Record<string, FishSpecies>;
 export type FishId = keyof typeof FISH;
 export const FISH_IDS = Object.keys(FISH) as FishId[];
@@ -332,6 +339,26 @@ export interface FishingProfile {
   felledIn: Partial<Record<FatigueClass, string>>;
   /** The workbench's consumables in effect: each buff until (epoch ms, the server's clock). */
   buffs: Partial<Record<BuffKey, number>>;
+  /** The Glimmering Caverns: the Prospector's Satchel's tier, its slots (always its tier's:
+   *  shared/satchel.ts) and what it holds (a stack a kind: ores, ingots, geodes, gems). */
+  satchelTier: number;
+  satchelSlots: number;
+  satchelContents: SatchelStack[];
+  /** The pickaxe in hand and those owned (the Rusted Pickaxe everyone's), and whether Old Flint has
+   *  met you (his gift: the Rusted Pickaxe, and the adit open to you for good). */
+  pickaxeId: PickaxeId;
+  pickaxes: PickaxeId[];
+  caveAccess: boolean;
+  /** The onsen's Deep Warmth until (epoch ms, the server's clock): a quicker step everywhere, a wider
+   *  fracture, the ring's stamina back sooner. */
+  deepWarmthUntil: number;
+  /** The Ancient Forge's queue (ingots still to come, in order), when its next one is done (epoch
+   *  ms), and its tray (ingots done that found no room in the satchel: collected at the forge). */
+  forgeQueue: { i: IngotId; n: number }[];
+  forgeAt: number;
+  forgeTray: Partial<Record<IngotId, number>>;
+  /** The nodes broken, by kind (the drawer's tally). */
+  mined: Partial<Record<OreKind, number>>;
 }
 /** The consumables' buffs (shared/crafting.ts BUFFS): kept here by key. */
 export type BuffKey = "smore" | "wax" | "scent" | "sap" | "chum";
@@ -392,7 +419,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem): boolean 
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {} };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {} };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -539,6 +566,34 @@ function readFishingProfile(raw: unknown): FishingProfile {
       if (until > 0) p.buffs[k] = until;
     }
   }
+  // the Glimmering Caverns: the satchel (its slots its tier's), the pickaxes, Old Flint's welcome, the
+  // Deep Warmth, the forge's queue and tray, the nodes broken
+  Object.assign(p, sanitizeSatchel(r));
+  if (Array.isArray(r.pickaxes)) p.pickaxes = Array.from(new Set(["rusted" as PickaxeId, ...r.pickaxes.filter(isPickaxeId)]));
+  p.pickaxeId = isPickaxeId(r.pickaxeId) && p.pickaxes.includes(r.pickaxeId) ? r.pickaxeId : "rusted";
+  p.caveAccess = r.caveAccess === true;
+  p.deepWarmthUntil = Math.max(0, Number(r.deepWarmthUntil) || 0);
+  if (Array.isArray(r.forgeQueue)) {
+    for (const j of r.forgeQueue) {
+      const job = j as Record<string, unknown>;
+      const n = Math.max(0, Math.min(FORGE_QUEUE_MAX, Math.round(Number(job?.n) || 0)));
+      if (isIngotId(job?.i) && n > 0) p.forgeQueue.push({ i: job.i, n });
+      if (p.forgeQueue.length >= 8) break;
+    }
+  }
+  p.forgeAt = p.forgeQueue.length ? Math.max(0, Number(r.forgeAt) || 0) : 0;
+  if (r.forgeTray && typeof r.forgeTray === "object") {
+    for (const [k, v] of Object.entries(r.forgeTray as Record<string, unknown>)) {
+      const n = Math.max(0, Math.min(999, Math.round(Number(v) || 0)));
+      if (isIngotId(k) && n > 0) p.forgeTray[k] = n;
+    }
+  }
+  if (r.mined && typeof r.mined === "object") {
+    for (const [k, v] of Object.entries(r.mined as Record<string, unknown>)) {
+      const n = Math.max(0, Math.min(999_999, Math.round(Number(v) || 0)));
+      if (isOreKind(k) && n > 0) p.mined[k] = n;
+    }
+  }
   // the carrier's tier; one from before the tiers (levels 1-3: 6, 12, 20 logs) moves up to the
   // smallest tier that holds all it held, so nothing is lost in the move
   if (Number(r.carrierTier) >= 1) p.carrierTier = Math.min(WOOD_CARRIER_TIERS.length, Math.round(Number(r.carrierTier)));
@@ -590,6 +645,8 @@ export interface CatchLuck {
   /** The Golden Scale Ring: a gold star this much likelier, and the fish this much heavier. */
   goldStar?: number;
   heft?: number;
+  /** A cast landed in the Grotto Pool's lucky drip: nothing common bites. */
+  noCommon?: boolean;
 }
 
 export const FISH_TIERS: FishTier[] = ["common", "uncommon", "rare", "legendary", "mythic"];
@@ -614,14 +671,16 @@ export function tierOdds(rodTier: number, afk: boolean, baited: boolean, rareMul
 export function rollFish(water: Water, luck: CatchLuck = {}, rand: () => number = Math.random): FishId {
   const rareMul = (1 + (luck.rareLuck ?? 0)) * (luck.bait ? baitEffect(luck.bait, luck.time === "night").rareMul : 1);
   const odds = luck.commonOnly ? AFK_UNBAITED_TIER_ODDS : tierOdds(luck.rodTier ?? 1, !!luck.afk, !!luck.bait, rareMul);
-  const swims = (id: FishId) => (!luck.time || FISH[id].time === luck.time) && (!(FISH[id] as FishSpecies).rapids || luck.rapids === true);
+  // (a cast in the lucky drip: the commons' share goes to the rest; an uncommon at worst)
+  const floor = luck.noCommon && odds.common > 0 ? { ...odds, common: 0, uncommon: Math.max(odds.uncommon, 0.0001) } : odds;
+  const swims = (id: FishId) => (!luck.time || FISH[id].time === luck.time || FISH[id].time === "any") && (!(FISH[id] as FishSpecies).rapids || luck.rapids === true) && !(luck.noCommon && FISH[id].tier === "common");
   // (only the rarities that swim here: the rest of the odds shared out among them in proportion)
-  const here = FISH_TIERS.filter((k) => odds[k] > 0 && fishOf(water).some((id) => FISH[id].tier === k && swims(id)));
-  const total = here.reduce((a, k) => a + odds[k], 0);
+  const here = FISH_TIERS.filter((k) => floor[k] > 0 && fishOf(water).some((id) => FISH[id].tier === k && swims(id)));
+  const total = here.reduce((a, k) => a + floor[k], 0);
   let roll = rand() * total;
   let tier: FishTier = here[0] ?? "common";
   for (const k of here) {
-    roll -= odds[k];
+    roll -= floor[k];
     if (roll < 0) {
       tier = k;
       break;

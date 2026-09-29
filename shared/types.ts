@@ -16,7 +16,8 @@ export type SitPose = "sit" | "lie" | "dangle" | "cross";
 export type HeldItem = "" | "coffee" | "marshmallow" | "skewer" | "jar";
 /** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is stunned in the ring. */
 /** "rest": sitting at a fishing spot with the rod stowed and a warm mug, the creel full. */
-export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar" | "stargaze" | "chop" | "rest";
+/** "mine": at an ore node in the Glimmering Caverns, the pickaxe up; "soak": in its onsen. */
+export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar" | "stargaze" | "chop" | "rest" | "mine" | "soak";
 
 export interface PlayerState {
   sessionId: string;
@@ -212,24 +213,35 @@ export const SPARKLE_SPOTS: { x: number; z: number }[] = [
 ];
 export const SPARKLE_RESPAWN_S = 30;
 
-export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "casino_vip" | "boxing_ring" | "japanese_onsen" | "retro_arcade" | "gaming_cafe" | "whispering_woods";
+export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "casino_vip" | "boxing_ring" | "japanese_onsen" | "retro_arcade" | "gaming_cafe" | "whispering_woods" | "glimmering_caverns";
 /**
  * Every world, in the fast-travel grid's order: two per row, a theme per row (cozy living,
- * vacation and spa, action and play, gaming and cyber); then the Velvet Penthouse (casino_vip) and the
- * Whispering Woods, never on the grid (HIDDEN_MAPS).
+ * vacation and spa, action and play, gaming and cyber); then the Velvet Penthouse (casino_vip), the
+ * Whispering Woods and the Glimmering Caverns, never on the grid (HIDDEN_MAPS).
  */
-export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "japanese_onsen", "velvet_casino", "boxing_ring", "retro_arcade", "gaming_cafe", "casino_vip", "whispering_woods"];
+export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "japanese_onsen", "velvet_casino", "boxing_ring", "retro_arcade", "gaming_cafe", "casino_vip", "whispering_woods", "glimmering_caverns"];
 /** Worlds reached only from another (never on the fast-travel grid): the Velvet Penthouse (Bruno's
- *  doors) and the Whispering Woods (the campfire's branch archway, with a permit). */
-export const HIDDEN_MAPS: ReadonlySet<MapId> = new Set<MapId>(["casino_vip", "whispering_woods"]);
+ *  doors), the Whispering Woods (the campfire's branch archway, with a permit) and the Glimmering
+ *  Caverns (the woods' old mine adit, once Old Flint has met you). */
+export const HIDDEN_MAPS: ReadonlySet<MapId> = new Set<MapId>(["casino_vip", "whispering_woods", "glimmering_caverns"]);
+/** The Glimmering Caverns (under the Whispering Woods). */
+export function isCavernsMap(map: string): boolean {
+  return map === "glimmering_caverns";
+}
+/** The worlds with water to fish (the reel, the livewell, AFK): the camp's rivers and the caverns'
+ *  Grotto Pool. */
+export function isFishingMap(map: string): boolean {
+  return isCampMap(map) || isCavernsMap(map);
+}
 /** The campfire and the woods behind it: one 24-minute day between them (shared/daynight.ts). */
 export function isCampMap(map: string): boolean {
   return map === "campfire_night" || map === "whispering_woods";
 }
-/** The worlds you gather in (the wood carrier's and the livewell's gauges show only there): the
- *  campfire and the woods behind it, the beach (and an ocean, once there is one). */
+/** The worlds you gather in (the wood carrier's, the livewell's and the satchel's gauges show only
+ *  there): the campfire and the woods behind it, the caverns under them, the beach (and an ocean, once
+ *  there is one). */
 export function isGatheringMap(map: string): boolean {
-  return isCampMap(map) || map === "sunset_beach" || map === "ocean";
+  return isCampMap(map) || isCavernsMap(map) || map === "sunset_beach" || map === "ocean";
 }
 /** The casino's two floors: the hall and the penthouse (the High Rollers board shows on both). */
 export function isCasinoMap(map: string): boolean {
@@ -298,7 +310,7 @@ export interface LoungeInfo {
 
 /** The hour a world keeps whatever the lounge's clock says: the campfire is always a starlit night,
  *  and the casino's floors and the Velvet Ring's fight nights never see the sun. */
-export const MAP_SIGNATURE_TIME: Partial<Record<MapId, TimeOfDay>> = { campfire_night: "night", velvet_casino: "night", casino_vip: "night", boxing_ring: "night" };
+export const MAP_SIGNATURE_TIME: Partial<Record<MapId, TimeOfDay>> = { campfire_night: "night", velvet_casino: "night", casino_vip: "night", boxing_ring: "night", glimmering_caverns: "night" };
 
 /** Shared lighting mood. Purely presentational, but synced so the room reads the same for everyone. */
 export type TimeOfDay = "sunrise" | "day" | "sunset" | "night";
@@ -365,6 +377,14 @@ export type ToggleableKind =
   | "tree"
   | "ranger"
   | "animal"
+  // the Glimmering Caverns (and the woods' way down): the old mine adit, Old Flint the Badger, Gus
+  // the Mole's workshop, the Ancient Forge, the Geode Anvil, the ore nodes
+  | "adit"
+  | "miner"
+  | "prospector"
+  | "forge"
+  | "anvil"
+  | "ore"
   | RingPropKind
   | CasinoPropKind;
 
@@ -464,14 +484,14 @@ export const SYSTEM_EMOJI = ["🥂", "💤", "💃", "🪙", "💰", "🎰", "�
  * to make a move. (The Velvet Ring's punches, guards, dashes and hit reactions are not gestures:
  * they come with the bout's own events, client/src/systems/fightAnim.ts.)
  */
-export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss", "belly", "trophy", "bag"] as const;
+export const GESTURES = ["wave", "dance", "cheers", "nap", "heart", "water", "reach", "chop", "net", "toss", "belly", "trophy", "bag", "mine"] as const;
 export type Gesture = (typeof GESTURES)[number];
-export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8, belly: 2.6, trophy: 2.4, bag: 2.4 };
-export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪", belly: "😋", trophy: "🏆", bag: "🥊" };
+export const GESTURE_SECONDS: Record<Gesture, number> = { wave: 1.2, dance: 5, cheers: 2.4, nap: 7, heart: 2.2, water: 1.8, reach: 0.8, chop: 0.7, net: 1.0, toss: 0.8, belly: 2.6, trophy: 2.4, bag: 2.4, mine: 0.55 };
+export const GESTURE_EMOJI: Record<Gesture, string> = { wave: "👋", dance: "💃", cheers: "🥂", nap: "💤", heart: "❤️", water: "💧", reach: "♟️", chop: "🪓", net: "✨", toss: "🍪", belly: "😋", trophy: "🏆", bag: "🥊", mine: "⛏️" };
 /** Gestures only the server starts (a client asking for one is ignored): "trophy" is the catch held
  *  high over the head for a new personal best (and a bout won); a flurry on the Velvet Ring's heavy
- *  bag ("bag") is the gym's. */
-export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net", "toss", "trophy", "bag"]);
+ *  bag ("bag") is the gym's; a pickaxe's blow on a rock ("mine") the caverns'. */
+export const SERVER_GESTURES: ReadonlySet<Gesture> = new Set(["water", "reach", "chop", "net", "toss", "trophy", "bag", "mine"]);
 export function isGesture(v: unknown): v is Gesture {
   return typeof v === "string" && (GESTURES as readonly string[]).includes(v);
 }
@@ -1137,6 +1157,12 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "tree" ||
     kind === "ranger" ||
     kind === "animal" ||
+    kind === "adit" ||
+    kind === "miner" ||
+    kind === "prospector" ||
+    kind === "forge" ||
+    kind === "anvil" ||
+    kind === "ore" ||
     isRingProp(kind) ||
     isCasinoProp(kind)
   );
@@ -1158,7 +1184,7 @@ export function usableSeated(kind: ToggleableKind): boolean {
 
 // --- world sizes ---
 /** Half-width of each diorama slab. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, whispering_woods: 12, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, whispering_woods: 12, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12, glimmering_caverns: 14 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
 export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 

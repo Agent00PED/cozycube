@@ -2,19 +2,31 @@ import { useSyncExternalStore } from "react";
 
 // The game's own sound settings (the lounge radio keeps its volume in its panel): the ambience
 // mixer, a fader for each channel of a world's soundscape (at the campfire: the fire's crackle,
-// the river, and the forest's breeze and crickets), the casino's jazz and its crowd (the murmur,
-// glasses and chips), the rain on the lounge's windows, and whether the little effects (a catch's
-// chime, a chop) play. Kept in this browser; a private window or blocked storage just starts from
-// the defaults. A single Ambience level saved before the mixer sets all three faders.
+// the river, and the forest's breeze and crickets; in the Whispering Woods the wind in the trees),
+// the casino's jazz and its crowd (the murmur, glasses and chips), the rain on the lounge's windows,
+// the Glimmering Caverns' three (its reverb and drips, its crystals' resonance, its onsen's steam),
+// and whether the little effects (a catch's chime, a chop, a pickaxe's clink) play. Kept in this
+// browser; a private window or blocked storage just starts from the defaults. A single Ambience level
+// saved before the mixer sets all three of the camp's faders.
 
-export type AmbienceChannel = "fire" | "river" | "forest";
-export const AMBIENCE_CHANNELS: AmbienceChannel[] = ["fire", "river", "forest"];
+export type AmbienceChannel = "fire" | "river" | "forest" | "wind";
+export const AMBIENCE_CHANNELS: AmbienceChannel[] = ["fire", "river", "forest", "wind"];
+/** The Glimmering Caverns' channels (audio/cavernAmbience.ts). */
+export type CaveChannel = "cavern" | "crystal" | "steam";
+export const CAVE_CHANNELS: CaveChannel[] = ["cavern", "crystal", "steam"];
 
 export interface SoundSettings {
   /** Each ambience channel's fader, 0..1. */
   fire: number;
   river: number;
   forest: number;
+  /** The Whispering Woods' wind in the trees, 0..1. */
+  wind: number;
+  /** The Glimmering Caverns: the cavern's reverb and its drips, its crystals' resonance, the onsen's
+   *  steam (audio/cavernAmbience.ts), 0..1 each. */
+  cavern: number;
+  crystal: number;
+  steam: number;
   /** The Velvet Casino's jazz combo (audio/casinoJazz.ts), 0..1. */
   jazz: number;
   /** The Cozy Lounge's folk-jazz trio (audio/loungeFolk.ts), 0..1. */
@@ -28,7 +40,7 @@ export interface SoundSettings {
 }
 
 const KEY = "cozy-sound-settings";
-const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, jazz: 0.5, lounge: 0.45, crowd: 0.5, rain: 0.5, effects: true };
+const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, wind: 0.5, cavern: 0.6, crystal: 0.45, steam: 0.5, jazz: 0.5, lounge: 0.45, crowd: 0.5, rain: 0.5, effects: true };
 
 function load(): SoundSettings {
   try {
@@ -39,6 +51,10 @@ function load(): SoundSettings {
       fire: level(raw?.fire),
       river: level(raw?.river),
       forest: level(raw?.forest),
+      wind: typeof raw?.wind === "number" ? Math.max(0, Math.min(1, raw.wind)) : DEFAULTS.wind,
+      cavern: typeof raw?.cavern === "number" ? Math.max(0, Math.min(1, raw.cavern)) : DEFAULTS.cavern,
+      crystal: typeof raw?.crystal === "number" ? Math.max(0, Math.min(1, raw.crystal)) : DEFAULTS.crystal,
+      steam: typeof raw?.steam === "number" ? Math.max(0, Math.min(1, raw.steam)) : DEFAULTS.steam,
       jazz: typeof raw?.jazz === "number" ? Math.max(0, Math.min(1, raw.jazz)) : DEFAULTS.jazz,
       lounge: typeof raw?.lounge === "number" ? Math.max(0, Math.min(1, raw.lounge)) : DEFAULTS.lounge,
       crowd: typeof raw?.crowd === "number" ? Math.max(0, Math.min(1, raw.crowd)) : DEFAULTS.crowd,

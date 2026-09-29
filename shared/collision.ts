@@ -5,9 +5,11 @@ import { CASINO_OBSTACLES, CASINO_REGIONS, CASINO_SPAWNS, casinoFloorY } from ".
 import { VIP_ARRIVAL, VIP_OBSTACLES, VIP_REGION } from "./worlds/casino_vip";
 import { FOREST_OBSTACLES, FOREST_SPAWNS } from "./worlds/forest";
 import { RING_FLOOR_Y, RING_OBSTACLES, RING_SPAWNS, onRing } from "./worlds/boxing_ring";
+import { CAVERNS_OBSTACLES, CAVERNS_SPAWNS, cavernsFloorY } from "./worlds/caverns";
 
-// Where you can stand. The lounge, the campfire, the woods, the casino and the Velvet Ring are
-// authored in shared/worlds/ (lounge.ts, campfire.ts, forest.ts, casino.ts, boxing_ring.ts); every
+// Where you can stand. The lounge, the campfire, the woods, the casino, the Velvet Ring and the
+// Glimmering Caverns are authored in shared/worlds/ (lounge.ts, campfire.ts, forest.ts, casino.ts,
+// boxing_ring.ts, caverns.ts); every
 // other world is still an open square floor with one spawn in the middle until it is rebuilt.
 
 export interface AABB {
@@ -57,6 +59,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   velvet_casino: CASINO_OBSTACLES,
   casino_vip: VIP_OBSTACLES,
   whispering_woods: FOREST_OBSTACLES,
+  glimmering_caverns: CAVERNS_OBSTACLES,
   boxing_ring: RING_OBSTACLES,
   japanese_onsen: open(),
   retro_arcade: open(),
@@ -71,6 +74,7 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
   velvet_casino: CASINO_SPAWNS,
   casino_vip: [VIP_ARRIVAL],
   whispering_woods: FOREST_SPAWNS,
+  glimmering_caverns: CAVERNS_SPAWNS,
   boxing_ring: RING_SPAWNS,
   japanese_onsen: centre(),
   retro_arcade: centre(),
@@ -87,10 +91,12 @@ export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boo
 }
 
 /** How high the floor is at (x, z): the casino's raised High-Roller Pit and Velvet Lounge (and the
- *  steps up to them), the Velvet Ring's canvas (only a fighter stands there); every other world is
- *  flat. Where an avatar's feet go, where a click lands. */
+ *  steps up to them), the Velvet Ring's canvas (only a fighter stands there), the caverns' Upper
+ *  Terrace and the ramp of its stair; every other world is flat. Where an avatar's feet go, where a
+ *  click lands. */
 export function walkY(mapId: MapId, x: number, z: number): number {
   if (mapId === "velvet_casino") return casinoFloorY(x, z);
+  if (mapId === "glimmering_caverns") return cavernsFloorY(x, z);
   if (mapId === "boxing_ring") return onRing(x, z) ? RING_FLOOR_Y : 0;
   return 0;
 }

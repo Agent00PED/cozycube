@@ -109,6 +109,23 @@ const RELAYED_MESSAGES = [
   "workbenchResult",
   // the Heartwood Compass: a Colossal rising, to its wearers
   "compassPulse",
+  // the Glimmering Caverns: a node's close-up opened, its weak spot moved, closed; a strike and a
+  // shatter (the whole cavern sees them); the loot; the forge's ingots; an answer from Gus, the
+  // forge or the anvil; a geode on the anvil and each strike on it; the lucky drip; Gus's and Old
+  // Flint's waves
+  "caveProspect",
+  "caveProspectEnd",
+  "caveWeak",
+  "caveStrike",
+  "caveShatter",
+  "caveLoot",
+  "caveForge",
+  "cavernsResult",
+  "geodeStart",
+  "geodeStrike",
+  "caveDrip",
+  "gusWave",
+  "flintWave",
   "creelFull",
   // the casino: Mr. Vance's answer at the cage (an exchange, or why not), and his wave as it opens
   "cashierResult",
@@ -254,6 +271,8 @@ interface UseColyseusRoomResult {
   worldEvent: string;
   /** Forest Whisper Incense burning at the bonfire until (epoch ms; 0 none): luck for everyone. */
   incenseUntil: number;
+  /** The Glimmering Caverns' ore nodes (shared/caverns_mining.ts OreSyncState as JSON). */
+  ores: string;
   connected: boolean;
   /** Why the last connection attempt failed or dropped, while it is being retried; null when fine. */
   connectionIssue: string | null;
@@ -337,6 +356,8 @@ interface UseColyseusRoomResult {
   plantSend: (packet: PlantPacket) => void;
   /** The campfire: roasting (ROAST_START / ROAST_STOP) and the guitar (GUITAR). */
   campfireSend: (packet: CampfirePacket) => void;
+  /** The Glimmering Caverns: a packet on one of its channels (shared/caverns_mining.ts CAVERNS_CHANNELS). */
+  cavernsSend: (channel: string, packet?: unknown) => void;
   /** Sit cross-legged on the ground where you stand, facing `rotationY` (the Sit emote, away from seats). */
   groundSit: (rotationY: number) => void;
   mochiPlay: (action: string) => void;
@@ -363,6 +384,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
   const [trees, setTrees] = useState("");
   const [worldEvent, setWorldEvent] = useState("");
   const [incenseUntil, setIncenseUntil] = useState(0);
+  const [ores, setOres] = useState("");
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   /** The lounge picked was full when we tried to join it. */
@@ -788,6 +810,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
       room.state.listen("trees", (raw: string) => setTrees(raw ?? ""));
       room.state.listen("worldEvent", (raw: string) => setWorldEvent(raw ?? ""));
       room.state.listen("incenseUntil", (at: number) => setIncenseUntil(Number(at) || 0));
+      room.state.listen("ores", (raw: string) => setOres(raw ?? ""));
       // the Velvet Ring's bout: into its own store (a fighter's stamina moves twenty times a second;
       // only the ring's HUD, its chalkboard and the fighters' avatars listen). Followed through
       // `listen` like the roulette: the object at join time can be a placeholder.
@@ -912,6 +935,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
     trees,
     worldEvent,
     incenseUntil,
+    ores,
     connected,
     connectionIssue,
     reconnect,
@@ -976,6 +1000,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
     radioSend: (packet) => send("radio", packet),
     plantSend: (packet) => send("plant", packet),
     campfireSend: (packet) => send("campfire", packet),
+    cavernsSend: (channel, packet) => send(channel, packet),
     mochiPlay: (action) => send("mochi_play", { action }),
     ballRef,
     subscribeEmotes,

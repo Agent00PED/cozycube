@@ -14,15 +14,16 @@ import { worldToScreen } from "../../systems/input";
 // a slim pill for each of your own consumables' buffs (a S'more, Grip Wax, a Scent Pouch). With the
 // Heartwood Compass worn, a Colossal standing shows its way too: in the woods an arrow turned toward
 // it on screen and how far, elsewhere where it stands (the room chimes as one rises: compassPulse).
+// The Glimmering Caverns onsen's Deep Warmth goes with you everywhere: its pill shows on every map.
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-export function WonderBadge({ worldEvent, incenseUntil, currentMap, buffs = {}, worn = [] }: { worldEvent: string; incenseUntil: number; currentMap: MapId; buffs?: Partial<Record<BuffKey, number>>; worn?: GearId[] }) {
+export function WonderBadge({ worldEvent, incenseUntil, currentMap, buffs = {}, worn = [], warmUntil = 0 }: { worldEvent: string; incenseUntil: number; currentMap: MapId; buffs?: Partial<Record<BuffKey, number>>; worn?: GearId[]; /** The Deep Warmth until (epoch ms). */ warmUntil?: number }) {
   const ev = useMemo(() => parseWorldEvent(worldEvent), [worldEvent]);
   // a tick a second while anything is on (the clocks themselves are read as it renders)
   const [, tick] = useState(0);
   const incenseOn = incenseUntil > Date.now();
-  const buffing = BUFF_KEYS.some((k) => (buffs[k] ?? 0) > Date.now());
+  const buffing = BUFF_KEYS.some((k) => (buffs[k] ?? 0) > Date.now()) || warmUntil > Date.now();
   // (the compass's arrow follows you: four times a second while it points)
   const compassTree = ev?.kind === "titan" && hasCompass(worn) ? FELL_TREE_AT.get(ev.id) : undefined;
   const pointing = !!compassTree && currentMap === compassTree.map;
@@ -31,12 +32,13 @@ export function WonderBadge({ worldEvent, incenseUntil, currentMap, buffs = {}, 
     const t = window.setInterval(() => tick((n) => n + 1), pointing ? 250 : 1000);
     return () => window.clearInterval(t);
   }, [ev, incenseOn, buffing, pointing]);
-  if (!isCampMap(currentMap)) return null;
+  const warm = Math.max(0, Math.ceil((warmUntil - Date.now()) / 1000));
+  const camp = isCampMap(currentMap);
   // (a Titan stands until it is felled: no clock)
-  const left = !ev ? 0 : ev.until > 0 ? Math.max(0, Math.ceil((ev.until - Date.now()) / 1000)) : Infinity;
-  const incense = Math.max(0, Math.ceil((incenseUntil - Date.now()) / 1000));
-  const mine = BUFF_KEYS.map((k) => ({ k, s: Math.max(0, Math.ceil(((buffs[k] ?? 0) - Date.now()) / 1000)) })).filter((b) => b.s > 0);
-  if (left <= 0 && incense <= 0 && !mine.length) return null;
+  const left = !camp || !ev ? 0 : ev.until > 0 ? Math.max(0, Math.ceil((ev.until - Date.now()) / 1000)) : Infinity;
+  const incense = camp ? Math.max(0, Math.ceil((incenseUntil - Date.now()) / 1000)) : 0;
+  const mine = camp ? BUFF_KEYS.map((k) => ({ k, s: Math.max(0, Math.ceil(((buffs[k] ?? 0) - Date.now()) / 1000)) })).filter((b) => b.s > 0) : [];
+  if (left <= 0 && incense <= 0 && !mine.length && warm <= 0) return null;
   const clock = Number.isFinite(left) ? mmss(left) : "until felled";
   const text =
     ev?.kind === "surge"
@@ -53,11 +55,17 @@ export function WonderBadge({ worldEvent, incenseUntil, currentMap, buffs = {}, 
           <span className="rounded-full bg-[#F5A623] px-1.5 tabular-nums text-[#2B201B]">{clock}</span>
         </div>
       )}
-      {compassTree && <CompassPill x={compassTree.x} z={compassTree.z} here={pointing} />}
+      {camp && compassTree && <CompassPill x={compassTree.x} z={compassTree.z} here={pointing} />}
       {incense > 0 && (
         <div className={pill}>
           <span>🪔 Forest Whisper Incense · rare fish likelier for everyone</span>
           <span className="rounded-full bg-[#8fd3b6] px-1.5 tabular-nums text-[#2B201B]">{mmss(incense)}</span>
+        </div>
+      )}
+      {warm > 0 && (
+        <div className="clay-pop flex items-center gap-1.5 whitespace-nowrap rounded-full border border-orange-300/50 bg-[#231B18]/85 px-2 py-0.5 text-[11px] font-bold text-[#F7EBE1]" title="Deep Warmth, from a soak in the Glimmering Caverns' onsen: +15% walking pace everywhere, +20% fracture radius, stamina back 25% sooner in the ring">
+          <span>♨️ Deep Warmth · +15% pace</span>
+          <span className="tabular-nums text-amber-200">{mmss(warm)}</span>
         </div>
       )}
       {mine.length > 0 && (

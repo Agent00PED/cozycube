@@ -197,6 +197,49 @@ export const GEAR_PRICES = {
  *  Deerskin Grip Gloves carry over as the Deerskin Felling Gloves). */
 export const RETIRED_GEAR_PRICES: Record<string, number> = { canvas_gloves: 120, traction_boots: 260, leather_apron: 420 };
 
+// --- the Glimmering Caverns ---------------------------------------------------------------------------
+
+/** Gus the Mole's base price for each thing the caverns give (shared/caverns_mining.ts ORE_ITEMS),
+ *  before the hour's market (shared/market.ts): the raw ores off the nodes by tier (Coal 6, Raw
+ *  Copper 12 up the terrace; Raw Iron 25 off the wet cliffs; Raw Silver 55 and Fine Stone Dust 10 in
+ *  the lower chasm; a Glimmer Shard 135 in the fungal chasm; an Ancient Core Fragment 450 off the
+ *  Titan Monolith), the Ancient Forge's ingots (a small margin on their ores and coal: copper +7%,
+ *  iron +9%, silver +51%), the geodes uncracked, and the gems the Geode Anvil cuts out of them. */
+export const ORE_PRICES = {
+  coal: 6,
+  copper_ore: 12,
+  iron_ore: 25,
+  silver_ore: 55,
+  stone_dust: 10,
+  glimmer_shard: 135,
+  core_fragment: 450,
+  copper_ingot: 45,
+  iron_ingot: 95,
+  silver_ingot: 185,
+  mystery_geode: 40,
+  pristine_geode: 250,
+  amethyst: 75,
+  topaz: 160,
+  opal: 380,
+  star_shard: 1200,
+} as const;
+/** The pickaxes (the Rusted Pickaxe, T1, is Old Flint's gift): Gus sells T2 to T5, the Deep Core
+ *  Drill the caverns' big sink. */
+export const PICKAXE_PRICES = { copper: 1500, reinforced: 4500, glimmer: 11000, drill: 25000 } as const;
+/** The Prospector's Satchel, tier 1 (the Canvas Ore Pouch) to tier 5 (the Titan Core Vault): coins,
+ *  and materials from the other crafts (shared/satchel.ts SATCHEL_TIERS says which). */
+export const SATCHEL_PRICES = [0, 500, 1800, 5500, 14000, 32000] as const;
+/** The Grotto Pool's six cave fish, Common to Mythic: far richer water than the river's, deep
+ *  underground (shared/caverns_fishing.ts). */
+export const CAVE_FISH_PRICES = {
+  cave_tetra: 22,
+  glassfin_loach: 58,
+  glow_axolotl: 180,
+  sporecat: 450,
+  crystal_fin: 1150,
+  elder_olm: 3200,
+} as const;
+
 // --- the wardrobe -------------------------------------------------------------------------------------
 
 /** Every item in the wardrobe sits in one of three bands: an everyday piece, a rare one, a prestige

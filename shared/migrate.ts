@@ -17,15 +17,24 @@
 //     missing fields   read as zero, false or empty (the plain read already defaults every one), so a
 //                      returning player's profile never trips the room's state
 //
+//   v2 -> v3   (the Glimmering Caverns)
+//     the satchel      satchelTier 0 (the Coat Pockets), satchelSlots its tier's, satchelContents []
+//     the pickaxe      pickaxeId "rusted" (Old Flint hands it over when you meet him), caveAccess
+//                      false until then
+//     the onsen        deepWarmthUntil 0
+//     the forge        an empty queue and tray
+//     (injected field by field only where missing: a profile that already has them keeps them)
+//
 // Each migration leaves a word in the profile's mail: told to the player the next time they come in.
 
 import { addLogs, BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "./chop";
 import { CRAFTS, type CraftId, type CraftNeeds } from "./crafting";
 import type { FishingProfile } from "./fishing";
 import { GEAR } from "./gear";
+import { SATCHEL_TIERS } from "./satchel";
 
 /** The camp profile's schema now. */
-export const PROFILE_VERSION = 2;
+export const PROFILE_VERSION = 3;
 /** A letter in the profile's mail: at most this long (a longer one is cut short as it is read). */
 export const MAIL_MAX = 1200;
 
@@ -67,11 +76,30 @@ const MADE_FOR_GOOD: [flag: "roastingStick" | "packFrame" | "tackleBox", id: Cra
 /** A list in words: "a", "a and b", "a, b and c". */
 const inWords = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
+/** The caverns' fields a profile from before them is given (the plain read defaults them already;
+ *  this writes them in, so the stored JSON carries them from its next save). */
+const CAVERNS_DEFAULTS = { satchelTier: 0, satchelSlots: SATCHEL_TIERS[0].slots, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {} } as const;
+
 /** Brings a read profile (`p`, from the stored `raw`) up to PROFILE_VERSION; a current one is left as
  *  it is. Pure: the room saves the result with its next write. */
 export function migratePlayerInventory(raw: unknown, p: FishingProfile): FishingProfile {
   if (p.v >= PROFILE_VERSION) return p;
-  void raw;
+  const words: string[] = [];
+  if (p.v < 2) migrateV2(p, words);
+  // v3: the Glimmering Caverns' fields, injected where the stored JSON has none
+  const stored = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  for (const [k, v] of Object.entries(CAVERNS_DEFAULTS)) {
+    if (stored[k] === undefined) (p as unknown as Record<string, unknown>)[k] = JSON.parse(JSON.stringify(v));
+  }
+  if (!p.caveAccess) words.push("⛏️ Word from the woods: an old badger with a lantern on his helmet has been seen by the Autumn Maples, on the Whispering Woods' western cliff. They say he guards a way down.");
+  if (words.length) p.mail = [...p.mail, ...words.map((w) => w.slice(0, MAIL_MAX))].slice(-8);
+  p.v = PROFILE_VERSION;
+  return p;
+}
+
+/** v0 / v1 -> v2: the ecosystem rebalance (the things made for good refunded, the legacy pieces kept
+ *  to trade in); its word goes in `words`. */
+function migrateV2(p: FishingProfile, out: string[]) {
   const words: string[] = [];
   // the things made for good off the bench: their materials back, in full
   const made: string[] = [];
@@ -92,7 +120,5 @@ export function migratePlayerInventory(raw: unknown, p: FishingProfile): Fishing
     const what = inWords([pieces > 0 ? `${pieces} old bench piece${pieces > 1 ? "s" : ""}` : "", ...relics.map((r) => `your ${r}`)].filter(Boolean));
     words.push(`${what[0].toUpperCase()}${what.slice(1)} trade${pieces + relics.length > 1 ? "" : "s"} in at Buster's or Bramble's for a full refund.`);
   }
-  if (words.length) p.mail = [...p.mail, `🔧 Workshop retrofit: ${words.join(" ")}`.slice(0, MAIL_MAX)].slice(-8);
-  p.v = PROFILE_VERSION;
-  return p;
+  if (words.length) out.push(`🔧 Workshop retrofit: ${words.join(" ")}`);
 }
