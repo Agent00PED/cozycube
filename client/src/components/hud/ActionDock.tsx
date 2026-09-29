@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
-import { FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, type WoodKind } from "@shared/chop";
-import { TITAN_YIELD } from "@shared/economy";
+import { COLOSSAL, FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, isColossalKind, type WoodKind } from "@shared/chop";
 import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ANIMALS, FOREST_FISHING, FOREST_WORKBENCH_FRONT, woodsSpotOfSeat } from "@shared/worlds/forest";
 import { FELL_TREE_AT } from "@shared/worlds/trees";
 import { treeTarget } from "../../scene/treeTarget";
@@ -434,7 +433,12 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         if (tree && tree.map === mapId) {
           const info = TREES[tree.kind];
           const d = Math.hypot(tree.x - cameraFocus.x, tree.z - cameraFocus.z);
-          if (tree.titan) found.push({ key: `fell:${tree.id}`, type: "chop", d, label: `🌳 Fell the ${TITAN.name}`, hint: `${TITAN.rounds[0]}-${TITAN.rounds[1]} rounds on the ring, any axe: ${TITAN.logs[0]}-${TITAN.logs[1]} heavy logs worth ${TITAN_YIELD} 🪙 together`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
+          if (tree.titan) {
+            // (whichever Colossal rose in this clearing: the trees' sync says; felled together)
+            const ck = isColossalKind(treeTarget.kind) ? treeTarget.kind : "maple";
+            const c = COLOSSAL[ck];
+            found.push({ key: `fell:${tree.id}:${ck}`, type: "chop", d, label: `${c.emoji} Fell the ${c.name}`, hint: `${TITAN.rounds[0]}-${TITAN.rounds[1]} rounds on the ring, any axe, fell it together: ${c.blurb}, shared by the rounds each lands`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
+          }
           else found.push({ key: `fell:${tree.id}`, type: "chop", d, label: `🪓 Fell ${info.name} · T${info.tier}`, hint: `Land ${info.rounds[0]}-${info.rounds[1]} rounds on the ring and it comes down (${WOOD[info.wood].name} logs, bigger trees worth more). Needs a T${info.tier} axe or better`, run: () => interactBridge.current?.useProp(`tree_${tree.id}`) });
         }
         if (mapId === "whispering_woods") {

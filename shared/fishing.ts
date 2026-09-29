@@ -8,7 +8,8 @@
 
 import type { SwimPattern } from "./types";
 import { BYPRODUCT_IDS, TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, isAxeId, type AxeId, type ByproductId, type TreeKind, type WoodKind } from "./chop";
-import { PACK_FRAME_SLOTS, TACKLE_BOX_SLOTS, isCraftId, type CraftItem } from "./crafting";
+import { CRAFTS, isCraftId, type CraftId, type CraftItem } from "./crafting";
+import { MAIL_MAX, PROFILE_VERSION, migratePlayerInventory } from "./migrate";
 import { carrierBonus, fitWorn, isGearId, livewellBonus, type GearId } from "./gear";
 import { ACTIVE_TIER_ODDS, AFK_BAITED_TIER_ODDS, AFK_UNBAITED_TIER_ODDS, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MAX_DAY_PERMITS, POUCH_CAPACITY, TACKLE_PRICES, type TierOdds } from "./economy";
 
@@ -122,14 +123,27 @@ export interface Rod {
   tensionWindow: number;
   /** A starry shimmer about the angler while it is in hand. */
   aura: boolean;
+  /** The finest rods' own passive on a boss fish (RodPerk). */
+  perk?: RodPerk;
   blurb: string;
 }
+/** A rod's passive against a boss fish (a legendary or a mythic): its darts this much slower, its fake
+ *  runs this much rarer, and this many snaps forgiven a fight (the line holds once at breaking point). */
+export interface RodPerk {
+  name: string;
+  dart: number;
+  feints: number;
+  shields: number;
+  blurb: string;
+}
+/** Every rod's tension window grew by this (the boss fish's spikes softened). */
+export const TENSION_WINDOW_BONUS = 0.3;
 export const RODS = {
-  bamboo: { name: "Basic Bamboo Rod", emoji: "🎋", tier: 1, price: 0, barBonus: 0, tensionResist: 0, tensionWindow: 0.8, aura: false, blurb: "T1: commons, now and then an uncommon. Light, springy and everyone's first. A 0.8 s tension window." },
-  willow: { name: "Pro Carbon Rod", emoji: "🎣", tier: 2, price: TACKLE_PRICES.proRod, barBonus: 0.2, tensionResist: 0, tensionWindow: 1.0, aura: false, blurb: "T2: up to rare fish. +20% green reel bar, a 1.0 s tension window." },
-  heron: { name: "Heron Fiberglass Rod", emoji: "🪶", tier: 3, price: TACKLE_PRICES.heronRod, barBonus: 0.2, tensionResist: 0.15, tensionWindow: 1.2, aura: false, blurb: "T3: up to legendary fish. +20% bar, the line holds 15% longer, a 1.2 s tension window." },
-  starlight: { name: "Starlight Master Rod", emoji: "🌠", tier: 4, price: TACKLE_PRICES.masterRod, barBonus: 0.2, tensionResist: 0.35, tensionWindow: 1.5, aura: true, blurb: "T4: up to mythic fish. +20% bar, the line holds 35% longer, a 1.5 s tension window, and a star aura." },
-  moonlight: { name: "Mythril Moonlight Rod", emoji: "🌙", tier: 5, price: TACKLE_PRICES.moonlightRod, barBonus: 0.3, tensionResist: 0.45, tensionWindow: 1.8, aura: true, blurb: "T5: the best odds of the rare end. +30% bar, the line holds 45% longer, a 1.8 s tension window, and a moonlit aura." },
+  bamboo: { name: "Basic Bamboo Rod", emoji: "🎋", tier: 1, price: 0, barBonus: 0, tensionResist: 0, tensionWindow: 1.1, aura: false, blurb: "T1: commons, now and then an uncommon. Light, springy and everyone's first. A 1.1 s tension window." },
+  willow: { name: "Pro Carbon Rod", emoji: "🎣", tier: 2, price: TACKLE_PRICES.proRod, barBonus: 0.2, tensionResist: 0, tensionWindow: 1.3, aura: false, blurb: "T2: up to rare fish. +20% green reel bar, a 1.3 s tension window." },
+  heron: { name: "Heron Fiberglass Rod", emoji: "🪶", tier: 3, price: TACKLE_PRICES.heronRod, barBonus: 0.2, tensionResist: 0.15, tensionWindow: 1.5, aura: false, blurb: "T3: up to legendary fish. +20% bar, the line holds 15% longer, a 1.5 s tension window." },
+  starlight: { name: "Starlight Master Rod", emoji: "🌠", tier: 4, price: TACKLE_PRICES.masterRod, barBonus: 0.2, tensionResist: 0.35, tensionWindow: 1.8, aura: true, perk: { name: "Starlight Dampener", dart: 0.25, feints: 0, shields: 0, blurb: "a boss fish darts 25% slower" }, blurb: "T4: up to mythic fish. +20% bar, the line holds 35% longer, a 1.8 s tension window, a star aura, and the Starlight Dampener (a boss fish darts 25% slower)." },
+  moonlight: { name: "Mythril Moonlight Rod", emoji: "🌙", tier: 5, price: TACKLE_PRICES.moonlightRod, barBonus: 0.3, tensionResist: 0.45, tensionWindow: 2.1, aura: true, perk: { name: "Abyssal Tether", dart: 0.35, feints: 0.4, shields: 1, blurb: "a boss fish darts 35% slower and fakes 40% less, and one snap a fight is forgiven" }, blurb: "T5: the best odds of the rare end. +30% bar, the line holds 45% longer, a 2.1 s tension window, a moonlit aura, and the Abyssal Tether (a boss fish darts 35% slower, fakes 40% less, and one snap a fight is forgiven)." },
 } as const satisfies Record<string, Rod>;
 export type RodId = keyof typeof RODS;
 export const ROD_IDS = Object.keys(RODS) as RodId[];
@@ -141,11 +155,16 @@ export const RODS_BY_TIER: RodId[] = [...ROD_IDS].sort((a, b) => RODS[a].tier - 
 /** Whether a rod's odds reach a fish of this rarity at all (on a hand-reeled line). */
 export const rodLands = (rod: RodId, tier: FishTier) => (ACTIVE_TIER_ODDS[RODS[rod].tier - 1]?.[tier] ?? 0) > 0;
 
-/** A boss fish (a legendary or a mythic) on the reel: its green sweet spot 60% smaller (a share of
- *  the bar's full height), and its fake runs (a feint to one end, snapping back) and thrashing. The
- *  better rods hold the line longer, but it still takes a steady hand to land one. */
+/** A boss fish (a legendary or a mythic) on the reel: its green sweet spot smaller (a legendary's 35%
+ *  smaller, a mythic's 40%: a share of the bar's full height), and its fake runs (a feint to one end,
+ *  snapping back, each telegraphed 0.3 s ahead) and thrashing. The better rods hold the line longer
+ *  (the finest two with a passive of their own, RodPerk), but it still takes a steady hand. */
 export const BOSS_TIERS: ReadonlySet<FishTier> = new Set(["legendary", "mythic"]);
-export const BOSS_ZONE = 0.4;
+export const BOSS_ZONE_BY_TIER: Partial<Record<FishTier, number>> = { legendary: 0.65, mythic: 0.6 };
+/** The legendary's (the old single figure, for anything that asks). */
+export const BOSS_ZONE = 0.65;
+/** A boss fish's warning before each erratic run: the ❗ and the reel's red pulse (s). */
+export const BOSS_TELEGRAPH_S = 0.3;
 
 export interface Bait {
   name: string;
@@ -215,24 +234,26 @@ export function creelTier(tier: number): CreelTier {
 export function nextCreelTier(tier: number): CreelTier | null {
   return CREEL_TIERS[Math.round(tier)] ?? null;
 }
-/** The livewell's room: its tier's slots, the Tackle Master's Holster's four more, and the
- *  Reinforced Tackle Box's three (carved once, for good). */
-export function livewellCap(p: Pick<FishingProfile, "slots" | "worn" | "tackleBox">): number {
-  return p.slots + livewellBonus(p.worn) + (p.tackleBox ? TACKLE_BOX_SLOTS : 0);
+/** The livewell's room: its tier's slots, and while worn the Tackle Master's Holster's four more and
+ *  the Deepriver Fisherman Ring's six. */
+export function livewellCap(p: Pick<FishingProfile, "slots" | "worn">): number {
+  return p.slots + livewellBonus(p.worn);
 }
 /** Whether the creel has no room for another fish. */
-export function creelFull(p: Pick<FishingProfile, "creel" | "slots" | "worn" | "tackleBox">): boolean {
+export function creelFull(p: Pick<FishingProfile, "creel" | "slots" | "worn">): boolean {
   return p.creel.length >= livewellCap(p);
 }
 /** A full creel: a fresh common catch goes back in the river, and this is paid for letting it go. */
 export const CREEL_RELEASE_COINS = 1;
 /** A landed fish sheds a Fish Scale into the pouches this often (a hand-reeled one; an AFK one far
- *  less): the Otter-Carved Hook Charm's carving. */
+ *  less): the Whittled Otter Float's, the Deepriver ring's and the Glow-Spore Chum's makings. */
 export const SCALE_CHANCE = { active: 0.35, afk: 0.1 } as const;
 
 /** Everything the angler carries between visits: the creel, their rods and baits, their records
  *  (the longest of each kind), and how long they have left being Well-Fed. */
 export interface FishingProfile {
+  /** The profile's schema (PROFILE_VERSION): an older one is migrated as it is read (shared/migrate.ts). */
+  v: number;
   creel: CreelFish[];
   /** The livewell's tier (1-5, CREEL_TIERS), and its capacity (always that tier's; a creel from
    *  before the downsizing may hold more: it keeps them, and takes no more until it is under). */
@@ -263,11 +284,15 @@ export interface FishingProfile {
   /** The craft stash: carved pieces, consumables and trade goods from the workbenches, in
    *  CRAFT_STASH_SLOTS stacks of up to CRAFT_SLOT_STACK a kind (no carrier slots). */
   crafts: CraftItem[];
-  /** The things carved once, for good: the Marshmallow Roasting Stick, the Lumberjack Pack Frame
-   *  (+5 carrier slots), the Reinforced Tackle Box (+3 livewell slots). */
+  /** The tackles carved at the workbench (made once, yours for good: shared/crafting.ts TOOLS). */
+  tools: CraftId[];
+  /** Legacy (the things once made for good, refunded their materials by the migration): read from an
+   *  older profile, never set again. */
   roastingStick: boolean;
   packFrame: boolean;
   tackleBox: boolean;
+  /** Word for the player the next time they come in (a migration's refunds): told once, then cleared. */
+  mail: string[];
   /** The accessories owned (shared/gear.ts), and those worn (oldest first: a third ring takes the
    *  oldest one's place); only what is worn works. */
   gear: GearId[];
@@ -309,8 +334,8 @@ export interface FishingProfile {
   buffs: Partial<Record<BuffKey, number>>;
 }
 /** The consumables' buffs (shared/crafting.ts BUFFS): kept here by key. */
-export type BuffKey = "smore" | "wax" | "scent";
-export const BUFF_KEYS: BuffKey[] = ["smore", "wax", "scent"];
+export type BuffKey = "smore" | "wax" | "scent" | "sap" | "chum";
+export const BUFF_KEYS: BuffKey[] = ["smore", "wax", "scent", "sap", "chum"];
 /** Whether a buff is on (at the server's clock, or near enough on the client's). */
 export const buffOn = (p: Pick<FishingProfile, "buffs">, key: BuffKey, now = Date.now()) => (p.buffs[key] ?? 0) > now;
 
@@ -367,7 +392,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem): boolean 
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], roastingStick: false, packFrame: false, tackleBox: false, gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {} };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {} };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -380,16 +405,26 @@ export function carrierLoad(p: Pick<FishingProfile, "wood">): number {
 }
 /** The most of one kind a stash slot stacks (a kind past it takes a second slot). */
 export const MAX_CRAFT_STACK = CRAFT_SLOT_STACK;
-/** The carrier's room: its tier's slots, the Forester's Toolbelt's five more (or the Lumberjack's
- *  Carved Belt's six), and the Lumberjack Pack Frame's five (carved once, for good). */
-export function carrierCap(p: Pick<FishingProfile, "carrierTier" | "worn" | "packFrame">): number {
-  return carrierCapacity(p.carrierTier) + carrierBonus(p.worn) + (p.packFrame ? PACK_FRAME_SLOTS : 0);
+/** The carrier's room: its tier's slots, and while worn the Forester's Toolbelt's five more and the
+ *  Carved Lumberjack Belt's eight. */
+export function carrierCap(p: Pick<FishingProfile, "carrierTier" | "worn">): number {
+  return carrierCapacity(p.carrierTier) + carrierBonus(p.worn);
 }
-/** A profile read back from storage (or the network), with anything unknown or broken dropped. */
+/** Whether a tackle is the player's (made at the workbench). */
+export const hasTool = (p: Pick<FishingProfile, "tools">, id: CraftId) => p.tools.includes(id);
+/** A profile read back from storage (or the network), with anything unknown or broken dropped, and
+ *  an older one migrated to this schema (migratePlayerInventory: nothing lost on the way). */
 export function sanitizeFishingProfile(raw: unknown): FishingProfile {
+  const p = readFishingProfile(raw);
+  return migratePlayerInventory(raw, p);
+}
+/** The plain read of a stored profile: every field checked, defaulted where missing (a returning
+ *  player's missing fields read as zero, false or empty). */
+function readFishingProfile(raw: unknown): FishingProfile {
   const p = emptyFishingProfile();
   if (!raw || typeof raw !== "object") return p;
   const r = raw as Record<string, unknown>;
+  p.v = Math.max(0, Math.round(Number(r.v) || 0));
   // the creel's tier; a profile from before the tiers (a creel of 6-12 slots) moves up to the
   // smallest tier that holds all it held, so nothing is ever lost in the move
   const legacy = Math.max(Number(r.slots) || 0, Array.isArray(r.creel) ? r.creel.length : 0);
@@ -449,9 +484,12 @@ export function sanitizeFishingProfile(raw: unknown): FishingProfile {
       if (p.crafts.length >= 999) break;
     }
   }
+  if (Array.isArray(r.tools)) p.tools = Array.from(new Set(r.tools.filter((t): t is CraftId => isCraftId(t) && CRAFTS[t].use === "tool")));
   p.roastingStick = r.roastingStick === true;
   p.packFrame = r.packFrame === true;
   p.tackleBox = r.tackleBox === true;
+  // (a long letter is cut short, never dropped: a retrofit letter lists everything it gave back)
+  if (Array.isArray(r.mail)) p.mail = r.mail.filter((m): m is string => typeof m === "string" && m.length > 0).map((m) => (m.length > MAIL_MAX ? `${m.slice(0, MAIL_MAX - 1)}…` : m)).slice(-8);
   if (Array.isArray(r.gear)) p.gear = Array.from(new Set(r.gear.filter(isGearId)));
   // what is worn (a profile from before the slots: everything owned that fits goes on)
   p.worn = fitWorn(Array.isArray(r.worn) ? r.worn.filter(isGearId) : p.gear, p.gear);

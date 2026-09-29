@@ -114,8 +114,13 @@ export const TACKLE_PRICES = {
  *  elderwood 120 (480-600). */
 export const WOOD_PRICES = { pine: 4, oak: 5, charcoal: 12, birch: 9, cedar: 20, maple: 48, elderwood: 120 } as const;
 /** A Colossal Titan's heavy logs are worth this much together at an even market (whatever their
- *  number): a big day, not a fortune. */
+ *  number): a big day, not a fortune. (The Colossal Autumn Maple's; the other Colossal trees' are
+ *  COLOSSAL_YIELD's.) */
 export const TITAN_YIELD = 750;
+/** Each Colossal tree's logs, worth this much together at an even market, however many they are and
+ *  however many fell it together (their shares split the lot): the Colossal Silver Birch, Ancient
+ *  Cedar, Autumn Maple (the Titan) and Primordial Elderwood. Their rare by-products come on top. */
+export const COLOSSAL_YIELD = { birch: 320, cedar: 520, maple: TITAN_YIELD, elderwood: 1200 } as const;
 /** A plain carved piece or a plank off the workbench. */
 export const CARVED_PRICE = 8;
 /** What Buster pays for a Pine Resin (from a critical chop): worth keeping for the workbench's
@@ -138,9 +143,12 @@ export const CRAFT_SLOT_STACK = 99;
  *  Pine log's three bundles fetch 6, the finer woods' far less than their logs (Firewood is for the
  *  bonfire). */
 export const FIREWOOD_PRICE = 2;
-/** The felling's by-products (a round on a T2-T5 tree that drops no log): what Bramble and Buster
- *  pay for each, and how much of the bonfire a handful of Ancient Wood Shavings feeds (%). */
-export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1 } as const;
+/** The by-products, each in its own pouch beside the carrier: the felling's (a round on a T2-T5 tree
+ *  that drops no log), the Colossal trees' rare ones (Silver Bark off a Colossal Silver Birch, Titan
+ *  Heartwood off a Colossal Primordial Elderwood) and the river's (Fish Scales off any fish, a Fine
+ *  Fish Bone off a rare or better, a Prismatic Scale off a legendary or a mythic): what Bramble and
+ *  Buster pay for each, and how much of the bonfire a handful of Ancient Wood Shavings feeds (%). */
+export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1, silverBark: 15, heartwood: 150, fishBone: 30, prismScale: 180 } as const;
 export const SHAVINGS_FUEL = 15;
 /** Buster's forest permits: a Day Trip (one way in through the archway, used on entering) and the
  *  Ranger's Badge (the Whispering Woods for good). */

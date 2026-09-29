@@ -1,28 +1,36 @@
 // The workbenches (Buster's by the tipi, Bramble's advanced one in the woods): logs, Firewood, resin
-// and the felling's by-products carved and joined into artisan pieces worth more than what went into
-// them, or into a few things for good (a roasting stick, a pack frame, a tackle box). Recipes sort by
-// their main material, T1 Soft Pine to T5 Elderwood, and the resins and by-products; the bench's
-// filter narrows the list to one. Every carve of a piece to sell is one of two modes, with its
-// recipe's own odds (they scale with its tier):
+// and the by-products (the felling's, the Colossal trees', the river's) carved and joined into
+// seventeen recipes under four tabs:
+//
+//   🎣 Tackles      active equipment, made once and yours for good: at work whenever you fish or
+//                   fell (the Whittled Otter Float, the Resin-Weighted Sinker, the Braided Silk Line,
+//                   the Wedge & Mallet Kit, the Titan Felling Lever: TOOLS)
+//   🧪 Consumables  carved as often as you like, into the craft stash, and used from the wood drawer
+//                   for a buff a while (BUFFS: a S'more's quicker step, Amber Grip Wax's wider gold,
+//                   Silverwood Sap Ointment's slower ring, Glow-Spore Chum's livelier river, the
+//                   Aromatic Pine Pouch's quick commons)
+//   🧿 Relics       carved once, then worn in a gear slot to work (shared/gear.ts: the Carved
+//                   Lumberjack Belt, the Deepriver Fisherman Ring, the Heartwood Compass)
+//   🪑 Furniture    the trade goods, pure profit on a healthy margin over what goes into them, sold to
+//                   Buster or Bramble at the hour's market (shared/market.ts: 70%-130%)
+//
+// Every carve of a piece of furniture is one of two modes, with its recipe's own odds (they scale
+// with its tier):
 //
 //   Safe Carve        low risk, a modest chance of a Masterwork
 //   Masterwork Push   a much better chance of a Masterwork ✨ (+70% value), and a real chance the
 //                     piece breaks
 //
 // A broken carving isn't a total loss: half its logs come back (rounded up, per kind), and a pile of
-// Sawdust to throw on the bonfire. The pieces go in the craft stash (12 slots of up to 99 a kind), not
-// in the wood carrier's slots. Besides the pieces to sell there are three more kinds of recipe:
+// Sawdust to throw on the bonfire. The tackles, relics and consumables always come out right. The
+// server rolls every carve (HangoutRoom's WORKBENCH) and keeps it all in the camp profile.
 //
-//   Passive Relics     carved once, then worn in a gear slot (shared/gear.ts: the Lumberjack's Carved
-//                      Belt, the Otter-Carved Hook Charm, the Amber Bark Bangle), like the things made
-//                      for good (the roasting stick, the pack frame, the tackle box)
-//   Consumables        carved as often as you like, into the stash, and used from the wood drawer for
-//                      a buff a while (BUFFS: a S'more's quicker step, Grip Wax's wider gold, a Scent
-//                      Pouch's quick commons)
-//   Trade Goods        pure profit: the pieces to sell to Buster or Bramble
-//
-// The relics, the things made for good and the consumables always come out right. The server rolls
-// every carve (HangoutRoom's WORKBENCH) and keeps it all in the camp profile.
+// The recipes of the bench before (its pieces to sell, the old relics, the things made for good) are
+// LEGACY now: off the bench, still defined, so what a returning player holds keeps its worth. A legacy
+// piece in the stash, or a legacy relic, is traded in at Buster's or Bramble's for a full refund (a
+// piece's whole listed price in coins, never the market's; a relic's materials back); the old things
+// made for good (the roasting stick, the pack frame, the tackle box) were refunded their materials by
+// the migration (shared/migrate.ts). The marshmallow on a log is everyone's now.
 //
 // The Adhesive Slot: one Pine Resin brushed on before a carve, either way it is spent:
 //
@@ -54,21 +62,16 @@ const ODDS: Record<CraftTier, CraftOdds> = {
   legendary: { safe: { normal: 0.78, masterwork: 0.1, breakChance: 0.12 }, push: { normal: 0.25, masterwork: 0.45, breakChance: 0.3 } },
 };
 
-/** A recipe's main material, and its category: the bench's filters (a material, or a category). */
-export type CraftMaterial = "pine" | "birch" | "cedar" | "maple" | "elderwood" | "resins";
-export type CraftCategory = "relics" | "consumables" | "trade";
-export type CraftFilter = CraftMaterial | CraftCategory | "all";
+/** A recipe's main material (for its card's colour), and its tab on the bench. */
+export type CraftMaterial = "pine" | "birch" | "cedar" | "maple" | "elderwood" | "resins" | "river";
+export type CraftCategory = "tackles" | "consumables" | "relics" | "furniture" | "legacy";
+export type CraftFilter = Exclude<CraftCategory, "legacy">;
+/** The bench's four tabs. */
 export const CRAFT_FILTERS: { id: CraftFilter; emoji: string; label: string }[] = [
-  { id: "all", emoji: "✨", label: "All" },
+  { id: "tackles", emoji: "🎣", label: "Tackles" },
+  { id: "consumables", emoji: "🧪", label: "Consumables" },
   { id: "relics", emoji: "🧿", label: "Relics" },
-  { id: "consumables", emoji: "🍡", label: "Consumables" },
-  { id: "trade", emoji: "💰", label: "Trade Goods" },
-  { id: "pine", emoji: "🌲", label: "Soft Pine" },
-  { id: "birch", emoji: "🪵", label: "Birch" },
-  { id: "cedar", emoji: "🌲", label: "Cedar" },
-  { id: "maple", emoji: "🍁", label: "Maple" },
-  { id: "elderwood", emoji: "🌌", label: "Elderwood" },
-  { id: "resins", emoji: "🍯", label: "Resins & Byproducts" },
+  { id: "furniture", emoji: "🪑", label: "Furniture" },
 ];
 
 /** What a recipe takes: logs by kind, Firewood bundles, Pine Resin, Sawdust, and the by-products. */
@@ -80,28 +83,46 @@ export interface CraftNeeds {
   byproducts?: Partial<Record<ByproductId, number>>;
 }
 
-/** What a finished recipe is: a piece to sell (into the stash), a thing made once for good, a Passive
- *  Relic (carved once, worn in a gear slot), or a consumable (into the stash, used for a buff). */
-export type CraftUse = "sell" | "roastingStick" | "packFrame" | "tackleBox" | "relic" | "consumable";
-/** Whether a recipe is carved once (a thing for good, or a relic). */
+/** What a finished recipe is: a piece to sell (into the stash), a tackle (made once, yours for
+ *  good), a relic (made once, worn in a gear slot), a consumable (into the stash, used for a buff);
+ *  and, legacy, the old things made for good. */
+export type CraftUse = "sell" | "tool" | "relic" | "consumable" | "roastingStick" | "packFrame" | "tackleBox";
+/** Whether a recipe is carved once (a tackle, a relic, an old thing made for good). */
 export const isOnce = (use: CraftUse) => use !== "sell" && use !== "consumable";
+
+/** The tackles: what each does while you fish or fell. */
+export type ToolId = "otter_float" | "resin_sinker" | "silk_line" | "wedge_mallet" | "titan_lever";
+/** The Whittled Otter Float: bites (and an AFK line's waits) this much sooner. */
+export const FLOAT_HASTE = 1 / 0.85;
+/** The Resin-Weighted Sinker: the reel's green this much bigger. */
+export const SINKER_ZONE = 0.15;
+/** The Braided Silk Line: the line's tension builds this much slower. */
+export const SILK_TENSION = 0.15;
 
 /** The consumables' buffs: what each does, and for how long. */
 export const BUFFS: Record<BuffKey, { name: string; emoji: string; ms: number; blurb: string }> = {
   smore: { name: "S'more Sugar Rush", emoji: "🍫", ms: 15 * 60_000, blurb: "+15% walking pace" },
-  wax: { name: "Pitch Grip", emoji: "🕯️", ms: 10 * 60_000, blurb: "+20% gold sweet spot (felling and splitting)" },
-  scent: { name: "Herbal Scent", emoji: "🌿", ms: 15 * 60_000, blurb: "Common fish bite within 5 s of a cast" },
+  wax: { name: "Amber Grip", emoji: "🕯️", ms: 10 * 60_000, blurb: "+20% gold sweet spot (felling and splitting)" },
+  scent: { name: "Aromatic Pine", emoji: "🌿", ms: 15 * 60_000, blurb: "Common fish bite within 5 s of a cast" },
+  sap: { name: "Silverwood Sap", emoji: "🧴", ms: 10 * 60_000, blurb: "The felling ring and the splitting gauge 15% slower" },
+  chum: { name: "Glow-Spore Chum", emoji: "🫧", ms: 10 * 60_000, blurb: "Bites 20% sooner, rare fish 25% likelier" },
 };
-/** A S'more's step, Grip Wax's gold, a Scent Pouch's quickest common bite (s). */
+/** A S'more's step, Grip Wax's gold, a Pine Pouch's quickest common bite (s), the Sap Ointment's
+ *  slower ring and gauge, the Chum's quicker bites and rarer fish. */
 export const SMORE_PACE = 1.15;
 export const WAX_GOLD = 1.2;
 export const SCENT_BITE_S = 5;
-/** The things made for good, and what each gives. */
+export const SAP_SLOW = 0.15;
+export const CHUM_HASTE = 1 / 0.8;
+export const CHUM_LUCK = 0.25;
+/** The old things made for good (legacy: refunded by the migration). */
 export const PACK_FRAME_SLOTS = 5;
 export const TACKLE_BOX_SLOTS = 3;
-/** A Resin Amber Torch carried (one is enough): this much quicker on foot at the camp by night. */
+/** A Resin Amber Torch carried (legacy, still carried by some): this much quicker on foot at the camp
+ *  by night. */
 export const TORCH_NIGHT_PACE = 1.1;
-/** Forest Whisper Incense burned at the bonfire: rare luck for everyone in the room, this long. */
+/** Forest Whisper Incense (legacy, still burned by those who hold some) at the bonfire: rare luck for
+ *  everyone in the room, this long. */
 export const INCENSE_LUCK = 0.2;
 export const INCENSE_MS = 10 * 60_000;
 
@@ -110,49 +131,74 @@ export interface Craft {
   emoji: string;
   tier: CraftTier;
   material: CraftMaterial;
+  category: CraftCategory;
   description: string;
   needs: CraftNeeds;
-  /** What Buster (or Bramble) pays for one, and for a Masterwork ✨ (0: a thing made for good). */
+  /** What Buster (or Bramble) pays for one, and for a Masterwork ✨ (0: not a piece to sell). A
+   *  legacy piece's is its trade-in, paid in full. */
   price: number;
   master: number;
   odds: CraftOdds;
   use: CraftUse;
-  /** A piece with a use of its own while you carry it (a torch) or burn it (incense). */
-  special?: "torch" | "incense";
-  /** Off the bench now (the old camp woods' pieces): still in some crates, still bought. */
-  retired?: boolean;
-  /** A Passive Relic's gear piece (use "relic"), and a consumable's buff (use "consumable"). */
+  /** A tackle's effect (use "tool"), a relic's gear piece (use "relic"), a consumable's buff. */
+  tool?: ToolId;
   gear?: GearId;
   buff?: BuffKey;
-  /** One of the bench's Artisan Trade Goods (the pure-profit pieces). */
-  trade?: boolean;
+  /** A piece with a use of its own while you carry it (a torch) or burn it (incense): legacy. */
+  special?: "torch" | "incense";
+  /** Off the bench (the recipes before this one): still defined, traded in at Buster's or Bramble's. */
+  legacy?: boolean;
 }
-/** A recipe's category on the bench's filter. */
-export function craftCategory(c: Craft): CraftCategory {
-  return c.use === "consumable" || c.special === "incense" ? "consumables" : isOnce(c.use) ? "relics" : "trade";
-}
-/** Whether a recipe shows under a filter (its material, or its category). */
-export const craftMatches = (c: Craft, f: CraftFilter) => f === "all" || c.material === f || craftCategory(c) === f;
+/** A recipe's tab on the bench. */
+export const craftCategory = (c: Craft): CraftCategory => c.category;
+/** Whether a recipe shows under a tab. */
+export const craftMatches = (c: Craft, f: CraftFilter) => !c.legacy && c.category === f;
 
-const piece = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, price: number, description: string, extra: Partial<Craft> = {}): Craft => ({
+const make = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, category: CraftCategory, use: CraftUse, needs: CraftNeeds, price: number, description: string, extra: Partial<Craft> = {}): Craft => ({
   name,
   emoji,
   tier,
   material,
+  category,
   needs,
   price,
-  master: Math.round(price * 1.7),
+  master: price > 0 ? Math.round(price * 1.7) : 0,
   odds: ODDS[tier],
-  use: "sell",
+  use,
   description,
   ...extra,
 });
-const forGood = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, use: Exclude<CraftUse, "sell" | "relic" | "consumable">, description: string): Craft => ({ name, emoji, tier, material, needs, price: 0, master: 0, odds: ODDS[tier], use, description });
-const relic = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, gear: GearId, description: string): Craft => ({ name, emoji, tier, material, needs, price: 0, master: 0, odds: ODDS[tier], use: "relic", gear, description });
-const consumable = (name: string, emoji: string, material: CraftMaterial, needs: CraftNeeds, buff: BuffKey, description: string): Craft => ({ name, emoji, tier: "common", material, needs, price: 0, master: 0, odds: ODDS.common, use: "consumable", buff, description });
+const tackle = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, tool: ToolId, description: string) => make(name, emoji, tier, material, "tackles", "tool", needs, 0, description, { tool });
+const consumable = (name: string, emoji: string, material: CraftMaterial, needs: CraftNeeds, buff: BuffKey, description: string) => make(name, emoji, "common", material, "consumables", "consumable", needs, 0, description, { buff });
+const relic = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, gear: GearId, description: string) => make(name, emoji, tier, material, "relics", "relic", needs, 0, description, { gear });
+const furniture = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, price: number, description: string, extra: Partial<Craft> = {}) => make(name, emoji, tier, material, "furniture", "sell", needs, price, description, extra);
+/** A recipe of the bench before: its piece (or thing, or relic) still what it was, off the bench. */
+const legacy = (c: Craft): Craft => ({ ...c, category: "legacy", legacy: true });
 
-/** A piece's id in the camp profile (kept short, and stable). */
+/** A piece's id in the camp profile (kept short, and stable: the legacy ids keep what they were). */
 export type CraftId =
+  // 🎣 the tackles
+  | "otter_float"
+  | "resin_sinker"
+  | "silk_line"
+  | "wedge_mallet"
+  | "titan_lever"
+  // 🧪 the consumables
+  | "smore"
+  | "grip_wax"
+  | "sap_ointment"
+  | "glow_chum"
+  | "scent_pouch"
+  // 🧿 the relics
+  | "carved_belt"
+  | "deepriver_ring"
+  | "heartwood_compass"
+  // 🪑 the furniture
+  | "birch_stool"
+  | "keepsake_box"
+  | "autumn_chair"
+  | "elder_clock"
+  // legacy: the bench before
   | "roasting_stick"
   | "camp_stool"
   | "pine_birdhouse"
@@ -168,18 +214,13 @@ export type CraftId =
   | "rune_tablet"
   | "grand_clock"
   | "whisper_incense"
-  // the Passive Relics, the consumables and the Artisan Trade Goods
-  | "carved_belt"
   | "hook_charm"
   | "bark_bangle"
-  | "smore"
-  | "grip_wax"
-  | "scent_pouch"
   | "forest_diorama"
   | "cedar_clock"
   | "rocking_chair"
   | "runic_totem"
-  // retired
+  // legacy: the old camp woods
   | "totem"
   | "plank"
   | "birdhouse"
@@ -187,55 +228,69 @@ export type CraftId =
   | "mask";
 
 export const CRAFTS: Record<CraftId, Craft> = {
-  // T1 Soft Pine
-  roasting_stick: forGood("Marshmallow Roasting Stick", "🍡", "common", "pine", { wood: { pine: 3 }, firewood: 1 }, "roastingStick", "Yours for good: sit on a log bench by the fire and there's a marshmallow on it, toasting"),
-  camp_stool: piece("Rustic Camp Stool", "🪑", "common", "pine", { wood: { pine: 4 }, firewood: 2 }, 35, "A sturdy three-legged stool for the fireside"),
-  pine_birdhouse: piece("Carved Pine Birdhouse", "🐤", "common", "pine", { wood: { pine: 5 }, resin: 2 }, 55, "Resin-sealed against the rain, for the camp's songbirds"),
-  // T2 Silver Birch
-  songbird: piece("Whittled Songbird", "🐦", "uncommon", "birch", { wood: { birch: 4 }, byproducts: { bark: 3 } }, 85, "A little birch warbler, bark-feathered"),
-  bark_lantern: piece("Birch Bark Lantern", "🏮", "uncommon", "birch", { wood: { birch: 3 }, byproducts: { bark: 4 }, firewood: 1 }, 75, "Paper-white bark round a warm glow"),
-  pack_frame: forGood("Lumberjack Pack Frame", "🎒", "uncommon", "birch", { wood: { birch: 6 }, byproducts: { bark: 5 } }, "packFrame", `Yours for good: +${PACK_FRAME_SLOTS} slots in the wood carrier`),
-  // T3 Highland Cedar
-  amber_torch: piece("Resin Amber Torch", "🔥", "rare", "cedar", { firewood: 2, byproducts: { amber: 3 }, wood: { cedar: 2 } }, 125, `Carried, it lights your way: ${Math.round((TORCH_NIGHT_PACE - 1) * 100)}% quicker on foot at the camp by night`, { special: "torch" }),
-  salmon_totem: piece("Carved Salmon Totem", "🗿", "rare", "cedar", { wood: { cedar: 4 }, byproducts: { amber: 4 } }, 225, "A leaping salmon, amber-eyed"),
-  tackle_box: forGood("Reinforced Tackle Box", "🧰", "rare", "cedar", { wood: { cedar: 5 }, byproducts: { amber: 4 } }, "tackleBox", `Yours for good: +${TACKLE_BOX_SLOTS} livewell slots`),
-  // T4 Autumn Maple
-  maple_bear: piece("Carved Maple Bear", "🐻", "epic", "maple", { wood: { maple: 3 }, byproducts: { leafAmber: 3 } }, 480, "A round maple bear with leaf-amber eyes"),
-  wind_chimes: piece("Gilded Wind Chimes", "🎐", "epic", "maple", { wood: { maple: 4 }, byproducts: { leafAmber: 4 } }, 650, "Maple rods and golden amber that sing in the breeze"),
-  smoker_box: piece("Maple Smoker Box", "📦", "epic", "maple", { wood: { maple: 5 }, firewood: 2 }, 720, "Sweet maple smoke for the finest fish"),
-  // T5 Whispering Elderwood
-  rune_tablet: piece("Ancient Rune Tablet", "🪧", "legendary", "elderwood", { wood: { elderwood: 2 }, byproducts: { shavings: 4 } }, 850, "Old words carved in humming wood"),
-  grand_clock: piece("Elderwood Grand Clock", "🕰️", "legendary", "elderwood", { wood: { elderwood: 4 }, byproducts: { shavings: 6 } }, 1650, "The masterpiece: it keeps the forest's own time"),
-  // resins and by-products
-  whisper_incense: piece("Forest Whisper Incense", "🪔", "uncommon", "resins", { resin: 5, byproducts: { shavings: 3 } }, 210, `Burn it at the bonfire: ${INCENSE_MS / 60_000} minutes of rare-fish luck for everyone in the room`, { special: "incense" }),
-  // the Passive Relics: carved once, worn in a gear slot
-  carved_belt: relic("Lumberjack's Carved Belt", "🎗️", "rare", "cedar", { wood: { cedar: 6 }, resin: 8 }, "carved_belt", "Waist relic: +6 carrier slots, and the splitting gauge runs 15% slower"),
-  hook_charm: relic("Otter-Carved Hook Charm", "🦦", "uncommon", "birch", { wood: { birch: 8 }, byproducts: { scales: 4 } }, "hook_charm", "Charm relic: a steadier line on legendary and mythic fish (a longer tension window, a bigger green)"),
-  bark_bangle: relic("Amber Bark Bangle", "📿", "epic", "pine", { wood: { pine: 10 }, byproducts: { leafAmber: 4 } }, "bark_bangle", "Finger relic: +20% by-product drops while felling"),
-  // the consumables: into the stash, used from the wood drawer
-  smore: consumable("Campfire S'more Snack", "🍫", "pine", { wood: { pine: 2 }, firewood: 1 }, "smore", "Eat it: +15% walking pace for 15 minutes"),
-  grip_wax: consumable("Pine Pitch Grip Wax", "🕯️", "resins", { resin: 4, sawdust: 6 }, "wax", "Rub it on: the gold sweet spot 20% bigger (felling and splitting) for 10 minutes"),
-  scent_pouch: consumable("Herbal Scent Pouch", "🌿", "resins", { byproducts: { bark: 5, leafAmber: 3 } }, "scent", "Hang it on your line: common fish bite within 5 seconds of a cast for 15 minutes"),
-  // the Artisan Trade Goods: pure profit
-  forest_diorama: piece("Whittled Forest Diorama", "🏞️", "uncommon", "birch", { wood: { birch: 5 }, byproducts: { bark: 4 } }, 105, "A tiny birch grove under glass, bark-roofed", { trade: true }),
-  cedar_clock: piece("Carved Cedar Wall Clock", "⏰", "rare", "cedar", { wood: { cedar: 6 }, byproducts: { amber: 4 } }, 280, "Red cedar, amber numerals, a steady tick", { trade: true }),
-  rocking_chair: piece("Grand Maple Rocking Chair", "🛋️", "epic", "maple", { wood: { maple: 5 }, byproducts: { leafAmber: 3 } }, 620, "Golden maple that rocks like a slow breeze", { trade: true }),
-  runic_totem: piece("Elder Runic Totem", "🪬", "legendary", "elderwood", { wood: { elderwood: 3 }, byproducts: { shavings: 4 } }, 1250, "Its runes glow faintly when the woods are quiet", { trade: true }),
-  // retired from the bench (the old camp woods): still bought
-  totem: piece("Carved Chibi Totem", "🧸", "common", "pine", { wood: { pine: 2 } }, CARVED_PRICE, "Hand-carved pocket bear charm", { master: 14, retired: true }),
-  plank: piece("Polished Oak Plank", "🟫", "uncommon", "pine", { wood: { oak: 1 } }, CARVED_PRICE, "Sanded smooth furniture timber", { master: 14, retired: true }),
-  birdhouse: piece("Rustic Birdhouse", "🏡", "rare", "pine", { wood: { pine: 2, oak: 1 } }, 18, "Cozy nesting box for forest birds", { master: 31, retired: true }),
-  briquette: piece("Aromatic Pine Briquette", "🧱", "epic", "pine", { wood: { pine: 1, charcoal: 1 } }, 28, "Slow-burning scented camp briquette", { master: 48, retired: true }),
-  mask: piece("Forest Guardian Mask", "🎭", "legendary", "pine", { wood: { oak: 2, charcoal: 1 } }, 45, "Intricate tribal spirit mask", { master: 77, retired: true }),
+  // --- 🎣 the tackles: made once, at work whenever you fish or fell -----------------------------
+  otter_float: tackle("Whittled Otter Float", "🦦", "uncommon", "birch", { wood: { birch: 4 }, resin: 2, byproducts: { scales: 6 } }, "otter_float", "Tackle: bites come 15% sooner (a hand-reeled line and an AFK one)"),
+  resin_sinker: tackle("Resin-Weighted Sinker", "🪨", "rare", "cedar", { wood: { cedar: 3 }, resin: 3, byproducts: { amber: 4 } }, "resin_sinker", "Tackle: the reel's green catch bar 15% bigger"),
+  silk_line: tackle("Braided Silk Line", "🧵", "rare", "river", { resin: 2, byproducts: { silverBark: 3, fishBone: 2 } }, "silk_line", "Tackle: the line's tension builds 15% slower"),
+  wedge_mallet: tackle("Wedge & Mallet Kit", "🔨", "epic", "maple", { wood: { maple: 3, cedar: 4 }, firewood: 4 }, "wedge_mallet", "Tackle: Wood Knots never deflect your axe (no 0.4 s recovery)"),
+  titan_lever: tackle("Titan Felling Lever", "🪝", "legendary", "elderwood", { wood: { elderwood: 2, maple: 4 }, byproducts: { leafAmber: 4 } }, "titan_lever", "Tackle: every round you land on a Colossal tree counts 1.5x toward your share of its haul"),
+  // --- 🧪 the consumables: into the stash, used from the wood drawer ------------------------------
+  smore: consumable("Toasted Campfire S'more", "🍫", "pine", { wood: { pine: 2 }, firewood: 1 }, "smore", "Eat it: +15% walking pace for 15 minutes"),
+  grip_wax: consumable("Amber Grip Wax", "🕯️", "resins", { resin: 3, byproducts: { amber: 3 } }, "wax", "Rub it on: the gold sweet spot 20% bigger (felling and splitting) for 10 minutes"),
+  sap_ointment: consumable("Silverwood Sap Ointment", "🧴", "resins", { resin: 2, byproducts: { silverBark: 2 } }, "sap", "Rub it in: the felling ring and the splitting gauge 15% slower for 10 minutes"),
+  glow_chum: consumable("Glow-Spore Chum", "🫧", "river", { byproducts: { scales: 8, fishBone: 1 } }, "chum", "Scatter it: bites 20% sooner and rare fish 25% likelier for 10 minutes"),
+  scent_pouch: consumable("Aromatic Pine Pouch", "🌿", "pine", { wood: { pine: 2 }, resin: 1, byproducts: { bark: 2 } }, "scent", "Hang it on your line: common fish bite within 5 seconds of a cast for 15 minutes"),
+  // --- 🧿 the relics: carved once, worn in a gear slot to work -----------------------------------
+  carved_belt: relic("Carved Lumberjack Belt", "🎗️", "rare", "cedar", { wood: { cedar: 6 }, resin: 8 }, "carved_belt", "Waist relic (wear it): +8 carrier slots, and the splitting gauge 15% slower"),
+  deepriver_ring: relic("Deepriver Fisherman Ring", "💍", "rare", "river", { wood: { cedar: 3 }, byproducts: { fishBone: 2, scales: 10 } }, "deepriver_ring", "Finger relic (wear it): +6 livewell slots"),
+  heartwood_compass: relic("Heartwood Compass", "🧭", "epic", "elderwood", { wood: { elderwood: 1 }, byproducts: { silverBark: 3, leafAmber: 2 } }, "heartwood_compass", "Charm relic (wear it): pulses toward a standing Colossal tree, and chimes when it rises"),
+  // --- 🪑 the furniture: trade goods, at the hour's market ---------------------------------------
+  birch_stool: furniture("Rustic Birch Stool", "🪑", "uncommon", "birch", { wood: { birch: 4 }, byproducts: { bark: 2 } }, 60, "A sturdy three-legged birch stool, bark-trimmed"),
+  keepsake_box: furniture("Cedar Keepsake Box", "🗃️", "rare", "cedar", { wood: { cedar: 4 }, resin: 1, byproducts: { amber: 3 } }, 160, "Red cedar, amber-inlaid: it keeps the moths out and the memories in"),
+  autumn_chair: furniture("Autumn Rocking Chair", "🛋️", "epic", "maple", { wood: { maple: 5 }, byproducts: { leafAmber: 3 } }, 430, "Golden maple that rocks like a slow breeze"),
+  elder_clock: furniture("Grand Elderwood Clock", "🕰️", "legendary", "elderwood", { wood: { elderwood: 4 }, byproducts: { shavings: 4 } }, 950, "The masterpiece: it keeps the forest's own time"),
+  // --- legacy: the bench before (traded in at Buster's or Bramble's) ------------------------------
+  roasting_stick: legacy(make("Marshmallow Roasting Stick", "🍡", "common", "pine", "legacy", "roastingStick", { wood: { pine: 3 }, firewood: 1 }, 0, "Legacy: the marshmallow on a log is everyone's now")),
+  camp_stool: legacy(furniture("Rustic Camp Stool", "🪑", "common", "pine", { wood: { pine: 4 }, firewood: 2 }, 35, "A sturdy three-legged stool for the fireside")),
+  pine_birdhouse: legacy(furniture("Carved Pine Birdhouse", "🐤", "common", "pine", { wood: { pine: 5 }, resin: 2 }, 55, "Resin-sealed against the rain, for the camp's songbirds")),
+  songbird: legacy(furniture("Whittled Songbird", "🐦", "uncommon", "birch", { wood: { birch: 4 }, byproducts: { bark: 3 } }, 85, "A little birch warbler, bark-feathered")),
+  bark_lantern: legacy(furniture("Birch Bark Lantern", "🏮", "uncommon", "birch", { wood: { birch: 3 }, byproducts: { bark: 4 }, firewood: 1 }, 75, "Paper-white bark round a warm glow")),
+  pack_frame: legacy(make("Lumberjack Pack Frame", "🎒", "uncommon", "birch", "legacy", "packFrame", { wood: { birch: 6 }, byproducts: { bark: 5 } }, 0, `Legacy: +${PACK_FRAME_SLOTS} carrier slots (now the Carved Lumberjack Belt's work)`)),
+  amber_torch: legacy(furniture("Resin Amber Torch", "🔥", "rare", "cedar", { firewood: 2, byproducts: { amber: 3 }, wood: { cedar: 2 } }, 125, `Carried, it lights your way: ${Math.round((TORCH_NIGHT_PACE - 1) * 100)}% quicker on foot at the camp by night`, { special: "torch" })),
+  salmon_totem: legacy(furniture("Carved Salmon Totem", "🗿", "rare", "cedar", { wood: { cedar: 4 }, byproducts: { amber: 4 } }, 225, "A leaping salmon, amber-eyed")),
+  tackle_box: legacy(make("Reinforced Tackle Box", "🧰", "rare", "cedar", "legacy", "tackleBox", { wood: { cedar: 5 }, byproducts: { amber: 4 } }, 0, `Legacy: +${TACKLE_BOX_SLOTS} livewell slots (now the Deepriver Fisherman Ring's work)`)),
+  maple_bear: legacy(furniture("Carved Maple Bear", "🐻", "epic", "maple", { wood: { maple: 3 }, byproducts: { leafAmber: 3 } }, 480, "A round maple bear with leaf-amber eyes")),
+  wind_chimes: legacy(furniture("Gilded Wind Chimes", "🎐", "epic", "maple", { wood: { maple: 4 }, byproducts: { leafAmber: 4 } }, 650, "Maple rods and golden amber that sing in the breeze")),
+  smoker_box: legacy(furniture("Maple Smoker Box", "📦", "epic", "maple", { wood: { maple: 5 }, firewood: 2 }, 720, "Sweet maple smoke for the finest fish")),
+  rune_tablet: legacy(furniture("Ancient Rune Tablet", "🪧", "legendary", "elderwood", { wood: { elderwood: 2 }, byproducts: { shavings: 4 } }, 850, "Old words carved in humming wood")),
+  grand_clock: legacy(furniture("Elderwood Grand Clock", "🕰️", "legendary", "elderwood", { wood: { elderwood: 4 }, byproducts: { shavings: 6 } }, 1650, "The old masterpiece: it keeps the forest's own time")),
+  whisper_incense: legacy(furniture("Forest Whisper Incense", "🪔", "uncommon", "resins", { resin: 5, byproducts: { shavings: 3 } }, 210, `Burn it at the bonfire: ${INCENSE_MS / 60_000} minutes of rare-fish luck for everyone in the room`, { special: "incense" })),
+  hook_charm: legacy(relic("Otter-Carved Hook Charm", "🦦", "uncommon", "birch", { wood: { birch: 8 }, byproducts: { scales: 4 } }, "hook_charm", "Charm relic: a steadier line on legendary and mythic fish")),
+  bark_bangle: legacy(relic("Amber Bark Bangle", "📿", "epic", "pine", { wood: { pine: 10 }, byproducts: { leafAmber: 4 } }, "bark_bangle", "Finger relic: +20% by-product drops while felling")),
+  forest_diorama: legacy(furniture("Whittled Forest Diorama", "🏞️", "uncommon", "birch", { wood: { birch: 5 }, byproducts: { bark: 4 } }, 105, "A tiny birch grove under glass, bark-roofed")),
+  cedar_clock: legacy(furniture("Carved Cedar Wall Clock", "⏰", "rare", "cedar", { wood: { cedar: 6 }, byproducts: { amber: 4 } }, 280, "Red cedar, amber numerals, a steady tick")),
+  rocking_chair: legacy(furniture("Grand Maple Rocking Chair", "🛋️", "epic", "maple", { wood: { maple: 5 }, byproducts: { leafAmber: 3 } }, 620, "Golden maple that rocks like a slow breeze")),
+  runic_totem: legacy(furniture("Elder Runic Totem", "🪬", "legendary", "elderwood", { wood: { elderwood: 3 }, byproducts: { shavings: 4 } }, 1250, "Its runes glow faintly when the woods are quiet")),
+  totem: legacy(furniture("Carved Chibi Totem", "🧸", "common", "pine", { wood: { pine: 2 } }, CARVED_PRICE, "Hand-carved pocket bear charm")),
+  plank: legacy(furniture("Polished Oak Plank", "🟫", "uncommon", "pine", { wood: { oak: 1 } }, CARVED_PRICE, "Sanded smooth furniture timber")),
+  birdhouse: legacy({ ...furniture("Rustic Birdhouse", "🏡", "rare", "pine", { wood: { pine: 2, oak: 1 } }, 18, "Cozy nesting box for forest birds"), master: 31 }),
+  briquette: legacy({ ...furniture("Aromatic Pine Briquette", "🧱", "epic", "pine", { wood: { pine: 1, charcoal: 1 } }, 28, "Slow-burning scented camp briquette"), master: 48 }),
+  mask: legacy({ ...furniture("Forest Guardian Mask", "🎭", "legendary", "pine", { wood: { oak: 2, charcoal: 1 } }, 45, "Intricate tribal spirit mask"), master: 77 }),
 };
 export const CRAFT_IDS = Object.keys(CRAFTS) as CraftId[];
-/** What the bench carves now (the retired pieces are only bought). */
-export const BENCH_IDS = CRAFT_IDS.filter((id) => !CRAFTS[id].retired);
+/** What the bench carves now: the seventeen (the legacy recipes are only traded in). */
+export const BENCH_IDS = CRAFT_IDS.filter((id) => !CRAFTS[id].legacy);
+/** The tackles, by their effect. */
+export const TOOL_CRAFT: Record<ToolId, CraftId> = { otter_float: "otter_float", resin_sinker: "resin_sinker", silk_line: "silk_line", wedge_mallet: "wedge_mallet", titan_lever: "titan_lever" };
 export function isCraftId(v: unknown): v is CraftId {
   return typeof v === "string" && v in CRAFTS;
 }
 export function isCraftMode(v: unknown): v is CraftMode {
   return v === "safe" || v === "push";
+}
+/** A legacy piece's trade-in (its whole listed price, a Masterwork's for one: never the market's). */
+export function tradeInValue(item: CraftItem): number {
+  return CRAFTS[item.c].legacy ? craftPrice(item) : 0;
 }
 
 /** A finished piece in the crate: its kind, and whether it came out a Masterwork. */

@@ -15,7 +15,8 @@ export function Toasts() {
   return (
     <div className="pointer-events-none fixed left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-2" style={{ top: "calc(max(12px, env(safe-area-inset-top)) + 64px)" }}>
       {toasts.map((t) => (
-        <div key={t.id} className={`clay-toast font-cozy flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md ${TONE[t.tone]}`}>
+        // (a long one, a letter, is a card rather than a pill)
+        <div key={t.id} className={`clay-toast font-cozy flex items-center gap-2 border px-4 py-2 text-sm font-bold shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md ${t.text.length > 90 ? "max-w-[min(560px,calc(100vw-32px))] rounded-2xl leading-snug" : "rounded-full"} ${TONE[t.tone]}`} style={{ animationDuration: `${t.life}ms` }}>
           {t.emoji && (
             <span className="text-base">
               <EmoteGlyph emoji={t.emoji} />

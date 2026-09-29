@@ -1,6 +1,7 @@
 import type { CampfirePacket } from "@shared/types";
 import { GEAR, GEAR_SLOTS, SLOT_CAP, SLOT_LABEL, wearGear, type GearId } from "@shared/gear";
 import type { FishingProfile } from "@shared/fishing";
+import { CRAFTS, TOOL_CRAFT, type ToolId } from "@shared/crafting";
 
 // The gear you wear, slot by slot (the drawers' Axe & Gear and Rod & Gear tabs): hands, waist, two
 // fingers and a charm, each piece with a Take off; below, what you own but have off, each a tap to
@@ -61,6 +62,34 @@ export function GearSlots({ profile, send, craft }: { profile: FishingProfile; s
         </>
       )}
       {!profile.gear.length && <p className="m-0 text-center text-[11px] opacity-60">No gear yet: Buster and Bramble sell the woodcutter's, Barnaby and Finley the angler's.</p>}
+    </div>
+  );
+}
+
+/** Each craft's tackles from the workbench (made once, at work whenever you fish or fell). */
+const CRAFT_TOOLS: Record<"wood" | "fish", ToolId[]> = { fish: ["otter_float", "resin_sinker", "silk_line"], wood: ["wedge_mallet", "titan_lever"] };
+
+/** The tackles you have made for this craft: always at work, nothing to wear; the rest, where to
+ *  make them. */
+export function TacklesOwned({ profile, craft }: { profile: FishingProfile; craft: "wood" | "fish" }) {
+  const tools = CRAFT_TOOLS[craft].map((t) => ({ id: TOOL_CRAFT[t], ...CRAFTS[TOOL_CRAFT[t]] }));
+  return (
+    <div className="flex flex-col gap-1">
+      <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">🎣 Tackles from the workbench</b>
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+        {tools.map((c) => {
+          const owned = profile.tools.includes(c.id);
+          return (
+            <div key={c.id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${owned ? "bg-[#8fd3b6]/15 ring-1 ring-[#8fd3b6]/50" : "bg-white/5 opacity-60"}`} title={c.description}>
+              <span className="text-xl">{c.emoji}</span>
+              <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                <b className="truncate text-xs text-[#F7EBE1]">{c.name}</b>
+                <span className="text-[10px] opacity-80">{owned ? c.description : "Not made yet: 🪚 the workbench"}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

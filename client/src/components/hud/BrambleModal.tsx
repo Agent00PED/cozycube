@@ -6,6 +6,7 @@ import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import { marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
+import { LegacyTradeIn, hasLegacy } from "./LegacyTradeIn";
 import { FooterBook, PRICE_COLUMN, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, type ShopNotice, type ShopTab } from "./ShopShell";
 
 // Bramble the Bear's trading post in the Whispering Woods: the woods' forester, on the shops'
@@ -13,7 +14,8 @@ import { FooterBook, PRICE_COLUMN, GearShopList, MarketClock, SellAllButton, Sho
 // tree's size), the felling's by-products and Firewood; he sells every axe (T1 to T5), the bigger wood
 // carriers and the woodcutter's gear, every tier. Fish, rods, livewells and bait are Finley's, down by
 // the river. Everything goes as BUSTER packets (the server knows it is Bramble by where you stand);
-// the answers come back as busterResult.
+// the answers come back as busterResult. A piece or a relic from the old workbench is traded in here
+// (or at Buster's) for a full refund: LegacyTradeIn.
 
 const TABS: [ShopTab, string, string][] = [
   ["trade", "🪙", "Trade/Sell"],
@@ -123,7 +125,8 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
               </button>
             </div>
           )}
-          {!held.length && !byCount && !profile.firewood && <p className="m-0 py-6 text-center text-sm opacity-70">Nothing to trade yet. Fell a tree or two, friend: I'll be here.</p>}
+          <LegacyTradeIn profile={profile} send={send} />
+          {!held.length && !byCount && !profile.firewood && !hasLegacy(profile) && <p className="m-0 py-6 text-center text-sm opacity-70">Nothing to trade yet. Fell a tree or two, friend: I'll be here.</p>}
           <p className="m-0 pt-1 text-center text-[11px] opacity-70">Logs go at the camp's market price this hour; every sale nudges the next one down a little. Fish? Finley's down by the river 🦦</p>
         </div>
       )}

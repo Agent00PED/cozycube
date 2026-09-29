@@ -69,7 +69,7 @@ import {
 } from "../shared/worlds/casino";
 import { VAULT_SLOTS, VIP_ARRIVAL, VIP_NPCS, VIP_SEATS } from "../shared/worlds/casino_vip";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
-import { BARNABY_BOARD } from "../shared/worlds/campfire";
+import { BARNABY_BOARD, CAMPFIRE_LAYOUT } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
 import { BAG_BOXER, REF_APRON, REF_HOME, RING_CROWD, TRAINEE, CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, JIMMY, JIMMY_FRONT, JIMMY_REACH, NEUTRAL_CORNERS, RING, RING_BENCH_FRONT, RING_CORNERS, RING_FANS, RING_SEATS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
 
@@ -355,6 +355,64 @@ for (const mapId of MAP_IDS) {
   standable(Lg, MAP_SPAWN_POINTS[Lg][0], BOUTIQUE.approach, "the boutique's spot");
   checks++;
   if (!isBlocked(BARNABY_BOARD.x, BARNABY_BOARD.z, "campfire_night", 0.05)) fail(`campfire_night: Barnaby's chalkboard stands on open floor ${fmt(BARNABY_BOARD)}: give it a collider`);
+}
+
+// --- the campfire's strings of lights: every end tied to something (no end floating in the air):
+// the tipi's canvas, a pine's boughs (build_campfire.py pine: its three tiers' profile), a mounting
+// peg's tip, the light pole's top or an awning pole's top ---
+{
+  const CL = CAMPFIRE_LAYOUT;
+  /** How far a pine's boughs reach out at a height (the builder's lathe profiles, less their jitter). */
+  const boughs = (s: number, y: number) => {
+    let r = 0;
+    for (const [rad, base, tall] of [
+      [1.05, 0.55, 1.15],
+      [0.82, 1.25, 1.0],
+      [0.58, 1.9, 0.95],
+    ]) {
+      const R = rad * s;
+      const y0 = base * s;
+      const H = tall * s;
+      const prof: [number, number][] = [
+        [0, y0],
+        [R * 0.95, y0 + 0.02 * s],
+        [R, y0 + 0.1 * s],
+        [R * 0.72, y0 + 0.28 * H],
+        [R * 0.4, y0 + 0.6 * H],
+        [0, y0 + H],
+      ];
+      for (let k = 0; k + 1 < prof.length; k++) {
+        const [r0, h0] = prof[k];
+        const [r1, h1] = prof[k + 1];
+        if (y >= h0 && y <= h1 && h1 > h0) r = Math.max(r, r0 + ((r1 - r0) * (y - h0)) / (h1 - h0));
+      }
+    }
+    return r * 0.94;
+  };
+  const vanFront = CL.van.z + CL.van.w / 2 + CL.van.awning;
+  const anchored = ([x, y, z]: number[]): string | null => {
+    const t = CL.tent;
+    if (y <= t.h && Math.hypot(x - t.x, z - t.z) <= t.r * (1 - y / t.h) + 0.12) return "the tipi";
+    for (const tr of CL.trees) if (Math.hypot(x - tr.x, z - tr.z) <= boughs(tr.s, y)) return "a pine's boughs";
+    for (const pg of CL.pegs) if (Math.hypot(x - pg.tip[0], z - pg.tip[1]) <= 0.05 && Math.abs(y - pg.y) <= 0.05) return "a peg";
+    const sp = CL.stringPole;
+    if (Math.hypot(x - sp.x, z - sp.z) <= 0.2 && Math.abs(y - sp.h) <= 0.15) return "the light pole";
+    for (const px of [CL.van.x - 0.85, CL.van.x + 1.25]) if (Math.hypot(x - px, z - vanFront) <= 0.08 && y <= 1.6 && y >= 1.3) return "an awning pole";
+    return null;
+  };
+  CL.strings.forEach((st, i) => {
+    for (const end of [st.a, st.b]) {
+      checks++;
+      if (!anchored(end)) fail(`campfire_night: string of lights ${i + 1}'s end ${JSON.stringify(end)} floats in the air: tie it to a pine, a peg, a pole or the tipi`);
+    }
+  });
+  // (a peg's tip sticks out of its pine's boughs, where the wire can be seen tied to it)
+  for (const pg of CL.pegs) {
+    checks++;
+    const tree = CL.trees.find((tr) => Math.hypot(tr.x - pg.x, tr.z - pg.z) < 0.05);
+    if (!tree) fail(`campfire_night: the peg at ${fmt(pg)} is in no pine`);
+    else if (Math.hypot(pg.tip[0] - pg.x, pg.tip[1] - pg.z) <= boughs(tree.s, pg.y) / 0.94) fail(`campfire_night: the peg at ${fmt(pg)} is hidden in its pine's boughs`);
+  }
 }
 
 // --- the Velvet Ring ---

@@ -1294,9 +1294,17 @@ export interface StarlightReel {
   /** How long the fish can run out of the green before the line's tension climbs (s: the rod's
    *  window, and on a boss the Otter-Carved Hook Charm's half second). */
   window: number;
-  /** A boss fish (a legendary or a mythic: its rarity, never its kind): a green 60% smaller, fake
-   *  runs and thrashing. */
+  /** The line's grip: tension builds this much slower (the rod's, the Braided Silk Line's). */
+  resist?: number;
+  /** A boss fish (a legendary or a mythic: its rarity, never its kind): a smaller green, fake runs
+   *  (each telegraphed 0.3 s ahead) and thrashing; and the rod's passive against it (RodPerk): its
+   *  darts slower (`dart`), its fake runs rarer (`feints`), snaps forgiven (`shields`). */
   boss?: boolean;
+  dart?: number;
+  feints?: number;
+  shields?: number;
+  /** The rod's passive by name, for the reel's corner. */
+  perk?: string;
 }
 /** A Sunken Treasure Chest held in the green bar until it opens pays this. */
 export const TREASURE_COINS = 25;
@@ -1316,8 +1324,11 @@ export interface FishCaught {
   /** Coins from a Sunken Treasure Chest opened in the reel (0: none). */
   treasure: number;
   afk: boolean;
-  /** It shed a Fish Scale into the pouches. */
+  /** It shed a Fish Scale into the pouches; a Fine Fish Bone (a rare or better), a Prismatic Scale
+   *  (a legendary or a mythic). */
   scale?: true;
+  bone?: true;
+  prism?: true;
 }
 /** The bobber stays under this long after a bite: tap in time and it is yours. */
 export const STARLIGHT_BITE_S = 1.0;
@@ -1485,6 +1496,21 @@ export interface FellResult {
   capped: boolean;
   /** A miss the Titan-Grip Gauntlets turned into a deeper notch (nothing dropped). */
   grip?: true;
+  /** A Colossal's haul when it came down: this feller's share (by the rounds they landed), and how
+   *  many shared it. */
+  share?: ColossalShare;
+}
+/** A feller's share of a Colossal tree's haul (its logs, and its rare by-products or Pine Resin). */
+export interface ColossalShare {
+  kind: TreeKind;
+  name: string;
+  logs: number;
+  wood: WoodKind;
+  mult: number;
+  extra: { name: string; emoji: string; n: number }[];
+  crew: number;
+  /** The logs the carrier had no room for (the soft clamp: the share is what it is). */
+  lost: number;
 }
 /** Server -> the tree's world ("treeFelled"): a tree came down (the client plays its fall, then
  *  shows its stump). */
@@ -1502,8 +1528,9 @@ export interface TreeFelled {
  *  woods, 5-6 rounds (a Golden Leaf Amber each), 4-6 heavy logs worth 3x each; the two take turns. */
 export type WorldEvent =
   | { kind: "surge"; map: MapId; x: number; z: number; r: number; until: number }
-  | { kind: "titan"; map: MapId; id: string; x: number; z: number; until: number };
-/* (a Titan's `until` is 0: it stands until it is felled) */
+  | { kind: "titan"; map: MapId; id: string; x: number; z: number; until: number; tree?: TreeKind };
+/* (a Colossal's `until` is 0: it stands until it is felled; `tree` its kind, the Autumn Maple when
+ * missing: a save from before the Colossal kinds) */
 /** The wait between one wonder and the next (minutes), and how long a surge lasts (s). */
 export const WORLD_EVENT_EVERY_MIN = [45, 60] as const;
 export const SURGE_S = 240;
@@ -1617,6 +1644,10 @@ export type CampfirePacket =
   | { type: "BUSTER"; op: "buyGear"; gear: GearId }
   | { type: "BUSTER"; op: "buyPermit"; permit: "dayTrip" | "ranger" }
   | { type: "BUSTER"; op: "sellAllWood" }
+  /** A legacy piece (a stash slot, or all of them) or a legacy relic traded in at Buster's or
+   *  Bramble's: a piece's whole listed price, a relic's materials back. */
+  | { type: "BUSTER"; op: "tradeIn"; slot: number | "all" }
+  | { type: "BUSTER"; op: "tradeInRelic"; gear: GearId }
   /** The workbench: carve a piece, safe or pushing for a Masterwork (its wood from the carrier;
    *  answered with workbenchResult). */
   | { type: "WORKBENCH"; recipe: CraftId; mode: CraftMode; adhesive?: Adhesive }

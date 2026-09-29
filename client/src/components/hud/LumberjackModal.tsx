@@ -7,6 +7,7 @@ import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@sh
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
+import { LegacyTradeIn, hasLegacy } from "./LegacyTradeIn";
 import { FooterBook, PRICE_COLUMN, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, type ShopNotice, type ShopTab } from "./ShopShell";
 
 /** The Whispering Woods' permits: a Day Trip (one way in) or the Ranger's Badge (in for good). Sold
@@ -97,7 +98,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
   const byCount = BYPRODUCT_IDS.reduce((n, k) => n + (profile.byproducts[k] ?? 0), 0);
   const byWorth = BYPRODUCT_IDS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
   // the stash's pieces to sell (its consumables are for using), a row a stack
-  const forSale = profile.crafts.filter((c) => CRAFTS[c.c].price > 0);
+  // (a piece from the old bench is traded in instead, at its full price: LegacyTradeIn)
+  const forSale = profile.crafts.filter((c) => CRAFTS[c.c].price > 0 && !CRAFTS[c.c].legacy);
   const craftWorth = priceRun(forSale, (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total;
   const saleStacks = craftStacks(forSale).map((st) => ({ ...st, at: profile.crafts.findIndex((c) => c.c === st.item.c && c.m === st.item.m) }));
   const next = nextCarrierTier(profile.carrierTier);
@@ -211,7 +213,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
               </button>
             </>
           )}
-          {!held.length && !byCount && !profile.firewood && !profile.resin && !forSale.length && <p className="m-0 py-6 text-center text-sm opacity-70">Nothing to trade yet. The Soft Pines round the clearing are yours to fell!</p>}
+          <LegacyTradeIn profile={profile} send={send} />
+          {!held.length && !byCount && !profile.firewood && !profile.resin && !forSale.length && !hasLegacy(profile) && <p className="m-0 py-6 text-center text-sm opacity-70">Nothing to trade yet. The Soft Pines round the clearing are yours to fell!</p>}
           <p className="m-0 pt-1 text-center text-[11px] opacity-70">Carve your logs at the workbench 🪚 by the tipi: worth far more!</p>
         </div>
       )}

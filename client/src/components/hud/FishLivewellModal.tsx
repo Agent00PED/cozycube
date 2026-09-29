@@ -5,7 +5,7 @@ import type { CampfirePacket } from "@shared/types";
 import { fishGood, marketMultiplier, parseMarket } from "@shared/market";
 import { Modal } from "./Modal";
 import { FishCard, lockPacket } from "./ShopShell";
-import { GearSlots } from "./GearSlots";
+import { GearSlots, TacklesOwned } from "./GearSlots";
 
 interface Props {
   profile: FishingProfile;
@@ -115,6 +115,7 @@ export function FishLivewellModal({ profile, market, send, onClose, onOpenCollec
               </div>
             )}
             <GearSlots profile={profile} send={send} craft="fish" />
+            <TacklesOwned profile={profile} craft="fish" />
           </div>
         )}
       </div>

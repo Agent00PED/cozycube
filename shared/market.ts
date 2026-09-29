@@ -1,5 +1,5 @@
 // The camp's market: supply and demand, room by room. Every good Barnaby, Finley, Buster and Bramble
-// buy (every river fish, every kind of split wood, every carved piece) sells at its base price
+// buy (every river fish, every kind of split wood, every piece of the bench's furniture) sells at its base price
 // (shared/economy.ts) times its multiplier M, kept between 70% and 130% (and a log's size on top):
 //
 //   CurrentPrice = Math.round(BasePrice x M x SizeMultiplier)
@@ -39,7 +39,8 @@ const MAX_CATCH_UP_HOURS = 48;
 export const MARKET_GOODS: MarketGood[] = [
   ...fishOf("freshwater").map(fishGood),
   ...WOOD_KINDS.map(woodGood),
-  ...CRAFT_IDS.filter((c) => CRAFTS[c].price > 0).map(craftGood),
+  // (the bench's furniture: a legacy piece is traded in at its full price, never on the market)
+  ...CRAFT_IDS.filter((c) => CRAFTS[c].price > 0 && !CRAFTS[c].legacy).map(craftGood),
 ];
 
 /** The room's market: the hour it is on, each good's multiplier as the hour opened (a good not

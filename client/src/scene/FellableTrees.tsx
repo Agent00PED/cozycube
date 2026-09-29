@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { MapId, PlayerState } from "@shared/types";
-import { TITAN, TREES, type TreeKind, type TreeStage, type TreeSync } from "@shared/chop";
+import { COLOSSAL, TITAN, TREES, isColossalKind, type TreeKind, type TreeStage, type TreeSync } from "@shared/chop";
 import { FELL_TREES, fellReach, type FellTree } from "@shared/worlds/trees";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
@@ -100,6 +100,7 @@ export function FellableTrees(props: FellableTreesProps) {
   useEffect(
     () => () => {
       treeTarget.id = null;
+      treeTarget.kind = null;
     },
     []
   );
@@ -118,6 +119,10 @@ export function FellableTrees(props: FellableTreesProps) {
 /** The map's trees standing now: its own (a Titan only while the room has it). */
 function standing(mapId: MapId, trees: Record<string, TreeSync>): FellTree[] {
   return FELL_TREES.filter((t) => t.map === mapId && (!t.titan || !!trees[t.id]));
+}
+/** A tree's look: a Colossal clearing's is whichever Colossal rose there (the room says). */
+function kindOf(t: FellTree, sync: TreeSync | undefined): TreeKind {
+  return t.titan ? (sync?.kind ?? t.kind) : t.kind;
 }
 function sizeOf(t: FellTree, sync: TreeSync | undefined): number {
   return t.titan ? TITAN.scale : Math.max(0.5, Math.min(2.5, sync?.scale ?? 1));
@@ -185,7 +190,8 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
     const out: { key: string; mesh: THREE.InstancedMesh; part: TemplatePart }[] = [];
     templates.forEach((parts, key) => {
       const kind = key.split(":")[0] as TreeKind;
-      const most = nodes.filter((t) => t.kind === kind).length;
+      // (a Colossal clearing may show any kind's look)
+      const most = nodes.filter((t) => t.kind === kind || t.titan).length;
       if (!most) return;
       for (const part of parts) {
         const mesh = new THREE.InstancedMesh(part.geometry, part.material, most);
@@ -203,7 +209,7 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
   useEffect(() => {
     const byKey = new Map<string, FellTree[]>();
     for (const t of standing(mapId, trees)) {
-      const key = `${t.kind}:${trees[t.id]?.stage ?? "mature"}`;
+      const key = `${kindOf(t, trees[t.id])}:${trees[t.id]?.stage ?? "mature"}`;
       byKey.set(key, [...(byKey.get(key) ?? []), t]);
     }
     const m = new THREE.Matrix4();
@@ -240,7 +246,8 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
         dx /= d;
         dz /= d;
         const scale = Number(payload.scale) || sizeOf(node, liveTrees.current[node.id]);
-        setFalling((f) => [...f.filter((x) => performance.now() / 1000 - x.at < FALL_S + SINK_S), { id: node.id, kind: node.kind, scale, at: performance.now() / 1000, x: node.x, z: node.z, dx, dz }]);
+        const kind = (payload.kind as TreeKind) || kindOf(node, liveTrees.current[node.id]);
+        setFalling((f) => [...f.filter((x) => performance.now() / 1000 - x.at < FALL_S + SINK_S), { id: node.id, kind, scale, at: performance.now() / 1000, x: node.x, z: node.z, dx, dz }]);
         if (Math.hypot(node.x - cameraFocus.x, node.z - cameraFocus.z) < 14) {
           playSfx("woodSnap");
           window.setTimeout(() => playSfx("thunk"), FALL_S * 1000 - 120);
@@ -271,6 +278,7 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
     if (me && me.action !== "") best = null;
     const id = best?.id ?? null;
     treeTarget.id = id;
+    treeTarget.kind = best ? kindOf(best, liveTrees.current[best.id]) : null;
     if (id !== outlined) setOutlined(id);
   });
   const outlineTree = outlined ? nodes.find((t) => t.id === outlined) : undefined;
@@ -284,10 +292,11 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
       {falling.map((f) => (
         <FallingTree key={`${f.id}:${f.at}`} fall={f} parts={templates.get(`${f.kind}:mature`) ?? []} />
       ))}
-      {outlineTree && <TreeOutline tree={outlineTree} scale={sizeOf(outlineTree, trees[outlineTree.id])} parts={templates.get(`${outlineTree.kind}:mature`) ?? []} />}
-      {titans.map((t) => (
-        <TitanGlow key={t.id} x={t.x} z={t.z} />
-      ))}
+      {outlineTree && <TreeOutline tree={outlineTree} scale={sizeOf(outlineTree, trees[outlineTree.id])} parts={templates.get(`${kindOf(outlineTree, trees[outlineTree.id])}:mature`) ?? []} />}
+      {titans.map((t) => {
+        const kind = kindOf(t, trees[t.id]);
+        return <TitanGlow key={`${t.id}:${kind}`} x={t.x} z={t.z} color={isColossalKind(kind) ? COLOSSAL[kind].fx : "#ffb347"} />;
+      })}
     </>
   );
 }
@@ -337,18 +346,21 @@ function FallingTree({ fall, parts }: { fall: Falling; parts: TemplatePart[] }) 
 }
 
 const MOTE_GEO = new THREE.SphereGeometry(0.045, 6, 4);
-const MOTE_MAT = new THREE.MeshBasicMaterial({ color: "#ffb347", toneMapped: false, transparent: true, opacity: 0.9, depthWrite: false });
 const MOTES = 36;
-/** A Colossal Titan's amber: motes drifting up round its trunk and a warm light on the clearing. */
-function TitanGlow({ x, z }: { x: number; z: number }) {
+/** A Colossal's aura, in its own colour (a Silver Birch's silver, an Ancient Cedar's moss, an Autumn
+ *  Maple's gold, a Primordial Elderwood's azure): motes drifting up round its trunk and a light on
+ *  the clearing. */
+function TitanGlow({ x, z, color }: { x: number; z: number; color: string }) {
   const mesh = useMemo(() => {
-    const m = new THREE.InstancedMesh(MOTE_GEO, MOTE_MAT, MOTES);
+    const mat = new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: true, opacity: 0.9, depthWrite: false });
+    const m = new THREE.InstancedMesh(MOTE_GEO, mat, MOTES);
     m.frustumCulled = false;
     m.raycast = noRaycast;
     return m;
-  }, []);
+  }, [color]);
   useEffect(
     () => () => {
+      (mesh.material as THREE.Material).dispose();
       mesh.dispose();
     },
     [mesh]
@@ -371,7 +383,7 @@ function TitanGlow({ x, z }: { x: number; z: number }) {
   return (
     <>
       <primitive object={mesh} />
-      <pointLight ref={light} color="#ffae42" distance={7} decay={1.5} position={[x, 2.2, z]} castShadow={false} />
+      <pointLight ref={light} color={color} distance={7} decay={1.5} position={[x, 2.2, z]} castShadow={false} />
     </>
   );
 }

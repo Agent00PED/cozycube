@@ -107,6 +107,8 @@ const RELAYED_MESSAGES = [
   "busterResult",
   "busterWave",
   "workbenchResult",
+  // the Heartwood Compass: a Colossal rising, to its wearers
+  "compassPulse",
   "creelFull",
   // the casino: Mr. Vance's answer at the cage (an exchange, or why not), and his wave as it opens
   "cashierResult",

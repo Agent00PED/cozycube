@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { ITEMS, parseBag, type CampfirePacket } from "@shared/types";
 import { AXES, BYPRODUCTS, BYPRODUCT_IDS, TREES, WOOD, WOOD_KINDS, carrierTier, trunkCm, woodAverage, woodPrice, type TreeKind, type WoodKind } from "@shared/chop";
-import { BUFFS, CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks, type CraftItem } from "@shared/crafting";
+import { BUFFS, CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks, tradeInValue, type CraftItem } from "@shared/crafting";
 import { CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, FIREWOOD_PRICE } from "@shared/economy";
 import { carrierBonus } from "@shared/gear";
 import { buffOn, carrierCap, carrierLoad, pouchCap, pouchLoad, stars, type FishingProfile } from "@shared/fishing";
 import { craftGood, marketMultiplier, parseMarket, woodGood } from "@shared/market";
 import { Modal } from "./Modal";
-import { GearSlots } from "./GearSlots";
+import { GearSlots, TacklesOwned } from "./GearSlots";
 import { TrendBadge } from "./ShopShell";
 
 interface Props {
@@ -161,6 +161,8 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
                       <button type="button" className="clay-btn clay-btn-amber min-h-8 w-full justify-center px-1" onClick={() => send({ type: "USE_CONSUMABLE", craft: st.item.c })} title={`${BUFFS[craft.buff!].name}: ${BUFFS[craft.buff!].blurb} for ${BUFFS[craft.buff!].ms / 60_000} min`}>
                         <span className="text-[11px]">{buffOn(profile, craft.buff!) ? "Refresh" : "Use"}</span>
                       </button>
+                    ) : craft.legacy ? (
+                      <span className="rounded-full bg-[#F5C46B]/15 px-1.5 text-[10px] font-bold text-[#F5C46B]" title="From the old workbench: Buster or Bramble trade it in at its full price">🔧 {tradeInValue(st.item)} 🪙</span>
                     ) : craft.price > 0 ? (
                       <TrendBadge price={craftSalePrice(st.item, mult)} mult={mult} />
                     ) : null}
@@ -205,6 +207,7 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
               </div>
             </div>
             <GearSlots profile={profile} send={send} craft="wood" />
+            <TacklesOwned profile={profile} craft="wood" />
             <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">The Whispering Woods</b>
             <div className="flex flex-wrap gap-1.5">
               {profile.ranger ? <span className="rounded-full border border-[#F5A623]/60 bg-[#F5A623]/15 px-2.5 py-1">🎖️ Ranger's Badge</span> : <span className="rounded-full bg-white/10 px-2.5 py-1">🎫 Day Trip Permits ×{profile.dayPermits}</span>}

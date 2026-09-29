@@ -321,3 +321,46 @@ button:hover > .clay-wiggle { animation: clay-wiggle 0.6s ease-in-out 2; }
 /* a legendary or mythic catch's Auto-Locked badge: a slow golden glow */
 .cozy-autolock { box-shadow: 0 0 14px rgba(245, 166, 35, 0.75); animation: cozy-autolock-glow 1.6s ease-in-out infinite alternate; }
 @keyframes cozy-autolock-glow { from { box-shadow: 0 0 8px rgba(245, 166, 35, 0.45); } to { box-shadow: 0 0 22px rgba(255, 214, 110, 0.95); } }
+
+/* the reel: a boss fish's fake run coming (0.3 s ahead): the column's border pulsing red, the ❗ */
+.cozy-reel-warn {
+  animation: cozy-reel-warn 0.15s ease-in-out infinite alternate;
+}
+@keyframes cozy-reel-warn {
+  from {
+    box-shadow: 0 0 0 2px rgba(251, 113, 133, 0.55), 0 0 10px rgba(251, 113, 133, 0.35);
+  }
+  to {
+    box-shadow: 0 0 0 3px rgba(251, 113, 133, 1), 0 0 22px rgba(251, 113, 133, 0.75);
+  }
+}
+.cozy-reel-bang {
+  animation: cozy-reel-bang 0.3s ease-out;
+}
+@keyframes cozy-reel-bang {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  40% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1);
+  }
+}
+/* a Snap Shield bursting over the column */
+.cozy-shield-burst {
+  animation: cozy-shield-burst 0.9s ease-out forwards;
+}
+@keyframes cozy-shield-burst {
+  from {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}

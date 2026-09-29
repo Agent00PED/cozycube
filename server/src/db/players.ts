@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { emptyFishingProfile, sanitizeFishingProfile, type FishingProfile } from "../../../shared/fishing";
+import { PROFILE_VERSION } from "../../../shared/migrate";
 import { retiredGearRefund } from "../../../shared/gear";
 import { emptyCasinoProfile, netWorth, sanitizeCasinoProfile, type CasinoProfile } from "../../../shared/casino";
 import { emptyBoxingProfile, sanitizeBoxingProfile, type BoxingProfile } from "../../../shared/boxing";
@@ -105,6 +106,48 @@ CREATE TABLE IF NOT EXISTS game_meta (
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 `;
+
+/**
+ * The camp profiles' migration pass at startup (shared/migrate.ts migratePlayerInventory, through
+ * sanitizeFishingProfile): every stored profile older than PROFILE_VERSION brought up to it and
+ * written back, under an advisory lock (two servers starting together never both run it), once per
+ * version (noted in `game_meta`). A profile read later is migrated as it is read anyway (a session's
+ * login): this pass means none waits for its player to come back. Returns how many it migrated.
+ */
+export async function migrateStoredInventories(pool: Pool): Promise<number> {
+  const key = `inventory_v${PROFILE_VERSION}`;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(7340034)");
+    const done = await client.query("SELECT value FROM game_meta WHERE key = $1", [key]);
+    if (done.rows[0]) {
+      await client.query("COMMIT");
+      return 0;
+    }
+    const rows = await client.query(
+      `SELECT discord_id, stats->'fishing' AS fishing FROM ${PLAYERS}
+       WHERE jsonb_typeof(stats->'fishing') = 'object'
+         AND (CASE WHEN (stats->'fishing'->>'v') ~ '^[0-9]{1,6}$' THEN (stats->'fishing'->>'v')::int ELSE 0 END) < $1`,
+      [PROFILE_VERSION]
+    );
+    let migrated = 0;
+    for (const row of rows.rows) {
+      const profile = sanitizeFishingProfile(row.fishing);
+      await client.query(`UPDATE ${PLAYERS} SET stats = jsonb_set(COALESCE(stats, '{}'::jsonb), '{fishing}', $2::jsonb), updated_at = CURRENT_TIMESTAMP WHERE discord_id = $1`, [row.discord_id, JSON.stringify(profile)]);
+      migrated += 1;
+    }
+    await client.query("INSERT INTO game_meta (key, value) VALUES ($1, $2::jsonb)", [key, JSON.stringify({ at: Date.now(), migrated })]);
+    await client.query("COMMIT");
+    if (migrated) console.log(`[db] camp profiles migrated to v${PROFILE_VERSION}: ${migrated}`);
+    return migrated;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 /**
  * The Phase 3 wipe, once (under an advisory lock, so two servers starting together cannot both run
@@ -217,6 +260,8 @@ class PostgresStore implements PlayerStore {
     const pool = createPool(url);
     await pool.query(SCHEMA_SQL);
     wipeAt = await wipeOnce(pool);
+    // every stored camp profile brought up to this schema (a session's login migrates one anyway)
+    await migrateStoredInventories(pool).catch((err) => console.error("[db] camp profile migration failed (profiles still migrate as they load):", err));
     // test and bot accounts are never kept (the room never saves one; this clears any that slipped in)
     const gone = await pool.query(`DELETE FROM ${PLAYERS} WHERE ${BLACKLIST_SQL}`);
     if (gone.rowCount) console.log(`[db] removed ${gone.rowCount} blacklisted test accounts`);

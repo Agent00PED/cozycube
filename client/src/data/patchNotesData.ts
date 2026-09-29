@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.3",
+    range: "v0.7.0–v0.7.4",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -829,6 +829,42 @@ export const PATCH_ERAS: PatchEra[] = [
           fixes: [
             "Jimmy the Slugger no longer sinks through the ring on his way home. He walks to his corner, ducks through the ropes and goes down the steps, and climbs in the same way.",
             "Turning while you walk is snappier outside the ring.",
+          ],
+        },
+      },
+      {
+        version: "0.7.4",
+        date: "2026-09-29",
+        title: "The Workshop Retrofit",
+        summary: "A rebuilt workbench with seventeen recipes in four tabs, four kinds of Colossal tree to fell together, trickier high-tier trees, fairer boss fish, and every old item carried over safely.",
+        changes: {
+          features: [
+            "The workbench has four tabs: 🎣 Tackles, 🧪 Consumables, 🧿 Relics and 🪑 Furniture. Each tab shows how many of its recipes you can make right now.",
+            "Tackles are made once and work whenever you fish or fell: the Whittled Otter Float (quicker bites), the Resin-Weighted Sinker (a bigger green bar), the Braided Silk Line (slower tension), the Wedge & Mallet Kit (Wood Knots never deflect your axe) and the Titan Felling Lever (your rounds on a Colossal count 1.5x toward your share).",
+            "New consumables: Silverwood Sap Ointment (a slower felling ring) and Glow-Spore Chum (quicker bites and better rare odds), alongside the S'more, Grip Wax and Scent Pouch.",
+            "Three relics, one of each, worn in a gear slot: the Carved Lumberjack Belt (+8 carrier slots), the Deepriver Fisherman Ring (+6 livewell slots) and the Heartwood Compass, which chimes when a Colossal rises and points the way to it under the header.",
+            "Four Colossals now rise in the Whispering Woods: the Silver Birch (15-20 birch logs and 4-6 Silver Bark), the Ancient Cedar (14-18 cedar logs and 3-5 Pine Resin), the Autumn Maple (Golden Leaf Amber every round) and the rare Primordial Elderwood (elderwood logs and 1-2 Titan Heartwood).",
+            "Fell a Colossal together: everyone who lands a round shares the haul, split by the rounds each of you landed.",
+            "Items from the old workbench keep working. Buster and Bramble trade them in for their full listed price (a Masterwork at its Masterwork price), and trade in the two old relics for every material they took.",
+          ],
+          visuals: [
+            "Each Colossal has its own aura: silver, mossy green, a storm of golden leaves or a deep azure glow, on the tree and around its trunk in the felling panel.",
+            "A boss fish's fake runs are telegraphed: a ❗ flashes over it and the reel's column pulses red 0.3 s before it lunges.",
+            "Wood Knots show as dark red bands in the felling ring, faint when your axe bites straight through them.",
+            "The string of lights by the camper van now hangs from a wooden peg in the pine beside the archway, not from thin air.",
+          ],
+          economy: [
+            "Every rod's tension window is 0.3 s longer (1.1 s on the Bamboo Rod up to 2.1 s on the Mythril Moonlight Rod).",
+            "Boss fish are fairer: the green bar is 35% smaller on a legendary and 40% smaller on a mythic, down from 60%.",
+            "The Starlight Master Rod's Starlight Dampener slows a boss's darts by 25%. The Mythril Moonlight Rod's Abyssal Tether slows them by 35%, cuts fake runs by 40% and forgives one snap per fight.",
+            "Higher-tier trees are trickier: a narrower notch (60 degrees at T1 down to 14 at T5), a pendulum ring at T3, an accelerating ring and a Wood Knot at T4, and a pulsing ring with two knots at T5. A knot strike costs 0.4 s, unless you have a T5 axe or the Wedge & Mallet Kit.",
+            "New by-products for your pouches: Silver Bark (15 🪙), Titan Heartwood (150 🪙), Fine Fish Bone (30 🪙, off rare fish and better) and Prismatic Scale (180 🪙, off legendary and mythic fish).",
+            "Furniture sells at the hour's market price (70% to 130%). Tackles, relics and consumables are made to use, not to sell.",
+          ],
+          fixes: [
+            "Every saved profile is upgraded safely: rods and axes keep their ids and gain their new perks, the retired Pack Frame, Tackle Box and Roasting Stick come back as their materials, and a letter on your next visit says exactly what changed.",
+            "Roasting a marshmallow on a log no longer needs a Roasting Stick: anyone can.",
+            "Long notices (like the retrofit letter) show as a card and stay up long enough to read.",
           ],
         },
       },

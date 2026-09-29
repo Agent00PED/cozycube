@@ -970,6 +970,16 @@ def build_trees(L, coll):
     # the bare branch the owl perches on, out through its pine's lowest boughs
     o = L["owl"]
     cylinder(bm, W(o["tree"]["x"], o["y"] - 0.1, o["tree"]["z"]), W(o["x"] + 0.12, o["y"] - 0.03, o["z"] + 0.12), 0.04, 7, m=0, r_end=0.026)
+    # the wooden mounting pegs a string of lights hangs from: driven into a pine's trunk, out through
+    # its boughs, a knob at the tip for the wire's loop (the string's end is the tip)
+    for pg in L.get("pegs", []):
+        tx, tz = pg["tip"]
+        dx, dz = tx - pg["x"], tz - pg["z"]
+        n = math.hypot(dx, dz) or 1.0
+        ux, uz = dx / n, dz / n
+        y = pg["y"]
+        cylinder(bm, W(pg["x"] + ux * 0.04, y - 0.01, pg["z"] + uz * 0.04), W(tx, y + 0.012, tz), 0.03, 7, m=0, r_end=0.022)
+        blob(bm, tx, y + 0.014, tz, 0.032, 0.03, 0.032, m=0, cuts=2)
     make_object("Campfire_Trees", bm, ["CF_Bark", "CF_Pine", "CF_PineLight"], coll)
 
 

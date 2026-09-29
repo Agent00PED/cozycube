@@ -25,7 +25,7 @@ const TIPS = [
   "A bowl of stew keeps you Well-Fed: a bouncier step and quicker bites.",
   "Water the lounge's plants once a day each for a few coins.",
   "Swing when the felling ring meets the gold: a critical swing, now and then a coin or a Pine Resin.",
-  "A bigger tree's logs are worth more: size squared. Watch for the Colossal Titan in the woods!",
+  "A bigger tree's logs are worth more: size squared. Watch for a Colossal rising in the woods, and fell it together!",
   "A King-Size Surge's golden ripples: reel by hand in them for a 4 in 10 King Size catch.",
   "A Pine Resin in the workbench's Adhesive Slot bonds a carving so it can't break, or gilds it for a Masterwork.",
   "Bigger creels and carriers cost more each tier, but carry far more.",

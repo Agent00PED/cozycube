@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { REEL_SECONDS, type SwimPattern } from "@shared/types";
+import { BOSS_TELEGRAPH_S } from "@shared/fishing";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
 
@@ -14,6 +15,12 @@ import { Modal } from "./Modal";
 // Each fish swims its own way (`pattern`): a lazy sine wave, rhythmic plunges, erratic jerks, or
 // a koi's quick darts (a smaller bar). Sometimes a Sunken Treasure Chest drifts into the column:
 // hold the bar over it until it opens for a bonus. The server only learns the outcome; it pays.
+//
+// A boss fish (a legendary or a mythic) fights on a smaller green with fake runs and thrashing, but
+// every fake run is telegraphed: 0.3 s before it lunges a ❗ flashes over the fish and the column's
+// border pulses red. The finest rods soften it (RodPerk): the Starlight Dampener's darts 25% slower,
+// the Abyssal Tether's 35% slower with 40% fewer fake runs and one Snap Shield (the line holds once at
+// breaking point: its tension knocked back, a shield bursting over the column).
 
 // the column is sized so the whole reel fits the screen (the modal never scrolls)
 const BAR_H = 250;
@@ -58,9 +65,15 @@ export interface FishProfile {
   tensionResist?: number;
   /** How long the fish may run out of the green before the tension starts to climb (s). */
   tensionWindow?: number;
-  /** A boss fish (a legendary or a mythic): fake runs (a feint to one end, snapping back) and
-   *  thrashing; its green is small (barScale). */
+  /** A boss fish (a legendary or a mythic): fake runs (a feint to one end, snapping back, each
+   *  telegraphed BOSS_TELEGRAPH_S ahead) and thrashing; its green is small (barScale). */
   boss?: boolean;
+  /** The rod's passive against it: its darts this much slower, its fake runs this much rarer, this
+   *  many snaps forgiven; and its name, for the corner. */
+  dart?: number;
+  feints?: number;
+  shields?: number;
+  perk?: string;
   /** A line under the name once it is landed (its length and stars). */
   detail?: string;
   /** The anti-spoiler: the fish is only a shadow this big (0.1-1) until it is landed, and its
@@ -129,8 +142,15 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
   const [done, setDone] = useState<"caught" | "lost" | null>(null);
   const [snapped, setSnapped] = useState(false);
   const holding = useRef(false);
-  const sim = useRef({ zoneY: barH - zoneH, zoneV: 0, fishY: barH / 2, fishV: 0, fishTarget: barH / 2, meter: 0.3, inTime: 0, total: 0, t: 0, nextDart: 0.6, plunge: -1, tension: 0, warnAt: 0, chestAt: 2.5 + Math.random() * 2, chestY: -1, chest: 0, chestOpen: false, chestGone: 0, outFor: 0, nextFeint: 1.2 + Math.random(), feintUntil: 0, feintBack: 0 });
+  const sim = useRef({ zoneY: barH - zoneH, zoneV: 0, fishY: barH / 2, fishV: 0, fishTarget: barH / 2, meter: 0.3, inTime: 0, total: 0, t: 0, nextDart: 0.6, plunge: -1, tension: 0, warnAt: 0, chestAt: 2.5 + Math.random() * 2, chestY: -1, chest: 0, chestOpen: false, chestGone: 0, outFor: 0, nextFeint: 1.2 + Math.random(), feintUntil: 0, feintBack: 0, shields: fish.shields ?? 0 });
+  /** The fake run coming (its ❗ and the column's red pulse), and a Snap Shield bursting. */
+  const [telegraph, setTelegraph] = useState(false);
+  const [shieldBurst, setShieldBurst] = useState(0);
+  /** The boss's darts and fake runs, as the rod's passive softens them. */
+  const dartMul = 1 - Math.max(0, Math.min(0.9, fish.dart ?? 0));
+  const feintGap = 1 / (1 - Math.max(0, Math.min(0.9, fish.feints ?? 0)));
   const doneRef = useRef(false);
+  const telegraphRef = useRef(false);
   const resultRef = useRef(onResult);
   resultRef.current = onResult;
 
@@ -187,7 +207,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
       } else if (pattern === "erratic") {
         if (s.t >= s.nextDart) {
           s.fishTarget = Math.random() * span;
-          s.fishV += (Math.random() < 0.5 ? -1 : 1) * (125 + Math.random() * 175) * SWIM * scale;
+          s.fishV += (Math.random() < 0.5 ? -1 : 1) * (125 + Math.random() * 175) * SWIM * scale * (fish.boss ? dartMul : 1);
           s.nextDart = s.t + 0.3 + Math.random() * 0.6;
         }
         wobble = Math.sin(s.t * 9.3) * 4;
@@ -201,11 +221,18 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
       // a boss: now and then a fake run to one end of the column (a feint), then it snaps back; and
       // it thrashes all the while
       if (fish.boss) {
+        // (0.3 s before a fake run: the warning)
+        const warn = s.feintUntil === 0 && s.t >= s.nextFeint - BOSS_TELEGRAPH_S;
+        if (warn !== telegraphRef.current) {
+          telegraphRef.current = warn;
+          setTelegraph(warn);
+          if (warn) playSfx("tension");
+        }
         if (s.feintUntil === 0 && s.t >= s.nextFeint) {
           s.feintBack = s.fishTarget;
           s.feintUntil = s.t + 0.25 + Math.random() * 0.15;
-          s.nextFeint = s.t + 1.1 + Math.random() * 0.8;
-          s.fishV += (s.fishY < span / 2 ? 1 : -1) * 230 * scale;
+          s.nextFeint = s.t + (1.1 + Math.random() * 0.8) * feintGap;
+          s.fishV += (s.fishY < span / 2 ? 1 : -1) * 230 * scale * dartMul;
         }
         if (s.feintUntil > 0) {
           if (s.t < s.feintUntil) s.fishTarget = s.fishY < span / 2 && s.fishV > 0 ? span : s.fishV < 0 ? 0 : s.fishTarget;
@@ -261,6 +288,13 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
           playSfx("trophy");
           resultRef.current("caught", Math.min(1, s.inTime / Math.max(1, s.total)), s.chestOpen);
           return;
+        }
+        // a Snap Shield (the Abyssal Tether): the line holds once at breaking point
+        if (s.tension >= 1 && s.shields > 0) {
+          s.shields -= 1;
+          s.tension = 0.35;
+          setShieldBurst(performance.now());
+          playSfx("parry");
         }
         if (s.tension >= 1 || s.meter <= 0 || s.t >= REEL_SECONDS) {
           doneRef.current = true;
@@ -394,7 +428,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
           <div className="flex shrink-0 flex-col gap-2">
             <div className="flex items-stretch justify-center gap-2.5">
               <div
-                className="relative w-16 shrink-0 cursor-pointer touch-none select-none overflow-hidden rounded-2xl border border-[#4A3A30] bg-gradient-to-b from-[#12343c] to-[#0a1a1e]"
+                className={`relative w-16 shrink-0 cursor-pointer touch-none select-none overflow-hidden rounded-2xl border bg-gradient-to-b from-[#12343c] to-[#0a1a1e] ${telegraph ? "cozy-reel-warn border-rose-400" : "border-[#4A3A30]"}`}
                 style={{ height: barH }}
                 aria-label="Reel column: hold to lift the catch bar"
                 onPointerDown={hold(true)}
@@ -414,6 +448,16 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
                 <div className="absolute left-0 right-0 text-center text-2xl leading-none" style={{ top: fishY, height: FISH_H, transform: inZone ? "scale(1.18)" : "none", filter: mystery ? "brightness(0) opacity(0.8)" : undefined }}>
                   🐟
                 </div>
+                {telegraph && (
+                  <div className="cozy-reel-bang pointer-events-none absolute left-0 right-0 text-center text-xl font-black leading-none text-rose-300" style={{ top: Math.max(0, fishY - 22) }} aria-hidden>
+                    ❗
+                  </div>
+                )}
+                {shieldBurst > 0 && (
+                  <div key={shieldBurst} className="cozy-shield-burst pointer-events-none absolute inset-0 flex items-center justify-center text-3xl" aria-hidden>
+                    🛡️
+                  </div>
+                )}
                 {straining && (
                   <div className="cozy-tension" style={{ top: fishY }} aria-hidden>
                     <span />
@@ -442,6 +486,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
                   <div className="text-2xl font-extrabold tabular-nums text-[#F7EBE1]">{pct}%</div>
                   <div className={`text-xs tabular-nums ${timeLeft < 5 ? "font-bold text-rose-300" : "opacity-70"}`}>escapes in {Math.ceil(timeLeft)}s</div>
                   <div className={`mt-1 text-[10px] ${straining ? "font-bold text-rose-300" : "opacity-50"}`}>{straining ? "Tension! Keep it in the green" : "line tension"}</div>
+                  {fish.boss && fish.perk && <div className="mt-1 text-[10px] font-bold text-sky-200">🌠 {fish.perk}{(fish.shields ?? 0) > 0 ? ` · 🛡️ ${sim.current.shields}` : ""}</div>}
                 </div>
               </div>
             </div>

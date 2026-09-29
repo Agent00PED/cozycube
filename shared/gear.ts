@@ -1,7 +1,10 @@
 // The accessories: kit bought once and worn in four slots (two hands' worth of gloves is one pair,
 // a belt at the waist, a ring on each of two fingers, a charm about the neck). The woodcutter's are
 // sold by Buster (T1-T3) and Bramble (T1-T5), the angler's by Barnaby (T1-T3) and Finley (T1-T5);
-// the workbench's three Passive Relics are carved once, never sold (`craft` "bench"); any of them
+// the workbench's three relics are carved once, never sold (`craft` "bench": the Carved Lumberjack
+// Belt, the Deepriver Fisherman Ring, the Heartwood Compass; the two before them, the Otter-Carved
+// Hook Charm and the Amber Bark Bangle, are `legacy`: still worn and working by whoever carved one,
+// and traded in at Buster's or Bramble's for their materials back); any of them
 // goes in any slot of its kind, so a loadout mixes the crafts. They live in the camp
 // profile (FishingProfile.gear owned, .worn on, oldest first); the server applies every effect and
 // the client draws them from the same functions.
@@ -27,8 +30,11 @@ export type GearId =
   | "moonlit_ring"
   | "golden_scale_ring"
   | "lucky_bell"
-  // the workbench's Passive Relics
+  // the workbench's relics
   | "carved_belt"
+  | "deepriver_ring"
+  | "heartwood_compass"
+  // legacy relics
   | "hook_charm"
   | "bark_bangle";
 
@@ -42,6 +48,8 @@ export interface Gear {
   tier: number;
   price: number;
   blurb: string;
+  /** A relic off the bench now: still worn and working, traded in for its materials. */
+  legacy?: boolean;
 }
 
 export const GEAR: Record<GearId, Gear> = {
@@ -59,10 +67,13 @@ export const GEAR: Record<GearId, Gear> = {
   moonlit_ring: { name: "Moonlit Abyssal Ring", emoji: "🌙", slot: "finger", craft: "fish", tier: 3, price: GEAR_PRICES.moonlit_ring, blurb: "By night, rare and nocturnal fish 25% likelier" },
   golden_scale_ring: { name: "Golden Scale Ring", emoji: "🪙", slot: "finger", craft: "fish", tier: 4, price: GEAR_PRICES.golden_scale_ring, blurb: "+15% chance of a ★★★ fish, and every fish 15% heavier" },
   lucky_bell: { name: "Finley's Lucky Bell", emoji: "🔔", slot: "charm", craft: "fish", tier: 5, price: GEAR_PRICES.lucky_bell, blurb: "Chimes 30 s before a King-Size Surge, and a surge's catches are King Size 5 in 10" },
-  // the workbench's Passive Relics (carved once: shared/crafting.ts)
-  carved_belt: { name: "Lumberjack's Carved Belt", emoji: "🎗️", slot: "waist", craft: "bench", tier: 3, price: 0, blurb: "+6 carrier slots, and the splitting block's gauge runs 15% slower" },
-  hook_charm: { name: "Otter-Carved Hook Charm", emoji: "🦦", slot: "charm", craft: "bench", tier: 2, price: 0, blurb: "On a legendary or mythic fish: the line holds 0.5 s longer before its tension climbs, and the green is 25% bigger" },
-  bark_bangle: { name: "Amber Bark Bangle", emoji: "📿", slot: "finger", craft: "bench", tier: 4, price: 0, blurb: "+20% by-products while felling: a round that drops a log sheds its tree's by-product too" },
+  // the workbench's relics (carved once: shared/crafting.ts), working while worn
+  carved_belt: { name: "Carved Lumberjack Belt", emoji: "🎗️", slot: "waist", craft: "bench", tier: 3, price: 0, blurb: "+8 carrier slots, and the splitting block's gauge runs 15% slower" },
+  deepriver_ring: { name: "Deepriver Fisherman Ring", emoji: "💍", slot: "finger", craft: "bench", tier: 3, price: 0, blurb: "+6 livewell slots" },
+  heartwood_compass: { name: "Heartwood Compass", emoji: "🧭", slot: "charm", craft: "bench", tier: 4, price: 0, blurb: "Pulses toward a standing Colossal tree (its name, its way and how far), and chimes when one rises" },
+  // legacy relics: still working for whoever carved one; traded in for their materials
+  hook_charm: { name: "Otter-Carved Hook Charm", emoji: "🦦", slot: "charm", craft: "bench", tier: 2, price: 0, legacy: true, blurb: "On a legendary or mythic fish: the line holds 0.5 s longer before its tension climbs, and the green is 25% bigger" },
+  bark_bangle: { name: "Amber Bark Bangle", emoji: "📿", slot: "finger", craft: "bench", tier: 4, price: 0, legacy: true, blurb: "+20% by-products while felling: a round that drops a log sheds its tree's by-product too" },
 };
 export const GEAR_IDS = Object.keys(GEAR) as GearId[];
 export function isGearId(v: unknown): v is GearId {
@@ -103,11 +114,11 @@ export const bonusLogChance = (worn: Worn) => (on(worn, "deerskin_gloves") ? 0.1
 export const goldBonus = (worn: Worn) => (on(worn, "titan_gauntlets") ? 0.25 : 0);
 /** The Titan-Grip Gauntlets: a miss still deepens the notch (it drops nothing). */
 export const missDeepens = (worn: Worn) => on(worn, "titan_gauntlets");
-/** The Forester's Toolbelt (or the Lumberjack's Carved Belt): more carrier slots, and more Firewood
+/** The Forester's Toolbelt (or the Carved Lumberjack Belt): more carrier slots, and more Firewood
  *  from a split. */
-export const carrierBonus = (worn: Worn) => (on(worn, "forester_belt") ? 5 : 0) + (on(worn, "carved_belt") ? 6 : 0);
+export const carrierBonus = (worn: Worn) => (on(worn, "forester_belt") ? 5 : 0) + (on(worn, "carved_belt") ? 8 : 0);
 export const splitYield = (worn: Worn) => (on(worn, "forester_belt") ? 1.5 : 1);
-/** The Lumberjack's Carved Belt: the splitting block's gauge this much slower. */
+/** The Carved Lumberjack Belt: the splitting block's gauge this much slower. */
 export const splitSlow = (worn: Worn) => (on(worn, "carved_belt") ? 0.15 : 0);
 /** The Amber Resin Band and the Amber Bark Bangle: a round that drops a log also sheds its tree's
  *  by-product this often. */
@@ -122,9 +133,9 @@ export const dryadChance = (worn: Worn) => (on(worn, "dryad_amulet") ? 0.15 : 0)
 export const DRYAD_GROWTH = 0.15;
 /** The Neoprene Wader Gloves: the line's tension builds this much slower. */
 export const tensionCut = (worn: Worn) => (on(worn, "wader_gloves") ? 0.2 : 0);
-/** The Tackle Master's Holster: more livewell slots, and a cast's chance to keep its bait (a bait
- *  lasting 20% longer: one cast in six free). */
-export const livewellBonus = (worn: Worn) => (on(worn, "tackle_holster") ? 4 : 0);
+/** The Tackle Master's Holster (and the Deepriver Fisherman Ring): more livewell slots; the holster, a
+ *  cast's chance to keep its bait (a bait lasting 20% longer: one cast in six free). */
+export const livewellBonus = (worn: Worn) => (on(worn, "tackle_holster") ? 4 : 0) + (on(worn, "deepriver_ring") ? 6 : 0);
 export const baitSaveChance = (worn: Worn) => (on(worn, "tackle_holster") ? 1 - 1 / 1.2 : 0);
 /** The Sunburst River Band: by day, bites (and an AFK line's waits) this much sooner. */
 export const biteHaste = (worn: Worn, day: boolean) => (day && on(worn, "sunburst_band") ? 1.2 : 1);
@@ -133,6 +144,8 @@ export const nightRareLuck = (worn: Worn, night: boolean) => (night && on(worn, 
 /** The Golden Scale Ring: a gold star this much likelier, and every fish this much heavier. */
 export const goldStarBonus = (worn: Worn) => (on(worn, "golden_scale_ring") ? 0.15 : 0);
 export const heftBonus = (worn: Worn) => (on(worn, "golden_scale_ring") ? 0.15 : 0);
+/** The Heartwood Compass: a Colossal tree's pulse (its way and distance) while one stands. */
+export const hasCompass = (worn: Worn) => on(worn, "heartwood_compass");
 /** Finley's Lucky Bell: its warning ahead of a surge (s), and a surge's King Size chance with it. */
 export const hasLuckyBell = (worn: Worn) => on(worn, "lucky_bell");
 export const LUCKY_BELL_WARN_S = 30;

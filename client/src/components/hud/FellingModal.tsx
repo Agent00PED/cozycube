@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CampfirePacket, FellResult } from "@shared/types";
-import { TITAN, TREES, fellRing, type FellSwing, type FellVerdict, type TreeKind } from "@shared/chop";
+import { COLOSSAL, KNOT_RECOVER_S, TREES, fellRing, isColossalKind, type FellMotion, type FellSwing, type FellVerdict, type TreeKind } from "@shared/chop";
 import { fellTreeOf } from "@shared/worlds/trees";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
@@ -18,6 +18,11 @@ import { SAFE_AREA } from "./Modal";
 // comes (a log worth the tree's size squared, or the tier's by-product), and after a 0.4 s pause the
 // next round's ring starts, the panel open all the while, until the last round brings it down. A miss
 // only costs the time. Leave and the notch stays in the tree for whoever comes next.
+// The finer trees are trickier (shared/chop.ts NOTCH_DEG): a narrower notch, a ring on a pendulum
+// (T3), accelerating (T4) or pulsing (T5), and in a T4 or T5 trunk Wood Knots, red bands a swing
+// glances off (a 0.4 s recovery; a T5 axe or the Wedge & Mallet Kit bites straight through, and
+// the knots show faint). A Colossal is felled together: its crew's rounds all deepen the one notch,
+// and when it falls each one's share of the haul shows here.
 // The server rolls each ring and judges each swing (shared/chop.ts fellRing / judgeFell: the ring
 // drawn here is placed by the same function); fellSwing hands over a ring, fellResult says how the
 // swing landed.
@@ -41,9 +46,9 @@ const WOOD_LOOK: Record<TreeKind, { bark: string; barkDark: string; sap: string;
   maple: { bark: "#5e4633", barkDark: "#3e2e21", sap: "#f0d3a8", heart: "#c98f55", ring: "rgba(120,72,36,0.35)" },
   elderwood: { bark: "#3d4a45", barkDark: "#242d2a", sap: "#cfe6d8", heart: "#7fb9a4", ring: "rgba(40,90,80,0.4)" },
 };
-const TITAN_LOOK = { bark: "#5a3a1c", barkDark: "#3a240f", sap: "#f6d49a", heart: "#e39a3a", ring: "rgba(150,80,20,0.4)" };
-
-const CALLOUT: Record<FellVerdict, string> = { gold: "✨ Critical!", hit: "🪓 Thunk!", miss: "Missed…" };
+const CALLOUT: Record<FellVerdict, string> = { gold: "✨ Critical!", hit: "🪓 Thunk!", knot: "💥 Knot! Deflected", miss: "Missed…" };
+/** How the ring moves, under the round's count. */
+const MOTION_HINT: Record<FellMotion, string> = { loop: "", pendulum: "↔ pendulum ring", accel: "⏩ accelerating ring", pulse: "💓 pulsing ring" };
 
 interface Chip {
   at: number;
@@ -58,14 +63,17 @@ interface Chip {
 
 export function FellingModal({ tree, send, subscribeMessages, localSessionId, onClose }: Props) {
   const node = fellTreeOf(tree);
-  const info = node ? TREES[node.kind] : null;
-  const name = node?.titan ? TITAN.name : (info?.name ?? "Tree");
+  // (a Colossal clearing's tree is whichever Colossal rose there: its first ring says which)
+  const [colossal, setColossal] = useState<TreeKind | null>(null);
+  const kindNow: TreeKind = node?.titan ? (colossal ?? node.kind) : (node?.kind ?? "soft_pine");
+  const info = node ? TREES[kindNow] : null;
+  const name = node?.titan ? (colossal && isColossalKind(colossal) ? COLOSSAL[colossal].name : "Colossal") : (info?.name ?? "Tree");
   const [phase, setPhase] = useState<Phase>("starting");
   const [swing, setSwing] = useState<FellSwing | null>(null);
   const [dmg, setDmg] = useState(0);
   const [rounds, setRounds] = useState(0);
   const [callout, setCallout] = useState<{ key: number; text: string; verdict: FellVerdict } | null>(null);
-  const [haul, setHaul] = useState<{ key: number; lines: string[] } | null>(null);
+  const [haul, setHaul] = useState<{ key: number; lines: string[]; long?: boolean } | null>(null);
   const touch = isTouchUi();
 
   // what the frame loop and the key handler read: always the latest, never a stale closure
@@ -95,13 +103,13 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
 
   const burstChips = useCallback((gold: boolean) => {
     const now = performance.now() / 1000;
-    const look = node?.titan ? TITAN_LOOK : WOOD_LOOK[node?.kind ?? "soft_pine"];
+    const look = WOOD_LOOK[kindNow];
     for (let i = 0; i < (gold ? 22 : 14); i++) {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
       const v = 0.5 + Math.random() * 0.9;
       chips.current.push({ at: now, x: 0.92, y: 0, vx: Math.cos(a) * v + 0.4, vy: Math.sin(a) * v, spin: (Math.random() - 0.5) * 18, size: 0.018 + Math.random() * 0.03, color: gold && i % 3 === 0 ? "#ffd35a" : Math.random() < 0.5 ? look.sap : look.heart });
     }
-  }, [node]);
+  }, [kindNow]);
 
   useEffect(
     () =>
@@ -111,6 +119,7 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
           const pause = Math.max(0, Number(s.pause) || 0);
           swingRef.current = { ...s, at: performance.now() + pause * 1000 };
           frozenAt.current = null;
+          if (node?.titan) setColossal(s.kind);
           dmgRef.current = { dmg: s.round - 1, rounds: s.rounds };
           setSwing(s);
           setDmg(s.round - 1);
@@ -126,9 +135,9 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
           setDmg(r.dmg);
           setRounds(r.rounds);
           setCallout({ key: performance.now(), text: CALLOUT[r.verdict], verdict: r.verdict });
-          if (r.verdict === "miss") {
-            missFlash.current = performance.now() / 1000;
-            playSfx("thunk");
+          if (r.verdict === "miss" || r.verdict === "knot") {
+            missFlash.current = performance.now() / 1000 + (r.verdict === "knot" ? KNOT_RECOVER_S - 0.45 : 0);
+            playSfx(r.verdict === "knot" ? "blocked" : "thunk");
           } else {
             playSfx(r.verdict === "gold" ? "crit" : "chop");
             if (r.verdict === "gold") goldFlash.current = performance.now() / 1000;
@@ -140,9 +149,14 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
           if (r.drop.also) lines.push(`+1 ${r.drop.also.emoji} ${r.drop.also.name} (your resin band)`);
           if (r.grip) lines.push("🦾 Your gauntlets bit in: the notch still deepens");
           if (r.bonus === "resin") lines.push("+1 🍯 Pine Resin");
+          if (r.share) {
+            lines.push(`🌳 Your share of the ${r.share.name}${r.share.crew > 1 ? ` (a crew of ${r.share.crew})` : ""}:`);
+            for (const x of r.share.extra) lines.push(`+${x.n} ${x.emoji} ${x.name}`);
+            if (r.share.lost > 0) lines.push(`(${r.share.lost} more logs: no room in your carrier)`);
+          }
           if (r.coins > 0) lines.push(`+${r.coins} 🪙`);
           if (r.felled && r.capped) lines.push("(today's felling coins all earned)");
-          if (lines.length) setHaul({ key: performance.now(), lines });
+          if (lines.length) setHaul({ key: performance.now(), lines, long: !!r.share });
           if (r.coins > 0) playSfx("coins");
           if (r.felled) {
             swingRef.current = null;
@@ -193,8 +207,9 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
   // the dial, drawn every frame from the same ring function the server judges with
   useEffect(() => {
     let frame = 0;
-    const kind = node?.kind ?? "soft_pine";
-    const look = node?.titan ? TITAN_LOOK : WOOD_LOOK[kind];
+    const kind = kindNow;
+    const look = WOOD_LOOK[kind];
+    const glowFx = node?.titan && isColossalKind(kind) ? COLOSSAL[kind].fx : null;
     // the growth rings: fixed per tree, a little wobbly
     let seed = 0;
     for (const c of node?.id ?? "x") seed = (seed * 31 + c.charCodeAt(0)) % 9973;
@@ -233,7 +248,20 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
       g.arc(0, 0, R * 1.03, 0, Math.PI * 2);
       g.fillStyle = look.bark;
       g.fill();
-      if (kind === "birch" && !node?.titan) {
+      if (glowFx) {
+        // a Colossal's aura round its bark (silver, moss, gold or azure), breathing
+        g.save();
+        g.shadowColor = glowFx;
+        g.shadowBlur = W * (0.04 + 0.02 * Math.sin(now * 2.2));
+        g.strokeStyle = glowFx;
+        g.globalAlpha = 0.55;
+        g.lineWidth = Math.max(2, W * 0.012);
+        g.beginPath();
+        g.arc(0, 0, R * 1.1, 0, Math.PI * 2);
+        g.stroke();
+        g.restore();
+      }
+      if (kind === "birch") {
         // a birch's black lenticels on its white bark
         g.fillStyle = look.barkDark;
         for (let i = 0; i < 14; i++) {
@@ -302,6 +330,24 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
       }
       const s = swingRef.current;
       if (s) {
+        // the Wood Knots: dark red bands a swing glances off (faint when this axe bites through)
+        for (const k of s.knots ?? []) {
+          g.lineWidth = Math.max(3, 2 * k.w * R);
+          g.strokeStyle = s.knotProof ? "rgba(120, 90, 80, 0.35)" : "rgba(170, 38, 34, 0.78)";
+          g.beginPath();
+          g.arc(0, 0, k.r * R, 0, Math.PI * 2);
+          g.stroke();
+          if (!s.knotProof) {
+            // the knot's grain: a few dark whorls along the band
+            g.fillStyle = "rgba(70, 14, 12, 0.85)";
+            for (let i = 0; i < 6; i++) {
+              const a = (i / 6) * Math.PI * 2 + k.r * 7;
+              g.beginPath();
+              g.ellipse(Math.cos(a) * k.r * R, Math.sin(a) * k.r * R, k.w * R * 0.9, k.w * R * 0.5, a, 0, Math.PI * 2);
+              g.fill();
+            }
+          }
+        }
         // the sweet spot: a golden band, its bright gold centre
         g.lineWidth = Math.max(2, 2 * s.band * R);
         g.strokeStyle = "rgba(255, 196, 64, 0.38)";
@@ -351,7 +397,7 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [node]);
+  }, [node, kindNow]);
 
   // the callout and the haul fade on their own
   useEffect(() => {
@@ -361,12 +407,14 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
   }, [callout]);
   useEffect(() => {
     if (!haul) return;
-    const t = window.setTimeout(() => setHaul(null), 1500);
+    const t = window.setTimeout(() => setHaul(null), haul.long ? 3200 : 1500);
     return () => window.clearTimeout(t);
   }, [haul]);
 
   if (!node || !info) return null;
-  const tier = node.titan ? "Titan" : `T${info.tier}`;
+  const tier = node.titan ? "Colossal" : `T${info.tier}`;
+  const motion = swing && !node.titan ? MOTION_HINT[swing.motion] : "";
+  const knots = swing && !node.titan && (swing.knots?.length ?? 0) > 0 ? (swing.knotProof ? "🪵 knots: your axe bites through" : `🪵 ${swing.knots.length} knot${swing.knots.length > 1 ? "s" : ""}: avoid the red`) : "";
   const status =
     phase === "starting"
       ? "Sizing up the trunk…"
@@ -435,6 +483,7 @@ export function FellingModal({ tree, send, subscribeMessages, localSessionId, on
         </div>
         <div className="rounded-2xl border border-[#4A3A30] bg-[#231B18]/90 px-3 py-1.5 text-center text-xs text-[#C9BDB5] shadow">
           <b className="text-[#F7EBE1]">{status}</b>
+          {(motion || knots) && (phase === "swing" || phase === "judging") ? <span className="text-[#F5C46B]"> · {[motion, knots].filter(Boolean).join(" · ")}</span> : null}
           {phase === "swing" || phase === "judging" ? (
             <>
               <span className="kbd-hint"> · Space or click when the ring meets the gold</span>
