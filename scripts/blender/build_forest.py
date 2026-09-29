@@ -29,7 +29,10 @@ night-and-day friendly palette. Nodes:
                         ridge's boulders, the shrine's ring of standing stones (their runes glowing
                         faintly)
     Forest_Vista        twenty-five tall pines along the back and side edges (never felled)
-    Forest_Structures   the branch archway back to the campfire, Bramble's log cabin (flush with the
+    Forest_Structures   the branch archway back to the campfire, the old mine adit down to the
+                        Glimmering Caverns (a mossy outcrop on the western cliff behind the Autumn
+                        Maples: a timber-framed portal onto the dark, vines over its lintel, bushes
+                        crowding it, a lantern, the old rails running out), Bramble's log cabin (flush with the
                         eastern tree line: warm windows, a stone chimney), his store counter and
                         hanging sign, the advanced workbench right beside the counter (worked from
                         the trail side),
@@ -107,6 +110,7 @@ PALETTE = {
     "FW_Honey": "#E8A93A",
     "FW_Cloth": "#E9DDC4",
     "FW_Red": "#C2463A",
+    "FW_MossDeep": "#3E6B3E",
     # the trees
     "FW_PineBark": "#5E4230",
     "FW_PineNeedle": "#2E5A46",
@@ -1242,7 +1246,67 @@ def build_structures(L, cushions, coll):
         cylinder(bm, W(px, 0.0, pz), W(px, 0.75, pz), 0.03, 6, m=0)
         box(bm, px - 0.16, px + 0.16, 0.6, 0.78, pz - 0.02, pz + 0.02, m=3)
         blob(bm, px, 0.69, pz + 0.025, 0.09, 0.035, 0.006, m=11, cuts=2)
-    make_object("Forest_Structures", bm, ["FW_Bark", "FW_Log", "FW_WoodCut", "FW_Plank", "FW_PlankDark", "FW_Roof", "FW_Window", "FW_Iron", "FW_Stone", "FW_Rope", "FW_Honey", "FW_Cloth", "FW_Red", "FW_PineNeedle"], coll)
+    build_adit(L, bm, rng)
+    make_object("Forest_Structures", bm, ["FW_Bark", "FW_Log", "FW_WoodCut", "FW_Plank", "FW_PlankDark", "FW_Roof", "FW_Window", "FW_Iron", "FW_Stone", "FW_Rope", "FW_Honey", "FW_Cloth", "FW_Red", "FW_PineNeedle", "FW_Moss"], coll)
+
+
+def build_adit(L, bm, rng):
+    """The old mine adit down to the Glimmering Caverns, behind the Autumn Maples on the western cliff:
+    a mossy outcrop, a timber-framed portal onto the dark (facing into the wood, +x), vines hanging
+    over its lintel, bushes crowding its sides, a lantern on its post, the old rails running out under
+    the grass. (Materials as build_structures': 0 bark, 1 log, 3 plank, 4 plank dark, 6 window, 7
+    iron, 8 stone, 13 pine needle, 14 moss.)"""
+    A = L["adit"]
+    O = A["outcrop"]
+    x, z, hw, h = A["x"], A["z"], A["w"] / 2, A["h"]
+    face = O["x1"]
+    # the outcrop: a heap of rough stone, taller at the back, its face open round the portal
+    for k in range(9):
+        bx = O["x0"] + (O["x1"] - O["x0"]) * (0.25 + 0.3 * rng.random())
+        bz = O["z0"] + (O["z1"] - O["z0"]) * (k + 0.5) / 9
+        if abs(bz - z) < hw + 0.2:
+            bx = O["x0"] + 0.25
+        blob(bm, bx, O["h"] * (0.35 + 0.2 * rng.random()), bz, 0.55 + 0.2 * rng.random(), O["h"] * (0.4 + 0.2 * rng.random()), 0.5 + 0.15 * rng.random(), m=8, cuts=3, noise=0.28, rng=rng, flat_bottom=-0.1)
+    for sz in (-1, 1):
+        blob(bm, face - 0.3, 1.1, z + sz * (hw + 0.55), 0.45, 1.15, 0.42, m=8, cuts=3, noise=0.25, rng=rng, flat_bottom=-0.1)
+    blob(bm, O["x0"] + 0.5, O["h"] - 0.2, z, 0.9, 0.45, 1.3, m=8, cuts=3, noise=0.3, rng=rng)
+    # moss over its top
+    for k in range(7):
+        blob(bm, O["x0"] + 0.3 + 0.6 * rng.random(), O["h"] * (0.75 + 0.2 * rng.random()), O["z0"] + (O["z1"] - O["z0"]) * rng.random(), 0.35, 0.12, 0.3, m=14, cuts=2, noise=0.3, rng=rng)
+    # the dark: a recess back into the rock
+    box(bm, face - 0.75, face + 0.02, 0.0, h - 0.05, z - hw + 0.08, z + hw - 0.08, m=7)
+    # the timber frame: two posts, a heavy lintel, braces
+    for sz in (-1, 1):
+        cylinder(bm, W(face + 0.05, -0.05, z + sz * hw), W(face + 0.05, h + 0.05, z + sz * hw), 0.1, 8, m=1, cap_m=4, wobble=0.05, rng=rng)
+        cylinder(bm, W(face + 0.05, h - 0.55, z + sz * (hw - 0.05)), W(face + 0.05, h - 0.1, z + sz * (hw - 0.45)), 0.05, 6, m=4)
+    cylinder(bm, W(face + 0.05, h + 0.02, z - hw - 0.25), W(face + 0.05, h + 0.02, z + hw + 0.25), 0.13, 8, m=1, cap_m=4, wobble=0.05, rng=rng)
+    # an old warning board, askew over the top of the opening
+    q = [W(face + 0.12, h - 0.35, z - hw + 0.1), W(face + 0.12, h - 0.15, z + hw - 0.1), W(face + 0.12, h - 0.03, z + hw - 0.1), W(face + 0.12, h - 0.23, z - hw + 0.1)]
+    hexa(bm, q, Vector((0.04, 0, 0)), m=3, m_under=4)
+    # vines hanging over the lintel, leaves along them
+    for k in range(11):
+        vz = z - hw - 0.2 + (2 * hw + 0.4) * k / 10
+        ln = 0.35 + 0.8 * rng.random()
+        cylinder(bm, W(face + 0.12, h + 0.08, vz), W(face + 0.15, h + 0.08 - ln, vz + 0.04 * (rng.random() - 0.5)), 0.015, 5, m=13)
+        for j in range(3):
+            ly = h + 0.02 - ln * (j + 1) / 3.5
+            blob(bm, face + 0.15, ly, vz + 0.03 * (rng.random() - 0.5), 0.05, 0.035, 0.05, m=13, cuts=1)
+    # bushes crowding the portal's sides (its camouflage)
+    for sz in (-1, 1):
+        for k in range(3):
+            blob(bm, face + 0.05 + 0.15 * rng.random(), 0.3 + 0.15 * k, z + sz * (hw + 0.35 + 0.25 * k), 0.34, 0.32, 0.3, m=13, cuts=2, noise=0.35, rng=rng, flat_bottom=0.0)
+    # a lantern on the south post
+    ly = h - 0.6
+    lx, lz = face + 0.24, z + hw
+    cylinder(bm, W(face + 0.1, ly + 0.2, lz), W(lx, ly + 0.2, lz), 0.012, 5, m=7)
+    lathe(bm, lx, lz, [(0, 0.0), (0.06, 0.0), (0.07, 0.1), (0.05, 0.14), (0, 0.15)], segs=10, m=6, y0=ly)
+    lathe(bm, lx, lz, [(0, 0.12), (0.075, 0.12), (0.03, 0.18), (0, 0.19)], segs=10, m=7, y0=ly)
+    # the old rails out of the dark, sinking under the grass
+    for k in range(6):
+        rx = face - 0.5 + k * 0.42
+        box(bm, rx, rx + 0.12, 0.0, 0.035, z - 0.42, z + 0.42, m=4)
+    for sz in (-0.28, 0.28):
+        box(bm, face - 0.7, face + 1.6, 0.03, 0.06, z + sz - 0.025, z + sz + 0.025, m=7)
 
 
 # ---------------------------------------------------------------------------------------------

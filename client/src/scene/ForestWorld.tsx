@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { parseWorldEvent, type PlayerState } from "@shared/types";
 import { parseTrees } from "@shared/chop";
 import { isBlocked } from "@shared/collision";
-import { FINLEY, FOREST_ANIMALS, FOREST_LAYOUT as L, FOREST_TREES, forestRiver } from "@shared/worlds/forest";
+import { FINLEY, FOREST_ANIMALS, FOREST_LAYOUT as L, FOREST_TREES, OLD_FLINT, forestRiver } from "@shared/worlds/forest";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -38,6 +38,7 @@ import { WoodsFauna } from "./WoodsFauna";
 export const FOREST_URL = modelUrl("forest.glb");
 export const BRAMBLE_URL = modelUrl("bramble.glb");
 export const FINLEY_URL = modelUrl("finley.glb");
+export const OLD_FLINT_URL = modelUrl("old_flint.glb");
 
 const FOREST_TIME = { value: 0 };
 const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
@@ -141,6 +142,7 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
       <SurgeRipples event={wonder} mapId="whispering_woods" waterY={WATER_Y} />
       <CampNpc url={BRAMBLE_URL} what="bramble.glb" prefix="Bramble" at={L.bramble} waveEvent="brambleWave" standIn={<BrambleStandIn />} subscribeMessages={subscribeMessages} talk={BRAMBLE_TALK} />
       <CampNpc url={FINLEY_URL} what="finley.glb" prefix="Finley" at={FINLEY} waveEvent="finleyWave" standIn={<FinleyStandIn />} subscribeMessages={subscribeMessages} talk={FINLEY_TALK} />
+      <CampNpc url={OLD_FLINT_URL} what="old_flint.glb" prefix="OldFlint" at={OLD_FLINT} waveEvent="flintWave" standIn={<FlintStandIn />} subscribeMessages={subscribeMessages} talk={FLINT_TALK} />
       <ForestLights />
       <WildCritters mapId="whispering_woods" />
       <Fireflies />
@@ -170,6 +172,20 @@ const FINLEY_TALK: NpcTalk = {
 const FINLEY_STAND_IN = matte("#8a5a34", 0.85);
 function FinleyStandIn() {
   return <mesh geometry={GEO.box} material={FINLEY_STAND_IN} position={[0, 0.45, 0]} scale={[0.6, 0.9, 0.5]} raycast={noRaycast} />;
+}
+// Old Flint the Badger by the old mine adit behind the Autumn Maples (the way down to the Glimmering
+// Caverns): a lantern on his helmet, his pickaxe planted beside him
+const FLINT_TALK: NpcTalk = {
+  height: 1.5,
+  clicked: ["Mind your lamp down there", "The rock talks, if you listen", "Coal up top, glimmer down in the dark", "Say hello to Gus for me"],
+  greet: {
+    inside: (x, z) => Math.hypot(x - OLD_FLINT.x, z - OLD_FLINT.z) < 3.0,
+    lines: ["Found my old adit, did you?", "Evening, young'un", "There's more under these roots than you'd think", "Fancy a look below?"],
+  },
+};
+const FLINT_STAND_IN = matte("#5d5a5e", 0.85);
+function FlintStandIn() {
+  return <mesh geometry={GEO.box} material={FLINT_STAND_IN} position={[0, 0.55, 0]} scale={[0.6, 1.1, 0.5]} raycast={noRaycast} />;
 }
 const BRAMBLE_STAND_IN = matte("#7a5236", 0.85);
 function BrambleStandIn() {
@@ -412,3 +428,4 @@ function Fireflies() {
 
 useGLTF.preload(BRAMBLE_URL);
 useGLTF.preload(FINLEY_URL);
+useGLTF.preload(OLD_FLINT_URL);

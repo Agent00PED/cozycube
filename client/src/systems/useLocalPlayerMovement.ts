@@ -12,6 +12,7 @@ import { faceHeading } from "./faceTargets";
 import { liveMotion } from "./liveMotion";
 import { Reconciler } from "./reconcile";
 import { WELL_FED_SPEED } from "@shared/fishing";
+import { WARMTH_PACE } from "@shared/caverns_mining";
 import { SMORE_PACE, TORCH_NIGHT_PACE } from "@shared/crafting";
 import { isCampDay } from "@shared/daynight";
 import { clampToRing } from "@shared/worlds/boxing_ring";
@@ -145,6 +146,15 @@ export function useLocalPlayerMovement(
     }
   }, [player.fishing]);
   // a Campfire S'more eaten: 15% quicker a while (the server allows for it)
+  // the caverns onsen's Deep Warmth: a quicker step everywhere while it lasts
+  const warmUntilRef = useRef(0);
+  warmUntilRef.current = useMemo(() => {
+    try {
+      return Number((JSON.parse(player.fishing || "{}") as { deepWarmthUntil?: number }).deepWarmthUntil) || 0;
+    } catch {
+      return 0;
+    }
+  }, [player.fishing]);
   const smoreUntilRef = useRef(0);
   smoreUntilRef.current = useMemo(() => {
     try {
@@ -272,7 +282,7 @@ export function useLocalPlayerMovement(
       if ((steer || frozen) && targetRef.current) targetRef.current = null;
       const target = targetRef.current;
       const torch = torchRef.current && isCampMap(mapId) && !isCampDay(Date.now()) ? TORCH_NIGHT_PACE : 1;
-      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * (smoreUntilRef.current > Date.now() ? SMORE_PACE : 1) * ringPace;
+      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * (smoreUntilRef.current > Date.now() ? SMORE_PACE : 1) * (warmUntilRef.current > Date.now() ? WARMTH_PACE : 1) * ringPace;
       if (steer) {
         dirX = steer.x;
         dirZ = steer.z;

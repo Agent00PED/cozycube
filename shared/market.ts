@@ -15,14 +15,16 @@
 // wall clock (UTC), and a room that slept through some catches up when it wakes (rollMarket).
 
 import { fishOf } from "./fishing";
+import { ORE_ITEM_IDS, type OreItemId } from "./caverns_mining";
 import { WOOD_KINDS, type WoodKind } from "./chop";
 import { CRAFT_IDS, CRAFTS, type CraftId } from "./crafting";
 import type { FishId } from "./fishing";
 
-export type MarketGood = `fish:${FishId}` | `wood:${WoodKind}` | `craft:${CraftId}`;
+export type MarketGood = `fish:${FishId}` | `wood:${WoodKind}` | `craft:${CraftId}` | `ore:${OreItemId}`;
 export const fishGood = (id: FishId): MarketGood => `fish:${id}`;
 export const woodGood = (k: WoodKind): MarketGood => `wood:${k}`;
 export const craftGood = (c: CraftId): MarketGood => `craft:${c}`;
+export const oreGood = (id: OreItemId): MarketGood => `ore:${id}`;
 
 export const MARKET_MIN = 0.7;
 export const MARKET_MAX = 1.3;
@@ -35,9 +37,12 @@ export const MARKET_HOUR_MS = 3_600_000;
 /** The most hours a sleeping room's market catches up on waking (after that it simply sits). */
 const MAX_CATCH_UP_HOURS = 48;
 
-/** Every good the market prices: the river's fish, the woods, and the pieces the bench sells. */
+/** Every good the market prices: the river's fish and the Grotto Pool's, the woods, the pieces the
+ *  bench sells, and everything Gus the Mole buys (the ores, the ingots, the geodes, the gems). */
 export const MARKET_GOODS: MarketGood[] = [
   ...fishOf("freshwater").map(fishGood),
+  ...fishOf("cavewater").map(fishGood),
+  ...ORE_ITEM_IDS.map(oreGood),
   ...WOOD_KINDS.map(woodGood),
   // (the bench's furniture: a legacy piece is traded in at its full price, never on the market)
   ...CRAFT_IDS.filter((c) => CRAFTS[c].price > 0 && !CRAFTS[c].legacy).map(craftGood),

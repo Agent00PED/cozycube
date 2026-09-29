@@ -207,6 +207,8 @@ export interface RingHost {
   /** Walk a beaten fighter off to the ringside bleachers (a free seat there, or the floor in
    *  front of them). */
   bench(sessionId: string): void;
+  /** How much quicker a fighter's stamina comes back (the caverns onsen's Deep Warmth: 1.25; else 1). */
+  staminaMul?(sessionId: string): number;
 }
 
 /** A press kept for the moment the fighter is free again. */
@@ -1228,7 +1230,7 @@ export class BoxingRing {
           }
         }
       } else if (f.state !== "attack" && f.state !== "dash" && now - f.actedAt >= STAMINA.idle * 1000) {
-        f.stamina = Math.min(STAMINA_MAX, f.stamina + STAMINA.regen * dt);
+        f.stamina = Math.min(STAMINA_MAX, f.stamina + STAMINA.regen * dt * (this.host.staminaMul?.(f.sessionId) ?? 1));
       }
       if (f.exhausted && f.stamina >= STAMINA.recover) {
         f.exhausted = false;

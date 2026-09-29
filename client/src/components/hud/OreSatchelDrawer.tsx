@@ -1,0 +1,145 @@
+import { useState } from "react";
+import { isCavernsMap, type MapId } from "@shared/types";
+import { CAVERNS_CHANNELS, FORGE_SMELT_S, ORE_CATEGORIES, ORE_CATEGORY_LABEL, ORE_ITEMS, ORE_KINDS, PICKAXES, itemsOf, smeltable, QUICK_SMELT_ORDER, warmthOn, type OreCategory, type OreItemId } from "@shared/caverns_mining";
+import { satchelCap, satchelCounts, satchelTier, slotsUsed, stackOf, STACK_GEODE, STACK_ORE } from "@shared/satchel";
+import type { FishingProfile } from "@shared/fishing";
+import { marketMultiplier, oreGood, parseMarket } from "@shared/market";
+import { Modal } from "./Modal";
+import { TrendBadge } from "./ShopShell";
+
+// The Prospector's Satchel's drawer, opened from the header's ⛏️ gauge (or B, in turn with the other
+// drawers), laid out like the wood and fish drawers (520 x 600, never jumping between tabs): how full
+// it is, four drawers of slots (Raw Ores, Smelted Ingots, Uncracked Geodes, Cut Gems), each slot a
+// stack (ores, ingots and gems up to 20, an uncracked geode 5) with what it fetches from Gus this
+// hour; pinned to its foot, its two quick actions (anywhere in the caverns): Quick Smelt All (every
+// recipe the satchel makes into the Ancient Forge, the best margin first) and Sell All Cut Gems (to
+// Gus); and under them the pickaxe in hand, the forge's queue and the Deep Warmth.
+
+interface Props {
+  profile: FishingProfile;
+  market: string;
+  mapId: MapId;
+  send: (channel: string, packet?: unknown) => void;
+  onClose: () => void;
+}
+
+export function OreSatchelDrawer({ profile, market, mapId, send, onClose }: Props) {
+  const [tab, setTab] = useState<OreCategory>("raw");
+  const hour = parseMarket(market);
+  const tier = satchelTier(profile.satchelTier);
+  const cap = satchelCap(profile);
+  const used = slotsUsed(profile.satchelContents);
+  const counts = satchelCounts(profile);
+  const price = (id: OreItemId) => Math.max(1, Math.round(ORE_ITEMS[id].price * marketMultiplier(oreGood(id), hour)));
+  const worth = (Object.entries(counts) as [OreItemId, number][]).reduce((a, [id, n]) => a + price(id) * n, 0);
+  // each item's stacks, as slots
+  const slots = itemsOf(tab).flatMap((id) => {
+    const n = counts[id] ?? 0;
+    const per = stackOf(id);
+    return Array.from({ length: Math.ceil(n / per) }, (_, k) => ({ id, n: Math.min(per, n - k * per) }));
+  });
+  const here = isCavernsMap(mapId);
+  const smeltCount = QUICK_SMELT_ORDER.reduce((a, ingot) => a + smeltable(counts, ingot), 0);
+  const gems = itemsOf("gem").reduce((a, id) => a + (counts[id] ?? 0), 0);
+  const gemsWorth = itemsOf("gem").reduce((a, id) => a + price(id) * (counts[id] ?? 0), 0);
+  const queued = profile.forgeQueue.reduce((a, j) => a + j.n, 0);
+  const tray = Object.values(profile.forgeTray).reduce((a, n) => a + (n ?? 0), 0);
+  const pick = PICKAXES[profile.pickaxeId];
+  const warm = warmthOn(profile.deepWarmthUntil);
+  const mined = Object.values(profile.mined).reduce((a, n) => a + (n ?? 0), 0);
+  return (
+    <Modal title={`${tier.icon} ${tier.name}`} icon="⛏️" onClose={onClose} width={520} pinned fixedHeight={600}>
+      <div className="flex shrink-0 flex-col gap-2 pb-2">
+        <div className="flex items-center gap-2 text-xs">
+          <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full" style={{ width: `${Math.min(100, (used / Math.max(1, cap)) * 100)}%`, background: used >= cap ? "#ec7fa3" : "#5ff2ff" }} />
+          </div>
+          <b className={`tabular-nums ${used > cap ? "text-rose-300" : ""}`} title={used > cap ? "Over its room: everything is kept, but nothing more comes in until you sell, smelt or crack some" : `${STACK_ORE} ores, ingots or gems a slot; ${STACK_GEODE} geodes`}>
+            {used}/{cap} slots
+          </b>
+          <span className="opacity-75">
+            worth <b className="text-amber-200">{worth.toLocaleString("en-US")} 🪙</b> to Gus
+          </span>
+        </div>
+        <div className="flex gap-1" role="tablist">
+          {ORE_CATEGORIES.map((c) => {
+            const n = itemsOf(c).reduce((a, id) => a + (counts[id] ?? 0), 0);
+            return (
+              <button key={c} type="button" role="tab" aria-selected={tab === c} onClick={() => setTab(c)} className={`min-h-9 min-w-0 flex-1 whitespace-nowrap rounded-full px-1 text-[10.5px] font-bold transition-transform active:scale-95 ${tab === c ? "bg-[#5ff2ff] text-[#10222a]" : "bg-white/10 hover:bg-white/15"}`}>
+                <span className="text-[10.5px]">
+                  <span className="hidden sm:inline">{ORE_CATEGORY_LABEL[c].emoji} </span>
+                  {ORE_CATEGORY_LABEL[c].name}
+                  {n > 0 && <span className="ml-1 opacity-70">{n}</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1">
+        {slots.length === 0 ? (
+          <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">{EMPTY[tab]}</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+            {slots.map((st, i) => {
+              const item = ORE_ITEMS[st.id];
+              const mult = marketMultiplier(oreGood(st.id), hour);
+              return (
+                <div key={`${st.id}:${i}`} className={`flex min-h-[92px] flex-col items-center justify-between gap-0.5 rounded-2xl px-1.5 py-1.5 text-center ${item.cat === "gem" ? "bg-[#5ff2ff]/10 ring-1 ring-[#5ff2ff]/45" : item.cat === "geode" ? "bg-[#b36bff]/10 ring-1 ring-[#b36bff]/40" : "bg-white/10"}`} title={`${item.name}: ${item.blurb}`}>
+                  <span className="relative text-2xl leading-none">
+                    <span style={{ filter: `drop-shadow(0 0 6px ${item.color}aa)` }}>{item.emoji}</span>
+                    <span className="absolute -bottom-1 -right-4 rounded-full bg-[#2B201B] px-1 text-[10px] font-bold tabular-nums text-[#F7EBE1] ring-1 ring-white/15">
+                      ×{st.n}
+                      <span className="opacity-50">/{stackOf(st.id)}</span>
+                    </span>
+                  </span>
+                  <span className="line-clamp-2 w-full text-[10px] font-semibold leading-tight text-[#F7EBE1]">{item.name}</span>
+                  <TrendBadge price={price(st.id)} mult={mult} />
+                </div>
+              );
+            })}
+            {Array.from({ length: Math.max(0, Math.min(4, cap - used)) }, (_, i) => (
+              <div key={`free:${i}`} className="flex min-h-[92px] items-center justify-center rounded-2xl border border-dashed border-white/15 text-[10px] opacity-40" aria-label="A free slot">
+                free
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex shrink-0 flex-col gap-1.5 border-t border-white/10 pt-2">
+        <div className="grid grid-cols-2 gap-1.5">
+          <button type="button" className="clay-btn clay-btn-amber flex min-h-12 flex-col items-center justify-center gap-0 px-2 leading-tight" disabled={!here || smeltCount === 0} onClick={() => send(CAVERNS_CHANNELS.satchel, { op: "smeltAll" })} title={here ? "Every ingot the satchel's ores make, into the Ancient Forge (silver first: the best margin)" : "The Ancient Forge is down in the Glimmering Caverns"}>
+            <span className="text-[12.5px]">🔥 Quick Smelt All</span>
+            <span className="text-[11px] font-semibold opacity-90">{here ? `${smeltCount} ingot${smeltCount === 1 ? "" : "s"}` : "in the caverns"}</span>
+          </button>
+          <button type="button" className="clay-btn clay-btn-amber flex min-h-12 flex-col items-center justify-center gap-0 px-2 leading-tight" disabled={!here || gems === 0} onClick={() => send(CAVERNS_CHANNELS.satchel, { op: "sellGems" })} title={here ? "Every cut gem to Gus, at this hour's prices" : "Gus buys them down in the Glimmering Caverns"}>
+            <span className="text-[12.5px]">💎 Sell All Cut Gems ({gems})</span>
+            <span className="text-[11px] font-semibold tabular-nums opacity-90">{gemsWorth.toLocaleString("en-US")} 🪙</span>
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px]">
+          <span className="rounded-full bg-white/10 px-2 py-0.5" title={pick.blurb}>
+            {pick.emoji} {pick.name} · T{pick.tier}
+          </span>
+          <span className="rounded-full bg-white/10 px-2 py-0.5" title={`The Ancient Forge: an ingot every ${FORGE_SMELT_S} s, into your satchel (or its tray when the satchel is full)`}>
+            🔥 {queued > 0 ? `${queued} in the forge` : "forge idle"}
+            {tray > 0 ? ` · ${tray} on its tray` : ""}
+          </span>
+          {warm && <span className="rounded-full border border-orange-300/50 bg-orange-300/10 px-2 py-0.5">♨️ Deep Warmth</span>}
+          <span className="rounded-full bg-white/10 px-2 py-0.5 opacity-80" title={Object.entries(profile.mined).map(([k, n]) => `${ORE_KINDS[k as keyof typeof ORE_KINDS].name}: ${n}`).join(" · ") || "Nothing mined yet"}>
+            🪨 {mined} broken
+          </span>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+const EMPTY: Record<OreCategory, string> = {
+  raw: "No ore yet. Mine a node: the terrace's coal and copper, the cliffs' iron, the chasms' silver and glimmerstone.",
+  ingot: "No ingots yet. The Ancient Forge smelts them (Quick Smelt All, below, or at the forge itself).",
+  geode: "No geodes yet. Iron lodes and Glimmerstone clusters give them up now and then; the Titan Monolith always.",
+  gem: "No gems yet. Crack a geode on the Geode Anvil, by the forge.",
+};

@@ -48,6 +48,8 @@ runtime's swings are clean rotations about local axes (client/src/entities/rig.t
                          or a BBQ skewer's meat and peppers, one node a piece so bites take them
           Hatchet        a small camp hatchet out of the right hand, its blade on the underside,
                          hidden until she chops firewood at the campfire
+          Pickaxe        a miner's pickaxe out of the right hand, its pick across the haft's end,
+                         hidden until she prospects a node in the Glimmering Caverns
           Net            a little butterfly net out of the right hand, for a swipe at the fireflies
           FireflyJar     (on ArmL) a glowing glass jar of fireflies held in the left hand
           FishingRod     a bamboo pole out of the right hand, raised forward
@@ -125,7 +127,7 @@ BOTTOM_IDS = ("joggers", "cargo", "cyber", "lounge", "overalls", "garden", "blue
 TOP_PARTS = (("", "Torso"), ("_SleeveL", "ArmL"), ("_SleeveR", "ArmR"))  # (name suffix, parent)
 BOTTOM_PARTS = (("", "Body"), ("_LegL", "LegL"), ("_LegR", "LegR"))
 NODE_NAMES = (
-    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Net", "FireflyJar", "Heart", "LegL", "LegR")
+    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "Net", "FireflyJar", "Heart", "LegL", "LegR")
     + tuple(f"SkewerMallow_{i}" for i in (1, 2))
     + tuple(f"SkewerBBQ_{i}" for i in (1, 2, 3, 4))
     + tuple(f"MugTop_{t}" for t in MUG_TOPPINGS)
@@ -4128,6 +4130,16 @@ def build(hip_y, leg_r, hip_off, covering):
     add_shaped(bm, 6, ellipsoid(hand + fwd * 0.29 + Vector((0, 0, -0.035)), Vector((0.014, 0.04, 0.055)), n=3.2), material=1)
     make_object("Hatchet", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Stick"], mat["Mat_Steel"]))
 
+    # Pickaxe: a longer haft straight out of the fist, a pick's head across its end, curving a little
+    # back, its long point below (raised overhead and brought down, the point leads) and a short one up
+    bm = bmesh.new()
+    tube(bm, [hand + Vector((0, 0.05, 0)) + fwd * 0.44 * i / 7 for i in range(8)], lambda s_: 0.014 - 0.002 * s_, sides=8, cap_rings=2)
+    head = hand + fwd * 0.4
+    pick = [head + Vector((0, 0.03 * math.sin(math.pi * i / 8), 0.11 - 0.3 * i / 8)) for i in range(9)]
+    tube(bm, pick, lambda s_: 0.004 + 0.02 * (1 - abs(s_ - 0.37) / 0.63) ** 0.7, sides=8, cap_rings=1, material=1)
+    add_shaped(bm, 4, ellipsoid(head, Vector((0.022, 0.026, 0.03)), n=3.0), material=1)
+    make_object("Pickaxe", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Stick"], mat["Mat_Steel"]))
+
     # Net: a short handle up and forward from the fist, a hoop at its end and a soft pouch under it
     up_fwd_net = Vector((0, -math.cos(math.radians(40)), math.sin(math.radians(40))))
     butt = hand - up_fwd_net * 0.06
@@ -4274,7 +4286,7 @@ def is_variant(ob):
     name = ob.name[len(PREFIX) :]
     kind, _, rest = name.partition("_")
     default = {"Hair": DEFAULT_HAIR, "Top": DEFAULT_TOP, "Bottom": DEFAULT_BOTTOM}.get(kind)
-    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Net", "FireflyJar", "Heart"))
+    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "Net", "FireflyJar", "Heart"))
 
 
 def tidy_viewport(coll):

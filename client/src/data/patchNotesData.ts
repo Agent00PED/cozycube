@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.4",
+    range: "v0.7.0–v0.7.6",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -865,6 +865,62 @@ export const PATCH_ERAS: PatchEra[] = [
             "Every saved profile is upgraded safely: rods and axes keep their ids and gain their new perks, the retired Pack Frame, Tackle Box and Roasting Stick come back as their materials, and a letter on your next visit says exactly what changed.",
             "Roasting a marshmallow on a log no longer needs a Roasting Stick: anyone can.",
             "Long notices (like the retrofit letter) show as a card and stay up long enough to read.",
+          ],
+        },
+      },
+      {
+        version: "0.7.5",
+        date: "2026-09-29",
+        title: "The Penthouse Promenade",
+        summary: "The Velvet Penthouse is rearranged around its champagne tower: the baccarat and blackjack tables now flank it as a matching pair, with room to walk everywhere.",
+        changes: {
+          features: [
+            "The baccarat and blackjack tables flank the champagne tower as mirror images, with a wide promenade from the front rail up to the tower between them.",
+            "Walk all the way round the champagne tower: the stools keep well clear of it, and the way from the jukebox to the elevator runs straight past it.",
+          ],
+          visuals: [
+            "Scarlett and Gideon deal from the fountain's side, facing you over their tables.",
+            "The high-limit poker table sits a little further back, and the potted palms stand in the corners.",
+          ],
+          fixes: [
+            "The penthouse's blackjack panel closes when you walk away from the table, like the hall's.",
+            "Clicking the penthouse's baccarat table lands on the table itself.",
+          ],
+        },
+      },
+      {
+        version: "0.7.6",
+        date: "2026-09-29",
+        title: "The Glimmering Caverns",
+        summary: "An old mine adit behind the Whispering Woods' maples leads down into the Glimmering Caverns: a two-tier cavern to prospect by hand, an Ancient Forge, a Geode Anvil, a hot-spring onsen and a glowing Grotto Pool to fish.",
+        changes: {
+          features: [
+            "Old Flint the Badger waits by an overgrown mine adit behind the Autumn Maples in the Whispering Woods. The first time you talk to him, he tells you what lies below and gives you his Rusted Pickaxe. From then on, the adit is always open to you.",
+            "The Glimmering Caverns have two tiers. On the warm Upper Terrace: Gus the Mole's workshop, the Ancient Forge, the Geode Anvil, a six-seat onsen, and coal and copper to mine. Down the stair, in the Sunken Basin: iron on the wet cliffs, silver in the lower chasm, glimmerstone among the mushrooms, the Titan Monolith in the sanctuary, and the Grotto Pool with its pier.",
+            "Tactile prospecting: step up to a node and the camera closes in on the rock. There's no gauge or dial. Find its weak spot by the glowing fissures, the glint and the sifting dust, and click or tap it. A direct hit does full damage, a near miss half, and bare bedrock very little. The weak spot moves after every direct hit.",
+            "A pickaxe above a rock's tier breaks it in one blow. One tier below, it still bites at 60%. Two or more below, it skids off with a stagger.",
+            "Mine together: everyone who does more than 15% of the damage to a rock takes home 40% more for each other miner (a crew of up to four). The Titan Monolith (T5) takes a crew, and it resurfaces every 25 to 30 minutes.",
+            "The ⛏️ ore satchel sits next to the 🪵 and 🪣 gauges. Its drawer sorts Raw Ores, Ingots, Geodes and Gems, with Quick Smelt All and Sell All Cut Gems. Press B to reopen it.",
+            "The Ancient Forge smelts ore into ingots: Copper (3 Raw Copper and 1 Coal), Iron (3 Raw Iron and 2 Coal) and Silver (2 Raw Silver and 2 Coal). It makes one ingot every 3 seconds and keeps working while you're away.",
+            "The Geode Anvil: crack a geode in three strikes along its seam. Clean strikes turn up the finer gems: Amethyst, Topaz, Opal, and the rare Star Shard.",
+            "The onsen: soak for 60 seconds to get Deep Warmth for 20 minutes, on every map. You walk 15% faster, your pickaxe's fracture radius is 20% larger, and your stamina comes back 25% faster in the Velvet Ring.",
+            "Fish the Grotto Pool from its pier: six glowing cave fish, from the Blind Cave Tetra up to the mythic Elder Olm of the Rift. Every 20 seconds a stalactite drips onto one float. Cast into the ripple and the sweet spot is wider, and nothing common bites.",
+          ],
+          visuals: [
+            "The terrace glows warm amber and the basin glows bioluminescent cyan and violet. Crystals, mushrooms and lanterns breathe with their own light, the forge flickers, the onsen steams, and the pool's heart pulses.",
+            "Rocks crack as you strike them: fissures glow in, then the shell fractures and trembles, then it shatters in a burst of shards, and the loot flies to you.",
+            "The overhang, its stalactites and the old timber shoring fade away when they block your view.",
+            "A lantern swings in the dark of the tunnel on the way down the adit, in place of the curtain.",
+            "The caverns have their own soundscape: a cave reverb with drips, a crystal resonance and the onsen's steam. Settings now shows only the sliders for the world you're in (Master and Effects always). The woods also get a Wind in the Trees slider.",
+          ],
+          economy: [
+            "Gus the Mole buys ore, ingots, geodes, gems and the Grotto Pool's fish at the hour's market price. He sells four pickaxes: Copper (1,500 🪙), Reinforced (4,500), Glimmer (11,000) and the Deep Core Drill (25,000). Each is quicker, hits harder and finds weak spots more easily than the last.",
+            "Five satchel upgrades at Gus's, from 8 to 40 slots, each paid for in coins and materials from all over the camp: sawdust and Pine Resin, then ingots, bark, cedar, glimmer shards, and at the top Titan Heartwood and Ancient Core Fragments.",
+            "Ingots are worth more than the ore and coal that went into them, and a cut Star Shard fetches 1,200 🪙.",
+          ],
+          fixes: [
+            "Every saved profile gets an empty satchel, the Rusted Pickaxe slot and the caverns' fields, and a letter tells you where to find Old Flint.",
+            "Leaving mid-soak frees your onsen seat at once, and you're set down on the dry side of the rim.",
           ],
         },
       },

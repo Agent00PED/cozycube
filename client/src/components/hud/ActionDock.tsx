@@ -2,7 +2,11 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, ROAST_FOOD_INFO, type CampfirePacket, type ChairSyncState, type MapId, type PlayerState, type ToggleableSyncState } from "@shared/types";
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { COLOSSAL, FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, isColossalKind, type WoodKind } from "@shared/chop";
-import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ANIMALS, FOREST_FISHING, FOREST_WORKBENCH_FRONT, woodsSpotOfSeat } from "@shared/worlds/forest";
+import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ADIT_FRONT, FOREST_ANIMALS, FOREST_FISHING, FOREST_WORKBENCH_FRONT, OLD_FLINT_FRONT, OLD_FLINT_REACH, woodsSpotOfSeat } from "@shared/worlds/forest";
+import { ANVIL_FRONT, ANVIL_REACH, CAVE_ADIT_FRONT, CAVE_FISHING, FORGE_FRONT, FORGE_REACH, GUS_FRONT, GUS_REACH, ONSEN_REACH, ONSEN_SEATS, ONSEN_SEAT_IDS, oreNodeOf, oreReach } from "@shared/worlds/caverns";
+import { CAVERNS_CHANNELS, ORE_KINDS, PICKAXES, SOAK_S, isPickaxeId } from "@shared/caverns_mining";
+import type { CaveDrip } from "@shared/caverns_fishing";
+import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { FELL_TREE_AT } from "@shared/worlds/trees";
 import { treeTarget } from "../../scene/treeTarget";
 import type { HearthState } from "../../hooks/useColyseusRoom";
@@ -143,6 +147,8 @@ interface Action {
     | "chalkboard"
     | "coach"
     | "gym"
+    | "mine"
+    | "soak"
     | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
@@ -175,6 +181,7 @@ const E_PRIORITY: Partial<Record<Action["type"], number>> = {
   ring: 2,
   chalkboard: 2,
   gym: 2,
+  soak: 2,
   split: 2,
   slingshot: 2,
   board: 2,
@@ -198,6 +205,7 @@ const E_PRIORITY: Partial<Record<Action["type"], number>> = {
   pinball: 2,
   gazette: 2,
   chop: 3,
+  mine: 3,
   fish: 3,
   forage: 3,
   fireflies: 3,
@@ -239,6 +247,17 @@ function campOf(fishing: string): { ranger: boolean; dayPermits: number } {
     return { ranger: v.ranger === true, dayPermits: Math.max(0, Number(v.dayPermits) || 0) };
   } catch {
     return { ranger: false, dayPermits: 0 };
+  }
+}
+
+/** The Glimmering Caverns in a synced camp profile: the pickaxe in hand, and whether Old Flint has
+ *  shown the way down. */
+function caveOf(fishing: string): { pickTier: number; access: boolean } {
+  try {
+    const v = JSON.parse(fishing || "{}") as { pickaxeId?: string; caveAccess?: boolean };
+    return { pickTier: isPickaxeId(v.pickaxeId) ? PICKAXES[v.pickaxeId].tier : 1, access: v.caveAccess === true };
+  } catch {
+    return { pickTier: 1, access: false };
   }
 }
 
@@ -288,15 +307,30 @@ interface DockProps {
   machines: Record<string, string>;
   /** The casino's packets (Excuse me). */
   onCasino: (packet: CasinoPacket) => void;
+  /** The Glimmering Caverns' ore nodes (the room's state, JSON: which stand). */
+  ores: string;
+  /** The caverns' channels (the onsen, a cast into the lucky drip). */
+  onCaverns: (channel: string, packet?: unknown) => void;
+  /** The room's messages (the lucky drip's ripple). */
+  subscribeMessages: (listener: RoomMessageListener) => () => void;
 }
 
 const SCAN_MS = 120;
 
-export function ActionDock({ player, players, mapId, chairs, toggleables, localSessionId, hearth, machines, onWater, onCampfire, onCasino }: DockProps) {
+export function ActionDock({ player, players, mapId, chairs, toggleables, localSessionId, hearth, machines, onWater, onCampfire, onCasino, onCaverns, subscribeMessages }: DockProps) {
   const [actions, setActions] = useState<Action[]>([]);
-  const latest = useRef({ players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire, hearth, player, machines, onCasino });
-  latest.current = { players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire, hearth, player, machines, onCasino };
+  const latest = useRef({ players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire, hearth, player, machines, onCasino, onCaverns });
+  latest.current = { players, chairs, toggleables, mapId, localSessionId, sitting: player.sitting, watered: player.watered, action: player.action, onWater, onCampfire, hearth, player, machines, onCasino, onCaverns };
   const actionsRef = useRef<Action[]>([]);
+  // the Grotto Pool's lucky drip (a ripple on one pier spot's float for a few seconds)
+  const drip = useRef<CaveDrip | null>(null);
+  useEffect(
+    () =>
+      subscribeMessages((type, payload) => {
+        if (type === "caveDrip") drip.current = payload as CaveDrip;
+      }),
+    [subscribeMessages]
+  );
 
   // E: the best action in reach (pickE), never while typing or with a panel open
   useEffect(() => {
@@ -317,7 +351,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
   useEffect(() => {
     let lastKey = "";
     const scan = () => {
-      const { players, chairs, toggleables, mapId, localSessionId, sitting, watered, action, onWater, onCampfire, hearth, player, machines, onCasino } = latest.current;
+      const { players, chairs, toggleables, mapId, localSessionId, sitting, watered, action, onWater, onCampfire, hearth, player, machines, onCasino, onCaverns } = latest.current;
       const found: Action[] = [];
       const reach = (p: ToggleableSyncState) => {
         const a = APPROACH_POINTS[p.propId];
@@ -446,11 +480,48 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           // Bramble's advanced workbench, right beside his counter
           if (Math.hypot(FOREST_WORKBENCH_FRONT.x - px, FOREST_WORKBENCH_FRONT.z - pz) <= WORKBENCH_REACH + 0.6) found.push({ key: "workbench_adv", type: "workbench", label: "🪚 Advanced Workbench", hint: "Bramble's bench: finer tools, a better chance of a Masterwork", run: () => interactBridge.current?.useProp("workbench_adv") });
           if (Math.hypot(FINLEY_FRONT.x - px, FINLEY_FRONT.z - pz) <= FINLEY_REACH + 0.6) found.push({ key: "finley", type: "barnaby", label: "🦦 Talk to Finley", hint: "The river's angler: sell fish, buy any rod, a bigger livewell and bait", run: () => interactBridge.current?.useProp("finley") });
+          // Old Flint the Badger and his old mine adit behind the Autumn Maples: the way down
+          const cave = caveOf(player.fishing);
+          if (Math.hypot(OLD_FLINT_FRONT.x - px, OLD_FLINT_FRONT.z - pz) <= OLD_FLINT_REACH + 0.6) found.push({ key: `flint:${cave.access}`, type: "barnaby", label: "🦡 Talk to Old Flint", hint: cave.access ? "The old miner: a word about the caverns below" : "An old miner by a forgotten adit: he looks like he has a story to tell", run: () => interactBridge.current?.useProp("old_flint") });
+          if (Math.hypot(FOREST_ADIT_FRONT.x - px, FOREST_ADIT_FRONT.z - pz) <= 2.0)
+            found.push({ key: `adit:woods:${cave.access}`, type: "travel", label: "💎 Enter the Glimmering Caverns", hint: cave.access ? "Down the old mine adit, into the glow" : "Old Flint stands guard: have a word with him first", run: () => interactBridge.current?.useProp("woods_adit") });
           for (const a of FOREST_ANIMALS) {
             if (Math.hypot(a.x - px, a.z - pz) > ANIMAL_REACH + 0.3) continue;
             found.push({ key: `feed:${a.propId}`, type: "critter", label: a.kind === "deer" ? "🦌 Feed the Deer" : "🐇 Feed the Rabbits", hint: "A berry or a mushroom from your forage bag", run: () => interactBridge.current?.useProp(a.propId) });
           }
         }
+      }
+      // the Glimmering Caverns: the adit back up, Gus's workshop, the forge, the anvil, the nearest
+      // standing ore node in reach, and the onsen (a seat by its rim)
+      if (mapId === "glimmering_caverns" && !sitting && action === "") {
+        const px = cameraFocus.x;
+        const pz = cameraFocus.z;
+        if (Math.hypot(CAVE_ADIT_FRONT.x - px, CAVE_ADIT_FRONT.z - pz) <= 2.0) found.push({ key: "adit:cave", type: "travel", label: "🌲 Back to the Woods", hint: "Up the old mine adit, back under the maples", run: () => interactBridge.current?.useProp("cave_adit") });
+        const toGus = Math.hypot(GUS_FRONT.x - px, GUS_FRONT.z - pz);
+        if (toGus <= GUS_REACH + 0.6) found.push({ key: "gus", type: "barnaby", d: toGus, label: "⛏️ Talk to Gus", hint: "Gus the Mole buys ore, ingots, geodes, gems and the Grotto Pool's fish; sells pickaxes and bigger satchels", run: () => interactBridge.current?.useProp("gus") });
+        const toForge = Math.hypot(FORGE_FRONT.x - px, FORGE_FRONT.z - pz);
+        if (toForge <= FORGE_REACH + 0.4) found.push({ key: "forge", type: "workbench", d: toForge, label: "🔥 Ancient Forge", hint: "Smelt raw ore and coal into ingots, worth more than they were apart", run: () => interactBridge.current?.useProp("ancient_forge") });
+        const toAnvil = Math.hypot(ANVIL_FRONT.x - px, ANVIL_FRONT.z - pz);
+        if (toAnvil <= ANVIL_REACH + 0.3) found.push({ key: "anvil", type: "workbench", d: toAnvil, label: "🔨 Geode Anvil", hint: "Crack a geode open along its seam: three clean strikes for the finest gems", run: () => interactBridge.current?.useProp("geode_anvil") });
+        let node: { id: string; d: number } | null = null;
+        for (const p of Object.values(toggleables)) {
+          if (p.kind !== "ore" || !p.on) continue;
+          const n = oreNodeOf(p.propId);
+          if (!n) continue;
+          const d = Math.hypot(n.x - px, n.z - pz);
+          if (d <= oreReach(n) && (!node || d < node.d)) node = { id: p.propId, d };
+        }
+        if (node) {
+          const n = oreNodeOf(node.id)!;
+          const k = ORE_KINDS[n.kind];
+          const { pickTier } = caveOf(player.fishing);
+          const hint = k.tier - pickTier >= 2 ? `Too hard for your pickaxe: it would skid off. Needs a T${k.tier - 1} pickaxe or better (Gus sells them)` : k.tier > pickTier ? "A tier above your pickaxe: it bites at 60%. Find the weak spot and strike there" : "Step up to the rock and find its weak spot: the glow in its cracks, the glint, the dust";
+          const id = node.id;
+          found.push({ key: `mine:${id}:${pickTier}`, type: "mine", d: node.d, label: `⛏️ Mine ${k.name} · T${k.tier}`, hint, run: () => interactBridge.current?.useProp(id) });
+        }
+        // the onsen: the nearest free seat by its rim (the server seats you there)
+        const rim = ONSEN_SEATS.some((s) => !chairs[s.propId]?.occupiedBy && Math.min(Math.hypot(s.exit.x - px, s.exit.z - pz), Math.hypot(s.x - px, s.z - pz)) <= ONSEN_REACH);
+        if (rim) found.push({ key: "soak:in", type: "soak", label: "♨️ Soak in the Onsen", hint: `${SOAK_S} seconds in the hot water: the Deep Warmth for 20 minutes (+15% walking pace everywhere, +20% fracture radius, stamina back sooner in the ring)`, run: () => onCaverns(CAVERNS_CHANNELS.onsen, { on: true }) });
       }
       // the Velvet Ring: the corner steps (step in as Red or Blue), the chalkboard, Coach Bruno, the gym
       if (mapId === "boxing_ring" && !sitting && !player.corner) {
@@ -620,19 +691,25 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       // the river bank (standing at a spot, or sitting on its log or rock). There: cast and reel by
       // hand, or feet up (AFK) with the line in
       const mySeat = Object.values(chairs).find((c) => c.occupiedBy === localSessionId);
-      const woodsStand = mapId === "whispering_woods" && !sitting ? FOREST_FISHING.find((f) => Math.hypot(f.stand.x - cameraFocus.x, f.stand.z - cameraFocus.z) <= FISHING_REACH + 0.8) : undefined;
+      const standing = mapId === "whispering_woods" ? FOREST_FISHING : mapId === "glimmering_caverns" ? CAVE_FISHING : [];
+      // (the nearest spot in reach: the caverns' pier spots stand close together)
+      const woodsStand = !sitting ? (standing as readonly { propId: string; stand: { x: number; z: number } }[]).reduce<{ propId: string; stand: { x: number; z: number } } | undefined>((a, f) => (Math.hypot(f.stand.x - cameraFocus.x, f.stand.z - cameraFocus.z) <= FISHING_REACH + 0.8 && (!a || Math.hypot(f.stand.x - cameraFocus.x, f.stand.z - cameraFocus.z) < Math.hypot(a.stand.x - cameraFocus.x, a.stand.z - cameraFocus.z)) ? f : a), undefined) : undefined;
       const mySpot = mySeat ? (spotOfSeat(mySeat.propId) ?? woodsSpotOfSeat(mySeat.propId)) : woodsStand?.propId;
       const AFK_HINT = "Feet up, line in: a common every 44-58s, rarer fish longer (baited only; up to three minutes for a legendary; premium bait a quarter quicker). Never a King Size or a mythic: those take a hand on the reel";
       if (mySpot && action === "") {
         const id = mySpot;
-        found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Manual Reel", hint: "Cast into the river; tap when the bobber dips, then reel it in (in a King-Size Surge, 4 in 10 are King Size)", run: () => interactBridge.current?.useProp(id) });
+        found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Manual Reel", hint: mapId === "glimmering_caverns" ? "Cast into the Grotto Pool; tap when the bobber dips, then reel it in (the lucky drip: cast into its ripple, and nothing common bites)" : "Cast into the river; tap when the bobber dips, then reel it in (in a King-Size Surge, 4 in 10 are King Size)", run: () => interactBridge.current?.useProp(id) });
         found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
       }
       if (mySpot && action === "fish") found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
+      // the Grotto Pool's lucky drip rippling right by your float: cast into it (a bite with no commons)
+      const lucky = drip.current;
+      if (mapId === "glimmering_caverns" && mySpot && action === "fish" && lucky && lucky.spot === mySpot && Date.now() < lucky.until)
+        found.push({ key: `drip:${lucky.until}`, type: "fish", label: "💧 Cast into the Drip", hint: "The stalactite's lucky drip: a wider sweet spot and nothing common bites", run: () => onCaverns(CAVERNS_CHANNELS.recast) });
       if (mySpot && action === "afkfish") found.push({ key: "afk:off", type: "afk", label: "🎣 Manual Reel", hint: "Back to watching the bobber: tap when it dips, then reel it in", run: () => onCampfire({ type: "AFK", on: false }) });
       // the livewell full: resting by the water with a mug until there's room again
       if (mySpot && action === "rest") {
-        found.push({ key: "afk:resume", type: "afk", label: "☕ Resume Auto AFK", hint: "Once there's room in the livewell (sell to Barnaby or Finley), back to AFK fishing", run: () => onCampfire({ type: "AFK", on: true }) });
+        found.push({ key: "afk:resume", type: "afk", label: "☕ Resume Auto AFK", hint: "Once there's room in the livewell (sell to Barnaby, Finley or Gus), back to AFK fishing", run: () => onCampfire({ type: "AFK", on: true }) });
       }
       if (!mySpot && !sitting && action === "") {
         let spot: { id: string; d: number } | null = null;
@@ -645,7 +722,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         }
         if (spot) {
           const id = spot.id;
-          found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: mapId === "whispering_woods" ? "Step up to the bank (or sit on its log or rock) and cast; then reel by hand, or Auto AFK" : "Sit on the dock's edge and cast; then reel by hand, or Auto AFK", run: () => interactBridge.current?.useProp(id) });
+          found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: mapId === "whispering_woods" ? "Step up to the bank (or sit on its log or rock) and cast; then reel by hand, or Auto AFK" : mapId === "glimmering_caverns" ? "Step out onto the pier and cast into the Grotto Pool; then reel by hand, or Auto AFK" : "Sit on the dock's edge and cast; then reel by hand, or Auto AFK", run: () => interactBridge.current?.useProp(id) });
         }
       }
       // the telescope, the raccoon, the fireflies and the foraging patches: walk up to them
@@ -736,7 +813,11 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         }
       }
 
-      if (sitting) {
+      const inOnsen = !!mySeat && ONSEN_SEAT_IDS.has(mySeat.propId);
+      if (sitting && inOnsen) {
+        const left = Math.max(0, Math.ceil(SOAK_S * (1 - (action === "soak" ? player.actionProgress : 0))));
+        found.push({ key: "soak:out", type: "stand", label: "♨️ Leave the Onsen", hint: left > 0 ? `About ${left} s more for the Deep Warmth` : "Soaked through: the Deep Warmth goes with you", run: () => onCaverns(CAVERNS_CHANNELS.onsen, { on: false }) });
+      } else if (sitting) {
         found.push({ key: "stand", type: "stand", label: isTouchUi() ? "🧍 Stand up" : "🧍 Stand up · Space", hint: "Press Space or move to stand up", run: () => interactBridge.current?.stand() });
       } else {
         const px = cameraFocus.x;
@@ -746,6 +827,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         let seat: { id: string; d: number } | null = null;
         for (const c of Object.values(chairs)) {
           if (c.occupiedBy && c.occupiedBy !== localSessionId) continue;
+          if (ONSEN_SEAT_IDS.has(c.propId)) continue; // (the onsen is its own button)
           const a = APPROACH_POINTS[c.propId];
           const d = Math.min(Math.hypot(c.x - px, c.z - pz), a ? Math.hypot(a.x - px, a.z - pz) : Infinity);
           if (d <= SEAT_REACH && (!seat || d < seat.d)) seat = { id: c.propId, d };

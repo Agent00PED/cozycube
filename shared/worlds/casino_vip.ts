@@ -19,10 +19,14 @@ import type { PropSpec, SeatSpec } from "./lounge";
 //   VIP_OBSTACLES  what you walk round;  VIP_NPCS  Boris dealing, Baron von Fox and Duchess
 //                  Penelope at their tables, Scarlett dealing the baccarat, Gideon the blackjack
 //
-// The baccarat table is turned (`face`: 180) so its dealer, behind its flat side, faces the elevator
-// and the room's middle, the players' stools on the curve toward them; the blackjack table stands
-// in the southern lounge, its curve toward the room; the twin Golden Vaults stand side by side
-// against the western glass, a little Art-Deco jukebox beside them.
+// The two card tables flank the fountain in the front half of the room, mirror images across its
+// diagonal axis (the line from the fountain to the front corner): the baccarat to the right, the
+// blackjack to the left, each dealer on the fountain's side facing out over the players toward the
+// viewer, and between them a wide promenade from the front rail up to the fountain. Walkways, kept
+// by scripts/validate-world.ts: 1.35 m at least from the fountain's base to any card table's stool,
+// 1.10 m from either table to the brass rail, 1.50 m between the two tables, and a walk all the way
+// round the fountain. The twin Golden Vaults stand side by side against the western glass, a little
+// Art-Deco jukebox beside them.
 //
 // Everything exported is in the map's world coordinates (the layout plus OFFSET).
 
@@ -32,28 +36,28 @@ export const VIP_LAYOUT = /* layout:begin */ {
   "walls": { "t": 0.2, "h": 3.6 },
   "elevator": { "x": 2.6, "w": 1.4, "h": 2.5 },
   "arrival": { "x": 2.6, "z": -3.7 },
-  "fountain": { "x": -0.1, "z": 0.45, "r": 0.72 },
+  "fountain": { "x": -0.3, "z": -0.15, "r": 0.72 },
   "poker": {
-    "x": -2.2,
-    "z": -2.5,
+    "x": -2.5,
+    "z": -3.0,
     "len": 2.8,
     "w": 1.25,
     "top": 0.68,
     "reach": 2.4,
-    "chairZ": -1.25,
-    "chairs": [-3.2, -2.4, -1.6],
-    "baron": [-0.25, -2.5],
-    "dealer": [-2.2, -3.5]
+    "chairZ": -1.75,
+    "chairs": [-3.5, -2.7, -1.9],
+    "baron": [-0.55, -3.0],
+    "dealer": [-2.5, -4.0]
   },
-  "baccarat": { "x": 2.3, "z": 2.4, "face": 180, "r": 1.15, "top": 0.74, "reach": 2.6, "stoolR": 1.55, "stoolAngles": [-55, -18, 18], "duchess": 55, "dealer": 0.6 },
-  "blackjack": { "x": -1.3, "z": 3.75, "yaw": 3.14159, "r": 1.1, "top": 0.74, "reach": 2.4, "stoolR": 1.55, "stoolAngles": [-40, 0, 40], "felt": "green", "dealer": 0.55 },
+  "baccarat": { "x": 1.96, "z": -1.19, "face": 70, "r": 1.15, "top": 0.74, "reach": 2.6, "stoolR": 1.55, "stoolAngles": [-55, -18, 18], "duchess": 55, "dealer": 0.6 },
+  "blackjack": { "x": -1.34, "z": 2.11, "yaw": 0.34907, "r": 1.1, "top": 0.74, "reach": 2.4, "stoolR": 1.55, "stoolAngles": [-40, 0, 40], "felt": "green", "dealer": 0.55 },
   "vault": { "x": -4.3, "zs": [0.95, 2.15], "w": 1.1, "d": 0.95, "h": 2.2 },
   "jukebox": { "x": -4.52, "z": 3.3, "w": 0.72, "d": 0.5, "h": 1.5 },
-  "planters": [{ "x": 4.25, "z": -0.6 }, { "x": -4.25, "z": 4.25 }],
+  "planters": [{ "x": 4.25, "z": -4.25 }, { "x": -4.25, "z": 4.25 }],
   "loveseat": { "x": 0.5, "z": -4.35, "len": 1.5 },
   "npcs": {
-    "borisVip": { "x": -2.2, "z": -3.5, "yaw": 0 },
-    "baron": { "x": -0.25, "z": -2.5, "yaw": -1.5708 },
+    "borisVip": { "x": -2.5, "z": -4.0, "yaw": 0 },
+    "baron": { "x": -0.55, "z": -3.0, "yaw": -1.5708 },
     "duchess": { "x": 0, "z": 0, "yaw": 0 }
   }
 } /* layout:end */;
@@ -76,6 +80,9 @@ export function inPenthouse(x: number, z: number): boolean {
   return x >= VIP_REGION.x0 - 0.5 && x <= VIP_REGION.x1 + 0.5 && z >= VIP_REGION.z0 - 0.5 && z <= VIP_REGION.z1 + 0.5;
 }
 
+/** The floor in front of the jukebox (the far corner from the elevator: the walkways are tried
+ *  from there). */
+export const VIP_JUKEBOX_FRONT = W(V.jukebox.x + V.jukebox.d / 2 + 0.5, V.jukebox.z);
 /** Where Bruno sets you down (out of the elevator), and the elevator's doors (the way back). */
 export const VIP_ARRIVAL = W(V.arrival.x, V.arrival.z);
 export const VIP_ELEVATOR = W(V.elevator.x, -V.half + 0.4);
@@ -85,9 +92,11 @@ export const VIP_ELEVATOR = W(V.elevator.x, -V.half + 0.4);
 export const VIP_POKER = { ...W(V.poker.x, V.poker.z), reach: V.poker.reach };
 const baccaratCentre = W(V.baccarat.x, V.baccarat.z);
 export const VIP_BACCARAT = { ...baccaratCentre, reach: V.baccarat.reach };
-/** The way the baccarat table's curve (its players' side) faces: toward the room's middle and the
- *  elevator; its dealer stands behind the flat side, facing the same way. */
+/** The way the baccarat table's curve (its players' side) faces: out toward the front rail and the
+ *  viewer; its dealer stands behind the flat side, on the fountain's side, facing the same way. */
 const baccFace = V.baccarat.face * DEG;
+/** Where the baccarat table is clicked: over its half disc (the table turns, its pad does not). */
+export const VIP_BACCARAT_PAD = { x: baccaratCentre.x + Math.sin(baccFace) * 0.4, z: baccaratCentre.z + Math.cos(baccFace) * 0.4 };
 /** The twin Golden Vaults against the western glass, side by side (the first keeps its old id). */
 export const VAULT_SLOTS = V.vault.zs.map((z, i) => ({ propId: i === 0 ? "slot_vault" : `slot_vault_${i + 1}`, ...W(V.vault.x, z), approach: W(V.vault.x + V.vault.d / 2 + 0.85, z) }));
 export const VAULT_SLOT = VAULT_SLOTS[0];
@@ -125,7 +134,7 @@ export const VIP_NPCS = {
   borisVip: { ...W(V.npcs.borisVip.x, V.npcs.borisVip.z), yaw: V.npcs.borisVip.yaw, y: 0, name: "Boris", role: "dealing the penthouse's high-limit poker" },
   baron: { ...W(V.poker.baron[0], V.poker.baron[1]), yaw: V.npcs.baron.yaw, y: 0, name: "Baron von Fox", role: "a high roller in white tails at the poker table" },
   duchess: { ...stoolAt(V.baccarat.duchess), yaw: facing(stoolAt(V.baccarat.duchess), baccaratCentre), y: 0, name: "Duchess Penelope", role: "a high roller in diamonds at the baccarat table" },
-  scarlettVip: { ...behind(baccaratCentre, baccFace, V.baccarat.dealer), yaw: baccFace, y: 0, name: "Scarlett", role: "dealing the penthouse's high-limit baccarat, facing the elevator" },
+  scarlettVip: { ...behind(baccaratCentre, baccFace, V.baccarat.dealer), yaw: baccFace, y: 0, name: "Scarlett", role: "dealing the penthouse's high-limit baccarat, the fountain at her back" },
   gideonVip: { ...behind(bjCentre, bj.yaw, bj.dealer), yaw: bj.yaw, y: 0, name: "Gideon", role: "dealing the penthouse's blackjack table" },
 };
 
@@ -168,28 +177,57 @@ export const VIP_PROPS: PropSpec[] = [
 const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
 const centred = (c: Pt, hx: number, hz: number): AABB => ({ minX: c.x - hx, maxX: c.x + hx, minZ: c.z - hz, maxZ: c.z + hz });
 
+/** The champagne fountain's base: its centre and radius, and the box you walk round. */
+export const VIP_FOUNTAIN = { ...W(V.fountain.x, V.fountain.z), r: V.fountain.r };
+/** Its collider: a few boxes whose union follows the round base (a single square's corners stood
+ *  0.3 m proud of it on the diagonals, just where the walk round it goes). */
+export const VIP_FOUNTAIN_BOXES: AABB[] = [
+  [1, 0.3],
+  [0.3, 1],
+  [0.87, 0.5],
+  [0.5, 0.87],
+  [0.71, 0.71],
+].map(([hx, hz]) => centred(VIP_FOUNTAIN, hx * V.fountain.r, hz * V.fountain.r));
+/** The brass rail along the open front (the body's edge: walking stops a player's radius inside). */
+export const VIP_RAIL = { x: OX + V.half - 0.1, z: OZ + V.half - 0.1 };
+
+// (each table's boxes scale with its radius: they were fitted to the baccarat's 1.15 and the
+// blackjack's 1.1)
+const br = V.baccarat.r / 1.15;
+const jr = bj.r / 1.1;
+/** What you walk round at each card table: the table, its stools (the Duchess on hers), its dealer. */
+export const VIP_TABLE_BOXES = {
+  // the baccarat table: its half disc (its curve toward the room), its stools, the Duchess on hers,
+  // Scarlett behind it
+  baccarat: [
+    around({ x: baccaratCentre.x + Math.sin(baccFace) * 0.3 * br, z: baccaratCentre.z + Math.cos(baccFace) * 0.3 * br }, 0.55 * br),
+    ...[-50, 0, 50].map((deg) => around({ x: baccaratCentre.x + Math.sin(deg * DEG + baccFace) * 0.72 * br, z: baccaratCentre.z + Math.cos(deg * DEG + baccFace) * 0.72 * br }, 0.42 * br)),
+    ...VIP_SEATS.filter((s) => s.propId.startsWith("seat_bacc")).map((s) => around(s, 0.22)),
+    around(VIP_NPCS.duchess, 0.3),
+    around(VIP_NPCS.scarlettVip, 0.3),
+  ],
+  // the blackjack table (small boxes over its half disc), its stools, Gideon behind it
+  blackjack: [
+    around({ x: bjCentre.x + Math.sin(bj.yaw) * 0.25 * jr, z: bjCentre.z + Math.cos(bj.yaw) * 0.25 * jr }, 0.5 * jr),
+    ...[-2, -1, 0, 1, 2].map((k) => around({ x: bjCentre.x + Math.sin(bj.yaw + k * 40 * DEG) * 0.72 * jr, z: bjCentre.z + Math.cos(bj.yaw + k * 40 * DEG) * 0.72 * jr }, 0.4 * jr)),
+    ...VIP_SEATS.filter((s) => s.propId.startsWith("seat_vbj")).map((s) => around(s, 0.22)),
+    around(VIP_NPCS.gideonVip, 0.3),
+  ],
+};
+
 export const VIP_OBSTACLES: AABB[] = [
   // the champagne fountain in the middle of the room
-  around(W(V.fountain.x, V.fountain.z), V.fountain.r),
+  ...VIP_FOUNTAIN_BOXES,
   // the poker table, Boris behind it, its chairs, the Baron at its end
   centred(VIP_POKER, V.poker.len / 2, V.poker.w / 2),
   around(VIP_NPCS.borisVip, 0.36),
   ...VIP_SEATS.filter((s) => s.propId.startsWith("seat_vpoker")).map((s) => around(s, 0.25)),
   around(VIP_NPCS.baron, 0.34),
-  // the baccarat table (its half disc, its curve toward the room), its stools, the Duchess on hers,
-  // Scarlett behind it
-  around({ x: baccaratCentre.x + Math.sin(baccFace) * 0.3, z: baccaratCentre.z + Math.cos(baccFace) * 0.3 }, 0.55),
-  ...[-50, 0, 50].map((deg) => around({ x: baccaratCentre.x + Math.sin(deg * DEG + baccFace) * 0.72, z: baccaratCentre.z + Math.cos(deg * DEG + baccFace) * 0.72 }, 0.42)),
-  ...VIP_SEATS.filter((s) => s.propId.startsWith("seat_bacc")).map((s) => around(s, 0.22)),
-  around(VIP_NPCS.duchess, 0.3),
-  around(VIP_NPCS.scarlettVip, 0.3),
-  // the blackjack table (small boxes over its half disc), its stools, Gideon behind it
-  around({ x: bjCentre.x + Math.sin(bj.yaw) * 0.25, z: bjCentre.z + Math.cos(bj.yaw) * 0.25 }, 0.5),
-  ...[-2, -1, 0, 1, 2].map((k) => around({ x: bjCentre.x + Math.sin(bj.yaw + k * 40 * DEG) * 0.72, z: bjCentre.z + Math.cos(bj.yaw + k * 40 * DEG) * 0.72 }, 0.4)),
-  ...VIP_SEATS.filter((s) => s.propId.startsWith("seat_vbj")).map((s) => around(s, 0.22)),
-  around(VIP_NPCS.gideonVip, 0.3),
+  // the two card tables
+  ...VIP_TABLE_BOXES.baccarat,
+  ...VIP_TABLE_BOXES.blackjack,
   // the twin Golden Vaults and the jukebox against the window wall, the loveseat under the back
-  // windows, the planters out front
+  // windows, the planters
   ...V.vault.zs.map((z) => centred(W(V.vault.x, z), V.vault.d / 2, V.vault.w / 2)),
   centred(W(V.jukebox.x, V.jukebox.z), V.jukebox.d / 2, V.jukebox.w / 2),
   centred(W(V.loveseat.x, V.loveseat.z - 0.05), V.loveseat.len / 2 + 0.05, 0.42),

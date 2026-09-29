@@ -6,6 +6,7 @@ import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
 import { VIP_PROPS, VIP_SEATS } from "./worlds/casino_vip";
 import { FOREST_PROPS, FOREST_SEATS } from "./worlds/forest";
 import { RING_PROPS, RING_SEATS } from "./worlds/boxing_ring";
+import { CAVERNS_PROPS, ONSEN_SEATS, TERRACE } from "./worlds/caverns";
 
 // The per-map tables of things you can sit on and things you can use, with the approach point of
 // each (where you stand to use it, and where you land when you get up). The built worlds' come from
@@ -101,6 +102,18 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   // the Velvet Ring: the tiered benches, the Chesterfields, the cocktail stools, the ringside and
   // judges' chairs, the gym's bench (drawn by boxing_ring.glb; a tier's bench sits that much higher)
   boxing_ring: RING_SEATS.map(casinoSeat),
+  // the Glimmering Caverns: the onsen's six seats in the water (its ledge under the terrace's floor),
+  // each getting out onto its dry exit anchor
+  glimmering_caverns: ONSEN_SEATS.map((s) => ({
+    propId: s.propId,
+    x: s.x,
+    z: s.z,
+    rotationY: s.rotationY,
+    style: "onsen" as const,
+    approachX: s.approachX,
+    approachZ: s.approachZ,
+    sitY: round(TERRACE.y + seatAnchorY(CUSHIONS.onsenLedge)),
+  })),
   sunset_beach: [],
   japanese_onsen: [],
   retro_arcade: [],
@@ -114,6 +127,7 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
   casino_vip: VIP_PROPS,
   whispering_woods: FOREST_PROPS,
   boxing_ring: RING_PROPS,
+  glimmering_caverns: CAVERNS_PROPS,
   sunset_beach: [],
   japanese_onsen: [],
   retro_arcade: [],

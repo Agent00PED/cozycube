@@ -55,8 +55,13 @@ def repo_root():
 
 
 def species_ids(root):
-    src = open(os.path.join(root, "shared", "fishing.ts"), encoding="utf-8").read()
-    return re.findall(r"^  ([a-z_]+): \{ name: \"[^\"]+\", emoji: \"[^\"]+\", water: ", src, re.M)
+    """Every species id: the river's and the sea's (shared/fishing.ts), the Grotto Pool's
+    (shared/caverns_fishing.ts)."""
+    ids = []
+    for f in ("fishing.ts", "caverns_fishing.ts"):
+        src = open(os.path.join(root, "shared", f), encoding="utf-8").read()
+        ids += re.findall(r"^  ([a-z_]+): \{ name: \"[^\"]+\", emoji: \"[^\"]+\", water: ", src, re.M)
+    return ids
 
 
 # ---------------------------------------------------------------------------------------------
@@ -100,6 +105,13 @@ LOOKS = {
     "sunset_clownfish": dict(body="deep", h=0.22, back="#F07A2A", flank="#F7942E", belly="#F7B45A", fin="#E86A1A", marks=[("bands", "#FFFFFF", 3)], tail="round"),
     "prism_jellyfish": dict(body="jelly", h=0.3, back="#C8A8F0", flank="#E8C8F8", belly="#F8E8FF", fin="#A8E0F8", marks=[("glow", "#FFFFFF")]),
     "pearl_whale": dict(body="whale", h=0.22, back="#4A5A7A", flank="#8A9AB8", belly="#F0F2F4", fin="#5A6A8A", marks=[("spots", "#F8F4E8", 0.3)]),
+    # the Glimmering Caverns' Grotto Pool: pale, glassy and glowing
+    "cave_tetra": dict(body="swim", h=0.16, back="#E2BFC4", flank="#F2D8DA", belly="#FFF0F0", fin="#F0B8C0", marks=[("line", "#F7A8B8")]),
+    "glassfin_loach": dict(body="eel", h=0.08, back="#7FC7CE", flank="#C4EEF0", belly="#F0FCFC", fin="#A8F0F8", marks=[("glow", "#8FF6FF"), ("line", "#DFFBFF")], whiskers=True),
+    "glow_axolotl": dict(body="cat", h=0.13, back="#E88AB0", flank="#F4B0C8", belly="#FCE0EC", fin="#F07AA8", marks=[("spots", "#FF9AD8", 0.35), ("glow", "#FFC4EA")], tail="round"),
+    "sporecat": dict(body="cat", h=0.15, back="#1E3A3A", flank="#2E5A5A", belly="#8AB8A8", fin="#2A4A4A", marks=[("spots", "#4FFFD2", 0.45), ("glow", "#4FFFD2")], whiskers=True),
+    "crystal_fin": dict(body="arowana", h=0.16, back="#2A6A8A", flank="#6FE0F0", belly="#D8FAFF", fin="#9FF6FF", marks=[("scales", "#BFF8FF"), ("glow", "#DFFBFF")], dorsal="sail"),
+    "elder_olm": dict(body="serpent", h=0.07, back="#E8D8E0", flank="#F4ECEE", belly="#FFFFFF", fin="#D8B8C8", marks=[("glow", "#C58BFF"), ("line", "#C58BFF")]),
 }
 
 

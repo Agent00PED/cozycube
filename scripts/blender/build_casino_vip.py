@@ -22,11 +22,13 @@ Every colour is a vertex colour over the hall's shared finishes, plus one of its
                          elevator's brass doors and its floor dial; the champagne
                          fountain's marble basin and its tower of coupes; the high-limit poker table
                          (violet baize, black leather rail) with its three chairs and the Baron's at
-                         its end, chips stacked high; the half-moon baccarat table, turned
-                         (`face`) so its dealer's flat side faces the elevator and the room (its
-                         Player, Banker and Tie boxes before each stool, the shoe) and its stools,
-                         the Duchess's among them; the penthouse's blackjack table (the hall's
-                         half-moon in emerald felt, three stools); the twin Golden Vault slot
+                         its end, chips stacked high; the two card tables flanking the fountain,
+                         mirror images across its diagonal axis, their curves toward the front
+                         rail and the dealers' flat sides toward the fountain: the half-moon
+                         baccarat table, turned by its `face` (its Player, Banker and Tie boxes
+                         before each stool, the shoe) and its stools, the Duchess's among them;
+                         the penthouse's blackjack table (the hall's half-moon in emerald felt,
+                         three stools), turned by its `yaw`; the twin Golden Vault slot
                          machines side by side against the western glass, an Art-Deco jukebox
                          beside them; a velvet loveseat under
                          the windows; two areca palms in brass urns (the hall's); the brass rail along the open front (nothing
@@ -371,8 +373,8 @@ def build_poker(M, V, cushions):
 
 
 def build_baccarat(M, V, cushions):
-    """The half-moon baccarat table, turned by its `face` (degrees: 180 puts its curve, and the
-    players, toward the room's middle and the elevator, the dealer's flat side toward the front)."""
+    """The half-moon baccarat table, turned by its `face` (degrees, the way its curve and its players
+    face: 0 toward +z, 90 toward +x; the dealer stands behind the flat side)."""
     b = V["baccarat"]
     cx, cz = b["x"], b["z"]
     r, top = b["r"], b["top"]

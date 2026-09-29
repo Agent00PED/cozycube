@@ -224,6 +224,10 @@ const FISH_ARM = -1.0;
 // the chopping block: the hatchet held up overhead while the meter runs, then brought down
 const CHOP_RAISE_ARM = -2.75;
 const CHOP_DOWN_ARM = -0.55;
+// prospecting in the caverns: the pickaxe held at the shoulder, ready, then (the server's "mine"
+// gesture, on every strike) a short hard swing into the rock
+const MINE_READY_ARM = -2.1;
+const MINE_HIT_ARM = -0.8;
 // the telescope: both hands up to the eyepiece
 const STARGAZE_ARM = -1.35;
 // the rod held in both hands: the left arm reaches in across the body to the grip
@@ -366,6 +370,7 @@ function useRig(): Rig {
     part.mug.visible = false;
     part.wateringCan.visible = false;
     part.hatchet.visible = false;
+    part.pickaxe.visible = false;
     part.net.visible = false;
     part.fireflyJar.visible = false;
     part.heart.visible = false;
@@ -681,6 +686,16 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
       armR = THREE.MathUtils.lerp(THREE.MathUtils.lerp(CHOP_RAISE_ARM, CHOP_DOWN_ARM, down), 0, back);
       armL = -0.5 * (1 - back);
     }
+    if (action === "mine") {
+      armR = MINE_READY_ARM + Math.sin(t * 2.4) * 0.05;
+      armL = MINE_READY_ARM + 0.35;
+    }
+    if (g === "mine") {
+      const down = THREE.MathUtils.smoothstep(gAge / 0.12, 0, 1);
+      const back = THREE.MathUtils.smoothstep((gAge - 0.24) / 0.28, 0, 1);
+      armR = THREE.MathUtils.lerp(THREE.MathUtils.lerp(MINE_READY_ARM - 0.4, MINE_HIT_ARM, down), MINE_READY_ARM, back);
+      armL = armR + 0.35;
+    }
     // the telescope: hands up to the eyepiece, and a slow sway as the sky is searched
     if (action === "stargaze") armL = armR = STARGAZE_ARM + Math.sin(t * 0.7 + seed) * 0.03;
     if (action === "reel") {
@@ -874,6 +889,7 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
     part.mug.rotation.x = -part.armR.rotation.x;
     part.wateringCan.visible = g === "water";
     part.hatchet.visible = action === "chop" || g === "chop";
+    part.pickaxe.visible = action === "mine" || g === "mine";
     part.net.visible = g === "net";
     part.fireflyJar.visible = holdingJar;
     // the Heart emote: the heart pops up in front of the chest, floats up spinning, then shrinks away
