@@ -13,7 +13,8 @@ every time (exec, never import), so a long-lived Live Bridge session always runs
                                 species on its stand, in rows) in front of it, and the wild
                                 critters (the rabbit, the squirrel and the deer) beside Bramble
     Studio_Boxing     (160, 0)  the Velvet Ring; the boxing gloves and Coach Bruno in front of it
-    Studio_Caverns    (200, 0)  the Glimmering Caverns; Gus the Mole in front of it (Old Flint, who
+    Studio_Caverns    (212, 0)  the Glimmering Caverns (clear of the Velvet Ring's line of regulars);
+                                Gus the Mole in front of it (Old Flint, who
                                 keeps the way down, stands with the Forest's folk)
     Studio_Wardrobe   (0, 30)   the avatar in every outfit (client/src/entities/rig.ts
                                 OUTFIT_PARTS), 2 m apart along x: the built rig first (the starter
@@ -34,7 +35,7 @@ import bpy
 from mathutils import Vector
 
 MASTER = os.path.join("models", "master_world.blend")
-WORLDS = {"Lounge": (0.0, 0.0), "Campfire": (40.0, 0.0), "Casino": (80.0, 0.0), "Forest": (120.0, 0.0), "Boxing": (160.0, 0.0), "Caverns": (200.0, 0.0), "Wardrobe": (0.0, 30.0)}
+WORLDS = {"Lounge": (0.0, 0.0), "Campfire": (40.0, 0.0), "Casino": (80.0, 0.0), "Forest": (120.0, 0.0), "Boxing": (160.0, 0.0), "Caverns": (212.0, 0.0), "Wardrobe": (0.0, 30.0)}
 WARDROBE_STEP = 2.0
 # Where each builder's collections go: their world, and either "world" (the diorama's own origin on
 # the world's corner of the grid) or the point their bounding box is centred on, from the world's.

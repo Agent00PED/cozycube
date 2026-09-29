@@ -24,7 +24,8 @@ The nodes entities/CampNpc.tsx animates:
         Gus_ArmL        his left arm, a gem held up between two claws (pivots at the shoulder)
         Gus_Tail        a stubby pink tail
     Finnegan            the root (an empty at the log's foot)
-      Finnegan_Log      his driftwood log, his reed creel beside it, his lantern on the sand (still)
+      Finnegan_Log      his driftwood log, his reed creel beside it, his iron tackle box and his
+                        lantern on the sand (still)
       Finnegan_Body     a plump pink axolotl in a yellow oilskin coat, seated (pivots on the log)
         Finnegan_Head   his wide smiling head, feathery gills either side, a sou'wester hat
         Finnegan_ArmR   his right arm (pivots at the shoulder: he waves)
@@ -532,6 +533,11 @@ def build_finnegan(root):
         lathe(R, 0.62, 0.42, [(0, y0), (0.15 + 0.01 * (k % 2), y0), (0.155, y0 + 0.06), (0, y0 + 0.06)], "Reed" if k % 2 else "ReedDark", segs=10)
     lathe(R, 0.64, 0.42, [(0, 0.3), (0.16, 0.3), (0.12, 0.34), (0, 0.35)], "ReedDark", segs=10)
     cylinder(R, (0.5, 0.36, 0.42), (0.74, 0.36, 0.42), 0.01, "CrateDark", sides=4)
+    # his iron tackle box on the sand, its brass clasp, the handle folded down
+    box(R, -0.42, -0.1, 0.0, 0.15, 0.28, 0.48, "Iron")
+    box(R, -0.43, -0.09, 0.15, 0.17, 0.27, 0.49, "Tin")
+    box(R, -0.28, -0.24, 0.1, 0.16, 0.485, 0.5, "CoatDark")
+    cylinder(R, (-0.34, 0.18, 0.38), (-0.18, 0.18, 0.38), 0.012, "Steel", sides=5)
     # the lantern on the sand
     lathe(R, -0.62, 0.36, [(0, 0.0), (0.06, 0.0), (0.07, 0.09), (0.05, 0.15), (0, 0.16)], "Lamp", segs=10)
     lathe(R, -0.62, 0.36, [(0, 0.14), (0.075, 0.14), (0.03, 0.2), (0, 0.21)], "CoatDark", segs=10)

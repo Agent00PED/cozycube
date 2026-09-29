@@ -25,10 +25,10 @@ import { cavernCam, cavernEase, cavernPose, cavernZoomBy, stepCavernBlend } from
 // A fighter in a live bout at the Velvet Ring gets the ring's action camera instead (actionCamera.ts:
 // low and side on, tracking the two fighters), blended in and out over 0.8 s; while it is on, the
 // wheel, a pinch and a drag leave the camera alone. Prospecting a node in the Glimmering Caverns
-// frames its rock close up the same way (prospectCamera.ts); and down there the camera is locked in
-// close behind you (cavernsCamera.ts: 5.5 to 7.5 m, the wheel and a pinch only within that, blended in
-// over 1.2 s as you arrive, its look 0.8 m over your feet, tracked; no panning), the look-at point kept
-// inside the cavern's shell (frame.bounds). Either way the screen's right and up along the ground go
+// frames its rock close up the same way (prospectCamera.ts); and down there the camera rides behind
+// you (cavernsCamera.ts: 7 m to start, the wheel and a pinch free between 3.5 and 16 m, blended in over
+// 1.2 s as you arrive, its look 0.8 m over your feet, tracked up and down the karst; no panning), the
+// look-at point kept inside the cavern's shell (frame.bounds). Either way the screen's right and up along the ground go
 // to the movement input each frame (WASD walks the way it points on screen).
 
 const ISO_ANGLE = Math.atan(1 / Math.sqrt(2)); // ~35.264 deg
@@ -150,7 +150,7 @@ function CameraRig() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (actionCam.want || prospectCam.node) return; // (the ring's action camera, a node's close-up: framed by themselves)
-      if (cavernCam.on) return cavernZoomBy(Math.exp(e.deltaY * 0.0012)); // (the caverns: only within its range)
+      if (cavernCam.on) return cavernZoomBy(Math.exp(e.deltaY * 0.0012)); // (the caverns: its own distance, 3.5 to 16 m)
       userZoom.current = clampZoom(userZoom.current * Math.exp(-e.deltaY * 0.0015));
     };
 

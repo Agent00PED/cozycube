@@ -5,8 +5,9 @@ import { cameraFocus, frame } from "./cameraFocus";
 // never the whole cavern at once (IsometricCanvas's camera rig blends into it over BLEND_S as you
 // arrive, from wherever the usual view was).
 //
-//   distance  DEFAULT metres, the wheel or a pinch moving it only between MIN and MAX (no zooming out
-//             to the whole map). The camera is orthographic like the rest of the game, so the
+//   distance  DEFAULT metres to start, the wheel or a pinch free to move it anywhere between MIN and MAX
+//             (close in over your shoulder, or out over the whole karst). The camera is orthographic
+//             like the rest of the game, so the
 //             distance sets what the view holds (what a FOV lens would see from there, TALLER top to
 //             bottom) and where the camera stands: anything nearer the lens than that (the vault's
 //             overhang, a rim of rock) is cut away by the near plane instead of hiding you
@@ -16,9 +17,9 @@ import { cameraFocus, frame } from "./cameraFocus";
 //             arrival) cut straight to
 
 export const CAVERN_CAM = {
-  MIN: 5.5,
-  MAX: 7.5,
-  DEFAULT: 6.0,
+  MIN: 3.5,
+  MAX: 16.0,
+  DEFAULT: 7.0,
   PITCH: THREE.MathUtils.degToRad(34),
   BLEND_S: 1.2,
   LOOK_UP: 0.8,

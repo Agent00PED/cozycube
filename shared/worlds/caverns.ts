@@ -46,7 +46,7 @@ type Pt = { x: number; z: number };
 export const CAVERNS_LAYOUT = /* layout:begin */ {
   "half": 22.5,
   "walls": { "north": -22.5, "west": -22.5, "height": 11.0, "margin": 1.25 },
-  "levels": { "upper": 3.42, "shelf": 2.72, "overlook": 1.8, "low": 0.42 },
+  "levels": { "upper": 3.35, "shelf": 2.72, "overlook": 1.8, "low": 0.42 },
   "zones": [
     { "id": "shelf", "name": "The Wet Slate Shelf", "x0": -22.5, "x1": -13.5, "z0": -22.5, "z1": -9.0 },
     { "id": "doline", "name": "The Sunlit Doline", "x0": -13.5, "x1": 13.5, "z0": -22.5, "z1": -10.0 },
@@ -57,22 +57,24 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
   ],
   "upper": [[-23.5, -23.5], [13.2, -23.5], [13.4, -18.5], [12.9, -14.8], [11.6, -12.2], [9.2, -11.3], [5.8, -11.8], [2.4, -10.9], [-1.2, -11.2], [-4.6, -10.5], [-8.0, -10.9], [-11.2, -10.1], [-14.6, -9.5], [-18.0, -9.1], [-23.5, -9.4]],
   "overlook": [[-8.6, -10.9], [-7.6, -8.0], [-7.0, -5.3], [-5.0, -3.8], [-2.2, -3.5], [0.9, -4.1], [3.6, -5.2], [6.4, -6.4], [8.2, -8.0], [9.4, -10.6], [9.6, -12.0]],
-  "overlookRise": 0.35,
+  "overlookRise": 0.12,
   "paths": [
     { "id": "descent", "half": 1.3, "points": [[4.0, -12.9, 3.42], [7.3, -11.9, 3.12], [8.9, -10.3, 2.8], [7.1, -8.6, 2.45], [4.2, -8.1, 2.2], [1.6, -7.9, 2.1]] },
     { "id": "terraceTrail", "half": 1.2, "points": [[-5.9, -7.4, 2.0], [-8.0, -5.9, 1.4], [-9.3, -4.5, 0.95], [-10.8, -3.3, 0.9]] },
-    { "id": "shoreTrail", "half": 1.2, "points": [[-1.6, -5.0, 1.84], [-0.3, -3.3, 1.42], [1.3, -2.0, 0.96], [2.9, -0.9, 0.54]] }
+    { "id": "shoreTrail", "half": 1.2, "points": [[-1.6, -5.0, 1.84], [-0.3, -3.3, 1.42], [1.3, -2.0, 0.96], [2.3, -0.7, 0.46], [1.5, 0.6, 0.02]] }
   ],
   "adit": { "x": 0.0, "z": -22.1, "w": 2.0, "h": 2.6 },
   "arrival": { "x": 0.0, "z": -19.5 },
   "gus": { "x": -6.2, "z": -16.6, "yaw": 0 },
   "workstation": { "x": -6.2, "z": -15.6, "len": 2.4, "w": 0.75, "top": 0.78 },
+  "camp": { "posts": [[-8.0, -15.1], [-4.4, -15.1], [-8.0, -18.3], [-4.4, -18.3]], "ridge": 2.7, "eave": 1.85, "crates": [-7.25, -17.75], "transit": [-5.15, -17.85] },
   "forge": { "x": 6.8, "z": -21.3, "w": 2.6, "d": 1.8, "h": 3.2 },
   "anvil": { "x": 3.2, "z": -15.2, "outcrop": 0.62 },
   "crate": { "x": 4.55, "z": -15.7, "w": 0.9, "d": 0.6, "h": 0.55 },
   "lake": { "x": 1.0, "z": 10.8, "rx": 13.0, "rz": 9.0, "water": -0.06, "depth": 2.4, "beach": 1.28, "wade": 1.04 },
   "islet": { "x": 2.2, "z": 12.2, "r": 3.1, "top": 0.32 },
-  "sandbar": { "points": [[0.4, 1.0], [0.9, 4.2], [1.5, 7.2], [2.0, 9.6]], "half": 1.1, "y": -0.02 },
+  "sandbar": { "points": [[0.6, 0.6], [1.6, 3.2], [0.7, 5.8], [1.3, 8.2], [2.0, 9.8]], "half": 1.0, "y": -0.12 },
+  "shoals": [[-6.4, 4.2, 2.2], [9.6, 5.0, 2.0], [-8.8, 14.6, 1.8], [8.2, 17.2, 2.1], [11.4, 11.6, 1.6], [-3.4, 18.4, 1.7]],
   "skylight": { "x": 1.8, "z": 12.0, "r": 3.4 },
   "tower": { "x": 0.0, "z": 11.4, "r": 0.9, "h": 5.2 },
   "finnegan": { "x": 6.8, "z": 0.8, "yaw": 0.25, "log": 1.5 },
@@ -114,9 +116,11 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
     { "id": "glimmer_4", "kind": "glimmer", "x": 16.4, "z": -6.4, "face": [0.35, 0.94] },
     { "id": "monolith", "kind": "monolith", "x": 2.4, "z": 12.4, "face": [0.2, -0.98] }
   ],
-  "boulders": [[-9.0, -18.0, 0.9], [5.4, -17.8, 0.7], [-1.6, -15.2, 0.5], [9.0, -14.6, 0.8], [-12.8, -16.4, 0.8], [1.8, -19.2, 0.45], [9.0, -19.6, 0.6], [-17.6, -16.4, 0.75], [-14.4, -13.4, 0.6], [5.6, -8.9, 0.9], [3.8, -9.8, 0.6], [9.4, -8.0, 0.8], [-6.8, -0.9, 0.7], [10.2, -1.6, 0.9], [12.4, 1.6, 0.8], [16.0, 9.6, 0.9], [18.2, 16.8, 1.0], [-10.8, 17.6, 0.9], [8.8, 20.6, 0.8], [-17.8, 9.6, 0.9], [-8.6, -8.6, 0.8]],
+  "boulders": [[-9.0, -18.0, 0.9], [5.4, -17.8, 0.7], [-1.6, -15.2, 0.5], [9.0, -14.6, 0.8], [1.8, -19.2, 0.45], [-17.6, -16.4, 0.75], [-14.4, -13.4, 0.6], [5.6, -8.9, 0.9], [3.8, -9.8, 0.6], [9.4, -8.0, 0.8], [-6.8, -0.9, 0.7], [10.2, -1.6, 0.9], [12.4, 1.6, 0.8], [16.0, 9.6, 0.9], [18.2, 16.8, 1.0], [-10.8, 17.6, 0.9], [8.8, 20.6, 0.8], [-17.8, 9.6, 0.9], [-8.6, -8.6, 0.8]],
+  "mounds": [[-3.4, -17.8, 1.15, 0.9], [8.6, -17.6, 1.2, 1.1], [-11.9, -15.9, 1.05, 0.85], [0.9, -14.5, 0.9, 0.7], [11.9, -19.1, 1.0, 1.2], [-15.0, -16.6, 0.9, 0.8]],
+  "outcrops": [[11.2, -10.6, 1.3, 2.6], [5.6, -10.3, 0.85, 1.7], [-2.8, -10.1, 1.1, 1.9], [-11.0, -8.6, 1.2, 2.1], [3.5, -3.3, 0.9, 1.3], [-4.4, -2.4, 1.0, 1.4], [8.9, -5.0, 1.1, 1.7], [13.2, -2.2, 1.0, 2.2]],
   "fins": [[19.6, -3.4, 0.5, 1.6, 2.6, 0.4], [20.2, -10.8, 0.6, 1.6, 3.0, -0.2], [19.8, -17.8, 0.5, 1.5, 2.8, 0.4]],
-  "stalagmites": [[-20.4, -20.4, 0.75, 5.6], [-15.0, -20.9, 0.5, 4.2], [12.6, -21.0, 0.6, 5.0], [21.2, -18.4, 0.6, 4.6], [-20.9, -7.2, 0.6, 4.0], [21.3, -1.2, 0.5, 3.4], [-20.9, 8.2, 0.7, 4.8], [-6.2, -8.6, 0.32, 2.2], [0.6, -8.0, 0.28, 1.6], [13.6, -5.6, 0.45, 3.2]],
+  "stalagmites": [[-20.4, -20.4, 0.75, 5.6], [-15.0, -20.9, 0.5, 4.2], [12.6, -21.0, 0.6, 5.0], [21.2, -18.4, 0.6, 4.6], [-20.9, -7.2, 0.6, 4.0], [21.3, -1.2, 0.5, 3.4], [-20.9, 8.2, 0.7, 4.8]],
   "crystals": [[16.9, -20.9, 1.1], [21.5, -12.0, 1.2], [16.6, -10.8, 0.8], [21.3, -4.8, 1.0], [15.2, -7.4, 0.7], [-21.3, -2.2, 0.8], [-21.0, 14.0, 0.9]],
   "shrooms": [[19.5, -19.6, 0.9], [16.6, -12.4, 0.7], [20.9, -6.6, 0.8], [-20.8, 1.6, 0.7], [-19.6, 12.6, 0.9], [15.0, 4.6, 0.7]],
   "beams": [[-4.2, -17.4, 1.7], [1.6, -18.6, 2.0], [7.8, -15.6, 1.4], [-9.4, -13.4, 1.2], [-0.4, -13.6, 1.0]],
@@ -176,7 +180,8 @@ export function lakeFactor(x: number, z: number): number {
   const dx = (x - L.lake.x) / L.lake.rx;
   const dz = (z - L.lake.z) / L.lake.rz;
   const a = Math.atan2(dz, dx);
-  const wob = 1 + 0.05 * Math.sin(3 * a + 0.7) + 0.035 * Math.sin(5 * a + 2.1);
+  // (a shore of coves and points, never a clean ellipse)
+  const wob = 1 + 0.08 * Math.sin(2 * a + 0.4) + 0.06 * Math.sin(3 * a + 0.7) + 0.04 * Math.sin(5 * a + 2.1) + 0.025 * Math.sin(9 * a + 1.3);
   return Math.hypot(dx, dz) / wob;
 }
 /** How far from the islet's middle, against its rocky shore (under 1: the islet). */
@@ -255,13 +260,16 @@ function terraceRise(x: number, z: number): number {
 }
 /** The low ground: the shore's backlands, the terraces' slope, the chasm's floor, the south sand. */
 function lowLevel(x: number, z: number): number {
-  const chasm = 0.3 * smoothstep(12.5, 16.0, x) * (1 - smoothstep(-2.0, 4.0, z));
-  return L.levels.low + 0.07 * wave(x, z, 3) + terraceRise(x, z) + chasm + 0.1 * wave(x * 0.7, z * 0.7, 9) * smoothstep(12.5, 16.0, x);
+  // (the Abyssal Chasm: a crevasse sunk into the bedrock down the east, its floor -0.2 to +0.4)
+  const chasm = -0.5 * smoothstep(12.5, 15.5, x) * (1 - smoothstep(-2.0, 4.0, z));
+  return L.levels.low + 0.07 * wave(x, z, 3) + terraceRise(x, z) + chasm + 0.12 * wave(x * 0.7, z * 0.7, 9) * smoothstep(12.5, 16.0, x);
 }
 function upperLevel(x: number, z: number): number {
+  // the doline's floor rolls in low karst swells (3.0 to 3.8 m), the wet slate shelf lower in the west
   const shelf = mix(L.levels.shelf, L.levels.upper, smoothstep(-15.0, -10.0, x));
   const corner = 0.2 * smoothstep(-15, -21, z) * smoothstep(6, 12, x);
-  return shelf + 0.14 * wave(x, z, 1) + corner;
+  const swell = (0.26 * wave(x * 0.55, z * 0.55, 13) + 0.09 * wave(x * 1.25, z * 1.25, 1)) * smoothstep(-15.0, -11.0, x);
+  return shelf + 0.1 * wave(x, z, 1) * (1 - smoothstep(-15.0, -11.0, x)) + swell + corner;
 }
 
 /** The ground's height at (x, z) as the builder models it and the grid samples it (the walk surface is
@@ -286,10 +294,15 @@ export function cavernsHeight(x: number, z: number): number {
     const shore = -0.22 + 0.62 * smooth01((f - 1) / (L.lake.beach - 1));
     const bed = f < 1 ? -0.22 - (L.lake.depth - 0.22) * smooth01((1 - f) / 0.55) : shore;
     h = mix(bed, h, smooth01((f - 1) / (L.lake.beach - 1)));
+    // the shallow shoals: the bed rising to a hand's depth under the water
+    for (const [sx, sz, sr] of L.shoals) {
+      const d = Math.hypot(x - sx, z - sz) / sr;
+      if (d < 1) h = Math.max(h, mix(L.lake.water - 0.14, h, smooth01(d)));
+    }
     const sb = sandbarDistance(x, z);
     if (sb < L.sandbar.half + 1.2) h = Math.max(h, mix(L.sandbar.y, h, smooth01((sb - L.sandbar.half * 0.6) / 1.6)));
     const g = isletFactor(x, z);
-    if (g < 1.4) h = Math.max(h, L.sandbar.y + (L.islet.top - L.sandbar.y) * smooth01((1.0 - g) / 0.45) - 0.6 * smooth01((g - 1) / 0.4));
+    if (g < 1.4) h = Math.max(h, L.sandbar.y + (L.islet.top - L.sandbar.y) * smooth01((1.0 - g) / 0.6) - 0.6 * smooth01((g - 1) / 0.4));
   }
   return h;
 }
@@ -341,12 +354,15 @@ const ROCK_DISCS: { x: number; z: number; r: number }[] = [
     });
   }),
   ...L.stalagmites.map(([x, z, r]) => ({ x, z, r: r * 1.1 })),
+  // the doline's moss-draped karst mounds, and the talus's mammoth outcrops
+  ...L.mounds.map(([x, z, r]) => ({ x, z, r: r * 0.95 })),
+  ...L.outcrops.map(([x, z, r]) => ({ x, z, r: r * 0.95 })),
   ...L.crystals.map(([x, z, s]) => ({ x, z, r: 0.34 * s })),
   ...L.shrooms.map(([x, z, s]) => ({ x, z, r: 0.3 * s })),
 ];
 
 /** The steepest ground anyone walks on (degrees): nowhere a step, nowhere a scramble. */
-export const STEEPEST_WALK = 28;
+export const STEEPEST_WALK = 24;
 const STEEP = Math.tan((STEEPEST_WALK * Math.PI) / 180);
 /** Whether the floor at (x, z) climbs or drops more steeply than STEEPEST_WALK toward any of its
  *  neighbours a mask cell away (a trail's shoulder, a sandbar's flank, a bank between two legs). */
@@ -666,6 +682,10 @@ export const CAVERNS_OBSTACLES: AABB[] = [
   box(L.workstation.x - L.workstation.len / 2, L.workstation.x + L.workstation.len / 2, L.gus.z - 0.4, L.workstation.z + L.workstation.w / 2),
   box(L.forge.x - L.forge.w / 2 - 0.1, L.forge.x + L.forge.w / 2 + 0.1, L.walls.north, L.forge.z + L.forge.d / 2 + 0.1),
   around(L.anvil, 0.55),
+  // Gus's expedition camp: the tarp's four timber posts, the crate stack, the survey transit
+  ...L.camp.posts.map(([x, z]) => around({ x, z }, 0.14)),
+  box(L.camp.crates[0] - 0.5, L.camp.crates[0] + 0.5, L.camp.crates[1] - 0.38, L.camp.crates[1] + 0.38),
+  around({ x: L.camp.transit[0], z: L.camp.transit[1] }, 0.34),
   box(L.crate.x - L.crate.w / 2, L.crate.x + L.crate.w / 2, L.crate.z - L.crate.d / 2, L.crate.z + L.crate.d / 2),
   around({ x: L.adit.x - L.adit.w / 2 - 0.14, z: L.adit.z + 0.25 }, 0.24),
   around({ x: L.adit.x + L.adit.w / 2 + 0.14, z: L.adit.z + 0.25 }, 0.24),

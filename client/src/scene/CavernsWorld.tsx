@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState } from "@shared/types";
-import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, type OreNode } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, type OreNode } from "@shared/worlds/caverns";
 import { ORE_ITEMS, ORE_KINDS, ORE_KIND_IDS, oreCenterY, parseOres, type CaveLoot, type CaveShatter, type CaveStrike, type OreKind, type OreItemId } from "@shared/caverns_mining";
 import { DRIP_S, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -23,10 +23,11 @@ import { playCaveSfx } from "../audio/cavernAmbience";
 // (scripts/blender/build_caverns.py, laid out from shared/worlds/caverns.ts): this file loads it and
 // brings it to life.
 //
-//   the floor     the model's own walk surface, `caverns_walk_collider` (never drawn): the very grid
-//                 cavernsFloorY walks you on (the doline, the switchbacks, the overlook, the trails,
-//                 the beach, the islet), triangle for triangle, so a click lands at the exact height
-//                 you see; while the model loads (or if it fails) the same grid built here in its place
+//   the floor     the model's own floor, which is its walk collider (`caverns_walk_collider`, drawn):
+//                 the very grid cavernsFloorY walks you on (the doline, the talus's switchbacks, the
+//                 overlook, the trails, the beach, the islet), triangle for triangle, so a click lands
+//                 at the exact height you see (the only mesh of the model a click is tested against);
+//                 while the model loads (or if it fails) the same grid built here in its place
 //   the finishes  the rock and the shell as painted (the light baked into their vertex colours), the
 //                 lake's bed lit by moving caustics (brightest under the islet's skylight); what glows
 //                 (crystals, mushrooms, lanterns, the forge's mouth) a MeshStandardMaterial whose
@@ -212,6 +213,7 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       <CaveLights />
       <Godrays />
       <ThermalSteam />
+      <ForgeSmoke />
       <DripRipples subscribeMessages={subscribeMessages} />
       <OcclusionDriver />
     </group>
@@ -238,17 +240,9 @@ function NpcStandIn() {
 
 function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrike, onClick }: { ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; players: Record<string, PlayerState>; localSessionId: string | null; onStrike: CavernsWorldProps["onStrike"]; onClick: (e: ThreeEvent<PointerEvent>) => void }) {
   const { scene } = useGLTF(CAVERNS_URL);
-  // the walk surface: taken out of the model (never drawn) and raycast on its own
-  const walk = useMemo(() => {
-    const mesh = scene.getObjectByName("caverns_walk_collider") as THREE.Mesh | undefined;
-    if (!mesh) return null;
-    mesh.removeFromParent();
-    mesh.updateMatrixWorld(true);
-    const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
-    geo.computeBoundingBox();
-    geo.computeBoundingSphere();
-    return geo;
-  }, [scene]);
+  // the floor is the walk collider itself (caverns_walk_collider: the walk grid's triangles exactly,
+  // drawn): the only mesh of the model a click is tested against
+  const walk = useMemo(() => (scene.getObjectByName("caverns_walk_collider") as THREE.Mesh | undefined) ?? null, [scene]);
   const fallbackFloor = useMemo(() => (walk ? null : floorGeometry()), [walk]);
   useEffect(() => () => fallbackFloor?.dispose(), [fallbackFloor]);
   // the model's finishes, and the node rocks' templates taken out of it (instanced below)
@@ -266,6 +260,7 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       else if (m.name === "CV_Clay") causticBed(m);
       else if (m.name === "CV_Occluder") ditherOccluder(m);
     });
+    if (walk) walk.raycast = THREE.Mesh.prototype.raycast;
     for (const kind of [...ORE_KIND_IDS, "rubble"] as const) {
       const rock = scene.getObjectByName(kind === "rubble" ? "Ore_Rubble" : `Ore_${kind}`) as THREE.Mesh | undefined;
       if (!rock) continue;
@@ -277,9 +272,9 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
   }, [scene]);
   return (
     <>
-      <primitive object={scene} />
-      {/* the floor's click surface: the collider's triangles (the terrain's grid exactly) */}
-      <mesh geometry={walk ?? fallbackFloor!} visible={false} onPointerDown={onClick} />
+      {/* (a click lands on the floor, the model's collider: every other mesh of it is left out) */}
+      <primitive object={scene} onPointerDown={onClick} />
+      {!walk && <mesh geometry={fallbackFloor!} visible={false} onPointerDown={onClick} />}
       <OreNodes templates={templates} ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} players={players} />
       <ProspectingView templates={templates} onStrike={onStrike} />
     </>
@@ -873,6 +868,35 @@ function ThermalSteam() {
       const k = (((t * 0.18 * sd.s + sd.p) % 1) + 1) % 1;
       const sc = (0.5 + 1.6 * k) * (k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85);
       m.makeScale(sc, sc * 0.8, sc).setPosition(sd.x + Math.sin(t * 0.6 + sd.p) * 0.25 * k + k * 0.6, sd.y + 0.1 + k * 1.9, sd.z + Math.cos(t * 0.5 + sd.p) * 0.25 * k);
+      mesh.setMatrixAt(i, m);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+  return <primitive object={mesh} />;
+}
+
+const SMOKE_PUFFS = 14;
+const SMOKE_MAT = new THREE.MeshBasicMaterial({ color: "#6d625c", transparent: true, opacity: 0.16, depthWrite: false });
+/** Faint wisps of smoke rising out of the forge's crucible up its basalt cleft. */
+function ForgeSmoke() {
+  const mesh = useMemo(() => {
+    const im = new THREE.InstancedMesh(STEAM_GEO, SMOKE_MAT, SMOKE_PUFFS);
+    im.raycast = noRaycast;
+    im.frustumCulled = false;
+    return im;
+  }, []);
+  useEffect(() => () => {
+    mesh.dispose();
+  }, [mesh]);
+  const base = useMemo(() => ({ x: FORGE.x, y: cavernsFloorY(FORGE.x, FORGE.z + FORGE.d / 2 + 0.3) + 0.4, z: FORGE.z + 0.1 }), []);
+  const seeds = useMemo(() => Array.from({ length: SMOKE_PUFFS }, () => ({ p: Math.random(), s: 0.7 + Math.random() * 0.6, dx: (Math.random() - 0.5) * 0.5 })), []);
+  const m = useMemo(() => new THREE.Matrix4(), []);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    seeds.forEach((sd, i) => {
+      const k = (((t * 0.12 * sd.s + sd.p) % 1) + 1) % 1;
+      const sc = (0.6 + 2.2 * k) * (k < 0.1 ? k / 0.1 : 1 - (k - 0.1) / 0.9);
+      m.makeScale(sc, sc * 1.2, sc).setPosition(base.x + sd.dx + Math.sin(t * 0.5 + sd.p * 6) * 0.3 * k, base.y + k * 3.6, base.z - 0.25 * k);
       mesh.setMatrixAt(i, m);
     });
     mesh.instanceMatrix.needsUpdate = true;

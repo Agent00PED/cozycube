@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.8",
+    range: "v0.7.0–v0.7.9",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -984,6 +984,32 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           fixes: [
             "No more invisible ledges: the trails' shoulders, the sandbar's flanks and the banks between switchbacks are no longer walkable, so you never step off a steep edge.",
+          ],
+        },
+      },
+      {
+        version: "0.7.9",
+        date: "2026-09-30",
+        title: "Hang Son Doong",
+        summary: "The Glimmering Caverns are rebuilt from the rock up after the world's largest cave: sculpted limestone, a sunlit doline of moss-draped karst, a great talus of fallen blocks, an emerald cenote with a crag and its ancient banyan, and a proper expedition camp. The caverns' camera is yours to zoom again.",
+        changes: {
+          features: [
+            "The caverns' camera zooms freely again: roll the wheel or pinch anywhere from 3.5 to 16 metres. It starts at 7 metres and still follows you up and down the karst.",
+            "The cenote's shoal lies just under the water now: you wade out to the islet ankle-deep, and the shore trail runs right down to where it starts.",
+            "Nothing you walk on is steeper than 24 degrees.",
+          ],
+          visuals: [
+            "Every wall, mound, outcrop and crag is carved from one mass of limestone, fused, weathered into pits and strata, and faceted. The west cliff towers higher.",
+            "The Sunlit Doline: a limestone floor rolling in low swells under patches of deep green and lime moss, terraced mounds draped in moss, fallen rubble, and aerial vines hanging from the broken roof into the sunbeams.",
+            "The great talus: fractured limestone blocks heaped down every slope between the doline, the overlook and the shore, mammoth outcrops along the switchbacks.",
+            "The Abyssal Cenote: a shore of coves and points around emerald and turquoise water with shallow shoals. The islet is a rugged limestone crag, gripped by an ancient banyan whose roots spiral down into the deep.",
+            "The Travertine Terraces: turquoise pools held in flowing rimstone collars.",
+            "The Abyssal Chasm sinks into the bedrock down the east, under towering slate cliffs with crystals in their cracks. Each vein's nodes are strung on a fault seam glinting with their mineral.",
+            "Gus's Expedition Basecamp: a canvas tarp on timber posts, oil lanterns, a crate stack with glowing specimen jars, and a brass survey transit on its tripod.",
+            "The forge sits in a cleft of dark columnar basalt: a crucible of bubbling magma, veins of it rising up the rock, ember runes burnt into the columns, and smoke curling up.",
+            "The meteorite anvil rests on a limestone pedestal, with chisels, a mallet and split geodes glittering at its foot. The adit is a rock-cut bore propped by timber sets, its rails running out on sleepers.",
+            "Stalagmites and stalactites are fluted candles of flowstone, clustered in the vault's pockets and at the walls' feet.",
+            "Finnegan keeps an iron tackle box beside his reed creel and lantern.",
           ],
         },
       },
