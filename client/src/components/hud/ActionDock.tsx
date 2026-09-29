@@ -523,7 +523,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         }
         // the thermal terraces: the nearest free seat in their pools (the server seats you there)
         const rim = THERMAL_SEATS.some((s) => !chairs[s.propId]?.occupiedBy && Math.min(Math.hypot(s.exit.x - px, s.exit.z - pz), Math.hypot(s.x - px, s.z - pz)) <= THERMAL_REACH);
-        if (rim) found.push({ key: "soak:in", type: "soak", label: "♨️ Soak in the warm pools", hint: `${SOAK_S} seconds in the terraces' warm water: the Deep Warmth for 20 minutes (+15% walking pace everywhere, +20% fracture radius, stamina back sooner in the ring)`, run: () => onCaverns(CAVERNS_CHANNELS.onsen, { on: true }) });
+        if (rim) found.push({ key: "soak:in", type: "soak", label: "♨️ Soak in Springs", hint: `${SOAK_S} seconds in the terraces' warm water: the Deep Warmth for 20 minutes (+15% walking pace everywhere, +20% fracture radius, stamina back sooner in the ring)`, run: () => onCaverns(CAVERNS_CHANNELS.onsen, { on: true }) });
       }
       // the Velvet Ring: the corner steps (step in as Red or Blue), the chalkboard, Coach Bruno, the gym
       if (mapId === "boxing_ring" && !sitting && !player.corner) {

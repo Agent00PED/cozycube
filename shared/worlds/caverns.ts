@@ -45,7 +45,7 @@ type Pt = { x: number; z: number };
 
 export const CAVERNS_LAYOUT = /* layout:begin */ {
   "half": 22.5,
-  "walls": { "north": -22.5, "west": -22.5, "height": 11.0, "margin": 1.25 },
+  "walls": { "north": -22.5, "west": -22.5, "height": 11.0, "margin": 0.75 },
   "levels": { "upper": 3.35, "shelf": 2.72, "overlook": 1.8, "low": 0.42 },
   "zones": [
     { "id": "shelf", "name": "The Wet Slate Shelf", "x0": -22.5, "x1": -13.5, "z0": -22.5, "z1": -9.0 },
@@ -88,7 +88,8 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
     { "id": "thermal_3", "x": -15.7, "z": -1.7, "face": 1.5708, "exit": { "x": -13.4, "z": -1.7 } },
     { "id": "thermal_4", "x": -15.7, "z": 0.0, "face": 1.5708, "exit": { "x": -13.4, "z": 0.0 } },
     { "id": "thermal_5", "x": -15.7, "z": 2.3, "face": 1.5708, "exit": { "x": -13.4, "z": 2.3 } },
-    { "id": "thermal_6", "x": -15.7, "z": 3.9, "face": 1.5708, "exit": { "x": -13.4, "z": 3.9 } }
+    { "id": "thermal_6", "x": -15.7, "z": 3.9, "face": 1.5708, "exit": { "x": -13.4, "z": 3.9 } },
+    { "id": "thermal_7", "x": -16.1, "z": -0.85, "face": 1.5708, "exit": { "x": -13.8, "z": -0.85 } }
   ],
   "nodes": [
     { "id": "coal_1", "kind": "coal", "x": -11.6, "z": -19.4, "face": [0.55, 0.85] },
@@ -123,12 +124,13 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
     { "id": "westButtress", "points": [[-21.9, -8.6, 1.6, 4.4], [-20.3, -8.2, 1.4, 3.8], [-18.7, -8.0, 1.2, 3.1], [-17.2, -8.2, 1.0, 2.4], [-21.9, 7.2, 1.5, 4.0], [-20.4, 7.5, 1.3, 3.3], [-18.9, 7.3, 1.1, 2.6], [-17.5, 6.8, 0.9, 1.9]] },
     { "id": "eastSpine", "points": [[12.6, -11.6, 1.2, 3.6], [12.9, -9.5, 1.15, 3.2], [13.1, -7.3, 1.1, 3.0], [13.0, -5.1, 1.05, 2.7], [12.8, -2.9, 0.95, 2.3], [12.9, -0.9, 0.85, 1.9]] }
   ],
-  "beach": { "dinghy": [-10.9, 16.2, 2.3], "logs": [[-14.8, 11.0, 0.6, 1.8], [-3.4, 20.9, -0.3, 1.6], [15.0, 19.2, 1.2, 1.5]], "pools": [[-12.7, 13.3, 0.55], [-7.3, 18.7, 0.5], [16.9, 13.4, 0.5]] },
-  "survey": { "cart": [19.8, 14.0, 0.9], "outcrop": [15.9, 16.4, 0.85, 1.3] },
+  "beach": { "dinghy": [-10.9, 16.2, 2.3], "logs": [[-12.0, 16.4, 0.35, 1.9], [-12.3, 17.4, 1.35, 1.5], [-9.2, 17.2, -0.55, 1.4], [-11.0, 19.0, 2.6, 1.2]], "pools": [[-12.5, 15.0, 0.45], [-9.3, 19.0, 0.4]], "rocks": [[-12.5, 18.7, 0.45, 0.6], [-9.4, 18.4, 0.36, 0.5]] },
+  "survey": { "cart": [19.8, 14.0, 0.9], "outcrop": [20.9, 15.4, 0.7, 1.2], "rocks": [[21.2, 12.5, 0.75, 1.3], [18.8, 15.6, 0.5, 0.8], [21.5, 14.1, 0.55, 1.6]], "timbers": [[20.3, 12.4, 0.35, 2.1], [19.0, 12.9, 1.9, 1.6]] },
   "capybara": { "x": -19.1, "z": -4.8, "yaw": 1.4 },
   "fins": [[19.6, -3.4, 0.5, 1.6, 2.6, 0.4], [20.2, -10.8, 0.6, 1.6, 3.0, -0.2], [19.8, -17.8, 0.5, 1.5, 2.8, 0.4]],
   "stalagmites": [[-20.4, -20.4, 0.75, 5.6], [-15.0, -20.9, 0.5, 4.2], [12.6, -21.0, 0.6, 5.0], [21.2, -18.4, 0.6, 4.6], [-20.9, -7.2, 0.6, 4.0], [21.3, -1.2, 0.5, 3.4], [-20.9, 8.2, 0.7, 4.8]],
   "crystals": [[16.9, -20.9, 1.1], [21.5, -12.0, 1.2], [16.6, -10.8, 0.8], [21.3, -4.8, 1.0], [15.2, -7.4, 0.7], [-21.3, -2.2, 0.8], [-21.0, 14.0, 0.9]],
+  "fractures": [[22.0, -18.9, -1], [22.1, -16.2, -1], [21.95, -11.9, -1], [22.05, -10.1, -1], [21.9, -5.8, -1], [22.0, -3.3, -1], [22.1, -0.6, -1], [14.05, -10.5, 1], [14.15, -6.9, 1], [13.95, -3.9, 1]],
   "shrooms": [[19.5, -19.6, 0.9], [16.6, -12.4, 0.7], [20.9, -6.6, 0.8], [-20.8, 1.6, 0.7], [-19.6, 12.6, 0.9], [15.0, 4.6, 0.7]],
   "beams": [[-4.2, -17.4, 1.7], [1.6, -18.6, 2.0], [7.8, -15.6, 1.4], [-9.4, -13.4, 1.2], [-0.4, -13.6, 1.0]],
   "lights": { "forge": [6.8, 4.2, -20.1], "thermal": [-17.6, 2.4, -1.0], "cenote": [2.2, 1.4, 12.0] },
@@ -320,11 +322,49 @@ export function cavernsHeight(x: number, z: number): number {
 export const TERRAIN_CELL = 0.5;
 export const TERRAIN_N = Math.round((L.half * 2) / TERRAIN_CELL) + 1;
 const TERRAIN_X0 = -L.half;
+/** Whether (x, z) is the cenote's beach, sloping into the water (where a trail's foot ends). */
+export const onBeach = (x: number, z: number) => lakeFactor(x, z) < 1.2;
+/** The steepest the explorer's trails' tread ever gets (degrees). */
+export const TRAIL_STEEPEST = 22;
+/** How much of a trail's tread a floor vertex is (1 on it, easing to 0 half a metre past its edge:
+ *  the shoulders and the bluffs beyond are never touched). */
+function trailCorridor(x: number, z: number): number {
+  let w = 0;
+  for (const p of L.paths) w = Math.max(w, 1 - smoothstep(p.half - 0.1, p.half + 0.4, pathNear(x, z, p.points).d));
+  // (the shore's own slope into the water is the lake's, never the trail's)
+  return onBeach(x, z) ? 0 : w;
+}
 export const TERRAIN_HEIGHTS: Float64Array = (() => {
   const out = new Float64Array(TERRAIN_N * TERRAIN_N);
   for (let k = 0; k < TERRAIN_N; k++) {
-    for (let i = 0; i < TERRAIN_N; i++) out[k * TERRAIN_N + i] = Math.round(cavernsHeight(TERRAIN_X0 + i * TERRAIN_CELL, TERRAIN_X0 + k * TERRAIN_CELL) * 1e4) / 1e4;
+    for (let i = 0; i < TERRAIN_N; i++) out[k * TERRAIN_N + i] = cavernsHeight(TERRAIN_X0 + i * TERRAIN_CELL, TERRAIN_X0 + k * TERRAIN_CELL);
   }
+  // the trails smoothed: where a step on the tread is steeper than TRAIL_STEEPEST (a switchback's
+  // crease, a kink at the shoulder) it is relaxed toward its neighbours; nothing else is touched
+  const corridor = new Float64Array(TERRAIN_N * TERRAIN_N);
+  for (let k = 0; k < TERRAIN_N; k++) for (let i = 0; i < TERRAIN_N; i++) corridor[k * TERRAIN_N + i] = trailCorridor(TERRAIN_X0 + i * TERRAIN_CELL, TERRAIN_X0 + k * TERRAIN_CELL);
+  const limit = Math.tan(((TRAIL_STEEPEST - 1.5) * Math.PI) / 180) * TERRAIN_CELL;
+  for (let pass = 0; pass < 30; pass++) {
+    let worst = 0;
+    const next = out.slice();
+    for (let k = 1; k + 1 < TERRAIN_N; k++) {
+      for (let i = 1; i + 1 < TERRAIN_N; i++) {
+        const q = k * TERRAIN_N + i;
+        const c = corridor[q];
+        if (c <= 0) continue;
+        const n4 = [out[q - 1], out[q + 1], out[q - TERRAIN_N], out[q + TERRAIN_N]];
+        // (the steepest of the four quarters round the vertex: its fall along x and along z at once)
+        const h = out[q];
+        const steep = Math.max(Math.hypot(n4[0] - h, n4[2] - h), Math.hypot(n4[0] - h, n4[3] - h), Math.hypot(n4[1] - h, n4[2] - h), Math.hypot(n4[1] - h, n4[3] - h));
+        worst = Math.max(worst, c >= 1 ? steep : 0);
+        const avg = (n4[0] + n4[1] + n4[2] + n4[3]) / 4;
+        if (steep > limit) next[q] = out[q] + (avg - out[q]) * 0.5 * c;
+      }
+    }
+    out.set(next);
+    if (worst <= limit) break;
+  }
+  for (let q = 0; q < out.length; q++) out[q] = Math.round(out[q] * 1e4) / 1e4;
   return out;
 })();
 
@@ -345,10 +385,28 @@ export function cavernsFloorY(x: number, z: number): number {
   return u >= v ? h00 + u * (h10 - h00) + v * (h11 - h10) : h00 + v * (h01 - h00) + u * (h11 - h01);
 }
 
-/** Every natural rock you walk round (the boulders, the fins, the stalagmites, the crystals and the
- *  mushrooms), as discs. */
+/** How much of a big rock's size you walk round: a little over half (you slide past its flanks,
+ *  never snag on them). */
+const SLIM = 0.56;
+/** A slim wall down a line of points (a partition): discs every 0.4 m, `r` wide. */
+function wallDiscs(points: number[][], r: (k: number) => number): { x: number; z: number; r: number }[] {
+  const out: { x: number; z: number; r: number }[] = [];
+  for (let k = 0; k + 1 < points.length; k++) {
+    const [ax, az] = points[k];
+    const [bx, bz] = points[k + 1];
+    const len = Math.hypot(bx - ax, bz - az);
+    // (a buttress's two arms are one list: a long jump between them is no wall)
+    if (len > 3.2) continue;
+    const n = Math.max(1, Math.ceil(len / 0.4));
+    for (let j = 0; j <= n; j++) out.push({ x: ax + ((bx - ax) * j) / n, z: az + ((bz - az) * j) / n, r: r(k) + ((r(k + 1) - r(k)) * j) / n });
+  }
+  return out;
+}
+/** Every natural rock you walk round (the boulders, the fins, the stalagmites, the mounds, the
+ *  outcrops, the partitions and the vignettes' rocks), as discs. The small things (ground crystals,
+ *  mushrooms, ferns, reeds, rock pools, lanterns, racks) are walked through. */
 const ROCK_DISCS: { x: number; z: number; r: number }[] = [
-  ...L.boulders.map(([x, z, r]) => ({ x, z, r: r * 0.92 })),
+  ...L.boulders.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
   ...L.fins.flatMap(([x, z, rx, rz, , yaw]) => {
     // (a fin is a long rock turned `yaw`: a row of discs down its length)
     const len = Math.max(rx, rz);
@@ -357,25 +415,33 @@ const ROCK_DISCS: { x: number; z: number; r: number }[] = [
     const n = Math.max(2, Math.ceil(len / 0.4));
     return Array.from({ length: n + 1 }, (_, k) => {
       const t = -len + (2 * len * k) / n;
-      return { x: x + along.x * t, z: z + along.z * t, r: w * 1.05 };
+      return { x: x + along.x * t, z: z + along.z * t, r: w * 0.62 };
     });
   }),
-  ...L.stalagmites.map(([x, z, r]) => ({ x, z, r: r * 1.1 })),
+  ...L.stalagmites.map(([x, z, r]) => ({ x, z, r: r * 0.62 })),
   // the doline's moss-draped karst mounds, and the talus's mammoth outcrops
-  ...L.mounds.map(([x, z, r]) => ({ x, z, r: r * 0.95 })),
-  ...L.outcrops.map(([x, z, r]) => ({ x, z, r: r * 0.95 })),
-  // the west buttress round the thermal grotto, the east slate spine along the chasm
-  ...L.ridges.flatMap((rg) => rg.points.map(([x, z, r]) => ({ x, z, r: r * 0.9 }))),
-  // the beach's sunken dinghy (three discs down its length), its logs and rock pools; the survey
-  // post's overturned cart and its outcrop
-  ...[-0.8, 0, 0.8].map((t) => ({ x: L.beach.dinghy[0] + Math.sin(L.beach.dinghy[2]) * t, z: L.beach.dinghy[1] + Math.cos(L.beach.dinghy[2]) * t, r: 0.55 })),
-  ...L.beach.logs.flatMap(([x, z, yaw, len]) => [-0.35, 0, 0.35].map((t) => ({ x: x + Math.cos(yaw) * t * len, z: z - Math.sin(yaw) * t * len, r: 0.25 }))),
-  ...L.beach.pools.map(([x, z, r]) => ({ x, z, r: r + 0.1 })),
-  { x: L.survey.cart[0], z: L.survey.cart[1], r: 0.75 },
-  { x: L.survey.outcrop[0], z: L.survey.outcrop[1], r: L.survey.outcrop[2] * 0.95 },
-  ...L.crystals.map(([x, z, s]) => ({ x, z, r: 0.34 * s })),
-  ...L.shrooms.map(([x, z, s]) => ({ x, z, r: 0.3 * s })),
+  ...L.mounds.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
+  ...L.outcrops.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
+  // the west buttress round the thermal grotto, the east spine's basalt crest along the chasm: slim
+  // walls down their lines, solid all the way
+  ...L.ridges.flatMap((rg) => wallDiscs(rg.points, (k) => rg.points[k][2] * SLIM)),
+  // the beach's wreck: the sunken dinghy (three discs down its length), its tangled driftwood and the
+  // rocks it lies against; the survey alcove's overturned cart, its outcrop and fallen rock
+  ...[-0.7, 0, 0.7].map((t) => ({ x: L.beach.dinghy[0] + Math.sin(L.beach.dinghy[2]) * t, z: L.beach.dinghy[1] + Math.cos(L.beach.dinghy[2]) * t, r: 0.36 })),
+  ...L.beach.logs.flatMap(([x, z, yaw, len]) => [-0.3, 0, 0.3].map((t) => ({ x: x + Math.cos(yaw) * t * len, z: z - Math.sin(yaw) * t * len, r: 0.16 }))),
+  ...L.beach.rocks.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
+  { x: L.survey.cart[0], z: L.survey.cart[1], r: 0.45 },
+  { x: L.survey.outcrop[0], z: L.survey.outcrop[1], r: L.survey.outcrop[2] * SLIM },
+  ...L.survey.rocks.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
 ];
+
+/** How steep the floor is at (x, z), in degrees (its fall over half a metre across, both ways at once). */
+export function trailSlope(x: number, z: number): number {
+  const e = 0.25;
+  const gx = (cavernsFloorY(x + e, z) - cavernsFloorY(x - e, z)) / (2 * e);
+  const gz = (cavernsFloorY(x, z + e) - cavernsFloorY(x, z - e)) / (2 * e);
+  return (Math.atan(Math.hypot(gx, gz)) * 180) / Math.PI;
+}
 
 /** The steepest ground anyone walks on (degrees): nowhere a step, nowhere a scramble. */
 export const STEEPEST_WALK = 24;
@@ -402,7 +468,9 @@ export function cavernsWalkable(x: number, z: number): boolean {
   for (const r of ROCK_DISCS) if ((x - r.x) ** 2 + (z - r.z) ** 2 < r.r * r.r) return false;
   let onTrail = false;
   for (const p of L.paths) if (pathNear(x, z, p.points).d <= p.half) onTrail = true;
-  if (onTrail) return true;
+  // (the explorer's trail: its tread no steeper than TRAIL_STEEPEST anywhere, its edge where it
+  // would be; at its foot the beach takes over, sloping into the lake)
+  if (onTrail) return onBeach(x, z) || trailSlope(x, z) <= TRAIL_STEEPEST;
   if (upperDistance(x, z) < -0.6) return true;
   const wu = upperWeight(x, z);
   // the overlook's terrace (below the doline's rim), and the low ground (below every slope)
@@ -696,24 +764,26 @@ const FN = L.finnegan;
  *  islet's karst tower, Finnegan and his log. */
 export const CAVERNS_OBSTACLES: AABB[] = [
   box(L.workstation.x - L.workstation.len / 2, L.workstation.x + L.workstation.len / 2, L.gus.z - 0.4, L.workstation.z + L.workstation.w / 2),
-  box(L.forge.x - L.forge.w / 2 - 0.1, L.forge.x + L.forge.w / 2 + 0.1, L.walls.north, L.forge.z + L.forge.d / 2 + 0.1),
-  around(L.anvil, 0.55),
-  // Gus's expedition camp: the tarp's four timber posts, the crate stack, the survey transit
-  ...L.camp.posts.map(([x, z]) => around({ x, z }, 0.14)),
-  box(L.camp.crates[0] - 0.5, L.camp.crates[0] + 0.5, L.camp.crates[1] - 0.38, L.camp.crates[1] + 0.38),
-  around({ x: L.camp.transit[0], z: L.camp.transit[1] }, 0.34),
-  box(L.crate.x - L.crate.w / 2, L.crate.x + L.crate.w / 2, L.crate.z - L.crate.d / 2, L.crate.z + L.crate.d / 2),
-  around({ x: L.adit.x - L.adit.w / 2 - 0.14, z: L.adit.z + 0.25 }, 0.24),
-  around({ x: L.adit.x + L.adit.w / 2 + 0.14, z: L.adit.z + 0.25 }, 0.24),
-  ...ORE_NODES.filter((n) => n.kind !== "monolith").map((n) => around(n, ORE_KINDS[n.kind].radius * 0.95)),
+  // (the forge: its hearth and chamber, a little over half its width; the mould and the trough at
+  // its flanks walked past)
+  box(L.forge.x - L.forge.w * 0.31, L.forge.x + L.forge.w * 0.31, L.walls.north, L.forge.z + L.forge.d * 0.3),
+  around(L.anvil, 0.32),
+  // Gus's expedition camp: the tarp's four timber posts, the crate stack (the survey transit, a
+  // standing tripod, is walked past)
+  ...L.camp.posts.map(([x, z]) => around({ x, z }, 0.08)),
+  box(L.camp.crates[0] - 0.3, L.camp.crates[0] + 0.3, L.camp.crates[1] - 0.22, L.camp.crates[1] + 0.22),
+  box(L.crate.x - L.crate.w * 0.3, L.crate.x + L.crate.w * 0.3, L.crate.z - L.crate.d * 0.3, L.crate.z + L.crate.d * 0.3),
+  around({ x: L.adit.x - L.adit.w / 2 - 0.14, z: L.adit.z + 0.25 }, 0.14),
+  around({ x: L.adit.x + L.adit.w / 2 + 0.14, z: L.adit.z + 0.25 }, 0.14),
+  ...ORE_NODES.filter((n) => n.kind !== "monolith").map((n) => around(n, ORE_KINDS[n.kind].radius * 0.6)),
   // (the Monolith rounder: a cross of two boxes, so the walk round it on the islet stays open)
   box(MONO.x - MONO_R, MONO.x + MONO_R, MONO.z - MONO_R * 0.62, MONO.z + MONO_R * 0.62),
   box(MONO.x - MONO_R * 0.62, MONO.x + MONO_R * 0.62, MONO.z - MONO_R, MONO.z + MONO_R),
   ...ORE_NODES.flatMap((n) => {
     const b = nodeBackRock(n);
-    return b ? [around(b, b.r * 0.85)] : [];
+    return b ? [around(b, b.r * 0.5)] : [];
   }),
-  around(L.tower, L.tower.r),
+  around(L.tower, L.tower.r * 0.62),
   // Finnegan on his log (the log lies across him, east-west)
   box(FN.x - FN.log / 2, FN.x + FN.log / 2, FN.z - 0.35, FN.z + 0.35),
 ];

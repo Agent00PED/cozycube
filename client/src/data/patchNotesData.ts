@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.10",
+    range: "v0.7.0–v0.7.11",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1034,6 +1034,33 @@ export const PATCH_ERAS: PatchEra[] = [
             "The northwest shelf's slate blends into the limestone instead of ending in a hard dark edge.",
             "On the beach, a sunken dinghy lies half-buried at the waterline, with driftwood logs, tidal rock pools and cave ferns around it.",
             "At the east shore's mining overlook, an overturned rusted mine cart has spilled its ore beside a stretch of broken rail. A brass survey lantern is staked on a rock above the lake.",
+          ],
+        },
+      },
+      {
+        version: "0.7.11",
+        date: "2026-09-30",
+        title: "Basalt and Lantern Light",
+        summary: "The Glimmering Caverns get real light and shadow, basalt pillars in the chasm, a trail you can follow, and far less to snag on.",
+        changes: {
+          features: [
+            "Walk the caverns without snagging. Boulders, mounds, outcrops, the forge and Gus's camp take up about half the room they used to. Crystals, mushrooms, ferns, reeds, rock pools, lanterns and tool racks can be walked through.",
+            "The explorer's trails from the doline down to the overlook and the beach are packed dirt edged with small stones, and nowhere on them is steeper than 22 degrees.",
+            "♨️ Soak in Springs: bathers now sit chest-deep in the terraces' pools, with warm steam rising round them. A seventh seat waits in the middle of the middle pool.",
+          ],
+          visuals: [
+            "The caverns are lit in real time. The doline's sun casts true shadows through the collapsed vault, the rest of the cave sinks into a deep slate-blue dark, and the sand under the sunbeams no longer washes out to white.",
+            "Crystals glow from within, lighting only the rock right round them, and the chasm's fungi do the same.",
+            "A low, dark mist lies over the lower floor and the water's edge.",
+            "Dark stalactites hang along the top of the view, drifting as the camera moves.",
+            "The Abyssal Chasm is walled by crisp hexagonal basalt pillars with stepped, fractured tops, and the East Spine is a crest of them. Crystals burst out of the cracks between them.",
+            "The black lines that ran between ore nodes are gone: each node sits in its own fissure.",
+            "Green ferns grow only in the sunlit doline. The twilight has pale cave ferns and reeds, and the chasm only glowing fungi.",
+            "The beach's wreck is gathered round its boulder: the sunken dinghy, tangled driftwood, fallen blocks, rock pools and pale ferns. The mine cart lies in a collapsed survey alcove, with rails buckled up off their sleepers, fallen timbers and the brass lantern on the rock behind.",
+            "The sand the water touches is damp, dark and glossy. The forge's chamber is arched in basalt with runic vents, and the anvil, rack and crate share a flagstone floor with it.",
+          ],
+          fixes: [
+            "The black wedge past the cavern's south edge is gone: the ground's cut face now shows there.",
           ],
         },
       },
