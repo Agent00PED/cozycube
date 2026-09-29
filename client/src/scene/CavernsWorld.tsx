@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState } from "@shared/types";
-import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE, DOLINE_BEAMS, FINNEGAN, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, type OreNode } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, type OreNode } from "@shared/worlds/caverns";
 import { ORE_ITEMS, ORE_KINDS, ORE_KIND_IDS, oreCenterY, parseOres, type CaveLoot, type CaveShatter, type CaveStrike, type OreKind, type OreItemId } from "@shared/caverns_mining";
 import { DRIP_S, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -23,9 +23,10 @@ import { playCaveSfx } from "../audio/cavernAmbience";
 // (scripts/blender/build_caverns.py, laid out from shared/worlds/caverns.ts): this file loads it and
 // brings it to life.
 //
-//   the floor     one invisible heightfield over the whole cavern, from the same cavernsFloorY the
-//                 room walks you on (the doline's plateau, its ramp, the beach, the islet): a click
-//                 lands where you see it
+//   the floor     the model's own walk surface, `caverns_walk_collider` (never drawn): the very grid
+//                 cavernsFloorY walks you on (the doline, the switchbacks, the overlook, the trails,
+//                 the beach, the islet), triangle for triangle, so a click lands at the exact height
+//                 you see; while the model loads (or if it fails) the same grid built here in its place
 //   the finishes  the rock and the shell as painted (the light baked into their vertex colours), the
 //                 lake's bed lit by moving caustics (brightest under the islet's skylight); what glows
 //                 (crystals, mushrooms, lanterns, the forge's mouth) a MeshStandardMaterial whose
@@ -41,7 +42,8 @@ import { playCaveSfx } from "../audio/cavernAmbience";
 //                 cracked stump with dust motes over it until it grows back; each strike throws sparks
 //                 where it landed; the loot flies to you
 //   the folk      Gus the mole at his log workstation (gus.glb), Finnegan the Grotto Angler on his
-//                 driftwood crate by the outcrop (finnegan.glb)
+//                 driftwood log on the cenote's north shore, his reed creel and lantern by him
+//                 (finnegan.glb)
 //   the terraces  steam curling off their pools
 //   the drip      a lucky drip's cyan ripple on the cenote (the fishing's luck)
 
@@ -51,7 +53,6 @@ export const FINNEGAN_URL = modelUrl("finnegan.glb");
 
 const TIME = { value: 0 };
 const CAVE_DARK = new THREE.Color("#07060c");
-const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 
 /** A glowing finish: its emission is its own vertex colour (times `strength`), breathing a little. */
 function glowFromVertexColour(m: THREE.MeshStandardMaterial, strength: number) {
@@ -138,15 +139,15 @@ function stillWater(m: THREE.MeshStandardMaterial, opacity: number) {
   m.needsUpdate = true;
 }
 
-/** The whole cavern's floor as one invisible heightfield (a cell every 0.6 m), from the room's own
- *  floor: a click on the plateau, the ramp, the beach or the islet lands where it shows. */
+/** The cavern's floor as one invisible heightfield (a cell every 0.5 m, the terrain's grid), from the
+ *  room's own floor: the click surface while the model's collider is not there. */
 function floorGeometry(): THREE.BufferGeometry {
   const half = L.half;
-  const n = Math.round((half * 2) / 0.6);
+  const n = Math.round((half * 2) / 0.5);
   const geo = new THREE.PlaneGeometry(half * 2, half * 2, n, n);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position as THREE.BufferAttribute;
-  for (let i = 0; i < pos.count; i++) pos.setY(i, cavernsFloorY(pos.getX(i), pos.getZ(i)) + 0.02);
+  for (let i = 0; i < pos.count; i++) pos.setY(i, cavernsFloorY(pos.getX(i), pos.getZ(i)));
   pos.needsUpdate = true;
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
@@ -199,15 +200,11 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       scene.background = before;
     };
   }, [scene]);
-  const floor = useMemo(floorGeometry, []);
-  useEffect(() => () => floor.dispose(), [floor]);
   return (
     <group>
-      {/* the floor's click surface: the doline, its ramp, the shore, the islet */}
-      <mesh geometry={floor} material={CLICK_MAT} onPointerDown={floorClick} />
-      <ModelBoundary what="caverns.glb" fallback={<StandIn />}>
-        <Suspense fallback={<StandIn />}>
-          <CavernModel ores={ores} subscribeMessages={subscribeMessages} players={players} localSessionId={localSessionId} onStrike={onStrike} />
+      <ModelBoundary what="caverns.glb" fallback={<StandIn onClick={floorClick} />}>
+        <Suspense fallback={<StandIn onClick={floorClick} />}>
+          <CavernModel ores={ores} subscribeMessages={subscribeMessages} players={players} localSessionId={localSessionId} onStrike={onStrike} onClick={floorClick} />
         </Suspense>
       </ModelBoundary>
       <CampNpc url={GUS_URL} what="gus.glb" prefix="Gus" at={{ x: GUS.x, z: GUS.z, yaw: GUS.yaw }} y={cavernsFloorY(GUS.x, GUS.z)} waveEvent="gusWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={GUS_TALK} />
@@ -223,12 +220,14 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
 
 const STAND_IN_TOP = matte("#3d4556", 0.9);
 const STAND_IN_SIDE = matte("#241f26", 0.9);
-function StandIn() {
-  const d = DOLINE;
+/** The model not there (loading, or broken): the floor's own heightfield, plainly drawn and clicked. */
+function StandIn({ onClick }: { onClick: (e: ThreeEvent<PointerEvent>) => void }) {
+  const floor = useMemo(floorGeometry, []);
+  useEffect(() => () => floor.dispose(), [floor]);
   return (
     <group>
       <mesh geometry={GEO.box} material={STAND_IN_SIDE} position={[0, -0.6, 0]} scale={[L.half * 2, 1.2, L.half * 2]} raycast={noRaycast} />
-      <mesh geometry={GEO.box} material={STAND_IN_TOP} position={[(d.x0 + d.x1) / 2, d.y / 2, (d.z0 + d.z1) / 2]} scale={[d.x1 - d.x0, d.y, d.z1 - d.z0]} raycast={noRaycast} />
+      <mesh geometry={floor} material={STAND_IN_TOP} onPointerDown={onClick} />
     </group>
   );
 }
@@ -237,8 +236,21 @@ function NpcStandIn() {
   return <mesh geometry={GEO.box} material={NPC_STAND_IN} position={[0, 0.55, 0]} scale={[0.6, 1.1, 0.5]} raycast={noRaycast} />;
 }
 
-function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrike }: { ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; players: Record<string, PlayerState>; localSessionId: string | null; onStrike: CavernsWorldProps["onStrike"] }) {
+function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrike, onClick }: { ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; players: Record<string, PlayerState>; localSessionId: string | null; onStrike: CavernsWorldProps["onStrike"]; onClick: (e: ThreeEvent<PointerEvent>) => void }) {
   const { scene } = useGLTF(CAVERNS_URL);
+  // the walk surface: taken out of the model (never drawn) and raycast on its own
+  const walk = useMemo(() => {
+    const mesh = scene.getObjectByName("caverns_walk_collider") as THREE.Mesh | undefined;
+    if (!mesh) return null;
+    mesh.removeFromParent();
+    mesh.updateMatrixWorld(true);
+    const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
+    return geo;
+  }, [scene]);
+  const fallbackFloor = useMemo(() => (walk ? null : floorGeometry()), [walk]);
+  useEffect(() => () => fallbackFloor?.dispose(), [fallbackFloor]);
   // the model's finishes, and the node rocks' templates taken out of it (instanced below)
   const templates = useMemo(() => {
     const t: Partial<Record<OreKind | "rubble", { rock: THREE.Mesh; glow: THREE.Mesh | null }>> = {};
@@ -266,6 +278,8 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
   return (
     <>
       <primitive object={scene} />
+      {/* the floor's click surface: the collider's triangles (the terrain's grid exactly) */}
+      <mesh geometry={walk ?? fallbackFloor!} visible={false} onPointerDown={onClick} />
       <OreNodes templates={templates} ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} players={players} />
       <ProspectingView templates={templates} onStrike={onStrike} />
     </>

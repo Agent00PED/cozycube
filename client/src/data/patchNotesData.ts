@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.7",
+    range: "v0.7.0–v0.7.8",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -958,6 +958,32 @@ export const PATCH_ERAS: PatchEra[] = [
           fixes: [
             "A full livewell during AFK fishing now reels in, leaves AFK, chimes, and shows a 🪣 Full! sign over your head.",
             "Your saved satchel's stone dust moves into the new materials store, and a letter explains the storage changes.",
+          ],
+        },
+      },
+      {
+        version: "0.7.8",
+        date: "2026-09-29",
+        title: "The Organic Karst",
+        summary: "The Glimmering Caverns are reshaped by hand into one organic karst: no stairs or flat slabs, a meandering switchback down from the doline to the Limestone Overlook, trails to the terraces and the sandy shore, and fishing from anywhere along the cenote. Every trip gets a loading screen dressed as its world, the caverns get a close camera that follows you down, the header's gauges fold into one 🎒 pill, and the penthouse's card tables turn to face the fountain.",
+        changes: {
+          features: [
+            "The caverns' floor is one continuous karst from the doline at the top to the lake at the bottom. A switchback trail winds down from the doline to the Limestone Overlook, and from there one trail runs to the Travertine Terraces and another to the sandy shore. There are no stairs anywhere, and nothing you walk on is steeper than 28 degrees.",
+            "Shore fishing: the driftwood pier is gone. Walk up to the cenote anywhere along its shore, face the water, and 🎣 Cast Line (within 1.5 m of the water, and only when you're facing it). Your float lands out where the water is deep enough, and Auto AFK works there too.",
+            "The lucky drip now falls beside a float that is out on the water, so whoever is fishing gets the chance to Cast into the Drip.",
+            "The caverns have a close camera: it glides in over 1.2 seconds as you arrive, stays 6 metres behind you, and follows you up and down the karst. The wheel or a pinch moves it only between 5.5 and 7.5 m.",
+            "The header's wood, fish and ore gauges now fold into one 🎒 pill showing the total you carry. Tap it to see 🪵, 🪣 and ⛏️ with their room, and tap one to open its drawer. Tap the pill again, or anywhere else, to fold it away.",
+          ],
+          visuals: [
+            "Every trip has a loading screen dressed as the world you're going to: a starlit night with rising embers for the campfire, a midnight skyline for the lounge, black lacquer and gold rays for the casino, sepia canvas under a spotlight for the Velvet Ring, misty pines and falling maple leaves for the woods, and wet slate with cyan and violet crystal motes for the caverns. The velvet curtain now belongs only to the Velvet Penthouse.",
+            "The Velvet Penthouse: the blackjack table (emerald) and the baccarat table (crimson) stand in the front half of the room. Gideon and Scarlett deal from the balcony side facing the fountain, and the stools face them from the fountain side. The champagne tower keeps a clear 2-metre walk all the way round.",
+            "The twin Golden Vaults move to the back wall beside the elevator, and the loveseat sits under the windows next to them.",
+            "Finnegan now sits on a driftwood log on the cenote's north shore, with a reed creel and a lantern beside him.",
+            "The Titan Monolith faces the sandbar, so you mine it from the side you walk in on.",
+            "Old Flint now leans on the cliff to the right of the old mine's portal, his lantern lighting the way down.",
+          ],
+          fixes: [
+            "No more invisible ledges: the trails' shoulders, the sandbar's flanks and the banks between switchbacks are no longer walkable, so you never step off a steep edge.",
           ],
         },
       },

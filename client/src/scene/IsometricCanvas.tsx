@@ -8,6 +8,7 @@ import { setScreenAxes, stickInput } from "../systems/input";
 import { combatInput } from "../systems/combatInput";
 import { actionCam, actionEase, actionPose, stepActionBlend } from "./actionCamera";
 import { prospectCam, prospectEase, prospectPose, stepProspectBlend } from "./prospectCamera";
+import { cavernCam, cavernEase, cavernPose, cavernZoomBy, stepCavernBlend } from "./cavernsCamera";
 
 // The isometric camera. Orthographic, looking along (1, 1, 1), with its zoom fitted to the world's
 // floor (the lounge's 15x15 loft, walls and slab fill the viewport), then nudged a little closer.
@@ -24,7 +25,9 @@ import { prospectCam, prospectEase, prospectPose, stepProspectBlend } from "./pr
 // A fighter in a live bout at the Velvet Ring gets the ring's action camera instead (actionCamera.ts:
 // low and side on, tracking the two fighters), blended in and out over 0.8 s; while it is on, the
 // wheel, a pinch and a drag leave the camera alone. Prospecting a node in the Glimmering Caverns
-// frames its rock close up the same way (prospectCamera.ts); and down there the look-at point is kept
+// frames its rock close up the same way (prospectCamera.ts); and down there the camera is locked in
+// close behind you (cavernsCamera.ts: 5.5 to 7.5 m, the wheel and a pinch only within that, blended in
+// over 1.2 s as you arrive, its look 0.8 m over your feet, tracked; no panning), the look-at point kept
 // inside the cavern's shell (frame.bounds). Either way the screen's right and up along the ground go
 // to the movement input each frame (WASD walks the way it points on screen).
 
@@ -147,6 +150,7 @@ function CameraRig() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (actionCam.want || prospectCam.node) return; // (the ring's action camera, a node's close-up: framed by themselves)
+      if (cavernCam.on) return cavernZoomBy(Math.exp(e.deltaY * 0.0012)); // (the caverns: only within its range)
       userZoom.current = clampZoom(userZoom.current * Math.exp(-e.deltaY * 0.0015));
     };
 
@@ -154,7 +158,7 @@ function CameraRig() {
     let dragging: { x: number; y: number } | null = null;
     const onPointerDown = (e: PointerEvent) => {
       // (in the ring the right button throws the M2, and the action camera frames the fight: no panning)
-      if ((e.button === 2 && combatInput.active) || actionCam.want || prospectCam.node) return;
+      if ((e.button === 2 && combatInput.active) || actionCam.want || prospectCam.node || cavernCam.on) return;
       if (e.button === 1 || e.button === 2) {
         e.preventDefault(); // no middle-click autoscroll
         dragging = { x: e.clientX, y: e.clientY };
@@ -188,11 +192,17 @@ function CameraRig() {
     const mid = (t: TouchList) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
     const onTouchStart = (e: TouchEvent) => {
       // (a thumb on the joystick and a finger elsewhere is not a pinch)
-      if (e.touches.length === 2 && !stickInput.held && !actionCam.want && !prospectCam.node) pinch = { dist: dist(e.touches), zoom: userZoom.current, mid: mid(e.touches) };
+      if (e.touches.length === 2 && !stickInput.held && !actionCam.want && !prospectCam.node) pinch = { dist: dist(e.touches), zoom: cavernCam.on ? cavernCam.want : userZoom.current, mid: mid(e.touches) };
     };
     const onTouchMove = (e: TouchEvent) => {
       if (e.touches.length !== 2 || !pinch || actionCam.want || prospectCam.node) return;
       e.preventDefault();
+      if (cavernCam.on) {
+        // (the caverns: fingers apart bring the camera closer, within its range; no panning)
+        cavernCam.want = pinch.zoom;
+        cavernZoomBy(pinch.dist / Math.max(1, dist(e.touches)));
+        return;
+      }
       userZoom.current = clampZoom(pinch.zoom * (dist(e.touches) / pinch.dist));
       const m = mid(e.touches);
       if (Math.hypot(m.x - pinch.mid.x, m.y - pinch.mid.y) > 0.5) pan(m.x - pinch.mid.x, m.y - pinch.mid.y);
@@ -228,6 +238,9 @@ function CameraRig() {
   const seenCut = useRef(cameraFocus.cut);
   const cutFrames = useRef(0);
   const act = useRef({ pos: new THREE.Vector3(), look: new THREE.Vector3(), zoom: 30, isoPos: new THREE.Vector3(), isoLook: new THREE.Vector3() });
+  const cav = useRef({ pos: new THREE.Vector3(), look: new THREE.Vector3(), zoom: 30, isoPos: new THREE.Vector3(), isoLook: new THREE.Vector3() });
+  /** What the camera looks at after the caverns' blend (the ring's and a node's close-ups start there). */
+  const looking = useRef(new THREE.Vector3());
   useFrame((_, rawDelta) => {
     // a trip to another world: cut straight to the spawn, zoom and all (for a few frames, so the
     // player's own frame loop has written where they landed)
@@ -287,6 +300,7 @@ function CameraRig() {
         center.current.z = THREE.MathUtils.lerp(center.current.z, gz, t);
       }
     }
+    const cut = !snapped.current;
     snapped.current = true;
     // (the caverns: the look-at point kept inside the shell, whatever the mode)
     const b = frame.bounds;
@@ -299,6 +313,21 @@ function CameraRig() {
     const c = center.current;
     cam.position.set(ISO_DIR.x + c.x, ISO_DIR.y + c.y, ISO_DIR.z + c.z);
     cam.lookAt(c.x, c.y, c.z);
+    looking.current.copy(c);
+
+    // the Glimmering Caverns' close camera, blended in over the usual one as you arrive
+    if (stepCavernBlend(delta)) {
+      const a = cav.current;
+      cavernPose(delta, size, cut, a);
+      const e = cavernEase();
+      a.isoPos.copy(cam.position);
+      a.isoLook.copy(c);
+      cam.position.lerpVectors(a.isoPos, a.pos, e);
+      looking.current.copy(a.isoLook.lerp(a.look, e));
+      cam.lookAt(looking.current);
+      cam.zoom = Math.exp(THREE.MathUtils.lerp(Math.log(zoomRef.current), Math.log(a.zoom), e));
+      cam.updateProjectionMatrix();
+    }
 
     // the Velvet Ring's action camera, blended over the usual one
     if (stepActionBlend(delta)) {
@@ -306,11 +335,11 @@ function CameraRig() {
       actionPose(delta, size, a);
       const e = actionEase();
       a.isoPos.copy(cam.position);
-      a.isoLook.copy(c);
+      a.isoLook.copy(looking.current);
       cam.position.lerpVectors(a.isoPos, a.pos, e);
       cam.lookAt(a.isoLook.lerp(a.look, e));
       // (zoom eased in its logarithm: the jump from the room to the ring stays even)
-      cam.zoom = Math.exp(THREE.MathUtils.lerp(Math.log(zoomRef.current), Math.log(a.zoom), e));
+      cam.zoom = Math.exp(THREE.MathUtils.lerp(Math.log(cam.zoom), Math.log(a.zoom), e));
       cam.updateProjectionMatrix();
     }
     // the caverns' close-up on a node being prospected, blended over the usual one the same way
@@ -319,7 +348,7 @@ function CameraRig() {
       prospectPose(size, a);
       const e = prospectEase();
       a.isoPos.copy(cam.position);
-      a.isoLook.copy(c);
+      a.isoLook.copy(looking.current);
       cam.position.lerpVectors(a.isoPos, a.pos, e);
       cam.lookAt(a.isoLook.lerp(a.look, e));
       cam.zoom = Math.exp(THREE.MathUtils.lerp(Math.log(cam.zoom), Math.log(a.zoom), e));

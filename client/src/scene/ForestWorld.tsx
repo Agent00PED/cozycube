@@ -355,19 +355,23 @@ function Animals({ scene, subscribeMessages }: { scene: THREE.Object3D; subscrib
   ) : null;
 }
 
-/** The woods' own lights: the cabin's windows and the elderwood's teal glow, brighter after dark,
- *  and a cool moon by night. */
+/** The woods' own lights: the cabin's windows, Old Flint's lantern by the adit (a flicker) and the
+ *  elderwood's teal glow, brighter after dark, and a cool moon by night. */
 function ForestLights() {
   const d = useContext(CampDaylightContext) ?? 0;
   const night = 1 - d;
   const elder = FOREST_TREES.find((t) => t.kind === "elderwood");
   const glow = useRef<THREE.PointLight>(null);
+  const lantern = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
-    if (glow.current) glow.current.intensity = (0.6 + 1.6 * night) * (0.9 + 0.1 * Math.sin(clock.elapsedTime * 1.3));
+    const t = clock.elapsedTime;
+    if (glow.current) glow.current.intensity = (0.6 + 1.6 * night) * (0.9 + 0.1 * Math.sin(t * 1.3));
+    if (lantern.current) lantern.current.intensity = (0.5 + 1.5 * night) * (0.88 + 0.08 * Math.sin(t * 7.3) + 0.04 * Math.sin(t * 17.9));
   });
   return (
     <>
       <pointLight color="#ffb865" intensity={0.3 + 1.7 * night} distance={6} decay={1.6} position={[L.cabin.x, 1.4, L.cabin.z + L.cabin.d / 2 + 0.9]} castShadow={false} />
+      <pointLight ref={lantern} color="#ffb347" distance={4.2} decay={1.8} position={[OLD_FLINT.x + Math.sin(OLD_FLINT.yaw) * 0.35, 1.45, OLD_FLINT.z + Math.cos(OLD_FLINT.yaw) * 0.35]} castShadow={false} />
       {elder && <pointLight ref={glow} color="#8ff0d8" distance={7} decay={1.5} position={[elder.x, 2.6, elder.z]} castShadow={false} />}
       {night > 0.02 && <directionalLight color="#9fb4e8" intensity={0.35 * night} position={[-10, 20, -14]} castShadow={false} />}
       {night > 0.02 && <hemisphereLight args={["#6f86c8", "#1c2a1f", 0.3 * night]} />}

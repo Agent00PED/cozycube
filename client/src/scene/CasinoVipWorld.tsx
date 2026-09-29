@@ -149,8 +149,8 @@ function VipLights() {
   const poker = W(V.poker.x, V.poker.z);
   const bacc = W(V.baccarat.x, V.baccarat.z);
   const bj = W(V.blackjack.x, V.blackjack.z);
-  // (between the twin Golden Vaults)
-  const vault = W(V.vault.x, (V.vault.zs[0] + V.vault.zs[V.vault.zs.length - 1]) / 2);
+  // (between the twin Golden Vaults, in front of them)
+  const vault = W((V.vault.xs[0] + V.vault.xs[V.vault.xs.length - 1]) / 2, V.vault.z);
   return (
     <>
       <hemisphereLight args={["#ffd9b0", "#3a1848", 0.95]} />
@@ -158,7 +158,7 @@ function VipLights() {
       <pointLight color="#ffe0a0" intensity={1.4 * lamp} distance={4} decay={2} position={[poker.x, 2.0, poker.z]} castShadow={false} />
       <pointLight color="#ffe0a0" intensity={1.4 * lamp} distance={4} decay={2} position={[bacc.x, 2.0, bacc.z - 0.3]} castShadow={false} />
       <pointLight color="#ffe0a0" intensity={1.3 * lamp} distance={4} decay={2} position={[bj.x, 2.0, bj.z - 0.3]} castShadow={false} />
-      <pointLight color="#ffc24a" intensity={1.1} distance={3.5} decay={2} position={[vault.x + 0.8, 1.6, vault.z]} castShadow={false} />
+      <pointLight color="#ffc24a" intensity={1.1} distance={3.5} decay={2} position={[vault.x, 1.6, vault.z + 0.8]} castShadow={false} />
       <pointLight color="#8a6cff" intensity={0.9} distance={7} decay={2} position={[VIP_FRAME.x - V.half + 0.8, 2.2, VIP_FRAME.z - V.half + 0.8]} castShadow={false} />
     </>
   );

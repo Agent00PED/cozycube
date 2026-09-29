@@ -4,44 +4,51 @@ Run it inside Blender through the Live Bridge (POST {"code": ...}: run this file
 of its own with REPO_ROOT and REPORT_PATH set in it; the summary or the traceback goes to
 REPORT_PATH), or headless:
 
+    npm run caverns-terrain
     blender -b --factory-startup -P scripts/blender/build_caverns.py
 
-Nothing is placed by hand: where everything stands comes from CAVERNS_LAYOUT in
-shared/worlds/caverns.ts (the JSON between its layout markers, read as is), and the lake's shore, the
-islet and the sandbar from the same functions the game walls the water off with (lakeFactor,
-isletFactor, sandbarDistance: ported below). A monumental 45 x 45 natural karst cavern, stylised clay
-like the other worlds, every colour a vertex colour and the light painted in (the sun pouring down the
-doline, the forge, the warm pools, the cenote's heart, every crystal's and mushroom's glow: only three
-lights move in the game). One mesh per finish, so the whole static diorama is six draw calls:
+Nothing is placed by hand. Where everything stands comes from CAVERNS_LAYOUT in
+shared/worlds/caverns.ts (the JSON between its layout markers, read as is), and the ground itself
+from the very grid the game walks: scripts/blender/data/caverns_terrain.json (`npm run
+caverns-terrain` writes it from caverns.ts; `npm run check-layout` fails while it is stale): a vertex
+every 0.5 m with its height and what it is (loam, scree, sand, slate, travertine, the lake's bed, bare
+rock), and the 0.25 m mask of where you can stand. A monumental 45 x 45 organic karst: no stairs, no
+tabletop slabs, no rows of cones. The ground's walked parts are the grid exactly; its rock slopes,
+away from any footing, are roughened. Stylised clay like the other worlds, every colour a vertex
+colour and the light painted in (the sun down the doline, the forge's magma, the warm pools, the
+cenote's heart, every crystal's and mushroom's glow). One mesh per finish:
 
-    Cave_Rock       CV_Clay          the ground (the doline's mossy loam, the beach's white and gold
-                                     sand sloping into the lake and its bed down to the deep, the
-                                     fissures' wet slate, the flowstone), the doline's cliffs and its
-                                     flowstone ramp, the Expedition Outpost (Gus's log workstation, the
-                                     forge in its basalt fissure, the meteorite anvil, the tool crate),
-                                     the travertine terraces' rimstone pools, the islet's boulders,
-                                     Finnegan's driftwood outcrop, the boulders, fins and ferns, the
-                                     stalactites hugging the walls, the rims and the ground's section
-    Cave_Shell      CV_Shell         the cavern's north and west walls, double sided (no void past
-                                     them), broken low over the doline where the ceiling fell in
+    Cave_Rock       CV_Clay          the ground (the doline's mossy loam, the trails' scree, the
+                                     overlook's limestone, the shelf's wet slate, the chasm's dark
+                                     floor, the beach's sand sloping into the lake and its bed down to
+                                     the deep), the tumbled boulders and the nodes' host rocks, the
+                                     towering stalagmites, the chasm's fins, the Expedition Outpost
+                                     (Gus's log workstation, the forge in its basalt fissure with its
+                                     magma veins, the meteorite anvil on its low outcrop, the tool
+                                     crate), the travertine terraces' rimstone dams, the islet's
+                                     rocks, the section of the open rim
+    Cave_Shell      CV_Shell         the cavern's north and west walls rising into the vault that
+                                     arches in over the floor (broken open over the doline, where the
+                                     sun comes in), its pockets and fissures, the stalactite clusters
+                                     nested in them, double sided
     Cave_Glow       CV_Glow          what glows (the game lights it from its own vertex colours): the
-                                     crystals, the mushrooms' caps, the lanterns, the forge's mouth and
-                                     its chimney's embers, the gems on Gus's tray
-    Cave_Water      CV_Water         the cenote lake's surface (transparent in the game, no depth
-                                     write, its caustics the game's), clear aquamarine over the sand
-                                     and deep teal over the deep; its edge under the beach's own sand
-    Cave_Thermal    CV_ThermalWater  the terraces' warm mineral water and its cascades (the same)
-    Cave_Roots      CV_Occluder      the mangrove roots weeping down from the islet's skylight, and its
-                                     rim far overhead (the game dithers them where they stand between
-                                     you and the camera)
+                                     crystals, the mushrooms' caps, the lanterns, the forge's mouth,
+                                     the magma veins, the gems on Gus's tray
+    Cave_Water      CV_Water         the cenote's surface (transparent in the game, no depth write)
+    Cave_Thermal    CV_ThermalWater  the terraces' warm water and its cascades (the same)
+    Cave_Roots      CV_Occluder      the islet's karst tower, its mangrove and the aerial roots weeping
+                                     down round the Monolith (dithered where they stand between you
+                                     and the camera)
+    caverns_walk_collider  CV_Collider  the walk surface: the grid's triangles exactly (never drawn:
+                                     the game's click collider)
 
-and the ore nodes' rocks, each at the origin (its pivot at the foot of the rock, on its floor), for the
-game to place at every node of its kind, instanced:
+and the ore nodes' rocks, each at the origin (its pivot on its floor, its foot sunk into it), for the
+game to place at every node of its kind, instanced: angular ore chunks with glowing mineral facets,
+set into their host rock or the wall (never a ball dropped on the floor):
 
     Ore_<kind>      CV_OreRock + CV_OreGlow   coal, copper, iron, silver, glimmer, monolith
     Ore_Rubble      CV_OreRock                what a broken node leaves till it grows back: a dark,
-                                              rough stump of cracked bedrock (the game's dust motes
-                                              linger over it)
+                                              rough stump of cracked bedrock
 
 Coordinates: the game's (x, y up, z) is Blender's (x, -z, y); `W` converts.
 """
@@ -582,748 +589,11 @@ def finish_object(name, M, coll, bake=True, mottle=0.0, origin=None, recalc=Fals
     return ob
 
 
-# ---------------------------------------------------------------------------------------------
-# the cavern
-
-
-# ---------------------------------------------------------------------------------------------
-# the karst: the same ground the game walks (shared/worlds/caverns.ts: lakeFactor, isletFactor,
-# sandbarDistance, cavernsFloorY), so the water modelled is the water walled off
-
-
-def lake_factor(L, x, z):
-    K = L["lake"]
-    dx = (x - K["x"]) / K["rx"]
-    dz = (z - K["z"]) / K["rz"]
-    a = math.atan2(dz, dx)
-    wob = 1 + 0.05 * math.sin(3 * a + 0.7) + 0.035 * math.sin(5 * a + 2.1)
-    return math.hypot(dx, dz) / wob
-
-
-def islet_factor(L, x, z):
-    I = L["islet"]
-    dx, dz = x - I["x"], z - I["z"]
-    a = math.atan2(dz, dx)
-    r = I["r"] * (1 + 0.12 * math.sin(3 * a + 1.0) + 0.06 * math.sin(7 * a + 0.4))
-    return math.hypot(dx, dz) / r
-
-
-def sandbar_distance(L, x, z):
-    best = 1e9
-    P = L["sandbar"]["points"]
-    for (ax, az), (bx, bz) in zip(P, P[1:]):
-        vx, vz = bx - ax, bz - az
-        t = max(0.0, min(1.0, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)))
-        best = min(best, math.hypot(x - (ax + vx * t), z - (az + vz * t)))
-    return best
-
-
-def smooth01(t):
-    k = max(0.0, min(1.0, t))
-    return k * k * (3 - 2 * k)
-
-
-def in_doline(L, x, z):
-    D = L["doline"]
-    return D["x0"] <= x <= D["x1"] and z <= D["z1"]
-
-
-def plateau_y(L, x, z):
-    D = L["doline"]
-    return D["y"] + D["rise"] * smooth01((abs(x) - 4) / 7) * smooth01((D["z1"] - 3 - z) / 7)
-
-
-def ground_y(L, x, z):
-    """The cavern floor's height outside the doline: the beach sloping into the lake, its bed, the
-    islet and the sandbar standing out of it."""
-    K = L["lake"]
-    f = lake_factor(L, x, z)
-    if f >= K["beach"]:
-        return 0.0
-    if f >= 1.0:
-        y = -0.2 * (K["beach"] - f) / (K["beach"] - 1)
-    else:
-        y = -0.2 - (K["depth"] - 0.2) * smooth01((1.0 - f) / 0.62)
-    # the islet: its top 0.3 m out of the water, its rock sloping down under it
-    g = islet_factor(L, x, z)
-    top = L["islet"]["top"]
-    sb = L["sandbar"]["y"]
-    if g < 0.6:
-        y = max(y, top)
-    elif g < 0.95:
-        y = max(y, sb + (top - sb) * smooth01((0.95 - g) / 0.35))
-    elif g < 1.45:
-        y = max(y, sb - 1.6 * smooth01((g - 0.95) / 0.5))
-    # the sandbar: a low spine of sand wading out to it
-    d = sandbar_distance(L, x, z)
-    half = L["sandbar"]["half"]
-    if d < half + 1.0:
-        y = max(y, sb - 0.9 * smooth01((d - half + 0.15) / 1.0))
-    return y
-
-
-# ---------------------------------------------------------------------------------------------
-# the Grand Karst
-
-
-def build_cavern(L, coll, ledge_top):
-    half = L["half"]
-    D = L["doline"]
-    R = L["ramp"]
-    K = L["lake"]
-    I = L["islet"]
-    T = L["terraces"]
-    rock = Mesh("CV_Clay")
-    glow = Mesh("CV_Glow")
-    shell = Mesh("CV_Shell")
-    roots = Mesh("CV_Occluder")
-    rng = random.Random(11)
-
-    # --- the light painted in: the sun down the doline, the forge, the warm pools, the cenote's
-    # heart and its skylight, the lanterns, every crystal and mushroom ---
-    lt = L["lights"]
-    add_light(0.0, 13.0, -16.5, "#FFD27A", 2.6, 17.0)  # the sun through the collapsed ceiling
-    add_light(-6.0, 9.0, -20.5, "#FFE2A8", 1.3, 9.0)
-    add_light(6.0, 9.0, -20.5, "#FFE2A8", 1.3, 9.0)
-    add_light(*lt["forge"], "#FF8A3A", 2.6, 8.0)
-    add_light(*lt["thermal"], "#FFE9C4", 1.5, 7.5)
-    add_light(*lt["cenote"], "#35E6FF", 1.9, 10.0)
-    add_light(L["skylight"]["x"], 9.0, L["skylight"]["z"], "#D6ECFF", 1.4, 11.0)  # the islet's skylight
-    add_light(L["finnegan"]["x"] - 0.6, 1.6, L["finnegan"]["z"] + 0.4, "#FFB347", 1.2, 4.5)  # Finnegan's lantern
-    add_light(L["gus"]["x"] + 0.9, D["y"] + 1.3, L["workstation"]["z"], "#FFB347", 1.3, 4.5)  # Gus's lantern
-    add_light(L["adit"]["x"] + 1.3, D["y"] + 2.0, L["adit"]["z"] + 0.6, "#FFB347", 1.3, 4.5)  # the adit's lantern
-    for x, z, s in L["crystals"]:
-        add_light(x, 0.6 * s, z, "#00F0FF" if (int(x * 7 + z * 3) % 3) else "#9D00FF", 0.95 * s, 2.8 * s + 0.6)
-    for x, z, s in L["shrooms"]:
-        add_light(x, 0.45 * s, z, "#4FFFD2" if (int(x * 5 + z) % 2) else "#FF7AD9", 0.75 * s, 2.3 * s + 0.5)
-
-    lake = lambda x, z: lake_factor(L, x, z)
-
-    # --- the cavern's floor (outside the doline): sand down to the lake and under it, the bed
-    # darkening to the deep; wet slate in the fissure wings, flowstone by the terraces ---
-    def floor_col(x, z):
-        f = lake(x, z)
-        y = ground_y(L, x, z)
-        slate = lin(C["slate"])
-        wet = lin(C["slateWet"])
-        n = 0.5 + 0.5 * vnoise(x * 0.45, 0.0, z * 0.45, 3)
-        c = [slate[i] + (wet[i] - slate[i]) * n for i in range(3)]
-        # the flowstone round the terraces and under the doline's cliff
-        flow = max(smooth(-13.5, -16.5, x) * smooth(-9.0, -7.0, z) * smooth(8.0, 6.0, z), smooth(-6.0, -9.5, z) * smooth(13.0, 11.0, abs(x)))
-        fl = lin(C["flowstone"])
-        c = [c[i] + (fl[i] - c[i]) * flow * 0.85 for i in range(3)]
-        # the sand: the beach, gold and white, wet at the waterline
-        sand = smooth(1.45, 1.12, f)
-        s = lin(C["sand"]) if vnoise(x * 0.8, 1.0, z * 0.8, 5) > -0.1 else lin(C["sandGold"])
-        c = [c[i] + (s[i] - c[i]) * sand for i in range(3)]
-        if f < 1.1:
-            ws = lin(C["sandWet"])
-            k = smooth(1.1, 1.0, f)
-            c = [c[i] + (ws[i] - c[i]) * k for i in range(3)]
-        # the bed under the water: pale sand shoals, then the deep's teal stone
-        if y < -0.22:
-            deep = smooth(-0.3, -2.0, y)
-            b0, b1 = lin(C["bed"]), lin(C["bedDeep"])
-            c = [b0[i] + (b1[i] - b0[i]) * deep for i in range(3)]
-        # the islet's limestone and moss, the sandbar's sand
-        g = islet_factor(L, x, z)
-        if g < 1.0:
-            lm = lin(C["limestone"]) if g > 0.62 else lin(C["mossA"] if vnoise(x * 1.3, 2.0, z * 1.3, 8) > 0 else C["mossB"])
-            c = [c[i] + (lm[i] - c[i]) * smooth(1.0, 0.8, g) for i in range(3)]
-        if sandbar_distance(L, x, z) < L["sandbar"]["half"] + 0.3 and y > -0.2:
-            c = list(lin(C["sand"]))
-        # the glowing moss creeping round the crystals and the mushrooms
-        for cx, cz, cs in L["crystals"] + L["shrooms"]:
-            d = math.hypot(x - cx, z - cz)
-            if d < 1.6 * cs:
-                gm = lin(C["mossGlow"])
-                k = 0.35 * smooth(1.6 * cs, 0.3, d)
-                c = [c[i] + (gm[i] - c[i]) * k for i in range(3)]
-        return tuple(c)
-
-    def floor_h(x, z):
-        return ground_y(L, x, z) + (0.02 * fbm(x * 0.9, 0, z * 0.9, 4) if lake(x, z) > K["beach"] else 0.0)
-
-    def floor_keep(x, z):
-        if in_doline(L, x, z):
-            return False
-        return not (R["x0"] < x < R["x1"] and R["top"] < z < R["foot"] - 0.2)
-
-    quad_grid(rock, -half, half, -half, half, 0.75, floor_h, floor_col, keep=floor_keep)
-
-    # --- the Sunlit Doline: its mossy plateau (a packed-earth trail from the adit down to the ramp),
-    # sunlit pools of light where the beams fall ---
-    beams = L["beams"]
-
-    def doline_col(x, z):
-        n = vnoise(x * 0.55, 0.0, z * 0.55, 13)
-        a, b = lin(C["mossA"]), lin(C["loam"])
-        k = smooth(-0.25, 0.45, n)
-        c = [b[i] + (a[i] - b[i]) * k for i in range(3)]
-        c2 = lin(C["mossB"])
-        k2 = smooth(0.35, 0.8, vnoise(x * 1.4, 3.0, z * 1.4, 17))
-        c = [c[i] + (c2[i] - c[i]) * k2 * 0.6 for i in range(3)]
-        # the trail: packed earth from the tunnel to the ramp, and round the outpost
-        trail = smooth(1.3, 0.7, abs(x + 0.35 * math.sin(z * 0.45))) * smooth(-21.5, -20.5, z)
-        near_out = smooth(2.6, 1.4, math.hypot(x - L["workstation"]["x"], z - (L["workstation"]["z"] + 0.9)))
-        near_forge = smooth(2.8, 1.6, math.hypot(x - L["forge"]["x"], z - (L["forge"]["z"] + 1.6)))
-        near_anvil = smooth(2.0, 1.1, math.hypot(x - L["anvil"]["x"], z - L["anvil"]["z"]))
-        e = lin(C["earth"])
-        k3 = max(trail, near_out, near_forge, near_anvil)
-        c = [c[i] + (e[i] - c[i]) * k3 for i in range(3)]
-        # the sun's pools on the floor
-        for bx, bz, br in beams:
-            d = math.hypot(x - bx, z - bz)
-            if d < br * 1.3:
-                sun = lin(C["sunlit"])
-                kk = 0.45 * smooth(br * 1.3, br * 0.4, d)
-                c = [c[i] + (sun[i] - c[i]) * kk for i in range(3)]
-        return tuple(c)
-
-    quad_grid(rock, D["x0"], D["x1"], D["z0"], D["z1"], 0.6, lambda x, z: plateau_y(L, x, z) + 0.03 * fbm(x * 1.1, 0, z * 1.1, 6), doline_col)
-
-    # --- the doline's cliffs: its front (but for the ramp) and its two sides, displaced limestone with
-    # flowstone curtains and ivy hanging down from the moss ---
-    def cliff(points, outward, top_at, seed):
-        """A cliff face down from the plateau's edge to the floor along a polyline, pushed out a
-        little (`outward`, on the ground), rippled like flowstone."""
-        n_up = 7
-        rows = []
-        for (px, pz) in points:
-            top = top_at(px, pz)
-            col_ = []
-            for j in range(n_up + 1):
-                y = -0.25 + (top + 0.25) * j / n_up
-                bulge = 0.14 + 0.12 * fbm(px * 0.9, y * 0.9, pz * 0.9, seed) + 0.06 * math.sin(px * 2.3 + pz * 1.7 + y)
-                bulge *= 1 - smooth(top - 0.35, top, y)
-                v = rock.v(px + outward[0] * bulge, y, pz + outward[1] * bulge)
-                base = lin(C["limestone"])
-                streak = 0.5 + 0.5 * math.sin((px + pz) * 4.1 + fbm(px, y, pz, 2) * 3)
-                fl = lin(C["flowstone"])
-                cc = [base[m] + (fl[m] - base[m]) * streak * 0.6 for m in range(3)]
-                # ivy trailing down from the moss above
-                if fbm(px * 0.8, y * 0.5, pz * 0.8, seed + 3) > 0.12 and y > top - 1.6:
-                    iv = lin(C["ivy"])
-                    cc = [cc[m] * 0.3 + iv[m] * 0.7 for m in range(3)]
-                rock.setv(v, tuple(cc))
-                col_.append(v)
-            rows.append(col_)
-        for i in range(len(rows) - 1):
-            for j in range(n_up):
-                a, b, c2, d2 = rows[i][j], rows[i + 1][j], rows[i + 1][j + 1], rows[i][j + 1]
-                quad = (a, b, c2, d2) if outward[0] * (points[i + 1][1] - points[i][1]) - outward[1] * (points[i + 1][0] - points[i][0]) < 0 else (b, a, d2, c2)
-                rock.setsmooth(rock.face(quad, "limestone"))
-
-    step = 0.6
-    front_w = [(x, D["z1"]) for x in frange(D["x0"], R["x0"], step)]
-    front_e = [(x, D["z1"]) for x in frange(R["x1"], D["x1"], step)]
-    side_w = [(D["x0"], z) for z in frange(D["z0"], D["z1"], step)]
-    side_e = [(D["x1"], z) for z in frange(D["z0"], D["z1"], step)]
-    cliff(front_w, (0, 1), lambda x, z: plateau_y(L, x, z), 41)
-    cliff(front_e, (0, 1), lambda x, z: plateau_y(L, x, z), 43)
-    cliff(side_w, (-1, 0), lambda x, z: plateau_y(L, x, z), 45)
-    cliff(side_e, (1, 0), lambda x, z: plateau_y(L, x, z), 47)
-    # the plateau's rim: a rounded lip of moss and stone along its edges (not across the ramp)
-    for pts in (front_w, front_e, side_w, side_e):
-        for k, (px, pz) in enumerate(pts[::2]):
-            blob(rock, px, plateau_y(L, px, pz) + 0.04, pz, 0.38 + 0.12 * rng.random(), 0.12 + 0.06 * rng.random(), 0.36, "mossA" if k % 3 else "limestone", cuts=1, noise=0.25, seed=k)
-    # hanging ivy strands and flowstone draperies down the front cliff
-    for k in range(34):
-        px = D["x0"] + 0.6 + (D["x1"] - D["x0"] - 1.2) * rng.random()
-        if R["x0"] - 0.4 < px < R["x1"] + 0.4:
-            continue
-        ln = 0.6 + 1.3 * rng.random()
-        top = plateau_y(L, px, D["z1"])
-        cyl(rock, (px, top, D["z1"] + 0.28), (px + 0.05, top - ln, D["z1"] + 0.34), 0.02, "ivy", sides=4, cap=False)
-        for j in range(3):
-            blob(rock, px + 0.05, top - ln * (j + 1) / 3.2, D["z1"] + 0.34, 0.07, 0.05, 0.035, "fern" if j % 2 else "ivy", cuts=0)
-
-    # --- the flowstone ramp down the front cliff (28 degrees: the game walks it smooth), ribbed like a
-    # frozen cascade, rounded rock either side ---
-    rsteps = 12
-    run = (R["foot"] - R["top"]) / rsteps
-    for i in range(rsteps):
-        z0 = R["top"] + i * run
-        y0 = D["y"] * (R["foot"] - z0) / (R["foot"] - R["top"])
-        y1 = D["y"] * (R["foot"] - z0 - run) / (R["foot"] - R["top"])
-        q = [rock.v(R["x0"], y0, z0), rock.v(R["x1"], y0, z0), rock.v(R["x1"], y1, z0 + run), rock.v(R["x0"], y1, z0 + run)]
-        rock.face(list(reversed(q)), "flowstoneWarm" if i % 2 else "flowstone")
-        # a rib of flowstone across it (a low lip, not a step)
-        blob(rock, 0.0, (y0 + y1) / 2 + 0.01, z0 + run * 0.5, (R["x1"] - R["x0"]) * 0.5, 0.025, 0.08, "travertine", cuts=1)
-    # its underside wall down to the floor on both sides
-    for sx0, sx1 in ((R["x0"] - 0.3, R["x0"]), (R["x1"], R["x1"] + 0.3)):
-        for i in range(rsteps):
-            z0 = R["top"] + i * run
-            yt = D["y"] * (R["foot"] - z0) / (R["foot"] - R["top"]) + 0.28
-            box(rock, sx0, sx1, 0.0, max(0.3, yt), z0, z0 + run, "flowstone", bottom=False)
-        for k in range(6):
-            t = (k + 0.5) / 6
-            z = R["top"] + (R["foot"] - R["top"]) * t
-            yt = D["y"] * (R["foot"] - z) / (R["foot"] - R["top"])
-            blob(rock, (sx0 + sx1) / 2, yt + 0.22, z, 0.22, 0.14, 0.42, "limestone", cuts=1, noise=0.25, seed=70 + k)
-
-    # --- the shell: the north and west walls, double sided, a jagged skyline (lower and broken over
-    # the doline, where the ceiling fell in), strata, the adit's mouth open in the north wall ---
-    A = L["adit"]
-    height = L["walls"]["height"]
-
-    def wall(axis):
-        n_along, n_up = 64, 14
-        grid = []
-        for i in range(n_along + 1):
-            t = -half + 2 * half * i / n_along
-            dol = smooth(13.5, 9.0, abs(t)) if axis == "n" else 0.0
-            skyline = height - 3.2 * dol + 1.3 * fbm(t * 0.3, 3.0, 0.0, 21 if axis == "n" else 23) + 0.5 * math.sin(t * 0.7)
-            floor_here = plateau_y(L, t, -half) if (axis == "n" and D["x0"] <= t <= D["x1"]) else 0.0
-            column = []
-            for j in range(n_up + 1):
-                u = j / n_up
-                y = -2.6 + (skyline + 2.6) * u
-                depth = 0.14 + 0.28 * fbm(t * 0.6, y * 0.6, 5.0 if axis == "n" else 9.0, 31) + 0.1 * math.sin(y * 1.9 + t)
-                depth *= smooth(floor_here - 0.2, floor_here + 0.8, y)
-                inner = -half + 0.7 - depth
-                v = shell.v(t, y, inner) if axis == "n" else shell.v(inner, y, t)
-                shell.setv(v, wall_col(axis, t, y, floor_here, dol))
-                column.append(v)
-            grid.append(column)
-        for i in range(n_along):
-            t = -half + 2 * half * (i + 0.5) / n_along
-            dol = smooth(13.5, 9.0, abs(t)) if axis == "n" else 0.0
-            floor_here = plateau_y(L, t, -half) if (axis == "n" and D["x0"] <= t <= D["x1"]) else 0.0
-            for j in range(n_up):
-                a, b = grid[i][j], grid[i + 1][j]
-                y = (a.co.z + grid[i][j + 1].co.z) / 2
-                if axis == "n" and A["x"] - A["w"] / 2 - 0.05 < t < A["x"] + A["w"] / 2 + 0.05 and D["y"] - 0.1 < y < D["y"] + A["h"] + 0.2:
-                    continue
-                c2, d2 = grid[i + 1][j + 1], grid[i][j + 1]
-                shell.setsmooth(shell.face((a, b, c2, d2) if axis == "n" else (b, a, d2, c2), wall_col(axis, t, y, floor_here, dol)))
-        # the skyline's cap, and ferns and roots spilling over the doline's broken rim
-        for i in range(n_along):
-            a, b = grid[i][-1], grid[i + 1][-1]
-            off = Vector((0, 1.1, 0)) if axis == "n" else Vector((-1.1, 0, 0))
-            shell.face((a, b, shell.bm.verts.new(b.co + off), shell.bm.verts.new(a.co + off)), "mossA" if (axis == "n" and abs(-half + 2 * half * (i + 0.5) / n_along) < 11) else "shellDark")
-
-    def wall_col(axis, t, y, floor_here, dol):
-        base = lin(C["shell"])
-        strata = 0.08 * math.sin(y * 2.7 + fbm(t, y, 1, 8) * 2.0)
-        c = [base[m] * (1 + strata) for m in range(3)]
-        # the sunlit doline wall: warm limestone, ivy and moss up to the broken rim
-        if dol > 0:
-            w = lin(C["limestone"])
-            c = [c[m] + (w[m] - c[m]) * dol for m in range(3)]
-            if fbm(t * 0.7, y * 0.45, 4.0, 19) > 0.05 and y > floor_here + 0.8:
-                iv = lin(C["ivy"])
-                c = [c[m] * 0.35 + iv[m] * 0.65 * dol + c[m] * 0.65 * (1 - dol) for m in range(3)]
-        # the basalt fissure round the forge
-        F = L["forge"]
-        if axis == "n" and abs(t - F["x"]) < F["w"] / 2 + 1.0 and y < floor_here + F["h"] + 2.2:
-            k = smooth(F["w"] / 2 + 1.0, F["w"] / 2 + 0.2, abs(t - F["x"]))
-            bs = lin(C["basalt"])
-            c = [c[m] + (bs[m] - c[m]) * k for m in range(3)]
-        # the fissure wings: cold wet stone
-        if (axis == "n" and abs(t) > 13) or axis == "w":
-            cold = lin(C["shellCold"])
-            k = smooth(12.0, 15.0, abs(t)) if axis == "n" else 1.0
-            c = [c[m] + (cold[m] - c[m]) * k * 0.7 for m in range(3)]
-        # the west wall behind the terraces: travertine, where the warm spring runs down
-        if axis == "w" and T["pools"][0]["z0"] - 1.0 < t < T["pools"][-1]["z1"] + 1.0 and y < 3.4:
-            tv = lin(C["travertine"])
-            k = smooth(3.4, 1.6, y)
-            c = [c[m] + (tv[m] - c[m]) * k * 0.8 for m in range(3)]
-        return tuple(max(0.0, v) for v in c)
-
-    wall("n")
-    wall("w")
-    # stalactites hugging the walls' upper reaches (the ceiling fell in over the doline: none there)
-    for k in range(46):
-        if k % 2:
-            t = -half + 1.0 + (2 * half - 2.0) * rng.random()
-            if abs(t) < 12.0:
-                continue
-            sx, sz = t, -half + 0.9 + 0.5 * rng.random()
-        else:
-            t = -half + 1.0 + (2 * half - 2.0) * rng.random()
-            sx, sz = -half + 0.9 + 0.5 * rng.random(), t
-        top = height - 1.4 - 1.2 * rng.random()
-        ln = 0.7 + 1.6 * rng.random()
-        cone(rock, (sx, top, sz), (sx + 0.03, top - ln, sz), 0.16 + 0.1 * ln, "limestoneDark", sides=6)
-        if rng.random() < 0.35:
-            blob(glow, sx + 0.03, top - ln - 0.02, sz, 0.02, 0.03, 0.02, "cyanSoft", cuts=0)
-
-    # --- the adit's tunnel into the north wall: a dark recess, timbers round its mouth, a lantern ---
-    ax0, ax1 = A["x"] - A["w"] / 2, A["x"] + A["w"] / 2
-    dy = D["y"]
-    box(rock, ax0 - 0.1, ax1 + 0.1, dy - 0.02, dy + A["h"] + 0.1, -half - 1.8, -half + 0.7, "tunnel", bottom=False)
-    for sx in (ax0 - 0.14, ax1 + 0.14):
-        box(rock, sx - 0.13, sx + 0.13, dy, dy + A["h"] + 0.15, -half + 0.45, -half + 0.72, "timber")
-    box(rock, ax0 - 0.4, ax1 + 0.4, dy + A["h"], dy + A["h"] + 0.28, -half + 0.4, -half + 0.78, "timberDark")
-    for k in range(5):
-        z = -half - 1.4 + k * 0.5
-        box(rock, ax0 + 0.1, ax1 - 0.1, dy + 0.01, dy + 0.05, z, z + 0.14, "timberDark", bottom=False)
-    lathe(glow, ax1 + 0.4, -half + 1.0, [(0, 0), (0.07, 0.02), (0.09, 0.12), (0.07, 0.22), (0, 0.24)], "lanternHot", segs=8, y0=dy + 1.9)
-    cyl(rock, (ax1 + 0.14, dy + 2.2, -half + 0.72), (ax1 + 0.4, dy + 2.2, -half + 1.0), 0.015, "iron", sides=5)
-
-    # --- the Expedition Outpost: Gus's log workstation, the forge in its basalt fissure, the
-    # meteorite anvil beside the antique tool crate, the camp's bits and pieces ---
-    Wk = L["workstation"]
-    wy = plateau_y(L, Wk["x"], Wk["z"])
-    # a split log laid on two stumps, its flat face up
-    for sx in (-1, 1):
-        cyl(rock, (Wk["x"] + sx * Wk["len"] * 0.36, wy - 0.02, Wk["z"]), (Wk["x"] + sx * Wk["len"] * 0.36, wy + Wk["top"] - 0.16, Wk["z"]), 0.22, "timberDark", sides=9)
-    cyl(rock, (Wk["x"] - Wk["len"] / 2, wy + Wk["top"] - 0.1, Wk["z"]), (Wk["x"] + Wk["len"] / 2, wy + Wk["top"] - 0.1, Wk["z"]), Wk["w"] * 0.5, "timber", sides=9)
-    box(rock, Wk["x"] - Wk["len"] / 2 + 0.05, Wk["x"] + Wk["len"] / 2 - 0.05, wy + Wk["top"] - 0.12, wy + Wk["top"], Wk["z"] - Wk["w"] * 0.42, Wk["z"] + Wk["w"] * 0.42, "plank", bottom=False)
-    # on it: a lantern, a hammer, a few ores and gems in a tray, a rolled map
-    lathe(glow, Wk["x"] + 0.85, Wk["z"] - 0.1, [(0, 0), (0.07, 0.02), (0.08, 0.12), (0.06, 0.2), (0, 0.22)], "lanternHot", segs=8, y0=wy + Wk["top"])
-    box(rock, Wk["x"] - 0.5, Wk["x"] - 0.05, wy + Wk["top"], wy + Wk["top"] + 0.05, Wk["z"] - 0.15, Wk["z"] + 0.12, "timberDark")
-    for k, colr in enumerate(("copperNug", "silverVein", "coalChunk", "copperNug")):
-        blob(rock, Wk["x"] - 0.42 + k * 0.1, wy + Wk["top"] + 0.08, Wk["z"] - 0.02, 0.04, 0.035, 0.04, colr, cuts=0)
-    for k, g in enumerate(("gemRed", "cyan", "violet")):
-        blob(glow, Wk["x"] - 0.4 + k * 0.12, wy + Wk["top"] + 0.1, Wk["z"] + 0.08, 0.03, 0.035, 0.03, g, cuts=0)
-    cyl(rock, (Wk["x"] + 0.1, wy + Wk["top"] + 0.04, Wk["z"] + 0.18), (Wk["x"] + 0.55, wy + Wk["top"] + 0.04, Wk["z"] + 0.18), 0.04, "cloth", sides=6)
-    # the camp behind him: a bedroll, crates, a coil of rope, a pick leaning on a sack
-    box(rock, Wk["x"] - 2.6, Wk["x"] - 1.7, wy, wy + 0.5, Wk["z"] - 1.9, Wk["z"] - 1.3, "timber")
-    box(rock, Wk["x"] - 2.5, Wk["x"] - 1.9, wy + 0.5, wy + 0.85, Wk["z"] - 1.85, Wk["z"] - 1.4, "timberDark")
-    cyl(rock, (Wk["x"] + 1.5, wy + 0.12, Wk["z"] - 1.6), (Wk["x"] + 2.6, wy + 0.12, Wk["z"] - 1.6), 0.16, "redCloth", sides=8)
-    blob(rock, Wk["x"] + 1.9, wy + 0.25, Wk["z"] - 0.9, 0.3, 0.3, 0.25, "sack", cuts=1)
-    lathe(rock, Wk["x"] - 1.9, Wk["z"] - 0.6, [(0, 0), (0.24, 0.0), (0.24, 0.1), (0.1, 0.12), (0, 0.12)], "cloth", segs=10, y0=wy)
-    # the forge: a stone hearth set into the basalt fissure, its glowing mouth, bellows of leather and
-    # oak, a chimney crack glowing up the rock, columns of basalt either side
-    F = L["forge"]
-    fy = plateau_y(L, F["x"], F["z"])
-    fx0, fx1 = F["x"] - F["w"] / 2, F["x"] + F["w"] / 2
-    fz0, fz1 = F["z"] - F["d"] / 2, F["z"] + F["d"] / 2
-    for k in range(9):
-        cx = fx0 - 0.9 + (F["w"] + 1.8) * k / 8
-        if fx0 + 0.3 < cx < fx1 - 0.3:
-            continue
-        hcol = F["h"] + 0.8 + 1.4 * rng.random()
-        prism_col(rock, (cx, fy - 0.1, -half + 0.85 + 0.2 * rng.random()), 0.28 + 0.08 * rng.random(), hcol, "basalt" if k % 2 else "basaltLight")
-    box(rock, fx0, fx1, fy, fy + F["h"], fz0 - 0.4, fz1, "stoneDark", top="basaltLight")
-    box(rock, fx0 + 0.2, fx1 - 0.2, fy + F["h"], fy + F["h"] + 0.35, fz0, fz1 - 0.2, "basalt")
-    # the mouth: an arch of fire bricks round the glow
-    box(glow, F["x"] - 0.6, F["x"] + 0.6, fy + 0.45, fy + 1.25, fz1 - 0.02, fz1 + 0.01, "forgeMouth")
-    blob(glow, F["x"], fy + 0.7, fz1 - 0.02, 0.45, 0.22, 0.06, "forgeCore", cuts=1)
-    for k in range(7):
-        a = math.pi * k / 6
-        blob(rock, F["x"] + math.cos(a) * 0.72, fy + 0.85 + math.sin(a) * 0.55, fz1 + 0.04, 0.12, 0.1, 0.08, "brick", cuts=0)
-    # the chimney crack up the rock, embers glowing in it
-    for k in range(6):
-        blob(glow, F["x"] + 0.12 * math.sin(k * 1.7), fy + F["h"] + 0.4 + k * 0.45, -half + 0.72, 0.06, 0.2, 0.04, "ember", cuts=0)
-    # the bellows beside it, the quench trough, the coal heap
-    bx_ = fx1 + 0.55
-    box(rock, bx_ - 0.35, bx_ + 0.35, fy + 0.3, fy + 0.42, F["z"] + 0.1, F["z"] + 0.8, "timber")
-    box(rock, bx_ - 0.32, bx_ + 0.32, fy + 0.42, fy + 0.62, F["z"] + 0.15, F["z"] + 0.75, "leather")
-    box(rock, bx_ - 0.35, bx_ + 0.35, fy + 0.62, fy + 0.72, F["z"] + 0.1, F["z"] + 0.8, "timber")
-    cyl(rock, (bx_ - 0.36, fy + 0.5, F["z"] + 0.45), (fx1 - 0.02, fy + 0.5, F["z"] + 0.45), 0.05, "iron", sides=6)
-    cyl(rock, (bx_, fy, F["z"] + 0.1), (bx_, fy + 0.3, F["z"] + 0.1), 0.05, "timberDark", sides=5)
-    box(rock, fx0 - 1.1, fx0 - 0.25, fy, fy + 0.4, F["z"] + 0.2, F["z"] + 0.75, "stoneDark", top="waterDark")
-    for k in range(9):
-        blob(rock, fx0 - 0.9 + 0.5 * rng.random(), fy + 0.08 + 0.1 * rng.random(), fz1 + 0.35 + 0.4 * rng.random(), 0.14, 0.1, 0.12, "coalChunk", cuts=0)
-    # the meteorite anvil: a dark pitted iron-nickel lump, its top ground flat, on a rough stump
-    An = L["anvil"]
-    ay = plateau_y(L, An["x"], An["z"])
-    cyl(rock, (An["x"], ay - 0.02, An["z"]), (An["x"], ay + 0.36, An["z"]), 0.3, "timberDark", sides=9, r_end=0.26)
-    blob(rock, An["x"], ay + 0.56, An["z"], 0.34, 0.22, 0.28, "meteorite", cuts=2, noise=0.25, seed=5)
-    box(rock, An["x"] - 0.24, An["x"] + 0.24, ay + 0.7, ay + 0.76, An["z"] - 0.16, An["z"] + 0.16, "steel")
-    for k in range(5):
-        a = rng.random() * 6.28
-        blob(glow, An["x"] + math.cos(a) * 0.3, ay + 0.5 + 0.12 * rng.random(), An["z"] + math.sin(a) * 0.24, 0.025, 0.02, 0.025, "violetSoft", cuts=0)
-    # the antique tool crate: iron-strapped, chisels and a mallet poking out
-    Cr = L["crate"]
-    cy_ = plateau_y(L, Cr["x"], Cr["z"])
-    box(rock, Cr["x"] - Cr["w"] / 2, Cr["x"] + Cr["w"] / 2, cy_, cy_ + Cr["h"], Cr["z"] - Cr["d"] / 2, Cr["z"] + Cr["d"] / 2, "timber", top="timberDark")
-    for sx in (-0.3, 0.3):
-        box(rock, Cr["x"] + sx - 0.03, Cr["x"] + sx + 0.03, cy_, cy_ + Cr["h"] + 0.005, Cr["z"] - Cr["d"] / 2 - 0.005, Cr["z"] + Cr["d"] / 2 + 0.005, "iron")
-    for k in range(4):
-        cyl(rock, (Cr["x"] - 0.25 + k * 0.14, cy_ + Cr["h"] - 0.1, Cr["z"] - 0.05), (Cr["x"] - 0.2 + k * 0.14, cy_ + Cr["h"] + 0.22, Cr["z"] - 0.1 + 0.05 * k), 0.022, "steel" if k % 2 else "timberDark", sides=5)
-
-    # --- the doline's life: ferns in the shade of the boulders, the fallen limestone, sun-warmed moss ---
-    for x, z, r in L["boulders"]:
-        fy_ = plateau_y(L, x, z) if in_doline(L, x, z) else ground_y(L, x, z)
-        blob(rock, x, fy_ + r * 0.45, z, r * 1.05, r * 0.72, r * 0.95, "limestone", cuts=2, noise=0.3, seed=int(x * 10 + z), bottom=fy_ - 0.2)
-        if in_doline(L, x, z):
-            blob(rock, x, fy_ + r * 1.1, z, r * 0.7, r * 0.12, r * 0.6, "mossA", cuts=1, noise=0.3, seed=int(z * 7))
-    for k in range(55):
-        x = D["x0"] + 0.8 + (D["x1"] - D["x0"] - 1.6) * rng.random()
-        z = D["z0"] + 1.4 + (D["z1"] - D["z0"] - 2.0) * rng.random()
-        if abs(x + 0.35 * math.sin(z * 0.45)) < 1.6 or math.hypot(x - Wk["x"], z - Wk["z"]) < 2.8 or math.hypot(x - F["x"], z - F["z"]) < 2.8 or math.hypot(x - An["x"], z - An["z"]) < 1.8:
-            continue
-        if any(math.hypot(x - n["x"], z - n["z"]) < 1.4 for n in L["nodes"]):
-            continue
-        fern(rock, x, plateau_y(L, x, z), z, 0.35 + 0.35 * rng.random(), rng)
-
-    # --- the fissures' fins, the nodes' fallen rock, the crystals and the glowing mushrooms ---
-    for x, z, rx, rz, h, yaw in L["fins"]:
-        ca, sa = math.cos(yaw), math.sin(yaw)
-        for k in range(3):
-            t = (k - 1) * 0.55
-            px = x + (ca * rx if rx >= rz else sa * rz) * t
-            pz = z + (-sa * rx if rx >= rz else ca * rz) * t
-            blob(rock, px, h * 0.45, pz, rx * (0.75 if rx >= rz else 1.0), h * (0.5 - 0.08 * abs(k - 1)), rz * (0.75 if rz > rx else 1.0), "slate" if k % 2 else "limestoneDark", cuts=2, noise=0.3, seed=int(x * 13 + k), bottom=-0.2)
-    for n in L["nodes"]:
-        back = node_back_rock(L, n)
-        if back:
-            bxx, bzz, br = back
-            fy_ = plateau_y(L, bxx, bzz) if in_doline(L, bxx, bzz) else 0.0
-            blob(rock, bxx, fy_ + br * 0.55, bzz, br * 1.05, br * 0.8, br, "limestone" if in_doline(L, bxx, bzz) else "limestoneDark", cuts=2, noise=0.3, seed=int(bxx * 17), bottom=fy_ - 0.2)
-    for x, z, s in L["crystals"]:
-        base_y = 0.0
-        blob(rock, x, base_y + 0.1 * s, z, 0.4 * s, 0.18 * s, 0.4 * s, "slate", cuts=1, noise=0.3, seed=int(x * 3))
-        for k in range(6):
-            a = 2 * math.pi * k / 6 + rng.random() * 0.4
-            lean = 0.25 + 0.5 * rng.random() if k else 0.05
-            d = (math.cos(a) * lean, 1.0, math.sin(a) * lean)
-            prism(glow, (x + math.cos(a) * 0.12 * s * (k > 0), base_y + 0.1 * s, z + math.sin(a) * 0.12 * s * (k > 0)), d, (0.06 + 0.04 * rng.random()) * s * (1.5 if k == 0 else 1), (0.45 + 0.45 * rng.random()) * s * (1.6 if k == 0 else 1), "cyan" if (k + int(x)) % 3 else "violet")
-    # (decoration only, no collider: small clusters along the walls and at the fins' feet, where no one
-    # walks, so the fissures glow all over)
-    deco_rng = random.Random(77)
-    spots = []
-    for k in range(34):
-        side = k % 3
-        if side == 0:
-            px, pz = -half + 0.75 + 0.2 * deco_rng.random(), -half + 1.5 + (2 * half - 3.0) * deco_rng.random()
-            if T["pools"][0]["z0"] - 1.5 < pz < T["pools"][-1]["z1"] + 1.5:
-                continue
-        elif side == 1:
-            px, pz = -half + 1.5 + (2 * half - 3.0) * deco_rng.random(), -half + 0.75 + 0.2 * deco_rng.random()
-            if D["x0"] - 0.5 < px < D["x1"] + 0.5:
-                continue
-        else:
-            fx_, fz_, frx, frz, fh, fyaw = L["fins"][k % len(L["fins"])]
-            a = deco_rng.random() * 6.28
-            px, pz = fx_ + math.cos(a) * (max(frx, frz) + 0.2), fz_ + math.sin(a) * (min(frx, frz) + 0.35)
-        if any(math.hypot(px - n["x"], pz - n["z"]) < 1.5 for n in L["nodes"]):
-            continue
-        spots.append((px, pz, 0.45 + 0.35 * deco_rng.random(), k))
-    for px, pz, sc, k in spots:
-        if k % 2:
-            for j in range(3):
-                a = 2 * math.pi * j / 3 + deco_rng.random()
-                prism(glow, (px + math.cos(a) * 0.08 * sc * (j > 0), 0.0, pz + math.sin(a) * 0.08 * sc * (j > 0)), (math.cos(a) * 0.3 * (j > 0), 1.0, math.sin(a) * 0.3 * (j > 0)), 0.05 * sc, (0.5 + 0.4 * deco_rng.random()) * sc, "cyan" if (k + j) % 3 else "violet", sides=5)
-        else:
-            for j in range(3):
-                a = 2 * math.pi * j / 3 + deco_rng.random()
-                hh = (0.18 + 0.2 * deco_rng.random()) * sc
-                qx, qz = px + math.cos(a) * 0.12 * sc * (j > 0), pz + math.sin(a) * 0.12 * sc * (j > 0)
-                cyl(rock, (qx, 0.0, qz), (qx, hh, qz), 0.022 * sc + 0.01, "shroomStem", sides=4, cap=False)
-                lathe(glow, qx, qz, [(0, 0.0), (0.1 * sc, 0.0), (0, 0.06 * sc)], "shroomTeal" if (k + j) % 2 else "shroomPink", segs=6, y0=hh)
-    for x, z, s in L["shrooms"]:
-        for k in range(4):
-            a = 2 * math.pi * k / 4 + rng.random()
-            r_ = 0.18 * s * (k > 0)
-            hh = (0.25 + 0.35 * rng.random()) * s
-            px, pz = x + math.cos(a) * r_, z + math.sin(a) * r_
-            cyl(rock, (px, 0.0, pz), (px, hh, pz), 0.03 * s, "shroomStem", sides=5)
-            lathe(glow, px, pz, [(0, 0.0), (0.13 * s, 0.0), (0.1 * s, 0.05 * s), (0, 0.09 * s)], "shroomTeal" if (k + int(x)) % 2 else "shroomPink", segs=7, y0=hh)
-
-    # --- the Travertine Thermal Terraces: three rimstone pools stepping down the west cliff, their
-    # rounded travertine lips, flowstone curtains down their fronts, warm water spilling from one to
-    # the next, the spring in the wall above; the seats' submerged ledges ---
-    therm = Mesh("CV_ThermalWater")
-    x0, x1 = T["x0"] + 0.3, T["x1"]
-    pools = T["pools"]
-
-    def rimstone(cx, cz, rx, rz, seed, n=22):
-        """A rimstone pool's outline: a lobed, wobbling oval (no straight edge anywhere)."""
-        out = []
-        for k in range(n):
-            a = 2 * math.pi * k / n
-            w = 1 + 0.1 * math.sin(3 * a + seed) + 0.07 * math.sin(5 * a + 2 * seed) + 0.05 * vnoise(math.cos(a) * 2, math.sin(a) * 2, seed, 7)
-            out.append((cx + math.cos(a) * rx * w, cz + math.sin(a) * rz * w))
-        return out
-
-    for pi, P in enumerate(pools):
-        z0, z1, wy_ = P["z0"], P["z1"], P["y"]
-        cx, cz = (x0 + x1) / 2 - 0.1, (z0 + z1) / 2
-        rx, rz = (x1 - x0) / 2 + 0.05, (z1 - z0) / 2 + 0.08
-        outline = rimstone(cx, cz, rx, rz, pi * 1.7 + 0.3)
-        # the basin: a travertine mound up to the lip, its outer face draped in flowstone curtains
-        # (the mound's top is the pool's floor, 0.38 m under the water; the lip rises round it)
-        slab(rock, outline, 0.0, wy_ - 0.38, "travertineShadow", top="travertine", bottom=False)
-        # the rounded lip all round (organic travertine: no concrete edge), down to the floor inside
-        for k, (px, pz) in enumerate(outline):
-            if k % 2:
-                continue
-            blob(rock, px + (cx - px) * 0.06, wy_ - 0.12, pz + (cz - pz) * 0.06, 0.27, 0.25, 0.23, "travertine" if k % 4 else "flowstoneWarm", cuts=1, noise=0.18, seed=pi * 40 + k)
-        for k in range(9):
-            a = math.pi * (-0.45 + 0.9 * k / 8)
-            px, pz = cx + math.cos(a) * (rx + 0.04), cz + math.sin(a) * (rz + 0.04)
-            hh = wy_ + 0.02
-            blob(rock, px, hh * 0.5, pz, 0.12, hh * 0.5 + 0.02, 0.16, "flowstone" if k % 2 else "travertineShadow", cuts=1, noise=0.2, seed=pi * 50 + k, bottom=0.0)
-        # the water: warm and pale, just inside the lip
-        wv = [therm.v(px, wy_, pz) for px, pz in rimstone(cx, cz, rx - 0.14, rz - 0.13, pi * 1.7 + 0.3)]
-        mid = therm.v(cx, wy_, cz)
-        for k in range(len(wv)):
-            f = therm.face((mid, wv[(k + 1) % len(wv)], wv[k]), "thermalWater")
-            f.normal_update()
-            if f.normal.z < 0:
-                f.normal_flip()
-        # the cascade over its south lip into the next pool (a sheet of water, foam at its foot)
-        if pi + 1 < len(pools):
-            nxt = pools[pi + 1]
-            for k in range(2):
-                ccx = cx - 0.6 + 1.2 * k
-                q = [therm.v(ccx - 0.28, wy_ + 0.02, cz + rz - 0.05), therm.v(ccx + 0.28, wy_ + 0.02, cz + rz - 0.05), therm.v(ccx + 0.32, nxt["y"] - 0.02, cz + rz + 0.3), therm.v(ccx - 0.32, nxt["y"] - 0.02, cz + rz + 0.3)]
-                therm.face(q, "thermalWater")
-                blob(rock, ccx, nxt["y"] + 0.02, cz + rz + 0.4, 0.3, 0.03, 0.14, "foam", cuts=1)
-        # the seats' ledges under the water
-        for st in L["thermalSeats"]:
-            if z0 <= st["z"] <= z1:
-                blob(rock, st["x"], wy_ + ledge_top - 0.12, st["z"], 0.34, 0.14, 0.32, "travertine", cuts=1, noise=0.15, seed=int(st["z"] * 10), bottom=wy_ - 0.38, top=wy_ + ledge_top)
-    # the spring: a crack in the wall above the top pool, warm water running down its face
-    sp_z = (pools[0]["z0"] + pools[0]["z1"]) / 2
-    for k in range(6):
-        blob(rock, -half + 0.8, pools[0]["y"] + 0.25 + k * 0.3, sp_z + 0.2 * math.sin(k), 0.14, 0.22, 0.26, "flowstoneWarm", cuts=1)
-    q = [therm.v(-half + 0.95, pools[0]["y"] + 2.0, sp_z - 0.25), therm.v(-half + 0.95, pools[0]["y"] + 2.0, sp_z + 0.25), therm.v(-half + 1.05, pools[0]["y"] + 0.01, sp_z + 0.35), therm.v(-half + 1.05, pools[0]["y"] + 0.01, sp_z - 0.35)]
-    therm.face(q, "thermalWater")
-
-    # --- the Abyssal Cenote Lake: its water over the sand and the deep (the game's own shoreline), the
-    # islet's rocks, the mangrove roots weeping down from its skylight, Finnegan's driftwood outcrop ---
-    water = Mesh("CV_Water")
-    wcell = 0.75
-    wx0, wx1 = K["x"] - K["rx"] * 1.25, K["x"] + K["rx"] * 1.25
-    wz0, wz1 = K["z"] - K["rz"] * 1.25, K["z"] + K["rz"] * 1.25
-    nx_ = int((wx1 - wx0) / wcell)
-    nz_ = int((wz1 - wz0) / wcell)
-    wverts = {}
-
-    def wv(i, k):
-        if (i, k) not in wverts:
-            x = wx0 + (wx1 - wx0) * i / nx_
-            z = wz0 + (wz1 - wz0) * k / nz_
-            v = water.v(x, K["water"], z)
-            depth = K["water"] - ground_y(L, x, z)
-            s0, s1, s2 = lin(C["aquaShallow"]), lin(C["aqua"]), lin(C["aquaDeep"])
-            k1 = smooth(0.05, 0.8, depth)
-            k2 = smooth(0.8, 2.0, depth)
-            c = tuple(s0[m] + (s1[m] - s0[m]) * k1 + (s2[m] - s1[m]) * k2 for m in range(3))
-            water.setv(v, c)
-            wverts[(i, k)] = v
-        return wverts[(i, k)]
-
-    for i in range(nx_):
-        for k in range(nz_):
-            corners = [(wx0 + (wx1 - wx0) * (i + di) / nx_, wz0 + (wz1 - wz0) * (k + dk) / nz_) for di, dk in ((0, 0), (1, 0), (0, 1), (1, 1))]
-            # (a cell anywhere the water shows: the sand over the rest hides it)
-            if min(ground_y(L, x, z) for x, z in corners) > K["water"] + 0.02:
-                continue
-            q = [wv(i, k), wv(i, k + 1), wv(i + 1, k + 1), wv(i + 1, k)]
-            water.setsmooth(water.face(q, "aqua"))
-    # the islet's limestone boulders round its shore, moss and ferns on top
-    for k in range(14):
-        a = 2 * math.pi * k / 14 + rng.random() * 0.3
-        rr = I["r"] * (0.95 + 0.1 * rng.random())
-        px, pz = I["x"] + math.cos(a) * rr * (1 + 0.12 * math.sin(3 * a + 1.0)), I["z"] + math.sin(a) * rr * (1 + 0.12 * math.sin(3 * a + 1.0))
-        if sandbar_distance(L, px, pz) < L["sandbar"]["half"] + 0.4:
-            continue
-        blob(rock, px, 0.05, pz, 0.35 + 0.2 * rng.random(), 0.3 + 0.2 * rng.random(), 0.32, "limestone", cuts=1, noise=0.3, seed=200 + k, bottom=-0.6)
-    for k in range(9):
-        a = rng.random() * 6.28
-        rr = I["r"] * (0.3 + 0.35 * rng.random())
-        px, pz = I["x"] + math.cos(a) * rr, I["z"] + math.sin(a) * rr
-        if math.hypot(px - I["x"], pz - I["z"]) < 1.35:
-            continue
-        fern(rock, px, I["top"], pz, 0.3 + 0.2 * rng.random(), rng)
-    # the karst tower on the islet's west shore (away from the camera): a stack of limestone topped by
-    # an old mangrove, its aerial roots weeping down round the stack into the islet and the water, lit
-    # by the skylight's beam far overhead
-    Tw = L["tower"]
-    tx, tz = Tw["x"], Tw["z"]
-    tower_h = Tw["h"]
-    for k in range(6):
-        y = tower_h * k / 6
-        w = 0.95 - 0.25 * math.sin(k / 5 * math.pi) + 0.1 * (k == 5)
-        blob(roots, tx + 0.1 * math.sin(k * 1.3), y + 0.55, tz + 0.1 * math.cos(k * 1.7), w, 0.7, w * 0.9, "limestone" if k % 2 else "limestoneDark", cuts=2, noise=0.25, seed=600 + k)
-    blob(roots, tx, tower_h + 0.35, tz, 1.25, 0.35, 1.1, "limestone", cuts=2, noise=0.3, seed=611)
-    blob(roots, tx, tower_h + 0.6, tz, 1.15, 0.2, 1.0, "mossA", cuts=2, noise=0.3, seed=612)
-    # the mangrove: a gnarled trunk, a round leafy crown
-    cyl(roots, (tx, tower_h + 0.5, tz), (tx + 0.2, tower_h + 1.6, tz - 0.1), 0.18, "rootDark", sides=7, r_end=0.12)
-    for k, (dx, dy, dz, r) in enumerate([(0.2, 2.1, -0.1, 1.0), (0.8, 1.8, 0.3, 0.7), (-0.6, 1.9, -0.4, 0.75), (0.1, 2.5, 0.4, 0.6)]):
-        blob(roots, tx + dx, tower_h + dy, tz + dz, r, r * 0.7, r, "fern" if k % 2 else "mossB", cuts=2, noise=0.2, seed=620 + k)
-    # its aerial roots: from the crown's rim down round the tower to the rock and the water
-    for k in range(18):
-        a = math.radians(-60 + 300 * k / 17 + 8 * rng.random())
-        rr = 1.05 + 0.35 * rng.random()
-        top = (tx + math.cos(a) * rr, tower_h + 0.4, tz + math.sin(a) * rr)
-        foot_r = rr + 0.2 + 0.5 * rng.random()
-        fx, fz = tx + math.cos(a) * foot_r, tz + math.sin(a) * foot_r
-        end_y = (I["top"] if islet_factor(L, fx, fz) < 0.9 else K["water"] - 0.05) + (0.0 if rng.random() < 0.7 else 0.8 + 1.2 * rng.random())
-        mid = (top[0] + (fx - top[0]) * 0.4, (top[1] + end_y) / 2 + 0.3, top[2] + (fz - top[2]) * 0.4)
-        r0 = 0.05 + 0.03 * rng.random()
-        cyl(roots, top, mid, r0, "root", sides=5, cap=False)
-        cyl(roots, mid, (fx, end_y, fz), r0 * 0.8, "rootDark", sides=5, r_end=r0 * 0.35, cap=False)
-    # Finnegan's driftwood outcrop: weathered planks on posts out over the water, a log along its
-    # north side, driftwood heaped where it meets the beach
-    Oc = L["outcrop"]
-    dk = Oc["deck"]
-    nplank = int((Oc["x1"] - Oc["x0"]) / 0.32)
-    for k in range(nplank):
-        px0 = Oc["x0"] + k * 0.32
-        wob = 0.12 * math.sin(k * 1.9)
-        box(rock, px0 + 0.01, px0 + 0.3, dk - 0.06, dk, Oc["z0"] - wob * 0.5, Oc["z1"] + wob, "driftwood" if k % 3 else "driftwoodDark", bottom=False)
-    for px_ in (Oc["x0"] + 0.2, (Oc["x0"] + Oc["x1"]) / 2, Oc["x1"] - 0.4):
-        for pz_ in (Oc["z0"] + 0.15, Oc["z1"] - 0.15):
-            cyl(rock, (px_, -1.2, pz_), (px_, dk - 0.05, pz_), 0.09, "driftwoodDark", sides=6)
-    cyl(rock, (Oc["x0"] - 0.1, dk + 0.08, Oc["z0"] - 0.12), (Oc["x1"] + 0.4, dk + 0.12, Oc["z0"] - 0.1), 0.13, "driftwood", sides=8)
-    for k in range(5):
-        a = rng.random() * 3.14
-        px_, pz_ = Oc["x1"] + 0.3 + 0.8 * rng.random(), Oc["z0"] + (Oc["z1"] - Oc["z0"]) * rng.random()
-        cyl(rock, (px_ - 0.6 * math.cos(a), 0.08, pz_ - 0.6 * math.sin(a)), (px_ + 0.6 * math.cos(a), 0.1, pz_ + 0.6 * math.sin(a)), 0.08 + 0.05 * rng.random(), "driftwood", sides=6)
-    # a lantern post at the outcrop's end, and a rope coil
-    ex = Oc["x0"] + 0.15
-    cyl(rock, (ex, dk, Oc["z1"] - 0.1), (ex, dk + 1.2, Oc["z1"] - 0.1), 0.05, "driftwoodDark", sides=6)
-    lathe(glow, ex + 0.18, Oc["z1"] - 0.1, [(0, 0), (0.06, 0.02), (0.07, 0.1), (0.05, 0.17), (0, 0.19)], "lanternHot", segs=8, y0=dk + 0.85)
-    lathe(rock, Oc["x1"] - 0.5, Oc["z1"] - 0.35, [(0, 0), (0.2, 0.0), (0.2, 0.08), (0.08, 0.09), (0, 0.09)], "cloth", segs=10, y0=dk)
-
-    # --- the rims: a low lip of rounded rock along the south and east (the cut-away), the strata of the
-    # ground's section down its faces, and the slab under it all ---
-    for k in range(70):
-        t = k / 69
-        x, z = -half + 2 * half * t, half - 0.2
-        blob(rock, x, 0.08, z + 0.05, 0.5 + 0.2 * rng.random(), 0.2 + 0.25 * rng.random(), 0.32, "limestoneDark", cuts=1, noise=0.25, seed=400 + k, bottom=-0.3)
-    for k in range(70):
-        t = k / 69
-        z = -half + 2 * half * t
-        top = plateau_y(L, half, z) if in_doline(L, half, z) else 0.0
-        blob(rock, half - 0.2, top + 0.08, z, 0.32, 0.2 + 0.25 * rng.random(), 0.5 + 0.2 * rng.random(), "limestoneDark", cuts=1, noise=0.25, seed=500 + k, bottom=top - 0.3)
-    for axis in ("s", "e"):
-        prev = None
-        for k in range(61):
-            t = -half + 2 * half * k / 60
-            x, z = (t, half) if axis == "s" else (half, t)
-            top = ground_y(L, x - (0.1 if axis == "e" else 0), z - (0.1 if axis == "s" else 0))
-            a_, b_ = rock.v(x, -3.2, z), rock.v(x, top, z)
-            rock.setv(a_, "bedrock")
-            rock.setv(b_, "strata")
-            if prev:
-                q = (prev[0], a_, b_, prev[1]) if axis == "s" else (a_, prev[0], prev[1], b_)
-                rock.setsmooth(rock.face(q, "strata"))
-            prev = (a_, b_)
-    box(rock, -half, half, -3.3, -3.2, -half, half, "bedrock", top="bedrock")
-
-    finish_object("Cave_Rock", rock, coll, mottle=0.1)
-    finish_object("Cave_Shell", shell, coll, mottle=0.08)
-    finish_object("Cave_Roots", roots, coll, mottle=0.1)
-    finish_object("Cave_Glow", glow, coll, bake=False)
-    finish_object("Cave_Water", water, coll, bake=False)
-    finish_object("Cave_Thermal", therm, coll, bake=False)
 
 
 def frange(a, b, step):
     n = max(1, int(round((b - a) / step)))
     return [a + (b - a) * k / n for k in range(n + 1)]
-
-
-def node_back_rock(L, n):
-    """The fallen limestone a node away from the walls sits in (as shared/worlds/caverns.ts
-    nodeBackRock): its centre and radius, or None."""
-    wall = n["x"] <= L["walls"]["west"] + 1.3 or n["z"] <= L["walls"]["north"] + 1.3
-    if wall or n["kind"] == "monolith" or not n.get("face"):
-        return None
-    fx, fz = n["face"]
-    fl = math.hypot(fx, fz) or 1
-    r = ORE_RADII[n["kind"]]
-    return (n["x"] - fx / fl * (r + 0.45), n["z"] - fz / fl * (r + 0.45), r + 0.35)
 
 
 def fern(M, x, y, z, s, rng):
@@ -1363,20 +633,826 @@ def prism_col(M, base, r, h, col):
 
 
 # ---------------------------------------------------------------------------------------------
-# the ore nodes' rocks: one template a kind, at the origin, its foot on the floor
+# the organic karst
+
+
+C.update(
+    {
+        "scree": "#CBC0AA",
+        "screeDark": "#AEA38F",
+        "loamDark": "#58492F",
+        "slateMoss": "#40583A",
+        "chasmFloor": "#2B3143",
+        "chasmMoss": "#2F6A68",
+        "earthPacked": "#7C6649",
+        "limestonePale": "#D2C9B3",
+        "strataDark": "#5E554A",
+        "vault": "#6A6258",
+        "vaultDark": "#3A3531",
+        "magma": "#FF5A1F",
+        "magmaHot": "#FFC05A",
+        "sectionDark": "#3C352E",
+    }
+)
+FINISHES["CV_Collider"] = 1.0
+
+
+def read_terrain(root):
+    path = os.path.join(root, "scripts", "blender", "data", "caverns_terrain.json")
+    return json.load(open(path, encoding="utf-8"))
+
+
+class Ground:
+    """The walk grid (shared/worlds/caverns.ts: TERRAIN_HEIGHTS, cavernsFloorY, the mask), as read."""
+
+    def __init__(self, T):
+        self.n, self.cell, self.x0 = T["n"], T["cell"], T["x0"]
+        self.h, self.s = T["heights"], T["surface"]
+        self.mn, self.mc, self.m = T["maskN"], T["maskCell"], T["mask"]
+        self.pools = T["pools"]
+        self.dist = self._walk_distance()
+
+    def at(self, i, k):
+        return self.x0 + i * self.cell, self.x0 + k * self.cell
+
+    def y(self, x, z):
+        """The floor's height: the grid split along each cell's (-x, -z) to (+x, +z) diagonal."""
+        fx = min(max((x - self.x0) / self.cell, 0.0), self.n - 1.000001)
+        fz = min(max((z - self.x0) / self.cell, 0.0), self.n - 1.000001)
+        i, k = int(fx), int(fz)
+        u, v = fx - i, fz - k
+        n = self.n
+        h00, h10, h01, h11 = self.h[k * n + i], self.h[k * n + i + 1], self.h[(k + 1) * n + i], self.h[(k + 1) * n + i + 1]
+        return h00 + u * (h10 - h00) + v * (h11 - h10) if u >= v else h00 + v * (h01 - h00) + u * (h11 - h01)
+
+    def walk(self, x, z):
+        i, k = int((x - self.x0) / self.mc), int((z - self.x0) / self.mc)
+        return 0 <= i < self.mn and 0 <= k < self.mn and self.m[k * self.mn + i] == "1"
+
+    def _walk_distance(self):
+        """Each grid vertex's distance (m) to the nearest cell you can stand in (a chamfer pass)."""
+        N = self.mn
+        INF = 1e9
+        d = [0.0 if c == "1" else INF for c in self.m]
+        r2 = 1.4142
+        for k in range(N):
+            for i in range(N):
+                q = k * N + i
+                if d[q] == 0.0:
+                    continue
+                b = d[q]
+                if i > 0:
+                    b = min(b, d[q - 1] + 1)
+                if k > 0:
+                    b = min(b, d[q - N] + 1)
+                    if i > 0:
+                        b = min(b, d[q - N - 1] + r2)
+                    if i < N - 1:
+                        b = min(b, d[q - N + 1] + r2)
+                d[q] = b
+        for k in range(N - 1, -1, -1):
+            for i in range(N - 1, -1, -1):
+                q = k * N + i
+                b = d[q]
+                if i < N - 1:
+                    b = min(b, d[q + 1] + 1)
+                if k < N - 1:
+                    b = min(b, d[q + N] + 1)
+                    if i < N - 1:
+                        b = min(b, d[q + N + 1] + r2)
+                    if i > 0:
+                        b = min(b, d[q + N - 1] + r2)
+                d[q] = b
+        out = []
+        for k in range(self.n):
+            for i in range(self.n):
+                best = INF
+                for kk in (2 * k - 1, 2 * k):
+                    for ii in (2 * i - 1, 2 * i):
+                        if 0 <= ii < N and 0 <= kk < N:
+                            best = min(best, d[kk * N + ii])
+                out.append(best * self.mc)
+        return out
+
+
+def ambient_at(p):
+    """The cavern's own light: the doline's sun-warmed air, the lake's cool aquamarine, the chasm's
+    deep blue, the shelf's damp grey, dimmer up the walls (but where the sun falls down the doline)."""
+    x, y, z = p
+    # (the doline's sun spills down over the overlook; the open floor is lit cool by the cenote; only
+    # the walls' feet and the chasm sink into the dark)
+    doline = smooth(-2.5, -9.5, z) * (1 - smooth(12.0, 15.0, x)) * (1 - 0.5 * smooth(-12.0, -15.0, x))
+    lakeside = 0.55 + 0.45 * smooth(16.0, 6.0, math.hypot((x - 1.0) / 1.3, z - 10.8))
+    lakeside *= 1 - 0.5 * smooth(-17.0, -21.5, min(x, z))
+    chasm = smooth(12.0, 16.0, x) * smooth(4.0, -2.0, z)
+    warm = (0.9, 0.84, 0.7)
+    cool = (0.6, 0.66, 0.7)
+    dark = (0.36, 0.39, 0.5)
+    deep = (0.3, 0.36, 0.56)
+    base = tuple(dark[i] + (cool[i] - dark[i]) * lakeside for i in range(3))
+    base = tuple(base[i] + (deep[i] - base[i]) * chasm for i in range(3))
+    a = tuple(base[i] + (warm[i] - base[i]) * doline for i in range(3))
+    fade = 1 - 0.45 * smooth(6.0, 12.0, y) * (1 - doline)
+    return tuple(c * fade for c in a)
+
+
+def mixc(a, b, t):
+    ca = lin(a) if isinstance(a, str) else a
+    cb = lin(b) if isinstance(b, str) else b
+    t = max(0.0, min(1.0, t))
+    return tuple(ca[i] + (cb[i] - ca[i]) * t for i in range(3))
+
+
+def ground_colour(x, y, z, s, d):
+    """A floor vertex's colour by what it is (the grid's surface), mottled, blended at the edges by
+    the vertices' own colours."""
+    n1 = fbm(x * 0.55, 0.3, z * 0.55, 11)
+    n2 = fbm(x * 1.9, 0.7, z * 1.9, 13)
+    if s == 0:  # bare rock: pale limestone and its strata, mossier where the doline's sun reaches
+        band = 0.5 + 0.5 * math.sin(y * 6.5 + n1 * 3.0)
+        c = mixc("limestone", "limestoneDark", band * 0.7)
+        c = mixc(c, "strata", max(0.0, n2) * 0.45)
+        if z < -9.0 and y > 2.6:
+            c = mixc(c, "mossA", 0.35 + 0.3 * n2)
+        return c
+    if s == 1:  # the doline's mossy loam
+        c = mixc("loam", "mossA", 0.45 + 0.45 * n1)
+        return mixc(c, "mossB", max(0.0, n2) * 0.6)
+    if s == 2:  # the trails' scree
+        c = mixc("scree", "screeDark", 0.5 + 0.5 * n2)
+        return mixc(c, "earthPacked", max(0.0, n1) * 0.4)
+    if s == 3:  # sand, wet toward the water
+        c = mixc("sand", "sandGold", 0.5 + 0.5 * n1)
+        return mixc(c, "sandWet", smooth(0.25, -0.1, y))
+    if s == 4:  # the shelf's wet slate, mossy seams
+        c = mixc("slate", "slateWet", 0.5 + 0.5 * n1)
+        return mixc(c, "slateMoss", max(0.0, n2) * 0.7)
+    if s == 5:  # the chasm's dark floor, glow moss in its hollows
+        c = mixc("chasmFloor", "slateWet", 0.5 + 0.5 * n1)
+        return mixc(c, "chasmMoss", max(0.0, n2 - 0.15) * 0.9)
+    if s == 6:  # travertine
+        return mixc("travertine", "travertineShadow", 0.5 + 0.5 * n2)
+    if s == 7:  # the lake's bed: sand to aquamarine to the deep
+        c = mixc("sandWet", "bed", smooth(-0.1, -0.7, y))
+        return mixc(c, "bedDeep", smooth(-0.8, -2.2, y))
+    if s == 8:  # the overlook's pale limestone, cracked
+        return mixc("limestonePale", "limestone", 0.5 + 0.5 * n2)
+    # the low ground's packed earth, mossy
+    c = mixc("earthPacked", "loam", 0.5 + 0.5 * n1)
+    return mixc(c, "mossA", max(0.0, n2) * 0.45)
+
+
+def pool_outline(G, pi, seed):
+    """A rimstone pool's outline: a lobed, wobbling oval over its span of the terraces."""
+    L = LAYOUT
+    T = L["terraces"]
+    P = L["terraces"]["pools"][pi]
+    cx, cz = (T["x0"] + T["x1"]) / 2, (P["z0"] + P["z1"]) / 2
+    rx, rz = (T["x1"] - T["x0"]) / 2, (P["z1"] - P["z0"]) / 2 + 0.1
+    out = []
+    for k in range(24):
+        a = 2 * math.pi * k / 24
+        w = 1 + 0.08 * math.sin(3 * a + seed) + 0.06 * math.sin(5 * a + 2 * seed) + 0.04 * vnoise(math.cos(a) * 2, math.sin(a) * 2, seed, 7)
+        out.append((cx + math.cos(a) * rx * w, cz + math.sin(a) * rz * w))
+    return (cx, cz, rx, rz), out
+
+
+def inside_poly(x, z, poly):
+    inside = False
+    j = len(poly) - 1
+    for i in range(len(poly)):
+        ax, az = poly[j]
+        bx, bz = poly[i]
+        if (bz > z) != (az > z) and x < (ax - bx) * (z - bz) / (az - bz) + bx:
+            inside = not inside
+        j = i
+    return inside
+
+
+LAYOUT = {}
+
+
+def build_ground(G, L, rock, water):
+    """The floor: the walk grid's very triangles, painted by what they are; the rock slopes away from
+    any footing roughened; the terraces' pools carved into it; the lake's water over its bed."""
+    n = G.n
+    pools = [pool_outline(G, pi, pi * 1.7 + 0.3) for pi in range(len(G.pools))]
+    # each vertex's colour by what it is, then blurred twice over its neighbours (so a sand shore, a
+    # scree trail's edge or a moss patch fades into the next, never a staircase of cells)
+    cols = []
+    for k in range(n):
+        for i in range(n):
+            x, z = G.at(i, k)
+            q = k * n + i
+            cols.append(ground_colour(x, G.h[q], z, G.s[q], G.dist[q]))
+    for _ in range(1):
+        nxt = []
+        for k in range(n):
+            for i in range(n):
+                acc = [0.0, 0.0, 0.0]
+                wsum = 0.0
+                for dk in (-1, 0, 1):
+                    for di in (-1, 0, 1):
+                        ii, kk = i + di, k + dk
+                        if 0 <= ii < n and 0 <= kk < n:
+                            w = 2.0 if di == 0 and dk == 0 else 1.0
+                            c = cols[kk * n + ii]
+                            acc = [acc[j] + c[j] * w for j in range(3)]
+                            wsum += w
+                nxt.append(tuple(a / wsum for a in acc))
+        cols = nxt
+    verts = []
+    for k in range(n):
+        for i in range(n):
+            x, z = G.at(i, k)
+            q = k * n + i
+            h, d = G.h[q], G.dist[q]
+            # the rock roughened by how steep it is (never where anyone stands: the flat stays flat)
+            if d > 0.3:
+                hx = G.h[k * n + min(n - 1, i + 1)] - G.h[k * n + max(0, i - 1)]
+                hz = G.h[min(n - 1, k + 1) * n + i] - G.h[max(0, k - 1) * n + i]
+                steep = math.hypot(hx, hz) / (2 * G.cell)
+                h += smooth(0.35, 1.0, steep) * smooth(0.3, 0.9, d) * (0.3 * fbm(x * 0.8, 0.0, z * 0.8, 31) + 0.14 * fbm(x * 2.2, 1.0, z * 2.2, 37))
+            for pi, ((cx, cz, rx, rz), out) in enumerate(pools):
+                if inside_poly(x, z, out):
+                    h = min(h, G.pools[pi]["y"] - 0.38)
+            v = rock.v(x, h, z)
+            rock.setv(v, cols[q])
+            verts.append(v)
+    for k in range(n - 1):
+        for i in range(n - 1):
+            a, b = verts[k * n + i], verts[k * n + i + 1]
+            c, dv = verts[(k + 1) * n + i], verts[(k + 1) * n + i + 1]
+            # (the game's diagonal: (-x, -z) to (+x, +z); wound to face up)
+            for tri in ((a, dv, b), (a, c, dv)):
+                f = rock.face(tri, ground_colour(0, 0, 0, 1, 0))
+                rock.setsmooth(f)
+    # the lake's surface over every cell its water shows in (the sand over the rest hides it)
+    K = L["lake"]
+    wy = K["water"]
+    wv = {}
+
+    def wvert(i, k):
+        if (i, k) not in wv:
+            x, z = G.at(i, k)
+            depth = wy - G.h[k * n + i]
+            v = water.v(x, wy, z)
+            water.setv(v, mixc(mixc("aquaShallow", "aqua", smooth(0.1, 0.8, depth)), "aquaDeep", smooth(0.9, 2.2, depth)))
+            wv[(i, k)] = v
+        return wv[(i, k)]
+
+    for k in range(n - 1):
+        for i in range(n - 1):
+            hs = [G.h[kk * n + ii] for ii, kk in ((i, k), (i + 1, k), (i, k + 1), (i + 1, k + 1))]
+            x, z = G.at(i, k)
+            if min(hs) > wy - 0.02 or math.hypot((x - K["x"]) / K["rx"], (z - K["z"]) / K["rz"]) > 1.35:
+                continue
+            q = [wvert(i, k), wvert(i, k + 1), wvert(i + 1, k + 1), wvert(i + 1, k)]
+            water.setsmooth(water.face(q, "aqua"))
+
+
+def build_collider(G, coll):
+    """The walk surface, triangle for triangle (never drawn: the game's click collider)."""
+    bm = bmesh.new()
+    n = G.n
+    verts = []
+    for k in range(n):
+        for i in range(n):
+            x, z = G.at(i, k)
+            verts.append(bm.verts.new(W(x, G.h[k * n + i], z)))
+    for k in range(n - 1):
+        for i in range(n - 1):
+            a, b = verts[k * n + i], verts[k * n + i + 1]
+            c, dv = verts[(k + 1) * n + i], verts[(k + 1) * n + i + 1]
+            bm.faces.new((a, dv, b))
+            bm.faces.new((a, c, dv))
+    # (smooth: each vertex exported once, not once a triangle)
+    for f in bm.faces:
+        f.smooth = True
+    me = bpy.data.meshes.new("caverns_walk_colliderMesh")
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(material("CV_Collider"))
+    ob = bpy.data.objects.new("caverns_walk_collider", me)
+    coll.objects.link(ob)
+    return ob
+
+
+def wall_point(G, L, along, u, v, rng_seed):
+    """A point on the shell: `along` "x" the north wall (u its x), "z" the west (u its z); v 0 at its
+    foot on the ground, 1 at its top, curving in over the floor near the top into the vault (broken
+    open over the doline, where the sun comes in); bulging in and out, pocketed."""
+    half = L["half"]
+    top = L["walls"]["height"]
+    gx, gz = (u, -half + 0.4) if along == "x" else (-half + 0.4, u)
+    foot = G.y(max(-half, min(half, gx)), max(-half, min(half, gz))) - 0.5
+    y = foot + (top - foot) * v
+    seed = 3.0 if along == "x" else 7.0
+    bulge = 0.3 + 0.55 * (0.5 + 0.5 * fbm(u * 0.33, y * 0.33, seed, 41))
+    pocket = max(0.0, fbm(u * 0.22, y * 0.28, seed + 1, 43) - 0.15) * 1.6
+    broken = along == "x" and -9.0 < u < 11.0
+    vault_depth = (1.0 + 0.6 * fbm(u * 0.4, 0.0, seed, 47)) if broken else (4.2 + 1.2 * fbm(u * 0.25, 0.0, seed, 49))
+    vault = vault_depth * smooth(0.55, 1.0, v) ** 1.5
+    inward = bulge - pocket * smooth(0.25, 0.5, v) * (1 - smooth(0.8, 0.95, v)) + vault
+    if v < 0.22:
+        inward = min(inward, 0.95)
+    inward = max(inward, 0.05)
+    if along == "x":
+        return (u, y, -half + inward)
+    return (-half + inward, y, u)
+
+
+def wall_colour(x, y, z, v, along):
+    n1 = fbm(x * 0.4, y * 0.8, z * 0.4, 51)
+    band = 0.5 + 0.5 * math.sin(y * 4.2 + n1 * 2.5)
+    c = mixc("shell", "strata", band * 0.7)
+    c = mixc(c, "vaultDark", smooth(0.6, 1.0, v) * 0.55)
+    # the shelf's damp slate and the chasm's cold blue in their stretch of wall, ivy under the doline's sun
+    if (along == "z" and z < -8.0) or (along == "x" and x < -13.0):
+        c = mixc(c, "slate", 0.55)
+        c = mixc(c, "slateMoss", max(0.0, fbm(x * 1.3, y * 1.3, z * 1.3, 53)) * 0.8 * (1 - smooth(0.2, 0.5, v)))
+    elif along == "x" and x > 13.0:
+        c = mixc(c, "shellCold", 0.6)
+    elif along == "x" and -10 < x < 12 and v < 0.55:
+        c = mixc(c, "ivy", max(0.0, fbm(x * 1.1, y * 0.9, z, 55) - 0.05) * 0.9)
+    return c
+
+
+def build_shell(G, L, shell, glow, rock, rng):
+    """The north and west walls, their vault, the adit's and the forge's openings, the stalactite
+    clusters nested in the vault's pockets."""
+    half = L["half"]
+    A = L["adit"]
+    F = L["forge"]
+    V = 20
+    us = frange(-half - 0.5, half, 0.55)
+    for along in ("x", "z"):
+        grid = []
+        for u in us:
+            col = []
+            for j in range(V + 1):
+                p = wall_point(G, L, along, u, j / V, 0)
+                v = shell.v(*p)
+                shell.setv(v, wall_colour(p[0], p[1], p[2], j / V, along))
+                col.append(v)
+            grid.append(col)
+        for a in range(len(us) - 1):
+            for j in range(V):
+                u0, u1 = us[a], us[a + 1]
+                y0 = grid[a][j].co.z
+                if along == "x":
+                    # (the adit's mouth and the forge's fissure open in the north wall)
+                    if u1 > A["x"] - A["w"] / 2 - 0.25 and u0 < A["x"] + A["w"] / 2 + 0.25 and y0 < G.y(A["x"], -half + 1.0) + A["h"] + 0.3:
+                        continue
+                    if u1 > F["x"] - F["w"] / 2 - 0.2 and u0 < F["x"] + F["w"] / 2 + 0.2 and y0 < G.y(F["x"], F["z"]) + F["h"] + 0.9:
+                        continue
+                q = (grid[a][j], grid[a + 1][j], grid[a + 1][j + 1], grid[a][j + 1])
+                shell.setsmooth(shell.face(q if along == "x" else tuple(reversed(q)), "shell"))
+    # the stalactite clusters nested in the vault's pockets (never a row of them)
+    spots = []
+    for k in range(40):
+        along = "x" if rng.random() < 0.55 else "z"
+        u = -half + 2.0 + rng.random() * (2 * half - 4.0)
+        if along == "x" and -9.5 < u < 11.5:
+            continue
+        spots.append((along, u))
+        if len(spots) >= 9:
+            break
+    for along, u in spots:
+        # a cluster of dripstone nested up under the vault in a pocket: lumpy, tapering, uneven
+        n = 3 + int(rng.random() * 3)
+        for c in range(n):
+            du = (rng.random() - 0.5) * 1.4
+            v = 0.6 + 0.12 * rng.random()
+            p = wall_point(G, L, along, u + du, v, 0)
+            back = 0.15 + rng.random() * 0.5
+            bx, by, bz = (p[0], p[1], p[2] - back) if along == "x" else (p[0] - back, p[1], p[2])
+            ln = 0.4 + rng.random() * 1.3
+            r = 0.1 + 0.08 * rng.random() + 0.05 * ln
+            segs = 2 + int(ln / 0.7)
+            for j in range(segs):
+                t = j / segs
+                blob(shell, bx + 0.03 * math.sin(j + c), by - ln * t, bz + 0.03 * math.cos(j + c), r * (1 - 0.75 * t), ln / segs * 0.7, r * (1 - 0.75 * t), "flowstone" if (j + c) % 2 else "vault", cuts=0, noise=0.25, seed=c * 7 + j)
+    # the adit: a dark tunnel into the north wall, timbers round its mouth, a lantern
+    ax0, ax1 = A["x"] - A["w"] / 2, A["x"] + A["w"] / 2
+    dy = G.y(A["x"], -half + 1.4)
+    box(rock, ax0 - 0.12, ax1 + 0.12, dy - 0.3, dy + A["h"] + 0.1, -half - 2.2, -half + 0.6, "tunnel", bottom=False)
+    for sx in (ax0 - 0.14, ax1 + 0.14):
+        box(rock, sx - 0.13, sx + 0.13, dy - 0.2, dy + A["h"] + 0.15, -half + 0.35, -half + 0.62, "timber")
+    box(rock, ax0 - 0.45, ax1 + 0.45, dy + A["h"], dy + A["h"] + 0.3, -half + 0.3, -half + 0.68, "timberDark")
+    for k in range(5):
+        z = -half - 1.8 + k * 0.5
+        box(rock, ax0 + 0.1, ax1 - 0.1, dy + 0.01, dy + 0.05, z, z + 0.14, "timberDark", bottom=False)
+    lathe(glow, ax1 + 0.42, -half + 0.95, [(0, 0), (0.07, 0.02), (0.09, 0.12), (0.07, 0.22), (0, 0.24)], "lanternHot", segs=8, y0=dy + 1.9)
+    cyl(rock, (ax1 + 0.14, dy + 2.2, -half + 0.62), (ax1 + 0.42, dy + 2.2, -half + 0.95), 0.015, "iron", sides=5)
+    # the rubble of the tunnel's mouth, heaped either side
+    for k in range(6):
+        sx = (ax0 - 0.7 - 0.5 * rng.random()) if k % 2 else (ax1 + 0.7 + 0.5 * rng.random())
+        blob(rock, sx, dy + 0.1, -half + 0.9 + 0.4 * rng.random(), 0.3 + 0.2 * rng.random(), 0.22, 0.26, "limestoneDark", cuts=1, noise=0.25, seed=900 + k, bottom=dy - 0.2)
+
+
+def build_outpost(G, L, rock, glow, rng):
+    """Gus's log workstation, the forge in its basalt fissure (its magma veins), the meteorite anvil
+    on its low rock outcrop, the antique tool crate."""
+    half = L["half"]
+    Wk = L["workstation"]
+    wy = G.y(Wk["x"], Wk["z"])
+    for sx in (-1, 1):
+        cyl(rock, (Wk["x"] + sx * Wk["len"] * 0.36, wy - 0.05, Wk["z"]), (Wk["x"] + sx * Wk["len"] * 0.36, wy + Wk["top"] - 0.16, Wk["z"]), 0.22, "timberDark", sides=9)
+    cyl(rock, (Wk["x"] - Wk["len"] / 2, wy + Wk["top"] - 0.1, Wk["z"]), (Wk["x"] + Wk["len"] / 2, wy + Wk["top"] - 0.1, Wk["z"]), Wk["w"] * 0.5, "timber", sides=9)
+    box(rock, Wk["x"] - Wk["len"] / 2 + 0.05, Wk["x"] + Wk["len"] / 2 - 0.05, wy + Wk["top"] - 0.12, wy + Wk["top"], Wk["z"] - Wk["w"] * 0.42, Wk["z"] + Wk["w"] * 0.42, "plank", bottom=False)
+    lathe(glow, Wk["x"] + 0.85, Wk["z"] - 0.1, [(0, 0), (0.07, 0.02), (0.08, 0.12), (0.06, 0.2), (0, 0.22)], "lanternHot", segs=8, y0=wy + Wk["top"])
+    box(rock, Wk["x"] - 0.5, Wk["x"] - 0.05, wy + Wk["top"], wy + Wk["top"] + 0.05, Wk["z"] - 0.15, Wk["z"] + 0.12, "timberDark")
+    for k, colr in enumerate(("copperNug", "silverVein", "coalChunk", "copperNug")):
+        blob(rock, Wk["x"] - 0.42 + k * 0.1, wy + Wk["top"] + 0.08, Wk["z"] - 0.02, 0.04, 0.035, 0.04, colr, cuts=0)
+    for k, g in enumerate(("gemRed", "cyan", "violet")):
+        blob(glow, Wk["x"] - 0.4 + k * 0.12, wy + Wk["top"] + 0.1, Wk["z"] + 0.08, 0.03, 0.035, 0.03, g, cuts=0)
+    cyl(rock, (Wk["x"] + 0.1, wy + Wk["top"] + 0.04, Wk["z"] + 0.18), (Wk["x"] + 0.55, wy + Wk["top"] + 0.04, Wk["z"] + 0.18), 0.04, "cloth", sides=6)
+    # the camp behind him: crates, a bedroll, a sack
+    box(rock, Wk["x"] - 2.6, Wk["x"] - 1.7, wy - 0.05, wy + 0.5, Wk["z"] - 1.9, Wk["z"] - 1.3, "timber")
+    box(rock, Wk["x"] - 2.5, Wk["x"] - 1.9, wy + 0.5, wy + 0.85, Wk["z"] - 1.85, Wk["z"] - 1.4, "timberDark")
+    cyl(rock, (Wk["x"] + 1.5, wy + 0.12, Wk["z"] - 1.6), (Wk["x"] + 2.6, wy + 0.12, Wk["z"] - 1.6), 0.16, "redCloth", sides=8)
+    blob(rock, Wk["x"] + 1.9, wy + 0.25, Wk["z"] - 0.9, 0.3, 0.3, 0.25, "sack", cuts=1)
+    # the forge: a hearth set into the basalt fissure of the north wall, columns of basalt lining it,
+    # magma veins glowing up its back, its mouth, the bellows, the quench trough, the coal heap
+    F = L["forge"]
+    fy = G.y(F["x"], F["z"] + F["d"] / 2 + 0.3)
+    fx0, fx1 = F["x"] - F["w"] / 2, F["x"] + F["w"] / 2
+    fz0, fz1 = F["z"] - F["d"] / 2, F["z"] + F["d"] / 2
+    for k in range(12):
+        cx = fx0 - 0.6 + (F["w"] + 1.2) * k / 11
+        back = -half + 0.2 + 0.25 * rng.random()
+        if fx0 + 0.25 < cx < fx1 - 0.25:
+            prism_col(rock, (cx, fy - 0.2, back - 0.35), 0.26 + 0.06 * rng.random(), F["h"] + 1.4 + 1.2 * rng.random(), "basalt" if k % 2 else "basaltLight")
+        else:
+            prism_col(rock, (cx, fy - 0.2, back + 0.25 * rng.random()), 0.3 + 0.08 * rng.random(), F["h"] + 0.6 + 1.6 * rng.random(), "basalt" if k % 2 else "basaltLight")
+    for k in range(7):
+        x = F["x"] + (rng.random() - 0.5) * (F["w"] - 0.6)
+        for j in range(4):
+            blob(glow, x + 0.08 * math.sin(k + j), fy + F["h"] + 0.2 + j * 0.42, -half + 0.28, 0.05, 0.22, 0.03, "magma" if j % 2 else "magmaHot", cuts=0)
+    box(rock, fx0, fx1, fy - 0.1, fy + F["h"], fz0 - 0.2, fz1, "stoneDark", top="basaltLight")
+    box(rock, fx0 + 0.2, fx1 - 0.2, fy + F["h"], fy + F["h"] + 0.35, fz0, fz1 - 0.2, "basalt")
+    box(glow, F["x"] - 0.6, F["x"] + 0.6, fy + 0.45, fy + 1.25, fz1 - 0.02, fz1 + 0.01, "forgeMouth")
+    blob(glow, F["x"], fy + 0.7, fz1 - 0.02, 0.45, 0.22, 0.06, "forgeCore", cuts=1)
+    for k in range(7):
+        a = math.pi * k / 6
+        blob(rock, F["x"] + math.cos(a) * 0.72, fy + 0.85 + math.sin(a) * 0.55, fz1 + 0.04, 0.12, 0.1, 0.08, "brick", cuts=0)
+    bx_ = fx1 + 0.55
+    box(rock, bx_ - 0.35, bx_ + 0.35, fy + 0.3, fy + 0.42, F["z"] + 0.1, F["z"] + 0.8, "timber")
+    box(rock, bx_ - 0.32, bx_ + 0.32, fy + 0.42, fy + 0.62, F["z"] + 0.15, F["z"] + 0.75, "leather")
+    box(rock, bx_ - 0.35, bx_ + 0.35, fy + 0.62, fy + 0.72, F["z"] + 0.1, F["z"] + 0.8, "timber")
+    cyl(rock, (bx_ - 0.36, fy + 0.5, F["z"] + 0.45), (fx1 - 0.02, fy + 0.5, F["z"] + 0.45), 0.05, "iron", sides=6)
+    cyl(rock, (bx_, fy - 0.05, F["z"] + 0.1), (bx_, fy + 0.3, F["z"] + 0.1), 0.05, "timberDark", sides=5)
+    box(rock, fx0 - 1.1, fx0 - 0.25, fy - 0.05, fy + 0.4, F["z"] + 0.2, F["z"] + 0.75, "stoneDark", top="waterDark")
+    for k in range(9):
+        blob(rock, fx0 - 0.9 + 0.5 * rng.random(), fy + 0.08 + 0.1 * rng.random(), fz1 + 0.35 + 0.4 * rng.random(), 0.14, 0.1, 0.12, "coalChunk", cuts=0)
+    # the meteorite anvil: a dark pitted lump, its top ground flat, resting on a low rock outcrop
+    An = L["anvil"]
+    ay = G.y(An["x"], An["z"])
+    oc = An["outcrop"]
+    blob(rock, An["x"], ay + oc * 0.35, An["z"], 0.62, oc * 0.55, 0.52, "limestoneDark", cuts=2, noise=0.3, seed=71, bottom=ay - 0.2)
+    blob(rock, An["x"] + 0.25, ay + oc * 0.2, An["z"] - 0.2, 0.4, oc * 0.35, 0.36, "limestone", cuts=1, noise=0.3, seed=72, bottom=ay - 0.2)
+    blob(rock, An["x"], ay + oc + 0.16, An["z"], 0.34, 0.2, 0.28, "meteorite", cuts=2, noise=0.25, seed=5)
+    box(rock, An["x"] - 0.24, An["x"] + 0.24, ay + oc + 0.28, ay + oc + 0.33, An["z"] - 0.16, An["z"] + 0.16, "steel")
+    for k in range(5):
+        a = rng.random() * 6.28
+        blob(glow, An["x"] + math.cos(a) * 0.3, ay + oc + 0.1 + 0.12 * rng.random(), An["z"] + math.sin(a) * 0.24, 0.025, 0.02, 0.025, "violetSoft", cuts=0)
+    Cr = L["crate"]
+    cy_ = G.y(Cr["x"], Cr["z"])
+    box(rock, Cr["x"] - Cr["w"] / 2, Cr["x"] + Cr["w"] / 2, cy_ - 0.05, cy_ + Cr["h"], Cr["z"] - Cr["d"] / 2, Cr["z"] + Cr["d"] / 2, "timber", top="timberDark")
+    for sx in (-0.3, 0.3):
+        box(rock, Cr["x"] + sx - 0.03, Cr["x"] + sx + 0.03, cy_ - 0.05, cy_ + Cr["h"] + 0.005, Cr["z"] - Cr["d"] / 2 - 0.005, Cr["z"] + Cr["d"] / 2 + 0.005, "iron")
+    for k in range(4):
+        cyl(rock, (Cr["x"] - 0.25 + k * 0.14, cy_ + Cr["h"] - 0.1, Cr["z"] - 0.05), (Cr["x"] - 0.2 + k * 0.14, cy_ + Cr["h"] + 0.22, Cr["z"] - 0.1 + 0.05 * k), 0.022, "steel" if k % 2 else "timberDark", sides=5)
+
+
+def stalagmite(M, x, y, z, r, h, rng, col="flowstone", col2="limestone"):
+    """A towering stalagmite: a lumpy tapering column of dripstone, rings of flowstone down it."""
+    k_n = max(4, int(h / 0.55))
+    for k in range(k_n):
+        t = k / k_n
+        rr = r * (1 - 0.72 * t) * (0.9 + 0.2 * rng.random())
+        yy = y + h * t
+        blob(M, x + 0.06 * math.sin(k * 1.7), yy + h / k_n * 0.6, z + 0.06 * math.cos(k * 1.3), rr, h / k_n * 0.75, rr * 0.92, col if k % 2 else col2, cuts=1, noise=0.18, seed=int(x * 13 + z * 7) + k, bottom=y - 0.3 if k == 0 else None)
+    cone(M, (x, y + h * 0.95, z), (x + 0.04, y + h * 1.12, z), r * 0.3, col, sides=6)
+
+
+def crystal_cluster(glow, rock, x, y, z, s, rng, lean_to=None):
+    blob(rock, x, y + 0.08 * s, z, 0.34 * s, 0.14 * s, 0.3 * s, "glimmerBase", cuts=1, noise=0.25, seed=int(x * 11 + z * 5), bottom=y - 0.2)
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + rng.random() * 0.6
+        lean = 0.25 + 0.4 * rng.random()
+        d = (math.cos(a) * lean, 1.0, math.sin(a) * lean)
+        if lean_to:
+            d = (d[0] + lean_to[0] * 0.6, d[1], d[2] + lean_to[1] * 0.6)
+        prism(glow, (x + math.cos(a) * 0.12 * s, y + 0.05, z + math.sin(a) * 0.12 * s), d, (0.06 + 0.04 * rng.random()) * s, (0.4 + 0.55 * rng.random()) * s, "cyan" if (k + int(x)) % 3 else "violet", sides=5)
+
+
+def build_world(G, L, coll, ledge_top):
+    half = L["half"]
+    rock = Mesh("CV_Clay")
+    glow = Mesh("CV_Glow")
+    shell = Mesh("CV_Shell")
+    roots = Mesh("CV_Occluder")
+    water = Mesh("CV_Water")
+    therm = Mesh("CV_ThermalWater")
+    rng = random.Random(11)
+    lt = L["lights"]
+
+    # --- the light painted in ---
+    add_light(1.0, 13.0, -16.5, "#FFD27A", 2.6, 17.0)  # the sun down the doline
+    add_light(-6.0, 9.0, -20.0, "#FFE2A8", 1.2, 9.0)
+    add_light(7.0, 9.0, -20.0, "#FFE2A8", 1.2, 9.0)
+    add_light(*lt["forge"], "#FF8A3A", 2.8, 8.5)
+    add_light(L["forge"]["x"], G.y(L["forge"]["x"], L["forge"]["z"]) + 4.5, -half + 0.6, "#FF5A1F", 1.4, 5.0)  # its magma veins
+    add_light(*lt["thermal"], "#FFE9C4", 1.6, 8.0)
+    add_light(*lt["cenote"], "#35E6FF", 1.9, 10.5)
+    add_light(L["skylight"]["x"], 9.0, L["skylight"]["z"], "#D6ECFF", 1.4, 11.0)
+    add_light(L["finnegan"]["x"] + 0.7, G.y(L["finnegan"]["x"], L["finnegan"]["z"]) + 0.5, L["finnegan"]["z"] + 0.3, "#FFB347", 1.2, 4.5)
+    Wk = L["workstation"]
+    add_light(Wk["x"] + 0.9, G.y(Wk["x"], Wk["z"]) + 1.3, Wk["z"], "#FFB347", 1.3, 4.5)
+    add_light(L["adit"]["x"] + 1.3, G.y(L["adit"]["x"], -half + 1.5) + 2.0, L["adit"]["z"] + 0.6, "#FFB347", 1.3, 4.5)
+    for x, z, s in L["crystals"]:
+        add_light(x, G.y(x, z) + 0.6 * s, z, "#00F0FF" if (int(x * 7 + z * 3) % 3) else "#9D00FF", 0.95 * s, 2.8 * s + 0.6)
+    for x, z, s in L["shrooms"]:
+        add_light(x, G.y(x, z) + 0.45 * s, z, "#4FFFD2" if (int(x * 5 + z) % 2) else "#FF7AD9", 0.75 * s, 2.3 * s + 0.5)
+    for n in L["nodes"]:
+        if n["kind"] in ("silver", "glimmer"):
+            add_light(n["x"], G.y(n["x"], n["z"]) + 0.8, n["z"], "#6FF6FF" if n["kind"] == "glimmer" else "#DFF6FF", 0.9, 3.0)
+
+    # --- the ground, the water, the walls and their vault ---
+    build_ground(G, L, rock, water)
+    build_shell(G, L, shell, glow, rock, rng)
+    build_outpost(G, L, rock, glow, rng)
+
+    # --- the open rim: the ground's section down its south and east edges, strata in it ---
+    n = G.n
+    for edge in ("south", "east"):
+        prev = None
+        for t in range(n):
+            if edge == "south":
+                x, z = G.at(t, n - 1)
+            else:
+                x, z = G.at(n - 1, t)
+            y = G.h[(n - 1) * n + t] if edge == "south" else G.h[t * n + n - 1]
+            top = rock.v(x, y, z)
+            bot = rock.v(x, -2.8, z)
+            rock.setv(top, "strata")
+            rock.setv(bot, "sectionDark")
+            if prev:
+                q = (prev[0], top, bot, prev[1]) if edge == "south" else (prev[1], bot, top, prev[0])
+                rock.setsmooth(rock.face(q, "strata"))
+            prev = (top, bot)
+
+    # --- the tumbled boulders, the fins, the towering stalagmites ---
+    def tumbled(x, z, r, colr, dark, seed):
+        # a tumbled rock: an angular hull, lighter where it faces up, and a smaller one fallen by it
+        brng = random.Random(seed)
+        y = G.y(x, z)
+        for f in chunk(rock, r, r * 1.35, brng, sink=0.25, squash=0.85, at=(x, y, z), npts=16):
+            f.normal_update()
+            rock.setf(f, colr if f.normal.z > 0.4 else dark)
+        sx, sz = x + r * 0.6, z + r * 0.45
+        for f in chunk(rock, r * 0.42, r * 0.5, brng, sink=0.1, at=(sx, G.y(sx, sz), sz), npts=10):
+            f.normal_update()
+            rock.setf(f, dark)
+
+    for x, z, r in L["boulders"]:
+        colr, dark = ("slate", "slateWet") if x < -13 and z < -8 else (("chasmFloor", "tunnel") if x > 13 and z < 2 else ("limestone", "limestoneDark"))
+        tumbled(x, z, r, colr, dark, int(x * 17 + z * 3) & 0xFFFF)
+    for x, z, rx, rz, h, yaw in L["fins"]:
+        y = G.y(x, z)
+        ln, w = max(rx, rz), min(rx, rz)
+        along = (math.cos(yaw), -math.sin(yaw)) if rx >= rz else (math.sin(yaw), math.cos(yaw))
+        for k in range(6):
+            t = -ln + 2 * ln * (k + 0.5) / 6
+            hh = h * (0.55 + 0.45 * math.sin(math.pi * (k + 0.5) / 6))
+            blob(rock, x + along[0] * t, y + hh * 0.5, z + along[1] * t, w * 1.05, hh * 0.55, w * 1.05, "chasmFloor" if k % 2 else "slate", cuts=1, noise=0.25, seed=int(x * 7) + k, bottom=y - 0.3)
+    for x, z, r, h in L["stalagmites"]:
+        stalagmite(rock, x, G.y(x, z), z, r, h, rng)
+    for x, z, s in L["crystals"]:
+        crystal_cluster(glow, rock, x, G.y(x, z), z, s, rng)
+    for x, z, s in L["shrooms"]:
+        y = G.y(x, z)
+        for k in range(4):
+            a = 2 * math.pi * k / 4 + rng.random()
+            px, pz = x + math.cos(a) * 0.22 * s, z + math.sin(a) * 0.22 * s
+            hh = (0.25 + 0.3 * rng.random()) * s
+            cyl(rock, (px, y - 0.05, pz), (px, y + hh, pz), 0.04 * s, "shroomStem", sides=5)
+            blob(glow, px, y + hh, pz, 0.14 * s, 0.06 * s, 0.14 * s, "shroomTeal" if (k + int(x)) % 2 else "shroomPink", cuts=1)
+
+    # --- the nodes' host rocks (a node sits in it, its face out), their seams and alcoves ---
+    for nd in L["nodes"]:
+        kind = nd["kind"]
+        x, z = nd["x"], nd["z"]
+        y = G.y(x, z)
+        r = ORE_RADII[kind]
+        fx, fz = nd["face"]
+        fl = math.hypot(fx, fz) or 1
+        fx, fz = fx / fl, fz / fl
+        wall = x <= L["walls"]["west"] + 1.3 or z <= L["walls"]["north"] + 1.3
+        host = "limestone" if kind in ("coal", "copper") else ("slate" if kind == "iron" else "chasmFloor")
+        if kind == "monolith":
+            # its shrine under the roots: a ring of fallen stone round its foot, moss
+            for k in range(7):
+                a = 2 * math.pi * k / 7 + 0.3
+                blob(rock, x + math.cos(a) * 1.45, y + 0.12, z + math.sin(a) * 1.3, 0.28, 0.16, 0.24, "limestoneDark" if k % 2 else "mossA", cuts=1, noise=0.25, seed=700 + k, bottom=y - 0.2)
+            continue
+        if wall:
+            # a seam in the wall: a recess of darker rock round the node, and its lip
+            bx, bz = x - fx * 0.55, z - fz * 0.55
+            blob(rock, bx, y + r * 1.2, bz, r * 1.6, r * 1.8, r * 1.4, "slateWet" if kind == "iron" else ("shellCold" if kind in ("silver", "glimmer") else "strata"), cuts=2, noise=0.3, seed=int(x * 3 + z * 11), bottom=y - 0.3)
+        else:
+            bx, bz = x - fx * (r + 0.45), z - fz * (r + 0.45)
+            hdark = {"limestone": "limestoneDark", "slate": "slateWet", "chasmFloor": "tunnel"}[host]
+            tumbled(bx, bz, r + 0.42, host, hdark, int(abs(x * 31 + z * 7)) & 0xFFFF)
+        if kind == "iron":
+            # moss down the seam
+            for k in range(3):
+                blob(rock, x - fx * 0.2 + (rng.random() - 0.5) * 0.8, y + 0.9 + k * 0.35, z - fz * 0.2 + (rng.random() - 0.5) * 0.4, 0.14, 0.2, 0.12, "slateMoss", cuts=0)
+        if kind in ("silver", "glimmer"):
+            # the alcove's crystals either side of it
+            for sd in (-1, 1):
+                cx_, cz_ = x - fz * sd * (r + 0.55) - fx * 0.2, z + fx * sd * (r + 0.55) - fz * 0.2
+                crystal_cluster(glow, rock, cx_, G.y(cx_, cz_), cz_, 0.6, rng, lean_to=(fx, fz))
+
+    # --- the doline's life: ferns in the lee of its boulders, moss tufts; pebbles along the trails ---
+    for k in range(42):
+        x = -12.0 + rng.random() * 24.0
+        z = -21.0 + rng.random() * 9.5
+        if not G.walk(x, z) or any(math.hypot(x - b[0], z - b[1]) < b[2] + 0.3 for b in L["boulders"]):
+            continue
+        fern(rock, x, G.y(x, z), z, 0.25 + 0.2 * rng.random(), rng)
+
+    # --- the Travertine Thermal Terraces: rimstone dams carved into the slope, warm water in them,
+    # cascades over their lips, the spring from the wall, the six stone seats ---
+    pools = G.pools
+    for pi, P in enumerate(pools):
+        (cx, cz, rx, rz), outline = pool_outline(G, pi, pi * 1.7 + 0.3)
+        wy_ = P["y"]
+        # the dam: rounded travertine all round the rim (organic: no straight edge)
+        for k, (px, pz) in enumerate(outline):
+            if k % 4 == 3:
+                continue
+            gy = max(G.y(px, pz), wy_ - 0.2)
+            top_ = max(gy, wy_) + 0.06
+            blob(rock, px + (cx - px) * 0.05, (top_ + wy_ - 0.35) / 2, pz + (cz - pz) * 0.05, 0.3, (top_ - wy_ + 0.35) / 2 + 0.03, 0.26, "travertine" if k % 3 else "flowstoneWarm", cuts=1, noise=0.18, seed=pi * 40 + k)
+        # the pool's water just inside the dam
+        wv = [therm.v(px, wy_, pz) for px, pz in [(cx + (qx - cx) * 0.92, cz + (qz - cz) * 0.92) for qx, qz in outline]]
+        mid = therm.v(cx, wy_, cz)
+        for k in range(len(wv)):
+            f = therm.face((mid, wv[(k + 1) % len(wv)], wv[k]), "thermalWater")
+            f.normal_update()
+            if f.normal.z < 0:
+                f.normal_flip()
+        # the cascade over its south lip into the next pool, foam at its foot
+        if pi + 1 < len(pools):
+            ny = pools[pi + 1]["y"]
+            for k in range(2):
+                ccx = cx - 0.8 + 1.6 * k
+                q = [therm.v(ccx - 0.3, wy_ + 0.02, cz + rz - 0.05), therm.v(ccx + 0.3, wy_ + 0.02, cz + rz - 0.05), therm.v(ccx + 0.34, ny - 0.02, cz + rz + 0.35), therm.v(ccx - 0.34, ny - 0.02, cz + rz + 0.35)]
+                therm.face(q, "thermalWater")
+                blob(rock, ccx, ny + 0.02, cz + rz + 0.45, 0.3, 0.03, 0.14, "foam", cuts=1)
+        else:
+            # the last spills down the slope toward the lake
+            for k in range(3):
+                t = (k + 1) / 4
+                blob(rock, cx + 1.2 * t, wy_ - 0.2 * k, cz + rz + 0.4 + 1.5 * t, 0.3, 0.03, 0.18, "foam", cuts=1)
+        # the stone seats under the water
+        for st in L["thermalSeats"]:
+            if P["z0"] <= st["z"] <= P["z1"]:
+                blob(rock, st["x"], wy_ + ledge_top - 0.12, st["z"], 0.36, 0.14, 0.32, "travertine", cuts=1, noise=0.15, seed=int(st["z"] * 10), bottom=wy_ - 0.4, top=wy_ + ledge_top)
+    sp_z = (L["terraces"]["pools"][0]["z0"] + L["terraces"]["pools"][0]["z1"]) / 2
+    for k in range(6):
+        blob(rock, -half + 0.9, pools[0]["y"] + 0.25 + k * 0.32, sp_z + 0.2 * math.sin(k), 0.16, 0.24, 0.28, "flowstoneWarm", cuts=1)
+    q = [therm.v(-half + 1.05, pools[0]["y"] + 2.1, sp_z - 0.25), therm.v(-half + 1.05, pools[0]["y"] + 2.1, sp_z + 0.25), therm.v(-half + 1.15, pools[0]["y"] + 0.01, sp_z + 0.35), therm.v(-half + 1.15, pools[0]["y"] + 0.01, sp_z - 0.35)]
+    therm.face(q, "thermalWater")
+
+    # --- the islet: its rocky shore, the karst tower, the mangrove and its aerial roots weeping down
+    # round the Monolith ---
+    I = L["islet"]
+    for k in range(14):
+        a = 2 * math.pi * k / 14 + rng.random() * 0.3
+        rr = I["r"] * (0.95 + 0.1 * rng.random())
+        px = I["x"] + math.cos(a) * rr * (1 + 0.12 * math.sin(3 * a + 1.0))
+        pz = I["z"] + math.sin(a) * rr * (1 + 0.12 * math.sin(3 * a + 1.0))
+        if min(math.hypot(px - s[0], pz - s[1]) for s in L["sandbar"]["points"]) < L["sandbar"]["half"] + 0.5:
+            continue
+        blob(rock, px, 0.05, pz, 0.35 + 0.2 * rng.random(), 0.3 + 0.2 * rng.random(), 0.32, "limestone", cuts=1, noise=0.3, seed=200 + k, bottom=-0.6)
+    for k in range(9):
+        a = rng.random() * 6.28
+        rr = I["r"] * (0.3 + 0.35 * rng.random())
+        px, pz = I["x"] + math.cos(a) * rr, I["z"] + math.sin(a) * rr
+        if math.hypot(px - L["nodes"][-1]["x"], pz - L["nodes"][-1]["z"]) < 1.5:
+            continue
+        fern(rock, px, G.y(px, pz), pz, 0.3 + 0.2 * rng.random(), rng)
+    Tw = L["tower"]
+    tx, tz, tower_h = Tw["x"], Tw["z"], Tw["h"]
+    for k in range(6):
+        yk = tower_h * k / 6
+        w = 0.95 - 0.25 * math.sin(k / 5 * math.pi) + 0.1 * (k == 5)
+        blob(roots, tx + 0.1 * math.sin(k * 1.3), yk + 0.55, tz + 0.1 * math.cos(k * 1.7), w, 0.7, w * 0.9, "limestone" if k % 2 else "limestoneDark", cuts=2, noise=0.25, seed=600 + k)
+    blob(roots, tx, tower_h + 0.35, tz, 1.25, 0.35, 1.1, "limestone", cuts=2, noise=0.3, seed=611)
+    blob(roots, tx, tower_h + 0.6, tz, 1.15, 0.2, 1.0, "mossA", cuts=2, noise=0.3, seed=612)
+    cyl(roots, (tx, tower_h + 0.5, tz), (tx + 0.2, tower_h + 1.6, tz - 0.1), 0.18, "rootDark", sides=7, r_end=0.12)
+    for k, (dx, dy, dz, r) in enumerate([(0.2, 2.1, -0.1, 1.0), (0.8, 1.8, 0.3, 0.7), (-0.6, 1.9, -0.4, 0.75), (0.1, 2.5, 0.4, 0.6)]):
+        blob(roots, tx + dx, tower_h + dy, tz + dz, r, r * 0.7, r, "fern" if k % 2 else "mossB", cuts=2, noise=0.2, seed=620 + k)
+    Mo = L["nodes"][-1]
+    for k in range(22):
+        # the roots: from the crown out over the Monolith and down into the islet and the water
+        a = math.radians(-50 + 300 * k / 21 + 8 * rng.random())
+        rr = 1.05 + 0.35 * rng.random()
+        top = (tx + math.cos(a) * rr, tower_h + 0.4, tz + math.sin(a) * rr)
+        reach = 1.0 + 1.6 * rng.random() if k % 3 else 2.4 + 1.0 * rng.random()
+        toward = (Mo["x"] - tx, Mo["z"] - tz)
+        tl = math.hypot(*toward) or 1
+        fx_ = tx + math.cos(a) * (rr + 0.3) + toward[0] / tl * reach * (0.6 if k % 3 == 0 else 0.2)
+        fz_ = tz + math.sin(a) * (rr + 0.3) + toward[1] / tl * reach * (0.6 if k % 3 == 0 else 0.2)
+        g = G.y(fx_, fz_)
+        end_y = max(g, L["lake"]["water"] - 0.05) + (0.0 if rng.random() < 0.7 else 0.8 + 1.2 * rng.random())
+        mid = (top[0] + (fx_ - top[0]) * 0.45, (top[1] + end_y) / 2 + 0.4, top[2] + (fz_ - top[2]) * 0.45)
+        r0 = 0.05 + 0.03 * rng.random()
+        cyl(roots, top, mid, r0, "root", sides=5, cap=False)
+        cyl(roots, mid, (fx_, end_y, fz_), r0 * 0.8, "rootDark", sides=5, r_end=r0 * 0.35, cap=False)
+
+    # --- the lake's margins: driftwood washed up, reeds by the shallows ---
+    K = L["lake"]
+    for k in range(18):
+        a = 2 * math.pi * k / 18 + rng.random() * 0.2
+        f = 1.1 + 0.08 * rng.random()
+        wob = 1 + 0.05 * math.sin(3 * a + 0.7) + 0.035 * math.sin(5 * a + 2.1)
+        px = K["x"] + math.cos(a) * K["rx"] * f * wob
+        pz = K["z"] + math.sin(a) * K["rz"] * f * wob
+        if abs(px) > half - 1 or abs(pz) > half - 1:
+            continue
+        if k % 3 == 0:
+            ang = rng.random() * 3.14
+            ln = 0.6 + 0.6 * rng.random()
+            y = G.y(px, pz)
+            cyl(rock, (px - math.cos(ang) * ln / 2, y + 0.06, pz - math.sin(ang) * ln / 2), (px + math.cos(ang) * ln / 2, y + 0.08, pz + math.sin(ang) * ln / 2), 0.06, "driftwood", sides=6)
+        else:
+            y = G.y(px, pz)
+            for j in range(3):
+                rx_, rz_ = px + (rng.random() - 0.5) * 0.5, pz + (rng.random() - 0.5) * 0.5
+                cyl(rock, (rx_, y - 0.05, rz_), (rx_ + (rng.random() - 0.5) * 0.15, y + 0.4 + 0.4 * rng.random(), rz_ + (rng.random() - 0.5) * 0.15), 0.012, "fern" if j % 2 else "mossB", sides=3, r_end=0.004, cap=False)
+
+    # (the glows, the ferns and the reeds smooth: shading barely shows on them, and a smooth face
+    # shares its vertices in the export instead of taking three of its own)
+    for f in glow.bm.faces:
+        glow.setsmooth(f)
+    finish_object("Cave_Rock", rock, coll, mottle=0.08)
+    finish_object("Cave_Shell", shell, coll, mottle=0.08)
+    finish_object("Cave_Roots", roots, coll, mottle=0.1)
+    finish_object("Cave_Glow", glow, coll, bake=False)
+    finish_object("Cave_Water", water, coll, bake=False)
+    finish_object("Cave_Thermal", therm, coll, bake=False)
+    build_collider(G, coll)
+
+
+# ---------------------------------------------------------------------------------------------
+# the ore nodes' rocks: one template a kind, at the origin, its foot on (and sunk into) the floor
+
+
+def chunk(M, r, h, rng, sink=0.14, squash=0.9, at=(0.0, 0.0, 0.0), npts=20):
+    """An angular rock: the hull of points round a squat ellipsoid, flat faceted faces (its foot at
+    `at`, sunk `sink` into the floor)."""
+    bm = M.bm
+    for v in bm.verts:
+        v.tag = True
+    ox, oy, oz = at
+    pts = []
+    for k in range(npts):
+        u = rng.uniform(-1, 1)
+        a = rng.uniform(0, 2 * math.pi)
+        s = math.sqrt(1 - u * u)
+        rr = r * (0.72 + 0.4 * rng.random())
+        y = max(-sink, (u * 0.5 + 0.5) * h - sink)
+        pts.append(bm.verts.new(W(ox + math.cos(a) * s * rr, oy + y, oz + math.sin(a) * s * rr * squash)))
+    for k in range(6):
+        a = 2 * math.pi * k / 6 + rng.random() * 0.4
+        pts.append(bm.verts.new(W(ox + math.cos(a) * r * 1.05, oy - sink, oz + math.sin(a) * r * 0.95 * squash)))
+    hull = bmesh.ops.convex_hull(bm, input=pts)
+    # (the points the hull left inside or unused, once each)
+    bm.verts.index_update()
+    junk = list({g.index: g for g in hull["geom_interior"] + hull["geom_unused"] if isinstance(g, bmesh.types.BMVert)}.values())
+    if junk:
+        bmesh.ops.delete(bm, geom=junk, context="VERTS")
+    faces = [f for f in bm.faces if any(not v.tag for v in f.verts)]
+    for v in bm.verts:
+        v.tag = False
+    return faces
 
 
 def ore_rock(kind, r, coll):
     rock = Mesh("CV_OreRock")
     glow = Mesh("CV_OreGlow")
-    rng = random.Random(hash(kind) & 0xFFFF)
-    cy = r * 0.72
+    rng = random.Random(sum(ord(c) for c in kind) * 97)
     if kind == "monolith":
         # a tall obelisk of dark stone, bevelled, cracked with violet runes; broken stones round its foot
         h = 2.6
         levels = 7
         for k in range(levels):
-            y0 = h * k / levels
+            y0 = h * k / levels - (0.12 if k == 0 else 0.0)
             y1 = h * (k + 1) / levels
             w0 = 0.62 - 0.22 * (k / levels)
             w1 = 0.62 - 0.22 * ((k + 1) / levels)
@@ -1398,39 +1474,38 @@ def ore_rock(kind, r, coll):
             a = rng.random() * 6.283
             w = 0.62 - 0.22 * (y / h)
             blob(glow, 0.8 * w * math.cos(a), y, 0.66 * w * math.sin(a), 0.05, 0.16 + 0.1 * rng.random(), 0.05, "runeGlow", cuts=1)
-        for k in range(6):
-            a = 2 * math.pi * k / 6 + 0.3
-            blob(rock, 0.95 * math.cos(a), 0.12, 0.95 * math.sin(a), 0.2, 0.14, 0.18, "monolithEdge", cuts=2, noise=0.2, seed=k, bottom=0.0)
-    elif kind == "glimmer":
-        blob(rock, 0.0, r * 0.25, 0.0, r * 0.95, r * 0.4, r * 0.9, "glimmerBase", cuts=3, noise=0.25, seed=2, bottom=0.0)
-        for k in range(9):
-            a = 2 * math.pi * k / 9 + rng.random() * 0.4
-            lean = 0.2 + 0.5 * rng.random() if k else 0.0
-            d = (math.cos(a) * lean, 1.0, math.sin(a) * lean)
-            prism(glow, (math.cos(a) * r * 0.35 * (k > 0), r * 0.3, math.sin(a) * r * 0.35 * (k > 0)), d, (0.07 + 0.05 * rng.random()) * (1.5 if k == 0 else 1), (0.5 + 0.5 * rng.random()) * (1.6 if k == 0 else 1), "cyan" if k % 3 else "violet")
     else:
-        body, fleck, vein = {"coal": ("coalRock", "coalChunk", "ember"), "copper": ("copperRock", "copperNug", "copperGlow"), "iron": ("ironRock", "ironNug", "ironGlow"), "silver": ("silverRock", "silverVein", "silverVein")}[kind]
-        blob(rock, 0.0, cy, 0.0, r, r * 0.78, r * 0.92, body, cuts=4, noise=0.28, seed=len(kind), bottom=0.0)
-        blob(rock, r * 0.45, cy * 0.4, r * 0.3, r * 0.45, r * 0.35, r * 0.4, body, cuts=2, noise=0.3, seed=len(kind) + 5, bottom=0.0)
-        if kind == "iron":
-            for k in range(7):
-                a = rng.random() * 6.283
-                u = -0.2 + 0.9 * rng.random()
-                p = (math.cos(a) * r * 0.97 * math.sqrt(1 - u * u * 0.5), cy + u * r * 0.72, math.sin(a) * r * 0.9 * math.sqrt(1 - u * u * 0.5))
-                blob(rock, *p, 0.14 * r, 0.1 * r, 0.14 * r, "rust", cuts=1)
-        for k in range(9 if kind != "silver" else 5):
-            a = rng.random() * 6.283
-            u = -0.1 + 0.9 * rng.random()
-            s_ = math.sqrt(max(0.05, 1 - u * u))
-            p = (math.cos(a) * r * 0.96 * s_, cy + u * r * 0.74, math.sin(a) * r * 0.9 * s_)
-            blob(rock, *p, 0.12 * r, 0.1 * r, 0.12 * r, fleck, cuts=1)
-        # the veins: glowing streaks on its skin
-        for k in range(6 if kind == "silver" else 4):
-            a = rng.random() * 6.283
-            u = 0.1 + 0.6 * rng.random()
-            s_ = math.sqrt(max(0.05, 1 - u * u))
-            p = (math.cos(a) * r * 0.99 * s_, cy + u * r * 0.74, math.sin(a) * r * 0.93 * s_)
-            blob(glow, *p, (0.05 if kind != "silver" else 0.06) * r * 2, 0.022, 0.05 * r, vein, cuts=1)
+        body, dark, fac, glowc = {
+            "coal": ("coalRock", "coalChunk", "coalChunk", "ember"),
+            "copper": ("copperRock", "strataDark", "copperNug", "copperGlow"),
+            "iron": ("ironRock", "slateWet", "rust", "ironGlow"),
+            "silver": ("silverRock", "slate", "silverVein", "silverVein"),
+            "glimmer": ("glimmerBase", "tunnel", "glimmerBase", "cyan"),
+        }[kind]
+        h = r * (1.25 if kind != "glimmer" else 0.8)
+        faces = chunk(rock, r, h, rng)
+        for f in faces:
+            f.normal_update()
+            nz = f.normal.z  # (Blender's up)
+            rock.setf(f, body if nz > 0.35 else dark)
+        # the mineral: some facets its colour, and a few of those glowing (an inset copy of the facet
+        # a hair out along its normal, in the glow finish)
+        picks = [f for f in faces if f.normal.z > -0.2]
+        rng.shuffle(picks)
+        for k, f in enumerate(picks[: 7 if kind != "glimmer" else 3]):
+            rock.setf(f, fac)
+            if k < (4 if kind in ("silver", "copper") else 3):
+                c = f.calc_center_median()
+                nrm = f.normal
+                inset = [bm_v.co + (c - bm_v.co) * 0.45 + nrm * 0.006 for bm_v in f.verts]
+                vs = [glow.bm.verts.new(p) for p in inset]
+                glow.face(vs, glowc)
+        if kind == "glimmer":
+            for k in range(9):
+                a = 2 * math.pi * k / 9 + rng.random() * 0.4
+                lean = 0.2 + 0.5 * rng.random() if k else 0.0
+                d = (math.cos(a) * lean, 1.0, math.sin(a) * lean)
+                prism(glow, (math.cos(a) * r * 0.35 * (k > 0), h * 0.5, math.sin(a) * r * 0.35 * (k > 0)), d, (0.07 + 0.05 * rng.random()) * (1.5 if k == 0 else 1), (0.5 + 0.5 * rng.random()) * (1.6 if k == 0 else 1), "cyan" if k % 3 else "violet")
     ob_r = finish_object(f"Ore_{kind}", rock, coll, bake=False, mottle=0.1)
     ob_g = finish_object(f"Ore_{kind}_Glow", glow, coll, bake=False)
     ob_g.parent = ob_r
@@ -1439,17 +1514,19 @@ def ore_rock(kind, r, coll):
 
 def build_ores(coll, radii):
     made = [ore_rock(kind, radii[kind], coll) for kind in ("coal", "copper", "iron", "silver", "glimmer", "monolith")]
-    # a broken node's stump: dark, rough, cracked bedrock, a few shards round it
+    # a broken node's stump: dark, rough, fractured bedrock, a few shards round it
     rubble = Mesh("CV_OreRock")
     rng = random.Random(99)
-    blob(rubble, 0.0, 0.1, 0.0, 0.34, 0.16, 0.3, "rubble", cuts=2, noise=0.35, seed=3, bottom=0.0, top=0.2)
+    faces = chunk(rubble, 0.36, 0.26, rng, sink=0.1, squash=0.85)
+    for f in faces:
+        rubble.setf(f, "rubble")
     for k in range(5):
         a = 2 * math.pi * k / 5 + rng.random() * 0.4
-        blob(rubble, 0.16 * math.cos(a), 0.19, 0.14 * math.sin(a), 0.1, 0.02, 0.018, "rubbleCrack", cuts=0)
+        blob(rubble, 0.16 * math.cos(a), 0.17, 0.14 * math.sin(a), 0.1, 0.02, 0.018, "rubbleCrack", cuts=0)
     for k in range(6):
         a = rng.random() * 6.283
-        rr = 0.3 + 0.18 * rng.random()
-        blob(rubble, rr * math.cos(a), 0.04, rr * math.sin(a), 0.07 + 0.05 * rng.random(), 0.04 + 0.03 * rng.random(), 0.06 + 0.04 * rng.random(), "rubble", cuts=0, noise=0.2, seed=k, bottom=0.0)
+        rr = 0.34 + 0.18 * rng.random()
+        blob(rubble, rr * math.cos(a), 0.03, rr * math.sin(a), 0.07 + 0.05 * rng.random(), 0.04 + 0.03 * rng.random(), 0.06 + 0.04 * rng.random(), "rubble", cuts=0, noise=0.2, seed=k, bottom=-0.02)
     made.append(finish_object("Ore_Rubble", rubble, coll, bake=False, mottle=0.12))
     return made
 
@@ -1461,11 +1538,14 @@ def build(root):
     purge()
     LIGHTS.clear()
     L = read_layout(root)
+    LAYOUT.clear()
+    LAYOUT.update(L)
+    G = Ground(read_terrain(root))
     coll = bpy.data.collections.new(COLLECTION)
     bpy.context.scene.collection.children.link(coll)
     ORE_RADII.clear()
     ORE_RADII.update(read_ore_radii(root))
-    build_cavern(L, coll, read_thermal_ledge(root))
+    build_world(G, L, coll, read_thermal_ledge(root))
     ores = build_ores(coll, ORE_RADII)
     return coll, L, ores
 
@@ -1494,7 +1574,7 @@ def summary(coll):
         if o.data is None:
             continue
         out[o.name] = {"tris": sum(len(p.vertices) - 2 for p in o.data.polygons), "verts": len(o.data.vertices), "materials": len(o.data.materials)}
-    static = {k: v for k, v in out.items() if not k.startswith("Ore_")}
+    static = {k: v for k, v in out.items() if not k.startswith("Ore_") and k != "caverns_walk_collider"}
     return {"objects": out, "tris": sum(v["tris"] for v in out.values()), "verts": sum(v["verts"] for v in out.values()), "staticDrawCalls": sum(v["materials"] for v in static.values())}
 
 
@@ -1508,9 +1588,9 @@ def main():
         os.makedirs(os.path.dirname(out), exist_ok=True)
         export(coll, out)
         result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), **summary(coll)}
-        # (the ore templates sit at the origin: not in the studio's grid)
+        # (the ore templates sit at the origin, the collider is never drawn: neither in the studio's grid)
         for o in list(coll.all_objects):
-            if o.name.startswith("Ore_"):
+            if o.name.startswith("Ore_") or o.name == "caverns_walk_collider":
                 bpy.data.objects.remove(o, do_unlink=True)
         result["studio"] = studio(root, "finish", [coll])
     except Exception:

@@ -3,9 +3,9 @@ import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, R
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { COLOSSAL, FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, isColossalKind, type WoodKind } from "@shared/chop";
 import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ADIT_FRONT, FOREST_ANIMALS, FOREST_FISHING, FOREST_WORKBENCH_FRONT, OLD_FLINT_FRONT, OLD_FLINT_REACH, woodsSpotOfSeat } from "@shared/worlds/forest";
-import { ANVIL_FRONT, ANVIL_REACH, CAVE_ADIT_FRONT, CAVE_FISHING, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach } from "@shared/worlds/caverns";
+import { ANVIL_FRONT, ANVIL_REACH, CAVE_ADIT_FRONT, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, shoreCast } from "@shared/worlds/caverns";
 import { CAVERNS_CHANNELS, ORE_KINDS, PICKAXES, SOAK_S, isPickaxeId } from "@shared/caverns_mining";
-import type { CaveDrip } from "@shared/caverns_fishing";
+import { DRIP_REACH, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { FELL_TREE_AT } from "@shared/worlds/trees";
 import { treeTarget } from "../../scene/treeTarget";
@@ -693,20 +693,39 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       // the river bank (standing at a spot, or sitting on its log or rock). There: cast and reel by
       // hand, or feet up (AFK) with the line in
       const mySeat = Object.values(chairs).find((c) => c.occupiedBy === localSessionId);
-      const standing = mapId === "whispering_woods" ? FOREST_FISHING : mapId === "glimmering_caverns" ? CAVE_FISHING : [];
-      // (the nearest spot in reach: the caverns' outcrop spots stand close together)
-      const woodsStand = !sitting ? (standing as readonly { propId: string; stand: { x: number; z: number } }[]).reduce<{ propId: string; stand: { x: number; z: number } } | undefined>((a, f) => (Math.hypot(f.stand.x - cameraFocus.x, f.stand.z - cameraFocus.z) <= FISHING_REACH + 0.8 && (!a || Math.hypot(f.stand.x - cameraFocus.x, f.stand.z - cameraFocus.z) < Math.hypot(a.stand.x - cameraFocus.x, a.stand.z - cameraFocus.z)) ? f : a), undefined) : undefined;
-      const mySpot = mySeat ? (spotOfSeat(mySeat.propId) ?? woodsSpotOfSeat(mySeat.propId)) : woodsStand?.propId;
+      const standing = mapId === "whispering_woods" ? FOREST_FISHING : [];
+      const woodsStand = !sitting ? standing.reduce<(typeof FOREST_FISHING)[number] | undefined>((a, f) => (Math.hypot(f.stand.x - cameraFocus.x, f.stand.z - cameraFocus.z) <= FISHING_REACH + 0.8 && (!a || Math.hypot(f.stand.x - cameraFocus.x, f.stand.z - cameraFocus.z) < Math.hypot(a.stand.x - cameraFocus.x, a.stand.z - cameraFocus.z)) ? f : a), undefined) : undefined;
+      // the caverns' cenote: anywhere on its shore, within 1.5 m of the water and facing it (a cast
+      // from where you stand, the way you face: shoreCast); once the line is in, "shore" is your spot
+      const faceX = Math.sin(cameraFocus.facing);
+      const faceZ = Math.cos(cameraFocus.facing);
+      const shoreFloat = mapId === "glimmering_caverns" && !sitting && action === "" ? shoreCast(cameraFocus.x, cameraFocus.z, faceX, faceZ) : null;
+      const onShore = mapId === "glimmering_caverns" && !sitting && (shoreFloat !== null || action === "fish" || action === "afkfish" || action === "rest" || action === "reel");
+      const mySpot = mySeat ? (spotOfSeat(mySeat.propId) ?? woodsSpotOfSeat(mySeat.propId)) : onShore ? "shore" : woodsStand?.propId;
+      const castShore = () => onCaverns(CAVERNS_CHANNELS.cast, { fx: faceX, fz: faceZ });
       const AFK_HINT = "Feet up, line in: a common every 44-58s, rarer fish longer (baited only; up to three minutes for a legendary; premium bait a quarter quicker). Never a King Size or a mythic: those take a hand on the reel";
-      if (mySpot && action === "") {
+      if (mySpot === "shore" && action === "") {
+        found.push({ key: "cast:shore", type: "fish", label: "🎣 Cast Line", hint: "Cast into the cenote from the shore; tap when the bobber dips, then reel it in (the lucky drip: cast into its ripple for a wider sweet spot, and nothing common bites)", run: castShore });
+        found.push({
+          key: "afk:on",
+          type: "afk",
+          label: "☕ Auto AFK",
+          hint: AFK_HINT,
+          run: () => {
+            castShore();
+            onCampfire({ type: "AFK", on: true });
+          },
+        });
+      } else if (mySpot && action === "") {
         const id = mySpot;
-        found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Manual Reel", hint: mapId === "glimmering_caverns" ? "Cast into the cenote; tap when the bobber dips, then reel it in (the lucky drip: cast into its ripple for a wider sweet spot, and nothing common bites)" : "Cast into the river; tap when the bobber dips, then reel it in (in a King-Size Surge, 4 in 10 are King Size)", run: () => interactBridge.current?.useProp(id) });
+        found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Manual Reel", hint: "Cast into the river; tap when the bobber dips, then reel it in (in a King-Size Surge, 4 in 10 are King Size)", run: () => interactBridge.current?.useProp(id) });
         found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
       }
       if (mySpot && action === "fish") found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
       // the cenote's lucky drip rippling right by your float: cast into it (a bite with no commons)
       const lucky = drip.current;
-      if (mapId === "glimmering_caverns" && mySpot && action === "fish" && lucky && lucky.spot === mySpot && Date.now() < lucky.until)
+      const myFloat = players[localSessionId];
+      if (mapId === "glimmering_caverns" && mySpot && action === "fish" && lucky && myFloat && Math.hypot(lucky.x - myFloat.floatX, lucky.z - myFloat.floatZ) <= DRIP_REACH && Date.now() < lucky.until)
         found.push({ key: `drip:${lucky.until}`, type: "fish", label: "💧 Cast into the Drip", hint: "The stalactite's lucky drip: a wider sweet spot and nothing common bites", run: () => onCaverns(CAVERNS_CHANNELS.recast) });
       if (mySpot && action === "afkfish") found.push({ key: "afk:off", type: "afk", label: "🎣 Manual Reel", hint: "Back to watching the bobber: tap when it dips, then reel it in", run: () => onCampfire({ type: "AFK", on: false }) });
       // the livewell full: resting by the water with a mug until there's room again
@@ -724,7 +743,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         }
         if (spot) {
           const id = spot.id;
-          found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: mapId === "whispering_woods" ? "Step up to the bank (or sit on its log or rock) and cast; then reel by hand, or Auto AFK" : mapId === "glimmering_caverns" ? "Step out onto the driftwood outcrop and cast into the cenote; then reel by hand, or Auto AFK" : "Sit on the dock's edge and cast; then reel by hand, or Auto AFK", run: () => interactBridge.current?.useProp(id) });
+          found.push({ key: `fish:${id}`, type: "fish", label: "🎣 Go Fishing", hint: mapId === "whispering_woods" ? "Step up to the bank (or sit on its log or rock) and cast; then reel by hand, or Auto AFK" : "Sit on the dock's edge and cast; then reel by hand, or Auto AFK", run: () => interactBridge.current?.useProp(id) });
         }
       }
       // the telescope, the raccoon, the fireflies and the foraging patches: walk up to them

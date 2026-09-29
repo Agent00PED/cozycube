@@ -636,6 +636,8 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
             z: player.z,
             dirX: player.dirX,
             dirZ: player.dirZ,
+            floatX: player.floatX ?? 0,
+            floatZ: player.floatZ ?? 0,
             color: player.color,
             look: player.look,
             sitting: player.sitting,

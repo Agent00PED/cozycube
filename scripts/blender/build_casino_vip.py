@@ -22,16 +22,18 @@ Every colour is a vertex colour over the hall's shared finishes, plus one of its
                          elevator's brass doors and its floor dial; the champagne
                          fountain's marble basin and its tower of coupes; the high-limit poker table
                          (violet baize, black leather rail) with its three chairs and the Baron's at
-                         its end, chips stacked high; the two card tables flanking the fountain,
-                         mirror images across its diagonal axis, their curves toward the front
-                         rail and the dealers' flat sides toward the fountain: the half-moon
-                         baccarat table, turned by its `face` (its Player, Banker and Tie boxes
-                         before each stool, the shoe) and its stools, the Duchess's among them;
-                         the penthouse's blackjack table (the hall's half-moon in emerald felt,
-                         three stools), turned by its `yaw`; the twin Golden Vault slot
-                         machines side by side against the western glass, an Art-Deco jukebox
-                         beside them; a velvet loveseat under
-                         the windows; two areca palms in brass urns (the hall's); the brass rail along the open front (nothing
+                         its end, chips stacked high; the two card tables in the front half of the
+                         room either side of the promenade, mirror images across it, their curves
+                         and stools north toward the fountain and the dealers' flat sides south
+                         toward the balcony's rail: the half-moon baccarat table in crimson felt,
+                         turned by its `face` (its Player, Banker and Tie boxes before each stool,
+                         the shoe) and its stools, the Duchess's among them; the penthouse's
+                         blackjack table (the hall's half-moon in emerald felt, three stools, the
+                         chip rack on the dealer's edge), turned by its `yaw`; the twin Golden
+                         Vault slot machines side by side against the back wall west of the
+                         elevator; an Art-Deco jukebox against the western glass; a velvet
+                         loveseat under the back windows beside the elevator; two areca palms in
+                         brass urns (the hall's); the brass rail along the open front (nothing
                          hangs from the ceiling: it would come between the camera and the tables;
                          the game lights the room)
     Prop_FountainTop   the tower's crowning coupe and the bottle pouring into it (the game turns
@@ -239,10 +241,13 @@ def build_walls(M, V):
     def panes(a0, a1, n):
         return [(a0 + (a1 - a0) * k / n, a0 + (a1 - a0) * (k + 1) / n) for k in range(n)]
 
-    back_runs = [(face + 0.05, ex0 - 0.1, 5), (ex1 + 0.1, h - 0.05, 2)]
-    # (the left wall's glass runs either side of the twin vaults and the jukebox beside them)
-    zlo = min(V["vault"]["zs"]) - V["vault"]["w"] / 2
-    zhi = max(max(V["vault"]["zs"]) + V["vault"]["w"] / 2, V["jukebox"]["z"] + V["jukebox"]["w"] / 2)
+    # (the back wall's glass runs either side of the twin vaults standing against it, and on past the
+    # elevator; the left wall's either side of the jukebox)
+    vx0 = min(V["vault"]["xs"]) - V["vault"]["w"] / 2
+    vx1 = max(V["vault"]["xs"]) + V["vault"]["w"] / 2
+    back_runs = [(face + 0.05, vx0 - 0.2, 4)] + ([(vx1 + 0.2, ex0 - 0.1, 1)] if ex0 - 0.1 - (vx1 + 0.2) > 0.5 else []) + [(ex1 + 0.1, h - 0.05, 2)]
+    zlo = V["jukebox"]["z"] - V["jukebox"]["w"] / 2
+    zhi = V["jukebox"]["z"] + V["jukebox"]["w"] / 2
     left_runs = [(face + 0.05, zlo - 0.2, 5), (zhi + 0.2, h - 0.05, 1)]
     seed = 7
     for a0, a1, n in back_runs:
@@ -461,12 +466,12 @@ def build_jukebox(M, V):
     F.box(M, -0.03, 0.03, 0.7, 0.72, hd + 0.015, hd + 0.02, "CS_Black")
 
 
-def build_vault(M, V, z):
-    """A Golden Vault against the left window wall at `z`, facing the room: a gold cabinet with a
-    bank vault's door on its front (spoked wheel, bolts), three reels in a gold frame, a marquee of
-    chasing bulbs under a crown, a lever with a ruby knob."""
+def build_vault(M, V, x):
+    """A Golden Vault against the back wall at `x`, facing the room (and the fountain): a gold
+    cabinet with a bank vault's door on its front (spoked wheel, bolts), three reels in a gold frame,
+    a marquee of chasing bulbs under a crown, a lever with a ruby knob."""
     v = V["vault"]
-    F = Frame(v["x"], z, math.pi / 2)
+    F = Frame(x, v["z"], 0.0)
     hw, hd, H = v["w"] / 2, v["d"] / 2, v["h"]
     F.box(M, -hw - 0.02, hw + 0.02, 0.0, 0.08, -hd, hd + 0.02, "CS_Black")
     F.box(M, -hw, hw, 0.08, 0.95, -hd, hd, "CS_VaultGold")
@@ -556,8 +561,8 @@ def build(root):
     build_poker(M, V, cushions)
     build_baccarat(M, V, cushions)
     build_vip_blackjack(M, V, cushions)
-    for z in V["vault"]["zs"]:
-        build_vault(M, V, z)
+    for x in V["vault"]["xs"]:
+        build_vault(M, V, x)
     build_jukebox(M, V)
     build_room(M, V, cushions)
     shift_mesh(M, ox, oz)
