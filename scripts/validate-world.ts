@@ -82,7 +82,7 @@ import type { AABB } from "../shared/collision";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD, CAMPFIRE_LAYOUT } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
-import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, cavernsFloorY, inLakeWater, lakeFactor, nearestWater, oreReach, shoreCast } from "../shared/worlds/caverns";
+import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope } from "../shared/worlds/caverns";
 import { readFileSync, existsSync } from "node:fs";
 import { CAVERNS_TERRAIN_PATH, cavernsTerrainText } from "./caverns-terrain";
 import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../shared/worlds/forest";
@@ -137,9 +137,9 @@ for (const mapId of MAP_IDS) {
     // (over the floor under it: the casino's stages and the caverns' doline stand higher; the caverns'
     // thermal seats sink a little below theirs, into the warm water)
     const floor = walkY(mapId, chair.approachX, chair.approachZ);
-    // (a thermal terrace's seat sits in its pool, carved into the slope: its dry exit on the bank can
-    // stand well over the water)
-    const lowest = chair.propId.startsWith("thermal_") ? -0.8 : -0.45;
+    // (a thermal terrace's seat sits chest-deep in its pool, carved into the slope: its dry exit on
+    // the bank can stand well over the water)
+    const lowest = chair.propId.startsWith("thermal_") ? -1.0 : -0.45;
     if (!Number.isFinite(chair.sitY) || chair.sitY - floor < lowest || chair.sitY - floor > 1.2) fail(`${mapId}: seat ${chair.propId} has an odd anchor height ${chair.sitY} (its floor ${floor})`);
     const a = APPROACH_POINTS[chair.propId];
     if (!a) fail(`${mapId}: seat ${chair.propId} has no approach point`);
@@ -658,6 +658,31 @@ for (const mapId of MAP_IDS) {
       checks++;
       if (Math.abs(cavernsFloorY(x, z) - h) > 0.12) fail(`${C}: the ${t.id} at ${fmt({ x, z })} stands at ${cavernsFloorY(x, z).toFixed(2)}, not its ${h}`);
     }
+    // the explorer's trail: nowhere on its walkable tread (the beach at its foot aside) steeper than
+    // TRAIL_STEEPEST
+    let worst = 0;
+    let worstAt = { x: 0, z: 0 };
+    for (let i = 0; i + 1 < t.points.length; i++) {
+      const [ax, az] = t.points[i];
+      const [bx, bz] = t.points[i + 1];
+      const len = Math.hypot(bx - ax, bz - az);
+      const tx = (bx - ax) / len;
+      const tz = (bz - az) / len;
+      for (let s = 0; s <= len; s += 0.1) {
+        for (let o = -t.half; o <= t.half + 1e-6; o += 0.2) {
+          const x = ax + tx * s - tz * o;
+          const z = az + tz * s + tx * o;
+          if (onBeach(x, z) || !cavernsWalkable(x, z)) continue;
+          const g = trailSlope(x, z);
+          if (g > worst) {
+            worst = g;
+            worstAt = { x, z };
+          }
+        }
+      }
+    }
+    checks++;
+    if (worst > TRAIL_STEEPEST + 0.05) fail(`${C}: the ${t.id}'s tread at ${fmt(worstAt)} is ${worst.toFixed(1)} degrees (${TRAIL_STEEPEST} at most)`);
   }
   const descent = CAVE_TRAILS.find((t) => t.id === "descent")!;
   const top = descent.points[0];

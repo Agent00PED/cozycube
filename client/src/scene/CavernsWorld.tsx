@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState } from "@shared/types";
-import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, type OreNode } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
 import { ORE_ITEMS, ORE_KINDS, ORE_KIND_IDS, oreCenterY, parseOres, type CaveLoot, type CaveShatter, type CaveStrike, type OreKind, type OreItemId } from "@shared/caverns_mining";
 import { DRIP_S, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -18,6 +18,7 @@ import { ProspectingView } from "./ProspectingView";
 import { NODE_YAW } from "./caveNodes";
 import { playCaveSfx } from "../audio/cavernAmbience";
 import { CaveFauna } from "./caveFauna";
+import { CaveMist, CrystalLights, StalactiteFrame } from "./caveAtmosphere";
 
 // The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: the
 // Grand Karst Sanctuary, 45 x 45. The cavern is one Blender model, caverns.glb
@@ -35,9 +36,17 @@ import { CaveFauna } from "./caveFauna";
 //                 emission is its own vertex colour, breathing; the cenote's and the terraces' water
 //                 see-through with no depth write (nothing z-fights under it); the mangrove roots and
 //                 the skylight's rim dithered to 30% where they stand between you and the camera
-//   the light     the doline's godrays and the skylight's shaft (additive, soft-edged, dust drifting
-//                 in them); only three point lights, all moving: the forge's (flickering), the
-//                 terraces' (warm), the cenote's heart (pulsing)
+//   the light     the game's own (CaveLights): ACES tone mapping, a deep slate-navy ambient and
+//                 hemisphere at 0.28, the doline's sun as a soft directional light casting real
+//                 shadows (the vault and the rock between it and the floor), the model's baked light
+//                 kept as a dimmer lightmap (bakedLight: its vertex colours' own glow), three moving
+//                 point lights (the forge's flicker, the terraces' warmth, the cenote's heart) and
+//                 four small ones for the crystals nearest you (caveAtmosphere.tsx); the doline's
+//                 godrays and the skylight's shaft (additive, soft-edged, dust drifting in them);
+//                 a low dark mist over the lower floor and the water; the stalactites framing the
+//                 top of the view
+//   the shore     the sand the water touches damp: darker, and glossy (lower roughness) in the
+//                 bed's finish
 //   the nodes     every ore node from its kind's rock (the model's Ore_<kind>), instanced: its damage
 //                 the room's (`ores`): surface fissures glowing in, then the outer shell fracturing
 //                 (a tremble), then the shatter (a burst of shards); a broken node leaves a dark
@@ -49,7 +58,7 @@ import { CaveFauna } from "./caveFauna";
 //                 on its head (capybara.glb)
 //   the fauna     glowing crabs skittering on the beach, swiftlets circling in the doline's sunbeams
 //                 (caveFauna.tsx, instanced from the model's Fauna_* templates)
-//   the terraces  steam curling off their pools
+//   the terraces  steam curling off their pools, and warm motes rising round every bather
 //   the drip      a lucky drip's cyan ripple on the cenote (the fishing's luck)
 
 export const CAVERNS_URL = modelUrl("caverns.glb");
@@ -59,6 +68,34 @@ export const CAPYBARA_URL = modelUrl("capybara.glb");
 
 const TIME = { value: 0 };
 const CAVE_DARK = new THREE.Color("#07060c");
+/** How much of the model's baked light (its vertex colours) glows on its own: the rest of what you
+ *  see comes from the game's lights. */
+const BAKED = { value: 0.42 };
+/** The caverns' exposure under ACES (the doline's sun never bleaches the sand under it). */
+const CAVE_EXPOSURE = 0.92;
+
+/** The model's baked light as a lightmap: its vertex colours glow at BAKED on their own (under the
+ *  scene's lights, which add the sun, its shadows and the lamps). Chained after any patch already on
+ *  the material. */
+function bakedLight(m: THREE.MeshStandardMaterial) {
+  if (m.userData.caveBaked) return;
+  m.userData.caveBaked = true;
+  const prev = m.onBeforeCompile;
+  const prevKey = m.customProgramCacheKey.bind(m);
+  m.onBeforeCompile = (shader, renderer) => {
+    prev.call(m, shader, renderer);
+    shader.uniforms.uBaked = BAKED;
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uBaked;").replace(
+      "#include <emissivemap_fragment>",
+      `#include <emissivemap_fragment>
+      #ifdef USE_COLOR
+        totalEmissiveRadiance += vColor.rgb * uBaked;
+      #endif`
+    );
+  };
+  m.customProgramCacheKey = () => `${prevKey()}|cave-baked`;
+  m.needsUpdate = true;
+}
 
 /** A glowing finish: its emission is its own vertex colour (times `strength`), breathing a little. */
 function glowFromVertexColour(m: THREE.MeshStandardMaterial, strength: number) {
@@ -94,6 +131,15 @@ float caveCaustic(vec2 p, float t) {
   return 1.0 - smoothstep(0.0, 0.2, abs(v));
 }`;
 
+/** The lake's shore (GLSL): shared/worlds/caverns.ts lakeFactor, under 1 the water, 1 the waterline. */
+const LAKE_GLSL = `
+float caveLakeFactor(vec2 p) {
+  vec2 d = (p - vec2(${CAVE_LAKE.x.toFixed(2)}, ${CAVE_LAKE.z.toFixed(2)})) / vec2(${CAVE_LAKE.rx.toFixed(2)}, ${CAVE_LAKE.rz.toFixed(2)});
+  float a = atan(d.y, d.x);
+  float wob = 1.0 + 0.08 * sin(2.0 * a + 0.4) + 0.06 * sin(3.0 * a + 0.7) + 0.04 * sin(5.0 * a + 2.1) + 0.025 * sin(9.0 * a + 1.3);
+  return length(d) / wob;
+}`;
+
 /** The rock's finish, and the cenote's bed lit from above through the water: caustics dancing on
  *  whatever lies under the lake's surface (strongest in the shallows and under the skylight). */
 function causticBed(m: THREE.MeshStandardMaterial) {
@@ -102,7 +148,17 @@ function causticBed(m: THREE.MeshStandardMaterial) {
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = TIME;
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vBedPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvBedPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `#include <common>\nvarying vec3 vBedPos;\nuniform float uTime;\n${CAUSTIC_GLSL}`).replace(
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `#include <common>\nvarying vec3 vBedPos;\nuniform float uTime;\n${CAUSTIC_GLSL}\n${LAKE_GLSL}`).replace(
+      "#include <roughnessmap_fragment>",
+      `#include <roughnessmap_fragment>
+      {
+        // the damp rim of sand the water touches: darker and glossy
+        float lf = caveLakeFactor(vBedPos.xz);
+        float wet = smoothstep(0.97, 1.03, lf) * (1.0 - smoothstep(1.12, 1.24, lf)) * (1.0 - smoothstep(0.12, 0.22, vBedPos.y - ${CAVE_WATER_Y.toFixed(3)})) * step(${(CAVE_WATER_Y - 0.04).toFixed(3)}, vBedPos.y);
+        roughnessFactor = mix(roughnessFactor, 0.2, wet);
+        diffuseColor.rgb *= mix(1.0, 0.8, wet);
+      }`
+    ).replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
       {
@@ -217,8 +273,11 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       <CampNpc url={FINNEGAN_URL} what="finnegan.glb" prefix="Finnegan" at={{ x: FINNEGAN.x, z: FINNEGAN.z, yaw: FINNEGAN.yaw }} y={cavernsFloorY(FINNEGAN.x, FINNEGAN.z)} waveEvent="finneganWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={FINNEGAN_TALK} />
       <CampNpc url={CAPYBARA_URL} what="capybara.glb" prefix="Capy" at={{ x: L.capybara.x, z: L.capybara.z, yaw: L.capybara.yaw }} y={TERRACES.pools[0].y} waveEvent="capybaraWave" standIn={null} subscribeMessages={subscribeMessages} />
       <CaveLights />
+      <CrystalLights />
       <Godrays />
+      <CaveMist />
       <ThermalSteam />
+      <SoakSteam players={players} />
       <ForgeSmoke />
       <DripRipples subscribeMessages={subscribeMessages} />
       <OcclusionDriver />
@@ -250,7 +309,7 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
   // drawn): the only mesh of the model a click is tested against
   const walk = useMemo(() => (scene.getObjectByName("caverns_walk_collider") as THREE.Mesh | undefined) ?? null, [scene]);
   const fallbackFloor = useMemo(() => (walk ? null : floorGeometry()), [walk]);
-  const fauna = useMemo(() => ({ crab: (scene.getObjectByName("Fauna_Crab") as THREE.Mesh | undefined) ?? null, swift: (scene.getObjectByName("Fauna_Swift") as THREE.Mesh | undefined) ?? null }), [scene]);
+  const fauna = useMemo(() => ({ crab: (scene.getObjectByName("Fauna_Crab") as THREE.Mesh | undefined) ?? null, swift: (scene.getObjectByName("Fauna_Swift") as THREE.Mesh | undefined) ?? null, frame: (scene.getObjectByName("Frame_Stalactites") as THREE.Mesh | undefined) ?? null }), [scene]);
   useEffect(() => () => fallbackFloor?.dispose(), [fallbackFloor]);
   // the model's finishes, and the node rocks' templates taken out of it (instanced below)
   const templates = useMemo(() => {
@@ -260,16 +319,28 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       if (!mesh.isMesh) return;
       mesh.raycast = noRaycast;
       const m = mesh.material as THREE.MeshStandardMaterial;
-      if (m.name === "CV_Glow") glowFromVertexColour(m, 1.25);
-      else if (m.name === "CV_OreGlow") glowFromVertexColour(m, 1.4);
+      if (m.name === "CV_Glow") glowFromVertexColour(m, 1.7);
+      else if (m.name === "CV_OreGlow") glowFromVertexColour(m, 1.6);
       else if (m.name === "CV_Water") stillWater(m, 0.66);
       else if (m.name === "CV_ThermalWater") stillWater(m, 0.62);
-      else if (m.name === "CV_Clay") causticBed(m);
-      else if (m.name === "CV_Occluder") ditherOccluder(m);
+      else if (m.name === "CV_Clay") {
+        causticBed(m);
+        bakedLight(m);
+      } else if (m.name === "CV_Shell") bakedLight(m);
+      else if (m.name === "CV_Occluder") {
+        ditherOccluder(m);
+        bakedLight(m);
+      }
+      // (the rock, the walls and the pillars cast the sun's shadows; the floor and they take them)
+      if (mesh.name === "Cave_Rock" || mesh.name === "Cave_Shell" || mesh.name === "Cave_Roots") {
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+      } else if (mesh.name === "caverns_walk_collider") mesh.receiveShadow = true;
     });
     if (walk) walk.raycast = THREE.Mesh.prototype.raycast;
-    // (the fauna's templates: drawn instanced, never where they were modelled)
-    for (const name of ["Fauna_Crab", "Fauna_Swift"]) {
+    // (the fauna's and the frame's templates: drawn instanced or on the camera, never where they were
+    // modelled)
+    for (const name of ["Fauna_Crab", "Fauna_Swift", "Frame_Stalactites"]) {
       const o = scene.getObjectByName(name);
       if (o) o.visible = false;
     }
@@ -290,6 +361,7 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       <OreNodes templates={templates} ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} players={players} />
       <ProspectingView templates={templates} onStrike={onStrike} />
       <CaveFauna crab={fauna.crab} swift={fauna.swift} />
+      <StalactiteFrame template={fauna.frame} />
     </>
   );
 }
@@ -631,11 +703,71 @@ class FxPool {
 /** The cavern's light: a dim cool fill (the rock's own light is painted in), the sun's warm slant
  *  down the doline, and the three point lights that move: the forge's mouth flickering, the
  *  terraces' warm glow breathing, the cenote's heart pulsing. */
+/** The doline's sun: from high over the collapsed vault, a little to the north (the godrays lean the
+ *  same way), its shadow camera over the whole cavern. */
+const SUN_FROM = new THREE.Vector3(-4, 30, -9);
+const SUN_AT = new THREE.Vector3(0, 0, -2);
+
 function CaveLights() {
+  const gl = useThree((s) => s.gl);
   const forge = useRef<THREE.PointLight>(null);
   const thermal = useRef<THREE.PointLight>(null);
   const cenote = useRef<THREE.PointLight>(null);
-  useFrame(({ clock }) => {
+  const sun = useRef<THREE.DirectionalLight>(null);
+  const fill = useRef<THREE.DirectionalLight>(null);
+  const target = useMemo(() => {
+    const o = new THREE.Object3D();
+    o.position.copy(SUN_AT);
+    return o;
+  }, []);
+  const fillAt = useMemo(() => new THREE.Object3D(), []);
+  // ACES under a balanced exposure, and the shadow map, while you are down here (put back as you leave)
+  useEffect(() => {
+    const before = { tone: gl.toneMapping, exposure: gl.toneMappingExposure, shadows: gl.shadowMap.enabled, type: gl.shadowMap.type };
+    gl.toneMapping = THREE.ACESFilmicToneMapping;
+    gl.toneMappingExposure = CAVE_EXPOSURE;
+    gl.shadowMap.enabled = true;
+    gl.shadowMap.type = THREE.PCFSoftShadowMap;
+    gl.shadowMap.needsUpdate = true;
+    return () => {
+      gl.toneMapping = before.tone;
+      gl.toneMappingExposure = before.exposure;
+      gl.shadowMap.enabled = before.shadows;
+      gl.shadowMap.type = before.type;
+      gl.shadowMap.needsUpdate = true;
+    };
+  }, [gl]);
+  useEffect(() => {
+    const l = sun.current;
+    if (!l) return;
+    l.target = target;
+    const c = l.shadow.camera;
+    c.left = -25;
+    c.right = 25;
+    c.top = 25;
+    c.bottom = -25;
+    c.near = 1;
+    c.far = 80;
+    c.updateProjectionMatrix();
+    l.shadow.mapSize.set(2048, 2048);
+    l.shadow.bias = -0.0001;
+    l.shadow.normalBias = 0.02;
+    l.shadow.radius = 3;
+  }, [target]);
+  useFrame(({ clock, camera }) => {
+    // (the soft fill from over your shoulder: the folk and the players are never silhouettes)
+    if (fill.current) {
+      fill.current.target = fillAt;
+      fillAt.position.set(cameraFocus.x, cameraFocus.y + 0.8, cameraFocus.z);
+      fill.current.position.copy(camera.position);
+    }
+    // (the canvas's own configuration turns the shadow map off again on any re-render of it: held on
+    // here, a frame at a time, before anything is drawn)
+    if (!gl.shadowMap.enabled) {
+      gl.shadowMap.enabled = true;
+      gl.shadowMap.type = THREE.PCFSoftShadowMap;
+      gl.shadowMap.needsUpdate = true;
+    }
     const t = clock.elapsedTime;
     if (forge.current) forge.current.intensity = 2.6 + 0.6 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1) + 0.3 * Math.sin(t * 17);
     if (thermal.current) thermal.current.intensity = 1.5 + 0.2 * Math.sin(t * 0.7);
@@ -643,9 +775,13 @@ function CaveLights() {
   });
   return (
     <>
-      <ambientLight color="#cbc6e6" intensity={1.3} />
-      <hemisphereLight args={["#b4c4ff", "#2a1e18", 0.35]} />
-      <directionalLight color="#ffe6c4" intensity={0.45} position={[-6, 22, -14]} castShadow={false} />
+      {/* (a deep slate-navy penumbra: the rock's faces away from every light sink into it) */}
+      <ambientLight color="#182030" intensity={0.28} />
+      <hemisphereLight args={["#3a4a68", "#1b1511", 0.28]} />
+      <primitive object={target} />
+      <directionalLight ref={sun} color="#ffe2b4" intensity={1.35} position={SUN_FROM.toArray()} castShadow />
+      <primitive object={fillAt} />
+      <directionalLight ref={fill} color="#dde4f4" intensity={0.85} castShadow={false} />
       <pointLight ref={forge} color="#ff8a3a" distance={11} decay={1.4} position={CAVE_LIGHTS.forge as [number, number, number]} castShadow={false} />
       <pointLight ref={thermal} color="#ffc78a" distance={9} decay={1.5} position={CAVE_LIGHTS.thermal as [number, number, number]} castShadow={false} />
       <pointLight ref={cenote} color="#3ff0ff" distance={13} decay={1.3} position={CAVE_LIGHTS.cenote as [number, number, number]} castShadow={false} />
@@ -695,7 +831,7 @@ const RAY_MAT = new THREE.ShaderMaterial({
       float ends = smoothstep(0.0, 0.08, vUp) * (1.0 - smoothstep(0.5, 1.0, vUp));
       float core = pow(vFace, 1.6);
       float shimmer = 0.78 + 0.22 * sin(vRayPos.y * 2.3 - uTime * 1.1 + vRayPos.x * 0.7);
-      float a = ends * core * shimmer * 0.2;
+      float a = ends * core * shimmer * 0.13;
       gl_FragColor = vec4(vec3(1.0, 0.9, 0.68), a);
     }`,
 });
@@ -726,7 +862,7 @@ const POOL_MAT = new THREE.ShaderMaterial({
     varying vec2 vDisc;
     void main() {
       float r = length(vDisc);
-      float a = (1.0 - smoothstep(0.35, 1.0, r)) * (0.2 + 0.03 * sin(uTime * 0.8 + vDisc.x * 3.0));
+      float a = (1.0 - smoothstep(0.35, 1.0, r)) * (0.08 + 0.015 * sin(uTime * 0.8 + vDisc.x * 3.0));
       gl_FragColor = vec4(vec3(1.0, 0.88, 0.62), a);
     }`,
 });
@@ -886,6 +1022,38 @@ function ThermalSteam() {
     mesh.instanceMatrix.needsUpdate = true;
   });
   return <primitive object={mesh} />;
+}
+
+const SOAK_MOTES = 12;
+const SOAK_MOTE = new THREE.Color("#fff4e6");
+/** Warm motes of steam rising round everyone soaking in the terraces' pools. */
+function SoakSteam({ players }: { players: Record<string, PlayerState> }) {
+  const motes = useMemo(() => new MotePoints(8 * SOAK_MOTES), []);
+  useEffect(() => () => motes.dispose(), [motes]);
+  const seeds = useMemo(() => Array.from({ length: 8 * SOAK_MOTES }, () => ({ a: Math.random() * Math.PI * 2, r: 0.15 + Math.random() * 0.35, p: Math.random(), s: 0.5 + Math.random() * 0.5 })), []);
+  const live = useRef(players);
+  live.current = players;
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const bathers = Object.values(live.current).filter((p) => p.map === "glimmering_caverns" && p.action === "soak").slice(0, 8);
+    for (let b = 0; b < 8; b++) {
+      const who = bathers[b];
+      for (let k = 0; k < SOAK_MOTES; k++) {
+        const i = b * SOAK_MOTES + k;
+        if (!who) {
+          motes.hide(i);
+          continue;
+        }
+        const sd = seeds[i];
+        const u = (((t * 0.22 * sd.s + sd.p) % 1) + 1) % 1;
+        const y = thermalPoolY(who.z) + 0.05 + u * 1.3;
+        const a = sd.a + u * 1.8;
+        motes.set(i, who.x + Math.cos(a) * sd.r * (1 + u), y, who.z + Math.sin(a) * sd.r * (1 + u), 0.5 * Math.sin(Math.PI * u), SOAK_MOTE);
+      }
+    }
+    motes.commit();
+  });
+  return <primitive object={motes.points} />;
 }
 
 const SMOKE_PUFFS = 14;
