@@ -16,7 +16,9 @@ import { glass, hudText, pillButton } from "./glass";
 //                   Blue mirrored on the right, each a portrait, the name (this round's knockdowns
 //                   as 💫), a thick Health bar, the gold Stamina and the cyan Guard; in the middle
 //                   the clock, the round (1/3 to 3/3), the three round pips lit in the colour of
-//                   whoever took each round, and Throw in the Towel
+//                   whoever took each round, and Throw in the Towel (tapped, or T, then confirmed
+//                   within 3 s: a T.K.O. conceded, the bout to the other corner, and out of the ring;
+//                   a thumb-sized button on a touch screen, down on the canvas too)
 //   a spectator's   a compact banner under the header: both fighters' health, the round pips and
 //   banner          the clock, the odds while the bets are open, a spar's setting, who is next
 //   the centre      ROUND 2... FIGHT! at each bell, each round's winner at its end, the comic badges
@@ -83,6 +85,38 @@ export function BoxingHud({ me, localSessionId, players, send, subscribeMessages
     },
     []
   );
+
+  // the towel: pressed (or T), then confirmed within 3 s (pressed again, or T again)
+  const towelLive = inRing && (phase === "fight" || phase === "count" || phase === "rest");
+  const [towelAsk, setTowelAsk] = useState(false);
+  useEffect(() => {
+    if (!towelAsk) return;
+    const t = window.setTimeout(() => setTowelAsk(false), 3000);
+    return () => window.clearTimeout(t);
+  }, [towelAsk]);
+  useEffect(() => {
+    if (!towelLive) setTowelAsk(false);
+  }, [towelLive]);
+  const towelRef = useRef(() => {});
+  towelRef.current = () => {
+    if (!towelLive) return;
+    if (towelAsk) {
+      setTowelAsk(false);
+      send({ type: "TOWEL" });
+    } else setTowelAsk(true);
+  };
+  useEffect(() => {
+    if (!towelLive) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "KeyT" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      e.preventDefault();
+      towelRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [towelLive]);
 
   // the controls' capsule: shown through the countdown, faded away 4 s after the opening bell
   const [hintsGone, setHintsGone] = useState(false);
@@ -173,9 +207,20 @@ export function BoxingHud({ me, localSessionId, players, send, subscribeMessages
             <div style={bigClock}>{phase === "count" ? `${bout.count}` : mmss(clock)}</div>
             <div style={phaseLabel}>{phase === "warmup" ? (bout.spar ? "SPAR IN" : "THE BELL IN") : phase === "rest" ? `ROUND ${bout.round + 1}/${ROUNDS} IN` : phase === "count" ? "THE COUNT" : `ROUND ${bout.round}/${ROUNDS}`}</div>
             <RoundPips rounds={bout.rounds} />
-            {!downed && (
-              <button type="button" style={towelBtn} onClick={() => send({ type: "LEAVE_RING" })} title={phase === "warmup" ? "Back down the steps" : "Leaving mid-bout is a forfeit"}>
-                {phase === "warmup" ? "👋 Step Down" : "🏳️ Towel"}
+            {phase === "warmup" ? (
+              <button type="button" style={{ ...towelBtn, minHeight: touch ? 48 : 28 }} onClick={() => send({ type: "LEAVE_RING" })} title="Back down the steps">
+                👋 Step Down
+              </button>
+            ) : (
+              <button
+                type="button"
+                style={{ ...towelBtn, ...(towelAsk ? towelAskBtn : null), minHeight: touch ? 48 : 28, fontSize: touch ? 13 : 11, padding: touch ? "6px 14px" : "3px 10px" }}
+                onClick={() => towelRef.current()}
+                title="Concede the bout: a T.K.O. to the other corner"
+                aria-label={towelAsk ? "Confirm: throw in the towel" : "Throw in the towel"}
+              >
+                {towelAsk ? (touch ? "🏳️ Tap again to concede" : "🏳️ Again to concede") : "🏳️ Throw in the Towel"}
+                {!touch && <span style={keyCap}>T</span>}
               </button>
             )}
           </div>
@@ -236,6 +281,7 @@ export function BoxingHud({ me, localSessionId, players, send, subscribeMessages
               <>
                 <div style={{ fontSize: 20, fontWeight: 900 }}>
                   🏆 <span style={{ color: CORNER_COLOR[result.winner] }}>{result.winnerName}</span> wins by {METHOD_LABEL[result.method]}
+                  {result.towel ? " (the towel)" : ""}
                 </div>
                 <div style={dim}>
                   {result.rounds.length > 0 && `Rounds ${result.rounds.map((r) => (r === "draw" ? "=" : r === "red" ? "R" : "B")).join(" ")}`}
@@ -277,7 +323,7 @@ export function BoxingHud({ me, localSessionId, players, send, subscribeMessages
       )}
       {inRing && live && !touch && (
         <div className="kbd-hint cozy-hud-block" style={{ ...hintCapsule, opacity: hintsGone ? 0 : 1 }} aria-hidden={hintsGone || undefined}>
-          <b>LMB</b> M1 · <b>RMB</b> M2 · <b>F / Shift</b> hold Guard · <b>Space + WASD</b> Dash · <b>M2 → F</b> Feint
+          <b>LMB</b> M1 · <b>RMB</b> M2 · <b>F / Shift</b> hold Guard · <b>Space + WASD</b> Dash · <b>M2 → F</b> Feint · <b>T</b> Towel
         </div>
       )}
 
@@ -467,7 +513,10 @@ const botTag: CSSProperties = { fontSize: 10, fontWeight: 800, color: "#f7ead2",
 const bannerMiddle: CSSProperties = { ...glass, flexShrink: 0, minWidth: 96, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "4px 10px 6px", borderRadius: 16, marginLeft: "auto", marginRight: "auto" };
 const bigClock: CSSProperties = { fontSize: 24, fontWeight: 900, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: "#fff8ec" };
 const phaseLabel: CSSProperties = { fontSize: 10, fontWeight: 800, letterSpacing: 0.6, color: "#d6cfc7", whiteSpace: "nowrap" };
-const towelBtn: CSSProperties = { ...pillButton, pointerEvents: "auto", minHeight: 26, padding: "3px 10px", fontSize: 11, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.14)" };
+const towelBtn: CSSProperties = { ...pillButton, pointerEvents: "auto", minHeight: 26, padding: "3px 10px", fontSize: 11, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.14)", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" };
+/** Asked to confirm: the towel's button in warning red. */
+const towelAskBtn: CSSProperties = { background: "rgba(200,50,43,0.85)", border: "1px solid rgba(255,200,190,0.6)", color: "#fff" };
+const keyCap: CSSProperties = { display: "inline-block", minWidth: 16, padding: "0 4px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.35)", fontSize: 10, lineHeight: "14px", textAlign: "center", opacity: 0.8 };
 const nameText: CSSProperties = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const track: CSSProperties = { width: "100%", borderRadius: 999, background: "rgba(255,255,255,0.13)", overflow: "hidden", display: "flex" };
 const fill: CSSProperties = { height: "100%", borderRadius: 999, transition: "width 110ms linear" };

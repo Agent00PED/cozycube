@@ -6,13 +6,23 @@ It borrows build_casino_staff.py's kit (everything above its first character): t
 proportions, every colour a vertex colour in the one clay material, a draw call per node (the game
 fuses each character into one skinned mesh: entities/CampNpc.tsx).
 
-Three regulars who never miss a fight night:
+The regulars who never miss a fight night:
 
     RingFan_Raccoon   seated on the bleachers (origin at his tier's foot, the plank BLEACHER_TOP
                       over it): a flat cap, a green varsity jacket, his paws on his knees (he claps)
     RingFan_Rabbit    seated beside him a tier up: a burgundy scarf with a gold stripe, a rosette
     BagBoxer          Kip the kangaroo, standing at the heavy bag in blue trunks and red gloves,
                       guard up (his punches are the game's: a rhythmic one-two on the bag)
+    RingCrowd         the fight-night crowd: five more fans in one node (a fox in a red hoodie, a
+                      panda in a tweed cap, a ginger cat in a bobble beanie, an otter waving a blue
+                      foam finger, a bulldog in a bomber jacket), RingCrowd_<n>_Body / _Head /
+                      _ArmR / _ArmL each; built side by side, seated like the others (the game sets
+                      each on its own spot of the bleachers and fuses all five into one skinned mesh)
+    Referee           Ref Barnaby, the ring's referee: an old basset hound in the black-and-white
+                      striped shirt, a black bow tie, black trousers and shoes, arms at his sides
+    Trainee           a young pug skipping rope before the gym's mirrors: a grey tank top, navy
+                      shorts, a red sweatband; the rope in its own part, Trainee_Rope, its origin
+                      on the line through both hands (the game turns it round that line)
 
 Each one facing +z, with the nodes CampNpc animates: <Name>_Body, and on it _Head (pivot at the
 neck), _ArmR / _ArmL (at the shoulders), _Tail. Coordinates: the game's (x, y up, z) is Blender's
@@ -70,6 +80,52 @@ PALETTE.update(
         "RooGloveDark": "#8E1A1C",
         "Lace": "#F2EEE6",
         "Tape": "#F0EDE6",
+        # the crowd
+        "FoxFur": "#D9772F",
+        "FoxLight": "#F6E9D6",
+        "FoxDark": "#3A2A22",
+        "Hoodie": "#B8412F",
+        "HoodieDark": "#8E2F22",
+        "PandaWhite": "#F2EFEA",
+        "PandaBlack": "#26252A",
+        "Tweed": "#8A7A60",
+        "TweedDark": "#6B5E4A",
+        "Knit": "#6E8B5A",
+        "GingerFur": "#E0913F",
+        "GingerLight": "#F7E3C6",
+        "GingerStripe": "#B8662A",
+        "Beanie": "#2E3F66",
+        "Pom": "#F2EEE6",
+        "HoodieGrey": "#8E949C",
+        "OtterFur": "#7A5234",
+        "OtterLight": "#D8BE98",
+        "Stripe": "#3A6FB0",
+        "StripeWhite": "#F4F2EE",
+        "FoamBlue": "#2F6FD8",
+        "DogFawn": "#C9A27A",
+        "DogLight": "#EFE0C8",
+        "DogDark": "#4A3528",
+        "Bomber": "#2A2D32",
+        "BomberRib": "#B8412F",
+        "Bandana": "#C8322B",
+        "Khaki": "#A08A60",
+        # Ref Barnaby
+        "HoundTan": "#B87A45",
+        "HoundDark": "#6B4226",
+        "HoundWhite": "#F2E8D8",
+        "RefWhite": "#F4F2EE",
+        "RefBlack": "#1F1D22",
+        "Trousers": "#23222A",
+        "Shoe": "#141317",
+        # the trainee
+        "PugFawn": "#D9B98C",
+        "PugMask": "#2A2420",
+        "TankGrey": "#9AA0A6",
+        "Shorts": "#26365E",
+        "ShortStripe": "#F2EEE6",
+        "Sweatband": "#D8383A",
+        "RopeRed": "#C8322B",
+        "Handle": "#A0703F",
     }
 )
 
@@ -230,6 +286,237 @@ def build_kangaroo():
     return coll
 
 
+# ---------------------------------------------------------------------------------------------
+# the fight-night crowd: five seated fans in one node
+
+
+def crowd_fan(coll, root, n, ox, fur, light, dark, top, top_dark, trousers, shoe, ears, extra):
+    """A seated fan built at x = `ox` (their origin at their tier's foot there; the game moves each
+    one to its own spot): RingCrowd_<n>_Body, and on it _Head, _ArmR, _ArmL."""
+    s = BLEACHER_TOP
+    name = f"RingCrowd_{n}"
+    B = Part()
+    for sx in (-1, 1):
+        cylinder(B, (ox + sx * 0.09, s + 0.06, 0.0), (ox + sx * 0.1, s + 0.05, 0.2), 0.055, trousers, sides=10)
+        blob(B, ox + sx * 0.1, s + 0.05, 0.2, 0.055, 0.055, 0.055, trousers, cuts=2)
+        cylinder(B, (ox + sx * 0.1, s + 0.03, 0.21), (ox + sx * 0.1, 0.06, 0.24), 0.05, trousers, sides=10, r_end=0.044)
+        blob(B, ox + sx * 0.1, 0.035, 0.29, 0.055, 0.035, 0.09, shoe, bottom=0.0)
+    blob(B, ox, s + 0.09, -0.02, 0.17, 0.1, 0.16, trousers, cuts=3)
+    blob(B, ox, s + 0.29, -0.01, 0.175, 0.21, 0.15, top, cuts=4)
+    blob(B, ox, s + 0.12, 0.0, 0.165, 0.035, 0.14, top_dark, cuts=2)  # the hem
+    blob(B, ox, s + 0.46, 0.05, 0.1, 0.035, 0.08, light)  # the chest's fur at the collar
+    if extra == "scarf":
+        lathe(B, ox, 0.0, [(0, s + 0.41), (0.14, s + 0.41), (0.15, s + 0.46), (0.13, s + 0.5), (0, s + 0.5)], "Knit", segs=16)
+        blob(B, ox - 0.07, s + 0.33, 0.13, 0.045, 0.1, 0.02, "Knit", cuts=2)
+    if extra == "bomber":
+        lathe(B, ox, 0.0, [(0, s + 0.42), (0.14, s + 0.42), (0.15, s + 0.47), (0, s + 0.47)], "BomberRib", segs=16)
+        blob(B, ox, s + 0.3, 0.14, 0.012, 0.16, 0.012, "BomberRib", cuts=1)  # the zip
+    if extra == "stripes":
+        for k in range(3):
+            lathe(B, ox, -0.01, [(0, s + 0.2 + k * 0.1), (0.172, s + 0.2 + k * 0.1), (0.172, s + 0.235 + k * 0.1), (0, s + 0.235 + k * 0.1)], "StripeWhite", segs=16)
+    body = node(f"{name}_Body", B, coll, root, (ox, 0.0, 0.0))
+
+    H = Part()
+    neck = (ox, s + 0.48, 0.0)
+    hy = s + 0.63
+    blob(H, ox, hy, 0.01, 0.175, 0.15, 0.16, fur, cuts=4)
+    blob(H, ox, hy - 0.045, 0.11, 0.09, 0.06, 0.07, light)  # the muzzle
+    blob(H, ox, hy - 0.02, 0.18, 0.026, 0.02, 0.016, "Nose", cuts=1)
+    # (the kit's eyes() mirrors about x = 0: built about the fan's own x by hand)
+    for sx in (-1, 1):
+        blob(H, ox + sx * 0.065, hy + 0.02, 0.145, 0.026, 0.03, 0.02, "Eye", cuts=2)
+        blob(H, ox + sx * 0.065 - 0.008, hy + 0.03, 0.163, 0.008, 0.008, 0.005, "Glint", cuts=1)
+        blob(H, ox + sx * 0.1, hy - 0.045, 0.125, 0.028, 0.017, 0.01, "Blush", cuts=1)
+    if ears == "pointy":
+        for sx in (-1, 1):
+            cylinder(H, (ox + sx * 0.1, hy + 0.1, -0.01), (ox + sx * 0.15, hy + 0.26, -0.03), 0.06, fur, sides=4, r_end=0.008)
+            cylinder(H, (ox + sx * 0.1, hy + 0.11, 0.015), (ox + sx * 0.14, hy + 0.22, 0.0), 0.028, dark, sides=4, r_end=0.006)
+        blob(H, ox, hy - 0.06, 0.15, 0.06, 0.035, 0.05, light)
+    elif ears == "round":
+        for sx in (-1, 1):
+            blob(H, ox + sx * 0.13, hy + 0.12, -0.01, 0.055, 0.055, 0.03, dark, cuts=2)
+            blob(H, ox + sx * 0.07, hy + 0.03, 0.13, 0.04, 0.05, 0.02, dark, cuts=2)  # the panda's eye patches
+    elif ears == "cat":
+        for sx in (-1, 1):
+            cylinder(H, (ox + sx * 0.1, hy + 0.1, -0.01), (ox + sx * 0.13, hy + 0.22, -0.02), 0.055, fur, sides=4, r_end=0.008)
+        for k in (-1, 0, 1):
+            blob(H, ox + k * 0.05, hy + 0.12, 0.06, 0.015, 0.04, 0.02, "GingerStripe", cuts=1)
+    elif ears == "small":
+        for sx in (-1, 1):
+            blob(H, ox + sx * 0.14, hy + 0.08, -0.02, 0.035, 0.035, 0.02, dark, cuts=2)
+    elif ears == "floppy":
+        for sx in (-1, 1):
+            cylinder(H, (ox + sx * 0.13, hy + 0.08, -0.01), (ox + sx * 0.18, hy - 0.02, 0.02), 0.045, dark, sides=6, r_end=0.03)
+        blob(H, ox, hy - 0.07, 0.12, 0.11, 0.045, 0.06, light)  # the jowls
+    # hats
+    if extra == "tweed":
+        blob(H, ox, hy + 0.12, -0.01, 0.17, 0.055, 0.16, "Tweed", cuts=3, tilt=0.15)
+        blob(H, ox, hy + 0.1, 0.15, 0.13, 0.015, 0.07, "TweedDark", cuts=2)
+    if extra == "beanie":
+        blob(H, ox, hy + 0.1, -0.01, 0.18, 0.1, 0.17, "Beanie", cuts=3, bottom=0.0)
+        lathe(H, ox, -0.01, [(0, hy + 0.06), (0.18, hy + 0.06), (0.185, hy + 0.1), (0, hy + 0.1)], "Pom", segs=16)
+        blob(H, ox, hy + 0.21, -0.01, 0.045, 0.045, 0.045, "Pom", cuts=2, fluff=0.15)
+    if extra == "bomber":
+        lathe(H, ox, 0.0, [(0, hy - 0.12), (0.17, hy - 0.12), (0.17, hy - 0.08), (0, hy - 0.08)], "Bandana", segs=14)
+    node(f"{name}_Head", H, coll, body, neck)
+
+    for sx, arm_name in ((-1, f"{name}_ArmR"), (1, f"{name}_ArmL")):
+        A = Part()
+        shoulder = (ox + sx * 0.16, s + 0.38, 0.0)
+        arm(A, shoulder, (ox + sx * 0.19, s + 0.24, 0.07), (ox + sx * 0.12, s + 0.12, 0.2), top, fur, r=0.045, paw_size=0.042, paw_colour=fur)
+        if extra == "stripes" and sx == -1:
+            # the blue foam finger on the right paw
+            blob(A, ox + sx * 0.12, s + 0.14, 0.24, 0.07, 0.06, 0.07, "FoamBlue", cuts=2)
+            cylinder(A, (ox + sx * 0.12, s + 0.18, 0.26), (ox + sx * 0.12, s + 0.34, 0.3), 0.03, "FoamBlue", sides=6, r_end=0.024)
+        node(arm_name, A, coll, body, shoulder)
+    return body
+
+
+def build_crowd():
+    coll, root = rig("RingCrowd")
+    fans = [
+        ("FoxFur", "FoxLight", "FoxDark", "Hoodie", "HoodieDark", "Jeans", "Sneaker", "pointy", "scarf"),
+        ("PandaWhite", "PandaWhite", "PandaBlack", "Cardigan", "TweedDark", "Khaki", "PandaBlack", "round", "tweed"),
+        ("GingerFur", "GingerLight", "GingerStripe", "HoodieGrey", "Beanie", "Jeans", "Sneaker", "cat", "beanie"),
+        ("OtterFur", "OtterLight", "OtterFur", "Stripe", "Stripe", "Khaki", "Sneaker", "small", "stripes"),
+        ("DogFawn", "DogLight", "DogDark", "Bomber", "BomberRib", "Jeans", "Sneaker", "floppy", "bomber"),
+    ]
+    for i, f in enumerate(fans):
+        crowd_fan(coll, root, i + 1, (i - 2) * 0.9, *f)
+    return coll
+
+
+# ---------------------------------------------------------------------------------------------
+# Ref Barnaby
+
+
+def build_referee():
+    coll, root = rig("Referee")
+    B = Part()
+    # black trousers to black shoes
+    for sx in (-1, 1):
+        cylinder(B, (sx * 0.09, 0.44, 0.0), (sx * 0.1, 0.07, 0.01), 0.06, "Trousers", sides=10, r_end=0.052)
+        blob(B, sx * 0.1, 0.035, 0.05, 0.06, 0.035, 0.1, "Shoe", bottom=0.0)
+    blob(B, 0.0, 0.46, -0.01, 0.17, 0.08, 0.14, "Trousers", cuts=3)
+    blob(B, 0.0, 0.47, 0.0, 0.172, 0.02, 0.142, "RefBlack", cuts=1)  # the belt
+    # the striped shirt: white, with black stripes down it (each following the round body)
+    cy, hx, hy, hz = 0.64, 0.18, 0.2, 0.15
+    blob(B, 0.0, cy, -0.01, hx, hy, hz, "RefWhite", cuts=4)
+    # (each stripe a thin slice of the same rounded body, a little proud of it, front and back)
+    for k in (-3, -2, -1, 0, 1, 2, 3):
+        x = k * 0.05
+        f = max(0.25, 1 - abs(x / hx) ** 2.2) ** (1 / 2.2)
+        blob(B, x, cy, -0.01, 0.017, hy * f + 0.01, hz * f + 0.012, "RefBlack", cuts=3)
+    # the collar and the bow tie
+    lathe(B, 0.0, 0.0, [(0, 0.8), (0.12, 0.8), (0.125, 0.83), (0, 0.83)], "RefWhite", segs=16)
+    for sx in (-1, 1):
+        blob(B, sx * 0.045, 0.815, 0.12, 0.04, 0.026, 0.02, "RefBlack", cuts=2)
+    blob(B, 0.0, 0.815, 0.13, 0.016, 0.018, 0.014, "RefBlack", cuts=1)
+    body = node("Referee_Body", B, coll, root)
+
+    H = Part()
+    neck = (0.0, 0.83, 0.0)
+    hy = 0.99
+    blob(H, 0.0, hy, 0.0, 0.16, 0.15, 0.16, "HoundTan", cuts=4)
+    blob(H, 0.0, hy + 0.02, 0.12, 0.05, 0.12, 0.05, "HoundWhite", cuts=2)  # the white blaze
+    blob(H, 0.0, hy - 0.06, 0.14, 0.1, 0.07, 0.08, "HoundWhite")  # the long muzzle
+    blob(H, 0.0, hy - 0.11, 0.12, 0.09, 0.04, 0.06, "HoundWhite", cuts=2)  # the jowls
+    blob(H, 0.0, hy - 0.03, 0.22, 0.034, 0.026, 0.022, "Nose", cuts=1)
+    # droopy, kindly eyes under a heavy brow
+    for sx in (-1, 1):
+        blob(H, sx * 0.062, hy + 0.025, 0.14, 0.024, 0.02, 0.012, "Eye", cuts=1)
+        blob(H, sx * 0.062, hy + 0.047, 0.145, 0.034, 0.012, 0.012, "HoundTan", cuts=1)  # the lid
+        blob(H, sx * 0.07, hy + 0.075, 0.13, 0.03, 0.01, 0.012, "HoundDark", cuts=1)  # the brow
+    # the long ears, hanging down past the jaw
+    for sx in (-1, 1):
+        cylinder(H, (sx * 0.14, hy + 0.06, -0.01), (sx * 0.18, hy - 0.2, 0.02), 0.055, "HoundDark", sides=8, r_end=0.05)
+        blob(H, sx * 0.18, hy - 0.2, 0.02, 0.05, 0.04, 0.05, "HoundDark", cuts=2)
+    node("Referee_Head", H, coll, body, neck)
+
+    for sx, name in ((-1, "Referee_ArmR"), (1, "Referee_ArmL")):
+        A = Part()
+        shoulder = (sx * 0.17, 0.76, 0.0)
+        elbow = (sx * 0.21, 0.6, 0.0)
+        paw = (sx * 0.2, 0.46, 0.03)
+        cylinder(A, shoulder, elbow, 0.048, "RefWhite", r_end=0.045)
+        blob(A, elbow[0], elbow[1], elbow[2], 0.046, 0.046, 0.046, "RefWhite", cuts=1)
+        cylinder(A, (shoulder[0], shoulder[1] - 0.06, shoulder[2]), (elbow[0], elbow[1] + 0.05, elbow[2]), 0.05, "RefBlack", r_end=0.047)  # a stripe down the sleeve
+        cylinder(A, elbow, paw, 0.04, "HoundTan", r_end=0.036)
+        blob(A, paw[0], paw[1], paw[2], 0.045, 0.04, 0.05, "HoundWhite", cuts=2)
+        node(name, A, coll, body, shoulder)
+
+    T = Part()
+    cylinder(T, (0.0, 0.5, -0.13), (0.0, 0.72, -0.26), 0.035, "HoundTan", sides=8, r_end=0.025)
+    blob(T, 0.0, 0.74, -0.27, 0.028, 0.04, 0.028, "HoundWhite", cuts=2)
+    node("Referee_Tail", T, coll, body, (0.0, 0.5, -0.13))
+    return coll
+
+
+# ---------------------------------------------------------------------------------------------
+# the trainee: a young pug skipping rope
+
+ROPE_PIVOT = (0.0, 0.62, 0.08)
+
+
+def build_trainee():
+    coll, root = rig("Trainee")
+    B = Part()
+    for sx in (-1, 1):
+        cylinder(B, (sx * 0.09, 0.38, 0.0), (sx * 0.095, 0.07, 0.01), 0.05, "PugFawn", sides=10, r_end=0.045)
+        blob(B, sx * 0.1, 0.035, 0.05, 0.055, 0.035, 0.095, "Sneaker", bottom=0.0)
+        blob(B, sx * 0.1, 0.07, 0.05, 0.057, 0.012, 0.06, "Sweatband", cuts=1)  # a red stripe on each sneaker
+        blob(B, sx * 0.095, 0.34, 0.0, 0.08, 0.08, 0.09, "Shorts", cuts=2)
+        blob(B, sx * 0.16, 0.34, 0.0, 0.01, 0.07, 0.05, "ShortStripe", cuts=1)
+    blob(B, 0.0, 0.42, -0.01, 0.17, 0.08, 0.14, "Shorts", cuts=3)
+    blob(B, 0.0, 0.62, -0.01, 0.16, 0.19, 0.14, "PugFawn", cuts=4)
+    blob(B, 0.0, 0.6, 0.0, 0.162, 0.15, 0.142, "TankGrey", cuts=3)  # the tank top
+    blob(B, 0.0, 0.74, 0.1, 0.07, 0.04, 0.04, "PugFawn", cuts=2)  # the neckline
+    body = node("Trainee_Body", B, coll, root)
+
+    H = Part()
+    neck = (0.0, 0.8, 0.0)
+    hy = 0.95
+    blob(H, 0.0, hy, 0.0, 0.16, 0.15, 0.15, "PugFawn", cuts=4)
+    blob(H, 0.0, hy - 0.04, 0.12, 0.1, 0.075, 0.05, "PugMask", cuts=3)  # the black mask, flat-faced
+    blob(H, 0.0, hy - 0.02, 0.16, 0.03, 0.022, 0.015, "Nose", cuts=1)
+    blob(H, 0.0, hy + 0.035, 0.14, 0.06, 0.012, 0.012, "PugMask", cuts=1)  # a worried wrinkle
+    for sx in (-1, 1):
+        blob(H, sx * 0.07, hy + 0.01, 0.13, 0.03, 0.032, 0.014, "Eye", cuts=1)
+        blob(H, sx * 0.07 + 0.01, hy + 0.025, 0.142, 0.009, 0.01, 0.004, "Glint", cuts=1)
+        blob(H, sx * 0.13, hy + 0.1, 0.0, 0.045, 0.035, 0.02, "PugMask", cuts=2)  # the folded ears
+    lathe(H, 0.0, 0.0, [(0, hy + 0.07), (0.155, hy + 0.07), (0.158, hy + 0.11), (0, hy + 0.11)], "Sweatband", segs=16)
+    node("Trainee_Head", H, coll, body, neck)
+
+    # the arms bent, the hands out at the sides round the rope's handles
+    for sx, name in ((-1, "Trainee_ArmR"), (1, "Trainee_ArmL")):
+        A = Part()
+        shoulder = (sx * 0.15, 0.74, 0.0)
+        elbow = (sx * 0.21, 0.64, -0.02)
+        paw = (sx * 0.25, ROPE_PIVOT[1], ROPE_PIVOT[2])
+        cylinder(A, shoulder, elbow, 0.042, "PugFawn", r_end=0.038)
+        blob(A, elbow[0], elbow[1], elbow[2], 0.04, 0.04, 0.04, "PugFawn", cuts=1)
+        cylinder(A, elbow, paw, 0.036, "PugFawn", r_end=0.034)
+        blob(A, paw[0], paw[1], paw[2], 0.04, 0.036, 0.042, "PugFawn", cuts=2)
+        cylinder(A, (paw[0], paw[1] + 0.07, paw[2]), (paw[0], paw[1] - 0.05, paw[2]), 0.022, "Handle", sides=8)
+        node(name, A, coll, body, shoulder)
+
+    # the rope: from one hand round to the other, hanging down at rest (the game turns it round the
+    # line through the hands: over the head, under the feet)
+    R = Part()
+    px, py, pz = ROPE_PIVOT
+    loop = [(-0.25, -0.05), (-0.3, 0.28), (-0.28, 0.55), (-0.18, 0.63), (0.0, 0.65), (0.18, 0.63), (0.28, 0.55), (0.3, 0.28), (0.25, -0.05)]
+    pts = [(x, py - d, pz) for x, d in loop]
+    for a, b in zip(pts, pts[1:]):
+        cylinder(R, a, b, 0.011, "RopeRed", sides=6)
+    node("Trainee_Rope", R, coll, body, ROPE_PIVOT)
+
+    T = Part()
+    blob(T, 0.0, 0.52, -0.16, 0.04, 0.04, 0.035, "PugFawn", cuts=2, fluff=0.1)  # the curly tail
+    blob(T, 0.02, 0.56, -0.17, 0.028, 0.028, 0.025, "PugFawn", cuts=1)
+    node("Trainee_Tail", T, coll, body, (0.0, 0.52, -0.14))
+    return coll
+
+
 def export_all(colls, path):
     layer = bpy.context.view_layer
     layer.update()
@@ -269,7 +556,7 @@ def main_regulars():
     try:
         root = _root()
         studio(root, "begin")
-        colls = [build_raccoon(), build_rabbit(), build_kangaroo()]
+        colls = [build_raccoon(), build_rabbit(), build_kangaroo(), build_crowd(), build_referee(), build_trainee()]
         bpy.context.view_layer.update()
         out = os.path.join(root, "client", "public", "models", "ring_regulars.glb")
         export_all(colls, out)

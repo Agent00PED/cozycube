@@ -113,7 +113,9 @@ const FULL_SPEED = 3; // units/s, the walking speed
 /** How much faster than a walk a step may look (bunched reports) and still be coasted on. */
 const MAX_WALK_OVER = 2.5;
 const HEIGHT_LERP = 0.2;
-const TURN_LERP = 0.22;
+/** The turn to the way they walk (rad/s, an exponential approach), and a fighter's lock onto the other. */
+const TURN_RATE = 22;
+const LOCK_RATE = 40;
 
 /** Where the samples put a player at time `t` (performance.now ms). */
 function sampleAt(samples: MotionSample[], t: number): { x: number; z: number } {
@@ -160,6 +162,7 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
     const p = latest.current;
     const d = drawn.current;
 
+    const foe = p.corner && feed.mapId === "boxing_ring" ? fighterFoe(p.sessionId) : undefined;
     const live = liveMotion.get(p.sessionId);
     const goal = live && !p.sitting ? sampleAt(live.samples, performance.now() - INTERP_DELAY_MS) : p;
     const dx = goal.x - d.x;
@@ -175,21 +178,21 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
       d.x = goal.x;
       d.z = goal.z;
       moved = Math.hypot(dx, dz);
-      if (!p.sitting && moved > 0.002) d.facing = turn(d.facing, Math.atan2(dx, dz), TURN_LERP);
+      // (a fighter in a bout keeps their torso on the other one: the feet strafe, the body never turns)
+      if (!p.sitting && !foe && moved > 0.002) d.facing = turn(d.facing, Math.atan2(dx, dz), 1 - Math.exp(-TURN_RATE * delta));
     }
     // the gait is measured from what is actually drawn, so the feet match the ground
     const speed = p.sitting || delta <= 0 ? 0 : Math.min(1, moved / delta / FULL_SPEED);
     speedRef.current += (speed - speedRef.current) * 0.3;
 
-    const foe = p.corner && feed.mapId === "boxing_ring" ? fighterFoe(p.sessionId) : undefined;
     if (p.sitting) d.facing = p.sitRotationY;
     else if (foe && Math.hypot(foe.x - d.x, foe.z - d.z) > 0.05) {
-      // a fighter squares up to the other one, whichever way they step
-      d.facing = turn(d.facing, Math.atan2(foe.x - d.x, foe.z - d.z), TURN_LERP);
+      // a fighter locked onto the other one, whichever way they step
+      d.facing = turn(d.facing, Math.atan2(foe.x - d.x, foe.z - d.z), 1 - Math.exp(-LOCK_RATE * delta));
     } else if (moved <= 0.002) {
       // standing still with something to face (the plant being watered): turn to it
       const heading = faceHeading(p.sessionId, d.x, d.z);
-      if (heading !== null) d.facing = turn(d.facing, heading, TURN_LERP);
+      if (heading !== null) d.facing = turn(d.facing, heading, 1 - Math.exp(-TURN_RATE * delta));
     }
     d.seatY += ((p.sitting ? p.sitY : walkY(feed.mapId, d.x, d.z)) - d.seatY) * HEIGHT_LERP;
     g.position.set(d.x, d.seatY, d.z);

@@ -407,6 +407,8 @@ export class BoxingRing {
    *  the beaten fighter to walk to the bleachers at `benchAt`. */
   private stayer: Corner | null = null;
   private loserId: string | null = null;
+  /** The corner that threw in the towel (this bout's result): out of the ring after it, even in a spar. */
+  private conceded: Corner | null = null;
   private benchAt = 0;
   /** The tickets on this bout: sessionId -> encodeBet, and the bettors' names (for the payouts). */
   private readonly bets = new Map<string, string>();
@@ -660,6 +662,27 @@ export class BoxingRing {
     this.sync();
   }
 
+  /** Thrown in the towel: mid-bout (a round, a count, the rest between rounds), a T.K.O. conceded on
+   *  the spot, the round and the bout to the other corner, and the one who threw it walks out after
+   *  the result (benched like any loser; in a spar, down the steps, Jimmy home). Before the bell it
+   *  is a plain step down; after the result, the same. */
+  private towel(sessionId: string, now: number) {
+    const corner = this.cornerOf(sessionId);
+    if (!corner) return;
+    if (this.phase !== "fight" && this.phase !== "count" && this.phase !== "rest") return this.leave(sessionId, "ring");
+    const other = otherCorner(corner);
+    const winner = this.fighters[other];
+    if (!winner) return this.leave(sessionId, "ring");
+    this.conceded = corner;
+    this.roundLog.push(other);
+    winner.wins++;
+    this.event({ kind: "towel", by: sessionId, corner });
+    this.event({ kind: "round", round: Math.max(1, this.round), winner: other, method: "tko" });
+    this.event({ kind: "bell", round: Math.max(1, this.round), ring: "end" });
+    this.end("tko", other, now);
+    this.sync();
+  }
+
   /** Jimmy left alone in the ring (whoever sparred him gone): back to his spot. */
   private sendJimmyHome() {
     for (const c of ["red", "blue"] as const) {
@@ -794,6 +817,8 @@ export class BoxingRing {
         return this.unqueue(sessionId, true);
       case "SPAR":
         return this.spar(sessionId, packet.tier, now);
+      case "TOWEL":
+        return this.towel(sessionId, now);
     }
   }
 
@@ -1500,7 +1525,7 @@ export class BoxingRing {
     }
     // King of the Hill: the winner stays on (a spar: whoever sparred Jimmy, won or lost)
     const human = spar ? (["red", "blue"] as const).find((c) => this.fighters[c] && !this.fighters[c]!.bot) ?? null : null;
-    const stayCorner: Corner | null = spar ? human : winner && w ? winner : null;
+    const stayCorner: Corner | null = spar ? (this.conceded ? null : human) : winner && w ? winner : null;
     const stay = stayCorner ? this.fighters[stayCorner] : undefined;
     if (stay) {
       if (counted && stay === w) stay.reign++;
@@ -1518,6 +1543,7 @@ export class BoxingRing {
       reign: !spar && stay ? stay.reign : 0,
       rounds: [...this.roundLog],
       ...(spar ? { spar } : {}),
+      ...(this.conceded ? { towel: true } : {}),
       payouts,
       round: Math.max(1, this.round),
       seconds: Math.round(seconds),
@@ -1530,6 +1556,7 @@ export class BoxingRing {
     this.stayer = stayCorner;
     // (Jimmy is never walked to the bleachers: he goes home when the result has been read)
     this.loserId = !spar && stay && l && l !== stay ? l.sessionId : null;
+    this.conceded = null;
     this.downed = null;
     this.count = 0;
     for (const c of ["red", "blue"] as const) {

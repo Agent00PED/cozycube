@@ -36,6 +36,9 @@
 //               next punch is a Counter (x1.4, an M1 thrown as a rising uppercut).
 //   The ropes   an M2 that drives someone into the ropes bounces them off, stunned a moment; one
 //               that lands on a fighter at half health or less launches them through: Ring-Out.
+//   The towel   a fighter may throw in the towel at any time in a bout (the HUD's button, or T,
+//               confirmed): a T.K.O. conceded on the spot, the round and the bout to the other
+//               corner, and they walk out of the ring (a spar too).
 //   Fair play   a bout over in under 15 s, or one whose loser never threw a punch, is a No Contest:
 //               every bet comes back, nothing is paid, no record touched. A fighter who drops has
 //               5 s to come back. Spectators never set foot on the canvas.
@@ -417,7 +420,9 @@ export type BoxingPacket =
   | { type: "WEAR_GLOVES"; id: GloveId }
   | { type: "LEAVE_RING" }
   | { type: "LEAVE_QUEUE" }
-  | { type: "SPAR"; tier: BotTier };
+  | { type: "SPAR"; tier: BotTier }
+  /** Throw in the towel: mid-bout, a T.K.O. conceded (the round and the bout to the other corner). */
+  | { type: "TOWEL" };
 
 /** One fighter as the room's state carries it (mirrors the server's FighterSchema). */
 export interface FighterView {
@@ -491,6 +496,8 @@ export interface BoutResult {
   rounds: RoundWinner[];
   /** A sparring bout's setting (no purse, no record, no bets). */
   spar?: BotTier;
+  /** The loser threw in the towel (a T.K.O. conceded). */
+  towel?: boolean;
   /** How the pools paid out: each bettor's return, by name. */
   payouts: { name: string; side: Corner; stake: number; paid: number }[];
   round: number;
@@ -519,6 +526,7 @@ export type BoxEvent =
   | { kind: "count"; n: number; to: string }
   | { kind: "up"; to: string; beat: boolean }
   | { kind: "round"; round: number; winner: Corner | null; method: BoutMethod }
+  | { kind: "towel"; by: string; corner: Corner }
   | { kind: "bell"; round: number; ring: "start" | "end" }
   | { kind: "enter"; by: string; corner: Corner }
   | { kind: "leave"; by: string; corner: Corner }

@@ -17,7 +17,8 @@ import type { PropSpec, SeatSpec } from "./lounge";
 //                  tufted Chesterfields, high-top cocktail tables, and the ringside chalkboard on
 //                  its easel (the contenders, the bout, the live odds: bets go on here)
 //   the gym        (north, parquet) vintage wooden lockers (two doors open), a bench with folded
-//                  towels, a balance-beam scale, a heavy bag on its wall bracket, a speed bag
+//                  towels, a balance-beam scale, a heavy bag on its wall bracket, a speed bag, and
+//                  two tall oak-framed mirrors on the north wall (a trainee skips rope before them)
 //   the pro shop   (north-east, checkerboard) Coach Bruno's oak counter (a bulldog in a hoodie,
 //                  whistle and mouthguard), a back bar of gloves and tape, and the glass trophy case
 //                  with the golden Velvet Championship Belt under its downlights
@@ -57,6 +58,8 @@ export const RING_LAYOUT = /* layout:begin */ {
   "scale": { "x": -7.1, "z": -9.2 },
   "heavyBag": { "x": 0.9, "z": -8.85 },
   "speedBag": { "x": 2.75, "z": -9.45, "y": 1.62 },
+  "mirrors": { "x0": -9.62, "x1": -8.3, "y0": 0.3, "y1": 1.98 },
+  "trainee": { "x": -8.96, "z": -8.1 },
   "neon": { "x": -3.0, "y": 3.3, "size": 0.46, "text": "THE VELVET RING" },
   "windows": { "north": [-7.4], "west": [-7.6, -1.2, 3.2, 7.9], "y0": 2.0, "y1": 3.9, "w": 1.5 },
   "pilasters": { "north": [-5.8, 3.6], "west": [-5.6, 5.6] },
@@ -172,6 +175,16 @@ export const JIMMY_FRONT: Pt = { x: JIMMY.x, z: JIMMY.z + 0.95 };
 export const JIMMY_REACH = 1.6;
 /** A boxer working the heavy bag from its west side, all day long (ring_regulars.glb). */
 export const BAG_BOXER = { x: R.heavyBag.x - 0.88, z: R.heavyBag.z + 0.1, yaw: FACE_POS_X };
+/** A trainee skipping rope before the north mirrors, facing them (ring_regulars.glb's Trainee: the
+ *  rope turns 0.64 m round the hands, so the collider keeps everyone clear of it). */
+export const TRAINEE = { x: R.trainee.x, z: R.trainee.z, yaw: FACE_NEG_Z };
+export const TRAINEE_CLEAR = 0.45;
+/** Ref Barnaby, the ring's referee (ring_regulars.glb): he waits in the north-west neutral corner,
+ *  walks the apron through a round (this far out from the middle: between the ropes and the apron's
+ *  edge, on the canvas's height), and steps in for a count or the result. No collider: he never
+ *  stands in anyone's way. */
+export const REF_APRON = (R.ring.rope + R.ring.apron) / 2;
+export const REF_HOME: Pt = { x: R.ring.x - R.ring.corner, z: R.ring.z - R.ring.corner };
 
 // --- seats ------------------------------------------------------------------------------------------
 
@@ -189,6 +202,16 @@ export const RING_FANS = [
   return { node, seat: `ring_bleacher_${n}`, x: bleacherX(tier), z: R.bleachers.seats[(n - 1) % R.bleachers.seats.length], y: tier * R.bleachers.rise, yaw: FACE_POS_X };
 });
 const FAN_SEATS = new Set(RING_FANS.map((f) => f.seat));
+/** Fight night: five more fans fill the bleachers while a bout is on (fading in, and out after it),
+ *  sat between the seats (never on one, so a player's seat is always free). One node of
+ *  ring_regulars.glb, RingCrowd, fused into a single skinned mesh: `RingCrowd_<n>` each. */
+export const RING_CROWD = [
+  { tier: 0, z: -1.3 },
+  { tier: 0, z: 1.3 },
+  { tier: 1, z: 1.3 },
+  { tier: 2, z: -1.3 },
+  { tier: 0, z: 3.45 },
+].map(({ tier, z }, i) => ({ node: `RingCrowd_${i + 1}`, x: bleacherX(tier), z, y: tier * R.bleachers.rise, yaw: FACE_POS_X }));
 /** Where a beaten fighter stands when every bleacher seat is taken (open floor at their front). */
 export const RING_BENCH_FRONT: Pt = { x: BLEACHER_FRONT + 0.55, z: 0 };
 export const RING_SEATS: RingSeat[] = [
@@ -253,9 +276,10 @@ export const RING_OBSTACLES: AABB[] = [
   rect(R.scale.x - 0.45, R.scale.x + 0.45, -RING_WALL, R.scale.z + 0.35),
   around(HEAVY_BAG, 0.3),
   rect(R.speedBag.x - 0.45, R.speedBag.x + 0.45, -RING_WALL, -RING_WALL + 0.55),
-  // Jimmy the Slugger by the Blue Corner's steps, and the boxer at the heavy bag
+  // Jimmy the Slugger by the Blue Corner's steps, the boxer at the heavy bag, the trainee skipping rope
   around(JIMMY, 0.3),
   around(BAG_BOXER, 0.3),
+  around(TRAINEE, TRAINEE_CLEAR),
   // the pro shop: the counter and everything behind it (Coach Bruno, the back bar); the trophy case
   rect(R.shop.x0, R.half, -RING_WALL, R.shop.counterZ + R.shop.counterD / 2),
   rect(R.trophy.x - R.trophy.w / 2, R.trophy.x + R.trophy.w / 2, -RING_WALL, -RING_WALL + R.trophy.d),

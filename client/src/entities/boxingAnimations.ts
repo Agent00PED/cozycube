@@ -7,8 +7,14 @@ import type { FightAnim, FightMove, FightReact } from "../systems/fightAnim";
 // Avatar.tsx asks boxerPose() for this frame's pose and eases its parts toward it.
 //
 //   stance      Peek-a-boo: a heel-toe bounce, shoulders hunched forward, chin tucked, both gloves
-//               high by the cheeks, the torso weaving; on the move, a low Ring Shuffle (short,
-//               dragged steps, the guard kept up, no arm swing)
+//               high by the cheeks, the torso weaving
+//   footwork    squared up to the other fighter whichever way they go (the torso never turns with
+//               the step): toward them a Step-in Shuffle (the lead foot slides in, the rear drags
+//               up, low and creeping), away a Retreat Back-pedal (the rear foot slips back first,
+//               the weight kept over it), sideways a Lateral Circling Strafe (the leading foot out,
+//               the other gathered in after it); a diagonal blends the two. The stride is laid by
+//               the ground covered (the phase runs with the distance, BoxerInput.phase), so the
+//               feet plant and never skate
 //   M1 string   the Snap Jab (a hip twitch, the lead hand out with the wrist turned over, snapped
 //               back to the chin), the Corkscrew Straight (the rear foot pivots, the torso turns 45
 //               degrees, the rear hand drives through the middle, the glove corkscrewing), the
@@ -42,6 +48,9 @@ export interface BoxPose {
   legL: number;
   legR: number;
   legSpread: number;
+  /** Each leg swung out to its side (+) or in under the body (-), on top of the splay: a side-step. */
+  sideL: number;
+  sideR: number;
   pivotR: number;
   /** The body about its soles: forward (+) or back, turned (the right shoulder forward +), rolled
    *  (to the right +); lifted or lowered and shifted forward (m). */
@@ -63,9 +72,14 @@ export interface BoxPose {
 export interface BoxerInput {
   t: number;
   seed: number;
-  /** Moving (0..1 of full speed) and the step's phase. */
+  /** Moving (0..1 of full speed) and the step's phase (run by the ground covered: one full cycle
+   *  per stride, so the feet plant). */
   speed: number;
   phase: number;
+  /** Which way, relative to the way they face: forward (+1) or back, and to their left (+1) or right
+   *  (a unit vector while moving). */
+  fwd: number;
+  side: number;
   state: FighterState | null;
   exhausted: boolean;
   move: FightAnim<FightMove> | null;
@@ -94,7 +108,7 @@ const SHELL: Arm = { x: -2.08, y: 0.1, in: 0.8 };
 const REACH_OUT = -1.52;
 
 export function emptyPose(): BoxPose {
-  return { armL: { ...STANCE_L }, armR: { ...STANCE_R }, legL: 0, legR: 0, legSpread: 0, pivotR: 0, lean: 0, twist: 0, roll: 0, lift: 0, shift: 0, head: { x: 0, y: 0, z: 0 }, tremble: 0, aura: 0, eyesShut: false, floored: false };
+  return { armL: { ...STANCE_L }, armR: { ...STANCE_R }, legL: 0, legR: 0, legSpread: 0, sideL: 0, sideR: 0, pivotR: 0, lean: 0, twist: 0, roll: 0, lift: 0, shift: 0, head: { x: 0, y: 0, z: 0 }, tremble: 0, aura: 0, eyesShut: false, floored: false };
 }
 
 /** This frame's pose for a fighter (written into `p`). */
@@ -111,6 +125,8 @@ export function boxerPose(p: BoxPose, i: BoxerInput): BoxPose {
   p.legL = Math.sin(t * 7.2 + seed) * 0.05;
   p.legR = -Math.sin(t * 7.2 + seed) * 0.05;
   p.legSpread = 0.12;
+  p.sideL = 0;
+  p.sideR = 0;
   p.pivotR = 0;
   p.lean = 0.1;
   p.twist = Math.sin(t * 1.3 + seed) * 0.1 - 0.12;
@@ -125,16 +141,8 @@ export function boxerPose(p: BoxPose, i: BoxerInput): BoxPose {
   p.eyesShut = false;
   p.floored = false;
 
-  // --- the Ring Shuffle: low, short dragged steps, the guard kept up ---
-  if (i.speed > 0.05) {
-    const s = Math.min(1, i.speed * 1.4);
-    const drag = Math.sign(Math.sin(i.phase)) * Math.pow(Math.abs(Math.sin(i.phase)), 0.55);
-    p.legL = mix(p.legL, drag * 0.3, s);
-    p.legR = mix(p.legR, -drag * 0.3, s);
-    p.lift = mix(p.lift, -0.025 + Math.abs(Math.sin(i.phase)) * 0.018, s);
-    p.lean = mix(p.lean, 0.16, s);
-    p.roll = mix(p.roll, Math.sin(i.phase) * 0.04, s);
-  }
+  // --- footwork: squared up, the feet say which way ---
+  if (i.speed > 0.04) footwork(p, i);
 
   // --- worn out: the gloves sag, the shoulders heave ---
   if (i.exhausted) {
@@ -185,6 +193,49 @@ export function boxerPose(p: BoxPose, i: BoxerInput): BoxPose {
   if (i.state === "down" || i.state === "out") floored(p, r?.kind === "knockdown" ? i.reactAge : 9, t);
   else if (m?.kind === "getup") getUp(p, i.moveAge, m.dur);
   return p;
+}
+
+/** The footwork (the gloves stay up, the torso squared up): each stride a lead step then a follow,
+ *  by the ground covered. Forward, the Step-in Shuffle; back, the Retreat Back-pedal; sideways, the
+ *  Lateral Circling Strafe; a diagonal, both at once in proportion. */
+function footwork(p: BoxPose, i: BoxerInput) {
+  const s = Math.min(1, i.speed * 1.6);
+  const lead = Math.pow(Math.max(0, Math.sin(i.phase)), 0.7);
+  const follow = Math.pow(Math.max(0, -Math.sin(i.phase)), 0.7);
+  const step = Math.abs(Math.sin(i.phase));
+  const f = i.fwd;
+  const l = i.side;
+  const fw = Math.abs(f) * s;
+  const sw = Math.abs(l) * s;
+  if (f >= 0) {
+    // the Step-in Shuffle: the lead (left) foot slides in, the rear foot drags up after it
+    p.legL = mix(p.legL, -0.34 * lead + 0.05 * follow, fw);
+    p.legR = mix(p.legR, 0.26 * lead - 0.06 * follow, fw);
+    p.lean = mix(p.lean, 0.2 + 0.03 * lead, fw);
+    p.shift = mix(p.shift, 0.03 * lead, fw);
+  } else {
+    // the Retreat Back-pedal: the rear foot slips back first, the lead follows, the weight back
+    p.legR = mix(p.legR, 0.34 * lead - 0.04 * follow, fw);
+    p.legL = mix(p.legL, -0.2 * lead + 0.08 * follow, fw);
+    p.lean = mix(p.lean, 0.04 - 0.02 * lead, fw);
+    p.shift = mix(p.shift, -0.03 * lead, fw);
+  }
+  // the Lateral Circling Strafe: the foot on the way out steps wide, the other gathered in after it
+  const out = l >= 0 ? 1 : -1;
+  const wide = 0.3 * lead;
+  const gather = 0.2 * follow;
+  if (out > 0) {
+    // to their left: the left foot out (+), then the right foot drawn in toward it (+, inward for it)
+    p.sideL = mix(p.sideL, wide - 0.05 * follow, sw);
+    p.sideR = mix(p.sideR, gather, sw);
+  } else {
+    p.sideR = mix(p.sideR, -wide + 0.05 * follow, sw);
+    p.sideL = mix(p.sideL, -gather, sw);
+  }
+  p.roll = mix(p.roll, -out * 0.07 * lead, sw);
+  p.lean = mix(p.lean, 0.14, sw * (1 - fw));
+  // low and grounded: a little drop into each step, no bounce
+  p.lift = mix(p.lift, -0.03 + step * 0.014, s);
 }
 
 /** A punch, a feint, a dash, a spring-load or a win, `a` s in. */
@@ -418,6 +469,8 @@ function floored(p: BoxPose, a: number, t: number) {
   p.legL = mix(mix(-0.35 * buckle, -0.75, fours), 0.05, sprawl);
   p.legR = mix(mix(-0.3 * buckle, -0.8, fours), -0.05, sprawl);
   p.legSpread = mix(0.12, 0.3, sprawl);
+  p.sideL = 0;
+  p.sideR = 0;
   p.head.x = mix(mix(0.4 * buckle, -0.55, fours), -0.2, sprawl);
   p.head.y = sprawl * 0.5;
   p.head.z = Math.sin(t * 2) * 0.05 * (1 - sprawl);

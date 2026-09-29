@@ -81,6 +81,10 @@ REPO_ROOT = _root()
 
 PALETTE.update(
     {
+        # the gym's mirrors
+        "BX_Mirror": "#A7B9C1",
+        "BX_MirrorLight": "#DDE9EC",
+        "BX_MirrorDark": "#7C8F98",
         # floors
         "BX_Parquet": "#8A5A32",
         "BX_ParquetDark": "#6E4526",
@@ -150,7 +154,7 @@ PALETTE.update(
 SKY = {"BX_SkyTop", "BX_SkyMid", "BX_SkyLow", "BX_Star", "BX_Moon"}
 NEON |= {"BX_Neon", "BX_NeonWarm"}
 POLISH |= {"BX_Parquet", "BX_ParquetDark", "BX_ParquetLight", "BX_TileWhite", "BX_TileBlack"}
-SHEEN |= {"BX_Steel", "BX_SteelDark", "BX_Bucket", "BX_Water", "BX_BagLeather", "BX_SpeedBag", "BX_BeltStrap", "BX_Jewel", "BX_Rubber", "BX_GloveRed", "BX_GloveRedDark", "BX_GloveBlue", "BX_GloveBlueDark", "BX_TigerOrange", "BX_TigerBlack"}
+SHEEN |= {"BX_Mirror", "BX_MirrorLight", "BX_MirrorDark", "BX_Steel", "BX_SteelDark", "BX_Bucket", "BX_Water", "BX_BagLeather", "BX_SpeedBag", "BX_BeltStrap", "BX_Jewel", "BX_Rubber", "BX_GloveRed", "BX_GloveRedDark", "BX_GloveBlue", "BX_GloveBlueDark", "BX_TigerOrange", "BX_TigerBlack"}
 DECAL2 |= {"BX_Star1", "BX_PosterInk", "BX_Poster1", "BX_Poster2"}
 CATEGORIES["CS_Sky"] = 0.8
 _kit_category = category
@@ -336,6 +340,8 @@ def wall_features(L):
     FEATURES.append(("z", n["x"] - 2.25, n["x"] + 2.25, n["y"] - 0.26, n["y"] + 0.26))
     for p in L["posters"]:
         FEATURES.append((p["wall"], p["at"] - p["w"] / 2 + 0.03, p["at"] + p["w"] / 2 - 0.03, p["y"] - p["h"] / 2 + 0.03, p["y"] + p["h"] / 2 - 0.03))
+    m = L["mirrors"]
+    FEATURES.append(("z", m["x0"], m["x1"], m["y0"], m["y1"]))
 
 
 def covered(wall, u0, u1, v0, v1):
@@ -400,6 +406,29 @@ def build_walls(M, L):
     neon(M, L)
     for p in L["posters"]:
         poster(M, L, p)
+    mirrors(M, L)
+
+
+def mirrors(M, L):
+    """The gym's two tall mirrors side by side on the north wall, in dark oak frames standing proud
+    of the wainscot: pale glass, lighter up top and darker at the foot, a streak of light across each."""
+    m = L["mirrors"]
+    mid = (m["x0"] + m["x1"]) / 2
+    for a, b in ((m["x0"], mid - 0.03), (mid + 0.03, m["x1"])):
+        at = (a + b) / 2
+        hw = (b - a) / 2
+        y0, y1 = m["y0"], m["y1"]
+        wbox(M, L, "z", at, -hw - 0.05, hw + 0.05, y0 - 0.05, y1 + 0.05, 0.0, 0.085, "BX_OakDark")
+        wbox(M, L, "z", at, -hw, hw, y0, y1, 0.0, 0.09, "BX_Mirror")
+        wall_quad_u(M, L, "z", at, -hw, hw, y1 - (y1 - y0) * 0.3, y1, 0.092, "BX_MirrorLight")
+        wall_quad_u(M, L, "z", at, -hw, hw, y0, y0 + (y1 - y0) * 0.22, 0.092, "BX_MirrorDark")
+        # the streak: a stepped diagonal of light, low left to high right
+        for k in range(7):
+            u = -hw * 0.7 + k * hw * 0.2
+            v = y0 + 0.28 + k * 0.17
+            wall_quad_u(M, L, "z", at, u, u + hw * 0.24, v, v + 0.2, 0.094, "BX_MirrorLight")
+    # the brass rail across the foot of both
+    wbox(M, L, "z", mid, m["x0"] - mid - 0.05, m["x1"] - mid + 0.05, m["y0"] - 0.1, m["y0"] - 0.06, 0.0, 0.1, "CS_Brass")
 
 
 def sash_window(M, L, wall, at, r):

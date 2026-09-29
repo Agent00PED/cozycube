@@ -105,6 +105,8 @@ export function ProShopModal({ boxing, coins, inRing, send, subscribeMessages, o
             <li>💨 Dash ({DASH.stamina} stamina): a slip left or right, a sway back, a step in. Dash within {DASH.perfect} s of a punch landing: a Perfect Dodge. They whiff and stagger, and your next punch is a Counter (x{COUNTER_BONUS}).</li>
             <li>Backed on the ropes at {RINGOUT_HEALTH} health or less? One M2 sends you through them: Ring-Out.</li>
             <li>🛡️ The guard stays up as long as you hold it: until you let go, your stamina runs dry or it breaks.</li>
+            <li>🦶 Squared up, always: move any way you like and you stay facing them. Step in, back-pedal, circle.</li>
+            <li>🏳️ Had enough? Throw in the towel (the button, or T, then again to confirm): a T.K.O. to the other corner, and you're out of the ring.</li>
             <li>A win pays {BOUT_PURSE} 🪙 ({PURSES_PER_HOUR} purses an hour). A bout over in under {NO_CONTEST_S} s, or a loser who never threw a punch, is a No Contest: nothing paid.</li>
             <li>🥊 {JIMMY_NAME}, by the Blue Corner's steps, spars anyone in a free ring: Rookie, Contender or Champion. No purse, no record, no bets.</li>
           </ul>

@@ -40,7 +40,10 @@ const ACCELERATION = 14;
 const ARRIVE_RADIUS = 0.7; // ease off this far from the final waypoint
 const ARRIVE_THRESHOLD = 0.05;
 const WAYPOINT_THRESHOLD = 0.2;
-const TURN_LERP = 0.22;
+/** How quickly the avatar turns to the way it walks (rad/s: an exponential approach), and, in a bout,
+ *  how tightly a fighter stays locked onto the other one. */
+const TURN_RATE = 22;
+const LOCK_RATE = 40;
 /** Still seated this long after asking to get up: the request was lost (a dropping connection, say), so ask again. */
 const STAND_RETRY_MS = 1200;
 const SEAT_HEIGHT_LERP = 0.2;
@@ -89,6 +92,11 @@ export interface MoveTarget {
   sent?: boolean;
   /** Waypoints, filled in by the pathfinder the first frame the target is seen. */
   path?: Point[];
+}
+
+/** `from` turned toward `to` over `dt` seconds at `rate` (a frame-rate-free exponential approach). */
+function turnToward(from: number, to: number, dt: number, rate: number): number {
+  return lerpAngle(from, to, 1 - Math.exp(-rate * dt));
 }
 
 function lerpAngle(from: number, to: number, t: number): number {
@@ -271,7 +279,8 @@ export function useLocalPlayerMovement(
         const cap = pace * (0.35 + 0.65 * steer.strength);
         velocityRef.current = Math.min(cap, velocityRef.current + ACCELERATION * delta);
         step(dirX * velocityRef.current * delta, dirZ * velocityRef.current * delta);
-        facingRef.current = lerpAngle(facingRef.current, Math.atan2(dirX, dirZ), TURN_LERP);
+        // (in a bout the torso stays on the other fighter: the feet strafe, the body never turns)
+        if (!foe) facingRef.current = turnToward(facingRef.current, Math.atan2(dirX, dirZ), delta, TURN_RATE);
       } else if (target) {
         // (in the ring: straight there, inside the ropes)
         if (!target.path) target.path = ring ? [clampToRing(target.x, target.z)] : (findPath(mapId, pos, { x: target.x, z: target.z }) ?? []);
@@ -296,7 +305,7 @@ export function useLocalPlayerMovement(
               target.path = ring ? [] : (findPath(mapId, pos, { x: target.x, z: target.z }) ?? []);
               if (target.path.length === 0) targetRef.current = null;
             }
-            facingRef.current = lerpAngle(facingRef.current, Math.atan2(dirX, dirZ), TURN_LERP);
+            if (!foe) facingRef.current = turnToward(facingRef.current, Math.atan2(dirX, dirZ), delta, TURN_RATE);
           } else {
             path.shift(); // on to the next waypoint, or arrived
           }
@@ -345,12 +354,12 @@ export function useLocalPlayerMovement(
     seatYRef.current += ((player.sitting ? player.sitY : walkY(mapId, pos.x, pos.z)) - seatYRef.current) * SEAT_HEIGHT_LERP;
     if (player.sitting) facingRef.current = player.sitRotationY;
     else if (ring && foe && Math.hypot(foe.x - pos.x, foe.z - pos.z) > 0.05) {
-      // squared up to the other fighter, whichever way we step
-      facingRef.current = lerpAngle(facingRef.current, Math.atan2(foe.x - pos.x, foe.z - pos.z), TURN_LERP);
+      // locked onto the other fighter, whichever way we step (strafing, back-pedalling)
+      facingRef.current = turnToward(facingRef.current, Math.atan2(foe.x - pos.x, foe.z - pos.z), delta, LOCK_RATE);
     } else if (dirX === 0 && dirZ === 0) {
       // standing still with something to face (the plant being watered): turn to it
       const heading = faceHeading(player.sessionId, pos.x, pos.z);
-      if (heading !== null) facingRef.current = lerpAngle(facingRef.current, heading, TURN_LERP);
+      if (heading !== null) facingRef.current = turnToward(facingRef.current, heading, delta, TURN_RATE);
     }
 
     if (groupRef.current) {

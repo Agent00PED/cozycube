@@ -148,6 +148,8 @@ const LYING_ANCHOR_Y = 0.72;
 // --- motion ---
 const COLOR_LERP = 0.15;
 const WALK_CYCLE = 11; // radians/s: short legs take quick steps
+/** The ring's footwork: the ground one full stride (a step and its follow) covers, in metres. */
+const STRIDE_M = 0.42;
 const WADDLE_ROLL = 0.11;
 const BOB_HEIGHT = 0.05;
 const ARM_SWING = 0.7;
@@ -505,6 +507,9 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
   useXray(rig.root, xray);
   const shirtGoal = useRef(new THREE.Color());
   const walkPhase = useRef(0);
+  // the ring's footwork: where the avatar stood last frame, its ground speed forward and to its left
+  // (smoothed), and the stride's phase, run by the ground covered (so the feet plant)
+  const footwork = useRef({ x: 0, z: 0, ready: false, fwd: 0, left: 0, phase: 0 });
   const blink = useRef({ next: 2 + Math.random() * 3, t: 0 });
   // an occasional curious head tilt while idle, on its own per-avatar schedule
   const tilt = useRef({ next: 4 + Math.random() * 6, until: 0, dir: 1 });
@@ -689,8 +694,30 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
       const b = getBout();
       const me = b.red.sessionId === sessionId ? b.red : b.blue.sessionId === sessionId ? b.blue : null;
       const anim = fightAnimOf(sessionId);
-      bp = boxerPose(boxPose, { t: combatNow() + seed, seed, speed, phase, state: fight, exhausted: !!me?.exhausted, move: anim.move, moveAge: anim.moveAge, react: anim.react, reactAge: anim.reactAge });
-    }
+      // the ground actually covered since last frame, split along the way they face and across it
+      const e = rig.root.matrixWorld.elements;
+      const fw = footwork.current;
+      const fl = Math.hypot(e[8], e[10]) || 1;
+      const ll = Math.hypot(e[0], e[2]) || 1;
+      const moved = Math.hypot(e[12] - fw.x, e[14] - fw.z);
+      if (!fw.ready || moved > 1 || rawDelta <= 0) {
+        fw.ready = true;
+        fw.fwd = 0;
+        fw.left = 0;
+      } else {
+        const vx = (e[12] - fw.x) / rawDelta;
+        const vz = (e[14] - fw.z) / rawDelta;
+        const k = 1 - Math.exp(-12 * rawDelta);
+        fw.fwd += ((vx * e[8] + vz * e[10]) / fl - fw.fwd) * k;
+        fw.left += ((vx * e[0] + vz * e[2]) / ll - fw.left) * k;
+      }
+      fw.x = e[12];
+      fw.z = e[14];
+      const v = Math.hypot(fw.fwd, fw.left);
+      fw.phase += (Math.PI * 2 * v * delta) / STRIDE_M;
+      const moving = v > 0.08;
+      bp = boxerPose(boxPose, { t: combatNow() + seed, seed, speed: Math.min(1, v / 3), phase: fw.phase, fwd: moving ? fw.fwd / v : 1, side: moving ? fw.left / v : 0, state: fight, exhausted: !!me?.exhausted, move: anim.move, moveAge: anim.moveAge, react: anim.react, reactAge: anim.reactAge });
+    } else footwork.current.ready = false;
     smashAura.current = bp ? bp.aura : 0;
     if (g === "bag") {
       // a flurry on the gym's heavy bag, one hand then the other
@@ -763,8 +790,8 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
     // the ring, the rear foot's pivot and the stance's width
     part.legL.rotation.y = L(part.legL.rotation.y, pose === "cross" ? -CROSS_LEG_Y : 0, k);
     part.legR.rotation.y = L(part.legR.rotation.y, pose === "cross" ? CROSS_LEG_Y : bp ? bp.pivotR : 0, bp ? 0.6 : k);
-    part.legL.rotation.z = L(part.legL.rotation.z, bp ? bp.legSpread : 0, 0.4);
-    part.legR.rotation.z = L(part.legR.rotation.z, bp ? -bp.legSpread : 0, 0.4);
+    part.legL.rotation.z = L(part.legL.rotation.z, bp ? bp.legSpread + bp.sideL : 0, bp ? 0.6 : 0.4);
+    part.legR.rotation.z = L(part.legR.rotation.z, bp ? -bp.legSpread + bp.sideR : 0, bp ? 0.6 : 0.4);
 
     // --- body: waddle when walking, lie back on a blanket, sway while dizzy or dozing ---
     const body = part.body;

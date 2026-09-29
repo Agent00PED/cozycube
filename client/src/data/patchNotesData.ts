@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.2",
+    range: "v0.7.0–v0.7.3",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -810,6 +810,25 @@ export const PATCH_ERAS: PatchEra[] = [
           fixes: [
             "The touch combat cluster is sized to your screen, and the key hints on a PC fold into a small capsule that fades four seconds after the first bell.",
             "The guard no longer drops by itself partway through a hold.",
+          ],
+        },
+      },
+      {
+        version: "0.7.3",
+        date: "2026-09-29",
+        title: "Ref Barnaby's Ring",
+        summary: "Real boxer footwork in the ring, a referee who counts and raises the winner's arm, a crowd that fills the bleachers on fight night, and a towel you can throw in from any device.",
+        changes: {
+          features: [
+            "Boxer footwork: in a bout you stay squared up to your opponent whichever way you move. Step in with a shuffle, back-pedal away, and circle left or right with side-steps. Your stride now matches how fast you're actually moving, so your feet no longer slide.",
+            "Meet Ref Barnaby, the Velvet Ring's referee. He walks the apron through each round with his eyes on the action, rushes in to count a knockdown with his arm, and at the end raises the winner's arm and waves the bout off.",
+            "Fight night: five more fans fill the bleachers when a bout starts. They clap, gasp at a Heavy Smash and cheer a knockdown, then drift off when it's over. Between bouts the regulars doze.",
+            "Throw in the Towel works everywhere: tap the button (or press T), then confirm. You concede the bout by T.K.O. on the spot and walk out of the ring, even mid-spar or while you're down.",
+            "A young pug now skips rope in front of new gym mirrors on the north wall.",
+          ],
+          fixes: [
+            "Jimmy the Slugger no longer sinks through the ring on his way home. He walks to his corner, ducks through the ropes and goes down the steps, and climbs in the same way.",
+            "Turning while you walk is snappier outside the ring.",
           ],
         },
       },
