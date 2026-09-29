@@ -17,6 +17,7 @@ import { prospectShake } from "./prospectCamera";
 import { ProspectingView } from "./ProspectingView";
 import { NODE_YAW } from "./caveNodes";
 import { playCaveSfx } from "../audio/cavernAmbience";
+import { CaveFauna } from "./caveFauna";
 
 // The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: the
 // Grand Karst Sanctuary, 45 x 45. The cavern is one Blender model, caverns.glb
@@ -44,13 +45,17 @@ import { playCaveSfx } from "../audio/cavernAmbience";
 //                 where it landed; the loot flies to you
 //   the folk      Gus the mole at his log workstation (gus.glb), Finnegan the Grotto Angler on his
 //                 driftwood log on the cenote's north shore, his reed creel and lantern by him
-//                 (finnegan.glb)
+//                 (finnegan.glb), and a capybara soaking in the terraces' upper pool, a towel folded
+//                 on its head (capybara.glb)
+//   the fauna     glowing crabs skittering on the beach, swiftlets circling in the doline's sunbeams
+//                 (caveFauna.tsx, instanced from the model's Fauna_* templates)
 //   the terraces  steam curling off their pools
 //   the drip      a lucky drip's cyan ripple on the cenote (the fishing's luck)
 
 export const CAVERNS_URL = modelUrl("caverns.glb");
 export const GUS_URL = modelUrl("gus.glb");
 export const FINNEGAN_URL = modelUrl("finnegan.glb");
+export const CAPYBARA_URL = modelUrl("capybara.glb");
 
 const TIME = { value: 0 };
 const CAVE_DARK = new THREE.Color("#07060c");
@@ -210,6 +215,7 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       </ModelBoundary>
       <CampNpc url={GUS_URL} what="gus.glb" prefix="Gus" at={{ x: GUS.x, z: GUS.z, yaw: GUS.yaw }} y={cavernsFloorY(GUS.x, GUS.z)} waveEvent="gusWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={GUS_TALK} />
       <CampNpc url={FINNEGAN_URL} what="finnegan.glb" prefix="Finnegan" at={{ x: FINNEGAN.x, z: FINNEGAN.z, yaw: FINNEGAN.yaw }} y={cavernsFloorY(FINNEGAN.x, FINNEGAN.z)} waveEvent="finneganWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={FINNEGAN_TALK} />
+      <CampNpc url={CAPYBARA_URL} what="capybara.glb" prefix="Capy" at={{ x: L.capybara.x, z: L.capybara.z, yaw: L.capybara.yaw }} y={TERRACES.pools[0].y} waveEvent="capybaraWave" standIn={null} subscribeMessages={subscribeMessages} />
       <CaveLights />
       <Godrays />
       <ThermalSteam />
@@ -244,6 +250,7 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
   // drawn): the only mesh of the model a click is tested against
   const walk = useMemo(() => (scene.getObjectByName("caverns_walk_collider") as THREE.Mesh | undefined) ?? null, [scene]);
   const fallbackFloor = useMemo(() => (walk ? null : floorGeometry()), [walk]);
+  const fauna = useMemo(() => ({ crab: (scene.getObjectByName("Fauna_Crab") as THREE.Mesh | undefined) ?? null, swift: (scene.getObjectByName("Fauna_Swift") as THREE.Mesh | undefined) ?? null }), [scene]);
   useEffect(() => () => fallbackFloor?.dispose(), [fallbackFloor]);
   // the model's finishes, and the node rocks' templates taken out of it (instanced below)
   const templates = useMemo(() => {
@@ -261,6 +268,11 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       else if (m.name === "CV_Occluder") ditherOccluder(m);
     });
     if (walk) walk.raycast = THREE.Mesh.prototype.raycast;
+    // (the fauna's templates: drawn instanced, never where they were modelled)
+    for (const name of ["Fauna_Crab", "Fauna_Swift"]) {
+      const o = scene.getObjectByName(name);
+      if (o) o.visible = false;
+    }
     for (const kind of [...ORE_KIND_IDS, "rubble"] as const) {
       const rock = scene.getObjectByName(kind === "rubble" ? "Ore_Rubble" : `Ore_${kind}`) as THREE.Mesh | undefined;
       if (!rock) continue;
@@ -277,6 +289,7 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       {!walk && <mesh geometry={fallbackFloor!} visible={false} onPointerDown={onClick} />}
       <OreNodes templates={templates} ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} players={players} />
       <ProspectingView templates={templates} onStrike={onStrike} />
+      <CaveFauna crab={fauna.crab} swift={fauna.swift} />
     </>
   );
 }
@@ -877,7 +890,7 @@ function ThermalSteam() {
 
 const SMOKE_PUFFS = 14;
 const SMOKE_MAT = new THREE.MeshBasicMaterial({ color: "#6d625c", transparent: true, opacity: 0.16, depthWrite: false });
-/** Faint wisps of smoke rising out of the forge's crucible up its basalt cleft. */
+/** Faint wisps of smoke rising off the hearth's crucible and drawn back up the combustion chamber. */
 function ForgeSmoke() {
   const mesh = useMemo(() => {
     const im = new THREE.InstancedMesh(STEAM_GEO, SMOKE_MAT, SMOKE_PUFFS);
@@ -888,7 +901,7 @@ function ForgeSmoke() {
   useEffect(() => () => {
     mesh.dispose();
   }, [mesh]);
-  const base = useMemo(() => ({ x: FORGE.x, y: cavernsFloorY(FORGE.x, FORGE.z + FORGE.d / 2 + 0.3) + 0.4, z: FORGE.z + 0.1 }), []);
+  const base = useMemo(() => ({ x: FORGE.x, y: cavernsFloorY(FORGE.x, FORGE.z + FORGE.d / 2 + 0.3) + 0.95, z: FORGE.z + 0.1 }), []);
   const seeds = useMemo(() => Array.from({ length: SMOKE_PUFFS }, () => ({ p: Math.random(), s: 0.7 + Math.random() * 0.6, dx: (Math.random() - 0.5) * 0.5 })), []);
   const m = useMemo(() => new THREE.Matrix4(), []);
   useFrame(({ clock }) => {
@@ -896,7 +909,7 @@ function ForgeSmoke() {
     seeds.forEach((sd, i) => {
       const k = (((t * 0.12 * sd.s + sd.p) % 1) + 1) % 1;
       const sc = (0.6 + 2.2 * k) * (k < 0.1 ? k / 0.1 : 1 - (k - 0.1) / 0.9);
-      m.makeScale(sc, sc * 1.2, sc).setPosition(base.x + sd.dx + Math.sin(t * 0.5 + sd.p * 6) * 0.3 * k, base.y + k * 3.6, base.z - 0.25 * k);
+      m.makeScale(sc, sc * 1.2, sc).setPosition(base.x + sd.dx * (1 - 0.6 * k) + Math.sin(t * 0.5 + sd.p * 6) * 0.2 * k, base.y + k * 3.2, base.z - 0.9 * Math.min(1, k * 2.5));
       mesh.setMatrixAt(i, m);
     });
     mesh.instanceMatrix.needsUpdate = true;
@@ -977,3 +990,4 @@ function DripRipples({ subscribeMessages }: { subscribeMessages: (listener: Room
 
 useGLTF.preload(GUS_URL);
 useGLTF.preload(FINNEGAN_URL);
+useGLTF.preload(CAPYBARA_URL);

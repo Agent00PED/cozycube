@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.9",
+    range: "v0.7.0–v0.7.10",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1010,6 +1010,30 @@ export const PATCH_ERAS: PatchEra[] = [
             "The meteorite anvil rests on a limestone pedestal, with chisels, a mallet and split geodes glittering at its foot. The adit is a rock-cut bore propped by timber sets, its rails running out on sleepers.",
             "Stalagmites and stalactites are fluted candles of flowstone, clustered in the vault's pockets and at the walls' feet.",
             "Finnegan keeps an iron tackle box beside his reed creel and lantern.",
+          ],
+        },
+      },
+      {
+        version: "0.7.10",
+        date: "2026-09-30",
+        title: "The Living Karst",
+        summary: "The Glimmering Caverns come alive: a real basalt crucible forge with its blacksmith's corner, stone partitions shaping the terraces and the chasm, and crabs, swiftlets, beetles and a very relaxed capybara to share them with.",
+        changes: {
+          features: [
+            "A capybara soaks in the Travertine Terraces' upper pool, a striped towel folded on its head. It turns to watch you as you pass.",
+            "Glowing cave crabs skitter along the cenote's beach, and swiftlets circle in the doline's sunbeams.",
+          ],
+          visuals: [
+            "The Basalt Crucible Forge: a deep combustion chamber carved into the basalt columns, glowing from the embers up. In front of it stands a carved stone hearth with an arched fire-mouth, glowing runic vents and a crucible of molten metal. A stone spout pours into an ingot mould, a quench trough sits beside it with tongs across, and the bellows are at its flank. Charcoal grit and slag lie round its foot. The smoke now rises off the crucible and up the chamber.",
+            "The blacksmith's corner: the meteorite anvil, its chisel rack and the tool crate now stand together beside the forge, out of the path from the adit.",
+            "The West Limestone Buttress curves round the Travertine Terraces, their rimstone flowing into its feet, making a sheltered thermal grotto.",
+            "The East Slate Spine rises between the central slope and the chasm. The chasm floor has sunk into a bedrock trench of grey slate, cracked and mossy, with no more blue wash over it.",
+            "The glimmerstone crystals burst out of jagged fractures in the chasm's cliffs and the spine, with glowing prism beetles perched on them.",
+            "The talus lies in natural piles on the outside of the switchbacks' bends, instead of lines across the slope.",
+            "Groundwater runs off the doline's rim and the terraces down to the lake in thin, dark, wet rivulets, with moss along them.",
+            "The northwest shelf's slate blends into the limestone instead of ending in a hard dark edge.",
+            "On the beach, a sunken dinghy lies half-buried at the waterline, with driftwood logs, tidal rock pools and cave ferns around it.",
+            "At the east shore's mining overlook, an overturned rusted mine cart has spilled its ore beside a stretch of broken rail. A brass survey lantern is staked on a rock above the lake.",
           ],
         },
       },

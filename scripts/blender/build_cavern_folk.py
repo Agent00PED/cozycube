@@ -1,8 +1,10 @@
 """The Glimmering Caverns' folk: builds client/public/models/gus.glb (Gus the Mole, the caverns'
 prospector and trader, seated on a stump at his log workstation in the Sunlit Doline),
 client/public/models/old_flint.glb (Old Flint the Badger, who keeps the old mine adit behind the
-Whispering Woods' Autumn Maples, his brass lantern lit) and client/public/models/finnegan.glb
-(Finnegan the Grotto Angler, an old axolotl in an oilskin, on his driftwood log on the Cenote's sand).
+Whispering Woods' Autumn Maples, his brass lantern lit), client/public/models/finnegan.glb
+(Finnegan the Grotto Angler, an old axolotl in an oilskin, on his driftwood log on the Cenote's sand)
+and client/public/models/capybara.glb (a capybara soaking in the Travertine Terraces' upper pool, a
+towel folded on its head).
 
 Run it inside Blender through the Live Bridge (POST {"code": ...}: run this file inside a namespace
 of its own with REPO_ROOT and REPORT_PATH set in it; the summary or the traceback goes to
@@ -38,6 +40,9 @@ The nodes entities/CampNpc.tsx animates:
         OldFlint_ArmR   his right arm, resting on the pickaxe planted beside him
         OldFlint_ArmL   his left arm, a thumb hooked in his apron
         OldFlint_Tail   a short bristly tail
+    Capybara            the root (an empty at the waterline)
+      Capy_Body         a barrel of fur, its back just breaking the water, forepaws on its seat
+        Capy_Head       its long blunt muzzle, eyes half shut, a striped towel folded on top
 
 Coordinates: the game's (x, y up, z) is Blender's (x, -z, y); `W` converts.
 """
@@ -109,6 +114,13 @@ PALETTE = {
     "Heartwood": "#C9B89A",
     "Reed": "#C2A462",
     "ReedDark": "#8E7440",
+    # the capybara soaking in the thermal pool
+    "Capy": "#9C6C44",
+    "CapyLight": "#B4865A",
+    "CapyDark": "#6E4A30",
+    "CapyNose": "#3A2A20",
+    "Towel": "#F4EFE6",
+    "TowelStripe": "#E0786E",
 }
 
 
@@ -605,6 +617,44 @@ def build_finnegan(root):
     return coll
 
 
+# ---------------------------------------------------------------------------------------------
+# the capybara in the Travertine Terraces' upper pool: soaking to the shoulders, eyes half shut, a
+# striped towel folded on its head (drawn by the game's CampNpc: Capy_Body, Capy_Head)
+
+
+def build_capybara(root):
+    purge("Capybara")
+    coll = bpy.data.collections.new("Capybara")
+    bpy.context.scene.collection.children.link(coll)
+    rig = rig_root("Capybara", coll)
+    # the body: a barrel of fur, its back just breaking the warm water (the waterline at y 0)
+    B = Part()
+    blob(B, 0.0, -0.14, -0.06, 0.3, 0.27, 0.44, "Capy", cuts=4)
+    blob(B, 0.0, -0.02, -0.14, 0.22, 0.13, 0.3, "CapyLight", cuts=3)
+    for sx in (-1, 1):
+        # the forepaws resting on the rim of its seat, just under the surface
+        blob(B, sx * 0.16, -0.06, 0.36, 0.06, 0.05, 0.08, "CapyDark", cuts=2)
+    body = node("Capy_Body", B, coll, rig, (0.0, 0.0, 0.0))
+    # the head: a long blunt muzzle, small round ears, eyes half shut in bliss, the towel on top
+    H = Part()
+    neck = (0.0, 0.12, 0.26)
+    blob(H, 0.0, 0.25, 0.36, 0.17, 0.16, 0.2, "Capy", cuts=4)
+    blob(H, 0.0, 0.21, 0.52, 0.135, 0.12, 0.13, "CapyDark", cuts=3)
+    for sx in (-1, 1):
+        blob(H, sx * 0.045, 0.25, 0.64, 0.018, 0.012, 0.008, "CapyNose", cuts=1)
+        blob(H, sx * 0.12, 0.39, 0.28, 0.04, 0.045, 0.025, "CapyDark", cuts=2)
+        # (eyes half shut: two thin dark crescents)
+        blob(H, sx * 0.115, 0.32, 0.46, 0.028, 0.007, 0.012, "Eye", cuts=1)
+    blob(H, 0.0, 0.17, 0.6, 0.05, 0.012, 0.02, "CapyNose", cuts=1)
+    # the towel, folded twice and laid flat on its crown
+    blob(H, 0.0, 0.425, 0.35, 0.15, 0.035, 0.12, "Towel", cuts=2, n=4.0)
+    blob(H, 0.0, 0.46, 0.35, 0.13, 0.025, 0.1, "Towel", cuts=2, n=4.0)
+    for dz in (-0.07, 0.07):
+        blob(H, 0.0, 0.463, 0.35 + dz, 0.132, 0.024, 0.014, "TowelStripe", cuts=1, n=4.0)
+    node("Capy_Head", H, coll, body, neck)
+    return coll
+
+
 def export(coll, path):
     layer = bpy.context.view_layer
     layer.update()
@@ -642,7 +692,7 @@ def main():
         studio(root, "begin")
         result = {"ok": True}
         colls = []
-        for fn, file in ((build_gus, "gus.glb"), (build_flint, "old_flint.glb"), (build_finnegan, "finnegan.glb")):
+        for fn, file in ((build_gus, "gus.glb"), (build_flint, "old_flint.glb"), (build_finnegan, "finnegan.glb"), (build_capybara, "capybara.glb")):
             coll = fn(root)
             bpy.context.view_layer.update()
             out = os.path.join(root, "client", "public", "models", file)

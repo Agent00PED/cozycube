@@ -67,6 +67,7 @@ PLACES = {
     "Caverns": ("Caverns", "world"),
     "Gus": ("Caverns", (-3.0, -26.0)),
     "Finnegan": ("Caverns", (0.0, -26.0)),
+    "Capybara": ("Caverns", (3.0, -26.0)),
     "OldFlint": ("Forest", (-12.5, -16.0)),
 }
 # The casino's staff and regulars (build_casino_staff.py), in a line after Mr. Vance.
