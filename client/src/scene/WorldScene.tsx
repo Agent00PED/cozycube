@@ -18,7 +18,7 @@ import { CASINO_VIP_URL } from "./CasinoVipWorld";
 import { preloadCasinoStaff } from "../entities/CasinoStaff";
 import { preloadPatrons } from "../entities/AmbientPatrons";
 import { BAR_REACH, BIG_SIX, BIG_SIX_SPOTS, BILLIARDS_HX, BILLIARDS_HZ, CASINO_FRAME, CASINO_LAYOUT, GAZETTE_REACH, MACHINE_REACH, PIANO_REACH, TABLE_FULL_LINE, barDistance, casinoFloorY, seatedGameAt, seatedGameOf, tablePerimeter, type StandingTable } from "@shared/worlds/casino";
-import { VIP_FRAME } from "@shared/worlds/casino_vip";
+import { VIP_BACCARAT_PAD, VIP_FRAME } from "@shared/worlds/casino_vip";
 import { ChloeMaid, preloadChloe } from "../entities/ChloeMaid";
 import { BOXING_RING_URL, BoxingWorld, COACH_BRUNO_URL, RING_REGULARS_URL } from "./BoxingWorld";
 import { GLOVES_URL } from "../entities/rig";
@@ -592,6 +592,9 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={{ ...prop, z: prop.z + 0.45 }} size={[1.2, 2.3, 0.7]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "portal" ? (
           <PropPad key={prop.propId} prop={prop} size={[2.4, 2.9, 0.5]} onUse={() => activate(prop.propId)} />
+        ) : prop.propId === "baccarat_table" ? (
+          // the penthouse's baccarat table is turned: a square pad over its half disc
+          <PropPad key={prop.propId} prop={{ ...prop, ...VIP_BACCARAT_PAD }} size={[2.0, 0.95, 2.0]} onUse={() => activate(prop.propId)} />
         ) : prop.propId === "vip_exit" ? (
           <PropPad key={prop.propId} prop={{ ...prop, z: prop.z - 0.1 }} size={ELEVATOR_PAD} onUse={() => activate(prop.propId)} />
         ) : CASINO_PADS[prop.kind] ? (

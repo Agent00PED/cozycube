@@ -738,8 +738,9 @@ export default function App() {
   // the seat you are on (the seated games' panels follow it)
   const mySeat = useMemo(() => (localSessionId ? (Object.values(chairs).find((c) => c.occupiedBy === localSessionId)?.propId ?? "") : ""), [chairs, localSessionId]);
   const openTable = blackjackOpen ? BLACKJACK_TABLES.find((t) => t.id === blackjackOpen) : undefined;
-  // a blackjack panel stays open on one of its stools, or standing by the table to look on
-  const atBlackjack = currentMap === "velvet_casino" && !!me && !!openTable && (openTable.stools.includes(mySeat) || Math.hypot(me.x - openTable.x, me.z - openTable.z) < openTable.reach + 0.8);
+  // a blackjack panel stays open on one of its stools, or standing by the table to look on (the
+  // hall's two tables and the penthouse's: the casino's two floors lie apart in the world)
+  const atBlackjack = isCasinoMap(currentMap) && !!me && !!openTable && (openTable.stools.includes(mySeat) || Math.hypot(me.x - openTable.x, me.z - openTable.z) < openTable.reach + 0.8);
   // the betting board closes when you walk away from the table (it opens only when asked)
   useEffect(() => {
     if (!atRoulette) setRouletteOpen(false);

@@ -67,7 +67,9 @@ import {
   type CasinoGameTable,
   type StandingTable,
 } from "../shared/worlds/casino";
-import { VAULT_SLOTS, VIP_ARRIVAL, VIP_NPCS, VIP_SEATS } from "../shared/worlds/casino_vip";
+import { VAULT_SLOTS, VIP_ARRIVAL, VIP_FOUNTAIN, VIP_JUKEBOX_FRONT, VIP_NPCS, VIP_RAIL, VIP_SEATS, VIP_TABLE_BOXES } from "../shared/worlds/casino_vip";
+import { findPath } from "../shared/pathfinding";
+import type { AABB } from "../shared/collision";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD, CAMPFIRE_LAYOUT } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
@@ -341,6 +343,56 @@ for (const mapId of MAP_IDS) {
   // nothing of the penthouse is on the hall's floor, and nothing of the hall on the penthouse's
   checks++;
   if (!isBlocked(VIP_ARRIVAL.x, VIP_ARRIVAL.z, "velvet_casino")) fail(`${V}: the elevator ${fmt(VIP_ARRIVAL)} is open floor in the hall too`);
+
+  // --- the walkways round the card tables and the fountain ---
+  const gapOf = (a: AABB, b: AABB) => Math.hypot(Math.max(0, Math.max(a.minX, b.minX) - Math.min(a.maxX, b.maxX)), Math.max(0, Math.max(a.minZ, b.minZ) - Math.min(a.maxZ, b.maxZ)));
+  const groupGap = (A: AABB[], B: AABB[]) => Math.min(...A.flatMap((a) => B.map((b) => gapOf(a, b))));
+  // the fountain's round base to every card table's stool (round too), the Duchess on hers: 1.35 m
+  const stools = [...VIP_SEATS.filter((c) => c.propId.startsWith("seat_bacc") || c.propId.startsWith("seat_vbj")).map((c) => ({ id: c.propId, x: c.x, z: c.z, r: 0.22 })), { id: "the Duchess's stool", x: VIP_NPCS.duchess.x, z: VIP_NPCS.duchess.z, r: 0.3 }];
+  for (const st of stools) {
+    checks++;
+    const clear = Math.hypot(st.x - VIP_FOUNTAIN.x, st.z - VIP_FOUNTAIN.z) - VIP_FOUNTAIN.r - st.r;
+    if (clear < 1.35) fail(`${V}: ${st.id} is ${clear.toFixed(2)} m from the fountain's base (1.35 at least)`);
+  }
+  // each card table (its colliders: the table, its stools, its dealer) 1.10 m clear of the brass rail
+  for (const [name, boxes] of Object.entries(VIP_TABLE_BOXES)) {
+    checks++;
+    const clear = Math.min(VIP_RAIL.x - Math.max(...boxes.map((b) => b.maxX)), VIP_RAIL.z - Math.max(...boxes.map((b) => b.maxZ)));
+    if (clear < 1.1) fail(`${V}: the ${name} table is ${clear.toFixed(2)} m from the front rail (1.10 at least)`);
+  }
+  // the promenade between the two tables: 1.50 m
+  checks++;
+  const promenade = groupGap(VIP_TABLE_BOXES.baccarat, VIP_TABLE_BOXES.blackjack);
+  if (promenade < 1.5) fail(`${V}: the promenade between the card tables is ${promenade.toFixed(2)} m (1.50 at least)`);
+  // all the way round the fountain: a ring of spots just off its base, each open, each walked to
+  // from the last (and the first from the elevator)
+  const ring = Array.from({ length: 24 }, (_, k) => ({ x: VIP_FOUNTAIN.x + Math.cos((k / 24) * 2 * Math.PI) * (VIP_FOUNTAIN.r + 0.5), z: VIP_FOUNTAIN.z + Math.sin((k / 24) * 2 * Math.PI) * (VIP_FOUNTAIN.r + 0.5) }));
+  ring.forEach((p, k) => standable(V, k === 0 ? VIP_ARRIVAL : ring[k - 1], p, `the walk round the fountain (${k * 15} degrees)`));
+  // from the jukebox corner to the elevator: a clean walk, no detour round a table
+  checks++;
+  const route = findPath(V, VIP_JUKEBOX_FRONT, VIP_ARRIVAL);
+  if (!route) fail(`${V}: no walk from the jukebox ${fmt(VIP_JUKEBOX_FRONT)} to the elevator`);
+  else {
+    let len = 0;
+    let at: Point = VIP_JUKEBOX_FRONT;
+    for (const w of route) {
+      len += Math.hypot(w.x - at.x, w.z - at.z);
+      at = w;
+    }
+    const straight = Math.hypot(VIP_ARRIVAL.x - VIP_JUKEBOX_FRONT.x, VIP_ARRIVAL.z - VIP_JUKEBOX_FRONT.z);
+    if (len > straight * 1.25) fail(`${V}: the walk from the jukebox to the elevator is ${len.toFixed(1)} m against ${straight.toFixed(1)} m straight: something is in the way`);
+  }
+  // a player seated at a card table clears everything that is not their own table (a wall, a palm,
+  // the fountain, the other table)
+  for (const [name, own] of Object.entries(VIP_TABLE_BOXES)) {
+    const others = MAP_OBSTACLES[V].filter((b) => !own.includes(b));
+    for (const seat of VIP_SEATS.filter((c) => (name === "baccarat" ? c.propId.startsWith("seat_bacc") : c.propId.startsWith("seat_vbj")))) {
+      checks++;
+      const me: AABB = { minX: seat.x - 0.3, maxX: seat.x + 0.3, minZ: seat.z - 0.3, maxZ: seat.z + 0.3 };
+      const clear = Math.min(groupGap([me], others), VIP_RAIL.x - me.maxX, VIP_RAIL.z - me.maxZ);
+      if (clear < 0.15) fail(`${V}: someone sitting on ${seat.propId} would brush something else (${clear.toFixed(2)} m)`);
+    }
+  }
 }
 
 // --- the lounge's Velvet Boutique, and the campfire's chalkboard ---

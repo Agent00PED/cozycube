@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.4",
+    range: "v0.7.0–v0.7.5",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -865,6 +865,26 @@ export const PATCH_ERAS: PatchEra[] = [
             "Every saved profile is upgraded safely: rods and axes keep their ids and gain their new perks, the retired Pack Frame, Tackle Box and Roasting Stick come back as their materials, and a letter on your next visit says exactly what changed.",
             "Roasting a marshmallow on a log no longer needs a Roasting Stick: anyone can.",
             "Long notices (like the retrofit letter) show as a card and stay up long enough to read.",
+          ],
+        },
+      },
+      {
+        version: "0.7.5",
+        date: "2026-09-29",
+        title: "The Penthouse Promenade",
+        summary: "The Velvet Penthouse is rearranged around its champagne tower: the baccarat and blackjack tables now flank it as a matching pair, with room to walk everywhere.",
+        changes: {
+          features: [
+            "The baccarat and blackjack tables flank the champagne tower as mirror images, with a wide promenade from the front rail up to the tower between them.",
+            "Walk all the way round the champagne tower: the stools keep well clear of it, and the way from the jukebox to the elevator runs straight past it.",
+          ],
+          visuals: [
+            "Scarlett and Gideon deal from the fountain's side, facing you over their tables.",
+            "The high-limit poker table sits a little further back, and the potted palms stand in the corners.",
+          ],
+          fixes: [
+            "The penthouse's blackjack panel closes when you walk away from the table, like the hall's.",
+            "Clicking the penthouse's baccarat table lands on the table itself.",
           ],
         },
       },
