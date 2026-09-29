@@ -37,7 +37,7 @@ const TIPS = [
   "Three wins in a row at the Velvet Ring and the Championship Belt shines over your name for a day 🏆",
   "Watch the ringside chalkboard: bets on the next bout open in its 15-second countdown.",
   "Every rock in the Glimmering Caverns has a weak spot: watch for the glow in its cracks, the glint, the dust.",
-  "Sixty seconds in the caverns' onsen: the Deep Warmth, a quicker step on every map for 20 minutes ♨️",
+  "Sixty seconds in the caverns' travertine terraces: the Deep Warmth, a quicker step on every map for 20 minutes ♨️",
   "Many hands on one rock and everyone takes home more: +40% for each friend who strikes it too.",
 ];
 

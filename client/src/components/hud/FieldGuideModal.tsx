@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { FISH, FISH_IDS, TIER_LABEL, isKingSize, type FishId, type FishingProfile } from "@shared/fishing";
+import { FISH, FISH_IDS, TIER_LABEL, gradeOf, isKingSize, type FishId, type FishingProfile } from "@shared/fishing";
 import { fishGood, marketDirection, marketMultiplier, parseMarket } from "@shared/market";
 import { Modal } from "./Modal";
 
@@ -18,7 +18,7 @@ const TIER_TONE: Record<string, string> = {
 };
 
 export function FieldGuideModal({ profile, market, onClose }: { profile: FishingProfile; market: string; onClose: () => void }) {
-  // (the river's and the woods', and the Glimmering Caverns' Grotto Pool)
+  // (the river's and the woods', and the Glimmering Caverns' cenote)
   const species = useMemo(() => FISH_IDS.filter((id) => FISH[id].water === "freshwater" || FISH[id].water === "cavewater"), []);
   const hour = parseMarket(market);
   const found = species.filter((id) => (profile.caught[id] ?? 0) > 0 || (profile.records[id] ?? 0) > 0);
@@ -73,7 +73,7 @@ function Page({ id, profile, mult, dir }: { id: FishId; profile: FishingProfile;
       <div className="min-w-0 flex-1 text-xs">
         <div className="flex items-center gap-1.5">
           <b className="truncate text-sm">{known ? sp.name : "???"}</b>
-          <span className={`shrink-0 rounded-full px-1.5 py-px text-[9px] font-bold uppercase tracking-wider ${TIER_TONE[sp.tier]}`}>{TIER_LABEL[sp.tier].replace(" ✨", "")}</span>
+          <span className={`shrink-0 rounded-full px-1.5 py-px text-[9px] font-bold uppercase tracking-wider ${TIER_TONE[gradeOf(id)] ?? TIER_TONE.legendary}`}>{TIER_LABEL[gradeOf(id)].replace(" ✨", "").replace(" 💫", "").replace(" 🌌", "")}</span>
         </div>
         <div className="mt-0.5 opacity-70">
           Usually {sp.cm[0]}–{sp.cm[1]} cm · base 🪙 {sp.value}

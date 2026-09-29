@@ -1247,19 +1247,48 @@ def build_structures(L, cushions, coll):
         box(bm, px - 0.16, px + 0.16, 0.6, 0.78, pz - 0.02, pz + 0.02, m=3)
         blob(bm, px, 0.69, pz + 0.025, 0.09, 0.035, 0.006, m=11, cuts=2)
     build_adit(L, bm, rng)
-    make_object("Forest_Structures", bm, ["FW_Bark", "FW_Log", "FW_WoodCut", "FW_Plank", "FW_PlankDark", "FW_Roof", "FW_Window", "FW_Iron", "FW_Stone", "FW_Rope", "FW_Honey", "FW_Cloth", "FW_Red", "FW_PineNeedle", "FW_Moss"], coll)
+    make_object("Forest_Structures", bm, ["FW_Bark", "FW_Log", "FW_WoodCut", "FW_Plank", "FW_PlankDark", "FW_Roof", "FW_Window", "FW_Iron", "FW_Stone", "FW_Rope", "FW_Honey", "FW_Cloth", "FW_Red", "FW_PineNeedle", "FW_Moss", "FW_LeafPile"], coll)
 
 
 def build_adit(L, bm, rng):
     """The old mine adit down to the Glimmering Caverns, behind the Autumn Maples on the western cliff:
-    a mossy outcrop, a timber-framed portal onto the dark (facing into the wood, +x), vines hanging
-    over its lintel, bushes crowding its sides, a lantern on its post, the old rails running out under
-    the grass. (Materials as build_structures': 0 bark, 1 log, 3 plank, 4 plank dark, 6 window, 7
-    iron, 8 stone, 13 pine needle, 14 moss.)"""
+    a mossy outcrop, a timber-framed portal onto the dark (facing into the wood, +x) recessed 1.5 m
+    into an alcove of the rock (its two mossy wings reaching out either side), vines hanging over its
+    lintel, ferns crowding its foot, a lantern on its post, the old rails sinking under the grass; no
+    road to it: the meadow runs on unbroken, strewn with fallen maple leaves and woodland stones.
+    (Materials as build_structures': 0 bark, 1 log, 3 plank, 4 plank dark, 6 window, 7 iron, 8 stone,
+    13 pine needle, 14 moss, 15 maple leaf.)"""
     A = L["adit"]
     O = A["outcrop"]
+    AC = A["alcove"]
     x, z, hw, h = A["x"], A["z"], A["w"] / 2, A["h"]
     face = O["x1"]
+    front = face + AC["depth"]
+    # the alcove's wings: rough stone either side of the portal, reaching 1.5 m into the wood, mossy
+    # on top, lower toward their ends
+    for sz in (-1, 1):
+        z_in = z + sz * AC["half"]
+        z_out = O["z0"] if sz < 0 else O["z1"]
+        for k in range(5):
+            t = (k + 0.5) / 5
+            bx = face + (front - face) * t
+            bz = z_in + (z_out - z_in) * (0.35 + 0.3 * rng.random())
+            top = O["h"] * (0.95 - 0.45 * t)
+            blob(bm, bx, top * 0.5, bz, 0.42 + 0.12 * rng.random(), top * 0.55, abs(z_out - z_in) * 0.55, m=8, cuts=3, noise=0.28, rng=rng, flat_bottom=-0.1)
+            blob(bm, bx, top * 0.98, bz, 0.4, 0.12, abs(z_out - z_in) * 0.45, m=14, cuts=2, noise=0.3, rng=rng)
+    # ferns and bushes at the wings' ends, where the alcove opens into the wood
+    for sz in (-1, 1):
+        for k in range(3):
+            blob(bm, front + 0.05 + 0.2 * rng.random(), 0.28 + 0.1 * k, z + sz * (AC["half"] + 0.2 + 0.3 * k), 0.34, 0.3, 0.3, m=13, cuts=2, noise=0.35, rng=rng, flat_bottom=0.0)
+    # fallen maple leaves and woodland stones where the road used to run (the maples are just east)
+    for k in range(46):
+        lx = front + 0.2 + 4.6 * rng.random()
+        lz = z - 1.9 + 3.8 * rng.random()
+        blob(bm, lx, 0.012, lz, 0.07 + 0.04 * rng.random(), 0.008, 0.05 + 0.03 * rng.random(), m=15, cuts=1)
+    for k in range(7):
+        sx = front + 0.4 + 4.0 * rng.random()
+        sz_ = z - 1.8 + 3.6 * rng.random()
+        blob(bm, sx, 0.04, sz_, 0.12 + 0.08 * rng.random(), 0.07, 0.1 + 0.06 * rng.random(), m=8, cuts=2, noise=0.3, rng=rng, flat_bottom=0.0)
     # the outcrop: a heap of rough stone, taller at the back, its face open round the portal
     for k in range(9):
         bx = O["x0"] + (O["x1"] - O["x0"]) * (0.25 + 0.3 * rng.random())
@@ -1301,12 +1330,12 @@ def build_adit(L, bm, rng):
     cylinder(bm, W(face + 0.1, ly + 0.2, lz), W(lx, ly + 0.2, lz), 0.012, 5, m=7)
     lathe(bm, lx, lz, [(0, 0.0), (0.06, 0.0), (0.07, 0.1), (0.05, 0.14), (0, 0.15)], segs=10, m=6, y0=ly)
     lathe(bm, lx, lz, [(0, 0.12), (0.075, 0.12), (0.03, 0.18), (0, 0.19)], segs=10, m=7, y0=ly)
-    # the old rails out of the dark, sinking under the grass
-    for k in range(6):
+    # the old rails out of the dark, sinking under the grass before the alcove's mouth
+    for k in range(4):
         rx = face - 0.5 + k * 0.42
         box(bm, rx, rx + 0.12, 0.0, 0.035, z - 0.42, z + 0.42, m=4)
     for sz in (-0.28, 0.28):
-        box(bm, face - 0.7, face + 1.6, 0.03, 0.06, z + sz - 0.025, z + sz + 0.025, m=7)
+        box(bm, face - 0.7, face + 0.9, 0.03, 0.06, z + sz - 0.025, z + sz + 0.025, m=7)
 
 
 # ---------------------------------------------------------------------------------------------

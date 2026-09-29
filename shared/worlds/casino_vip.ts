@@ -20,12 +20,13 @@ import type { PropSpec, SeatSpec } from "./lounge";
 //                  Penelope at their tables, Scarlett dealing the baccarat, Gideon the blackjack
 //
 // The two card tables flank the fountain in the front half of the room, mirror images across its
-// diagonal axis (the line from the fountain to the front corner): the baccarat to the right, the
-// blackjack to the left, each dealer on the fountain's side facing out over the players toward the
-// viewer, and between them a wide promenade from the front rail up to the fountain. Walkways, kept
-// by scripts/validate-world.ts: 1.35 m at least from the fountain's base to any card table's stool,
-// 1.10 m from either table to the brass rail, 1.50 m between the two tables, and a walk all the way
-// round the fountain. The twin Golden Vaults stand side by side against the western glass, a little
+// diagonal axis (the line from the fountain to the front corner): the baccarat (crimson felt) in the
+// bottom-right quadrant as the camera sees the room, the blackjack (green felt) in the bottom-left,
+// each dealer tucked close behind their table's flat side facing out over the players toward the
+// viewer, and between them the Grand Central Promenade from the front rail up to the champagne tower.
+// Walkways, kept by scripts/validate-world.ts: the tower's sunburst ring clear of every table, stool
+// and dealer within 1.80 m of its middle (a walk all the way round it), 1.10 m from either table to
+// the brass rail, and 1.80 m at least between the two tables. The twin Golden Vaults stand side by side against the western glass, a little
 // Art-Deco jukebox beside them.
 //
 // Everything exported is in the map's world coordinates (the layout plus OFFSET).
@@ -49,9 +50,9 @@ export const VIP_LAYOUT = /* layout:begin */ {
     "baron": [-0.55, -3.0],
     "dealer": [-2.5, -4.0]
   },
-  "baccarat": { "x": 1.96, "z": -1.19, "face": 70, "r": 1.15, "top": 0.74, "reach": 2.6, "stoolR": 1.55, "stoolAngles": [-55, -18, 18], "duchess": 55, "dealer": 0.6 },
-  "blackjack": { "x": -1.34, "z": 2.11, "yaw": 0.34907, "r": 1.1, "top": 0.74, "reach": 2.4, "stoolR": 1.55, "stoolAngles": [-40, 0, 40], "felt": "green", "dealer": 0.55 },
-  "vault": { "x": -4.3, "zs": [0.95, 2.15], "w": 1.1, "d": 0.95, "h": 2.2 },
+  "baccarat": { "x": 1.96, "z": -1.9, "face": 70, "r": 1.15, "top": 0.74, "reach": 2.6, "stoolR": 1.55, "stoolAngles": [-55, -18, 18], "duchess": 55, "dealer": 0.4 },
+  "blackjack": { "x": -2.05, "z": 2.11, "yaw": 0.34907, "r": 1.1, "top": 0.74, "reach": 2.4, "stoolR": 1.55, "stoolAngles": [-40, 0, 40], "felt": "green", "dealer": 0.4 },
+  "vault": { "x": -4.3, "zs": [0.45, 1.65], "w": 1.1, "d": 0.95, "h": 2.2 },
   "jukebox": { "x": -4.52, "z": 3.3, "w": 0.72, "d": 0.5, "h": 1.5 },
   "planters": [{ "x": 4.25, "z": -4.25 }, { "x": -4.25, "z": 4.25 }],
   "loveseat": { "x": 0.5, "z": -4.35, "len": 1.5 },

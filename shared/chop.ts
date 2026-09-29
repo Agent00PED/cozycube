@@ -146,13 +146,14 @@ export type FellMotion = "loop" | "pendulum" | "accel" | "pulse";
 /** Each tier's notch, in degrees of the sweep: T1 60, T2 45, T3 30, T4 20, T5 14. */
 export const NOTCH_DEG = [60, 45, 30, 20, 14] as const;
 const notch = (tier: number) => NOTCH_DEG[tier - 1] / 360;
-/** The by-products, each in its own pouch beside the carrier (no log slots; their room, the pouches',
- *  grows with the carrier): the felling's, one per tier from T2 (a round that lands but drops no
- *  log); the Colossal trees' rare ones (Silver Bark, Titan Heartwood); and the river's (Fish Scales
- *  off any landed fish, a Fine Fish Bone off a rare or better, a Prismatic Scale off a legendary or a
- *  mythic). Bramble and Buster buy them all. Ancient Wood Shavings also feed the bonfire. */
-export type ByproductId = "bark" | "amber" | "leafAmber" | "shavings" | "scales" | "silverBark" | "heartwood" | "fishBone" | "prismScale";
-export const BYPRODUCT_IDS: ByproductId[] = ["bark", "amber", "leafAmber", "shavings", "silverBark", "heartwood", "scales", "fishBone", "prismScale"];
+/** The by-products, the crafting materials' store's (no carrier, livewell or satchel slots: up to
+ *  MATERIAL_CAP, 99, of each kind): the felling's, one per tier from T2 (a round that lands but drops
+ *  no log); the Colossal trees' rare ones (Silver Bark, Titan Heartwood); the river's and the Cenote's
+ *  (Fish Scales off any landed fish, a Fine Fish Bone off a rare or better, a Prismatic Scale off a
+ *  legendary or a mythic); and the caverns' Fine Stone Dust. Bramble and Buster buy them all (Gus the
+ *  stone dust too). Ancient Wood Shavings also feed the bonfire. */
+export type ByproductId = "bark" | "amber" | "leafAmber" | "shavings" | "scales" | "silverBark" | "heartwood" | "fishBone" | "prismScale" | "stoneDust";
+export const BYPRODUCT_IDS: ByproductId[] = ["bark", "amber", "leafAmber", "shavings", "silverBark", "heartwood", "scales", "fishBone", "prismScale", "stoneDust"];
 export const BYPRODUCTS: Record<ByproductId, { name: string; emoji: string; price: number; fuel?: number; blurb: string }> = {
   bark: { name: "Birch Bark", emoji: "📜", price: BYPRODUCT_PRICES.bark, blurb: "Paper-white curls off a Silver Birch" },
   amber: { name: "Amber Resin", emoji: "🍯", price: BYPRODUCT_PRICES.amber, blurb: "Fragrant red sap from a Highland Cedar" },
@@ -163,7 +164,11 @@ export const BYPRODUCTS: Record<ByproductId, { name: string; emoji: string; pric
   scales: { name: "Fish Scales", emoji: "💠", price: BYPRODUCT_PRICES.scales, blurb: "Shed by a landed fish" },
   fishBone: { name: "Fine Fish Bone", emoji: "🦴", price: BYPRODUCT_PRICES.fishBone, blurb: "A clean, strong bone off a rare fish or better" },
   prismScale: { name: "Prismatic Scale", emoji: "🌈", price: BYPRODUCT_PRICES.prismScale, blurb: "A rainbow scale off a legendary or a mythic fish" },
+  stoneDust: { name: "Fine Stone Dust", emoji: "🌫️", price: BYPRODUCT_PRICES.stoneDust, blurb: "Silver's powdery by-product, and what a clumsy chisel leaves of a geode: masons and brewers pay for it" },
 };
+/** Which craft a by-product comes from (the drawer that shows it): the felling's and the Colossal
+ *  trees', the river's and the Cenote's, the caverns'. */
+export const BYPRODUCT_CRAFT: Record<ByproductId, "wood" | "fish" | "ore"> = { bark: "wood", amber: "wood", leafAmber: "wood", shavings: "wood", silverBark: "wood", heartwood: "wood", scales: "fish", fishBone: "fish", prismScale: "fish", stoneDust: "ore" };
 /** The river's by-products off a landed fish, by its rarity: a Fine Fish Bone's chance (a rare 15%,
  *  a legendary always, a mythic always), and a Prismatic Scale's (a legendary 35%, a mythic always). */
 export const FISH_BONE_CHANCE = { common: 0, uncommon: 0, rare: 0.15, legendary: 1, mythic: 1 } as const;

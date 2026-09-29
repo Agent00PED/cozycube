@@ -11,10 +11,10 @@ import { BYPRODUCT_IDS, TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapac
 import { CRAFTS, isCraftId, type CraftId, type CraftItem } from "./crafting";
 import { MAIL_MAX, PROFILE_VERSION, migratePlayerInventory } from "./migrate";
 import { carrierBonus, fitWorn, isGearId, livewellBonus, type GearId } from "./gear";
-import { CAVE_FISH } from "./caverns_fishing";
-import { isPickaxeId, isIngotId, isOreKind, FORGE_QUEUE_MAX, type IngotId, type OreKind, type PickaxeId } from "./caverns_mining";
+import { CAVE_FISH, isCaveTackleId, type CaveTackleId } from "./caverns_fishing";
+import { isPickaxeId, isIngotId, isOreItemId, isOreKind, FORGE_QUEUE_MAX, ORE_ITEMS, type IngotId, type OreItemId, type OreKind, type PickaxeId } from "./caverns_mining";
 import { sanitizeSatchel, type SatchelStack } from "./satchel";
-import { ACTIVE_TIER_ODDS, AFK_BAITED_TIER_ODDS, AFK_UNBAITED_TIER_ODDS, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MAX_DAY_PERMITS, POUCH_CAPACITY, TACKLE_PRICES, type TierOdds } from "./economy";
+import { ACTIVE_TIER_ODDS, AFK_BAITED_TIER_ODDS, AFK_UNBAITED_TIER_ODDS, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MATERIAL_CAP, MAX_DAY_PERMITS, TACKLE_PRICES, type TierOdds } from "./economy";
 
 /** The waters: the camp's rivers, the beach's sea (registered), and the Glimmering Caverns' Grotto
  *  Pool (shared/caverns_fishing.ts). */
@@ -47,6 +47,9 @@ export interface FishSpecies {
   rapids?: boolean;
   /** Its heft: kilograms for a fish a metre long (a weight goes with the cube of its length). */
   mass: number;
+  /** Shown as a grade of its own (the Cenote's Epic pair: the rare rarity's rarest, drawn and priced
+   *  apart, fought like a rare one). */
+  grade?: "epic";
 }
 
 export const FISH = {
@@ -92,7 +95,7 @@ export const FISH = {
   sunset_clownfish: { name: "Sunset Clownfish", emoji: "🐠", water: "saltwater", tier: "uncommon", weight: 30, bite: [4, 7], cm: [7, 14], value: 6, speed: 0.85, size: 0.6, pattern: "erratic", barScale: 1, time: "day", mass: 15 },
   prism_jellyfish: { name: "Prism Jellyfish", emoji: "🪼", water: "saltwater", tier: "rare", weight: 18, bite: [6, 10], cm: [15, 40], value: 14, speed: 0.75, size: 0.85, pattern: "sine", barScale: 0.9, time: "night", mass: 4 },
   pearl_whale: { name: "Abyssal Pearl Whale", emoji: "🐳", water: "saltwater", tier: "legendary", weight: 4, bite: [9, 14], cm: [120, 260], value: 120, speed: 1.35, size: 1.0, pattern: "plunge", barScale: 0.7, time: "night", mass: 10 },
-  // cavewater: the Glimmering Caverns' Grotto Pool, six kinds biting at any hour (shared/caverns_fishing.ts)
+  // cavewater: the Glimmering Caverns' cenote lake, eleven kinds biting at any hour (shared/caverns_fishing.ts)
   ...CAVE_FISH,
 } as const satisfies Record<string, FishSpecies>;
 export type FishId = keyof typeof FISH;
@@ -104,9 +107,12 @@ export function fishOf(water: Water): FishId[] {
   return FISH_IDS.filter((id) => FISH[id].water === water);
 }
 
-export const TIER_LABEL: Record<FishTier, string> = { common: "Common", uncommon: "Uncommon", rare: "Rare", legendary: "Legendary ✨", mythic: "Mythic 🌌" };
-/** Each tier's colour on a chip (the reveal, the Nature Logbook). */
-export const TIER_COLOR: Record<FishTier, string> = { common: "#C9BDB5", uncommon: "#8fd3b6", rare: "#9ecbff", legendary: "#F5A623", mythic: "#ec7fa3" };
+/** A fish's grade as shown: its rarity, or Epic for the Cenote's rarest rare pair. */
+export type FishGrade = FishTier | "epic";
+export const gradeOf = (id: FishId): FishGrade => (FISH[id] as FishSpecies).grade ?? FISH[id].tier;
+export const TIER_LABEL: Record<FishGrade, string> = { common: "Common", uncommon: "Uncommon", rare: "Rare", epic: "Epic 💫", legendary: "Legendary ✨", mythic: "Mythic 🌌" };
+/** Each grade's colour on a chip (the reveal, the Nature Logbook). */
+export const TIER_COLOR: Record<FishGrade, string> = { common: "#C9BDB5", uncommon: "#8fd3b6", rare: "#9ecbff", epic: "#c39bff", legendary: "#F5A623", mythic: "#ec7fa3" };
 /** A fish's weight (kg) from its length: its kind's heft, with the cube of its length. */
 export function fishKg(f: Pick<CreelFish, "s" | "cm">): number {
   const m = f.cm / 100;
@@ -293,6 +299,9 @@ export interface FishingProfile {
   crafts: CraftItem[];
   /** The tackles carved at the workbench (made once, yours for good: shared/crafting.ts TOOLS). */
   tools: CraftId[];
+  /** Finnegan's advanced tackle, bartered for on the Cenote's outcrop (made once, at work for good:
+   *  shared/caverns_fishing.ts CAVE_TACKLES). */
+  caveTackles: CaveTackleId[];
   /** Legacy (the things once made for good, refunded their materials by the migration): read from an
    *  older profile, never set again. */
   roastingStick: boolean;
@@ -304,14 +313,13 @@ export interface FishingProfile {
    *  oldest one's place); only what is worn works. */
   gear: GearId[];
   worn: GearId[];
-  /** Pine Resin (from critical chops): sap, not wood, so it rides in its own jar beside the carrier
-   *  (no log slots); it glues a carving at the workbench's Adhesive Slot, and Buster buys it. Sawdust
-   *  (from broken carvings; +15% on the bonfire) rides in a pouch. Both share the pouches' room with
-   *  the by-products (pouchCap: it grows with the carrier). */
+  /** Pine Resin (from critical chops: it glues a carving at the workbench's Adhesive Slot, and Buster
+   *  buys it) and Sawdust (from broken carvings; +15% on the bonfire): crafting materials, in the
+   *  materials' store with the by-products (no carrier slots: up to MATERIAL_CAP, 99, of each). */
   resin: number;
   sawdust: number;
-  /** The felling's by-products (and the Fish Scales off a landed fish), each in its own pouch beside
-   *  the carrier (no log slots; the pouches' room, pouchCap). */
+  /** The by-products (the felling's, the river's and the Cenote's, the caverns' stone dust): the
+   *  materials' store, up to MATERIAL_CAP of each kind (materialRoom). */
   byproducts: Partial<Record<ByproductId, number>>;
   /** Firewood bundles split at the chopping block (shared/chop.ts WOOD firewood): tied beside the
    *  carrier, no slots; each feeds the bonfire FIREWOOD_FUEL. */
@@ -352,17 +360,19 @@ export interface FishingProfile {
   /** The onsen's Deep Warmth until (epoch ms, the server's clock): a quicker step everywhere, a wider
    *  fracture, the ring's stamina back sooner. */
   deepWarmthUntil: number;
-  /** The Ancient Forge's queue (ingots still to come, in order), when its next one is done (epoch
+  /** The Thermal Bellows Forge's queue (ingots still to come, in order), when its next one is done (epoch
    *  ms), and its tray (ingots done that found no room in the satchel: collected at the forge). */
   forgeQueue: { i: IngotId; n: number }[];
   forgeAt: number;
-  forgeTray: Partial<Record<IngotId, number>>;
+  forgeTray: Partial<Record<OreItemId, number>>;
   /** The nodes broken, by kind (the drawer's tally). */
   mined: Partial<Record<OreKind, number>>;
 }
-/** The consumables' buffs (shared/crafting.ts BUFFS): kept here by key. */
-export type BuffKey = "smore" | "wax" | "scent" | "sap" | "chum";
-export const BUFF_KEYS: BuffKey[] = ["smore", "wax", "scent", "sap", "chum"];
+/** The consumables' buffs (shared/crafting.ts BUFFS): kept here by key (the workbench's, and the
+ *  drawers' own: Feller's Pine Pitch, Phosphor Glow Bait, Miner's Stout). Using one again while it
+ *  lasts starts its time afresh: the same buff never stacks. */
+export type BuffKey = "smore" | "wax" | "scent" | "sap" | "chum" | "pitch" | "glowbait" | "stout";
+export const BUFF_KEYS: BuffKey[] = ["smore", "wax", "scent", "sap", "chum", "pitch", "glowbait", "stout"];
 /** Whether a buff is on (at the server's clock, or near enough on the client's). */
 export const buffOn = (p: Pick<FishingProfile, "buffs">, key: BuffKey, now = Date.now()) => (p.buffs[key] ?? 0) > now;
 
@@ -394,16 +404,42 @@ export function restText(ms: number): string {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-/** The pouches beside the carrier (the by-products, Pine Resin and Sawdust together): how full they
- *  are, and their room (it grows with the carrier's tier: 30 to 250). */
-export function pouchLoad(p: Pick<FishingProfile, "byproducts" | "resin" | "sawdust">): number {
-  return BYPRODUCT_IDS.reduce((sum, k) => sum + (p.byproducts[k] ?? 0), 0) + p.resin + p.sawdust;
+/** The crafting materials' store: Pine Resin, Sawdust and every by-product, each kind up to
+ *  MATERIAL_CAP (99) of its own, apart from every carrier, livewell and satchel. */
+export type MaterialKey = ByproductId | "resin" | "sawdust";
+export function materialCount(p: Pick<FishingProfile, "byproducts" | "resin" | "sawdust">, key: MaterialKey): number {
+  return key === "resin" ? p.resin : key === "sawdust" ? p.sawdust : (p.byproducts[key] ?? 0);
 }
-export function pouchCap(p: Pick<FishingProfile, "carrierTier">): number {
-  return POUCH_CAPACITY[Math.max(1, Math.min(POUCH_CAPACITY.length, Math.round(p.carrierTier) || 1)) - 1];
+/** Room for more of a material (the soft clamp: a store over 99 of a kind keeps it all; only new ones
+ *  wait until it is under). */
+export function materialRoom(p: Pick<FishingProfile, "byproducts" | "resin" | "sawdust">, key: MaterialKey): number {
+  return Math.max(0, MATERIAL_CAP - materialCount(p, key));
 }
-/** Room in the pouches for `n` more (the soft clamp: pouches over their room keep all they hold). */
-export const pouchRoom = (p: Pick<FishingProfile, "byproducts" | "resin" | "sawdust" | "carrierTier">) => Math.max(0, pouchCap(p) - pouchLoad(p));
+/** Up to `n` of a material into the store (as its room allows): how many went in. */
+export function addMaterial(p: Pick<FishingProfile, "byproducts" | "resin" | "sawdust">, key: MaterialKey, n: number): number {
+  const take = Math.max(0, Math.min(Math.floor(n), materialRoom(p, key)));
+  if (take <= 0) return 0;
+  if (key === "resin") p.resin += take;
+  else if (key === "sawdust") p.sawdust += take;
+  else p.byproducts[key] = (p.byproducts[key] ?? 0) + take;
+  return take;
+}
+/** Up to `n` of a material out of the store: how many came out. */
+export function takeMaterial(p: Pick<FishingProfile, "byproducts" | "resin" | "sawdust">, key: MaterialKey, n: number): number {
+  const take = Math.max(0, Math.min(materialCount(p, key), Math.floor(n)));
+  if (key === "resin") p.resin -= take;
+  else if (key === "sawdust") p.sawdust -= take;
+  else {
+    const left = (p.byproducts[key] ?? 0) - take;
+    if (left > 0) p.byproducts[key] = left;
+    else delete p.byproducts[key];
+  }
+  return take;
+}
+/** A store, carrier, livewell or satchel holding more than its room (from before a rebalance):
+ *  Overburdened. Selling, splitting, smelting and crafting all work; gathering waits until it is
+ *  back under. */
+export const overburdened = (load: number, cap: number) => load > cap;
 
 /** The craft stash: its slots in use (each kind, Masterworks apart, a slot per CRAFT_SLOT_STACK),
  *  and whether one more of a kind fits (the soft clamp: a stash over its slots keeps everything). */
@@ -419,7 +455,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem): boolean 
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {} };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {} };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -512,6 +548,7 @@ function readFishingProfile(raw: unknown): FishingProfile {
     }
   }
   if (Array.isArray(r.tools)) p.tools = Array.from(new Set(r.tools.filter((t): t is CraftId => isCraftId(t) && CRAFTS[t].use === "tool")));
+  if (Array.isArray(r.caveTackles)) p.caveTackles = Array.from(new Set(r.caveTackles.filter(isCaveTackleId)));
   p.roastingStick = r.roastingStick === true;
   p.packFrame = r.packFrame === true;
   p.tackleBox = r.tackleBox === true;
@@ -585,7 +622,7 @@ function readFishingProfile(raw: unknown): FishingProfile {
   if (r.forgeTray && typeof r.forgeTray === "object") {
     for (const [k, v] of Object.entries(r.forgeTray as Record<string, unknown>)) {
       const n = Math.max(0, Math.min(999, Math.round(Number(v) || 0)));
-      if (isIngotId(k) && n > 0) p.forgeTray[k] = n;
+      if (isOreItemId(k) && ORE_ITEMS[k].cat === "ingot" && n > 0) p.forgeTray[k] = n;
     }
   }
   if (r.mined && typeof r.mined === "object") {
@@ -645,7 +682,7 @@ export interface CatchLuck {
   /** The Golden Scale Ring: a gold star this much likelier, and the fish this much heavier. */
   goldStar?: number;
   heft?: number;
-  /** A cast landed in the Grotto Pool's lucky drip: nothing common bites. */
+  /** A cast landed in the cenote's lucky drip: nothing common bites. */
   noCommon?: boolean;
 }
 

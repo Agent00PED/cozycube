@@ -31,14 +31,15 @@
 //     bleacher seats taken out of the seats nobody else may sit on; the trainee inside a collider, the
 //     fight night's crowd between the seats (never on one), Ref Barnaby's corner inside the ropes and
 //     his walk on the apron (between the ropes and its edge)
-//   - the Glimmering Caverns: the adit's mouth, Gus's counter, the forge and the anvil open and
-//     reachable, Gus inside a collider; the stair down the cliff at least 2.4 m wide and no steeper
-//     than 28 degrees; every ore node inside its own collider, its mining spot on its own floor (a
-//     terrace node is never mined from the basin below) and in reach, reachable from the tunnel;
-//     each onsen seat's dry exit near it; the pier's spots in reach of their floats, every float in
-//     the Grotto Pool, its water over its bed by 0.15 m or more; every spot inside the camera's
-//     bounds; and in the woods the adit's front open and reachable, Old Flint inside a collider with
-//     his spot in reach, and the arrival from the caverns open
+//   - the Glimmering Caverns (the Grand Karst): the adit's mouth, Gus's workstation, the forge, the
+//     anvil and Finnegan's crate open and reachable, Gus, Finnegan and the islet's karst tower inside
+//     colliders; the doline's ramp at least 2.4 m wide and no steeper than 28 degrees, both its ends
+//     walked to; every ore node inside its own collider, its mining spot on its own floor (a doline
+//     node is never mined from the floor below) and in reach, reachable from the tunnel; each thermal
+//     seat's dry exit open and near it; the outcrop's spots in reach of their floats, every float out
+//     on the cenote's open water with 0.15 m or more of it over the bed; every spot inside the
+//     camera's bounds (+-21); and in the woods the adit's front open and reachable, Old Flint inside a
+//     collider with his spot in reach, and the arrival from the caverns open
 //   - every built world (the fast-travel grid's, and the penthouse) has seats or props
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, walkRegions, walkY, worldLimit } from "../shared/collision";
 import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES, MOCHI_WAYPOINTS } from "../shared/props";
@@ -75,13 +76,13 @@ import {
   type CasinoGameTable,
   type StandingTable,
 } from "../shared/worlds/casino";
-import { VAULT_SLOTS, VIP_ARRIVAL, VIP_FOUNTAIN, VIP_JUKEBOX_FRONT, VIP_NPCS, VIP_RAIL, VIP_SEATS, VIP_TABLE_BOXES } from "../shared/worlds/casino_vip";
+import { VAULT_SLOTS, VIP_ARRIVAL, VIP_FOUNTAIN, VIP_FOUNTAIN_BOXES, VIP_JUKEBOX_FRONT, VIP_NPCS, VIP_RAIL, VIP_SEATS, VIP_TABLE_BOXES } from "../shared/worlds/casino_vip";
 import { findPath } from "../shared/pathfinding";
 import type { AABB } from "../shared/collision";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD, CAMPFIRE_LAYOUT } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
-import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_FISHING, CAVE_POOL, CAVERNS_CAMERA, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, ONSEN_REACH, ONSEN_SEATS, ORE_NODES, STAIRS, TERRACE, caveSpotAt, oreReach } from "../shared/worlds/caverns";
+import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_FISHING, CAVE_LAKE, CAVE_WATER_Y, CAVERNS_CAMERA, CAVERNS_LAYOUT, DOLINE, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, ORE_NODES, RAMP, THERMAL_REACH, THERMAL_SEATS, caveSpotAt, cavernsFloorY, inLakeWater, lakeFactor, oreReach } from "../shared/worlds/caverns";
 import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../shared/worlds/forest";
 import { BAG_BOXER, REF_APRON, REF_HOME, RING_CROWD, TRAINEE, CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, JIMMY, JIMMY_FRONT, JIMMY_REACH, NEUTRAL_CORNERS, RING, RING_BENCH_FRONT, RING_CORNERS, RING_FANS, RING_SEATS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
 
@@ -131,8 +132,8 @@ for (const mapId of MAP_IDS) {
     checks++;
     const onFloor = walkRegions(mapId).some((r) => chair.x >= r.x0 - 0.6 && chair.x <= r.x1 + 0.6 && chair.z >= r.z0 - 0.6 && chair.z <= r.z1 + 0.6);
     if (!onFloor) fail(`${mapId}: seat ${chair.propId} is off the floor ${fmt(chair)}`);
-    // (over the floor under it: the casino's stages and the caverns' terrace stand higher; the caverns'
-    // onsen seats sink a little below theirs, into the water)
+    // (over the floor under it: the casino's stages and the caverns' doline stand higher; the caverns'
+    // thermal seats sink a little below theirs, into the warm water)
     const floor = walkY(mapId, chair.approachX, chair.approachZ);
     if (!Number.isFinite(chair.sitY) || chair.sitY - floor < -0.45 || chair.sitY - floor > 1.2) fail(`${mapId}: seat ${chair.propId} has an odd anchor height ${chair.sitY} (its floor ${floor})`);
     const a = APPROACH_POINTS[chair.propId];
@@ -373,10 +374,18 @@ for (const mapId of MAP_IDS) {
     const clear = Math.min(VIP_RAIL.x - Math.max(...boxes.map((b) => b.maxX)), VIP_RAIL.z - Math.max(...boxes.map((b) => b.maxZ)));
     if (clear < 1.1) fail(`${V}: the ${name} table is ${clear.toFixed(2)} m from the front rail (1.10 at least)`);
   }
-  // the promenade between the two tables: 1.50 m
+  // the Grand Central Promenade between the two tables: 1.80 m
   checks++;
   const promenade = groupGap(VIP_TABLE_BOXES.baccarat, VIP_TABLE_BOXES.blackjack);
-  if (promenade < 1.5) fail(`${V}: the promenade between the card tables is ${promenade.toFixed(2)} m (1.50 at least)`);
+  if (promenade < 1.8) fail(`${V}: the promenade between the card tables is ${promenade.toFixed(2)} m (1.80 at least)`);
+  // the champagne tower's sunburst ring: nothing but the tower itself within 1.80 m of its middle
+  // (no table, stool, dealer or chair: a walk all the way round it)
+  const towerBoxes = new Set(VIP_FOUNTAIN_BOXES);
+  for (const b of MAP_OBSTACLES[V].filter((o) => !towerBoxes.has(o))) {
+    checks++;
+    const d = Math.hypot(Math.max(b.minX - VIP_FOUNTAIN.x, 0, VIP_FOUNTAIN.x - b.maxX), Math.max(b.minZ - VIP_FOUNTAIN.z, 0, VIP_FOUNTAIN.z - b.maxZ));
+    if (d < 1.8) fail(`${V}: something at ${fmt({ x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 })} is ${d.toFixed(2)} m from the champagne tower's middle (its ring is 1.80 m clear)`);
+  }
   // all the way round the fountain: a ring of spots just off its base, each open, each walked to
   // from the last (and the first from the elevator)
   const ring = Array.from({ length: 24 }, (_, k) => ({ x: VIP_FOUNTAIN.x + Math.cos((k / 24) * 2 * Math.PI) * (VIP_FOUNTAIN.r + 0.5), z: VIP_FOUNTAIN.z + Math.sin((k / 24) * 2 * Math.PI) * (VIP_FOUNTAIN.r + 0.5) }));
@@ -556,7 +565,7 @@ for (const mapId of MAP_IDS) {
   if (!(REF_APRON > RING.rope + 0.1 && REF_APRON < RING.apron - 0.1)) fail(`${R}: Ref Barnaby's apron walk (${REF_APRON}) is not between the ropes (${RING.rope}) and the apron's edge (${RING.apron})`);
 }
 
-// --- the Glimmering Caverns ---
+// --- the Glimmering Caverns (the Grand Karst) ---
 {
   const C: MapId = "glimmering_caverns";
   const home = MAP_SPAWN_POINTS[C][0];
@@ -566,19 +575,34 @@ for (const mapId of MAP_IDS) {
   };
   standable(C, home, CAVE_ARRIVAL, "the arrival from the woods");
   standable(C, home, CAVE_ADIT_FRONT, "the adit's mouth");
-  standable(C, home, GUS_FRONT, "Gus's counter");
-  standable(C, home, FORGE_FRONT, "the Ancient Forge's front");
-  standable(C, home, ANVIL_FRONT, "the Geode Anvil's front");
+  standable(C, home, GUS_FRONT, "Gus's workstation");
+  standable(C, home, FORGE_FRONT, "the Thermal Bellows Forge's front");
+  standable(C, home, ANVIL_FRONT, "the meteorite anvil's front");
+  standable(C, home, FINNEGAN_FRONT, "Finnegan's crate");
+  near("Gus's workstation", GUS_FRONT, GUS, GUS_REACH + 1.2);
   near("the forge's front", FORGE_FRONT, FORGE, FORGE_REACH + 0.8);
   near("the anvil's front", ANVIL_FRONT, ANVIL, ANVIL_REACH + 0.6);
+  near("Finnegan's front", FINNEGAN_FRONT, FINNEGAN, FINNEGAN_REACH);
+  for (const [who, at] of [
+    ["Gus", GUS],
+    ["Finnegan", FINNEGAN],
+    ["the islet's karst tower", CAVERNS_LAYOUT.tower],
+  ] as const) {
+    checks++;
+    if (!isBlocked(at.x, at.z, C, 0.05)) fail(`${C}: ${who} stands on open floor ${fmt(at)}: give it a collider`);
+  }
+  // the doline's one ramp down to the shore: wide enough to pass on, no steeper than 28 degrees, and
+  // both its ends walked to from the tunnel
   checks++;
-  if (!isBlocked(GUS.x, GUS.z, C, 0.05)) fail(`${C}: Gus stands on open floor ${fmt(GUS)}: give him a collider`);
-  // the stair down the cliff: a ramp wide enough to pass on, no steeper than 28 degrees
+  if (RAMP.x1 - RAMP.x0 < 2.4) fail(`${C}: the ramp is ${(RAMP.x1 - RAMP.x0).toFixed(2)} m wide (at least 2.4)`);
+  const slope = (Math.atan2(DOLINE.y, RAMP.foot - RAMP.top) * 180) / Math.PI;
   checks++;
-  if (STAIRS.x1 - STAIRS.x0 < 2.4) fail(`${C}: the stair is ${(STAIRS.x1 - STAIRS.x0).toFixed(2)} m wide (at least 2.4)`);
-  const slope = (Math.atan2(TERRACE.y, STAIRS.foot - STAIRS.top) * 180) / Math.PI;
+  if (slope > 28.05) fail(`${C}: the ramp is ${slope.toFixed(1)} degrees (28 at most)`);
+  const rampMid = (RAMP.x0 + RAMP.x1) / 2;
+  standable(C, home, { x: rampMid, z: RAMP.top - 0.6 }, "the ramp's head on the doline");
+  standable(C, home, { x: rampMid, z: RAMP.foot + 0.6 }, "the ramp's foot on the shore");
   checks++;
-  if (slope > 28.05) fail(`${C}: the stair's ramp is ${slope.toFixed(1)} degrees (28 at most)`);
+  if (Math.abs(cavernsFloorY(rampMid, (RAMP.top + RAMP.foot) / 2) - DOLINE.y / 2) > 0.05) fail(`${C}: the ramp's middle is not half way down the doline`);
   // every node: inside its collider, mined from its own floor, in reach, reachable from the tunnel
   for (const n of ORE_NODES) {
     checks++;
@@ -588,20 +612,28 @@ for (const mapId of MAP_IDS) {
     checks++;
     if (Math.abs(walkY(C, n.approach.x, n.approach.z) - n.y) > 0.3) fail(`${C}: the ${n.kind} node ${n.id} (floor ${n.y}) is mined from another floor (${walkY(C, n.approach.x, n.approach.z).toFixed(2)})`);
   }
-  // the onsen: each seat's dry exit beside it (where you are set down, and where the toggle finds it)
-  for (const s of ONSEN_SEATS) near(`onsen seat ${s.propId}'s exit`, s.exit, s, ONSEN_REACH + 0.3);
-  // the Grotto Pool: its water over its bed, every pier spot in reach of its own float, the floats in the pool
+  // the thermal terraces: each seat's dry exit open, walked to, and beside it (where you are set down,
+  // and where the toggle finds it)
+  for (const t of THERMAL_SEATS) {
+    standable(C, home, t.exit, `thermal seat ${t.propId}'s exit`);
+    near(`thermal seat ${t.propId}'s exit`, t.exit, t, THERMAL_REACH + 0.3);
+  }
+  // the cenote: deep enough; every outcrop spot at its own spot, its float out on open water with
+  // 0.15 m or more of it over the bed
   checks++;
-  if (CAVE_POOL.water - CAVE_POOL.bed < 0.15) fail(`${C}: the Grotto Pool's water (${CAVE_POOL.water}) is less than 0.15 m over its bed (${CAVE_POOL.bed})`);
+  if (CAVE_LAKE.depth < 0.15) fail(`${C}: the cenote is ${CAVE_LAKE.depth} m deep (0.15 at least)`);
   for (const f of CAVE_FISHING) {
-    standable(C, home, f.stand, `the pier's ${f.propId}`);
+    standable(C, home, f.stand, `the outcrop's ${f.propId}`);
     checks++;
     if (caveSpotAt(f.approach.x, f.approach.z)?.propId !== f.propId) fail(`${C}: ${f.propId}'s approach ${fmt(f.approach)} is not at its own spot`);
     checks++;
-    if (((f.bobber.x - CAVE_POOL.x) / CAVE_POOL.rx) ** 2 + ((f.bobber.z - CAVE_POOL.z) / CAVE_POOL.rz) ** 2 > 0.8) fail(`${C}: ${f.propId}'s float ${fmt(f.bobber)} lands outside the Grotto Pool`);
+    if (!inLakeWater(f.bobber.x, f.bobber.z) || lakeFactor(f.bobber.x, f.bobber.z) > 0.95) fail(`${C}: ${f.propId}'s float ${fmt(f.bobber)} doesn't land out on the cenote's open water`);
+    checks++;
+    const over = CAVE_WATER_Y - cavernsFloorY(f.bobber.x, f.bobber.z);
+    if (over < 0.15) fail(`${C}: ${f.propId}'s float ${fmt(f.bobber)} has only ${over.toFixed(2)} m of water over the bed (0.15 at least)`);
   }
   // the camera's bounds hold every spot anyone can stand at
-  for (const p of [...MAP_SPAWN_POINTS[C], ...ORE_NODES.map((n) => n.approach), GUS_FRONT, FORGE_FRONT, ANVIL_FRONT, ...CAVE_FISHING.map((f) => f.stand), ...ONSEN_SEATS.map((s) => s.exit)]) {
+  for (const p of [...MAP_SPAWN_POINTS[C], ...ORE_NODES.map((n) => n.approach), GUS_FRONT, FORGE_FRONT, ANVIL_FRONT, FINNEGAN_FRONT, ...CAVE_FISHING.map((f) => f.stand), ...THERMAL_SEATS.map((t) => t.exit)]) {
     checks++;
     if (p.x < CAVERNS_CAMERA.x0 || p.x > CAVERNS_CAMERA.x1 || p.z < CAVERNS_CAMERA.z0 || p.z > CAVERNS_CAMERA.z1) fail(`${C}: ${fmt(p)} is outside the camera's bounds`);
   }

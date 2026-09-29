@@ -20,7 +20,7 @@ interface Props {
 // recipes under four tabs: 🎣 Tackles (made once, yours for good, at work whenever you fish or fell:
 // [ Owned ✓ ] once made), 🧪 Consumables (into the craft stash, used from the wood drawer for a buff a
 // while), 🧿 Relics (carved once, worn in a gear slot to work: [ Carved ✓ ]) and 🪑 Furniture (the
-// trade goods, sold at the hour's market, 70%-130%). Each tab shows how many of its recipes you
+// trade goods, sold at the hour's market, 50%-130%). Each tab shows how many of its recipes you
 // could make now. Each piece of furniture is one of two modes: a Safe Carve (low risk, a modest
 // Masterwork chance) or a Masterwork Push (a much better chance of a Masterwork ✨, +70% value, and a
 // real chance the piece breaks; a break salvages half the logs and a pile of Sawdust). The Adhesive
@@ -36,7 +36,7 @@ const MODES: [CraftMode, string, string][] = [
 ];
 const TIER_TONE: Record<string, string> = { common: "text-white/70", uncommon: "text-emerald-200", rare: "text-sky-200", epic: "text-violet-200", legendary: "text-amber-200" };
 const SHORT: Partial<Record<WoodKind, string>> = { pine: "Pine", birch: "Birch", cedar: "Cedar", maple: "Maple", elderwood: "Elder", oak: "Oak", charcoal: "Charcoal" };
-const BY_SHORT: Record<ByproductId, string> = { bark: "Bark", amber: "Amber", leafAmber: "Leaf Amber", shavings: "Shavings", scales: "Scales", silverBark: "Silver Bark", heartwood: "Heartwood", fishBone: "Fish Bone", prismScale: "Prism Scale" };
+const BY_SHORT: Record<ByproductId, string> = { bark: "Bark", amber: "Amber", leafAmber: "Leaf Amber", shavings: "Shavings", scales: "Scales", silverBark: "Silver Bark", heartwood: "Heartwood", fishBone: "Fish Bone", prismScale: "Prism Scale", stoneDust: "Stone Dust" };
 /** Each tab's line under the recipes' names. */
 const TAB_TAG: Record<CraftFilter, string> = { tackles: "tackle · made once", consumables: "consumable", relics: "relic · wear it", furniture: "furniture" };
 const pct = (p: number) => `${Math.round(p * 100)}%`;

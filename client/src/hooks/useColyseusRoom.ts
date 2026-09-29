@@ -122,11 +122,18 @@ const RELAYED_MESSAGES = [
   "caveForge",
   "cavernsResult",
   "geodeStart",
-  "geodeStrike",
   "caveDrip",
   "gusWave",
   "flintWave",
   "creelFull",
+  // a word over someone's head for everyone round them (a full livewell: "🪣 Full!")
+  "billboard",
+  // Finnegan the Grotto Angler's wave; the forge's bellows game and the chisel's
+  "finneganWave",
+  "forgeGame",
+  "forgeResult",
+  "geodeAim",
+  "geodeResult",
   // the casino: Mr. Vance's answer at the cage (an exchange, or why not), and his wave as it opens
   "cashierResult",
   "vanceWave",

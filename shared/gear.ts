@@ -4,10 +4,12 @@
 // the workbench's three relics are carved once, never sold (`craft` "bench": the Carved Lumberjack
 // Belt, the Deepriver Fisherman Ring, the Heartwood Compass; the two before them, the Otter-Carved
 // Hook Charm and the Amber Bark Bangle, are `legacy`: still worn and working by whoever carved one,
-// and traded in at Buster's or Bramble's for their materials back); any of them
-// goes in any slot of its kind, so a loadout mixes the crafts. They live in the camp
-// profile (FishingProfile.gear owned, .worn on, oldest first); the server applies every effect and
-// the client draws them from the same functions.
+// and traded in at Buster's or Bramble's for their materials back); the prospector's four mining
+// relics are forged once each at the Thermal Bellows Forge (`craft` "forge"). Any of them goes in any
+// slot of its kind, so a loadout mixes the crafts; each belongs to one discipline (`disc`: the
+// woodcutter's, the angler's, the prospector's), and only its own drawer lists it (the Forester's,
+// the Fish, the Ore Satchel's). They live in the camp profile (FishingProfile.gear owned, .worn on,
+// oldest first); the server applies every effect and the client draws them from the same functions.
 
 import { GEAR_PRICES, RETIRED_GEAR_PRICES } from "./economy";
 
@@ -36,14 +38,24 @@ export type GearId =
   | "heartwood_compass"
   // legacy relics
   | "hook_charm"
-  | "bark_bangle";
+  | "bark_bangle"
+  // the forge's mining relics
+  | "knuckle_guards"
+  | "satchel_strap"
+  | "hunter_ring"
+  | "lodestone_pendant";
+/** Whose kit a piece is: the woodcutter's, the angler's, the prospector's (the drawer that lists it). */
+export type GearDiscipline = "wood" | "fish" | "ore";
 
 export interface Gear {
   name: string;
   emoji: string;
   slot: GearSlot;
-  /** Whose shops sell it: the woodcutter's or the angler's; "bench": carved at the workbench. */
-  craft: "wood" | "fish" | "bench";
+  /** Whose shops sell it: the woodcutter's or the angler's; "bench": carved at the workbench; "forge":
+   *  forged at the Thermal Bellows Forge. */
+  craft: "wood" | "fish" | "bench" | "forge";
+  /** Whose kit it is (its drawer). */
+  disc: GearDiscipline;
   /** T1-T3 at the campfire's stalls; T4-T5 only in the woods (Bramble, Finley). */
   tier: number;
   price: number;
@@ -54,33 +66,40 @@ export interface Gear {
 
 export const GEAR: Record<GearId, Gear> = {
   // the woodcutter's
-  resin_band: { name: "Amber Resin Band", emoji: "💍", slot: "finger", craft: "wood", tier: 1, price: GEAR_PRICES.resin_band, blurb: "+15% by-products: a round that drops a log sometimes sheds its tree's by-product too" },
-  deerskin_gloves: { name: "Deerskin Felling Gloves", emoji: "🧤", slot: "hands", craft: "wood", tier: 1, price: GEAR_PRICES.deerskin_gloves, blurb: "The felling ring closes 15% slower, and a 10% chance of a bonus log a round" },
-  forester_belt: { name: "Forester's Toolbelt", emoji: "🪢", slot: "waist", craft: "wood", tier: 2, price: GEAR_PRICES.forester_belt, blurb: "+5 carrier slots, and +50% Firewood from every log you split" },
-  oak_ring: { name: "Ancient Ring of Oak", emoji: "🌰", slot: "finger", craft: "wood", tier: 3, price: GEAR_PRICES.oak_ring, blurb: "A gold swing on a tree has it grow back 20% sooner" },
-  dryad_amulet: { name: "Dryad's Sprout Amulet", emoji: "🌱", slot: "charm", craft: "wood", tier: 4, price: GEAR_PRICES.dryad_amulet, blurb: "A 15% chance the tree you start felling grows +0.15x bigger (its logs worth more)" },
-  titan_gauntlets: { name: "Titan-Grip Gauntlets", emoji: "🦾", slot: "hands", craft: "wood", tier: 5, price: GEAR_PRICES.titan_gauntlets, blurb: "The gold sweet spot 25% wider, and a miss still deepens the notch (no drop)" },
+  resin_band: { name: "Amber Resin Band", emoji: "💍", slot: "finger", disc: "wood", craft: "wood", tier: 1, price: GEAR_PRICES.resin_band, blurb: "+15% by-products: a round that drops a log sometimes sheds its tree's by-product too" },
+  deerskin_gloves: { name: "Deerskin Felling Gloves", emoji: "🧤", slot: "hands", disc: "wood", craft: "wood", tier: 1, price: GEAR_PRICES.deerskin_gloves, blurb: "The felling ring closes 15% slower, and a 10% chance of a bonus log a round" },
+  forester_belt: { name: "Forester's Toolbelt", emoji: "🪢", slot: "waist", disc: "wood", craft: "wood", tier: 2, price: GEAR_PRICES.forester_belt, blurb: "+5 carrier slots, and +50% Firewood from every log you split" },
+  oak_ring: { name: "Ancient Ring of Oak", emoji: "🌰", slot: "finger", disc: "wood", craft: "wood", tier: 3, price: GEAR_PRICES.oak_ring, blurb: "A gold swing on a tree has it grow back 20% sooner" },
+  dryad_amulet: { name: "Dryad's Sprout Amulet", emoji: "🌱", slot: "charm", disc: "wood", craft: "wood", tier: 4, price: GEAR_PRICES.dryad_amulet, blurb: "A 15% chance the tree you start felling grows +0.15x bigger (its logs worth more)" },
+  titan_gauntlets: { name: "Titan-Grip Gauntlets", emoji: "🦾", slot: "hands", disc: "wood", craft: "wood", tier: 5, price: GEAR_PRICES.titan_gauntlets, blurb: "The gold sweet spot 25% wider, and a miss still deepens the notch (no drop)" },
   // the angler's
-  sunburst_band: { name: "Sunburst River Band", emoji: "🌞", slot: "finger", craft: "fish", tier: 1, price: GEAR_PRICES.sunburst_band, blurb: "By day, fish bite 20% sooner" },
-  wader_gloves: { name: "Neoprene Wader Gloves", emoji: "🧤", slot: "hands", craft: "fish", tier: 1, price: GEAR_PRICES.wader_gloves, blurb: "The line's tension builds 20% slower while you reel" },
-  tackle_holster: { name: "Tackle Master's Holster", emoji: "🎒", slot: "waist", craft: "fish", tier: 2, price: GEAR_PRICES.tackle_holster, blurb: "+4 livewell slots, and bait lasts 20% longer" },
-  moonlit_ring: { name: "Moonlit Abyssal Ring", emoji: "🌙", slot: "finger", craft: "fish", tier: 3, price: GEAR_PRICES.moonlit_ring, blurb: "By night, rare and nocturnal fish 25% likelier" },
-  golden_scale_ring: { name: "Golden Scale Ring", emoji: "🪙", slot: "finger", craft: "fish", tier: 4, price: GEAR_PRICES.golden_scale_ring, blurb: "+15% chance of a ★★★ fish, and every fish 15% heavier" },
-  lucky_bell: { name: "Finley's Lucky Bell", emoji: "🔔", slot: "charm", craft: "fish", tier: 5, price: GEAR_PRICES.lucky_bell, blurb: "Chimes 30 s before a King-Size Surge, and a surge's catches are King Size 5 in 10" },
+  sunburst_band: { name: "Sunburst River Band", emoji: "🌞", slot: "finger", disc: "fish", craft: "fish", tier: 1, price: GEAR_PRICES.sunburst_band, blurb: "By day, fish bite 20% sooner" },
+  wader_gloves: { name: "Neoprene Wader Gloves", emoji: "🧤", slot: "hands", disc: "fish", craft: "fish", tier: 1, price: GEAR_PRICES.wader_gloves, blurb: "The line's tension builds 20% slower while you reel" },
+  tackle_holster: { name: "Tackle Master's Holster", emoji: "🎒", slot: "waist", disc: "fish", craft: "fish", tier: 2, price: GEAR_PRICES.tackle_holster, blurb: "+4 livewell slots, and bait lasts 20% longer" },
+  moonlit_ring: { name: "Moonlit Abyssal Ring", emoji: "🌙", slot: "finger", disc: "fish", craft: "fish", tier: 3, price: GEAR_PRICES.moonlit_ring, blurb: "By night, rare and nocturnal fish 25% likelier" },
+  golden_scale_ring: { name: "Golden Scale Ring", emoji: "🪙", slot: "finger", disc: "fish", craft: "fish", tier: 4, price: GEAR_PRICES.golden_scale_ring, blurb: "+15% chance of a ★★★ fish, and every fish 15% heavier" },
+  lucky_bell: { name: "Finley's Lucky Bell", emoji: "🔔", slot: "charm", disc: "fish", craft: "fish", tier: 5, price: GEAR_PRICES.lucky_bell, blurb: "Chimes 30 s before a King-Size Surge, and a surge's catches are King Size 5 in 10" },
   // the workbench's relics (carved once: shared/crafting.ts), working while worn
-  carved_belt: { name: "Carved Lumberjack Belt", emoji: "🎗️", slot: "waist", craft: "bench", tier: 3, price: 0, blurb: "+8 carrier slots, and the splitting block's gauge runs 15% slower" },
-  deepriver_ring: { name: "Deepriver Fisherman Ring", emoji: "💍", slot: "finger", craft: "bench", tier: 3, price: 0, blurb: "+6 livewell slots" },
-  heartwood_compass: { name: "Heartwood Compass", emoji: "🧭", slot: "charm", craft: "bench", tier: 4, price: 0, blurb: "Pulses toward a standing Colossal tree (its name, its way and how far), and chimes when one rises" },
+  carved_belt: { name: "Carved Lumberjack Belt", emoji: "🎗️", slot: "waist", disc: "wood", craft: "bench", tier: 3, price: 0, blurb: "+8 carrier slots, and the splitting block's gauge runs 15% slower" },
+  deepriver_ring: { name: "Deepriver Fisherman Ring", emoji: "💍", slot: "finger", disc: "fish", craft: "bench", tier: 3, price: 0, blurb: "+6 livewell slots" },
+  heartwood_compass: { name: "Heartwood Compass", emoji: "🧭", slot: "charm", disc: "wood", craft: "bench", tier: 4, price: 0, blurb: "Pulses toward a standing Colossal tree (its name, its way and how far), and chimes when one rises" },
   // legacy relics: still working for whoever carved one; traded in for their materials
-  hook_charm: { name: "Otter-Carved Hook Charm", emoji: "🦦", slot: "charm", craft: "bench", tier: 2, price: 0, legacy: true, blurb: "On a legendary or mythic fish: the line holds 0.5 s longer before its tension climbs, and the green is 25% bigger" },
-  bark_bangle: { name: "Amber Bark Bangle", emoji: "📿", slot: "finger", craft: "bench", tier: 4, price: 0, legacy: true, blurb: "+20% by-products while felling: a round that drops a log sheds its tree's by-product too" },
+  hook_charm: { name: "Otter-Carved Hook Charm", emoji: "🦦", slot: "charm", disc: "fish", craft: "bench", tier: 2, price: 0, legacy: true, blurb: "On a legendary or mythic fish: the line holds 0.5 s longer before its tension climbs, and the green is 25% bigger" },
+  bark_bangle: { name: "Amber Bark Bangle", emoji: "📿", slot: "finger", disc: "wood", craft: "bench", tier: 4, price: 0, legacy: true, blurb: "+20% by-products while felling: a round that drops a log sheds its tree's by-product too" },
+  // the prospector's mining relics (forged once each at the Thermal Bellows Forge: shared/caverns_mining.ts FORGE_RELICS)
+  knuckle_guards: { name: "Tempered Knuckle Guards", emoji: "✊", slot: "hands", disc: "ore", craft: "forge", tier: 2, price: 0, blurb: "Your pickaxe swings 15% quicker" },
+  satchel_strap: { name: "Deepvein Satchel Strap", emoji: "🧷", slot: "waist", disc: "ore", craft: "forge", tier: 2, price: 0, blurb: "+4 satchel slots" },
+  hunter_ring: { name: "Geode Hunter's Ring", emoji: "🔶", slot: "finger", disc: "ore", craft: "forge", tier: 3, price: 0, blurb: "+10% chance of a Mystery Geode off every iron, silver and glimmer node" },
+  lodestone_pendant: { name: "Lodestone Pendant", emoji: "🧲", slot: "charm", disc: "ore", craft: "forge", tier: 4, price: 0, blurb: "The weak spot's sweet radius 20% wider" },
 };
 export const GEAR_IDS = Object.keys(GEAR) as GearId[];
 export function isGearId(v: unknown): v is GearId {
   return typeof v === "string" && v in GEAR;
 }
 /** One craft's gear, humblest first. */
-export const gearOf = (craft: "wood" | "fish" | "bench"): GearId[] => GEAR_IDS.filter((id) => GEAR[id].craft === craft).sort((a, b) => GEAR[a].tier - GEAR[b].tier || GEAR[a].price - GEAR[b].price);
+export const gearOf = (craft: "wood" | "fish" | "bench" | "forge"): GearId[] => GEAR_IDS.filter((id) => GEAR[id].craft === craft).sort((a, b) => GEAR[a].tier - GEAR[b].tier || GEAR[a].price - GEAR[b].price);
+/** One discipline's gear (its drawer's list), humblest first. */
+export const gearOfDiscipline = (disc: GearDiscipline): GearId[] => GEAR_IDS.filter((id) => GEAR[id].disc === disc).sort((a, b) => GEAR[a].tier - GEAR[b].tier || GEAR[a].price - GEAR[b].price);
 
 /** Putting a piece on: whatever it displaces comes off (the slot's one piece, or the oldest of two
  *  rings). Returns the new worn list (oldest first) and what came off. */
@@ -150,3 +169,12 @@ export const hasCompass = (worn: Worn) => on(worn, "heartwood_compass");
 export const hasLuckyBell = (worn: Worn) => on(worn, "lucky_bell");
 export const LUCKY_BELL_WARN_S = 30;
 export const LUCKY_BELL_KING = 0.5;
+/** The Tempered Knuckle Guards: the pickaxe's swing this much quicker (its time between strikes
+ *  divided by it). */
+export const swingHaste = (worn: Worn) => (on(worn, "knuckle_guards") ? 1.15 : 1);
+/** The Deepvein Satchel Strap: more satchel slots. */
+export const satchelBonus = (worn: Worn) => (on(worn, "satchel_strap") ? 4 : 0);
+/** The Geode Hunter's Ring: a Mystery Geode this much likelier off an iron, silver or glimmer node. */
+export const geodeFind = (worn: Worn) => (on(worn, "hunter_ring") ? 0.1 : 0);
+/** The Lodestone Pendant: the weak spot's sweet radius this much wider. */
+export const lodestoneSweet = (worn: Worn) => (on(worn, "lodestone_pendant") ? 0.2 : 0);

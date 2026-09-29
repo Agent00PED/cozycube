@@ -25,6 +25,13 @@
 //     the forge        an empty queue and tray
 //     (injected field by field only where missing: a profile that already has them keeps them)
 //
+//   v3 -> v4   (the Grand Karst rebuild and the storage rebalance)
+//     stone dust       Fine Stone Dust leaves the satchel for the crafting materials' store (every
+//                      grain of it: nothing is cut to the store's 99, the soft clamp keeps it)
+//     the capacities   carriers, livewells and satchels hold less now (a 5-10 minute outing each):
+//                      nothing is taken away; anything over its room stays, Overburdened (selling,
+//                      splitting, smelting and crafting work; gathering waits until it is back under)
+//
 // Each migration leaves a word in the profile's mail: told to the player the next time they come in.
 
 import { addLogs, BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "./chop";
@@ -34,7 +41,7 @@ import { GEAR } from "./gear";
 import { SATCHEL_TIERS } from "./satchel";
 
 /** The camp profile's schema now. */
-export const PROFILE_VERSION = 3;
+export const PROFILE_VERSION = 4;
 /** A letter in the profile's mail: at most this long (a longer one is cut short as it is read). */
 export const MAIL_MAX = 1200;
 
@@ -86,15 +93,33 @@ export function migratePlayerInventory(raw: unknown, p: FishingProfile): Fishing
   if (p.v >= PROFILE_VERSION) return p;
   const words: string[] = [];
   if (p.v < 2) migrateV2(p, words);
-  // v3: the Glimmering Caverns' fields, injected where the stored JSON has none
   const stored = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  for (const [k, v] of Object.entries(CAVERNS_DEFAULTS)) {
-    if (stored[k] === undefined) (p as unknown as Record<string, unknown>)[k] = JSON.parse(JSON.stringify(v));
+  if (p.v < 3) {
+    // v3: the Glimmering Caverns' fields, injected where the stored JSON has none
+    for (const [k, v] of Object.entries(CAVERNS_DEFAULTS)) {
+      if (stored[k] === undefined) (p as unknown as Record<string, unknown>)[k] = JSON.parse(JSON.stringify(v));
+    }
+    if (!p.caveAccess) words.push("⛏️ Word from the woods: an old badger with a lantern on his helmet has been seen by the Autumn Maples, on the Whispering Woods' western cliff. They say he guards a way down.");
   }
-  if (!p.caveAccess) words.push("⛏️ Word from the woods: an old badger with a lantern on his helmet has been seen by the Autumn Maples, on the Whispering Woods' western cliff. They say he guards a way down.");
+  if (p.v < 4) migrateV4(stored, p, words);
   if (words.length) p.mail = [...p.mail, ...words.map((w) => w.slice(0, MAIL_MAX))].slice(-8);
   p.v = PROFILE_VERSION;
   return p;
+}
+
+/** v3 -> v4: the stone dust out of the satchel into the materials' store (all of it), and a word on
+ *  the new capacities (nothing is taken: anything over its room stays, Overburdened). */
+function migrateV4(stored: Record<string, unknown>, p: FishingProfile, out: string[]) {
+  let dust = 0;
+  if (Array.isArray(stored.satchelContents)) {
+    for (const e of stored.satchelContents as Record<string, unknown>[]) if (e && e.id === "stone_dust") dust += Math.max(0, Math.round(Number(e.n) || 0));
+  }
+  if (dust > 0) p.byproducts.stoneDust = Math.min(9999, (p.byproducts.stoneDust ?? 0) + dust);
+  const played = p.creel.length > 0 || p.rods.length > 1 || p.axes.length > 1 || p.caveAccess || Object.values(p.wood).some((n) => n > 0);
+  if (!played && dust === 0) return;
+  out.push(
+    `🎒 Storage rebalance: the wood carriers hold 15 to 70 logs, the livewells 12 to 60 fish, and the satchel 2 to 20 slots of 10 (a 5-10 minute outing, then a trip to the stall). Nothing was taken: anything over its room stays with you, marked Overburdened, until you sell it down. Crafting materials (resin, sawdust, bark, scales, bones, stone dust...) have a store of their own now, 99 of each.${dust > 0 ? ` Your ${dust} Fine Stone Dust moved there from the satchel.` : ""}`
+  );
 }
 
 /** v0 / v1 -> v2: the ecosystem rebalance (the things made for good refunded, the legacy pieces kept

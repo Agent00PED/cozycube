@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 // mixer, a fader for each channel of a world's soundscape (at the campfire: the fire's crackle,
 // the river, and the forest's breeze and crickets; in the Whispering Woods the wind in the trees),
 // the casino's jazz and its crowd (the murmur, glasses and chips), the rain on the lounge's windows,
-// the Glimmering Caverns' three (its reverb and drips, its crystals' resonance, its onsen's steam),
+// the Glimmering Caverns' three (its reverb and drips, its crystals' resonance, its thermal terraces' steam),
 // and whether the little effects (a catch's chime, a chop, a pickaxe's clink) play. Kept in this
 // browser; a private window or blocked storage just starts from the defaults. A single Ambience level
 // saved before the mixer sets all three of the camp's faders.
@@ -22,7 +22,7 @@ export interface SoundSettings {
   forest: number;
   /** The Whispering Woods' wind in the trees, 0..1. */
   wind: number;
-  /** The Glimmering Caverns: the cavern's reverb and its drips, its crystals' resonance, the onsen's
+  /** The Glimmering Caverns: the cavern's reverb and its drips, its crystals' resonance, the thermal terraces'
    *  steam (audio/cavernAmbience.ts), 0..1 each. */
   cavern: number;
   crystal: number;

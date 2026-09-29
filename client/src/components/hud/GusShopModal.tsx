@@ -1,22 +1,23 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
 import { CAVERNS_CHANNELS, ORE_ITEMS, ORE_ITEM_IDS, PICKAXES, PICKAXES_BY_TIER, itemsOf, type CavernsResult, type OreCategory, type OreItemId } from "@shared/caverns_mining";
-import { SATCHEL_TIERS, nextSatchelTier, satchelCount, satchelCounts, satchelTier, slotsUsed } from "@shared/satchel";
+import { SATCHEL_TIERS, STACK_GEODE, STACK_ORE, nextSatchelTier, satchelCountFor, satchelCounts, satchelTier, slotsUsed } from "@shared/satchel";
 import { BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "@shared/chop";
-import { FISH, fishValue, type FishingProfile } from "@shared/fishing";
-import { fishGood, marketMultiplier, oreGood, parseMarket, priceRun } from "@shared/market";
+import { materialCount, type FishingProfile } from "@shared/fishing";
+import { BYPRODUCT_PRICES, MATERIAL_CAP } from "@shared/economy";
+import { marketMultiplier, oreGood, parseMarket, priceRun } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
-import { FishCard, FooterBook, MarketClock, PRICE_COLUMN, SellAllButton, ShopShell, TrendBadge, lockPacket, type ShopNotice, type ShopTab } from "./ShopShell";
+import { MarketClock, PRICE_COLUMN, SellAllButton, ShopShell, TrendBadge, type ShopNotice, type ShopTab } from "./ShopShell";
 
-// Gus the Mole's workshop in the Glimmering Caverns, on the shops' fixed-anchor counter (ShopShell).
-// He buys everything the caverns give (the raw ores, the forge's ingots, geodes as they are, the
-// anvil's cut gems) at the hour's market, and the Grotto Pool's fish (and the river's) as Barnaby
-// does; he sells the pickaxes (the Copper Pickaxe to the Deep Core Drill: the Rusted one is Old
-// Flint's) and the Prospector's Satchel's tiers, each for coins and a little of the other crafts'
-// makings (Sawdust, Pine Resin, bark, cedar logs, Titan Heartwood) and the caverns' own (ingots,
-// shards, fragments). The ores go on the caverns' channels (answered with cavernsResult); the fish
-// as BARNABY packets (the server knows it is Gus by where you stand: barnabyResult).
+// Gus the Mole's workstation on the Sunlit Doline, on the shops' fixed-anchor counter (ShopShell).
+// He buys everything the caverns give (the raw ores, the forge's ingots, Masterworks at their +25%,
+// geodes as they are, the anvil's cut gems) at the hour's market, and the Fine Stone Dust (at its
+// flat price: the materials' store, up to 99); the cenote's fish are Finnegan's to buy. He sells the
+// pickaxes (the Copper Pickaxe to the Deep Core Drill: the Rusted one is Old Flint's) and the
+// Prospector's Satchel's tiers, each for coins and a little of the other crafts' makings (Sawdust,
+// Pine Resin, bark, cedar logs, Titan Heartwood) and the caverns' own (ingots, shards, fragments). All
+// on the caverns' channels, answered with cavernsResult.
 
 const TABS: [ShopTab, string, string][] = [
   ["trade", "🪙", "Trade/Sell"],
@@ -54,8 +55,7 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
   const run = (ids: OreItemId[]) => priceRun(ids.flatMap((id) => Array.from({ length: counts[id] ?? 0 }, () => id)), oreGood, (id, mult) => Math.max(1, Math.round(ORE_ITEMS[id].price * mult)), hour);
   const catRun = (cat: OreCategory) => run(itemsOf(cat));
   const catCount = (cat: OreCategory) => itemsOf(cat).reduce((a, id) => a + (counts[id] ?? 0), 0);
-  const fish = profile.creel.map((f, slot) => ({ f, slot })).filter(({ f }) => !f.l);
-  const fishRun = priceRun(fish.map(({ f }) => f), (f) => fishGood(f.s), (f, mult) => fishValue(f, mult), hour);
+  const dust = materialCount(profile, "stoneDust");
   const held = ORE_ITEM_IDS.filter((id) => (counts[id] ?? 0) > 0);
   const next = nextSatchelTier(profile.satchelTier);
   return (
@@ -72,19 +72,14 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
           <SellAllButton label="⛏️ Sell All Ores" count={catCount("raw")} coins={catRun("raw").total} onClick={() => send(CAVERNS_CHANNELS.gus, { op: "sellCat", cat: "raw" })} />
           <SellAllButton label="🔥 Sell All Ingots" count={catCount("ingot")} coins={catRun("ingot").total} onClick={() => send(CAVERNS_CHANNELS.gus, { op: "sellCat", cat: "ingot" })} />
           <SellAllButton label="💎 Sell All Gems" count={catCount("gem")} coins={catRun("gem").total} onClick={() => send(CAVERNS_CHANNELS.gus, { op: "sellCat", cat: "gem" })} />
-          <SellAllButton label="🐟 Sell Unlocked Fish" count={fish.length} coins={fishRun.total} onClick={() => campfireSend({ type: "BARNABY", op: "sell", slot: "all" })} />
+          <SellAllButton label="🌫️ Sell Stone Dust" count={dust} coins={dust * BYPRODUCT_PRICES.stoneDust} onClick={() => send(CAVERNS_CHANNELS.gus, { op: "sellDust" })} />
         </div>
       }
-      footer={
-        <>
-          <MarketClock market={hour} goods={held.map(oreGood)} />
-          <FooterBook label="📖 Fish Collection" onClick={onOpenCollection} />
-        </>
-      }
+      footer={<MarketClock market={hour} goods={held.map(oreGood)} />}
     >
       {tab === "trade" && (
         <div className="flex flex-col gap-1.5">
-          {held.length === 0 && profile.creel.length === 0 && <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Bring me ore, friend! The terrace's seams, the wet cliffs' iron, the chasms' silver and glimmerstone: I buy the lot.</p>}
+          {held.length === 0 && dust === 0 && <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Bring me ore, friend! The doline's fallen rocks, the crystal fissures' iron, silver and glimmerstone: I buy the lot. The cenote's fish? Take those to Finnegan, down by the lake.</p>}
           {held.map((id) => {
             const item = ORE_ITEMS[id];
             const mult = marketMultiplier(oreGood(id), hour);
@@ -114,11 +109,24 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
               </div>
             );
           })}
-          {profile.creel.length > 0 && <b className="mt-1 text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Your livewell</b>}
-          {profile.creel.map((f, slot) => (
-            <FishCard key={`${slot}:${f.s}:${f.cm}`} fish={f} price={fishValue(f, marketMultiplier(fishGood(f.s), hour))} mult={marketMultiplier(fishGood(f.s), hour)} onToggleLock={() => campfireSend(lockPacket(f, slot))} onSell={() => campfireSend({ type: "BARNABY", op: "sell", slot })} />
-          ))}
-          {profile.creel.some((f) => FISH[f.s].water === "cavewater") && <p className="m-0 text-center text-[11px] opacity-70">The Grotto Pool's fish fetch a fine price: they only swim down here.</p>}
+          {dust > 0 && (
+            <div className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-1.5">
+              <span className="text-2xl">🌫️</span>
+              <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                <b className="truncate text-xs text-[#F7EBE1]">
+                  Fine Stone Dust{" "}
+                  <span className="font-normal opacity-70">
+                    ×{dust}/{MATERIAL_CAP}
+                  </span>
+                </b>
+                <span className="truncate text-[10px] opacity-70">{BYPRODUCTS.stoneDust.blurb}</span>
+              </div>
+              <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 flex-col justify-center gap-0 px-0 text-xs leading-none" style={PRICE_COLUMN} onClick={() => send(CAVERNS_CHANNELS.gus, { op: "sellDust" })} title={`${BYPRODUCT_PRICES.stoneDust} 🪙 each (a flat price)`}>
+                <span className="text-[9px] font-extrabold uppercase tracking-wider opacity-70">All</span>
+                <span className="whitespace-nowrap text-[12px]">{(dust * BYPRODUCT_PRICES.stoneDust).toLocaleString("en-US")} 🪙</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -160,7 +168,7 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
       {tab === "storage" && (
         <div className="flex flex-col gap-1.5">
           <p className="m-0 text-center text-[11px] opacity-75">
-            Your {satchelTier(profile.satchelTier).name}: {slotsUsed(profile.satchelContents)} of {satchelTier(profile.satchelTier).slots} slots used. Ores, ingots and gems stack 20 to a slot; an uncracked geode 5.
+            Your {satchelTier(profile.satchelTier).name}: {slotsUsed(profile.satchelContents)} of {satchelTier(profile.satchelTier).slots} slots used. Ores, ingots and gems stack {STACK_ORE} to a slot; an uncracked geode {STACK_GEODE}.
           </p>
           {SATCHEL_TIERS.map((t) => {
             const have = profile.satchelTier >= t.tier;
@@ -207,7 +215,7 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
 /** A satchel tier's makings, each with what you hold of it. */
 function needList(needs: (typeof SATCHEL_TIERS)[number]["needs"], p: FishingProfile) {
   const out: { label: string; have: number; need: number; ok: boolean }[] = [];
-  for (const [id, n] of Object.entries(needs.ore ?? {}) as [OreItemId, number][]) out.push({ label: ORE_ITEMS[id].name, have: satchelCount(p, id), need: n, ok: satchelCount(p, id) >= n });
+  for (const [id, n] of Object.entries(needs.ore ?? {}) as [OreItemId, number][]) out.push({ label: ORE_ITEMS[id].name, have: satchelCountFor(p, id), need: n, ok: satchelCountFor(p, id) >= n });
   if (needs.sawdust) out.push({ label: "Sawdust", have: p.sawdust, need: needs.sawdust, ok: p.sawdust >= needs.sawdust });
   if (needs.resin) out.push({ label: "Pine Resin", have: p.resin, need: needs.resin, ok: p.resin >= needs.resin });
   for (const [k, n] of Object.entries(needs.byproducts ?? {}) as [ByproductId, number][]) out.push({ label: BYPRODUCTS[k].name, have: p.byproducts[k] ?? 0, need: n, ok: (p.byproducts[k] ?? 0) >= n });

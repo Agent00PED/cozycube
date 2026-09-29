@@ -2,6 +2,7 @@ import { WORLDS, WORLD_IDS } from "@shared/worlds";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, isCampMap, isCasinoMap, isCavernsMap, isGatheringMap, type MapId, type TimeOfDay, type Weather } from "@shared/types";
 import { satchelCap, slotsUsed } from "@shared/satchel";
+import { satchelBonus } from "@shared/gear";
 import { isCampDay, minutesToTurn } from "@shared/daynight";
 import { netWorth } from "@shared/casino";
 import { useAnimatedNumber } from "./useAnimatedNumber";
@@ -16,7 +17,7 @@ export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: st
   ...(Object.fromEntries(WORLD_IDS.map((id) => [WORLDS[id].mapId, { icon: WORLDS[id].icon, name: WORLDS[id].name, tagline: WORLDS[id].tagline }])) as Record<MapId, { icon: string; name: string; tagline: string }>),
   casino_vip: { icon: "🥂", name: "Velvet Penthouse", tagline: "High-limit poker, baccarat and the Golden Vault" },
   whispering_woods: { icon: "🌲", name: "Whispering Woods", tagline: "Felling, the winding river, and Bramble the Bear" },
-  glimmering_caverns: { icon: "💎", name: "Glimmering Caverns", tagline: "Prospecting, the Ancient Forge, and the Grotto Pool's glowing fish" },
+  glimmering_caverns: { icon: "💎", name: "Glimmering Caverns", tagline: "The Grand Karst: prospecting, the bellows forge, and the cenote's glowing fish" },
 };
 
 interface HeaderProps {
@@ -184,12 +185,13 @@ export function Header(p: HeaderProps) {
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "carrier", propId: "carrier" } }))}
               className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-              title={`Wood carrier (B): ${carrierLoad(angler.profile)} of ${carrierCap(angler.profile)} slots`}
+              title={carrierLoad(angler.profile) > carrierCap(angler.profile) ? `Wood carrier (B): overburdened, ${carrierLoad(angler.profile)} of ${carrierCap(angler.profile)}: everything is kept, but no felling until you're back under` : `Wood carrier (B): ${carrierLoad(angler.profile)} of ${carrierCap(angler.profile)} slots`}
               aria-label="Wood carrier"
               aria-haspopup="dialog"
             >
               <span className={ICON}>🪵</span>
               <span className={`font-bold tabular-nums ${carrierLoad(angler.profile) >= carrierCap(angler.profile) ? "text-rose-200" : "text-amber-100"}`}>
+                {carrierLoad(angler.profile) > carrierCap(angler.profile) ? "⚠️" : ""}
                 {carrierLoad(angler.profile)}/{carrierCap(angler.profile)}
               </span>
             </button>
@@ -197,12 +199,13 @@ export function Header(p: HeaderProps) {
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "livewell", propId: "livewell" } }))}
               className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-              title={`Livewell (B): ${angler.profile.creel.length} of ${livewellCap(angler.profile)} fish`}
+              title={angler.profile.creel.length > livewellCap(angler.profile) ? `Livewell (B): overburdened, ${angler.profile.creel.length} of ${livewellCap(angler.profile)}: every fish is kept, but none bite until you're back under` : `Livewell (B): ${angler.profile.creel.length} of ${livewellCap(angler.profile)} fish`}
               aria-label="Livewell"
               aria-haspopup="dialog"
             >
               <span className={ICON}>🪣</span>
               <span className={`font-bold tabular-nums ${angler.profile.creel.length >= livewellCap(angler.profile) ? "text-amber-300" : "text-sky-100"}`}>
+                {angler.profile.creel.length > livewellCap(angler.profile) ? "⚠️" : ""}
                 {angler.profile.creel.length}/{livewellCap(angler.profile)}
               </span>
             </button>
@@ -211,13 +214,18 @@ export function Header(p: HeaderProps) {
                 type="button"
                 onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "satchel", propId: "satchel" } }))}
                 className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-                title={`Ore satchel (B): ${slotsUsed(angler.profile.satchelContents)} of ${satchelCap(angler.profile)} slots`}
+                title={
+                  slotsUsed(angler.profile.satchelContents) > satchelCap(angler.profile, satchelBonus(angler.profile.worn))
+                    ? `Ore satchel (B): overburdened, ${slotsUsed(angler.profile.satchelContents)} of ${satchelCap(angler.profile, satchelBonus(angler.profile.worn))} slots: everything is kept, but no mining until you're back under`
+                    : `Ore satchel (B): ${slotsUsed(angler.profile.satchelContents)} of ${satchelCap(angler.profile, satchelBonus(angler.profile.worn))} slots${satchelBonus(angler.profile.worn) ? ` (+${satchelBonus(angler.profile.worn)} from your strap)` : ""}`
+                }
                 aria-label="Ore satchel"
                 aria-haspopup="dialog"
               >
                 <span className={ICON}>⛏️</span>
-                <span className={`font-bold tabular-nums ${slotsUsed(angler.profile.satchelContents) >= satchelCap(angler.profile) ? "text-rose-200" : "text-cyan-100"}`}>
-                  {slotsUsed(angler.profile.satchelContents)}/{satchelCap(angler.profile)}
+                <span className={`font-bold tabular-nums ${slotsUsed(angler.profile.satchelContents) >= satchelCap(angler.profile, satchelBonus(angler.profile.worn)) ? "text-rose-200" : "text-cyan-100"}`}>
+                  {slotsUsed(angler.profile.satchelContents) > satchelCap(angler.profile, satchelBonus(angler.profile.worn)) ? "⚠️" : ""}
+                  {slotsUsed(angler.profile.satchelContents)}/{satchelCap(angler.profile, satchelBonus(angler.profile.worn))}
                 </span>
               </button>
             )}

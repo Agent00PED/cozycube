@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.6",
+    range: "v0.7.0–v0.7.7",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -921,6 +921,43 @@ export const PATCH_ERAS: PatchEra[] = [
           fixes: [
             "Every saved profile gets an empty satchel, the Rusted Pickaxe slot and the caverns' fields, and a letter tells you where to find Old Flint.",
             "Leaving mid-soak frees your onsen seat at once, and you're set down on the dry side of the rim.",
+          ],
+        },
+      },
+      {
+        version: "0.7.7",
+        date: "2026-09-29",
+        title: "The Grand Karst",
+        summary: "The Glimmering Caverns are rebuilt from the ground up as a vast karst sanctuary: a sunlit doline, a cenote lake, travertine terraces and crystal fissures. The forge and the anvil become hands-on minigames, every store is rebalanced, and the market moves more each hour.",
+        changes: {
+          features: [
+            "The caverns are now a 45 by 45 metre karst. The Sunlit Doline at the top of the ramp holds Gus's log workstation, the Thermal Bellows Forge in a basalt fissure, the meteorite anvil and the copper and coal. Down the ramp is the Abyssal Cenote Lake with its sandy beach, a limestone islet under a skylight and a driftwood fishing outcrop. The Travertine Terraces step down the west cliff, and the Deep Crystal Fissures on either side hold the iron, silver and glimmerstone.",
+            "Finnegan the Grotto Angler sits on his driftwood crate by the cenote. He buys your catch, sells every rod, livewell and bait pack, and in his new Barter tab trades advanced tackle for coins, ingots and the river's materials: the Silverline Spinner, the Cenote Glow Lure and the Abyssal Swivel.",
+            "The Thermal Bellows Forge: pick 1, 3 or 5 ingots, then pump the bellows (hold or tap) to keep the furnace inside the drifting Optimal Temperature band for four seconds. After that, strike the glowing ingot twice as the sparks burst. Get both right and the whole batch comes out Masterwork, worth 25% more. Quick Smelt All still makes plain ingots on the forge's own clock.",
+            "The Geode Chisel: turn the geode in your hands (drag, swipe or use the arrow keys) until its glowing seam faces you and the chime rings. Then raise the mallet and let go at the right power: 65 to 80% is a perfect cleavage, under 40% the chisel rings off, and over 85% the core crumbles into Fine Stone Dust.",
+            "Four mining relics are forged at the forge: the Tempered Knuckle Guards, the Deepvein Satchel Strap, the Geode Hunter's Ring and the Lodestone Pendant.",
+            "Three brews are made right in the drawers: Feller's Pine Pitch (more logs), Phosphor Glow Bait (rarer fish by night and underground) and Miner's Stout (harder pickaxe strikes). Your buffs now show as countdown pills in the top-left corner on every map. Using the same one again refreshes its clock and never stacks it.",
+            "Each drawer's gear tab shows only its own discipline: the Forester's, the Angler's, or the Miner's pickaxes and relics.",
+            "The Travertine Terraces have six warm-pool seats. Soak for 60 seconds for the Deep Warmth, and you're set down on the dry landing when you get up.",
+          ],
+          visuals: [
+            "Godrays pour down through the doline's broken ceiling and the islet's skylight, with dust drifting in them. Caustics dance on the cenote's bed, and the terraces steam.",
+            "A broken node leaves a dark, cracked stump with dust hanging over it until it grows back.",
+            "The cave fish's fins glow when they're revealed on the stand.",
+            "In the Whispering Woods, the dirt road to the adit is gone. The old mine's mouth is set deeper into a cliff alcove behind the maples, with grass, fallen leaves and stones in front of it. Old Flint leans on its post with his brass lantern lit.",
+            "The Velvet Penthouse's blackjack and baccarat tables move further apart, leaving a wide ring around the champagne tower and a broader promenade.",
+            "The caverns' Onsen Steam slider is now called Thermal Steam.",
+          ],
+          economy: [
+            "Storage rebalance. Wood carriers hold 15, 25, 40, 55 and 70 logs, and livewells hold 12, 20, 32, 45 and 60 fish. The ore satchel stacks 10 to a slot (5 for geodes), from 2 slots in your coat pockets up to 20.",
+            "By-products, resin, sawdust, fish scales and bones, and stone dust now go in a store of their own, up to 99 of each kind.",
+            "Nothing you already carry is ever taken away. If a store holds more than its new size, you can still sell, smelt and craft from it, but gathering into it waits until you're back under.",
+            "The market moves more: each good drifts 10 to 25% up or down every hour, heavy selling can knock up to 30% off, and unsold goods recover. The chalkboards show it as +18% ▲, 0% ▬ or −15% ▼.",
+            "The cenote now holds eleven cave fish, from Common to Epic to Mythic, with Gus's fish trade moving to Finnegan. Gus buys Fine Stone Dust instead.",
+          ],
+          fixes: [
+            "A full livewell during AFK fishing now reels in, leaves AFK, chimes, and shows a 🪣 Full! sign over your head.",
+            "Your saved satchel's stone dust moves into the new materials store, and a letter explains the storage changes.",
           ],
         },
       },

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { BYPRODUCTS, TREES, WOOD, type TreeKind } from "@shared/chop";
-import { FISH, TIER_COLOR, TIER_LABEL, isKingSize, type FishId, type FishingProfile } from "@shared/fishing";
+import { FISH, TIER_COLOR, TIER_LABEL, gradeOf, isKingSize, type FishId, type FishingProfile } from "@shared/fishing";
 import { Modal } from "./Modal";
 
 // The Logbook, opened from the resource drawers: the Fish Collection (from the livewell: the
-// freshwater fish by day and by night, the Glimmering Caverns' Grotto Pool on a page of its own, a
+// freshwater fish by day and by night, the Glimmering Caverns' cenote on a page of its own, a
 // dark silhouette until you catch one, a gold crown on a King Size record, and the Ocean's page
 // locked until the beach opens) or the Timber Collection (from the
 // wood carrier: every tree kind's lore, the widest trunk you have felled, how many, the most one of
@@ -59,8 +59,8 @@ export function LogbookModal({ mode, profile, onClose }: { mode: "fish" | "timbe
                     {sp.emoji}
                   </span>
                   <b className="w-full truncate text-[10px] text-[#F7EBE1]">{n ? sp.name : "???"}</b>
-                  <span className="text-[9px] font-bold" style={{ color: TIER_COLOR[sp.tier] }}>
-                    {TIER_LABEL[sp.tier]}
+                  <span className="text-[9px] font-bold" style={{ color: TIER_COLOR[gradeOf(id)] }}>
+                    {TIER_LABEL[gradeOf(id)]}
                     {"rapids" in sp && sp.rapids ? " · woods" : ""}
                   </span>
                   {n > 0 && (

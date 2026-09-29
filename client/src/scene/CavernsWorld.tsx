@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState } from "@shared/types";
-import { CAVE_LIGHTS, CAVE_POOL, CAVERNS_LAYOUT as L, GUS, ONSEN, ORE_NODES, ORE_NODE_AT, STAIRS, TERRACE, type OreNode } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE, DOLINE_BEAMS, FINNEGAN, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, type OreNode } from "@shared/worlds/caverns";
 import { ORE_ITEMS, ORE_KINDS, ORE_KIND_IDS, oreCenterY, parseOres, type CaveLoot, type CaveShatter, type CaveStrike, type OreKind, type OreItemId } from "@shared/caverns_mining";
 import { DRIP_S, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -18,62 +18,40 @@ import { ProspectingView } from "./ProspectingView";
 import { NODE_YAW } from "./caveNodes";
 import { playCaveSfx } from "../audio/cavernAmbience";
 
-// The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit. The
-// cavern is one Blender model, caverns.glb (scripts/blender/build_caverns.py, laid out from
-// shared/worlds/caverns.ts): this file loads it and brings it to life.
+// The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: the
+// Grand Karst Sanctuary, 45 x 45. The cavern is one Blender model, caverns.glb
+// (scripts/blender/build_caverns.py, laid out from shared/worlds/caverns.ts): this file loads it and
+// brings it to life.
 //
-//   the finishes  the rock and the shell as painted (the light baked into their vertex colours);
-//                 what glows (crystals, mushrooms, lanterns, the forge's mouth, the runes) a
-//                 MeshStandardMaterial whose emission is its own vertex colour, breathing; the Grotto
-//                 Pool's and the onsen's water see-through with no depth write (nothing z-fights
-//                 under it); the overhang, its stalactites and the shoring dithered away when they
-//                 stand between you and the camera, and the overhang over the Grotto Pool veiled whole
-//                 (a 30% screen door) while you are down in the grotto under it, so the pool, the
-//                 pier and its anglers show
-//   the lights    only three move: the forge's (flickering), the onsen's, the pool's heart (pulsing)
+//   the floor     one invisible heightfield over the whole cavern, from the same cavernsFloorY the
+//                 room walks you on (the doline's plateau, its ramp, the beach, the islet): a click
+//                 lands where you see it
+//   the finishes  the rock and the shell as painted (the light baked into their vertex colours), the
+//                 lake's bed lit by moving caustics (brightest under the islet's skylight); what glows
+//                 (crystals, mushrooms, lanterns, the forge's mouth) a MeshStandardMaterial whose
+//                 emission is its own vertex colour, breathing; the cenote's and the terraces' water
+//                 see-through with no depth write (nothing z-fights under it); the mangrove roots and
+//                 the skylight's rim dithered to 30% where they stand between you and the camera
+//   the light     the doline's godrays and the skylight's shaft (additive, soft-edged, dust drifting
+//                 in them); only three point lights, all moving: the forge's (flickering), the
+//                 terraces' (warm), the cenote's heart (pulsing)
 //   the nodes     every ore node from its kind's rock (the model's Ore_<kind>), instanced: its damage
 //                 the room's (`ores`): surface fissures glowing in, then the outer shell fracturing
-//                 (a tremble), then the shatter (a burst of shards); a broken node leaves rubble until
-//                 it grows back; each strike throws sparks where it landed; the loot flies to you
-//   Gus           the mole behind his workshop's counter (gus.glb)
-//   the onsen     steam curling off it
-//   the drip      a lucky drip's cyan ripple on the Grotto Pool (the fishing's luck)
+//                 (a tremble), then the shatter (a burst of shards); a broken node leaves a dark
+//                 cracked stump with dust motes over it until it grows back; each strike throws sparks
+//                 where it landed; the loot flies to you
+//   the folk      Gus the mole at his log workstation (gus.glb), Finnegan the Grotto Angler on his
+//                 driftwood crate by the outcrop (finnegan.glb)
+//   the terraces  steam curling off their pools
+//   the drip      a lucky drip's cyan ripple on the cenote (the fishing's luck)
 
 export const CAVERNS_URL = modelUrl("caverns.glb");
 export const GUS_URL = modelUrl("gus.glb");
+export const FINNEGAN_URL = modelUrl("finnegan.glb");
 
 const TIME = { value: 0 };
 const CAVE_DARK = new THREE.Color("#07060c");
 const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
-
-// The overhang's veil: 0 (the roof whole) .. 1 (a 30% screen door over all of it), eased as you come
-// down into the grotto under it (VEIL_ZONE) and leave it. Only the overhang's own footprint is
-// veiled (the shoring elsewhere shares its finish): it reads the world position the occlusion
-// dither's patch passes down (ditherOccluder, applied with it).
-const VEIL = { value: 0 };
-const VEIL_S = 0.4;
-const VEIL_KEEP = 0.3;
-const OV = L.overhang;
-const VEIL_ZONE = { x0: OV.x0 - 3, x1: OV.x1 + 1, z0: OV.z0 - 3.5, z1: OV.z1 + 2 };
-function veilOverhang(m: THREE.Material) {
-  if (m.userData.caveVeil) return;
-  m.userData.caveVeil = true;
-  const prev = m.onBeforeCompile;
-  m.onBeforeCompile = (shader, renderer) => {
-    prev.call(m, shader, renderer);
-    shader.uniforms.uCaveVeil = VEIL;
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uCaveVeil;").replace(
-      "#include <clipping_planes_fragment>",
-      `#include <clipping_planes_fragment>
-      if (uCaveVeil > 0.001 && vOccWorld.x > ${(OV.x0 - 0.6).toFixed(2)} && vOccWorld.x < ${(OV.x1 + 0.6).toFixed(2)} && vOccWorld.z > ${(OV.z0 - 0.6).toFixed(2)} && vOccWorld.z < ${(OV.z1 + 0.6).toFixed(2)}) {
-        const float VEIL_BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
-        int veilI = int(mod(gl_FragCoord.x, 4.0)) + int(mod(gl_FragCoord.y, 4.0)) * 4;
-        if ((VEIL_BAYER[veilI] + 0.5) / 16.0 > mix(1.0, ${VEIL_KEEP.toFixed(2)}, uCaveVeil)) discard;
-      }`
-    );
-  };
-  m.needsUpdate = true;
-}
 
 /** A glowing finish: its emission is its own vertex colour (times `strength`), breathing a little. */
 function glowFromVertexColour(m: THREE.MeshStandardMaterial, strength: number) {
@@ -97,7 +75,46 @@ function glowFromVertexColour(m: THREE.MeshStandardMaterial, strength: number) {
   m.needsUpdate = true;
 }
 
-/** The water: see-through, no depth write (the bowl under it never fights it), a slow shimmer. */
+/** The caustics' pattern (GLSL): bright thin lines where a warped grid folds, drifting with time. */
+const CAUSTIC_GLSL = `
+float caveCaustic(vec2 p, float t) {
+  vec2 q = p * 1.9;
+  for (int i = 0; i < 3; i++) {
+    float k = float(i);
+    q += vec2(sin(q.y * 1.7 + t * 0.9 + k), cos(q.x * 1.5 - t * 0.8 + k * 1.3)) * 0.45;
+  }
+  float v = sin(q.x) * sin(q.y);
+  return 1.0 - smoothstep(0.0, 0.2, abs(v));
+}`;
+
+/** The rock's finish, and the cenote's bed lit from above through the water: caustics dancing on
+ *  whatever lies under the lake's surface (strongest in the shallows and under the skylight). */
+function causticBed(m: THREE.MeshStandardMaterial) {
+  if (m.userData.caveCaustic) return;
+  m.userData.caveCaustic = true;
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = TIME;
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vBedPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvBedPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `#include <common>\nvarying vec3 vBedPos;\nuniform float uTime;\n${CAUSTIC_GLSL}`).replace(
+      "#include <emissivemap_fragment>",
+      `#include <emissivemap_fragment>
+      {
+        vec2 lk = (vBedPos.xz - vec2(${CAVE_LAKE.x.toFixed(2)}, ${CAVE_LAKE.z.toFixed(2)})) / vec2(${CAVE_LAKE.rx.toFixed(2)}, ${CAVE_LAKE.rz.toFixed(2)});
+        float inLake = 1.0 - smoothstep(0.98, 1.12, length(lk));
+        float under = ${CAVE_WATER_Y.toFixed(3)} - vBedPos.y;
+        float depth = smoothstep(0.01, 0.12, under) * (1.0 - smoothstep(1.4, 2.8, under));
+        float sky = exp(-pow(length(vBedPos.xz - vec2(${CAVE_SKYLIGHT.x.toFixed(2)}, ${CAVE_SKYLIGHT.z.toFixed(2)})) / ${(CAVE_SKYLIGHT.r * 1.6).toFixed(2)}, 2.0));
+        float c = caveCaustic(vBedPos.xz, uTime) * 0.7 + caveCaustic(vBedPos.xz * 1.7 + 3.1, uTime * 1.3) * 0.4;
+        totalEmissiveRadiance += vec3(0.32, 0.86, 1.0) * c * inLake * depth * (0.22 + 0.55 * sky);
+      }`
+    );
+  };
+  m.customProgramCacheKey = () => "cave-caustic-bed";
+  m.needsUpdate = true;
+}
+
+/** The water: see-through, no depth write (the bed under it never fights it), a slow shimmer and the
+ *  sun's glints tracking the caustics below. */
 function stillWater(m: THREE.MeshStandardMaterial, opacity: number) {
   if (m.userData.caveWater) return;
   m.userData.caveWater = true;
@@ -108,16 +125,32 @@ function stillWater(m: THREE.MeshStandardMaterial, opacity: number) {
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = TIME;
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWaterPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvWaterPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vWaterPos;\nuniform float uTime;").replace(
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `#include <common>\nvarying vec3 vWaterPos;\nuniform float uTime;\n${CAUSTIC_GLSL}`).replace(
       "#include <color_fragment>",
       `#include <color_fragment>
       float wv = sin(vWaterPos.x * 3.1 + uTime * 0.9) * sin(vWaterPos.z * 2.7 - uTime * 0.7);
       diffuseColor.rgb *= 0.92 + 0.14 * wv;
-      diffuseColor.rgb += vec3(0.0, 0.08, 0.1) * smoothstep(0.6, 1.0, wv);`
+      diffuseColor.rgb += vec3(0.0, 0.08, 0.1) * smoothstep(0.6, 1.0, wv);
+      diffuseColor.rgb += vec3(0.12, 0.2, 0.22) * caveCaustic(vWaterPos.xz * 0.8 + 1.7, uTime * 0.7);`
     );
   };
   m.customProgramCacheKey = () => `cave-water-${opacity}`;
   m.needsUpdate = true;
+}
+
+/** The whole cavern's floor as one invisible heightfield (a cell every 0.6 m), from the room's own
+ *  floor: a click on the plateau, the ramp, the beach or the islet lands where it shows. */
+function floorGeometry(): THREE.BufferGeometry {
+  const half = L.half;
+  const n = Math.round((half * 2) / 0.6);
+  const geo = new THREE.PlaneGeometry(half * 2, half * 2, n, n);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) pos.setY(i, cavernsFloorY(pos.getX(i), pos.getZ(i)) + 0.02);
+  pos.needsUpdate = true;
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return geo;
 }
 
 interface CavernsWorldProps {
@@ -136,7 +169,15 @@ const GUS_TALK: NpcTalk = {
   clicked: ["Ore, ingots, geodes, gems: Gus buys the lot!", "Mind the Monolith when it wakes. Takes a crew to crack it", "A good pickaxe is half the work, friend", "Smelt your copper before you sell it: every bit counts"],
   greet: {
     inside: (x, z) => Math.hypot(x - GUS.x, z - GUS.z) < 3.4,
-    lines: ["Welcome to the Glimmering Caverns!", "Mind your head, the ceiling's low in places", "Fresh from the rock? Let's see what you've got", "The forge is hot and the anvil's ready"],
+    lines: ["Welcome to the Sunlit Doline!", "The sun only reaches this far down at the doline", "Fresh from the rock? Let's see what you've got", "The forge is hot and the anvil's ready"],
+  },
+};
+const FINNEGAN_TALK: NpcTalk = {
+  height: 1.25,
+  clicked: ["The cenote's fish glow, friend. Mind the drip", "A silver spinner for the patient angler", "Fish bones and prismatic scales: that's the currency down here", "The elder olm's been in this lake longer than the cavern"],
+  greet: {
+    inside: (x, z) => Math.hypot(x - FINNEGAN.x, z - FINNEGAN.z) < 3.6,
+    lines: ["Ahoy up there!", "Come, sit a while, the fish are biting", "The lake's still as glass today", "Got anything glowing in that livewell?"],
   },
 };
 
@@ -148,9 +189,6 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
   };
   useFrame((_, dt) => {
     TIME.value += dt;
-    // down in the grotto under the overhang: veil it
-    const under = cameraFocus.z > TERRACE.edge && cameraFocus.x >= VEIL_ZONE.x0 && cameraFocus.x <= VEIL_ZONE.x1 && cameraFocus.z >= VEIL_ZONE.z0 && cameraFocus.z <= VEIL_ZONE.z1;
-    VEIL.value = under ? Math.min(1, VEIL.value + dt / VEIL_S) : Math.max(0, VEIL.value - dt / VEIL_S);
   });
   // the dark round the shell (no sky down here): the scene's own background while you are here
   const scene = useThree((s) => s.scene);
@@ -161,24 +199,22 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       scene.background = before;
     };
   }, [scene]);
-  const half = L.half;
-  const edge = TERRACE.edge;
-  const run = STAIRS.foot - STAIRS.top;
-  const slope = Math.atan2(TERRACE.y, run);
+  const floor = useMemo(floorGeometry, []);
+  useEffect(() => () => floor.dispose(), [floor]);
   return (
     <group>
-      {/* the floors' click planes: the terrace up the cliff, the basin, and the stair's ramp */}
-      <mesh geometry={GEO.plane} material={CLICK_MAT} rotation={[-Math.PI / 2, 0, 0]} position={[0, TERRACE.y + 0.02, (-half + edge) / 2]} scale={[half * 2, edge + half, 1]} onPointerDown={floorClick} />
-      <mesh geometry={GEO.plane} material={CLICK_MAT} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, (edge + half) / 2]} scale={[half * 2, half - edge, 1]} onPointerDown={floorClick} />
-      <mesh geometry={GEO.plane} material={CLICK_MAT} rotation={[-Math.PI / 2 + slope, 0, 0]} position={[(STAIRS.x0 + STAIRS.x1) / 2, TERRACE.y / 2 + 0.03, (STAIRS.top + STAIRS.foot) / 2]} scale={[STAIRS.x1 - STAIRS.x0, Math.hypot(run, TERRACE.y), 1]} onPointerDown={floorClick} />
+      {/* the floor's click surface: the doline, its ramp, the shore, the islet */}
+      <mesh geometry={floor} material={CLICK_MAT} onPointerDown={floorClick} />
       <ModelBoundary what="caverns.glb" fallback={<StandIn />}>
         <Suspense fallback={<StandIn />}>
           <CavernModel ores={ores} subscribeMessages={subscribeMessages} players={players} localSessionId={localSessionId} onStrike={onStrike} />
         </Suspense>
       </ModelBoundary>
-      <CampNpc url={GUS_URL} what="gus.glb" prefix="Gus" at={{ x: GUS.x, z: GUS.z, yaw: GUS.yaw }} y={TERRACE.y} waveEvent="gusWave" standIn={<GusStandIn />} subscribeMessages={subscribeMessages} talk={GUS_TALK} />
+      <CampNpc url={GUS_URL} what="gus.glb" prefix="Gus" at={{ x: GUS.x, z: GUS.z, yaw: GUS.yaw }} y={cavernsFloorY(GUS.x, GUS.z)} waveEvent="gusWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={GUS_TALK} />
+      <CampNpc url={FINNEGAN_URL} what="finnegan.glb" prefix="Finnegan" at={{ x: FINNEGAN.x, z: FINNEGAN.z, yaw: FINNEGAN.yaw }} y={cavernsFloorY(FINNEGAN.x, FINNEGAN.z)} waveEvent="finneganWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={FINNEGAN_TALK} />
       <CaveLights />
-      <OnsenSteam />
+      <Godrays />
+      <ThermalSteam />
       <DripRipples subscribeMessages={subscribeMessages} />
       <OcclusionDriver />
     </group>
@@ -188,16 +224,17 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
 const STAND_IN_TOP = matte("#3d4556", 0.9);
 const STAND_IN_SIDE = matte("#241f26", 0.9);
 function StandIn() {
+  const d = DOLINE;
   return (
     <group>
       <mesh geometry={GEO.box} material={STAND_IN_SIDE} position={[0, -0.6, 0]} scale={[L.half * 2, 1.2, L.half * 2]} raycast={noRaycast} />
-      <mesh geometry={GEO.box} material={STAND_IN_TOP} position={[0, TERRACE.y / 2, (-L.half + TERRACE.edge) / 2]} scale={[L.half * 2, TERRACE.y, TERRACE.edge + L.half]} raycast={noRaycast} />
+      <mesh geometry={GEO.box} material={STAND_IN_TOP} position={[(d.x0 + d.x1) / 2, d.y / 2, (d.z0 + d.z1) / 2]} scale={[d.x1 - d.x0, d.y, d.z1 - d.z0]} raycast={noRaycast} />
     </group>
   );
 }
-const GUS_STAND_IN = matte("#4a4550", 0.85);
-function GusStandIn() {
-  return <mesh geometry={GEO.box} material={GUS_STAND_IN} position={[0, 0.55, 0]} scale={[0.6, 1.1, 0.5]} raycast={noRaycast} />;
+const NPC_STAND_IN = matte("#4a4550", 0.85);
+function NpcStandIn() {
+  return <mesh geometry={GEO.box} material={NPC_STAND_IN} position={[0, 0.55, 0]} scale={[0.6, 1.1, 0.5]} raycast={noRaycast} />;
 }
 
 function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrike }: { ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; players: Record<string, PlayerState>; localSessionId: string | null; onStrike: CavernsWorldProps["onStrike"] }) {
@@ -212,13 +249,10 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       const m = mesh.material as THREE.MeshStandardMaterial;
       if (m.name === "CV_Glow") glowFromVertexColour(m, 1.25);
       else if (m.name === "CV_OreGlow") glowFromVertexColour(m, 1.4);
-      else if (m.name === "CV_Water") stillWater(m, 0.74);
-      else if (m.name === "CV_OnsenWater") stillWater(m, 0.62);
-      else if (m.name === "CV_Occluder") {
-        // (the veil first: the dither's patch, chained after it, sets its program's cache key)
-        veilOverhang(m);
-        ditherOccluder(m);
-      }
+      else if (m.name === "CV_Water") stillWater(m, 0.66);
+      else if (m.name === "CV_ThermalWater") stillWater(m, 0.62);
+      else if (m.name === "CV_Clay") causticBed(m);
+      else if (m.name === "CV_Occluder") ditherOccluder(m);
     });
     for (const kind of [...ORE_KIND_IDS, "rubble"] as const) {
       const rock = scene.getObjectByName(kind === "rubble" ? "Ore_Rubble" : `Ore_${kind}`) as THREE.Mesh | undefined;
@@ -280,6 +314,9 @@ interface NodeLook {
   shakeUntil: number;
 }
 
+
+const DUST_PER_STUMP = 6;
+const STUMP_DUST = new THREE.Color("#b8a58c");
 
 type Templates = Partial<Record<OreKind | "rubble", { rock: THREE.Mesh; glow: THREE.Mesh | null }>>;
 
@@ -345,6 +382,10 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
   // the sparks, the shards and the loot: one pool of little glowing pieces
   const fx = useMemo(() => new FxPool(160), []);
   useEffect(() => () => fx.dispose(), [fx]);
+  // the dust lingering over a broken node's stump till it grows back
+  const dust = useMemo(() => new MotePoints(ORE_NODES.length * DUST_PER_STUMP), []);
+  const dustSeeds = useMemo(() => ORE_NODES.flatMap(() => Array.from({ length: DUST_PER_STUMP }, () => ({ a: Math.random() * Math.PI * 2, r: 0.15 + Math.random() * 0.45, p: Math.random(), s: 0.5 + Math.random() * 0.6 }))), []);
+  useEffect(() => () => dust.dispose(), [dust]);
   const live = useRef({ players, localSessionId });
   live.current = { players, localSessionId };
   useEffect(
@@ -430,6 +471,23 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
       });
       rubble.instanceMatrix.needsUpdate = true;
     }
+    const t = now / 1000;
+    ORE_NODES.forEach((n, i) => {
+      const up = looks.current.get(n.id)?.up ?? true;
+      const span = ORE_KINDS[n.kind].radius / 0.42;
+      for (let j = 0; j < DUST_PER_STUMP; j++) {
+        const k = i * DUST_PER_STUMP + j;
+        if (up) {
+          dust.hide(k);
+          continue;
+        }
+        const sd = dustSeeds[k];
+        const rise = (((sd.p + t * 0.08 * sd.s) % 1) + 1) % 1;
+        const a = sd.a + t * 0.4 * sd.s;
+        dust.set(k, n.x + Math.cos(a) * sd.r * span, n.y + 0.15 + rise * 0.9 * span, n.z + Math.sin(a) * sd.r * span, 0.5 * Math.sin(rise * Math.PI), STUMP_DUST);
+      }
+    });
+    dust.commit();
     fx.step(dt, cameraFocus);
   });
   return (
@@ -441,6 +499,7 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
         </group>
       ))}
       {rubble && <primitive object={rubble} />}
+      <primitive object={dust.points} />
       <primitive object={fx.mesh} />
     </>
   );
@@ -545,52 +604,261 @@ class FxPool {
   }
 }
 
-// --- the lights, the steam, the drip -----------------------------------------------------------------
+// --- the light: three moving lights, the godrays, the steam, the drip ----------------------------------
 
-/** The cavern's light: a dim cool fill (the rock's own light is painted in), and the three that move:
- *  the forge's mouth flickering, the onsen's lanterns, the Grotto Pool's heart pulsing. */
+/** The cavern's light: a dim cool fill (the rock's own light is painted in), the sun's warm slant
+ *  down the doline, and the three point lights that move: the forge's mouth flickering, the
+ *  terraces' warm glow breathing, the cenote's heart pulsing. */
 function CaveLights() {
   const forge = useRef<THREE.PointLight>(null);
-  const pool = useRef<THREE.PointLight>(null);
+  const thermal = useRef<THREE.PointLight>(null);
+  const cenote = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    if (forge.current) forge.current.intensity = 2.2 + 0.5 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1) + 0.25 * Math.sin(t * 17);
-    if (pool.current) pool.current.intensity = 1.5 + 0.35 * Math.sin(t * 0.9);
+    if (forge.current) forge.current.intensity = 2.6 + 0.6 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1) + 0.3 * Math.sin(t * 17);
+    if (thermal.current) thermal.current.intensity = 1.5 + 0.2 * Math.sin(t * 0.7);
+    if (cenote.current) cenote.current.intensity = 1.9 + 0.45 * Math.sin(t * 0.9);
   });
   return (
     <>
-      <ambientLight color="#cbc6e6" intensity={1.35} />
-      <hemisphereLight args={["#a9b4ff", "#2a1e18", 0.35]} />
-      <directionalLight color="#ffe2c4" intensity={0.3} position={[-8, 20, 12]} castShadow={false} />
-      <pointLight ref={forge} color="#ff8a3a" distance={9} decay={1.4} position={CAVE_LIGHTS.forge as [number, number, number]} castShadow={false} />
-      <pointLight color="#ffc36b" intensity={1.2} distance={7} decay={1.5} position={CAVE_LIGHTS.onsen as [number, number, number]} castShadow={false} />
-      <pointLight ref={pool} color="#00f0ff" distance={8} decay={1.4} position={CAVE_LIGHTS.pool as [number, number, number]} castShadow={false} />
+      <ambientLight color="#cbc6e6" intensity={1.3} />
+      <hemisphereLight args={["#b4c4ff", "#2a1e18", 0.35]} />
+      <directionalLight color="#ffe6c4" intensity={0.45} position={[-6, 22, -14]} castShadow={false} />
+      <pointLight ref={forge} color="#ff8a3a" distance={11} decay={1.4} position={CAVE_LIGHTS.forge as [number, number, number]} castShadow={false} />
+      <pointLight ref={thermal} color="#ffc78a" distance={9} decay={1.5} position={CAVE_LIGHTS.thermal as [number, number, number]} castShadow={false} />
+      <pointLight ref={cenote} color="#3ff0ff" distance={13} decay={1.3} position={CAVE_LIGHTS.cenote as [number, number, number]} castShadow={false} />
     </>
   );
 }
 
-const STEAM_N = 26;
+// The godrays: soft shafts of sunlight pouring down through the doline's broken ceiling, and the
+// skylight's over the islet; one instanced open cylinder, additive, its edges and its ends fading (no
+// depth write: never a hard edge), a faint shimmer running down it. Dust drifts in each.
+const RAY_TOP = 13.5;
+const RAY_TILT = 0.16;
+const RAY_GEO = (() => {
+  const g = new THREE.CylinderGeometry(1, 1.3, 1, 24, 1, true);
+  g.translate(0, 0.5, 0);
+  return g;
+})();
+const RAY_MAT = new THREE.ShaderMaterial({
+  uniforms: { uTime: TIME },
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  side: THREE.DoubleSide,
+  vertexShader: `
+    varying float vUp;
+    varying float vFace;
+    varying vec3 vRayPos;
+    void main() {
+      vec4 p = vec4(position, 1.0);
+      vec3 n = normal;
+      #ifdef USE_INSTANCING
+        p = instanceMatrix * p;
+        n = mat3(instanceMatrix) * n;
+      #endif
+      vUp = position.y;
+      vRayPos = p.xyz;
+      vec3 nv = normalize(normalMatrix * n);
+      vFace = abs(nv.z);
+      gl_Position = projectionMatrix * modelViewMatrix * p;
+    }`,
+  fragmentShader: `
+    uniform float uTime;
+    varying float vUp;
+    varying float vFace;
+    varying vec3 vRayPos;
+    void main() {
+      float ends = smoothstep(0.0, 0.08, vUp) * (1.0 - smoothstep(0.5, 1.0, vUp));
+      float core = pow(vFace, 1.6);
+      float shimmer = 0.78 + 0.22 * sin(vRayPos.y * 2.3 - uTime * 1.1 + vRayPos.x * 0.7);
+      float a = ends * core * shimmer * 0.2;
+      gl_FragColor = vec4(vec3(1.0, 0.9, 0.68), a);
+    }`,
+});
+const RAYS = [...DOLINE_BEAMS.map(([x, z, r]) => ({ x, z, r, sky: false })), { x: CAVE_SKYLIGHT.x, z: CAVE_SKYLIGHT.z, r: CAVE_SKYLIGHT.r * 0.72, sky: true }];
+// where each shaft lands: a soft warm pool of sunlight on the floor (additive, fading to its rim)
+const POOL_GEO = (() => {
+  const g = new THREE.CircleGeometry(1, 32);
+  g.rotateX(-Math.PI / 2);
+  return g;
+})();
+const POOL_MAT = new THREE.ShaderMaterial({
+  uniforms: { uTime: TIME },
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  vertexShader: `
+    varying vec2 vDisc;
+    void main() {
+      vDisc = position.xz;
+      vec4 p = vec4(position, 1.0);
+      #ifdef USE_INSTANCING
+        p = instanceMatrix * p;
+      #endif
+      gl_Position = projectionMatrix * modelViewMatrix * p;
+    }`,
+  fragmentShader: `
+    uniform float uTime;
+    varying vec2 vDisc;
+    void main() {
+      float r = length(vDisc);
+      float a = (1.0 - smoothstep(0.35, 1.0, r)) * (0.2 + 0.03 * sin(uTime * 0.8 + vDisc.x * 3.0));
+      gl_FragColor = vec4(vec3(1.0, 0.88, 0.62), a);
+    }`,
+});
+const MOTES_PER_RAY = 10;
+
+function Godrays() {
+  const rays = useMemo(() => {
+    const im = new THREE.InstancedMesh(RAY_GEO, RAY_MAT, RAYS.length);
+    im.raycast = noRaycast;
+    im.frustumCulled = false;
+    im.renderOrder = 2;
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-RAY_TILT, 0, 0));
+    RAYS.forEach((r, i) => {
+      const y = cavernsFloorY(r.x, r.z) - 0.05;
+      m.compose(new THREE.Vector3(r.x, y, r.z), q, new THREE.Vector3(r.r, RAY_TOP - y, r.r));
+      im.setMatrixAt(i, m);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    return im;
+  }, []);
+  const pools = useMemo(() => {
+    const im = new THREE.InstancedMesh(POOL_GEO, POOL_MAT, RAYS.length);
+    im.raycast = noRaycast;
+    im.frustumCulled = false;
+    im.renderOrder = 1;
+    const m = new THREE.Matrix4();
+    RAYS.forEach((r, i) => {
+      m.makeScale(r.r * 1.25, 1, r.r * 1.25).setPosition(r.x, cavernsFloorY(r.x, r.z) + 0.04, r.z);
+      im.setMatrixAt(i, m);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    return im;
+  }, []);
+  // the dust in the light: slow motes drifting down each shaft, sparkling as they turn
+  const motes = useMemo(() => new MotePoints(RAYS.length * MOTES_PER_RAY), []);
+  const seeds = useMemo(() => RAYS.flatMap((r) => Array.from({ length: MOTES_PER_RAY }, () => ({ r, a: Math.random() * Math.PI * 2, d: Math.sqrt(Math.random()) * r.r * 0.8, p: Math.random(), s: 0.4 + Math.random() * 0.5 }))), []);
+  useEffect(
+    () => () => {
+      rays.dispose();
+      pools.dispose();
+      motes.dispose();
+    },
+    [rays, pools, motes]
+  );
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    seeds.forEach((sd, i) => {
+      const k = (((sd.p - t * 0.03 * sd.s) % 1) + 1) % 1;
+      const floor = cavernsFloorY(sd.r.x, sd.r.z);
+      const y = floor + 0.3 + k * 5.5;
+      const a = sd.a + t * 0.15 * sd.s;
+      // (the shaft leans with its tilt, its top toward the doline's broken north: the higher, the further)
+      const lean = (y - floor) * Math.tan(RAY_TILT);
+      motes.set(i, sd.r.x + Math.cos(a) * sd.d, y, sd.r.z - lean + Math.sin(a) * sd.d, 0.55 + 0.45 * Math.sin(t * 2 + i), MOTE_SUN);
+    });
+    motes.commit();
+  });
+  return (
+    <>
+      <primitive object={pools} />
+      <primitive object={rays} />
+      <primitive object={motes.points} />
+    </>
+  );
+}
+
+const MOTE_SUN = new THREE.Color("#ffe7b0");
+/** Little soft round motes (one draw for many): each its place, its brightness and its colour. */
+class MotePoints {
+  points: THREE.Points;
+  private pos: THREE.BufferAttribute;
+  private col: THREE.BufferAttribute;
+  constructor(n: number) {
+    const geo = new THREE.BufferGeometry();
+    this.pos = new THREE.BufferAttribute(new Float32Array(n * 3).fill(-100), 3);
+    this.col = new THREE.BufferAttribute(new Float32Array(n * 4), 4);
+    geo.setAttribute("position", this.pos);
+    geo.setAttribute("aCol", this.col);
+    const mat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: { uPx: { value: Math.min(2, window.devicePixelRatio || 1) } },
+      vertexShader: `
+        attribute vec4 aCol;
+        uniform float uPx;
+        varying vec4 vCol;
+        void main() {
+          vCol = aCol;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = 4.5 * uPx;
+        }`,
+      fragmentShader: `
+        varying vec4 vCol;
+        void main() {
+          float r = length(gl_PointCoord - 0.5) * 2.0;
+          float a = (1.0 - smoothstep(0.2, 1.0, r)) * vCol.a;
+          gl_FragColor = vec4(vCol.rgb, a);
+        }`,
+    });
+    this.points = new THREE.Points(geo, mat);
+    this.points.raycast = noRaycast;
+    this.points.frustumCulled = false;
+    this.points.renderOrder = 3;
+  }
+  set(i: number, x: number, y: number, z: number, alpha: number, c: THREE.Color) {
+    this.pos.setXYZ(i, x, y, z);
+    this.col.setXYZW(i, c.r, c.g, c.b, alpha);
+  }
+  hide(i: number) {
+    this.pos.setXYZ(i, 0, -100, 0);
+    this.col.setW(i, 0);
+  }
+  commit() {
+    this.pos.needsUpdate = true;
+    this.col.needsUpdate = true;
+  }
+  dispose() {
+    this.points.geometry.dispose();
+    (this.points.material as THREE.Material).dispose();
+  }
+}
+
+const STEAM_PER_POOL = 10;
 const STEAM_GEO = new THREE.SphereGeometry(0.22, 8, 6);
-const STEAM_MAT = new THREE.MeshBasicMaterial({ color: "#f4f1ff", transparent: true, opacity: 0.16, depthWrite: false });
-/** Steam curling up off the onsen's water. */
-function OnsenSteam() {
+const STEAM_MAT = new THREE.MeshBasicMaterial({ color: "#f4f1ff", transparent: true, opacity: 0.1, depthWrite: false });
+/** Steam curling up off the Travertine Terraces' three pools. */
+function ThermalSteam() {
+  const pools = TERRACES.pools;
+  const n = pools.length * STEAM_PER_POOL;
   const mesh = useMemo(() => {
-    const im = new THREE.InstancedMesh(STEAM_GEO, STEAM_MAT, STEAM_N);
+    const im = new THREE.InstancedMesh(STEAM_GEO, STEAM_MAT, n);
     im.raycast = noRaycast;
     im.frustumCulled = false;
     return im;
-  }, []);
+  }, [n]);
   useEffect(() => () => {
     mesh.dispose();
   }, [mesh]);
-  const seeds = useMemo(() => Array.from({ length: STEAM_N }, () => ({ x: ONSEN.x + (Math.random() - 0.5) * ONSEN.w * 0.9, z: ONSEN.z + (Math.random() - 0.5) * ONSEN.d * 0.9, p: Math.random() * 6, s: 0.6 + Math.random() * 0.6 })), []);
+  const seeds = useMemo(
+    () =>
+      pools.flatMap((pool) =>
+        Array.from({ length: STEAM_PER_POOL }, () => ({ x: TERRACES.x0 + 0.6 + Math.random() * (TERRACES.x1 - TERRACES.x0 - 1.0), z: pool.z0 + 0.3 + Math.random() * (pool.z1 - pool.z0 - 0.6), y: pool.y, p: Math.random() * 6, s: 0.6 + Math.random() * 0.6 }))
+      ),
+    [pools]
+  );
   const m = useMemo(() => new THREE.Matrix4(), []);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     seeds.forEach((sd, i) => {
-      const k = ((t * 0.18 * sd.s + sd.p) % 1 + 1) % 1;
+      const k = (((t * 0.18 * sd.s + sd.p) % 1) + 1) % 1;
       const sc = (0.5 + 1.6 * k) * (k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85);
-      m.makeScale(sc, sc * 0.8, sc).setPosition(sd.x + Math.sin(t * 0.6 + sd.p) * 0.25 * k, TERRACE.y + ONSEN.water + 0.1 + k * 1.8, sd.z + Math.cos(t * 0.5 + sd.p) * 0.25 * k);
+      m.makeScale(sc, sc * 0.8, sc).setPosition(sd.x + Math.sin(t * 0.6 + sd.p) * 0.25 * k + k * 0.6, sd.y + 0.1 + k * 1.9, sd.z + Math.cos(t * 0.5 + sd.p) * 0.25 * k);
       mesh.setMatrixAt(i, m);
     });
     mesh.instanceMatrix.needsUpdate = true;
@@ -599,7 +867,9 @@ function OnsenSteam() {
 }
 
 const RIPPLE_GEO = new THREE.RingGeometry(0.2, 0.26, 36);
-/** The lucky drip: a drop falls from the stalactites and a cyan ripple spreads round a float. */
+/** The drop's height when it lets go: the cenote's dark vault, high over the float. */
+const DRIP_FROM = 7.5;
+/** The lucky drip: a drop falls from the vault and a cyan ripple spreads round a float. */
 function DripRipples({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
   const drip = useRef<{ x: number; z: number; at: number; until: number } | null>(null);
   const rings = useMemo(
@@ -647,15 +917,15 @@ function DripRipples({ subscribeMessages }: { subscribeMessages: (listener: Room
         mat.opacity = 0;
         return;
       }
-      const age = ((now - d.at) / 1000 - 0.45 - k * 0.55 + 10) % 1.6;
-      r.position.set(d.x, CAVE_POOL.water + 0.02, d.z);
+      const age = ((now - d.at) / 1000 - 0.6 - k * 0.55 + 10) % 1.6;
+      r.position.set(d.x, CAVE_WATER_Y + 0.02, d.z);
       r.scale.setScalar(1 + age * 3.2);
       mat.opacity = Math.max(0, 0.75 * (1 - age / 1.6)) * Math.min(1, (d.until - now) / 800);
     });
-    // the drop: falling from the overhang onto the float, then gone
-    const fall = d ? (now - d.at) / 450 : 2;
+    // the drop: falling from the vault onto the float, then gone
+    const fall = d ? (now - d.at) / 600 : 2;
     drop.visible = fall >= 0 && fall < 1;
-    if (d && drop.visible) drop.position.set(d.x, L.overhang.y - 1.2 + (CAVE_POOL.water - (L.overhang.y - 1.2)) * fall * fall, d.z);
+    if (d && drop.visible) drop.position.set(d.x, DRIP_FROM + (CAVE_WATER_Y - DRIP_FROM) * fall * fall, d.z);
   });
   return (
     <>
@@ -668,3 +938,4 @@ function DripRipples({ subscribeMessages }: { subscribeMessages: (listener: Room
 }
 
 useGLTF.preload(GUS_URL);
+useGLTF.preload(FINNEGAN_URL);

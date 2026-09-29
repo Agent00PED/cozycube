@@ -101,7 +101,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   "vista": [
     [-11.2, -11.3, 1.2], [-9.3, -11.4, 1.0], [-7.4, -11.3, 1.15], [-5.5, -11.4, 0.95], [-3.6, -11.3, 1.1], [-1.7, -11.4, 1.0], [0.2, -11.4, 1.2],
     [2.0, -11.5, 0.95], [5.1, -11.4, 1.1], [9.9, -11.2, 1.0], [8.9, 2.95, 1.0], [11.3, 2.7, 1.05],
-    [-11.4, -9.2, 1.1], [-11.5, -6.35, 0.95], [-11.3, -5.0, 1.15], [-11.4, -2.8, 1.0], [-11.5, -0.6, 1.1], [-11.3, 1.6, 0.95], [-11.4, 5.8, 1.05], [-11.5, 7.9, 1.0],
+    [-11.4, -10.6, 1.1], [-11.5, -5.1, 0.95], [-11.3, -5.0, 1.15], [-11.4, -2.8, 1.0], [-11.5, -0.6, 1.1], [-11.3, 1.6, 0.95], [-11.4, 5.8, 1.05], [-11.5, 7.9, 1.0],
     [-11.3, 10.9, 0.9], [-11.4, 3.7, 1.0], [3.6, -11.6, 1.0], [11.7, -10.8, 1.1], [11.8, -8.2, 0.95]
   ],
   "paths": [
@@ -109,11 +109,10 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "points": [[-1.6, 7.0, 1.3], [-1.9, 3.2, 1.2], [-1.4, 0.0, 1.2], [-1.2, -3.2, 1.2], [-0.4, -5.8, 1.2], [1.8, -7.9, 1.2]] },
     { "points": [[-1.4, 0.0, 1.1], [-3.2, -0.2, 1.0], [-6.2, 0.4, 1.0]] },
     { "points": [[-0.9, -3.8, 1.0], [-3.4, -5.4, 1.0], [-6.0, -6.8, 1.0]] },
-    { "points": [[1.2, 1.2, 1.0], [4.2, 0.4, 1.0], [6.4, -1.4, 1.0], [7.7, -2.6, 1.0]] },
-    { "points": [[-6.0, -6.8, 0.8], [-8.0, -7.3, 0.7], [-10.2, -7.85, 0.7]] }
+    { "points": [[1.2, 1.2, 1.0], [4.2, 0.4, 1.0], [6.4, -1.4, 1.0], [7.7, -2.6, 1.0]] }
   ],
-  "adit": { "x": -11.55, "z": -7.85, "w": 1.3, "h": 2.2, "outcrop": { "x0": -12.3, "x1": -11.0, "z0": -8.9, "z1": -6.85, "h": 2.9 } },
-  "flint": { "x": -10.45, "z": -9.2, "yaw": 1.2 },
+  "adit": { "x": -11.55, "z": -7.85, "w": 1.3, "h": 2.2, "outcrop": { "x0": -12.3, "x1": -11.0, "z0": -9.95, "z1": -5.75, "h": 2.9 }, "alcove": { "depth": 1.5, "half": 1.2 } },
+  "flint": { "x": -10.62, "z": -6.98, "yaw": 1.877 },
   "spawns": [{ "x": -9.0, "z": 9.7 }, { "x": -8.2, "z": 9.2 }, { "x": -9.6, "z": 9.0 }]
 } /* layout:end */;
 
@@ -229,12 +228,14 @@ export const WOODS_ARCHWAY = L.archway;
 export const WOODS_ARCHWAY_FRONT: Pt = { x: L.archway.x, z: L.archway.z - 1.05 };
 /** Where a traveller arrives from the campfire (just inside the archway). */
 export const WOODS_ARRIVAL: Pt = L.arrival;
-/** The old mine adit down to the Glimmering Caverns (set into its outcrop, facing into the wood),
- *  where you stand at it, and where a traveller back up from the caverns arrives. */
+/** The old mine adit down to the Glimmering Caverns (recessed 1.5 m into an alcove of its mossy
+ *  outcrop, facing into the wood from behind the Autumn Maples), where you stand at it, and where a
+ *  traveller back up from the caverns arrives (in the alcove, facing east into the wood). */
 export const FOREST_ADIT = L.adit;
 export const FOREST_ADIT_FRONT: Pt = { x: L.adit.x + 1.15, z: L.adit.z };
 export const WOODS_FROM_CAVERNS: Pt = { x: L.adit.x + 1.5, z: L.adit.z + 0.2 };
-/** Old Flint the Badger beside it (facing the path in: `yaw`), and where you stand to talk to him. */
+/** Old Flint the Badger leaning on the portal's south post, his brass lantern lit (facing out of
+ *  the alcove: `yaw`), and where you stand to talk to him. */
 export const OLD_FLINT = L.flint;
 export const OLD_FLINT_FRONT: Pt = { x: L.flint.x + Math.sin(L.flint.yaw) * 1.0, z: L.flint.z + Math.cos(L.flint.yaw) * 1.0 };
 export const OLD_FLINT_REACH = 1.9;
@@ -294,8 +295,11 @@ export const FOREST_OBSTACLES: AABB[] = [
   ...SHRINE_STONES.map((p) => around(p, 0.22)),
   // the deer and the rabbits
   ...L.animals.map((a) => around(a, 0.35)),
-  // the adit's mossy outcrop on the western cliff, and Old Flint beside it
+  // the adit's mossy outcrop on the western cliff (its back, and the alcove's two wings either side of
+  // the portal), and Old Flint on its south post
   { minX: L.adit.outcrop.x0, maxX: L.adit.outcrop.x1, minZ: L.adit.outcrop.z0, maxZ: L.adit.outcrop.z1 },
-  around(L.flint, 0.35),
+  { minX: L.adit.outcrop.x1, maxX: L.adit.outcrop.x1 + L.adit.alcove.depth, minZ: L.adit.outcrop.z0, maxZ: L.adit.z - L.adit.alcove.half },
+  { minX: L.adit.outcrop.x1, maxX: L.adit.outcrop.x1 + L.adit.alcove.depth, minZ: L.adit.z + L.adit.alcove.half, maxZ: L.adit.outcrop.z1 },
+  around(L.flint, 0.3),
 ];
 export const FOREST_SPAWNS: Pt[] = L.spawns;

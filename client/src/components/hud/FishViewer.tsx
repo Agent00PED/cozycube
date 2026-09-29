@@ -7,9 +7,34 @@ import { ModelBoundary } from "../../entities/ModelBoundary";
 
 // The landed fish on a turntable: its model from client/public/models/fish.glb (one node per
 // species, `Fish_<id>`, nose along +x, about a metre long, every colour a vertex colour), turning
-// slowly under a warm key light. A small canvas of its own, alive only while the reveal shows.
+// slowly under a warm key light. A small canvas of its own, alive only while the reveal shows. The
+// Cenote's cave fish have fins in a second material, FI_Glow: glTF can't say "glow in your own vertex
+// colour", so its emission is patched here to be exactly that, breathing.
 
 export const FISH_URL = modelUrl("fish.glb");
+
+const GLOW_TIME = { value: 0 };
+/** A cave fish's fins: the emission its own vertex colour, pulsing softly (once per material). */
+function glowingFins(m: THREE.MeshStandardMaterial) {
+  if (m.userData.finGlow) return;
+  m.userData.finGlow = true;
+  m.vertexColors = true;
+  m.emissive = new THREE.Color(1, 1, 1);
+  m.emissiveIntensity = 1.3;
+  m.toneMapped = false;
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uFinTime = GLOW_TIME;
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uFinTime;").replace(
+      "#include <emissivemap_fragment>",
+      `#include <emissivemap_fragment>
+      #ifdef USE_COLOR
+        totalEmissiveRadiance *= vColor.rgb * (0.75 + 0.25 * sin(uFinTime * 2.4));
+      #endif`
+    );
+  };
+  m.customProgramCacheKey = () => "fish-fin-glow";
+  m.needsUpdate = true;
+}
 
 function FishModel({ species }: { species: string }) {
   const { scene } = useGLTF(FISH_URL);
@@ -18,6 +43,11 @@ function FishModel({ species }: { species: string }) {
     if (!src) return null;
     // a clone of the one node, centred and scaled to fit the stand (its geometry stays shared)
     const copy = src.clone(true);
+    copy.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) if (m.name === "FI_Glow") glowingFins(m as THREE.MeshStandardMaterial);
+    });
     copy.position.set(0, 0, 0);
     copy.rotation.set(0, 0, 0);
     const box = new THREE.Box3().setFromObject(copy);
@@ -32,6 +62,7 @@ function FishModel({ species }: { species: string }) {
   }, [scene, species]);
   const spin = useRef<THREE.Group>(null);
   useFrame((state, dt) => {
+    GLOW_TIME.value = state.clock.elapsedTime;
     if (!spin.current) return;
     spin.current.rotation.y += dt * 0.9;
     spin.current.position.y = Math.sin(state.clock.elapsedTime * 1.6) * 0.04;
