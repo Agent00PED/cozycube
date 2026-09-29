@@ -4,7 +4,7 @@
 //
 // The cave fish are fished like the river's (shared/fishing.ts: the same reel, the same rods and
 // baits, the same livewell, AFK too), from the outcrop's three spots (shared/worlds/caverns.ts
-// CAVE_FISHING). Underground there is no day and no night: every one of them bites at any hour. What
+// shore). Underground there is no day and no night: every one of them bites at any hour. What
 // rarity bites follows the rod and the line as on the river (shared/economy.ts ACTIVE_TIER_ODDS);
 // the lake is deep all over, so its legendaries and its mythic bite anywhere on it. Two of each grade:
 // the Epic pair (the Glow-Spore Catfish, the Subterranean Needlefish) are the rare rarity's prizes,

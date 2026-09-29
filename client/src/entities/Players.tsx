@@ -1,5 +1,5 @@
 import { FOREST_FISHING, FOREST_LAYOUT } from "@shared/worlds/forest";
-import { CAVE_FISHING, CAVE_WATER_Y } from "@shared/worlds/caverns";
+import { CAVE_WATER_Y } from "@shared/worlds/caverns";
 import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
@@ -54,9 +54,9 @@ export function bobberFor(player: PlayerState, mapId: MapId) {
     return { x: spot.bobber.x, y: FOREST_LAYOUT.river.water, z: spot.bobber.z };
   }
   if (mapId === "glimmering_caverns") {
-    // the Cenote: off the driftwood outcrop's spot they stand at
-    const spot = CAVE_FISHING.reduce((a, b) => (Math.hypot(b.stand.x - player.x, b.stand.z - player.z) < Math.hypot(a.stand.x - player.x, a.stand.z - player.z) ? b : a));
-    return { x: spot.bobber.x, y: CAVE_WATER_Y, z: spot.bobber.z };
+    // the Cenote: where their cast from the shore landed (the server's `floatX` / `floatZ`)
+    if (!player.floatX && !player.floatZ) return null;
+    return { x: player.floatX, y: CAVE_WATER_Y, z: player.floatZ };
   }
   if (mapId !== "campfire_night") return null;
   const { bobber } = nearestFishingSpot(player.x, player.z);

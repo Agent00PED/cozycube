@@ -76,13 +76,15 @@ import {
   type CasinoGameTable,
   type StandingTable,
 } from "../shared/worlds/casino";
-import { VAULT_SLOTS, VIP_ARRIVAL, VIP_FOUNTAIN, VIP_FOUNTAIN_BOXES, VIP_JUKEBOX_FRONT, VIP_NPCS, VIP_RAIL, VIP_SEATS, VIP_TABLE_BOXES } from "../shared/worlds/casino_vip";
+import { VAULT_SLOTS, VIP_ARRIVAL, VIP_BACCARAT, VIP_BACCARAT_PAD, VIP_BLACKJACK, VIP_FOUNTAIN, VIP_FOUNTAIN_BOXES, VIP_JUKEBOX_FRONT, VIP_NPCS, VIP_OFFSET, VIP_PROPS, VIP_RAIL, VIP_SEATS, VIP_TABLE_BOXES } from "../shared/worlds/casino_vip";
 import { findPath } from "../shared/pathfinding";
 import type { AABB } from "../shared/collision";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD, CAMPFIRE_LAYOUT } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
-import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_FISHING, CAVE_LAKE, CAVE_WATER_Y, CAVERNS_CAMERA, CAVERNS_LAYOUT, DOLINE, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, ORE_NODES, RAMP, THERMAL_REACH, THERMAL_SEATS, caveSpotAt, cavernsFloorY, inLakeWater, lakeFactor, oreReach } from "../shared/worlds/caverns";
+import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, cavernsFloorY, inLakeWater, lakeFactor, nearestWater, oreReach, shoreCast } from "../shared/worlds/caverns";
+import { readFileSync, existsSync } from "node:fs";
+import { CAVERNS_TERRAIN_PATH, cavernsTerrainText } from "./caverns-terrain";
 import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../shared/worlds/forest";
 import { BAG_BOXER, REF_APRON, REF_HOME, RING_CROWD, TRAINEE, CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, JIMMY, JIMMY_FRONT, JIMMY_REACH, NEUTRAL_CORNERS, RING, RING_BENCH_FRONT, RING_CORNERS, RING_FANS, RING_SEATS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
 
@@ -135,7 +137,10 @@ for (const mapId of MAP_IDS) {
     // (over the floor under it: the casino's stages and the caverns' doline stand higher; the caverns'
     // thermal seats sink a little below theirs, into the warm water)
     const floor = walkY(mapId, chair.approachX, chair.approachZ);
-    if (!Number.isFinite(chair.sitY) || chair.sitY - floor < -0.45 || chair.sitY - floor > 1.2) fail(`${mapId}: seat ${chair.propId} has an odd anchor height ${chair.sitY} (its floor ${floor})`);
+    // (a thermal terrace's seat sits in its pool, carved into the slope: its dry exit on the bank can
+    // stand well over the water)
+    const lowest = chair.propId.startsWith("thermal_") ? -0.8 : -0.45;
+    if (!Number.isFinite(chair.sitY) || chair.sitY - floor < lowest || chair.sitY - floor > 1.2) fail(`${mapId}: seat ${chair.propId} has an odd anchor height ${chair.sitY} (its floor ${floor})`);
     const a = APPROACH_POINTS[chair.propId];
     if (!a) fail(`${mapId}: seat ${chair.propId} has no approach point`);
     else standable(mapId, home, a, `seat ${chair.propId} approach`);
@@ -358,20 +363,43 @@ for (const mapId of MAP_IDS) {
   checks++;
   if (!isBlocked(VIP_ARRIVAL.x, VIP_ARRIVAL.z, "velvet_casino")) fail(`${V}: the elevator ${fmt(VIP_ARRIVAL)} is open floor in the hall too`);
 
+  // --- the two card tables: blackjack (emerald) at (-3.0, 2.2) and baccarat (crimson) at (3.0,
+  // 2.2) in the suite's own frame; each dealer on the balcony's side (south, +z) facing north over
+  // the felt; the stools on the fountain's side (north) facing south (rotation 0); each table's
+  // click pad or front on its north side ---
+  const near = (a: number, b: number) => Math.abs(a - b) < 0.02;
+  const tables = [
+    { name: "blackjack", at: VIP_BLACKJACK, want: { x: -3.0, z: 2.2 }, dealer: VIP_NPCS.gideonVip, stools: "seat_vbj", pad: VIP_PROPS.find((q) => q.propId === VIP_BLACKJACK.id) },
+    { name: "baccarat", at: VIP_BACCARAT, want: { x: 3.0, z: 2.2 }, dealer: VIP_NPCS.scarlettVip, stools: "seat_bacc", pad: { x: VIP_BACCARAT_PAD.x, z: VIP_BACCARAT_PAD.z, approachX: VIP_BACCARAT_PAD.x, approachZ: VIP_BACCARAT_PAD.z } },
+  ];
+  for (const t of tables) {
+    checks++;
+    if (!near(t.at.x - VIP_OFFSET.x, t.want.x) || !near(t.at.z - VIP_OFFSET.z, t.want.z)) fail(`${V}: the ${t.name} table is at ${fmt({ x: t.at.x - VIP_OFFSET.x, z: t.at.z - VIP_OFFSET.z })} in the suite, not ${fmt(t.want)}`);
+    checks++;
+    if (!(t.dealer.z > t.at.z + 0.2) || Math.abs(Math.cos(t.dealer.yaw) + 1) > 0.02) fail(`${V}: the ${t.name} table's dealer is not on the balcony's side facing north (${fmt(t.dealer)}, yaw ${t.dealer.yaw.toFixed(2)})`);
+    for (const st of VIP_SEATS.filter((c) => c.propId.startsWith(t.stools))) {
+      checks++;
+      if (!(st.z < t.at.z - 0.5) || Math.abs(st.rotationY) > 1e-6) fail(`${V}: ${st.propId} is not on the fountain's side facing south (${fmt(st)}, rotation ${st.rotationY.toFixed(2)})`);
+    }
+    checks++;
+    if (!t.pad || !(t.pad.approachZ < t.at.z - 0.3)) fail(`${V}: the ${t.name} table's click pad or front is not on its north side`);
+  }
+
   // --- the walkways round the card tables and the fountain ---
   const gapOf = (a: AABB, b: AABB) => Math.hypot(Math.max(0, Math.max(a.minX, b.minX) - Math.min(a.maxX, b.maxX)), Math.max(0, Math.max(a.minZ, b.minZ) - Math.min(a.maxZ, b.maxZ)));
   const groupGap = (A: AABB[], B: AABB[]) => Math.min(...A.flatMap((a) => B.map((b) => gapOf(a, b))));
-  // the fountain's round base to every card table's stool (round too), the Duchess on hers: 1.35 m
+  // the fountain's round base to every card table's stool (round too), the Duchess on hers: 2.0 m
   const stools = [...VIP_SEATS.filter((c) => c.propId.startsWith("seat_bacc") || c.propId.startsWith("seat_vbj")).map((c) => ({ id: c.propId, x: c.x, z: c.z, r: 0.22 })), { id: "the Duchess's stool", x: VIP_NPCS.duchess.x, z: VIP_NPCS.duchess.z, r: 0.3 }];
   for (const st of stools) {
     checks++;
     const clear = Math.hypot(st.x - VIP_FOUNTAIN.x, st.z - VIP_FOUNTAIN.z) - VIP_FOUNTAIN.r - st.r;
-    if (clear < 1.35) fail(`${V}: ${st.id} is ${clear.toFixed(2)} m from the fountain's base (1.35 at least)`);
+    if (clear < 2.0) fail(`${V}: ${st.id} is ${clear.toFixed(2)} m from the fountain's base (2.00 at least)`);
   }
-  // each card table (its colliders: the table, its stools, its dealer) 1.10 m clear of the brass rail
+  // each card table (its colliders: the table, its stools, its dealer) 1.10 m clear of the front
+  // rail: a walk along the balcony behind the dealers
   for (const [name, boxes] of Object.entries(VIP_TABLE_BOXES)) {
     checks++;
-    const clear = Math.min(VIP_RAIL.x - Math.max(...boxes.map((b) => b.maxX)), VIP_RAIL.z - Math.max(...boxes.map((b) => b.maxZ)));
+    const clear = VIP_RAIL.z - Math.max(...boxes.map((b) => b.maxZ));
     if (clear < 1.1) fail(`${V}: the ${name} table is ${clear.toFixed(2)} m from the front rail (1.10 at least)`);
   }
   // the Grand Central Promenade between the two tables: 1.80 m
@@ -573,12 +601,16 @@ for (const mapId of MAP_IDS) {
     checks++;
     if (Math.hypot(from.x - to.x, from.z - to.z) > reach) fail(`${C}: ${label} ${fmt(from)} is out of reach (${reach}) of ${fmt(to)}`);
   };
+  // the builder's copy of the floor (scripts/blender/data/caverns_terrain.json) is this layout's
+  checks++;
+  // (line endings aside: a checkout may turn the file's LF into CRLF)
+  if (!existsSync(CAVERNS_TERRAIN_PATH) || readFileSync(CAVERNS_TERRAIN_PATH, "utf8").replace(/\r\n/g, "\n") !== cavernsTerrainText()) fail(`${C}: scripts/blender/data/caverns_terrain.json is stale: run npm run caverns-terrain (and rebuild caverns.glb)`);
   standable(C, home, CAVE_ARRIVAL, "the arrival from the woods");
   standable(C, home, CAVE_ADIT_FRONT, "the adit's mouth");
   standable(C, home, GUS_FRONT, "Gus's workstation");
   standable(C, home, FORGE_FRONT, "the Thermal Bellows Forge's front");
   standable(C, home, ANVIL_FRONT, "the meteorite anvil's front");
-  standable(C, home, FINNEGAN_FRONT, "Finnegan's crate");
+  standable(C, home, FINNEGAN_FRONT, "Finnegan's driftwood log");
   near("Gus's workstation", GUS_FRONT, GUS, GUS_REACH + 1.2);
   near("the forge's front", FORGE_FRONT, FORGE, FORGE_REACH + 0.8);
   near("the anvil's front", ANVIL_FRONT, ANVIL, ANVIL_REACH + 0.6);
@@ -591,18 +623,52 @@ for (const mapId of MAP_IDS) {
     checks++;
     if (!isBlocked(at.x, at.z, C, 0.05)) fail(`${C}: ${who} stands on open floor ${fmt(at)}: give it a collider`);
   }
-  // the doline's one ramp down to the shore: wide enough to pass on, no steeper than 28 degrees, and
-  // both its ends walked to from the tunnel
+  // no stairs, no scrambles: every step between two walkable cells no steeper than STEEPEST_WALK
+  // (28 degrees)
+  {
+    let steepest = 0;
+    let at: Point = { x: 0, z: 0 };
+    for (let k = 0; k < MASK_N; k++) {
+      for (let i = 0; i < MASK_N; i++) {
+        if (!CAVERNS_MASK[k * MASK_N + i]) continue;
+        const x = -CAVERNS_LAYOUT.half + (i + 0.5) * MASK_CELL;
+        const z = -CAVERNS_LAYOUT.half + (k + 0.5) * MASK_CELL;
+        for (const [di, dk] of [[1, 0], [0, 1]] as const) {
+          if (i + di >= MASK_N || k + dk >= MASK_N || !CAVERNS_MASK[(k + dk) * MASK_N + i + di]) continue;
+          const deg = (Math.atan2(Math.abs(cavernsFloorY(x + di * MASK_CELL, z + dk * MASK_CELL) - cavernsFloorY(x, z)), MASK_CELL) * 180) / Math.PI;
+          if (deg > steepest) {
+            steepest = deg;
+            at = { x, z };
+          }
+        }
+      }
+    }
+    checks++;
+    if (steepest > STEEPEST_WALK + 0.05) fail(`${C}: the walkable floor at ${fmt(at)} is ${steepest.toFixed(1)} degrees (${STEEPEST_WALK} at most)`);
+  }
+  // the meandering descent: from the doline down to the Limestone Overlook, and from it the two
+  // trails, one to the travertine terraces and one to the sandy shore; each trail's ends walked to
+  // from the tunnel, and each at the height it was laid out to (never a stair: the step check above)
+  for (const t of CAVE_TRAILS) {
+    const first = t.points[0];
+    const last = t.points[t.points.length - 1];
+    standable(C, home, { x: first[0], z: first[1] }, `the ${t.id}'s head`);
+    standable(C, home, { x: last[0], z: last[1] }, `the ${t.id}'s foot`);
+    for (const [x, z, h] of t.points) {
+      checks++;
+      if (Math.abs(cavernsFloorY(x, z) - h) > 0.12) fail(`${C}: the ${t.id} at ${fmt({ x, z })} stands at ${cavernsFloorY(x, z).toFixed(2)}, not its ${h}`);
+    }
+  }
+  const descent = CAVE_TRAILS.find((t) => t.id === "descent")!;
+  const top = descent.points[0];
+  const foot = descent.points[descent.points.length - 1];
   checks++;
-  if (RAMP.x1 - RAMP.x0 < 2.4) fail(`${C}: the ramp is ${(RAMP.x1 - RAMP.x0).toFixed(2)} m wide (at least 2.4)`);
-  const slope = (Math.atan2(DOLINE.y, RAMP.foot - RAMP.top) * 180) / Math.PI;
+  if (Math.abs(top[2] - DOLINE.y) > 0.1 || foot[2] > OVERLOOK.y + 0.45 || foot[2] < OVERLOOK.y - 0.1) fail(`${C}: the descent runs from ${top[2]} to ${foot[2]}, not from the doline (${DOLINE.y}) to the overlook (${OVERLOOK.y})`);
+  // the overlook's plateau at its level, walked to from the tunnel
+  const overlookAt = { x: 1.0, z: -6.0 };
+  standable(C, home, overlookAt, "the Limestone Overlook");
   checks++;
-  if (slope > 28.05) fail(`${C}: the ramp is ${slope.toFixed(1)} degrees (28 at most)`);
-  const rampMid = (RAMP.x0 + RAMP.x1) / 2;
-  standable(C, home, { x: rampMid, z: RAMP.top - 0.6 }, "the ramp's head on the doline");
-  standable(C, home, { x: rampMid, z: RAMP.foot + 0.6 }, "the ramp's foot on the shore");
-  checks++;
-  if (Math.abs(cavernsFloorY(rampMid, (RAMP.top + RAMP.foot) / 2) - DOLINE.y / 2) > 0.05) fail(`${C}: the ramp's middle is not half way down the doline`);
+  if (Math.abs(cavernsFloorY(overlookAt.x, overlookAt.z) - OVERLOOK.y) > 0.45) fail(`${C}: the overlook at ${fmt(overlookAt)} stands at ${cavernsFloorY(overlookAt.x, overlookAt.z).toFixed(2)}, not about ${OVERLOOK.y}`);
   // every node: inside its collider, mined from its own floor, in reach, reachable from the tunnel
   for (const n of ORE_NODES) {
     checks++;
@@ -618,22 +684,37 @@ for (const mapId of MAP_IDS) {
     standable(C, home, t.exit, `thermal seat ${t.propId}'s exit`);
     near(`thermal seat ${t.propId}'s exit`, t.exit, t, THERMAL_REACH + 0.3);
   }
-  // the cenote: deep enough; every outcrop spot at its own spot, its float out on open water with
-  // 0.15 m or more of it over the bed
+  // the cenote: deep enough, and fished from anywhere on its shore (shoreCast): round the lake, the
+  // first walkable spot within SHORE_REACH of the water, walked to from the tunnel, casts out onto
+  // CAST_DEPTH of open water facing it, and never with its back to it (the angle guard); a dozen
+  // of them at least
   checks++;
   if (CAVE_LAKE.depth < 0.15) fail(`${C}: the cenote is ${CAVE_LAKE.depth} m deep (0.15 at least)`);
-  for (const f of CAVE_FISHING) {
-    standable(C, home, f.stand, `the outcrop's ${f.propId}`);
-    checks++;
-    if (caveSpotAt(f.approach.x, f.approach.z)?.propId !== f.propId) fail(`${C}: ${f.propId}'s approach ${fmt(f.approach)} is not at its own spot`);
-    checks++;
-    if (!inLakeWater(f.bobber.x, f.bobber.z) || lakeFactor(f.bobber.x, f.bobber.z) > 0.95) fail(`${C}: ${f.propId}'s float ${fmt(f.bobber)} doesn't land out on the cenote's open water`);
-    checks++;
-    const over = CAVE_WATER_Y - cavernsFloorY(f.bobber.x, f.bobber.z);
-    if (over < 0.15) fail(`${C}: ${f.propId}'s float ${fmt(f.bobber)} has only ${over.toFixed(2)} m of water over the bed (0.15 at least)`);
+  let shore = 0;
+  for (let a = 0; a < 360; a += 15) {
+    const r = (a * Math.PI) / 180;
+    for (let d = 1.6; d > 0.9; d -= 0.02) {
+      const x = CAVE_LAKE.x + Math.sin(r) * d * CAVE_LAKE.rx;
+      const z = CAVE_LAKE.z + Math.cos(r) * d * CAVE_LAKE.rz;
+      const w = nearestWater(x, z, SHORE_REACH - 0.3);
+      if (!w) continue;
+      if (isBlocked(x, z, C)) break;
+      const f = shoreCast(x, z, w.x, w.z);
+      const back = shoreCast(x, z, -w.x, -w.z);
+      const side = shoreCast(x, z, -w.z, w.x);
+      checks++;
+      if (!f) fail(`${C}: no cast from the shore at ${fmt({ x, z })} facing the water`);
+      else if (!inLakeWater(f.x, f.z) || lakeFactor(f.x, f.z) > 0.985 || CAVE_WATER_Y - cavernsFloorY(f.x, f.z) < CAST_DEPTH - 0.01) fail(`${C}: the cast from ${fmt({ x, z })} lands at ${fmt(f)}, not out on ${CAST_DEPTH} m of open water`);
+      checks++;
+      if (back || side) fail(`${C}: a cast from ${fmt({ x, z })} goes out with the angler's ${back ? "back" : "side"} to the water (the angle guard)`);
+      if (f && !back && !side && standable(C, home, { x, z }, `the shore at ${a} degrees`)) shore++;
+      break;
+    }
   }
+  checks++;
+  if (shore < 12) fail(`${C}: only ${shore} spots round the cenote cast onto it (12 at least)`);
   // the camera's bounds hold every spot anyone can stand at
-  for (const p of [...MAP_SPAWN_POINTS[C], ...ORE_NODES.map((n) => n.approach), GUS_FRONT, FORGE_FRONT, ANVIL_FRONT, FINNEGAN_FRONT, ...CAVE_FISHING.map((f) => f.stand), ...THERMAL_SEATS.map((t) => t.exit)]) {
+  for (const p of [...MAP_SPAWN_POINTS[C], ...ORE_NODES.map((n) => n.approach), GUS_FRONT, FORGE_FRONT, ANVIL_FRONT, FINNEGAN_FRONT, ...THERMAL_SEATS.map((t) => t.exit)]) {
     checks++;
     if (p.x < CAVERNS_CAMERA.x0 || p.x > CAVERNS_CAMERA.x1 || p.z < CAVERNS_CAMERA.z0 || p.z > CAVERNS_CAMERA.z1) fail(`${C}: ${fmt(p)} is outside the camera's bounds`);
   }

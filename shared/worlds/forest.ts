@@ -112,7 +112,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "points": [[1.2, 1.2, 1.0], [4.2, 0.4, 1.0], [6.4, -1.4, 1.0], [7.7, -2.6, 1.0]] }
   ],
   "adit": { "x": -11.55, "z": -7.85, "w": 1.3, "h": 2.2, "outcrop": { "x0": -12.3, "x1": -11.0, "z0": -9.95, "z1": -5.75, "h": 2.9 }, "alcove": { "depth": 1.5, "half": 1.2 } },
-  "flint": { "x": -10.62, "z": -6.98, "yaw": 1.877 },
+  "flint": { "x": -10.62, "z": -8.72, "yaw": 1.2646 },
   "spawns": [{ "x": -9.0, "z": 9.7 }, { "x": -8.2, "z": 9.2 }, { "x": -9.6, "z": 9.0 }]
 } /* layout:end */;
 
@@ -234,8 +234,9 @@ export const WOODS_ARRIVAL: Pt = L.arrival;
 export const FOREST_ADIT = L.adit;
 export const FOREST_ADIT_FRONT: Pt = { x: L.adit.x + 1.15, z: L.adit.z };
 export const WOODS_FROM_CAVERNS: Pt = { x: L.adit.x + 1.5, z: L.adit.z + 0.2 };
-/** Old Flint the Badger leaning on the portal's south post, his brass lantern lit (facing out of
- *  the alcove: `yaw`), and where you stand to talk to him. */
+/** Old Flint the Badger leaning on the cliff by the portal's north post (the right-hand side as you
+ *  face it, and on screen), his brass lantern lit (facing out of the alcove: `yaw`), and where you
+ *  stand to talk to him. */
 export const OLD_FLINT = L.flint;
 export const OLD_FLINT_FRONT: Pt = { x: L.flint.x + Math.sin(L.flint.yaw) * 1.0, z: L.flint.z + Math.cos(L.flint.yaw) * 1.0 };
 export const OLD_FLINT_REACH = 1.9;

@@ -279,8 +279,8 @@ import { CASINO_EMOTES, auraPace, capsuleUnlock, netWorth, type BlackjackAction,
 import { CasinoFloor, RouletteSchema } from "./casino";
 import { BoutSchema, BoxingRing } from "./boxing";
 import { CavernsMine } from "./caverns";
-import { CAVERNS_CHANNELS, WARMTH_PACE, WARMTH_STAMINA, parseOres, type ForgePacket, type GeodePacket, type GusPacket, type OnsenPacket, type ProspectPacket, type SatchelPacket, type StrikePacket } from "../../../shared/caverns_mining";
-import { CAVE_FISHING, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, THERMAL_SEAT_IDS, caveSpotAt, orePropId } from "../../../shared/worlds/caverns";
+import { CAVERNS_CHANNELS, WARMTH_PACE, WARMTH_STAMINA, parseOres, type ForgePacket, type GeodePacket, type GusPacket, type OnsenPacket, type ProspectPacket, type SatchelPacket, type ShoreCastPacket, type StrikePacket } from "../../../shared/caverns_mining";
+import { FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, THERMAL_SEAT_IDS, orePropId, shoreCast } from "../../../shared/worlds/caverns";
 import { CAVE_TACKLES, DRIP_ZONE, GLOW_LURE_GRACE_S, GLOW_LURE_HASTE, SPINNER_LUCK, SWIVEL_WINDOW_S, isCaveTackleId } from "../../../shared/caverns_fishing";
 import { satchelCountFor, satchelTakeFor } from "../../../shared/satchel";
 import { ORE_ITEMS, type OreItemId } from "../../../shared/caverns_mining";
@@ -299,6 +299,9 @@ class Player extends Schema {
   @type("number") z = 2;
   @type("number") dirX = 0;
   @type("number") dirZ = 0;
+  /** An angler's float on the caverns' cenote (cast from anywhere on its shore). */
+  @type("number") floatX = 0;
+  @type("number") floatZ = 0;
   /** The number of the last movement report applied: the client reconciles against that report. */
   @type("number") moveSeq = 0;
   @type("string") color = "#ffffff";
@@ -552,6 +555,8 @@ export class HangoutRoom extends Room<HangoutState> {
   private lastWonder: "surge" | "titan" = Math.random() < 0.5 ? "surge" : "titan";
   /** Who is fishing each of the rapids' spots (spot id: sessionId). */
   private rapidsAnglers = new Map<string, string>();
+  /** Everyone fishing the caverns' cenote from its shore, and where they stood to cast. */
+  private shoreAnglers = new Map<string, { x: number; z: number }>();
   private treeTickAt = 0;
   private lastFeedAt = new Map<string, number>();
   /** The slingshot gallery: each shooter's round under way, and when each account's paid rounds
@@ -777,6 +782,14 @@ export class HangoutRoom extends Room<HangoutState> {
           if (prop && prop.on !== o.up) prop.on = o.up;
         }
       },
+      shoreFloats: () => {
+        const floats: { x: number; z: number }[] = [];
+        this.shoreAnglers.forEach((_, sessionId) => {
+          const p = this.state.players.get(sessionId);
+          if (p && p.map === "glimmering_caverns" && (p.action === "fish" || p.action === "afkfish")) floats.push({ x: p.floatX, z: p.floatZ });
+        });
+        return floats;
+      },
     });
     // (the board game in this channel, if one was going when the server last stopped, is put back
     // at the end of onCreate: see restoreBoard)
@@ -986,6 +999,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage(CAVERNS_CHANNELS.gus, (client, packet: GusPacket) => this.caverns.gus(client.sessionId, packet));
     this.onMessage(CAVERNS_CHANNELS.satchel, (client, packet: SatchelPacket) => this.caverns.satchel(client.sessionId, packet));
     this.onMessage(CAVERNS_CHANNELS.recast, (client) => this.recastIntoDrip(client.sessionId));
+    this.onMessage(CAVERNS_CHANNELS.cast, (client, packet: ShoreCastPacket) => this.castFromShore(client.sessionId, packet));
     // --- onsen ---
     this.onMessage("splash", (client) => this.handleSplash(client.sessionId));
     this.onMessage("make_wish", (client) => this.handleWish(client.sessionId));
@@ -2328,9 +2342,10 @@ export class HangoutRoom extends Room<HangoutState> {
         });
         // the campfire: from a dock seat or the canoe; the woods: at a bank spot (standing, or on its
         // log or rock)
-        // (the caverns: a spot on the cenote's driftwood outcrop, standing)
-        const woodsSpot = player.map === "whispering_woods" ? (woodsSpotOfSeat(seatId) ?? (!player.sitting ? this.woodsSpotAt(player) : undefined)) : player.map === "glimmering_caverns" && !player.sitting ? caveSpotAt(player.x, player.z, FISHING_REACH + 0.8)?.propId : undefined;
-        if (!spotOfSeat(seatId) && !woodsSpot) return;
+        // (the caverns: standing on the cenote's shore, where they cast from)
+        const woodsSpot = player.map === "whispering_woods" ? (woodsSpotOfSeat(seatId) ?? (!player.sitting ? this.woodsSpotAt(player) : undefined)) : undefined;
+        const caveShore = player.map === "glimmering_caverns" && !player.sitting && this.shoreAnglers.has(sessionId);
+        if (!spotOfSeat(seatId) && !woodsSpot && !caveShore) return;
         if (woodsSpot) {
           // one angler to a spot on the bank
           const holder = this.rapidsAnglers.get(woodsSpot);
@@ -2794,9 +2809,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // an angler on the woods' bank who walked off (or left the woods) lets the spot go
     this.rapidsAnglers.forEach((sessionId, spotId) => {
       const p = this.state.players.get(sessionId);
-      const woods = FOREST_FISHING.find((f) => f.propId === spotId);
-      const spot = woods ?? CAVE_FISHING.find((f) => f.propId === spotId);
-      const fishing = p && p.map === (woods ? "whispering_woods" : "glimmering_caverns") && (p.action === "fish" || p.action === "reel" || p.action === "rest" || p.action === "afkfish");
+      const spot = FOREST_FISHING.find((f) => f.propId === spotId);
+      const fishing = p && p.map === "whispering_woods" && (p.action === "fish" || p.action === "reel" || p.action === "rest" || p.action === "afkfish");
       if (!p || !spot || !fishing) {
         this.rapidsAnglers.delete(spotId);
         return;
@@ -2806,6 +2820,23 @@ export class HangoutRoom extends Room<HangoutState> {
         this.putMugAway(p);
         this.afkTotal.delete(sessionId);
         this.stopStarlight(sessionId, p);
+      }
+    });
+    // an angler on the cenote's shore who walked off (or left the caverns) reels in
+    this.shoreAnglers.forEach((at, sessionId) => {
+      const p = this.state.players.get(sessionId);
+      const fishing = p && p.map === "glimmering_caverns" && (p.action === "fish" || p.action === "reel" || p.action === "rest" || p.action === "afkfish");
+      if (!p || !fishing || Math.hypot(p.x - at.x, p.z - at.z) > 1.2) {
+        this.shoreAnglers.delete(sessionId);
+        if (p) {
+          p.floatX = 0;
+          p.floatZ = 0;
+          if (fishing) {
+            this.putMugAway(p);
+            this.afkTotal.delete(sessionId);
+            this.stopStarlight(sessionId, p);
+          }
+        }
       }
     });
   }
@@ -2915,7 +2946,7 @@ export class HangoutRoom extends Room<HangoutState> {
 
   /** Where this angler's float is: their spot's (a dock seat, the canoe, a woods spot or seat). */
   private bobberOf(sessionId: string, player: Player): { x: number; z: number } | null {
-    if (player.map === "glimmering_caverns") return this.caveSpotOf(player).bobber;
+    if (player.map === "glimmering_caverns") return this.shoreAnglers.has(sessionId) ? { x: player.floatX, z: player.floatZ } : null;
     if (player.map === "whispering_woods") {
       const spot = FOREST_FISHING.reduce((a, b) => (Math.hypot(b.stand.x - player.x, b.stand.z - player.z) < Math.hypot(a.stand.x - player.x, a.stand.z - player.z) ? b : a));
       return spot.bobber;
@@ -2929,9 +2960,32 @@ export class HangoutRoom extends Room<HangoutState> {
     return (bySeat ?? nearestFishingSpot(player.x, player.z)).bobber;
   }
 
-  /** The pier's spot an angler in the caverns fishes from (the nearest). */
-  private caveSpotOf(player: Player) {
-    return CAVE_FISHING.reduce((a, b) => (Math.hypot(b.stand.x - player.x, b.stand.z - player.z) < Math.hypot(a.stand.x - player.x, a.stand.z - player.z) ? b : a));
+  /** `caverns:cast`: a cast from anywhere on the cenote's shore, facing the water (the float lands
+   *  out on it ahead: shoreCast). */
+  private castFromShore(sessionId: string, packet: ShoreCastPacket) {
+    const player = this.state.players.get(sessionId);
+    if (!player || player.map !== "glimmering_caverns" || player.sitting) return;
+    if (player.action !== "" && player.action !== "rest") return;
+    const fx = Number(packet?.fx);
+    const fz = Number(packet?.fz);
+    if (!Number.isFinite(fx) || !Number.isFinite(fz)) return;
+    const float = shoreCast(player.x, player.z, fx, fz);
+    if (!float) {
+      this.sendTo(sessionId, "campfireNotice", { message: "Step up to the water's edge and face the lake to cast", emoji: "🎣" });
+      return;
+    }
+    if (this.creelIsFull(sessionId)) {
+      this.sendTo(sessionId, "campfireNotice", { message: "Your livewell's full: sell some fish to Finnegan (or Barnaby, or Finley) first", emoji: "🪣" });
+      return;
+    }
+    this.shoreAnglers.set(sessionId, { x: player.x, z: player.z });
+    player.floatX = float.x;
+    player.floatZ = float.z;
+    if (player.action === "rest") this.putMugAway(player);
+    player.action = "fish";
+    player.actionProgress = 0;
+    this.starlight.add(sessionId);
+    this.waitForBite(sessionId, player, true);
   }
 
   /** The water a world's fish swim in: the camp's rivers, the caverns' cenote. */
@@ -3171,7 +3225,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // a fresh cast landed in the caverns' lucky drip: nothing common bites, and the reel's green grows
     // (the Cenote Glow Lure: the ripple still counts a little after it fades)
     const lure = profile?.caveTackles.includes("glow_lure") ? GLOW_LURE_GRACE_S : 0;
-    const drip = consumeBait && player.map === "glimmering_caverns" && this.caverns.dripOn(this.caveSpotOf(player).propId, Date.now(), lure);
+    const drip = consumeBait && player.map === "glimmering_caverns" && this.shoreAnglers.has(sessionId) && this.caverns.dripOn(player.floatX, player.floatZ, Date.now(), lure);
     if (drip) this.sendTo(sessionId, "campfireNotice", { message: "Right in the drip's ripple! Nothing common bites, and the reel's green is bigger", emoji: "💧" });
     const species = rollRiverFish(this.waterOf(player.map), { ...this.catchLuck(sessionId, player, bait), ...(drip ? { noCommon: true } : {}) });
     const day = isCampDay(Date.now());
@@ -3241,9 +3295,16 @@ export class HangoutRoom extends Room<HangoutState> {
   }
   /** When each angler was last told their livewell was full (so a tap on a full one isn't a shout). */
   private readonly fullToldAt = new Map<string, number>();
-  /** An angler's hold on a bank, eddy or outcrop spot let go. */
+  /** An angler's hold on a bank or eddy spot let go (and a cast from the cenote's shore reeled in). */
   private freeFishingSpot(sessionId: string) {
     for (const [spot, holder] of [...this.rapidsAnglers.entries()]) if (holder === sessionId) this.rapidsAnglers.delete(spot);
+    if (this.shoreAnglers.delete(sessionId)) {
+      const p = this.state.players.get(sessionId);
+      if (p) {
+        p.floatX = 0;
+        p.floatZ = 0;
+      }
+    }
   }
 
   /** Out of the rest: the mug goes back in the bag. */
@@ -4760,28 +4821,8 @@ export class HangoutRoom extends Room<HangoutState> {
       this.waitForBite(sessionId, player, true);
       return;
     }
-    // the caverns' Cenote Lake: from a spot on the driftwood outcrop (one angler to a spot), standing
-    if (player.map === "glimmering_caverns") {
-      if (player.sitting) return;
-      const spot = CAVE_FISHING.find((f) => f.propId === spotId) ?? this.caveSpotOf(player);
-      if (Math.hypot(player.x - spot.stand.x, player.z - spot.stand.z) > FISHING_REACH + 0.8 && Math.hypot(player.x - spot.approach.x, player.z - spot.approach.z) > FISHING_REACH + 0.3) return;
-      const holder = this.rapidsAnglers.get(spot.propId);
-      if (holder && holder !== sessionId && this.state.players.get(holder)?.map === "glimmering_caverns") {
-        this.sendTo(sessionId, "campfireNotice", { message: "Someone's fishing from there. Try the outcrop's other end", emoji: "🎣" });
-        return;
-      }
-      if (this.creelIsFull(sessionId)) {
-        this.sendTo(sessionId, "campfireNotice", { message: "Your livewell's full: sell some fish to Finnegan (or Barnaby, or Finley) first", emoji: "🪣" });
-        return;
-      }
-      this.rapidsAnglers.set(spot.propId, sessionId);
-      if (player.action === "rest") this.putMugAway(player);
-      player.action = "fish";
-      player.actionProgress = 0;
-      this.starlight.add(sessionId);
-      this.waitForBite(sessionId, player, true);
-      return;
-    }
+    // (the caverns' cenote has no spots: you cast from anywhere on its shore, caverns:cast)
+    if (player.map === "glimmering_caverns") return;
     // the campfire's river: from the dock's edge at one of its spots (one angler to a spot), sitting
     // with your legs over the water; a bite, a tap, then the reel
     if (player.map === "campfire_night") {

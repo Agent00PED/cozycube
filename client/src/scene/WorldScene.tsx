@@ -36,6 +36,7 @@ import { ClickMarker } from "./ClickMarker";
 import { HOUR_LOOKS, TimeOfDayContext, WeatherContext, weatherLook } from "./timeOfDay";
 import { BackgroundSky, loungeSky } from "./BackgroundSky";
 import { cameraFocus, frame, requestRecenter } from "./cameraFocus";
+import { cavernCam } from "./cavernsCamera";
 import { interactBridge } from "./interactBridge";
 import { GEO, StaticBatch, matte, noRaycast } from "./kit";
 import type { MoveTarget } from "../systems/useLocalPlayerMovement";
@@ -267,6 +268,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   frame.z = casino ? casinoFrame.z : 0;
   // (the caverns keep the camera's look inside their shell: no void past the walls)
   frame.bounds = mapId === "glimmering_caverns" ? CAVERNS_CAMERA : null;
+  // (and lock the camera in close behind you there: cavernsCamera.ts)
+  cavernCam.on = mapId === "glimmering_caverns";
 
   // the other worlds' models are fetched quietly once the lounge is up, so travelling is instant
   useEffect(() => {

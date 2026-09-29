@@ -4,7 +4,6 @@ import {
   ANVIL_FRONT,
   ANVIL_REACH,
   CAVE_ARRIVAL,
-  CAVE_FISHING,
   FORGE,
   FORGE_FRONT,
   FORGE_REACH,
@@ -161,6 +160,8 @@ export interface CavernsHost {
   daily(sessionId: string, task: "soak_onsen"): void;
   /** The nodes changed: their sync (JSON) into the room's state. */
   syncOres(json: string): void;
+  /** Where the floats of everyone fishing the cenote's shore sit (the lucky drip falls by one). */
+  shoreFloats(): { x: number; z: number }[];
 }
 
 interface NodeState {
@@ -887,13 +888,12 @@ export class CavernsMine {
 
   // --- the lucky drip -----------------------------------------------------------------------------
 
-  /** Whether the lucky drip's ripple is on this spot's float now (`grace`: seconds after it fades it
+  /** Whether the lucky drip's ripple is on a float at (x, z) now (`grace`: seconds after it fades it
    *  still counts, the Cenote Glow Lure's). */
-  dripOn(spotId: string, now = Date.now(), grace = 0): boolean {
+  dripOn(x: number, z: number, now = Date.now(), grace = 0): boolean {
     const d = this.drip;
-    if (!d || now > d.until + grace * 1000 || d.spot !== spotId) return false;
-    const spot = CAVE_FISHING.find((f) => f.propId === spotId);
-    return !!spot && Math.hypot(spot.bobber.x - d.x, spot.bobber.z - d.z) <= DRIP_REACH;
+    if (!d || now > d.until + grace * 1000) return false;
+    return Math.hypot(x - d.x, z - d.z) <= DRIP_REACH;
   }
   /** The Glow Lure's grace, for the room's drip checks. */
   static readonly LURE_GRACE_S = GLOW_LURE_GRACE_S;
@@ -926,9 +926,15 @@ export class CavernsMine {
     this.tickOnsen(dt, now);
     if (occupied && now >= this.nextDripAt) {
       this.nextDripAt = now + DRIP_EVERY_S * 1000;
-      const spot = CAVE_FISHING[Math.floor(Math.random() * CAVE_FISHING.length)];
-      this.drip = { spot: spot.propId, x: spot.bobber.x, z: spot.bobber.z, until: now + DRIP_S * 1000 };
-      this.host.toMap("glimmering_caverns", "caveDrip", this.drip);
+      // (by one of the floats out on the water, if anyone is fishing: a drop a little off it)
+      const floats = this.host.shoreFloats();
+      if (floats.length) {
+        const f = floats[Math.floor(Math.random() * floats.length)];
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * 0.35;
+        this.drip = { spot: "shore", x: Math.round((f.x + Math.cos(a) * r) * 100) / 100, z: Math.round((f.z + Math.sin(a) * r) * 100) / 100, until: now + DRIP_S * 1000 };
+        this.host.toMap("glimmering_caverns", "caveDrip", this.drip);
+      }
     }
     if (changed) this.sync();
   }

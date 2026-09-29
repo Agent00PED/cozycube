@@ -571,7 +571,13 @@ export const CAVERNS_CHANNELS = {
   gus: "caverns:gus",
   satchel: "caverns:satchel",
   recast: "caverns:recast",
+  cast: "caverns:cast",
 } as const;
+/** A cast from the cenote's shore: the way the angler faces (a unit vector on the ground). */
+export interface ShoreCastPacket {
+  fx: number;
+  fz: number;
+}
 /** A strike on the node being prospected: its direction from the node's centre (the world's axes)
  *  where the pointer met the rock. `seq` numbers it (a stale one is dropped). */
 export interface StrikePacket {

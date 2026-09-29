@@ -2,7 +2,7 @@
 prospector and trader, seated on a stump at his log workstation in the Sunlit Doline),
 client/public/models/old_flint.glb (Old Flint the Badger, who keeps the old mine adit behind the
 Whispering Woods' Autumn Maples, his brass lantern lit) and client/public/models/finnegan.glb
-(Finnegan the Grotto Angler, an old axolotl in an oilskin, on his driftwood crate by the Cenote).
+(Finnegan the Grotto Angler, an old axolotl in an oilskin, on his driftwood log on the Cenote's sand).
 
 Run it inside Blender through the Live Bridge (POST {"code": ...}: run this file inside a namespace
 of its own with REPO_ROOT and REPORT_PATH set in it; the summary or the traceback goes to
@@ -23,13 +23,13 @@ The nodes entities/CampNpc.tsx animates:
         Gus_ArmR        his right arm, its big digging claws on the counter (pivots at the shoulder)
         Gus_ArmL        his left arm, a gem held up between two claws (pivots at the shoulder)
         Gus_Tail        a stubby pink tail
-    Finnegan            the root (an empty at the crate's foot)
-      Finnegan_Crate    his driftwood crate, a tackle tin and a glowing lantern on it (still)
-      Finnegan_Body     a plump pink axolotl in a yellow oilskin coat, seated (pivots on the crate)
+    Finnegan            the root (an empty at the log's foot)
+      Finnegan_Log      his driftwood log, his reed creel beside it, his lantern on the sand (still)
+      Finnegan_Body     a plump pink axolotl in a yellow oilskin coat, seated (pivots on the log)
         Finnegan_Head   his wide smiling head, feathery gills either side, a sou'wester hat
         Finnegan_ArmR   his right arm (pivots at the shoulder: he waves)
         Finnegan_ArmL   his left arm holding the rod out over the water, a glowing lure on its line
-        Finnegan_Tail   his long finned tail, curled round the crate
+        Finnegan_Tail   his long finned tail, curled round the log
     OldFlint            the root
       OldFlint_Body     a stout grey badger, a heavy leather apron over a work shirt, braces, boots
         OldFlint_Head   the badger's striped face, bushy brows, a miner's hard hat with its lamp
@@ -103,6 +103,11 @@ PALETTE = {
     "Rod": "#8A5A34",
     "Line": "#EDEBE6",
     "Tin": "#6F8A9A",
+    "Bark": "#8F8172",
+    "BarkDark": "#6A5E52",
+    "Heartwood": "#C9B89A",
+    "Reed": "#C2A462",
+    "ReedDark": "#8E7440",
 }
 
 
@@ -508,21 +513,29 @@ def build_finnegan(root):
     coll = bpy.data.collections.new("Finnegan")
     bpy.context.scene.collection.children.link(coll)
     rig = rig_root("Finnegan", coll)
-    top = 0.46  # the crate's lid
+    top = 0.44  # the log's top
 
-    # --- the crate: weathered driftwood slats, a rope handle, a tackle tin and his lantern on it ---
+    # --- the log: a flat-topped length of silvered driftwood lying on the sand across him, its ends
+    # sawn pale, a broken branch stub; his reed creel beside him, his lantern on the sand ---
     R = Part()
-    box(R, -0.32, 0.32, 0.0, top, -0.26, 0.26, "Crate")
-    for k in range(4):
-        y0 = 0.02 + k * 0.11
-        box(R, -0.33, 0.33, y0, y0 + 0.02, 0.255, 0.27, "CrateDark")
-        box(R, -0.33, 0.33, y0, y0 + 0.02, -0.27, -0.255, "CrateDark")
+    cylinder(R, (-0.75, 0.2, -0.02), (0.75, 0.21, 0.02), 0.22, "Bark", sides=10)
+    box(R, -0.7, 0.7, top - 0.05, top, -0.13, 0.13, "Crate")
     for sx in (-1, 1):
-        box(R, sx * 0.3 - 0.03, sx * 0.3 + 0.03, 0.0, top + 0.01, -0.27, 0.27, "CrateDark")
-    lathe(R, 0.42, 0.12, [(0, 0.0), (0.08, 0.0), (0.08, 0.07), (0, 0.07)], "Tin", segs=12)
-    lathe(R, -0.44, 0.1, [(0, 0.0), (0.06, 0.0), (0.07, 0.09), (0.05, 0.15), (0, 0.16)], "Lamp", segs=10)
-    lathe(R, -0.44, 0.1, [(0, 0.14), (0.075, 0.14), (0.03, 0.2), (0, 0.21)], "CoatDark", segs=10)
-    node("Finnegan_Crate", R, coll, rig, glowing=("Lamp",))
+        cylinder(R, (sx * 0.755, 0.2, 0.0), (sx * 0.77, 0.2, 0.0), 0.19, "Heartwood", sides=10)
+    for k in range(5):
+        x = -0.6 + k * 0.3
+        cylinder(R, (x, 0.2, -0.02), (x + 0.03, 0.2, -0.02), 0.225, "BarkDark", sides=10)
+    cylinder(R, (0.35, 0.3, -0.18), (0.48, 0.42, -0.36), 0.05, "BarkDark", sides=6, r_end=0.03)
+    # the creel: woven reed, banded, its lid ajar
+    for k in range(5):
+        y0 = k * 0.06
+        lathe(R, 0.62, 0.42, [(0, y0), (0.15 + 0.01 * (k % 2), y0), (0.155, y0 + 0.06), (0, y0 + 0.06)], "Reed" if k % 2 else "ReedDark", segs=10)
+    lathe(R, 0.64, 0.42, [(0, 0.3), (0.16, 0.3), (0.12, 0.34), (0, 0.35)], "ReedDark", segs=10)
+    cylinder(R, (0.5, 0.36, 0.42), (0.74, 0.36, 0.42), 0.01, "CrateDark", sides=4)
+    # the lantern on the sand
+    lathe(R, -0.62, 0.36, [(0, 0.0), (0.06, 0.0), (0.07, 0.09), (0.05, 0.15), (0, 0.16)], "Lamp", segs=10)
+    lathe(R, -0.62, 0.36, [(0, 0.14), (0.075, 0.14), (0.03, 0.2), (0, 0.21)], "CoatDark", segs=10)
+    node("Finnegan_Log", R, coll, rig, glowing=("Lamp",))
 
     # --- the body: a plump axolotl seated on the lid, his oilskin coat, his stubby legs forward ---
     B = Part()

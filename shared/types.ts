@@ -33,6 +33,10 @@ export interface PlayerState {
   z: number;
   dirX: number;
   dirZ: number;
+  /** Where this angler's float sits on the Glimmering Caverns' cenote (cast from anywhere on its
+   *  shore: shared/worlds/caverns.ts shoreCast), while they fish there. */
+  floatX: number;
+  floatZ: number;
   color: string; // "#rrggbb"
   /** Wardrobe outfit, encoded by encodeLook(). Empty = the defaults derived from the user id. */
   look: string;

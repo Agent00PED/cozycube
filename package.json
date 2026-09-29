@@ -14,6 +14,7 @@
     "tunnel": "cloudflared tunnel --url http://localhost:5173",
     "validate-world": "tsx scripts/validate-world.ts",
     "check-layout": "tsx scripts/validate-world.ts",
+    "caverns-terrain": "tsx scripts/caverns-terrain.ts",
     "build-models": "tsx scripts/build-models.ts"
   },
   "devDependencies": {

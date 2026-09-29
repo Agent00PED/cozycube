@@ -37,28 +37,28 @@ export const VIP_LAYOUT = /* layout:begin */ {
   "walls": { "t": 0.2, "h": 3.6 },
   "elevator": { "x": 2.6, "w": 1.4, "h": 2.5 },
   "arrival": { "x": 2.6, "z": -3.7 },
-  "fountain": { "x": -0.3, "z": -0.15, "r": 0.72 },
+  "fountain": { "x": 0.0, "z": -1.0, "r": 0.72 },
   "poker": {
-    "x": -2.5,
+    "x": -3.05,
     "z": -3.0,
     "len": 2.8,
     "w": 1.25,
     "top": 0.68,
     "reach": 2.4,
     "chairZ": -1.75,
-    "chairs": [-3.5, -2.7, -1.9],
-    "baron": [-0.55, -3.0],
-    "dealer": [-2.5, -4.0]
+    "chairs": [-4.05, -3.25, -2.45],
+    "baron": [-1.1, -3.0],
+    "dealer": [-3.05, -4.0]
   },
-  "baccarat": { "x": 1.96, "z": -1.9, "face": 70, "r": 1.15, "top": 0.74, "reach": 2.6, "stoolR": 1.55, "stoolAngles": [-55, -18, 18], "duchess": 55, "dealer": 0.4 },
-  "blackjack": { "x": -2.05, "z": 2.11, "yaw": 0.34907, "r": 1.1, "top": 0.74, "reach": 2.4, "stoolR": 1.55, "stoolAngles": [-40, 0, 40], "felt": "green", "dealer": 0.4 },
-  "vault": { "x": -4.3, "zs": [0.45, 1.65], "w": 1.1, "d": 0.95, "h": 2.2 },
+  "baccarat": { "x": 3.0, "z": 2.2, "face": 180, "r": 1.15, "top": 0.74, "reach": 2.6, "stoolR": 1.5, "stoolAngles": [-30, 0, 30], "duchess": -62, "dealer": 0.4 },
+  "blackjack": { "x": -3.0, "z": 2.2, "yaw": 3.14159, "r": 1.1, "top": 0.74, "reach": 2.4, "stoolR": 1.5, "stoolAngles": [-30, 0, 30], "felt": "green", "dealer": 0.4 },
+  "vault": { "z": -4.3, "xs": [-0.3, 0.8], "w": 1.1, "d": 0.95, "h": 2.2 },
   "jukebox": { "x": -4.52, "z": 3.3, "w": 0.72, "d": 0.5, "h": 1.5 },
-  "planters": [{ "x": 4.25, "z": -4.25 }, { "x": -4.25, "z": 4.25 }],
-  "loveseat": { "x": 0.5, "z": -4.35, "len": 1.5 },
+  "planters": [{ "x": -4.35, "z": -4.35 }, { "x": -4.25, "z": 4.25 }],
+  "loveseat": { "x": 4.2, "z": -4.35, "len": 1.1 },
   "npcs": {
-    "borisVip": { "x": -2.5, "z": -4.0, "yaw": 0 },
-    "baron": { "x": -0.55, "z": -3.0, "yaw": -1.5708 },
+    "borisVip": { "x": -3.05, "z": -4.0, "yaw": 0 },
+    "baron": { "x": -1.1, "z": -3.0, "yaw": -1.5708 },
     "duchess": { "x": 0, "z": 0, "yaw": 0 }
   }
 } /* layout:end */;
@@ -93,21 +93,24 @@ export const VIP_ELEVATOR = W(V.elevator.x, -V.half + 0.4);
 export const VIP_POKER = { ...W(V.poker.x, V.poker.z), reach: V.poker.reach };
 const baccaratCentre = W(V.baccarat.x, V.baccarat.z);
 export const VIP_BACCARAT = { ...baccaratCentre, reach: V.baccarat.reach };
-/** The way the baccarat table's curve (its players' side) faces: out toward the front rail and the
- *  viewer; its dealer stands behind the flat side, on the fountain's side, facing the same way. */
+/** The way the baccarat table's curve (its players' side) faces: north, toward the fountain; its
+ *  dealer stands behind the flat side, on the balcony's side (toward the front rail and the viewer),
+ *  facing north the same way, over the felt to the players. */
 const baccFace = V.baccarat.face * DEG;
 /** Where the baccarat table is clicked: over its half disc (the table turns, its pad does not). */
 export const VIP_BACCARAT_PAD = { x: baccaratCentre.x + Math.sin(baccFace) * 0.4, z: baccaratCentre.z + Math.cos(baccFace) * 0.4 };
-/** The twin Golden Vaults against the western glass, side by side (the first keeps its old id). */
-export const VAULT_SLOTS = V.vault.zs.map((z, i) => ({ propId: i === 0 ? "slot_vault" : `slot_vault_${i + 1}`, ...W(V.vault.x, z), approach: W(V.vault.x + V.vault.d / 2 + 0.85, z) }));
+/** The twin Golden Vaults side by side against the back wall, west of the elevator, facing the
+ *  fountain (the first keeps its old id). */
+export const VAULT_SLOTS = V.vault.xs.map((x, i) => ({ propId: i === 0 ? "slot_vault" : `slot_vault_${i + 1}`, ...W(x, V.vault.z), approach: W(x, V.vault.z + V.vault.d / 2 + 0.85) }));
 export const VAULT_SLOT = VAULT_SLOTS[0];
 const stoolAt = (deg: number) => {
   const d = heading(deg * DEG + baccFace);
   return W(V.baccarat.x + d.x * V.baccarat.stoolR, V.baccarat.z + d.z * V.baccarat.stoolR);
 };
 
-/** The penthouse's blackjack table (a half-moon in emerald felt, three stools on its curve, Gideon
- *  dealing from behind its flat side): played like the hall's, at its own high limits. */
+/** The penthouse's blackjack table (a half-moon in emerald felt, three stools on its curve toward the
+ *  fountain, Gideon dealing from behind its flat side on the balcony's side, facing north): played
+ *  like the hall's, at its own high limits. */
 const bj = V.blackjack;
 const bjCentre = W(bj.x, bj.z);
 export const VIP_BLACKJACK = {
@@ -149,16 +152,17 @@ export const VIP_SEATS: VipSeat[] = [
     const at = W(x, V.poker.chairZ);
     return { propId: `seat_vpoker_${i + 1}`, x: at.x, z: at.z, rotationY: Math.PI, cushion: "pokerChair", style: "armchair", approachX: at.x, approachZ: at.z + 0.85, floor: 0 };
   }),
-  // the baccarat table: stools round its curve, facing the shoe
+  // the baccarat table: stools round its curve on the fountain's side, each facing south over the
+  // felt to Scarlett (rotation 0); stepped up to from behind, the north
   ...V.baccarat.stoolAngles.map((deg, i): VipSeat => {
     const at = stoolAt(deg);
     const out = heading(deg * DEG + baccFace);
-    return { propId: `seat_bacc_${i + 1}`, x: at.x, z: at.z, rotationY: facing(at, baccaratCentre), cushion: "barStool", style: "stool", approachX: at.x + out.x * 0.8, approachZ: at.z + out.z * 0.8, floor: 0 };
+    return { propId: `seat_bacc_${i + 1}`, x: at.x, z: at.z, rotationY: 0, cushion: "barStool", style: "stool", approachX: at.x + out.x * 0.8, approachZ: at.z + out.z * 0.8, floor: 0 };
   }),
-  // the blackjack table: three stools round its curve, facing Gideon; stepped up to from behind
+  // the blackjack table: three stools round its curve on the fountain's side, facing south to Gideon
   ...bj.stoolAngles.map((deg, i): VipSeat => {
     const { at, out } = bjStoolAt(deg);
-    return { propId: `seat_vbj_${i + 1}`, x: at.x, z: at.z, rotationY: facing(at, bjCentre), cushion: "barStool", style: "stool", approachX: at.x + out.x * 0.8, approachZ: at.z + out.z * 0.8, floor: 0 };
+    return { propId: `seat_vbj_${i + 1}`, x: at.x, z: at.z, rotationY: 0, cushion: "barStool", style: "stool", approachX: at.x + out.x * 0.8, approachZ: at.z + out.z * 0.8, floor: 0 };
   }),
 ];
 
@@ -227,9 +231,9 @@ export const VIP_OBSTACLES: AABB[] = [
   // the two card tables
   ...VIP_TABLE_BOXES.baccarat,
   ...VIP_TABLE_BOXES.blackjack,
-  // the twin Golden Vaults and the jukebox against the window wall, the loveseat under the back
-  // windows, the planters
-  ...V.vault.zs.map((z) => centred(W(V.vault.x, z), V.vault.d / 2, V.vault.w / 2)),
+  // the twin Golden Vaults against the back wall, the jukebox against the window wall, the loveseat
+  // under the back windows by the elevator, the planters
+  ...V.vault.xs.map((x) => centred(W(x, V.vault.z), V.vault.w / 2, V.vault.d / 2)),
   centred(W(V.jukebox.x, V.jukebox.z), V.jukebox.d / 2, V.jukebox.w / 2),
   centred(W(V.loveseat.x, V.loveseat.z - 0.05), V.loveseat.len / 2 + 0.05, 0.42),
   ...V.planters.map((p) => around(W(p.x, p.z), 0.4)),

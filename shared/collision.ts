@@ -5,7 +5,7 @@ import { CASINO_OBSTACLES, CASINO_REGIONS, CASINO_SPAWNS, casinoFloorY } from ".
 import { VIP_ARRIVAL, VIP_OBSTACLES, VIP_REGION } from "./worlds/casino_vip";
 import { FOREST_OBSTACLES, FOREST_SPAWNS } from "./worlds/forest";
 import { RING_FLOOR_Y, RING_OBSTACLES, RING_SPAWNS, onRing } from "./worlds/boxing_ring";
-import { CAVERNS_OBSTACLES, CAVERNS_SPAWNS, cavernsFloorY } from "./worlds/caverns";
+import { CAVERNS_OBSTACLES, CAVERNS_SPAWNS, cavernsBlocked, cavernsFloorY } from "./worlds/caverns";
 
 // Where you can stand. The lounge, the campfire, the woods, the casino, the Velvet Ring and the
 // Glimmering Caverns are authored in shared/worlds/ (lounge.ts, campfire.ts, forest.ts, casino.ts,
@@ -84,6 +84,8 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
 /** True when a disc of `radius` at (x, z) is off the floor or overlaps furniture. */
 export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boolean {
   if (!REGIONS[mapId].some((r) => inside(r, x, z))) return true;
+  // (the caverns' ground: its own mask of where you can stand, besides its furniture's boxes)
+  if (mapId === "glimmering_caverns" && cavernsBlocked(x, z, radius)) return true;
   for (const b of MAP_OBSTACLES[mapId]) {
     if (x + radius > b.minX && x - radius < b.maxX && z + radius > b.minZ && z - radius < b.maxZ) return true;
   }

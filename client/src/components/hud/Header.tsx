@@ -7,7 +7,7 @@ import { isCampDay, minutesToTurn } from "@shared/daynight";
 import { netWorth } from "@shared/casino";
 import { useAnimatedNumber } from "./useAnimatedNumber";
 import { useAnglerProfile } from "./anglerStore";
-import { carrierCap, carrierLoad, livewellCap } from "@shared/fishing";
+import { carrierCap, carrierLoad, livewellCap, type FishingProfile } from "@shared/fishing";
 import { setCameraMode, useCameraMode } from "../../scene/cameraFocus";
 import { VelvetChipIcon } from "./VelvetChipIcon";
 
@@ -97,7 +97,7 @@ const ICON = "text-lg leading-none";
  *     too. Voice has no control here: who is speaking shows as the green rings at their feet.
  */
 export function Header(p: HeaderProps) {
-  const [open, setOpen] = useState<"time" | "status" | "more" | "creel" | null>(null);
+  const [open, setOpen] = useState<"time" | "status" | "more" | "storage" | null>(null);
   const angler = useAnglerProfile(p.userId, p.fishing, p.coins);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -108,7 +108,7 @@ export function Header(p: HeaderProps) {
     window.addEventListener("pointerdown", onDown);
     return () => window.removeEventListener("pointerdown", onDown);
   }, [open]);
-  const toggle = (menu: "time" | "status" | "more" | "creel") => {
+  const toggle = (menu: "time" | "status" | "more" | "storage") => {
     setOpen((o) => (o === menu ? null : menu));
   };
   // the campfire and the woods keep the camp's own 24-minute day, and the casino never sees the sun:
@@ -174,63 +174,13 @@ export function Header(p: HeaderProps) {
         <CoinWallet coins={p.coins} chips={p.chips} onClaim={p.onClaimAllowance} />
         {/* Velvet Chips: bright in the casino; elsewhere a dimmed reminder, only while you hold some */}
         {(isCasinoMap(p.currentMap) || p.chips > 0) && <ChipPurse chips={p.chips} here={isCasinoMap(p.currentMap)} />}
-        {/* the resource gauges: the wood carrier (WoodCarrierModal), the livewell
-            (FishLivewellModal) and, once Old Flint has shown you the way down, the ore satchel
-            (OreSatchelDrawer), each its own drawer (B opens the last one); only where you gather
-            (the campfire, the woods, the caverns, the beach): the lounge, the casino and the ring
-            have none */}
-        {isGatheringMap(p.currentMap) && (
-          <>
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "carrier", propId: "carrier" } }))}
-              className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-              title={carrierLoad(angler.profile) > carrierCap(angler.profile) ? `Wood carrier (B): overburdened, ${carrierLoad(angler.profile)} of ${carrierCap(angler.profile)}: everything is kept, but no felling until you're back under` : `Wood carrier (B): ${carrierLoad(angler.profile)} of ${carrierCap(angler.profile)} slots`}
-              aria-label="Wood carrier"
-              aria-haspopup="dialog"
-            >
-              <span className={ICON}>🪵</span>
-              <span className={`font-bold tabular-nums ${carrierLoad(angler.profile) >= carrierCap(angler.profile) ? "text-rose-200" : "text-amber-100"}`}>
-                {carrierLoad(angler.profile) > carrierCap(angler.profile) ? "⚠️" : ""}
-                {carrierLoad(angler.profile)}/{carrierCap(angler.profile)}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "livewell", propId: "livewell" } }))}
-              className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-              title={angler.profile.creel.length > livewellCap(angler.profile) ? `Livewell (B): overburdened, ${angler.profile.creel.length} of ${livewellCap(angler.profile)}: every fish is kept, but none bite until you're back under` : `Livewell (B): ${angler.profile.creel.length} of ${livewellCap(angler.profile)} fish`}
-              aria-label="Livewell"
-              aria-haspopup="dialog"
-            >
-              <span className={ICON}>🪣</span>
-              <span className={`font-bold tabular-nums ${angler.profile.creel.length >= livewellCap(angler.profile) ? "text-amber-300" : "text-sky-100"}`}>
-                {angler.profile.creel.length > livewellCap(angler.profile) ? "⚠️" : ""}
-                {angler.profile.creel.length}/{livewellCap(angler.profile)}
-              </span>
-            </button>
-            {(angler.profile.caveAccess || isCavernsMap(p.currentMap)) && (
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "satchel", propId: "satchel" } }))}
-                className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`}
-                title={
-                  slotsUsed(angler.profile.satchelContents) > satchelCap(angler.profile, satchelBonus(angler.profile.worn))
-                    ? `Ore satchel (B): overburdened, ${slotsUsed(angler.profile.satchelContents)} of ${satchelCap(angler.profile, satchelBonus(angler.profile.worn))} slots: everything is kept, but no mining until you're back under`
-                    : `Ore satchel (B): ${slotsUsed(angler.profile.satchelContents)} of ${satchelCap(angler.profile, satchelBonus(angler.profile.worn))} slots${satchelBonus(angler.profile.worn) ? ` (+${satchelBonus(angler.profile.worn)} from your strap)` : ""}`
-                }
-                aria-label="Ore satchel"
-                aria-haspopup="dialog"
-              >
-                <span className={ICON}>⛏️</span>
-                <span className={`font-bold tabular-nums ${slotsUsed(angler.profile.satchelContents) >= satchelCap(angler.profile, satchelBonus(angler.profile.worn)) ? "text-rose-200" : "text-cyan-100"}`}>
-                  {slotsUsed(angler.profile.satchelContents) > satchelCap(angler.profile, satchelBonus(angler.profile.worn)) ? "⚠️" : ""}
-                  {slotsUsed(angler.profile.satchelContents)}/{satchelCap(angler.profile, satchelBonus(angler.profile.worn))}
-                </span>
-              </button>
-            )}
-          </>
-        )}
+        {/* the storage hub: one 🎒 pill with everything carried, opening onto the wood carrier
+            (WoodCarrierModal), the livewell (FishLivewellModal) and, once Old Flint has shown you
+            the way down, the ore satchel (OreSatchelDrawer), each a pill with its count that opens
+            its own drawer (B opens the last one); a click again or anywhere else folds it; only
+            where you gather (the campfire, the woods, the caverns, the beach): the lounge, the casino
+            and the ring have none */}
+        {isGatheringMap(p.currentMap) && <StorageHub angler={angler.profile} caverns={isCavernsMap(p.currentMap)} open={open === "storage"} onToggle={() => toggle("storage")} onClose={() => setOpen(null)} />}
 
         <div className="relative hidden shrink-0 sm:block">
           <button type="button" onClick={() => toggle("status")} className={ICON_PILL} title={orbTitle(p, st?.label)} aria-label={orbTitle(p, st?.label)} aria-expanded={open === "status"} aria-haspopup="menu">
@@ -360,6 +310,61 @@ function StatusChoices({ status, onSetStatus, close, chips = false }: { status: 
         </MenuItem>
       ))}
     </>
+  );
+}
+
+/** The storage hub: a 🎒 pill with the total carried (a ⚠️ when anything is over its room, amber
+ *  when anything is full), and under it, open, a pill for each store with its count and room: a
+ *  tap opens that store's drawer (and folds the hub). */
+function StorageHub({ angler, caverns, open, onToggle, onClose }: { angler: FishingProfile; caverns: boolean; open: boolean; onToggle: () => void; onClose: () => void }) {
+  const strap = satchelBonus(angler.worn);
+  const stores = [
+    { kind: "carrier", icon: "🪵", name: "Wood carrier", unit: "slots", used: carrierLoad(angler), cap: carrierCap(angler), tone: "text-amber-100", note: "no felling" },
+    { kind: "livewell", icon: "🪣", name: "Livewell", unit: "fish", used: angler.creel.length, cap: livewellCap(angler), tone: "text-sky-100", note: "none bite" },
+    ...(angler.caveAccess || caverns ? [{ kind: "satchel", icon: "⛏️", name: "Ore satchel", unit: strap ? `slots (+${strap} from your strap)` : "slots", used: slotsUsed(angler.satchelContents), cap: satchelCap(angler, strap), tone: "text-cyan-100", note: "no mining" }] : []),
+  ];
+  const total = stores.reduce((n, s) => n + s.used, 0);
+  const over = stores.some((s) => s.used > s.cap);
+  const full = stores.some((s) => s.used >= s.cap);
+  const summary = stores.map((s) => `${s.icon} ${s.used}/${s.cap}`).join("  ");
+  const openDrawer = (kind: string) => {
+    onClose();
+    window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind, propId: kind } }));
+  };
+  return (
+    <div className="relative shrink-0">
+      <button type="button" onClick={onToggle} className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`} title={`Storage: ${summary}`} aria-label={`Storage, ${total} carried`} aria-expanded={open} aria-haspopup="menu">
+        <span className={ICON}>🎒</span>
+        <span className={`font-bold tabular-nums ${over ? "text-rose-200" : full ? "text-amber-300" : "text-stone-100"}`}>
+          {over ? "⚠️" : ""}
+          {total}
+        </span>
+        <span className={`text-[10px] opacity-70 transition-transform duration-150 ${open ? "rotate-180" : ""}`} aria-hidden>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <Menu alignRight>
+          {stores.map((s) => (
+            <button
+              key={s.kind}
+              type="button"
+              role="menuitem"
+              onClick={() => openDrawer(s.kind)}
+              className="flex min-h-11 items-center gap-2 whitespace-nowrap rounded-2xl px-3 text-left text-sm font-semibold transition-transform duration-150 hover:bg-white/10 active:scale-95"
+              title={s.used > s.cap ? `${s.name} (B): overburdened, ${s.used} of ${s.cap}: everything is kept, but ${s.note} until you're back under` : `${s.name} (B): ${s.used} of ${s.cap} ${s.unit}`}
+            >
+              <span className={ICON}>{s.icon}</span>
+              <span className="flex-1">{s.name}</span>
+              <span className={`font-bold tabular-nums ${s.used > s.cap ? "text-rose-200" : s.used >= s.cap ? "text-amber-300" : s.tone}`}>
+                {s.used > s.cap ? "⚠️" : ""}
+                {s.used}/{s.cap}
+              </span>
+            </button>
+          ))}
+        </Menu>
+      )}
+    </div>
   );
 }
 
