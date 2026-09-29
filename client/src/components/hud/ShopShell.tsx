@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { CampfirePacket } from "@shared/types";
-import { FISH, TIER_COLOR, TIER_LABEL, fishKg, isKingSize, stars, type CreelFish, type FishingProfile } from "@shared/fishing";
+import { FISH, TIER_COLOR, TIER_LABEL, fishKg, gradeOf, isKingSize, stars, type CreelFish, type FishingProfile } from "@shared/fishing";
 import { GEAR, SLOT_LABEL, gearOf, wearGear, type GearId } from "@shared/gear";
 import { marketDirection, msUntilNextHour, type MarketGood, type MarketState } from "@shared/market";
 import { Modal } from "./Modal";
@@ -11,7 +11,7 @@ import { Modal } from "./Modal";
 // market clock and the collection button. The keeper's answer to a trade shows for a moment as a
 // toast over the list.
 
-export type ShopTab = "trade" | "tools" | "storage" | "gear";
+export type ShopTab = "trade" | "tools" | "storage" | "gear" | "barter";
 
 /** The keeper's answer to the last trade (a new object each time, so the same words show again). */
 export interface ShopNotice {
@@ -110,7 +110,7 @@ export function MarketClock({ market, goods }: { market: MarketState; goods: Mar
   const up = unique.filter((g) => marketDirection(g, market) === "up").length;
   const down = unique.filter((g) => marketDirection(g, market) === "down").length;
   return (
-    <span className="flex min-w-0 items-center gap-1.5 opacity-85" title="Supply and demand, room by room (70% to 130% of its base): past 30 of a kind sold in the hour, each knocks 2% off the next; a good left unsold, burned or carved opens the next hour 3% higher">
+    <span className="flex min-w-0 items-center gap-1.5 opacity-85" title="Every hour each good drifts 10% to 25% up or down; heavy selling in this lounge (past 30 of a kind in the hour) knocks it down further, up to 30%, and it recovers over the quiet hours after">
       <span aria-hidden>🕰️</span>
       <span className="truncate">
         Market turns in <b className="tabular-nums text-[#F7EBE1]">{`${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`}</b>
@@ -176,7 +176,7 @@ export function FishCard({ fish, price, mult, onToggleLock, onSell }: { fish: Cr
           {fish.cm} cm · {fishKg(fish)} kg · <span className="text-amber-200">{stars(fish.q)}</span>
         </span>
         <span className="flex items-center gap-1.5 text-[10px] leading-tight">
-          <b style={{ color: TIER_COLOR[sp.tier] }}>{TIER_LABEL[sp.tier]}</b>
+          <b style={{ color: TIER_COLOR[gradeOf(fish.s)] }}>{TIER_LABEL[gradeOf(fish.s)]}</b>
           {/* (at a shop the price is on its sell button: the badge says only how the hour stands) */}
           <TrendBadge price={onSell ? undefined : price} mult={mult} />
         </span>

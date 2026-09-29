@@ -6,7 +6,7 @@ import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
 import { VIP_PROPS, VIP_SEATS } from "./worlds/casino_vip";
 import { FOREST_PROPS, FOREST_SEATS } from "./worlds/forest";
 import { RING_PROPS, RING_SEATS } from "./worlds/boxing_ring";
-import { CAVERNS_PROPS, ONSEN_SEATS, TERRACE } from "./worlds/caverns";
+import { CAVERNS_PROPS, THERMAL_SEATS, thermalPoolY } from "./worlds/caverns";
 
 // The per-map tables of things you can sit on and things you can use, with the approach point of
 // each (where you stand to use it, and where you land when you get up). The built worlds' come from
@@ -102,9 +102,9 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   // the Velvet Ring: the tiered benches, the Chesterfields, the cocktail stools, the ringside and
   // judges' chairs, the gym's bench (drawn by boxing_ring.glb; a tier's bench sits that much higher)
   boxing_ring: RING_SEATS.map(casinoSeat),
-  // the Glimmering Caverns: the onsen's six seats in the water (its ledge under the terrace's floor),
-  // each getting out onto its dry exit anchor
-  glimmering_caverns: ONSEN_SEATS.map((s) => ({
+  // the Glimmering Caverns: the thermal terraces' six seats in the warm water (a ledge in the stone
+  // under each pool's surface), each getting out onto its dry landing on the shore
+  glimmering_caverns: THERMAL_SEATS.map((s) => ({
     propId: s.propId,
     x: s.x,
     z: s.z,
@@ -112,7 +112,7 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     style: "onsen" as const,
     approachX: s.approachX,
     approachZ: s.approachZ,
-    sitY: round(TERRACE.y + seatAnchorY(CUSHIONS.onsenLedge)),
+    sitY: round(thermalPoolY(s.z) + seatAnchorY(CUSHIONS.thermalLedge)),
   })),
   sunset_beach: [],
   japanese_onsen: [],

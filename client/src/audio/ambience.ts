@@ -452,7 +452,7 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
     // the Velvet Ring: its own crowd at ringside (the Casino Crowd fader), and no band
     if (mapId === "boxing_ring") ringCrowd ??= new CasinoCrowd("ring");
     ringCrowd?.setActive(mapId === "boxing_ring");
-    // the Glimmering Caverns: its reverb and drips, its crystals, its onsen's steam
+    // the Glimmering Caverns: its reverb and drips, its crystals, its thermal terraces' steam
     setCavernsActive(mapId === "glimmering_caverns");
   }, [mapId]);
   useEffect(

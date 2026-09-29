@@ -4,10 +4,11 @@ import { AXES, BYPRODUCTS, BYPRODUCT_IDS, TREES, WOOD, WOOD_KINDS, carrierTier, 
 import { BUFFS, CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks, tradeInValue, type CraftItem } from "@shared/crafting";
 import { CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, FIREWOOD_PRICE } from "@shared/economy";
 import { carrierBonus } from "@shared/gear";
-import { buffOn, carrierCap, carrierLoad, pouchCap, pouchLoad, stars, type FishingProfile } from "@shared/fishing";
+import { buffOn, carrierCap, carrierLoad, stars, type FishingProfile } from "@shared/fishing";
 import { craftGood, marketMultiplier, parseMarket, woodGood } from "@shared/market";
 import { Modal } from "./Modal";
 import { GearSlots, TacklesOwned } from "./GearSlots";
+import { DrawerCrafts, Materials } from "./DrawerKit";
 import { TrendBadge } from "./ShopShell";
 
 interface Props {
@@ -22,18 +23,18 @@ interface Props {
 
 // The wood drawer, opened from the header's 🪵 gauge (or B), laid out like the fish drawer: how full
 // the carrier is, four tabs, one scrolling list of two-column cards. Timber: each wood's stack (its
-// logs' trunk and size, stars for a big tree's, what it fetches this hour). Byproducts: the pouches
-// (the felling's by-products, the Fish Scales, the resin jar, and the sawdust with them: their room
-// grows with the carrier, 30 to 250). Crafts & Fuel: the craft stash (12 slots of up to 99 a kind:
-// carved pieces, a Masterwork ✨ in a gold frame, and consumables with a Use button), the Firewood
-// and the sawdust, the forage pantry. Axe & Gear: the
-// axe in hand and what it fells, the gear worn slot by slot, the woods' permits. The bonfire is fed
-// at the bonfire, not from here.
+// logs' trunk and size, stars for a big tree's, what it fetches this hour). Materials: the felling's
+// by-products, the resin jar and the sawdust, in the materials' store beside the carrier (up to 99 of
+// each; the river's and the cavern's are in their own drawers). Crafts & Fuel: Feller's Pine Pitch
+// brewed right here, the craft stash (12 slots of up to 99 a kind: carved pieces, a Masterwork ✨ in
+// a gold frame, and consumables with a Use button), the Firewood, the forage pantry. Axe & Gear: the
+// axe in hand and what it fells, the Forester's gear worn slot by slot, the woods' permits. The
+// bonfire is fed at the bonfire, not from here.
 
 type Tab = "timber" | "byproducts" | "crafts" | "gear";
 const TABS: [Tab, string, string][] = [
   ["timber", "🪵", "Timber"],
-  ["byproducts", "🍯", "Byproducts"],
+  ["byproducts", "🍯", "Materials"],
   ["crafts", "🪚", "Crafts & Fuel"],
   ["gear", "🪓", "Axe & Gear"],
 ];
@@ -119,29 +120,15 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
           ))}
 
         {tab === "byproducts" && (
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            <Meter label="Pouches" load={pouchLoad(profile)} cap={pouchCap(profile)} note="by-products, resin and sawdust: they grow with the carrier" />
-            {BYPRODUCT_IDS.map((k) => {
-              const n = profile.byproducts[k] ?? 0;
-              return (
-                <Card key={k} emoji={BYPRODUCTS[k].emoji} title={BYPRODUCTS[k].name} count={n} dim={!n}>
-                  <span className="truncate text-[11px] opacity-75">{BYPRODUCTS[k].blurb.split(":")[0]}</span>
-                  <span className="text-[10px] tabular-nums opacity-75">
-                    {BYPRODUCTS[k].price} 🪙 each{n ? <b className="text-amber-200"> · {n * BYPRODUCTS[k].price} 🪙</b> : null}
-                  </span>
-                </Card>
-              );
-            })}
-            <Card emoji="🍯" title="Pine Resin" count={profile.resin} dim={!profile.resin}>
-              <span className="text-[11px] opacity-75">From gold swings; glues a carving</span>
-              <span className="text-[10px] tabular-nums opacity-75">{RESIN_PRICE} 🪙 each at Buster's</span>
-            </Card>
-            <p className="col-span-full m-0 pt-1 text-center text-[11px] opacity-70">They ride beside the carrier (no log slots): a bigger carrier, bigger pouches. Buster and Bramble buy them.</p>
+          <div className="flex flex-col gap-1.5">
+            <Materials profile={profile} disc="wood" />
+            <p className="m-0 pt-1 text-center text-[11px] opacity-70">They ride beside the carrier in their own store (no log slots). Buster and Bramble buy them; Pine Resin {RESIN_PRICE} 🪙 each at Buster's.</p>
           </div>
         )}
 
         {tab === "crafts" && (
           <div className="flex flex-col gap-1.5">
+            <DrawerCrafts profile={profile} drawer="wood" send={send} />
             <Meter label="Craft stash" load={stash.length} cap={CRAFT_STASH_SLOTS} note={`slots of up to ${CRAFT_SLOT_STACK} a kind`} unit="slots" />
             <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
               {Array.from({ length: Math.max(CRAFT_STASH_SLOTS, stash.length) }, (_, i) => {
@@ -177,10 +164,6 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
                 <span className="text-[11px] opacity-75">Split at the chopping block</span>
                 <span className="text-[10px] tabular-nums opacity-75">{FIREWOOD_PRICE} 🪙 a bundle</span>
               </Card>
-              <Card emoji="🪚" title="Sawdust" count={profile.sawdust} dim={!profile.sawdust}>
-                <span className="text-[11px] opacity-75">From a broken carving</span>
-                <span className="text-[10px] opacity-75">For the bonfire</span>
-              </Card>
             </div>
             {(pantry.mushroom || pantry.berry) && (
               <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
@@ -206,7 +189,7 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
                 </span>
               </div>
             </div>
-            <GearSlots profile={profile} send={send} craft="wood" />
+            <GearSlots profile={profile} send={send} disc="wood" />
             <TacklesOwned profile={profile} craft="wood" />
             <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">The Whispering Woods</b>
             <div className="flex flex-wrap gap-1.5">

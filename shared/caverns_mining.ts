@@ -1,7 +1,9 @@
 // The Glimmering Caverns' prospecting, as both sides see it: the ores and what Gus pays for them, the
-// pickaxes, the nodes' kinds, the strike's judging, the co-op shares, the Ancient Forge's recipes and
-// the Geode Anvil's odds. The server rolls every weak spot and judges every strike on these tables
-// (server/src/rooms/caverns.ts); the client draws the very same numbers.
+// pickaxes, the nodes' kinds, the strike's judging, the co-op shares, the Thermal Bellows Forge's
+// recipes and its minigame (the bellows' heat, the hammer's rhythm: replayed by the server from the
+// player's inputs), the Precision Geode Chisel's seam and gauge, and the forge's mining relics. The
+// server rolls every weak spot and judges every strike on these tables (server/src/rooms/caverns.ts);
+// the client draws the very same numbers.
 //
 // Tactile prospecting (no dial, no gauge, no prompt): walking up to a node and using it frames the
 // rock close up; its weak spot is a point on its surface, told only by the rock itself (glowing stress
@@ -27,12 +29,14 @@ export type OreItemId =
   | "copper_ore"
   | "iron_ore"
   | "silver_ore"
-  | "stone_dust"
   | "glimmer_shard"
   | "core_fragment"
   | "copper_ingot"
   | "iron_ingot"
   | "silver_ingot"
+  | "copper_ingot_mw"
+  | "iron_ingot_mw"
+  | "silver_ingot_mw"
   | "mystery_geode"
   | "pristine_geode"
   | "amethyst"
@@ -52,17 +56,19 @@ export interface OreItem {
   blurb: string;
 }
 export const ORE_ITEMS: Record<OreItemId, OreItem> = {
-  coal: { name: "Coal", emoji: "⚫", cat: "raw", price: ORE_PRICES.coal, color: "#3b3a40", blurb: "Off a coal seam on the terrace: the forge's fuel" },
-  copper_ore: { name: "Raw Copper", emoji: "🟠", cat: "raw", price: ORE_PRICES.copper_ore, color: "#d9803f", blurb: "Off a copper vein on the terrace" },
-  iron_ore: { name: "Raw Iron", emoji: "🔩", cat: "raw", price: ORE_PRICES.iron_ore, color: "#8a8f9a", blurb: "Off an iron lode on the wet cliffs" },
-  silver_ore: { name: "Raw Silver", emoji: "⚪", cat: "raw", price: ORE_PRICES.silver_ore, color: "#dfe6f2", blurb: "Off a silver seam in the lower chasm" },
-  stone_dust: { name: "Fine Stone Dust", emoji: "🌫️", cat: "raw", price: ORE_PRICES.stone_dust, color: "#b8b0a2", blurb: "Silver's powdery by-product: masons pay for it" },
-  glimmer_shard: { name: "Glimmer Shard", emoji: "💠", cat: "raw", price: ORE_PRICES.glimmer_shard, color: "#5ff2ff", blurb: "Off a Glimmerstone cluster in the fungal chasm" },
-  core_fragment: { name: "Ancient Core Fragment", emoji: "🔮", cat: "raw", price: ORE_PRICES.core_fragment, color: "#b36bff", blurb: "Off the Titan Monolith: humming, warm to the touch" },
-  copper_ingot: { name: "Copper Ingot", emoji: "🟧", cat: "ingot", price: ORE_PRICES.copper_ingot, color: "#e0894a", blurb: "3 Raw Copper and 1 Coal, at the Ancient Forge" },
-  iron_ingot: { name: "Iron Ingot", emoji: "⬛", cat: "ingot", price: ORE_PRICES.iron_ingot, color: "#6d7380", blurb: "3 Raw Iron and 2 Coal, at the Ancient Forge" },
-  silver_ingot: { name: "Silver Ingot", emoji: "⬜", cat: "ingot", price: ORE_PRICES.silver_ingot, color: "#eef3fb", blurb: "2 Raw Silver and 2 Coal, at the Ancient Forge" },
-  mystery_geode: { name: "Mystery Geode", emoji: "🪨", cat: "geode", price: ORE_PRICES.mystery_geode, color: "#8c7a6b", blurb: "Crack it on the Geode Anvil: a gem inside" },
+  coal: { name: "Coal", emoji: "⚫", cat: "raw", price: ORE_PRICES.coal, color: "#3b3a40", blurb: "Off a coal seam in the Sunlit Doline: the forge's fuel" },
+  copper_ore: { name: "Raw Copper", emoji: "🟠", cat: "raw", price: ORE_PRICES.copper_ore, color: "#d9803f", blurb: "Off a copper vein in the Sunlit Doline" },
+  iron_ore: { name: "Raw Iron", emoji: "🔩", cat: "raw", price: ORE_PRICES.iron_ore, color: "#8a8f9a", blurb: "Off an iron lode in the crystal fissures" },
+  silver_ore: { name: "Raw Silver", emoji: "⚪", cat: "raw", price: ORE_PRICES.silver_ore, color: "#dfe6f2", blurb: "Off a silver seam in the crystal fissures" },
+  glimmer_shard: { name: "Glimmer Shard", emoji: "💠", cat: "raw", price: ORE_PRICES.glimmer_shard, color: "#5ff2ff", blurb: "Off a Glimmerstone cluster among the fissures' mushrooms" },
+  core_fragment: { name: "Ancient Core Fragment", emoji: "🔮", cat: "raw", price: ORE_PRICES.core_fragment, color: "#b36bff", blurb: "Off the Titan Monolith on the Cenote's islet: humming, warm to the touch" },
+  copper_ingot: { name: "Copper Ingot", emoji: "🟧", cat: "ingot", price: ORE_PRICES.copper_ingot, color: "#e0894a", blurb: "3 Raw Copper and 1 Coal, at the Thermal Bellows Forge" },
+  iron_ingot: { name: "Iron Ingot", emoji: "⬛", cat: "ingot", price: ORE_PRICES.iron_ingot, color: "#6d7380", blurb: "3 Raw Iron and 2 Coal, at the Thermal Bellows Forge" },
+  silver_ingot: { name: "Silver Ingot", emoji: "⬜", cat: "ingot", price: ORE_PRICES.silver_ingot, color: "#eef3fb", blurb: "2 Raw Silver and 2 Coal, at the Thermal Bellows Forge" },
+  copper_ingot_mw: { name: "Masterwork Copper Ingot", emoji: "🟧", cat: "ingot", price: ORE_PRICES.copper_ingot_mw, color: "#ffb070", blurb: "Forged by hand at the bellows and the anvil: +25% at Gus's" },
+  iron_ingot_mw: { name: "Masterwork Iron Ingot", emoji: "⬛", cat: "ingot", price: ORE_PRICES.iron_ingot_mw, color: "#9aa3b3", blurb: "Forged by hand at the bellows and the anvil: +25% at Gus's" },
+  silver_ingot_mw: { name: "Masterwork Silver Ingot", emoji: "⬜", cat: "ingot", price: ORE_PRICES.silver_ingot_mw, color: "#ffffff", blurb: "Forged by hand at the bellows and the anvil: +25% at Gus's" },
+  mystery_geode: { name: "Mystery Geode", emoji: "🪨", cat: "geode", price: ORE_PRICES.mystery_geode, color: "#8c7a6b", blurb: "Cleave it on the meteorite anvil: a gem inside" },
   pristine_geode: { name: "Pristine Geode", emoji: "🥚", cat: "geode", price: ORE_PRICES.pristine_geode, color: "#cfc2ff", blurb: "The Monolith's own: the finer gems are likelier" },
   amethyst: { name: "Amethyst Shard", emoji: "🟣", cat: "gem", price: ORE_PRICES.amethyst, color: "#a764e8", blurb: "Cut from a geode" },
   topaz: { name: "Topaz Pebble", emoji: "🟡", cat: "gem", price: ORE_PRICES.topaz, color: "#f2c24f", blurb: "Cut from a geode" },
@@ -73,6 +79,8 @@ export const ORE_ITEM_IDS = Object.keys(ORE_ITEMS) as OreItemId[];
 export function isOreItemId(v: unknown): v is OreItemId {
   return typeof v === "string" && v in ORE_ITEMS;
 }
+/** Whether an item is a Masterwork ingot (it counts as its plain ingot wherever one is asked for). */
+export const isMasterwork = (id: OreItemId) => id.endsWith("_mw");
 export const ORE_CATEGORIES: OreCategory[] = ["raw", "ingot", "geode", "gem"];
 export const ORE_CATEGORY_LABEL: Record<OreCategory, { emoji: string; name: string }> = {
   raw: { emoji: "⛏️", name: "Raw Ores" },
@@ -148,12 +156,12 @@ export interface OreKindInfo {
   glow: string;
 }
 export const ORE_KINDS: Record<OreKind, OreKindInfo> = {
-  coal: { name: "Coal Seam", emoji: "⚫", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Upper Terrace", glow: "#ffb347" },
-  copper: { name: "Copper Vein", emoji: "🟠", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Upper Terrace", glow: "#ffb347" },
-  iron: { name: "Iron Lode", emoji: "🔩", tier: 2, hp: 200, respawnS: [50, 50], radius: 0.5, sweet: 0.18, geode: 0.15, zone: "the Wet Cliffs", glow: "#ff8a4a" },
-  silver: { name: "Silver Seam", emoji: "⚪", tier: 3, hp: 300, respawnS: [75, 75], radius: 0.55, sweet: 0.16, geode: 0, zone: "the Lower Chasm", glow: "#8fe8ff" },
-  glimmer: { name: "Glimmerstone Cluster", emoji: "💠", tier: 4, hp: 440, respawnS: [120, 120], radius: 0.6, sweet: 0.15, geode: 0.3, zone: "the Fungal Chasm", glow: "#00f0ff" },
-  monolith: { name: "Titan Monolith", emoji: "🗿", tier: 5, hp: 2400, respawnS: [25 * 60, 30 * 60], radius: 1.1, sweet: 0.24, geode: 1, zone: "the Center Sanctuary", glow: "#b36bff" },
+  coal: { name: "Coal Seam", emoji: "⚫", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Sunlit Doline", glow: "#ffb347" },
+  copper: { name: "Copper Vein", emoji: "🟠", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Sunlit Doline", glow: "#ffb347" },
+  iron: { name: "Iron Lode", emoji: "🔩", tier: 2, hp: 200, respawnS: [50, 50], radius: 0.5, sweet: 0.18, geode: 0.15, zone: "the Deep Crystal Fissures", glow: "#ff8a4a" },
+  silver: { name: "Silver Seam", emoji: "⚪", tier: 3, hp: 300, respawnS: [75, 75], radius: 0.55, sweet: 0.16, geode: 0, zone: "the Deep Crystal Fissures", glow: "#8fe8ff" },
+  glimmer: { name: "Glimmerstone Cluster", emoji: "💠", tier: 4, hp: 440, respawnS: [120, 120], radius: 0.6, sweet: 0.15, geode: 0.3, zone: "the Deep Crystal Fissures", glow: "#00f0ff" },
+  monolith: { name: "Titan Monolith", emoji: "🗿", tier: 5, hp: 2400, respawnS: [25 * 60, 30 * 60], radius: 1.1, sweet: 0.24, geode: 1, zone: "the Cenote's islet", glow: "#b36bff" },
 };
 export const ORE_KIND_IDS = Object.keys(ORE_KINDS) as OreKind[];
 /** How high a node's rock centre stands over its floor (m): a strike's direction, and its weak spot,
@@ -191,12 +199,15 @@ const norm = (v: Vec3): Vec3 => {
 };
 /** The way the isometric camera looks from (a weak spot is always on the side you see). */
 export const CAMERA_SIDE: Vec3 = norm([1, 1.15, 1]);
-/** The Deep Warmth's reach: a fracture radius this much wider (the onsen's buff). */
+/** The Deep Warmth's reach: a fracture radius this much wider (the thermal terraces' buff). */
 export const WARMTH_FRACTURE = 1.2;
+/** Miner's Stout: every strike this much harder a while. */
+export const STOUT_DAMAGE = 1.25;
 
-/** A node's sweet and near radii (m) for this pickaxe, the Deep Warmth widening both. */
-export function strikeRadii(kind: OreKind, pick: PickaxeId, warmth: boolean): { sweet: number; near: number } {
-  const sweet = ORE_KINDS[kind].sweet * (1 + PICKAXES[pick].sweet) * (warmth ? WARMTH_FRACTURE : 1);
+/** A node's sweet and near radii (m) for this pickaxe, the Deep Warmth widening both (and `extra`,
+ *  the Lodestone Pendant's share, on top). */
+export function strikeRadii(kind: OreKind, pick: PickaxeId, warmth: boolean, extra = 0): { sweet: number; near: number } {
+  const sweet = ORE_KINDS[kind].sweet * (1 + PICKAXES[pick].sweet + extra) * (warmth ? WARMTH_FRACTURE : 1);
   return { sweet, near: sweet * NEAR_RADII };
 }
 
@@ -237,17 +248,17 @@ export function strikeDistance(kind: OreKind, weak: Vec3, hit: Vec3): number {
 
 /** A strike, judged: where it landed (direct, near, bedrock; deflected off a rock too hard for the
  *  pickaxe), and its damage. A pickaxe of a higher tier breaks the node outright (the whole bar). */
-export function judgeStrike(kind: OreKind, pick: PickaxeId, weak: Vec3, hit: Vec3, warmth = false): { verdict: StrikeVerdict; damage: number; d: number; oneshot: boolean } {
+export function judgeStrike(kind: OreKind, pick: PickaxeId, weak: Vec3, hit: Vec3, warmth = false, boost: { sweet?: number; damage?: number } = {}): { verdict: StrikeVerdict; damage: number; d: number; oneshot: boolean } {
   const info = ORE_KINDS[kind];
   const p = PICKAXES[pick];
   const rule = mohs(p.tier, info.tier);
   const d = strikeDistance(kind, weak, hit);
   if (rule === "deflect") return { verdict: "deflect", damage: 0, d, oneshot: false };
-  const { sweet, near } = strikeRadii(kind, pick, warmth);
+  const { sweet, near } = strikeRadii(kind, pick, warmth, boost.sweet ?? 0);
   const verdict: StrikeVerdict = d <= sweet ? "direct" : d <= near ? "near" : "bedrock";
   if (rule === "oneshot") return { verdict, damage: info.hp, d, oneshot: true };
   const share = verdict === "bedrock" && p.noBedrock ? STRIKE_DAMAGE.near : STRIKE_DAMAGE[verdict as keyof typeof STRIKE_DAMAGE];
-  return { verdict, damage: Math.max(1, Math.round(p.damage * share * (rule === "under" ? UNDER_TIER_DAMAGE : 1))), d, oneshot: false };
+  return { verdict, damage: Math.max(1, Math.round(p.damage * share * (rule === "under" ? UNDER_TIER_DAMAGE : 1) * (boost.damage ?? 1))), d, oneshot: false };
 }
 
 /** A node's crack stage from its damage (0 whole .. 1 about to go): surface fissures, then the outer
@@ -276,9 +287,13 @@ export function scaleCount(n: number, mult: number, rand: () => number = Math.ra
   return Math.floor(x) + (rand() < x - Math.floor(x) ? 1 : 0);
 }
 
+/** A broken silver seam's Fine Stone Dust (into the materials' store, not the satchel). */
+export function rollDust(kind: OreKind, rand: () => number = Math.random): number {
+  return kind === "silver" ? 1 + (rand() < 0.5 ? 1 : 0) : 0;
+}
 /** A broken node's haul for one miner (before the co-op multiplier): its ores, and now and then a
- *  geode (the pickaxe's floor on an iron lode). */
-export function rollYield(kind: OreKind, pick: PickaxeId, rand: () => number = Math.random): Partial<Record<OreItemId, number>> {
+ *  geode (the pickaxe's floor on an iron lode; `geodeFind`, the Geode Hunter's Ring's, on top). */
+export function rollYield(kind: OreKind, pick: PickaxeId, rand: () => number = Math.random, geodeFind = 0): Partial<Record<OreItemId, number>> {
   const out: Partial<Record<OreItemId, number>> = {};
   const add = (id: OreItemId, n: number) => n > 0 && (out[id] = (out[id] ?? 0) + n);
   switch (kind) {
@@ -294,7 +309,6 @@ export function rollYield(kind: OreKind, pick: PickaxeId, rand: () => number = M
       break;
     case "silver":
       add("silver_ore", 1 + (rand() < 0.35 ? 1 : 0));
-      add("stone_dust", 1 + (rand() < 0.5 ? 1 : 0));
       break;
     case "glimmer":
       add("glimmer_shard", 1 + (rand() < 0.2 ? 1 : 0));
@@ -304,18 +318,21 @@ export function rollYield(kind: OreKind, pick: PickaxeId, rand: () => number = M
       add("pristine_geode", 1);
       return out;
   }
-  const geode = kind === "iron" ? Math.max(ORE_KINDS.iron.geode, PICKAXES[pick].geodeFloor) : ORE_KINDS[kind].geode;
+  const base = kind === "iron" ? Math.max(ORE_KINDS.iron.geode, PICKAXES[pick].geodeFloor) : ORE_KINDS[kind].geode;
+  const geode = base + (kind !== "coal" && kind !== "copper" ? geodeFind : 0);
   if (geode > 0 && rand() < geode) add("mystery_geode", 1);
   return out;
 }
 
-// --- the Ancient Forge -----------------------------------------------------------------------------
+// --- the Thermal Bellows Forge ------------------------------------------------------------------------
 
 export type IngotId = "copper_ingot" | "iron_ingot" | "silver_ingot";
 export const INGOT_IDS: IngotId[] = ["copper_ingot", "iron_ingot", "silver_ingot"];
 export function isIngotId(v: unknown): v is IngotId {
   return typeof v === "string" && (INGOT_IDS as string[]).includes(v);
 }
+/** Each plain ingot's Masterwork (forged by hand at the bellows and the anvil: +25% value). */
+export const MASTERWORK_OF: Record<IngotId, OreItemId> = { copper_ingot: "copper_ingot_mw", iron_ingot: "iron_ingot_mw", silver_ingot: "silver_ingot_mw" };
 /** Each ingot's ores and coal. */
 export const FORGE_RECIPES: Record<IngotId, Partial<Record<OreItemId, number>>> = {
   copper_ingot: { copper_ore: 3, coal: 1 },
@@ -324,7 +341,7 @@ export const FORGE_RECIPES: Record<IngotId, Partial<Record<OreItemId, number>>> 
 };
 /** Quick Smelt All's order: the best margin first (silver +51%, iron +9%, copper +7%). */
 export const QUICK_SMELT_ORDER: IngotId[] = ["silver_ingot", "iron_ingot", "copper_ingot"];
-/** How long the forge takes over each ingot (s), one after another; the most one queue holds. */
+/** How long the forge takes over each plain ingot (s), one after another; the most one queue holds. */
 export const FORGE_SMELT_S = 3;
 export const FORGE_QUEUE_MAX = 60;
 /** How many of an ingot the ores in `have` make. */
@@ -334,7 +351,111 @@ export function smeltable(have: Partial<Record<OreItemId, number>>, ingot: Ingot
   return Number.isFinite(n) ? n : 0;
 }
 
-// --- the Geode Anvil: three strikes along its seam -----------------------------------------------------
+/**
+ * The Thermal Bellows Forge, by hand: a batch of 1, 3 or 5 ingots of one kind (its ores and coal
+ * taken as it starts, all given back if it is abandoned), in two phases.
+ *
+ *   the bellows   each pump of the bellows heats the furnace (PUMP), which cools as it burns (COOL a
+ *                 second); the "Optimal Temperature" band's needle drifts up and down (a bigger batch
+ *                 swings it wider and quicker: FORGE_BATCH). Keep the heat inside the band for
+ *                 BELLOWS_HOLD_S seconds running, before BELLOWS_LIMIT_S
+ *   the hammer    the glowing ingot on the anvil: sparks burst on a beat (HAMMER_LEAD after the heat
+ *                 holds, then every HAMMER_BEAT), and each of the two strikes lands within
+ *                 HAMMER_WINDOW of its burst
+ *
+ * Both phases done: the batch comes out Masterwork (+25% value). Either missed: plain ingots. The
+ * client runs the same simulation live (forgeHeatAt) and sends its pumps and strikes once, at the
+ * end; the server replays them (judgeForge), never faster than the time it gave.
+ */
+export const FORGE_BATCHES = [1, 3, 5] as const;
+export type ForgeBatch = (typeof FORGE_BATCHES)[number];
+export function isForgeBatch(v: unknown): v is ForgeBatch {
+  return v === 1 || v === 3 || v === 5;
+}
+/** The heat's simulation step (s), a pump's heat, the furnace's cooling a second, where it starts. */
+export const FORGE_STEP_S = 1 / 60;
+export const PUMP_HEAT = 0.09;
+export const HEAT_COOL = 0.26;
+export const HEAT_START = 0.25;
+/** Holding the bellows down pumps this many times a second (a tap is one pump). */
+export const HOLD_PUMPS_PER_S = 6;
+/** The band: its middle's rest, and by batch its half-width, its swing and its period (s): the band
+ *  never falls quicker than the furnace cools, so every batch can be held with a steady hand. */
+export const BAND_MID = 0.56;
+export const FORGE_BATCH: Record<ForgeBatch, { half: number; swing: number; period: number }> = {
+  1: { half: 0.1, swing: 0.08, period: 5.2 },
+  3: { half: 0.09, swing: 0.11, period: 4.0 },
+  5: { half: 0.075, swing: 0.13, period: 3.2 },
+};
+export const BELLOWS_HOLD_S = 4.0;
+export const BELLOWS_LIMIT_S = 26;
+export const HAMMER_LEAD_S = 1.0;
+export const HAMMER_BEAT_S = 0.85;
+export const HAMMER_WINDOW_S = 0.18;
+export const HAMMER_STRIKES = 2;
+/** The most pumps a second a hand can manage (a longer log is refused). */
+export const MAX_PUMPS_PER_S = 14;
+
+/** Where the band's middle is at `t` seconds into the game (its phase from the game's seed). */
+export function bandAt(batch: ForgeBatch, seed: number, t: number): { mid: number; half: number } {
+  const b = FORGE_BATCH[batch];
+  const phase = (seed % 1000) / 1000;
+  return { mid: BAND_MID + b.swing * Math.sin(2 * Math.PI * (t / b.period + phase)), half: b.half };
+}
+/** The furnace's heat through a log of pumps (seconds, sorted), step by step to `until` (s): its heat
+ *  then, and when the heat had held inside the band for BELLOWS_HOLD_S running (null: not yet). */
+export function forgeHeatAt(batch: ForgeBatch, seed: number, pumps: readonly number[], until: number): { heat: number; held: number; doneAt: number | null } {
+  let heat = HEAT_START;
+  let run = 0;
+  let k = 0;
+  const steps = Math.min(Math.ceil(until / FORGE_STEP_S), Math.ceil(BELLOWS_LIMIT_S / FORGE_STEP_S));
+  for (let i = 1; i <= steps; i++) {
+    const t = i * FORGE_STEP_S;
+    while (k < pumps.length && pumps[k] <= t) {
+      heat = Math.min(1, heat + PUMP_HEAT);
+      k++;
+    }
+    heat = Math.max(0, heat - HEAT_COOL * FORGE_STEP_S);
+    const band = bandAt(batch, seed, t);
+    run = Math.abs(heat - band.mid) <= band.half ? run + FORGE_STEP_S : 0;
+    if (run >= BELLOWS_HOLD_S - 1e-9) return { heat, held: run, doneAt: t };
+  }
+  return { heat, held: run, doneAt: null };
+}
+/** The spark bursts' beats once the heat held at `doneAt` (s). */
+export const hammerBeats = (doneAt: number) => Array.from({ length: HAMMER_STRIKES }, (_, k) => doneAt + HAMMER_LEAD_S + k * HAMMER_BEAT_S);
+/** A whole game judged from its log: the heat held (and when), each strike on its beat, and so a
+ *  Masterwork or not. `elapsed`: the seconds the server has seen go by since the game began. */
+export function judgeForge(batch: ForgeBatch, seed: number, pumps: readonly number[], strikes: readonly number[], elapsed: number): { held: boolean; beats: boolean[]; masterwork: boolean; valid: boolean } {
+  const sorted = (a: readonly number[]) => a.every((v, i) => Number.isFinite(v) && v >= 0 && (i === 0 || v >= a[i - 1]));
+  const last = Math.max(0, ...pumps, ...strikes);
+  const valid = sorted(pumps) && sorted(strikes) && pumps.length <= MAX_PUMPS_PER_S * BELLOWS_LIMIT_S && last <= elapsed + 1 && pumps.length / Math.max(1, last) <= MAX_PUMPS_PER_S * 1.2;
+  if (!valid) return { held: false, beats: [], masterwork: false, valid: false };
+  const { doneAt } = forgeHeatAt(batch, seed, pumps, BELLOWS_LIMIT_S);
+  if (doneAt === null) return { held: false, beats: [], masterwork: false, valid: true };
+  const hits = strikes.filter((t) => t > doneAt).slice(0, HAMMER_STRIKES);
+  const beats = hammerBeats(doneAt).map((b, i) => hits[i] !== undefined && Math.abs(hits[i] - b) <= HAMMER_WINDOW_S);
+  return { held: true, beats, masterwork: beats.length === HAMMER_STRIKES && beats.every(Boolean), valid: true };
+}
+
+// --- the Thermal Bellows Forge's mining relics --------------------------------------------------------
+
+/** The mining relics (shared/gear.ts, craft "forge"), forged once each at the forge from its own
+ *  makings: what each takes (from the satchel, a Masterwork ingot standing in for a plain one; the
+ *  stone dust from the materials' store). */
+export type MiningRelicId = "knuckle_guards" | "satchel_strap" | "hunter_ring" | "lodestone_pendant";
+export const FORGE_RELICS: Record<MiningRelicId, { ore: Partial<Record<OreItemId, number>>; dust: number }> = {
+  knuckle_guards: { ore: { iron_ingot: 4 }, dust: 6 },
+  satchel_strap: { ore: { copper_ingot: 3, iron_ingot: 2 }, dust: 0 },
+  hunter_ring: { ore: { silver_ingot: 2, topaz: 1 }, dust: 4 },
+  lodestone_pendant: { ore: { silver_ingot: 2, glimmer_shard: 3 }, dust: 0 },
+};
+export const MINING_RELIC_IDS = Object.keys(FORGE_RELICS) as MiningRelicId[];
+export function isMiningRelicId(v: unknown): v is MiningRelicId {
+  return typeof v === "string" && v in FORGE_RELICS;
+}
+
+// --- the Precision Geode Chisel -------------------------------------------------------------------------
 
 export type GeodeId = "mystery_geode" | "pristine_geode";
 export type GemId = "amethyst" | "topaz" | "opal" | "star_shard";
@@ -342,42 +463,80 @@ export const GEM_IDS: GemId[] = ["amethyst", "topaz", "opal", "star_shard"];
 export function isGeodeId(v: unknown): v is GeodeId {
   return v === "mystery_geode" || v === "pristine_geode";
 }
-/** What a geode holds, cracked cleanly along its seam: a Mystery Geode's Amethyst 50%, Topaz 30%,
- *  Opal 15%, Star Shard 5%; a Pristine Geode (the Monolith's) the finer gems likelier. */
+/**
+ * A geode on the meteorite anvil, cleaved with a chisel and mallet in two phases:
+ *
+ *   seam finding   turn the geode round (a drag, or the arrow keys) until its glowing crystal seam
+ *                  faces you: within SEAM_FACE_DEG a harmonic chime rings and the chisel is set
+ *   mallet         the power gauge sweeps 0 to 100% and back (CHISEL_PERIOD_S); let go of the mallet
+ *                  in the sweet spot. Under CHISEL_BITE the chisel rings off the shell (try again);
+ *                  CHISEL_SWEET is a perfect cleavage (the finer gems intact: GEODE_ODDS_PERFECT);
+ *                  over CHISEL_PULVERIZE the core is pulverized into stone dust; anywhere else a rough
+ *                  crack (a gem, the finer ones a little less likely)
+ *
+ * The server rolls the seam and starts the gauge's clock; it judges the release on the time the
+ * client measured, if near enough its own.
+ */
 export const GEODE_ODDS: Record<GeodeId, Record<GemId, number>> = {
   mystery_geode: { amethyst: 0.5, topaz: 0.3, opal: 0.15, star_shard: 0.05 },
   pristine_geode: { amethyst: 0.2, topaz: 0.35, opal: 0.3, star_shard: 0.15 },
 };
-export const GEODE_STRIKES = 3;
-/** A strike this close to the seam (the geode's face is a unit disc) cracks it cleanly. */
-export const SEAM_CLEAN = 0.12;
-/** The seam across the geode's face: a line at `a` radians, `o` off its centre. */
-export interface GeodeSeam {
-  a: number;
-  o: number;
+/** A perfect cleavage: the finer gems come out whole, the likelier. */
+export const GEODE_ODDS_PERFECT: Record<GeodeId, Record<GemId, number>> = {
+  mystery_geode: { amethyst: 0.34, topaz: 0.33, opal: 0.23, star_shard: 0.1 },
+  pristine_geode: { amethyst: 0.1, topaz: 0.3, opal: 0.35, star_shard: 0.25 },
+};
+/** How near the seam must face the viewer (degrees), the gauge's sweep there and back (s, a Pristine
+ *  Geode's quicker), and its bands (share of the gauge). */
+export const SEAM_FACE_DEG = 25;
+export const CHISEL_PERIOD_S: Record<GeodeId, number> = { mystery_geode: 1.9, pristine_geode: 1.55 };
+export const CHISEL_BITE = 0.4;
+export const CHISEL_SWEET: readonly [number, number] = [0.65, 0.8];
+export const CHISEL_PULVERIZE = 0.85;
+/** How far the client's clock may run from the server's on a release (ms). */
+export const CHISEL_CLOCK_SLACK_MS = 450;
+/** A pulverized core's stone dust. */
+export const PULVERIZED_DUST: readonly [number, number] = [2, 4];
+
+/** The seam: a direction on the geode's surface (a unit vector, the geode's own axes). */
+export function rollSeam(rand: () => number = Math.random): Vec3 {
+  const u = rand() * 2 - 1;
+  const a = rand() * Math.PI * 2;
+  const r = Math.sqrt(1 - u * u);
+  return [r * Math.cos(a), u, r * Math.sin(a)].map((v) => Math.round(v * 1000) / 1000) as Vec3;
 }
-export function rollSeam(rand: () => number = Math.random): GeodeSeam {
-  return { a: Math.round(rand() * Math.PI * 1000) / 1000, o: Math.round((rand() - 0.5) * 0.5 * 1000) / 1000 };
+/** Whether a view (the direction toward the viewer, in the geode's axes) sees the seam face on. */
+export function seamFaces(seam: Vec3, view: Vec3): boolean {
+  const l = Math.hypot(view[0], view[1], view[2]) || 1;
+  const cos = (seam[0] * view[0] + seam[1] * view[1] + seam[2] * view[2]) / l;
+  return cos >= Math.cos((SEAM_FACE_DEG * Math.PI) / 180);
 }
-/** How far a strike at (x, y) on the geode's face (a unit disc) lands from its seam. */
-export function seamDistance(seam: GeodeSeam, x: number, y: number): number {
-  return Math.abs(x * -Math.sin(seam.a) + y * Math.cos(seam.a) - seam.o);
+/** The power gauge at `t` seconds (0..1..0 each period). */
+export function chiselGauge(geode: GeodeId, t: number): number {
+  const p = CHISEL_PERIOD_S[geode];
+  const f = (((t % p) + p) % p) / p;
+  return f < 0.5 ? f * 2 : 2 - f * 2;
 }
-/** The odds after `rough` strikes off the seam: each shaves the finer gems (the Star Shard by a fifth,
- *  the Opal by 15%, the Topaz by 10%) into the humblest. */
-export function geodeOdds(geode: GeodeId, rough: number): Record<GemId, number> {
+export type ChiselVerdict = "bounce" | "rough" | "perfect" | "pulverize";
+export function judgeChisel(v: number): ChiselVerdict {
+  if (v < CHISEL_BITE) return "bounce";
+  if (v > CHISEL_PULVERIZE) return "pulverize";
+  return v >= CHISEL_SWEET[0] && v <= CHISEL_SWEET[1] ? "perfect" : "rough";
+}
+/** The odds on a cleave: a perfect one's, or a rough one's (each of the finer gems shaved: the Star
+ *  Shard by a third, the Opal by a quarter, the Topaz by 15%, into the humblest). */
+export function geodeOdds(geode: GeodeId, perfect: boolean): Record<GemId, number> {
+  if (perfect) return { ...GEODE_ODDS_PERFECT[geode] };
   const o = { ...GEODE_ODDS[geode] };
-  for (let k = 0; k < Math.max(0, Math.min(GEODE_STRIKES, rough)); k++) {
-    const shaved = o.star_shard * 0.2 + o.opal * 0.15 + o.topaz * 0.1;
-    o.star_shard *= 0.8;
-    o.opal *= 0.85;
-    o.topaz *= 0.9;
-    o.amethyst += shaved;
-  }
+  const shaved = o.star_shard / 3 + o.opal * 0.25 + o.topaz * 0.15;
+  o.star_shard *= 2 / 3;
+  o.opal *= 0.75;
+  o.topaz *= 0.85;
+  o.amethyst += shaved;
   return o;
 }
-export function rollGem(geode: GeodeId, rough: number, rand: () => number = Math.random): GemId {
-  const o = geodeOdds(geode, rough);
+export function rollGem(geode: GeodeId, perfect: boolean, rand: () => number = Math.random): GemId {
+  const o = geodeOdds(geode, perfect);
   let r = rand();
   for (const g of GEM_IDS) {
     r -= o[g];
@@ -386,9 +545,10 @@ export function rollGem(geode: GeodeId, rough: number, rand: () => number = Math
   return "amethyst";
 }
 
-// --- the Subterranean Onsen's Deep Warmth -------------------------------------------------------------
+// --- the Travertine Thermal Terraces' Deep Warmth -------------------------------------------------------
 
-/** A soak this long in the onsen: the Deep Warmth, this long (it goes with you, whatever world). */
+/** A soak this long in the thermal terraces' warm pools: the Deep Warmth, this long (it goes with
+ *  you, whatever world). */
 export const SOAK_S = 60;
 export const DEEP_WARMTH_MS = 20 * 60_000;
 /** The Deep Warmth: walking this much quicker everywhere, and the Velvet Ring's stamina coming back
@@ -419,11 +579,22 @@ export interface StrikePacket {
   dir: Vec3;
   seq: number;
 }
-/** The anvil: a geode set on it (answered with its seam), a strike on its face, or stepping away. */
-export type GeodePacket = { op: "start"; geode: GeodeId } | { op: "strike"; x: number; y: number } | { op: "cancel" };
-/** The forge: `n` of an ingot into its queue (at the forge), or Quick Smelt All (anywhere in the
- *  caverns: every recipe the satchel can make, the best margin first), or the tray collected. */
-export type ForgePacket = { op: "smelt"; ingot: IngotId; n: number } | { op: "all" } | { op: "collect" };
+/** The chisel: a geode set on the anvil (answered with its seam), the seam found (the view it was
+ *  seen from, the geode's axes: answered with the gauge's start), the mallet let go (`t`: ms on the
+ *  gauge since it started), or stepping away. */
+export type GeodePacket = { op: "start"; geode: GeodeId } | { op: "aim"; view: Vec3 } | { op: "release"; t: number } | { op: "cancel" };
+/** The forge: `n` of an ingot into its queue (at the forge, plain ingots on its clock), or Quick
+ *  Smelt All (anywhere in the caverns: every recipe the satchel can make, the best margin first), or
+ *  the tray collected; the bellows' game (a batch started, its log sent at the end, or abandoned);
+ *  a mining relic forged. */
+export type ForgePacket =
+  | { op: "smelt"; ingot: IngotId; n: number }
+  | { op: "all" }
+  | { op: "collect" }
+  | { op: "start"; ingot: IngotId; batch: ForgeBatch }
+  | { op: "finish"; pumps: number[]; strikes: number[] }
+  | { op: "cancel" }
+  | { op: "relic"; relic: MiningRelicId };
 /** Into the onsen (the nearest free seat in reach) or out of it (onto its dry exit anchor). */
 export interface OnsenPacket {
   on: boolean;
@@ -432,10 +603,11 @@ export interface OnsenPacket {
 export interface ProspectPacket {
   op: "stop";
 }
-/** Gus the Mole's shop. */
+/** Gus the Mole's shop (the stone dust from the materials' store too). */
 export type GusPacket =
   | { op: "sell"; item: OreItemId; n: number | "all" }
   | { op: "sellCat"; cat: OreCategory }
+  | { op: "sellDust" }
   | { op: "buyPickaxe"; pickaxe: PickaxeId }
   | { op: "equipPickaxe"; pickaxe: PickaxeId }
   | { op: "upgradeSatchel" };
@@ -486,26 +658,47 @@ export interface CaveShatter {
   kind: OreKind;
   crew: string[];
 }
-/** Server -> one miner ("caveLoot"): their share of a broken node, flying to them. */
+/** Server -> one miner ("caveLoot"): their share of a broken node, flying to them (the stone dust
+ *  into the materials' store). */
 export interface CaveLoot {
   node: string;
   items: Partial<Record<OreItemId, number>>;
+  dust?: number;
   /** What found no room in the satchel (the soft clamp: lost). */
   lost: number;
   mult: number;
   perfect: boolean;
 }
-/** Server -> the geode's cracker: its seam ("geodeStart"), each strike ("geodeStrike"), the gem. */
+/** Server -> the chisel's hand: the geode's seam ("geodeStart"), the chisel set ("geodeAim": the
+ *  gauge starts now), and the mallet's blow ("geodeResult": a bounce, a gem, or dust). */
 export interface GeodeStart {
   geode: GeodeId;
-  seam: GeodeSeam;
+  seam: Vec3;
 }
-export interface GeodeStrike {
-  n: number;
-  clean: boolean;
-  x: number;
-  y: number;
+export interface GeodeAim {
+  ok: boolean;
+}
+export interface GeodeResult {
+  verdict: ChiselVerdict;
+  v: number;
   gem?: GemId;
+  dust?: number;
+}
+/** Server -> the forge's hand: a batch on ("forgeGame": its seed), and how it came out
+ *  ("forgeResult"). */
+export interface ForgeGame {
+  ingot: IngotId;
+  batch: ForgeBatch;
+  seed: number;
+}
+export interface ForgeResult {
+  ingot: IngotId;
+  n: number;
+  masterwork: boolean;
+  held: boolean;
+  beats: boolean[];
+  /** How many found no room in the satchel (onto the forge's tray). */
+  tray: number;
 }
 /** Server -> the player: a word from the caverns (a refusal, a result), for the panel open or a toast. */
 export interface CavernsResult {

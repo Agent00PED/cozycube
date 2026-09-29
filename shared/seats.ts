@@ -97,7 +97,7 @@ export const CUSHIONS = {
   bleacher: { y: 0.42, h: 0.06 }, // a tier's bench plank, over the tier it stands on -> 0.45
   gymBench: { y: 0.42, h: 0.06 }, // the gym's bench, towels folded on it -> 0.45
   // --- the Glimmering Caverns' (shared/worlds/caverns.ts; scripts/blender/build_caverns.py reads them) ---
-  onsenLedge: { y: -0.27, h: 0.06 }, // the onsen's submerged stone ledge, under the terrace's floor -> -0.24
+  thermalLedge: { y: -0.27, h: 0.06 }, // a thermal terrace pool's submerged stone seat, under its water's surface -> -0.24
   // --- anywhere ---
   ground: { y: 0.02, h: 0.04 }, // sitting cross-legged on the grass (the Sit emote) -> 0.04, hips at ~0.14
 } as const satisfies Record<string, Cushion>;

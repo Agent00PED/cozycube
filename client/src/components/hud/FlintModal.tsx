@@ -9,15 +9,15 @@ import { Modal } from "./Modal";
 
 const LORE = [
   "\"Easy there, young'un. Not many find this old adit behind the maples.\"",
-  "\"Below these roots lie the Glimmering Caverns: a terrace of dry shale where Gus the Mole keeps his workshop and the Ancient Forge still burns, and under it a basin glowing blue with things that never saw the sun.\"",
-  "\"Coal and copper up top. Iron on the wet cliffs, silver in the lower chasm, glimmerstone among the mushrooms. And now and then the Titan Monolith pushes up through the floor of the sanctuary. Takes a whole crew to crack that one.\"",
+  "\"Below these roots lies the Grand Karst: a sunlit doline where the ceiling fell in long ago, Gus the Mole at his workstation and the bellows forge in its basalt fissure, and down the ramp a cenote lake glowing blue with things that never saw the sun.\"",
+  "\"Coal and copper in the doline's fallen rocks. Iron, silver and glimmerstone in the crystal fissures either side. And now and then the Titan Monolith wakes on the cenote's islet, under the skylight. Takes a whole crew to crack that one.\"",
   "\"Don't go swinging blind: every rock has a weak spot. Watch for the glow in its cracks, the glint, the dust sifting down. Strike there.\"",
 ];
 const TIPS = [
   "\"A rock one tier above your pick bites back at sixty percent. Two above, and you'll skid right off.\"",
-  "\"Soak in the onsen by Gus's place a minute: the Deep Warmth stays with you wherever you walk.\"",
-  "\"Crack your geodes along the seam, three clean blows. The finer gems don't like a clumsy hammer.\"",
-  "\"When the drip falls over the Grotto Pool, cast right into its ripple. Nothing common bites there.\"",
+  "\"Soak a minute in the travertine terraces on the west cliff: the Deep Warmth stays with you wherever you walk.\"",
+  "\"Turn a geode till its seam faces you, then one good blow. Not too soft, not too hard: the finer gems don't like a clumsy mallet.\"",
+  "\"When the drip falls over the cenote, cast right into its ripple. Nothing common bites there, and old Finnegan will tell you the same.\"",
   "\"Many hands on one rock and everyone takes home more. That's how it's always been down there.\"",
   "\"Smelt your silver before you sell it. The forge pays you back for the coal twice over.\"",
 ];

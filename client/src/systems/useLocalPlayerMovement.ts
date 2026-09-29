@@ -146,7 +146,7 @@ export function useLocalPlayerMovement(
     }
   }, [player.fishing]);
   // a Campfire S'more eaten: 15% quicker a while (the server allows for it)
-  // the caverns onsen's Deep Warmth: a quicker step everywhere while it lasts
+  // the caverns' Deep Warmth (a soak in the thermal terraces): a quicker step everywhere while it lasts
   const warmUntilRef = useRef(0);
   warmUntilRef.current = useMemo(() => {
     try {

@@ -47,6 +47,7 @@ import { RoastingModal } from "./components/hud/RoastingModal";
 import { StargazingModal } from "./components/hud/StargazingModal";
 import { FellingModal } from "./components/hud/FellingModal";
 import { WonderBadge } from "./components/hud/WonderBadge";
+import { BuffRow } from "./components/hud/BuffRow";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
 import { FORAGE_INFO, ITEMS, TREASURE_COINS, guildRoomKey, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
@@ -68,7 +69,7 @@ import { CoinPusherModal } from "./components/hud/CoinPusherModal";
 import { PinballModal } from "./components/hud/PinballModal";
 import { PoolModal } from "./components/hud/PoolModal";
 import { PianoModal } from "./components/hud/PianoModal";
-import { FISH, RODS, TIER_COLOR, TIER_LABEL, fishKg, isKingSize, stars } from "@shared/fishing";
+import { FISH, RODS, TIER_COLOR, TIER_LABEL, fishKg, gradeOf, isKingSize, stars } from "@shared/fishing";
 import { COZY_AURA_FUEL, LOW_FUEL, stewName, type BonfireUpdate, type StewUpdate } from "@shared/bonfire";
 import { CookingModal } from "./components/hud/CookingModal";
 import { BarnabyModal } from "./components/hud/BarnabyModal";
@@ -591,7 +592,7 @@ export default function App() {
             // a reel still open: the fish is revealed there (its model turning, its weight)
             const revealed = !c.afk && starReelRef.current;
             if (revealed)
-              setReelReveal({ species: c.fish.s, name: info.name, emoji: info.emoji, tier: TIER_LABEL[info.tier], tierColor: TIER_COLOR[info.tier], cm: c.fish.cm, kg: fishKg(c.fish), stars: stars(c.fish.q), record: c.record, king: isKingSize(c.fish), released: c.released, locked: !!c.fish.l });
+              setReelReveal({ species: c.fish.s, name: info.name, emoji: info.emoji, tier: TIER_LABEL[gradeOf(c.fish.s)], tierColor: TIER_COLOR[gradeOf(c.fish.s)], cm: c.fish.cm, kg: fishKg(c.fish), stars: stars(c.fish.q), record: c.record, king: isKingSize(c.fish), released: c.released, locked: !!c.fish.l });
             if (c.released) pushToast(released > 0 ? `Livewell full! Released for +${released} coins` : "Livewell full! Released back to the water", { emoji: "🪣", tone: released > 0 ? "coin" : undefined });
             else if (!revealed) pushToast(`${c.afk ? "💤 " : ""}${info.name} · ${c.fish.cm} cm ${stars(c.fish.q)}${isKingSize(c.fish) ? " · King Size 👑" : ""}${c.record ? " · New personal best!" : ""}${c.fish.l ? " · 🔒 Auto-Locked" : ""}`, { emoji: c.record ? "🏆" : info.emoji, silent: c.afk && !c.record && !c.fish.l, tone: c.record || c.fish.l ? "win" : undefined });
             // a new personal best: the catch held high, and a chime
@@ -603,8 +604,10 @@ export default function App() {
             playSfx("catch");
           }
         } else if (type === "creelFull") {
+          // the line reeled in on its own, AFK off: a chime, and where to sell
           const f = payload as { capacity?: number; held?: number };
-          pushToast(`Livewell full (${f.held ?? f.capacity ?? 0}/${f.capacity ?? 0})! Rod stowed: sell some fish to Barnaby or Bramble`, { emoji: "🪣", silent: true });
+          playSfx("chime");
+          pushToast(`Livewell full (${f.held ?? f.capacity ?? 0}/${f.capacity ?? 0})! Your line's reeled in: sell some fish to Barnaby, Finley or Finnegan`, { emoji: "🪣", silent: true });
         } else if (type === "BONFIRE_STATE_UPDATE") {
           // wood on the fire: a whoosh for everyone; the fire crossing into the Cozy Aura, or sinking low
           const u = payload as BonfireUpdate;
@@ -657,7 +660,7 @@ export default function App() {
         } else if (type === "caveForge") {
           const f = payload as { done: Partial<Record<IngotId, number>>; tray: number; left: number };
           const what = (Object.entries(f.done) as [IngotId, number][]).map(([id, n]) => `${n} ${ORE_ITEMS[id].name}${n > 1 ? "s" : ""}`).join(", ");
-          if (what && panelKindRef.current !== "forge") pushToast(`The Ancient Forge: ${what} ready${f.tray > 0 ? ` (${f.tray} on its tray: your satchel's full)` : ""}`, { emoji: "🔥", silent: f.tray === 0 });
+          if (what && panelKindRef.current !== "forge") pushToast(`The forge: ${what} ready${f.tray > 0 ? ` (${f.tray} on its tray: your satchel's full)` : ""}`, { emoji: "🔥", silent: f.tray === 0 });
         } else if (type === "cavernsResult") {
           // (the caverns' panels say so in their own)
           const r = payload as CavernsResult;
@@ -932,7 +935,8 @@ export default function App() {
           away={ringTakeover}
         />
         <div className={ringTakeover ? "cozy-hud-away" : "cozy-hud-back"}>
-          <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} buffs={angler.profile.buffs} worn={angler.profile.worn} warmUntil={angler.profile.deepWarmthUntil} />
+          <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} worn={angler.profile.worn} />
+          {localPlayer && <BuffRow profile={angler.profile} />}
         </div>
         <Toasts />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
@@ -1126,7 +1130,7 @@ export default function App() {
           />
         )}
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
-        {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} onClose={closePanel} />}
+        {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} campfireSend={campfireSend} onClose={closePanel} />}
         {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
         {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} market={market} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "anvil" && localPlayer && <GeodeModal profile={angler.profile} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
@@ -1194,6 +1198,7 @@ export default function App() {
         {panel?.kind === "buster" && localPlayer && <LumberjackModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("timber")} onClose={closePanel} />}
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
         {panel?.kind === "finley" && localPlayer && <BarnabyModal keeper="finley" profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
+        {panel?.kind === "finnegan" && localPlayer && <BarnabyModal keeper="finnegan" profile={angler.profile} coins={localPlayer.coins} fuel={0} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
         {panel?.kind === "ringside" && localPlayer && localSessionId && <RingsideModal localSessionId={localSessionId} coins={localPlayer.coins} send={boxingSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}

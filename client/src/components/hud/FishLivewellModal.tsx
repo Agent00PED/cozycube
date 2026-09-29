@@ -6,6 +6,7 @@ import { fishGood, marketMultiplier, parseMarket } from "@shared/market";
 import { Modal } from "./Modal";
 import { FishCard, lockPacket } from "./ShopShell";
 import { GearSlots, TacklesOwned } from "./GearSlots";
+import { DrawerCrafts, Materials } from "./DrawerKit";
 
 interface Props {
   profile: FishingProfile;
@@ -17,12 +18,14 @@ interface Props {
 }
 
 // The fish drawer, opened from the header's 🪣 gauge (or B): how full the livewell is and what it
-// is worth this hour, then two tabs over one scrolling list. Fish: every fish a card (its kind,
-// length, weight and stars, a King Size crowned, what Barnaby or Finley would pay) with its lock (a
-// locked fish no sale takes). Rod & Gear: the rod in hand and what it lands, the bait on the hook and
-// the tins in the tackle box, the gear worn slot by slot. Rods are switched at the shops.
+// is worth this hour, then three tabs over one scrolling list. Fish: every fish a card (its kind,
+// length, weight and stars, a King Size crowned, what Barnaby, Finley or Finnegan would pay) with its
+// lock (a locked fish no sale takes). Rod & Gear: the rod in hand and what it lands, the bait on the
+// hook and the tins in the tackle box, the Angler's gear worn slot by slot, the workbench's tackles and
+// Finnegan's. Materials: the river's by-products (Fish Scales, Fine Fish Bones, Prismatic Scales, up
+// to 99 of each) and the Phosphor Glow Bait brewed from them. Rods are switched at the shops.
 
-type Tab = "fish" | "gear";
+type Tab = "fish" | "gear" | "materials";
 const TIER_NAMES = ["common", "uncommon", "rare", "legendary", "mythic"] as const;
 
 function minutesLeft(until: number) {
@@ -60,6 +63,7 @@ export function FishLivewellModal({ profile, market, send, onClose, onOpenCollec
             [
               ["fish", "🐟 Fish"],
               ["gear", "🎣 Rod & Gear"],
+              ["materials", "🦴 Materials"],
             ] as const
           ).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`min-h-9 flex-1 rounded-full px-2 text-xs font-bold transition-transform active:scale-95 ${tab === id ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10 hover:bg-white/15"}`}>
@@ -72,7 +76,7 @@ export function FishLivewellModal({ profile, market, send, onClose, onOpenCollec
       <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1">
         {tab === "fish" &&
           (held === 0 ? (
-            <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Your livewell is empty. Cast from the campfire's dock, the canoe, or the woods' river bank.</p>
+            <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Your livewell is empty. Cast from the campfire's dock, the canoe, the woods' river bank, or the cenote's driftwood outcrop.</p>
           ) : (
             <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {profile.creel.map((f, i) => (
@@ -114,8 +118,16 @@ export function FishLivewellModal({ profile, market, send, onClose, onOpenCollec
                 {profile.eagleUntil > Date.now() && <span className="rounded-full border border-[#8fd3b6]/60 bg-[#8fd3b6]/15 px-2.5 py-1">🦅 Eagle Eye · {minutesLeft(profile.eagleUntil)}</span>}
               </div>
             )}
-            <GearSlots profile={profile} send={send} craft="fish" />
+            <GearSlots profile={profile} send={send} disc="fish" />
             <TacklesOwned profile={profile} craft="fish" />
+          </div>
+        )}
+
+        {tab === "materials" && (
+          <div className="flex flex-col gap-2 text-xs">
+            <DrawerCrafts profile={profile} drawer="fish" send={send} />
+            <Materials profile={profile} disc="fish" />
+            <p className="m-0 text-center text-[11px] opacity-70">Shed by the fish you land. Buster and Bramble buy them; Finnegan takes fish bones and prismatic scales in barter.</p>
           </div>
         )}
       </div>

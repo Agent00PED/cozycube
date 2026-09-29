@@ -87,9 +87,10 @@ export const AFK_UNBAITED_TIER_ODDS: TierOdds = { common: 1, uncommon: 0, rare: 
 /** The livewells' prices, tier 1 (the Wooden Pail, everyone's) to tier 5: the storage tiers' sinks
  *  (300, 950, 2,600, 6,500), the same as the wood carriers'. */
 export const CREEL_PRICES = [0, 300, 950, 2600, 6500] as const;
-/** What each livewell tier holds (fish). A player already holding more keeps it all: only new
- *  catches wait for room (the soft clamp). */
-export const CREEL_CAPACITY = [5, 12, 25, 45, 70] as const;
+/** What each livewell tier holds (fish): sized for a 5-10 minute outing at the water, then a trip to
+ *  the angler's stall. A player already holding more keeps it all (Overburdened: selling and cooking
+ *  work, only new catches wait for room). */
+export const CREEL_CAPACITY = [12, 20, 32, 45, 60] as const;
 
 /** The tackle: bait by the pack (five kinds, from Barnaby or Finley); the rods, T2 and T3 from
  *  Barnaby, every tier from Finley on the Whispering Woods' river (the tool tiers' sinks: 250, 850,
@@ -128,13 +129,17 @@ export const CARVED_PRICE = 8;
 export const RESIN_BUY_PRICE = 10;
 /** The axes (the flint one, T1, is everyone's): T2 and T3 from Buster, T4 and T5 from Bramble. */
 export const AXE_PRICES = { iron: 250, tempered: 850, golden: 2400, runic: 6000 } as const;
-/** The wood carriers' prices, tier 1 (the Twine Wood Strap, everyone's) to tier 5, what each holds
- *  (logs), and the room its pouches have beside it (the by-products, Pine Resin and Sawdust
- *  together): the pouches grow with the carrier, never bought apart. A player already carrying more
- *  keeps it all: only new wood (or a new by-product) waits for room (the soft clamp). */
+/** The wood carriers' prices, tier 1 (the Twine Wood Strap, everyone's) to tier 5, and what each
+ *  holds (logs): sized for a 5-10 minute felling round, then a trip to the stall. A player already
+ *  carrying more keeps it all (Overburdened: selling, splitting and carving work, only new wood waits
+ *  for room). */
 export const CARRIER_PRICES = [0, 300, 950, 2600, 6500] as const;
-export const CARRIER_CAPACITY = [8, 18, 35, 60, 100] as const;
-export const POUCH_CAPACITY = [30, 60, 100, 160, 250] as const;
+export const CARRIER_CAPACITY = [15, 25, 40, 55, 70] as const;
+/** The crafting materials' store, apart from every carrier, livewell and satchel: each material (Pine
+ *  Resin, Sawdust, every by-product: Tree Bark, the ambers and shavings, Fish Scales, Fine Fish Bone,
+ *  Fine Stone Dust...) up to this many of its own kind. More than that kept from before stays, and
+ *  only new ones wait for room. */
+export const MATERIAL_CAP = 99;
 /** The craft stash beside the carrier: this many slots, each a stack of up to CRAFT_SLOT_STACK of a
  *  kind (carved pieces, consumables, trade goods; never logs). */
 export const CRAFT_STASH_SLOTS = 12;
@@ -148,7 +153,7 @@ export const FIREWOOD_PRICE = 2;
  *  Heartwood off a Colossal Primordial Elderwood) and the river's (Fish Scales off any fish, a Fine
  *  Fish Bone off a rare or better, a Prismatic Scale off a legendary or a mythic): what Bramble and
  *  Buster pay for each, and how much of the bonfire a handful of Ancient Wood Shavings feeds (%). */
-export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1, silverBark: 15, heartwood: 150, fishBone: 30, prismScale: 180 } as const;
+export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1, silverBark: 15, heartwood: 150, fishBone: 30, prismScale: 180, stoneDust: 10 } as const;
 export const SHAVINGS_FUEL = 15;
 /** Buster's forest permits: a Day Trip (one way in through the archway, used on entering) and the
  *  Ranger's Badge (the Whispering Woods for good). */
@@ -201,21 +206,26 @@ export const RETIRED_GEAR_PRICES: Record<string, number> = { canvas_gloves: 120,
 
 /** Gus the Mole's base price for each thing the caverns give (shared/caverns_mining.ts ORE_ITEMS),
  *  before the hour's market (shared/market.ts): the raw ores off the nodes by tier (Coal 6, Raw
- *  Copper 12 up the terrace; Raw Iron 25 off the wet cliffs; Raw Silver 55 and Fine Stone Dust 10 in
- *  the lower chasm; a Glimmer Shard 135 in the fungal chasm; an Ancient Core Fragment 450 off the
- *  Titan Monolith), the Ancient Forge's ingots (a small margin on their ores and coal: copper +7%,
- *  iron +9%, silver +51%), the geodes uncracked, and the gems the Geode Anvil cuts out of them. */
+ *  Copper 12 in the Sunlit Doline; Raw Iron 25 and Raw Silver 55 in the crystal fissures; a Glimmer
+ *  Shard 135 among their mushrooms; an Ancient Core Fragment 450 off the Titan Monolith on the
+ *  Cenote's islet), the Thermal Bellows Forge's ingots (a small margin on their ores and coal: copper
+ *  +7%, iron +9%, silver +51%; a Masterwork ingot, forged by hand at the bellows and the anvil, 25%
+ *  more again), the geodes uncracked, and the gems the Precision Geode Chisel cleaves out of them.
+ *  (Fine Stone Dust is a crafting material now: shared/economy.ts BYPRODUCT_PRICES.) */
+export const MASTERWORK_INGOT_VALUE = 1.25;
 export const ORE_PRICES = {
   coal: 6,
   copper_ore: 12,
   iron_ore: 25,
   silver_ore: 55,
-  stone_dust: 10,
   glimmer_shard: 135,
   core_fragment: 450,
   copper_ingot: 45,
   iron_ingot: 95,
   silver_ingot: 185,
+  copper_ingot_mw: Math.round(45 * MASTERWORK_INGOT_VALUE),
+  iron_ingot_mw: Math.round(95 * MASTERWORK_INGOT_VALUE),
+  silver_ingot_mw: Math.round(185 * MASTERWORK_INGOT_VALUE),
   mystery_geode: 40,
   pristine_geode: 250,
   amethyst: 75,
@@ -229,16 +239,24 @@ export const PICKAXE_PRICES = { copper: 1500, reinforced: 4500, glimmer: 11000, 
 /** The Prospector's Satchel, tier 1 (the Canvas Ore Pouch) to tier 5 (the Titan Core Vault): coins,
  *  and materials from the other crafts (shared/satchel.ts SATCHEL_TIERS says which). */
 export const SATCHEL_PRICES = [0, 500, 1800, 5500, 14000, 32000] as const;
-/** The Grotto Pool's six cave fish, Common to Mythic: far richer water than the river's, deep
- *  underground (shared/caverns_fishing.ts). */
+/** The Abyssal Cenote Lake's eleven cave fish, Common to Mythic (two of each grade, one mythic): far
+ *  richer water than the river's, deep underground (shared/caverns_fishing.ts). */
 export const CAVE_FISH_PRICES = {
   cave_tetra: 22,
+  slate_minnow: 28,
   glassfin_loach: 58,
+  phosphor_guppy: 72,
   glow_axolotl: 180,
+  opal_gudgeon: 240,
   sporecat: 450,
+  needlefish: 580,
   crystal_fin: 1150,
+  voidfang: 1450,
   elder_olm: 3200,
 } as const;
+/** Finnegan the Grotto Angler's advanced tackle: coins, and a barter of the caverns' and the river's
+ *  makings (shared/caverns_fishing.ts CAVE_TACKLES says which). */
+export const CAVE_TACKLE_PRICES = { silverSpinner: 1200, glowLure: 2400, abyssalSwivel: 3800 } as const;
 
 // --- the wardrobe -------------------------------------------------------------------------------------
 

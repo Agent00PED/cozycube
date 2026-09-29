@@ -1,6 +1,8 @@
 """The Glimmering Caverns' folk: builds client/public/models/gus.glb (Gus the Mole, the caverns'
-prospector and trader, behind his workshop's counter) and client/public/models/old_flint.glb (Old
-Flint the Badger, who keeps the old mine adit behind the Whispering Woods' Autumn Maples).
+prospector and trader, seated on a stump at his log workstation in the Sunlit Doline),
+client/public/models/old_flint.glb (Old Flint the Badger, who keeps the old mine adit behind the
+Whispering Woods' Autumn Maples, his brass lantern lit) and client/public/models/finnegan.glb
+(Finnegan the Grotto Angler, an old axolotl in an oilskin, on his driftwood crate by the Cenote).
 
 Run it inside Blender through the Live Bridge (POST {"code": ...}: run this file inside a namespace
 of its own with REPO_ROOT and REPORT_PATH set in it; the summary or the traceback goes to
@@ -21,6 +23,13 @@ The nodes entities/CampNpc.tsx animates:
         Gus_ArmR        his right arm, its big digging claws on the counter (pivots at the shoulder)
         Gus_ArmL        his left arm, a gem held up between two claws (pivots at the shoulder)
         Gus_Tail        a stubby pink tail
+    Finnegan            the root (an empty at the crate's foot)
+      Finnegan_Crate    his driftwood crate, a tackle tin and a glowing lantern on it (still)
+      Finnegan_Body     a plump pink axolotl in a yellow oilskin coat, seated (pivots on the crate)
+        Finnegan_Head   his wide smiling head, feathery gills either side, a sou'wester hat
+        Finnegan_ArmR   his right arm (pivots at the shoulder: he waves)
+        Finnegan_ArmL   his left arm holding the rod out over the water, a glowing lure on its line
+        Finnegan_Tail   his long finned tail, curled round the crate
     OldFlint            the root
       OldFlint_Body     a stout grey badger, a heavy leather apron over a work shirt, braces, boots
         OldFlint_Head   the badger's striped face, bushy brows, a miner's hard hat with its lamp
@@ -82,6 +91,18 @@ PALETTE = {
     "Steel": "#9AA0AA",
     "Handle": "#8A5A34",
     "Blush": "#E0937F",
+    # Finnegan
+    "Axo": "#F2B8C6",
+    "AxoLight": "#FAD9E0",
+    "AxoGill": "#E0607E",
+    "AxoGillTip": "#FF96AE",
+    "Coat": "#E8B83A",
+    "CoatDark": "#B8892A",
+    "Crate": "#A89C8C",
+    "CrateDark": "#7E7366",
+    "Rod": "#8A5A34",
+    "Line": "#EDEBE6",
+    "Tin": "#6F8A9A",
 }
 
 
@@ -258,7 +279,7 @@ def lamp():
     key = "Emission Color" if "Emission Color" in bsdf.inputs else "Emission"
     bsdf.inputs[key].default_value = (*c, 1)
     if "Emission Strength" in bsdf.inputs:
-        bsdf.inputs["Emission Strength"].default_value = 2.0
+        bsdf.inputs["Emission Strength"].default_value = 5.0
     bsdf.inputs["Roughness"].default_value = 0.4
     m.diffuse_color = (*c, 1)
     return m
@@ -328,14 +349,16 @@ def build_gus(root):
     coll = bpy.data.collections.new("Gus")
     bpy.context.scene.collection.children.link(coll)
     rig = rig_root("Gus", coll)
-    counter = L["counter"]
+    counter = L["workstation"]
     ahead = abs(counter["z"] - L["gus"]["z"]) - counter["w"] / 2
     top = counter["top"] + 0.02
 
     B = Part()
+    # the stump he sits on, his boots forward under the log
+    cylinder(B, (0.0, 0.0, -0.14), (0.0, 0.3, -0.14), 0.24, "ApronDark", sides=12, r_end=0.22)
     for sx in (-1, 1):
-        blob(B, sx * 0.13, 0.07, 0.04, 0.11, 0.07, 0.15, "Boot", bottom=0.0)
-        blob(B, sx * 0.13, 0.2, 0.0, 0.1, 0.12, 0.1, "VelvetDark")
+        blob(B, sx * 0.13, 0.07, 0.16, 0.11, 0.07, 0.15, "Boot", bottom=0.0)
+        blob(B, sx * 0.13, 0.22, 0.06, 0.1, 0.12, 0.12, "VelvetDark")
     blob(B, 0.0, 0.55, 0.0, 0.33, 0.38, 0.3, "Velvet", cuts=4)
     blob(B, 0.0, 0.5, 0.2, 0.2, 0.24, 0.12, "Belly", cuts=3)
     # the leather apron: a bib and a skirt, pockets with a hammer's handle and a brush
@@ -448,6 +471,9 @@ def build_flint(root):
     cylinder(H, (0.0, 1.43, 0.2), (0.0, 1.43, 0.3), 0.06, "Iron", sides=10)
     lathe(H, 0.0, 0.3, [(0, 0.0), (0.05, 0.0), (0.05, 0.01), (0, 0.01)], "Lamp", segs=12, y0=1.43 - 0.005)
     blob(H, 0.0, 1.43, 0.305, 0.045, 0.045, 0.012, "Lamp", cuts=2)
+    # the brass safety lantern hung at his belt, lit
+    lathe(H, 0.22, 0.24, [(0, 0.0), (0.05, 0.0), (0.06, 0.08), (0.045, 0.13), (0, 0.14)], "Lamp", segs=10, y0=0.62)
+    lathe(H, 0.22, 0.24, [(0, 0.12), (0.065, 0.12), (0.03, 0.17), (0, 0.18)], "Helmet", segs=10, y0=0.62)
     node("OldFlint_Head", H, coll, body, neck, glowing=("Lamp",))
 
     # his right arm resting on the pickaxe planted beside him; the left thumb in the apron
@@ -470,6 +496,93 @@ def build_flint(root):
     T = Part()
     blob(T, 0.0, 0.34, -0.33, 0.06, 0.05, 0.08, "BadgerDark", cuts=2)
     node("OldFlint_Tail", T, coll, body, (0.0, 0.34, -0.28))
+    return coll
+
+
+# ---------------------------------------------------------------------------------------------
+# Finnegan the Grotto Angler
+
+
+def build_finnegan(root):
+    purge("Finnegan")
+    coll = bpy.data.collections.new("Finnegan")
+    bpy.context.scene.collection.children.link(coll)
+    rig = rig_root("Finnegan", coll)
+    top = 0.46  # the crate's lid
+
+    # --- the crate: weathered driftwood slats, a rope handle, a tackle tin and his lantern on it ---
+    R = Part()
+    box(R, -0.32, 0.32, 0.0, top, -0.26, 0.26, "Crate")
+    for k in range(4):
+        y0 = 0.02 + k * 0.11
+        box(R, -0.33, 0.33, y0, y0 + 0.02, 0.255, 0.27, "CrateDark")
+        box(R, -0.33, 0.33, y0, y0 + 0.02, -0.27, -0.255, "CrateDark")
+    for sx in (-1, 1):
+        box(R, sx * 0.3 - 0.03, sx * 0.3 + 0.03, 0.0, top + 0.01, -0.27, 0.27, "CrateDark")
+    lathe(R, 0.42, 0.12, [(0, 0.0), (0.08, 0.0), (0.08, 0.07), (0, 0.07)], "Tin", segs=12)
+    lathe(R, -0.44, 0.1, [(0, 0.0), (0.06, 0.0), (0.07, 0.09), (0.05, 0.15), (0, 0.16)], "Lamp", segs=10)
+    lathe(R, -0.44, 0.1, [(0, 0.14), (0.075, 0.14), (0.03, 0.2), (0, 0.21)], "CoatDark", segs=10)
+    node("Finnegan_Crate", R, coll, rig, glowing=("Lamp",))
+
+    # --- the body: a plump axolotl seated on the lid, his oilskin coat, his stubby legs forward ---
+    B = Part()
+    blob(B, 0.0, top + 0.24, 0.0, 0.25, 0.26, 0.21, "Axo", cuts=4)
+    blob(B, 0.0, top + 0.22, 0.13, 0.15, 0.18, 0.1, "AxoLight", cuts=3)
+    blob(B, 0.0, top + 0.28, -0.01, 0.265, 0.22, 0.22, "Coat", cuts=4, top=top + 0.48, bottom=top + 0.06)
+    blob(B, 0.0, top + 0.26, 0.16, 0.12, 0.16, 0.08, "AxoLight", cuts=3)  # the coat open over his belly
+    for k in range(3):
+        blob(B, 0.09, top + 0.34 - k * 0.09, 0.19, 0.016, 0.016, 0.01, "CoatDark", cuts=1)
+    for sx in (-1, 1):
+        blob(B, sx * 0.12, top + 0.06, 0.22, 0.07, 0.06, 0.13, "Axo", cuts=2)
+        blob(B, sx * 0.12, top + 0.02, 0.33, 0.06, 0.03, 0.05, "AxoLight", cuts=1)
+    body = node("Finnegan_Body", B, coll, rig, (0.0, top, 0.0))
+
+    # --- the head: wide and flat, a big gentle smile, little dark eyes, three feathery gills a side,
+    # a sou'wester hat ---
+    H = Part()
+    neck = (0.0, top + 0.46, 0.0)
+    blob(H, 0.0, top + 0.62, 0.03, 0.26, 0.17, 0.22, "Axo", cuts=4)
+    blob(H, 0.0, top + 0.57, 0.16, 0.18, 0.08, 0.1, "AxoLight", cuts=3)
+    cylinder(H, (-0.11, top + 0.57, 0.24), (0.11, top + 0.57, 0.24), 0.008, "AxoGill", sides=5)
+    eyes(H, 0.12, top + 0.66, 0.2, 0.016, 0.018)
+    for sx in (-1, 1):
+        for k in range(3):
+            a = math.radians(-35 + 35 * k)
+            base = (sx * 0.22, top + 0.64 + 0.04 * (1 - k), 0.0)
+            tip = (sx * (0.36 + 0.03 * math.cos(a)), top + 0.64 + 0.14 * math.sin(a) + 0.05, -0.03 - 0.03 * k)
+            cylinder(H, base, tip, 0.022, "AxoGill", sides=6, r_end=0.012)
+            for j in range(3):
+                t = (j + 1) / 4
+                px, py, pz = base[0] + (tip[0] - base[0]) * t, base[1] + (tip[1] - base[1]) * t, base[2] + (tip[2] - base[2]) * t
+                blob(H, px, py + 0.02, pz, 0.018, 0.03, 0.012, "AxoGillTip", cuts=1)
+    # the sou'wester: a floppy yellow brim, low at the back
+    lathe(H, 0.0, 0.0, [(0, 0.0), (0.27, 0.0), (0.28, 0.02), (0.26, 0.03), (0, 0.03)], "CoatDark", segs=20, y0=top + 0.74)
+    lathe(H, 0.0, 0.0, [(0, 0.0), (0.18, 0.0), (0.17, 0.07), (0.12, 0.12), (0, 0.13)], "Coat", segs=18, y0=top + 0.76)
+    node("Finnegan_Head", H, coll, body, neck)
+
+    # --- the arms: the right on his knee (he waves), the left holding the rod out over the water ---
+    A = Part()
+    shoulder = (-0.24, top + 0.38, 0.03)
+    paw = (-0.2, top + 0.2, 0.24)
+    cylinder(A, shoulder, paw, 0.055, "Coat", r_end=0.05)
+    blob(A, paw[0], paw[1], paw[2], 0.05, 0.04, 0.05, "Axo", cuts=2)
+    node("Finnegan_ArmR", A, coll, body, shoulder)
+    A = Part()
+    shoulder = (0.24, top + 0.38, 0.03)
+    paw = (0.28, top + 0.3, 0.26)
+    cylinder(A, shoulder, paw, 0.055, "Coat", r_end=0.05)
+    blob(A, paw[0], paw[1], paw[2], 0.05, 0.045, 0.05, "Axo", cuts=2)
+    rod_tip = (0.5, top + 1.25, 1.45)
+    cylinder(A, (paw[0] - 0.02, paw[1] - 0.12, paw[2] - 0.2), rod_tip, 0.016, "Rod", sides=6, r_end=0.006)
+    cylinder(A, rod_tip, (0.52, top - 0.15, 1.6), 0.003, "Line", sides=4)
+    blob(A, 0.52, top - 0.17, 1.6, 0.025, 0.035, 0.025, "Lamp", cuts=1)
+    node("Finnegan_ArmL", A, coll, body, shoulder, glowing=("Lamp",))
+
+    T = Part()
+    cylinder(T, (0.0, top + 0.12, -0.18), (0.18, top - 0.05, -0.4), 0.07, "Axo", sides=8, r_end=0.04)
+    cylinder(T, (0.18, top - 0.05, -0.4), (0.38, top - 0.2, -0.3), 0.04, "Axo", sides=8, r_end=0.015)
+    blob(T, 0.2, top + 0.02, -0.4, 0.015, 0.08, 0.14, "AxoLight", cuts=1)
+    node("Finnegan_Tail", T, coll, body, (0.0, top + 0.12, -0.16))
     return coll
 
 
@@ -510,7 +623,7 @@ def main():
         studio(root, "begin")
         result = {"ok": True}
         colls = []
-        for fn, file in ((build_gus, "gus.glb"), (build_flint, "old_flint.glb")):
+        for fn, file in ((build_gus, "gus.glb"), (build_flint, "old_flint.glb"), (build_finnegan, "finnegan.glb")):
             coll = fn(root)
             bpy.context.view_layer.update()
             out = os.path.join(root, "client", "public", "models", file)

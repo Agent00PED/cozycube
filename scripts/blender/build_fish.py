@@ -106,12 +106,19 @@ LOOKS = {
     "prism_jellyfish": dict(body="jelly", h=0.3, back="#C8A8F0", flank="#E8C8F8", belly="#F8E8FF", fin="#A8E0F8", marks=[("glow", "#FFFFFF")]),
     "pearl_whale": dict(body="whale", h=0.22, back="#4A5A7A", flank="#8A9AB8", belly="#F0F2F4", fin="#5A6A8A", marks=[("spots", "#F8F4E8", 0.3)]),
     # the Glimmering Caverns' Grotto Pool: pale, glassy and glowing
-    "cave_tetra": dict(body="swim", h=0.16, back="#E2BFC4", flank="#F2D8DA", belly="#FFF0F0", fin="#F0B8C0", marks=[("line", "#F7A8B8")]),
-    "glassfin_loach": dict(body="eel", h=0.08, back="#7FC7CE", flank="#C4EEF0", belly="#F0FCFC", fin="#A8F0F8", marks=[("glow", "#8FF6FF"), ("line", "#DFFBFF")], whiskers=True),
-    "glow_axolotl": dict(body="cat", h=0.13, back="#E88AB0", flank="#F4B0C8", belly="#FCE0EC", fin="#F07AA8", marks=[("spots", "#FF9AD8", 0.35), ("glow", "#FFC4EA")], tail="round"),
-    "sporecat": dict(body="cat", h=0.15, back="#1E3A3A", flank="#2E5A5A", belly="#8AB8A8", fin="#2A4A4A", marks=[("spots", "#4FFFD2", 0.45), ("glow", "#4FFFD2")], whiskers=True),
-    "crystal_fin": dict(body="arowana", h=0.16, back="#2A6A8A", flank="#6FE0F0", belly="#D8FAFF", fin="#9FF6FF", marks=[("scales", "#BFF8FF"), ("glow", "#DFFBFF")], dorsal="sail"),
-    "elder_olm": dict(body="serpent", h=0.07, back="#E8D8E0", flank="#F4ECEE", belly="#FFFFFF", fin="#D8B8C8", marks=[("glow", "#C58BFF"), ("line", "#C58BFF")]),
+    # the Cenote's eleven: every one's fins glow (FI_Glow: the game's reveal lights them from their own
+    # vertex colours)
+    "cave_tetra": dict(body="swim", h=0.16, back="#E2BFC4", flank="#F2D8DA", belly="#FFF0F0", fin="#FF9EC0", marks=[("line", "#F7A8B8")], glowfin=True),
+    "slate_minnow": dict(body="swim", h=0.14, back="#8E96A0", flank="#C8CED6", belly="#EEF1F4", fin="#9FE6FF", marks=[("line", "#6A7480")], glowfin=True),
+    "glassfin_loach": dict(body="eel", h=0.08, back="#7FC7CE", flank="#C4EEF0", belly="#F0FCFC", fin="#A8F0F8", marks=[("glow", "#8FF6FF"), ("line", "#DFFBFF")], whiskers=True, glowfin=True),
+    "phosphor_guppy": dict(body="swim", h=0.19, back="#2E5A4A", flank="#6FE0B8", belly="#E0FFF4", fin="#7CFFB8", marks=[("glow", "#B8FFE0"), ("spots", "#DFFFF0", 0.35)], dorsal="sail", glowfin=True),
+    "glow_axolotl": dict(body="cat", h=0.13, back="#E88AB0", flank="#F4B0C8", belly="#FCE0EC", fin="#F07AA8", marks=[("spots", "#FF9AD8", 0.35), ("glow", "#FFC4EA")], tail="round", glowfin=True),
+    "opal_gudgeon": dict(body="swim", h=0.15, back="#8A7AA8", flank="#E8D8F8", belly="#FFF8FF", fin="#FFB8F0", marks=[("scales", "#D8E8FF"), ("glow", "#FFF0FF")], glowfin=True),
+    "sporecat": dict(body="cat", h=0.15, back="#1E3A3A", flank="#2E5A5A", belly="#8AB8A8", fin="#4FFFD2", marks=[("spots", "#4FFFD2", 0.45), ("glow", "#4FFFD2")], whiskers=True, glowfin=True),
+    "needlefish": dict(body="gar", h=0.06, back="#3A5A6A", flank="#9FD8E8", belly="#EAF8FC", fin="#5FF2FF", marks=[("line", "#DFFBFF"), ("glow", "#BFF8FF")], glowfin=True),
+    "crystal_fin": dict(body="arowana", h=0.16, back="#2A6A8A", flank="#6FE0F0", belly="#D8FAFF", fin="#9FF6FF", marks=[("scales", "#BFF8FF"), ("glow", "#DFFBFF")], dorsal="sail", glowfin=True),
+    "voidfang": dict(body="long", h=0.13, back="#1A1426", flank="#3A2A5A", belly="#8A7AB8", fin="#B36BFF", marks=[("glow", "#C58BFF"), ("spots", "#8FF6FF", 0.3)], dorsal="spiny", big_eye=True, glowfin=True),
+    "elder_olm": dict(body="serpent", h=0.07, back="#E8D8E0", flank="#F4ECEE", belly="#FFFFFF", fin="#C58BFF", marks=[("glow", "#C58BFF"), ("line", "#C58BFF")], glowfin=True),
 }
 
 
@@ -156,6 +163,30 @@ def clay():
     bsdf.inputs["Metallic"].default_value = 0.0
     m.roughness = 0.6
     m.use_backface_culling = True
+    return m
+
+
+GLOW = "FI_Glow"
+
+
+def glow_mat():
+    """A cave fish's fins: their vertex colour glowing (the game makes it the emission)."""
+    m = bpy.data.materials.get(GLOW) or bpy.data.materials.new(GLOW)
+    try:
+        m.use_nodes = True
+    except AttributeError:
+        pass
+    nodes, links = m.node_tree.nodes, m.node_tree.links
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    attr = next((n for n in nodes if n.type == "VERTEX_COLOR"), None) or nodes.new("ShaderNodeVertexColor")
+    attr.layer_name = "Col"
+    links.new(attr.outputs["Color"], bsdf.inputs["Base Color"])
+    key = "Emission Color" if "Emission Color" in bsdf.inputs else "Emission"
+    bsdf.inputs[key].default_value = (1.0, 1.0, 1.0, 1)
+    if "Emission Strength" in bsdf.inputs:
+        bsdf.inputs["Emission Strength"].default_value = 1.2
+    bsdf.inputs["Roughness"].default_value = 0.4
+    m.use_backface_culling = False
     return m
 
 
@@ -464,14 +495,20 @@ def build_fish(sid, look, coll, at):
     bm = F.bm
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     col = bm.loops.layers.float_color.new("Col")
+    fin_rgb = lin(look["fin"]) if look.get("glowfin") else None
     for f in bm.faces:
         for loop in f.loops:
             loop[col] = loop.vert[F.vc]
+        # (a cave fish: its fins, every face in the fin colour, in the glowing material)
+        if fin_rgb and all(max(abs(loop.vert[F.vc][m] - fin_rgb[m]) for m in range(3)) < 1e-3 for loop in f.loops):
+            f.material_index = 1
     bm.verts.layers.float_color.remove(F.vc)  # (only the corner colours go out)
     me = bpy.data.meshes.new(f"Fish_{sid}Mesh")
     bm.to_mesh(me)
     bm.free()
     me.materials.append(clay())
+    if fin_rgb:
+        me.materials.append(glow_mat())
     attr = me.color_attributes.get("Col")
     if attr is not None:
         me.color_attributes.active_color = attr

@@ -6,6 +6,7 @@ import type { FuelItem, StewIngredient } from "./bonfire";
 import type { AxeId, ByproductId, FellVerdict, TreeKind, WoodKind } from "./chop";
 import type { Adhesive, CraftId, CraftMode, CraftOutcome } from "./crafting";
 import type { GearId } from "./gear";
+import type { CaveTackleId } from "./caverns_fishing";
 import type { SplitSwing, SplitVerdict } from "./splitting";
 import { START_COINS, type WardrobeTier } from "./economy";
 
@@ -16,7 +17,7 @@ export type SitPose = "sit" | "lie" | "dangle" | "cross";
 export type HeldItem = "" | "coffee" | "marshmallow" | "skewer" | "jar";
 /** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is stunned in the ring. */
 /** "rest": sitting at a fishing spot with the rod stowed and a warm mug, the creel full. */
-/** "mine": at an ore node in the Glimmering Caverns, the pickaxe up; "soak": in its onsen. */
+/** "mine": at an ore node in the Glimmering Caverns, the pickaxe up; "soak": in its thermal terraces' warm pools. */
 export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar" | "stargaze" | "chop" | "rest" | "mine" | "soak";
 
 export interface PlayerState {
@@ -111,11 +112,11 @@ export const DAILY_TASKS: Record<DailyTaskId, { label: string; emoji: string; go
   pet_mochi: { label: "Play with Mochi", emoji: "🐱", goal: 1 },
   catch_fish: { label: "Catch 2 fish", emoji: "🎣", goal: 2 },
   win_boxing: { label: "Win a boxing bout", emoji: "🥊", goal: 1 },
-  soak_onsen: { label: "Soak in the onsen for 30 s", emoji: "♨️", goal: 1 },
+  soak_onsen: { label: "Soak in a warm pool for 30 s", emoji: "♨️", goal: 1 },
   roast_marshmallow: { label: "Toast a marshmallow", emoji: "🍢", goal: 1 },
   spin_slots: { label: "Spin the slots 3 times", emoji: "🎰", goal: 3 },
   pull_gacha: { label: "Turn the gachapon", emoji: "🔮", goal: 1 },
-  splash_water: { label: "Splash someone at the onsen", emoji: "💦", goal: 1 },
+  splash_water: { label: "Splash someone in a warm pool", emoji: "💦", goal: 1 },
   brew_coffee: { label: "Pull an espresso", emoji: "☕", goal: 1 },
   make_wish: { label: "Make a wish at the well", emoji: "🪙", goal: 1 },
 };
@@ -229,7 +230,7 @@ export function isCavernsMap(map: string): boolean {
   return map === "glimmering_caverns";
 }
 /** The worlds with water to fish (the reel, the livewell, AFK): the camp's rivers and the caverns'
- *  Grotto Pool. */
+ *  cenote lake. */
 export function isFishingMap(map: string): boolean {
   return isCampMap(map) || isCavernsMap(map);
 }
@@ -378,7 +379,8 @@ export type ToggleableKind =
   | "ranger"
   | "animal"
   // the Glimmering Caverns (and the woods' way down): the old mine adit, Old Flint the Badger, Gus
-  // the Mole's workshop, the Ancient Forge, the Geode Anvil, the ore nodes
+  // the Mole's workstation, the Thermal Bellows Forge, the meteorite Geode Anvil, the ore nodes,
+  // Finnegan the Grotto Angler ("angler", as the woods' Finley)
   | "adit"
   | "miner"
   | "prospector"
@@ -1184,7 +1186,7 @@ export function usableSeated(kind: ToggleableKind): boolean {
 
 // --- world sizes ---
 /** Half-width of each diorama slab. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, whispering_woods: 12, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12, glimmering_caverns: 14 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 10.8, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, whispering_woods: 12, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12, glimmering_caverns: 22.5 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
 export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 
@@ -1628,6 +1630,9 @@ export type CampfirePacket =
   | { type: "SPLIT_WOOD" }
   /** A consumable from the craft stash, used (anywhere): its buff (shared/crafting.ts BUFFS). */
   | { type: "USE_CONSUMABLE"; craft: CraftId }
+  /** A drawer's own consumable made (anywhere the drawer opens): Feller's Pine Pitch, Phosphor Glow
+   *  Bait, Miner's Stout, into the craft stash. */
+  | { type: "DRAWER_CRAFT"; craft: CraftId }
   /** The swing, `t` seconds into the ring as the swinger saw it (sampled at the press). */
   | { type: "CHOP_STOP"; t?: number }
   /** Stepping back from the tree (the panel closed): its notch stays for whoever comes next. */
@@ -1655,6 +1660,8 @@ export type CampfirePacket =
    *  again (its slot, and its kind to be sure it is the one meant). */
   | { type: "BARNABY"; op: "buyGear"; gear: GearId }
   | { type: "BARNABY"; op: "lockFish"; slot: number; fish: FishId; locked: boolean }
+  /** Finnegan the Grotto Angler's advanced tackle (coins and a barter of makings: at his crate). */
+  | { type: "BARNABY"; op: "buyCaveTackle"; tackle: CaveTackleId }
   /** Putting on or taking off a piece of gear you own (anywhere). */
   | { type: "GEAR"; op: "equip" | "unequip"; gear: GearId }
   /** Buster the Lumberjack's stall: sell split wood (one, or all of a kind), buy or switch axes. */

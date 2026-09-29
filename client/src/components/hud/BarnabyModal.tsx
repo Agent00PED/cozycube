@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
 import { BAITS, BAIT_IDS, CREEL_TIERS, RODS, ROD_IDS, fishValue, livewellCap, nextCreelTier, type FishingProfile } from "@shared/fishing";
 import { livewellBonus } from "@shared/gear";
+import { CAVE_TACKLES, CAVE_TACKLE_IDS } from "@shared/caverns_fishing";
+import { ORE_ITEMS, type OreItemId } from "@shared/caverns_mining";
+import { BYPRODUCTS, type ByproductId } from "@shared/chop";
+import { satchelCountFor } from "@shared/satchel";
 import { COZY_AURA_LUCK, hasCozyAura } from "@shared/bonfire";
 import { fishGood, marketMultiplier, parseMarket, priceRun } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -18,9 +22,10 @@ interface Props {
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onOpenFieldGuide: () => void;
   onClose: () => void;
-  /** Who keeps this shop: Barnaby at the campfire (rods and the angler's gear up to T3), or Finley
-   *  the River Otter on the woods' river (every tier). Both buy fish and sell bait and livewells. */
-  keeper?: "barnaby" | "finley";
+  /** Who keeps this shop: Barnaby at the campfire (rods and the angler's gear up to T3), Finley the
+   *  River Otter on the woods' river, or Finnegan the Grotto Angler by the cenote (both every tier;
+   *  Finnegan's advanced tackle bartered too). All buy fish and sell bait and livewells. */
+  keeper?: "barnaby" | "finley" | "finnegan";
 }
 
 // Barnaby the Angler's stall by the dock (and Finley's boulder on the woods' river), on the shops'
@@ -28,7 +33,9 @@ interface Props {
 // lock (a locked fish stays: Sell All passes it by, and its own sell button is off), rods and bait,
 // the livewells, and the angler's gear. The hour's price for each fish (15% more while the bonfire's
 // Cozy Aura is up; past 30 of a kind sold in the hour, each knocks 2% off the next). Every trade is the server's call
-// (BARNABY packets); the answer comes back as barnabyResult, in the keeper's word.
+// (BARNABY packets); the answer comes back as barnabyResult, in the keeper's word. Finnegan's counter
+// has a fifth tab, Barter: his advanced tackle for coins and the caverns' makings (ingots, gems, fish
+// bones and prismatic scales), each made once and at work for good.
 
 const TABS: [ShopTab, string, string][] = [
   ["trade", "🪙", "Trade/Sell"],
@@ -36,9 +43,12 @@ const TABS: [ShopTab, string, string][] = [
   ["storage", "🪣", "Storage"],
   ["gear", "💍", "Gear"],
 ];
+const FINNEGAN_TABS: [ShopTab, string, string][] = [...TABS, ["barter", "🦎", "Barter"]];
 
 export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose, keeper = "barnaby" }: Props) {
-  const finley = keeper === "finley";
+  // (Finnegan keeps every tier, as Finley does)
+  const finley = keeper !== "barnaby";
+  const finnegan = keeper === "finnegan";
   const [tab, setTab] = useState<ShopTab>("trade");
   const [notice, setNotice] = useState<ShopNotice | null>(null);
   useEffect(
@@ -61,14 +71,14 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
   const unlockedWorth = priceRun(unlocked, (f) => fishGood(f.s), (f, mult) => Math.round(fishValue(f, mult) * aura), hour).total;
   const next = nextCreelTier(profile.creelTier);
   const bonus = livewellBonus(profile.worn);
-  const who = finley ? "Finley" : "Barnaby";
+  const who = finnegan ? "Finnegan" : finley ? "Finley" : "Barnaby";
 
   return (
     <ShopShell
-      title={finley ? "Finley's River Tackle" : "Barnaby's Bait & Tackle"}
-      icon={finley ? "🎣" : "🦦"}
+      title={finnegan ? "Finnegan's Grotto Tackle" : finley ? "Finley's River Tackle" : "Barnaby's Bait & Tackle"}
+      icon={finnegan ? "🦎" : finley ? "🎣" : "🦦"}
       notice={notice}
-      tabs={TABS}
+      tabs={finnegan ? FINNEGAN_TABS : TABS}
       tab={tab}
       onTab={setTab}
       onClose={onClose}
@@ -84,7 +94,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
         <div className="flex flex-col gap-1.5">
           {aura > 1 && <div className="rounded-xl bg-amber-300/15 px-2.5 py-1.5 text-xs text-amber-100">✨ Cozy Aura: the roaring campfire has {who} paying 15% more</div>}
           {profile.creel.length === 0 ? (
-            <p className="m-0 py-6 text-center text-sm opacity-70">Your livewell is empty. Cast a line from the dock, the canoe, or the woods' river bank!</p>
+            <p className="m-0 py-6 text-center text-sm opacity-70">{finnegan ? "Your livewell is empty. Cast into the cenote from the driftwood outcrop!" : "Your livewell is empty. Cast a line from the dock, the canoe, or the woods' river bank!"}</p>
           ) : (
             profile.creel.map((f, i) => <FishCard key={i} fish={f} price={price(f)} mult={marketMultiplier(fishGood(f.s), hour)} onToggleLock={() => send(lockPacket(f, i))} onSell={() => shop({ type: "BARNABY", op: "sell", slot: i })} />)
           )}
@@ -189,6 +199,45 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
       )}
 
       {tab === "gear" && <GearShopList craft="fish" maxTier={finley ? 5 : 3} elsewhere="🦦 At Finley's boulder on the woods' river" profile={profile} coins={coins} onBuy={(id) => shop({ type: "BARNABY", op: "buyGear", gear: id })} send={send} />}
+
+      {tab === "barter" && finnegan && (
+        <div className="flex flex-col gap-1.5">
+          <p className="m-0 text-center text-xs opacity-75">Finnegan's advanced tackle: coins and the caverns' makings. Each made once, and at work on every line for good.</p>
+          {CAVE_TACKLE_IDS.map((id) => {
+            const t = CAVE_TACKLES[id];
+            const owned = profile.caveTackles.includes(id);
+            const ore = (Object.entries(t.ore) as [OreItemId, number][]).map(([k, n]) => ({ key: k, name: ORE_ITEMS[k].name, n, have: satchelCountFor(profile, k) }));
+            const mats = (Object.entries(t.byproducts) as [ByproductId, number][]).map(([k, n]) => ({ key: k, name: BYPRODUCTS[k].name, n, have: profile.byproducts[k] ?? 0 }));
+            const ready = coins >= t.price && [...ore, ...mats].every((x) => x.have >= x.n);
+            return (
+              <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${owned ? "bg-emerald-400/20" : "border border-[#5ff2ff]/30 bg-[#5ff2ff]/10"}`}>
+                <span className="text-2xl">{t.emoji}</span>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+                  <b className="text-sm">{t.name}</b>
+                  <span className="text-[11px] opacity-75">{t.blurb}</span>
+                  {!owned && (
+                    <span className="flex flex-wrap gap-1 text-[10px]">
+                      <span className={`rounded-full px-1.5 ${coins >= t.price ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>{t.price.toLocaleString("en-US")} 🪙</span>
+                      {[...ore, ...mats].map((x) => (
+                        <span key={x.key} className={`rounded-full px-1.5 ${x.have >= x.n ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>
+                          {x.n} {x.name} <span className="opacity-70">({x.have})</span>
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </div>
+                {owned ? (
+                  <span className="px-2 text-xs font-bold text-emerald-200">Owned ✓</span>
+                ) : (
+                  <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={!ready} onClick={() => shop({ type: "BARNABY", op: "buyCaveTackle", tackle: id })}>
+                    Barter
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </ShopShell>
   );
 }

@@ -25,7 +25,7 @@ import { GLOVES_URL } from "../entities/rig";
 import { COACH_BRUNO } from "@shared/worlds/boxing_ring";
 import { CAVERNS_CAMERA, CAVE_ADIT, ORE_NODE_AT, cavernsFloorY, oreNodeOf } from "@shared/worlds/caverns";
 import { ORE_KINDS, oreCenterY } from "@shared/caverns_mining";
-import { CAVERNS_URL, CavernsWorld, GUS_URL } from "./CavernsWorld";
+import { CAVERNS_URL, CavernsWorld, FINNEGAN_URL, GUS_URL } from "./CavernsWorld";
 import { prospectStore, useProspect } from "../systems/prospectStore";
 import { combatInput } from "../systems/combatInput";
 import { pushToast } from "../components/hud/toastStore";
@@ -202,7 +202,7 @@ function useCrowdEvents(subscribeEmotes: WorldSceneProps["subscribeEmotes"], sub
       subscribeMessages((type, payload) => {
         if (type === "gesture" && payload?.sessionId) {
           setGestures((prev) => ({ ...prev, [payload.sessionId]: { kind: payload.gesture, at: performance.now() } }));
-        } else if (type === "chatBubble" && payload?.sessionId) {
+        } else if ((type === "chatBubble" || type === "billboard") && payload?.sessionId) {
           const id = nextId.current++;
           setBubbles((prev) => ({ ...prev, [payload.sessionId]: { id, text: String(payload.text) } }));
           window.setTimeout(
@@ -292,6 +292,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
     const caverns = window.setTimeout(() => {
       useGLTF.preload(CAVERNS_URL);
       useGLTF.preload(GUS_URL);
+      useGLTF.preload(FINNEGAN_URL);
     }, 11000);
     return () => {
       window.clearTimeout(campfire);
@@ -336,7 +337,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           add({ x: tree.x + (dx / d) * 0.35, y: 0.6, z: tree.z + (dz / d) * 0.35, kind: "chips" });
         }
       } else if (type === "splash" && who.map === "glimmering_caverns") {
-        // a splash in the caverns' onsen: drops thrown up off the water round the bather
+        // a splash in the caverns' thermal terraces: drops thrown up off the water round the bather
         add({ x: payload.x, y: walkY(who.map, payload.x, payload.z) - 0.1, z: payload.z, kind: "splash" });
       } else if (type === "fishCaught") {
         // off this angler's own float (the one out from their spot on the dock)

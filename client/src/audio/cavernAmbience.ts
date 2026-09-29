@@ -3,7 +3,7 @@ import { masterOut } from "./master";
 import { crossfade } from "./sound";
 import { CAVE_CHANNELS, getSoundSettings, type CaveChannel } from "./soundSettings";
 import { cameraFocus } from "../scene/cameraFocus";
-import { ONSEN, TERRACE } from "@shared/worlds/caverns";
+import { TERRACES } from "@shared/worlds/caverns";
 
 // The Glimmering Caverns' soundscape and its effects, generated in the browser like every world's
 // (no audio files needed). Its own context, three channels on one master (each a Settings fader):
@@ -11,7 +11,7 @@ import { ONSEN, TERRACE } from "@shared/worlds/caverns";
 //   cavern    the cave's air (a low rumble breathing), the stalactites' drips (a plink falling in
 //             pitch, now here now there), your footsteps on the stone as you walk
 //   crystal   the crystals' resonance: glassy sine clusters swelling and fading, slowly detuned
-//   steam     the onsen's hiss and bubbling, louder as you near its rim
+//   steam     the Travertine Terraces' hiss and bubbling, louder as you near their pools
 //
 // Everything that sounds in the cave (the drips, the footsteps, a pickaxe's blow) goes through a
 // ConvolverNode: an impulse response made here, a decay tail of about 1.2 s with a few early
@@ -130,7 +130,7 @@ class CavernAmbience {
     if (this.beds.length || !this.channels || !this.steamPlace) return;
     this.bed("lowpass", 110, 0.7, 0.3, this.channels.cavern, 0.07, 0.12); // the cave breathing
     this.bed("bandpass", 420, 0.6, 0.02, this.channels.cavern, 0.11, 0.012); // air moving in the dark
-    this.bed("highpass", 3200, 0.6, 0.07, this.steamPlace, 0.4, 0.03); // the onsen's hiss
+    this.bed("highpass", 3200, 0.6, 0.07, this.steamPlace, 0.4, 0.03); // the terraces' hiss
     this.bed("bandpass", 900, 2.5, 0.05, this.steamPlace, 1.7, 0.04); // its bubbling
   }
 
@@ -156,8 +156,10 @@ class CavernAmbience {
       this.stopBeds();
       return;
     }
-    // the steam louder as you near the onsen (on the terrace)
-    const d = Math.hypot(cameraFocus.x - ONSEN.x, cameraFocus.z - ONSEN.z) + (cameraFocus.y > TERRACE.y - 0.5 ? 0 : 4);
+    // the steam louder as you near the terraces' pools (against the west cliff)
+    const tx = Math.max(TERRACES.x0, Math.min(TERRACES.x1, cameraFocus.x));
+    const tz = Math.max(TERRACES.pools[0].z0, Math.min(TERRACES.pools[TERRACES.pools.length - 1].z1, cameraFocus.z));
+    const d = Math.hypot(cameraFocus.x - tx, cameraFocus.z - tz);
     this.steamPlace?.gain.setTargetAtTime(0.15 + 1.6 / (1 + (d / 3) ** 2), now, 0.3);
     // the stalactites dripping, now here now there
     if (now > this.dripAt) {

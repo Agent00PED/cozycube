@@ -23,7 +23,7 @@ function fadersFor(map: MapId, raining: boolean): [Fader, string][] {
     case "boxing_ring":
       return [["crowd", "📣 Ringside Crowd"]];
     case "glimmering_caverns":
-      return [["cavern", "💧 Cavern Reverb & Drips"], ["crystal", "💎 Crystal Resonance"], ["steam", "♨️ Onsen Steam"]];
+      return [["cavern", "💧 Cavern Reverb & Drips"], ["crystal", "💎 Crystal Resonance"], ["steam", "♨️ Thermal Steam"]];
     default:
       return [];
   }
@@ -36,7 +36,7 @@ const FADER_NOTE: Partial<Record<MapId, string>> = {
   velvet_casino: "The casino's jazz combo, and its crowd: the murmur, glasses and chips.",
   casino_vip: "The casino's jazz combo, and its crowd: the murmur, glasses and chips.",
   boxing_ring: "The crowd at ringside, roaring at every big punch.",
-  glimmering_caverns: "The cavern answers every sound (its drips, your steps, your pickaxe); the crystals ring; the onsen steams.",
+  glimmering_caverns: "The cavern answers every sound (its drips, your steps, your pickaxe); the crystals ring; the thermal terraces steam.",
 };
 
 /** Settings: the sound (Master Volume and the Effects everywhere, and only the faders the world you

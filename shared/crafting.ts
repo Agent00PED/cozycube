@@ -8,11 +8,13 @@
 //   🧪 Consumables  carved as often as you like, into the craft stash, and used from the wood drawer
 //                   for a buff a while (BUFFS: a S'more's quicker step, Amber Grip Wax's wider gold,
 //                   Silverwood Sap Ointment's slower ring, Glow-Spore Chum's livelier river, the
-//                   Aromatic Pine Pouch's quick commons)
+//                   Aromatic Pine Pouch's quick commons). Three more are made in the drawers
+//                   themselves, not at the bench (`drawer`): Feller's Pine Pitch in the Forester's,
+//                   Phosphor Glow Bait in the Fish drawer, Miner's Stout in the Ore Satchel's
 //   🧿 Relics       carved once, then worn in a gear slot to work (shared/gear.ts: the Carved
 //                   Lumberjack Belt, the Deepriver Fisherman Ring, the Heartwood Compass)
 //   🪑 Furniture    the trade goods, pure profit on a healthy margin over what goes into them, sold to
-//                   Buster or Bramble at the hour's market (shared/market.ts: 70%-130%)
+//                   Buster or Bramble at the hour's market (shared/market.ts: 50%-130%)
 //
 // Every carve of a piece of furniture is one of two modes, with its recipe's own odds (they scale
 // with its tier):
@@ -38,6 +40,7 @@
 //   Resin Gilding   +25 points of Masterwork chance (taken from a plain success first)
 
 import type { ByproductId, WoodKind } from "./chop";
+import type { OreItemId } from "./caverns_mining";
 import { CARVED_PRICE, RESIN_BUY_PRICE } from "./economy";
 import type { BuffKey } from "./fishing";
 import type { GearId } from "./gear";
@@ -74,13 +77,15 @@ export const CRAFT_FILTERS: { id: CraftFilter; emoji: string; label: string }[] 
   { id: "furniture", emoji: "🪑", label: "Furniture" },
 ];
 
-/** What a recipe takes: logs by kind, Firewood bundles, Pine Resin, Sawdust, and the by-products. */
+/** What a recipe takes: logs by kind, Firewood bundles, Pine Resin, Sawdust, the by-products, and
+ *  (the Ore Satchel's own) the satchel's ores. */
 export interface CraftNeeds {
   wood?: Partial<Record<WoodKind, number>>;
   firewood?: number;
   resin?: number;
   sawdust?: number;
   byproducts?: Partial<Record<ByproductId, number>>;
+  ore?: Partial<Record<OreItemId, number>>;
 }
 
 /** What a finished recipe is: a piece to sell (into the stash), a tackle (made once, yours for
@@ -106,7 +111,14 @@ export const BUFFS: Record<BuffKey, { name: string; emoji: string; ms: number; b
   scent: { name: "Aromatic Pine", emoji: "🌿", ms: 15 * 60_000, blurb: "Common fish bite within 5 s of a cast" },
   sap: { name: "Silverwood Sap", emoji: "🧴", ms: 10 * 60_000, blurb: "The felling ring and the splitting gauge 15% slower" },
   chum: { name: "Glow-Spore Chum", emoji: "🫧", ms: 10 * 60_000, blurb: "Bites 20% sooner, rare fish 25% likelier" },
+  pitch: { name: "Feller's Pine Pitch", emoji: "🍯", ms: 10 * 60_000, blurb: "Every landed round 25% likelier to drop a log" },
+  glowbait: { name: "Phosphor Glow Bait", emoji: "🪱", ms: 10 * 60_000, blurb: "Rare fish and better 30% likelier by night and underground" },
+  stout: { name: "Miner's Stout", emoji: "🍺", ms: 10 * 60_000, blurb: "Your pickaxe strikes 25% harder" },
 };
+/** Feller's Pine Pitch's lift to a round's log chance, and Phosphor Glow Bait's rare luck in the dark
+ *  (Miner's Stout's harder strike: shared/caverns_mining.ts STOUT_DAMAGE). */
+export const PITCH_LOG = 0.25;
+export const GLOWBAIT_LUCK = 0.3;
 /** A S'more's step, Grip Wax's gold, a Pine Pouch's quickest common bite (s), the Sap Ointment's
  *  slower ring and gauge, the Chum's quicker bites and rarer fish. */
 export const SMORE_PACE = 1.15;
@@ -148,11 +160,14 @@ export interface Craft {
   special?: "torch" | "incense";
   /** Off the bench (the recipes before this one): still defined, traded in at Buster's or Bramble's. */
   legacy?: boolean;
+  /** Made in a drawer, not at the bench: the Forester's ("wood"), the Fish ("fish"), the Ore
+   *  Satchel's ("ore"). */
+  drawer?: "wood" | "fish" | "ore";
 }
 /** A recipe's tab on the bench. */
 export const craftCategory = (c: Craft): CraftCategory => c.category;
-/** Whether a recipe shows under a tab. */
-export const craftMatches = (c: Craft, f: CraftFilter) => !c.legacy && c.category === f;
+/** Whether a recipe shows under a tab (the bench's: never a drawer's own). */
+export const craftMatches = (c: Craft, f: CraftFilter) => !c.legacy && !c.drawer && c.category === f;
 
 const make = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, category: CraftCategory, use: CraftUse, needs: CraftNeeds, price: number, description: string, extra: Partial<Craft> = {}): Craft => ({
   name,
@@ -189,6 +204,10 @@ export type CraftId =
   | "sap_ointment"
   | "glow_chum"
   | "scent_pouch"
+  // 🧪 the drawers' own consumables
+  | "pine_pitch"
+  | "glow_bait"
+  | "miners_stout"
   // 🧿 the relics
   | "carved_belt"
   | "deepriver_ring"
@@ -240,6 +259,10 @@ export const CRAFTS: Record<CraftId, Craft> = {
   sap_ointment: consumable("Silverwood Sap Ointment", "🧴", "resins", { resin: 2, byproducts: { silverBark: 2 } }, "sap", "Rub it in: the felling ring and the splitting gauge 15% slower for 10 minutes"),
   glow_chum: consumable("Glow-Spore Chum", "🫧", "river", { byproducts: { scales: 8, fishBone: 1 } }, "chum", "Scatter it: bites 20% sooner and rare fish 25% likelier for 10 minutes"),
   scent_pouch: consumable("Aromatic Pine Pouch", "🌿", "pine", { wood: { pine: 2 }, resin: 1, byproducts: { bark: 2 } }, "scent", "Hang it on your line: common fish bite within 5 seconds of a cast for 15 minutes"),
+  // --- 🧪 the drawers' own: made in the Forester's, the Fish and the Ore Satchel's drawers -------------
+  pine_pitch: { ...consumable("Feller's Pine Pitch", "🍯", "resins", { resin: 3, sawdust: 4 }, "pitch", "Smear it on the axe: every landed round 25% likelier to drop a log for 10 minutes"), drawer: "wood" },
+  glow_bait: { ...consumable("Phosphor Glow Bait", "🪱", "river", { byproducts: { scales: 6, fishBone: 1, stoneDust: 2 } }, "glowbait", "Glowing in the dark: rare fish and better 30% likelier by night and underground for 10 minutes"), drawer: "fish" },
+  miners_stout: { ...consumable("Miner's Stout", "🍺", "resins", { ore: { coal: 2 }, byproducts: { stoneDust: 4 } }, "stout", "A dark cave brew: your pickaxe strikes 25% harder for 10 minutes"), drawer: "ore" },
   // --- 🧿 the relics: carved once, worn in a gear slot to work -----------------------------------
   carved_belt: relic("Carved Lumberjack Belt", "🎗️", "rare", "cedar", { wood: { cedar: 6 }, resin: 8 }, "carved_belt", "Waist relic (wear it): +8 carrier slots, and the splitting gauge 15% slower"),
   deepriver_ring: relic("Deepriver Fisherman Ring", "💍", "rare", "river", { wood: { cedar: 3 }, byproducts: { fishBone: 2, scales: 10 } }, "deepriver_ring", "Finger relic (wear it): +6 livewell slots"),
@@ -278,8 +301,11 @@ export const CRAFTS: Record<CraftId, Craft> = {
   mask: legacy({ ...furniture("Forest Guardian Mask", "🎭", "legendary", "pine", { wood: { oak: 2, charcoal: 1 } }, 45, "Intricate tribal spirit mask"), master: 77 }),
 };
 export const CRAFT_IDS = Object.keys(CRAFTS) as CraftId[];
-/** What the bench carves now: the seventeen (the legacy recipes are only traded in). */
-export const BENCH_IDS = CRAFT_IDS.filter((id) => !CRAFTS[id].legacy);
+/** What the bench carves now: the seventeen (the legacy recipes are only traded in; the drawers make
+ *  their own three). */
+export const BENCH_IDS = CRAFT_IDS.filter((id) => !CRAFTS[id].legacy && !CRAFTS[id].drawer);
+/** A drawer's own consumables. */
+export const drawerCrafts = (drawer: "wood" | "fish" | "ore") => CRAFT_IDS.filter((id) => CRAFTS[id].drawer === drawer);
 /** The tackles, by their effect. */
 export const TOOL_CRAFT: Record<ToolId, CraftId> = { otter_float: "otter_float", resin_sinker: "resin_sinker", silk_line: "silk_line", wedge_mallet: "wedge_mallet", titan_lever: "titan_lever" };
 export function isCraftId(v: unknown): v is CraftId {
@@ -317,13 +343,15 @@ export function craftStacks(items: readonly CraftItem[]): { item: CraftItem; n: 
   return out;
 }
 
-/** What a craft's maker holds (the camp profile's parts a recipe draws on). */
+/** What a craft's maker holds (the camp profile's parts a recipe draws on; `ore`, the satchel's
+ *  counts, for the Ore Satchel's own). */
 export interface CraftStock {
   wood: Record<WoodKind, number>;
   firewood: number;
   resin: number;
   sawdust: number;
   byproducts: Partial<Record<ByproductId, number>>;
+  ore?: Partial<Record<OreItemId, number>>;
 }
 /** Whether the stock at hand covers a recipe. */
 export function canCraft(stock: CraftStock, id: CraftId): boolean {
@@ -333,7 +361,8 @@ export function canCraft(stock: CraftStock, id: CraftId): boolean {
     stock.firewood >= (n.firewood ?? 0) &&
     stock.resin >= (n.resin ?? 0) &&
     stock.sawdust >= (n.sawdust ?? 0) &&
-    (Object.entries(n.byproducts ?? {}) as [ByproductId, number][]).every(([k, c]) => (stock.byproducts[k] ?? 0) >= c)
+    (Object.entries(n.byproducts ?? {}) as [ByproductId, number][]).every(([k, c]) => (stock.byproducts[k] ?? 0) >= c) &&
+    (Object.entries(n.ore ?? {}) as [OreItemId, number][]).every(([k, c]) => (stock.ore?.[k] ?? 0) >= c)
   );
 }
 /** A recipe's needs in words ("4 Soft Pine + 2 Firewood"): `names` gives each log's and by-product's. */
@@ -345,6 +374,7 @@ export function needsList(id: CraftId): { key: string; n: number }[] {
     ...(n.resin ? [{ key: "resin", n: n.resin }] : []),
     ...(n.sawdust ? [{ key: "sawdust", n: n.sawdust }] : []),
     ...(Object.entries(n.byproducts ?? {}) as [ByproductId, number][]).map(([k, c]) => ({ key: `by:${k}`, n: c })),
+    ...(Object.entries(n.ore ?? {}) as [OreItemId, number][]).map(([k, c]) => ({ key: `ore:${k}`, n: c })),
   ];
 }
 

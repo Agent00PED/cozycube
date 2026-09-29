@@ -91,8 +91,8 @@ export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boo
 }
 
 /** How high the floor is at (x, z): the casino's raised High-Roller Pit and Velvet Lounge (and the
- *  steps up to them), the Velvet Ring's canvas (only a fighter stands there), the caverns' Upper
- *  Terrace and the ramp of its stair; every other world is flat. Where an avatar's feet go, where a
+ *  steps up to them), the Velvet Ring's canvas (only a fighter stands there), the caverns' doline
+ *  plateau, its ramp, the lake's sloping shore, the islet, the sandbar and the deck; every other world is flat. Where an avatar's feet go, where a
  *  click lands. */
 export function walkY(mapId: MapId, x: number, z: number): number {
   if (mapId === "velvet_casino") return casinoFloorY(x, z);
