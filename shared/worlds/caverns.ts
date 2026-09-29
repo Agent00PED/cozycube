@@ -68,9 +68,9 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
   "gus": { "x": -6.2, "z": -16.6, "yaw": 0 },
   "workstation": { "x": -6.2, "z": -15.6, "len": 2.4, "w": 0.75, "top": 0.78 },
   "camp": { "posts": [[-8.0, -15.1], [-4.4, -15.1], [-8.0, -18.3], [-4.4, -18.3]], "ridge": 2.7, "eave": 1.85, "crates": [-7.25, -17.75], "transit": [-5.15, -17.85] },
-  "forge": { "x": 6.8, "z": -21.3, "w": 2.6, "d": 1.8, "h": 3.2 },
-  "anvil": { "x": 3.2, "z": -15.2, "outcrop": 0.62 },
-  "crate": { "x": 4.55, "z": -15.7, "w": 0.9, "d": 0.6, "h": 0.55 },
+  "forge": { "x": 6.8, "z": -21.3, "w": 3.0, "d": 1.8, "h": 3.2 },
+  "anvil": { "x": 3.7, "z": -19.9, "outcrop": 0.62 },
+  "crate": { "x": 4.65, "z": -20.75, "w": 0.9, "d": 0.6, "h": 0.55 },
   "lake": { "x": 1.0, "z": 10.8, "rx": 13.0, "rz": 9.0, "water": -0.06, "depth": 2.4, "beach": 1.28, "wade": 1.04 },
   "islet": { "x": 2.2, "z": 12.2, "r": 3.1, "top": 0.32 },
   "sandbar": { "points": [[0.6, 0.6], [1.6, 3.2], [0.7, 5.8], [1.3, 8.2], [2.0, 9.8]], "half": 1.0, "y": -0.12 },
@@ -118,7 +118,14 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
   ],
   "boulders": [[-9.0, -18.0, 0.9], [5.4, -17.8, 0.7], [-1.6, -15.2, 0.5], [9.0, -14.6, 0.8], [1.8, -19.2, 0.45], [-17.6, -16.4, 0.75], [-14.4, -13.4, 0.6], [5.6, -8.9, 0.9], [3.8, -9.8, 0.6], [9.4, -8.0, 0.8], [-6.8, -0.9, 0.7], [10.2, -1.6, 0.9], [12.4, 1.6, 0.8], [16.0, 9.6, 0.9], [18.2, 16.8, 1.0], [-10.8, 17.6, 0.9], [8.8, 20.6, 0.8], [-17.8, 9.6, 0.9], [-8.6, -8.6, 0.8]],
   "mounds": [[-3.4, -17.8, 1.15, 0.9], [8.6, -17.6, 1.2, 1.1], [-11.9, -15.9, 1.05, 0.85], [0.9, -14.5, 0.9, 0.7], [11.9, -19.1, 1.0, 1.2], [-15.0, -16.6, 0.9, 0.8]],
-  "outcrops": [[11.2, -10.6, 1.3, 2.6], [5.6, -10.3, 0.85, 1.7], [-2.8, -10.1, 1.1, 1.9], [-11.0, -8.6, 1.2, 2.1], [3.5, -3.3, 0.9, 1.3], [-4.4, -2.4, 1.0, 1.4], [8.9, -5.0, 1.1, 1.7], [13.2, -2.2, 1.0, 2.2]],
+  "outcrops": [[11.2, -10.6, 1.3, 2.6], [5.6, -10.3, 0.85, 1.7], [-2.8, -10.1, 1.1, 1.9], [-11.0, -8.6, 1.2, 2.1], [3.5, -3.3, 0.9, 1.3], [-4.4, -2.4, 1.0, 1.4], [8.9, -5.0, 1.1, 1.7]],
+  "ridges": [
+    { "id": "westButtress", "points": [[-21.9, -8.6, 1.6, 4.4], [-20.3, -8.2, 1.4, 3.8], [-18.7, -8.0, 1.2, 3.1], [-17.2, -8.2, 1.0, 2.4], [-21.9, 7.2, 1.5, 4.0], [-20.4, 7.5, 1.3, 3.3], [-18.9, 7.3, 1.1, 2.6], [-17.5, 6.8, 0.9, 1.9]] },
+    { "id": "eastSpine", "points": [[12.6, -11.6, 1.2, 3.6], [12.9, -9.5, 1.15, 3.2], [13.1, -7.3, 1.1, 3.0], [13.0, -5.1, 1.05, 2.7], [12.8, -2.9, 0.95, 2.3], [12.9, -0.9, 0.85, 1.9]] }
+  ],
+  "beach": { "dinghy": [-10.9, 16.2, 2.3], "logs": [[-14.8, 11.0, 0.6, 1.8], [-3.4, 20.9, -0.3, 1.6], [15.0, 19.2, 1.2, 1.5]], "pools": [[-12.7, 13.3, 0.55], [-7.3, 18.7, 0.5], [16.9, 13.4, 0.5]] },
+  "survey": { "cart": [19.8, 14.0, 0.9], "outcrop": [15.9, 16.4, 0.85, 1.3] },
+  "capybara": { "x": -19.1, "z": -4.8, "yaw": 1.4 },
   "fins": [[19.6, -3.4, 0.5, 1.6, 2.6, 0.4], [20.2, -10.8, 0.6, 1.6, 3.0, -0.2], [19.8, -17.8, 0.5, 1.5, 2.8, 0.4]],
   "stalagmites": [[-20.4, -20.4, 0.75, 5.6], [-15.0, -20.9, 0.5, 4.2], [12.6, -21.0, 0.6, 5.0], [21.2, -18.4, 0.6, 4.6], [-20.9, -7.2, 0.6, 4.0], [21.3, -1.2, 0.5, 3.4], [-20.9, 8.2, 0.7, 4.8]],
   "crystals": [[16.9, -20.9, 1.1], [21.5, -12.0, 1.2], [16.6, -10.8, 0.8], [21.3, -4.8, 1.0], [15.2, -7.4, 0.7], [-21.3, -2.2, 0.8], [-21.0, 14.0, 0.9]],
@@ -261,7 +268,7 @@ function terraceRise(x: number, z: number): number {
 /** The low ground: the shore's backlands, the terraces' slope, the chasm's floor, the south sand. */
 function lowLevel(x: number, z: number): number {
   // (the Abyssal Chasm: a crevasse sunk into the bedrock down the east, its floor -0.2 to +0.4)
-  const chasm = -0.5 * smoothstep(12.5, 15.5, x) * (1 - smoothstep(-2.0, 4.0, z));
+  const chasm = -0.85 * smoothstep(12.5, 15.2, x) * (1 - smoothstep(-2.0, 4.0, z));
   return L.levels.low + 0.07 * wave(x, z, 3) + terraceRise(x, z) + chasm + 0.12 * wave(x * 0.7, z * 0.7, 9) * smoothstep(12.5, 16.0, x);
 }
 function upperLevel(x: number, z: number): number {
@@ -357,6 +364,15 @@ const ROCK_DISCS: { x: number; z: number; r: number }[] = [
   // the doline's moss-draped karst mounds, and the talus's mammoth outcrops
   ...L.mounds.map(([x, z, r]) => ({ x, z, r: r * 0.95 })),
   ...L.outcrops.map(([x, z, r]) => ({ x, z, r: r * 0.95 })),
+  // the west buttress round the thermal grotto, the east slate spine along the chasm
+  ...L.ridges.flatMap((rg) => rg.points.map(([x, z, r]) => ({ x, z, r: r * 0.9 }))),
+  // the beach's sunken dinghy (three discs down its length), its logs and rock pools; the survey
+  // post's overturned cart and its outcrop
+  ...[-0.8, 0, 0.8].map((t) => ({ x: L.beach.dinghy[0] + Math.sin(L.beach.dinghy[2]) * t, z: L.beach.dinghy[1] + Math.cos(L.beach.dinghy[2]) * t, r: 0.55 })),
+  ...L.beach.logs.flatMap(([x, z, yaw, len]) => [-0.35, 0, 0.35].map((t) => ({ x: x + Math.cos(yaw) * t * len, z: z - Math.sin(yaw) * t * len, r: 0.25 }))),
+  ...L.beach.pools.map(([x, z, r]) => ({ x, z, r: r + 0.1 })),
+  { x: L.survey.cart[0], z: L.survey.cart[1], r: 0.75 },
+  { x: L.survey.outcrop[0], z: L.survey.outcrop[1], r: L.survey.outcrop[2] * 0.95 },
   ...L.crystals.map(([x, z, s]) => ({ x, z, r: 0.34 * s })),
   ...L.shrooms.map(([x, z, s]) => ({ x, z, r: 0.3 * s })),
 ];
@@ -440,7 +456,7 @@ export function cavernsSurface(x: number, z: number): number {
     const v = (z - (pool.z0 + pool.z1) / 2) / ((pool.z1 - pool.z0) / 2 + 0.9);
     if (Math.hypot(u, v) < 1 + 0.12 * wob) return SURFACE.travertine;
   }
-  if (upperDistance(x, z) < -0.3) return x < -13.5 ? SURFACE.slate : SURFACE.loam;
+  if (upperDistance(x, z) < -0.3) return x < -13.8 + 1.9 * wave(x * 0.4, z * 0.4, 29) + 1.2 * wob ? SURFACE.slate : SURFACE.loam;
   const wu = upperWeight(x, z);
   if (wu >= 0.06) return SURFACE.rock;
   if (overlookDistance(x, z) < -0.3) return SURFACE.limestone;
