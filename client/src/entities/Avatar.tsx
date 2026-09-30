@@ -696,6 +696,11 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
       armR = THREE.MathUtils.lerp(THREE.MathUtils.lerp(MINE_READY_ARM - 0.4, MINE_HIT_ARM, down), MINE_READY_ARM, back);
       armL = armR + 0.35;
     }
+    // riding Gus's winch up: both hands up on the rope, a little sway with the cage
+    if (action === "winch") {
+      armR = -2.75 + Math.sin(t * 2.2) * 0.04;
+      armL = -2.6 + Math.sin(t * 2.2 + 0.6) * 0.04;
+    }
     // the telescope: hands up to the eyepiece, and a slow sway as the sky is searched
     if (action === "stargaze") armL = armR = STARGAZE_ARM + Math.sin(t * 0.7 + seed) * 0.03;
     if (action === "reel") {

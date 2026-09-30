@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState } from "@shared/types";
-import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_SUN, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, cavernsZoneAt, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_SUN, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, TERRAIN_CELL, TERRAIN_N, cavernsFloorY, cavernsZoneAt, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
 import { ORE_ITEMS, ORE_KINDS, ORE_KIND_IDS, oreCenterY, parseOres, type CaveLoot, type CaveShatter, type CaveStrike, type OreKind, type OreItemId } from "@shared/caverns_mining";
 import { DRIP_S, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -20,6 +20,7 @@ import { playCaveSfx } from "../audio/cavernAmbience";
 import { CaveFauna } from "./caveFauna";
 import { CaveMist, CrystalLights } from "./caveAtmosphere";
 import { pushToast } from "../components/hud/toastStore";
+import { cageLift } from "./winchRide";
 
 // The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: 45 x 45,
 // after Hang Son Doong (docs/caverns-design.md), eight zones stepping down from the basecamp's shelf to
@@ -252,10 +253,10 @@ function causticBed(m: THREE.MeshStandardMaterial) {
         vec2 lk = (vBedPos.xz - vec2(${CAVE_LAKE.x.toFixed(2)}, ${CAVE_LAKE.z.toFixed(2)})) / vec2(${CAVE_LAKE.rx.toFixed(2)}, ${CAVE_LAKE.rz.toFixed(2)});
         float inLake = 1.0 - smoothstep(0.98, 1.12, length(lk));
         float under = ${CAVE_WATER_Y.toFixed(3)} - vBedPos.y;
-        float depth = smoothstep(0.01, 0.12, under) * (1.0 - smoothstep(1.4, 2.8, under));
+        float depth = smoothstep(0.01, 0.12, under) * (1.0 - smoothstep(0.5, 1.4, under));
         float sky = exp(-pow(length(vBedPos.xz - vec2(${CAVE_SKYLIGHT.x.toFixed(2)}, ${CAVE_SKYLIGHT.z.toFixed(2)})) / ${(CAVE_SKYLIGHT.r * 1.6).toFixed(2)}, 2.0));
         float c = caveCaustic(vBedPos.xz, uTime) * 0.7 + caveCaustic(vBedPos.xz * 1.7 + 3.1, uTime * 1.3) * 0.4;
-        totalEmissiveRadiance += vec3(0.32, 0.86, 1.0) * c * inLake * depth * (0.22 + 0.55 * sky);
+        totalEmissiveRadiance += vec3(0.32, 0.86, 1.0) * c * inLake * depth * (0.12 + 0.45 * sky);
       }`
     );
   };
@@ -265,6 +266,32 @@ function causticBed(m: THREE.MeshStandardMaterial) {
 
 /** The water: see-through, no depth write (the bed under it never fights it), a slow shimmer and the
  *  sun's glints tracking the caustics below. */
+/** The floor under the water, as a texture (a texel a grid vertex, -2 .. 6 m in 8 bits): how deep the
+ *  water is wherever it is drawn. */
+const BED_LO = -2;
+const BED_SPAN = 8;
+let bedTex: THREE.DataTexture | null = null;
+function waterBed(): THREE.DataTexture {
+  if (bedTex) return bedTex;
+  const n = TERRAIN_N;
+  const data = new Uint8Array(n * n);
+  for (let k = 0; k < n; k++) {
+    for (let i = 0; i < n; i++) {
+      const y = cavernsFloorY(-L.half + i * TERRAIN_CELL, -L.half + k * TERRAIN_CELL);
+      data[k * n + i] = Math.max(0, Math.min(255, Math.round(((y - BED_LO) / BED_SPAN) * 255)));
+    }
+  }
+  bedTex = new THREE.DataTexture(data, n, n, THREE.RedFormat, THREE.UnsignedByteType);
+  bedTex.magFilter = THREE.LinearFilter;
+  bedTex.minFilter = THREE.LinearFilter;
+  bedTex.needsUpdate = true;
+  return bedTex;
+}
+
+/** The lake's and the pools' water: see-through, its colour its depth's (the model's vertex colours),
+ *  lighter and clearer in the shallows with the caustics glinting there only, slow broad ripples that
+ *  catch the light (a tilt of the surface's normal, never a pattern painted over it), stiller in the
+ *  deep and under the islet's skylight, and a line of foam lapping wherever it meets the shore. */
 function stillWater(m: THREE.MeshStandardMaterial, opacity: number) {
   if (m.userData.caveWater) return;
   m.userData.caveWater = true;
@@ -272,19 +299,68 @@ function stillWater(m: THREE.MeshStandardMaterial, opacity: number) {
   m.depthWrite = false;
   m.opacity = opacity;
   m.side = THREE.DoubleSide;
+  m.roughness = 0.18;
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = TIME;
+    shader.uniforms.uBed = { value: waterBed() };
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWaterPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvWaterPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `#include <common>\nvarying vec3 vWaterPos;\nuniform float uTime;\n${CAUSTIC_GLSL}`).replace(
-      "#include <color_fragment>",
-      `#include <color_fragment>
-      float wv = sin(vWaterPos.x * 3.1 + uTime * 0.9) * sin(vWaterPos.z * 2.7 - uTime * 0.7);
-      diffuseColor.rgb *= 0.92 + 0.14 * wv;
-      diffuseColor.rgb += vec3(0.0, 0.08, 0.1) * smoothstep(0.6, 1.0, wv);
-      diffuseColor.rgb += vec3(0.12, 0.2, 0.22) * caveCaustic(vWaterPos.xz * 0.8 + 1.7, uTime * 0.7);`
-    );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+      varying vec3 vWaterPos;
+      uniform float uTime;
+      uniform sampler2D uBed;
+      ${CAUSTIC_GLSL}
+      float waterDepth() {
+        vec2 uv = ((vWaterPos.xz + ${L.half.toFixed(2)}) / ${TERRAIN_CELL.toFixed(3)} + 0.5) / ${TERRAIN_N.toFixed(1)};
+        float bed = texture2D(uBed, uv).r * ${BED_SPAN.toFixed(1)} + ${BED_LO.toFixed(1)};
+        return max(0.0, vWaterPos.y - bed);
+      }
+      // (how much the surface stirs here: less out in the deep, least under the islet's skylight)
+      float waterStir(float depth) {
+        float sky = exp(-pow(length(vWaterPos.xz - vec2(${CAVE_SKYLIGHT.x.toFixed(2)}, ${CAVE_SKYLIGHT.z.toFixed(2)})) / ${(CAVE_SKYLIGHT.r * 1.4).toFixed(2)}, 2.0));
+        return mix(1.0, 0.45, smoothstep(0.4, 1.4, depth)) * (1.0 - 0.7 * sky);
+      }`
+      )
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+      {
+        float depth = waterDepth();
+        float shallow = 1.0 - smoothstep(0.04, 0.8, depth);
+        float stir = waterStir(depth);
+        // broad slow swells, two crossing ways, barely shading the colour
+        float sw = sin(dot(vWaterPos.xz, vec2(0.83, 0.42)) * 1.35 + uTime * 0.55) * sin(dot(vWaterPos.xz, vec2(-0.31, 0.95)) * 1.9 - uTime * 0.42);
+        diffuseColor.rgb *= 1.0 + 0.05 * sw * stir;
+        // the shallows lighter, clearer and a touch greener
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.3 + vec3(0.015, 0.05, 0.04), shallow * 0.55);
+        diffuseColor.a *= mix(1.0, 0.75, shallow);
+        // the caustics glinting on the surface only where it is shallow
+        diffuseColor.rgb += vec3(0.1, 0.17, 0.19) * caveCaustic(vWaterPos.xz * 0.9 + 1.7, uTime * 0.6) * shallow * 0.55;
+        // foam where it laps at the shore, coming and going
+        float lap = 0.5 + 0.5 * sin(uTime * 1.25 + (vWaterPos.x * 0.8 + vWaterPos.z) * 1.6);
+        float foam = 1.0 - smoothstep(0.012, 0.07 + 0.05 * lap, depth);
+        foam *= 0.55 + 0.45 * smoothstep(0.2, 0.9, caveCaustic(vWaterPos.xz * 2.4, uTime * 0.8));
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.9, 0.88), foam * 0.8);
+        diffuseColor.a = mix(diffuseColor.a, 0.95, foam * 0.7);
+      }`
+      )
+      .replace(
+        "#include <normal_fragment_maps>",
+        `#include <normal_fragment_maps>
+      {
+        // the ripples tilt the surface a little, so the lights glint off them
+        float stir = waterStir(waterDepth());
+        vec2 q = vWaterPos.xz;
+        float gx = cos(q.x * 2.1 + uTime * 0.8) * 0.5 + cos((q.x + q.y) * 3.3 - uTime * 1.1) * 0.35;
+        float gz = cos(q.y * 1.8 - uTime * 0.7) * 0.5 + cos((q.x - q.y) * 2.9 + uTime * 0.95) * 0.35;
+        vec3 wn = normalize(vec3(gx * 0.09 * stir, 1.0, gz * 0.09 * stir));
+        normal = normalize((viewMatrix * vec4(wn, 0.0)).xyz);
+      }`
+      );
   };
-  m.customProgramCacheKey = () => `cave-water-${opacity}`;
+  m.customProgramCacheKey = () => `cave-water2-${opacity}`;
   m.needsUpdate = true;
 }
 
@@ -367,6 +443,7 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       <SoakSteam players={players} />
       <ForgeSmoke />
       <DustMotes />
+      <WaterfallSpray />
       <ZoneToasts />
       <DripRipples subscribeMessages={subscribeMessages} />
       <OcclusionDriver />
@@ -460,8 +537,32 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       <OreNodes templates={templates} ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} players={players} />
       <ProspectingView templates={templates} onStrike={onStrike} />
       <CaveFauna crab={fauna.crab} swift={fauna.swift} bat={fauna.bat} />
+      <WinchRig scene={scene} />
     </>
   );
+}
+
+/** Gus's winch as someone rides it up (winchRide.ts): the cage lifted, the rope paid in over the
+ *  drum as it climbs, the drum turning; the empty cage let back down after. */
+const DRUM_R = 0.2;
+function WinchRig({ scene }: { scene: THREE.Object3D }) {
+  const rig = useMemo(() => {
+    const cage = scene.getObjectByName("Prop_WinchCage");
+    const rope = scene.getObjectByName("Prop_WinchRope");
+    const drum = scene.getObjectByName("Prop_WinchDrum");
+    if (!cage || !rope || !drum) return null;
+    // (the rope hangs from the boom's end to the ring over the cage's top, 2.35 m over its floor)
+    const hang = rope.position.y - (cage.position.y + 2.35);
+    return { cage, rope, drum, cageY: cage.position.y, hang: Math.max(0.1, hang) };
+  }, [scene]);
+  useFrame(() => {
+    if (!rig) return;
+    const lift = cageLift();
+    rig.cage.position.y = rig.cageY + lift;
+    rig.rope.scale.y = Math.max(0.02, (rig.hang - lift) / rig.hang);
+    rig.drum.rotation.x = -lift / DRUM_R;
+  });
+  return null;
 }
 
 // --- the nodes ------------------------------------------------------------------------------------
@@ -1215,6 +1316,32 @@ function DustMotes() {
   return <primitive object={motes.points} />;
 }
 
+/** The jungle waterfall's spray: pale drops thrown up where it lands in its plunge pool, rising a
+ *  little, drifting, fading, and thrown up again. */
+const SPRAY = 34;
+const SPRAY_COLOR = new THREE.Color("#e8fbff");
+function WaterfallSpray() {
+  const motes = useMemo(() => new MotePoints(SPRAY), []);
+  const at = useMemo(() => {
+    const P = L.river.plunge;
+    const x = P.fall[0];
+    const z = P.z - P.r * 0.3;
+    return { x, z, y: cavernsFloorY(P.x, P.z) - 0.3 };
+  }, []);
+  const seeds = useMemo(() => Array.from({ length: SPRAY }, () => ({ a: Math.random() * 6.283, r: 0.2 + Math.random() * 0.7, p: Math.random(), s: 0.6 + Math.random() * 0.6 })), []);
+  useEffect(() => () => motes.dispose(), [motes]);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    seeds.forEach((d, i) => {
+      const k = (t * 0.45 * d.s + d.p) % 1;
+      const r = d.r * (0.6 + 0.8 * k);
+      motes.set(i, at.x + Math.cos(d.a + k * 0.6) * r, at.y + 0.25 + k * 1.3, at.z + Math.sin(d.a + k * 0.6) * r * 0.8, 0.5 * Math.sin(Math.PI * k), SPRAY_COLOR);
+    });
+    motes.commit();
+  });
+  return <primitive object={motes.points} />;
+}
+
 /** Each zone's name as you come into it (held a moment, so its edge never flickers it; the same zone
  *  not again for half a minute). */
 const ZONE_TOAST: Record<string, { emoji: string; what: string }> = {
@@ -1313,7 +1440,7 @@ function SoakSteam({ players }: { players: Record<string, PlayerState> }) {
         }
         const sd = seeds[i];
         const u = (((t * 0.22 * sd.s + sd.p) % 1) + 1) % 1;
-        const y = thermalPoolY(who.z) + 0.05 + u * 1.3;
+        const y = thermalPoolY(who.x, who.z) + 0.05 + u * 1.3;
         const a = sd.a + u * 1.8;
         motes.set(i, who.x + Math.cos(a) * sd.r * (1 + u), y, who.z + Math.sin(a) * sd.r * (1 + u), 0.5 * Math.sin(Math.PI * u), SOAK_MOTE);
       }

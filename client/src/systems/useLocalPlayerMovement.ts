@@ -19,6 +19,7 @@ import { clampToRing } from "@shared/worlds/boxing_ring";
 import { FIGHTER_GAP } from "@shared/boxing";
 import { getBout } from "./boutStore";
 import { fighterSpot } from "./fightAnim";
+import { riderPose } from "../scene/winchRide";
 
 // The local player's locomotion. Three inputs, one controller:
 //   - click-to-move: the scene sets `targetRef` from a floor raycast, and the shared pathfinder
@@ -264,6 +265,8 @@ export function useLocalPlayerMovement(
     }
     const step = (dx: number, dz: number) => (ring ? ringStep(pos, dx, dz, foe) : slideStep(pos, dx, dz, mapId));
 
+    // (riding the winch: hands on the rope, nowhere to walk)
+    if (player.action === "winch") frozen = true;
     const steer = frozen ? null : worldMoveDirection();
 
     // Space, like steering, gets you up from a seat (a click does the same through the scene)
@@ -372,14 +375,24 @@ export function useLocalPlayerMovement(
       if (heading !== null) facingRef.current = turnToward(facingRef.current, heading, delta, TURN_RATE);
     }
 
+    // riding Gus's winch up: drawn (and followed) along the climb, the ledge under it the server's
+    const ride = mapId === "glimmering_caverns" ? riderPose(player.sessionId, player.action) : null;
+    if (ride) {
+      targetRef.current = null;
+      seatYRef.current = ride.y;
+      facingRef.current = ride.facing;
+      speedRef.current = 0;
+    }
+    const drawX = ride ? ride.x : pos.x;
+    const drawZ = ride ? ride.z : pos.z;
     if (groupRef.current) {
-      groupRef.current.position.set(pos.x, seatYRef.current, pos.z);
+      groupRef.current.position.set(drawX, seatYRef.current, drawZ);
       groupRef.current.rotation.y = facingRef.current;
     }
 
     // hand the action dock the predicted position: what you SEE, not what the server last heard
-    cameraFocus.x = pos.x;
-    cameraFocus.z = pos.z;
+    cameraFocus.x = drawX;
+    cameraFocus.z = drawZ;
     cameraFocus.dirX = dirX;
     cameraFocus.dirZ = dirZ;
     cameraFocus.facing = facingRef.current;

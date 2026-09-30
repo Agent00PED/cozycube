@@ -112,7 +112,7 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     style: "onsen" as const,
     approachX: s.approachX,
     approachZ: s.approachZ,
-    sitY: round(thermalPoolY(s.z) + seatAnchorY(CUSHIONS.thermalLedge)),
+    sitY: round(thermalPoolY(s.x, s.z) + seatAnchorY(CUSHIONS.thermalLedge)),
   })),
   sunset_beach: [],
   japanese_onsen: [],

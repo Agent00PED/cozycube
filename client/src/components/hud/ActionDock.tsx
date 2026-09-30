@@ -497,11 +497,9 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         const px = cameraFocus.x;
         const pz = cameraFocus.z;
         if (Math.hypot(CAVE_ADIT_FRONT.x - px, CAVE_ADIT_FRONT.z - pz) <= 2.0) found.push({ key: "adit:cave", type: "travel", label: "🌲 Back to the Woods", hint: "Up the old mine adit, back under the maples", run: () => interactBridge.current?.useProp("cave_adit") });
-        // Gus's winch lift, up the cliff from the glimmer rift to the coal breakdown, or back down
+        // Gus's winch lift, the way back up: from the glimmer rift up the cliff to the coal breakdown
         const toLower = Math.hypot(CAVE_WINCH.lower.x - px, CAVE_WINCH.lower.z - pz);
-        const toUpper = Math.hypot(CAVE_WINCH.upper.x - px, CAVE_WINCH.upper.z - pz);
-        if (toLower <= WINCH_REACH) found.push({ key: "winch:up", type: "travel", d: toLower, label: "🪢 Winch Up to Basecamp", hint: "Gus's rope lift: up the cliff to the coal breakdown, a step from the forge and Gus", run: () => interactBridge.current?.useProp("winch_bottom") });
-        else if (toUpper <= WINCH_REACH) found.push({ key: "winch:down", type: "travel", d: toUpper, label: "🪢 Winch Down to the Rift", hint: "Gus's rope lift: down the cliff into the glimmer rift", run: () => interactBridge.current?.useProp("winch_top") });
+        if (toLower <= WINCH_REACH) found.push({ key: "winch:up", type: "travel", d: toLower, label: "🪢 Ride the Winch Up", hint: "Gus's rope lift: up the cliff to the coal breakdown, a step from the forge and Gus", run: () => interactBridge.current?.useProp("winch_bottom") });
         const toGus = Math.hypot(GUS_FRONT.x - px, GUS_FRONT.z - pz);
         if (toGus <= GUS_REACH + 0.6) found.push({ key: "gus", type: "barnaby", d: toGus, label: "⛏️ Talk to Gus", hint: "Gus the Mole buys ore, ingots, geodes, gems and stone dust; sells pickaxes and bigger satchels", run: () => interactBridge.current?.useProp("gus") });
         const toFinnegan = Math.hypot(FINNEGAN_FRONT.x - px, FINNEGAN_FRONT.z - pz);

@@ -1120,6 +1120,33 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.7.14",
+        date: "2026-09-30",
+        title: "The Caverns, Reshaped",
+        summary: "The Glimmering Caverns lose their straight edges: every zone takes a natural shape, the deeper ores sit deeper in, Gus's winch now carries you up in its cage, and the lake, the jungle and the Great Wall are redrawn.",
+        changes: {
+          features: [
+            "🪢 Gus's winch now runs up only, from the Glimmer Rift back to the basecamp. Step into the cage and ride it up the cliff; the empty cage then goes back down for the next rider.",
+            "Depth is progress: walking in from the arrival reaches copper and coal first, then iron, silver, glimmerstone and the Titan Monolith, each further in than the last.",
+            "The Glimmer Rift is now a crevasse down the cavern's east side, entered by a ramp cut down the Hound's Overlook's east cliff. Its glimmerstone lies at its deep north end.",
+            "The stepping stones to the Monolith's islet now start from the east shore, past the rift.",
+            "The Pearl Terraces' three warm pools are now rimstone basins of different sizes, with seven seats round them.",
+          ],
+          visuals: [
+            "No more rectangles: every zone has a natural outline, the mudflats in lobes, the overlook with bays, and the open south and east edges fall away over a broken rim into the dark.",
+            "The lake is calm in the deep and under the skylight, with slow ripples, a foam line where it laps the shore and light glinting in the shallows.",
+            "The Doline Jungle is a little roomier, with buttressed trees, layered canopies, lianas, leaf litter and daylight glowing through the broken roof. The waterfall is streaked white and throws up spray at its foot.",
+            "The Great Wall's flowstone falls in sharp folds and rimstone ledges instead of a pale haze.",
+            "The Hound's Hand is carved as one tall column swelling into a knuckled paw.",
+            "The empty stretches are dressed with rubble, driftwood, reeds, shards and fungi.",
+            "Each ore reads at a glance, even on a phone: copper as bright native-copper chunks, coal as a black boulder heaped with glossy lumps, iron as dark banded rock striped red with metal plates, and silver as dark rock veined white with shining silver wire.",
+          ],
+          fixes: [
+            "On a phone or a tablet held upright, the caverns' camera now shows the ground around you instead of a narrow strip.",
+          ],
+        },
+      },
     ],
   },
 ];

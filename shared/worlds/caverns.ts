@@ -45,117 +45,161 @@ type Pt = { x: number; z: number };
 
 export const CAVERNS_LAYOUT = /* layout:begin */ {
   "half": 22.5,
-  "walls": { "north": -22.5, "west": -22.5, "height": 11.0, "margin": 0.75 },
+  "walls": {"north": -22.5, "west": -22.5, "height": 11.0, "margin": 0.75},
   "low": 0.4,
   "zones": [
-    { "id": "basecamp", "name": "The Expedition Basecamp", "x0": -9.0, "x1": 9.0, "z0": -22.5, "z1": -12.25 },
-    { "id": "jungle", "name": "The Doline Jungle", "x0": -22.5, "x1": -9.0, "z0": -22.5, "z1": -12.25 },
-    { "id": "breakdown", "name": "The Coal Breakdown", "x0": 9.0, "x1": 22.5, "z0": -22.5, "z1": -12.25 },
-    { "id": "overlook", "name": "The Hound's Overlook", "x0": -8.5, "x1": 11.0, "z0": -12.25, "z1": -3.0 },
-    { "id": "mudflats", "name": "The Iron Mudflats", "x0": -22.5, "x1": -6.5, "z0": -12.25, "z1": 1.5 },
-    { "id": "rift", "name": "The Glimmer Rift", "x0": 11.0, "x1": 22.5, "z0": -12.25, "z1": 5.5 },
-    { "id": "terraces", "name": "The Pearl Terraces", "x0": -22.5, "x1": -5.5, "z0": 1.5, "z1": 22.5 },
-    { "id": "lake", "name": "The Great Lake", "x0": -22.5, "x1": 22.5, "z0": -12.25, "z1": 22.5 }
+    {"id": "basecamp", "name": "The Expedition Basecamp", "x0": -9.0, "x1": 9.0, "z0": -22.5, "z1": -12.25},
+    {"id": "jungle", "name": "The Doline Jungle", "x0": -22.5, "x1": -9.0, "z0": -22.5, "z1": -12.25},
+    {"id": "breakdown", "name": "The Coal Breakdown", "x0": 9.0, "x1": 22.5, "z0": -22.5, "z1": -12.25},
+    {"id": "overlook", "name": "The Hound's Overlook", "x0": -8.5, "x1": 11.0, "z0": -12.25, "z1": -3.0},
+    {"id": "mudflats", "name": "The Iron Mudflats", "x0": -22.5, "x1": -6.5, "z0": -12.25, "z1": 1.5},
+    {"id": "rift", "name": "The Glimmer Rift", "x0": 11.0, "x1": 22.5, "z0": -12.25, "z1": 5.5},
+    {"id": "terraces", "name": "The Pearl Terraces", "x0": -22.5, "x1": -5.5, "z0": 1.5, "z1": 22.5},
+    {"id": "lake", "name": "The Great Lake", "x0": -22.5, "x1": 22.5, "z0": -12.25, "z1": 22.5}
   ],
-  "shelf": { "h": 6.0, "west": 0.5, "east": -0.5, "edge": -12.25, "cliff": 0.45 },
+  "shelf": {
+    "h": 6.0,
+    "west": 0.5,
+    "east": -0.5,
+    "edge": [
+      [-22.5, -10.4],
+      [-19.5, -10.0],
+      [-16.5, -10.6],
+      [-13.5, -10.2],
+      [-11.0, -11.2],
+      [-9.0, -12.2],
+      [-6.5, -12.8],
+      [-4.0, -12.4],
+      [-1.5, -12.9],
+      [1.5, -13.2],
+      [4.5, -12.7],
+      [7.5, -12.9],
+      [10.0, -12.4],
+      [12.5, -12.7],
+      [15.0, -12.2],
+      [17.5, -12.8],
+      [20.0, -12.4],
+      [22.5, -12.7]
+    ],
+    "cliff": 0.45
+  },
   "levels": [
-    { "id": "rift", "h": 1.0, "cliff": 1.7, "wob": 0.3, "poly": [[8.0, -16.0], [23.5, -16.0], [23.5, 5.5], [11.0, 5.5], [11.0, -3.0], [8.0, -3.0]] },
-    { "id": "terraceC", "h": 1.2, "cliff": 0.32, "wob": 0.35, "poly": [[-23.5, 3.0], [-5.5, 3.0], [-5.5, 15.2], [-23.5, 15.2]] },
-    { "id": "terraceB", "h": 2.4, "cliff": 0.32, "wob": 0.35, "poly": [[-23.5, 2.0], [-5.5, 2.0], [-5.5, 10.6], [-23.5, 10.6]] },
-    { "id": "terraceA", "h": 3.6, "cliff": 0.32, "wob": 0.35, "poly": [[-23.5, 0.5], [-5.5, 0.5], [-5.5, 6.2], [-23.5, 6.2]] },
-    { "id": "overlook", "h": 3.0, "cliff": 0.42, "wob": 0.3, "poly": [[-9.0, -13.0], [11.0, -13.0], [11.0, -3.0], [-9.0, -3.0]] },
-    { "id": "mudflats", "h": 4.5, "cliff": 0.42, "wob": 0.3, "poly": [[-23.5, -13.0], [-8.5, -13.0], [-8.5, -3.2], [-6.5, -3.2], [-6.5, 1.5], [-23.5, 1.5]] }
+    {"id": "rift", "h": 1.0, "cliff": 1.7, "wob": 0.45, "poly": [[8.0, -16.0], [23.5, -16.0], [23.5, 5.6], [19.8, 5.0], [16.6, 4.7], [14.2, 4.5], [13.3, 3.2], [13.0, 1.0], [12.4, -1.6], [10.2, -3.4], [8.0, -4.2]]},
+    {"id": "terraceC", "h": 1.2, "cliff": 0.32, "wob": 0.3, "poly": [[-23.5, 2.0], [-6.4, 2.0], [-6.6, 8.0], [-6.9, 12.0], [-7.8, 14.8], [-9.8, 16.2], [-12.4, 15.8], [-14.8, 16.8], [-17.4, 16.4], [-20.0, 17.2], [-23.5, 16.6]]},
+    {"id": "terraceB", "h": 2.4, "cliff": 0.32, "wob": 0.3, "poly": [[-23.5, 1.0], [-6.0, 1.0], [-5.6, 4.8], [-6.8, 7.6], [-8.8, 9.8], [-11.2, 10.6], [-13.6, 11.6], [-16.2, 11.2], [-18.4, 12.0], [-20.8, 11.4], [-23.5, 12.0]]},
+    {"id": "terraceA", "h": 3.6, "cliff": 0.32, "wob": 0.3, "poly": [[-23.5, 0.0], [-6.8, 0.0], [-6.2, 2.2], [-7.4, 4.0], [-9.6, 5.2], [-11.8, 5.2], [-13.8, 6.6], [-16.4, 6.8], [-18.6, 7.6], [-21.0, 7.0], [-23.5, 7.4]]},
+    {"id": "overlook", "h": 3.0, "cliff": 0.42, "wob": 0.4, "poly": [[-9.2, -13.6], [11.6, -13.6], [11.4, -10.8], [10.4, -8.6], [10.9, -6.4], [9.6, -4.8], [7.4, -3.8], [4.6, -3.5], [1.8, -4.1], [-1.2, -3.4], [-4.2, -3.9], [-6.4, -4.8], [-8.2, -3.6], [-8.8, -6.0], [-8.4, -9.2]]},
+    {"id": "mudflats", "h": 4.5, "cliff": 0.42, "wob": 0.4, "poly": [[-23.5, -13.5], [-8.2, -13.5], [-8.6, -11.2], [-7.6, -9.4], [-8.4, -7.2], [-7.0, -5.4], [-7.6, -3.4], [-6.4, -1.6], [-7.4, 0.2], [-9.4, 0.6], [-11.4, 1.6], [-13.6, 0.9], [-15.8, 1.9], [-18.2, 1.1], [-20.4, 2.0], [-23.5, 1.4]]}
   ],
   "paths": [
-    { "id": "ropeDescent", "half": 1.1, "points": [[-9.5, -13.7, 6.01], [-14.0, -10.5, 4.5]] },
-    { "id": "switchback", "half": 1.2, "points": [[-3.0, -14.0, 6.0], [8.0, -10.4, 3.0]] },
-    { "id": "riftRamp", "half": 1.1, "points": [[8.6, -8.0, 3.0], [16.0, -5.6, 1.0]] },
-    { "id": "lakeRamp", "half": 1.1, "points": [[9.0, -5.0, 3.0], [1.2, 0.4, 0.3]] },
-    { "id": "pearlTrail", "half": 1.1, "points": [[-10.8, -1.0, 4.5], [-8.7, 4.5, 3.3], [-8.1, 9.5, 2.05], [-7.6, 15.2, 0.55], [-7.3, 16.6, 0.4]] }
+    {"id": "ropeDescent", "half": 1.1, "points": [[-8.8, -13.9, 6.02], [-11.0, -10.0, 4.5]]},
+    {"id": "switchback", "half": 1.2, "points": [[-3.0, -14.0, 6.0], [8.0, -10.4, 3.0]]},
+    {"id": "riftRamp", "half": 1.1, "points": [[10.6, -8.6, 3.0], [14.0, 1.8, 1.0]]},
+    {"id": "lakeRamp", "half": 1.1, "points": [[10.0, -6.9, 3.0], [3.8, -1.4, 0.4]]},
+    {"id": "pearlTrail", "half": 1.1, "points": [[-10.8, -1.0, 4.5], [-8.7, 4.5, 3.3], [-8.1, 9.5, 2.05], [-7.6, 15.2, 0.55], [-7.3, 16.6, 0.4]]}
   ],
   "river": {
     "half": 0.55,
     "depth": 0.28,
     "segments": [
-      [[-16.8, -19.4], [-16.5, -17.0], [-16.3, -14.2], [-16.4, -11.5], [-16.6, -8.0], [-16.7, -4.0], [-16.8, -0.5], [-16.8, 2.2]],
-      [[-13.3, 14.2], [-10.0, 14.1], [-8.0, 13.95], [-6.6, 13.7], [-5.0, 13.4], [-3.2, 13.2]],
-      [[17.4, 11.3], [19.2, 12.0], [20.6, 12.5], [23.2, 12.9]]
+      [[-16.8, -19.4], [-16.4, -17.2], [-17.0, -15.0], [-16.2, -12.6], [-14.9, -10.2], [-15.2, -7.8], [-16.8, -5.6], [-17.6, -3.2], [-17.0, -0.8], [-16.8, 1.4], [-16.9, 3.4]],
+      [[-15.4, 14.2], [-13.0, 14.8], [-10.0, 15.0], [-8.0, 14.6], [-6.4, 14.2], [-4.8, 13.8], [-3.2, 13.5], [-2.2, 13.3]],
+      [[16.6, 11.2], [18.2, 11.7], [19.8, 12.2], [21.2, 12.6], [23.2, 12.9]]
     ],
-    "fords": [[-16.35, -15.6, 1.2], [-16.7, -5.5, 1.2], [-8.0, 13.95, 1.3], [20.6, 12.5, 1.3]],
-    "plunge": { "x": -16.8, "z": -19.9, "r": 1.3, "fall": [-16.9, -22.3] }
+    "fords": [[-16.7, -16.1, 1.2], [-16.0, -6.7, 1.2], [-7.8, 14.6, 1.3], [19.6, 12.1, 1.4]],
+    "plunge": {"x": -16.8, "z": -19.9, "r": 1.3, "fall": [-16.9, -22.3]}
   },
-  "lake": { "x": 6.5, "z": 10.0, "rx": 11.0, "rz": 8.0, "water": 0.0, "depth": 1.5, "shelfDepth": 0.45, "beach": 1.35, "wade": 1.0 },
-  "islet": { "x": 7.5, "z": 11.0, "r": 3.2, "top": 0.35 },
-  "causeway": { "points": [[5.2, 0.4], [6.0, 4.5], [7.0, 8.4]], "half": 0.75, "y": 0.08 },
-  "skylight": { "x": 7.5, "z": 11.0, "r": 3.2 },
-  "tower": { "x": -3.5, "z": -7.6, "r": 1.1, "h": 9.0 },
+  "lake": {"x": 6.5, "z": 10.0, "rx": 10.4, "rz": 8.0, "water": 0.0, "depth": 1.5, "shelfDepth": 0.45, "beach": 1.35, "wade": 1.0},
+  "islet": {"x": 7.5, "z": 11.0, "r": 3.2, "top": 0.35},
+  "causeway": {
+    "points": [[16.4, 7.9], [12.8, 9.6], [9.0, 10.9]],
+    "half": 1.0,
+    "y": 0.08
+  },
+  "skylight": {"x": 7.5, "z": 11.0, "r": 3.2},
+  "tower": {"x": -3.5, "z": -7.6, "r": 1.1, "h": 9.0},
   "terraces": {
-    "x0": -21.0, "x1": -13.0,
-    "pools": [{ "z0": 1.9, "z1": 5.6, "y": 3.48 }, { "z0": 6.9, "z1": 10.0, "y": 2.28 }, { "z0": 11.2, "z1": 14.6, "y": 1.08 }]
+    "x0": -21.67,
+    "x1": -11.27,
+    "pools": [
+      {"x": -17.2, "z": 4.3, "rx": 3.3, "rz": 1.55, "rot": 0.12, "y": 3.48},
+      {"x": -14.4, "z": 8.8, "rx": 3.0, "rz": 1.6, "rot": -0.22, "y": 2.28},
+      {"x": -18.4, "z": 14.0, "rx": 3.2, "rz": 1.5, "rot": 0.1, "y": 1.08}
+    ]
   },
   "thermalSeats": [
-    { "id": "thermal_1", "x": -13.6, "z": 2.9, "face": 1.5708, "exit": { "x": -11.4, "z": 2.9 } },
-    { "id": "thermal_2", "x": -13.6, "z": 4.6, "face": 1.5708, "exit": { "x": -11.4, "z": 4.6 } },
-    { "id": "thermal_3", "x": -13.6, "z": 7.6, "face": 1.5708, "exit": { "x": -11.4, "z": 7.6 } },
-    { "id": "thermal_4", "x": -13.6, "z": 9.2, "face": 1.5708, "exit": { "x": -11.4, "z": 9.2 } },
-    { "id": "thermal_5", "x": -13.6, "z": 11.7, "face": 1.5708, "exit": { "x": -11.4, "z": 11.7 } },
-    { "id": "thermal_6", "x": -13.6, "z": 12.6, "face": 1.5708, "exit": { "x": -11.4, "z": 12.6 } },
-    { "id": "thermal_7", "x": -14.3, "z": 8.4, "face": 1.5708, "exit": { "x": -12.0, "z": 8.4 } }
+    {"id": "thermal_1", "x": -15.02, "z": 4.25, "face": 1.5951, "exit": {"x": -12.98, "z": 4.2}},
+    {"id": "thermal_2", "x": -15.9, "z": 3.47, "face": 2.1369, "exit": {"x": -14.38, "z": 2.51}},
+    {"id": "thermal_3", "x": -12.53, "z": 8.98, "face": 1.4748, "exit": {"x": -10.61, "z": 9.17}},
+    {"id": "thermal_4", "x": -12.42, "z": 7.86, "face": 2.0126, "exit": {"x": -10.74, "z": 7.07}},
+    {"id": "thermal_5", "x": -14.53, "z": 10.01, "face": -0.1074, "exit": {"x": -14.75, "z": 12.07}},
+    {"id": "thermal_6", "x": -16.2, "z": 13.6, "face": 1.7506, "exit": {"x": -13.97, "z": 13.19}},
+    {"id": "thermal_7", "x": -17.3, "z": 13.17, "face": 2.2151, "exit": {"x": -15.91, "z": 12.13}}
   ],
-  "capybara": { "x": -18.0, "z": 3.8, "yaw": 1.4 },
-  "adit": { "x": 0.0, "z": -22.1, "w": 2.0, "h": 2.6 },
-  "arrival": { "x": 0.0, "z": -19.5 },
-  "gus": { "x": -4.7, "z": -16.6, "yaw": 0 },
-  "workstation": { "x": -4.7, "z": -15.6, "len": 2.4, "w": 0.75, "top": 0.78 },
-  "camp": { "posts": [[-6.5, -15.1], [-2.9, -15.1], [-6.5, -18.3], [-2.9, -18.3]], "ridge": 2.7, "eave": 1.85, "crates": [-5.75, -17.75], "transit": [-3.65, -17.85] },
-  "forge": { "x": 6.8, "z": -21.3, "w": 3.0, "d": 1.8, "h": 3.2 },
-  "anvil": { "x": 3.7, "z": -19.9, "outcrop": 0.62 },
-  "crate": { "x": 4.65, "z": -20.75, "w": 0.9, "d": 0.6, "h": 0.55 },
-  "winch": { "x": 13.2, "top": -13.4, "bottom": -11.5, "upper": -14.6, "lower": -10.6 },
-  "finnegan": { "x": -1.8, "z": 0.3, "yaw": 0.25, "log": 1.5 },
+  "capybara": {"x": -18.8, "z": 4.2, "yaw": 1.4},
+  "adit": {"x": 0.0, "z": -22.1, "w": 2.0, "h": 2.6},
+  "arrival": {"x": 0.0, "z": -19.5},
+  "gus": {"x": -4.7, "z": -16.6, "yaw": 0},
+  "workstation": {"x": -4.7, "z": -15.6, "len": 2.4, "w": 0.75, "top": 0.78},
+  "camp": {
+    "posts": [[-6.5, -15.1], [-2.9, -15.1], [-6.5, -18.3], [-2.9, -18.3]],
+    "ridge": 2.7,
+    "eave": 1.85,
+    "crates": [-5.75, -17.75],
+    "transit": [-3.65, -17.85]
+  },
+  "forge": {"x": 6.8, "z": -21.3, "w": 3.0, "d": 1.8, "h": 3.2},
+  "anvil": {"x": 3.7, "z": -19.9, "outcrop": 0.62},
+  "crate": {"x": 4.65, "z": -20.75, "w": 0.9, "d": 0.6, "h": 0.55},
+  "winch": {"x": 13.2, "top": -13.4, "bottom": -11.5, "upper": -14.4, "lower": -10.6},
+  "finnegan": {"x": -1.8, "z": 0.3, "yaw": 0.25, "log": 1.5},
   "nodes": [
-    { "id": "copper_1", "kind": "copper", "x": -11.8, "z": -21.35, "face": [0, 1] },
-    { "id": "copper_2", "kind": "copper", "x": -13.4, "z": -17.4, "face": [0.6, 0.8] },
-    { "id": "copper_3", "kind": "copper", "x": -10.6, "z": -16.2, "face": [0.2, 1] },
-    { "id": "copper_4", "kind": "copper", "x": -21.35, "z": -18.0, "face": [1, 0] },
-    { "id": "copper_5", "kind": "copper", "x": -19.4, "z": -14.5, "face": [0.6, 0.8] },
-    { "id": "coal_1", "kind": "coal", "x": 11.8, "z": -21.35, "face": [0, 1] },
-    { "id": "coal_2", "kind": "coal", "x": 15.6, "z": -21.35, "face": [0, 1] },
-    { "id": "coal_3", "kind": "coal", "x": 12.6, "z": -17.2, "face": [-0.5, 0.87] },
-    { "id": "coal_4", "kind": "coal", "x": 17.8, "z": -18.2, "face": [0, 1] },
-    { "id": "coal_5", "kind": "coal", "x": 19.8, "z": -15.0, "face": [-0.6, 0.8] },
-    { "id": "iron_1", "kind": "iron", "x": -21.35, "z": -9.0, "face": [1, 0] },
-    { "id": "iron_2", "kind": "iron", "x": -21.35, "z": -4.2, "face": [1, 0.1] },
-    { "id": "iron_3", "kind": "iron", "x": -19.4, "z": -0.6, "face": [0.6, 0.8] },
-    { "id": "iron_4", "kind": "iron", "x": -12.4, "z": -8.9, "face": [-0.3, 0.95] },
-    { "id": "iron_5", "kind": "iron", "x": -10.9, "z": -5.6, "face": [-0.7, 0.7] },
-    { "id": "iron_6", "kind": "iron", "x": -13.3, "z": -2.3, "face": [0.3, 0.95] },
-    { "id": "silver_1", "kind": "silver", "x": -6.8, "z": 3.4, "face": [-1, 0] },
-    { "id": "silver_2", "kind": "silver", "x": -7.9, "z": 8.0, "face": [-1, 0] },
-    { "id": "silver_3", "kind": "silver", "x": -6.8, "z": 12.2, "face": [-1, 0] },
-    { "id": "silver_4", "kind": "silver", "x": -12.4, "z": 17.8, "face": [1, 0] },
-    { "id": "silver_5", "kind": "silver", "x": -7.8, "z": 20.3, "face": [0, -1] },
-    { "id": "glimmer_1", "kind": "glimmer", "x": 16.0, "z": -11.35, "face": [0, 1] },
-    { "id": "glimmer_2", "kind": "glimmer", "x": 19.6, "z": -11.35, "face": [0, 1] },
-    { "id": "glimmer_3", "kind": "glimmer", "x": 21.3, "z": -7.2, "face": [-1, 0.2] },
-    { "id": "glimmer_4", "kind": "glimmer", "x": 17.4, "z": -2.4, "face": [-0.4, 0.92] },
-    { "id": "monolith", "kind": "monolith", "x": 7.6, "z": 11.2, "face": [-0.3, -0.95] }
+    {"id": "copper_1", "kind": "copper", "x": -11.8, "z": -21.35, "face": [0, 1]},
+    {"id": "copper_2", "kind": "copper", "x": -13.4, "z": -17.4, "face": [0.6, 0.8]},
+    {"id": "copper_3", "kind": "copper", "x": -13.2, "z": -15.0, "face": [0.3, 1]},
+    {"id": "copper_4", "kind": "copper", "x": -21.35, "z": -18.0, "face": [1, 0]},
+    {"id": "copper_5", "kind": "copper", "x": -19.4, "z": -14.5, "face": [0.6, 0.8]},
+    {"id": "coal_1", "kind": "coal", "x": 11.8, "z": -21.35, "face": [0, 1]},
+    {"id": "coal_2", "kind": "coal", "x": 15.6, "z": -21.35, "face": [0, 1]},
+    {"id": "coal_3", "kind": "coal", "x": 12.6, "z": -17.2, "face": [-0.5, 0.87]},
+    {"id": "coal_4", "kind": "coal", "x": 17.8, "z": -18.2, "face": [0, 1]},
+    {"id": "coal_5", "kind": "coal", "x": 19.8, "z": -15.0, "face": [-0.6, 0.8]},
+    {"id": "iron_1", "kind": "iron", "x": -21.35, "z": -7.6, "face": [1, 0]},
+    {"id": "iron_2", "kind": "iron", "x": -21.35, "z": -4.2, "face": [1, 0.1]},
+    {"id": "iron_3", "kind": "iron", "x": -20.0, "z": -1.9, "face": [0.6, 0.8]},
+    {"id": "iron_4", "kind": "iron", "x": -12.9, "z": -8.0, "face": [-0.3, 0.95]},
+    {"id": "iron_5", "kind": "iron", "x": -10.9, "z": -5.6, "face": [-0.7, 0.7]},
+    {"id": "iron_6", "kind": "iron", "x": -13.3, "z": -2.3, "face": [0.3, 0.95]},
+    {"id": "silver_1", "kind": "silver", "x": -10.2, "z": 3.4, "face": [1, 0]},
+    {"id": "silver_2", "kind": "silver", "x": -9.4, "z": 10.4, "face": [1, 0.3]},
+    {"id": "silver_3", "kind": "silver", "x": -10.8, "z": 12.8, "face": [1, 0]},
+    {"id": "silver_4", "kind": "silver", "x": -12.4, "z": 17.8, "face": [1, 0]},
+    {"id": "silver_5", "kind": "silver", "x": -7.8, "z": 20.3, "face": [0, -1]},
+    {"id": "glimmer_1", "kind": "glimmer", "x": 16.0, "z": -11.35, "face": [0, 1]},
+    {"id": "glimmer_2", "kind": "glimmer", "x": 19.6, "z": -11.35, "face": [0, 1]},
+    {"id": "glimmer_3", "kind": "glimmer", "x": 20.4, "z": -7.9, "face": [-1, 0.2]},
+    {"id": "glimmer_4", "kind": "glimmer", "x": 18.8, "z": -8.9, "face": [0, 1]},
+    {"id": "monolith", "kind": "monolith", "x": 7.6, "z": 11.2, "face": [-0.3, -0.95]}
   ],
   "boulders": [[14.8, -14.4, 0.8], [18.6, -20.4, 0.7], [21.0, -18.6, 0.6], [-14.6, -21.0, 0.7], [-10.4, -18.8, 0.55]],
-  "trees": [[-20.6, -21.0, 9.5, 0.4], [-18.6, -21.1, 8.0, 1.9], [-21.0, -15.6, 8.5, 3.1], [-9.9, -21.1, 7.0, 4.4], [-18.8, -16.4, 6.5, 5.3], [-12.2, -19.4, 6.0, 0.9]],
+  "trees": [[-20.6, -21.0, 9.5, 0.4], [-18.6, -21.1, 8.0, 1.9], [-21.0, -15.6, 8.5, 3.1], [-9.9, -21.1, 7.0, 4.4], [-18.8, -16.4, 6.5, 5.3], [-12.2, -19.4, 6.0, 0.9], [-20.2, -11.6, 7.5, 2.4]],
   "slabs": [[15.4, -17.0, 1.1, 0.4], [20.8, -20.8, 0.9, 1.1], [16.6, -13.3, 0.8, 2.0], [10.9, -18.6, 0.8, 2.6]],
-  "campProps": [[-7.6, -20.6, "barrels", 0.3], [-2.2, -21.0, "crates", 0.0], [-8.2, -16.8, "bedroll", 1.4], [-7.6, -13.8, "board", 0.6], [-4.6, -13.2, "post", 0], [9.6, -19.6, "post", 0]],
+  "campProps": [[-7.6, -20.6, "barrels", 0.3], [-2.2, -21.0, "crates", 0.0], [-8.2, -16.8, "bedroll", 1.4], [-6.4, -14.5, "board", 0.6], [-4.6, -13.2, "post", 0], [9.6, -19.6, "post", 0]],
   "stubs": [[13.6, -9.0, 0.6], [20.6, -4.8, 0.6], [14.6, -1.0, 0.5], [19.0, 2.8, 0.5]],
-  "stalagmites": [[-7.2, -11.4, 0.35, 1.5], [-7.0, -4.0, 0.3, 1.1], [10.3, -3.7, 0.3, 1.0]],
+  "stalagmites": [[-7.2, -11.4, 0.35, 1.5], [-6.2, -5.6, 0.3, 1.1], [8.8, -7.2, 0.3, 1.0]],
   "crag": [5.4, 13.6, 1.0, 2.2],
   "pearls": [[-19.0, 17.4, 0.7], [-15.5, 19.6, 0.6], [-11.0, 20.4, 0.55], [-20.2, 20.6, 0.5], [-5.5, 19.8, 0.5]],
   "crystals": [[14.4, -11.8, 1.0], [17.8, -11.9, 1.1], [20.6, -11.2, 0.9], [20.4, -4.2, 0.8], [15.0, -5.4, 0.7]],
   "shrooms": [[15.2, -9.8, 0.8], [20.9, -1.6, 0.7], [13.6, -3.6, 0.6], [18.8, 2.2, 0.7]],
   "fractures": [[14.0, -12.2, 0], [17.6, -12.2, 0], [20.4, -12.2, 0]],
   "beams": [[-13.0, -18.6, 1.8], [-19.4, -15.4, 1.3], [-11.2, -13.8, 1.2], [-15.2, -13.6, 1.0], [-20.2, -20.4, 1.1]],
-  "sun": { "from": [-10.0, 21.0, -14.0], "at": [-15.0, 6.5, -17.0] },
-  "lights": { "forge": [6.8, 0.85, -20.1], "thermal": [-16.5, 1.2, 8.0], "cenote": [7.5, 1.4, 11.0] },
-  "spawns": [{ "x": 0.0, "z": -19.5 }, { "x": 0.9, "z": -18.8 }, { "x": -0.9, "z": -18.8 }]
+  "sun": {"from": [-10.0, 21.0, -14.0], "at": [-15.0, 6.5, -17.0]},
+  "lights": {"forge": [6.8, 0.85, -20.1], "thermal": [-15.8, 1.2, 8.6], "cenote": [7.5, 1.4, 11.0]},
+  "spawns": [
+    {"x": 0.0, "z": -19.5},
+    {"x": 0.9, "z": -18.8},
+    {"x": -0.9, "z": -18.8}
+  ]
 } /* layout:end */;
 
 const L = CAVERNS_LAYOUT;
@@ -247,21 +291,28 @@ function fordAt(x: number, z: number): number {
 }
 const plungeDistance = (x: number, z: number) => Math.hypot(x - L.river.plunge.x, z - L.river.plunge.z) - L.river.plunge.r;
 
-/** A pool's signed distance (negative inside): its rectangle with rounded corners. */
-function poolDistance(x: number, z: number, p: { z0: number; z1: number }): number {
-  const T = L.terraces;
-  const r = 0.9;
-  const cx = (T.x0 + T.x1) / 2;
-  const cz = (p.z0 + p.z1) / 2;
-  const hx = (T.x1 - T.x0) / 2 - r;
-  const hz = (p.z1 - p.z0) / 2 - r;
-  const qx = Math.abs(x - cx) - hx;
-  const qz = Math.abs(z - cz) - hz;
-  return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - r;
+type Pool = (typeof L.terraces.pools)[number];
+/** A pool's rim, in and out round it (`i` its index): a rimstone basin's scallops, never an oval. The
+ *  builder draws the same rim (build_caverns.py pool_outline). */
+export function poolWobble(i: number, a: number): number {
+  return 1 + 0.07 * Math.sin(3 * a + 1.3 * i + 0.4) + 0.045 * Math.sin(5 * a + 2.1 * i + 1.1);
+}
+/** A pool's signed distance (m, negative inside): its turned ellipse, scalloped (about true near the
+ *  rim, which is all that is asked of it). */
+function poolDistance(x: number, z: number, p: Pool, i: number): number {
+  const dx = x - p.x;
+  const dz = z - p.z;
+  const c = Math.cos(p.rot);
+  const sn = Math.sin(p.rot);
+  const u = (dx * c + dz * sn) / p.rx;
+  const v = (-dx * sn + dz * c) / p.rz;
+  const q = Math.hypot(u, v);
+  const a = Math.atan2(v, u);
+  return (q / poolWobble(i, a) - 1) * Math.min(p.rx, p.rz);
 }
 /** The pool (x, z) lies in, or -1. */
 function poolAt(x: number, z: number, pad = 0): number {
-  return L.terraces.pools.findIndex((p) => poolDistance(x, z, p) < pad);
+  return L.terraces.pools.findIndex((p, i) => poolDistance(x, z, p, i) < pad);
 }
 
 /** A trail's hold on the ground at (x, z): how much (1 on its tread, easing to 0 over its shoulders,
@@ -303,9 +354,24 @@ function levelDistance(lv: Level, x: number, z: number): number {
 function levelWeight(lv: Level, x: number, z: number): number {
   return 1 - smoothstep(-lv.cliff, lv.cliff, levelDistance(lv, x, z));
 }
-/** The north shelf's rim (negative on it): its south edge, wobbling. */
+/** The north shelf's south edge at x: through its points (eased from one to the next), wobbling. The
+ *  builder traces the same line (build_caverns.py shelf_rim_z). */
+export function shelfEdgeZ(x: number): number {
+  const e = L.shelf.edge;
+  let z = e[e.length - 1][1];
+  if (x <= e[0][0]) z = e[0][1];
+  else {
+    for (let i = 0; i + 1 < e.length; i++) {
+      if (x > e[i + 1][0]) continue;
+      z = mix(e[i][1], e[i + 1][1], smooth01((x - e[i][0]) / (e[i + 1][0] - e[i][0])));
+      break;
+    }
+  }
+  return z + 0.35 * wave(x * 0.7, 0.3, 21) + 0.12 * wave(x * 2.1, 1.7, 23);
+}
+/** The north shelf's rim (negative on it). */
 function shelfDistance(x: number, z: number): number {
-  return z - (L.shelf.edge + 0.35 * wave(x * 0.7, 0.3, 21) + 0.12 * wave(x * 2.1, 1.7, 23));
+  return z - shelfEdgeZ(x);
 }
 function shelfWeight(x: number, z: number): number {
   return 1 - smoothstep(-L.shelf.cliff, L.shelf.cliff, shelfDistance(x, z));
@@ -333,10 +399,10 @@ export function cavernsHeight(x: number, z: number): number {
     if (n.w > 0) h = mix(h, n.h, n.w);
   }
   // the terraces' warm pools, sunk into their steps
-  for (const p of L.terraces.pools) {
-    const d = poolDistance(x, z, p);
+  L.terraces.pools.forEach((p, i) => {
+    const d = poolDistance(x, z, p, i);
     if (d < 0.3) h = mix(h, p.y - 0.55, 1 - smoothstep(-0.3, 0.3, d));
-  }
+  });
   // the lake: its bank sloping down into it, its bed shelving off to the deep; the islet and the
   // causeway out to it
   const f = lakeFactor(x, z);
@@ -354,7 +420,30 @@ export function cavernsHeight(x: number, z: number): number {
   if (rd < L.river.half + 0.5) h -= L.river.depth * (1 - smoothstep(L.river.half - 0.15, L.river.half + 0.5, rd)) * (1 - 0.8 * fordAt(x, z));
   const pd = plungeDistance(x, z);
   if (pd < 0.6) h -= 0.55 * (1 - smoothstep(-0.3, 0.6, pd));
+  // the open edges (the south, and the east past the rift): the ground falls away over a wandering
+  // rim into the dark under the cavern, never cut off along a ruler line; the rift walled in on the
+  // east by a lip of basalt
+  const fall = Math.max(openEdgeFall(x, z), 0);
+  if (fall > 0) h = mix(h, EDGE_DEPTH, fall);
+  const lip = riftLip(x, z);
+  if (lip > 0) h += RIFT_LIP * lip;
   return h;
+}
+/** How deep the ground falls at the open edges (m), and the rift's east lip over its floor. */
+const EDGE_DEPTH = -2.6;
+const RIFT_LIP = 1.7;
+/** How far into its fall (x, z) is at the open south and east edges (0 before the rim, 1 at the foot). */
+export function openEdgeFall(x: number, z: number): number {
+  const south = z + 0.55 * wave(x * 0.45, 0.7, 41) + 0.2 * wave(x * 1.3, 2.1, 43);
+  const east = x + 0.55 * wave(0.3, z * 0.45, 45) + 0.2 * wave(1.9, z * 1.3, 47);
+  const k = Math.max(smoothstep(21.0, 22.4, south), smoothstep(21.3, 22.4, east) * smoothstep(11.0, 12.5, z));
+  return k;
+}
+/** The basalt lip along the east edge (0 .. 1): up against the map's edge from the rift down past its
+ *  mouth, ending where the lake's outflow spills over the rim. */
+function riftLip(x: number, z: number): number {
+  const east = x + 0.45 * wave(0.9, z * 0.6, 49) + 0.2 * wave(2.3, z * 1.7, 51);
+  return smoothstep(21.1, 22.2, east) * (1 - smoothstep(9.5, 11.0, z));
 }
 
 // --- the grids: the floor (0.5 m) and where you can stand (0.25 m) ------------------------------------------
@@ -563,9 +652,31 @@ export function cavernsTerrainData() {
   };
 }
 
-/** The caverns' zones (the Logbook's and the HUD's name for where you are). */
+const ZONE_BY_ID = new Map(L.zones.map((zn) => [zn.id, zn]));
+/** The caverns' zones (the Logbook's and the HUD's name for where you are), read off the ground itself
+ *  (the level under you, the shelf split into the jungle, the basecamp and the breakdown), so a zone
+ *  ends where its ground does. */
 export function cavernsZoneAt(x: number, z: number): (typeof L.zones)[number] | null {
-  return L.zones.find((zn) => x >= zn.x0 && x <= zn.x1 && z >= zn.z0 && z <= zn.z1) ?? null;
+  const wob = 1.2 * wave(x * 0.5, z * 0.5, 17);
+  let id = "lake";
+  switch (levelOf(x, z)) {
+    case "shelf":
+      id = x < -9 + wob ? "jungle" : x > 9 + wob ? "breakdown" : "basecamp";
+      break;
+    case "mudflats":
+    case "overlook":
+    case "rift":
+      id = levelOf(x, z);
+      break;
+    case "terraceA":
+    case "terraceB":
+    case "terraceC":
+      id = "terraces";
+      break;
+    default:
+      id = x < -4 + wob && z > 12 ? "terraces" : x > 12 + wob && z < 8 ? "rift" : "lake";
+  }
+  return ZONE_BY_ID.get(id) ?? null;
 }
 
 // --- the trails ---------------------------------------------------------------------------------------------
@@ -597,17 +708,55 @@ export const ANVIL = L.anvil;
 export const ANVIL_FRONT: Pt = { x: L.anvil.x, z: L.anvil.z + 1.05 };
 export const ANVIL_REACH = 1.8;
 
-/** The winch lift between the coal breakdown's edge and the glimmer rift under it: where its frame
- *  stands at each end, and where you stand to ride it (and are set down). */
+/** Gus's winch lift, the way back up (docs/caverns-roadmap.md: depth is progress, so it only rides
+ *  up): from the glimmer rift's floor to the coal breakdown's edge. Where its gantry stands on the
+ *  shelf (`top`), where its cage hangs (`bottom`), where you stand to ride it (`lower`) and the ledge
+ *  it sets you down on (`upper`). */
 export const CAVE_WINCH = {
   top: { x: L.winch.x, z: L.winch.top },
   bottom: { x: L.winch.x, z: L.winch.bottom },
   upper: { x: L.winch.x, z: L.winch.upper } as Pt,
   lower: { x: L.winch.x, z: L.winch.lower } as Pt,
 };
-/** How long the ride takes (s): the client's rope creaks that long. */
-export const WINCH_RIDE_S = 2.5;
+/** The ride, end to end (s): a step into the cage, the climb, a step off onto the ledge. */
+export const WINCH_RIDE_S = 3;
+/** The cage going back down empty afterwards (s): the winch takes no one until it is down. */
+export const WINCH_RETURN_S = 2.2;
 export const WINCH_REACH = 1.8;
+/** The ride's three legs (s). */
+const RIDE_IN_S = 0.4;
+const RIDE_OFF_S = 0.5;
+const easeInOut = (k: number) => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
+/** Where a rider is `t` seconds into the ride (from `from`, where they stood), and how far the cage
+ *  has climbed (0 at the rift's floor .. `lift` at the top): the same on every client. */
+export function winchRidePose(t: number, from: Pt): { x: number; z: number; y: number; cage: number; facing: number } {
+  const cx = L.winch.x;
+  const cz = L.winch.bottom;
+  const low = cavernsFloorY(cx, cz);
+  const lift = winchLift();
+  const climb = WINCH_RIDE_S - RIDE_IN_S - RIDE_OFF_S;
+  const facing = Math.PI;
+  if (t < RIDE_IN_S) {
+    const k = easeInOut(t / RIDE_IN_S);
+    return { x: from.x + (cx - from.x) * k, z: from.z + (cz - from.z) * k, y: low, cage: 0, facing };
+  }
+  if (t < RIDE_IN_S + climb) {
+    const up = lift * easeInOut((t - RIDE_IN_S) / climb);
+    return { x: cx, z: cz, y: low + up, cage: up, facing };
+  }
+  const k = easeInOut((t - RIDE_IN_S - climb) / RIDE_OFF_S);
+  const ux = L.winch.x;
+  const uz = L.winch.upper;
+  return { x: cx + (ux - cx) * k, z: cz + (uz - cz) * k, y: low + lift + (cavernsFloorY(ux, uz) - low - lift) * k, cage: lift, facing };
+}
+/** How far the cage climbs: from the rift's floor to the shelf's. */
+export function winchLift(): number {
+  return cavernsFloorY(L.winch.x, L.winch.top) - cavernsFloorY(L.winch.x, L.winch.bottom);
+}
+/** The empty cage going back down, `t` seconds after its rider stepped off (the lift left). */
+export function winchReturn(t: number): number {
+  return winchLift() * (1 - easeInOut(t / WINCH_RETURN_S));
+}
 
 // --- the nodes -----------------------------------------------------------------------------------------
 
@@ -673,13 +822,20 @@ export const MONOLITH = ORE_NODE_AT.get("monolith")!;
 export const TERRACES = {
   x0: L.terraces.x0,
   x1: L.terraces.x1,
-  pools: L.terraces.pools.map((p) => ({ z0: p.z0, z1: p.z1, y: p.y })),
+  pools: L.terraces.pools.map((p) => {
+    const r = Math.max(p.rx, p.rz) * 1.12;
+    return { x: p.x, z: p.z, rx: p.rx, rz: p.rz, rot: p.rot, y: p.y, x0: p.x - r, x1: p.x + r, z0: p.z - r, z1: p.z + r };
+  }),
 };
 export const THERMAL_SEATS = L.thermalSeats.map((s) => ({ propId: s.id, x: s.x, z: s.z, rotationY: s.face, approachX: s.exit.x, approachZ: s.exit.z, exit: s.exit }));
 export const THERMAL_SEAT_IDS: ReadonlySet<string> = new Set(THERMAL_SEATS.map((s) => s.propId));
-/** The water's height in the pool a seat sits in. */
-export function thermalPoolY(z: number): number {
-  return (TERRACES.pools.find((p) => z >= p.z0 - 0.1 && z <= p.z1 + 0.1) ?? TERRACES.pools[TERRACES.pools.length - 1]).y;
+/** The water's height in the pool (x, z) is in (a seat's, a bather's): the nearest pool's. */
+export function thermalPoolY(x: number, z: number): number {
+  let best = 0;
+  L.terraces.pools.forEach((p, i) => {
+    if (poolDistance(x, z, p, i) < poolDistance(x, z, L.terraces.pools[best], best)) best = i;
+  });
+  return L.terraces.pools[best].y;
 }
 /** How near a seat's landing you step into its pool from (the soak toggle). */
 export const THERMAL_REACH = 2.2;
@@ -745,7 +901,8 @@ function castAlong(x: number, z: number, d: { x: number; z: number }): { x: numb
     const px = x + d.x * t;
     const pz = z + d.z * t;
     if (!inLakeWater(px, pz)) return null;
-    if (lakeFactor(px, pz) <= 0.985 && L.lake.water - cavernsFloorY(px, pz) >= CAST_DEPTH) return { x: Math.round(px * 100) / 100, z: Math.round(pz * 100) / 100 };
+    // (a little clear of the waterline: the spot is rounded to the centimetre after)
+    if (lakeFactor(px, pz) <= 0.98 && L.lake.water - cavernsFloorY(px, pz) >= CAST_DEPTH) return { x: Math.round(px * 100) / 100, z: Math.round(pz * 100) / 100 };
   }
   return null;
 }
@@ -774,7 +931,7 @@ export function shoreCast(x: number, z: number, fx: number, fz: number): { x: nu
  *  over what it stands on; the jungle's sunbeams, the islet's skylight and the sun over the collapse. */
 export const CAVE_LIGHTS = {
   forge: [L.lights.forge[0], cavernsFloorY(L.lights.forge[0], L.lights.forge[2]) + L.lights.forge[1], L.lights.forge[2]],
-  thermal: [L.lights.thermal[0], thermalPoolY(L.lights.thermal[2]) + L.lights.thermal[1], L.lights.thermal[2]],
+  thermal: [L.lights.thermal[0], thermalPoolY(L.lights.thermal[0], L.lights.thermal[2]) + L.lights.thermal[1], L.lights.thermal[2]],
   cenote: [L.lights.cenote[0], L.lake.water + L.lights.cenote[1], L.lights.cenote[2]],
 } as const;
 export const DOLINE_BEAMS = L.beams;
@@ -793,7 +950,6 @@ export const CAVERNS_PROPS: PropSpec[] = ([
   { propId: "ancient_forge", x: L.forge.x, z: L.forge.z, kind: "forge", color: "#ff7a2f", defaultOn: true, approachX: FORGE_FRONT.x, approachZ: FORGE_FRONT.z },
   { propId: "geode_anvil", x: L.anvil.x, z: L.anvil.z, kind: "anvil", color: "#8a8f9a", defaultOn: true, approachX: ANVIL_FRONT.x, approachZ: ANVIL_FRONT.z },
   { propId: "finnegan", x: L.finnegan.x, z: L.finnegan.z, kind: "angler", color: "#e8a6b8", defaultOn: true, approachX: FINNEGAN_FRONT.x, approachZ: FINNEGAN_FRONT.z },
-  { propId: "winch_top", x: CAVE_WINCH.top.x, z: CAVE_WINCH.top.z, kind: "winch", color: "#8a6a3f", defaultOn: true, approachX: CAVE_WINCH.upper.x, approachZ: CAVE_WINCH.upper.z },
   { propId: "winch_bottom", x: CAVE_WINCH.bottom.x, z: CAVE_WINCH.bottom.z, kind: "winch", color: "#8a6a3f", defaultOn: true, approachX: CAVE_WINCH.lower.x, approachZ: CAVE_WINCH.lower.z },
   ...ORE_NODES.map((n): PropSpec => ({ propId: orePropId(n.id), x: n.x, z: n.z, kind: "ore", color: ORE_KINDS[n.kind].glow, defaultOn: true, approachX: n.approach.x, approachZ: n.approach.z })),
 ] satisfies PropSpec[]).map((p) => ({ ...p, y: cavernsFloorY(p.x, p.z) }));
@@ -831,7 +987,7 @@ export const CAVERNS_OBSTACLES: AABB[] = [
     const b = nodeBackRock(n);
     return b ? [around(b, b.r * 0.5)] : [];
   }),
-  around(L.tower, L.tower.r * 0.62),
+  around(L.tower, L.tower.r * 1.05),
   // the basecamp's gear: the barrels, the crate stack, the survey board, the lantern posts (the
   // bedroll is walked over)
   ...L.campProps.flatMap(([x, z, kind]) => (kind === "bedroll" ? [] : [around({ x: x as number, z: z as number }, kind === "post" ? 0.1 : kind === "board" ? 0.25 : 0.42)])),

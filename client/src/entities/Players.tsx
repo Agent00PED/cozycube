@@ -14,6 +14,7 @@ import { Avatar, type FloatingEmote } from "./Avatar";
 import { getBout } from "../systems/boutStore";
 import { beltUntilOf, gloveLook } from "@shared/boxing";
 import { drawnAt, fighterSpot } from "../systems/fightAnim";
+import { riderPose } from "../scene/winchRide";
 
 // The people in the scene: your own avatar, driven by the locomotion hook, and every other
 // connected player, eased toward the position the server relays. Both are the same Avatar
@@ -167,6 +168,21 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
     const delta = Math.min(rawDelta, 0.1);
     const p = latest.current;
     const d = drawn.current;
+
+    // riding Gus's winch up: the climb drawn the same on every client (the server has them on the
+    // ledge already)
+    const ride = feed.mapId === "glimmering_caverns" ? riderPose(p.sessionId, p.action) : null;
+    if (ride) {
+      d.x = ride.x;
+      d.z = ride.z;
+      d.seatY = ride.y;
+      d.facing = ride.facing;
+      d.ready = true;
+      speedRef.current += (0 - speedRef.current) * 0.3;
+      g.position.set(d.x, d.seatY, d.z);
+      g.rotation.y = d.facing;
+      return;
+    }
 
     const foe = p.corner && feed.mapId === "boxing_ring" ? fighterFoe(p.sessionId) : undefined;
     const live = liveMotion.get(p.sessionId);

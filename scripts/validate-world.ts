@@ -736,11 +736,19 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
       }
       return d / SPEED;
     };
-    const TIER_S: Record<string, number> = { copper: 5, coal: 5, iron: 8, silver: 12, glimmer: 15 };
+    const TIER_S: Record<string, number> = { copper: 5, coal: 5, iron: 8, silver: 12, glimmer: 15, monolith: 20 };
+    const nearest: Record<string, number> = {};
     for (const [kind, limit] of Object.entries(TIER_S)) {
       const s = Math.min(...ORE_NODES.filter((n) => n.kind === kind).map((n) => walkS(CAVE_ARRIVAL, n.approach)));
+      nearest[kind] = s;
       checks++;
       if (s > limit) fail(`${C}: the nearest ${kind} node is ${s.toFixed(1)} s from the arrival (${limit} s at most)`);
+    }
+    // (depth is progress: each tier's nearest node further from the arrival than the tier before's)
+    const order = ["coal", "iron", "silver", "glimmer", "monolith"];
+    for (let i = 0; i + 1 < order.length; i++) {
+      checks++;
+      if (nearest[order[i + 1]] <= Math.max(nearest[order[i]], order[i] === "coal" ? nearest.copper : 0)) fail(`${C}: the nearest ${order[i + 1]} node (${nearest[order[i + 1]].toFixed(1)} s) is no further than the nearest ${order[i]} (${nearest[order[i]].toFixed(1)} s): the deeper tiers must lie further in`);
     }
     const legs: Point[] = [CAVE_ARRIVAL, ORE_NODE_AT_ID("copper_3"), ORE_NODE_AT_ID("iron_4"), ORE_NODE_AT_ID("silver_1"), ORE_NODE_AT_ID("silver_5"), ORE_NODE_AT_ID("glimmer_4"), CAVE_WINCH.lower];
     let loop = WINCH_RIDE_S + walkS(CAVE_WINCH.upper, CAVE_ARRIVAL);

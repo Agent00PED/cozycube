@@ -27,6 +27,8 @@ export const CAVERN_CAM = {
 
 const FOV = 45;
 const TALLER = 1.18;
+/** The least the view holds across, as a share of what it holds top to bottom (a 5:4 screen's). */
+const MIN_WIDE = 1.25;
 const ISO_AZ = Math.PI / 4;
 const TRACK_DAMPING = 0.1;
 const DIST_DAMPING = 0.15;
@@ -98,5 +100,15 @@ export function cavernPose(delta: number, size: { width: number; height: number 
   out.look.copy(t);
   out.pos.set(t.x + Math.cos(ISO_AZ) * flat, t.y + d * Math.sin(CAVERN_CAM.PITCH), t.z + Math.sin(ISO_AZ) * flat);
   const tall = 2 * d * Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * TALLER;
-  out.zoom = size.height / tall;
+  // (a narrow screen, a phone or a tablet in portrait, still holds at least MIN_WIDE of that across:
+  // the view widens with the screen's height rather than closing in to a strip round your feet)
+  out.zoom = Math.min(size.height / tall, size.width / (tall * MIN_WIDE));
+  // (the camera orthographic, standing further back changes nothing of the framing: a view widened
+  // for a narrow screen stands back with it, so its near plane never cuts the ground in front)
+  const back = size.height / out.zoom / tall;
+  if (back > 1) {
+    const db = d * back;
+    const fb = db * Math.cos(CAVERN_CAM.PITCH);
+    out.pos.set(t.x + Math.cos(ISO_AZ) * fb, t.y + db * Math.sin(CAVERN_CAM.PITCH), t.z + Math.sin(ISO_AZ) * fb);
+  }
 }

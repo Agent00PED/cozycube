@@ -6,6 +6,8 @@ import {
   CAVE_ARRIVAL,
   CAVE_WINCH,
   WINCH_REACH,
+  WINCH_RETURN_S,
+  WINCH_RIDE_S,
   FORGE,
   FORGE_FRONT,
   FORGE_REACH,
@@ -215,6 +217,9 @@ export class CavernsMine {
   private readonly chisels = new Map<string, ChiselState>();
   private readonly forgeGames = new Map<string, ForgeGameState>();
   private readonly soakers = new Map<string, number>();
+  /** Who is riding the winch up, and when their ride ends (ms); the cage free again at `winchFreeAt`. */
+  private readonly riders = new Map<string, number>();
+  private winchFreeAt = 0;
   private drip: CaveDrip | null = null;
   private nextDripAt = Date.now() + DRIP_EVERY_S * 1000;
   private synced = "";
@@ -307,15 +312,24 @@ export class CavernsMine {
     }
   }
 
-  /** Gus's winch lift: from its foot in the glimmer rift up the cliff to the coal breakdown's edge (a
-   *  step from the basecamp), or back down. */
+  /** Gus's winch lift, the way back up: from its foot in the glimmer rift up the cliff to the coal
+   *  breakdown's edge (a step from the basecamp). The rider is set down on the ledge at once, riding
+   *  ("winch") for WINCH_RIDE_S while every client draws the climb (winchRidePose); the cage then goes
+   *  back down empty, and takes no one till it is down. */
   private rideWinch(sessionId: string, player: CavePlayer, propId: string) {
-    if (player.map !== "glimmering_caverns" || player.sitting || player.action !== "") return;
-    const up = propId === "winch_bottom";
-    const from = up ? CAVE_WINCH.lower : CAVE_WINCH.upper;
+    if (player.map !== "glimmering_caverns" || player.sitting || player.action !== "" || propId !== "winch_bottom") return;
+    const from = CAVE_WINCH.lower;
     if (Math.hypot(player.x - from.x, player.z - from.z) > WINCH_REACH + 0.6) return;
-    const to = up ? CAVE_WINCH.upper : CAVE_WINCH.lower;
-    this.host.place(sessionId, to.x, to.z, 600);
+    const now = Date.now();
+    if (now < this.winchFreeAt) {
+      this.host.sendTo(sessionId, "campfireNotice", { message: "The cage is on its way back down: hold on a moment", emoji: "🪢" });
+      return;
+    }
+    const to = CAVE_WINCH.upper;
+    player.action = "winch";
+    this.riders.set(sessionId, now + WINCH_RIDE_S * 1000);
+    this.winchFreeAt = now + (WINCH_RIDE_S + WINCH_RETURN_S) * 1000;
+    this.host.place(sessionId, to.x, to.z, WINCH_RIDE_S * 1000 + 300);
   }
 
   /** Old Flint the Badger by the woods' adit: the first time, his welcome (the lore), the Rusted
@@ -941,6 +955,12 @@ export class CavernsMine {
       this.tickForge(now);
     }
     this.tickOnsen(dt, now);
+    for (const [id, until] of [...this.riders.entries()]) {
+      if (now < until) continue;
+      this.riders.delete(id);
+      const player = this.host.player(id);
+      if (player && player.action === "winch") player.action = "";
+    }
     if (occupied && now >= this.nextDripAt) {
       this.nextDripAt = now + DRIP_EVERY_S * 1000;
       // (by one of the floats out on the water, if anyone is fishing: a drop a little off it)
@@ -959,6 +979,10 @@ export class CavernsMine {
   /** Off the caverns (a trip, a drop): whatever they were doing down here stops (a bellows game's
    *  makings back into the satchel). */
   leave(sessionId: string) {
+    if (this.riders.delete(sessionId)) {
+      const rider = this.host.player(sessionId);
+      if (rider?.action === "winch") rider.action = "";
+    }
     this.stopProspect(sessionId);
     this.chisels.delete(sessionId);
     this.soakers.delete(sessionId);

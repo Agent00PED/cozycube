@@ -1,0 +1,151 @@
+# The Glimmering Caverns: polish roadmap
+
+The plan that follows the six-phase rebuild (docs/caverns-design.md stays the spec of the map itself).
+Written 2026-09-30 from a full audit in game: every zone at the 7 m and 16 m zoom, the whole map from
+far out and from above, a phone-sized screen, frame cost, and every cave mini-game played by hand.
+
+## 1. Where the cave stands
+
+**Works well**: every zone reads by colour at a glance; the ground steps down to the south-east so the
+cliffs face the camera; the grinding loop is short (the nearest copper and coal 4 s, the loop 42 s)
+and `npm run check-layout` enforces it; the basecamp (the forge alcove, Gus's stall, the adit) and the
+mudflats (cracked plates, rust, bats) have real character; the rift's crystals and the lake's islet
+are strong focal points; the whole cave is 7 static draw calls, its floor is its click collider, and
+the builder is deterministic.
+
+**The problems** (from the audit, most important first):
+
+| # | Problem | Evidence |
+|---|---|---|
+| P1 | Zones are rectangles on a flat board: two straight mudflat strips, three swimming-pool terraces in a row, a slab overlook, a rectangle rift | the whole-map views |
+| P2 | The Great Wall is a blurry white fog sheet (flowstone only painted into coarse wall colours) | the terraces' wall |
+| P3 | The open south and east edges are ruler lines into darkness, the shore a plain brown band, the edge rocks pebble-sized | the south edge |
+| P4 | Empty stretches: the overlook, the rift floor, the south shore, the slope under the switchback | 16 m views |
+| P5 | The jungle is a flat lawn, the trees are poles, the waterfall a flat ribbon, no sky through the collapse; it is also the smallest zone (90 m²) for 5 nodes | the jungle |
+| P6 | On a phone in portrait the 7 m default shows about 5 m of ground: no sense of place | phone view |
+| P7 | The winch teleports; the cage never moves | server `rideWinch` |
+| P8 | T4 glimmer (8.9 s) is nearer than T3 silver (10.9 s): depth is not progress | walk times |
+| P9 | The lake's surface is one busy, even squiggle pattern, no calm, no foam | the islet |
+| P10 | Soft fades on walkable ramps, saw-tooth banks on diagonals, the Hound's Hand a cluster of cones | the overlook |
+| P11 | Ore silhouettes: copper reads as mushrooms, coal as stacked plates, iron as grapes | close-ups |
+| P12 | Activity animations are arm-only: the mining swing, the fishing pose, nothing at the forge, the anvil, the springs or the winch | Avatar.tsx `mine`, `reel` |
+| P13 | Surfaces have no detail below the vertex grid: the floor, walls and rocks are flat colour with facet shading, so up close everything looks like clay blocks | every close-up |
+| P14 | The mini-games feel like beta tests: plain DOM panels covering the world (the forge's thermometer and a button, the geode as a brown blob in a box), no onboarding line, little feedback or juice, no streaks, flat square particles; the fishing wait has nothing to watch | played by hand |
+| P15 | Sound is thin: synthesized beds only, one footstep for every surface, no zone reverb, no music, the water on the "cave air" fader | cavernAmbience.ts |
+| P16 | Frame cost is dominated by avatars (yours ~55k triangles, drawn twice for the x-ray); draw calls sit at 90-101 of the 110 cap | gl.info |
+
+## 2. Decisions (taken for the owner, 2026-09-30)
+
+1. **Reshape, don't relocate**: every zone keeps its place, height, ores, node count and walk-time
+   targets, but gets an organic outline (lobes, bays, scalloped rims).
+2. **Depth is progress**: the winch runs **up only** (the way back to the basecamp, as first decided),
+   and the glimmer nodes move deeper into the rift, so walking from the arrival reaches the tiers in
+   order (copper and coal, iron, silver, glimmer, the Monolith). `check-layout` enforces the order.
+3. **Sound stays synthesized** by default; every bed and effect gets a sample slot
+   (`client/public/sounds/caverns/<name>.mp3`, used when present), so recordings can be dropped in
+   later without code changes.
+4. **New content, staged**: the overlook's campfire hub, living events (Cave Cloud, Glimmer Bloom, Bat
+   Exodus on the camp's day), a cave codex with collectibles (cave pearls, fossils, Old Flint's
+   journal), the grotto behind the waterfall; the raft and stream fishing come last.
+
+## 3. The quality bar (every change is checked against it)
+
+- **Devices**: PC (mouse, 16:9), iPad (touch, 4:3, both orientations), phone (touch, portrait and
+  landscape). Each change is looked at in game at 1280 x 720, 1024 x 768, 768 x 1024 and 390 x 844.
+- **Readability**: anything you interact with reads at the default zoom on a phone (a clear silhouette
+  and colour), tap targets at least 48 px, no text under 12 px, the HUD never over the thing you act on.
+- **Detail in three scales**: large (1-3 m: shape, colour zones) for the phone, mid (0.2-0.5 m:
+  cracks, strata, moss) for everyone, fine (under 5 cm: grain, sparkle) only where the device can
+  afford it. Chunky, cozy low-poly: detail comes from shape and shading, never photo textures.
+- **Budget**: at most 110 draw calls in the caverns, the cave model under 2.4 MB, a frame on a
+  mid-range phone kept cheap (no heavy per-pixel loops, shadows limited, fine detail off on low end).
+- **Mini-games**: understood in one second, playable with one thumb, forgiving but with a skill ceiling,
+  a clear reward every time, set in the world (the camera frames the forge, the anvil, the rock)
+  rather than a panel over it, and a quick mode for the grind.
+- **Every step is verified in game** (screenshots at 7 m, 16 m and on a phone), `check-layout`, both
+  typechecks and the build.
+
+## 4. The phases
+
+### Phase 1: the fix pass (P1-P11): built 2026-09-30
+
+All eleven steps built and checked in game. Left to phase 2's surface detail: the ramps' tan fans
+where a walkable ramp runs from pale ground into dark, the stepped shading still showing on a few
+diagonal banks (the rift's and the overlook's, drawn on the 0.5 m grid), and the pale haze over the
+terraces seen from the mudflats above.
+
+| Step | Work | Done when |
+|---|---|---|
+| 1.1 | Camera by screen shape: the default distance and zoom limits follow the aspect (portrait sees about as much ground as landscape) | a phone in portrait shows the zone around you |
+| 1.2 | Winch up only, with a ride: the cage rises with you in it over 2.5 s, the crank turns, the rope creaks; you stand in it while it rides | the ride plays, the server holds you for its length |
+| 1.3 | Tier order: glimmer nodes deeper in the rift; `check-layout` fails if a higher tier is nearer than a lower one | walk times copper/coal < iron < silver < glimmer < Monolith |
+| 1.4 | Water: calmer, varied ripples, stiller in the deep and under the skylight, a foam line where it laps, the depth reading through | the lake reads as water, not a pattern |
+| 1.5 | Banks and ramps: banks broken up so diagonals do not saw-tooth, ramps edged so they end cleanly; the Hound's Hand re-sculpted as one hand-like tower | the overlook reads cleanly at 16 m |
+| 1.6 | The Great Wall as geometry: flowstone curtains, folds and rimstone ledges down the west wall, cream but not glaring | no fog-like smear |
+| 1.7 | The jungle: moss, leaf litter and roots on the floor, buttressed jungle trees with canopies that read from above, a waterfall with foam, spray and a plunge-pool splash, the sky and vines seen through the collapse, a little more room | the jungle reads as Son Doong's garden |
+| 1.8 | Organic outlines for every zone, the terraces as scalloped rimstone pools of different sizes, the mudflats broken into lobes, bays in the overlook, a crevasse-shaped rift | the whole-map view has no rectangles |
+| 1.9 | The open edges: a real rim (bays, points, big boulders, stalagmites), the far cave beyond (silhouettes fading into mist) | no ruler line anywhere |
+| 1.10 | The empty stretches dressed (the overlook, the rift floor, the shore, the slope) | nothing looks unfinished at 16 m |
+| 1.11 | Ore silhouettes: each ore unmistakable on a phone | a new player can name each ore |
+
+### Phase 2: surface detail (P13)
+
+A shared cave-surface shader on the floor, walls, rock and props: world-space noise at two scales for
+grain, cracks, strata banded by height on limestone, moss on up-facing rock in the jungle, rust streaks
+down the mudflats' walls, wet sheen near water, crevices darker; each zone's look set by a small
+table, the fine scale off on low-end devices. The walls get more rows and bedding ledges; the vault's
+broken lip and stalactite clusters along the tops of the walls only (never over the play area); every
+boulder and prop given weathered edges.
+
+### Phase 3: animation (P12)
+
+A full-body activity animation suite on the rig (the ring's boxing suite shows the way): mining
+(stance, wind-up, strike, recoil, a heavier swing for heavier picks), fishing (cast, the wait, the bite
+flinch, reeling, landing), the forge (pumping the bellows, hammering on the anvil), the geode (setting
+it down, chisel and mallet), the springs (sinking in, relaxing), the winch ride, climbing the rope
+descent; the folk (Gus working his ledger, Finnegan's cast and catch, the capybara's bath) and better
+particles (sparks as streaks, dust puffs, chips) everywhere.
+
+### Phase 4: the mini-games (P14)
+
+- **Prospecting**: a clear target on the rock (a pulsing ring the size of the sweet spot), a crack
+  meter showing how far the rock has gone, a strike timed to the ring's pulse for a Perfect, streaks
+  that raise the yield, hit-stop, camera kick and layered sound; a one-line tip the first time.
+- **The forge**: framed in the world (the camera on the forge, the heat as the fire's own glow with a
+  curved gauge), the avatar pumping the bellows, then the anvil: shrinking rings onto the glowing ingot
+  for each strike; quality in three grades (Plain, Fine, Masterwork) instead of pass or fail.
+- **The geode**: on the real anvil in a close-up, turned by a drag with a warmer-colder glow and tone
+  on the seam, the mallet's power on a swing, and the reveal: the geode splits in half on its crystal
+  heart, the gem's rarity bursting out.
+- **Fishing**: something to watch in the wait (the float's nibbles, a fish shadow circling), a clear
+  "Bite!" with sound, the reel tuned for touch, the cave's glowing reveal.
+- **The springs**: an optional breathing rhythm (tap with a slow ring) that lengthens the Deep Warmth;
+  the capybara reacts to bathers.
+- **Everywhere**: the same result card, rewards flying into the satchel, first-time tips, forgiving
+  retries, and a quick mode once you know the game.
+
+### Phase 5: sound and light (the audit's section 4)
+
+Sound: per-surface footsteps (mud, gravel, travertine, sand, stone), each zone's own reverb (the rift
+deepest), a sparse music layer, a Water fader, the sample slots. Light: the jungle's sun on the camp's
+24-minute day (moonlight at night), a small light round you in the dark zones, softer godrays;
+shadows limited to the jungle.
+
+### Phase 6: new content (the audit's section 5)
+
+The overlook's campfire ring (seats, the Hound's Hand as a photo spot); living events (Cave Cloud: mist
+rolls through, rare fish bite more; Glimmer Bloom: the rift glows and yields more; Bat Exodus at the
+camp's dusk; Rockfall: a temporary crew node in the breakdown); the cave codex (the fauna, cave pearls,
+fossils, Old Flint's journal pages) and a stamp for each zone discovered; the grotto behind the
+waterfall; later the raft to the islet and stream fishing.
+
+### Phase 7: tech
+
+Split `build_caverns.py` and `CavernsWorld.tsx` into per-zone and per-system modules; a lighter avatar
+(every map benefits); the performance pass on phones.
+
+## 5. How each phase ships
+
+Each phase runs on its own branch, is checked against section 3, and is shown with screenshots
+(7 m, 16 m, phone) before it is committed; docs/caverns-design.md, CLAUDE.md and the patch notes are
+brought along with it.

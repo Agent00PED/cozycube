@@ -17,8 +17,8 @@ export type SitPose = "sit" | "lie" | "dangle" | "cross";
 export type HeldItem = "" | "coffee" | "marshmallow" | "skewer" | "jar";
 /** "reel" is the Stardew-style tension mini-game after a bite; "dizzy" is stunned in the ring. */
 /** "rest": sitting at a fishing spot with the rod stowed and a warm mug, the creel full. */
-/** "mine": at an ore node in the Glimmering Caverns, the pickaxe up; "soak": in its thermal terraces' warm pools. */
-export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar" | "stargaze" | "chop" | "rest" | "mine" | "soak";
+/** "mine": at an ore node in the Glimmering Caverns, the pickaxe up; "soak": in its thermal terraces' warm pools; "winch": riding Gus's winch up out of the glimmer rift. */
+export type PlayerAction = "" | "brew" | "roast" | "fish" | "afkfish" | "reel" | "dizzy" | "grill" | "guitar" | "stargaze" | "chop" | "rest" | "mine" | "soak" | "winch";
 
 export interface PlayerState {
   sessionId: string;
