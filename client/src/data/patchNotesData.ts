@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.11",
+    range: "v0.7.0–v0.7.12",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1061,6 +1061,30 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           fixes: [
             "The black wedge past the cavern's south edge is gone: the ground's cut face now shows there.",
+          ],
+        },
+      },
+      {
+        version: "0.7.12",
+        date: "2026-09-30",
+        title: "Into the Dark Karst",
+        summary: "The Glimmering Caverns are rebuilt from bare rock around the one part that worked, the Basalt Crucible Forge and its workshop. The cave is darker, damper and more like a real cave.",
+        changes: {
+          features: [
+            "Nowhere you can walk in the caverns is steeper than 22 degrees. The wading shoal to the Titan Monolith is wider, so you can walk straight out to the islet.",
+            "Casting from the cenote's shore works where shallows lie straight ahead: the float lands a little to one side, still in front of you.",
+            "Cairns of stacked flat stones mark where the trails meet.",
+          ],
+          visuals: [
+            "The floor is dark, damp limestone bedrock, with fractured slate and compacted cave silt. Fine river sediment appears only in a band along the cenote, dark and wet where the water laps. The pale beach is gone.",
+            "The trails are no longer painted strips. The ground is simply trampled a shade darker, with cairns at the junctions.",
+            "The east wall is one towering cliff of hexagonal basalt columns. It steps down into terraces and drops to a low ledge along the lake. Its ore nodes sit in hollow vugs, and amethyst and cyan crystals glow out of its fractures.",
+            "The north and west walls are limestone cliffs rising into the vault's broken lip. The nodes set in them sit in dark pockets ringed with crystals.",
+            "The Travertine Terraces' rimstone dams grow out of the west buttress. Their lips are irregular and crenulated, stepped in little gours and banded cream and grey. Nothing glows against the grotto's back wall any more.",
+            "Rocks are faceted blocks of weathered limestone, not smooth pebbles. The islet's crag is stacked blocks gripped by the banyan's roots.",
+            "A waterlogged dinghy lies half-buried at the south-west waterline among driftwood and pale reeds. The mine cart lies overturned against the basalt ledge on the east shore, with its rails buckled against the rock.",
+            "The light is the game's own. A deep navy dark fills the cave, a golden skylight falls only on the doline and casts real shadows, and a thin pale mist hangs over the water.",
+            "Nothing hangs over the top of the screen any more. A solid dark skirt runs round the cavern's edge.",
           ],
         },
       },

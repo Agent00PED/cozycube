@@ -18,7 +18,7 @@ import { ProspectingView } from "./ProspectingView";
 import { NODE_YAW } from "./caveNodes";
 import { playCaveSfx } from "../audio/cavernAmbience";
 import { CaveFauna } from "./caveFauna";
-import { CaveMist, CrystalLights, StalactiteFrame } from "./caveAtmosphere";
+import { CaveMist, CrystalLights } from "./caveAtmosphere";
 
 // The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: the
 // Grand Karst Sanctuary, 45 x 45. The cavern is one Blender model, caverns.glb
@@ -36,15 +36,15 @@ import { CaveMist, CrystalLights, StalactiteFrame } from "./caveAtmosphere";
 //                 emission is its own vertex colour, breathing; the cenote's and the terraces' water
 //                 see-through with no depth write (nothing z-fights under it); the mangrove roots and
 //                 the skylight's rim dithered to 30% where they stand between you and the camera
-//   the light     the game's own (CaveLights): ACES tone mapping, a deep slate-navy ambient and
-//                 hemisphere at 0.28, the doline's sun as a soft directional light casting real
-//                 shadows (the vault and the rock between it and the floor), the model's baked light
-//                 kept as a dimmer lightmap (bakedLight: its vertex colours' own glow), three moving
-//                 point lights (the forge's flicker, the terraces' warmth, the cenote's heart) and
-//                 four small ones for the crystals nearest you (caveAtmosphere.tsx); the doline's
-//                 godrays and the skylight's shaft (additive, soft-edged, dust drifting in them);
-//                 a low dark mist over the lower floor and the water; the stalactites framing the
-//                 top of the view
+//   the light     the game's own (CaveLights): ACES tone mapping at a balanced exposure, a deep cool
+//                 navy ambient and hemisphere (#161c26 at 0.28), the doline's skylight a soft golden
+//                 spotlight falling only under the doline's broken roof and casting real shadows, a
+//                 soft fill from over your shoulder, the model's baked light kept as a dim lightmap
+//                 (bakedLight: its vertex colours' own glow), three moving point lights (the forge's
+//                 flicker, the terraces' warmth, the cenote's heart) and four small ones for the
+//                 crystals nearest you (caveAtmosphere.tsx); the doline's godrays and the skylight's
+//                 shaft (additive, soft-edged, dust drifting in them); a thin pale mist over the
+//                 cenote's water; nothing ever hangs into the view
 //   the shore     the sand the water touches damp: darker, and glossy (lower roughness) in the
 //                 bed's finish
 //   the nodes     every ore node from its kind's rock (the model's Ore_<kind>), instanced: its damage
@@ -70,7 +70,7 @@ const TIME = { value: 0 };
 const CAVE_DARK = new THREE.Color("#07060c");
 /** How much of the model's baked light (its vertex colours) glows on its own: the rest of what you
  *  see comes from the game's lights. */
-const BAKED = { value: 0.42 };
+const BAKED = { value: 0.9 };
 /** The caverns' exposure under ACES (the doline's sun never bleaches the sand under it). */
 const CAVE_EXPOSURE = 0.92;
 
@@ -309,7 +309,7 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
   // drawn): the only mesh of the model a click is tested against
   const walk = useMemo(() => (scene.getObjectByName("caverns_walk_collider") as THREE.Mesh | undefined) ?? null, [scene]);
   const fallbackFloor = useMemo(() => (walk ? null : floorGeometry()), [walk]);
-  const fauna = useMemo(() => ({ crab: (scene.getObjectByName("Fauna_Crab") as THREE.Mesh | undefined) ?? null, swift: (scene.getObjectByName("Fauna_Swift") as THREE.Mesh | undefined) ?? null, frame: (scene.getObjectByName("Frame_Stalactites") as THREE.Mesh | undefined) ?? null }), [scene]);
+  const fauna = useMemo(() => ({ crab: (scene.getObjectByName("Fauna_Crab") as THREE.Mesh | undefined) ?? null, swift: (scene.getObjectByName("Fauna_Swift") as THREE.Mesh | undefined) ?? null }), [scene]);
   useEffect(() => () => fallbackFloor?.dispose(), [fallbackFloor]);
   // the model's finishes, and the node rocks' templates taken out of it (instanced below)
   const templates = useMemo(() => {
@@ -338,9 +338,8 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       } else if (mesh.name === "caverns_walk_collider") mesh.receiveShadow = true;
     });
     if (walk) walk.raycast = THREE.Mesh.prototype.raycast;
-    // (the fauna's and the frame's templates: drawn instanced or on the camera, never where they were
-    // modelled)
-    for (const name of ["Fauna_Crab", "Fauna_Swift", "Frame_Stalactites"]) {
+    // (the fauna's templates: drawn instanced, never where they were modelled)
+    for (const name of ["Fauna_Crab", "Fauna_Swift"]) {
       const o = scene.getObjectByName(name);
       if (o) o.visible = false;
     }
@@ -361,7 +360,6 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       <OreNodes templates={templates} ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} players={players} />
       <ProspectingView templates={templates} onStrike={onStrike} />
       <CaveFauna crab={fauna.crab} swift={fauna.swift} />
-      <StalactiteFrame template={fauna.frame} />
     </>
   );
 }
@@ -703,21 +701,21 @@ class FxPool {
 /** The cavern's light: a dim cool fill (the rock's own light is painted in), the sun's warm slant
  *  down the doline, and the three point lights that move: the forge's mouth flickering, the
  *  terraces' warm glow breathing, the cenote's heart pulsing. */
-/** The doline's sun: from high over the collapsed vault, a little to the north (the godrays lean the
- *  same way), its shadow camera over the whole cavern. */
-const SUN_FROM = new THREE.Vector3(-4, 30, -9);
-const SUN_AT = new THREE.Vector3(0, 0, -2);
+/** The doline's skylight: a soft golden spot high over the broken roof, falling only on the doline
+ *  under it (its cone and penumbra), casting real shadows there. */
+const SKY_FROM = new THREE.Vector3(1.5, 17, -12.5);
+const SKY_AT = new THREE.Vector3(1.0, 3.2, -16.0);
 
 function CaveLights() {
   const gl = useThree((s) => s.gl);
   const forge = useRef<THREE.PointLight>(null);
   const thermal = useRef<THREE.PointLight>(null);
   const cenote = useRef<THREE.PointLight>(null);
-  const sun = useRef<THREE.DirectionalLight>(null);
+  const sun = useRef<THREE.SpotLight>(null);
   const fill = useRef<THREE.DirectionalLight>(null);
   const target = useMemo(() => {
     const o = new THREE.Object3D();
-    o.position.copy(SUN_AT);
+    o.position.copy(SKY_AT);
     return o;
   }, []);
   const fillAt = useMemo(() => new THREE.Object3D(), []);
@@ -742,12 +740,8 @@ function CaveLights() {
     if (!l) return;
     l.target = target;
     const c = l.shadow.camera;
-    c.left = -25;
-    c.right = 25;
-    c.top = 25;
-    c.bottom = -25;
-    c.near = 1;
-    c.far = 80;
+    c.near = 4;
+    c.far = 30;
     c.updateProjectionMatrix();
     l.shadow.mapSize.set(2048, 2048);
     l.shadow.bias = -0.0001;
@@ -775,11 +769,11 @@ function CaveLights() {
   });
   return (
     <>
-      {/* (a deep slate-navy penumbra: the rock's faces away from every light sink into it) */}
-      <ambientLight color="#182030" intensity={0.28} />
-      <hemisphereLight args={["#3a4a68", "#1b1511", 0.28]} />
+      {/* (a deep cool navy penumbra: the rock's faces away from every light sink into it) */}
+      <ambientLight color="#161c26" intensity={0.28} />
+      <hemisphereLight args={["#161c26", "#0d0f13", 0.28]} />
       <primitive object={target} />
-      <directionalLight ref={sun} color="#ffe2b4" intensity={1.35} position={SUN_FROM.toArray()} castShadow />
+      <spotLight ref={sun} color="#ffd79c" intensity={2.6} distance={0} decay={0} angle={0.62} penumbra={0.75} position={SKY_FROM.toArray()} castShadow />
       <primitive object={fillAt} />
       <directionalLight ref={fill} color="#dde4f4" intensity={0.85} castShadow={false} />
       <pointLight ref={forge} color="#ff8a3a" distance={11} decay={1.4} position={CAVE_LIGHTS.forge as [number, number, number]} castShadow={false} />
