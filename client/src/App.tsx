@@ -85,6 +85,9 @@ import { ForgeModal } from "./components/hud/ForgeModal";
 import { GeodeModal } from "./components/hud/GeodeModal";
 import { FlintModal } from "./components/hud/FlintModal";
 import { ProspectingHud } from "./components/hud/ProspectingHud";
+import { SoakHud } from "./components/hud/SoakHud";
+import { CaveCodexHud } from "./components/hud/CaveCodexHud";
+import { CaveCodexModal } from "./components/hud/CaveCodexModal";
 import { prospectStore } from "./systems/prospectStore";
 import { CAVERNS_CHANNELS, ORE_ITEMS, type CaveLoot, type CaveProspect, type CavernsResult, type IngotId, type OreItemId } from "@shared/caverns_mining";
 import { useRingTakeover } from "./systems/boutStore";
@@ -263,6 +266,7 @@ export default function App() {
     worldEvent,
     incenseUntil,
     ores,
+    caveEvent,
     claimPioneer,
     connected,
     connectionIssue,
@@ -901,7 +905,8 @@ export default function App() {
             trees={trees}
             worldEvent={worldEvent}
             ores={ores}
-            onStrike={(node, dir) => cavernsSend(CAVERNS_CHANNELS.strike, { node, dir, seq: Date.now() })}
+            caveEvent={caveEvent}
+            onStrike={(node, dir, t) => cavernsSend(CAVERNS_CHANNELS.strike, { node, dir, seq: Date.now(), t })}
           />
         </IsometricCanvas>
 
@@ -971,6 +976,10 @@ export default function App() {
         {currentMap === "boxing_ring" && localPlayer && localSessionId && !mapTransitioning && <BoxingHud me={localPlayer} localSessionId={localSessionId} players={players} send={boxingSend} subscribeMessages={subscribeMessages} />}
         {/* the Glimmering Caverns: prospecting's one control (the rock is the rest) */}
         {currentMap === "glimmering_caverns" && !mapTransitioning && <ProspectingHud send={cavernsSend} />}
+        {/* ...and the warm pools' breathing, while you soak */}
+        {currentMap === "glimmering_caverns" && localPlayer && !mapTransitioning && <SoakHud player={localPlayer} send={cavernsSend} subscribeMessages={subscribeMessages} />}
+        {/* ...the Cave Codex's watch, the living wonder's pill, the photo */}
+        {currentMap === "glimmering_caverns" && localPlayer && !mapTransitioning && <CaveCodexHud player={localPlayer} caveEvent={caveEvent} send={cavernsSend} subscribeMessages={subscribeMessages} />}
         {/* the floating joystick, on every map, on a touch screen */}
         <TouchControls enabled={!mapTransitioning} />
 
@@ -1130,6 +1139,7 @@ export default function App() {
           />
         )}
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
+        {panel?.kind === "codex" && localPlayer && <CaveCodexModal found={angler.profile.codex} initial={panel.propId} onClose={closePanel} />}
         {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} campfireSend={campfireSend} onClose={closePanel} />}
         {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
         {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} market={market} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}

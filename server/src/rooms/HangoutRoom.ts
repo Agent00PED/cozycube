@@ -279,8 +279,8 @@ import { CASINO_EMOTES, auraPace, capsuleUnlock, netWorth, type BlackjackAction,
 import { CasinoFloor, RouletteSchema } from "./casino";
 import { BoutSchema, BoxingRing } from "./boxing";
 import { CavernsMine } from "./caverns";
-import { CAVERNS_CHANNELS, WARMTH_PACE, WARMTH_STAMINA, parseOres, type ForgePacket, type GeodePacket, type GusPacket, type OnsenPacket, type ProspectPacket, type SatchelPacket, type ShoreCastPacket, type StrikePacket } from "../../../shared/caverns_mining";
-import { FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, THERMAL_SEAT_IDS, orePropId, shoreCast } from "../../../shared/worlds/caverns";
+import { CAVERNS_CHANNELS, WARMTH_PACE, WARMTH_STAMINA, parseOres, type ForgePacket, type GeodePacket, type GusPacket, type OnsenPacket, type ProspectPacket, type SatchelPacket, type ShoreCastPacket, type StrikePacket, type CodexPacket } from "../../../shared/caverns_mining";
+import { FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, THERMAL_SEAT_IDS, orePropId, shoreCast, HEARTH_SEAT_IDS } from "../../../shared/worlds/caverns";
 import { CAVE_TACKLES, DRIP_ZONE, GLOW_LURE_GRACE_S, GLOW_LURE_HASTE, SPINNER_LUCK, SWIVEL_WINDOW_S, isCaveTackleId } from "../../../shared/caverns_fishing";
 import { satchelCountFor, satchelTakeFor } from "../../../shared/satchel";
 import { ORE_ITEMS, type OreItemId } from "../../../shared/caverns_mining";
@@ -431,6 +431,8 @@ class HangoutState extends Schema {
   /** The Glimmering Caverns' ore nodes (shared/caverns_mining.ts OreSyncState as JSON): each one's
    *  damage, whether it stands, how many are at it. */
   @type("string") ores = "";
+  /** The Glimmering Caverns' living wonder under way (shared/caverns_codex.ts CaveEvent as JSON; "" none). */
+  @type("string") caveEvent = "";
 }
 
 const CHAT_COOLDOWN_MS = 1200;
@@ -785,6 +787,9 @@ export class HangoutRoom extends Room<HangoutState> {
         const player = this.state.players.get(sessionId);
         if (player) this.daily(sessionId, player, task);
       },
+      syncCaveEvent: (json) => {
+        this.state.caveEvent = json;
+      },
       syncOres: (json) => {
         this.state.ores = json;
         // (a broken node's prop takes no click until it grows back)
@@ -1011,6 +1016,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage(CAVERNS_CHANNELS.satchel, (client, packet: SatchelPacket) => this.caverns.satchel(client.sessionId, packet));
     this.onMessage(CAVERNS_CHANNELS.recast, (client) => this.recastIntoDrip(client.sessionId));
     this.onMessage(CAVERNS_CHANNELS.cast, (client, packet: ShoreCastPacket) => this.castFromShore(client.sessionId, packet));
+    this.onMessage(CAVERNS_CHANNELS.codex, (client, packet: CodexPacket) => this.caverns.codex(client.sessionId, packet));
     // --- onsen ---
     this.onMessage("splash", (client) => this.handleSplash(client.sessionId));
     this.onMessage("make_wish", (client) => this.handleWish(client.sessionId));
@@ -1028,6 +1034,10 @@ export class HangoutRoom extends Room<HangoutState> {
     // ping is always answered.
     // (development only: bring on a living wonder now, to see it)
     if (process.env.NODE_ENV !== "production") {
+      // (and the caverns' own: a Cave Cloud, a Glimmer Bloom or a Rockfall now)
+      this.onMessage("devCaveEvent", (_client, kind: unknown) => {
+        if (kind === "cloud" || kind === "bloom" || kind === "rockfall") this.caverns.startEvent(kind);
+      });
       this.onMessage("devWorldEvent", (_client, kind: unknown) => {
         this.endWonder(false);
         // "auto": the room's own clock comes due now (the next wonder in turn, as in production);
@@ -3272,7 +3282,9 @@ export class HangoutRoom extends Room<HangoutState> {
     const chum = profile && buffOn(profile, "chum") ? CHUM_LUCK : 0;
     const glow = profile && buffOn(profile, "glowbait") && (!day || player.map === "glimmering_caverns") ? GLOWBAIT_LUCK : 0;
     const spinner = profile?.caveTackles.includes("silver_spinner") ? SPINNER_LUCK : 0;
-    return { rareLuck: aura + (rapids ? RAPIDS_LUCK : 0) + nightRareLuck(profile?.worn ?? [], !day) + incense + chum + glow + spinner, bait, time: day ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier };
+    // (a Cave Cloud rolling through the caverns: the cenote's rare fish bite more)
+    const cloud = player.map === "glimmering_caverns" ? this.caverns.cloudLuck() : 0;
+    return { rareLuck: aura + (rapids ? RAPIDS_LUCK : 0) + nightRareLuck(profile?.worn ?? [], !day) + incense + chum + glow + spinner + cloud, bait, time: day ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier };
   }
 
   private creelIsFull(sessionId: string): boolean {
@@ -4452,7 +4464,8 @@ export class HangoutRoom extends Room<HangoutState> {
     this.lastReportAt.delete(sessionId);
     // round the fire: with your own Marshmallow Roasting Stick, a marshmallow on it straight into
     // the flames as you sit down on a log bench (the Roast & Grill minigame is everyone's)
-    if (player.map === "campfire_night" && this.roastSeat(sessionId, chair) && player.action === "" && !player.holding && this.state.fuel > 0) this.handleRoast(sessionId);
+    // (and the overlook's hearth down in the caverns, a fire that never goes out)
+    if (this.roastSeat(sessionId, chair) && player.action === "" && !player.holding && (player.map !== "campfire_night" || this.state.fuel > 0)) this.handleRoast(sessionId);
   }
 
   private handleUseProp(sessionId: string, propId: string) {
@@ -4719,7 +4732,7 @@ export class HangoutRoom extends Room<HangoutState> {
   /** A seat you roast from as you sit: a log bench round the fire (everyone's marshmallow now). */
   private roastSeat(sessionId: string, chair: ChairState): boolean {
     void sessionId;
-    return chair.map === "campfire_night" && chair.style === "log";
+    return chair.style === "log" && (chair.map === "campfire_night" || (chair.map === "glimmering_caverns" && HEARTH_SEAT_IDS.has(chair.propId)));
   }
 
   private handleRoast(sessionId: string) {

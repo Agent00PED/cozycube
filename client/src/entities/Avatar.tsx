@@ -4,7 +4,11 @@ import { Billboard, Html, Text, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { ACTIVITY_STATUSES, DRINK_BASE_INFO, GESTURE_SECONDS, defaultLook, hashString, isActivityStatus, parseDrink, parseLook, parseSnack, type Gesture, type HeldItem, type Look, type PlayerAction, type RoastFood, type RoastQuality, type SitPose } from "@shared/types";
 import { AVATAR_HIP_Y, AVATAR_LIE_LIFT } from "@shared/seats";
+import { CAVE_TRAILS, cavernsFloorY } from "@shared/worlds/caverns";
+import { activityPose, chiselBeat, forgeBeat, type Activity } from "./activityAnimations";
+import { activity, nowS, remoteBlows } from "../systems/activityStore";
 import { matte, noRaycast } from "../scene/kit";
+import { xrayGate } from "../scene/occlusion";
 import { ModelBoundary } from "./ModelBoundary";
 import { CasinoAura } from "./CasinoAura";
 import { capsuleTitle } from "@shared/casino";
@@ -119,6 +123,12 @@ export interface AvatarProps {
   gloves?: string;
   /** Wearing the Velvet Championship Belt: its gold badge over the name. */
   champion?: boolean;
+  /** You (your own beats at work are played the moment they happen: systems/activityStore.ts). */
+  local?: boolean;
+  /** The world they are in (the Glimmering Caverns' rope descent is walked with a hand on the rope). */
+  map?: string;
+  /** How heavy their pickaxe swings (entities/activityAnimations.ts pickWeight). */
+  pickWeight?: number;
 }
 
 /** A capsule title's words, over the name (a special title, the Velvet Pioneer's, is drawn apart:
@@ -449,9 +459,16 @@ function useRig(): Rig {
 /** The x-ray silhouette: each part of you drawn again in a warm flat glow, only where something is
  *  in front of it (depth "greater"), just before you are (render order 1 against your 2, the world's
  *  0), so it never shows through your own parts; pulled a touch toward the camera so the ground
- *  under your feet never lights it. One opaque pass: no sorting. */
+ *  under your feet never lights it. One opaque pass: no sorting. Where the world keeps an occlusion
+ *  index (scene/occlusion.ts `xrayGate`: the caverns), it is drawn only while something actually
+ *  stands between you and the camera: a second draw of every part saved the rest of the time. */
 const XRAY_MAT = new THREE.MeshBasicMaterial({ color: "#ffe2b0", depthWrite: false, depthFunc: THREE.GreaterDepth, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -60, toneMapped: false });
 function useXray(root: THREE.Object3D, on: boolean) {
+  const ghosts = useRef<THREE.Mesh[]>([]);
+  useFrame(() => {
+    const show = xrayGate.index ? xrayGate.occluded : true;
+    for (const g of ghosts.current) if (g.visible !== show) g.visible = show;
+  });
   useEffect(() => {
     if (!on) return;
     const made: { mesh: THREE.Mesh; ghost: THREE.Mesh; order: number }[] = [];
@@ -469,7 +486,9 @@ function useXray(root: THREE.Object3D, on: boolean) {
       m.mesh.renderOrder = 2;
       m.mesh.add(m.ghost);
     }
+    ghosts.current = made.map((m) => m.ghost);
     return () => {
+      ghosts.current = [];
       for (const m of made) {
         m.mesh.remove(m.ghost);
         m.mesh.renderOrder = m.order;
@@ -505,9 +524,12 @@ interface RigProps {
   gloves: string;
   fight: FighterState | null;
   sessionId: string;
+  local: boolean;
+  map: string;
+  pickWeight: number;
 }
 
-function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, awaiting, snack, actionProgress, bobberAt, onHook, fed, rodAura, onCrownTop, gloves, fight, sessionId }: RigProps) {
+function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, awaiting, snack, actionProgress, bobberAt, onHook, fed, rodAura, onCrownTop, gloves, fight, sessionId, local, map, pickWeight }: RigProps) {
   const rig = useRig();
   useXray(rig.root, xray);
   const shirtGoal = useRef(new THREE.Color());
@@ -534,6 +556,8 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
   // the Velvet Ring: this frame's boxing pose, and the M2's shimmer round the rear glove (0..1)
   const boxPose = useMemo(() => emptyPose(), []);
   const smashAura = useRef(0);
+  // the caverns' work: which activity is on and since when (its way in); a fishing bite's start
+  const work = useRef({ kind: null as Activity | null, at: 0, bite: false, biteAt: -Infinity });
 
   // the skewer: the food's colour for how it was roasted, and the pieces of the right food
   useEffect(() => {
@@ -675,6 +699,13 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
     if (action === "fish" && castAge < CAST_SECONDS) armR = THREE.MathUtils.lerp(CAST_BACK_ARM, FISH_ARM, THREE.MathUtils.smoothstep(castAge / CAST_SECONDS, 0.25, 1));
     const bite = action === "fish" && actionProgress >= 1;
     if (bite) armR = FISH_ARM - 0.12 + Math.sin(t * 22) * 0.05;
+    // the bite's flinch: a start, the rod snatched up, then held tight
+    if (bite && !work.current.bite) work.current.biteAt = t;
+    work.current.bite = bite;
+    const flinch = bite ? Math.max(0, 1 - (t - work.current.biteAt) / 0.35) : 0;
+    if (flinch > 0) armR -= 0.35 * flinch;
+    // the cast with the whole body: wound back, then swung through and out
+    const casting = action === "fish" && castAge < CAST_SECONDS ? THREE.MathUtils.smoothstep(castAge / CAST_SECONDS, 0.15, 0.75) : -1;
     // the chopping block: raised overhead, then (the server's "chop" gesture) swung down through the log
     if (action === "chop") {
       armR = CHOP_RAISE_ARM + Math.sin(t * 3.1) * 0.05;
@@ -696,6 +727,11 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
       armR = THREE.MathUtils.lerp(THREE.MathUtils.lerp(MINE_READY_ARM - 0.4, MINE_HIT_ARM, down), MINE_READY_ARM, back);
       armL = armR + 0.35;
     }
+    // riding Gus's winch up: both hands up on the rope, a little sway with the cage
+    if (action === "winch") {
+      armR = -2.75 + Math.sin(t * 2.2) * 0.04;
+      armL = -2.6 + Math.sin(t * 2.2 + 0.6) * 0.04;
+    }
     // the telescope: hands up to the eyepiece, and a slow sway as the sky is searched
     if (action === "stargaze") armL = armR = STARGAZE_ARM + Math.sin(t * 0.7 + seed) * 0.03;
     if (action === "reel") {
@@ -703,6 +739,34 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
       armL = FISH_ARM - 0.1 + Math.sin(t * 9 + 1) * 0.12;
     }
     if (dizzy) armL = armR = -0.6;
+    if (action === "reel" && pose === "stand") legs = [-0.32, 0.18];
+    // the Glimmering Caverns' rope descent: a hand on the rope on the drop side, leaning back
+    let onRope = false;
+    let ropeLeft = false;
+    if (map === "glimmering_caverns" && walking && pose === "stand") {
+      const e = rig.root.matrixWorld.elements;
+      const rope = CAVE_TRAILS.find((p) => p.id === "ropeDescent");
+      if (rope) {
+        const [ax, az] = rope.points[0];
+        const [bx, bz] = rope.points[rope.points.length - 1];
+        const vx = bx - ax;
+        const vz = bz - az;
+        const len = Math.hypot(vx, vz);
+        const u = ((e[12] - ax) * vx + (e[14] - az) * vz) / (len * len);
+        const cx = ax + vx * Math.max(0, Math.min(1, u));
+        const cz = az + vz * Math.max(0, Math.min(1, u));
+        if (u > 0.05 && u < 0.95 && Math.hypot(e[12] - cx, e[14] - cz) < rope.half + 0.2) {
+          onRope = true;
+          // (the drop side: the lower ground across the trail)
+          const nx = -vz / len;
+          const nz = vx / len;
+          const side = cavernsFloorY(cx + nx * 1.4, cz + nz * 1.4) < cavernsFloorY(cx - nx * 1.4, cz - nz * 1.4) ? 1 : -1;
+          ropeLeft = (nx * side * e[0] + nz * side * e[2]) > 0;
+          if (ropeLeft) armL = -1.05 + swing * 0.1;
+          else armR = -1.05 - swing * 0.1;
+        }
+      }
+    }
     // --- the Velvet Ring: the whole pose from the ring's animation suite, on the combat clock ---
     let bp: typeof boxPose | null = null;
     if (boxing) {
@@ -733,6 +797,39 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
       const moving = v > 0.08;
       bp = boxerPose(boxPose, { t: combatNow() + seed, seed, speed: Math.min(1, v / 3), phase: fw.phase, fwd: moving ? fw.fwd / v : 1, side: moving ? fw.left / v : 0, state: fight, exhausted: !!me?.exhausted, move: anim.move, moveAge: anim.moveAge, react: anim.react, reactAge: anim.reactAge });
     } else footwork.current.ready = false;
+    // --- the Glimmering Caverns' work: the whole body from the activity suite (activityAnimations.ts) ---
+    const wk = work.current;
+    const kind: Activity | null = bp ? null : action === "soak" && pose !== "stand" ? "soak" : pose !== "stand" ? null : action === "winch" ? "winch" : !walking && (action === "mine" || action === "forge" || action === "chisel") ? action : null;
+    if (kind !== wk.kind) {
+      wk.kind = kind;
+      wk.at = t;
+    }
+    let forgeHalf: "bellows" | "hammer" = "bellows";
+    let geodeHalf: "aim" | "gauge" = "aim";
+    if (kind) {
+      const now = nowS();
+      const blow = local ? { at: activity.blowAt, deflect: activity.deflect } : remoteBlows.get(sessionId);
+      const fb = forgeBeat(now, seed);
+      const cb = chiselBeat(now, seed);
+      forgeHalf = local ? (activity.forge ?? "bellows") : fb.forge;
+      geodeHalf = local ? (activity.geode ?? "aim") : cb.geode;
+      bp = activityPose(boxPose, {
+        kind,
+        t,
+        age: t - wk.at,
+        seed,
+        blowAge: blow ? now - blow.at : Infinity,
+        deflect: !!blow?.deflect,
+        weight: pickWeight,
+        forge: forgeHalf,
+        pumping: local ? activity.pumping : fb.forge === "bellows",
+        pumpAge: local ? (activity.pumping ? now % 0.5 : now - activity.pumpAt) : fb.pumpAge,
+        hammerAge: local ? now - activity.hammerAt : fb.hammerAge,
+        geode: geodeHalf,
+        power: local ? activity.power : cb.power,
+        chiselAge: local ? now - activity.chiselAt : cb.chiselAge,
+      });
+    }
     smashAura.current = bp ? bp.aura : 0;
     if (g === "bag") {
       // a flurry on the gym's heavy bag, one hand then the other
@@ -797,8 +894,8 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
     part.armR.rotation.y = L(part.armR.rotation.y, bp ? bp.armR.y : 0, bp ? 0.8 : 0.3);
     const twoHanded = fishing && pose !== "lie";
     const rubbing = g === "belly";
-    part.armL.rotation.z = L(part.armL.rotation.z, bp ? -bp.armL.in : bagFlurry ? -0.3 : pose === "lie" ? 0.1 : guitarOn ? GUITAR_NECK_SPLAY : twoHanded ? -TWO_HAND_IN : rubbing ? -BELLY_IN : ARM_SPLAY, bp ? 0.8 : 0.3);
-    part.armR.rotation.z = L(part.armR.rotation.z, bp ? bp.armR.in : bagFlurry ? 0.3 : (pose === "lie" ? -0.1 : guitarOn ? -0.05 : twoHanded ? TWO_HAND_IN * 0.3 : rubbing ? BELLY_IN : -ARM_SPLAY) - wave, bp ? 0.8 : 0.3);
+    part.armL.rotation.z = L(part.armL.rotation.z, bp ? -bp.armL.in : bagFlurry ? -0.3 : pose === "lie" ? 0.1 : guitarOn ? GUITAR_NECK_SPLAY : twoHanded ? -TWO_HAND_IN : rubbing ? -BELLY_IN : onRope && ropeLeft ? 0.75 : ARM_SPLAY, bp ? 0.8 : 0.3);
+    part.armR.rotation.z = L(part.armR.rotation.z, bp ? bp.armR.in : bagFlurry ? 0.3 : (pose === "lie" ? -0.1 : guitarOn ? -0.05 : twoHanded ? TWO_HAND_IN * 0.3 : rubbing ? BELLY_IN : onRope && !ropeLeft ? -0.75 : -ARM_SPLAY) - wave, bp ? 0.8 : 0.3);
     part.legL.rotation.x = L(part.legL.rotation.x, bp ? bp.legL : legs[0], bp ? 0.6 : k);
     part.legR.rotation.x = L(part.legR.rotation.x, bp ? bp.legR : legs[1], bp ? 0.6 : k);
     // cross-legged: each thigh swung in across the other (the left is +x, so it turns to -x); in
@@ -816,7 +913,8 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
     body.position.y = L(body.position.y, rest.body.pos.y + (bp ? bp.lift : lying ? AVATAR_LIE_LIFT : bob), bp ? 0.6 : k);
     body.position.z = L(body.position.z, rest.body.pos.z + (bp ? bp.shift : 0), 0.6);
     const reeling = action === "reel" && !!bobberAt;
-    body.rotation.x = L(body.rotation.x, bp ? bp.lean + trem * 0.5 : lying ? LIE_ROLL : reeling ? REEL_LEAN + Math.sin(t * 9) * 0.05 + Math.sin(t * 23) * 0.02 : walking ? 0.06 * speed : dizzy ? Math.sin(t * 4.5) * 0.12 : g === "water" ? WATER_LEAN : reach * REACH_LEAN, bp ? 0.55 : reeling ? 0.3 : k);
+    const fishLean = casting >= 0 ? THREE.MathUtils.lerp(-0.12, 0.16, casting) : flinch > 0 ? -0.1 * flinch : 0;
+    body.rotation.x = L(body.rotation.x, bp ? bp.lean + trem * 0.5 : lying ? LIE_ROLL : reeling ? REEL_LEAN + Math.sin(t * 9) * 0.05 + Math.sin(t * 23) * 0.02 : onRope ? -0.1 : walking ? 0.06 * speed : dizzy ? Math.sin(t * 4.5) * 0.12 : g === "water" ? WATER_LEAN : fishLean || reach * REACH_LEAN, bp ? 0.55 : reeling ? 0.3 : casting >= 0 || flinch > 0 ? 0.35 : k);
     // the radio's groove: eased in while vibing on a cushion, riding on top of the pose
     const gr = groove.current;
     gr.amount = L(gr.amount, (vibe || guitarOn) && pose === "sit" && !asleep ? 1 : 0, 0.05);
@@ -829,7 +927,8 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
     part.root.position.y = rest.root.pos.y + (rock ? canoeBob(t) : 0);
     part.root.rotation.x = rock ? canoeRoll(t, struggling) : 0;
     part.root.rotation.z = rock ? canoePitch(t, struggling) : 0;
-    body.rotation.y = L(body.rotation.y, bp ? bp.twist : g === "dance" ? Math.sin(gAge * 3.5) * 0.6 : 0, bp ? 0.7 : 0.2);
+    const fishTwist = casting >= 0 ? THREE.MathUtils.lerp(-0.38, 0.14, casting) : reeling ? -0.12 + Math.sin(t * 4.5) * 0.06 : 0;
+    body.rotation.y = L(body.rotation.y, bp ? bp.twist : g === "dance" ? Math.sin(gAge * 3.5) * 0.6 : fishTwist, bp ? 0.7 : casting >= 0 ? 0.35 : 0.2);
 
     // --- the bear cap's ears: a floppy bob, one then the other, with each step; a twitch now and then idle ---
     bearEars.forEach((ear, i) => {
@@ -876,9 +975,9 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
         b.next = 2.5 + Math.random() * 3.5;
       }
     }
-    part.eyes.scale.y = rest.eyes.scale.y * (g === "nap" || asleep || pose === "lie" || bp?.eyesShut ? 0.1 : Math.max(0.1, open));
+    part.eyes.scale.y = rest.eyes.scale.y * (g === "nap" || asleep || pose === "lie" || (bp?.eyesShut && kind !== "soak") ? 0.1 : Math.max(0.1, open));
     // a sip of something warm (or a bite of something golden): the eyes close happily (^ ^)
-    const happy = (sipping || g === "belly" || (biting && parseSnack(snack)?.quality === "golden")) && !asleep; // (only while not lying)
+    const happy = (sipping || g === "belly" || (biting && parseSnack(snack)?.quality === "golden") || (kind === "soak" && !!bp?.eyesShut)) && !asleep; // (only while not lying)
     part.eyes.visible = !happy;
     part.eyesHappy.visible = happy;
 
@@ -889,7 +988,9 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
     part.mug.rotation.x = -part.armR.rotation.x;
     part.wateringCan.visible = g === "water";
     part.hatchet.visible = action === "chop" || g === "chop";
-    part.pickaxe.visible = action === "mine" || g === "mine";
+    part.pickaxe.visible = action === "mine" || (g === "mine" && action !== "forge");
+    part.smithHammer.visible = (kind === "forge" && forgeHalf === "hammer") || (kind === "chisel" && geodeHalf === "gauge");
+    part.chisel.visible = kind === "chisel" && geodeHalf === "gauge";
     part.net.visible = g === "net";
     part.fireflyJar.visible = holdingJar;
     // the Heart emote: the heart pops up in front of the chest, floats up spinning, then shrinks away
@@ -1348,7 +1449,7 @@ const RING_GEO = new THREE.RingGeometry(0.62, 0.7, 40);
 
 /** A player: the model, dressed and posed, with the nametag and the overhead overlays. */
 export const Avatar = memo(
-  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false, title = "", aura = "", xray = false, sessionId = "", gloves = "", champion = false }, ref) {
+  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false, title = "", aura = "", xray = false, sessionId = "", gloves = "", champion = false, local = false, map = "", pickWeight = 1 }, ref) {
     const outfit = useMemo(() => parseLook(look) ?? defaultLook(userId || username, color), [look, userId, username, color]);
     // every avatar breathes and glances round on its own clock, so a crowd never moves in unison
     const seed = useMemo(() => (hashString(userId || username) % 1000) / 100, [userId, username]);
@@ -1414,7 +1515,7 @@ export const Avatar = memo(
 
         <ModelBoundary what="avatar.glb" fallback={<StandIn />}>
           <Suspense fallback={<StandIn />}>
-            <AvatarModel xray={xray} look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} fed={fed} rodAura={rodAura} onCrownTop={setCrownTop} gloves={gloves} fight={fight} sessionId={sessionId} />
+            <AvatarModel xray={xray} look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} fed={fed} rodAura={rodAura} onCrownTop={setCrownTop} gloves={gloves} fight={fight} sessionId={sessionId} local={local} map={map} pickWeight={pickWeight} />
           </Suspense>
         </ModelBoundary>
 

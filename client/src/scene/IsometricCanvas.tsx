@@ -7,8 +7,9 @@ import { useShuttingDown } from "../systems/lifecycle";
 import { setScreenAxes, stickInput } from "../systems/input";
 import { combatInput } from "../systems/combatInput";
 import { actionCam, actionEase, actionPose, stepActionBlend } from "./actionCamera";
-import { prospectCam, prospectEase, prospectPose, stepProspectBlend } from "./prospectCamera";
+import { closeUpOn, prospectEase, prospectPose, stepProspectBlend } from "./prospectCamera";
 import { cavernCam, cavernEase, cavernPose, cavernZoomBy, stepCavernBlend } from "./cavernsCamera";
+import { perf } from "../systems/perfProfile";
 
 // The isometric camera. Orthographic, looking along (1, 1, 1), with its zoom fitted to the world's
 // floor (the lounge's 15x15 loft, walls and slab fill the viewport), then nudged a little closer.
@@ -82,8 +83,8 @@ const SCREEN_DOWN = new THREE.Vector2(Math.SQRT1_2, Math.SQRT1_2).multiplyScalar
 const frameLerp = (factor: number, delta: number) => 1 - Math.pow(1 - factor, delta * 60);
 
 // Discord's webview reports the device pixel ratio of a Retina laptop or a phone (2-3), and 3x is
-// 9x the fill of 1x. r3f treats a [min, max] dpr as a range it may adapt within.
-const DPR_RANGE: [number, number] = [1, Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio, 1.5)];
+// 9x the fill of 1x. r3f treats a [min, max] dpr as a range it may adapt within (systems/perfProfile.ts:
+// never past 1.5, and no multisampling on a phone's dense screen).
 
 export function IsometricCanvas({ children }: { children: React.ReactNode }) {
   const [glLost, setGlLost] = useState(false);
@@ -95,9 +96,9 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
         frameloop={down ? "never" : "always"}
         orthographic
         shadows={false}
-        dpr={DPR_RANGE}
+        dpr={perf.dpr}
         camera={{ position: [ISO_DIR.x, ISO_DIR.y, ISO_DIR.z], zoom: 30, near: 0.1, far: 200 }}
-        gl={{ antialias: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false }}
+        gl={{ antialias: perf.antialias, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false }}
         onCreated={(state) => {
           const { gl } = state;
           // dev builds only: expose the r3f state to the console for draw-call and camera checks
@@ -149,7 +150,7 @@ function CameraRig() {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      if (actionCam.want || prospectCam.node) return; // (the ring's action camera, a node's close-up: framed by themselves)
+      if (actionCam.want || closeUpOn()) return; // (the ring's action camera, a node's close-up: framed by themselves)
       if (cavernCam.on) return cavernZoomBy(Math.exp(e.deltaY * 0.0012)); // (the caverns: its own distance, 3.5 to 16 m)
       userZoom.current = clampZoom(userZoom.current * Math.exp(-e.deltaY * 0.0015));
     };
@@ -158,7 +159,7 @@ function CameraRig() {
     let dragging: { x: number; y: number } | null = null;
     const onPointerDown = (e: PointerEvent) => {
       // (in the ring the right button throws the M2, and the action camera frames the fight: no panning)
-      if ((e.button === 2 && combatInput.active) || actionCam.want || prospectCam.node || cavernCam.on) return;
+      if ((e.button === 2 && combatInput.active) || actionCam.want || closeUpOn() || cavernCam.on) return;
       if (e.button === 1 || e.button === 2) {
         e.preventDefault(); // no middle-click autoscroll
         dragging = { x: e.clientX, y: e.clientY };
@@ -192,10 +193,10 @@ function CameraRig() {
     const mid = (t: TouchList) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
     const onTouchStart = (e: TouchEvent) => {
       // (a thumb on the joystick and a finger elsewhere is not a pinch)
-      if (e.touches.length === 2 && !stickInput.held && !actionCam.want && !prospectCam.node) pinch = { dist: dist(e.touches), zoom: cavernCam.on ? cavernCam.want : userZoom.current, mid: mid(e.touches) };
+      if (e.touches.length === 2 && !stickInput.held && !actionCam.want && !closeUpOn()) pinch = { dist: dist(e.touches), zoom: cavernCam.on ? cavernCam.want : userZoom.current, mid: mid(e.touches) };
     };
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 2 || !pinch || actionCam.want || prospectCam.node) return;
+      if (e.touches.length !== 2 || !pinch || actionCam.want || closeUpOn()) return;
       e.preventDefault();
       if (cavernCam.on) {
         // (the caverns: fingers apart bring the camera closer, within its range; no panning)

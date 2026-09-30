@@ -8,7 +8,7 @@ import { auraPace } from "@shared/casino";
 import { findPath, type Point } from "@shared/pathfinding";
 import { cameraFocus } from "../scene/cameraFocus";
 import { consumeStandPress, worldMoveDirection } from "./input";
-import { faceHeading } from "./faceTargets";
+import { faceHeading, workHeading } from "./faceTargets";
 import { liveMotion } from "./liveMotion";
 import { Reconciler } from "./reconcile";
 import { WELL_FED_SPEED } from "@shared/fishing";
@@ -19,6 +19,7 @@ import { clampToRing } from "@shared/worlds/boxing_ring";
 import { FIGHTER_GAP } from "@shared/boxing";
 import { getBout } from "./boutStore";
 import { fighterSpot } from "./fightAnim";
+import { riderPose } from "../scene/winchRide";
 
 // The local player's locomotion. Three inputs, one controller:
 //   - click-to-move: the scene sets `targetRef` from a floor raycast, and the shared pathfinder
@@ -264,6 +265,8 @@ export function useLocalPlayerMovement(
     }
     const step = (dx: number, dz: number) => (ring ? ringStep(pos, dx, dz, foe) : slideStep(pos, dx, dz, mapId));
 
+    // (riding the winch: hands on the rope, nowhere to walk)
+    if (player.action === "winch") frozen = true;
     const steer = frozen ? null : worldMoveDirection();
 
     // Space, like steering, gets you up from a seat (a click does the same through the scene)
@@ -368,18 +371,28 @@ export function useLocalPlayerMovement(
       facingRef.current = turnToward(facingRef.current, Math.atan2(foe.x - pos.x, foe.z - pos.z), delta, LOCK_RATE);
     } else if (dirX === 0 && dirZ === 0) {
       // standing still with something to face (the plant being watered): turn to it
-      const heading = faceHeading(player.sessionId, pos.x, pos.z);
+      const heading = faceHeading(player.sessionId, pos.x, pos.z) ?? workHeading(mapId, player.action, pos.x, pos.z);
       if (heading !== null) facingRef.current = turnToward(facingRef.current, heading, delta, TURN_RATE);
     }
 
+    // riding Gus's winch up: drawn (and followed) along the climb, the ledge under it the server's
+    const ride = mapId === "glimmering_caverns" ? riderPose(player.sessionId, player.action) : null;
+    if (ride) {
+      targetRef.current = null;
+      seatYRef.current = ride.y;
+      facingRef.current = ride.facing;
+      speedRef.current = 0;
+    }
+    const drawX = ride ? ride.x : pos.x;
+    const drawZ = ride ? ride.z : pos.z;
     if (groupRef.current) {
-      groupRef.current.position.set(pos.x, seatYRef.current, pos.z);
+      groupRef.current.position.set(drawX, seatYRef.current, drawZ);
       groupRef.current.rotation.y = facingRef.current;
     }
 
     // hand the action dock the predicted position: what you SEE, not what the server last heard
-    cameraFocus.x = pos.x;
-    cameraFocus.z = pos.z;
+    cameraFocus.x = drawX;
+    cameraFocus.z = drawZ;
     cameraFocus.dirX = dirX;
     cameraFocus.dirZ = dirZ;
     cameraFocus.facing = facingRef.current;

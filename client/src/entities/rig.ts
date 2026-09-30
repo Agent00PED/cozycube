@@ -49,6 +49,11 @@ export const AVATAR_NODES = {
   hatchet: "Hatchet",
   /** A miner's pickaxe in the right hand, pivot at the hand: shown while prospecting in the Glimmering Caverns. */
   pickaxe: "Pickaxe",
+  /** A blacksmith's hammer in the right hand, pivot at the hand, its face below: the forge's hammer
+   *  and the geode anvil's mallet. */
+  smithHammer: "SmithHammer",
+  /** A cold chisel in the LEFT hand, pivot at the hand, its edge down and forward: at the geode anvil. */
+  chisel: "Chisel",
   /** A little firefly net in the right hand, pivot at the hand: shown for the swipe at the fireflies. */
   net: "Net",
   /** A glowing jar of fireflies in the LEFT hand, pivot at the hand: shown while holding one. */

@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.13",
+    range: "v0.7.0–v0.7.20",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1117,6 +1117,144 @@ export const PATCH_ERAS: PatchEra[] = [
             "Mist gathers the lower you go, and the cavern's open edges fade into the dark.",
             "Bats roost on the west wall and flutter over the mudflats. Dust drifts in the light under the collapse.",
             "You can hear the waterfall, the stream and the lake lapping as you come near them, bats squeaking over the mudflats, and crystals chiming more often down in the rift.",
+          ],
+        },
+      },
+      {
+        version: "0.7.14",
+        date: "2026-09-30",
+        title: "The Caverns, Reshaped",
+        summary: "The Glimmering Caverns lose their straight edges: every zone takes a natural shape, the deeper ores sit deeper in, Gus's winch now carries you up in its cage, and the lake, the jungle and the Great Wall are redrawn.",
+        changes: {
+          features: [
+            "🪢 Gus's winch now runs up only, from the Glimmer Rift back to the basecamp. Step into the cage and ride it up the cliff; the empty cage then goes back down for the next rider.",
+            "Depth is progress: walking in from the arrival reaches copper and coal first, then iron, silver, glimmerstone and the Titan Monolith, each further in than the last.",
+            "The Glimmer Rift is now a crevasse down the cavern's east side, entered by a ramp cut down the Hound's Overlook's east cliff. Its glimmerstone lies at its deep north end.",
+            "The stepping stones to the Monolith's islet now start from the east shore, past the rift.",
+            "The Pearl Terraces' three warm pools are now rimstone basins of different sizes, with seven seats round them.",
+          ],
+          visuals: [
+            "No more rectangles: every zone has a natural outline, the mudflats in lobes, the overlook with bays, and the open south and east edges fall away over a broken rim into the dark.",
+            "The lake is calm in the deep and under the skylight, with slow ripples, a foam line where it laps the shore and light glinting in the shallows.",
+            "The Doline Jungle is a little roomier, with buttressed trees, layered canopies, lianas, leaf litter and daylight glowing through the broken roof. The waterfall is streaked white and throws up spray at its foot.",
+            "The Great Wall's flowstone falls in sharp folds and rimstone ledges instead of a pale haze.",
+            "The Hound's Hand is carved as one tall column swelling into a knuckled paw.",
+            "The empty stretches are dressed with rubble, driftwood, reeds, shards and fungi.",
+            "Each ore reads at a glance, even on a phone: copper as bright native-copper chunks, coal as a black boulder heaped with glossy lumps, iron as dark banded rock striped red with metal plates, and silver as dark rock veined white with shining silver wire.",
+          ],
+          fixes: [
+            "On a phone or a tablet held upright, the caverns' camera now shows the ground around you instead of a narrow strip.",
+          ],
+        },
+      },
+      {
+        version: "0.7.15",
+        date: "2026-09-30",
+        title: "Every Stone in the Caverns",
+        summary: "The Glimmering Caverns get detail down to the stone: cracked limestone, moss, rust, rimstone and glinting basalt, crisp trodden trails, broken scree on the steep slopes, and walls standing in layered beds under a broken vault hung with stalactites.",
+        changes: {
+          visuals: [
+            "Every zone's ground has its own texture: cracked limestone plates in the Coal Breakdown, moss in patches in the Doline Jungle, tiny rimstone pools on the Pearl Terraces, ripples on the beach, and flecks glinting in the Glimmer Rift's basalt.",
+            "Every trail is a crisp trodden path from end to end, easy to follow even down into the dark of the rift.",
+            "Slopes too steep to walk are bare rock or broken scree, with no more smoky smears.",
+            "The cavern walls stand in layered beds, each ledge catching the light, under the vault's broken lip hung with stalactites.",
+            "The Great Wall behind the terraces is cream and amber flowstone again, not grey limestone.",
+            "Rust streaks down the mudflats' wall, and the ground by the water is dark and wet.",
+            "Rocks and walls are weathered, with paler edges and darker cracks.",
+            "The haze over the low ground is lighter, so the terraces and the lakeshore keep their colour.",
+          ],
+        },
+      },
+      {
+        version: "0.7.16",
+        date: "2026-09-30",
+        title: "Hard at Work Underground",
+        summary: "Every job in the Glimmering Caverns now moves the whole body: a real pickaxe swing, the bellows and the smith's hammer at the forge, the chisel at the anvil, a long soak in the springs. Chips, dust and sparks fly from every blow, and Gus, Finnegan and the capybara go about their own business.",
+        changes: {
+          visuals: [
+            "⛏️ Mining is a real swing: the pick held up by your shoulder, driven down onto the rock, held on it and swung back up. A heavier pickaxe swings bigger, and a pick that skids off jars your arms back.",
+            "🔥 At the forge you pump the bellows with your whole body, then take up the smith's hammer and tongs and bring the hammer down on every beat, with sparks flying.",
+            "💎 At the anvil you crouch over the geode, turn it in both hands, set the chisel and draw the mallet back as the power builds, then strike, and chips and dust fly.",
+            "♨️ In the warm pools you lean back with your arms spread along the rim and your eyes happily closed.",
+            "🪢 On Gus's winch you hold the rope with one hand and the cage with the other, and on the rope descent you keep a hand on the rope.",
+            "🎣 Fishing casts with the whole body, starts at the bite and braces for the reel, everywhere you fish.",
+            "Everyone at work turns to face their rock, the forge or the anvil, and everyone nearby sees the whole thing: your swing, your hammer, your chisel.",
+            "Every blow sends chips of rock and a puff of dust flying. Sparks streak, and everything lands on the cave floor instead of falling through it on high ground.",
+            "Gus writes up his ledger between customers, Finnegan casts his rod afresh now and then, and the capybara bobs in its bath and nods off.",
+          ],
+          fixes: [
+            "Your own swings, pumps and hammer blows now play the moment you tap, instead of waiting for the server.",
+          ],
+        },
+      },
+      {
+        version: "0.7.17",
+        date: "2026-09-30",
+        title: "The Caverns' Games, Remade",
+        summary: "Every mini-game in the Glimmering Caverns has been rebuilt to be clearer and more fun: Perfect strikes and streaks at the rock, the forge and the anvil played right there in the cave, a geode that splits open in your hands, a breathing rhythm in the springs, and a fish's shadow to watch while you wait.",
+        changes: {
+          features: [
+            "⛏️ Prospecting: a glowing ring marks the rock's weak spot, and a white ring closes onto it every second or so. Strike just as it closes for a PERFECT: 30% more damage. Perfects in a row build a streak (🔥 ×5 at most) that adds up to 40% to every haul. A crack meter shows how far the rock has gone.",
+            "🔥 The forge is played in the cave itself: the camera frames the forge and your avatar at the bellows, with a curved heat gauge and a big bellows button. Then strike the glowing ingot as each ring closes on it. Every batch is graded Plain, Fine or Masterwork, and a Fine batch gives its coal back.",
+            "💎 The geode anvil is played in the cave too. The seam glows from ice blue to gold, the stage warms and a crystal ping rises as you turn the seam toward you. The mallet's power swings round the geode, and the geode shakes, splits and falls open, with the gem bursting out on rays in its rarity's colour.",
+            "⚡ Quick crack: once you've cleaved a geode by hand, crack the rest with one blow and no game. It's always a rough cleave and never turns to dust.",
+            "♨️ In the warm pools, breathe with the slow ring: tap as it's fullest for a deep breath. Each one adds a minute of Deep Warmth, up to 10 a soak. It's entirely optional.",
+            "🦫 The capybara dozes when it has the pools to itself, wakes to watch whoever gets in, perks up at your deep breaths, shakes off a splash and has a word when you click it.",
+            "🎣 While you wait at the cenote, a fish's shadow circles under your float, drawing closer and quicker as the nibbles start, then darting in on the bite.",
+            "🌟 Every result is graded in stars, and what you win flies straight into your 🎒 satchel. New players get a one-line tip for each game until they've played it well.",
+          ],
+          fixes: [
+            "On a touch screen the bite's ❗ mark is now thumb-sized, and a thumb that slides off the reel button keeps reeling.",
+          ],
+        },
+      },
+      {
+        version: "0.7.18",
+        date: "2026-09-30",
+        title: "Echoes and Moonlight",
+        summary: "The Glimmering Caverns now sound and glow like a real cave: every zone has its own echo, your footsteps change with the ground, and a little music drifts by now and then. The Doline Jungle's sun follows the camp's day, with moonlight and stars after dusk, and a warm glow keeps you company in the dark places.",
+        changes: {
+          features: [
+            "🔊 Every zone answers in its own voice: the jungle, open to the sky, is short and dry; the halls of the breakdown and the mudflats ring; the overlook and the lake echo long; the Glimmer Rift echoes deepest of all.",
+            "👣 Your footsteps change with the ground: stone, crunching gravel, squelching mud, soft sand, clacking travertine, crackling leaf litter, and a splash when you wade through the fords and shallows.",
+            "🎵 Now and then a few quiet kalimba notes drift through the cave over a soft drone, in each zone's own register: glassy and high in the rift, slow and low by the lake.",
+            "🎚️ New faders in Settings while you're in the caverns: Cavern Air & Footsteps, Water, Crystal Resonance, Thermal Steam and Cave Music.",
+            "🌙 The sun through the jungle's collapsed roof keeps the camp's day: golden by day, then a silver moon and a starry sky through the broken rim by night, with the jungle cooler and darker.",
+            "🏮 A warm glow keeps you company in the cave's dark places: the Glimmer Rift, the mudflats, the overlook and the lake's shore.",
+            "☀️ Softer godrays that breathe slowly and turn a pale moonlit blue at night.",
+          ],
+          fixes: [
+            "The jungle's sun shadows are now redrawn only when they change instead of every frame, so the caverns run lighter everywhere.",
+          ],
+        },
+      },
+      {
+        version: "0.7.19",
+        date: "2026-09-30",
+        title: "A Living Cave",
+        summary: "The Glimmering Caverns come alive: a campfire on the Hound's Overlook, living wonders rolling through (a Cave Cloud, a Glimmer Bloom, a Rockfall), the Bat Exodus at every dusk, and the Cave Codex, a field journal of zone stamps, cave fauna, pearls, fossils and Old Flint's lost pages.",
+        changes: {
+          features: [
+            "🔥 A campfire on the Hound's Overlook: a ring of river stones and four log benches beneath the great stalagmite. Sit on a bench for a marshmallow on a stick. The fire never goes out.",
+            "📸 Stand on the brass paw plaque for a photo with the Hound's Hand: the camera frames you with the Hand behind you, then the flash goes off.",
+            "☁️ Living wonders roll through the caverns every so often. A Cave Cloud fills the cavern with mist while rare fish bite at the cenote. A Glimmer Bloom lights up the rift, and its glimmer yields more and grows back fast. A Rockfall crashes a heap of fresh ore into the Coal Breakdown for a crew to break together.",
+            "🦇 Every dusk on the camp's clock, the Bat Exodus: a river of bats pours out of the mudflats' wall and up through the jungle's collapsed roof.",
+            "📖 The Cave Codex, the expedition's field journal: stamp all eight zones, meet the cave's creatures, pick up the five cave pearls, find fossils in the rubble of broken nodes, collect Old Flint's six torn journal pages, and witness the wonders. Every entry pays coins, and every completed section pays a bonus. Open it from your ore satchel.",
+          ],
+        },
+      },
+      {
+        version: "0.7.20",
+        date: "2026-09-30",
+        title: "Lighter on Every Screen",
+        summary: "CozyCube runs lighter everywhere: every avatar is about half the weight with the same look, the caverns draw your see-through silhouette only when something actually hides you, and phones and tablets get a render profile of their own.",
+        changes: {
+          visuals: [
+            "🧸 Every avatar, outfit, hat and hairdo is slimmed to about half its triangles with the same look, and the avatar is less than half the download. Every map benefits.",
+            "✨ In the Glimmering Caverns your glowing see-through silhouette appears only while rock actually stands between you and the camera, so the cave draws less the rest of the time.",
+          ],
+          fixes: [
+            "📱 Phones and tablets get their own render profile: no extra edge smoothing on their already sharp screens, no real-time shadows in the Doline Jungle (its shade is painted in), and fewer little crystal lights in the caverns. Smoother frames and cooler phones.",
           ],
         },
       },

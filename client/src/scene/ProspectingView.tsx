@@ -2,16 +2,22 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { ORE_NODE_AT } from "@shared/worlds/caverns";
-import { ORE_KINDS, PICKAXES, STRIKE_DEBOUNCE_S, oreCenterY, strikeRadii, type OreKind } from "@shared/caverns_mining";
+import { ORE_KINDS, PERFECT_WINDOW_S, PICKAXES, PULSE_S, STRIKE_DEBOUNCE_S, oreCenterY, pulsePhase, strikeRadii, type OreKind } from "@shared/caverns_mining";
 import { useProspect } from "../systems/prospectStore";
 import { prospectCam } from "./prospectCamera";
 import { noRaycast } from "./kit";
 import { setCaveHum } from "../audio/cavernAmbience";
 import { NODE_YAW } from "./caveNodes";
+import { noteBlow } from "../systems/activityStore";
 
-// Prospecting, in the scene (tactile, zero UI): while you are at a node (systems/prospectStore.ts),
-// the camera frames its rock close up (prospectCamera.ts) and:
+// Prospecting, in the scene: while you are at a node (systems/prospectStore.ts), the camera frames its
+// rock close up (prospectCamera.ts) and:
 //
+//   the ring     the weak spot marked on the rock: its sweet ring (how near a strike must land to be
+//                direct, for this pickaxe) glowing in the ore's colour, and a second ring tightening
+//                onto it once every PULSE_S from the moment the close-up opened, flashing white as it
+//                closes: a direct strike then is a Perfect (the server judges it by the same clock:
+//                shared/caverns_mining.ts onPulse), harder, and a run of them raises every haul
 //   the proxy    an invisible convex hull round the rock (its bounds and 5% more) takes the pointer:
 //                a tap or a click is a strike there (onPointerDown, a quarter second's debounce so a
 //                phone's or an iPad's double tap is one strike), sent as its direction from the
@@ -25,6 +31,9 @@ import { NODE_YAW } from "./caveNodes";
 type Templates = Partial<Record<OreKind | "rubble", { rock: THREE.Mesh; glow: THREE.Mesh | null }>>;
 
 const PROXY_GEO = new THREE.IcosahedronGeometry(1, 2);
+const RING_GEO = new THREE.RingGeometry(0.84, 1, 56);
+/** How wide the tightening ring opens (times the sweet ring). */
+const RING_OPEN = 2.3;
 const PROXY_MAT = new THREE.MeshBasicMaterial({ visible: false });
 const GLINT_GEO = new THREE.OctahedronGeometry(1, 0);
 const DUST_GEO = new THREE.SphereGeometry(1, 5, 4);
@@ -59,7 +68,7 @@ function fissureGeometry(seed: number): THREE.BufferGeometry {
   return g;
 }
 
-export function ProspectingView({ templates, onStrike }: { templates: Templates; onStrike: (node: string, dir: [number, number, number]) => void }) {
+export function ProspectingView({ templates, onStrike }: { templates: Templates; onStrike: (node: string, dir: [number, number, number], t: number) => void }) {
   const pr = useProspect();
   const node = pr ? ORE_NODE_AT.get(pr.node) : undefined;
   // the camera frames the node while it is open
@@ -112,14 +121,24 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
   const fissureMat = useMemo(() => new THREE.MeshBasicMaterial({ color: glowColor, toneMapped: false, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), [glowColor]);
   const glintMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#fffbe6", toneMapped: false, transparent: true, depthWrite: false }), []);
   const dustMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#d9d2c3", transparent: true, depthWrite: false }), []);
+  // the rings: drawn over the rock whatever its facets do (they are the target)
+  const ringMat = useMemo(() => new THREE.MeshBasicMaterial({ color: glowColor, toneMapped: false, transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide }), [glowColor]);
+  const pulseMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#fff4d6", toneMapped: false, transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide }), []);
   useEffect(
     () => () => {
       fissureMat.dispose();
       glintMat.dispose();
       dustMat.dispose();
+      ringMat.dispose();
+      pulseMat.dispose();
     },
-    [fissureMat, glintMat, dustMat]
+    [fissureMat, glintMat, dustMat, ringMat, pulseMat]
   );
+  const ringRef = useRef<THREE.Mesh>(null);
+  const pulseRef = useRef<THREE.Mesh>(null);
+  const sweet = node && pr ? strikeRadii(node.kind, pr.pick, false).sweet : 0.1;
+  const ringColor = useMemo(() => new THREE.Color(glowColor), [glowColor]);
+  const white = useMemo(() => new THREE.Color("#ffffff"), []);
 
   const fissureRef = useRef<THREE.Mesh>(null);
   const glints = useRef<(THREE.Mesh | null)[]>([]);
@@ -137,13 +156,38 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
   const m = useMemo(() => new THREE.Matrix4(), []);
   const basis = useMemo(() => ({ q: new THREE.Quaternion(), u: new THREE.Vector3(), v: new THREE.Vector3() }), []);
 
-  useFrame(({ clock }) => {
+  const face = useMemo(() => ({ q: new THREE.Quaternion(), n: new THREE.Vector3(), cam: new THREE.Vector3() }), []);
+  useFrame(({ clock, camera }) => {
     if (!spot) return;
     const t = clock.elapsedTime;
+    // (the rings turned partway to the camera: on the rock's side they would be seen edge on)
+    camera.getWorldDirection(face.cam).negate();
+    face.n.copy(spot.normal).lerp(face.cam, 0.6).normalize();
+    face.q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), face.n);
     // the tangent plane at the spot
     basis.q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), spot.normal);
     basis.u.set(1, 0, 0).applyQuaternion(basis.q);
     basis.v.set(0, 1, 0).applyQuaternion(basis.q);
+    // the rings: the sweet ring on the spot, and the pulse tightening onto it (a flash as it closes)
+    const since = pr ? (performance.now() - pr.openedAt) / 1000 : 0;
+    const phase = pulsePhase(since);
+    const k = Math.round(since / PULSE_S);
+    const closing = k >= 1 && Math.abs(since - k * PULSE_S) <= PERFECT_WINDOW_S;
+    const ring = ringRef.current;
+    if (ring) {
+      ring.position.copy(spot.at).addScaledVector(spot.normal, 0.02);
+      ring.quaternion.copy(face.q);
+      ring.scale.setScalar(sweet * (closing ? 1.12 : 1));
+      ringMat.color.copy(ringColor).lerp(white, closing ? 0.75 : 0.15);
+      ringMat.opacity = closing ? 1 : 0.75 + 0.1 * Math.sin(t * 5);
+    }
+    const pulse = pulseRef.current;
+    if (pulse) {
+      pulse.position.copy(spot.at).addScaledVector(spot.normal, 0.021);
+      pulse.quaternion.copy(face.q);
+      pulse.scale.setScalar(sweet * (1 + (RING_OPEN - 1) * (1 - phase)));
+      pulseMat.opacity = closing ? 0 : 0.2 + 0.7 * phase;
+    }
     const f = fissureRef.current;
     if (f) {
       f.position.copy(spot.at).addScaledVector(spot.normal, 0.012);
@@ -180,7 +224,8 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
     if (now - lastTap.current < STRIKE_DEBOUNCE_S * 1000) return;
     lastTap.current = now;
     const d = e.point.clone().sub(shape.centre).normalize();
-    onStrike(pr.node, [Math.round(d.x * 1000) / 1000, Math.round(d.y * 1000) / 1000, Math.round(d.z * 1000) / 1000]);
+    noteBlow();
+    onStrike(pr.node, [Math.round(d.x * 1000) / 1000, Math.round(d.y * 1000) / 1000, Math.round(d.z * 1000) / 1000], Math.round(now - pr.openedAt));
   };
   // the Reinforced Pickaxe (and up) hums as the pointer nears the weak spot
   const hum = (e: ThreeEvent<PointerEvent>) => {
@@ -196,6 +241,8 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
     <group>
       <mesh geometry={PROXY_GEO} material={PROXY_MAT} position={shape.proxyAt} rotation={[0, shape.yaw, 0]} scale={shape.size} onPointerDown={strike} onPointerMove={hum} onPointerOut={() => setCaveHum(0)} />
       <mesh ref={fissureRef} geometry={fissure} material={fissureMat} raycast={noRaycast} renderOrder={2} />
+      <mesh ref={ringRef} geometry={RING_GEO} material={ringMat} raycast={noRaycast} renderOrder={5} />
+      <mesh ref={pulseRef} geometry={RING_GEO} material={pulseMat} raycast={noRaycast} renderOrder={5} />
       {glintSeeds.map((_, i) => (
         <mesh key={i} ref={(el) => (glints.current[i] = el)} geometry={GLINT_GEO} material={glintMat} raycast={noRaycast} renderOrder={3} />
       ))}

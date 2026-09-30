@@ -3,6 +3,8 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { CAVE_LAKE, CAVE_WATER_Y, DOLINE_BEAMS, cavernsFloorY, cavernsWalkable, lakeFactor } from "@shared/worlds/caverns";
 import { noRaycast } from "./kit";
+import { DAY_CYCLE_MS, dayPhase } from "@shared/daynight";
+import { EXODUS_S } from "@shared/caverns_codex";
 
 // The Glimmering Caverns' little lives, client-only and instanced from caverns.glb's templates (one
 // draw call a kind, like the woods' songbirds):
@@ -11,6 +13,9 @@ import { noRaycast } from "./kit";
 //                 above the waterline: a skitter sideways, a pause, back the other way
 //   the swifts    swiftlets circling in the doline's sunbeams, wings beating in bursts between glides
 //                 (the flap in the vertex shader, each bird its own phase)
+//   the bats      a few looping over the mudflats; and at the camp's dusk the Bat Exodus: a river of
+//                 bats pouring out of the mudflats' west wall, up past the jungle and out through the
+//                 collapse, over EXODUS_S (the same moment on every client: the wall clock's day)
 
 const CRABS = 9;
 const SWIFTS = 10;
@@ -74,6 +79,25 @@ function crabAlong(run: CrabRun, t: number): { u: number; moving: boolean } {
 /** The mudflats' bats: out from their roost on the west wall, fluttering in loose loops over the mud
  *  (each its own loop, its own beat). */
 const BATS = 6;
+/** The Bat Exodus: how many pour out, and each one's flight (s) from the wall out through the roof. */
+const EXODUS_BATS = 56;
+const EXODUS_FLIGHT_S = 9;
+/** Their way out: off the mudflats' west wall, north under the jungle's cliff, up through the collapse. */
+const EXODUS_PATH = [new THREE.Vector3(-21.2, 5.6, -5.5), new THREE.Vector3(-19.8, 8.8, -11.5), new THREE.Vector3(-16.8, 11.5, -16.5), new THREE.Vector3(-17.8, 20.5, -22.0)];
+/** Seconds into the camp's dusk (the Exodus's clock), or -1 outside it. */
+export function exodusClock(now = Date.now()): number {
+  const t = ((dayPhase(now) - 0.5) * DAY_CYCLE_MS) / 1000;
+  return t >= 0 && t <= EXODUS_S + EXODUS_FLIGHT_S ? t : -1;
+}
+function bezier(u: number, out: THREE.Vector3) {
+  const [a, b, c, d] = EXODUS_PATH;
+  const v = 1 - u;
+  return out.set(
+    v * v * v * a.x + 3 * v * v * u * b.x + 3 * v * u * u * c.x + u * u * u * d.x,
+    v * v * v * a.y + 3 * v * v * u * b.y + 3 * v * u * u * c.y + u * u * u * d.y,
+    v * v * v * a.z + 3 * v * v * u * b.z + 3 * v * u * u * c.z + u * u * u * d.z
+  );
+}
 const BAT_ROOSTS = [
   [-18.0, -7.0],
   [-19.0, -2.0],
@@ -147,8 +171,8 @@ export function CaveFauna({ crab, swift, bat }: { crab: THREE.Mesh | null; swift
     };
     mat.customProgramCacheKey = () => "cave-bat";
     const geo = bat.geometry.clone();
-    geo.setAttribute("aPhase", new THREE.InstancedBufferAttribute(new Float32Array(Array.from({ length: BATS }, (_, i) => i * 1.13)), 1));
-    const im = new THREE.InstancedMesh(geo, mat, BATS);
+    geo.setAttribute("aPhase", new THREE.InstancedBufferAttribute(new Float32Array(Array.from({ length: BATS + EXODUS_BATS }, (_, i) => i * 1.13)), 1));
+    const im = new THREE.InstancedMesh(geo, mat, BATS + EXODUS_BATS);
     im.raycast = noRaycast;
     im.frustumCulled = false;
     return { im, time };
@@ -222,6 +246,33 @@ export function CaveFauna({ crab, swift, bat }: { crab: THREE.Mesh | null; swift
         dummy.position.copy(here);
         dummy.rotation.set(0.25 * Math.sin(t * 3 + i), Math.atan2(ahead.x - here.x, ahead.z - here.z), 0.35 * Math.sin(t * 2.3 + i), "YXZ");
         dummy.scale.setScalar(1.25);
+        dummy.updateMatrix();
+        bats.im.setMatrixAt(i, dummy.matrix);
+      }
+      // the Bat Exodus: each bat off the wall in its turn, along the way out, a wobble of its own
+      const ex = exodusClock();
+      for (let j = 0; j < EXODUS_BATS; j++) {
+        const i = BATS + j;
+        const start = (j / EXODUS_BATS) * (EXODUS_S - 4) + ((j * 0.61) % 1) * 1.5;
+        const u = ex < 0 ? -1 : (ex - start) / EXODUS_FLIGHT_S;
+        if (u < 0 || u > 1) {
+          dummy.scale.setScalar(0);
+          dummy.updateMatrix();
+          bats.im.setMatrixAt(i, dummy.matrix);
+          continue;
+        }
+        const side = ((j * 0.37) % 1) - 0.5;
+        const lift = ((j * 0.71) % 1) - 0.5;
+        bezier(u, here);
+        bezier(Math.min(1, u + 0.02), ahead);
+        here.x += side * 2.2 + 0.35 * Math.sin(t * 3 + j);
+        here.y += lift * 1.4 + 0.25 * Math.sin(t * 4.1 + j * 1.3);
+        here.z += side * 1.2;
+        ahead.x += side * 2.2;
+        ahead.z += side * 1.2;
+        dummy.position.copy(here);
+        dummy.rotation.set(-0.35, Math.atan2(ahead.x - here.x, ahead.z - here.z), 0.3 * Math.sin(t * 2.7 + j), "YXZ");
+        dummy.scale.setScalar(1.5 * Math.min(1, u * 8, (1 - u) * 5));
         dummy.updateMatrix();
         bats.im.setMatrixAt(i, dummy.matrix);
       }

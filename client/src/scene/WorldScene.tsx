@@ -78,8 +78,10 @@ export interface WorldSceneProps {
   worldEvent: string;
   /** The Glimmering Caverns' ore nodes (shared/caverns_mining.ts OreSyncState as JSON). */
   ores: string;
+  /** The caverns' living wonder under way (shared/caverns_codex.ts CaveEvent as JSON; "" none). */
+  caveEvent: string;
   /** A strike on the node being prospected, where the pickaxe landed (the rock's local direction). */
-  onStrike: (node: string, dir: [number, number, number]) => void;
+  onStrike: (node: string, dir: [number, number, number], t: number) => void;
 }
 
 /** An emote's bubble floats over its sender this long (it pops in, bobs, and fades). */
@@ -223,7 +225,7 @@ function useCrowdEvents(subscribeEmotes: WorldSceneProps["subscribeEmotes"], sub
   return { emotes, gestures, bubbles };
 }
 
-export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth, trees, worldEvent, ores, onStrike }: WorldSceneProps) {
+export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth, trees, worldEvent, ores, caveEvent, onStrike }: WorldSceneProps) {
   const me = localSessionId ? players[localSessionId] : undefined;
   const { emotes, gestures, bubbles } = useCrowdEvents(subscribeEmotes, subscribeMessages);
   // a node's close-up in the caverns: the rock's own proxy takes the pointer (the nodes' pads step aside)
@@ -588,7 +590,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       ) : casino ? (
         <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} up={up} />
       ) : mapId === "glimmering_caverns" ? (
-        <CavernsWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} ores={ores} subscribeMessages={subscribeMessages} onStrike={onStrike} />
+        <CavernsWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} ores={ores} caveEvent={caveEvent} subscribeMessages={subscribeMessages} onStrike={onStrike} />
       ) : mapId === "boxing_ring" ? (
         <BoxingWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} localSessionId={localSessionId} />
       ) : (

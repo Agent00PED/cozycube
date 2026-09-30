@@ -18,7 +18,7 @@ checks in `npm run check-layout`.
 
 Decisions (2026-09-30): rebuild the map's content but keep the game's systems, NPCs and pipeline; a
 lake plus a decorative river (fishing stays at the lake); an open cave (the pickaxe tier only limits
-what you can mine); Gus's winch lift from the rift back up to the basecamp.
+what you can mine); Gus's winch lift from the rift back up to the basecamp (up only).
 
 ## Rules the camera sets
 
@@ -53,15 +53,16 @@ The map stays 45 x 45 m; the ground runs from the lake's water (0 m) up to the j
 A waterfall drops through the jungle's broken roof into a plunge pool. The stream runs south across
 the mudflats (a ford in each of the jungle and the mudflats), spills into the terraces' top pool,
 flows down through the three pools, crosses the pearl trail at a ford and falls over the last step
-into the lake. The lake drains east over the rim into a dark sump (a ford where the loop crosses it).
+into the lake. The lake drains east over the rim into the dark (a ford where the loop crosses it).
 The open east edge reads as the river leaving into the dark. Only the lake is fished.
 
 ## Ore nodes
 
 Each ore gets its own silhouette and a host rock from its zone, readable at the default zoom:
-copper a green crust with orange nuggets, coal glossy black bands, iron rust-red lumpy ore with a
-metal sheen, silver threads in white calcite, glimmer a large crystal cluster; the Monolith obelisk
-stays as it is. One shared "ready to mine" sparkle replaces the flat glowing triangles.
+copper a green crust with orange nuggets, coal a black boulder of glossy lumps, iron dark banded iron
+with red jasper stripes and metal plates, silver dark argentite with white calcite and shining wire,
+glimmer a large crystal cluster; the Monolith obelisk stays as it is. Every ore is darker or brighter
+than its zone's ground (the polish pass's rule), so it reads on a phone. One shared "ready to mine" sparkle replaces the flat glowing triangles.
 
 Counts: copper 5, coal 5, iron 6, silver 5, glimmer 4, Monolith 1, in veins of 2-3 so a crew can mine
 together.
@@ -69,19 +70,87 @@ together.
 ## Grinding flow
 
 - **The loop**: basecamp, jungle, the rope descent, mudflats, pearl trail, the lake's south shore,
-  the rift, the winch back up to the basecamp.
+  the east shore, the rift from its south mouth to its deep end, the winch back up to the basecamp.
 - **The shortcuts**: the switchback from the basecamp down to the overlook, the ramps on to the lake
-  (Finnegan) and to the rift; the winch both ways.
+  (Finnegan) and down the overlook's east cliff into the rift; the winch **up only** (the way back from
+  the deepest zone; a 3 s ride, the cage then going back down empty).
+- **Depth is progress**: walking from the arrival reaches the tiers in order, and `npm run
+  check-layout` fails if a deeper tier's nearest node is no further than the one before's. The
+  Monolith's islet is reached by its stepping stones from the east shore, past the rift.
 - **Walking times** at the game's 3 m/s, from the arrival, checked by `npm run check-layout`:
 
 | To | Target | Now |
 |---|---|---|
 | nearest copper | 5 s | 4.0 s |
 | nearest coal | 5 s | 4.0 s |
-| nearest iron | 8 s | 6.8 s |
-| nearest silver | 12 s | 10.9 s |
-| nearest glimmer | 15 s | 8.9 s |
-| the whole loop, winch included | 60 s | 41.9 s |
+| nearest iron | 8 s | 6.9 s |
+| nearest silver | 12 s | 10.0 s |
+| nearest glimmer | 15 s | 12.1 s |
+| the Monolith | 20 s | 15.3 s |
+| the whole loop, winch included | 60 s | 44.0 s |
+
+## Surface detail
+
+Everything natural carries detail below the floor's 0.5 m grid (client/src/scene/caveSurface.ts,
+docs/caverns-roadmap.md phase 2), each zone its own mix: the breakdown's limestone cracked into
+plates, the basecamp's trodden dirt barely, the jungle's moss in patches, the mudflats' walls
+streaked with rust, the terraces' tiny rimstone pools, the beach's ripples, the rift's basalt
+glinting, strata up every cliff. Every bank too steep to walk is bare rock or broken scree; every
+trail a trodden way drawn from its own line. The walls stand in beds a metre thick under the vault's
+broken lip, stalactites hanging from it; the Great Wall is cream and amber flowstone.
+
+## At work
+
+Every job down here moves the whole body (client/src/entities/activityAnimations.ts,
+docs/caverns-roadmap.md phase 3): the pickaxe swung from the shoulder onto the rock, the bellows
+pumped and the smith's hammer brought down at the forge, the geode turned and the chisel struck at
+the anvil, a long lean back in the warm pools, a hand on the winch's rope and on the rope descent's.
+Everyone sees everyone at it (the `forge` and `chisel` actions, the room's strikes), each worker turned
+to their work, and every blow throws chips, dust and sparks that land on the cave floor. Gus writes up
+his ledger, Finnegan casts afresh, the capybara bobs and dozes in its bath.
+
+## The games
+
+Each game is played where it happens (docs/caverns-roadmap.md phase 4), clear at a glance and never
+a flat pass or fail. At the rock, a white ring closes onto the glowing weak spot in a steady pulse: a
+strike as it closes is a Perfect, and Perfects in a row raise every haul. At the forge and the anvil,
+the camera frames the work and a sheet at the foot of the screen holds the controls: the heat on a
+curved gauge, then rings closing onto the glowing ingot; the geode warmer and colder as its seam comes
+round, the mallet's swing arcing over it, and the reveal splitting it open on its crystal heart. In
+the warm pools a slow breathing ring rewards a tap at its fullest with more of the Deep Warmth, and the
+capybara wakes to watch whoever joins it. At the cenote a fish's shadow circles the float while you
+wait. Every result is graded in stars, what you win flies into the 🎒 satchel, each game shows a
+first-time tip until it has been played well, and a quick mode opens once you know the game.
+
+## Sound and light
+
+Each zone answers in its own voice (docs/caverns-roadmap.md phase 5): the jungle open to the sky short
+and dry, the halls of the breakdown and the mudflats, the long overlook and lake, the rift deepest of
+all; your steps change with the ground (stone, gravel, mud, sand, travertine, leaf litter, a splash
+through a ford), and now and then a few quiet kalimba notes drift over a soft drone. The sun through
+the jungle's collapse keeps the camp's day: golden by day, a silver moon and a starry sky through the
+broken rim by night, the jungle cooler and darker. In the dark zones a warm glow keeps you company.
+
+## Living cave
+
+The cave has its own life (docs/caverns-roadmap.md phase 6). A campfire burns on the Hound's Overlook
+under the great stalagmite, log benches round it and a marshmallow for whoever sits, and a brass paw
+plaque marks the spot for a photo with the Hound's Hand. Every so often a wonder comes: a Cave Cloud
+rolling mist through the whole cavern while rare fish bite at the cenote, a Glimmer Bloom lighting the
+rift, a Rockfall crashing a heap of fresh ore into the breakdown for a crew to break; and every day at
+the camp's dusk the mudflats' bats pour out through the jungle's collapse. The Cave Codex keeps it
+all: a stamp for each zone, the fauna, the cave pearls and fossils, Old Flint's torn journal pages
+lying round the cave, the wonders witnessed.
+
+## Shapes
+
+Nothing is a rectangle (docs/caverns-roadmap.md phase 1): every level's outline is a many-pointed
+polygon wobbling as it goes (the mudflats in lobes, the overlook with bays, the rift a crevasse
+opening south), the shelf's south edge meanders through its points (`shelfEdgeZ`: the jungle's rim
+pushed south, giving it room), the terraces step down in scalloped dams, and their three warm pools
+are rimstone basins each its own size and turn (`poolWobble`). The open south and east edges fall
+away over a wandering rim into the dark under the cavern (`openEdgeFall`), the rift walled on the
+east by a basalt lip (`riftLip`) down to where the lake's outflow spills over.
 
 ## Build phases
 
@@ -112,7 +181,9 @@ widest (16 m) zoom, `npm run check-layout`, and the draw-call count.
    copper limestone crusted with verdigris, native copper nuggets bulging from its face; iron
    kidney-ore hematite lobes rusting on a slab of the mudflats' rock; silver cool-white calcite with
    dog-tooth crystals, shining silver wire threaded over its face; glimmer a great crystal and its
-   crown out of a dark socket; the Monolith as it was. Their glints sit on the rock's own skin (a ray
+   crown out of a dark socket; the Monolith as it was. (Coal, iron and silver redrawn in the polish
+   pass, docs/caverns-roadmap.md step 1.11: coal a black boulder with glossy lumps, iron a gunmetal
+   boulder of banded iron with red jasper and specularite plates, silver dark argentite veined white.) Their glints sit on the rock's own skin (a ray
    from its centre). A twinkling four-point "ready to mine" star on every standing node's face, in its
    ore's colour (one draw for all); the ore rocks lit a little on their own so their minerals read.
 5. **Light, mist, animals and sound** (done 2026-09-30): a key light from high over the collapse so the

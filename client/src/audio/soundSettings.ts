@@ -4,7 +4,8 @@ import { useSyncExternalStore } from "react";
 // mixer, a fader for each channel of a world's soundscape (at the campfire: the fire's crackle,
 // the river, and the forest's breeze and crickets; in the Whispering Woods the wind in the trees),
 // the casino's jazz and its crowd (the murmur, glasses and chips), the rain on the lounge's windows,
-// the Glimmering Caverns' three (its reverb and drips, its crystals' resonance, its thermal terraces' steam),
+// the Glimmering Caverns' five (its air, drips and footsteps, its water, its crystals' resonance, its
+// thermal terraces' steam, its sparse music),
 // and whether the little effects (a catch's chime, a chop, a pickaxe's clink) play. Kept in this
 // browser; a private window or blocked storage just starts from the defaults. A single Ambience level
 // saved before the mixer sets all three of the camp's faders.
@@ -12,8 +13,8 @@ import { useSyncExternalStore } from "react";
 export type AmbienceChannel = "fire" | "river" | "forest" | "wind";
 export const AMBIENCE_CHANNELS: AmbienceChannel[] = ["fire", "river", "forest", "wind"];
 /** The Glimmering Caverns' channels (audio/cavernAmbience.ts). */
-export type CaveChannel = "cavern" | "crystal" | "steam";
-export const CAVE_CHANNELS: CaveChannel[] = ["cavern", "crystal", "steam"];
+export type CaveChannel = "cavern" | "water" | "crystal" | "steam" | "music";
+export const CAVE_CHANNELS: CaveChannel[] = ["cavern", "water", "crystal", "steam", "music"];
 
 export interface SoundSettings {
   /** Each ambience channel's fader, 0..1. */
@@ -22,11 +23,14 @@ export interface SoundSettings {
   forest: number;
   /** The Whispering Woods' wind in the trees, 0..1. */
   wind: number;
-  /** The Glimmering Caverns: the cavern's reverb and its drips, its crystals' resonance, the thermal terraces'
-   *  steam (audio/cavernAmbience.ts), 0..1 each. */
+  /** The Glimmering Caverns (audio/cavernAmbience.ts), 0..1 each: the cavern's air, drips and footsteps; its
+   *  water (the waterfall, the stream, the lake); its crystals' resonance; the thermal terraces' steam; its
+   *  sparse music. */
   cavern: number;
+  water: number;
   crystal: number;
   steam: number;
+  music: number;
   /** The Velvet Casino's jazz combo (audio/casinoJazz.ts), 0..1. */
   jazz: number;
   /** The Cozy Lounge's folk-jazz trio (audio/loungeFolk.ts), 0..1. */
@@ -40,7 +44,7 @@ export interface SoundSettings {
 }
 
 const KEY = "cozy-sound-settings";
-const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, wind: 0.5, cavern: 0.6, crystal: 0.45, steam: 0.5, jazz: 0.5, lounge: 0.45, crowd: 0.5, rain: 0.5, effects: true };
+const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, wind: 0.5, cavern: 0.6, water: 0.55, crystal: 0.45, steam: 0.5, music: 0.4, jazz: 0.5, lounge: 0.45, crowd: 0.5, rain: 0.5, effects: true };
 
 function load(): SoundSettings {
   try {
@@ -53,8 +57,10 @@ function load(): SoundSettings {
       forest: level(raw?.forest),
       wind: typeof raw?.wind === "number" ? Math.max(0, Math.min(1, raw.wind)) : DEFAULTS.wind,
       cavern: typeof raw?.cavern === "number" ? Math.max(0, Math.min(1, raw.cavern)) : DEFAULTS.cavern,
+      water: typeof raw?.water === "number" ? Math.max(0, Math.min(1, raw.water)) : DEFAULTS.water,
       crystal: typeof raw?.crystal === "number" ? Math.max(0, Math.min(1, raw.crystal)) : DEFAULTS.crystal,
       steam: typeof raw?.steam === "number" ? Math.max(0, Math.min(1, raw.steam)) : DEFAULTS.steam,
+      music: typeof raw?.music === "number" ? Math.max(0, Math.min(1, raw.music)) : DEFAULTS.music,
       jazz: typeof raw?.jazz === "number" ? Math.max(0, Math.min(1, raw.jazz)) : DEFAULTS.jazz,
       lounge: typeof raw?.lounge === "number" ? Math.max(0, Math.min(1, raw.lounge)) : DEFAULTS.lounge,
       crowd: typeof raw?.crowd === "number" ? Math.max(0, Math.min(1, raw.crowd)) : DEFAULTS.crowd,

@@ -333,7 +333,7 @@ function StorageHub({ angler, caverns, open, onToggle, onClose }: { angler: Fish
   };
   return (
     <div className="relative shrink-0">
-      <button type="button" onClick={onToggle} className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`} title={`Storage: ${summary}`} aria-label={`Storage, ${total} carried`} aria-expanded={open} aria-haspopup="menu">
+      <button type="button" onClick={onToggle} className={`${PILL_SHELL} ${PRESS} gap-1.5 px-3`} title={`Storage: ${summary}`} aria-label={`Storage, ${total} carried`} aria-expanded={open} aria-haspopup="menu" data-bag>
         <span className={ICON}>🎒</span>
         <span className={`font-bold tabular-nums ${over ? "text-rose-200" : full ? "text-amber-300" : "text-stone-100"}`}>
           {over ? "⚠️" : ""}

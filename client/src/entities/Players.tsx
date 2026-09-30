@@ -7,13 +7,15 @@ import type * as THREE from "three";
 import { type Gesture, type MapId, type PlayerState } from "@shared/types";
 import { walkY } from "@shared/collision";
 import { CAMPFIRE_LAYOUT, nearestFishingSpot } from "@shared/worlds/campfire";
-import { faceHeading } from "../systems/faceTargets";
+import { faceHeading, workHeading } from "../systems/faceTargets";
 import { liveMotion, type MotionSample } from "../systems/liveMotion";
 import { useLocalPlayerMovement, type MoveTarget } from "../systems/useLocalPlayerMovement";
 import { Avatar, type FloatingEmote } from "./Avatar";
 import { getBout } from "../systems/boutStore";
 import { beltUntilOf, gloveLook } from "@shared/boxing";
 import { drawnAt, fighterSpot } from "../systems/fightAnim";
+import { riderPose } from "../scene/winchRide";
+import { pickWeightOf } from "./activityAnimations";
 
 // The people in the scene: your own avatar, driven by the locomotion hook, and every other
 // connected player, eased toward the position the server relays. Both are the same Avatar
@@ -95,6 +97,9 @@ function avatarProps(player: PlayerState, feed: CrowdFeed) {
     sessionId: player.sessionId,
     gloves: player.corner ? gloveLook(player.gloves, player.corner) : "",
     champion: beltUntilOf(player.boxing) > Date.now(),
+    // the Glimmering Caverns: the world (the rope descent) and how heavily their pickaxe swings
+    map: player.map,
+    pickWeight: player.map === "glimmering_caverns" ? pickWeightOf(player.fishing) : 1,
   };
 }
 
@@ -103,7 +108,7 @@ export function LocalPlayerAvatar({ player, room, mapId, targetRef, feed }: { pl
   const groupRef = useRef<THREE.Group>(null);
   const speedRef = useRef(0);
   useLocalPlayerMovement(groupRef, room, player, targetRef, speedRef, mapId);
-  return <Avatar ref={groupRef} speedRef={speedRef} {...avatarProps(player, feed)} onHook={room ? () => room.send("hook") : undefined} xray />;
+  return <Avatar ref={groupRef} speedRef={speedRef} {...avatarProps(player, feed)} onHook={room ? () => room.send("hook") : undefined} xray local />;
 }
 
 // Remote players are drawn a little in the past, interpolated between the positions the server
@@ -168,6 +173,21 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
     const p = latest.current;
     const d = drawn.current;
 
+    // riding Gus's winch up: the climb drawn the same on every client (the server has them on the
+    // ledge already)
+    const ride = feed.mapId === "glimmering_caverns" ? riderPose(p.sessionId, p.action) : null;
+    if (ride) {
+      d.x = ride.x;
+      d.z = ride.z;
+      d.seatY = ride.y;
+      d.facing = ride.facing;
+      d.ready = true;
+      speedRef.current += (0 - speedRef.current) * 0.3;
+      g.position.set(d.x, d.seatY, d.z);
+      g.rotation.y = d.facing;
+      return;
+    }
+
     const foe = p.corner && feed.mapId === "boxing_ring" ? fighterFoe(p.sessionId) : undefined;
     const live = liveMotion.get(p.sessionId);
     const goal = live && !p.sitting ? sampleAt(live.samples, performance.now() - INTERP_DELAY_MS) : p;
@@ -197,7 +217,7 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
       d.facing = turn(d.facing, Math.atan2(foe.x - d.x, foe.z - d.z), 1 - Math.exp(-LOCK_RATE * delta));
     } else if (moved <= 0.002) {
       // standing still with something to face (the plant being watered): turn to it
-      const heading = faceHeading(p.sessionId, d.x, d.z);
+      const heading = faceHeading(p.sessionId, d.x, d.z) ?? workHeading(feed.mapId, p.action, d.x, d.z);
       if (heading !== null) d.facing = turn(d.facing, heading, 1 - Math.exp(-TURN_RATE * delta));
     }
     d.seatY += ((p.sitting ? p.sitY : walkY(feed.mapId, d.x, d.z)) - d.seatY) * HEIGHT_LERP;

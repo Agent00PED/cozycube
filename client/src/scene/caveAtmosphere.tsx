@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { CAVERNS_LAYOUT as L, CAVE_WATER_Y, TERRAIN_CELL, TERRAIN_N, cavernsFloorY } from "@shared/worlds/caverns";
 import { cameraFocus } from "./cameraFocus";
 import { noRaycast } from "./kit";
+import { perf } from "../systems/perfProfile";
 
 // The Glimmering Caverns' atmosphere, client-only (every mesh here is left out of the pointer: a click
 // only ever lands on the floor, caverns_walk_collider):
@@ -16,7 +17,13 @@ import { noRaycast } from "./kit";
 //                        sheets just above its surface, each fading at the shore and wherever the
 //                        floor rises through it (the floor's heights in a small texture), drifting
 
-const CRYSTAL_LIGHTS = 4;
+/** The living wonders' looks (shared/caverns_codex.ts), eased 0 .. 1 by the scene as they come and go:
+ *  a Cave Cloud's mist rolling over the whole cavern, a Glimmer Bloom's crystals flaring. */
+export const CLOUD = { value: 0 };
+export const BLOOM = { value: 0 };
+
+// (two on a phone: every light is paid for by every lit pixel, systems/perfProfile.ts)
+const CRYSTAL_LIGHTS = perf.crystalLights;
 const CRYSTAL_REACH = 2.1;
 const CYAN = new THREE.Color("#00f5d4");
 const VIOLET = new THREE.Color("#7b2cbf");
@@ -66,7 +73,7 @@ export function CrystalLights() {
       }
       l.position.set(g.x, g.y, g.z);
       l.color.copy(g.color);
-      l.intensity = 3.2 * g.power * (0.88 + 0.12 * Math.sin(t * 1.3 + k * 1.7));
+      l.intensity = 3.2 * g.power * (0.88 + 0.12 * Math.sin(t * 1.3 + k * 1.7)) * (1 + BLOOM.value * (1.3 + 0.7 * Math.sin(t * 2.4 + k)));
     });
   });
   return (
@@ -134,7 +141,7 @@ export function CaveMist() {
     const mat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
-      uniforms: { uTime: { value: 0 }, uFloor: { value: tex }, uColor: { value: MIST_COLOR }, uHalf: { value: L.half }, uCell: { value: TERRAIN_CELL }, uN: { value: TERRAIN_N }, uWater: { value: CAVE_WATER_Y } },
+      uniforms: { uTime: { value: 0 }, uFloor: { value: tex }, uColor: { value: MIST_COLOR }, uHalf: { value: L.half }, uCell: { value: TERRAIN_CELL }, uN: { value: TERRAIN_N }, uWater: { value: CAVE_WATER_Y }, uCloud: CLOUD },
       vertexShader: `
         varying vec3 vW;
         void main() {
@@ -150,6 +157,7 @@ export function CaveMist() {
         uniform float uCell;
         uniform float uN;
         uniform float uWater;
+        uniform float uCloud;
         varying vec3 vW;
         ${LAKE_GLSL}
         void main() {
@@ -163,7 +171,9 @@ export function CaveMist() {
           float layer = mix(0.16, 0.05, clamp((vW.y - uWater) / 0.6, 0.0, 1.0));
           // (over the cenote only: fading out past its shore)
           float lake = 1.0 - smoothstep(0.95, 1.12, caveLakeFactor(vW.xz));
-          gl_FragColor = vec4(uColor, layer * soft * drift * lake);
+          // (a Cave Cloud: thicker, and over the low ground round the lake too)
+          lake = mix(lake, max(lake, 0.7), uCloud);
+          gl_FragColor = vec4(uColor, layer * soft * drift * lake * (1.0 + 1.8 * uCloud));
           #include <colorspace_fragment>
         }`,
     });

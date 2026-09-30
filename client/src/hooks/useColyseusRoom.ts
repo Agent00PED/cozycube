@@ -134,6 +134,10 @@ const RELAYED_MESSAGES = [
   "forgeResult",
   "geodeAim",
   "geodeResult",
+  // a Cave Codex entry found (shared/caverns_codex.ts)
+  "caveCodex",
+  // a deep breath in the warm pools, judged
+  "soakBreath",
   // the casino: Mr. Vance's answer at the cage (an exchange, or why not), and his wave as it opens
   "cashierResult",
   "vanceWave",
@@ -280,6 +284,8 @@ interface UseColyseusRoomResult {
   incenseUntil: number;
   /** The Glimmering Caverns' ore nodes (shared/caverns_mining.ts OreSyncState as JSON). */
   ores: string;
+  /** The Glimmering Caverns' living wonder under way (shared/caverns_codex.ts CaveEvent JSON; "" none). */
+  caveEvent: string;
   connected: boolean;
   /** Why the last connection attempt failed or dropped, while it is being retried; null when fine. */
   connectionIssue: string | null;
@@ -392,6 +398,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
   const [worldEvent, setWorldEvent] = useState("");
   const [incenseUntil, setIncenseUntil] = useState(0);
   const [ores, setOres] = useState("");
+  const [caveEvent, setCaveEvent] = useState("");
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   /** The lounge picked was full when we tried to join it. */
@@ -820,6 +827,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
       room.state.listen("worldEvent", (raw: string) => setWorldEvent(raw ?? ""));
       room.state.listen("incenseUntil", (at: number) => setIncenseUntil(Number(at) || 0));
       room.state.listen("ores", (raw: string) => setOres(raw ?? ""));
+      room.state.listen("caveEvent", (raw: string) => setCaveEvent(raw ?? ""));
       // the Velvet Ring's bout: into its own store (a fighter's stamina moves twenty times a second;
       // only the ring's HUD, its chalkboard and the fighters' avatars listen). Followed through
       // `listen` like the roulette: the object at join time can be a placeholder.
@@ -945,6 +953,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
     worldEvent,
     incenseUntil,
     ores,
+    caveEvent,
     connected,
     connectionIssue,
     reconnect,

@@ -6,7 +6,7 @@ import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
 import { VIP_PROPS, VIP_SEATS } from "./worlds/casino_vip";
 import { FOREST_PROPS, FOREST_SEATS } from "./worlds/forest";
 import { RING_PROPS, RING_SEATS } from "./worlds/boxing_ring";
-import { CAVERNS_PROPS, THERMAL_SEATS, thermalPoolY } from "./worlds/caverns";
+import { CAVERNS_PROPS, HEARTH_SEATS, THERMAL_SEATS, cavernsFloorY, thermalPoolY } from "./worlds/caverns";
 
 // The per-map tables of things you can sit on and things you can use, with the approach point of
 // each (where you stand to use it, and where you land when you get up). The built worlds' come from
@@ -102,18 +102,31 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   // the Velvet Ring: the tiered benches, the Chesterfields, the cocktail stools, the ringside and
   // judges' chairs, the gym's bench (drawn by boxing_ring.glb; a tier's bench sits that much higher)
   boxing_ring: RING_SEATS.map(casinoSeat),
-  // the Glimmering Caverns: the thermal terraces' six seats in the warm water (a ledge in the stone
-  // under each pool's surface), each getting out onto its dry landing on the shore
-  glimmering_caverns: THERMAL_SEATS.map((s) => ({
-    propId: s.propId,
-    x: s.x,
-    z: s.z,
-    rotationY: s.rotationY,
-    style: "onsen" as const,
-    approachX: s.approachX,
-    approachZ: s.approachZ,
-    sitY: round(thermalPoolY(s.z) + seatAnchorY(CUSHIONS.thermalLedge)),
-  })),
+  // the Glimmering Caverns: the thermal terraces' seven seats in the warm water (a ledge in the stone
+  // under each pool's surface), each getting out onto its dry landing on the shore; and the overlook
+  // hearth's four log benches (a marshmallow on a stick as you sit)
+  glimmering_caverns: [
+    ...THERMAL_SEATS.map((s) => ({
+      propId: s.propId,
+      x: s.x,
+      z: s.z,
+      rotationY: s.rotationY,
+      style: "onsen" as const,
+      approachX: s.approachX,
+      approachZ: s.approachZ,
+      sitY: round(thermalPoolY(s.x, s.z) + seatAnchorY(CUSHIONS.thermalLedge)),
+    })),
+    ...HEARTH_SEATS.map((s) => ({
+      propId: s.propId,
+      x: s.x,
+      z: s.z,
+      rotationY: s.rotationY,
+      style: "log" as const,
+      approachX: s.approachX,
+      approachZ: s.approachZ,
+      sitY: round(cavernsFloorY(s.x, s.z) + seatAnchorY(CUSHIONS.log)),
+    })),
+  ],
   sunset_beach: [],
   japanese_onsen: [],
   retro_arcade: [],

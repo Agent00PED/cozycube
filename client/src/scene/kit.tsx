@@ -42,7 +42,8 @@ interface PrimProps {
 }
 
 function Prim({ geo, p, s, m, r }: PrimProps & { geo: THREE.BufferGeometry }) {
-  // castShadow / receiveShadow are left off: nothing in this project uses a shadow map
+  // castShadow / receiveShadow are left off: only the caverns' sun draws a shadow map (caveLight.tsx),
+  // from the cave's own rock
   return <mesh geometry={geo} material={m} position={p} rotation={r} scale={s} castShadow={false} receiveShadow={false} raycast={noRaycast} />;
 }
 export const B = (props: PrimProps) => <Prim geo={GEO.box} {...props} />;

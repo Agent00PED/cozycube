@@ -50,6 +50,9 @@ runtime's swings are clean rotations about local axes (client/src/entities/rig.t
                          hidden until she chops firewood at the campfire
           Pickaxe        a miner's pickaxe out of the right hand, its pick across the haft's end,
                          hidden until she prospects a node in the Glimmering Caverns
+          SmithHammer    a blacksmith's hammer out of the right hand, a squat steel head across its
+                         short haft: the forge's hammer and the geode anvil's mallet
+          Chisel         (on ArmL) a cold chisel held point down out of the left fist, for the geode
           Net            a little butterfly net out of the right hand, for a swipe at the fireflies
           FireflyJar     (on ArmL) a glowing glass jar of fireflies held in the left hand
           FishingRod     a bamboo pole out of the right hand, raised forward
@@ -127,7 +130,7 @@ BOTTOM_IDS = ("joggers", "cargo", "cyber", "lounge", "overalls", "garden", "blue
 TOP_PARTS = (("", "Torso"), ("_SleeveL", "ArmL"), ("_SleeveR", "ArmR"))  # (name suffix, parent)
 BOTTOM_PARTS = (("", "Body"), ("_LegL", "LegL"), ("_LegR", "LegR"))
 NODE_NAMES = (
-    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "Net", "FireflyJar", "Heart", "LegL", "LegR")
+    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "SmithHammer", "Chisel", "Net", "FireflyJar", "Heart", "LegL", "LegR")
     + tuple(f"SkewerMallow_{i}" for i in (1, 2))
     + tuple(f"SkewerBBQ_{i}" for i in (1, 2, 3, 4))
     + tuple(f"MugTop_{t}" for t in MUG_TOPPINGS)
@@ -4140,6 +4143,23 @@ def build(hip_y, leg_r, hip_off, covering):
     add_shaped(bm, 4, ellipsoid(head, Vector((0.022, 0.026, 0.03)), n=3.0), material=1)
     make_object("Pickaxe", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Stick"], mat["Mat_Steel"]))
 
+    # SmithHammer: a short stout haft out of the fist, a squat steel head across its end (its face
+    # below: raised and brought down, the face leads), a round peen above
+    bm = bmesh.new()
+    tube(bm, [hand + Vector((0, 0.04, 0)) + fwd * 0.28 * i / 6 for i in range(7)], lambda s_: 0.015 - 0.002 * s_, sides=8, cap_rings=2)
+    hh = hand + fwd * 0.27
+    add_shaped(bm, 6, ellipsoid(hh + Vector((0, 0, -0.02)), Vector((0.026, 0.03, 0.048)), n=4.0), material=1)
+    add_shaped(bm, 5, ellipsoid(hh + Vector((0, 0, 0.035)), Vector((0.018, 0.02, 0.022)), n=2.4), material=1)
+    make_object("SmithHammer", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Stick"], mat["Mat_Steel"]))
+
+    # Chisel: a cold chisel out of the left fist, its butt up and its edge down and forward (it rests
+    # on the geode while the right hand's hammer strikes it)
+    hand_l = Vector((shoulders["ArmL"].x, 0, HAND_Z))
+    down_fwd = Vector((0, -math.sin(math.radians(35)), -math.cos(math.radians(35))))
+    bm = bmesh.new()
+    tube(bm, [hand_l - down_fwd * 0.05 + down_fwd * 0.2 * i / 6 for i in range(7)], lambda s_: 0.011 - 0.006 * s_ ** 3, sides=6, cap_rings=1)
+    make_object("Chisel", bm, hand_l, coll, arms["ArmL"], shoulders["ArmL"], (mat["Mat_Steel"],))
+
     # Net: a short handle up and forward from the fist, a hoop at its end and a soft pouch under it
     up_fwd_net = Vector((0, -math.cos(math.radians(40)), math.sin(math.radians(40))))
     butt = hand - up_fwd_net * 0.06
@@ -4286,7 +4306,7 @@ def is_variant(ob):
     name = ob.name[len(PREFIX) :]
     kind, _, rest = name.partition("_")
     default = {"Hair": DEFAULT_HAIR, "Top": DEFAULT_TOP, "Bottom": DEFAULT_BOTTOM}.get(kind)
-    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "Net", "FireflyJar", "Heart"))
+    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "SmithHammer", "Chisel", "Net", "FireflyJar", "Heart"))
 
 
 def tidy_viewport(coll):
@@ -4295,6 +4315,114 @@ def tidy_viewport(coll):
     for o in coll.all_objects:
         o.hide_viewport = is_variant(o)
         o.hide_render = False
+
+
+# The web budget (docs/caverns-roadmap.md phase 7: a lighter avatar, every map benefits): each part
+# decimated on export to at most its budget of triangles (a collapse, symmetric across the avatar's
+# own left and right where the part spans both), never below WEB_RATIO_MIN of what it was; small
+# parts left whole. What you see is one outfit, a hat, a hair and the body at a time, drawn every
+# frame (and again for the x-ray), and the file carries every garment.
+WEB_BUDGET = {"Head": 3000, "Torso": 2600, "ArmL": 1700, "ArmR": 1700, "LegL": 1500, "LegR": 1500, "EarL": 600, "EarR": 600}
+WEB_BUDGET_BY_PREFIX = (("Hat_", 3000), ("Hair_", 3000), ("Top_", 3200), ("Bottom_", 1800))
+WEB_BUDGET_DEFAULT = 1500
+WEB_RATIO_MIN = 0.3
+
+
+def web_budget(name):
+    if name in WEB_BUDGET:
+        return WEB_BUDGET[name]
+    for prefix, n in WEB_BUDGET_BY_PREFIX:
+        if name.startswith(prefix):
+            return n
+    return WEB_BUDGET_DEFAULT
+
+
+def decimate_for_web(coll):
+    """A Decimate modifier on every part over its budget (applied by the export)."""
+    made = {}
+    for o in coll.all_objects:
+        if o.type != "MESH" or o.data is None:
+            continue
+        tris = sum(len(p.vertices) - 2 for p in o.data.polygons)
+        budget = web_budget(o.name[len(PREFIX):] if o.name.startswith(PREFIX) else o.name)
+        if tris <= budget:
+            continue
+        m = o.modifiers.new("WebBudget", "DECIMATE")
+        m.decimate_type = "COLLAPSE"
+        m.ratio = max(WEB_RATIO_MIN, budget / tris)
+        # (a part centred on the avatar's middle is symmetric across it)
+        if abs(o.matrix_world.translation.x) < 0.02:
+            m.use_symmetry = True
+            m.symmetry_axis = "X"
+        made[o.name] = (tris, round(m.ratio, 3))
+    return made
+
+
+def quantize_normals(path):
+    """KHR_mesh_quantization over the normals: 8-bit, normalized, padded to 4 bytes a vertex (the
+    positions stay float: the parts are moved and turned by the game, so their nodes carry no
+    dequantizing scale)."""
+    with open(path, "rb") as f:
+        data = f.read()
+    magic, version, _ = struct.unpack_from("<III", data, 0)
+    jlen, jtype = struct.unpack_from("<II", data, 12)
+    doc = json.loads(data[20 : 20 + jlen])
+    off = 20 + jlen
+    blen, btype = struct.unpack_from("<II", data, off)
+    bin_ = data[off + 8 : off + 8 + blen]
+    accs, views = doc["accessors"], doc["bufferViews"]
+    normal_accs = set()
+    for mesh in doc.get("meshes", []):
+        for prim in mesh["primitives"]:
+            ai = prim["attributes"].get("NORMAL")
+            if ai is not None and accs[ai]["componentType"] == 5126:
+                normal_accs.add(ai)
+    replaced = {accs[ai]["bufferView"] for ai in normal_accs}
+    out = bytearray()
+    new_views = []
+    remap = {}
+    for vi, v in enumerate(views):
+        if vi in replaced:
+            continue
+        chunk = bin_[v.get("byteOffset", 0) : v.get("byteOffset", 0) + v["byteLength"]]
+        out += b"\0" * (-len(out) % 4)
+        nv = dict(v)
+        nv["byteOffset"] = len(out)
+        out += chunk
+        remap[vi] = len(new_views)
+        new_views.append(nv)
+    for a in accs:
+        if a.get("bufferView") in remap:
+            a["bufferView"] = remap[a["bufferView"]]
+    for ai in sorted(normal_accs):
+        a = accs[ai]
+        src = views[a["bufferView"]]
+        base = src.get("byteOffset", 0) + a.get("byteOffset", 0)
+        stride = src.get("byteStride", 12)
+        packed = bytearray()
+        for i in range(a["count"]):
+            x, y, z = struct.unpack_from("<fff", bin_, base + i * stride)
+            packed += struct.pack("<bbbb", max(-127, min(127, round(x * 127))), max(-127, min(127, round(y * 127))), max(-127, min(127, round(z * 127))), 0)
+        out += b"\0" * (-len(out) % 4)
+        new_views.append({"buffer": 0, "byteOffset": len(out), "byteLength": len(packed), "byteStride": 4, "target": 34962})
+        out += packed
+        a["bufferView"] = len(new_views) - 1
+        a["byteOffset"] = 0
+        a["componentType"] = 5120
+        a["normalized"] = True
+        a.pop("min", None)
+        a.pop("max", None)
+    out += b"\0" * (-len(out) % 4)
+    doc["bufferViews"] = new_views
+    doc["buffers"][0]["byteLength"] = len(out)
+    for key in ("extensionsUsed", "extensionsRequired"):
+        doc[key] = sorted(set(doc.get(key, [])) | {"KHR_mesh_quantization"})
+    text = json.dumps(doc, separators=(",", ":")).encode()
+    text += b" " * (-len(text) % 4)
+    body = struct.pack("<II", len(text), jtype) + text + struct.pack("<II", len(out), btype) + bytes(out)
+    with open(path, "wb") as f:
+        f.write(struct.pack("<III", magic, version, 12 + len(body)) + body)
+    return len(normal_accs)
 
 
 def export(coll, path):
@@ -4324,6 +4452,7 @@ def export(coll, path):
                 raise
             kwargs.pop(bad)
     strip_prefix(path)
+    quantize_normals(path)
     tidy_viewport(coll)
 
 
@@ -4385,8 +4514,9 @@ def main():
         coll = build(hip_y, leg_r, hip_off, hair_covering_ears(root))
         out = os.path.join(root, "client", "public", "models", "avatar.glb")
         os.makedirs(os.path.dirname(out), exist_ok=True)
+        decimated = decimate_for_web(coll)
         export(coll, out)
-        result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), "hip_y": hip_y, "leg_radius": leg_r, "hip_offset": hip_off, **summary(coll)}
+        result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), "hip_y": hip_y, "leg_radius": leg_r, "hip_offset": hip_off, "decimated": decimated, **summary(coll)}
         result["studio"] = studio(root, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}
