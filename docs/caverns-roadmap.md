@@ -161,7 +161,21 @@ The original brief:
 - **Everywhere**: the same result card, rewards flying into the satchel, first-time tips, forgiving
   retries, and a quick mode once you know the game.
 
-### Phase 5: sound and light (the audit's section 4)
+### Phase 5: sound and light (the audit's section 4): built 2026-09-30
+
+| Step | Work | How |
+|---|---|---|
+| 5.1 | Each zone's reverb | client/src/audio/cavernAmbience.ts `ROOMS`: the jungle open to the sky short and dry, the basecamp, the breakdown and the mudflats halls, the terraces, the overlook and the lake longer, the rift deepest (3.2 s); two convolvers, the silent one given the next zone's impulse and the two cross-faded as you walk in (held 0.5 s first: no flicker on a border) |
+| 5.2 | Footsteps by the ground | `GROUND_OF` from `cavernsSurface`: stone (the basecamp, the overlook, the rift), gravel (the breakdown, the trails), mud, sand (the shore), travertine, leaf litter (the jungle), a splash (the fords and the shallows); left and right a touch apart |
+| 5.3 | A sparse music layer | `MUSIC`: every half a minute or so a kalimba's phrase of three to six notes in A minor pentatonic over a soft drone swelling in under it, each zone its register and pace (glassy and high in the rift, slow and low by the lake) |
+| 5.4 | The faders | the caverns' five in Settings: Cavern Air & Footsteps, Water (the waterfall, the stream, the lake, off the air's fader now), Crystal Resonance, Thermal Steam, Cave Music |
+| 5.5 | The sample slots | every effect, `step_<ground>` and `bed_<name>` (air, steam, waterfall, stream, lake: a bed's sample loops in place of its voices) from client/public/sounds/caverns/<name>.mp3, used when named in manifest.json there (`[]` for now: one request, never twenty misses) |
+| 5.6 | The jungle's sun on the camp's day | `daylight` (shared/daynight.ts): the collapse's spotlight golden by day, a silver moon by night; the jungle's ground cooler and darker after dusk, the sky through its broken rim a starry deep blue (`DAY` in `bakedLight` and the glow's shader), the godrays moonlit and fainter |
+| 5.7 | A light round you in the dark | `YOU` in the cave's own materials (the floor, the rock, the walls: a warm glow within about 4.5 m, not a light, so no material pays for another light and the dark basalt lights up round you without the avatar glaring), eased by zone (`ZONE_DARK`: the rift darkest; the jungle by night) |
+| 5.8 | Softer godrays | long fades at both ends, a gentler falloff to the edges, a slow breath, the pools wider and fainter |
+| 5.9 | Shadows | only the cave's own rock casts the sun's shadow and nothing that moves does, so the map is drawn as the model settles in and then every few seconds, never every frame; the spotlight's cone keeps them to the jungle |
+
+The original brief:
 
 Sound: per-surface footsteps (mud, gravel, travertine, sand, stone), each zone's own reverb (the rift
 deepest), a sparse music layer, a Water fader, the sample slots. Light: the jungle's sun on the camp's

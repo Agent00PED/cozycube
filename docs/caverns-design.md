@@ -122,6 +122,15 @@ capybara wakes to watch whoever joins it. At the cenote a fish's shadow circles 
 wait. Every result is graded in stars, what you win flies into the 🎒 satchel, each game shows a
 first-time tip until it has been played well, and a quick mode opens once you know the game.
 
+## Sound and light
+
+Each zone answers in its own voice (docs/caverns-roadmap.md phase 5): the jungle open to the sky short
+and dry, the halls of the breakdown and the mudflats, the long overlook and lake, the rift deepest of
+all; your steps change with the ground (stone, gravel, mud, sand, travertine, leaf litter, a splash
+through a ford), and now and then a few quiet kalimba notes drift over a soft drone. The sun through
+the jungle's collapse keeps the camp's day: golden by day, a silver moon and a starry sky through the
+broken rim by night, the jungle cooler and darker. In the dark zones a warm glow keeps you company.
+
 ## Shapes
 
 Nothing is a rectangle (docs/caverns-roadmap.md phase 1): every level's outline is a many-pointed

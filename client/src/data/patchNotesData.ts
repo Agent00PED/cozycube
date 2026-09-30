@@ -1208,6 +1208,26 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.7.18",
+        date: "2026-09-30",
+        title: "Echoes and Moonlight",
+        summary: "The Glimmering Caverns now sound and glow like a real cave: every zone has its own echo, your footsteps change with the ground, and a little music drifts by now and then. The Doline Jungle's sun follows the camp's day, with moonlight and stars after dusk, and a warm glow keeps you company in the dark places.",
+        changes: {
+          features: [
+            "🔊 Every zone answers in its own voice: the jungle, open to the sky, is short and dry; the halls of the breakdown and the mudflats ring; the overlook and the lake echo long; the Glimmer Rift echoes deepest of all.",
+            "👣 Your footsteps change with the ground: stone, crunching gravel, squelching mud, soft sand, clacking travertine, crackling leaf litter, and a splash when you wade through the fords and shallows.",
+            "🎵 Now and then a few quiet kalimba notes drift through the cave over a soft drone, in each zone's own register: glassy and high in the rift, slow and low by the lake.",
+            "🎚️ New faders in Settings while you're in the caverns: Cavern Air & Footsteps, Water, Crystal Resonance, Thermal Steam and Cave Music.",
+            "🌙 The sun through the jungle's collapsed roof keeps the camp's day: golden by day, then a silver moon and a starry sky through the broken rim by night, with the jungle cooler and darker.",
+            "🏮 A warm glow keeps you company in the cave's dark places: the Glimmer Rift, the mudflats, the overlook and the lake's shore.",
+            "☀️ Softer godrays that breathe slowly and turn a pale moonlit blue at night.",
+          ],
+          fixes: [
+            "The jungle's sun shadows are now redrawn only when they change instead of every frame, so the caverns run lighter everywhere.",
+          ],
+        },
+      },
     ],
   },
 ];

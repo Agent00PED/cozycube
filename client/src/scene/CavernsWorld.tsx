@@ -12,6 +12,7 @@ import { CampNpc, type NpcGesture, type NpcTalk } from "../entities/CampNpc";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
 import { cameraFocus } from "./cameraFocus";
+import { daylight } from "@shared/daynight";
 import { OcclusionDriver, ditherOccluder } from "./occlusionDither";
 import { prospectShake } from "./prospectCamera";
 import { ProspectingView } from "./ProspectingView";
@@ -85,6 +86,13 @@ export const FINNEGAN_URL = modelUrl("finnegan.glb");
 export const CAPYBARA_URL = modelUrl("capybara.glb");
 
 const TIME = caveSurfaceTime;
+/** The camp's daylight (shared/daynight.ts: the same 24-minute day as the campfire and the woods, 0
+ *  night .. 1 day), for the collapse's sun, its godrays and the sky through it. */
+const DAY = { value: 1 };
+/** The glow round you in the dark zones: where you stand (xyz) and how strong it is (w, 0 .. 1). A
+ *  term in the cave's own materials (the floor, the rock, the walls), not a light: no light added to
+ *  every material's shading, and the dark basalt still lit up round you without the avatar glaring. */
+const YOU = { value: new THREE.Vector4(0, -99, 0, 0) };
 const CAVE_DARK = new THREE.Color("#0e131b");
 /** How much of the model's baked light (its vertex colours) glows on its own: the rest of what you
  *  see comes from the game's lights. */
@@ -103,15 +111,39 @@ function bakedLight(m: THREE.MeshStandardMaterial) {
   m.onBeforeCompile = (shader, renderer) => {
     prev.call(m, shader, renderer);
     shader.uniforms.uBaked = BAKED;
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uBaked;").replace(
+    shader.uniforms.uDay = DAY;
+    shader.uniforms.uYou = YOU;
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vBakedPos;").replace(
+      "#include <project_vertex>",
+      `#include <project_vertex>
+      {
+        vec4 bw = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          bw = instanceMatrix * bw;
+        #endif
+        vBakedPos = (modelMatrix * bw).xyz;
+      }`
+    );
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uBaked;\nuniform float uDay;\nuniform vec4 uYou;\nvarying vec3 vBakedPos;").replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
-      #ifdef USE_COLOR
-        totalEmissiveRadiance += diffuseColor.rgb * uBaked;
-      #endif`
+      {
+        // the jungle by night: the sun gone from the collapse, its ground under a cool moonlit dusk
+        // (the rest of the cave keeps its own lights, day or night)
+        float jungle = (1.0 - smoothstep(-11.5, -8.5, vBakedPos.x)) * (1.0 - smoothstep(-14.0, -11.0, vBakedPos.z));
+        float night = jungle * (1.0 - uDay);
+        diffuseColor.rgb *= mix(vec3(1.0), vec3(0.5, 0.58, 0.86), night);
+        #ifdef USE_COLOR
+          totalEmissiveRadiance += diffuseColor.rgb * uBaked * (1.0 - 0.65 * night);
+        #endif
+        // the warm glow round you in the dark zones, like a lamp at your shoulder
+        float youD = distance(vBakedPos, uYou.xyz);
+        float you = uYou.w * (1.0 - smoothstep(0.4, 4.8, youD)) * (1.0 - smoothstep(1.8, 3.2, vBakedPos.y - uYou.y));
+        totalEmissiveRadiance += (diffuseColor.rgb * 5.0 + 0.03) * vec3(1.0, 0.8, 0.55) * you;
+      }`
     );
   };
-  m.customProgramCacheKey = () => `${prevKey()}|cave-baked`;
+  m.customProgramCacheKey = () => `${prevKey()}|cave-baked-day`;
   m.needsUpdate = true;
 }
 
@@ -169,15 +201,36 @@ function glowFromVertexColour(m: THREE.MeshStandardMaterial, strength: number) {
   m.toneMapped = false;
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = TIME;
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uTime;").replace(
+    shader.uniforms.uDay = DAY;
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vGlowWorld;").replace(
+      "#include <project_vertex>",
+      `#include <project_vertex>
+      {
+        vec4 gw = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          gw = instanceMatrix * gw;
+        #endif
+        vGlowWorld = (modelMatrix * gw).xyz;
+      }`
+    );
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uTime;\nuniform float uDay;\nvarying vec3 vGlowWorld;").replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
       #ifdef USE_COLOR
         totalEmissiveRadiance *= vColor.rgb * (0.85 + 0.15 * sin(uTime * 1.3 + vColor.g * 9.0));
-      #endif`
+      #endif
+      // the sky through the jungle's collapse (behind its broken rim, outside the cave): by night a
+      // deep blue, starry
+      if (min(vGlowWorld.x, vGlowWorld.z) < -23.0 && vGlowWorld.y > 7.5) {
+        vec2 sp = floor(vec2(vGlowWorld.x + vGlowWorld.z, vGlowWorld.y) * 3.0);
+        float h = fract(sin(dot(sp, vec2(12.9898, 78.233))) * 43758.5453);
+        float star = step(0.975, h) * (0.55 + 0.45 * sin(uTime * (1.5 + 3.0 * h) + h * 60.0));
+        vec3 night = mix(vec3(0.04, 0.06, 0.14), vec3(0.09, 0.13, 0.27), smoothstep(8.0, 22.0, vGlowWorld.y)) + star * vec3(0.9, 0.95, 1.0);
+        totalEmissiveRadiance = mix(night, totalEmissiveRadiance, uDay);
+      }`
     );
   };
-  m.customProgramCacheKey = () => `cave-glow-${strength}`;
+  m.customProgramCacheKey = () => `cave-glow-${strength}-sky`;
   m.needsUpdate = true;
 }
 
@@ -973,7 +1026,25 @@ function CaveLights() {
     l.shadow.normalBias = 0.02;
     l.shadow.radius = 3;
   }, [target]);
+  // the sun's shadow map: only the cave's own rock casts it (nothing that moves), so it is drawn while
+  // the model settles in and then only now and then, never every frame
+  const shadowAt = useRef({ start: -1, last: -99 });
   useFrame(({ clock, camera }) => {
+    // the sun over the collapse on the camp's day: a warm gold by day, a cool silver moon by night
+    const d = daylight(Date.now());
+    DAY.value = d;
+    if (sun.current) {
+      const l = sun.current;
+      l.color.copy(MOON_COLOR).lerp(SUN_COLOR, d);
+      l.intensity = 0.95 + 1.65 * d;
+      if (l.shadow.autoUpdate) l.shadow.autoUpdate = false;
+      const ct = clock.elapsedTime;
+      if (shadowAt.current.start < 0) shadowAt.current.start = ct;
+      if (ct - shadowAt.current.start < 4 || ct - shadowAt.current.last > 3) {
+        shadowAt.current.last = ct;
+        l.shadow.needsUpdate = true;
+      }
+    }
     // (the soft fill from over your shoulder: the folk and the players are never silhouettes)
     if (fill.current) {
       fill.current.target = fillAt;
@@ -990,6 +1061,7 @@ function CaveLights() {
       gl.shadowMap.enabled = true;
       gl.shadowMap.type = THREE.PCFSoftShadowMap;
       gl.shadowMap.needsUpdate = true;
+      if (sun.current) sun.current.shadow.needsUpdate = true;
     }
     const t = clock.elapsedTime;
     if (forge.current) forge.current.intensity = 2.6 + 0.6 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1) + 0.3 * Math.sin(t * 17);
@@ -1009,8 +1081,26 @@ function CaveLights() {
       <pointLight ref={forge} color="#ff8a3a" distance={11} decay={1.4} position={CAVE_LIGHTS.forge as [number, number, number]} castShadow={false} />
       <pointLight ref={thermal} color="#ffc78a" distance={9} decay={1.5} position={CAVE_LIGHTS.thermal as [number, number, number]} castShadow={false} />
       <pointLight ref={cenote} color="#3ff0ff" distance={13} decay={1.3} position={CAVE_LIGHTS.cenote as [number, number, number]} castShadow={false} />
+      <YourLight />
     </>
   );
+}
+const SUN_COLOR = new THREE.Color("#ffd79c");
+const MOON_COLOR = new THREE.Color("#a9c2ff");
+
+/** How dark each zone is away from its own lights (0 lit .. 1 dark): the light round you there. */
+const ZONE_DARK: Record<string, number> = { basecamp: 0.15, jungle: 0, breakdown: 0.45, mudflats: 0.7, terraces: 0.35, overlook: 0.6, lake: 0.65, rift: 0.9 };
+/** The warm glow round you in the dark zones (a lamp's at your shoulder: `YOU` in the cave's
+ *  materials), eased in and out as you walk between them; the jungle dark too once the sun is down. */
+function YourLight() {
+  const level = useRef(0);
+  useFrame((_, dt) => {
+    const zone = cavernsZoneAt(cameraFocus.x, cameraFocus.z)?.id ?? "lake";
+    const dark = zone === "jungle" ? 0.55 * (1 - DAY.value) : (ZONE_DARK[zone] ?? 0.5);
+    level.current += (dark - level.current) * Math.min(1, dt * 1.5);
+    YOU.value.set(cameraFocus.x, cameraFocus.y, cameraFocus.z, level.current);
+  });
+  return null;
 }
 
 // The godrays: soft shafts of sunlight pouring down through the doline's broken ceiling, and the
@@ -1024,7 +1114,7 @@ const RAY_GEO = (() => {
   return g;
 })();
 const RAY_MAT = new THREE.ShaderMaterial({
-  uniforms: { uTime: TIME },
+  uniforms: { uTime: TIME, uDay: DAY },
   transparent: true,
   depthWrite: false,
   blending: THREE.AdditiveBlending,
@@ -1048,15 +1138,18 @@ const RAY_MAT = new THREE.ShaderMaterial({
     }`,
   fragmentShader: `
     uniform float uTime;
+    uniform float uDay;
     varying float vUp;
     varying float vFace;
     varying vec3 vRayPos;
     void main() {
-      float ends = smoothstep(0.0, 0.08, vUp) * (1.0 - smoothstep(0.5, 1.0, vUp));
-      float core = pow(vFace, 1.6);
-      float shimmer = 0.78 + 0.22 * sin(vRayPos.y * 2.3 - uTime * 1.1 + vRayPos.x * 0.7);
-      float a = ends * core * shimmer * 0.13;
-      gl_FragColor = vec4(vec3(1.0, 0.9, 0.68), a);
+      // (soft all round: a long fade at each end, a gentle falloff to its edges, a slow breath)
+      float ends = smoothstep(0.0, 0.14, vUp) * (1.0 - smoothstep(0.42, 1.0, vUp));
+      float core = pow(vFace, 1.2) * smoothstep(0.0, 0.35, vFace);
+      float shimmer = 0.82 + 0.18 * sin(vRayPos.y * 2.3 - uTime * 1.1 + vRayPos.x * 0.7);
+      float breath = 0.85 + 0.15 * sin(uTime * 0.35 + vRayPos.x * 0.5 + vRayPos.z * 0.3);
+      float a = ends * core * shimmer * breath * 0.095 * mix(0.55, 1.0, uDay);
+      gl_FragColor = vec4(mix(vec3(0.62, 0.74, 1.0), vec3(1.0, 0.9, 0.68), uDay), a);
     }`,
 });
 const RAYS = [...DOLINE_BEAMS.map(([x, z, r]) => ({ x, z, r, sky: false })), { x: CAVE_SKYLIGHT.x, z: CAVE_SKYLIGHT.z, r: CAVE_SKYLIGHT.r * 0.72, sky: true }];
@@ -1067,7 +1160,7 @@ const POOL_GEO = (() => {
   return g;
 })();
 const POOL_MAT = new THREE.ShaderMaterial({
-  uniforms: { uTime: TIME },
+  uniforms: { uTime: TIME, uDay: DAY },
   transparent: true,
   depthWrite: false,
   blending: THREE.AdditiveBlending,
@@ -1083,11 +1176,12 @@ const POOL_MAT = new THREE.ShaderMaterial({
     }`,
   fragmentShader: `
     uniform float uTime;
+    uniform float uDay;
     varying vec2 vDisc;
     void main() {
       float r = length(vDisc);
-      float a = (1.0 - smoothstep(0.35, 1.0, r)) * (0.08 + 0.015 * sin(uTime * 0.8 + vDisc.x * 3.0));
-      gl_FragColor = vec4(vec3(1.0, 0.88, 0.62), a);
+      float a = (1.0 - smoothstep(0.2, 1.0, r)) * (0.065 + 0.012 * sin(uTime * 0.8 + vDisc.x * 3.0)) * mix(0.6, 1.0, uDay);
+      gl_FragColor = vec4(mix(vec3(0.62, 0.74, 1.0), vec3(1.0, 0.88, 0.62), uDay), a);
     }`,
 });
 const MOTES_PER_RAY = 10;
