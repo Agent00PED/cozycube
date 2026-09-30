@@ -111,7 +111,19 @@ table, the fine scale off on low-end devices. The walls get more rows and beddin
 broken lip and stalactite clusters along the tops of the walls only (never over the play area); every
 boulder and prop given weathered edges.
 
-### Phase 3: animation (P12)
+### Phase 3: animation (P12): built 2026-09-30
+
+| Step | Work | How |
+|---|---|---|
+| 3.1 | The activity suite | client/src/entities/activityAnimations.ts: whole-body poses on the boxing suite's pose (mining, the forge's bellows and hammer, the geode chisel, the warm pools, the winch), eased by Avatar.tsx; tools drawn back out to the side (a raised arm hides behind the chibi's head); a heavier pick swings bigger and slower |
+| 3.2 | Everyone sees it | the server marks the forge and the chisel (`forge`, `chisel` actions, `working`); other miners' blows timed by the room's `caveStrike`; the forge and chisel on a shared loop for everyone else (`forgeBeat`, `chiselBeat`); the worker turned to the rock, forge or anvil (`workHeading`) |
+| 3.3 | Your own beats at once | client/src/systems/activityStore.ts: the tap on the rock, the bellows held, each pump and hammer blow, the geode's turn, the mallet's power and blow, written the moment they happen |
+| 3.4 | Held props | the avatar's `SmithHammer` and `Chisel` (build_avatar.py), shown at the forge and the anvil |
+| 3.5 | Fishing, the rope, the springs, the winch | a cast with the whole body, a start at the bite, a braced reel (every map); a hand on the rope descent's rope; leaning back in the pool with happy eyes; a hand on the rope and one on the cage |
+| 3.6 | The folk | Gus writing his ledger, Finnegan casting his rod, the capybara bobbing and dozing in its bath |
+| 3.7 | Particles | client/src/scene/caveFx.ts: sparks as thin streaks, rock chips and dust puffs off every blow, all landing on the real floor (they fell through it on high ground before), embers from the forge's mouth with each pump, sparks off the hammer, chips off the chisel |
+
+The original brief:
 
 A full-body activity animation suite on the rig (the ring's boxing suite shows the way): mining
 (stance, wind-up, strike, recoil, a heavier swing for heavier picks), fishing (cast, the wait, the bite

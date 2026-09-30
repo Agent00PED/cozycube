@@ -1,7 +1,10 @@
 // A short-lived "turn to face this" for an avatar standing still, kept out of React state like
 // liveMotion: watering a plant turns the waterer toward it for the pour, whichever way they were
 // facing when they asked. The frame loops (useLocalPlayerMovement for you, Players.tsx for everyone
-// else) read it while the avatar is not walking.
+// else) read it while the avatar is not walking. Work in the Glimmering Caverns turns them to it too
+// (workHeading), for as long as it lasts.
+
+import { ANVIL, FORGE, oreNodeNear } from "@shared/worlds/caverns";
 
 interface FaceTarget {
   x: number;
@@ -27,5 +30,19 @@ export function faceHeading(sessionId: string, fromX: number, fromZ: number): nu
   }
   const dx = t.x - fromX;
   const dz = t.z - fromZ;
+  return Math.hypot(dx, dz) < 1e-3 ? null : Math.atan2(dx, dz);
+}
+
+/** At work in the Glimmering Caverns, standing still: the heading toward what is being worked (the
+ *  rock being mined, the one they stand at; the forge; the geode anvil), or null. */
+export function workHeading(map: string, action: string, fromX: number, fromZ: number): number | null {
+  if (map !== "glimmering_caverns") return null;
+  let to: { x: number; z: number } | null = null;
+  if (action === "mine") to = oreNodeNear(fromX, fromZ);
+  else if (action === "forge") to = FORGE;
+  else if (action === "chisel") to = ANVIL;
+  if (!to) return null;
+  const dx = to.x - fromX;
+  const dz = to.z - fromZ;
   return Math.hypot(dx, dz) < 1e-3 ? null : Math.atan2(dx, dz);
 }

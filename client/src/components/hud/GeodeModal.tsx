@@ -8,6 +8,7 @@ import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playCaveSfx } from "../../audio/cavernAmbience";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
+import { activity, nowS } from "../../systems/activityStore";
 
 // The Precision Geode Chisel, on the meteorite anvil beside the forge: a geode is cleaved in two
 // phases (shared/caverns_mining.ts).
@@ -109,6 +110,29 @@ export function GeodeModal({ profile, send, subscribeMessages, onClose }: Props)
       }),
     [subscribeMessages]
   );
+  // your avatar at the anvil (entities/activityAnimations.ts): both hands turning the geode while
+  // you look for the seam, then the chisel set and the mallet drawn back as the power builds
+  useEffect(() => {
+    activity.geode = phase === "seam" ? "aim" : phase === "mallet" ? "gauge" : null;
+    if (phase !== "mallet" || !geode) {
+      activity.power = 0;
+      return;
+    }
+    let raf = 0;
+    const tick = () => {
+      activity.power = raised ? chiselGauge(geode, (performance.now() - gaugeAt.current) / 1000) : 0;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [phase, raised, geode]);
+  useEffect(
+    () => () => {
+      activity.geode = null;
+      activity.power = 0;
+    },
+    []
+  );
   // stepping away mid-cleave (the panel closed): the geode stays whole in the satchel
   useEffect(
     () => () => {
@@ -135,6 +159,7 @@ export function GeodeModal({ profile, send, subscribeMessages, onClose }: Props)
     if (live.current.phase !== "mallet" || !raised) return;
     setRaised(false);
     const t = Math.round(performance.now() - gaugeAt.current);
+    activity.chiselAt = nowS();
     playCaveSfx("anvil", 0.9);
     live.current.send(CAVERNS_CHANNELS.geode, { op: "release", t });
   };

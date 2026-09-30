@@ -595,6 +595,7 @@ export class CavernsMine {
     for (const [id, k] of Object.entries(FORGE_RECIPES[ingot]) as [OreItemId, number][]) satchelTake(kit, id, k * batch);
     const seed = Math.floor(Math.random() * 1_000_000);
     this.forgeGames.set(sessionId, { ingot, batch, seed, at: Date.now() });
+    this.working(sessionId, "forge", true);
     this.host.saveProfile(sessionId);
     this.host.emote(sessionId, "🔥");
     this.host.sendTo(sessionId, "forgeGame", { ingot, batch, seed } satisfies ForgeGame);
@@ -606,6 +607,7 @@ export class CavernsMine {
     const game = this.forgeGames.get(sessionId);
     if (!game) return;
     this.forgeGames.delete(sessionId);
+    this.working(sessionId, "forge", false);
     const secs = (a: unknown) => (Array.isArray(a) ? a.slice(0, 2000).map((v) => Number(v) / 1000) : []);
     const elapsed = (Date.now() - game.at) / 1000;
     const j = judgeForge(game.batch, game.seed, secs(packet.pumps), secs(packet.strikes), elapsed);
@@ -614,7 +616,6 @@ export class CavernsMine {
     const got = satchelAdd(kit, item, game.batch, this.strap(kit));
     const tray = game.batch - got;
     if (tray > 0) kit.forgeTray[item] = Math.min(999, (kit.forgeTray[item] ?? 0) + tray);
-    this.host.gesture(sessionId, "mine");
     this.host.emote(sessionId, masterwork ? "✨" : "🔥");
     this.host.saveProfile(sessionId);
     this.host.sendTo(sessionId, "forgeResult", { ingot: game.ingot, n: game.batch, masterwork, held: j.held, beats: j.beats, tray } satisfies ForgeResult);
@@ -625,6 +626,7 @@ export class CavernsMine {
     const game = this.forgeGames.get(sessionId);
     if (!game) return;
     this.forgeGames.delete(sessionId);
+    this.working(sessionId, "forge", false);
     for (const [id, k] of Object.entries(FORGE_RECIPES[game.ingot]) as [OreItemId, number][]) {
       // (the soft clamp never loses them: back in even over the satchel's room)
       const n = k * game.batch;
@@ -691,6 +693,7 @@ export class CavernsMine {
     if (!player || !kit || !packet || typeof packet !== "object") return;
     if (packet.op === "cancel") {
       this.chisels.delete(sessionId);
+      this.working(sessionId, "chisel", false);
       return;
     }
     if (player.map !== "glimmering_caverns" || !this.atAnvil(player)) return this.reply(sessionId, false, "Walk over to the meteorite anvil");
@@ -700,6 +703,7 @@ export class CavernsMine {
       if (satchelCount(kit, packet.geode) <= 0) return this.reply(sessionId, false, `No ${ORE_ITEMS[packet.geode].name} in your satchel`);
       const seam = rollSeam();
       this.chisels.set(sessionId, { geode: packet.geode, seam, gaugeAt: 0, lastAt: 0 });
+      this.working(sessionId, "chisel", true);
       this.host.sendTo(sessionId, "geodeStart", { geode: packet.geode, seam } satisfies GeodeStart);
       return;
     }
@@ -728,6 +732,7 @@ export class CavernsMine {
       return;
     }
     this.chisels.delete(sessionId);
+    this.working(sessionId, "chisel", false);
     if (satchelTake(kit, c.geode, 1) < 1) return this.reply(sessionId, false, `Your ${ORE_ITEMS[c.geode].name} is gone from the satchel`);
     if (verdict === "pulverize") {
       const [lo, hi] = PULVERIZED_DUST;
@@ -976,6 +981,16 @@ export class CavernsMine {
     if (changed) this.sync();
   }
 
+  /** At the forge's bellows or cracking a geode at the anvil: the avatar at work, for everyone to see
+   *  (its action; never over another one already on). */
+  private working(sessionId: string, action: "forge" | "chisel", on: boolean) {
+    const player = this.host.player(sessionId);
+    if (!player) return;
+    if (on) {
+      if (player.action === "" || player.action === action) player.action = action;
+    } else if (player.action === action) player.action = "";
+  }
+
   /** Off the caverns (a trip, a drop): whatever they were doing down here stops (a bellows game's
    *  makings back into the satchel). */
   leave(sessionId: string) {
@@ -985,6 +1000,7 @@ export class CavernsMine {
     }
     this.stopProspect(sessionId);
     this.chisels.delete(sessionId);
+    this.working(sessionId, "chisel", false);
     this.soakers.delete(sessionId);
     const kit = this.host.profile(sessionId);
     if (kit) this.abandonForge(sessionId, kit, "");

@@ -8,7 +8,7 @@ import { auraPace } from "@shared/casino";
 import { findPath, type Point } from "@shared/pathfinding";
 import { cameraFocus } from "../scene/cameraFocus";
 import { consumeStandPress, worldMoveDirection } from "./input";
-import { faceHeading } from "./faceTargets";
+import { faceHeading, workHeading } from "./faceTargets";
 import { liveMotion } from "./liveMotion";
 import { Reconciler } from "./reconcile";
 import { WELL_FED_SPEED } from "@shared/fishing";
@@ -371,7 +371,7 @@ export function useLocalPlayerMovement(
       facingRef.current = turnToward(facingRef.current, Math.atan2(foe.x - pos.x, foe.z - pos.z), delta, LOCK_RATE);
     } else if (dirX === 0 && dirZ === 0) {
       // standing still with something to face (the plant being watered): turn to it
-      const heading = faceHeading(player.sessionId, pos.x, pos.z);
+      const heading = faceHeading(player.sessionId, pos.x, pos.z) ?? workHeading(mapId, player.action, pos.x, pos.z);
       if (heading !== null) facingRef.current = turnToward(facingRef.current, heading, delta, TURN_RATE);
     }
 

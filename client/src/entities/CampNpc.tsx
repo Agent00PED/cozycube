@@ -51,8 +51,8 @@ const REACT_GAP_MS = 5000;
 const BUBBLE_MS = 4000;
 
 /** A little turn of their own, and how long each lasts (seconds). */
-export type NpcGesture = "clap" | "paw" | "sleep" | "perk" | "knock" | "shake" | "shuffle" | "punch" | "count" | "raise" | "waveoff" | "flail" | "cheer" | "gasp";
-export const GESTURE_S: Record<NpcGesture, number> = { clap: 1.8, paw: 1.5, sleep: 4.5, perk: 1.0, knock: 1.1, shake: 1.8, shuffle: 2.4, punch: 2.4, count: 0.85, raise: 3.2, waveoff: 1.5, flail: 1.2, cheer: 2.0, gasp: 1.3 };
+export type NpcGesture = "clap" | "paw" | "sleep" | "perk" | "knock" | "shake" | "shuffle" | "punch" | "count" | "raise" | "waveoff" | "flail" | "cheer" | "gasp" | "write" | "cast";
+export const GESTURE_S: Record<NpcGesture, number> = { clap: 1.8, paw: 1.5, sleep: 4.5, perk: 1.0, knock: 1.1, shake: 1.8, shuffle: 2.4, punch: 2.4, count: 0.85, raise: 3.2, waveoff: 1.5, flail: 1.2, cheer: 2.0, gasp: 1.3, write: 2.6, cast: 1.6 };
 /** A pose held for as long as it lasts: dozing between bouts, leaning forward through one. */
 export type NpcMood = "doze" | "lean" | null;
 /** Where a walking NPC is this frame (the component places them), and how briskly they go (0..1). */
@@ -109,8 +109,9 @@ export interface CampNpcProps {
   lookAt?: () => { x: number; z: number } | null;
   /** A pose held a while (dozing, leaning in), asked every frame. */
   mood?: () => NpcMood;
-  /** A loop they keep up all the time: skipping rope (the `<Prefix>_Rope` part turned round the hands). */
-  loop?: "skip";
+  /** A loop they keep up all the time: skipping rope (the `<Prefix>_Rope` part turned round the
+   *  hands), or bathing (bobbing in a warm pool, nodding off and back). */
+  loop?: "skip" | "bathe";
   /** How much of them shows (0..1, asked every frame): they fade in and out, and draw nothing at 0. */
   presence?: () => number;
   /** Filled with a way to start a gesture from outside (a referee's call on arriving). */
@@ -296,12 +297,12 @@ function NpcModel({ url, prefix, at, waveAt, bowAt, gesture, fuseArm = true, nod
       // leaning in; a gasp throws them back
       const b = performance.now() / 1000 - bowAt.current;
       body.rotation.x = (b >= 0 && b < BOW_S ? BOW_ANGLE * Math.sin((Math.PI * b) / BOW_S) : 0) + 0.28 * curl + 0.2 * h.lean - (g === "gasp" ? 0.22 * gk : 0) + 0.05 * walk;
-      body.rotation.z = Math.sin(stride) * 0.07 * walk;
+      body.rotation.z = Math.sin(stride) * 0.07 * walk + (loop === "bathe" ? 0.03 * Math.sin(t * 0.8) : 0);
       // perking up (or clapping or cheering for joy): a little hop; walking, a bob; skipping, the hop
       const joy = g === "perk" || g === "clap" || g === "cheer" ? Math.abs(Math.sin(gs * Math.PI * 3)) * (g === "cheer" ? 0.1 : 0.07) * gk : 0;
-      body.position.y = parts.bodyY + joy + Math.abs(Math.sin(stride)) * 0.045 * walk + hop;
+      body.position.y = parts.bodyY + joy + Math.abs(Math.sin(stride)) * 0.045 * walk + hop + (loop === "bathe" ? 0.014 * Math.sin(t * 1.2) : 0);
     }
-    if (tail) tail.rotation.y = 0.35 * Math.sin(t * (walk > 0.3 || loop ? 6 : 1.7));
+    if (tail) tail.rotation.y = 0.35 * Math.sin(t * (walk > 0.3 || loop === "skip" ? 6 : 1.7));
     // the rope, round the line through the hands: over the head, down in front, under the feet
     if (rope) rope.rotation.x = turn;
     // the head turns to what they watch, or to you as you come near (relative to their own
@@ -318,7 +319,7 @@ function NpcModel({ url, prefix, at, waveAt, bowAt, gesture, fuseArm = true, nod
       look.current += (want - look.current) * Math.min(1, dt * (target ? 6 : 3));
       head.rotation.y = look.current + (g === "paw" ? 0.25 * Math.sin(gs * 20) * gk : 0);
       head.rotation.z = 0.04 * Math.sin(t * 0.9) + 0.08 * h.doze * Math.sin(t * 0.6);
-      head.rotation.x = Math.max(g === "sleep" ? 0.45 * gk : g === "knock" ? 0.15 * gk : g === "count" ? 0.25 * gk : 0, h.doze * (0.4 + 0.08 * Math.sin(t * 0.9))) - (g === "gasp" ? 0.2 * gk : g === "cheer" ? 0.15 * gk : 0);
+      head.rotation.x = Math.max(g === "sleep" ? 0.45 * gk : g === "knock" ? 0.15 * gk : g === "count" ? 0.25 * gk : g === "write" ? 0.3 * gk : 0, h.doze * (0.4 + 0.08 * Math.sin(t * 0.9))) - (g === "gasp" ? 0.2 * gk : g === "cheer" ? 0.15 * gk : 0) + (loop === "bathe" ? 0.06 * Math.sin(t * 0.5) : 0);
     }
     // a wave: the right arm up and waggling; or the gesture's arms; walking, a swing; skipping, a
     // little turn of the wrists with the rope; leaning in, the elbows to the knees
@@ -466,6 +467,17 @@ export function gestureArm(g: NpcGesture, s: number, k: number, side: 1 | -1): {
       return { x: (-0.95 + 0.12 * Math.sin(s * 12 + (side === 1 ? 0 : Math.PI))) * k, z: side * (0.3 + 0.08 * Math.sin(s * 12)) * k };
     case "sleep":
       return { x: -0.35 * k, z: side * 0.2 * k };
+    case "write": {
+      // the ledger: the right paw scribbling a line, then a little dip to the next one
+      if (side === -1) return { x: -0.25 * k, z: 0.1 * k };
+      return { x: (-0.3 + 0.05 * Math.sin(s * 23) + 0.08 * Math.max(0, Math.sin(s * 2.4))) * k, z: (0.28 + 0.07 * Math.sin(s * 11)) * k };
+    }
+    case "cast": {
+      // the rod (in the left paw): lifted up and back, flicked out over the water, settled
+      if (side === 1) return { x: -0.2 * k, z: 0 };
+      const lift = s < 0.5 ? -1.0 * (1 - (1 - s / 0.5) ** 2) : s < 0.7 ? -1.0 + 1.35 * (1 - (1 - (s - 0.5) / 0.2) ** 3) : 0.35 * Math.max(0, 1 - (s - 0.7) / 0.8);
+      return { x: lift, z: 0 };
+    }
     case "perk":
       return { x: -0.4 * k, z: -side * 0.5 * k };
   }

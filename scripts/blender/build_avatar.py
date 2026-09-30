@@ -50,6 +50,9 @@ runtime's swings are clean rotations about local axes (client/src/entities/rig.t
                          hidden until she chops firewood at the campfire
           Pickaxe        a miner's pickaxe out of the right hand, its pick across the haft's end,
                          hidden until she prospects a node in the Glimmering Caverns
+          SmithHammer    a blacksmith's hammer out of the right hand, a squat steel head across its
+                         short haft: the forge's hammer and the geode anvil's mallet
+          Chisel         (on ArmL) a cold chisel held point down out of the left fist, for the geode
           Net            a little butterfly net out of the right hand, for a swipe at the fireflies
           FireflyJar     (on ArmL) a glowing glass jar of fireflies held in the left hand
           FishingRod     a bamboo pole out of the right hand, raised forward
@@ -127,7 +130,7 @@ BOTTOM_IDS = ("joggers", "cargo", "cyber", "lounge", "overalls", "garden", "blue
 TOP_PARTS = (("", "Torso"), ("_SleeveL", "ArmL"), ("_SleeveR", "ArmR"))  # (name suffix, parent)
 BOTTOM_PARTS = (("", "Body"), ("_LegL", "LegL"), ("_LegR", "LegR"))
 NODE_NAMES = (
-    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "Net", "FireflyJar", "Heart", "LegL", "LegR")
+    ("Root", "Body", "Torso", "Head", "Eyes", "EyesHappy", "Face", "EarL", "EarR", "ArmL", "ArmR", "Mug", "MugDrink", "WateringCan", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "SmithHammer", "Chisel", "Net", "FireflyJar", "Heart", "LegL", "LegR")
     + tuple(f"SkewerMallow_{i}" for i in (1, 2))
     + tuple(f"SkewerBBQ_{i}" for i in (1, 2, 3, 4))
     + tuple(f"MugTop_{t}" for t in MUG_TOPPINGS)
@@ -4140,6 +4143,23 @@ def build(hip_y, leg_r, hip_off, covering):
     add_shaped(bm, 4, ellipsoid(head, Vector((0.022, 0.026, 0.03)), n=3.0), material=1)
     make_object("Pickaxe", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Stick"], mat["Mat_Steel"]))
 
+    # SmithHammer: a short stout haft out of the fist, a squat steel head across its end (its face
+    # below: raised and brought down, the face leads), a round peen above
+    bm = bmesh.new()
+    tube(bm, [hand + Vector((0, 0.04, 0)) + fwd * 0.28 * i / 6 for i in range(7)], lambda s_: 0.015 - 0.002 * s_, sides=8, cap_rings=2)
+    hh = hand + fwd * 0.27
+    add_shaped(bm, 6, ellipsoid(hh + Vector((0, 0, -0.02)), Vector((0.026, 0.03, 0.048)), n=4.0), material=1)
+    add_shaped(bm, 5, ellipsoid(hh + Vector((0, 0, 0.035)), Vector((0.018, 0.02, 0.022)), n=2.4), material=1)
+    make_object("SmithHammer", bm, hand, coll, arms["ArmR"], shoulders["ArmR"], (mat["Mat_Stick"], mat["Mat_Steel"]))
+
+    # Chisel: a cold chisel out of the left fist, its butt up and its edge down and forward (it rests
+    # on the geode while the right hand's hammer strikes it)
+    hand_l = Vector((shoulders["ArmL"].x, 0, HAND_Z))
+    down_fwd = Vector((0, -math.sin(math.radians(35)), -math.cos(math.radians(35))))
+    bm = bmesh.new()
+    tube(bm, [hand_l - down_fwd * 0.05 + down_fwd * 0.2 * i / 6 for i in range(7)], lambda s_: 0.011 - 0.006 * s_ ** 3, sides=6, cap_rings=1)
+    make_object("Chisel", bm, hand_l, coll, arms["ArmL"], shoulders["ArmL"], (mat["Mat_Steel"],))
+
     # Net: a short handle up and forward from the fist, a hoop at its end and a soft pouch under it
     up_fwd_net = Vector((0, -math.cos(math.radians(40)), math.sin(math.radians(40))))
     butt = hand - up_fwd_net * 0.06
@@ -4286,7 +4306,7 @@ def is_variant(ob):
     name = ob.name[len(PREFIX) :]
     kind, _, rest = name.partition("_")
     default = {"Hair": DEFAULT_HAIR, "Top": DEFAULT_TOP, "Bottom": DEFAULT_BOTTOM}.get(kind)
-    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "Net", "FireflyJar", "Heart"))
+    return (default is not None and rest.split("_")[0] != default) or kind == "Hat" or name.startswith(("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "SmithHammer", "Chisel", "Net", "FireflyJar", "Heart"))
 
 
 def tidy_viewport(coll):

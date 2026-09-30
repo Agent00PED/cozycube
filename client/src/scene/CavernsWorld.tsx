@@ -2,8 +2,8 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import type { PlayerState } from "@shared/types";
-import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_SUN, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, cavernsZoneAt, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
+import { hashString, type PlayerState } from "@shared/types";
+import { ANVIL, CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_SUN, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, cavernsZoneAt, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
 import { ORE_ITEMS, ORE_KINDS, ORE_KIND_IDS, oreCenterY, parseOres, type CaveLoot, type CaveShatter, type CaveStrike, type OreKind, type OreItemId } from "@shared/caverns_mining";
 import { DRIP_S, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -22,6 +22,9 @@ import { CaveMist, CrystalLights } from "./caveAtmosphere";
 import { pushToast } from "../components/hud/toastStore";
 import { cageLift } from "./winchRide";
 import { CAVE_GRID_GLSL, caveFloorTexture, caveSurface, caveSurfaceTime } from "./caveSurface";
+import { activity, nowS, remoteBlows } from "../systems/activityStore";
+import { BLOW, chiselBeat, forgeBeat } from "../entities/activityAnimations";
+import { caveFx, releaseCaveFx } from "./caveFx";
 
 // The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: 45 x 45,
 // after Hang Son Doong (docs/caverns-design.md), eight zones stepping down from the basecamp's shelf to
@@ -353,6 +356,12 @@ const FINNEGAN_TALK: NpcTalk = {
   },
 };
 
+/** The folk's own turns (constants: an object made afresh each render would reset their clocks):
+ *  Gus writing up his ledger, Finnegan casting afresh, the capybara nodding off in its bath. */
+const GUS_IDLE = { gesture: "write" as const, every: 7 };
+const FINNEGAN_IDLE = { gesture: "cast" as const, every: 11 };
+const CAPY_IDLE = { gesture: "sleep" as const, every: 16 };
+
 export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subscribeMessages, onStrike }: CavernsWorldProps) {
   const floorClick = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
@@ -378,9 +387,9 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
           <CavernModel ores={ores} subscribeMessages={subscribeMessages} players={players} localSessionId={localSessionId} onStrike={onStrike} onClick={floorClick} />
         </Suspense>
       </ModelBoundary>
-      <CampNpc url={GUS_URL} what="gus.glb" prefix="Gus" at={{ x: GUS.x, z: GUS.z, yaw: GUS.yaw }} y={cavernsFloorY(GUS.x, GUS.z)} waveEvent="gusWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={GUS_TALK} />
-      <CampNpc url={FINNEGAN_URL} what="finnegan.glb" prefix="Finnegan" at={{ x: FINNEGAN.x, z: FINNEGAN.z, yaw: FINNEGAN.yaw }} y={cavernsFloorY(FINNEGAN.x, FINNEGAN.z)} waveEvent="finneganWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={FINNEGAN_TALK} />
-      <CampNpc url={CAPYBARA_URL} what="capybara.glb" prefix="Capy" at={{ x: L.capybara.x, z: L.capybara.z, yaw: L.capybara.yaw }} y={TERRACES.pools[0].y} waveEvent="capybaraWave" standIn={null} subscribeMessages={subscribeMessages} />
+      <CampNpc url={GUS_URL} what="gus.glb" prefix="Gus" at={{ x: GUS.x, z: GUS.z, yaw: GUS.yaw }} y={cavernsFloorY(GUS.x, GUS.z)} waveEvent="gusWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={GUS_TALK} idle={GUS_IDLE} />
+      <CampNpc url={FINNEGAN_URL} what="finnegan.glb" prefix="Finnegan" at={{ x: FINNEGAN.x, z: FINNEGAN.z, yaw: FINNEGAN.yaw }} y={cavernsFloorY(FINNEGAN.x, FINNEGAN.z)} waveEvent="finneganWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={FINNEGAN_TALK} idle={FINNEGAN_IDLE} fuseArm={false} />
+      <CampNpc url={CAPYBARA_URL} what="capybara.glb" prefix="Capy" at={{ x: L.capybara.x, z: L.capybara.z, yaw: L.capybara.yaw }} y={TERRACES.pools[0].y} waveEvent="capybaraWave" standIn={null} subscribeMessages={subscribeMessages} loop="bathe" idle={CAPY_IDLE} />
       <CaveLights />
       <CrystalLights />
       <Godrays />
@@ -390,6 +399,8 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       <ForgeSmoke />
       <DustMotes />
       <WaterfallSpray />
+      <CaveFxLayer />
+      <WorkFx players={players} localSessionId={localSessionId} />
       <ZoneToasts />
       <DripRipples subscribeMessages={subscribeMessages} />
       <OcclusionDriver />
@@ -627,9 +638,8 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
     }
   }, [sync]);
 
-  // the sparks, the shards and the loot: one pool of little glowing pieces
-  const fx = useMemo(() => new FxPool(160), []);
-  useEffect(() => () => fx.dispose(), [fx]);
+  // the sparks, the chips, the shards, the dust and the loot: the cave's pools (caveFx.ts)
+  const { fx, puffs } = useMemo(() => caveFx(), []);
   // the dust lingering over a broken node's stump till it grows back
   const dust = useMemo(() => new MotePoints(ORE_NODES.length * DUST_PER_STUMP), []);
   // the "ready to mine" sparkle: one twinkling star on the face of every node that stands
@@ -652,9 +662,19 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
           const c = new THREE.Vector3(node.x, node.y + oreCenterY(node.kind), node.z);
           const at = c.clone().add(new THREE.Vector3(...st.hit).multiplyScalar(r * 0.95));
           const col = st.verdict === "direct" ? ORE_KINDS[node.kind].glow : st.verdict === "near" ? "#ffb46b" : st.verdict === "deflect" ? "#cfe6ff" : "#9a948c";
-          fx.sparks(at, new THREE.Vector3(...st.hit), col, st.verdict === "direct" ? 12 : st.verdict === "deflect" ? 10 : 6, st.verdict === "bedrock" ? 0.6 : 1);
+          const out = new THREE.Vector3(...st.hit);
+          fx.sparks(at, out, col, st.verdict === "direct" ? 12 : st.verdict === "deflect" ? 10 : 6, st.verdict === "bedrock" ? 0.6 : 1);
+          // (chips of the rock itself and a puff of its dust, but not off a skid)
+          if (st.verdict !== "deflect") {
+            fx.chips(at, out, CHIP_COLOR[node.kind], st.verdict === "direct" ? 7 : st.verdict === "near" ? 5 : 3);
+            puffs.burst(at, out, "#b9ae9c", st.verdict === "direct" ? 4 : 3, 0.32 * (r / 0.5 + 0.5), 0.9, 0.42);
+          } else puffs.burst(at, out, "#cfd6de", 2, 0.18, 0.5, 0.3);
           const mine = st.sessionId === live.current.localSessionId;
           if (mine) prospectShake(st.verdict === "direct" ? 0.05 : st.verdict === "deflect" ? 0.08 : 0.025);
+          // (the swing: yours was played as you tapped, and a skid jars it back; everyone else's
+          // lands now, with its sparks)
+          if (mine) activity.deflect = st.verdict === "deflect";
+          else remoteBlows.set(st.sessionId, { at: nowS() - BLOW.down, deflect: st.verdict === "deflect" });
           playCaveSfx(st.verdict === "direct" ? "crack" : st.verdict === "near" ? "clink" : st.verdict === "deflect" ? "clang" : "clatter", mine ? 1 : 0.45);
         } else if (type === "caveShatter") {
           const sh = payload as CaveShatter;
@@ -662,6 +682,8 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
           if (!node) return;
           const c = new THREE.Vector3(node.x, node.y + oreCenterY(node.kind), node.z);
           fx.shards(c, ORE_KINDS[node.kind].radius, ORE_KINDS[node.kind].glow, node.kind === "monolith" ? 60 : 26);
+          fx.chips(c, new THREE.Vector3(0, 0.4, 0), CHIP_COLOR[node.kind], node.kind === "monolith" ? 24 : 12);
+          puffs.burst(c, new THREE.Vector3(0, 0.3, 0), "#b9ae9c", node.kind === "monolith" ? 14 : 8, ORE_KINDS[node.kind].radius * 1.8, 1.6, 0.5);
           const look = looks.current.get(node.id);
           if (look) look.up = false;
           playCaveSfx("shatter", 1);
@@ -685,7 +707,7 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
   const s = useMemo(() => new THREE.Vector3(), []);
   const p = useMemo(() => new THREE.Vector3(), []);
   const yAxis = useMemo(() => new THREE.Vector3(0, 1, 0), []);
-  useFrame(({ camera }, dt) => {
+  useFrame(({ camera }) => {
     const now = performance.now();
     for (const set of sets) {
       set.nodes.forEach((n, i) => {
@@ -751,7 +773,6 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
       sparkles.set(i, n.x + Math.sin(yaw) * r * out, n.y + oreCenterY(n.kind) + r * 0.5, n.z + Math.cos(yaw) * r * out, SPARKLE_COLOR[n.kind], i * 1.37);
     });
     sparkles.commit(t, (camera as THREE.OrthographicCamera).zoom ?? 1);
-    fx.step(dt, cameraFocus);
   });
   return (
     <>
@@ -764,108 +785,89 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
       {rubble && <primitive object={rubble} />}
       <primitive object={dust.points} />
       <primitive object={sparkles.points} />
-      <primitive object={fx.mesh} />
     </>
   );
 }
 
-// --- the little pieces: sparks off a strike, shards off a shatter, the loot flying to you ----------
+/** The rock chips' colour off each kind of node (its host rock's, dark against the dust). */
+const CHIP_COLOR: Record<OreKind, string> = { coal: "#2a2930", copper: "#6c6f6a", iron: "#403f4a", silver: "#4d5667", glimmer: "#2f3242", monolith: "#302e39" };
 
-interface Piece {
-  kind: "spark" | "shard" | "loot";
-  t: number;
-  life: number;
-  pos: THREE.Vector3;
-  vel: THREE.Vector3;
-  from: THREE.Vector3;
-  size: number;
-  delay: number;
+/** The cave's pools of little pieces (caveFx.ts), drawn and stepped here, let go with the cave. */
+function CaveFxLayer() {
+  const { fx, puffs } = useMemo(() => caveFx(), []);
+  useEffect(() => () => releaseCaveFx(), []);
+  useFrame(({ camera }, dt) => {
+    fx.step(dt, cameraFocus);
+    puffs.step(dt, (camera as THREE.OrthographicCamera).zoom ?? 60);
+  });
+  return (
+    <>
+      <primitive object={fx.mesh} />
+      <primitive object={puffs.points} />
+    </>
+  );
 }
-const FX_GEO = new THREE.OctahedronGeometry(1, 0);
-class FxPool {
-  mesh: THREE.InstancedMesh;
-  private pieces: (Piece | null)[];
-  private m = new THREE.Matrix4();
-  private q = new THREE.Quaternion();
-  private e = new THREE.Euler();
-  private c = new THREE.Color();
-  constructor(n: number) {
-    const mat = new THREE.MeshBasicMaterial({ toneMapped: false });
-    this.mesh = new THREE.InstancedMesh(FX_GEO, mat, n);
-    this.mesh.raycast = noRaycast;
-    this.mesh.frustumCulled = false;
-    this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
-    this.pieces = Array.from({ length: n }, () => null);
-    for (let i = 0; i < n; i++) this.mesh.setMatrixAt(i, new THREE.Matrix4().makeScale(0, 0, 0));
-  }
-  private add(p: Piece, color: string) {
-    const i = this.pieces.findIndex((x) => x === null);
-    if (i < 0) return;
-    this.pieces[i] = p;
-    this.c.set(color);
-    this.mesh.setColorAt(i, this.c);
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
-  }
-  sparks(at: THREE.Vector3, out: THREE.Vector3, color: string, n: number, speed: number) {
-    for (let k = 0; k < n; k++) {
-      const v = out.clone().multiplyScalar(1.2 + Math.random()).add(new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).multiplyScalar(2.2)).multiplyScalar(speed);
-      this.add({ kind: "spark", t: 0, life: 0.28 + Math.random() * 0.2, pos: at.clone(), vel: v, from: at.clone(), size: 0.025 + Math.random() * 0.02, delay: 0 }, color);
-    }
-  }
-  shards(at: THREE.Vector3, r: number, color: string, n: number) {
-    for (let k = 0; k < n; k++) {
-      const d = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.9 + 0.1, Math.random() - 0.5).normalize();
-      this.add({ kind: "shard", t: 0, life: 0.9 + Math.random() * 0.5, pos: at.clone().addScaledVector(d, r * 0.6), vel: d.multiplyScalar(2.5 + Math.random() * 3), from: at.clone(), size: 0.05 + Math.random() * 0.07 * (r / 0.5), delay: 0 }, k % 3 === 0 ? color : "#6d6878");
-    }
-  }
-  loot(at: THREE.Vector3, color: string, delay: number) {
-    this.add({ kind: "loot", t: 0, life: 0.85, pos: at.clone(), vel: new THREE.Vector3((Math.random() - 0.5) * 0.6, 0, (Math.random() - 0.5) * 0.6), from: at.clone(), size: 0.07, delay }, color);
-  }
-  step(dt: number, focus: { x: number; y: number; z: number }) {
-    const to = new THREE.Vector3(focus.x, focus.y + 0.85, focus.z);
-    let dirty = false;
-    this.pieces.forEach((p, i) => {
-      if (!p) return;
-      dirty = true;
-      if (p.delay > 0) {
-        p.delay -= dt;
-        this.mesh.setMatrixAt(i, this.m.makeScale(0, 0, 0));
-        return;
-      }
-      p.t += dt;
-      const k = p.t / p.life;
-      if (k >= 1) {
-        this.pieces[i] = null;
-        this.mesh.setMatrixAt(i, this.m.makeScale(0, 0, 0));
-        return;
-      }
-      let size = p.size;
-      if (p.kind === "loot") {
-        // a magnet's arc: up and over, pulled in to you (never loose on the floor)
-        const e = k * k * (3 - 2 * k);
-        p.pos.lerpVectors(p.from, to, e).addScaledVector(p.vel, Math.sin(k * Math.PI) * 0.5);
-        p.pos.y += Math.sin(k * Math.PI) * 1.3;
-        size = p.size * (1 - 0.6 * k * k);
-      } else {
-        p.vel.y -= (p.kind === "shard" ? 9 : 6) * dt;
-        p.pos.addScaledVector(p.vel, dt);
-        if (p.pos.y < 0.02) {
-          p.pos.y = 0.02;
-          p.vel.multiplyScalar(0.3);
+
+/** Everyone at work: the forge's embers as the bellows pump, sparks off each hammer blow, chips and
+ *  dust off each chisel blow at the anvil. Yours on your own beats (activityStore.ts), everyone
+ *  else's on the loop their avatar is drawn by (activityAnimations.ts forgeBeat, chiselBeat). */
+const FORGE_MOUTH = new THREE.Vector3(FORGE.x, 0, FORGE.z);
+const ANVIL_AT = new THREE.Vector3(ANVIL.x, 0, ANVIL.z);
+/** How long after a beat its blow lands (the hammer's and the mallet's way down). */
+const HAMMER_DOWN_S = 0.07;
+const MALLET_DOWN_S = 0.06;
+function WorkFx({ players, localSessionId }: { players: Record<string, PlayerState>; localSessionId: string | null }) {
+  const { fx, puffs } = useMemo(() => caveFx(), []);
+  const last = useRef(new Map<string, { blow: number; pump: number }>());
+  const at = useMemo(() => new THREE.Vector3(), []);
+  const dir = useMemo(() => new THREE.Vector3(), []);
+  const up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  useFrame(() => {
+    const now = nowS();
+    for (const p of Object.values(players)) {
+      if (p.map !== "glimmering_caverns" || (p.action !== "forge" && p.action !== "chisel")) continue;
+      const mine = p.sessionId === localSessionId;
+      const seed = (hashString(p.userId || p.username) % 1000) / 100;
+      const seen = last.current.get(p.sessionId) ?? { blow: now, pump: now };
+      last.current.set(p.sessionId, seen);
+      // where the blow lands: half a metre out from them toward the forge's mould or the anvil
+      const target = p.action === "forge" ? FORGE_MOUTH : ANVIL_AT;
+      dir.set(target.x - p.x, 0, target.z - p.z);
+      if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1);
+      dir.normalize();
+      at.set(p.x + dir.x * 0.55, cavernsFloorY(p.x, p.z) + 0.52, p.z + dir.z * 0.55);
+      if (p.action === "forge") {
+        const beat = forgeBeat(now, seed);
+        const blow = mine ? activity.hammerAt : (beat.blowAt ?? -Infinity);
+        if (blow > seen.blow && now >= blow + HAMMER_DOWN_S) {
+          seen.blow = blow;
+          if (now - blow < 0.4) {
+            fx.sparks(at, up, "#ffb347", 14, 1.15);
+            fx.sparks(at, dir, "#fff1c2", 6, 0.9);
+          }
         }
-        size = p.size * (1 - k);
+        // the bellows: embers up out of the forge's mouth with each pump
+        const pumping = mine ? activity.forge === "bellows" && (activity.pumping || now - activity.pumpAt < 0.1) : beat.forge === "bellows";
+        if (pumping && now - seen.pump >= 0.5) {
+          seen.pump = now;
+          const mouth = new THREE.Vector3(FORGE.x, cavernsFloorY(FORGE.x, FORGE.z + 0.6) + 0.55, FORGE.z + 0.35);
+          fx.embers(mouth, 3);
+          puffs.burst(mouth, up, "#6d625c", 1, 0.35, 1.2, 0.18);
+        }
+      } else {
+        const blow = mine ? activity.chiselAt : chiselBeat(now, seed).blowAt;
+        if (blow > seen.blow && now >= blow + MALLET_DOWN_S) {
+          seen.blow = blow;
+          if (now - blow < 0.4) {
+            fx.sparks(at, up, "#ffe2b0", 5, 0.7);
+            fx.chips(at, up, "#5b4e66", 5);
+            puffs.burst(at, up, "#c7bdb0", 3, 0.2, 0.7, 0.4);
+          }
+        }
       }
-      this.e.set(p.t * 7 + i, p.t * 5, 0);
-      this.q.setFromEuler(this.e);
-      this.m.compose(p.pos, this.q, new THREE.Vector3(size, size, size));
-      this.mesh.setMatrixAt(i, this.m);
-    });
-    if (dirty) this.mesh.instanceMatrix.needsUpdate = true;
-  }
-  dispose() {
-    (this.mesh.material as THREE.Material).dispose();
-    this.mesh.dispose();
-  }
+    }
+  });
+  return null;
 }
 
 // --- the light: three moving lights, the godrays, the steam, the drip ----------------------------------

@@ -74,7 +74,7 @@ PLACES = {
 for _k, _name in enumerate(("Boris", "Vivienne", "Jasper", "Pippin", "Bruno", "Cedric", "Gideon", "Scarlett", "Baron", "Penelope")):
     PLACES[_name] = ("Casino", (-11.0 + _k * 2.5, -14.0))
 # The avatar's nodes shown only on demand (build_avatar.py is_variant): held props and the happy eyes.
-HELD = ("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "Net", "FireflyJar", "Heart")
+HELD = ("Mug", "WateringCan", "EyesHappy", "Skewer", "FishingRod", "RodTip", "Guitar", "Bobber", "Hatchet", "Pickaxe", "SmithHammer", "Chisel", "Net", "FireflyJar", "Heart")
 
 
 def master_path(root):

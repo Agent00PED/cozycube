@@ -99,6 +99,16 @@ glinting, strata up every cliff. Every bank too steep to walk is bare rock or br
 trail a trodden way drawn from its own line. The walls stand in beds a metre thick under the vault's
 broken lip, stalactites hanging from it; the Great Wall is cream and amber flowstone.
 
+## At work
+
+Every job down here moves the whole body (client/src/entities/activityAnimations.ts,
+docs/caverns-roadmap.md phase 3): the pickaxe swung from the shoulder onto the rock, the bellows
+pumped and the smith's hammer brought down at the forge, the geode turned and the chisel struck at
+the anvil, a long lean back in the warm pools, a hand on the winch's rope and on the rope descent's.
+Everyone sees everyone at it (the `forge` and `chisel` actions, the room's strikes), each worker turned
+to their work, and every blow throws chips, dust and sparks that land on the cave floor. Gus writes up
+his ledger, Finnegan casts afresh, the capybara bobs and dozes in its bath.
+
 ## Shapes
 
 Nothing is a rectangle (docs/caverns-roadmap.md phase 1): every level's outline is a many-pointed

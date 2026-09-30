@@ -1165,6 +1165,28 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.7.16",
+        date: "2026-09-30",
+        title: "Hard at Work Underground",
+        summary: "Every job in the Glimmering Caverns now moves the whole body: a real pickaxe swing, the bellows and the smith's hammer at the forge, the chisel at the anvil, a long soak in the springs. Chips, dust and sparks fly from every blow, and Gus, Finnegan and the capybara go about their own business.",
+        changes: {
+          visuals: [
+            "⛏️ Mining is a real swing: the pick held up by your shoulder, driven down onto the rock, held on it and swung back up. A heavier pickaxe swings bigger, and a pick that skids off jars your arms back.",
+            "🔥 At the forge you pump the bellows with your whole body, then take up the smith's hammer and tongs and bring the hammer down on every beat, with sparks flying.",
+            "💎 At the anvil you crouch over the geode, turn it in both hands, set the chisel and draw the mallet back as the power builds, then strike, and chips and dust fly.",
+            "♨️ In the warm pools you lean back with your arms spread along the rim and your eyes happily closed.",
+            "🪢 On Gus's winch you hold the rope with one hand and the cage with the other, and on the rope descent you keep a hand on the rope.",
+            "🎣 Fishing casts with the whole body, starts at the bite and braces for the reel, everywhere you fish.",
+            "Everyone at work turns to face their rock, the forge or the anvil, and everyone nearby sees the whole thing: your swing, your hammer, your chisel.",
+            "Every blow sends chips of rock and a puff of dust flying. Sparks streak, and everything lands on the cave floor instead of falling through it on high ground.",
+            "Gus writes up his ledger between customers, Finnegan casts his rod afresh now and then, and the capybara bobs in its bath and nods off.",
+          ],
+          fixes: [
+            "Your own swings, pumps and hammer blows now play the moment you tap, instead of waiting for the server.",
+          ],
+        },
+      },
     ],
   },
 ];

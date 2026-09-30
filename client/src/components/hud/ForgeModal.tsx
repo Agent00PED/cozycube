@@ -39,6 +39,7 @@ import { playCaveSfx } from "../../audio/cavernAmbience";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
 import { TrendBadge } from "./ShopShell";
+import { activity, nowS } from "../../systems/activityStore";
 
 // The Thermal Bellows Forge in its basalt cleft at the Expedition Basecamp, in three tabs:
 //
@@ -234,23 +235,27 @@ function BellowsGame({ game, send }: { game: ForgeGame; send: Props["send"] }) {
   };
   const pump = (t: number) => {
     pumps.current.push(Math.round(t * 1000) / 1000);
+    activity.pumpAt = nowS();
     if (pumps.current.length % 2 === 1) playSfx("flame", 0.35);
   };
   const press = () => {
     if (doneAt.current !== null || sent.current) return;
     held.current = true;
+    activity.pumping = true;
     const t = now();
     pump(t);
     nextPump.current = t + 1 / HOLD_PUMPS_PER_S;
   };
   const lift = () => {
     held.current = false;
+    activity.pumping = false;
   };
   const strike = () => {
     if (doneAt.current === null || sent.current) return;
     const t = now();
     if (t <= doneAt.current) return;
     strikes.current.push(t);
+    activity.hammerAt = nowS();
     playCaveSfx("anvil", 1);
     if (strikes.current.length >= HAMMER_STRIKES) window.setTimeout(finish, 250);
   };
@@ -272,6 +277,8 @@ function BellowsGame({ game, send }: { game: ForgeGame; send: Props["send"] }) {
         if (h.doneAt !== null) {
           doneAt.current = h.doneAt;
           held.current = false;
+          activity.forge = "hammer";
+          activity.pumping = false;
           playSfx("sparkle", 0.8);
         } else if (t >= BELLOWS_LIMIT_S) finish();
       } else {
@@ -282,7 +289,13 @@ function BellowsGame({ game, send }: { game: ForgeGame; send: Props["send"] }) {
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    // (your avatar at the forge: the bellows, then the hammer: entities/activityAnimations.ts)
+    activity.forge = "bellows";
+    return () => {
+      cancelAnimationFrame(raf);
+      activity.forge = null;
+      activity.pumping = false;
+    };
     // (one loop per game)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

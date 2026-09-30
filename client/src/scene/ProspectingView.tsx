@@ -8,6 +8,7 @@ import { prospectCam } from "./prospectCamera";
 import { noRaycast } from "./kit";
 import { setCaveHum } from "../audio/cavernAmbience";
 import { NODE_YAW } from "./caveNodes";
+import { noteBlow } from "../systems/activityStore";
 
 // Prospecting, in the scene (tactile, zero UI): while you are at a node (systems/prospectStore.ts),
 // the camera frames its rock close up (prospectCamera.ts) and:
@@ -180,6 +181,7 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
     if (now - lastTap.current < STRIKE_DEBOUNCE_S * 1000) return;
     lastTap.current = now;
     const d = e.point.clone().sub(shape.centre).normalize();
+    noteBlow();
     onStrike(pr.node, [Math.round(d.x * 1000) / 1000, Math.round(d.y * 1000) / 1000, Math.round(d.z * 1000) / 1000]);
   };
   // the Reinforced Pickaxe (and up) hums as the pointer nears the weak spot
