@@ -100,7 +100,7 @@ widest (16 m) zoom, `npm run check-layout`, and the draw-call count.
    open south and east edges and the lake's outflow falling over the rim.
 3. **Zone art** (done 2026-09-30): each zone's ground painted over its flat colour (the jungle's moss
    and leaf litter, the basecamp's trodden ways, the breakdown's gravel and dust, the overlook's slab
-   joints, the terraces' rimstone ripples, the rift's glints); the jungle's tall thin trees (dithered
+   joints (taken out in phase 5), the terraces' rimstone ripples, the rift's glints); the jungle's tall thin trees (dithered
    in front of you), ferns and vines down the collapse's walls; the basecamp's barrels, crates,
    bedroll, survey board and lantern posts at the switchback's head and the forge's corner; the
    breakdown's fallen slabs with coal in their beds and gravel; the mudflats' dried plates cracked
@@ -115,7 +115,20 @@ widest (16 m) zoom, `npm run check-layout`, and the draw-call count.
    crown out of a dark socket; the Monolith as it was. Their glints sit on the rock's own skin (a ray
    from its centre). A twinkling four-point "ready to mine" star on every standing node's face, in its
    ore's colour (one draw for all); the ore rocks lit a little on their own so their minerals read.
-5. **Light and mist per zone, animals, sound**; the zone-name toast (`cavernsZoneAt`).
+5. **Light, mist, animals and sound** (done 2026-09-30): a key light from high over the collapse so the
+   cliffs facing the camera stand in their own shade, the fill softer and the baked light a little
+   lower; each zone's tint baked into the model's base light (the jungle's green-gold, the basecamp's
+   warmth, the breakdown's cool grey, the mudflats' dim orange, the rift's violet, the terraces' cool
+   white, the lake's teal); a height mist, a cool haze over the low ground and the lake's shore and a
+   deep one below the water line and down the pedestal's sides, the colour of the dark round the
+   cavern, so its open edges fall away. The floor made to read as ground, not smoke: the banks too
+   steep to walk painted bare rock triangle by triangle in the game (its zone's ground darker, the
+   true drops darker still), where the 0.5 m vertex colours only smeared them; the trails blended
+   from the zones round them; the overlook's painted joints taken out, the overlook and the
+   travertine toned down. Bats roosting on the west wall and six fluttering over the mudflats; dust
+   drifting in the collapse's light. The waterfall's roar, the stream's babble and the lake's lapping
+   placed by distance, the bats' squeaks over the mudflats, the crystals ringing more often in the
+   rift. Each zone's name and what it holds in a toast as you come into it (`cavernsZoneAt`).
 6. **Cleanup**: CLAUDE.md, the patch note, `check-layout`, the build.
 
 ## What was kept

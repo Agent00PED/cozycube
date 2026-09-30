@@ -3,14 +3,18 @@ import { masterOut } from "./master";
 import { crossfade } from "./sound";
 import { CAVE_CHANNELS, getSoundSettings, type CaveChannel } from "./soundSettings";
 import { cameraFocus } from "../scene/cameraFocus";
-import { TERRACES } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVERNS_LAYOUT, TERRACES, cavernsZoneAt, riverDistance } from "@shared/worlds/caverns";
 
 // The Glimmering Caverns' soundscape and its effects, generated in the browser like every world's
 // (no audio files needed). Its own context, three channels on one master (each a Settings fader):
 //
 //   cavern    the cave's air (a low rumble breathing), the stalactites' drips (a plink falling in
-//             pitch, now here now there), your footsteps on the stone as you walk
-//   crystal   the crystals' resonance: glassy sine clusters swelling and fading, slowly detuned
+//             pitch, now here now there), your footsteps on the stone as you walk; the water, each
+//             placed by how near you are: the waterfall's roar under the collapse, the stream's
+//             babble along its reaches, the lake lapping at its shore; the bats' squeaks over the
+//             mudflats
+//   crystal   the crystals' resonance: glassy sine clusters swelling and fading, slowly detuned (and
+//             ringing far more often down in the Glimmer Rift)
 //   steam     the Travertine Terraces' hiss and bubbling, louder as you near their pools
 //
 // Everything that sounds in the cave (the drips, the footsteps, a pickaxe's blow) goes through a
@@ -36,6 +40,10 @@ class CavernAmbience {
   private wet: GainNode | null = null;
   private channels: Record<CaveChannel, GainNode> | null = null;
   private steamPlace: GainNode | null = null;
+  /** The water's three voices, each at its level for where you stand. */
+  private fallPlace: GainNode | null = null;
+  private streamPlace: GainNode | null = null;
+  private lakePlace: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   private beds: AudioScheduledSourceNode[] = [];
   private timer = 0;
@@ -43,6 +51,7 @@ class CavernAmbience {
   private stopAt = 0;
   private dripAt = 0;
   private chimeAt = 0;
+  private batAt = 0;
   private stepAt = 0;
   private last = { x: 0, z: 0, ready: false };
   private hum: { a: OscillatorNode; b: OscillatorNode; g: GainNode } | null = null;
@@ -78,6 +87,15 @@ class CavernAmbience {
     this.steamPlace = c.createGain();
     this.steamPlace.gain.value = 0.2;
     this.steamPlace.connect(this.channels.steam);
+    const place = () => {
+      const g = c.createGain();
+      g.gain.value = 0;
+      g.connect(this.channels!.cavern);
+      return g;
+    };
+    this.fallPlace = place();
+    this.streamPlace = place();
+    this.lakePlace = place();
     this.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -127,11 +145,16 @@ class CavernAmbience {
   }
 
   private startBeds() {
-    if (this.beds.length || !this.channels || !this.steamPlace) return;
+    if (this.beds.length || !this.channels || !this.steamPlace || !this.fallPlace || !this.streamPlace || !this.lakePlace) return;
     this.bed("lowpass", 110, 0.7, 0.3, this.channels.cavern, 0.07, 0.12); // the cave breathing
     this.bed("bandpass", 420, 0.6, 0.02, this.channels.cavern, 0.11, 0.012); // air moving in the dark
     this.bed("highpass", 3200, 0.6, 0.07, this.steamPlace, 0.4, 0.03); // the terraces' hiss
     this.bed("bandpass", 900, 2.5, 0.05, this.steamPlace, 1.7, 0.04); // its bubbling
+    this.bed("lowpass", 520, 0.5, 0.26, this.fallPlace, 0.23, 0.03); // the waterfall's roar
+    this.bed("bandpass", 1900, 0.6, 0.07, this.fallPlace, 0.37, 0.02); // its spray
+    this.bed("bandpass", 1250, 3.2, 0.07, this.streamPlace, 3.1, 0.04); // the stream's babble
+    this.bed("bandpass", 2300, 4.5, 0.035, this.streamPlace, 4.7, 0.025); // its trickle over stones
+    this.bed("lowpass", 360, 0.9, 0.1, this.lakePlace, 0.16, 0.07); // the lake lapping
   }
 
   private stopBeds() {
@@ -161,6 +184,17 @@ class CavernAmbience {
     const tz = Math.max(TERRACES.pools[0].z0, Math.min(TERRACES.pools[TERRACES.pools.length - 1].z1, cameraFocus.z));
     const d = Math.hypot(cameraFocus.x - tx, cameraFocus.z - tz);
     this.steamPlace?.gain.setTargetAtTime(0.15 + 1.6 / (1 + (d / 3) ** 2), now, 0.3);
+    // the water: the falls under the collapse, the stream along its reaches, the lake at its shore
+    const { x, z } = cameraFocus;
+    const fall = CAVERNS_LAYOUT.river.plunge;
+    const fd = Math.max(0, Math.hypot(x - fall.x, z - fall.z) - fall.r);
+    this.fallPlace?.gain.setTargetAtTime(0.04 + 1.5 / (1 + (fd / 4.5) ** 2), now, 0.3);
+    const rd = riverDistance(x, z);
+    this.streamPlace?.gain.setTargetAtTime(1.3 / (1 + (rd / 2.5) ** 2), now, 0.3);
+    const lq = Math.hypot((x - CAVE_LAKE.x) / CAVE_LAKE.rx, (z - CAVE_LAKE.z) / CAVE_LAKE.rz);
+    const ld = Math.max(0, (lq - 1) * Math.min(CAVE_LAKE.rx, CAVE_LAKE.rz));
+    this.lakePlace?.gain.setTargetAtTime(0.05 + 1.1 / (1 + (ld / 3) ** 2), now, 0.3);
+    const zone = cavernsZoneAt(x, z)?.id ?? "";
     // the stalactites dripping, now here now there
     if (now > this.dripAt) {
       this.dripAt = now + 0.9 + Math.random() * 2.6;
@@ -168,8 +202,13 @@ class CavernAmbience {
     }
     // the crystals ringing: a glassy chord swelling and fading
     if (now > this.chimeAt) {
-      this.chimeAt = now + 3 + Math.random() * 4;
+      this.chimeAt = now + (zone === "rift" ? 0.9 + Math.random() * 1.6 : 3 + Math.random() * 4);
       this.chime(this.channels.crystal);
+    }
+    // the bats over the mudflats: a few squeaks in a flurry, now here now there
+    if (zone === "mudflats" && now > this.batAt) {
+      this.batAt = now + 1.4 + Math.random() * 3.2;
+      this.squeaks(this.channels.cavern, (Math.random() - 0.5) * 1.6);
     }
     // your footsteps on the stone, while you walk
     const moved = this.last.ready ? Math.hypot(cameraFocus.x - this.last.x, cameraFocus.z - this.last.z) : 0;
@@ -199,6 +238,31 @@ class CavernAmbience {
     o.start(t);
     o.stop(t + 0.2);
     o.onended = () => (o.disconnect(), g.disconnect(), p.disconnect());
+  }
+
+  /** A bat's flurry: two to four quick high chirps, each a sine sweeping down. */
+  private squeaks(out: AudioNode, pan: number) {
+    const c = this.ctx!;
+    const p = c.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan));
+    p.connect(out);
+    const n = 2 + Math.floor(Math.random() * 3);
+    const f0 = 3600 + Math.random() * 1400;
+    for (let k = 0; k < n; k++) {
+      const t = c.currentTime + 0.02 + k * (0.055 + Math.random() * 0.03);
+      const o = c.createOscillator();
+      o.frequency.setValueAtTime(f0 * (1 + 0.04 * k), t);
+      o.frequency.exponentialRampToValueAtTime(f0 * 0.62, t + 0.035);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.02, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+      o.connect(g).connect(p);
+      o.start(t);
+      o.stop(t + 0.05);
+      o.onended = () => (o.disconnect(), g.disconnect());
+    }
+    window.setTimeout(() => p.disconnect(), 600);
   }
 
   private chime(out: AudioNode) {

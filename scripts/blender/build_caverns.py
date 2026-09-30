@@ -115,7 +115,6 @@ C = {
     "floor": "#3A3D44",
     "floorLight": "#42454C",
     "floorDark": "#33363C",
-    "floorSeam": "#2A2C31",
     "trodden": "#303238",
     "sediment": "#4A4439",
     "sedimentDry": "#544D40",
@@ -233,10 +232,10 @@ C = {
     "groundJungle": "#4E7A3A",
     "groundBreakdown": "#7C7F86",
     "groundMud": "#9A5A36",
-    "groundOverlook": "#A8A396",
-    "groundTravertine": "#D8D2C0",
+    "groundOverlook": "#948F83",
+    "groundTravertine": "#C8C1AD",
     "groundRift": "#2B2838",
-    "groundShore": "#5E5446",
+    "groundShore": "#675D4E",
     "groundTrail": "#C9AE7C",
     "groundStream": "#3A4A52",
     "groundPool": "#6FA89E",
@@ -268,6 +267,8 @@ C = {
     "barrel": "#7A5536",
     "bedroll": "#8C3A2E",
     "mapPaper": "#E8D8A8",
+    "batBody": "#2A2226",
+    "batWing": "#3A2C30",
     # phase 4: the ore nodes' own minerals
     "shale": "#8A857C",
     "shaleLight": "#A8A298",
@@ -286,7 +287,7 @@ C = {
     "cliffRock": "#3E3B42",
     "mudRock": "#A8653C",
     "mudRockDark": "#6E3F26",
-    "travRock": "#E6E0CE",
+    "travRock": "#D6CFBB",
     "travRockDark": "#B8AF98",
 }
 
@@ -805,10 +806,37 @@ def lit(rgb, p, nrm, ambient):
     return (min(1.4, r), min(1.4, g), min(1.4, b))
 
 
+# each zone's light, baked into what stands in it (docs/caverns-design.md phase 5): the jungle's green
+# gold under the collapse, the basecamp's lantern warmth, the breakdown's cool grey, the mudflats' dim
+# warm orange, the rift's cool violet, the terraces' cool white, the lake's teal; soft at their edges
+ZONE_TINT = (
+    (-22.5, -9.0, -22.5, -12.25, (1.02, 1.04, 0.9)),
+    (-9.0, 9.0, -22.5, -12.25, (1.06, 1.0, 0.9)),
+    (9.0, 22.5, -22.5, -12.25, (0.93, 0.97, 1.04)),
+    (-22.5, -6.5, -12.25, 1.5, (1.02, 0.88, 0.76)),
+    (-8.5, 11.0, -12.25, -3.0, (1.0, 0.99, 0.97)),
+    (11.0, 22.5, -12.25, 5.5, (0.8, 0.82, 1.06)),
+    (-22.5, -5.5, 1.5, 22.5, (0.95, 1.0, 1.05)),
+    (-5.5, 22.5, -3.0, 22.5, (0.9, 1.0, 1.02)),
+)
+
+
+def zone_tint(x, z):
+    acc, wsum = [0.2, 0.2, 0.2], 0.2
+    e = 1.4
+    for x0, x1, z0, z1, (r, g, b) in ZONE_TINT:
+        w = smooth(x0 - e, x0 + e, x) * (1 - smooth(x1 - e, x1 + e, x)) * smooth(z0 - e, z0 + e, z) * (1 - smooth(z1 - e, z1 + e, z))
+        if w > 0:
+            acc = [acc[0] + r * w, acc[1] + g * w, acc[2] + b * w]
+            wsum += w
+    return acc[0] / wsum, acc[1] / wsum, acc[2] / wsum
+
+
 def ambient_at(p):
-    """The model's own base light: even, a touch dimmer up the walls' heights."""
+    """The model's own base light: even, a touch dimmer up the walls' heights, each zone's own tint."""
     fade = 1 - 0.18 * smooth(5.0, 10.0, p[1])
-    return (0.94 * fade, 0.95 * fade, 0.98 * fade)
+    t = zone_tint(p[0], p[2])
+    return (0.94 * fade * t[0], 0.95 * fade * t[1], 0.98 * fade * t[2])
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1040,36 +1068,45 @@ SURF_COLOUR = {0: "groundCamp", 1: "groundJungle", 2: "groundBreakdown", 3: "gro
 
 
 def trail_zones(G):
-    """For every trail vertex, the surface of the nearest ground off the trail (a few cells' search):
-    a trail is that zone's ground trodden paler."""
+    """For every trail vertex, the ground round it off the trail: its zones' colours blended by how near
+    each lies (a few metres' reach), so a ramp from one zone down into another fades between them
+    evenly (never a patchwork of whichever zone was nearest, smeared by the blur)."""
     n = G.n
     trail = SURF["trail"]
-    zone = {}
-    frontier = [q for q in range(n * n) if G.s[q] != trail]
-    seen = {q: G.s[q] for q in frontier}
-    for _ in range(8):
-        nxt = []
-        for q in frontier:
-            i, k = q % n, q // n
-            for di, dk in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                ii, kk = i + di, k + dk
-                if 0 <= ii < n and 0 <= kk < n:
-                    r = kk * n + ii
-                    if r not in seen:
-                        seen[r] = seen[q]
-                        nxt.append(r)
-        frontier = nxt
+    skip = (SURF["bed"], SURF["stream"], SURF["pool"], trail)
+    ground = {s: lin(C[SURF_COLOUR[s]]) for s in SURF_COLOUR if s not in skip}
+    out = {}
     for q in range(n * n):
-        if G.s[q] == trail:
-            s = seen.get(q, SURF["shore"])
-            zone[q] = SURF["shore"] if s in (SURF["bed"], SURF["stream"], SURF["pool"], trail) else s
-    return zone
+        if G.s[q] != trail:
+            continue
+        i, k = q % n, q // n
+        for reach in (5, 9, 14):
+            acc, wsum = [0.0, 0.0, 0.0], 0.0
+            for dk in range(-reach, reach + 1):
+                kk = k + dk
+                if not 0 <= kk < n:
+                    continue
+                for di in range(-reach, reach + 1):
+                    ii = i + di
+                    if not 0 <= ii < n:
+                        continue
+                    c = ground.get(G.s[kk * n + ii])
+                    if c is None:
+                        continue
+                    w = 1.0 / (1.0 + di * di + dk * dk)
+                    acc = [acc[0] + c[0] * w, acc[1] + c[1] * w, acc[2] + c[2] * w]
+                    wsum += w
+            if wsum > 0:
+                out[q] = (acc[0] / wsum, acc[1] / wsum, acc[2] / wsum)
+                break
+    return out
 
 
 def zone_ground(L, s, x, y, z, base):
     """Each zone's ground detail over its flat colour: the jungle's moss and leaf litter, the basecamp's
     trodden ways, the breakdown's gravel and dust, the mudflats' dark cracks (the plates lie on them),
-    the overlook's slab joints, the terraces' rimstone ripples, the rift's faint glints."""
+    the overlook's flowstone round the Hound's Hand, the terraces' rimstone ripples, the rift's faint
+    glints."""
     n1 = fbm(x * 0.35, 0.3, z * 0.35, 11)
     n2 = fbm(x * 0.8, 1.7, z * 0.8, 13)
     c = base
@@ -1092,11 +1129,11 @@ def zone_ground(L, s, x, y, z, base):
     elif s == SURF["mudflats"]:
         c = mixc("mudCrack", "groundMud", 0.3 + 0.3 * (0.5 + 0.5 * n1))
     elif s == SURF["overlook"]:
-        joint = smooth(0.05, 0.0, abs(fbm(x * 0.55 + 3.1, 2.0, z * 0.55, 23)))
-        c = mixc(c, "floorSeam", joint * 0.6)
+        # (no slab joints painted in: a line finer than the floor's 0.5 m grid only smears into a
+        # smudge; the overlook's slabs are geometry)
         Tw = L["tower"]
         c = mixc(c, "flowstone", smooth(3.2, 1.2, math.hypot(x - Tw["x"], z - Tw["z"])) * 0.5)
-        c = mixc(c, "limestoneLight", smooth(0.2, 0.6, n1) * 0.25)
+        c = mixc(c, "limestoneLight", smooth(0.2, 0.6, n1) * 0.12)
     elif s == SURF["travertine"]:
         ripple = 0.5 + 0.5 * math.sin((x * 0.6 + z) * 5.2 + 3.0 * n1)
         c = mixc(c, "travRockDark", ripple * 0.28)
@@ -1109,7 +1146,7 @@ def zone_ground(L, s, x, y, z, base):
 
 def terrain_colour(L, G, i, k, wd, trail_zone=None):
     """A floor vertex's colour: its zone's ground (a little mottled), the lake's bed by its depth, the
-    shore wet where the water laps, and darker the steeper it stands (the cliffs read as cliffs)."""
+    shore wet where the water laps."""
     n = G.n
     q = k * n + i
     x, z = G.at(i, k)
@@ -1121,8 +1158,8 @@ def terrain_colour(L, G, i, k, wd, trail_zone=None):
         c = mixc(c, "bedMid", smooth(0.3, 0.8, depth))
         return mixc(c, "bedDeep", smooth(0.8, 1.5, depth))
     if s == SURF["trail"] and trail_zone is not None:
-        under = lin(C[SURF_COLOUR.get(trail_zone.get(q, SURF["shore"]), "groundShore")])
-        base = mixc(tuple(v * 1.18 for v in under), "groundTrail", 0.38)
+        under = trail_zone.get(q, lin(C["groundShore"]))
+        base = mixc(tuple(v * 1.06 for v in under), "groundTrail", 0.22)
     else:
         base = lin(C[SURF_COLOUR.get(s, "groundShore")])
     k1 = 0.92 + 0.14 * (0.5 + 0.5 * fbm(x * 0.45, 0.3, z * 0.45, 11))
@@ -1130,11 +1167,9 @@ def terrain_colour(L, G, i, k, wd, trail_zone=None):
     c = zone_ground(L, s, x, y, z, c)
     if s == SURF["shore"]:
         c = mixc(c, "sedimentWet", smooth(0.9, 0.0, wd) * 0.8)
-    i0, i1 = max(0, i - 1), min(n - 1, i + 1)
-    k0, k1_ = max(0, k - 1), min(n - 1, k + 1)
-    gx = (G.h[k * n + i1] - G.h[k * n + i0]) / ((i1 - i0) * G.cell)
-    gz = (G.h[k1_ * n + i] - G.h[k0 * n + i]) / ((k1_ - k0) * G.cell)
-    return mixc(c, "cliffRock", smooth(0.5, 1.4, math.hypot(gx, gz)) * 0.7)
+    # (no slope painted in here: a band the 0.5 m grid carries only smears into smoke; the game paints
+    # the banks too steep to walk as bare rock triangle by triangle, CavernsWorld's floorBanks)
+    return c
 
 
 def build_terrain(G, L, floor):
@@ -2295,6 +2330,20 @@ def build_lake_shore(G, L, rock, rng):
         fern(rock, cx + math.cos(a) * 0.35, base + h * (0.55 + 0.15 * k), cz + math.sin(a) * 0.35, 0.28, rng)
 
 
+def build_bats(G, L, rock, rng):
+    """Bats roosting on the mudflats' wall, hung head down from its ledges (the ones that fly are the
+    game's, from Fauna_Bat)."""
+    for k in range(9):
+        u = -11.5 + k * 1.35 + (rng.random() - 0.5) * 0.6
+        v = 0.5 + 0.3 * rng.random()
+        p = wall_point(G, L, "z", u, v, [])[0]
+        x, y, z = p[0] + 0.12, p[1], p[2]
+        blob(rock, x, y - 0.08, z, 0.045, 0.085, 0.05, "swift", cuts=1)
+        for sz in (-1, 1):
+            blob(rock, x + 0.01, y - 0.07, z + sz * 0.04, 0.03, 0.09, 0.022, "swift", cuts=0)
+        cyl(rock, (x - 0.02, y + 0.02, z), (x - 0.05, y + 0.06, z), 0.008, "swift", sides=3)
+
+
 def build_rift_decor(G, L, rock, glow, rng):
     """The Glimmer Rift: stubs of basalt columns broken off on its floor, fungi glowing at the crystal
     wall's foot, and glowworms: a starfield of blue-green points up the wall's face, a few threads hung
@@ -2636,6 +2685,7 @@ def build_world(G, L, coll, ledge_top):
     build_pearl_basins(G, L, rock, random.Random(67))
     build_lake_shore(G, L, rock, random.Random(71))
     build_rift_decor(G, L, rock, glow, random.Random(73))
+    build_bats(G, L, rock, random.Random(79))
     build_overlook(G, L, rock, roots, random.Random(13))
     build_winch(G, L, rock, glow)
     build_causeway(G, L, rock, random.Random(17))
@@ -2677,8 +2727,19 @@ def build_fauna_templates(coll):
         wing2 = [swift.v(sx * 0.02, 0.002, 0.03), swift.v(sx * 0.02, 0.002, -0.03), swift.v(sx * 0.2, -0.003, -0.07), swift.v(sx * 0.24, -0.003, -0.02)]
         swift.face(wing2 if sx > 0 else list(reversed(wing2)), "swiftBelly")
     swift.face([swift.v(0.0, 0.0, -0.08), swift.v(0.05, 0.0, -0.16), swift.v(0.0, 0.0, -0.12), swift.v(-0.05, 0.0, -0.16)], "swift")
+    # the bat: a dark body, ears, membranous wings scalloped between their fingers (|x| over 0.02: the
+    # wing, beaten in the game's vertex shader as the swift's are)
+    bat = Mesh("CV_Fauna")
+    blob(bat, 0.0, 0.0, 0.0, 0.03, 0.028, 0.06, "batBody", cuts=1)
+    for sx in (-1, 1):
+        cyl(bat, (sx * 0.012, 0.02, 0.045), (sx * 0.02, 0.05, 0.05), 0.009, "batBody", sides=3, r_end=0.001)
+        pts = [(sx * 0.02, 0.004, 0.035), (sx * 0.12, 0.01, 0.05), (sx * 0.2, 0.0, 0.02), (sx * 0.17, 0.0, -0.02), (sx * 0.12, 0.0, -0.01), (sx * 0.08, 0.0, -0.04), (sx * 0.02, 0.004, -0.03)]
+        for tri in ((0, 1, 6), (1, 5, 6), (1, 4, 5), (1, 2, 4), (2, 3, 4)):
+            q = [bat.v(*pts[i]) for i in tri]
+            bat.face(q if sx > 0 else list(reversed(q)), "batWing")
     finish_object("Fauna_Crab", crab, coll, bake=False)
     finish_object("Fauna_Swift", swift, coll, bake=False)
+    finish_object("Fauna_Bat", bat, coll, bake=False)
 
 
 def surface_point(tree, centre, d):
