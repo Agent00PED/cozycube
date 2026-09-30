@@ -79,7 +79,11 @@ One mesh per finish:
                                             quench trough
     Cave_Thermal           CV_ThermalWater  the pools' warm water
 
-and the templates the game instances: the ore nodes' rocks (Ore_<kind>, Ore_<kind>_Glow, Ore_Rubble),
+and the templates the game instances: the ore nodes' rocks (Ore_<kind>, Ore_<kind>_Glow, Ore_Rubble:
+phase 4's minerals, each its own: `ore_coal` shale beds with coal between, `ore_copper` limestone
+crusted with verdigris and native copper nuggets, `ore_iron` kidney-ore hematite lobes rusting on a
+mud slab, `ore_silver` white calcite threaded with shining silver wire, `ore_glimmer` a great crystal
+and its crown; their glints set on the rock's own skin by a ray from its centre, `surface_point`),
 the glowing cave crab and the swiftlet (Fauna_Crab, Fauna_Swift). The export is packed
 (`quantize_glb`, KHR_mesh_quantization).
 
@@ -264,6 +268,21 @@ C = {
     "barrel": "#7A5536",
     "bedroll": "#8C3A2E",
     "mapPaper": "#E8D8A8",
+    # phase 4: the ore nodes' own minerals
+    "shale": "#8A857C",
+    "shaleLight": "#A8A298",
+    "coalSheen": "#2C2C38",
+    "anthracite": "#B8C8FF",
+    "malachite": "#4DB384",
+    "azurite": "#4FB4B0",
+    "copperDark": "#A35A2A",
+    "hematite": "#6A626E",
+    "hematiteSheen": "#ACA4B4",
+    "ironGlint": "#FFD6B8",
+    "calcite": "#C4CAD4",
+    "calciteLight": "#E4E8EE",
+    "calciteDark": "#8E96A2",
+    "silverDark": "#9AA6B4",
     "cliffRock": "#3E3B42",
     "mudRock": "#A8653C",
     "mudRockDark": "#6E3F26",
@@ -2084,7 +2103,7 @@ def build_basecamp_gear(G, L, rock, glow, rng):
             lantern(rock, glow, x + 0.42, y + 1.98, z, hang=0.2)
 
 
-def broken_slab(M, c, rot, hx, hy, hz, rng):
+def broken_slab(M, c, rot, hx, hy, hz, rng, top="limestoneLight", side="limestone", under="limestoneDark"):
     """A tabular block broken off the roof: the hull of a box's corners knocked about and points
     along its edges pushed in and out, so its sides are fractures, never sawn faces."""
     bm = M.bm
@@ -2110,7 +2129,7 @@ def broken_slab(M, c, rot, hx, hy, hz, rng):
         bmesh.ops.delete(bm, geom=junk, context="VERTS")
     for f in [f for f in bm.faces if any(not v.tag for v in f.verts)]:
         f.normal_update()
-        M.setf(f, "limestoneLight" if f.normal.z > 0.6 else ("limestone" if f.normal.z > -0.2 else "limestoneDark"))
+        M.setf(f, top if f.normal.z > 0.6 else (side if f.normal.z > -0.2 else under))
     for v in bm.verts:
         v.tag = False
 
@@ -2662,6 +2681,146 @@ def build_fauna_templates(coll):
     finish_object("Fauna_Swift", swift, coll, bake=False)
 
 
+def surface_point(tree, centre, d):
+    """Where a ray from the rock's centre along the game direction `d` meets its skin (a BVH over the
+    rock as built): the point and its outward normal, in the game's coordinates (None: a miss)."""
+    hit = tree.ray_cast(W(*centre), W(*d).normalized(), 5.0)
+    if hit[0] is None:
+        return None
+    p = game_point(hit[0])
+    n = hit[1]
+    return p, (n.x, n.z, -n.y)
+
+
+def face_dirs(rng, n, front=0.8, up=0.5):
+    """Directions out of a rock, most of them toward its face (+z, the miner) and its top."""
+    out = []
+    for _ in range(n):
+        d = Vector((rng.uniform(-1, 1), rng.uniform(-0.4, 1), rng.uniform(-1, 1)))
+        d.z += front
+        d.y += up
+        out.append(tuple(d.normalized()))
+    return out
+
+
+def ore_coal(rock, glow, r, rng):
+    """A coal seam: a stepped stack of grey shale beds, black coal between them, glossy where its beds
+    split; loose lumps at its foot."""
+    beds = ((0.0, 0.17, 1.05, "shale"), (0.17, 0.13, 0.98, "coal"), (0.3, 0.15, 0.9, "shale"), (0.45, 0.12, 0.8, "coal"), (0.57, 0.13, 0.66, "shale"), (0.7, 0.12, 0.5, "coal"))
+    for k, (y0, th, w, what) in enumerate(beds):
+        y = (y0 + th / 2) * 1.6 * r
+        rot = turned(0.25 * (rng.random() - 0.5) + 0.1 * k, roll=0.05 * (rng.random() - 0.5))
+        top, side, under = ("shaleLight", "shale", "coalRock") if what == "shale" else ("coalSheen", "coalChunk", "coalChunk")
+        broken_slab(rock, ((rng.random() - 0.5) * 0.08 * r, y, (rng.random() - 0.5) * 0.08 * r + 0.04 * r), rot, w * r, th * 0.8 * r, w * 0.82 * r, rng, top, side, under)
+    for k in range(4):
+        a = rng.random() * math.pi + 0.3
+        angular(rock, math.cos(a) * r * 1.05, 0.0, math.sin(a) * r * 0.9, 0.08 + 0.05 * rng.random(), 0.1, rng, "coalSheen", "coalChunk", sink=0.03, npts=7)
+    # (the coal's glints where the light catches its split beds)
+    from mathutils.bvhtree import BVHTree
+    rock.bm.normal_update()
+    tree = BVHTree.FromBMesh(rock.bm)
+    for d in face_dirs(rng, 7, front=1.2, up=0.1):
+        hit = surface_point(tree, (0.0, 0.62 * r, 0.0), d)
+        if hit:
+            (x, y, z), n = hit
+            blob(glow, x + n[0] * 0.01, y + n[1] * 0.01, z + n[2] * 0.01, 0.014, 0.014, 0.014, "anthracite", cuts=0)
+
+
+def ore_copper(rock, glow, r, rng):
+    """A copper vein: a block of the jungle's limestone crusted green and blue-green with verdigris,
+    nuggets of native copper bulging out of its face."""
+    def paint(x, y, z, up):
+        n1 = fbm(x * 6.0, y * 6.0, z * 6.0, 91)
+        c = mixc("limestoneDark", "limestone", 0.35 + 0.4 * (0.5 + 0.5 * n1))
+        crust = smooth(-0.1, 0.45, fbm(x * 4.0, y * 4.0, z * 4.0, 93)) * (0.45 + 0.55 * smooth(-0.3, 0.5, up + z / r * 0.6))
+        return mixc(c, mixc("malachite", "azurite", 0.5 + 0.5 * n1), crust * 0.85)
+    lump(rock, 0.0, 0.0, 0.0, r * 1.0, r * 1.75, r * 0.9, rng, paint, subdiv=2, rough=0.24, sink=0.12)
+    from mathutils.bvhtree import BVHTree
+    rock.bm.normal_update()
+    tree = BVHTree.FromBMesh(rock.bm)
+    centre = (0.0, 0.72 * r, 0.0)
+    nuggets = []
+    for d in face_dirs(rng, 9, front=0.55, up=0.15):
+        hit = surface_point(tree, centre, d)
+        if hit:
+            nuggets.append(hit)
+    for k, ((x, y, z), n) in enumerate(nuggets):
+        s = 0.05 + 0.05 * rng.random()
+        blob(rock, x + n[0] * s * 0.3, y + n[1] * s * 0.3, z + n[2] * s * 0.3, s, s * 0.75, s, "copperNug" if k % 3 else "copperDark", cuts=1, noise=0.35, seed=k)
+        if k % 2 == 0:
+            blob(glow, x + n[0] * s * 0.95, y + n[1] * s * 0.95, z + n[2] * s * 0.95, 0.016, 0.016, 0.016, "copperGlow", cuts=0)
+
+
+def ore_iron(rock, glow, r, rng):
+    """An iron lode: kidney ore, a cluster of bulging lobes of dark metallic hematite (its tops caught
+    by the light), rust-red where it weathers, on a slab of the mudflats' rust-brown rock."""
+    angular(rock, 0.0, 0.0, 0.0, r * 1.0, r * 0.35, rng, "mudRock", "rustDark", sink=0.1, npts=12)
+    lobes = ((0.0, 0.5, 0.05, 0.58), (0.45, 0.4, 0.18, 0.42), (-0.42, 0.38, 0.12, 0.45), (0.1, 0.36, 0.5, 0.42), (-0.12, 0.92, 0.12, 0.42), (0.32, 0.86, 0.28, 0.32), (-0.36, 0.76, -0.22, 0.36), (0.22, 0.3, -0.42, 0.38), (-0.25, 0.62, 0.45, 0.3))
+    for k, (x, y, z, s) in enumerate(lobes):
+        colr = "hematite" if y > 0.55 else ("rust" if k % 2 else "rustDark")
+        blob(rock, x * r * 0.85, y * r, z * r * 0.85, s * r, s * r * 0.85, s * r, colr, cuts=2, n=2.3, noise=0.16, seed=k)
+    for k, (x, y, z, s) in enumerate(lobes[4:7]):
+        blob(rock, x * r + 0.05 * r, y * r + s * r * 0.55, z * r + 0.08 * r, s * r * 0.45, s * r * 0.35, s * r * 0.45, "hematiteSheen", cuts=1, n=2.0, seed=k + 20)
+    from mathutils.bvhtree import BVHTree
+    rock.bm.normal_update()
+    tree = BVHTree.FromBMesh(rock.bm)
+    for d in face_dirs(rng, 5, front=0.9, up=0.9):
+        hit = surface_point(tree, (0.0, 0.6 * r, 0.0), d)
+        if hit:
+            (x, y, z), n = hit
+            blob(glow, x + n[0] * 0.012, y + n[1] * 0.012, z + n[2] * 0.012, 0.015, 0.015, 0.015, "ironGlint", cuts=0)
+
+
+def ore_silver(rock, glow, r, rng):
+    """A silver seam: a block of white calcite, dog-tooth crystals out of its top, native silver
+    threading over its face in curling wires that shine."""
+    for f in chunk(rock, r, r * 1.35, rng, sink=0.12, squash=0.9, npts=22):
+        f.normal_update()
+        rock.setf(f, "calciteLight" if f.normal.z > 0.55 else ("calcite" if f.normal.z > -0.2 else "calciteDark"))
+    for k in range(5):
+        a = 2 * math.pi * k / 5 + rng.random() * 0.5
+        prism(rock, (math.cos(a) * r * 0.35, r * 1.05, math.sin(a) * r * 0.3), (math.cos(a) * 0.4, 1.0, math.sin(a) * 0.4), 0.035 + 0.025 * rng.random(), 0.14 + 0.12 * rng.random(), "calciteLight", sides=5, tip=0.5)
+    from mathutils.bvhtree import BVHTree
+    rock.bm.normal_update()
+    tree = BVHTree.FromBMesh(rock.bm)
+    centre = (0.0, 0.7 * r, 0.0)
+    for w in range(6):
+        d = Vector(face_dirs(rng, 1, front=1.1, up=0.3)[0])
+        pts = []
+        for j in range(9):
+            hit = surface_point(tree, centre, tuple(d))
+            if not hit:
+                break
+            (x, y, z), n = hit
+            pts.append((x + n[0] * 0.012, y + n[1] * 0.012, z + n[2] * 0.012))
+            d = (d + Vector((rng.uniform(-0.28, 0.28), rng.uniform(-0.25, 0.3), rng.uniform(-0.28, 0.28)))).normalized()
+        for a, b in zip(pts, pts[1:]):
+            cyl(rock, a, b, 0.024, "silverDark", sides=4)
+            cyl(glow, a, b, 0.014, "silverVein", sides=4)
+        # (a twig or two off each wire)
+        for a in pts[2:-1:3]:
+            tip = (a[0] + rng.uniform(-0.06, 0.06), a[1] + rng.uniform(0.0, 0.07), a[2] + rng.uniform(-0.02, 0.06))
+            cyl(glow, a, tip, 0.007, "silverVein", sides=3)
+
+
+def ore_glimmer(rock, glow, r, rng):
+    """A glimmerstone cluster: a great crystal out of a dark socket of rock, a crown of lesser ones
+    round it leaning out, cyan and amethyst, all of them glowing from within."""
+    for f in chunk(rock, r * 0.9, r * 0.55, rng, sink=0.1, squash=0.9, npts=18):
+        f.normal_update()
+        rock.setf(f, "glimmerBase" if f.normal.z > 0.3 else "tunnel")
+    prism(glow, (0.0, r * 0.3, 0.0), (0.08, 1.0, 0.12), 0.13, r * 1.7, "cyan", sides=6, tip=0.3)
+    for k in range(10):
+        a = 2 * math.pi * k / 10 + rng.random() * 0.4
+        lean = 0.35 + 0.5 * rng.random()
+        big = k % 3 == 0
+        colr = ("violet" if k % 4 == 1 else "cyan") + ("" if big else "Soft")
+        prism(glow, (math.cos(a) * r * 0.32, r * 0.28, math.sin(a) * r * 0.3), (math.cos(a) * lean, 1.0, math.sin(a) * lean), (0.07 if big else 0.045) + 0.02 * rng.random(), r * (1.0 if big else 0.6) * (0.7 + 0.5 * rng.random()), colr, sides=5)
+    for k in range(6):
+        a = rng.random() * 6.283
+        prism(glow, (math.cos(a) * r * 0.7, 0.05, math.sin(a) * r * 0.62), (math.cos(a) * 0.9, 0.6, math.sin(a) * 0.9), 0.03, 0.12 + 0.1 * rng.random(), "cyanSoft" if k % 2 else "violetSoft", sides=4)
+
+
 def ore_rock(kind, r, coll):
     rock = Mesh("CV_OreRock")
     glow = Mesh("CV_OreGlow")
@@ -2694,34 +2853,7 @@ def ore_rock(kind, r, coll):
             w = 0.62 - 0.22 * (y / h)
             blob(glow, 0.8 * w * math.cos(a), y, 0.66 * w * math.sin(a), 0.05, 0.16 + 0.1 * rng.random(), 0.05, "runeGlow", cuts=1)
     else:
-        body, dark, fac, glowc = {
-            "coal": ("coalRock", "coalChunk", "coalChunk", "ember"),
-            "copper": ("copperRock", "strataDark", "copperNug", "copperGlow"),
-            "iron": ("ironRock", "slateWet", "rust", "ironGlow"),
-            "silver": ("silverRock", "slate", "silverVein", "silverVein"),
-            "glimmer": ("glimmerBase", "tunnel", "glimmerBase", "cyan"),
-        }[kind]
-        h = r * (1.25 if kind != "glimmer" else 0.8)
-        faces = chunk(rock, r, h, rng)
-        for f in faces:
-            f.normal_update()
-            rock.setf(f, body if f.normal.z > 0.35 else dark)
-        # the mineral: some facets its colour, a few of those glowing (an inset copy of the facet a
-        # hair out along its normal, in the glow finish)
-        picks = [f for f in faces if f.normal.z > -0.2]
-        rng.shuffle(picks)
-        for k, f in enumerate(picks[: 7 if kind != "glimmer" else 3]):
-            rock.setf(f, fac)
-            if k < (4 if kind in ("silver", "copper") else 3):
-                c = f.calc_center_median()
-                inset = [bm_v.co + (c - bm_v.co) * 0.45 + f.normal * 0.006 for bm_v in f.verts]
-                glow.face([glow.bm.verts.new(p) for p in inset], glowc)
-        if kind == "glimmer":
-            for k in range(9):
-                a = 2 * math.pi * k / 9 + rng.random() * 0.4
-                lean = 0.2 + 0.5 * rng.random() if k else 0.0
-                d = (math.cos(a) * lean, 1.0, math.sin(a) * lean)
-                prism(glow, (math.cos(a) * r * 0.35 * (k > 0), h * 0.5, math.sin(a) * r * 0.35 * (k > 0)), d, (0.07 + 0.05 * rng.random()) * (1.5 if k == 0 else 1), (0.5 + 0.5 * rng.random()) * (1.6 if k == 0 else 1), "cyan" if k % 3 else "violet")
+        {"coal": ore_coal, "copper": ore_copper, "iron": ore_iron, "silver": ore_silver, "glimmer": ore_glimmer}[kind](rock, glow, r, rng)
     ob_r = finish_object(f"Ore_{kind}", rock, coll, bake=False, mottle=0.1)
     ob_g = finish_object(f"Ore_{kind}_Glow", glow, coll, bake=False)
     ob_g.parent = ob_r

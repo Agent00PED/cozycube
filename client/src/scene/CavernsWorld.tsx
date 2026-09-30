@@ -366,6 +366,10 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
 
 // --- the nodes ------------------------------------------------------------------------------------
 
+/** How much of an ore rock's own colour glows on its own (the cavern's rock: BAKED): its minerals
+ *  read as they are, the white calcite white, the shale's beds against the coal's. */
+const ORE_BAKED = 0.55;
+
 /** The rock's damage in its shader: darker as it goes, fissures glowing its kind's colour in. */
 function crackedRock(base: THREE.MeshStandardMaterial, glow: string): THREE.MeshStandardMaterial {
   const m = base.clone();
@@ -390,6 +394,8 @@ function crackedRock(base: THREE.MeshStandardMaterial, glow: string): THREE.Mesh
           float line = 1.0 - smoothstep(0.0, width, abs(n));
           float show = smoothstep(0.06, 0.3, vCrack);
           diffuseColor.rgb *= 1.0 - 0.3 * vCrack;
+          // (the ore's own colours lit a little on their own, as the cavern's rock is: bakedLight)
+          totalEmissiveRadiance += vColor.rgb * ${ORE_BAKED.toFixed(2)} * (1.0 - 0.35 * vCrack);
           totalEmissiveRadiance += uCrackGlow * line * show * (0.8 + 1.6 * vCrack) * (0.8 + 0.2 * sin(uTime * 6.0));
         }`
       );
@@ -476,6 +482,9 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
   useEffect(() => () => fx.dispose(), [fx]);
   // the dust lingering over a broken node's stump till it grows back
   const dust = useMemo(() => new MotePoints(ORE_NODES.length * DUST_PER_STUMP), []);
+  // the "ready to mine" sparkle: one twinkling star on the face of every node that stands
+  const sparkles = useMemo(() => new ReadySparkles(ORE_NODES.length), []);
+  useEffect(() => () => sparkles.dispose(), [sparkles]);
   const dustSeeds = useMemo(() => ORE_NODES.flatMap(() => Array.from({ length: DUST_PER_STUMP }, () => ({ a: Math.random() * Math.PI * 2, r: 0.15 + Math.random() * 0.45, p: Math.random(), s: 0.5 + Math.random() * 0.6 }))), []);
   useEffect(() => () => dust.dispose(), [dust]);
   const live = useRef({ players, localSessionId });
@@ -526,7 +535,7 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
   const s = useMemo(() => new THREE.Vector3(), []);
   const p = useMemo(() => new THREE.Vector3(), []);
   const yAxis = useMemo(() => new THREE.Vector3(0, 1, 0), []);
-  useFrame((_, dt) => {
+  useFrame(({ camera }, dt) => {
     const now = performance.now();
     for (const set of sets) {
       set.nodes.forEach((n, i) => {
@@ -580,6 +589,18 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
       }
     });
     dust.commit();
+    ORE_NODES.forEach((n, i) => {
+      const look = looks.current.get(n.id);
+      if (look && !look.up) {
+        sparkles.hide(i);
+        return;
+      }
+      const yaw = NODE_YAW.get(n.id) ?? 0;
+      const r = ORE_KINDS[n.kind].radius;
+      const out = n.kind === "monolith" ? 0.55 : 0.75;
+      sparkles.set(i, n.x + Math.sin(yaw) * r * out, n.y + oreCenterY(n.kind) + r * 0.5, n.z + Math.cos(yaw) * r * out, SPARKLE_COLOR[n.kind], i * 1.37);
+    });
+    sparkles.commit(t, (camera as THREE.OrthographicCamera).zoom ?? 1);
     fx.step(dt, cameraFocus);
   });
   return (
@@ -592,6 +613,7 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
       ))}
       {rubble && <primitive object={rubble} />}
       <primitive object={dust.points} />
+      <primitive object={sparkles.points} />
       <primitive object={fx.mesh} />
     </>
   );
@@ -978,6 +1000,81 @@ class MotePoints {
   dispose() {
     this.points.geometry.dispose();
     (this.points.material as THREE.Material).dispose();
+  }
+}
+
+/** Each kind's sparkle: its glow, a touch whiter. */
+const SPARKLE_COLOR = Object.fromEntries(ORE_KIND_IDS.map((k) => [k, new THREE.Color(ORE_KINDS[k].glow).lerp(new THREE.Color("#ffffff"), 0.35)])) as Record<OreKind, THREE.Color>;
+
+/** The "ready to mine" sparkle (docs/caverns-design.md phase 4): a four-point star on a node's face,
+ *  its size in metres whatever the zoom, twinkling now and then (each on its own beat); hidden while
+ *  the node is broken. One Points draw for every node. */
+class ReadySparkles {
+  points: THREE.Points;
+  private pos: THREE.BufferAttribute;
+  private col: THREE.BufferAttribute;
+  private phase: THREE.BufferAttribute;
+  private mat: THREE.ShaderMaterial;
+  constructor(n: number) {
+    const geo = new THREE.BufferGeometry();
+    this.pos = new THREE.BufferAttribute(new Float32Array(n * 3).fill(-100), 3);
+    this.col = new THREE.BufferAttribute(new Float32Array(n * 4), 4);
+    this.phase = new THREE.BufferAttribute(new Float32Array(n), 1);
+    geo.setAttribute("position", this.pos);
+    geo.setAttribute("aCol", this.col);
+    geo.setAttribute("aPhase", this.phase);
+    this.mat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: { uPx: { value: Math.min(2, window.devicePixelRatio || 1) }, uTime: { value: 0 }, uZoom: { value: 1 } },
+      vertexShader: `
+        attribute vec4 aCol;
+        attribute float aPhase;
+        uniform float uPx;
+        uniform float uTime;
+        uniform float uZoom;
+        varying vec4 vCol;
+        void main() {
+          float tw = pow(0.5 + 0.5 * sin(uTime * 1.7 + aPhase), 6.0);
+          vCol = vec4(aCol.rgb, aCol.a * (0.4 + 0.6 * tw));
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = clamp((0.22 + 0.34 * tw) * uZoom, 6.0, 90.0) * uPx;
+        }`,
+      fragmentShader: `
+        varying vec4 vCol;
+        void main() {
+          vec2 p = gl_PointCoord * 2.0 - 1.0;
+          float star = max(0.0, 1.0 - abs(p.x) * 7.0) * (1.0 - abs(p.y)) + max(0.0, 1.0 - abs(p.y) * 7.0) * (1.0 - abs(p.x));
+          float core = exp(-dot(p, p) * 14.0);
+          float a = clamp(star * 0.9 + core, 0.0, 1.0) * vCol.a;
+          gl_FragColor = vec4(vCol.rgb, a);
+        }`,
+    });
+    this.points = new THREE.Points(geo, this.mat);
+    this.points.raycast = noRaycast;
+    this.points.frustumCulled = false;
+    this.points.renderOrder = 3;
+  }
+  set(i: number, x: number, y: number, z: number, c: THREE.Color, phase: number) {
+    this.pos.setXYZ(i, x, y, z);
+    this.col.setXYZW(i, c.r, c.g, c.b, 1);
+    this.phase.setX(i, phase);
+  }
+  hide(i: number) {
+    this.pos.setXYZ(i, 0, -100, 0);
+    this.col.setW(i, 0);
+  }
+  commit(time: number, zoom: number) {
+    this.mat.uniforms.uTime.value = time;
+    this.mat.uniforms.uZoom.value = zoom;
+    this.pos.needsUpdate = true;
+    this.col.needsUpdate = true;
+    this.phase.needsUpdate = true;
+  }
+  dispose() {
+    this.points.geometry.dispose();
+    this.mat.dispose();
   }
 }
 

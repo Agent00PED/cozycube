@@ -108,7 +108,13 @@ widest (16 m) zoom, `npm run check-layout`, and the draw-call count.
    the terraces' apron; reeds and pebbles at the lake's waterline, emerald shallows, the islet's crag;
    the rift's basalt stubs, fungi and glowworms up the crystal wall; the Hound's Hand's crown in lobes
    and the overlook's stalagmites.
-4. **The six ore models.**
+4. **The six ore models** (done 2026-09-30): coal a stepped stack of shale beds striped with coal;
+   copper limestone crusted with verdigris, native copper nuggets bulging from its face; iron
+   kidney-ore hematite lobes rusting on a slab of the mudflats' rock; silver cool-white calcite with
+   dog-tooth crystals, shining silver wire threaded over its face; glimmer a great crystal and its
+   crown out of a dark socket; the Monolith as it was. Their glints sit on the rock's own skin (a ray
+   from its centre). A twinkling four-point "ready to mine" star on every standing node's face, in its
+   ore's colour (one draw for all); the ore rocks lit a little on their own so their minerals read.
 5. **Light and mist per zone, animals, sound**; the zone-name toast (`cavernsZoneAt`).
 6. **Cleanup**: CLAUDE.md, the patch note, `check-layout`, the build.
 
