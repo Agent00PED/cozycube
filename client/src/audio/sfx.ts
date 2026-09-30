@@ -511,6 +511,19 @@ export function playSfx(kind: Sfx, volume = 1) {
   }
 }
 
+/** A small crystal ping, its pitch from 0 (low) to 1 (an octave and a half higher): the geode's
+ *  seam coming round toward you, warmer and higher (components/hud/GeodeModal.tsx). */
+export function playPing(pitch: number, volume = 1) {
+  if (!getSoundSettings().effects) return;
+  const c = audio();
+  if (!c) return;
+  level = Math.max(0, Math.min(1, volume));
+  const f = 440 * 2 ** (1.5 * Math.max(0, Math.min(1, pitch)));
+  const t = c.currentTime + 0.005;
+  tone(c, t, f, f, 0.18, 0.04, "sine");
+  tone(c, t, f * 2.01, f * 2.01, 0.1, 0.014, "triangle");
+}
+
 // The baby grand: a short arpeggio up (and back down) a jazzy chord, picked by `seed` so everyone in
 // the room hears the same tune, each note a warm piano-ish tone (a sine with a softer overtone and
 // a quick bloom, a long decay).

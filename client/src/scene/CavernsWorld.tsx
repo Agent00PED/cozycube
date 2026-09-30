@@ -8,7 +8,7 @@ import { ORE_ITEMS, ORE_KINDS, ORE_KIND_IDS, oreCenterY, parseOres, type CaveLoo
 import { DRIP_S, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
-import { CampNpc, type NpcTalk } from "../entities/CampNpc";
+import { CampNpc, type NpcGesture, type NpcTalk } from "../entities/CampNpc";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
 import { cameraFocus } from "./cameraFocus";
@@ -25,6 +25,8 @@ import { CAVE_GRID_GLSL, caveFloorTexture, caveSurface, caveSurfaceTime } from "
 import { activity, nowS, remoteBlows } from "../systems/activityStore";
 import { BLOW, chiselBeat, forgeBeat } from "../entities/activityAnimations";
 import { caveFx, releaseCaveFx } from "./caveFx";
+import { prospectStore } from "../systems/prospectStore";
+import { playSfx } from "../audio/sfx";
 
 // The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: 45 x 45,
 // after Hang Son Doong (docs/caverns-design.md), eight zones stepping down from the basecamp's shelf to
@@ -335,8 +337,8 @@ interface CavernsWorldProps {
   /** The room's ore nodes (shared/caverns_mining.ts OreSyncState as JSON). */
   ores: string;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
-  /** A strike on the node being prospected (its channel's packet). */
-  onStrike: (node: string, dir: [number, number, number]) => void;
+  /** A strike on the node being prospected (its channel's packet; `t`: ms since the close-up opened). */
+  onStrike: (node: string, dir: [number, number, number], t: number) => void;
 }
 
 const GUS_TALK: NpcTalk = {
@@ -361,6 +363,45 @@ const FINNEGAN_TALK: NpcTalk = {
 const GUS_IDLE = { gesture: "write" as const, every: 7 };
 const FINNEGAN_IDLE = { gesture: "cast" as const, every: 11 };
 const CAPY_IDLE = { gesture: "sleep" as const, every: 16 };
+
+/** The capybara in the upper pool: dozing while it has the terraces to itself, waking to watch the
+ *  nearest bather (a little perk as each one settles in), shaking off a splash nearby, perking up
+ *  at your deep breath, and a contented word when it's clicked. */
+const CAPY_WATCH = 9;
+const CAPY_TALK: NpcTalk = { height: 0.55, clicked: ["♨️ …", "*a contented squeak*", "*blinks slowly at you*", "Mmm. Warm.", "*scoots over to make room*"] };
+const capyReact = (type: string, payload: { x?: number; z?: number; deep?: boolean }): { gesture: NpcGesture; line?: string } | null => {
+  if (type === "splash" && Math.hypot((payload.x ?? 99) - L.capybara.x, (payload.z ?? 99) - L.capybara.z) < 4) return { gesture: "shake", line: "💦 !" };
+  if (type === "soakBreath" && payload.deep) return { gesture: "perk" };
+  return null;
+};
+function CapybaraBath({ players, subscribeMessages }: { players: Record<string, PlayerState>; subscribeMessages: (listener: RoomMessageListener) => () => void }) {
+  const live = useRef(players);
+  live.current = players;
+  const gesture = useRef<((g: NpcGesture) => void) | null>(null);
+  const bathers = useRef(new Set<string>());
+  const watch = useRef<{ x: number; z: number } | null>(null);
+  useFrame(() => {
+    const now = new Set<string>();
+    let best: { x: number; z: number } | null = null;
+    let bestD = CAPY_WATCH;
+    for (const [id, p] of Object.entries(live.current)) {
+      if (p.map !== "glimmering_caverns" || p.action !== "soak") continue;
+      now.add(id);
+      const d = Math.hypot(p.x - L.capybara.x, p.z - L.capybara.z);
+      if (d < bestD) {
+        bestD = d;
+        best = { x: p.x, z: p.z };
+      }
+    }
+    for (const id of now) if (!bathers.current.has(id)) gesture.current?.("perk");
+    bathers.current = now;
+    watch.current = best;
+  });
+  return <CampNpc url={CAPYBARA_URL} what="capybara.glb" prefix="Capy" at={{ x: L.capybara.x, z: L.capybara.z, yaw: L.capybara.yaw }} y={TERRACES.pools[0].y} waveEvent="capybaraWave" standIn={null} subscribeMessages={subscribeMessages} loop="bathe" idle={CAPY_IDLE} talk={CAPY_TALK} gestureOn={capyReact} gestureRef={gesture} lookAt={capyLook(watch)} mood={capyMood(watch)} />;
+}
+// (made once per ref: CampNpc reads them every frame)
+const capyLook = (watch: { current: { x: number; z: number } | null }) => () => watch.current;
+const capyMood = (watch: { current: { x: number; z: number } | null }) => () => (watch.current ? null : ("doze" as const));
 
 export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subscribeMessages, onStrike }: CavernsWorldProps) {
   const floorClick = (e: ThreeEvent<PointerEvent>) => {
@@ -389,13 +430,14 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       </ModelBoundary>
       <CampNpc url={GUS_URL} what="gus.glb" prefix="Gus" at={{ x: GUS.x, z: GUS.z, yaw: GUS.yaw }} y={cavernsFloorY(GUS.x, GUS.z)} waveEvent="gusWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={GUS_TALK} idle={GUS_IDLE} />
       <CampNpc url={FINNEGAN_URL} what="finnegan.glb" prefix="Finnegan" at={{ x: FINNEGAN.x, z: FINNEGAN.z, yaw: FINNEGAN.yaw }} y={cavernsFloorY(FINNEGAN.x, FINNEGAN.z)} waveEvent="finneganWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={FINNEGAN_TALK} idle={FINNEGAN_IDLE} fuseArm={false} />
-      <CampNpc url={CAPYBARA_URL} what="capybara.glb" prefix="Capy" at={{ x: L.capybara.x, z: L.capybara.z, yaw: L.capybara.yaw }} y={TERRACES.pools[0].y} waveEvent="capybaraWave" standIn={null} subscribeMessages={subscribeMessages} loop="bathe" idle={CAPY_IDLE} />
+      <CapybaraBath players={players} subscribeMessages={subscribeMessages} />
       <CaveLights />
       <CrystalLights />
       <Godrays />
       <CaveMist />
       <ThermalSteam />
       <SoakSteam players={players} />
+      <FloatShadows players={players} />
       <ForgeSmoke />
       <DustMotes />
       <WaterfallSpray />
@@ -670,7 +712,13 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
             puffs.burst(at, out, "#b9ae9c", st.verdict === "direct" ? 4 : 3, 0.32 * (r / 0.5 + 0.5), 0.9, 0.42);
           } else puffs.burst(at, out, "#cfd6de", 2, 0.18, 0.5, 0.3);
           const mine = st.sessionId === live.current.localSessionId;
-          if (mine) prospectShake(st.verdict === "direct" ? 0.05 : st.verdict === "deflect" ? 0.08 : 0.025);
+          prospectStore.strike(st, mine);
+          if (mine) prospectShake(st.perfect ? 0.1 : st.verdict === "direct" ? 0.05 : st.verdict === "deflect" ? 0.08 : 0.025);
+          // (a Perfect: a chime over the crack, a brighter burst)
+          if (st.perfect) {
+            if (mine) playSfx(st.streak && st.streak >= 3 ? "crit" : "chime", 0.7);
+            fx.sparks(at, new THREE.Vector3(...st.hit), "#fff4d6", 10, 1.3);
+          }
           // (the swing: yours was played as you tapped, and a skid jars it back; everyone else's
           // lands now, with its sparks)
           if (mine) activity.deflect = st.verdict === "deflect";
@@ -1398,6 +1446,120 @@ function SoakSteam({ players }: { players: Record<string, PlayerState> }) {
     motes.commit();
   });
   return <primitive object={motes.points} />;
+}
+
+// --- the wait at the cenote: a fish's shadow under each float ---------------------------------------------
+
+/** A fish's shadow circling under each float out on the cenote while its angler waits: wide and lazy
+ *  at first, closer and quicker as the bite nears (the nibbles), darting in on the bite and gone
+ *  once it's hooked; a slow circle under an AFK line. A glowing rim, as the cave's fish have. One
+ *  instanced draw for every float. */
+const SHADOW_MAX = 8;
+const SHADOW_GEO = (() => {
+  const g = new THREE.PlaneGeometry(0.7, 0.3).rotateX(-Math.PI / 2);
+  g.setAttribute("aFade", new THREE.InstancedBufferAttribute(new Float32Array(SHADOW_MAX), 1));
+  return g;
+})();
+const SHADOW_MAT = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  uniforms: { uGlow: { value: new THREE.Color("#63f2e2") } },
+  vertexShader: `
+    attribute float aFade;
+    varying vec2 vUv;
+    varying float vFade;
+    void main() {
+      vUv = uv;
+      vFade = aFade;
+      gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    uniform vec3 uGlow;
+    varying vec2 vUv;
+    varying float vFade;
+    void main() {
+      // the body an ellipse toward the head (+x), the tail a fan behind it
+      vec2 b = (vUv - vec2(0.6, 0.5)) / vec2(0.36, 0.4);
+      float lb = length(b);
+      float body = 1.0 - smoothstep(0.82, 1.0, lb);
+      float w = 0.06 + 0.3 * clamp((0.3 - vUv.x) / 0.28, 0.0, 1.0);
+      float tail = (1.0 - smoothstep(w - 0.05, w, abs(vUv.y - 0.5))) * step(0.03, vUv.x) * step(vUv.x, 0.32);
+      float shape = max(body, tail);
+      float rim = body * smoothstep(0.55, 0.92, lb) + tail * 0.5;
+      vec3 col = mix(vec3(0.015, 0.05, 0.06), uGlow, 0.45 * rim);
+      gl_FragColor = vec4(col, shape * (0.42 + 0.25 * rim) * vFade);
+    }`,
+});
+SHADOW_MAT.toneMapped = false;
+
+function FloatShadows({ players }: { players: Record<string, PlayerState> }) {
+  const mesh = useMemo(() => {
+    const im = new THREE.InstancedMesh(SHADOW_GEO, SHADOW_MAT, SHADOW_MAX);
+    im.raycast = noRaycast;
+    im.frustumCulled = false;
+    im.renderOrder = 2;
+    return im;
+  }, []);
+  useEffect(
+    () => () => {
+      mesh.dispose();
+    },
+    [mesh]
+  );
+  const live = useRef(players);
+  live.current = players;
+  const fish = useRef(new Map<string, { fade: number; r: number; a: number }>());
+  const tmp = useMemo(() => ({ m: new THREE.Matrix4(), q: new THREE.Quaternion(), e: new THREE.Euler(), p: new THREE.Vector3(), s: new THREE.Vector3(1, 1, 1) }), []);
+  useFrame(({ clock }, dt) => {
+    const t = clock.elapsedTime;
+    const fade = SHADOW_GEO.getAttribute("aFade") as THREE.InstancedBufferAttribute;
+    const seen = new Set<string>();
+    let i = 0;
+    for (const [id, p] of Object.entries(live.current)) {
+      if (i >= SHADOW_MAX) break;
+      const waiting = p.map === "glimmering_caverns" && (p.action === "fish" || p.action === "afkfish") && (p.floatX !== 0 || p.floatZ !== 0);
+      const st = fish.current.get(id) ?? { fade: 0, r: 1.2, a: hashString(id) % 628 / 100 };
+      if (!waiting && st.fade <= 0.01) {
+        fish.current.delete(id);
+        continue;
+      }
+      seen.add(id);
+      fish.current.set(id, st);
+      const afk = p.action === "afkfish";
+      const u = afk ? 0.25 : Math.min(1, p.actionProgress);
+      const bite = waiting && !afk && p.actionProgress >= 1;
+      const dir = hashString(id) % 2 ? 1 : -1;
+      // wide and lazy, then nearer and quicker as the bite comes; on the bite, in at the float
+      const wantR = bite ? 0.06 : 1.15 - 0.75 * u * u;
+      st.r += (wantR - st.r) * Math.min(1, dt * (bite ? 7 : 1.5));
+      st.a += dir * dt * (bite ? 0 : 0.55 + 1.5 * u);
+      st.fade += ((waiting ? 1 : 0) - st.fade) * Math.min(1, dt * (waiting ? 1.2 : 3));
+      // (its circle out on the lake's side of the float, never over the shore: it passes under the
+      // float and swings out into the deep)
+      const a = st.a;
+      const ox = p.floatX - p.x;
+      const oz = p.floatZ - p.z;
+      const ol = Math.hypot(ox, oz) || 1;
+      const cx = p.floatX + (ox / ol) * st.r * 0.85;
+      const cz = p.floatZ + (oz / ol) * st.r * 0.85;
+      const x = cx + Math.cos(a) * st.r * 0.85;
+      const z = cz + Math.sin(a) * st.r * 0.85;
+      // heading along the circle (in toward the float on the bite), a swimmer's wiggle
+      const dx = bite ? p.floatX - x : -Math.sin(a) * dir;
+      const dz = bite ? p.floatZ - z : Math.cos(a) * dir;
+      const yaw = Math.atan2(-dz, dx) + 0.14 * Math.sin(t * (6 + 6 * u) + a);
+      tmp.q.setFromEuler(tmp.e.set(0, yaw, 0));
+      tmp.m.compose(tmp.p.set(x, CAVE_WATER_Y + 0.012, z), tmp.q, tmp.s.setScalar(0.85 + 0.3 * ((hashString(id) % 10) / 10)));
+      mesh.setMatrixAt(i, tmp.m);
+      fade.setX(i, st.fade);
+      i++;
+    }
+    for (const id of [...fish.current.keys()]) if (!seen.has(id)) fish.current.delete(id);
+    mesh.count = i;
+    mesh.instanceMatrix.needsUpdate = true;
+    fade.needsUpdate = true;
+  });
+  return <primitive object={mesh} />;
 }
 
 const SMOKE_PUFFS = 14;

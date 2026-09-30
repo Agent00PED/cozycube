@@ -7,7 +7,7 @@ import { useShuttingDown } from "../systems/lifecycle";
 import { setScreenAxes, stickInput } from "../systems/input";
 import { combatInput } from "../systems/combatInput";
 import { actionCam, actionEase, actionPose, stepActionBlend } from "./actionCamera";
-import { prospectCam, prospectEase, prospectPose, stepProspectBlend } from "./prospectCamera";
+import { closeUpOn, prospectEase, prospectPose, stepProspectBlend } from "./prospectCamera";
 import { cavernCam, cavernEase, cavernPose, cavernZoomBy, stepCavernBlend } from "./cavernsCamera";
 
 // The isometric camera. Orthographic, looking along (1, 1, 1), with its zoom fitted to the world's
@@ -149,7 +149,7 @@ function CameraRig() {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      if (actionCam.want || prospectCam.node) return; // (the ring's action camera, a node's close-up: framed by themselves)
+      if (actionCam.want || closeUpOn()) return; // (the ring's action camera, a node's close-up: framed by themselves)
       if (cavernCam.on) return cavernZoomBy(Math.exp(e.deltaY * 0.0012)); // (the caverns: its own distance, 3.5 to 16 m)
       userZoom.current = clampZoom(userZoom.current * Math.exp(-e.deltaY * 0.0015));
     };
@@ -158,7 +158,7 @@ function CameraRig() {
     let dragging: { x: number; y: number } | null = null;
     const onPointerDown = (e: PointerEvent) => {
       // (in the ring the right button throws the M2, and the action camera frames the fight: no panning)
-      if ((e.button === 2 && combatInput.active) || actionCam.want || prospectCam.node || cavernCam.on) return;
+      if ((e.button === 2 && combatInput.active) || actionCam.want || closeUpOn() || cavernCam.on) return;
       if (e.button === 1 || e.button === 2) {
         e.preventDefault(); // no middle-click autoscroll
         dragging = { x: e.clientX, y: e.clientY };
@@ -192,10 +192,10 @@ function CameraRig() {
     const mid = (t: TouchList) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
     const onTouchStart = (e: TouchEvent) => {
       // (a thumb on the joystick and a finger elsewhere is not a pinch)
-      if (e.touches.length === 2 && !stickInput.held && !actionCam.want && !prospectCam.node) pinch = { dist: dist(e.touches), zoom: cavernCam.on ? cavernCam.want : userZoom.current, mid: mid(e.touches) };
+      if (e.touches.length === 2 && !stickInput.held && !actionCam.want && !closeUpOn()) pinch = { dist: dist(e.touches), zoom: cavernCam.on ? cavernCam.want : userZoom.current, mid: mid(e.touches) };
     };
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 2 || !pinch || actionCam.want || prospectCam.node) return;
+      if (e.touches.length !== 2 || !pinch || actionCam.want || closeUpOn()) return;
       e.preventDefault();
       if (cavernCam.on) {
         // (the caverns: fingers apart bring the camera closer, within its range; no panning)

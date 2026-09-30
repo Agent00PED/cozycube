@@ -132,7 +132,18 @@ it down, chisel and mallet), the springs (sinking in, relaxing), the winch ride,
 descent; the folk (Gus working his ledger, Finnegan's cast and catch, the capybara's bath) and better
 particles (sparks as streaks, dust puffs, chips) everywhere.
 
-### Phase 4: the mini-games (P14)
+### Phase 4: the mini-games (P14): built 2026-09-30
+
+| Step | Work | How |
+|---|---|---|
+| 4.1 | Prospecting | a glowing ring the size of the sweet spot on the weak spot, a white ring closing onto it every `PULSE_S` (1.1 s); a direct strike as it closes (`PERFECT_WINDOW_S` 0.13 s) is a Perfect, 30% harder (`PERFECT_DAMAGE`); Perfects in a row a streak, +8% haul each up to +40% (`streakBonus`, lapsing after `STREAK_IDLE_S`); the rock's crack meter, each blow's verdict popped big, a shake, a crit chime and white sparks on a Perfect (ProspectingHud, ProspectingView); judged by the server on the client's clock within `PROSPECT_CLOCK_SLACK_MS` |
+| 4.2 | The forge | in the world: the camera on the forge (scene/workSpots.ts `FORGE_SPOT`, prospectCamera's `spot`), a sheet at the foot of the screen (hud/WorkSheet.tsx); a curved heat gauge with its gold band and the hold filling, a big round bellows button; the anvil's rings closing onto the glowing ingot, a star for each strike on the beat (`HAMMER_WINDOW_S` 0.22); graded Plain, Fine (the heat held: the batch's coal back) or Masterwork (`forgeGrade`) |
+| 4.3 | The geode | the cleave at the anvil in the world (`ANVIL_SPOT`, WorkSheet); warmer and colder as the seam comes round (its glow ice to gold, the stage glowing, a crystal ping rising and quickening: sfx `playPing`; 🧊 Cold to 🔥 Hot); the mallet's swing as an arc over the geode; the reveal: the geode shakes, splits and falls open, the gem bursting out on rays in its rarity's colour (index.css `geode-*`); ⚡ Quick crack once one has been cleaved by hand (op `quick`: a rough cleave, never dust, `QUICK_CRACK_GAP_MS`); the odds perfect beside rough; the avatar kept at the anvil while the blow lands (`CHISEL_REST_MS`) |
+| 4.4 | The springs | the breathing ring (hud/SoakHud.tsx): a tap at the swell's top a deep breath, +1 min of the Deep Warmth each, up to 10 a soak, one try a breath (`BREATH_*`, `breathFill`, `breathAt`; the server's `breathe`, `soakBreath`); the capybara dozing alone, waking to watch the nearest bather, a perk as each settles in or at a deep breath, shaking off a splash, a word when clicked (`CapybaraBath`) |
+| 4.5 | Fishing | a fish's shadow circling under each float at the cenote (wide and lazy, closer and quicker with the nibbles, darting in on the bite; lazily under an AFK line: `FloatShadows`, one instanced draw), the bite's mark thumb-sized on a touch screen, the reel held through a thumb sliding off (pointer capture) |
+| 4.6 | Everywhere | stars on every result (`GradeStars`), rewards flown into the 🎒 pill (hud/flyToBag.ts: the gem, the dust, the ingots), first-time tips (hud/firstTips.ts: three times until played well; `markPlayed` opens a quick mode), the quick modes (Quick Smelt, Quick crack) |
+
+The original brief:
 
 - **Prospecting**: a clear target on the rock (a pulsing ring the size of the sweet spot), a crack
   meter showing how far the rock has gone, a strike timed to the ring's pulse for a Perfect, streaks

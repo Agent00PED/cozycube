@@ -40,16 +40,22 @@ import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
 import { TrendBadge } from "./ShopShell";
 import { activity, nowS } from "../../systems/activityStore";
+import { GradeStars, WorkSheet } from "./WorkSheet";
+import { FORGE_SPOT, frameWork } from "../../scene/workSpots";
+import { tipDue, tipMastered, tipSeen } from "./firstTips";
+import { flyToBag } from "./flyToBag";
 
 // The Thermal Bellows Forge in its basalt cleft at the Expedition Basecamp, in three tabs:
 //
 //   🔥 Bellows      a batch of 1, 3 or 5 ingots worked by hand (its ore and coal out of the satchel as
-//                   it starts, all back if it is given up): pump the bellows (hold for a steady draw,
-//                   tap for a puff) to keep the furnace's heat inside the "Optimal Temperature" band
-//                   as its needle drifts (a bigger batch swings it wider and quicker) for four seconds
-//                   running; then the glowing ingot on the anvil, and two hammer strikes each on its
-//                   spark burst. Both clean: Masterwork ingots (+25% at Gus's). The heat is simulated
-//                   here live by the very function the server replays the log with (forgeHeatAt)
+//                   it starts, all back if it is given up), played at the forge itself: the camera
+//                   frames it and you (workSpots.ts), the game in a sheet at the foot (WorkSheet).
+//                   Pump the bellows (hold the round button for a steady draw, tap for a puff) to keep
+//                   the heat's needle in the gold band on the arc as it drifts (a bigger batch swings
+//                   it wider and quicker) for four seconds running; then the glowing ingot, a ring
+//                   closing on it for each of two hammer strikes. Graded: Masterwork (both clean,
+//                   +25% at Gus's), Fine (the heat held: the batch's coal back), Plain. The heat is
+//                   simulated here live by the very function the server replays the log with
 //   ⚡ Quick Smelt  plain ingots on the forge's own clock (an ingot every FORGE_SMELT_S seconds, into
 //                   the satchel, or its tray when the satchel is full), Quick Smelt All
 //   🧿 Relics       the four mining relics, forged once each from ingots, gems and Fine Stone Dust
@@ -100,32 +106,36 @@ export function ForgeModal({ profile, market, send, subscribeMessages, onClose }
     },
     []
   );
+  // the camera on the forge while the game is on
+  useEffect(() => {
+    frameWork(game ? FORGE_SPOT : null);
+  }, [game]);
+  useEffect(() => () => frameWork(null), []);
   const tabs: [Tab, string][] = [
     ["bellows", "🔥 Bellows"],
     ["smelt", "⚡ Quick Smelt"],
     ["relics", "🧿 Relics"],
   ];
+  if (game)
+    return (
+      <WorkSheet title="The Thermal Bellows Forge" icon="🔥" onClose={onClose}>
+        <BellowsGame key={game.seed} game={game} send={send} />
+      </WorkSheet>
+    );
   return (
     <Modal title="The Thermal Bellows Forge" icon="🔥" onClose={onClose} width={500}>
       <div className="flex flex-col gap-2 pb-1">
-        {!game && (
-          <div className="grid grid-cols-3 gap-1">
-            {tabs.map(([id, label]) => (
-              <button key={id} type="button" className={`clay-btn min-h-11 text-[12.5px] font-bold ${tab === id ? "clay-btn-amber" : "clay-btn-ghost"}`} onClick={() => setTab(id)}>
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-        {tab === "bellows" &&
-          (game ? (
-            <BellowsGame key={game.seed} game={game} send={send} />
-          ) : (
-            <BellowsPick profile={profile} market={market} result={result} onStart={(ingot, batch) => send(CAVERNS_CHANNELS.forge, { op: "start", ingot, batch })} />
+        <div className="grid grid-cols-3 gap-1">
+          {tabs.map(([id, label]) => (
+            <button key={id} type="button" className={`clay-btn min-h-11 text-[12.5px] font-bold ${tab === id ? "clay-btn-amber" : "clay-btn-ghost"}`} onClick={() => setTab(id)}>
+              {label}
+            </button>
           ))}
-        {tab === "smelt" && !game && <QuickSmelt profile={profile} market={market} send={send} />}
-        {tab === "relics" && !game && <Relics profile={profile} send={send} />}
-        {notice && !game && <p className={`m-0 text-center text-[12px] font-semibold ${notice.ok ? "text-amber-100" : "text-rose-200"}`}>{notice.text}</p>}
+        </div>
+        {tab === "bellows" && <BellowsPick profile={profile} market={market} result={result} onStart={(ingot, batch) => send(CAVERNS_CHANNELS.forge, { op: "start", ingot, batch })} />}
+        {tab === "smelt" && <QuickSmelt profile={profile} market={market} send={send} />}
+        {tab === "relics" && <Relics profile={profile} send={send} />}
+        {notice && <p className={`m-0 text-center text-[12px] font-semibold ${notice.ok ? "text-amber-100" : "text-rose-200"}`}>{notice.text}</p>}
       </div>
     </Modal>
   );
@@ -155,26 +165,7 @@ function BellowsPick({ profile, market, result, onStart }: { profile: FishingPro
   const mult = marketMultiplier(oreGood(mw), hour);
   return (
     <div className="flex flex-col gap-2">
-      {result && (
-        <div className={`rounded-2xl border px-3 py-2 text-center text-[12.5px] ${result.masterwork ? "border-yellow-300/60 bg-yellow-300/15" : "border-white/15 bg-white/5"}`}>
-          {result.masterwork ? (
-            <b className="text-yellow-100">
-              ✨ Masterwork! {result.n} {ORE_ITEMS[MASTERWORK_OF[result.ingot]].name}
-              {result.n > 1 ? "s" : ""} (+25%)
-            </b>
-          ) : (
-            <b className="text-[#F7EBE1]">
-              {result.n} {ORE_ITEMS[result.ingot].name}
-              {result.n > 1 ? "s" : ""}
-            </b>
-          )}
-          <div className="text-[11px] opacity-80">
-            {result.held ? "The heat held" : "The heat never held four seconds"}
-            {result.held && ` · strikes ${result.beats.map((b) => (b ? "✔" : "✘")).join(" ")}`}
-            {result.tray > 0 && ` · ${result.tray} on the forge's tray (your satchel was full)`}
-          </div>
-        </div>
-      )}
+      {result && <ForgeResultCard result={result} />}
       <p className="m-0 text-center text-[12px] opacity-80">Keep the furnace in the band with the bellows for {BELLOWS_HOLD_S} s, then strike twice on the sparks: Masterwork ingots, +25% at Gus's.</p>
       <div className="grid grid-cols-3 gap-1">
         {INGOT_IDS.map((id) => (
@@ -321,101 +312,159 @@ function BellowsGame({ game, send }: { game: ForgeGame; send: Props["send"] }) {
     };
   }, []);
 
+  // the tip, the first few games: until a Masterwork
+  const [tip] = useState(() => {
+    const due = tipDue("forge");
+    if (due) tipSeen("forge");
+    return due;
+  });
   const t = now();
   const h = forgeHeatAt(game.batch, game.seed, pumps.current, Math.min(t, doneAt.current ?? t));
   const band = bandAt(game.batch, game.seed, Math.min(t, doneAt.current ?? t));
   const inBand = Math.abs(h.heat - band.mid) <= band.half;
   const hammer = doneAt.current !== null;
   const beats = hammer ? hammerBeats(doneAt.current!) : [];
-  const nextBeat = beats.find((b, i) => strikes.current.filter((s) => s > doneAt.current!).length <= i && t < b + HAMMER_WINDOW_S);
+  const mine = hammer ? strikes.current.filter((s) => s > doneAt.current!) : [];
+  const nextBeat = beats.find((b, i) => mine.length <= i && t < b + HAMMER_WINDOW_S);
   const left = Math.max(0, BELLOWS_LIMIT_S - t);
-  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const heldS = Math.min(BELLOWS_HOLD_S, hammer ? BELLOWS_HOLD_S : h.held);
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col gap-2">
       <p className="m-0 text-center text-[12px] opacity-85">
-        {game.batch} × {ORE_ITEMS[game.ingot].name}
+        {game.batch} × {ORE_ITEMS[game.ingot].name} ·{" "}
         {!hammer ? (
           <>
-            {" "}
-            · <span className="kbd-hint">hold Space or the bellows</span>
-            <span className="touch-hint">hold the bellows</span> to keep the heat in the band
+            <span className="kbd-hint">hold Space or</span> hold the bellows: keep the needle in the <b className="text-amber-200">gold band</b>
           </>
         ) : (
-          <> · the ingot glows on the anvil: strike as each spark bursts!</>
+          <>
+            <span className="kbd-hint">Space or</span> strike as each ring <b className="text-amber-200">closes on the ingot</b>
+          </>
         )}
       </p>
-      <div className="flex w-full items-stretch gap-3">
-        {/* the thermometer: the band drifting, the heat's needle */}
-        <div className="relative h-56 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-t from-[#1a0f0a] via-[#5a2410] to-[#ffb347]/60">
-          <div className={`absolute inset-x-0 border-y-2 ${inBand ? "border-emerald-200 bg-emerald-300/35" : "border-emerald-300/70 bg-emerald-300/20"}`} style={{ bottom: pct(band.mid - band.half), height: pct(band.half * 2) }} />
-          <div className="absolute inset-x-1 h-1.5 -translate-y-1/2 rounded-full bg-white shadow-[0_0_10px_#ffd27a]" style={{ bottom: pct(h.heat) }} />
-          <span className="absolute inset-x-0 top-1 text-center text-[9px] font-bold opacity-80">HOT</span>
-          <span className="absolute inset-x-0 bottom-1 text-center text-[9px] font-bold opacity-80">COLD</span>
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div>
-            <div className="mb-0.5 flex justify-between text-[11px] opacity-85">
-              <span>Optimal Temperature held</span>
-              <b className="tabular-nums">
-                {Math.min(BELLOWS_HOLD_S, hammer ? BELLOWS_HOLD_S : h.held).toFixed(1)} / {BELLOWS_HOLD_S} s
-              </b>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-yellow-200" style={{ width: pct(Math.min(1, (hammer ? BELLOWS_HOLD_S : h.held) / BELLOWS_HOLD_S)) }} />
-            </div>
+      {!hammer ? (
+        <div className="flex items-center justify-center gap-4">
+          <HeatArc heat={h.heat} mid={band.mid} half={band.half} inBand={inBand} held={heldS / BELLOWS_HOLD_S} />
+          <div className="flex flex-col items-center gap-1.5">
+            <button
+              type="button"
+              aria-label="Pump the bellows"
+              className={`grid size-24 select-none place-items-center rounded-full border-4 text-3xl font-black transition-transform ${held.current ? "scale-95 border-amber-200 bg-gradient-to-b from-amber-300 to-orange-600 shadow-[0_0_30px_rgba(255,170,60,0.8)]" : "border-amber-300/70 bg-gradient-to-b from-amber-400 to-orange-700 shadow-[0_6px_18px_rgba(0,0,0,0.5)]"}`}
+              style={{ touchAction: "none" }}
+              onPointerDown={(e) => {
+                try {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                } catch {
+                  // (a pointer the browser no longer tracks)
+                }
+                press();
+              }}
+              onPointerUp={lift}
+              onPointerCancel={lift}
+            >
+              <span style={{ fontSize: 40, lineHeight: 1 }}>💨</span>
+            </button>
+            <span className="text-[11px] tabular-nums opacity-70">{left.toFixed(0)} s of fuel</span>
           </div>
-          {!hammer ? (
-            <>
-              <span className="text-[11px] tabular-nums opacity-70">The furnace gives out in {left.toFixed(0)} s</span>
-              <button
-                type="button"
-                className={`clay-btn clay-btn-amber mt-auto min-h-20 w-full select-none text-base font-extrabold ${held.current ? "brightness-125" : ""}`}
-                style={{ touchAction: "none" }}
-                onPointerDown={(e) => {
-                  try {
-                    e.currentTarget.setPointerCapture(e.pointerId);
-                  } catch {
-                    // (a pointer the browser no longer tracks)
-                  }
-                  press();
-                }}
-                onPointerUp={lift}
-                onPointerCancel={lift}
-              >
-                💨 Pump the bellows
-              </button>
-            </>
-          ) : (
-            <Anvil t={t} beats={beats} strikes={strikes.current.filter((s) => s > doneAt.current!)} next={nextBeat ?? null} onStrike={strike} />
-          )}
         </div>
-      </div>
+      ) : (
+        <Anvil t={t} beats={beats} strikes={mine} next={nextBeat ?? null} onStrike={strike} />
+      )}
+      {tip && <p className="m-0 rounded-xl bg-black/25 px-3 py-1.5 text-center text-[12px] text-amber-100">Tip: short taps nudge the heat up; let go and it cools. Hold it in the band for {BELLOWS_HOLD_S} s, then strike twice on the beat for a Masterwork.</p>}
     </div>
   );
 }
 
-/** The glowing ingot on the anvil: a ring closing on each spark burst's beat; strike as it bursts. */
+/** The furnace's heat on an arc (cold on the left, hot on the right): the drifting gold band, the
+ *  needle, and the time held in it filling round the arc's foot. */
+function HeatArc({ heat, mid, half, inBand, held }: { heat: number; mid: number; half: number; inBand: boolean; held: number }) {
+  const cx = 90;
+  const cy = 92;
+  const R = 74;
+  const at = (v: number) => {
+    const a = Math.PI - Math.max(0, Math.min(1, v)) * Math.PI;
+    return { x: cx + R * Math.cos(a), y: cy - R * Math.sin(a) };
+  };
+  const arc = (from: number, to: number) => {
+    const a = at(from);
+    const b = at(to);
+    return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} A ${R} ${R} 0 0 1 ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+  };
+  const needle = at(heat);
+  return (
+    <svg viewBox="0 0 180 112" className="w-44 shrink-0" aria-label={`Heat ${Math.round(heat * 100)}%${inBand ? ", in the band" : ""}`}>
+      <defs>
+        <linearGradient id="forge-heat" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" stopColor="#3b6fb6" />
+          <stop offset="0.45" stopColor="#c9772e" />
+          <stop offset="1" stopColor="#ff3b1f" />
+        </linearGradient>
+      </defs>
+      <path d={arc(0, 1)} fill="none" stroke="url(#forge-heat)" strokeWidth="12" strokeLinecap="round" opacity="0.55" />
+      <path d={arc(mid - half, mid + half)} fill="none" stroke={inBand ? "#ffe28a" : "#e0b54a"} strokeWidth="16" strokeLinecap="round" style={{ filter: inBand ? "drop-shadow(0 0 6px #ffd27a)" : undefined }} />
+      <line x1={cx} y1={cy} x2={needle.x} y2={needle.y} stroke="#fff8e6" strokeWidth="4" strokeLinecap="round" style={{ filter: "drop-shadow(0 0 4px #ffb347)" }} />
+      <circle cx={cx} cy={cy} r="8" fill="#2a1a12" stroke="#ffcf7a" strokeWidth="2" />
+      <text x={cx} y={cy + 18} textAnchor="middle" fontSize="11" fontWeight="800" fill={inBand ? "#ffe28a" : "#c9bdb5"}>
+        {(held * BELLOWS_HOLD_S).toFixed(1)} / {BELLOWS_HOLD_S} s
+      </text>
+      <rect x={cx - 40} y={cy - 32} width={80 * held} height="4" rx="2" fill="#ffd27a" opacity={held > 0 ? 0.9 : 0} />
+    </svg>
+  );
+}
+
+/** The glowing ingot: a ring closing on it for each strike, bursting on the beat; strike as it closes. */
 function Anvil({ t, beats, strikes, next, onStrike }: { t: number; beats: number[]; strikes: number[]; next: number | null; onStrike: () => void }) {
-  // the ring: from wide to the ingot's size over one beat, bursting on the beat
   const k = next === null ? 1 : Math.max(0, Math.min(1, 1 - (next - t) / HAMMER_BEAT_S));
   const burst = beats.some((b) => Math.abs(t - b) <= HAMMER_WINDOW_S);
   return (
-    <div className="flex flex-1 flex-col items-center gap-1.5">
-      <div className="relative flex h-28 w-full items-center justify-center">
-        <div className="absolute rounded-full border-2 border-yellow-200/80" style={{ width: `${40 + (1 - k) * 90}px`, height: `${40 + (1 - k) * 90}px`, opacity: next === null ? 0 : 0.35 + 0.65 * k }} />
-        <div className={`h-6 w-20 rounded-md bg-gradient-to-b from-[#fff2b0] via-[#ffb347] to-[#e25a1c] ${burst ? "shadow-[0_0_28px_#ffd27a]" : "shadow-[0_0_12px_#ff8a3a]"}`} />
-        {burst && <span className="absolute -top-1 text-2xl">✨</span>}
+    <div className="flex items-center justify-center gap-4">
+      <div className="relative grid h-32 w-44 place-items-center">
+        <div className="absolute rounded-full border-4" style={{ width: `${52 + (1 - k) * 100}px`, height: `${52 + (1 - k) * 100}px`, opacity: next === null ? 0 : 0.3 + 0.7 * k, borderColor: burst ? "#ffffff" : "#ffd27a" }} />
+        <div className={`h-7 w-24 rounded-md bg-gradient-to-b from-[#fff2b0] via-[#ffb347] to-[#e25a1c] ${burst ? "shadow-[0_0_34px_#ffd27a]" : "shadow-[0_0_14px_#ff8a3a]"}`} />
+        {burst && <span className="absolute -top-1 text-3xl">✨</span>}
+        <div className="absolute -bottom-1 flex gap-2">
+          {beats.map((b, i) => (
+            <span key={i} className="text-lg" style={{ filter: strikes[i] === undefined ? "grayscale(1) opacity(0.35)" : Math.abs(strikes[i] - b) <= HAMMER_WINDOW_S ? "drop-shadow(0 0 6px #ffd27a)" : "grayscale(1) opacity(0.6)" }}>
+              {strikes[i] !== undefined && Math.abs(strikes[i] - b) > HAMMER_WINDOW_S ? "✖️" : "⭐"}
+            </span>
+          ))}
+        </div>
       </div>
-      <div className="flex gap-2 text-[11px]">
-        {beats.map((b, i) => (
-          <span key={i} className={`rounded-full px-2 py-0.5 ${strikes[i] === undefined ? "bg-white/10" : Math.abs(strikes[i] - b) <= HAMMER_WINDOW_S ? "bg-emerald-400/30 text-emerald-100" : "bg-rose-400/30 text-rose-100"}`}>
-            strike {i + 1} {strikes[i] === undefined ? "" : Math.abs(strikes[i] - b) <= HAMMER_WINDOW_S ? "✔" : "✘"}
-          </span>
-        ))}
-      </div>
-      <button type="button" className="clay-btn clay-btn-amber min-h-14 w-full select-none text-base font-extrabold" style={{ touchAction: "none" }} onPointerDown={onStrike} disabled={strikes.length >= HAMMER_STRIKES}>
-        🔨 Strike!
+      <button type="button" aria-label="Strike" className="grid size-24 select-none place-items-center rounded-full border-4 border-amber-300/70 bg-gradient-to-b from-stone-300 to-stone-600 text-4xl shadow-[0_6px_18px_rgba(0,0,0,0.5)] active:scale-95 disabled:opacity-50" style={{ touchAction: "none" }} onPointerDown={onStrike} disabled={strikes.length >= HAMMER_STRIKES}>
+        <span style={{ fontSize: 42, lineHeight: 1 }}>🔨</span>
       </button>
+    </div>
+  );
+}
+
+/** A batch's result, graded: Masterwork (three stars), Fine (two: its coal back), Plain (one). */
+function ForgeResultCard({ result }: { result: ForgeResult }) {
+  const grade = result.grade ?? (result.masterwork ? "masterwork" : result.held ? "fine" : "plain");
+  const stars = grade === "masterwork" ? 3 : grade === "fine" ? 2 : 1;
+  const item = result.masterwork ? MASTERWORK_OF[result.ingot] : result.ingot;
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (grade === "masterwork") tipMastered("forge");
+  }, [grade]);
+  // the ingots flown into the satchel (those that fit: the rest wait on the forge's tray)
+  useEffect(() => {
+    const n = result.n - result.tray;
+    if (n > 0) flyToBag(ORE_ITEMS[item].emoji, card.current, n, 350);
+  }, [result, item]);
+  return (
+    <div ref={card} className={`clay-pop flex flex-col items-center gap-1 rounded-2xl border px-3 py-2.5 text-center ${grade === "masterwork" ? "border-yellow-300/60 bg-yellow-300/15" : "border-white/15 bg-white/5"}`}>
+      <GradeStars n={stars} />
+      <b className={`text-[15px] ${grade === "masterwork" ? "text-yellow-100" : "text-[#F7EBE1]"}`}>{grade === "masterwork" ? "✨ Masterwork!" : grade === "fine" ? "Fine work" : "Plain ingots"}</b>
+      <span className="text-[12.5px]">
+        {ORE_ITEMS[item].emoji} {result.n} {ORE_ITEMS[item].name}
+        {result.n > 1 ? "s" : ""}
+        {grade === "masterwork" && " (+25% at Gus's)"}
+        {(result.coal ?? 0) > 0 && ` · ${result.coal} Coal back`}
+      </span>
+      <span className="text-[11px] opacity-75">
+        {result.held ? `The heat held · strikes ${result.beats.map((b) => (b ? "✔" : "✘")).join(" ")}` : "The heat never held four seconds"}
+        {result.tray > 0 && ` · ${result.tray} on the forge's tray (your satchel was full)`}
+      </span>
     </div>
   );
 }

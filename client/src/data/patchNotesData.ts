@@ -1187,6 +1187,27 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.7.17",
+        date: "2026-09-30",
+        title: "The Caverns' Games, Remade",
+        summary: "Every mini-game in the Glimmering Caverns has been rebuilt to be clearer and more fun: Perfect strikes and streaks at the rock, the forge and the anvil played right there in the cave, a geode that splits open in your hands, a breathing rhythm in the springs, and a fish's shadow to watch while you wait.",
+        changes: {
+          features: [
+            "⛏️ Prospecting: a glowing ring marks the rock's weak spot, and a white ring closes onto it every second or so. Strike just as it closes for a PERFECT: 30% more damage. Perfects in a row build a streak (🔥 ×5 at most) that adds up to 40% to every haul. A crack meter shows how far the rock has gone.",
+            "🔥 The forge is played in the cave itself: the camera frames the forge and your avatar at the bellows, with a curved heat gauge and a big bellows button. Then strike the glowing ingot as each ring closes on it. Every batch is graded Plain, Fine or Masterwork, and a Fine batch gives its coal back.",
+            "💎 The geode anvil is played in the cave too. The seam glows from ice blue to gold, the stage warms and a crystal ping rises as you turn the seam toward you. The mallet's power swings round the geode, and the geode shakes, splits and falls open, with the gem bursting out on rays in its rarity's colour.",
+            "⚡ Quick crack: once you've cleaved a geode by hand, crack the rest with one blow and no game. It's always a rough cleave and never turns to dust.",
+            "♨️ In the warm pools, breathe with the slow ring: tap as it's fullest for a deep breath. Each one adds a minute of Deep Warmth, up to 10 a soak. It's entirely optional.",
+            "🦫 The capybara dozes when it has the pools to itself, wakes to watch whoever gets in, perks up at your deep breaths, shakes off a splash and has a word when you click it.",
+            "🎣 While you wait at the cenote, a fish's shadow circles under your float, drawing closer and quicker as the nibbles start, then darting in on the bite.",
+            "🌟 Every result is graded in stars, and what you win flies straight into your 🎒 satchel. New players get a one-line tip for each game until they've played it well.",
+          ],
+          fixes: [
+            "On a touch screen the bite's ❗ mark is now thumb-sized, and a thumb that slides off the reel button keeps reeling.",
+          ],
+        },
+      },
     ],
   },
 ];

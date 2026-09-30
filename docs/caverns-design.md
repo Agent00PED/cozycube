@@ -109,6 +109,19 @@ Everyone sees everyone at it (the `forge` and `chisel` actions, the room's strik
 to their work, and every blow throws chips, dust and sparks that land on the cave floor. Gus writes up
 his ledger, Finnegan casts afresh, the capybara bobs and dozes in its bath.
 
+## The games
+
+Each game is played where it happens (docs/caverns-roadmap.md phase 4), clear at a glance and never
+a flat pass or fail. At the rock, a white ring closes onto the glowing weak spot in a steady pulse: a
+strike as it closes is a Perfect, and Perfects in a row raise every haul. At the forge and the anvil,
+the camera frames the work and a sheet at the foot of the screen holds the controls: the heat on a
+curved gauge, then rings closing onto the glowing ingot; the geode warmer and colder as its seam comes
+round, the mallet's swing arcing over it, and the reveal splitting it open on its crystal heart. In
+the warm pools a slow breathing ring rewards a tap at its fullest with more of the Deep Warmth, and the
+capybara wakes to watch whoever joins it. At the cenote a fish's shadow circles the float while you
+wait. Every result is graded in stars, what you win flies into the 🎒 satchel, each game shows a
+first-time tip until it has been played well, and a quick mode opens once you know the game.
+
 ## Shapes
 
 Nothing is a rectangle (docs/caverns-roadmap.md phase 1): every level's outline is a many-pointed

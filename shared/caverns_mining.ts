@@ -261,6 +261,35 @@ export function judgeStrike(kind: OreKind, pick: PickaxeId, weak: Vec3, hit: Vec
   return { verdict, damage: Math.max(1, Math.round(p.damage * share * (rule === "under" ? UNDER_TIER_DAMAGE : 1) * (boost.damage ?? 1))), d, oneshot: false };
 }
 
+// --- the strike's pulse and the miner's streak (docs/caverns-roadmap.md phase 4) --------------------
+
+/** The target ring on the rock tightens onto the weak spot's sweet ring once every PULSE_S, from the
+ *  moment the close-up opens: a direct strike within PERFECT_WINDOW_S of it closing is a Perfect,
+ *  PERFECT_DAMAGE times as hard. */
+export const PULSE_S = 1.1;
+export const PERFECT_WINDOW_S = 0.13;
+export const PERFECT_DAMAGE = 1.3;
+/** Perfects in a row (from node to node): each adds STREAK_STEP to every haul, up to STREAK_MAX; a
+ *  near or bedrock strike ends the run, a plain direct one holds it, and it lapses after
+ *  STREAK_IDLE_S without a strike. */
+export const STREAK_STEP = 0.08;
+export const STREAK_MAX = 5;
+export const STREAK_IDLE_S = 90;
+/** How far the client's clock may run from the server's on a strike (ms). */
+export const PROSPECT_CLOCK_SLACK_MS = 450;
+/** Where the ring is in its pulse `t` seconds after the close-up opened: 0 wide open .. 1 closed. */
+export function pulsePhase(t: number): number {
+  return (((t % PULSE_S) + PULSE_S) % PULSE_S) / PULSE_S;
+}
+/** Whether a strike `t` seconds after the close-up opened lands as the ring closes (the first time
+ *  at PULSE_S). */
+export function onPulse(t: number): boolean {
+  const k = Math.round(t / PULSE_S);
+  return k >= 1 && Math.abs(t - k * PULSE_S) <= PERFECT_WINDOW_S;
+}
+/** A haul's share for a run of `n` Perfects. */
+export const streakBonus = (n: number) => 1 + STREAK_STEP * Math.min(STREAK_MAX, Math.max(0, n));
+
 /** A node's crack stage from its damage (0 whole .. 1 about to go): surface fissures, then the outer
  *  shell fracturing, then the shatter. */
 export function crackStage(damage: number): "whole" | "fissures" | "fracture" {
@@ -363,7 +392,8 @@ export function smeltable(have: Partial<Record<OreItemId, number>>, ingot: Ingot
  *                 holds, then every HAMMER_BEAT), and each of the two strikes lands within
  *                 HAMMER_WINDOW of its burst
  *
- * Both phases done: the batch comes out Masterwork (+25% value). Either missed: plain ingots. The
+ * Both phases done: the batch comes out Masterwork (+25% value); the heat held but a strike missed:
+ * Fine (plain ingots, and the batch's coal back in the satchel); the heat never held: plain. The
  * client runs the same simulation live (forgeHeatAt) and sends its pumps and strikes once, at the
  * end; the server replays them (judgeForge), never faster than the time it gave.
  */
@@ -391,7 +421,7 @@ export const BELLOWS_HOLD_S = 4.0;
 export const BELLOWS_LIMIT_S = 26;
 export const HAMMER_LEAD_S = 1.0;
 export const HAMMER_BEAT_S = 0.85;
-export const HAMMER_WINDOW_S = 0.18;
+export const HAMMER_WINDOW_S = 0.22;
 export const HAMMER_STRIKES = 2;
 /** The most pumps a second a hand can manage (a longer log is refused). */
 export const MAX_PUMPS_PER_S = 14;
@@ -424,6 +454,10 @@ export function forgeHeatAt(batch: ForgeBatch, seed: number, pumps: readonly num
 }
 /** The spark bursts' beats once the heat held at `doneAt` (s). */
 export const hammerBeats = (doneAt: number) => Array.from({ length: HAMMER_STRIKES }, (_, k) => doneAt + HAMMER_LEAD_S + k * HAMMER_BEAT_S);
+/** A batch's grade: Masterwork (both phases clean), Fine (the heat held, a strike missed: its coal
+ *  back), Plain (the heat never held). */
+export type ForgeGrade = "plain" | "fine" | "masterwork";
+export const forgeGrade = (j: { held: boolean; masterwork: boolean }): ForgeGrade => (j.masterwork ? "masterwork" : j.held ? "fine" : "plain");
 /** A whole game judged from its log: the heat held (and when), each strike on its beat, and so a
  *  Masterwork or not. `elapsed`: the seconds the server has seen go by since the game began. */
 export function judgeForge(batch: ForgeBatch, seed: number, pumps: readonly number[], strikes: readonly number[], elapsed: number): { held: boolean; beats: boolean[]; masterwork: boolean; valid: boolean } {
@@ -473,6 +507,8 @@ export function isGeodeId(v: unknown): v is GeodeId {
  *                  CHISEL_SWEET is a perfect cleavage (the finer gems intact: GEODE_ODDS_PERFECT);
  *                  over CHISEL_PULVERIZE the core is pulverized into stone dust; anywhere else a rough
  *                  crack (a gem, the finer ones a little less likely)
+ *   quick crack    once the game is known: one blow and no game, always a rough cleave (never dust,
+ *                  never a bounce, never the perfect odds), for cracking a pile
  *
  * The server rolls the seam and starts the gauge's clock; it judges the release on the time the
  * client measured, if near enough its own.
@@ -497,6 +533,8 @@ export const CHISEL_PULVERIZE = 0.85;
 export const CHISEL_CLOCK_SLACK_MS = 450;
 /** A pulverized core's stone dust. */
 export const PULVERIZED_DUST: readonly [number, number] = [2, 4];
+/** Quick cracks no closer together than this (ms: the mallet's own swing). */
+export const QUICK_CRACK_GAP_MS = 600;
 
 /** The seam: a direction on the geode's surface (a unit vector, the geode's own axes). */
 export function rollSeam(rand: () => number = Math.random): Vec3 {
@@ -557,6 +595,30 @@ export const WARMTH_PACE = 1.15;
 export const WARMTH_STAMINA = 1.25;
 export const warmthOn = (until: number, now = Date.now()) => until > now;
 
+/**
+ * The springs' breathing (optional, docs/caverns-roadmap.md phase 4): while you soak, a slow ring
+ * swells (breathing in) and ebbs (breathing out) over BREATH_S; a tap as it is fullest (within
+ * BREATH_WINDOW_S of the swell's top) is a deep breath, one a breath. Each deep breath adds
+ * BREATH_BONUS_MS to the Deep Warmth (the soak's own, or the warmth already on once soaked
+ * through), up to BREATH_MAX a soak. The clock runs from the soak's start: the client sends its own
+ * time on it, taken if near enough the server's (BREATH_CLOCK_SLACK_MS).
+ */
+export const BREATH_S = 6;
+export const BREATH_WINDOW_S = 0.6;
+export const BREATH_BONUS_MS = 60_000;
+export const BREATH_MAX = 10;
+export const BREATH_CLOCK_SLACK_MS = 900;
+/** Where a breath is at `t` seconds into the soak: 0 empty, 1 full (the swell eased in and out). */
+export function breathFill(t: number): number {
+  const f = (((t % BREATH_S) + BREATH_S) % BREATH_S) / BREATH_S;
+  return 0.5 - 0.5 * Math.cos(f * Math.PI * 2);
+}
+/** Which breath `t` falls in (its top at (k + 0.5) x BREATH_S), and whether it is at the top. */
+export function breathAt(t: number): { k: number; top: boolean } {
+  const k = Math.floor(t / BREATH_S);
+  return { k, top: k >= 0 && Math.abs(t - (k + 0.5) * BREATH_S) <= BREATH_WINDOW_S };
+}
+
 // --- the packets (each its own channel) -------------------------------------------------------------
 
 /** The caverns' channels, one per job: the strike, the anvil, the forge, the onsen; and the rest of
@@ -584,11 +646,13 @@ export interface StrikePacket {
   node: string;
   dir: Vec3;
   seq: number;
+  /** When it was struck: ms since the close-up opened, on the client's clock (the ring's pulse). */
+  t?: number;
 }
 /** The chisel: a geode set on the anvil (answered with its seam), the seam found (the view it was
  *  seen from, the geode's axes: answered with the gauge's start), the mallet let go (`t`: ms on the
- *  gauge since it started), or stepping away. */
-export type GeodePacket = { op: "start"; geode: GeodeId } | { op: "aim"; view: Vec3 } | { op: "release"; t: number } | { op: "cancel" };
+ *  gauge since it started), or stepping away; or a quick crack (one blow, no game: a rough cleave). */
+export type GeodePacket = { op: "start"; geode: GeodeId } | { op: "aim"; view: Vec3 } | { op: "release"; t: number } | { op: "cancel" } | { op: "quick"; geode: GeodeId };
 /** The forge: `n` of an ingot into its queue (at the forge, plain ingots on its clock), or Quick
  *  Smelt All (anywhere in the caverns: every recipe the satchel can make, the best margin first), or
  *  the tray collected; the bellows' game (a batch started, its log sent at the end, or abandoned);
@@ -601,9 +665,19 @@ export type ForgePacket =
   | { op: "finish"; pumps: number[]; strikes: number[] }
   | { op: "cancel" }
   | { op: "relic"; relic: MiningRelicId };
-/** Into the onsen (the nearest free seat in reach) or out of it (onto its dry exit anchor). */
+/** Into the onsen (the nearest free seat in reach) or out of it (onto its dry exit anchor); or, in
+ *  it, a deep breath (`breath`: ms since the soak began, on the client's clock). */
 export interface OnsenPacket {
-  on: boolean;
+  on?: boolean;
+  breath?: number;
+}
+/** Server -> the bather: a breath judged ("soakBreath": deep or not, how many this soak, and the
+ *  warmth it adds). */
+export interface SoakBreath {
+  deep: boolean;
+  n: number;
+  /** The Deep Warmth's end now (0: not soaked through yet: the breaths wait for it). */
+  until: number;
 }
 /** Stepping back from a node (the view closed). */
 export interface ProspectPacket {
@@ -657,6 +731,9 @@ export interface CaveStrike {
   dmg: number;
   /** The weak spot moved (a direct strike ran the fissure on): only its prospectors are told where. */
   moved?: boolean;
+  /** Struck as the ring closed (a Perfect), and the striker's run of Perfects now. */
+  perfect?: boolean;
+  streak?: number;
 }
 /** Server -> the node's world ("caveShatter"): it broke, and who shared it. */
 export interface CaveShatter {
@@ -674,6 +751,8 @@ export interface CaveLoot {
   lost: number;
   mult: number;
   perfect: boolean;
+  /** The run of Perfects it was mined on (its haul's share: streakBonus). */
+  streak?: number;
 }
 /** Server -> the chisel's hand: the geode's seam ("geodeStart"), the chisel set ("geodeAim": the
  *  gauge starts now), and the mallet's blow ("geodeResult": a bounce, a gem, or dust). */
@@ -689,6 +768,9 @@ export interface GeodeResult {
   v: number;
   gem?: GemId;
   dust?: number;
+  /** The geode cleaved, and whether it was a quick crack (no game: `v` 0). */
+  geode?: GeodeId;
+  quick?: boolean;
 }
 /** Server -> the forge's hand: a batch on ("forgeGame": its seed), and how it came out
  *  ("forgeResult"). */
@@ -705,6 +787,9 @@ export interface ForgeResult {
   beats: boolean[];
   /** How many found no room in the satchel (onto the forge's tray). */
   tray: number;
+  /** Its grade, and (a Fine batch) the coal given back. */
+  grade?: ForgeGrade;
+  coal?: number;
 }
 /** Server -> the player: a word from the caverns (a refusal, a result), for the panel open or a toast. */
 export interface CavernsResult {

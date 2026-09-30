@@ -134,6 +134,8 @@ const RELAYED_MESSAGES = [
   "forgeResult",
   "geodeAim",
   "geodeResult",
+  // a deep breath in the warm pools, judged
+  "soakBreath",
   // the casino: Mr. Vance's answer at the cage (an exchange, or why not), and his wave as it opens
   "cashierResult",
   "vanceWave",

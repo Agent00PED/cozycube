@@ -27,6 +27,11 @@ import {
 import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../../../shared/worlds/forest";
 import {
   CHISEL_CLOCK_SLACK_MS,
+  PERFECT_DAMAGE,
+  PROSPECT_CLOCK_SLACK_MS,
+  STREAK_IDLE_S,
+  onPulse,
+  streakBonus,
   DEEP_WARMTH_MS,
   DEFLECT_STAGGER_S,
   FORGE_QUEUE_MAX,
@@ -43,6 +48,8 @@ import {
   SOAK_S,
   STOUT_DAMAGE,
   STRIKE_DEBOUNCE_S,
+  QUICK_CRACK_GAP_MS,
+  forgeGrade,
   BELLOWS_LIMIT_S,
   chiselGauge,
   coopShares,
@@ -84,6 +91,11 @@ import {
   type GusPacket,
   type IngotId,
   type OnsenPacket,
+  type SoakBreath,
+  BREATH_BONUS_MS,
+  BREATH_CLOCK_SLACK_MS,
+  BREATH_MAX,
+  breathAt,
   type OreCategory,
   type OreItemId,
   type OreSyncState,
@@ -185,6 +197,13 @@ interface Prospector {
   lastStrikeAt: number;
   staggerUntil: number;
   seq: number;
+  /** When the close-up opened (the ring's pulse runs from it). */
+  openedAt: number;
+}
+/** A miner's run of Perfects (from node to node), and their last strike. */
+interface Streak {
+  n: number;
+  at: number;
 }
 
 /** A bellows game under way: its batch, its seed, when it began (the makings already taken). */
@@ -210,13 +229,22 @@ const SWING_SLACK_MS = 90;
 const DAILY_SOAK_S = 30;
 /** A bellows game left this long past its limit is given up (its makings back). */
 const FORGE_GAME_ABANDON_S = BELLOWS_LIMIT_S + 20;
+/** The chisel's blow is seen through before the avatar leaves the anvil (ms after a cleave). */
+const CHISEL_REST_MS = 900;
 
 export class CavernsMine {
   private readonly nodes = new Map<string, NodeState>();
   private readonly prospectors = new Map<string, Prospector>();
+  private readonly streaks = new Map<string, Streak>();
+  /** Cleavers whose blow is still falling (when they step back from the anvil), and each one's last
+   *  quick crack. */
+  private readonly chiselRest = new Map<string, number>();
+  private readonly quickAt = new Map<string, number>();
   private readonly chisels = new Map<string, ChiselState>();
   private readonly forgeGames = new Map<string, ForgeGameState>();
   private readonly soakers = new Map<string, number>();
+  /** Each bather's deep breaths this soak (and the last breath taken, one a breath). */
+  private readonly breaths = new Map<string, { n: number; k: number }>();
   /** Who is riding the winch up, and when their ride ends (ms); the cage free again at `winchFreeAt`. */
   private readonly riders = new Map<string, number>();
   private winchFreeAt = 0;
@@ -414,7 +442,7 @@ export class CavernsMine {
     const rule = mohs(pick.tier, info.tier);
     if (rule === "deflect") this.host.sendTo(sessionId, "campfireNotice", { message: `${info.name} is T${info.tier}: your ${pick.name} (T${pick.tier}) will skid right off it. A T${info.tier - 1} pickaxe or better bites (Gus sells them)`, emoji: "🪨" });
     const was = this.prospectors.get(sessionId);
-    this.prospectors.set(sessionId, { node: node.id, lastStrikeAt: 0, staggerUntil: 0, seq: was?.node === node.id ? was.seq : 0 });
+    this.prospectors.set(sessionId, { node: node.id, lastStrikeAt: 0, staggerUntil: 0, seq: was?.node === node.id ? was.seq : 0, openedAt: Date.now() });
     player.action = "mine";
     player.actionProgress = s.dmg / info.hp;
     const packet: CaveProspect = { node: node.id, kind: node.kind, weak: s.weak, pick: kit.pickaxeId, rule };
@@ -459,17 +487,28 @@ export class CavernsMine {
     const j = judgeStrike(node.kind, kit.pickaxeId, s.weak, dir, warm, { sweet: lodestoneSweet(kit.worn), damage: buffOn(kit, "stout", now) ? STOUT_DAMAGE : 1 });
     this.host.gesture(sessionId, "mine");
     const info = ORE_KINDS[node.kind];
+    // (as the ring closed: the time the client measured since the close-up opened, if near enough
+    // the server's own)
+    const seen = now - pr.openedAt;
+    const tc = Number(raw.t);
+    const at = Number.isFinite(tc) && tc >= 0 && Math.abs(tc - seen) <= PROSPECT_CLOCK_SLACK_MS ? tc : seen;
+    const perfect = j.verdict === "direct" && onPulse(at / 1000);
+    const run = this.streak(sessionId, now);
+    if (perfect) run.n += 1;
+    else if (j.verdict === "near" || j.verdict === "bedrock") run.n = 0;
+    run.at = now;
     if (j.verdict === "deflect") {
       pr.staggerUntil = now + DEFLECT_STAGGER_S * 1000;
-      this.host.toMap("glimmering_caverns", "caveStrike", { sessionId, node: node.id, verdict: "deflect", hit: dir, dmg: s.dmg / info.hp } satisfies CaveStrike);
+      this.host.toMap("glimmering_caverns", "caveStrike", { sessionId, node: node.id, verdict: "deflect", hit: dir, dmg: s.dmg / info.hp, streak: run.n } satisfies CaveStrike);
       return;
     }
-    s.dmg = Math.min(info.hp, s.dmg + j.damage);
-    s.contrib.set(sessionId, (s.contrib.get(sessionId) ?? 0) + j.damage);
+    const damage = perfect && !j.oneshot ? Math.round(j.damage * PERFECT_DAMAGE) : j.damage;
+    s.dmg = Math.min(info.hp, s.dmg + damage);
+    s.contrib.set(sessionId, (s.contrib.get(sessionId) ?? 0) + damage);
     const moved = j.verdict === "direct" && s.dmg < info.hp;
     if (moved) s.weak = rollWeakSpot(node.face);
     const frac = s.dmg / info.hp;
-    this.host.toMap("glimmering_caverns", "caveStrike", { sessionId, node: node.id, verdict: j.verdict, hit: dir, dmg: Math.round(frac * 1000) / 1000, ...(moved ? { moved: true } : {}) } satisfies CaveStrike);
+    this.host.toMap("glimmering_caverns", "caveStrike", { sessionId, node: node.id, verdict: j.verdict, hit: dir, dmg: Math.round(frac * 1000) / 1000, ...(moved ? { moved: true } : {}), ...(perfect ? { perfect: true } : {}), streak: run.n } satisfies CaveStrike);
     // the fissure ran on: everyone at this node is shown where the rock is weak now
     if (moved) this.prospectors.forEach((p, id) => p.node === node.id && this.host.sendTo(id, "caveWeak", { node: node.id, weak: s.weak }));
     this.prospectors.forEach((p, id) => {
@@ -502,10 +541,13 @@ export class CavernsMine {
       const raw = rollYield(node.kind, kit.pickaxeId, Math.random, geodeFind(kit.worn));
       // (the Deep Core Drill's perfect breaking strike: its own share twice over)
       const double = id === breaker && perfect && PICKAXES[kit.pickaxeId].shatterDouble;
+      // (their run of Perfects: a bigger share)
+      const streak = this.streak(id, now).n;
+      const share = mult * (double ? 2 : 1) * streakBonus(streak);
       const items: Partial<Record<OreItemId, number>> = {};
       let lost = 0;
       for (const [item, n] of Object.entries(raw) as [OreItemId, number][]) {
-        const want = scaleCount(n, mult * (double ? 2 : 1));
+        const want = scaleCount(n, share);
         const got = satchelAdd(kit, item, want, this.strap(kit));
         if (got > 0) items[item] = got;
         lost += want - got;
@@ -514,7 +556,7 @@ export class CavernsMine {
       const dust = addMaterial(kit, "stoneDust", scaleCount(rollDust(node.kind), mult * (double ? 2 : 1)));
       kit.mined[node.kind] = Math.min(999_999, (kit.mined[node.kind] ?? 0) + 1);
       this.host.saveProfile(id);
-      this.host.sendTo(id, "caveLoot", { node: node.id, items, ...(dust > 0 ? { dust } : {}), lost, mult, perfect: double } satisfies CaveLoot);
+      this.host.sendTo(id, "caveLoot", { node: node.id, items, ...(dust > 0 ? { dust } : {}), lost, mult, perfect: double, ...(streak > 0 ? { streak } : {}) } satisfies CaveLoot);
     }
     // the ones whose blows fell short of a share: a word
     for (const id of struck) if (!crew.includes(id)) this.host.sendTo(id, "campfireNotice", { message: "Your blows helped, but a share takes more than 15% of the damage", emoji: "🪨" });
@@ -616,9 +658,18 @@ export class CavernsMine {
     const got = satchelAdd(kit, item, game.batch, this.strap(kit));
     const tray = game.batch - got;
     if (tray > 0) kit.forgeTray[item] = Math.min(999, (kit.forgeTray[item] ?? 0) + tray);
+    // (a Fine batch, the heat held: its coal back, whatever the satchel's room: the soft clamp)
+    const grade = j.valid ? forgeGrade(j) : "plain";
+    let coal = 0;
+    if (grade === "fine") {
+      coal = (FORGE_RECIPES[game.ingot].coal ?? 0) * game.batch;
+      const s = kit.satchelContents.find((x) => x.id === "coal");
+      if (s) s.n += coal;
+      else if (coal > 0) kit.satchelContents.push({ id: "coal", n: coal });
+    }
     this.host.emote(sessionId, masterwork ? "✨" : "🔥");
     this.host.saveProfile(sessionId);
-    this.host.sendTo(sessionId, "forgeResult", { ingot: game.ingot, n: game.batch, masterwork, held: j.held, beats: j.beats, tray } satisfies ForgeResult);
+    this.host.sendTo(sessionId, "forgeResult", { ingot: game.ingot, n: game.batch, masterwork, held: j.held, beats: j.beats, tray, grade, ...(coal > 0 ? { coal } : {}) } satisfies ForgeResult);
   }
 
   /** A bellows game given up (the panel closed, a trip, a drop): its makings back into the satchel. */
@@ -693,6 +744,7 @@ export class CavernsMine {
     if (!player || !kit || !packet || typeof packet !== "object") return;
     if (packet.op === "cancel") {
       this.chisels.delete(sessionId);
+      this.chiselRest.delete(sessionId);
       this.working(sessionId, "chisel", false);
       return;
     }
@@ -703,8 +755,20 @@ export class CavernsMine {
       if (satchelCount(kit, packet.geode) <= 0) return this.reply(sessionId, false, `No ${ORE_ITEMS[packet.geode].name} in your satchel`);
       const seam = rollSeam();
       this.chisels.set(sessionId, { geode: packet.geode, seam, gaugeAt: 0, lastAt: 0 });
+      this.chiselRest.delete(sessionId);
       this.working(sessionId, "chisel", true);
       this.host.sendTo(sessionId, "geodeStart", { geode: packet.geode, seam } satisfies GeodeStart);
+      return;
+    }
+    if (packet.op === "quick") {
+      // one blow, no game: a rough cleave, never dust
+      if (!isGeodeId(packet.geode) || now - (this.quickAt.get(sessionId) ?? 0) < QUICK_CRACK_GAP_MS) return;
+      if (satchelCount(kit, packet.geode) <= 0) return this.reply(sessionId, false, `No ${ORE_ITEMS[packet.geode].name} in your satchel`);
+      this.quickAt.set(sessionId, now);
+      this.chisels.delete(sessionId);
+      this.working(sessionId, "chisel", true);
+      this.host.gesture(sessionId, "reach");
+      this.cleave(sessionId, kit, packet.geode, "rough", 0, now, true);
       return;
     }
     const c = this.chisels.get(sessionId);
@@ -728,28 +792,35 @@ export class CavernsMine {
     const verdict = judgeChisel(v);
     this.host.gesture(sessionId, "reach");
     if (verdict === "bounce") {
-      this.host.sendTo(sessionId, "geodeResult", { verdict, v: Math.round(v * 100) / 100 } satisfies GeodeResult);
+      this.host.sendTo(sessionId, "geodeResult", { verdict, v: Math.round(v * 100) / 100, geode: c.geode } satisfies GeodeResult);
       return;
     }
     this.chisels.delete(sessionId);
-    this.working(sessionId, "chisel", false);
-    if (satchelTake(kit, c.geode, 1) < 1) return this.reply(sessionId, false, `Your ${ORE_ITEMS[c.geode].name} is gone from the satchel`);
+    this.cleave(sessionId, kit, c.geode, verdict, v, now, false);
+  }
+
+  /** A geode cleaved (taken from the satchel): its gem in (put back whole if there's no room for
+   *  it), or its core crumbled into stone dust. The avatar stays at the anvil while the blow lands. */
+  private cleave(sessionId: string, kit: FishingProfile, geode: GeodeId, verdict: "rough" | "perfect" | "pulverize", v: number, now: number, quick: boolean) {
+    this.chiselRest.set(sessionId, now + CHISEL_REST_MS);
+    const base = { verdict, v: Math.round(v * 100) / 100, geode, quick: quick || undefined };
+    if (satchelTake(kit, geode, 1) < 1) return this.reply(sessionId, false, `Your ${ORE_ITEMS[geode].name} is gone from the satchel`);
     if (verdict === "pulverize") {
       const [lo, hi] = PULVERIZED_DUST;
       const dust = addMaterial(kit, "stoneDust", lo + Math.floor(Math.random() * (hi - lo + 1)));
       this.host.emote(sessionId, "🌫️");
       this.host.saveProfile(sessionId);
-      this.host.sendTo(sessionId, "geodeResult", { verdict, v: Math.round(v * 100) / 100, dust } satisfies GeodeResult);
+      this.host.sendTo(sessionId, "geodeResult", { ...base, dust } satisfies GeodeResult);
       return;
     }
-    const gem = rollGem(c.geode, verdict === "perfect");
+    const gem = rollGem(geode, verdict === "perfect");
     if (satchelAdd(kit, gem, 1, this.strap(kit)) < 1) {
-      satchelAdd(kit, c.geode, 1, this.strap(kit)) || kit.satchelContents.push({ id: c.geode, n: 1 });
+      satchelAdd(kit, geode, 1, this.strap(kit)) || kit.satchelContents.push({ id: geode, n: 1 });
       return this.reply(sessionId, false, "No room in your satchel for what's inside: make some room first");
     }
     this.host.emote(sessionId, ORE_ITEMS[gem].emoji);
     this.host.saveProfile(sessionId);
-    this.host.sendTo(sessionId, "geodeResult", { verdict, v: Math.round(v * 100) / 100, gem } satisfies GeodeResult);
+    this.host.sendTo(sessionId, "geodeResult", { ...base, gem } satisfies GeodeResult);
   }
 
   // --- the Travertine Thermal Terraces -----------------------------------------------------------------
@@ -760,6 +831,7 @@ export class CavernsMine {
     const player = this.host.player(sessionId);
     if (!player || player.map !== "glimmering_caverns" || !packet || typeof packet !== "object") return;
     const seat = this.host.seatOf(sessionId);
+    if (packet.breath !== undefined) return this.breathe(sessionId, Number(packet.breath));
     if (!packet.on) {
       if (THERMAL_SEAT_IDS.has(seat)) this.host.standUp(sessionId);
       return;
@@ -788,6 +860,7 @@ export class CavernsMine {
       const player = this.host.player(sessionId);
       const inWater = !!player && player.map === "glimmering_caverns" && player.sitting && THERMAL_SEAT_IDS.has(this.host.seatOf(sessionId));
       if (!inWater) {
+        this.breaths.delete(sessionId);
         if (this.soakers.delete(sessionId) && player && player.action === "soak") {
           player.action = "";
           player.actionProgress = 0;
@@ -806,13 +879,38 @@ export class CavernsMine {
       if (before < SOAK_S && soaked >= SOAK_S) {
         const kit = this.host.profile(sessionId);
         if (!kit) continue;
-        // (a second soak refreshes the Deep Warmth's clock: it never stacks)
-        kit.deepWarmthUntil = now + DEEP_WARMTH_MS;
+        // (a second soak refreshes the Deep Warmth's clock: it never stacks; the deep breaths taken
+        // on the way add theirs)
+        kit.deepWarmthUntil = now + DEEP_WARMTH_MS + (this.breaths.get(sessionId)?.n ?? 0) * BREATH_BONUS_MS;
         this.host.saveProfile(sessionId);
         this.host.emote(sessionId, "♨️");
         this.host.sendTo(sessionId, "campfireNotice", { message: `Deep Warmth for ${DEEP_WARMTH_MS / 60_000} minutes: +15% walking pace everywhere, +20% fracture radius, and your stamina back 25% sooner in the ring`, emoji: "♨️" });
       }
     }
+  }
+
+  /** A breath in the warm water: at the ring's fullest, a deep one (a minute more of the Deep Warmth,
+   *  BREATH_MAX a soak; before the soak is through, kept for when it is). */
+  private breathe(sessionId: string, t: number) {
+    const soaked = this.soakers.get(sessionId);
+    const kit = this.host.profile(sessionId);
+    if (soaked === undefined || !kit) return;
+    const seen = soaked * 1000;
+    const at = Number.isFinite(t) && t >= 0 && Math.abs(t - seen) <= BREATH_CLOCK_SLACK_MS ? t : seen;
+    const { k, top } = breathAt(at / 1000);
+    const run = this.breaths.get(sessionId) ?? { n: 0, k: -1 };
+    this.breaths.set(sessionId, run);
+    if (k === run.k) return;
+    run.k = k;
+    const deep = top && run.n < BREATH_MAX;
+    if (deep) {
+      run.n++;
+      if (soaked >= SOAK_S && warmthOn(kit.deepWarmthUntil)) {
+        kit.deepWarmthUntil += BREATH_BONUS_MS;
+        this.host.saveProfile(sessionId);
+      }
+    }
+    this.host.sendTo(sessionId, "soakBreath", { deep, n: run.n, until: soaked >= SOAK_S ? kit.deepWarmthUntil : 0 } satisfies SoakBreath);
   }
 
   // --- Gus the Mole's shop, and the satchel's quick actions ------------------------------------------
@@ -960,6 +1058,11 @@ export class CavernsMine {
       this.tickForge(now);
     }
     this.tickOnsen(dt, now);
+    for (const [id, until] of [...this.chiselRest.entries()]) {
+      if (now < until) continue;
+      this.chiselRest.delete(id);
+      if (!this.chisels.has(id)) this.working(id, "chisel", false);
+    }
     for (const [id, until] of [...this.riders.entries()]) {
       if (now < until) continue;
       this.riders.delete(id);
@@ -981,6 +1084,16 @@ export class CavernsMine {
     if (changed) this.sync();
   }
 
+  /** A miner's run of Perfects (lapsed after STREAK_IDLE_S without a strike). */
+  private streak(sessionId: string, now: number): Streak {
+    let run = this.streaks.get(sessionId);
+    if (!run || now - run.at > STREAK_IDLE_S * 1000) {
+      run = { n: 0, at: now };
+      this.streaks.set(sessionId, run);
+    }
+    return run;
+  }
+
   /** At the forge's bellows or cracking a geode at the anvil: the avatar at work, for everyone to see
    *  (its action; never over another one already on). */
   private working(sessionId: string, action: "forge" | "chisel", on: boolean) {
@@ -999,9 +1112,13 @@ export class CavernsMine {
       if (rider?.action === "winch") rider.action = "";
     }
     this.stopProspect(sessionId);
+    this.streaks.delete(sessionId);
     this.chisels.delete(sessionId);
+    this.chiselRest.delete(sessionId);
+    this.quickAt.delete(sessionId);
     this.working(sessionId, "chisel", false);
     this.soakers.delete(sessionId);
+    this.breaths.delete(sessionId);
     const kit = this.host.profile(sessionId);
     if (kit) this.abandonForge(sessionId, kit, "");
   }

@@ -79,7 +79,7 @@ export interface WorldSceneProps {
   /** The Glimmering Caverns' ore nodes (shared/caverns_mining.ts OreSyncState as JSON). */
   ores: string;
   /** A strike on the node being prospected, where the pickaxe landed (the rock's local direction). */
-  onStrike: (node: string, dir: [number, number, number]) => void;
+  onStrike: (node: string, dir: [number, number, number], t: number) => void;
 }
 
 /** An emote's bubble floats over its sender this long (it pops in, bobs, and fades). */

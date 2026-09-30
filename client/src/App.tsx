@@ -85,6 +85,7 @@ import { ForgeModal } from "./components/hud/ForgeModal";
 import { GeodeModal } from "./components/hud/GeodeModal";
 import { FlintModal } from "./components/hud/FlintModal";
 import { ProspectingHud } from "./components/hud/ProspectingHud";
+import { SoakHud } from "./components/hud/SoakHud";
 import { prospectStore } from "./systems/prospectStore";
 import { CAVERNS_CHANNELS, ORE_ITEMS, type CaveLoot, type CaveProspect, type CavernsResult, type IngotId, type OreItemId } from "@shared/caverns_mining";
 import { useRingTakeover } from "./systems/boutStore";
@@ -901,7 +902,7 @@ export default function App() {
             trees={trees}
             worldEvent={worldEvent}
             ores={ores}
-            onStrike={(node, dir) => cavernsSend(CAVERNS_CHANNELS.strike, { node, dir, seq: Date.now() })}
+            onStrike={(node, dir, t) => cavernsSend(CAVERNS_CHANNELS.strike, { node, dir, seq: Date.now(), t })}
           />
         </IsometricCanvas>
 
@@ -971,6 +972,8 @@ export default function App() {
         {currentMap === "boxing_ring" && localPlayer && localSessionId && !mapTransitioning && <BoxingHud me={localPlayer} localSessionId={localSessionId} players={players} send={boxingSend} subscribeMessages={subscribeMessages} />}
         {/* the Glimmering Caverns: prospecting's one control (the rock is the rest) */}
         {currentMap === "glimmering_caverns" && !mapTransitioning && <ProspectingHud send={cavernsSend} />}
+        {/* ...and the warm pools' breathing, while you soak */}
+        {currentMap === "glimmering_caverns" && localPlayer && !mapTransitioning && <SoakHud player={localPlayer} send={cavernsSend} subscribeMessages={subscribeMessages} />}
         {/* the floating joystick, on every map, on a touch screen */}
         <TouchControls enabled={!mapTransitioning} />
 

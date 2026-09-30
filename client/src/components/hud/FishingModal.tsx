@@ -338,7 +338,15 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
   };
 
   const hold = (on: boolean) => (e: React.PointerEvent) => {
-    if (on) e.preventDefault();
+    if (on) {
+      e.preventDefault();
+      // a thumb that slides a little off the button keeps reeling (the press stays with it)
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // (a pointer the browser no longer tracks)
+      }
+    }
     holding.current = on;
   };
   const { zoneY, fishY, meter, inZone, timeLeft, tension, chestY, chest, chestOpen } = view;
