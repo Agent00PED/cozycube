@@ -29,13 +29,15 @@ The world, one function each:
 
     build_terrain            the floor: a subdivided grid displaced to the walk grid, which is the
                              game's click collider too (caverns_walk_collider), each zone's ground its
-                             own colour, the cliffs between levels darker, the trails pale; its edge
-                             carried down to -2.5 m all round (the pedestal's skirt)
+                             own colour (a trail's the ground it is cut into: the game draws the trodden
+                             way, client/src/scene/caveSurface.ts); its edge carried down to -2.5 m
+                             all round (the pedestal's skirt)
     build_walls / build_adit the north and west limestone cliffs, leaning back (nothing overhangs),
-                             stepped by their bedding, broken off in blocks over the jungle (the
-                             collapse), the Great Wall's flowstone curtains behind the terraces, rust
-                             bleeding down over the mudflats, fractured over the breakdown; hollowed
-                             round the nodes set in them; the adit's bore and timbers
+                             stepped by their bedding (`wall_bed`), broken off in blocks over the
+                             jungle (the collapse), the Great Wall's flowstone folds behind the
+                             terraces, rust bleeding down over the mudflats, fractured over the
+                             breakdown; hollowed round the nodes set in them; the adit's bore and timbers
+    build_vault_lip          the vault's broken lip along the walls' tops, stalactites hanging from it
     build_cliff_faces        every cliff between two levels dressed as rock over its slope (traced
                              from the layout's own rims): strata, rust-stained bluffs, the terraces'
                              rimstone gours, the crystal wall's dark basalt over the rift
@@ -79,11 +81,16 @@ One mesh per finish:
                                             quench trough
     Cave_Thermal           CV_ThermalWater  the pools' warm water
 
+Every face's colour alpha says whether it is natural (1) or made or grown (0: the `PLAIN` colours),
+for the game's surface detail; every natural corner is paler and every crevice darker
+(`vertex_wear`).
+
 and the templates the game instances: the ore nodes' rocks (Ore_<kind>, Ore_<kind>_Glow, Ore_Rubble:
-phase 4's minerals, each its own: `ore_coal` shale beds with coal between, `ore_copper` limestone
-crusted with verdigris and native copper nuggets, `ore_iron` kidney-ore hematite lobes rusting on a
-mud slab, `ore_silver` white calcite threaded with shining silver wire, `ore_glimmer` a great crystal
-and its crown; their glints set on the rock's own skin by a ray from its centre, `surface_point`),
+phase 4's minerals, each its own and dark against its zone's ground: `ore_coal` a black boulder of
+glossy lumps, `ore_copper` limestone crusted with verdigris and faceted native copper chunks,
+`ore_iron` banded iron striped with red jasper and specularite plates, `ore_silver` dark argentite
+veined white with shining silver wire, `ore_glimmer` a great crystal and its crown; their glints set
+on the rock's own skin by a ray from its centre, `surface_point`),
 the glowing cave crab and the swiftlet (Fauna_Crab, Fauna_Swift). The export is packed
 (`quantize_glb`, KHR_mesh_quantization).
 
@@ -402,18 +409,32 @@ def frange(a, b, step):
 # the mesh and its primitives
 
 
+# what is made or grown, never rock: its faces' colour alpha 0, so the game's surface detail
+# (client/src/scene/caveSurface.ts: cracks, strata, moss, grain) leaves them plain
+PLAIN = {
+    "timber", "timberDark", "plank", "iron", "steel", "leather", "canvas", "canvasShade", "brass", "brassDark", "glass",
+    "barrel", "bedroll", "mapPaper", "trunk", "trunkDark", "canopy", "canopyLight", "canopyDark", "vine", "vineLeaf",
+    "fern", "fernLight", "reedPale", "reedPaleDark", "leafLitter", "leafAmber", "leafGreen", "driftPale", "pearl",
+    "moss", "mossDeep", "mossLight", "skyLow", "skyHigh", "shroomStem",
+}
+
+
 class Mesh:
     """Faces with a colour each (a palette index in the face layer "ci"); a vertex may carry its own
     colour (the vert layer "vc", index + 1: shared by every smooth face round it) and a face be
-    smooth shaded ("sm"). (BMesh layers, not dicts: an element's Python wrapper is no key.)"""
+    smooth shaded ("sm"). (BMesh layers, not dicts: an element's Python wrapper is no key.) The
+    colours named in PLAIN are noted (`plain`): their faces export with alpha 0."""
 
     def __init__(self, finish):
         self.finish = finish
         self.bm = bmesh.new()
         self.colors = []
+        self.plain = set()
         self._index = {}
         self.fl = self.bm.faces.layers.int.new("ci")
         self.fs = self.bm.faces.layers.int.new("sm")
+        # (a flat face that still takes its vertices' own colours: faceted, but painted)
+        self.fv = self.bm.faces.layers.int.new("fv")
         self.vl = self.bm.verts.layers.int.new("vc")
 
     def ci(self, col):
@@ -422,6 +443,8 @@ class Mesh:
         if key not in self._index:
             self._index[key] = len(self.colors)
             self.colors.append(rgb)
+        if isinstance(col, str) and col in PLAIN:
+            self.plain.add(self._index[key])
         return self._index[key]
 
     def face(self, verts, col):
@@ -437,6 +460,10 @@ class Mesh:
 
     def setsmooth(self, f):
         f[self.fs] = 1
+        return f
+
+    def setpainted(self, f):
+        f[self.fv] = 1
         return f
 
     def v(self, x, y, z):
@@ -947,26 +974,50 @@ def material(name):
     return m
 
 
-def finish_object(name, M, coll, bake=True, mottle=0.0):
-    """The mesh as an object: every face painted its colour (mottled a little, the light baked in)."""
+def vertex_wear(bm):
+    """How each vertex stands (-1 down in a crevice .. 1 out on a corner): its neighbours' lean below or
+    above its own tangent plane (the rock's weathered edges and its dark cracks)."""
+    out = {}
+    for v in bm.verts:
+        acc, k = 0.0, 0
+        for e in v.link_edges:
+            d = e.other_vert(v).co - v.co
+            if d.length > 1e-6:
+                acc += v.normal.dot(d.normalized())
+                k += 1
+        out[v.index] = max(-1.0, min(1.0, -2.2 * acc / k)) if k else 0.0
+    return out
+
+
+def finish_object(name, M, coll, bake=True, mottle=0.0, wear=0.0):
+    """The mesh as an object: every face painted its colour (mottled a little, the light baked in, its
+    natural corners paler and its crevices darker by `wear`)."""
     bm = M.bm
     col = bm.loops.layers.float_color.new("Col")
     bm.normal_update()
+    bm.verts.index_update()
+    worn = vertex_wear(bm) if wear else None
     for f in bm.faces:
         face_base = M.colors[f[M.fl]] if M.colors else (0.5, 0.5, 0.5)
         smooth_face = f[M.fs] == 1
         for loop in f.loops:
             v = loop.vert
-            base = M.colors[v[M.vl] - 1] if smooth_face and v[M.vl] > 0 else face_base
+            own = (smooth_face or f[M.fv] == 1) and v[M.vl] > 0
+            base = M.colors[v[M.vl] - 1] if own else face_base
+            alpha = 0.0 if ((v[M.vl] - 1) if own else f[M.fl]) in M.plain else 1.0
             n = v.normal if smooth_face else f.normal
             p = game_point(v.co)
             c = base
             if mottle:
                 k = 1 + mottle * fbm(p[0] * 0.9, p[1] * 0.9, p[2] * 0.9, 5)
                 c = (c[0] * k, c[1] * k, c[2] * k)
+            if worn is not None and alpha > 0.5:
+                w = worn[v.index]
+                k = 1 + wear * (w if w > 0 else 1.4 * w)
+                c = (c[0] * k, c[1] * k, c[2] * k)
             if bake:
                 c = lit(c, p, (n.x, n.z, -n.y), ambient_at(p))
-            loop[col] = (c[0], c[1], c[2], 1.0)
+            loop[col] = (c[0], c[1], c[2], alpha)
     for f in bm.faces:
         f.material_index = 0
         f.smooth = f[M.fs] == 1
@@ -996,6 +1047,8 @@ class Ground:
     def __init__(self, T):
         self.n, self.cell, self.x0 = T["n"], T["cell"], T["x0"]
         self.h, self.s = T["heights"], T["surface"]
+        # (under a trail, the ground it is cut into)
+        self.g = T.get("ground", T["surface"])
         self.mn, self.mc, self.m = T["maskN"], T["maskCell"], T["mask"]
         self.pools = T["pools"]
 
@@ -1102,41 +1155,6 @@ SURF = {"basecamp": 0, "jungle": 1, "breakdown": 2, "mudflats": 3, "overlook": 4
 SURF_COLOUR = {0: "groundCamp", 1: "groundJungle", 2: "groundBreakdown", 3: "groundMud", 4: "groundOverlook", 5: "groundTravertine", 6: "groundRift", 7: "groundShore", 9: "groundTrail", 10: "groundStream", 11: "groundPool"}
 
 
-def trail_zones(G):
-    """For every trail vertex, the ground round it off the trail: its zones' colours blended by how near
-    each lies (a few metres' reach), so a ramp from one zone down into another fades between them
-    evenly (never a patchwork of whichever zone was nearest, smeared by the blur)."""
-    n = G.n
-    trail = SURF["trail"]
-    skip = (SURF["bed"], SURF["stream"], SURF["pool"], trail)
-    ground = {s: lin(C[SURF_COLOUR[s]]) for s in SURF_COLOUR if s not in skip}
-    out = {}
-    for q in range(n * n):
-        if G.s[q] != trail:
-            continue
-        i, k = q % n, q // n
-        for reach in (5, 9, 14):
-            acc, wsum = [0.0, 0.0, 0.0], 0.0
-            for dk in range(-reach, reach + 1):
-                kk = k + dk
-                if not 0 <= kk < n:
-                    continue
-                for di in range(-reach, reach + 1):
-                    ii = i + di
-                    if not 0 <= ii < n:
-                        continue
-                    c = ground.get(G.s[kk * n + ii])
-                    if c is None:
-                        continue
-                    w = 1.0 / (1.0 + di * di + dk * dk)
-                    acc = [acc[0] + c[0] * w, acc[1] + c[1] * w, acc[2] + c[2] * w]
-                    wsum += w
-            if wsum > 0:
-                out[q] = (acc[0] / wsum, acc[1] / wsum, acc[2] / wsum)
-                break
-    return out
-
-
 def zone_ground(L, s, x, y, z, base):
     """Each zone's ground detail over its flat colour: the jungle's moss and leaf litter, the basecamp's
     trodden ways, the breakdown's gravel and dust, the mudflats' dark cracks (the plates lie on them),
@@ -1181,24 +1199,21 @@ def zone_ground(L, s, x, y, z, base):
     return c
 
 
-def terrain_colour(L, G, i, k, wd, trail_zone=None):
+def terrain_colour(L, G, i, k, wd):
     """A floor vertex's colour: its zone's ground (a little mottled), the lake's bed by its depth, the
-    shore wet where the water laps."""
+    shore wet where the water laps. A trail's vertex is the ground it is cut into: the game draws the
+    trodden way over it, its edges crisp at any zoom (client/src/scene/caveSurface.ts)."""
     n = G.n
     q = k * n + i
     x, z = G.at(i, k)
     y = G.h[q]
-    s = G.s[q]
+    s = G.g[q]
     if s == SURF["bed"]:
         depth = L["lake"]["water"] - y
         c = mixc("sedimentWet", "bedShallow", smooth(0.02, 0.3, depth))
         c = mixc(c, "bedMid", smooth(0.3, 0.8, depth))
         return mixc(c, "bedDeep", smooth(0.8, 1.5, depth))
-    if s == SURF["trail"] and trail_zone is not None:
-        under = trail_zone.get(q, lin(C["groundShore"]))
-        base = mixc(tuple(v * 1.06 for v in under), "groundTrail", 0.22)
-    else:
-        base = lin(C[SURF_COLOUR.get(s, "groundShore")])
+    base = lin(C[SURF_COLOUR.get(s, "groundShore")])
     k1 = 0.92 + 0.14 * (0.5 + 0.5 * fbm(x * 0.45, 0.3, z * 0.45, 11))
     c = (base[0] * k1, base[1] * k1, base[2] * k1)
     c = zone_ground(L, s, x, y, z, c)
@@ -1215,17 +1230,17 @@ def build_terrain(G, L, floor):
     carried down to -2.5 m (the pedestal's skirt, closing the box)."""
     n = G.n
     wd = water_distance(G, L)
-    tz = trail_zones(G)
     cols = []
     counts = {}
     for k in range(n):
         for i in range(n):
             q = k * n + i
             counts[G.s[q]] = counts.get(G.s[q], 0) + 1
-            cols.append(terrain_colour(L, G, i, k, wd[q], tz))
+            cols.append(terrain_colour(L, G, i, k, wd[q]))
     names = {v: k for k, v in SURF.items()}
     GEO_STATS["floorMix"] = {names.get(s, str(s)): round(100 * c / (n * n), 1) for s, c in sorted(counts.items())}
-    # (one light blur over the neighbours: the zones' seams soften)
+    # (the lightest blur over the neighbours: the zones' seams lose the grid's corners but stay crisp,
+    # a colour changing within a cell or two; the game's surface detail breaks them up further)
     soft = []
     for k in range(n):
         for i in range(n):
@@ -1234,7 +1249,7 @@ def build_terrain(G, L, floor):
                 for di in (-1, 0, 1):
                     ii, kk = i + di, k + dk
                     if 0 <= ii < n and 0 <= kk < n:
-                        w = 4.0 if di == 0 and dk == 0 else 1.0
+                        w = 12.0 if di == 0 and dk == 0 else (1.0 if di == 0 or dk == 0 else 0.5)
                         c = cols[kk * n + ii]
                         acc = [acc[j] + c[j] * w for j in range(3)]
                         wsum += w
@@ -1321,9 +1336,10 @@ def wall_point(G, L, along, u, v, pockets):
     H = H + (4.6 + 3.8 * jag - H) * zw["jungle"]
     y = foot + v * H
     inset = 0.58 - 0.5 * smooth(0.0, 1.0, v) + 0.2 * fbm(u * 0.3, y * 0.3, 0.7, 43) + 0.07 * fbm(u * 1.2, y * 1.1, 1.3, 47)
-    # the bedding planes: a ledge every 0.9 m or so (a lip, then the bed below it tucked back)
-    bed = ((y + 0.35 * fbm(u * 0.15, 0.0, 2.0, 49)) / 0.9) % 1.0
-    inset += 0.16 * bed * (1 - zw["great"]) * (1 - 0.4 * zw["jungle"])
+    # the bedding planes: a ledge every metre or so (each bed its own height), the bed above set back
+    # from the one below, so every bed's top is a shelf the light from above falls on
+    bed = wall_bed(u, y)
+    inset += 0.32 * bed * (1 - zw["great"]) * (1 - 0.4 * zw["jungle"])
     # the Great Wall: flowstone folds down its face in sharp ridges, standing more upright, rimstone
     # ledges stepping out every metre and a half or so
     fold = great_fold(u, y)
@@ -1352,6 +1368,12 @@ def wall_point(G, L, along, u, v, pockets):
     return p, pocket, zw
 
 
+def wall_bed(u, y):
+    """Where (u, y) lies in its bed of the wall's bedding (0 its foot, 1 its lip): beds a metre or so
+    thick, thicker and thinner along the wall, never ruled straight."""
+    return ((y + 0.45 * fbm(u * 0.12, 0.0, 2.0, 49) + 0.12 * fbm(u * 0.6, 0.0, 2.4, 50)) / (1.05 + 0.25 * fbm(u * 0.05, 1.0, 2.0, 52))) % 1.0
+
+
 def great_fold(u, y):
     """The Great Wall's flowstone folds at (u, y): 1 on a ridge, 0 down in a fold (sharp ridges, each its
     own width, wandering a little as they fall)."""
@@ -1362,6 +1384,11 @@ def great_fold(u, y):
 def wall_colour(u, y, v, pocket, zw):
     band = 0.5 + 0.5 * math.sin(y * 3.1 + fbm(u * 0.2, y * 0.2, 0.0, 51) * 2.5)
     c = mixc("limestoneDark", "limestone", 0.15 + 0.7 * band)
+    # (each bed's lip pale where the light catches it, the shadowed recess under the bed above dark)
+    bed = wall_bed(u, y)
+    plain = (1 - zw["great"]) * (1 - 0.5 * zw["jungle"])
+    c = mixc(c, "limestoneLight", smooth(0.72, 0.97, bed) * 0.45 * plain)
+    c = mixc(c, "strataDark", smooth(0.22, 0.0, bed) * 0.55 * plain)
     c = mixc(c, "limestoneLight", smooth(0.35, 0.8, fbm(u * 0.5, y * 0.5, 2.0, 53)) * 0.35)
     c = mixc(c, "strataDark", smooth(0.3, 0.6, fbm(u * 1.4, y * 2.6, 4.0, 55)) * 0.3)
     # the Great Wall's flowstone: warm cream banded amber down its folds (Son Doong's "bacon"), the
@@ -1391,7 +1418,7 @@ def build_walls(G, L, shell, glow, rng):
     fdy = G.y(F["x"], F["z"])
     hw = A["w"] / 2
     pockets = wall_nodes(L)
-    V = 28
+    V = 38
     us = frange(-half - 1.0, half + 0.5, 0.45)
     for along in ("x", "z"):
         grid = []
@@ -1415,9 +1442,12 @@ def build_walls(G, L, shell, glow, rng):
                         continue
                 q = (grid[a][j], grid[a + 1][j], grid[a + 1][j + 1], grid[a][j + 1])
                 f = shell.face(q if along == "x" else tuple(reversed(q)), "limestone")
-                # (the Great Wall's folds faceted, crisp; the rest of the shell smooth)
+                # (the Great Wall's folds faceted, crisp, in their own cream colours; the rest of the
+                # shell smooth)
                 if along == "x" or wall_zones(along, um)["great"] < 0.5:
                     shell.setsmooth(f)
+                else:
+                    shell.setpainted(f)
     # the vugs' crystals: amethyst and cyan growing round each pocket's rim, out of the dark
     for al, nu, nd, r in pockets:
         floor_y = G.y(nd["x"], nd["z"])
@@ -1434,6 +1464,40 @@ def build_walls(G, L, shell, glow, rng):
                 base, d = (-half + 0.2, ny + dy, nu + du), (0.9, 0.4 + 0.3 * math.sin(a), math.cos(a) * 0.3)
             colr = "violet" if (k + int(nu)) % 3 == 0 else "cyan"
             prism(glow, base, d, 0.035 + 0.025 * rng.random(), 0.22 + 0.25 * rng.random(), colr, sides=5)
+
+
+def build_vault_lip(G, L, shell, rng):
+    """The vault's broken lip along the tops of the north and west walls (never over the jungle's
+    collapse, which is open): blocks of rock breaking off the wall's top edge, leaning out a little,
+    and stalactites hanging from under them in clusters, the longest a metre and a half, all of it
+    high over the walls' feet and never out over the floor you walk."""
+    pockets = wall_nodes(L)
+    for along in ("x", "z"):
+        u = -L["half"] + 0.4
+        while u < L["half"] - 0.2:
+            step = 0.9 + 0.7 * rng.random()
+            zw = wall_zones(along, u)
+            if zw["jungle"] > 0.35:
+                u += step
+                continue
+            (px, py, pz), _, _ = wall_point(G, L, along, u, 1.0, pockets)
+            out = (0.0, 0.0, 1.0) if along == "x" else (1.0, 0.0, 0.0)
+            reach = 0.25 + 0.55 * rng.random()
+            cx, cz = px + out[0] * reach * 0.5, pz + out[2] * reach * 0.5
+            r = 0.45 + 0.4 * rng.random()
+            top = "vault" if zw["great"] < 0.5 else "greatShadow"
+            angular(shell, cx, py - 0.55 - 0.3 * rng.random(), cz, r, 0.7 + 0.5 * rng.random(), rng, top, "limestoneDark" if zw["great"] < 0.5 else mixc("greatCream", "greatShadow", 0.35), sink=0.0, npts=10)
+            # (a cluster of stalactites under the block, the longest in the middle, dripping)
+            if rng.random() < 0.7:
+                n = 2 + int(rng.random() * 3)
+                for k in range(n):
+                    sx = cx + out[0] * (0.1 + 0.3 * rng.random()) + (rng.random() - 0.5) * (0.8 if along == "x" else 0.25)
+                    sz = cz + out[2] * (0.1 + 0.3 * rng.random()) + (rng.random() - 0.5) * (0.25 if along == "x" else 0.8)
+                    ln = (0.35 + 1.1 * rng.random()) * (1.0 if k == 0 else 0.65)
+                    base_y = py - 0.5 - 0.2 * rng.random()
+                    col = "limestoneLight" if zw["great"] < 0.5 else "greatCream"
+                    prism(shell, (sx, base_y, sz), (0.04 * (rng.random() - 0.5), -1.0, 0.04 * (rng.random() - 0.5)), 0.07 + 0.08 * rng.random() * (1.0 if k == 0 else 0.6), ln, col, sides=6, tip=0.7)
+            u += step
 
 
 def build_great_curtains(G, L, rock, rng):
@@ -2966,6 +3030,7 @@ def build_world(G, L, coll, ledge_top):
 
     build_terrain(G, L, floor)
     build_walls(G, L, shell, glow, random.Random(19))
+    build_vault_lip(G, L, shell, random.Random(37))
     # (the Great Wall carries its flowstone in its own folds: build_great_curtains stays out)
     build_adit(G, L, rock, glow)
     build_camp(G, L, rock, glow)
@@ -2993,9 +3058,9 @@ def build_world(G, L, coll, ledge_top):
         glow.setsmooth(f)
     build_fauna_templates(coll)
     finish_object("caverns_walk_collider", floor, coll, mottle=0.03)
-    finish_object("Cave_Rock", rock, coll, mottle=0.06)
-    finish_object("Cave_Shell", shell, coll, mottle=0.06)
-    finish_object("Cave_Roots", roots, coll, mottle=0.06)
+    finish_object("Cave_Rock", rock, coll, mottle=0.06, wear=0.22)
+    finish_object("Cave_Shell", shell, coll, mottle=0.06, wear=0.25)
+    finish_object("Cave_Roots", roots, coll, mottle=0.06, wear=0.15)
     finish_object("Cave_Glow", glow, coll, bake=False)
     finish_object("Cave_Water", water, coll, bake=False)
     finish_object("Cave_Thermal", therm, coll, bake=False)

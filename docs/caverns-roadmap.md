@@ -88,7 +88,21 @@ terraces seen from the mudflats above.
 | 1.10 | The empty stretches dressed (the overlook, the rift floor, the shore, the slope) | nothing looks unfinished at 16 m |
 | 1.11 | Ore silhouettes: each ore unmistakable on a phone | a new player can name each ore |
 
-### Phase 2: surface detail (P13)
+### Phase 2: surface detail (P13): built 2026-09-30
+
+Built as client/src/scene/caveSurface.ts and the builder's walls:
+
+| Step | Work | How |
+|---|---|---|
+| 2.1 | The surface shader | one generated 256 x 256 noise texture (mottling, grain, a crack network, each crack cell's tone), sampled in world space (along the ground on the floor, from three sides on rock and walls); a look texture on the terrain's grid (a row per surface: cracks, moss, rust, wet, strata, gours, ripples, sparkle), its zones' edges wandering with the noise; the fine grain and glints only without a touch screen; only natural faces (colour alpha 1, the builder's `PLAIN` colours 0) |
+| 2.2 | The banks | the floor's steepness over a metre from its heights (a half-float texture, shared with the water's depth): bare rock past the walkable line, each crack plate turning whole where the slope hovers there (scree, never smoke) |
+| 2.3 | The trails | drawn from their own lines in the shader (crisp at any zoom, a trodden way with grit and a lip, fading past the ends); the floor under them painted as the ground they cut (`ground` in the terrain data), the zones' seams no longer blurred over a metre and a half |
+| 2.4 | The walls | 38 rows, beds a metre or so thick each set back from the one below (lit lips, dark recesses); the vault's broken lip and stalactite clusters along the tops (never over the jungle's collapse or the floor); the Great Wall's faceted faces keep their cream flowstone colours (they had fallen back to grey limestone since phase 1) |
+| 2.5 | Weathered edges | every natural corner paler and every crevice darker, baked from the mesh's own shape (`vertex_wear`) |
+| 2.6 | The haze | the low mist lighter (16%) and only below 2.2 m, so the terraces and the overlook keep their contrast |
+
+Draw calls unchanged (the shader rides the existing materials); the model 2.32 MB. The original
+brief:
 
 A shared cave-surface shader on the floor, walls, rock and props: world-space noise at two scales for
 grain, cracks, strata banded by height on limestone, moss on up-facing rock in the jungle, rust streaks

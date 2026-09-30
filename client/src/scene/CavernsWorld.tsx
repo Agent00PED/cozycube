@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState } from "@shared/types";
-import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_SUN, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, TERRAIN_CELL, TERRAIN_N, cavernsFloorY, cavernsZoneAt, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_SUN, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, cavernsZoneAt, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
 import { ORE_ITEMS, ORE_KINDS, ORE_KIND_IDS, oreCenterY, parseOres, type CaveLoot, type CaveShatter, type CaveStrike, type OreKind, type OreItemId } from "@shared/caverns_mining";
 import { DRIP_S, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -21,6 +21,7 @@ import { CaveFauna } from "./caveFauna";
 import { CaveMist, CrystalLights } from "./caveAtmosphere";
 import { pushToast } from "../components/hud/toastStore";
 import { cageLift } from "./winchRide";
+import { CAVE_GRID_GLSL, caveFloorTexture, caveSurface, caveSurfaceTime } from "./caveSurface";
 
 // The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: 45 x 45,
 // after Hang Son Doong (docs/caverns-design.md), eight zones stepping down from the basecamp's shelf to
@@ -32,10 +33,12 @@ import { cageLift } from "./winchRide";
 //                 cliffs, the fords, the lake's shore and the causeway), triangle for triangle, so a
 //                 click lands at the exact height you see (the only mesh of the model a click is tested
 //                 against); while the model loads (or if it fails) the same grid built here in its
-//                 place; its own copy of the clay paints every bank too steep to walk bare rock,
-//                 triangle by triangle (floorBanks)
+//                 place; its own copy of the clay paints every bank too steep to walk bare rock
+//                 (caveSurface.ts, from the ground's steepness over a metre)
 //   the finishes  the rock and the shell as painted (each zone's ground and tint in their vertex
-//                 colours), the lake's bed lit by moving caustics (brightest under the islet's
+//                 colours), with detail below the grid on everything natural (caveSurface.ts: mottling,
+//                 cracks, strata, rust, moss, rimstone, ripples, grain, glints), the lake's bed lit by
+//                 moving caustics (brightest under the islet's
 //                 skylight); what glows (crystals, fungi, lanterns, the forge's mouth) a
 //                 MeshStandardMaterial whose emission is its own vertex colour, breathing; the lake's
 //                 and the pools' water see-through with no depth write (nothing z-fights under it);
@@ -76,7 +79,7 @@ export const GUS_URL = modelUrl("gus.glb");
 export const FINNEGAN_URL = modelUrl("finnegan.glb");
 export const CAPYBARA_URL = modelUrl("capybara.glb");
 
-const TIME = { value: 0 };
+const TIME = caveSurfaceTime;
 const CAVE_DARK = new THREE.Color("#0e131b");
 /** How much of the model's baked light (its vertex colours) glows on its own: the rest of what you
  *  see comes from the game's lights. */
@@ -107,40 +110,6 @@ function bakedLight(m: THREE.MeshStandardMaterial) {
   m.needsUpdate = true;
 }
 
-/** The floor's banks: every triangle too steep to walk painted as bare rock (its zone's ground gone
- *  darker), the true drops darker still, triangle by triangle from its own facing, so a bank has the
- *  crisp edge of a low-poly facet (painted into the 0.5 m grid's vertex colours, a band only smears
- *  into smoke). The baked light follows the colour (bakedLight reads diffuseColor). */
-const BANK_ROCK = new THREE.Color("#6a655d");
-const DROP_ROCK = new THREE.Color("#3e3b42");
-function floorBanks(m: THREE.MeshStandardMaterial) {
-  if (m.userData.caveBanks) return;
-  m.userData.caveBanks = true;
-  const prev = m.onBeforeCompile;
-  const prevKey = m.customProgramCacheKey.bind(m);
-  m.onBeforeCompile = (shader, renderer) => {
-    prev.call(m, shader, renderer);
-    shader.uniforms.uBankRock = { value: BANK_ROCK };
-    shader.uniforms.uDropRock = { value: DROP_ROCK };
-    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vBankPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvBankPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vBankPos;\nuniform vec3 uBankRock;\nuniform vec3 uDropRock;").replace(
-      "#include <color_fragment>",
-      `#include <color_fragment>
-      {
-        // (the triangle's own facing: 1 - its normal's height, 0.1 at 26 degrees, 0.19 at 36, 0.45 at 57)
-        vec3 facet = normalize(cross(dFdx(vBankPos), dFdy(vBankPos)));
-        float slope = 1.0 - abs(facet.y);
-        // (each zone's own ground gone darker, a share of bare rock in it: the travertine's banks
-        // stay cream, the camp's tan)
-        diffuseColor.rgb = mix(diffuseColor.rgb, mix(diffuseColor.rgb * 0.62, uBankRock, 0.35), smoothstep(0.1, 0.19, slope) * 0.9);
-        diffuseColor.rgb = mix(diffuseColor.rgb, mix(diffuseColor.rgb * 0.5, uDropRock, 0.5), smoothstep(0.3, 0.45, slope) * 0.6);
-      }`
-    );
-  };
-  m.customProgramCacheKey = () => `${prevKey()}|cave-banks`;
-  m.needsUpdate = true;
-}
-
 /** The height mist (docs/caverns-design.md phase 5, after Son Doong's clouds): the lower you go, the
  *  mistier, a cool haze over the low ground and the lake's shore, and below the lake's surface and
  *  down the pedestal's sides a deep mist the colour of the dark round the cavern, so its open edges
@@ -150,7 +119,7 @@ const MIST_LOW = new THREE.Vector3(0x44 / 255, 0x52 / 255, 0x62 / 255);
 const MIST_DEEP = new THREE.Vector3(0x0e / 255, 0x13 / 255, 0x1b / 255);
 const MIST_GLSL = `
       {
-        float mistLow = 0.26 * (1.0 - smoothstep(0.3, 3.2, vMistY));
+        float mistLow = 0.16 * (1.0 - smoothstep(-0.2, 2.2, vMistY));
         float mistDeep = 0.92 * (1.0 - smoothstep(-2.4, -0.25, vMistY));
         gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistLow, mistLow);
         gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistDeep, mistDeep);
@@ -266,28 +235,6 @@ function causticBed(m: THREE.MeshStandardMaterial) {
 
 /** The water: see-through, no depth write (the bed under it never fights it), a slow shimmer and the
  *  sun's glints tracking the caustics below. */
-/** The floor under the water, as a texture (a texel a grid vertex, -2 .. 6 m in 8 bits): how deep the
- *  water is wherever it is drawn. */
-const BED_LO = -2;
-const BED_SPAN = 8;
-let bedTex: THREE.DataTexture | null = null;
-function waterBed(): THREE.DataTexture {
-  if (bedTex) return bedTex;
-  const n = TERRAIN_N;
-  const data = new Uint8Array(n * n);
-  for (let k = 0; k < n; k++) {
-    for (let i = 0; i < n; i++) {
-      const y = cavernsFloorY(-L.half + i * TERRAIN_CELL, -L.half + k * TERRAIN_CELL);
-      data[k * n + i] = Math.max(0, Math.min(255, Math.round(((y - BED_LO) / BED_SPAN) * 255)));
-    }
-  }
-  bedTex = new THREE.DataTexture(data, n, n, THREE.RedFormat, THREE.UnsignedByteType);
-  bedTex.magFilter = THREE.LinearFilter;
-  bedTex.minFilter = THREE.LinearFilter;
-  bedTex.needsUpdate = true;
-  return bedTex;
-}
-
 /** The lake's and the pools' water: see-through, its colour its depth's (the model's vertex colours),
  *  lighter and clearer in the shallows with the caustics glinting there only, slow broad ripples that
  *  catch the light (a tilt of the surface's normal, never a pattern painted over it), stiller in the
@@ -302,7 +249,7 @@ function stillWater(m: THREE.MeshStandardMaterial, opacity: number) {
   m.roughness = 0.18;
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = TIME;
-    shader.uniforms.uBed = { value: waterBed() };
+    shader.uniforms.uBed = { value: caveFloorTexture() };
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWaterPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvWaterPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -312,10 +259,9 @@ function stillWater(m: THREE.MeshStandardMaterial, opacity: number) {
       uniform float uTime;
       uniform sampler2D uBed;
       ${CAUSTIC_GLSL}
+      ${CAVE_GRID_GLSL}
       float waterDepth() {
-        vec2 uv = ((vWaterPos.xz + ${L.half.toFixed(2)}) / ${TERRAIN_CELL.toFixed(3)} + 0.5) / ${TERRAIN_N.toFixed(1)};
-        float bed = texture2D(uBed, uv).r * ${BED_SPAN.toFixed(1)} + ${BED_LO.toFixed(1)};
-        return max(0.0, vWaterPos.y - bed);
+        return max(0.0, vWaterPos.y - texture2D(uBed, caveGridUv(vWaterPos.xz)).r);
       }
       // (how much the surface stirs here: less out in the deep, least under the islet's skylight)
       float waterStir(float depth) {
@@ -360,7 +306,7 @@ function stillWater(m: THREE.MeshStandardMaterial, opacity: number) {
       }`
       );
   };
-  m.customProgramCacheKey = () => `cave-water2-${opacity}`;
+  m.customProgramCacheKey = () => `cave-water3-${opacity}`;
   m.needsUpdate = true;
 }
 
@@ -497,14 +443,16 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       else if (m.name === "CV_ThermalWater") stillWater(m, 0.62);
       else if (m.name === "CV_Clay") {
         causticBed(m);
-        if (m.userData.caveFloor) floorBanks(m);
+        caveSurface(m, !!m.userData.caveFloor);
         bakedLight(m);
         heightMist(m);
       } else if (m.name === "CV_Shell") {
+        caveSurface(m, false);
         bakedLight(m);
         heightMist(m);
       } else if (m.name === "CV_Occluder") {
         ditherOccluder(m);
+        caveSurface(m, false);
         bakedLight(m);
         heightMist(m);
       }

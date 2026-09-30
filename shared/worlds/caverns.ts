@@ -606,12 +606,12 @@ function levelOf(x: number, z: number): string {
   for (let i = L.levels.length - 1; i >= 0; i--) if (levelWeight(L.levels[i], x, z) >= 0.5) return L.levels[i].id;
   return "low";
 }
-export function cavernsSurface(x: number, z: number): number {
+export function cavernsSurface(x: number, z: number, trails = true): number {
   if (poolAt(x, z) >= 0) return SURFACE.pool;
   if (plungeDistance(x, z) < 0.1 || riverDistance(x, z) <= L.river.half) return SURFACE.stream;
   const f = lakeFactor(x, z);
   if (f < 1 && isletFactor(x, z) > 0.9 && !onCauseway(x, z)) return SURFACE.bed;
-  for (const p of L.paths) if (polylineNear(x, z, p.points).d <= p.half + 0.15 * wave(x * 1.3, z * 1.3, 29)) return SURFACE.trail;
+  if (trails) for (const p of L.paths) if (polylineNear(x, z, p.points).d <= p.half + 0.15 * wave(x * 1.3, z * 1.3, 29)) return SURFACE.trail;
   // (the zones' edges wander a little: never a seam drawn with a ruler)
   const wob = 1.2 * wave(x * 0.5, z * 0.5, 17);
   switch (levelOf(x, z)) {
@@ -635,16 +635,25 @@ export function cavernsSurface(x: number, z: number): number {
 }
 
 /** The floor as the builder reads it (scripts/caverns-terrain.ts writes it to
- *  scripts/blender/data/caverns_terrain.json): the heights and surfaces of every vertex, and the mask. */
+ *  scripts/blender/data/caverns_terrain.json): the heights and surfaces of every vertex (and, under a
+ *  trail, the ground it is cut into: `ground`), and the mask. */
 export function cavernsTerrainData() {
   const surface: number[] = [];
-  for (let k = 0; k < TERRAIN_N; k++) for (let i = 0; i < TERRAIN_N; i++) surface.push(cavernsSurface(TERRAIN_X0 + i * TERRAIN_CELL, TERRAIN_X0 + k * TERRAIN_CELL));
+  const ground: number[] = [];
+  for (let k = 0; k < TERRAIN_N; k++) {
+    for (let i = 0; i < TERRAIN_N; i++) {
+      const s = cavernsSurface(TERRAIN_X0 + i * TERRAIN_CELL, TERRAIN_X0 + k * TERRAIN_CELL);
+      surface.push(s);
+      ground.push(s === SURFACE.trail ? cavernsSurface(TERRAIN_X0 + i * TERRAIN_CELL, TERRAIN_X0 + k * TERRAIN_CELL, false) : s);
+    }
+  }
   return {
     cell: TERRAIN_CELL,
     n: TERRAIN_N,
     x0: TERRAIN_X0,
     heights: Array.from(TERRAIN_HEIGHTS),
     surface,
+    ground,
     maskCell: MASK_CELL,
     maskN: MASK_N,
     mask: Array.from(CAVERNS_MASK).join(""),

@@ -89,6 +89,16 @@ together.
 | the Monolith | 20 s | 15.3 s |
 | the whole loop, winch included | 60 s | 44.0 s |
 
+## Surface detail
+
+Everything natural carries detail below the floor's 0.5 m grid (client/src/scene/caveSurface.ts,
+docs/caverns-roadmap.md phase 2), each zone its own mix: the breakdown's limestone cracked into
+plates, the basecamp's trodden dirt barely, the jungle's moss in patches, the mudflats' walls
+streaked with rust, the terraces' tiny rimstone pools, the beach's ripples, the rift's basalt
+glinting, strata up every cliff. Every bank too steep to walk is bare rock or broken scree; every
+trail a trodden way drawn from its own line. The walls stand in beds a metre thick under the vault's
+broken lip, stalactites hanging from it; the Great Wall is cream and amber flowstone.
+
 ## Shapes
 
 Nothing is a rectangle (docs/caverns-roadmap.md phase 1): every level's outline is a many-pointed

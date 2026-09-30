@@ -1147,6 +1147,24 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.7.15",
+        date: "2026-09-30",
+        title: "Every Stone in the Caverns",
+        summary: "The Glimmering Caverns get detail down to the stone: cracked limestone, moss, rust, rimstone and glinting basalt, crisp trodden trails, broken scree on the steep slopes, and walls standing in layered beds under a broken vault hung with stalactites.",
+        changes: {
+          visuals: [
+            "Every zone's ground has its own texture: cracked limestone plates in the Coal Breakdown, moss in patches in the Doline Jungle, tiny rimstone pools on the Pearl Terraces, ripples on the beach, and flecks glinting in the Glimmer Rift's basalt.",
+            "Every trail is a crisp trodden path from end to end, easy to follow even down into the dark of the rift.",
+            "Slopes too steep to walk are bare rock or broken scree, with no more smoky smears.",
+            "The cavern walls stand in layered beds, each ledge catching the light, under the vault's broken lip hung with stalactites.",
+            "The Great Wall behind the terraces is cream and amber flowstone again, not grey limestone.",
+            "Rust streaks down the mudflats' wall, and the ground by the water is dark and wet.",
+            "Rocks and walls are weathered, with paler edges and darker cracks.",
+            "The haze over the low ground is lighter, so the terraces and the lakeshore keep their colour.",
+          ],
+        },
+      },
     ],
   },
 ];
