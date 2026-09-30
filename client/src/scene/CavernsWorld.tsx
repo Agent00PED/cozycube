@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState } from "@shared/types";
-import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_SUN, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, cavernsZoneAt, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
 import { ORE_ITEMS, ORE_KINDS, ORE_KIND_IDS, oreCenterY, parseOres, type CaveLoot, type CaveShatter, type CaveStrike, type OreKind, type OreItemId } from "@shared/caverns_mining";
 import { DRIP_S, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -19,47 +19,56 @@ import { NODE_YAW } from "./caveNodes";
 import { playCaveSfx } from "../audio/cavernAmbience";
 import { CaveFauna } from "./caveFauna";
 import { CaveMist, CrystalLights } from "./caveAtmosphere";
+import { pushToast } from "../components/hud/toastStore";
 
-// The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: the
-// Grand Karst Sanctuary, 45 x 45. The cavern is one Blender model, caverns.glb
-// (scripts/blender/build_caverns.py, laid out from shared/worlds/caverns.ts): this file loads it and
-// brings it to life.
+// The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: 45 x 45,
+// after Hang Son Doong (docs/caverns-design.md), eight zones stepping down from the basecamp's shelf to
+// the Great Lake. The cavern is one Blender model, caverns.glb (scripts/blender/build_caverns.py, laid
+// out from shared/worlds/caverns.ts): this file loads it and brings it to life.
 //
 //   the floor     the model's own floor, which is its walk collider (`caverns_walk_collider`, drawn):
-//                 the very grid cavernsFloorY walks you on (the doline, the talus's switchbacks, the
-//                 overlook, the trails, the beach, the islet), triangle for triangle, so a click lands
-//                 at the exact height you see (the only mesh of the model a click is tested against);
-//                 while the model loads (or if it fails) the same grid built here in its place
-//   the finishes  the rock and the shell as painted (the light baked into their vertex colours), the
-//                 lake's bed lit by moving caustics (brightest under the islet's skylight); what glows
-//                 (crystals, mushrooms, lanterns, the forge's mouth) a MeshStandardMaterial whose
-//                 emission is its own vertex colour, breathing; the cenote's and the terraces' water
-//                 see-through with no depth write (nothing z-fights under it); the mangrove roots and
-//                 the skylight's rim dithered to 30% where they stand between you and the camera
+//                 the very grid cavernsFloorY walks you on (every zone, the trails cut across the
+//                 cliffs, the fords, the lake's shore and the causeway), triangle for triangle, so a
+//                 click lands at the exact height you see (the only mesh of the model a click is tested
+//                 against); while the model loads (or if it fails) the same grid built here in its
+//                 place; its own copy of the clay paints every bank too steep to walk bare rock,
+//                 triangle by triangle (floorBanks)
+//   the finishes  the rock and the shell as painted (each zone's ground and tint in their vertex
+//                 colours), the lake's bed lit by moving caustics (brightest under the islet's
+//                 skylight); what glows (crystals, fungi, lanterns, the forge's mouth) a
+//                 MeshStandardMaterial whose emission is its own vertex colour, breathing; the lake's
+//                 and the pools' water see-through with no depth write (nothing z-fights under it);
+//                 the jungle's trees and the Hound's Hand dithered to 30% where they stand between
+//                 you and the camera
 //   the light     the game's own (CaveLights): ACES tone mapping at a balanced exposure, a deep cool
-//                 navy ambient and hemisphere (#161c26 at 0.28), the doline's skylight a soft golden
-//                 spotlight falling only under the doline's broken roof and casting real shadows, a
-//                 soft fill from over your shoulder, the model's baked light kept as a dim lightmap
-//                 (bakedLight: its vertex colours' own glow), three moving point lights (the forge's
-//                 flicker, the terraces' warmth, the cenote's heart) and four small ones for the
-//                 crystals nearest you (caveAtmosphere.tsx); the doline's godrays and the skylight's
-//                 shaft (additive, soft-edged, dust drifting in them); a thin pale mist over the
-//                 cenote's water; nothing ever hangs into the view
+//                 navy ambient and hemisphere (#161c26 at 0.28), the sun through the jungle's collapse
+//                 a soft golden spotlight casting real shadows, a key light from high over the collapse
+//                 (every cliff facing the camera in its own shade) and a softer fill from over your
+//                 shoulder, the model's baked light kept as a dim lightmap (bakedLight: its colours'
+//                 own glow), three moving point lights (the forge's flicker, the pools' warmth, the
+//                 lake's heart) and four small ones for the crystals nearest you (caveAtmosphere.tsx);
+//                 the jungle's godrays and the islet's skylight shaft (additive, soft-edged, dust
+//                 drifting in them); dust in the collapse's light over the basecamp and the
+//                 breakdown; a thin pale mist over the lake's water and a height mist on everything
+//                 (heightMist: a haze over the low ground, the deep dark below the water line and
+//                 down the edges); nothing ever hangs into the view
 //   the shore     the sand the water touches damp: darker, and glossy (lower roughness) in the
 //                 bed's finish
+//   the zones     each one's name in a toast as you come into it (ZoneToasts)
 //   the nodes     every ore node from its kind's rock (the model's Ore_<kind>), instanced: its damage
 //                 the room's (`ores`): surface fissures glowing in, then the outer shell fracturing
 //                 (a tremble), then the shatter (a burst of shards); a broken node leaves a dark
 //                 cracked stump with dust motes over it until it grows back; each strike throws sparks
 //                 where it landed; the loot flies to you
 //   the folk      Gus the mole at his log workstation (gus.glb), Finnegan the Grotto Angler on his
-//                 driftwood log on the cenote's north shore, his reed creel and lantern by him
+//                 driftwood log on the lake's north shore, his reed creel and lantern by him
 //                 (finnegan.glb), and a capybara soaking in the terraces' upper pool, a towel folded
 //                 on its head (capybara.glb)
-//   the fauna     glowing crabs skittering on the beach, swiftlets circling in the doline's sunbeams
-//                 (caveFauna.tsx, instanced from the model's Fauna_* templates)
+//   the fauna     glowing crabs skittering on the shore, swiftlets circling in the jungle's sunbeams,
+//                 bats fluttering over the mudflats (caveFauna.tsx, instanced from the model's Fauna_*
+//                 templates)
 //   the terraces  steam curling off their pools, and warm motes rising round every bather
-//   the drip      a lucky drip's cyan ripple on the cenote (the fishing's luck)
+//   the drip      a lucky drip's cyan ripple on the lake (the fishing's luck)
 
 export const CAVERNS_URL = modelUrl("caverns.glb");
 export const GUS_URL = modelUrl("gus.glb");
@@ -67,10 +76,10 @@ export const FINNEGAN_URL = modelUrl("finnegan.glb");
 export const CAPYBARA_URL = modelUrl("capybara.glb");
 
 const TIME = { value: 0 };
-const CAVE_DARK = new THREE.Color("#07060c");
+const CAVE_DARK = new THREE.Color("#0e131b");
 /** How much of the model's baked light (its vertex colours) glows on its own: the rest of what you
  *  see comes from the game's lights. */
-const BAKED = { value: 0.9 };
+const BAKED = { value: 0.72 };
 /** The caverns' exposure under ACES (the doline's sun never bleaches the sand under it). */
 const CAVE_EXPOSURE = 0.92;
 
@@ -89,11 +98,89 @@ function bakedLight(m: THREE.MeshStandardMaterial) {
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
       #ifdef USE_COLOR
-        totalEmissiveRadiance += vColor.rgb * uBaked;
+        totalEmissiveRadiance += diffuseColor.rgb * uBaked;
       #endif`
     );
   };
   m.customProgramCacheKey = () => `${prevKey()}|cave-baked`;
+  m.needsUpdate = true;
+}
+
+/** The floor's banks: every triangle too steep to walk painted as bare rock (its zone's ground gone
+ *  darker), the true drops darker still, triangle by triangle from its own facing, so a bank has the
+ *  crisp edge of a low-poly facet (painted into the 0.5 m grid's vertex colours, a band only smears
+ *  into smoke). The baked light follows the colour (bakedLight reads diffuseColor). */
+const BANK_ROCK = new THREE.Color("#6a655d");
+const DROP_ROCK = new THREE.Color("#3e3b42");
+function floorBanks(m: THREE.MeshStandardMaterial) {
+  if (m.userData.caveBanks) return;
+  m.userData.caveBanks = true;
+  const prev = m.onBeforeCompile;
+  const prevKey = m.customProgramCacheKey.bind(m);
+  m.onBeforeCompile = (shader, renderer) => {
+    prev.call(m, shader, renderer);
+    shader.uniforms.uBankRock = { value: BANK_ROCK };
+    shader.uniforms.uDropRock = { value: DROP_ROCK };
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vBankPos;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvBankPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vBankPos;\nuniform vec3 uBankRock;\nuniform vec3 uDropRock;").replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      {
+        // (the triangle's own facing: 1 - its normal's height, 0.1 at 26 degrees, 0.19 at 36, 0.45 at 57)
+        vec3 facet = normalize(cross(dFdx(vBankPos), dFdy(vBankPos)));
+        float slope = 1.0 - abs(facet.y);
+        // (each zone's own ground gone darker, a share of bare rock in it: the travertine's banks
+        // stay cream, the camp's tan)
+        diffuseColor.rgb = mix(diffuseColor.rgb, mix(diffuseColor.rgb * 0.62, uBankRock, 0.35), smoothstep(0.1, 0.19, slope) * 0.9);
+        diffuseColor.rgb = mix(diffuseColor.rgb, mix(diffuseColor.rgb * 0.5, uDropRock, 0.5), smoothstep(0.3, 0.45, slope) * 0.6);
+      }`
+    );
+  };
+  m.customProgramCacheKey = () => `${prevKey()}|cave-banks`;
+  m.needsUpdate = true;
+}
+
+/** The height mist (docs/caverns-design.md phase 5, after Son Doong's clouds): the lower you go, the
+ *  mistier, a cool haze over the low ground and the lake's shore, and below the lake's surface and
+ *  down the pedestal's sides a deep mist the colour of the dark round the cavern, so its open edges
+ *  fall away into it (never a hard edge against black). In the output's own colours (applied after the
+ *  tone mapping, as three's fog is). */
+const MIST_LOW = new THREE.Vector3(0x44 / 255, 0x52 / 255, 0x62 / 255);
+const MIST_DEEP = new THREE.Vector3(0x0e / 255, 0x13 / 255, 0x1b / 255);
+const MIST_GLSL = `
+      {
+        float mistLow = 0.26 * (1.0 - smoothstep(0.3, 3.2, vMistY));
+        float mistDeep = 0.92 * (1.0 - smoothstep(-2.4, -0.25, vMistY));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistLow, mistLow);
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistDeep, mistDeep);
+      }`;
+function mistShader(shader: { uniforms: Record<string, THREE.IUniform>; vertexShader: string; fragmentShader: string }) {
+  shader.uniforms.uMistLow = { value: MIST_LOW };
+  shader.uniforms.uMistDeep = { value: MIST_DEEP };
+  shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying float vMistY;").replace(
+    "#include <project_vertex>",
+    `#include <project_vertex>
+    {
+      vec4 mistW = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+        mistW = instanceMatrix * mistW;
+      #endif
+      vMistY = (modelMatrix * mistW).y;
+    }`
+  );
+  shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vMistY;\nuniform vec3 uMistLow;\nuniform vec3 uMistDeep;").replace("#include <fog_fragment>", `#include <fog_fragment>${MIST_GLSL}`);
+}
+/** The height mist chained after any patch already on the material. */
+function heightMist(m: THREE.MeshStandardMaterial) {
+  if (m.userData.caveMist) return;
+  m.userData.caveMist = true;
+  const prev = m.onBeforeCompile;
+  const prevKey = m.customProgramCacheKey.bind(m);
+  m.onBeforeCompile = (shader, renderer) => {
+    prev.call(m, shader, renderer);
+    mistShader(shader);
+  };
+  m.customProgramCacheKey = () => `${prevKey()}|cave-mist`;
   m.needsUpdate = true;
 }
 
@@ -232,12 +319,12 @@ const GUS_TALK: NpcTalk = {
   clicked: ["Ore, ingots, geodes, gems: Gus buys the lot!", "Mind the Monolith when it wakes. Takes a crew to crack it", "A good pickaxe is half the work, friend", "Smelt your copper before you sell it: every bit counts"],
   greet: {
     inside: (x, z) => Math.hypot(x - GUS.x, z - GUS.z) < 3.4,
-    lines: ["Welcome to the Sunlit Doline!", "The sun only reaches this far down at the doline", "Fresh from the rock? Let's see what you've got", "The forge is hot and the anvil's ready"],
+    lines: ["Welcome to the basecamp!", "The sun only reaches this far down at the jungle's doline", "Fresh from the rock? Let's see what you've got", "The forge is hot and the anvil's ready"],
   },
 };
 const FINNEGAN_TALK: NpcTalk = {
   height: 1.25,
-  clicked: ["The cenote's fish glow, friend. Mind the drip", "A silver spinner for the patient angler", "Fish bones and prismatic scales: that's the currency down here", "The elder olm's been in this lake longer than the cavern"],
+  clicked: ["The lake's fish glow, friend. Mind the drip", "A silver spinner for the patient angler", "Fish bones and prismatic scales: that's the currency down here", "The elder olm's been in this lake longer than the cavern"],
   greet: {
     inside: (x, z) => Math.hypot(x - FINNEGAN.x, z - FINNEGAN.z) < 3.6,
     lines: ["Ahoy up there!", "Come, sit a while, the fish are biting", "The lake's still as glass today", "Got anything glowing in that livewell?"],
@@ -279,6 +366,8 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       <ThermalSteam />
       <SoakSteam players={players} />
       <ForgeSmoke />
+      <DustMotes />
+      <ZoneToasts />
       <DripRipples subscribeMessages={subscribeMessages} />
       <OcclusionDriver />
     </group>
@@ -309,11 +398,17 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
   // drawn): the only mesh of the model a click is tested against
   const walk = useMemo(() => (scene.getObjectByName("caverns_walk_collider") as THREE.Mesh | undefined) ?? null, [scene]);
   const fallbackFloor = useMemo(() => (walk ? null : floorGeometry()), [walk]);
-  const fauna = useMemo(() => ({ crab: (scene.getObjectByName("Fauna_Crab") as THREE.Mesh | undefined) ?? null, swift: (scene.getObjectByName("Fauna_Swift") as THREE.Mesh | undefined) ?? null }), [scene]);
+  const fauna = useMemo(() => ({ crab: (scene.getObjectByName("Fauna_Crab") as THREE.Mesh | undefined) ?? null, swift: (scene.getObjectByName("Fauna_Swift") as THREE.Mesh | undefined) ?? null, bat: (scene.getObjectByName("Fauna_Bat") as THREE.Mesh | undefined) ?? null }), [scene]);
   useEffect(() => () => fallbackFloor?.dispose(), [fallbackFloor]);
   // the model's finishes, and the node rocks' templates taken out of it (instanced below)
   const templates = useMemo(() => {
     const t: Partial<Record<OreKind | "rubble", { rock: THREE.Mesh; glow: THREE.Mesh | null }>> = {};
+    // (the floor its own copy of the clay: only it takes the banks)
+    if (walk && !(walk.material as THREE.Material).userData.caveFloor) {
+      const own = (walk.material as THREE.MeshStandardMaterial).clone();
+      own.userData = { caveFloor: true };
+      walk.material = own;
+    }
     scene.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -325,11 +420,16 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       else if (m.name === "CV_ThermalWater") stillWater(m, 0.62);
       else if (m.name === "CV_Clay") {
         causticBed(m);
+        if (m.userData.caveFloor) floorBanks(m);
         bakedLight(m);
-      } else if (m.name === "CV_Shell") bakedLight(m);
-      else if (m.name === "CV_Occluder") {
+        heightMist(m);
+      } else if (m.name === "CV_Shell") {
+        bakedLight(m);
+        heightMist(m);
+      } else if (m.name === "CV_Occluder") {
         ditherOccluder(m);
         bakedLight(m);
+        heightMist(m);
       }
       // (the rock, the walls and the pillars cast the sun's shadows; the floor and they take them)
       if (mesh.name === "Cave_Rock" || mesh.name === "Cave_Shell" || mesh.name === "Cave_Roots") {
@@ -339,7 +439,7 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
     });
     if (walk) walk.raycast = THREE.Mesh.prototype.raycast;
     // (the fauna's templates: drawn instanced, never where they were modelled)
-    for (const name of ["Fauna_Crab", "Fauna_Swift"]) {
+    for (const name of ["Fauna_Crab", "Fauna_Swift", "Fauna_Bat"]) {
       const o = scene.getObjectByName(name);
       if (o) o.visible = false;
     }
@@ -359,12 +459,16 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       {!walk && <mesh geometry={fallbackFloor!} visible={false} onPointerDown={onClick} />}
       <OreNodes templates={templates} ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} players={players} />
       <ProspectingView templates={templates} onStrike={onStrike} />
-      <CaveFauna crab={fauna.crab} swift={fauna.swift} />
+      <CaveFauna crab={fauna.crab} swift={fauna.swift} bat={fauna.bat} />
     </>
   );
 }
 
 // --- the nodes ------------------------------------------------------------------------------------
+
+/** How much of an ore rock's own colour glows on its own (the cavern's rock: BAKED): its minerals
+ *  read as they are, the white calcite white, the shale's beds against the coal's. */
+const ORE_BAKED = 0.55;
 
 /** The rock's damage in its shader: darker as it goes, fissures glowing its kind's colour in. */
 function crackedRock(base: THREE.MeshStandardMaterial, glow: string): THREE.MeshStandardMaterial {
@@ -390,9 +494,12 @@ function crackedRock(base: THREE.MeshStandardMaterial, glow: string): THREE.Mesh
           float line = 1.0 - smoothstep(0.0, width, abs(n));
           float show = smoothstep(0.06, 0.3, vCrack);
           diffuseColor.rgb *= 1.0 - 0.3 * vCrack;
+          // (the ore's own colours lit a little on their own, as the cavern's rock is: bakedLight)
+          totalEmissiveRadiance += vColor.rgb * ${ORE_BAKED.toFixed(2)} * (1.0 - 0.35 * vCrack);
           totalEmissiveRadiance += uCrackGlow * line * show * (0.8 + 1.6 * vCrack) * (0.8 + 0.2 * sin(uTime * 6.0));
         }`
       );
+    mistShader(shader);
   };
   m.customProgramCacheKey = () => `cave-crack-${glow}`;
   return m;
@@ -476,6 +583,9 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
   useEffect(() => () => fx.dispose(), [fx]);
   // the dust lingering over a broken node's stump till it grows back
   const dust = useMemo(() => new MotePoints(ORE_NODES.length * DUST_PER_STUMP), []);
+  // the "ready to mine" sparkle: one twinkling star on the face of every node that stands
+  const sparkles = useMemo(() => new ReadySparkles(ORE_NODES.length), []);
+  useEffect(() => () => sparkles.dispose(), [sparkles]);
   const dustSeeds = useMemo(() => ORE_NODES.flatMap(() => Array.from({ length: DUST_PER_STUMP }, () => ({ a: Math.random() * Math.PI * 2, r: 0.15 + Math.random() * 0.45, p: Math.random(), s: 0.5 + Math.random() * 0.6 }))), []);
   useEffect(() => () => dust.dispose(), [dust]);
   const live = useRef({ players, localSessionId });
@@ -526,7 +636,7 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
   const s = useMemo(() => new THREE.Vector3(), []);
   const p = useMemo(() => new THREE.Vector3(), []);
   const yAxis = useMemo(() => new THREE.Vector3(0, 1, 0), []);
-  useFrame((_, dt) => {
+  useFrame(({ camera }, dt) => {
     const now = performance.now();
     for (const set of sets) {
       set.nodes.forEach((n, i) => {
@@ -580,6 +690,18 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
       }
     });
     dust.commit();
+    ORE_NODES.forEach((n, i) => {
+      const look = looks.current.get(n.id);
+      if (look && !look.up) {
+        sparkles.hide(i);
+        return;
+      }
+      const yaw = NODE_YAW.get(n.id) ?? 0;
+      const r = ORE_KINDS[n.kind].radius;
+      const out = n.kind === "monolith" ? 0.55 : 0.75;
+      sparkles.set(i, n.x + Math.sin(yaw) * r * out, n.y + oreCenterY(n.kind) + r * 0.5, n.z + Math.cos(yaw) * r * out, SPARKLE_COLOR[n.kind], i * 1.37);
+    });
+    sparkles.commit(t, (camera as THREE.OrthographicCamera).zoom ?? 1);
     fx.step(dt, cameraFocus);
   });
   return (
@@ -592,6 +714,7 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
       ))}
       {rubble && <primitive object={rubble} />}
       <primitive object={dust.points} />
+      <primitive object={sparkles.points} />
       <primitive object={fx.mesh} />
     </>
   );
@@ -701,10 +824,10 @@ class FxPool {
 /** The cavern's light: a dim cool fill (the rock's own light is painted in), the sun's warm slant
  *  down the doline, and the three point lights that move: the forge's mouth flickering, the
  *  terraces' warm glow breathing, the cenote's heart pulsing. */
-/** The doline's skylight: a soft golden spot high over the broken roof, falling only on the doline
- *  under it (its cone and penumbra), casting real shadows there. */
-const SKY_FROM = new THREE.Vector3(1.5, 17, -12.5);
-const SKY_AT = new THREE.Vector3(1.0, 3.2, -16.0);
+/** The doline's skylight: a soft golden spot high over the jungle's broken roof, falling only on the
+ *  jungle under it (its cone and penumbra), casting real shadows there (the layout's `sun`). */
+const SKY_FROM = new THREE.Vector3(...CAVE_SUN.from);
+const SKY_AT = new THREE.Vector3(...CAVE_SUN.at);
 
 function CaveLights() {
   const gl = useThree((s) => s.gl);
@@ -713,6 +836,9 @@ function CaveLights() {
   const cenote = useRef<THREE.PointLight>(null);
   const sun = useRef<THREE.SpotLight>(null);
   const fill = useRef<THREE.DirectionalLight>(null);
+  /** The key light: from high over the collapse in the north-west, so every cliff facing the camera
+   *  stands in its own shade against the lit ground over it. */
+  const key = useRef<THREE.DirectionalLight>(null);
   const target = useMemo(() => {
     const o = new THREE.Object3D();
     o.position.copy(SKY_AT);
@@ -755,6 +881,10 @@ function CaveLights() {
       fillAt.position.set(cameraFocus.x, cameraFocus.y + 0.8, cameraFocus.z);
       fill.current.position.copy(camera.position);
     }
+    if (key.current) {
+      key.current.target = fillAt;
+      key.current.position.set(cameraFocus.x - 6, cameraFocus.y + 12, cameraFocus.z - 5);
+    }
     // (the canvas's own configuration turns the shadow map off again on any re-render of it: held on
     // here, a frame at a time, before anything is drawn)
     if (!gl.shadowMap.enabled) {
@@ -775,7 +905,8 @@ function CaveLights() {
       <primitive object={target} />
       <spotLight ref={sun} color="#ffd79c" intensity={2.6} distance={0} decay={0} angle={0.62} penumbra={0.75} position={SKY_FROM.toArray()} castShadow />
       <primitive object={fillAt} />
-      <directionalLight ref={fill} color="#dde4f4" intensity={0.85} castShadow={false} />
+      <directionalLight ref={fill} color="#dde4f4" intensity={0.5} castShadow={false} />
+      <directionalLight ref={key} color="#fff0d8" intensity={0.6} castShadow={false} />
       <pointLight ref={forge} color="#ff8a3a" distance={11} decay={1.4} position={CAVE_LIGHTS.forge as [number, number, number]} castShadow={false} />
       <pointLight ref={thermal} color="#ffc78a" distance={9} decay={1.5} position={CAVE_LIGHTS.thermal as [number, number, number]} castShadow={false} />
       <pointLight ref={cenote} color="#3ff0ff" distance={13} decay={1.3} position={CAVE_LIGHTS.cenote as [number, number, number]} castShadow={false} />
@@ -979,6 +1110,148 @@ class MotePoints {
     this.points.geometry.dispose();
     (this.points.material as THREE.Material).dispose();
   }
+}
+
+/** Each kind's sparkle: its glow, a touch whiter. */
+const SPARKLE_COLOR = Object.fromEntries(ORE_KIND_IDS.map((k) => [k, new THREE.Color(ORE_KINDS[k].glow).lerp(new THREE.Color("#ffffff"), 0.35)])) as Record<OreKind, THREE.Color>;
+
+/** The "ready to mine" sparkle (docs/caverns-design.md phase 4): a four-point star on a node's face,
+ *  its size in metres whatever the zoom, twinkling now and then (each on its own beat); hidden while
+ *  the node is broken. One Points draw for every node. */
+class ReadySparkles {
+  points: THREE.Points;
+  private pos: THREE.BufferAttribute;
+  private col: THREE.BufferAttribute;
+  private phase: THREE.BufferAttribute;
+  private mat: THREE.ShaderMaterial;
+  constructor(n: number) {
+    const geo = new THREE.BufferGeometry();
+    this.pos = new THREE.BufferAttribute(new Float32Array(n * 3).fill(-100), 3);
+    this.col = new THREE.BufferAttribute(new Float32Array(n * 4), 4);
+    this.phase = new THREE.BufferAttribute(new Float32Array(n), 1);
+    geo.setAttribute("position", this.pos);
+    geo.setAttribute("aCol", this.col);
+    geo.setAttribute("aPhase", this.phase);
+    this.mat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: { uPx: { value: Math.min(2, window.devicePixelRatio || 1) }, uTime: { value: 0 }, uZoom: { value: 1 } },
+      vertexShader: `
+        attribute vec4 aCol;
+        attribute float aPhase;
+        uniform float uPx;
+        uniform float uTime;
+        uniform float uZoom;
+        varying vec4 vCol;
+        void main() {
+          float tw = pow(0.5 + 0.5 * sin(uTime * 1.7 + aPhase), 6.0);
+          vCol = vec4(aCol.rgb, aCol.a * (0.4 + 0.6 * tw));
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = clamp((0.22 + 0.34 * tw) * uZoom, 6.0, 90.0) * uPx;
+        }`,
+      fragmentShader: `
+        varying vec4 vCol;
+        void main() {
+          vec2 p = gl_PointCoord * 2.0 - 1.0;
+          float star = max(0.0, 1.0 - abs(p.x) * 7.0) * (1.0 - abs(p.y)) + max(0.0, 1.0 - abs(p.y) * 7.0) * (1.0 - abs(p.x));
+          float core = exp(-dot(p, p) * 14.0);
+          float a = clamp(star * 0.9 + core, 0.0, 1.0) * vCol.a;
+          gl_FragColor = vec4(vCol.rgb, a);
+        }`,
+    });
+    this.points = new THREE.Points(geo, this.mat);
+    this.points.raycast = noRaycast;
+    this.points.frustumCulled = false;
+    this.points.renderOrder = 3;
+  }
+  set(i: number, x: number, y: number, z: number, c: THREE.Color, phase: number) {
+    this.pos.setXYZ(i, x, y, z);
+    this.col.setXYZW(i, c.r, c.g, c.b, 1);
+    this.phase.setX(i, phase);
+  }
+  hide(i: number) {
+    this.pos.setXYZ(i, 0, -100, 0);
+    this.col.setW(i, 0);
+  }
+  commit(time: number, zoom: number) {
+    this.mat.uniforms.uTime.value = time;
+    this.mat.uniforms.uZoom.value = zoom;
+    this.pos.needsUpdate = true;
+    this.col.needsUpdate = true;
+    this.phase.needsUpdate = true;
+  }
+  dispose() {
+    this.points.geometry.dispose();
+    this.mat.dispose();
+  }
+}
+
+/** Dust drifting in the light over the breakdown and the basecamp (the collapse's), slow and pale. */
+const DUST_MOTES = 70;
+const DUST_COLOR = new THREE.Color("#fff1d6");
+function DustMotes() {
+  const motes = useMemo(() => new MotePoints(DUST_MOTES), []);
+  const seeds = useMemo(
+    () =>
+      Array.from({ length: DUST_MOTES }, (_, i) => {
+        const east = i % 2 === 0;
+        const x = east ? 9.5 + Math.random() * 11.5 : -6.5 + Math.random() * 14;
+        const z = -21 + Math.random() * 8;
+        return { x, z, y: cavernsFloorY(x, z) + 0.6 + Math.random() * 3.4, a: Math.random() * 6.283, s: 0.3 + Math.random() * 0.5, p: Math.random() * 10 };
+      }),
+    []
+  );
+  useEffect(() => () => motes.dispose(), [motes]);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    seeds.forEach((d, i) => {
+      const a = d.a + t * 0.05 * d.s;
+      const bob = Math.sin(t * 0.3 * d.s + d.p);
+      motes.set(i, d.x + Math.cos(a) * 0.8, d.y + bob * 0.35, d.z + Math.sin(a) * 0.8, 0.22 + 0.18 * (0.5 + 0.5 * Math.sin(t * 0.7 + d.p)), DUST_COLOR);
+    });
+    motes.commit();
+  });
+  return <primitive object={motes.points} />;
+}
+
+/** Each zone's name as you come into it (held a moment, so its edge never flickers it; the same zone
+ *  not again for half a minute). */
+const ZONE_TOAST: Record<string, { emoji: string; what: string }> = {
+  basecamp: { emoji: "⛺", what: "Gus, the forge, the anvil" },
+  jungle: { emoji: "🌿", what: "Copper · T1" },
+  breakdown: { emoji: "⚫", what: "Coal · T1" },
+  overlook: { emoji: "🗿", what: "The Hound's Hand" },
+  mudflats: { emoji: "🦇", what: "Iron · T2" },
+  rift: { emoji: "💠", what: "Glimmer · T4" },
+  terraces: { emoji: "♨️", what: "Silver · T3 · hot springs" },
+  lake: { emoji: "🌊", what: "The Titan Monolith · fishing" },
+};
+function ZoneToasts() {
+  useEffect(() => {
+    let current = "";
+    let pending = "";
+    let since = 0;
+    const shown = new Map<string, number>();
+    const id = window.setInterval(() => {
+      const zone = cavernsZoneAt(cameraFocus.x, cameraFocus.z);
+      const zid = zone?.id ?? "";
+      const now = Date.now();
+      if (zid !== pending) {
+        pending = zid;
+        since = now;
+        return;
+      }
+      if (!zone || zid === current || now - since < 900) return;
+      current = zid;
+      if (now - (shown.get(zid) ?? -1e9) < 30000) return;
+      shown.set(zid, now);
+      const info = ZONE_TOAST[zid];
+      pushToast(info ? `${zone.name} · ${info.what}` : zone.name, { emoji: info?.emoji, tone: "arrive", silent: true });
+    }, 300);
+    return () => window.clearInterval(id);
+  }, []);
+  return null;
 }
 
 const STEAM_PER_POOL = 10;

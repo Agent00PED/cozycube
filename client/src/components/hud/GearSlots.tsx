@@ -105,7 +105,7 @@ export function TacklesOwned({ profile, craft }: { profile: FishingProfile; craf
                   <span className="text-xl">{t.emoji}</span>
                   <div className="flex min-w-0 flex-1 flex-col leading-tight">
                     <b className="truncate text-xs text-[#F7EBE1]">{t.name}</b>
-                    <span className="text-[10px] opacity-80">{owned ? t.blurb : "Not yet: barter with Finnegan by the cenote"}</span>
+                    <span className="text-[10px] opacity-80">{owned ? t.blurb : "Not yet: barter with Finnegan by the Great Lake"}</span>
                   </div>
                 </div>
               );

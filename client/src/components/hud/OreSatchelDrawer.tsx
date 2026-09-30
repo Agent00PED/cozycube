@@ -201,7 +201,7 @@ export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, o
 }
 
 const EMPTY: Record<OreCategory, string> = {
-  raw: "No ore yet. Mine a node: the doline's coal and copper in its fallen rocks, the crystal fissures' iron, silver and glimmerstone.",
+  raw: "No ore yet. Mine a node: copper in the jungle, coal in the breakdown, iron in the mudflats, silver on the terraces, glimmerstone in the rift.",
   ingot: "No ingots yet. The Thermal Bellows Forge smelts them (Quick Smelt All, below, or the bellows at the forge for Masterworks).",
   geode: "No geodes yet. Iron lodes and Glimmerstone clusters give them up now and then; the Titan Monolith always.",
   gem: "No gems yet. Cleave a geode on the meteorite anvil, by the forge.",

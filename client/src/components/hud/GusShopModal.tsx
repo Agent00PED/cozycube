@@ -10,7 +10,7 @@ import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { MarketClock, PRICE_COLUMN, SellAllButton, ShopShell, TrendBadge, type ShopNotice, type ShopTab } from "./ShopShell";
 
-// Gus the Mole's workstation on the Sunlit Doline, on the shops' fixed-anchor counter (ShopShell).
+// Gus the Mole's workstation at the Expedition Basecamp, on the shops' fixed-anchor counter (ShopShell).
 // He buys everything the caverns give (the raw ores, the forge's ingots, Masterworks at their +25%,
 // geodes as they are, the anvil's cut gems) at the hour's market, and the Fine Stone Dust (at its
 // flat price: the materials' store, up to 99); the cenote's fish are Finnegan's to buy. He sells the
@@ -79,7 +79,7 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
     >
       {tab === "trade" && (
         <div className="flex flex-col gap-1.5">
-          {held.length === 0 && dust === 0 && <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Bring me ore, friend! The doline's fallen rocks, the crystal fissures' iron, silver and glimmerstone: I buy the lot. The cenote's fish? Take those to Finnegan, down by the lake.</p>}
+          {held.length === 0 && dust === 0 && <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Bring me ore, friend! Copper from the jungle, coal from the breakdown, iron, silver and glimmerstone from further down: I buy the lot. The lake's fish? Take those to Finnegan, down on the north shore.</p>}
           {held.map((id) => {
             const item = ORE_ITEMS[id];
             const mult = marketMultiplier(oreGood(id), hour);

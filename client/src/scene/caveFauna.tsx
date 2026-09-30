@@ -71,7 +71,26 @@ function crabAlong(run: CrabRun, t: number): { u: number; moving: boolean } {
   return { u: 0, moving: false };
 }
 
-export function CaveFauna({ crab, swift }: { crab: THREE.Mesh | null; swift: THREE.Mesh | null }) {
+/** The mudflats' bats: out from their roost on the west wall, fluttering in loose loops over the mud
+ *  (each its own loop, its own beat). */
+const BATS = 6;
+const BAT_ROOSTS = [
+  [-18.0, -7.0],
+  [-19.0, -2.0],
+  [-15.0, -9.5],
+  [-17.0, -4.0],
+  [-20.0, -10.0],
+  [-14.5, -3.0],
+] as const;
+function batAt(i: number, t: number, out: THREE.Vector3) {
+  const [cx, cz] = BAT_ROOSTS[i % BAT_ROOSTS.length];
+  const w = 0.9 + ((i * 0.37) % 1) * 0.6;
+  const a = t * w + i * 1.9;
+  const r = 1.4 + ((i * 0.53) % 1) * 1.2;
+  return out.set(cx + Math.cos(a) * r + 0.4 * Math.sin(a * 3.1), cavernsFloorY(cx, cz) + 2.4 + 0.8 * Math.sin(a * 2.0 + i) + ((i * 0.29) % 1) * 1.2, cz + Math.sin(a * 2.0) * r * 0.6);
+}
+
+export function CaveFauna({ crab, swift, bat }: { crab: THREE.Mesh | null; swift: THREE.Mesh | null; bat: THREE.Mesh | null }) {
   const runs = useMemo(crabRuns, []);
   const crabs = useMemo(() => {
     if (!crab || !runs.length) return null;
@@ -108,6 +127,32 @@ export function CaveFauna({ crab, swift }: { crab: THREE.Mesh | null; swift: THR
     im.frustumCulled = false;
     return { im, time };
   }, [swift]);
+  // the bats' wings beat faster than the swifts', never gliding
+  const bats = useMemo(() => {
+    if (!bat) return null;
+    const mat = (bat.material as THREE.MeshStandardMaterial).clone();
+    const time = { value: 0 };
+    mat.side = THREE.DoubleSide;
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = time;
+      shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTime;\nattribute float aPhase;").replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        {
+          float reach = smoothstep(0.02, 0.2, abs(transformed.x));
+          float beat = sin(uTime * 24.0 + aPhase);
+          transformed.y += reach * abs(transformed.x) * (beat * 1.1);
+        }`
+      );
+    };
+    mat.customProgramCacheKey = () => "cave-bat";
+    const geo = bat.geometry.clone();
+    geo.setAttribute("aPhase", new THREE.InstancedBufferAttribute(new Float32Array(Array.from({ length: BATS }, (_, i) => i * 1.13)), 1));
+    const im = new THREE.InstancedMesh(geo, mat, BATS);
+    im.raycast = noRaycast;
+    im.frustumCulled = false;
+    return { im, time };
+  }, [bat]);
   const flights = useMemo(
     () =>
       Array.from({ length: SWIFTS }, (_, i) => {
@@ -124,9 +169,16 @@ export function CaveFauna({ crab, swift }: { crab: THREE.Mesh | null; swift: THR
         (swifts.im.material as THREE.Material).dispose();
         swifts.im.dispose();
       }
+      if (bats) {
+        bats.im.geometry.dispose();
+        (bats.im.material as THREE.Material).dispose();
+        bats.im.dispose();
+      }
     },
-    [crabs, swifts]
+    [crabs, swifts, bats]
   );
+  const here = useMemo(() => new THREE.Vector3(), []);
+  const ahead = useMemo(() => new THREE.Vector3(), []);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -162,11 +214,25 @@ export function CaveFauna({ crab, swift }: { crab: THREE.Mesh | null; swift: THR
       });
       swifts.im.instanceMatrix.needsUpdate = true;
     }
+    if (bats) {
+      bats.time.value = t;
+      for (let i = 0; i < BATS; i++) {
+        batAt(i, t, here);
+        batAt(i, t + 0.05, ahead);
+        dummy.position.copy(here);
+        dummy.rotation.set(0.25 * Math.sin(t * 3 + i), Math.atan2(ahead.x - here.x, ahead.z - here.z), 0.35 * Math.sin(t * 2.3 + i), "YXZ");
+        dummy.scale.setScalar(1.25);
+        dummy.updateMatrix();
+        bats.im.setMatrixAt(i, dummy.matrix);
+      }
+      bats.im.instanceMatrix.needsUpdate = true;
+    }
   });
   return (
     <>
       {crabs && <primitive object={crabs} />}
       {swifts && <primitive object={swifts.im} />}
+      {bats && <primitive object={bats.im} />}
     </>
   );
 }

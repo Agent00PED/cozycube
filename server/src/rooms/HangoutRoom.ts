@@ -762,6 +762,17 @@ export class HangoutRoom extends Room<HangoutState> {
         const player = this.state.players.get(sessionId);
         if (player) this.travel(sessionId, player, map, at);
       },
+      place: (sessionId, x, z, holdMs) => {
+        const player = this.state.players.get(sessionId);
+        if (!player) return;
+        player.x = x;
+        player.z = z;
+        player.dirX = 0;
+        player.dirZ = 0;
+        // their own reports (walked before the move reached them) are not believed for a moment
+        this.lastReportAt.delete(sessionId);
+        this.arrivedUntil.set(sessionId, Date.now() + holdMs);
+      },
       seat: (sessionId, chairId) => {
         const player = this.state.players.get(sessionId);
         const chair = this.state.chairs.get(chairId);
@@ -2960,7 +2971,7 @@ export class HangoutRoom extends Room<HangoutState> {
     return (bySeat ?? nearestFishingSpot(player.x, player.z)).bobber;
   }
 
-  /** `caverns:cast`: a cast from anywhere on the cenote's shore, facing the water (the float lands
+  /** `caverns:cast`: a cast from anywhere on the lake's shore, facing the water (the float lands
    *  out on it ahead: shoreCast). */
   private castFromShore(sessionId: string, packet: ShoreCastPacket) {
     const player = this.state.players.get(sessionId);
@@ -4076,7 +4087,7 @@ export class HangoutRoom extends Room<HangoutState> {
       case "buyCaveTackle": {
         if (!isCaveTackleId(packet.tackle)) return;
         const t = CAVE_TACKLES[packet.tackle];
-        if (!atFinnegan) return reply(false, `The ${t.name} is Finnegan's: find him on the Cenote's driftwood outcrop`);
+        if (!atFinnegan) return reply(false, `The ${t.name} is Finnegan's: find him on his driftwood log by the Great Lake`);
         if (profile.caveTackles.includes(packet.tackle)) return reply(false, `You've already got the ${t.name}: it's at work for good`);
         const missing: string[] = [];
         for (const [id, n] of Object.entries(t.ore) as [OreItemId, number][]) if (satchelCountFor(profile, id) < n) missing.push(`${n - satchelCountFor(profile, id)} ${ORE_ITEMS[id].name}`);
@@ -4465,8 +4476,8 @@ export class HangoutRoom extends Room<HangoutState> {
     }
 
     // the Glimmering Caverns (and the woods' way down): the adit, Old Flint, Gus, the forge, the
-    // anvil, the ore nodes
-    if (kind === "adit" || kind === "miner" || kind === "prospector" || kind === "forge" || kind === "anvil" || kind === "ore") {
+    // anvil, the ore nodes, the winch lift
+    if (kind === "adit" || kind === "miner" || kind === "prospector" || kind === "forge" || kind === "anvil" || kind === "ore" || kind === "winch") {
       this.caverns.useProp(sessionId, prop);
       return;
     }

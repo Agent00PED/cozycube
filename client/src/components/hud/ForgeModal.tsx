@@ -40,7 +40,7 @@ import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
 import { TrendBadge } from "./ShopShell";
 
-// The Thermal Bellows Forge in its basalt fissure on the Sunlit Doline, in three tabs:
+// The Thermal Bellows Forge in its basalt cleft at the Expedition Basecamp, in three tabs:
 //
 //   🔥 Bellows      a batch of 1, 3 or 5 ingots worked by hand (its ore and coal out of the satchel as
 //                   it starts, all back if it is given up): pump the bellows (hold for a steady draw,

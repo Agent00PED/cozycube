@@ -383,14 +383,16 @@ export type ToggleableKind =
   | "ranger"
   | "animal"
   // the Glimmering Caverns (and the woods' way down): the old mine adit, Old Flint the Badger, Gus
-  // the Mole's workstation, the Thermal Bellows Forge, the meteorite Geode Anvil, the ore nodes,
-  // Finnegan the Grotto Angler ("angler", as the woods' Finley)
+  // the Mole's workstation, the Thermal Bellows Forge, the meteorite Geode Anvil, the ore nodes, the
+  // winch lift between the coal breakdown and the glimmer rift, Finnegan the Grotto Angler ("angler",
+  // as the woods' Finley)
   | "adit"
   | "miner"
   | "prospector"
   | "forge"
   | "anvil"
   | "ore"
+  | "winch"
   | RingPropKind
   | CasinoPropKind;
 
@@ -1169,6 +1171,7 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "forge" ||
     kind === "anvil" ||
     kind === "ore" ||
+    kind === "winch" ||
     isRingProp(kind) ||
     isCasinoProp(kind)
   );

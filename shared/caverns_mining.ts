@@ -56,12 +56,12 @@ export interface OreItem {
   blurb: string;
 }
 export const ORE_ITEMS: Record<OreItemId, OreItem> = {
-  coal: { name: "Coal", emoji: "⚫", cat: "raw", price: ORE_PRICES.coal, color: "#3b3a40", blurb: "Off a coal seam in the Sunlit Doline: the forge's fuel" },
-  copper_ore: { name: "Raw Copper", emoji: "🟠", cat: "raw", price: ORE_PRICES.copper_ore, color: "#d9803f", blurb: "Off a copper vein in the Sunlit Doline" },
-  iron_ore: { name: "Raw Iron", emoji: "🔩", cat: "raw", price: ORE_PRICES.iron_ore, color: "#8a8f9a", blurb: "Off an iron lode in the crystal fissures" },
-  silver_ore: { name: "Raw Silver", emoji: "⚪", cat: "raw", price: ORE_PRICES.silver_ore, color: "#dfe6f2", blurb: "Off a silver seam in the crystal fissures" },
-  glimmer_shard: { name: "Glimmer Shard", emoji: "💠", cat: "raw", price: ORE_PRICES.glimmer_shard, color: "#5ff2ff", blurb: "Off a Glimmerstone cluster among the fissures' mushrooms" },
-  core_fragment: { name: "Ancient Core Fragment", emoji: "🔮", cat: "raw", price: ORE_PRICES.core_fragment, color: "#b36bff", blurb: "Off the Titan Monolith on the Cenote's islet: humming, warm to the touch" },
+  coal: { name: "Coal", emoji: "⚫", cat: "raw", price: ORE_PRICES.coal, color: "#3b3a40", blurb: "Off a coal seam in the Coal Breakdown's fallen blocks: the forge's fuel" },
+  copper_ore: { name: "Raw Copper", emoji: "🟠", cat: "raw", price: ORE_PRICES.copper_ore, color: "#d9803f", blurb: "Off a copper vein in the Doline Jungle" },
+  iron_ore: { name: "Raw Iron", emoji: "🔩", cat: "raw", price: ORE_PRICES.iron_ore, color: "#8a8f9a", blurb: "Off an iron lode in the Iron Mudflats" },
+  silver_ore: { name: "Raw Silver", emoji: "⚪", cat: "raw", price: ORE_PRICES.silver_ore, color: "#dfe6f2", blurb: "Off a silver seam on the Pearl Terraces" },
+  glimmer_shard: { name: "Glimmer Shard", emoji: "💠", cat: "raw", price: ORE_PRICES.glimmer_shard, color: "#5ff2ff", blurb: "Off a Glimmerstone cluster in the Glimmer Rift" },
+  core_fragment: { name: "Ancient Core Fragment", emoji: "🔮", cat: "raw", price: ORE_PRICES.core_fragment, color: "#b36bff", blurb: "Off the Titan Monolith on the Great Lake's islet: humming, warm to the touch" },
   copper_ingot: { name: "Copper Ingot", emoji: "🟧", cat: "ingot", price: ORE_PRICES.copper_ingot, color: "#e0894a", blurb: "3 Raw Copper and 1 Coal, at the Thermal Bellows Forge" },
   iron_ingot: { name: "Iron Ingot", emoji: "⬛", cat: "ingot", price: ORE_PRICES.iron_ingot, color: "#6d7380", blurb: "3 Raw Iron and 2 Coal, at the Thermal Bellows Forge" },
   silver_ingot: { name: "Silver Ingot", emoji: "⬜", cat: "ingot", price: ORE_PRICES.silver_ingot, color: "#eef3fb", blurb: "2 Raw Silver and 2 Coal, at the Thermal Bellows Forge" },
@@ -156,12 +156,12 @@ export interface OreKindInfo {
   glow: string;
 }
 export const ORE_KINDS: Record<OreKind, OreKindInfo> = {
-  coal: { name: "Coal Seam", emoji: "⚫", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Sunlit Doline", glow: "#ffb347" },
-  copper: { name: "Copper Vein", emoji: "🟠", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Sunlit Doline", glow: "#ffb347" },
-  iron: { name: "Iron Lode", emoji: "🔩", tier: 2, hp: 200, respawnS: [50, 50], radius: 0.5, sweet: 0.18, geode: 0.15, zone: "the Deep Crystal Fissures", glow: "#ff8a4a" },
-  silver: { name: "Silver Seam", emoji: "⚪", tier: 3, hp: 300, respawnS: [75, 75], radius: 0.55, sweet: 0.16, geode: 0, zone: "the Deep Crystal Fissures", glow: "#8fe8ff" },
-  glimmer: { name: "Glimmerstone Cluster", emoji: "💠", tier: 4, hp: 440, respawnS: [120, 120], radius: 0.6, sweet: 0.15, geode: 0.3, zone: "the Deep Crystal Fissures", glow: "#00f0ff" },
-  monolith: { name: "Titan Monolith", emoji: "🗿", tier: 5, hp: 2400, respawnS: [25 * 60, 30 * 60], radius: 1.1, sweet: 0.24, geode: 1, zone: "the Cenote's islet", glow: "#b36bff" },
+  coal: { name: "Coal Seam", emoji: "⚫", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Coal Breakdown", glow: "#ffb347" },
+  copper: { name: "Copper Vein", emoji: "🟠", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Doline Jungle", glow: "#ffb347" },
+  iron: { name: "Iron Lode", emoji: "🔩", tier: 2, hp: 200, respawnS: [50, 50], radius: 0.5, sweet: 0.18, geode: 0.15, zone: "the Iron Mudflats", glow: "#ff8a4a" },
+  silver: { name: "Silver Seam", emoji: "⚪", tier: 3, hp: 300, respawnS: [75, 75], radius: 0.55, sweet: 0.16, geode: 0, zone: "the Pearl Terraces", glow: "#8fe8ff" },
+  glimmer: { name: "Glimmerstone Cluster", emoji: "💠", tier: 4, hp: 440, respawnS: [120, 120], radius: 0.6, sweet: 0.15, geode: 0.3, zone: "the Glimmer Rift", glow: "#00f0ff" },
+  monolith: { name: "Titan Monolith", emoji: "🗿", tier: 5, hp: 2400, respawnS: [25 * 60, 30 * 60], radius: 1.1, sweet: 0.24, geode: 1, zone: "the Great Lake's islet", glow: "#b36bff" },
 };
 export const ORE_KIND_IDS = Object.keys(ORE_KINDS) as OreKind[];
 /** How high a node's rock centre stands over its floor (m): a strike's direction, and its weak spot,

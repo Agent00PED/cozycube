@@ -686,6 +686,9 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={prop} size={[2.0, 2.2, 1.4]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "anvil" ? (
           <PropPad key={prop.propId} prop={prop} size={[1.0, 1.0, 0.8]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "winch" ? (
+          // Gus's winch lift: its gantry at the breakdown's edge, its cage at the rift's floor
+          <PropPad key={prop.propId} prop={prop} size={[1.6, 2.2, 0.9]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "ore" ? (
           // a node you can mine (a broken one is rubble until it grows back: nothing to click; in a
           // close-up, the rock's proxy is struck instead)
