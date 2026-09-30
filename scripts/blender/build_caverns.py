@@ -259,6 +259,7 @@ C = {
     "barrel": "#7A5536",
     "bedroll": "#8C3A2E",
     "mapPaper": "#E8D8A8",
+    "mapInk": "#6A5236",
     "batBody": "#2A2226",
     "batWing": "#3A2C30",
     # phase 4: the ore nodes' own minerals
@@ -344,7 +345,7 @@ def read_ore_radii(root):
     """Each node kind's rock radius (shared/caverns_mining.ts ORE_KINDS): the rocks are that big."""
     src = open(os.path.join(root, "shared", "caverns_mining.ts"), encoding="utf-8").read()
     out = {}
-    for kind in ("coal", "copper", "iron", "silver", "glimmer", "monolith"):
+    for kind in ("coal", "copper", "iron", "silver", "glimmer", "monolith", "rockfall"):
         m = re.search(rf"\b{kind}: \{{ name: \"[^\"]+\", emoji: \"[^\"]+\", tier: \d, hp: \d+, respawnS: \[[^\]]+\], radius: ([0-9.]+)", src)
         out[kind] = float(m.group(1))
     return out
@@ -413,7 +414,7 @@ def frange(a, b, step):
 # (client/src/scene/caveSurface.ts: cracks, strata, moss, grain) leaves them plain
 PLAIN = {
     "timber", "timberDark", "plank", "iron", "steel", "leather", "canvas", "canvasShade", "brass", "brassDark", "glass",
-    "barrel", "bedroll", "mapPaper", "trunk", "trunkDark", "canopy", "canopyLight", "canopyDark", "vine", "vineLeaf",
+    "barrel", "bedroll", "mapPaper", "mapInk", "trunk", "trunkDark", "canopy", "canopyLight", "canopyDark", "vine", "vineLeaf",
     "fern", "fernLight", "reedPale", "reedPaleDark", "leafLitter", "leafAmber", "leafGreen", "driftPale", "pearl",
     "moss", "mossDeep", "mossLight", "skyLow", "skyHigh", "shroomStem",
 }
@@ -2713,6 +2714,58 @@ def build_overlook(G, L, rock, roots, rng):
         sy = G.y(sx, sz)
         stalagmite(rock, sx, sy, sz, r, h)
         lump(rock, sx, sy, sz, r * 1.6, 0.25, r * 1.5, rng, rock_colour(base="flowstone", dark="limestoneDark"), rough=0.2, sink=0.4)
+    build_hearth(G, L, rock, rng)
+
+
+def build_hearth(G, L, rock, rng):
+    """The overlook's campfire (docs/caverns-roadmap.md phase 6): a ring of river stones round a bed of
+    charcoal and three charred logs leant together (the game lights the flames), four log benches
+    round it facing in (a fallen log each, its top at the `log` cushion's 0.38 m: shared/seats.ts),
+    and a brass plaque with a paw print on the photo spot before the Hound's Hand."""
+    H = L["hearth"]
+    hx, hz, hr = H["x"], H["z"], H["r"]
+    hy = G.y(hx, hz)
+    # the charcoal bed, a little sunk, and the stones round it
+    ring = [(hx + math.cos(a) * hr * 0.92, hz + math.sin(a) * hr * 0.92) for a in (2 * math.pi * k / 18 for k in range(18))]
+    fan(rock, (hx, hz), ring, hy + 0.025, "charcoal")
+    for k in range(11):
+        a = 2 * math.pi * k / 11 + rng.random() * 0.2
+        rr = hr + 0.06 + 0.04 * rng.random()
+        sx, sz = hx + math.cos(a) * rr, hz + math.sin(a) * rr
+        q = 0.11 + 0.04 * rng.random()
+        lump(rock, sx, G.y(sx, sz), sz, q * 1.2, q * 0.85, q, rng, rock_colour(base="limestone", dark="limestoneDark"), rough=0.25, sink=0.3)
+    # three charred logs leant into a little tepee over the bed
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.4
+        foot = (hx + math.cos(a) * hr * 0.62, hy + 0.04, hz + math.sin(a) * hr * 0.62)
+        top = (hx + math.cos(a) * 0.05, hy + 0.42, hz + math.sin(a) * 0.05)
+        cyl(rock, foot, top, 0.055, "charcoal", sides=7)
+    for k in range(4):
+        a = rng.random() * 6.283
+        rr = hr * 0.5 * rng.random()
+        blob(rock, hx + math.cos(a) * rr, hy + 0.04, hz + math.sin(a) * rr, 0.08, 0.035, 0.06, "charcoal", cuts=0, noise=0.2, seed=k)
+    # the log benches: a fallen log under each seat, lying across the way it faces
+    for s in L["hearthSeats"]:
+        sx, sz, f = s["x"], s["z"], s["face"]
+        tx, tz = math.cos(f), -math.sin(f)
+        sy = G.y(sx, sz)
+        a = (sx - tx * 0.52, sy + 0.19, sz - tz * 0.52)
+        b = (sx + tx * 0.52, sy + 0.19, sz + tz * 0.52)
+        cyl(rock, a, b, 0.19, "timberDark", sides=10, cap=False)
+        # (its ends sawn: pale end grain over the bark)
+        cyl(rock, (a[0] - tx * 0.005, a[1], a[2] - tz * 0.005), a, 0.175, "timber", sides=10, cap=True)
+        cyl(rock, b, (b[0] + tx * 0.005, b[1], b[2] + tz * 0.005), 0.175, "timber", sides=10, cap=True)
+        # a knot and a stub of a branch
+        blob(rock, sx + tx * 0.2, sy + 0.36, sz + tz * 0.2, 0.05, 0.03, 0.05, "trunkDark", cuts=0)
+    # the photo plaque: a brass disc set in the floor, a paw print in it
+    P = L["photo"]
+    px, pz = P["x"], P["z"]
+    py = G.y(px, pz) + 0.02
+    disc = [(px + math.cos(a) * 0.3, pz + math.sin(a) * 0.3) for a in (2 * math.pi * k / 20 for k in range(20))]
+    fan(rock, (px, pz), disc, py, "brass")
+    for dx, dz, r in ((0.0, 0.03, 0.09), (-0.1, -0.08, 0.035), (-0.035, -0.12, 0.035), (0.035, -0.12, 0.035), (0.1, -0.08, 0.035)):
+        pad = [(px + dx + math.cos(a) * r, pz + dz + math.sin(a) * r) for a in (2 * math.pi * k / 10 for k in range(10))]
+        fan(rock, (px + dx, pz + dz), pad, py + 0.004, "brassDark")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -2909,7 +2962,7 @@ def build_blockout_rocks(G, L, rock, glow, rng):
         angular(rock, x, G.y(x, z), z, r, r * 1.05, rng, top, side, sink=0.2, npts=14)
     # the host rock behind every node that stands free (nodeBackRock)
     for nd in L["nodes"]:
-        if nd["kind"] == "monolith" or nd["z"] < -21.2 or nd["x"] < -21.2:
+        if nd["kind"] in ("monolith", "rockfall") or nd["z"] < -21.2 or nd["x"] < -21.2:
             continue
         r = ORE_RADII.get(nd["kind"], 0.5)
         fx, fz = nd["face"]
@@ -3101,6 +3154,16 @@ def build_fauna_templates(coll):
         for tri in ((0, 1, 6), (1, 5, 6), (1, 4, 5), (1, 2, 4), (2, 3, 4)):
             q = [bat.v(*pts[i]) for i in tri]
             bat.face(q if sx > 0 else list(reversed(q)), "batWing")
+    # a page of Old Flint's journal: a torn sheet of parchment weighted down by a pebble, its corner curled
+    page = Mesh("CV_Fauna")
+    outline = [(-0.16, -0.11), (-0.05, -0.125), (0.06, -0.105), (0.155, -0.12), (0.165, -0.02), (0.15, 0.1), (0.04, 0.118), (-0.07, 0.1), (-0.15, 0.115), (-0.165, 0.02)]
+    top = [page.v(x, 0.012 + (0.03 if x > 0.13 and z > 0.08 else 0.0), z) for x, z in outline]
+    page.face(list(reversed(top)), "mapPaper")
+    for k in range(4):
+        z = -0.07 + 0.045 * k
+        cyl(page, (-0.11, 0.014, z), (0.1 - 0.04 * (k % 2), 0.014, z), 0.004, "mapInk", sides=3, cap=False)
+    blob(page, 0.06, 0.035, -0.04, 0.045, 0.03, 0.04, "pebble", cuts=1)
+    finish_object("Find_Page", page, coll, bake=False)
     finish_object("Fauna_Crab", crab, coll, bake=False)
     finish_object("Fauna_Swift", swift, coll, bake=False)
     finish_object("Fauna_Bat", bat, coll, bake=False)
@@ -3274,6 +3337,32 @@ def ore_glimmer(rock, glow, r, rng):
         prism(glow, (math.cos(a) * r * 0.7, 0.05, math.sin(a) * r * 0.62), (math.cos(a) * 0.9, 0.6, math.sin(a) * 0.9), 0.03, 0.12 + 0.1 * rng.random(), "cyanSoft" if k % 2 else "violetSoft", sides=4)
 
 
+def ore_rockfall(rock, glow, r, rng):
+    """A Rockfall's heap (a living wonder: shared/caverns_codex.ts): slabs fresh off the breakdown's
+    roof piled on one another, pale where they broke, with coal, copper and banded iron showing in
+    them and loose lumps of each round its foot."""
+    for k, (x, y, z, hx, hy, hz, yaw) in enumerate((
+        (0.0, 0.22, 0.0, 0.55, 0.2, 0.42, 0.3),
+        (0.28, 0.5, -0.12, 0.38, 0.16, 0.3, -0.5),
+        (-0.3, 0.42, 0.14, 0.34, 0.15, 0.28, 1.1),
+        (0.05, 0.72, 0.05, 0.28, 0.12, 0.22, 0.2),
+        (0.46, 0.16, 0.36, 0.26, 0.14, 0.2, 0.8),
+    )):
+        broken_slab(rock, (x * r / 0.8, y * r / 0.8, z * r / 0.8), turned(yaw, roll=0.12 * (k % 3 - 1), pitch=0.1 * ((k + 1) % 3 - 1)), hx * r / 0.8, hy * r / 0.8, hz * r / 0.8, rng, top="shale", side="coalRock", under="limestoneDark")
+    for k in range(15):
+        a = rng.random() * 6.283
+        rr = r * (0.35 + 0.75 * rng.random())
+        y = 0.05 + 0.7 * rng.random() * (1.0 - rr / (1.3 * r))
+        q = 0.08 + 0.07 * rng.random()
+        kind = k % 3
+        if kind == 0:
+            angular(rock, math.cos(a) * rr, max(0.0, y), math.sin(a) * rr, q, q * 1.3, rng, "coalFacet", "coalBlack", sink=0.02, npts=6)
+        elif kind == 1:
+            blob(glow, math.cos(a) * rr, max(0.03, y), math.sin(a) * rr, q * 0.8, q * 0.6, q * 0.7, "copperNug", cuts=0, n=1.6)
+        else:
+            angular(rock, math.cos(a) * rr, max(0.0, y), math.sin(a) * rr, q, q * 1.1, rng, "ironBand", "ironDark", sink=0.02, npts=6)
+
+
 def ore_rock(kind, r, coll):
     rock = Mesh("CV_OreRock")
     glow = Mesh("CV_OreGlow")
@@ -3306,7 +3395,7 @@ def ore_rock(kind, r, coll):
             w = 0.62 - 0.22 * (y / h)
             blob(glow, 0.8 * w * math.cos(a), y, 0.66 * w * math.sin(a), 0.05, 0.16 + 0.1 * rng.random(), 0.05, "runeGlow", cuts=1)
     else:
-        {"coal": ore_coal, "copper": ore_copper, "iron": ore_iron, "silver": ore_silver, "glimmer": ore_glimmer}[kind](rock, glow, r, rng)
+        {"coal": ore_coal, "copper": ore_copper, "iron": ore_iron, "silver": ore_silver, "glimmer": ore_glimmer, "rockfall": ore_rockfall}[kind](rock, glow, r, rng)
     ob_r = finish_object(f"Ore_{kind}", rock, coll, bake=False, mottle=0.1)
     ob_g = finish_object(f"Ore_{kind}_Glow", glow, coll, bake=False)
     ob_g.parent = ob_r
@@ -3314,7 +3403,7 @@ def ore_rock(kind, r, coll):
 
 
 def build_ores(coll, radii):
-    made = [ore_rock(kind, radii[kind], coll) for kind in ("coal", "copper", "iron", "silver", "glimmer", "monolith")]
+    made = [ore_rock(kind, radii[kind], coll) for kind in ("coal", "copper", "iron", "silver", "glimmer", "monolith", "rockfall")]
     # a broken node's stump: dark, rough, fractured bedrock, a few shards round it
     rubble = Mesh("CV_OreRock")
     rng = random.Random(99)
@@ -3508,7 +3597,7 @@ def summary(coll):
         if o.data is None:
             continue
         out[o.name] = {"tris": sum(len(p.vertices) - 2 for p in o.data.polygons), "verts": len(o.data.vertices), "materials": len(o.data.materials)}
-    static = {k: v for k, v in out.items() if not k.startswith(("Ore_", "Fauna_"))}
+    static = {k: v for k, v in out.items() if not k.startswith(("Ore_", "Fauna_", "Find_"))}
     return {"objects": out, "tris": sum(v["tris"] for v in out.values()), "verts": sum(v["verts"] for v in out.values()), "staticDrawCalls": sum(v["materials"] for v in static.values())}
 
 
@@ -3529,7 +3618,7 @@ def main():
         result = {"ok": True, "glb": out, "exported": exported, "bytes": os.path.getsize(out), "packed": packed, **summary(coll), "geology": dict(GEO_STATS)}
         # (the templates sit at the origin: not in the studio's grid)
         for o in list(coll.all_objects):
-            if o.name.startswith(("Ore_", "Fauna_")):
+            if o.name.startswith(("Ore_", "Fauna_", "Find_")):
                 bpy.data.objects.remove(o, do_unlink=True)
         if not solo:
             result["studio"] = studio(root, "finish", [coll])

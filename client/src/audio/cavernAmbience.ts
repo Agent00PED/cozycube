@@ -3,13 +3,14 @@ import { masterOut } from "./master";
 import { crossfade } from "./sound";
 import { CAVE_CHANNELS, getSoundSettings, type CaveChannel } from "./soundSettings";
 import { cameraFocus } from "../scene/cameraFocus";
-import { CAVE_LAKE, CAVERNS_LAYOUT, SURFACE, TERRACES, cavernsSurface, cavernsZoneAt, riverDistance } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVERNS_LAYOUT, HEARTH, SURFACE, TERRACES, cavernsSurface, cavernsZoneAt, riverDistance } from "@shared/worlds/caverns";
 
 // The Glimmering Caverns' soundscape and its effects, generated in the browser like every world's
 // (no audio files needed). Its own context, five channels on one master (each a Settings fader):
 //
 //   cavern    the cave's air (a low rumble breathing), the stalactites' drips (a plink falling in
-//             pitch, now here now there), your footsteps (each ground its own: stone, gravel, mud,
+//             pitch, now here now there), the overlook hearth's crackle and pops by how near it is,
+//             your footsteps (each ground its own: stone, gravel, mud,
 //             sand, travertine, leaf litter, a splash through the fords and the shallows), the
 //             bats' squeaks over the mudflats
 //   water     each placed by how near you are: the waterfall's roar under the collapse, the
@@ -56,8 +57,8 @@ const GROUND_OF: Record<number, Ground> = {
 };
 
 /** The beds that take a sample in place of their synthesized voices. */
-type BedName = "air" | "steam" | "waterfall" | "stream" | "lake";
-const BED_NAMES: BedName[] = ["air", "steam", "waterfall", "stream", "lake"];
+type BedName = "air" | "steam" | "waterfall" | "stream" | "lake" | "fire";
+const BED_NAMES: BedName[] = ["air", "steam", "waterfall", "stream", "lake", "fire"];
 
 /** Each zone's acoustics: the tail's length (s), how quickly it dies (the impulse's time constant, s)
  *  and how much of every sound goes into it. */
@@ -108,6 +109,9 @@ class CavernAmbience {
   private fallPlace: GainNode | null = null;
   private streamPlace: GainNode | null = null;
   private lakePlace: GainNode | null = null;
+  /** The overlook hearth's crackle, at its level for where you stand. */
+  private firePlace: GainNode | null = null;
+  private popAt = 0;
   private noise: AudioBuffer | null = null;
   /** The beds' voices by name (a sample, when it comes, takes a bed's place). */
   private beds = new Map<string, AudioScheduledSourceNode[]>();
@@ -169,6 +173,9 @@ class CavernAmbience {
     this.fallPlace = place();
     this.streamPlace = place();
     this.lakePlace = place();
+    this.firePlace = c.createGain();
+    this.firePlace.gain.value = 0;
+    this.firePlace.connect(this.channels.cavern);
     this.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -262,6 +269,8 @@ class CavernAmbience {
         return this.streamPlace;
       case "lake":
         return this.lakePlace;
+      case "fire":
+        return this.firePlace;
     }
   }
 
@@ -292,6 +301,11 @@ class CavernAmbience {
           break;
         case "lake":
           this.bed(name, "lowpass", 360, 0.9, 0.1, this.lakePlace, 0.16, 0.07); // the lake lapping
+          break;
+        case "fire":
+          if (!this.firePlace) break;
+          this.bed(name, "lowpass", 220, 0.7, 0.16, this.firePlace, 0.5, 0.06); // the fire's low roar
+          this.bed(name, "bandpass", 2600, 1.2, 0.03, this.firePlace, 9.0, 0.025); // its fizz
           break;
       }
     }
@@ -354,6 +368,14 @@ class CavernAmbience {
     const lq = Math.hypot((x - CAVE_LAKE.x) / CAVE_LAKE.rx, (z - CAVE_LAKE.z) / CAVE_LAKE.rz);
     const ld = Math.max(0, (lq - 1) * Math.min(CAVE_LAKE.rx, CAVE_LAKE.rz));
     this.lakePlace?.gain.setTargetAtTime(0.05 + 1.1 / (1 + (ld / 3) ** 2), now, 0.3);
+    // the hearth: its roar and fizz, and now and then a pop, by how near it is
+    const hd = Math.hypot(x - HEARTH.x, z - HEARTH.z);
+    const near = 1.4 / (1 + (hd / 3.2) ** 2);
+    this.firePlace?.gain.setTargetAtTime(near, now, 0.3);
+    if (near > 0.08 && now > this.popAt && this.firePlace) {
+      this.popAt = now + 0.12 + Math.random() * 0.7;
+      this.pop(this.firePlace, 0.5 + Math.random() * 0.5);
+    }
     const zone = cavernsZoneAt(x, z)?.id ?? "lake";
     // the zone's own reverb, once it has held a moment
     if (zone !== this.roomSeen.id) this.roomSeen = { id: zone, at: now };
@@ -409,6 +431,26 @@ class CavernAmbience {
     o.start(t);
     o.stop(t + 0.2);
     o.onended = () => (o.disconnect(), g.disconnect(), p.disconnect());
+  }
+
+  /** A crackle in the fire: a sharp little noise burst, bright or dull. */
+  private pop(out: AudioNode, level: number) {
+    const c = this.ctx!;
+    const t = c.currentTime + 0.01;
+    const src = c.createBufferSource();
+    src.buffer = this.noise;
+    const f = c.createBiquadFilter();
+    f.type = "bandpass";
+    f.frequency.value = 1200 + Math.random() * 3200;
+    f.Q.value = 1.5;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.09 * level, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03 + Math.random() * 0.04);
+    src.connect(f).connect(g).connect(out);
+    src.start(t, Math.random());
+    src.stop(t + 0.1);
+    src.onended = () => (src.disconnect(), f.disconnect(), g.disconnect());
   }
 
   /** A bat's flurry: two to four quick high chirps, each a sine sweeping down. */

@@ -85,7 +85,7 @@ import type { AABB } from "../shared/collision";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD, CAMPFIRE_LAYOUT } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
-import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVE_WINCH, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, HOUNDS_HAND, WINCH_REACH, WINCH_RIDE_S, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope } from "../shared/worlds/caverns";
+import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVE_WINCH, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, HOUNDS_HAND, WINCH_REACH, WINCH_RIDE_S, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, HEARTH_SEATS, PHOTO_SPOT, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope } from "../shared/worlds/caverns";
 import { readFileSync, existsSync } from "node:fs";
 import { CAVERNS_TERRAIN_PATH, cavernsTerrainText } from "./caverns-terrain";
 import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../shared/worlds/forest";
@@ -712,6 +712,26 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
   for (const t of THERMAL_SEATS) {
     standable(C, home, t.exit, `thermal seat ${t.propId}'s exit`);
     near(`thermal seat ${t.propId}'s exit`, t.exit, t, THERMAL_REACH + 0.3);
+  }
+  // the overlook's hearth (docs/caverns-roadmap.md phase 6): each log bench's landing open, walked to,
+  // and a step from its bench; the photo spot before the Hound's Hand; every one of Old Flint's pages
+  // lying on open, walked-to ground; every cave pearl's basin with open, walked-to ground in reach
+  for (const s of HEARTH_SEATS) {
+    standable(C, home, s.exit, `hearth bench ${s.propId}'s landing`);
+    near(`hearth bench ${s.propId}'s landing`, s.exit, s, 1.2);
+  }
+  standable(C, home, PHOTO_SPOT, "the Hound's Hand photo spot");
+  for (const pg of JOURNAL_PAGES) standable(C, home, pg, `Flint's journal ${pg.id}`);
+  for (const pl of CAVE_PEARLS) {
+    checks++;
+    let spot: { x: number; z: number } | null = null;
+    for (let r = 0; r <= FIND_REACH - 0.3 && !spot; r += 0.25) {
+      for (let a = 0; a < 16 && !spot; a++) {
+        const q = { x: pl.x + Math.cos((a / 16) * Math.PI * 2) * r, z: pl.z + Math.sin((a / 16) * Math.PI * 2) * r };
+        if (!isBlocked(q.x, q.z, C) && isReachable(C, home, q)) spot = q;
+      }
+    }
+    if (!spot) fail(`${C}: no open ground within ${FIND_REACH - 0.3} m of the cave pearl ${pl.id} ${fmt(pl)} to pick it up from`);
   }
   // the winch lift: both its stands open, walked to, and in reach of its props
   standable(C, home, CAVE_WINCH.upper, "the winch's upper stand");

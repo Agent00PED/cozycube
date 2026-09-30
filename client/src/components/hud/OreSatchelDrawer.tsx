@@ -183,6 +183,9 @@ export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, o
           </button>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px]">
+          <button type="button" className="rounded-full bg-amber-300/20 px-2 py-0.5 font-bold text-amber-100 outline outline-1 -outline-offset-1 outline-amber-200/30" onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "codex", propId: "" } }))} title="The expedition's field journal: zone stamps, fauna, pearls and fossils, Old Flint's pages, the living wonders">
+            📖 Cave Codex ({profile.codex.length})
+          </button>
           <span className="rounded-full bg-white/10 px-2 py-0.5" title={pick.blurb}>
             {pick.emoji} {pick.name} · T{pick.tier}
           </span>

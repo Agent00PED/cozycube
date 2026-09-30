@@ -131,6 +131,17 @@ through a ford), and now and then a few quiet kalimba notes drift over a soft dr
 the jungle's collapse keeps the camp's day: golden by day, a silver moon and a starry sky through the
 broken rim by night, the jungle cooler and darker. In the dark zones a warm glow keeps you company.
 
+## Living cave
+
+The cave has its own life (docs/caverns-roadmap.md phase 6). A campfire burns on the Hound's Overlook
+under the great stalagmite, log benches round it and a marshmallow for whoever sits, and a brass paw
+plaque marks the spot for a photo with the Hound's Hand. Every so often a wonder comes: a Cave Cloud
+rolling mist through the whole cavern while rare fish bite at the cenote, a Glimmer Bloom lighting the
+rift, a Rockfall crashing a heap of fresh ore into the breakdown for a crew to break; and every day at
+the camp's dusk the mudflats' bats pour out through the jungle's collapse. The Cave Codex keeps it
+all: a stamp for each zone, the fauna, the cave pearls and fossils, Old Flint's torn journal pages
+lying round the cave, the wonders witnessed.
+
 ## Shapes
 
 Nothing is a rectangle (docs/caverns-roadmap.md phase 1): every level's outline is a many-pointed

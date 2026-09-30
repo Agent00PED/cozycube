@@ -6,6 +6,7 @@
 // their player record (it survives room switches, reconnects and restarts); the client draws the
 // same tables in the reel, the creel and Barnaby's shop.
 
+import { isCodexId } from "./caverns_codex";
 import type { SwimPattern } from "./types";
 import { BYPRODUCT_IDS, TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, isAxeId, type AxeId, type ByproductId, type TreeKind, type WoodKind } from "./chop";
 import { CRAFTS, isCraftId, type CraftId, type CraftItem } from "./crafting";
@@ -367,6 +368,9 @@ export interface FishingProfile {
   forgeTray: Partial<Record<OreItemId, number>>;
   /** The nodes broken, by kind (the drawer's tally). */
   mined: Partial<Record<OreKind, number>>;
+  /** The Cave Codex's entries found (shared/caverns_codex.ts ids: the zones stamped, the fauna met, the
+   *  pearls and fossils, Flint's journal pages, the living wonders witnessed). */
+  codex: string[];
 }
 /** The consumables' buffs (shared/crafting.ts BUFFS): kept here by key (the workbench's, and the
  *  drawers' own: Feller's Pine Pitch, Phosphor Glow Bait, Miner's Stout). Using one again while it
@@ -455,7 +459,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem): boolean 
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {} };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [] };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -631,6 +635,7 @@ function readFishingProfile(raw: unknown): FishingProfile {
       if (isOreKind(k) && n > 0) p.mined[k] = n;
     }
   }
+  if (Array.isArray(r.codex)) p.codex = Array.from(new Set(r.codex.filter(isCodexId)));
   // the carrier's tier; one from before the tiers (levels 1-3: 6, 12, 20 logs) moves up to the
   // smallest tier that holds all it held, so nothing is lost in the move
   if (Number(r.carrierTier) >= 1) p.carrierTier = Math.min(WOOD_CARRIER_TIERS.length, Math.round(Number(r.carrierTier)));

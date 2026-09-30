@@ -13,13 +13,15 @@ import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
 import { cameraFocus } from "./cameraFocus";
 import { daylight } from "@shared/daynight";
+import { CAVE_PEARLS, HEARTH, JOURNAL_PAGES } from "@shared/worlds/caverns";
+import { parseCaveEvent, type CaveEvent } from "@shared/caverns_codex";
 import { OcclusionDriver, ditherOccluder } from "./occlusionDither";
 import { prospectShake } from "./prospectCamera";
 import { ProspectingView } from "./ProspectingView";
 import { NODE_YAW } from "./caveNodes";
 import { playCaveSfx } from "../audio/cavernAmbience";
 import { CaveFauna } from "./caveFauna";
-import { CaveMist, CrystalLights } from "./caveAtmosphere";
+import { BLOOM, CLOUD, CaveMist, CrystalLights } from "./caveAtmosphere";
 import { pushToast } from "../components/hud/toastStore";
 import { cageLift } from "./winchRide";
 import { CAVE_GRID_GLSL, caveFloorTexture, caveSurface, caveSurfaceTime } from "./caveSurface";
@@ -93,6 +95,9 @@ const DAY = { value: 1 };
  *  term in the cave's own materials (the floor, the rock, the walls), not a light: no light added to
  *  every material's shading, and the dark basalt still lit up round you without the avatar glaring. */
 const YOU = { value: new THREE.Vector4(0, -99, 0, 0) };
+/** The overlook hearth's firelight on the cave round it (xyz its fire, w its flicker): a term in the
+ *  cave's own materials like YOU, never a light. */
+const FIRE = { value: new THREE.Vector4(HEARTH.x, HEARTH.y + 0.3, HEARTH.z, 1) };
 const CAVE_DARK = new THREE.Color("#0e131b");
 /** How much of the model's baked light (its vertex colours) glows on its own: the rest of what you
  *  see comes from the game's lights. */
@@ -113,6 +118,7 @@ function bakedLight(m: THREE.MeshStandardMaterial) {
     shader.uniforms.uBaked = BAKED;
     shader.uniforms.uDay = DAY;
     shader.uniforms.uYou = YOU;
+    shader.uniforms.uFire = FIRE;
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vBakedPos;").replace(
       "#include <project_vertex>",
       `#include <project_vertex>
@@ -124,7 +130,7 @@ function bakedLight(m: THREE.MeshStandardMaterial) {
         vBakedPos = (modelMatrix * bw).xyz;
       }`
     );
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uBaked;\nuniform float uDay;\nuniform vec4 uYou;\nvarying vec3 vBakedPos;").replace(
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uBaked;\nuniform float uDay;\nuniform vec4 uYou;\nuniform vec4 uFire;\nvarying vec3 vBakedPos;").replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
       {
@@ -140,10 +146,13 @@ function bakedLight(m: THREE.MeshStandardMaterial) {
         float youD = distance(vBakedPos, uYou.xyz);
         float you = uYou.w * (1.0 - smoothstep(0.4, 4.8, youD)) * (1.0 - smoothstep(1.8, 3.2, vBakedPos.y - uYou.y));
         totalEmissiveRadiance += (diffuseColor.rgb * 5.0 + 0.03) * vec3(1.0, 0.8, 0.55) * you;
+        // the overlook hearth's firelight, flickering on the ground and the rock round it
+        float fireD = distance(vBakedPos, uFire.xyz);
+        totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.55, 0.22) * 2.0 * uFire.w * (1.0 - smoothstep(0.5, 3.8, fireD));
       }`
     );
   };
-  m.customProgramCacheKey = () => `${prevKey()}|cave-baked-day`;
+  m.customProgramCacheKey = () => `${prevKey()}|cave-baked-day-fire`;
   m.needsUpdate = true;
 }
 
@@ -154,17 +163,24 @@ function bakedLight(m: THREE.MeshStandardMaterial) {
  *  tone mapping, as three's fog is). */
 const MIST_LOW = new THREE.Vector3(0x44 / 255, 0x52 / 255, 0x62 / 255);
 const MIST_DEEP = new THREE.Vector3(0x0e / 255, 0x13 / 255, 0x1b / 255);
+const MIST_CLOUD = new THREE.Vector3(0x9a / 255, 0xaa / 255, 0xba / 255);
 const MIST_GLSL = `
       {
         float mistLow = 0.16 * (1.0 - smoothstep(-0.2, 2.2, vMistY));
         float mistDeep = 0.92 * (1.0 - smoothstep(-2.4, -0.25, vMistY));
         gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistLow, mistLow);
         gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistDeep, mistDeep);
+        // a Cave Cloud (a living wonder): a pale mist rolling through the whole cavern in slow banks
+        float bank = 0.22 + 0.13 * sin(vMistXZ.x * 0.21 + uMistTime * 0.13) * sin(vMistXZ.y * 0.17 - uMistTime * 0.1) + 0.07 * sin((vMistXZ.x - vMistXZ.y) * 0.45 + uMistTime * 0.22);
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistCloud, uCloud * bank * (1.0 - 0.35 * smoothstep(4.0, 7.0, vMistY)));
       }`;
 function mistShader(shader: { uniforms: Record<string, THREE.IUniform>; vertexShader: string; fragmentShader: string }) {
   shader.uniforms.uMistLow = { value: MIST_LOW };
   shader.uniforms.uMistDeep = { value: MIST_DEEP };
-  shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying float vMistY;").replace(
+  shader.uniforms.uMistCloud = { value: MIST_CLOUD };
+  shader.uniforms.uCloud = CLOUD;
+  shader.uniforms.uMistTime = TIME;
+  shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying float vMistY;\nvarying vec2 vMistXZ;").replace(
     "#include <project_vertex>",
     `#include <project_vertex>
     {
@@ -172,10 +188,12 @@ function mistShader(shader: { uniforms: Record<string, THREE.IUniform>; vertexSh
       #ifdef USE_INSTANCING
         mistW = instanceMatrix * mistW;
       #endif
-      vMistY = (modelMatrix * mistW).y;
+      vec4 mistP = modelMatrix * mistW;
+      vMistY = mistP.y;
+      vMistXZ = mistP.xz;
     }`
   );
-  shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vMistY;\nuniform vec3 uMistLow;\nuniform vec3 uMistDeep;").replace("#include <fog_fragment>", `#include <fog_fragment>${MIST_GLSL}`);
+  shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vMistY;\nvarying vec2 vMistXZ;\nuniform vec3 uMistLow;\nuniform vec3 uMistDeep;\nuniform vec3 uMistCloud;\nuniform float uCloud;\nuniform float uMistTime;").replace("#include <fog_fragment>", `#include <fog_fragment>${MIST_GLSL}`);
 }
 /** The height mist chained after any patch already on the material. */
 function heightMist(m: THREE.MeshStandardMaterial) {
@@ -187,7 +205,7 @@ function heightMist(m: THREE.MeshStandardMaterial) {
     prev.call(m, shader, renderer);
     mistShader(shader);
   };
-  m.customProgramCacheKey = () => `${prevKey()}|cave-mist`;
+  m.customProgramCacheKey = () => `${prevKey()}|cave-mist-cloud`;
   m.needsUpdate = true;
 }
 
@@ -202,6 +220,7 @@ function glowFromVertexColour(m: THREE.MeshStandardMaterial, strength: number) {
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = TIME;
     shader.uniforms.uDay = DAY;
+    shader.uniforms.uBloom = BLOOM;
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vGlowWorld;").replace(
       "#include <project_vertex>",
       `#include <project_vertex>
@@ -213,12 +232,14 @@ function glowFromVertexColour(m: THREE.MeshStandardMaterial, strength: number) {
         vGlowWorld = (modelMatrix * gw).xyz;
       }`
     );
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uTime;\nuniform float uDay;\nvarying vec3 vGlowWorld;").replace(
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uTime;\nuniform float uDay;\nuniform float uBloom;\nvarying vec3 vGlowWorld;").replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
       #ifdef USE_COLOR
         totalEmissiveRadiance *= vColor.rgb * (0.85 + 0.15 * sin(uTime * 1.3 + vColor.g * 9.0));
       #endif
+      // a Glimmer Bloom: the rift's crystals and fungi flaring, a slow wave running along it
+      if (vGlowWorld.x > 11.0 && vGlowWorld.z < 6.0 && vGlowWorld.z > -13.0) totalEmissiveRadiance *= 1.0 + uBloom * (1.1 + 0.7 * sin(uTime * 2.2 - vGlowWorld.z * 0.6));
       // the sky through the jungle's collapse (behind its broken rim, outside the cave): by night a
       // deep blue, starry
       if (min(vGlowWorld.x, vGlowWorld.z) < -23.0 && vGlowWorld.y > 7.5) {
@@ -230,7 +251,7 @@ function glowFromVertexColour(m: THREE.MeshStandardMaterial, strength: number) {
       }`
     );
   };
-  m.customProgramCacheKey = () => `cave-glow-${strength}-sky`;
+  m.customProgramCacheKey = () => `cave-glow-${strength}-sky-bloom`;
   m.needsUpdate = true;
 }
 
@@ -392,6 +413,18 @@ interface CavernsWorldProps {
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   /** A strike on the node being prospected (its channel's packet; `t`: ms since the close-up opened). */
   onStrike: (node: string, dir: [number, number, number], t: number) => void;
+  /** The living wonder under way (shared/caverns_codex.ts CaveEvent as JSON; "" none). */
+  caveEvent: string;
+}
+
+/** The codex entries found, from a synced camp profile (PlayerState.fishing). */
+function codexOf(fishing: string | undefined): string[] {
+  try {
+    const v = (JSON.parse(fishing || "{}") as { codex?: unknown }).codex;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 const GUS_TALK: NpcTalk = {
@@ -456,7 +489,10 @@ function CapybaraBath({ players, subscribeMessages }: { players: Record<string, 
 const capyLook = (watch: { current: { x: number; z: number } | null }) => () => watch.current;
 const capyMood = (watch: { current: { x: number; z: number } | null }) => () => (watch.current ? null : ("doze" as const));
 
-export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subscribeMessages, onStrike }: CavernsWorldProps) {
+export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subscribeMessages, onStrike, caveEvent }: CavernsWorldProps) {
+  const ev = useMemo(() => parseCaveEvent(caveEvent), [caveEvent]);
+  const fishing = localSessionId ? players[localSessionId]?.fishing : undefined;
+  const found = useMemo(() => codexOf(fishing), [fishing]);
   const floorClick = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -478,7 +514,7 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
     <group>
       <ModelBoundary what="caverns.glb" fallback={<StandIn onClick={floorClick} />}>
         <Suspense fallback={<StandIn onClick={floorClick} />}>
-          <CavernModel ores={ores} subscribeMessages={subscribeMessages} players={players} localSessionId={localSessionId} onStrike={onStrike} onClick={floorClick} />
+          <CavernModel ores={ores} subscribeMessages={subscribeMessages} players={players} localSessionId={localSessionId} onStrike={onStrike} onClick={floorClick} found={found} />
         </Suspense>
       </ModelBoundary>
       <CampNpc url={GUS_URL} what="gus.glb" prefix="Gus" at={{ x: GUS.x, z: GUS.z, yaw: GUS.yaw }} y={cavernsFloorY(GUS.x, GUS.z)} waveEvent="gusWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={GUS_TALK} idle={GUS_IDLE} />
@@ -491,6 +527,8 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       <ThermalSteam />
       <SoakSteam players={players} />
       <FloatShadows players={players} />
+      <HearthFire />
+      <EventLooks ev={ev} />
       <ForgeSmoke />
       <DustMotes />
       <WaterfallSpray />
@@ -521,7 +559,7 @@ function NpcStandIn() {
   return <mesh geometry={GEO.box} material={NPC_STAND_IN} position={[0, 0.55, 0]} scale={[0.6, 1.1, 0.5]} raycast={noRaycast} />;
 }
 
-function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrike, onClick }: { ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; players: Record<string, PlayerState>; localSessionId: string | null; onStrike: CavernsWorldProps["onStrike"]; onClick: (e: ThreeEvent<PointerEvent>) => void }) {
+function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrike, onClick, found }: { ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; players: Record<string, PlayerState>; localSessionId: string | null; onStrike: CavernsWorldProps["onStrike"]; onClick: (e: ThreeEvent<PointerEvent>) => void; found: string[] }) {
   const { scene } = useGLTF(CAVERNS_URL);
   // the floor is the walk collider itself (caverns_walk_collider: the walk grid's triangles exactly,
   // drawn): the only mesh of the model a click is tested against
@@ -570,7 +608,7 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
     });
     if (walk) walk.raycast = THREE.Mesh.prototype.raycast;
     // (the fauna's templates: drawn instanced, never where they were modelled)
-    for (const name of ["Fauna_Crab", "Fauna_Swift", "Fauna_Bat"]) {
+    for (const name of ["Fauna_Crab", "Fauna_Swift", "Fauna_Bat", "Find_Page"]) {
       const o = scene.getObjectByName(name);
       if (o) o.visible = false;
     }
@@ -591,6 +629,7 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       <OreNodes templates={templates} ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} players={players} />
       <ProspectingView templates={templates} onStrike={onStrike} />
       <CaveFauna crab={fauna.crab} swift={fauna.swift} bat={fauna.bat} />
+      <CaveFinds page={(scene.getObjectByName("Find_Page") as THREE.Mesh | undefined) ?? null} found={found} />
       <WinchRig scene={scene} />
     </>
   );
@@ -677,6 +716,8 @@ type Templates = Partial<Record<OreKind | "rubble", { rock: THREE.Mesh; glow: TH
 function OreNodes({ templates, ores, subscribeMessages, localSessionId, players }: { templates: Templates; ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; localSessionId: string | null; players: Record<string, PlayerState> }) {
   const sync = useMemo(() => parseOres(ores), [ores]);
   const looks = useRef(new Map<string, NodeLook>());
+  /** Crew nodes just raised (a Rockfall's heap crashing down): their dust and thunder next frame. */
+  const arrivals = useRef<string[]>([]);
   // one instanced rock (and its glow) per kind, the nodes of that kind its instances; the rubble for all
   const sets = useMemo(() => {
     const out: { kind: OreKind; nodes: OreNode[]; rock: THREE.InstancedMesh; glow: THREE.InstancedMesh | null; crack: THREE.InstancedBufferAttribute }[] = [];
@@ -723,9 +764,13 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
     const now = performance.now();
     for (const n of ORE_NODES) {
       const s = sync[n.id];
-      const look = looks.current.get(n.id) ?? { dmg: 0, up: true, bornAt: -1e9, shakeUntil: 0 };
+      const crew = !!ORE_KINDS[n.kind].crew;
+      const look = looks.current.get(n.id) ?? { dmg: 0, up: !crew, bornAt: -1e9, shakeUntil: 0 };
       if (s) {
-        if (s.up && !look.up) look.bornAt = now;
+        if (s.up && !look.up) {
+          look.bornAt = now;
+          if (crew) arrivals.current.push(n.id);
+        }
         look.up = s.up;
         look.dmg = s.dmg;
       }
@@ -810,9 +855,19 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
   const yAxis = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   useFrame(({ camera }) => {
     const now = performance.now();
+    // a Rockfall's heap crashing down: a cloud of dust, rock flying, the thunder of it
+    for (const id of arrivals.current.splice(0)) {
+      const node = ORE_NODE_AT.get(id);
+      if (!node) continue;
+      const c = new THREE.Vector3(node.x, node.y + 0.4, node.z);
+      puffs.burst(c, new THREE.Vector3(0, 0.5, 0), "#b9ae9c", 18, 2.2, 2.4, 0.6);
+      fx.chips(c, new THREE.Vector3(0, 1, 0), CHIP_COLOR[node.kind], 24);
+      playCaveSfx("shatter", 1);
+      if (Math.hypot(cameraFocus.x - node.x, cameraFocus.z - node.z) < 14) prospectShake(0.12);
+    }
     for (const set of sets) {
       set.nodes.forEach((n, i) => {
-        const look = looks.current.get(n.id) ?? { dmg: 0, up: true, bornAt: -1e9, shakeUntil: 0 };
+        const look = looks.current.get(n.id) ?? { dmg: 0, up: !ORE_KINDS[n.kind].crew, bornAt: -1e9, shakeUntil: 0 };
         // swelling in when it grows back; a strike's tremble; the outer shell's shudder past 60%
         const born = Math.min(1, (now - look.bornAt) / 600);
         const grow = look.up ? 0.35 + 0.65 * (1 - (1 - born) ** 3) : 0;
@@ -838,7 +893,8 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
         const up = looks.current.get(n.id)?.up ?? true;
         const r = ORE_KINDS[n.kind].radius / 0.42;
         q.setFromAxisAngle(yAxis, NODE_YAW.get(n.id) ?? 0);
-        s.setScalar(up ? 0 : r * (n.kind === "monolith" ? 1.6 : 1));
+        // (a crew node leaves no stump: its heap is gone back into the rubble)
+        s.setScalar(up || ORE_KINDS[n.kind].crew ? 0 : r * (n.kind === "monolith" ? 1.6 : 1));
         p.set(n.x, n.y, n.z);
         m.compose(p, q, s);
         rubble.setMatrixAt(i, m);
@@ -851,7 +907,7 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
       const span = ORE_KINDS[n.kind].radius / 0.42;
       for (let j = 0; j < DUST_PER_STUMP; j++) {
         const k = i * DUST_PER_STUMP + j;
-        if (up) {
+        if (up || ORE_KINDS[n.kind].crew) {
           dust.hide(k);
           continue;
         }
@@ -891,7 +947,7 @@ function OreNodes({ templates, ores, subscribeMessages, localSessionId, players 
 }
 
 /** The rock chips' colour off each kind of node (its host rock's, dark against the dust). */
-const CHIP_COLOR: Record<OreKind, string> = { coal: "#2a2930", copper: "#6c6f6a", iron: "#403f4a", silver: "#4d5667", glimmer: "#2f3242", monolith: "#302e39" };
+const CHIP_COLOR: Record<OreKind, string> = { coal: "#2a2930", copper: "#6c6f6a", iron: "#403f4a", silver: "#4d5667", glimmer: "#2f3242", monolith: "#302e39", rockfall: "#4a4540" };
 
 /** The cave's pools of little pieces (caveFx.ts), drawn and stepped here, let go with the cave. */
 function CaveFxLayer() {
@@ -1540,6 +1596,173 @@ function SoakSteam({ players }: { players: Record<string, PlayerState> }) {
     motes.commit();
   });
   return <primitive object={motes.points} />;
+}
+
+// --- the overlook's hearth, the living wonders' looks, the codex's finds -----------------------------
+
+/** The flames of the overlook's campfire: a few tongues of fire (camera-facing, additive, each its own
+ *  flicker) over the builder's charred logs, embers rising, and its light on the cave round it (FIRE,
+ *  in the cave's own materials). The crackle is the ambience's (audio/cavernAmbience.ts). */
+const FLAMES = 6;
+const FLAME_GEO = (() => {
+  const g = new THREE.PlaneGeometry(1, 1, 1, 1);
+  g.translate(0, 0.5, 0);
+  g.setAttribute("aSeed", new THREE.InstancedBufferAttribute(new Float32Array(Array.from({ length: FLAMES }, (_, i) => i * 1.37)), 1));
+  return g;
+})();
+const FLAME_MAT = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  uniforms: { uTime: TIME },
+  vertexShader: `
+    attribute float aSeed;
+    varying vec2 vUv;
+    varying float vSeed;
+    void main() {
+      vUv = uv;
+      vSeed = aSeed;
+      // (turned to the camera: the instance's centre in view space, the quad spread in its plane)
+      vec4 c = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+      float sx = length(instanceMatrix[0].xyz);
+      float sy = length(instanceMatrix[1].xyz);
+      c.xy += vec2(position.x * sx, position.y * sy);
+      gl_Position = projectionMatrix * c;
+    }`,
+  fragmentShader: `
+    uniform float uTime;
+    varying vec2 vUv;
+    varying float vSeed;
+    void main() {
+      float y = vUv.y;
+      float wob = 0.1 * sin(y * 7.0 - uTime * 8.0 + vSeed * 3.0) * y;
+      float w = 0.5 * (1.0 - y) * (0.8 + 0.2 * sin(uTime * 11.0 + vSeed * 5.0)) + 0.04;
+      float x = abs(vUv.x - 0.5 - wob) / w;
+      float body = (1.0 - smoothstep(0.45, 1.0, x)) * smoothstep(0.0, 0.1, y) * (1.0 - smoothstep(0.55, 1.0, y));
+      vec3 col = mix(vec3(1.0, 0.93, 0.55), vec3(1.0, 0.36, 0.08), smoothstep(0.05, 0.75, y + x * 0.35));
+      gl_FragColor = vec4(col, body * 0.9);
+    }`,
+});
+const EMBERS = 22;
+const EMBER_COLOR = new THREE.Color("#ffb45a");
+function HearthFire() {
+  const flames = useMemo(() => {
+    const im = new THREE.InstancedMesh(FLAME_GEO, FLAME_MAT, FLAMES);
+    im.raycast = noRaycast;
+    im.frustumCulled = false;
+    im.renderOrder = 3;
+    return im;
+  }, []);
+  const embers = useMemo(() => new MotePoints(EMBERS), []);
+  useEffect(
+    () => () => {
+      flames.dispose();
+      embers.dispose();
+    },
+    [flames, embers]
+  );
+  const seeds = useMemo(() => Array.from({ length: EMBERS }, () => ({ a: Math.random() * Math.PI * 2, r: Math.random() * 0.25, p: Math.random(), s: 0.6 + Math.random() * 0.8, w: (Math.random() - 0.5) * 0.6 })), []);
+  const m = useMemo(() => new THREE.Matrix4(), []);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const y = HEARTH.y + 0.06;
+    for (let i = 0; i < FLAMES; i++) {
+      const a = (i / FLAMES) * Math.PI * 2 + 0.3;
+      const r = i === 0 ? 0 : 0.13 + 0.05 * Math.sin(i * 2.1);
+      const h = (i === 0 ? 1.25 : 0.75 + 0.25 * ((i * 0.37) % 1)) * (0.82 + 0.18 * Math.sin(t * (6 + i) + i * 1.7) * Math.sin(t * 3.3 + i));
+      const w = i === 0 ? 0.55 : 0.36;
+      m.makeScale(w, h, w).setPosition(HEARTH.x + Math.cos(a) * r, y, HEARTH.z + Math.sin(a) * r);
+      flames.setMatrixAt(i, m);
+    }
+    flames.instanceMatrix.needsUpdate = true;
+    // the light on the cave round it: a flicker
+    FIRE.value.w = 0.85 + 0.1 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1) + 0.05 * Math.sin(t * 17);
+    for (let i = 0; i < EMBERS; i++) {
+      const sd = seeds[i];
+      const u = (((t * 0.35 * sd.s + sd.p) % 1) + 1) % 1;
+      embers.set(i, HEARTH.x + Math.cos(sd.a) * sd.r + sd.w * u + 0.08 * Math.sin(t * 2 + i), y + 0.25 + u * 2.2, HEARTH.z + Math.sin(sd.a) * sd.r + 0.08 * Math.cos(t * 1.7 + i), 0.9 * Math.sin(Math.PI * u) * (1 - u * 0.5), EMBER_COLOR);
+    }
+    embers.commit();
+  });
+  return (
+    <>
+      <primitive object={flames} />
+      <primitive object={embers.points} />
+    </>
+  );
+}
+
+/** The living wonder's looks, eased in and out (caveAtmosphere.tsx CLOUD, BLOOM): the Cloud's mist in
+ *  the height mist and over the lake, the Bloom's crystals flaring. */
+function EventLooks({ ev }: { ev: CaveEvent | null }) {
+  useFrame((_, dt) => {
+    const now = Date.now();
+    const on = (k: CaveEvent["kind"]) => (ev && ev.kind === k && now < ev.until ? 1 : 0);
+    CLOUD.value += (on("cloud") - CLOUD.value) * Math.min(1, dt * 0.4);
+    BLOOM.value += (on("bloom") - BLOOM.value) * Math.min(1, dt * 0.8);
+  });
+  useEffect(
+    () => () => {
+      CLOUD.value = 0;
+      BLOOM.value = 0;
+    },
+    []
+  );
+  return null;
+}
+
+/** The codex's finds, where they lie until you have them (your codex: `found`): Old Flint's journal
+ *  pages (the builder's `Find_Page`, one instanced draw) and a twinkle over each page and each cave
+ *  pearl's basin still to find. */
+const FIND_TWINKLE = new THREE.Color("#fff1c8");
+function CaveFinds({ page, found }: { page: THREE.Mesh | null; found: string[] }) {
+  const pages = useMemo(() => {
+    if (!page) return null;
+    const im = new THREE.InstancedMesh(page.geometry, page.material as THREE.Material, JOURNAL_PAGES.length);
+    im.raycast = noRaycast;
+    im.frustumCulled = false;
+    return im;
+  }, [page]);
+  const twinkles = useMemo(() => new ReadySparkles(JOURNAL_PAGES.length + CAVE_PEARLS.length), []);
+  useEffect(
+    () => () => {
+      pages?.dispose();
+      twinkles.dispose();
+    },
+    [pages, twinkles]
+  );
+  const have = useMemo(() => new Set(found), [found]);
+  const m = useMemo(() => new THREE.Matrix4(), []);
+  const q = useMemo(() => new THREE.Quaternion(), []);
+  const v = useMemo(() => new THREE.Vector3(), []);
+  const sc = useMemo(() => new THREE.Vector3(), []);
+  const up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  useFrame(({ clock, camera }) => {
+    JOURNAL_PAGES.forEach((pg, i) => {
+      const got = have.has(pg.id);
+      const y = cavernsFloorY(pg.x, pg.z);
+      if (pages) {
+        q.setFromAxisAngle(up, i * 1.9 + 0.4);
+        m.compose(v.set(pg.x, y, pg.z), q, sc.setScalar(got ? 0 : 1.6));
+        pages.setMatrixAt(i, m);
+      }
+      if (got) twinkles.hide(i);
+      else twinkles.set(i, pg.x, y + 0.35, pg.z, FIND_TWINKLE, i * 2.1);
+    });
+    if (pages) pages.instanceMatrix.needsUpdate = true;
+    CAVE_PEARLS.forEach((pl, k) => {
+      const i = JOURNAL_PAGES.length + k;
+      if (have.has(pl.id)) twinkles.hide(i);
+      else twinkles.set(i, pl.x, cavernsFloorY(pl.x, pl.z) + 0.3, pl.z, FIND_TWINKLE, i * 1.3);
+    });
+    twinkles.commit(clock.elapsedTime, (camera as THREE.OrthographicCamera).zoom ?? 1);
+  });
+  return (
+    <>
+      {pages && <primitive object={pages} />}
+      <primitive object={twinkles.points} />
+    </>
+  );
 }
 
 // --- the wait at the cenote: a fish's shadow under each float ---------------------------------------------

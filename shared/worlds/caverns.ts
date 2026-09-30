@@ -118,6 +118,15 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
   },
   "skylight": {"x": 7.5, "z": 11.0, "r": 3.2},
   "tower": {"x": -3.5, "z": -7.6, "r": 1.1, "h": 9.0},
+  "hearth": {"x": 3.2, "z": -6.4, "r": 0.5},
+  "hearthSeats": [
+    {"id": "hearth_1", "x": 3.98, "z": -7.74, "face": -0.527, "exit": {"x": 4.38, "z": -8.44}},
+    {"id": "hearth_2", "x": 2.67, "z": -7.86, "face": 0.348, "exit": {"x": 2.4, "z": -8.61}},
+    {"id": "hearth_3", "x": 1.74, "z": -6.93, "face": 1.222, "exit": {"x": 0.99, "z": -7.2}},
+    {"id": "hearth_4", "x": 1.86, "z": -5.63, "face": 2.093, "exit": {"x": 1.16, "z": -5.23}}
+  ],
+  "photo": {"x": -1.2, "z": -6.6, "face": 0.785},
+  "pages": [[-11.6, -16.2], [20.4, -13.2], [-17.6, -9.4], [-0.6, -9.2], [18.0, -6.4], [-1.0, 17.0]],
   "terraces": {
     "x0": -21.67,
     "x1": -11.27,
@@ -179,7 +188,8 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
     {"id": "glimmer_2", "kind": "glimmer", "x": 19.6, "z": -11.35, "face": [0, 1]},
     {"id": "glimmer_3", "kind": "glimmer", "x": 20.4, "z": -7.9, "face": [-1, 0.2]},
     {"id": "glimmer_4", "kind": "glimmer", "x": 18.8, "z": -8.9, "face": [0, 1]},
-    {"id": "monolith", "kind": "monolith", "x": 7.6, "z": 11.2, "face": [-0.3, -0.95]}
+    {"id": "monolith", "kind": "monolith", "x": 7.6, "z": 11.2, "face": [-0.3, -0.95]},
+    {"id": "rockfall", "kind": "rockfall", "x": 16.6, "z": -15.0, "face": [1, -0.3]}
   ],
   "boulders": [[14.8, -14.4, 0.8], [18.6, -20.4, 0.7], [21.0, -18.6, 0.6], [-14.6, -21.0, 0.7], [-10.4, -18.8, 0.55]],
   "trees": [[-20.6, -21.0, 9.5, 0.4], [-18.6, -21.1, 8.0, 1.9], [-21.0, -15.6, 8.5, 3.1], [-9.9, -21.1, 7.0, 4.4], [-18.8, -16.4, 6.5, 5.3], [-12.2, -19.4, 6.0, 0.9], [-20.2, -11.6, 7.5, 2.4]],
@@ -816,7 +826,7 @@ export function oreNodeNear(x: number, z: number): OreNode | null {
 /** The host rock a node away from the walls is set in (behind it, against its face): the builder's
  *  rock, and the collider round it. */
 export function nodeBackRock(n: OreNode): { x: number; z: number; r: number } | null {
-  if (n.wall || n.kind === "monolith" || !n.face) return null;
+  if (n.wall || n.kind === "monolith" || n.kind === "rockfall" || !n.face) return null;
   const fl = Math.hypot(n.face.x, n.face.z) || 1;
   const r = ORE_KINDS[n.kind].radius;
   return { x: n.x - (n.face.x / fl) * (r + 0.45), z: n.z - (n.face.z / fl) * (r + 0.45), r: r + 0.35 };
@@ -837,6 +847,25 @@ export const TERRACES = {
   }),
 };
 export const THERMAL_SEATS = L.thermalSeats.map((s) => ({ propId: s.id, x: s.x, z: s.z, rotationY: s.face, approachX: s.exit.x, approachZ: s.exit.z, exit: s.exit }));
+
+// --- the overlook's hearth, the photo spot, the codex's finds --------------------------------------------
+
+/** The Hound's Overlook's campfire: a ring of river stones round a fire that never goes out, and four
+ *  log benches round it facing in (sitting on one puts a marshmallow on a stick in your hands), each
+ *  stepped off onto its own landing. */
+export const HEARTH = { x: L.hearth.x, z: L.hearth.z, r: L.hearth.r, y: cavernsFloorY(L.hearth.x, L.hearth.z) };
+/** The capybara's spot in the upper warm pool (its codex entry is met near it). */
+export const CAPYBARA = L.capybara;
+export const HEARTH_SEATS = L.hearthSeats.map((s) => ({ propId: s.id, x: s.x, z: s.z, rotationY: s.face, approachX: s.exit.x, approachZ: s.exit.z, exit: s.exit }));
+export const HEARTH_SEAT_IDS: ReadonlySet<string> = new Set(HEARTH_SEATS.map((s) => s.propId));
+/** Where you stand for a photo with the Hound's Hand behind you (facing the camera), and its reach. */
+export const PHOTO_SPOT = { x: L.photo.x, z: L.photo.z, face: L.photo.face };
+export const PHOTO_REACH = 1.4;
+/** Old Flint's six journal pages, dropped round the cave (codex `page_1`..`page_6`), and the cave pearls
+ *  in the terraces' dry basins (`pearl_1`..`pearl_5`, each at its basin); how near you pick one up. */
+export const JOURNAL_PAGES = L.pages.map(([x, z], i) => ({ id: `page_${i + 1}`, x, z }));
+export const CAVE_PEARLS = L.pearls.map(([x, z], i) => ({ id: `pearl_${i + 1}`, x, z }));
+export const FIND_REACH = 1.8;
 export const THERMAL_SEAT_IDS: ReadonlySet<string> = new Set(THERMAL_SEATS.map((s) => s.propId));
 /** The water's height in the pool (x, z) is in (a seat's, a bather's): the nearest pool's. */
 export function thermalPoolY(x: number, z: number): number {
@@ -997,6 +1026,9 @@ export const CAVERNS_OBSTACLES: AABB[] = [
     return b ? [around(b, b.r * 0.5)] : [];
   }),
   around(L.tower, L.tower.r * 1.05),
+  // the overlook's hearth: its ring of stones round the fire, and the four log benches round it
+  around(L.hearth, L.hearth.r + 0.12),
+  ...L.hearthSeats.map((s) => around(s, 0.26)),
   // the basecamp's gear: the barrels, the crate stack, the survey board, the lantern posts (the
   // bedroll is walked over)
   ...L.campProps.flatMap(([x, z, kind]) => (kind === "bedroll" ? [] : [around({ x: x as number, z: z as number }, kind === "post" ? 0.1 : kind === "board" ? 0.25 : 0.42)])),

@@ -135,7 +135,7 @@ export function isPickaxeId(v: unknown): v is PickaxeId {
 
 // --- the nodes' kinds: T1 up the terrace to the T5 Titan Monolith ------------------------------------
 
-export type OreKind = "coal" | "copper" | "iron" | "silver" | "glimmer" | "monolith";
+export type OreKind = "coal" | "copper" | "iron" | "silver" | "glimmer" | "monolith" | "rockfall";
 export interface OreKindInfo {
   name: string;
   emoji: string;
@@ -154,6 +154,9 @@ export interface OreKindInfo {
   zone: string;
   /** Its tells' colour (the stress fissures' glow). */
   glow: string;
+  /** A crew node (a Rockfall's heap: shared/caverns_codex.ts): every pickaxe mines it, none breaks it
+   *  at once nor skids off, and it stands only while its wonder lasts. */
+  crew?: boolean;
 }
 export const ORE_KINDS: Record<OreKind, OreKindInfo> = {
   coal: { name: "Coal Seam", emoji: "⚫", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Coal Breakdown", glow: "#ffb347" },
@@ -161,6 +164,7 @@ export const ORE_KINDS: Record<OreKind, OreKindInfo> = {
   iron: { name: "Iron Lode", emoji: "🔩", tier: 2, hp: 200, respawnS: [50, 50], radius: 0.5, sweet: 0.18, geode: 0.15, zone: "the Iron Mudflats", glow: "#ff8a4a" },
   silver: { name: "Silver Seam", emoji: "⚪", tier: 3, hp: 300, respawnS: [75, 75], radius: 0.55, sweet: 0.16, geode: 0, zone: "the Pearl Terraces", glow: "#8fe8ff" },
   glimmer: { name: "Glimmerstone Cluster", emoji: "💠", tier: 4, hp: 440, respawnS: [120, 120], radius: 0.6, sweet: 0.15, geode: 0.3, zone: "the Glimmer Rift", glow: "#00f0ff" },
+  rockfall: { name: "Rockfall Heap", emoji: "🪨", tier: 1, hp: 900, respawnS: [99999, 99999], radius: 1.0, sweet: 0.3, geode: 0.5, zone: "the Coal Breakdown", glow: "#ffcf7a", crew: true },
   monolith: { name: "Titan Monolith", emoji: "🗿", tier: 5, hp: 2400, respawnS: [25 * 60, 30 * 60], radius: 1.1, sweet: 0.24, geode: 1, zone: "the Great Lake's islet", glow: "#b36bff" },
 };
 export const ORE_KIND_IDS = Object.keys(ORE_KINDS) as OreKind[];
@@ -189,6 +193,10 @@ export function mohs(pickTier: number, oreTier: number): "oneshot" | "mine" | "u
   if (pickTier > oreTier) return "oneshot";
   if (pickTier === oreTier) return "mine";
   return pickTier === oreTier - 1 ? "under" : "deflect";
+}
+/** The rule a pickaxe strikes a kind of node by (a crew node: always mined, by every pickaxe). */
+export function oreRule(pickTier: number, kind: OreKind): "oneshot" | "mine" | "under" | "deflect" {
+  return ORE_KINDS[kind].crew ? "mine" : mohs(pickTier, ORE_KINDS[kind].tier);
 }
 
 export type StrikeVerdict = "direct" | "near" | "bedrock" | "deflect";
@@ -251,7 +259,7 @@ export function strikeDistance(kind: OreKind, weak: Vec3, hit: Vec3): number {
 export function judgeStrike(kind: OreKind, pick: PickaxeId, weak: Vec3, hit: Vec3, warmth = false, boost: { sweet?: number; damage?: number } = {}): { verdict: StrikeVerdict; damage: number; d: number; oneshot: boolean } {
   const info = ORE_KINDS[kind];
   const p = PICKAXES[pick];
-  const rule = mohs(p.tier, info.tier);
+  const rule = oreRule(p.tier, kind);
   const d = strikeDistance(kind, weak, hit);
   if (rule === "deflect") return { verdict: "deflect", damage: 0, d, oneshot: false };
   const { sweet, near } = strikeRadii(kind, pick, warmth, boost.sweet ?? 0);
@@ -346,9 +354,16 @@ export function rollYield(kind: OreKind, pick: PickaxeId, rand: () => number = M
       add("core_fragment", 1);
       add("pristine_geode", 1);
       return out;
+    case "rockfall":
+      // a heap of fresh ore from the breakdown's roof: a little of everything
+      add("coal", 2 + (rand() < 0.5 ? 1 : 0));
+      add("copper_ore", 1 + (rand() < 0.5 ? 1 : 0));
+      add("iron_ore", 1 + (rand() < 0.4 ? 1 : 0));
+      if (rand() < 0.25) add("silver_ore", 1);
+      break;
   }
   const base = kind === "iron" ? Math.max(ORE_KINDS.iron.geode, PICKAXES[pick].geodeFloor) : ORE_KINDS[kind].geode;
-  const geode = base + (kind !== "coal" && kind !== "copper" ? geodeFind : 0);
+  const geode = base + (kind !== "coal" && kind !== "copper" && kind !== "rockfall" ? geodeFind : 0);
   if (geode > 0 && rand() < geode) add("mystery_geode", 1);
   return out;
 }
@@ -634,7 +649,13 @@ export const CAVERNS_CHANNELS = {
   satchel: "caverns:satchel",
   recast: "caverns:recast",
   cast: "caverns:cast",
+  codex: "caverns:codex",
 } as const;
+/** The codex (shared/caverns_codex.ts): a zone stamped as you walk in, a creature met in its home,
+ *  the Bat Exodus witnessed at the camp's dusk, a cave pearl picked up, a page of Old Flint's journal
+ *  read, the photo with the Hound's Hand (each checked against where you stand; the fossils and the
+ *  living wonders are the server's own). */
+export type CodexPacket = { op: "zone"; id: string } | { op: "fauna"; id: string } | { op: "exodus" } | { op: "pearl"; id: string } | { op: "page"; id: string } | { op: "photo" };
 /** A cast from the cenote's shore: the way the angler faces (a unit vector on the ground). */
 export interface ShoreCastPacket {
   fx: number;

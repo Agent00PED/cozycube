@@ -3,7 +3,7 @@ import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, R
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { COLOSSAL, FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, isColossalKind, type WoodKind } from "@shared/chop";
 import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ADIT_FRONT, FOREST_ANIMALS, FOREST_FISHING, FOREST_WORKBENCH_FRONT, OLD_FLINT_FRONT, OLD_FLINT_REACH, woodsSpotOfSeat } from "@shared/worlds/forest";
-import { ANVIL_FRONT, ANVIL_REACH, CAVE_ADIT_FRONT, CAVE_WINCH, WINCH_REACH, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, shoreCast } from "@shared/worlds/caverns";
+import { ANVIL_FRONT, ANVIL_REACH, CAVE_ADIT_FRONT, CAVE_WINCH, WINCH_REACH, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, shoreCast, PHOTO_SPOT, PHOTO_REACH, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH } from "@shared/worlds/caverns";
 import { CAVERNS_CHANNELS, ORE_KINDS, PICKAXES, SOAK_S, isPickaxeId } from "@shared/caverns_mining";
 import { DRIP_REACH, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -258,6 +258,16 @@ function caveOf(fishing: string): { pickTier: number; access: boolean } {
     return { pickTier: isPickaxeId(v.pickaxeId) ? PICKAXES[v.pickaxeId].tier : 1, access: v.caveAccess === true };
   } catch {
     return { pickTier: 1, access: false };
+  }
+}
+
+/** The Cave Codex's entries found, in a synced camp profile. */
+function codexOf(fishing: string): string[] {
+  try {
+    const v = (JSON.parse(fishing || "{}") as { codex?: unknown }).codex;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
   }
 }
 
@@ -526,6 +536,24 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         }
         // the thermal terraces: the nearest free seat in their pools (the server seats you there)
         const rim = THERMAL_SEATS.some((s) => !chairs[s.propId]?.occupiedBy && Math.min(Math.hypot(s.exit.x - px, s.exit.z - pz), Math.hypot(s.x - px, s.z - pz)) <= THERMAL_REACH);
+        // the Cave Codex's finds: the photo with the Hound's Hand, Old Flint's journal pages, the cave
+        // pearls (shared/caverns_codex.ts; the server checks where you stand)
+        const codex = codexOf(player.fishing);
+        const toPhoto = Math.hypot(PHOTO_SPOT.x - px, PHOTO_SPOT.z - pz);
+        if (toPhoto <= PHOTO_REACH) found.push({ key: "cave:photo", type: "critter", d: toPhoto, label: "📸 Photo with the Hound's Hand", hint: codex.includes("wonder_photo") ? "Another one for the album" : "Every expedition takes one: into the Cave Codex it goes", run: () => window.dispatchEvent(new Event("cozy-cave-photo")) });
+        for (const pg of JOURNAL_PAGES) {
+          const d = Math.hypot(pg.x - px, pg.z - pz);
+          if (d > FIND_REACH || codex.includes(pg.id)) continue;
+          found.push({ key: `cave:${pg.id}`, type: "forage", d, label: "📜 Read the Torn Page", hint: "A page of Old Flint's expedition journal, weighted down by a pebble", run: () => {
+            onCaverns(CAVERNS_CHANNELS.codex, { op: "page", id: pg.id });
+            window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "codex", propId: "journal" } }));
+          } });
+        }
+        for (const pl of CAVE_PEARLS) {
+          const d = Math.hypot(pl.x - px, pl.z - pz);
+          if (d > FIND_REACH || codex.includes(pl.id)) continue;
+          found.push({ key: `cave:${pl.id}`, type: "forage", d, label: "🫧 Pick Up the Cave Pearl", hint: "A little sphere of calcite in a dry basin: into the Cave Codex", run: () => onCaverns(CAVERNS_CHANNELS.codex, { op: "pearl", id: pl.id }) });
+        }
         if (rim) found.push({ key: "soak:in", type: "soak", label: "♨️ Soak in Springs", hint: `${SOAK_S} seconds in the terraces' warm water: the Deep Warmth for 20 minutes (+15% walking pace everywhere, +20% fracture radius, stamina back sooner in the ring)`, run: () => onCaverns(CAVERNS_CHANNELS.onsen, { on: true }) });
       }
       // the Velvet Ring: the corner steps (step in as Red or Blue), the chalkboard, Coach Bruno, the gym

@@ -182,7 +182,17 @@ deepest), a sparse music layer, a Water fader, the sample slots. Light: the jung
 24-minute day (moonlight at night), a small light round you in the dark zones, softer godrays;
 shadows limited to the jungle.
 
-### Phase 6: new content (the audit's section 5)
+### Phase 6: new content (the audit's section 5): built 2026-09-30
+
+| Step | Work | How |
+|---|---|---|
+| 6.1 | The overlook's campfire | shared/worlds/caverns.ts `HEARTH`, `HEARTH_SEATS` (the log style: a marshmallow on a stick as you sit, the server's `roastSeat`); build_caverns.py `build_hearth` (the stone ring, the charcoal bed, the charred logs, four log benches); the client's `HearthFire` (flames, embers, the `FIRE` glow in the cave's own materials) and the crackle (cavernAmbience's `fire` bed and pops) |
+| 6.2 | The Hound's Hand photo spot | `PHOTO_SPOT` and its brass paw plaque; the dock's `[ 📸 Photo with the Hound's Hand ]`: the camera framed on you with the Hand behind, a flash and a shutter, `wonder_photo` |
+| 6.3 | Living wonders | shared/caverns_codex.ts `CaveEvent`: a Cave Cloud (the mist through the whole cavern, `CLOUD_LUCK` on the cenote), a Glimmer Bloom (the rift flaring, `BLOOM_YIELD`, `BLOOM_REGROW`), a Rockfall (the `rockfall` crew node in the breakdown, `ore_rockfall`, `oreRule`), one every 18-30 minutes while anyone is down there (the server's `tickEvent`, the room's `caveEvent`, a pill with its clock); the Bat Exodus at the camp's dusk (caveFauna's `exodusClock`) |
+| 6.4 | The Cave Codex | the camp profile's `codex` (33 entries, five sections, coins each and a bonus a section): zone stamps, fauna met in their homes, cave pearls (dock), fossils (a broken node's rubble), Old Flint's six journal pages (`Find_Page`, read at the dock), the wonders; `CaveCodexHud` (the watch and the toasts), `CaveCodexModal` (from the ore satchel drawer) |
+| 6.5 | The grotto behind the waterfall | not built: the jungle's waterfall falls from the map's north edge (z -22.3 of the +-22.5 square), so a grotto behind it means growing the map past its bounds (the terrain grid, the shell, the camera's bounds); kept for a later phase with the raft and stream fishing |
+
+The original brief:
 
 The overlook's campfire ring (seats, the Hound's Hand as a photo spot); living events (Cave Cloud: mist
 rolls through, rare fish bite more; Glimmer Bloom: the rift glows and yields more; Bat Exodus at the

@@ -23,6 +23,13 @@ import {
   oreReach,
   orePropId,
   type OreNode,
+  CAPYBARA,
+  CAVE_PEARLS,
+  FIND_REACH,
+  JOURNAL_PAGES,
+  PHOTO_REACH,
+  PHOTO_SPOT,
+  cavernsZoneAt,
 } from "../../../shared/worlds/caverns";
 import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../../../shared/worlds/forest";
 import {
@@ -48,6 +55,8 @@ import {
   SOAK_S,
   STOUT_DAMAGE,
   STRIKE_DEBOUNCE_S,
+  oreRule,
+  type CodexPacket,
   QUICK_CRACK_GAP_MS,
   forgeGrade,
   BELLOWS_LIMIT_S,
@@ -63,7 +72,6 @@ import {
   judgeChisel,
   judgeForge,
   judgeStrike,
-  mohs,
   rollDust,
   rollGem,
   rollSeam,
@@ -104,6 +112,8 @@ import {
   type Vec3,
 } from "../../../shared/caverns_mining";
 import { DRIP_EVERY_S, DRIP_REACH, DRIP_S, GLOW_LURE_GRACE_S, type CaveDrip } from "../../../shared/caverns_fishing";
+import { BLOOM_REGROW, BLOOM_YIELD, CAVE_EVENT_EVERY_MIN, CAVE_EVENT_INFO, CAVE_EVENT_S, CLOUD_LUCK, CODEX, CODEX_BY_ID, CODEX_SECTIONS, EXODUS_S, FAUNA_ZONE, FOSSILS, FOSSIL_CHANCE, ROCKFALL_S, caveEventOn, codexProgress, type CaveEvent, type CaveEventKind } from "../../../shared/caverns_codex";
+import { dayPhase, DAY_CYCLE_MS } from "../../../shared/daynight";
 import { nextSatchelTier, satchelAdd, satchelCount, satchelCountFor, satchelCounts, satchelHasRoom, satchelTake, satchelTakeFor, satchelTier, type SatchelTier } from "../../../shared/satchel";
 import { takeLogs, WOOD, BYPRODUCTS, type ByproductId, type WoodKind } from "../../../shared/chop";
 import { addMaterial, buffOn, materialCount, takeMaterial, type FishingProfile } from "../../../shared/fishing";
@@ -178,6 +188,8 @@ export interface CavernsHost {
   daily(sessionId: string, task: "soak_onsen"): void;
   /** The nodes changed: their sync (JSON) into the room's state. */
   syncOres(json: string): void;
+  /** The living wonder under way (JSON, "" none) into the room's state. */
+  syncCaveEvent(json: string): void;
   /** Where the floats of everyone fishing the cenote's shore sit (the lucky drip falls by one). */
   shoreFloats(): { x: number; z: number }[];
 }
@@ -239,6 +251,10 @@ export class CavernsMine {
   /** Cleavers whose blow is still falling (when they step back from the anvil), and each one's last
    *  quick crack. */
   private readonly chiselRest = new Map<string, number>();
+  /** The living wonder under way (shared/caverns_codex.ts), and when the next may start. */
+  private event: CaveEvent | null = null;
+  private nextEventAt = Date.now() + (CAVE_EVENT_EVERY_MIN[0] + Math.random() * (CAVE_EVENT_EVERY_MIN[1] - CAVE_EVENT_EVERY_MIN[0])) * 60_000;
+  private eventClock = 0;
   private readonly quickAt = new Map<string, number>();
   private readonly chisels = new Map<string, ChiselState>();
   private readonly forgeGames = new Map<string, ForgeGameState>();
@@ -254,7 +270,8 @@ export class CavernsMine {
   private forgeClock = 0;
 
   constructor(private readonly host: CavernsHost) {
-    for (const n of ORE_NODES) this.nodes.set(n.id, { dmg: 0, up: true, respawnAt: 0, weak: rollWeakSpot(n.face), contrib: new Map() });
+    // (a crew node, the Rockfall's heap, lies waiting until its wonder raises it)
+    for (const n of ORE_NODES) this.nodes.set(n.id, { dmg: 0, up: !ORE_KINDS[n.kind].crew, respawnAt: ORE_KINDS[n.kind].crew ? Infinity : 0, weak: rollWeakSpot(n.face), contrib: new Map() });
     this.sync();
   }
 
@@ -264,6 +281,7 @@ export class CavernsMine {
   save(): Record<string, { dmg: number; respawnAt: number }> {
     const out: Record<string, { dmg: number; respawnAt: number }> = {};
     this.nodes.forEach((s, id) => {
+      if (ORE_KINDS[ORE_NODE_AT.get(id)!.kind].crew) return;
       if (s.dmg > 0 || !s.up) out[id] = { dmg: Math.round(s.dmg), respawnAt: s.up ? 0 : s.respawnAt };
     });
     return out;
@@ -275,7 +293,7 @@ export class CavernsMine {
     for (const [id, v] of Object.entries(saved as Record<string, { dmg?: unknown; respawnAt?: unknown }>)) {
       const node = ORE_NODE_AT.get(id);
       const s = this.nodes.get(id);
-      if (!node || !s || !v) continue;
+      if (!node || !s || !v || ORE_KINDS[node.kind].crew) continue;
       const at = Number(v.respawnAt) || 0;
       if (at > now) {
         s.up = false;
@@ -439,7 +457,7 @@ export class CavernsMine {
       return;
     }
     const pick = PICKAXES[kit.pickaxeId];
-    const rule = mohs(pick.tier, info.tier);
+    const rule = oreRule(pick.tier, node.kind);
     if (rule === "deflect") this.host.sendTo(sessionId, "campfireNotice", { message: `${info.name} is T${info.tier}: your ${pick.name} (T${pick.tier}) will skid right off it. A T${info.tier - 1} pickaxe or better bites (Gus sells them)`, emoji: "🪨" });
     const was = this.prospectors.get(sessionId);
     this.prospectors.set(sessionId, { node: node.id, lastStrikeAt: 0, staggerUntil: 0, seq: was?.node === node.id ? was.seq : 0, openedAt: Date.now() });
@@ -524,11 +542,14 @@ export class CavernsMine {
    *  flying to them; the node down until it grows back (its cracked stump dusting); the Monolith told
    *  to the whole room. */
   private shatter(node: OreNode, s: NodeState, breaker: string, perfect: boolean) {
-    const { crew, mult } = coopShares(s.contrib);
+    const { crew, mult: shares } = coopShares(s.contrib);
     const now = Date.now();
     const [lo, hi] = ORE_KINDS[node.kind].respawnS;
+    // (a Glimmer Bloom: the rift's glimmer half as much again, growing back twice as fast)
+    const bloom = node.kind === "glimmer" && caveEventOn(this.event, "bloom", now);
+    const mult = shares * (bloom ? BLOOM_YIELD : 1);
     s.up = false;
-    s.respawnAt = now + (lo + Math.random() * (hi - lo)) * 1000;
+    s.respawnAt = ORE_KINDS[node.kind].crew ? Infinity : now + (lo + Math.random() * (hi - lo)) * 1000 * (bloom ? BLOOM_REGROW : 1);
     s.dmg = 0;
     const struck = [...s.contrib.keys()];
     s.contrib = new Map();
@@ -555,6 +576,9 @@ export class CavernsMine {
       // a silver seam's stone dust: into the materials' store
       const dust = addMaterial(kit, "stoneDust", scaleCount(rollDust(node.kind), mult * (double ? 2 : 1)));
       kit.mined[node.kind] = Math.min(999_999, (kit.mined[node.kind] ?? 0) + 1);
+      // now and then a fossil turns up in the rubble (one you haven't found)
+      const missing = FOSSILS.filter((f) => !kit.codex.includes(f));
+      if (missing.length && Math.random() < FOSSIL_CHANCE) this.addCodex(id, missing[Math.floor(Math.random() * missing.length)]);
       this.host.saveProfile(id);
       this.host.sendTo(id, "caveLoot", { node: node.id, items, ...(dust > 0 ? { dust } : {}), lost, mult, perfect: double, ...(streak > 0 ? { streak } : {}) } satisfies CaveLoot);
     }
@@ -562,6 +586,11 @@ export class CavernsMine {
     for (const id of struck) if (!crew.includes(id)) this.host.sendTo(id, "campfireNotice", { message: "Your blows helped, but a share takes more than 15% of the damage", emoji: "🪨" });
     // everyone at it steps back (the rock is gone)
     for (const [id, p] of [...this.prospectors.entries()]) if (p.node === node.id) this.stopProspect(id);
+    if (ORE_KINDS[node.kind].crew && this.event?.kind === "rockfall") {
+      // the Rockfall's heap broken: the wonder ends (and a word to everyone down here)
+      this.host.toMap("glimmering_caverns", "campfireNotice", { message: `The Rockfall's heap is broken${crew.length > 1 ? ` by a crew of ${crew.length}` : ""}! The breakdown settles again`, emoji: "🪨" });
+      this.endEvent();
+    }
     if (node.kind === "monolith") {
       const names = crew.map((id) => this.host.player(id)?.username ?? "").filter(Boolean);
       this.host.shout("campfireNotice", { message: `The Titan Monolith shattered under ${names.length ? names.slice(0, 4).join(", ") : "a lone pickaxe"}${names.length > 4 ? ` and ${names.length - 4} more` : ""}! It sinks back into the islet for now`, emoji: "🗿" });
@@ -1040,7 +1069,7 @@ export class CavernsMine {
     let changed = false;
     for (const node of ORE_NODES) {
       const s = this.nodes.get(node.id)!;
-      if (s.up || now < s.respawnAt) continue;
+      if (s.up || now < s.respawnAt || ORE_KINDS[node.kind].crew) continue;
       s.up = true;
       s.dmg = 0;
       s.respawnAt = 0;
@@ -1082,6 +1111,132 @@ export class CavernsMine {
       }
     }
     if (changed) this.sync();
+    this.eventClock += dt;
+    if (this.eventClock >= 1) {
+      this.eventClock = 0;
+      this.tickEvent(now, occupied);
+    }
+  }
+
+  // --- the living wonders (shared/caverns_codex.ts) ----------------------------------------------------
+
+  /** Every so often while anyone is down here, a wonder: a Cave Cloud, a Glimmer Bloom or a Rockfall
+   *  (never the same twice running); everyone down here while it lasts has it in their codex. */
+  private tickEvent(now: number, occupied: boolean) {
+    const ev = this.event;
+    if (ev && now >= ev.until) {
+      if (ev.kind === "rockfall") this.host.toMap("glimmering_caverns", "campfireNotice", { message: "The Rockfall's dust has settled: its heap has sunk back into the breakdown's rubble", emoji: "🪨" });
+      this.endEvent();
+      return;
+    }
+    if (ev) {
+      for (const id of this.host.sessions()) if (this.host.player(id)?.map === "glimmering_caverns") this.addCodex(id, `wonder_${ev.kind}`);
+      return;
+    }
+    if (!occupied || now < this.nextEventAt) return;
+    const kinds = (["cloud", "bloom", "rockfall"] as CaveEventKind[]).filter((k) => k !== this.lastEvent);
+    this.startEvent(kinds[Math.floor(Math.random() * kinds.length)], now);
+  }
+  private lastEvent: CaveEventKind | "" = "";
+
+  startEvent(kind: CaveEventKind, now = Date.now()) {
+    if (this.event) this.endEvent();
+    this.event = { kind, at: now, until: now + (kind === "rockfall" ? ROCKFALL_S : CAVE_EVENT_S) * 1000 };
+    this.lastEvent = kind;
+    if (kind === "rockfall") {
+      for (const node of ORE_NODES) {
+        if (!ORE_KINDS[node.kind].crew) continue;
+        this.nodes.set(node.id, { dmg: 0, up: true, respawnAt: 0, weak: rollWeakSpot(node.face), contrib: new Map() });
+      }
+      this.sync();
+    }
+    this.host.syncCaveEvent(JSON.stringify(this.event));
+    const info = CAVE_EVENT_INFO[kind];
+    this.host.toMap("glimmering_caverns", "campfireNotice", { message: info.toast, emoji: info.emoji });
+  }
+
+  private endEvent() {
+    const ev = this.event;
+    this.event = null;
+    this.nextEventAt = Date.now() + (CAVE_EVENT_EVERY_MIN[0] + Math.random() * (CAVE_EVENT_EVERY_MIN[1] - CAVE_EVENT_EVERY_MIN[0])) * 60_000;
+    if (ev?.kind === "rockfall") {
+      for (const node of ORE_NODES) {
+        if (!ORE_KINDS[node.kind].crew) continue;
+        const s = this.nodes.get(node.id)!;
+        s.up = false;
+        s.respawnAt = Infinity;
+        s.dmg = 0;
+        s.contrib = new Map();
+        for (const [id, p] of [...this.prospectors.entries()]) if (p.node === node.id) this.stopProspect(id);
+      }
+      this.sync();
+    }
+    this.host.syncCaveEvent("");
+  }
+
+  /** A Cave Cloud's pull on the cenote's rare fish (0 when there's none). */
+  cloudLuck(now = Date.now()): number {
+    return caveEventOn(this.event, "cloud", now) ? CLOUD_LUCK : 0;
+  }
+
+  // --- the Cave Codex (shared/caverns_codex.ts) -----------------------------------------------------------
+
+  /** A codex entry found: its coins, and a section completed its bonus; told to the finder. */
+  addCodex(sessionId: string, id: string) {
+    const kit = this.host.profile(sessionId);
+    const entry = CODEX_BY_ID.get(id);
+    if (!kit || !entry || kit.codex.includes(id)) return;
+    kit.codex.push(id);
+    let coins = entry.coins;
+    const section = CODEX_SECTIONS.find((s) => s.id === entry.section)!;
+    const prog = codexProgress(kit.codex, entry.section);
+    const complete = prog.found === prog.all;
+    if (complete) coins += section.bonus;
+    this.host.addCoins(sessionId, coins);
+    this.host.saveProfile(sessionId);
+    this.host.sendTo(sessionId, "caveCodex", { id, coins, complete: complete ? section.id : undefined, found: kit.codex.length, all: CODEX.length });
+  }
+
+  /** A find reported by the finder (a zone walked into, a creature met, the Bat Exodus seen, a pearl, a
+   *  page, the photo): checked against where they stand, and the camp's clock for the Exodus. */
+  codex(sessionId: string, packet: CodexPacket) {
+    const player = this.host.player(sessionId);
+    if (!player || player.map !== "glimmering_caverns" || !packet || typeof packet !== "object") return;
+    const zone = cavernsZoneAt(player.x, player.z)?.id ?? "";
+    switch (packet.op) {
+      case "zone":
+        if (packet.id === `zone_${zone}`) this.addCodex(sessionId, packet.id);
+        return;
+      case "fauna": {
+        const home = FAUNA_ZONE[packet.id];
+        if (!home || home !== zone) return;
+        if (packet.id === "fauna_capybara" && Math.hypot(player.x - CAPYBARA.x, player.z - CAPYBARA.z) > 7) return;
+        this.addCodex(sessionId, packet.id);
+        return;
+      }
+      case "exodus": {
+        // (the camp's dusk: from dayPhase 0.5 for EXODUS_S, a little slack either side)
+        const t = (dayPhase(Date.now()) - 0.5) * DAY_CYCLE_MS;
+        if (t >= -5000 && t <= EXODUS_S * 1000 + 15000) this.addCodex(sessionId, "wonder_exodus");
+        return;
+      }
+      case "pearl": {
+        const p = CAVE_PEARLS.find((q) => q.id === packet.id);
+        if (p && Math.hypot(player.x - p.x, player.z - p.z) <= FIND_REACH + 0.6) this.addCodex(sessionId, p.id);
+        return;
+      }
+      case "page": {
+        const p = JOURNAL_PAGES.find((q) => q.id === packet.id);
+        if (p && Math.hypot(player.x - p.x, player.z - p.z) <= FIND_REACH + 0.6) this.addCodex(sessionId, p.id);
+        return;
+      }
+      case "photo":
+        if (Math.hypot(player.x - PHOTO_SPOT.x, player.z - PHOTO_SPOT.z) <= PHOTO_REACH + 0.6) {
+          this.addCodex(sessionId, "wonder_photo");
+          this.host.emote(sessionId, "📸");
+        }
+        return;
+    }
   }
 
   /** A miner's run of Perfects (lapsed after STREAK_IDLE_S without a strike). */

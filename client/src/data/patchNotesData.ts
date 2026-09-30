@@ -1228,6 +1228,21 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.7.19",
+        date: "2026-09-30",
+        title: "A Living Cave",
+        summary: "The Glimmering Caverns come alive: a campfire on the Hound's Overlook, living wonders rolling through (a Cave Cloud, a Glimmer Bloom, a Rockfall), the Bat Exodus at every dusk, and the Cave Codex, a field journal of zone stamps, cave fauna, pearls, fossils and Old Flint's lost pages.",
+        changes: {
+          features: [
+            "🔥 A campfire on the Hound's Overlook: a ring of river stones and four log benches beneath the great stalagmite. Sit on a bench for a marshmallow on a stick. The fire never goes out.",
+            "📸 Stand on the brass paw plaque for a photo with the Hound's Hand: the camera frames you with the Hand behind you, then the flash goes off.",
+            "☁️ Living wonders roll through the caverns every so often. A Cave Cloud fills the cavern with mist while rare fish bite at the cenote. A Glimmer Bloom lights up the rift, and its glimmer yields more and grows back fast. A Rockfall crashes a heap of fresh ore into the Coal Breakdown for a crew to break together.",
+            "🦇 Every dusk on the camp's clock, the Bat Exodus: a river of bats pours out of the mudflats' wall and up through the jungle's collapsed roof.",
+            "📖 The Cave Codex, the expedition's field journal: stamp all eight zones, meet the cave's creatures, pick up the five cave pearls, find fossils in the rubble of broken nodes, collect Old Flint's six torn journal pages, and witness the wonders. Every entry pays coins, and every completed section pays a bonus. Open it from your ore satchel.",
+          ],
+        },
+      },
     ],
   },
 ];
