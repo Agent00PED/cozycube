@@ -79,7 +79,7 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
     >
       {tab === "trade" && (
         <div className="flex flex-col gap-1.5">
-          {held.length === 0 && dust === 0 && <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Bring me ore, friend! The doline's fallen rocks, the crystal fissures' iron, silver and glimmerstone: I buy the lot. The cenote's fish? Take those to Finnegan, down by the lake.</p>}
+          {held.length === 0 && dust === 0 && <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Bring me ore, friend! Copper from the jungle, coal from the breakdown, iron, silver and glimmerstone from further down: I buy the lot. The lake's fish? Take those to Finnegan, down on the north shore.</p>}
           {held.map((id) => {
             const item = ORE_ITEMS[id];
             const mult = marketMultiplier(oreGood(id), hour);

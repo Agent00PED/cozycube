@@ -10,7 +10,7 @@ import { Modal } from "./Modal";
 const LORE = [
   "\"Easy there, young'un. Not many find this old adit behind the maples.\"",
   "\"Below these roots lies the Grand Karst: a sunlit doline where the ceiling fell in long ago, Gus the Mole at his workstation and the bellows forge in its basalt fissure, and down the ramp a cenote lake glowing blue with things that never saw the sun.\"",
-  "\"Coal and copper in the doline's fallen rocks. Iron, silver and glimmerstone in the crystal fissures either side. And now and then the Titan Monolith wakes on the cenote's islet, under the skylight. Takes a whole crew to crack that one.\"",
+  "\"Copper in the jungle under the fallen roof, coal in the breakdown's blocks. Iron down in the mudflats, silver on the pearl terraces, glimmerstone in the rift. And now and then the Titan Monolith wakes on the lake's islet, under the skylight. Takes a whole crew to crack that one.\"",
   "\"Don't go swinging blind: every rock has a weak spot. Watch for the glow in its cracks, the glint, the dust sifting down. Strike there.\"",
 ];
 const TIPS = [

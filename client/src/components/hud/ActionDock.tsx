@@ -3,7 +3,7 @@ import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, R
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { COLOSSAL, FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, isColossalKind, type WoodKind } from "@shared/chop";
 import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ADIT_FRONT, FOREST_ANIMALS, FOREST_FISHING, FOREST_WORKBENCH_FRONT, OLD_FLINT_FRONT, OLD_FLINT_REACH, woodsSpotOfSeat } from "@shared/worlds/forest";
-import { ANVIL_FRONT, ANVIL_REACH, CAVE_ADIT_FRONT, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, shoreCast } from "@shared/worlds/caverns";
+import { ANVIL_FRONT, ANVIL_REACH, CAVE_ADIT_FRONT, CAVE_WINCH, WINCH_REACH, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, shoreCast } from "@shared/worlds/caverns";
 import { CAVERNS_CHANNELS, ORE_KINDS, PICKAXES, SOAK_S, isPickaxeId } from "@shared/caverns_mining";
 import { DRIP_REACH, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -497,6 +497,11 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         const px = cameraFocus.x;
         const pz = cameraFocus.z;
         if (Math.hypot(CAVE_ADIT_FRONT.x - px, CAVE_ADIT_FRONT.z - pz) <= 2.0) found.push({ key: "adit:cave", type: "travel", label: "🌲 Back to the Woods", hint: "Up the old mine adit, back under the maples", run: () => interactBridge.current?.useProp("cave_adit") });
+        // Gus's winch lift, up the cliff from the glimmer rift to the coal breakdown, or back down
+        const toLower = Math.hypot(CAVE_WINCH.lower.x - px, CAVE_WINCH.lower.z - pz);
+        const toUpper = Math.hypot(CAVE_WINCH.upper.x - px, CAVE_WINCH.upper.z - pz);
+        if (toLower <= WINCH_REACH) found.push({ key: "winch:up", type: "travel", d: toLower, label: "🪢 Winch Up to Basecamp", hint: "Gus's rope lift: up the cliff to the coal breakdown, a step from the forge and Gus", run: () => interactBridge.current?.useProp("winch_bottom") });
+        else if (toUpper <= WINCH_REACH) found.push({ key: "winch:down", type: "travel", d: toUpper, label: "🪢 Winch Down to the Rift", hint: "Gus's rope lift: down the cliff into the glimmer rift", run: () => interactBridge.current?.useProp("winch_top") });
         const toGus = Math.hypot(GUS_FRONT.x - px, GUS_FRONT.z - pz);
         if (toGus <= GUS_REACH + 0.6) found.push({ key: "gus", type: "barnaby", d: toGus, label: "⛏️ Talk to Gus", hint: "Gus the Mole buys ore, ingots, geodes, gems and stone dust; sells pickaxes and bigger satchels", run: () => interactBridge.current?.useProp("gus") });
         const toFinnegan = Math.hypot(FINNEGAN_FRONT.x - px, FINNEGAN_FRONT.z - pz);

@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState } from "@shared/types";
-import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_SUN, CAVE_WATER_Y, CAVERNS_LAYOUT as L, DOLINE_BEAMS, FINNEGAN, FORGE, GUS, ORE_NODES, ORE_NODE_AT, TERRACES, cavernsFloorY, thermalPoolY, type OreNode } from "@shared/worlds/caverns";
 import { ORE_ITEMS, ORE_KINDS, ORE_KIND_IDS, oreCenterY, parseOres, type CaveLoot, type CaveShatter, type CaveStrike, type OreKind, type OreItemId } from "@shared/caverns_mining";
 import { DRIP_S, type CaveDrip } from "@shared/caverns_fishing";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -232,7 +232,7 @@ const GUS_TALK: NpcTalk = {
   clicked: ["Ore, ingots, geodes, gems: Gus buys the lot!", "Mind the Monolith when it wakes. Takes a crew to crack it", "A good pickaxe is half the work, friend", "Smelt your copper before you sell it: every bit counts"],
   greet: {
     inside: (x, z) => Math.hypot(x - GUS.x, z - GUS.z) < 3.4,
-    lines: ["Welcome to the Sunlit Doline!", "The sun only reaches this far down at the doline", "Fresh from the rock? Let's see what you've got", "The forge is hot and the anvil's ready"],
+    lines: ["Welcome to the basecamp!", "The sun only reaches this far down at the jungle's doline", "Fresh from the rock? Let's see what you've got", "The forge is hot and the anvil's ready"],
   },
 };
 const FINNEGAN_TALK: NpcTalk = {
@@ -701,10 +701,10 @@ class FxPool {
 /** The cavern's light: a dim cool fill (the rock's own light is painted in), the sun's warm slant
  *  down the doline, and the three point lights that move: the forge's mouth flickering, the
  *  terraces' warm glow breathing, the cenote's heart pulsing. */
-/** The doline's skylight: a soft golden spot high over the broken roof, falling only on the doline
- *  under it (its cone and penumbra), casting real shadows there. */
-const SKY_FROM = new THREE.Vector3(1.5, 17, -12.5);
-const SKY_AT = new THREE.Vector3(1.0, 3.2, -16.0);
+/** The doline's skylight: a soft golden spot high over the jungle's broken roof, falling only on the
+ *  jungle under it (its cone and penumbra), casting real shadows there (the layout's `sun`). */
+const SKY_FROM = new THREE.Vector3(...CAVE_SUN.from);
+const SKY_AT = new THREE.Vector3(...CAVE_SUN.at);
 
 function CaveLights() {
   const gl = useThree((s) => s.gl);

@@ -4,6 +4,8 @@ import {
   ANVIL_FRONT,
   ANVIL_REACH,
   CAVE_ARRIVAL,
+  CAVE_WINCH,
+  WINCH_REACH,
   FORGE,
   FORGE_FRONT,
   FORGE_REACH,
@@ -150,6 +152,8 @@ export interface CavernsHost {
   market(): MarketState;
   setMarket(m: MarketState): void;
   travel(sessionId: string, map: MapId, at: { x: number; z: number }): void;
+  /** Set them down elsewhere on the map they are on (their own reports not believed for `holdMs`). */
+  place(sessionId: string, x: number, z: number, holdMs: number): void;
   /** Seat them on a chair (it is free: checked here), or stand them up (onto its exit anchor). */
   seat(sessionId: string, chairId: string): void;
   standUp(sessionId: string): void;
@@ -298,7 +302,20 @@ export class CavernsMine {
         if (node) this.startProspect(sessionId, player, node);
         return;
       }
+      case "winch":
+        return this.rideWinch(sessionId, player, prop.propId);
     }
+  }
+
+  /** Gus's winch lift: from its foot in the glimmer rift up the cliff to the coal breakdown's edge (a
+   *  step from the basecamp), or back down. */
+  private rideWinch(sessionId: string, player: CavePlayer, propId: string) {
+    if (player.map !== "glimmering_caverns" || player.sitting || player.action !== "") return;
+    const up = propId === "winch_bottom";
+    const from = up ? CAVE_WINCH.lower : CAVE_WINCH.upper;
+    if (Math.hypot(player.x - from.x, player.z - from.z) > WINCH_REACH + 0.6) return;
+    const to = up ? CAVE_WINCH.upper : CAVE_WINCH.lower;
+    this.host.place(sessionId, to.x, to.z, 600);
   }
 
   /** Old Flint the Badger by the woods' adit: the first time, his welcome (the lore), the Rusted

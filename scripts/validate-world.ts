@@ -31,15 +31,18 @@
 //     bleacher seats taken out of the seats nobody else may sit on; the trainee inside a collider, the
 //     fight night's crowd between the seats (never on one), Ref Barnaby's corner inside the ropes and
 //     his walk on the apron (between the ropes and its edge)
-//   - the Glimmering Caverns (the Grand Karst): the adit's mouth, Gus's workstation, the forge, the
-//     anvil and Finnegan's crate open and reachable, Gus, Finnegan and the islet's karst tower inside
-//     colliders; the doline's ramp at least 2.4 m wide and no steeper than 28 degrees, both its ends
-//     walked to; every ore node inside its own collider, its mining spot on its own floor (a doline
-//     node is never mined from the floor below) and in reach, reachable from the tunnel; each thermal
-//     seat's dry exit open and near it; the outcrop's spots in reach of their floats, every float out
-//     on the cenote's open water with 0.15 m or more of it over the bed; every spot inside the
-//     camera's bounds (+-21); and in the woods the adit's front open and reachable, Old Flint inside a
-//     collider with his spot in reach, and the arrival from the caverns open
+//   - the Glimmering Caverns (docs/caverns-design.md): the builder's terrain JSON in step with the
+//     layout; the adit's mouth, Gus's workstation, the forge, the anvil and Finnegan's front open and
+//     reachable, Gus, Finnegan and the Hound's Hand inside colliders; every step between walkable
+//     cells no steeper than STEEPEST_WALK (no stairs); each trail's ends walked to and at their
+//     heights, its tread no steeper than TRAIL_STEEPEST, the switchback from the basecamp's shelf to
+//     the overlook; every ore node inside its own collider, mined from its own floor and in reach,
+//     reachable from the adit; each thermal seat's dry exit open and near it; the winch's two stands
+//     open and in reach of its props; the stream's fords walked across; a cast onto open water from
+//     a dozen shore spots round the lake, never with the angler's back or side to it; the design's
+//     walking times from the arrival (each tier's nearest node, the whole loop with the winch); every
+//     spot inside the camera's bounds (+-21); and in the woods the adit's front open and reachable,
+//     Old Flint inside a collider with his spot in reach, and the arrival from the caverns open
 //   - every built world (the fast-travel grid's, and the penthouse) has seats or props
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, walkRegions, walkY, worldLimit } from "../shared/collision";
 import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES, MOCHI_WAYPOINTS } from "../shared/props";
@@ -82,7 +85,7 @@ import type { AABB } from "../shared/collision";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD, CAMPFIRE_LAYOUT } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
-import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope } from "../shared/worlds/caverns";
+import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVE_WINCH, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, HOUNDS_HAND, WINCH_REACH, WINCH_RIDE_S, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope } from "../shared/worlds/caverns";
 import { readFileSync, existsSync } from "node:fs";
 import { CAVERNS_TERRAIN_PATH, cavernsTerrainText } from "./caverns-terrain";
 import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../shared/worlds/forest";
@@ -593,7 +596,8 @@ for (const mapId of MAP_IDS) {
   if (!(REF_APRON > RING.rope + 0.1 && REF_APRON < RING.apron - 0.1)) fail(`${R}: Ref Barnaby's apron walk (${REF_APRON}) is not between the ropes (${RING.rope}) and the apron's edge (${RING.apron})`);
 }
 
-// --- the Glimmering Caverns (the Grand Karst) ---
+// --- the Glimmering Caverns (docs/caverns-design.md) ---
+const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)!.approach;
 {
   const C: MapId = "glimmering_caverns";
   const home = MAP_SPAWN_POINTS[C][0];
@@ -618,7 +622,7 @@ for (const mapId of MAP_IDS) {
   for (const [who, at] of [
     ["Gus", GUS],
     ["Finnegan", FINNEGAN],
-    ["the islet's karst tower", CAVERNS_LAYOUT.tower],
+    ["the Hound's Hand", HOUNDS_HAND],
   ] as const) {
     checks++;
     if (!isBlocked(at.x, at.z, C, 0.05)) fail(`${C}: ${who} stands on open floor ${fmt(at)}: give it a collider`);
@@ -646,9 +650,9 @@ for (const mapId of MAP_IDS) {
     checks++;
     if (steepest > STEEPEST_WALK + 0.05) fail(`${C}: the walkable floor at ${fmt(at)} is ${steepest.toFixed(1)} degrees (${STEEPEST_WALK} at most)`);
   }
-  // the meandering descent: from the doline down to the Limestone Overlook, and from it the two
-  // trails, one to the travertine terraces and one to the sandy shore; each trail's ends walked to
-  // from the tunnel, and each at the height it was laid out to (never a stair: the step check above)
+  // the trails across the cliffs (the rope descent, the switchback, the ramps to the rift and the
+  // lake, the pearl trail): each one's ends walked to from the adit, and each at the height it was
+  // laid out to (never a stair: the step check above)
   for (const t of CAVE_TRAILS) {
     const first = t.points[0];
     const last = t.points[t.points.length - 1];
@@ -684,11 +688,11 @@ for (const mapId of MAP_IDS) {
     checks++;
     if (worst > TRAIL_STEEPEST + 0.05) fail(`${C}: the ${t.id}'s tread at ${fmt(worstAt)} is ${worst.toFixed(1)} degrees (${TRAIL_STEEPEST} at most)`);
   }
-  const descent = CAVE_TRAILS.find((t) => t.id === "descent")!;
+  const descent = CAVE_TRAILS.find((t) => t.id === "switchback")!;
   const top = descent.points[0];
   const foot = descent.points[descent.points.length - 1];
   checks++;
-  if (Math.abs(top[2] - DOLINE.y) > 0.1 || foot[2] > OVERLOOK.y + 0.45 || foot[2] < OVERLOOK.y - 0.1) fail(`${C}: the descent runs from ${top[2]} to ${foot[2]}, not from the doline (${DOLINE.y}) to the overlook (${OVERLOOK.y})`);
+  if (Math.abs(top[2] - DOLINE.y) > 0.1 || foot[2] > OVERLOOK.y + 0.45 || foot[2] < OVERLOOK.y - 0.1) fail(`${C}: the switchback runs from ${top[2]} to ${foot[2]}, not from the basecamp's shelf (${DOLINE.y}) to the overlook (${OVERLOOK.y})`);
   // the overlook's plateau at its level, walked to from the tunnel
   const overlookAt = { x: 1.0, z: -6.0 };
   standable(C, home, overlookAt, "the Limestone Overlook");
@@ -708,6 +712,41 @@ for (const mapId of MAP_IDS) {
   for (const t of THERMAL_SEATS) {
     standable(C, home, t.exit, `thermal seat ${t.propId}'s exit`);
     near(`thermal seat ${t.propId}'s exit`, t.exit, t, THERMAL_REACH + 0.3);
+  }
+  // the winch lift: both its stands open, walked to, and in reach of its props
+  standable(C, home, CAVE_WINCH.upper, "the winch's upper stand");
+  standable(C, home, CAVE_WINCH.lower, "the winch's lower stand");
+  near("the winch's upper stand", CAVE_WINCH.upper, CAVE_WINCH.top, WINCH_REACH);
+  near("the winch's lower stand", CAVE_WINCH.lower, CAVE_WINCH.bottom, WINCH_REACH);
+  // the stream's fords: open and walked to (the stream itself is not)
+  for (const [x, z] of CAVERNS_LAYOUT.river.fords) standable(C, home, { x, z }, "a ford across the stream");
+  // the design's walking times (docs/caverns-design.md) at the game's 3 m/s, from the arrival: each
+  // tier's nearest node, and the whole loop (the jungle, the rope descent, the mudflats, the pearl
+  // trail, the south shore, the rift, then the winch back up)
+  {
+    const SPEED = 3;
+    const walkS = (from: Point, to: Point) => {
+      const path = findPath(C, from, to);
+      if (!path) return Infinity;
+      let d = 0;
+      let at = from;
+      for (const p of path) {
+        d += Math.hypot(p.x - at.x, p.z - at.z);
+        at = p;
+      }
+      return d / SPEED;
+    };
+    const TIER_S: Record<string, number> = { copper: 5, coal: 5, iron: 8, silver: 12, glimmer: 15 };
+    for (const [kind, limit] of Object.entries(TIER_S)) {
+      const s = Math.min(...ORE_NODES.filter((n) => n.kind === kind).map((n) => walkS(CAVE_ARRIVAL, n.approach)));
+      checks++;
+      if (s > limit) fail(`${C}: the nearest ${kind} node is ${s.toFixed(1)} s from the arrival (${limit} s at most)`);
+    }
+    const legs: Point[] = [CAVE_ARRIVAL, ORE_NODE_AT_ID("copper_3"), ORE_NODE_AT_ID("iron_4"), ORE_NODE_AT_ID("silver_1"), ORE_NODE_AT_ID("silver_5"), ORE_NODE_AT_ID("glimmer_4"), CAVE_WINCH.lower];
+    let loop = WINCH_RIDE_S + walkS(CAVE_WINCH.upper, CAVE_ARRIVAL);
+    for (let i = 0; i + 1 < legs.length; i++) loop += walkS(legs[i], legs[i + 1]);
+    checks++;
+    if (loop > 60) fail(`${C}: the loop round the zones takes ${loop.toFixed(1)} s (60 s at most)`);
   }
   // the cenote: deep enough, and fished from anywhere on its shore (shoreCast): round the lake, the
   // first walkable spot within SHORE_REACH of the water, walked to from the tunnel, casts out onto

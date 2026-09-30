@@ -76,7 +76,7 @@ export function FishLivewellModal({ profile, market, send, onClose, onOpenCollec
       <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1">
         {tab === "fish" &&
           (held === 0 ? (
-            <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Your livewell is empty. Cast from the campfire's dock, the canoe, the woods' river bank, or the cenote's driftwood outcrop.</p>
+            <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">Your livewell is empty. Cast from the campfire's dock, the canoe, the woods' river bank, or the caverns' lake shore.</p>
           ) : (
             <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {profile.creel.map((f, i) => (

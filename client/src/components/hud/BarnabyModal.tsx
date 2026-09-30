@@ -94,7 +94,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
         <div className="flex flex-col gap-1.5">
           {aura > 1 && <div className="rounded-xl bg-amber-300/15 px-2.5 py-1.5 text-xs text-amber-100">✨ Cozy Aura: the roaring campfire has {who} paying 15% more</div>}
           {profile.creel.length === 0 ? (
-            <p className="m-0 py-6 text-center text-sm opacity-70">{finnegan ? "Your livewell is empty. Cast into the cenote from the driftwood outcrop!" : "Your livewell is empty. Cast a line from the dock, the canoe, or the woods' river bank!"}</p>
+            <p className="m-0 py-6 text-center text-sm opacity-70">{finnegan ? "Your livewell is empty. Cast into the lake from anywhere on its shore!" : "Your livewell is empty. Cast a line from the dock, the canoe, or the woods' river bank!"}</p>
           ) : (
             profile.creel.map((f, i) => <FishCard key={i} fish={f} price={price(f)} mult={marketMultiplier(fishGood(f.s), hour)} onToggleLock={() => send(lockPacket(f, i))} onSell={() => shop({ type: "BARNABY", op: "sell", slot: i })} />)
           )}

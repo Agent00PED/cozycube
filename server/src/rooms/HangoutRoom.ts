@@ -762,6 +762,17 @@ export class HangoutRoom extends Room<HangoutState> {
         const player = this.state.players.get(sessionId);
         if (player) this.travel(sessionId, player, map, at);
       },
+      place: (sessionId, x, z, holdMs) => {
+        const player = this.state.players.get(sessionId);
+        if (!player) return;
+        player.x = x;
+        player.z = z;
+        player.dirX = 0;
+        player.dirZ = 0;
+        // their own reports (walked before the move reached them) are not believed for a moment
+        this.lastReportAt.delete(sessionId);
+        this.arrivedUntil.set(sessionId, Date.now() + holdMs);
+      },
       seat: (sessionId, chairId) => {
         const player = this.state.players.get(sessionId);
         const chair = this.state.chairs.get(chairId);
@@ -4465,8 +4476,8 @@ export class HangoutRoom extends Room<HangoutState> {
     }
 
     // the Glimmering Caverns (and the woods' way down): the adit, Old Flint, Gus, the forge, the
-    // anvil, the ore nodes
-    if (kind === "adit" || kind === "miner" || kind === "prospector" || kind === "forge" || kind === "anvil" || kind === "ore") {
+    // anvil, the ore nodes, the winch lift
+    if (kind === "adit" || kind === "miner" || kind === "prospector" || kind === "forge" || kind === "anvil" || kind === "ore" || kind === "winch") {
       this.caverns.useProp(sessionId, prop);
       return;
     }
