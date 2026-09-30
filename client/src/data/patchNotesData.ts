@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.13",
+    range: "v0.7.0–v0.7.20",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1240,6 +1240,21 @@ export const PATCH_ERAS: PatchEra[] = [
             "☁️ Living wonders roll through the caverns every so often. A Cave Cloud fills the cavern with mist while rare fish bite at the cenote. A Glimmer Bloom lights up the rift, and its glimmer yields more and grows back fast. A Rockfall crashes a heap of fresh ore into the Coal Breakdown for a crew to break together.",
             "🦇 Every dusk on the camp's clock, the Bat Exodus: a river of bats pours out of the mudflats' wall and up through the jungle's collapsed roof.",
             "📖 The Cave Codex, the expedition's field journal: stamp all eight zones, meet the cave's creatures, pick up the five cave pearls, find fossils in the rubble of broken nodes, collect Old Flint's six torn journal pages, and witness the wonders. Every entry pays coins, and every completed section pays a bonus. Open it from your ore satchel.",
+          ],
+        },
+      },
+      {
+        version: "0.7.20",
+        date: "2026-09-30",
+        title: "Lighter on Every Screen",
+        summary: "CozyCube runs lighter everywhere: every avatar is about half the weight with the same look, the caverns draw your see-through silhouette only when something actually hides you, and phones and tablets get a render profile of their own.",
+        changes: {
+          visuals: [
+            "🧸 Every avatar, outfit, hat and hairdo is slimmed to about half its triangles with the same look, and the avatar is less than half the download. Every map benefits.",
+            "✨ In the Glimmering Caverns your glowing see-through silhouette appears only while rock actually stands between you and the camera, so the cave draws less the rest of the time.",
+          ],
+          fixes: [
+            "📱 Phones and tablets get their own render profile: no extra edge smoothing on their already sharp screens, no real-time shadows in the Doline Jungle (its shade is painted in), and fewer little crystal lights in the caverns. Smoother frames and cooler phones.",
           ],
         },
       },

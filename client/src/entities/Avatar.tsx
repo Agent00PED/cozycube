@@ -8,6 +8,7 @@ import { CAVE_TRAILS, cavernsFloorY } from "@shared/worlds/caverns";
 import { activityPose, chiselBeat, forgeBeat, type Activity } from "./activityAnimations";
 import { activity, nowS, remoteBlows } from "../systems/activityStore";
 import { matte, noRaycast } from "../scene/kit";
+import { xrayGate } from "../scene/occlusion";
 import { ModelBoundary } from "./ModelBoundary";
 import { CasinoAura } from "./CasinoAura";
 import { capsuleTitle } from "@shared/casino";
@@ -458,9 +459,16 @@ function useRig(): Rig {
 /** The x-ray silhouette: each part of you drawn again in a warm flat glow, only where something is
  *  in front of it (depth "greater"), just before you are (render order 1 against your 2, the world's
  *  0), so it never shows through your own parts; pulled a touch toward the camera so the ground
- *  under your feet never lights it. One opaque pass: no sorting. */
+ *  under your feet never lights it. One opaque pass: no sorting. Where the world keeps an occlusion
+ *  index (scene/occlusion.ts `xrayGate`: the caverns), it is drawn only while something actually
+ *  stands between you and the camera: a second draw of every part saved the rest of the time. */
 const XRAY_MAT = new THREE.MeshBasicMaterial({ color: "#ffe2b0", depthWrite: false, depthFunc: THREE.GreaterDepth, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -60, toneMapped: false });
 function useXray(root: THREE.Object3D, on: boolean) {
+  const ghosts = useRef<THREE.Mesh[]>([]);
+  useFrame(() => {
+    const show = xrayGate.index ? xrayGate.occluded : true;
+    for (const g of ghosts.current) if (g.visible !== show) g.visible = show;
+  });
   useEffect(() => {
     if (!on) return;
     const made: { mesh: THREE.Mesh; ghost: THREE.Mesh; order: number }[] = [];
@@ -478,7 +486,9 @@ function useXray(root: THREE.Object3D, on: boolean) {
       m.mesh.renderOrder = 2;
       m.mesh.add(m.ghost);
     }
+    ghosts.current = made.map((m) => m.ghost);
     return () => {
+      ghosts.current = [];
       for (const m of made) {
         m.mesh.remove(m.ghost);
         m.mesh.renderOrder = m.order;

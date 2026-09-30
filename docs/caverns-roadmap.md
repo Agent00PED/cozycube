@@ -200,7 +200,21 @@ camp's dusk; Rockfall: a temporary crew node in the breakdown); the cave codex (
 fossils, Old Flint's journal pages) and a stamp for each zone discovered; the grotto behind the
 waterfall; later the raft to the islet and stream fishing.
 
-### Phase 7: tech
+### Phase 7: tech: built 2026-09-30
+
+| Step | Work | How |
+|---|---|---|
+| 7.1 | A lighter avatar | scripts/blender/build_avatar.py's web budget: every part decimated on export to at most its budget (the head 3,000 triangles, the torso 2,600, a hat, a hair or a top 3,000-3,200, a bottom 1,800, the rest 1,500; never below 30% of it), a collapse symmetric across the avatar's middle; the normals packed to 8 bits (KHR_mesh_quantization, `quantize_normals`): avatar.glb 12.1 MB to 5.1 MB, 745k to 369k triangles over every garment; five outfits rendered before and after in Blender the same, nothing poking through |
+| 7.2 | The x-ray only when hidden | client/src/scene/occlusion.ts: `OcclusionIndex` (the cave's rock, shell, trees and floor bucketed on a 1.5 m grid, a segment tested against only the triangles of the cells it crosses) and `xrayGate`; CavernsWorld's `XrayWatch` looks from your feet, chest and head toward the camera five times a second, and the avatar's silhouette (a second draw of every part) is drawn only while something is in the way; the other worlds as before |
+| 7.3 | The phone profile | client/src/systems/perfProfile.ts `perf`, decided once at startup: a handheld (a coarse pointer and no fine one) gets no multisampling on a screen of 2x or more, no shadow map (the doline sun's shade is the model's baked light) and two crystal lights instead of four; the pixel ratio never past 1.5 on any device; the surface detail's fine grain was already off on touch (caveSurface's `CAVE_FINE`) |
+| 7.4 | CavernsWorld.tsx by system | the model, the folk, the x-ray's gate and the winch stay in CavernsWorld.tsx (393 lines of 2,026); `caveMaterials.ts` (the shared uniforms, `bakedLight`, `heightMist`, the glow, the caustics, the water), `caveLight.tsx` (`CaveLights`, `YourLight`, the godrays, `MotePoints`, the dust), `caveOres.tsx` (the nodes, `ReadySparkles`, the effects' layer, the work), `caveLife.tsx` (the spray, the zone toasts, the steam, the float shadows, the forge's smoke, the drip), `caveWonders.tsx` (the hearth, the wonders' looks, the finds); every statement carried over unchanged (checked statement by statement) |
+| 7.5 | build_caverns.py by system and zone | scripts/blender/caverns/: `kit`, `scene`, `ground`, `walls`, `rims`, `waters`, `rocks`, `templates`, `pack`, and a module a zone (`zone_basecamp`, `zone_jungle`, `zone_breakdown`, `zone_mudflats`, `zone_terraces`, `zone_lake`, `zone_rift`, `zone_overlook`); build_caverns.py keeps the world's order (`build_world`), the export and `main`, and imports the package afresh on every run (the Live Bridge's Blender keeps modules); the rebuilt caverns.glb byte for byte the builder's own (it already fluttered by one step in two of the copper rock's colour values from run to run) |
+
+Measured: at the overlook's phase 6 view 104 to 72 draw calls and 271k to 148k triangles (the
+avatar and the x-ray); a phone at the basecamp 74 draw calls, 152k triangles, five point lights, no
+shadow map, no multisampling.
+
+The original brief:
 
 Split `build_caverns.py` and `CavernsWorld.tsx` into per-zone and per-system modules; a lighter avatar
 (every map benefits); the performance pass on phones.

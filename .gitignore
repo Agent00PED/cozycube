@@ -21,3 +21,6 @@ dist/
 /models/
 *.blend
 *.blend1
+
+# Python bytecode (the Blender builders' packages, e.g. scripts/blender/caverns/)
+__pycache__/

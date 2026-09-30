@@ -3,7 +3,7 @@ import { cavernsFloorY } from "@shared/worlds/caverns";
 import { noRaycast } from "./kit";
 
 // The Glimmering Caverns' little pieces (docs/caverns-roadmap.md phase 3), one pool of each for the
-// whole cave (caveFx(): made on first use, drawn and stepped by CaveFxLayer in CavernsWorld):
+// whole cave (caveFx(): made on first use, drawn and stepped by CaveFxLayer in caveOres.tsx):
 //
 //   FxPool     glowing sparks thrown as streaks along their flight, the shards off a shattered node,
 //              rock chips tumbling off a blow (each bouncing on the floor where it falls: the cave's

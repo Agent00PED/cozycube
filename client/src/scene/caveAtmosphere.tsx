@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { CAVERNS_LAYOUT as L, CAVE_WATER_Y, TERRAIN_CELL, TERRAIN_N, cavernsFloorY } from "@shared/worlds/caverns";
 import { cameraFocus } from "./cameraFocus";
 import { noRaycast } from "./kit";
+import { perf } from "../systems/perfProfile";
 
 // The Glimmering Caverns' atmosphere, client-only (every mesh here is left out of the pointer: a click
 // only ever lands on the floor, caverns_walk_collider):
@@ -21,7 +22,8 @@ import { noRaycast } from "./kit";
 export const CLOUD = { value: 0 };
 export const BLOOM = { value: 0 };
 
-const CRYSTAL_LIGHTS = 4;
+// (two on a phone: every light is paid for by every lit pixel, systems/perfProfile.ts)
+const CRYSTAL_LIGHTS = perf.crystalLights;
 const CRYSTAL_REACH = 2.1;
 const CYAN = new THREE.Color("#00f5d4");
 const VIOLET = new THREE.Color("#7b2cbf");

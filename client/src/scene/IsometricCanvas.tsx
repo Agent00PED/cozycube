@@ -9,6 +9,7 @@ import { combatInput } from "../systems/combatInput";
 import { actionCam, actionEase, actionPose, stepActionBlend } from "./actionCamera";
 import { closeUpOn, prospectEase, prospectPose, stepProspectBlend } from "./prospectCamera";
 import { cavernCam, cavernEase, cavernPose, cavernZoomBy, stepCavernBlend } from "./cavernsCamera";
+import { perf } from "../systems/perfProfile";
 
 // The isometric camera. Orthographic, looking along (1, 1, 1), with its zoom fitted to the world's
 // floor (the lounge's 15x15 loft, walls and slab fill the viewport), then nudged a little closer.
@@ -82,8 +83,8 @@ const SCREEN_DOWN = new THREE.Vector2(Math.SQRT1_2, Math.SQRT1_2).multiplyScalar
 const frameLerp = (factor: number, delta: number) => 1 - Math.pow(1 - factor, delta * 60);
 
 // Discord's webview reports the device pixel ratio of a Retina laptop or a phone (2-3), and 3x is
-// 9x the fill of 1x. r3f treats a [min, max] dpr as a range it may adapt within.
-const DPR_RANGE: [number, number] = [1, Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio, 1.5)];
+// 9x the fill of 1x. r3f treats a [min, max] dpr as a range it may adapt within (systems/perfProfile.ts:
+// never past 1.5, and no multisampling on a phone's dense screen).
 
 export function IsometricCanvas({ children }: { children: React.ReactNode }) {
   const [glLost, setGlLost] = useState(false);
@@ -95,9 +96,9 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
         frameloop={down ? "never" : "always"}
         orthographic
         shadows={false}
-        dpr={DPR_RANGE}
+        dpr={perf.dpr}
         camera={{ position: [ISO_DIR.x, ISO_DIR.y, ISO_DIR.z], zoom: 30, near: 0.1, far: 200 }}
-        gl={{ antialias: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false }}
+        gl={{ antialias: perf.antialias, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false }}
         onCreated={(state) => {
           const { gl } = state;
           // dev builds only: expose the r3f state to the console for draw-call and camera checks
