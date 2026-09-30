@@ -74,14 +74,14 @@ together.
   (Finnegan) and to the rift; the winch both ways.
 - **Walking times** at the game's 3 m/s, from the arrival, checked by `npm run check-layout`:
 
-| To | Target | Blockout |
+| To | Target | Now |
 |---|---|---|
-| nearest copper | 5 s | 3.9 s |
+| nearest copper | 5 s | 4.0 s |
 | nearest coal | 5 s | 4.0 s |
-| nearest iron | 8 s | 6.7 s |
-| nearest silver | 12 s | 10.7 s |
+| nearest iron | 8 s | 6.8 s |
+| nearest silver | 12 s | 10.9 s |
 | nearest glimmer | 15 s | 8.9 s |
-| the whole loop, winch included | 60 s | 41.8 s |
+| the whole loop, winch included | 60 s | 41.9 s |
 
 ## Build phases
 
@@ -98,8 +98,16 @@ widest (16 m) zoom, `npm run check-layout`, and the draw-call count.
    crystals over the rift); rimstone lips round the pools; the rope descent's stakes and rope, stones
    lining the trails and cairns at their ends; the stream white where it falls; low rock along the
    open south and east edges and the lake's outflow falling over the rim.
-3. **Zone art**, one zone per step: jungle and basecamp, breakdown, mudflats, terraces, lake and islet,
-   rift.
+3. **Zone art** (done 2026-09-30): each zone's ground painted over its flat colour (the jungle's moss
+   and leaf litter, the basecamp's trodden ways, the breakdown's gravel and dust, the overlook's slab
+   joints, the terraces' rimstone ripples, the rift's glints); the jungle's tall thin trees (dithered
+   in front of you), ferns and vines down the collapse's walls; the basecamp's barrels, crates,
+   bedroll, survey board and lantern posts at the switchback's head and the forge's corner; the
+   breakdown's fallen slabs with coal in their beds and gravel; the mudflats' dried plates cracked
+   apart (Voronoi) and ochre puddles, the stream rust-red across them; cave pearls in dry basins on
+   the terraces' apron; reeds and pebbles at the lake's waterline, emerald shallows, the islet's crag;
+   the rift's basalt stubs, fungi and glowworms up the crystal wall; the Hound's Hand's crown in lobes
+   and the overlook's stalagmites.
 4. **The six ore models.**
 5. **Light and mist per zone, animals, sound**; the zone-name toast (`cavernsZoneAt`).
 6. **Cleanup**: CLAUDE.md, the patch note, `check-layout`, the build.

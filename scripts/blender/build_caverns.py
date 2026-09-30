@@ -44,6 +44,16 @@ The world, one function each:
                              cliffs, a cairn at each trail's end
     build_rim                low broken rock along the open south and east edges, the lake's outflow
                              falling over the rim
+    phase 3, each zone's own (zone_ground paints each zone's ground over its flat colour):
+    build_jungle             the Garden of Edam's tall thin trees (dithered), ferns, vines down the
+                             collapse's walls
+    build_basecamp_gear      the barrels, the crate stack, the bedroll, the survey board, lantern posts
+    build_breakdown          fallen tabular slabs with coal in their beds, gravel
+    build_mudflats           the mud's dried plates cracked apart, ochre puddles
+    build_pearl_basins       dry rimstone basins with cave pearls on the terraces' apron
+    build_lake_shore         reeds and pebbles at the waterline, the islet's crag
+    build_rift_decor         basalt stubs, fungi, glowworms up the crystal wall
+    build_overlook           the Hound's Hand (its crown in lobes, a paw) and the plateau's stalagmites
     build_camp               Gus's Expedition Basecamp
     build_forge_alcove       the Basalt Crucible Forge, the flagstones, the Geode Anvil, the chisel
                              rack and the tool crate (carried over exactly as they were built)
@@ -62,7 +72,8 @@ One mesh per finish:
     Cave_Rock              CV_Clay          every rock, the camp, the forge, the adit, the winch, the
                                             causeway's stones
     Cave_Shell             CV_Shell         the north and west walls; double sided
-    Cave_Roots             CV_Occluder      the Hound's Hand (dithered in front of the camera)
+    Cave_Roots             CV_Occluder      the Hound's Hand and the jungle's trees (dithered in front of
+                                            the camera)
     Cave_Glow              CV_Glow          crystals, fungi, lanterns, the forge's fire and runes
     Cave_Water             CV_Water         the lake, the stream, the plunge pool, the falls, the
                                             quench trough
@@ -227,6 +238,32 @@ C = {
     "groundPool": "#6FA89E",
     "bedDeep": "#0B2A34",
     "foam": "#E6FAF6",
+    # phase 3: each zone's own ground, plants and gear
+    "mossLight": "#6E9A45",
+    "leafLitter": "#8A6A3A",
+    "soilDark": "#3A3A2A",
+    "campTrodden": "#A58D68",
+    "campSoil": "#6E5C44",
+    "gravelLight": "#9A9DA3",
+    "gravelDark": "#5E6168",
+    "mudCrack": "#5E3420",
+    "mudPlate": "#A8653C",
+    "mudPlateLight": "#BC7A4A",
+    "mudWater": "#8A4A2A",
+    "riftGlint": "#3A3050",
+    "lakeShallow": "#46C9A4",
+    "lakeMid": "#1E9A94",
+    "trunk": "#6E6052",
+    "trunkDark": "#4E4238",
+    "canopy": "#3E7A34",
+    "canopyLight": "#6AA43E",
+    "vine": "#4A7A30",
+    "vineLeaf": "#7AB04A",
+    "pearl": "#F4F0E4",
+    "glowworm": "#9FFFE8",
+    "barrel": "#7A5536",
+    "bedroll": "#8C3A2E",
+    "mapPaper": "#E8D8A8",
     "cliffRock": "#3E3B42",
     "mudRock": "#A8653C",
     "mudRockDark": "#6E3F26",
@@ -1010,6 +1047,47 @@ def trail_zones(G):
     return zone
 
 
+def zone_ground(L, s, x, y, z, base):
+    """Each zone's ground detail over its flat colour: the jungle's moss and leaf litter, the basecamp's
+    trodden ways, the breakdown's gravel and dust, the mudflats' dark cracks (the plates lie on them),
+    the overlook's slab joints, the terraces' rimstone ripples, the rift's faint glints."""
+    n1 = fbm(x * 0.35, 0.3, z * 0.35, 11)
+    n2 = fbm(x * 0.8, 1.7, z * 0.8, 13)
+    c = base
+    if s == SURF["jungle"]:
+        c = mixc(c, "mossLight", smooth(0.1, 0.55, n1) * 0.7)
+        c = mixc(c, "mossDeep", smooth(0.2, 0.6, -n1) * 0.5)
+        c = mixc(c, "leafLitter", smooth(0.25, 0.6, n2) * 0.55)
+        Rv = L["river"]
+        wet = min(polyline_distance(x, z, Rv["segments"][0]), math.hypot(x - Rv["plunge"]["x"], z - Rv["plunge"]["z"]) - Rv["plunge"]["r"])
+        c = mixc(c, "soilDark", smooth(1.6, 0.3, wet) * 0.6)
+    elif s == SURF["basecamp"]:
+        ways = [((0.0, -21.2), (0.0, -18.0)), ((0.0, -18.0), (-4.7, -14.8)), ((0.0, -18.0), (6.8, -19.6)), ((0.0, -18.0), (-3.0, -14.0))]
+        d = min(polyline_distance(x, z, [a, b]) for a, b in ways)
+        c = mixc(c, "campSoil", smooth(0.2, 0.6, n2) * 0.45)
+        c = mixc(c, "campTrodden", smooth(1.6, 0.4, d) * 0.7)
+    elif s == SURF["breakdown"]:
+        c = mixc(c, "gravelDark", smooth(0.15, 0.55, n2) * 0.5)
+        c = mixc(c, "gravelLight", smooth(0.2, 0.6, -n2) * 0.45)
+        c = mixc(c, "groundOverlook", smooth(0.3, 0.7, n1) * 0.3)
+    elif s == SURF["mudflats"]:
+        c = mixc("mudCrack", "groundMud", 0.3 + 0.3 * (0.5 + 0.5 * n1))
+    elif s == SURF["overlook"]:
+        joint = smooth(0.05, 0.0, abs(fbm(x * 0.55 + 3.1, 2.0, z * 0.55, 23)))
+        c = mixc(c, "floorSeam", joint * 0.6)
+        Tw = L["tower"]
+        c = mixc(c, "flowstone", smooth(3.2, 1.2, math.hypot(x - Tw["x"], z - Tw["z"])) * 0.5)
+        c = mixc(c, "limestoneLight", smooth(0.2, 0.6, n1) * 0.25)
+    elif s == SURF["travertine"]:
+        ripple = 0.5 + 0.5 * math.sin((x * 0.6 + z) * 5.2 + 3.0 * n1)
+        c = mixc(c, "travRockDark", ripple * 0.28)
+    elif s == SURF["rift"]:
+        c = mixc(c, "riftGlint", smooth(0.2, 0.6, n2) * 0.6)
+    elif s == SURF["shore"]:
+        c = mixc(c, "sedimentDry", smooth(0.2, 0.6, n1) * 0.35)
+    return c
+
+
 def terrain_colour(L, G, i, k, wd, trail_zone=None):
     """A floor vertex's colour: its zone's ground (a little mottled), the lake's bed by its depth, the
     shore wet where the water laps, and darker the steeper it stands (the cliffs read as cliffs)."""
@@ -1030,6 +1108,7 @@ def terrain_colour(L, G, i, k, wd, trail_zone=None):
         base = lin(C[SURF_COLOUR.get(s, "groundShore")])
     k1 = 0.92 + 0.14 * (0.5 + 0.5 * fbm(x * 0.45, 0.3, z * 0.45, 11))
     c = (base[0] * k1, base[1] * k1, base[2] * k1)
+    c = zone_ground(L, s, x, y, z, c)
     if s == SURF["shore"]:
         c = mixc(c, "sedimentWet", smooth(0.9, 0.0, wd) * 0.8)
     i0, i1 = max(0, i - 1), min(n - 1, i + 1)
@@ -1869,6 +1948,409 @@ def build_rim(G, L, rock, water, rng):
 
 
 # ---------------------------------------------------------------------------------------------
+# phase 3: each zone's own ground, plants and gear (docs/caverns-design.md): the Doline Jungle's tall
+# trees, ferns and vines; the basecamp's gear; the breakdown's fallen slabs and gravel; the mudflats'
+# cracked plates and ochre puddles; the terraces' cave pearls; the lake's crag, reeds and pebbles; the
+# rift's basalt stubs, glowworms and fungi; the overlook's stalagmites
+
+
+def free_spot(G, L, x, z, clear=1.0):
+    """Whether (x, z) is open walkable ground clear of the nodes, the trails, the stream and the
+    props (for walked-through dressing that must never sit on anything)."""
+    if not G.walk(x, z):
+        return False
+    for nd in L["nodes"]:
+        if math.hypot(x - nd["x"], z - nd["z"]) < clear + 0.6:
+            return False
+    for p in L["paths"]:
+        if near_polyline(x, z, p["points"]) < p["half"] + 0.3:
+            return False
+    Rv = L["river"]
+    if any(near_polyline(x, z, seg) < Rv["half"] + 0.4 for seg in Rv["segments"]):
+        return False
+    for tx, tz, *_ in L["trees"] + L["slabs"] + L["stubs"] + L["boulders"]:
+        if math.hypot(x - tx, z - tz) < clear:
+            return False
+    return True
+
+
+def jungle_tree(roots, G, x, z, h, lean, rng):
+    """A tree of the Garden of Edam: a tall, narrow trunk reaching for the light, flared roots at its
+    foot, a small crown up where the sun falls."""
+    y = G.y(x, z)
+    lx, lz = math.cos(lean) * 0.35, math.sin(lean) * 0.35
+    pts = [(x, y - 0.3, z), (x + lx * 0.3, y + h * 0.35, z + lz * 0.3), (x + lx * 0.7, y + h * 0.7, z + lz * 0.7), (x + lx, y + h, z + lz)]
+    for (a, ra), (b, rb) in zip(zip(pts, (0.24, 0.19, 0.15, 0.12)), zip(pts[1:], (0.19, 0.15, 0.12, 0.08))):
+        cyl(roots, a, b, ra, "trunk", sides=7, r_end=rb)
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + lean
+        cyl(roots, (x + math.cos(a) * 0.55, y - 0.05, z + math.sin(a) * 0.55), (x, y + 0.7, z), 0.07, "trunkDark", sides=4, r_end=0.02)
+    tx, ty, tz = pts[-1]
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + lean
+        s = 0.9 + 0.5 * rng.random()
+        blob(roots, tx + math.cos(a) * 0.45, ty - 0.1 + 0.25 * k, tz + math.sin(a) * 0.45, s, s * 0.45, s, "canopy" if k % 2 else "canopyLight", cuts=1, noise=0.25, seed=k + int(x * 7))
+    # (a branch or two out of the trunk's upper third)
+    for k in range(2):
+        a = lean + 2.2 * (k + 0.5)
+        by = y + h * (0.62 + 0.12 * k)
+        cyl(roots, (x + lx * 0.6, by, z + lz * 0.6), (x + math.cos(a) * 1.0, by + 0.8, z + math.sin(a) * 1.0), 0.05, "trunk", sides=4, r_end=0.03)
+        blob(roots, x + math.cos(a) * 1.05, by + 0.9, z + math.sin(a) * 1.05, 0.55, 0.25, 0.55, "canopyLight", cuts=1, noise=0.2, seed=k)
+
+
+def vine(rock, x0, y0, z0, out, length, rng):
+    """A vine hanging down the wall from the collapse's lip: a thin stem zig-zagging down, leaves
+    along it (both faces, seen from wherever)."""
+    ox, oz = out
+    px, py, pz = x0, y0, z0
+    segs = max(3, int(length / 0.45))
+    for j in range(segs):
+        nx_ = px + (rng.random() - 0.5) * 0.25
+        nz_ = pz + (rng.random() - 0.5) * 0.25
+        ny = py - length / segs
+        w = 0.035
+        q = [rock.v(px - oz * w, py, pz + ox * w), rock.v(px + oz * w, py, pz - ox * w), rock.v(nx_ + oz * w, ny, nz_ - ox * w), rock.v(nx_ - oz * w, ny, nz_ + ox * w)]
+        rock.face(q, "vine")
+        rock.face([rock.v(*game_point(v.co)) for v in reversed(q)], "vine")
+        if j % 2 == 0:
+            s = 0.12 + 0.08 * rng.random()
+            side = 1 if (j // 2) % 2 else -1
+            lf = [rock.v(px, py - 0.05, pz), rock.v(px + ox * s * 0.6 - oz * s * side, py - s * 0.5, pz + oz * s * 0.6 + ox * s * side), rock.v(px + ox * s * 0.2, py - s, pz + oz * s * 0.2)]
+            rock.face(lf, "vineLeaf")
+            rock.face([rock.v(*game_point(v.co)) for v in reversed(lf)], "vineLeaf")
+        px, py, pz = nx_, ny, nz_
+
+
+def build_jungle(G, L, rock, roots, rng):
+    for x, z, h, lean in L["trees"]:
+        jungle_tree(roots, G, x, z, h, lean, rng)
+    # ferns: round the trees, the boulders and the rocks, along the stream's banks, at the walls' feet
+    made = 0
+    for _ in range(420):
+        if made >= 46:
+            break
+        x, z = -21.4 + rng.random() * 12.0, -21.4 + rng.random() * 8.9
+        if G.surf(x, z) != SURF["jungle"] or not free_spot(G, L, x, z, clear=0.9):
+            continue
+        near = min([math.hypot(x - a, z - b) for a, b, *_ in L["trees"] + L["boulders"]] + [22.5 + x, 22.5 + z, polyline_distance(x, z, L["river"]["segments"][0]) + 0.2])
+        if near > 1.6 and rng.random() < 0.7:
+            continue
+        fern(rock, x, G.y(x, z), z, 0.3 + 0.18 * rng.random(), rng)
+        made += 1
+    GEO_STATS["ferns"] = made
+    # vines down the walls from the collapse's lip (the north wall over the jungle, the west wall's)
+    for k in range(9):
+        u = -21.0 + k * 1.3 + rng.random() * 0.4
+        top = wall_point(G, L, "x", u, 1.0, [])[0]
+        vine(rock, u, top[1] - 0.2, top[2] + 0.5, (0.0, 1.0), 2.5 + 2.5 * rng.random(), rng)
+    for k in range(6):
+        u = -21.0 + k * 1.4 + rng.random() * 0.4
+        top = wall_point(G, L, "z", u, 1.0, [])[0]
+        vine(rock, top[0] + 0.5, top[1] - 0.2, u, (1.0, 0.0), 2.5 + 2.5 * rng.random(), rng)
+
+
+def build_basecamp_gear(G, L, rock, glow, rng):
+    for x, z, kind, yaw in L["campProps"]:
+        y = G.y(x, z)
+        c, s = math.cos(yaw), math.sin(yaw)
+        if kind == "barrels":
+            for dx, dz, h in ((-0.3, 0.0, 0.75), (0.32, 0.1, 0.7), (0.0, -0.35, 0.8)):
+                bx, bz = x + dx * c - dz * s, z + dx * s + dz * c
+                lathe(rock, bx, bz, [(0, 0), (0.24, 0.0), (0.28, h * 0.5), (0.24, h), (0, h)], "barrel", segs=9, y0=y - 0.02)
+                for hy in (0.15, h - 0.15):
+                    cyl(rock, (bx, y + hy - 0.02, bz), (bx, y + hy + 0.02, bz), 0.27, "iron", sides=9)
+        elif kind == "crates":
+            for dx, dz, dy, w in ((-0.3, 0.0, 0.0, 0.55), (0.32, 0.05, 0.0, 0.5), (0.0, 0.0, 0.5, 0.48)):
+                bx, bz = x + dx, z + dz
+                box(rock, bx - w / 2, bx + w / 2, y + dy - 0.02, y + dy + w * 0.9, bz - w / 2, bz + w / 2, "timber", top="plank")
+            # (a pickaxe and a shovel leaning on them)
+            cyl(rock, (x + 0.7, y, z + 0.3), (x + 0.45, y + 1.0, z + 0.1), 0.025, "timber", sides=4)
+            box(rock, x + 0.3, x + 0.62, y + 0.95, y + 1.02, z + 0.06, z + 0.14, "steel")
+            cyl(rock, (x - 0.75, y, z + 0.3), (x - 0.5, y + 1.05, z + 0.1), 0.022, "timberDark", sides=4)
+        elif kind == "bedroll":
+            cyl(rock, (x - 0.8 * c, y + 0.1, z - 0.8 * s), (x + 0.8 * c, y + 0.1, z + 0.8 * s), 0.13, "bedroll", sides=7)
+            blob(rock, x + 0.95 * c, y + 0.1, z + 0.95 * s, 0.22, 0.09, 0.16, "canvas", cuts=1)
+        elif kind == "board":
+            # the survey board: the expedition's map of the caverns on an easel
+            for dx in (-0.4, 0.4):
+                cyl(rock, (x + dx * c, y - 0.05, z + dx * s), (x + dx * c * 0.8, y + 1.5, z + dx * s * 0.8), 0.03, "timberDark", sides=4)
+            cyl(rock, (x, y - 0.05, z - 0.4), (x, y + 1.3, z), 0.025, "timber", sides=4)
+            q = [rock.v(x - 0.45 * c, y + 0.75, z - 0.45 * s), rock.v(x + 0.45 * c, y + 0.75, z + 0.45 * s), rock.v(x + 0.42 * c, y + 1.45, z + 0.42 * s), rock.v(x - 0.42 * c, y + 1.45, z - 0.42 * s)]
+            rock.facing(q, "mapPaper", (-s, 0.2, c))
+            rock.facing([rock.v(*game_point(p.co)) for p in reversed(q)], "timber", (s, -0.2, -c))
+        elif kind == "post":
+            cyl(rock, (x, y - 0.1, z), (x, y + 2.1, z), 0.07, "timberDark", sides=6)
+            cyl(rock, (x, y + 2.0, z), (x + 0.45, y + 2.0, z), 0.04, "timber", sides=4)
+            lantern(rock, glow, x + 0.42, y + 1.98, z, hang=0.2)
+
+
+def broken_slab(M, c, rot, hx, hy, hz, rng):
+    """A tabular block broken off the roof: the hull of a box's corners knocked about and points
+    along its edges pushed in and out, so its sides are fractures, never sawn faces."""
+    bm = M.bm
+    for v in bm.verts:
+        v.tag = True
+    pts = []
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            for sz in (-1, 1):
+                k = 0.7 + 0.35 * rng.random()
+                ox, oy, oz = rot(sx * hx * k, sy * hy * (0.8 + 0.3 * rng.random()), sz * hz * (0.7 + 0.35 * rng.random()))
+                pts.append(bm.verts.new(W(c[0] + ox, c[1] + oy, c[2] + oz)))
+    for _ in range(10):
+        a = rng.random() * 2 * math.pi
+        sy = 1 if rng.random() < 0.5 else -1
+        k = 0.85 + 0.3 * rng.random()
+        ox, oy, oz = rot(math.cos(a) * hx * k, sy * hy * (0.7 + 0.3 * rng.random()), math.sin(a) * hz * k)
+        pts.append(bm.verts.new(W(c[0] + ox, c[1] + oy, c[2] + oz)))
+    hull = bmesh.ops.convex_hull(bm, input=pts)
+    bm.verts.index_update()
+    junk = list({g.index: g for g in hull["geom_interior"] + hull["geom_unused"] if isinstance(g, bmesh.types.BMVert)}.values())
+    if junk:
+        bmesh.ops.delete(bm, geom=junk, context="VERTS")
+    for f in [f for f in bm.faces if any(not v.tag for v in f.verts)]:
+        f.normal_update()
+        M.setf(f, "limestoneLight" if f.normal.z > 0.6 else ("limestone" if f.normal.z > -0.2 else "limestoneDark"))
+    for v in bm.verts:
+        v.tag = False
+
+
+def build_breakdown(G, L, rock, rng):
+    """The collapse's debris: great tabular slabs fallen and tilted, black coal bands in their beds;
+    gravel strewn over the floor."""
+    for x, z, r, yaw in L["slabs"]:
+        y = G.y(x, z)
+        rot = turned(yaw, roll=0.12 + 0.15 * rng.random(), pitch=0.18 * (rng.random() - 0.5))
+        broken_slab(rock, (x, y + r * 0.35, z), rot, r * 1.1, r * 0.42, r * 0.8, rng)
+        # its bedding: a band of coal through the slab's side
+        hullbox(rock, (x, y + r * 0.3, z), rot, r * 0.98, r * 0.07, r * 0.7, "coalChunk", "coalChunk")
+        angular(rock, x + math.cos(yaw + 1.6) * r * 1.1, G.y(x, z), z + math.sin(yaw + 1.6) * r * 1.1, r * 0.35, r * 0.3, rng, "limestoneLight", "limestone", sink=0.1, npts=9)
+    made = 0
+    for _ in range(600):
+        if made >= 70:
+            break
+        x, z = 9.4 + rng.random() * 12.2, -21.4 + rng.random() * 8.8
+        if G.surf(x, z) != SURF["breakdown"] or not free_spot(G, L, x, z, clear=0.8):
+            continue
+        s = 0.07 + 0.1 * rng.random()
+        angular(rock, x, G.y(x, z), z, s, s * 0.8, rng, "gravelLight" if rng.random() < 0.5 else "limestone", "gravelDark", sink=0.04, npts=6)
+        made += 1
+    GEO_STATS["gravel"] = made
+
+
+def clip_half(poly, mx, mz, nx, nz):
+    """The part of a convex polygon on the near side of the line through (mx, mz) normal (nx, nz)."""
+    out = []
+    for k in range(len(poly)):
+        a, b = poly[k], poly[(k + 1) % len(poly)]
+        da = (a[0] - mx) * nx + (a[1] - mz) * nz
+        db = (b[0] - mx) * nx + (b[1] - mz) * nz
+        if da <= 0:
+            out.append(a)
+        if (da <= 0) != (db <= 0):
+            t = da / (da - db)
+            out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
+    return out
+
+
+def build_mudflats(G, L, rock, water, rng):
+    """The Passchendaele's mud: dried plates cracked apart over the flats (Voronoi cells, each a little
+    domed, a dark crack round it; walked over), wet and unbroken along the stream and in the hollows;
+    ochre puddles here and there."""
+    step = 0.62
+    seeds = []
+    z = -12.1
+    while z < 1.5:
+        x = -21.7
+        while x < -6.5:
+            seeds.append((x + (rng.random() - 0.5) * 0.52, z + (rng.random() - 0.5) * 0.52))
+            x += step
+        z += step
+    cols = {}
+    for sx, sz in seeds:
+        cols.setdefault((int(sx // 1.3), int(sz // 1.3)), []).append((sx, sz))
+    made = 0
+    for sx, sz in seeds:
+        if G.surf(sx, sz) != SURF["mudflats"] or not free_spot(G, L, sx, sz, clear=0.7):
+            continue
+        if near_polyline(sx, sz, L["river"]["segments"][0]) < 1.5 or fbm(sx * 0.4, 0.5, sz * 0.4, 83) > 0.38:
+            continue
+        cell = [(sx - 0.6, sz - 0.6), (sx + 0.6, sz - 0.6), (sx + 0.6, sz + 0.6), (sx - 0.6, sz + 0.6)]
+        ci, ck = int(sx // 1.3), int(sz // 1.3)
+        for di in (-1, 0, 1):
+            for dk in (-1, 0, 1):
+                for ox, oz in cols.get((ci + di, ck + dk), []):
+                    if (ox, oz) == (sx, sz) or math.hypot(ox - sx, oz - sz) > 1.3:
+                        continue
+                    cell = clip_half(cell, (sx + ox) / 2, (sz + oz) / 2, ox - sx, oz - sz)
+        if len(cell) < 3:
+            continue
+        cx = sum(p[0] for p in cell) / len(cell)
+        cz = sum(p[1] for p in cell) / len(cell)
+        ring = []
+        for px, pz in cell:
+            d = math.hypot(px - cx, pz - cz) or 1.0
+            k = max(0.0, 1 - 0.055 / d)
+            ring.append((cx + (px - cx) * k, cz + (pz - cz) * k))
+        tone = rng.random()
+        colr = mixc(mixc("groundMud", "mudPlate", 0.4 + 0.4 * tone), "mudPlateLight", 0.3 * smooth(0.6, 1.0, tone))
+        centre = rock.v(cx, G.y(cx, cz) + 0.04, cz)
+        vs = [rock.v(px, G.y(px, pz) + 0.015, pz) for px, pz in ring]
+        for a_, b_ in zip(vs, vs[1:] + vs[:1]):
+            rock.facing((centre, a_, b_), colr, (0.0, 1.0, 0.0))
+        made += 1
+    GEO_STATS["mudPlates"] = made
+    # ochre puddles in the hollows
+    for px, pz, r in ((-19.8, -6.4, 0.7), (-12.4, -11.2, 0.55), (-15.0, 0.4, 0.6), (-9.8, -8.8, 0.5)):
+        if not G.walk(px, pz):
+            continue
+        py = G.y(px, pz) + 0.03
+        fan(water, (px, pz), [(px + math.cos(-a) * r * (1 + 0.2 * math.sin(3 * a)), pz + math.sin(-a) * r * (1 + 0.2 * math.sin(3 * a))) for a in (2 * math.pi * j / 12 for j in range(12))], py, "mudWater")
+
+
+def build_pearl_basins(G, L, rock, rng):
+    """Dry rimstone basins on the terraces' apron, cave pearls in them (after Son Doong's): a little
+    lip of travertine, the pearls polished white inside (walked past, never over)."""
+    for x, z, r in L["pearls"]:
+        y = G.y(x, z)
+        rings = []
+        for rr, dy, colr in ((r * 0.75, -0.03, "travRockDark"), (r, 0.07, "travRock"), (r * 1.25, 0.0, "travRockDark")):
+            ring = []
+            for j in range(14):
+                a = 2 * math.pi * j / 14
+                w = 1 + 0.1 * math.sin(3 * a + x)
+                px, pz = x + math.cos(a) * rr * w, z + math.sin(a) * rr * w
+                v = rock.v(px, G.y(px, pz) + dy, pz)
+                rock.setv(v, colr)
+                ring.append(v)
+            rings.append(ring)
+        c = rock.v(x, y - 0.03, z)
+        rock.setv(c, "travRockDark")
+        for a_, b_ in zip(rings[0], rings[0][1:] + rings[0][:1]):
+            rock.setsmooth(rock.facing((c, a_, b_), "travRockDark", (0.0, 1.0, 0.0)))
+        for r0, r1 in zip(rings, rings[1:]):
+            for j in range(14):
+                j1 = (j + 1) % 14
+                rock.setsmooth(rock.facing((r0[j], r0[j1], r1[j1], r1[j]), "travRock", (0.0, 1.0, 0.0)))
+        for k in range(5 + int(rng.random() * 4)):
+            a = rng.random() * 6.283
+            d = r * 0.5 * rng.random()
+            s = 0.045 + 0.035 * rng.random()
+            blob(rock, x + math.cos(a) * d, y + s * 0.6, z + math.sin(a) * d, s, s, s, "pearl", cuts=1)
+
+
+def build_lake_shore(G, L, rock, rng):
+    """The Great Lake's shore: pale cave reeds in clumps at the waterline, pebbles along the wet sand,
+    and the islet's crag rising from the water at its south-west."""
+    K = L["lake"]
+    fin = L["finnegan"]
+    made = 0
+    for k in range(60):
+        a = 2 * math.pi * k / 60 + rng.random() * 0.08
+        for d in (1.02, 1.04, 1.07):
+            x, z = K["x"] + math.cos(a) * K["rx"] * d, K["z"] + math.sin(a) * K["rz"] * d
+            if lake_factor(L, x, z) >= 1.0 and G.walk(x, z):
+                break
+        else:
+            continue
+        if not free_spot(G, L, x, z, clear=0.8) or math.hypot(x - fin["x"], z - fin["z"]) < 2.0:
+            continue
+        if near_polyline(x, z, L["causeway"]["points"]) < 1.6:
+            continue
+        if rng.random() < 0.4:
+            reeds(rock, x, G.y(x, z), z, rng)
+            made += 1
+        for j in range(3):
+            px, pz = x + (rng.random() - 0.5) * 1.2, z + (rng.random() - 0.5) * 1.2
+            if G.walk(px, pz):
+                s = 0.06 + 0.08 * rng.random()
+                angular(rock, px, G.y(px, pz), pz, s, s * 0.6, rng, "sedimentDry", "sedimentWet", sink=0.03, npts=6)
+    GEO_STATS["reedClumps"] = made
+    # the islet's crag: weathered blocks of limestone stacked out of the water, ferns in its ledges
+    cx, cz, r, h = L["crag"]
+    base = L["lake"]["water"] - 0.4
+    for dx, dz, rr, hh, y0 in ((0.0, 0.0, 1.0, 1.1, 0.0), (0.25, -0.15, 0.75, 0.9, 0.9), (-0.1, 0.1, 0.55, 0.8, 1.6), (0.6, 0.45, 0.5, 0.6, 0.0)):
+        lump(rock, cx + dx * r, base + y0 * h / 2.2, cz + dz * r, rr * r, hh * h / 2.2 + 0.4, rr * r * 0.85, rng, rock_colour(moss=0.45), rough=0.35, sink=0.1)
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.5
+        fern(rock, cx + math.cos(a) * 0.35, base + h * (0.55 + 0.15 * k), cz + math.sin(a) * 0.35, 0.28, rng)
+
+
+def build_rift_decor(G, L, rock, glow, rng):
+    """The Glimmer Rift: stubs of basalt columns broken off on its floor, fungi glowing at the crystal
+    wall's foot, and glowworms: a starfield of blue-green points up the wall's face, a few threads hung
+    from its ledges."""
+    for x, z, r in L["stubs"]:
+        y = G.y(x, z)
+        for k in range(4 + int(rng.random() * 3)):
+            a = 2 * math.pi * k / 5 + rng.random() * 0.5
+            d = r * 0.6 * (0.3 + 0.7 * rng.random()) if k else 0.0
+            h = (0.35 + 0.9 * rng.random()) * (1.3 if k == 0 else 1.0)
+            basalt_stub(rock, x + math.cos(a) * d, y - 0.1, z + math.sin(a) * d, 0.16 + 0.08 * rng.random(), h, k + int(x * 10))
+    for k in range(10):
+        x = 11.8 + rng.random() * 9.8
+        z = shelf_rim_z(L, x) + 0.9 + rng.random() * 0.8
+        if G.walk(x, z) and free_spot(G, L, x, z, clear=0.6):
+            fungi(rock, glow, x, G.y(x, z), z, 0.6 + 0.4 * rng.random(), rng)
+    # the glowworms up the crystal wall's face (a point wherever the face stands at that height)
+    made = 0
+    for k in range(140):
+        x = 11.4 + rng.random() * 10.6
+        rz = shelf_rim_z(L, x)
+        top, low = G.y(x, rz - 0.8), G.y(x, rz + 0.8)
+        if top - low < 2.0:
+            continue
+        y = low + (top - low) * (0.45 + 0.5 * rng.random())
+        lo, hi = rz - 0.8, rz + 0.8
+        for _ in range(10):
+            mid = (lo + hi) / 2
+            if G.y(x, mid) > y:
+                lo = mid
+            else:
+                hi = mid
+        z = (lo + hi) / 2 + 0.28
+        blob(glow, x, y, z, 0.022, 0.022, 0.022, "glowworm", cuts=0)
+        if k % 9 == 0:
+            cyl(glow, (x, y, z), (x, y - 0.3 - 0.4 * rng.random(), z + 0.02), 0.004, "glowworm", sides=3, cap=False)
+        made += 1
+    GEO_STATS["glowworms"] = made
+
+
+def basalt_stub(M, x, y0, z, r, h, seed):
+    """A column of basalt broken off low: a hexagonal prism, its top a tilted fracture."""
+    ring = [(x + r * math.cos(math.pi * k / 3), z + r * math.sin(math.pi * k / 3)) for k in range(6)]
+    tilt = 0.1 * hash3(seed, 3, 7)
+    lo = [M.v(px, y0, pz) for px, pz in ring]
+    hi = [M.v(px, y0 + h + tilt * math.cos(math.pi * k / 3 + seed), pz) for k, (px, pz) in enumerate(ring)]
+    for k in range(6):
+        k1 = (k + 1) % 6
+        a = math.pi * (k + 0.5) / 3
+        M.facing((lo[k], lo[k1], hi[k1], hi[k]), "basaltCol" if k % 2 else "basaltColLight", (math.cos(a), 0.0, math.sin(a)))
+    M.facing(list(hi), "basaltTop", (0.0, 1.0, 0.0))
+
+
+def build_overlook(G, L, rock, roots, rng):
+    """The Hound's Overlook: the Hound's Hand (after Son Doong's Hand of Dog, a stalagmite whose crown
+    splits into lobes like a paw) on its flowstone skirt, dithered in front of you; small stalagmites
+    round the plateau's edges."""
+    Tw = L["tower"]
+    x, z = Tw["x"], Tw["z"]
+    y = G.y(x, z)
+    lump(roots, x, y, z, Tw["r"] * 1.7, 0.7, Tw["r"] * 1.55, rng, rock_colour(base="flowstone", dark="limestoneDark"), rough=0.2, sink=0.4)
+    stalagmite(roots, x, y, z, Tw["r"], Tw["h"] * 0.72)
+    for k, (a, rr, hh) in enumerate(((0.3, 0.46, 0.98), (2.4, 0.42, 0.9), (4.3, 0.38, 0.84), (1.4, 0.3, 0.76))):
+        bx, bz = x + math.cos(a) * 0.36, z + math.sin(a) * 0.36
+        base = y + Tw["h"] * 0.46
+        stalagmite(roots, bx, base, bz, rr, Tw["h"] * hh - Tw["h"] * 0.46)
+    stalagmite(roots, x + 1.0, y, z + 0.5, Tw["r"] * 0.42, Tw["h"] * 0.34)
+    stalagmite(roots, x - 0.8, y, z + 0.9, Tw["r"] * 0.3, Tw["h"] * 0.2)
+    for sx, sz, r, h in L["stalagmites"]:
+        sy = G.y(sx, sz)
+        stalagmite(rock, sx, sy, sz, r, h)
+        lump(rock, sx, sy, sz, r * 1.6, 0.25, r * 1.5, rng, rock_colour(base="flowstone", dark="limestoneDark"), rough=0.2, sink=0.4)
+
+
+# ---------------------------------------------------------------------------------------------
 # the water: the Great Lake, the terraces' warm pools, the stream from the jungle's waterfall down
 # through the mudflats and the pools into the lake, and its outflow east over the rim
 
@@ -1918,7 +2400,7 @@ def build_waters(G, L, rock, water, therm, ledge_top):
             x, z = G.at(i, k)
             v = water.v(x, wy, z)
             d = wy - G.h[k * n + i]
-            water.setv(v, mixc(mixc("aquaShallow", "aqua", smooth(0.05, 0.4, d)), "waterDark", smooth(0.5, 1.4, d)))
+            water.setv(v, mixc(mixc("lakeShallow", "lakeMid", smooth(0.05, 0.45, d)), "waterDark", smooth(0.5, 1.4, d)))
             wv[(i, k)] = v
         return wv[(i, k)]
 
@@ -1977,8 +2459,11 @@ def build_waters(G, L, rock, water, therm, ledge_top):
             fall = smooth(0.06, 0.25, abs(y - prev[2])) if prev else 0.0
             l = water.v(x - tz * hw, y, z + tx * hw)
             r = water.v(x + tz * hw, y, z - tx * hw)
+            wc = mixc("aqua", "waterDark", 0.35)
+            if -22.0 < x < -8.0 and -12.6 < z < 1.8:
+                wc = mixc(wc, "mudWater", 0.55)
             for v in (l, r):
-                water.setv(v, mixc(mixc("aqua", "waterDark", 0.35), "foam", fall))
+                water.setv(v, mixc(wc, "foam", fall))
             if prev:
                 water.setsmooth(water.facing((prev[0], prev[1], r, l), "aqua", (0.0, 1.0, 0.0)))
                 ribbons += 1
@@ -2042,16 +2527,6 @@ def build_blockout_rocks(G, L, rock, glow, rng):
         crystal_cluster(glow, rock, x, G.y(x, z), z, s, rng)
     for x, z, s in L["shrooms"]:
         fungi(rock, glow, x, G.y(x, z), z, s, rng)
-
-
-def build_hounds_hand(G, L, rock, roots, rng):
-    """The Hound's Hand: the giant stalagmite on the overlook (after Son Doong's Hand of Dog), in the
-    dithered finish so it never hides you."""
-    Tw = L["tower"]
-    y = G.y(Tw["x"], Tw["z"])
-    stalagmite(roots, Tw["x"], y, Tw["z"], Tw["r"], Tw["h"])
-    stalagmite(roots, Tw["x"] + 0.9, y, Tw["z"] + 0.4, Tw["r"] * 0.45, Tw["h"] * 0.42)
-    lump(roots, Tw["x"], y, Tw["z"], Tw["r"] * 1.6, 0.6, Tw["r"] * 1.5, rng, rock_colour(base="flowstone", dark="limestoneDark"), rough=0.2, sink=0.4)
 
 
 def build_winch(G, L, rock, glow):
@@ -2120,6 +2595,9 @@ def build_world(G, L, coll, ledge_top):
     add_light(L["winch"]["x"], G.y(L["winch"]["x"], L["winch"]["top"]) + 2.2, L["winch"]["top"], "#FFB347", 1.0, 4.0)
     for x, z, s in L["crystals"]:
         add_light(x, G.y(x, z) + 0.5 * s, z, "#00F5D4", 0.3 * s, 1.1 * s)
+    for x, z, kind, _ in L["campProps"]:
+        if kind == "post":
+            add_light(x + 0.42, G.y(x, z) + 1.75, z, "#FFB347", 1.1, 3.6)
 
     build_terrain(G, L, floor)
     build_walls(G, L, shell, glow, random.Random(19))
@@ -2132,7 +2610,14 @@ def build_world(G, L, coll, ledge_top):
     build_trail_edges(G, L, rock, glow, random.Random(29))
     build_rim(G, L, rock, water, random.Random(41))
     build_blockout_rocks(G, L, rock, glow, random.Random(11))
-    build_hounds_hand(G, L, rock, roots, random.Random(13))
+    build_jungle(G, L, rock, roots, random.Random(47))
+    build_basecamp_gear(G, L, rock, glow, random.Random(53))
+    build_breakdown(G, L, rock, random.Random(59))
+    build_mudflats(G, L, rock, water, random.Random(61))
+    build_pearl_basins(G, L, rock, random.Random(67))
+    build_lake_shore(G, L, rock, random.Random(71))
+    build_rift_decor(G, L, rock, glow, random.Random(73))
+    build_overlook(G, L, rock, roots, random.Random(13))
     build_winch(G, L, rock, glow)
     build_causeway(G, L, rock, random.Random(17))
 

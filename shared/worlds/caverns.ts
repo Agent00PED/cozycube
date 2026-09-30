@@ -142,6 +142,13 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
     { "id": "monolith", "kind": "monolith", "x": 7.6, "z": 11.2, "face": [-0.3, -0.95] }
   ],
   "boulders": [[14.8, -14.4, 0.8], [18.6, -20.4, 0.7], [21.0, -18.6, 0.6], [-14.6, -21.0, 0.7], [-10.4, -18.8, 0.55]],
+  "trees": [[-20.6, -21.0, 9.5, 0.4], [-18.6, -21.1, 8.0, 1.9], [-21.0, -15.6, 8.5, 3.1], [-9.9, -21.1, 7.0, 4.4], [-18.8, -16.4, 6.5, 5.3], [-12.2, -19.4, 6.0, 0.9]],
+  "slabs": [[15.4, -17.0, 1.1, 0.4], [20.8, -20.8, 0.9, 1.1], [16.6, -13.3, 0.8, 2.0], [10.9, -18.6, 0.8, 2.6]],
+  "campProps": [[-7.6, -20.6, "barrels", 0.3], [-2.2, -21.0, "crates", 0.0], [-8.2, -16.8, "bedroll", 1.4], [-7.6, -13.8, "board", 0.6], [-4.6, -13.2, "post", 0], [9.6, -19.6, "post", 0]],
+  "stubs": [[13.6, -9.0, 0.6], [20.6, -4.8, 0.6], [14.6, -1.0, 0.5], [19.0, 2.8, 0.5]],
+  "stalagmites": [[-7.2, -11.4, 0.35, 1.5], [-7.0, -4.0, 0.3, 1.1], [10.3, -3.7, 0.3, 1.0]],
+  "crag": [5.4, 13.6, 1.0, 2.2],
+  "pearls": [[-19.0, 17.4, 0.7], [-15.5, 19.6, 0.6], [-11.0, 20.4, 0.55], [-20.2, 20.6, 0.5], [-5.5, 19.8, 0.5]],
   "crystals": [[14.4, -11.8, 1.0], [17.8, -11.9, 1.1], [20.6, -11.2, 0.9], [20.4, -4.2, 0.8], [15.0, -5.4, 0.7]],
   "shrooms": [[15.2, -9.8, 0.8], [20.9, -1.6, 0.7], [13.6, -3.6, 0.6], [18.8, 2.2, 0.7]],
   "fractures": [[14.0, -12.2, 0], [17.6, -12.2, 0], [20.4, -12.2, 0]],
@@ -422,9 +429,16 @@ export function cavernsFloorY(x: number, z: number): number {
 /** How much of a big rock's size you walk round: a little over half (you slide past its flanks,
  *  never snag on them). */
 const SLIM = 0.56;
-/** Every natural rock you walk round, as discs. The small things (crystals, mushrooms, ferns) are
- *  walked through. */
-const ROCK_DISCS: { x: number; z: number; r: number }[] = L.boulders.map(([x, z, r]) => ({ x, z, r: r * SLIM }));
+/** Everything natural you walk round, as discs: the boulders, the jungle's trunks, the breakdown's
+ *  fallen slabs, the rift's basalt stubs, the overlook's stalagmites. The small things (crystals,
+ *  mushrooms, ferns, reeds, pebbles, the pearl basins, the mud's plates) are walked through. */
+const ROCK_DISCS: { x: number; z: number; r: number }[] = [
+  ...L.boulders.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
+  ...L.trees.map(([x, z]) => ({ x, z, r: 0.32 })),
+  ...L.slabs.map(([x, z, r]) => ({ x, z, r: r * 0.75 })),
+  ...L.stubs.map(([x, z, r]) => ({ x, z, r: r * 0.9 })),
+  ...L.stalagmites.map(([x, z, r]) => ({ x, z, r: r * 0.62 })),
+];
 
 /** How steep the floor is at (x, z), in degrees (its fall over half a metre across, both ways at once). */
 export function trailSlope(x: number, z: number): number {
@@ -818,6 +832,9 @@ export const CAVERNS_OBSTACLES: AABB[] = [
     return b ? [around(b, b.r * 0.5)] : [];
   }),
   around(L.tower, L.tower.r * 0.62),
+  // the basecamp's gear: the barrels, the crate stack, the survey board, the lantern posts (the
+  // bedroll is walked over)
+  ...L.campProps.flatMap(([x, z, kind]) => (kind === "bedroll" ? [] : [around({ x: x as number, z: z as number }, kind === "post" ? 0.1 : kind === "board" ? 0.25 : 0.42)])),
   // Finnegan on his log (the log lies across him, east-west)
   box(FN.x - FN.log / 2, FN.x + FN.log / 2, FN.z - 0.35, FN.z + 0.35),
 ];
