@@ -88,13 +88,19 @@ export function makeNametag(text: string, onRedraw: (tag: NametagTexture) => voi
   };
   const fonts = typeof document !== "undefined" ? document.fonts : undefined;
   if (fonts && !fonts.check(FONT, text)) {
-    void fonts.load(FONT, text).then(() => {
+    const redraw = () => {
       if (disposed) return;
       Object.assign(tag, draw(canvas, text));
       texture.dispose(); // the canvas changed size: the GPU copy is remade
       texture.needsUpdate = true;
       onRedraw({ ...tag });
-    });
+    };
+    // a face that fails to load (a broken or blocked file) rejects the whole load: wait out the
+    // rest instead, then draw with whatever did arrive, never an unhandled rejection
+    fonts
+      .load(FONT, text)
+      .catch(() => fonts.ready)
+      .then(redraw, redraw);
   }
   return tag;
 }
