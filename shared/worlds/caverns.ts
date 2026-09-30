@@ -61,7 +61,7 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
   "paths": [
     { "id": "descent", "half": 1.3, "points": [[4.0, -12.9, 3.42], [7.3, -11.9, 3.12], [8.9, -10.3, 2.8], [7.1, -8.6, 2.45], [4.2, -8.1, 2.2], [1.6, -7.9, 2.1]] },
     { "id": "terraceTrail", "half": 1.2, "points": [[-5.9, -7.4, 2.0], [-8.0, -5.9, 1.4], [-9.3, -4.5, 0.95], [-10.8, -3.3, 0.9]] },
-    { "id": "shoreTrail", "half": 1.2, "points": [[-1.6, -5.0, 1.84], [-0.3, -3.3, 1.42], [1.3, -2.0, 0.96], [2.3, -0.7, 0.46], [1.5, 0.6, 0.02]] }
+    { "id": "shoreTrail", "half": 1.2, "points": [[-1.6, -5.0, 1.84], [-0.3, -3.3, 1.42], [1.3, -2.0, 0.96], [2.3, -0.7, 0.46], [1.7, -0.1, 0.2]] }
   ],
   "adit": { "x": 0.0, "z": -22.1, "w": 2.0, "h": 2.6 },
   "arrival": { "x": 0.0, "z": -19.5 },
@@ -121,17 +121,16 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
   "mounds": [[-3.4, -17.8, 1.15, 0.9], [8.6, -17.6, 1.2, 1.1], [-11.9, -15.9, 1.05, 0.85], [0.9, -14.5, 0.9, 0.7], [11.9, -19.1, 1.0, 1.2], [-15.0, -16.6, 0.9, 0.8]],
   "outcrops": [[11.2, -10.6, 1.3, 2.6], [5.6, -10.3, 0.85, 1.7], [-2.8, -10.1, 1.1, 1.9], [-11.0, -8.6, 1.2, 2.1], [3.5, -3.3, 0.9, 1.3], [-4.4, -2.4, 1.0, 1.4], [8.9, -5.0, 1.1, 1.7]],
   "ridges": [
-    { "id": "westButtress", "points": [[-21.9, -8.6, 1.6, 4.4], [-20.3, -8.2, 1.4, 3.8], [-18.7, -8.0, 1.2, 3.1], [-17.2, -8.2, 1.0, 2.4], [-21.9, 7.2, 1.5, 4.0], [-20.4, 7.5, 1.3, 3.3], [-18.9, 7.3, 1.1, 2.6], [-17.5, 6.8, 0.9, 1.9]] },
-    { "id": "eastSpine", "points": [[12.6, -11.6, 1.2, 3.6], [12.9, -9.5, 1.15, 3.2], [13.1, -7.3, 1.1, 3.0], [13.0, -5.1, 1.05, 2.7], [12.8, -2.9, 0.95, 2.3], [12.9, -0.9, 0.85, 1.9]] }
+    { "id": "westButtress", "points": [[-21.9, -8.6, 1.6, 4.4], [-20.3, -8.2, 1.4, 3.8], [-18.7, -8.0, 1.2, 3.1], [-17.2, -8.2, 1.0, 2.4], [-21.9, 7.2, 1.5, 4.0], [-20.4, 7.5, 1.3, 3.3], [-18.9, 7.3, 1.1, 2.6], [-17.5, 6.8, 0.9, 1.9]] }
   ],
-  "beach": { "dinghy": [-10.9, 16.2, 2.3], "logs": [[-12.0, 16.4, 0.35, 1.9], [-12.3, 17.4, 1.35, 1.5], [-9.2, 17.2, -0.55, 1.4], [-11.0, 19.0, 2.6, 1.2]], "pools": [[-12.5, 15.0, 0.45], [-9.3, 19.0, 0.4]], "rocks": [[-12.5, 18.7, 0.45, 0.6], [-9.4, 18.4, 0.36, 0.5]] },
-  "survey": { "cart": [19.8, 14.0, 0.9], "outcrop": [20.9, 15.4, 0.7, 1.2], "rocks": [[21.2, 12.5, 0.75, 1.3], [18.8, 15.6, 0.5, 0.8], [21.5, 14.1, 0.55, 1.6]], "timbers": [[20.3, 12.4, 0.35, 2.1], [19.0, 12.9, 1.9, 1.6]] },
+  "beach": { "dinghy": [-10.9, 16.2, 2.3], "logs": [[-12.0, 16.4, 0.35, 1.9], [-12.3, 17.4, 1.35, 1.5], [-9.2, 17.2, -0.55, 1.4], [-11.0, 19.0, 2.6, 1.2]] },
+  "survey": { "cart": [21.25, 13.2, 0.0] },
+  "cairns": [[2.9, -13.7, 0.55], [-0.6, -6.5, 0.5], [-12.1, -4.2, 0.45]],
   "capybara": { "x": -19.1, "z": -4.8, "yaw": 1.4 },
-  "fins": [[19.6, -3.4, 0.5, 1.6, 2.6, 0.4], [20.2, -10.8, 0.6, 1.6, 3.0, -0.2], [19.8, -17.8, 0.5, 1.5, 2.8, 0.4]],
-  "stalagmites": [[-20.4, -20.4, 0.75, 5.6], [-15.0, -20.9, 0.5, 4.2], [12.6, -21.0, 0.6, 5.0], [21.2, -18.4, 0.6, 4.6], [-20.9, -7.2, 0.6, 4.0], [21.3, -1.2, 0.5, 3.4], [-20.9, 8.2, 0.7, 4.8]],
-  "crystals": [[16.9, -20.9, 1.1], [21.5, -12.0, 1.2], [16.6, -10.8, 0.8], [21.3, -4.8, 1.0], [15.2, -7.4, 0.7], [-21.3, -2.2, 0.8], [-21.0, 14.0, 0.9]],
-  "fractures": [[22.0, -18.9, -1], [22.1, -16.2, -1], [21.95, -11.9, -1], [22.05, -10.1, -1], [21.9, -5.8, -1], [22.0, -3.3, -1], [22.1, -0.6, -1], [14.05, -10.5, 1], [14.15, -6.9, 1], [13.95, -3.9, 1]],
-  "shrooms": [[19.5, -19.6, 0.9], [16.6, -12.4, 0.7], [20.9, -6.6, 0.8], [-20.8, 1.6, 0.7], [-19.6, 12.6, 0.9], [15.0, 4.6, 0.7]],
+  "stalagmites": [[-20.4, -20.4, 0.75, 5.6], [-15.0, -20.9, 0.5, 4.2], [12.6, -21.0, 0.6, 5.0], [-20.9, -7.2, 0.6, 4.0], [-20.9, 8.2, 0.7, 4.8]],
+  "crystals": [[16.9, -20.9, 1.1], [21.5, -12.0, 1.2], [16.6, -10.8, 0.8], [21.3, -4.8, 1.0], [15.2, -7.4, 0.7]],
+  "fractures": [[22.0, -18.9, -1], [22.1, -16.2, -1], [21.95, -11.9, -1], [22.05, -10.1, -1], [21.9, -5.8, -1], [22.0, -3.3, -1], [22.1, -0.6, -1]],
+  "shrooms": [[19.5, -19.6, 0.9], [16.6, -12.4, 0.7], [20.9, -6.6, 0.8], [15.0, 4.6, 0.7]],
   "beams": [[-4.2, -17.4, 1.7], [1.6, -18.6, 2.0], [7.8, -15.6, 1.4], [-9.4, -13.4, 1.2], [-0.4, -13.6, 1.0]],
   "lights": { "forge": [6.8, 4.2, -20.1], "thermal": [-17.6, 2.4, -1.0], "cenote": [2.2, 1.4, 12.0] },
   "spawns": [{ "x": 0.0, "z": -19.5 }, { "x": 0.9, "z": -18.8 }, { "x": -0.9, "z": -18.8 }]
@@ -309,7 +308,8 @@ export function cavernsHeight(x: number, z: number): number {
       if (d < 1) h = Math.max(h, mix(L.lake.water - 0.14, h, smooth01(d)));
     }
     const sb = sandbarDistance(x, z);
-    if (sb < L.sandbar.half + 1.2) h = Math.max(h, mix(L.sandbar.y, h, smooth01((sb - L.sandbar.half * 0.6) / 1.6)));
+    // (its crest flat a good step either side of its spine: a wading path, never a tightrope)
+    if (sb < L.sandbar.half + 1.4) h = Math.max(h, mix(L.sandbar.y, h, smooth01((sb - L.sandbar.half * 0.9) / 1.6)));
     const g = isletFactor(x, z);
     if (g < 1.4) h = Math.max(h, L.sandbar.y + (L.islet.top - L.sandbar.y) * smooth01((1.0 - g) / 0.6) - 0.6 * smooth01((g - 1) / 0.4));
   }
@@ -332,7 +332,18 @@ function trailCorridor(x: number, z: number): number {
   let w = 0;
   for (const p of L.paths) w = Math.max(w, 1 - smoothstep(p.half - 0.1, p.half + 0.4, pathNear(x, z, p.points).d));
   // (the shore's own slope into the water is the lake's, never the trail's)
-  return onBeach(x, z) ? 0 : w;
+  if (!onBeach(x, z)) return w;
+  // ...but for the wading approach: from the shore trail's foot down to the shoal's root, a way into
+  // the water gentle enough to walk (the lake's own water never touched)
+  if (inLakeWater(x, z)) return 0;
+  const shore = L.paths.find((p) => p.id === "shoreTrail")!.points;
+  const [fx, fz] = shore[shore.length - 1];
+  const [sx, sz] = L.sandbar.points[0];
+  const vx = sx - fx;
+  const vz = sz - fz;
+  const t = clamp01(((x - fx) * vx + (z - fz) * vz) / (vx * vx + vz * vz));
+  const d = Math.hypot(x - (fx + vx * t), z - (fz + vz * t));
+  return 1 - smoothstep(1.0, 1.8, d);
 }
 export const TERRAIN_HEIGHTS: Float64Array = (() => {
   const out = new Float64Array(TERRAIN_N * TERRAIN_N);
@@ -407,32 +418,17 @@ function wallDiscs(points: number[][], r: (k: number) => number): { x: number; z
  *  mushrooms, ferns, reeds, rock pools, lanterns, racks) are walked through. */
 const ROCK_DISCS: { x: number; z: number; r: number }[] = [
   ...L.boulders.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
-  ...L.fins.flatMap(([x, z, rx, rz, , yaw]) => {
-    // (a fin is a long rock turned `yaw`: a row of discs down its length)
-    const len = Math.max(rx, rz);
-    const w = Math.min(rx, rz);
-    const along = rx >= rz ? { x: Math.cos(yaw), z: -Math.sin(yaw) } : { x: Math.sin(yaw), z: Math.cos(yaw) };
-    const n = Math.max(2, Math.ceil(len / 0.4));
-    return Array.from({ length: n + 1 }, (_, k) => {
-      const t = -len + (2 * len * k) / n;
-      return { x: x + along.x * t, z: z + along.z * t, r: w * 0.62 };
-    });
-  }),
   ...L.stalagmites.map(([x, z, r]) => ({ x, z, r: r * 0.62 })),
   // the doline's moss-draped karst mounds, and the talus's mammoth outcrops
   ...L.mounds.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
   ...L.outcrops.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
-  // the west buttress round the thermal grotto, the east spine's basalt crest along the chasm: slim
-  // walls down their lines, solid all the way
+  // the west buttress round the thermal grotto: a slim wall down its line, solid all the way
   ...L.ridges.flatMap((rg) => wallDiscs(rg.points, (k) => rg.points[k][2] * SLIM)),
-  // the beach's wreck: the sunken dinghy (three discs down its length), its tangled driftwood and the
-  // rocks it lies against; the survey alcove's overturned cart, its outcrop and fallen rock
+  // the beach's wreck: the sunken dinghy (three discs down its length) and its tangled driftwood;
+  // the overturned mine cart at the east cliff's foot (the cairns, reeds and ferns are walked past)
   ...[-0.7, 0, 0.7].map((t) => ({ x: L.beach.dinghy[0] + Math.sin(L.beach.dinghy[2]) * t, z: L.beach.dinghy[1] + Math.cos(L.beach.dinghy[2]) * t, r: 0.36 })),
   ...L.beach.logs.flatMap(([x, z, yaw, len]) => [-0.3, 0, 0.3].map((t) => ({ x: x + Math.cos(yaw) * t * len, z: z - Math.sin(yaw) * t * len, r: 0.16 }))),
-  ...L.beach.rocks.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
-  { x: L.survey.cart[0], z: L.survey.cart[1], r: 0.45 },
-  { x: L.survey.outcrop[0], z: L.survey.outcrop[1], r: L.survey.outcrop[2] * SLIM },
-  ...L.survey.rocks.map(([x, z, r]) => ({ x, z, r: r * SLIM })),
+  { x: L.survey.cart[0], z: L.survey.cart[1], r: 0.42 },
 ];
 
 /** How steep the floor is at (x, z), in degrees (its fall over half a metre across, both ways at once). */
@@ -444,7 +440,7 @@ export function trailSlope(x: number, z: number): number {
 }
 
 /** The steepest ground anyone walks on (degrees): nowhere a step, nowhere a scramble. */
-export const STEEPEST_WALK = 24;
+export const STEEPEST_WALK = 22;
 const STEEP = Math.tan((STEEPEST_WALK * Math.PI) / 180);
 /** Whether the floor at (x, z) climbs or drops more steeply than STEEPEST_WALK toward any of its
  *  neighbours a mask cell away (a trail's shoulder, a sandbar's flank, a bank between two legs). */
@@ -732,7 +728,19 @@ export function shoreCast(x: number, z: number, fx: number, fz: number): { x: nu
   const f = { x: fx / fl, z: fz / fl };
   const w = nearestWater(x, z);
   if (!w || f.x * w.x + f.z * w.z <= SHORE_FACING) return null;
-  return castAlong(x, z, f) ?? castAlong(x, z, w);
+  const straight = castAlong(x, z, f) ?? castAlong(x, z, w);
+  if (straight) return straight;
+  // (shallows straight ahead, the shoal's flank: the float goes a little to either side instead,
+  // still out in front of the angler, never behind or beside them)
+  for (const turn of [0.35, -0.35, 0.7, -0.7]) {
+    const c = Math.cos(turn);
+    const s = Math.sin(turn);
+    const d = { x: f.x * c - f.z * s, z: f.x * s + f.z * c };
+    if (d.x * w.x + d.z * w.z <= SHORE_FACING) continue;
+    const cast = castAlong(x, z, d);
+    if (cast) return cast;
+  }
+  return null;
 }
 
 /** The three lights that move (the forge's mouth, the terraces' steam, the cenote's heart), the
