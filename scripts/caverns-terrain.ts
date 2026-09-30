@@ -23,7 +23,8 @@ function png(path: string) {
   const t = cavernsTerrainData();
   const S = t.maskN * 2;
   const rows: Buffer[] = [];
-  const surfaceTint: Record<number, [number, number, number]> = { 0: [120, 110, 100], 1: [110, 150, 80], 2: [170, 160, 140], 3: [236, 224, 190], 4: [70, 80, 96], 5: [60, 70, 110], 6: [230, 225, 205], 7: [60, 150, 170], 8: [200, 195, 175], 9: [140, 115, 85] };
+  // (SURFACE: the limestone, the bank's sediment, the lake's bed)
+  const surfaceTint: Record<number, [number, number, number]> = { 0: [150, 155, 165], 1: [150, 125, 95], 2: [60, 150, 170] };
   for (let y = 0; y < S; y++) {
     const row = Buffer.alloc(1 + S * 3);
     for (let x = 0; x < S; x++) {

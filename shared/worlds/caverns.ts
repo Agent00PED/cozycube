@@ -7,30 +7,32 @@ import { ORE_KINDS, type OreKind } from "../caverns_mining";
 // Autumn Maples (Old Flint the Badger keeps it: meeting him hands you the Rusted Pickaxe and opens it
 // to you for good). Like every world, it is the one room's: going down the adit is a trip.
 //
-// No tabletops, no stairs: one continuous organic ground (0 to 3.8 m), walked on exactly where it is
-// drawn. From the north down:
+// No tabletops, no stairs: one continuous organic ground (the cenote's basin at -0.4 m up to the
+// doline's 3.5 m), walked on exactly where it is drawn, grey limestone all over but for the dark
+// river sediment on the cenote's bank. From the north down:
 //
-//   The Sunlit Doline          the high ground (about 3.4 m, undulating, rising in its back corners)
-//                              under the ceiling's collapse, sunlight pouring down it: mossy loam,
-//                              ferns, tumbled limestone; the adit in the north wall (you arrive facing
-//                              south, over the lake); the Expedition Outpost (Gus the Mole at his log
-//                              workstation, the Thermal Bellows Forge in a basalt fissure of the north
-//                              wall, the meteorite Geode Anvil on a low outcrop); the Amber Fault's
-//                              eight Coal Seams and Copper Veins set in its boulders and the wall
-//   The Wet Slate Shelf        the doline's lower west (about 2.7 m), dark damp slate: six Iron Lodes
-//                              in the mossy seams of the walls and its outcrops
+//   The Sunlit Doline          the high plaza (3.2 to 3.5 m, gently rolling) under the ceiling's
+//                              collapse, sunlight pouring down it: tumbled limestone; the adit in the
+//                              north wall (you arrive facing south, over the lake); the Expedition
+//                              Outpost (Gus the Mole at his log workstation, the Thermal Bellows Forge
+//                              in a basalt fissure of the north wall, the meteorite Geode Anvil on a
+//                              low outcrop); the Amber Fault's eight Coal Seams and Copper Veins set in
+//                              its boulders and the wall
+//   The Wet Slate Shelf        the plaza's west end, level with it: six Iron Lodes in the walls and
+//                              its outcrops
 //   The Limestone Overlook     a natural plateau half way down (1.8 m) looking out over the lake. One
-//                              trail meanders down to it from the doline, switching back round the
-//                              hillside's outcrops; from it two trails split, west down to the
-//                              Travertine Terraces and south down to the sandy shore
-//   The Travertine Terraces    three rimstone pools of warm mineral water cascading down the west
-//                              slope, six stone seats in them (a soak: the Deep Warmth)
-//   The Abyssal Cenote Lake    south-centre (26 x 18 m): clear aquamarine over sand that slopes into
-//                              it all round (fish from anywhere on its shore); a limestone islet under
-//                              a skylight, weeping aerial roots over the Titan Monolith (a sandbar
-//                              wades out to it); Finnegan the Grotto Angler on his driftwood log
-//   The Abyssal Chasm          the deep east wing below the doline's east cliff: five Silver Seams
-//                              and four Glimmerstone Clusters in its crystal alcoves
+//                              trail winds down to it from the doline in an S, never steeper than 20
+//                              degrees; from it two trails split, west down to the Travertine
+//                              Terraces and south down to the shore
+//   The Travertine Terraces    three mineral pools of warm water stepping down the west slope, grown
+//                              into the west wall, seven stone seats in them (a soak: the Deep Warmth)
+//   The Abyssal Cenote Lake    south-centre (26 x 18 m): a shallow basin (its bed at -0.4 m) whose
+//                              sediment bank slopes into it all round (fish from anywhere on its
+//                              shore); a limestone islet under a skylight, weeping aerial roots over
+//                              the Titan Monolith (a sandbar wades out to it); Finnegan the Grotto
+//                              Angler on his driftwood log
+//   The Abyssal Chasm          the low east wing under the east wall, one cliff of basalt columns
+//                              (no trench): five Silver Seams and four Glimmerstone Clusters
 //
 // The ground is one function (cavernsHeight), sampled on a 0.5 m grid: that grid, triangulated one way
 // (see cavernsFloorY), IS the floor, where the room walks you, where the avatar's feet land, and the
@@ -46,7 +48,7 @@ type Pt = { x: number; z: number };
 export const CAVERNS_LAYOUT = /* layout:begin */ {
   "half": 22.5,
   "walls": { "north": -22.5, "west": -22.5, "height": 11.0, "margin": 0.75 },
-  "levels": { "upper": 3.35, "shelf": 2.72, "overlook": 1.8, "low": 0.42 },
+  "levels": { "upper": 3.35, "overlook": 1.8, "low": 0.42 },
   "zones": [
     { "id": "shelf", "name": "The Wet Slate Shelf", "x0": -22.5, "x1": -13.5, "z0": -22.5, "z1": -9.0 },
     { "id": "doline", "name": "The Sunlit Doline", "x0": -13.5, "x1": 13.5, "z0": -22.5, "z1": -10.0 },
@@ -71,7 +73,7 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
   "forge": { "x": 6.8, "z": -21.3, "w": 3.0, "d": 1.8, "h": 3.2 },
   "anvil": { "x": 3.7, "z": -19.9, "outcrop": 0.62 },
   "crate": { "x": 4.65, "z": -20.75, "w": 0.9, "d": 0.6, "h": 0.55 },
-  "lake": { "x": 1.0, "z": 10.8, "rx": 13.0, "rz": 9.0, "water": -0.06, "depth": 2.4, "beach": 1.28, "wade": 1.04 },
+  "lake": { "x": 1.0, "z": 10.8, "rx": 13.0, "rz": 9.0, "water": -0.06, "depth": 0.4, "beach": 1.28, "wade": 1.04 },
   "islet": { "x": 2.2, "z": 12.2, "r": 3.1, "top": 0.32 },
   "sandbar": { "points": [[0.6, 0.6], [1.6, 3.2], [0.7, 5.8], [1.3, 8.2], [2.0, 9.8]], "half": 1.0, "y": -0.12 },
   "shoals": [[-6.4, 4.2, 2.2], [9.6, 5.0, 2.0], [-8.8, 14.6, 1.8], [8.2, 17.2, 2.1], [11.4, 11.6, 1.6], [-3.4, 18.4, 1.7]],
@@ -125,7 +127,7 @@ export const CAVERNS_LAYOUT = /* layout:begin */ {
   ],
   "beach": { "dinghy": [-10.9, 16.2, 2.3], "logs": [[-12.0, 16.4, 0.35, 1.9], [-12.3, 17.4, 1.35, 1.5], [-9.2, 17.2, -0.55, 1.4], [-11.0, 19.0, 2.6, 1.2]] },
   "survey": { "cart": [21.25, 13.2, 0.0] },
-  "cairns": [[2.9, -13.7, 0.55], [-0.6, -6.5, 0.5], [-12.1, -4.2, 0.45]],
+  "cairns": [[8.95, -12.5, 0.5], [7.35, -7.15, 0.5]],
   "capybara": { "x": -19.1, "z": -4.8, "yaw": 1.4 },
   "stalagmites": [[-20.4, -20.4, 0.75, 5.6], [-15.0, -20.9, 0.5, 4.2], [12.6, -21.0, 0.6, 5.0], [-20.9, -7.2, 0.6, 4.0], [-20.9, 8.2, 0.7, 4.8]],
   "crystals": [[16.9, -20.9, 1.1], [21.5, -12.0, 1.2], [16.6, -10.8, 0.8], [21.3, -4.8, 1.0], [15.2, -7.4, 0.7]],
@@ -268,16 +270,12 @@ function terraceRise(x: number, z: number): number {
 }
 /** The low ground: the shore's backlands, the terraces' slope, the chasm's floor, the south sand. */
 function lowLevel(x: number, z: number): number {
-  // (the Abyssal Chasm: a crevasse sunk into the bedrock down the east, its floor -0.2 to +0.4)
-  const chasm = -0.85 * smoothstep(12.5, 15.2, x) * (1 - smoothstep(-2.0, 4.0, z));
-  return L.levels.low + 0.07 * wave(x, z, 3) + terraceRise(x, z) + chasm + 0.12 * wave(x * 0.7, z * 0.7, 9) * smoothstep(12.5, 16.0, x);
+  // (the Abyssal Chasm under the east wall lies on the low ground like the rest: no trench)
+  return L.levels.low + 0.07 * wave(x, z, 3) + terraceRise(x, z) + 0.12 * wave(x * 0.7, z * 0.7, 9) * smoothstep(12.5, 16.0, x);
 }
 function upperLevel(x: number, z: number): number {
-  // the doline's floor rolls in low karst swells (3.0 to 3.8 m), the wet slate shelf lower in the west
-  const shelf = mix(L.levels.shelf, L.levels.upper, smoothstep(-15.0, -10.0, x));
-  const corner = 0.2 * smoothstep(-15, -21, z) * smoothstep(6, 12, x);
-  const swell = (0.26 * wave(x * 0.55, z * 0.55, 13) + 0.09 * wave(x * 1.25, z * 1.25, 1)) * smoothstep(-15.0, -11.0, x);
-  return shelf + 0.1 * wave(x, z, 1) * (1 - smoothstep(-15.0, -11.0, x)) + swell + corner;
+  // the doline's plaza rolls gently, 3.2 to 3.5 m all over (the shelf in its west level with it)
+  return L.levels.upper + 0.1 * wave(x * 0.55, z * 0.55, 13) + 0.04 * wave(x * 1.25, z * 1.25, 1);
 }
 
 /** The ground's height at (x, z) as the builder models it and the grid samples it (the walk surface is
@@ -289,18 +287,20 @@ export function cavernsHeight(x: number, z: number): number {
   h = mix(h, overlookLevel(x, z), wo);
   const wu = upperWeight(x, z);
   h = mix(h, upperLevel(x, z), wu);
-  const rugged = 4 * wu * (1 - wu) + 4 * wo * (1 - wo);
+  // (the rims rugged, the plaza over them never: it keeps to its 3.2 to 3.5 m)
+  const rugged = 4 * wu * (1 - wu) + 4 * wo * (1 - wo) * (1 - wu);
   h += 0.32 * rugged * wave(x * 2.1, z * 2.1, 7);
   // the trails, carved (and banked) into the slopes, their shoulders soft
   for (const p of L.paths) {
     const n = pathHeight(x, z, p);
     if (n.w > 0) h = mix(h, n.h, n.w);
   }
-  // the lake: the sand sloping down into it, its bed falling away to the deep; the sandbar and the islet
+  // the lake: the sediment bank sloping down into it, its bed pressed into a basin at -depth; the
+  // sandbar and the islet
   const f = lakeFactor(x, z);
   if (f < L.lake.beach) {
     const shore = -0.22 + 0.62 * smooth01((f - 1) / (L.lake.beach - 1));
-    const bed = f < 1 ? -0.22 - (L.lake.depth - 0.22) * smooth01((1 - f) / 0.55) : shore;
+    const bed = f < 1 ? -0.22 - (L.lake.depth - 0.22) * smooth01((1 - f) / 0.2) : shore;
     h = mix(bed, h, smooth01((f - 1) / (L.lake.beach - 1)));
     // the shallow shoals: the bed rising to a hand's depth under the water
     for (const [sx, sz, sr] of L.shoals) {
@@ -325,7 +325,7 @@ const TERRAIN_X0 = -L.half;
 /** Whether (x, z) is the cenote's beach, sloping into the water (where a trail's foot ends). */
 export const onBeach = (x: number, z: number) => lakeFactor(x, z) < 1.2;
 /** The steepest the explorer's trails' tread ever gets (degrees). */
-export const TRAIL_STEEPEST = 22;
+export const TRAIL_STEEPEST = 20;
 /** How much of a trail's tread a floor vertex is (1 on it, easing to 0 half a metre past its edge:
  *  the shoulders and the bluffs beyond are never touched). */
 function trailCorridor(x: number, z: number): number {
@@ -440,7 +440,7 @@ export function trailSlope(x: number, z: number): number {
 }
 
 /** The steepest ground anyone walks on (degrees): nowhere a step, nowhere a scramble. */
-export const STEEPEST_WALK = 22;
+export const STEEPEST_WALK = 20;
 const STEEP = Math.tan((STEEPEST_WALK * Math.PI) / 180);
 /** Whether the floor at (x, z) climbs or drops more steeply than STEEPEST_WALK toward any of its
  *  neighbours a mask cell away (a trail's shoulder, a sandbar's flank, a bank between two legs). */
@@ -503,32 +503,17 @@ export function cavernsBlocked(x: number, z: number, radius: number): boolean {
   return false;
 }
 
-/** What each floor vertex is (the builder paints it so): 0 rock, 1 mossy loam, 2 trail scree, 3 sand,
- *  4 wet slate, 5 the chasm's dark floor, 6 travertine, 7 the lake's bed, 8 the overlook's limestone,
- *  9 the low ground's packed earth. */
-export const SURFACE = { rock: 0, loam: 1, scree: 2, sand: 3, slate: 4, chasm: 5, travertine: 6, bed: 7, limestone: 8, earth: 9 } as const;
+/** What each floor vertex is (the builder paints it so): 0 the grey limestone that is most of the
+ *  floor, 1 the dark river sediment of the cenote's bank (and its sandbar), 2 the lake's bed. */
+export const SURFACE = { limestone: 0, sediment: 1, bed: 2 } as const;
 export function cavernsSurface(x: number, z: number): number {
   const f = lakeFactor(x, z);
-  if (f < 1 && isletFactor(x, z) > 0.9 && sandbarDistance(x, z) > L.sandbar.half) return SURFACE.bed;
+  const bar = sandbarDistance(x, z);
+  if (f < 1 && isletFactor(x, z) > 0.9 && bar > L.sandbar.half) return SURFACE.bed;
+  // (the bank's edge wanders a little: a shore, never a ring drawn with a compass)
   const wob = wave(x * 1.3, z * 1.3, 17);
-  for (const p of L.paths) if (pathNear(x, z, p.points).d <= p.half + 0.3 + 0.2 * wob) return SURFACE.scree;
-  // the travertine round the terraces' pools (an organic apron, not a slab)
-  const T = L.terraces;
-  const tx = (T.x0 + T.x1) / 2;
-  for (const pool of T.pools) {
-    const u = (x - tx) / ((T.x1 - T.x0) / 2 + 1.0);
-    const v = (z - (pool.z0 + pool.z1) / 2) / ((pool.z1 - pool.z0) / 2 + 0.9);
-    if (Math.hypot(u, v) < 1 + 0.12 * wob) return SURFACE.travertine;
-  }
-  if (upperDistance(x, z) < -0.3) return x < -13.8 + 1.9 * wave(x * 0.4, z * 0.4, 29) + 1.2 * wob ? SURFACE.slate : SURFACE.loam;
-  const wu = upperWeight(x, z);
-  if (wu >= 0.06) return SURFACE.rock;
-  if (overlookDistance(x, z) < -0.3) return SURFACE.limestone;
-  if (overlookWeight(x, z) >= 0.06) return SURFACE.rock;
-  const edge = wave(x * 0.45, z * 0.45, 21);
-  if (f < L.lake.beach + 0.22 + 0.08 * wob || isletFactor(x, z) < 1.2 || sandbarDistance(x, z) < L.sandbar.half + 0.8 || z > 15.5 + 1.4 * edge || (x > 13.5 + 1.2 * edge && z > 1.5 + 1.6 * wob)) return SURFACE.sand;
-  if (x > 13.5 + 1.2 * edge) return SURFACE.chasm;
-  return SURFACE.earth;
+  if ((f < L.lake.beach + 0.05 * wob && isletFactor(x, z) >= 1.0) || bar < L.sandbar.half + 0.4) return SURFACE.sediment;
+  return SURFACE.limestone;
 }
 
 /** The floor as the builder reads it (scripts/caverns-terrain.ts writes it to
