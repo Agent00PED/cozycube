@@ -91,8 +91,13 @@ widest (16 m) zoom, `npm run check-layout`, and the draw-call count.
 1. **Blockout** (done 2026-09-30): the layout, the terrain and collision, the floor in flat zone
    colours, the water as plain surfaces, the node spots, the winch, the Hound's Hand; the forge alcove,
    the camp, the adit and the walls carried over.
-2. **Structure**: the walls (limestone with bedding, the Great Wall's flowstone, the doline's broken
-   rim), the cliffs, the trails' edges, the lake, the river and the terraces' dams.
+2. **Structure** (done 2026-09-30): the walls stepped by their bedding, broken off in blocks over the
+   jungle (the collapse), the Great Wall's cream flowstone curtains behind the terraces, rust bleeding
+   down over the mudflats, fractured over the breakdown; every cliff between two levels dressed as
+   rock (strata, rust-stained bluffs, rimstone gours down the terraces' dams, dark basalt with
+   crystals over the rift); rimstone lips round the pools; the rope descent's stakes and rope, stones
+   lining the trails and cairns at their ends; the stream white where it falls; low rock along the
+   open south and east edges and the lake's outflow falling over the rim.
 3. **Zone art**, one zone per step: jungle and basecamp, breakdown, mudflats, terraces, lake and islet,
    rift.
 4. **The six ore models.**
