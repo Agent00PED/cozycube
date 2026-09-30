@@ -505,7 +505,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         const toGus = Math.hypot(GUS_FRONT.x - px, GUS_FRONT.z - pz);
         if (toGus <= GUS_REACH + 0.6) found.push({ key: "gus", type: "barnaby", d: toGus, label: "⛏️ Talk to Gus", hint: "Gus the Mole buys ore, ingots, geodes, gems and stone dust; sells pickaxes and bigger satchels", run: () => interactBridge.current?.useProp("gus") });
         const toFinnegan = Math.hypot(FINNEGAN_FRONT.x - px, FINNEGAN_FRONT.z - pz);
-        if (toFinnegan <= FINNEGAN_REACH + 0.6) found.push({ key: "finnegan", type: "barnaby", d: toFinnegan, label: "🦎 Talk to Finnegan", hint: "The Grotto Angler: buys the cenote's catch, sells every rod, livewell and bait pack, and barters advanced tackle for ingots and fish bones", run: () => interactBridge.current?.useProp("finnegan") });
+        if (toFinnegan <= FINNEGAN_REACH + 0.6) found.push({ key: "finnegan", type: "barnaby", d: toFinnegan, label: "🦎 Talk to Finnegan", hint: "The Grotto Angler: buys the lake's catch, sells every rod, livewell and bait pack, and barters advanced tackle for ingots and fish bones", run: () => interactBridge.current?.useProp("finnegan") });
         const toForge = Math.hypot(FORGE_FRONT.x - px, FORGE_FRONT.z - pz);
         if (toForge <= FORGE_REACH + 0.4) found.push({ key: "forge", type: "workbench", d: toForge, label: "🔥 Thermal Bellows Forge", hint: "Work the bellows and strike on the sparks for Masterwork ingots (+25%), Quick Smelt the rest, or forge a mining relic", run: () => interactBridge.current?.useProp("ancient_forge") });
         const toAnvil = Math.hypot(ANVIL_FRONT.x - px, ANVIL_FRONT.z - pz);
@@ -710,7 +710,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       const castShore = () => onCaverns(CAVERNS_CHANNELS.cast, { fx: faceX, fz: faceZ });
       const AFK_HINT = "Feet up, line in: a common every 44-58s, rarer fish longer (baited only; up to three minutes for a legendary; premium bait a quarter quicker). Never a King Size or a mythic: those take a hand on the reel";
       if (mySpot === "shore" && action === "") {
-        found.push({ key: "cast:shore", type: "fish", label: "🎣 Cast Line", hint: "Cast into the cenote from the shore; tap when the bobber dips, then reel it in (the lucky drip: cast into its ripple for a wider sweet spot, and nothing common bites)", run: castShore });
+        found.push({ key: "cast:shore", type: "fish", label: "🎣 Cast Line", hint: "Cast into the Great Lake from the shore; tap when the bobber dips, then reel it in (the lucky drip: cast into its ripple for a wider sweet spot, and nothing common bites)", run: castShore });
         found.push({
           key: "afk:on",
           type: "afk",

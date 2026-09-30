@@ -21,46 +21,54 @@ import { CaveFauna } from "./caveFauna";
 import { CaveMist, CrystalLights } from "./caveAtmosphere";
 import { pushToast } from "../components/hud/toastStore";
 
-// The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: the
-// Grand Karst Sanctuary, 45 x 45. The cavern is one Blender model, caverns.glb
-// (scripts/blender/build_caverns.py, laid out from shared/worlds/caverns.ts): this file loads it and
-// brings it to life.
+// The Glimmering Caverns (map "glimmering_caverns"), down the Whispering Woods' old mine adit: 45 x 45,
+// after Hang Son Doong (docs/caverns-design.md), eight zones stepping down from the basecamp's shelf to
+// the Great Lake. The cavern is one Blender model, caverns.glb (scripts/blender/build_caverns.py, laid
+// out from shared/worlds/caverns.ts): this file loads it and brings it to life.
 //
 //   the floor     the model's own floor, which is its walk collider (`caverns_walk_collider`, drawn):
-//                 the very grid cavernsFloorY walks you on (the doline, the talus's switchbacks, the
-//                 overlook, the trails, the beach, the islet), triangle for triangle, so a click lands
-//                 at the exact height you see (the only mesh of the model a click is tested against);
-//                 while the model loads (or if it fails) the same grid built here in its place
-//   the finishes  the rock and the shell as painted (the light baked into their vertex colours), the
-//                 lake's bed lit by moving caustics (brightest under the islet's skylight); what glows
-//                 (crystals, mushrooms, lanterns, the forge's mouth) a MeshStandardMaterial whose
-//                 emission is its own vertex colour, breathing; the cenote's and the terraces' water
-//                 see-through with no depth write (nothing z-fights under it); the mangrove roots and
-//                 the skylight's rim dithered to 30% where they stand between you and the camera
+//                 the very grid cavernsFloorY walks you on (every zone, the trails cut across the
+//                 cliffs, the fords, the lake's shore and the causeway), triangle for triangle, so a
+//                 click lands at the exact height you see (the only mesh of the model a click is tested
+//                 against); while the model loads (or if it fails) the same grid built here in its
+//                 place; its own copy of the clay paints every bank too steep to walk bare rock,
+//                 triangle by triangle (floorBanks)
+//   the finishes  the rock and the shell as painted (each zone's ground and tint in their vertex
+//                 colours), the lake's bed lit by moving caustics (brightest under the islet's
+//                 skylight); what glows (crystals, fungi, lanterns, the forge's mouth) a
+//                 MeshStandardMaterial whose emission is its own vertex colour, breathing; the lake's
+//                 and the pools' water see-through with no depth write (nothing z-fights under it);
+//                 the jungle's trees and the Hound's Hand dithered to 30% where they stand between
+//                 you and the camera
 //   the light     the game's own (CaveLights): ACES tone mapping at a balanced exposure, a deep cool
-//                 navy ambient and hemisphere (#161c26 at 0.28), the doline's skylight a soft golden
-//                 spotlight falling only under the doline's broken roof and casting real shadows, a
-//                 soft fill from over your shoulder, the model's baked light kept as a dim lightmap
-//                 (bakedLight: its vertex colours' own glow), three moving point lights (the forge's
-//                 flicker, the terraces' warmth, the cenote's heart) and four small ones for the
-//                 crystals nearest you (caveAtmosphere.tsx); the doline's godrays and the skylight's
-//                 shaft (additive, soft-edged, dust drifting in them); a thin pale mist over the
-//                 cenote's water; nothing ever hangs into the view
+//                 navy ambient and hemisphere (#161c26 at 0.28), the sun through the jungle's collapse
+//                 a soft golden spotlight casting real shadows, a key light from high over the collapse
+//                 (every cliff facing the camera in its own shade) and a softer fill from over your
+//                 shoulder, the model's baked light kept as a dim lightmap (bakedLight: its colours'
+//                 own glow), three moving point lights (the forge's flicker, the pools' warmth, the
+//                 lake's heart) and four small ones for the crystals nearest you (caveAtmosphere.tsx);
+//                 the jungle's godrays and the islet's skylight shaft (additive, soft-edged, dust
+//                 drifting in them); dust in the collapse's light over the basecamp and the
+//                 breakdown; a thin pale mist over the lake's water and a height mist on everything
+//                 (heightMist: a haze over the low ground, the deep dark below the water line and
+//                 down the edges); nothing ever hangs into the view
 //   the shore     the sand the water touches damp: darker, and glossy (lower roughness) in the
 //                 bed's finish
+//   the zones     each one's name in a toast as you come into it (ZoneToasts)
 //   the nodes     every ore node from its kind's rock (the model's Ore_<kind>), instanced: its damage
 //                 the room's (`ores`): surface fissures glowing in, then the outer shell fracturing
 //                 (a tremble), then the shatter (a burst of shards); a broken node leaves a dark
 //                 cracked stump with dust motes over it until it grows back; each strike throws sparks
 //                 where it landed; the loot flies to you
 //   the folk      Gus the mole at his log workstation (gus.glb), Finnegan the Grotto Angler on his
-//                 driftwood log on the cenote's north shore, his reed creel and lantern by him
+//                 driftwood log on the lake's north shore, his reed creel and lantern by him
 //                 (finnegan.glb), and a capybara soaking in the terraces' upper pool, a towel folded
 //                 on its head (capybara.glb)
-//   the fauna     glowing crabs skittering on the beach, swiftlets circling in the doline's sunbeams
-//                 (caveFauna.tsx, instanced from the model's Fauna_* templates)
+//   the fauna     glowing crabs skittering on the shore, swiftlets circling in the jungle's sunbeams,
+//                 bats fluttering over the mudflats (caveFauna.tsx, instanced from the model's Fauna_*
+//                 templates)
 //   the terraces  steam curling off their pools, and warm motes rising round every bather
-//   the drip      a lucky drip's cyan ripple on the cenote (the fishing's luck)
+//   the drip      a lucky drip's cyan ripple on the lake (the fishing's luck)
 
 export const CAVERNS_URL = modelUrl("caverns.glb");
 export const GUS_URL = modelUrl("gus.glb");
@@ -316,7 +324,7 @@ const GUS_TALK: NpcTalk = {
 };
 const FINNEGAN_TALK: NpcTalk = {
   height: 1.25,
-  clicked: ["The cenote's fish glow, friend. Mind the drip", "A silver spinner for the patient angler", "Fish bones and prismatic scales: that's the currency down here", "The elder olm's been in this lake longer than the cavern"],
+  clicked: ["The lake's fish glow, friend. Mind the drip", "A silver spinner for the patient angler", "Fish bones and prismatic scales: that's the currency down here", "The elder olm's been in this lake longer than the cavern"],
   greet: {
     inside: (x, z) => Math.hypot(x - FINNEGAN.x, z - FINNEGAN.z) < 3.6,
     lines: ["Ahoy up there!", "Come, sit a while, the fish are biting", "The lake's still as glass today", "Got anything glowing in that livewell?"],

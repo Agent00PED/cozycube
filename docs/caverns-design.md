@@ -129,7 +129,11 @@ widest (16 m) zoom, `npm run check-layout`, and the draw-call count.
    drifting in the collapse's light. The waterfall's roar, the stream's babble and the lake's lapping
    placed by distance, the bats' squeaks over the mudflats, the crystals ringing more often in the
    rift. Each zone's name and what it holds in a toast as you come into it (`cavernsZoneAt`).
-6. **Cleanup**: CLAUDE.md, the patch note, `check-layout`, the build.
+6. **Cleanup** (done 2026-09-30): the patch note (0.7.13, The Son Doong Expedition); CLAUDE.md and
+   the code's comments and player-facing lines brought to the new map (the Great Lake, the zones'
+   names; Old Flint's lore, the world's tagline, Finnegan's and the Monolith's lines); the builder's
+   palette cleared of the old map's colours (the model rebuilt byte for byte the same);
+   `check-layout` and the build.
 
 ## What was kept
 

@@ -929,7 +929,7 @@ export class CavernsMine {
       s.respawnAt = 0;
       s.weak = rollWeakSpot(node.face);
       changed = true;
-      if (node.kind === "monolith") this.host.shout("campfireNotice", { message: "The Titan Monolith has surfaced on the Glimmering Caverns' Cenote islet! Bring a T4 pickaxe or better and break it together", emoji: "🗿" });
+      if (node.kind === "monolith") this.host.shout("campfireNotice", { message: "The Titan Monolith has surfaced on the Great Lake's islet in the Glimmering Caverns! Bring a T4 pickaxe or better and break it together", emoji: "🗿" });
     }
     for (const [id, p] of [...this.prospectors.entries()]) {
       const player = this.host.player(id);

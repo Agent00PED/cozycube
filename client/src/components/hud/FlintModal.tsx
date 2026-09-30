@@ -9,15 +9,15 @@ import { Modal } from "./Modal";
 
 const LORE = [
   "\"Easy there, young'un. Not many find this old adit behind the maples.\"",
-  "\"Below these roots lies the Grand Karst: a sunlit doline where the ceiling fell in long ago, Gus the Mole at his workstation and the bellows forge in its basalt fissure, and down the ramp a cenote lake glowing blue with things that never saw the sun.\"",
+  "\"Below these roots the cave opens out like nothing you've seen: Gus the Mole's basecamp on the high shelf, the bellows forge in its basalt cleft, a jungle growing where the roof fell in, and step after step down to a great lake glowing with things that never saw the sun.\"",
   "\"Copper in the jungle under the fallen roof, coal in the breakdown's blocks. Iron down in the mudflats, silver on the pearl terraces, glimmerstone in the rift. And now and then the Titan Monolith wakes on the lake's islet, under the skylight. Takes a whole crew to crack that one.\"",
   "\"Don't go swinging blind: every rock has a weak spot. Watch for the glow in its cracks, the glint, the dust sifting down. Strike there.\"",
 ];
 const TIPS = [
   "\"A rock one tier above your pick bites back at sixty percent. Two above, and you'll skid right off.\"",
-  "\"Soak a minute in the travertine terraces on the west cliff: the Deep Warmth stays with you wherever you walk.\"",
+  "\"Soak a minute in the warm pools on the pearl terraces: the Deep Warmth stays with you wherever you walk.\"",
   "\"Turn a geode till its seam faces you, then one good blow. Not too soft, not too hard: the finer gems don't like a clumsy mallet.\"",
-  "\"When the drip falls over the cenote, cast right into its ripple. Nothing common bites there, and old Finnegan will tell you the same.\"",
+  "\"When the drip falls over the lake, cast right into its ripple. Nothing common bites there, and old Finnegan will tell you the same.\"",
   "\"Many hands on one rock and everyone takes home more. That's how it's always been down there.\"",
   "\"Smelt your silver before you sell it. The forge pays you back for the coal twice over.\"",
 ];

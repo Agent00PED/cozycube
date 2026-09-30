@@ -10,7 +10,7 @@ import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { MarketClock, PRICE_COLUMN, SellAllButton, ShopShell, TrendBadge, type ShopNotice, type ShopTab } from "./ShopShell";
 
-// Gus the Mole's workstation on the Sunlit Doline, on the shops' fixed-anchor counter (ShopShell).
+// Gus the Mole's workstation at the Expedition Basecamp, on the shops' fixed-anchor counter (ShopShell).
 // He buys everything the caverns give (the raw ores, the forge's ingots, Masterworks at their +25%,
 // geodes as they are, the anvil's cut gems) at the hour's market, and the Fine Stone Dust (at its
 // flat price: the materials' store, up to 99); the cenote's fish are Finnegan's to buy. He sells the

@@ -49,7 +49,7 @@ const TIPS = [
   "Every rock in the Glimmering Caverns has a weak spot: watch for the glow in its cracks, the glint, the dust.",
   "Sixty seconds in the caverns' travertine terraces: the Deep Warmth, a quicker step on every map for 20 minutes ♨️",
   "Many hands on one rock and everyone takes home more: +40% for each friend who strikes it too.",
-  "Down in the caverns, cast from anywhere along the cenote's sandy shore: face the water and throw your line.",
+  "Down in the caverns, cast from anywhere along the Great Lake's shore: face the water and throw your line.",
 ];
 
 type Particle = "ember" | "leaf" | "mote" | "glint" | "dust" | "none";

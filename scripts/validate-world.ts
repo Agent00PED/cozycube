@@ -695,7 +695,7 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
   if (Math.abs(top[2] - DOLINE.y) > 0.1 || foot[2] > OVERLOOK.y + 0.45 || foot[2] < OVERLOOK.y - 0.1) fail(`${C}: the switchback runs from ${top[2]} to ${foot[2]}, not from the basecamp's shelf (${DOLINE.y}) to the overlook (${OVERLOOK.y})`);
   // the overlook's plateau at its level, walked to from the tunnel
   const overlookAt = { x: 1.0, z: -6.0 };
-  standable(C, home, overlookAt, "the Limestone Overlook");
+  standable(C, home, overlookAt, "the Hound's Overlook");
   checks++;
   if (Math.abs(cavernsFloorY(overlookAt.x, overlookAt.z) - OVERLOOK.y) > 0.45) fail(`${C}: the overlook at ${fmt(overlookAt)} stands at ${cavernsFloorY(overlookAt.x, overlookAt.z).toFixed(2)}, not about ${OVERLOOK.y}`);
   // every node: inside its collider, mined from its own floor, in reach, reachable from the tunnel

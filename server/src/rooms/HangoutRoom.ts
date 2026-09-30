@@ -2971,7 +2971,7 @@ export class HangoutRoom extends Room<HangoutState> {
     return (bySeat ?? nearestFishingSpot(player.x, player.z)).bobber;
   }
 
-  /** `caverns:cast`: a cast from anywhere on the cenote's shore, facing the water (the float lands
+  /** `caverns:cast`: a cast from anywhere on the lake's shore, facing the water (the float lands
    *  out on it ahead: shoreCast). */
   private castFromShore(sessionId: string, packet: ShoreCastPacket) {
     const player = this.state.players.get(sessionId);
@@ -4087,7 +4087,7 @@ export class HangoutRoom extends Room<HangoutState> {
       case "buyCaveTackle": {
         if (!isCaveTackleId(packet.tackle)) return;
         const t = CAVE_TACKLES[packet.tackle];
-        if (!atFinnegan) return reply(false, `The ${t.name} is Finnegan's: find him on the Cenote's driftwood outcrop`);
+        if (!atFinnegan) return reply(false, `The ${t.name} is Finnegan's: find him on his driftwood log by the Great Lake`);
         if (profile.caveTackles.includes(packet.tackle)) return reply(false, `You've already got the ${t.name}: it's at work for good`);
         const missing: string[] = [];
         for (const [id, n] of Object.entries(t.ore) as [OreItemId, number][]) if (satchelCountFor(profile, id) < n) missing.push(`${n - satchelCountFor(profile, id)} ${ORE_ITEMS[id].name}`);

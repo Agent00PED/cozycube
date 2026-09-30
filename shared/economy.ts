@@ -206,9 +206,9 @@ export const RETIRED_GEAR_PRICES: Record<string, number> = { canvas_gloves: 120,
 
 /** Gus the Mole's base price for each thing the caverns give (shared/caverns_mining.ts ORE_ITEMS),
  *  before the hour's market (shared/market.ts): the raw ores off the nodes by tier (Coal 6, Raw
- *  Copper 12 in the Sunlit Doline; Raw Iron 25 and Raw Silver 55 in the crystal fissures; a Glimmer
- *  Shard 135 among their mushrooms; an Ancient Core Fragment 450 off the Titan Monolith on the
- *  Cenote's islet), the Thermal Bellows Forge's ingots (a small margin on their ores and coal: copper
+ *  Copper 12 in the Doline Jungle; Raw Iron 25 on the Iron Mudflats and Raw Silver 55 on the Pearl
+ *  Terraces; a Glimmer Shard 135 in the Glimmer Rift; an Ancient Core Fragment 450 off the Titan
+ *  Monolith on the Great Lake's islet), the Thermal Bellows Forge's ingots (a small margin on their ores and coal: copper
  *  +7%, iron +9%, silver +51%; a Masterwork ingot, forged by hand at the bellows and the anvil, 25%
  *  more again), the geodes uncracked, and the gems the Precision Geode Chisel cleaves out of them.
  *  (Fine Stone Dust is a crafting material now: shared/economy.ts BYPRODUCT_PRICES.) */
