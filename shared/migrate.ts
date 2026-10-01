@@ -40,17 +40,23 @@
 //                      gem, Firewood bundle and piece of furniture held that day, goes into `owed`,
 //                      paid in coins as the player next comes in
 //
+//   v5 -> v6   (the tool ladder: docs/economy-plan.md phase 2)
+//     the tools        cost more, and the finest of each craft is forged, not bought: every tool and
+//                      store a player owns stays theirs, whatever it would cost now
+//     the satchels     cost less (half their pickaxe's tier): the difference on every tier bought
+//                      goes into `owed`
+//
 // Each migration leaves a word in the profile's mail: told to the player the next time they come in.
 
 import { addLogs, BYPRODUCTS, WOOD, woodUnits, type ByproductId, type WoodKind } from "./chop";
 import { CRAFTS, type CraftId, type CraftNeeds } from "./crafting";
-import { CAVE_FISH_PRICES, FIREWOOD_PRICE, FISH_PRICES, ORE_PRICES, PRE_PHASE1 } from "./economy";
+import { CAVE_FISH_PRICES, FIREWOOD_PRICE, FISH_PRICES, ORE_PRICES, PRE_PHASE1, PRE_PHASE2, SATCHEL_PRICES } from "./economy";
 import type { CreelFish, FishingProfile } from "./fishing";
 import { GEAR } from "./gear";
 import { SATCHEL_TIERS } from "./satchel";
 
 /** The camp profile's schema now. */
-export const PROFILE_VERSION = 5;
+export const PROFILE_VERSION = 6;
 /** A letter in the profile's mail: at most this long (a longer one is cut short as it is read). */
 export const MAIL_MAX = 1200;
 
@@ -112,6 +118,7 @@ export function migratePlayerInventory(raw: unknown, p: FishingProfile, fishValu
   }
   if (p.v < 4) migrateV4(stored, p, words);
   if (p.v < 5) migrateV5(p, words, fishValue);
+  if (p.v < 6) migrateV6(p, words);
   if (words.length) p.mail = [...p.mail, ...words.map((w) => w.slice(0, MAIL_MAX))].slice(-8);
   p.v = PROFILE_VERSION;
   return p;
@@ -157,6 +164,19 @@ function migrateV5(p: FishingProfile, out: string[], fishValue: (f: CreelFish) =
   if (!played && owed <= 0) return;
   out.push(
     `⚖️ The market's great rebalance: timber, the rarer fish, glimmer, geodes, gems and furniture sell for less now, so that every rod, axe and pickaxe earns what its tier should (a better tool is always a better hour).${owed > 0 ? ` Nothing you held lost its worth: the traders paid you ${owed.toLocaleString("en-US")} 🪙 for the difference on your stock.` : ""} Silver and glimmer grow back slower and are worth the wait; a rock shows at most one Lucky Glint.`,
+  );
+}
+
+/** v5 -> v6: the tool ladder. Owned tools and stores are kept; the satchel tiers bought before they
+ *  got cheaper are paid their difference. */
+function migrateV6(p: FishingProfile, out: string[]) {
+  let owed = 0;
+  for (let t = 1; t <= Math.min(p.satchelTier, SATCHEL_PRICES.length - 1); t++) owed += Math.max(0, PRE_PHASE2.satchel[t] - SATCHEL_PRICES[t]);
+  if (owed > 0) p.owed = Math.min(9_999_999, p.owed + owed);
+  const played = p.creel.length > 0 || p.rods.length > 1 || p.axes.length > 1 || p.caveAccess || Object.values(p.wood).some((n) => n > 0);
+  if (!played && owed <= 0) return;
+  out.push(
+    `🧰 The tool ladder: rods, axes and pickaxes cost more now (each tier a real goal), the campfire's stalls stock T2 and the woods' keepers T3 and T4, and the finest of each craft (T5) and the largest livewell and carrier are forged at the caverns' forge from ingots and your craft's own makings. Everything you already own is yours to keep.${owed > 0 ? ` Gus's satchels cost less now: ${owed.toLocaleString("en-US")} 🪙 back for the ones you bought.` : ""} And a stand of Silver Birches has grown on the campfire's south-west lawn.`,
   );
 }
 

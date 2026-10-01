@@ -770,7 +770,9 @@ export type ForgePacket =
   | { op: "start"; ingot: IngotId; batch: ForgeBatch }
   | { op: "finish"; pumps: number[]; strikes: number[] }
   | { op: "cancel" }
-  | { op: "relic"; relic: MiningRelicId };
+  | { op: "relic"; relic: MiningRelicId }
+  /** An Expedition (T5) tool or store forged: shared/expedition.ts FORGED_TOOLS. */
+  | { op: "tool"; tool: string };
 /** Into the onsen (the nearest free seat in reach) or out of it (onto its dry exit anchor); or, in
  *  it, a deep breath (`breath`: ms since the soak began, on the client's clock). */
 export interface OnsenPacket {

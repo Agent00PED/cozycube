@@ -4,6 +4,7 @@ import { CAVERNS_CHANNELS, ORE_ITEMS, ORE_ITEM_IDS, PICKAXES, PICKAXES_BY_TIER, 
 import { SATCHEL_TIERS, STACK_GEODE, STACK_ORE, nextSatchelTier, satchelCountFor, satchelCounts, satchelTier, slotsUsed } from "@shared/satchel";
 import { BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "@shared/chop";
 import { materialCount, type FishingProfile } from "@shared/fishing";
+import { FORGED_TIER } from "@shared/expedition";
 import { BYPRODUCT_PRICES, MATERIAL_CAP } from "@shared/economy";
 import { marketMultiplier, oreGood, parseMarket, priceRun } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -152,6 +153,8 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
                   <button type="button" className="clay-btn clay-btn-ghost min-h-9 px-3 text-xs" onClick={() => send(CAVERNS_CHANNELS.gus, { op: "equipPickaxe", pickaxe: id })}>
                     Hold
                   </button>
+                ) : p.tier >= FORGED_TIER ? (
+                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🔥 Forged at the forge beside the post</span>
                 ) : p.price === 0 ? (
                   <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">Old Flint's gift, by the woods' adit</span>
                 ) : (

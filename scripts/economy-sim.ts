@@ -420,6 +420,10 @@ export const TOOL_PRICES = {
   pickaxe: [PICKAXE_PRICES.copper, PICKAXE_PRICES.reinforced, PICKAXE_PRICES.glimmer, PICKAXE_PRICES.drill],
 };
 
+/** The minutes of play each tool is meant to cost, tier 2 to 5, at its craft's target income of the
+ *  step before it (docs/economy-plan.md section 6). */
+export const TOOL_MINUTES = { rod: [20, 45, 90, 180], axe: [20, 45, 90, 180], pickaxe: [30, 60, 120, 180] };
+
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/economy-sim.ts")) {
   const lines = simulate();
   const pad = (s: string | number, n: number) => String(s).padEnd(n);

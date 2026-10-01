@@ -4,7 +4,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { CENOTE_OVER_RIVER, ladder, miner, simulate, soldLadder, soloMarket, TARGETS } from "../scripts/economy-sim";
+import { CENOTE_OVER_RIVER, ladder, miner, simulate, soldLadder, soloMarket, TARGETS, TOOL_MINUTES, TOOL_PRICES } from "../scripts/economy-sim";
+import { CARRIER_PRICES, CREEL_PRICES } from "../shared/economy";
+import { FORGED_TOOLS, FORGED_TOOL_IDS, forgedBlocked, forgedOwned, grantForged, makingsMissing, spendMakings } from "../shared/expedition";
 import { FISH, sanitizeFishingProfile } from "../shared/fishing";
 import { PROFILE_VERSION } from "../shared/migrate";
 
@@ -54,7 +56,7 @@ test("the rebalance pays the difference on what was held (shared/migrate.ts v5)"
     wood: { pine: 10, maple: 2 },
     woodValue: { pine: 10, maple: 2 },
     firewood: 4,
-    satchelTier: 2,
+    satchelTier: 0,
     satchelContents: [{ id: "star_shard", n: 1 }, { id: "coal", n: 5 }],
     crafts: [{ c: "birch_stool", m: false }],
   };
@@ -76,4 +78,47 @@ test("the solo market: nothing off the first thirty, then down toward the floor"
   assert.ok(soloMarket(60) < 1 && soloMarket(60) > 0.7);
   assert.ok(soloMarket(800) >= 0.7 && soloMarket(800) < 0.72);
   assert.ok(Object.values(ladder(lines)).every((row) => row.length === 5));
+});
+
+test("a tool costs its minutes of the step before it, storage half its tool (docs/economy-plan.md section 6)", () => {
+  const income = { rod: TARGETS.river, axe: TARGETS.wood, pickaxe: TARGETS.ore };
+  for (const craft of ["rod", "axe", "pickaxe"] as const) {
+    TOOL_PRICES[craft].forEach((price, i) => {
+      const minutes = price / income[craft][i];
+      assert.ok(Math.abs(minutes / TOOL_MINUTES[craft][i] - 1) <= 0.1, `${craft} T${i + 2}: ${minutes.toFixed(0)} minutes, meant ${TOOL_MINUTES[craft][i]}`);
+    });
+  }
+  TOOL_PRICES.rod.forEach((price, i) => {
+    assert.equal(CREEL_PRICES[i + 1], price / 2);
+    assert.equal(CARRIER_PRICES[i + 1], price / 2);
+  });
+});
+
+test("the Expedition tools are forged: coins, ingots and the craft's own makings, once each", () => {
+  for (const id of FORGED_TOOL_IDS) assert.ok(Object.keys(FORGED_TOOLS[id].needs.ore ?? {}).length > 0, `${id} takes something from the caverns`);
+  const p = sanitizeFishingProfile({ v: PROFILE_VERSION, satchelTier: 3, satchelContents: [{ id: "iron_ingot_mw", n: 9 }], byproducts: { fishBone: 4, scales: 12 }, creelTier: 3 });
+  assert.equal(forgedOwned(p, "rod"), false);
+  assert.deepEqual(makingsMissing(p, FORGED_TOOLS.rod.needs), []);
+  assert.deepEqual(makingsMissing(p, FORGED_TOOLS.axe.needs), ["6 Golden Leaf Amber"]);
+  spendMakings(p, FORGED_TOOLS.rod.needs);
+  grantForged(p, "rod");
+  assert.equal(p.rod, "moonlight");
+  assert.equal(forgedOwned(p, "rod"), true);
+  assert.equal(p.byproducts.fishBone ?? 0, 0);
+  // (a Masterwork ingot stood in for a plain one: three are left, enough for the livewell)
+  assert.ok(forgedBlocked(p, "livewell"), "the tier-4 livewell comes first");
+  p.creelTier = 4;
+  assert.equal(forgedBlocked(p, "livewell"), null);
+  assert.deepEqual(makingsMissing(p, FORGED_TOOLS.livewell.needs), []);
+  grantForged(p, "livewell");
+  assert.equal(p.slots, 60);
+});
+
+test("the cheaper satchels pay their owners the difference (shared/migrate.ts v6)", () => {
+  const p = sanitizeFishingProfile({ v: 5, satchelTier: 3, caveAccess: true });
+  assert.equal(p.owed, 300 + 1900);
+  assert.equal(sanitizeFishingProfile({ v: 5, satchelTier: 5 }).owed, 300 + 1900 + 5250 + 16250);
+  assert.equal(sanitizeFishingProfile({ v: 5 }).owed, 0);
+  assert.equal(sanitizeFishingProfile({ v: 5 }).mail.length, 0);
+  assert.equal(p.mail.length, 1);
 });

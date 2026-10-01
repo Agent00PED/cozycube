@@ -79,6 +79,12 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": 5.0, "z": 8.4 },
     { "x": -9.15, "z": 5.2 }
   ],
+  "fellBirches": [
+    { "x": -9.5, "z": 7.9 },
+    { "x": -7.4, "z": 8.1 },
+    { "x": -9.3, "z": 9.6 },
+    { "x": -7.5, "z": 9.7 }
+  ],
   "rocks": [
     { "x": 6.1, "z": -5.2, "s": 0.7 },
     { "x": 6.0, "z": 3.4, "s": 0.8 },
@@ -268,10 +274,12 @@ export function nearestFishingSpot(x: number, z: number) {
 /** The Soft Pines round the clearing that you fell (the radial felling, shared/chop.ts): each one's
  *  node id, and where you stand to fell it (a step toward the fire). They grow back from their
  *  stumps, a new size each time. */
-export const CAMP_TREES = L.fellTrees.map((t, i) => {
+const campTree = (id: string, kind: "soft_pine" | "birch", t: { x: number; z: number }) => {
   const toFire = unit(L.fire.x - t.x, L.fire.z - t.z);
-  return { id: `camp_pine_${i + 1}`, kind: "soft_pine" as const, x: t.x, z: t.z, approachX: t.x + toFire.x * 1.05, approachZ: t.z + toFire.z * 1.05 };
-});
+  return { id, kind, x: t.x, z: t.z, approachX: t.x + toFire.x * 1.05, approachZ: t.z + toFire.z * 1.05 };
+};
+/** (And the stand of Silver Birches on the south-west lawn: what the campfire's T2 axe is for.) */
+export const CAMP_TREES = [...L.fellTrees.map((t, i) => campTree(`camp_pine_${i + 1}`, "soft_pine", t)), ...L.fellBirches.map((t, i) => campTree(`camp_birch_${i + 1}`, "birch", t))];
 
 /** Close enough to the telescope's eyepiece to look through it. */
 export const STARGAZE_REACH = 1.4;

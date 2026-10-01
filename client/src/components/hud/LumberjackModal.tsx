@@ -5,6 +5,7 @@ import { FIREWOOD_PER_COIN, firewoodCoins, MAX_DAY_PERMITS, PERMIT_PRICES } from
 import { CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks } from "@shared/crafting";
 import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
+import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { LegacyTradeIn, hasLegacy } from "./LegacyTradeIn";
@@ -63,8 +64,8 @@ interface Props {
 
 // Buster the Lumberjack's stall by the woodpile, on the shops' fixed-anchor counter (ShopShell). He
 // buys your logs (at the hour's prices, each worth its tree's size), the felling's by-products, the
-// Pine Resin, Firewood and the pieces carved at the workbench beside his stall; he sells axes up to
-// T3 and the woods' permits, bigger wood carriers tier by tier, and the woodcutter's gear up to T3
+// Pine Resin, Firewood and the pieces carved at the workbench beside his stall; he sells the T2 axe
+// and carrier, the woods' permits and the woodcutter's gear up to T3
 // (the rest is Bramble's, in the woods). Every trade is the server's call (BUSTER packets); his
 // answer comes back as busterResult.
 
@@ -103,6 +104,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
   const craftWorth = priceRun(forSale, (c) => craftGood(c.c), (c, mult) => craftSalePrice(c, mult), hour).total;
   const saleStacks = craftStacks(forSale).map((st) => ({ ...st, at: profile.crafts.findIndex((c) => c.c === st.item.c && c.m === st.item.m) }));
   const next = nextCarrierTier(profile.carrierTier);
+  // (what Buster doesn't stock: T3 and T4 are Bramble's, T5 is forged in the caverns)
+  const away = (tier: number) => soldElsewhere(tier, SHOP_TIER_CAP.campfire, "🐻 At Bramble's cabin in the woods");
   const held = WOOD_KINDS.filter((k) => profile.wood[k] > 0);
   return (
     <ShopShell
@@ -239,9 +242,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                   <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "equipAxe", axe: id })}>
                     Use
                   </button>
-                ) : axe.tier >= 4 ? (
-                  // the Maple and Elderwood axes: Bramble's, in the Whispering Woods
-                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🐻 At Bramble's cabin in the woods</span>
+                ) : away(axe.tier) ? (
+                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">{away(axe.tier)}</span>
                 ) : (
                   <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < axe.price} onClick={() => send({ type: "BUSTER", op: "buyAxe", axe: id })}>
                     {axe.price.toLocaleString("en-US")} 🪙
@@ -275,6 +277,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                   <span className="px-2 text-xs font-bold text-emerald-200">In use</span>
                 ) : have ? (
                   <span className="px-2 text-xs opacity-60">Outgrown</span>
+                ) : next?.id === t.id && away(tier) ? (
+                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">{away(tier)}</span>
                 ) : next?.id === t.id ? (
                   <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < t.price} onClick={() => send({ type: "BUSTER", op: "upgradeCarrier" })}>
                     {t.price.toLocaleString("en-US")} 🪙

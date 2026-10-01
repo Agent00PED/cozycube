@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { FORGED_TOOLS, FORGED_TOOL_IDS, forgedBlocked, forgedOwned, makingsList, type ForgedToolId } from "@shared/expedition";
 import {
   BELLOWS_HOLD_S,
   BELLOWS_LIMIT_S,
@@ -62,15 +63,16 @@ import { flyToBag } from "./flyToBag";
 
 interface Props {
   profile: FishingProfile;
+  coins: number;
   market: string;
   send: (channel: string, packet?: unknown) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onClose: () => void;
 }
 
-type Tab = "bellows" | "smelt" | "relics";
+type Tab = "bellows" | "smelt" | "relics" | "expedition";
 
-export function ForgeModal({ profile, market, send, subscribeMessages, onClose }: Props) {
+export function ForgeModal({ profile, coins, market, send, subscribeMessages, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("bellows");
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
   const [game, setGame] = useState<ForgeGame | null>(null);
@@ -115,6 +117,7 @@ export function ForgeModal({ profile, market, send, subscribeMessages, onClose }
     ["bellows", "🔥 Bellows"],
     ["smelt", "⚡ Quick Smelt"],
     ["relics", "🧿 Relics"],
+    ["expedition", "🧭 Expedition Tools"],
   ];
   if (game)
     return (
@@ -125,7 +128,7 @@ export function ForgeModal({ profile, market, send, subscribeMessages, onClose }
   return (
     <Modal title="The Thermal Bellows Forge" icon="🔥" onClose={onClose} width={500}>
       <div className="flex flex-col gap-2 pb-1">
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-2 gap-1">
           {tabs.map(([id, label]) => (
             <button key={id} type="button" className={`clay-btn min-h-11 text-[12.5px] font-bold ${tab === id ? "clay-btn-amber" : "clay-btn-ghost"}`} onClick={() => setTab(id)}>
               {label}
@@ -135,6 +138,7 @@ export function ForgeModal({ profile, market, send, subscribeMessages, onClose }
         {tab === "bellows" && <BellowsPick profile={profile} market={market} result={result} onStart={(ingot, batch) => send(CAVERNS_CHANNELS.forge, { op: "start", ingot, batch })} />}
         {tab === "smelt" && <QuickSmelt profile={profile} market={market} send={send} />}
         {tab === "relics" && <Relics profile={profile} send={send} />}
+        {tab === "expedition" && <Expedition profile={profile} coins={coins} send={send} />}
         {notice && <p className={`m-0 text-center text-[12px] font-semibold ${notice.ok ? "text-amber-100" : "text-rose-200"}`}>{notice.text}</p>}
       </div>
     </Modal>
@@ -545,6 +549,46 @@ function QuickSmelt({ profile, market, send }: { profile: FishingProfile; market
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// --- the Expedition tools (T5: forged, never sold) ---------------------------------------------------------
+
+function Expedition({ profile, coins, send }: { profile: FishingProfile; coins: number; send: Props["send"] }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="m-0 text-center text-[12px] opacity-80">The finest tool of each craft and the largest stores are forged here, not sold: coins, ingots and your craft's own makings. A Masterwork ingot stands in for a plain one.</p>
+      {FORGED_TOOL_IDS.map((id: ForgedToolId) => {
+        const t = FORGED_TOOLS[id];
+        const owned = forgedOwned(profile, id);
+        const first = forgedBlocked(profile, id);
+        const makings = makingsList(profile, t.needs);
+        const ready = !first && coins >= t.coins && makings.every((m) => m.have >= m.need);
+        return (
+          <div key={id} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+            <span className="text-2xl">{t.emoji}</span>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+              <b className="text-[13px] text-[#F7EBE1]">{t.name}</b>
+              <span className="text-[11px] opacity-80">{t.blurb}</span>
+              {!owned && (
+                <span className="flex flex-wrap gap-1 text-[10.5px]">
+                  <span className={`rounded-full px-1.5 ${coins >= t.coins ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>{t.coins.toLocaleString("en-US")} 🪙</span>
+                  {makings.map((m) => (
+                    <span key={m.name} className={`rounded-full px-1.5 ${m.have >= m.need ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>
+                      {m.need} {m.name} <span className="opacity-70">({m.have})</span>
+                    </span>
+                  ))}
+                  {first && <span className="rounded-full bg-rose-400/15 px-1.5 text-rose-200">Needs {first}</span>}
+                </span>
+              )}
+            </div>
+            <button type="button" className={`clay-btn min-h-11 shrink-0 px-3 text-xs ${owned ? "clay-btn-ghost" : "clay-btn-amber"}`} disabled={owned || !ready} onClick={() => send(CAVERNS_CHANNELS.forge, { op: "tool", tool: id })}>
+              {owned ? "Forged ✓" : "Forge"}
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

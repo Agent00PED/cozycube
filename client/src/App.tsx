@@ -1161,7 +1161,7 @@ export default function App() {
         {panel?.kind === "codex" && localPlayer && <CaveCodexModal found={angler.profile.codex} initial={panel.propId} title={localPlayer.title} onWear={(id) => casinoSend({ type: "EQUIP_TITLE", id })} onClose={closePanel} />}
         {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} campfireSend={campfireSend} onClose={closePanel} />}
         {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
-        {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} market={market} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "anvil" && localPlayer && <GeodeModal profile={angler.profile} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "flint" && <FlintModal first={panel.propId === "old_flint:first"} onClose={closePanel} />}
         {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} market={market} send={campfireSend} onClose={closePanel} onOpenCollection={() => setLogbook("timber")} />}
