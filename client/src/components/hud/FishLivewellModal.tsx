@@ -43,7 +43,7 @@ export function FishLivewellModal({ profile, market, send, onClose, onOpenCollec
   const locked = profile.creel.filter((f) => f.l).length;
   const rod = RODS[profile.rod];
   const lands = TIER_NAMES.filter((t) => FISH_TIER_RANK[t] <= rod.tier).map((t) => TIER_LABEL[t].replace(" ✨", "").replace(" 🌌", ""));
-  const bonus = livewellBonus(profile.worn);
+  const bonus = livewellBonus(profile);
   return (
     <Modal title={`${tier.icon} ${tier.name}`} icon="🪣" onClose={onClose} width={520} pinned fixedHeight={600}>
       <div className="flex shrink-0 flex-col gap-2 pb-2">

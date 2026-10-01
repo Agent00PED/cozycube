@@ -43,7 +43,6 @@ import type { ByproductId, WoodKind } from "./chop";
 import type { OreItemId } from "./caverns_mining";
 import { CARVED_PRICE, RESIN_BUY_PRICE } from "./economy";
 import type { BuffKey } from "./fishing";
-import type { GearId } from "./gear";
 
 export type CraftMode = "safe" | "push";
 export interface CraftOutcomeOdds {
@@ -73,7 +72,6 @@ export type CraftFilter = Exclude<CraftCategory, "legacy">;
 export const CRAFT_FILTERS: { id: CraftFilter; emoji: string; label: string }[] = [
   { id: "tackles", emoji: "🎣", label: "Tackles" },
   { id: "consumables", emoji: "🧪", label: "Consumables" },
-  { id: "relics", emoji: "🧿", label: "Relics" },
   { id: "furniture", emoji: "🪑", label: "Furniture" },
 ];
 
@@ -154,7 +152,7 @@ export interface Craft {
   use: CraftUse;
   /** A tackle's effect (use "tool"), a relic's gear piece (use "relic"), a consumable's buff. */
   tool?: ToolId;
-  gear?: GearId;
+  gear?: string;
   buff?: BuffKey;
   /** A piece with a use of its own while you carry it (a torch) or burn it (incense): legacy. */
   special?: "torch" | "incense";
@@ -185,7 +183,7 @@ const make = (name: string, emoji: string, tier: CraftTier, material: CraftMater
 });
 const tackle = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, tool: ToolId, description: string) => make(name, emoji, tier, material, "tackles", "tool", needs, 0, description, { tool });
 const consumable = (name: string, emoji: string, material: CraftMaterial, needs: CraftNeeds, buff: BuffKey, description: string) => make(name, emoji, "common", material, "consumables", "consumable", needs, 0, description, { buff });
-const relic = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, gear: GearId, description: string) => make(name, emoji, tier, material, "relics", "relic", needs, 0, description, { gear });
+const relic = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, gear: string, description: string) => make(name, emoji, tier, material, "relics", "relic", needs, 0, description, { gear });
 const furniture = (name: string, emoji: string, tier: CraftTier, material: CraftMaterial, needs: CraftNeeds, price: number, description: string, extra: Partial<Craft> = {}) => make(name, emoji, tier, material, "furniture", "sell", needs, price, description, extra);
 /** A recipe of the bench before: its piece (or thing, or relic) still what it was, off the bench. */
 const legacy = (c: Craft): Craft => ({ ...c, category: "legacy", legacy: true });
@@ -264,9 +262,9 @@ export const CRAFTS: Record<CraftId, Craft> = {
   glow_bait: { ...consumable("Phosphor Glow Bait", "🪱", "river", { byproducts: { scales: 6, fishBone: 1, stoneDust: 2 } }, "glowbait", "Glowing in the dark: rare fish and better 30% likelier by night and underground for 10 minutes"), drawer: "fish" },
   miners_stout: { ...consumable("Miner's Stout", "🍺", "resins", { ore: { coal: 2 }, byproducts: { stoneDust: 4 } }, "stout", "A dark cave brew: your pickaxe strikes 25% harder for 10 minutes"), drawer: "ore" },
   // --- 🧿 the relics: carved once, worn in a gear slot to work -----------------------------------
-  carved_belt: relic("Carved Lumberjack Belt", "🎗️", "rare", "cedar", { wood: { cedar: 6 }, resin: 8 }, "carved_belt", "Waist relic (wear it): +8 carrier slots, and the splitting gauge 15% slower"),
-  deepriver_ring: relic("Deepriver Fisherman Ring", "💍", "rare", "river", { wood: { cedar: 3 }, byproducts: { fishBone: 2, scales: 10 } }, "deepriver_ring", "Finger relic (wear it): +6 livewell slots"),
-  heartwood_compass: relic("Heartwood Compass", "🧭", "epic", "elderwood", { wood: { elderwood: 1 }, byproducts: { silverBark: 3, leafAmber: 2 } }, "heartwood_compass", "Charm relic (wear it): pulses toward a standing Colossal tree, and chimes when it rises"),
+  carved_belt: legacy(relic("Carved Lumberjack Belt", "🎗️", "rare", "cedar", { wood: { cedar: 6 }, resin: 8 }, "carved_belt", "Waist relic (wear it): +8 carrier slots, and the splitting gauge 15% slower")),
+  deepriver_ring: legacy(relic("Deepriver Fisherman Ring", "💍", "rare", "river", { wood: { cedar: 3 }, byproducts: { fishBone: 2, scales: 10 } }, "deepriver_ring", "Finger relic (wear it): +6 livewell slots")),
+  heartwood_compass: legacy(relic("Heartwood Compass", "🧭", "epic", "elderwood", { wood: { elderwood: 1 }, byproducts: { silverBark: 3, leafAmber: 2 } }, "heartwood_compass", "Charm relic (wear it): pulses toward a standing Colossal tree, and chimes when it rises")),
   // --- 🪑 the furniture: trade goods, at the hour's market ---------------------------------------
   birch_stool: furniture("Rustic Birch Stool", "🪑", "uncommon", "birch", { wood: { birch: 4 }, byproducts: { bark: 2 } }, 28, "A sturdy three-legged birch stool, bark-trimmed"),
   keepsake_box: furniture("Cedar Keepsake Box", "🗃️", "rare", "cedar", { wood: { cedar: 4 }, resin: 1, byproducts: { amber: 3 } }, 80, "Red cedar, amber-inlaid: it keeps the moths out and the memories in"),

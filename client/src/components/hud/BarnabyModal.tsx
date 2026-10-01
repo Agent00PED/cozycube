@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { BAITS, BAIT_IDS, CREEL_TIERS, RODS, ROD_IDS, TIER_LABEL, fishValue, livewellCap, nextCreelTier, type FishingProfile } from "@shared/fishing";
+import { BAITS, BAIT_IDS, CREEL_TIERS, RODS, ROD_IDS, TIER_LABEL, fishValue, livewellCap, nextCreelTier, type FishId, type FishingProfile } from "@shared/fishing";
 import { livewellBonus } from "@shared/gear";
 import { CAVE_TACKLES, CAVE_TACKLE_IDS } from "@shared/caverns_fishing";
 import { ORE_ITEMS, type OreItemId } from "@shared/caverns_mining";
 import { BYPRODUCTS, type ByproductId } from "@shared/chop";
 import { CEILING_RATE, FISH_CEILING, FULL_PRICE_AT, fishRate, type Counter } from "@shared/keepers";
 import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
+import { hasForesight, noCeiling } from "@shared/gear";
+import { GearWorks } from "./GearWorks";
 import { satchelCountFor } from "@shared/satchel";
 import { COZY_AURA_LUCK, hasCozyAura } from "@shared/bonfire";
 import { fishGood, marketMultiplier, parseMarket, priceRun } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
-import { FishCard, FooterBook, GearShopList, MarketClock, SellAllButton, ShopShell, lockPacket, type ShopNotice, type ShopTab } from "./ShopShell";
+import { FishCard, FooterBook, MarketClock, SellAllButton, ShopShell, lockPacket, type ShopNotice, type ShopTab } from "./ShopShell";
 
 interface Props {
   profile: FishingProfile;
@@ -69,17 +71,19 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
   const hour = parseMarket(market);
   // (what this counter can afford: past its ceiling it pays CEILING_RATE, and Sell All passes those by)
   const counter: Counter = finnegan ? "caverns" : finley ? "woods" : "campfire";
-  const worth = (x: (typeof profile.creel)[number], mult: number) => Math.max(1, Math.round(fishValue(x, mult) * aura * fishRate(counter, x.s)));
+  // (the Wayfarer's whole set: every keeper pays in full)
+  const rate = (s: FishId) => (noCeiling(profile) ? 1 : fishRate(counter, s));
+  const worth = (x: (typeof profile.creel)[number], mult: number) => Math.max(1, Math.round(fishValue(x, mult) * aura * rate(x.s)));
   const price = (f: (typeof profile.creel)[number]) => priceRun([f], (x) => fishGood(x.s), worth, hour).total;
   // Sell All: every unlocked fish this counter pays in full for, as the server will settle it (one at
   // a time, each nudging the next)
-  const unlocked = profile.creel.filter((f) => !f.l && fishRate(counter, f.s) === 1);
+  const unlocked = profile.creel.filter((f) => !f.l && rate(f.s) === 1);
   const unlockedWorth = priceRun(unlocked, (f) => fishGood(f.s), worth, hour).total;
-  const tooFine = profile.creel.filter((f) => fishRate(counter, f.s) < 1).length;
+  const tooFine = profile.creel.filter((f) => rate(f.s) < 1).length;
   const next = nextCreelTier(profile.creelTier);
   // (what this counter doesn't stock: T3 and T4 are the woods', T5 is forged in the caverns)
   const away = (tier: number) => soldElsewhere(tier, finley ? SHOP_TIER_CAP.woods : SHOP_TIER_CAP.campfire, "🦦 At Finley's boulder on the woods' river");
-  const bonus = livewellBonus(profile.worn);
+  const bonus = livewellBonus(profile);
   const who = finnegan ? "Finnegan" : finley ? "Finley" : "Barnaby";
 
   return (
@@ -94,7 +98,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
       sellBar={<SellAllButton label="🐟 Sell All Unlocked Fish" count={unlocked.length} coins={unlockedWorth} onClick={() => shop({ type: "BARNABY", op: "sell", slot: "all" })} />}
       footer={
         <>
-          <MarketClock market={hour} goods={profile.creel.map((f) => fishGood(f.s))} />
+          <MarketClock market={hour} goods={profile.creel.map((f) => fishGood(f.s))} ahead={hasForesight(profile)} />
           <FooterBook label="📖 Field Guide" onClick={onOpenFieldGuide} />
         </>
       }
@@ -213,7 +217,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
         </div>
       )}
 
-      {tab === "gear" && <GearShopList craft="fish" maxTier={finley ? 5 : 3} elsewhere="🦦 At Finley's boulder on the woods' river" profile={profile} coins={coins} onBuy={(id) => shop({ type: "BARNABY", op: "buyGear", gear: id })} send={send} />}
+      {tab === "gear" && <GearWorks profile={profile} coins={coins} send={send} families={["angler", "wayfarer"]} places={[finley ? "woods" : "campfire"]} />}
 
       {tab === "barter" && finnegan && (
         <div className="flex flex-col gap-1.5">

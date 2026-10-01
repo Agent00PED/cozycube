@@ -18,15 +18,13 @@ function needEmoji(key: string): string {
 }
 
 /** Whether there is anything from the old workbench to trade in. */
-export const hasLegacy = (profile: FishingProfile) => profile.crafts.some((c) => tradeInValue(c) > 0) || profile.gear.some((g) => GEAR[g].legacy);
+export const hasLegacy = (profile: FishingProfile) => profile.crafts.some((c) => tradeInValue(c) > 0);
 
 export function LegacyTradeIn({ profile, send }: { profile: FishingProfile; send: (packet: CampfirePacket) => void }) {
   const pieces = profile.crafts.filter((c) => tradeInValue(c) > 0);
-  const relics = profile.gear.filter((g) => GEAR[g].legacy);
-  if (!pieces.length && !relics.length) return null;
+  if (!pieces.length) return null;
   const stacks = craftStacks(pieces).map((st) => ({ ...st, at: profile.crafts.findIndex((c) => c.c === st.item.c && c.m === st.item.m) }));
   const worth = pieces.reduce((sum, c) => sum + tradeInValue(c), 0);
-  const recipeOf = (g: GearId) => (Object.keys(CRAFTS) as CraftId[]).find((c) => CRAFTS[c].gear === g);
   return (
     <div className="flex flex-col gap-1.5 rounded-2xl border border-dashed border-[#F5C46B]/50 bg-[#F5C46B]/5 p-2">
       <b className="text-[11px] uppercase tracking-widest text-[#F5C46B]">🔧 Old workbench trade-in · full refund</b>
@@ -47,24 +45,6 @@ export function LegacyTradeIn({ profile, send }: { profile: FishingProfile; send
           Trade in every old piece · {worth} 🪙
         </button>
       )}
-      {relics.map((g) => {
-        const recipe = recipeOf(g);
-        const back = recipe ? needsList(recipe).map(({ key, n }) => `${n} ${needEmoji(key)}`).join(" · ") : "";
-        return (
-          <div key={g} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-1.5">
-            <span className="text-xl">{GEAR[g].emoji}</span>
-            <div className="flex min-w-0 flex-1 flex-col leading-tight">
-              <b className="text-xs">
-                {GEAR[g].name} <span className="font-normal opacity-70">relic{profile.worn.includes(g) ? " · worn" : ""}</span>
-              </b>
-              {back && <span className="text-[11px] opacity-75">back: {back}</span>}
-            </div>
-            <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "tradeInRelic", gear: g })}>
-              <span className="whitespace-nowrap text-[12px]">Trade in</span>
-            </button>
-          </div>
-        );
-      })}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { SATCHEL_TIERS, STACK_GEODE, STACK_ORE, nextSatchelTier, satchelCountFor
 import { BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "@shared/chop";
 import { materialCount, type FishingProfile } from "@shared/fishing";
 import { FORGED_TIER } from "@shared/expedition";
+import { GearWorks } from "./GearWorks";
 import { BYPRODUCT_PRICES, MATERIAL_CAP } from "@shared/economy";
 import { marketMultiplier, oreGood, parseMarket, priceRun } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -24,6 +25,7 @@ const TABS: [ShopTab, string, string][] = [
   ["trade", "🪙", "Trade/Sell"],
   ["tools", "⛏️", "Pickaxes"],
   ["storage", "🎒", "Satchels"],
+  ["gear", "🧿", "Gear"],
 ];
 
 interface Props {
@@ -168,6 +170,7 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
         </div>
       )}
 
+      {tab === "gear" && <GearWorks profile={profile} coins={coins} send={campfireSend} families={["prospector"]} places={["gus"]} />}
       {tab === "storage" && (
         <div className="flex flex-col gap-1.5">
           <p className="m-0 text-center text-[11px] opacity-75">

@@ -62,7 +62,7 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
   const held = WOOD_KINDS.filter((w) => profile.wood[w] > 0);
   const each = (w: WoodKind) => woodPrice(w, marketMultiplier(woodGood(w), hour), woodAverage(profile, w));
   const worth = held.reduce((sum, w) => sum + each(w) * profile.wood[w], 0);
-  const bonus = carrierBonus(profile.worn);
+  const bonus = carrierBonus(profile);
   // the craft stash's slots: each kind (Masterworks apart) a slot per CRAFT_SLOT_STACK
   const stash = craftStacks(profile.crafts).flatMap((st): { item: CraftItem; n: number }[] => Array.from({ length: Math.ceil(st.n / CRAFT_SLOT_STACK) }, (_, k) => ({ item: st.item, n: Math.min(CRAFT_SLOT_STACK, st.n - k * CRAFT_SLOT_STACK) })));
   return (

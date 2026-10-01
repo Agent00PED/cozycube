@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { lampBoost } from "./caveGear";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { CAVE_LIGHTS, CAVE_SKYLIGHT, CAVE_SUN, DOLINE_BEAMS, cavernsFloorY, cavernsZoneAt } from "@shared/worlds/caverns";
@@ -142,7 +143,8 @@ function YourLight() {
     const zone = cavernsZoneAt(cameraFocus.x, cameraFocus.z)?.id ?? "lake";
     const dark = zone === "jungle" ? 0.55 * (1 - DAY.value) : (ZONE_DARK[zone] ?? 0.5);
     level.current += (dark - level.current) * Math.min(1, dt * 1.5);
-    YOU.value.set(cameraFocus.x, cameraFocus.y, cameraFocus.z, level.current);
+    // (the Lamp Pack, from rank 3: a brighter glow)
+    YOU.value.set(cameraFocus.x, cameraFocus.y, cameraFocus.z, level.current * lampBoost.value);
   });
   return null;
 }

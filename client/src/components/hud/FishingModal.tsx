@@ -55,6 +55,8 @@ export interface FishProfile {
   pattern?: SwimPattern;
   /** The green bar's height, 1 = full. */
   barScale?: number;
+  /** A boss's fake runs telegraphed this much earlier (s: the Angler's whole set). */
+  tele?: number;
   /** A Sunken Treasure Chest turns up in this reel. */
   treasure?: boolean;
   /** Coins the chest pays, if opened (shown on the result). */
@@ -222,7 +224,7 @@ export function FishingModal({ fish, onResult, onClose, autoCloseMs, reveal, esc
       // it thrashes all the while
       if (fish.boss) {
         // (0.3 s before a fake run: the warning)
-        const warn = s.feintUntil === 0 && s.t >= s.nextFeint - BOSS_TELEGRAPH_S;
+        const warn = s.feintUntil === 0 && s.t >= s.nextFeint - BOSS_TELEGRAPH_S - (fish.tele ?? 0);
         if (warn !== telegraphRef.current) {
           telegraphRef.current = warn;
           setTelegraph(warn);

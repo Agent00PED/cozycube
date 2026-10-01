@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import type { CampfirePacket } from "@shared/types";
+import { GearWorks } from "./GearWorks";
 import { FORGED_TOOLS, FORGED_TOOL_IDS, forgedBlocked, forgedOwned, makingsList, type ForgedToolId } from "@shared/expedition";
 import {
   BELLOWS_HOLD_S,
@@ -7,7 +9,6 @@ import {
   FORGE_BATCHES,
   FORGE_QUEUE_MAX,
   FORGE_RECIPES,
-  FORGE_RELICS,
   FORGE_SMELT_S,
   HAMMER_BEAT_S,
   HAMMER_STRIKES,
@@ -15,7 +16,6 @@ import {
   HOLD_PUMPS_PER_S,
   INGOT_IDS,
   MASTERWORK_OF,
-  MINING_RELIC_IDS,
   ORE_ITEMS,
   ORE_ITEM_IDS,
   QUICK_SMELT_ORDER,
@@ -28,7 +28,6 @@ import {
   type ForgeGame,
   type ForgeResult,
   type IngotId,
-  type MiningRelicId,
   type OreItemId,
 } from "@shared/caverns_mining";
 import { satchelCountFor, satchelCounts } from "@shared/satchel";
@@ -59,20 +58,21 @@ import { flyToBag } from "./flyToBag";
 //                   simulated here live by the very function the server replays the log with
 //   ⚡ Quick Smelt  plain ingots on the forge's own clock (an ingot every FORGE_SMELT_S seconds, into
 //                   the satchel, or its tray when the satchel is full), Quick Smelt All
-//   🧿 Relics       the four mining relics, forged once each from ingots, gems and Fine Stone Dust
+//   🧿 Gear         the gear's work done here (shared/gear.ts): the Prospector's ranks 3 to 5, every family's rank 5
 
 interface Props {
   profile: FishingProfile;
   coins: number;
   market: string;
   send: (channel: string, packet?: unknown) => void;
+  campfireSend: (packet: CampfirePacket) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onClose: () => void;
 }
 
-type Tab = "bellows" | "smelt" | "relics" | "expedition";
+type Tab = "bellows" | "smelt" | "gear" | "expedition";
 
-export function ForgeModal({ profile, coins, market, send, subscribeMessages, onClose }: Props) {
+export function ForgeModal({ profile, coins, market, send, campfireSend, subscribeMessages, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("bellows");
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
   const [game, setGame] = useState<ForgeGame | null>(null);
@@ -116,7 +116,7 @@ export function ForgeModal({ profile, coins, market, send, subscribeMessages, on
   const tabs: [Tab, string][] = [
     ["bellows", "🔥 Bellows"],
     ["smelt", "⚡ Quick Smelt"],
-    ["relics", "🧿 Relics"],
+    ["gear", "🧿 Gear"],
     ["expedition", "🧭 Expedition Tools"],
   ];
   if (game)
@@ -137,7 +137,7 @@ export function ForgeModal({ profile, coins, market, send, subscribeMessages, on
         </div>
         {tab === "bellows" && <BellowsPick profile={profile} market={market} result={result} onStart={(ingot, batch) => send(CAVERNS_CHANNELS.forge, { op: "start", ingot, batch })} />}
         {tab === "smelt" && <QuickSmelt profile={profile} market={market} send={send} />}
-        {tab === "relics" && <Relics profile={profile} send={send} />}
+        {tab === "gear" && <GearWorks profile={profile} coins={coins} send={campfireSend} families={["prospector", "angler", "forester", "wayfarer"]} places={["forge"]} />}
         {tab === "expedition" && <Expedition profile={profile} coins={coins} send={send} />}
         {notice && <p className={`m-0 text-center text-[12px] font-semibold ${notice.ok ? "text-amber-100" : "text-rose-200"}`}>{notice.text}</p>}
       </div>
@@ -593,45 +593,4 @@ function Expedition({ profile, coins, send }: { profile: FishingProfile; coins: 
   );
 }
 
-// --- the mining relics ---------------------------------------------------------------------------------
 
-function Relics({ profile, send }: { profile: FishingProfile; send: Props["send"] }) {
-  const dust = materialCount(profile, "stoneDust");
-  return (
-    <div className="flex flex-col gap-1.5">
-      <p className="m-0 text-center text-[12px] opacity-80">Forged once each, and worn from the satchel drawer's gear tab. A Masterwork ingot stands in for a plain one.</p>
-      {MINING_RELIC_IDS.map((id: MiningRelicId) => {
-        const g = GEAR[id];
-        const need = FORGE_RELICS[id];
-        const owned = profile.gear.includes(id);
-        const ready = (Object.entries(need.ore) as [OreItemId, number][]).every(([k, n]) => satchelCountFor(profile, k) >= n) && dust >= need.dust;
-        return (
-          <div key={id} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
-            <span className="text-2xl">{g.emoji}</span>
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
-              <b className="text-[13px] text-[#F7EBE1]">{g.name}</b>
-              <span className="text-[11px] opacity-80">{g.blurb}</span>
-              {!owned && (
-                <span className="flex flex-wrap gap-1 text-[10.5px]">
-                  {(Object.entries(need.ore) as [OreItemId, number][]).map(([k, n]) => (
-                    <span key={k} className={`rounded-full px-1.5 ${satchelCountFor(profile, k) >= n ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>
-                      {n} {ORE_ITEMS[k].name} <span className="opacity-70">({satchelCountFor(profile, k)})</span>
-                    </span>
-                  ))}
-                  {need.dust > 0 && (
-                    <span className={`rounded-full px-1.5 ${dust >= need.dust ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>
-                      {need.dust} Fine Stone Dust <span className="opacity-70">({dust})</span>
-                    </span>
-                  )}
-                </span>
-              )}
-            </div>
-            <button type="button" className={`clay-btn min-h-11 shrink-0 px-3 text-xs ${owned ? "clay-btn-ghost" : "clay-btn-amber"}`} disabled={owned || !ready} onClick={() => send(CAVERNS_CHANNELS.forge, { op: "relic", relic: id })}>
-              {owned ? "Forged ✓" : "Forge"}
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { stashBonus } from "@shared/gear";
+import { GearWorks } from "./GearWorks";
 import type { CampfirePacket, WorkbenchResult } from "@shared/types";
 import { BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "@shared/chop";
 import { ADHESIVES, BENCH_IDS, CRAFTS, CRAFT_FILTERS, SALVAGE_RATE, canCraft, craftMatches, craftOdds, craftPrice, isOnce, needsList, type Adhesive, type CraftFilter, type CraftId, type CraftMode } from "@shared/crafting";
@@ -10,6 +12,9 @@ import { Modal } from "./Modal";
 
 interface Props {
   profile: FishingProfile;
+  coins: number;
+  /** Bramble's advanced bench, in the woods (it does the gear's rank-4 work). */
+  advanced: boolean;
   send: (packet: CampfirePacket) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onClose: () => void;
@@ -19,7 +24,7 @@ interface Props {
 // logs, Firewood, Pine Resin, Sawdust and the by-products (shared/crafting.ts) into the seventeen
 // recipes under four tabs: 🎣 Tackles (made once, yours for good, at work whenever you fish or fell:
 // [ Owned ✓ ] once made), 🧪 Consumables (into the craft stash, used from the wood drawer for a buff a
-// while), 🧿 Relics (carved once, worn in a gear slot to work: [ Carved ✓ ]) and 🪑 Furniture (the
+// while), 🪑 Furniture and 🧿 Gear (the gear's rank-4 work, at the woods' bench: GearWorks) (the
 // trade goods, sold at the hour's market, 50%-130%). Each tab shows how many of its recipes you
 // could make now. Each piece of furniture is one of two modes: a Safe Carve (low risk, a modest
 // Masterwork chance) or a Masterwork Push (a much better chance of a Masterwork ✨, +70% value, and a
@@ -59,9 +64,9 @@ function Needs({ id, profile }: { id: CraftId; profile: FishingProfile }) {
   );
 }
 
-export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Props) {
+export function WoodCraftModal({ profile, coins, advanced, send, subscribeMessages, onClose }: Props) {
   const [mode, setMode] = useState<CraftMode>("safe");
-  const [filter, setFilter] = useState<CraftFilter>("tackles");
+  const [filter, setFilter] = useState<CraftFilter | "gear">("tackles");
   const [adhesive, setAdhesive] = useState<Adhesive>("");
   // out of resin: the slot empties itself
   const glue: Adhesive = profile.resin > 0 ? adhesive : "";
@@ -87,11 +92,11 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
   const stock = { wood: profile.wood, firewood: profile.firewood, resin: profile.resin, sawdust: profile.sawdust, byproducts: profile.byproducts };
   const made = (id: CraftId) => {
     const c = CRAFTS[id];
-    return c.use === "tool" ? profile.tools.includes(id) : c.use === "relic" && c.gear ? profile.gear.includes(c.gear) : false;
+    return c.use === "tool" ? profile.tools.includes(id) : false;
   };
   /** Whether a recipe can be made right now (the stock, not made already, room in the stash). */
-  const ready = (id: CraftId) => canCraft(stock, id) && !made(id) && (isOnce(CRAFTS[id].use) || stashFits(profile.crafts, { c: id, m: false }));
-  const shown = BENCH_IDS.filter((id) => craftMatches(CRAFTS[id], filter));
+  const ready = (id: CraftId) => canCraft(stock, id) && !made(id) && (isOnce(CRAFTS[id].use) || stashFits(profile.crafts, { c: id, m: false }, stashBonus(profile)));
+  const shown = filter === "gear" ? [] : BENCH_IDS.filter((id) => craftMatches(CRAFTS[id], filter));
   const slots = stashSlots(profile.crafts);
   const outcome = last?.result.outcome;
   const pill = "appearance-none rounded-full border border-white/15 bg-white/10 py-1.5 pl-2.5 pr-6 text-[12px] font-bold text-[#F7EBE1] outline-none transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-[#F5A623]/70";
@@ -99,8 +104,8 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
     <Modal title="Workbench" icon="🪚" onClose={onClose} width={520} pinned fixedHeight={660}>
       {/* the four tabs, each with how many of its recipes you could make now */}
       <div className="grid shrink-0 grid-cols-4 gap-1.5 pb-1.5" role="tablist" aria-label="Recipes">
-        {CRAFT_FILTERS.map((f) => {
-          const can = BENCH_IDS.filter((id) => craftMatches(CRAFTS[id], f.id) && ready(id)).length;
+        {[...CRAFT_FILTERS, { id: "gear" as const, emoji: "🧿", label: "Gear" }].map((f) => {
+          const can = f.id === "gear" ? 0 : BENCH_IDS.filter((id) => craftMatches(CRAFTS[id], f.id as CraftFilter) && ready(id)).length;
           return (
             <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} onClick={() => setFilter(f.id)} className={`relative flex min-h-12 flex-col items-center justify-center rounded-2xl px-1 font-bold leading-tight transition-transform active:scale-95 ${filter === f.id ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10 hover:bg-white/15"}`}>
               <span className="text-lg leading-none">{f.emoji}</span>
@@ -114,12 +119,18 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
       {/* the recipes: the only thing that scrolls; the bench's answer floats over its foot */}
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto border-t border-white/10 py-2 pr-1">
+          {filter === "gear" &&
+            (advanced ? (
+              <GearWorks profile={profile} coins={coins} send={send} families={["angler", "forester", "wayfarer"]} places={["bench"]} />
+            ) : (
+              <p className="m-0 py-6 text-center text-[12px] opacity-75">The gear's rank-4 work is done at Bramble's advanced workbench, in the Whispering Woods. This bench carves tackles, consumables and furniture.</p>
+            ))}
           {shown.map((id) => {
             const craft = CRAFTS[id];
             const once = isOnce(craft.use);
             const consumable = craft.use === "consumable";
             const done = made(id);
-            const crateFull = !once && !stashFits(profile.crafts, { c: id, m: false });
+            const crateFull = !once && !stashFits(profile.crafts, { c: id, m: false }, stashBonus(profile));
             const ok = ready(id);
             const odds = craftOdds(id, mode, glue);
             return (
@@ -127,7 +138,7 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
                 <span className="text-2xl">{craft.emoji}</span>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
                   <b className="text-sm">
-                    {craft.name} <span className={`text-[10px] font-semibold uppercase tracking-wide ${once ? "text-[#8fd3b6]" : consumable ? "text-amber-200" : TIER_TONE[craft.tier]}`}>{craft.category === "furniture" ? `${craft.tier} · furniture` : TAB_TAG[filter]}</span>
+                    {craft.name} <span className={`text-[10px] font-semibold uppercase tracking-wide ${once ? "text-[#8fd3b6]" : consumable ? "text-amber-200" : TIER_TONE[craft.tier]}`}>{craft.category === "furniture" ? `${craft.tier} · furniture` : TAB_TAG[craft.category as CraftFilter]}</span>
                   </b>
                   <Needs id={id} profile={profile} />
                   <span className="text-[10.5px] opacity-80">
@@ -141,7 +152,7 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
                   </span>
                 </div>
                 <button type="button" className={`clay-btn ${once || consumable || mode !== "push" ? "clay-btn-amber" : ""} min-h-9 shrink-0 justify-center px-0`} style={{ width: 88, minWidth: 88 }} disabled={!ok} onClick={() => send({ type: "WORKBENCH", recipe: id, mode, adhesive: once || consumable ? "" : glue })} title={done ? (craft.use === "relic" ? "Carved once: wear it from the drawers' gear tab" : "Made once, yours for good") : crateFull ? `The craft stash is full (${CRAFT_STASH_SLOTS} slots)` : undefined}>
-                  <span className="whitespace-nowrap text-[12px]">{done ? (craft.use === "relic" ? "Carved ✓" : "Owned ✓") : crateFull ? "Stash full" : once || consumable ? "Make" : mode === "push" ? "Push" : "Carve"}</span>
+                  <span className="whitespace-nowrap text-[12px]">{done ? "Owned ✓" : crateFull ? "Stash full" : once || consumable ? "Make" : mode === "push" ? "Push" : "Carve"}</span>
                 </button>
               </div>
             );
@@ -161,7 +172,7 @@ export function WoodCraftModal({ profile, send, subscribeMessages, onClose }: Pr
       {/* the foot: what a break gives back, and the mode and the resin as pill dropdowns */}
       <div className="flex shrink-0 items-center justify-between gap-2 border-t border-white/10 pt-2">
         <span className="min-w-0 text-[11px] leading-tight opacity-75">
-          Broken: {pct(SALVAGE_RATE)} refund · Tackles & relics: unbreakable ·{" "}
+          Broken: {pct(SALVAGE_RATE)} refund · Tackles: unbreakable ·{" "}
           <span className={slots >= CRAFT_STASH_SLOTS ? "font-bold text-rose-200" : ""}>
             Stash {slots}/{CRAFT_STASH_SLOTS}
           </span>

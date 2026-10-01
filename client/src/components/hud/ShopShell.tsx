@@ -1,8 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { CampfirePacket } from "@shared/types";
 import { FISH, TIER_COLOR, TIER_LABEL, fishKg, gradeOf, isKingSize, stars, type CreelFish, type FishingProfile } from "@shared/fishing";
-import { GEAR, SLOT_LABEL, gearOf, wearGear, type GearId } from "@shared/gear";
-import { marketDirection, msUntilNextHour, type MarketGood, type MarketState } from "@shared/market";
+import { forecast, marketDirection, msUntilNextHour, type MarketGood, type MarketState } from "@shared/market";
 import { Modal } from "./Modal";
 
 // The shopkeepers' counter, one layout for all four (Buster, Bramble, Barnaby, Finley), in fixed
@@ -99,7 +98,7 @@ export function SellAllButton({ label, count, coins, onClick }: { label: string;
 }
 
 /** The hour's market: when the prices turn, and how the goods you carry stand this hour. */
-export function MarketClock({ market, goods }: { market: MarketState; goods: MarketGood[] }) {
+export function MarketClock({ market, goods, ahead = false }: { market: MarketState; goods: MarketGood[]; /** The Trader's Mitts' foresight: the next hour's best price among your goods. */ ahead?: boolean }) {
   const [, tick] = useState(0);
   useEffect(() => {
     const id = window.setInterval(() => tick((n) => n + 1), 1000);
@@ -109,6 +108,7 @@ export function MarketClock({ market, goods }: { market: MarketState; goods: Mar
   const unique = Array.from(new Set(goods));
   const up = unique.filter((g) => marketDirection(g, market) === "up").length;
   const down = unique.filter((g) => marketDirection(g, market) === "down").length;
+  const next = ahead && unique.length ? forecast(unique, market) : null;
   return (
     <span className="flex min-w-0 items-center gap-1.5 opacity-85" title="Every hour each good drifts 10% to 25% up or down; heavy selling in this lounge (past 30 of a kind in the hour) knocks it down further, up to 30%, and it recovers over the quiet hours after">
       <span aria-hidden>🕰️</span>
@@ -118,6 +118,12 @@ export function MarketClock({ market, goods }: { market: MarketState; goods: Mar
           <>
             {" "}
             · <span className="font-bold text-emerald-300">▲{up}</span> <span className="font-bold text-rose-300">▼{down}</span> of yours
+          </>
+        )}
+        {next && (
+          <>
+            {" "}
+            · next hour, your best: <b className={next.pct >= 0 ? "text-emerald-300" : "text-rose-300"}>{`${next.pct >= 0 ? "+" : ""}${next.pct}%`}</b>
           </>
         )}
       </span>
@@ -201,42 +207,3 @@ export const LOCK_COLUMN = { width: 36, minWidth: 36, marginRight: 8 } as const;
 /** The lock packet for a creel slot. */
 export const lockPacket = (fish: CreelFish, slot: number): CampfirePacket => ({ type: "BARNABY", op: "lockFish", slot, fish: fish.s, locked: !fish.l });
 
-/** A shop's accessories: its craft's gear up to the tiers it stocks (the rest named where they are
- *  sold), each bought once and worn at once (or put back on, if you own it). */
-export function GearShopList({ craft, maxTier, elsewhere, profile, coins, onBuy, send }: { craft: "wood" | "fish"; maxTier: number; elsewhere: string; profile: FishingProfile; coins: number; onBuy: (id: GearId) => void; send: (packet: CampfirePacket) => void }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <p className="m-0 text-center text-[11px] opacity-75">Worn in four slots: hands, waist, two fingers and a charm. A new piece goes straight on (a third ring takes the oldest one's place).</p>
-      {gearOf(craft).map((id) => {
-        const g = GEAR[id];
-        const owned = profile.gear.includes(id);
-        const worn = profile.worn.includes(id);
-        const swap = wearGear(profile.worn, id).removed;
-        return (
-          <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${worn ? "bg-emerald-400/20" : g.tier >= 4 ? "border border-[#F5A623]/40 bg-[#F5A623]/10" : "bg-white/10"}`}>
-            <span className="text-2xl">{g.emoji}</span>
-            <div className="flex min-w-0 flex-1 flex-col leading-tight">
-              <b className="text-sm">
-                {g.name} <span className="font-normal opacity-60">· {SLOT_LABEL[g.slot]} · T{g.tier}</span>
-              </b>
-              <span className="text-[11px] opacity-75">{g.blurb}</span>
-            </div>
-            {worn ? (
-              <span className="px-2 text-xs font-bold text-emerald-200">Worn</span>
-            ) : owned ? (
-              <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => send({ type: "GEAR", op: "equip", gear: id })} title={swap.length ? `In place of the ${swap.map((r) => GEAR[r].name).join(" and ")}` : undefined}>
-                {swap.length ? "Swap" : "Wear"}
-              </button>
-            ) : g.tier > maxTier ? (
-              <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">{elsewhere}</span>
-            ) : (
-              <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < g.price} onClick={() => onBuy(id)}>
-                {g.price.toLocaleString("en-US")} 🪙
-              </button>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}

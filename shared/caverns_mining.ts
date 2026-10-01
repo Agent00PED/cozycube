@@ -349,10 +349,10 @@ export function pulsePhase(t: number): number {
   return (((t % PULSE_S) + PULSE_S) % PULSE_S) / PULSE_S;
 }
 /** Whether a strike `t` seconds after the close-up opened lands as the ring closes (the first time
- *  at PULSE_S). */
-export function onPulse(t: number): boolean {
+ *  at PULSE_S); `stretch`: the window this many times as wide (the Prospector's two pieces). */
+export function onPulse(t: number, stretch = 1): boolean {
   const k = Math.round(t / PULSE_S);
-  return k >= 1 && Math.abs(t - k * PULSE_S) <= PERFECT_WINDOW_S;
+  return k >= 1 && Math.abs(t - k * PULSE_S) <= PERFECT_WINDOW_S * stretch;
 }
 /** A haul's share for a run of `n` Perfects. */
 export const streakBonus = (n: number) => 1 + STREAK_STEP * Math.min(STREAK_MAX, Math.max(0, n));
@@ -547,21 +547,6 @@ export function judgeForge(batch: ForgeBatch, seed: number, pumps: readonly numb
 }
 
 // --- the Thermal Bellows Forge's mining relics --------------------------------------------------------
-
-/** The mining relics (shared/gear.ts, craft "forge"), forged once each at the forge from its own
- *  makings: what each takes (from the satchel, a Masterwork ingot standing in for a plain one; the
- *  stone dust from the materials' store). */
-export type MiningRelicId = "knuckle_guards" | "satchel_strap" | "hunter_ring" | "lodestone_pendant";
-export const FORGE_RELICS: Record<MiningRelicId, { ore: Partial<Record<OreItemId, number>>; dust: number }> = {
-  knuckle_guards: { ore: { iron_ingot: 4 }, dust: 6 },
-  satchel_strap: { ore: { copper_ingot: 3, iron_ingot: 2 }, dust: 0 },
-  hunter_ring: { ore: { silver_ingot: 2, topaz: 1 }, dust: 4 },
-  lodestone_pendant: { ore: { silver_ingot: 2, glimmer_shard: 3 }, dust: 0 },
-};
-export const MINING_RELIC_IDS = Object.keys(FORGE_RELICS) as MiningRelicId[];
-export function isMiningRelicId(v: unknown): v is MiningRelicId {
-  return typeof v === "string" && v in FORGE_RELICS;
-}
 
 // --- the Precision Geode Chisel -------------------------------------------------------------------------
 
@@ -772,7 +757,6 @@ export type ForgePacket =
   | { op: "start"; ingot: IngotId; batch: ForgeBatch }
   | { op: "finish"; pumps: number[]; strikes: number[] }
   | { op: "cancel" }
-  | { op: "relic"; relic: MiningRelicId }
   /** An Expedition (T5) tool or store forged: shared/expedition.ts FORGED_TOOLS. */
   | { op: "tool"; tool: string };
 /** Into the onsen (the nearest free seat in reach) or out of it (onto its dry exit anchor); or, in

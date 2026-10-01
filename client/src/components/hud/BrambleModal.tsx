@@ -4,11 +4,12 @@ import { AXES, AXES_BY_TIER, BYPRODUCTS, BYPRODUCT_IDS, WOOD, WOOD_CARRIER_TIERS
 import { FIREWOOD_PER_COIN, firewoodCoins } from "@shared/economy";
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
+import { GearWorks } from "./GearWorks";
 import { marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { LegacyTradeIn, hasLegacy } from "./LegacyTradeIn";
-import { FooterBook, PRICE_COLUMN, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, type ShopNotice, type ShopTab } from "./ShopShell";
+import { FooterBook, PRICE_COLUMN, MarketClock, SellAllButton, ShopShell, Trend, type ShopNotice, type ShopTab } from "./ShopShell";
 
 // Bramble the Bear's trading post in the Whispering Woods: the woods' forester, on the shops'
 // fixed-anchor counter (ShopShell). He buys your logs (at the camp's hour's prices, each log worth its
@@ -203,7 +204,7 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
         </div>
       )}
 
-      {tab === "gear" && <GearShopList craft="wood" maxTier={5} elsewhere="" profile={profile} coins={coins} onBuy={(id) => send({ type: "BUSTER", op: "buyGear", gear: id })} send={send} />}
+      {tab === "gear" && <GearWorks profile={profile} coins={coins} send={send} families={["forester", "wayfarer"]} places={["woods"]} />}
     </ShopShell>
   );
 }

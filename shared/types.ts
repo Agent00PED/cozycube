@@ -5,7 +5,7 @@ import type { BaitId, CreelFish, FishId, FishTier, RodId } from "./fishing";
 import type { FuelItem, StewIngredient } from "./bonfire";
 import type { AxeId, ByproductId, FellVerdict, TreeKind, WoodKind } from "./chop";
 import type { Adhesive, CraftId, CraftMode, CraftOutcome } from "./crafting";
-import type { GearId } from "./gear";
+import type { GearFamily, GearId } from "./gear";
 import type { CaveTackleId } from "./caverns_fishing";
 import type { SplitSwing, SplitVerdict } from "./splitting";
 import { START_COINS, type WardrobeTier } from "./economy";
@@ -1329,6 +1329,8 @@ export interface StarlightReel {
   /** How long the fish can run out of the green before the line's tension climbs (s: the rod's
    *  window, and on a boss the Otter-Carved Hook Charm's half second). */
   window: number;
+  /** On a boss: its fake runs telegraphed this much earlier (s: the Angler's whole set). */
+  tele?: number;
   /** The line's grip: tension builds this much slower (the rod's, the Braided Silk Line's). */
   resist?: number;
   /** A boss fish (a legendary or a mythic: its rarity, never its kind): a smaller green, fake runs
@@ -1663,14 +1665,15 @@ export type CampfirePacket =
   | { type: "BARNABY"; op: "buyBait"; bait: BaitId }
   | { type: "BARNABY"; op: "equipBait"; bait: BaitId | "" }
   | { type: "BARNABY"; op: "upgradeCreel" }
-  /** The angler's gear (Barnaby T1-T3, Finley T1-T5), and a fish locked as a favourite or let go
-   *  again (its slot, and its kind to be sure it is the one meant). */
-  | { type: "BARNABY"; op: "buyGear"; gear: GearId }
+  /** A fish locked as a favourite or let go again (its slot, and its kind to be sure it is the one
+   *  meant). */
   | { type: "BARNABY"; op: "lockFish"; slot: number; fish: FishId; locked: boolean }
   /** Finnegan the Grotto Angler's advanced tackle (coins and a barter of makings: at his crate). */
   | { type: "BARNABY"; op: "buyCaveTackle"; tackle: CaveTackleId }
-  /** Putting on or taking off a piece of gear you own (anywhere). */
-  | { type: "GEAR"; op: "equip" | "unequip"; gear: GearId }
+  /** The gear (shared/gear.ts): a piece you own put on or taken off, or a family's whole set put on
+   *  (anywhere); a piece bought at rank 1, or raised a rank, where that work is done. */
+  | { type: "GEAR"; op: "equip" | "unequip" | "buy" | "raise"; gear: GearId }
+  | { type: "GEAR"; op: "set"; family: GearFamily }
   /** Buster the Lumberjack's stall: sell split wood (one, or all of a kind), buy or switch axes. */
   | { type: "BUSTER"; op: "sell"; wood: WoodKind; count: number | "all" }
   | { type: "BUSTER"; op: "buyAxe" | "equipAxe"; axe: AxeId }
@@ -1681,13 +1684,11 @@ export type CampfirePacket =
   | { type: "BUSTER"; op: "sellFirewood"; count: number | "all" }
   /** The felling's by-products (one kind, or every pouch at once), to Bramble or Buster. */
   | { type: "BUSTER"; op: "sellByproducts"; item: ByproductId | "all" }
-  | { type: "BUSTER"; op: "buyGear"; gear: GearId }
   | { type: "BUSTER"; op: "buyPermit"; permit: "dayTrip" | "ranger" }
   | { type: "BUSTER"; op: "sellAllWood" }
-  /** A legacy piece (a stash slot, or all of them) or a legacy relic traded in at Buster's or
-   *  Bramble's: a piece's whole listed price, a relic's materials back. */
+  /** A legacy piece (a stash slot, or all of them) traded in at Buster's or Bramble's for its whole
+   *  listed price. */
   | { type: "BUSTER"; op: "tradeIn"; slot: number | "all" }
-  | { type: "BUSTER"; op: "tradeInRelic"; gear: GearId }
   /** The workbench: carve a piece, safe or pushing for a Masterwork (its wood from the carrier;
    *  answered with workbenchResult). */
   | { type: "WORKBENCH"; recipe: CraftId; mode: CraftMode; adhesive?: Adhesive }

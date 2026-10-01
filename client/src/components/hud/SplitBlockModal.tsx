@@ -57,7 +57,7 @@ export function SplitBlockModal({ profile, send, subscribeMessages, onClose }: {
   const [haul, setHaul] = useState<{ key: number; text: string } | null>(null);
   const [note, setNote] = useState<SplitResult | null>(null);
   // (the Forester's Toolbelt: half as many bundles again, as the server splits them)
-  const yieldMul = splitYield(profile.worn);
+  const yieldMul = splitYield(profile);
   const bulkBundles = WOOD_KINDS.reduce((sum, k) => sum + Math.round((profile.wood[k] ?? 0) * WOOD[k].firewood * yieldMul), 0);
   const canBulk = total > BULK_MIN_LOGS;
 

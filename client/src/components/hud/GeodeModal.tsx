@@ -784,7 +784,7 @@ function ResultText({ result, next, left, known, busy, onHand, onQuick, onBack }
           <span className="block text-[11px] opacity-75">about {ORE_ITEMS[gem].price.toLocaleString("en-US")} 🪙 at Gus's</span>
         </span>
       ) : (
-        <span className="text-[12px] opacity-85">Too hard a blow: {result.dust ?? 0} Fine Stone Dust 🌫️ (Gus buys it; the forge's relics take it)</span>
+        <span className="text-[12px] opacity-85">Too hard a blow: {result.dust ?? 0} Fine Stone Dust 🌫️ (Gus buys it; the Miner's Stout takes it)</span>
       )}
       {!result.quick && <span className="text-[10.5px] opacity-60">the blow at {Math.round(result.v * 100)}%{result.verdict === "rough" ? " · 65-80% keeps the finer gems' odds whole" : ""}</span>}
       <div className="mt-0.5 flex w-full flex-wrap justify-center gap-1.5">

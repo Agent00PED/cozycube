@@ -11,7 +11,7 @@ import type { SwimPattern } from "./types";
 import { BYPRODUCT_IDS, TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, isAxeId, type AxeId, type ByproductId, type TreeKind, type WoodKind } from "./chop";
 import { CRAFTS, isCraftId, type CraftId, type CraftItem } from "./crafting";
 import { MAIL_MAX, PROFILE_VERSION, migratePlayerInventory } from "./migrate";
-import { carrierBonus, fitWorn, isGearId, livewellBonus, type GearId } from "./gear";
+import { MAX_RANK, RANK_ATTUNE, carrierBonus, fitWorn, isGearId, livewellBonus, type GearId } from "./gear";
 import { CAVE_FISH, isCaveTackleId, type CaveTackleId } from "./caverns_fishing";
 import { isPickaxeId, isIngotId, isOreItemId, isOreKind, FORGE_QUEUE_MAX, ORE_ITEMS, type IngotId, type OreItemId, type OreKind, type PickaxeId } from "./caverns_mining";
 import { sanitizeSatchel, type SatchelStack } from "./satchel";
@@ -248,13 +248,12 @@ export function creelTier(tier: number): CreelTier {
 export function nextCreelTier(tier: number): CreelTier | null {
   return CREEL_TIERS[Math.round(tier)] ?? null;
 }
-/** The livewell's room: its tier's slots, and while worn the Tackle Master's Holster's four more and
- *  the Deepriver Fisherman Ring's six. */
-export function livewellCap(p: Pick<FishingProfile, "slots" | "worn">): number {
-  return p.slots + livewellBonus(p.worn);
+/** The livewell's room: its tier's slots, and while worn the Tackle Holster's and the Explorer's Pack's. */
+export function livewellCap(p: Pick<FishingProfile, "slots" | "worn" | "gearRank">): number {
+  return p.slots + livewellBonus(p);
 }
 /** Whether the creel has no room for another fish. */
-export function creelFull(p: Pick<FishingProfile, "creel" | "slots" | "worn">): boolean {
+export function creelFull(p: Pick<FishingProfile, "creel" | "slots" | "worn" | "gearRank">): boolean {
   return p.creel.length >= livewellCap(p);
 }
 /** A full creel: a fresh common catch goes back in the river, and this is paid for letting it go. */
@@ -317,6 +316,12 @@ export interface FishingProfile {
    *  oldest one's place); only what is worn works. */
   gear: GearId[];
   worn: GearId[];
+  /** Each owned piece's rank (1 to 5) and its attunement (seconds of its craft done by hand with it
+   *  on); the trials passed (`<family><rank>`); the deeds ledger the trials read (shared/gear.ts). */
+  gearRank: Partial<Record<GearId, number>>;
+  attune: Partial<Record<GearId, number>>;
+  trials: string[];
+  deeds: Record<string, number>;
   /** Pine Resin (from critical chops: it glues a carving at the workbench's Adhesive Slot, and Buster
    *  buys it) and Sawdust (from broken carvings; +15% on the bonfire): crafting materials, in the
    *  materials' store with the by-products (no carrier slots: up to MATERIAL_CAP, 99, of each). */
@@ -474,12 +479,12 @@ export function stashSlots(items: readonly CraftItem[]): number {
   for (const c of n.values()) slots += Math.ceil(c / CRAFT_SLOT_STACK);
   return slots;
 }
-export function stashFits(items: readonly CraftItem[], add: CraftItem): boolean {
-  return stashSlots([...items, add]) <= CRAFT_STASH_SLOTS;
+export function stashFits(items: readonly CraftItem[], add: CraftItem, bonus = 0): boolean {
+  return stashSlots([...items, add]) <= CRAFT_STASH_SLOTS + bonus;
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] } };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] } };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -492,10 +497,9 @@ export function carrierLoad(p: Pick<FishingProfile, "wood">): number {
 }
 /** The most of one kind a stash slot stacks (a kind past it takes a second slot). */
 export const MAX_CRAFT_STACK = CRAFT_SLOT_STACK;
-/** The carrier's room: its tier's slots, and while worn the Forester's Toolbelt's five more and the
- *  Carved Lumberjack Belt's eight. */
-export function carrierCap(p: Pick<FishingProfile, "carrierTier" | "worn">): number {
-  return carrierCapacity(p.carrierTier) + carrierBonus(p.worn);
+/** The carrier's room: its tier's slots, and while worn the Toolbelt's and the Explorer's Pack's. */
+export function carrierCap(p: Pick<FishingProfile, "carrierTier" | "worn" | "gearRank">): number {
+  return carrierCapacity(p.carrierTier) + carrierBonus(p);
 }
 /** Whether a tackle is the player's (made at the workbench). */
 export const hasTool = (p: Pick<FishingProfile, "tools">, id: CraftId) => p.tools.includes(id);
@@ -581,7 +585,18 @@ function readFishingProfile(raw: unknown): FishingProfile {
   p.owed = Math.max(0, Math.min(9_999_999, Math.round(Number(r.owed) || 0)));
   if (Array.isArray(r.gear)) p.gear = Array.from(new Set(r.gear.filter(isGearId)));
   // what is worn (a profile from before the slots: everything owned that fits goes on)
-  p.worn = fitWorn(Array.isArray(r.worn) ? r.worn.filter(isGearId) : p.gear, p.gear);
+  p.worn = fitWorn(Array.isArray(r.worn) ? r.worn.filter(isGearId) : [], p.gear);
+  for (const id of p.gear) {
+    p.gearRank[id] = Math.max(1, Math.min(MAX_RANK, Math.round(Number((r.gearRank as Record<string, unknown> | undefined)?.[id]) || 1)));
+    p.attune[id] = Math.max(0, Math.min(RANK_ATTUNE[MAX_RANK], Number((r.attune as Record<string, unknown> | undefined)?.[id]) || 0));
+  }
+  if (Array.isArray(r.trials)) p.trials = Array.from(new Set(r.trials.filter((t): t is string => typeof t === "string" && /^[a-z]+[3-9]$/.test(t)))).slice(0, 40);
+  if (r.deeds && typeof r.deeds === "object") {
+    for (const [k, v] of Object.entries(r.deeds as Record<string, unknown>).slice(0, 40)) {
+      const n = Math.floor(Number(v));
+      if (/^[a-zA-Z]{1,24}$/.test(k) && Number.isFinite(n) && n >= 0) p.deeds[k] = Math.min(n, 1e9);
+    }
+  }
   p.resin = Math.max(0, Math.min(999, Math.round(Number(r.resin) || 0)));
   p.sawdust = Math.max(0, Math.min(999, Math.round(Number(r.sawdust) || 0)));
   if (r.byproducts && typeof r.byproducts === "object") {

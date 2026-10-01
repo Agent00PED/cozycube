@@ -317,7 +317,7 @@ function StatusChoices({ status, onSetStatus, close, chips = false }: { status: 
  *  when anything is full), and under it, open, a pill for each store with its count and room: a
  *  tap opens that store's drawer (and folds the hub). */
 function StorageHub({ angler, caverns, open, onToggle, onClose }: { angler: FishingProfile; caverns: boolean; open: boolean; onToggle: () => void; onClose: () => void }) {
-  const strap = satchelBonus(angler.worn);
+  const strap = satchelBonus(angler);
   const stores = [
     { kind: "carrier", icon: "🪵", name: "Wood carrier", unit: "slots", used: carrierLoad(angler), cap: carrierCap(angler), tone: "text-amber-100", note: "no felling" },
     { kind: "livewell", icon: "🪣", name: "Livewell", unit: "fish", used: angler.creel.length, cap: livewellCap(angler), tone: "text-sky-100", note: "none bite" },

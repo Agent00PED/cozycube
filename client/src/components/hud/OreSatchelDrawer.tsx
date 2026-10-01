@@ -43,7 +43,7 @@ export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, o
   const [tab, setTab] = useState<Tab>("raw");
   const hour = parseMarket(market);
   const tier = satchelTier(profile.satchelTier);
-  const bonus = satchelBonus(profile.worn);
+  const bonus = satchelBonus(profile);
   const cap = satchelCap(profile, bonus);
   const used = slotsUsed(profile.satchelContents);
   const counts = satchelCounts(profile);
@@ -232,7 +232,7 @@ export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, o
           <div className="flex flex-col gap-2 text-xs">
             <DrawerCrafts profile={profile} drawer="ore" send={campfireSend} />
             <Materials profile={profile} disc="ore" />
-            <p className="m-0 text-center text-[11px] opacity-70">Fine Stone Dust falls from broken silver lodes and pulverized geodes. Gus buys it; the forge's relics and the Miner's Stout take it.</p>
+            <p className="m-0 text-center text-[11px] opacity-70">Fine Stone Dust falls from broken silver lodes and pulverized geodes. Gus buys it; the Miner's Stout takes it.</p>
           </div>
         ) : slots.length === 0 ? (
           <p className="m-0 rounded-2xl bg-white/5 px-3 py-4 text-center text-sm opacity-80">{EMPTY[tab as OreCategory]}</p>

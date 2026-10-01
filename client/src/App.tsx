@@ -20,7 +20,7 @@ import { ActionDock } from "./components/hud/ActionDock";
 import { WardrobeModal } from "./components/hud/WardrobeModal";
 import { PatchNotesModal } from "./components/hud/PatchNotesModal";
 import { FieldGuideModal } from "./components/hud/FieldGuideModal";
-import { tensionCut } from "@shared/gear";
+import { lampGlow, tensionCut } from "@shared/gear";
 import { WorldTransitionScreen } from "./components/WorldTransitionScreen";
 import { CHLOE_WELCOME } from "./entities/ChloeMaid";
 import { setMarketRaw } from "./scene/marketStore";
@@ -47,6 +47,7 @@ import { RoastingModal } from "./components/hud/RoastingModal";
 import { StargazingModal } from "./components/hud/StargazingModal";
 import { FellingModal } from "./components/hud/FellingModal";
 import { WonderBadge } from "./components/hud/WonderBadge";
+import { lampBoost } from "./scene/caveGear";
 import { BuffRow } from "./components/hud/BuffRow";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
@@ -858,6 +859,8 @@ export default function App() {
 
   // the angler's creel, rods and baits (the room's copy, or the one mirrored locally until it syncs)
   const angler = useAnglerProfile(me?.userId ?? "", me?.fishing ?? "", me?.coins ?? 0);
+  // (the Lamp Pack worn: the cave's glow round you, scene/caveGear.ts)
+  lampBoost.value = lampGlow(angler.profile);
   const playerCount = useMemo(() => Object.values(players).filter((p) => p.connected).length, [players]);
   // who is in each world (the fast-travel cards)
   const mapCounts = useMemo(() => {
@@ -958,7 +961,7 @@ export default function App() {
           away={ringTakeover}
         />
         <div className={ringTakeover ? "cozy-hud-away" : "cozy-hud-back"}>
-          <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} worn={angler.profile.worn} />
+          <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} gear={angler.profile} />
           {localPlayer && <BuffRow profile={angler.profile} />}
         </div>
         <Toasts />
@@ -1105,9 +1108,10 @@ export default function App() {
                   barScale: Math.min(1.3, starReel.swim.barScale * (1 + rod.barBonus)),
                   // (the rod's grip, and the Braided Silk Line's: the server's `resist`; and the
                   // Neoprene Wader Gloves: the tension builds a fifth slower again)
-                  tensionResist: 1 - (1 - (starReel.resist ?? rod.tensionResist)) * (1 - tensionCut(angler.profile.worn)),
+                  tensionResist: 1 - (1 - (starReel.resist ?? rod.tensionResist)) * (1 - tensionCut(angler.profile)),
                   tensionWindow: starReel.window ?? rod.tensionWindow,
                   boss: starReel.boss === true,
+                  tele: starReel.tele ?? 0,
                   dart: starReel.dart ?? 0,
                   feints: starReel.feints ?? 0,
                   shields: starReel.shields ?? 0,
@@ -1161,11 +1165,11 @@ export default function App() {
         {panel?.kind === "codex" && localPlayer && <CaveCodexModal found={angler.profile.codex} initial={panel.propId} title={localPlayer.title} onWear={(id) => casinoSend({ type: "EQUIP_TITLE", id })} onClose={closePanel} />}
         {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} campfireSend={campfireSend} onClose={closePanel} />}
         {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
-        {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "anvil" && localPlayer && <GeodeModal profile={angler.profile} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "flint" && localPlayer && <FlintModal first={panel.propId === "old_flint:first"} offer={panel.propId === "old_flint:offer"} profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} onClose={closePanel} />}
         {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} market={market} send={campfireSend} onClose={closePanel} onOpenCollection={() => setLogbook("timber")} />}
-        {panel?.kind === "workbench" && localPlayer && <WoodCraftModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
+        {panel?.kind === "workbench" && localPlayer && <WoodCraftModal profile={angler.profile} coins={localPlayer.coins} advanced={currentMap === "whispering_woods"} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "cashier" && localPlayer && <CashierModal coins={localPlayer.coins} chips={localPlayer.chips} onBuy={buyChips} onCashOut={cashOut} vipPass={localPlayer.vipPass} wristbands={localPlayer.vipWristbands} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "vippass" && localPlayer && (
           <VipPassModal
