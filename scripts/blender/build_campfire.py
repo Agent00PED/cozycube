@@ -68,9 +68,13 @@ opaque and matte (roughness 0.7-0.9; the water a little glossier), one object pe
 Coordinates: the game's (x, y up, z) is Blender's (x, -z, y); `W` converts, so every number below
 reads as in campfire.ts.
 
-The ground decals (moss patches, paths, the clearing) each sit on their own layer a few
-millimetres over the moss, and no two patches of a layer overlap: nothing on the island's top is
-coplanar with anything else, so nothing z-fights (CampfireWorld.tsx adds a polygon offset on top).
+The ground is the game's own heightfield (scripts/blender/data/campfire_terrain.json, written by
+`npm run campfire-terrain` from shared/worlds/campfire.ts: gentle mounds, a terrace, the river's
+channel), its moss, trails and banks painted into its vertex colours. Everything else is built as on
+flat ground and then stood on it (make_object's `lift`). Last, every plain colour is baked into the
+vertices and the still things are fused by finish (`fuse`): Campfire_Static and Campfire_Pines,
+about one draw call a finish; the nodes the game animates stay their own (DYNAMIC). Run
+`npm run pack-models` after it.
 """
 
 import json
@@ -266,50 +270,6 @@ def river_z(L):
     return P[0][0] - P[0][2], P[-1][0] + P[-1][2]
 
 
-def river_banks(L, grow=0.0, step=0.1):
-    """The river's outline as matching west and east bank points down its length, north to south,
-    each `grow` out from the water's edge. The round ends are sampled more finely."""
-    P = L["river"]["points"]
-    z0, z1 = P[0][0] - P[0][2], P[-1][0] + P[-1][2]
-    zs = []
-    for k in range(13):  # the north cap, finely (a quarter circle's worth of angle steps)
-        zs.append(P[0][0] - P[0][2] * math.cos(math.pi / 2 * k / 12))
-    z = P[0][0] + step
-    while z < P[-1][0]:
-        zs.append(z)
-        z += step
-    for k in range(13):  # the south cap
-        zs.append(P[-1][0] + P[-1][2] * math.sin(math.pi / 2 * k / 12))
-    west, east = [], []
-    for z in zs:
-        # the very ends a hair in, so the two banks never meet in one point
-        z = min(max(z, z0 + 0.01), z1 - 0.01)
-        span = river_span(L, z)
-        if span is None:
-            continue
-        west.append((span[0] - grow, z))
-        east.append((span[1] + grow, z))
-    return west, east
-
-
-def ribbon(bm, west, east, y0, y1, m=0, top_only=False):
-    """A strip of quads between matching bank points: a surface at y1 alone, or a closed solid
-    from y0 to y1."""
-    tops = [(bm.verts.new(W(wx, y1, wz)), bm.verts.new(W(ex, y1, ez))) for (wx, wz), (ex, ez) in zip(west, east)]
-    for (a, b), (c, d) in zip(tops, tops[1:]):
-        bm.faces.new((a, c, d, b)).material_index = m
-    if top_only:
-        return
-    bots = [(bm.verts.new(W(wx, y0, wz)), bm.verts.new(W(ex, y0, ez))) for (wx, wz), (ex, ez) in zip(west, east)]
-    for (a, b), (c, d) in zip(bots, bots[1:]):
-        bm.faces.new((b, d, c, a)).material_index = m
-    for side in (0, 1):
-        for i in range(len(tops) - 1):
-            bm.faces.new((tops[i][side], tops[i + 1][side], bots[i + 1][side], bots[i][side])).material_index = m
-    for i in (0, -1):
-        bm.faces.new((tops[i][0], tops[i][1], bots[i][1], bots[i][0])).material_index = m
-
-
 def path_polyline(path, step=0.1):
     """A trail's centre line and width: a Catmull-Rom spline through its points ([x, z] or
     [x, z, width]; a point without a width takes the trail's "w"), sampled every ~step."""
@@ -346,6 +306,163 @@ def read_cushions(root):
         y, h = float(m.group(1)), float(m.group(2))
         out[name] = {"y": y, "h": h, "top": y + h / 2}
     return out
+
+
+# ---------------------------------------------------------------------------------------------
+# the ground: its grid from the game (scripts/campfire-terrain.ts), and what stands on it
+
+LAYOUT = None  # the layout, for the helpers below (set by build)
+TERRAIN = None  # scripts/blender/data/campfire_terrain.json (set by build)
+RIM_R = 1.1  # the island's rounded corners
+
+
+def read_terrain(root):
+    with open(os.path.join(root, "scripts", "blender", "data", "campfire_terrain.json"), encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _grid_y(key, x, z):
+    """campGroundY in shared/worlds/campfire.ts: the grid's own triangles (each cell cut from its
+    (-x, -z) corner to its (+x, +z) one)."""
+    T = TERRAIN
+    n, cell, half, g = T["n"], T["cell"], T["half"], T[key]
+    u = min(n - 1e-6, max(0.0, (x + half) / cell))
+    v = min(n - 1e-6, max(0.0, (z + half) / cell))
+    i, k = int(u), int(v)
+    fu, fv = u - i, v - k
+    at = lambda a, b: g[b * (n + 1) + a]
+    h00, h11 = at(i, k), at(i + 1, k + 1)
+    if fu >= fv:
+        return h00 + (at(i + 1, k) - h00) * fu + (h11 - at(i + 1, k)) * fv
+    return h00 + (h11 - at(i, k + 1)) * fu + (at(i, k + 1) - h00) * fv
+
+
+def ground_y(x, z):
+    """The drawn ground (the river's channel cut in)."""
+    return _grid_y("ground", x, z)
+
+
+def land_y(x, z):
+    """The ground things stand on (no channel)."""
+    return _grid_y("land", x, z)
+
+
+def lift_at(x, z):
+    """How far up a thing built at y = 0 goes to stand at (x, z): the land there, or nothing in the
+    river (the reeds, the lily pads, the pilings and the boats keep the water's level)."""
+    if TERRAIN is None:
+        return 0.0
+    return 0.0 if in_river(LAYOUT, x, z) else land_y(x, z)
+
+
+def over_ground(p):
+    """A layout point whose height is measured from the ground under it, as a point in the world."""
+    return (p[0], p[1] + land_y(p[0], p[2]), p[2])
+
+
+def lift_parts(bm):
+    """Stands everything in `bm` on the ground: each loose part (a trunk, a cone, a rock, a plank)
+    goes up, whole, by the land under its middle, so nothing is sheared by a slope. The lift is
+    kept on the vertices ("lift": the pines' sway is measured from it)."""
+    layer = bm.verts.layers.float.get("lift") or bm.verts.layers.float.new("lift")
+    seen = set()
+    for v0 in bm.verts:
+        if v0 in seen:
+            continue
+        part = []
+        stack = [v0]
+        seen.add(v0)
+        while stack:
+            v = stack.pop()
+            part.append(v)
+            for e in v.link_edges:
+                o = e.other_vert(v)
+                if o not in seen:
+                    seen.add(o)
+                    stack.append(o)
+        xs = [v.co.x for v in part]
+        ys = [v.co.y for v in part]
+        dz = lift_at((min(xs) + max(xs)) / 2, -(min(ys) + max(ys)) / 2)
+        if dz:
+            for v in part:
+                v.co.z += dz
+                v[layer] = dz
+
+
+def _hash(i, k):
+    n = (i * 374761393 + k * 668265263) & 0xFFFFFFFF
+    n = ((n ^ (n >> 13)) * 1274126177) & 0xFFFFFFFF
+    return ((n ^ (n >> 16)) & 0xFFFF) / 65535.0
+
+
+def vnoise(x, z):
+    """Smooth value noise, 0..1."""
+    i, k = math.floor(x), math.floor(z)
+    fx, fz = x - i, z - k
+    fx, fz = fx * fx * (3 - 2 * fx), fz * fz * (3 - 2 * fz)
+    a, b, c, d = _hash(i, k), _hash(i + 1, k), _hash(i, k + 1), _hash(i + 1, k + 1)
+    return a + (b - a) * fx + (c - a) * fz + (a - b - c + d) * fx * fz
+
+
+def smooth(a, b, v):
+    """0 at a, 1 at b (either way round), eased."""
+    t = max(0.0, min(1.0, (v - a) / (b - a)))
+    return t * t * (3 - 2 * t)
+
+
+def mixc(a, b, t):
+    return [a[k] + (b[k] - a[k]) * t for k in range(3)]
+
+
+def rim_inside(x, z, half):
+    """How far inside the island's rounded outline (x, z) is (negative outside)."""
+    ax, az = abs(x), abs(z)
+    c = half - RIM_R
+    if ax > c and az > c:
+        return RIM_R - math.hypot(ax - c, az - c)
+    return min(half - ax, half - az)
+
+
+def snap_rim(x, z, half):
+    """(x, z), or the nearest point of the island's outline if it lies outside it."""
+    c = half - RIM_R
+    ax, az = abs(x), abs(z)
+    if ax > c and az > c:
+        d = math.hypot(ax - c, az - c)
+        if d > RIM_R:
+            ax, az = c + (ax - c) / d * RIM_R, c + (az - c) / d * RIM_R
+            return math.copysign(ax, x), math.copysign(az, z)
+        return x, z
+    return max(-half, min(half, x)), max(-half, min(half, z))
+
+
+def vc_material(name, rough=0.82, double=False):
+    """A vertex-colour material: its base colour is the mesh's "Col" corner colours."""
+    m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    try:
+        m.use_nodes = True
+    except AttributeError:
+        pass
+    nodes, links = m.node_tree.nodes, m.node_tree.links
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    attr = next((n for n in nodes if n.type == "VERTEX_COLOR"), None) or nodes.new("ShaderNodeVertexColor")
+    attr.layer_name = "Col"
+    links.new(attr.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = rough
+    bsdf.inputs["Metallic"].default_value = 0.0
+    m.roughness = rough
+    m.use_backface_culling = not double
+    return m
+
+
+def use_col(me):
+    attr = me.color_attributes.get("Col")
+    if attr is not None:
+        me.color_attributes.active_color = attr
+        try:
+            me.color_attributes.render_color_index = me.color_attributes.active_color_index
+        except AttributeError:
+            pass
 
 
 # ---------------------------------------------------------------------------------------------
@@ -519,28 +636,42 @@ def material(name):
     return m
 
 
-def make_object(name, bm, mats, coll, origin=None, smooth_all=False, recalc=True):
+def make_object(name, bm, mats, coll, origin=None, smooth_all=False, recalc=True, lift="parts", anchor=None):
     """`bm` as a mesh object `name`, its materials `mats`, its origin at the game point `origin`.
     Its faces are turned to face outward first (the three.js runtime culls back faces), unless it
-    is an open sheet already built facing the right way (`recalc` False)."""
+    is an open sheet already built facing the right way (`recalc` False).
+
+    Everything is built as on flat ground and then stood on the island's own (`lift`): an object
+    with an origin goes up whole by the land under it (or under `anchor`, an (x, z): a child node
+    takes its parent's); one without, part by part (lift_parts), or, "vertex", vertex by vertex (a
+    fence follows the ground); None leaves it where it was built (the ground, the water, a string
+    whose ends are already in the world)."""
     if recalc:
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     if smooth_all:
         for f in bm.faces:
             f.smooth = True
     me = bpy.data.meshes.new(name + "Mesh")
+    place = None
     if origin is not None:
         shift = W(*origin)
         for v in bm.verts:
             v.co -= shift
+        ax, az = anchor if anchor else (origin[0], origin[2])
+        place = W(origin[0], origin[1] + (lift_at(ax, az) if lift else 0.0), origin[2])
+    elif lift == "vertex":
+        for v in bm.verts:
+            v.co.z += lift_at(v.co.x, -v.co.y)
+    elif lift:
+        lift_parts(bm)
     bm.to_mesh(me)
     bm.free()
     for m in mats:
         me.materials.append(material(m))
     ob = bpy.data.objects.new(name, me)
     coll.objects.link(ob)
-    if origin is not None:
-        ob.location = W(*origin)
+    if place is not None:
+        ob.location = place
     return ob
 
 
@@ -558,44 +689,154 @@ def bake_modifiers(ob):
 # the parts
 
 
+def dirt_field(L):
+    """How bare the ground is at (x, z), 0..1: the clearing, the trails out of it (each along its
+    spline, as wide as it says) and the worn spots where people stand (the stalls, the bench, the
+    dock's landing), all with a ragged edge."""
+    lines = []
+    for path in L["paths"]:
+        pts = path_polyline(path, 0.12)
+        pad = max(p[2] for p in pts) / 2 + 0.6
+        box_ = (min(p[0] for p in pts) - pad, max(p[0] for p in pts) + pad, min(p[1] for p in pts) - pad, max(p[1] for p in pts) + pad)
+        lines.append((box_, pts))
+    c = L["clearing"]
+    fire = L["fire"]
+
+    def front(key, reach, r, s):
+        p = L[key]
+        d = math.hypot(fire["x"] - p["x"], fire["z"] - p["z"]) or 1.0
+        return (p["x"] + (fire["x"] - p["x"]) / d * reach, p["z"] + (fire["z"] - p["z"]) / d * reach, r, s)
+
+    dock = L["dock"]
+    wear = [
+        front("buster", 0.9, 1.2, 0.75),
+        front("workbench", 0.8, 1.1, 0.7),
+        front("barnaby", 0.9, 1.2, 0.75),
+        front("splitblock", 0.5, 1.0, 0.7),
+        front("telescope", 0.5, 1.2, 0.6),
+        front("tent", 1.9, 1.3, 0.75),
+        (L["archway"]["x"], L["archway"]["z"] + 0.6, 1.4, 0.8),
+        (L["gallery"]["x"], L["gallery"]["z"] - 0.75, 1.9, 0.7),
+        (L["picnic"]["x"], L["picnic"]["z"], 1.9, 0.6),
+        (dock["x0"] - 0.2, (dock["z0"] + dock["z1"]) / 2, 1.5, 0.8),
+        (L["van"]["x"] + 0.3, L["van"]["z"] + L["van"]["w"] / 2 + 0.9, 1.6, 0.55),
+    ]
+
+    def field(x, z):
+        wob = 0.2 * (vnoise(x * 1.7 + 11.0, z * 1.7 - 4.0) - 0.5) + 0.08 * (vnoise(x * 5.1, z * 5.1) - 0.5)
+        best = math.hypot(x - c["x"], z - c["z"]) - c["r"]
+        for (x0, x1, z0, z1), pts in lines:
+            if x < x0 or x > x1 or z < z0 or z > z1:
+                continue
+            for (ax, az, aw), (bx, bz, bw) in zip(pts, pts[1:]):
+                dx, dz = bx - ax, bz - az
+                t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
+                d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - (aw + (bw - aw) * t) / 2
+                if d < best:
+                    best = d
+        w = smooth(0.2, -0.16, best + wob)
+        for wx, wz, r, s in wear:
+            d = math.hypot(x - wx, z - wz)
+            if d < r + 0.3:
+                w = max(w, s * smooth(r, r * 0.35, d + wob))
+        return w
+
+    return field
+
+
+def ground_color(L, x, z, h, dirt, tones):
+    """The ground's colour at (x, z): mottled moss (darker and lighter in slow drifts, paler up on
+    the knoll), bare dirt where it is trodden, damp earth at the river's lip, stone down its bank
+    and the dark bed under the water."""
+    grass, dark, light, earth, soil, bed, stone = tones
+    n1 = vnoise(x * 0.33 + 3.1, z * 0.33 - 1.7)
+    n2 = vnoise(x * 0.9 - 5.0, z * 0.9 + 2.2)
+    n3 = vnoise(x * 2.7 + 0.4, z * 2.7 + 9.1)
+    col = mixc(grass, dark, 0.6 * smooth(0.42, 0.78, n1))
+    col = mixc(col, light, 0.7 * smooth(0.5, 0.85, n2))
+    col = mixc(col, light, 0.3 * smooth(0.6, 1.7, h))
+    col = [c * (0.955 + 0.09 * n3) for c in col]
+    w = dirt(x, z)
+    if w > 0:
+        col = mixc(col, [c * (0.9 + 0.18 * n2) for c in earth], w)
+    span = river_span(L, z)
+    if span is not None:
+        inside = min(x - span[0], span[1] - x)
+        if inside > -0.5:
+            col = mixc(col, soil, 0.6 * smooth(-0.5, 0.02, inside))
+        if inside > 0:
+            col = mixc(col, stone, smooth(0.0, 0.16, inside))
+            col = mixc(col, bed, smooth(0.2, L["terrain"]["bank"] + 0.15, inside))
+    return col
+
+
 def build_ground(L, coll):
+    """The island's top, modelled from the game's own grid (TERRAIN: each cell cut along the diagonal
+    the game reads it by, and cut finer for the paint), coloured vertex by vertex; its rim rounded
+    off, its sides falling to the rock beneath."""
     half = L["half"]
-    p = L["river"]
+    sub = 2
+    N = TERRAIN["n"] * sub
+    step = 2 * half / N
+    dirt = dirt_field(L)
+    tones = [lin(PALETTE[k]) for k in ("CF_Grass", "CF_GrassDark", "CF_GrassLight", "CF_Dirt", "CF_Soil", "CF_PondBed", "CF_StoneDark")]
+    soil, deep = lin(PALETTE["CF_Soil"]), lin(PALETTE["CF_SoilDeep"])
     bm = bmesh.new()
-    slab(bm, rounded_rect(-half, half, -half, half, 1.1, 10), -1.1, 0.0, 0)
-    ground = make_object("Campfire_Ground", bm, ["CF_Grass", "CF_Soil", "CF_PondBed", "CF_StoneDark"], coll)
-    bev = ground.modifiers.new("Bevel", "BEVEL")
-    bev.width = 0.32
-    bev.segments = 4
-    bev.limit_method = "ANGLE"
-    bake_modifiers(ground)
-    # dig the river: its outline, from above the top down to its bed
-    bm = bmesh.new()
-    west, east = river_banks(L)
-    ribbon(bm, west, east, -p["depth"], 1.0)
-    cutter = make_object("CF_RiverCutter", bm, ["CF_Soil"], coll)
-    dig = ground.modifiers.new("River", "BOOLEAN")
-    dig.operation = "DIFFERENCE"
-    dig.object = cutter
-    try:
-        dig.solver = "EXACT"
-    except Exception:
-        pass
-    bake_modifiers(ground)
-    bpy.data.objects.remove(cutter, do_unlink=True)
-    # paint it: moss on top, soil down the sides, a dark bed and stone banks in the river
-    me = ground.data
-    for poly in me.polygons:
-        c = poly.center  # Blender space: game (c.x, c.z, -c.y)
-        gx, gy, gz = c.x, c.z, -c.y
-        up = poly.normal.z
-        if in_river(L, gx, gz, 0.05) and gy < -0.02:
-            poly.material_index = 2 if up > 0.6 else 3
-        elif up > 0.55 and gy > -0.4:
-            poly.material_index = 0
-        else:
-            poly.material_index = 1
-        poly.use_smooth = False
+    col = bm.loops.layers.float_color.new("Col")
+    verts, vcol, rim_of = {}, {}, {}
+
+    def vert(i, k):
+        x, z = snap_rim(-half + i * step, -half + k * step, half)
+        key = (round(x, 4), round(z, 4))
+        v = verts.get(key)
+        if v is None:
+            rim = rim_inside(x, z, half)
+            y = ground_y(x, z) - 0.2 * smooth(0.4, 0.0, rim) ** 2
+            v = verts[key] = bm.verts.new(W(x, y, z))
+            c = ground_color(L, x, z, y, dirt, tones)
+            vcol[v] = (*mixc(c, soil, 0.65 * smooth(0.32, 0.0, rim)), 1.0)
+            rim_of[v] = rim
+        return v
+
+    top = []
+    for k in range(N):
+        for i in range(N):
+            a, b, c, d = vert(i, k), vert(i + 1, k), vert(i + 1, k + 1), vert(i, k + 1)
+            for tri in ((a, c, b), (a, d, c)):
+                if len(set(tri)) < 3 or all(rim_of[v] < 1e-4 for v in tri):
+                    continue
+                try:
+                    f = bm.faces.new(tri)
+                except ValueError:
+                    continue
+                f.normal_update()
+                if f.normal.z < 0:
+                    f.normal_flip()
+                f.smooth = True
+                top.append(f)
+    for f in top:
+        for loop in f.loops:
+            loop[col] = vcol[loop.vert]
+    # the sides: from the rim straight down to the rock beneath, in soil (their own vertices: a hard
+    # edge at the rim)
+    for e in [e for e in bm.edges if len(e.link_faces) == 1]:
+        a, b = e.verts
+        quad = [bm.verts.new(a.co), bm.verts.new(b.co), bm.verts.new((b.co.x, b.co.y, -1.12)), bm.verts.new((a.co.x, a.co.y, -1.12))]
+        f = bm.faces.new(quad)
+        f.normal_update()
+        mid = f.calc_center_median()
+        if f.normal.x * mid.x + f.normal.y * mid.y < 0:
+            f.normal_flip()
+        f.smooth = False
+        for loop in f.loops:
+            loop[col] = (*(soil if loop.vert.co.z > -1.0 else deep), 1.0)
+    me = bpy.data.meshes.new("Campfire_GroundMesh")
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(vc_material("CF_Ground", rough=0.9))
+    use_col(me)
+    ob = bpy.data.objects.new("Campfire_Ground", me)
+    coll.objects.link(ob)
     # the rock beneath, tapering away
     bm = bmesh.new()
     rng = random.Random(11)
@@ -614,119 +855,88 @@ def build_ground(L, coll):
         bm.faces.new((rings[-1][i], rings[-1][(i + 1) % n], tip))
     bm.faces.new(list(reversed(rings[0])))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    make_object("Campfire_Underside", bm, ["CF_SoilDeep"], coll, smooth_all=True)
-    # the water, a hand's breadth below the rim
+    make_object("Campfire_Underside", bm, ["CF_SoilDeep"], coll, smooth_all=True, lift=None)
+
+
+def build_water(L, coll):
+    """The river's surface, one sheet: across it a row of vertices every quarter metre down its
+    length, each carrying in its colour what the game's water shader reads (red: how far from the
+    nearer bank, 0 at the bank to 1 a metre and a half out; green: 1 on falling water; blue: how far
+    down a fall, 0 at its lip to 1 at its foot); the fall off the rock step into the plunge pool at
+    its head, and the sheet over the island's edge where it leaves."""
+    p = L["river"]
+    water = p["water"]
+    half = L["half"]
     bm = bmesh.new()
-    west, east = river_banks(L, grow=-0.02)
-    ribbon(bm, west, east, 0.0, p["water"], top_only=True)
-    for f in bm.faces:
-        f.smooth = True
-    # the river's inlet: a thin chute of water spilling from the stacked stone into the river (it
-    # flows in the water's shader like the rest)
-    cs = L["cascade"]
-    x, z0, top = cs["x"], cs["z"], cs["top"]
-    z1 = river_z(L)[0] + 0.35
+    col = bm.loops.layers.float_color.new("Col")
+    data = {}
+
+    def vert(x, y, z, shore, fall=0.0, down=0.0):
+        v = bm.verts.new(W(x, y, z))
+        data[v] = (max(0.0, min(1.0, shore / 1.5)), fall, down, 1.0)
+        return v
+
+    def strip(rows):
+        for r0, r1 in zip(rows, rows[1:]):
+            for (a, b), (c, d) in zip(zip(r0, r0[1:]), zip(r1, r1[1:])):
+                f = bm.faces.new((a, c, d, b))
+                f.smooth = True
+
+    z0, z1 = river_z(L)
+    end = min(z1 - 0.01, half - 0.05)
+    zs = [P0 for P0 in (p["points"][0][0] - p["points"][0][2] * math.cos(math.pi / 2 * k / 12) for k in range(13))]
+    z = p["points"][0][0] + 0.25
+    while z < end:
+        zs.append(z)
+        z += 0.25
+    zs.append(end)
+    cols = 8
     rows = []
-    for k in range(9):
-        u = k / 8
-        z = z0 + (z1 - z0) * u
-        y = top + (p["water"] + 0.005 - top) * (u ** 1.6)
-        w = 0.13 + 0.07 * u
-        rows.append((bm.verts.new(W(x - w, y, z)), bm.verts.new(W(x + w, y, z))))
-    for (a0, b0), (a1, b1) in zip(rows, rows[1:]):
-        bm.faces.new((a0, a1, b1, b0))
+    for z in zs:
+        z = min(max(z, z0 + 0.01), z1 - 0.01)
+        span = river_span(L, z)
+        if span is None:
+            continue
+        x0, x1 = span[0] + 0.02, span[1] - 0.02
+        w = x1 - x0
+        cap = z - z0  # the round head: its far side is a shore too
+        rows.append([vert(x0 + w * c / cols, water, z, min(min(c, cols - c) / cols * w, cap)) for c in range(cols + 1)])
+    strip(rows)
+    # the sheet over the island's edge: the last row carried out and down the side
+    if z1 > half:
+        last = rows[-1]
+        curtain = [last]
+        for dz, y, down in ((0.07, water - 0.05, 0.08), (0.12, water - 0.5, 0.45), (0.14, -1.25, 1.0)):
+            curtain.append([vert(v.co.x, y, half + dz, 1.5, 1.0, down) for v in last])
+        strip(curtain)
+    # the fall at its head: off the rock step's lip, out in an arc, into the plunge pool
+    cs = L["cascade"]
+    base = land_y(cs["x"], cs["z"])
+    lip_z, top = cs["z"] + 0.34, cs["top"] + base
+    foot_z = z0 + 0.4
+    rows = []
+    for k in range(10):
+        u = k / 9
+        z = lip_z + (foot_z - lip_z) * (u ** 0.8)
+        y = top + (water + 0.012 - top) * (u ** 1.9)
+        w = 0.24 + 0.1 * u
+        rows.append([vert(cs["x"] + w * (c / 3 * 2 - 1), y, z, 1.5, 1.0, u) for c in range(4)])
+    strip(rows)
     for f in bm.faces:
         f.normal_update()
-        if f.normal.z < 0:
+        mid = f.calc_center_median()
+        # (up, or on a falling sheet toward the open side: south at the edge and at the head)
+        if f.normal.z < -1e-4 or (abs(f.normal.z) <= 1e-4 and f.normal.y > 0):
             f.normal_flip()
-    make_object("Campfire_Water", bm, ["CF_Water"], coll, recalc=False)  # built facing up
-
-
-def trail(bm, pts, bevel=0.14, flat_end=False):
-    """A dirt trail along `pts` ((x, z, width) samples): a flat top at LAYER_PATH, its edges
-    bevelled out and down to just over the moss, a rounded cap on each end (or, `flat_end`, a
-    straight one: the dock's trail ends square under its planks)."""
-    top, low = LAYER_PATH, 0.002
-    n = len(pts)
-    rows = []
-    for i, (x, z, width) in enumerate(pts):
-        (ax, az, _), (bx, bz, _) = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
-        d = math.hypot(bx - ax, bz - az) or 1
-        tx, tz = (bx - ax) / d, (bz - az) / d
-        nx, nz = -tz, tx
-        w = width / 2 * (1 + 0.04 * math.sin(i * 0.9))
-        rows.append([bm.verts.new(W(x + nx * s_ * (w + (bevel if outer else 0)), low if outer else top, z + nz * s_ * (w + (bevel if outer else 0)))) for s_, outer in ((1, True), (1, False), (-1, False), (-1, True))])
-    for r0, r1 in zip(rows, rows[1:]):
-        for k in range(3):
-            bm.faces.new((r0[k], r0[k + 1], r1[k + 1], r1[k]))
-    # the rounded ends: a half fan of the top and the bevel round each
-    for end, sign in ((0, -1), (n - 1, 1)):
-        if flat_end and end == n - 1:
-            continue
-        x, z, width = pts[end]
-        (ax, az, _), (bx, bz, _) = (pts[0], pts[1]) if end == 0 else (pts[-2], pts[-1])
-        d = math.hypot(bx - ax, bz - az) or 1
-        tx, tz = sign * (bx - ax) / d, sign * (bz - az) / d
-        nx, nz = -tz, tx
-        w = width / 2 * (1 + 0.04 * math.sin(end * 0.9))
-        centre = bm.verts.new(W(x, top, z))
-        inner, outer = [], []
-        for k in range(9):
-            a = math.pi * k / 8
-            ux, uz = nx * math.cos(a) + tx * math.sin(a), nz * math.cos(a) + tz * math.sin(a)
-            inner.append(bm.verts.new(W(x + ux * w, top, z + uz * w)))
-            outer.append(bm.verts.new(W(x + ux * (w + bevel), low, z + uz * (w + bevel))))
-        for k in range(8):
-            bm.faces.new((centre, inner[k], inner[k + 1]))
-            bm.faces.new((inner[k], outer[k], outer[k + 1], inner[k + 1]))
-
-
-def build_paths(L, coll):
-    rng = random.Random(3)
-    bm = bmesh.new()
-    c = L["clearing"]
-    # the clearing on the top layer, the paths just under it (one colour: where they meet, the
-    # clearing is simply the higher of the two)
-    slab(bm, wobbly_circle(c["x"], c["z"], c["r"], 64, 0.035, rng), -0.02, LAYER_CLEARING, 0)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    # the trails out of the clearing: each one continuous ribbon along its spline, its edges bevelled
-    # down to the moss, its far end rounded (they start inside the clearing, under its layer)
-    before = set(bm.faces)
-    for path in L["paths"]:
-        trail(bm, path_polyline(path), flat_end=path.get("flatEnd", False))
-    for f in bm.faces:
-        if f not in before:
-            f.normal_update()
-            if f.normal.z < 0:
-                f.normal_flip()
-    make_object("Campfire_Paths", bm, ["CF_Dirt"], coll, recalc=False)
-    # moss patches on open grass: never overlapping each other, a path, the river, the dock or the
-    # tipi, so no two are ever coplanar
-    bm = bmesh.new()
-    half = L["half"]
-    d, t = L["dock"], L["tent"]
-    placed = []
-    tries = 0
-    while len(placed) < 40 and tries < 900:
-        tries += 1
-        x, z = rng.uniform(-half + 1, half - 1), rng.uniform(-half + 1, half - 1)
-        r = rng.uniform(0.45, 1.1)
-        if max(abs(x), abs(z)) + 1.25 * r > half - 0.45:  # clear of the bevelled rim
-            continue
-        if math.hypot(x - c["x"], z - c["z"]) < c["r"] + r + 0.2 or in_river(L, x, z, r + 0.35) or near_path(L, x, z, r + 0.3):
-            continue
-        if d["x0"] - r - 0.2 <= x <= d["x1"] + r and d["z0"] - r - 0.2 <= z <= d["z1"] + r + 0.2:
-            continue
-        if math.hypot(x - t["x"], z - t["z"]) < t["r"] + r + 0.2:
-            continue
-        if any(math.hypot(x - tr["x"], z - tr["z"]) < r + 0.2 for tr in L["trees"]):
-            continue
-        # the wobble reaches ~1.2 r: keep the wobbly edges apart too
-        if any(math.hypot(x - px, z - pz) < 1.2 * (r + pr) + 0.1 for px, pz, pr in placed):
-            continue
-        slab(bm, wobbly_circle(x, z, r, 20, 0.12, rng), -0.02, LAYER_PATCH, len(placed) % 2)
-        placed.append((x, z, r))
-    make_object("Campfire_Grass", bm, ["CF_GrassDark", "CF_GrassLight"], coll)
+        for loop in f.loops:
+            loop[col] = data[loop.vert]
+    me = bpy.data.meshes.new("Campfire_WaterMesh")
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(vc_material("CF_Water", rough=0.25, double=True))
+    use_col(me)
+    ob = bpy.data.objects.new("Campfire_Water", me)
+    coll.objects.link(ob)
 
 
 def build_bonfire(L, coll):
@@ -967,28 +1177,49 @@ def build_trees(L, coll):
     # (each at its own size, and turned its own way where the layout says: the west edge's stagger)
     for i, t in enumerate(L["trees"]):
         pine(bm, t["x"], t["z"], t["s"], rng, light=i % 2 == 1, yaw=t.get("yaw"))
-    # the bare branch the owl perches on, out through its pine's lowest boughs
+    make_object("Campfire_Trees", bm, ["CF_Bark", "CF_Pine", "CF_PineLight"], coll)
+    # the bare branch the owl perches on, out through its pine's lowest boughs (its own object,
+    # standing on the ground under the owl: the two never part on a slope)
     o = L["owl"]
+    bm = bmesh.new()
     cylinder(bm, W(o["tree"]["x"], o["y"] - 0.1, o["tree"]["z"]), W(o["x"] + 0.12, o["y"] - 0.03, o["z"] + 0.12), 0.04, 7, m=0, r_end=0.026)
+    make_object("Campfire_Perch", bm, ["CF_Bark"], coll, origin=(o["x"], o["y"], o["z"]))
     # the wooden mounting pegs a string of lights hangs from: driven into a pine's trunk, out through
-    # its boughs, a knob at the tip for the wire's loop (the string's end is the tip)
-    for pg in L.get("pegs", []):
+    # its boughs, a knob at the tip for the wire's loop (the string's end is the tip: the peg stands
+    # on the ground under it)
+    for i, pg in enumerate(L.get("pegs", [])):
         tx, tz = pg["tip"]
         dx, dz = tx - pg["x"], tz - pg["z"]
         n = math.hypot(dx, dz) or 1.0
         ux, uz = dx / n, dz / n
         y = pg["y"]
+        bm = bmesh.new()
         cylinder(bm, W(pg["x"] + ux * 0.04, y - 0.01, pg["z"] + uz * 0.04), W(tx, y + 0.012, tz), 0.03, 7, m=0, r_end=0.022)
         blob(bm, tx, y + 0.014, tz, 0.032, 0.03, 0.032, m=0, cuts=2)
-    make_object("Campfire_Trees", bm, ["CF_Bark", "CF_Pine", "CF_PineLight"], coll)
+        make_object(f"Campfire_Peg_0{i + 1}", bm, ["CF_Bark"], coll, origin=(tx, y, tz))
 
 
 def build_rocks(L, coll):
     rng = random.Random(33)
     bm = bmesh.new()
-    # the cascade's top stone, stacked on the inlet's rim rocks
+    # the fall's rock step at the river's head: two big boulders shoulder to shoulder, a flat slab
+    # across them that the water runs off, a lip stone under it, and smaller ones stepping down to
+    # the plunge pool on either side and behind
     cs = L["cascade"]
-    blob(bm, cs["x"], cs["top"] - 0.13, cs["z"], 0.3, 0.16, 0.26, m=0, cuts=4, noise=0.1, rng=rng)
+    cx, cz, top = cs["x"], cs["z"], cs["top"]
+    for dx, y, dz, hx, hy, hz, m_ in (
+        (-0.62, 0.42, -0.2, 0.78, 0.62, 0.66, 0),
+        (0.6, 0.38, -0.15, 0.72, 0.56, 0.62, 1),
+        (0.0, top - 0.2, -0.08, 0.64, 0.24, 0.52, 0),
+        (0.02, 0.6, 0.3, 0.42, 0.3, 0.3, 1),
+        (-1.22, 0.16, 0.5, 0.46, 0.3, 0.4, 1),
+        (1.18, 0.14, 0.55, 0.44, 0.28, 0.38, 0),
+        (-0.35, 0.2, -0.85, 0.6, 0.4, 0.5, 1),
+        (0.55, 0.18, -0.8, 0.5, 0.36, 0.45, 0),
+        (-1.5, 0.08, -0.2, 0.3, 0.2, 0.28, 0),
+        (1.55, 0.08, -0.1, 0.28, 0.18, 0.26, 1),
+    ):
+        blob(bm, cx + dx, y, cz + dz, hx, hy, hz, m=m_, cuts=4, noise=0.1, rng=rng, flat_bottom=-0.3)
     for i, r in enumerate(L["rocks"]):
         s = r["s"]
         blob(bm, r["x"], 0.12 * s, r["z"], 0.5 * s, 0.36 * s, 0.42 * s, m=i % 2, cuts=4, noise=0.1, rng=rng, flat_bottom=-0.3)
@@ -1018,27 +1249,18 @@ def build_rocks(L, coll):
 
 
 def build_fence(L, coll):
-    f = L["fence"]
-    at, post = f["at"], f["post"]
+    """The rustic fence along the front edge, from the west corner to the river's bank: every post
+    and rail follows the ground under it."""
+    at = L["fence"]["at"]
+    xs = fence_posts(L)
     bm = bmesh.new()
-
-    def run(points):
-        for (ax, az), (bx, bz) in zip(points, points[1:]):
-            length = math.hypot(bx - ax, bz - az)
-            n = max(1, round(length / post))
-            for k in range(n + 1):
-                px, pz = ax + (bx - ax) * k / n, az + (bz - az) * k / n
-                box(bm, px - 0.06, px + 0.06, -0.02, 0.72, pz - 0.06, pz + 0.06)
-                lathe(bm, px, pz, [(0, 0.72), (0.085, 0.72), (0, 0.8)], segs=4, yaw=math.pi / 4)
-            for y in (0.3, 0.55):
-                if ax == bx:
-                    box(bm, ax - 0.03, ax + 0.03, y - 0.05, y + 0.05, min(az, bz), max(az, bz))
-                else:
-                    box(bm, min(ax, bx), max(ax, bx), y - 0.05, y + 0.05, az - 0.03, az + 0.03)
-
-    run([(f["xFrom"], at), (at, at)])
-    run([(at, at), (at, f["zFrom"])])
-    make_object("Campfire_Fence", bm, ["CF_Fence"], coll)
+    for px in xs:
+        box(bm, px - 0.06, px + 0.06, -0.02, 0.72, at - 0.06, at + 0.06)
+        lathe(bm, px, at, [(0, 0.72), (0.085, 0.72), (0, 0.8)], segs=4, yaw=math.pi / 4)
+    for a, b in zip(xs, xs[1:]):
+        for y in (0.3, 0.55):
+            box(bm, a, b, y - 0.05, y + 0.05, at - 0.03, at + 0.03)
+    make_object("Campfire_Fence", bm, ["CF_Fence"], coll, lift="vertex")
 
 
 # the props the undergrowth keeps its distance from (a fern never pokes through a stall or a tent)
@@ -1049,6 +1271,18 @@ def near_prop(L, x, z, pad):
     return any(k in L and math.hypot(x - L[k]["x"], z - L[k]["z"]) < pad for k in KEEP_CLEAR)
 
 
+def along_river(L, every, start=0.6):
+    """Places down the river's length, north to south, `every` apart (short of the island's edge)."""
+    z0, z1 = river_z(L)
+    z1 = min(z1, L["half"] - 0.9)
+    out = []
+    z = z0 + start
+    while z < z1 - 0.5:
+        out.append(z)
+        z += every
+    return out
+
+
 def river_mossy(L):
     """The mossy stones along the river: each half in the water at a bank's lip (inside the river's
     own collider: never in anyone's way), clear of the dock, the anglers' spots and the crossings.
@@ -1057,7 +1291,7 @@ def river_mossy(L):
     water = L["river"]["water"]
     d = L["dock"]
     spots = [(f["stand"]["x"], f["stand"]["z"]) for f in L["fishing"]] + [(f["bobber"]["x"], f["bobber"]["z"]) for f in L["fishing"]]
-    for k, z in enumerate((-8.1, -6.4, -5.3, -3.2, -2.0, 1.2, 2.6, 4.4, 5.9, 7.9, 8.8)):
+    for k, z in enumerate(along_river(L, 1.55, 0.9)):
         span = river_span(L, z)
         if span is None:
             continue
@@ -1158,7 +1392,8 @@ def build_deco(L, coll):
     water = L["river"]["water"]
     d = L["dock"]
     floats = [(s["bobber"]["x"], s["bobber"]["z"]) for s in L["fishing"]]
-    for z, t, r in ((-8.4, 0.5, 0.16), (-7.0, 0.35, 0.2), (-6.6, 0.65, 0.15), (-4.8, 0.3, 0.22), (-3.6, 0.7, 0.18), (-2.7, 0.45, 0.14), (3.0, 0.3, 0.2), (3.6, 0.62, 0.16), (5.2, 0.45, 0.22), (6.6, 0.3, 0.15)):
+    for k, z in enumerate(along_river(L, 1.3, 2.4)):
+        t, r = (0.5, 0.35, 0.65, 0.3, 0.7, 0.45)[k % 6], (0.16, 0.2, 0.15, 0.22, 0.18, 0.14)[k % 6]
         x0, x1 = river_span(L, z)
         x = x0 + (x1 - x0) * t
         if any(math.hypot(x - fx, z - fz) < 0.7 for fx, fz in floats) or (d["z0"] - 0.4 <= z <= d["z1"] + 0.4 and x < d["x1"] + 0.4):
@@ -1171,10 +1406,13 @@ def build_deco(L, coll):
                 a = 2 * math.pi * q / 6 + a0
                 blob(bm, x + 0.05 * math.cos(a), water + 0.05, z + 0.05 * math.sin(a), 0.05, 0.03, 0.05, m=1, cuts=1, n=2.0)
             blob(bm, x, water + 0.075, z, 0.03, 0.025, 0.03, m=4, cuts=2, n=2.0)
-    clumps = [(z, side) for z, side in ((-9.0, 0), (-8.9, 1), (-7.6, 1), (-5.6, 0), (-4.9, 1), (-3.3, 1), (-2.6, 0), (3.2, 1), (4.2, 0), (5.6, 1), (6.2, 0), (7.4, 0), (7.3, 1))]
+    clumps = [(z, (k * 7 + k // 3) % 2) for k, z in enumerate(along_river(L, 1.25, 1.2))]
     for cz, side in clumps:
         span = river_span(L, cz)
         if span is None:
+            continue
+        # (not across the dock, nor where an angler's float lands)
+        if d["z0"] - 0.5 <= cz <= d["z1"] + 0.5 and side == 0:
             continue
         cx = span[0] + 0.22 if side == 0 else span[1] - 0.22
         for k in range(7):
@@ -1185,7 +1423,7 @@ def build_deco(L, coll):
                 cylinder(bm, W(x, water + h * 0.72, z), W(x, water + h * 0.9, z), 0.035, 6, m=5)
     # round bushes at the fence's corners, wild red berries tucked in their leaves
     fence = L["fence"]
-    for x, z, s in ((fence["xFrom"] + 0.9, fence["at"] - 1.05, 0.9), (fence["at"] - 1.15, fence["at"] - 1.05, 0.8), (fence["at"] - 0.95, fence["zFrom"] + 0.35, 0.7)):
+    for x, z, s in ((fence["xFrom"] + 0.9, fence["at"] - 1.05, 0.9), (fence["xTo"] - 0.9, fence["at"] - 0.9, 0.8)):
         for k in range(3):
             bx, bz = x + 0.35 * (k - 1) * s, z + 0.2 * ((k % 2) - 0.5) * s
             blob(bm, bx, 0.3 * s, bz, 0.42 * s, 0.36 * s, 0.4 * s, m=7, cuts=3, noise=0.08, rng=rng, flat_bottom=-0.05)
@@ -1254,7 +1492,7 @@ def string_bulbs(a, b, sag):
 
 def fence_posts(L):
     f = L["fence"]
-    length = f["at"] - f["xFrom"]
+    length = f["xTo"] - f["xFrom"]
     n = max(1, round(length / f["post"]))
     return [f["xFrom"] + length * k / n for k in range(n + 1)]
 
@@ -1274,18 +1512,20 @@ def hang_string(bm, a, b, sag, m_wire=0, m_bulb=1):
 
 def build_lights(L, coll):
     """Each string of lights its own node (its origin at its first end: the game sways it about
-    the line between its ends), and the swags along the front fence as one node."""
+    the line between its ends), and the swags along the front fence as one node. A string's ends
+    are heights over the ground under them (LIGHT_STRINGS in campfire.ts)."""
     for i, s in enumerate(L["strings"]):
+        a, b = over_ground(s["a"]), over_ground(s["b"])
         bm = bmesh.new()
-        hang_string(bm, s["a"], s["b"], s["sag"])
-        make_object(f"StringLight_0{i + 1}", bm, ["CF_Wire", "CF_Bulb"], coll, origin=tuple(s["a"]))
+        hang_string(bm, a, b, s["sag"])
+        make_object(f"StringLight_0{i + 1}", bm, ["CF_Wire", "CF_Bulb"], coll, origin=a, lift=None)
     fl = L["fenceLights"]
     posts = fence_posts(L)
     at = L["fence"]["at"]
     bm = bmesh.new()
     for k in range(0, len(posts) - fl["every"], fl["every"]):
-        hang_string(bm, (posts[k], fl["y"], at), (posts[k + fl["every"]], fl["y"], at), fl["sag"])
-    make_object("StringLight_Fence", bm, ["CF_Wire", "CF_Bulb"], coll, origin=(posts[0], fl["y"], at))
+        hang_string(bm, over_ground((posts[k], fl["y"], at)), over_ground((posts[k + fl["every"]], fl["y"], at)), fl["sag"])
+    make_object("StringLight_Fence", bm, ["CF_Wire", "CF_Bulb"], coll, origin=over_ground((posts[0], fl["y"], at)), lift=None)
 
 
 def build_glamping(L, cushions, coll):
@@ -1339,7 +1579,7 @@ def build_glamping(L, cushions, coll):
     box(bm, cx_ - 0.27, cx_ + 0.27, 0.3, 0.36, cz_ - 0.18, cz_ + 0.18, m=m["CF_CoolerLid"])
     box(bm, cx_ - 0.12, cx_ + 0.12, 0.36, 0.39, cz_ - 0.025, cz_ + 0.025, m=m["CF_CoolerLid"])
 
-    # --- the brass telescope on its tripod, aimed up over the fence ---
+    # --- the brass telescope on its tripod, on the knoll's top ---
     tx, tz = L["telescope"]["x"], L["telescope"]["z"]
     apex = (tx, 0.95, tz)
     for k in range(3):
@@ -1347,8 +1587,12 @@ def build_glamping(L, cushions, coll):
         cylinder(bm, W(*apex), W(tx + 0.32 * math.cos(a), 0.0, tz + 0.32 * math.sin(a)), 0.022, 6, m=m["CF_Pole"], r_end=0.016)
     blob(bm, tx, 0.96, tz, 0.05, 0.045, 0.05, m=m["CF_BrassDark"], cuts=2)
     up, fwd = math.sin(math.radians(35)), math.cos(math.radians(35))
-    eye = W(tx, 0.96 - 0.3 * up + 0.05, tz - 0.3 * fwd)
-    obj = W(tx, 0.96 + 0.58 * up + 0.05, tz + 0.58 * fwd)
+    # (it looks up and out over the island's back, away from the fire: the eyepiece is on the side
+    # you walk up to it from)
+    away = math.hypot(tx - L["fire"]["x"], tz - L["fire"]["z"]) or 1.0
+    ax_, az_ = (tx - L["fire"]["x"]) / away, (tz - L["fire"]["z"]) / away
+    eye = W(tx - ax_ * 0.3 * fwd, 0.96 - 0.3 * up + 0.05, tz - az_ * 0.3 * fwd)
+    obj = W(tx + ax_ * 0.58 * fwd, 0.96 + 0.58 * up + 0.05, tz + az_ * 0.58 * fwd)
     cylinder(bm, eye, obj, 0.06, 14, m=m["CF_Brass"], cap_m=m["CF_BrassDark"], r_end=0.08)
     axis = (obj - eye).normalized()
     for f_, r_ in ((0.02, 0.066), (0.55, 0.074), (0.97, 0.086)):
@@ -1733,13 +1977,13 @@ def build_fauna(L, coll):
         blob(bm, x + sx * 0.05, 0.355, z + 0.32, 0.018, 0.02, 0.01, m=dark, cuts=2)
         blob(bm, x + sx * 0.08, 0.44, z + 0.17, 0.042, 0.045, 0.025, m=grey, cuts=2)
         blob(bm, x + sx * 0.08, 0.44, z + 0.19, 0.022, 0.028, 0.012, m=dark, cuts=2)
-    head = make_object("Fauna_Critter_Head", bm, mats, coll, origin=neck)
+    head = make_object("Fauna_Critter_Head", bm, mats, coll, origin=neck, anchor=(x, z))
     base = (x, 0.17, z - 0.16)
     bm = bmesh.new()
     for k in range(5):
         t = k / 4
         blob(bm, x, 0.19 + 0.2 * t, z - 0.2 - 0.2 * t, 0.06 - 0.008 * k, 0.06 - 0.008 * k, 0.06, m=dark if k % 2 else grey, cuts=2)
-    tail = make_object("Fauna_Critter_Tail", bm, mats, coll, origin=base)
+    tail = make_object("Fauna_Critter_Tail", bm, mats, coll, origin=base, anchor=(x, z))
     for child in (head, tail):
         child.parent = body
         child.location = child.location - body.location
@@ -1767,7 +2011,7 @@ def build_fauna(L, coll):
     bm = bmesh.new()
     for sx in (-1, 1):
         blob(bm, x + sx * 0.045, y + 0.345, z + 0.104, 0.036, 0.036, 0.022, m=5, cuts=2)
-    lids = make_object("Fauna_Owl_Lids", bm, mats, coll, origin=(x, y + 0.378, z + 0.1))
+    lids = make_object("Fauna_Owl_Lids", bm, mats, coll, origin=(x, y + 0.378, z + 0.1), anchor=(x, z))
     owl_head.parent = owl
     owl_head.location = owl_head.location - owl.location
     lids.parent = owl_head
@@ -2045,13 +2289,17 @@ def build_living(L, coll):
 
 
 def build(root):
+    global LAYOUT, TERRAIN
     purge()
     L = read_layout(root)
+    LAYOUT, TERRAIN = L, read_terrain(root)
+    if TERRAIN["half"] != L["half"]:
+        raise RuntimeError("campfire_terrain.json is stale: run `npm run campfire-terrain`")
     cushions = read_cushions(root)
     coll = bpy.data.collections.new(COLLECTION)
     bpy.context.scene.collection.children.link(coll)
     build_ground(L, coll)
-    build_paths(L, coll)
+    build_water(L, coll)
     build_bonfire(L, coll)
     build_logs(L, cushions, coll)
     build_dock(L, coll)
@@ -2073,7 +2321,101 @@ def build(root):
     for ob in coll.all_objects:
         if ob.modifiers:
             bake_modifiers(ob)
+    # the marks (seats, spots) stand on the ground too
+    for ob in coll.all_objects:
+        if ob.data is None and ob.parent is None:
+            ob.location.z += lift_at(ob.location.x, -ob.location.y)
     return coll, L, cushions
+
+
+# ---------------------------------------------------------------------------------------------
+# one draw call a finish: every plain colour baked into the vertices, the still things fused
+
+# the nodes the game animates or shows and hides by name: they stay their own objects
+DYNAMIC = ("Fire_Flame", "Stew_", "Picnic_Skewer", "Picnic_Bbq", "Fauna_", "Prop_Canoe", "Forage_", "StringLight_")
+# the materials that stay themselves: what glows (the game flickers them by name), and the stew
+# (the game tints it)
+KEEP = set(EMISSION) | {"CF_Stew"}
+SLOT_ROUGH = {"CF_Sheen": 0.5}
+
+
+def slot_of(name, pines):
+    """The finish a face painted `name` is drawn with."""
+    if name in KEEP:
+        return name
+    if name in ("CF_Pine", "CF_PineLight"):
+        return "CF_Pine"
+    if pines and name == "CF_Bark":
+        return "CF_PineBark"
+    if name in DOUBLE_SIDED:
+        return "CF_ClayDouble"
+    return "CF_Sheen" if ROUGHNESS.get(name, 0.82) < 0.65 else "CF_Clay"
+
+
+def bake_colors(ob, pines=False):
+    """Every face's own colour into the mesh's "Col" corner colours, and its material replaced by
+    its finish's (slot_of): an object of twelve colours is one or two draw calls. The pines keep,
+    in their UVs, each vertex's height over the ground it stands on (the game sways them by it)."""
+    me = ob.data
+    names = [m.name for m in me.materials]
+    if not names or names == ["CF_Ground"] or names == ["CF_Water"]:
+        return
+    attr = me.color_attributes.get("Col") or me.color_attributes.new("Col", "FLOAT_COLOR", "CORNER")
+    lifts = me.attributes.get("lift")
+    # (no UVs but the pines': a stray layer on one object would give the whole fused mesh one)
+    while me.uv_layers:
+        me.uv_layers.remove(me.uv_layers[0])
+    uv = me.uv_layers.new(name="UVMap") if pines else None
+    world = ob.matrix_world
+    slots, index, face_slot = [], {}, []
+    for poly in me.polygons:
+        name = names[min(poly.material_index, len(names) - 1)]
+        s = slot_of(name, pines)
+        c = (1.0, 1.0, 1.0) if s in KEEP else lin(PALETTE[name])
+        for li in poly.loop_indices:
+            attr.data[li].color = (*c, 1.0)
+            if uv is not None:
+                vi = me.loops[li].vertex_index
+                uv.data[li].uv = (0.0, max(0.0, (world @ me.vertices[vi].co).z - (lifts.data[vi].value if lifts else 0.0)))
+        if s not in index:
+            index[s] = len(slots)
+            slots.append(s)
+        face_slot.append(index[s])
+    me.materials.clear()
+    for s in slots:
+        me.materials.append(material(s) if s in KEEP else vc_material(s, rough=SLOT_ROUGH.get(s, 0.82), double=s == "CF_ClayDouble"))
+    for poly, i in zip(me.polygons, face_slot):
+        poly.material_index = i
+    if lifts is not None:
+        me.attributes.remove(lifts)
+    use_col(me)
+
+
+def fuse(coll):
+    """Bakes every object's colours, then joins the still ones into Campfire_Static (and the pines
+    into Campfire_Pines): about one draw call a finish for the whole island."""
+    statics, pines = [], []
+    for ob in list(coll.all_objects):
+        if ob.type != "MESH" or ob.name in ("Campfire_Ground", "Campfire_Water"):
+            continue
+        tree = ob.name.startswith("Campfire_Trees")
+        bake_colors(ob, pines=tree)
+        if ob.name.startswith(DYNAMIC) or ob.parent is not None:
+            continue
+        (pines if tree else statics).append(ob)
+    bpy.context.view_layer.update()
+    for name, group in (("Campfire_Static", statics), ("Campfire_Pines", pines)):
+        if not group:
+            continue
+        target = group[0]
+        if len(group) > 1:
+            with bpy.context.temp_override(object=target, active_object=target, selected_objects=group, selected_editable_objects=group):
+                bpy.ops.object.join()
+        target.name = name
+        target.data.name = name + "Mesh"
+        use_col(target.data)
+    meshes = [o for o in coll.all_objects if o.type == "MESH"]
+    return {"objects": len(meshes), "drawCalls": sum(len(o.data.materials) for o in meshes), "tris": sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes), "static": [m.name for m in bpy.data.objects["Campfire_Static"].data.materials]}
 
 
 def export(coll, path):
@@ -2112,8 +2454,6 @@ def summary(coll, L, cushions):
         "logCushionTop": cushions["log"]["top"],
         "tentMatTop": cushions["tentMat"]["top"],
         "water": L["river"]["water"],
-        "drawCallsApprox": sum(v["materials"] for v in out.values()),
-        "tris": sum(v["tris"] for v in out.values()),
     }
     return {"objects": out, "marks": marks, "checks": checks}
 
@@ -2124,10 +2464,12 @@ def main():
         root = repo_root()
         studio(root, "begin")
         coll, L, cushions = build(root)
+        report_ = summary(coll, L, cushions)
+        fused = fuse(coll)
         out = os.path.join(root, "client", "public", "models", "campfire.glb")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         export(coll, out)
-        result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), **summary(coll, L, cushions)}
+        result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), "fused": fused, "checks": report_["checks"], "marks": report_["marks"]}
         result["studio"] = studio(root, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}

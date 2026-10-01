@@ -83,7 +83,8 @@ import { VAULT_SLOTS, VIP_ARRIVAL, VIP_BACCARAT, VIP_BACCARAT_PAD, VIP_BLACKJACK
 import { findPath } from "../shared/pathfinding";
 import type { AABB } from "../shared/collision";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
-import { BARNABY_BOARD, CAMPFIRE_LAYOUT } from "../shared/worlds/campfire";
+import { BARNABY_BOARD, BARNABY_FRONT, BUSTER_FRONT, CAMPFIRE_LAYOUT, CAMP_ARCHWAY_FRONT, CAMP_TREES, FISHING_SPOTS, GALLERY_FRONT, SPLITBLOCK_FRONT, TELESCOPE_FRONT, WORKBENCH_FRONT, campGroundY, campLand } from "../shared/worlds/campfire";
+import { CAMPFIRE_TERRAIN_PATH, campfireTerrainText } from "./campfire-terrain";
 import { WORLDS } from "../shared/worlds/index";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVE_WINCH, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, WINCH_REACH, WINCH_RIDE_S, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, HEARTH_SEATS, PHOTO_SPOT, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope, RAFT, raftAt, streamCast, STREAM_REACHES, cavernsSurface, SURFACE, STEEPEST_STEP } from "../shared/worlds/caverns";
 import { readFileSync, existsSync } from "node:fs";
@@ -517,6 +518,76 @@ for (const mapId of MAP_IDS) {
     const tree = CL.trees.find((tr) => Math.hypot(tr.x - pg.x, tr.z - pg.z) < 0.05);
     if (!tree) fail(`campfire_night: the peg at ${fmt(pg)} is in no pine`);
     else if (Math.hypot(pg.tip[0] - pg.x, pg.tip[1] - pg.z) <= boughs(tree.s, pg.y) / 0.94) fail(`campfire_night: the peg at ${fmt(pg)} is hidden in its pine's boughs`);
+  }
+}
+
+// --- the campfire's ground (docs/campfire-design.md): the builder's grid in step with the layout,
+// nothing walked steeper than the walk's limit, what is built standing on level ground, and every
+// place a short walk from the hearth ---
+{
+  const F: MapId = "campfire_night";
+  const CL = CAMPFIRE_LAYOUT;
+  checks++;
+  if (!existsSync(CAMPFIRE_TERRAIN_PATH) || readFileSync(CAMPFIRE_TERRAIN_PATH, "utf8").replace(/\r\n/g, "\n") !== campfireTerrainText()) fail(`${F}: scripts/blender/data/campfire_terrain.json is stale: run npm run campfire-terrain, then rebuild campfire.glb`);
+  // (the land itself, the river's cut banks aside: no one walks those)
+  const STEEPEST = 24;
+  let worst = 0;
+  let worstAt = { x: 0, z: 0 };
+  const lim = worldLimit(F);
+  for (let x = -lim; x <= lim; x += 0.25)
+    for (let z = -lim; z <= lim; z += 0.25) {
+      const rise = Math.max(Math.abs(campLand(x + 0.25, z) - campLand(x - 0.25, z)), Math.abs(campLand(x, z + 0.25) - campLand(x, z - 0.25)));
+      const deg = (Math.atan2(rise, 0.5) * 180) / Math.PI;
+      if (deg > worst) (worst = deg), (worstAt = { x, z });
+    }
+  checks++;
+  if (worst > STEEPEST) fail(`${F}: the ground is ${worst.toFixed(1)} degrees steep at ${fmt(worstAt)} (at most ${STEEPEST})`);
+  // what is built stands level: the land under it within a few centimetres across its footprint
+  const level = (label: string, at: Point, r: number, tol = 0.06) => {
+    checks++;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let k = 0; k < 8; k++) {
+      const h = campLand(at.x + Math.cos((k * Math.PI) / 4) * r, at.z + Math.sin((k * Math.PI) / 4) * r);
+      lo = Math.min(lo, h);
+      hi = Math.max(hi, h);
+    }
+    if (hi - lo > tol) fail(`${F}: ${label} at ${fmt(at)} stands on a slope (${(hi - lo).toFixed(2)} m across it)`);
+  };
+  level("the tipi", CL.tent, CL.tent.r);
+  level("the telescope", CL.telescope, 0.9);
+  level("the workbench", CL.workbench, 0.8);
+  level("Buster's stall", CL.buster, 0.9);
+  level("Barnaby's stall", CL.barnaby, 0.9);
+  level("the camper van", CL.van, 1.6);
+  level("the splitting block", CL.splitblock, 0.5);
+  level("the woodpile", CL.woodpile, 0.8);
+  level("the picnic table", CL.picnic, 1.2);
+  level("the slingshot gallery", { x: CL.gallery.x, z: (CL.gallery.z + CL.gallery.back) / 2 }, 1.8, 0.08);
+  level("the firepit", CL.fire, CL.firepit.r + 0.6, 0.001);
+  level("the dock's landing", { x: CL.dock.x0, z: (CL.dock.z0 + CL.dock.z1) / 2 }, 1.2, 0.001);
+  // the drawn ground and the land agree wherever anyone stands (only the river's channel differs)
+  for (const t of CAMP_TREES) {
+    checks++;
+    if (Math.abs(campGroundY(t.approachX, t.approachZ) - campLand(t.approachX, t.approachZ)) > 0.05) fail(`${F}: ${t.id} is felled from the river's bank ${fmt({ x: t.approachX, z: t.approachZ })}`);
+  }
+  // the walks from the hearth: nowhere more than ten seconds off at the game's 3 m/s
+  const hearth = { x: CL.fire.x, z: CL.fire.z + 1.35 };
+  const walkS = (to: Point) => {
+    const path = findPath(F, hearth, to);
+    if (!path) return Infinity;
+    let d = 0;
+    let at: Point = hearth;
+    for (const p of path) {
+      d += Math.hypot(p.x - at.x, p.z - at.z);
+      at = p;
+    }
+    return d / 3;
+  };
+  for (const [label, to] of [["Barnaby", BARNABY_FRONT], ["Buster", BUSTER_FRONT], ["the workbench", WORKBENCH_FRONT], ["the archway", CAMP_ARCHWAY_FRONT], ["the splitting block", SPLITBLOCK_FRONT], ["the gallery", GALLERY_FRONT], ["the telescope", TELESCOPE_FRONT], ["the dock", FISHING_SPOTS[1].approach]] as const) {
+    checks++;
+    const s_ = walkS(to);
+    if (!(s_ <= 10)) fail(`${F}: ${label} is a ${s_.toFixed(1)} s walk from the hearth (at most 10)`);
   }
 }
 

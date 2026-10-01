@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { BUSTER_BOARD, CAMPFIRE_LAYOUT as L } from "@shared/worlds/campfire";
+import { BUSTER_BOARD, CAMPFIRE_LAYOUT as L, campLand } from "@shared/worlds/campfire";
 import { FISH, FISH_IDS, type FishId } from "@shared/fishing";
 import { BYPRODUCTS, BYPRODUCT_IDS, TREES, WOOD, type TreeKind, type WoodKind } from "@shared/chop";
 import { FIREWOOD_PER_COIN } from "@shared/economy";
@@ -146,7 +146,7 @@ export function BusterChalkboard() {
 
 function MarketBoard({ at, keepModelled = false, paint }: { at: { x: number; z: number; yaw: number }; keepModelled?: boolean; paint: (ctx: CanvasRenderingContext2D, market: MarketState, now: number) => void }) {
   return (
-    <group position={[at.x, 0, at.z]} rotation={[0, at.yaw, 0]}>
+    <group position={[at.x, campLand(at.x, at.z), at.z]} rotation={[0, at.yaw, 0]}>
       <ModelBoundary what="barnaby.glb" fallback={null}>
         <Suspense fallback={null}>
           <Board keepModelled={keepModelled} paint={paint} />

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { PlayerState, ToggleableSyncState } from "@shared/types";
 import { canoeBob, canoePitch, canoeRoll } from "./canoeMotion";
-import { CAMPFIRE_LAYOUT as L, CRITTER_NOTICE, DUCK_PATHS, LIGHT_STRINGS, stringBulbs, FENCE_SWAGS, type Vec3 } from "@shared/worlds/campfire";
+import { CAMPFIRE_LAYOUT as L, CRITTER_NOTICE, DUCK_PATHS, LIGHT_STRINGS, stringBulbs, FENCE_SWAGS, type Vec3, campLand } from "@shared/worlds/campfire";
 
 // The campfire's living parts, driven every frame from the nodes campfire.glb names for them
 // (scripts/blender/build_campfire.py builds each as its own node, its origin where it pivots):
@@ -50,20 +50,45 @@ export function duckPose(i: number, t: number) {
   return { x: d.cx + Math.cos(a) * d.rx, z: d.cz + Math.sin(a) * d.rz, heading: Math.atan2(-Math.sin(a) * d.rx, Math.cos(a) * d.rz), bob: Math.sin(t * 2.2 + i * 2.1) };
 }
 
+/** The river's shader. Its mesh carries, in its vertex colours, what the water is at each point
+ *  (build_campfire.py build_water): red how far from the nearer bank (0 at the bank to 1 a metre and a
+ *  half out), green 1 on falling water, blue how far down a fall. From them: green shallows deepening
+ *  to blue mid-stream, ripples scrolling down it, foam lapping at the banks, white streaks running
+ *  down the falls. The night dims it with the rest (`uNight`, the camp's day). */
+export const CAMP_WATER = { night: { value: 0 } };
 function flowWater(m: THREE.MeshStandardMaterial) {
+  m.color.set("#ffffff");
+  m.roughness = 0.22;
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = CAMP_TIME;
+    shader.uniforms.uNight = CAMP_WATER.night;
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vFlowPos;")
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvFlowPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vFlowPos;\nuniform float uTime;").replace(
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vFlowPos;\nuniform float uTime;\nuniform float uNight;").replace(
       "#include <color_fragment>",
-      `#include <color_fragment>
-      // the river runs toward the camera: ripples scrolling down it, bent by a slow cross-current
+      `// (the vertex colours are data, not paint)
+      float shore = vColor.r;
+      float fall = vColor.g;
+      float down = vColor.b;
+      vec3 shallow = mix(vec3(0.30, 0.62, 0.60), vec3(0.10, 0.22, 0.30), uNight);
+      vec3 deep = mix(vec3(0.13, 0.36, 0.52), vec3(0.04, 0.10, 0.20), uNight);
+      vec3 water = mix(shallow, deep, smoothstep(0.08, 0.75, shore));
+      // ripples scrolling down the river, bent by a slow cross-current
       float w1 = sin(vFlowPos.z * 2.6 - uTime * 0.9 + sin(vFlowPos.x * 3.1 + uTime * 0.4) * 1.2);
       float w2 = sin(vFlowPos.z * 6.3 - uTime * 1.7 + vFlowPos.x * 2.0);
       float streak = smoothstep(0.72, 1.0, w1 * 0.6 + w2 * 0.4);
-      diffuseColor.rgb = mix(diffuseColor.rgb * (0.9 + 0.08 * w1), vec3(0.72, 0.86, 0.95), streak * 0.25);`
+      water = mix(water * (0.92 + 0.08 * w1), vec3(0.72, 0.86, 0.95), streak * 0.22 * (1.0 - 0.5 * uNight));
+      // foam lapping at the banks: a ragged line that breathes in and out
+      float lap = 0.5 + 0.5 * sin(uTime * 0.8 + vFlowPos.z * 1.9 + vFlowPos.x * 1.3);
+      float ragged = 0.5 + 0.5 * sin(vFlowPos.z * 7.0 + vFlowPos.x * 5.0 + uTime * 0.6);
+      float foam = 1.0 - smoothstep(0.035 + 0.05 * lap, 0.085 + 0.07 * lap + 0.04 * ragged, shore);
+      water = mix(water, vec3(0.86, 0.94, 0.96), foam * (0.75 - 0.3 * uNight));
+      // falling water: white streaks running down it, thickest at the lip and the foot
+      float run = sin(vFlowPos.x * 23.0 + sin(vFlowPos.x * 7.0) * 2.0) * 0.5 + 0.5;
+      float streaks = smoothstep(0.35, 0.9, fract(down * 2.2 - uTime * 1.3 + run * 0.7) * run + 0.25 * run);
+      vec3 falling = mix(shallow * 1.15, vec3(0.92, 0.97, 1.0), clamp(streaks + 0.35 * smoothstep(0.75, 1.0, down), 0.0, 1.0));
+      diffuseColor.rgb = mix(water, mix(falling, falling * 0.62, uNight), fall);`
     );
   };
   m.needsUpdate = true;
@@ -75,8 +100,9 @@ function swayPines(m: THREE.MeshStandardMaterial) {
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTime;").replace(
       "#include <begin_vertex>",
       `#include <begin_vertex>
-      // the night wind: more sway the higher up the tree, rippling across the wood
-      float swayH = max(0.0, transformed.y - 0.45);
+      // the night wind: more sway the higher up the tree (its height over the ground it stands on is
+      // in its UVs: build_campfire.py bake_colors; glTF's v runs down), rippling across the wood
+      float swayH = max(0.0, (1.0 - uv.y) - 0.45);
       float swayPh = transformed.x * 0.35 + transformed.z * 0.27;
       transformed.x += sin(uTime * 1.2 + swayPh) * 0.022 * swayH;
       transformed.z += sin(uTime * 0.9 + swayPh * 1.3) * 0.016 * swayH;`
@@ -98,7 +124,7 @@ export interface CampfireLife {
 }
 
 /** Finds the campfire's living parts in its scene and returns what animates them. */
-export function bindCampfireLife(scene: THREE.Object3D, decalOffset: Record<string, number>): CampfireLife {
+export function bindCampfireLife(scene: THREE.Object3D): CampfireLife {
   const node = (name: string) => scene.getObjectByName(name);
   const flicker = new Set<THREE.MeshStandardMaterial>();
   const berries = new Set<THREE.MeshStandardMaterial>();
@@ -107,12 +133,6 @@ export function bindCampfireLife(scene: THREE.Object3D, decalOffset: Record<stri
     if (!mesh.isMesh) return;
     mesh.raycast = () => {}; // the invisible floor plane takes the clicks
     const m = mesh.material as THREE.MeshStandardMaterial;
-    const offset = decalOffset[m.name];
-    if (offset !== undefined) {
-      m.polygonOffset = true;
-      m.polygonOffsetFactor = offset;
-      m.polygonOffsetUnits = offset;
-    }
     if (m.emissive && m.emissive.getHex() !== 0) {
       // glowing things keep their colour: the tone mapping would bleach a bright orange white
       m.toneMapped = false;
@@ -124,7 +144,7 @@ export function bindCampfireLife(scene: THREE.Object3D, decalOffset: Record<stri
       m.userData.flowing = true;
       flowWater(m);
     }
-    if ((m.name === "CF_Pine" || m.name === "CF_PineLight") && !m.userData.swaying) {
+    if (m.name === "CF_Pine" && !m.userData.swaying) {
       m.userData.swaying = true;
       swayPines(m);
     }
@@ -138,7 +158,7 @@ export function bindCampfireLife(scene: THREE.Object3D, decalOffset: Record<stri
   const yields = L.forage.map((_, i) => ({ id: `forage_0${i + 1}`, node: node(`Forage_0${i + 1}_Yield`) }));
   const strings = LIGHT_STRINGS.map((s) => ({ node: node(s.id), axis: new THREE.Vector3(...s.b).sub(new THREE.Vector3(...s.a)).normalize() }));
   const fence = node("StringLight_Fence");
-  const critterHome = critter.root?.position.clone() ?? new THREE.Vector3(L.critter.x, 0, L.critter.z);
+  const critterHome = critter.root?.position.clone() ?? new THREE.Vector3(L.critter.x, campLand(L.critter.x, L.critter.z), L.critter.z);
   const critterAt = critterHome.clone().add(new THREE.Vector3(0, 0.62, 0));
   let critterYaw = 0;
 
@@ -186,12 +206,12 @@ export function bindCampfireLife(scene: THREE.Object3D, decalOffset: Record<stri
         if (treating) {
           const e = tk * tk * (3 - 2 * tk);
           critter.root.rotation.y = critterYaw + Math.PI * 2 * e;
-          critter.root.position.set(critterHome.x, Math.sin(Math.PI * tk) * 0.14, critterHome.z);
+          critter.root.position.set(critterHome.x, critterHome.y + Math.sin(Math.PI * tk) * 0.14, critterHome.z);
           critter.head.rotation.set(-0.3, 0, 0);
           critter.tail.rotation.set(0, Math.sin(t * 18) * 0.6, 0);
           begging = true; // the hearts
         } else if (begging) {
-          critter.root.position.set(critterHome.x, Math.abs(Math.sin(t * 6)) * 0.05, critterHome.z);
+          critter.root.position.set(critterHome.x, critterHome.y + Math.abs(Math.sin(t * 6)) * 0.05, critterHome.z);
           critter.head.rotation.set(-0.35 + Math.sin(t * 6) * 0.05, 0, Math.sin(t * 3) * 0.15);
           critter.tail.rotation.set(0, Math.sin(t * 14) * 0.5, 0);
         } else {

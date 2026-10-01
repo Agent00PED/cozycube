@@ -109,7 +109,7 @@
    "craft": "wood",
    "tier": 1,
    "where": "campfire",
-   "perMin": 30.8,
+   "perMin": 30.7,
    "perMinSold": 21.6
   },
   {
@@ -123,8 +123,8 @@
    "craft": "wood",
    "tier": 2,
    "where": "campfire",
-   "perMin": 37.8,
-   "perMinSold": 27.4
+   "perMin": 38.3,
+   "perMinSold": 27.7
   },
   {
    "craft": "wood",
@@ -137,8 +137,8 @@
    "craft": "wood",
    "tier": 3,
    "where": "campfire",
-   "perMin": 38.8,
-   "perMinSold": 28.1
+   "perMin": 39.5,
+   "perMinSold": 28.5
   },
   {
    "craft": "wood",
@@ -151,7 +151,7 @@
    "craft": "wood",
    "tier": 4,
    "where": "campfire",
-   "perMin": 38.2,
+   "perMin": 38.1,
    "perMinSold": 27.6
   },
   {
@@ -165,7 +165,7 @@
    "craft": "wood",
    "tier": 5,
    "where": "campfire",
-   "perMin": 37.7,
+   "perMin": 37.8,
    "perMinSold": 27.3
   },
   {

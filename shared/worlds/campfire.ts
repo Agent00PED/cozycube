@@ -3,28 +3,50 @@ import { CUSHIONS, napPose } from "../seats";
 import type { SeatStyle } from "../types";
 import type { PropSpec, SeatSpec } from "./lounge";
 
-// The Starlight Campfire: a floating island of midnight forest soil and moss, a bonfire ringed by
-// four fallen-log benches (two seats each) in the middle, a river winding down the east side with
-// a wide boardwalk dock out over it (three fishing spots side by side), a canvas tipi on the
-// north-west, a woodpile on the north, eight Soft Pines round the clearing you fell (they grow back),
-// the branch archway into the Whispering Woods at the head of the north path beside Buster, pines
-// along the back edges and a rustic fence along the front. Authored ONCE, here:
+// The Starlight Campfire (docs/campfire-design.md): a floating island of forest soil and moss, 28 m
+// across, on gentle ground: the Hearth in the middle (the bonfire in its horseshoe of log benches, on
+// the flat), the Tipi Knoll in the north-west (the tipi on a shoulder of the hill, the telescope on
+// its top), Traders' Row on a low terrace along the north (the archway into the Whispering Woods,
+// Buster, the workbench, the woodpile, the camper van and the splitting block), the River down the
+// east side (a fall off a rock step into a plunge pool, a pond at the boardwalk dock with its three
+// fishing spots, Barnaby's stall, the canoe, and out over the island's south edge), the South Meadow
+// (the slingshot gallery, the picnic table, the birch grove), eight Soft Pines between them that you
+// fell (they grow back), pines along the back edges and a rustic fence along the front. Authored
+// ONCE, here:
 //
 //   CAMPFIRE_LAYOUT   where everything is (plain JSON between the markers: scripts/blender/
 //                     build_campfire.py reads the very same text to build campfire.glb, so the
 //                     model and the walkable floor can never disagree)
 //   riverSpan         the river's banks at any z, from its spline (build_campfire.py has the same
 //                     function, line for line)
+//   campLand          the ground's height at any (x, z): the mounds and the terrace (`terrain`);
+//   campHeight        the same with the river's channel cut into it; CAMP_GROUND samples it on a
+//                     grid (scripts/campfire-terrain.ts writes that grid for the builder, which
+//                     models the ground from it triangle for triangle), and campFloorY is where
+//                     feet go: that grid's own triangles, and the dock's deck
 //   CAMP_SEATS        the logs (sit, facing the fire), and the tents (lie, eyes shut)
 //   CAMP_PROPS        the bonfire (roast and grill) and the dock's three fishing spots
 //   CAMP_OBSTACLES    what you walk round; CAMP_SPAWNS  where you arrive (the path facing the fire)
 //
 // Coordinates are the game's: x right, z toward the camera's side, heights in y; the island is
-// 2 * half across, its top at y = 0. The camera looks from +x +z, so the tall things (pines, the
-// tipi) stand along the back edges (-x, -z) and only low ones (a fence, rocks) along the front.
+// 2 * half across, its flat ground at y = 0. The camera looks from +x +z, so the high ground and the
+// tall things (the knoll, the pines, the tipi) stand along the back edges (-x, -z), the river lies low
+// in front, and only low things (a fence, rocks) stand along the front. A height in the layout (a
+// string's end, the owl's branch) is measured from the ground under it.
 
 export const CAMPFIRE_LAYOUT = /* layout:begin */ {
-  "half": 10.8,
+  "half": 14,
+  "terrain": {
+    "step": 0.35,
+    "bank": 0.5,
+    "mounds": [
+      { "id": "knoll", "x": -10.4, "z": -10.2, "top": 1.7, "flat": 1.7, "skirt": 6.0 },
+      { "id": "shoulder", "x": -9.2, "z": -2.6, "top": 0.8, "flat": 2.5, "skirt": 3.6 },
+      { "id": "swell", "x": -10.8, "z": 6.4, "top": 0.4, "flat": 0.8, "skirt": 3.6 },
+      { "id": "swell", "x": 6.0, "z": 11.6, "top": 0.3, "flat": 0.6, "skirt": 3.0 }
+    ],
+    "terrace": { "x0": -4.2, "x1": 8.4, "z1": -9.4, "top": 0.45, "skirt": 2.4 }
+  },
   "fire": { "x": 0, "z": 0, "ring": 0.62, "collider": 0.45 },
   "clearing": { "x": 0, "z": 0, "r": 4.4 },
   "firepit": {
@@ -38,36 +60,40 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     ]
   },
   "tripod": { "legs": 0.9, "apex": 1.95, "potY": 1.0, "potR": 0.27 },
-  "barnaby": { "x": 4.7, "z": -2.6, "yaw": -0.35 },
+  "barnaby": { "x": 6.8, "z": -0.6, "yaw": -0.35 },
   "barnabyBoard": { "x": -0.8, "z": 0.2, "yaw": 0.35 },
-  "busterBoard": { "x": -2.1, "z": -9.6, "yaw": 0.44 },
-  "buster": { "x": -1.77, "z": -8.47, "yaw": 0.25 },
+  "busterBoard": { "x": -0.83, "z": -11.23, "yaw": 0.44 },
+  "buster": { "x": -0.5, "z": -10.1, "yaw": 0.25 },
   "picnicPlates": [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]],
   "river": {
-    "points": [[-8.6, 7.2, 1.0], [-6.4, 7.9, 1.3], [-4.2, 8.2, 1.5], [-2.0, 7.9, 1.6], [0.2, 7.7, 1.65], [2.4, 7.9, 1.5], [4.6, 8.4, 1.3], [6.8, 8.1, 1.0]],
+    "points": [[-10.4, 10.6, 1.5], [-8.0, 10.9, 1.1], [-5.5, 11.1, 1.25], [-3.0, 10.8, 1.5], [-0.5, 10.4, 1.9], [2.0, 10.3, 2.3], [4.5, 10.7, 2.1], [7.0, 11.2, 1.6], [9.5, 11.3, 1.25], [12.0, 11.1, 1.1], [14.6, 10.9, 1.0]],
     "depth": 0.5,
     "water": -0.18
   },
-  "dock": { "x0": 5.2, "x1": 7.3, "z0": -1.9, "z1": 1.9, "deck": 0.03 },
+  "dock": { "x0": 7.3, "x1": 9.4, "z0": 0.1, "z1": 3.9, "deck": 0.03 },
   "fishing": [
-    { "stand": { "x": 6.85, "z": -1.25 }, "bobber": { "x": 8.2, "z": -1.25 } },
-    { "stand": { "x": 6.85, "z": 0.0 }, "bobber": { "x": 8.25, "z": 0.0 } },
-    { "stand": { "x": 6.85, "z": 1.25 }, "bobber": { "x": 8.2, "z": 1.25 } }
+    { "stand": { "x": 8.95, "z": 0.75 }, "bobber": { "x": 10.3, "z": 0.75 } },
+    { "stand": { "x": 8.95, "z": 2.0 }, "bobber": { "x": 10.35, "z": 2.0 } },
+    { "stand": { "x": 8.95, "z": 3.25 }, "bobber": { "x": 10.3, "z": 3.25 } }
   ],
-  "lanterns": [{ "x": 7.12, "z": -1.72 }, { "x": 7.12, "z": 1.72 }],
-  "tent": { "x": -6.3, "z": -5.0, "r": 1.35, "h": 3.0, "opening": 70 },
-  "woodpile": { "x": 1.0, "z": -7.0 },
+  "lanterns": [{ "x": 9.22, "z": 0.28 }, { "x": 9.22, "z": 3.72 }],
+  "tent": { "x": -9.2, "z": -2.6, "r": 1.35, "h": 3.0, "opening": 70 },
+  "woodpile": { "x": 3.1, "z": -10.2 },
   "trees": [
-    { "x": -9.2, "z": -9.5, "s": 1.1 },
-    { "x": -5.9, "z": -9.6, "s": 0.9 },
-    { "x": -3.5, "z": -9.6, "s": 1.15 },
-    { "x": 1.3, "z": -10.0, "s": 0.95 },
-    { "x": 9.5, "z": -9.4, "s": 0.9 },
-    { "x": -9.3, "z": -6.95, "s": 1.2, "yaw": 0.4 },
-    { "x": -10.0, "z": -4.0, "s": 0.85, "yaw": 2.2 },
-    { "x": -9.0, "z": -2.45, "s": 1.05, "yaw": 3.3 },
-    { "x": -10.15, "z": -0.55, "s": 0.8, "yaw": 5.0 },
-    { "x": -9.55, "z": 1.3, "s": 1.25, "yaw": 1.1 }
+    { "x": -12.8, "z": -12.9, "s": 1.3 },
+    { "x": -8.4, "z": -13.1, "s": 1.1 },
+    { "x": -5.4, "z": -13.0, "s": 0.95 },
+    { "x": 3.4, "z": -13.2, "s": 0.95 },
+    { "x": 8.6, "z": -13.1, "s": 0.9 },
+    { "x": 12.6, "z": -12.8, "s": 1.0 },
+    { "x": -12.9, "z": -9.6, "s": 1.15, "yaw": 1.7 },
+    { "x": -13.0, "z": -6.8, "s": 1.2, "yaw": 0.4 },
+    { "x": -11.2, "z": -5.6, "s": 1.1, "yaw": 2.9 },
+    { "x": -13.0, "z": -4.4, "s": 0.85, "yaw": 2.2 },
+    { "x": -12.6, "z": -1.0, "s": 1.05, "yaw": 3.3 },
+    { "x": -13.2, "z": 1.6, "s": 0.8, "yaw": 5.0 },
+    { "x": -12.9, "z": 3.4, "s": 1.25, "yaw": 1.1 },
+    { "x": -13.1, "z": 8.2, "s": 1.0, "yaw": 4.1 }
   ],
   "fellTrees": [
     { "x": -4.6, "z": 2.6 },
@@ -77,107 +103,119 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": 3.2, "z": 4.2 },
     { "x": 4.6, "z": 5.6 },
     { "x": 5.0, "z": 8.4 },
-    { "x": -9.15, "z": 5.2 }
+    { "x": -7.6, "z": 4.4 }
   ],
   "fellBirches": [
-    { "x": -9.5, "z": 7.9 },
-    { "x": -7.4, "z": 8.1 },
-    { "x": -9.3, "z": 9.6 },
-    { "x": -7.5, "z": 9.7 }
+    { "x": -10.0, "z": 7.6 },
+    { "x": -7.9, "z": 7.8 },
+    { "x": -9.8, "z": 9.3 },
+    { "x": -8.0, "z": 9.4 }
   ],
   "rocks": [
-    { "x": 6.1, "z": -5.2, "s": 0.7 },
-    { "x": 6.0, "z": 3.4, "s": 0.8 },
-    { "x": 10.0, "z": -1.2, "s": 0.55 },
-    { "x": 9.95, "z": 2.6, "s": 0.5 },
-    { "x": 9.8, "z": -7.6, "s": 0.6 },
-    { "x": -10.0, "z": 5.6, "s": 0.8 },
-    { "x": -9.1, "z": 2.95, "s": 0.6 },
-    { "x": 3.8, "z": 8.6, "s": 0.5 },
-    { "x": -8.4, "z": -8.4, "s": 0.8 },
-    { "x": 5.8, "z": -7.4, "s": 0.55 },
-    { "x": 6.55, "z": -9.55, "s": 0.55 },
-    { "x": 7.85, "z": -9.55, "s": 0.5 },
-    { "x": 7.2, "z": -10.1, "s": 0.7 },
-    { "x": 7.3, "z": 7.65, "s": 0.5 },
-    { "x": 8.9, "z": 7.55, "s": 0.45 },
-    { "x": 8.15, "z": 8.2, "s": 0.6 }
+    { "x": 8.2, "z": -4.4, "s": 0.7 },
+    { "x": 7.9, "z": 5.6, "s": 0.8 },
+    { "x": 13.2, "z": -2.0, "s": 0.55 },
+    { "x": 13.1, "z": 3.4, "s": 0.5 },
+    { "x": 12.9, "z": -7.6, "s": 0.6 },
+    { "x": -13.2, "z": 6.4, "s": 0.8 },
+    { "x": -7.6, "z": -8.6, "s": 0.8 },
+    { "x": -8.6, "z": -11.9, "s": 0.6 },
+    { "x": -12.2, "z": -11.4, "s": 0.7 },
+    { "x": 5.2, "z": 12.8, "s": 0.5 },
+    { "x": 9.0, "z": 11.6, "s": 0.5 },
+    { "x": 12.8, "z": 9.0, "s": 0.45 },
+    { "x": 8.6, "z": -7.0, "s": 0.55 },
+    { "x": 12.9, "z": 12.6, "s": 0.6 },
+    { "x": -12.3, "z": 10.4, "s": 0.55 }
   ],
-  "fence": { "at": 10.35, "zFrom": 8.3, "xFrom": -10.1, "post": 1.25 },
-  "picnic": { "x": 0, "z": 8.85 },
-  "telescope": { "x": 2.3, "z": 9.45 },
-  "archway": { "x": -0.1, "z": -9.95, "w": 1.8, "h": 2.6 },
-  "gallery": { "x": -4.4, "z": 7.4, "len": 3.4, "rails": [8.25, 8.85, 9.45], "back": 9.95 },
-  "splitblock": { "x": 4.9, "z": -5.7 },
-  "van": { "x": 3.9, "z": -8.9, "len": 3.0, "w": 1.45, "awning": 1.25 },
-  "campChair": { "x": 4.5, "z": -7.45 },
-  "workbench": { "x": -4.2, "z": -8.35, "len": 1.4, "w": 0.62, "top": 0.86 },
-  "critter": { "x": 3.4, "z": -6.2 },
-  "canoe": { "x": 8.0, "z": 2.62, "len": 2.0 },
-  "cleat": { "x": 6.95, "z": 1.8 },
-  "owl": { "x": -9.35, "y": 1.2, "z": -3.35, "tree": { "x": -10.0, "z": -4.0 } },
+  "fence": { "at": 13.55, "xFrom": -13.3, "xTo": 9.3, "post": 1.25 },
+  "picnic": { "x": 1.5, "z": 11.2 },
+  "telescope": { "x": -10.4, "z": -10.2 },
+  "archway": { "x": 2.0, "z": -13.15, "w": 1.8, "h": 2.6 },
+  "gallery": { "x": -5.5, "z": 10.6, "len": 3.4, "rails": [11.45, 12.05, 12.65], "back": 13.15 },
+  "splitblock": { "x": 7.8, "z": -9.7 },
+  "van": { "x": 6.0, "z": -12.1, "len": 3.0, "w": 1.45, "awning": 1.25 },
+  "campChair": { "x": 6.6, "z": -10.65 },
+  "workbench": { "x": -3.6, "z": -10.7, "len": 1.4, "w": 0.62, "top": 0.86 },
+  "critter": { "x": 5.5, "z": -9.7 },
+  "canoe": { "x": 10.1, "z": 4.62, "len": 2.0 },
+  "cleat": { "x": 9.05, "z": 3.8 },
+  "owl": { "x": -12.35, "y": 1.2, "z": -3.75, "tree": { "x": -13.0, "z": -4.4 } },
   "ducks": [
-    { "z": -4.4, "rx": 0.6, "rz": 1.3, "speed": 0.09 },
-    { "z": 5.2, "rx": 0.45, "rz": 0.95, "speed": 0.12 }
+    { "z": -5.6, "rx": 0.6, "rz": 1.3, "speed": 0.09 },
+    { "z": 7.4, "rx": 0.5, "rz": 1.0, "speed": 0.12 }
   ],
   "forage": [
-    { "kind": "mushroom", "x": -5.75, "z": -9.0 },
-    { "kind": "berries", "x": -8.6, "z": -1.1 },
-    { "kind": "mushroom", "x": -8.7, "z": 1.7 },
-    { "kind": "berries", "x": -4.6, "z": -7.2 }
+    { "kind": "mushroom", "x": -6.6, "z": -12.4 },
+    { "kind": "berries", "x": -12.6, "z": -0.1 },
+    { "kind": "mushroom", "x": -12.6, "z": 7.2 },
+    { "kind": "berries", "x": -5.0, "z": -9.2 }
   ],
-  "stringPole": { "x": -4.0, "z": -1.2, "h": 2.2 },
-  "pegs": [{ "x": 1.3, "z": -10.0, "y": 1.75, "tip": [1.45, -9.587] }],
+  "stringPole": { "x": -6.6, "z": -0.4, "h": 2.2 },
+  "pegs": [{ "x": 3.4, "z": -13.2, "y": 1.75, "tip": [3.55, -12.787] }],
   "strings": [
-    { "a": [-6.3, 2.65, -5.0], "b": [-3.76, 1.6, -9.18], "sag": 0.45 },
-    { "a": [-6.3, 2.65, -5.0], "b": [-8.8, 1.6, -2.65], "sag": 0.45 },
-    { "a": [-6.3, 2.65, -5.0], "b": [-4.0, 2.15, -1.2], "sag": 0.4 },
-    { "a": [1.45, 1.745, -9.587], "b": [3.05, 1.55, -6.925], "sag": 0.35 },
-    { "a": [3.05, 1.55, -6.925], "b": [5.15, 1.55, -6.925], "sag": 0.22 }
+    { "a": [-9.2, 2.65, -2.6], "b": [-10.92, 1.6, -5.2], "sag": 0.45 },
+    { "a": [-9.2, 2.65, -2.6], "b": [-12.2, 1.6, -1.2], "sag": 0.45 },
+    { "a": [-9.2, 2.65, -2.6], "b": [-6.6, 2.15, -0.4], "sag": 0.4 },
+    { "a": [3.55, 1.745, -12.787], "b": [5.15, 1.55, -10.125], "sag": 0.35 },
+    { "a": [5.15, 1.55, -10.125], "b": [7.25, 1.55, -10.125], "sag": 0.22 }
   ],
   "fenceLights": { "y": 0.78, "sag": 0.2, "every": 2 },
-  "fireflies": { "x": -7.6, "z": 0.2 },
+  "fireflies": { "x": -11.2, "z": 1.2 },
   "signpost": {
     "x": 0.85,
     "z": 6.75,
     "arms": [
       { "label": "Campfire", "to": [0, 0] },
-      { "label": "Pier", "to": [5.5, 0] },
-      { "label": "Overlook", "to": [2.3, 9.45] }
+      { "label": "Pier", "to": [8.3, 2.0] },
+      { "label": "Overlook", "to": [-10.4, -10.2] }
     ]
   },
-  "guitarCase": { "x": -9.35, "z": 4.05, "yaw": 1.35 },
-  "groundLantern": { "x": -8.75, "z": 3.55 },
+  "guitarCase": { "x": -11.4, "z": 3.0, "yaw": 1.35 },
+  "groundLantern": { "x": -10.8, "z": 2.5 },
   "paths": [
-    { "points": [[-2.9, -2.35, 2.2], [-3.45, -2.75, 1.5], [-4.0, -3.2, 1.05], [-4.6, -3.6, 1.0]] },
-    { "points": [[0.15, 3.8, 2.2], [0.1, 4.5, 1.5], [0.05, 5.3, 1.2], [-0.2, 6.4, 1.3], [-0.3, 7.0, 1.35], [-0.35, 7.5, 1.3], [-0.3, 7.95, 1.6]] },
-    { "points": [[-0.05, 6.5, 1.5], [-1.4, 6.55, 1.0], [-2.9, 6.6, 0.95], [-4.4, 6.65, 1.1]] },
-    { "points": [[-0.35, -3.9, 2.0], [-0.45, -5.3, 1.4], [-0.35, -6.9, 1.25], [-0.2, -8.3, 1.3], [-0.1, -9.2, 1.6]] },
-    { "points": [[0.4, 6.7, 1.0], [1.2, 7.5, 0.9], [1.9, 8.3, 0.9], [2.3, 8.75, 1.0]] }
+    { "points": [[-3.4, -2.2, 2.2], [-4.8, -2.6, 1.5], [-6.2, -2.7, 1.1], [-7.4, -2.5, 1.0]] },
+    { "points": [[0.15, 3.8, 2.2], [0.1, 4.6, 1.5], [0.05, 5.6, 1.2], [0.2, 7.2, 1.3], [0.6, 8.6, 1.3], [1.0, 9.7, 1.4]] },
+    { "points": [[0.1, 6.6, 1.5], [-1.6, 7.4, 1.0], [-3.4, 8.6, 0.95], [-5.2, 9.6, 1.1]] },
+    { "points": [[0.2, -3.9, 2.0], [0.5, -5.6, 1.4], [1.0, -7.6, 1.25], [1.6, -9.6, 1.3], [1.95, -11.4, 1.4], [2.0, -12.5, 1.6]] },
+    { "points": [[3.9, 0.6, 2.0], [5.2, 1.2, 1.4], [6.4, 1.8, 1.3], [7.5, 2.0, 1.6]] },
+    { "points": [[-7.3, -3.4, 1.0], [-7.4, -5.2, 0.9], [-8.0, -7.0, 0.9], [-9.0, -8.6, 0.9], [-9.8, -9.5, 1.2]] }
   ],
-  "cascade": { "x": 7.2, "z": -9.95, "top": 0.5 },
+  "cascade": { "x": 10.6, "z": -12.6, "top": 1.15 },
   "undergrowth": [
-    { "kind": "stones", "x": -8.35, "z": -2.1 },
-    { "kind": "stones", "x": -5.25, "z": 1.05 },
-    { "kind": "stones", "x": -8.2, "z": 5.9 },
-    { "kind": "mushrooms", "x": -8.45, "z": 0.35 },
-    { "kind": "mushrooms", "x": -5.1, "z": 3.9 },
-    { "kind": "mushrooms", "x": -7.9, "z": -3.4 },
-    { "kind": "berries", "x": -5.3, "z": -2.3 },
-    { "kind": "berries", "x": -8.5, "z": 6.55 },
-    { "kind": "berries", "x": -8.4, "z": -5.7 },
-    { "kind": "berries", "x": -10.3, "z": -2.95 },
-    { "kind": "berries", "x": -10.1, "z": 0.5 },
-    { "kind": "berries", "x": -10.35, "z": 3.35 },
-    { "kind": "berries", "x": -8.3, "z": 6.9 },
-    { "kind": "mossy", "x": -8.4, "z": 1.1 },
-    { "kind": "mossy", "x": -8.55, "z": -3.6 },
-    { "kind": "mossy", "x": -5.2, "z": -0.9 },
-    { "kind": "mossy", "x": -8.35, "z": 4.7 },
-    { "kind": "flowers", "x": 1.45, "z": 9.95 },
-    { "kind": "flowers", "x": 3.2, "z": 10.0 },
-    { "kind": "flowers", "x": 3.95, "z": 9.55 },
-    { "kind": "berries", "x": 4.45, "z": 9.95 }
+    { "kind": "stones", "x": -10.9, "z": 0.2 },
+    { "kind": "stones", "x": -7.4, "z": 2.4 },
+    { "kind": "stones", "x": -10.6, "z": 7.9 },
+    { "kind": "stones", "x": 5.9, "z": -3.2 },
+    { "kind": "stones", "x": 2.9, "z": 6.0 },
+    { "kind": "mushrooms", "x": -11.9, "z": -6.9 },
+    { "kind": "mushrooms", "x": -6.2, "z": 6.4 },
+    { "kind": "mushrooms", "x": -10.2, "z": -12.6 },
+    { "kind": "mushrooms", "x": -5.9, "z": -10.9 },
+    { "kind": "mushrooms", "x": 8.9, "z": -8.2 },
+    { "kind": "berries", "x": -7.0, "z": -1.2 },
+    { "kind": "berries", "x": -12.9, "z": 9.0 },
+    { "kind": "berries", "x": -12.8, "z": -8.2 },
+    { "kind": "berries", "x": -13.3, "z": -2.9 },
+    { "kind": "berries", "x": -13.2, "z": 0.3 },
+    { "kind": "berries", "x": -13.3, "z": 5.0 },
+    { "kind": "berries", "x": -8.1, "z": 13.0 },
+    { "kind": "berries", "x": 8.8, "z": 12.9 },
+    { "kind": "mossy", "x": -9.9, "z": 3.9 },
+    { "kind": "mossy", "x": -11.6, "z": -7.9 },
+    { "kind": "mossy", "x": -7.2, "z": 1.2 },
+    { "kind": "mossy", "x": -10.9, "z": 8.9 },
+    { "kind": "mossy", "x": 8.3, "z": 6.9 },
+    { "kind": "mossy", "x": 8.7, "z": -2.6 },
+    { "kind": "flowers", "x": 3.6, "z": 13.0 },
+    { "kind": "flowers", "x": 5.0, "z": 12.9 },
+    { "kind": "flowers", "x": 6.4, "z": 12.6 },
+    { "kind": "flowers", "x": -1.5, "z": 12.9 },
+    { "kind": "flowers", "x": -2.8, "z": 13.0 },
+    { "kind": "flowers", "x": -9.2, "z": -11.2 },
+    { "kind": "flowers", "x": -11.5, "z": -9.2 },
+    { "kind": "flowers", "x": -3.6, "z": 6.0 },
+    { "kind": "flowers", "x": 2.6, "z": -7.9 }
   ],
   "spawns": [
     { "x": 0, "z": 5.0 },
@@ -246,6 +284,92 @@ export function riverSpan(z: number): { x0: number; x1: number } | null {
   return { x0: x - w, x1: x + w };
 }
 
+// --- the ground -------------------------------------------------------------------------------------
+//
+// Gentle, and all of it walked: a few round mounds (a flat top, then a smooth skirt down: the knoll,
+// the tipi's shoulder, two low swells) and the north terrace, blended where they meet; nothing
+// steeper than about 23 degrees. The hearth, the dock and the meadow's furniture stand on the flat.
+
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+const smoothstep = (a: number, b: number, v: number) => {
+  const t = clamp01((v - a) / (b - a));
+  return t * t * (3 - 2 * t);
+};
+
+/** The ground's height at (x, z), the river's channel not cut in: where things stand. */
+export function campLand(x: number, z: number): number {
+  const T = L.terrain;
+  // (blended as a 4-norm: the higher one where one stands alone, a soft join where two meet, and
+  // flat ground stays exactly flat)
+  let sum = 0;
+  for (const m of T.mounds) {
+    const h = m.top * (1 - smoothstep(m.flat, m.flat + m.skirt, Math.hypot(x - m.x, z - m.z)));
+    sum += h * h * h * h;
+  }
+  const t = T.terrace;
+  const d = Math.hypot(Math.max(t.x0 - x, 0, x - t.x1), Math.max(z - t.z1, 0));
+  const h = t.top * (1 - smoothstep(0, t.skirt, d));
+  sum += h * h * h * h;
+  return Math.sqrt(Math.sqrt(sum));
+}
+
+/** The ground as drawn: campLand with the river's channel cut down to its bed between its banks. */
+export function campHeight(x: number, z: number): number {
+  const land = campLand(x, z);
+  const span = riverSpan(z);
+  if (!span) return land;
+  const inside = Math.min(x - span.x0, span.x1 - x);
+  if (inside <= 0) return land;
+  return land + (-L.river.depth - land) * smoothstep(0, L.terrain.bank, inside);
+}
+
+/** The ground's grid: campHeight (and campLand) at every corner of an n x n grid of cells over the
+ *  island, row by row along z. The builder models the ground from it, each cell cut along the same
+ *  diagonal campFloorY reads it by. */
+export const CAMP_GRID = (() => {
+  const n = Math.round((2 * L.half) / L.terrain.step);
+  const cell = (2 * L.half) / n;
+  const ground = new Float32Array((n + 1) * (n + 1));
+  const land = new Float32Array((n + 1) * (n + 1));
+  for (let k = 0; k <= n; k++)
+    for (let i = 0; i <= n; i++) {
+      const x = -L.half + i * cell;
+      const z = -L.half + k * cell;
+      ground[k * (n + 1) + i] = Math.round(campHeight(x, z) * 1e4) / 1e4;
+      land[k * (n + 1) + i] = Math.round(campLand(x, z) * 1e4) / 1e4;
+    }
+  return { n, cell, ground, land };
+})();
+
+/** The drawn ground's height at (x, z): the grid's own triangles (each cell cut from its (-x, -z)
+ *  corner to its (+x, +z) one). */
+export function campGroundY(x: number, z: number): number {
+  const { n, cell, ground } = CAMP_GRID;
+  const u = Math.max(0, Math.min(n - 1e-6, (x + L.half) / cell));
+  const v = Math.max(0, Math.min(n - 1e-6, (z + L.half) / cell));
+  const i = Math.floor(u);
+  const k = Math.floor(v);
+  const fu = u - i;
+  const fv = v - k;
+  const at = (a: number, b: number) => ground[b * (n + 1) + a];
+  const h00 = at(i, k);
+  const h11 = at(i + 1, k + 1);
+  return fu >= fv ? h00 + (at(i + 1, k) - h00) * fu + (h11 - at(i + 1, k)) * fv : h00 + (h11 - at(i, k + 1)) * fu + (at(i, k + 1) - h00) * fv;
+}
+
+/** Where feet go at (x, z): the drawn ground, and the dock's deck over the water. */
+export function campFloorY(x: number, z: number): number {
+  const d = L.dock;
+  const y = campGroundY(x, z);
+  return x >= d.x0 - 0.02 && x <= d.x1 + 0.02 && z >= d.z0 - 0.02 && z <= d.z1 + 0.02 ? Math.max(y, d.deck) : y;
+}
+
+/** The grid for the builder (scripts/campfire-terrain.ts writes it to scripts/blender/data/
+ *  campfire_terrain.json). */
+export function campTerrainData() {
+  return { half: L.half, n: CAMP_GRID.n, cell: CAMP_GRID.cell, ground: Array.from(CAMP_GRID.ground, (v) => Math.round(v * 1e4) / 1e4), land: Array.from(CAMP_GRID.land, (v) => Math.round(v * 1e4) / 1e4) };
+}
+
 const RIVER_FIRST = L.river.points[0];
 const RIVER_LAST = L.river.points[L.river.points.length - 1];
 /** The river's north and south ends (its round caps included). */
@@ -256,10 +380,12 @@ export const RIVER_Z = { from: RIVER_FIRST[0] - RIVER_FIRST[2], to: RIVER_LAST[0
 /** Where you can fish from: the dock's three spots (you sit on its edge) and the canoe (you sit in
  *  it). Each has its seat, where you stand to take it, where you fish from, and where your float
  *  lands out in the river. */
+/** Where you step into the canoe from: the dock's corner by its cleat. */
+const CANOE_APPROACH: Pt = { x: L.dock.x1 - 0.7, z: L.dock.z1 - 0.4 };
 export const FISHING_SPOTS = [
   ...L.fishing.map((f, i) => ({ propId: `fishing_spot_0${i + 1}`, seat: `seat_dock_0${i + 1}`, stand: f.stand, approach: f.stand, bobber: f.bobber })),
   // the canoe, sitting facing out across the water: the float lands out in front of you
-  { propId: "fishing_canoe", seat: "seat_canoe", stand: { x: L.canoe.x - 0.45, z: L.canoe.z }, approach: { x: 6.6, z: 1.5 }, bobber: { x: L.canoe.x - 0.45, z: L.canoe.z + 1.25 } },
+  { propId: "fishing_canoe", seat: "seat_canoe", stand: { x: L.canoe.x - 0.45, z: L.canoe.z }, approach: CANOE_APPROACH, bobber: { x: L.canoe.x - 0.45, z: L.canoe.z + 1.25 } },
 ];
 
 /** The spot an angler standing at (x, z) is fishing from: the nearest one. */
@@ -304,10 +430,11 @@ export function stringBulbs(a: Vec3, b: Vec3, sag: number): Vec3[] {
   });
 }
 
-/** The fence's posts along the front edge (as build_campfire.py spaces them). */
+/** The fence's posts along the front edge, from the west corner to the river's bank (as
+ *  build_campfire.py spaces them). */
 export const FENCE_POSTS: number[] = (() => {
   const f = L.fence;
-  const len = f.at - f.xFrom;
+  const len = f.xTo - f.xFrom;
   const n = Math.max(1, Math.round(len / f.post));
   return Array.from({ length: n + 1 }, (_, k) => f.xFrom + (len * k) / n);
 })();
@@ -315,11 +442,12 @@ export const FENCE_POSTS: number[] = (() => {
 /** Every string of lights: the ones slung between the tipi, the pole, the pines and the awning
  *  (each its own node in campfire.glb, StringLight_01.., swaying about its two ends), then the
  *  swags along the front fence (one node, StringLight_Fence, swaying as one). */
-export const LIGHT_STRINGS = L.strings.map((s, i) => ({ id: `StringLight_0${i + 1}`, a: s.a as Vec3, b: s.b as Vec3, sag: s.sag }));
+const overGround = (p: number[]): Vec3 => [p[0], p[1] + campLand(p[0], p[2]), p[2]];
+export const LIGHT_STRINGS = L.strings.map((s, i) => ({ id: `StringLight_0${i + 1}`, a: overGround(s.a), b: overGround(s.b), sag: s.sag }));
 export const FENCE_SWAGS = (() => {
   const { y, sag, every } = L.fenceLights;
   const out: { a: Vec3; b: Vec3; sag: number }[] = [];
-  for (let k = 0; k + every < FENCE_POSTS.length; k += every) out.push({ a: [FENCE_POSTS[k], y, L.fence.at], b: [FENCE_POSTS[k + every], y, L.fence.at], sag });
+  for (let k = 0; k + every < FENCE_POSTS.length; k += every) out.push({ a: overGround([FENCE_POSTS[k], y, L.fence.at]), b: overGround([FENCE_POSTS[k + every], y, L.fence.at]), sag });
   return out;
 })();
 
@@ -454,9 +582,9 @@ export const CAMP_SEATS: CampSeat[] = [
   // the camper's folding chair under the awning, looking out toward the fire
   { propId: "seat_camper_chair", x: L.campChair.x, z: L.campChair.z, rotationY: 0, cushion: "campChair", style: "deckchair", approachX: L.campChair.x, approachZ: L.campChair.z + 0.9 },
   // the canoe's stern seat, facing out across the river (you fish from it): it rocks with the boat
-  { propId: "seat_canoe", x: L.canoe.x - 0.45, z: L.canoe.z, rotationY: 0, cushion: "canoe", style: "wood", approachX: 6.6, approachZ: 1.5 },
+  { propId: "seat_canoe", x: L.canoe.x - 0.45, z: L.canoe.z, rotationY: 0, cushion: "canoe", style: "wood", approachX: CANOE_APPROACH.x, approachZ: CANOE_APPROACH.z },
   // and its bow seat, for a second paddler (a passenger: the stern is the one who fishes)
-  { propId: "seat_canoe_bow", x: L.canoe.x + 0.42, z: L.canoe.z, rotationY: 0, cushion: "canoe", style: "wood", approachX: 6.6, approachZ: 1.5 },
+  { propId: "seat_canoe_bow", x: L.canoe.x + 0.42, z: L.canoe.z, rotationY: 0, cushion: "canoe", style: "wood", approachX: CANOE_APPROACH.x, approachZ: CANOE_APPROACH.z },
 ];
 
 /** What the action dock offers for a seat you lie in (you rest in the tents), and the fishing seats. */
@@ -523,13 +651,19 @@ export const GALLERY_FRONT: Pt = { x: L.gallery.x, z: L.gallery.z - 0.7 };
 export const SPLITBLOCK = L.splitblock;
 export const SPLITBLOCK_FRONT: Pt = { x: L.splitblock.x - 0.8, z: L.splitblock.z };
 
+/** Where you stand at the telescope: on the knoll's top, on the fire's side of it. */
+export const TELESCOPE_FRONT: Pt = (() => {
+  const toFire = unit(L.fire.x - L.telescope.x, L.fire.z - L.telescope.z);
+  return { x: L.telescope.x + toFire.x * 0.85, z: L.telescope.z + toFire.z * 0.85 };
+})();
+
 export const CAMP_PROPS: PropSpec[] = [
   // the bonfire: walk up (or sit on a log) and roast a marshmallow or grill a skewer
   { propId: "bonfire", x: L.fire.x, z: L.fire.z, kind: "bonfire", color: "#ff8c32", defaultOn: true, approachX: L.fire.x, approachZ: L.fire.z + 1.35 },
   // the dock's fishing spots, side by side along its river edge: cast a line from each
   ...FISHING_SPOTS.map((s): PropSpec => ({ propId: s.propId, x: s.stand.x + (s.seat === "seat_canoe" ? 0 : 0.25), z: s.stand.z, kind: "fishing", color: "#7fb7d6", defaultOn: true, approachX: s.approach.x, approachZ: s.approach.z })),
-  // the brass telescope by the front fence: look up and catch shooting stars
-  { propId: "telescope", x: L.telescope.x, z: L.telescope.z, kind: "telescope", color: "#d9a441", defaultOn: true, approachX: L.telescope.x, approachZ: L.telescope.z - 0.85 },
+  // the brass telescope on the knoll's top, the Overlook: look up and catch shooting stars
+  { propId: "telescope", x: L.telescope.x, z: L.telescope.z, kind: "telescope", color: "#d9a441", defaultOn: true, approachX: TELESCOPE_FRONT.x, approachZ: TELESCOPE_FRONT.z },
   // the Soft Pines round the clearing: fell them (E, a click or a tap), they grow back
   ...CAMP_TREES.map((t): PropSpec => ({ propId: `tree_${t.id}`, x: t.x, z: t.z, kind: "tree", color: "#4f7a3a", defaultOn: true, approachX: t.approachX, approachZ: t.approachZ })),
   // mushrooms and berries under the pines; `on` while there is something to pick
