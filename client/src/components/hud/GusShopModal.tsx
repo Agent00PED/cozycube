@@ -6,6 +6,8 @@ import { BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "@shared/chop"
 import { materialCount, type FishingProfile } from "@shared/fishing";
 import { FORGED_TIER } from "@shared/expedition";
 import { GearWorks } from "./GearWorks";
+import { MapOutfitCard } from "./MapOutfitCard";
+import type { OutfitId } from "@shared/types";
 import { BYPRODUCT_PRICES, MATERIAL_CAP } from "@shared/economy";
 import { marketMultiplier, oreGood, parseMarket, priceRun } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -31,6 +33,9 @@ const TABS: [ShopTab, string, string][] = [
 interface Props {
   profile: FishingProfile;
   coins: number;
+  /** What the player owns (the wardrobe's ids, comma-joined), and buying an outfit. */
+  owned: string;
+  onBuyOutfit: (outfit: OutfitId) => void;
   market: string;
   send: (channel: string, packet?: unknown) => void;
   campfireSend: (packet: CampfirePacket) => void;
@@ -39,7 +44,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function GusShopModal({ profile, coins, market, send, campfireSend, subscribeMessages, onOpenCollection, onClose }: Props) {
+export function GusShopModal({ profile, coins, owned, onBuyOutfit, market, send, campfireSend, subscribeMessages, onOpenCollection, onClose }: Props) {
   const [tab, setTab] = useState<ShopTab>("trade");
   const [notice, setNotice] = useState<ShopNotice | null>(null);
   useEffect(
@@ -75,7 +80,7 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
           <SellAllButton label="⛏️ Sell All Ores" count={catCount("raw")} coins={catRun("raw").total} onClick={() => send(CAVERNS_CHANNELS.gus, { op: "sellCat", cat: "raw" })} />
           <SellAllButton label="🔥 Sell All Ingots" count={catCount("ingot")} coins={catRun("ingot").total} onClick={() => send(CAVERNS_CHANNELS.gus, { op: "sellCat", cat: "ingot" })} />
           <SellAllButton label="💎 Sell All Gems" count={catCount("gem")} coins={catRun("gem").total} onClick={() => send(CAVERNS_CHANNELS.gus, { op: "sellCat", cat: "gem" })} />
-          <SellAllButton label="🌫️ Sell Stone Dust" count={dust} coins={dust * BYPRODUCT_PRICES.stoneDust} onClick={() => send(CAVERNS_CHANNELS.gus, { op: "sellDust" })} />
+          <SellAllButton label="⚒️ Sell All Wares" count={catCount("ware")} coins={catRun("ware").total} onClick={() => send(CAVERNS_CHANNELS.gus, { op: "sellCat", cat: "ware" })} />
         </div>
       }
       footer={<MarketClock market={hour} goods={held.map(oreGood)} />}
@@ -170,7 +175,12 @@ export function GusShopModal({ profile, coins, market, send, campfireSend, subsc
         </div>
       )}
 
-      {tab === "gear" && <GearWorks profile={profile} coins={coins} send={campfireSend} families={["prospector"]} places={["gus"]} />}
+      {tab === "gear" && (
+        <div className="flex flex-col gap-1.5">
+          <MapOutfitCard outfit="outfit_miner" owned={owned} coins={coins} onBuy={onBuyOutfit} />
+          <GearWorks profile={profile} coins={coins} send={campfireSend} families={["prospector"]} places={["gus"]} />
+        </div>
+      )}
       {tab === "storage" && (
         <div className="flex flex-col gap-1.5">
           <p className="m-0 text-center text-[11px] opacity-75">

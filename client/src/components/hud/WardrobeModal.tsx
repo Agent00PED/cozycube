@@ -106,6 +106,8 @@ const PALETTES: Record<Palette["field"], Palette> = {
 const QUICK_PALETTE: Record<Tab, Palette> = { outfits: PALETTES.shirt, hats: PALETTES.outfitColor, hair: PALETTES.hair, appearance: PALETTES.skin };
 
 const TIER_ORDER: Record<string, number> = { starter: 0, common: 1, rare: 2, prestige: 3, gacha: 4, pioneer: 5 };
+/** A map's own outfit: where it is sold. */
+const KEEPER_AT = "🧭 Sold by its keeper: Bramble in the woods, Gus in the caverns";
 const tierKey = (item: WardrobeItem) => (item.pioneer ? "pioneer" : item.gachaOnly ? "gacha" : item.tier ?? "starter");
 const byTier = <T extends string>(ids: readonly T[], item: (id: T) => WardrobeItem) => [...ids].sort((a, b) => TIER_ORDER[tierKey(item(a))] - TIER_ORDER[tierKey(item(b))] || item(a).price - item(b).price);
 
@@ -116,7 +118,7 @@ interface Missing {
   emoji: string;
   price: number;
   /** "buy" (for coins), "gacha" (the arcade's only), "pioneer" (claimed, not bought). */
-  how: "buy" | "gacha" | "pioneer";
+  how: "buy" | "gacha" | "pioneer" | "keeper";
   buy: () => void;
 }
 
@@ -141,7 +143,7 @@ export function WardrobeModal({ userId, username, initial, coins, owned, title, 
   // what the try-on has on that you don't own yet
   const missing = useMemo<Missing[]>(() => {
     const out: Missing[] = [];
-    const how = (item: WardrobeItem): Missing["how"] => (item.pioneer ? "pioneer" : item.gachaOnly ? "gacha" : "buy");
+    const how = (item: WardrobeItem): Missing["how"] => (item.pioneer ? "pioneer" : item.gachaOnly ? "gacha" : item.keeper ? "keeper" : "buy");
     if (!ownsOutfit(look.outfit)) {
       const it = OUTFITS[look.outfit];
       out.push({ key: look.outfit, name: it.name, emoji: it.emoji, price: it.price, how: how(it), buy: () => onBuyOutfit(look.outfit) });
@@ -309,7 +311,7 @@ export function WardrobeModal({ userId, username, initial, coins, owned, title, 
                 <div className="flex flex-wrap gap-1.5 text-xs">
                   {missing.map((m) => (
                     <span key={m.key} className="rounded-full bg-white/10 px-2 py-1">
-                      {m.emoji} {m.name} · {m.how === "buy" ? `🪙 ${m.price.toLocaleString()}` : m.how === "gacha" ? "🔮 Gachapon only" : "🛠️ Pioneer set"}
+                      {m.emoji} {m.name} · {m.how === "buy" ? `🪙 ${m.price.toLocaleString()}` : m.how === "gacha" ? "🔮 Gachapon only" : m.how === "keeper" ? KEEPER_AT : "🛠️ Pioneer set"}
                     </span>
                   ))}
                 </div>
@@ -322,7 +324,7 @@ export function WardrobeModal({ userId, username, initial, coins, owned, title, 
                     ↺ Revert
                   </button>
                   <button type="button" disabled={!!locked || cost > coins || pending} onClick={purchase} className={`${ACTION} min-w-[150px] bg-gradient-to-b from-amber-200 to-amber-400 text-amber-950 shadow-[0_4px_12px_rgba(244,161,92,0.4),inset_0_-2px_0_rgba(120,70,0,0.25)] enabled:active:scale-95 disabled:opacity-40`}>
-                    {locked ? (locked.how === "gacha" ? "🔮 Not for sale" : "🛠️ Claim above") : pending ? "Wrapping it up…" : `[ Purchase & Equip ]`}
+                    {locked ? (locked.how === "gacha" ? "🔮 Not for sale" : locked.how === "keeper" ? "🧭 Sold on its map" : "🛠️ Claim above") : pending ? "Wrapping it up…" : `[ Purchase & Equip ]`}
                   </button>
                 </div>
               </div>
@@ -357,7 +359,7 @@ function ItemRow({ item, owned, wearing, canAfford = true, onPick }: { item: War
         <span className={`mt-0.5 inline-block rounded-full px-1.5 py-px text-[10px] font-bold uppercase tracking-wider ${TIER_BADGE[tier]}`}>{TIER_TEXT[tier as WardrobeTier] ?? tier}</span>
         {item.archetype && <span className="ml-1 mt-0.5 inline-block rounded-full bg-black/25 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider text-stone-300">{OUTFIT_ARCHETYPE_LABEL[item.archetype]}</span>}
       </span>
-      <span className={`shrink-0 text-xs font-bold tabular-nums ${owned ? "text-emerald-200" : canAfford ? "text-amber-200" : "text-rose-200/80"}`}>{wearing && owned ? "✓ Wearing" : owned ? "Owned" : item.pioneer ? "Claim" : item.gachaOnly ? "🔮" : `🪙 ${item.price.toLocaleString()}`}</span>
+      <span className={`shrink-0 text-xs font-bold tabular-nums ${owned ? "text-emerald-200" : canAfford ? "text-amber-200" : "text-rose-200/80"}`}>{wearing && owned ? "✓ Wearing" : owned ? "Owned" : item.pioneer ? "Claim" : item.gachaOnly ? "🔮" : item.keeper ? (item.keeper === "bramble" ? "🐻 Bramble's" : "⛏️ Gus's") : `🪙 ${item.price.toLocaleString()}`}</span>
     </button>
   );
 }

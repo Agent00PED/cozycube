@@ -37,7 +37,7 @@ interface Props {
 }
 
 type Tab = OreCategory | "gear" | "brews" | "mastery";
-const SHORT: Record<OreCategory, string> = { raw: "Ores", ingot: "Ingots", geode: "Geodes", gem: "Gems" };
+const SHORT: Record<OreCategory, string> = { raw: "Ores", ingot: "Ingots", geode: "Geodes", gem: "Gems", ware: "Wares" };
 
 export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("raw");
@@ -304,6 +304,7 @@ export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, o
 const EMPTY: Record<OreCategory, string> = {
   raw: "No ore yet. Mine a node: copper in the jungle, coal in the breakdown, iron in the mudflats, silver on the terraces, glimmerstone in the rift.",
   ingot: "No ingots yet. The Thermal Bellows Forge smelts them (Quick Smelt All, below, or the bellows at the forge for Masterworks).",
+  ware: "No wares yet. The forge's Smithing tab makes lanterns, tool heads and jewellery out of ingots and gems: Gus pays a fifth more than for their makings.",
   geode: "No geodes yet. Iron lodes and Glimmerstone clusters give them up now and then; the Titan Monolith always.",
   gem: "No gems yet. Cleave a geode on the meteorite anvil, by the forge.",
 };

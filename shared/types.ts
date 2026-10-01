@@ -834,6 +834,9 @@ export interface WardrobeItem {
   pioneer?: boolean;
   /** An outfit's cut (outfits only). */
   archetype?: OutfitArchetype;
+  /** A map's own outfit: sold by that keeper at their counter (never at the boutique), and put on as
+   *  it is bought. */
+  keeper?: "bramble" | "gus";
 }
 
 // --- outfits: a whole look for the body, in one accent colour of your choosing ---
@@ -857,7 +860,9 @@ export type OutfitId =
   | "outfit_swim_set"
   | "outfit_velvet_lounge"
   | "outfit_yukata_starry"
-  | "outfit_pinstripe";
+  | "outfit_pinstripe"
+  | "outfit_forester"
+  | "outfit_miner";
 export const OUTFITS: Record<OutfitId, WardrobeItem> = {
   outfit_starter_hoodie: { name: "Cozy Hoodie & Sweats", emoji: "🧥", price: 0, archetype: "streetwear" },
   outfit_starter_overalls: { name: "Classic Denim Overalls", emoji: "👖", price: 0, archetype: "workwear" },
@@ -880,6 +885,9 @@ export const OUTFITS: Record<OutfitId, WardrobeItem> = {
   outfit_smoking_jacket: { name: "Vintage Smoking Jacket", emoji: "🍷", price: 7500, tier: "prestige", archetype: "formal" },
   outfit_yukata_starry: { name: "Starry Night Yukata", emoji: "🌌", price: 7750, tier: "prestige", archetype: "robe" },
   outfit_pinstripe: { name: "High Roller Pinstripe", emoji: "💼", price: 8000, tier: "prestige", archetype: "formal" },
+  // the maps' own: sold by their keepers, in the Whispering Woods and the Glimmering Caverns
+  outfit_forester: { name: "Woodsman's Vest & Work Trousers", emoji: "🌲", price: 4800, tier: "rare", archetype: "workwear", keeper: "bramble" },
+  outfit_miner: { name: "Prospector's Canvas Overalls", emoji: "⛏️", price: 5200, tier: "rare", archetype: "workwear", keeper: "gus" },
   // never sold
   outfit_cyber: { name: "Retro Cyber Jumpsuit", emoji: "🕹️", price: 0, gachaOnly: true, archetype: "streetwear" },
   outfit_blueprint_overalls: { name: "Blueprint Overalls", emoji: "📐", price: 0, pioneer: true, archetype: "workwear" },
@@ -1013,6 +1021,8 @@ export const OUTFIT_FABRICS: Record<OutfitId, { shirt: string; pants: string }> 
   outfit_velvet_lounge: { shirt: "#7d4e6d", pants: "#f5ecd8" },
   outfit_yukata_starry: { shirt: "#1d1b22", pants: "#1d1b22" },
   outfit_pinstripe: { shirt: "#2b3a6b", pants: "#2b3a6b" },
+  outfit_forester: { shirt: "#8aa67e", pants: "#6b4f3a" },
+  outfit_miner: { shirt: "#3a3a40", pants: "#a08a60" },
 };
 export const HATS: FreeAccessory[] = ACCESSORIES;
 export function isHat(v: unknown): v is Accessory {

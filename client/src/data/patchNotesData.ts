@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.37",
+    range: "v0.7.0–v0.7.38",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1604,6 +1604,25 @@ export const PATCH_ERAS: PatchEra[] = [
             "🎒 The Explorer's Pack: a leather rucksack with a rolled blanket, a tin cup and a map scroll.",
             "👀 Everyone sees the pack you wear. It comes off in the boxing ring and while you lie down.",
           ],
+          fixes: [],
+        },
+      },
+      {
+        version: "0.7.38",
+        date: "2026-10-02",
+        title: "Things to Make and Sell",
+        summary: "Every bench has its own goods now, the forge smiths wares to sell, and the woods and the caverns each have an outfit of their own.",
+        changes: {
+          features: [
+            "⚒️ Smithing at the forge: turn ingots and gems into a Copper Miner's Lantern, a Forged Tool Head, a Silver Locket, an Opal Brooch or a Glimmer Lamp. Gus pays about a fifth more than for the makings, and the tab shows this hour's price beside their worth.",
+            "🪵 New simple goods at any workbench: the Kindling Crate (a good use for Firewood), the Birch Serving Tray and the Pine Plank Bundle.",
+            "🦦 New fine goods at Bramble's bench: the Carved Otter Figurine and the Maple Music Box.",
+            "🌲 The Woodsman's Vest & Work Trousers, sold only by Bramble in the Whispering Woods.",
+            "⛏️ The Prospector's Canvas Overalls, sold only by Gus in the Glimmering Caverns.",
+            "👕 Both outfits go on as you buy them. They are looks, with no stats; change back at Chloe's boutique.",
+          ],
+          visuals: [],
+          economy: ["🪚 Fine furniture (the Keepsake Box, the Rocking Chair, the Elderwood Clock) is now carved only at Bramble's advanced bench in the woods. The campfire's bench carves the simple goods."],
           fixes: [],
         },
       },

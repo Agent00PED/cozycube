@@ -257,6 +257,13 @@ export const ORE_PRICES = {
   topaz: 48,
   opal: 112,
   star_shard: 350,
+  // the forge's wares (shared/caverns_mining.ts FORGE_WARES): each about a fifth over its makings'
+  // worth, as an ingot is over its ore (docs/economy-plan.md section 10)
+  copper_lantern: 108,
+  tool_head: 120,
+  silver_locket: 212,
+  opal_brooch: 322,
+  glimmer_lamp: 460,
 } as const;
 /** The pickaxes (the Rusted Pickaxe, T1, is Old Flint's gift): Gus sells T2 to T5, the Deep Core
  *  Drill the caverns' big sink. */

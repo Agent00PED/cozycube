@@ -5,6 +5,8 @@ import { FIREWOOD_PER_COIN, firewoodCoins } from "@shared/economy";
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
 import { GearWorks } from "./GearWorks";
+import { MapOutfitCard } from "./MapOutfitCard";
+import type { OutfitId } from "@shared/types";
 import { marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
@@ -29,6 +31,9 @@ const TABS: [ShopTab, string, string][] = [
 interface Props {
   profile: FishingProfile;
   coins: number;
+  /** What the player owns (the wardrobe's ids, comma-joined), and buying an outfit. */
+  owned: string;
+  onBuyOutfit: (outfit: OutfitId) => void;
   market: string;
   send: (packet: CampfirePacket) => void;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
@@ -36,7 +41,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function BrambleModal({ profile, coins, market, send, subscribeMessages, onOpenCollection, onClose }: Props) {
+export function BrambleModal({ profile, coins, owned, onBuyOutfit, market, send, subscribeMessages, onOpenCollection, onClose }: Props) {
   const [tab, setTab] = useState<ShopTab>("trade");
   const [notice, setNotice] = useState<ShopNotice | null>(null);
   useEffect(
@@ -204,7 +209,12 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
         </div>
       )}
 
-      {tab === "gear" && <GearWorks profile={profile} coins={coins} send={send} families={["forester", "wayfarer"]} places={["woods"]} />}
+      {tab === "gear" && (
+        <div className="flex flex-col gap-1.5">
+          <MapOutfitCard outfit="outfit_forester" owned={owned} coins={coins} onBuy={onBuyOutfit} />
+          <GearWorks profile={profile} coins={coins} send={send} families={["forester", "wayfarer"]} places={["woods"]} />
+        </div>
+      )}
     </ShopShell>
   );
 }

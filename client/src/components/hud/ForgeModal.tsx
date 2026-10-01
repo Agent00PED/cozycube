@@ -10,6 +10,9 @@ import {
   FORGE_BATCHES,
   FORGE_QUEUE_MAX,
   FORGE_RECIPES,
+  FORGE_WARES,
+  WARE_IDS,
+  type WareId,
   FORGE_SMELT_S,
   HAMMER_BEAT_S,
   HAMMER_STRIKES,
@@ -59,6 +62,7 @@ import { flyToBag } from "./flyToBag";
 //                   simulated here live by the very function the server replays the log with
 //   ⚡ Quick Smelt  plain ingots on the forge's own clock (an ingot every FORGE_SMELT_S seconds, into
 //                   the satchel, or its tray when the satchel is full), Quick Smelt All
+//   ⚒️ Smithing     wares to sell (shared/caverns_mining.ts FORGE_WARES): lanterns, tool heads, jewellery
 //   💍 Rings        a ring forged from a band's ingots and a cut gem (shared/gear.ts RING_BANDS, RING_GEMS)
 //   🧿 Gear         the gear's work done here (shared/gear.ts): the Prospector's ranks 3 to 5, every family's rank 5
 
@@ -72,7 +76,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Tab = "bellows" | "smelt" | "gear" | "rings" | "expedition";
+type Tab = "bellows" | "smelt" | "wares" | "gear" | "rings" | "expedition";
 
 export function ForgeModal({ profile, coins, market, send, campfireSend, subscribeMessages, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("bellows");
@@ -118,6 +122,7 @@ export function ForgeModal({ profile, coins, market, send, campfireSend, subscri
   const tabs: [Tab, string][] = [
     ["bellows", "🔥 Bellows"],
     ["smelt", "⚡ Quick Smelt"],
+    ["wares", "⚒️ Smithing"],
     ["gear", "🧿 Gear"],
     ["rings", "💍 Rings"],
     ["expedition", "🧭 Expedition"],
@@ -141,6 +146,7 @@ export function ForgeModal({ profile, coins, market, send, campfireSend, subscri
         {tab === "bellows" && <BellowsPick profile={profile} market={market} result={result} onStart={(ingot, batch) => send(CAVERNS_CHANNELS.forge, { op: "start", ingot, batch })} />}
         {tab === "smelt" && <QuickSmelt profile={profile} market={market} send={send} />}
         {tab === "gear" && <GearWorks profile={profile} coins={coins} send={campfireSend} families={["prospector", "angler", "forester", "wayfarer"]} places={["forge"]} />}
+        {tab === "wares" && <Wares profile={profile} market={market} send={send} />}
         {tab === "rings" && <Rings profile={profile} coins={coins} send={send} />}
         {tab === "expedition" && <Expedition profile={profile} coins={coins} send={send} />}
         {notice && <p className={`m-0 text-center text-[12px] font-semibold ${notice.ok ? "text-amber-100" : "text-rose-200"}`}>{notice.text}</p>}
@@ -553,6 +559,48 @@ function QuickSmelt({ profile, market, send }: { profile: FishingProfile; market
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// --- the wares: smithed to sell ------------------------------------------------------------------------------
+
+function Wares({ profile, market, send }: { profile: FishingProfile; market: string; send: Props["send"] }) {
+  const hour = parseMarket(market);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="m-0 text-center text-[12px] opacity-80">Wares to sell: Gus pays about a fifth more than for their makings. Made at once, into your satchel. A Masterwork ingot stands in for a plain one (at a loss: sell those as they are).</p>
+      {WARE_IDS.map((id: WareId) => {
+        const item = ORE_ITEMS[id];
+        const makings = makingsList(profile, { ore: FORGE_WARES[id] });
+        const can = Math.min(...makings.map((m) => Math.floor(m.have / m.need)));
+        const now = Math.max(1, Math.round(item.price * marketMultiplier(oreGood(id), hour)));
+        const worth = (Object.entries(FORGE_WARES[id]) as [OreItemId, number][]).reduce((sum, [k, n]) => sum + n * Math.max(1, Math.round(ORE_ITEMS[k].price * marketMultiplier(oreGood(k), hour))), 0);
+        return (
+          <div key={id} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+            <span className="text-2xl">{item.emoji}</span>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+              <b className="text-[13px] text-[#F7EBE1]">
+                {item.name} <span className="font-normal opacity-70">· {now} 🪙 this hour</span>
+              </b>
+              <span className="flex flex-wrap gap-1 text-[10.5px]">
+                {makings.map((m) => (
+                  <span key={m.name} className={`rounded-full px-1.5 ${m.have >= m.need ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>
+                    {m.need} {m.name} <span className="opacity-70">({m.have})</span>
+                  </span>
+                ))}
+                <span className={`rounded-full px-1.5 ${now >= worth ? "bg-amber-300/20 text-amber-100" : "bg-rose-400/15 text-rose-200"}`}>makings worth {worth} 🪙</span>
+              </span>
+            </div>
+            <button type="button" className="clay-btn clay-btn-ghost min-h-11 shrink-0 px-2 text-xs" disabled={can < 1} onClick={() => send(CAVERNS_CHANNELS.forge, { op: "ware", ware: id, n: 1 })}>
+              ×1
+            </button>
+            <button type="button" className="clay-btn clay-btn-amber min-h-11 shrink-0 px-2 text-xs" disabled={can < 2} onClick={() => send(CAVERNS_CHANNELS.forge, { op: "ware", ware: id, n: can })}>
+              ×{Math.max(2, Math.min(20, can))}
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -1144,7 +1144,7 @@ export default function App() {
         {panel?.kind === "fell" && localSessionId && <FellingModal key={panel.propId} tree={panel.propId} send={campfireSend} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "splitblock" && <SplitBlockModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "slingshot" && <SlingshotModal send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
-        {panel?.kind === "bramble" && localPlayer && <BrambleModal profile={angler.profile} coins={localPlayer.coins} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("timber")} onClose={closePanel} />}
+        {panel?.kind === "bramble" && localPlayer && <BrambleModal profile={angler.profile} coins={localPlayer.coins} owned={localPlayer.owned} onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("timber")} onClose={closePanel} />}
         {panel?.kind === "livewell" && <FishLivewellModal profile={angler.profile} market={market} send={campfireSend} onClose={closePanel} onOpenCollection={() => setLogbook("fish")} />}
         {logbook && <LogbookModal mode={logbook} profile={angler.profile} onClose={() => setLogbook(null)} />}
         {panel?.kind === "permits" && localPlayer && (
@@ -1164,7 +1164,7 @@ export default function App() {
         {panel?.kind === "caveMap" && localPlayer && <CaveMapModal ores={ores} players={players} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "codex" && localPlayer && <CaveCodexModal found={angler.profile.codex} initial={panel.propId} title={localPlayer.title} onWear={(id) => casinoSend({ type: "EQUIP_TITLE", id })} onClose={closePanel} />}
         {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} campfireSend={campfireSend} onClose={closePanel} />}
-        {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
+        {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} owned={localPlayer.owned} onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
         {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "anvil" && localPlayer && <GeodeModal profile={angler.profile} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "flint" && localPlayer && <FlintModal first={panel.propId === "old_flint:first"} offer={panel.propId === "old_flint:offer"} profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} onClose={closePanel} />}
