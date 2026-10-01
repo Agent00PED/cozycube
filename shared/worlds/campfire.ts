@@ -126,8 +126,20 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": 12.8, "z": 9.0, "s": 0.45 },
     { "x": 8.6, "z": -7.0, "s": 0.55 },
     { "x": 12.9, "z": 12.6, "s": 0.6 },
-    { "x": -12.3, "z": 10.4, "s": 0.55 }
+    { "x": -12.3, "z": 10.4, "s": 0.55 },
+    { "x": -9.7, "z": -6.3, "s": 0.5 },
+    { "x": -7.3, "z": -11.5, "s": 0.55 }
   ],
+  "dressing": {
+    "lanternPosts": [{ "x": -0.1, "z": -7.2 }, { "x": 2.0, "z": -7.5 }, { "x": -6.6, "z": -3.8 }, { "x": -11.4, "z": -10.6 }],
+    "crates": [{ "x": -2.1, "z": -12.1, "yaw": 0.3 }],
+    "barrels": [{ "x": 0.45, "z": -11.0 }, { "x": 7.9, "z": -1.6 }],
+    "fallen": [
+      { "x": -2.4, "z": 11.9, "yaw": 0.45, "len": 1.8 },
+      { "x": -11.7, "z": 11.3, "yaw": 2.0, "len": 1.6 }
+    ],
+    "stumps": [{ "x": -3.4, "z": 5.0 }, { "x": 6.4, "z": 10.2 }]
+  },
   "fence": { "at": 13.55, "xFrom": -13.3, "xTo": 9.3, "post": 1.25 },
   "picnic": { "x": 1.5, "z": 11.2 },
   "telescope": { "x": -10.4, "z": -10.2 },
@@ -777,6 +789,20 @@ export const CAMP_OBSTACLES: AABB[] = [
   around({ x: L.archway.x - L.archway.w / 2 - 0.1, z: L.archway.z }, 0.18),
   around({ x: L.archway.x + L.archway.w / 2 + 0.1, z: L.archway.z }, 0.18),
   around(L.splitblock, 0.33),
+  // the fall's rock step at the river's head, and the stones flanking it
+  around(L.cascade, 1.0),
+  around({ x: L.cascade.x - 1.2, z: L.cascade.z + 0.5 }, 0.45),
+  around({ x: L.cascade.x + 1.2, z: L.cascade.z + 0.5 }, 0.45),
+  // the dressing you walk round: lantern posts, Buster's crates, the barrels, fallen logs (small
+  // boxes along each), stumps
+  ...L.dressing.lanternPosts.map((p) => around(p, 0.1)),
+  ...L.dressing.crates.map((p) => square(p, 0.42)),
+  ...L.dressing.barrels.map((p) => around(p, 0.27)),
+  ...L.dressing.fallen.flatMap((f) => {
+    const n = Math.max(2, Math.ceil(f.len / 0.4));
+    return Array.from({ length: n + 1 }, (_, k) => around({ x: f.x + Math.sin(f.yaw) * (k / n - 0.5) * (f.len - 0.3), z: f.z + Math.cos(f.yaw) * (k / n - 0.5) * (f.len - 0.3) }, 0.2));
+  }),
+  ...L.dressing.stumps.map((p) => around(p, 0.24)),
   // the pole the lights are strung from, the signpost
   around(L.stringPole, 0.1),
   around(L.signpost, 0.12),

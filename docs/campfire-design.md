@@ -3,8 +3,8 @@
 Status: **approved 2026-10-02** with the recommended answers to the four decisions (28 m, walkable
 gentle hills, the telescope on the knoll's top, the counts kept). **The structure is built** (patch
 0.7.42: steps 1 to 3 of the order of work, and step 5's checks): the layout, the height function, the
-builder, the water, the client. **Still to do:** step 4, the dressing zone by zone, and the lobby's
-backdrop picture. What was measured is at the foot of this document.
+builder, the water, the client. **The dressing pass is done** (patch 0.7.43: step 4, and the lobby's
+backdrop picture). What was measured is at the foot of this document.
 
 The layout lives in `shared/worlds/campfire.ts` (`CAMPFIRE_LAYOUT`), the model in
 `scripts/blender/build_campfire.py`, the checks in `npm run check-layout`.
@@ -92,6 +92,10 @@ the moon so the island has a silhouette at night.
 - **The ground needs no walk mask:** nothing is steeper than 24 degrees, so the whole island is
   walked and only the old boxes stop anyone.
 - **The river leaves the island** over its south edge in a sheet (the plan had a closed pond).
+- **The dressing** (patch 0.7.43): lantern posts, crates, barrels, fallen logs and stumps with
+  colliders; grass, wildflowers, pebbles, trail steps, leaves, river stones and the far bank by rule,
+  with none; spray at the falls. The model is 2.9 MB packed and 193,000 triangles; the draw calls are
+  unchanged but for the spray's one.
 
 ## Decisions (answered)
 
