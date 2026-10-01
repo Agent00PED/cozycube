@@ -386,6 +386,13 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
     return () => window.clearInterval(timer);
   }, [mapId]);
 
+  // (the prospecting close-up's side, told to the server: scene/ProspectingView.tsx)
+  useEffect(() => {
+    const onView = (e: Event) => room?.send(CAVERNS_CHANNELS.prospect, { op: "view", ...(e as CustomEvent).detail });
+    window.addEventListener("cozy-prospect-view", onView);
+    return () => window.removeEventListener("cozy-prospect-view", onView);
+  }, [room]);
+
   // --- click-to-move ---
   const targetRef = useRef<MoveTarget | null>(null);
   const rippleRef = useRef({ x: 0, z: 0, id: 0 });

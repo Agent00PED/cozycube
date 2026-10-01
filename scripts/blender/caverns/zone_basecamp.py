@@ -8,7 +8,7 @@ import random
 
 from mathutils import Vector
 from .kit import (
-    angular, blob, box, chunk, cyl, game_point, hullbox, lantern, lathe, Mesh, prism, prism_col, tarp, W,
+    angular, blob, box, chunk, cyl, game_point, hullbox, lantern, lathe, Mesh, prism, prism_col, tarp, turned, W,
 )
 from .scene import finish_object
 
@@ -435,16 +435,19 @@ def build_basecamp_gear(G, L, rock, glow, rng):
             box(rock, x + 0.3, x + 0.62, y + 0.95, y + 1.02, z + 0.06, z + 0.14, "steel")
             cyl(rock, (x - 0.75, y, z + 0.3), (x - 0.5, y + 1.05, z + 0.1), 0.022, "timberDark", sides=4)
         elif kind == "bedroll":
-            # (a sleeping bag laid out flat, quilted across, its head on a rolled-up blanket; the top
-            # flap turned back: docs/caverns-roadmap.md R9.3, never a stick on the ground)
-            # (laid along x: a padded bag, quilted across, its top turned back at the head, a rolled
-            # blanket for a pillow)
-            box(rock, x - 0.85, x + 0.55, y - 0.02, y + 0.11, z - 0.32, z + 0.32, "bedroll")
-            box(rock, x + 0.55, x + 0.8, y - 0.02, y + 0.14, z - 0.33, z + 0.33, "canvasShade")
-            for q in range(5):
-                qx = x - 0.65 + q * 0.27
-                box(rock, qx - 0.015, qx + 0.015, y + 0.11, y + 0.125, z - 0.31, z + 0.31, "canvasShade")
-            cyl(rock, (x + 0.98, y + 0.1, z - 0.3), (x + 0.98, y + 0.1, z + 0.3), 0.11, "canvas", sides=7)
+            # (a sleeping bag laid out along `yaw` (its foot toward (sin yaw, cos yaw), its head and a
+            # rolled blanket for a pillow at the other end), quilted across, its top turned back: laid
+            # inside a tent, its foot at the door; docs/caverns-roadmap.md R11.2)
+            rot = turned(yaw)
+
+            def at(u, h, v=0.0):
+                ox, oy, oz = rot(u, h, v)
+                return (x + ox, y + oy, z + oz)
+            hullbox(rock, at(0.05, 0.045), rot, 0.7, 0.065, 0.3, "bedroll", "bedroll")
+            hullbox(rock, at(-0.5, 0.065), rot, 0.14, 0.08, 0.31, "canvasShade", "canvasShade")
+            for q in range(4):
+                hullbox(rock, at(-0.15 + q * 0.26, 0.112), rot, 0.014, 0.006, 0.29, "canvasShade", "canvasShade")
+            cyl(rock, at(-0.78, 0.1, -0.27), at(-0.78, 0.1, 0.27), 0.1, "canvas", sides=7)
         elif kind == "board":
             # the survey board: the expedition's map of the caverns on an easel
             for dx in (-0.4, 0.4):

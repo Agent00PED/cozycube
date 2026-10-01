@@ -192,6 +192,8 @@ interface Prospector {
   seq: number;
   /** When the close-up opened (the ring's pulse runs from it). */
   openedAt: number;
+  /** The way their close-up looks at the rock (from its middle toward the camera), once told. */
+  view?: { x: number; z: number };
 }
 /** A miner's run of Perfects (from node to node), and their last strike. */
 interface Streak {
@@ -518,6 +520,29 @@ export class CavernsMine {
     this.sync();
   }
 
+  /** The way a miner's close-up looks at their rock (`caverns:prospect` "view"): the weak spot brought
+   *  round to that side if it is not on it (when no one else is at the rock), and kept there as it
+   *  moves (docs/caverns-roadmap.md R11.5: a weak spot behind the rock no one could strike). */
+  prospectView(sessionId: string, raw: unknown) {
+    const pr = this.prospectors.get(sessionId);
+    const p = raw as { node?: unknown; dir?: unknown } | null;
+    if (!pr || !p || p.node !== pr.node || !Array.isArray(p.dir) || p.dir.length !== 2) return;
+    const x = Number(p.dir[0]);
+    const z = Number(p.dir[1]);
+    const l = Math.hypot(x, z);
+    if (!Number.isFinite(l) || l < 1e-6) return;
+    pr.view = { x: x / l, z: z / l };
+    const node = ORE_NODE_AT.get(pr.node);
+    const s = node ? this.nodes.get(node.id) : undefined;
+    if (!node || !s || !s.up) return;
+    const flat = Math.hypot(s.weak[0], s.weak[2]);
+    const seen = s.weak[0] * pr.view.x + s.weak[2] * pr.view.z >= 0.6 * flat && s.weak[1] >= 0;
+    const others = [...this.prospectors.entries()].some(([id, o]) => id !== sessionId && o.node === node.id);
+    if (seen || others) return;
+    s.weak = rollWeakSpot(node.face, Math.random, pr.view);
+    this.host.sendTo(sessionId, "caveWeak", { node: node.id, weak: s.weak, ...(s.glint ? { glint: true } : {}) });
+  }
+
   /** Stepping back from a node (the view closed, walked off, travelled, left). */
   stopProspect(sessionId: string) {
     if (!this.prospectors.delete(sessionId)) return;
@@ -588,7 +613,7 @@ export class CavernsMine {
       s.glint = false;
     }
     if (moved) {
-      s.weak = rollWeakSpot(node.face, Math.random, { x: player.x - node.x, z: player.z - node.z });
+      s.weak = rollWeakSpot(node.face, Math.random, pr.view ?? { x: player.x - node.x, z: player.z - node.z });
       s.glint = node.kind !== "monolith" && Math.random() < GLINT_CHANCE;
     }
     const frac = s.dmg / info.hp;

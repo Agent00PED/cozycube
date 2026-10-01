@@ -1026,7 +1026,10 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage(CAVERNS_CHANNELS.geode, (client, packet: GeodePacket) => this.caverns.geode(client.sessionId, packet));
     this.onMessage(CAVERNS_CHANNELS.forge, (client, packet: ForgePacket) => this.caverns.forge(client.sessionId, packet));
     this.onMessage(CAVERNS_CHANNELS.onsen, (client, packet: OnsenPacket) => this.caverns.onsen(client.sessionId, packet));
-    this.onMessage(CAVERNS_CHANNELS.prospect, (client, packet: ProspectPacket) => packet?.op === "stop" && this.caverns.stopProspect(client.sessionId));
+    this.onMessage(CAVERNS_CHANNELS.prospect, (client, packet: ProspectPacket) => {
+      if (packet?.op === "stop") this.caverns.stopProspect(client.sessionId);
+      else if (packet?.op === "view") this.caverns.prospectView(client.sessionId, packet);
+    });
     this.onMessage(CAVERNS_CHANNELS.gus, (client, packet: GusPacket) => this.caverns.gus(client.sessionId, packet));
     this.onMessage(CAVERNS_CHANNELS.satchel, (client, packet: SatchelPacket) => this.caverns.satchel(client.sessionId, packet));
     this.onMessage(CAVERNS_CHANNELS.recast, (client) => this.recastIntoDrip(client.sessionId));
