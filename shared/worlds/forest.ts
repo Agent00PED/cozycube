@@ -110,6 +110,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     "depth": 0.12,
     "bank": 0.45,
     "bridge": { "x": 10.42, "z": -1.42, "half": 0.3 },
+    "perch": { "x": 9.55, "z": -1.3, "y": 0.72 },
     "stones": [[7.1, -3.7], [9.0, -2.33]]
   },
   "dressing": {
@@ -158,6 +159,10 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     "washing": { "a": [9.8, 15.9], "b": [11.5, 15.7] },
     "ropeSwing": { "tree": [11.5, 13.4], "x": 11.95, "z": 14.1, "branch": 2.5 },
     "timber": { "x": 4.4, "z": 15.3, "w": 1.6, "d": 0.8 }
+  },
+  "life": {
+    "owl": { "tree": [7.6, -12.2] },
+    "shafts": [[5.9, -9.4, 0.8], [7.8, -10.1, 0.75], [4.0, -8.9, 0.7], [6.7, -7.4, 0.8], [9.7, -9.7, 0.7], [3.0, -11.2, 0.65]]
   },
   "fishing": [
     { "stand": { "x": 11.55, "z": -2.3 }, "bobber": { "x": 12.9, "z": -2.6 } },
@@ -451,14 +456,31 @@ export const FINLEY_REACH = 1.9;
 /** The songbirds on the vista pines' lower boughs (the side toward the middle of the wood): each
  *  perch's place, its height on the bough (the pine's lowest tier, as build_forest.py grows it) and
  *  the way the bird faces. They fly off when someone comes near, and back later; by day only. */
-export const FOREST_BIRDS = L.birds.map(([px, pz], i) => {
-  const pine = L.vista.find(([x, z]) => x === px && z === pz) ?? [px, pz, 1];
-  const S = pine[2] * 1.55;
-  const d = Math.hypot(px, pz) || 1;
-  const r = 0.9 * 1.05 * S;
-  // (its height over the ground its pine stands on)
-  return { id: i, x: px - (px / d) * r, z: pz - (pz / d) * r, y: forestLand(px, pz) + 0.729 * S, yaw: Math.atan2(-px, -pz) };
-});
+/** (`tint`: a songbird of its own colour, as linear RGB: brighter than white where it must lift the
+ *  template's brown.) */
+export const FOREST_BIRDS: { id: number; x: number; z: number; y: number; yaw: number; tint?: [number, number, number] }[] = [
+  ...L.birds.map(([px, pz], i) => {
+    const pine = L.vista.find(([x, z]) => x === px && z === pz) ?? [px, pz, 1];
+    const S = pine[2] * 1.55;
+    const d = Math.hypot(px, pz) || 1;
+    const r = 0.9 * 1.05 * S;
+    // (its height over the ground its pine stands on)
+    return { id: i, x: px - (px / d) * r, z: pz - (pz / d) * r, y: forestLand(px, pz) + 0.729 * S, yaw: Math.atan2(-px, -pz) };
+  }),
+  // the kingfisher: on a dead branch over the brook, watching the water (it scatters as they do)
+  { id: L.birds.length, x: L.brook.perch.x, z: L.brook.perch.z, y: forestLand(L.brook.perch.x, L.brook.perch.z) + L.brook.perch.y, yaw: 2.4, tint: [0.5, 2.4, 4.2] },
+];
+/** The Old Growth's owl, by night: on a great pine's lowest bough, on the camera's side of it. */
+export const FOREST_OWL = (() => {
+  const [tx, tz] = L.life.owl.tree;
+  const S = (L.dressing.greatTrees.find((t) => t.x === tx && t.z === tz)?.s ?? 1) * 1.55;
+  const r = 0.9 * 1.05 * S * Math.SQRT1_2;
+  return { x: tx + r, z: tz + r, y: forestLand(tx, tz) + 0.729 * S, yaw: Math.PI / 4 };
+})();
+/** Bramble's hives (the bees circle them by day), and where the daylight falls through the Old
+ *  Growth's canopy ([x, z, radius]). */
+export const FOREST_HIVES = L.places.hives.map(([x, z]) => ({ x, z }));
+export const FOREST_SHAFTS = L.life.shafts.map(([x, z, r]) => ({ x, z, r }));
 /** The branch archway back to the campfire, and where you stand at it. */
 export const WOODS_ARCHWAY = L.archway;
 export const WOODS_ARCHWAY_FRONT: Pt = { x: L.archway.x, z: L.archway.z - 1.05 };

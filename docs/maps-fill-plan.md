@@ -1,9 +1,9 @@
 # Filling the campfire and the woods: design
 
 Status: **approved 2026-10-02** with the recommended answers (fill, places only and no coins, the
-brook built, both maps part by part, the beach on hold). Built so far: **part 1, mass** (patch
-0.7.45), **part 2, the campfire's places** (patch 0.7.46), **part 3, the woods' places** (patch 0.7.47)
-and **part 4, the brook** (patch 0.7.48). What moved from the plan is at the foot of this document.
+brook built, both maps part by part, the beach on hold), and **built**, all five parts: mass (patch
+0.7.45), the campfire's places (0.7.46), the woods' places (0.7.47), the brook (0.7.48), life and
+light (0.7.49). What moved from the plan is at the foot of this document.
 
 ## The problem, measured
 
@@ -217,6 +217,27 @@ Everything still in the model bakes into the finishes the maps already draw.
 - **Two great pines moved** (one off its bed, one whose crown hid the spring).
 - **Draw calls:** none more (its water is in the river's sheet). **Model:** 3.8 MB. **Income:**
   unchanged to the decimal.
+
+### Part 5, life and light (patch 0.7.49)
+- **Campfire:** butterflies over the Swing Garden and the meadows by day, a drift of fireflies over
+  the Stargazers' Slope by night, three more wild critters.
+- **Woods:** bees at the hives, the kingfisher by the brook, the owl in the Old Growth by night,
+  shafts of daylight over the camp and the trail, butterflies in the garden and by the brook, four
+  more wild critters.
+- **The shafts stand over the trail and the camp**, not deep among the great trees: there the crowns
+  hid them from the play camera.
+- **Not built:** willows along the brook (two alders stand there), a string of paper lanterns at the
+  Music Glade.
+- **Draw calls:** the campfire +3 by day (the butterflies' body and two wings; the plan said +1),
+  the woods +2 by day (bees, shafts) and +1 by night (the owl).
+
+### In all
+| | Campfire | Woods |
+|---|---|---|
+| New seats | 15 | 9 |
+| Draw calls, one player, whole map in view | 116 to about 120 by day | 100 to about 109 by day |
+| Model | 3.2 to 3.4 MB | 3.5 to 3.8 MB |
+| Income | every line within 0.3% | unchanged to the decimal |
 
 ## Decisions (answered)
 

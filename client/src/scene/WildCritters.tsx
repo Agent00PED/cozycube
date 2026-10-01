@@ -46,6 +46,10 @@ const HOMES: Partial<Record<MapId, [Kind, number, number][]>> = {
     ["squirrel", -1.2, -8.8],
     ["squirrel", 3.2, 7.4],
     ["deer", -8.0, 5.2],
+    // (the filled ground's new cover: the Swing Garden, the willow at the River's End, the slope)
+    ["rabbit", -2.2, 10.4],
+    ["squirrel", 6.6, 12.0],
+    ["rabbit", -5.2, -8.2],
   ],
   whispering_woods: [
     ["rabbit", -12.0, -6.0],
@@ -59,6 +63,11 @@ const HOMES: Partial<Record<MapId, [Kind, number, number][]>> = {
     ["deer", -7.2, -0.4],
     ["deer", 6.0, -4.0],
     ["deer", -3.0, -11.6],
+    // (the filled ground's new cover: the Old Growth, the North Ridge's birches, Bramble's garden)
+    ["rabbit", 4.6, -11.0],
+    ["squirrel", -4.6, -13.6],
+    ["rabbit", 10.6, 13.0],
+    ["squirrel", 8.0, -13.0],
   ],
 };
 

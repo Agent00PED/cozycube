@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.48",
+    range: "v0.7.0–v0.7.49",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1791,6 +1791,23 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           visuals: ["🌿 Wet pebbles down its bed, reeds and mossy stones along its banks, two alders beside it."],
           economy: ["⚖️ It is not fished, and nothing you earn changes."],
+        },
+      },
+      {
+        version: "0.7.49",
+        date: "2026-10-02",
+        title: "Life and Light",
+        summary: "The campfire and the woods come alive: butterflies, bees, a kingfisher, an owl after dark, and sunlight falling through the Old Growth.",
+        changes: {
+          visuals: [
+            "🦋 Butterflies drift over the campfire's Swing Garden and its clover meadows by day.",
+            "✨ A thick drift of fireflies over the Stargazers' Slope at night.",
+            "🐝 Bees circle Bramble's hives, and butterflies visit his garden and the brook.",
+            "🐦 A kingfisher watches the brook from a dead branch. Walk up and it flies off, then comes back.",
+            "🦉 After dark an owl sits on a bough in the Old Growth and turns to watch you pass.",
+            "🌤️ Shafts of daylight fall through the Old Growth's canopy over the camp and the trail.",
+            "🐇 More rabbits and squirrels in the new cover on both maps.",
+          ],
         },
       },
     ],

@@ -1861,6 +1861,12 @@ def build_brook(L, coll):
                 px, pz = x + nx * rng.uniform(-w, w) * 0.8, z + nz * rng.uniform(-w, w) * 0.8
                 gy = ground_y(px, pz)
                 blob(bm, px, gy + 0.012, pz, rng.uniform(0.04, 0.07), 0.03, rng.uniform(0.035, 0.06), m=m["FW_Pebble"], cuts=1, flat_bottom=gy - 0.02)
+    # the kingfisher's perch: a dead branch stuck in the bank, leaning out over the water
+    pc = Bk.get("perch")
+    if pc:
+        gy = land_y(pc["x"], pc["z"])
+        cylinder(bm, W(pc["x"] - 0.22, gy - 0.1, pc["z"] + 0.2), W(pc["x"], gy + pc["y"] - 0.01, pc["z"]), 0.035, 6, m=m["FW_Bark"], r_end=0.018)
+        cylinder(bm, W(pc["x"] - 0.1, gy + pc["y"] * 0.55, pc["z"] + 0.09), W(pc["x"] - 0.34, gy + pc["y"] * 0.9, pc["z"] - 0.05), 0.016, 5, m=m["FW_Bark"], r_end=0.008)
     make_object("Forest_Brook", bm, M, coll)
 
 
@@ -2180,6 +2186,34 @@ def build_fauna(coll):
         ], coll, pivot=(sx * 0.008, 0.0, 0.0))
 
 
+def build_life(coll):
+    """Fauna_Bee: a round striped bee with two pale wings, one node (drawn instanced round Bramble's
+    hives). Fauna_WoodsOwl: the Old Growth's owl (its own name: the campfire's is Fauna_Owl in the same master file), one node, its feet at the origin, facing +z (on its
+    bough by night)."""
+    fauna_node("Fauna_Bee", [
+        (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.022, 0.02, 0.03, m=0, cuts=2), "#F2C230"),
+        (lambda bm: blob(bm, 0.0, 0.0, -0.007, 0.0235, 0.0215, 0.007, m=0, cuts=1), "#2A2420"),
+        (lambda bm: blob(bm, 0.0, 0.0, 0.012, 0.0225, 0.0205, 0.006, m=0, cuts=1), "#2A2420"),
+        (lambda bm: blob(bm, 0.022, 0.02, 0.0, 0.022, 0.003, 0.012, m=0, cuts=1), "#F4F8FF"),
+        (lambda bm: blob(bm, -0.022, 0.02, 0.0, 0.022, 0.003, 0.012, m=0, cuts=1), "#F4F8FF"),
+    ], coll)
+    fauna_node("Fauna_WoodsOwl", [
+        (lambda bm: blob(bm, 0.0, 0.16, 0.0, 0.12, 0.16, 0.11, m=0, cuts=3), "#7A5A40"),
+        (lambda bm: blob(bm, 0.0, 0.13, 0.05, 0.09, 0.11, 0.07, m=0, cuts=2), "#D9C09A"),
+        (lambda bm: blob(bm, 0.0, 0.33, 0.01, 0.115, 0.095, 0.1, m=0, cuts=3), "#8A6646"),
+        (lambda bm: blob(bm, 0.0, 0.33, 0.07, 0.09, 0.075, 0.04, m=0, cuts=2), "#E6D2B0"),
+        (lambda bm: blob(bm, 0.04, 0.345, 0.105, 0.03, 0.03, 0.015, m=0, cuts=2), "#F4C542"),
+        (lambda bm: blob(bm, -0.04, 0.345, 0.105, 0.03, 0.03, 0.015, m=0, cuts=2), "#F4C542"),
+        (lambda bm: blob(bm, 0.04, 0.345, 0.118, 0.013, 0.013, 0.008, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, -0.04, 0.345, 0.118, 0.013, 0.013, 0.008, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, 0.0, 0.315, 0.115, 0.012, 0.016, 0.014, m=0, cuts=1), "#C9A06A"),
+        (lambda bm: blob(bm, 0.07, 0.42, 0.0, 0.025, 0.04, 0.02, m=0, cuts=1), "#6A4A32"),
+        (lambda bm: blob(bm, -0.07, 0.42, 0.0, 0.025, 0.04, 0.02, m=0, cuts=1), "#6A4A32"),
+        (lambda bm: blob(bm, 0.115, 0.17, -0.01, 0.03, 0.12, 0.08, m=0, cuts=2), "#65472F"),
+        (lambda bm: blob(bm, -0.115, 0.17, -0.01, 0.03, 0.12, 0.08, m=0, cuts=2), "#65472F"),
+    ], coll)
+
+
 def build_animals(L, coll):
     # the deer: a chibi doe with little antler nubs, grazing by the path, facing the glen
     a = next(x for x in L["animals"] if x["kind"] == "deer")
@@ -2282,6 +2316,7 @@ def build(root):
     build_brook(L, coll)
     build_animals(L, coll)
     build_fauna(coll)
+    build_life(coll)
     tcoll = bpy.data.collections.new(TREES_COLLECTION)
     bpy.context.scene.collection.children.link(tcoll)
     trees = build_trees(tcoll)

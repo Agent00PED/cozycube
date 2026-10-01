@@ -10,6 +10,7 @@ import { parseWorldEvent } from "@shared/types";
 import { parseTrees } from "@shared/chop";
 import { FellableTrees } from "./FellableTrees";
 import { WildCritters } from "./WildCritters";
+import { Butterflies } from "./Butterflies";
 import { SurgeRipples } from "./SurgeRipples";
 import { FallsSpray, type SprayAt } from "./FallsSpray";
 import { ModelBoundary } from "../entities/ModelBoundary";
@@ -108,6 +109,8 @@ const CLICK_GROUND = (() => {
 })();
 /** A height over the ground at (x, z). */
 const over = (x: number, y: number, z: number): [number, number, number] => [x, campLand(x, z) + y, z];
+/** Where the butterflies drift by day: the Swing Garden's beds (two of them) and each clover meadow. */
+const BUTTERFLY_SPOTS: [number, number][] = [[L.places.beds[0].x, L.places.beds[0].z - 0.8], [L.places.swing.x - 0.6, L.places.swing.z + 0.4], ...L.dressing.meadows.map(([x, z]): [number, number] => [x, z])];
 
 /** How much of the night's magic shows at each hour (fireflies, stars). */
 const NIGHTNESS: Record<TimeOfDay, number> = { night: 1, sunset: 0.6, sunrise: 0.25, day: 0 };
@@ -333,6 +336,8 @@ function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
   return (
     <>
       <primitive object={scene} />
+      {/* butterflies over the Swing Garden and the clover meadows, by day */}
+      <Butterflies scene={scene} prefix="Fauna_CampFly" spots={BUTTERFLY_SPOTS} landY={campLand} />
       {/* a snack nearby: the raccoon's hearts */}
       {begging && (
         <Html position={life.critterAt} center style={{ pointerEvents: "none" }} zIndexRange={[20, 0]}>
@@ -521,6 +526,8 @@ function Fireflies() {
       // the grove west of the tipi, thick with them (catch some in a jar)
       ...around(L.fireflies.x - 1.3, L.fireflies.x + 1.3, L.fireflies.z - 1.3, L.fireflies.z + 1.3, 12),
       ...around(-12.5, -6.5, -12, 2, 9),
+      // the Stargazers' Slope: a thick drift of them over the blankets
+      ...around(-7.6, -4.8, -11.9, -8.2, 10),
       ...around(-4, 8, -12.5, -9.5, 7),
       ...around(-12, -6, 4, 11, 7),
       ...around(2, 8, 6, 12, 5),
