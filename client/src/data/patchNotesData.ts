@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.30",
+    range: "v0.7.0–v0.7.31",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1469,6 +1469,23 @@ export const PATCH_ERAS: PatchEra[] = [
             "🌊 The little stream at the Great Lake's south-east corner is gone, and the shore there is plain beach.",
             "🛏️ The stray sleeping bag in front of Gus's trading post is gone.",
           ],
+        },
+      },
+      {
+        version: "0.7.31",
+        date: "2026-10-01",
+        title: "The Vein Chase",
+        summary: "Mining has a rhythm now: every good hit sends the crack running along a glowing vein, and chasing it makes each blow hit harder.",
+        changes: {
+          features: [
+            "⚡ The Vein Chase: a direct hit runs the crack on along a glowing vein to a spot nearby. Hit that next spot quickly and you are on a chase.",
+            "💪 Every link in a row strikes 8% harder, up to five links, so a clean chase breaks a rock much faster.",
+            "🎯 A chip under the rock's meter counts your links and shows how long the next spot stays hot.",
+          ],
+          visuals: [
+            "✨ The vein glows across the rock from the last spot to the next, with a bright spark running along it to show the way.",
+          ],
+          fixes: [],
         },
       },
     ],

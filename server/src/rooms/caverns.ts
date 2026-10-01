@@ -10,6 +10,11 @@ import {
   onPulse,
   streakBonus,
   CLEAN_BREAK_BONUS,
+  CHASE_MAX,
+  CHASE_SLACK_MS,
+  CHASE_WINDOW_S,
+  chaseBonus,
+  rollVeinStep,
   GLINT_CHANCE,
   DEEP_WARMTH_MS,
   DEFLECT_STAGGER_S,
@@ -194,6 +199,9 @@ interface Prospector {
   openedAt: number;
   /** The way their close-up looks at the rock (from its middle toward the camera), once told. */
   view?: { x: number; z: number };
+  /** Their chase along the vein: links in a row, and until when the next spot stays hot (ms). */
+  chase: number;
+  chaseUntil: number;
 }
 /** A miner's run of Perfects (from node to node), and their last strike. */
 interface Streak {
@@ -512,7 +520,7 @@ export class CavernsMine {
       s.weak = rollWeakSpot(node.face, Math.random, { x: player.x - node.x, z: player.z - node.z });
       s.glint = node.kind !== "monolith" && Math.random() < GLINT_CHANCE;
     }
-    this.prospectors.set(sessionId, { node: node.id, lastStrikeAt: 0, staggerUntil: 0, seq: was?.node === node.id ? was.seq : 0, openedAt: Date.now() });
+    this.prospectors.set(sessionId, { node: node.id, lastStrikeAt: 0, staggerUntil: 0, seq: was?.node === node.id ? was.seq : 0, openedAt: Date.now(), chase: 0, chaseUntil: 0, ...(was?.node === node.id && was.view ? { view: was.view } : {}) });
     player.action = "mine";
     player.actionProgress = s.dmg / info.hp;
     const packet: CaveProspect = { node: node.id, kind: node.kind, weak: s.weak, pick: kit.pickaxeId, rule, ...(s.glint ? { glint: true } : {}) };
@@ -596,12 +604,21 @@ export class CavernsMine {
       if (kit.ledger.perfects % 5 === 0) this.weekly(sessionId);
     } else if (j.verdict === "near" || j.verdict === "bedrock") run.n = 0;
     run.at = now;
+    // (the vein chase: a direct strike on the next spot while it is hot is a link; anything else, or the
+    // window gone, and the vein is cold again)
+    if (j.verdict === "direct") {
+      pr.chase = pr.chaseUntil > 0 && now <= pr.chaseUntil + CHASE_SLACK_MS ? Math.min(CHASE_MAX, pr.chase + 1) : 0;
+      pr.chaseUntil = now + CHASE_WINDOW_S * 1000;
+    } else {
+      pr.chase = 0;
+      pr.chaseUntil = 0;
+    }
     if (j.verdict === "deflect") {
       pr.staggerUntil = now + DEFLECT_STAGGER_S * 1000;
       this.host.toMap("glimmering_caverns", "caveStrike", { sessionId, node: node.id, verdict: "deflect", hit: dir, dmg: s.dmg / info.hp, streak: run.n } satisfies CaveStrike);
       return;
     }
-    const damage = perfect && !j.oneshot ? Math.round(j.damage * PERFECT_DAMAGE) : j.damage;
+    const damage = j.oneshot ? j.damage : Math.round(j.damage * (perfect ? PERFECT_DAMAGE : 1) * chaseBonus(pr.chase));
     s.dmg = Math.min(info.hp, s.dmg + damage);
     s.contrib.set(sessionId, (s.contrib.get(sessionId) ?? 0) + damage);
     const moved = j.verdict === "direct" && s.dmg < info.hp;
@@ -612,14 +629,16 @@ export class CavernsMine {
       if (satchelAdd(kit, item, 1, this.strap(kit)) > 0) bonus = item;
       s.glint = false;
     }
+    const from = s.weak;
     if (moved) {
-      s.weak = rollWeakSpot(node.face, Math.random, pr.view ?? { x: player.x - node.x, z: player.z - node.z });
+      // (the fissure runs on along the vein to a spot nearby, on the side the striker's close-up sees)
+      s.weak = rollVeinStep(from, Math.random, pr.view ?? { x: player.x - node.x, z: player.z - node.z });
       s.glint = node.kind !== "monolith" && Math.random() < GLINT_CHANCE;
     }
     const frac = s.dmg / info.hp;
-    this.host.toMap("glimmering_caverns", "caveStrike", { sessionId, node: node.id, verdict: j.verdict, hit: dir, dmg: Math.round(frac * 1000) / 1000, ...(moved ? { moved: true } : {}), ...(perfect ? { perfect: true } : {}), streak: run.n, ...(bonus ? { bonus } : {}) } satisfies CaveStrike);
+    this.host.toMap("glimmering_caverns", "caveStrike", { sessionId, node: node.id, verdict: j.verdict, hit: dir, dmg: Math.round(frac * 1000) / 1000, ...(moved ? { moved: true } : {}), ...(perfect ? { perfect: true } : {}), streak: run.n, ...(bonus ? { bonus } : {}), chase: pr.chase } satisfies CaveStrike);
     // the fissure ran on: everyone at this node is shown where the rock is weak now
-    if (moved) this.prospectors.forEach((p, id) => p.node === node.id && this.host.sendTo(id, "caveWeak", { node: node.id, weak: s.weak, ...(s.glint ? { glint: true } : {}) }));
+    if (moved) this.prospectors.forEach((p, id) => p.node === node.id && this.host.sendTo(id, "caveWeak", { node: node.id, weak: s.weak, from, ...(s.glint ? { glint: true } : {}) }));
     this.prospectors.forEach((p, id) => {
       if (p.node !== node.id) return;
       const who = this.host.player(id);

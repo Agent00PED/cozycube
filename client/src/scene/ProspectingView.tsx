@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { ORE_NODE_AT } from "@shared/worlds/caverns";
-import { ORE_KINDS, PERFECT_WINDOW_S, PICKAXES, PULSE_S, STRIKE_DEBOUNCE_S, oreCenterY, pulsePhase, strikeRadii, type OreKind } from "@shared/caverns_mining";
+import { ORE_KINDS, PERFECT_WINDOW_S, PICKAXES, PULSE_S, STRIKE_DEBOUNCE_S, oreCenterY, pulsePhase, strikeRadii, type OreKind, CHASE_WINDOW_S } from "@shared/caverns_mining";
 import { useProspect } from "../systems/prospectStore";
 import { prospectCam, prospectView } from "./prospectCamera";
 import { noRaycast } from "./kit";
@@ -114,6 +114,38 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
     // (pr.rev: the fissure ran on, the spot moved)
   }, [pr?.rev, shape, node]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // (the vein, docs/caverns-roadmap.md R12: from where the fissure ran on to the weak spot now, laid over
+  // the rock's own surface along the way between them)
+  const vein = useMemo(() => {
+    if (!pr?.from || !shape || !node) return null;
+    const a = new THREE.Vector3(...pr.from).normalize();
+    const b = new THREE.Vector3(...pr.weak).normalize();
+    const r = ORE_KINDS[node.kind].radius;
+    const ang = a.angleTo(b);
+    if (ang < 0.05) return null;
+    const pts: THREE.Vector3[] = [];
+    const ray = new THREE.Raycaster();
+    const N = 14;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      // (a little wander either side of the straight way: a crack, never a ruled line)
+      const d = a.clone().multiplyScalar(Math.sin((1 - t) * ang)).addScaledVector(b, Math.sin(t * ang)).normalize();
+      const wob = Math.sin(t * Math.PI) * 0.07 * Math.sin(t * 9 + pr.rev);
+      d.addScaledVector(new THREE.Vector3().crossVectors(a, b).normalize(), wob).normalize();
+      ray.set(shape.centre.clone().addScaledVector(d, r * 3), d.clone().negate());
+      ray.far = r * 4;
+      const hit = ray.intersectObject(shape.rock, false)[0];
+      pts.push((hit ? hit.point.clone() : shape.centre.clone().addScaledVector(d, r)).addScaledVector(d, 0.025));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts);
+    // (as thick as the rock is big: read at a glance on the Monolith and on a coal seam alike)
+    return { geo: new THREE.TubeGeometry(curve, 28, 0.012 + 0.02 * r, 5, false), curve, r };
+    // (pr.rev: the fissure ran on)
+  }, [pr?.rev, shape, node]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => vein?.geo.dispose(), [vein]);
+  const beadRef = useRef<THREE.Mesh>(null);
+  const veinMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#fff1b8", toneMapped: false, transparent: true, depthWrite: false, depthTest: false }), []);
+  useEffect(() => () => veinMat.dispose(), [veinMat]);
   const fissure = useMemo(() => fissureGeometry(Math.floor(Math.random() * 1e6) + 1), [pr?.rev]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => fissure.dispose(), [fissure]);
   const glowColor = node ? ORE_KINDS[node.kind].glow : "#ffb347";
@@ -189,6 +221,25 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
       pulse.scale.setScalar(sweet * (1 + (RING_OPEN - 1) * (1 - phase)));
       pulseMat.opacity = closing ? 0 : 0.2 + 0.7 * phase;
     }
+    // (the vein: drawn in along its length in a fifth of a second, hot while the chase's window is
+    // open, then fading cold)
+    if (vein && pr?.movedAt) {
+      const age = (performance.now() - pr.movedAt) / 1000;
+      const count = vein.geo.index ? vein.geo.index.count : 0;
+      vein.geo.setDrawRange(0, Math.floor((count * Math.min(1, age / 0.2)) / 3) * 3);
+      const hot = Math.max(0, 1 - age / CHASE_WINDOW_S);
+      veinMat.opacity = 0.3 + 0.7 * hot * (0.8 + 0.2 * Math.sin(t * 14));
+      veinMat.color.copy(ringColor).lerp(white, 0.35 + 0.55 * hot);
+      // (a bright bead running along it to the next spot while it is hot: where to strike next)
+      const bead = beadRef.current;
+      if (bead) {
+        bead.visible = hot > 0;
+        if (hot > 0) {
+          vein.curve.getPoint((age * 1.5) % 1, bead.position);
+          bead.scale.setScalar((0.03 + 0.045 * vein.r) * (0.8 + 0.3 * Math.sin(t * 20)));
+        }
+      }
+    }
     const f = fissureRef.current;
     if (f) {
       f.position.copy(spot.at).addScaledVector(spot.normal, 0.012);
@@ -262,6 +313,8 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
     <group>
       <mesh geometry={PROXY_GEO} material={PROXY_MAT} position={shape.proxyAt} rotation={[0, shape.yaw, 0]} scale={shape.size} onPointerDown={strike} onPointerMove={hum} onPointerOut={() => setCaveHum(0)} />
       <mesh ref={fissureRef} geometry={fissure} material={fissureMat} raycast={noRaycast} renderOrder={2} />
+      {vein && <mesh geometry={vein.geo} material={veinMat} raycast={noRaycast} renderOrder={4} />}
+      {vein && <mesh ref={beadRef} geometry={GLINT_GEO} material={glintMat} raycast={noRaycast} renderOrder={6} />}
       <mesh ref={ringRef} geometry={RING_GEO} material={ringMat} raycast={noRaycast} renderOrder={5} />
       <mesh ref={pulseRef} geometry={RING_GEO} material={pulseMat} raycast={noRaycast} renderOrder={5} />
       {glintSeeds.map((_, i) => (

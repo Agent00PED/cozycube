@@ -20,6 +20,9 @@ export interface ProspectState extends CaveProspect {
   openedAt: number;
   /** The node's damage (0 whole .. 1 broken), as the strikes on it are told. */
   dmg: number;
+  /** Where the fissure ran on from (the vein drawn from there to the weak spot), and when (ms). */
+  from?: Vec3;
+  movedAt?: number;
 }
 
 /** Your own last blow, and your run of Perfects (the HUD's pop and chip). */
@@ -30,6 +33,9 @@ export interface BlowNote {
   /** A Lucky Glint struck: the ore it popped. */
   bonus?: string;
 }
+/** Your chase along the vein: links in a row, and when the last direct strike landed (ms). */
+let chase = 0;
+let chaseAt = -1e9;
 /** The last Clean Break (performance.now ms), for the HUD's pop. */
 let cleanAt = -1e9;
 
@@ -51,9 +57,9 @@ export const prospectStore = {
     current = { ...p, rev: (current?.rev ?? 0) + 1, openedAt: performance.now(), dmg: same ? (current?.dmg ?? 0) : 0 };
     emit();
   },
-  weak(node: string, weak: Vec3, glint = false) {
+  weak(node: string, weak: Vec3, glint = false, from?: Vec3) {
     if (!current || current.node !== node) return;
-    current = { ...current, weak, glint, rev: current.rev + 1 };
+    current = { ...current, weak, glint, from, movedAt: performance.now(), rev: current.rev + 1 };
     emit();
   },
   /** Your rock broke with a Perfect: a Clean Break. */
@@ -66,6 +72,8 @@ export const prospectStore = {
     if (mine) {
       blow = { verdict: st.verdict, perfect: !!st.perfect, at: performance.now(), ...(st.bonus ? { bonus: st.bonus } : {}) };
       if (typeof st.streak === "number") streak = st.streak;
+      chase = st.chase ?? 0;
+      chaseAt = st.verdict === "direct" ? performance.now() : -1e9;
     }
     if (current && current.node === st.node) current = { ...current, dmg: st.dmg };
     if (mine || current?.node === st.node) emit();
@@ -73,6 +81,8 @@ export const prospectStore = {
   close() {
     if (!current) return;
     current = null;
+    chase = 0;
+    chaseAt = -1e9;
     emit();
   },
   /** When the ring's pulse started, ms (performance.now), or null. */
@@ -95,6 +105,12 @@ export function useBlow(): { blow: BlowNote | null; streak: number } {
   const b = useSyncExternalStore(subscribe, () => blow);
   const n = useSyncExternalStore(subscribe, () => streak);
   return { blow: b, streak: n };
+}
+/** Your chase along the vein (links in a row) and when its window opened (performance.now ms). */
+export function useChase(): { chase: number; chaseAt: number } {
+  const n = useSyncExternalStore(subscribe, () => chase);
+  const at = useSyncExternalStore(subscribe, () => chaseAt);
+  return { chase: n, chaseAt: at };
 }
 export function useCleanBreak(): number {
   return useSyncExternalStore(subscribe, () => cleanAt);

@@ -248,6 +248,49 @@ export function rollWeakSpot(face: { x: number; z: number } | null, rand: () => 
   return best.map((v) => Math.round(v * 1000) / 1000) as Vec3;
 }
 
+// --- the vein chase (docs/caverns-roadmap.md R12) -------------------------------------------------------
+// A direct strike no longer throws the weak spot somewhere at random: the fissure runs on along a vein
+// to a spot nearby (a glowing line drawn from the one to the other), and a direct strike on that next
+// spot inside CHASE_WINDOW_S is a link in a chase. Each link in a row strikes CHASE_STEP harder, up to
+// CHASE_MAX links; a blow off the spot, a skid, or the window running out lets the vein go cold.
+
+/** How long the next spot along the vein stays hot after a direct strike (s): long enough to wait for
+ *  one closing of the ring (PULSE_S) on any pickaxe's swing. */
+export const CHASE_WINDOW_S = 2.4;
+/** What each link in a row adds to a strike's damage, and the most links that count. */
+export const CHASE_STEP = 0.08;
+export const CHASE_MAX = 5;
+/** The grace the server gives the window for the connection (ms). */
+export const CHASE_SLACK_MS = 250;
+/** A strike's damage, `links` into a chase. */
+export const chaseBonus = (links: number) => 1 + CHASE_STEP * Math.min(CHASE_MAX, Math.max(0, Math.floor(links)));
+/** How far along the rock the vein runs to its next spot (radians from the last). */
+const VEIN_STEP: [number, number] = [0.5, 0.95];
+/** The next spot along the vein from `prev`: a step away over the rock, on the side `toward` sees (the
+ *  close-up's, else the usual view's), never under the rock nor on its crown. */
+export function rollVeinStep(prev: Vec3, rand: () => number = Math.random, toward?: { x: number; z: number } | null): Vec3 {
+  const p = norm(prev);
+  const tl = toward ? Math.hypot(toward.x, toward.z) : 0;
+  const side = tl > 1e-6 ? { x: toward!.x / tl, z: toward!.z / tl } : null;
+  // (two unit vectors across `p`: the plane the step turns in)
+  const a: Vec3 = Math.abs(p[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const u = norm([p[1] * a[2] - p[2] * a[1], p[2] * a[0] - p[0] * a[2], p[0] * a[1] - p[1] * a[0]]);
+  const v: Vec3 = [p[1] * u[2] - p[2] * u[1], p[2] * u[0] - p[0] * u[2], p[0] * u[1] - p[1] * u[0]];
+  for (let k = 0; k < 80; k++) {
+    const th = VEIN_STEP[0] + rand() * (VEIN_STEP[1] - VEIN_STEP[0]);
+    const ph = rand() * Math.PI * 2;
+    const c = Math.cos(th);
+    const s = Math.sin(th);
+    const d: Vec3 = [p[0] * c + (u[0] * Math.cos(ph) + v[0] * Math.sin(ph)) * s, p[1] * c + (u[1] * Math.cos(ph) + v[1] * Math.sin(ph)) * s, p[2] * c + (u[2] * Math.cos(ph) + v[2] * Math.sin(ph)) * s];
+    if (d[1] < 0 || d[1] > 0.7) continue;
+    if (side) {
+      if (d[0] * side.x + d[2] * side.z < 0.64 * Math.hypot(d[0], d[2]) + 0.1) continue;
+    } else if (d[0] * CAMERA_SIDE[0] + d[1] * CAMERA_SIDE[1] + d[2] * CAMERA_SIDE[2] < 0.3) continue;
+    return d.map((x) => Math.round(x * 1000) / 1000) as Vec3;
+  }
+  return rollWeakSpot(null, rand, toward);
+}
+
 /** A strike's direction from a node's centre, from what a client sent (null: not a direction). */
 export function strikeDirection(raw: unknown): Vec3 | null {
   if (!Array.isArray(raw) || raw.length !== 3) return null;
@@ -807,6 +850,8 @@ export interface CaveStrike {
   streak?: number;
   /** A Perfect on a Lucky Glint: the ore it popped into the striker's satchel. */
   bonus?: OreItemId;
+  /** The striker's links in a row along the vein after this blow (0: the chase begins, or is lost). */
+  chase?: number;
 }
 /** Server -> the node's world ("caveShatter"): it broke, and who shared it. */
 export interface CaveShatter {
