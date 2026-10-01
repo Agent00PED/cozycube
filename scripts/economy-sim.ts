@@ -26,6 +26,42 @@ import { fishRate, woodRate, type Counter } from "../shared/keepers";
 import { CHASE_MAX, CLEAN_BREAK_BONUS, GLINT_CHANCE, ORE_KINDS, PERFECT_DAMAGE, PICKAXES, chaseBonus, oreRule, rollYield, streakBonus, type OreItemId, type OreKind, type PickaxeId } from "../shared/caverns_mining";
 import { MASTERY_ORE } from "../shared/caverns_mastery";
 import { SATCHEL_TIERS, stackOf } from "../shared/satchel";
+import {
+  DRYAD_GROWTH,
+  GEAR,
+  GEAR_FAMILIES,
+  NO_GEAR,
+  RING_BAND_IDS,
+  RING_GEM_IDS,
+  biteHaste,
+  bonusLogChance,
+  bonusOreChance,
+  byproductBonus,
+  carrierBonus,
+  cleanBreakBonus,
+  dryadChance,
+  gearOfFamily,
+  gearPace,
+  gearRareLuck,
+  geodeFind,
+  glintBonus,
+  goldStarBonus,
+  heftBonus,
+  kingBonus,
+  livewellBonus,
+  lodestoneSweet,
+  noCeiling,
+  perfectWindow,
+  quickRegrow,
+  ringId,
+  satchelBonus,
+  sellBonus,
+  swingHaste,
+  type GearFamily,
+  type GearId,
+  type Loadout,
+  type RingId,
+} from "../shared/gear";
 
 /** How steady the player is. */
 export const STEADY = {
@@ -49,7 +85,9 @@ export const STEADY = {
     setS: 1.0,
   },
   ore: {
-    /** A blow's verdicts, and how many of the direct ones come as the ring closes. */
+    /** A blow's verdicts, and how many of the direct ones come as the ring closes. (A wider sweet spot
+     *  shrinks what is not direct with the square of its radius; a wider Perfect window catches that
+     *  many more.) */
     direct: 0.8,
     near: 0.15,
     perfect: 0.3,
@@ -132,10 +170,11 @@ const WATERS = [
   { where: "cenote", water: "cavewater" as const, rapids: false, map: "glimmering_caverns" as MapId, spot: { x: FINNEGAN_FRONT.x + 3, z: FINNEGAN_FRONT.z }, keeper: FINNEGAN_FRONT },
 ];
 
-function angler(rodTier: number, w: (typeof WATERS)[number]): Line {
+export function angler(rodTier: number, w: (typeof WATERS)[number], gear: Loadout = NO_GEAR): Line {
   const rand = seeded(rodTier * 97 + w.where.length);
-  const cap = CREEL_CAPACITY[rodTier - 1];
-  const trip = 2 * walkS(w.map, w.spot, w.keeper) + STEADY.sellS;
+  const cap = CREEL_CAPACITY[rodTier - 1] + livewellBonus(gear);
+  const trip = (2 * walkS(w.map, w.spot, w.keeper)) / gearPace(gear) + STEADY.sellS;
+  const pays = sellBonus(gear);
   let t = 0;
   let coins = 0;
   let held = 0;
@@ -148,14 +187,14 @@ function angler(rodTier: number, w: (typeof WATERS)[number]): Line {
   while (t < end) {
     // (the camp's day: twelve minutes of sun, twelve of stars)
     day = Math.floor(t / 720) % 2 === 0;
-    const id = rollFish(w.water, { rodTier, afk: false, time: w.water === "cavewater" ? undefined : day ? "day" : "night", rapids: w.rapids }, rand);
+    const id = rollFish(w.water, { rodTier, afk: false, time: w.water === "cavewater" ? undefined : day ? "day" : "night", rapids: w.rapids, rareLuck: gearRareLuck(gear) }, rand);
     const sp = FISH[id] as { tier: string };
     const boss = sp.tier === "legendary" || sp.tier === "mythic";
-    t += biteSeconds(id, {}, rand) + (boss ? STEADY.fish.bossReelS : STEADY.fish.reelS) + STEADY.fish.betweenS;
+    t += biteSeconds(id, { haste: biteHaste(gear) }, rand) + (boss ? STEADY.fish.bossReelS : STEADY.fish.reelS) + STEADY.fish.betweenS;
     if (boss && rand() > STEADY.fish.landed[sp.tier]) continue;
-    const fish = rollCatch(id, { rodTier }, rand);
+    const fish = rollCatch(id, { rodTier, rareLuck: gearRareLuck(gear), king: kingBonus(gear), goldStar: goldStarBonus(gear), heft: heftBonus(gear) }, rand);
     // (sold at the water's own keeper, who pays less past what they can afford: shared/keepers.ts)
-    const v = fishValue(fish) * fishRate(counterOf(w.map), id);
+    const v = fishValue(fish) * (noCeiling(gear) ? 1 : fishRate(counterOf(w.map), id)) * pays;
     heldCoins += v;
     held++;
     sold[sp.tier] = (sold[sp.tier] ?? 0) + 1;
@@ -176,11 +215,14 @@ const perHour = (sold: Record<string, number>, t: number) => Object.fromEntries(
 
 // --- the woodcutter ------------------------------------------------------------------------------------
 
-function woodcutter(axeTier: number, map: MapId, where: string, keeper: Pt): Line {
+export function woodcutter(axeTier: number, map: MapId, where: string, keeper: Pt, gear: Loadout = NO_GEAR): Line {
+  const pace = gearPace(gear);
+  const pays = sellBonus(gear);
+  const hit = STEADY.wood.hit;
   const rand = seeded(axeTier * 131 + where.length);
   const axe = AXES[AXES_BY_TIER[axeTier - 1]];
   const trees = FELL_TREES.filter((tr) => tr.map === map && !tr.titan && TREES[tr.kind].tier <= axeTier).map((tr) => ({ ...tr, readyAt: 0, at: { x: tr.approachX, z: tr.approachZ } }));
-  const cap = CARRIER_CAPACITY[axeTier - 1];
+  const cap = CARRIER_CAPACITY[axeTier - 1] + carrierBonus(gear);
   const sold: Record<string, number> = {};
   if (!trees.length) return { craft: "wood", tier: axeTier, where, perMin: 0, perMinSold: 0, soldPerHour: {} };
   /** A tree's turns of the ring, and what it is worth, on average. */
@@ -188,9 +230,9 @@ function woodcutter(axeTier: number, map: MapId, where: string, keeper: Pt): Lin
     const info = TREES[kind];
     const rounds = (info.rounds[0] + info.rounds[1]) / 2;
     const period = info.period / (1 - axe.slow);
-    const secs = STEADY.wood.setS + rounds * (period / STEADY.wood.hit + STEADY.wood.pauseS);
+    const secs = STEADY.wood.setS + rounds * (period / hit + STEADY.wood.pauseS);
     const by = info.byproduct ? (BYPRODUCT_PRICES as Record<string, number>)[info.byproduct] : 0;
-    const worth = rounds * (info.logChance * woodPrice(info.wood, 1, 1.23) + (1 - info.logChance) * by);
+    const worth = rounds * (info.logChance * (1 + bonusLogChance(gear)) * woodPrice(info.wood, 1, 1.23) + (1 - info.logChance + info.logChance * byproductBonus(gear)) * by);
     return { secs, worth };
   };
   let t = 0;
@@ -205,7 +247,7 @@ function woodcutter(axeTier: number, map: MapId, where: string, keeper: Pt): Lin
     // the best tree standing (or standing by the time we walk there): worth over the time it takes
     let best: { tree: (typeof trees)[number]; rate: number; walk: number } | null = null;
     for (const tree of trees) {
-      const walk = walkS(map, pos, tree.at);
+      const walk = walkS(map, pos, tree.at) / pace;
       if (tree.readyAt > t + walk) continue;
       const e = expect(tree.kind);
       const rate = e.worth / (walk + e.secs);
@@ -222,19 +264,26 @@ function woodcutter(axeTier: number, map: MapId, where: string, keeper: Pt): Lin
     pos = tree.at;
     const rounds = info.rounds[0] + Math.floor(rand() * (info.rounds[1] - info.rounds[0] + 1));
     const period = info.period / (1 - axe.slow);
-    const scale = rollTreeScale(rand);
+    // (the Dryad's Sprout, from rank 3: now and then the tree grows as the axe is set to it)
+    // (no roll the bare player would not make: their table stays as it was)
+    const scale = rollTreeScale(rand) + (dryadChance(gear) > 0 && rand() < dryadChance(gear) ? DRYAD_GROWTH : 0);
     t += STEADY.wood.setS;
     for (let r = 0; r < rounds; r++) {
       do t += period;
-      while (rand() > STEADY.wood.hit);
+      while (rand() > hit);
       t += STEADY.wood.pauseS;
       if (rand() < info.logChance) {
-        if (logs < cap) {
+        const n = bonusLogChance(gear) > 0 && rand() < bonusLogChance(gear) ? 2 : 1;
+        for (let k = 0; k < n && logs < cap; k++) {
           logs++;
-          const v = woodPrice(info.wood, 1, logMultiplier(scale)) * woodRate(counterOf(map), info.wood);
+          const v = woodPrice(info.wood, 1, logMultiplier(scale)) * (noCeiling(gear) ? 1 : woodRate(counterOf(map), info.wood)) * pays;
           heldCoins += v;
           sold[info.wood] = (sold[info.wood] ?? 0) + 1;
           value[info.wood] = (value[info.wood] ?? 0) + v;
+        }
+        if (info.byproduct && byproductBonus(gear) > 0 && rand() < byproductBonus(gear)) {
+          heldCoins += (BYPRODUCT_PRICES as Record<string, number>)[info.byproduct];
+          flat += (BYPRODUCT_PRICES as Record<string, number>)[info.byproduct];
         }
       } else if (info.byproduct) {
         // (the by-products sell at their own flat prices: Firewood's and theirs never move)
@@ -242,9 +291,9 @@ function woodcutter(axeTier: number, map: MapId, where: string, keeper: Pt): Lin
         flat += (BYPRODUCT_PRICES as Record<string, number>)[info.byproduct];
       }
     }
-    tree.readyAt = t + info.respawnS;
+    tree.readyAt = t + info.respawnS * (1 - quickRegrow(gear));
     if (logs >= cap) {
-      t += walkS(map, pos, keeper) + STEADY.sellS;
+      t += walkS(map, pos, keeper) / pace + STEADY.sellS;
       pos = keeper;
       coins += heldCoins;
       logs = 0;
@@ -259,25 +308,34 @@ function woodcutter(axeTier: number, map: MapId, where: string, keeper: Pt): Lin
 
 const PICK_BY_TIER = (Object.keys(PICKAXES) as PickaxeId[]).sort((a, b) => PICKAXES[a].tier - PICKAXES[b].tier);
 
-export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolean } = {}): Line {
+export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolean; gear?: Loadout } = {}): Line {
   const glints = opts.glints !== false;
   const chasing = opts.chase !== false;
+  const gear = opts.gear ?? NO_GEAR;
+  const pace = gearPace(gear);
+  const pays = sellBonus(gear);
+  // (a wider sweet spot: what is not a direct blow shrinks with the square of its radius; a wider
+  // Perfect window catches that many more of the direct ones)
+  const wider = (1 + lodestoneSweet(gear)) ** 2;
+  const pDirect = 1 - (1 - STEADY.ore.direct) / wider;
+  const pNear = STEADY.ore.near / wider;
+  const pPerfect = Math.min(0.9, STEADY.ore.perfect * perfectWindow(gear));
   const rand = seeded(pickTier * 211);
   const pickId = PICK_BY_TIER[pickTier - 1];
   const pick = PICKAXES[pickId];
   const map: MapId = "glimmering_caverns";
   const nodes = ORE_NODES.filter((n) => !ORE_KINDS[n.kind].crew && oreRule(pick.tier, n.kind) !== "deflect").map((n) => ({ ...n, readyAt: 0, at: n.approach }));
-  const slots = SATCHEL_TIERS[Math.min(SATCHEL_TIERS.length - 1, pickTier)].slots;
+  const slots = SATCHEL_TIERS[Math.min(SATCHEL_TIERS.length - 1, pickTier)].slots + satchelBonus(gear);
   const sold: Record<string, number> = {};
   const value: Record<string, number> = {};
   const hold: Partial<Record<OreItemId, number>> = {};
   const used = () => (Object.entries(hold) as [OreItemId, number][]).reduce((a, [id, n]) => a + Math.ceil(n / stackOf(id)), 0);
-  const blowS = Math.max(pick.swing, STEADY.ore.tapS);
+  const blowS = Math.max(pick.swing / swingHaste(gear), STEADY.ore.tapS);
   /** A node's blows and its worth, on average. */
   const expect = (kind: OreKind) => {
     const info = ORE_KINDS[kind];
     const rule = oreRule(pick.tier, kind);
-    const per = pick.damage * (rule === "under" ? 0.6 : 1) * (STEADY.ore.direct * (1 + STEADY.ore.perfect * (PERFECT_DAMAGE - 1)) * 1.15 + STEADY.ore.near * 0.5 + 0.0075);
+    const per = pick.damage * (rule === "under" ? 0.6 : 1) * (pDirect * (1 + pPerfect * (PERFECT_DAMAGE - 1)) * 1.15 + pNear * 0.5 + 0.0075);
     const blows = rule === "oneshot" ? 1 : Math.ceil(info.hp / per);
     const y = rollYieldMean(kind, pickId);
     return { secs: STEADY.ore.openS + blows * blowS, worth: y };
@@ -289,16 +347,16 @@ export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolea
   const end = HOURS * 3600;
   const sell = () => {
     for (const [id, n] of Object.entries(hold) as [OreItemId, number][]) {
-      coins += ORE_PRICES[id] * n;
+      coins += ORE_PRICES[id] * n * pays;
       sold[id] = (sold[id] ?? 0) + n;
-      value[id] = (value[id] ?? 0) + ORE_PRICES[id] * n;
+      value[id] = (value[id] ?? 0) + ORE_PRICES[id] * n * pays;
       delete hold[id];
     }
   };
   while (t < end) {
     let best: { node: (typeof nodes)[number]; rate: number; walk: number } | null = null;
     for (const node of nodes) {
-      const walk = walkS(map, pos, node.at);
+      const walk = walkS(map, pos, node.at) / pace;
       if (node.readyAt > t + walk) continue;
       const e = expect(node.kind);
       const rate = e.worth / (walk + e.secs);
@@ -321,9 +379,9 @@ export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolea
     while (dmg < info.hp) {
       t += blowS;
       const r = rand();
-      const direct = r < STEADY.ore.direct;
-      const near = !direct && r < STEADY.ore.direct + STEADY.ore.near;
-      const perfect = direct && rand() < STEADY.ore.perfect;
+      const direct = r < pDirect;
+      const near = !direct && r < pDirect + pNear;
+      const perfect = direct && rand() < pPerfect;
       if (direct) {
         chase = chaseOn ? Math.min(CHASE_MAX, chase + 1) : 0;
         chaseOn = true;
@@ -336,7 +394,7 @@ export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolea
       if (rule === "oneshot") {
         dmg = info.hp;
         clean = perfect;
-        if (perfect && glint) hold[MASTERY_ORE[node.kind]] = (hold[MASTERY_ORE[node.kind]] ?? 0) + 1;
+        if (perfect && glint) hold[MASTERY_ORE[node.kind]] = (hold[MASTERY_ORE[node.kind]] ?? 0) + 1 + glintBonus(gear);
         break;
       }
       const base = pick.damage * (rule === "under" ? 0.6 : 1) * (direct ? 1 : near ? 0.5 : 0.15);
@@ -344,19 +402,22 @@ export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolea
       clean = perfect;
       // (one glint a rock, on its weak spot until a Perfect claims it)
       if (perfect && glint) {
-        hold[MASTERY_ORE[node.kind]] = (hold[MASTERY_ORE[node.kind]] ?? 0) + 1;
+        hold[MASTERY_ORE[node.kind]] = (hold[MASTERY_ORE[node.kind]] ?? 0) + 1 + glintBonus(gear);
         glint = false;
       }
     }
-    const share = streakBonus(streak) * (clean ? CLEAN_BREAK_BONUS : 1);
-    for (const [id, n] of Object.entries(rollYield(node.kind, pickId, rand)) as [OreItemId, number][]) {
+    const share = streakBonus(streak) * (clean ? cleanBreakBonus(gear, CLEAN_BREAK_BONUS) : 1);
+    const haul = rollYield(node.kind, pickId, rand, geodeFind(gear));
+    // (an Opal ring's Bounty: a chance of one more of the rock's own ore)
+    if (bonusOreChance(gear) > 0 && rand() < bonusOreChance(gear)) haul[MASTERY_ORE[node.kind]] = (haul[MASTERY_ORE[node.kind]] ?? 0) + 1;
+    for (const [id, n] of Object.entries(haul) as [OreItemId, number][]) {
       const want = Math.floor(n * share) + (rand() < (n * share) % 1 ? 1 : 0);
       hold[id] = (hold[id] ?? 0) + want;
     }
     const [lo, hi] = info.respawnS;
     node.readyAt = t + lo + rand() * (hi - lo);
     if (used() >= slots) {
-      t += walkS(map, pos, GUS_FRONT) + STEADY.sellS;
+      t += walkS(map, pos, GUS_FRONT) / pace + STEADY.sellS;
       pos = GUS_FRONT;
       sell();
     }
@@ -390,6 +451,94 @@ export function simulate(only = process.env.ONLY ?? ""): Line[] {
     out.push(woodcutter(tier, "whispering_woods", "woods", BRAMBLE_FRONT));
   }
   for (let tier = 1; tier <= 5; tier++) out.push(miner(tier));
+  return out;
+}
+
+// --- the gear: what a loadout adds --------------------------------------------------------------------------
+
+/** A family's four pieces, worn, all at `rank` (and `rings` on the fingers). */
+export function loadout(family: GearFamily | null, rank: number, rings: RingId[] = []): Loadout {
+  const worn = family ? gearOfFamily(family) : [];
+  return { worn, gearRank: Object.fromEntries(worn.map((id) => [id, rank])) as Partial<Record<GearId, number>>, ringsWorn: rings };
+}
+/** Any pieces at one rank. */
+export function wearing(ids: GearId[], rank: number, rings: RingId[] = []): Loadout {
+  return { worn: ids, gearRank: Object.fromEntries(ids.map((id) => [id, rank])) as Partial<Record<GearId, number>>, ringsWorn: rings };
+}
+const CRAFT_FAMILY = { fish: "angler", wood: "forester", ore: "prospector" } as const;
+/** A craft at a tier, at its usual spot (the woods' river and trees from T3, the campfire before; the
+ *  caverns), wearing `gear`: coins a minute as sold. */
+export function withGear(craft: "fish" | "wood" | "ore", tier: number, gear: Loadout): number {
+  if (craft === "fish") return angler(tier, WATERS[tier >= 3 ? 1 : 0], gear).perMinSold;
+  if (craft === "wood") return (tier >= 2 ? woodcutter(tier, "whispering_woods", "woods", BRAMBLE_FRONT, gear) : woodcutter(tier, "campfire_night", "campfire", BUSTER_FRONT, gear)).perMinSold;
+  return miner(tier, { gear }).perMinSold;
+}
+/** Every pair of rings worth wearing (two different gems, or one gem twice on two bands), all on the
+ *  best band a tier could have forged. */
+function ringPairs(band: (typeof RING_BAND_IDS)[number]): RingId[][] {
+  const out: RingId[][] = [];
+  for (let a = 0; a < RING_GEM_IDS.length; a++) for (let b = a + 1; b < RING_GEM_IDS.length; b++) out.push([ringId(band, RING_GEM_IDS[a]), ringId(band, RING_GEM_IDS[b])]);
+  return out;
+}
+/** The gear's budget (docs/economy-plan.md section 9): what it may add to a minute's income, as sold.
+ *  A full kit worn at its tier (the family at the tier's rank, the two best rings of the tier's band)
+ *  adds between a tenth and a little under a tool tier's step (about 35%); the set alone at rank 5 at
+ *  most a quarter, two rings an eighth, any one piece an eighth. */
+export const GEAR_BUDGET = { kit: [0.1, 0.35], set: 0.26, rings: 0.15, piece: 0.125 } as const;
+
+export interface GearLine {
+  craft: "fish" | "wood" | "ore";
+  tier: number;
+  base: number;
+  /** Its own family's four at ranks 1, 3 and 5; the Wayfarer's four at rank 5; the best two rings alone;
+   *  and the most a player of this tier could wear (the family at its rank, the best rings). */
+  rank1: number;
+  rank3: number;
+  rank5: number;
+  wayfarer: number;
+  rings: number;
+  ringsWorn: string;
+  all: number;
+}
+/** A piece is raised a rank a tool tier, a ring's band is its tier's metal: what a T`tier` player wears. */
+const RANK_AT_TIER = [1, 1, 2, 3, 4, 5];
+const BAND_AT_TIER = ["copper", "copper", "copper", "iron", "silver", "glimmer"] as const;
+export function gearTable(tiers = [1, 3, 5]): GearLine[] {
+  const out: GearLine[] = [];
+  for (const craft of ["fish", "wood", "ore"] as const) {
+    for (const tier of tiers) {
+      const family = CRAFT_FAMILY[craft];
+      const base = withGear(craft, tier, NO_GEAR);
+      const band = BAND_AT_TIER[tier];
+      let best = { pair: [] as RingId[], v: base };
+      for (const pair of ringPairs(band)) {
+        const v = withGear(craft, tier, loadout(null, 0, pair));
+        if (v > best.v) best = { pair, v };
+      }
+      out.push({
+        craft,
+        tier,
+        base,
+        rank1: withGear(craft, tier, loadout(family, 1)),
+        rank3: withGear(craft, tier, loadout(family, 3)),
+        rank5: withGear(craft, tier, loadout(family, 5)),
+        wayfarer: withGear(craft, tier, loadout("wayfarer", 5)),
+        rings: best.v,
+        ringsWorn: best.pair.join(" + "),
+        all: withGear(craft, tier, loadout(family, RANK_AT_TIER[tier], best.pair)),
+      });
+    }
+  }
+  return out;
+}
+/** Each piece alone at rank 5, on the craft it is for (the Wayfarer's on fishing): how much it adds. */
+export function pieceTable(tier = 5): { id: GearId; craft: string; gain: number }[] {
+  const out: { id: GearId; craft: string; gain: number }[] = [];
+  for (const family of GEAR_FAMILIES) {
+    const craft = family === "angler" ? "fish" : family === "forester" ? "wood" : family === "prospector" ? "ore" : "fish";
+    const base = withGear(craft, tier, NO_GEAR);
+    for (const id of gearOfFamily(family)) out.push({ id, craft, gain: withGear(craft, tier, wearing([id], 5)) / base - 1 });
+  }
   return out;
 }
 
@@ -445,6 +594,14 @@ if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/economy-sim.ts")) {
   console.log(pad("wood", 10), sl.wood.map((v, i) => pad(off(v, TARGETS.wood[i]), 13)).join(""));
   console.log(pad("ore", 10), sl.ore.map((v, i) => pad(off(v, TARGETS.ore[i]), 13)).join(""));
   console.log(pad("cenote", 10), sl.cenote.map((v, i) => pad(`${v.toFixed(0)} (x${(v / sl.river[i]).toFixed(2)})`, 13)).join(""));
+  if (process.argv.includes("--gear")) {
+    const pctOf = (v: number, b: number) => `${v.toFixed(0)} (${v >= b ? "+" : ""}${Math.round((v / b - 1) * 100)}%)`;
+    console.log("\nThe gear (coins a minute as sold; each craft at its usual spot):");
+    console.log(pad("craft", 6), pad("tier", 5), pad("bare", 6), pad("set R1", 12), pad("set R3", 12), pad("set R5", 12), pad("Wayfarer R5", 13), pad("2 rings", 12), pad("worn at tier", 13), "rings");
+    for (const g of gearTable()) console.log(pad(g.craft, 6), pad("T" + g.tier, 5), pad(g.base.toFixed(0), 6), pad(pctOf(g.rank1, g.base), 12), pad(pctOf(g.rank3, g.base), 12), pad(pctOf(g.rank5, g.base), 12), pad(pctOf(g.wayfarer, g.base), 13), pad(pctOf(g.rings, g.base), 12), pad(pctOf(g.all, g.base), 13), g.ringsWorn);
+    console.log("\nEach piece alone at rank 5, on a T5 tool:");
+    for (const p of pieceTable()) console.log(pad(GEAR[p.id].name, 20), pad(p.craft, 6), `${p.gain >= 0 ? "+" : ""}${(p.gain * 100).toFixed(1)}%`);
+  }
   console.log("\nMinutes of play to afford the next tool (at the income of the tier before it):");
   const rows: [string, number[], number[]][] = [["rod", TOOL_PRICES.rod, lad.riverFish], ["axe", TOOL_PRICES.axe, lad.wood], ["pickaxe", TOOL_PRICES.pickaxe, lad.ore]];
   for (const [name, prices, income] of rows) {

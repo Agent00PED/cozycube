@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { CENOTE_OVER_RIVER, ladder, miner, simulate, soldLadder, soloMarket, TARGETS, TOOL_MINUTES, TOOL_PRICES } from "../scripts/economy-sim";
+import { CENOTE_OVER_RIVER, GEAR_BUDGET, gearTable, ladder, miner, pieceTable, simulate, soldLadder, soloMarket, TARGETS, TOOL_MINUTES, TOOL_PRICES } from "../scripts/economy-sim";
 import { CARRIER_PRICES, CREEL_PRICES } from "../shared/economy";
 import { FORGED_TOOLS, FORGED_TOOL_IDS, forgedBlocked, forgedOwned, grantForged, makingsMissing, spendMakings } from "../shared/expedition";
 import { FISH, sanitizeFishingProfile } from "../shared/fishing";
@@ -158,4 +158,15 @@ test("the Expedition Licence: coins, cedar and rare fish, the smallest unlocked 
   // the two one-star rares and the two-star one: never the locked salmon, the minnow or the three-star salmon
   assert.deepEqual(licenceSlots(p).sort(), [3, 4, 5]);
   assert.equal(licenceProgress(sanitizeFishingProfile({ v: PROFILE_VERSION }), 99999).ready, false);
+});
+
+test("the gear's budget: a full kit at its tier adds less than a tool tier, and no one piece carries it", () => {
+  for (const g of gearTable([3, 5])) {
+    const all = g.all / g.base - 1;
+    assert.ok(all >= GEAR_BUDGET.kit[0] && all <= GEAR_BUDGET.kit[1], `${g.craft} T${g.tier}: the kit worn at its tier adds ${Math.round(all * 100)}%`);
+    assert.ok(g.rank5 / g.base - 1 <= GEAR_BUDGET.set, `${g.craft} T${g.tier}: the set at rank 5 adds ${Math.round((g.rank5 / g.base - 1) * 100)}%`);
+    assert.ok(g.rings / g.base - 1 <= GEAR_BUDGET.rings, `${g.craft} T${g.tier}: two rings add ${Math.round((g.rings / g.base - 1) * 100)}%`);
+    assert.ok(g.rank1 <= g.rank3 * 1.03 && g.rank3 <= g.rank5 * 1.03, `${g.craft} T${g.tier}: a higher rank never earns less`);
+  }
+  for (const p of pieceTable()) assert.ok(p.gain <= GEAR_BUDGET.piece && p.gain >= -0.05, `${p.id} alone at rank 5 adds ${(p.gain * 100).toFixed(1)}%`);
 });

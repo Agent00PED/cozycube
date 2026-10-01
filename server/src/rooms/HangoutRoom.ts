@@ -29,7 +29,6 @@ import {
   colossalShare,
   consumableSave,
   dryadChance,
-  feltRingSlow,
   gearOfFamily,
   gearPace,
   gearRareLuck,
@@ -2663,7 +2662,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const wax = profile && buffOn(profile, "wax") ? WAX_GOLD - 1 : 0;
     const sap = profile && buffOn(profile, "sap") ? SAP_SLOW : 0;
     const knotProof = !!profile && (AXES[profile.axe].tier >= 5 || profile.tools.includes("wedge_mallet"));
-    const swing = rollFellSwing(node.id, this.kindOf(node), tree.dmg + 1, tree.rounds, profile?.axe ?? "rusty", Math.random, { goldBonus: goldBonus(worn) + wax, zoneBonus: eagle, slowBonus: feltRingSlow(worn) + sap, colossal: node.titan, knotProof });
+    const swing = rollFellSwing(node.id, this.kindOf(node), tree.dmg + 1, tree.rounds, profile?.axe ?? "rusty", Math.random, { goldBonus: goldBonus(worn) + wax, zoneBonus: eagle, slowBonus: sap, colossal: node.titan, knotProof });
     this.fells.set(client.sessionId, { tree: node.id, swing, startedAt: Date.now() + pauseS * 1000 });
     client.send("fellSwing", { ...swing, pause: pauseS });
   }

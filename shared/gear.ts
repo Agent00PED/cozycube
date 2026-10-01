@@ -6,6 +6,10 @@
 //   strength   a piece's main trait grows with its rank (STRENGTH: 5 / 8 / 12 / 16 / 20%); at rank 3 it
 //              gains a second trait
 //   sets       two worn pieces of a family, and all four, each give the family's set bonus
+//   budget     what the gear may add to a minute's income is held by the simulator (scripts/economy-sim.ts
+//              GEAR_BUDGET: a full kit at its tier under a tool tier's step; no piece a trap), which is
+//              why the traits that earn directly (rare luck, heft, regrowth, by-products, geodes, the
+//              rings' Luck, Bounty and Fortune) run at half their rank's strength or less
 //   a rank     is earned, never bought (RANK_STEPS): attunement (worn while its craft is done by hand,
 //              counted in seconds of active play), from rank 3 a trial (one deed, of two on offer, done
 //              wearing a piece of the family), the makings, and a small fee, paid where the work is
@@ -95,18 +99,18 @@ export const GEAR: Record<GearId, Gear> = {
   // the Angler's
   ang_gloves: { name: "Wader Gloves", emoji: "🧤", slot: "hands", family: "angler", main: (r) => `The line's tension builds ${pct(STRENGTH[r])} slower`, trait: "+0.2 s tension window" },
   ang_holster: { name: "Tackle Holster", emoji: "🎒", slot: "waist", family: "angler", main: (r) => `+${HOLSTER_SLOTS[r]} livewell slots`, trait: "Bait lasts 20% longer" },
-  ang_bell: { name: "Lucky Bell", emoji: "🔔", slot: "charm", family: "angler", main: (r) => `Rare fish ${pct(STRENGTH[r])} likelier`, trait: "Chimes 30 s before a King-Size Surge, and its catches are King Size 5 in 10" },
-  ang_creel: { name: "Creel Pack", emoji: "🧺", slot: "back", family: "angler", main: (r) => `Fish ${pct(STRENGTH[r])} heavier (worth more)`, trait: "+15% chance of a ★★★ fish" },
+  ang_bell: { name: "Lucky Bell", emoji: "🔔", slot: "charm", family: "angler", main: (r) => `Rare fish ${pct(STRENGTH[r] / 2)} likelier`, trait: "Chimes 30 s before a King-Size Surge, and its catches are King Size 5 in 10" },
+  ang_creel: { name: "Creel Pack", emoji: "🧺", slot: "back", family: "angler", main: (r) => `Fish ${pct(STRENGTH[r] / 2)} heavier (worth more)`, trait: "+8% chance of a ★★★ fish" },
   // the Forester's
-  for_gloves: { name: "Felling Gloves", emoji: "🧤", slot: "hands", family: "forester", main: (r) => `The felling ring closes ${pct(STRENGTH[r])} slower`, trait: "A 10% chance of a bonus log a round" },
+  for_gloves: { name: "Felling Gloves", emoji: "🧤", slot: "hands", family: "forester", main: (r) => `A ${pct(STRENGTH[r] / 2)} chance of a bonus log a round`, trait: "The gold sweet spot 15% wider" },
   for_belt: { name: "Toolbelt", emoji: "🪢", slot: "waist", family: "forester", main: (r) => `+${BELT_SLOTS[r]} carrier slots`, trait: "+50% Firewood from every log you split" },
-  for_sprout: { name: "Dryad's Sprout", emoji: "🌱", slot: "charm", family: "forester", main: (r) => `Trees you fell grow back ${pct(STRENGTH[r])} sooner`, trait: "A 15% chance a tree grows +0.15x as you start on it" },
-  for_frame: { name: "Timber Frame", emoji: "🪵", slot: "back", family: "forester", main: (r) => `A log round sheds its by-product too, ${pct(STRENGTH[r])} of the time`, trait: "The gold sweet spot 15% wider" },
+  for_sprout: { name: "Dryad's Sprout", emoji: "🌱", slot: "charm", family: "forester", main: (r) => `Trees you fell grow back ${pct(STRENGTH[r] / 2)} sooner`, trait: "A 15% chance a tree grows +0.15x as you start on it" },
+  for_frame: { name: "Timber Frame", emoji: "🪵", slot: "back", family: "forester", main: (r) => `A log round sheds its by-product too, ${pct(STRENGTH[r] / 2)} of the time`, trait: "+4 carrier slots" },
   // the Prospector's
   pro_guards: { name: "Knuckle Guards", emoji: "✊", slot: "hands", family: "prospector", main: (r) => `Your pickaxe swings ${pct(STRENGTH[r])} quicker`, trait: "The vein chase's window 0.4 s longer" },
   pro_strap: { name: "Satchel Strap", emoji: "🧷", slot: "waist", family: "prospector", main: (r) => `+${STRAP_SLOTS[r]} satchel slots`, trait: "+50% Fine Stone Dust" },
   pro_lodestone: { name: "Lodestone Pendant", emoji: "🧲", slot: "charm", family: "prospector", main: (r) => `The weak spot's sweet radius ${pct(STRENGTH[r])} wider`, trait: "A Lucky Glint pops one more ore" },
-  pro_lamp: { name: "Lamp Pack", emoji: "🏮", slot: "back", family: "prospector", main: (r) => `Geodes ${pct(STRENGTH[r] / 2)} likelier off iron, silver and glimmer`, trait: "A brighter glow round you in the dark zones" },
+  pro_lamp: { name: "Lamp Pack", emoji: "🏮", slot: "back", family: "prospector", main: (r) => `Geodes ${pct(STRENGTH[r] / 4)} likelier off iron, silver and glimmer`, trait: "A brighter glow round you in the dark zones" },
   // the Wayfarer's
   way_mitts: { name: "Trader's Mitts", emoji: "🤝", slot: "hands", family: "wayfarer", main: (r) => `Every keeper pays ${pct(MITTS_PAY[r])} more`, trait: "The next hour's best price is shown at every counter" },
   way_sash: { name: "Traveller's Sash", emoji: "🎗️", slot: "waist", family: "wayfarer", main: (r) => `+${pct(SASH_PACE[r])} walking pace`, trait: "Wading no longer slows you" },
@@ -127,7 +131,7 @@ export const familyOfDiscipline = (disc: GearDiscipline) => FAMILY_OF_DISC[disc]
 export const SET_BONUS: Record<GearFamily, { two: string; four: string }> = {
   angler: { two: "Bites 10% sooner", four: "A boss fish's fake runs are telegraphed 0.15 s earlier" },
   forester: { two: "Once a tree, a miss still deepens the notch", four: "Your share of a Colossal x1.25, and its way and distance under the header" },
-  prospector: { two: "The Perfect window 25% wider", four: "A Clean Break's bonus 35% (from 25%)" },
+  prospector: { two: "The Perfect window 15% wider", four: "A Clean Break's bonus 30% (from 25%)" },
   wayfarer: { two: "+5% walking pace", four: "Every keeper pays you in full (no buying ceiling)" },
 };
 
@@ -152,10 +156,10 @@ export const RING_BANDS: Record<RingBand, { name: string; strength: number; ore:
 };
 /** A gem: what the ring does, at its band's strength, for whichever craft is in hand. */
 export const RING_GEMS: Record<RingGem, { name: string; emoji: string; power: string; does: (s: number) => string }> = {
-  amethyst: { name: "Amethyst", emoji: "🟣", power: "Luck", does: (s) => `Rare fish and by-products ${pct(s)} likelier, geodes ${pct(s / 2)}` },
-  topaz: { name: "Topaz", emoji: "🟡", power: "Tempo", does: (s) => `Bites ${pct(s)} sooner, the felling ring ${pct(s)} slower, the pickaxe ${pct(s)} quicker` },
-  opal: { name: "Opal", emoji: "⚪", power: "Bounty", does: (s) => `A ${pct(s)} chance of one more log or ore, and fish ${pct(s)} heavier` },
-  star_shard: { name: "Star Shard", emoji: "🌟", power: "Fortune", does: (s) => `Masterwork carvings ${pct(s)} likelier, King Size fish ${pct(s / 4)} likelier (one Star Shard ring at a time)` },
+  amethyst: { name: "Amethyst", emoji: "🟣", power: "Luck", does: (s) => `Rare fish and by-products ${pct(s / 2)} likelier, geodes ${pct(s / 4)}` },
+  topaz: { name: "Topaz", emoji: "🟡", power: "Tempo", does: (s) => `Bites ${pct(s / 2)} sooner, your trees grow back ${pct(s / 2)} sooner, the pickaxe ${pct(s)} quicker` },
+  opal: { name: "Opal", emoji: "⚪", power: "Bounty", does: (s) => `A ${pct(s / 2)} chance of one more log or ore, and fish ${pct(s / 2)} heavier` },
+  star_shard: { name: "Star Shard", emoji: "🌟", power: "Fortune", does: (s) => `Masterwork carvings ${pct(s)} likelier, King Size fish ${(s * 12.5).toFixed(1)}% likelier (one Star Shard ring at a time)` },
 };
 export const RING_BAND_IDS = Object.keys(RING_BANDS) as RingBand[];
 export const RING_GEM_IDS = Object.keys(RING_GEMS) as RingGem[];
@@ -201,8 +205,8 @@ export function gemPower(l: Loadout, gem: RingGem): number {
 /** Bounty: the chance of one more of a rock's own ore as it breaks. Fortune: a King Size this much
  *  likelier on a hand-reeled catch, a Masterwork this much likelier off the workbench. (Luck, Tempo and
  *  Bounty's other halves ride in the effects below.) */
-export const bonusOreChance = (l: Loadout) => gemPower(l, "opal");
-export const kingBonus = (l: Loadout) => gemPower(l, "star_shard") / 4;
+export const bonusOreChance = (l: Loadout) => gemPower(l, "opal") / 2;
+export const kingBonus = (l: Loadout) => gemPower(l, "star_shard") / 8;
 export const masterworkBonus = (l: Loadout) => gemPower(l, "star_shard");
 export const NO_GEAR: Loadout = { worn: [], gearRank: {} };
 
@@ -255,35 +259,36 @@ export const livewellBonus = (l: Loadout) => HOLSTER_SLOTS[wornRank(l, "ang_hols
 export const baitSaveChance = (l: Loadout) => (trait(l, "ang_holster") ? 1 - 1 / 1.2 : 0);
 /** The Lucky Bell: rare luck; from rank 3, its warning ahead of a surge (s) and a surge's King Size
  *  chance with it. */
-export const gearRareLuck = (l: Loadout) => strength(l, "ang_bell") + gemPower(l, "amethyst");
+export const gearRareLuck = (l: Loadout) => strength(l, "ang_bell") / 2 + gemPower(l, "amethyst") / 2;
 export const hasLuckyBell = (l: Loadout) => trait(l, "ang_bell");
 export const LUCKY_BELL_WARN_S = 30;
 export const LUCKY_BELL_KING = 0.5;
 /** The Creel Pack: every fish this much heavier; from rank 3, a gold star this much likelier. */
-export const heftBonus = (l: Loadout) => strength(l, "ang_creel") + gemPower(l, "opal");
-export const goldStarBonus = (l: Loadout) => (trait(l, "ang_creel") ? 0.15 : 0);
+export const heftBonus = (l: Loadout) => strength(l, "ang_creel") / 2 + gemPower(l, "opal") / 2;
+export const goldStarBonus = (l: Loadout) => (trait(l, "ang_creel") ? 0.08 : 0);
 /** The Angler's set: two, bites (and an AFK line's waits) this much sooner; four, a boss's fake runs
  *  telegraphed this much earlier (s). */
-export const biteHaste = (l: Loadout) => (two(l, "angler") ? 1.1 : 1) * (1 + gemPower(l, "topaz"));
+export const biteHaste = (l: Loadout) => (two(l, "angler") ? 1.1 : 1) * (1 + gemPower(l, "topaz") / 2);
 export const bossTelegraphBonus = (l: Loadout) => (four(l, "angler") ? 0.15 : 0);
 
 // the Forester's
-/** The Felling Gloves: the felling ring's contraction this much slower; from rank 3, a round's chance
- *  of a second log. */
-export const feltRingSlow = (l: Loadout) => strength(l, "for_gloves") + gemPower(l, "topaz");
-export const bonusLogChance = (l: Loadout) => (trait(l, "for_gloves") ? 0.1 : 0) + gemPower(l, "opal");
-/** The Toolbelt (and the Explorer's Pack): more carrier slots; from rank 3, more Firewood from a split. */
-export const carrierBonus = (l: Loadout) => BELT_SLOTS[wornRank(l, "for_belt")] + PACK_SLOTS[wornRank(l, "way_pack")];
+/** The Felling Gloves: a round's chance of a second log; from rank 3, the gold sweet spot this much
+ *  wider. (Nothing the gear does slows the felling ring: a slower ring is missed less but takes
+ *  longer, and the simulator showed it costing a steady hand its income.) */
+export const bonusLogChance = (l: Loadout) => strength(l, "for_gloves") / 2 + gemPower(l, "opal") / 2;
+export const goldBonus = (l: Loadout) => (trait(l, "for_gloves") ? 0.15 : 0);
+/** The Toolbelt (and the Explorer's Pack; the Timber Frame from rank 3): more carrier slots; the belt,
+ *  from rank 3, more Firewood from a split. */
+export const carrierBonus = (l: Loadout) => BELT_SLOTS[wornRank(l, "for_belt")] + PACK_SLOTS[wornRank(l, "way_pack")] + (trait(l, "for_frame") ? 4 : 0);
 export const splitYield = (l: Loadout) => (trait(l, "for_belt") ? 1.5 : 1);
-/** The Dryad's Sprout: a tree its wearer fells starts this far back toward grown; from rank 3, the
- *  chance a tree grows as you start on it (by DRYAD_GROWTH). */
-export const quickRegrow = (l: Loadout) => strength(l, "for_sprout");
+/** The Dryad's Sprout (and a Topaz ring's Tempo): a tree its wearer fells starts this far back toward
+ *  grown; the sprout, from rank 3, the chance a tree grows as you start on it (by DRYAD_GROWTH). */
+export const quickRegrow = (l: Loadout) => strength(l, "for_sprout") / 2 + gemPower(l, "topaz") / 2;
 export const dryadChance = (l: Loadout) => (trait(l, "for_sprout") ? 0.15 : 0);
 export const DRYAD_GROWTH = 0.15;
-/** The Timber Frame: a round that drops a log also sheds its tree's by-product this often; from rank
- *  3, the gold sweet spot this much wider. */
-export const byproductBonus = (l: Loadout) => strength(l, "for_frame") + gemPower(l, "amethyst");
-export const goldBonus = (l: Loadout) => (trait(l, "for_frame") ? 0.15 : 0);
+/** The Timber Frame (and an Amethyst ring's Luck): a round that drops a log also sheds its tree's
+ *  by-product this often. */
+export const byproductBonus = (l: Loadout) => strength(l, "for_frame") / 2 + gemPower(l, "amethyst") / 2;
 /** The Forester's set: two, once a tree a miss still deepens the notch (it drops nothing); four, a
  *  Colossal's rounds count this much more toward the share, and its pulse shows (its way and distance). */
 export const missDeepensOnce = (l: Loadout) => two(l, "forester");
@@ -304,11 +309,11 @@ export const lodestoneSweet = (l: Loadout) => strength(l, "pro_lodestone");
 export const glintBonus = (l: Loadout) => (trait(l, "pro_lodestone") ? 1 : 0);
 /** The Lamp Pack: a Mystery Geode this much likelier off an iron, silver or glimmer node; from rank 3,
  *  the glow round its wearer in the dark zones this much brighter. */
-export const geodeFind = (l: Loadout) => strength(l, "pro_lamp") / 2 + gemPower(l, "amethyst") / 2;
+export const geodeFind = (l: Loadout) => strength(l, "pro_lamp") / 4 + gemPower(l, "amethyst") / 4;
 export const lampGlow = (l: Loadout) => (trait(l, "pro_lamp") ? 1.4 : 1);
 /** The Prospector's set: two, the Perfect window this much wider; four, a Clean Break's bonus. */
-export const perfectWindow = (l: Loadout) => (two(l, "prospector") ? 1.25 : 1);
-export const cleanBreakBonus = (l: Loadout, plain: number) => (four(l, "prospector") ? 1.35 : plain);
+export const perfectWindow = (l: Loadout) => (two(l, "prospector") ? 1.15 : 1);
+export const cleanBreakBonus = (l: Loadout, plain: number) => (four(l, "prospector") ? 1.3 : plain);
 
 // the Wayfarer's
 /** The Trader's Mitts: every sale this much more; from rank 3, the next hour's best price at every
