@@ -3,7 +3,7 @@ import { LOFT_OBSTACLES, LOFT_SPAWNS, NAV_LIMIT } from "./worlds/lounge";
 import { CAMP_OBSTACLES, CAMP_SPAWNS, campFloorY } from "./worlds/campfire";
 import { CASINO_OBSTACLES, CASINO_REGIONS, CASINO_SPAWNS, casinoFloorY } from "./worlds/casino";
 import { VIP_ARRIVAL, VIP_OBSTACLES, VIP_REGION } from "./worlds/casino_vip";
-import { FOREST_OBSTACLES, FOREST_SPAWNS } from "./worlds/forest";
+import { FOREST_OBSTACLES, FOREST_SPAWNS, forestFloorY } from "./worlds/forest";
 import { RING_FLOOR_Y, RING_OBSTACLES, RING_SPAWNS, onRing } from "./worlds/boxing_ring";
 import { CAVERNS_OBSTACLES, CAVERNS_SPAWNS, cavernsBlocked, cavernsFloorY } from "./worlds/caverns";
 
@@ -183,6 +183,7 @@ export function walkY(mapId: MapId, x: number, z: number): number {
   if (mapId === "glimmering_caverns") return cavernsFloorY(x, z);
   if (mapId === "boxing_ring") return onRing(x, z) ? RING_FLOOR_Y : 0;
   if (mapId === "campfire_night") return campFloorY(x, z);
+  if (mapId === "whispering_woods") return forestFloorY(x, z);
   return 0;
 }
 

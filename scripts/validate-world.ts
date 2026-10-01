@@ -89,7 +89,8 @@ import { WORLDS } from "../shared/worlds/index";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVE_WINCH, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, WINCH_REACH, WINCH_RIDE_S, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, HEARTH_SEATS, PHOTO_SPOT, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope, RAFT, raftAt, streamCast, STREAM_REACHES, cavernsSurface, SURFACE, STEEPEST_STEP } from "../shared/worlds/caverns";
 import { readFileSync, existsSync } from "node:fs";
 import { CAVERNS_TERRAIN_PATH, cavernsTerrainText } from "./caverns-terrain";
-import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../shared/worlds/forest";
+import { BRAMBLE_FRONT, FINLEY_FRONT, FOREST_ADIT_FRONT, FOREST_FISHING, FOREST_LAYOUT, FOREST_TREES, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_ARRIVAL, WOODS_FROM_CAVERNS, forestFloorY, forestLand } from "../shared/worlds/forest";
+import { FOREST_TERRAIN_PATH, forestTerrainText } from "./forest-terrain";
 import { BAG_BOXER, REF_APRON, REF_HOME, RING_CROWD, TRAINEE, CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, JIMMY, JIMMY_FRONT, JIMMY_REACH, NEUTRAL_CORNERS, RING, RING_BENCH_FRONT, RING_CORNERS, RING_FANS, RING_SEATS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
 
 const failures: string[] = [];
@@ -588,6 +589,88 @@ for (const mapId of MAP_IDS) {
     checks++;
     const s_ = walkS(to);
     if (!(s_ <= 10)) fail(`${F}: ${label} is a ${s_.toFixed(1)} s walk from the hearth (at most 10)`);
+  }
+}
+
+// --- the Whispering Woods' hillside (docs/woods-design.md): the builder's grid in step with the
+// layout, nothing walked steeper than the walk's limit, what is built standing on level ground, each
+// tier's trees higher up than the last, and the walks that the income rests on ---
+{
+  const W: MapId = "whispering_woods";
+  const FL = FOREST_LAYOUT;
+  checks++;
+  if (!existsSync(FOREST_TERRAIN_PATH) || readFileSync(FOREST_TERRAIN_PATH, "utf8").replace(/\r\n/g, "\n") !== forestTerrainText()) fail(`${W}: scripts/blender/data/forest_terrain.json is stale: run npm run forest-terrain, then rebuild forest.glb`);
+  const STEEPEST = 24;
+  let worst = 0;
+  let worstAt = { x: 0, z: 0 };
+  const lim = worldLimit(W);
+  for (let x = -lim; x <= lim; x += 0.25)
+    for (let z = -lim; z <= lim; z += 0.25) {
+      const rise = Math.max(Math.abs(forestLand(x + 0.25, z) - forestLand(x - 0.25, z)), Math.abs(forestLand(x, z + 0.25) - forestLand(x, z - 0.25)));
+      const deg = (Math.atan2(rise, 0.5) * 180) / Math.PI;
+      if (deg > worst) (worst = deg), (worstAt = { x, z });
+    }
+  checks++;
+  if (worst > STEEPEST) fail(`${W}: the ground is ${worst.toFixed(1)} degrees steep at ${fmt(worstAt)} (at most ${STEEPEST})`);
+  const level = (label: string, at: Point, r: number, tol = 0.06) => {
+    checks++;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let k = 0; k < 8; k++) {
+      const h = forestLand(at.x + Math.cos((k * Math.PI) / 4) * r, at.z + Math.sin((k * Math.PI) / 4) * r);
+      lo = Math.min(lo, h);
+      hi = Math.max(hi, h);
+    }
+    if (hi - lo > tol) fail(`${W}: ${label} at ${fmt(at)} stands on a slope (${(hi - lo).toFixed(2)} m across it)`);
+  };
+  level("Bramble's cabin", FL.cabin, 2.0, 0.001);
+  level("Bramble's counter", FL.counter, 1.2, 0.001);
+  level("the advanced workbench", FL.workbench, 1.0, 0.001);
+  level("the shrine's ring", FL.shrine, FL.shrine.r + 0.2);
+  level("the Mine Ledge", { x: FL.adit.x + 1.6, z: FL.adit.z }, 1.6);
+  level("Old Flint", OLD_FLINT, 0.6);
+  level("Finley's boulder", FL.finley, 0.6, 0.001);
+  level("the archway", FL.archway, 1.2, 0.001);
+  // depth is progress: each tier's trees stand, on average, higher up the hill than the last
+  const meanY = (kind: string) => {
+    const ts = FOREST_TREES.filter((t) => t.kind === kind);
+    return ts.reduce((a, t) => a + forestLand(t.x, t.z), 0) / ts.length;
+  };
+  const tiers = ["soft_pine", "birch", "maple", "elderwood"].map(meanY);
+  for (let k = 0; k + 1 < tiers.length; k++) {
+    checks++;
+    if (!(tiers[k + 1] > tiers[k])) fail(`${W}: tier ${k + 2}'s trees (${tiers[k + 1].toFixed(2)} m) stand no higher than the tier before (${tiers[k].toFixed(2)} m)`);
+  }
+  // every tree is felled from the land (never the river's bank), every angler stands dry
+  for (const t of FOREST_TREES) {
+    checks++;
+    if (Math.abs(forestFloorY(t.approachX, t.approachZ) - forestLand(t.approachX, t.approachZ)) > 0.05) fail(`${W}: ${t.id} is felled from the river's bank ${fmt({ x: t.approachX, z: t.approachZ })}`);
+  }
+  for (const f of FOREST_FISHING) {
+    checks++;
+    if (forestFloorY(f.stand.x, f.stand.z) < forestLand(f.stand.x, f.stand.z) - 0.05) fail(`${W}: the fishing spot ${f.propId} stands in the river's channel ${fmt(f.stand)}`);
+  }
+  // the walks: the keepers from the arrival, and the angler's from the first spot to Finley
+  const walkS = (from: Point, to: Point) => {
+    const path = findPath(W, from, to);
+    if (!path) return Infinity;
+    let d = 0;
+    let at: Point = from;
+    for (const p of path) {
+      d += Math.hypot(p.x - at.x, p.z - at.z);
+      at = p;
+    }
+    return d / 3;
+  };
+  for (const [label, from, to, limit] of [
+    ["Bramble from the arrival", WOODS_ARRIVAL, BRAMBLE_FRONT, 8],
+    ["Finley from the arrival", WOODS_ARRIVAL, FINLEY_FRONT, 10],
+    ["the adit from the arrival", WOODS_ARRIVAL, FOREST_ADIT_FRONT, 12],
+    ["Finley from the first fishing spot", FOREST_FISHING[0].stand, FINLEY_FRONT, 3.5],
+  ] as const) {
+    checks++;
+    const s_ = walkS(from, to);
+    if (!(s_ <= limit)) fail(`${W}: ${label} is a ${s_.toFixed(1)} s walk (at most ${limit})`);
   }
 }
 

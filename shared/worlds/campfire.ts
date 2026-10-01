@@ -2,6 +2,7 @@ import type { AABB } from "../collision";
 import { CUSHIONS, napPose } from "../seats";
 import type { SeatStyle } from "../types";
 import type { PropSpec, SeatSpec } from "./lounge";
+import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 
 // The Starlight Campfire (docs/campfire-design.md): a floating island of forest soil and moss, 28 m
 // across, on gentle ground: the Hearth in the middle (the bonfire in its horseshoe of log benches, on
@@ -302,12 +303,6 @@ export function riverSpan(z: number): { x0: number; x1: number } | null {
 // the tipi's shoulder, two low swells) and the north terrace, blended where they meet; nothing
 // steeper than about 23 degrees. The hearth, the dock and the meadow's furniture stand on the flat.
 
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-const smoothstep = (a: number, b: number, v: number) => {
-  const t = clamp01((v - a) / (b - a));
-  return t * t * (3 - 2 * t);
-};
-
 /** The ground's height at (x, z), the river's channel not cut in: where things stand. */
 export function campLand(x: number, z: number): number {
   const T = L.terrain;
@@ -315,7 +310,7 @@ export function campLand(x: number, z: number): number {
   // flat ground stays exactly flat)
   let sum = 0;
   for (const m of T.mounds) {
-    const h = m.top * (1 - smoothstep(m.flat, m.flat + m.skirt, Math.hypot(x - m.x, z - m.z)));
+    const h = moundAt(m, x, z);
     sum += h * h * h * h;
   }
   const t = T.terrace;
@@ -335,39 +330,12 @@ export function campHeight(x: number, z: number): number {
   return land + (-L.river.depth - land) * smoothstep(0, L.terrain.bank, inside);
 }
 
-/** The ground's grid: campHeight (and campLand) at every corner of an n x n grid of cells over the
- *  island, row by row along z. The builder models the ground from it, each cell cut along the same
- *  diagonal campFloorY reads it by. */
-export const CAMP_GRID = (() => {
-  const n = Math.round((2 * L.half) / L.terrain.step);
-  const cell = (2 * L.half) / n;
-  const ground = new Float32Array((n + 1) * (n + 1));
-  const land = new Float32Array((n + 1) * (n + 1));
-  for (let k = 0; k <= n; k++)
-    for (let i = 0; i <= n; i++) {
-      const x = -L.half + i * cell;
-      const z = -L.half + k * cell;
-      ground[k * (n + 1) + i] = Math.round(campHeight(x, z) * 1e4) / 1e4;
-      land[k * (n + 1) + i] = Math.round(campLand(x, z) * 1e4) / 1e4;
-    }
-  return { n, cell, ground, land };
-})();
+/** The ground's grid (shared/terrain.ts): campHeight (and campLand) at every corner of its cells.
+ *  The builder models the ground from it, each cell cut along the same diagonal campGroundY reads it by. */
+export const CAMP_GRID = makeGrid(L.half, L.terrain.step, campHeight, campLand);
 
-/** The drawn ground's height at (x, z): the grid's own triangles (each cell cut from its (-x, -z)
- *  corner to its (+x, +z) one). */
-export function campGroundY(x: number, z: number): number {
-  const { n, cell, ground } = CAMP_GRID;
-  const u = Math.max(0, Math.min(n - 1e-6, (x + L.half) / cell));
-  const v = Math.max(0, Math.min(n - 1e-6, (z + L.half) / cell));
-  const i = Math.floor(u);
-  const k = Math.floor(v);
-  const fu = u - i;
-  const fv = v - k;
-  const at = (a: number, b: number) => ground[b * (n + 1) + a];
-  const h00 = at(i, k);
-  const h11 = at(i + 1, k + 1);
-  return fu >= fv ? h00 + (at(i + 1, k) - h00) * fu + (h11 - at(i + 1, k)) * fv : h00 + (h11 - at(i, k + 1)) * fu + (at(i, k + 1) - h00) * fv;
-}
+/** The drawn ground's height at (x, z): the grid's own triangles. */
+export const campGroundY = (x: number, z: number): number => gridY(CAMP_GRID, CAMP_GRID.ground, x, z);
 
 /** Where feet go at (x, z): the drawn ground, and the dock's deck over the water. */
 export function campFloorY(x: number, z: number): number {
@@ -378,9 +346,7 @@ export function campFloorY(x: number, z: number): number {
 
 /** The grid for the builder (scripts/campfire-terrain.ts writes it to scripts/blender/data/
  *  campfire_terrain.json). */
-export function campTerrainData() {
-  return { half: L.half, n: CAMP_GRID.n, cell: CAMP_GRID.cell, ground: Array.from(CAMP_GRID.ground, (v) => Math.round(v * 1e4) / 1e4), land: Array.from(CAMP_GRID.land, (v) => Math.round(v * 1e4) / 1e4) };
-}
+export const campTerrainData = () => gridData(CAMP_GRID);
 
 const RIVER_FIRST = L.river.points[0];
 const RIVER_LAST = L.river.points[L.river.points.length - 1];

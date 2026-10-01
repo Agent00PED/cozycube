@@ -1,6 +1,7 @@
-# The Whispering Woods: expansion design (proposal)
+# The Whispering Woods: expansion design
 
-Status: **proposal, not approved**. Nothing in this document is built.
+Status: **approved 2026-10-02** with the recommended answers, and **built** (patch 0.7.44). What was
+measured, and where the build moved from this plan, is at the foot of this document.
 
 The layout lives in `shared/worlds/forest.ts` (`FOREST_LAYOUT`), the model in
 `scripts/blender/build_forest.py`, the trees you fell in `trees.glb`, the checks in
@@ -101,7 +102,26 @@ post and the ledge.
 5. Dressing zone by zone, checked in the browser by day and by night.
 6. The full verification, the patch notes.
 
-## Decisions needed
+## What was built, and what moved from this plan
+
+- **Draw calls:** 109 with one player and the whole map in view (128 before); the model itself 15.
+- **Heights:** the Mine Ledge stands at 2.8 m (the plan said 3.2), the shrine's crown at 2.5 m, the
+  Glen's maples at 2.1 m: two steps' skirts may not meet where their slopes would add past 24
+  degrees, and that bounds how fast the hill can rise on a 34 m island.
+- **The groves were not rearranged into rings.** The simulator ruled it out: moving the maples 3 m
+  and the Elderwood 5.5 m up the hill alone cost a T5 woodcutter 4%. So the whole constellation of
+  trees, with Bramble's post, moved as one to the south and west of the bigger island (every walk
+  between trees as long as it was), and only the maples (1.5 m) and the Elderwood (2 m) went further
+  up. The order by tier from the arrival was already the plan's.
+- **Income:** wood T1 to T3 and the river unchanged, T4 1% under, T5 0.5% over the record. The T5
+  figure moves by 2 to 3% with a single small collider on a walk between groves (the simulator's
+  woodcutter chooses trees by walking time), so the dressing keeps off those walks.
+- **The river** leaves over the south edge (the plan said the south-east); its head pool and the
+  rock seat sit at the hill's foot in the north-east.
+- **Not built:** shafts of daylight through the canopy, and leaves drifting down in the Glen (its
+  fallen leaves lie on the ground as before).
+
+## Decisions (answered)
 
 1. **Size:** 34 m (recommended), a smaller step to 30 m, or keep 24 m and only thin the canopy.
 2. **Ground:** a walked hillside up to 3.2 m (recommended), gentler (up to 1.5 m, like the

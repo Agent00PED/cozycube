@@ -297,7 +297,7 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
       {outlineTree && <TreeOutline tree={outlineTree} scale={sizeOf(outlineTree, trees[outlineTree.id])} parts={templates.get(`${kindOf(outlineTree, trees[outlineTree.id])}:mature`) ?? []} />}
       {titans.map((t) => {
         const kind = kindOf(t, trees[t.id]);
-        return <TitanGlow key={`${t.id}:${kind}`} x={t.x} z={t.z} color={isColossalKind(kind) ? COLOSSAL[kind].fx : "#ffb347"} />;
+        return <TitanGlow key={`${t.id}:${kind}`} x={t.x} y={t.y} z={t.z} color={isColossalKind(kind) ? COLOSSAL[kind].fx : "#ffb347"} />;
       })}
     </>
   );
@@ -352,7 +352,7 @@ const MOTES = 36;
 /** A Colossal's aura, in its own colour (a Silver Birch's silver, an Ancient Cedar's moss, an Autumn
  *  Maple's gold, a Primordial Elderwood's azure): motes drifting up round its trunk and a light on
  *  the clearing. */
-function TitanGlow({ x, z, color }: { x: number; z: number; color: string }) {
+function TitanGlow({ x, y, z, color }: { x: number; y: number; z: number; color: string }) {
   const mesh = useMemo(() => {
     const mat = new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: true, opacity: 0.9, depthWrite: false });
     const m = new THREE.InstancedMesh(MOTE_GEO, mat, MOTES);
@@ -376,7 +376,7 @@ function TitanGlow({ x, z, color }: { x: number; z: number; color: string }) {
       const u = (s.p + t * s.s) % 1;
       const a = s.a + t * 0.3;
       const sc = Math.sin(u * Math.PI) * 1.1;
-      m.makeScale(sc, sc, sc).setPosition(x + Math.cos(a) * s.r, 0.3 + u * 4.2, z + Math.sin(a) * s.r);
+      m.makeScale(sc, sc, sc).setPosition(x + Math.cos(a) * s.r, y + 0.3 + u * 4.2, z + Math.sin(a) * s.r);
       mesh.setMatrixAt(i, m);
     });
     mesh.instanceMatrix.needsUpdate = true;
@@ -385,7 +385,7 @@ function TitanGlow({ x, z, color }: { x: number; z: number; color: string }) {
   return (
     <>
       <primitive object={mesh} />
-      <pointLight ref={light} color={color} distance={7} decay={1.5} position={[x, 2.2, z]} castShadow={false} />
+      <pointLight ref={light} color={color} distance={7} decay={1.5} position={[x, y + 2.2, z]} castShadow={false} />
     </>
   );
 }
