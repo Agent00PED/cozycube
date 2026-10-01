@@ -1163,7 +1163,7 @@ export default function App() {
         {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
         {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "anvil" && localPlayer && <GeodeModal profile={angler.profile} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
-        {panel?.kind === "flint" && <FlintModal first={panel.propId === "old_flint:first"} onClose={closePanel} />}
+        {panel?.kind === "flint" && localPlayer && <FlintModal first={panel.propId === "old_flint:first"} offer={panel.propId === "old_flint:offer"} profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} onClose={closePanel} />}
         {panel?.kind === "carrier" && localPlayer && <WoodCarrierModal profile={angler.profile} bag={localPlayer.bag} market={market} send={campfireSend} onClose={closePanel} onOpenCollection={() => setLogbook("timber")} />}
         {panel?.kind === "workbench" && localPlayer && <WoodCraftModal profile={angler.profile} send={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "cashier" && localPlayer && <CashierModal coins={localPlayer.coins} chips={localPlayer.chips} onBuy={buyChips} onCashOut={cashOut} vipPass={localPlayer.vipPass} wristbands={localPlayer.vipWristbands} send={casinoSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}

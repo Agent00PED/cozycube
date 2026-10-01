@@ -1,4 +1,5 @@
 import { isBlocked } from "../../../shared/collision";
+import { LICENCE, licenceProgress, licenceSlots } from "../../../shared/keepers";
 import { FORGED_TIER, FORGED_TOOLS, forgedBlocked, forgedOwned, grantForged, isForgedToolId, makingsMissing, spendMakings } from "../../../shared/expedition";
 import type { MapId } from "../../../shared/types";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAVE_ARRIVAL, CAVE_WINCH, WINCH_REACH, WINCH_RETURN_S, WINCH_RIDE_S, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, ORE_NODES, ORE_NODE_AT, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, orePropId, type OreNode, CAPYBARA, CAVE_PEARLS, FIND_REACH, JOURNAL_PAGES, PHOTO_REACH, PHOTO_SPOT, cavernsZoneAt, HEARTH, HEARTH_SEAT_IDS, RAFT, RAFT_EMPTY_S, RAFT_REACH, RAFT_RIDE_S, type RaftSide, WINCH_DOWN_S, onCauseway, cavernsFloorY, CAVE_WATER_Y } from "../../../shared/worlds/caverns";
@@ -444,15 +445,36 @@ export class CavernsMine {
     if (Math.min(Math.hypot(player.x - OLD_FLINT_FRONT.x, player.z - OLD_FLINT_FRONT.z), Math.hypot(player.x - OLD_FLINT.x, player.z - OLD_FLINT.z)) > OLD_FLINT_REACH + 1.2) return;
     const kit = this.host.profile(sessionId);
     if (!kit) return;
-    const first = !kit.caveAccess;
-    if (first) {
-      kit.caveAccess = true;
-      if (!kit.pickaxes.includes("rusted")) kit.pickaxes.push("rusted");
-      kit.pickaxeId = kit.pickaxeId || "rusted";
-      this.host.saveProfile(sessionId);
-      this.host.emote(sessionId, "⛏️");
+    // (no way down yet: his offer, the Expedition Licence and its supply list)
+    this.host.sendTo(sessionId, "openPanel", { kind: "flint", propId: kit.caveAccess ? "old_flint" : "old_flint:offer" });
+    this.host.toMap("whispering_woods", "flintWave", { sessionId });
+  }
+
+  /** The Expedition Licence, bought from Old Flint (shared/keepers.ts LICENCE): its coins, its logs out of
+   *  the carrier and its fish out of the livewell (the smallest that count, never a locked one); his
+   *  Rusted Pickaxe and the way down for good. */
+  buyLicence(sessionId: string) {
+    const player = this.host.player(sessionId);
+    const kit = this.host.profile(sessionId);
+    if (!player || !kit || player.map !== "whispering_woods") return;
+    if (Math.min(Math.hypot(player.x - OLD_FLINT_FRONT.x, player.z - OLD_FLINT_FRONT.z), Math.hypot(player.x - OLD_FLINT.x, player.z - OLD_FLINT.z)) > OLD_FLINT_REACH + 1.2) return;
+    const say = (message: string) => this.host.sendTo(sessionId, "campfireNotice", { message, emoji: "🦡" });
+    if (kit.caveAccess) return say("\"You've your licence already, young'un. Down you go!\"");
+    const at = licenceProgress(kit, player.coins);
+    if (!at.ready) {
+      const lacks = [at.coins < LICENCE.coins ? `${(LICENCE.coins - at.coins).toLocaleString("en-US")} 🪙` : "", at.logs < LICENCE.logs ? `${LICENCE.logs - at.logs} ${WOOD[LICENCE.wood].name}` : "", at.fish < LICENCE.fish ? `${LICENCE.fish - at.fish} ${LICENCE.fishTier} fish (unlocked)` : ""].filter(Boolean);
+      return say(`"Not yet, young'un: the expedition still wants ${lacks.join(", ")}."`);
     }
-    this.host.sendTo(sessionId, "openPanel", { kind: "flint", propId: first ? "old_flint:first" : "old_flint" });
+    const slots = new Set(licenceSlots(kit));
+    kit.creel = kit.creel.filter((_, i) => !slots.has(i));
+    takeLogs(kit, LICENCE.wood, LICENCE.logs);
+    this.host.addCoins(sessionId, -LICENCE.coins);
+    kit.caveAccess = true;
+    if (!kit.pickaxes.includes("rusted")) kit.pickaxes.push("rusted");
+    kit.pickaxeId = kit.pickaxeId || "rusted";
+    this.host.saveProfile(sessionId);
+    this.host.emote(sessionId, "⛏️");
+    this.host.sendTo(sessionId, "openPanel", { kind: "flint", propId: "old_flint:first" });
     this.host.toMap("whispering_woods", "flintWave", { sessionId });
   }
 

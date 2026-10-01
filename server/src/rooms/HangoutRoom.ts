@@ -58,6 +58,7 @@ import {
 import { isCampDay } from "../../../shared/daynight";
 import { BYPRODUCTS, BYPRODUCT_IDS, FIREWOOD_FUEL, TREES, WOOD_KINDS, isByproductId, regrowth, treeStage, type TreeStage, type WoodKind } from "../../../shared/chop";
 import { FELL_TREES, FELL_TREE_AT, fellReach, fellTreeOf, type FellTree } from "../../../shared/worlds/trees";
+import { FULL_PRICE_AT, fishRate, woodRate } from "../../../shared/keepers";
 import { FORGED_TIER, SHOP_TIER_CAP } from "../../../shared/expedition";
 import { ADVANCED_BENCH_MASTER, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, EAGLE_EYE_MS, EAGLE_EYE_ZONE, FIREWOOD_PER_COIN, firewoodCoins, GOLDEN_ACORN_COINS, MAX_DAY_PERMITS, PERMIT_PRICES, RAPIDS_LUCK, SLINGSHOT_PAID_ROUNDS_PER_HOUR, SLINGSHOT_PRIZES } from "../../../shared/economy";
 import { SLING_ROUND_S, playSlingshot, slingPrize, validSlingShots } from "../../../shared/slingshot";
@@ -1032,6 +1033,7 @@ export class HangoutRoom extends Room<HangoutState> {
       else if (packet?.op === "view") this.caverns.prospectView(client.sessionId, packet);
     });
     this.onMessage(CAVERNS_CHANNELS.gus, (client, packet: GusPacket) => this.caverns.gus(client.sessionId, packet));
+    this.onMessage(CAVERNS_CHANNELS.flint, (client) => this.caverns.buyLicence(client.sessionId));
     this.onMessage(CAVERNS_CHANNELS.satchel, (client, packet: SatchelPacket) => this.caverns.satchel(client.sessionId, packet));
     this.onMessage(CAVERNS_CHANNELS.recast, (client) => this.recastIntoDrip(client.sessionId));
     this.onMessage(CAVERNS_CHANNELS.cast, (client, packet: ShoreCastPacket) => this.castFromShore(client.sessionId, packet));
@@ -3864,29 +3866,34 @@ export class HangoutRoom extends Room<HangoutState> {
         // tree's size (the stack's average)
         const kind = packet.wood;
         const size = woodAverage(profile, kind);
-        const run = priceRun(Array.from({ length: n }, () => kind), woodGood, (k, mult) => woodPrice(k, mult, size), this.market());
+        // (past what this counter can afford, CEILING_RATE of the hour's price: shared/keepers.ts)
+        const rate = woodRate(atBramble ? "woods" : "campfire", kind);
+        const run = priceRun(Array.from({ length: n }, () => kind), woodGood, (k, mult) => Math.max(1, Math.round(woodPrice(k, mult, size) * rate)), this.market());
         const earned = run.total;
         this.state.market = JSON.stringify(run.after);
         profile.bestLog[kind] = Math.max(profile.bestLog[kind] ?? 0, ...run.prices);
         takeLogs(profile, kind, n);
         this.addCoins(player, earned);
         this.nearby(sessionId, "emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
-        return reply(true, `${n} ${WOOD[packet.wood].name}? Fine timber! Here's ${earned} 🪙`, earned);
+        return reply(true, rate < 1 ? `${n} ${WOOD[packet.wood].name}? Finer than my purse, pal: ${earned} 🪙 is what I can do (${FULL_PRICE_AT.wood.campfire} pays in full)` : `${n} ${WOOD[packet.wood].name}? Fine timber! Here's ${earned} 🪙`, earned);
       }
       case "sellAllWood": {
         if (!near) return tooFar();
-        const goods = WOOD_KINDS.flatMap((k) => Array.from({ length: profile.wood[k] ?? 0 }, () => k));
-        if (!goods.length) return reply(false, "Your carrier's empty of logs!");
+        const counter = atBramble ? "woods" : "campfire";
+        const full = WOOD_KINDS.filter((k) => woodRate(counter, k) === 1);
+        const kept = WOOD_KINDS.reduce((n, k) => n + (full.includes(k) ? 0 : (profile.wood[k] ?? 0)), 0);
+        const goods = full.flatMap((k) => Array.from({ length: profile.wood[k] ?? 0 }, () => k));
+        if (!goods.length) return reply(false, kept ? `Those ${kept} logs are finer than my purse: sell them one kind at a time for what I can pay, or take them to ${FULL_PRICE_AT.wood.campfire}` : "Your carrier's empty of logs!");
         const sizes = Object.fromEntries(WOOD_KINDS.map((k) => [k, woodAverage(profile, k)])) as Record<WoodKind, number>;
         const run = priceRun(goods, woodGood, (k, mult) => woodPrice(k, mult, sizes[k]), this.market());
         this.state.market = JSON.stringify(run.after);
         goods.forEach((k, i) => {
           profile.bestLog[k] = Math.max(profile.bestLog[k] ?? 0, run.prices[i]);
         });
-        for (const k of WOOD_KINDS) takeLogs(profile, k, profile.wood[k] ?? 0);
+        for (const k of full) takeLogs(profile, k, profile.wood[k] ?? 0);
         this.addCoins(player, run.total);
         this.nearby(sessionId, "emote", { sessionId, emoji: run.total >= 100 ? "💰" : "🪙" });
-        return reply(true, `${goods.length} logs, the lot! Here's ${run.total} 🪙`, run.total);
+        return reply(true, `${goods.length} logs, the lot! Here's ${run.total} 🪙${kept ? ` (your ${kept} finer logs stay with you: ${FULL_PRICE_AT.wood.campfire} pays in full)` : ""}`, run.total);
       }
       case "buyPermit": {
         // Buster's permits (at his stall, or at the archway into the woods)
@@ -4093,15 +4100,20 @@ export class HangoutRoom extends Room<HangoutState> {
         // (a locked fish never goes: Sell All passes it by, and alone it is refused)
         const one = Math.floor(Number(packet.slot));
         if (packet.slot !== "all" && profile.creel[one]?.l) return reply(false, `That ${FISH[profile.creel[one].s].name} is locked: unlock it to sell`);
-        const picked = packet.slot === "all" ? profile.creel.map((f, k) => (f.l ? -1 : k)).filter((k) => k >= 0) : [one].filter((k) => !!profile.creel[k]);
-        if (!picked.length) return reply(false, profile.creel.length ? "Every fish in there is locked: nothing to sell!" : "Your creel's empty! The river's right there 🎣");
+        // (past what this counter can afford, CEILING_RATE of the hour's price, and Sell All passes it
+        // by like a locked fish: shared/keepers.ts)
+        const counter = atFinnegan ? "caverns" : atFinley ? "woods" : "campfire";
+        const kept = packet.slot === "all" ? profile.creel.filter((f) => !f.l && fishRate(counter, f.s) < 1).length : 0;
+        const picked = packet.slot === "all" ? profile.creel.map((f, k) => (f.l || fishRate(counter, f.s) < 1 ? -1 : k)).filter((k) => k >= 0) : [one].filter((k) => !!profile.creel[k]);
+        if (!picked.length)
+          return reply(false, kept ? `Those ${kept} are too fine for my purse: sell them one by one for what I can pay, or take them to ${FULL_PRICE_AT.fish[counter]}` : profile.creel.length ? "Every fish in there is locked: nothing to sell!" : "Your creel's empty! The river's right there 🎣");
         // a roaring fire puts Barnaby in a generous mood (the Cozy Aura: +15%)
         const aura = hasCozyAura(this.state.fuel) ? 1 + COZY_AURA_LUCK : 1;
         const first = profile.creel[picked[0]];
         // one at a time at the hour's price (each sale knocks 2% off the next of its kind); the best
         // price each kind ever fetched goes in the Field Guide
         const fish = picked.map((k) => profile.creel[k]);
-        const run = priceRun(fish, (f) => fishGood(f.s), (f, mult) => Math.round(fishValue(f, mult) * aura), this.market());
+        const run = priceRun(fish, (f) => fishGood(f.s), (f, mult) => Math.max(1, Math.round(fishValue(f, mult) * aura * fishRate(counter, f.s))), this.market());
         const earned = run.total;
         fish.forEach((f, i) => {
           if (run.prices[i] > (profile.best[f.s] ?? 0)) profile.best[f.s] = run.prices[i];
@@ -4110,7 +4122,9 @@ export class HangoutRoom extends Room<HangoutState> {
         profile.creel = profile.creel.filter((_, k) => !picked.includes(k));
         this.addCoins(player, earned);
         this.nearby(sessionId, "emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
-        return reply(true, picked.length > 1 ? `${picked.length} fine fish! Here's ${earned} 🪙` : `A lovely ${FISH[first.s].name}! Here's ${earned} 🪙`, earned);
+        const more = kept ? ` (your ${kept} finer fish stay with you: ${FULL_PRICE_AT.fish[counter]} pays in full)` : "";
+        if (picked.length === 1 && fishRate(counter, first.s) < 1) return reply(true, `A ${FISH[first.s].name}! Finer than my purse, friend: ${earned} 🪙 is what I can do (${FULL_PRICE_AT.fish[counter]} pays in full)`, earned);
+        return reply(true, picked.length > 1 ? `${picked.length} fine fish! Here's ${earned} 🪙${more}` : `A lovely ${FISH[first.s].name}! Here's ${earned} 🪙${more}`, earned);
       }
       case "buyRod": {
         if (!isRodId(packet.rod)) return;

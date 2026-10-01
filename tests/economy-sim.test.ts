@@ -9,6 +9,7 @@ import { CARRIER_PRICES, CREEL_PRICES } from "../shared/economy";
 import { FORGED_TOOLS, FORGED_TOOL_IDS, forgedBlocked, forgedOwned, grantForged, makingsMissing, spendMakings } from "../shared/expedition";
 import { FISH, sanitizeFishingProfile } from "../shared/fishing";
 import { PROFILE_VERSION } from "../shared/migrate";
+import { CEILING_RATE, LICENCE, fishRate, licenceProgress, licenceSlots, woodRate } from "../shared/keepers";
 
 const lines = simulate();
 const baseline = JSON.parse(readFileSync("tests/economy-baseline.json", "utf8")) as { lines: { craft: string; tier: number; where: string; perMin: number; perMinSold: number }[] };
@@ -121,4 +122,39 @@ test("the cheaper satchels pay their owners the difference (shared/migrate.ts v6
   assert.equal(sanitizeFishingProfile({ v: 5 }).owed, 0);
   assert.equal(sanitizeFishingProfile({ v: 5 }).mail.length, 0);
   assert.equal(p.mail.length, 1);
+});
+
+test("each map's keepers pay in full only for what they can afford (docs/economy-plan.md section 7)", () => {
+  assert.equal(fishRate("campfire", "minnow"), 1);
+  assert.equal(fishRate("campfire", "smallmouth_bass"), 1);
+  assert.equal(fishRate("campfire", "salmon"), CEILING_RATE);
+  assert.equal(fishRate("woods", "golden_arowana"), 1);
+  assert.equal(fishRate("woods", "sunfire_koi"), CEILING_RATE);
+  assert.equal(fishRate("caverns", "sunfire_koi"), 1);
+  assert.equal(fishRate("caverns", "elder_olm"), 1);
+  assert.equal(woodRate("campfire", "birch"), 1);
+  assert.equal(woodRate("campfire", "cedar"), CEILING_RATE);
+  assert.equal(woodRate("woods", "elderwood"), 1);
+});
+
+test("the Expedition Licence: coins, cedar and rare fish, the smallest unlocked ones taken", () => {
+  const p = sanitizeFishingProfile({
+    v: PROFILE_VERSION,
+    creelTier: 2,
+    creel: [
+      { s: "salmon", cm: FISH.salmon.cm[1], q: 3 },
+      { s: "salmon", cm: FISH.salmon.cm[0], q: 1, l: true },
+      { s: "minnow", cm: FISH.minnow.cm[0], q: 1 },
+      { s: "golden_trout", cm: FISH.golden_trout.cm[0], q: 1 },
+      { s: "muskellunge", cm: FISH.muskellunge.cm[0], q: 2 },
+      { s: "sturgeon", cm: FISH.sturgeon.cm[0], q: 1 },
+    ],
+    wood: { cedar: LICENCE.logs },
+  });
+  assert.equal(licenceProgress(p, LICENCE.coins - 1).ready, false);
+  const at = licenceProgress(p, LICENCE.coins);
+  assert.deepEqual([at.logs, at.fish, at.ready], [LICENCE.logs, 4, true]);
+  // the two one-star rares and the two-star one: never the locked salmon, the minnow or the three-star salmon
+  assert.deepEqual(licenceSlots(p).sort(), [3, 4, 5]);
+  assert.equal(licenceProgress(sanitizeFishingProfile({ v: PROFILE_VERSION }), 99999).ready, false);
 });

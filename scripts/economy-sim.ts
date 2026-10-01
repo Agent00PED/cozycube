@@ -22,6 +22,7 @@ import { AXES, AXES_BY_TIER, TREES, rollTreeScale, woodPrice, logMultiplier } fr
 import { AXE_PRICES, BYPRODUCT_PRICES, CARRIER_CAPACITY, CREEL_CAPACITY, ORE_PRICES, PICKAXE_PRICES, TACKLE_PRICES } from "../shared/economy";
 import { OVERSUPPLY_AT, OVERSUPPLY_DROP, RECOVER_SOLD, SUPPLY_MAX } from "../shared/market";
 import { FISH, biteSeconds, fishValue, rollCatch, rollFish } from "../shared/fishing";
+import { fishRate, woodRate, type Counter } from "../shared/keepers";
 import { CHASE_MAX, CLEAN_BREAK_BONUS, GLINT_CHANCE, ORE_KINDS, PERFECT_DAMAGE, PICKAXES, chaseBonus, oreRule, rollYield, streakBonus, type OreItemId, type OreKind, type PickaxeId } from "../shared/caverns_mining";
 import { MASTERY_ORE } from "../shared/caverns_mastery";
 import { SATCHEL_TIERS, stackOf } from "../shared/satchel";
@@ -120,6 +121,9 @@ function withMarket(value: Record<string, number>, count: Record<string, number>
   return (coins / t) * 60;
 }
 
+/** The counter a map's keeper stands at. */
+const counterOf = (map: MapId): Counter => (map === "campfire_night" ? "campfire" : map === "whispering_woods" ? "woods" : "caverns");
+
 // --- the angler ----------------------------------------------------------------------------------------
 
 const WATERS = [
@@ -150,7 +154,8 @@ function angler(rodTier: number, w: (typeof WATERS)[number]): Line {
     t += biteSeconds(id, {}, rand) + (boss ? STEADY.fish.bossReelS : STEADY.fish.reelS) + STEADY.fish.betweenS;
     if (boss && rand() > STEADY.fish.landed[sp.tier]) continue;
     const fish = rollCatch(id, { rodTier }, rand);
-    const v = fishValue(fish);
+    // (sold at the water's own keeper, who pays less past what they can afford: shared/keepers.ts)
+    const v = fishValue(fish) * fishRate(counterOf(w.map), id);
     heldCoins += v;
     held++;
     sold[sp.tier] = (sold[sp.tier] ?? 0) + 1;
@@ -226,7 +231,7 @@ function woodcutter(axeTier: number, map: MapId, where: string, keeper: Pt): Lin
       if (rand() < info.logChance) {
         if (logs < cap) {
           logs++;
-          const v = woodPrice(info.wood, 1, logMultiplier(scale));
+          const v = woodPrice(info.wood, 1, logMultiplier(scale)) * woodRate(counterOf(map), info.wood);
           heldCoins += v;
           sold[info.wood] = (sold[info.wood] ?? 0) + 1;
           value[info.wood] = (value[info.wood] ?? 0) + v;

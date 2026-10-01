@@ -1,11 +1,22 @@
 import { useEffect, useMemo } from "react";
-import { PICKAXES } from "@shared/caverns_mining";
+import { CAVERNS_CHANNELS, PICKAXES } from "@shared/caverns_mining";
+import { WOOD } from "@shared/chop";
+import type { FishingProfile } from "@shared/fishing";
+import { LICENCE, licenceProgress } from "@shared/keepers";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
 
-// Old Flint the Badger, by the old mine adit behind the Whispering Woods' Autumn Maples. The first
-// time you meet him he tells you what lies below and presses his old Rusted Pickaxe into your hands:
-// from then on the adit is open to you for good. After that, a word from him (a tip, a story).
+// Old Flint the Badger, by the old mine adit behind the Whispering Woods' Autumn Maples. Until you
+// hold the Expedition Licence he makes his offer (`offer`): coins and a supply list from the other
+// two crafts (shared/keepers.ts LICENCE). When it is paid he tells you what lies below and presses
+// his old Rusted Pickaxe into your hands (`first`): from then on the adit is open to you for good.
+// After that, a word from him (a tip, a story).
+
+const OFFER = [
+  "\"Easy there, young'un. Not many find this old adit behind the maples.\"",
+  "\"There's a whole country under these roots: copper, iron, silver, a lake that glows. Gus the Mole keeps an expedition camp down there, and an expedition wants supplying.\"",
+  "\"Bring me its fee and its stores, cedar for the pit props and a few good fish for the pot, and the way down is yours for good. My old pickaxe too.\"",
+];
 
 const LORE = [
   "\"Easy there, young'un. Not many find this old adit behind the maples.\"",
@@ -22,12 +33,48 @@ const TIPS = [
   "\"Smelt your silver before you sell it. The forge pays you back for the coal twice over.\"",
 ];
 
-export function FlintModal({ first, onClose }: { first: boolean; onClose: () => void }) {
+export function FlintModal({ first, offer, profile, coins, send, onClose }: { first: boolean; offer: boolean; profile: FishingProfile; coins: number; send: (channel: string, packet?: unknown) => void; onClose: () => void }) {
   const tip = useMemo(() => TIPS[Math.floor(Math.random() * TIPS.length)], []);
   useEffect(() => {
     if (first) playSfx("chime");
   }, [first]);
   const pick = PICKAXES.rusted;
+  if (offer) {
+    const at = licenceProgress(profile, coins);
+    const lines: [string, number, number][] = [
+      ["🪙 Coins", at.coins, LICENCE.coins],
+      [`${WOOD[LICENCE.wood].emoji} ${WOOD[LICENCE.wood].name}s`, at.logs, LICENCE.logs],
+      [`🐟 ${LICENCE.fishTier[0].toUpperCase()}${LICENCE.fishTier.slice(1)} fish (unlocked)`, at.fish, LICENCE.fish],
+    ];
+    return (
+      <Modal title="Old Flint the Badger" icon="🦡" onClose={onClose} width={460}>
+        <div className="flex flex-col gap-2 pb-1 text-[13px] leading-relaxed">
+          {OFFER.map((l) => (
+            <p key={l} className="m-0">
+              {l}
+            </p>
+          ))}
+          <div className="flex flex-col gap-1 rounded-2xl border border-amber-300/50 bg-amber-300/10 px-3 py-2">
+            <b className="text-[#F7EBE1]">🧭 The Expedition Licence</b>
+            {lines.map(([label, have, need]) => (
+              <span key={label} className={`flex items-center justify-between rounded-full px-2 text-[12px] ${have >= need ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10"}`}>
+                <span>
+                  {have >= need ? "✓" : "✗"} {label}
+                </span>
+                <span className="tabular-nums">
+                  {Math.min(have, need).toLocaleString("en-US")} / {need.toLocaleString("en-US")}
+                </span>
+              </span>
+            ))}
+            <span className="text-[11px] opacity-75">Once, for good. It comes with his {pick.name}. He takes your smallest fish that count, never a locked one.</span>
+          </div>
+          <button type="button" className="clay-btn clay-btn-amber min-h-11 w-full text-sm font-extrabold" disabled={!at.ready} onClick={() => send(CAVERNS_CHANNELS.flint)}>
+            {at.ready ? "🧭 Hand over the supplies" : "Not everything yet"}
+          </button>
+        </div>
+      </Modal>
+    );
+  }
   return (
     <Modal title="Old Flint the Badger" icon="🦡" onClose={onClose} width={460}>
       <div className="flex flex-col gap-2 pb-1 text-[13px] leading-relaxed">
