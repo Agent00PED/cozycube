@@ -98,7 +98,7 @@ import { dayPhase, DAY_CYCLE_MS } from "../../../shared/daynight";
 import { nextSatchelTier, satchelAdd, satchelCount, satchelCountFor, satchelCounts, satchelHasRoom, satchelTake, satchelTakeFor, satchelTier, type SatchelTier } from "../../../shared/satchel";
 import { takeLogs, WOOD, BYPRODUCTS, type ByproductId, type WoodKind } from "../../../shared/chop";
 import { addMaterial, buffOn, materialCount, takeMaterial, type FishingProfile } from "../../../shared/fishing";
-import { chaseWindowBonus, cleanBreakBonus, dustYield, geodeFind, glintBonus, lodestoneSweet, perfectWindow, satchelBonus, sellBonus, swingHaste, type Deed } from "../../../shared/gear";
+import { RING_BANDS, RING_GEMS, bonusOreChance, isRingId, ringMakings, ringName, ringParts, wearRing, chaseWindowBonus, cleanBreakBonus, dustYield, geodeFind, glintBonus, lodestoneSweet, perfectWindow, satchelBonus, sellBonus, swingHaste, type Deed } from "../../../shared/gear";
 import { oreGood, priceRun, type MarketState } from "../../../shared/market";
 import { BYPRODUCT_PRICES } from "../../../shared/economy";
 
@@ -706,6 +706,8 @@ export class CavernsMine {
       // (their mastery of this kind: a chance of one more of its ore; the Monolith awake: a second core)
       const rankWas = masteryRank(node.kind, kit.mined[node.kind] ?? 0);
       if (Math.random() < rankWas * MASTERY_EXTRA) raw[MASTERY_ORE[node.kind]] = (raw[MASTERY_ORE[node.kind]] ?? 0) + 1;
+      // (an Opal ring's Bounty: a chance of one more again)
+      if (Math.random() < bonusOreChance(kit)) raw[MASTERY_ORE[node.kind]] = (raw[MASTERY_ORE[node.kind]] ?? 0) + 1;
       if (awake) raw.core_fragment = (raw.core_fragment ?? 0) + 1;
       // (the Deep Core Drill's perfect breaking strike: its own share twice over)
       const double = id === breaker && perfect && PICKAXES[kit.pickaxeId].shatterDouble;
@@ -777,6 +779,7 @@ export class CavernsMine {
       return this.reply(sessionId, n > 0, n > 0 ? `${n} ingot${n > 1 ? "s" : ""} off the forge's tray, into your satchel` : "No room in your satchel for the tray's ingots");
     }
     if (packet.op === "tool") return this.forgeTool(sessionId, kit, player.coins, packet.tool);
+    if (packet.op === "ring") return this.forgeRing(sessionId, kit, player.coins, packet.ring);
     if (packet.op === "start") return this.startForge(sessionId, kit, packet.ingot, packet.batch);
     if (packet.op !== "smelt" || !isIngotId(packet.ingot)) return;
     const queued = kit.forgeQueue.reduce((a, j) => a + j.n, 0);
@@ -898,6 +901,26 @@ export class CavernsMine {
     this.host.gesture(sessionId, "mine");
     this.host.emote(sessionId, t.emoji);
     this.reply(sessionId, true, `${t.emoji} The ${t.name}, forged with your own hands. ${t.blurb}`, -t.coins);
+  }
+
+  /** A ring forged (shared/gear.ts: a band and a gem, once each): its band's ingots and its cut gem
+   *  out of the satchel, its fee, and onto a finger it goes. */
+  private forgeRing(sessionId: string, kit: FishingProfile, coins: number, ring: unknown) {
+    if (!isRingId(ring)) return;
+    const name = ringName(ring);
+    if (kit.rings.includes(ring)) return this.reply(sessionId, false, `You have forged the ${name} already`);
+    const { band, gem } = ringParts(ring);
+    const fee = RING_BANDS[band].fee;
+    if (coins < fee) return this.reply(sessionId, false, `The ${name} takes ${fee.toLocaleString("en-US")} 🪙 at the forge`);
+    const missing = makingsMissing(kit, ringMakings(ring));
+    if (missing.length) return this.reply(sessionId, false, `The ${name} takes ${missing.join(", ")} more`);
+    spendMakings(kit, ringMakings(ring));
+    this.host.addCoins(sessionId, -fee);
+    kit.rings.push(ring);
+    kit.ringsWorn = wearRing(kit.ringsWorn, ring).worn;
+    this.host.gesture(sessionId, "mine");
+    this.host.emote(sessionId, "💍");
+    this.reply(sessionId, true, `💍 The ${name}, and on it goes: ${RING_GEMS[gem].does(RING_BANDS[band].strength)}`, -fee);
   }
 
   /** The forge's clocks: each queued ingot done in turn, into the satchel (or the tray when it is full);

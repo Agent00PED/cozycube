@@ -29,8 +29,25 @@ import {
   tensionCut,
   tensionWindowBonus,
   wearGear,
+  RING_BANDS,
+  bonusLogChance,
+  bonusOreChance,
+  byproductBonus,
+  fitRings,
+  gearRareLuck,
+  gemPower,
+  geodeFind,
+  isRingId,
+  kingBonus,
+  masterworkBonus,
+  ringMakings,
+  ringName,
+  swingHaste,
+  wearRing,
   type GearId,
+  type RingId,
 } from "../shared/gear";
+import { craftOdds } from "../shared/crafting";
 import { PROFILE_VERSION } from "../shared/migrate";
 
 const fresh = (extra: Record<string, unknown> = {}) => sanitizeFishingProfile({ v: PROFILE_VERSION, ...extra });
@@ -208,4 +225,46 @@ test("the old gear is paid back in full (shared/migrate.ts v7): coins for the sh
   assert.equal(again.attune.ang_gloves, 123.4);
   assert.deepEqual(again.trials, ["angler3"]);
   assert.equal(again.deeds.colossals, 2);
+});
+
+test("rings: a band's strength, a gem's power; the same gem twice counts once and a half", () => {
+  const worn = (ringsWorn: RingId[]) => fresh({ rings: ringsWorn, ringsWorn });
+  assert.equal(isRingId("silver:opal"), true);
+  assert.equal(isRingId("gold:opal"), false);
+  assert.equal(isRingId("silver:opal:x"), false);
+  assert.equal(ringName("glimmer:star_shard"), "Glimmer-set Star Shard Ring");
+  assert.deepEqual(ringMakings("glimmer:topaz"), { ore: { silver_ingot: 3, glimmer_shard: 3, topaz: 1 } });
+  assert.equal(gemPower(worn(["copper:amethyst"]), "amethyst"), RING_BANDS.copper.strength);
+  assert.ok(Math.abs(gemPower(worn(["copper:amethyst", "silver:amethyst"]), "amethyst") - (0.1 + 0.02)) < 1e-9);
+  // Luck, Tempo, Bounty, Fortune, each for whichever craft is in hand
+  const luck = worn(["silver:amethyst"]);
+  assert.deepEqual([gearRareLuck(luck), byproductBonus(luck), geodeFind(luck)], [0.1, 0.1, 0.05]);
+  const tempo = worn(["iron:topaz"]);
+  assert.ok(Math.abs(biteHaste(tempo) - 1.07) < 1e-9 && Math.abs(feltRingSlow(tempo) - 0.07) < 1e-9 && Math.abs(swingHaste(tempo) - 1.07) < 1e-9);
+  const bounty = worn(["glimmer:opal"]);
+  assert.deepEqual([bonusLogChance(bounty), bonusOreChance(bounty), heftBonus(bounty)], [0.13, 0.13, 0.13]);
+  const fortune = worn(["silver:star_shard"]);
+  assert.equal(masterworkBonus(fortune), 0.1);
+  assert.equal(kingBonus(fortune), 0.025);
+  // (a ring owned but off does nothing; a ring stacks with a piece)
+  assert.equal(gearRareLuck(fresh({ rings: ["silver:amethyst"], ringsWorn: [] })), 0);
+  const both = fresh({ gear: ["ang_bell"], worn: ["ang_bell"], gearRank: { ang_bell: 5 }, rings: ["silver:amethyst"], ringsWorn: ["silver:amethyst"] });
+  assert.ok(Math.abs(gearRareLuck(both) - 0.3) < 1e-9);
+});
+
+test("two fingers: a third ring takes the oldest one's place, a second Star Shard the first one's", () => {
+  assert.deepEqual(wearRing(["copper:amethyst", "iron:topaz"], "silver:opal"), { worn: ["iron:topaz", "silver:opal"], removed: ["copper:amethyst"] });
+  assert.deepEqual(wearRing(["copper:star_shard", "iron:topaz"], "silver:star_shard"), { worn: ["iron:topaz", "silver:star_shard"], removed: ["copper:star_shard"] });
+  assert.deepEqual(fitRings(["copper:star_shard", "silver:star_shard", "iron:topaz", "copper:opal"], ["copper:star_shard", "silver:star_shard", "iron:topaz"]), ["silver:star_shard", "iron:topaz"]);
+  const p = sanitizeFishingProfile({ v: PROFILE_VERSION, rings: ["copper:opal", "nope", "copper:opal"], ringsWorn: ["copper:opal", "silver:opal"] });
+  assert.deepEqual(p.rings, ["copper:opal"]);
+  assert.deepEqual(p.ringsWorn, ["copper:opal"]);
+});
+
+test("Fortune moves the workbench's plain outcomes toward a Masterwork", () => {
+  const plain = craftOdds("birch_stool", "push");
+  const lucky = craftOdds("birch_stool", "push", "", 0.1);
+  assert.ok(Math.abs(lucky.masterwork - plain.masterwork - Math.min(plain.normal, 0.1)) < 1e-9);
+  assert.equal(lucky.breakChance, plain.breakChance);
+  assert.ok(Math.abs(lucky.normal + lucky.masterwork + lucky.breakChance - 1) < 1e-9);
 });

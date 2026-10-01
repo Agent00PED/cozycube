@@ -758,7 +758,9 @@ export type ForgePacket =
   | { op: "finish"; pumps: number[]; strikes: number[] }
   | { op: "cancel" }
   /** An Expedition (T5) tool or store forged: shared/expedition.ts FORGED_TOOLS. */
-  | { op: "tool"; tool: string };
+  | { op: "tool"; tool: string }
+  /** A ring forged: a band's ingots and a cut gem (shared/gear.ts RING_BANDS, RING_GEMS). */
+  | { op: "ring"; ring: string };
 /** Into the onsen (the nearest free seat in reach) or out of it (onto its dry exit anchor); or, in
  *  it, a deep breath (`breath`: ms since the soak began, on the client's clock). */
 export interface OnsenPacket {

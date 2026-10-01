@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.35",
+    range: "v0.7.0–v0.7.36",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1567,6 +1567,26 @@ export const PATCH_ERAS: PatchEra[] = [
             "💰 Every old accessory was paid back in full: shop pieces for their price in coins, workbench and forge relics for all the materials they took. A letter tells you what came back.",
             "🪚 The workbench no longer carves relics; its Relics tab is now the Gear tab.",
           ],
+          fixes: [],
+        },
+      },
+      {
+        version: "0.7.36",
+        date: "2026-10-02",
+        title: "A Band and a Gem",
+        summary: "Rings are back, and now you design them: pick a band for its strength and a gem for what it does, and forge it yourself.",
+        changes: {
+          features: [
+            "💍 Forge rings at the caverns' forge (the new Rings tab): three ingots for the band, one cut gem, and a small fee. Sixteen rings in all, worn on two fingers from any drawer's gear tab.",
+            "🔩 The band is the strength: Copper 4%, Iron 7%, Silver 10%, Glimmer-set 13%.",
+            "🟣 Amethyst, Luck: rare fish, by-products and geodes are likelier.",
+            "🟡 Topaz, Tempo: fish bite sooner, the felling ring is slower, the pickaxe swings quicker.",
+            "⚪ Opal, Bounty: a chance of one more log or ore, and heavier fish.",
+            "🌟 Star Shard, Fortune: Masterwork carvings and King Size fish are likelier. Only one Star Shard ring at a time.",
+            "✌️ A ring works for whichever craft you are doing. Wearing the same gem on both fingers counts once and a half.",
+          ],
+          visuals: [],
+          economy: ["💎 Cut gems finally have a use besides selling: keep the ones you want before using Sell All Cut Gems."],
           fixes: [],
         },
       },

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CampfirePacket } from "@shared/types";
 import { GearWorks } from "./GearWorks";
+import { RING_BANDS, RING_BAND_IDS, RING_GEMS, RING_GEM_IDS, ringId, ringMakings, ringName, type RingBand, type RingGem } from "@shared/gear";
 import { FORGED_TOOLS, FORGED_TOOL_IDS, forgedBlocked, forgedOwned, makingsList, type ForgedToolId } from "@shared/expedition";
 import {
   BELLOWS_HOLD_S,
@@ -58,6 +59,7 @@ import { flyToBag } from "./flyToBag";
 //                   simulated here live by the very function the server replays the log with
 //   ⚡ Quick Smelt  plain ingots on the forge's own clock (an ingot every FORGE_SMELT_S seconds, into
 //                   the satchel, or its tray when the satchel is full), Quick Smelt All
+//   💍 Rings        a ring forged from a band's ingots and a cut gem (shared/gear.ts RING_BANDS, RING_GEMS)
 //   🧿 Gear         the gear's work done here (shared/gear.ts): the Prospector's ranks 3 to 5, every family's rank 5
 
 interface Props {
@@ -70,7 +72,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Tab = "bellows" | "smelt" | "gear" | "expedition";
+type Tab = "bellows" | "smelt" | "gear" | "rings" | "expedition";
 
 export function ForgeModal({ profile, coins, market, send, campfireSend, subscribeMessages, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("bellows");
@@ -117,7 +119,8 @@ export function ForgeModal({ profile, coins, market, send, campfireSend, subscri
     ["bellows", "🔥 Bellows"],
     ["smelt", "⚡ Quick Smelt"],
     ["gear", "🧿 Gear"],
-    ["expedition", "🧭 Expedition Tools"],
+    ["rings", "💍 Rings"],
+    ["expedition", "🧭 Expedition"],
   ];
   if (game)
     return (
@@ -128,7 +131,7 @@ export function ForgeModal({ profile, coins, market, send, campfireSend, subscri
   return (
     <Modal title="The Thermal Bellows Forge" icon="🔥" onClose={onClose} width={500}>
       <div className="flex flex-col gap-2 pb-1">
-        <div className="grid grid-cols-2 gap-1">
+        <div className="grid grid-cols-3 gap-1">
           {tabs.map(([id, label]) => (
             <button key={id} type="button" className={`clay-btn min-h-11 text-[12.5px] font-bold ${tab === id ? "clay-btn-amber" : "clay-btn-ghost"}`} onClick={() => setTab(id)}>
               {label}
@@ -138,6 +141,7 @@ export function ForgeModal({ profile, coins, market, send, campfireSend, subscri
         {tab === "bellows" && <BellowsPick profile={profile} market={market} result={result} onStart={(ingot, batch) => send(CAVERNS_CHANNELS.forge, { op: "start", ingot, batch })} />}
         {tab === "smelt" && <QuickSmelt profile={profile} market={market} send={send} />}
         {tab === "gear" && <GearWorks profile={profile} coins={coins} send={campfireSend} families={["prospector", "angler", "forester", "wayfarer"]} places={["forge"]} />}
+        {tab === "rings" && <Rings profile={profile} coins={coins} send={send} />}
         {tab === "expedition" && <Expedition profile={profile} coins={coins} send={send} />}
         {notice && <p className={`m-0 text-center text-[12px] font-semibold ${notice.ok ? "text-amber-100" : "text-rose-200"}`}>{notice.text}</p>}
       </div>
@@ -549,6 +553,70 @@ function QuickSmelt({ profile, market, send }: { profile: FishingProfile; market
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// --- the rings: a band and a gem ---------------------------------------------------------------------------
+
+function Rings({ profile, coins, send }: { profile: FishingProfile; coins: number; send: Props["send"] }) {
+  const [band, setBand] = useState<RingBand>("copper");
+  const [gem, setGem] = useState<RingGem>("amethyst");
+  const id = ringId(band, gem);
+  const b = RING_BANDS[band];
+  const g = RING_GEMS[gem];
+  const owned = profile.rings.includes(id);
+  const makings = makingsList(profile, ringMakings(id));
+  const ready = !owned && coins >= b.fee && makings.every((m) => m.have >= m.need);
+  const pick = "clay-btn min-h-11 flex-col gap-0 px-1 text-[11px] leading-tight";
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="m-0 text-center text-[12px] opacity-80">A ring is a band and a gem: the band is its strength, the gem is what it does, for whichever craft is in your hands. Two fingers; the same gem twice counts once and a half.</p>
+      <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">The band</b>
+      <div className="grid grid-cols-4 gap-1">
+        {RING_BAND_IDS.map((k) => (
+          <button key={k} type="button" className={`${pick} ${band === k ? "clay-btn-amber" : "clay-btn-ghost"}`} onClick={() => setBand(k)} aria-pressed={band === k}>
+            <b>{RING_BANDS[k].name}</b>
+            <span className="opacity-80">{Math.round(RING_BANDS[k].strength * 100)}%</span>
+          </button>
+        ))}
+      </div>
+      <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">The gem</b>
+      <div className="grid grid-cols-4 gap-1">
+        {RING_GEM_IDS.map((k) => (
+          <button key={k} type="button" className={`${pick} ${gem === k ? "clay-btn-amber" : "clay-btn-ghost"}`} onClick={() => setGem(k)} aria-pressed={gem === k}>
+            <b>
+              {RING_GEMS[k].emoji} {RING_GEMS[k].power}
+            </b>
+            <span className="opacity-80">{RING_GEMS[k].name}</span>
+          </button>
+        ))}
+      </div>
+      <div className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${owned ? "bg-emerald-400/15" : "bg-white/10"}`}>
+        <span className="text-2xl">💍</span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+          <b className="text-[13px] text-[#F7EBE1]">{ringName(id)}</b>
+          <span className="text-[11px] opacity-85">
+            {g.power}: {g.does(b.strength)}
+          </span>
+          {!owned && (
+            <span className="flex flex-wrap gap-1 text-[10.5px]">
+              <span className={`rounded-full px-1.5 ${coins >= b.fee ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>{b.fee.toLocaleString("en-US")} 🪙</span>
+              {makings.map((m) => (
+                <span key={m.name} className={`rounded-full px-1.5 ${m.have >= m.need ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>
+                  {m.need} {m.name} <span className="opacity-70">({m.have})</span>
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
+        <button type="button" className={`clay-btn min-h-11 shrink-0 px-3 text-xs ${owned ? "clay-btn-ghost" : "clay-btn-amber"}`} disabled={!ready} onClick={() => send(CAVERNS_CHANNELS.forge, { op: "ring", ring: id })}>
+          {owned ? "Forged ✓" : "Forge"}
+        </button>
+      </div>
+      <p className="m-0 text-center text-[11px] opacity-65">
+        {profile.rings.length ? `You have forged ${profile.rings.length} of ${RING_BAND_IDS.length * RING_GEM_IDS.length}. Wear them from any drawer's gear tab.` : "Cut a gem out of a geode at the anvil first. Rings are worn from any drawer's gear tab."}
+      </p>
     </div>
   );
 }

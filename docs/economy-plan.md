@@ -241,7 +241,14 @@ pass as it was built:
   bonus.
 - **Four slots for now** (hands, waist, charm, back): the two finger slots return with the rings.
 
-**Still to build:** the rings (part two) and the back pieces drawn on the avatar (part three). The
+**Built, part two (phase 4b, 2026-10-02): the rings.** Four bands (Copper 4%, Iron 7%, Silver
+10%, Glimmer-set 13%) by four gems make sixteen rings, forged at the forge from three ingots of the
+band (the Glimmer-set: silver and three Glimmer Shards), one cut gem and a fee (150 / 400 / 1,000 /
+2,000), worn on two fingers, never raised. Fortune's numbers were kept small on purpose: a King Size
+is worth 2.5x, so its chance rises by a quarter of the band's strength (3% at most), and Masterworks
+are the workbench's (the forge's are won by hand).
+
+**Still to build:** the back pieces drawn on the avatar (part three). The
 gear's effect on income has not been run through the simulator yet: the two direct earners are the
 Trader's Mitts (+5% of every sale at rank 5) and the Creel Pack (fish 20% heavier at rank 5).
 
@@ -417,7 +424,7 @@ selling raw, and never by enough to be the only thing worth doing.
 | 1 | **Done.** Base prices and rod odds (wood, fish, ore, cave fish), section 5 | every step within 20% of its target, the three crafts within 20% of each other |
 | 2 | **Done** (T2-T5; T6-T7 wait for the beach). Tools and storage: prices, materials, the forge's recipes; shop stock by map; birch at the campfire | the ladder's hours match section 6 |
 | 3 | **Done.** Keepers' buying ceilings; the Expedition Licence | |
-| 4 | **Part one done** (the pieces, ranks, sets, trials, the refund). Still: the rings; the back pieces drawn on the avatar | |
+| 4 | **Parts one and two done** (the pieces, ranks, sets, trials, the refund; the rings). Still: the back pieces drawn on the avatar | |
 | 5 | Crafted goods; the two map outfits | |
 
 Each phase ships on its own with its tests, a profile migration where it touches what players own

@@ -1674,6 +1674,8 @@ export type CampfirePacket =
    *  (anywhere); a piece bought at rank 1, or raised a rank, where that work is done. */
   | { type: "GEAR"; op: "equip" | "unequip" | "buy" | "raise"; gear: GearId }
   | { type: "GEAR"; op: "set"; family: GearFamily }
+  /** A ring you own put on a finger, or taken off (anywhere). */
+  | { type: "GEAR"; op: "ring" | "ringOff"; ring: string }
   /** Buster the Lumberjack's stall: sell split wood (one, or all of a kind), buy or switch axes. */
   | { type: "BUSTER"; op: "sell"; wood: WoodKind; count: number | "all" }
   | { type: "BUSTER"; op: "buyAxe" | "equipAxe"; axe: AxeId }

@@ -11,7 +11,7 @@ import type { SwimPattern } from "./types";
 import { BYPRODUCT_IDS, TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, isAxeId, type AxeId, type ByproductId, type TreeKind, type WoodKind } from "./chop";
 import { CRAFTS, isCraftId, type CraftId, type CraftItem } from "./crafting";
 import { MAIL_MAX, PROFILE_VERSION, migratePlayerInventory } from "./migrate";
-import { MAX_RANK, RANK_ATTUNE, carrierBonus, fitWorn, isGearId, livewellBonus, type GearId } from "./gear";
+import { MAX_RANK, RANK_ATTUNE, carrierBonus, fitRings, fitWorn, isGearId, isRingId, livewellBonus, type GearId, type RingId } from "./gear";
 import { CAVE_FISH, isCaveTackleId, type CaveTackleId } from "./caverns_fishing";
 import { isPickaxeId, isIngotId, isOreItemId, isOreKind, FORGE_QUEUE_MAX, ORE_ITEMS, type IngotId, type OreItemId, type OreKind, type PickaxeId } from "./caverns_mining";
 import { sanitizeSatchel, type SatchelStack } from "./satchel";
@@ -319,6 +319,9 @@ export interface FishingProfile {
   /** Each owned piece's rank (1 to 5) and its attunement (seconds of its craft done by hand with it
    *  on); the trials passed (`<family><rank>`); the deeds ledger the trials read (shared/gear.ts). */
   gearRank: Partial<Record<GearId, number>>;
+  /** The rings forged (a band and a gem: shared/gear.ts RingId) and the two worn. */
+  rings: RingId[];
+  ringsWorn: RingId[];
   attune: Partial<Record<GearId, number>>;
   trials: string[];
   deeds: Record<string, number>;
@@ -484,7 +487,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem, bonus = 0
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] } };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] } };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -586,6 +589,8 @@ function readFishingProfile(raw: unknown): FishingProfile {
   if (Array.isArray(r.gear)) p.gear = Array.from(new Set(r.gear.filter(isGearId)));
   // what is worn (a profile from before the slots: everything owned that fits goes on)
   p.worn = fitWorn(Array.isArray(r.worn) ? r.worn.filter(isGearId) : [], p.gear);
+  if (Array.isArray(r.rings)) p.rings = Array.from(new Set(r.rings.filter(isRingId)));
+  p.ringsWorn = fitRings(Array.isArray(r.ringsWorn) ? r.ringsWorn.filter(isRingId) : [], p.rings);
   for (const id of p.gear) {
     p.gearRank[id] = Math.max(1, Math.min(MAX_RANK, Math.round(Number((r.gearRank as Record<string, unknown> | undefined)?.[id]) || 1)));
     p.attune[id] = Math.max(0, Math.min(RANK_ATTUNE[MAX_RANK], Number((r.attune as Record<string, unknown> | undefined)?.[id]) || 0));
