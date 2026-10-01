@@ -9,7 +9,7 @@
 //             broken node now and then turns up (FOSSIL_CHANCE a break, the ones you haven't found)
 //   journal   six torn pages of Old Flint's expedition journal, dropped round the cave
 //   wonders   the living wonders witnessed (a Cave Cloud, a Glimmer Bloom, a Rockfall, the Bat Exodus
-//             at the camp's dusk) and a photo with the Hound's Hand
+//             at the camp's dusk) and a photo at the Explorers' Rest
 //
 // Each new entry pays its coins, and a section completed pays its bonus (the server's `addCodex`).
 //
@@ -28,13 +28,50 @@
 // out of the west wall and up through the jungle's collapse (the client's; no server event).
 
 export type CodexSection = "zones" | "fauna" | "finds" | "journal" | "wonders";
-export const CODEX_SECTIONS: { id: CodexSection; name: string; emoji: string; bonus: number }[] = [
-  { id: "zones", name: "Zone Stamps", emoji: "🗺️", bonus: 200 },
-  { id: "fauna", name: "Cave Fauna", emoji: "🦇", bonus: 150 },
-  { id: "finds", name: "Pearls & Fossils", emoji: "🐚", bonus: 300 },
-  { id: "journal", name: "Flint's Journal", emoji: "📜", bonus: 250 },
-  { id: "wonders", name: "Living Wonders", emoji: "✨", bonus: 250 },
+/** Each section's bonus and the gold title it gives (shared/items.ts SPECIAL_TITLES): a codex is
+ *  worn over your name, not only spent (docs/caverns-roadmap.md R2.2). */
+export const CODEX_SECTIONS: { id: CodexSection; name: string; emoji: string; bonus: number; title: string }[] = [
+  { id: "zones", name: "Zone Stamps", emoji: "🗺️", bonus: 200, title: "cave_cartographer" },
+  { id: "fauna", name: "Cave Fauna", emoji: "🦇", bonus: 150, title: "cave_naturalist" },
+  { id: "finds", name: "Pearls & Fossils", emoji: "🐚", bonus: 300, title: "pearl_hunter" },
+  { id: "journal", name: "Flint's Journal", emoji: "📜", bonus: 250, title: "flints_heir" },
+  { id: "wonders", name: "Living Wonders", emoji: "✨", bonus: 250, title: "wonder_witness" },
 ];
+/** The hearth's stories (docs/caverns-roadmap.md R2.10): while anyone sits by the overlook's fire, a
+ *  tale comes round every HEARTH_STORY_S, heard by everyone sitting there or standing near
+ *  (HEARTH_EARSHOT). Old Flint's and the expedition's, told the way a fire gets them told. */
+export const HEARTH_STORY_S: readonly [number, number] = [45, 70];
+export const HEARTH_EARSHOT = 7;
+export const HEARTH_STORIES: readonly string[] = [
+  "Old Flint swears the Hound's Hand was a real hound once, who sat down to wait for its miner and never got up again.",
+  "They say the first crew down here followed a single bat for three days, and it led them to the lake.",
+  "Gus keeps one lump of coal in his breast pocket. He won't say why. He just pats it now and then.",
+  "The cenote's water was here before the cave was. The cave grew round it, drip by drip.",
+  "A miner once struck the Monolith so true it rang for an hour. The glimmer in the rift still hums that note.",
+  "If you hold your breath by the rift, you can hear the crystals growing. Or maybe that's just your ears.",
+  "Finnegan claims the Elder Olm has been caught three times, and let go three times, by the same angler.",
+  "The capybara was here before the basecamp. Gus says it has seniority, and the warmest pool.",
+  "The jungle's sun only shows up half the day. The rest of the time the stars climb down through the hole to visit.",
+  "Every cave pearl is a grain of sand that fell into the right pool at the right time and was very, very patient.",
+  "Nobody knows who first lit this fire. It has never been let go out since, and nobody means to be the first.",
+  "The Rockfalls aren't the cave falling apart. They're the cave making room for more of itself.",
+  "Old Flint's journal has seven pages, not six. The seventh, he says, he's still writing.",
+  "A copper vein, they say, grows back faster if you thank it. Gus thanks every one. Nobody has proved him wrong.",
+  "The bats leave at dusk and come back at dawn with news of the whole world above. They just won't share it.",
+  "When the mist rolls in, the fish forget to be careful. So do the anglers.",
+];
+
+/** The whole codex filled: its own title. */
+export const CODEX_TITLE = "cave_chronicler";
+/** The titles a codex has earned (a section each, and the whole). */
+export function codexTitles(found: readonly string[]): string[] {
+  const out = CODEX_SECTIONS.filter((s) => {
+    const p = codexProgress(found, s.id);
+    return p.all > 0 && p.found === p.all;
+  }).map((s) => s.title);
+  if (out.length === CODEX_SECTIONS.length) out.push(CODEX_TITLE);
+  return out;
+}
 
 export interface CodexEntry {
   id: string;
@@ -55,7 +92,7 @@ export const CODEX: CodexEntry[] = [
   zone("breakdown", "The Coal Breakdown", "🪨", "A field of fallen slabs, coal in their beds; the mountain still settling, a groan at a time."),
   zone("mudflats", "The Iron Mudflats", "🟤", "Dried plates cracked apart over the iron lodes, rust bleeding down the wall, bats in the dark over them."),
   zone("terraces", "The Pearl Terraces", "♨️", "Rimstone steps down the south-west, a warm pool on each, cave pearls in the dry basins below."),
-  zone("overlook", "The Hound's Overlook", "🐾", "The plateau under the basecamp's cliff, the Hound's Hand rising from it like a paw."),
+  zone("overlook", "The Hound's Overlook", "🐾", "The plateau under the basecamp's cliff, where the Hound's Hand stood until it fell; the expedition camps there now."),
   zone("rift", "The Glimmer Rift", "💠", "A crevasse walled in basalt, its crystal wall ringing and its fungi glowing in the deep."),
   zone("lake", "The Great Lake", "🌊", "The cenote's still green water, the islet under its own skylight, the Titan Monolith on it."),
   fauna("crab", "Glowing Shore Crab", "🦀", "Skitters sideways along the lake's beach, its shell lit from within. Shy, but curious about lanterns."),
@@ -75,14 +112,15 @@ export const CODEX: CodexEntry[] = [
   { id: "page_1", section: "journal", name: "Journal, page 1: The Collapse", emoji: "📜", lore: "Day one. The roof fell in here long before any of us: sunlight on a cave floor, and a forest grew up to meet it. Gus says the copper tastes of rain.", coins: 20 },
   { id: "page_2", section: "journal", name: "Journal, page 2: The Breakdown", emoji: "📜", lore: "The breakdown groans at night. Old slabs settling, Gus says. I say the mountain is still deciding where to lie down. Mind your head, and mind the coal seams.", coins: 20 },
   { id: "page_3", section: "journal", name: "Journal, page 3: The Bats", emoji: "📜", lore: "The bats know the way out. At dusk they pour from the west wall in a river of wings and up through the collapse. I followed them once, as far as a badger can.", coins: 20 },
-  { id: "page_4", section: "journal", name: "Journal, page 4: The Hound's Hand", emoji: "📜", lore: "We named the great stalagmite the Hound's Hand. Light a fire beneath it and tell a story: the cave listens. It always has.", coins: 20 },
+  { id: "page_4", section: "journal", name: "Journal, page 4: The Hound's Hand", emoji: "📜", lore: "We named the great stalagmite the Hound's Hand. The quake took it in the night; we pitched our tents where it stood. Light a fire there and tell a story: the cave listens. It always has.", coins: 20 },
   { id: "page_5", section: "journal", name: "Journal, page 5: The Bloom", emoji: "📜", lore: "The crystals in the rift ring when no one touches them. Some nights they bloom with light, and the glimmer comes away from the rock as if it wants to be carried.", coins: 20 },
   { id: "page_6", section: "journal", name: "Journal, page 6: The Elder", emoji: "📜", lore: "The Elder Olm is real. I saw its pale shape under the islet, older than the lantern I held. Finnegan believes me. Nobody else does.", coins: 20 },
   { id: "wonder_cloud", section: "wonders", name: "A Cave Cloud", emoji: "☁️", lore: "Warm air met cold and a cloud formed inside the mountain, rolling slow over the lake.", coins: 30 },
   { id: "wonder_bloom", section: "wonders", name: "A Glimmer Bloom", emoji: "💠", lore: "The whole rift lit up at once, every crystal humming the same note.", coins: 30 },
   { id: "wonder_rockfall", section: "wonders", name: "A Rockfall", emoji: "🪨", lore: "A thunder in the breakdown, dust in the light, and a heap of fresh ore where there was none.", coins: 30 },
   { id: "wonder_exodus", section: "wonders", name: "The Bat Exodus", emoji: "🦇", lore: "At the camp's dusk, a river of wings out of the west wall and up through the collapse.", coins: 30 },
-  { id: "wonder_photo", section: "wonders", name: "A Photo with the Hound's Hand", emoji: "📸", lore: "Every expedition takes one. Now yours is on the survey board too.", coins: 20 },
+  { id: "wonder_photo", section: "wonders", name: "A Photo at the Explorers' Rest", emoji: "📸", lore: "Every expedition takes one. Now yours is on the survey board too.", coins: 20 },
+  { id: "wonder_wade", section: "wonders", name: "Wading to the Monolith", emoji: "🌊", lore: "The old causeway lies a hand's depth under the lake now. You waded it out to the islet, cold water to your ankles, the Monolith humming ahead.", coins: 25 },
 ];
 export const CODEX_BY_ID: ReadonlyMap<string, CodexEntry> = new Map(CODEX.map((e) => [e.id, e]));
 export const isCodexId = (v: unknown): v is string => typeof v === "string" && CODEX_BY_ID.has(v);

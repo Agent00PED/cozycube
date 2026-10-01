@@ -3,6 +3,7 @@ import { CAPSULE_COST, CAPSULE_DUP_REFUND, CAPSULE_PRIZES, capsuleUnlock, type C
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { Modal } from "./Modal";
+import { SPECIAL_TITLES } from "@shared/items";
 import { VelvetChipIcon } from "./VelvetChipIcon";
 
 // The capsule machine in the Grand Foyer: a pull costs Velvet Chips and drops a capsule with a
@@ -102,6 +103,13 @@ export function CapsuleModal({ chips, owned, title, onSend, subscribeMessages, o
             <button type="button" onClick={() => onSend({ type: "EQUIP_TITLE", id: "" })} className={`min-h-9 rounded-full px-3 text-xs font-bold ${title === "" ? "bg-amber-300 text-amber-950" : "bg-white/10 hover:bg-white/15"}`}>
               None
             </button>
+            {Object.entries(SPECIAL_TITLES)
+              .filter(([id]) => mine.has(capsuleUnlock({ kind: "title", id })))
+              .map(([id, t]) => (
+                <button key={id} type="button" onClick={() => onSend({ type: "EQUIP_TITLE", id })} className={`min-h-9 rounded-full border px-3 text-xs font-bold ${title === id ? "border-amber-300 bg-amber-300 text-amber-950" : "border-amber-300/50 bg-white/10 text-amber-200 hover:bg-white/15"}`} title={`Wear ${t.name}`}>
+                  {t.name}
+                </button>
+              ))}
             {titles.map((p) => {
               const have = mine.has(capsuleUnlock(p));
               return (

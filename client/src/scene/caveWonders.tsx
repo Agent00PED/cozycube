@@ -59,6 +59,8 @@ const FLAME_MAT = new THREE.ShaderMaterial({
 });
 const EMBERS = 22;
 const EMBER_COLOR = new THREE.Color("#ffb45a");
+const STEAM = 10;
+const STEAM_COLOR = new THREE.Color("#e9e4dc");
 export function HearthFire() {
   const flames = useMemo(() => {
     const im = new THREE.InstancedMesh(FLAME_GEO, FLAME_MAT, FLAMES);
@@ -68,12 +70,15 @@ export function HearthFire() {
     return im;
   }, []);
   const embers = useMemo(() => new MotePoints(EMBERS), []);
+  // (the steam off the explorers' stew pot hung over the fire: docs/caverns-roadmap.md R9.3)
+  const steam = useMemo(() => new MotePoints(STEAM), []);
   useEffect(
     () => () => {
       flames.dispose();
       embers.dispose();
+      steam.dispose();
     },
-    [flames, embers]
+    [flames, embers, steam]
   );
   const seeds = useMemo(() => Array.from({ length: EMBERS }, () => ({ a: Math.random() * Math.PI * 2, r: Math.random() * 0.25, p: Math.random(), s: 0.6 + Math.random() * 0.8, w: (Math.random() - 0.5) * 0.6 })), []);
   const m = useMemo(() => new THREE.Matrix4(), []);
@@ -83,7 +88,8 @@ export function HearthFire() {
     for (let i = 0; i < FLAMES; i++) {
       const a = (i / FLAMES) * Math.PI * 2 + 0.3;
       const r = i === 0 ? 0 : 0.13 + 0.05 * Math.sin(i * 2.1);
-      const h = (i === 0 ? 1.25 : 0.75 + 0.25 * ((i * 0.37) % 1)) * (0.82 + 0.18 * Math.sin(t * (6 + i) + i * 1.7) * Math.sin(t * 3.3 + i));
+      // (low enough to lick the pot's blackened bottom, never through it)
+      const h = (i === 0 ? 0.72 : 0.48 + 0.18 * ((i * 0.37) % 1)) * (0.82 + 0.18 * Math.sin(t * (6 + i) + i * 1.7) * Math.sin(t * 3.3 + i));
       const w = i === 0 ? 0.55 : 0.36;
       m.makeScale(w, h, w).setPosition(HEARTH.x + Math.cos(a) * r, y, HEARTH.z + Math.sin(a) * r);
       flames.setMatrixAt(i, m);
@@ -97,11 +103,18 @@ export function HearthFire() {
       embers.set(i, HEARTH.x + Math.cos(sd.a) * sd.r + sd.w * u + 0.08 * Math.sin(t * 2 + i), y + 0.25 + u * 2.2, HEARTH.z + Math.sin(sd.a) * sd.r + 0.08 * Math.cos(t * 1.7 + i), 0.9 * Math.sin(Math.PI * u) * (1 - u * 0.5), EMBER_COLOR);
     }
     embers.commit();
+    for (let i = 0; i < STEAM; i++) {
+      const u = (((t * 0.22 + i / STEAM) % 1) + 1) % 1;
+      const a = i * 2.4;
+      steam.set(i, HEARTH.x + Math.cos(a) * 0.07 + 0.25 * u * Math.sin(t * 0.4 + i), y + 0.95 + u * 1.1, HEARTH.z + Math.sin(a) * 0.07 + 0.12 * u, 1.6 * Math.sin(Math.PI * u) * (1 - 0.4 * u), STEAM_COLOR);
+    }
+    steam.commit();
   });
   return (
     <>
       <primitive object={flames} />
       <primitive object={embers.points} />
+      <primitive object={steam.points} />
     </>
   );
 }

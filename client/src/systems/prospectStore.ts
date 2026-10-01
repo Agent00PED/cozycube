@@ -27,7 +27,11 @@ export interface BlowNote {
   verdict: StrikeVerdict;
   perfect: boolean;
   at: number;
+  /** A Lucky Glint struck: the ore it popped. */
+  bonus?: string;
 }
+/** The last Clean Break (performance.now ms), for the HUD's pop. */
+let cleanAt = -1e9;
 
 let current: ProspectState | null = null;
 let blow: BlowNote | null = null;
@@ -47,15 +51,20 @@ export const prospectStore = {
     current = { ...p, rev: (current?.rev ?? 0) + 1, openedAt: performance.now(), dmg: same ? (current?.dmg ?? 0) : 0 };
     emit();
   },
-  weak(node: string, weak: Vec3) {
+  weak(node: string, weak: Vec3, glint = false) {
     if (!current || current.node !== node) return;
-    current = { ...current, weak, rev: current.rev + 1 };
+    current = { ...current, weak, glint, rev: current.rev + 1 };
+    emit();
+  },
+  /** Your rock broke with a Perfect: a Clean Break. */
+  clean() {
+    cleanAt = performance.now();
     emit();
   },
   /** A strike on a node (anyone's): the rock's damage; yours, the verdict and your run. */
   strike(st: CaveStrike, mine: boolean) {
     if (mine) {
-      blow = { verdict: st.verdict, perfect: !!st.perfect, at: performance.now() };
+      blow = { verdict: st.verdict, perfect: !!st.perfect, at: performance.now(), ...(st.bonus ? { bonus: st.bonus } : {}) };
       if (typeof st.streak === "number") streak = st.streak;
     }
     if (current && current.node === st.node) current = { ...current, dmg: st.dmg };
@@ -86,4 +95,7 @@ export function useBlow(): { blow: BlowNote | null; streak: number } {
   const b = useSyncExternalStore(subscribe, () => blow);
   const n = useSyncExternalStore(subscribe, () => streak);
   return { blow: b, streak: n };
+}
+export function useCleanBreak(): number {
+  return useSyncExternalStore(subscribe, () => cleanAt);
 }

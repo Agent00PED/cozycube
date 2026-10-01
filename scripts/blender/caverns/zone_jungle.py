@@ -31,12 +31,29 @@ def jungle_tree(roots, G, x, z, h, lean, rng):
         cyl(roots, foot, (x + math.cos(a) * 0.12, y + 0.95, z + math.sin(a) * 0.12), 0.09, "trunkDark", sides=4, r_end=0.03)
         cyl(roots, foot, (x + math.cos(a) * (reach + 0.35), y - 0.12, z + math.sin(a) * (reach + 0.35)), 0.05, "trunkDark", sides=4, r_end=0.02)
     tx, ty, tz = pts[-1]
-    # (the canopy in layers: a dark underside, the crown round it, a lit top)
+    # (the canopy in layers: a dark underside, the crown round it, a lit top; each tree its own green,
+    # docs/caverns-roadmap.md R2.10)
+    own = rng.choice(("canopy", "canopyWarm", "canopy"))
     for k in range(6):
         a = 2 * math.pi * k / 6 + lean
         s = 0.8 + 0.45 * rng.random()
-        blob(roots, tx + math.cos(a) * 0.75, ty - 0.35 + 0.12 * (k % 2), tz + math.sin(a) * 0.75, s, s * 0.42, s, "canopyDark" if k % 3 == 0 else "canopy", cuts=1, noise=0.28, seed=k + int(x * 7))
+        blob(roots, tx + math.cos(a) * 0.75, ty - 0.35 + 0.12 * (k % 2), tz + math.sin(a) * 0.75, s, s * 0.42, s, "canopyDark" if k % 3 == 0 else own, cuts=1, noise=0.28, seed=k + int(x * 7))
+    # (a middle layer, turned off the first: the crown's outline broken)
+    for k in range(4):
+        a = 2 * math.pi * (k + 0.5) / 4 + lean + 0.4 * rng.random()
+        s = 0.55 + 0.3 * rng.random()
+        blob(roots, tx + math.cos(a) * 1.05, ty - 0.05 + 0.1 * rng.random(), tz + math.sin(a) * 1.05, s, s * 0.4, s, own, cuts=1, noise=0.3, seed=k + 31 + int(z * 3))
     blob(roots, tx, ty + 0.25, tz, 1.1, 0.5, 1.1, "canopyLight", cuts=1, noise=0.25, seed=int(z * 5))
+    # (moss hanging from the crown's underside, and blossoms caught in the light on top)
+    for k in range(5):
+        a = 2 * math.pi * k / 5 + lean + 0.6
+        ax, az = tx + math.cos(a) * (0.7 + 0.3 * rng.random()), tz + math.sin(a) * (0.7 + 0.3 * rng.random())
+        ln = 0.5 + 0.6 * rng.random()
+        cyl(roots, (ax, ty - 0.45, az), (ax + 0.05 * math.cos(a), ty - 0.45 - ln, az + 0.05 * math.sin(a)), 0.035, "mossHang", sides=3, r_end=0.008)
+    for k in range(4):
+        a = rng.random() * 2 * math.pi
+        rr = 0.4 + 0.5 * rng.random()
+        blob(roots, tx + math.cos(a) * rr, ty + 0.62, tz + math.sin(a) * rr, 0.07, 0.05, 0.07, "blossom", cuts=0)
     # (lianas hanging from the crown)
     for k in range(2):
         a = lean + 1.6 + 2.6 * k

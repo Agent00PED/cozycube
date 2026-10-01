@@ -137,7 +137,8 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
   const ringRef = useRef<THREE.Mesh>(null);
   const pulseRef = useRef<THREE.Mesh>(null);
   const sweet = node && pr ? strikeRadii(node.kind, pr.pick, false).sweet : 0.1;
-  const ringColor = useMemo(() => new THREE.Color(glowColor), [glowColor]);
+  // (a Lucky Glint's ring in gold, twinkling: docs/caverns-roadmap.md R10.6)
+  const ringColor = useMemo(() => new THREE.Color(pr?.glint ? "#ffd84a" : glowColor), [glowColor, pr?.glint]);
   const white = useMemo(() => new THREE.Color("#ffffff"), []);
 
   const fissureRef = useRef<THREE.Mesh>(null);
@@ -177,7 +178,7 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
     if (ring) {
       ring.position.copy(spot.at).addScaledVector(spot.normal, 0.02);
       ring.quaternion.copy(face.q);
-      ring.scale.setScalar(sweet * (closing ? 1.12 : 1));
+      ring.scale.setScalar(sweet * (closing ? 1.12 : 1) * (pr?.glint ? 1 + 0.06 * Math.sin(t * 9) : 1));
       ringMat.color.copy(ringColor).lerp(white, closing ? 0.75 : 0.15);
       ringMat.opacity = closing ? 1 : 0.75 + 0.1 * Math.sin(t * 5);
     }

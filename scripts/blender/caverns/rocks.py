@@ -3,7 +3,8 @@ in its zone's colours (`build_blockout_rocks`), and the empty stretches dressed 
 things (`build_dressing`: nubs and rubble, shards and fungi, driftwood, reeds and pebbles)."""
 
 import math
-from .ground import free_spot, lake_factor, near_polyline, SURF
+from .ground import free_spot, inside_poly, lake_factor, near_polyline, SURF
+from .waters import pool_outline
 from .kit import (
     angular, crystal_cluster, cyl, fungi, GEO_STATS, ORE_RADII, prism, reeds, stalagmite,
 )
@@ -22,7 +23,7 @@ def build_dressing(G, L, rock, glow, rng):
         x, z = -8.5 + rng.random() * 19.0, -13.0 + rng.random() * 9.8
         if G.surf(x, z) != SURF["overlook"] or not free_spot(G, L, x, z, clear=0.5):
             continue
-        if math.hypot(x - L["tower"]["x"], z - L["tower"]["z"]) < 2.4:
+        if math.hypot(x - L["hearth"]["x"], z - L["hearth"]["z"]) < 4.0:
             continue
         y = G.y(x, z)
         if made["nubs"] % 3 == 0:
@@ -81,6 +82,12 @@ def build_dressing(G, L, rock, glow, rng):
         if grad < 0.45 or grad > 1.3 or G.y(x, z) < -0.3:
             continue
         if any(near_polyline(x, z, p["points"]) < p["half"] + 0.5 for p in L["paths"]):
+            continue
+        # (never in a pool's bowl, the stream's channel or the plunge pool, under their water)
+        Rv = L["river"]
+        if any(near_polyline(x, z, seg) < Rv["half"] + 0.4 for seg in Rv["segments"]) or math.hypot(x - Rv["plunge"]["x"], z - Rv["plunge"]["z"]) < Rv["plunge"]["r"] + 0.5:
+            continue
+        if any(inside_poly(x, z, pool_outline(L, pl, grow=0.4)[1]) for pl in L["terraces"]["pools"]):
             continue
         top, side = zone_rock(G, x, z)
         r = 0.1 + 0.16 * rng.random()

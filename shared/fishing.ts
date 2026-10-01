@@ -371,7 +371,24 @@ export interface FishingProfile {
   /** The Cave Codex's entries found (shared/caverns_codex.ts ids: the zones stamped, the fauna met, the
    *  pearls and fossils, Flint's journal pages, the living wonders witnessed). */
   codex: string[];
+  /** The Prospector's Ledger (docs/caverns-roadmap.md R2.10): a miner's lifetime marks, shown in the ore
+   *  satchel's Mastery tab. */
+  ledger: CaveLedger;
+  /** The Expedition's weekly orders (shared/caverns_weekly.ts): the week, where you stood when it began,
+   *  the orders met. */
+  weekly: { week: string; base: Record<string, number>; done: string[] };
 }
+/** The Prospector's Ledger's marks: Perfect strikes, the best run of them, geodes cracked, Star Shards
+ *  cut, Masterwork ingots forged, Motherlodes broken. */
+export interface CaveLedger {
+  perfects: number;
+  bestStreak: number;
+  geodes: number;
+  stars: number;
+  masterworks: number;
+  lodes: number;
+}
+export const LEDGER_KEYS: (keyof CaveLedger)[] = ["perfects", "bestStreak", "geodes", "stars", "masterworks", "lodes"];
 /** The consumables' buffs (shared/crafting.ts BUFFS): kept here by key (the workbench's, and the
  *  drawers' own: Feller's Pine Pitch, Phosphor Glow Bait, Miner's Stout). Using one again while it
  *  lasts starts its time afresh: the same buff never stacks. */
@@ -459,7 +476,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem): boolean 
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [] };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] } };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -636,6 +653,18 @@ function readFishingProfile(raw: unknown): FishingProfile {
     }
   }
   if (Array.isArray(r.codex)) p.codex = Array.from(new Set(r.codex.filter(isCodexId)));
+  if (r.ledger && typeof r.ledger === "object") {
+    for (const k of LEDGER_KEYS) {
+      const n = Math.floor(Number((r.ledger as Record<string, unknown>)[k]));
+      if (Number.isFinite(n) && n > 0) p.ledger[k] = Math.min(99_999_999, n);
+    }
+  }
+  if (r.weekly && typeof r.weekly === "object") {
+    const w = r.weekly as { week?: unknown; base?: unknown; done?: unknown };
+    if (typeof w.week === "string" && /^\d{4}-W\d{2}$/.test(w.week)) p.weekly.week = w.week;
+    if (w.base && typeof w.base === "object") for (const [k, v] of Object.entries(w.base as Record<string, unknown>)) if (Number.isFinite(Number(v)) && Number(v) >= 0 && k.length < 24) p.weekly.base[k] = Math.floor(Number(v));
+    if (Array.isArray(w.done)) p.weekly.done = w.done.filter((d): d is string => typeof d === "string" && d.length < 24).slice(0, 8);
+  }
   // the carrier's tier; one from before the tiers (levels 1-3: 6, 12, 20 logs) moves up to the
   // smallest tier that holds all it held, so nothing is lost in the move
   if (Number(r.carrierTier) >= 1) p.carrierTier = Math.min(WOOD_CARRIER_TIERS.length, Math.round(Number(r.carrierTier)));
@@ -689,6 +718,9 @@ export interface CatchLuck {
   heft?: number;
   /** A cast landed in the cenote's lucky drip: nothing common bites. */
   noCommon?: boolean;
+  /** A line in the caverns' stream (shared/worlds/caverns.ts streamCast): too shallow for anything
+   *  legendary or mythic. */
+  shallow?: boolean;
 }
 
 export const FISH_TIERS: FishTier[] = ["common", "uncommon", "rare", "legendary", "mythic"];
@@ -715,7 +747,7 @@ export function rollFish(water: Water, luck: CatchLuck = {}, rand: () => number 
   const odds = luck.commonOnly ? AFK_UNBAITED_TIER_ODDS : tierOdds(luck.rodTier ?? 1, !!luck.afk, !!luck.bait, rareMul);
   // (a cast in the lucky drip: the commons' share goes to the rest; an uncommon at worst)
   const floor = luck.noCommon && odds.common > 0 ? { ...odds, common: 0, uncommon: Math.max(odds.uncommon, 0.0001) } : odds;
-  const swims = (id: FishId) => (!luck.time || FISH[id].time === luck.time || FISH[id].time === "any") && (!(FISH[id] as FishSpecies).rapids || luck.rapids === true) && !(luck.noCommon && FISH[id].tier === "common");
+  const swims = (id: FishId) => (!luck.time || FISH[id].time === luck.time || FISH[id].time === "any") && (!(FISH[id] as FishSpecies).rapids || luck.rapids === true) && !(luck.noCommon && FISH[id].tier === "common") && !(luck.shallow && (FISH[id].tier === "legendary" || FISH[id].tier === "mythic"));
   // (only the rarities that swim here: the rest of the odds shared out among them in proportion)
   const here = FISH_TIERS.filter((k) => floor[k] > 0 && fishOf(water).some((id) => FISH[id].tier === k && swims(id)));
   const total = here.reduce((a, k) => a + floor[k], 0);

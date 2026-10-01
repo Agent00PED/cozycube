@@ -3,7 +3,7 @@ import { masterOut } from "./master";
 import { crossfade } from "./sound";
 import { CAVE_CHANNELS, getSoundSettings, type CaveChannel } from "./soundSettings";
 import { cameraFocus } from "../scene/cameraFocus";
-import { CAVE_LAKE, CAVERNS_LAYOUT, HEARTH, SURFACE, TERRACES, cavernsSurface, cavernsZoneAt, riverDistance } from "@shared/worlds/caverns";
+import { CAVE_LAKE, CAVE_WATER_Y, CAVERNS_LAYOUT, HEARTH, SURFACE, TERRACES, cavernsFloorY, cavernsSurface, cavernsZoneAt, riverDistance, STREAM_FALLS } from "@shared/worlds/caverns";
 
 // The Glimmering Caverns' soundscape and its effects, generated in the browser like every world's
 // (no audio files needed). Its own context, five channels on one master (each a Settings fader):
@@ -34,8 +34,8 @@ import { CAVE_LAKE, CAVERNS_LAYOUT, HEARTH, SURFACE, TERRACES, cavernsSurface, c
 // manifest no requests but the one. A Reinforced Pickaxe's hum near the weak spot is a pair of
 // sines whose level follows the pointer (setCaveHum). The effects follow the Settings' Effects switch.
 
-export type CaveSfx = "clink" | "crack" | "clang" | "clatter" | "shatter" | "drip" | "smelt" | "anvil";
-const SFX_NAMES: CaveSfx[] = ["clink", "crack", "clang", "clatter", "shatter", "drip", "smelt", "anvil"];
+export type CaveSfx = "clink" | "crack" | "clang" | "clatter" | "shatter" | "drip" | "smelt" | "anvil" | "ratchet" | "thump";
+const SFX_NAMES: CaveSfx[] = ["clink", "crack", "clang", "clatter", "shatter", "drip", "smelt", "anvil", "ratchet", "thump"];
 
 /** The grounds a footstep can fall on. */
 type Ground = "stone" | "gravel" | "mud" | "sand" | "travertine" | "leaves" | "splash";
@@ -126,6 +126,7 @@ class CavernAmbience {
   private musicAt = 0;
   private last = { x: 0, z: 0, ready: false };
   private hum: { a: OscillatorNode; b: OscillatorNode; g: GainNode } | null = null;
+  private drone: { a: OscillatorNode; b: OscillatorNode; c: OscillatorNode; g: GainNode } | null = null;
   private samples = new Map<string, AudioBuffer | null>();
   private loading = false;
 
@@ -360,9 +361,15 @@ class CavernAmbience {
     this.steamPlace?.gain.setTargetAtTime(0.15 + 1.6 / (1 + (d / 3) ** 2), now, 0.3);
     // the water: the falls under the collapse, the stream along its reaches, the lake at its shore
     const { x, z } = cameraFocus;
+    // (the jungle's waterfall, and every fall down the stream: the nearest one's roar, a smaller fall
+    // a little quieter: docs/caverns-roadmap.md R7.3)
     const fall = CAVERNS_LAYOUT.river.plunge;
-    const fd = Math.max(0, Math.hypot(x - fall.x, z - fall.z) - fall.r);
-    this.fallPlace?.gain.setTargetAtTime(0.04 + 1.5 / (1 + (fd / 4.5) ** 2), now, 0.3);
+    let loud = 1.5 / (1 + (Math.max(0, Math.hypot(x - fall.x, z - fall.z) - fall.r) / 4.5) ** 2);
+    for (const f of STREAM_FALLS) {
+      const fd = Math.hypot(x - (f.x0 + f.x1) / 2, z - (f.z0 + f.z1) / 2);
+      loud = Math.max(loud, Math.min(1.1, 0.45 + 0.25 * (f.y0 - f.y1)) / (1 + (fd / 3.2) ** 2));
+    }
+    this.fallPlace?.gain.setTargetAtTime(0.04 + loud, now, 0.3);
     const rd = riverDistance(x, z);
     this.streamPlace?.gain.setTargetAtTime(1.3 / (1 + (rd / 2.5) ** 2), now, 0.3);
     const lq = Math.hypot((x - CAVE_LAKE.x) / CAVE_LAKE.rx, (z - CAVE_LAKE.z) / CAVE_LAKE.rz);
@@ -408,7 +415,9 @@ class CavernAmbience {
     if (moved > 0.02 && now > this.stepAt) {
       this.stepAt = now + 0.34;
       this.stepFoot = 1 - this.stepFoot;
-      this.footstep(this.channels.cavern, GROUND_OF[cavernsSurface(x, z)] ?? "stone", this.stepFoot ? 0.12 : -0.12);
+      // (wading: under the lake's surface, the causeway out to the islet among it, a splash)
+      const wading = cavernsFloorY(x, z) < CAVE_WATER_Y - 0.03;
+      this.footstep(this.channels.cavern, wading ? "splash" : GROUND_OF[cavernsSurface(x, z)] ?? "stone", this.stepFoot ? 0.12 : -0.12);
     }
   };
 
@@ -650,6 +659,7 @@ class CavernAmbience {
     } else {
       this.stopAt = c.currentTime + 0.8;
       this.setHum(0);
+      this.setDrone(0);
     }
   }
 
@@ -771,6 +781,15 @@ class CavernAmbience {
         burst("highpass", 2500, 0.6, 0.4, 0.12);
         burst("lowpass", 300, 0.7, 0.6, 0.2);
         break;
+      case "ratchet": // the winch's pawl clicking over its ratchet as the drum turns
+        burst("bandpass", 1900, 3.0, 0.035, 0.16);
+        tone(520, 470, 0.08, 0.03, "triangle");
+        break;
+      case "thump": // the cage coming to rest: a wooden knock and the rope's creak
+        burst("lowpass", 500, 0.9, 0.16, 0.35);
+        tone(110, 70, 0.3, 0.2);
+        tone(330, 300, 0.05, 0.25, "sawtooth");
+        break;
       case "anvil": // a hammer on the anvil
         tone(1500, 1420, 0.5, 0.16, "triangle");
         tone(620, 600, 0.35, 0.08);
@@ -803,6 +822,38 @@ class CavernAmbience {
     const on = this.active && getSoundSettings().effects ? Math.max(0, Math.min(1, level)) : 0;
     this.hum.g.gain.setTargetAtTime(0.05 * on * on, now, 0.05);
     this.hum.b.frequency.setTargetAtTime(294 + 90 * on, now, 0.05);
+  }
+
+  /** The Titan Monolith's low hum (0 silent .. 1 beside it, awake): two low tones a hair apart,
+   *  beating slowly, and a fifth over them, through the lake's reverb. */
+  setDrone(level: number) {
+    const c = this.ctx;
+    if (!c) return;
+    if (!this.drone && level > 0.01 && this.active) {
+      const g = c.createGain();
+      g.gain.value = 0;
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 420;
+      const mk = (f: number) => {
+        const o = c.createOscillator();
+        o.type = "triangle";
+        o.frequency.value = f;
+        o.connect(lp);
+        o.start();
+        return o;
+      };
+      const a = mk(55);
+      const b = mk(55.7);
+      const d = mk(82.4);
+      lp.connect(g);
+      g.connect(this.dry!);
+      g.connect(this.send!);
+      this.drone = { a, b, c: d, g };
+    }
+    if (!this.drone) return;
+    const on = this.active && getSoundSettings().effects ? Math.max(0, Math.min(1, level)) : 0;
+    this.drone.g.gain.setTargetAtTime(0.09 * on * on, c.currentTime, 0.3);
   }
 
   /** The zone whose reverb is sounding (for a look from outside). */
@@ -848,6 +899,10 @@ export function playCaveSfx(kind: CaveSfx, level = 1) {
 /** The hum near the weak spot (0 .. 1). */
 export function setCaveHum(level: number) {
   engine?.setHum(level);
+}
+/** The Titan Monolith's hum (0 .. 1). */
+export function setCaveDrone(level: number) {
+  engine?.setDrone(level);
 }
 /** The zone whose reverb is sounding ("" before the caverns were ever entered). */
 export function caveRoom(): string {

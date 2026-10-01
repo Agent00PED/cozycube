@@ -17,7 +17,13 @@ export interface AABB {
   maxX: number;
   minZ: number;
   maxZ: number;
+  /** A round thing (a trunk, a rock, a stool, an ore node): a disc of this radius in the box's middle,
+   *  the box only its bounds. A square collider round a round thing sticks out 40% at its corners:
+   *  an invisible catch as you brush past, a gap between two that looks wide enough and isn't. */
+  r?: number;
 }
+/** A round thing's collider: a disc of `r` round `p`. */
+export const disc = (p: { x: number; z: number }, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r, r });
 
 /** Kept for shared/volleyball.ts (the beach is not built yet). */
 export const WORLD_LIMIT = 9.4;
@@ -82,14 +88,89 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
 };
 
 /** True when a disc of `radius` at (x, z) is off the floor or overlaps furniture. */
+/** The caverns' ground is tested with the feet's footprint (m), everything standing on it with the
+ *  body's radius. */
+export const CAVE_FOOT = 0.18;
 export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boolean {
   if (!REGIONS[mapId].some((r) => inside(r, x, z))) return true;
-  // (the caverns' ground: its own mask of where you can stand, besides its furniture's boxes)
-  if (mapId === "glimmering_caverns" && cavernsBlocked(x, z, radius)) return true;
+  // (the caverns' ground: its own mask of where you can stand, besides its furniture's boxes; tested
+  // with the feet's footprint, not the body's, so you walk right up to a bank's edge and through a
+  // gap you can see: docs/caverns-roadmap.md R4.1)
+  if (mapId === "glimmering_caverns" && cavernsBlocked(x, z, Math.min(radius, CAVE_FOOT))) return true;
   for (const b of MAP_OBSTACLES[mapId]) {
-    if (x + radius > b.minX && x - radius < b.maxX && z + radius > b.minZ && z - radius < b.maxZ) return true;
+    if (!(x + radius > b.minX && x - radius < b.maxX && z + radius > b.minZ && z - radius < b.maxZ)) continue;
+    if (b.r === undefined) return true;
+    const dx = x - (b.minX + b.maxX) / 2;
+    const dz = z - (b.minZ + b.maxZ) / 2;
+    if (dx * dx + dz * dz < (b.r + radius) * (b.r + radius)) return true;
   }
   return false;
+}
+
+/** The step turned this far either way (degrees) when the axis split stalls: along a slanted cliff,
+ *  round a rock, past a corner's edge. */
+const SLIDE_TURNS = [25, -25, 45, -45, 65, -65, 80, -80].map((d) => (d * Math.PI) / 180);
+/** How clear a spot is: the widest of these radii a body there fits (0: not even a point). */
+const CLEARANCE = [0.2, 0.1, 0.02];
+function clearance(x: number, z: number, mapId: MapId, radius: number): number {
+  if (!isBlocked(x, z, mapId, radius)) return CLEARANCE.length + 1;
+  for (let i = 0; i < CLEARANCE.length; i++) if (!isBlocked(x, z, mapId, CLEARANCE[i])) return CLEARANCE.length - i;
+  return 0;
+}
+
+/** A step against the world. Axis-separated first, so brushing a wall or a table slides along it; where
+ *  that barely moves (a slanted cliff's stair of mask cells, a rock's round side, a corner's edge), the
+ *  step turned a little either way, whichever gets furthest the way you asked. Standing somewhere a
+ *  body doesn't fit (set down there by the server, a seat's exit, a door), any step that frees you more
+ *  is taken: you are never held where you stand. (scripts/validate-world.ts replays steering on every
+ *  map against a snag budget.) */
+export function slideStep(pos: { x: number; z: number }, dx: number, dz: number, mapId: MapId, radius = 0.3, substep = 0.12) {
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-9) return;
+  const steps = Math.max(1, Math.ceil(len / substep));
+  const ux = dx / len;
+  const uz = dz / len;
+  const s = len / steps;
+  for (let i = 0; i < steps; i++) {
+    const x0 = pos.x;
+    const z0 = pos.z;
+    if (isBlocked(x0, z0, mapId, radius)) {
+      // (stuck inside something: take the move if it leaves you clearer, or no worse off)
+      const here = clearance(x0, z0, mapId, radius);
+      const to = clampToRegion(mapId, x0, z0, x0 + ux * s, z0 + uz * s);
+      if (clearance(to.x, to.z, mapId, radius) >= here) {
+        pos.x = to.x;
+        pos.z = to.z;
+      }
+      continue;
+    }
+    const nx = clampToRegion(mapId, pos.x, pos.z, pos.x + ux * s, pos.z).x;
+    if (!isBlocked(nx, pos.z, mapId, radius)) pos.x = nx;
+    const nz = clampToRegion(mapId, pos.x, pos.z, pos.x, pos.z + uz * s).z;
+    if (!isBlocked(pos.x, nz, mapId, radius)) pos.z = nz;
+    const gained = (pos.x - x0) * ux + (pos.z - z0) * uz;
+    if (gained >= 0.5 * s) continue;
+    let bestX = pos.x;
+    let bestZ = pos.z;
+    let best = gained;
+    for (const a of SLIDE_TURNS) {
+      const c = Math.cos(a);
+      const sn = Math.sin(a);
+      const rx = ux * c - uz * sn;
+      const rz = ux * sn + uz * c;
+      const k = s * Math.max(0.35, c);
+      const to = clampToRegion(mapId, x0, z0, x0 + rx * k, z0 + rz * k);
+      if (isBlocked(to.x, to.z, mapId, radius)) continue;
+      const g = (to.x - x0) * ux + (to.z - z0) * uz;
+      if (g > best + 1e-4) {
+        best = g;
+        bestX = to.x;
+        bestZ = to.z;
+      }
+    }
+    pos.x = bestX;
+    pos.z = bestZ;
+  }
 }
 
 /** How high the floor is at (x, z): the casino's raised High-Roller Pit and Velvet Lounge (and the

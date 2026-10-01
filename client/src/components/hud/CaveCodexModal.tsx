@@ -1,27 +1,30 @@
 import { useState } from "react";
-import { CODEX, CODEX_SECTIONS, codexProgress, type CodexSection } from "@shared/caverns_codex";
+import { CODEX, CODEX_SECTIONS, CODEX_TITLE, codexProgress, codexTitles, type CodexSection } from "@shared/caverns_codex";
+import { specialTitle } from "@shared/items";
 import { Modal } from "./Modal";
 
 // The Cave Codex (shared/caverns_codex.ts): the expedition's field journal, in five tabs (the zone
 // stamps, the fauna, the pearls and fossils, Old Flint's journal, the living wonders). Each entry
 // found shows its lore (a journal page its whole text); each one still to find a hint of where. The
-// section's progress and its completion bonus on its tab.
+// section's progress and its completion bonus on its tab; the gold titles a filled section gives (and
+// the whole codex), each one worn from here.
 
 const HINT: Record<CodexSection, string> = {
   zones: "Walk into this zone to stamp it",
   fauna: "Spend a moment where this creature lives",
   finds: "A pearl glints in a dry basin on the terraces; fossils turn up now and then in a node's rubble",
   journal: "A torn page lies somewhere in the caverns, glinting",
-  wonders: "A living wonder, the Bat Exodus at the camp's dusk, or a photo at the Hound's Hand",
+  wonders: "A living wonder, the Bat Exodus at the camp's dusk, or a photo at the Explorers' Rest",
 };
 
-export function CaveCodexModal({ found, initial, onClose }: { found: string[]; initial?: string; onClose: () => void }) {
+export function CaveCodexModal({ found, initial, title, onWear, onClose }: { found: string[]; initial?: string; /** The title worn now. */ title: string; onWear: (title: string) => void; onClose: () => void }) {
   const start = (CODEX_SECTIONS.find((s) => s.id === initial)?.id ?? "zones") as CodexSection;
   const [tab, setTab] = useState<CodexSection>(start);
   const entries = CODEX.filter((e) => e.section === tab);
   const section = CODEX_SECTIONS.find((s) => s.id === tab)!;
   const prog = codexProgress(found, tab);
   const all = CODEX.filter((e) => found.includes(e.id)).length;
+  const earned = codexTitles(found);
   return (
     <Modal title="The Cave Codex" icon="📖" onClose={onClose} width={620}>
       <div className="flex min-h-0 flex-col gap-2">
@@ -60,6 +63,18 @@ export function CaveCodexModal({ found, initial, onClose }: { found: string[]; i
                   {!have && <span className="text-[10.5px] font-semibold text-amber-200/80">+{e.coins} 🪙</span>}
                 </div>
               </div>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-white/10 px-1 pt-2 text-[11.5px]">
+          <span className="opacity-75">🏅 Titles:</span>
+          {[...CODEX_SECTIONS.map((s) => s.title), CODEX_TITLE].map((t) => {
+            const have = earned.includes(t);
+            const worn = title === t;
+            return (
+              <button key={t} type="button" disabled={!have} onClick={() => onWear(worn ? "" : t)} className={`min-h-8 rounded-full border px-2.5 font-bold ${worn ? "border-amber-300 bg-amber-300 text-amber-950" : have ? "border-amber-300/50 bg-white/10 text-amber-200 hover:bg-white/15" : "border-white/10 opacity-35"}`} title={have ? (worn ? "Take it off" : "Wear it over your name") : t === CODEX_TITLE ? "Fill the whole codex" : "Fill its section"}>
+                {have ? specialTitle(t)?.name : "🔒 ???"}
+              </button>
             );
           })}
         </div>

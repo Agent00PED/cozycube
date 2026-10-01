@@ -273,14 +273,16 @@ export const SHRINE_STONES: Pt[] = (() => {
   });
 })();
 
-const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
+// (round things are discs: shared/collision.ts `disc`)
+const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r, r });
+const square = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
 export const FOREST_OBSTACLES: AABB[] = [
   // the trunks (felled or not: a stump is in the way too)
   ...FOREST_TREES.map((t) => around(t, TRUNK)),
   // the vista pines on the cliff edges
   ...L.vista.map(([x, z, s]) => around({ x, z }, 0.45 * s)),
   // the river: small boxes down its length, a little in from its banks (you walk to the water's edge)
-  ...forestRiver(10).map(([x, z, w]) => around({ x, z }, Math.max(0.2, w - 0.22))),
+  ...forestRiver(10).map(([x, z, w]) => square({ x, z }, Math.max(0.2, w - 0.22))),
   // the rocks in and by it, and the fishing seats (a log, a rock)
   ...L.river.rocks.map(([x, z, s]) => around({ x, z }, 0.4 * s)),
   ...FOREST_SEATS.map((st) => around(st, 0.2)),

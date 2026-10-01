@@ -553,7 +553,9 @@ export const CAMP_PROPS: PropSpec[] = [
 
 // --- what you walk round ----------------------------------------------------------------------
 
-const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
+// (round things are discs: shared/collision.ts `disc`)
+const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r, r });
+const square = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
 
 
 /** The river as boxes: thin slices down its length, each spanning its banks there (a little in

@@ -24,7 +24,7 @@ import type { BoxPose } from "./boxingAnimations";
 // else's forge and chisel run on a loop of their own (forgeBeat, chiselBeat), which the sparks off
 // the anvil follow too (scene/caveFx.ts), so a hammer and its sparks always land together.
 
-export type Activity = "mine" | "forge" | "chisel" | "soak" | "winch";
+export type Activity = "mine" | "forge" | "chisel" | "soak" | "winch" | "raft";
 
 export interface ActivityInput {
   kind: Activity;
@@ -270,6 +270,20 @@ export function activityPose(p: BoxPose, i: ActivityInput): BoxPose {
       p.roll = sway * 0.035;
       p.head.x = -0.24;
       p.head.y = 0.1 * Math.sin(t * 0.6 + seed);
+      break;
+    }
+    case "raft": {
+      // poling the raft across: both hands down on the pole at one side, a long push back and a
+      // reach forward again, the feet set wide on the planks, riding the swell
+      const stroke = Math.sin(t * 1.6 + seed);
+      p.armR.x = -0.9 + stroke * 0.55;
+      p.armL.x = -1.25 + stroke * 0.5;
+      p.armR.in = 0.25;
+      p.armL.in = -0.1;
+      p.legSpread = 0.12;
+      p.lean = 0.08 + 0.06 * stroke;
+      p.roll = 0.03 * Math.sin(t * 1.1 + seed);
+      p.head.y = 0.08 * Math.sin(t * 0.5 + seed);
       break;
     }
   }

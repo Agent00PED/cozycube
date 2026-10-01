@@ -1,3 +1,4 @@
+import { riderWalking } from "../scene/winchRide";
 import { forwardRef, memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Billboard, Html, Text, useGLTF } from "@react-three/drei";
@@ -728,7 +729,7 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
       armL = armR + 0.35;
     }
     // riding Gus's winch up: both hands up on the rope, a little sway with the cage
-    if (action === "winch") {
+    if ((action === "winch" || action === "winchdown") && !riderWalking(sessionId)) {
       armR = -2.75 + Math.sin(t * 2.2) * 0.04;
       armL = -2.6 + Math.sin(t * 2.2 + 0.6) * 0.04;
     }
@@ -799,7 +800,7 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
     } else footwork.current.ready = false;
     // --- the Glimmering Caverns' work: the whole body from the activity suite (activityAnimations.ts) ---
     const wk = work.current;
-    const kind: Activity | null = bp ? null : action === "soak" && pose !== "stand" ? "soak" : pose !== "stand" ? null : action === "winch" ? "winch" : !walking && (action === "mine" || action === "forge" || action === "chisel") ? action : null;
+    const kind: Activity | null = bp ? null : action === "soak" && pose !== "stand" ? "soak" : pose !== "stand" ? null : (action === "winch" || action === "winchdown") && !riderWalking(sessionId) ? "winch" : (action === "winch" || action === "winchdown") ? null : action === "raft" ? "raft" : !walking && (action === "mine" || action === "forge" || action === "chisel") ? action : null;
     if (kind !== wk.kind) {
       wk.kind = kind;
       wk.at = t;

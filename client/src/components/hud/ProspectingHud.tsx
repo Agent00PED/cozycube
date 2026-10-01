@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { CAVERNS_CHANNELS, ORE_KINDS, STREAK_MAX, STREAK_STEP } from "@shared/caverns_mining";
 import { ORE_NODE_AT } from "@shared/worlds/caverns";
-import { useBlow, useProspect } from "../../systems/prospectStore";
+import { useBlow, useCleanBreak, useProspect } from "../../systems/prospectStore";
+import { ORE_ITEMS, type OreItemId } from "@shared/caverns_mining";
 import { isTouchUi } from "../../systems/inputMode";
 import { tipDue, tipMastered, tipSeen } from "./firstTips";
 
@@ -27,10 +28,16 @@ const POP: Record<string, { text: string; color: string }> = {
 export function ProspectingHud({ send }: { send: (channel: string, packet?: unknown) => void }) {
   const pr = useProspect();
   const { blow, streak } = useBlow();
+  const cleanAt = useCleanBreak();
   useEffect(() => {
     if (!pr) return;
+    // (Escape, or a step away with the keys: back from the rock; docs/caverns-roadmap.md R10.5)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || document.querySelector('[role="dialog"]')) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const walk = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase());
+      if (e.key !== "Escape" && !walk) return;
       send(CAVERNS_CHANNELS.prospect, { op: "stop" });
     };
     window.addEventListener("keydown", onKey);
@@ -52,7 +59,13 @@ export function ProspectingHud({ send }: { send: (channel: string, packet?: unkn
       setTip(false);
     }
   }, [blow]);
-  if (!pr) return null;
+  // (the rock already gone: a Clean Break's pop outlives the close-up)
+  if (!pr)
+    return performance.now() - cleanAt < 1800 ? (
+      <div key={`c${cleanAt}`} className="pointer-events-none fixed left-1/2 z-30 -translate-x-1/2" style={{ top: "24%" }}>
+        <div style={{ ...popStyle, color: "#9fffd0", fontSize: "clamp(28px, 6.5vw, 48px)" }}>CLEAN BREAK! <span style={{ fontSize: "0.5em" }}>+25% haul</span></div>
+      </div>
+    ) : null;
   const node = ORE_NODE_AT.get(pr.node);
   const info = node ? ORE_KINDS[node.kind] : null;
   const pop = blow && performance.now() - blow.at < 1300 ? (blow.perfect ? POP.perfect : POP[blow.verdict]) : null;
@@ -87,9 +100,19 @@ export function ProspectingHud({ send }: { send: (channel: string, packet?: unkn
           </div>
         </div>
       )}
+      {blow?.bonus && performance.now() - blow.at < 1600 && (
+        <div key={`g${blow.at}`} className="pointer-events-none fixed left-1/2 z-30 -translate-x-1/2" style={{ top: "38%" }}>
+          <div style={{ ...popStyle, color: "#ffd84a", fontSize: "clamp(16px, 3.6vw, 24px)" }}>✨ Lucky glint! +1 {ORE_ITEMS[blow.bonus as OreItemId]?.name ?? "ore"}</div>
+        </div>
+      )}
+      {performance.now() - cleanAt < 1800 && (
+        <div key={`c${cleanAt}`} className="pointer-events-none fixed left-1/2 z-30 -translate-x-1/2" style={{ top: "24%" }}>
+          <div style={{ ...popStyle, color: "#9fffd0", fontSize: "clamp(28px, 6.5vw, 48px)" }}>CLEAN BREAK! <span style={{ fontSize: "0.5em" }}>+25% haul</span></div>
+        </div>
+      )}
       {tip && (
         <div className="pointer-events-none fixed left-1/2 z-30 w-[min(92vw,420px)] -translate-x-1/2 rounded-2xl bg-stone-900/80 px-4 py-2 text-center text-[13px] font-semibold text-amber-100 outline outline-1 -outline-offset-1 outline-amber-200/25 backdrop-blur" style={{ bottom: "calc(max(12px, env(safe-area-inset-bottom)) + 84px)" }}>
-          {isTouchUi() ? "Tap" : "Click"} inside the glowing ring on the rock, just as the white ring closes on it: <b className="text-amber-300">Perfect!</b> Perfects in a row mine more.
+          {isTouchUi() ? "Tap" : "Click"} inside the glowing ring on the rock, just as the white ring closes on it: <b className="text-amber-300">Perfect!</b> Perfects in a row mine more; a gold ring is a lucky glint, and a Perfect to finish it is a clean break. Click away or walk to step back.
         </div>
       )}
       <button

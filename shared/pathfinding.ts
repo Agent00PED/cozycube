@@ -238,3 +238,16 @@ export function isReachable(mapId: MapId, from: Point, to: Point): boolean {
   const end = path[path.length - 1];
   return Math.hypot(end.x - to.x, end.z - to.z) < 0.35;
 }
+
+/** Whether a body walks the straight line from `a` to `b` clear of everything (sampled every 10 cm):
+ *  click-to-move takes a waypoint as reached only once the way on to the next is clear this way, so a
+ *  corner the path goes round is never cut into (docs/caverns-roadmap.md R4.1). */
+export function clearLine(mapId: MapId, a: Point, b: Point, radius = PLAYER_RADIUS): boolean {
+  const d = Math.hypot(b.x - a.x, b.z - a.z);
+  const n = Math.max(1, Math.ceil(d / 0.1));
+  for (let i = 1; i <= n; i++) {
+    const t = i / n;
+    if (isBlocked(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t, mapId, radius)) return false;
+  }
+  return true;
+}

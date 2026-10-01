@@ -133,7 +133,7 @@ const SUN_COLOR = new THREE.Color("#ffd79c");
 const MOON_COLOR = new THREE.Color("#a9c2ff");
 
 /** How dark each zone is away from its own lights (0 lit .. 1 dark): the light round you there. */
-const ZONE_DARK: Record<string, number> = { basecamp: 0.15, jungle: 0, breakdown: 0.45, mudflats: 0.7, terraces: 0.35, overlook: 0.6, lake: 0.65, rift: 0.9 };
+const ZONE_DARK: Record<string, number> = { basecamp: 0.1, jungle: 0, breakdown: 0.35, mudflats: 0.5, terraces: 0.2, overlook: 0.4, lake: 0.6, rift: 0.9 };
 /** The warm glow round you in the dark zones (a lamp's at your shoulder: `YOU` in the cave's
  *  materials), eased in and out as you walk between them; the jungle dark too once the sun is down. */
 function YourLight() {
@@ -372,6 +372,36 @@ export function DustMotes() {
       const bob = Math.sin(t * 0.3 * d.s + d.p);
       motes.set(i, d.x + Math.cos(a) * 0.8, d.y + bob * 0.35, d.z + Math.sin(a) * 0.8, 0.22 + 0.18 * (0.5 + 0.5 * Math.sin(t * 0.7 + d.p)), DUST_COLOR);
     });
+    motes.commit();
+  });
+  return <primitive object={motes.points} />;
+}
+
+// --- dust in your light (docs/caverns-roadmap.md R2.10) -------------------------------------------------
+
+const LAMP_DUST = 44;
+const LAMP_DUST_COLOR = new THREE.Color("#ffd9a8");
+/** Dust hanging in the air round you in the dark zones, lit by the glow at your shoulder (YOU): motes
+ *  drifting slowly within a few metres of you, only as bright as that glow is. */
+export function LampDust() {
+  const motes = useMemo(() => new MotePoints(LAMP_DUST), []);
+  const seeds = useMemo(() => Array.from({ length: LAMP_DUST }, (_, i) => ({ a: (i * 2.39996) % (Math.PI * 2), r: 0.6 + ((i * 0.618) % 1) * 2.6, h: 0.2 + ((i * 0.37) % 1) * 2.0, s: 0.2 + ((i * 0.53) % 1) * 0.5, p: i * 1.31 })), []);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const glow = YOU.value.w;
+    for (let i = 0; i < LAMP_DUST; i++) {
+      const sd = seeds[i];
+      if (glow < 0.05) {
+        motes.hide(i);
+        continue;
+      }
+      const a = sd.a + t * 0.05 * sd.s;
+      const x = YOU.value.x + Math.cos(a) * sd.r + 0.3 * Math.sin(t * 0.3 * sd.s + sd.p);
+      const z = YOU.value.z + Math.sin(a) * sd.r + 0.3 * Math.cos(t * 0.27 * sd.s + sd.p);
+      const y = YOU.value.y + sd.h + 0.25 * Math.sin(t * 0.4 * sd.s + sd.p);
+      const near = 1 - Math.min(1, sd.r / 3.4);
+      motes.set(i, x, y, z, glow * (0.25 + 0.5 * near) * (0.6 + 0.4 * Math.sin(t * 1.3 + sd.p)), LAMP_DUST_COLOR);
+    }
     motes.commit();
   });
   return <primitive object={motes.points} />;

@@ -3,9 +3,10 @@ import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
 import type { Group } from "three";
 import { isCampMap, type MapId, type PlayerState } from "@shared/types";
-import { clampToRegion, isBlocked, walkY } from "@shared/collision";
+import { slideStep, walkY } from "@shared/collision";
+import { CAVE_WATER_Y, cavernsFloorY } from "@shared/worlds/caverns";
 import { auraPace } from "@shared/casino";
-import { findPath, type Point } from "@shared/pathfinding";
+import { clearLine, findPath, type Point } from "@shared/pathfinding";
 import { cameraFocus } from "../scene/cameraFocus";
 import { consumeStandPress, worldMoveDirection } from "./input";
 import { faceHeading, workHeading } from "./faceTargets";
@@ -59,6 +60,8 @@ const SEND_INTERVAL = 1 / 16;
 const DIR_CHANGE_EPSILON = 0.2;
 const COLLIDE_SUBSTEP = 0.12; // long steps are split so a corner can't be skipped
 const PLAYER_RADIUS = 0.3;
+/** How much of a walking pace wading keeps. */
+const WADE_PACE = 0.82;
 
 /** A fighter's pace behind a raised guard, and in the middle of a punch. */
 const GUARD_PACE = 0.5;
@@ -106,19 +109,6 @@ function lerpAngle(from: number, to: number, t: number): number {
   if (d > Math.PI) d -= Math.PI * 2;
   if (d < -Math.PI) d += Math.PI * 2;
   return from + d * t;
-}
-
-/** Axis-separated, so brushing a wall or a table slides along it. */
-function slideStep(pos: Point, dx: number, dz: number, mapId: MapId) {
-  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / COLLIDE_SUBSTEP));
-  const sx = dx / steps;
-  const sz = dz / steps;
-  for (let i = 0; i < steps; i++) {
-    const nx = clampToRegion(mapId, pos.x, pos.z, pos.x + sx, pos.z).x;
-    if (!isBlocked(nx, pos.z, mapId, PLAYER_RADIUS)) pos.x = nx;
-    const nz = clampToRegion(mapId, pos.x, pos.z, pos.x, pos.z + sz).z;
-    if (!isBlocked(pos.x, nz, mapId, PLAYER_RADIUS)) pos.z = nz;
-  }
 }
 
 export function useLocalPlayerMovement(
@@ -263,10 +253,10 @@ export function useLocalPlayerMovement(
       frozen = !!mine && (mine.state === "down" || mine.state === "out" || mine.state === "stun" || mine.state === "stagger" || mine.state === "hurt" || mine.state === "dash");
       ringPace = mine?.state === "block" ? GUARD_PACE : mine?.state === "attack" ? PUNCH_PACE : 1;
     }
-    const step = (dx: number, dz: number) => (ring ? ringStep(pos, dx, dz, foe) : slideStep(pos, dx, dz, mapId));
+    const step = (dx: number, dz: number) => (ring ? ringStep(pos, dx, dz, foe) : slideStep(pos, dx, dz, mapId, PLAYER_RADIUS, COLLIDE_SUBSTEP));
 
     // (riding the winch: hands on the rope, nowhere to walk)
-    if (player.action === "winch") frozen = true;
+    if (player.action === "winch" || player.action === "winchdown") frozen = true;
     const steer = frozen ? null : worldMoveDirection();
 
     // Space, like steering, gets you up from a seat (a click does the same through the scene)
@@ -285,7 +275,10 @@ export function useLocalPlayerMovement(
       if ((steer || frozen) && targetRef.current) targetRef.current = null;
       const target = targetRef.current;
       const torch = torchRef.current && isCampMap(mapId) && !isCampDay(Date.now()) ? TORCH_NIGHT_PACE : 1;
-      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * (smoreUntilRef.current > Date.now() ? SMORE_PACE : 1) * (warmUntilRef.current > Date.now() ? WARMTH_PACE : 1) * ringPace;
+      // (wading the lake's shallows, the causeway out to the islet among them: a little slower,
+      // docs/caverns-roadmap.md R7.4)
+      const wading = mapId === "glimmering_caverns" && cavernsFloorY(pos.x, pos.z) < CAVE_WATER_Y - 0.03 ? WADE_PACE : 1;
+      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * (smoreUntilRef.current > Date.now() ? SMORE_PACE : 1) * (warmUntilRef.current > Date.now() ? WARMTH_PACE : 1) * ringPace * wading;
       if (steer) {
         dirX = steer.x;
         dirZ = steer.z;
@@ -304,7 +297,10 @@ export function useLocalPlayerMovement(
           const dz = waypoint.z - pos.z;
           const distance = Math.hypot(dx, dz);
           const isFinal = path.length === 1;
-          if (distance > (isFinal ? ARRIVE_THRESHOLD : WAYPOINT_THRESHOLD)) {
+          // (a waypoint on the way counts as reached only once the way on to the next is clear: a
+          // corner the path goes round is never cut into)
+          const reached = isFinal ? distance <= ARRIVE_THRESHOLD : distance <= ARRIVE_THRESHOLD || (distance <= WAYPOINT_THRESHOLD && (ring || clearLine(mapId, pos, path[1])));
+          if (!reached) {
             dirX = dx / distance;
             dirZ = dz / distance;
             const cap = isFinal && distance < ARRIVE_RADIUS ? pace * Math.max(0.35, distance / ARRIVE_RADIUS) : pace;
@@ -381,7 +377,7 @@ export function useLocalPlayerMovement(
       targetRef.current = null;
       seatYRef.current = ride.y;
       facingRef.current = ride.facing;
-      speedRef.current = 0;
+      speedRef.current = ride.walking ? 0.55 : 0;
     }
     const drawX = ride ? ride.x : pos.x;
     const drawZ = ride ? ride.z : pos.z;

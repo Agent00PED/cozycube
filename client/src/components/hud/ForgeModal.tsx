@@ -370,7 +370,7 @@ function BellowsGame({ game, send }: { game: ForgeGame; send: Props["send"] }) {
       ) : (
         <Anvil t={t} beats={beats} strikes={mine} next={nextBeat ?? null} onStrike={strike} />
       )}
-      {tip && <p className="m-0 rounded-xl bg-black/25 px-3 py-1.5 text-center text-[12px] text-amber-100">Tip: short taps nudge the heat up; let go and it cools. Hold it in the band for {BELLOWS_HOLD_S} s, then strike twice on the beat for a Masterwork.</p>}
+      {tip && <p className="m-0 rounded-xl bg-black/25 px-3 py-1.5 text-center text-[12px] text-amber-100">Tip: short taps nudge the heat up; let go and it cools. Tap a little before the heat reaches the band's middle (each puff overshoots, most of all in the narrow band of a big batch). Hold it in the band for {BELLOWS_HOLD_S} s, then strike twice on the beat for a Masterwork.</p>}
     </div>
   );
 }

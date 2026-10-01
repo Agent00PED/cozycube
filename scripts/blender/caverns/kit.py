@@ -8,6 +8,7 @@ filled and cleared in place, never rebound."""
 
 import json
 import math
+import random
 import os
 import re
 
@@ -86,6 +87,7 @@ C = {
     "timberDark": "#5A3D27",
     "plank": "#9C7148",
     "iron": "#3A3836",
+    "stew": "#7A4A26",
     "steel": "#8E949C",
     "leather": "#6B4228",
     "canvas": "#C8B894",
@@ -121,10 +123,10 @@ C = {
     # the blockout's grounds, one per zone (shared/worlds/caverns.ts SURFACE)
     "groundCamp": "#8A7456",
     "groundJungle": "#475E36",
-    "groundBreakdown": "#7C7F86",
-    "groundMud": "#9A5A36",
-    "groundOverlook": "#948F83",
-    "groundTravertine": "#BAB29D",
+    "groundBreakdown": "#666971",
+    "groundMud": "#8C6246",
+    "groundOverlook": "#8A8579",
+    "groundTravertine": "#B0A58B",
     "groundRift": "#2B2838",
     "groundShore": "#675D4E",
     "groundTrail": "#C9AE7C",
@@ -147,9 +149,9 @@ C = {
     "campSoil": "#6E5C44",
     "gravelLight": "#9A9DA3",
     "gravelDark": "#5E6168",
-    "mudCrack": "#5E3420",
-    "mudPlate": "#A8653C",
-    "mudPlateLight": "#BC7A4A",
+    "mudCrack": "#5A3A28",
+    "mudPlate": "#9A6A48",
+    "mudPlateLight": "#AE8058",
     "mudWater": "#8A4A2A",
     "riftGlint": "#3A3050",
     "lakeShallow": "#46C9A4",
@@ -159,6 +161,12 @@ C = {
     "canopy": "#2F5F2B",
     "canopyLight": "#4E8A36",
     "canopyDark": "#22452A",
+    "canopyWarm": "#46702C",
+    "blossom": "#E6A2C4",
+    "mossHang": "#5E7A3A",
+    "raftLog": "#6E4B30",
+    "abyssCyan": "#1C5F5A",
+    "abyssViolet": "#35275A",
     "vine": "#4A7A30",
     "vineLeaf": "#7AB04A",
     "pearl": "#F4F0E4",
@@ -193,13 +201,30 @@ C = {
     "silverHost": "#4C5566",
     "silverHostDark": "#333A48",
     "silverNugget": "#EEF6FF",
-    "mudRock": "#A8653C",
-    "mudRockDark": "#6E3F26",
+    "mudRock": "#9A6A48",
+    "mudRockDark": "#684530",
     "travRock": "#CCC4AF",
     "greatCream": "#D4C29C",
     "greatAmber": "#B48D60",
     "greatShadow": "#6E604F",
     "travRockDark": "#B8AF98",
+    # (round 3: what the expedition left along its way)
+    "ribbon": "#A8483A",
+    "ribbonFaded": "#B8806A",
+    "chalk": "#E4DFD2",
+    "canteen": "#5C6446",
+    "ash": "#6A655E",
+    "shingle": "#6E5236",
+    "shingleDark": "#4E3A26",
+    "shingleLight": "#86674A",
+    "travWet": "#8C8270",
+    "travAmber": "#C2A57A",
+    "travOchre": "#B08A5A",
+    # (the Hound's Hand's own calcite: its streaks and mottling are its own, the floor's rock strata
+    # never painted over it)
+    "handCalcite": "#8A857B",
+    "handShade": "#4D4F55",
+    "handCream": "#D4C29C",
 }
 
 
@@ -312,9 +337,10 @@ def frange(a, b, step):
 # (client/src/scene/caveSurface.ts: cracks, strata, moss, grain) leaves them plain
 PLAIN = {
     "timber", "timberDark", "plank", "iron", "steel", "leather", "canvas", "canvasShade", "brass", "brassDark", "glass",
-    "barrel", "bedroll", "mapPaper", "mapInk", "trunk", "trunkDark", "canopy", "canopyLight", "canopyDark", "vine", "vineLeaf",
+    "barrel", "bedroll", "mapPaper", "mapInk", "trunk", "trunkDark", "canopy", "canopyLight", "canopyDark", "vine", "vineLeaf", "canopyWarm", "blossom", "mossHang", "raftLog",
     "fern", "fernLight", "reedPale", "reedPaleDark", "leafLitter", "leafAmber", "leafGreen", "driftPale", "pearl",
     "moss", "mossDeep", "mossLight", "skyLow", "skyHigh", "shroomStem",
+    "ribbon", "ribbonFaded", "chalk", "canteen", "shingle", "shingleDark", "shingleLight", "handCalcite", "handShade", "handCream",
 }
 
 
@@ -601,45 +627,6 @@ def rock_colour(moss=0.0, base="limestone", dark="limestoneDark"):
     return paint
 
 
-def hound_hand(M, x, y, z, r, h):
-    """The Hound's Hand (after Son Doong's Hand of Dog): a stout fluted column of flowstone flaring into
-    the floor, narrowing, then swelling into a rounded paw at its top, knuckled into four fingers with
-    a thumb; banded cream and grey down its flutes."""
-    segs = 18
-    # (the profile: its radius against its height, both as shares of the tower's)
-    prof = [(1.75, 0.0), (1.45, 0.04), (1.15, 0.12), (0.98, 0.24), (0.88, 0.38), (0.86, 0.5), (0.95, 0.6), (1.12, 0.69), (1.28, 0.77), (1.3, 0.84), (1.18, 0.9), (0.9, 0.95)]
-    rings = []
-    for j, (kr, kh) in enumerate(prof):
-        ring = []
-        hh = y - 0.3 + h * kh
-        for k in range(segs):
-            a = 2 * math.pi * k / segs
-            # (the flutes running down it, fading out at the paw)
-            flute = 1 + 0.09 * math.sin(6 * a + 0.8 * j) * (1 - smooth(0.62, 0.8, kh))
-            rr = r * kr * flute
-            v = M.v(x + math.cos(a) * rr, hh, z + math.sin(a) * rr)
-            band = 0.5 + 0.5 * math.sin(hh * 2.6 + math.sin(3 * a) * 0.8)
-            c = mixc("limestoneDark", "flowstone", 0.3 + 0.5 * band)
-            c = mixc(c, "greatCream", 0.35 * smooth(0.55, 0.9, kh) * (0.5 + 0.5 * math.sin(6 * a)))
-            M.setv(v, c)
-            ring.append(v)
-        rings.append(ring)
-    for r0, r1 in zip(rings, rings[1:]):
-        for k in range(segs):
-            k1 = (k + 1) % segs
-            M.setsmooth(M.face((r0[k], r0[k1], r1[k1], r1[k]), "flowstone"))
-    top_y = y - 0.3 + h * 0.95
-    cap = M.v(x, top_y + 0.1, z)
-    M.setv(cap, "flowstone")
-    for k in range(segs):
-        M.setsmooth(M.face((rings[-1][k], rings[-1][(k + 1) % segs], cap), "flowstone"))
-    # the fingers and the thumb: rounded knuckles round the paw's top, leaning out
-    for k, (a, s, up) in enumerate(((0.2, 0.52, 0.55), (1.35, 0.48, 0.62), (2.5, 0.5, 0.58), (3.7, 0.44, 0.5), (5.0, 0.36, 0.3))):
-        fx, fz = x + math.cos(a) * r * 0.85, z + math.sin(a) * r * 0.85
-        blob(M, fx, top_y - 0.1 + up * 0.5, fz, s * r, (0.55 + up) * r, s * r, "flowstone", cuts=2, n=2.0, noise=0.12, seed=k + 41)
-        blob(M, fx + math.cos(a) * 0.12, top_y + up * 0.5 + (0.5 + up) * r * 0.75, fz + math.sin(a) * 0.12, s * r * 0.6, s * r * 0.5, s * r * 0.6, "greatCream", cuts=1, n=2.0, noise=0.1, seed=k + 47)
-
-
 def stalagmite(M, x, y, z, r, h):
     """A fluted stalagmite: a tapering column of flowstone, ringed where it grew in pulses."""
     segs, rings = 7, 6
@@ -774,7 +761,7 @@ ZONE_TINT = (
     (-22.5, -9.0, -22.5, -12.25, (1.02, 1.04, 0.9)),
     (-9.0, 9.0, -22.5, -12.25, (1.06, 1.0, 0.9)),
     (9.0, 22.5, -22.5, -12.25, (0.93, 0.97, 1.04)),
-    (-22.5, -6.5, -12.25, 1.5, (1.02, 0.88, 0.76)),
+    (-22.5, -6.5, -12.25, 1.5, (1.0, 0.92, 0.84)),
     (-8.5, 11.0, -12.25, -3.0, (1.0, 0.99, 0.97)),
     (11.0, 22.5, -12.25, 5.5, (0.8, 0.82, 1.06)),
     (-22.5, -5.5, 1.5, 22.5, (0.95, 1.0, 1.05)),
@@ -811,13 +798,14 @@ def broken_slab(M, c, rot, hx, hy, hz, rng, top="limestoneLight", side="limeston
     for sx in (-1, 1):
         for sy in (-1, 1):
             for sz in (-1, 1):
-                k = 0.7 + 0.35 * rng.random()
-                ox, oy, oz = rot(sx * hx * k, sy * hy * (0.8 + 0.3 * rng.random()), sz * hz * (0.7 + 0.35 * rng.random()))
+                # (a corner knocked off now and then: never a box's square shoulder)
+                k = (0.5 if rng.random() < 0.35 else 0.75) + 0.3 * rng.random()
+                ox, oy, oz = rot(sx * hx * k, sy * hy * (0.7 + 0.4 * rng.random()), sz * hz * (0.6 + 0.45 * rng.random()))
                 pts.append(bm.verts.new(W(c[0] + ox, c[1] + oy, c[2] + oz)))
-    for _ in range(10):
+    for _ in range(16):
         a = rng.random() * 2 * math.pi
         sy = 1 if rng.random() < 0.5 else -1
-        k = 0.85 + 0.3 * rng.random()
+        k = 0.75 + 0.4 * rng.random()
         ox, oy, oz = rot(math.cos(a) * hx * k, sy * hy * (0.7 + 0.3 * rng.random()), math.sin(a) * hz * k)
         pts.append(bm.verts.new(W(c[0] + ox, c[1] + oy, c[2] + oz)))
     hull = bmesh.ops.convex_hull(bm, input=pts)
@@ -831,6 +819,32 @@ def broken_slab(M, c, rot, hx, hy, hz, rng, top="limestoneLight", side="limeston
     for v in bm.verts:
         v.tag = False
 
+
+
+def menhir(M, x, y, z, w, d, h, yaw, rng, top, side):
+    """A weathered standing stone (docs/caverns-roadmap.md R7.1): a slab broader than it is thick,
+    its sides leaning in a little as they rise, its edges rounded by the years, its top broken off at a
+    slant, never a spindle."""
+    c, s = math.cos(yaw), math.sin(yaw)
+    levels = []
+    for j, (t, k) in enumerate(((0.0, 1.0), (0.35, 0.96), (0.7, 0.9), (1.0, 0.82))):
+        ring = []
+        for q in range(8):
+            a = 2 * math.pi * q / 8 + 0.39
+            # (an octagon squashed to a slab, each corner its own wear)
+            u = math.cos(a) * w * k * (0.88 + 0.2 * rng.random())
+            v = math.sin(a) * d * k * (0.85 + 0.25 * rng.random())
+            hy = y - 0.15 + (h + 0.15) * t
+            if j == 3:
+                # (the break at its top: a slant across it, ragged)
+                hy -= (0.22 * (u / w) + 0.08 * rng.random()) * h * 0.4
+            ring.append(M.v(x + u * c - v * s, hy, z + u * s + v * c))
+        levels.append(ring)
+    for r0, r1 in zip(levels, levels[1:]):
+        for q in range(8):
+            q1 = (q + 1) % 8
+            M.face((r0[q], r0[q1], r1[q1], r1[q]), side)
+    M.face(levels[-1], top)
 
 
 def fan(M, centre, ring, y, col, out=(0.0, 1.0, 0.0)):

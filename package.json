@@ -15,9 +15,12 @@
     "validate-world": "tsx scripts/validate-world.ts",
     "check-layout": "tsx scripts/validate-world.ts",
     "caverns-terrain": "tsx scripts/caverns-terrain.ts",
-    "build-models": "tsx scripts/build-models.ts"
+    "build-models": "tsx scripts/build-models.ts",
+    "pack-models": "tsx scripts/pack-models.mts",
+    "test": "tsx --test tests/caverns.test.ts tests/economy.test.ts tests/movement.test.ts"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "meshoptimizer": "^0.18.1"
   }
 }

@@ -189,7 +189,7 @@ shadows limited to the jungle.
 | 6.1 | The overlook's campfire | shared/worlds/caverns.ts `HEARTH`, `HEARTH_SEATS` (the log style: a marshmallow on a stick as you sit, the server's `roastSeat`); build_caverns.py `build_hearth` (the stone ring, the charcoal bed, the charred logs, four log benches); the client's `HearthFire` (flames, embers, the `FIRE` glow in the cave's own materials) and the crackle (cavernAmbience's `fire` bed and pops) |
 | 6.2 | The Hound's Hand photo spot | `PHOTO_SPOT` and its brass paw plaque; the dock's `[ 📸 Photo with the Hound's Hand ]`: the camera framed on you with the Hand behind, a flash and a shutter, `wonder_photo` |
 | 6.3 | Living wonders | shared/caverns_codex.ts `CaveEvent`: a Cave Cloud (the mist through the whole cavern, `CLOUD_LUCK` on the cenote), a Glimmer Bloom (the rift flaring, `BLOOM_YIELD`, `BLOOM_REGROW`), a Rockfall (the `rockfall` crew node in the breakdown, `ore_rockfall`, `oreRule`), one every 18-30 minutes while anyone is down there (the server's `tickEvent`, the room's `caveEvent`, a pill with its clock); the Bat Exodus at the camp's dusk (caveFauna's `exodusClock`) |
-| 6.4 | The Cave Codex | the camp profile's `codex` (33 entries, five sections, coins each and a bonus a section): zone stamps, fauna met in their homes, cave pearls (dock), fossils (a broken node's rubble), Old Flint's six journal pages (`Find_Page`, read at the dock), the wonders; `CaveCodexHud` (the watch and the toasts), `CaveCodexModal` (from the ore satchel drawer) |
+| 6.4 | The Cave Codex | the camp profile's `codex` (34 entries, five sections, coins each and a bonus a section): zone stamps, fauna met in their homes, cave pearls (dock), fossils (a broken node's rubble), Old Flint's six journal pages (`Find_Page`, read at the dock), the wonders; `CaveCodexHud` (the watch and the toasts), `CaveCodexModal` (from the ore satchel drawer) |
 | 6.5 | The grotto behind the waterfall | not built: the jungle's waterfall falls from the map's north edge (z -22.3 of the +-22.5 square), so a grotto behind it means growing the map past its bounds (the terrain grid, the shell, the camera's bounds); kept for a later phase with the raft and stream fishing |
 
 The original brief:
@@ -224,3 +224,194 @@ Split `build_caverns.py` and `CavernsWorld.tsx` into per-zone and per-system mod
 Each phase runs on its own branch, is checked against section 3, and is shown with screenshots
 (7 m, 16 m, phone) before it is committed; docs/caverns-design.md, CLAUDE.md and the patch notes are
 brought along with it.
+
+## 6. Round 2 (the audit of 2026-09-30, after phase 7)
+
+A second audit (every zone at 7 m and 16 m, a model of every income, the walk and steer replayed
+headless) found the caverns finished but out of step with the game: its economy 3-9 times the river's
+(the cenote 5x at every rod tier, mining 3-15x), the ground paved by one crack pattern everywhere, a
+white hole in the jungle's sky at 16 m, two rift nodes sharing a spot, and, from players, the avatar
+snagging while steering (WASD or the joystick). In order:
+
+| Step | Work | Why first |
+|---|---|---|
+| R2.1 | Movement and hitboxes: a slide that turns along what it meets when the axis split stalls (every map), a walk out of a blocked spot, the caverns' pinholes closed, colliders checked against what they stand for, a snag test in check-layout | felt on every walk, every map (steering snags in the caverns 4% of steers) |
+| R2.2 | The economy: the caverns about 2x the river at the same tier (cave fish and ores cut, geodes and ingots made fair choices), the codex's reward titles | the caverns otherwise buy out the whole game |
+| R2.3 | The bugs: the jungle's sky, the rift's shared spot, stale docs | small, visible |
+| R2.4 | The ground by what it is: cracks only where mud would crack, sand grain and pebbles, basalt joints, travertine flow, cell sizes that vary; the trails worn with ruts and grit | the most visible artifice up close |
+| R2.5 | A colour and light pass: the mudflats calmer, the terraces with contrast, the upper zones a touch dimmer with more pools of light | underground should feel underground |
+| R2.6 | Room in the model: meshopt compression on caverns.glb and avatar.glb | the model is at its cap |
+| R2.7 | The Monolith remade | it is the plainest ore of all |
+| R2.8 | An endgame: mining mastery by kind (ranks, small perks, titles), the Motherlode (a rare rich vein), the Monolith's awakening | past the Drill there is nothing to mine for |
+| R2.9 | Unit tests (tsx --test): the strike, the forge's replay, the codex, the economy's targets, the snag rate | the rules had only the layout's checks |
+| R2.10 | Optional polish: a distant passage beyond the open rims, drips off the stalactites, the lake's sheen, the jungle's canopies, dust in the dark zones, a cave map with regrowth timers, a prospector's ledger, weekly goals, lanterns you set down, the hearth's stories, the raft to the islet, stream fishing | better, not needed |
+
+Not in this round: the grotto behind the waterfall (it needs the map grown past its bounds) and
+recorded sound (the sample slots wait for files).
+
+Built 2026-10-01 (patch 0.7.21):
+
+| Step | Work | How |
+|---|---|---|
+| R2.1 | Movement and hitboxes | shared/collision.ts `slideStep` (the axis split, then the step turned up to 80 degrees where it stalls; a walk out of a spot a body doesn't fit), used by the client and replayed by check-layout (600 steers a world, a 1.5% snag budget) and `npm test`; round things discs (`disc`, AABB `r`) on every map; the caverns' mask opening lone slope-only pinholes; `glimmer_3` turned south (no two mining spots within 0.8 m, checked). Steering snags per 2,000 steers: caverns 81 to 4, campfire 53 to 14, woods 41 to 6, lounge 25 to 6, casino 32 to 12, ring 22 to 10 |
+| R2.2 | The economy | shared/economy.ts: ore, ingots, geodes, gems and cave fish recalibrated (the cenote 1.6-3.2x the river on the same rod, pinned by tests/economy.test.ts; ingots 15-18% over their makings; an uncracked geode about two thirds of a cracked one); iron regrows in 75 s; the codex's gold titles (a section each, the whole codex) |
+| R2.3 | The bugs | the jungle's sky a day gradient with drifting cloud, ending in the cave's dark (no white slab); stale docs |
+| R2.4 | The ground | caveSurface `LOOK`'s slabs, pebbles, flow and joints; the small plates' crack net warped; cracks only on mud; basalt's joints crisp |
+| R2.5 | Colour and light | the mud's palette calmer; the travertine and the breakdown a touch darker; the baked light 0.66 and the exposure 0.88; the glow round you as strong as the ground is dark (no white halo on pale stone) |
+| R2.6 | Room in the model | scripts/pack-models.mts (EXT_meshopt_compression, vertex-exact; run by both builders): caverns.glb 2.39 to 1.24 MB with the round's additions, avatar.glb 5.06 to 3.52 MB |
+| R2.7 | The Monolith | `ore_monolith`: a weathered six-sided shaft, a broken crown of violet crystal, two bands of runes, jagged seams, rubble and fallen slabs |
+| R2.8 | An endgame | shared/caverns_mastery.ts: mastery by kind (ranks, +5% extra ore a rank, a Master's +10% sweet spot and title, the Grandmaster's), the Motherlode (a gold halo and motes, 3x), the Monolith awake (a violet beam, a second core); the satchel's Mastery tab |
+| R2.9 | Tests | `npm test` (tsx --test): the strike, the pulse, the crew, the yields, the forge (a steady-hand bot makes a Masterwork at every batch size), the chisel, mastery, the codex's titles, the weekly orders, the economy against the river, the stream's catch, walking |
+| R2.10 | Polish | the Cave Map (M), lanterns (a coal, 10 minutes, their warm pools), the raft to the islet, stream fishing, the Prospector's Ledger, weekly orders, the hearth's stories, dust in your light, drips off the stalactites, the lake's sheen, the passage's glints below the open rims, the jungle's canopies (a tree's own green, a middle layer, hanging moss, blossoms), the forge's tip (pump a little early) |
+
+One finding on the way: the forge's biggest batch holds only for a hand that pumps a little before the
+heat reaches the band's middle (a pump's puff is more than its band's half): kept as the hardest
+batch's skill, and said in its tip.
+
+## 7. Round 3 (the owner's review of 2026-10-01): the cave, made natural
+
+The owner's review named six spots (the adit, Gus's camp, the stream's falls, the pools, the
+Monolith, the trails). Close-ups of each, and a second look round the whole map, found the same root
+in almost every case: things built as regular shapes (a ribbon, a ring, a band, a sheet, a box) where
+the cave wants them grown, worn and uneven.
+
+### What the close-ups found
+
+| Spot | What is wrong | Why (in the build) |
+|---|---|---|
+| The trails | a pale road 2.2-2.4 m wide with crisp dark edges, lined with stones and cairns: it reads as a built way, not an expedition's traces; thin ring lines across the pearl trail | caveSurface's trail band at 85% over its whole half-width, with a dark lip; build_trail_edges' lining; the gours' ring pattern showing on the floor |
+| Gus's camp | stands in the middle of the basecamp shelf (7 m wide): the way west pinched to 4.2 m, a post a metre from the switchback's top, the rope descent 16% further round it; a flat sheet on four sticks over a log that hides Gus | layout `camp` / `workstation` / `gus` at (-4.7, -16.6); build_camp's tarp (no thickness) and log workstation |
+| The stream's falls | a flat ribbon folded down the cliff like paper: one width, no curtain, no white water, no splash | build_waters: one ribbon 0.2 m over its channel, tilted wherever the channel drops |
+| The pools | an even white ring round each (the same width, height and colour all round); the stream stops at a pool's edge and a straight flat strip spills to the next; the seats' submerged ledges show as glassy cubes; dark triangular holes in the rimstone cliffs | build_terrace_lips (four identical rings); the ribbon's `skip` inside pools; the ledges built in the water's material; gaps in the gour faces |
+| The Monolith | stands straight on the sand, no base and nothing round it; its glowing seams drape past its foot onto the sand | `ore_monolith` has no plinth; the seams run to the ring below ground level |
+| The adit | a timber set standing in front of a flat cliff (a black gap by its left post), a floating block on its header, a flat dark bore about 4 m deep, rails stopping in the sand | build_adit: the bore's four rings and a flat cap, the lagging stacked over the cap, no rock round the portal, the track cut at the mouth |
+| The mudflats | plates like floor tiles: flat, all the same thickness, even gaps, brighter than the ground | build_mudflats' Voronoi plates, raised whole |
+| The zones' borders | the mud cliff meets a grey cliff in a hard seam at the overlook's edge | build_cliff_faces' styles switching per rim run |
+| Still pale | the breakdown and the overlook under the key light | their ground colours and the key light |
+| The raft | lands a step from the Monolith's mining spot | layout `raft.islet` |
+
+What stays as it is: the rift (glowing crystals in the dark, the lanterns' warm pools), the lake's
+colours and sheen, the jungle's waterfall spray and canopies, the Hound's Hand, the hearth, the
+ores, the terraces' pool shapes from above, and the budget (74-87 draw calls, 1.24 MB).
+
+### The plan, in order
+
+| Step | Work | Done when |
+|---|---|---|
+| R3.1 | **Trails as traces.** The shader's trail: a worn core about 0.5 m wide with feathered sides, its wear in patches along it (noise: strongest at bends, the tops of slopes and the ends, fading to nothing between), scuffs and a bootprint now and then, the ground's own detail only softened under it, no dark lip. The builder: the stone lining and most cairns gone; in their place the expedition's leavings: survey stakes with faded ribbon at the turns, chalk arrows on the rock by the junctions, the rope and its anchors down the rope descent, a cold fire ring and a dropped canteen or map scrap here and there. The ring lines on the pearl trail softened | at 7 m a faint worn way you follow by eye; at 16 m hardly there; the Cave Map and the dock still show every way |
+| R3.2 | **Gus's trading post, moved and rebuilt.** Against the north wall west of the adit (the barrels and the crate stack moved with it), out of the east-west way: a timber lean-to off the rock (rafters from a ledger beam on the wall to two front posts, a shingled roof with thickness and a little sag), a plank counter with Gus behind it facing the shelf, brass ore scales, bins of each ore, a rack with the four pickaxes for sale, a satchel hung up, lanterns, and a painted sign board (a pick and a gem). The layout's `gus`, `workstation`, `camp` and `campProps` moved, and Gus's front and colliders with them | the shelf clear from the arrival to the rope descent and the switchback (their walks straight); check-layout's walking times still met; Gus seen at his counter |
+| R3.3 | **The stream and its falls.** The ribbon's width varying along it (0.6-1.3x) and its surface flowing (streaks along the current, white riffles over stones set in it). Wherever the channel drops, a fall instead of a tilted ribbon: a curtain leaving the lip, narrower and thicker, white-streaked, into a splash pool with a ring of foam and spray (the jungle's WaterfallSpray for every fall). Stepping stones at the fords | no folded strip anywhere; each fall reads as falling water |
+| R3.4 | **The pools.** Rims grown, not rung: uneven in width and height round each pool (thin and scalloped on the downhill side, heavier upstream), cream to tan to ochre, a wet dark band at the waterline, running into the terrace's slope. The overflow a notch in the lowest rim, with a thin sheet of water down a flowstone curtain to the next pool; the stream entering the top pool and leaving the last through notches (the ribbon reaching into the pool's water). The seats' ledges travertine shelves under the water, never glassy cubes; the holes in the gour cliffs closed | a pool and its stream one water; no ring, no cube, no hole |
+| R3.5 | **The Monolith's base and mystique.** A stepped dais of worn basalt (three uneven tiers, runes carved in their risers, moss in the cracks, the shaft set in a socket of packed rubble); a rune circle engraved in the islet's floor, glowing faintly and breathing with the shaft; a ring of five broken standing stones, one fallen; violet crystal breaking out of the ground round the dais; the seams ending at the shaft's foot. In the game: a few shards turning slowly round its crown, a mist collar at its foot, the skylight's shaft laid on it, a low hum near it (all of it stronger while it is awake). The raft's islet landing moved round the islet | a place, not a post; its collider and its mining spot as before (check-layout) |
+| R3.6 | **The adit.** The portal set into the rock: rough-cut stone and the cliff sculpted round the timber set (no gap), the header without its floating block and a carved sign board over it, a second set further in, lagging along the walls. The bore going on about eight metres and bending out of sight, darkening, a lantern glimmering far inside. The rails running in, and outside to a buffer stop with a tipped ore cart and a spoil heap, a tool box and a rope coil by it, a pointer sign to the woods | an entrance you believe goes somewhere |
+| R3.7 | **The ground and its borders.** The mud's plates thin (a few centimetres), curled at their edges, of every size, fewer, the colour of the ground with dust in their gaps; the cliffs' styles blended over a metre or two where two zones meet; the breakdown and the overlook a touch darker | no tiles, no seams |
+| R3.8 | **The rest.** Docs (CLAUDE.md, this roadmap, the design doc), patch note 0.7.22, the full verification (both typechecks, check-layout, npm test, the build), before and after at 7 m, 16 m and on a phone | all green, every spot shown |
+
+Built 2026-10-01 (patch 0.7.22):
+
+| Step | Built |
+|---|---|
+| R3.1 | caveSurface's trail pass rewritten (a worn line meandering in the tread, patchy wear by the turns and ends, scuffs, bootprints, the ground drawn toward boot dirt, no lip; the look texture read as the ground under a trail); `build_trail_edges` leaves the rope descent's stakes and rope (an iron anchor pin and a coil at its top), survey stakes with ribbon at each trail's head and turns, chalk arrows, a cold fire ring off the pearl trail, a canteen and a map scrap; the stone lining and cairns gone |
+| R3.2 | Gus's trading post at (-5.2, -20.5): the lean-to (ledger beam pinned to the rock, two posts on stone footings, knee braces, eight rows of lapped shingles), the counter, the scales, the ledger, the bins, the pickaxe rack, the crates, a satchel, rope, two lanterns, the sign up on the eave; Gus seen from the game's camera; the arrival's walks to the rope descent and the switchback straight (they were 16% longer) |
+| R3.3 | `STREAM_REACHES` / `STREAM_FALLS` (shared, exported to the builder): three falls found (the mudflats' cliff, the chute into the top pool, the outflow); each a two-layer curtain into a splash, spray at each foot; three strips across with a pale thread of current, white riffles with stones, stepping stones at the four fords |
+| R3.4 | the rims grown (six rings, heavy upstream, scalloped downhill, wet band, ochre outside, notches in and out), the overflow a sheet over a flowstone curtain, the ledges travertine shelves, the dams' banks cream in the floor shader |
+| R3.5 | `build_monolith_dais` (three basalt tiers with glowing runes and moss, the socket's rubble, the rune circle, five menhirs one fallen, violet crystal), the seams starting over the socket, `MonolithAura` (seven shards round the crown, the mist collar, the circle breathing, the hum `setCaveDrone`), the raft landing on the islet's west |
+| R3.6 | the adit's collar and shoulders, the carved board, a second set, lagging inside, the bore eight metres on and bending with a lantern round the bend, rails curving in and out to a stop block, the tipped ore tub, the spoil heap, the tool box and rope, the signpost to the woods |
+| R3.7 | the mud's plates (seeds kept 58%: every size, a dark lip, curled 2-5 cm, the mud's own colour), `cliff_blend`, the breakdown's and the overlook's ground a shade darker |
+
+How each step ships: its code, the model rebuilt once for the step (packed), check-layout and the
+tests run, the spot shown before and after. R3.2 moves layout (the terrain data regenerated and the
+walking times re-checked); the others change only the model and the shaders. The budgets hold: the
+model under 2.4 MB (1.24 now), at most 110 draw calls (74-87 now).
+
+## 8. Round 4 (the owner's report of 2026-10-01): walking without invisible walls
+
+Walking the cave, players stopped against nothing. An audit steered from every open spot 16 ways with
+the game's own slide step, attributed every snag, flooded the map from the arrival, and sent bots on
+hundreds of click-to-move trips. What it found:
+
+| Cause | Why | Fix (R4.1) |
+|---|---|---|
+| Stopping short of every bank | the mask shut ground at 20 degrees, the floor painted bare rock only from about 24-32 | `STEEPEST_WALK` 24 over half a metre; the floor paints exactly the cells the ground shuts (`caveMaskTexture`) |
+| Little shut patches in open ground | each 25 cm cell judged at 20 degrees: the ground's bumps | a single step may be 30 (`STEEPEST_STEP`); islands of up to ten such cells opened |
+| The body kept 0.3 m off the ground's edge | the mask tested with the body's radius | the ground tested with the feet's (`CAVE_FOOT` 0.18) |
+| The stream's margin | shut 0.7 m from its middle, its water drawn 0.35-0.57 | shut only where its water is drawn |
+| A steep ring round every pool | each pool sunk over a metre | sunk under its own water only |
+| Floor you see and never reach | the terraces' west ledges walled in by their pools and dams (20 m2) | pools A and B trimmed, a dam eased; what still no one reaches shut and dressed with dry rimstone basins and stalagmites (`maskUnreached`, `build_unreached`) |
+| Click-to-move stalling at a corner | a waypoint taken 0.2 m early, the next leg cutting into the corner | a waypoint taken only with the way on clear (`clearLine`) |
+
+Before: 4.8% of steers snagged, 1.3% on nothing visible; 20 m2 of floor unreachable. After: 3.4%, each
+one a cliff, a wall, the water, a rock or furniture, and painted or built so; every patch of floor
+reached; click-to-move trips on every built map arrive, none stalled (`npm test`).
+
+## 9. Round 5 (the owner's report of 2026-10-01): the water, the Hand, the winch
+
+| Report | Cause | Fix |
+|---|---|---|
+| The Hound's Hand looks strange | five knuckled fingers on a column | `hound_hand` a giant stalagmite: a flowstone mound, a tapering trunk with drip streaks, a blunt top, two fused at its foot (R5.1) |
+| Water running through rock and soil | curtains cutting into the slope under them; the chute into the top pool landing on dry ground; the overflows under the rimstone faces; the stream's mouth sunk under the lake | curtains kept over the ground; a fall near a pool carried into it; the cliff faces open over the overflows; the stream held at the lake's level, its mouth the lake's own water (R5.2) |
+| The waterfall's basin | 14 cm deep: all shallows, pale and foamy; white foam tiles | sunk 0.75 m, mossy boulders round it, `foam_disc` (R5.2) |
+| The water into and between the pools | straight canals, a splash on dry ground | the fall into the pool; wandering rivulets on a wet bed down notches in the dams (R5.2) |
+| The winch only up | by design ("depth is progress") | both ways: `winch_top`, `winchdown`, `winchDownPose` (R5.3) |
+| White spots drifting in the water | the water shader's painted glints; the spray's motes rising a metre and more | glints gone; a short puff at each splash (R5.2) |
+| Dark stones in the pools | slope rubble scattered on the pools' steep bowls | rubble kept out of the water |
+
+## 10. Round 6 (the owner's report of 2026-10-01)
+
+| Report | Fix |
+|---|---|
+| Two ways down off the overlook's east side: keep the left | the rift ramp removed (the rift along the lake's shore or down the winch); its head dressed with stalagmites and a boulder (R6.1) |
+| Finnegan on dry land; use folk and rocks from any side | Finnegan at the waterline, his front at his side; Finnegan, the anvil and every ore node used from any side (R6.2) |
+| The plunge pool's outlet runs back into it | the pool's level fixed at the outlet's (`plunge.level`), a bank round it, the stream leaving at that level (R6.3) |
+| The falls through the ground, broken where they land | each fall drawn as the stream's own strip, every vertex over the ground; the outflow carried on down the rim as the same strip (R6.4) |
+| The weak spot round the back of the rock | rolled on the miner's side (`rollWeakSpot` `toward`), tested (R6.5) |
+| Rocks lined along the map's edge | gone (R6.6) |
+| Stones on the way to the Monolith | none; the causeway a hand's depth under the water, waded with a splash (R6.7) |
+| Setting down lanterns | removed (R6.8) |
+| The adit's gap | the bore squared to its timber, its mouth flared, the collar reaching the wall's own face (R6.9) |
+| The Hound's Hand more natural | its own calcite (no rock strata painted over it), rimstone and stalagmites round its foot (R6.10) |
+
+## 11. Round 7 (the proposals after Round 6, 2026-10-01)
+
+| Step | Built |
+|---|---|
+| R7.1 | The look of the rock: the terraces' gour cliffs in travertine (no Great Wall shadow, a pale lip); the mud plates orange, cracked darker, fewer; the breakdown's slabs in two sheared layers with a coal seam; the lake's menhirs spindle-shaped; the Hand's bosses cream |
+| R7.2 | The empty stretches: tents and sacks at the basecamp, nine dry rimstone pools and flowstone mounds on the overlook, a sign at the winch's top |
+| R7.3 | The water: streaks down every fall in the water shader; every fall's roar by distance and height |
+| R7.4 | Wading: `WADE_PACE` 0.82 through water, `WadeRipples` round the wader, the codex's `wonder_wade` for the causeway (34 entries) |
+| R7.5 | The lanterns' last trace, the room's `caveLanterns` field, removed |
+
+## 12. Round 8 (the owner's report of 2026-10-01)
+
+| Report | Fix |
+|---|---|
+| The basecamp's tents float | moved off the shelf's rim to the overlook's hearth (R8.1) |
+| The Hound's Hand has egg-like lumps on it | the bosses removed, its lumps gentler, its colour the overlook's own; the hearth made an explorers' rest (two tents, sacks, a bedroll, a lantern post) (R8.2) |
+| A small pool floating at a fall's foot | gone: the stream itself widens into churned water there (R8.3) |
+| The plunge pool and its stream disjointed; no splash | the stream leaves from under the pool's own water at its level and colour, the pool flat inside its bank; drops thrown in arcs and rings spreading at every fall (R8.4) |
+| Water into the pools blocked by their rims | the stream meets pool A at its level; the overflows run in grooves cut in the terrain (`POOL_OVERFLOWS`); no rim where the water crosses (R8.5) |
+| Rocks past the map's edge | silver_5 and its host rock moved in from the south rim (R8.6) |
+| An old wall by the lake's beach | the rift's mouth was a bank too steep to stand on, nothing drawn on it: eased into a walked beach (R8.7) |
+| The winch floats, no animation | the cage's clock was module state set by drawing the rider (another module instance, or a stale entry, froze it): `CageClock` watches the room's riders itself (R8.8) |
+
+## 13. Round 9 (the owner's report of 2026-10-01)
+
+| Report | Fix |
+|---|---|
+| The rift's mouth still blocked | walked freely on the current mask (a server still running the old one shut it); verified by walking it (R9.1) |
+| Riders pass through the gantry's timber at the top | a landing deck out from the ledge beside the cage; the rides walk it to and from a new upper stand (R9.2) |
+| The Hand a draped sheet; a bedroll like a stick | the Hand faceted, in growth tiers; a quilted sleeping bag; a stew pot on a tripod over the hearth with its steam (R9.3) |
+| The waterfall a flat sheet; a gap where the stream meets the lake | the waterfall an arcing two-sheet curtain; the stream run down to the lake's level and carried onto it in its colour, the lake carried up the mouth (R9.4) |
+| (Survey) the terraces' unreachable ledges a field of rings | sparse gours, pebbles and stalagmites (R9.5) |
+
+## 14. Round 10 (the owner's report of 2026-10-01)
+
+| Report | Fix |
+|---|---|
+| Remove the stone pillar, move the camp in, dress it | the Hound's Hand removed; the Explorers' Rest built where it stood: hearth, benches, tents, sleeping bags, crates, barrels, lantern posts, woodpile, drying rack (R10.1) |
+| The plunge pool and its stream not joined | a row set exactly on the pool's round edge; its bed rising to its outlet; its bank closed up to the stream (R10.2) |
+| The fall reads as one level | each fall an arc off its lip hanging clear of the cliff, a stone either side of the lip (R10.3) |
+| The pools' rims and channels look odd | rims dip smoothly under the water (no cut ends); the stream ends exactly on a pool's drawn edge (R10.4) |
+| Step away from mining by clicking elsewhere or walking | a floor click well away from the rock, or a step with the keys (R10.5) |
+| Mining more fun | Lucky Glint (a gold ring: a bonus ore on a Perfect), Clean Break (+25% on a Perfect breaking blow) (R10.6) |
+| The winch's animation | riders walk the landing; the cage swings and settles; ratchet clicks and a knock (R10.7) |

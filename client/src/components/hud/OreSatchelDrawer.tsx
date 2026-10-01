@@ -9,6 +9,9 @@ import { Modal } from "./Modal";
 import { TrendBadge } from "./ShopShell";
 import { GearSlots } from "./GearSlots";
 import { DrawerCrafts, Materials } from "./DrawerKit";
+import { MASTER_SWEET, MASTERY_EXTRA, MASTERY_TITLES, RANK_NAMES, masteryOf } from "@shared/caverns_mastery";
+import { specialTitle } from "@shared/items";
+import { WEEKLY_BONUS, weekEnds, weekKey, weeklyGoals, weeklyProgress } from "@shared/caverns_weekly";
 
 // The Prospector's Satchel's drawer, opened from the header's ⛏️ gauge (or B, in turn with the other
 // drawers), laid out like the wood and fish drawers (520 x 600, never jumping between tabs): how full
@@ -17,7 +20,8 @@ import { DrawerCrafts, Materials } from "./DrawerKit";
 // gems up to 10, an uncracked geode 5) with what it fetches from Gus this hour; a satchel over its room
 // from before keeps everything (Overburdened: no more mining until it is back under, while selling,
 // smelting, cracking and crafting all still work); Gear: the pickaxes (one in hand) and the Miner's
-// relics worn slot by slot; Brews: the Miner's Stout brewed right here from coal and Fine Stone Dust.
+// relics worn slot by slot; Brews: the Miner's Stout brewed right here from coal and Fine Stone Dust;
+// Mastery: each kind of node's rank by the breaks (shared/caverns_mastery.ts), its perk and its title.
 // Pinned to its foot, its two quick actions (anywhere in the caverns): Quick Smelt All (every recipe
 // the satchel makes into the forge, the best margin first) and Sell All Cut Gems (to Gus); and under
 // them the pickaxe in hand, the forge's queue and the Deep Warmth.
@@ -32,7 +36,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Tab = OreCategory | "gear" | "brews";
+type Tab = OreCategory | "gear" | "brews" | "mastery";
 const SHORT: Record<OreCategory, string> = { raw: "Ores", ingot: "Ingots", geode: "Geodes", gem: "Gems" };
 
 export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, onClose }: Props) {
@@ -46,7 +50,7 @@ export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, o
   const price = (id: OreItemId) => Math.max(1, Math.round(ORE_ITEMS[id].price * marketMultiplier(oreGood(id), hour)));
   const worth = (Object.entries(counts) as [OreItemId, number][]).reduce((a, [id, n]) => a + price(id) * n, 0);
   // each item's stacks, as slots
-  const slots = (tab === "gear" || tab === "brews" ? [] : itemsOf(tab)).flatMap((id) => {
+  const slots = (tab === "gear" || tab === "brews" || tab === "mastery" ? [] : itemsOf(tab)).flatMap((id) => {
     const n = counts[id] ?? 0;
     const per = stackOf(id);
     return Array.from({ length: Math.ceil(n / per) }, (_, k) => ({ id, n: Math.min(per, n - k * per) }));
@@ -96,6 +100,7 @@ export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, o
             [
               ["gear", "⛏️", "Gear"],
               ["brews", "🍺", "Brews"],
+              ["mastery", "🏅", "Mastery"],
             ] as const
           ).map(([id, emoji, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`min-h-9 min-w-0 flex-1 whitespace-nowrap rounded-full px-1 text-[10.5px] font-bold transition-transform active:scale-95 ${tab === id ? "bg-[#5ff2ff] text-[#10222a]" : "bg-white/10 hover:bg-white/15"}`}>
@@ -134,6 +139,94 @@ export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, o
               {profile.pickaxes.length < PICKAXES_BY_TIER.length && <p className="m-0 text-center text-[11px] opacity-60">Gus sells the finer pickaxes at the outpost.</p>}
             </div>
             <GearSlots profile={profile} send={campfireSend} disc="ore" />
+          </div>
+        ) : tab === "mastery" ? (
+          <div className="flex flex-col gap-1.5 text-xs">
+            {(() => {
+              const now = Date.now();
+              const week = weekKey(now);
+              const current = profile.weekly.week === week;
+              const left = Math.max(0, weekEnds(now) - now);
+              const days = Math.floor(left / 86_400_000);
+              const hours = Math.floor((left % 86_400_000) / 3_600_000);
+              return (
+                <div className="flex flex-col gap-1 rounded-2xl border border-amber-200/25 bg-amber-200/5 p-2">
+                  <div className="flex items-center justify-between">
+                    <b className="text-[11px] uppercase tracking-widest text-amber-100/90">📋 This Week's Expedition Orders</b>
+                    <span className="text-[10.5px] opacity-70">{days}d {hours}h left</span>
+                  </div>
+                  {weeklyGoals(week).map((g) => {
+                    const done = current && profile.weekly.done.includes(g.id);
+                    const n = current ? weeklyProgress(g, profile.weekly, profile.mined, profile.ledger) : 0;
+                    return (
+                      <div key={g.id} className="flex items-center gap-2">
+                        <span className="w-5 text-center text-base">{done ? "✅" : g.emoji}</span>
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className={`text-[11.5px] ${done ? "line-through opacity-60" : "text-[#F7EBE1]"}`}>{g.label}</span>
+                          <div className="h-1 overflow-hidden rounded-full bg-black/30" aria-hidden>
+                            <div className="h-full rounded-full bg-amber-300" style={{ width: `${Math.round((n / g.need) * 100)}%` }} />
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-[10.5px] tabular-nums opacity-80">
+                          {n}/{g.need} · {g.coins} 🪙
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <span className="text-center text-[10.5px] opacity-65">{current ? `All three: +${WEEKLY_BONUS} 🪙 from Gus` : "Mine a node to start this week's count"}</span>
+                </div>
+              );
+            })()}
+            {(["coal", "copper", "iron", "silver", "glimmer", "monolith"] as const).map((kind) => {
+              const m = masteryOf(kind, profile.mined[kind] ?? 0);
+              const info = ORE_KINDS[kind];
+              const pct = m.next === null ? 100 : Math.round(((m.mined - m.from) / Math.max(1, m.next - m.from)) * 100);
+              const title = MASTERY_TITLES[kind];
+              return (
+                <div key={kind} className={`flex items-center gap-2 rounded-2xl px-2.5 py-1.5 ${m.rank === 4 ? "border border-amber-300/50 bg-amber-300/10" : "bg-white/10"}`}>
+                  <span className="text-2xl" style={{ filter: `drop-shadow(0 0 6px ${info.glow}aa)` }}>
+                    {info.emoji}
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+                    <b className="text-xs text-[#F7EBE1]">
+                      {info.name} <span className="font-normal opacity-75">· {RANK_NAMES[m.rank]}</span>
+                    </b>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-black/30" aria-hidden>
+                      <div className={`h-full rounded-full ${m.rank === 4 ? "bg-amber-300" : "bg-[#5ff2ff]"}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-[10.5px] opacity-75">
+                      {m.mined.toLocaleString("en-US")} broken{m.next !== null ? ` · ${RANK_NAMES[m.rank + 1]} at ${m.next}` : ""} · {m.rank > 0 ? `+${Math.round(m.rank * MASTERY_EXTRA * 100)}% extra ore` : "no perk yet"}
+                      {m.rank === 4 ? ` · +${Math.round(MASTER_SWEET * 100)}% sweet spot` : ""}
+                      {title ? ` · ${m.rank === 4 ? specialTitle(title)?.name : "a Master's title"}` : ""}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-black/20 p-2 text-center">
+              <b className="col-span-3 text-[11px] uppercase tracking-widest text-[#C9BDB5]/80">📒 The Prospector's Ledger</b>
+              {(
+                [
+                  ["⚡", "Perfect strikes", profile.ledger.perfects],
+                  ["🔥", "Best run", profile.ledger.bestStreak],
+                  ["🪨", "Nodes broken", Object.values(profile.mined).reduce((a, n) => a + (n ?? 0), 0)],
+                  ["💎", "Geodes cracked", profile.ledger.geodes],
+                  ["🌟", "Star Shards", profile.ledger.stars],
+                  ["✨", "Masterworks", profile.ledger.masterworks],
+                  ["🪙", "Motherlodes", profile.ledger.lodes],
+                  ["🗿", "Monoliths", profile.mined.monolith ?? 0],
+                  ["📖", "Codex", profile.codex.length],
+                ] as const
+              ).map(([emoji, label, n]) => (
+                <div key={label} className="flex flex-col rounded-xl bg-white/5 px-1 py-1">
+                  <span className="text-[15px] font-bold tabular-nums text-[#F7EBE1]">
+                    {emoji} {n.toLocaleString("en-US")}
+                  </span>
+                  <span className="text-[10px] opacity-70">{label}</span>
+                </div>
+              ))}
+            </div>
+            <p className="m-0 text-center text-[11px] opacity-70">Every break of a kind counts toward its mastery. Master all six for the Grandmaster's title. A Motherlode's gold glitter pays three times over; the Monolith, just surfaced, a second core.</p>
           </div>
         ) : tab === "brews" ? (
           <div className="flex flex-col gap-2 text-xs">
@@ -186,6 +279,11 @@ export function OreSatchelDrawer({ profile, market, mapId, send, campfireSend, o
           <button type="button" className="rounded-full bg-amber-300/20 px-2 py-0.5 font-bold text-amber-100 outline outline-1 -outline-offset-1 outline-amber-200/30" onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "codex", propId: "" } }))} title="The expedition's field journal: zone stamps, fauna, pearls and fossils, Old Flint's pages, the living wonders">
             📖 Cave Codex ({profile.codex.length})
           </button>
+          {here && (
+            <button type="button" className="rounded-full bg-[#5ff2ff]/15 px-2 py-0.5 font-bold text-[#c9fbff] outline outline-1 -outline-offset-1 outline-[#5ff2ff]/30" onClick={() => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "caveMap", propId: "" } }))} title="The caverns from above: every node and when it grows back, the Motherlode, everyone down here (M)">
+              🗺️ Cave Map
+            </button>
+          )}
           <span className="rounded-full bg-white/10 px-2 py-0.5" title={pick.blurb}>
             {pick.emoji} {pick.name} · T{pick.tier}
           </span>

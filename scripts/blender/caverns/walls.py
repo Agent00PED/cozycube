@@ -4,7 +4,8 @@ flowstone (`great_fold`, `build_great_curtains`), the vault's broken lip with it
 (`build_vault_lip`) and the adit's bore and timbers (`build_adit`)."""
 
 import math
-from .kit import angular, box, fbm, frange, hash3, lantern, mixc, ORE_RADII, prism, smooth
+import random
+from .kit import angular, blob, box, cyl, fbm, frange, game_point, hash3, hullbox, lantern, mixc, ORE_RADII, prism, smooth, turned
 
 
 # ---------------------------------------------------------------------------------------------
@@ -159,7 +160,10 @@ def build_walls(G, L, shell, glow, rng):
                 if along == "x":
                     ym = (grid[a][j].co.z + grid[a][j + 1].co.z) / 2
                     # (the adit's arch and the forge's alcove open in the north wall)
-                    if abs(um - A["x"]) < hw + 0.15 and ym < ady + A["h"] + 0.1 - (0.0 if abs(um - A["x"]) < hw * 0.6 else 0.35):
+                    ux_ = abs(um - A["x"])
+                    ctop = ady + A["h"] - hw + 0.42
+                    arch = ctop + 0.55 * math.sqrt(max(0.0, 1 - (ux_ / (hw + 0.22)) ** 2))
+                    if ux_ < hw + 0.22 and ym < arch:
                         continue
                     if abs(um - F["x"]) < F["w"] / 2 + 0.25 - 0.12 * max(0.0, ym - fdy - F["h"]) and ym < fdy + F["h"] + 1.4:
                         continue
@@ -261,40 +265,216 @@ def build_great_curtains(G, L, rock, rng):
 
 
 def build_adit(G, L, rock, glow):
-    """The old mine adit up to the woods: its dark bore into the hill, timber sets propping its mouth
-    with lagging over their caps, its rails on sleepers, a lantern hung from the first cap."""
+    """The old mine adit up to the woods (docs/caverns-roadmap.md R3.6): its mouth set into the rock (a
+    collar of rough-cut stone closing round the timber set, blocks piled at its shoulders), its bore
+    running on some eight metres and bending away out of sight, darker as it goes, a lantern glimmering
+    far in; timber sets propping it at the mouth and again further in, lagging over their caps and
+    along its walls; a carved board on the header; its rails on sleepers from the dark out past the
+    mouth, where they stop, the ore cart run off their end lying tipped by a heap of spoil, a tool box
+    and a coil of rope; a signpost pointing the way up to the woods."""
     half = L["half"]
     A = L["adit"]
     hw = A["w"] / 2
-    ady = G.y(A["x"], -half + 1.0)
+    ax = A["x"]
+    ady = G.y(ax, -half + 1.0)
     spring = ady + A["h"] - hw
-    prof = [(-hw, ady - 0.1), (-hw, spring)] + [(-hw * math.cos(math.pi * k / 6), spring + hw * math.sin(math.pi * k / 6)) for k in range(1, 6)] + [(hw, spring), (hw, ady - 0.1)]
-    depths = [-half + 1.1, -half - 0.4, -half - 1.8, -half - 3.2]
+    # (square to its timber: straight walls up to the caps, a low arch of rock over them)
+    cap_top = spring + 0.42
+    prof = [(-hw, ady - 0.1), (-hw, cap_top)] + [(-hw * math.cos(math.pi * k / 6), cap_top + 0.45 * math.sin(math.pi * k / 6)) for k in range(1, 6)] + [(hw, cap_top), (hw, ady - 0.1)]
+    mouth = -half + 1.15
+    # the bore: rings on into the hill, narrowing a touch and bending east after the second set
+    depths = [0.0, 1.4, 2.8, 4.0, 5.2, 6.3, 7.3, 8.2]
     rings = []
-    for j, zz in enumerate(depths):
+    centres = []
+    for j, d in enumerate(depths):
+        bend = max(0.0, d - 3.2)
+        cx = ax + 0.09 * bend * bend
+        zz = mouth - d
+        centres.append((cx, zz))
+        dark = min(1.0, j / (len(depths) - 2))
         ring = []
         for px, py in prof:
-            v = rock.v(A["x"] + px * (1 - 0.06 * j), py, zz)
-            rock.setv(v, mixc("stoneDark", "tunnel", j / (len(depths) - 1) * 1.2))
+            # (the mouth flared out to meet the collar: no gap between the rock and the timber)
+            flare = 1 + (0.24 / hw if j == 0 else 0.0)
+            v = rock.v(cx + px * (1 - 0.03 * j) * flare, py + (0.1 if j == 0 and py > cap_top else 0.0), zz)
+            # (the mouth's first stretch the rock's own colour, darkening into the hill: never a black gap)
+            rock.setv(v, "limestoneDark" if j == 0 else mixc("stoneDark", "tunnel", dark * 0.9))
             ring.append(v)
         rings.append(ring)
     for r0, r1 in zip(rings, rings[1:]):
         for k in range(len(prof) - 1):
             rock.setsmooth(rock.face((r0[k + 1], r0[k], r1[k], r1[k + 1]), "tunnel"))
     rock.face(list(reversed(rings[-1])), "tunnel")
-    for j, zz in enumerate((-half + 0.9, -half - 0.5, -half - 1.9)):
-        sp = 0.06 * j
+    # (the collar, docs/caverns-roadmap.md R6.9: rough-cut stone from the timber set out to the wall's
+    # own face, at every point round the arch, so no gap shows between them; two rings of it, the outer
+    # one standing a hand proud of the wall, broken and uneven like rock the miners hacked back)
+    def wall_z(x, y):
+        lo, hi = 0.0, 1.0
+        for _ in range(18):
+            mid = (lo + hi) / 2
+            if wall_point(G, L, "x", x, mid, [])[0][1] < y:
+                lo = mid
+            else:
+                hi = mid
+        return wall_point(G, L, "x", x, (lo + hi) / 2, [])[0][2]
+
+    rngc = random.Random(307)
+    ew = hw + 0.24
+    edge = [(-ew, ady - 0.15), (-ew, ady + 0.6), (-ew, cap_top)] + [(-ew * math.cos(math.pi * k / 8), cap_top + 0.55 * math.sin(math.pi * k / 8)) for k in range(1, 8)] + [(ew, cap_top), (ew, ady + 0.6), (ew, ady - 0.15)]
+    rings = []
+    for grow_base, dz in ((0.55, 0.0), (1.25, 0.08)):
+        ring = []
+        for k, (px, py) in enumerate(edge):
+            dx, dy = px, py - cap_top
+            n = math.hypot(dx, dy) or 1.0
+            grow = grow_base * (0.8 + 0.4 * rngc.random())
+            if py > cap_top:
+                ox, oy = px + (dx / n) * grow, py + (dy / n) * grow
+            else:
+                ox, oy = px + math.copysign(grow, px), py
+            wz = wall_z(ax + ox, oy)
+            ring.append(rock.v(ax + ox, oy + 0.08 * math.sin(k * 3.3), max(wz + dz, mouth + 0.05)))
+        rings.append(ring)
+    inner = [rock.v(ax + px, py, mouth + 0.12) for px, py in edge]
+    for r0, r1 in ((inner, rings[0]), (rings[0], rings[1])):
+        for k in range(len(edge) - 1):
+            rock.facing((r0[k], r0[k + 1], r1[k + 1], r1[k]), "limestoneDark" if r0 is inner else "limestone", (0.0, 0.2, 1.0))
+    rng = random.Random(211)
+    # (weathered blocks over the lintel and at its shoulders, bedded against the face, never floating)
+    for k in range(7):
+        t = k / 6
+        a_ = math.pi * (0.12 + 0.76 * t)
+        r_ = hw + 0.75 + 0.2 * rng.random()
+        bx = ax + math.cos(a_) * r_
+        by = spring + math.sin(a_) * r_ - 0.15
+        angular(rock, bx, by - 0.2, wall_z(bx, by) + 0.12, 0.3 + 0.12 * rng.random(), 0.4, rng, "limestone", "limestoneDark", sink=0.05, npts=10)
+    for sx in (-1, 1):
+        for k in range(3):
+            bx = ax + sx * (hw + 0.6 + 0.3 * k)
+            angular(rock, bx, G.y(bx, mouth + 0.3) - 0.05, mouth + 0.2 - 0.15 * k, 0.34 - 0.04 * k, 0.55 + 0.3 * (2 - k), rng, "limestone", "limestoneDark", sink=0.1, npts=10)
+    # (drill marks and pick scars on the cut face round the timber: short dark grooves)
+    for k in range(10):
+        a_ = math.pi * rng.random()
+        r_ = hw + 0.3 + 0.35 * rng.random()
+        gx, gy = ax + math.cos(a_) * r_, spring + math.sin(a_) * r_ * 0.9
+        gz = max(wall_z(gx, gy), mouth + 0.05) + 0.03
+        box(rock, gx - 0.012, gx + 0.012, gy - 0.12, gy + 0.12, gz - 0.01, gz + 0.012, "stoneDark", bottom=False)
+    # the timber sets: at the mouth and again further in, each two posts and a cap
+    for j, d in enumerate((0.25, 3.0)):
+        zz = mouth - d
         for sx in (-1, 1):
-            px = A["x"] + sx * (hw - 0.05 - sp)
+            px = ax + sx * (hw - 0.05 - 0.04 * j)
             box(rock, px - 0.1, px + 0.1, ady - 0.1, spring + 0.25, zz - 0.1, zz + 0.1, "timber" if j == 0 else "timberDark")
-        box(rock, A["x"] - hw - 0.12 + sp, A["x"] + hw + 0.12 - sp, spring + 0.22, spring + 0.42, zz - 0.12, zz + 0.12, "timberDark")
-    for k in range(6):
-        zz = -half + 0.95 - k * 0.42
-        box(rock, A["x"] - hw + 0.1, A["x"] + hw - 0.1, spring + 0.42, spring + 0.48, zz - 0.17, zz + 0.17, "plank" if k % 2 else "timber", bottom=False)
-    # (the track: sleepers and two rails, from the dark out to the mouth)
-    for k in range(9):
-        zz = -half - 2.8 + k * 0.62
-        box(rock, A["x"] - 0.62, A["x"] + 0.62, ady - 0.02, ady + 0.04, zz - 0.09, zz + 0.09, "timberDark", bottom=False)
+        box(rock, ax - hw - 0.12, ax + hw + 0.12, spring + 0.22, spring + 0.42, zz - 0.12, zz + 0.12, "timberDark")
+        for sx in (-1, 1):
+            cyl(rock, (ax + sx * (hw - 0.05), spring - 0.1, zz), (ax + sx * (hw - 0.4), spring + 0.3, zz), 0.045, "timberDark", sides=5)
+    # (a carved board nailed over the mouth's cap: its letters cut dark into it)
+    by = spring + 0.52
+    box(rock, ax - 0.62, ax + 0.62, by, by + 0.26, mouth - 0.1, mouth + 0.05, "plank")
+    for k in range(7):
+        lx = ax - 0.48 + k * 0.16
+        box(rock, lx - 0.035, lx + 0.035, by + 0.06, by + 0.2, mouth + 0.05, mouth + 0.058, "timberDark")
+    # (the lagging: planks over the caps and along the walls, inside the bore only)
+    for k in range(7):
+        zz = mouth - 0.45 - k * 0.42
+        box(rock, ax - hw + 0.1, ax + hw - 0.1, spring + 0.42, spring + 0.48, zz - 0.17, zz + 0.17, "plank" if k % 2 else "timber", bottom=False)
+        for sx in (-1, 1):
+            box(rock, ax + sx * (hw - 0.03) - 0.025, ax + sx * (hw - 0.03) + 0.025, ady + 0.3, spring + 0.1, zz - 0.17, zz + 0.17, "timberDark" if k % 2 else "timber", bottom=False)
+    # (a lantern hung far in, round the bend, a warm glimmer in the dark)
+    fx, fz = centres[5]
+    lantern(rock, glow, fx + hw * 0.55, spring + 0.25, fz, hang=0.3)
+    # the track: sleepers and two rails from the dark out past the mouth, where they stop
+    end = -half + 2.3
+    zz = mouth - depths[-2]
+    k = 0
+    while zz < end:
+        bend = max(0.0, (mouth - zz) - 3.2)
+        cx = ax + 0.09 * bend * bend
+        box(rock, cx - 0.62, cx + 0.62, ady - 0.02, ady + 0.04, zz - 0.09, zz + 0.09, "timberDark", bottom=False)
+        zz += 0.62
+        k += 1
     for sx in (-0.42, 0.42):
-        box(rock, A["x"] + sx - 0.03, A["x"] + sx + 0.03, ady + 0.04, ady + 0.1, -half - 3.0, -half + 2.8, "steel", bottom=False)
-    lantern(rock, glow, A["x"] + hw - 0.3, spring + 0.35, -half + 1.02, hang=0.36)
+        prev = None
+        zz = mouth - depths[-2]
+        while zz <= end + 1e-6:
+            bend = max(0.0, (mouth - zz) - 3.2)
+            p = (ax + 0.09 * bend * bend + sx, ady + 0.07, zz)
+            if prev:
+                cyl(rock, prev, p, 0.03, "steel", sides=4)
+            prev = p
+            zz += 0.5
+    # (a stop block across their end)
+    box(rock, ax - 0.55, ax + 0.55, ady - 0.02, ady + 0.16, end + 0.02, end + 0.18, "timber")
+    # the ore cart run off the end of the rails, tipped on its side, its ore spilled by a spoil heap
+    O = L["aditYard"]
+    cx, cz = O["cart"]
+    cy = G.y(cx, cz)
+    # (an open iron tub, wider at its mouth, lying on its side with its mouth toward the spill; its
+    # rims banded dark, its two axles' wheels in the air)
+    rot = turned(0.35, roll=1.3, pitch=0.0)
+
+    def P(lx, ly, lz):
+        ox, oy, oz = rot(lx, ly, lz)
+        return (cx + ox, cy + 0.3 + oy, cz + oz)
+
+    lo = [(-0.34, -0.26, -0.22), (0.34, -0.26, -0.22), (0.34, -0.26, 0.22), (-0.34, -0.26, 0.22)]
+    hi = [(-0.44, 0.26, -0.3), (0.44, 0.26, -0.3), (0.44, 0.26, 0.3), (-0.44, 0.26, 0.3)]
+    vlo = [rock.v(*P(*q)) for q in lo]
+    vhi = [rock.v(*P(*q)) for q in hi]
+    ilo = [rock.v(*P(q[0] * 0.94, q[1] + 0.03, q[2] * 0.92)) for q in lo]
+    ihi = [rock.v(*P(q[0] * 0.95, q[1], q[2] * 0.93)) for q in hi]
+    rock.face(list(reversed(vlo)), "rustDark")
+    rock.face(ilo, "iron")
+    for k in range(4):
+        j = (k + 1) % 4
+        rock.face((vlo[k], vlo[j], vhi[j], vhi[k]), "rustDark")
+        rock.face((ihi[k], ihi[j], ilo[j], ilo[k]), "iron")
+    for k in range(4):
+        j = (k + 1) % 4
+        cyl(rock, P(*hi[k]), P(*hi[j]), 0.025, "iron", sides=4)
+        cyl(rock, P(*lo[k]), P(*hi[k]), 0.02, "iron", sides=4)
+    for ax_ in (-0.22, 0.22):
+        a0, a1 = P(ax_, -0.32, -0.26), P(ax_, -0.32, 0.26)
+        cyl(rock, a0, a1, 0.02, "iron", sides=4)
+        for w in (a0, a1):
+            d = (a1[0] - a0[0], a1[1] - a0[1], a1[2] - a0[2])
+            n = (d[0] ** 2 + d[1] ** 2 + d[2] ** 2) ** 0.5
+            cyl(rock, (w[0] - d[0] / n * 0.03, w[1] - d[1] / n * 0.03, w[2] - d[2] / n * 0.03), (w[0] + d[0] / n * 0.03, w[1] + d[1] / n * 0.03, w[2] + d[2] / n * 0.03), 0.12, "iron", sides=10)
+    for k in range(7):
+        a_ = 0.35 + rng.uniform(-0.7, 0.7)
+        r_ = 0.45 + 0.4 * rng.random()
+        blob(rock, cx + math.cos(a_) * r_, cy + 0.04, cz + math.sin(a_) * r_ * 0.8, 0.05 + 0.03 * rng.random(), 0.04, 0.05 + 0.03 * rng.random(), "coalChunk" if k % 3 else "copperNug", cuts=0)
+    hx, hz = O["spoil"]
+    hy = G.y(hx, hz)
+    for k in range(9):
+        a = 2 * math.pi * k / 9 + rng.random() * 0.4
+        r = 0.25 + 0.3 * rng.random()
+        angular(rock, hx + math.cos(a) * r, hy, hz + math.sin(a) * r * 0.7, 0.14 + 0.08 * rng.random(), 0.12 + 0.2 * (1 - r), rng, "gravelLight", "gravelDark", sink=0.04, npts=7)
+    blob(rock, hx, hy, hz, 0.6, 0.3, 0.45, "gravelDark", cuts=2)
+    # (a tool box and a coil of rope by the heap)
+    tx, tz = O["tools"]
+    ty = G.y(tx, tz)
+    box(rock, tx - 0.28, tx + 0.28, ty - 0.02, ty + 0.3, tz - 0.17, tz + 0.17, "timber", top="plank")
+    box(rock, tx - 0.3, tx + 0.3, ty + 0.3, ty + 0.34, tz - 0.19, tz + 0.19, "iron")
+    cyl(rock, (tx - 0.35, ty + 0.3, tz + 0.1), (tx + 0.1, ty + 0.9, tz - 0.05), 0.022, "timber", sides=4)
+    box(rock, tx + 0.02, tx + 0.3, ty + 0.86, ty + 0.93, tz - 0.08, tz, "steel")
+    for q in range(3):
+        cyl(rock, (tx + 0.55 - 0.15, ty + 0.05 + 0.05 * q, tz), (tx + 0.55 + 0.15, ty + 0.05 + 0.05 * q, tz), 0.16 - 0.02 * q, "canvasShade", sides=9)
+    # a signpost at the mouth's west shoulder, its arm pointing up the bore to the woods
+    sx_, sz_ = O["sign"]
+    sy = G.y(sx_, sz_)
+    cyl(rock, (sx_, sy - 0.1, sz_), (sx_, sy + 1.55, sz_), 0.045, "timberDark", sides=5)
+    arm = [(sx_ - 0.05, sy + 1.28, sz_ - 0.02), (sx_ + 0.55, sy + 1.28, sz_ - 0.3)]
+    dx, dz = arm[1][0] - arm[0][0], arm[1][2] - arm[0][2]
+    n = math.hypot(dx, dz)
+    ux, uz = dx / n, dz / n
+    px_, pz_ = -uz, ux
+    q = [rock.v(arm[0][0] + px_ * 0.004, arm[0][1] - 0.09, arm[0][2] + pz_ * 0.004), rock.v(arm[1][0] + px_ * 0.004, arm[1][1] - 0.09, arm[1][2] + pz_ * 0.004), rock.v(arm[1][0] + ux * 0.12, arm[1][1], arm[1][2] + uz * 0.12), rock.v(arm[1][0] + px_ * 0.004, arm[1][1] + 0.09, arm[1][2] + pz_ * 0.004), rock.v(arm[0][0] + px_ * 0.004, arm[0][1] + 0.09, arm[0][2] + pz_ * 0.004)]
+    rock.facing(q, "plank", (px_, 0.0, pz_))
+    rock.facing([rock.v(*game_point(v.co)) for v in reversed(q)], "plank", (-px_, 0.0, -pz_))
+    # (a painted pine on it: the woods that way)
+    for k in range(3):
+        w = 0.07 - 0.02 * k
+        c0 = (arm[0][0] + ux * 0.3 + px_ * 0.01, arm[0][1] - 0.05 + 0.04 * k, arm[0][2] + uz * 0.3 + pz_ * 0.01)
+        rock.facing([rock.v(c0[0] - ux * w, c0[1], c0[2] - uz * w), rock.v(c0[0] + ux * w, c0[1], c0[2] + uz * w), rock.v(c0[0], c0[1] + 0.06, c0[2])], "leafGreen", (px_, 0.0, pz_))
+    lantern(rock, glow, ax + hw - 0.3, spring + 0.35, mouth - 0.13, hang=0.36)

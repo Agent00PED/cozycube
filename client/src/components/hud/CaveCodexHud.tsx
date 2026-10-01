@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CAVE_EVENT_INFO, CODEX_BY_ID, CODEX_SECTIONS, FAUNA_ZONE, parseCaveEvent } from "@shared/caverns_codex";
-import { CAPYBARA, HOUNDS_HAND, PHOTO_SPOT, cavernsFloorY, cavernsZoneAt } from "@shared/worlds/caverns";
+import { CAPYBARA, CAVE_WATER_Y, HEARTH, PHOTO_SPOT, cavernsFloorY, cavernsZoneAt, onCauseway } from "@shared/worlds/caverns";
 import { CAVERNS_CHANNELS } from "@shared/caverns_mining";
 import type { PlayerState } from "@shared/types";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -71,6 +71,8 @@ export function CaveCodexHud({ player, caveEvent, send, subscribeMessages }: { p
         pushToast("The Bat Exodus! The mudflats' bats are pouring out through the jungle's collapse", { emoji: "🦇" });
       }
       if (ex >= 0 && !f.includes("wonder_exodus")) once("wonder_exodus", { op: "exodus" });
+      // wading the causeway out to the Monolith's islet
+      if (!f.includes("wonder_wade") && onCauseway(cameraFocus.x, cameraFocus.z) && cavernsFloorY(cameraFocus.x, cameraFocus.z) < CAVE_WATER_Y - 0.03) once("wonder_wade", { op: "wade" });
     }, 500);
     return () => window.clearInterval(t);
   }, []);
@@ -93,16 +95,16 @@ export function CaveCodexHud({ player, caveEvent, send, subscribeMessages }: { p
     [subscribeMessages]
   );
 
-  // the photo: framed on you with the Hound's Hand behind, a flash, a shutter
+  // the photo: framed on you with the Explorers' Rest behind, a flash, a shutter
   const [flash, setFlash] = useState(0);
   useEffect(() => {
     const onPhoto = () => {
-      const x = PHOTO_SPOT.x + (HOUNDS_HAND.x - PHOTO_SPOT.x) * 0.25;
-      const z = PHOTO_SPOT.z + (HOUNDS_HAND.z - PHOTO_SPOT.z) * 0.25;
-      const dx = PHOTO_SPOT.x - HOUNDS_HAND.x;
-      const dz = PHOTO_SPOT.z - HOUNDS_HAND.z;
+      const x = PHOTO_SPOT.x + (HEARTH.x - PHOTO_SPOT.x) * 0.35;
+      const z = PHOTO_SPOT.z + (HEARTH.z - PHOTO_SPOT.z) * 0.35;
+      const dx = PHOTO_SPOT.x - HEARTH.x;
+      const dz = PHOTO_SPOT.z - HEARTH.z;
       const l = Math.hypot(dx, dz) || 1;
-      frameWork({ x, y: cavernsFloorY(PHOTO_SPOT.x, PHOTO_SPOT.z) + 1.5, z, r: 2.4, tall: 4.6, face: { x: dx / l, z: dz / l } });
+      frameWork({ x, y: cavernsFloorY(PHOTO_SPOT.x, PHOTO_SPOT.z) + 1.0, z, r: 2.6, tall: 2.8, face: { x: dx / l, z: dz / l } });
       window.setTimeout(() => {
         playSfx("focus", 0.9);
         setFlash(Date.now());

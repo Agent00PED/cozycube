@@ -280,7 +280,7 @@ import { CasinoFloor, RouletteSchema } from "./casino";
 import { BoutSchema, BoxingRing } from "./boxing";
 import { CavernsMine } from "./caverns";
 import { CAVERNS_CHANNELS, WARMTH_PACE, WARMTH_STAMINA, parseOres, type ForgePacket, type GeodePacket, type GusPacket, type OnsenPacket, type ProspectPacket, type SatchelPacket, type ShoreCastPacket, type StrikePacket, type CodexPacket } from "../../../shared/caverns_mining";
-import { FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, THERMAL_SEAT_IDS, orePropId, shoreCast, HEARTH_SEAT_IDS } from "../../../shared/worlds/caverns";
+import { FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, THERMAL_SEAT_IDS, orePropId, shoreCast, HEARTH_SEAT_IDS, streamCast, inStreamWater } from "../../../shared/worlds/caverns";
 import { CAVE_TACKLES, DRIP_ZONE, GLOW_LURE_GRACE_S, GLOW_LURE_HASTE, SPINNER_LUCK, SWIVEL_WINDOW_S, isCaveTackleId } from "../../../shared/caverns_fishing";
 import { satchelCountFor, satchelTakeFor } from "../../../shared/satchel";
 import { ORE_ITEMS, type OreItemId } from "../../../shared/caverns_mining";
@@ -433,6 +433,8 @@ class HangoutState extends Schema {
   @type("string") ores = "";
   /** The Glimmering Caverns' living wonder under way (shared/caverns_codex.ts CaveEvent as JSON; "" none). */
   @type("string") caveEvent = "";
+  /** The caverns' raft (JSON: its side, and the crossing under way). */
+  @type("string") caveRaft = "";
 }
 
 const CHAT_COOLDOWN_MS = 1200;
@@ -790,6 +792,19 @@ export class HangoutRoom extends Room<HangoutState> {
       syncCaveEvent: (json) => {
         this.state.caveEvent = json;
       },
+      syncRaft: (json) => {
+        this.state.caveRaft = json;
+      },
+      grantTitle: (sessionId, title) => {
+        const player = this.state.players.get(sessionId);
+        const unlock = capsuleUnlock({ kind: "title", id: title });
+        if (!player || this.owns(player, unlock)) return;
+        this.grant(player, unlock);
+        // (worn at once if nothing is, as the Pioneer's is; the Cave Codex's panel wears any of them)
+        if (!player.title && specialTitle(title)) player.title = title;
+        this.persist(sessionId, player, true);
+        this.sendTo(sessionId, "campfireNotice", { message: `A new title: ${specialTitle(title)?.name ?? title} (wear it from the Cave Codex)`, emoji: "🏅" });
+      },
       syncOres: (json) => {
         this.state.ores = json;
         // (a broken node's prop takes no click until it grows back)
@@ -1037,6 +1052,8 @@ export class HangoutRoom extends Room<HangoutState> {
       // (and the caverns' own: a Cave Cloud, a Glimmer Bloom or a Rockfall now)
       this.onMessage("devCaveEvent", (_client, kind: unknown) => {
         if (kind === "cloud" || kind === "bloom" || kind === "rockfall") this.caverns.startEvent(kind);
+        // (the endgame's: a Motherlode due now, the Monolith surfacing awake now)
+        else if (kind === "motherlode" || kind === "awaken") this.caverns.devEndgame(kind);
       });
       this.onMessage("devWorldEvent", (_client, kind: unknown) => {
         this.endWonder(false);
@@ -2990,9 +3007,10 @@ export class HangoutRoom extends Room<HangoutState> {
     const fx = Number(packet?.fx);
     const fz = Number(packet?.fz);
     if (!Number.isFinite(fx) || !Number.isFinite(fz)) return;
-    const float = shoreCast(player.x, player.z, fx, fz);
+    // (the lake from its shore, or the stream from its bank)
+    const float = shoreCast(player.x, player.z, fx, fz) ?? streamCast(player.x, player.z, fx, fz);
     if (!float) {
-      this.sendTo(sessionId, "campfireNotice", { message: "Step up to the water's edge and face the lake to cast", emoji: "🎣" });
+      this.sendTo(sessionId, "campfireNotice", { message: "Step up to the water's edge and face the lake, or the stream, to cast", emoji: "🎣" });
       return;
     }
     if (this.creelIsFull(sessionId)) {
@@ -3284,7 +3302,9 @@ export class HangoutRoom extends Room<HangoutState> {
     const spinner = profile?.caveTackles.includes("silver_spinner") ? SPINNER_LUCK : 0;
     // (a Cave Cloud rolling through the caverns: the cenote's rare fish bite more)
     const cloud = player.map === "glimmering_caverns" ? this.caverns.cloudLuck() : 0;
-    return { rareLuck: aura + (rapids ? RAPIDS_LUCK : 0) + nightRareLuck(profile?.worn ?? [], !day) + incense + chum + glow + spinner + cloud, bait, time: day ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier };
+    // (a float out on the stream: nothing legendary swims up it)
+    const shallow = player.map === "glimmering_caverns" && (player.floatX !== 0 || player.floatZ !== 0) && inStreamWater(player.floatX, player.floatZ);
+    return { rareLuck: aura + (rapids ? RAPIDS_LUCK : 0) + nightRareLuck(profile?.worn ?? [], !day) + incense + chum + glow + spinner + cloud, bait, time: day ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier, ...(shallow ? { shallow } : {}) };
   }
 
   private creelIsFull(sessionId: string): boolean {
@@ -4338,6 +4358,12 @@ export class HangoutRoom extends Room<HangoutState> {
     this.lastReportAt.delete(sessionId);
     this.arrivedUntil.set(sessionId, Date.now() + ARRIVAL_GRACE_MS);
     this.sendTo(sessionId, "travelled", { map: mapId, x: spawn.x, z: spawn.z });
+    // (down in the caverns: any codex title earned and not yet given, given now)
+    if (mapId === "glimmering_caverns") {
+      this.caverns.grantCodexTitles(sessionId);
+      this.caverns.grantMasteryTitles(sessionId);
+      this.caverns.weekly(sessionId);
+    }
   }
 
   /** A spawn point on `map`, the one fewest people stand near. */
