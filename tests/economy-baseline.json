@@ -18,197 +18,197 @@
    "craft": "fish",
    "tier": 1,
    "where": "cenote",
-   "perMin": 55.8,
-   "perMinSold": 45.1
+   "perMin": 50.1,
+   "perMinSold": 41.8
   },
   {
    "craft": "fish",
    "tier": 2,
    "where": "campfire river",
-   "perMin": 53.7,
-   "perMinSold": 53.7
+   "perMin": 37.6,
+   "perMinSold": 37.6
   },
   {
    "craft": "fish",
    "tier": 2,
    "where": "woods river",
-   "perMin": 51.8,
-   "perMinSold": 51.8
+   "perMin": 35.7,
+   "perMinSold": 35.7
   },
   {
    "craft": "fish",
    "tier": 2,
    "where": "cenote",
-   "perMin": 95.1,
-   "perMinSold": 82.6
+   "perMin": 67.3,
+   "perMinSold": 60
   },
   {
    "craft": "fish",
    "tier": 3,
    "where": "campfire river",
-   "perMin": 85.8,
-   "perMinSold": 85.8
+   "perMin": 49.3,
+   "perMinSold": 49.3
   },
   {
    "craft": "fish",
    "tier": 3,
    "where": "woods river",
+   "perMin": 52.4,
+   "perMinSold": 52.4
+  },
+  {
+   "craft": "fish",
+   "tier": 3,
+   "where": "cenote",
    "perMin": 102.4,
-   "perMinSold": 102.4
-  },
-  {
-   "craft": "fish",
-   "tier": 3,
-   "where": "cenote",
-   "perMin": 183.8,
-   "perMinSold": 168
+   "perMinSold": 90.6
   },
   {
    "craft": "fish",
    "tier": 4,
    "where": "campfire river",
-   "perMin": 122.1,
-   "perMinSold": 122.1
+   "perMin": 64.5,
+   "perMinSold": 64.5
   },
   {
    "craft": "fish",
    "tier": 4,
    "where": "woods river",
-   "perMin": 187.6,
-   "perMinSold": 187.6
+   "perMin": 77,
+   "perMinSold": 77
   },
   {
    "craft": "fish",
    "tier": 4,
    "where": "cenote",
-   "perMin": 293.2,
-   "perMinSold": 288
+   "perMin": 137.9,
+   "perMinSold": 126.7
   },
   {
    "craft": "fish",
    "tier": 5,
    "where": "campfire river",
-   "perMin": 148.4,
-   "perMinSold": 148.4
+   "perMin": 75.7,
+   "perMinSold": 75.7
   },
   {
    "craft": "fish",
    "tier": 5,
    "where": "woods river",
-   "perMin": 306.3,
-   "perMinSold": 306.3
+   "perMin": 102.5,
+   "perMinSold": 102.5
   },
   {
    "craft": "fish",
    "tier": 5,
    "where": "cenote",
-   "perMin": 421.1,
-   "perMinSold": 421.1
+   "perMin": 194,
+   "perMinSold": 177.5
   },
   {
    "craft": "wood",
    "tier": 1,
    "where": "campfire",
-   "perMin": 60.7,
-   "perMinSold": 42.6
+   "perMin": 30.8,
+   "perMinSold": 21.6
   },
   {
    "craft": "wood",
    "tier": 1,
    "where": "woods",
-   "perMin": 39.2,
-   "perMinSold": 27.5
+   "perMin": 20,
+   "perMinSold": 14.1
   },
   {
    "craft": "wood",
    "tier": 2,
    "where": "campfire",
-   "perMin": 65.2,
-   "perMinSold": 45.7
+   "perMin": 32.9,
+   "perMinSold": 23
   },
   {
    "craft": "wood",
    "tier": 2,
    "where": "woods",
-   "perMin": 136.7,
-   "perMinSold": 97.6
+   "perMin": 49.1,
+   "perMinSold": 36.2
   },
   {
    "craft": "wood",
    "tier": 3,
    "where": "campfire",
-   "perMin": 64.2,
-   "perMinSold": 45
+   "perMin": 32.4,
+   "perMinSold": 22.7
   },
   {
    "craft": "wood",
    "tier": 3,
    "where": "woods",
-   "perMin": 202.2,
-   "perMinSold": 146.4
+   "perMin": 72.7,
+   "perMinSold": 55.4
   },
   {
    "craft": "wood",
    "tier": 4,
    "where": "campfire",
-   "perMin": 63.1,
-   "perMinSold": 44.2
+   "perMin": 31.9,
+   "perMinSold": 22.4
   },
   {
    "craft": "wood",
    "tier": 4,
    "where": "woods",
-   "perMin": 259.2,
-   "perMinSold": 190.1
+   "perMin": 101.3,
+   "perMinSold": 78.7
   },
   {
    "craft": "wood",
    "tier": 5,
    "where": "campfire",
-   "perMin": 62.6,
-   "perMinSold": 43.9
+   "perMin": 31.7,
+   "perMinSold": 22.2
   },
   {
    "craft": "wood",
    "tier": 5,
    "where": "woods",
-   "perMin": 287.2,
-   "perMinSold": 221.2
+   "perMin": 130.5,
+   "perMinSold": 108.9
   },
   {
    "craft": "ore",
    "tier": 1,
    "where": "caverns",
-   "perMin": 166.6,
-   "perMinSold": 118.3
+   "perMin": 120.2,
+   "perMinSold": 85.3
   },
   {
    "craft": "ore",
    "tier": 2,
    "where": "caverns",
-   "perMin": 298.8,
-   "perMinSold": 210.9
+   "perMin": 182.6,
+   "perMinSold": 129.2
   },
   {
    "craft": "ore",
    "tier": 3,
    "where": "caverns",
-   "perMin": 544.7,
-   "perMinSold": 384.2
+   "perMin": 243.9,
+   "perMinSold": 173
   },
   {
    "craft": "ore",
    "tier": 4,
    "where": "caverns",
-   "perMin": 526,
-   "perMinSold": 377.4
+   "perMin": 252.7,
+   "perMinSold": 183.4
   },
   {
    "craft": "ore",
    "tier": 5,
    "where": "caverns",
-   "perMin": 539.1,
-   "perMinSold": 386.7
+   "perMin": 271.4,
+   "perMinSold": 196.2
   }
  ]
 }

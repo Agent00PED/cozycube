@@ -32,16 +32,25 @@
 //                      nothing is taken away; anything over its room stays, Overburdened (selling,
 //                      splitting, smelting and crafting work; gathering waits until it is back under)
 //
+//   v4 -> v5   (the economy's first rebalance: docs/economy-plan.md phase 1)
+//     the prices       wood, the rarer fish, glimmer, geodes, gems, Firewood and the workbench's
+//                      furniture sell for less now (every tool tier earns what its tier should)
+//     what was held    nothing held loses its worth: the difference between the old price and the
+//                      new, on every log (by its size), fish (by its size and stars), shard, geode,
+//                      gem, Firewood bundle and piece of furniture held that day, goes into `owed`,
+//                      paid in coins as the player next comes in
+//
 // Each migration leaves a word in the profile's mail: told to the player the next time they come in.
 
-import { addLogs, BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "./chop";
+import { addLogs, BYPRODUCTS, WOOD, woodUnits, type ByproductId, type WoodKind } from "./chop";
 import { CRAFTS, type CraftId, type CraftNeeds } from "./crafting";
-import type { FishingProfile } from "./fishing";
+import { CAVE_FISH_PRICES, FIREWOOD_PRICE, FISH_PRICES, ORE_PRICES, PRE_PHASE1 } from "./economy";
+import type { CreelFish, FishingProfile } from "./fishing";
 import { GEAR } from "./gear";
 import { SATCHEL_TIERS } from "./satchel";
 
 /** The camp profile's schema now. */
-export const PROFILE_VERSION = 4;
+export const PROFILE_VERSION = 5;
 /** A letter in the profile's mail: at most this long (a longer one is cut short as it is read). */
 export const MAIL_MAX = 1200;
 
@@ -89,7 +98,7 @@ const CAVERNS_DEFAULTS = { satchelTier: 0, satchelSlots: SATCHEL_TIERS[0].slots,
 
 /** Brings a read profile (`p`, from the stored `raw`) up to PROFILE_VERSION; a current one is left as
  *  it is. Pure: the room saves the result with its next write. */
-export function migratePlayerInventory(raw: unknown, p: FishingProfile): FishingProfile {
+export function migratePlayerInventory(raw: unknown, p: FishingProfile, fishValue: (f: CreelFish) => number): FishingProfile {
   if (p.v >= PROFILE_VERSION) return p;
   const words: string[] = [];
   if (p.v < 2) migrateV2(p, words);
@@ -102,9 +111,53 @@ export function migratePlayerInventory(raw: unknown, p: FishingProfile): Fishing
     if (!p.caveAccess) words.push("⛏️ Word from the woods: an old badger with a lantern on his helmet has been seen by the Autumn Maples, on the Whispering Woods' western cliff. They say he guards a way down.");
   }
   if (p.v < 4) migrateV4(stored, p, words);
+  if (p.v < 5) migrateV5(p, words, fishValue);
   if (words.length) p.mail = [...p.mail, ...words.map((w) => w.slice(0, MAIL_MAX))].slice(-8);
   p.v = PROFILE_VERSION;
   return p;
+}
+
+/** What the economy's first rebalance took off the worth of everything `p` holds, at an even market:
+ *  each log by its size, each fish by its size and stars (`fishValue`: what it sells for now), the
+ *  satchel's shards, geodes and gems, the Firewood and the furniture in the stash. */
+export function phase1Compensation(p: FishingProfile, fishValue: (f: CreelFish) => number): number {
+  let owed = 0;
+  for (const [k, was] of Object.entries(PRE_PHASE1.wood) as [WoodKind, number][]) owed += woodUnits(p, k) * Math.max(0, was - WOOD[k].sell);
+  const fishWas: Record<string, number> = PRE_PHASE1.fish;
+  const fishNow: Record<string, number> = { ...FISH_PRICES, ...CAVE_FISH_PRICES };
+  const oreNow: Record<string, number> = ORE_PRICES;
+  for (const f of p.creel) {
+    const was = fishWas[f.s];
+    if (was === undefined) continue;
+    // (what it sells for now, by its size and stars, scaled by its old base over its new one)
+    const base = fishNow[f.s];
+    if (base > 0 && was > base) owed += fishValue(f) * (was / base - 1);
+  }
+  const oreWas: Record<string, number> = PRE_PHASE1.ore;
+  for (const e of p.satchelContents) {
+    const was = oreWas[e.id];
+    if (was !== undefined) owed += e.n * Math.max(0, was - (oreNow[e.id] ?? was));
+  }
+  owed += p.firewood * Math.max(0, PRE_PHASE1.firewood - FIREWOOD_PRICE);
+  const madeWas: Record<string, number> = PRE_PHASE1.furniture;
+  for (const c of p.crafts) {
+    const was = madeWas[c.c];
+    if (was === undefined) continue;
+    const craft = CRAFTS[c.c];
+    owed += Math.max(0, was - craft.price) * (c.m ? craft.master / craft.price : 1);
+  }
+  return Math.round(owed);
+}
+
+/** v4 -> v5: the economy's first rebalance. What it took off the player's stock goes into `owed`. */
+function migrateV5(p: FishingProfile, out: string[], fishValue: (f: CreelFish) => number) {
+  const owed = phase1Compensation(p, fishValue);
+  const played = p.creel.length > 0 || p.rods.length > 1 || p.axes.length > 1 || p.caveAccess || Object.values(p.wood).some((n) => n > 0);
+  if (owed > 0) p.owed = Math.min(9_999_999, p.owed + owed);
+  if (!played && owed <= 0) return;
+  out.push(
+    `⚖️ The market's great rebalance: timber, the rarer fish, glimmer, geodes, gems and furniture sell for less now, so that every rod, axe and pickaxe earns what its tier should (a better tool is always a better hour).${owed > 0 ? ` Nothing you held lost its worth: the traders paid you ${owed.toLocaleString("en-US")} 🪙 for the difference on your stock.` : ""} Silver and glimmer grow back slower and are worth the wait; a rock shows at most one Lucky Glint.`,
+  );
 }
 
 /** v3 -> v4: the stone dust out of the satchel into the materials' store (all of it), and a word on

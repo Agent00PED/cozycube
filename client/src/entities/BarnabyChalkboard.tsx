@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { BUSTER_BOARD, CAMPFIRE_LAYOUT as L } from "@shared/worlds/campfire";
 import { FISH, FISH_IDS, type FishId } from "@shared/fishing";
 import { BYPRODUCTS, BYPRODUCT_IDS, TREES, WOOD, type TreeKind, type WoodKind } from "@shared/chop";
-import { FIREWOOD_PRICE } from "@shared/economy";
+import { FIREWOOD_PER_COIN } from "@shared/economy";
 import { fishGood, forecast, marketDirection, marketMultiplier, msUntilNextHour, parseMarket, woodGood, type MarketGood, type MarketState } from "@shared/market";
 import { noRaycast } from "../scene/kit";
 import { useMarketRaw } from "../scene/marketStore";
@@ -128,7 +128,7 @@ function paintTimber(ctx: CanvasRenderingContext2D, market: MarketState, now: nu
   const list: Row[] = [
     ...TIMBER.map((k): Row => ({ emoji: WOOD[k].emoji, name: WOOD[k].name, price: Math.max(1, Math.round(WOOD[k].sell * marketMultiplier(woodGood(k), market, now))), dir: marketDirection(woodGood(k), market, now) })),
     ...BYPRODUCT_IDS.map((k): Row => ({ emoji: BYPRODUCTS[k].emoji, name: BYPRODUCTS[k].name, price: BYPRODUCTS[k].price })),
-    { emoji: "🔥", name: "Firewood bundle", price: FIREWOOD_PRICE },
+    { emoji: "🔥", name: `Firewood ×${FIREWOOD_PER_COIN}`, price: 1 },
   ];
   rows(ctx, list, 128, H - 108);
   const next = forecast(TIMBER.map(woodGood), market, now);

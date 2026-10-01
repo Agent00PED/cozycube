@@ -331,14 +331,16 @@ export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolea
       if (rule === "oneshot") {
         dmg = info.hp;
         clean = perfect;
+        if (perfect && glint) hold[MASTERY_ORE[node.kind]] = (hold[MASTERY_ORE[node.kind]] ?? 0) + 1;
         break;
       }
       const base = pick.damage * (rule === "under" ? 0.6 : 1) * (direct ? 1 : near ? 0.5 : 0.15);
       dmg += Math.round(base * (perfect ? PERFECT_DAMAGE : 1) * (chasing ? chaseBonus(chase) : 1));
       clean = perfect;
-      if (direct) {
-        if (perfect && glint) hold[MASTERY_ORE[node.kind]] = (hold[MASTERY_ORE[node.kind]] ?? 0) + 1;
-        glint = glints && rand() < GLINT_CHANCE && node.kind !== "monolith";
+      // (one glint a rock, on its weak spot until a Perfect claims it)
+      if (perfect && glint) {
+        hold[MASTERY_ORE[node.kind]] = (hold[MASTERY_ORE[node.kind]] ?? 0) + 1;
+        glint = false;
       }
     }
     const share = streakBonus(streak) * (clean ? CLEAN_BREAK_BONUS : 1);
@@ -374,8 +376,9 @@ function rollYieldMean(kind: OreKind, pick: PickaxeId): number {
 
 // --- the table -----------------------------------------------------------------------------------------
 
-export function simulate(): Line[] {
+export function simulate(only = process.env.ONLY ?? ""): Line[] {
   const out: Line[] = [];
+  if (only) return only === "fish" ? [1, 2, 3, 4, 5].flatMap((t) => WATERS.map((w) => angler(t, w))) : only === "wood" ? [1, 2, 3, 4, 5].flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT)]) : [1, 2, 3, 4, 5].map((t) => miner(t));
   for (let tier = 1; tier <= 5; tier++) for (const w of WATERS) out.push(angler(tier, w));
   for (let tier = 1; tier <= 5; tier++) {
     out.push(woodcutter(tier, "campfire_night", "campfire", BUSTER_FRONT));
@@ -398,6 +401,18 @@ export function ladder(lines: Line[]): Record<string, number[]> {
   return best;
 }
 
+/** The income ladder (docs/economy-plan.md section 4): what a minute should earn at each tool tier,
+ *  once the room's market has answered the player's own selling (`perMinSold`). The river's rods and
+ *  the axes climb it through the campfire and the woods; the pickaxes start above them, in the
+ *  caverns; the cenote pays about CENOTE_OVER_RIVER times the river on the same rod. */
+export const TARGETS = { river: [25, 35, 50, 70, 95], wood: [25, 35, 50, 70, 95], ore: [100, 120, 145, 175, 210] };
+export const CENOTE_OVER_RIVER = 1.7;
+/** Each craft's best spot, tier by tier, as sold. */
+export function soldLadder(lines: Line[]): { river: number[]; cenote: number[]; wood: number[]; ore: number[] } {
+  const best = (f: (l: Line) => boolean) => [1, 2, 3, 4, 5].map((tier) => Math.max(0, ...lines.filter((l) => l.tier === tier && f(l)).map((l) => l.perMinSold)));
+  return { river: best((l) => l.craft === "fish" && l.where !== "cenote"), cenote: best((l) => l.craft === "fish" && l.where === "cenote"), wood: best((l) => l.craft === "wood"), ore: best((l) => l.craft === "ore") };
+}
+
 /** What each tool costs today, tier 2 to 5. */
 export const TOOL_PRICES = {
   rod: [TACKLE_PRICES.proRod, TACKLE_PRICES.heronRod, TACKLE_PRICES.masterRod, TACKLE_PRICES.moonlightRod],
@@ -414,6 +429,13 @@ if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/economy-sim.ts")) {
   const lad = ladder(lines);
   console.log("\nThe ladder (each craft's best spot):");
   for (const [k, v] of Object.entries(lad)) console.log(pad(k, 10), v.map((n) => pad(n, 6)).join(""));
+  const sl = soldLadder(lines);
+  console.log("\nAs sold, against the target (coins a minute, and how far off):");
+  const off = (v: number, t: number) => `${v.toFixed(0)} (${v >= t ? "+" : ""}${Math.round((v / t - 1) * 100)}%)`;
+  console.log(pad("river", 10), sl.river.map((v, i) => pad(off(v, TARGETS.river[i]), 13)).join(""));
+  console.log(pad("wood", 10), sl.wood.map((v, i) => pad(off(v, TARGETS.wood[i]), 13)).join(""));
+  console.log(pad("ore", 10), sl.ore.map((v, i) => pad(off(v, TARGETS.ore[i]), 13)).join(""));
+  console.log(pad("cenote", 10), sl.cenote.map((v, i) => pad(`${v.toFixed(0)} (x${(v / sl.river[i]).toFixed(2)})`, 13)).join(""));
   console.log("\nMinutes of play to afford the next tool (at the income of the tier before it):");
   const rows: [string, number[], number[]][] = [["rod", TOOL_PRICES.rod, lad.riverFish], ["axe", TOOL_PRICES.axe, lad.wood], ["pickaxe", TOOL_PRICES.pickaxe, lad.ore]];
   for (const [name, prices, income] of rows) {

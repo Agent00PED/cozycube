@@ -184,11 +184,15 @@ interface NodeState {
   up: boolean;
   respawnAt: number;
   weak: Vec3;
-  /** Whether its weak spot is a Lucky Glint (GLINT_CHANCE). */
+  /** Whether this rock holds a Lucky Glint (rolled once as it grows back: docs/economy-plan.md phase 1,
+   *  one a rock, on its weak spot wherever that runs to, until a Perfect claims it or the rock breaks). */
   glint?: boolean;
   /** Who struck it, and how hard (the co-op shares), since it last grew back. */
   contrib: Map<string, number>;
 }
+
+/** A fresh rock's Lucky Glint: one chance a rock, never the Titan Monolith. */
+const rollGlint = (kind: string) => kind !== "monolith" && Math.random() < GLINT_CHANCE;
 
 interface Prospector {
   node: string;
@@ -272,7 +276,7 @@ export class CavernsMine {
 
   constructor(private readonly host: CavernsHost) {
     // (a crew node, the Rockfall's heap, lies waiting until its wonder raises it)
-    for (const n of ORE_NODES) this.nodes.set(n.id, { dmg: 0, up: !ORE_KINDS[n.kind].crew, respawnAt: ORE_KINDS[n.kind].crew ? Infinity : 0, weak: rollWeakSpot(n.face), contrib: new Map() });
+    for (const n of ORE_NODES) this.nodes.set(n.id, { dmg: 0, up: !ORE_KINDS[n.kind].crew, respawnAt: ORE_KINDS[n.kind].crew ? Infinity : 0, weak: rollWeakSpot(n.face), glint: rollGlint(n.kind), contrib: new Map() });
     this.sync();
   }
 
@@ -516,10 +520,7 @@ export class CavernsMine {
     const was = this.prospectors.get(sessionId);
     // (the weak spot on the side the miner stands, when no one else is at this rock: never round its back)
     const others = [...this.prospectors.entries()].some(([id, p]) => id !== sessionId && p.node === node.id);
-    if (!others && was?.node !== node.id) {
-      s.weak = rollWeakSpot(node.face, Math.random, { x: player.x - node.x, z: player.z - node.z });
-      s.glint = node.kind !== "monolith" && Math.random() < GLINT_CHANCE;
-    }
+    if (!others && was?.node !== node.id) s.weak = rollWeakSpot(node.face, Math.random, { x: player.x - node.x, z: player.z - node.z });
     this.prospectors.set(sessionId, { node: node.id, lastStrikeAt: 0, staggerUntil: 0, seq: was?.node === node.id ? was.seq : 0, openedAt: Date.now(), chase: 0, chaseUntil: 0, ...(was?.node === node.id && was.view ? { view: was.view } : {}) });
     player.action = "mine";
     player.actionProgress = s.dmg / info.hp;
@@ -633,7 +634,6 @@ export class CavernsMine {
     if (moved) {
       // (the fissure runs on along the vein to a spot nearby, on the side the striker's close-up sees)
       s.weak = rollVeinStep(from, Math.random, pr.view ?? { x: player.x - node.x, z: player.z - node.z });
-      s.glint = node.kind !== "monolith" && Math.random() < GLINT_CHANCE;
     }
     const frac = s.dmg / info.hp;
     this.host.toMap("glimmering_caverns", "caveStrike", { sessionId, node: node.id, verdict: j.verdict, hit: dir, dmg: Math.round(frac * 1000) / 1000, ...(moved ? { moved: true } : {}), ...(perfect ? { perfect: true } : {}), streak: run.n, ...(bonus ? { bonus } : {}), chase: pr.chase } satisfies CaveStrike);
@@ -1212,6 +1212,7 @@ export class CavernsMine {
       s.dmg = 0;
       s.respawnAt = 0;
       s.weak = rollWeakSpot(node.face);
+      s.glint = rollGlint(node.kind);
       changed = true;
       if (node.kind === "monolith") {
         this.awakeUntil = now + AWAKEN_S * 1000;

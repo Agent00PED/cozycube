@@ -162,8 +162,8 @@ export const ORE_KINDS: Record<OreKind, OreKindInfo> = {
   coal: { name: "Coal Seam", emoji: "⚫", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Coal Breakdown", glow: "#ffb347" },
   copper: { name: "Copper Vein", emoji: "🟠", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Doline Jungle", glow: "#ffb347" },
   iron: { name: "Iron Lode", emoji: "🔩", tier: 2, hp: 200, respawnS: [75, 75], radius: 0.5, sweet: 0.18, geode: 0.15, zone: "the Iron Mudflats", glow: "#ff8a4a" },
-  silver: { name: "Silver Seam", emoji: "⚪", tier: 3, hp: 300, respawnS: [75, 75], radius: 0.55, sweet: 0.16, geode: 0, zone: "the Pearl Terraces", glow: "#8fe8ff" },
-  glimmer: { name: "Glimmerstone Cluster", emoji: "💠", tier: 4, hp: 440, respawnS: [120, 120], radius: 0.6, sweet: 0.15, geode: 0.3, zone: "the Glimmer Rift", glow: "#00f0ff" },
+  silver: { name: "Silver Seam", emoji: "⚪", tier: 3, hp: 300, respawnS: [300, 300], radius: 0.55, sweet: 0.16, geode: 0, zone: "the Pearl Terraces", glow: "#8fe8ff" },
+  glimmer: { name: "Glimmerstone Cluster", emoji: "💠", tier: 4, hp: 440, respawnS: [600, 600], radius: 0.6, sweet: 0.15, geode: 0.3, zone: "the Glimmer Rift", glow: "#00f0ff" },
   rockfall: { name: "Rockfall Heap", emoji: "🪨", tier: 1, hp: 900, respawnS: [99999, 99999], radius: 1.0, sweet: 0.3, geode: 0.5, zone: "the Coal Breakdown", glow: "#ffcf7a", crew: true },
   monolith: { name: "Titan Monolith", emoji: "🗿", tier: 5, hp: 2400, respawnS: [25 * 60, 30 * 60], radius: 1.1, sweet: 0.24, geode: 1, zone: "the Great Lake's islet", glow: "#b36bff" },
 };
@@ -331,9 +331,11 @@ export const PERFECT_DAMAGE = 1.3;
 /** A Perfect on the blow that breaks the rock: a Clean Break, the breaker's haul a quarter bigger
  *  (docs/caverns-roadmap.md R10.6). */
 export const CLEAN_BREAK_BONUS = 1.25;
-/** How often a fresh weak spot is a Lucky Glint (a gold ring: a Perfect on it pops one more of the rock's
- *  ore straight into the satchel). Never on the Titan Monolith. */
-export const GLINT_CHANCE = 0.22;
+/** How often a fresh rock holds a Lucky Glint (a gold ring on its weak spot, wherever that runs to: the
+ *  first Perfect on it pops one more of the rock's ore straight into the satchel). One a rock, rolled
+ *  as it grows back (rolled at every new weak spot it paid a weak pickaxe most: docs/economy-plan.md
+ *  phase 1). Never on the Titan Monolith. */
+export const GLINT_CHANCE = 0.3;
 /** Perfects in a row (from node to node): each adds STREAK_STEP to every haul, up to STREAK_MAX; a
  *  near or bedrock strike ends the run, a plain direct one holds it, and it lapses after
  *  STREAK_IDLE_S without a strike. */
