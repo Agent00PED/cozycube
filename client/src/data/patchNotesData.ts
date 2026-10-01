@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.39",
+    range: "v0.7.0–v0.7.40",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1642,6 +1642,20 @@ export const PATCH_ERAS: PatchEra[] = [
             "💍 Rings: Luck, Bounty and Tempo's faster bites work at half the band's strength; Fortune's King Size chance is smaller. A Topaz ring now makes your felled trees grow back sooner instead of slowing the felling ring.",
           ],
           fixes: [],
+        },
+      },
+      {
+        version: "0.7.40",
+        date: "2026-10-02",
+        title: "A Better View",
+        summary: "A round of fixes for every map: the camera no longer shows half a screen of empty sky at a map's edge, the game downloads about a third less, and the Velvet Ring is easier on the eyes.",
+        changes: {
+          features: [],
+          visuals: [
+            "🎥 The camera now stops short of a map's edge. Arriving in the Whispering Woods, the casino or the Velvet Ring shows the place itself, not empty sky, and you still stay comfortably on screen.",
+            "🥊 The Velvet Ring's parquet floor is calmer (it shimmered when you moved), and the hall is a little brighter.",
+          ],
+          fixes: ["📦 The maps, crowds and fish models are compressed: about 9.5 MB less to download in all, so worlds load faster."],
         },
       },
     ],

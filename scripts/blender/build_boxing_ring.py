@@ -86,9 +86,9 @@ PALETTE.update(
         "BX_MirrorLight": "#DDE9EC",
         "BX_MirrorDark": "#7C8F98",
         # floors
-        "BX_Parquet": "#8A5A32",
-        "BX_ParquetDark": "#6E4526",
-        "BX_ParquetLight": "#A06C3E",
+        "BX_Parquet": "#8C5C34",
+        "BX_ParquetDark": "#80522D",
+        "BX_ParquetLight": "#98653A",
         "BX_TileWhite": "#E9E2D2",
         "BX_TileBlack": "#1C1719",
         # walls

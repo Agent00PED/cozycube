@@ -8,14 +8,17 @@
 // animation's keys, an image) stays as it was. The packed views keep their place in a fallback buffer
 // with no data (the extension's `fallback`), so the file is a valid glTF that needs the extension.
 // Running it on a file already packed does nothing. With no files named, the models the builders make
-// that gain from it: caverns.glb and avatar.glb.
+// that gain from it (DEFAULTS: the worlds, the avatar, the crowds, the fish).
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { MeshoptEncoder } from "meshoptimizer";
 
 const EXT = "EXT_meshopt_compression";
 const ROOT = resolve(import.meta.dirname, "..");
-const DEFAULTS = ["client/public/models/caverns.glb", "client/public/models/avatar.glb"];
+// (every model big enough to matter: the worlds, the avatar, the crowds, the fish. A builder that makes
+// one of these anew leaves it unpacked unless it packs it itself, as the caverns' and the avatar's do:
+// run this after any other builder.)
+const DEFAULTS = ["caverns", "avatar", "casino", "campfire", "forest", "casino_vip", "boxing_ring", "fish", "ring_regulars", "patrons", "cat", "props", "trees", "chloe_maid"].map((n) => `client/public/models/${n}.glb`);
 
 const COMPONENT_BYTES: Record<number, number> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
 const TYPE_COUNT: Record<string, number> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 };

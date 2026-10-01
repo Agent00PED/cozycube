@@ -15,9 +15,9 @@ import { perf } from "../systems/perfProfile";
 // floor (the lounge's 15x15 loft, walls and slab fill the viewport), then nudged a little closer.
 // Two modes (cameraFocus.ts, a setting kept in this browser; the HUD's top bar switches it):
 //
-//   follow    (the default) locked on the local player: the camera glides after you (a damped
-//             lerp, FOLLOW_DAMPING a frame), all the way to every edge of the room, never leaving
-//             you off-centre. Big worlds are framed closer (FOLLOW_SPAN units across), so the
+//   follow    (the default) on the local player: the camera glides after you (a damped lerp,
+//             FOLLOW_DAMPING a frame), and near a world's edge stops short of it (keepInWorld: the
+//             screen is never half empty past the rim, and you are never pushed to its edge). Big worlds are framed closer (FOLLOW_SPAN units across), so the
 //             player stays the size they are in the lounge; the wheel or a pinch zooms round you
 //   free_pan  the classic view: the camera leans toward you, part of the way (FOLLOW); a right- or
 //             middle-drag (or a two-finger drag) pans it anywhere over the room, and the moment you
@@ -51,6 +51,11 @@ const FOLLOW_DAMPING = 0.08;
 const FOLLOW_SNAP = 8;
 /** Follow frames this many world units across a big world (never wider than the fitted view). */
 const FOLLOW_SPAN = 17;
+/** Follow, near a world's edge: the camera stops short of the edge by this much of the view's half
+ *  (so the screen is never half empty void past the island's rim), as long as the player stays within
+ *  PLAYER_KEEP of the view's half from its middle (they are never pushed toward the screen's edge). */
+const EDGE_KEEP = 0.65;
+const PLAYER_KEEP = 0.5;
 /** Free look may roam this far from the room's centre. */
 const PAN_LIMIT = 10;
 /** The player counts as moving above this speed, in world units per second. */
@@ -120,6 +125,31 @@ export function IsometricCanvas({ children }: { children: React.ReactNode }) {
       )}
     </div>
   );
+}
+
+/**
+ * Where the follow camera looks for a player at (px, pz): the player, kept inside the world's own
+ * footprint. On screen the world's square is a diamond (u along the screen's right, v down it along
+ * the ground); the look-at point stays inside that diamond drawn in by EDGE_KEEP of the view's half
+ * (`a` across, `b` down, in world units), then is let back out toward the player wherever that would
+ * leave them further than PLAYER_KEEP of the view's half from the middle.
+ */
+export function keepInWorld(px: number, pz: number, a: number, b: number): { x: number; z: number } {
+  const dx = px - frame.x;
+  const dz = pz - frame.z;
+  const du = (dx - dz) * Math.SQRT1_2;
+  const dv = (dx + dz) * Math.SQRT1_2;
+  // (the diamond drawn in by the view's own half each way: a tall view stops further from the near and
+  // far corners than a wide one does from the side ones)
+  const rim = (frame.size / 2) * Math.SQRT2;
+  const ru = Math.max(0, rim - EDGE_KEEP * a);
+  const rv = Math.max(0, rim - EDGE_KEEP * b);
+  const out = (ru > 0 ? Math.abs(du) / ru : du === 0 ? 0 : Infinity) + (rv > 0 ? Math.abs(dv) / rv : dv === 0 ? 0 : Infinity);
+  const k = out > 1 ? (Number.isFinite(out) ? 1 / out : 0) : 1;
+  // (an axis with no room at all stays on the world's middle)
+  const u = THREE.MathUtils.clamp(ru > 0 ? du * k : 0, du - a * PLAYER_KEEP, du + a * PLAYER_KEEP);
+  const v = THREE.MathUtils.clamp(rv > 0 ? dv * k : 0, dv - b * PLAYER_KEEP, dv + b * PLAYER_KEEP);
+  return { x: frame.x + (u + v) * Math.SQRT1_2, z: frame.z + (v - u) * Math.SQRT1_2 };
 }
 
 /** The default zoom over the fitted one: follow frames a big world closer (FOLLOW_SPAN across). */
@@ -290,8 +320,10 @@ function CameraRig() {
     // follow: locked on the player, gliding after them; a teleport cuts straight there
     if (cameraSettings.mode === "follow") {
       cameraView.freeLook = false;
-      const gx = cameraFocus.hasTarget ? cameraFocus.x : 0;
-      const gz = cameraFocus.hasTarget ? cameraFocus.z : 0;
+      // (near the world's edge the look stops short of it: keepInWorld; the caverns keep their own bounds)
+      const kept = cameraFocus.hasTarget && !frame.bounds ? keepInWorld(cameraFocus.x, cameraFocus.z, size.width / (2 * cam.zoom), size.height / (2 * cam.zoom * Math.sin(ISO_ANGLE))) : null;
+      const gx = kept ? kept.x : cameraFocus.hasTarget ? cameraFocus.x : 0;
+      const gz = kept ? kept.z : cameraFocus.hasTarget ? cameraFocus.z : 0;
       const gy = cameraFocus.hasTarget ? cameraFocus.y : 0;
       if (!snapped.current || Math.hypot(gx - center.current.x, gz - center.current.z) > FOLLOW_SNAP) center.current.set(gx, gy, gz);
       else {
