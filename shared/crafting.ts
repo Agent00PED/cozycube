@@ -158,6 +158,9 @@ export interface Craft {
   special?: "torch" | "incense";
   /** Off the bench (the recipes before this one): still defined, traded in at Buster's or Bramble's. */
   legacy?: boolean;
+  /** Fine work: carved only at Bramble's advanced bench in the woods (the campfire's bench carves the
+   *  simple goods: docs/economy-plan.md section 10). */
+  advanced?: boolean;
   /** Made in a drawer, not at the bench: the Forester's ("wood"), the Fish ("fish"), the Ore
    *  Satchel's ("ore"). */
   drawer?: "wood" | "fish" | "ore";
@@ -196,6 +199,12 @@ export type CraftId =
   | "silk_line"
   | "wedge_mallet"
   | "titan_lever"
+  // 🪑 the simple goods (any bench) and the fine ones (the woods' bench)
+  | "plank_bundle"
+  | "kindling_crate"
+  | "birch_tray"
+  | "otter_figurine"
+  | "music_box"
   // 🧪 the consumables
   | "smore"
   | "grip_wax"
@@ -266,10 +275,18 @@ export const CRAFTS: Record<CraftId, Craft> = {
   deepriver_ring: legacy(relic("Deepriver Fisherman Ring", "💍", "rare", "river", { wood: { cedar: 3 }, byproducts: { fishBone: 2, scales: 10 } }, "deepriver_ring", "Finger relic (wear it): +6 livewell slots")),
   heartwood_compass: legacy(relic("Heartwood Compass", "🧭", "epic", "elderwood", { wood: { elderwood: 1 }, byproducts: { silverBark: 3, leafAmber: 2 } }, "heartwood_compass", "Charm relic (wear it): pulses toward a standing Colossal tree, and chimes when it rises")),
   // --- 🪑 the furniture: trade goods, at the hour's market ---------------------------------------
+  // (the simple goods, at either bench: each a little over its makings' worth, docs/economy-plan.md
+  // section 10; Firewood is worth more in a crate than by the bundle)
+  kindling_crate: furniture("Kindling Crate", "🧺", "common", "pine", { firewood: 12, wood: { pine: 2 } }, 14, "Split kindling, crated dry for a cold camp"),
+  plank_bundle: furniture("Pine Plank Bundle", "🪵", "common", "pine", { wood: { pine: 8 } }, 24, "Eight pine boards, planed and tied"),
+  birch_tray: furniture("Birch Serving Tray", "🍽️", "common", "birch", { wood: { birch: 3 }, byproducts: { bark: 1 } }, 16, "A pale birch tray with a bark rim"),
   birch_stool: furniture("Rustic Birch Stool", "🪑", "uncommon", "birch", { wood: { birch: 4 }, byproducts: { bark: 2 } }, 28, "A sturdy three-legged birch stool, bark-trimmed"),
-  keepsake_box: furniture("Cedar Keepsake Box", "🗃️", "rare", "cedar", { wood: { cedar: 4 }, resin: 1, byproducts: { amber: 3 } }, 80, "Red cedar, amber-inlaid: it keeps the moths out and the memories in"),
-  autumn_chair: furniture("Autumn Rocking Chair", "🛋️", "epic", "maple", { wood: { maple: 5 }, byproducts: { leafAmber: 3 } }, 230, "Golden maple that rocks like a slow breeze"),
-  elder_clock: furniture("Grand Elderwood Clock", "🕰️", "legendary", "elderwood", { wood: { elderwood: 4 }, byproducts: { shavings: 4 } }, 950, "The masterpiece: it keeps the forest's own time"),
+  // (the fine goods: Bramble's advanced bench only)
+  otter_figurine: furniture("Carved Otter Figurine", "🦦", "rare", "cedar", { wood: { cedar: 3 }, byproducts: { scales: 6, fishBone: 1 } }, 70, "A cedar otter with a fish-bone whisker and scales for its coat", { advanced: true }),
+  keepsake_box: furniture("Cedar Keepsake Box", "🗃️", "rare", "cedar", { wood: { cedar: 4 }, resin: 1, byproducts: { amber: 3 } }, 80, "Red cedar, amber-inlaid: it keeps the moths out and the memories in", { advanced: true }),
+  music_box: furniture("Maple Music Box", "🎶", "epic", "maple", { wood: { maple: 3 }, resin: 2, byproducts: { leafAmber: 2 } }, 140, "A maple box that plays the woods' evening song", { advanced: true }),
+  autumn_chair: furniture("Autumn Rocking Chair", "🛋️", "epic", "maple", { wood: { maple: 5 }, byproducts: { leafAmber: 3 } }, 230, "Golden maple that rocks like a slow breeze", { advanced: true }),
+  elder_clock: furniture("Grand Elderwood Clock", "🕰️", "legendary", "elderwood", { wood: { elderwood: 4 }, byproducts: { shavings: 4 } }, 950, "The masterpiece: it keeps the forest's own time", { advanced: true }),
   // --- legacy: the bench before (traded in at Buster's or Bramble's) ------------------------------
   roasting_stick: legacy(make("Marshmallow Roasting Stick", "🍡", "common", "pine", "legacy", "roastingStick", { wood: { pine: 3 }, firewood: 1 }, 0, "Legacy: the marshmallow on a log is everyone's now")),
   camp_stool: legacy(furniture("Rustic Camp Stool", "🪑", "common", "pine", { wood: { pine: 4 }, firewood: 2 }, 35, "A sturdy three-legged stool for the fireside")),

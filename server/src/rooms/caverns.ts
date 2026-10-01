@@ -44,7 +44,9 @@ import {
   isGeodeId,
   isIngotId,
   isOreItemId,
+  FORGE_WARES,
   isMasterwork,
+  isWareId,
   isPickaxeId,
   itemsOf,
   judgeChisel,
@@ -780,6 +782,7 @@ export class CavernsMine {
     }
     if (packet.op === "tool") return this.forgeTool(sessionId, kit, player.coins, packet.tool);
     if (packet.op === "ring") return this.forgeRing(sessionId, kit, player.coins, packet.ring);
+    if (packet.op === "ware") return this.forgeWare(sessionId, kit, packet.ware, packet.n);
     if (packet.op === "start") return this.startForge(sessionId, kit, packet.ingot, packet.batch);
     if (packet.op !== "smelt" || !isIngotId(packet.ingot)) return;
     const queued = kit.forgeQueue.reduce((a, j) => a + j.n, 0);
@@ -901,6 +904,36 @@ export class CavernsMine {
     this.host.gesture(sessionId, "mine");
     this.host.emote(sessionId, t.emoji);
     this.reply(sessionId, true, `${t.emoji} The ${t.name}, forged with your own hands. ${t.blurb}`, -t.coins);
+  }
+
+  /** Wares smithed to sell (shared/caverns_mining.ts FORGE_WARES): as many of one as asked, the makings
+   *  hold out for and the satchel has room for; made at once, into the satchel. */
+  private forgeWare(sessionId: string, kit: FishingProfile, ware: unknown, count: unknown) {
+    if (!isWareId(ware)) return;
+    const item = ORE_ITEMS[ware];
+    const needs = { ore: FORGE_WARES[ware] };
+    const want = Math.max(1, Math.min(20, Math.floor(Number(count) || 1)));
+    let made = 0;
+    let why = "";
+    while (made < want) {
+      const missing = makingsMissing(kit, needs);
+      if (missing.length) {
+        why = `takes ${missing.join(", ")} more`;
+        break;
+      }
+      // (its makings out first: they free the room the ware then takes)
+      spendMakings(kit, needs);
+      if (satchelAdd(kit, ware, 1, this.strap(kit)) <= 0) {
+        for (const [id, n] of Object.entries(FORGE_WARES[ware]) as [OreItemId, number][]) satchelAdd(kit, id, n, this.strap(kit) + 99);
+        why = "finds no room in your satchel";
+        break;
+      }
+      made += 1;
+    }
+    if (!made) return this.reply(sessionId, false, `The ${item.name} ${why}`);
+    this.host.gesture(sessionId, "mine");
+    this.host.emote(sessionId, item.emoji);
+    this.reply(sessionId, true, `${item.emoji} ${made} ${item.name}${made > 1 ? "s" : ""}, smithed and in your satchel: Gus pays ${item.price} 🪙 apiece at an even market`);
   }
 
   /** A ring forged (shared/gear.ts: a band and a gem, once each): its band's ingots and its cut gem

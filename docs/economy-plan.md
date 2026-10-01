@@ -410,16 +410,31 @@ The rank system is data, not code, so the next maps add rows:
 - **Length:** tools to T5 about 5.5 hours a craft, its accessories alongside, T6-T7 with the beach;
   about 100 hours for everything once the beach is in.
 
-## 10. Things to make and sell
+## 10. Things to make and sell (built: phase 5, done 2026-10-02)
+
+Each new good is priced at its makings' worth plus 15-25%, so crafting beats selling raw, and never
+by enough to be the only thing worth doing. The numbers are after phase 1's prices (the first pass's
+60-6,000 were from before it).
 
 | Bench | Goods | Sells for |
 |---|---|---|
-| Campfire workbench | simple furniture, planks, kindling | 60-200 |
-| Woods' advanced bench | fine furniture, carved keepsakes | 400-1,500 |
-| Forge and anvil | jewellery, tools' heads, lanterns | 1,500-6,000 |
+| Either workbench | Kindling Crate, Birch Serving Tray, Pine Plank Bundle, Rustic Birch Stool | 14 / 16 / 24 / 28 |
+| The woods' advanced bench only | Carved Otter Figurine, Cedar Keepsake Box, Maple Music Box, Autumn Rocking Chair, Grand Elderwood Clock | 70 / 80 / 140 / 230 / 950 |
+| The forge (Smithing) | Copper Miner's Lantern, Forged Tool Head, Silver Locket, Opal Brooch, Glimmer Lamp | 108 / 120 / 212 / 322 / 460 |
 
-Each priced at its makings' worth plus 15-25% (as ingots are today), so crafting always beats
-selling raw, and never by enough to be the only thing worth doing.
+- The four pieces of furniture from before keep phase 1's prices (about 1.5x their makings): they
+  were repriced, with compensation, days ago, and a second cut so soon was not worth it. They are
+  the exception to the 15-25% rule, limited by the by-products each one takes.
+- The forge's wares are made at once (no game: the skill went into the ingots) and trade on the
+  market like any ore; the Smithing tab shows each one's price this hour beside its makings' worth,
+  so a ware is never made at a loss by accident.
+- A Kindling Crate turns twelve bundles of Firewood (worth 6) and two pine logs into 14: Firewood's
+  one good use at a counter.
+
+**The maps' own outfits** (section 9's assumption): the Woodsman's Vest & Work Trousers at
+Bramble's (4,800) and the Prospector's Canvas Overalls at Gus's (5,200). Looks only, no stats. They
+are new combinations of garments the avatar already has, in fabrics of their own, not new models: a
+dedicated cut for each would mean rebuilding avatar.glb, and can follow if wanted.
 
 ## 11. Order of work
 
@@ -430,7 +445,7 @@ selling raw, and never by enough to be the only thing worth doing.
 | 2 | **Done** (T2-T5; T6-T7 wait for the beach). Tools and storage: prices, materials, the forge's recipes; shop stock by map; birch at the campfire | the ladder's hours match section 6 |
 | 3 | **Done.** Keepers' buying ceilings; the Expedition Licence | |
 | 4 | **Done** in three parts (the pieces, ranks, sets, trials and the refund; the rings; the back pieces drawn on the avatar). Open: the gear's income through the simulator | |
-| 5 | Crafted goods; the two map outfits | |
+| 5 | **Done.** Crafted goods by bench and the forge's wares; the two map outfits | |
 
 Each phase ships on its own with its tests, a profile migration where it touches what players own
 (owned tools keep their tier; nothing bought is taken away), and a patch note.

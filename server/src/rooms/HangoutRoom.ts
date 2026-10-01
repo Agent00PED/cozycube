@@ -161,7 +161,7 @@ import { BOUTIQUE, BOUTIQUE_REACH } from "../../../shared/worlds/lounge";
 import { craftGood, fishGood, parseMarket, priceRun, recordUse, woodGood, type MarketState } from "../../../shared/market";
 import { PIONEER_SET, pioneerEligible, pioneerUntil, specialTitle, type PioneerInfo } from "../../../shared/items";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
-import {
+import { defaultLook, OUTFIT_FABRICS, OUTFITS,
   BITE_WINDOW_S,
   CAMPFIRE_DAILY_COINS,
   FORAGE_COINS,
@@ -1209,12 +1209,33 @@ export class HangoutRoom extends Room<HangoutState> {
   private handleBuyOutfit(sessionId: string, outfit: unknown) {
     const player = this.state.players.get(sessionId);
     if (!player || !isOutfitId(outfit) || this.owns(player, outfit)) return;
-    if (!this.atBoutique(sessionId, player)) return;
+    // (a map's own outfit: at its keeper's counter, never the boutique, and put on as it is bought)
+    const keeper = OUTFITS[outfit].keeper;
+    if (keeper) {
+      const there =
+        keeper === "bramble"
+          ? player.map === "whispering_woods" && Math.hypot(player.x - BRAMBLE_FRONT.x, player.z - BRAMBLE_FRONT.z) <= BRAMBLE_REACH + 0.4
+          : player.map === "glimmering_caverns" && Math.min(Math.hypot(player.x - GUS_FRONT.x, player.z - GUS_FRONT.z), Math.hypot(player.x - GUS.x, player.z - GUS.z)) <= GUS_REACH + 1.2;
+      if (!there) {
+        this.sendTo(sessionId, "campfireNotice", { message: keeper === "bramble" ? "That outfit is Bramble's: his cabin in the Whispering Woods" : "That outfit is Gus's: his post in the Glimmering Caverns", emoji: OUTFITS[outfit].emoji });
+        return;
+      }
+    } else if (!this.atBoutique(sessionId, player)) return;
     const price = outfitPrice(outfit);
     if (price <= 0 || player.coins < price) return; // gacha-only outfits are not for sale
     player.coins -= price;
     this.grant(player, outfit);
     this.nearby(sessionId, "emote", { sessionId, emoji: "👕" });
+    if (keeper) {
+      // (a player who never set a look wears the one drawn from their id: start from that)
+      const look = parseLook(player.look) ?? defaultLook(player.userId || player.username, player.color);
+      look.outfit = outfit;
+      look.shirt = OUTFIT_FABRICS[outfit].shirt;
+      look.pants = OUTFIT_FABRICS[outfit].pants;
+      player.look = encodeLook(look);
+      player.color = look.outfitColor;
+      this.sendTo(sessionId, "campfireNotice", { message: `${OUTFITS[outfit].name}, yours and on. Change back any time at Chloe's Velvet Boutique in the lounge`, emoji: OUTFITS[outfit].emoji });
+    }
   }
 
   /** A fancy hair style from the wardrobe's shop: recorded as hair_<style> with the other unlocks. */
@@ -3764,6 +3785,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!near) return reply(false, "Step up to the workbench to carve");
     const craft = CRAFTS[packet.recipe];
     if (craft.legacy) return reply(false, `The ${craft.name} isn't carved at the bench any more: trade yours in at Buster's or Bramble's`);
+    if (craft.advanced && !advanced) return reply(false, `The ${craft.name} is fine work: it takes Bramble's advanced bench, in the Whispering Woods`);
     const stock = { wood: profile.wood, firewood: profile.firewood, resin: profile.resin, sawdust: profile.sawdust, byproducts: profile.byproducts };
     const needs = needsList(packet.recipe)
       .map(({ key, n }) => {

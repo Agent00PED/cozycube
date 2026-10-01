@@ -42,9 +42,14 @@ export type OreItemId =
   | "amethyst"
   | "topaz"
   | "opal"
-  | "star_shard";
-/** The satchel's four drawers: raw ores, smelted ingots, uncracked geodes, cut gems. */
-export type OreCategory = "raw" | "ingot" | "geode" | "gem";
+  | "star_shard"
+  | "copper_lantern"
+  | "tool_head"
+  | "silver_locket"
+  | "opal_brooch"
+  | "glimmer_lamp";
+/** The satchel's five drawers: raw ores, smelted ingots, uncracked geodes, cut gems, smithed wares. */
+export type OreCategory = "raw" | "ingot" | "geode" | "gem" | "ware";
 export interface OreItem {
   name: string;
   emoji: string;
@@ -74,6 +79,11 @@ export const ORE_ITEMS: Record<OreItemId, OreItem> = {
   topaz: { name: "Topaz Pebble", emoji: "🟡", cat: "gem", price: ORE_PRICES.topaz, color: "#f2c24f", blurb: "Cut from a geode" },
   opal: { name: "Iridescent Opal", emoji: "🌈", cat: "gem", price: ORE_PRICES.opal, color: "#9ff2e4", blurb: "Cut from a geode: every colour at once" },
   star_shard: { name: "Star Shard", emoji: "🌟", cat: "gem", price: ORE_PRICES.star_shard, color: "#fff3a6", blurb: "Cut from a geode: a fallen star, they say" },
+  copper_lantern: { name: "Copper Miner's Lantern", emoji: "🏮", cat: "ware", price: ORE_PRICES.copper_lantern, color: "#e0894a", blurb: "Smithed at the forge: 3 Copper Ingots and 2 Coal" },
+  tool_head: { name: "Forged Tool Head", emoji: "⚒️", cat: "ware", price: ORE_PRICES.tool_head, color: "#8a8f9a", blurb: "Smithed at the forge: 2 Iron Ingots and 1 Coal" },
+  silver_locket: { name: "Silver Locket", emoji: "📿", cat: "ware", price: ORE_PRICES.silver_locket, color: "#eef3fb", blurb: "Smithed at the forge: 2 Silver Ingots and an Amethyst" },
+  opal_brooch: { name: "Opal Brooch", emoji: "🪩", cat: "ware", price: ORE_PRICES.opal_brooch, color: "#9ff2e4", blurb: "Smithed at the forge: 2 Silver Ingots and an Opal" },
+  glimmer_lamp: { name: "Glimmer Lamp", emoji: "🔮", cat: "ware", price: ORE_PRICES.glimmer_lamp, color: "#5ff2ff", blurb: "Smithed at the forge: 2 Silver Ingots, 3 Glimmer Shards and a Topaz" },
 };
 export const ORE_ITEM_IDS = Object.keys(ORE_ITEMS) as OreItemId[];
 export function isOreItemId(v: unknown): v is OreItemId {
@@ -81,13 +91,29 @@ export function isOreItemId(v: unknown): v is OreItemId {
 }
 /** Whether an item is a Masterwork ingot (it counts as its plain ingot wherever one is asked for). */
 export const isMasterwork = (id: OreItemId) => id.endsWith("_mw");
-export const ORE_CATEGORIES: OreCategory[] = ["raw", "ingot", "geode", "gem"];
+export const ORE_CATEGORIES: OreCategory[] = ["raw", "ingot", "geode", "gem", "ware"];
 export const ORE_CATEGORY_LABEL: Record<OreCategory, { emoji: string; name: string }> = {
   raw: { emoji: "⛏️", name: "Raw Ores" },
   ingot: { emoji: "🔥", name: "Smelted Ingots" },
   geode: { emoji: "🪨", name: "Uncracked Geodes" },
   gem: { emoji: "💎", name: "Cut Gems" },
+  ware: { emoji: "⚒️", name: "Smithed Wares" },
 };
+/** The forge's wares (docs/economy-plan.md section 10): things smithed to sell, each from ingots and
+ *  a little more, worth about a fifth over its makings at Gus's (a Masterwork ingot stands in for a
+ *  plain one, at a loss: sell those as they are). Made at once, no game: the skill went into the ingots. */
+export type WareId = "copper_lantern" | "tool_head" | "silver_locket" | "opal_brooch" | "glimmer_lamp";
+export const FORGE_WARES: Record<WareId, Partial<Record<OreItemId, number>>> = {
+  copper_lantern: { copper_ingot: 3, coal: 2 },
+  tool_head: { iron_ingot: 2, coal: 1 },
+  silver_locket: { silver_ingot: 2, amethyst: 1 },
+  opal_brooch: { silver_ingot: 2, opal: 1 },
+  glimmer_lamp: { silver_ingot: 2, glimmer_shard: 3, topaz: 1 },
+};
+export const WARE_IDS = Object.keys(FORGE_WARES) as WareId[];
+export function isWareId(v: unknown): v is WareId {
+  return typeof v === "string" && v in FORGE_WARES;
+}
 /** Every item of a drawer. */
 export const itemsOf = (cat: OreCategory): OreItemId[] => ORE_ITEM_IDS.filter((id) => ORE_ITEMS[id].cat === cat);
 
@@ -760,7 +786,9 @@ export type ForgePacket =
   /** An Expedition (T5) tool or store forged: shared/expedition.ts FORGED_TOOLS. */
   | { op: "tool"; tool: string }
   /** A ring forged: a band's ingots and a cut gem (shared/gear.ts RING_BANDS, RING_GEMS). */
-  | { op: "ring"; ring: string };
+  | { op: "ring"; ring: string }
+  /** A ware smithed to sell (FORGE_WARES): `n` of it, as many as the makings and the satchel allow. */
+  | { op: "ware"; ware: string; n: number };
 /** Into the onsen (the nearest free seat in reach) or out of it (onto its dry exit anchor); or, in
  *  it, a deep breath (`breath`: ms since the soak began, on the client's clock). */
 export interface OnsenPacket {

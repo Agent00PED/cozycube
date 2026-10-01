@@ -95,7 +95,9 @@ export function WoodCraftModal({ profile, coins, advanced, send, subscribeMessag
     return c.use === "tool" ? profile.tools.includes(id) : false;
   };
   /** Whether a recipe can be made right now (the stock, not made already, room in the stash). */
-  const ready = (id: CraftId) => canCraft(stock, id) && !made(id) && (isOnce(CRAFTS[id].use) || stashFits(profile.crafts, { c: id, m: false }, stashBonus(profile)));
+  /** Fine work at the campfire's bench: shown, never carved there. */
+  const elsewhere = (id: CraftId) => !!CRAFTS[id].advanced && !advanced;
+  const ready = (id: CraftId) => !elsewhere(id) && canCraft(stock, id) && !made(id) && (isOnce(CRAFTS[id].use) || stashFits(profile.crafts, { c: id, m: false }, stashBonus(profile)));
   const shown = filter === "gear" ? [] : BENCH_IDS.filter((id) => craftMatches(CRAFTS[id], filter));
   const slots = stashSlots(profile.crafts);
   const outcome = last?.result.outcome;
@@ -152,7 +154,7 @@ export function WoodCraftModal({ profile, coins, advanced, send, subscribeMessag
                   </span>
                 </div>
                 <button type="button" className={`clay-btn ${once || consumable || mode !== "push" ? "clay-btn-amber" : ""} min-h-9 shrink-0 justify-center px-0`} style={{ width: 88, minWidth: 88 }} disabled={!ok} onClick={() => send({ type: "WORKBENCH", recipe: id, mode, adhesive: once || consumable ? "" : glue })} title={done ? (craft.use === "relic" ? "Carved once: wear it from the drawers' gear tab" : "Made once, yours for good") : crateFull ? `The craft stash is full (${CRAFT_STASH_SLOTS} slots)` : undefined}>
-                  <span className="whitespace-nowrap text-[12px]">{done ? "Owned ✓" : crateFull ? "Stash full" : once || consumable ? "Make" : mode === "push" ? "Push" : "Carve"}</span>
+                  <span className="whitespace-nowrap text-[12px]">{done ? "Owned ✓" : elsewhere(id) ? "Woods' bench" : crateFull ? "Stash full" : once || consumable ? "Make" : mode === "push" ? "Push" : "Carve"}</span>
                 </button>
               </div>
             );

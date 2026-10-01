@@ -113,6 +113,9 @@ export const OUTFIT_PARTS: Record<OutfitId, { top: string; bottom: string }> = {
   outfit_blueprint_overalls: { top: "chambray", bottom: "blueprint" },
   outfit_wader_overalls: { top: "thermal", bottom: "waders" },
   outfit_red_plaid: { top: "plaid", bottom: "workpants" },
+  // (the maps' own: Bramble's woodsman, Gus's prospector)
+  outfit_forester: { top: "flannel", bottom: "workpants" },
+  outfit_miner: { top: "chambray", bottom: "overalls" },
   // summer: an open collar, short sleeves, knee-length shorts, deck shoes or sandals
   outfit_hawaiian: { top: "hawaiian", bottom: "khakis" },
   outfit_swim_set: { top: "swim", bottom: "board" },
