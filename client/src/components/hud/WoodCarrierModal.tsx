@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { ITEMS, parseBag, type CampfirePacket } from "@shared/types";
 import { AXES, BYPRODUCTS, BYPRODUCT_IDS, TREES, WOOD, WOOD_KINDS, carrierTier, trunkCm, woodAverage, woodPrice, type TreeKind, type WoodKind } from "@shared/chop";
 import { BUFFS, CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks, tradeInValue, type CraftItem } from "@shared/crafting";
-import { CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, FIREWOOD_PRICE } from "@shared/economy";
+import { CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, FIREWOOD_PER_COIN } from "@shared/economy";
 import { carrierBonus } from "@shared/gear";
 import { buffOn, carrierCap, carrierLoad, stars, type FishingProfile } from "@shared/fishing";
 import { craftGood, marketMultiplier, parseMarket, woodGood } from "@shared/market";
@@ -162,7 +162,7 @@ export function WoodCarrierModal({ profile, bag, market, send, onClose, onOpenCo
             <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               <Card emoji="🔥" title="Firewood" count={profile.firewood} dim={!profile.firewood}>
                 <span className="text-[11px] opacity-75">Split at the chopping block</span>
-                <span className="text-[10px] tabular-nums opacity-75">{FIREWOOD_PRICE} 🪙 a bundle</span>
+                <span className="text-[10px] tabular-nums opacity-75">1 🪙 for {FIREWOOD_PER_COIN} bundles</span>
               </Card>
             </div>
             {(pantry.mushroom || pantry.berry) && (

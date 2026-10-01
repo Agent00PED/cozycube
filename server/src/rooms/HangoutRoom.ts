@@ -58,7 +58,7 @@ import {
 import { isCampDay } from "../../../shared/daynight";
 import { BYPRODUCTS, BYPRODUCT_IDS, FIREWOOD_FUEL, TREES, WOOD_KINDS, isByproductId, regrowth, treeStage, type TreeStage, type WoodKind } from "../../../shared/chop";
 import { FELL_TREES, FELL_TREE_AT, fellReach, fellTreeOf, type FellTree } from "../../../shared/worlds/trees";
-import { ADVANCED_BENCH_MASTER, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, EAGLE_EYE_MS, EAGLE_EYE_ZONE, FIREWOOD_PRICE, GOLDEN_ACORN_COINS, MAX_DAY_PERMITS, PERMIT_PRICES, RAPIDS_LUCK, SLINGSHOT_PAID_ROUNDS_PER_HOUR, SLINGSHOT_PRIZES } from "../../../shared/economy";
+import { ADVANCED_BENCH_MASTER, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, EAGLE_EYE_MS, EAGLE_EYE_ZONE, FIREWOOD_PER_COIN, firewoodCoins, GOLDEN_ACORN_COINS, MAX_DAY_PERMITS, PERMIT_PRICES, RAPIDS_LUCK, SLINGSHOT_PAID_ROUNDS_PER_HOUR, SLINGSHOT_PRIZES } from "../../../shared/economy";
 import { SLING_ROUND_S, playSlingshot, slingPrize, validSlingShots } from "../../../shared/slingshot";
 import {
   ANIMAL_REACH,
@@ -3963,9 +3963,12 @@ export class HangoutRoom extends Room<HangoutState> {
       case "sellFirewood": {
         // split Firewood bundles: a flat price a bundle (the bonfire's fuel too)
         if (!near) return tooFar();
-        const n = packet.count === "all" ? profile.firewood : Math.min(profile.firewood, Math.max(1, Math.floor(Number(packet.count) || 1)));
-        if (n <= 0) return reply(false, "No Firewood bundles: split some logs at the chopping block!");
-        const earned = n * FIREWOOD_PRICE;
+        const asked = packet.count === "all" ? profile.firewood : Math.min(profile.firewood, Math.max(1, Math.floor(Number(packet.count) || 1)));
+        if (profile.firewood <= 0) return reply(false, "No Firewood bundles: split some logs at the chopping block!");
+        // (a coin for every FIREWOOD_PER_COIN bundles: only whole lots are taken, an odd bundle stays)
+        const earned = firewoodCoins(asked);
+        const n = earned * FIREWOOD_PER_COIN;
+        if (n <= 0) return reply(false, `Firewood goes ${FIREWOOD_PER_COIN} bundles to the coin: bring me another!`);
         profile.firewood -= n;
         this.addCoins(player, earned);
         this.nearby(sessionId, "emote", { sessionId, emoji: "🪙" });
@@ -4990,6 +4993,14 @@ export class HangoutRoom extends Room<HangoutState> {
       record.fishing.mail = [];
       player.fishing = JSON.stringify(record.fishing);
       this.clock.setTimeout(() => mail.forEach((message) => this.sendTo(client.sessionId, "campfireNotice", { message, emoji: "🔧" })), 2500);
+      this.persist(client.sessionId, player);
+    }
+    // what a migration owes them (a rebalance's compensation for the stock they held): paid once
+    if (record.fishing.owed > 0) {
+      const owed = record.fishing.owed;
+      record.fishing.owed = 0;
+      player.fishing = JSON.stringify(record.fishing);
+      this.addCoins(player, owed);
       this.persist(client.sessionId, player);
     }
     // The catch bucket is a session thing (the traders buy it); it survives a reconnect only.

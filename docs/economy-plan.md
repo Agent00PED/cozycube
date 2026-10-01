@@ -106,51 +106,49 @@ Coins a minute, active, solo, even market. An AFK line earns a quarter of the ac
 
 T1 to T7 is 12x, where today T1 to T5 alone is 14x.
 
-## 5. Base prices, derived (first pass)
+## 5. Base prices (final: phase 1, done 2026-10-01)
 
-Method: `price = target income for the tier that gathers it x seconds to get one / 60`, then the
-hourly market moves it between 50% and 130% as now.
+Method: prices and odds moved until the simulator's steady player, selling into their own
+oversupply, earns each tier's target. Measured after the change (`npm run economy-sim`):
 
-**Wood** (seconds per tree include a 5 s walk; logs per tree include the size bonus):
+| As sold, a minute | T1 | T2 | T3 | T4 | T5 |
+|---|---|---|---|---|---|
+| River (target 25 / 35 / 50 / 70 / 95) | 25 | 38 | 52 | 77 | 103 |
+| Wood (same target) | 22 | 36 | 55 | 79 | 109 |
+| Ore (target 100 / 120 / 145 / 175 / 210) | 85 | 129 | 173 | 183 | 196 |
+| Cenote (about 1.7x the river) | 42 | 60 | 91 | 127 | 178 |
 
-| Wood | Gathered at | Today | First pass | Why |
-|---|---|---|---|---|
-| Soft Pine | T1 | 4 | 3 | 6 trees a minute: 4 pays 44 a minute, over the 25 target |
-| Silver Birch | T2 | 9 | 4 | 5 trees a minute: 9 pays 110, three times the target |
-| Highland Cedar | T3 | 20 | 6 | |
-| Autumn Maple | T4 | 48 | 20 | scarce (6 trees, 320 s): it carries the T4 step |
-| Whispering Elderwood | T5 | 120 | 110 | one tree, 650 s: already about right |
+Every tier is within 20% of its target and the river and the woods within 20% of each other; a
+test holds it there (tests/economy-sim.test.ts).
 
-Wood is the craft most over its target today (about 3x at T2-T4). The alternative to cutting log
-prices is to keep them and slow the felling (more rounds a tree); the simulator will compare both.
+**Wood:** Soft Pine 4 -> 2, Silver Birch 9 -> 3, Highland Cedar 20 -> 6, Autumn Maple 48 -> 18,
+Whispering Elderwood 120 -> 100. The Colossals' logs 320 / 520 / 750 / 1,200 -> 110 / 160 / 300 /
+500. Firewood 2 a bundle -> 1 for two bundles (a pine log split into three bundles used to sell for
+more than the log). The felling itself is unchanged: cutting prices kept the game's feel.
 
-**Fish** (about three catches a minute by hand):
+**Fish:** common 4 and uncommon 18 kept; rare 70 -> 50, legendary 380-420 -> 210-230, mythic
+1,500 -> 900. Rod odds (common / uncommon / rare / legendary / mythic, %): T1 85/15/0/0/0 (kept),
+T2 72/25/3/0/0, T3 60/31/8.5/0.5/0, T4 48/35/15/1.8/0.2, T5 40/36/20/3.5/0.5. The rare fish are
+rarer and still the event of an outing.
 
-| Rarity | Today | First pass |
-|---|---|---|
-| Common | 4 | 6 |
-| Uncommon | 18 | 22 |
-| Rare | 70 | 60 |
-| Legendary | 380-420 | 300 |
-| Mythic | 1,500 | 1,200 |
+**Ore:** coal 3, copper 7, iron 12, silver 30 and the core 250 kept; glimmer 75 -> 60. Silver and
+glimmer are made scarce instead of cheap: they grow back in 300 s and 600 s (were 75 s and
+120 s), and their mastery ranks take fewer breaks to match. Geodes 75 / 140 -> 40 / 74 and the gems
+40 / 90 / 210 / 650 -> 21 / 48 / 112 / 350 (the geode's fair value, as before). The Lucky Glint is
+rolled once a rock (30%), so it no longer pays a weak pickaxe's many blows the most.
 
-Fishing is under target at T1-T2 and far over at T4-T5 (a T5 rod's average catch is worth 126
-coins). The rod odds table (`ACTIVE_TIER_ODDS`) is retuned with the prices so each rod lands on its
-step.
+**Cave fish:** 8 / 9 / 30 / 36 / 70 / 86 / 150 / 185 / 320 / 390 / 1,250.
 
-**Ore** (per node: hits to break it, a walk, its respawn):
+**Furniture:** 1.5x its makings at the new prices: stool 28, keepsake box 80, rocking chair 230,
+the clock 950 (kept).
 
-| Ore | Today | First pass | Note |
-|---|---|---|---|
-| Coal | 3 | 5 | also the forge's fuel |
-| Raw Copper | 7 | 14 | arriving in the caverns must beat the woods' top (100 a minute) |
-| Raw Iron | 12 | 14 | |
-| Raw Silver | 30 | 22 | |
-| Glimmer Shard | 75 | 55 | |
-| Core Fragment | 250 | 250 | kept: now mainly a T6-T7 material |
+**What players held:** profile v5 pays the difference between the old price and the new on every
+log, fish, shard, geode, gem, Firewood bundle and piece of furniture held on the day, in coins on
+the next join. Tool prices are not touched in this phase (phase 2): at today's prices the whole rod
+ladder costs 2.6 h of play, the axes 2.0 h, the pickaxes 3.0 h.
 
-Ingots keep their 15-18% margin, Masterworks their +25%; gems are repriced from the geode's fair
-value as now. Cave fish follow the fish table at the caverns' steps.
+Still open after phase 1, for phase 2: a T1 pickaxe and a T1 axe sit 14-15% under their step and a
+T3 pickaxe 19% over; the campfire's pines give a better axe nothing (birch at the campfire).
 
 ## 6. Tools and storage: the new ladder
 
@@ -365,7 +363,7 @@ selling raw, and never by enough to be the only thing worth doing.
 | Phase | Work | Done when |
 |---|---|---|
 | 0 | **Done.** The income simulator (`npm run economy-sim`) and its pinned table | section 2 is measured |
-| 1 | Base prices and rod odds (wood, fish, ore, cave fish) | every step within 20% of its target, the three crafts within 20% of each other |
+| 1 | **Done.** Base prices and rod odds (wood, fish, ore, cave fish), section 5 | every step within 20% of its target, the three crafts within 20% of each other |
 | 2 | Tools and storage T1-T7: prices, materials, the forge's recipes; shop stock by map; birch at the campfire | the ladder's hours match section 6 |
 | 3 | Keepers' buying ceilings; the Expedition Licence | |
 | 4 | Accessories: the old ones paid back, the six slots, the four families, sets | |

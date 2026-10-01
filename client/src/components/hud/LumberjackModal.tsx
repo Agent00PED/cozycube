@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
 import { AXES, AXE_IDS, BYPRODUCTS, BYPRODUCT_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
-import { FIREWOOD_PRICE, MAX_DAY_PERMITS, PERMIT_PRICES } from "@shared/economy";
+import { FIREWOOD_PER_COIN, firewoodCoins, MAX_DAY_PERMITS, PERMIT_PRICES } from "@shared/economy";
 import { CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks } from "@shared/crafting";
 import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
@@ -172,10 +172,10 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
                 <b className="text-sm">
                   Firewood bundles <span className="font-normal opacity-70">×{profile.firewood}</span>
                 </b>
-                <span className="text-[11px] opacity-75">{FIREWOOD_PRICE} 🪙 a bundle</span>
+                <span className="text-[11px] opacity-75">1 🪙 for {FIREWOOD_PER_COIN} bundles</span>
               </div>
               <button type="button" className="clay-btn clay-btn-amber min-h-9 shrink-0 justify-center px-0 text-xs" style={PRICE_COLUMN} onClick={() => send({ type: "BUSTER", op: "sellFirewood", count: "all" })}>
-                <span className="whitespace-nowrap text-[12px]">All · {profile.firewood * FIREWOOD_PRICE} 🪙</span>
+                <span className="whitespace-nowrap text-[12px]">All · {firewoodCoins(profile.firewood)} 🪙</span>
               </button>
             </div>
           )}

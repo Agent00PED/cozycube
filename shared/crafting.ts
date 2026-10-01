@@ -268,9 +268,9 @@ export const CRAFTS: Record<CraftId, Craft> = {
   deepriver_ring: relic("Deepriver Fisherman Ring", "💍", "rare", "river", { wood: { cedar: 3 }, byproducts: { fishBone: 2, scales: 10 } }, "deepriver_ring", "Finger relic (wear it): +6 livewell slots"),
   heartwood_compass: relic("Heartwood Compass", "🧭", "epic", "elderwood", { wood: { elderwood: 1 }, byproducts: { silverBark: 3, leafAmber: 2 } }, "heartwood_compass", "Charm relic (wear it): pulses toward a standing Colossal tree, and chimes when it rises"),
   // --- 🪑 the furniture: trade goods, at the hour's market ---------------------------------------
-  birch_stool: furniture("Rustic Birch Stool", "🪑", "uncommon", "birch", { wood: { birch: 4 }, byproducts: { bark: 2 } }, 60, "A sturdy three-legged birch stool, bark-trimmed"),
-  keepsake_box: furniture("Cedar Keepsake Box", "🗃️", "rare", "cedar", { wood: { cedar: 4 }, resin: 1, byproducts: { amber: 3 } }, 160, "Red cedar, amber-inlaid: it keeps the moths out and the memories in"),
-  autumn_chair: furniture("Autumn Rocking Chair", "🛋️", "epic", "maple", { wood: { maple: 5 }, byproducts: { leafAmber: 3 } }, 430, "Golden maple that rocks like a slow breeze"),
+  birch_stool: furniture("Rustic Birch Stool", "🪑", "uncommon", "birch", { wood: { birch: 4 }, byproducts: { bark: 2 } }, 28, "A sturdy three-legged birch stool, bark-trimmed"),
+  keepsake_box: furniture("Cedar Keepsake Box", "🗃️", "rare", "cedar", { wood: { cedar: 4 }, resin: 1, byproducts: { amber: 3 } }, 80, "Red cedar, amber-inlaid: it keeps the moths out and the memories in"),
+  autumn_chair: furniture("Autumn Rocking Chair", "🛋️", "epic", "maple", { wood: { maple: 5 }, byproducts: { leafAmber: 3 } }, 230, "Golden maple that rocks like a slow breeze"),
   elder_clock: furniture("Grand Elderwood Clock", "🕰️", "legendary", "elderwood", { wood: { elderwood: 4 }, byproducts: { shavings: 4 } }, 950, "The masterpiece: it keeps the forest's own time"),
   // --- legacy: the bench before (traded in at Buster's or Bramble's) ------------------------------
   roasting_stick: legacy(make("Marshmallow Roasting Stick", "🍡", "common", "pine", "legacy", "roastingStick", { wood: { pine: 3 }, firewood: 1 }, 0, "Legacy: the marshmallow on a log is everyone's now")),

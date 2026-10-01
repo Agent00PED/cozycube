@@ -15,10 +15,10 @@ export const START_CHIPS = 0;
 
 /** Barnaby's base price for an average one-star fish of each kind (the day's fifteen and the
  *  night's fifteen, shared/fishing.ts FISH), by rarity, calibrated to real time at the river: a
- *  common 4 (the AFK line's fodder), an uncommon 18, a rare 70, a legendary 380-420 (a hard fight on
- *  the reel), a mythic 1,500 (the pinnacle trophy). A hand-reeled line on a starter rod earns about
- *  18-45 coins a minute; an AFK line about 4-6 (AFK_CATCH_S paces it). */
-export const FISH_TIER_PRICE = { common: 4, uncommon: 18, rare: 70, legendary: 400, mythic: 1500 } as const;
+ *  common 4 (the AFK line's fodder), an uncommon 18, a rare 50, a legendary 210-230 (a hard fight on
+ *  the reel), a mythic 900 (the pinnacle trophy). A hand-reeled line on a starter rod earns about
+ *  25 coins a minute as sold (docs/economy-plan.md section 4: each rod its step); an AFK line about 4-6 (AFK_CATCH_S paces it). */
+export const FISH_TIER_PRICE = { common: 4, uncommon: 18, rare: 50, legendary: 220, mythic: 900 } as const;
 export const FISH_PRICES = {
   // by day
   minnow: 4,
@@ -30,12 +30,12 @@ export const FISH_PRICES = {
   smallmouth_bass: 18,
   grayling: 18,
   pike: 18,
-  salmon: 70,
-  golden_trout: 70,
-  muskellunge: 70,
-  golden_arowana: 400,
-  dawn_paddlefish: 420,
-  sunfire_koi: 1500,
+  salmon: 50,
+  golden_trout: 50,
+  muskellunge: 50,
+  golden_arowana: 220,
+  dawn_paddlefish: 230,
+  sunfire_koi: 900,
   // by night
   bullhead: 4,
   moon_shiner: 4,
@@ -46,12 +46,12 @@ export const FISH_PRICES = {
   burbot: 18,
   walleye: 18,
   lantern_perch: 18,
-  sturgeon: 70,
-  ghost_carp: 70,
-  silver_gar: 70,
-  abyssal_koi: 410,
-  starlight_eel: 380,
-  moonveil_leviathan: 1500,
+  sturgeon: 50,
+  ghost_carp: 50,
+  silver_gar: 50,
+  abyssal_koi: 225,
+  starlight_eel: 210,
+  moonveil_leviathan: 900,
 } as const;
 
 /** What bites, by the rod's tier (T1 to T5): the odds of each rarity. A hand-reeled line (the
@@ -70,10 +70,10 @@ export interface TierOdds {
 }
 export const ACTIVE_TIER_ODDS: readonly TierOdds[] = [
   { common: 0.85, uncommon: 0.15, rare: 0, legendary: 0, mythic: 0 },
-  { common: 0.6, uncommon: 0.33, rare: 0.07, legendary: 0, mythic: 0 },
-  { common: 0.38, uncommon: 0.42, rare: 0.18, legendary: 0.02, mythic: 0 },
-  { common: 0.24, uncommon: 0.38, rare: 0.3, legendary: 0.07, mythic: 0.01 },
-  { common: 0.15, uncommon: 0.32, rare: 0.38, legendary: 0.12, mythic: 0.03 },
+  { common: 0.72, uncommon: 0.25, rare: 0.03, legendary: 0, mythic: 0 },
+  { common: 0.6, uncommon: 0.31, rare: 0.085, legendary: 0.005, mythic: 0 },
+  { common: 0.48, uncommon: 0.35, rare: 0.15, legendary: 0.018, mythic: 0.002 },
+  { common: 0.4, uncommon: 0.36, rare: 0.2, legendary: 0.035, mythic: 0.005 },
 ];
 export const AFK_BAITED_TIER_ODDS: readonly TierOdds[] = [
   { common: 0.94, uncommon: 0.06, rare: 0, legendary: 0, mythic: 0 },
@@ -110,18 +110,18 @@ export const TACKLE_PRICES = {
 // --- the woodpile -----------------------------------------------------------------------------------
 
 /** Buster's base price for a 1x log (a log's worth scales with its tree's size squared), calibrated
- *  to a tree's labour: the camp's Soft Pine 4 (9-12 a tree), the old hardwood and golden charcoal,
- *  and the Whispering Woods' birch 9 (20-30 a tree), cedar 20 (50-70), maple 48 (150-190) and
- *  elderwood 120 (480-600). */
-export const WOOD_PRICES = { pine: 4, oak: 5, charcoal: 12, birch: 9, cedar: 20, maple: 48, elderwood: 120 } as const;
+ *  to a tree's labour: the camp's Soft Pine 2, the old hardwood and golden charcoal, and the
+ *  Whispering Woods' birch 3, cedar 6, maple 18 and elderwood 100 (docs/economy-plan.md section 5:
+ *  each axe tier earns its step of the income ladder). */
+export const WOOD_PRICES = { pine: 2, oak: 3, charcoal: 6, birch: 3, cedar: 6, maple: 18, elderwood: 100 } as const;
 /** A Colossal Titan's heavy logs are worth this much together at an even market (whatever their
  *  number): a big day, not a fortune. (The Colossal Autumn Maple's; the other Colossal trees' are
  *  COLOSSAL_YIELD's.) */
-export const TITAN_YIELD = 750;
+export const TITAN_YIELD = 300;
 /** Each Colossal tree's logs, worth this much together at an even market, however many they are and
  *  however many fell it together (their shares split the lot): the Colossal Silver Birch, Ancient
  *  Cedar, Autumn Maple (the Titan) and Primordial Elderwood. Their rare by-products come on top. */
-export const COLOSSAL_YIELD = { birch: 320, cedar: 520, maple: TITAN_YIELD, elderwood: 1200 } as const;
+export const COLOSSAL_YIELD = { birch: 110, cedar: 160, maple: TITAN_YIELD, elderwood: 500 } as const;
 /** A plain carved piece or a plank off the workbench. */
 export const CARVED_PRICE = 8;
 /** What Buster pays for a Pine Resin (from a critical chop): worth keeping for the workbench's
@@ -144,10 +144,28 @@ export const MATERIAL_CAP = 99;
  *  kind (carved pieces, consumables, trade goods; never logs). */
 export const CRAFT_STASH_SLOTS = 12;
 export const CRAFT_SLOT_STACK = 99;
-/** What Buster pays for a bundle of split Firewood, fixed (the hour's market never moves it): a Soft
- *  Pine log's three bundles fetch 6, the finer woods' far less than their logs (Firewood is for the
- *  bonfire). */
-export const FIREWOOD_PRICE = 2;
+/** What Buster pays for split Firewood, fixed (the hour's market never moves it): a coin for every
+ *  FIREWOOD_PER_COIN bundles, so a log's bundles never fetch more than the log (Firewood is for the
+ *  bonfire, not for profit). */
+export const FIREWOOD_PER_COIN = 2;
+export const FIREWOOD_PRICE = 1 / FIREWOOD_PER_COIN;
+/** What Buster pays for `n` bundles (whole coins: an odd bundle waits for its pair). */
+export const firewoodCoins = (n: number) => Math.floor(Math.max(0, n) / FIREWOOD_PER_COIN);
+
+/** The prices before the economy's first rebalance (docs/economy-plan.md phase 1), for whatever they
+ *  fell on: the migration pays a player the difference on everything they were holding that day
+ *  (shared/migrate.ts v5), so no one's stock lost its worth overnight. Never used for a sale. */
+export const PRE_PHASE1 = {
+  fish: {
+    salmon: 70, golden_trout: 70, muskellunge: 70, golden_arowana: 400, dawn_paddlefish: 420, sunfire_koi: 1500,
+    sturgeon: 70, ghost_carp: 70, silver_gar: 70, abyssal_koi: 410, starlight_eel: 380, moonveil_leviathan: 1500,
+    cave_tetra: 10, slate_minnow: 12, glow_axolotl: 80, opal_gudgeon: 105, sporecat: 200, needlefish: 260, crystal_fin: 520, voidfang: 650, elder_olm: 1450,
+  },
+  wood: { pine: 4, oak: 5, charcoal: 12, birch: 9, cedar: 20, maple: 48, elderwood: 120 },
+  ore: { glimmer_shard: 75, mystery_geode: 75, pristine_geode: 140, amethyst: 40, topaz: 90, opal: 210, star_shard: 650 },
+  firewood: 2,
+  furniture: { birch_stool: 60, keepsake_box: 160, autumn_chair: 430 },
+} as const;
 /** The by-products, each in its own pouch beside the carrier: the felling's (a round on a T2-T5 tree
  *  that drops no log), the Colossal trees' rare ones (Silver Bark off a Colossal Silver Birch, Titan
  *  Heartwood off a Colossal Primordial Elderwood) and the river's (Fish Scales off any fish, a Fine
@@ -222,7 +240,7 @@ export const ORE_PRICES = {
   copper_ore: 7,
   iron_ore: 12,
   silver_ore: 30,
-  glimmer_shard: 75,
+  glimmer_shard: 60,
   core_fragment: 250,
   copper_ingot: 28,
   iron_ingot: 49,
@@ -230,12 +248,12 @@ export const ORE_PRICES = {
   copper_ingot_mw: Math.round(28 * MASTERWORK_INGOT_VALUE),
   iron_ingot_mw: Math.round(49 * MASTERWORK_INGOT_VALUE),
   silver_ingot_mw: Math.round(78 * MASTERWORK_INGOT_VALUE),
-  mystery_geode: 75,
-  pristine_geode: 140,
-  amethyst: 40,
-  topaz: 90,
-  opal: 210,
-  star_shard: 650,
+  mystery_geode: 40,
+  pristine_geode: 74,
+  amethyst: 21,
+  topaz: 48,
+  opal: 112,
+  star_shard: 350,
 } as const;
 /** The pickaxes (the Rusted Pickaxe, T1, is Old Flint's gift): Gus sells T2 to T5, the Deep Core
  *  Drill the caverns' big sink. */
@@ -245,20 +263,20 @@ export const PICKAXE_PRICES = { copper: 1500, reinforced: 4500, glimmer: 11000, 
 export const SATCHEL_PRICES = [0, 500, 1800, 5500, 14000, 32000] as const;
 /** The Abyssal Cenote Lake's eleven cave fish, Common to Mythic (two of each grade, one mythic):
  *  richer water than the river's, deep underground (shared/caverns_fishing.ts), calibrated to about
- *  twice the river's coins a minute on the same rod (docs/caverns-roadmap.md R2.2: a T1 rod about 45,
- *  where the river's is 21). */
+ *  1.7 times the river's coins a minute on the same rod (docs/economy-plan.md section 4: a T1 rod about
+ *  42 as sold, where the river's is 25). */
 export const CAVE_FISH_PRICES = {
-  cave_tetra: 10,
-  slate_minnow: 12,
-  glassfin_loach: 26,
-  phosphor_guppy: 32,
-  glow_axolotl: 80,
-  opal_gudgeon: 105,
-  sporecat: 200,
-  needlefish: 260,
-  crystal_fin: 520,
-  voidfang: 650,
-  elder_olm: 1450,
+  cave_tetra: 8,
+  slate_minnow: 9,
+  glassfin_loach: 30,
+  phosphor_guppy: 36,
+  glow_axolotl: 70,
+  opal_gudgeon: 86,
+  sporecat: 150,
+  needlefish: 185,
+  crystal_fin: 320,
+  voidfang: 390,
+  elder_olm: 1250,
 } as const;
 /** Finnegan the Grotto Angler's advanced tackle: coins, and a barter of the caverns' and the river's
  *  makings (shared/caverns_fishing.ts CAVE_TACKLES says which). */

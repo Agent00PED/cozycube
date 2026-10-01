@@ -19,8 +19,9 @@ export const MASTERY_AT: Record<OreKind, readonly [number, number, number, numbe
   coal: [0, 25, 100, 300, 750],
   copper: [0, 25, 100, 300, 750],
   iron: [0, 20, 80, 240, 600],
-  silver: [0, 15, 60, 180, 450],
-  glimmer: [0, 10, 40, 120, 300],
+  // (silver and glimmer grow back in minutes, not seconds: fewer breaks to a rank, the same hours)
+  silver: [0, 8, 25, 70, 160],
+  glimmer: [0, 5, 15, 40, 90],
   monolith: [0, 1, 4, 10, 25],
   rockfall: [0, 1, 3, 6, 12],
 };

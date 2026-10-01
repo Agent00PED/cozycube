@@ -4,7 +4,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ladder, miner, simulate, soloMarket } from "../scripts/economy-sim";
+import { CENOTE_OVER_RIVER, ladder, miner, simulate, soldLadder, soloMarket, TARGETS } from "../scripts/economy-sim";
+import { FISH, sanitizeFishingProfile } from "../shared/fishing";
+import { PROFILE_VERSION } from "../shared/migrate";
 
 const lines = simulate();
 const baseline = JSON.parse(readFileSync("tests/economy-baseline.json", "utf8")) as { lines: { craft: string; tier: number; where: string; perMin: number; perMinSold: number }[] };
@@ -28,9 +30,45 @@ test("a better rod or axe never earns less at the same spot", () => {
   }
 });
 
-test("a better pickaxe never earns less, the Lucky Glints aside (a known fault: they pay a weak pickaxe most)", () => {
-  const plain = [1, 2, 3, 4, 5].map((t) => miner(t, { glints: false }).perMin);
-  for (let i = 1; i < plain.length; i++) assert.ok(plain[i] >= plain[i - 1] * 0.97, `pickaxe T${i + 1} ${plain[i].toFixed(0)} under T${i} ${plain[i - 1].toFixed(0)}`);
+test("a better pickaxe never earns less, Lucky Glints and all (one a rock: phase 1)", () => {
+  for (const glints of [true, false]) {
+    const row = [1, 2, 3, 4, 5].map((t) => miner(t, { glints }).perMin);
+    for (let i = 1; i < row.length; i++) assert.ok(row[i] >= row[i - 1] * 0.97, `pickaxe T${i + 1} ${row[i].toFixed(0)} under T${i} ${row[i - 1].toFixed(0)}`);
+  }
+});
+
+test("every tool tier earns its target as sold, within a fifth (docs/economy-plan.md section 4)", () => {
+  const sold = soldLadder(lines);
+  for (const craft of ["river", "wood", "ore"] as const) {
+    sold[craft].forEach((v, i) => assert.ok(Math.abs(v / TARGETS[craft][i] - 1) <= 0.2, `${craft} T${i + 1}: ${v.toFixed(0)} a minute, target ${TARGETS[craft][i]}`));
+  }
+  // the river and the woods pay alike on tools of a tier; the cenote about CENOTE_OVER_RIVER times the river
+  sold.river.forEach((v, i) => assert.ok(Math.abs(sold.wood[i] / v - 1) <= 0.2, `T${i + 1}: wood ${sold.wood[i].toFixed(0)} against the river's ${v.toFixed(0)}`));
+  sold.cenote.forEach((v, i) => assert.ok(Math.abs(v / sold.river[i] / CENOTE_OVER_RIVER - 1) <= 0.15, `T${i + 1}: the cenote ${(v / sold.river[i]).toFixed(2)}x the river`));
+});
+
+test("the rebalance pays the difference on what was held (shared/migrate.ts v5)", () => {
+  const stored = {
+    v: 4,
+    creel: [{ s: "salmon", cm: FISH.salmon.cm[0], q: 1 }, { s: "minnow", cm: FISH.minnow.cm[0], q: 1 }],
+    wood: { pine: 10, maple: 2 },
+    woodValue: { pine: 10, maple: 2 },
+    firewood: 4,
+    satchelTier: 2,
+    satchelContents: [{ id: "star_shard", n: 1 }, { id: "coal", n: 5 }],
+    crafts: [{ c: "birch_stool", m: false }],
+  };
+  const p = sanitizeFishingProfile(stored);
+  assert.equal(p.v, PROFILE_VERSION);
+  // 10 pine x (4 - 2), 2 maple x (48 - 18), a small salmon (0.8 x 70 against 0.8 x 50), a star shard,
+  // four bundles at 1.5 each, a stool (60 - 28); the minnow and the coal never moved
+  assert.equal(p.owed, 20 + 60 + 16 + 300 + 6 + 32);
+  assert.ok(p.mail.some((m) => m.includes(p.owed.toLocaleString("en-US"))));
+  // a profile already there is owed nothing more
+  const again = sanitizeFishingProfile(JSON.parse(JSON.stringify(p)));
+  assert.equal(again.owed, p.owed);
+  assert.equal(sanitizeFishingProfile({ v: 4 }).owed, 0);
+  assert.equal(sanitizeFishingProfile({ v: 4 }).mail.length, 0);
 });
 
 test("the solo market: nothing off the first thirty, then down toward the floor", () => {

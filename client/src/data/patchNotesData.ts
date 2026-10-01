@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.31",
+    range: "v0.7.0–v0.7.32",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1486,6 +1486,28 @@ export const PATCH_ERAS: PatchEra[] = [
             "✨ The vein glows across the rock from the last spot to the next, with a bright spark running along it to show the way.",
           ],
           fixes: [],
+        },
+      },
+      {
+        version: "0.7.32",
+        date: "2026-10-01",
+        title: "A Coin Is a Minute",
+        summary: "The first step of the new economy: fishing, woodcutting and mining now pay fairly against each other, and a better tool is always a better hour.",
+        changes: {
+          features: [
+            "⚖️ Every rod, axe and pickaxe now earns what its tier should: each step up is a clear raise, and the three crafts pay alike at the same tier (the caverns a step above, as the deepest map).",
+            "💰 Nothing you were holding lost its worth: the traders pay you the difference on every log, fish, shard, geode, gem, Firewood bundle and piece of furniture you had, the next time you come in.",
+          ],
+          visuals: [],
+          economy: [
+            "🪵 Timber sells for less (pine 2, birch 3, cedar 6, maple 18, elderwood 100), and the Colossal trees' logs with it.",
+            "🎣 Rare fish sell for 50, legendaries about 220 and mythics 900; the better rods find them a little less often, so a big catch is still an event.",
+            "⛏️ Silver and glimmer keep their worth but grow back slower (5 and 10 minutes), and their mastery ranks need fewer breaks. Geodes and gems sell for about half.",
+            "🕳️ The cenote's fish are repriced to pay about 1.7x the river on the same rod.",
+            "🪑 Workbench furniture: the stool 28, the keepsake box 80, the rocking chair 230, the clock still 950.",
+            "🔥 Firewood sells at 1 coin for two bundles: it is fuel for the fire, and no longer worth more than the log it came from.",
+          ],
+          fixes: ["✨ The Lucky Glint is rolled once per rock: it no longer comes back each time the weak spot moves, which paid the weakest pickaxes the most."],
         },
       },
     ],

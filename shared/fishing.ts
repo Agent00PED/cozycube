@@ -310,6 +310,9 @@ export interface FishingProfile {
   tackleBox: boolean;
   /** Word for the player the next time they come in (a migration's refunds): told once, then cleared. */
   mail: string[];
+  /** Coins a migration owes the player (a rebalance's compensation for what they held): paid as they
+   *  next come in, then zero. */
+  owed: number;
   /** The accessories owned (shared/gear.ts), and those worn (oldest first: a third ring takes the
    *  oldest one's place); only what is worn works. */
   gear: GearId[];
@@ -476,7 +479,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem): boolean 
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] } };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] } };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -500,7 +503,7 @@ export const hasTool = (p: Pick<FishingProfile, "tools">, id: CraftId) => p.tool
  *  an older one migrated to this schema (migratePlayerInventory: nothing lost on the way). */
 export function sanitizeFishingProfile(raw: unknown): FishingProfile {
   const p = readFishingProfile(raw);
-  return migratePlayerInventory(raw, p);
+  return migratePlayerInventory(raw, p, fishValue);
 }
 /** The plain read of a stored profile: every field checked, defaulted where missing (a returning
  *  player's missing fields read as zero, false or empty). */
@@ -575,6 +578,7 @@ function readFishingProfile(raw: unknown): FishingProfile {
   p.tackleBox = r.tackleBox === true;
   // (a long letter is cut short, never dropped: a retrofit letter lists everything it gave back)
   if (Array.isArray(r.mail)) p.mail = r.mail.filter((m): m is string => typeof m === "string" && m.length > 0).map((m) => (m.length > MAIL_MAX ? `${m.slice(0, MAIL_MAX - 1)}…` : m)).slice(-8);
+  p.owed = Math.max(0, Math.min(9_999_999, Math.round(Number(r.owed) || 0)));
   if (Array.isArray(r.gear)) p.gear = Array.from(new Set(r.gear.filter(isGearId)));
   // what is worn (a profile from before the slots: everything owned that fits goes on)
   p.worn = fitWorn(Array.isArray(r.worn) ? r.worn.filter(isGearId) : p.gear, p.gear);
