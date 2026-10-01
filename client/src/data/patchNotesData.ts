@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.38",
+    range: "v0.7.0–v0.7.39",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1623,6 +1623,24 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           visuals: [],
           economy: ["🪚 Fine furniture (the Keepsake Box, the Rocking Chair, the Elderwood Clock) is now carved only at Bramble's advanced bench in the woods. The campfire's bench carves the simple goods."],
+          fixes: [],
+        },
+      },
+      {
+        version: "0.7.39",
+        date: "2026-10-02",
+        title: "Gear in Balance",
+        summary: "The new gear and rings were measured against real play. A full kit is now worth about a quarter more income: a strong reward that never outweighs a better tool.",
+        changes: {
+          features: [],
+          visuals: [],
+          economy: [
+            "⚖️ A full set with two rings added up to 59% more income, more than a whole tool tier. It now adds about 22% to 31%, depending on the craft.",
+            "🎣 Angler: the Lucky Bell's rare luck and the Creel Pack's heavier fish are halved (2.5% to 10% by rank); the Creel Pack's three-star chance is 8%.",
+            "🪓 Forester: the Dryad's Sprout's regrowth and the Timber Frame's by-products are halved. The Felling Gloves no longer slow the felling ring (that made every swing take longer): they give a bonus log by rank, and a wider gold from rank 3. The Timber Frame's rank 3 is now +4 carrier slots.",
+            "⛏️ Prospector: the Lamp Pack's geode chance is halved; the set gives a 15% wider Perfect window and a 30% Clean Break.",
+            "💍 Rings: Luck, Bounty and Tempo's faster bites work at half the band's strength; Fortune's King Size chance is smaller. A Topaz ring now makes your felled trees grow back sooner instead of slowing the felling ring.",
+          ],
           fixes: [],
         },
       },

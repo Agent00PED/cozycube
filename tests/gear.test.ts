@@ -15,7 +15,7 @@ import {
   STRENGTH,
   TRIALS,
   biteHaste,
-  feltRingSlow,
+  quickRegrow,
   gearOfFamily,
   gearPace,
   goldStarBonus,
@@ -67,8 +67,8 @@ test("a piece's strength grows with its rank; its second trait wakes at rank 3; 
   assert.equal(tensionWindowBonus(own(["ang_gloves"], 3)), 0.2);
   const off = fresh({ gear: ["ang_gloves"], worn: [], gearRank: { ang_gloves: 5 } });
   assert.equal(tensionCut(off), 0);
-  assert.equal(heftBonus(own(["ang_creel"], 5)), 0.2);
-  assert.equal(goldStarBonus(own(["ang_creel"], 3)), 0.15);
+  assert.equal(heftBonus(own(["ang_creel"], 5)), 0.1);
+  assert.equal(goldStarBonus(own(["ang_creel"], 3)), 0.08);
   assert.equal(livewellCap(own(["ang_holster", "way_pack"], 5)), 12 + 8 + 3);
   assert.equal(carrierCap(own(["for_belt"], 1)), 15 + 3);
   assert.ok(Math.abs(sellBonus(own(["way_mitts"], 5)) - 1.05) < 1e-9);
@@ -87,7 +87,9 @@ test("the set bonuses: two worn pieces of a family, and all four", () => {
   assert.equal(hasCompass(own(gearOfFamily("forester"))), true);
   assert.equal(noCeiling(own(gearOfFamily("wayfarer"))), true);
   assert.ok(Math.abs(gearPace(own(["way_sash", "way_mitts"], 5)) - 1.17) < 1e-9);
-  assert.equal(feltRingSlow(own(gearOfFamily("angler"))), 0);
+  assert.equal(bonusLogChance(own(gearOfFamily("angler"))), 0);
+  assert.equal(bonusLogChance(own(["for_gloves"], 5)), 0.1);
+  assert.equal(carrierCap(own(["for_frame"], 3)), 15 + 4);
 });
 
 test("attunement is active play: a deed counts the seconds since the last, a pause only so much", () => {
@@ -241,18 +243,18 @@ test("rings: a band's strength, a gem's power; the same gem twice counts once an
   assert.ok(Math.abs(gemPower(worn(["copper:amethyst", "silver:amethyst"]), "amethyst") - (0.1 + 0.02)) < 1e-9);
   // Luck, Tempo, Bounty, Fortune, each for whichever craft is in hand
   const luck = worn(["silver:amethyst"]);
-  assert.deepEqual([gearRareLuck(luck), byproductBonus(luck), geodeFind(luck)], [0.1, 0.1, 0.05]);
+  assert.deepEqual([gearRareLuck(luck), byproductBonus(luck), geodeFind(luck)], [0.05, 0.05, 0.025]);
   const tempo = worn(["iron:topaz"]);
-  assert.ok(Math.abs(biteHaste(tempo) - 1.07) < 1e-9 && Math.abs(feltRingSlow(tempo) - 0.07) < 1e-9 && Math.abs(swingHaste(tempo) - 1.07) < 1e-9);
+  assert.ok(Math.abs(biteHaste(tempo) - 1.035) < 1e-9 && Math.abs(quickRegrow(tempo) - 0.035) < 1e-9 && Math.abs(swingHaste(tempo) - 1.07) < 1e-9);
   const bounty = worn(["glimmer:opal"]);
-  assert.deepEqual([bonusLogChance(bounty), bonusOreChance(bounty), heftBonus(bounty)], [0.13, 0.13, 0.13]);
+  assert.deepEqual([bonusLogChance(bounty), bonusOreChance(bounty), heftBonus(bounty)], [0.065, 0.065, 0.065]);
   const fortune = worn(["silver:star_shard"]);
   assert.equal(masterworkBonus(fortune), 0.1);
-  assert.equal(kingBonus(fortune), 0.025);
+  assert.equal(kingBonus(fortune), 0.0125);
   // (a ring owned but off does nothing; a ring stacks with a piece)
   assert.equal(gearRareLuck(fresh({ rings: ["silver:amethyst"], ringsWorn: [] })), 0);
   const both = fresh({ gear: ["ang_bell"], worn: ["ang_bell"], gearRank: { ang_bell: 5 }, rings: ["silver:amethyst"], ringsWorn: ["silver:amethyst"] });
-  assert.ok(Math.abs(gearRareLuck(both) - 0.3) < 1e-9);
+  assert.ok(Math.abs(gearRareLuck(both) - 0.15) < 1e-9);
 });
 
 test("two fingers: a third ring takes the oldest one's place, a second Star Shard the first one's", () => {

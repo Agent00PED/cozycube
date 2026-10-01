@@ -253,9 +253,37 @@ of its own (gear_back.glb, 200 KB, built by scripts/blender/build_gear_back.py) 
 Creel Pack, the Timber Frame, the Lamp Pack and the Explorer's Pack. Whoever wears one is seen
 carrying it by everyone; it comes off in the boxing ring and while lying down.
 
-**Still open in phase 4:** the gear's and the rings' effect on income has not been run through the
-simulator yet: the two direct earners are the
-Trader's Mitts (+5% of every sale at rank 5) and the Creel Pack (fish 20% heavier at rank 5).
+**Through the simulator (2026-10-02, `npm run economy-sim -- --gear`).** Each simulated player wears
+a loadout and the server's own effect functions apply. The first run showed a full kit at T5 adding
+45-59% to income, more than a whole tool tier (about 35%), so the traits that earn directly were
+cut, and one trap was removed:
+
+| As sold, over a bare player | Fishing | Woodcutting | Mining |
+|---|---|---|---|
+| The set at rank 5, on a T5 tool | +24% | +18% | +16% |
+| The two best rings (Glimmer-set) | +10% | +7% | +6% |
+| The kit worn at its tier, T5 (set at rank 5, two rings) | +31% | +25% | +22% |
+| The kit worn at its tier, T3 (set at rank 3, two Iron rings) | +27% | +20% | +25% |
+| The Wayfarer's four at rank 5 | +7% | +2% | +8% |
+
+- **Halved:** the Lucky Bell's rare luck, the Creel Pack's heft (its three-star chance 15% to 8%),
+  the Dryad's Sprout's regrowth, the Timber Frame's by-products; the Lamp Pack's geodes to a quarter;
+  the rings' Luck, Bounty and bite Tempo to half their band, Fortune's King Size to an eighth; the
+  Prospector's set to a 15% wider Perfect window and a 30% Clean Break.
+- **A trap removed:** the Felling Gloves' slower ring made a steady player's swings take longer and
+  cost about 6% of their income. The gloves now give a bonus log by rank (2.5% to 10%) and a wider
+  gold from rank 3; the Timber Frame's rank 3 is +4 carrier slots; a Topaz ring's Tempo, for felling,
+  is trees growing back sooner. Nothing the gear does slows the felling ring any more.
+- **The budget is tested** (`GEAR_BUDGET`): a kit at its tier adds 10-35%, a set at rank 5 at most
+  26%, two rings 15%, one piece 12.5%, and no piece lowers income (beyond the simulator's noise,
+  about 4% on wood).
+- **What the simulator cannot see:** seven pieces show about 0% (the Wader Gloves, the Tackle
+  Holster, the Knuckle Guards, the Satchel Strap, the Traveller's Sash, the Hearth Charm, the
+  Explorer's Pack). They help a hand that is less than steady (tension, a forgiving window), save
+  trips, or work outside gathering; the steady player the simulator plays gains nothing from them.
+  Their worth is comfort, by design.
+- **Wood's gains are damped by its own market:** a T5 woodcutter already sells past the hourly
+  oversupply line, so more logs fetch less each.
 
 All 21 current pieces go (12 from the shops, 5 from the bench, 4 from the forge): each owner is
 paid back what it cost in coins and materials (the game already does this for retired gear).
@@ -444,7 +472,7 @@ dedicated cut for each would mean rebuilding avatar.glb, and can follow if wante
 | 1 | **Done.** Base prices and rod odds (wood, fish, ore, cave fish), section 5 | every step within 20% of its target, the three crafts within 20% of each other |
 | 2 | **Done** (T2-T5; T6-T7 wait for the beach). Tools and storage: prices, materials, the forge's recipes; shop stock by map; birch at the campfire | the ladder's hours match section 6 |
 | 3 | **Done.** Keepers' buying ceilings; the Expedition Licence | |
-| 4 | **Done** in three parts (the pieces, ranks, sets, trials and the refund; the rings; the back pieces drawn on the avatar). Open: the gear's income through the simulator | |
+| 4 | **Done** in three parts (the pieces, ranks, sets, trials and the refund; the rings; the back pieces drawn on the avatar). The gear's income is held by the simulator's budget | |
 | 5 | **Done.** Crafted goods by bench and the forge's wares; the two map outfits | |
 
 Each phase ships on its own with its tests, a profile migration where it touches what players own
