@@ -25,11 +25,11 @@ function Crate({ x }: { x: number }) {
 
 export function Barnaby({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
   // (only Barnaby and his stall: his chalkboard is drawn apart, painted with the hour's prices)
-  return <CampNpc url={BARNABY_URL} what="barnaby.glb" prefix="Barnaby" node="Barnaby" at={L.barnaby} waveEvent="barnabyWave" standIn={<Crate x={0.62} />} subscribeMessages={subscribeMessages} />;
+  return <CampNpc url={BARNABY_URL} what="barnaby.glb" prefix="Barnaby" node="Barnaby" bake at={L.barnaby} waveEvent="barnabyWave" standIn={<Crate x={0.62} />} subscribeMessages={subscribeMessages} />;
 }
 
 export function Buster({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
-  return <CampNpc url={BUSTER_URL} what="buster.glb" prefix="Buster" at={L.buster} waveEvent="busterWave" standIn={<Crate x={-0.7} />} subscribeMessages={subscribeMessages} />;
+  return <CampNpc url={BUSTER_URL} what="buster.glb" prefix="Buster" bake at={L.buster} waveEvent="busterWave" standIn={<Crate x={-0.7} />} subscribeMessages={subscribeMessages} />;
 }
 
 useGLTF.preload(BARNABY_URL);

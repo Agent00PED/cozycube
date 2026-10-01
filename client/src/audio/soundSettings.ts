@@ -4,14 +4,15 @@ import { useSyncExternalStore } from "react";
 // mixer, a fader for each channel of a world's soundscape (at the campfire: the fire's crackle,
 // the river, and the forest's breeze and crickets; in the Whispering Woods the wind in the trees),
 // the casino's jazz and its crowd (the murmur, glasses and chips), the rain on the lounge's windows,
+// the campfire's night guitar,
 // the Glimmering Caverns' five (its air, drips and footsteps, its water, its crystals' resonance, its
 // thermal terraces' steam, its sparse music),
 // and whether the little effects (a catch's chime, a chop, a pickaxe's clink) play. Kept in this
 // browser; a private window or blocked storage just starts from the defaults. A single Ambience level
 // saved before the mixer sets all three of the camp's faders.
 
-export type AmbienceChannel = "fire" | "river" | "forest" | "wind";
-export const AMBIENCE_CHANNELS: AmbienceChannel[] = ["fire", "river", "forest", "wind"];
+export type AmbienceChannel = "fire" | "river" | "forest" | "wind" | "guitar";
+export const AMBIENCE_CHANNELS: AmbienceChannel[] = ["fire", "river", "forest", "wind", "guitar"];
 /** The Glimmering Caverns' channels (audio/cavernAmbience.ts). */
 export type CaveChannel = "cavern" | "water" | "crystal" | "steam" | "music";
 export const CAVE_CHANNELS: CaveChannel[] = ["cavern", "water", "crystal", "steam", "music"];
@@ -23,6 +24,8 @@ export interface SoundSettings {
   forest: number;
   /** The Whispering Woods' wind in the trees, 0..1. */
   wind: number;
+  /** The Starlight Campfire's night guitar: a fingerpicked phrase now and then after dusk, 0..1. */
+  guitar: number;
   /** The Glimmering Caverns (audio/cavernAmbience.ts), 0..1 each: the cavern's air, drips and footsteps; its
    *  water (the waterfall, the stream, the lake); its crystals' resonance; the thermal terraces' steam; its
    *  sparse music. */
@@ -44,7 +47,7 @@ export interface SoundSettings {
 }
 
 const KEY = "cozy-sound-settings";
-const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, wind: 0.5, cavern: 0.6, water: 0.55, crystal: 0.45, steam: 0.5, music: 0.4, jazz: 0.5, lounge: 0.45, crowd: 0.5, rain: 0.5, effects: true };
+const DEFAULTS: SoundSettings = { fire: 0.55, river: 0.55, forest: 0.55, wind: 0.5, guitar: 0.4, cavern: 0.6, water: 0.55, crystal: 0.45, steam: 0.5, music: 0.4, jazz: 0.5, lounge: 0.45, crowd: 0.5, rain: 0.5, effects: true };
 
 function load(): SoundSettings {
   try {
@@ -56,6 +59,7 @@ function load(): SoundSettings {
       river: level(raw?.river),
       forest: level(raw?.forest),
       wind: typeof raw?.wind === "number" ? Math.max(0, Math.min(1, raw.wind)) : DEFAULTS.wind,
+      guitar: typeof raw?.guitar === "number" ? Math.max(0, Math.min(1, raw.guitar)) : DEFAULTS.guitar,
       cavern: typeof raw?.cavern === "number" ? Math.max(0, Math.min(1, raw.cavern)) : DEFAULTS.cavern,
       water: typeof raw?.water === "number" ? Math.max(0, Math.min(1, raw.water)) : DEFAULTS.water,
       crystal: typeof raw?.crystal === "number" ? Math.max(0, Math.min(1, raw.crystal)) : DEFAULTS.crystal,

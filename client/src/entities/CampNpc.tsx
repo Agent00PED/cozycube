@@ -100,6 +100,8 @@ export interface CampNpcProps {
   onGesture?: (gesture: NpcGesture) => void;
   /** Leave the left arm still (the default); false moves it too, for gestures with both arms. */
   fuseArm?: boolean;
+  /** An older model with a material a colour: bake them into one clay (clayBake), one draw call. */
+  bake?: boolean;
   /** Draw only this node of the model (and what hangs from it): a model holding more than the one
    *  character (Chloe and her mirror, in chloe_maid.glb). The whole scene when omitted. */
   node?: string;
@@ -221,7 +223,7 @@ export function CampNpc(props: CampNpcProps) {
   );
 }
 
-function NpcModel({ url, prefix, at, waveAt, bowAt, gesture, fuseArm = true, node, motion, lookAt, mood, loop, presence }: CampNpcProps & { waveAt: MutableRefObject<number>; bowAt: MutableRefObject<number>; gesture: MutableRefObject<{ kind: NpcGesture; at: number }> }) {
+function NpcModel({ url, prefix, at, waveAt, bowAt, gesture, fuseArm = true, bake = false, node, motion, lookAt, mood, loop, presence }: CampNpcProps & { waveAt: MutableRefObject<number>; bowAt: MutableRefObject<number>; gesture: MutableRefObject<{ kind: NpcGesture; at: number }> }) {
   const { scene } = useGLTF(url);
   const model = useMemo(() => {
     const root = (node && scene.getObjectByName(node)) || scene;
@@ -238,7 +240,8 @@ function NpcModel({ url, prefix, at, waveAt, bowAt, gesture, fuseArm = true, nod
     const body = get("Body") as THREE.Mesh | null;
     // (one that fades has a material of its own: the clay is shared by the model's every copy)
     const fade = presence && body?.isMesh && !Array.isArray(body.material) ? ownMaterial(model, body) : null;
-    skinParts(model, body, prefix);
+    // (an older model, a material a colour: one clay first, so its every part fuses)
+    skinParts(model, (bake && clayBake(model)) || body, prefix);
     const armR = get("ArmR");
     const leftArm = fuseArm ? null : get("ArmL");
     return {
@@ -362,6 +365,55 @@ export function ownMaterial(model: THREE.Object3D, body: THREE.Mesh): THREE.Mate
     if (m.isMesh && m.material === shared) m.material = own;
   });
   return own;
+}
+
+const CLAY = new WeakMap<THREE.Material, THREE.MeshStandardMaterial>();
+/**
+ * An older model painted with a material a colour (Barnaby, Buster: some thirty draw calls each) made
+ * one clay: every part in a plain opaque material (no texture, no glow, no metal) has that material's
+ * colour written into its vertices and takes the one shared clay (the body's own finish, coloured by
+ * the vertices), so skinParts then fuses the lot into a single draw call. What glows, shines like
+ * metal, is see-through or carries a texture (a lantern's flame, a slate) keeps its own material.
+ * Returns one of the baked meshes (such a model's `<Name>_Body` is a group of them), for skinParts.
+ */
+export function clayBake(model: THREE.Object3D): THREE.Mesh | null {
+  const plain = (m: THREE.Material | THREE.Material[]): m is THREE.MeshStandardMaterial => {
+    const st = m as THREE.MeshStandardMaterial;
+    return !Array.isArray(m) && !!st.isMeshStandardMaterial && !st.map && !st.transparent && !st.vertexColors && st.metalness < 0.5 && (st.emissiveIntensity === 0 || st.emissive.getHex() === 0);
+  };
+  let first: THREE.Mesh | null = null;
+  model.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!first && mesh.isMesh && plain(mesh.material)) first = mesh;
+  });
+  if (!first) return null;
+  const base = (first as THREE.Mesh).material as THREE.MeshStandardMaterial;
+  let clay = CLAY.get(base);
+  if (!clay) {
+    clay = base.clone();
+    clay.name = "Clay_Baked";
+    clay.color.set("#ffffff");
+    clay.vertexColors = true;
+    CLAY.set(base, clay);
+  }
+  model.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || !plain(mesh.material)) return;
+    const hex = mesh.material.color.getHex();
+    // (the geometry is the file's own, shared by every copy: painted once; a second colour on the same
+    // geometry gets a geometry of its own)
+    if (mesh.geometry.userData.clay !== undefined && mesh.geometry.userData.clay !== hex) mesh.geometry = mesh.geometry.clone();
+    if (mesh.geometry.userData.clay !== hex) {
+      const n = mesh.geometry.attributes.position.count;
+      const c = mesh.material.color;
+      const col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+      mesh.geometry.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+      mesh.geometry.userData.clay = hex;
+    }
+    mesh.material = clay!;
+  });
+  return first;
 }
 
 /** Fuses every part of `model` painted with the body's material into ONE skinned mesh at the
