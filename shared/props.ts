@@ -4,7 +4,7 @@ import { LOFT_MOCHI, LOFT_PROPS, LOFT_SEATS } from "./worlds/lounge";
 import { CAMP_PROPS, CAMP_SEATS, campLand, lieSeatPose } from "./worlds/campfire";
 import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
 import { VIP_PROPS, VIP_SEATS } from "./worlds/casino_vip";
-import { FOREST_PROPS, FOREST_SEATS, forestLand } from "./worlds/forest";
+import { FOREST_PLACE_SEATS, FOREST_PROPS, FOREST_SEATS, forestLand } from "./worlds/forest";
 import { RING_PROPS, RING_SEATS } from "./worlds/boxing_ring";
 import { CAVERNS_PROPS, HEARTH_SEATS, THERMAL_SEATS, cavernsFloorY, thermalPoolY } from "./worlds/caverns";
 
@@ -90,15 +90,17 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   // the Velvet Penthouse: its high-limit poker chairs and its baccarat stools
   casino_vip: VIP_SEATS.map(casinoSeat),
   // the Whispering Woods: the river bank's log and rock, to sit and fish from
-  whispering_woods: FOREST_SEATS.map((s) => ({
+  // and its places to stop: the lookout's bench, the camp's logs, the Old Stones' bench, the jetty,
+  // the rope swing
+  whispering_woods: [...FOREST_SEATS.map((s) => ({ ...s, style: "wood" as const })), ...FOREST_PLACE_SEATS].map((s) => ({
     propId: s.propId,
     x: s.x,
     z: s.z,
     rotationY: s.rotationY,
-    style: "wood" as const,
-    approachX: s.approachX,
-    approachZ: s.approachZ,
-    // (on the bank where the seat stands)
+    style: s.style,
+    approachX: round(s.approachX),
+    approachZ: round(s.approachZ),
+    // (on the bank, or the hillside, where the seat stands)
     sitY: round(forestLand(s.x, s.z) + seatAnchorY(CUSHIONS[s.cushion])),
   })),
   // the Velvet Ring: the tiered benches, the Chesterfields, the cocktail stools, the ringside and

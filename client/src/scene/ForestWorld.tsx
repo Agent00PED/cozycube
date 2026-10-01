@@ -1,5 +1,6 @@
 import { Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
+import { swingAngle } from "./swingMotion";
 import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { parseWorldEvent, type PlayerState } from "@shared/types";
@@ -265,8 +266,11 @@ function Animals({ scene, subscribeMessages }: { scene: THREE.Object3D; subscrib
     const deer = scene.getObjectByName("Animal_Deer") ?? null;
     const head = scene.getObjectByName("Animal_Deer_Head") ?? null;
     const rabbits = [1, 2, 3].map((k) => scene.getObjectByName(`Animal_Rabbit_${k}`)).filter((o): o is THREE.Object3D => !!o);
+    // the rope swing by Bramble's garden: its plank hangs from the branch (the node's origin)
+    const ropeSwing = scene.getObjectByName("Prop_RopeSwing") ?? null;
     const deerHome = deer ? { x: deer.position.x, z: deer.position.z } : { x: 0, z: 0 };
     return {
+      ropeSwing,
       deer,
       deerY: deer?.position.y ?? 0,
       deerHome,
@@ -298,6 +302,8 @@ function Animals({ scene, subscribeMessages }: { scene: THREE.Object3D; subscrib
   useFrame(({ clock }, dt) => {
     dtRef.current = dt;
     const t = clock.elapsedTime;
+    // (toward the river, +x, and back: whoever sits on it sways with it, Avatar's `swing`)
+    if (parts.ropeSwing) parts.ropeSwing.rotation.z = swingAngle(t);
     const now = performance.now() / 1000;
     if (parts.head) {
       // four seconds' grazing, three looking about

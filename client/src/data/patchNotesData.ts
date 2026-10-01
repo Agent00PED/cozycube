@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.46",
+    range: "v0.7.0–v0.7.47",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1757,6 +1757,26 @@ export const PATCH_ERAS: PatchEra[] = [
           visuals: ["🐟 Barnaby's fish-drying rack and smoker on the bank, lupines and cattails along the water, a paper lantern in the pines."],
           economy: ["⚖️ None of it earns coins. They are places to be, not things to grind."],
           fixes: ["🍡 A marshmallow on a stick now comes to hand only on the seats round the bonfire."],
+        },
+      },
+      {
+        version: "0.7.47",
+        date: "2026-10-02",
+        title: "Corners of the Wood",
+        summary: "The Whispering Woods have places to stop now: a lookout and a cold camp in the Old Growth, rune stones on the ridge, a jetty by Finley, and a rope swing in Bramble's garden.",
+        changes: {
+          features: [
+            "🔭 The Ranger's Lookout: a bench for two on the hillside above the rapids, facing the waterfall.",
+            "🏕️ A cold camp in the Old Growth: a canvas lean-to, a ring of stones and two logs to sit on. The guitar can be played there.",
+            "🗿 The Old Stones: five standing stones along the north ridge, their runes glowing at night, and a stone bench between them looking out over the whole wood.",
+            "🌊 Finley's jetty: sit at its end with your feet over the pool.",
+            "🌳 A rope swing on a leaning tree by the river, in Bramble's new garden.",
+          ],
+          visuals: [
+            "🐝 Bramble's garden: beehives, a vegetable patch with pumpkins, a wheelbarrow and a washing line behind his cabin.",
+            "🎣 Finley's rod rack and drying nets, and Bramble's seasoned timber stacked under a roof on the south verge.",
+          ],
+          economy: ["⚖️ None of it earns coins, and nothing you earn changes."],
         },
       },
     ],
