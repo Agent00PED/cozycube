@@ -15,6 +15,7 @@
     "validate-world": "tsx scripts/validate-world.ts",
     "check-layout": "tsx scripts/validate-world.ts",
     "caverns-terrain": "tsx scripts/caverns-terrain.ts",
+    "campfire-terrain": "tsx scripts/campfire-terrain.ts",
     "build-models": "tsx scripts/build-models.ts",
     "pack-models": "tsx scripts/pack-models.mts",
     "economy-sim": "tsx scripts/economy-sim.ts",

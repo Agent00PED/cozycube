@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.41",
+    range: "v0.7.0–v0.7.42",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1667,6 +1667,25 @@ export const PATCH_ERAS: PatchEra[] = [
           features: ["🎸 After dusk at the campfire, a quiet fingerpicked guitar phrase plays now and then, more often while the bonfire burns. It has its own fader in Settings: Night Guitar."],
           visuals: ["🌙 Campfire nights are a little brighter under the moon: the paths, the fence and your friends are easier to see when the bonfire is out."],
           fixes: ["⚡ Barnaby and Buster are drawn far more cheaply, so the campfire runs smoother, most of all on phones."],
+        },
+      },
+      {
+        version: "0.7.42",
+        date: "2026-10-02",
+        title: "The Campfire, Rebuilt",
+        summary: "The Starlight Campfire is a bigger island now, with a hill to climb, a real waterfall and a river that runs off the edge. Everything you knew is still there, with more room around it.",
+        changes: {
+          features: [
+            "⛰️ The island is 28 m across (it was 22) and no longer flat: a knoll rises in the north-west, with the tipi on its shoulder and the telescope on its top, the Overlook. Follow the new trail up.",
+            "🏕️ Traders' Row: Buster, the workbench, the woodpile, the camper van and the archway to the Whispering Woods now stand together on a low terrace along the north.",
+            "🌊 The river is new: a waterfall off a rock step into a plunge pool, a wider pond at the dock, and a sheet of water over the island's south edge.",
+          ],
+          visuals: [
+            "💧 The water has green shallows and deep blue mid-stream, foam lapping at the banks and white streaks down the falls, and it darkens at night.",
+            "🌿 The ground is painted: mottled moss, worn dirt trails with ragged edges, and bare patches where everyone stands at the stalls.",
+          ],
+          economy: ["⚖️ Nothing you earn changes: the trees, the fishing spots and the walks to the stalls are as rewarding as before."],
+          fixes: ["⚡ The campfire is drawn with about half the work it took before, so it runs much smoother, most of all on phones."],
         },
       },
     ],

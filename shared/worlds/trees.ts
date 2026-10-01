@@ -1,6 +1,6 @@
 import type { MapId } from "../types";
 import { TITAN, type TreeKind } from "../chop";
-import { CAMP_TREES } from "./campfire";
+import { CAMP_TREES, campLand } from "./campfire";
 import { FOREST_TREES, TITAN_SPOTS, TREE_REACH, titanApproach } from "./forest";
 
 // Every tree you can fell, on both maps: the campfire's Soft Pines round its clearing, the Whispering
@@ -14,6 +14,8 @@ export interface FellTree {
   kind: TreeKind;
   x: number;
   z: number;
+  /** The ground it stands on (the campfire's knoll and swells; the woods are flat). */
+  y: number;
   approachX: number;
   approachZ: number;
   /** A Colossal Titan's clearing (it stands there only during its event). */
@@ -21,11 +23,11 @@ export interface FellTree {
 }
 
 export const FELL_TREES: FellTree[] = [
-  ...CAMP_TREES.map((t) => ({ id: t.id, map: "campfire_night" as MapId, kind: t.kind as TreeKind, x: t.x, z: t.z, approachX: t.approachX, approachZ: t.approachZ, titan: false })),
-  ...FOREST_TREES.map((t) => ({ id: t.id, map: "whispering_woods" as MapId, kind: t.kind, x: t.x, z: t.z, approachX: t.approachX, approachZ: t.approachZ, titan: false })),
+  ...CAMP_TREES.map((t) => ({ id: t.id, map: "campfire_night" as MapId, kind: t.kind as TreeKind, x: t.x, z: t.z, y: Math.round(campLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false })),
+  ...FOREST_TREES.map((t) => ({ id: t.id, map: "whispering_woods" as MapId, kind: t.kind, x: t.x, z: t.z, y: 0, approachX: t.approachX, approachZ: t.approachZ, titan: false })),
   ...TITAN_SPOTS.map((p, i) => {
     const a = titanApproach(p);
-    return { id: `titan_${i + 1}`, map: "whispering_woods" as MapId, kind: TITAN.kind, x: p.x, z: p.z, approachX: a.x, approachZ: a.z, titan: true };
+    return { id: `titan_${i + 1}`, map: "whispering_woods" as MapId, kind: TITAN.kind, x: p.x, z: p.z, y: 0, approachX: a.x, approachZ: a.z, titan: true };
   }),
 ];
 export const FELL_TREE_AT = new Map(FELL_TREES.map((t) => [t.id, t]));

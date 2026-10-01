@@ -1,6 +1,6 @@
 import { MAP_HALF, MAP_IDS, type MapId } from "./types";
 import { LOFT_OBSTACLES, LOFT_SPAWNS, NAV_LIMIT } from "./worlds/lounge";
-import { CAMP_OBSTACLES, CAMP_SPAWNS } from "./worlds/campfire";
+import { CAMP_OBSTACLES, CAMP_SPAWNS, campFloorY } from "./worlds/campfire";
 import { CASINO_OBSTACLES, CASINO_REGIONS, CASINO_SPAWNS, casinoFloorY } from "./worlds/casino";
 import { VIP_ARRIVAL, VIP_OBSTACLES, VIP_REGION } from "./worlds/casino_vip";
 import { FOREST_OBSTACLES, FOREST_SPAWNS } from "./worlds/forest";
@@ -175,12 +175,14 @@ export function slideStep(pos: { x: number; z: number }, dx: number, dz: number,
 
 /** How high the floor is at (x, z): the casino's raised High-Roller Pit and Velvet Lounge (and the
  *  steps up to them), the Velvet Ring's canvas (only a fighter stands there), the caverns' doline
- *  plateau, its ramp, the lake's sloping shore, the islet, the sandbar and the deck; every other world is flat. Where an avatar's feet go, where a
+ *  plateau, its ramp, the lake's sloping shore, the islet, the sandbar and the deck, the campfire's
+ *  gentle ground (its knoll, its terrace, its banks) and its dock; every other world is flat. Where an avatar's feet go, where a
  *  click lands. */
 export function walkY(mapId: MapId, x: number, z: number): number {
   if (mapId === "velvet_casino") return casinoFloorY(x, z);
   if (mapId === "glimmering_caverns") return cavernsFloorY(x, z);
   if (mapId === "boxing_ring") return onRing(x, z) ? RING_FLOOR_Y : 0;
+  if (mapId === "campfire_night") return campFloorY(x, z);
   return 0;
 }
 

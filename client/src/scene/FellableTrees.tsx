@@ -78,6 +78,8 @@ interface Falling {
   scale: number;
   at: number;
   x: number;
+  /** The ground it stood on. */
+  y: number;
   z: number;
   dx: number;
   dz: number;
@@ -139,7 +141,7 @@ function StandIns({ mapId, trees }: FellableTreesProps) {
         const s = sizeOf(t, sync);
         const stage = sync?.stage ?? "mature";
         return (
-          <group key={t.id} position={[t.x, 0, t.z]} scale={[s, stage === "stump" ? 1 : s, s]}>
+          <group key={t.id} position={[t.x, t.y, t.z]} scale={[s, stage === "stump" ? 1 : s, s]}>
             <mesh geometry={GEO.box} material={STAND_IN_TRUNK} position={[0, stage === "stump" ? 0.12 : 0.5, 0]} scale={[0.3, stage === "stump" ? 0.24 : 1, 0.3]} raycast={noRaycast} />
             {stage !== "stump" && <mesh geometry={GEO.box} material={STAND_IN_TOP} position={[0, stage === "mature" ? 1.6 : 0.8, 0]} scale={stage === "mature" ? [1.2, 1.6, 1.2] : [0.5, 0.6, 0.5]} raycast={noRaycast} />}
           </group>
@@ -223,7 +225,7 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
       list.forEach((t, i) => {
         const s = sizeOf(t, trees[t.id]);
         q.setFromAxisAngle(up, treeYaw(t.id));
-        m.compose(pos.set(t.x, 0, t.z), q, stump ? scl.set(s, 1, s) : scl.set(s, s, s)).multiply(part.matrix);
+        m.compose(pos.set(t.x, t.y, t.z), q, stump ? scl.set(s, 1, s) : scl.set(s, s, s)).multiply(part.matrix);
         mesh.setMatrixAt(i, m);
       });
       mesh.count = list.length;
@@ -247,7 +249,7 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
         dz /= d;
         const scale = Number(payload.scale) || sizeOf(node, liveTrees.current[node.id]);
         const kind = (payload.kind as TreeKind) || kindOf(node, liveTrees.current[node.id]);
-        setFalling((f) => [...f.filter((x) => performance.now() / 1000 - x.at < FALL_S + SINK_S), { id: node.id, kind, scale, at: performance.now() / 1000, x: node.x, z: node.z, dx, dz }]);
+        setFalling((f) => [...f.filter((x) => performance.now() / 1000 - x.at < FALL_S + SINK_S), { id: node.id, kind, scale, at: performance.now() / 1000, x: node.x, y: node.y, z: node.z, dx, dz }]);
         if (Math.hypot(node.x - cameraFocus.x, node.z - cameraFocus.z) < 14) {
           playSfx("woodSnap");
           window.setTimeout(() => playSfx("thunk"), FALL_S * 1000 - 120);
@@ -307,7 +309,7 @@ function TreeOutline({ tree, scale, parts }: { tree: FellTree; scale: number; pa
     OUTLINE_MAT.opacity = 0.55 + 0.25 * Math.sin(clock.elapsedTime * 4);
   });
   return (
-    <group position={[tree.x, 0, tree.z]} rotation={[0, treeYaw(tree.id), 0]} scale={scale}>
+    <group position={[tree.x, tree.y, tree.z]} rotation={[0, treeYaw(tree.id), 0]} scale={scale}>
       {parts.map((p, i) => (
         <mesh key={i} geometry={p.geometry} material={OUTLINE_MAT} matrixAutoUpdate={false} matrix={p.matrix} raycast={noRaycast} renderOrder={2} />
       ))}
@@ -333,7 +335,7 @@ function FallingTree({ fall, parts }: { fall: Falling; parts: TemplatePart[] }) 
     g.scale.setScalar(fall.scale * (1 - sink * 0.3));
   });
   return (
-    <group position={[fall.x, 0, fall.z]}>
+    <group position={[fall.x, fall.y, fall.z]}>
       <group ref={pivot}>
         <group rotation={[0, yaw, 0]}>
           {parts.map((p, i) => (

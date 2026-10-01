@@ -1,7 +1,7 @@
 import { CUSHIONS, napPose, seatAnchorY } from "./seats";
 import type { MapId, SeatStyle, ToggleableKind } from "./types";
 import { LOFT_MOCHI, LOFT_PROPS, LOFT_SEATS } from "./worlds/lounge";
-import { CAMP_PROPS, CAMP_SEATS, lieSeatPose } from "./worlds/campfire";
+import { CAMP_PROPS, CAMP_SEATS, campLand, lieSeatPose } from "./worlds/campfire";
 import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
 import { VIP_PROPS, VIP_SEATS } from "./worlds/casino_vip";
 import { FOREST_PROPS, FOREST_SEATS } from "./worlds/forest";
@@ -80,7 +80,8 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
       style: lie ? ("blanket" as const) : (s.style ?? ("log" as const)),
       approachX: round(s.approachX),
       approachZ: round(s.approachZ),
-      sitY: round(lie ? lie.y : seatAnchorY(CUSHIONS[s.cushion])),
+      // (on the ground where the seat stands: the tipi is up on the knoll's shoulder)
+      sitY: round(campLand(s.x, s.z) + (lie ? lie.y : seatAnchorY(CUSHIONS[s.cushion]))),
     };
   }),
   // the casino: stools, chairs, the ottoman, the Chesterfield and the piano bench, all drawn by

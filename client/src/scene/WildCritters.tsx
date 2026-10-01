@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { MapId } from "@shared/types";
-import { isBlocked } from "@shared/collision";
+import { isBlocked, walkY } from "@shared/collision";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { liveMotion } from "../systems/liveMotion";
@@ -38,12 +38,14 @@ const KIND: Record<Kind, { node: string; scale: number; radius: number; walk: nu
  *  stretches (the woods' own tame deer and rabbits by the glen's path are ForestWorld's). */
 const HOMES: Partial<Record<MapId, [Kind, number, number][]>> = {
   campfire_night: [
-    ["rabbit", -8.5, 1.5],
-    ["rabbit", -8.0, 8.5],
-    ["rabbit", 6.5, 9.3],
-    ["squirrel", -6.5, -7.0],
-    ["squirrel", -0.5, -8.5],
-    ["deer", -7.0, 4.5],
+    ["rabbit", -9.6, 6.8],
+    ["rabbit", -7.6, 10.8],
+    ["rabbit", 8.0, 10.6],
+    ["rabbit", 4.8, -7.4],
+    ["squirrel", -7.4, -8.4],
+    ["squirrel", -1.2, -8.8],
+    ["squirrel", 3.2, 7.4],
+    ["deer", -8.0, 5.2],
   ],
   whispering_woods: [
     ["rabbit", -8.0, -7.0],
@@ -284,7 +286,7 @@ function Critters({ mapId }: { mapId: MapId }) {
         }
         e.set(pitch, c.yaw + look, 0);
         q.setFromEuler(e);
-        pos.set(c.x, lift, c.z);
+        pos.set(c.x, walkY(mapId, c.x, c.z) + lift, c.z);
         scl.setScalar(k.scale);
         m.compose(pos, q, scl);
         entry.mesh.setMatrixAt(i, m);

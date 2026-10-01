@@ -1,7 +1,10 @@
-# The Starlight Campfire: rebuild design (proposal)
+# The Starlight Campfire: rebuild design
 
-Status: **proposal, not approved**. Nothing in this document is built. Round one (patch 0.7.41: the
-keepers' draw calls, the night light, the night guitar) is done and does not depend on it.
+Status: **approved 2026-10-02** with the recommended answers to the four decisions (28 m, walkable
+gentle hills, the telescope on the knoll's top, the counts kept). **The structure is built** (patch
+0.7.42: steps 1 to 3 of the order of work, and step 5's checks): the layout, the height function, the
+builder, the water, the client. **Still to do:** step 4, the dressing zone by zone, and the lobby's
+backdrop picture. What was measured is at the foot of this document.
 
 The layout lives in `shared/worlds/campfire.ts` (`CAMPFIRE_LAYOUT`), the model in
 `scripts/blender/build_campfire.py`, the checks in `npm run check-layout`.
@@ -76,7 +79,21 @@ the moon so the island has a silhouette at night.
 4. Dressing zone by zone, checked in the browser by day and by night.
 5. The economy simulator and the full verification; patch notes.
 
-## Decisions needed
+## What was built, and what moved from this plan
+
+- **Draw calls:** about 115 with one player (217 before; the model itself 48). The plan's 110 is not
+  quite met: an avatar alone is some 58 of them, on every map (its own task).
+- **The model:** 2.4 MB packed (the plan said under 1.5 MB): the ground is drawn at 0.175 m for its
+  paint, 51,000 triangles of it.
+- **The Pine Ring:** the plan spaced the eight Soft Pines 4 m or more apart. Spread like that a T1
+  woodcutter earned 8% less (the walks between trees are most of the work), so they stand where they
+  did round the clearing, and Buster a little nearer the path. The simulator's table: the campfire's
+  wood within 2% of the record at every tier, its fishing unchanged.
+- **The ground needs no walk mask:** nothing is steeper than 24 degrees, so the whole island is
+  walked and only the old boxes stop anyone.
+- **The river leaves the island** over its south edge in a sheet (the plan had a closed pond).
+
+## Decisions (answered)
 
 1. **Size:** 28 m (recommended), a smaller step to 25 m, or keep 21.6 m and only re-dress.
 2. **Terrain:** walkable gentle hills (recommended; more work, reuses the caverns' walking), or a

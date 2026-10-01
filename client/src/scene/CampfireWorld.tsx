@@ -3,7 +3,9 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState, TimeOfDay, ToggleableSyncState } from "@shared/types";
-import { CAMPFIRE_LAYOUT as L, DOCK_PILINGS, DUCK_PATHS, RIVER_Z, riverSpan } from "@shared/worlds/campfire";
+import { CAMPFIRE_LAYOUT as L, CAMP_GRID, DOCK_PILINGS, DUCK_PATHS, RIVER_Z, campLand, riverSpan } from "@shared/worlds/campfire";
+import { walkY } from "@shared/collision";
+import { daylight } from "@shared/daynight";
 import { parseWorldEvent } from "@shared/types";
 import { parseTrees } from "@shared/chop";
 import { FellableTrees } from "./FellableTrees";
@@ -15,7 +17,7 @@ import { GEO, matte, noRaycast } from "./kit";
 import { TimeOfDayContext, useLampBoost } from "./timeOfDay";
 import { useCampNight } from "./campDay";
 import { OcclusionDriver, ditherOccluder } from "./occlusionDither";
-import { CRITTER_TREAT, DUCK_DIVE_AT, DUCK_DIVE_S, STRING_BULBS, STRING_SWING, bindCampfireLife, campNow, duckPose } from "./campfireLife";
+import { CAMP_WATER, CRITTER_TREAT, DUCK_DIVE_AT, DUCK_DIVE_S, STRING_BULBS, STRING_SWING, bindCampfireLife, campNow, duckPose } from "./campfireLife";
 import type { HearthState, RoomMessageListener } from "../hooks/useColyseusRoom";
 import { playSfx } from "../audio/sfx";
 import { Barnaby, Buster } from "../entities/Barnaby";
@@ -56,8 +58,11 @@ import { COZY_AURA_FUEL, getBonfireVisualState, type BonfireUpdate } from "@shar
 // The campfire keeps the camp's own 24-minute day (scene/campDay.tsx): a bright forest day and a
 // starlit night, eased over a minute at dawn and dusk; the stars, the fireflies and the moon follow
 // the night, the fire and the lanterns glow brighter after dark. The pines thin where they stand
-// between you and the camera (occlusionDither). Walking is a flat invisible plane over the island (the model never takes clicks),
-// as the lounge's floor is. No light casts a shadow; the effects are one instanced draw each.
+// between you and the camera (occlusionDither). The ground is gentle hills (shared/worlds/campfire.ts
+// campLand: the knoll, the terrace, the river's banks): a click lands on an invisible copy of the very
+// grid the ground is modelled from (CLICK_GROUND; the model never takes clicks), and every light,
+// creature and keeper stands at the land's height there. No light casts a shadow; the effects are one
+// instanced draw each.
 
 export const CAMPFIRE_URL = modelUrl("campfire.glb");
 
@@ -71,10 +76,37 @@ const COLD_EMBER_GLOW = 0.12;
 /** The tipi's inner glow (the Tipi interior light): lit while it is empty, a dim 0.1 while someone naps in it. */
 const TIPI_AWAKE = 1.5;
 const TIPI_ASLEEP = 0.1;
-/** The ground decals (moss patches, paths, the clearing), each nudged toward the camera in the
- *  depth test by its own polygon offset on top of its few millimetres of height: never a flicker. */
-const DECAL_OFFSET: Record<string, number> = { CF_GrassDark: -1, CF_GrassLight: -1, CF_Dirt: -2, CF_RugRust: -4, CF_RugMustard: -4, CF_RugSage: -4 };
 const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+/** The ground a click is tested against: the game's own grid (CAMP_GRID, each cell cut along the
+ *  diagonal campGroundY reads it by), so a click on the knoll lands where it shows. Never drawn. */
+const CLICK_GROUND = (() => {
+  const { n, cell, ground } = CAMP_GRID;
+  const pos = new Float32Array((n + 1) * (n + 1) * 3);
+  for (let k = 0; k <= n; k++)
+    for (let i = 0; i <= n; i++) {
+      const at = (k * (n + 1) + i) * 3;
+      pos[at] = -L.half + i * cell;
+      // (the dock's planks and the water are clicked as the flat they are)
+      pos[at + 1] = Math.max(ground[k * (n + 1) + i], L.river.water);
+      pos[at + 2] = -L.half + k * cell;
+    }
+  const index: number[] = [];
+  for (let k = 0; k < n; k++)
+    for (let i = 0; i < n; i++) {
+      const a = k * (n + 1) + i;
+      const b = a + 1;
+      const c = a + n + 2;
+      const d = a + n + 1;
+      index.push(a, c, b, a, d, c);
+    }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setIndex(index);
+  g.computeBoundingSphere();
+  return g;
+})();
+/** A height over the ground at (x, z). */
+const over = (x: number, y: number, z: number): [number, number, number] => [x, campLand(x, z) + y, z];
 
 /** How much of the night's magic shows at each hour (fireflies, stars). */
 const NIGHTNESS: Record<TimeOfDay, number> = { night: 1, sunset: 0.6, sunrise: 0.25, day: 0 };
@@ -144,6 +176,8 @@ export function CampfireWorld({ onFloorClick, players, localSessionId, toggleabl
     [subscribeMessages]
   );
   useFrame((_, dt) => {
+    // (the river darkens with the camp's night)
+    CAMP_WATER.night.value = 1 - daylight(Date.now());
     const fuel = live.current.hearth.fuel ?? 0;
     const level = Math.max(0, Math.min(1, fuel / 100));
     FUEL.level += (level - FUEL.level) * Math.min(1, dt * 0.8);
@@ -171,7 +205,7 @@ export function CampfireWorld({ onFloorClick, players, localSessionId, toggleabl
   });
   return (
     <group>
-      <mesh geometry={GEO.plane} material={CLICK_MAT} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} scale={[L.half * 2, L.half * 2, 1]} onPointerDown={floorClick} />
+      <mesh geometry={CLICK_GROUND} material={CLICK_MAT} onPointerDown={floorClick} />
       <ModelBoundary what="campfire.glb" fallback={<StandIn />}>
         <Suspense fallback={<StandIn />}>
           <CampfireModel live={live} />
@@ -217,12 +251,12 @@ function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
   const { scene } = useGLTF(CAMPFIRE_URL);
   const boost = useLampBoost();
   const life = useMemo(() => {
-    const bound = bindCampfireLife(scene, DECAL_OFFSET);
+    const bound = bindCampfireLife(scene);
     // the pines (and their trunks) thin where they stand between you and the camera
     scene.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh || Array.isArray(mesh.material)) return;
-      if (/^CF_(Pine|PineLight)$/.test(mesh.material.name) || mesh.name.startsWith("Campfire_Trees")) ditherOccluder(mesh.material);
+      if (/^CF_(Pine|PineBark)$/.test(mesh.material.name)) ditherOccluder(mesh.material);
     });
     return bound;
   }, [scene]);
@@ -346,15 +380,15 @@ function FireLight({ live }: { live: React.MutableRefObject<Live> }) {
       <pointLight ref={light} color={FIRE_COLOR} intensity={FIRE_INTENSITY * boost} distance={14} decay={2} position={[L.fire.x, 1.0, L.fire.z]} castShadow={false} />
       <pointLight ref={lantern} color="#ffd27a" intensity={0.9 * boost} distance={5} decay={2} position={[lx, 1.1, lz]} castShadow={false} />
       {/* inside the tipi: a warm glow through its canvas and out of its open flap */}
-      <pointLight ref={tipi} color="#ffa64d" intensity={TIPI_AWAKE} distance={4.5} decay={2} position={[L.tent.x + 0.2, 0.9, L.tent.z + 0.15]} castShadow={false} />
+      <pointLight ref={tipi} color="#ffa64d" intensity={TIPI_AWAKE} distance={4.5} decay={2} position={over(L.tent.x + 0.2, 0.9, L.tent.z + 0.15)} castShadow={false} />
       {/* under the strings: the awning, and the picnic table's lantern */}
-      <pointLight color="#ffd98a" intensity={0.45 * boost} distance={4.5} decay={2} position={[L.van.x + 0.2, 1.3, L.van.z + L.van.w / 2 + 0.8]} castShadow={false} />
-      <pointLight color="#ffd27a" intensity={0.5 * boost} distance={5} decay={2} position={[L.picnic.x - 0.48, 1.0, L.picnic.z + 0.05]} castShadow={false} />
+      <pointLight color="#ffd98a" intensity={0.45 * boost} distance={4.5} decay={2} position={over(L.van.x + 0.2, 1.3, L.van.z + L.van.w / 2 + 0.8)} castShadow={false} />
+      <pointLight color="#ffd27a" intensity={0.5 * boost} distance={5} decay={2} position={over(L.picnic.x - 0.48, 1.0, L.picnic.z + 0.05)} castShadow={false} />
       {/* the grove's ground lantern by the guitar case */}
       {/* Buster's stall by the woodpile, and Barnaby's by the dock: warm little lights so they are easy to find */}
-      <pointLight color="#ffd27a" intensity={0.5 * boost} distance={3.2} decay={2} position={[L.buster.x - 0.4, 1.5, L.buster.z + 0.8]} castShadow={false} />
-      <pointLight color="#ffd27a" intensity={0.55 * boost} distance={3.4} decay={2} position={[L.barnaby.x + 0.3, 1.5, L.barnaby.z + 0.7]} castShadow={false} />
-      <pointLight ref={grove} color="#ffa844" intensity={0.55 * boost} distance={4.5} decay={2} position={[L.groundLantern.x, 0.35, L.groundLantern.z]} castShadow={false} />
+      <pointLight color="#ffd27a" intensity={0.5 * boost} distance={3.2} decay={2} position={over(L.buster.x - 0.4, 1.5, L.buster.z + 0.8)} castShadow={false} />
+      <pointLight color="#ffd27a" intensity={0.55 * boost} distance={3.4} decay={2} position={over(L.barnaby.x + 0.3, 1.5, L.barnaby.z + 0.7)} castShadow={false} />
+      <pointLight ref={grove} color="#ffa844" intensity={0.55 * boost} distance={4.5} decay={2} position={over(L.groundLantern.x, 0.35, L.groundLantern.z)} castShadow={false} />
     </>
   );
 }
@@ -374,7 +408,7 @@ function JarLights({ live }: { live: React.MutableRefObject<Live> }) {
         l.intensity = 0;
         return;
       }
-      l.position.set(p.x, 0.45, p.z);
+      l.position.set(p.x, walkY("campfire_night", p.x, p.z) + 0.45, p.z);
       l.intensity = 0.7 * (0.85 + 0.15 * Math.sin(t * 3.3 + i * 2));
     });
   });
@@ -476,18 +510,20 @@ function Fireflies() {
       Array.from({ length: n }, () => ({ x: x0 + Math.random() * (x1 - x0), z: z0 + Math.random() * (z1 - z0), y: 0.35 + Math.random() * 1.1, phase: Math.random() * 6.28, rate: 0.6 + Math.random() * 0.9, wander: 0.25 + Math.random() * 0.45 }));
     // over the water, all the way down the river
     const river = Array.from({ length: 16 }, (_, i) => {
-      const z = RIVER_Z.from + 0.8 + ((RIVER_Z.to - RIVER_Z.from - 1.6) * (i + Math.random())) / 16;
-      const span = riverSpan(z) ?? { x0: 7, x1: 8 };
+      const z = RIVER_Z.from + 0.8 + ((Math.min(RIVER_Z.to, L.half - 0.6) - RIVER_Z.from - 1.6) * (i + Math.random())) / 16;
+      const span = riverSpan(z) ?? { x0: 10, x1: 11 };
       return { x: span.x0 + Math.random() * (span.x1 - span.x0), z, y: 0.25 + Math.random() * 0.9, phase: Math.random() * 6.28, rate: 0.6 + Math.random() * 0.9, wander: 0.25 + Math.random() * 0.45 };
     });
     return [
       ...river,
       // the grove west of the tipi, thick with them (catch some in a jar)
       ...around(L.fireflies.x - 1.3, L.fireflies.x + 1.3, L.fireflies.z - 1.3, L.fireflies.z + 1.3, 12),
-      ...around(-9.5, -6, -9, 1.5, 7),
-      ...around(-4, 6, -9.5, -7.5, 6),
-      ...around(-8.5, -5.5, 3.5, 7.5, 5),
-    ];
+      ...around(-12.5, -6.5, -12, 2, 9),
+      ...around(-4, 8, -12.5, -9.5, 7),
+      ...around(-12, -6, 4, 11, 7),
+      ...around(2, 8, 6, 12, 5),
+      // (each over the ground where it drifts)
+    ].map((f) => ({ ...f, y: f.y + Math.max(L.river.water, campLand(f.x, f.z)) }));
   }, []);
   const halo = useRef<THREE.InstancedMesh>(null);
   useFrame(({ clock }) => {

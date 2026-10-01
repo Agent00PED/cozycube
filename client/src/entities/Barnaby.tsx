@@ -1,5 +1,5 @@
 import { useGLTF } from "@react-three/drei";
-import { CAMPFIRE_LAYOUT as L } from "@shared/worlds/campfire";
+import { CAMPFIRE_LAYOUT as L, campLand } from "@shared/worlds/campfire";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { modelUrl } from "../assetVersion";
 import { matte, GEO, noRaycast } from "../scene/kit";
@@ -25,11 +25,11 @@ function Crate({ x }: { x: number }) {
 
 export function Barnaby({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
   // (only Barnaby and his stall: his chalkboard is drawn apart, painted with the hour's prices)
-  return <CampNpc url={BARNABY_URL} what="barnaby.glb" prefix="Barnaby" node="Barnaby" bake at={L.barnaby} waveEvent="barnabyWave" standIn={<Crate x={0.62} />} subscribeMessages={subscribeMessages} />;
+  return <CampNpc url={BARNABY_URL} what="barnaby.glb" prefix="Barnaby" node="Barnaby" bake at={L.barnaby} y={campLand(L.barnaby.x, L.barnaby.z)} waveEvent="barnabyWave" standIn={<Crate x={0.62} />} subscribeMessages={subscribeMessages} />;
 }
 
 export function Buster({ subscribeMessages }: { subscribeMessages: (listener: RoomMessageListener) => () => void }) {
-  return <CampNpc url={BUSTER_URL} what="buster.glb" prefix="Buster" bake at={L.buster} waveEvent="busterWave" standIn={<Crate x={-0.7} />} subscribeMessages={subscribeMessages} />;
+  return <CampNpc url={BUSTER_URL} what="buster.glb" prefix="Buster" bake at={L.buster} y={campLand(L.buster.x, L.buster.z)} waveEvent="busterWave" standIn={<Crate x={-0.7} />} subscribeMessages={subscribeMessages} />;
 }
 
 useGLTF.preload(BARNABY_URL);
