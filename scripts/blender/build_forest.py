@@ -149,7 +149,7 @@ LAYER_FLOOR = 0.008
 LAYER_BANK = 0.012
 LAYER_PATH = 0.016
 # the meadow's biomes (each zone's `floor`), blended by vertex colour
-BIOME = {"meadow": "#6F9A55", "birch": "#8FAE6B", "ridge": "#7F8C68", "glen": "#B48A46", "shrine": "#3F6B4A"}
+BIOME = {"meadow": "#6F9A55", "birch": "#8FAE6B", "ridge": "#7F8C68", "glen": "#B48A46", "shrine": "#3F6B4A", "needles": "#566F47"}
 TREE_KINDS = ("soft_pine", "birch", "cedar", "maple", "elderwood")
 STAGES = ("stump", "sprout", "sapling", "mature")
 
@@ -1021,6 +1021,8 @@ def clear_spot(L, x, z, r):
         return False
     if any(math.hypot(x - f["x"], z - f["z"]) < f["len"] / 2 + 0.3 + r for f in D["fallen"]):
         return False
+    if any(math.hypot(x - t["x"], z - t["z"]) < 0.7 * t["s"] + r for t in D["greatTrees"]) or any(math.hypot(x - bx, z - bz) < 0.5 * bs + 0.2 + r for bx, bz, bs in D["birches"] + D["shrubs"]):
+        return False
     ad = L["adit"]
     if x < ad["outcrop"]["x1"] + 2.6 and ad["outcrop"]["z0"] - 0.6 < z < ad["outcrop"]["z1"] + 0.6:
         return False
@@ -1083,7 +1085,7 @@ def build_deco(L, coll):
             # a pile of fallen leaves: a few flat lumps in orange and gold
             for k in range(3):
                 blob(bm, x + rng.uniform(-0.15, 0.15), 0.03, z + rng.uniform(-0.15, 0.15), 0.16, 0.035, 0.13, m=7 if k % 2 else 8, cuts=2, noise=0.2, rng=rng)
-        elif zn in ("birch", "shrine") and roll < 0.45:
+        elif zn in ("birch", "shrine", "northridge") and roll < 0.45 or zn == "oldgrowth" and roll < 0.75:
             fern(x, z, 0.85)
         elif roll < 0.72:
             # a grass tuft: three thin blades
@@ -1120,6 +1122,18 @@ def build_deco(L, coll):
                 continue
             if clear_spot(L, x, z, 0.2):
                 fern(x, z, 0.8 + 0.4 * rng.random())
+    # the Old Growth's fern floor: a ring of ferns round every great tree, and mushrooms at its roots
+    for t in L["dressing"]["greatTrees"]:
+        for k in range(4):
+            a = rng.random() * 6.28
+            rr = (0.9 + 0.7 * rng.random()) * t["s"]
+            x, z = t["x"] + rr * math.cos(a), t["z"] + rr * math.sin(a)
+            if clear_spot(L, x, z, 0.1):
+                fern(x, z, 0.9 + 0.5 * rng.random())
+        a = rng.random() * 6.28
+        x, z = t["x"] + 0.75 * t["s"] * math.cos(a), t["z"] + 0.75 * t["s"] * math.sin(a)
+        if clear_spot(L, x, z, 0.05):
+            mushrooms(x, z, 4)
     # red mushroom patches among the fellable trees' roots (on the far side, like the ferns)
     for t in L["trees"]:
         a = rng.random() * 6.28
@@ -1230,7 +1244,27 @@ def build_vista(L, coll):
     bm = bmesh.new()
     for i, (x, z, s) in enumerate(L["vista"]):
         pine(bm, x, z, s * 1.55, rng, light=i % 2 == 1)
+    # the Old Growth's great pines (the dressing's: not felled, half as tall again as the rim's)
+    for i, t in enumerate(L["dressing"]["greatTrees"]):
+        if t["kind"] == "pine":
+            pine(bm, t["x"], t["z"], t["s"] * 1.55, rng, light=i % 3 == 1)
     make_object("Forest_Vista", bm, ["FW_PineBark", "FW_PineNeedle", "FW_PineNeedleLight"], coll, lift="parts")
+    # its ancient cedars: five tiers, a red trunk as thick as a barrel
+    bm = bmesh.new()
+    for t in L["dressing"]["greatTrees"]:
+        if t["kind"] != "cedar":
+            continue
+        before = set(bm.faces)
+        cone_tree(bm, t["s"] * 1.45, rng, ((0.95, 0.8, 1.0), (0.8, 1.4, 0.95), (0.64, 1.95, 0.9), (0.46, 2.45, 0.85), (0.28, 2.9, 0.8)), 0, 1, 2, trunk_r=0.22, trunk_h=1.0)
+        xform_since(bm, before, Matrix.Translation(W(t["x"], 0.0, t["z"])))
+    make_object("Forest_VistaCedars", bm, ["FW_CedarBark", "FW_CedarNeedle", "FW_CedarNeedleLight"], coll, lift="parts")
+    # the birches that are not felled (the North Ridge's stand, the rise's few)
+    bm = bmesh.new()
+    for x, z, sz in L["dressing"]["birches"]:
+        before = set(bm.faces)
+        birch_tree(bm, sz * 1.1, rng)
+        xform_since(bm, before, Matrix.Translation(W(x, 0.0, z)) @ Matrix.Rotation(rng.random() * 6.28, 4, "Z"))
+    make_object("Forest_VistaBirches", bm, ["FW_BirchBark", "FW_BirchMark", "FW_BirchLeaf", "FW_BirchLeafLight"], coll, lift="parts")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1872,6 +1906,14 @@ def build_dressing(L, coll):
         blob(bm, x, 0.16 * s, z, 0.5 * s, 0.4 * s, 0.44 * s, m=k % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
         blob(bm, x + 0.42 * s, 0.06, z + 0.3 * s, 0.24 * s, 0.17 * s, 0.2 * s, m=(k + 1) % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.2)
         blob(bm, x - 0.02, 0.5 * s, z, 0.32 * s, 0.07 * s, 0.28 * s, m=m["FW_Moss"], cuts=2, noise=0.2, rng=rng)
+    # the waist-high shrubs: three lumps each, a few with berries
+    for k, (x, z, sz) in enumerate(D["shrubs"]):
+        for dx, dz, f in ((0.0, 0.0, 1.0), (0.3, 0.14, 0.72), (-0.26, 0.18, 0.66)):
+            blob(bm, x + dx * sz, 0.34 * sz * f, z + dz * sz, 0.44 * sz * f, 0.4 * sz * f, 0.42 * sz * f, m=m["FW_Fern"] if k % 2 else m["FW_Moss"], cuts=3, noise=0.1, rng=rng, flat_bottom=-0.05)
+        if k % 3 == 0:
+            for _ in range(6):
+                a = rng.random() * 6.28
+                nub(x + math.cos(a) * 0.38 * sz, 0.3 * sz + rng.uniform(-0.05, 0.2) * sz, z + math.sin(a) * 0.36 * sz, 0.03, 0.05, m["FW_MushCap"])
     # the lantern posts: an iron lantern on a bracket, its glass glowing
     for x, z in D["lanternPosts"]:
         cylinder(bm, W(x, -0.05, z), W(x, 1.5, z), 0.05, 8, m=m["FW_PlankDark"])
@@ -1896,7 +1938,7 @@ def build_dressing(L, coll):
         lathe(bm, x, z, [(0, 0.0), (0.3, 0.0), (0.22, 0.08), (0.2, 0.3), (0, 0.3)], segs=10, m=m["FW_Bark"], jitter=0.08, rng=rng)
         lathe(bm, x, z, [(0, 0.3), (0.19, 0.3), (0, 0.312)], segs=10, m=m["FW_WoodCut"])
     # log steps where the trails climb: every 0.9 m along the trails to the shrine, the Glen and the ledge
-    for idx in (1, 3, 5):
+    for idx in (1, 3, 5, 7):
         pts = path_polyline(L["paths"][idx], 0.9)
         for (ax, az, aw), (bx, bz, _) in list(zip(pts, pts[1:]))[1:-1]:
             if abs(land_y(bx, bz) - land_y(ax, az)) < 0.05:
@@ -1960,9 +2002,9 @@ def slot_of(name):
     if name in KEEP:
         return name
     # (finishes of their own, never a palette material's name: the tree looks in trees.glb keep those)
-    if name.startswith("FW_PineNeedle"):
+    if name.startswith(("FW_PineNeedle", "FW_CedarNeedle", "FW_BirchLeaf")):
         return "FW_VistaNeedle"
-    if name == "FW_PineBark":
+    if name in ("FW_PineBark", "FW_CedarBark", "FW_BirchBark", "FW_BirchMark"):
         return "FW_VistaBark"
     if name in DOUBLE_SIDED:
         return "FW_ClayDouble"

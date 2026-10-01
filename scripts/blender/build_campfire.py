@@ -187,6 +187,12 @@ PALETTE = {
     "CF_Barrel": "#8A5B36",
     "CF_Leaf": "#D9A441",
     "CF_Lichen": "#8FA070",
+    "CF_BirchBark": "#ECE8DC",
+    "CF_BirchMark": "#3A3531",
+    "CF_BirchLeaf": "#A8C66C",
+    "CF_BirchLeafLight": "#C9DB86",
+    "CF_Juniper": "#3F6B52",
+    "CF_Clover": "#7FA85E",
     # the gallery's painted ducks and owls' eyes (the braided rug they were made for is gone: the
     # firepit is river stones, raw logs and boulders now)
     "CF_RugRust": "#C8704A",
@@ -758,6 +764,13 @@ def ground_color(L, x, z, h, dirt, tones):
     the knoll), bare dirt where it is trodden, damp earth at the river's lip, stone down its bank
     and the dark bed under the water."""
     grass, dark, light, earth, soil, bed, stone = tones
+    # (the meadows: a brighter clover green in a ragged round patch)
+    clover = 0.0
+    for mx, mz, mr in L["dressing"]["meadows"]:
+        clover = max(clover, smooth(mr, mr * 0.45, math.hypot(x - mx, z - mz) + 0.5 * (vnoise(x * 1.3 + 5.0, z * 1.3) - 0.5)))
+    if clover > 0:
+        grass = mixc(grass, lin(PALETTE["CF_Clover"]), 0.6 * clover)
+        dark = mixc(dark, lin(PALETTE["CF_Clover"]), 0.45 * clover)
     n1 = vnoise(x * 0.33 + 3.1, z * 0.33 - 1.7)
     n2 = vnoise(x * 0.9 - 5.0, z * 0.9 + 2.2)
     n3 = vnoise(x * 2.7 + 0.4, z * 2.7 + 9.1)
@@ -1180,13 +1193,36 @@ def pine(bm, x, z, s, rng, light, yaw=None):
         lathe(bm, x, z, prof, segs=11, m=2 if (k == 2) == light else 1, yaw=yaw + k, jitter=0.06, rng=rng)
 
 
+def birch(bm, x, z, s, rng, m0):
+    """A birch that is not felled (the look of the ones that are: trees.glb): a slender white trunk
+    with dark marks round it, two branches, a light crown of round clumps. Materials from `m0`: bark,
+    mark, leaf, light leaf."""
+    h = 2.7 * s
+    lathe(bm, x, z, [(0, 0.0), (0.13 * s, 0.0), (0.1 * s, h * 0.6), (0.06 * s, h), (0, h + 0.02)], segs=10, m=m0, jitter=0.05, rng=rng)
+    for k in range(int(7 * s) + 2):
+        y = 0.2 * s + k * 0.3 * s
+        if y > h * 0.8:
+            break
+        a = rng.random() * 6.28
+        r = 0.12 * s * (1 - y / (h * 1.4))
+        blob(bm, x + math.cos(a) * r * 0.85, y, z + math.sin(a) * r * 0.85, 0.06 * s, 0.018 * s, 0.05 * s, m=m0 + 1, cuts=1)
+    for k in range(2):
+        a = k * math.pi + 0.6 + rng.random()
+        cylinder(bm, W(x, h * 0.55, z), W(x + math.cos(a) * 0.45 * s, h * 0.8, z + math.sin(a) * 0.45 * s), 0.035 * s, 6, m=m0, r_end=0.02 * s)
+    for k, (dx, y, dz, r) in enumerate(((0.0, h * 0.95, 0.0, 0.75), (0.45, h * 0.8, 0.2, 0.55), (-0.4, h * 0.82, -0.15, 0.55), (0.1, h * 0.72, -0.45, 0.5), (-0.15, h * 0.7, 0.45, 0.5), (0.0, h * 1.12, 0.05, 0.5))):
+        blob(bm, x + dx * s, y, z + dz * s, r * s, r * 0.85 * s, r * s, m=m0 + 2 + (k % 2), cuts=3, noise=0.12, rng=rng)
+
+
 def build_trees(L, coll):
     rng = random.Random(21)
     bm = bmesh.new()
     # (each at its own size, and turned its own way where the layout says: the west edge's stagger)
     for i, t in enumerate(L["trees"]):
         pine(bm, t["x"], t["z"], t["s"], rng, light=i % 2 == 1, yaw=t.get("yaw"))
-    make_object("Campfire_Trees", bm, ["CF_Bark", "CF_Pine", "CF_PineLight"], coll)
+    # the birches that are not felled (the dressing's): with the pines, so they sway and thin as they do
+    for x, z, sz in L["dressing"]["birches"]:
+        birch(bm, x, z, sz, rng, 3)
+    make_object("Campfire_Trees", bm, ["CF_Bark", "CF_Pine", "CF_PineLight", "CF_BirchBark", "CF_BirchMark", "CF_BirchLeaf", "CF_BirchLeafLight"], coll)
     # the bare branch the owl perches on, out through its pine's lowest boughs (its own object,
     # standing on the ground under the owl: the two never part on a slope)
     o = L["owl"]
@@ -2350,13 +2386,14 @@ def build_dressing(L, coll):
     half = L["half"]
     D = L["dressing"]
     M = ["CF_GrassTuft", "CF_GrassDark", "CF_Petal", "CF_PetalYellow", "CF_PetalBlue", "CF_PetalWhite", "CF_Stone", "CF_StoneDark", "CF_Bark", "CF_WoodCut",
-         "CF_Plank", "CF_PlankDark", "CF_Metal", "CF_LanternGlass", "CF_Crate", "CF_CrateDark", "CF_Barrel", "CF_Leaf", "CF_BushLeaf", "CF_WildBerry", "CF_Rope", "CF_Lichen"]
+         "CF_Plank", "CF_PlankDark", "CF_Metal", "CF_LanternGlass", "CF_Crate", "CF_CrateDark", "CF_Barrel", "CF_Leaf", "CF_BushLeaf", "CF_WildBerry", "CF_Rope", "CF_Lichen", "CF_Juniper"]
     m = {name: i for i, name in enumerate(M)}
     bm = bmesh.new()
     dirt = dirt_field(L)
     c = L["clearing"]
     solid = [(p["x"], p["z"], 0.5) for p in D["lanternPosts"] + D["barrels"] + D["stumps"]] + [(p["x"], p["z"], 0.8) for p in D["crates"]] + [(f["x"], f["z"], f["len"] / 2 + 0.3) for f in D["fallen"]]
     solid += [(t["x"], t["z"], 0.45) for t in L["trees"] + L["fellTrees"] + L["fellBirches"]] + [(r_["x"], r_["z"], 0.5 * r_["s"] + 0.15) for r_ in L["rocks"]]
+    solid += [(x, z, 0.5 * sz + 0.2) for x, z, sz in D["birches"] + D["shrubs"]]
 
     def open_moss(x, z, pad=0.0):
         """Open grass at (x, z): on the island, off the dirt, out of the river, clear of what stands."""
@@ -2405,6 +2442,7 @@ def build_dressing(L, coll):
               (8.0, 12.2, 1.3, ("CF_Petal", "CF_PetalYellow")), (-12.2, 6.2, 1.3, ("CF_PetalWhite", "CF_PetalYellow")), (-8.6, -6.6, 1.4, ("CF_PetalBlue", "CF_PetalWhite")),
               (-11.9, -8.2, 1.2, ("CF_PetalBlue", "CF_PetalWhite")), (-6.4, -9.4, 1.2, ("CF_PetalBlue", "CF_Petal")), (6.2, -7.0, 1.3, ("CF_PetalYellow", "CF_PetalWhite")),
               (5.4, 2.9, 1.0, ("CF_Petal", "CF_PetalBlue")), (-6.6, 6.0, 1.2, ("CF_Petal", "CF_PetalBlue"))]
+    drifts += [(x, z, r * 0.8, ("CF_PetalWhite", "CF_PetalYellow", "CF_Petal", "CF_PetalBlue")) for x, z, r in D["meadows"]]
     for cx, cz, r, tones in drifts:
         for _ in range(16):
             a, rr = rng.random() * 6.28, r * math.sqrt(rng.random())
@@ -2498,6 +2536,15 @@ def build_dressing(L, coll):
                     flower(x + rng.uniform(-0.3, 0.3), z + rng.uniform(-0.4, 0.4), rng.choice(("CF_PetalYellow", "CF_PetalWhite", "CF_Petal")))
         z += rng.uniform(1.0, 1.5)
         k += 1
+    # --- the waist-high shrubs: junipers and leafy bushes, three lumps each, a few with berries
+    for k, (x, z, sz) in enumerate(D["shrubs"]):
+        leaf = m["CF_Juniper"] if k % 2 else m["CF_BushLeaf"]
+        for q, (dx, dz, f) in enumerate(((0.0, 0.0, 1.0), (0.3, 0.14, 0.72), (-0.26, 0.18, 0.66))):
+            blob(bm, x + dx * sz, 0.34 * sz * f, z + dz * sz, 0.44 * sz * f, 0.4 * sz * f, 0.42 * sz * f, m=leaf, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.05)
+        if k % 3 == 0:
+            for _ in range(6):
+                a = rng.random() * 6.28
+                nub(x + math.cos(a) * 0.38 * sz, 0.3 * sz + rng.uniform(-0.05, 0.2) * sz, z + math.sin(a) * 0.36 * sz, 0.03, 0.05, m["CF_WildBerry"])
     # --- what you walk round: the lantern posts (an iron lantern on a bracket, its glass glowing)
     for p in D["lanternPosts"]:
         x, z = p["x"], p["z"]
@@ -2559,9 +2606,9 @@ def slot_of(name, pines):
     """The finish a face painted `name` is drawn with."""
     if name in KEEP:
         return name
-    if name in ("CF_Pine", "CF_PineLight"):
+    if name in ("CF_Pine", "CF_PineLight") or (pines and name in ("CF_BirchLeaf", "CF_BirchLeafLight")):
         return "CF_Pine"
-    if pines and name == "CF_Bark":
+    if pines:
         return "CF_PineBark"
     if name in DOUBLE_SIDED:
         return "CF_ClayDouble"

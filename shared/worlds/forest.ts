@@ -62,7 +62,9 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "id": "post", "name": "Bramble's Post", "x": 7, "z": 12.5, "r": 4, "floor": "meadow" },
     { "id": "glen", "name": "The Golden Glen", "x": -8, "z": -6.0, "r": 5.2, "floor": "glen" },
     { "id": "shrine", "name": "The Elderwood Shrine", "x": 1.4, "z": -6.0, "r": 3.6, "floor": "shrine" },
-    { "id": "ledge", "name": "The Mine Ledge", "x": -14.5, "z": -11.5, "r": 3.5, "floor": "ridge" }
+    { "id": "ledge", "name": "The Mine Ledge", "x": -14.5, "z": -11.5, "r": 3.5, "floor": "ridge" },
+    { "id": "oldgrowth", "name": "The Old Growth", "x": 6.4, "z": -10.6, "r": 5.6, "floor": "needles" },
+    { "id": "northridge", "name": "The North Ridge", "x": -2.8, "z": -12.8, "r": 4.4, "floor": "birch" }
   ],
   "archway": { "x": -11.0, "z": 16.5, "w": 1.9, "h": 2.7 },
   "arrival": { "x": -11.0, "z": 14.7 },
@@ -105,16 +107,37 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   "cascade": { "x": 13.4, "z": -14.9, "top": 1.4 },
   "dressing": {
     "boulders": [
-      [6.4, -11.2, 0.9], [8.6, -8.4, 0.7], [4.6, -13.4, 0.75], [9.6, -13.6, 0.8], [7.4, -3.6, 0.6], [-1.4, -11.6, 0.85], [-5.6, -13.6, 0.7],
+      [6.4, -11.2, 0.9], [4.6, -13.6, 0.75], [10.6, -13.6, 0.8], [-1.4, -11.6, 0.85],
       [-14.9, -8.4, 1.0], [-15.6, -14.6, 1.1], [-13.0, -14.6, 0.8], [-13.4, 2.4, 0.6], [-14.2, 11.4, 0.7], [9.6, 15.2, 0.6]
     ],
+    "greatTrees": [
+      { "x": 3.2, "z": -9.6, "s": 1.25, "kind": "pine" },
+      { "x": 5.0, "z": -11.8, "s": 1.5, "kind": "cedar" },
+      { "x": 7.6, "z": -12.2, "s": 1.3, "kind": "pine" },
+      { "x": 3.4, "z": -13.2, "s": 1.35, "kind": "pine" },
+      { "x": 9.9, "z": -14.8, "s": 1.25, "kind": "pine" },
+      { "x": 6.2, "z": -14.5, "s": 1.5, "kind": "cedar" },
+      { "x": 10.7, "z": -12.9, "s": 1.2, "kind": "pine" },
+      { "x": 9.3, "z": -6.6, "s": 1.0, "kind": "pine" },
+      { "x": 2.0, "z": -12.4, "s": 1.2, "kind": "pine" },
+      { "x": 0.8, "z": -10.2, "s": 1.1, "kind": "pine" },
+      { "x": 8.6, "z": -13.2, "s": 1.5, "kind": "cedar" },
+      { "x": 10.2, "z": -11.0, "s": 1.0, "kind": "pine" },
+      { "x": 5.6, "z": -3.2, "s": 1.1, "kind": "pine" },
+      { "x": 6.0, "z": 1.4, "s": 0.9, "kind": "pine" }
+    ],
+    "birches": [
+      [-6.2, -13.6, 1.0], [-4.4, -14.6, 0.9], [-3.6, -12.6, 1.1], [-0.8, -13.2, 1.0], [0.8, -14.6, 0.9], [-1.2, -15.0, 0.85], [-5.8, -10.4, 0.95], [-2.4, -9.8, 1.0],
+      [7.6, 2.6, 1.0], [9.4, -4.0, 0.9], [7.2, 0.4, 0.95]
+    ],
+    "shrubs": [[10.6, 12.6, 0.8], [11.2, 14.6, 0.7], [8.4, 1.6, 0.7], [5.2, -5.4, 0.8], [3.0, 16.3, 0.8], [1.4, 16.4, 0.7], [4.8, 16.4, 0.75], [-0.4, 16.3, 0.7], [6.2, 16.3, 0.7], [10.0, 9.4, 0.7], [-3.2, -14.2, 0.7], [2.2, -8.8, 0.7], [6.4, -8.2, 0.8], [8.6, -8.4, 0.7], [4.6, -7.0, 0.75]],
     "lanternPosts": [[-9.6, 14.6], [-4.6, 9.6], [-4.4, 0.4], [-9.6, -6.6], [-12.8, -9.8], [9.2, 6.6], [6.6, 14.6]],
     "fallen": [
       { "x": 6.6, "z": -6.6, "yaw": 0.9, "len": 2.0 },
       { "x": -13.6, "z": 6.4, "yaw": 0.2, "len": 1.8 },
       { "x": 3.6, "z": -11.4, "yaw": 2.3, "len": 1.7 }
     ],
-    "stumps": [[8.4, -5.6], [-12.6, -1.6], [10.4, 9.6]]
+    "stumps": [[10.4, -5.2], [-12.6, -1.6], [10.4, 9.6]]
   },
   "fishing": [
     { "stand": { "x": 11.55, "z": -2.3 }, "bobber": { "x": 12.9, "z": -2.6 } },
@@ -146,7 +169,8 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "points": [[-2.6, -0.6, 1.0], [-4.4, -2.0, 1.0], [-6.6, -3.6, 1.0], [-8.4, -4.6, 1.0]] },
     { "points": [[-0.8, 6.2, 1.0], [2.2, 5.4, 1.0], [5.6, 5.2, 1.0], [8.4, 5.5, 1.2]] },
     { "points": [[-8.4, -4.6, 1.0], [-10.6, -7.6, 0.9], [-12.4, -10.0, 0.9], [-13.8, -11.3, 1.1]] },
-    { "points": [[8.6, 5.0, 0.9], [9.8, 1.6, 0.9], [10.7, -2.0, 0.9], [11.1, -6.0, 0.9], [11.2, -10.6, 0.9]] }
+    { "points": [[8.6, 5.0, 0.9], [9.8, 1.6, 0.9], [10.7, -2.0, 0.9], [11.1, -6.0, 0.9], [11.2, -10.6, 0.9]] },
+    { "points": [[2.4, -7.9, 0.9], [3.2, -8.4, 0.85], [5.0, -9.6, 0.85], [7.0, -10.4, 0.85], [9.2, -10.6, 0.85], [11.0, -10.8, 0.9]] }
   ],
   "adit": { "x": -16.55, "z": -11.5, "w": 1.3, "h": 2.2, "outcrop": { "x0": -17.3, "x1": -16.0, "z0": -13.6, "z1": -9.4, "h": 2.9 }, "alcove": { "depth": 1.5, "half": 1.2 } },
   "flint": { "x": -15.62, "z": -12.37, "yaw": 1.2646 },
@@ -408,6 +432,11 @@ export const FOREST_OBSTACLES: AABB[] = [
     return Array.from({ length: n + 1 }, (_, k) => around({ x: f.x + Math.sin(f.yaw) * (k / n - 0.5) * (f.len - 0.3), z: f.z + Math.cos(f.yaw) * (k / n - 0.5) * (f.len - 0.3) }, 0.2));
   }),
   ...L.dressing.stumps.map(([x, z]) => around({ x, z }, 0.24)),
+  // the trees that are not felled (the Old Growth's great pines and cedars, the North Ridge's birches)
+  // and the waist-high shrubs
+  ...L.dressing.greatTrees.map((t) => around(t, 0.42 * t.s)),
+  ...L.dressing.birches.map(([x, z, s]) => around({ x, z }, 0.3 * s)),
+  ...L.dressing.shrubs.map(([x, z, s]) => around({ x, z }, 0.34 * s)),
   // the adit's mossy outcrop on the western cliff (its back, and the alcove's two wings either side of
   // the portal), and Old Flint on its south post
   { minX: L.adit.outcrop.x0, maxX: L.adit.outcrop.x1, minZ: L.adit.outcrop.z0, maxZ: L.adit.outcrop.z1 },
