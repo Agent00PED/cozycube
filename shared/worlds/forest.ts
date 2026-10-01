@@ -105,6 +105,13 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     "rocks": [[13.2, -10.9, 0.45], [13.9, -8.0, 0.4], [13.6, -5.0, 0.5], [12.5, -1.6, 0.45], [13.9, 1.2, 0.4], [14.3, 8.6, 0.45], [12.7, 12.0, 0.4]]
   },
   "cascade": { "x": 13.4, "z": -14.9, "top": 1.4 },
+  "brook": {
+    "points": [[5.0, -5.0, 0.42], [5.9, -4.5, 0.26], [6.7, -4.0, 0.26], [7.5, -3.4, 0.28], [8.3, -2.8, 0.28], [9.2, -2.2, 0.3], [10.0, -1.7, 0.3], [10.8, -1.15, 0.32], [11.6, -0.7, 0.34]],
+    "depth": 0.12,
+    "bank": 0.45,
+    "bridge": { "x": 10.42, "z": -1.42, "half": 0.3 },
+    "stones": [[7.1, -3.7], [9.0, -2.33]]
+  },
   "dressing": {
     "boulders": [
       [6.4, -11.2, 0.9], [4.6, -13.6, 0.75], [10.6, -13.6, 0.8], [-1.4, -11.6, 0.85],
@@ -118,19 +125,18 @@ export const FOREST_LAYOUT = /* layout:begin */ {
       { "x": 9.9, "z": -14.8, "s": 1.25, "kind": "pine" },
       { "x": 6.2, "z": -14.5, "s": 1.5, "kind": "cedar" },
       { "x": 10.7, "z": -12.9, "s": 1.2, "kind": "pine" },
-      { "x": 8.6, "z": -3.0, "s": 1.0, "kind": "pine" },
       { "x": 2.0, "z": -12.4, "s": 1.2, "kind": "pine" },
       { "x": 2.4, "z": -14.4, "s": 1.1, "kind": "pine" },
       { "x": 8.6, "z": -13.2, "s": 1.5, "kind": "cedar" },
       { "x": 10.2, "z": -11.0, "s": 1.0, "kind": "pine" },
-      { "x": 5.6, "z": -3.2, "s": 1.1, "kind": "pine" },
+      { "x": 3.9, "z": -6.4, "s": 1.1, "kind": "pine" },
       { "x": 6.0, "z": 1.4, "s": 0.9, "kind": "pine" }
     ],
     "birches": [
       [-6.2, -13.6, 1.0], [-4.4, -14.6, 0.9], [-3.6, -12.6, 1.1], [-0.8, -13.2, 1.0], [0.8, -14.6, 0.9], [-1.2, -15.0, 0.85], [-7.4, -14.2, 0.95], [-8.8, -14.6, 1.0],
-      [7.6, 2.6, 1.0], [9.4, -4.0, 0.9], [7.2, 0.4, 0.95]
+      [7.6, 2.6, 1.0], [9.4, -4.0, 0.9], [7.2, 0.4, 0.95], [6.5, -5.6, 0.8], [8.9, -3.9, 0.75]
     ],
-    "shrubs": [[10.6, 12.6, 0.8], [10.4, 14.9, 0.7], [8.4, 1.6, 0.7], [5.2, -5.4, 0.8], [3.0, 16.3, 0.8], [1.4, 16.4, 0.7], [4.8, 16.4, 0.75], [-0.4, 16.3, 0.7], [6.2, 16.3, 0.7], [10.0, 9.4, 0.7], [-3.2, -14.2, 0.7], [2.2, -8.8, 0.7]],
+    "shrubs": [[10.6, 12.6, 0.8], [10.4, 14.9, 0.7], [8.4, 1.6, 0.7], [4.3, -5.5, 0.8], [3.0, 16.3, 0.8], [1.4, 16.4, 0.7], [4.8, 16.4, 0.75], [-0.4, 16.3, 0.7], [6.2, 16.3, 0.7], [10.0, 9.4, 0.7], [-3.2, -14.2, 0.7], [2.2, -8.8, 0.7]],
     "lanternPosts": [[-9.6, 14.6], [-4.6, 9.6], [-4.4, 0.4], [-9.6, -6.6], [-12.8, -9.8], [9.2, 6.6], [6.6, 14.6]],
     "fallen": [
       { "x": -13.6, "z": 6.4, "yaw": 0.2, "len": 1.8 },
@@ -235,9 +241,8 @@ export function treeNear(x: number, z: number, reach = TREE_REACH): ForestTree |
 // --- the river: a Catmull-Rom spline through `river.points` ([x, z, halfWidth], from off the north
 // edge to off the east); build_forest.py digs and fills it from the very same function ---
 const catmull = (p0: number, p1: number, p2: number, p3: number, u: number) => 0.5 * (2 * p1 + (p2 - p0) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (3 * p1 - p0 - 3 * p2 + p3) * u * u * u);
-/** The river's centre line sampled `per` times a span: [x, z, halfWidth] each. */
-export function forestRiver(per = 6): [number, number, number][] {
-  const P = L.river.points;
+/** A spline through `P` ([x, z, halfWidth] each), sampled `per` times a span. */
+function splineOf(P: readonly (readonly number[])[], per: number): [number, number, number][] {
   const at = (k: number) => P[Math.max(0, Math.min(P.length - 1, k))];
   const out: [number, number, number][] = [];
   for (let i = 0; i < P.length - 1; i++) {
@@ -249,6 +254,12 @@ export function forestRiver(per = 6): [number, number, number][] {
   out.push([...P[P.length - 1]] as [number, number, number]);
   return out;
 }
+/** The river's centre line sampled `per` times a span: [x, z, halfWidth] each. */
+export const forestRiver = (per = 6) => splineOf(L.river.points, per);
+/** The brook's (docs/maps-fill-plan.md part 4): from its spring south of the Old Growth's camp down
+ *  the hillside's own fall line, across the rise, into the river above the pool. The same spline as
+ *  the river's (the builder has it too); its half-width is its bed's. */
+export const forestBrook = (per = 8) => splineOf(L.brook.points, per);
 
 // --- the ground (shared/terrain.ts) ----------------------------------------------------------------
 //
@@ -274,6 +285,36 @@ export function forestRiverAt(x: number, z: number): { d: number; w: number } {
   return { d: best, w };
 }
 
+/** How far (x, z) is from a sampled line, and the line's half-width there. */
+function lineAt(line: readonly [number, number, number][], x: number, z: number): { d: number; w: number } {
+  let best = Infinity;
+  let w = 0;
+  for (let i = 0; i + 1 < line.length; i++) {
+    const [ax, az, aw] = line[i];
+    const [bx, bz, bw] = line[i + 1];
+    const dx = bx - ax;
+    const dz = bz - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+    const d = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
+    if (d < best) (best = d), (w = aw + (bw - aw) * t);
+  }
+  return { d: best, w };
+}
+const BROOK_LINE = forestBrook(8);
+/** How far (x, z) is from the brook's centre line, and its bed's half-width there. */
+export const forestBrookAt = (x: number, z: number) => lineAt(BROOK_LINE, x, z);
+/** The log bridge where the river trail crosses the brook: the ground under it is not cut (the
+ *  water runs on beneath the logs), so the trail crosses dry. */
+export const BROOK_BRIDGE = L.brook.bridge;
+/** How deep the brook's bed is cut at (x, z): a hand's depth across its bed, easing out up its
+ *  banks; nothing under the bridge. It is waded anywhere (no collider, no slowing). */
+export function brookCut(x: number, z: number): number {
+  const b = forestBrookAt(x, z);
+  if (b.d >= b.w + L.brook.bank) return 0;
+  const open = smoothstep(BROOK_BRIDGE.half, BROOK_BRIDGE.half + 0.3, Math.hypot(x - BROOK_BRIDGE.x, z - BROOK_BRIDGE.z));
+  return L.brook.depth * (1 - smoothstep(b.w, b.w + L.brook.bank, b.d)) * open;
+}
+
 /** The ground's height at (x, z), the river's channel not cut in: where things stand. */
 export function forestLand(x: number, z: number): number {
   let h = 0;
@@ -289,10 +330,11 @@ export function forestLand(x: number, z: number): number {
 /** The ground as drawn: forestLand with the river's channel cut down to its bed between its banks. */
 export function forestHeight(x: number, z: number): number {
   const land = forestLand(x, z);
+  const brook = land - brookCut(x, z);
   const r = forestRiverAt(x, z);
   const inside = r.w - r.d;
-  if (inside <= 0) return land;
-  return land + (-L.river.depth - land) * smoothstep(0, L.terrain.bank, inside);
+  if (inside <= 0) return brook;
+  return Math.min(brook, land + (-L.river.depth - land) * smoothstep(0, L.terrain.bank, inside));
 }
 
 /** The ground's grid: the builder models the ground from it, feet and clicks read its triangles. */
