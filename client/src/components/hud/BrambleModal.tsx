@@ -3,6 +3,7 @@ import type { BarnabyResult, CampfirePacket } from "@shared/types";
 import { AXES, AXES_BY_TIER, BYPRODUCTS, BYPRODUCT_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
 import { FIREWOOD_PER_COIN, firewoodCoins } from "@shared/economy";
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
+import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
 import { marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
@@ -11,7 +12,7 @@ import { FooterBook, PRICE_COLUMN, GearShopList, MarketClock, SellAllButton, Sho
 
 // Bramble the Bear's trading post in the Whispering Woods: the woods' forester, on the shops'
 // fixed-anchor counter (ShopShell). He buys your logs (at the camp's hour's prices, each log worth its
-// tree's size), the felling's by-products and Firewood; he sells every axe (T1 to T5), the bigger wood
+// tree's size), the felling's by-products and Firewood; he sells the axes up to T4 (T5 is forged in the caverns), the bigger wood
 // carriers and the woodcutter's gear, every tier. Fish, rods, livewells and bait are Finley's, down by
 // the river. Everything goes as BUSTER packets (the server knows it is Bramble by where you stand);
 // the answers come back as busterResult. A piece or a relic from the old workbench is traded in here
@@ -55,6 +56,8 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
   const byWorth = BYPRODUCT_IDS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
   const byCount = BYPRODUCT_IDS.reduce((n, k) => n + (profile.byproducts[k] ?? 0), 0);
   const next = nextCarrierTier(profile.carrierTier);
+  // (T5 is forged in the caverns, not sold)
+  const away = (tier: number) => soldElsewhere(tier, SHOP_TIER_CAP.woods, "");
   const held = WOOD_KINDS.filter((k) => (profile.wood[k] ?? 0) > 0);
   return (
     <ShopShell
@@ -152,6 +155,8 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
                   <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => send({ type: "BUSTER", op: "equipAxe", axe: id })}>
                     Use
                   </button>
+                ) : away(axe.tier) ? (
+                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">{away(axe.tier)}</span>
                 ) : (
                   <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < axe.price} onClick={() => send({ type: "BUSTER", op: "buyAxe", axe: id })}>
                     {axe.price.toLocaleString("en-US")} 🪙
@@ -183,6 +188,8 @@ export function BrambleModal({ profile, coins, market, send, subscribeMessages, 
                   <span className="px-2 text-xs font-bold text-emerald-200">In use</span>
                 ) : have ? (
                   <span className="px-2 text-xs opacity-60">Outgrown</span>
+                ) : next?.id === t.id && away(tier) ? (
+                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">{away(tier)}</span>
                 ) : next?.id === t.id ? (
                   <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < t.price} onClick={() => send({ type: "BUSTER", op: "upgradeCarrier" })}>
                     {t.price.toLocaleString("en-US")} 🪙

@@ -86,25 +86,27 @@ export const AFK_UNBAITED_TIER_ODDS: TierOdds = { common: 1, uncommon: 0, rare: 
 
 /** The livewells' prices, tier 1 (the Wooden Pail, everyone's) to tier 5: the storage tiers' sinks
  *  (300, 950, 2,600, 6,500), the same as the wood carriers'. */
-export const CREEL_PRICES = [0, 300, 950, 2600, 6500] as const;
+export const CREEL_PRICES = [0, 250, 800, 2250, 6250] as const;
 /** What each livewell tier holds (fish): sized for a 5-10 minute outing at the water, then a trip to
  *  the angler's stall. A player already holding more keeps it all (Overburdened: selling and cooking
  *  work, only new catches wait for room). */
 export const CREEL_CAPACITY = [12, 20, 32, 45, 60] as const;
 
-/** The tackle: bait by the pack (five kinds, from Barnaby or Finley); the rods, T2 and T3 from
- *  Barnaby, every tier from Finley on the Whispering Woods' river (the tool tiers' sinks: 250, 850,
- *  2,400, 6,000, the same as the axes'). */
+/** The tackle: bait by the pack (five kinds, from Barnaby or Finley); the rods (the tool ladder,
+ *  docs/economy-plan.md section 6: a tier costs 20, 45, 90 and 180 minutes of the step before it,
+ *  the same as the axes'): T2 from Barnaby, T3 and T4 from Finley on the Whispering Woods' river (or
+ *  Finnegan), T5 forged at the caverns' forge with its makings (shared/expedition.ts). Storage costs
+ *  half the tool of its tier. */
 export const TACKLE_PRICES = {
   basicBait: 15, // Earthworms x5
   cornDough: 20, // Sweet Corn Dough x5
   glowCricket: 35, // Glow-Crickets x4
   dragonflyLarva: 45, // Dragonfly Larva x3
   luckyChum: 50, // Stardust Pellets x3
-  proRod: 250,
-  heronRod: 850,
-  masterRod: 2400,
-  moonlightRod: 6000,
+  proRod: 500,
+  heronRod: 1600,
+  masterRod: 4500,
+  moonlightRod: 12500,
 } as const;
 
 // --- the woodpile -----------------------------------------------------------------------------------
@@ -127,13 +129,14 @@ export const CARVED_PRICE = 8;
 /** What Buster pays for a Pine Resin (from a critical chop): worth keeping for the workbench's
  *  Adhesive Slot, worth selling when the carrier is full. */
 export const RESIN_BUY_PRICE = 10;
-/** The axes (the flint one, T1, is everyone's): T2 and T3 from Buster, T4 and T5 from Bramble. */
-export const AXE_PRICES = { iron: 250, tempered: 850, golden: 2400, runic: 6000 } as const;
+/** The axes (the flint one, T1, is everyone's): T2 from Buster, T3 and T4 from Bramble, T5 forged at
+ *  the caverns' forge with its makings (shared/expedition.ts). */
+export const AXE_PRICES = { iron: 500, tempered: 1600, golden: 4500, runic: 12500 } as const;
 /** The wood carriers' prices, tier 1 (the Twine Wood Strap, everyone's) to tier 5, and what each
  *  holds (logs): sized for a 5-10 minute felling round, then a trip to the stall. A player already
  *  carrying more keeps it all (Overburdened: selling, splitting and carving work, only new wood waits
  *  for room). */
-export const CARRIER_PRICES = [0, 300, 950, 2600, 6500] as const;
+export const CARRIER_PRICES = [0, 250, 800, 2250, 6250] as const;
 export const CARRIER_CAPACITY = [15, 25, 40, 55, 70] as const;
 /** The crafting materials' store, apart from every carrier, livewell and satchel: each material (Pine
  *  Resin, Sawdust, every by-product: Tree Bark, the ambers and shavings, Fish Scales, Fine Fish Bone,
@@ -257,10 +260,14 @@ export const ORE_PRICES = {
 } as const;
 /** The pickaxes (the Rusted Pickaxe, T1, is Old Flint's gift): Gus sells T2 to T5, the Deep Core
  *  Drill the caverns' big sink. */
-export const PICKAXE_PRICES = { copper: 1500, reinforced: 4500, glimmer: 11000, drill: 25000 } as const;
+export const PICKAXE_PRICES = { copper: 3000, reinforced: 7200, glimmer: 17500, drill: 31500 } as const;
 /** The Prospector's Satchel, tier 1 (the Canvas Ore Pouch) to tier 5 (the Titan Core Vault): coins,
  *  and materials from the other crafts (shared/satchel.ts SATCHEL_TIERS says which). */
-export const SATCHEL_PRICES = [0, 500, 1800, 5500, 14000, 32000] as const;
+export const SATCHEL_PRICES = [0, 500, 1500, 3600, 8750, 15750] as const;
+/** The satchels' prices before the tool ladder's rebuild (docs/economy-plan.md phase 2), which made
+ *  them cheaper: the migration pays an owner the difference on every tier they bought
+ *  (shared/migrate.ts v6). Never used for a sale. */
+export const PRE_PHASE2 = { satchel: [0, 500, 1800, 5500, 14000, 32000] } as const;
 /** The Abyssal Cenote Lake's eleven cave fish, Common to Mythic (two of each grade, one mythic):
  *  richer water than the river's, deep underground (shared/caverns_fishing.ts), calibrated to about
  *  1.7 times the river's coins a minute on the same rod (docs/economy-plan.md section 4: a T1 rod about

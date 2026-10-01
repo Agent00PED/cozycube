@@ -6,10 +6,10 @@
 //
 //   0  Coat Pockets               2 slots (20)    everyone's (Old Flint's pickaxe works on day one)
 //   1  Canvas Ore Pouch           4 slots (40)    10 Sawdust, 4 Pine Resin, 500 coins
-//   2  Reinforced Miner's Sack    8 slots (80)    4 Copper Ingots, 6 Birch Bark, 1,800 coins
-//   3  Hardened Prospector Pack  12 slots (120)   4 Iron Ingots, 4 Highland Cedar Logs, 5,500 coins
-//   4  Glimmer Expedition Rig    16 slots (160)   4 Silver Ingots, 2 Glimmer Shards, 14,000 coins
-//   5  Titan Core Vault          20 slots (200)   2 Titan Heartwood, 2 Ancient Core Fragments, 32,000 coins
+//   2  Reinforced Miner's Sack    8 slots (80)    4 Copper Ingots, 6 Birch Bark, 1,500 coins
+//   3  Hardened Prospector Pack  12 slots (120)   4 Iron Ingots, 4 Highland Cedar Logs, 3,600 coins
+//   4  Glimmer Expedition Rig    16 slots (160)   4 Silver Ingots, 2 Glimmer Shards, 8,750 coins
+//   5  Titan Core Vault          20 slots (200)   2 Titan Heartwood, 2 Ancient Core Fragments, 15,750 coins
 //
 // The soft clamp, as for the carriers and the livewells: a satchel holding more than its room keeps
 // everything (Overburdened: selling, smelting and cracking all work); only new things wait for room.

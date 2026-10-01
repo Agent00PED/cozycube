@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.32",
+    range: "v0.7.0–v0.7.33",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1508,6 +1508,27 @@ export const PATCH_ERAS: PatchEra[] = [
             "🔥 Firewood sells at 1 coin for two bundles: it is fuel for the fire, and no longer worth more than the log it came from.",
           ],
           fixes: ["✨ The Lucky Glint is rolled once per rock: it no longer comes back each time the weak spot moves, which paid the weakest pickaxes the most."],
+        },
+      },
+      {
+        version: "0.7.33",
+        date: "2026-10-01",
+        title: "The Tool Ladder",
+        summary: "Every tool tier is a real goal now, each map's keepers stock their own tiers, and the finest tools are forged with your own hands.",
+        changes: {
+          features: [
+            "🧭 Expedition Tools: the best rod, axe and pickaxe (T5) and the largest livewell and wood carrier are no longer sold. Forge them at the caverns' forge from coins, ingots and your own craft's makings (the forge's new tab).",
+            "🌳 Four Silver Birches have grown on the campfire's south-west lawn, so Buster's T2 axe has something to fell without leaving camp.",
+            "🎁 Everything you already own stays yours, whatever it costs now.",
+          ],
+          visuals: [],
+          economy: [
+            "🎣 Rods and axes: 500, 1,600, 4,500 and 12,500 coins (about 20, 45, 90 and 180 minutes of play each).",
+            "⛏️ Pickaxes: 3,000, 7,200, 17,500 and 31,500 coins.",
+            "🎒 Storage costs half its tool's tier: livewells and wood carriers 250, 800, 2,250 and 6,250. Gus's satchels got cheaper, and anyone who bought one is paid the difference.",
+            "🏪 The campfire's stalls sell tools and storage up to T2; Bramble, Finley, Finnegan and Gus up to T4.",
+          ],
+          fixes: [],
         },
       },
     ],

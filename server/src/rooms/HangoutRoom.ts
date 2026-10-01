@@ -58,6 +58,7 @@ import {
 import { isCampDay } from "../../../shared/daynight";
 import { BYPRODUCTS, BYPRODUCT_IDS, FIREWOOD_FUEL, TREES, WOOD_KINDS, isByproductId, regrowth, treeStage, type TreeStage, type WoodKind } from "../../../shared/chop";
 import { FELL_TREES, FELL_TREE_AT, fellReach, fellTreeOf, type FellTree } from "../../../shared/worlds/trees";
+import { FORGED_TIER, SHOP_TIER_CAP } from "../../../shared/expedition";
 import { ADVANCED_BENCH_MASTER, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, EAGLE_EYE_MS, EAGLE_EYE_ZONE, FIREWOOD_PER_COIN, firewoodCoins, GOLDEN_ACORN_COINS, MAX_DAY_PERMITS, PERMIT_PRICES, RAPIDS_LUCK, SLINGSHOT_PAID_ROUNDS_PER_HOUR, SLINGSHOT_PRIZES } from "../../../shared/economy";
 import { SLING_ROUND_S, playSlingshot, slingPrize, validSlingShots } from "../../../shared/slingshot";
 import {
@@ -2551,8 +2552,8 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     const axe = AXES[profile.axe];
     if (!node.titan && axe.tier < info.tier) {
-      const from = info.tier >= 4 ? "Bramble at his cabin" : "Buster at the campfire";
-      client.send("campfireNotice", { message: `Your ${axe.name} (T${axe.tier}) can't bite into ${name}: it takes a T${info.tier} axe or better (${from} sells them)`, emoji: "🪓" });
+      const from = info.tier >= FORGED_TIER ? "it is forged at the caverns' forge" : info.tier > SHOP_TIER_CAP.campfire ? "Bramble at his cabin sells them" : "Buster at the campfire sells them";
+      client.send("campfireNotice", { message: `Your ${axe.name} (T${axe.tier}) can't bite into ${name}: it takes a T${info.tier} axe or better (${from})`, emoji: "🪓" });
       return;
     }
     if (carrierLoad(profile) >= carrierCap(profile)) {
@@ -3843,7 +3844,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const profile = record.fishing;
     const B = CAMPFIRE_LAYOUT.buster;
     // at Buster's stall, or at Bramble's counter in the woods (the woods' forester: wood and its
-    // by-products, every axe, the carriers; no fish)
+    // by-products, the axes and the carriers up to tier 4; no fish)
     const atBramble = player.map === "whispering_woods" && Math.hypot(player.x - BRAMBLE_FRONT.x, player.z - BRAMBLE_FRONT.z) <= BRAMBLE_REACH + 0.4;
     const near = atBramble || (player.map === "campfire_night" && Math.min(Math.hypot(player.x - BUSTER_FRONT.x, player.z - BUSTER_FRONT.z), Math.hypot(player.x - B.x, player.z - B.z)) <= BUSTER_REACH + 0.4);
     const reply = (ok: boolean, message: string, coins = 0) => {
@@ -3911,8 +3912,9 @@ export class HangoutRoom extends Room<HangoutState> {
         const axe = AXES[packet.axe];
         if (profile.axes.includes(packet.axe)) return reply(false, `You've already got the ${axe.name}`);
         if (!near) return tooFar();
-        // Buster forges up to T3; Bramble, the woods' forester, sells every axe (T1 to T5)
-        if (!atBramble && axe.tier >= 4) return reply(false, `The ${axe.name} comes from Bramble's cabin in the Whispering Woods`);
+        // Buster sells T2; Bramble, the woods' forester, T3 and T4; T5 is forged in the caverns
+        if (axe.tier >= FORGED_TIER) return reply(false, `The ${axe.name} is forged at the Thermal Bellows Forge, down in the Glimmering Caverns`);
+        if (axe.tier > (atBramble ? SHOP_TIER_CAP.woods : SHOP_TIER_CAP.campfire)) return reply(false, `The ${axe.name} comes from Bramble's cabin in the Whispering Woods`);
         if (player.coins < axe.price) return reply(false, `The ${axe.name} is ${axe.price} 🪙. Keep chopping!`);
         this.addCoins(player, -axe.price);
         profile.axes.push(packet.axe);
@@ -3929,6 +3931,8 @@ export class HangoutRoom extends Room<HangoutState> {
         if (!near) return tooFar();
         const next = nextCarrierTier(profile.carrierTier);
         if (!next) return reply(false, "That's the finest rig in the woods!");
+        if (profile.carrierTier + 1 >= FORGED_TIER) return reply(false, `The ${next.name} is forged at the Thermal Bellows Forge, down in the Glimmering Caverns`);
+        if (profile.carrierTier + 1 > (atBramble ? SHOP_TIER_CAP.woods : SHOP_TIER_CAP.campfire)) return reply(false, `The ${next.name} comes from Bramble's cabin in the Whispering Woods`);
         if (player.coins < next.price) return reply(false, `The ${next.name} is ${next.price} 🪙`);
         this.addCoins(player, -next.price);
         profile.carrierTier += 1;
@@ -4113,8 +4117,9 @@ export class HangoutRoom extends Room<HangoutState> {
         const rod = RODS[packet.rod];
         if (profile.rods.includes(packet.rod)) return reply(false, `You've already got the ${rod.name}`);
         if (!near) return tooFar();
-        // Barnaby sells up to T3; Finley on the woods' river sells every rod (T1 to T5)
-        if (!atFinley && rod.tier >= 4) return reply(false, `The ${rod.name} comes from Finley, on his boulder by the woods' river`);
+        // Barnaby sells T2; Finley on the woods' river (and Finnegan) T3 and T4; T5 is forged in the caverns
+        if (rod.tier >= FORGED_TIER) return reply(false, `The ${rod.name} is forged at the Thermal Bellows Forge, down in the Glimmering Caverns`);
+        if (rod.tier > (atFinley ? SHOP_TIER_CAP.woods : SHOP_TIER_CAP.campfire)) return reply(false, `The ${rod.name} comes from Finley, on his boulder by the woods' river`);
         if (player.coins < rod.price) return reply(false, `The ${rod.name} is ${rod.price} 🪙. Keep at it!`);
         this.addCoins(player, -rod.price);
         profile.rods.push(packet.rod);
@@ -4186,6 +4191,8 @@ export class HangoutRoom extends Room<HangoutState> {
         if (!near) return tooFar();
         const next = nextCreelTier(profile.creelTier);
         if (!next) return reply(false, "That's the finest livewell on the river!");
+        if (profile.creelTier + 1 >= FORGED_TIER) return reply(false, `The ${next.name} is forged at the Thermal Bellows Forge, down in the Glimmering Caverns`);
+        if (profile.creelTier + 1 > (atFinley ? SHOP_TIER_CAP.woods : SHOP_TIER_CAP.campfire)) return reply(false, `The ${next.name} comes from Finley, on his boulder by the woods' river`);
         if (player.coins < next.price) return reply(false, `The ${next.name} is ${next.price} 🪙`);
         this.addCoins(player, -next.price);
         profile.creelTier += 1;

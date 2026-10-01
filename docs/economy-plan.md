@@ -150,38 +150,59 @@ ladder costs 2.6 h of play, the axes 2.0 h, the pickaxes 3.0 h.
 Still open after phase 1, for phase 2: a T1 pickaxe and a T1 axe sit 14-15% under their step and a
 T3 pickaxe 19% over; the campfire's pines give a better axe nothing (birch at the campfire).
 
-## 6. Tools and storage: the new ladder
+## 6. Tools and storage: the ladder (T2-T5 built: phase 2, done 2026-10-01)
 
-A tool costs the minutes below at the income of the step before it (coins part only).
+A tool costs the minutes below at the target income of the step before it (coins part only). The
+pickaxes start in a richer place, so their first steps are a little longer.
 
-| Tier | Minutes | Rod / axe | Pickaxe | Also needs |
-|---|---|---|---|---|
-| T2 | 20 | 500 | 3,000 | |
-| T3 | 45 | 1,600 | 7,200 | |
-| T4 | 90 | 4,500 | 17,500 | |
-| T5 | 180 | 12,500 | 31,500 | ingots (its own craft's top material too) |
-| T6 | 360 | 34,000 | 75,000 | materials from all three crafts |
-| T7 | 720 | 100,000 | 180,000 | rare drops only |
-| **whole ladder** | **about 23 h a craft** | | | |
+| Tier | Rod / axe | Minutes | Pickaxe | Minutes | Also needs |
+|---|---|---|---|---|---|
+| T2 | 500 | 20 | 3,000 | 30 | |
+| T3 | 1,600 | 45 | 7,200 | 60 | |
+| T4 | 4,500 | 90 | 17,500 | 120 | |
+| T5 | 12,500 | 180 | 31,500 | 180 | forged: ingots and its own craft's top material |
+| T6 | 34,000 | 360 | 75,000 | | materials from all three crafts (the beach) |
+| T7 | 100,000 | 720 | 180,000 | | rare drops only (the beach) |
 
-Storage (livewell, carrier, satchel) costs half the tool of its tier and follows the same rule
-(T5 up needs materials). Three crafts, tools and storage: about 100 hours of goals, where today the
-whole set is about 15.
+Storage costs half the tool of its tier: livewells and carriers 250 / 800 / 2,250 / 6,250, the
+satchels 500 / 1,500 / 3,600 / 8,750 / 15,750 (with the makings they already took).
 
-## 7. The shops, by map
+**T5 is forged, never sold** (shared/expedition.ts, the forge's Expedition Tools tab):
+
+| Forged | Coins | Makings |
+|---|---|---|
+| Mythril Moonlight Rod | 12,500 | 6 Iron Ingots, 4 Fine Fish Bones |
+| Runic Elderwood Axe | 12,500 | 6 Iron Ingots, 6 Golden Leaf Amber |
+| Deep Core Drill | 31,500 | 6 Silver Ingots, 4 Glimmer Shards |
+| Starlight Deep Livewell | 6,250 | 3 Iron Ingots, 12 Fish Scales (after the tier-4 livewell) |
+| Forester Heavy Frame | 6,250 | 3 Iron Ingots, 6 Amber Resin (after the tier-4 carrier) |
+
+Iron for the rod and the axe on purpose: Old Flint's own pickaxe mines iron, so an angler or a
+woodcutter needs a trip underground and the forge, not a second craft's tool ladder. T6 and T7 will
+be added to the same table when the beach is built.
+
+T2 to T5, coins only: 19,100 for a rod or an axe line (about 5.6 h at the target incomes), 59,200
+for the pickaxes (about 6.5 h), and half as much again for storage: about 26 hours for all three
+crafts, where it was about 8 before this phase.
+
+Owned tools and stores were kept as they were (profile v6); the satchels got cheaper, so their
+owners were paid the difference.
+
+## 7. The shops, by map (tools and storage built: phase 2)
 
 | | Campfire (Barnaby, Buster) | Woods (Bramble, Finley) | Caverns (Gus, Finnegan, the forge) |
 |---|---|---|---|
-| Tools | T2 | T3-T4 | T5-T7, forged |
-| Storage | T2 | T3-T4 | T5-T7, forged |
-| Accessories | T1-T2, coins | T3-T4, coins | T5-T7, crafted |
+| Tools | T2 | up to T4 | up to T4 at the keepers; T5-T7 forged |
+| Storage | T2 | up to T4 | up to T4 at the keepers; T5-T7 forged |
+| Accessories (phase 4) | T1-T2, coins | T3-T4, coins | T5-T7, crafted |
 | Bait, consumables | basic | premium | cave-only |
-| Buys at full price | common, uncommon; pine, birch | up to legendary; every wood | everything |
-| Buys the rest at | 60% | 60% | - |
+| Buys at full price (phase 3) | common, uncommon; pine, birch | up to legendary; every wood | everything |
+| Buys the rest at (phase 3) | 60% | 60% | - |
 
 A keeper pays the same base price for the same good on every map (no hauling trick); what changes
-is the ceiling of what each can afford. The campfire also gets three or four Silver Birches, so its
-T2 axe has something to fell.
+is the ceiling of what each can afford. The campfire has four Silver Birches on its south-west
+lawn, so its T2 axe has something to fell (27 coins a minute as sold there, against 22 on pines
+alone; the woods' birch grove still pays more, 36).
 
 ## 8. The Expedition Licence (the caverns' entry)
 
@@ -364,7 +385,7 @@ selling raw, and never by enough to be the only thing worth doing.
 |---|---|---|
 | 0 | **Done.** The income simulator (`npm run economy-sim`) and its pinned table | section 2 is measured |
 | 1 | **Done.** Base prices and rod odds (wood, fish, ore, cave fish), section 5 | every step within 20% of its target, the three crafts within 20% of each other |
-| 2 | Tools and storage T1-T7: prices, materials, the forge's recipes; shop stock by map; birch at the campfire | the ladder's hours match section 6 |
+| 2 | **Done** (T2-T5; T6-T7 wait for the beach). Tools and storage: prices, materials, the forge's recipes; shop stock by map; birch at the campfire | the ladder's hours match section 6 |
 | 3 | Keepers' buying ceilings; the Expedition Licence | |
 | 4 | Accessories: the old ones paid back, the six slots, the four families, sets | |
 | 5 | Crafted goods; the two map outfits | |

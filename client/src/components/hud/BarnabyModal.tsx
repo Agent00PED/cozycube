@@ -5,6 +5,7 @@ import { livewellBonus } from "@shared/gear";
 import { CAVE_TACKLES, CAVE_TACKLE_IDS } from "@shared/caverns_fishing";
 import { ORE_ITEMS, type OreItemId } from "@shared/caverns_mining";
 import { BYPRODUCTS, type ByproductId } from "@shared/chop";
+import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
 import { satchelCountFor } from "@shared/satchel";
 import { COZY_AURA_LUCK, hasCozyAura } from "@shared/bonfire";
 import { fishGood, marketMultiplier, parseMarket, priceRun } from "@shared/market";
@@ -22,7 +23,7 @@ interface Props {
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onOpenFieldGuide: () => void;
   onClose: () => void;
-  /** Who keeps this shop: Barnaby at the campfire (rods and the angler's gear up to T3), Finley the
+  /** Who keeps this shop: Barnaby at the campfire (the T2 rod and livewell, the angler's gear up to T3), Finley the
    *  River Otter on the woods' river, or Finnegan the Grotto Angler by the cenote (both every tier;
    *  Finnegan's advanced tackle bartered too). All buy fish and sell bait and livewells. */
   keeper?: "barnaby" | "finley" | "finnegan";
@@ -70,6 +71,8 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
   const unlocked = profile.creel.filter((f) => !f.l);
   const unlockedWorth = priceRun(unlocked, (f) => fishGood(f.s), (f, mult) => Math.round(fishValue(f, mult) * aura), hour).total;
   const next = nextCreelTier(profile.creelTier);
+  // (what this counter doesn't stock: T3 and T4 are the woods', T5 is forged in the caverns)
+  const away = (tier: number) => soldElsewhere(tier, finley ? SHOP_TIER_CAP.woods : SHOP_TIER_CAP.campfire, "🦦 At Finley's boulder on the woods' river");
   const bonus = livewellBonus(profile.worn);
   const who = finnegan ? "Finnegan" : finley ? "Finley" : "Barnaby";
 
@@ -122,9 +125,8 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
                   <button type="button" className="clay-btn min-h-9 px-3 text-xs" onClick={() => shop({ type: "BARNABY", op: "equipRod", rod: id })}>
                     Use
                   </button>
-                ) : rod.tier >= 4 && !finley ? (
-                  // the legendary and mythic rods: Finley's, on the Whispering Woods' river
-                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">🦦 At Finley's boulder on the woods' river</span>
+                ) : away(rod.tier) ? (
+                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">{away(rod.tier)}</span>
                 ) : (
                   <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < rod.price} onClick={() => shop({ type: "BARNABY", op: "buyRod", rod: id })}>
                     {rod.price.toLocaleString("en-US")} 🪙
@@ -185,6 +187,8 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
                   <span className="px-2 text-xs font-bold text-emerald-200">In use</span>
                 ) : have ? (
                   <span className="px-2 text-xs opacity-60">Outgrown</span>
+                ) : next?.id === t.id && away(tier) ? (
+                  <span className="max-w-[92px] px-1 text-right text-[10px] leading-tight opacity-70">{away(tier)}</span>
                 ) : next?.id === t.id ? (
                   <button type="button" className="clay-btn clay-btn-amber min-h-9 px-3 text-xs" disabled={coins < t.price} onClick={() => shop({ type: "BARNABY", op: "upgradeCreel" })}>
                     {t.price.toLocaleString("en-US")} 🪙

@@ -1,4 +1,5 @@
 import { isBlocked } from "../../../shared/collision";
+import { FORGED_TIER, FORGED_TOOLS, forgedBlocked, forgedOwned, grantForged, isForgedToolId, makingsMissing, spendMakings } from "../../../shared/expedition";
 import type { MapId } from "../../../shared/types";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAVE_ARRIVAL, CAVE_WINCH, WINCH_REACH, WINCH_RETURN_S, WINCH_RIDE_S, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, ORE_NODES, ORE_NODE_AT, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, orePropId, type OreNode, CAPYBARA, CAVE_PEARLS, FIND_REACH, JOURNAL_PAGES, PHOTO_REACH, PHOTO_SPOT, cavernsZoneAt, HEARTH, HEARTH_SEAT_IDS, RAFT, RAFT_EMPTY_S, RAFT_REACH, RAFT_RIDE_S, type RaftSide, WINCH_DOWN_S, onCauseway, cavernsFloorY, CAVE_WATER_Y } from "../../../shared/worlds/caverns";
 import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../../../shared/worlds/forest";
@@ -749,6 +750,7 @@ export class CavernsMine {
       return this.reply(sessionId, n > 0, n > 0 ? `${n} ingot${n > 1 ? "s" : ""} off the forge's tray, into your satchel` : "No room in your satchel for the tray's ingots");
     }
     if (packet.op === "relic") return this.forgeRelic(sessionId, kit, packet.relic);
+    if (packet.op === "tool") return this.forgeTool(sessionId, kit, player.coins, packet.tool);
     if (packet.op === "start") return this.startForge(sessionId, kit, packet.ingot, packet.batch);
     if (packet.op !== "smelt" || !isIngotId(packet.ingot)) return;
     const queued = kit.forgeQueue.reduce((a, j) => a + j.n, 0);
@@ -871,6 +873,25 @@ export class CavernsMine {
     this.host.gesture(sessionId, "mine");
     this.host.emote(sessionId, g.emoji);
     this.reply(sessionId, true, `${g.emoji} Your ${g.name}, fresh off the anvil, and on it goes! ${g.blurb}`);
+  }
+
+  /** An Expedition (T5) tool or store forged (shared/expedition.ts: once each, the storage tiers in
+   *  turn): its coins and its makings out of the satchel and the materials' store, and it is in hand. */
+  private forgeTool(sessionId: string, kit: FishingProfile, coins: number, tool: unknown) {
+    if (!isForgedToolId(tool)) return;
+    const t = FORGED_TOOLS[tool];
+    if (forgedOwned(kit, tool)) return this.reply(sessionId, false, `You have the ${t.name} already`);
+    const first = forgedBlocked(kit, tool);
+    if (first) return this.reply(sessionId, false, `The ${t.name} takes ${first}`);
+    if (coins < t.coins) return this.reply(sessionId, false, `The ${t.name} takes ${t.coins.toLocaleString("en-US")} 🪙 at the forge`);
+    const missing = makingsMissing(kit, t.needs);
+    if (missing.length) return this.reply(sessionId, false, `The ${t.name} takes ${missing.join(", ")} more`);
+    spendMakings(kit, t.needs);
+    this.host.addCoins(sessionId, -t.coins);
+    grantForged(kit, tool);
+    this.host.gesture(sessionId, "mine");
+    this.host.emote(sessionId, t.emoji);
+    this.reply(sessionId, true, `${t.emoji} The ${t.name}, forged with your own hands. ${t.blurb}`, -t.coins);
   }
 
   /** The forge's clocks: each queued ingot done in turn, into the satchel (or the tray when it is full);
@@ -1120,6 +1141,7 @@ export class CavernsMine {
         const p = PICKAXES[packet.pickaxe];
         if (kit.pickaxes.includes(packet.pickaxe)) return this.reply(sessionId, false, `You've already got the ${p.name}`);
         if (p.price <= 0) return this.reply(sessionId, false, `The ${p.name} comes from Old Flint`);
+        if (p.tier >= FORGED_TIER) return this.reply(sessionId, false, `The ${p.name} is forged, not sold: take its makings to the forge beside my post`);
         if (player.coins < p.price) return this.reply(sessionId, false, `The ${p.name} is ${p.price.toLocaleString("en-US")} 🪙`);
         this.host.addCoins(sessionId, -p.price);
         kit.pickaxes.push(packet.pickaxe);
