@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { stashBonus } from "@shared/gear";
+import { masterworkBonus, stashBonus } from "@shared/gear";
 import { GearWorks } from "./GearWorks";
 import type { CampfirePacket, WorkbenchResult } from "@shared/types";
 import { BYPRODUCTS, WOOD, type ByproductId, type WoodKind } from "@shared/chop";
@@ -132,7 +132,7 @@ export function WoodCraftModal({ profile, coins, advanced, send, subscribeMessag
             const done = made(id);
             const crateFull = !once && !stashFits(profile.crafts, { c: id, m: false }, stashBonus(profile));
             const ok = ready(id);
-            const odds = craftOdds(id, mode, glue);
+            const odds = craftOdds(id, mode, glue, masterworkBonus(profile));
             return (
               <div key={id} className={`flex items-center gap-2 rounded-2xl px-2.5 py-2 ${once ? "border border-[#8fd3b6]/40 bg-[#8fd3b6]/10" : consumable ? "border border-[#f5c46b]/35 bg-[#f5c46b]/10" : "bg-white/10"}`}>
                 <span className="text-2xl">{craft.emoji}</span>

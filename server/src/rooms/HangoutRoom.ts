@@ -39,6 +39,9 @@ import {
   hasLuckyBell,
   heftBonus,
   isGearId,
+  isRingId,
+  kingBonus,
+  masterworkBonus,
   missDeepensOnce,
   newGearRun,
   noCeiling,
@@ -48,12 +51,14 @@ import {
   rankLacks,
   rankStep,
   reportDeed,
+  ringName,
   sellBonus,
   splitYield,
   stashBonus,
   tensionWindowBonus,
   trialWords,
   wearGear,
+  wearRing,
   type Deed,
   type GearFamily,
   type GearId,
@@ -3264,7 +3269,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const drip = pending?.drip ? DRIP_ZONE : 1;
     this.pendingFish.delete(sessionId);
     const worn = this.records.get(sessionId)?.fishing ?? NO_GEAR;
-    const fish = rollCatch(species, { rareLuck: this.catchLuck(sessionId, player).rareLuck, king: this.surgeKing(sessionId, player), goldStar: goldStarBonus(worn), heft: heftBonus(worn) });
+    const fish = rollCatch(species, { rareLuck: this.catchLuck(sessionId, player).rareLuck, king: this.surgeKing(sessionId, player) + kingBonus(worn), goldStar: goldStarBonus(worn), heft: heftBonus(worn) });
     const treasure = Math.random() < TREASURE_CHANCE[FISH[species].tier];
     this.starReels.set(sessionId, { fish, startedAt: Date.now(), treasure });
     player.action = "reel";
@@ -3793,7 +3798,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (adhesive) profile.resin -= 1;
     const glue = adhesive ? { adhesive } : {};
     // Bramble's advanced bench: finer tools, a little more of a Masterwork's chance
-    const odds = craftOdds(packet.recipe, mode, adhesive);
+    const odds = craftOdds(packet.recipe, mode, adhesive, masterworkBonus(profile));
     const outcome = rollCraft(advanced ? { ...odds, masterwork: odds.masterwork + Math.min(odds.normal, ADVANCED_BENCH_MASTER), normal: Math.max(0, odds.normal - ADVANCED_BENCH_MASTER) } : odds, Math.random());
     this.playGesture(sessionId, "chop");
     if (outcome === "broken") {
@@ -4116,6 +4121,21 @@ export class HangoutRoom extends Room<HangoutState> {
       for (const id of mine) profile.worn = wearGear(profile.worn, id).worn;
       this.saveFishing(sessionId, player);
       return say(`The ${FAMILY[packet.family].name}'s set on (${mine.length} piece${mine.length > 1 ? "s" : ""})`, FAMILY[packet.family].emoji);
+    }
+    // a ring on a finger, or off (a second Star Shard takes the first one's place, a third ring the oldest's)
+    if ("ring" in packet) {
+      const ring = packet.ring;
+      if (!isRingId(ring) || !profile.rings.includes(ring)) return;
+      if (packet.op === "ringOff") {
+        if (!profile.ringsWorn.includes(ring)) return;
+        profile.ringsWorn = profile.ringsWorn.filter((r) => r !== ring);
+        this.saveFishing(sessionId, player);
+        return say(`Took off the ${ringName(ring)}`, "💍");
+      }
+      const { worn, removed } = wearRing(profile.ringsWorn, ring);
+      profile.ringsWorn = worn;
+      this.saveFishing(sessionId, player);
+      return say(`${ringName(ring)} on${removed.length ? `, in place of the ${removed.map(ringName).join(" and ")}` : ""}`, "💍");
     }
     if (!isGearId(packet.gear)) return;
     const id = packet.gear;

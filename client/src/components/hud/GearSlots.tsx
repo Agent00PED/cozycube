@@ -1,5 +1,6 @@
 import type { CampfirePacket } from "@shared/types";
 import { FAMILY, GEAR, GEAR_SLOTS, SET_BONUS, SLOT_LABEL, familyOfDiscipline, gearOfDiscipline, gearOfFamily, ownedRank, setCount, wearGear, type GearDiscipline, type GearFamily, type GearId } from "@shared/gear";
+import { RING_BANDS, RING_CAP, RING_GEMS, ringName, ringParts, wearRing } from "@shared/gear";
 import { gearWords } from "./GearWorks";
 import type { FishingProfile } from "@shared/fishing";
 import { CRAFTS, TOOL_CRAFT, type ToolId } from "@shared/crafting";
@@ -10,7 +11,7 @@ import { CAVE_TACKLES, CAVE_TACKLE_IDS } from "@shared/caverns_fishing";
 // piece each, of any family. Each drawer leads with its own family's set (how many are worn, its two
 // bonuses, and a button that puts the whole set on: the way to change craft in one tap), then the
 // four slots as worn, then its own family's and the Wayfarer's pieces you have off, each a tap to
-// wear. Buying and raising happen at the counters (GearWorks). GEAR packets, answered with a notice.
+// wear; and the rings forged, on their two fingers. Buying and raising happen at the counters (GearWorks). GEAR packets, answered with a notice.
 
 export function GearSlots({ profile, send, disc }: { profile: FishingProfile; send: (packet: CampfirePacket) => void; /** The drawer's discipline: its family's pieces (and the Wayfarer's) show. */ disc: GearDiscipline }) {
   const family = familyOfDiscipline(disc);
@@ -66,6 +67,32 @@ export function GearSlots({ profile, send, disc }: { profile: FishingProfile; se
           );
         })}
       </div>
+      {profile.rings.length > 0 && (
+        <>
+          <b className="mt-1 text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Rings · {profile.ringsWorn.length}/{RING_CAP} fingers</b>
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {[...profile.ringsWorn, ...profile.rings.filter((r) => !profile.ringsWorn.includes(r))].map((r) => {
+              const on = profile.ringsWorn.includes(r);
+              const { band, gem } = ringParts(r);
+              const swap = wearRing(profile.ringsWorn, r).removed;
+              return (
+                <div key={r} className={`flex items-center gap-1.5 rounded-2xl px-2 py-1.5 ${on ? "bg-emerald-400/15 ring-1 ring-emerald-300/40" : "bg-white/10"}`} title={RING_GEMS[gem].does(RING_BANDS[band].strength)}>
+                  <span className="text-xl">{RING_GEMS[gem].emoji}</span>
+                  <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span className="truncate text-[11px] font-semibold text-[#F7EBE1]">{ringName(r)}</span>
+                    <span className="truncate text-[10px] opacity-75">
+                      {RING_GEMS[gem].power} {Math.round(RING_BANDS[band].strength * 100)}%
+                    </span>
+                  </div>
+                  <button type="button" className={`clay-btn min-h-8 px-2 text-[10px] ${on ? "" : "clay-btn-amber"}`} onClick={() => send({ type: "GEAR", op: on ? "ringOff" : "ring", ring: r })} title={!on && swap.length ? `In place of the ${swap.map(ringName).join(" and ")}` : undefined}>
+                    {on ? "Off" : swap.length ? "Swap" : "Wear"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       {spare.length > 0 && (
         <>
           <b className="mt-1 text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">In your pack</b>

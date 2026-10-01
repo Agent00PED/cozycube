@@ -391,8 +391,14 @@ export function isAdhesive(v: unknown): v is Adhesive {
 /** A carve's odds in a mode, with a resin in the Adhesive Slot: a Resin Bond moves all of the break
  *  chance to a normal success; a Resin Gilding adds 25 points of Masterwork chance (from a normal
  *  success first). */
-export function craftOdds(id: CraftId, mode: CraftMode, adhesive: Adhesive = ""): CraftOutcomeOdds {
+export function craftOdds(id: CraftId, mode: CraftMode, adhesive: Adhesive = "", fortune = 0): CraftOutcomeOdds {
   const odds = { ...CRAFTS[id].odds[mode] };
+  // (a Star Shard ring's Fortune: that much of the plain outcome becomes a Masterwork, where one is possible)
+  if (fortune > 0 && odds.masterwork > 0) {
+    const shift = Math.min(odds.normal, fortune);
+    odds.normal -= shift;
+    odds.masterwork += shift;
+  }
   if (adhesive === "bond") return { normal: odds.normal + odds.breakChance, masterwork: odds.masterwork, breakChance: 0 };
   if (adhesive === "gild") {
     const fromNormal = Math.min(odds.normal, GILD_MASTERWORK_BONUS);
