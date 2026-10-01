@@ -22,7 +22,6 @@ import {
   DEFLECT_STAGGER_S,
   FORGE_QUEUE_MAX,
   FORGE_RECIPES,
-  FORGE_RELICS,
   FORGE_SMELT_S,
   INGOT_IDS,
   MASTERWORK_OF,
@@ -44,8 +43,8 @@ import {
   isForgeBatch,
   isGeodeId,
   isIngotId,
-  isMiningRelicId,
   isOreItemId,
+  isMasterwork,
   isPickaxeId,
   itemsOf,
   judgeChisel,
@@ -99,7 +98,7 @@ import { dayPhase, DAY_CYCLE_MS } from "../../../shared/daynight";
 import { nextSatchelTier, satchelAdd, satchelCount, satchelCountFor, satchelCounts, satchelHasRoom, satchelTake, satchelTakeFor, satchelTier, type SatchelTier } from "../../../shared/satchel";
 import { takeLogs, WOOD, BYPRODUCTS, type ByproductId, type WoodKind } from "../../../shared/chop";
 import { addMaterial, buffOn, materialCount, takeMaterial, type FishingProfile } from "../../../shared/fishing";
-import { GEAR, geodeFind, lodestoneSweet, satchelBonus, swingHaste, wearGear } from "../../../shared/gear";
+import { chaseWindowBonus, cleanBreakBonus, dustYield, geodeFind, glintBonus, lodestoneSweet, perfectWindow, satchelBonus, sellBonus, swingHaste, type Deed } from "../../../shared/gear";
 import { oreGood, priceRun, type MarketState } from "../../../shared/market";
 import { BYPRODUCT_PRICES } from "../../../shared/economy";
 
@@ -153,6 +152,8 @@ export interface CavernsHost {
   /** To everyone in the room, whatever world (the Monolith surfacing). */
   shout(type: string, payload: unknown): void;
   addCoins(sessionId: string, amount: number): void;
+  /** A countable act, for the gear's attunement and trials (shared/gear.ts reportDeed). */
+  deed(sessionId: string, deed: Deed): void;
   gesture(sessionId: string, gesture: "mine" | "reach" | "toss"): void;
   emote(sessionId: string, emoji: string): void;
   market(): MarketState;
@@ -512,9 +513,9 @@ export class CavernsMine {
     if (ok) this.host.saveProfile(sessionId);
   }
 
-  /** The satchel's extra slots (the Deepvein Satchel Strap, worn). */
+  /** The satchel's extra slots (the Satchel Strap and the Explorer's Pack, worn). */
   private strap(kit: FishingProfile) {
-    return satchelBonus(kit.worn);
+    return satchelBonus(kit);
   }
 
   // --- prospecting ----------------------------------------------------------------------------------
@@ -605,13 +606,13 @@ export class CavernsMine {
     const pick = PICKAXES[kit.pickaxeId];
     if (now < pr.staggerUntil) return;
     // (the Tempered Knuckle Guards: a quicker swing)
-    if (now - pr.lastStrikeAt < Math.max(STRIKE_DEBOUNCE_S * 1000, (pick.swing / swingHaste(kit.worn)) * 1000 - SWING_SLACK_MS)) return;
+    if (now - pr.lastStrikeAt < Math.max(STRIKE_DEBOUNCE_S * 1000, (pick.swing / swingHaste(kit)) * 1000 - SWING_SLACK_MS)) return;
     pr.lastStrikeAt = now;
     const warm = warmthOn(kit.deepWarmthUntil, now);
     // (the Lodestone Pendant's wider sweet spot, Miner's Stout's harder blow)
     // (a Master of this kind: a wider sweet spot on it)
     const master = masteryRank(node.kind, kit.mined[node.kind] ?? 0) === 4 ? MASTER_SWEET : 0;
-    const j = judgeStrike(node.kind, kit.pickaxeId, s.weak, dir, warm, { sweet: lodestoneSweet(kit.worn) + master, damage: buffOn(kit, "stout", now) ? STOUT_DAMAGE : 1 });
+    const j = judgeStrike(node.kind, kit.pickaxeId, s.weak, dir, warm, { sweet: lodestoneSweet(kit) + master, damage: buffOn(kit, "stout", now) ? STOUT_DAMAGE : 1 });
     this.host.gesture(sessionId, "mine");
     const info = ORE_KINDS[node.kind];
     // (as the ring closed: the time the client measured since the close-up opened, if near enough
@@ -619,7 +620,8 @@ export class CavernsMine {
     const seen = now - pr.openedAt;
     const tc = Number(raw.t);
     const at = Number.isFinite(tc) && tc >= 0 && Math.abs(tc - seen) <= PROSPECT_CLOCK_SLACK_MS ? tc : seen;
-    const perfect = j.verdict === "direct" && onPulse(at / 1000);
+    // (the Prospector's two pieces: the Perfect window wider)
+    const perfect = j.verdict === "direct" && onPulse(at / 1000, perfectWindow(kit));
     const run = this.streak(sessionId, now);
     if (perfect) {
       run.n += 1;
@@ -632,7 +634,7 @@ export class CavernsMine {
     // window gone, and the vein is cold again)
     if (j.verdict === "direct") {
       pr.chase = pr.chaseUntil > 0 && now <= pr.chaseUntil + CHASE_SLACK_MS ? Math.min(CHASE_MAX, pr.chase + 1) : 0;
-      pr.chaseUntil = now + CHASE_WINDOW_S * 1000;
+      pr.chaseUntil = now + (CHASE_WINDOW_S + chaseWindowBonus(kit)) * 1000;
     } else {
       pr.chase = 0;
       pr.chaseUntil = 0;
@@ -650,7 +652,7 @@ export class CavernsMine {
     let bonus: OreItemId | undefined;
     if (perfect && s.glint) {
       const item = MASTERY_ORE[node.kind];
-      if (satchelAdd(kit, item, 1, this.strap(kit)) > 0) bonus = item;
+      if (satchelAdd(kit, item, 1 + glintBonus(kit), this.strap(kit)) > 0) bonus = item;
       s.glint = false;
     }
     const from = s.weak;
@@ -667,6 +669,8 @@ export class CavernsMine {
       const who = this.host.player(id);
       if (who) who.actionProgress = Math.round(frac * 20) / 20;
     });
+    // (attunement and the Prospector's trials: shared/gear.ts)
+    this.host.deed(sessionId, { kind: "strike", landed: j.verdict === "direct" || j.verdict === "near", chase: pr.chase, streak: run.n, glint: !!bonus });
     if (s.dmg >= info.hp) this.shatter(node, s, sessionId, j.verdict === "direct", perfect);
     this.sync();
   }
@@ -698,7 +702,7 @@ export class CavernsMine {
       const kit = this.host.profile(id);
       const who = this.host.player(id);
       if (!kit || !who || !who.connected) continue;
-      const raw = rollYield(node.kind, kit.pickaxeId, Math.random, geodeFind(kit.worn));
+      const raw = rollYield(node.kind, kit.pickaxeId, Math.random, geodeFind(kit));
       // (their mastery of this kind: a chance of one more of its ore; the Monolith awake: a second core)
       const rankWas = masteryRank(node.kind, kit.mined[node.kind] ?? 0);
       if (Math.random() < rankWas * MASTERY_EXTRA) raw[MASTERY_ORE[node.kind]] = (raw[MASTERY_ORE[node.kind]] ?? 0) + 1;
@@ -709,7 +713,7 @@ export class CavernsMine {
       const streak = this.streak(id, now).n;
       // (broken with a Perfect: a Clean Break, the breaker's haul a quarter bigger)
       const clean = id === breaker && cleanBlow;
-      const share = mult * (double ? 2 : 1) * streakBonus(streak) * (clean ? CLEAN_BREAK_BONUS : 1);
+      const share = mult * (double ? 2 : 1) * streakBonus(streak) * (clean ? cleanBreakBonus(kit, CLEAN_BREAK_BONUS) : 1);
       const items: Partial<Record<OreItemId, number>> = {};
       let lost = 0;
       for (const [item, n] of Object.entries(raw) as [OreItemId, number][]) {
@@ -719,7 +723,8 @@ export class CavernsMine {
         lost += want - got;
       }
       // a silver seam's stone dust: into the materials' store
-      const dust = addMaterial(kit, "stoneDust", scaleCount(rollDust(node.kind), mult * (double ? 2 : 1)));
+      const dust = addMaterial(kit, "stoneDust", scaleCount(rollDust(node.kind), mult * (double ? 2 : 1) * dustYield(kit)));
+      this.host.deed(id, { kind: "broke", ore: node.kind, clean, motherlode: lode });
       kit.mined[node.kind] = Math.min(999_999, (kit.mined[node.kind] ?? 0) + 1);
       if (lode) kit.ledger.lodes += 1;
       const rankNow = masteryRank(node.kind, kit.mined[node.kind]!);
@@ -771,7 +776,6 @@ export class CavernsMine {
       }
       return this.reply(sessionId, n > 0, n > 0 ? `${n} ingot${n > 1 ? "s" : ""} off the forge's tray, into your satchel` : "No room in your satchel for the tray's ingots");
     }
-    if (packet.op === "relic") return this.forgeRelic(sessionId, kit, packet.relic);
     if (packet.op === "tool") return this.forgeTool(sessionId, kit, player.coins, packet.tool);
     if (packet.op === "start") return this.startForge(sessionId, kit, packet.ingot, packet.batch);
     if (packet.op !== "smelt" || !isIngotId(packet.ingot)) return;
@@ -875,26 +879,6 @@ export class CavernsMine {
     }
     this.host.saveProfile(sessionId);
     if (word) this.host.sendTo(sessionId, "campfireNotice", { message: word, emoji: "🔥" });
-  }
-
-  /** A mining relic forged (once each): its makings out of the satchel and the materials' store, and
-   *  on it goes. */
-  private forgeRelic(sessionId: string, kit: FishingProfile, relic: unknown) {
-    if (!isMiningRelicId(relic)) return;
-    const g = GEAR[relic];
-    if (kit.gear.includes(relic)) return this.reply(sessionId, false, `You've forged your ${g.name} already: wear it from the satchel drawer's gear tab`);
-    const need = FORGE_RELICS[relic];
-    const missing: string[] = [];
-    for (const [id, n] of Object.entries(need.ore) as [OreItemId, number][]) if (satchelCountFor(kit, id) < n) missing.push(`${n - satchelCountFor(kit, id)} ${ORE_ITEMS[id].name}`);
-    if (materialCount(kit, "stoneDust") < need.dust) missing.push(`${need.dust - materialCount(kit, "stoneDust")} Fine Stone Dust`);
-    if (missing.length) return this.reply(sessionId, false, `The ${g.name} takes ${missing.join(", ")} more`);
-    for (const [id, n] of Object.entries(need.ore) as [OreItemId, number][]) satchelTakeFor(kit, id, n);
-    takeMaterial(kit, "stoneDust", need.dust);
-    kit.gear.push(relic);
-    kit.worn = wearGear(kit.worn, relic).worn;
-    this.host.gesture(sessionId, "mine");
-    this.host.emote(sessionId, g.emoji);
-    this.reply(sessionId, true, `${g.emoji} Your ${g.name}, fresh off the anvil, and on it goes! ${g.blurb}`);
   }
 
   /** An Expedition (T5) tool or store forged (shared/expedition.ts: once each, the storage tiers in
@@ -1211,9 +1195,12 @@ export class CavernsMine {
     const run = priceRun(goods, oreGood, (id, mult) => Math.max(1, Math.round(ORE_ITEMS[id].price * mult)), this.host.market());
     this.host.setMarket(run.after);
     for (const [id, n] of lots) satchelTake(kit, id, n);
-    this.host.addCoins(sessionId, run.total);
-    this.host.emote(sessionId, run.total >= 100 ? "💰" : "🪙");
-    this.reply(sessionId, true, `${what}? A fine haul! Here's ${run.total.toLocaleString("en-US")} 🪙`, run.total);
+    // (the Trader's Mitts: a little more on the lot; the trade's deed: the Wayfarer's trials)
+    const paid = Math.round(run.total * sellBonus(kit));
+    this.host.deed(sessionId, { kind: "sale", counter: 2, keeper: 5, masterwork: lots.some(([id]) => isMasterwork(id)) });
+    this.host.addCoins(sessionId, paid);
+    this.host.emote(sessionId, paid >= 100 ? "💰" : "🪙");
+    this.reply(sessionId, true, `${what}? A fine haul! Here's ${paid.toLocaleString("en-US")} 🪙`, paid);
   }
 
   /** The satchel drawer's quick actions, anywhere in the caverns: Quick Smelt All goes to the forge,
@@ -1460,6 +1447,7 @@ export class CavernsMine {
     if (paid && goals.every((g) => kit.weekly.done.includes(g.id)) && !kit.weekly.done.includes("bonus")) {
       kit.weekly.done.push("bonus");
       this.host.addCoins(sessionId, WEEKLY_BONUS);
+      this.host.deed(sessionId, { kind: "weekly" });
       this.host.sendTo(sessionId, "campfireNotice", { message: `All three of this week's orders met: Gus pays a bonus of ${WEEKLY_BONUS} coins!`, emoji: "📋" });
       this.host.emote(sessionId, "🎉");
     }

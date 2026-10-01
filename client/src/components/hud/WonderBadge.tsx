@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { isCampMap, parseWorldEvent, type MapId } from "@shared/types";
 import { COLOSSAL, isColossalKind } from "@shared/chop";
-import { hasCompass, type GearId } from "@shared/gear";
+import { NO_GEAR, hasCompass, type Loadout } from "@shared/gear";
 import { FELL_TREE_AT } from "@shared/worlds/trees";
 import { cameraFocus } from "../../scene/cameraFocus";
 import { worldToScreen } from "../../systems/input";
@@ -15,13 +15,13 @@ import { worldToScreen } from "../../systems/input";
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-export function WonderBadge({ worldEvent, incenseUntil, currentMap, worn = [] }: { worldEvent: string; incenseUntil: number; currentMap: MapId; worn?: GearId[] }) {
+export function WonderBadge({ worldEvent, incenseUntil, currentMap, gear = NO_GEAR }: { worldEvent: string; incenseUntil: number; currentMap: MapId; /** What is worn (the Forester's whole set shows a Colossal's way). */ gear?: Loadout }) {
   const ev = useMemo(() => parseWorldEvent(worldEvent), [worldEvent]);
   // a tick a second while anything is on (the clocks themselves are read as it renders)
   const [, tick] = useState(0);
   const incenseOn = incenseUntil > Date.now();
   // (the compass's arrow follows you: four times a second while it points)
-  const compassTree = ev?.kind === "titan" && hasCompass(worn) ? FELL_TREE_AT.get(ev.id) : undefined;
+  const compassTree = ev?.kind === "titan" && hasCompass(gear) ? FELL_TREE_AT.get(ev.id) : undefined;
   const pointing = !!compassTree && currentMap === compassTree.map;
   useEffect(() => {
     if (!ev && !incenseOn) return;

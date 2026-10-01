@@ -121,7 +121,8 @@ test("the cheaper satchels pay their owners the difference (shared/migrate.ts v6
   assert.equal(sanitizeFishingProfile({ v: 5, satchelTier: 5 }).owed, 300 + 1900 + 5250 + 16250);
   assert.equal(sanitizeFishingProfile({ v: 5 }).owed, 0);
   assert.equal(sanitizeFishingProfile({ v: 5 }).mail.length, 0);
-  assert.equal(p.mail.length, 1);
+  // (the tool ladder's letter, and the accessories' after it)
+  assert.equal(p.mail.length, 2);
 });
 
 test("each map's keepers pay in full only for what they can afford (docs/economy-plan.md section 7)", () => {

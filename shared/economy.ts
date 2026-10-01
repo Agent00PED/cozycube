@@ -205,7 +205,7 @@ export const RAPIDS_LUCK = 0.35;
 export const ADVANCED_BENCH_MASTER = 0.08;
 /** The accessories (shared/gear.ts): the woodcutter's at Buster's (T1-T3) and Bramble's (T1-T5),
  *  the angler's at Barnaby's (T1-T3) and Finley's (T1-T5). */
-export const GEAR_PRICES = {
+export const PRE_PHASE4_GEAR: Record<string, number> = {
   deerskin_gloves: 450,
   titan_gauntlets: 2200,
   forester_belt: 650,
@@ -218,7 +218,7 @@ export const GEAR_PRICES = {
   moonlit_ring: 850,
   golden_scale_ring: 1500,
   lucky_bell: 1900,
-} as const;
+};
 /** The gear retired with the slot system: what each sold for, paid back to whoever owned it (the
  *  Deerskin Grip Gloves carry over as the Deerskin Felling Gloves). */
 export const RETIRED_GEAR_PRICES: Record<string, number> = { canvas_gloves: 120, traction_boots: 260, leather_apron: 420 };

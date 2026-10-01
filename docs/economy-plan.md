@@ -223,6 +223,28 @@ ceilings give each map's keeper a place, they are not a tax.
 
 ## 9. Accessories, rebuilt from nothing
 
+**Built, part one (phase 4a, 2026-10-02):** the sixteen pieces of section 9a, their five ranks and
+second traits, the set bonuses, attunement, the trials, the rank requirements and their places, the
+counters' Gear tabs, and the refund of all 21 old pieces (profile v7). What changed from the first
+pass as it was built:
+
+- **Attunement is seconds of active play**, not points by tier: each deed adds the time since the
+  craft's last deed (45 s at most), so the hours of section 9b hold at every tier without tuning.
+- **Trials are per family and rank**, passed with any piece of the family on, and kept: a piece
+  bought late does not repeat them. Where the first pass named something only the client knows (the
+  tension never in the red, a Snap Shield not spent), the skill trial uses what the server judges
+  (eight fish in a row with none lost; three boss fish in a row).
+- **Rank materials by family** (not one list for all): each rank asks its own craft's makings and
+  one other craft's, and a pure angler is never asked for Maple.
+- **The Trader's Mitts' bonus** is applied to a sale's total (1% on a 2-coin log would round away).
+- **The Heartwood Compass's pointer** to a Colossal lives on as part of the Forester's four-piece
+  bonus.
+- **Four slots for now** (hands, waist, charm, back): the two finger slots return with the rings.
+
+**Still to build:** the rings (part two) and the back pieces drawn on the avatar (part three). The
+gear's effect on income has not been run through the simulator yet: the two direct earners are the
+Trader's Mitts (+5% of every sale at rank 5) and the Creel Pack (fish 20% heavier at rank 5).
+
 All 21 current pieces go (12 from the shops, 5 from the bench, 4 from the forge): each owner is
 paid back what it cost in coins and materials (the game already does this for retired gear).
 
@@ -395,7 +417,7 @@ selling raw, and never by enough to be the only thing worth doing.
 | 1 | **Done.** Base prices and rod odds (wood, fish, ore, cave fish), section 5 | every step within 20% of its target, the three crafts within 20% of each other |
 | 2 | **Done** (T2-T5; T6-T7 wait for the beach). Tools and storage: prices, materials, the forge's recipes; shop stock by map; birch at the campfire | the ladder's hours match section 6 |
 | 3 | **Done.** Keepers' buying ceilings; the Expedition Licence | |
-| 4 | Accessories: the old ones paid back, the six slots, the four families, sets | |
+| 4 | **Part one done** (the pieces, ranks, sets, trials, the refund). Still: the rings; the back pieces drawn on the avatar | |
 | 5 | Crafted goods; the two map outfits | |
 
 Each phase ships on its own with its tests, a profile migration where it touches what players own

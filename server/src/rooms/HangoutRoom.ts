@@ -11,7 +11,55 @@ import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
 import { ADHESIVES, BUFFS, CRAFTS, INCENSE_LUCK, SCENT_BITE_S, SMORE_PACE, WAX_GOLD, INCENSE_MS, RESIN_PRICE, SAWDUST_FUEL, TORCH_NIGHT_PACE, SAP_SLOW, CHUM_HASTE, CHUM_LUCK, FLOAT_HASTE, SINKER_ZONE, SILK_TENSION, PITCH_LOG, GLOWBAIT_LUCK, canCraft, craftOdds, craftSalePrice, craftSalvage, isAdhesive, isCraftId, isCraftMode, needsList, rollCraft, tradeInValue, type CraftId } from "../../../shared/crafting";
 import { refundMaterials } from "../../../shared/migrate";
-import { DRYAD_GROWTH, GEAR, LUCKY_BELL_KING, LUCKY_BELL_WARN_S, baitSaveChance, biteHaste, bonusLogChance, byproductBonus, dryadChance, feltRingSlow, goldBonus, goldStarBonus, hasCompass, hasLuckyBell, heftBonus, isGearId, missDeepens, nightRareLuck, quickRegrow, splitSlow, splitYield, wearGear, giantGrip, type GearId } from "../../../shared/gear";
+import {
+  DRYAD_GROWTH,
+  FAMILY,
+  GEAR,
+  GEAR_PRICE,
+  LUCKY_BELL_KING,
+  LUCKY_BELL_WARN_S,
+  NO_GEAR,
+  PLACE_LABEL,
+  baitSaveChance,
+  biteHaste,
+  bonusLogChance,
+  bossTelegraphBonus,
+  buffStretch,
+  byproductBonus,
+  colossalShare,
+  consumableSave,
+  dryadChance,
+  feltRingSlow,
+  gearOfFamily,
+  gearPace,
+  gearRareLuck,
+  goldBonus,
+  goldStarBonus,
+  hasCompass,
+  hasLuckyBell,
+  heftBonus,
+  isGearId,
+  missDeepensOnce,
+  newGearRun,
+  noCeiling,
+  ownedRank,
+  placeDoes,
+  quickRegrow,
+  rankLacks,
+  rankStep,
+  reportDeed,
+  sellBonus,
+  splitYield,
+  stashBonus,
+  tensionWindowBonus,
+  trialWords,
+  wearGear,
+  type Deed,
+  type GearFamily,
+  type GearId,
+  type GearPlace,
+  type GearRun,
+} from "../../../shared/gear";
 import { AXES, woodPrice, nextCarrierTier, WOOD, isAxeId, isWoodKind, addLogs, takeLogs, woodAverage, logMultiplier, rollFellSwing, judgeFell, rollTreeScale, rollTreeRounds, trunkCm, FELL_CRIT_CHANCE, FELL_CRIT_COINS, FELL_ROUND_PAUSE_S, KNOT_RECOVER_S, TITAN, COLOSSAL, colossalLogMult, isColossalKind, rollColossal, splitShares, LEVER_SHARE, FISH_BONE_CHANCE, PRISM_SCALE_CHANCE, type ColossalKind, type FellSwing, type FellVerdict, type TreeKind } from "../../../shared/chop";
 import {
   BAITS,
@@ -59,7 +107,7 @@ import { isCampDay } from "../../../shared/daynight";
 import { BYPRODUCTS, BYPRODUCT_IDS, FIREWOOD_FUEL, TREES, WOOD_KINDS, isByproductId, regrowth, treeStage, type TreeStage, type WoodKind } from "../../../shared/chop";
 import { FELL_TREES, FELL_TREE_AT, fellReach, fellTreeOf, type FellTree } from "../../../shared/worlds/trees";
 import { FULL_PRICE_AT, fishRate, woodRate } from "../../../shared/keepers";
-import { FORGED_TIER, SHOP_TIER_CAP } from "../../../shared/expedition";
+import { FORGED_TIER, SHOP_TIER_CAP, makingsMissing, spendMakings } from "../../../shared/expedition";
 import { ADVANCED_BENCH_MASTER, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, EAGLE_EYE_MS, EAGLE_EYE_ZONE, FIREWOOD_PER_COIN, firewoodCoins, GOLDEN_ACORN_COINS, MAX_DAY_PERMITS, PERMIT_PRICES, RAPIDS_LUCK, SLINGSHOT_PAID_ROUNDS_PER_HOUR, SLINGSHOT_PRIZES } from "../../../shared/economy";
 import { SLING_ROUND_S, playSlingshot, slingPrize, validSlingShots } from "../../../shared/slingshot";
 import {
@@ -282,7 +330,7 @@ import { CasinoFloor, RouletteSchema } from "./casino";
 import { BoutSchema, BoxingRing } from "./boxing";
 import { CavernsMine } from "./caverns";
 import { CAVERNS_CHANNELS, WARMTH_PACE, WARMTH_STAMINA, parseOres, type ForgePacket, type GeodePacket, type GusPacket, type OnsenPacket, type ProspectPacket, type SatchelPacket, type ShoreCastPacket, type StrikePacket, type CodexPacket } from "../../../shared/caverns_mining";
-import { FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, THERMAL_SEAT_IDS, orePropId, shoreCast, HEARTH_SEAT_IDS, streamCast, inStreamWater } from "../../../shared/worlds/caverns";
+import { FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, THERMAL_SEAT_IDS, orePropId, shoreCast, HEARTH_SEAT_IDS, streamCast, inStreamWater } from "../../../shared/worlds/caverns";
 import { CAVE_TACKLES, DRIP_ZONE, GLOW_LURE_GRACE_S, GLOW_LURE_HASTE, SPINNER_LUCK, SWIVEL_WINDOW_S, isCaveTackleId } from "../../../shared/caverns_fishing";
 import { satchelCountFor, satchelTakeFor } from "../../../shared/satchel";
 import { ORE_ITEMS, type OreItemId } from "../../../shared/caverns_mining";
@@ -749,6 +797,7 @@ export class HangoutRoom extends Room<HangoutState> {
       player: (sessionId) => this.state.players.get(sessionId),
       sessions: () => [...this.state.players.keys()],
       profile: (sessionId) => this.records.get(sessionId)?.fishing,
+      deed: (sessionId, deed) => this.deed(sessionId, deed),
       saveProfile: (sessionId) => {
         const player = this.state.players.get(sessionId);
         if (player) this.saveFishing(sessionId, player);
@@ -1932,7 +1981,7 @@ export class HangoutRoom extends Room<HangoutState> {
         if (progress !== player.actionProgress) player.actionProgress = progress;
         if (now >= at) {
           const species = this.pendingFish.get(sessionId)?.species ?? rollRiverFish(this.waterOf(player.map), { afk: true });
-          const worn = this.records.get(sessionId)?.fishing.worn ?? [];
+          const worn = this.records.get(sessionId)?.fishing ?? NO_GEAR;
           // an AFK line never lands a mythic: should one bite, the line snaps
           if (FISH[species].tier === "mythic") this.sendTo(sessionId, "campfireNotice", { message: "The line snapped and the colossal fish escaped", emoji: "💥" });
           else this.landFish(sessionId, player, rollCatch(species, { afk: true, goldStar: goldStarBonus(worn), heft: heftBonus(worn) }), true, 0);
@@ -2563,11 +2612,11 @@ export class HangoutRoom extends Room<HangoutState> {
       return;
     }
     // the Dryad's Sprout Amulet: now and then the tree grows as you set your axe to it (once a growth)
-    if (!node.titan && tree.dmg === 0 && !tree.grown && Math.random() < dryadChance(profile.worn)) {
+    if (!node.titan && tree.dmg === 0 && !tree.grown && Math.random() < dryadChance(profile)) {
       tree.grown = true;
       tree.scale = Math.round((tree.scale + DRYAD_GROWTH) * 100) / 100;
       this.syncTrees();
-      client.send("campfireNotice", { message: `🌱 Your Dryad's Sprout Amulet glows: the ${name} grows before your eyes (now ${tree.scale.toFixed(2)}x)`, emoji: "🌱" });
+      client.send("campfireNotice", { message: `🌱 Your Dryad's Sprout glows: the ${name} grows before your eyes (now ${tree.scale.toFixed(2)}x)`, emoji: "🌱" });
     }
     player.action = "chop";
     player.actionProgress = tree.dmg / tree.rounds;
@@ -2582,7 +2631,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (!tree) return;
     const profile = this.records.get(client.sessionId)?.fishing;
     const eagle = (profile?.eagleUntil ?? 0) > Date.now() ? EAGLE_EYE_ZONE : 0;
-    const worn = profile?.worn ?? [];
+    const worn = profile ?? NO_GEAR;
     // (Amber Grip Wax: the gold 20% bigger a while; Silverwood Sap Ointment: the ring slower; a T5 axe
     // or the Wedge & Mallet Kit: the Wood Knots bitten straight through)
     const wax = profile && buffOn(profile, "wax") ? WAX_GOLD - 1 : 0;
@@ -2610,10 +2659,13 @@ export class HangoutRoom extends Room<HangoutState> {
     let drop: FellDrop = { kind: "none", name: "", emoji: "", count: 0 };
     let felled = false;
     let capped = false;
-    // the Titan-Grip Gauntlets: a miss still deepens the notch (but drops nothing; a knot's glance
-    // never does)
-    const grip = verdict === "miss" && missDeepens(profile.worn);
+    // (attunement and the Forester's trials: shared/gear.ts)
+    this.deed(sessionId, { kind: "swing", tree: node.id, verdict });
+    // the Forester's two pieces: once a tree, a miss still deepens the notch (but drops nothing; a
+    // knot's glance never does)
+    const grip = verdict === "miss" && missDeepensOnce(profile) && this.gripUsed.get(sessionId) !== node.id;
     if (grip) {
+      this.gripUsed.set(sessionId, node.id);
       tree.dmg = Math.min(tree.rounds, tree.dmg + 1);
       felled = tree.dmg >= tree.rounds;
     }
@@ -2622,11 +2674,9 @@ export class HangoutRoom extends Room<HangoutState> {
     if (node.titan && (grip || verdict === "gold" || verdict === "hit")) {
       const shares = (tree.shares ??= new Map());
       const mine = shares.get(sessionId) ?? { w: 0, name: player.username };
-      mine.w += profile.tools.includes("titan_lever") ? LEVER_SHARE : 1;
+      mine.w += (profile.tools.includes("titan_lever") ? LEVER_SHARE : 1) * colossalShare(profile);
       shares.set(sessionId, mine);
     }
-    // the Ancient Ring of Oak: a tree struck gold grows back sooner
-    if (verdict === "gold" && quickRegrow(profile.worn) > 0) tree.quick = true;
     if (verdict !== "miss") {
       tree.dmg = Math.min(tree.rounds, tree.dmg + 1);
       if (verdict === "gold" && Math.random() < FELL_CRIT_CHANCE) {
@@ -2704,11 +2754,11 @@ export class HangoutRoom extends Room<HangoutState> {
     if (room > 0 && Math.random() < logChance) {
       const mult = logMultiplier(scale);
       // the Deerskin Felling Gloves: now and then a second log off the same round
-      const n = room > 1 && Math.random() < bonusLogChance(profile.worn) ? 2 : 1;
+      const n = room > 1 && Math.random() < bonusLogChance(profile) ? 2 : 1;
       addLogs(profile, info.wood, n, mult);
       const drop: FellDrop = { kind: "log", name: WOOD[info.wood].name, emoji: WOOD[info.wood].emoji, wood: info.wood, mult: Math.round(mult * 100) / 100, count: n };
       // the Amber Resin Band (and the Amber Bark Bangle): the tree's by-product too, now and then
-      if (info.byproduct && Math.random() < byproductBonus(profile.worn)) {
+      if (info.byproduct && Math.random() < byproductBonus(profile)) {
         const extra = pouch(info.byproduct);
         if (extra.kind === "byproduct") drop.also = { name: extra.name, emoji: extra.emoji };
       }
@@ -2731,9 +2781,9 @@ export class HangoutRoom extends Room<HangoutState> {
     if (tired) noteFelled(profile, tired, this.guildKey);
     this.toMap(node.map, "treeFelled", { sessionId, tree: node.id, kind: node.kind, scale } satisfies TreeFelled);
     tree.stage = "stump";
-    // (struck gold with the Ancient Ring of Oak: it starts a fifth of the way back already)
-    tree.fellAt = Date.now() - (tree.quick ? 0.2 * TREES[node.kind].respawnS * 1000 : 0);
-    tree.quick = false;
+    // (felled by a Dryad's Sprout's wearer: it starts part of the way back already)
+    tree.fellAt = Date.now() - quickRegrow(profile) * TREES[node.kind].respawnS * 1000;
+    this.deed(sessionId, { kind: "felled", tree: node.id, treeKind: node.kind });
     tree.dmg = 0;
     this.fells.forEach((f, id) => {
       if (f.tree === node.id && id !== sessionId) this.cancelFell(id, this.state.players.get(id));
@@ -2782,6 +2832,7 @@ export class HangoutRoom extends Room<HangoutState> {
       kit.felled[ck] = Math.min(999_999, (kit.felled[ck] ?? 0) + 1);
       kit.trunkRecord[ck] = Math.max(kit.trunkRecord[ck] ?? 0, trunkCm(ck, tree.scale));
       noteFelled(kit, "titan", this.guildKey);
+      this.deed(id, { kind: "colossal" });
       const paid = this.campfirePay(id, who, "chop", FELL_COINS[5] * 2);
       const share: ColossalShare = { kind: ck, name: info.name, logs: got, wood, mult, extra, crew: shares.length, lost: logShares[i] - got };
       if (id === sessionId) mine = { share, wood, mult, logs: got, coins: paid, capped: paid === 0 };
@@ -2915,7 +2966,7 @@ export class HangoutRoom extends Room<HangoutState> {
       this.nextSurgeSpot = this.pickSurgeSpot();
       const where = this.nextSurgeSpot.map === "campfire_night" ? "by the campfire's dock" : "on the Whispering Woods' river";
       this.clients.forEach((c) => {
-        if (hasLuckyBell(this.records.get(c.sessionId)?.fishing.worn ?? [])) c.send("campfireNotice", { message: `Your Lucky Bell is ringing! A King-Size Surge in ${LUCKY_BELL_WARN_S} seconds, ${where}`, emoji: "🔔" });
+        if (hasLuckyBell(this.records.get(c.sessionId)?.fishing ?? NO_GEAR)) c.send("campfireNotice", { message: `Your Lucky Bell is ringing! A King-Size Surge in ${LUCKY_BELL_WARN_S} seconds, ${where}`, emoji: "🔔" });
       });
     }
     if (ev && ev.until > 0 && now > ev.until) {
@@ -2950,7 +3001,7 @@ export class HangoutRoom extends Room<HangoutState> {
       this.broadcast("campfireNotice", { message: `A ${info.name} has risen in a clearing of the Whispering Woods! ${info.blurb}. Fell it together (any axe): the haul is shared by the rounds you land`, emoji: info.emoji });
       // the Heartwood Compass: its wearers hear it rise, and which way
       this.clients.forEach((c) => {
-        if (hasCompass(this.records.get(c.sessionId)?.fishing.worn ?? [])) c.send("compassPulse", { tree, x: at.x, z: at.z, map: "whispering_woods" });
+        if (hasCompass(this.records.get(c.sessionId)?.fishing ?? NO_GEAR)) c.send("compassPulse", { tree, x: at.x, z: at.z, map: "whispering_woods" });
       });
     }
     this.lastWonder = kind;
@@ -2985,7 +3036,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const bob = this.bobberOf(sessionId, player);
     if (!bob || Math.hypot(bob.x - ev.x, bob.z - ev.z) > ev.r + 0.6) return 0;
     // Finley's Lucky Bell: five in ten
-    return hasLuckyBell(this.records.get(sessionId)?.fishing.worn ?? []) ? LUCKY_BELL_KING : SURGE_KING_CHANCE;
+    return hasLuckyBell(this.records.get(sessionId)?.fishing ?? NO_GEAR) ? LUCKY_BELL_KING : SURGE_KING_CHANCE;
   }
 
   /** Where this angler's float is: their spot's (a dock seat, the canoe, a woods spot or seat). */
@@ -3212,7 +3263,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // (a cast landed in the caverns' lucky drip: its reel's green bigger)
     const drip = pending?.drip ? DRIP_ZONE : 1;
     this.pendingFish.delete(sessionId);
-    const worn = this.records.get(sessionId)?.fishing.worn ?? [];
+    const worn = this.records.get(sessionId)?.fishing ?? NO_GEAR;
     const fish = rollCatch(species, { rareLuck: this.catchLuck(sessionId, player).rareLuck, king: this.surgeKing(sessionId, player), goldStar: goldStarBonus(worn), heft: heftBonus(worn) });
     const treasure = Math.random() < TREASURE_CHANCE[FISH[species].tier];
     this.starReels.set(sessionId, { fish, startedAt: Date.now(), treasure });
@@ -3224,7 +3275,6 @@ export class HangoutRoom extends Room<HangoutState> {
     const [lo, hi] = sp.cm;
     const rodId = this.records.get(sessionId)?.fishing.rod ?? "bamboo";
     const boss = BOSS_TIERS.has(sp.tier);
-    const grip = boss ? giantGrip(worn) : { window: 0, zone: 0 };
     const eagle = (this.records.get(sessionId)?.fishing.eagleUntil ?? 0) > Date.now() ? 1.15 : 1;
     // (the Resin-Weighted Sinker: a bigger green; the Braided Silk Line: the tension slower; the finest
     // rods' passive on a boss: its darts slower, its fake runs rarer, a snap forgiven)
@@ -3233,13 +3283,13 @@ export class HangoutRoom extends Room<HangoutState> {
     const silk = kit?.tools.includes("silk_line") ? SILK_TENSION : 0;
     const perk = boss ? (RODS[rodId] as Rod).perk : undefined;
     const reel: StarlightReel = {
-      swim: { speed: sp.speed, size: sp.size, pattern: sp.pattern, barScale: (boss ? (BOSS_ZONE_BY_TIER[sp.tier] ?? 0.65) * (1 + grip.zone) : sp.barScale) * eagle * sinker * drip },
+      swim: { speed: sp.speed, size: sp.size, pattern: sp.pattern, barScale: (boss ? (BOSS_ZONE_BY_TIER[sp.tier] ?? 0.65) : sp.barScale) * eagle * sinker * drip },
       shadow: Math.max(0.1, Math.min(1, Math.sqrt(Math.max(1, fish.cm) / 260) * (0.85 + 0.3 * ((fish.cm - lo) / Math.max(1, hi - lo))))),
       rod: rodId,
       treasure,
-      window: RODS[rodId].tensionWindow + grip.window + (kit?.caveTackles.includes("abyssal_swivel") ? SWIVEL_WINDOW_S : 0),
+      window: RODS[rodId].tensionWindow + tensionWindowBonus(worn) + (kit?.caveTackles.includes("abyssal_swivel") ? SWIVEL_WINDOW_S : 0),
       resist: Math.min(0.8, RODS[rodId].tensionResist + silk),
-      ...(boss ? { boss: true } : {}),
+      ...(boss ? { boss: true, ...(bossTelegraphBonus(worn) ? { tele: bossTelegraphBonus(worn) } : {}) } : {}),
       ...(perk ? { dart: perk.dart, feints: perk.feints, shields: perk.shields, perk: perk.name } : {}),
     };
     this.sendTo(sessionId, "starlightReel", reel);
@@ -3257,7 +3307,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (profile?.bait && (profile.baits[profile.bait] ?? 0) > 0) {
       bait = profile.bait;
       // (the Tackle Master's Holster: a bait lasts a fifth longer, one cast in six on the house)
-      if (consumeBait && Math.random() >= baitSaveChance(profile.worn)) {
+      if (consumeBait && Math.random() >= baitSaveChance(profile)) {
         const left = (profile.baits[bait] ?? 0) - 1;
         if (left > 0) profile.baits[bait] = left;
         else {
@@ -3287,7 +3337,7 @@ export class HangoutRoom extends Room<HangoutState> {
    *  Float, the Glow-Spore Chum, and underground Finnegan's Cenote Glow Lure. */
   private biteHasteOf(profile: FishingProfile | undefined, day: boolean, caverns = false): number {
     if (!profile) return 1;
-    return biteHaste(profile.worn, day) * (profile.tools.includes("otter_float") ? FLOAT_HASTE : 1) * (buffOn(profile, "chum") ? CHUM_HASTE : 1) * (caverns && profile.caveTackles.includes("glow_lure") ? GLOW_LURE_HASTE : 1);
+    return biteHaste(profile) * (profile.tools.includes("otter_float") ? FLOAT_HASTE : 1) * (buffOn(profile, "chum") ? CHUM_HASTE : 1) * (caverns && profile.caveTackles.includes("glow_lure") ? GLOW_LURE_HASTE : 1);
   }
 
   /** What can bite for this angler now: the hour's light (the day's fish or the night's), the
@@ -3310,7 +3360,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const cloud = player.map === "glimmering_caverns" ? this.caverns.cloudLuck() : 0;
     // (a float out on the stream: nothing legendary swims up it)
     const shallow = player.map === "glimmering_caverns" && (player.floatX !== 0 || player.floatZ !== 0) && inStreamWater(player.floatX, player.floatZ);
-    return { rareLuck: aura + (rapids ? RAPIDS_LUCK : 0) + nightRareLuck(profile?.worn ?? [], !day) + incense + chum + glow + spinner + cloud, bait, time: day ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier, ...(shallow ? { shallow } : {}) };
+    return { rareLuck: aura + (rapids ? RAPIDS_LUCK : 0) + gearRareLuck(profile ?? NO_GEAR) + incense + chum + glow + spinner + cloud, bait, time: day ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier, ...(shallow ? { shallow } : {}) };
   }
 
   private creelIsFull(sessionId: string): boolean {
@@ -3380,7 +3430,7 @@ export class HangoutRoom extends Room<HangoutState> {
   private spendAfkBait(sessionId: string, player: Player) {
     const profile = this.records.get(sessionId)?.fishing;
     if (!profile?.bait || !((profile.baits[profile.bait] ?? 0) > 0)) return;
-    if (Math.random() < baitSaveChance(profile.worn)) return;
+    if (Math.random() < baitSaveChance(profile)) return;
     const bait = profile.bait;
     const left = (profile.baits[bait] ?? 0) - 1;
     if (left > 0) profile.baits[bait] = left;
@@ -3401,6 +3451,8 @@ export class HangoutRoom extends Room<HangoutState> {
     const best = profile.records[fish.s] ?? 0;
     if (fish.cm > best) profile.records[fish.s] = fish.cm;
     profile.caught[fish.s] = Math.min(999_999, (profile.caught[fish.s] ?? 0) + 1);
+    // (a hand-reeled catch: attunement and the Angler's trials)
+    if (!afk) this.deed(sessionId, { kind: "catch", tier: FISH[fish.s].tier, stars: fish.q });
     let coins = treasure;
     let released = false;
     // a legendary or a mythic comes up locked: no Sell All takes it by accident
@@ -3574,7 +3626,7 @@ export class HangoutRoom extends Room<HangoutState> {
   /** The block's next swing: a fresh gauge, its clock starting after `pauseS`. */
   private sendSplitSwing(sessionId: string, wood: WoodKind, streak: number, pauseS: number) {
     const profile = this.records.get(sessionId)?.fishing;
-    const swing = rollSplitSwing(streak, Math.random, splitSlow(profile?.worn ?? []) + (profile && buffOn(profile, "sap") ? SAP_SLOW : 0), profile && buffOn(profile, "wax") ? WAX_GOLD : 1);
+    const swing = rollSplitSwing(streak, Math.random, profile && buffOn(profile, "sap") ? SAP_SLOW : 0, profile && buffOn(profile, "wax") ? WAX_GOLD : 1);
     this.splits.set(sessionId, { swing, startedAt: Date.now() + pauseS * 1000, wood, streak });
     this.sendTo(sessionId, "splitSwing", { ...swing, pause: pauseS, wood } satisfies SplitSwingPacket);
   }
@@ -3596,6 +3648,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const said = typeof told === "number" && Number.isFinite(told) ? told : NaN;
     const t = said <= raw + 0.05 && said >= raw - rtt - 0.35 ? said : raw - rtt / 2;
     const verdict = judgeSplit(split.swing, Math.max(0, t));
+    if (verdict !== "miss") this.deed(sessionId, { kind: "split" });
     const first = this.splitKind(profile, split.wood);
     if (!first) {
       this.splits.delete(sessionId);
@@ -3610,7 +3663,7 @@ export class HangoutRoom extends Room<HangoutState> {
       for (let k = this.splitKind(profile, split.wood); k && want > 0; k = this.splitKind(profile, split.wood)) {
         const n = Math.min(want, profile.wood[k] ?? 0);
         // (the Forester's Toolbelt: half as many bundles again)
-        bundles += Math.round(n * WOOD[k].firewood * splitYield(profile.worn));
+        bundles += Math.round(n * WOOD[k].firewood * splitYield(profile));
         takeLogs(profile, k, n);
         logs += n;
         want -= n;
@@ -3650,7 +3703,7 @@ export class HangoutRoom extends Room<HangoutState> {
       if (n <= 0) continue;
       logs += n;
       // (the Forester's Toolbelt: half as many bundles again)
-      bundles += Math.round(n * WOOD[k].firewood * splitYield(profile.worn));
+      bundles += Math.round(n * WOOD[k].firewood * splitYield(profile));
       takeLogs(profile, k, n);
     }
     if (!logs) return reply(false, "No logs in your carrier to split");
@@ -3714,19 +3767,9 @@ export class HangoutRoom extends Room<HangoutState> {
       })
       .join(" + ");
     if (!canCraft(stock, packet.recipe)) return reply(false, `The ${craft.name} takes ${needs}`);
-    // a Passive Relic: carved once, then worn (it goes straight on, like gear bought at a shop)
-    if (craft.use === "relic" && craft.gear) {
-      if (profile.gear.includes(craft.gear)) return reply(false, `You've carved your ${craft.name} already: wear it from the drawers' gear tab`);
-      this.spendCraft(profile, packet.recipe);
-      profile.gear.push(craft.gear);
-      profile.worn = wearGear(profile.worn, craft.gear).worn;
-      this.playGesture(sessionId, "chop");
-      this.nearby(sessionId, "emote", { sessionId, emoji: craft.emoji });
-      return reply(true, `${craft.emoji} Your ${craft.name}, and on it goes! ${GEAR[craft.gear].blurb}`, { outcome: "normal", recipe: packet.recipe });
-    }
     // a consumable: into the stash (as many as it holds), always made right
     if (craft.use === "consumable") {
-      if (!stashFits(profile.crafts, { c: packet.recipe, m: false })) return reply(false, `Your craft stash is full (${CRAFT_STASH_SLOTS} slots): use or sell something first`);
+      if (!stashFits(profile.crafts, { c: packet.recipe, m: false }, stashBonus(profile))) return reply(false, `Your craft stash is full (${CRAFT_STASH_SLOTS} slots): use or sell something first`);
       this.spendCraft(profile, packet.recipe);
       profile.crafts.push({ c: packet.recipe, m: false });
       this.playGesture(sessionId, "chop");
@@ -3743,7 +3786,7 @@ export class HangoutRoom extends Room<HangoutState> {
       return reply(true, `${craft.emoji} Your ${craft.name}! ${craft.description.replace(/^Tackle: /, "")}`, { outcome: "normal", recipe: packet.recipe });
     }
     if (craft.use !== "sell") return reply(false, `The ${craft.name} isn't carved at the bench any more`);
-    if (!stashFits(profile.crafts, { c: packet.recipe, m: false }) || !stashFits(profile.crafts, { c: packet.recipe, m: true })) return reply(false, `Your craft stash is full (${CRAFT_STASH_SLOTS} slots of ${CRAFT_SLOT_STACK}): sell or use something first`);
+    if (!stashFits(profile.crafts, { c: packet.recipe, m: false }, stashBonus(profile)) || !stashFits(profile.crafts, { c: packet.recipe, m: true }, stashBonus(profile))) return reply(false, `Your craft stash is full (${CRAFT_STASH_SLOTS} slots of ${CRAFT_SLOT_STACK}): sell or use something first`);
     if (adhesive && profile.resin < 1 + (craft.needs.resin ?? 0)) return reply(false, "No Pine Resin for the Adhesive Slot: land a gold chop on the meter");
     this.spendCraft(profile, packet.recipe);
     // the Adhesive Slot: the resin is brushed on (and spent) before the carve
@@ -3792,7 +3835,7 @@ export class HangoutRoom extends Room<HangoutState> {
         .join(" + ");
       return reply(false, `The ${craft.name} takes ${needs}`);
     }
-    if (!stashFits(profile.crafts, { c: id, m: false })) return reply(false, `Your craft stash is full (${CRAFT_STASH_SLOTS} slots): use or sell something first`);
+    if (!stashFits(profile.crafts, { c: id, m: false }, stashBonus(profile))) return reply(false, `Your craft stash is full (${CRAFT_STASH_SLOTS} slots): use or sell something first`);
     this.spendCraft(profile, id);
     profile.crafts.push({ c: id, m: false });
     this.nearby(sessionId, "emote", { sessionId, emoji: craft.emoji });
@@ -3807,12 +3850,15 @@ export class HangoutRoom extends Room<HangoutState> {
     if (craft.use !== "consumable" || !craft.buff) return;
     const at = profile.crafts.findIndex((c) => c.c === id);
     if (at < 0) return;
-    profile.crafts.splice(at, 1);
+    // (the Hearth Charm: the buff longer, and now and then the piece is not used up)
+    const kept = Math.random() < consumableSave(profile);
+    if (!kept) profile.crafts.splice(at, 1);
     const buff = BUFFS[craft.buff];
-    profile.buffs[craft.buff] = Date.now() + buff.ms;
+    const ms = buff.ms * buffStretch(profile);
+    profile.buffs[craft.buff] = Date.now() + ms;
     this.saveFishing(sessionId, player);
     this.nearby(sessionId, "emote", { sessionId, emoji: craft.emoji });
-    this.sendTo(sessionId, "campfireNotice", { message: `${buff.name}: ${buff.blurb} for ${buff.ms / 60_000} minutes`, emoji: buff.emoji });
+    this.sendTo(sessionId, "campfireNotice", { message: `${buff.name}: ${buff.blurb} for ${Math.round(ms / 6000) / 10} minutes${kept ? " (your Hearth Charm kept it whole)" : ""}`, emoji: buff.emoji });
   }
 
   /** What a recipe takes, out of the camp profile: its logs (at their average worth), Firewood,
@@ -3867,9 +3913,10 @@ export class HangoutRoom extends Room<HangoutState> {
         const kind = packet.wood;
         const size = woodAverage(profile, kind);
         // (past what this counter can afford, CEILING_RATE of the hour's price: shared/keepers.ts)
-        const rate = woodRate(atBramble ? "woods" : "campfire", kind);
+        const rate = noCeiling(profile) ? 1 : woodRate(atBramble ? "woods" : "campfire", kind);
         const run = priceRun(Array.from({ length: n }, () => kind), woodGood, (k, mult) => Math.max(1, Math.round(woodPrice(k, mult, size) * rate)), this.market());
-        const earned = run.total;
+        const earned = Math.round(run.total * sellBonus(profile));
+        this.deed(sessionId, { kind: "sale", counter: atBramble ? 1 : 0, keeper: atBramble ? 3 : 1, masterwork: false });
         this.state.market = JSON.stringify(run.after);
         profile.bestLog[kind] = Math.max(profile.bestLog[kind] ?? 0, ...run.prices);
         takeLogs(profile, kind, n);
@@ -3880,7 +3927,7 @@ export class HangoutRoom extends Room<HangoutState> {
       case "sellAllWood": {
         if (!near) return tooFar();
         const counter = atBramble ? "woods" : "campfire";
-        const full = WOOD_KINDS.filter((k) => woodRate(counter, k) === 1);
+        const full = WOOD_KINDS.filter((k) => noCeiling(profile) || woodRate(counter, k) === 1);
         const kept = WOOD_KINDS.reduce((n, k) => n + (full.includes(k) ? 0 : (profile.wood[k] ?? 0)), 0);
         const goods = full.flatMap((k) => Array.from({ length: profile.wood[k] ?? 0 }, () => k));
         if (!goods.length) return reply(false, kept ? `Those ${kept} logs are finer than my purse: sell them one kind at a time for what I can pay, or take them to ${FULL_PRICE_AT.wood.campfire}` : "Your carrier's empty of logs!");
@@ -3891,9 +3938,11 @@ export class HangoutRoom extends Room<HangoutState> {
           profile.bestLog[k] = Math.max(profile.bestLog[k] ?? 0, run.prices[i]);
         });
         for (const k of full) takeLogs(profile, k, profile.wood[k] ?? 0);
-        this.addCoins(player, run.total);
-        this.nearby(sessionId, "emote", { sessionId, emoji: run.total >= 100 ? "💰" : "🪙" });
-        return reply(true, `${goods.length} logs, the lot! Here's ${run.total} 🪙${kept ? ` (your ${kept} finer logs stay with you: ${FULL_PRICE_AT.wood.campfire} pays in full)` : ""}`, run.total);
+        const paid = Math.round(run.total * sellBonus(profile));
+        this.deed(sessionId, { kind: "sale", counter: atBramble ? 1 : 0, keeper: atBramble ? 3 : 1, masterwork: false });
+        this.addCoins(player, paid);
+        this.nearby(sessionId, "emote", { sessionId, emoji: paid >= 100 ? "💰" : "🪙" });
+        return reply(true, `${goods.length} logs, the lot! Here's ${paid} 🪙${kept ? ` (your ${kept} finer logs stay with you: ${FULL_PRICE_AT.wood.campfire} pays in full)` : ""}`, paid);
       }
       case "buyPermit": {
         // Buster's permits (at his stall, or at the archway into the woods)
@@ -3944,14 +3993,6 @@ export class HangoutRoom extends Room<HangoutState> {
         this.addCoins(player, -next.price);
         profile.carrierTier += 1;
         return reply(true, `${next.icon} The ${next.name}: room for ${next.capacity}!`, -next.price);
-      }
-      case "buyGear": {
-        if (!isGearId(packet.gear)) return;
-        if (!near) return tooFar();
-        const gear = GEAR[packet.gear];
-        if (gear.craft !== "wood") return reply(false, `${theGear(gear.name)}? That's angling kit: ask Barnaby or Finley`);
-        if (!atBramble && gear.tier >= 4) return reply(false, `${theGear(gear.name)} comes from Bramble's cabin in the Whispering Woods`);
-        return this.buyGear(sessionId, player, profile, packet.gear, reply);
       }
       case "sellByproducts": {
         // the felling's by-products, at their flat prices (one kind, or every pouch)
@@ -4009,19 +4050,6 @@ export class HangoutRoom extends Room<HangoutState> {
         this.nearby(sessionId, "emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
         return reply(true, picked.length > 1 ? `${picked.length} pieces from the old bench, traded in at full price: ${earned} 🪙` : `Your ${first.m ? "Masterwork " : ""}${CRAFTS[first.c].name}, traded in at full price: ${earned} 🪙`, earned);
       }
-      case "tradeInRelic": {
-        // a legacy relic (the Otter-Carved Hook Charm, the Amber Bark Bangle): taken off and its
-        // materials given back, in full
-        if (!near) return tooFar();
-        if (!isGearId(packet.gear) || !GEAR[packet.gear].legacy || !profile.gear.includes(packet.gear)) return reply(false, "That's no relic from the old workbench");
-        const id = packet.gear;
-        const recipe = (Object.keys(CRAFTS) as CraftId[]).find((c) => CRAFTS[c].gear === id);
-        profile.gear = profile.gear.filter((g) => g !== id);
-        profile.worn = profile.worn.filter((g) => g !== id);
-        const back = recipe ? refundMaterials(profile, CRAFTS[recipe].needs) : "";
-        this.nearby(sessionId, "emote", { sessionId, emoji: GEAR[id].emoji });
-        return reply(true, `Your ${GEAR[id].name}, traded in: ${back || "its materials"} back, in full`);
-      }
       case "sellCraft": {
         if (!near) return tooFar();
         // (the consumables aren't for sale: they're for using; a legacy piece is traded in)
@@ -4029,7 +4057,8 @@ export class HangoutRoom extends Room<HangoutState> {
         const picked = packet.slot === "all" ? profile.crafts.map((_, k) => k).filter(sellable) : [Math.floor(Number(packet.slot))].filter(sellable);
         if (!picked.length) return reply(false, "No carved pieces to sell yet: try the workbench!");
         const run = priceRun(picked.map((k) => profile.crafts[k]), (item) => craftGood(item.c), (item, mult) => craftSalePrice(item, mult), this.market());
-        const earned = run.total;
+        const earned = Math.round(run.total * sellBonus(profile));
+        this.deed(sessionId, { kind: "sale", counter: atBramble ? 1 : 0, keeper: atBramble ? 3 : 1, masterwork: picked.some((k) => profile.crafts[k].m) });
         this.state.market = JSON.stringify(run.after);
         const first = profile.crafts[picked[0]];
         profile.crafts = profile.crafts.filter((_, k) => !picked.includes(k));
@@ -4040,38 +4069,95 @@ export class HangoutRoom extends Room<HangoutState> {
     }
   }
 
-  /** A piece of gear bought (the shop has already checked it sells it): paid for, owned for good, and
-   *  worn at once (whatever it displaces comes off, still owned). */
-  private buyGear(sessionId: string, player: Player, profile: FishingProfile, id: GearId, reply: (ok: boolean, message: string, coins?: number) => void) {
-    const gear = GEAR[id];
-    if (profile.gear.includes(id)) return reply(false, `You've already got ${theGear(gear.name, false)}!`);
-    if (player.coins < gear.price) return reply(false, `${theGear(gear.name)} is ${gear.price.toLocaleString("en-US")} 🪙`);
-    this.addCoins(player, -gear.price);
-    profile.gear.push(id);
-    const { worn, removed } = wearGear(profile.worn, id);
-    profile.worn = worn;
-    this.nearby(sessionId, "emote", { sessionId, emoji: gear.emoji });
-    const off = removed.length ? ` (took off ${removed.map((r) => theGear(GEAR[r].name, false)).join(" and ")})` : "";
-    return reply(true, `${gear.emoji} ${theGear(gear.name)}, on and working${off}! ${gear.blurb}`, -gear.price);
+  /** A countable act (shared/gear.ts reportDeed): the worn pieces' attunement, the session's runs, the
+   *  ledger, and a toast for every trial it passes. */
+  deed(sessionId: string, deed: Deed) {
+    const profile = this.records.get(sessionId)?.fishing;
+    if (!profile) return;
+    let run = this.gearRuns.get(sessionId);
+    if (!run) this.gearRuns.set(sessionId, (run = newGearRun()));
+    for (const key of reportDeed(profile, run, deed, Date.now())) {
+      this.sendTo(sessionId, "campfireNotice", { message: trialWords(key), emoji: "🏅" });
+      this.nearby(sessionId, "emote", { sessionId, emoji: "🏅" });
+    }
   }
 
-  /** Putting on or taking off a piece of gear you own (anywhere: the drawers' gear tabs). */
+  /** Where the player stands, for the gear's work (shared/gear.ts GearPlace): each place in reach and
+   *  the families it works on (a keeper their own craft's and the Wayfarer's; the woods' workbench and
+   *  the forge every family's; Gus the Prospector's). */
+  private gearPlaces(player: Player): { place: GearPlace; families: GearFamily[] }[] {
+    const near = (a: { x: number; z: number }, b: { x: number; z: number }, reach: number) => Math.min(Math.hypot(player.x - a.x, player.z - a.z), Math.hypot(player.x - b.x, player.z - b.z)) <= reach;
+    const out: { place: GearPlace; families: GearFamily[] }[] = [];
+    if (player.map === "campfire_night") {
+      if (near(BARNABY_FRONT, CAMPFIRE_LAYOUT.barnaby, BARNABY_REACH + 0.4)) out.push({ place: "campfire", families: ["angler", "wayfarer"] });
+      if (near(BUSTER_FRONT, CAMPFIRE_LAYOUT.buster, BUSTER_REACH + 0.4)) out.push({ place: "campfire", families: ["forester", "wayfarer"] });
+    } else if (player.map === "whispering_woods") {
+      if (near(FINLEY_FRONT, FINLEY_FRONT, FINLEY_REACH + 0.4)) out.push({ place: "woods", families: ["angler", "wayfarer"] });
+      if (near(BRAMBLE_FRONT, BRAMBLE_FRONT, BRAMBLE_REACH + 0.4)) out.push({ place: "woods", families: ["forester", "wayfarer"] });
+      if (near(FOREST_WORKBENCH_FRONT, FOREST_WORKBENCH, WORKBENCH_REACH + 0.5)) out.push({ place: "bench", families: ["angler", "forester", "wayfarer"] });
+    } else if (player.map === "glimmering_caverns") {
+      if (near(FINNEGAN_FRONT, FINNEGAN, FINNEGAN_REACH + 0.4)) out.push({ place: "woods", families: ["angler", "wayfarer"] });
+      if (near(GUS_FRONT, GUS, GUS_REACH + 1.2)) out.push({ place: "gus", families: ["prospector"] });
+      if (near(FORGE_FRONT, FORGE, FORGE_REACH + 0.8)) out.push({ place: "forge", families: ["angler", "forester", "prospector", "wayfarer"] });
+    }
+    return out;
+  }
+
+  /** The gear (shared/gear.ts), from the drawers and the counters: a piece put on or taken off, or a
+   *  family's whole set put on (anywhere); a piece bought at rank 1, or raised a rank, where that work
+   *  is done (its attunement, its trial, its makings and its fee all there). */
   private handleGear(sessionId: string, player: Player, packet: Extract<CampfirePacket, { type: "GEAR" }>) {
     const profile = this.records.get(sessionId)?.fishing;
-    if (!profile || !isGearId(packet.gear) || !profile.gear.includes(packet.gear)) return;
-    const gear = GEAR[packet.gear];
-    if (packet.op === "unequip") {
-      if (!profile.worn.includes(packet.gear)) return;
-      profile.worn = profile.worn.filter((g) => g !== packet.gear);
+    if (!profile) return;
+    const say = (message: string, emoji = "🧿") => this.sendTo(sessionId, "campfireNotice", { message, emoji });
+    if (packet.op === "set") {
+      const mine = gearOfFamily(packet.family).filter((id) => profile.gear.includes(id));
+      if (!FAMILY[packet.family] || !mine.length) return;
+      for (const id of mine) profile.worn = wearGear(profile.worn, id).worn;
       this.saveFishing(sessionId, player);
-      this.sendTo(sessionId, "campfireNotice", { message: `Took off ${theGear(gear.name, false)}`, emoji: gear.emoji });
-      return;
+      return say(`The ${FAMILY[packet.family].name}'s set on (${mine.length} piece${mine.length > 1 ? "s" : ""})`, FAMILY[packet.family].emoji);
     }
-    const { worn, removed } = wearGear(profile.worn, packet.gear);
+    if (!isGearId(packet.gear)) return;
+    const id = packet.gear;
+    const gear = GEAR[id];
+    if (packet.op === "buy" || packet.op === "raise") {
+      const rank = ownedRank(profile, id);
+      if (packet.op === "buy" ? rank > 0 : rank === 0) return;
+      const { step, lacks } = rankLacks(profile, id, player.coins);
+      const want = packet.op === "buy" ? rankStep(id, 1) : step;
+      if (!want) return say(`Your ${gear.name} is at its finest already`, gear.emoji);
+      if (!this.gearPlaces(player).some((h) => h.families.includes(gear.family) && placeDoes(h.place, want.place))) return say(`That is work for ${PLACE_LABEL[want.place]}`, gear.emoji);
+      if (packet.op === "buy") {
+        if (player.coins < GEAR_PRICE) return say(`The ${gear.name} is ${GEAR_PRICE} 🪙`, gear.emoji);
+        this.addCoins(player, -GEAR_PRICE);
+        profile.gear.push(id);
+        profile.gearRank[id] = 1;
+        profile.attune[id] = 0;
+      } else {
+        const short = [...lacks, ...makingsMissing(profile, want.needs)];
+        if (short.length) return say(`Your ${gear.name}'s rank ${want.rank} still takes ${short.join(", ")}`, gear.emoji);
+        spendMakings(profile, want.needs);
+        this.addCoins(player, -want.fee);
+        profile.gearRank[id] = want.rank;
+      }
+      const { worn, removed } = wearGear(profile.worn, id);
+      profile.worn = worn;
+      this.saveFishing(sessionId, player);
+      this.nearby(sessionId, "emote", { sessionId, emoji: gear.emoji });
+      const off = removed.length ? ` (took off the ${removed.map((r) => GEAR[r].name).join(" and ")})` : "";
+      return say(packet.op === "buy" ? `The ${gear.name}, on and working${off}: ${gear.main(1)}` : `Your ${gear.name} is rank ${want.rank}: ${gear.main(want.rank)}${want.rank === 3 ? `, and ${gear.trait[0].toLowerCase()}${gear.trait.slice(1)}` : ""}${off}`, gear.emoji);
+    }
+    if (!profile.gear.includes(id)) return;
+    if (packet.op === "unequip") {
+      if (!profile.worn.includes(id)) return;
+      profile.worn = profile.worn.filter((g) => g !== id);
+      this.saveFishing(sessionId, player);
+      return say(`Took off the ${gear.name}`, gear.emoji);
+    }
+    const { worn, removed } = wearGear(profile.worn, id);
     profile.worn = worn;
     this.saveFishing(sessionId, player);
-    const off = removed.length ? `, in place of ${removed.map((r) => theGear(GEAR[r].name, false)).join(" and ")}` : "";
-    this.sendTo(sessionId, "campfireNotice", { message: `${gear.name} on${off}`, emoji: gear.emoji });
+    say(`${gear.name} on${removed.length ? `, in place of the ${removed.map((r) => GEAR[r].name).join(" and ")}` : ""}`, gear.emoji);
   }
 
   /** Barnaby's stall: selling the creel (near him), buying rods, bait and a bigger creel (near him),
@@ -4103,8 +4189,9 @@ export class HangoutRoom extends Room<HangoutState> {
         // (past what this counter can afford, CEILING_RATE of the hour's price, and Sell All passes it
         // by like a locked fish: shared/keepers.ts)
         const counter = atFinnegan ? "caverns" : atFinley ? "woods" : "campfire";
-        const kept = packet.slot === "all" ? profile.creel.filter((f) => !f.l && fishRate(counter, f.s) < 1).length : 0;
-        const picked = packet.slot === "all" ? profile.creel.map((f, k) => (f.l || fishRate(counter, f.s) < 1 ? -1 : k)).filter((k) => k >= 0) : [one].filter((k) => !!profile.creel[k]);
+        const rateOf = (f: CreelFish) => (noCeiling(profile) ? 1 : fishRate(counter, f.s));
+        const kept = packet.slot === "all" ? profile.creel.filter((f) => !f.l && rateOf(f) < 1).length : 0;
+        const picked = packet.slot === "all" ? profile.creel.map((f, k) => (f.l || rateOf(f) < 1 ? -1 : k)).filter((k) => k >= 0) : [one].filter((k) => !!profile.creel[k]);
         if (!picked.length)
           return reply(false, kept ? `Those ${kept} are too fine for my purse: sell them one by one for what I can pay, or take them to ${FULL_PRICE_AT.fish[counter]}` : profile.creel.length ? "Every fish in there is locked: nothing to sell!" : "Your creel's empty! The river's right there 🎣");
         // a roaring fire puts Barnaby in a generous mood (the Cozy Aura: +15%)
@@ -4113,8 +4200,9 @@ export class HangoutRoom extends Room<HangoutState> {
         // one at a time at the hour's price (each sale knocks 2% off the next of its kind); the best
         // price each kind ever fetched goes in the Field Guide
         const fish = picked.map((k) => profile.creel[k]);
-        const run = priceRun(fish, (f) => fishGood(f.s), (f, mult) => Math.max(1, Math.round(fishValue(f, mult) * aura * fishRate(counter, f.s))), this.market());
-        const earned = run.total;
+        const run = priceRun(fish, (f) => fishGood(f.s), (f, mult) => Math.max(1, Math.round(fishValue(f, mult) * aura * rateOf(f))), this.market());
+        const earned = Math.round(run.total * sellBonus(profile));
+        this.deed(sessionId, { kind: "sale", counter: atFinnegan ? 2 : atFinley ? 1 : 0, keeper: atFinnegan ? 4 : atFinley ? 2 : 0, masterwork: false });
         fish.forEach((f, i) => {
           if (run.prices[i] > (profile.best[f.s] ?? 0)) profile.best[f.s] = run.prices[i];
         });
@@ -4123,7 +4211,7 @@ export class HangoutRoom extends Room<HangoutState> {
         this.addCoins(player, earned);
         this.nearby(sessionId, "emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
         const more = kept ? ` (your ${kept} finer fish stay with you: ${FULL_PRICE_AT.fish[counter]} pays in full)` : "";
-        if (picked.length === 1 && fishRate(counter, first.s) < 1) return reply(true, `A ${FISH[first.s].name}! Finer than my purse, friend: ${earned} 🪙 is what I can do (${FULL_PRICE_AT.fish[counter]} pays in full)`, earned);
+        if (picked.length === 1 && rateOf(first) < 1) return reply(true, `A ${FISH[first.s].name}! Finer than my purse, friend: ${earned} 🪙 is what I can do (${FULL_PRICE_AT.fish[counter]} pays in full)`, earned);
         return reply(true, picked.length > 1 ? `${picked.length} fine fish! Here's ${earned} 🪙${more}` : `A lovely ${FISH[first.s].name}! Here's ${earned} 🪙${more}`, earned);
       }
       case "buyRod": {
@@ -4184,14 +4272,6 @@ export class HangoutRoom extends Room<HangoutState> {
         else return;
         return reply(true, profile.bait ? `${BAITS[profile.bait].emoji} ${BAITS[profile.bait].name} on the hook` : "No bait on the hook");
       }
-      case "buyGear": {
-        if (!isGearId(packet.gear)) return;
-        if (!near) return tooFar();
-        const gear = GEAR[packet.gear];
-        if (gear.craft !== "fish") return reply(false, `${theGear(gear.name)}? That's woodcutter's kit: ask Buster or Bramble`);
-        if (!atFinley && gear.tier >= 4) return reply(false, `${theGear(gear.name)} comes from Finley, on his boulder by the woods' river`);
-        return this.buyGear(sessionId, player, profile, packet.gear, reply);
-      }
       case "lockFish": {
         // a favourite: locked, no sale takes it (anywhere: it is your own livewell)
         const slot = Math.floor(Number(packet.slot));
@@ -4230,6 +4310,7 @@ export class HangoutRoom extends Room<HangoutState> {
       const treasure = reel.treasure && openedChest ? this.campfirePay(sessionId, player, "fish", TREASURE_COINS) : 0;
       this.landFish(sessionId, player, reel.fish, false, treasure);
     } else {
+      this.deed(sessionId, { kind: "lost", boss: BOSS_TIERS.has(FISH[reel.fish.s].tier) });
       this.nearby(sessionId, "emote", { sessionId, emoji: "💨" });
       // a catch the server could not accept (reeled in faster than any fish comes in): the reel's
       // panel says it slipped the hook, instead of waiting on a reveal
@@ -4293,7 +4374,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // How far this player could honestly have walked since their last report.
     const now = Date.now();
     const kit = sessionId ? this.records.get(sessionId)?.fishing : undefined;
-    const pace = (player.fed > 0 ? WELL_FED_SPEED : 1) * auraPace(player.aura) * (kit ? torchPace(kit, player.map) * (buffOn(kit, "smore", now) ? SMORE_PACE : 1) * (kit.deepWarmthUntil > now ? WARMTH_PACE : 1) : 1);
+    const pace = (player.fed > 0 ? WELL_FED_SPEED : 1) * auraPace(player.aura) * (kit ? torchPace(kit, player.map) * (buffOn(kit, "smore", now) ? SMORE_PACE : 1) * (kit.deepWarmthUntil > now ? WARMTH_PACE : 1) * gearPace(kit) : 1);
     let allowed = MAX_REPORT_STEP * pace;
     if (sessionId) {
       const last = this.lastReportAt.get(sessionId);
@@ -5093,7 +5174,13 @@ export class HangoutRoom extends Room<HangoutState> {
     return isHairStyle(style) && (HAIR_DEFINITIONS[style].price === 0 || unlocked.includes(hairUnlockId(style)));
   }
 
+  /** The gear's runs (an outing's streaks: shared/gear.ts GearRun) and the Forester's once-a-tree grip. */
+  private gearRuns = new Map<string, GearRun>();
+  private gripUsed = new Map<string, string>();
+
   private removePlayer(sessionId: string) {
+    this.gearRuns.delete(sessionId);
+    this.gripUsed.delete(sessionId);
     const player = this.state.players.get(sessionId);
     if (!player) return;
     const leftTable = this.board.leave(sessionId);

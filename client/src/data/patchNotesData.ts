@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.34",
+    range: "v0.7.0–v0.7.35",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1545,6 +1545,27 @@ export const PATCH_ERAS: PatchEra[] = [
           economy: [
             "💰 Keepers pay in full only for what they can afford. Barnaby: common and uncommon fish. Buster: pine and birch. Finley and Bramble: fish up to legendary and every wood. Finnegan and Gus: everything.",
             "📉 Past that, a keeper pays 60% and tells you who pays in full. Sell All never includes those goods, so nothing fine is sold cheap by accident.",
+          ],
+          fixes: [],
+        },
+      },
+      {
+        version: "0.7.35",
+        date: "2026-10-02",
+        title: "Gear You Grow",
+        summary: "All accessories are rebuilt: sixteen pieces in four families that you raise rank by rank instead of replacing, and every rank is earned by playing.",
+        changes: {
+          features: [
+            "🧿 Sixteen new pieces in four families: the Angler's, the Forester's, the Prospector's and the Wayfarer's (walking pace, storage room, better prices). Each family has gloves, a belt, a charm and a back piece.",
+            "⭐ A piece is never replaced. Raise it from rank 1 to 5: its main bonus grows (5% to 20%), and at rank 3 it gains a second bonus.",
+            "🏅 A rank is earned, not bought. Wear the piece while you fish, fell or mine to attune it, pass a trial from rank 3 (two to choose from, one of luck and one of skill), and bring the makings and a small fee.",
+            "🧩 Set bonuses: wear two pieces of a family, or all four, for an extra bonus. The drawers have a Wear the set button to switch craft in one tap.",
+            "📍 Where the work is done: ranks 1 and 2 at the campfire's stalls, rank 3 at Finley's or Bramble's, rank 4 at the woods' workbench, rank 5 at the forge. The Prospector's pieces start at Gus's.",
+          ],
+          visuals: [],
+          economy: [
+            "💰 Every old accessory was paid back in full: shop pieces for their price in coins, workbench and forge relics for all the materials they took. A letter tells you what came back.",
+            "🪚 The workbench no longer carves relics; its Relics tab is now the Gear tab.",
           ],
           fixes: [],
         },

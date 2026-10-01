@@ -6,11 +6,13 @@ import { CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks } from "@shared/crafti
 import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import { CEILING_RATE, FULL_PRICE_AT, woodRate } from "@shared/keepers";
+import { hasForesight, noCeiling } from "@shared/gear";
+import { GearWorks } from "./GearWorks";
 import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
 import { LegacyTradeIn, hasLegacy } from "./LegacyTradeIn";
-import { FooterBook, PRICE_COLUMN, GearShopList, MarketClock, SellAllButton, ShopShell, Trend, type ShopNotice, type ShopTab } from "./ShopShell";
+import { FooterBook, PRICE_COLUMN, MarketClock, SellAllButton, ShopShell, Trend, type ShopNotice, type ShopTab } from "./ShopShell";
 
 /** The Whispering Woods' permits: a Day Trip (one way in) or the Ranger's Badge (in for good). Sold
  *  by Buster, at his stall or by the archway. */
@@ -94,10 +96,11 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
   // at the hour's prices, past 30 of a kind sold each knocking 2% off the next (as the server settles it),
   // each log worth its tree's size (the stack's average: a big tree's logs fetch more)
   const hour = parseMarket(market);
+  const busterRate = (k: (typeof WOOD_KINDS)[number]) => (noCeiling(profile) ? 1 : woodRate("campfire", k));
   // (Buster pays in full for pine and birch; a finer wood fetches CEILING_RATE here, and Sell All
   // passes it by: shared/keepers.ts)
-  const woodRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => Math.max(1, Math.round(woodPrice(x, mult, woodAverage(profile, x)) * woodRate("campfire", x))), hour).total;
-  const fullKinds = WOOD_KINDS.filter((k) => woodRate("campfire", k) === 1);
+  const woodRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => Math.max(1, Math.round(woodPrice(x, mult, woodAverage(profile, x)) * busterRate(x))), hour).total;
+  const fullKinds = WOOD_KINDS.filter((k) => busterRate(k) === 1);
   const logs = fullKinds.reduce((n, k) => n + (profile.wood[k] ?? 0), 0);
   const logsWorth = fullKinds.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0);
   const tooFine = WOOD_KINDS.reduce((n, k) => n + (fullKinds.includes(k) ? 0 : (profile.wood[k] ?? 0)), 0);
@@ -129,7 +132,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
       }
       footer={
         <>
-          <MarketClock market={hour} goods={[...held.map(woodGood), ...profile.crafts.map((c) => craftGood(c.c))]} />
+          <MarketClock market={hour} goods={[...held.map(woodGood), ...profile.crafts.map((c) => craftGood(c.c))]} ahead={hasForesight(profile)} />
           <FooterBook label="📖 Timber Collection" onClick={onOpenCollection} />
         </>
       }
@@ -302,7 +305,7 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
         </div>
       )}
 
-      {tab === "gear" && <GearShopList craft="wood" maxTier={3} elsewhere="🐻 At Bramble's cabin in the woods" profile={profile} coins={coins} onBuy={(id) => send({ type: "BUSTER", op: "buyGear", gear: id })} send={send} />}
+      {tab === "gear" && <GearWorks profile={profile} coins={coins} send={send} families={["forester", "wayfarer"]} places={["campfire"]} />}
     </ShopShell>
   );
 }
