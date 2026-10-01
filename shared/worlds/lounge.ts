@@ -311,7 +311,8 @@ export const LOFT_MOCHI: MochiStop[] = [
 ];
 
 const box = (b: Box): AABB => ({ minX: b.x0, maxX: b.x1, minZ: b.z0, maxZ: b.z1 });
-const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
+// (round things are discs: shared/collision.ts `disc`)
+const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r, r });
 
 export const LOFT_OBSTACLES: AABB[] = [
   // the hearth, its shelves and the log basket

@@ -1,5 +1,5 @@
 import { FOREST_FISHING, FOREST_LAYOUT } from "@shared/worlds/forest";
-import { CAVE_WATER_Y } from "@shared/worlds/caverns";
+import { CAVE_WATER_Y, floatY } from "@shared/worlds/caverns";
 import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Room } from "colyseus.js";
@@ -58,7 +58,7 @@ export function bobberFor(player: PlayerState, mapId: MapId) {
   if (mapId === "glimmering_caverns") {
     // the Cenote: where their cast from the shore landed (the server's `floatX` / `floatZ`)
     if (!player.floatX && !player.floatZ) return null;
-    return { x: player.floatX, y: CAVE_WATER_Y, z: player.floatZ };
+    return { x: player.floatX, y: floatY(player.floatX, player.floatZ), z: player.floatZ };
   }
   if (mapId !== "campfire_night") return null;
   const { bobber } = nearestFishingSpot(player.x, player.z);
@@ -182,7 +182,7 @@ const RemotePlayerAvatar = memo(function RemotePlayerAvatar({ player, feed }: { 
       d.seatY = ride.y;
       d.facing = ride.facing;
       d.ready = true;
-      speedRef.current += (0 - speedRef.current) * 0.3;
+      speedRef.current += ((ride.walking ? 0.55 : 0) - speedRef.current) * 0.3;
       g.position.set(d.x, d.seatY, d.z);
       g.rotation.y = d.facing;
       return;

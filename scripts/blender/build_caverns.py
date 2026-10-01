@@ -135,7 +135,8 @@ from caverns.kit import (
     read_thermal_ledge,
 )
 from caverns.pack import quantize_glb
-from caverns.rims import build_cliff_faces, build_rim, build_terrace_lips, build_trail_edges
+from meshopt_pack import meshopt_pack
+from caverns.rims import build_cliff_faces, build_far_passage, build_rim, build_terrace_lips, build_trail_edges
 from caverns.rocks import build_blockout_rocks, build_dressing
 from caverns.scene import clean_caverns_collection, finish_object, studio
 from caverns.templates import build_fauna_templates, build_ores
@@ -144,11 +145,11 @@ from caverns.waters import build_waters, pool_y_at
 from caverns.zone_basecamp import build_basecamp_gear, build_camp, build_forge_alcove, build_winch
 from caverns.zone_breakdown import build_breakdown
 from caverns.zone_jungle import build_jungle
-from caverns.zone_lake import build_causeway, build_lake_shore
+from caverns.zone_lake import build_causeway, build_lake_shore, build_raft, build_monolith_dais
 from caverns.zone_mudflats import build_bats, build_mudflats
 from caverns.zone_overlook import build_overlook
 from caverns.zone_rift import build_rift_decor
-from caverns.zone_terraces import build_pearl_basins
+from caverns.zone_terraces import build_pearl_basins, build_unreached
 
 
 # ---------------------------------------------------------------------------------------------
@@ -201,13 +202,18 @@ def build_world(G, L, coll, ledge_top):
     build_breakdown(G, L, rock, random.Random(59))
     build_mudflats(G, L, rock, water, random.Random(61))
     build_pearl_basins(G, L, rock, random.Random(67))
+    build_unreached(G, L, rock, random.Random(97))
     build_lake_shore(G, L, rock, random.Random(71))
     build_rift_decor(G, L, rock, glow, random.Random(73))
     build_dressing(G, L, rock, glow, random.Random(79))
     build_bats(G, L, rock, random.Random(79))
     build_overlook(G, L, rock, roots, random.Random(13))
     build_winch(G, L, rock, glow, coll)
-    build_causeway(G, L, rock, random.Random(17))
+    # (the causeway out to the islet a hand's depth under the water, waded: no stepping stones,
+    # docs/caverns-roadmap.md R6.7)
+    build_raft(G, L, coll)
+    build_monolith_dais(G, L, rock, glow, random.Random(89))
+    build_far_passage(G, L, glow, random.Random(83))
 
     for f in glow.bm.faces:
         glow.setsmooth(f)
@@ -277,6 +283,7 @@ def main():
         export(coll, out)
         exported = os.path.getsize(out)
         packed = quantize_glb(out)
+        packed["meshopt"] = meshopt_pack(root, out)
         result = {"ok": True, "glb": out, "exported": exported, "bytes": os.path.getsize(out), "packed": packed, **summary(coll), "geology": dict(GEO_STATS)}
         # (the templates sit at the origin: not in the studio's grid)
         for o in list(coll.all_objects):

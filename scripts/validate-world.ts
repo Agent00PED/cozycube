@@ -44,7 +44,7 @@
 //     spot inside the camera's bounds (+-21); and in the woods the adit's front open and reachable,
 //     Old Flint inside a collider with his spot in reach, and the arrival from the caverns open
 //   - every built world (the fast-travel grid's, and the penthouse) has seats or props
-import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, walkRegions, walkY, worldLimit } from "../shared/collision";
+import { MAP_OBSTACLES, MAP_SPAWN_POINTS, isBlocked, slideStep, walkRegions, walkY, worldLimit } from "../shared/collision";
 import { APPROACH_POINTS, MAP_CHAIRS, MAP_TOGGLEABLES, MOCHI_WAYPOINTS } from "../shared/props";
 import { isReachable, type Point } from "../shared/pathfinding";
 import { INTERACT_RADIUS, isWalkUpProp, MAP_IDS, type MapId } from "../shared/types";
@@ -85,7 +85,7 @@ import type { AABB } from "../shared/collision";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
 import { BARNABY_BOARD, CAMPFIRE_LAYOUT } from "../shared/worlds/campfire";
 import { WORLDS } from "../shared/worlds/index";
-import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVE_WINCH, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, HOUNDS_HAND, WINCH_REACH, WINCH_RIDE_S, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, HEARTH_SEATS, PHOTO_SPOT, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope } from "../shared/worlds/caverns";
+import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVE_WINCH, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, WINCH_REACH, WINCH_RIDE_S, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, HEARTH_SEATS, PHOTO_SPOT, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope, RAFT, raftAt, streamCast, STREAM_REACHES, cavernsSurface, SURFACE, STEEPEST_STEP } from "../shared/worlds/caverns";
 import { readFileSync, existsSync } from "node:fs";
 import { CAVERNS_TERRAIN_PATH, cavernsTerrainText } from "./caverns-terrain";
 import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../shared/worlds/forest";
@@ -622,13 +622,12 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
   for (const [who, at] of [
     ["Gus", GUS],
     ["Finnegan", FINNEGAN],
-    ["the Hound's Hand", HOUNDS_HAND],
   ] as const) {
     checks++;
     if (!isBlocked(at.x, at.z, C, 0.05)) fail(`${C}: ${who} stands on open floor ${fmt(at)}: give it a collider`);
   }
-  // no stairs, no scrambles: every step between two walkable cells no steeper than STEEPEST_WALK
-  // (28 degrees)
+  // no stairs, no scrambles: every step between two walkable cells no steeper than STEEPEST_STEP (a
+  // hand's height over a mask cell; the ground over half a metre is held to STEEPEST_WALK by the mask)
   {
     let steepest = 0;
     let at: Point = { x: 0, z: 0 };
@@ -648,7 +647,7 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
       }
     }
     checks++;
-    if (steepest > STEEPEST_WALK + 0.05) fail(`${C}: the walkable floor at ${fmt(at)} is ${steepest.toFixed(1)} degrees (${STEEPEST_WALK} at most)`);
+    if (steepest > STEEPEST_STEP + 0.05) fail(`${C}: a step on the walkable floor at ${fmt(at)} is ${steepest.toFixed(1)} degrees (${STEEPEST_STEP} at most)`);
   }
   // the trails across the cliffs (the rope descent, the switchback, the ramps to the rift and the
   // lake, the pearl trail): each one's ends walked to from the adit, and each at the height it was
@@ -676,7 +675,8 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
         for (let o = -t.half; o <= t.half + 1e-6; o += 0.2) {
           const x = ax + tx * s - tz * o;
           const z = az + tz * s + tx * o;
-          if (onBeach(x, z) || !cavernsWalkable(x, z)) continue;
+          // (the tread's middle as it was laid; its shoulders are walked on at STEEPEST_WALK)
+          if (Math.abs(o) > t.half * 0.6 || onBeach(x, z) || !cavernsWalkable(x, z)) continue;
           const g = trailSlope(x, z);
           if (g > worst) {
             worst = g;
@@ -686,7 +686,7 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
       }
     }
     checks++;
-    if (worst > TRAIL_STEEPEST + 0.05) fail(`${C}: the ${t.id}'s tread at ${fmt(worstAt)} is ${worst.toFixed(1)} degrees (${TRAIL_STEEPEST} at most)`);
+    if (worst > STEEPEST_WALK + 0.05) fail(`${C}: the ${t.id}'s tread at ${fmt(worstAt)} is ${worst.toFixed(1)} degrees (${STEEPEST_WALK} at most)`);
   }
   const descent = CAVE_TRAILS.find((t) => t.id === "switchback")!;
   const top = descent.points[0];
@@ -720,7 +720,7 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
     standable(C, home, s.exit, `hearth bench ${s.propId}'s landing`);
     near(`hearth bench ${s.propId}'s landing`, s.exit, s, 1.2);
   }
-  standable(C, home, PHOTO_SPOT, "the Hound's Hand photo spot");
+  standable(C, home, PHOTO_SPOT, "the Explorers' Rest photo spot");
   for (const pg of JOURNAL_PAGES) standable(C, home, pg, `Flint's journal ${pg.id}`);
   for (const pl of CAVE_PEARLS) {
     checks++;
@@ -736,7 +736,7 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
   // the winch lift: both its stands open, walked to, and in reach of its props
   standable(C, home, CAVE_WINCH.upper, "the winch's upper stand");
   standable(C, home, CAVE_WINCH.lower, "the winch's lower stand");
-  near("the winch's upper stand", CAVE_WINCH.upper, CAVE_WINCH.top, WINCH_REACH);
+  near("the winch's upper stand", CAVE_WINCH.upper, CAVE_WINCH.head, WINCH_REACH);
   near("the winch's lower stand", CAVE_WINCH.lower, CAVE_WINCH.bottom, WINCH_REACH);
   // the stream's fords: open and walked to (the stream itself is not)
   for (const [x, z] of CAVERNS_LAYOUT.river.fords) standable(C, home, { x, z }, "a ford across the stream");
@@ -805,6 +805,78 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
   }
   checks++;
   if (shore < 12) fail(`${C}: only ${shore} spots round the cenote cast onto it (12 at least)`);
+  // the stream (docs/caverns-roadmap.md R2.10): its banks cast into it along every reach, and the raft's
+  // two landings walked to, its route over open water all the way
+  {
+    let bank = 0;
+    for (const seg of CAVERNS_LAYOUT.river.segments) {
+      for (let i = 0; i + 1 < seg.length; i++) {
+        const [ax, az] = seg[i];
+        const [bx, bz] = seg[i + 1];
+        const len = Math.hypot(bx - ax, bz - az) || 1;
+        const nx = -(bz - az) / len;
+        const nz = (bx - ax) / len;
+        const mx = (ax + bx) / 2;
+        const mz = (az + bz) / 2;
+        for (const side of [1, -1]) {
+          for (const off of [1.0, 1.2, 1.4]) {
+            const x = mx + nx * off * side;
+            const z = mz + nz * off * side;
+            if (isBlocked(x, z, C, 0.3)) continue;
+            const f = streamCast(x, z, -nx * side, -nz * side);
+            if (f) {
+              bank++;
+              break;
+            }
+          }
+        }
+      }
+    }
+    checks++;
+    if (bank < 12) fail(`${C}: only ${bank} spots along the stream's banks cast into it (12 at least)`);
+    for (const side of ["north", "islet"] as const) standable(C, home, RAFT[side], `the raft's ${side} landing`);
+    for (let k = 0; k <= 40; k++) {
+      const r = raftAt((k / 40) * 5, "islet", 5);
+      checks++;
+      if (k > 0 && k < 40 && !inLakeWater(r.x, r.z)) fail(`${C}: the raft's route leaves the water at ${fmt(r)}`);
+    }
+  }
+  // round 3 (docs/caverns-roadmap.md R3.2, R3.3): the stream's water never under its floor and only
+  // ever falling as it runs; the basecamp's shelf clear, the arrival's walks to the rope descent and
+  // the switchback within a twentieth of a straight line
+  // (a step up of a few centimetres where the floor forces it is the water pooling; out of the plunge
+  // pool and the lake the builder draws none of it)
+  for (const reach of STREAM_REACHES) {
+    // (the lake's outflow crosses the causeway's ford, whose bed stands over the lake: a film over it)
+    const outflow = inLakeWater(reach[0].x, reach[0].z);
+    for (let i = 0; i < reach.length; i++) {
+      const q = reach[i];
+      if (inLakeWater(q.x, q.z) || Math.hypot(q.x - CAVERNS_LAYOUT.river.plunge.x, q.z - CAVERNS_LAYOUT.river.plunge.z) < CAVERNS_LAYOUT.river.plunge.r + 1.0) continue;
+      // (its mouth, cut under the lake's level, is the lake's own water)
+      if (cavernsFloorY(q.x, q.z) < CAVERNS_LAYOUT.lake.water - 0.02 && lakeFactor(q.x, q.z) < 1.45) continue;
+      checks++;
+      if (q.y < cavernsFloorY(q.x, q.z) + 0.025) fail(`${C}: the stream's water under its floor at ${fmt(q)}`);
+      if (!outflow && i > 0 && cavernsSurface(reach[i - 1].x, reach[i - 1].z) !== SURFACE.pool && q.y > reach[i - 1].y + 0.035) fail(`${C}: the stream runs uphill at ${fmt(q)}`);
+      // (inside a warm pool it is the pool's own water, as deep as the pool)
+      if (q.kind !== "fall" && cavernsSurface(q.x, q.z) !== SURFACE.pool && q.y > cavernsFloorY(q.x, q.z) + 0.45) fail(`${C}: the stream stands ${(q.y - cavernsFloorY(q.x, q.z)).toFixed(2)} m over its floor at ${fmt(q)}`);
+    }
+  }
+  for (const [what, to] of [["the rope descent", { x: CAVE_TRAILS[0].points[0][0], z: CAVE_TRAILS[0].points[0][1] }], ["the switchback", { x: CAVE_TRAILS[1].points[0][0], z: CAVE_TRAILS[1].points[0][1] }]] as const) {
+    const path = findPath(C, CAVE_ARRIVAL, to);
+    checks++;
+    if (!path) {
+      fail(`${C}: no walk from the arrival to ${what}`);
+      continue;
+    }
+    let len = 0;
+    let at: { x: number; z: number } = CAVE_ARRIVAL;
+    for (const q of path) {
+      len += Math.hypot(q.x - at.x, q.z - at.z);
+      at = q;
+    }
+    const straight = Math.hypot(to.x - CAVE_ARRIVAL.x, to.z - CAVE_ARRIVAL.z);
+    if (len > straight * 1.05) fail(`${C}: the walk from the arrival to ${what} is ${((len / straight - 1) * 100).toFixed(0)}% longer than a straight line (the shelf should be clear)`);
+  }
   // the camera's bounds hold every spot anyone can stand at
   for (const p of [...MAP_SPAWN_POINTS[C], ...ORE_NODES.map((n) => n.approach), GUS_FRONT, FORGE_FRONT, ANVIL_FRONT, FINNEGAN_FRONT, ...THERMAL_SEATS.map((t) => t.exit)]) {
     checks++;
@@ -820,6 +892,66 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
   if (!isBlocked(OLD_FLINT.x, OLD_FLINT.z, W, 0.05)) fail(`${W}: Old Flint stands on open floor ${fmt(OLD_FLINT)}: give him a collider`);
   checks++;
   if (Math.hypot(OLD_FLINT_FRONT.x - OLD_FLINT.x, OLD_FLINT_FRONT.z - OLD_FLINT.z) > OLD_FLINT_REACH) fail(`${W}: Old Flint's spot ${fmt(OLD_FLINT_FRONT)} is out of his reach`);
+}
+
+// --- nothing snags a walker (docs/caverns-roadmap.md R2.1) ---
+// Steering (WASD or the joystick) replayed on every built world with the game's own slide step, from
+// seeded open spots in seeded directions: a walker brought to a dead stop while open ground lies a
+// little either way is a snag (an honest wall is not). A budget, not zero: a V-shaped corner met head
+// on stops anyone. And no two of the caverns' mining spots share ground.
+{
+  const STEERS = 600;
+  const BUDGET = 0.015;
+  for (const w of Object.values(WORLDS).filter((w) => w.built)) {
+    const mapId = w.mapId;
+    const regions = walkRegions(mapId);
+    let seed = 90210;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+    const blocked = (x: number, z: number) => isBlocked(x, z, mapId, 0.3);
+    let snags = 0;
+    const where: string[] = [];
+    for (let t = 0; t < STEERS; t++) {
+      let p: { x: number; z: number } | null = null;
+      for (let tries = 0; tries < 200 && !p; tries++) {
+        const r = regions[Math.floor(rnd() * regions.length)];
+        const q = { x: r.x0 + rnd() * (r.x1 - r.x0), z: r.z0 + rnd() * (r.z1 - r.z0) };
+        if (!blocked(q.x, q.z)) p = q;
+      }
+      if (!p) continue;
+      const a = rnd() * Math.PI * 2;
+      const ux = Math.sin(a);
+      const uz = Math.cos(a);
+      let still = 0;
+      for (let f = 0; f < 90; f++) {
+        const bx = p.x;
+        const bz = p.z;
+        slideStep(p, (ux * 3) / 60, (uz * 3) / 60, mapId, 0.3, 0.12);
+        still = Math.hypot(p.x - bx, p.z - bz) < 0.005 ? still + 1 : 0;
+        if (still < 20) continue;
+        const open = [25, -25, 45, -45].some((deg) => {
+          const r = (deg * Math.PI) / 180;
+          const rx = ux * Math.cos(r) - uz * Math.sin(r);
+          const rz = ux * Math.sin(r) + uz * Math.cos(r);
+          return !blocked(p!.x + rx * 0.35, p!.z + rz * 0.35) && !blocked(p!.x + rx * 0.7, p!.z + rz * 0.7);
+        });
+        if (open) {
+          snags++;
+          if (where.length < 5) where.push(fmt(p));
+        }
+        break;
+      }
+    }
+    checks++;
+    if (snags > STEERS * BUDGET) fail(`${mapId}: ${snags} of ${STEERS} steers snag (over ${(BUDGET * 100).toFixed(1)}%), e.g. at ${where.join(", ")}`);
+  }
+  for (let i = 0; i < ORE_NODES.length; i++) {
+    for (let j = i + 1; j < ORE_NODES.length; j++) {
+      checks++;
+      const a = ORE_NODES[i].approach;
+      const b = ORE_NODES[j].approach;
+      if (Math.hypot(a.x - b.x, a.z - b.z) < 0.8) fail(`glimmering_caverns: ${ORE_NODES[i].id} and ${ORE_NODES[j].id} are mined from the same ground (${fmt(a)}, ${fmt(b)})`);
+    }
+  }
 }
 
 // --- every built world has something in it ---

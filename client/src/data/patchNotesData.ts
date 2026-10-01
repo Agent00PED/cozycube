@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.20",
+    range: "v0.7.0–v0.7.29",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1255,6 +1255,199 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           fixes: [
             "📱 Phones and tablets get their own render profile: no extra edge smoothing on their already sharp screens, no real-time shadows in the Doline Jungle (its shade is painted in), and fewer little crystal lights in the caverns. Smoother frames and cooler phones.",
+          ],
+        },
+      },
+      {
+        version: "0.7.21",
+        date: "2026-10-01",
+        title: "Deeper Caverns",
+        summary: "Walking snags far less on every map, the caverns' economy is brought in line, and the caverns gain an endgame (mastery, Motherlodes, the awakened Monolith, weekly orders) plus a Cave Map, lanterns, a raft to the islet and stream fishing.",
+        changes: {
+          fixes: [
+            "🚶 Walking with WASD or the joystick no longer gets stuck on rocks, tree trunks, table legs and cliff edges: you slide round them instead, on every map. Round things now have round edges to bump into.",
+            "⚖️ The caverns paid far more than anything else in the game. Ore, ingots, gems and the cenote's fish now pay about twice what the river does on tools of the same tier. Iron lodes take a little longer to grow back, and an uncracked geode sells for a fair share of what cracking it pays.",
+            "☀️ The sky through the jungle's collapsed roof is a real sky by day, no longer a flat white patch at the far zoom.",
+            "💠 Two glimmer nodes in the rift no longer share the same spot to mine from.",
+          ],
+          visuals: [
+            "🪨 Every floor looks like what it is: sand is gritty with pebbles, the breakdown is broken slabs, the terraces' travertine ripples, the rift's basalt has its columns, and only the mud cracks. No more paving everywhere.",
+            "🎨 A colour pass: the mudflats are a calmer brown, and your lamp's glow no longer bleaches pale stone white round you.",
+            "🗿 The Titan Monolith is remade as an ancient megalith: a weathered shaft, a broken crown of violet crystal, glowing runes and seams.",
+            "💧 Drips fall from the stalactites, dust hangs in your light in the dark zones, the lake has a soft sheen, faint glints show the cave going on far below the open edges, and the jungle's canopies are fuller.",
+          ],
+          features: [
+            "🏅 Mining mastery: every ore has five ranks. Each rank adds a chance of an extra ore, and a Master gets a wider sweet spot and a gold title. Master all six for the Grandmaster's.",
+            "✨ Motherlodes: now and then a node glitters gold for three minutes and pays triple. The Titan Monolith surfaces awake: break it within five minutes for a second core each.",
+            "📋 Weekly Expedition Orders: three goals a week, each paying when met, and a bonus for all three.",
+            "🗺️ The Cave Map (M): every node and when it grows back, the Motherlode, and everyone down there.",
+            "🏮 Set down a lantern (one lump of coal) for ten minutes of warm light where you stand.",
+            "🛶 A raft poles across the Great Lake to the Monolith's islet.",
+            "🎣 Fish the stream from its banks: the cave's smaller fish, quick and calm.",
+            "📖 Filling a section of the Cave Codex now earns a gold title too, and the Prospector's Ledger keeps your lifetime marks.",
+            "🔥 Sit by the overlook's fire to hear the cave's stories.",
+          ],
+        },
+      },
+      {
+        version: "0.7.22",
+        date: "2026-10-01",
+        title: "The Cave, Made Natural",
+        summary: "The Glimmering Caverns look lived in and grown rather than built: faint expedition trails, Gus's new trading post, real waterfalls, natural hot-spring rims, a proper home for the Titan Monolith and an old mine entrance you believe goes somewhere.",
+        changes: {
+          visuals: [
+            "👣 The trails are no longer roads. They are faint worn paths with scuffs and bootprints, and the expedition's leavings mark the way: survey stakes with faded ribbon, chalk arrows, a cold campfire, a dropped canteen and a scrap of map.",
+            "🏚️ Gus has a real trading post against the cave wall: a shingled lean-to, a counter with his brass scales, bins of ore, a rack of pickaxes and a sign. He's easy to see behind his counter now.",
+            "💦 The stream falls properly: white curtains of water into splashing pools with spray, white water over stones, and stepping stones at the fords.",
+            "♨️ The hot springs' rims look grown from travertine, uneven and cream to ochre, with the water spilling over a notch and down a flowstone curtain into the next pool.",
+            "🗿 The Titan Monolith stands on a stepped basalt dais carved with glowing runes, inside a rune circle and a ring of old standing stones, with violet crystal breaking out of the ground and shards turning round its crown. Stand near it and you'll hear it hum.",
+            "⛏️ The old mine entrance is set into the rock: a carved sign over it, the tunnel bending away into the dark with a lantern far inside, rails running out to a tipped ore cart and a spoil heap, and a signpost back to the woods.",
+            "🟤 The mudflats' dried plates are thin and curled, in every size. Where two kinds of cliff meet they blend, and the Coal Breakdown and the Overlook are a shade darker.",
+          ],
+          fixes: [
+            "🚶 Gus's camp no longer blocks the basecamp: walks from the adit to the rope descent and the switchback are straight lines now.",
+            "🛶 The raft lands on the islet's west side, away from the Monolith's mining spot.",
+          ],
+        },
+      },
+      {
+        version: "0.7.23",
+        date: "2026-10-01",
+        title: "No More Invisible Walls",
+        summary: "Walking the Glimmering Caverns no longer stops you against nothing: gentle slopes are walkable, you walk right up to the edges you can see, and anything that stops you now looks like it.",
+        changes: {
+          fixes: [
+            "🚶 No more getting stuck on empty ground in the caverns. Small bumps in the floor, the stream's banks and the ground round the hot springs used to stop you with nothing there. You can now walk up gentle slopes and right up to the edge of a cliff or the water.",
+            "🪨 Anything you can't walk onto now looks like bare rock, so where you stop is where you see the rock begin.",
+            "🧭 Tap-to-walk no longer gets stuck going round corners (the boxing ring's steps, the casino's tables): it walks round them instead of cutting in.",
+            "♨️ The hot springs' west ledges, which you could see but never reach, are now fields of little dry rimstone pools and stalagmites, and one pool seat moved to a spot you can reach.",
+          ],
+        },
+      },
+      {
+        version: "0.7.24",
+        date: "2026-10-01",
+        title: "Water Finds Its Way",
+        summary: "The caverns' water behaves: it falls into its pools, runs between them in little rivulets, never through rock, and the jungle waterfall has a proper basin. The Hound's Hand is a natural stalagmite now, and Gus's winch goes down as well as up.",
+        changes: {
+          features: [
+            "🪢 Gus's winch goes both ways: from the ledge by the Coal Breakdown, ride it down into the Glimmer Rift. The cage is wound up to fetch you, then lowers you down.",
+          ],
+          visuals: [
+            "🗿 The Hound's Hand is now a towering natural stalagmite on a flowstone mound, drip streaks running down it.",
+            "💦 The jungle waterfall pours into a deep green basin ringed with mossy boulders, foam spreading where it lands.",
+            "♨️ The stream falls straight into the top hot spring, and each pool spills into the next down a little rivulet through a notch in its rim.",
+          ],
+          fixes: [
+            "🪨 Water no longer runs through rock or earth anywhere: the falls clear the slopes, the overflows run in the open, and the stream meets the lake at its level.",
+            "✨ The white spots drifting across the water are gone, and the waterfalls' spray is a short puff at the splash.",
+            "🧹 Stray stones no longer sit in the hot springs' water.",
+          ],
+        },
+      },
+      {
+        version: "0.7.25",
+        date: "2026-10-01",
+        title: "Wading to the Monolith",
+        summary: "Wade out to the Titan Monolith, talk to Finnegan and mine rocks from any side, and see the waterfalls pour cleanly down the rock.",
+        changes: {
+          features: [
+            "🌊 The stepping stones to the Monolith are gone: wade out along the causeway, a hand's depth under the water.",
+            "🧭 Talk to Finnegan, use the anvil and mine any ore rock from whichever side you walk up to.",
+            "⛏️ When you take up a rock, its weak spot shows on your side of it, never round the back.",
+          ],
+          visuals: [
+            "🦎 Finnegan now fishes from the water's edge.",
+            "💦 The waterfalls pour down the rock as one sheet with their stream, and the jungle's basin holds its water, spilling into its stream.",
+            "⛏️ The old mine entrance is set cleanly into the rock, and the Hound's Hand has a rimstone ring and little stalagmites round its foot.",
+          ],
+          fixes: [
+            "🪨 The row of rocks along the cave's open edges is gone, and the second ramp down into the Glimmer Rift has been removed (walk along the lake's shore or ride Gus's winch down).",
+            "🏮 Setting down lanterns has been removed.",
+          ],
+        },
+      },
+      {
+        version: "0.7.26",
+        date: "2026-10-01",
+        title: "Rock, Water and Wading",
+        summary: "The caverns' rock looks more like rock, the waterfalls stream and roar, and wading slows you down with ripples round your legs.",
+        changes: {
+          features: [
+            "🌊 Wading through water slows you a little and leaves ripples spreading round you.",
+            "📖 A new Cave Codex entry: wade out along the causeway to the Titan Monolith.",
+            "🪧 A sign at the top of Gus's winch shows the way down.",
+          ],
+          visuals: [
+            "💦 White water streams down every waterfall, and each one roars louder as you come near.",
+            "🪨 The hot springs' terraces are cream travertine, the mudflats' plates a cracked orange, and the Coal Breakdown's fallen slabs sheared and seamed with coal.",
+            "🗿 The standing stones round the Monolith are slim menhirs, and the Hound's Hand is all pale calcite.",
+            "⛺ Tents and sacks at the basecamp, and dry rimstone pools on the Hound's Overlook.",
+          ],
+          fixes: [],
+        },
+      },
+      {
+        version: "0.7.27",
+        date: "2026-10-01",
+        title: "The Explorers' Rest",
+        summary: "Gus's winch carries you up and down again, the springs' water flows from pool to pool, and the overlook's campfire has become an explorers' rest.",
+        changes: {
+          features: [
+            "⛺ The Explorers' Rest: tents, sacks, a bedroll and a lantern post round the campfire on the Hound's Overlook.",
+            "💦 Every waterfall splashes: drops thrown up and rings spreading over the water where it lands.",
+          ],
+          visuals: [
+            "♨️ The stream and the overflows run through gaps in the hot springs' rims, and each pool spills into the next down a channel of its own.",
+            "🌊 The jungle's basin and its stream are one sheet of water, and the stream churns wider where it falls.",
+            "🗿 The Hound's Hand is a plain, natural stalagmite again.",
+          ],
+          fixes: [
+            "🪢 Gus's winch cage now rises and lowers with its rider for everyone.",
+            "🏖️ The steep bank at the Glimmer Rift's mouth is now a gentle beach you can walk.",
+            "⛺ The tents no longer float off the basecamp's edge, and a silver rock no longer hangs off the cave's south rim.",
+          ],
+        },
+      },
+      {
+        version: "0.7.28",
+        date: "2026-10-01",
+        title: "The Winch Landing",
+        summary: "Gus's winch now has a landing to step out onto, a stew pot simmers at the Explorers' Rest, and the jungle's waterfall pours in a proper curtain.",
+        changes: {
+          features: [
+            "🪜 A timber landing beside Gus's winch at the top: step off the cage onto it and walk to the ledge.",
+            "🍲 A stew pot hangs over the Explorers' Rest campfire, steaming away.",
+          ],
+          visuals: [
+            "💦 The jungle's waterfall arcs off the cliff in a thick, streaked curtain.",
+            "🗿 The Hound's Hand stands as a tall, tiered stalagmite.",
+            "🌊 The stream flows smoothly into the Great Lake.",
+            "🛏️ A proper sleeping bag at the campfire, and the hot springs' ledges are less cluttered.",
+          ],
+          fixes: [
+            "🪢 Riding the winch no longer walks you through its timber frame.",
+          ],
+        },
+      },
+      {
+        version: "0.7.29",
+        date: "2026-10-01",
+        title: "Lucky Glints and Clean Breaks",
+        summary: "Mining has two new tricks, the Explorers' Rest has grown into a proper camp, and the caverns' water finally runs as one.",
+        changes: {
+          features: [
+            "✨ Lucky Glint: now and then a rock's weak spot shines gold. Land a Perfect on it and one more ore pops straight into your satchel.",
+            "💥 Clean Break: finish a rock with a Perfect and your haul is a quarter bigger.",
+            "🚶 Step back from a rock by clicking the floor away from it, or just walk off.",
+            "⛺ The Explorers' Rest is a full camp now: tents, sleeping bags, a woodpile, a drying rack and lanterns round the fire, built where the Hound's Hand stood before it fell.",
+          ],
+          visuals: [
+            "💦 The waterfalls pour clear of the rock off their lips, and the streams run into and out of the pools and the jungle's basin without a break.",
+            "🪢 On Gus's winch you walk on and off the cage, and the cage swings and settles with a click of its ratchet.",
+          ],
+          fixes: [
+            "♨️ The hot springs' rims no longer end in cut-off stubs where the water crosses them.",
           ],
         },
       },

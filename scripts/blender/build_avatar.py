@@ -4453,6 +4453,13 @@ def export(coll, path):
             kwargs.pop(bad)
     strip_prefix(path)
     quantize_normals(path)
+    # (and packed: EXT_meshopt_compression, scripts/blender/meshopt_pack.py)
+    import sys
+    parts = os.path.join(repo_root(), "scripts", "blender")
+    if parts not in sys.path:
+        sys.path.insert(0, parts)
+    from meshopt_pack import meshopt_pack
+    meshopt_pack(repo_root(), path)
     tidy_viewport(coll)
 
 

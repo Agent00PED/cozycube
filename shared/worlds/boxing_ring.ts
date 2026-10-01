@@ -253,14 +253,16 @@ export const RING_PROPS: PropSpec[] = [
 
 // --- what you walk round --------------------------------------------------------------------------
 
-const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
+// (round things are discs: shared/collision.ts `disc`)
+const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r, r });
+const square = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
 const rect = (x0: number, x1: number, z0: number, z1: number): AABB => ({ minX: Math.min(x0, x1), maxX: Math.max(x0, x1), minZ: Math.min(z0, z1), maxZ: Math.max(z0, z1) });
 
 export const RING_OBSTACLES: AABB[] = [
   // the ring, apron and all: nobody but a fighter (put there by the server) stands on it
   rect(-R.ring.apron, R.ring.apron, -R.ring.apron, R.ring.apron),
   // the corner steps
-  ...(["red", "blue"] as const).map((c) => around(RING_CORNERS[c].steps, R.steps.w / 2)),
+  ...(["red", "blue"] as const).map((c) => square(RING_CORNERS[c].steps, R.steps.w / 2)),
   // the bell table and its chairs
   rect(R.bell.x - R.bell.len / 2, R.bell.x + R.bell.len / 2, R.bell.z - R.bell.d / 2, R.bell.z + R.bell.d / 2),
   ...RING_SEATS.filter((s) => s.propId.startsWith("ring_judge") || s.propId.startsWith("ring_side")).map((s) => around(s, 0.24)),

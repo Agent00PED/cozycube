@@ -75,6 +75,21 @@ export function pioneerUntil(wipeAt: number): number {
 /** Worn over the name like a capsule title (the same unlock id: title_<id>), drawn in glowing gold. */
 export const SPECIAL_TITLES: Record<string, { name: string }> = {
   beta_tester: { name: "[ 🛠️ BETA TESTER ]" },
+  // the Cave Codex (shared/caverns_codex.ts CODEX_SECTIONS): a section filled, the whole of it
+  cave_cartographer: { name: "[ 🗺️ CAVE CARTOGRAPHER ]" },
+  cave_naturalist: { name: "[ 🦇 CAVE NATURALIST ]" },
+  pearl_hunter: { name: "[ 🫧 PEARL HUNTER ]" },
+  flints_heir: { name: "[ 📜 FLINT'S HEIR ]" },
+  wonder_witness: { name: "[ ✨ WONDER WITNESS ]" },
+  cave_chronicler: { name: "[ 📖 CAVE CHRONICLER ]" },
+  // mining mastery (shared/caverns_mastery.ts MASTERY_TITLES): a kind mastered, all six
+  master_collier: { name: "[ ⚫ MASTER COLLIER ]" },
+  copper_master: { name: "[ 🟠 COPPER MASTER ]" },
+  iron_master: { name: "[ 🔩 IRON MASTER ]" },
+  silver_master: { name: "[ ⚪ SILVER MASTER ]" },
+  glimmer_master: { name: "[ 💠 GLIMMER MASTER ]" },
+  titan_breaker: { name: "[ 🗿 TITAN BREAKER ]" },
+  grandmaster_prospector: { name: "[ 💎 GRANDMASTER PROSPECTOR ]" },
 };
 export function specialTitle(id: string): { name: string } | undefined {
   return Object.prototype.hasOwnProperty.call(SPECIAL_TITLES, id) ? SPECIAL_TITLES[id] : undefined;

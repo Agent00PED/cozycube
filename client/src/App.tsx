@@ -88,6 +88,7 @@ import { ProspectingHud } from "./components/hud/ProspectingHud";
 import { SoakHud } from "./components/hud/SoakHud";
 import { CaveCodexHud } from "./components/hud/CaveCodexHud";
 import { CaveCodexModal } from "./components/hud/CaveCodexModal";
+import { CaveMapModal } from "./components/hud/CaveMapModal";
 import { prospectStore } from "./systems/prospectStore";
 import { CAVERNS_CHANNELS, ORE_ITEMS, type CaveLoot, type CaveProspect, type CavernsResult, type IngotId, type OreItemId } from "@shared/caverns_mining";
 import { useRingTakeover } from "./systems/boutStore";
@@ -267,6 +268,7 @@ export default function App() {
     incenseUntil,
     ores,
     caveEvent,
+    caveRaft,
     claimPioneer,
     connected,
     connectionIssue,
@@ -411,6 +413,18 @@ export default function App() {
   const [logbook, setLogbook] = useState<"fish" | "timber" | null>(null);
   // (the drawers are the gathering maps' only: the campfire, the woods, the beach)
   const gatherRef = useRef(false);
+  // (M: the Cave Map, down in the caverns, whenever nothing is being typed and no other panel is up)
+  const cavesRef = useRef(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "KeyM" || e.repeat || e.ctrlKey || e.metaKey || e.altKey || !cavesRef.current) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      setPanel((p) => (p?.kind === "caveMap" ? null : p ? p : { kind: "caveMap", propId: "" }));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== "KeyB" || e.repeat || e.ctrlKey || e.metaKey || e.altKey || !gatherRef.current) return;
@@ -476,9 +490,11 @@ export default function App() {
   const currentMapRef = useRef<MapId>(currentMap);
   currentMapRef.current = currentMap;
   gatherRef.current = isGatheringMap(currentMap);
+  cavesRef.current = currentMap === "glimmering_caverns";
   // off to a world without drawers (the lounge, the casino, the ring): an open one closes
   useEffect(() => {
     if (!isGatheringMap(currentMap)) setPanel((p) => (p?.kind === "carrier" || p?.kind === "livewell" || p?.kind === "satchel" ? null : p));
+    if (currentMap !== "glimmering_caverns") setPanel((p) => (p?.kind === "caveMap" ? null : p));
     // (a node's close-up never outlives the caverns)
     if (currentMap !== "glimmering_caverns") prospectStore.close();
   }, [currentMap]);
@@ -653,12 +669,13 @@ export default function App() {
         } else if (type === "caveProspectEnd") {
           prospectStore.close();
         } else if (type === "caveWeak") {
-          const w = payload as { node: string; weak: [number, number, number] };
-          prospectStore.weak(w.node, w.weak);
+          const w = payload as { node: string; weak: [number, number, number]; glint?: boolean };
+          prospectStore.weak(w.node, w.weak, !!w.glint);
         } else if (type === "caveLoot") {
           const l = payload as CaveLoot;
           const what = (Object.entries(l.items) as [OreItemId, number][]).map(([id, n]) => `${ORE_ITEMS[id].emoji} ${n} ${ORE_ITEMS[id].name}`).join(" · ");
-          if (what) pushToast(`${l.perfect ? "Perfect shatter! " : ""}${what}${l.mult > 1 ? ` (co-op +${Math.round((l.mult - 1) * 100)}%)` : ""}`, { emoji: "⛏️", tone: "coin", silent: true });
+          if (l.clean) prospectStore.clean();
+          if (what) pushToast(`${l.clean ? "Clean break! " : l.perfect ? "Perfect shatter! " : ""}${what}${l.mult > 1 ? ` (co-op +${Math.round((l.mult - 1) * 100)}%)` : ""}`, { emoji: "⛏️", tone: "coin", silent: true });
           if (l.lost > 0) pushToast(`Your satchel's full: ${l.lost} left behind in the rubble`, { emoji: "🎒" });
           if (l.items.core_fragment || l.items.pristine_geode) playSfx("jackpot");
         } else if (type === "caveForge") {
@@ -906,6 +923,7 @@ export default function App() {
             worldEvent={worldEvent}
             ores={ores}
             caveEvent={caveEvent}
+            caveRaft={caveRaft}
             onStrike={(node, dir, t) => cavernsSend(CAVERNS_CHANNELS.strike, { node, dir, seq: Date.now(), t })}
           />
         </IsometricCanvas>
@@ -967,7 +985,7 @@ export default function App() {
               onHook={hook}
               onSplash={splash}
             />
-            <ActionDock player={localPlayer} players={players} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} hearth={hearth} machines={machines} ores={ores} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} onCampfire={campfireSend} onCasino={casinoSend} onCaverns={cavernsSend} subscribeMessages={subscribeMessages} />
+            <ActionDock player={localPlayer} players={players} mapId={currentMap} chairs={chairs} toggleables={toggleables} localSessionId={localSessionId} hearth={hearth} machines={machines} ores={ores} raft={caveRaft} onWater={(plantId) => plantSend({ type: "PLANT_WATER", plantId })} onCampfire={campfireSend} onCasino={casinoSend} onCaverns={cavernsSend} subscribeMessages={subscribeMessages} />
           </div>
         )}
 
@@ -1139,7 +1157,8 @@ export default function App() {
           />
         )}
         {panel?.kind === "cooking" && localPlayer && <CookingModal hearth={hearth} profile={angler.profile} bag={localPlayer.bag} userId={localPlayer.userId} fed={localPlayer.fed} send={campfireSend} onClose={closePanel} />}
-        {panel?.kind === "codex" && localPlayer && <CaveCodexModal found={angler.profile.codex} initial={panel.propId} onClose={closePanel} />}
+        {panel?.kind === "caveMap" && localPlayer && <CaveMapModal ores={ores} players={players} localSessionId={localSessionId} onClose={closePanel} />}
+        {panel?.kind === "codex" && localPlayer && <CaveCodexModal found={angler.profile.codex} initial={panel.propId} title={localPlayer.title} onWear={(id) => casinoSend({ type: "EQUIP_TITLE", id })} onClose={closePanel} />}
         {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} campfireSend={campfireSend} onClose={closePanel} />}
         {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
         {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} market={market} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}

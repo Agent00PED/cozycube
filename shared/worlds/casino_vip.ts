@@ -179,7 +179,8 @@ export const VIP_PROPS: PropSpec[] = [
 
 // --- what you walk round ----------------------------------------------------------------------
 
-const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r });
+// (round things are discs: shared/collision.ts `disc`)
+const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r, r });
 const centred = (c: Pt, hx: number, hz: number): AABB => ({ minX: c.x - hx, maxX: c.x + hx, minZ: c.z - hz, maxZ: c.z + hz });
 
 /** The champagne fountain's base: its centre and radius, and the box you walk round. */

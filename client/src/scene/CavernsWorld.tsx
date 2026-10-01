@@ -3,7 +3,8 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState } from "@shared/types";
-import { CAVERNS_LAYOUT as L, FINNEGAN, GUS, TERRACES, cavernsFloorY } from "@shared/worlds/caverns";
+import { CAVERNS_LAYOUT as L, CAVE_WINCH, FINNEGAN, GUS, TERRACES, cavernsFloorY } from "@shared/worlds/caverns";
+import { playCaveSfx } from "../audio/cavernAmbience";
 import { ORE_KIND_IDS, type OreKind } from "@shared/caverns_mining";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
@@ -17,11 +18,11 @@ import { OcclusionDriver, ditherOccluder } from "./occlusionDither";
 import { ProspectingView } from "./ProspectingView";
 import { CaveFauna } from "./caveFauna";
 import { CaveMist, CrystalLights } from "./caveAtmosphere";
-import { cageLift } from "./winchRide";
+import { CageClock } from "./winchRide";
 import { caveSurface } from "./caveSurface";
 import { bakedLight, causticBed, CAVE_DARK, glowFromVertexColour, heightMist, stillWater, TIME } from "./caveMaterials";
-import { CaveLights, DustMotes, Godrays } from "./caveLight";
-import { DripRipples, FloatShadows, ForgeSmoke, SoakSteam, ThermalSteam, WaterfallSpray, ZoneToasts } from "./caveLife";
+import { CaveLights, DustMotes, Godrays, LampDust } from "./caveLight";
+import { DripRipples, FloatShadows, ForgeSmoke, SoakSteam, ThermalSteam, WaterfallSpray, WadeRipples, ZoneToasts, CeilingDrips, RaftRig } from "./caveLife";
 import { CaveFinds, EventLooks, HearthFire } from "./caveWonders";
 import { CaveFxLayer, OreNodes, WorkFx } from "./caveOres";
 
@@ -111,6 +112,8 @@ interface CavernsWorldProps {
   onStrike: (node: string, dir: [number, number, number], t: number) => void;
   /** The living wonder under way (shared/caverns_codex.ts CaveEvent as JSON; "" none). */
   caveEvent: string;
+  /** The raft (JSON: its side and crossing). */
+  caveRaft: string;
 }
 
 /** The codex entries found, from a synced camp profile (PlayerState.fishing). */
@@ -185,7 +188,7 @@ function CapybaraBath({ players, subscribeMessages }: { players: Record<string, 
 const capyLook = (watch: { current: { x: number; z: number } | null }) => () => watch.current;
 const capyMood = (watch: { current: { x: number; z: number } | null }) => () => (watch.current ? null : ("doze" as const));
 
-export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subscribeMessages, onStrike, caveEvent }: CavernsWorldProps) {
+export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subscribeMessages, onStrike, caveEvent, caveRaft }: CavernsWorldProps) {
   const ev = useMemo(() => parseCaveEvent(caveEvent), [caveEvent]);
   const fishing = localSessionId ? players[localSessionId]?.fishing : undefined;
   const found = useMemo(() => codexOf(fishing), [fishing]);
@@ -210,7 +213,7 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
     <group>
       <ModelBoundary what="caverns.glb" fallback={<StandIn onClick={floorClick} />}>
         <Suspense fallback={<StandIn onClick={floorClick} />}>
-          <CavernModel ores={ores} subscribeMessages={subscribeMessages} players={players} localSessionId={localSessionId} onStrike={onStrike} onClick={floorClick} found={found} />
+          <CavernModel ores={ores} raft={caveRaft} subscribeMessages={subscribeMessages} players={players} localSessionId={localSessionId} onStrike={onStrike} onClick={floorClick} found={found} />
         </Suspense>
       </ModelBoundary>
       <CampNpc url={GUS_URL} what="gus.glb" prefix="Gus" at={{ x: GUS.x, z: GUS.z, yaw: GUS.yaw }} y={cavernsFloorY(GUS.x, GUS.z)} waveEvent="gusWave" standIn={<NpcStandIn />} subscribeMessages={subscribeMessages} talk={GUS_TALK} idle={GUS_IDLE} />
@@ -227,7 +230,10 @@ export function CavernsWorld({ onFloorClick, players, localSessionId, ores, subs
       <EventLooks ev={ev} />
       <ForgeSmoke />
       <DustMotes />
+      <LampDust />
+      <CeilingDrips />
       <WaterfallSpray />
+      <WadeRipples players={players} localSessionId={localSessionId} />
       <CaveFxLayer />
       <WorkFx players={players} localSessionId={localSessionId} />
       <ZoneToasts />
@@ -255,7 +261,7 @@ function NpcStandIn() {
   return <mesh geometry={GEO.box} material={NPC_STAND_IN} position={[0, 0.55, 0]} scale={[0.6, 1.1, 0.5]} raycast={noRaycast} />;
 }
 
-function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrike, onClick, found }: { ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; players: Record<string, PlayerState>; localSessionId: string | null; onStrike: CavernsWorldProps["onStrike"]; onClick: (e: ThreeEvent<PointerEvent>) => void; found: string[] }) {
+function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrike, onClick, found, raft }: { raft: string; ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; players: Record<string, PlayerState>; localSessionId: string | null; onStrike: CavernsWorldProps["onStrike"]; onClick: (e: ThreeEvent<PointerEvent>) => void; found: string[] }) {
   const { scene } = useGLTF(CAVERNS_URL);
   // the floor is the walk collider itself (caverns_walk_collider: the walk grid's triangles exactly,
   // drawn): the only mesh of the model a click is tested against
@@ -304,7 +310,7 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
     });
     if (walk) walk.raycast = THREE.Mesh.prototype.raycast;
     // (the fauna's templates: drawn instanced, never where they were modelled)
-    for (const name of ["Fauna_Crab", "Fauna_Swift", "Fauna_Bat", "Find_Page"]) {
+    for (const name of ["Fauna_Crab", "Fauna_Swift", "Fauna_Bat", "Find_Page", "Find_Lantern"]) {
       const o = scene.getObjectByName(name);
       if (o) o.visible = false;
     }
@@ -326,7 +332,8 @@ function CavernModel({ ores, subscribeMessages, players, localSessionId, onStrik
       <ProspectingView templates={templates} onStrike={onStrike} />
       <CaveFauna crab={fauna.crab} swift={fauna.swift} bat={fauna.bat} />
       <CaveFinds page={(scene.getObjectByName("Find_Page") as THREE.Mesh | undefined) ?? null} found={found} />
-      <WinchRig scene={scene} />
+      <WinchRig scene={scene} players={players} />
+      <RaftRig scene={scene} raft={raft} />
       <XrayWatch scene={scene} />
     </>
   );
@@ -371,7 +378,16 @@ function XrayWatch({ scene }: { scene: THREE.Object3D }) {
 /** Gus's winch as someone rides it up (winchRide.ts): the cage lifted, the rope paid in over the
  *  drum as it climbs, the drum turning; the empty cage let back down after. */
 const DRUM_R = 0.2;
-function WinchRig({ scene }: { scene: THREE.Object3D }) {
+/** How loud the winch is where you stand (0 .. 1). */
+function nearWinch(): number {
+  const d = Math.hypot(cameraFocus.x - CAVE_WINCH.top.x, cameraFocus.z - CAVE_WINCH.top.z);
+  return Math.max(0, Math.min(1, 1.2 - d / 14));
+}
+function WinchRig({ scene, players }: { scene: THREE.Object3D; players: Record<string, PlayerState> }) {
+  const live = useRef(players);
+  live.current = players;
+  const clock = useMemo(() => new CageClock(), []);
+  const motion = useMemo(() => ({ last: 0, at: performance.now(), swing: 0, drum: 0, moving: false }), []);
   const rig = useMemo(() => {
     const cage = scene.getObjectByName("Prop_WinchCage");
     const rope = scene.getObjectByName("Prop_WinchRope");
@@ -382,10 +398,33 @@ function WinchRig({ scene }: { scene: THREE.Object3D }) {
     return { cage, rope, drum, cageY: cage.position.y, hang: Math.max(0.1, hang) };
   }, [scene]);
   useFrame(() => {
+    clock.watch(Object.entries(live.current));
     if (!rig) return;
-    const lift = cageLift();
+    const lift = clock.lift();
+    const now = performance.now();
+    // (docs/caverns-roadmap.md R10.7: the cage swings a little on its rope as it moves and settles
+    // after it stops, the pawl clicks over the ratchet while the drum turns, a knock as it comes to rest)
+    const speed = Math.abs(lift - motion.last) / Math.max(1e-3, (now - motion.at) / 1000);
+    motion.swing += ((speed > 0.05 ? 1 : 0) - motion.swing) * 0.04;
+    const tilt = 0.035 * motion.swing * Math.sin(now / 1000 * 2.3);
+    if (speed > 0.05) {
+      motion.drum += Math.abs(lift - motion.last);
+      if (motion.drum > 0.22) {
+        motion.drum = 0;
+        playCaveSfx("ratchet", nearWinch());
+      }
+      motion.moving = true;
+    } else if (motion.moving && now - motion.at < 200) {
+      motion.moving = false;
+      playCaveSfx("thump", nearWinch());
+    }
+    motion.last = lift;
+    motion.at = now;
     rig.cage.position.y = rig.cageY + lift;
+    rig.cage.rotation.z = tilt;
+    rig.cage.rotation.x = tilt * 0.5;
     rig.rope.scale.y = Math.max(0.02, (rig.hang - lift) / rig.hang);
+    rig.rope.rotation.z = tilt * 0.3;
     rig.drum.rotation.x = -lift / DRUM_R;
   });
   return null;

@@ -1,6 +1,6 @@
 """The templates the game instances: the fauna (`build_fauna_templates`: the crab, the swiftlet, the
 bat) and each ore node's rock, its own mineral on its host rock (`ore_coal`, `ore_copper`,
-`ore_iron`, `ore_silver`, `ore_glimmer`, `ore_rockfall`; their glints set on the rock's own skin by
+`ore_iron`, `ore_silver`, `ore_glimmer`, `ore_rockfall`, `ore_monolith`; their glints set on the rock's own skin by
 `surface_point`), with the broken node's stump (`build_ores`)."""
 
 import math
@@ -8,7 +8,7 @@ import random
 
 from mathutils import Vector
 from .kit import (
-    angular, blob, broken_slab, chunk, cyl, fbm, game_point, hullbox, lump, Mesh, mixc, prism,
+    angular, lathe, blob, broken_slab, chunk, cyl, fbm, game_point, hullbox, lump, Mesh, mixc, prism,
     smooth, turned, W,
 )
 from .scene import finish_object
@@ -59,6 +59,20 @@ def build_fauna_templates(coll):
         cyl(page, (-0.11, 0.014, z), (0.1 - 0.04 * (k % 2), 0.014, z), 0.004, "mapInk", sides=3, cap=False)
     blob(page, 0.06, 0.035, -0.04, 0.045, 0.03, 0.04, "pebble", cuts=1)
     finish_object("Find_Page", page, coll, bake=False)
+    # a miner's lantern to set down (docs/caverns-roadmap.md R2.10): a squat iron frame on a base, a
+    # glowing glass globe, a carrying bail over it (the game sets one down wherever a player lights one)
+    frame = Mesh("CV_Clay")
+    flame = Mesh("CV_Glow")
+    lathe(frame, 0.0, 0.0, [(0, 0), (0.1, 0.0), (0.1, 0.035), (0.075, 0.05), (0, 0.05)], "iron", segs=8)
+    lathe(flame, 0.0, 0.0, [(0, 0), (0.055, 0.01), (0.075, 0.09), (0.055, 0.18), (0, 0.19)], "lanternHot", segs=8, y0=0.05)
+    for k in range(4):
+        a = math.pi / 4 + k * math.pi / 2
+        cyl(frame, (math.cos(a) * 0.075, 0.05, math.sin(a) * 0.075), (math.cos(a) * 0.06, 0.25, math.sin(a) * 0.06), 0.008, "iron", sides=3)
+    lathe(frame, 0.0, 0.0, [(0, 0), (0.085, 0.0), (0.04, 0.05), (0, 0.06)], "iron", segs=8, y0=0.24)
+    for a, b in (((-0.06, 0.3, 0.0), (0.0, 0.4, 0.0)), ((0.0, 0.4, 0.0), (0.06, 0.3, 0.0))):
+        cyl(frame, a, b, 0.006, "iron", sides=3)
+    lamp = finish_object("Find_Lantern", frame, coll, bake=False)
+    finish_object("Find_Lantern_Glow", flame, coll, bake=False).parent = lamp
     finish_object("Fauna_Crab", crab, coll, bake=False)
     finish_object("Fauna_Swift", swift, coll, bake=False)
     finish_object("Fauna_Bat", bat, coll, bake=False)
@@ -258,37 +272,108 @@ def ore_rockfall(rock, glow, r, rng):
             angular(rock, math.cos(a) * rr, max(0.0, y), math.sin(a) * rr, q, q * 1.1, rng, "ironBand", "ironDark", sink=0.02, npts=6)
 
 
+def ore_monolith(rock, glow, r, rng):
+    """The Titan Monolith (docs/caverns-roadmap.md R2.7): an ancient megalith of dark basalt on the
+    islet, a six-sided shaft weathered out of true and leaning a little, its crown broken off and violet
+    crystal bursting out of the break, two bands of carved runes glowing round it, glowing seams
+    running up its faces, rubble and two fallen slabs at its foot. Its footprint (under a metre across)
+    and its height (about three metres) as before: its collider and the prospecting close-up hold."""
+    H = 2.75
+    LEVELS = 11
+    SIDES = 6
+
+    def radius(t):
+        # (the shaft tapers, swells a little a third of the way up, and pinches under the crown)
+        return 0.56 - 0.2 * t + 0.035 * math.sin(t * math.pi * 1.4)
+
+    def ring(k):
+        t = k / LEVELS
+        y = H * t - (0.14 if k == 0 else 0.0)
+        lean = 0.07 * t * t
+        twist = 0.05 * k
+        out = []
+        for i in range(SIDES):
+            a = twist + 2 * math.pi * i / SIDES
+            w = radius(t) * (1.0 + 0.07 * fbm(math.cos(a) * 2.0, t * 5.0, math.sin(a) * 2.0, 71))
+            x, z = w * math.cos(a) + lean, w * 0.86 * math.sin(a)
+            out.append((x, y, z))
+        return out
+
+    rings = [ring(k) for k in range(LEVELS + 1)]
+    # (the crown broken off: the top ring ragged, each corner its own height)
+    top = [(x, y + 0.08 + 0.32 * rng.random(), z) for x, y, z in rings[-1]]
+    rings[-1] = top
+    vs = [[rock.v(*p) for p in rg] for rg in rings]
+    for k in range(LEVELS):
+        for i in range(SIDES):
+            j = (i + 1) % SIDES
+            weathered = fbm(i * 1.7, k * 0.9, 3.0, 73)
+            col = "basaltDeep" if weathered < -0.25 else ("monolithEdge" if (i + k) % 3 == 0 else "monolith")
+            if k == 0:
+                col = "limestoneDark" if weathered > 0.1 else "basalt"
+            rock.face((vs[k][i], vs[k][j], vs[k + 1][j], vs[k + 1][i]), col)
+    # the break: a shallow cup of raw stone under the crystal
+    mid = rock.v(0.07, H - 0.02, 0.0)
+    for i in range(SIDES):
+        rock.face((vs[-1][i], vs[-1][(i + 1) % SIDES], mid), "basaltTop")
+    # violet crystal bursting out of the break, a great one and its crown
+    prism(glow, (0.06, H - 0.1, 0.0), (0.15, 1.0, 0.05), 0.12, 0.75, "violet", sides=6, tip=0.35)
+    for k in range(6):
+        a = 2 * math.pi * k / 6 + rng.random() * 0.5
+        lean = 0.45 + 0.4 * rng.random()
+        prism(glow, (0.06 + math.cos(a) * 0.14, H - 0.06, math.sin(a) * 0.12), (math.cos(a) * lean, 1.0, math.sin(a) * lean), 0.05 + 0.02 * rng.random(), 0.28 + 0.2 * rng.random(), "violetSoft" if k % 2 else "violet", sides=5)
+
+    def on_face(t, i, u):
+        """A point on side i of the shaft at height fraction t, u (0..1) along the side, nudged out."""
+        k = t * LEVELS
+        k0 = min(LEVELS - 1, int(k))
+        f = k - k0
+        a0, b0 = rings[k0][i], rings[k0][(i + 1) % SIDES]
+        a1, b1 = rings[k0 + 1][i], rings[k0 + 1][(i + 1) % SIDES]
+        lo = [a0[n] + (b0[n] - a0[n]) * u for n in range(3)]
+        hi = [a1[n] + (b1[n] - a1[n]) * u for n in range(3)]
+        p = [lo[n] + (hi[n] - lo[n]) * f for n in range(3)]
+        cx = 0.07 * t * t
+        d = Vector((p[0] - cx, 0.0, p[2])).normalized()
+        return (p[0] + d.x * 0.012, p[1], p[2] + d.z * 0.012), d
+
+    # two bands of carved runes round it: on every face a glyph of three strokes
+    for band in (0.3, 0.66):
+        for i in range(SIDES):
+            (x, y, z), d = on_face(band, i, 0.5)
+            side = Vector((-d.z, 0.0, d.x))
+            h = 0.11
+            strokes = [((0.0, -h), (0.0, h)), ((0.0, 0.02), (0.06, h * 0.8)), ((0.0, -0.02), (-0.06, -h * 0.7))] if i % 2 else [((-0.05, -h), (0.05, h)), ((0.05, -h), (-0.05, h)), ((-0.06, 0.0), (0.06, 0.0))]
+            for (u0, v0), (u1, v1) in strokes:
+                a = (x + side.x * u0, y + v0, z + side.z * u0)
+                b = (x + side.x * u1, y + v1, z + side.z * u1)
+                cyl(glow, a, b, 0.011, "runeGlow", sides=3)
+    # glowing seams running up three of its faces, from the ground to the break
+    for i in (0, 2, 4):
+        u = 0.3 + 0.4 * rng.random()
+        top = 0.55 + 0.35 * rng.random()
+        pts = []
+        steps = 12
+        for k in range(steps + 1):
+            t = 0.13 + (top - 0.09) * k / steps
+            u = min(0.88, max(0.12, u + rng.uniform(-0.24, 0.24)))
+            pts.append((on_face(t, i, u)[0], t, u))
+        for (a, _, _), (b, _, _) in zip(pts, pts[1:]):
+            cyl(glow, a, b, 0.012, "runeGlow", sides=3)
+        # (a branch off it now and then, splitting away up the face)
+        for (a, t, u) in pts[3:-2:4]:
+            end = on_face(min(0.95, t + 0.08), i, min(0.9, max(0.1, u + rng.choice((-0.22, 0.22)))))[0]
+            cyl(glow, a, end, 0.008, "runeGlow", sides=3)
+    # (its foot seated in the islet's dais, built into the world: zone_lake.build_monolith_dais; the
+    # seams begin over the socket's rubble)
+
+
 def ore_rock(kind, r, coll):
     rock = Mesh("CV_OreRock")
     glow = Mesh("CV_OreGlow")
     rng = random.Random(sum(ord(c) for c in kind) * 97)
     if kind == "monolith":
-        # a tall obelisk of dark stone, bevelled, cracked with violet runes
-        h = 2.6
-        levels = 7
-        for k in range(levels):
-            y0 = h * k / levels - (0.12 if k == 0 else 0.0)
-            y1 = h * (k + 1) / levels
-            w0 = 0.62 - 0.22 * (k / levels)
-            w1 = 0.62 - 0.22 * ((k + 1) / levels)
-            twist = 0.06 * k
-            ring0 = [(w0 * math.cos(twist + math.pi / 4 + math.pi / 2 * i), w0 * 0.8 * math.sin(twist + math.pi / 4 + math.pi / 2 * i)) for i in range(4)]
-            ring1 = [(w1 * math.cos(twist + 0.06 + math.pi / 4 + math.pi / 2 * i), w1 * 0.8 * math.sin(twist + 0.06 + math.pi / 4 + math.pi / 2 * i)) for i in range(4)]
-            lo = [rock.v(x, y0, z) for x, z in ring0]
-            hi = [rock.v(x, y1, z) for x, z in ring1]
-            for i in range(4):
-                j = (i + 1) % 4
-                rock.face((lo[i], lo[j], hi[j], hi[i]), "monolith" if (i + k) % 2 else "monolithEdge")
-        top = [(0.4 * math.cos(0.42 + math.pi / 4 + math.pi / 2 * i), 0.32 * math.sin(0.42 + math.pi / 4 + math.pi / 2 * i)) for i in range(4)]
-        apex = rock.v(0.03, h + 0.5, 0.0)
-        tv = [rock.v(x, h, z) for x, z in top]
-        for i in range(4):
-            rock.face((tv[i], tv[(i + 1) % 4], apex), "monolithEdge")
-        for k in range(14):
-            y = 0.2 + 2.3 * rng.random()
-            a = rng.random() * 6.283
-            w = 0.62 - 0.22 * (y / h)
-            blob(glow, 0.8 * w * math.cos(a), y, 0.66 * w * math.sin(a), 0.05, 0.16 + 0.1 * rng.random(), 0.05, "runeGlow", cuts=1)
+        ore_monolith(rock, glow, r, rng)
     else:
         {"coal": ore_coal, "copper": ore_copper, "iron": ore_iron, "silver": ore_silver, "glimmer": ore_glimmer, "rockfall": ore_rockfall}[kind](rock, glow, r, rng)
     ob_r = finish_object(f"Ore_{kind}", rock, coll, bake=False, mottle=0.1)

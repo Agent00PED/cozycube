@@ -20,6 +20,11 @@ class Ground:
         self.g = T.get("ground", T["surface"])
         self.mn, self.mc, self.m = T["maskN"], T["maskCell"], T["mask"]
         self.pools = T["pools"]
+        # (the stream as the game runs it, and its falls: docs/caverns-roadmap.md R3.3)
+        self.stream = T.get("stream", [])
+        self.falls = T.get("falls", [])
+        # (the ground no one reaches: docs/caverns-roadmap.md R4.1)
+        self.unreached = T.get("unreached", [])
 
     def at(self, i, k):
         return self.x0 + i * self.cell, self.x0 + k * self.cell
@@ -155,8 +160,9 @@ def zone_ground(L, s, x, y, z, base):
     elif s == SURF["overlook"]:
         # (no slab joints painted in: a line finer than the floor's 0.5 m grid only smears into a
         # smudge; the overlook's slabs are geometry)
-        Tw = L["tower"]
-        c = mixc(c, "flowstone", smooth(3.2, 1.2, math.hypot(x - Tw["x"], z - Tw["z"])) * 0.5)
+        # (the camp's ground trodden pale round its hearth)
+        Tw = L["hearth"]
+        c = mixc(c, "flowstone", smooth(3.6, 1.0, math.hypot(x - Tw["x"], z - Tw["z"])) * 0.35)
         c = mixc(c, "limestoneLight", smooth(0.2, 0.6, n1) * 0.12)
     elif s == SURF["travertine"]:
         ripple = 0.5 + 0.5 * math.sin((x * 0.6 + z) * 5.2 + 3.0 * n1)

@@ -22,12 +22,16 @@ export const YOU = { value: new THREE.Vector4(0, -99, 0, 0) };
 /** The overlook hearth's firelight on the cave round it (xyz its fire, w its flicker): a term in the
  *  cave's own materials like YOU, never a light. */
 export const FIRE = { value: new THREE.Vector4(HEARTH.x, HEARTH.y + 0.3, HEARTH.z, 1) };
+/** The lanterns set down (shared/caverns_mining.ts LANTERN_MAX of them: xyz where, w how bright,
+ *  flickering; w 0 none): a warm glow on the cave round each, a term in the cave's own materials like
+ *  FIRE, never a light. */
+export const LANTERNS = { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, -99, 0, 0)) };
 export const CAVE_DARK = new THREE.Color("#0e131b");
 /** How much of the model's baked light (its vertex colours) glows on its own: the rest of what you
  *  see comes from the game's lights. */
-const BAKED = { value: 0.72 };
+const BAKED = { value: 0.66 };
 /** The caverns' exposure under ACES (the doline's sun never bleaches the sand under it). */
-export const CAVE_EXPOSURE = 0.92;
+export const CAVE_EXPOSURE = 0.88;
 
 /** The model's baked light as a lightmap: its vertex colours glow at BAKED on their own (under the
  *  scene's lights, which add the sun, its shadows and the lamps). Chained after any patch already on
@@ -43,6 +47,7 @@ export function bakedLight(m: THREE.MeshStandardMaterial) {
     shader.uniforms.uDay = DAY;
     shader.uniforms.uYou = YOU;
     shader.uniforms.uFire = FIRE;
+    shader.uniforms.uLanterns = LANTERNS;
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vBakedPos;").replace(
       "#include <project_vertex>",
       `#include <project_vertex>
@@ -54,7 +59,7 @@ export function bakedLight(m: THREE.MeshStandardMaterial) {
         vBakedPos = (modelMatrix * bw).xyz;
       }`
     );
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uBaked;\nuniform float uDay;\nuniform vec4 uYou;\nuniform vec4 uFire;\nvarying vec3 vBakedPos;").replace(
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uBaked;\nuniform float uDay;\nuniform vec4 uYou;\nuniform vec4 uFire;\nuniform vec4 uLanterns[8];\nvarying vec3 vBakedPos;").replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
       {
@@ -69,14 +74,25 @@ export function bakedLight(m: THREE.MeshStandardMaterial) {
         // the warm glow round you in the dark zones, like a lamp at your shoulder
         float youD = distance(vBakedPos, uYou.xyz);
         float you = uYou.w * (1.0 - smoothstep(0.4, 4.8, youD)) * (1.0 - smoothstep(1.8, 3.2, vBakedPos.y - uYou.y));
-        totalEmissiveRadiance += (diffuseColor.rgb * 5.0 + 0.03) * vec3(1.0, 0.8, 0.55) * you;
+        // (as strong as the ground is dark: the rift's basalt lit up, pale stone and dried mud never
+        // washed to white round you)
+        float albedo = dot(diffuseColor.rgb, vec3(0.3, 0.55, 0.15));
+        totalEmissiveRadiance += (diffuseColor.rgb * mix(5.0, 0.8, smoothstep(0.03, 0.3, albedo)) + 0.03) * vec3(1.0, 0.8, 0.55) * you;
         // the overlook hearth's firelight, flickering on the ground and the rock round it
         float fireD = distance(vBakedPos, uFire.xyz);
         totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.55, 0.22) * 2.0 * uFire.w * (1.0 - smoothstep(0.5, 3.8, fireD));
+        // the lanterns set down: each a warm pool of light round it
+        for (int i = 0; i < 8; i++) {
+          vec4 ln = uLanterns[i];
+          if (ln.w <= 0.0) continue;
+          float lnD = distance(vBakedPos, ln.xyz);
+          // (as the glow round you: as strong as the ground is dark)
+          totalEmissiveRadiance += (diffuseColor.rgb * mix(4.5, 0.9, smoothstep(0.03, 0.3, albedo)) + 0.02) * vec3(1.0, 0.72, 0.38) * ln.w * pow(1.0 - smoothstep(0.2, 3.0, lnD), 1.6);
+        }
       }`
     );
   };
-  m.customProgramCacheKey = () => `${prevKey()}|cave-baked-day-fire`;
+  m.customProgramCacheKey = () => `${prevKey()}|cave-baked-day-fire-lanterns`;
   m.needsUpdate = true;
 }
 
@@ -170,8 +186,20 @@ export function glowFromVertexColour(m: THREE.MeshStandardMaterial, strength: nu
         vec2 sp = floor(vec2(vGlowWorld.x + vGlowWorld.z, vGlowWorld.y) * 3.0);
         float h = fract(sin(dot(sp, vec2(12.9898, 78.233))) * 43758.5453);
         float star = step(0.975, h) * (0.55 + 0.45 * sin(uTime * (1.5 + 3.0 * h) + h * 60.0));
-        vec3 night = mix(vec3(0.04, 0.06, 0.14), vec3(0.09, 0.13, 0.27), smoothstep(8.0, 22.0, vGlowWorld.y)) + star * vec3(0.9, 0.95, 1.0);
-        totalEmissiveRadiance = mix(night, totalEmissiveRadiance, uDay);
+        float up = smoothstep(8.0, 22.0, vGlowWorld.y);
+        vec3 night = mix(vec3(0.04, 0.06, 0.14), vec3(0.09, 0.13, 0.27), up) + star * vec3(0.9, 0.95, 1.0);
+        // by day a sky, not a lamp: warm and hazy low over the rim, a soft blue high up, clouds
+        // drifting across it, never brighter than the daylight it is (docs/caverns-roadmap.md R2.3)
+        vec2 cp = vec2(vGlowWorld.x + vGlowWorld.z, vGlowWorld.y * 1.8) * 0.16 + vec2(uTime * 0.02, 0.0);
+        float cloud = 0.5 + 0.25 * sin(cp.x * 1.3 + sin(cp.y * 1.7)) + 0.25 * sin(cp.x * 2.9 - cp.y * 2.1 + 1.7);
+        cloud = smoothstep(0.55, 0.9, cloud) * (0.35 + 0.65 * up);
+        vec3 day = mix(vec3(0.96, 0.88, 0.72), vec3(0.5, 0.68, 0.86), up);
+        day = mix(day, vec3(0.97, 0.97, 0.95), cloud * 0.55) * 0.92;
+        vec3 sky = mix(night, day, uDay);
+        // (and it ends in the cave's own dark, not at a quad's hard edge: the north side's east end,
+        // the west side's south end)
+        float edge = vGlowWorld.z < vGlowWorld.x ? smoothstep(-8.0, -12.5, vGlowWorld.x) : smoothstep(-11.5, -15.5, vGlowWorld.z);
+        totalEmissiveRadiance = mix(vec3(0.055, 0.075, 0.106), sky, edge);
       }`
     );
   };
@@ -287,6 +315,19 @@ export function stillWater(m: THREE.MeshStandardMaterial, opacity: number) {
         diffuseColor.a *= mix(1.0, 0.75, shallow);
         // the caustics glinting on the surface only where it is shallow
         diffuseColor.rgb += vec3(0.1, 0.17, 0.19) * caveCaustic(vWaterPos.xz * 0.9 + 1.7, uTime * 0.6) * shallow * 0.55;
+        // (where the water falls, its surface steep: white streaks running down it, a little more opaque,
+        // docs/caverns-roadmap.md R7.3)
+        {
+          vec3 wn = normalize(cross(dFdx(vWaterPos), dFdy(vWaterPos)));
+          float fallK = smoothstep(0.3, 0.65, 1.0 - abs(wn.y));
+          if (fallK > 0.01) {
+            float lane = sin(vWaterPos.x * 9.0 + vWaterPos.z * 7.0 + sin(vWaterPos.x * 3.1 + vWaterPos.z * 2.3) * 2.0);
+            float run = fract(vWaterPos.y * 1.7 + uTime * 1.5 + lane * 0.3);
+            float streak = smoothstep(0.35, 0.95, lane * 0.5 + 0.5) * smoothstep(0.0, 0.2, run) * (1.0 - smoothstep(0.3, 0.85, run));
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.95, 0.97), fallK * (0.22 + 0.55 * streak));
+            diffuseColor.a = mix(diffuseColor.a, 0.9, fallK * 0.45);
+          }
+        }
         // foam where it laps at the shore, coming and going
         float lap = 0.5 + 0.5 * sin(uTime * 1.25 + (vWaterPos.x * 0.8 + vWaterPos.z) * 1.6);
         float foam = 1.0 - smoothstep(0.012, 0.07 + 0.05 * lap, depth);
@@ -307,8 +348,20 @@ export function stillWater(m: THREE.MeshStandardMaterial, opacity: number) {
         vec3 wn = normalize(vec3(gx * 0.09 * stir, 1.0, gz * 0.09 * stir));
         normal = normalize((viewMatrix * vec4(wn, 0.0)).xyz);
       }`
+      )
+      .replace(
+        "#include <emissivemap_fragment>",
+        `#include <emissivemap_fragment>
+      {
+        // the sheen (docs/caverns-roadmap.md R2.10): the cave's cool dark caught on the water where you
+        // look across it, brighter where the ripples tilt it toward you, glinting as they move
+        // (no glints painted on it: they read as white spots drifting across the water; the ripples'
+        // tilt catches the lights instead: docs/caverns-roadmap.md R5.2)
+        float fres = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 3.0);
+        totalEmissiveRadiance += vec3(0.16, 0.24, 0.3) * fres * 0.55;
+      }`
       );
   };
-  m.customProgramCacheKey = () => `cave-water3-${opacity}`;
+  m.customProgramCacheKey = () => `cave-water6-${opacity}`;
   m.needsUpdate = true;
 }

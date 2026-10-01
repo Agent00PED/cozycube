@@ -205,33 +205,37 @@ export const RETIRED_GEAR_PRICES: Record<string, number> = { canvas_gloves: 120,
 // --- the Glimmering Caverns ---------------------------------------------------------------------------
 
 /** Gus the Mole's base price for each thing the caverns give (shared/caverns_mining.ts ORE_ITEMS),
- *  before the hour's market (shared/market.ts): the raw ores off the nodes by tier (Coal 6, Raw
- *  Copper 12 in the Doline Jungle; Raw Iron 25 on the Iron Mudflats and Raw Silver 55 on the Pearl
- *  Terraces; a Glimmer Shard 135 in the Glimmer Rift; an Ancient Core Fragment 450 off the Titan
- *  Monolith on the Great Lake's islet), the Thermal Bellows Forge's ingots (a small margin on their ores and coal: copper
- *  +7%, iron +9%, silver +51%; a Masterwork ingot, forged by hand at the bellows and the anvil, 25%
- *  more again), the geodes uncracked, and the gems the Precision Geode Chisel cleaves out of them.
- *  (Fine Stone Dust is a crafting material now: shared/economy.ts BYPRODUCT_PRICES.) */
+ *  before the hour's market (shared/market.ts), calibrated (docs/caverns-roadmap.md R2.2) so a
+ *  miner earns about twice what an angler at the river does on tools of the same tier (a T1 miner
+ *  about 40 coins a minute, the rift about 170): the raw ores off the nodes by tier (Coal 3, Raw
+ *  Copper 7 in the Doline Jungle; Raw Iron 12 on the Iron Mudflats and Raw Silver 30 on the Pearl
+ *  Terraces; a Glimmer Shard 75 in the Glimmer Rift; an Ancient Core Fragment 250 off the Titan
+ *  Monolith on the Great Lake's islet), the Thermal Bellows Forge's ingots (an even margin on their
+ *  ores and coal, 15-18%, so every smelt is worth the coal; a Masterwork ingot, forged by hand at the
+ *  bellows and the anvil, 25% more again), the geodes uncracked (about two thirds of what cracking one
+ *  pays on average: a fair price for skipping the chisel, never a trap), and the gems the Precision
+ *  Geode Chisel cleaves out of them. (Fine Stone Dust is a crafting material now: shared/economy.ts
+ *  BYPRODUCT_PRICES.) */
 export const MASTERWORK_INGOT_VALUE = 1.25;
 export const ORE_PRICES = {
-  coal: 6,
-  copper_ore: 12,
-  iron_ore: 25,
-  silver_ore: 55,
-  glimmer_shard: 135,
-  core_fragment: 450,
-  copper_ingot: 45,
-  iron_ingot: 95,
-  silver_ingot: 185,
-  copper_ingot_mw: Math.round(45 * MASTERWORK_INGOT_VALUE),
-  iron_ingot_mw: Math.round(95 * MASTERWORK_INGOT_VALUE),
-  silver_ingot_mw: Math.round(185 * MASTERWORK_INGOT_VALUE),
-  mystery_geode: 40,
-  pristine_geode: 250,
-  amethyst: 75,
-  topaz: 160,
-  opal: 380,
-  star_shard: 1200,
+  coal: 3,
+  copper_ore: 7,
+  iron_ore: 12,
+  silver_ore: 30,
+  glimmer_shard: 75,
+  core_fragment: 250,
+  copper_ingot: 28,
+  iron_ingot: 49,
+  silver_ingot: 78,
+  copper_ingot_mw: Math.round(28 * MASTERWORK_INGOT_VALUE),
+  iron_ingot_mw: Math.round(49 * MASTERWORK_INGOT_VALUE),
+  silver_ingot_mw: Math.round(78 * MASTERWORK_INGOT_VALUE),
+  mystery_geode: 75,
+  pristine_geode: 140,
+  amethyst: 40,
+  topaz: 90,
+  opal: 210,
+  star_shard: 650,
 } as const;
 /** The pickaxes (the Rusted Pickaxe, T1, is Old Flint's gift): Gus sells T2 to T5, the Deep Core
  *  Drill the caverns' big sink. */
@@ -239,20 +243,22 @@ export const PICKAXE_PRICES = { copper: 1500, reinforced: 4500, glimmer: 11000, 
 /** The Prospector's Satchel, tier 1 (the Canvas Ore Pouch) to tier 5 (the Titan Core Vault): coins,
  *  and materials from the other crafts (shared/satchel.ts SATCHEL_TIERS says which). */
 export const SATCHEL_PRICES = [0, 500, 1800, 5500, 14000, 32000] as const;
-/** The Abyssal Cenote Lake's eleven cave fish, Common to Mythic (two of each grade, one mythic): far
- *  richer water than the river's, deep underground (shared/caverns_fishing.ts). */
+/** The Abyssal Cenote Lake's eleven cave fish, Common to Mythic (two of each grade, one mythic):
+ *  richer water than the river's, deep underground (shared/caverns_fishing.ts), calibrated to about
+ *  twice the river's coins a minute on the same rod (docs/caverns-roadmap.md R2.2: a T1 rod about 45,
+ *  where the river's is 21). */
 export const CAVE_FISH_PRICES = {
-  cave_tetra: 22,
-  slate_minnow: 28,
-  glassfin_loach: 58,
-  phosphor_guppy: 72,
-  glow_axolotl: 180,
-  opal_gudgeon: 240,
-  sporecat: 450,
-  needlefish: 580,
-  crystal_fin: 1150,
-  voidfang: 1450,
-  elder_olm: 3200,
+  cave_tetra: 10,
+  slate_minnow: 12,
+  glassfin_loach: 26,
+  phosphor_guppy: 32,
+  glow_axolotl: 80,
+  opal_gudgeon: 105,
+  sporecat: 200,
+  needlefish: 260,
+  crystal_fin: 520,
+  voidfang: 650,
+  elder_olm: 1450,
 } as const;
 /** Finnegan the Grotto Angler's advanced tackle: coins, and a barter of the caverns' and the river's
  *  makings (shared/caverns_fishing.ts CAVE_TACKLES says which). */

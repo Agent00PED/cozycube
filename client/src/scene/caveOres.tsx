@@ -9,7 +9,7 @@ import { noRaycast } from "./kit";
 import { cameraFocus } from "./cameraFocus";
 import { prospectShake } from "./prospectCamera";
 import { NODE_YAW } from "./caveNodes";
-import { playCaveSfx } from "../audio/cavernAmbience";
+import { playCaveSfx, setCaveDrone } from "../audio/cavernAmbience";
 import { activity, nowS, remoteBlows } from "../systems/activityStore";
 import { BLOW, chiselBeat, forgeBeat } from "../entities/activityAnimations";
 import { caveFx, releaseCaveFx } from "./caveFx";
@@ -306,6 +306,8 @@ export function OreNodes({ templates, ores, subscribeMessages, localSessionId, p
       {rubble && <primitive object={rubble} />}
       <primitive object={dust.points} />
       <primitive object={sparkles.points} />
+      <LodeGlows sync={sync} />
+      <MonolithAura sync={sync} />
     </>
   );
 }
@@ -464,4 +466,217 @@ export class ReadySparkles {
     this.points.geometry.dispose();
     this.mat.dispose();
   }
+}
+
+
+// --- the endgame's signs (docs/caverns-roadmap.md R2.8) -----------------------------------------------
+
+const LODE_GOLD = new THREE.Color("#ffd35a");
+const AWAKE_VIOLET = new THREE.Color("#c48cff");
+const LODE_MOTES = 26;
+const HALO_GEO = new THREE.PlaneGeometry(1, 1);
+const HALO_MAT = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  uniforms: { uColor: { value: new THREE.Color() }, uA: { value: 0 } },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      // (a billboard: the quad turned to the camera round its own centre)
+      vec4 c = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+      c.xy += position.xy * vec2(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz));
+      gl_Position = projectionMatrix * c;
+    }`,
+  fragmentShader: `
+    uniform vec3 uColor;
+    uniform float uA;
+    varying vec2 vUv;
+    void main() {
+      float r = length(vUv - 0.5) * 2.0;
+      gl_FragColor = vec4(uColor, pow(max(0.0, 1.0 - r), 2.2) * uA);
+    }`,
+});
+HALO_MAT.toneMapped = false;
+const BEAM_GEO = new THREE.CylinderGeometry(0.34, 0.6, 1, 16, 1, true).translate(0, 0.5, 0);
+const BEAM_MAT = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  blending: THREE.AdditiveBlending,
+  uniforms: { uA: { value: 0 }, uT: { value: 0 } },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform float uA;
+    uniform float uT;
+    varying vec2 vUv;
+    void main() {
+      float fade = smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.35, 1.0, vUv.y));
+      float band = 0.75 + 0.25 * sin(vUv.y * 22.0 - uT * 3.0);
+      gl_FragColor = vec4(vec3(0.77, 0.55, 1.0), fade * band * uA * 0.32);
+    }`,
+});
+BEAM_MAT.toneMapped = false;
+
+/** A Motherlode's glitter (a gold halo round the node and gold motes swirling up off it) and the
+ *  Monolith awake (a violet beam up out of the islet and its motes), for as long as the room says. */
+function LodeGlows({ sync }: { sync: Record<string, { ml?: number; aw?: number }> }) {
+  const halo = useMemo(() => {
+    const m = new THREE.Mesh(HALO_GEO, HALO_MAT.clone());
+    m.raycast = noRaycast;
+    m.renderOrder = 3;
+    m.frustumCulled = false;
+    return m;
+  }, []);
+  const beam = useMemo(() => {
+    const m = new THREE.Mesh(BEAM_GEO, BEAM_MAT);
+    m.raycast = noRaycast;
+    m.renderOrder = 3;
+    return m;
+  }, []);
+  const motes = useMemo(() => new MotePoints(LODE_MOTES * 2), []);
+  const lodeId = Object.entries(sync).find(([, o]) => (o.ml ?? 0) > 0)?.[0] ?? "";
+  const awakeId = Object.entries(sync).find(([, o]) => (o.aw ?? 0) > 0)?.[0] ?? "";
+  const lode = lodeId ? ORE_NODE_AT.get(lodeId) : undefined;
+  const awake = awakeId ? ORE_NODE_AT.get(awakeId) : undefined;
+  const ease = useRef({ lode: 0, awake: 0 });
+  useFrame(({ clock }, dt) => {
+    const t = clock.elapsedTime;
+    const e = ease.current;
+    e.lode += ((lode ? 1 : 0) - e.lode) * Math.min(1, dt * 2);
+    e.awake += ((awake ? 1 : 0) - e.awake) * Math.min(1, dt * 1.2);
+    const hm = halo.material as THREE.ShaderMaterial;
+    halo.visible = e.lode > 0.01 && !!lode;
+    if (lode) {
+      const cy = lode.y + oreCenterY(lode.kind);
+      halo.position.set(lode.x, cy, lode.z);
+      const s = 3.4 + 0.35 * Math.sin(t * 2.4);
+      halo.scale.set(s, s, 1);
+      hm.uniforms.uColor.value.copy(LODE_GOLD);
+      hm.uniforms.uA.value = 0.95 * e.lode;
+      for (let i = 0; i < LODE_MOTES; i++) {
+        const k = (t * 0.35 + i / LODE_MOTES) % 1;
+        const a = i * 2.39996 + t * 0.9;
+        const r = 0.35 + 0.25 * Math.sin(i * 1.7);
+        motes.set(i, lode.x + Math.cos(a) * r, cy - 0.3 + k * 1.8, lode.z + Math.sin(a) * r, (1 - k) * e.lode, LODE_GOLD);
+      }
+    } else for (let i = 0; i < LODE_MOTES; i++) motes.hide(i);
+    beam.visible = e.awake > 0.01 && !!awake;
+    if (awake) {
+      beam.position.set(awake.x, awake.y + 0.2, awake.z);
+      beam.scale.set(1, 12, 1);
+      BEAM_MAT.uniforms.uA.value = e.awake * (0.8 + 0.2 * Math.sin(t * 1.6));
+      BEAM_MAT.uniforms.uT.value = t;
+      for (let i = 0; i < LODE_MOTES; i++) {
+        const k = (t * 0.18 + i / LODE_MOTES) % 1;
+        const a = i * 2.39996 - t * 0.5;
+        motes.set(LODE_MOTES + i, awake.x + Math.cos(a) * 0.55, awake.y + 0.3 + k * 6.5, awake.z + Math.sin(a) * 0.55, (1 - k) * 0.9 * e.awake, AWAKE_VIOLET);
+      }
+    } else for (let i = 0; i < LODE_MOTES; i++) motes.hide(LODE_MOTES + i);
+    motes.commit();
+  });
+  return (
+    <>
+      <primitive object={halo} />
+      <primitive object={beam} />
+      <primitive object={motes.points} />
+    </>
+  );
+}
+
+const SHARDS = 7;
+const SHARD_GEO = new THREE.OctahedronGeometry(0.07, 0).scale(0.7, 1.6, 0.7);
+const SHARD_MAT = new THREE.MeshBasicMaterial({ color: "#c48cff", transparent: true, opacity: 0.9 });
+SHARD_MAT.toneMapped = false;
+const COLLAR_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+const COLLAR_MAT = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  uniforms: { uA: { value: 0 }, uT: { value: 0 }, uRing: { value: 0 } },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform float uA;
+    uniform float uT;
+    uniform float uRing;
+    varying vec2 vUv;
+    void main() {
+      vec2 p = (vUv - 0.5) * 2.0;
+      float r = length(p);
+      float a = atan(p.y, p.x);
+      // the mist collar: a soft band round the dais, wandering in and out as it drifts round
+      float band = smoothstep(0.18, 0.34, r) * (1.0 - smoothstep(0.34 + 0.05 * sin(a * 3.0 + uT * 0.4), 0.62, r));
+      band *= 0.7 + 0.3 * sin(a * 5.0 - uT * 0.3);
+      // the engraved circle breathing with the shaft (its glyphs are the model's own)
+      float ring = (1.0 - smoothstep(0.0, 0.035, abs(r - 0.6))) * uRing;
+      vec3 col = mix(vec3(0.55, 0.45, 0.78), vec3(0.8, 0.55, 1.0), ring);
+      gl_FragColor = vec4(col, (band * 0.22 + ring * 0.55) * uA);
+    }`,
+});
+COLLAR_MAT.toneMapped = false;
+
+/** The Titan Monolith's presence (docs/caverns-roadmap.md R3.5): shards of violet crystal turning slowly
+ *  round its broken crown, a mist collar drifting round its dais, the rune circle engraved in the
+ *  islet breathing with it, and a low hum as you come near; all of it stronger while it is awake, the
+ *  shards gone while it is broken. */
+function MonolithAura({ sync }: { sync: Record<string, { up?: boolean; aw?: number }> }) {
+  const mono = ORE_NODE_AT.get("monolith");
+  const shards = useMemo(() => {
+    const m = new THREE.InstancedMesh(SHARD_GEO, SHARD_MAT, SHARDS);
+    m.raycast = noRaycast;
+    m.frustumCulled = false;
+    return m;
+  }, []);
+  const collar = useMemo(() => {
+    const m = new THREE.Mesh(COLLAR_GEO, COLLAR_MAT);
+    m.raycast = noRaycast;
+    m.renderOrder = 2;
+    return m;
+  }, []);
+  const up = sync.monolith?.up ?? true;
+  const awake = (sync.monolith?.aw ?? 0) > 0;
+  const ease = useRef({ up: 1, awake: 0 });
+  const tmp = useMemo(() => new THREE.Object3D(), []);
+  useEffect(() => () => setCaveDrone(0), []);
+  useFrame(({ clock }, dt) => {
+    if (!mono) return;
+    const t = clock.elapsedTime;
+    const e = ease.current;
+    e.up += ((up ? 1 : 0) - e.up) * Math.min(1, dt * 1.5);
+    e.awake += ((awake ? 1 : 0) - e.awake) * Math.min(1, dt * 1.2);
+    const power = e.up * (0.55 + 0.45 * e.awake);
+    const breath = 0.75 + 0.25 * Math.sin(t * (1.1 + 0.9 * e.awake));
+    const crown = mono.y + 3.0;
+    for (let i = 0; i < SHARDS; i++) {
+      const a = (i / SHARDS) * Math.PI * 2 + t * (0.18 + 0.35 * e.awake) * (i % 2 ? 1 : -0.7);
+      const r = 0.78 + 0.18 * Math.sin(i * 2.1 + t * 0.4);
+      tmp.position.set(mono.x + Math.cos(a) * r, crown + 0.25 * Math.sin(t * 0.7 + i * 1.3) + (i % 3) * 0.12, mono.z + Math.sin(a) * r);
+      tmp.rotation.set(0.3 * Math.sin(t + i), t * 0.8 + i, 0.25);
+      const s = power > 0.02 ? 0.8 + 0.3 * Math.sin(i * 1.7) : 0.0001;
+      tmp.scale.setScalar(s * Math.max(0.0001, e.up));
+      tmp.updateMatrix();
+      shards.setMatrixAt(i, tmp.matrix);
+    }
+    shards.instanceMatrix.needsUpdate = true;
+    SHARD_MAT.opacity = 0.35 + 0.55 * power * breath;
+    collar.position.set(mono.x, mono.y + 0.04, mono.z);
+    collar.scale.set(5, 1, 5);
+    COLLAR_MAT.uniforms.uA.value = (0.45 + 0.55 * e.awake) * (0.35 + 0.65 * e.up);
+    COLLAR_MAT.uniforms.uRing.value = breath * (0.4 + 0.6 * e.awake) * (0.3 + 0.7 * e.up);
+    COLLAR_MAT.uniforms.uT.value = t;
+    // (the hum: by how near the one you follow stands, fuller while it is awake)
+    const d = Math.hypot(cameraFocus.x - mono.x, cameraFocus.z - mono.z);
+    setCaveDrone(Math.max(0, 1 - d / 9) * (0.35 + 0.65 * e.awake) * (0.3 + 0.7 * e.up));
+  });
+  return (
+    <>
+      <primitive object={shards} />
+      <primitive object={collar} />
+    </>
+  );
 }

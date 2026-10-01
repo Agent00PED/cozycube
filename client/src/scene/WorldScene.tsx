@@ -23,8 +23,8 @@ import { ChloeMaid, preloadChloe } from "../entities/ChloeMaid";
 import { BOXING_RING_URL, BoxingWorld, COACH_BRUNO_URL, RING_REGULARS_URL } from "./BoxingWorld";
 import { GLOVES_URL } from "../entities/rig";
 import { COACH_BRUNO } from "@shared/worlds/boxing_ring";
-import { CAVERNS_CAMERA, CAVE_ADIT, ORE_NODE_AT, cavernsFloorY, oreNodeOf } from "@shared/worlds/caverns";
-import { ORE_KINDS, oreCenterY } from "@shared/caverns_mining";
+import { ANVIL_REACH, CAVERNS_CAMERA, CAVE_ADIT, FINNEGAN_REACH, ORE_NODE_AT, cavernsFloorY, oreNodeOf, oreReach } from "@shared/worlds/caverns";
+import { CAVERNS_CHANNELS, ORE_KINDS, oreCenterY } from "@shared/caverns_mining";
 import { CAVERNS_URL, CavernsWorld, FINNEGAN_URL, GUS_URL } from "./CavernsWorld";
 import { prospectStore, useProspect } from "../systems/prospectStore";
 import { combatInput } from "../systems/combatInput";
@@ -80,6 +80,7 @@ export interface WorldSceneProps {
   ores: string;
   /** The caverns' living wonder under way (shared/caverns_codex.ts CaveEvent as JSON; "" none). */
   caveEvent: string;
+  caveRaft: string;
   /** A strike on the node being prospected, where the pickaxe landed (the rock's local direction). */
   onStrike: (node: string, dir: [number, number, number], t: number) => void;
 }
@@ -225,7 +226,7 @@ function useCrowdEvents(subscribeEmotes: WorldSceneProps["subscribeEmotes"], sub
   return { emotes, gestures, bubbles };
 }
 
-export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth, trees, worldEvent, ores, caveEvent, onStrike }: WorldSceneProps) {
+export function WorldScene({ room, players, chairs, toggleables, localSessionId, mapId, timeOfDay, weather, speakingUserIds, subscribeEmotes, subscribeMessages, hearth, trees, worldEvent, ores, caveEvent, caveRaft, onStrike }: WorldSceneProps) {
   const me = localSessionId ? players[localSessionId] : undefined;
   const { emotes, gestures, bubbles } = useCrowdEvents(subscribeEmotes, subscribeMessages);
   // a node's close-up in the caverns: the rock's own proxy takes the pointer (the nodes' pads step aside)
@@ -395,8 +396,16 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   const walkTo = useCallback((x: number, z: number, then?: Pick<MoveTarget, "seatId" | "propId">) => {
     // a fighter in the ring moves with the keys or the joystick: a left click there is a Jab; a
     // prospector's clicks are strikes on the rock (stepping back is the HUD's, or Escape)
-    if (combatInput.active || prospectStore.active) return;
+    if (combatInput.active) return;
     const { room, me } = live.current;
+    // (at a rock, a click on the floor well away from it steps back and walks there: docs/caverns-
+    // roadmap.md R10.5; a near miss of the rock is no walk order)
+    if (prospectStore.active) {
+      const pr = prospectStore.get();
+      const node = pr ? ORE_NODE_AT.get(pr.node) : undefined;
+      if (node && Math.hypot(x - node.x, z - node.z) < ORE_KINDS[node.kind].radius + 1.2) return;
+      room?.send(CAVERNS_CHANNELS.prospect, { op: "stop" });
+    }
     if (me?.sitting) room?.send("standUp"); // the queued walk carries on once you are up
     targetRef.current = { x, z, ...then };
     rippleRef.current = { x, z, id: rippleRef.current.id + 1 };
@@ -486,6 +495,31 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           if (isBlocked(q.x, q.z, mapId)) continue;
           const d = Math.hypot(q.x - cameraFocus.x, q.z - cameraFocus.z);
           if (!best || d < best.d) best = { ...q, d };
+        }
+        if (best) {
+          walkTo(best.x, best.z, { propId });
+          return;
+        }
+      }
+      // the caverns' folk you walk round and its rocks (Finnegan on his log, the anvil, every ore node):
+      // used from any side of them, docs/caverns-roadmap.md R6.2. Within reach already, right there;
+      // else to the nearest open spot round it, never round to one fixed front
+      if (mapId === "glimmering_caverns" && (prop.kind === "angler" || prop.kind === "anvil" || prop.kind === "ore")) {
+        const node = prop.kind === "ore" ? oreNodeOf(propId) : undefined;
+        const reach = node ? oreReach(node) - 0.35 : prop.kind === "angler" ? FINNEGAN_REACH : ANVIL_REACH;
+        const d = Math.hypot(prop.x - cameraFocus.x, prop.z - cameraFocus.z);
+        if (d <= reach) {
+          room?.send("useProp", { propId, x: cameraFocus.x, z: cameraFocus.z });
+          return;
+        }
+        let best: { x: number; z: number; d: number } | null = null;
+        const ring = Math.max(0.9, reach - 0.3);
+        for (let k = 0; k < 24; k++) {
+          const a = (k / 24) * Math.PI * 2;
+          const q = { x: prop.x + Math.cos(a) * ring, z: prop.z + Math.sin(a) * ring };
+          if (isBlocked(q.x, q.z, mapId)) continue;
+          const e = Math.hypot(q.x - cameraFocus.x, q.z - cameraFocus.z);
+          if (!best || e < best.d) best = { ...q, d: e };
         }
         if (best) {
           walkTo(best.x, best.z, { propId });
@@ -590,7 +624,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       ) : casino ? (
         <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} up={up} />
       ) : mapId === "glimmering_caverns" ? (
-        <CavernsWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} ores={ores} caveEvent={caveEvent} subscribeMessages={subscribeMessages} onStrike={onStrike} />
+        <CavernsWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} ores={ores} caveEvent={caveEvent} caveRaft={caveRaft} subscribeMessages={subscribeMessages} onStrike={onStrike} />
       ) : mapId === "boxing_ring" ? (
         <BoxingWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} localSessionId={localSessionId} />
       ) : (

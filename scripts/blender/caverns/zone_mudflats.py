@@ -26,47 +26,59 @@ def build_mudflats(G, L, rock, water, rng):
     """The Passchendaele's mud: dried plates cracked apart over the flats (Voronoi cells, each a little
     domed, a dark crack round it; walked over), wet and unbroken along the stream and in the hollows;
     ochre puddles here and there."""
-    step = 0.62
+    # (docs/caverns-roadmap.md R3.7: plates of every size, a seed kept here and dropped there so its
+    # neighbours grow over its room; thin, their edges curled up off the mud, a dark lip under each,
+    # the colour of the mud itself and dust in the gaps)
+    step = 0.5
     seeds = []
     z = -12.1
     while z < 1.5:
         x = -21.7
         while x < -6.5:
-            seeds.append((x + (rng.random() - 0.5) * 0.52, z + (rng.random() - 0.5) * 0.52))
+            if rng.random() < 0.46:
+                seeds.append((x + (rng.random() - 0.5) * 0.45, z + (rng.random() - 0.5) * 0.45))
             x += step
         z += step
     cols = {}
     for sx, sz in seeds:
-        cols.setdefault((int(sx // 1.3), int(sz // 1.3)), []).append((sx, sz))
+        cols.setdefault((int(sx // 1.6), int(sz // 1.6)), []).append((sx, sz))
     made = 0
     for sx, sz in seeds:
         if G.surf(sx, sz) != SURF["mudflats"] or not free_spot(G, L, sx, sz, clear=0.7):
             continue
-        if near_polyline(sx, sz, L["river"]["segments"][0]) < 1.5 or fbm(sx * 0.4, 0.5, sz * 0.4, 83) > 0.38:
+        if near_polyline(sx, sz, L["river"]["segments"][0]) < 1.5 or fbm(sx * 0.4, 0.5, sz * 0.4, 83) > 0.3:
             continue
-        cell = [(sx - 0.6, sz - 0.6), (sx + 0.6, sz - 0.6), (sx + 0.6, sz + 0.6), (sx - 0.6, sz + 0.6)]
-        ci, ck = int(sx // 1.3), int(sz // 1.3)
+        cell = [(sx - 0.8, sz - 0.8), (sx + 0.8, sz - 0.8), (sx + 0.8, sz + 0.8), (sx - 0.8, sz + 0.8)]
+        ci, ck = int(sx // 1.6), int(sz // 1.6)
         for di in (-1, 0, 1):
             for dk in (-1, 0, 1):
                 for ox, oz in cols.get((ci + di, ck + dk), []):
-                    if (ox, oz) == (sx, sz) or math.hypot(ox - sx, oz - sz) > 1.3:
+                    if (ox, oz) == (sx, sz) or math.hypot(ox - sx, oz - sz) > 1.6:
                         continue
                     cell = clip_half(cell, (sx + ox) / 2, (sz + oz) / 2, ox - sx, oz - sz)
         if len(cell) < 3:
             continue
         cx = sum(p[0] for p in cell) / len(cell)
         cz = sum(p[1] for p in cell) / len(cell)
+        gap = 0.035 + 0.035 * rng.random()
         ring = []
         for px, pz in cell:
             d = math.hypot(px - cx, pz - cz) or 1.0
-            k = max(0.0, 1 - 0.055 / d)
+            k = max(0.0, 1 - gap / d)
             ring.append((cx + (px - cx) * k, cz + (pz - cz) * k))
         tone = rng.random()
-        colr = mixc(mixc("groundMud", "mudPlate", 0.4 + 0.4 * tone), "mudPlateLight", 0.3 * smooth(0.6, 1.0, tone))
-        centre = rock.v(cx, G.y(cx, cz) + 0.04, cz)
-        vs = [rock.v(px, G.y(px, pz) + 0.015, pz) for px, pz in ring]
-        for a_, b_ in zip(vs, vs[1:] + vs[:1]):
+        colr = mixc(mixc("groundMud", "mudPlate", 0.05 + 0.2 * tone), "mudCrack", 0.25)
+        curl = 0.02 + 0.03 * rng.random()
+        centre = rock.v(cx, G.y(cx, cz) + 0.012, cz)
+        top = [rock.v(px, G.y(px, pz) + 0.012 + curl, pz) for px, pz in ring]
+        foot = [rock.v(px, G.y(px, pz) - 0.01, pz) for px, pz in ring]
+        for a_, b_ in zip(top, top[1:] + top[:1]):
             rock.facing((centre, a_, b_), colr, (0.0, 1.0, 0.0))
+        n = len(ring)
+        for j in range(n):
+            q = (j + 1) % n
+            ox_, oz_ = (ring[j][0] + ring[q][0]) / 2 - cx, (ring[j][1] + ring[q][1]) / 2 - cz
+            rock.facing((top[j], top[q], foot[q], foot[j]), "mudCrack", (ox_, 0.0, oz_))
         made += 1
     GEO_STATS["mudPlates"] = made
     # ochre puddles in the hollows

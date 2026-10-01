@@ -161,7 +161,7 @@ export interface OreKindInfo {
 export const ORE_KINDS: Record<OreKind, OreKindInfo> = {
   coal: { name: "Coal Seam", emoji: "⚫", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Coal Breakdown", glow: "#ffb347" },
   copper: { name: "Copper Vein", emoji: "🟠", tier: 1, hp: 120, respawnS: [35, 35], radius: 0.42, sweet: 0.2, geode: 0, zone: "the Doline Jungle", glow: "#ffb347" },
-  iron: { name: "Iron Lode", emoji: "🔩", tier: 2, hp: 200, respawnS: [50, 50], radius: 0.5, sweet: 0.18, geode: 0.15, zone: "the Iron Mudflats", glow: "#ff8a4a" },
+  iron: { name: "Iron Lode", emoji: "🔩", tier: 2, hp: 200, respawnS: [75, 75], radius: 0.5, sweet: 0.18, geode: 0.15, zone: "the Iron Mudflats", glow: "#ff8a4a" },
   silver: { name: "Silver Seam", emoji: "⚪", tier: 3, hp: 300, respawnS: [75, 75], radius: 0.55, sweet: 0.16, geode: 0, zone: "the Pearl Terraces", glow: "#8fe8ff" },
   glimmer: { name: "Glimmerstone Cluster", emoji: "💠", tier: 4, hp: 440, respawnS: [120, 120], radius: 0.6, sweet: 0.15, geode: 0.3, zone: "the Glimmer Rift", glow: "#00f0ff" },
   rockfall: { name: "Rockfall Heap", emoji: "🪨", tier: 1, hp: 900, respawnS: [99999, 99999], radius: 1.0, sweet: 0.3, geode: 0.5, zone: "the Coal Breakdown", glow: "#ffcf7a", crew: true },
@@ -224,15 +224,21 @@ export function strikeRadii(kind: OreKind, pick: PickaxeId, warmth: boolean, ext
  * side the camera sees, never its underside, and on a wall-mounted node never into the wall (`face`:
  * the way it faces out of it, on the ground).
  */
-export function rollWeakSpot(face: { x: number; z: number } | null, rand: () => number = Math.random): Vec3 {
-  let best: Vec3 = norm([CAMERA_SIDE[0], 0.4, CAMERA_SIDE[2]]);
-  for (let k = 0; k < 60; k++) {
+export function rollWeakSpot(face: { x: number; z: number } | null, rand: () => number = Math.random, toward?: { x: number; z: number } | null): Vec3 {
+  // (on the miner's side of the rock when we know where they stand: docs/caverns-roadmap.md R6.5, a
+  // weak spot round the back no one can reach; else the side the camera sees)
+  const tl = toward ? Math.hypot(toward.x, toward.z) : 0;
+  const side = tl > 1e-6 ? { x: toward!.x / tl, z: toward!.z / tl } : null;
+  let best: Vec3 = side ? norm([side.x, 0.4, side.z]) : norm([CAMERA_SIDE[0], 0.4, CAMERA_SIDE[2]]);
+  for (let k = 0; k < 80; k++) {
     const u = rand() * 2 - 1;
     const a = rand() * Math.PI * 2;
     const r = Math.sqrt(1 - u * u);
     const d: Vec3 = [r * Math.cos(a), u, r * Math.sin(a)];
     if (d[1] < -0.1 || d[1] > 0.85) continue;
-    if (d[0] * CAMERA_SIDE[0] + d[1] * CAMERA_SIDE[1] + d[2] * CAMERA_SIDE[2] < 0.3) continue;
+    if (side) {
+      if (d[0] * side.x + d[2] * side.z < 0.45 * Math.hypot(d[0], d[2]) + 0.15) continue;
+    } else if (d[0] * CAMERA_SIDE[0] + d[1] * CAMERA_SIDE[1] + d[2] * CAMERA_SIDE[2] < 0.3) continue;
     if (face && d[0] * face.x + d[2] * face.z < 0.3) continue;
     best = d;
     break;
@@ -277,6 +283,12 @@ export function judgeStrike(kind: OreKind, pick: PickaxeId, weak: Vec3, hit: Vec
 export const PULSE_S = 1.1;
 export const PERFECT_WINDOW_S = 0.13;
 export const PERFECT_DAMAGE = 1.3;
+/** A Perfect on the blow that breaks the rock: a Clean Break, the breaker's haul a quarter bigger
+ *  (docs/caverns-roadmap.md R10.6). */
+export const CLEAN_BREAK_BONUS = 1.25;
+/** How often a fresh weak spot is a Lucky Glint (a gold ring: a Perfect on it pops one more of the rock's
+ *  ore straight into the satchel). Never on the Titan Monolith. */
+export const GLINT_CHANCE = 0.22;
 /** Perfects in a row (from node to node): each adds STREAK_STEP to every haul, up to STREAK_MAX; a
  *  near or bedrock strike ends the run, a plain direct one holds it, and it lapses after
  *  STREAK_IDLE_S without a strike. */
@@ -383,8 +395,8 @@ export const FORGE_RECIPES: Record<IngotId, Partial<Record<OreItemId, number>>> 
   iron_ingot: { iron_ore: 3, coal: 2 },
   silver_ingot: { silver_ore: 2, coal: 2 },
 };
-/** Quick Smelt All's order: the best margin first (silver +51%, iron +9%, copper +7%). */
-export const QUICK_SMELT_ORDER: IngotId[] = ["silver_ingot", "iron_ingot", "copper_ingot"];
+/** Quick Smelt All's order: the best margin first (silver +18%, copper +17%, iron +15%). */
+export const QUICK_SMELT_ORDER: IngotId[] = ["silver_ingot", "copper_ingot", "iron_ingot"];
 /** How long the forge takes over each plain ingot (s), one after another; the most one queue holds. */
 export const FORGE_SMELT_S = 3;
 export const FORGE_QUEUE_MAX = 60;
@@ -650,12 +662,38 @@ export const CAVERNS_CHANNELS = {
   recast: "caverns:recast",
   cast: "caverns:cast",
   codex: "caverns:codex",
+  lantern: "caverns:lantern",
 } as const;
+
+/** Lanterns you set down (docs/caverns-roadmap.md R2.10): one each, a lump of coal to light it, burning
+ *  LANTERN_S; at most LANTERN_MAX down here at once, never within LANTERN_GAP of another; its warm light
+ *  on the cave round it (the cave's own materials: caveMaterials.ts LANTERNS, never a light). Set
+ *  again, it moves to where you stand; taken back, it goes out. */
+export const LANTERN_S = 600;
+export const LANTERN_MAX = 8;
+export const LANTERN_GAP = 2.5;
+export interface CaveLantern {
+  /** Its owner's session. */
+  id: string;
+  name: string;
+  x: number;
+  z: number;
+  until: number;
+}
+export type LanternPacket = { op: "set" } | { op: "take" };
+export function parseLanterns(raw: string): CaveLantern[] {
+  try {
+    const v = raw ? JSON.parse(raw) : [];
+    return Array.isArray(v) ? (v as CaveLantern[]) : [];
+  } catch {
+    return [];
+  }
+}
 /** The codex (shared/caverns_codex.ts): a zone stamped as you walk in, a creature met in its home,
  *  the Bat Exodus witnessed at the camp's dusk, a cave pearl picked up, a page of Old Flint's journal
- *  read, the photo with the Hound's Hand (each checked against where you stand; the fossils and the
+ *  read, the photo at the Explorers' Rest (each checked against where you stand; the fossils and the
  *  living wonders are the server's own). */
-export type CodexPacket = { op: "zone"; id: string } | { op: "fauna"; id: string } | { op: "exodus" } | { op: "pearl"; id: string } | { op: "page"; id: string } | { op: "photo" };
+export type CodexPacket = { op: "zone"; id: string } | { op: "fauna"; id: string } | { op: "exodus" } | { op: "pearl"; id: string } | { op: "page"; id: string } | { op: "photo" } | { op: "wade" };
 /** A cast from the cenote's shore: the way the angler faces (a unit vector on the ground). */
 export interface ShoreCastPacket {
   fx: number;
@@ -724,6 +762,12 @@ export interface OreSync {
   dmg: number;
   up: boolean;
   crew?: number;
+  /** A Motherlode (shared/caverns_mastery.ts): glittering gold until this (ms). */
+  ml?: number;
+  /** The Monolith awake (shared/caverns_mastery.ts AWAKEN_S) until this (ms). */
+  aw?: number;
+  /** A broken node grows back at this (ms): the Cave Map's countdown. */
+  at?: number;
 }
 export type OreSyncState = Record<string, OreSync>;
 export function parseOres(raw: string): OreSyncState {
@@ -742,6 +786,8 @@ export interface CaveProspect {
   weak: Vec3;
   pick: PickaxeId;
   rule: "oneshot" | "mine" | "under" | "deflect";
+  /** The weak spot is a Lucky Glint (GLINT_CHANCE). */
+  glint?: boolean;
 }
 /** Server -> the node's world ("caveStrike"): a strike landed (who, how, where, the node's damage). */
 export interface CaveStrike {
@@ -755,6 +801,8 @@ export interface CaveStrike {
   /** Struck as the ring closed (a Perfect), and the striker's run of Perfects now. */
   perfect?: boolean;
   streak?: number;
+  /** A Perfect on a Lucky Glint: the ore it popped into the striker's satchel. */
+  bonus?: OreItemId;
 }
 /** Server -> the node's world ("caveShatter"): it broke, and who shared it. */
 export interface CaveShatter {
@@ -774,6 +822,10 @@ export interface CaveLoot {
   perfect: boolean;
   /** The run of Perfects it was mined on (its haul's share: streakBonus). */
   streak?: number;
+  /** Off a Motherlode (shared/caverns_mastery.ts): its haul MOTHERLODE_YIELD times over. */
+  lode?: boolean;
+  /** Broken with a Perfect: a Clean Break (CLEAN_BREAK_BONUS). */
+  clean?: boolean;
 }
 /** Server -> the chisel's hand: the geode's seam ("geodeStart"), the chisel set ("geodeAim": the
  *  gauge starts now), and the mallet's blow ("geodeResult": a bounce, a gem, or dust). */
