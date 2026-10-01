@@ -16,6 +16,12 @@ export const MOCHI_URL = modelUrl("cat.glb");
 /** The Velvet Ring's boxing gloves (scripts/blender/build_boxing_ring.py): Glove_<red|tiger>_<L|R>,
  *  each at the hand, knuckles down the arm. */
 export const GLOVES_URL = modelUrl("boxing_gloves.glb");
+/** The gear's back pieces (shared/gear.ts: the back slot), a node each, `Back_<gear id>`, modelled in
+ *  the avatar's own space with its origin at the Torso's pivot: hung on the Torso as it is. */
+export const GEAR_BACK_URL = modelUrl("gear_back.glb");
+export const GEAR_BACK_PREFIX = "Back_";
+/** The lantern's flame on the Lamp Pack: its material, lit by the game. */
+export const GEAR_BACK_GLOW = "GB_Glow";
 /** Where a glove hangs on ArmL / ArmR (the arm's own frame, its pivot at the shoulder): the hand
  *  (build_avatar.py HAND_Z below SHOULDER). */
 export const GLOVE_HAND = { x: 0, y: -0.245, z: 0.004 };

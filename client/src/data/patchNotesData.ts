@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.36",
+    range: "v0.7.0–v0.7.37",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1587,6 +1587,23 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           visuals: [],
           economy: ["💎 Cut gems finally have a use besides selling: keep the ones you want before using Sell All Cut Gems."],
+          fixes: [],
+        },
+      },
+      {
+        version: "0.7.37",
+        date: "2026-10-02",
+        title: "Packs on Your Back",
+        summary: "The four back pieces now show on your avatar, so everyone can see what you carry.",
+        changes: {
+          features: [],
+          visuals: [
+            "🧺 The Creel Pack: a woven willow creel with a fish's tail poking out and a red-and-white float.",
+            "🪵 The Timber Frame: a wooden pack frame with three logs lashed across it.",
+            "🏮 The Lamp Pack: a canvas pack with a bedroll on top and a glowing brass lantern at its side.",
+            "🎒 The Explorer's Pack: a leather rucksack with a rolled blanket, a tin cup and a map scroll.",
+            "👀 Everyone sees the pack you wear. It comes off in the boxing ring and while you lie down.",
+          ],
           fixes: [],
         },
       },

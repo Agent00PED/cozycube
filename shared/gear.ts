@@ -215,6 +215,17 @@ export const setCount = (l: Loadout, family: GearFamily) => l.worn.filter((id) =
 const two = (l: Loadout, family: GearFamily) => setCount(l, family) >= 2;
 const four = (l: Loadout, family: GearFamily) => setCount(l, family) >= 4;
 
+/** The back piece worn ("" none): what the avatar is drawn carrying (client/src/entities/Avatar.tsx
+ *  AvatarBack, gear_back.glb's Back_<id>). */
+export const wornBack = (l: Pick<Loadout, "worn">): GearId | "" => l.worn.find((id) => GEAR[id].slot === "back") ?? "";
+/** The same, read straight off a player's synced camp profile (its JSON as sent), without parsing
+ *  the whole of it. */
+export function wornBackOf(fishingJson: string): GearId | "" {
+  const m = /"worn":\[([^\]]*)\]/.exec(fishingJson);
+  if (!m) return "";
+  return GEAR_IDS.find((id) => GEAR[id].slot === "back" && m[1].includes(`"${id}"`)) ?? "";
+}
+
 /** Putting a piece on: the slot's piece comes off. The new worn list and what came off. */
 export function wearGear(worn: readonly GearId[], id: GearId): { worn: GearId[]; removed: GearId[] } {
   if (worn.includes(id)) return { worn: [...worn], removed: [] };
