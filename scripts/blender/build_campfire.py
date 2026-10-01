@@ -178,6 +178,15 @@ PALETTE = {
     "CF_Ceramic": "#F4EFE6",
     "CF_ClayFoot": "#D9A67A",
     "CF_TentSage": "#8FA37A",
+    # the dressing pass (baked into the clay's vertex colours: a colour here costs no draw call)
+    "CF_GrassTuft": "#6E9454",
+    "CF_PetalBlue": "#9CB7F2",
+    "CF_PetalWhite": "#F6F1E6",
+    "CF_Crate": "#A9794A",
+    "CF_CrateDark": "#7E5632",
+    "CF_Barrel": "#8A5B36",
+    "CF_Leaf": "#D9A441",
+    "CF_Lichen": "#8FA070",
     # the gallery's painted ducks and owls' eyes (the braided rug they were made for is gone: the
     # firepit is river stones, raw logs and boulders now)
     "CF_RugRust": "#C8704A",
@@ -192,7 +201,7 @@ LAYER_CLEARING = 0.022
 # glowing things: (strength) of an emission in their own colour
 EMISSION = {"CF_Ember": 2.2, "CF_FlameOuter": 3.0, "CF_FlameInner": 4.0, "CF_LanternGlass": 2.5, "CF_Bulb": 3.0, "CF_BerryGlow": 2.0, "CF_LanternWarm": 2.6}
 # thin sheets seen from both sides
-DOUBLE_SIDED = {"CF_GrassDark", "CF_TentSage", "CF_Canvas", "CF_CanvasStripe", "CF_Hammock", "CF_HammockStripe", "CF_Checker", "CF_VanCream", "CF_Cooler", "CF_AwningStripe", "CF_Canoe", "CF_CanoeInner"}
+DOUBLE_SIDED = {"CF_GrassTuft", "CF_Leaf", "CF_GrassDark", "CF_TentSage", "CF_Canvas", "CF_CanvasStripe", "CF_Hammock", "CF_HammockStripe", "CF_Checker", "CF_VanCream", "CF_Cooler", "CF_AwningStripe", "CF_Canoe", "CF_CanoeInner"}
 
 
 def _lin(c):
@@ -2318,6 +2327,7 @@ def build(root):
     build_hearth(L, coll)
     build_picnic_plates(L, coll)
     build_living(L, coll)
+    build_dressing(L, coll)
     for ob in coll.all_objects:
         if ob.modifiers:
             bake_modifiers(ob)
@@ -2326,6 +2336,212 @@ def build(root):
         if ob.data is None and ob.parent is None:
             ob.location.z += lift_at(ob.location.x, -ob.location.y)
     return coll, L, cushions
+
+
+def build_dressing(L, coll):
+    """The dressing pass (docs/campfire-design.md step 4), zone by zone. What you walk round is in
+    the layout (`dressing`, with its colliders in campfire.ts): lantern posts along the trails,
+    Buster's crates, barrels, fallen logs, stumps. The rest is walked through or out of reach, and
+    placed here by rule: grass tufts and wildflower drifts over the open moss, pebbles along the
+    trails' edges, log steps up the knoll's trail and stone steps up to the terrace, golden leaves
+    under the birches, stones round the plunge pool and at the river's mouth, stepping stones in the
+    pond, and the far bank's bushes, boulders and ferns."""
+    rng = random.Random(909)
+    half = L["half"]
+    D = L["dressing"]
+    M = ["CF_GrassTuft", "CF_GrassDark", "CF_Petal", "CF_PetalYellow", "CF_PetalBlue", "CF_PetalWhite", "CF_Stone", "CF_StoneDark", "CF_Bark", "CF_WoodCut",
+         "CF_Plank", "CF_PlankDark", "CF_Metal", "CF_LanternGlass", "CF_Crate", "CF_CrateDark", "CF_Barrel", "CF_Leaf", "CF_BushLeaf", "CF_WildBerry", "CF_Rope", "CF_Lichen"]
+    m = {name: i for i, name in enumerate(M)}
+    bm = bmesh.new()
+    dirt = dirt_field(L)
+    c = L["clearing"]
+    solid = [(p["x"], p["z"], 0.5) for p in D["lanternPosts"] + D["barrels"] + D["stumps"]] + [(p["x"], p["z"], 0.8) for p in D["crates"]] + [(f["x"], f["z"], f["len"] / 2 + 0.3) for f in D["fallen"]]
+    solid += [(t["x"], t["z"], 0.45) for t in L["trees"] + L["fellTrees"] + L["fellBirches"]] + [(r_["x"], r_["z"], 0.5 * r_["s"] + 0.15) for r_ in L["rocks"]]
+
+    def open_moss(x, z, pad=0.0):
+        """Open grass at (x, z): on the island, off the dirt, out of the river, clear of what stands."""
+        if rim_inside(x, z, half) < 0.7 or in_river(L, x, z, 0.35 + pad) or dirt(x, z) > 0.12:
+            return False
+        if near_prop(L, x, z, 1.0 + pad) or any(math.hypot(x - sx, z - sz) < sr + pad for sx, sz, sr in solid):
+            return False
+        d = L["dock"]
+        return not (d["x0"] - 0.4 <= x <= d["x1"] + 0.2 and d["z0"] - 0.3 <= z <= d["z1"] + 0.3)
+
+    def tuft(x, z, s):
+        """A tuft of grass: a few blades leaning out from one root (double-sided)."""
+        a0 = rng.random() * 6.28
+        for k in range(5):
+            a = a0 + 6.28 * k / 5 + rng.uniform(-0.4, 0.4)
+            lean = rng.uniform(0.04, 0.13) * s
+            h = rng.uniform(0.15, 0.3) * s
+            w = 0.028 * s
+            px, pz = -math.sin(a), math.cos(a)
+            bx, bz = x + math.cos(a) * 0.02, z + math.sin(a) * 0.02
+            f = bm.faces.new((bm.verts.new(W(bx + px * w, 0.0, bz + pz * w)), bm.verts.new(W(bx - px * w, 0.0, bz - pz * w)), bm.verts.new(W(bx + math.cos(a) * lean, h, bz + math.sin(a) * lean))))
+            f.material_index = m["CF_GrassDark"] if k == 0 else m["CF_GrassTuft"]
+
+    def flower(x, z, tone):
+        h = 0.12 + 0.09 * rng.random()
+        cylinder(bm, W(x, 0.0, z), W(x, h, z), 0.011, 3, m=m["CF_GrassDark"])
+        nub(x, h - 0.012, z, 0.045, 0.05, m[tone])
+
+    def nub(x, y, z, r, h, mat):
+        """A small rounded thing (a flower's head, a pebble) in a handful of triangles."""
+        lathe(bm, x, z, [(0, y), (r, y + h * 0.15), (r * 0.72, y + h * 0.8), (0, y + h)], segs=6, m=mat, yaw=rng.random())
+
+    # --- the open moss: grass in loose clumps (thicker where the noise says), everywhere it is open
+    placed = 0
+    tries = 0
+    while placed < 340 and tries < 6000:
+        tries += 1
+        x, z = rng.uniform(-half + 1, half - 1), rng.uniform(-half + 1, half - 1)
+        if vnoise(x * 0.55 + 20.0, z * 0.55 - 7.0) < 0.42 or not open_moss(x, z):
+            continue
+        for _ in range(rng.randint(1, 3)):
+            tuft(x + rng.uniform(-0.3, 0.3), z + rng.uniform(-0.3, 0.3), rng.uniform(0.8, 1.25))
+        placed += 1
+    # --- wildflower drifts: the South Meadow in pink, yellow and white, the knoll in blue and white
+    drifts = [(-3.0, 9.2, 1.5, ("CF_Petal", "CF_PetalYellow", "CF_PetalWhite")), (4.6, 11.0, 1.6, ("CF_PetalYellow", "CF_PetalWhite")), (-1.2, 12.2, 1.2, ("CF_Petal", "CF_PetalWhite")),
+              (8.0, 12.2, 1.3, ("CF_Petal", "CF_PetalYellow")), (-12.2, 6.2, 1.3, ("CF_PetalWhite", "CF_PetalYellow")), (-8.6, -6.6, 1.4, ("CF_PetalBlue", "CF_PetalWhite")),
+              (-11.9, -8.2, 1.2, ("CF_PetalBlue", "CF_PetalWhite")), (-6.4, -9.4, 1.2, ("CF_PetalBlue", "CF_Petal")), (6.2, -7.0, 1.3, ("CF_PetalYellow", "CF_PetalWhite")),
+              (5.4, 2.9, 1.0, ("CF_Petal", "CF_PetalBlue")), (-6.6, 6.0, 1.2, ("CF_Petal", "CF_PetalBlue"))]
+    for cx, cz, r, tones in drifts:
+        for _ in range(16):
+            a, rr = rng.random() * 6.28, r * math.sqrt(rng.random())
+            x, z = cx + rr * math.cos(a), cz + rr * math.sin(a)
+            if open_moss(x, z):
+                flower(x, z, rng.choice(tones))
+    # --- the trails: pebbles in the grass along their edges
+    for path in L["paths"]:
+        pts = path_polyline(path, 0.55)
+        for k, ((ax, az, aw), (bx, bz, _)) in enumerate(zip(pts, pts[1:])):
+            d = math.hypot(bx - ax, bz - az) or 1.0
+            nx, nz = -(bz - az) / d, (bx - ax) / d
+            side = 1 if (k * 7) % 3 else -1
+            if rng.random() < 0.55:
+                off = aw / 2 + rng.uniform(0.12, 0.3)
+                x, z = ax + nx * off * side, az + nz * off * side
+                if math.hypot(x - c["x"], z - c["z"]) > c["r"] + 0.3 and not in_river(L, x, z, 0.3) and not near_prop(L, x, z, 0.8):
+                    w = rng.uniform(0.05, 0.1)
+                    nub(x, -0.01, z, w, 0.05, m["CF_Stone"] if k % 2 else m["CF_StoneDark"])
+    # --- log steps up the knoll's trail (half-buried, a boot's height), stone steps up to the terrace
+    knoll = path_polyline(L["paths"][5], 0.8)
+    for (ax, az, aw), (bx, bz, _) in list(zip(knoll, knoll[1:]))[1:-1]:
+        d = math.hypot(bx - ax, bz - az) or 1.0
+        nx, nz = -(bz - az) / d, (bx - ax) / d
+        w = aw / 2 + 0.16
+        cylinder(bm, W(ax - nx * w, 0.012, az - nz * w), W(ax + nx * w, 0.012, az + nz * w), 0.06, 8, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
+    north = path_polyline(L["paths"][3], 0.5)
+    for ax, az, aw in [p for p in north if -9.5 < p[1] < -7.0][::1]:
+        blob(bm, ax + rng.uniform(-0.08, 0.08), 0.0, az, aw / 2 - 0.05, 0.035, 0.17, m=m["CF_Stone"] if rng.random() < 0.5 else m["CF_StoneDark"], cuts=3, noise=0.05, rng=rng, flat_bottom=-0.2)
+    # --- golden leaves under the birches
+    for b in L["fellBirches"]:
+        for _ in range(14):
+            a, rr = rng.random() * 6.28, 0.25 + 1.1 * math.sqrt(rng.random())
+            x, z = b["x"] + rr * math.cos(a), b["z"] + rr * math.sin(a)
+            if rim_inside(x, z, half) < 0.6:
+                continue
+            t, s = rng.random() * 6.28, rng.uniform(0.035, 0.06)
+            f = bm.faces.new([bm.verts.new(W(x + s * math.cos(t + q), 0.014, z + s * math.sin(t + q) * 0.62)) for q in (0.0, 2.1, 4.2)])
+            f.material_index = m["CF_Leaf"]
+    # --- the river: stones round the plunge pool's rim, at its mouth on the island's edge, and
+    # stepping stones across the pond below the dock (in the water: none of these is lifted)
+    water = L["river"]["water"]
+    P0 = L["river"]["points"][0]
+    for k in range(9):
+        a = math.pi * (0.08 + 0.84 * k / 8) + math.pi  # round the pool's north side, clear of the fall
+        x, z = P0[1] + (P0[2] - 0.1) * math.cos(a), P0[0] + (P0[2] - 0.1) * math.sin(a)
+        if abs(x - L["cascade"]["x"]) < 0.55:
+            continue
+        s = rng.uniform(0.7, 1.15)
+        blob(bm, x, water + 0.05, z, 0.24 * s, 0.17 * s, 0.2 * s, m=m["CF_Stone"] if k % 2 else m["CF_StoneDark"], cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
+        if k % 3 == 0:
+            blob(bm, x, water + 0.05 + 0.15 * s, z, 0.17 * s, 0.045, 0.14 * s, m=m["CF_Lichen"], cuts=2, noise=0.12, rng=rng)
+    for z in (half - 0.45, half - 1.2):
+        span = river_span(L, z)
+        for side, s in ((0, 0.95), (1, 0.8)):
+            x = span[0] + 0.12 if side == 0 else span[1] - 0.12
+            blob(bm, x, water + 0.06, z, 0.26 * s, 0.2 * s, 0.22 * s, m=m["CF_StoneDark"] if side else m["CF_Stone"], cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
+    d = L["dock"]
+    zs = d["z1"] + 2.4
+    span = river_span(L, zs)
+    for k in range(5):
+        u = (k + 0.5) / 5
+        x = span[0] + (span[1] - span[0]) * u
+        blob(bm, x, water + 0.012, zs + 0.25 * math.sin(k * 1.7), 0.2 + 0.05 * (k % 2), 0.05, 0.17, m=m["CF_Stone"] if k % 2 else m["CF_StoneDark"], cuts=3, noise=0.07, rng=rng, flat_bottom=-0.25)
+    # --- the far bank (no one walks it): bushes with berries, boulders, ferns and flowers down its length
+    z = river_z(L)[0] + 2.0
+    k = 0
+    while z < half - 1.0:
+        span = river_span(L, z)
+        room = (half - 0.7) - (span[1] + 0.45)
+        if room > 0.25:
+            x = span[1] + 0.45 + room * rng.random()
+            kind = k % 4
+            if kind == 0:
+                s = rng.uniform(0.6, 0.9)
+                for q in range(2):
+                    bx, bz = x + 0.28 * (q - 0.5) * s, z + 0.16 * (q - 0.5)
+                    blob(bm, bx, 0.24 * s, bz, 0.4 * s, 0.32 * s, 0.36 * s, m=m["CF_BushLeaf"], cuts=3, noise=0.08, rng=rng, flat_bottom=-0.05)
+                    for _ in range(4):
+                        a = rng.random() * 6.28
+                        blob(bm, bx + math.cos(a) * 0.34 * s, 0.26 * s + rng.uniform(-0.06, 0.12) * s, bz + math.sin(a) * 0.3 * s, 0.028, 0.028, 0.028, m=m["CF_WildBerry"], cuts=1)
+            elif kind == 1:
+                s = rng.uniform(0.5, 0.85)
+                blob(bm, x, 0.12 * s, z, 0.5 * s, 0.34 * s, 0.42 * s, m=m["CF_Stone"], cuts=4, noise=0.1, rng=rng, flat_bottom=-0.3)
+                blob(bm, x - 0.02, 0.4 * s, z, 0.3 * s, 0.06, 0.26 * s, m=m["CF_Lichen"], cuts=2, noise=0.12, rng=rng)
+            elif kind == 2:
+                curved_fern(bm, x, z, rng.uniform(0.9, 1.3), rng, m["CF_GrassDark"])
+                tuft(x + 0.3, z + 0.2, 1.2)
+            else:
+                for _ in range(6):
+                    flower(x + rng.uniform(-0.3, 0.3), z + rng.uniform(-0.4, 0.4), rng.choice(("CF_PetalYellow", "CF_PetalWhite", "CF_Petal")))
+        z += rng.uniform(1.0, 1.5)
+        k += 1
+    # --- what you walk round: the lantern posts (an iron lantern on a bracket, its glass glowing)
+    for p in D["lanternPosts"]:
+        x, z = p["x"], p["z"]
+        cylinder(bm, W(x, -0.05, z), W(x, 1.5, z), 0.05, 8, m=m["CF_PlankDark"])
+        blob(bm, x, 0.03, z, 0.13, 0.06, 0.13, m=m["CF_StoneDark"], cuts=2, noise=0.08, rng=rng, flat_bottom=-0.1)
+        cylinder(bm, W(x, 1.42, z), W(x + 0.24, 1.42, z + 0.24), 0.022, 6, m=m["CF_PlankDark"])
+        lx, lz = x + 0.24, z + 0.24
+        cylinder(bm, W(lx, 1.42, lz), W(lx, 1.33, lz), 0.006, 4, m=m["CF_Metal"])
+        box(bm, lx - 0.075, lx + 0.075, 1.31, 1.33, lz - 0.075, lz + 0.075, m=m["CF_Metal"])
+        box(bm, lx - 0.075, lx + 0.075, 1.1, 1.12, lz - 0.075, lz + 0.075, m=m["CF_Metal"])
+        for sx in (-1, 1):
+            for sz in (-1, 1):
+                box(bm, lx + sx * 0.066 - 0.009, lx + sx * 0.066 + 0.009, 1.12, 1.31, lz + sz * 0.066 - 0.009, lz + sz * 0.066 + 0.009, m=m["CF_Metal"])
+        box(bm, lx - 0.055, lx + 0.055, 1.125, 1.305, lz - 0.055, lz + 0.055, m=m["CF_LanternGlass"])
+    # Buster's crates: two side by side and one on top, slatted; a coil of rope on it
+    for p in D["crates"]:
+        x, z, yaw = p["x"], p["z"], p["yaw"]
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        for dx, y0, s in ((-0.2, 0.0, 0.36), (0.2, 0.0, 0.34), (0.02, 0.36, 0.3)):
+            before = len(bm.verts)
+            cx_, cz_ = x + dx * cy, z - dx * sy
+            box(bm, cx_ - s / 2, cx_ + s / 2, y0, y0 + s, cz_ - s / 2, cz_ + s / 2, m=m["CF_Crate"])
+            for band in (0.08, 0.5, 0.92):
+                box(bm, cx_ - s / 2 - 0.012, cx_ + s / 2 + 0.012, y0 + s * band - 0.022, y0 + s * band + 0.022, cz_ - s / 2 - 0.012, cz_ + s / 2 + 0.012, m=m["CF_CrateDark"])
+        lathe(bm, x + 0.02 * cy, z - 0.02 * sy, [(0.05, 0.66), (0.13, 0.66), (0.13, 0.7), (0.05, 0.7)], segs=12, m=m["CF_Rope"])
+    # the barrels: staves and two iron hoops
+    for p in D["barrels"]:
+        lathe(bm, p["x"], p["z"], [(0, 0.0), (0.2, 0.0), (0.25, 0.2), (0.26, 0.34), (0.25, 0.48), (0.2, 0.68), (0, 0.68)], segs=14, m=m["CF_Barrel"])
+        for y in (0.17, 0.51):
+            lathe(bm, p["x"], p["z"], [(0.24, y - 0.02), (0.262, y - 0.02), (0.262, y + 0.02), (0.24, y + 0.02)], segs=14, m=m["CF_Metal"])
+    # the fallen logs: mossy, a broken branch stub, mushrooms at one end
+    for f in D["fallen"]:
+        dx, dz = math.sin(f["yaw"]) * f["len"] / 2, math.cos(f["yaw"]) * f["len"] / 2
+        cylinder(bm, W(f["x"] - dx, 0.17, f["z"] - dz), W(f["x"] + dx, 0.15, f["z"] + dz), 0.18, 10, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], r_end=0.15, wobble=0.07, rng=rng)
+        blob(bm, f["x"] - dx * 0.2, 0.33, f["z"] - dz * 0.2, 0.3, 0.05, 0.14, m=m["CF_Lichen"], cuts=2, noise=0.12, rng=rng)
+        cylinder(bm, W(f["x"] + dx * 0.3, 0.25, f["z"] + dz * 0.3), W(f["x"] + dx * 0.3 + dz * 0.25, 0.45, f["z"] + dz * 0.3 - dx * 0.25), 0.04, 6, m=m["CF_Bark"], r_end=0.025)
+    # the stumps: a wide cut top, roots flaring into the moss
+    for p in D["stumps"]:
+        lathe(bm, p["x"], p["z"], [(0, 0.0), (0.3, 0.0), (0.22, 0.08), (0.2, 0.3), (0, 0.3)], segs=10, m=m["CF_Bark"], jitter=0.08, rng=rng)
+        lathe(bm, p["x"], p["z"], [(0, 0.3), (0.19, 0.3), (0, 0.312)], segs=10, m=m["CF_WoodCut"])
+    for f in bm.faces:
+        f.normal_update()
+    make_object("Campfire_Dressing", bm, M, coll, recalc=True)
+
 
 
 # ---------------------------------------------------------------------------------------------

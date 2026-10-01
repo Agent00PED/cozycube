@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.42",
+    range: "v0.7.0–v0.7.43",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1686,6 +1686,23 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           economy: ["⚖️ Nothing you earn changes: the trees, the fishing spots and the walks to the stalls are as rewarding as before."],
           fixes: ["⚡ The campfire is drawn with about half the work it took before, so it runs much smoother, most of all on phones."],
+        },
+      },
+      {
+        version: "0.7.43",
+        date: "2026-10-02",
+        title: "Campfire in Bloom",
+        summary: "The rebuilt campfire gets its finishing touches: grass and wildflowers, lanterns along the trails, steps up the hill and spray at the waterfall.",
+        changes: {
+          features: [],
+          visuals: [
+            "🌼 Grass tufts and drifts of wildflowers cover the open moss: pink, yellow and white in the South Meadow, blue and white up on the knoll.",
+            "🏮 Lantern posts light the trails to the terrace, the tipi and the Overlook after dark.",
+            "🪵 Log steps climb the knoll's trail and stone steps lead up to Traders' Row. Buster has crates and a barrel by his stall, and there are fallen logs and stumps in the meadow.",
+            "💦 Spray rises where the waterfall lands, stones ring the plunge pool, stepping stones cross the pond, and the far bank has bushes, boulders and ferns.",
+            "🖼️ The lounge picker's backdrop now shows the new island at night.",
+          ],
+          fixes: ["🪨 You can no longer walk through the waterfall's rocks."],
         },
       },
     ],
