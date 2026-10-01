@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.29",
+    range: "v0.7.0–v0.7.30",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1448,6 +1448,26 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           fixes: [
             "♨️ The hot springs' rims no longer end in cut-off stubs where the water crosses them.",
+          ],
+        },
+      },
+      {
+        version: "0.7.30",
+        date: "2026-10-01",
+        title: "A Clear View of the Rock",
+        summary: "A rock's weak spot always shows on the side you can see, and the caverns' camera can be dragged around like everywhere else.",
+        changes: {
+          features: [
+            "🎥 In the Glimmering Caverns the Free Pan camera now lets you drag the view around, just like every other world.",
+          ],
+          visuals: [
+            "⛺ The Explorers' Rest's sleeping bags are laid out inside its tents.",
+          ],
+          fixes: [
+            "⛏️ A rock's weak spot no longer hides round its back: it always shows on the side your close-up sees, and tapping the ring strikes the ring.",
+            "🪨 The boulder blocking the top of Gus's winch is gone.",
+            "🌊 The little stream at the Great Lake's south-east corner is gone, and the shore there is plain beach.",
+            "🛏️ The stray sleeping bag in front of Gus's trading post is gone.",
           ],
         },
       },

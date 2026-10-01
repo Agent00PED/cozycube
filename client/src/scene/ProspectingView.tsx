@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { ORE_NODE_AT } from "@shared/worlds/caverns";
 import { ORE_KINDS, PERFECT_WINDOW_S, PICKAXES, PULSE_S, STRIKE_DEBOUNCE_S, oreCenterY, pulsePhase, strikeRadii, type OreKind } from "@shared/caverns_mining";
 import { useProspect } from "../systems/prospectStore";
-import { prospectCam } from "./prospectCamera";
+import { prospectCam, prospectView } from "./prospectCamera";
 import { noRaycast } from "./kit";
 import { setCaveHum } from "../audio/cavernAmbience";
 import { NODE_YAW } from "./caveNodes";
@@ -214,7 +214,27 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
     dustMat.opacity = 0.55;
   });
 
-  // a strike: where the pointer met the proxy, as a direction from the rock's centre (a quarter
+  // (the close-up's side told to the server once its angle is chosen: the weak spot is kept on the side
+  // the camera sees, docs/caverns-roadmap.md R11.5)
+  const toldView = useRef("");
+  useFrame(() => {
+    if (!pr) return;
+    const key = `${pr.node}:${pr.openedAt}`;
+    if (toldView.current === key) return;
+    const v = prospectView(pr.node);
+    if (!v) return;
+    toldView.current = key;
+    window.dispatchEvent(new CustomEvent("cozy-prospect-view", { detail: { node: pr.node, dir: [Math.round(v.x * 1000) / 1000, Math.round(v.z * 1000) / 1000] } }));
+  });
+  // (where the pointer's ray meets the rock itself, else its proxy: the ring is drawn on the rock, so a
+  // click on the ring strikes exactly there)
+  const onRock = (e: ThreeEvent<PointerEvent>): THREE.Vector3 => {
+    if (!shape) return e.point;
+    const ray = new THREE.Raycaster(e.ray.origin, e.ray.direction, 0, 200);
+    const hit = ray.intersectObject(shape.rock, false)[0];
+    return hit ? hit.point : e.point;
+  };
+  // a strike: where the pointer met the rock, as a direction from the rock's centre (a quarter
   // second between taps: a double tap is one strike)
   const lastTap = useRef(0);
   const strike = (e: ThreeEvent<PointerEvent>) => {
@@ -224,14 +244,14 @@ export function ProspectingView({ templates, onStrike }: { templates: Templates;
     const now = performance.now();
     if (now - lastTap.current < STRIKE_DEBOUNCE_S * 1000) return;
     lastTap.current = now;
-    const d = e.point.clone().sub(shape.centre).normalize();
+    const d = onRock(e).clone().sub(shape.centre).normalize();
     noteBlow();
     onStrike(pr.node, [Math.round(d.x * 1000) / 1000, Math.round(d.y * 1000) / 1000, Math.round(d.z * 1000) / 1000], Math.round(now - pr.openedAt));
   };
   // the Reinforced Pickaxe (and up) hums as the pointer nears the weak spot
   const hum = (e: ThreeEvent<PointerEvent>) => {
     if (!pr || !shape || !spot || !node || !PICKAXES[pr.pick].hum) return;
-    const d = e.point.clone().sub(shape.centre).normalize();
+    const d = onRock(e).clone().sub(shape.centre).normalize();
     const dist = d.distanceTo(spot.dir) * ORE_KINDS[node.kind].radius;
     const { near } = strikeRadii(node.kind, pr.pick, false);
     setCaveHum(Math.max(0, 1 - dist / (near * 1.6)));

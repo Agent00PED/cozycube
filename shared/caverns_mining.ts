@@ -235,11 +235,13 @@ export function rollWeakSpot(face: { x: number; z: number } | null, rand: () => 
     const a = rand() * Math.PI * 2;
     const r = Math.sqrt(1 - u * u);
     const d: Vec3 = [r * Math.cos(a), u, r * Math.sin(a)];
-    if (d[1] < -0.1 || d[1] > 0.85) continue;
+    if (d[1] < (side ? 0.0 : -0.1) || d[1] > (side ? 0.7 : 0.85)) continue;
     if (side) {
-      if (d[0] * side.x + d[2] * side.z < 0.45 * Math.hypot(d[0], d[2]) + 0.15) continue;
+      // (well inside the half of the rock that side sees: within about 50 degrees of it)
+      if (d[0] * side.x + d[2] * side.z < 0.64 * Math.hypot(d[0], d[2]) + 0.1) continue;
     } else if (d[0] * CAMERA_SIDE[0] + d[1] * CAMERA_SIDE[1] + d[2] * CAMERA_SIDE[2] < 0.3) continue;
-    if (face && d[0] * face.x + d[2] * face.z < 0.3) continue;
+    // (a wall node's own face only when no one's side is known: the side given is what must see it)
+    if (!side && face && d[0] * face.x + d[2] * face.z < 0.3) continue;
     best = d;
     break;
   }
@@ -739,9 +741,11 @@ export interface SoakBreath {
   until: number;
 }
 /** Stepping back from a node (the view closed). */
-export interface ProspectPacket {
-  op: "stop";
-}
+export type ProspectPacket =
+  | { op: "stop" }
+  /** The way the close-up looks at the rock (from its middle toward the camera, on the ground): the
+   *  weak spot is kept on that side, where it can be seen and struck (docs/caverns-roadmap.md R11.5). */
+  | { op: "view"; node: string; dir: [number, number] };
 /** Gus the Mole's shop (the stone dust from the materials' store too). */
 export type GusPacket =
   | { op: "sell"; item: OreItemId; n: number | "all" }

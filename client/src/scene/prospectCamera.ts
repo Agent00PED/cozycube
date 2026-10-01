@@ -64,6 +64,12 @@ export function stepProspectBlend(delta: number): boolean {
   return prospectCam.blend > 0;
 }
 
+/** The way the close-up on `node` looks at it (from the rock toward the camera, on the ground), once
+ *  its angle is chosen; null before. */
+export function prospectView(node: string): { x: number; z: number } | null {
+  return last.node === node ? { x: Math.cos(last.az), z: Math.sin(last.az) } : null;
+}
+
 export function prospectEase(): number {
   const k = prospectCam.blend;
   return k * k * (3 - 2 * k);

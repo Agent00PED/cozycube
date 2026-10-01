@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { cameraFocus, frame } from "./cameraFocus";
+import { cameraFocus, cameraSettings, cameraView, frame } from "./cameraFocus";
 
 // The Glimmering Caverns' close camera: down in the karst the view is locked in tight behind you,
 // never the whole cavern at once (IsometricCanvas's camera rig blends into it over BLEND_S as you
@@ -12,9 +12,11 @@ import { cameraFocus, frame } from "./cameraFocus";
 //             bottom) and where the camera stands: anything nearer the lens than that (the vault's
 //             overhang, a rim of rock) is cut away by the near plane instead of hiding you
 //   angle     from the south-east like the usual view (the screen's axes are the same), PITCH down
-//   tracking  always on you (whatever the camera mode): its look LOOK_UP over your feet, eased after
-//             you on every axis (down the switchbacks the view comes down with you), a jump (the
-//             arrival) cut straight to
+//   tracking  on you: its look LOOK_UP over your feet, eased after you on every axis (down the
+//             switchbacks the view comes down with you), a jump (the arrival) cut straight to
+//   panning   as on every other map (docs/caverns-roadmap.md R11.1): in the Free Pan camera mode a
+//             right- or middle-drag (or a two-finger drag) carries the look away from you, up to
+//             PAN_LIMIT metres, until you move again; Follow keeps it locked on you
 
 export const CAVERN_CAM = {
   MIN: 3.5,
@@ -42,7 +44,25 @@ export const cavernCam = {
   /** The distance the wheel or a pinch asks for, and the one shown (eased toward it). */
   want: CAVERN_CAM.DEFAULT,
   dist: CAVERN_CAM.DEFAULT,
+  /** How far the look has been dragged from you (free look), and the offset shown (eased). */
+  panX: 0,
+  panZ: 0,
+  shownX: 0,
+  shownZ: 0,
 };
+const PAN_LIMIT = 12;
+/** A drag in the Free Pan mode: the look carried over the ground by (dx, dz) metres. */
+export function cavernPanBy(dx: number, dz: number) {
+  if (cameraSettings.mode === "follow") return;
+  cavernCam.panX += dx;
+  cavernCam.panZ += dz;
+  const l = Math.hypot(cavernCam.panX, cavernCam.panZ);
+  if (l > PAN_LIMIT) {
+    cavernCam.panX *= PAN_LIMIT / l;
+    cavernCam.panZ *= PAN_LIMIT / l;
+  }
+  cameraView.freeLook = true;
+}
 
 /** The wheel or a pinch: a step closer or further, kept between MIN and MAX. */
 export function cavernZoomBy(factor: number) {
@@ -77,11 +97,16 @@ export function cavernEase(): number {
 /** Where the close camera is this frame: its position, what it looks at and the zoom (pixels a metre).
  *  `cut`: the player has just been placed (an arrival): no easing after them. */
 export function cavernPose(delta: number, size: { width: number; height: number }, cut: boolean, out: { pos: THREE.Vector3; look: THREE.Vector3; zoom: number }) {
-  const gx = cameraFocus.x;
+  // (the dragged look let go the moment you move, or the mode goes back to Follow)
+  if (!cameraView.freeLook || cameraSettings.mode === "follow") cavernCam.panX = cavernCam.panZ = 0;
+  const kp = cut ? 1 : frameLerp(0.18, delta);
+  cavernCam.shownX += (cavernCam.panX - cavernCam.shownX) * kp;
+  cavernCam.shownZ += (cavernCam.panZ - cavernCam.shownZ) * kp;
+  const gx = cameraFocus.x + cavernCam.shownX;
   const gy = cameraFocus.y + CAVERN_CAM.LOOK_UP;
-  const gz = cameraFocus.z;
+  const gz = cameraFocus.z + cavernCam.shownZ;
   const t = track.look;
-  if (cut || !track.ready || Math.hypot(gx - t.x, gz - t.z) > SNAP) t.set(gx, gy, gz);
+  if (cut || !track.ready || Math.hypot(cameraFocus.x - (t.x - cavernCam.shownX), cameraFocus.z - (t.z - cavernCam.shownZ)) > SNAP) t.set(gx, gy, gz);
   else {
     const k = frameLerp(TRACK_DAMPING, delta);
     t.x += (gx - t.x) * k;

@@ -415,3 +415,13 @@ reached; click-to-move trips on every built map arrive, none stalled (`npm test`
 | Step away from mining by clicking elsewhere or walking | a floor click well away from the rock, or a step with the keys (R10.5) |
 | Mining more fun | Lucky Glint (a gold ring: a bonus ore on a Perfect), Clean Break (+25% on a Perfect breaking blow) (R10.6) |
 | The winch's animation | riders walk the landing; the cage swings and settles; ratchet clicks and a knock (R10.7) |
+
+## 15. Round 11 (the owner's report of 2026-10-01)
+
+| Report | Fix |
+|---|---|
+| The camera locked down here | panned by a drag in the Free Pan mode like every other map (R11.1) |
+| A sleeping bag before Gus's post; the camp's two laid oddly | the stray one removed; the camp's laid inside its tents along them (R11.2) |
+| The stream at the lake's south-east | the outflow reach and its ford removed, the shore plain (R11.3) |
+| A rock in the way at the winch's top | the boulder moved off, the slab set back (R11.4) |
+| The weak spot behind the rock | cause: the close-up stands up to 55 degrees to the miner's side, the spot was rolled on the miner's side; now on the side the close-up sees, and a click on the ring strikes the ring (R11.5) |

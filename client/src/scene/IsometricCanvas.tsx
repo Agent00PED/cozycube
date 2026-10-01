@@ -8,7 +8,7 @@ import { setScreenAxes, stickInput } from "../systems/input";
 import { combatInput } from "../systems/combatInput";
 import { actionCam, actionEase, actionPose, stepActionBlend } from "./actionCamera";
 import { closeUpOn, prospectEase, prospectPose, stepProspectBlend } from "./prospectCamera";
-import { cavernCam, cavernEase, cavernPose, cavernZoomBy, stepCavernBlend } from "./cavernsCamera";
+import { CAVERN_CAM, cavernCam, cavernEase, cavernPanBy, cavernPose, cavernZoomBy, stepCavernBlend } from "./cavernsCamera";
 import { perf } from "../systems/perfProfile";
 
 // The isometric camera. Orthographic, looking along (1, 1, 1), with its zoom fitted to the world's
@@ -28,7 +28,7 @@ import { perf } from "../systems/perfProfile";
 // wheel, a pinch and a drag leave the camera alone. Prospecting a node in the Glimmering Caverns
 // frames its rock close up the same way (prospectCamera.ts); and down there the camera rides behind
 // you (cavernsCamera.ts: 7 m to start, the wheel and a pinch free between 3.5 and 16 m, blended in over
-// 1.2 s as you arrive, its look 0.8 m over your feet, tracked up and down the karst; no panning), the
+// 1.2 s as you arrive, its look 0.8 m over your feet, tracked up and down the karst; panned by a drag in the Free Pan mode like every other map), the
 // look-at point kept inside the cavern's shell (frame.bounds). Either way the screen's right and up along the ground go
 // to the movement input each frame (WASD walks the way it points on screen).
 
@@ -142,6 +142,13 @@ function CameraRig() {
     const clampZoom = (v: number) => THREE.MathUtils.clamp(v, ZOOM_MIN / baseZoom(), ZOOM_MAX / baseZoom());
     const pan = (dx: number, dy: number) => {
       if (cameraSettings.mode === "follow") return; // locked on the player: no panning
+      if (cavernCam.on) {
+        // (the caverns' close camera pans the same way: its pitch its own, its zoom the camera's)
+        const pp = 1 / Math.max(1, (camera as THREE.OrthographicCamera).zoom);
+        const down = 1 / Math.sin(CAVERN_CAM.PITCH);
+        cavernPanBy(-(dx * Math.SQRT1_2 + dy * Math.SQRT1_2 * down) * pp, -(-dx * Math.SQRT1_2 + dy * Math.SQRT1_2 * down) * pp);
+        return;
+      }
       const perPixel = 1 / zoomRef.current; // orthographic: zoom is pixels per world unit
       center.current.x = THREE.MathUtils.clamp(center.current.x - (dx * SCREEN_RIGHT.x + dy * SCREEN_DOWN.x) * perPixel, frame.x - PAN_LIMIT, frame.x + PAN_LIMIT);
       center.current.z = THREE.MathUtils.clamp(center.current.z - (dx * SCREEN_RIGHT.y + dy * SCREEN_DOWN.y) * perPixel, frame.z - PAN_LIMIT, frame.z + PAN_LIMIT);
@@ -159,7 +166,7 @@ function CameraRig() {
     let dragging: { x: number; y: number } | null = null;
     const onPointerDown = (e: PointerEvent) => {
       // (in the ring the right button throws the M2, and the action camera frames the fight: no panning)
-      if ((e.button === 2 && combatInput.active) || actionCam.want || closeUpOn() || cavernCam.on) return;
+      if ((e.button === 2 && combatInput.active) || actionCam.want || closeUpOn()) return;
       if (e.button === 1 || e.button === 2) {
         e.preventDefault(); // no middle-click autoscroll
         dragging = { x: e.clientX, y: e.clientY };
@@ -199,9 +206,15 @@ function CameraRig() {
       if (e.touches.length !== 2 || !pinch || actionCam.want || closeUpOn()) return;
       e.preventDefault();
       if (cavernCam.on) {
-        // (the caverns: fingers apart bring the camera closer, within its range; no panning)
+        // (the caverns: fingers apart bring the camera closer, within its range; a two-finger drag
+        // pans it in the Free Pan mode, as everywhere)
         cavernCam.want = pinch.zoom;
         cavernZoomBy(pinch.dist / Math.max(1, dist(e.touches)));
+        const mc = mid(e.touches);
+        if (Math.hypot(mc.x - pinch.mid.x, mc.y - pinch.mid.y) > 0.5) pan(mc.x - pinch.mid.x, mc.y - pinch.mid.y);
+        pinch.mid = mc;
+        pinch.dist = dist(e.touches);
+        pinch.zoom = cavernCam.want;
         return;
       }
       userZoom.current = clampZoom(pinch.zoom * (dist(e.touches) / pinch.dist));
