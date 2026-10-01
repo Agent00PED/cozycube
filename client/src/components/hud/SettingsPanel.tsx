@@ -14,7 +14,7 @@ function fadersFor(map: MapId, raining: boolean): [Fader, string][] {
     case "cozy_lounge":
       return [["lounge", "🎸 Lounge Folk-Jazz"], ...(raining ? ([["rain", "🌧️ Window Rain"]] as [Fader, string][]) : [])];
     case "campfire_night":
-      return [["fire", "🔥 Campfire Crackle"], ["river", "🌊 River Stream"], ["forest", "🍃 Forest & Crickets"]];
+      return [["fire", "🔥 Campfire Crackle"], ["river", "🌊 River Stream"], ["forest", "🍃 Forest & Crickets"], ["guitar", "🎸 Night Guitar"]];
     case "whispering_woods":
       return [["forest", "🍃 Forest & Crickets"], ["river", "🌊 River Stream"], ["wind", "🌬️ Wind in Trees"]];
     case "velvet_casino":
@@ -31,7 +31,7 @@ function fadersFor(map: MapId, raining: boolean): [Fader, string][] {
 /** What each world's faders are, in a line under them. */
 const FADER_NOTE: Partial<Record<MapId, string>> = {
   cozy_lounge: "The lounge's folk-jazz trio (it rests while the radio plays), and the rain on its windows when it rains. The radio has its own volume in its panel.",
-  campfire_night: "The campfire's soundscape, channel by channel (the crackle fades out if the bonfire goes out).",
+  campfire_night: "The campfire's soundscape, channel by channel (the crackle fades out if the bonfire goes out). After dusk a guitar picks out a quiet phrase now and then.",
   whispering_woods: "The woods: birdsong by day and crickets by night, the meandering river, the wind in the canopy.",
   velvet_casino: "The casino's jazz combo, and its crowd: the murmur, glasses and chips.",
   casino_vip: "The casino's jazz combo, and its crowd: the murmur, glasses and chips.",

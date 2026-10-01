@@ -396,8 +396,8 @@ function Moonlight() {
   if (night <= 0) return null;
   return (
     <>
-      <directionalLight color="#9fb4e8" intensity={0.35 * night} position={[-10, 20, -14]} castShadow={false} />
-      <hemisphereLight args={["#6f86c8", "#1c2a1f", 0.3 * night]} />
+      <directionalLight color="#a9bcec" intensity={0.5 * night} position={[-10, 20, -14]} castShadow={false} />
+      <hemisphereLight args={["#7a90d0", "#22322a", 0.44 * night]} />
     </>
   );
 }

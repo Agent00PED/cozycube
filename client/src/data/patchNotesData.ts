@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.40",
+    range: "v0.7.0–v0.7.41",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1656,6 +1656,17 @@ export const PATCH_ERAS: PatchEra[] = [
             "🥊 The Velvet Ring's parquet floor is calmer (it shimmered when you moved), and the hall is a little brighter.",
           ],
           fixes: ["📦 The maps, crowds and fish models are compressed: about 9.5 MB less to download in all, so worlds load faster."],
+        },
+      },
+      {
+        version: "0.7.41",
+        date: "2026-10-02",
+        title: "Campfire Nights",
+        summary: "The Starlight Campfire runs lighter, its nights are easier to see in, and a guitar now plays by the fire after dark.",
+        changes: {
+          features: ["🎸 After dusk at the campfire, a quiet fingerpicked guitar phrase plays now and then, more often while the bonfire burns. It has its own fader in Settings: Night Guitar."],
+          visuals: ["🌙 Campfire nights are a little brighter under the moon: the paths, the fence and your friends are easier to see when the bonfire is out."],
+          fixes: ["⚡ Barnaby and Buster are drawn far more cheaply, so the campfire runs smoother, most of all on phones."],
         },
       },
     ],

@@ -23,6 +23,9 @@ const WOODS_RIVER = forestRiver(4);
 //   the river    filtered noise swelling and ebbing, a brighter trickle over it
 //   the breeze   a low whoosh that comes and goes
 //   crickets     little three-pulse chirps, two of them, answering each other left and right
+//   the guitar   after dusk, at the campfire only: a fingerpicked phrase over two chords now and then
+//                (a plucked nylon string: a triangle and its octave through a closing low-pass),
+//                more often while the bonfire burns; its own fader
 //
 // It follows the camp's 24-minute day (shared/daynight.ts): the crickets and an owl's hoot by night,
 // birdsong by day, each easing in and out with the light. The Whispering Woods play the same
@@ -41,6 +44,20 @@ const WOODS_RIVER = forestRiver(4);
 // a trip hands the world's sound over in the travel curtain's half second (audio/sound.ts)
 const FADE_S = WORLD_CROSSFADE_S;
 
+/** The night guitar's chords (MIDI notes, low string first), and the pairs a phrase is played over. */
+const CHORDS: Record<string, number[]> = {
+  G: [43, 50, 55, 59, 62, 67],
+  Em: [40, 47, 52, 55, 59, 64],
+  C: [48, 52, 55, 60, 64],
+  D: [50, 57, 62, 66],
+  Am: [45, 52, 57, 60, 64],
+};
+const CHORD_PAIRS: [string, string][] = [["G", "Em"], ["Em", "C"], ["C", "G"], ["Am", "C"], ["G", "D"], ["Am", "Em"], ["C", "D"]];
+/** The picking hand's patterns: which string of the chord each note takes (0 the bass; past the
+ *  chord's last string, its last). */
+const PICKING: number[][] = [[0, 2, 3, 2, 4, 3], [0, 3, 2, 4, 3, 2], [0, 2, 4, 3, 5, 3], [0, 3, 4, 2]];
+const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+
 /** The master's level once faded in (the channels' faders set the mix under it). */
 const MASTER = 1;
 
@@ -57,6 +74,7 @@ class CampfireAmbience {
   private birdAt = 0;
   private owlAt = 8;
   private peckAt = 5;
+  private guitarAt = 0;
   /** Which of the camp's worlds it plays: the campfire (the fire, the river) or the woods (the river). */
   private map: "campfire_night" | "whispering_woods" = "campfire_night";
   private beds: AudioScheduledSourceNode[] = [];
@@ -82,7 +100,7 @@ class CampfireAmbience {
       g.connect(this.master!);
       return g;
     };
-    this.channels = { fire: channel(), river: channel(), forest: channel(), wind: channel() };
+    this.channels = { fire: channel(), river: channel(), forest: channel(), wind: channel(), guitar: channel() };
     for (const k of AMBIENCE_CHANNELS) this.channels[k].gain.value = this.channelLevel(k);
     const placed = (into: GainNode) => {
       const gain = c.createGain();
@@ -211,6 +229,13 @@ class CampfireAmbience {
       this.peckAt = now + 8 + Math.random() * 12;
       if (this.map === "whispering_woods" && Math.random() < light) this.peck(c, out, now);
     }
+    // the night guitar, at the campfire: a phrase now and then after dusk, sooner by a lit fire
+    if (!this.guitarAt) this.guitarAt = now + 6 + Math.random() * 8;
+    else if (now > this.guitarAt) {
+      const lit = this.fuel > 0;
+      this.guitarAt = now + (lit ? 16 : 26) + Math.random() * (lit ? 14 : 20);
+      if (this.active && this.map === "campfire_night" && light < 0.35 && getSoundSettings().guitar > 0.01 && this.channels) this.guitarPhrase(c, this.channels.guitar, now);
+    }
     // crickets: a three-pulse chirp, alternating sides (by night: they fall quiet as the sun rises)
     if (now > this.cricketAt) {
       this.cricketAt = now + 0.7 + Math.random() * 0.9;
@@ -264,6 +289,66 @@ class CampfireAmbience {
       t += len + 0.03 + Math.random() * 0.07;
     }
     window.setTimeout(() => pan.disconnect(), (t - now) * 1000 + 300);
+  }
+
+  /** The night guitar's phrase: two chords fingerpicked, unhurried, the second let ring on a soft
+   *  strum; a little to one side, as if someone by the fire were playing. */
+  private guitarPhrase(c: AudioContext, out: AudioNode, now: number) {
+    const pan = c.createStereoPanner();
+    pan.pan.value = -0.25 + Math.random() * 0.5;
+    pan.connect(out);
+    const [a, b] = CHORD_PAIRS[Math.floor(Math.random() * CHORD_PAIRS.length)];
+    const step = 0.3 + Math.random() * 0.08;
+    let t = now + 0.15;
+    for (const [k, name] of [a, b].entries()) {
+      const chord = CHORDS[name];
+      const picks = PICKING[Math.floor(Math.random() * PICKING.length)];
+      for (const [i, s] of picks.entries()) {
+        const note = chord[Math.min(s, chord.length - 1)];
+        // (the bass a little fuller; a human hand is never quite on the grid)
+        this.pluck(c, pan, hz(note), t + (Math.random() - 0.5) * 0.018, i === 0 ? 0.05 : 0.032 + Math.random() * 0.01);
+        t += step;
+      }
+      if (k === 1) {
+        // the last chord strummed down, low string to high, and left to ring
+        t += step * 0.4;
+        for (const [i, note] of chord.entries()) this.pluck(c, pan, hz(note), t + i * 0.034, 0.03, 3.2);
+        t += 3.4;
+      }
+    }
+    window.setTimeout(() => pan.disconnect(), (t - now) * 1000 + 600);
+  }
+
+  /** A plucked nylon string: a triangle and its octave, bright at the pluck and closing to a warm
+   *  tone as it rings (a low string rings longer than a high one). */
+  private pluck(c: AudioContext, out: AudioNode, f: number, t: number, level: number, ring = 0) {
+    const decay = ring || Math.max(1.1, 2.6 - f / 260);
+    const lp = c.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.Q.value = 0.8;
+    lp.frequency.setValueAtTime(Math.min(5200, f * 9), t);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(500, f * 2.2), t + 0.3);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(level, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(level * 0.42, t + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    lp.connect(g).connect(out);
+    const voices: OscillatorNode[] = [];
+    for (const [mult, amount, type] of [[1, 1, "triangle"], [2, 0.3, "sine"], [3, 0.1, "sine"]] as const) {
+      const o = c.createOscillator();
+      o.type = type;
+      o.frequency.value = f * mult;
+      o.detune.value = -3 + Math.random() * 6;
+      const v = c.createGain();
+      v.gain.value = amount;
+      o.connect(v).connect(lp);
+      o.start(t);
+      o.stop(t + decay + 0.05);
+      o.onended = () => (o.disconnect(), v.disconnect());
+      voices.push(o);
+    }
+    voices[0].addEventListener("ended", () => (lp.disconnect(), g.disconnect()));
   }
 
   /** An owl's soft "hoo, hoo-hoo" from the dark. */
@@ -377,8 +462,8 @@ class CampfireAmbience {
   private channelLevel(k: AmbienceChannel) {
     const v = getSoundSettings()[k];
     const fire = k === "fire" ? (this.fuel <= 0 ? 0 : 0.45 + 0.55 * Math.min(1, this.fuel / 50)) : 1;
-    // (the wind in the trees is the woods' own)
-    const here = k === "wind" && this.map !== "whispering_woods" ? 0 : 1;
+    // (the wind in the trees is the woods' own, the night guitar the campfire's)
+    const here = (k === "wind" && this.map !== "whispering_woods") || (k === "guitar" && this.map !== "campfire_night") ? 0 : 1;
     return v * v * 0.9 * fire * here;
   }
 
