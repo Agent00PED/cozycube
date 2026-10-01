@@ -1,8 +1,16 @@
 import { TREES, type TreeKind } from "../chop";
 import type { AABB } from "../collision";
 import type { PropSpec } from "./lounge";
+import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 
-// The Whispering Woods (the map "whispering_woods"): a 24 x 24 wood behind the Starlight Campfire's
+// The Whispering Woods (the map "whispering_woods", docs/woods-design.md): a 34 x 34 hillside wood
+// behind the Starlight Campfire's fence: the ground rises from the river along the east (-0.2 m) to
+// the Mine Ledge in the north-west (3.2 m), each tier's trees further in and higher up than the last
+// (`terrain`: wide steps added one on another: forestLand; the river's channel cut in: forestHeight;
+// FOREST_GRID for the builder and for feet: forestFloorY). The groves stand as they did, the whole
+// constellation moved to the south and west of the bigger island, so every walk between trees and
+// to Bramble is as long as it was (the simulator holds the income); the Golden Glen and the shrine
+// moved up the hill. Once a 24 x 24 wood behind the Starlight Campfire's
 // fence, reached only through the branch archway at the fence's west end, with a Day Trip Permit (one
 // way in) or the Ranger's Badge (for good) from Buster. It shares the campfire's 24-minute day
 // (shared/daynight.ts) and, like every world, the one room: walking through the archway is a trip,
@@ -35,92 +43,128 @@ import type { PropSpec } from "./lounge";
 type Pt = { x: number; z: number };
 
 export const FOREST_LAYOUT = /* layout:begin */ {
-  "half": 12,
+  "half": 17,
+  "core": { "x": -2, "z": 5 },
+  "terrain": {
+    "step": 0.4,
+    "bank": 0.5,
+    "steps": [
+      {"id": "lower", "top": 1.1, "lobes": [{"x": -5, "z": -12, "flat": 13.5, "skirt": 6}]},
+      {"id": "upper", "top": 1.0, "lobes": [{"x": -3, "z": -11.5, "flat": 9.3, "skirt": 5.2}, {"x": -12, "z": -12.5, "flat": 7.2, "skirt": 5.2}]},
+      {"id": "glen", "top": 0.7, "lobes": [{"x": -12.5, "z": -12.5, "flat": 4.6, "skirt": 2.6}]},
+      {"id": "crown", "top": 0.4, "lobes": [{"x": 1.4, "z": -6.0, "flat": 2.4, "skirt": 3.6}]}
+    ]
+  },
   "zones": [
-    { "id": "border", "name": "The Border", "x0": -12, "x1": 4, "z0": 6.2, "z1": 12, "floor": "meadow" },
-    { "id": "birch", "name": "The Birch Grove", "x0": -12, "x1": -2.2, "z0": -5.9, "z1": 6.2, "floor": "birch" },
-    { "id": "cedar", "name": "The Cedar Ridge", "x0": -2.2, "x1": 9.2, "z0": -5.6, "z1": 6.2, "floor": "ridge" },
-    { "id": "glen", "name": "The Golden Glen", "x0": -12, "x1": -0.6, "z0": -12, "z1": -5.9, "floor": "glen" },
-    { "id": "shrine", "name": "The Elderwood Shrine", "x0": -0.6, "x1": 9.2, "z0": -12, "z1": -5.6, "floor": "shrine" }
+    { "id": "border", "name": "The Border", "x": -6, "z": 14, "r": 6, "floor": "meadow" },
+    { "id": "birch", "name": "The Birch Grove", "x": -9, "z": 6, "r": 6.5, "floor": "birch" },
+    { "id": "cedar", "name": "The Cedar Ridge", "x": 2, "z": 5, "r": 5.5, "floor": "ridge" },
+    { "id": "post", "name": "Bramble's Post", "x": 7, "z": 12.5, "r": 4, "floor": "meadow" },
+    { "id": "glen", "name": "The Golden Glen", "x": -8, "z": -6.0, "r": 5.2, "floor": "glen" },
+    { "id": "shrine", "name": "The Elderwood Shrine", "x": 1.4, "z": -6.0, "r": 3.6, "floor": "shrine" },
+    { "id": "ledge", "name": "The Mine Ledge", "x": -14.5, "z": -11.5, "r": 3.5, "floor": "ridge" }
   ],
-  "archway": { "x": -9.0, "z": 11.5, "w": 1.9, "h": 2.7 },
-  "arrival": { "x": -9.0, "z": 9.7 },
+  "archway": { "x": -11.0, "z": 16.5, "w": 1.9, "h": 2.7 },
+  "arrival": { "x": -11.0, "z": 14.7 },
   "trees": [
-    { "id": "border_1", "kind": "soft_pine", "x": -6.3, "z": 10.3 },
-    { "id": "border_2", "kind": "soft_pine", "x": -3.0, "z": 9.5 },
-    { "id": "border_3", "kind": "soft_pine", "x": 0.2, "z": 8.1 },
-    { "id": "border_4", "kind": "soft_pine", "x": -10.0, "z": 7.2 },
-    { "id": "birch_1", "kind": "birch", "x": -9.9, "z": 4.4 },
-    { "id": "birch_2", "kind": "birch", "x": -6.6, "z": 2.0 },
-    { "id": "birch_3", "kind": "birch", "x": -9.9, "z": -0.4 },
-    { "id": "birch_4", "kind": "birch", "x": -6.6, "z": -1.6 },
-    { "id": "birch_5", "kind": "birch", "x": -3.0, "z": 1.1 },
-    { "id": "birch_6", "kind": "birch", "x": -9.0, "z": -4.6 },
-    { "id": "birch_7", "kind": "birch", "x": -3.6, "z": -3.7 },
-    { "id": "birch_8", "kind": "birch", "x": -5.1, "z": 5.3 },
-    { "id": "cedar_1", "kind": "cedar", "x": 3.0, "z": 3.1 },
-    { "id": "cedar_2", "kind": "cedar", "x": 5.8, "z": 1.6 },
-    { "id": "cedar_3", "kind": "cedar", "x": 2.6, "z": -0.8 },
-    { "id": "cedar_4", "kind": "cedar", "x": 6.2, "z": -2.2 },
-    { "id": "cedar_5", "kind": "cedar", "x": 3.9, "z": -4.0 },
-    { "id": "maple_1", "kind": "maple", "x": -8.6, "z": -8.4 },
-    { "id": "maple_2", "kind": "maple", "x": -5.6, "z": -9.8 },
-    { "id": "maple_3", "kind": "maple", "x": -3.0, "z": -7.4 },
-    { "id": "elder_1", "kind": "elderwood", "x": 3.2, "z": -9.0 },
-    { "id": "birch_9", "kind": "birch", "x": 4.0, "z": 9.9 },
-    { "id": "birch_10", "kind": "birch", "x": -7.6, "z": 6.2 },
-    { "id": "birch_11", "kind": "birch", "x": 9.2, "z": 1.2 },
-    { "id": "cedar_6", "kind": "cedar", "x": 2.6, "z": 6.0 },
-    { "id": "cedar_7", "kind": "cedar", "x": -0.5, "z": 10.5 }
+    { "id": "border_1", "kind": "soft_pine", "x": -8.3, "z": 15.3 },
+    { "id": "border_2", "kind": "soft_pine", "x": -5.0, "z": 14.5 },
+    { "id": "border_3", "kind": "soft_pine", "x": -1.8, "z": 13.1 },
+    { "id": "border_4", "kind": "soft_pine", "x": -12.0, "z": 12.2 },
+    { "id": "birch_1", "kind": "birch", "x": -11.9, "z": 9.4 },
+    { "id": "birch_2", "kind": "birch", "x": -8.6, "z": 7.0 },
+    { "id": "birch_3", "kind": "birch", "x": -11.9, "z": 4.6 },
+    { "id": "birch_4", "kind": "birch", "x": -8.6, "z": 3.4 },
+    { "id": "birch_5", "kind": "birch", "x": -5.0, "z": 6.1 },
+    { "id": "birch_6", "kind": "birch", "x": -11.0, "z": 0.4 },
+    { "id": "birch_7", "kind": "birch", "x": -5.6, "z": 1.3 },
+    { "id": "birch_8", "kind": "birch", "x": -7.1, "z": 10.3 },
+    { "id": "cedar_1", "kind": "cedar", "x": 1.0, "z": 8.1 },
+    { "id": "cedar_2", "kind": "cedar", "x": 3.8, "z": 6.6 },
+    { "id": "cedar_3", "kind": "cedar", "x": 0.6, "z": 4.2 },
+    { "id": "cedar_4", "kind": "cedar", "x": 4.2, "z": 2.8 },
+    { "id": "cedar_5", "kind": "cedar", "x": 1.9, "z": 1.0 },
+    { "id": "maple_1", "kind": "maple", "x": -10.6, "z": -4.9 },
+    { "id": "maple_2", "kind": "maple", "x": -7.6, "z": -6.3 },
+    { "id": "maple_3", "kind": "maple", "x": -5.0, "z": -3.9 },
+    { "id": "elder_1", "kind": "elderwood", "x": 1.4, "z": -6.0 },
+    { "id": "birch_9", "kind": "birch", "x": 2.0, "z": 14.9 },
+    { "id": "birch_10", "kind": "birch", "x": -9.6, "z": 11.2 },
+    { "id": "birch_11", "kind": "birch", "x": 7.2, "z": 6.2 },
+    { "id": "cedar_6", "kind": "cedar", "x": 0.6, "z": 11.0 },
+    { "id": "cedar_7", "kind": "cedar", "x": -2.5, "z": 15.5 }
   ],
 
-  "shrine": { "x": 3.2, "z": -9.0, "r": 1.9, "stones": 7 },
+  "shrine": { "x": 1.4, "z": -6.0, "r": 1.9, "stones": 7 },
   "river": {
-    "points": [[7.4, -13.2, 0.8], [7.9, -10.5, 0.85], [7.0, -8.2, 1.0], [8.3, -6.0, 1.1], [9.8, -4.4, 1.2], [11.0, -2.2, 1.0], [13.4, -1.2, 0.9]],
+    "points": [[13.4, -12.6, 1.3], [13.7, -9.6, 0.9], [13.4, -6.5, 1.0], [13.2, -3.5, 1.15], [12.6, -0.5, 1.3], [12.2, 2.5, 1.9], [12.6, 5.0, 2.2], [13.2, 7.5, 1.7], [13.6, 10.5, 1.2], [13.2, 13.5, 1.1], [12.8, 16.0, 1.0], [12.6, 18.6, 1.0]],
     "water": -0.2,
     "depth": 0.55,
-    "rocks": [[7.3, -11.6, 0.45], [6.6, -7.4, 0.4], [8.9, -5.1, 0.5], [10.9, -3.4, 0.45], [10.2, -1.6, 0.4], [8.6, -9.6, 0.35]]
+    "rocks": [[13.2, -10.9, 0.45], [13.9, -8.0, 0.4], [13.6, -5.0, 0.5], [12.5, -1.6, 0.45], [13.9, 1.2, 0.4], [14.3, 8.6, 0.45], [12.7, 12.0, 0.4]]
+  },
+  "cascade": { "x": 13.4, "z": -14.9, "top": 1.4 },
+  "dressing": {
+    "boulders": [
+      [6.4, -11.2, 0.9], [8.6, -8.4, 0.7], [4.6, -13.4, 0.75], [9.6, -13.6, 0.8], [7.4, -3.6, 0.6], [-1.4, -11.6, 0.85], [-5.6, -13.6, 0.7],
+      [-14.9, -8.4, 1.0], [-15.6, -14.6, 1.1], [-13.0, -14.6, 0.8], [-13.4, 2.4, 0.6], [-14.2, 11.4, 0.7], [9.6, 15.2, 0.6]
+    ],
+    "lanternPosts": [[-9.6, 14.6], [-4.6, 9.6], [-4.4, 0.4], [-9.6, -6.6], [-12.8, -9.8], [9.2, 6.6], [6.6, 14.6]],
+    "fallen": [
+      { "x": 6.6, "z": -6.6, "yaw": 0.9, "len": 2.0 },
+      { "x": -13.6, "z": 6.4, "yaw": 0.2, "len": 1.8 },
+      { "x": 3.6, "z": -11.4, "yaw": 2.3, "len": 1.7 }
+    ],
+    "stumps": [[8.4, -5.6], [-12.6, -1.6], [10.4, 9.6]]
   },
   "fishing": [
-    { "stand": { "x": 5.65, "z": -8.6 }, "bobber": { "x": 7.0, "z": -8.5 } },
-    { "stand": { "x": 6.55, "z": -5.78 }, "bobber": { "x": 7.77, "z": -6.69 }, "seat": "log", "face": [0.8, -0.6] },
-    { "stand": { "x": 8.58, "z": -3.24 }, "bobber": { "x": 10.0, "z": -4.05 }, "seat": "rock", "face": [0.87, -0.5] },
-    { "stand": { "x": 10.66, "z": -0.71 }, "bobber": { "x": 11.4, "z": -1.95 } }
+    { "stand": { "x": 11.55, "z": -2.3 }, "bobber": { "x": 12.9, "z": -2.6 } },
+    { "stand": { "x": 12.0, "z": -6.2 }, "bobber": { "x": 13.3, "z": -6.6 }, "seat": "log", "face": [0.9, -0.3] },
+    { "stand": { "x": 11.85, "z": -11.9 }, "bobber": { "x": 13.2, "z": -12.4 }, "seat": "rock", "face": [0.9, -0.35] },
+    { "stand": { "x": 9.95, "z": 2.4 }, "bobber": { "x": 11.4, "z": 2.5 } }
   ],
-  "cabin": { "x": 9.85, "z": 5.35, "w": 3.2, "d": 2.4, "h": 2.6 },
-  "counter": { "x": 9.85, "z": 7.7, "len": 2.0, "w": 0.55, "top": 0.7 },
-  "bramble": { "x": 9.85, "z": 7.0, "yaw": 0 },
-  "workbench": { "x": 7.45, "z": 7.75, "len": 1.6, "w": 0.72, "top": 0.9 },
-  "finley": { "x": 9.3, "z": -1.9, "yaw": 2.45 },
-  "birds": [[-11.4, 5.8], [-11.3, -5.0], [-9.3, -11.4], [2.0, -11.5], [8.9, 2.95]],
-  "titanSpots": [[-6.7, -6.6], [0.8, 3.6], [0.8, -3.4]],
+  "cabin": { "x": 7.85, "z": 10.35, "w": 3.2, "d": 2.4, "h": 2.6 },
+  "counter": { "x": 7.85, "z": 12.7, "len": 2.0, "w": 0.55, "top": 0.7 },
+  "bramble": { "x": 7.85, "z": 12.0, "yaw": 0 },
+  "workbench": { "x": 5.45, "z": 12.75, "len": 1.6, "w": 0.72, "top": 0.9 },
+  "finley": { "x": 10.0, "z": 5.3, "yaw": 1.75 },
+  "birds": [[-16.2, 6.6], [-16.2, -4.6], [-13.2, -16.2], [2.6, -16.2], [5.8, -13.6]],
+  "titanSpots": [[-8.6, -1.6], [-1.2, 8.6], [-1.2, 1.6]],
   "animals": [
-    { "id": "deer", "kind": "deer", "x": -1.8, "z": -4.9 },
-    { "id": "rabbits", "kind": "rabbits", "x": -2.6, "z": 5.4 }
+    { "id": "deer", "kind": "deer", "x": -3.8, "z": 0.1 },
+    { "id": "rabbits", "kind": "rabbits", "x": -4.6, "z": 10.4 }
   ],
   "vista": [
-    [-11.2, -11.3, 1.2], [-9.3, -11.4, 1.0], [-7.4, -11.3, 1.15], [-5.5, -11.4, 0.95], [-3.6, -11.3, 1.1], [-1.7, -11.4, 1.0], [0.2, -11.4, 1.2],
-    [2.0, -11.5, 0.95], [5.1, -11.4, 1.1], [9.9, -11.2, 1.0], [8.9, 2.95, 1.0], [11.3, 2.7, 1.05],
-    [-11.4, -10.6, 1.1], [-11.5, -5.1, 0.95], [-11.3, -5.0, 1.15], [-11.4, -2.8, 1.0], [-11.5, -0.6, 1.1], [-11.3, 1.6, 0.95], [-11.4, 5.8, 1.05], [-11.5, 7.9, 1.0],
-    [-11.3, 10.9, 0.9], [-11.4, 3.7, 1.0], [3.6, -11.6, 1.0], [11.7, -10.8, 1.1], [11.8, -8.2, 0.95]
+    [-15.8, -16.2, 1.2], [-13.2, -16.2, 1.0], [-10.6, -16.2, 1.15], [-8.0, -16.2, 0.95], [-5.4, -16.2, 1.1], [-2.8, -16.2, 1.0], [-0.2, -16.2, 1.2],
+    [2.6, -16.2, 0.95], [5.4, -16.2, 1.1], [8.2, -16.2, 1.0], [10.9, -16.3, 1.1], [-16.2, 15.2, 0.95],
+    [-16.2, -7.4, 0.95], [-16.2, -4.6, 1.15], [-16.2, -1.8, 1.0], [-16.2, 1.0, 1.1], [-16.2, 3.8, 0.95], [-16.2, 6.6, 1.05], [-16.2, 9.4, 1.0], [-16.2, 12.4, 0.9],
+    [-16.1, -15.0, 1.1], [5.8, -13.6, 1.0], [-2.2, -14.0, 1.05], [-14.4, -7.4, 1.0], [-13.8, -3.2, 1.0]
   ],
   "paths": [
-    { "points": [[-9.0, 10.8, 1.6], [-7.4, 8.9, 1.5], [-4.6, 7.4, 1.4], [-1.6, 7.0, 1.4], [1.8, 7.5, 1.4], [5.0, 8.3, 1.3], [7.6, 8.85, 1.3], [9.85, 9.0, 1.5]] },
-    { "points": [[-1.6, 7.0, 1.3], [-1.9, 3.2, 1.2], [-1.4, 0.0, 1.2], [-1.2, -3.2, 1.2], [-0.4, -5.8, 1.2], [1.8, -7.9, 1.2]] },
-    { "points": [[-1.4, 0.0, 1.1], [-3.2, -0.2, 1.0], [-6.2, 0.4, 1.0]] },
-    { "points": [[-0.9, -3.8, 1.0], [-3.4, -5.4, 1.0], [-6.0, -6.8, 1.0]] },
-    { "points": [[1.2, 1.2, 1.0], [4.2, 0.4, 1.0], [6.4, -1.4, 1.0], [7.7, -2.6, 1.0]] }
+    { "points": [[-11.0, 15.8, 1.6], [-9.4, 13.9, 1.5], [-6.6, 12.4, 1.4], [-3.6, 12.0, 1.4], [-0.2, 12.5, 1.4], [3.0, 13.3, 1.3], [5.6, 13.85, 1.3], [7.85, 14.0, 1.5]] },
+    { "points": [[-3.6, 12.0, 1.3], [-3.9, 8.2, 1.2], [-3.4, 5.0, 1.2], [-3.2, 1.8, 1.2], [-2.4, -1.2, 1.2], [-1.2, -3.0, 1.2], [-0.2, -4.4, 1.2]] },
+    { "points": [[-3.4, 5.0, 1.1], [-5.2, 4.8, 1.0], [-8.2, 5.4, 1.0]] },
+    { "points": [[-2.6, -0.6, 1.0], [-4.4, -2.0, 1.0], [-6.6, -3.6, 1.0], [-8.4, -4.6, 1.0]] },
+    { "points": [[-0.8, 6.2, 1.0], [2.2, 5.4, 1.0], [5.6, 5.2, 1.0], [8.4, 5.5, 1.2]] },
+    { "points": [[-8.4, -4.6, 1.0], [-10.6, -7.6, 0.9], [-12.4, -10.0, 0.9], [-13.8, -11.3, 1.1]] },
+    { "points": [[8.6, 5.0, 0.9], [9.8, 1.6, 0.9], [10.7, -2.0, 0.9], [11.1, -6.0, 0.9], [11.2, -10.6, 0.9]] }
   ],
-  "adit": { "x": -11.55, "z": -7.85, "w": 1.3, "h": 2.2, "outcrop": { "x0": -12.3, "x1": -11.0, "z0": -9.95, "z1": -5.75, "h": 2.9 }, "alcove": { "depth": 1.5, "half": 1.2 } },
-  "flint": { "x": -10.62, "z": -8.72, "yaw": 1.2646 },
-  "spawns": [{ "x": -9.0, "z": 9.7 }, { "x": -8.2, "z": 9.2 }, { "x": -9.6, "z": 9.0 }]
+  "adit": { "x": -16.55, "z": -11.5, "w": 1.3, "h": 2.2, "outcrop": { "x0": -17.3, "x1": -16.0, "z0": -13.6, "z1": -9.4, "h": 2.9 }, "alcove": { "depth": 1.5, "half": 1.2 } },
+  "flint": { "x": -15.62, "z": -12.37, "yaw": 1.2646 },
+  "spawns": [{ "x": -11.0, "z": 14.7 }, { "x": -10.2, "z": 14.2 }, { "x": -11.6, "z": 14.0 }]
 } /* layout:end */;
 
 const L = FOREST_LAYOUT;
 
-/** The woods' zones (which part of the wood a point is in: the Logbook's and the HUD's name for it). */
+/** The woods' zones (which part of the wood a point is in: the Logbook's and the HUD's name for it):
+ *  each a round patch; where two overlap, the one whose middle is nearer. */
 export function forestZoneAt(x: number, z: number): (typeof L.zones)[number] | null {
-  return L.zones.find((zn) => x >= zn.x0 && x <= zn.x1 && z >= zn.z0 && z <= zn.z1) ?? null;
+  let best: (typeof L.zones)[number] | null = null;
+  let score = 1;
+  for (const zn of L.zones) {
+    const d = Math.hypot(x - zn.x, z - zn.z) / zn.r;
+    if (d < score) (score = d), (best = zn);
+  }
+  return best;
 }
 
 /** How close you stand to a tree to fell it (and the client's smart target: the nearest one within). */
@@ -129,10 +173,10 @@ export const TREE_REACH = 2.5;
 const TRUNK = 0.42;
 
 /** The twenty-six trees you can fell: their node ids, kinds and places, and the spot you fell from
- *  (a step toward the middle of the wood). */
+ *  (a step toward the middle of the wood, `core`). */
 export const FOREST_TREES = L.trees.map((t) => {
-  const d = Math.hypot(t.x, t.z) || 1;
-  return { ...t, kind: t.kind as TreeKind, tier: TREES[t.kind as TreeKind].tier, approachX: t.x - (t.x / d) * 1.05, approachZ: t.z - (t.z / d) * 1.05 };
+  const d = Math.hypot(t.x - L.core.x, t.z - L.core.z) || 1;
+  return { ...t, kind: t.kind as TreeKind, tier: TREES[t.kind as TreeKind].tier, approachX: t.x - ((t.x - L.core.x) / d) * 1.05, approachZ: t.z - ((t.z - L.core.z) / d) * 1.05 };
 });
 export type ForestTree = (typeof FOREST_TREES)[number];
 export const FOREST_TREE_AT = new Map(FOREST_TREES.map((t) => [t.id, t]));
@@ -168,6 +212,58 @@ export function forestRiver(per = 6): [number, number, number][] {
   return out;
 }
 
+// --- the ground (shared/terrain.ts) ----------------------------------------------------------------
+//
+// A hillside, all of it walked: wide steps added one on another (the lower and the upper hill, the
+// Glen's shelf, the shrine's crown), each one or more round lobes at one height with a skirt gentle
+// enough to walk, and no two steps' skirts meeting where their slopes would add past the limit
+// (`check-layout` measures it).
+
+const RIVER_LINE = forestRiver(10);
+/** How far (x, z) is from the river's centre line, and the river's half-width there. */
+export function forestRiverAt(x: number, z: number): { d: number; w: number } {
+  let best = Infinity;
+  let w = 0;
+  for (let i = 0; i + 1 < RIVER_LINE.length; i++) {
+    const [ax, az, aw] = RIVER_LINE[i];
+    const [bx, bz, bw] = RIVER_LINE[i + 1];
+    const dx = bx - ax;
+    const dz = bz - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+    const d = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
+    if (d < best) (best = d), (w = aw + (bw - aw) * t);
+  }
+  return { d: best, w };
+}
+
+/** The ground's height at (x, z), the river's channel not cut in: where things stand. */
+export function forestLand(x: number, z: number): number {
+  let h = 0;
+  for (const st of L.terrain.steps) {
+    // (a step's lobes are one level: the higher of them at any point)
+    let top = 0;
+    for (const lobe of st.lobes) top = Math.max(top, moundAt({ ...lobe, top: st.top }, x, z));
+    h += top;
+  }
+  return h;
+}
+
+/** The ground as drawn: forestLand with the river's channel cut down to its bed between its banks. */
+export function forestHeight(x: number, z: number): number {
+  const land = forestLand(x, z);
+  const r = forestRiverAt(x, z);
+  const inside = r.w - r.d;
+  if (inside <= 0) return land;
+  return land + (-L.river.depth - land) * smoothstep(0, L.terrain.bank, inside);
+}
+
+/** The ground's grid: the builder models the ground from it, feet and clicks read its triangles. */
+export const FOREST_GRID = makeGrid(L.half, L.terrain.step, forestHeight, forestLand);
+/** Where feet go at (x, z): the drawn ground. */
+export const forestFloorY = (x: number, z: number): number => gridY(FOREST_GRID, FOREST_GRID.ground, x, z);
+/** The grid for the builder (scripts/forest-terrain.ts writes it to scripts/blender/data/). */
+export const forestTerrainData = () => gridData(FOREST_GRID);
+
 /** The river's fishing spots on the bank: where you stand (or the seat: a log or a rock to sit on,
  *  facing the water), where the float lands, and where you step up from. */
 export const FOREST_FISHING = L.fishing.map((f, i) => {
@@ -196,8 +292,8 @@ export const TITAN_SPOTS: Pt[] = L.titanSpots.map(([x, z]) => ({ x, z }));
 /** The Titan's trunk, and where you fell it from (a step toward the middle of the wood). */
 export const TITAN_TRUNK = 0.8;
 export function titanApproach(p: Pt): Pt {
-  const d = Math.hypot(p.x, p.z) || 1;
-  return { x: p.x - (p.x / d) * 1.7, z: p.z - (p.z / d) * 1.7 };
+  const d = Math.hypot(p.x - L.core.x, p.z - L.core.z) || 1;
+  return { x: p.x - ((p.x - L.core.x) / d) * 1.7, z: p.z - ((p.z - L.core.z) / d) * 1.7 };
 }
 
 /** Bramble the Bear behind his counter, and where you stand to trade with him. */
@@ -221,7 +317,8 @@ export const FOREST_BIRDS = L.birds.map(([px, pz], i) => {
   const S = pine[2] * 1.55;
   const d = Math.hypot(px, pz) || 1;
   const r = 0.9 * 1.05 * S;
-  return { id: i, x: px - (px / d) * r, z: pz - (pz / d) * r, y: 0.729 * S, yaw: Math.atan2(-px, -pz) };
+  // (its height over the ground its pine stands on)
+  return { id: i, x: px - (px / d) * r, z: pz - (pz / d) * r, y: forestLand(px, pz) + 0.729 * S, yaw: Math.atan2(-px, -pz) };
 });
 /** The branch archway back to the campfire, and where you stand at it. */
 export const WOODS_ARCHWAY = L.archway;
@@ -265,7 +362,7 @@ export const FOREST_PROPS: PropSpec[] = [
  *  middle of the wood, where the way in is (the builder lays them out the same way). */
 export const SHRINE_GAP = 0.26 * Math.PI;
 export const SHRINE_STONES: Pt[] = (() => {
-  const open = Math.atan2(-L.shrine.z, -L.shrine.x);
+  const open = Math.atan2(L.core.z - L.shrine.z, L.core.x - L.shrine.x);
   const n = L.shrine.stones;
   return Array.from({ length: n }, (_, k) => {
     const a = open + SHRINE_GAP / 2 + (k / (n - 1)) * (2 * Math.PI - SHRINE_GAP);
@@ -298,6 +395,19 @@ export const FOREST_OBSTACLES: AABB[] = [
   ...SHRINE_STONES.map((p) => around(p, 0.22)),
   // the deer and the rabbits
   ...L.animals.map((a) => around(a, 0.35)),
+  // the fall's rock step at the river's head
+  around(L.cascade, 1.0),
+  around({ x: L.cascade.x - 1.2, z: L.cascade.z + 0.5 }, 0.45),
+  around({ x: L.cascade.x + 1.2, z: L.cascade.z + 0.5 }, 0.45),
+  // the dressing you walk round: boulders on the hillside, lantern posts along the trails, fallen
+  // logs (small boxes along each), stumps
+  ...L.dressing.boulders.map(([x, z, s]) => around({ x, z }, 0.45 * s)),
+  ...L.dressing.lanternPosts.map(([x, z]) => around({ x, z }, 0.1)),
+  ...L.dressing.fallen.flatMap((f) => {
+    const n = Math.max(2, Math.ceil(f.len / 0.4));
+    return Array.from({ length: n + 1 }, (_, k) => around({ x: f.x + Math.sin(f.yaw) * (k / n - 0.5) * (f.len - 0.3), z: f.z + Math.cos(f.yaw) * (k / n - 0.5) * (f.len - 0.3) }, 0.2));
+  }),
+  ...L.dressing.stumps.map(([x, z]) => around({ x, z }, 0.24)),
   // the adit's mossy outcrop on the western cliff (its back, and the alcove's two wings either side of
   // the portal), and Old Flint on its south post
   { minX: L.adit.outcrop.x0, maxX: L.adit.outcrop.x1, minZ: L.adit.outcrop.z0, maxZ: L.adit.outcrop.z1 },

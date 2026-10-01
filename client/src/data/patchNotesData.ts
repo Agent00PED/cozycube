@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.43",
+    range: "v0.7.0–v0.7.44",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1703,6 +1703,26 @@ export const PATCH_ERAS: PatchEra[] = [
             "🖼️ The lounge picker's backdrop now shows the new island at night.",
           ],
           fixes: ["🪨 You can no longer walk through the waterfall's rocks."],
+        },
+      },
+      {
+        version: "0.7.44",
+        date: "2026-10-02",
+        title: "The Woods on the Hill",
+        summary: "The Whispering Woods are twice the size and climb a hillside now: the river runs down the whole east side, and the old mine waits on a ledge at the top.",
+        changes: {
+          features: [
+            "⛰️ The woods are 34 m across (they were 24) and rise from the river to the Mine Ledge in the north-west. Each grove stands higher than the last: the pines by the archway, the birches up the first slope, the Autumn Maples in the Golden Glen, the Whispering Elderwood on its crown.",
+            "🌊 The river runs the length of the east side: a waterfall into a pool at its head, the rapids with the log and the rock to fish from, a wide pool at Finley's boulder, and a sheet of water over the island's edge.",
+            "⛏️ The old mine adit is cut into the cliff on a ledge above the Glen, with Old Flint beside it. A trail with log steps climbs up to it.",
+          ],
+          visuals: [
+            "🌲 The tall pines now stand round the north and west rims, so the groves are seen from above, not through a wall of branches.",
+            "🏮 Lantern posts along the trails, boulders and fallen logs on the hillside, bushes and flowers on the far bank, spray at the waterfall.",
+            "💧 The river has the campfire's new water: green shallows, deep blue mid-stream, foam at the banks.",
+          ],
+          economy: ["⚖️ Nothing you earn changes: every grove is as close to the next, and to Bramble and Finley, as it was."],
+          fixes: ["⚡ The woods are drawn with less work than before, so they run smoother."],
         },
       },
     ],

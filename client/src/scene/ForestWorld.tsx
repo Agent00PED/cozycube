@@ -5,7 +5,10 @@ import * as THREE from "three";
 import { parseWorldEvent, type PlayerState } from "@shared/types";
 import { parseTrees } from "@shared/chop";
 import { isBlocked } from "@shared/collision";
-import { FINLEY, FOREST_ANIMALS, FOREST_LAYOUT as L, FOREST_TREES, OLD_FLINT, forestRiver } from "@shared/worlds/forest";
+import { daylight } from "@shared/daynight";
+import { FINLEY, FOREST_ANIMALS, FOREST_GRID, FOREST_LAYOUT as L, FOREST_TREES, OLD_FLINT, forestLand, forestRiver } from "@shared/worlds/forest";
+import { riverWater } from "./riverWater";
+import { FallsSpray, type SprayAt } from "./FallsSpray";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -30,8 +33,12 @@ import { WoodsFauna } from "./WoodsFauna";
 //                 top axes and rods, and his cabin's windows glow at night
 //   the animals   the deer grazing by the glen's path, looking up now and then; the rabbits hopping
 //                 by the splitting block; fed, they hop for joy
-//   the river     meandering in off the north edge and out off the east, its water flowing and its
-//                 foam streaming round the rocks; a King-Size Surge's golden ripples on it
+//   the river     down the east side, from the fall at its head to the sheet over the island's edge
+//                 (riverWater: shallows, foam at the banks, streaks down the falls); a King-Size
+//                 Surge's golden ripples on it
+//   the ground    a hillside (shared/worlds/forest.ts forestLand): a click lands on an invisible copy
+//                 of the grid the ground is modelled from, and the keepers, the animals, the lights
+//                 and the fireflies stand at the land's height
 //   the wind      the canopy sways; trees between you and the camera thin to let you through
 //   the light     the camp's 24-minute day (campDay): fireflies and the elderwood's glow by night
 
@@ -41,15 +48,54 @@ export const FINLEY_URL = modelUrl("finley.glb");
 export const OLD_FLINT_URL = modelUrl("old_flint.glb");
 
 const FOREST_TIME = { value: 0 };
+const FOREST_NIGHT = { value: 0 };
 const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
-/** The ground decals, each nudged toward the camera in the depth test. */
-const DECAL_OFFSET: Record<string, number> = { FW_Meadow: -1, FW_StoneDark: -1, FW_Bank: -2, FW_Dirt: -2 };
-/** What thins when it stands between you and the camera. */
-const OCCLUDERS = /^FW_(Pine|Birch|Cedar|Maple|Elder|Log|Roof|PlankDark|Bark)/;
+/** The ground a click is tested against: the game's own grid (FOREST_GRID, each cell cut along the
+ *  diagonal its heights are read by), so a click on the hill lands where it shows. Never drawn. */
+const CLICK_GROUND = (() => {
+  const { n, cell, ground } = FOREST_GRID;
+  const pos = new Float32Array((n + 1) * (n + 1) * 3);
+  for (let k = 0; k <= n; k++)
+    for (let i = 0; i <= n; i++) {
+      const at = (k * (n + 1) + i) * 3;
+      pos[at] = -L.half + i * cell;
+      pos[at + 1] = Math.max(ground[k * (n + 1) + i], L.river.water);
+      pos[at + 2] = -L.half + k * cell;
+    }
+  const index: number[] = [];
+  for (let k = 0; k < n; k++)
+    for (let i = 0; i < n; i++) {
+      const a = k * (n + 1) + i;
+      index.push(a, a + n + 2, a + 1, a, a + n + 1, a + n + 2);
+    }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setIndex(index);
+  g.computeBoundingSphere();
+  return g;
+})();
+/** Where water lands: the foot of the fall into the pool at the river's head, and the foot of the
+ *  sheet over the island's edge where the river leaves. */
+const SPRAY_AT: SprayAt[] = (() => {
+  const [x0, z0, w0] = L.river.points[0];
+  const d = Math.hypot(x0 - L.cascade.x, z0 - L.cascade.z) || 1;
+  const out = { x: (x0 - L.cascade.x) / d, z: (z0 - L.cascade.z) / d };
+  const line = forestRiver(10);
+  const last = [...line].reverse().find(([x, z]) => Math.abs(x) < L.half - 0.1 && Math.abs(z) < L.half - 0.1) ?? line[line.length - 1];
+  return [
+    { x: L.cascade.x + out.x * (d - w0 + 0.5), y: L.river.water, z: L.cascade.z + out.z * (d - w0 + 0.5), w: 0.3, out },
+    { x: last[0], y: -1.2, z: L.half + 0.3, w: last[2] - 0.1, out: { x: 0, z: 1 } },
+  ];
+})();
+/** A height over the ground at (x, z). */
+const over = (x: number, y: number, z: number): [number, number, number] => [x, forestLand(x, z) + y, z];
+/** What thins when it stands between you and the camera (the vista pines; the trees you fell thin
+ *  themselves, FellableTrees). */
+const OCCLUDERS = /^FW_Vista(Needle|Bark)/;
 /** The river's water: its height (the surge's ripples float on it). */
 const WATER_Y = L.river.water;
 /** Foliage that sways in the wind. */
-const SWAYERS = /^FW_(PineNeedle|BirchLeaf|CedarNeedle|MapleLeaf|ElderLeaf)/;
+const SWAYERS = /^FW_VistaNeedle/;
 
 function swayFoliage(m: THREE.Material) {
   if (m.userData.swaying) return;
@@ -59,39 +105,12 @@ function swayFoliage(m: THREE.Material) {
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTime;").replace(
       "#include <begin_vertex>",
       `#include <begin_vertex>
-      float swayH = max(0.0, transformed.y - 0.6);
+      // (a pine's height over the ground it stands on is in its UVs: build_forest.py bake_colors;
+      // glTF's v runs down)
+      float swayH = max(0.0, (1.0 - uv.y) - 0.6);
       float swayPh = transformed.x * 0.4 + transformed.z * 0.3;
       transformed.x += sin(uTime * 1.1 + swayPh) * 0.02 * swayH;
       transformed.z += sin(uTime * 0.8 + swayPh * 1.3) * 0.015 * swayH;`
-    );
-  };
-  m.needsUpdate = true;
-}
-
-function flowRapids(m: THREE.Material, foam: boolean) {
-  if (m.userData.flowing) return;
-  m.userData.flowing = true;
-  if (foam) {
-    m.transparent = true;
-    m.depthWrite = false;
-  }
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.uTime = FOREST_TIME;
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vFlowPos;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvFlowPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vFlowPos;\nuniform float uTime;").replace(
-      "#include <color_fragment>",
-      foam
-        ? `#include <color_fragment>
-        // the foam streams along the river, breaking up and re-forming
-        float fw = sin(vFlowPos.z * 3.1 - uTime * 3.4 + sin(vFlowPos.x * 5.0) * 1.5);
-        diffuseColor.a *= 0.25 + 0.75 * smoothstep(-0.3, 0.7, fw);`
-        : `#include <color_fragment>
-        float w1 = sin(vFlowPos.z * 2.2 - uTime * 2.6 + sin(vFlowPos.x * 3.4 + uTime * 0.7) * 1.4);
-        float w2 = sin(vFlowPos.z * 5.7 - uTime * 4.1 + vFlowPos.x * 2.6);
-        float streak = smoothstep(0.7, 1.0, w1 * 0.6 + w2 * 0.4);
-        diffuseColor.rgb = mix(diffuseColor.rgb * (0.88 + 0.1 * w1), vec3(0.8, 0.92, 0.97), streak * 0.35);`
     );
   };
   m.needsUpdate = true;
@@ -129,10 +148,11 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
   };
   useFrame((_, dt) => {
     FOREST_TIME.value += dt;
+    FOREST_NIGHT.value = 1 - daylight(Date.now());
   });
   return (
     <group>
-      <mesh geometry={GEO.plane} material={CLICK_MAT} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} scale={[L.half * 2, L.half * 2, 1]} onPointerDown={floorClick} />
+      <mesh geometry={CLICK_GROUND} material={CLICK_MAT} onPointerDown={floorClick} />
       <ModelBoundary what="forest.glb" fallback={<StandIn />}>
         <Suspense fallback={<StandIn />}>
           <ForestModel subscribeMessages={subscribeMessages} />
@@ -140,10 +160,11 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
       </ModelBoundary>
       <FellableTrees mapId="whispering_woods" trees={treeState} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onUseProp={onUseProp} />
       <SurgeRipples event={wonder} mapId="whispering_woods" waterY={WATER_Y} />
-      <CampNpc url={BRAMBLE_URL} what="bramble.glb" prefix="Bramble" at={L.bramble} waveEvent="brambleWave" standIn={<BrambleStandIn />} subscribeMessages={subscribeMessages} talk={BRAMBLE_TALK} />
-      <CampNpc url={FINLEY_URL} what="finley.glb" prefix="Finley" at={FINLEY} waveEvent="finleyWave" standIn={<FinleyStandIn />} subscribeMessages={subscribeMessages} talk={FINLEY_TALK} />
-      <CampNpc url={OLD_FLINT_URL} what="old_flint.glb" prefix="OldFlint" at={OLD_FLINT} waveEvent="flintWave" standIn={<FlintStandIn />} subscribeMessages={subscribeMessages} talk={FLINT_TALK} />
+      <CampNpc url={BRAMBLE_URL} what="bramble.glb" prefix="Bramble" at={L.bramble} y={forestLand(L.bramble.x, L.bramble.z)} waveEvent="brambleWave" standIn={<BrambleStandIn />} subscribeMessages={subscribeMessages} talk={BRAMBLE_TALK} />
+      <CampNpc url={FINLEY_URL} what="finley.glb" prefix="Finley" at={FINLEY} y={forestLand(FINLEY.x, FINLEY.z)} waveEvent="finleyWave" standIn={<FinleyStandIn />} subscribeMessages={subscribeMessages} talk={FINLEY_TALK} />
+      <CampNpc url={OLD_FLINT_URL} what="old_flint.glb" prefix="OldFlint" at={OLD_FLINT} y={forestLand(OLD_FLINT.x, OLD_FLINT.z)} waveEvent="flintWave" standIn={<FlintStandIn />} subscribeMessages={subscribeMessages} talk={FLINT_TALK} />
       <ForestLights />
+      <FallsSpray spots={SPRAY_AT} />
       <WildCritters mapId="whispering_woods" />
       <Fireflies />
       <OcclusionDriver />
@@ -204,15 +225,11 @@ function ForestModel({ subscribeMessages }: { subscribeMessages: (listener: Room
       if (!mesh.isMesh) return;
       mesh.raycast = noRaycast;
       const m = mesh.material as THREE.MeshStandardMaterial;
-      const offset = DECAL_OFFSET[m.name];
-      if (offset !== undefined) {
-        m.polygonOffset = true;
-        m.polygonOffsetFactor = offset;
-        m.polygonOffsetUnits = offset;
-      }
       if (m.emissive && m.emissive.getHex() !== 0) m.toneMapped = false;
-      if (m.name === "FW_Water") flowRapids(m, false);
-      if (m.name === "FW_Foam") flowRapids(m, true);
+      if (m.name === "FW_Water" && !m.userData.flowing) {
+        m.userData.flowing = true;
+        riverWater(m, FOREST_TIME, FOREST_NIGHT);
+      }
       if (SWAYERS.test(m.name)) swayFoliage(m);
       if (OCCLUDERS.test(m.name)) ditherOccluder(m);
     });
@@ -292,7 +309,8 @@ function Animals({ scene, subscribeMessages }: { scene: THREE.Object3D; subscrib
     }
     if (parts.deer) {
       const j = now - (fedAt.current.animal_deer ?? -99);
-      parts.deer.position.y = parts.deerY + (j < 1.2 ? Math.abs(Math.sin(j * Math.PI * 2.5)) * 0.12 : 0);
+      // (on the ground where it wanders)
+      parts.deer.position.y = forestLand(parts.deer.position.x, parts.deer.position.z) + (j < 1.2 ? Math.abs(Math.sin(j * Math.PI * 2.5)) * 0.12 : 0);
       // its wander: graze a while, then amble to the next spot near home (never while being fed)
       const w = parts.deerWalk;
       const dx = w.to.x - parts.deer.position.x;
@@ -337,7 +355,7 @@ function Animals({ scene, subscribeMessages }: { scene: THREE.Object3D; subscrib
         r.node.position.z = r.from.z + (r.to.z - r.from.z) * k;
       }
       const hop = fed ? Math.abs(Math.sin(t * 9)) * 0.16 : since < 0.35 ? Math.sin((since / 0.35) * Math.PI) * 0.12 : 0;
-      r.node.position.y = r.y + hop;
+      r.node.position.y = forestLand(r.node.position.x, r.node.position.z) + hop;
       let turn = r.yaw - r.node.rotation.y;
       turn = Math.atan2(Math.sin(turn), Math.cos(turn));
       r.node.rotation.y += turn * 0.08;
@@ -345,7 +363,7 @@ function Animals({ scene, subscribeMessages }: { scene: THREE.Object3D; subscrib
   });
   const at = hearts ? FOREST_ANIMALS.find((a) => a.propId === hearts.id) : null;
   return at ? (
-    <Html key={hearts!.at} position={[at.x, at.kind === "deer" ? 1.3 : 0.6, at.z]} center style={{ pointerEvents: "none" }} zIndexRange={[20, 0]}>
+    <Html key={hearts!.at} position={over(at.x, at.kind === "deer" ? 1.3 : 0.6, at.z)} center style={{ pointerEvents: "none" }} zIndexRange={[20, 0]}>
       <div className="cozy-critter-hearts" aria-hidden>
         <span>❤️</span>
         <span>❤️</span>
@@ -370,11 +388,11 @@ function ForestLights() {
   });
   return (
     <>
-      <pointLight color="#ffb865" intensity={0.3 + 1.7 * night} distance={6} decay={1.6} position={[L.cabin.x, 1.4, L.cabin.z + L.cabin.d / 2 + 0.9]} castShadow={false} />
-      <pointLight ref={lantern} color="#ffb347" distance={4.2} decay={1.8} position={[OLD_FLINT.x + Math.sin(OLD_FLINT.yaw) * 0.35, 1.45, OLD_FLINT.z + Math.cos(OLD_FLINT.yaw) * 0.35]} castShadow={false} />
-      {elder && <pointLight ref={glow} color="#8ff0d8" distance={7} decay={1.5} position={[elder.x, 2.6, elder.z]} castShadow={false} />}
-      {night > 0.02 && <directionalLight color="#9fb4e8" intensity={0.35 * night} position={[-10, 20, -14]} castShadow={false} />}
-      {night > 0.02 && <hemisphereLight args={["#6f86c8", "#1c2a1f", 0.3 * night]} />}
+      <pointLight color="#ffb865" intensity={0.3 + 1.7 * night} distance={6} decay={1.6} position={over(L.cabin.x, 1.4, L.cabin.z + L.cabin.d / 2 + 0.9)} castShadow={false} />
+      <pointLight ref={lantern} color="#ffb347" distance={4.2} decay={1.8} position={over(OLD_FLINT.x + Math.sin(OLD_FLINT.yaw) * 0.35, 1.45, OLD_FLINT.z + Math.cos(OLD_FLINT.yaw) * 0.35)} castShadow={false} />
+      {elder && <pointLight ref={glow} color="#8ff0d8" distance={7} decay={1.5} position={over(elder.x, 2.6, elder.z)} castShadow={false} />}
+      {night > 0.02 && <directionalLight color="#a9bcec" intensity={0.5 * night} position={[-10, 20, -14]} castShadow={false} />}
+      {night > 0.02 && <hemisphereLight args={["#7a90d0", "#22322a", 0.44 * night]} />}
     </>
   );
 }
@@ -383,7 +401,7 @@ const FIREFLY_GEO = new THREE.SphereGeometry(0.035, 6, 4);
 const FIREFLY_MAT = new THREE.MeshBasicMaterial({ color: "#d6ff7a", toneMapped: false, transparent: true });
 const FIREFLY_COUNT = 54;
 /** The river's course (inside the island), for the fireflies along its banks. */
-const RIVER_BANKS = forestRiver(6).filter(([x, z]) => Math.abs(x) < 11.3 && Math.abs(z) < 11.3);
+const RIVER_BANKS = forestRiver(6).filter(([x, z]) => Math.abs(x) < L.half - 0.7 && Math.abs(z) < L.half - 0.7);
 /** Fireflies drifting over the glen, the shrine and the birches, blinking: by night only. */
 function Fireflies() {
   const d = useContext(CampDaylightContext) ?? 0;
@@ -402,8 +420,11 @@ function Fireflies() {
           const side = Math.random() < 0.5 ? 1 : -1;
           return { x: rx + side * (rw + 0.2 + Math.random() * 0.5), z: rz + (Math.random() - 0.5) * 0.6, y: 0.25 + Math.random() * 0.8, p: Math.random() * 10, s: 0.25 + Math.random() * 0.35 };
         }
-        const zone = i % 3 === 0 ? { x: -6, z: -8.5, r: 4 } : { x: -7.5, z: 0.5, r: 4.5 };
-        return { x: zone.x + (Math.random() - 0.5) * zone.r * 2, z: zone.z + (Math.random() - 0.5) * zone.r * 2, y: 0.5 + Math.random() * 1.6, p: Math.random() * 10, s: 0.3 + Math.random() * 0.5 };
+        // (over the Golden Glen and the birch grove, each over the ground where it drifts)
+        const zone = i % 3 === 0 ? { x: -8, z: -6, r: 4.5 } : { x: -9, z: 6, r: 5 };
+        const x = zone.x + (Math.random() - 0.5) * zone.r * 2;
+        const z = zone.z + (Math.random() - 0.5) * zone.r * 2;
+        return { x, z, y: forestLand(x, z) + 0.5 + Math.random() * 1.6, p: Math.random() * 10, s: 0.3 + Math.random() * 0.5 };
       }),
     []
   );

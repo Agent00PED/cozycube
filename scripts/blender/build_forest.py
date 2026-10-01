@@ -418,37 +418,142 @@ def xform_since(bm, before, matrix):
         v.co = matrix @ v.co
 
 
-def trail(bm, pts, bevel=0.14):
-    top, low = LAYER_PATH, 0.002
-    n = len(pts)
-    rows = []
-    for i, (x, z, width) in enumerate(pts):
-        (ax, az, _), (bx, bz, _) = pts[max(0, i - 1)], pts[min(n - 1, i + 1)]
-        d = math.hypot(bx - ax, bz - az) or 1
-        tx, tz = (bx - ax) / d, (bz - az) / d
-        nx, nz = -tz, tx
-        w = width / 2 * (1 + 0.04 * math.sin(i * 0.9))
-        rows.append([bm.verts.new(W(x + nx * s_ * (w + (bevel if outer else 0)), low if outer else top, z + nz * s_ * (w + (bevel if outer else 0)))) for s_, outer in ((1, True), (1, False), (-1, False), (-1, True))])
-    for r0, r1 in zip(rows, rows[1:]):
-        for k in range(3):
-            bm.faces.new((r0[k], r0[k + 1], r1[k + 1], r1[k]))
-    for end, sign in ((0, -1), (n - 1, 1)):
-        x, z, width = pts[end]
-        (ax, az, _), (bx, bz, _) = (pts[0], pts[1]) if end == 0 else (pts[-2], pts[-1])
-        d = math.hypot(bx - ax, bz - az) or 1
-        tx, tz = sign * (bx - ax) / d, sign * (bz - az) / d
-        nx, nz = -tz, tx
-        w = width / 2 * (1 + 0.04 * math.sin(end * 0.9))
-        centre = bm.verts.new(W(x, top, z))
-        inner, outer = [], []
-        for k in range(9):
-            a = math.pi * k / 8
-            ux, uz = nx * math.cos(a) + tx * math.sin(a), nz * math.cos(a) + tz * math.sin(a)
-            inner.append(bm.verts.new(W(x + ux * w, top, z + uz * w)))
-            outer.append(bm.verts.new(W(x + ux * (w + bevel), low, z + uz * (w + bevel))))
-        for k in range(8):
-            bm.faces.new((centre, inner[k], inner[k + 1]))
-            bm.faces.new((inner[k], outer[k], outer[k + 1], inner[k + 1]))
+# ---------------------------------------------------------------------------------------------
+# the ground: its grid from the game (scripts/forest-terrain.ts), and what stands on it
+
+LAYOUT = None  # the layout, for the helpers below (set by build)
+TERRAIN = None  # scripts/blender/data/forest_terrain.json (set by build)
+RIM_R = 1.1  # the island's rounded corners
+
+
+def read_terrain(root):
+    with open(os.path.join(root, "scripts", "blender", "data", "forest_terrain.json"), encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _grid_y(key, x, z):
+    """gridY in shared/terrain.ts: the grid's own triangles (each cell cut from its (-x, -z) corner
+    to its (+x, +z) one)."""
+    T = TERRAIN
+    n, cell, half, g = T["n"], T["cell"], T["half"], T[key]
+    u = min(n - 1e-6, max(0.0, (x + half) / cell))
+    v = min(n - 1e-6, max(0.0, (z + half) / cell))
+    i, k = int(u), int(v)
+    fu, fv = u - i, v - k
+    at = lambda a, b: g[b * (n + 1) + a]
+    h00, h11 = at(i, k), at(i + 1, k + 1)
+    if fu >= fv:
+        return h00 + (at(i + 1, k) - h00) * fu + (h11 - at(i + 1, k)) * fv
+    return h00 + (h11 - at(i, k + 1)) * fu + (at(i, k + 1) - h00) * fv
+
+
+def ground_y(x, z):
+    """The drawn ground (the river's channel cut in)."""
+    return _grid_y("ground", x, z)
+
+
+def land_y(x, z):
+    """The ground things stand on (no channel)."""
+    return _grid_y("land", x, z)
+
+
+def in_river(x, z, pad=0.0):
+    d, w = river_dist(LAYOUT, x, z)
+    return d <= w + pad
+
+
+def lift_at(x, z):
+    """How far up a thing built at y = 0 goes to stand at (x, z): the land there, or nothing in the
+    river (its rocks, pebbles and foam keep the water's level)."""
+    if TERRAIN is None:
+        return 0.0
+    return 0.0 if in_river(x, z) else land_y(x, z)
+
+
+def lift_parts(bm):
+    """Stands everything in `bm` on the ground: each loose part (a trunk, a cone, a rock, a plank)
+    goes up, whole, by the land under its middle, so nothing is sheared by a slope."""
+    layer = bm.verts.layers.float.get("lift") or bm.verts.layers.float.new("lift")
+    seen = set()
+    for v0 in bm.verts:
+        if v0 in seen:
+            continue
+        part = []
+        stack = [v0]
+        seen.add(v0)
+        while stack:
+            v = stack.pop()
+            part.append(v)
+            for e in v.link_edges:
+                o = e.other_vert(v)
+                if o not in seen:
+                    seen.add(o)
+                    stack.append(o)
+        xs = [v.co.x for v in part]
+        ys = [v.co.y for v in part]
+        dz = lift_at((min(xs) + max(xs)) / 2, -(min(ys) + max(ys)) / 2)
+        if dz:
+            for v in part:
+                v.co.z += dz
+                v[layer] = dz
+
+
+def lift_whole(bm, x, z):
+    """Stands everything in `bm` on the ground at (x, z), as one piece (a building, the adit's rock)."""
+    dz = lift_at(x, z)
+    for v in bm.verts:
+        v.co.z += dz
+
+
+def _hash(i, k):
+    n = (i * 374761393 + k * 668265263) & 0xFFFFFFFF
+    n = ((n ^ (n >> 13)) * 1274126177) & 0xFFFFFFFF
+    return ((n ^ (n >> 16)) & 0xFFFF) / 65535.0
+
+
+def vnoise(x, z):
+    """Smooth value noise, 0..1."""
+    i, k = math.floor(x), math.floor(z)
+    fx, fz = x - i, z - k
+    fx, fz = fx * fx * (3 - 2 * fx), fz * fz * (3 - 2 * fz)
+    a, b, c, d = _hash(i, k), _hash(i + 1, k), _hash(i, k + 1), _hash(i + 1, k + 1)
+    return a + (b - a) * fx + (c - a) * fz + (a - b - c + d) * fx * fz
+
+
+def mixc(a, b, t):
+    return [a[k] + (b[k] - a[k]) * t for k in range(3)]
+
+
+def rim_inside(x, z, half):
+    """How far inside the island's rounded outline (x, z) is (negative outside)."""
+    ax, az = abs(x), abs(z)
+    c = half - RIM_R
+    if ax > c and az > c:
+        return RIM_R - math.hypot(ax - c, az - c)
+    return min(half - ax, half - az)
+
+
+def snap_rim(x, z, half):
+    """(x, z), or the nearest point of the island's outline if it lies outside it."""
+    c = half - RIM_R
+    ax, az = abs(x), abs(z)
+    if ax > c and az > c:
+        d = math.hypot(ax - c, az - c)
+        if d > RIM_R:
+            ax, az = c + (ax - c) / d * RIM_R, c + (az - c) / d * RIM_R
+            return math.copysign(ax, x), math.copysign(az, z)
+        return x, z
+    return max(-half, min(half, x)), max(-half, min(half, z))
+
+
+def use_col(me):
+    attr = me.color_attributes.get("Col")
+    if attr is not None:
+        me.color_attributes.active_color = attr
+        try:
+            me.color_attributes.render_color_index = me.color_attributes.active_color_index
+        except AttributeError:
+            pass
 
 
 # ---------------------------------------------------------------------------------------------
@@ -500,9 +605,13 @@ def material(name):
     return m
 
 
-def make_object(name, bm, mats, coll, origin=None, recalc=True, parent=None):
+def make_object(name, bm, mats, coll, origin=None, recalc=True, parent=None, lift=None):
     """`bm` as a mesh object `name`, its materials `mats`, its origin at the game point `origin`
-    (under `parent`, whose origin is at its own game point `parent["origin"]`)."""
+    (under `parent`, whose origin is at its own game point `parent["origin"]`).
+
+    What stands in the world is built as on flat ground and then stood on the hillside: `lift`
+    "parts" raises each loose part by the land under its middle (lift_parts). The tree looks and the
+    animals (placed by the game) are left as built."""
     if recalc:
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     me = bpy.data.meshes.new(name + "Mesh")
@@ -510,6 +619,8 @@ def make_object(name, bm, mats, coll, origin=None, recalc=True, parent=None):
         shift = W(*origin)
         for v in bm.verts:
             v.co -= shift
+    elif lift == "parts":
+        lift_parts(bm)
     bm.to_mesh(me)
     bm.free()
     for m in mats:
@@ -544,51 +655,189 @@ def bake_modifiers(ob):
 # the island
 
 
-def build_ground(L, coll):
-    half = L["half"]
-    depth = L["river"]["depth"]
-    bm = bmesh.new()
-    slab(bm, rounded_rect(-half, half, -half, half, 1.1, 10), -1.1, 0.0, 0)
-    ground = make_object("Forest_Ground", bm, ["FW_Grass", "FW_Soil", "FW_Bed", "FW_StoneDark"], coll)
-    bev = ground.modifiers.new("Bevel", "BEVEL")
-    bev.width = 0.32
-    bev.segments = 4
-    bev.limit_method = "ANGLE"
-    bake_modifiers(ground)
-    # the river's channel: a ribbon along the spline, its banks at the half-width, carried a metre
-    # past both ends so it cuts clean out through the island's edges
-    F = river_frame(L, 10)
-    lefts, rights = [], []
-    for k, (x, z, w, tx, tz, nx, nz) in enumerate(F):
-        ext = -1.2 if k == 0 else 1.2 if k == len(F) - 1 else 0.0
-        cx, cz = x + tx * ext, z + tz * ext
-        lefts.append((cx + nx * w, cz + nz * w))
-        rights.append((cx - nx * w, cz - nz * w))
-    bm = bmesh.new()
-    slab(bm, lefts + list(reversed(rights)), -depth, 1.0, 0)
-    cutter = make_object("FW_RiverCutter", bm, ["FW_Soil"], coll)
-    dig = ground.modifiers.new("River", "BOOLEAN")
-    dig.operation = "DIFFERENCE"
-    dig.object = cutter
+def vc_material(name):
+    """A vertex-colour material: its base colour is the mesh's "Col" corner colours."""
+    m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     try:
-        dig.solver = "EXACT"
-    except Exception:
+        m.use_nodes = True
+    except AttributeError:
         pass
-    bake_modifiers(ground)
-    bpy.data.objects.remove(cutter, do_unlink=True)
-    for poly in ground.data.polygons:
-        c = poly.center
-        gx, gy, gz = c.x, c.z, -c.y
-        up = poly.normal.z
-        d, w = river_dist(L, gx, gz)
-        in_channel = d <= w + 0.06 and gy < -0.02
-        if in_channel:
-            poly.material_index = 2 if up > 0.6 else 3
-        elif up > 0.55 and gy > -0.4:
-            poly.material_index = 0
-        else:
-            poly.material_index = 1
-        poly.use_smooth = False
+    nodes, links = m.node_tree.nodes, m.node_tree.links
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    attr = next((n for n in nodes if n.type == "VERTEX_COLOR"), None) or nodes.new("ShaderNodeVertexColor")
+    attr.layer_name = "Col"
+    links.new(attr.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.88
+    bsdf.inputs["Metallic"].default_value = 0.0
+    m.roughness = 0.88
+    m.use_backface_culling = True
+    return m
+
+
+def zone_weight(L, x, z):
+    """Each zone's share of the ground's colour at (x, z): its round patch with a wandering edge."""
+    wx = x + 0.9 * math.sin(z * 0.45 + 1.3) + 0.45 * math.sin(z * 1.15 + 0.4)
+    wz = z + 0.9 * math.sin(x * 0.4 + 2.1) + 0.45 * math.sin(x * 1.25 + 1.1)
+    out = []
+    for zn in L["zones"]:
+        f = zn["floor"]
+        if f not in BIOME or f == "meadow":
+            continue
+        w = smooth(zn["r"] + 0.9, zn["r"] - 1.6, math.hypot(wx - zn["x"], wz - zn["z"]))
+        if w > 0:
+            out.append((f, w))
+    return out
+
+
+def zone_of(L, x, z):
+    best, score = "", 1.0
+    for zn in L["zones"]:
+        d = math.hypot(x - zn["x"], z - zn["z"]) / zn["r"]
+        if d < score:
+            best, score = zn["id"], d
+    return best
+
+
+def dirt_field(L):
+    """How bare the ground is at (x, z), 0..1: the trails (each along its spline, as wide as it
+    says) and the worn spots where people stand (the counter, the bench, the arrival, the keepers),
+    all with a ragged edge."""
+    lines = []
+    for path in L["paths"]:
+        pts = path_polyline(path, 0.12)
+        pad = max(p[2] for p in pts) / 2 + 0.6
+        lines.append(((min(p[0] for p in pts) - pad, max(p[0] for p in pts) + pad, min(p[1] for p in pts) - pad, max(p[1] for p in pts) + pad), pts))
+    wear = [
+        (L["counter"]["x"], L["counter"]["z"] + 0.9, 1.9, 0.85),
+        (L["workbench"]["x"], L["workbench"]["z"] + 0.9, 1.3, 0.75),
+        (L["arrival"]["x"], L["arrival"]["z"] + 0.4, 1.7, 0.8),
+        (L["finley"]["x"] - 1.1, L["finley"]["z"], 1.2, 0.7),
+        (L["adit"]["x"] + 1.9, L["adit"]["z"], 1.6, 0.75),
+    ] + [(f["stand"]["x"] - 0.3, f["stand"]["z"], 0.8, 0.6) for f in L["fishing"]]
+
+    def field(x, z):
+        wob = 0.2 * (vnoise(x * 1.7 + 11.0, z * 1.7 - 4.0) - 0.5) + 0.08 * (vnoise(x * 5.1, z * 5.1) - 0.5)
+        best = 9.0
+        for (x0, x1, z0, z1), pts in lines:
+            if x < x0 or x > x1 or z < z0 or z > z1:
+                continue
+            for (ax, az, aw), (bx, bz, bw) in zip(pts, pts[1:]):
+                dx, dz = bx - ax, bz - az
+                t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
+                d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - (aw + (bw - aw) * t) / 2
+                if d < best:
+                    best = d
+        w = smooth(0.2, -0.16, best + wob)
+        for wx, wz, r, s in wear:
+            d = math.hypot(x - wx, z - wz)
+            if d < r + 0.3:
+                w = max(w, s * smooth(r, r * 0.35, d + wob))
+        return w
+
+    return field
+
+
+def ground_color(L, x, z, dirt, tones):
+    """The ground's colour at (x, z): the meadow's grass with each zone's own floor blended in along
+    a wandering edge (the birch grove's pale grass, the ridge's stony green, the Glen's gold, the
+    shrine's deep moss), mottled, bare dirt where it is trodden, damp earth at the river's lip, stone
+    down its bank and the dark bed under the water."""
+    grass, earth, soil, bed, stone, bank = tones
+    acc, tot = [0.0, 0.0, 0.0], 0.0
+    for f, w in zone_weight(L, x, z):
+        c = lin(BIOME[f])
+        tot += w
+        for k in range(3):
+            acc[k] += c[k] * w
+    base = lin(BIOME["meadow"])
+    if tot > 1:
+        acc = [a / tot for a in acc]
+        tot = 1.0
+    col = [base[k] * (1 - tot) + acc[k] for k in range(3)]
+    n1 = vnoise(x * 0.33 + 3.1, z * 0.33 - 1.7)
+    n2 = vnoise(x * 0.9 - 5.0, z * 0.9 + 2.2)
+    n3 = vnoise(x * 2.7 + 0.4, z * 2.7 + 9.1)
+    col = [c * (0.86 + 0.2 * n1) * (0.95 + 0.1 * n2) * (0.965 + 0.07 * n3) for c in col]
+    w = dirt(x, z)
+    if w > 0:
+        col = mixc(col, [c * (0.9 + 0.18 * n2) for c in earth], w)
+    d, rw = river_dist(L, x, z)
+    inside = rw - d
+    if inside > -0.55:
+        col = mixc(col, bank, 0.7 * smooth(-0.55, 0.02, inside))
+    if inside > 0:
+        col = mixc(col, stone, smooth(0.0, 0.16, inside))
+        col = mixc(col, bed, smooth(0.2, L["terrain"]["bank"] + 0.15, inside))
+    return col
+
+
+def build_ground(L, coll):
+    """The island's top, modelled from the game's own grid (TERRAIN: each cell cut along the diagonal
+    the game reads it by, and cut finer for the paint), coloured vertex by vertex; its rim rounded
+    off, its sides falling to the rock beneath."""
+    half = L["half"]
+    sub = 2
+    N = TERRAIN["n"] * sub
+    step = 2 * half / N
+    dirt = dirt_field(L)
+    tones = [lin(PALETTE[k]) for k in ("FW_Grass", "FW_Dirt", "FW_Soil", "FW_Bed", "FW_StoneDark", "FW_Bank")]
+    soil, deep = lin(PALETTE["FW_Soil"]), lin(PALETTE["FW_SoilDeep"])
+    bm = bmesh.new()
+    col = bm.loops.layers.float_color.new("Col")
+    verts, vcol, rim_of = {}, {}, {}
+
+    def vert(i, k):
+        x, z = snap_rim(-half + i * step, -half + k * step, half)
+        key = (round(x, 4), round(z, 4))
+        v = verts.get(key)
+        if v is None:
+            rim = rim_inside(x, z, half)
+            y = ground_y(x, z) - 0.2 * smooth(0.4, 0.0, rim) ** 2
+            v = verts[key] = bm.verts.new(W(x, y, z))
+            c = ground_color(L, x, z, dirt, tones)
+            vcol[v] = (*mixc(c, soil, 0.65 * smooth(0.32, 0.0, rim)), 1.0)
+            rim_of[v] = rim
+        return v
+
+    top = []
+    for k in range(N):
+        for i in range(N):
+            a, b, c, d = vert(i, k), vert(i + 1, k), vert(i + 1, k + 1), vert(i, k + 1)
+            for tri in ((a, c, b), (a, d, c)):
+                if len(set(tri)) < 3 or all(rim_of[v] < 1e-4 for v in tri):
+                    continue
+                try:
+                    f = bm.faces.new(tri)
+                except ValueError:
+                    continue
+                f.normal_update()
+                if f.normal.z < 0:
+                    f.normal_flip()
+                f.smooth = True
+                top.append(f)
+    for f in top:
+        for loop in f.loops:
+            loop[col] = vcol[loop.vert]
+    # the sides: from the rim straight down to the rock beneath, in soil
+    for e in [e for e in bm.edges if len(e.link_faces) == 1]:
+        a, b = e.verts
+        quad = [bm.verts.new(a.co), bm.verts.new(b.co), bm.verts.new((b.co.x, b.co.y, -1.12)), bm.verts.new((a.co.x, a.co.y, -1.12))]
+        f = bm.faces.new(quad)
+        f.normal_update()
+        mid = f.calc_center_median()
+        if f.normal.x * mid.x + f.normal.y * mid.y < 0:
+            f.normal_flip()
+        f.smooth = False
+        for loop in f.loops:
+            loop[col] = (*(soil if loop.vert.co.z > -1.0 else deep), 1.0)
+    me = bpy.data.meshes.new("Forest_GroundMesh")
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(vc_material("FW_Meadow"))
+    use_col(me)
+    ob = bpy.data.objects.new("Forest_Ground", me)
+    coll.objects.link(ob)
+    ob["origin"] = [0.0, 0.0, 0.0]
     # the rock beneath
     bm = bmesh.new()
     rng = random.Random(11)
@@ -611,197 +860,89 @@ def build_ground(L, coll):
 
 
 def build_water(L, coll):
-    """The river's surface along the spline (its rows clipped to the island, the last ones clamped to
-    its edge), spilling over the edge at both ends, and its foam: round the rocks, streaks along the
-    banks with the flow, and a lip where it spills."""
+    """The river's surface, one sheet along its spline: across it a row of vertices at every sample,
+    each carrying in its colour what the game's water shader reads (red: how far from the nearer
+    bank, 0 at the bank to 1 a metre and a half out; green: 1 on falling water; blue: how far down a
+    fall); the fall off the rock step into the pool at its head, and the sheet over the island's edge
+    where it leaves."""
     half = L["half"]
     water = L["river"]["water"]
-    lim = half - 0.02
-    clamp = lambda v: max(-lim, min(lim, v))
-    F = river_frame(L, 10)
-    inside = [i for i, (x, z, *_) in enumerate(F) if abs(x) <= lim and abs(z) <= lim]
-    i0, i1 = max(0, inside[0] - 1), min(len(F) - 1, inside[-1] + 1)
     bm = bmesh.new()
-    rows = []
-    for x, z, w, tx, tz, nx, nz in F[i0 : i1 + 1]:
-        ww = w - 0.015
-        rows.append(((clamp(x + nx * ww), clamp(z + nz * ww)), (clamp(x - nx * ww), clamp(z - nz * ww)), (tx, tz)))
-    verts = [(bm.verts.new(W(l[0], water, l[1])), bm.verts.new(W(r[0], water, r[1]))) for l, r, _ in rows]
-    for (a0, a1), (b0, b1) in zip(verts, verts[1:]):
-        f = bm.faces.new((a0, a1, b1, b0))
-        f.material_index = 0
-        f.smooth = True
-    # the spills: over the island's edge at both ends, a sheet of water falling away and a lip of foam
-    for (l, r, (tx, tz)), out in ((rows[0], -1.0), (rows[-1], 1.0)):
-        ox, oz = tx * out, tz * out
-        top = [bm.verts.new(W(l[0], water, l[1])), bm.verts.new(W(r[0], water, r[1]))]
-        low = [bm.verts.new(W(l[0] + ox * 0.14, water - 0.62, l[1] + oz * 0.14)), bm.verts.new(W(r[0] + ox * 0.14, water - 0.62, r[1] + oz * 0.14))]
-        sheet = bm.faces.new((top[0], top[1], low[1], low[0]))
-        sheet.material_index = 0
-        sheet.normal_update()
-        if sheet.normal.dot(W(ox, 0.0, oz)) < 0:
-            sheet.normal_flip()
-        mid = [bm.verts.new(W(l[0] + ox * 0.05, water - 0.03, l[1] + oz * 0.05)), bm.verts.new(W(r[0] + ox * 0.05, water - 0.03, r[1] + oz * 0.05))]
-        lip = [bm.verts.new(W(l[0] - ox * 0.18, water + 0.01, l[1] - oz * 0.18)), bm.verts.new(W(r[0] - ox * 0.18, water + 0.01, r[1] - oz * 0.18))]
-        bm.faces.new((lip[0], lip[1], mid[1], mid[0])).material_index = 1
-    rng = random.Random(8)
-    for rx, rz, sc in L["river"]["rocks"]:
-        for k in range(3):
-            a = rng.random() * 6.28
-            fx, fz = rx + math.cos(a) * sc * 0.9, rz + math.sin(a) * sc * 0.9
-            outline = wobbly_circle(fx, fz, 0.16 + 0.1 * rng.random(), 10, 0.25, rng)
-            bm.faces.new([bm.verts.new(W(x, water + 0.012, z)) for x, z in outline]).material_index = 1
-    # streaks of foam along the banks, lying with the flow
-    Fs = river_frame(L, 12)
-    for k in range(34):
-        x, z, w, tx, tz, nx, nz = Fs[rng.randrange(2, len(Fs) - 2)]
-        side = rng.choice((-1, 1))
-        off = w * (0.55 + 0.35 * rng.random()) * side
-        fx, fz = x + nx * off, z + nz * off
-        if abs(fx) > lim - 0.3 or abs(fz) > lim - 0.3:
-            continue
-        ln = 0.35 + rng.random() * 0.55
-        outline = [(fx + tx * ln / 2 * math.cos(a) + nx * 0.045 * math.sin(a), fz + tz * ln / 2 * math.cos(a) + nz * 0.045 * math.sin(a)) for a in (2 * math.pi * k2 / 10 for k2 in range(10))]
-        bm.faces.new([bm.verts.new(W(x2, water + 0.008, z2)) for x2, z2 in outline]).material_index = 1
-    for f in bm.faces:
-        f.normal_update()
-        if f.normal.z < 0 and f.material_index == 1:
-            f.normal_flip()
-    for f in bm.faces:
-        if f.material_index == 0 and abs(f.normal.z) > 0.5 and f.normal.z < 0:
-            f.normal_flip()
-    make_object("Forest_Water", bm, ["FW_Water", "FW_Foam"], coll, recalc=False)
-
-
-def vc_material(name):
-    """A vertex-colour material: its base colour is the mesh's "Col" corner colours."""
-    m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
-    try:
-        m.use_nodes = True
-    except AttributeError:
-        pass
-    nodes, links = m.node_tree.nodes, m.node_tree.links
-    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
-    attr = next((n for n in nodes if n.type == "VERTEX_COLOR"), None) or nodes.new("ShaderNodeVertexColor")
-    attr.layer_name = "Col"
-    links.new(attr.outputs["Color"], bsdf.inputs["Base Color"])
-    bsdf.inputs["Roughness"].default_value = 0.88
-    bsdf.inputs["Metallic"].default_value = 0.0
-    m.roughness = 0.88
-    m.use_backface_culling = True
-    return m
-
-
-def biome_color(L, x, z):
-    """The meadow's colour at (x, z): each zone's grass blended in along wandering edges (the point
-    warped by a few slow sines before it is measured against the zone), a little mottling, and the
-    base grass again at the banks and the rim."""
-    wx = x + 0.9 * math.sin(z * 0.45 + 1.3) + 0.45 * math.sin(z * 1.15 + 0.4)
-    wz = z + 0.9 * math.sin(x * 0.4 + 2.1) + 0.45 * math.sin(x * 1.25 + 1.1)
-    base = lin(BIOME["meadow"])
-    acc = [0.0, 0.0, 0.0]
-    tot = 0.0
-    for zn in L["zones"]:
-        f = zn["floor"]
-        if f not in BIOME or f == "meadow":
-            continue
-        dx = max(zn["x0"] - wx, 0.0, wx - zn["x1"])
-        dz = max(zn["z0"] - wz, 0.0, wz - zn["z1"])
-        outside = math.hypot(dx, dz)
-        depth = min(wx - zn["x0"], zn["x1"] - wx, wz - zn["z0"], zn["z1"] - wz)
-        d = outside if outside > 0 else -depth
-        w = smooth(1.6, -1.4, d)
-        if w <= 0:
-            continue
-        c = lin(BIOME[f])
-        tot += w
-        for k in range(3):
-            acc[k] += c[k] * w
-    if tot > 1:
-        acc = [a / tot for a in acc]
-        tot = 1.0
-    col = [base[k] * (1 - tot) + acc[k] for k in range(3)]
-    mottle = 1 + 0.06 * math.sin(x * 1.7 + z * 0.6) * math.sin(z * 1.3 - x * 0.4) + 0.04 * math.sin(x * 3.1 + 0.7) * math.sin(z * 2.7)
-    col = [c * mottle for c in col]
-    grass = lin(PALETTE["FW_Grass"])
-    d, w = river_dist(L, x, z)
-    ease = max(smooth(0.9, 0.0, d - w), smooth(0.7, 0.0, rim_dist(x, z, L["half"] - 0.36, 0.78)))
-    return [c * (1 - ease) + grass[i] * ease for i, c in enumerate(col)]
-
-
-def build_meadow(L, coll):
-    """The island's top as a fine grid of grass, coloured vertex by vertex (biome_color), over the
-    ground's own top; the grid leaves the river's channel open."""
-    a = L["half"] - 0.36
-    step = 0.24
-    n = int(round(2 * a / step)) + 1
-    xs = [-a + i * (2 * a) / (n - 1) for i in range(n)]
-    bm = bmesh.new()
-    V = [[bm.verts.new(W(x, LAYER_MEADOW, z)) for z in xs] for x in xs]
-    wet = [[river_dist(L, x, z) for z in xs] for x in xs]
-    for i in range(n - 1):
-        for j in range(n - 1):
-            corners = ((i, j), (i, j + 1), (i + 1, j + 1), (i + 1, j))
-            if not all(in_rounded(xs[p], xs[q], a, 0.78) for p, q in corners):
-                continue
-            if any(wet[p][q][0] < wet[p][q][1] + 0.03 for p, q in corners):
-                continue
-            bm.faces.new([V[p][q] for p, q in corners])
-    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
     col = bm.loops.layers.float_color.new("Col")
-    cache = {}
+    data = {}
+
+    def vert(x, y, z, shore, fall=0.0, down=0.0):
+        v = bm.verts.new(W(x, y, z))
+        data[v] = (max(0.0, min(1.0, shore / 1.5)), fall, down, 1.0)
+        return v
+
+    def strip(rows):
+        for r0, r1 in zip(rows, rows[1:]):
+            for (a, b), (c, d) in zip(zip(r0, r0[1:]), zip(r1, r1[1:])):
+                f = bm.faces.new((a, c, d, b))
+                f.smooth = True
+
+    F = river_frame(L, 10)
+    cols = 8
+    rows = []
+    last = None
+    # the round head: a few rows behind the first sample, closing to a point's width
+    x0, z0, w0, tx0, tz0, nx0, nz0 = F[0]
+    for k in range(6, 0, -1):
+        back = w0 * math.sin(math.pi / 2 * k / 6)
+        ww = max(0.04, w0 * math.cos(math.pi / 2 * k / 6) - 0.02)
+        cx, cz = x0 - tx0 * back, z0 - tz0 * back
+        rows.append([vert(cx + nx0 * ww * (c / cols * 2 - 1), water, cz + nz0 * ww * (c / cols * 2 - 1), min(min(c, cols - c) / cols * 2 * ww, w0 - back)) for c in range(cols + 1)])
+    for x, z, w, tx, tz, nx, nz in F:
+        if rim_inside(x, z, half) < 0.05:
+            break
+        ww = w - 0.02
+        rows.append([vert(x + nx * ww * (c / cols * 2 - 1), water, z + nz * ww * (c / cols * 2 - 1), min(c, cols - c) / cols * 2 * ww) for c in range(cols + 1)])
+        last = (x, z, w, tx, tz, nx, nz)
+    strip(rows)
+    # the sheet over the island's edge: the last row carried out along the flow and down the side
+    if last is not None:
+        x, z, w, tx, tz, nx, nz = last
+        curtain = [rows[-1]]
+        for out, y, down in ((0.35, water - 0.02, 0.05), (0.5, water - 0.5, 0.45), (0.56, -1.25, 1.0)):
+            curtain.append([vert(v.co.x + tx * out, y, -v.co.y + tz * out, 1.5, 1.0, down) for v in rows[-1]])
+        strip(curtain)
+    # the fall at its head: off the rock step's lip, out in an arc, into the pool
+    cs = L["cascade"]
+    base = land_y(cs["x"], cs["z"])
+    top = cs["top"] + base
+    dx, dz = x0 - cs["x"], z0 - cs["z"]
+    dist = math.hypot(dx, dz) or 1.0
+    ux, uz = dx / dist, dz / dist
+    lip, foot = 0.34, dist - w0 + 0.45
+    rows = []
+    for k in range(10):
+        u = k / 9
+        s = lip + (foot - lip) * (u ** 0.8)
+        y = top + (water + 0.012 - top) * (u ** 1.9)
+        w = 0.24 + 0.1 * u
+        rows.append([vert(cs["x"] + ux * s - uz * w * (c / 3 * 2 - 1), y, cs["z"] + uz * s + ux * w * (c / 3 * 2 - 1), 1.5, 1.0, u) for c in range(4)])
+    strip(rows)
     for f in bm.faces:
         f.normal_update()
-        if f.normal.z < 0:
+        if f.normal.z < -1e-4:
             f.normal_flip()
         for loop in f.loops:
-            v = loop.vert
-            key = (round(v.co.x, 4), round(v.co.y, 4))
-            if key not in cache:
-                cache[key] = (*biome_color(L, v.co.x, -v.co.y), 1.0)
-            loop[col] = cache[key]
-    me = bpy.data.meshes.new("Forest_MeadowMesh")
+            loop[col] = data[loop.vert]
+    me = bpy.data.meshes.new("Forest_WaterMesh")
     bm.to_mesh(me)
     bm.free()
-    me.materials.append(vc_material("FW_Meadow"))
-    attr = me.color_attributes.get("Col")
-    if attr is not None:
-        me.color_attributes.active_color = attr
-    ob = bpy.data.objects.new("Forest_Meadow", me)
+    mat = vc_material("FW_Water")
+    mat.use_backface_culling = False
+    me.materials.append(mat)
+    use_col(me)
+    ob = bpy.data.objects.new("Forest_Water", me)
     coll.objects.link(ob)
     ob["origin"] = [0.0, 0.0, 0.0]
-    return ob
-
-
-def build_banks(L, coll):
-    """Damp dark earth along both banks, from the channel's lip out a little over the meadow (on the
-    island's flat top only)."""
-    a = L["half"] - 0.36
-    F = river_frame(L, 12)
-    bm = bmesh.new()
-    for side in (1, -1):
-        prev = None
-        for x, z, w, tx, tz, nx, nz in F:
-            wob = 0.06 * math.sin(x * 2.3 + z * 1.7 + side)
-            inner = (x + nx * side * (w - 0.03), z + nz * side * (w - 0.03))
-            outer = (x + nx * side * (w + 0.4 + wob), z + nz * side * (w + 0.4 + wob))
-            if in_rounded(*inner, a, 0.78) and in_rounded(*outer, a, 0.78):
-                vi = bm.verts.new(W(inner[0], LAYER_BANK, inner[1]))
-                vo = bm.verts.new(W(outer[0], LAYER_BANK, outer[1]))
-                if prev:
-                    bm.faces.new((prev[0], prev[1], vo, vi))
-                prev = (vi, vo)
-            else:
-                prev = None
-    for f in bm.faces:
-        f.normal_update()
-        if f.normal.z < 0:
-            f.normal_flip()
-    make_object("Forest_Banks", bm, ["FW_Bank"], coll, recalc=False)
 
 
 def build_floors(L, coll):
-    """The shrine's flagstone floor round the elderwood (the zones' grass is the meadow's colour)."""
+    """The shrine's flagstone floor round the elderwood."""
     rng = random.Random(5)
     bm = bmesh.new()
     sh = L["shrine"]
@@ -811,26 +952,37 @@ def build_floors(L, coll):
             if ring == 0 and k % 2:
                 continue
             cx, cz = sh["x"] + math.cos(a) * rr, sh["z"] + math.sin(a) * rr
-            slab(bm, wobbly_circle(cx, cz, 0.24, 8, 0.15, rng), -0.02, LAYER_FLOOR + 0.006, 0)
-    make_object("Forest_Floors", bm, ["FW_StoneDark"], coll)
+            slab(bm, wobbly_circle(cx, cz, 0.24, 8, 0.15, rng), -0.02, 0.014, 0)
+    make_object("Forest_Floors", bm, ["FW_StoneDark"], coll, lift="parts")
 
 
-def build_paths(L, coll):
+def build_falls(L, coll):
+    """The fall's rock step at the river's head: two big boulders shoulder to shoulder, a flat slab
+    across them that the water runs off, a lip stone under it, smaller ones stepping down either side,
+    moss on their tops; stones round the pool's rim."""
+    rng = random.Random(64)
     bm = bmesh.new()
-    for path in L["paths"]:
-        trail(bm, path_polyline(path))
-    for f in bm.faces:
-        f.normal_update()
-        if f.normal.z < 0:
-            f.normal_flip()
-    make_object("Forest_Paths", bm, ["FW_Dirt"], coll, recalc=False)
-
-
-def zone_of(L, x, z):
-    for zn in L["zones"]:
-        if zn["x0"] <= x <= zn["x1"] and zn["z0"] <= z <= zn["z1"]:
-            return zn["id"]
-    return ""
+    cs = L["cascade"]
+    cx, cz, top = cs["x"], cs["z"], cs["top"]
+    x0, z0, w0 = L["river"]["points"][0]
+    d = math.hypot(x0 - cx, z0 - cz) or 1.0
+    ux, uz = (x0 - cx) / d, (z0 - cz) / d  # toward the pool
+    px, pz = -uz, ux
+    for side, y, fwd, hx, hy, hz, m_ in (
+        (-0.62, 0.45, -0.2, 0.8, 0.68, 0.68, 0),
+        (0.6, 0.42, -0.15, 0.74, 0.62, 0.64, 1),
+        (0.0, top - 0.2, -0.08, 0.66, 0.24, 0.54, 0),
+        (0.02, 0.7, 0.3, 0.42, 0.34, 0.3, 1),
+        (-1.22, 0.16, 0.5, 0.46, 0.3, 0.4, 1),
+        (1.18, 0.14, 0.55, 0.44, 0.28, 0.38, 0),
+        (-0.35, 0.2, -0.85, 0.6, 0.4, 0.5, 1),
+        (0.55, 0.18, -0.8, 0.5, 0.36, 0.45, 0),
+    ):
+        x, z = cx + px * side + ux * fwd, cz + pz * side + uz * fwd
+        blob(bm, x, y, z, hx, hy, hz, m=m_, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
+        if hy > 0.3 and abs(side) > 0.3:
+            blob(bm, x, y + hy * 0.82, z, hx * 0.6, 0.06, hz * 0.6, m=2, cuts=2, noise=0.2, rng=rng)
+    make_object("Forest_Falls", bm, ["FW_Stone", "FW_StoneDark", "FW_Moss"], coll, lift="parts")
 
 
 def clear_spot(L, x, z, r):
@@ -864,12 +1016,23 @@ def clear_spot(L, x, z, r):
     a = L["archway"]
     if abs(x - a["x"]) < 1.6 and z > a["z"] - 1.6:
         return False
+    D = L["dressing"]
+    if any(math.hypot(x - bx, z - bz) < 0.6 * bs + 0.3 + r for bx, bz, bs in D["boulders"]) or any(math.hypot(x - px, z - pz) < 0.4 + r for px, pz in D["lanternPosts"] + D["stumps"]):
+        return False
+    if any(math.hypot(x - f["x"], z - f["z"]) < f["len"] / 2 + 0.3 + r for f in D["fallen"]):
+        return False
+    ad = L["adit"]
+    if x < ad["outcrop"]["x1"] + 2.6 and ad["outcrop"]["z0"] - 0.6 < z < ad["outcrop"]["z1"] + 0.6:
+        return False
+    if math.hypot(x - L["cascade"]["x"], z - L["cascade"]["z"]) < 2.2 + r:
+        return False
     return True
 
 
 def build_deco(L, coll):
     rng = random.Random(31)
     bm = bmesh.new()
+    core = L["core"]
     # 0 tuft, 1 fern, 2 pink, 3 yellow, 4 blue, 5 cap, 6 stem, 7 leaf pile, 8 maple gold
 
     def fern(x, z, s=1.0):
@@ -908,9 +1071,10 @@ def build_deco(L, coll):
 
     placed = 0
     tries = 0
-    while placed < 120 and tries < 3000:
+    reach = L["half"] - 1.0
+    while placed < 300 and tries < 8000:
         tries += 1
-        x, z = rng.uniform(-11, 9), rng.uniform(-11, 11)
+        x, z = rng.uniform(-reach, reach), rng.uniform(-reach, reach)
         if not clear_spot(L, x, z, 0.12):
             continue
         zn = zone_of(L, x, z)
@@ -952,7 +1116,7 @@ def build_deco(L, coll):
             rr = 1.15 + 0.3 * rng.random()
             x, z = t["x"] + rr * math.cos(a), t["z"] + rr * math.sin(a)
             # (not on the side you fell it from: toward the middle of the wood)
-            if (x - t["x"]) * -t["x"] + (z - t["z"]) * -t["z"] > 0.4 * math.hypot(t["x"], t["z"]):
+            if (x - t["x"]) * (core["x"] - t["x"]) + (z - t["z"]) * (core["z"] - t["z"]) > 0.4 * math.hypot(t["x"] - core["x"], t["z"] - core["z"]):
                 continue
             if clear_spot(L, x, z, 0.2):
                 fern(x, z, 0.8 + 0.4 * rng.random())
@@ -962,16 +1126,16 @@ def build_deco(L, coll):
         for k in range(3):
             rr = 0.75 + 0.3 * rng.random()
             x, z = t["x"] + rr * math.cos(a + k * 2.1), t["z"] + rr * math.sin(a + k * 2.1)
-            if (x - t["x"]) * -t["x"] + (z - t["z"]) * -t["z"] > 0.4 * math.hypot(t["x"], t["z"]) or not clear_spot(L, x, z, 0.15):
+            if (x - t["x"]) * (core["x"] - t["x"]) + (z - t["z"]) * (core["z"] - t["z"]) > 0.4 * math.hypot(t["x"] - core["x"], t["z"] - core["z"]) or not clear_spot(L, x, z, 0.15):
                 continue
             mushrooms(x, z, 3 + (k % 2))
             break
     # low wild berry bushes along the trail's margins and the groves' edges
     bushes = 0
     tries = 0
-    while bushes < 10 and tries < 800:
+    while bushes < 18 and tries < 1600:
         tries += 1
-        x, z = rng.uniform(-10.5, 8.5), rng.uniform(-10.5, 10.5)
+        x, z = rng.uniform(-reach, reach), rng.uniform(-reach, reach)
         if zone_of(L, x, z) not in ("border", "birch", "cedar") or not clear_spot(L, x, z, 0.45):
             continue
         for k in range(2):
@@ -981,13 +1145,13 @@ def build_deco(L, coll):
                 a = rng.random() * 6.28
                 blob(bm, bx + math.cos(a) * 0.22, 0.16 + rng.uniform(-0.04, 0.1), bz + math.sin(a) * 0.2, 0.028, 0.028, 0.028, m=5, cuts=1)
         bushes += 1
-    make_object("Forest_Deco", bm, ["FW_Tuft", "FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_MushCap", "FW_MushStem", "FW_LeafPile", "FW_MapleLeafGold"], coll)
+    make_object("Forest_Deco", bm, ["FW_Tuft", "FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_MushCap", "FW_MushStem", "FW_LeafPile", "FW_MapleLeafGold"], coll, lift="parts")
 
 
 def shrine_stones(L):
     sh = L["shrine"]
     gap = 0.26 * math.pi
-    open_ = math.atan2(-sh["z"], -sh["x"])
+    open_ = math.atan2(L["core"]["z"] - sh["z"], L["core"]["x"] - sh["x"])
     n = sh["stones"]
     return [(sh["x"] + math.cos(a) * sh["r"], sh["z"] + math.sin(a) * sh["r"], a) for a in (open_ + gap / 2 + (k / (n - 1)) * (2 * math.pi - gap) for k in range(n))]
 
@@ -1030,9 +1194,10 @@ def build_rocks(L, coll):
     # the Cedar Ridge's boulders, off the paths and away from the trees
     placed = 0
     tries = 0
+    ridge = next(zn for zn in L["zones"] if zn["id"] == "cedar")
     while placed < 7 and tries < 400:
         tries += 1
-        x, zz = rng.uniform(-1.8, 8.5), rng.uniform(-5.2, 5.8)
+        x, zz = ridge["x"] + rng.uniform(-ridge["r"], ridge["r"]), ridge["z"] + rng.uniform(-ridge["r"], ridge["r"])
         s = 0.6 + rng.random() * 0.7
         if not clear_spot(L, x, zz, 0.45 * s):
             continue
@@ -1047,7 +1212,7 @@ def build_rocks(L, coll):
         blob(bm, x, h - 0.02, zz, 0.18, 0.06, 0.15, m=2, cuts=2, noise=0.25, rng=rng)
         ix, iz = -math.cos(a), -math.sin(a)  # toward the elderwood
         blob(bm, x + ix * 0.15, h * 0.55, zz + iz * 0.15, 0.06, 0.1, 0.06, m=3, cuts=1, n=1.4)
-    make_object("Forest_Rocks", bm, ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Rune", "FW_Pebble"], coll)
+    make_object("Forest_Rocks", bm, ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Rune", "FW_Pebble"], coll, lift="parts")
 
 
 def pine(bm, x, z, s, rng, light, bark=0, needle=1, needle_light=2):
@@ -1065,7 +1230,7 @@ def build_vista(L, coll):
     bm = bmesh.new()
     for i, (x, z, s) in enumerate(L["vista"]):
         pine(bm, x, z, s * 1.55, rng, light=i % 2 == 1)
-    make_object("Forest_Vista", bm, ["FW_PineBark", "FW_PineNeedle", "FW_PineNeedleLight"], coll)
+    make_object("Forest_Vista", bm, ["FW_PineBark", "FW_PineNeedle", "FW_PineNeedleLight"], coll, lift="parts")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1247,7 +1412,7 @@ def build_structures(L, cushions, coll):
         box(bm, px - 0.16, px + 0.16, 0.6, 0.78, pz - 0.02, pz + 0.02, m=3)
         blob(bm, px, 0.69, pz + 0.025, 0.09, 0.035, 0.006, m=11, cuts=2)
     build_adit(L, bm, rng)
-    make_object("Forest_Structures", bm, ["FW_Bark", "FW_Log", "FW_WoodCut", "FW_Plank", "FW_PlankDark", "FW_Roof", "FW_Window", "FW_Iron", "FW_Stone", "FW_Rope", "FW_Honey", "FW_Cloth", "FW_Red", "FW_PineNeedle", "FW_Moss", "FW_LeafPile"], coll)
+    make_object("Forest_Structures", bm, ["FW_Bark", "FW_Log", "FW_WoodCut", "FW_Plank", "FW_PlankDark", "FW_Roof", "FW_Window", "FW_Iron", "FW_Stone", "FW_Rope", "FW_Honey", "FW_Cloth", "FW_Red", "FW_PineNeedle", "FW_Moss", "FW_LeafPile"], coll, lift="parts")
 
 
 def build_adit(L, bm, rng):
@@ -1583,7 +1748,7 @@ def build_animals(L, coll):
     for k in range(6):  # the dappled spots on her back
         blob(bm, (k % 2 - 0.5) * 0.16, 0.675, -0.2 + k * 0.08, 0.03, 0.01, 0.03, m=1, cuts=1)
     deer = make_object("Animal_Deer", bm, ["FW_DeerFur", "FW_DeerCream", "FW_DeerDark", "FW_Antler", "FW_Eye"], coll, origin=(0.0, 0.0, 0.0))
-    deer.location = W(ax, 0.0, az)
+    deer.location = W(ax, land_y(ax, az), az)
     deer.rotation_euler = (0.0, 0.0, math.radians(-150))
     deer["origin"] = [ax, 0.0, az]
     # her head and neck: pivots where the neck meets the body (she lowers it to graze)
@@ -1628,7 +1793,7 @@ def build_animals(L, coll):
         blob(bm, 0.0, 0.225, 0.2, 0.014, 0.01, 0.008, m=2, cuts=1)  # the nose
         blob(bm, 0.0, 0.14, -0.16, 0.05, 0.05, 0.05, m=1, cuts=2)  # the cotton tail
         ob = make_object(f"Animal_Rabbit_{k + 1}", bm, ["FW_RabbitFur", "FW_RabbitWhite", "FW_Pink", "FW_Eye"], coll, origin=(0.0, 0.0, 0.0))
-        ob.location = W(r["x"] + dx, 0.0, r["z"] + dz)
+        ob.location = W(r["x"] + dx, land_y(r["x"] + dx, r["z"] + dz), r["z"] + dz)
         ob.rotation_euler = (0.0, 0.0, yaw)
         ob["origin"] = [r["x"] + dx, 0.0, r["z"] + dz]
 
@@ -1646,17 +1811,20 @@ def build(root):
         bpy.data.objects.remove(o, do_unlink=True)
     if old:
         bpy.data.collections.remove(old)
+    global LAYOUT, TERRAIN
     RIVER_FRAMES.clear()
     L = read_layout(root)
+    LAYOUT, TERRAIN = L, read_terrain(root)
+    if TERRAIN["half"] != L["half"]:
+        raise RuntimeError("forest_terrain.json is stale: run `npm run forest-terrain`")
     cushions = read_cushions(root)
     coll = bpy.data.collections.new(COLLECTION)
     bpy.context.scene.collection.children.link(coll)
     build_ground(L, coll)
-    build_meadow(L, coll)
-    build_banks(L, coll)
     build_water(L, coll)
     build_floors(L, coll)
-    build_paths(L, coll)
+    build_falls(L, coll)
+    build_dressing(L, coll)
     build_deco(L, coll)
     build_rocks(L, coll)
     build_vista(L, coll)
@@ -1667,6 +1835,210 @@ def build(root):
     bpy.context.scene.collection.children.link(tcoll)
     trees = build_trees(tcoll)
     return coll, tcoll, L, trees
+
+
+def build_dressing(L, coll):
+    """The dressing pass: what you walk round is in the layout (`dressing`, with its colliders in
+    forest.ts): boulders on the hillside and flanking the Mine Ledge's cliff, lantern posts along the
+    trails, fallen logs, stumps. The rest is walked through or out of reach, placed by rule: stones
+    round the pool at the river's head and at its mouth, log steps up the trails where they climb,
+    and the far bank's bushes, boulders, ferns and flowers."""
+    rng = random.Random(707)
+    half = L["half"]
+    D = L["dressing"]
+    M = ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Bark", "FW_WoodCut", "FW_PlankDark", "FW_Iron", "FW_Window", "FW_Fern", "FW_MushCap", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_Tuft"]
+    m = {name: i for i, name in enumerate(M)}
+    bm = bmesh.new()
+    water = L["river"]["water"]
+
+    def nub(x, y, z, r, h, mat):
+        lathe(bm, x, z, [(0, y), (r, y + h * 0.15), (r * 0.72, y + h * 0.8), (0, y + h)], segs=6, m=mat, yaw=rng.random())
+
+    def flower(x, z, tone):
+        h = 0.12 + 0.09 * rng.random()
+        cylinder(bm, W(x, 0.0, z), W(x, h, z), 0.011, 3, m=m["FW_Tuft"])
+        nub(x, h - 0.012, z, 0.045, 0.05, m[tone])
+
+    def bush(x, z, s):
+        for q in range(2):
+            bx, bz = x + 0.28 * (q - 0.5) * s, z + 0.16 * (q - 0.5)
+            blob(bm, bx, 0.24 * s, bz, 0.4 * s, 0.32 * s, 0.36 * s, m=m["FW_Fern"], cuts=3, noise=0.08, rng=rng, flat_bottom=-0.05)
+            for _ in range(4):
+                a = rng.random() * 6.28
+                nub(bx + math.cos(a) * 0.34 * s, 0.24 * s + rng.uniform(-0.06, 0.12) * s, bz + math.sin(a) * 0.3 * s, 0.03, 0.05, m["FW_MushCap"])
+
+    # the hillside's boulders: each a big stone with a smaller one leaning on it and a cap of moss
+    for k, (x, z, s) in enumerate(D["boulders"]):
+        blob(bm, x, 0.16 * s, z, 0.5 * s, 0.4 * s, 0.44 * s, m=k % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
+        blob(bm, x + 0.42 * s, 0.06, z + 0.3 * s, 0.24 * s, 0.17 * s, 0.2 * s, m=(k + 1) % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.2)
+        blob(bm, x - 0.02, 0.5 * s, z, 0.32 * s, 0.07 * s, 0.28 * s, m=m["FW_Moss"], cuts=2, noise=0.2, rng=rng)
+    # the lantern posts: an iron lantern on a bracket, its glass glowing
+    for x, z in D["lanternPosts"]:
+        cylinder(bm, W(x, -0.05, z), W(x, 1.5, z), 0.05, 8, m=m["FW_PlankDark"])
+        blob(bm, x, 0.03, z, 0.13, 0.06, 0.13, m=m["FW_StoneDark"], cuts=2, noise=0.08, rng=rng, flat_bottom=-0.1)
+        cylinder(bm, W(x, 1.42, z), W(x + 0.24, 1.42, z + 0.24), 0.022, 6, m=m["FW_PlankDark"])
+        lx, lz = x + 0.24, z + 0.24
+        cylinder(bm, W(lx, 1.42, lz), W(lx, 1.33, lz), 0.006, 4, m=m["FW_Iron"])
+        box(bm, lx - 0.075, lx + 0.075, 1.31, 1.33, lz - 0.075, lz + 0.075, m=m["FW_Iron"])
+        box(bm, lx - 0.075, lx + 0.075, 1.1, 1.12, lz - 0.075, lz + 0.075, m=m["FW_Iron"])
+        for sx in (-1, 1):
+            for sz in (-1, 1):
+                box(bm, lx + sx * 0.066 - 0.009, lx + sx * 0.066 + 0.009, 1.12, 1.31, lz + sz * 0.066 - 0.009, lz + sz * 0.066 + 0.009, m=m["FW_Iron"])
+        box(bm, lx - 0.055, lx + 0.055, 1.125, 1.305, lz - 0.055, lz + 0.055, m=m["FW_Window"])
+    # the fallen logs: mossy, a broken branch stub
+    for f in D["fallen"]:
+        dx, dz = math.sin(f["yaw"]) * f["len"] / 2, math.cos(f["yaw"]) * f["len"] / 2
+        cylinder(bm, W(f["x"] - dx, 0.17, f["z"] - dz), W(f["x"] + dx, 0.15, f["z"] + dz), 0.18, 10, m=m["FW_Bark"], cap_m=m["FW_WoodCut"], r_end=0.15, wobble=0.07, rng=rng)
+        blob(bm, f["x"] - dx * 0.2, 0.33, f["z"] - dz * 0.2, 0.3, 0.05, 0.14, m=m["FW_Moss"], cuts=2, noise=0.12, rng=rng)
+        cylinder(bm, W(f["x"] + dx * 0.3, 0.25, f["z"] + dz * 0.3), W(f["x"] + dx * 0.3 + dz * 0.25, 0.45, f["z"] + dz * 0.3 - dx * 0.25), 0.04, 6, m=m["FW_Bark"], r_end=0.025)
+    # the stumps
+    for x, z in D["stumps"]:
+        lathe(bm, x, z, [(0, 0.0), (0.3, 0.0), (0.22, 0.08), (0.2, 0.3), (0, 0.3)], segs=10, m=m["FW_Bark"], jitter=0.08, rng=rng)
+        lathe(bm, x, z, [(0, 0.3), (0.19, 0.3), (0, 0.312)], segs=10, m=m["FW_WoodCut"])
+    # log steps where the trails climb: every 0.9 m along the trails to the shrine, the Glen and the ledge
+    for idx in (1, 3, 5):
+        pts = path_polyline(L["paths"][idx], 0.9)
+        for (ax, az, aw), (bx, bz, _) in list(zip(pts, pts[1:]))[1:-1]:
+            if abs(land_y(bx, bz) - land_y(ax, az)) < 0.05:
+                continue
+            d = math.hypot(bx - ax, bz - az) or 1.0
+            nx, nz = -(bz - az) / d, (bx - ax) / d
+            w = aw / 2 + 0.16
+            cylinder(bm, W(ax - nx * w, 0.012, az - nz * w), W(ax + nx * w, 0.012, az + nz * w), 0.06, 8, m=m["FW_Bark"], cap_m=m["FW_WoodCut"], wobble=0.05, rng=rng)
+    # stones round the pool at the river's head (clear of the fall), in the water: not lifted
+    x0, z0, w0 = L["river"]["points"][0]
+    cs = L["cascade"]
+    back = math.atan2(cs["z"] - z0, cs["x"] - x0)
+    for k in range(9):
+        a = back + math.pi * (-0.42 + 0.84 * k / 8)
+        x, z = x0 + (w0 - 0.1) * math.cos(a), z0 + (w0 - 0.1) * math.sin(a)
+        if math.hypot(x - cs["x"], z - cs["z"]) < 1.0 or abs(k - 4) < 1:
+            continue
+        s = rng.uniform(0.7, 1.15)
+        blob(bm, x, water + 0.05, z, 0.24 * s, 0.17 * s, 0.2 * s, m=k % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
+    # the far bank (no one walks it): bushes, boulders, ferns and flowers down its length
+    F = river_frame(L, 4)
+    for k, (x, z, w, tx, tz, nx, nz) in enumerate(F):
+        if rim_inside(x, z, half) < 1.2:
+            continue
+        # (the bank on the island's east side: the normal that points toward +x)
+        sx = 1.0 if nx > 0 else -1.0
+        ex, ez = x + nx * sx * (w + 0.5), z + nz * sx * (w + 0.5)
+        room = (half - 0.7) - ex
+        if room < 0.3:
+            continue
+        px, pz = ex + room * rng.random(), ez + rng.uniform(-0.3, 0.3)
+        kind = k % 4
+        if kind == 0:
+            bush(px, pz, rng.uniform(0.6, 0.9))
+        elif kind == 1:
+            s = rng.uniform(0.5, 0.85)
+            blob(bm, px, 0.12 * s, pz, 0.5 * s, 0.34 * s, 0.42 * s, m=0, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
+            blob(bm, px - 0.02, 0.4 * s, pz, 0.3 * s, 0.06, 0.26 * s, m=m["FW_Moss"], cuts=2, noise=0.12, rng=rng)
+        elif kind == 2:
+            for _ in range(6):
+                flower(px + rng.uniform(-0.3, 0.3), pz + rng.uniform(-0.4, 0.4), rng.choice(("FW_PetalYellow", "FW_Petal", "FW_PetalBlue")))
+        else:
+            bush(px, pz, rng.uniform(0.45, 0.65))
+    make_object("Forest_Dressing", bm, M, coll, lift="parts")
+
+
+
+# ---------------------------------------------------------------------------------------------
+# one draw call a finish: every plain colour baked into the vertices, the still things fused
+
+# the nodes the game moves, shows or instances by name: they stay their own objects
+DYNAMIC = ("Animal_", "Fauna_")
+# the materials that stay themselves: what glows
+KEEP = set(EMISSION)
+# (the vista pines' needles and bark keep finishes of their own, FW_VistaNeedle and FW_VistaBark: the
+# game sways the one in the wind and thins both between you and the camera)
+
+
+def slot_of(name):
+    """The finish a face painted `name` is drawn with."""
+    if name in KEEP:
+        return name
+    # (finishes of their own, never a palette material's name: the tree looks in trees.glb keep those)
+    if name.startswith("FW_PineNeedle"):
+        return "FW_VistaNeedle"
+    if name == "FW_PineBark":
+        return "FW_VistaBark"
+    if name in DOUBLE_SIDED:
+        return "FW_ClayDouble"
+    return "FW_Sheen" if ROUGHNESS.get(name, 0.82) < 0.65 else "FW_Clay"
+
+
+def bake_colors(ob, one=None):
+    """Every face's own colour into the mesh's "Col" corner colours, and its material replaced by
+    its finish's (slot_of; or all by the one finish `one`: an animal is a single draw call). The pines keep, in their UVs, each vertex's height over the ground it
+    stands on (the game sways them by it)."""
+    me = ob.data
+    names = [m.name for m in me.materials]
+    if not names or names in (["FW_Meadow"], ["FW_Water"]):
+        return
+    attr = me.color_attributes.get("Col") or me.color_attributes.new("Col", "FLOAT_COLOR", "CORNER")
+    lifts = me.attributes.get("lift")
+    while me.uv_layers:
+        me.uv_layers.remove(me.uv_layers[0])
+    pines = ob.name.startswith("Forest_Vista")
+    uv = me.uv_layers.new(name="UVMap") if pines else None
+    world = ob.matrix_world
+    slots, index, face_slot = [], {}, []
+    for poly in me.polygons:
+        name = names[min(poly.material_index, len(names) - 1)]
+        s = one or slot_of(name)
+        c = (1.0, 1.0, 1.0) if s in KEEP else lin(PALETTE[name])
+        for li in poly.loop_indices:
+            attr.data[li].color = (*c, 1.0)
+            if uv is not None:
+                vi = me.loops[li].vertex_index
+                uv.data[li].uv = (0.0, max(0.0, (world @ me.vertices[vi].co).z - (lifts.data[vi].value if lifts else 0.0)))
+        if s not in index:
+            index[s] = len(slots)
+            slots.append(s)
+        face_slot.append(index[s])
+    me.materials.clear()
+    for s in slots:
+        if s in KEEP:
+            me.materials.append(material(s))
+        else:
+            mat = vc_material(s)
+            mat.use_backface_culling = s != "FW_ClayDouble"
+            me.materials.append(mat)
+    for poly, i in zip(me.polygons, face_slot):
+        poly.material_index = i
+    if lifts is not None:
+        me.attributes.remove(lifts)
+    use_col(me)
+
+
+def fuse(coll):
+    """Bakes every object's colours, then joins the still ones into Forest_Static (and the vista
+    pines into Forest_Pines): about one draw call a finish for the whole wood."""
+    statics, pines = [], []
+    for ob in list(coll.all_objects):
+        if ob.type != "MESH" or ob.name in ("Forest_Ground", "Forest_Water"):
+            continue
+        if ob.name.startswith("Animal_"):
+            bake_colors(ob, one="FW_Clay")
+        if ob.name.startswith(DYNAMIC) or ob.parent is not None:
+            continue
+        bake_colors(ob)
+        (pines if ob.name.startswith("Forest_Vista") else statics).append(ob)
+    bpy.context.view_layer.update()
+    for name, group in (("Forest_Static", statics), ("Forest_Pines", pines)):
+        if not group:
+            continue
+        target = group[0]
+        if len(group) > 1:
+            with bpy.context.temp_override(object=target, active_object=target, selected_objects=group, selected_editable_objects=group):
+                bpy.ops.object.join()
+        target.name = name
+        target.data.name = name + "Mesh"
+        use_col(target.data)
+    meshes = [o for o in coll.all_objects if o.type == "MESH"]
+    return {"objects": len(meshes), "drawCalls": sum(len(o.data.materials) for o in meshes if not o.name.startswith("Fauna_")), "tris": sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes), "static": [m.name for m in bpy.data.objects["Forest_Static"].data.materials]}
 
 
 def export(coll, path):
@@ -1706,12 +2078,13 @@ def main():
         root = repo_root()
         studio(root, "begin")
         coll, tcoll, L, trees = build(root)
+        fused = fuse(coll)
         out = os.path.join(root, "client", "public", "models", "forest.glb")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         export(coll, out)
         tout = os.path.join(root, "client", "public", "models", "trees.glb")
         export(tcoll, tout)
-        result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), "treesGlb": tout, "treesBytes": os.path.getsize(tout), "trees": trees, **summary(coll)}
+        result = {"ok": True, "glb": out, "bytes": os.path.getsize(out), "treesGlb": tout, "treesBytes": os.path.getsize(tout), "trees": trees, "fused": fused}
         # (the tree looks sit at the origin: not in the studio's grid)
         for o in list(tcoll.all_objects):
             bpy.data.objects.remove(o, do_unlink=True)

@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { FOREST_BIRDS } from "@shared/worlds/forest";
+import { FOREST_BIRDS, forestLand } from "@shared/worlds/forest";
 import { noRaycast } from "./kit";
 import { cameraFocus } from "./cameraFocus";
 import { CampDaylightContext } from "./campDay";
@@ -24,14 +24,16 @@ const BIRD_TINTS = ["#ffd0b8", "#c8dcff", "#fff0b0", "#e2ffd8", "#ffe0ec"];
 const FLY_TINTS = ["#ffe066", "#ff9ec4", "#9fd4ff", "#d4b0ff", "#ffb56b", "#b8f0a0"];
 /** The meadows the butterflies drift over (the Border, the Birch Grove, the Golden Glen, the Ridge). */
 const MEADOWS: [number, number][] = [
-  [-5.5, 9.2],
-  [-8.2, 1.2],
-  [-3.6, -8.2],
-  [2.4, 1.6],
-  [-6.2, -2.8],
-  [4.6, 8.2],
-  [0.6, -6.4],
-  [-9.2, 5.0],
+  [-7.5, 14.2],
+  [-10.2, 6.2],
+  [-7.6, -5.2],
+  [0.4, 6.6],
+  [-8.2, 2.2],
+  [2.6, 13.2],
+  [1.6, -3.4],
+  [-11.2, 10.0],
+  [6.0, -6.0],
+  [8.6, 7.6],
 ];
 const SCATTER_R = 2.6;
 const FLY_S = 2.2;
@@ -131,7 +133,7 @@ export function WoodsFauna({ scene }: { scene: THREE.Object3D }) {
     flies.forEach((f, i) => {
       const x = f.x + Math.sin(t * f.a + f.p) * 1.9 + Math.sin(t * f.a * 2.3 + f.p) * 0.5;
       const z = f.z + Math.cos(t * f.b + f.p * 1.3) * 1.5;
-      const y = 0.75 + 0.35 * Math.sin(t * 0.9 + f.p) + 0.08 * Math.sin(t * 7 + f.p);
+      const y = forestLand(x, z) + 0.75 + 0.35 * Math.sin(t * 0.9 + f.p) + 0.08 * Math.sin(t * 7 + f.p);
       const vx = Math.cos(t * f.a + f.p) * 1.9 * f.a;
       const vz = -Math.sin(t * f.b + f.p * 1.3) * 1.5 * f.b;
       q.setFromAxisAngle(up, Math.atan2(vx, vz));

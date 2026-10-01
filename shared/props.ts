@@ -4,7 +4,7 @@ import { LOFT_MOCHI, LOFT_PROPS, LOFT_SEATS } from "./worlds/lounge";
 import { CAMP_PROPS, CAMP_SEATS, campLand, lieSeatPose } from "./worlds/campfire";
 import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
 import { VIP_PROPS, VIP_SEATS } from "./worlds/casino_vip";
-import { FOREST_PROPS, FOREST_SEATS } from "./worlds/forest";
+import { FOREST_PROPS, FOREST_SEATS, forestLand } from "./worlds/forest";
 import { RING_PROPS, RING_SEATS } from "./worlds/boxing_ring";
 import { CAVERNS_PROPS, HEARTH_SEATS, THERMAL_SEATS, cavernsFloorY, thermalPoolY } from "./worlds/caverns";
 
@@ -98,7 +98,8 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
     style: "wood" as const,
     approachX: s.approachX,
     approachZ: s.approachZ,
-    sitY: round(seatAnchorY(CUSHIONS[s.cushion])),
+    // (on the bank where the seat stands)
+    sitY: round(forestLand(s.x, s.z) + seatAnchorY(CUSHIONS[s.cushion])),
   })),
   // the Velvet Ring: the tiered benches, the Chesterfields, the cocktail stools, the ringside and
   // judges' chairs, the gym's bench (drawn by boxing_ring.glb; a tier's bench sits that much higher)

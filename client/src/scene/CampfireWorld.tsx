@@ -11,6 +11,7 @@ import { parseTrees } from "@shared/chop";
 import { FellableTrees } from "./FellableTrees";
 import { WildCritters } from "./WildCritters";
 import { SurgeRipples } from "./SurgeRipples";
+import { FallsSpray, type SprayAt } from "./FallsSpray";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
@@ -225,7 +226,7 @@ export function CampfireWorld({ onFloorClick, players, localSessionId, toggleabl
       <Smoke />
       <BulbGlows />
       <FoamRings />
-      <FallsSpray />
+      <FallsSpray spots={SPRAY_AT} />
       <DuckTargets onDuck={onDuck} />
       <WildCritters mapId="campfire_night" />
       <Fireflies />
@@ -749,39 +750,15 @@ const FOAM_MAT = new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: fal
 const foamColor = new THREE.Color();
 
 /** Foam rings on the river: spreading out from each of the dock's pilings, and after each duck. */
-const SPRAY_MAT = new THREE.MeshBasicMaterial({ color: "#eaf6f8", transparent: true, opacity: 0.55, depthWrite: false });
 /** Where water lands: the foot of the fall into the plunge pool, and the foot of the sheet over the
  *  island's south edge. */
-const SPRAY_AT: { x: number; y: number; z: number; w: number }[] = (() => {
+const SPRAY_AT: SprayAt[] = (() => {
   const span = riverSpan(L.half - 0.1) ?? { x0: 10, x1: 12 };
   return [
-    { x: L.cascade.x, y: L.river.water, z: RIVER_Z.from + 0.45, w: 0.3 },
-    { x: (span.x0 + span.x1) / 2, y: -1.2, z: L.half + 0.2, w: (span.x1 - span.x0) / 2 - 0.1 },
+    { x: L.cascade.x, y: L.river.water, z: RIVER_Z.from + 0.45, w: 0.3, out: { x: 0, z: 1 } },
+    { x: (span.x0 + span.x1) / 2, y: -1.2, z: L.half + 0.2, w: (span.x1 - span.x0) / 2 - 0.1, out: { x: 0, z: 1 } },
   ];
 })();
-/** The spray where the water lands: little puffs thrown up and out, falling back and thinning away
- *  (one instanced draw). */
-function FallsSpray() {
-  const COUNT = 26;
-  const mesh = useRef<THREE.InstancedMesh>(null);
-  const seeds = useMemo(() => Array.from({ length: COUNT }, (_, i) => ({ at: i % 3 === 2 ? 1 : 0, phase: Math.random(), rate: 0.7 + Math.random() * 0.6, a: Math.random() * 6.28, out: 0.15 + Math.random() * 0.35, up: 0.25 + Math.random() * 0.35, side: Math.random() * 2 - 1, size: 0.04 + Math.random() * 0.05 })), []);
-  useFrame(({ clock }) => {
-    const m = mesh.current;
-    if (!m) return;
-    const t = clock.elapsedTime;
-    seeds.forEach((s, i) => {
-      const at = SPRAY_AT[s.at];
-      const u = (t * s.rate + s.phase) % 1;
-      // (thrown up and out on an arc, swelling as it thins)
-      dummy.position.set(at.x + s.side * at.w + Math.cos(s.a) * s.out * u, at.y + 0.03 + s.up * 4 * u * (1 - u), at.z + Math.abs(Math.sin(s.a)) * s.out * u + 0.05);
-      dummy.scale.setScalar(s.size * (0.5 + u) * (1 - u * u));
-      dummy.updateMatrix();
-      m.setMatrixAt(i, dummy.matrix);
-    });
-    m.instanceMatrix.needsUpdate = true;
-  });
-  return <instancedMesh ref={mesh} args={[SPARK_GEO, SPRAY_MAT, COUNT]} raycast={noRaycast} frustumCulled={false} />;
-}
 
 function FoamRings() {
   const PER = 2;

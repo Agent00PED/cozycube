@@ -53,8 +53,8 @@
    "craft": "fish",
    "tier": 3,
    "where": "woods river",
-   "perMin": 52.4,
-   "perMinSold": 52.4
+   "perMin": 52.3,
+   "perMinSold": 52.3
   },
   {
    "craft": "fish",
@@ -145,7 +145,7 @@
    "tier": 3,
    "where": "woods",
    "perMin": 72.7,
-   "perMinSold": 55.4
+   "perMinSold": 55.3
   },
   {
    "craft": "wood",
@@ -158,8 +158,8 @@
    "craft": "wood",
    "tier": 4,
    "where": "woods",
-   "perMin": 101.3,
-   "perMinSold": 78.7
+   "perMin": 100.3,
+   "perMinSold": 77.7
   },
   {
    "craft": "wood",
@@ -172,8 +172,8 @@
    "craft": "wood",
    "tier": 5,
    "where": "woods",
-   "perMin": 130.5,
-   "perMinSold": 108.9
+   "perMin": 131.2,
+   "perMinSold": 109.7
   },
   {
    "craft": "ore",
