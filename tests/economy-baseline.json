@@ -1,0 +1,214 @@
+{
+ "lines": [
+  {
+   "craft": "fish",
+   "tier": 1,
+   "where": "campfire river",
+   "perMin": 24.3,
+   "perMinSold": 24.3
+  },
+  {
+   "craft": "fish",
+   "tier": 1,
+   "where": "woods river",
+   "perMin": 25.2,
+   "perMinSold": 25.2
+  },
+  {
+   "craft": "fish",
+   "tier": 1,
+   "where": "cenote",
+   "perMin": 55.8,
+   "perMinSold": 45.1
+  },
+  {
+   "craft": "fish",
+   "tier": 2,
+   "where": "campfire river",
+   "perMin": 53.7,
+   "perMinSold": 53.7
+  },
+  {
+   "craft": "fish",
+   "tier": 2,
+   "where": "woods river",
+   "perMin": 51.8,
+   "perMinSold": 51.8
+  },
+  {
+   "craft": "fish",
+   "tier": 2,
+   "where": "cenote",
+   "perMin": 95.1,
+   "perMinSold": 82.6
+  },
+  {
+   "craft": "fish",
+   "tier": 3,
+   "where": "campfire river",
+   "perMin": 85.8,
+   "perMinSold": 85.8
+  },
+  {
+   "craft": "fish",
+   "tier": 3,
+   "where": "woods river",
+   "perMin": 102.4,
+   "perMinSold": 102.4
+  },
+  {
+   "craft": "fish",
+   "tier": 3,
+   "where": "cenote",
+   "perMin": 183.8,
+   "perMinSold": 168
+  },
+  {
+   "craft": "fish",
+   "tier": 4,
+   "where": "campfire river",
+   "perMin": 122.1,
+   "perMinSold": 122.1
+  },
+  {
+   "craft": "fish",
+   "tier": 4,
+   "where": "woods river",
+   "perMin": 187.6,
+   "perMinSold": 187.6
+  },
+  {
+   "craft": "fish",
+   "tier": 4,
+   "where": "cenote",
+   "perMin": 293.2,
+   "perMinSold": 288
+  },
+  {
+   "craft": "fish",
+   "tier": 5,
+   "where": "campfire river",
+   "perMin": 148.4,
+   "perMinSold": 148.4
+  },
+  {
+   "craft": "fish",
+   "tier": 5,
+   "where": "woods river",
+   "perMin": 306.3,
+   "perMinSold": 306.3
+  },
+  {
+   "craft": "fish",
+   "tier": 5,
+   "where": "cenote",
+   "perMin": 421.1,
+   "perMinSold": 421.1
+  },
+  {
+   "craft": "wood",
+   "tier": 1,
+   "where": "campfire",
+   "perMin": 60.7,
+   "perMinSold": 42.6
+  },
+  {
+   "craft": "wood",
+   "tier": 1,
+   "where": "woods",
+   "perMin": 39.2,
+   "perMinSold": 27.5
+  },
+  {
+   "craft": "wood",
+   "tier": 2,
+   "where": "campfire",
+   "perMin": 65.2,
+   "perMinSold": 45.7
+  },
+  {
+   "craft": "wood",
+   "tier": 2,
+   "where": "woods",
+   "perMin": 136.7,
+   "perMinSold": 97.6
+  },
+  {
+   "craft": "wood",
+   "tier": 3,
+   "where": "campfire",
+   "perMin": 64.2,
+   "perMinSold": 45
+  },
+  {
+   "craft": "wood",
+   "tier": 3,
+   "where": "woods",
+   "perMin": 202.2,
+   "perMinSold": 146.4
+  },
+  {
+   "craft": "wood",
+   "tier": 4,
+   "where": "campfire",
+   "perMin": 63.1,
+   "perMinSold": 44.2
+  },
+  {
+   "craft": "wood",
+   "tier": 4,
+   "where": "woods",
+   "perMin": 259.2,
+   "perMinSold": 190.1
+  },
+  {
+   "craft": "wood",
+   "tier": 5,
+   "where": "campfire",
+   "perMin": 62.6,
+   "perMinSold": 43.9
+  },
+  {
+   "craft": "wood",
+   "tier": 5,
+   "where": "woods",
+   "perMin": 287.2,
+   "perMinSold": 221.2
+  },
+  {
+   "craft": "ore",
+   "tier": 1,
+   "where": "caverns",
+   "perMin": 166.6,
+   "perMinSold": 118.3
+  },
+  {
+   "craft": "ore",
+   "tier": 2,
+   "where": "caverns",
+   "perMin": 298.8,
+   "perMinSold": 210.9
+  },
+  {
+   "craft": "ore",
+   "tier": 3,
+   "where": "caverns",
+   "perMin": 544.7,
+   "perMinSold": 384.2
+  },
+  {
+   "craft": "ore",
+   "tier": 4,
+   "where": "caverns",
+   "perMin": 526,
+   "perMinSold": 377.4
+  },
+  {
+   "craft": "ore",
+   "tier": 5,
+   "where": "caverns",
+   "perMin": 539.1,
+   "perMinSold": 386.7
+  }
+ ]
+}
