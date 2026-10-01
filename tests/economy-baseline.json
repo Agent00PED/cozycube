@@ -25,8 +25,8 @@
    "craft": "fish",
    "tier": 2,
    "where": "campfire river",
-   "perMin": 37.6,
-   "perMinSold": 37.6
+   "perMin": 35.3,
+   "perMinSold": 35.3
   },
   {
    "craft": "fish",
@@ -46,8 +46,8 @@
    "craft": "fish",
    "tier": 3,
    "where": "campfire river",
-   "perMin": 49.3,
-   "perMinSold": 49.3
+   "perMin": 42.9,
+   "perMinSold": 42.9
   },
   {
    "craft": "fish",
@@ -67,8 +67,8 @@
    "craft": "fish",
    "tier": 4,
    "where": "campfire river",
-   "perMin": 64.5,
-   "perMinSold": 64.5
+   "perMin": 52.8,
+   "perMinSold": 52.8
   },
   {
    "craft": "fish",
@@ -88,15 +88,15 @@
    "craft": "fish",
    "tier": 5,
    "where": "campfire river",
-   "perMin": 75.7,
-   "perMinSold": 75.7
+   "perMin": 59,
+   "perMinSold": 59
   },
   {
    "craft": "fish",
    "tier": 5,
    "where": "woods river",
-   "perMin": 102.5,
-   "perMinSold": 102.5
+   "perMin": 100.6,
+   "perMinSold": 100.6
   },
   {
    "craft": "fish",

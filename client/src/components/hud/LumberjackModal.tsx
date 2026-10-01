@@ -5,6 +5,7 @@ import { FIREWOOD_PER_COIN, firewoodCoins, MAX_DAY_PERMITS, PERMIT_PRICES } from
 import { CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks } from "@shared/crafting";
 import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
+import { CEILING_RATE, FULL_PRICE_AT, woodRate } from "@shared/keepers";
 import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
 import { playSfx } from "../../audio/sfx";
@@ -93,9 +94,13 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
   // at the hour's prices, past 30 of a kind sold each knocking 2% off the next (as the server settles it),
   // each log worth its tree's size (the stack's average: a big tree's logs fetch more)
   const hour = parseMarket(market);
-  const woodRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => woodPrice(x, mult, woodAverage(profile, x)), hour).total;
-  const logs = WOOD_KINDS.reduce((n, k) => n + (profile.wood[k] ?? 0), 0);
-  const logsWorth = WOOD_KINDS.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0);
+  // (Buster pays in full for pine and birch; a finer wood fetches CEILING_RATE here, and Sell All
+  // passes it by: shared/keepers.ts)
+  const woodRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => Math.max(1, Math.round(woodPrice(x, mult, woodAverage(profile, x)) * woodRate("campfire", x))), hour).total;
+  const fullKinds = WOOD_KINDS.filter((k) => woodRate("campfire", k) === 1);
+  const logs = fullKinds.reduce((n, k) => n + (profile.wood[k] ?? 0), 0);
+  const logsWorth = fullKinds.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0);
+  const tooFine = WOOD_KINDS.reduce((n, k) => n + (fullKinds.includes(k) ? 0 : (profile.wood[k] ?? 0)), 0);
   const byCount = BYPRODUCT_IDS.reduce((n, k) => n + (profile.byproducts[k] ?? 0), 0);
   const byWorth = BYPRODUCT_IDS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
   // the stash's pieces to sell (its consumables are for using), a row a stack
@@ -131,6 +136,11 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
     >
       {tab === "trade" && (
         <div className="flex flex-col gap-1.5">
+          {tooFine > 0 && (
+            <p className="m-0 rounded-xl bg-rose-400/10 px-2.5 py-1.5 text-center text-[11px] text-rose-100">
+              💰 Buster can only pay {Math.round(CEILING_RATE * 100)}% for woods finer than birch ({tooFine} logs here): {FULL_PRICE_AT.wood.campfire} pays in full. Sell All passes them by.
+            </p>
+          )}
           {held.map((k) => {
             const have = profile.wood[k];
             return (

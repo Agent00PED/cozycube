@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { BAITS, BAIT_IDS, CREEL_TIERS, RODS, ROD_IDS, fishValue, livewellCap, nextCreelTier, type FishingProfile } from "@shared/fishing";
+import { BAITS, BAIT_IDS, CREEL_TIERS, RODS, ROD_IDS, TIER_LABEL, fishValue, livewellCap, nextCreelTier, type FishingProfile } from "@shared/fishing";
 import { livewellBonus } from "@shared/gear";
 import { CAVE_TACKLES, CAVE_TACKLE_IDS } from "@shared/caverns_fishing";
 import { ORE_ITEMS, type OreItemId } from "@shared/caverns_mining";
 import { BYPRODUCTS, type ByproductId } from "@shared/chop";
+import { CEILING_RATE, FISH_CEILING, FULL_PRICE_AT, fishRate, type Counter } from "@shared/keepers";
 import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
 import { satchelCountFor } from "@shared/satchel";
 import { COZY_AURA_LUCK, hasCozyAura } from "@shared/bonfire";
@@ -66,10 +67,15 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
   const shop = (packet: Extract<CampfirePacket, { type: "BARNABY" }>) => send(packet);
   const aura = hasCozyAura(fuel) ? 1 + COZY_AURA_LUCK : 1;
   const hour = parseMarket(market);
-  const price = (f: (typeof profile.creel)[number]) => priceRun([f], (x) => fishGood(x.s), (x, mult) => Math.round(fishValue(x, mult) * aura), hour).total;
-  // Sell All: every unlocked fish, as the server will settle it (one at a time, each nudging the next)
-  const unlocked = profile.creel.filter((f) => !f.l);
-  const unlockedWorth = priceRun(unlocked, (f) => fishGood(f.s), (f, mult) => Math.round(fishValue(f, mult) * aura), hour).total;
+  // (what this counter can afford: past its ceiling it pays CEILING_RATE, and Sell All passes those by)
+  const counter: Counter = finnegan ? "caverns" : finley ? "woods" : "campfire";
+  const worth = (x: (typeof profile.creel)[number], mult: number) => Math.max(1, Math.round(fishValue(x, mult) * aura * fishRate(counter, x.s)));
+  const price = (f: (typeof profile.creel)[number]) => priceRun([f], (x) => fishGood(x.s), worth, hour).total;
+  // Sell All: every unlocked fish this counter pays in full for, as the server will settle it (one at
+  // a time, each nudging the next)
+  const unlocked = profile.creel.filter((f) => !f.l && fishRate(counter, f.s) === 1);
+  const unlockedWorth = priceRun(unlocked, (f) => fishGood(f.s), worth, hour).total;
+  const tooFine = profile.creel.filter((f) => fishRate(counter, f.s) < 1).length;
   const next = nextCreelTier(profile.creelTier);
   // (what this counter doesn't stock: T3 and T4 are the woods', T5 is forged in the caverns)
   const away = (tier: number) => soldElsewhere(tier, finley ? SHOP_TIER_CAP.woods : SHOP_TIER_CAP.campfire, "🦦 At Finley's boulder on the woods' river");
@@ -96,6 +102,11 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
       {tab === "trade" && (
         <div className="flex flex-col gap-1.5">
           {aura > 1 && <div className="rounded-xl bg-amber-300/15 px-2.5 py-1.5 text-xs text-amber-100">✨ Cozy Aura: the roaring campfire has {who} paying 15% more</div>}
+          {tooFine > 0 && (
+            <p className="m-0 rounded-xl bg-rose-400/10 px-2.5 py-1.5 text-center text-[11px] text-rose-100">
+              💰 {who} can only pay {Math.round(CEILING_RATE * 100)}% for fish finer than {TIER_LABEL[FISH_CEILING[counter]]} ({tooFine} here): {FULL_PRICE_AT.fish[counter]} pays in full. Sell All passes them by.
+            </p>
+          )}
           {profile.creel.length === 0 ? (
             <p className="m-0 py-6 text-center text-sm opacity-70">{finnegan ? "Your livewell is empty. Cast into the lake from anywhere on its shore!" : "Your livewell is empty. Cast a line from the dock, the canoe, or the woods' river bank!"}</p>
           ) : (

@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.33",
+    range: "v0.7.0–v0.7.34",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1527,6 +1527,24 @@ export const PATCH_ERAS: PatchEra[] = [
             "⛏️ Pickaxes: 3,000, 7,200, 17,500 and 31,500 coins.",
             "🎒 Storage costs half its tool's tier: livewells and wood carriers 250, 800, 2,250 and 6,250. Gus's satchels got cheaper, and anyone who bought one is paid the difference.",
             "🏪 The campfire's stalls sell tools and storage up to T2; Bramble, Finley, Finnegan and Gus up to T4.",
+          ],
+          fixes: [],
+        },
+      },
+      {
+        version: "0.7.34",
+        date: "2026-10-01",
+        title: "The Expedition Licence",
+        summary: "The caverns are now an expedition you earn your way into, and each map's keepers have their own purse.",
+        changes: {
+          features: [
+            "🧭 The Expedition Licence: Old Flint now asks for the expedition's fee and stores before he opens the adit. 4,000 coins, 12 Highland Cedar logs and 3 rare fish, once, and the way down (and his Rusted Pickaxe) is yours for good.",
+            "🎁 If you have already been down to the caverns, you keep your way in. Nothing to pay.",
+          ],
+          visuals: [],
+          economy: [
+            "💰 Keepers pay in full only for what they can afford. Barnaby: common and uncommon fish. Buster: pine and birch. Finley and Bramble: fish up to legendary and every wood. Finnegan and Gus: everything.",
+            "📉 Past that, a keeper pays 60% and tells you who pays in full. Sell All never includes those goods, so nothing fine is sold cheap by accident.",
           ],
           fixes: [],
         },

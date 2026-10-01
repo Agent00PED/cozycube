@@ -188,7 +188,7 @@ crafts, where it was about 8 before this phase.
 Owned tools and stores were kept as they were (profile v6); the satchels got cheaper, so their
 owners were paid the difference.
 
-## 7. The shops, by map (tools and storage built: phase 2)
+## 7. The shops, by map (tools and storage: phase 2; buying ceilings: phase 3, done 2026-10-01)
 
 | | Campfire (Barnaby, Buster) | Woods (Bramble, Finley) | Caverns (Gus, Finnegan, the forge) |
 |---|---|---|---|
@@ -196,18 +196,26 @@ owners were paid the difference.
 | Storage | T2 | up to T4 | up to T4 at the keepers; T5-T7 forged |
 | Accessories (phase 4) | T1-T2, coins | T3-T4, coins | T5-T7, crafted |
 | Bait, consumables | basic | premium | cave-only |
-| Buys at full price (phase 3) | common, uncommon; pine, birch | up to legendary; every wood | everything |
-| Buys the rest at (phase 3) | 60% | 60% | - |
+| Buys at full price | common, uncommon; pine, birch | up to legendary; every wood | everything |
+| Buys the rest at | 60% | 60% | - |
 
 A keeper pays the same base price for the same good on every map (no hauling trick); what changes
 is the ceiling of what each can afford. The campfire has four Silver Birches on its south-west
 lawn, so its T2 axe has something to fell (27 coins a minute as sold there, against 22 on pines
 alone; the woods' birch grove still pays more, 36).
 
-## 8. The Expedition Licence (the caverns' entry)
+A counter's Sell All passes by what it would pay 60% for, so a finer catch is never dumped by
+accident: it is sold there one by one, on purpose, or carried to a keeper who pays in full. The
+counter says which keeper that is (shared/keepers.ts). The effect on income is small by design
+(the river's T5 as sold: 103 to 101 a minute, when the mythics go to Finley and not Finnegan): the
+ceilings give each map's keeper a place, they are not a tax.
 
-- **Price:** 4,000 coins and a supply list for Old Flint (first pass: 20 Maple logs, 3 rare fish).
-  That is about an hour of the woods' T4 income: an evening's goal, not a wall.
+## 8. The Expedition Licence (the caverns' entry: built, phase 3)
+
+- **Price:** 4,000 coins, 12 Highland Cedar logs and 3 rare fish (unlocked), handed to Old Flint.
+  About an hour of the woods' T4 income, and a T3 axe and a T2-T3 rod to gather the stores: an
+  evening's goal, not a wall. (The first pass asked for 20 Maple logs; maple needs a T4 axe, 6,600
+  coins of axes for an angler who only wants to mine, so the list asks both crafts for their T3.)
 - It comes with the Rusted Pickaxe and opens the adit for good.
 - Whoever already has access keeps it.
 - No day pass: the caverns are the top of the game, and the supply list is the tutorial for
@@ -386,7 +394,7 @@ selling raw, and never by enough to be the only thing worth doing.
 | 0 | **Done.** The income simulator (`npm run economy-sim`) and its pinned table | section 2 is measured |
 | 1 | **Done.** Base prices and rod odds (wood, fish, ore, cave fish), section 5 | every step within 20% of its target, the three crafts within 20% of each other |
 | 2 | **Done** (T2-T5; T6-T7 wait for the beach). Tools and storage: prices, materials, the forge's recipes; shop stock by map; birch at the campfire | the ladder's hours match section 6 |
-| 3 | Keepers' buying ceilings; the Expedition Licence | |
+| 3 | **Done.** Keepers' buying ceilings; the Expedition Licence | |
 | 4 | Accessories: the old ones paid back, the six slots, the four families, sets | |
 | 5 | Crafted goods; the two map outfits | |
 

@@ -710,6 +710,8 @@ export const CAVERNS_CHANNELS = {
   cast: "caverns:cast",
   codex: "caverns:codex",
   lantern: "caverns:lantern",
+  /** Old Flint's Expedition Licence, bought (shared/keepers.ts LICENCE). */
+  flint: "caverns:flint",
 } as const;
 
 /** Lanterns you set down (docs/caverns-roadmap.md R2.10): one each, a lump of coal to light it, burning
