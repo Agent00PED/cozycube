@@ -26,6 +26,9 @@ import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 //                     models the ground from it triangle for triangle), and campFloorY is where
 //                     feet go: that grid's own triangles, and the dock's deck
 //   CAMP_SEATS        the logs (sit, facing the fire), and the tents (lie, eyes shut)
+//   places            the places to stop on the open ground (docs/maps-fill-plan.md part 2): the
+//                     Hammock Grove, the Stargazers' Slope's blankets, the Music Glade's ring, the
+//                     Swing Garden, the River's End (HAMMOCKS, BLANKETS, GLADE, SWING, RIVER_END)
 //   CAMP_PROPS        the bonfire (roast and grill) and the dock's three fishing spots
 //   CAMP_OBSTACLES    what you walk round; CAMP_SPAWNS  where you arrive (the path facing the fire)
 //
@@ -95,10 +98,10 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": -13.2, "z": 1.6, "s": 0.8, "yaw": 5.0 },
     { "x": -12.9, "z": 3.4, "s": 1.25, "yaw": 1.1 },
     { "x": -13.1, "z": 8.2, "s": 1.0, "yaw": 4.1 },
-    { "x": 5.2, "z": -7.2, "s": 1.0, "yaw": 0.6 },
-    { "x": 7.6, "z": -6.4, "s": 0.9, "yaw": 2.4 },
-    { "x": 6.0, "z": -4.6, "s": 0.95, "yaw": 4.4 },
-    { "x": -9.6, "z": 4.8, "s": 0.85, "yaw": 1.9 }
+    { "x": 4.9, "z": -4.7, "s": 1.0, "yaw": 0.6, "bare": 1.15 },
+    { "x": 6.7, "z": -6.4, "s": 0.9, "yaw": 2.4, "bare": 1.15 },
+    { "x": 8.4, "z": -7.9, "s": 0.95, "yaw": 4.4, "bare": 1.15 },
+    { "x": -10.4, "z": -0.2, "s": 0.85, "yaw": 1.9 }
   ],
   "fellTrees": [
     { "x": -4.6, "z": 2.6 },
@@ -139,14 +142,38 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     "lanternPosts": [{ "x": -0.1, "z": -7.2 }, { "x": 2.0, "z": -7.5 }, { "x": -6.6, "z": -3.8 }, { "x": -11.4, "z": -10.6 }],
     "crates": [{ "x": -2.1, "z": -12.1, "yaw": 0.3 }],
     "barrels": [{ "x": 0.45, "z": -11.0 }, { "x": 7.9, "z": -1.6 }],
-    "fallen": [
-      { "x": -2.4, "z": 11.9, "yaw": 0.45, "len": 1.8 },
-      { "x": -11.7, "z": 11.3, "yaw": 2.0, "len": 1.6 }
-    ],
+    "fallen": [{ "x": -11.7, "z": 11.3, "yaw": 2.0, "len": 1.6 }],
     "stumps": [{ "x": -3.4, "z": 5.0 }, { "x": 6.4, "z": 10.2 }],
     "birches": [[-7.9, -10.2, 0.8], [-6.4, -7.6, 0.75], [-3.0, 10.6, 0.7], [-1.0, 13.0, 0.7], [8.4, 10.4, 0.7]],
-    "shrubs": [[-7.0, -9.0, 0.8], [-5.2, -11.9, 0.7], [-8.6, 0.2, 0.8], [-12.0, 4.9, 0.7], [-2.6, 13.0, 0.7], [0.2, 13.1, 0.75], [7.6, 12.4, 0.8], [4.2, 10.4, 0.7], [4.4, -3.0, 0.75], [8.6, -3.2, 0.7], [3.8, -6.4, 0.7]],
+    "shrubs": [[-7.55, -9.35, 0.8], [-4.7, -12.5, 0.7], [-8.6, 0.2, 0.8], [-12.0, 4.9, 0.7], [-2.6, 13.0, 0.7], [0.2, 13.1, 0.75], [7.6, 12.4, 0.8], [4.2, 10.4, 0.7], [4.4, -3.0, 0.75], [8.6, -3.2, 0.7], [3.8, -6.4, 0.7]],
     "meadows": [[6.2, -5.6, 2.6], [-6.0, -10.2, 2.4], [-9.8, 1.8, 2.6], [-1.2, 10.4, 2.6], [6.2, 11.4, 2.4]]
+  },
+  "places": {
+    "hammocks": [
+      { "a": [4.9, -4.7], "b": [6.7, -6.4], "head": "a", "approach": [6.32, -5.0] },
+      { "a": [6.7, -6.4], "b": [8.4, -7.9], "head": "a", "approach": [8.05, -6.59] }
+    ],
+    "hammockLantern": { "x": 6.7, "z": -6.4, "tip": [7.12, -5.98], "y": 1.6 },
+    "dryingRack": { "x": 8.9, "z": -5.6, "len": 1.4 },
+    "smoker": { "x": 8.95, "z": -4.3 },
+    "blankets": [
+      { "x": -6.2, "z": -10.95, "up": [-0.985, 0.175], "tone": "red" },
+      { "x": -6.25, "z": -9.15, "up": [-0.97, -0.245], "tone": "blue" }
+    ],
+    "cairn": { "x": -9.1, "z": -7.3 },
+    "glade": { "x": -10.8, "z": 4.4, "r": 1.2, "log": { "angle": 20, "len": 1.4 }, "stumps": [-85, 100, 175] },
+    "swing": { "x": -0.9, "z": 9.8, "beam": 2.05, "span": 1.0, "seat": 0.33 },
+    "beds": [
+      { "x": -1.5, "z": 12.15, "w": 1.0, "d": 0.8 },
+      { "x": -2.65, "z": 12.0, "w": 1.0, "d": 0.8 },
+      { "x": -0.35, "z": 12.1, "w": 0.9, "d": 0.7 }
+    ],
+    "scarecrow": { "x": -0.35, "z": 12.1 },
+    "riverEnd": {
+      "rock": { "x": 9.35, "z": 12.5, "yaw": 1.03 },
+      "log": { "x": 9.4, "z": 11.0, "len": 1.3 },
+      "willow": { "x": 7.1, "z": 11.3, "s": 1.0 }
+    }
   },
   "fence": { "at": 13.55, "xFrom": -13.3, "xTo": 9.3, "post": 1.25 },
   "picnic": { "x": 1.5, "z": 11.2 },
@@ -211,7 +238,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "kind": "mushrooms", "x": -11.9, "z": -6.9 },
     { "kind": "mushrooms", "x": -6.2, "z": 6.4 },
     { "kind": "mushrooms", "x": -10.2, "z": -12.6 },
-    { "kind": "mushrooms", "x": -5.9, "z": -10.9 },
+    { "kind": "mushrooms", "x": -7.0, "z": -12.2 },
     { "kind": "mushrooms", "x": 8.9, "z": -8.2 },
     { "kind": "berries", "x": -7.0, "z": -1.2 },
     { "kind": "berries", "x": -12.9, "z": 9.0 },
@@ -221,7 +248,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "kind": "berries", "x": -13.3, "z": 5.0 },
     { "kind": "berries", "x": -8.1, "z": 13.0 },
     { "kind": "berries", "x": 8.8, "z": 12.9 },
-    { "kind": "mossy", "x": -9.9, "z": 3.9 },
+    { "kind": "mossy", "x": -11.9, "z": 5.6 },
     { "kind": "mossy", "x": -11.6, "z": -7.9 },
     { "kind": "mossy", "x": -7.2, "z": 1.2 },
     { "kind": "mossy", "x": -10.9, "z": 8.9 },
@@ -509,6 +536,72 @@ export const FIREPIT = (L.firepit.pieces as readonly FirepitPiece[]).map((p) => 
   return { id: p.id, kind: p.kind, angle: a, r, at, along, len: p.len ?? 0, arc: (p.arc ?? 0) * DEG, cushion, seats: seats.map((pt, k) => ({ ...pt, propId: seatId(p.seats[k]) })) };
 });
 
+// --- the places to stop on the open ground (docs/maps-fill-plan.md part 2; no coins in any) ---
+const PL = L.places;
+/** Half of a lying body: the head rests this far one way from its middle, the soles the other. */
+const HALF_BODY = 0.41;
+
+/** The Hammock Grove: each hammock slung between two of the meadow's pines (`a`, `b`: their
+ *  trunks), its middle, the way along it and the way the head points. The three pines stand in a
+ *  row across the camera's view with bare trunks under their boughs (`bare`), so no crown stands
+ *  between the camera and whoever lies there. */
+export const HAMMOCKS = PL.hammocks.map((h, i) => {
+  const a = { x: h.a[0], z: h.a[1] };
+  const b = { x: h.b[0], z: h.b[1] };
+  const along = unit(b.x - a.x, b.z - a.z);
+  const head = h.head === "a" ? { x: -along.x, z: -along.z } : along;
+  return { propId: `seat_hammock_0${i + 1}`, a, b, mid: { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 }, along, head, approach: { x: h.approach[0], z: h.approach[1] } };
+});
+
+/** The Stargazers' Slope: two picnic blankets on the knoll's flank, two places each side by side,
+ *  heads uphill (`up`). A place's soles are where its seat stands (the client tilts whoever lies
+ *  there to the slope: `lieTilt`). */
+export const BLANKETS = PL.blankets.map((b, i) => {
+  const up = unit(b.up[0], b.up[1]);
+  const side = { x: -up.z, z: up.x };
+  const places = ([-1, 1] as const).map((s, k) => {
+    const mid = { x: b.x + side.x * s * 0.33, z: b.z + side.z * s * 0.33 };
+    return {
+      propId: `seat_blanket_0${i * 2 + k + 1}`,
+      head: { x: mid.x + up.x * HALF_BODY, z: mid.z + up.z * HALF_BODY },
+      soles: { x: mid.x - up.x * HALF_BODY, z: mid.z - up.z * HALF_BODY },
+      approach: { x: mid.x - up.x * 1.15, z: mid.z - up.z * 1.15 },
+    };
+  });
+  return { x: b.x, z: b.z, up, side, places };
+});
+/** A seat on a picnic blanket (whoever lies there is tilted to the slope). */
+export const isBlanketSeat = (propId: string) => propId.startsWith("seat_blanket_");
+
+/** How far in front of a glade seat (toward its middle) you step up to it. */
+const GLADE_MOUNT = 0.62;
+/** The Music Glade: a short log and three stumps in a ring round a cold stone circle, by the
+ *  guitar case. Log seats: the guitar is played from them. */
+export const GLADE = (() => {
+  const g = PL.glade;
+  const at = (deg: number) => ({ x: g.x + Math.cos(deg * DEG) * g.r, z: g.z + Math.sin(deg * DEG) * g.r });
+  const logAt = at(g.log.angle);
+  const along = { x: -Math.sin(g.log.angle * DEG), z: Math.cos(g.log.angle * DEG) };
+  return {
+    x: g.x,
+    z: g.z,
+    r: g.r,
+    log: { at: logAt, along, len: g.log.len, seats: ([-1, 1] as const).map((s, k) => ({ propId: `seat_glade_log_0${k + 1}`, x: logAt.x + along.x * s * 0.36, z: logAt.z + along.z * s * 0.36 })) },
+    stumps: g.stumps.map((deg, k) => ({ propId: `seat_glade_stump_0${k + 1}`, ...at(deg) })),
+  };
+})();
+
+/** The Swing Garden's bench swing: its beam runs along z, its two sitters face +x (the river and
+ *  the sunset). `beam`: the beam's height; the bench hangs from it and sways (client: swingMotion). */
+export const SWING = {
+  ...PL.swing,
+  seats: ([-1, 1] as const).map((s, k) => ({ propId: `seat_swing_0${k + 1}`, x: PL.swing.x, z: PL.swing.z + s * PL.swing.seat })),
+};
+export const SWING_SEAT_IDS: ReadonlySet<string> = new Set(SWING.seats.map((s) => s.propId));
+
+/** The River's End: a flat rock and a driftwood log on the bank where the river leaves the island. */
+export const RIVER_END = PL.riverEnd;
+
 /**
  * A seat you lie down on: where your head rests, and the way it points (toward the back of the
  * tent). The server lies you down there with your eyes shut.
@@ -570,6 +663,29 @@ export const CAMP_SEATS: CampSeat[] = [
   { propId: "seat_canoe", x: L.canoe.x - 0.45, z: L.canoe.z, rotationY: 0, cushion: "canoe", style: "wood", approachX: CANOE_APPROACH.x, approachZ: CANOE_APPROACH.z },
   // and its bow seat, for a second paddler (a passenger: the stern is the one who fishes)
   { propId: "seat_canoe_bow", x: L.canoe.x + 0.42, z: L.canoe.z, rotationY: 0, cushion: "canoe", style: "wood", approachX: CANOE_APPROACH.x, approachZ: CANOE_APPROACH.z },
+  // the Hammock Grove: lie in a hammock between the meadow's pines
+  ...HAMMOCKS.map((h): CampSeat => ({
+    propId: h.propId,
+    x: h.mid.x,
+    z: h.mid.z,
+    rotationY: 0,
+    cushion: "hammock",
+    approachX: h.approach.x,
+    approachZ: h.approach.z,
+    lie: { head: { x: h.mid.x + h.head.x * HALF_BODY, z: h.mid.z + h.head.z * HALF_BODY }, dir: h.head },
+  })),
+  // the Stargazers' Slope: lie back on a blanket, head uphill (the seat stands where the soles go)
+  ...BLANKETS.flatMap((b) => b.places.map((p): CampSeat => ({ propId: p.propId, x: p.soles.x, z: p.soles.z, rotationY: 0, cushion: "picnicBlanket", approachX: p.approach.x, approachZ: p.approach.z, lie: { head: p.head, dir: b.up } }))),
+  // the Music Glade: the log's two seats and the three stumps, each facing the ring's middle
+  ...[...GLADE.log.seats.map((s) => ({ ...s, cushion: "log" as const })), ...GLADE.stumps.map((s) => ({ ...s, cushion: "stump" as const }))].map((s): CampSeat => {
+    const out = unit(s.x - GLADE.x, s.z - GLADE.z);
+    return { propId: s.propId, x: s.x, z: s.z, rotationY: facing(s.x, s.z, GLADE), cushion: s.cushion, style: "log", approachX: s.x - out.x * GLADE_MOUNT, approachZ: s.z - out.z * GLADE_MOUNT };
+  }),
+  // the Swing Garden's bench swing: two side by side, facing the river
+  ...SWING.seats.map((s): CampSeat => ({ propId: s.propId, x: s.x, z: s.z, rotationY: Math.PI / 2, cushion: "swing", style: "wood", approachX: s.x + 0.85, approachZ: s.z })),
+  // the River's End: the flat rock and the driftwood log, looking out where the river leaves
+  { propId: "seat_riverend_rock", x: RIVER_END.rock.x, z: RIVER_END.rock.z, rotationY: RIVER_END.rock.yaw, cushion: "boulder", style: "wood", approachX: RIVER_END.rock.x - 0.75, approachZ: RIVER_END.rock.z },
+  { propId: "seat_riverend_log", x: RIVER_END.log.x, z: RIVER_END.log.z, rotationY: Math.PI / 2, cushion: "log", style: "wood", approachX: RIVER_END.log.x - 0.75, approachZ: RIVER_END.log.z },
 ];
 
 /** What the action dock offers for a seat you lie in (you rest in the tents), and the fishing seats. */
@@ -579,6 +695,11 @@ export const CAMP_SEAT_LABELS: Record<string, string> = {
   ...Object.fromEntries(FISHING_SPOTS.filter((s) => s.seat.startsWith("seat_dock_")).map((s) => [s.seat, "🌊 Sit on the dock"])),
   seat_canoe: "🛶 Sit in the canoe",
   seat_canoe_bow: "🛶 Ride in the bow",
+  ...Object.fromEntries(HAMMOCKS.map((h) => [h.propId, "😴 Nap in the hammock"])),
+  ...Object.fromEntries(BLANKETS.flatMap((b) => b.places.map((p) => [p.propId, "🌌 Lie back and stargaze"]))),
+  ...Object.fromEntries(SWING.seats.map((s) => [s.propId, "🌅 Sit on the swing"])),
+  seat_riverend_rock: "🌊 Sit by the river",
+  seat_riverend_log: "🌊 Sit by the river",
 };
 
 /** Where a lie seat puts the avatar (its soles, heading and height), derived from its cushion. */
@@ -796,6 +917,24 @@ export const CAMP_OBSTACLES: AABB[] = [
   // his chalkboard, beside him (its easel's feet)
   around(BARNABY_BOARD, 0.32),
   around(BUSTER_BOARD, 0.32),
+  // --- the places (all inside the open areas, off the walks between trees and stalls) ---
+  // the hammocks (you lie in one: its seat is within, as the tipi's is), the drying rack, the smoker
+  ...HAMMOCKS.flatMap((h) => [-0.5, 0, 0.5].map((t) => around({ x: h.mid.x + h.along.x * t, z: h.mid.z + h.along.z * t }, 0.28))),
+  { minX: PL.dryingRack.x - 0.22, maxX: PL.dryingRack.x + 0.22, minZ: PL.dryingRack.z - PL.dryingRack.len / 2, maxZ: PL.dryingRack.z + PL.dryingRack.len / 2 },
+  around(PL.smoker, 0.3),
+  around(PL.cairn, 0.25),
+  // the glade's log and stumps
+  ...[-0.5, 0, 0.5].map((t) => around({ x: GLADE.log.at.x + GLADE.log.along.x * t, z: GLADE.log.at.z + GLADE.log.along.z * t }, 0.2)),
+  ...GLADE.stumps.map((s) => around(s, 0.22)),
+  // the swing: its bench, and the A-frame at each end of the beam
+  { minX: SWING.x - 0.28, maxX: SWING.x + 0.28, minZ: SWING.z - 0.68, maxZ: SWING.z + 0.68 },
+  ...([-1, 1] as const).map((s) => ({ minX: SWING.x - 0.55, maxX: SWING.x + 0.55, minZ: SWING.z + s * SWING.span - 0.1, maxZ: SWING.z + s * SWING.span + 0.1 })),
+  // the garden's beds (the scarecrow stands in one)
+  ...PL.beds.map((b) => ({ minX: b.x - b.w / 2, maxX: b.x + b.w / 2, minZ: b.z - b.d / 2, maxZ: b.z + b.d / 2 })),
+  // the River's End: the flat rock, the driftwood log, the willow's trunk
+  around(RIVER_END.rock, 0.32),
+  ...[-0.35, 0.35].map((t) => around({ x: RIVER_END.log.x, z: RIVER_END.log.z + t }, 0.2)),
+  around(RIVER_END.willow, 0.28),
 ];
 
 export const CAMP_SPAWNS: Pt[] = L.spawns;

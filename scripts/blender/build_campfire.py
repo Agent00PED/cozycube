@@ -193,6 +193,15 @@ PALETTE = {
     "CF_BirchLeafLight": "#C9DB86",
     "CF_Juniper": "#3F6B52",
     "CF_Clover": "#7FA85E",
+    # the places (docs/maps-fill-plan.md part 2)
+    "CF_BlanketBlue": "#5E7FB0",
+    "CF_Basket": "#B58A55",
+    "CF_Straw": "#D9B865",
+    "CF_Willow": "#7FA35E",
+    "CF_WillowLight": "#9DBB6E",
+    "CF_Lupine": "#8C6BC8",
+    "CF_Driftwood": "#B7A68E",
+    "CF_Cattail": "#6B4A30",
     # the gallery's painted ducks and owls' eyes (the braided rug they were made for is gone: the
     # firepit is river stones, raw logs and boulders now)
     "CF_RugRust": "#C8704A",
@@ -207,7 +216,7 @@ LAYER_CLEARING = 0.022
 # glowing things: (strength) of an emission in their own colour
 EMISSION = {"CF_Ember": 2.2, "CF_FlameOuter": 3.0, "CF_FlameInner": 4.0, "CF_LanternGlass": 2.5, "CF_Bulb": 3.0, "CF_BerryGlow": 2.0, "CF_LanternWarm": 2.6}
 # thin sheets seen from both sides
-DOUBLE_SIDED = {"CF_GrassTuft", "CF_Leaf", "CF_GrassDark", "CF_TentSage", "CF_Canvas", "CF_CanvasStripe", "CF_Hammock", "CF_HammockStripe", "CF_Checker", "CF_VanCream", "CF_Cooler", "CF_AwningStripe", "CF_Canoe", "CF_CanoeInner"}
+DOUBLE_SIDED = {"CF_GrassTuft", "CF_Leaf", "CF_GrassDark", "CF_TentSage", "CF_Canvas", "CF_CanvasStripe", "CF_Hammock", "CF_HammockStripe", "CF_Checker", "CF_VanCream", "CF_Cooler", "CF_AwningStripe", "CF_Canoe", "CF_CanoeInner", "CF_BlanketBlue"}
 
 
 def _lin(c):
@@ -316,7 +325,7 @@ def near_path(L, x, z, pad):
 def read_cushions(root):
     src = open(os.path.join(root, "shared", "seats.ts"), encoding="utf-8").read()
     out = {}
-    for name in ("log", "hammock", "tentMat", "picnicBench", "campChair", "stump", "dock", "canoe", "boulder"):
+    for name in ("log", "hammock", "tentMat", "picnicBench", "campChair", "stump", "dock", "canoe", "boulder", "picnicBlanket", "swing"):
         m = re.search(rf"\b{name}: \{{ y: (-?[0-9.]+), h: ([0-9.]+) \}}", src)
         y, h = float(m.group(1)), float(m.group(2))
         out[name] = {"y": y, "h": h, "top": y + h / 2}
@@ -1183,12 +1192,14 @@ def build_tent(L, cushions, coll):
     thick.thickness = 0.025
 
 
-def pine(bm, x, z, s, rng, light, yaw=None):
-    lathe(bm, x, z, [(0, 0.0), (0.16 * s, 0.0), (0.14 * s, 0.75 * s), (0, 0.8 * s)], segs=9, m=0, jitter=0.1, rng=rng)
+def pine(bm, x, z, s, rng, light, yaw=None, bare=0.0):
+    """`bare`: that much more bare trunk under the boughs (the hammocks' pines: a hammock is slung
+    under them, and whoever lies in it is seen)."""
+    lathe(bm, x, z, [(0, 0.0), (0.16 * s, 0.0), (0.14 * s, 0.75 * s + bare), (0, 0.8 * s + bare)], segs=9, m=0, jitter=0.1, rng=rng)
     yaw = rng.random() * 3 if yaw is None else yaw
     tiers = ((1.05, 0.55, 1.15), (0.82, 1.25, 1.0), (0.58, 1.9, 0.95))
     for k, (rad, base, tall) in enumerate(tiers):
-        R, y0, H = rad * s, base * s, tall * s
+        R, y0, H = rad * s, base * s + bare, tall * s
         prof = [(0, y0), (R * 0.95, y0 + 0.02 * s), (R, y0 + 0.1 * s), (R * 0.72, y0 + 0.28 * H), (R * 0.4, y0 + 0.6 * H), (0, y0 + H)]
         lathe(bm, x, z, prof, segs=11, m=2 if (k == 2) == light else 1, yaw=yaw + k, jitter=0.06, rng=rng)
 
@@ -1213,16 +1224,39 @@ def birch(bm, x, z, s, rng, m0):
         blob(bm, x + dx * s, y, z + dz * s, r * s, r * 0.85 * s, r * s, m=m0 + 2 + (k % 2), cuts=3, noise=0.12, rng=rng)
 
 
+def willow(bm, x, z, s, rng, m_bark, m_leaf):
+    """A low, wide willow: a short leaning trunk, a flattened crown, and a curtain of hanging
+    strands all round it (lower than a pine by half, so it hides no one)."""
+    top = (x + 0.18 * s, 1.5 * s, z - 0.1 * s)
+    cylinder(bm, W(x, 0.0, z), W(*top), 0.2 * s, 9, m=m_bark, r_end=0.12 * s, wobble=0.08, rng=rng)
+    for k in range(3):
+        a = 0.7 + k * 2.1 + rng.random() * 0.4
+        cylinder(bm, W(*top), W(top[0] + math.cos(a) * 0.7 * s, 2.0 * s, top[2] + math.sin(a) * 0.7 * s), 0.07 * s, 6, m=m_bark, r_end=0.035 * s)
+    for k, (dx, y, dz, r) in enumerate(((0.0, 2.25, 0.0, 0.95), (0.65, 2.05, 0.3, 0.7), (-0.6, 2.05, -0.25, 0.7), (0.2, 2.0, -0.65, 0.65), (-0.2, 2.0, 0.65, 0.65))):
+        blob(bm, top[0] + dx * s, y * s, top[2] + dz * s, r * s, r * 0.55 * s, r * s, m=m_leaf + (k % 2), cuts=3, noise=0.12, rng=rng)
+    n = 22
+    for k in range(n):
+        a = 6.283 * k / n + rng.uniform(-0.1, 0.1)
+        r = rng.uniform(1.0, 1.3) * s
+        sx, sz = top[0] + math.cos(a) * r, top[2] + math.sin(a) * r
+        y1 = rng.uniform(1.95, 2.15) * s
+        y0 = rng.uniform(0.55, 1.05) * s
+        cylinder(bm, W(sx, y1, sz), W(sx + math.cos(a) * 0.08, y0, sz + math.sin(a) * 0.08), 0.1 * s, 5, m=m_leaf + (k % 2), r_end=0.02 * s)
+
+
 def build_trees(L, coll):
     rng = random.Random(21)
     bm = bmesh.new()
     # (each at its own size, and turned its own way where the layout says: the west edge's stagger)
     for i, t in enumerate(L["trees"]):
-        pine(bm, t["x"], t["z"], t["s"], rng, light=i % 2 == 1, yaw=t.get("yaw"))
+        pine(bm, t["x"], t["z"], t["s"], rng, light=i % 2 == 1, yaw=t.get("yaw"), bare=t.get("bare", 0.0))
     # the birches that are not felled (the dressing's): with the pines, so they sway and thin as they do
     for x, z, sz in L["dressing"]["birches"]:
         birch(bm, x, z, sz, rng, 3)
-    make_object("Campfire_Trees", bm, ["CF_Bark", "CF_Pine", "CF_PineLight", "CF_BirchBark", "CF_BirchMark", "CF_BirchLeaf", "CF_BirchLeafLight"], coll)
+    if L.get("places"):
+        w = L["places"]["riverEnd"]["willow"]
+        willow(bm, w["x"], w["z"], w["s"], random.Random(77), 0, 7)
+    make_object("Campfire_Trees", bm, ["CF_Bark", "CF_Pine", "CF_PineLight", "CF_BirchBark", "CF_BirchMark", "CF_BirchLeaf", "CF_BirchLeafLight", "CF_Willow", "CF_WillowLight"], coll)
     # the bare branch the owl perches on, out through its pine's lowest boughs (its own object,
     # standing on the ground under the owl: the two never part on a slope)
     o = L["owl"]
@@ -1312,8 +1346,28 @@ def build_fence(L, coll):
 KEEP_CLEAR = ("tent", "woodpile", "workbench", "buster", "busterBoard", "barnaby", "splitblock", "van", "campChair", "critter", "owl", "guitarCase", "groundLantern", "stringPole", "signpost", "telescope", "picnic", "gallery", "archway", "fireflies")
 
 
+def places_solid(L):
+    """Where the places stand, as (x, z, radius): nothing grows through a blanket, a bed or a bench."""
+    P = L.get("places")
+    if not P:
+        return []
+    out = []
+    for h in P["hammocks"]:
+        out.append(((h["a"][0] + h["b"][0]) / 2, (h["a"][1] + h["b"][1]) / 2, 1.0))
+    out += [(P["dryingRack"]["x"], P["dryingRack"]["z"], 0.9), (P["smoker"]["x"], P["smoker"]["z"], 0.45), (P["cairn"]["x"], P["cairn"]["z"], 0.4)]
+    out += [(b["x"], b["z"], 1.25) for b in P["blankets"]]
+    out.append((P["glade"]["x"], P["glade"]["z"], P["glade"]["r"] + 0.45))
+    out.append((P["swing"]["x"], P["swing"]["z"], P["swing"]["span"] + 0.35))
+    out += [(b["x"], b["z"], max(b["w"], b["d"]) / 2 + 0.2) for b in P["beds"]]
+    E = P["riverEnd"]
+    out += [(E["rock"]["x"], E["rock"]["z"], 0.6), (E["log"]["x"], E["log"]["z"], 0.85), (E["willow"]["x"], E["willow"]["z"], 0.5)]
+    return out
+
+
 def near_prop(L, x, z, pad):
-    return any(k in L and math.hypot(x - L[k]["x"], z - L[k]["z"]) < pad for k in KEEP_CLEAR)
+    if any(k in L and math.hypot(x - L[k]["x"], z - L[k]["z"]) < pad for k in KEEP_CLEAR):
+        return True
+    return any(math.hypot(x - px, z - pz) < pr + max(0.0, pad - 0.8) for px, pz, pr in places_solid(L))
 
 
 def along_river(L, every, start=0.6):
@@ -2364,6 +2418,7 @@ def build(root):
     build_picnic_plates(L, coll)
     build_living(L, coll)
     build_dressing(L, coll)
+    build_places(L, cushions, coll)
     for ob in coll.all_objects:
         if ob.modifiers:
             bake_modifiers(ob)
@@ -2591,11 +2646,265 @@ def build_dressing(L, coll):
 
 
 
+def build_places(L, cushions, coll):
+    """The places to stop on the open ground (docs/maps-fill-plan.md part 2; the layout's `places`,
+    their seats and colliders in campfire.ts): the Hammock Grove (two hammocks between the meadow's
+    pines, a paper lantern on a line, Barnaby's drying rack and smoker), the Stargazers' Slope (two
+    picnic blankets laid to the slope, a basket, a thermos, a cairn), the Music Glade (a log and
+    three stumps round a cold stone ring), the Swing Garden (the bench swing: its frame still, its
+    bench the node `Prop_Swing`, hung from the beam the game turns it about; three beds in wattle,
+    a scarecrow, a watering can) and the River's End (a flat rock, a driftwood log, cattails)."""
+    P = L.get("places")
+    if not P:
+        return
+    rng = random.Random(4242)
+    M = ["CF_Bark", "CF_WoodCut", "CF_Plank", "CF_PlankDark", "CF_Stone", "CF_StoneDark", "CF_Rope", "CF_Soil", "CF_Ash", "CF_Barrel", "CF_Metal", "CF_Basket", "CF_Straw", "CF_Checker",
+         "CF_VanCream", "CF_Cooler", "CF_Steel", "CF_BushLeaf", "CF_GrassDark", "CF_Petal", "CF_PetalYellow", "CF_PetalWhite", "CF_PetalBlue", "CF_Lupine", "CF_Driftwood", "CF_Cattail",
+         "CF_MallardBody", "CF_Lichen", "CF_Hammock", "CF_HammockStripe", "CF_BlanketBlue", "CF_LanternWarm", "CF_Fence"]
+    m = {name: i for i, name in enumerate(M)}
+
+    def stem_flower(bm, x, z, h, tone, y0=0.0):
+        cylinder(bm, W(x, y0, z), W(x, y0 + h, z), 0.011, 3, m=m["CF_GrassDark"])
+        lathe(bm, x, z, [(0, y0 + h - 0.012), (0.045, y0 + h - 0.004), (0.032, y0 + h + 0.03), (0, y0 + h + 0.04)], segs=6, m=m[tone], yaw=rng.random())
+
+    bm = bmesh.new()
+    # --- the Hammock Grove's rack: two forked posts, two poles, split fish hung to dry; the smoker
+    R = P["dryingRack"]
+    for sz in (-1, 1):
+        z = R["z"] + sz * (R["len"] / 2 - 0.08)
+        cylinder(bm, W(R["x"] - 0.16, -0.05, z), W(R["x"], 1.32, z), 0.035, 6, m=m["CF_Bark"], r_end=0.025)
+        cylinder(bm, W(R["x"] + 0.16, -0.05, z), W(R["x"], 1.32, z), 0.035, 6, m=m["CF_Bark"], r_end=0.025)
+    for y in (1.28, 0.92):
+        w = 0.0 if y > 1.0 else 0.045
+        cylinder(bm, W(R["x"] + w, y, R["z"] - R["len"] / 2 - 0.1), W(R["x"] + w, y, R["z"] + R["len"] / 2 + 0.1), 0.022, 6, m=m["CF_PlankDark"])
+    for k in range(5):
+        z = R["z"] - R["len"] / 2 + 0.25 + k * (R["len"] - 0.5) / 4
+        cylinder(bm, W(R["x"], 1.27, z), W(R["x"], 1.2, z), 0.005, 3, m=m["CF_Rope"])
+        blob(bm, R["x"], 1.07, z, 0.022, 0.13, 0.06, m=m["CF_MallardBody"], cuts=2)
+        f = bm.faces.new((bm.verts.new(W(R["x"], 0.95, z)), bm.verts.new(W(R["x"], 0.87, z - 0.05)), bm.verts.new(W(R["x"], 0.87, z + 0.05))))
+        f.material_index = m["CF_MallardBody"]
+        f2 = bm.faces.new((bm.verts.new(W(R["x"], 0.95, z)), bm.verts.new(W(R["x"], 0.87, z + 0.05)), bm.verts.new(W(R["x"], 0.87, z - 0.05))))
+        f2.material_index = m["CF_MallardBody"]
+    S = P["smoker"]
+    lathe(bm, S["x"], S["z"], [(0, 0.0), (0.24, 0.0), (0.27, 0.3), (0.26, 0.62), (0.22, 0.8), (0, 0.8)], segs=14, m=m["CF_Barrel"])
+    for y in (0.16, 0.6):
+        lathe(bm, S["x"], S["z"], [(0.25, y - 0.02), (0.282, y - 0.02), (0.282, y + 0.02), (0.25, y + 0.02)], segs=14, m=m["CF_Metal"])
+    lathe(bm, S["x"], S["z"], [(0, 0.8), (0.25, 0.8), (0.07, 0.98), (0, 0.98)], segs=12, m=m["CF_Metal"])
+    cylinder(bm, W(S["x"], 0.95, S["z"]), W(S["x"], 1.28, S["z"]), 0.045, 8, m=m["CF_Metal"])
+    box(bm, S["x"] + 0.2, S["x"] + 0.285, 0.1, 0.34, S["z"] - 0.09, S["z"] + 0.09, m=m["CF_Metal"])
+    # lupines along the bank beside them
+    for k in range(9):
+        z = R["z"] - 2.4 + k * 0.62 + rng.uniform(-0.15, 0.15)
+        span = river_span(L, z)
+        if not span:
+            continue
+        x = span[0] - rng.uniform(0.3, 0.55)
+        if any(math.hypot(x - px, z - pz) < pr for px, pz, pr in ((R["x"], R["z"], 0.8), (S["x"], S["z"], 0.45))):
+            continue
+        for q in range(3):
+            lx, lz = x + rng.uniform(-0.14, 0.14), z + rng.uniform(-0.14, 0.14)
+            h = rng.uniform(0.32, 0.55)
+            cylinder(bm, W(lx, 0.0, lz), W(lx, h * 0.5, lz), 0.012, 3, m=m["CF_GrassDark"])
+            lathe(bm, lx, lz, [(0, h * 0.45), (0.045, h * 0.5), (0.032, h * 0.8), (0, h)], segs=6, m=m["CF_Lupine"] if (k + q) % 3 else m["CF_Petal"], yaw=rng.random())
+    # --- the Stargazers' Slope: a basket and a thermos by the blankets, the cairn where the trail turns
+    for i, b in enumerate(P["blankets"]):
+        n = math.hypot(*b["up"])
+        ux, uz = b["up"][0] / n, b["up"][1] / n
+        sx, sz = -uz, ux
+        side = -1 if i == 0 else 1
+        px, pz = b["x"] + sx * side * 0.98 + ux * 0.2, b["z"] + sz * side * 0.98 + uz * 0.2
+        if i == 0:
+            lathe(bm, px, pz, [(0, 0.0), (0.15, 0.0), (0.19, 0.18), (0.185, 0.22), (0, 0.22)], segs=12, m=m["CF_Basket"])
+            lathe(bm, px, pz, [(0, 0.22), (0.17, 0.22), (0.1, 0.27), (0, 0.27)], segs=10, m=m["CF_Checker"])
+        else:
+            cylinder(bm, W(px, 0.0, pz), W(px, 0.24, pz), 0.05, 10, m=m["CF_Cooler"])
+            cylinder(bm, W(px, 0.24, pz), W(px, 0.3, pz), 0.04, 10, m=m["CF_VanCream"])
+            lathe(bm, px + 0.2 * ux, pz + 0.2 * uz, [(0, 0.0), (0.045, 0.0), (0.05, 0.08), (0, 0.08)], segs=8, m=m["CF_VanCream"])
+    C = P["cairn"]
+    y = 0.0
+    for k, (r, h) in enumerate(((0.26, 0.15), (0.2, 0.13), (0.15, 0.11), (0.1, 0.1), (0.065, 0.08))):
+        blob(bm, C["x"] + rng.uniform(-0.03, 0.03), y + h / 2, C["z"] + rng.uniform(-0.03, 0.03), r, h / 2 + 0.01, r * 0.9, m=m["CF_Stone"] if k % 2 else m["CF_StoneDark"], cuts=2, noise=0.1, rng=rng)
+        y += h * 0.86
+    # --- the Music Glade: the log (its top the log cushion's), three stumps (the stump cushion's), a cold stone ring
+    G = P["glade"]
+    log_top, stump_top = cushions["log"]["top"], cushions["stump"]["top"]
+    a = math.radians(G["log"]["angle"])
+    cx, cz = G["x"] + math.cos(a) * G["r"], G["z"] + math.sin(a) * G["r"]
+    ax, az = -math.sin(a), math.cos(a)
+    hl = G["log"]["len"] / 2
+    cylinder(bm, W(cx - ax * hl, log_top / 2, cz - az * hl), W(cx + ax * hl, log_top / 2, cz + az * hl), log_top / 2, 12, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
+    blob(bm, cx + ax * 0.45, log_top - 0.01, cz + az * 0.45, 0.22, 0.03, 0.12, m=m["CF_Lichen"], cuts=2, noise=0.12, rng=rng)
+    for deg in G["stumps"]:
+        b_ = math.radians(deg)
+        x, z = G["x"] + math.cos(b_) * G["r"], G["z"] + math.sin(b_) * G["r"]
+        lathe(bm, x, z, [(0, 0.0), (0.3, 0.0), (0.23, 0.08), (0.21, stump_top), (0, stump_top)], segs=10, m=m["CF_Bark"], jitter=0.08, rng=rng)
+        lathe(bm, x, z, [(0, stump_top), (0.2, stump_top), (0, stump_top + 0.012)], segs=10, m=m["CF_WoodCut"])
+    lathe(bm, G["x"], G["z"], [(0, 0.0), (0.27, 0.0), (0.2, 0.03), (0, 0.035)], segs=12, m=m["CF_Ash"])
+    for k in range(9):
+        b_ = 6.283 * k / 9 + rng.uniform(-0.1, 0.1)
+        blob(bm, G["x"] + math.cos(b_) * 0.32, 0.04, G["z"] + math.sin(b_) * 0.32, rng.uniform(0.08, 0.11), 0.07, rng.uniform(0.07, 0.1), m=m["CF_Stone"] if k % 2 else m["CF_StoneDark"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.05)
+    for k in range(2):
+        cylinder(bm, W(G["x"] - 0.14, 0.05, G["z"] - 0.1 + k * 0.16), W(G["x"] + 0.15, 0.07, G["z"] + 0.04 - k * 0.12), 0.035, 6, m=m["CF_StoneDark"], cap_m=m["CF_Ash"])
+    # --- the Swing Garden's beds: turned soil in a wattle border, rows of flowers and greens
+    tones = ("CF_Petal", "CF_PetalYellow", "CF_PetalWhite", "CF_PetalBlue", "CF_Lupine")
+    for i, b in enumerate(P["beds"]):
+        x0, x1, z0, z1 = b["x"] - b["w"] / 2, b["x"] + b["w"] / 2, b["z"] - b["d"] / 2, b["z"] + b["d"] / 2
+        slab(bm, rounded_rect(x0 + 0.04, x1 - 0.04, z0 + 0.04, z1 - 0.04, 0.08, 3), -0.05, 0.07, m=m["CF_Soil"])
+        posts = []
+        nx, nz = max(2, round(b["w"] / 0.26)), max(2, round(b["d"] / 0.26))
+        posts += [(x0 + (x1 - x0) * k / nx, z0) for k in range(nx)] + [(x1, z0 + (z1 - z0) * k / nz) for k in range(nz)]
+        posts += [(x1 - (x1 - x0) * k / nx, z1) for k in range(nx)] + [(x0, z1 - (z1 - z0) * k / nz) for k in range(nz)]
+        for k, (px, pz) in enumerate(posts):
+            cylinder(bm, W(px, -0.04, pz), W(px, 0.2, pz), 0.017, 5, m=m["CF_Fence"])
+            qx, qz = posts[(k + 1) % len(posts)]
+            for y_, w_ in ((0.07, 0.012), (0.14, 0.011)):
+                wob = 0.012 if (k + (y_ > 0.1)) % 2 else -0.012
+                ox, oz = (0.0, wob) if abs(qx - px) > abs(qz - pz) else (wob, 0.0)
+                cylinder(bm, W(px + ox, y_, pz + oz), W(qx + ox, y_, qz + oz), w_, 4, m=m["CF_Barrel"])
+        rows = 3
+        for r_ in range(rows):
+            z = z0 + 0.16 + (z1 - z0 - 0.32) * r_ / (rows - 1)
+            cols = int(b["w"] / 0.2)
+            for c_ in range(cols):
+                x = x0 + 0.14 + (x1 - x0 - 0.28) * c_ / max(1, cols - 1)
+                if math.hypot(x - P["scarecrow"]["x"], z - P["scarecrow"]["z"]) < 0.14:
+                    continue
+                if (r_ + i) % 3 == 1:
+                    blob(bm, x, 0.12, z, 0.085, 0.07, 0.085, m=m["CF_BushLeaf"], cuts=2, noise=0.15, rng=rng)
+                else:
+                    stem_flower(bm, x + rng.uniform(-0.03, 0.03), z + rng.uniform(-0.03, 0.03), rng.uniform(0.16, 0.3), tones[(r_ + c_ + i) % len(tones)], 0.06)
+    # the scarecrow in its bed: a post and a crossbar, a gingham shirt, a straw head under an old hat
+    K = P["scarecrow"]
+    cylinder(bm, W(K["x"], 0.0, K["z"]), W(K["x"], 1.42, K["z"]), 0.035, 6, m=m["CF_PlankDark"])
+    cylinder(bm, W(K["x"], 1.08, K["z"] - 0.5), W(K["x"], 1.08, K["z"] + 0.5), 0.028, 6, m=m["CF_PlankDark"])
+    box(bm, K["x"] - 0.07, K["x"] + 0.07, 0.66, 1.14, K["z"] - 0.2, K["z"] + 0.2, m=m["CF_Checker"])
+    for sz in (-1, 1):
+        box(bm, K["x"] - 0.05, K["x"] + 0.05, 1.02, 1.14, K["z"] + sz * 0.2, K["z"] + sz * 0.44, m=m["CF_Checker"])
+        for q in range(3):
+            cylinder(bm, W(K["x"], 1.08, K["z"] + sz * 0.44), W(K["x"] + (q - 1) * 0.04, 1.02, K["z"] + sz * 0.56), 0.008, 3, m=m["CF_Straw"])
+    blob(bm, K["x"], 1.3, K["z"], 0.13, 0.14, 0.13, m=m["CF_Straw"], cuts=3)
+    lathe(bm, K["x"], K["z"], [(0, 1.38), (0.25, 1.38), (0.25, 1.4), (0.12, 1.42), (0.09, 1.56), (0, 1.58)], segs=12, m=m["CF_Barrel"])
+    # a watering can at the first bed's corner
+    b0 = P["beds"][0]
+    wx, wz = b0["x"] + b0["w"] / 2 + 0.2, b0["z"] + b0["d"] / 2 + 0.05
+    lathe(bm, wx, wz, [(0, 0.0), (0.085, 0.0), (0.075, 0.2), (0, 0.2)], segs=10, m=m["CF_Steel"])
+    cylinder(bm, W(wx + 0.07, 0.07, wz), W(wx + 0.22, 0.2, wz), 0.014, 5, m=m["CF_Steel"])
+    cylinder(bm, W(wx + 0.22, 0.2, wz), W(wx + 0.25, 0.22, wz), 0.03, 6, m=m["CF_Steel"])
+    cylinder(bm, W(wx - 0.07, 0.17, wz), W(wx - 0.13, 0.1, wz), 0.01, 4, m=m["CF_Steel"])
+    cylinder(bm, W(wx - 0.13, 0.1, wz), W(wx - 0.075, 0.04, wz), 0.01, 4, m=m["CF_Steel"])
+    # --- the River's End: the flat rock (the boulder cushion's top), the driftwood log (the log's), cattails
+    E = P["riverEnd"]
+    b_top = cushions["boulder"]["top"]
+    blob(bm, E["rock"]["x"], b_top / 2 - 0.02, E["rock"]["z"], 0.46, b_top / 2 + 0.02, 0.4, m=m["CF_Stone"], cuts=4, n=3.2, noise=0.05, rng=rng, flat_bottom=-0.08)
+    blob(bm, E["rock"]["x"] - 0.34, 0.08, E["rock"]["z"] + 0.34, 0.16, 0.11, 0.14, m=m["CF_StoneDark"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.05)
+    hl = E["log"]["len"] / 2
+    cylinder(bm, W(E["log"]["x"], log_top / 2, E["log"]["z"] - hl), W(E["log"]["x"] + 0.05, log_top / 2, E["log"]["z"] + hl), log_top / 2, 11, m=m["CF_Driftwood"], cap_m=m["CF_WoodCut"], r_end=log_top / 2 - 0.02, wobble=0.1, rng=rng)
+    cylinder(bm, W(E["log"]["x"], log_top * 0.8, E["log"]["z"] - hl * 0.5), W(E["log"]["x"] - 0.22, log_top + 0.2, E["log"]["z"] - hl * 0.75), 0.04, 6, m=m["CF_Driftwood"], r_end=0.02)
+    water = L["river"]["water"]
+    for k in range(11):
+        z = E["log"]["z"] - 0.9 + k * 0.3 + rng.uniform(-0.08, 0.08)
+        span = river_span(L, z)
+        if not span or (abs(z - E["rock"]["z"]) < 0.3) or abs(z - E["log"]["z"]) < 0.25:
+            continue
+        x = span[0] + rng.uniform(0.02, 0.3)
+        for q in range(2):
+            rx, rz = x + rng.uniform(-0.08, 0.08), z + rng.uniform(-0.08, 0.08)
+            h = rng.uniform(0.55, 0.85)
+            cylinder(bm, W(rx, water - 0.2, rz), W(rx + 0.03, water + h, rz), 0.011, 3, m=m["CF_GrassDark"])
+            cylinder(bm, W(rx + 0.025, water + h - 0.16, rz), W(rx + 0.03, water + h - 0.02, rz), 0.026, 5, m=m["CF_Cattail"])
+    make_object("Campfire_Places", bm, M, coll)
+
+    # --- the blankets: laid to the slope, vertex by vertex (gingham, and a striped blue one)
+    top = cushions["picnicBlanket"]["top"]
+    bm = bmesh.new()
+    for i, b in enumerate(P["blankets"]):
+        n = math.hypot(*b["up"])
+        ux, uz = b["up"][0] / n, b["up"][1] / n
+        sx, sz = -uz, ux
+        bx, bz = b["x"], b["z"]
+        if i == 0:
+            m_of = lambda r_, c_: m["CF_Checker"] if (r_ + c_) % 2 else m["CF_VanCream"]
+        else:
+            m_of = lambda r_, c_: m["CF_VanCream"] if c_ % 3 == 1 else m["CF_BlanketBlue"]
+        sheet(bm, 8, 8, lambda u, v: W(bx + ux * (u - 0.5) * 1.7 + sx * (v - 0.5) * 1.45, top - 0.012 + 0.006 * math.sin(u * 9 + v * 7), bz + uz * (u - 0.5) * 1.7 + sz * (v - 0.5) * 1.45), m_of)
+    make_object("Campfire_Blankets", bm, M, coll, lift="vertex")
+
+    # --- the hammocks: striped canvas sagging between two pines, on ropes; the lowest of the sag is
+    # the hammock cushion's top. And the paper lantern on its own line between the third pair
+    sag_y = cushions["hammock"]["top"]
+    for i, h in enumerate(P["hammocks"]):
+        a_, b_ = h["a"], h["b"]
+        d = math.hypot(b_[0] - a_[0], b_[1] - a_[1])
+        ux, uz = (b_[0] - a_[0]) / d, (b_[1] - a_[1]) / d
+        sx, sz = -uz, ux
+        mx, mz = (a_[0] + b_[0]) / 2, (a_[1] + b_[1]) / 2
+        half_len = d / 2 - 0.5
+        bm = bmesh.new()
+
+        def pt(u, v, ux=ux, uz=uz, sx=sx, sz=sz, mx=mx, mz=mz, half_len=half_len):
+            t = 2 * u - 1
+            w = 0.4 * (1 - 0.6 * t * t)
+            s_ = (2 * v - 1)
+            return W(mx + ux * t * half_len + sx * s_ * w, sag_y + 0.4 * t * t + 0.13 * s_ * s_ * (1 - 0.5 * t * t), mz + uz * t * half_len + sz * s_ * w)
+
+        sheet(bm, 10, 6, pt, lambda r_, c_: m["CF_HammockStripe"] if c_ in (1, 4) else m["CF_Hammock"])
+        for e in (-1, 1):
+            tx, tz = (a_ if e < 0 else b_)
+            tx, tz = tx - e * ux * 0.14, tz - e * uz * 0.14
+            ex, ez = mx + e * ux * half_len, mz + e * uz * half_len
+            for s_ in (-1, 0, 1):
+                cylinder(bm, W(ex + sx * s_ * 0.15, sag_y + 0.4 + 0.065 * abs(s_), ez + sz * s_ * 0.15), W(tx, 1.3, tz), 0.009, 4, m=m["CF_Rope"])
+            lathe(bm, tx + e * ux * 0.14, tz + e * uz * 0.14, [(0.14, 1.26), (0.175, 1.26), (0.175, 1.34), (0.14, 1.34)], segs=10, m=m["CF_Rope"])
+        make_object(f"Campfire_Hammock_{i + 1}", bm, M, coll, origin=(mx, 0.0, mz))
+    # (a paper lantern on a peg out of the middle pine's trunk, toward the camera)
+    Hl = P["hammockLantern"]
+    mx, mz = Hl["tip"]
+    bm = bmesh.new()
+    cylinder(bm, W(Hl["x"], Hl["y"] - 0.06, Hl["z"]), W(mx, Hl["y"], mz), 0.028, 6, m=m["CF_Bark"], r_end=0.02)
+    ly = Hl["y"]
+    cylinder(bm, W(mx, ly, mz), W(mx, ly - 0.08, mz), 0.006, 4, m=m["CF_Rope"])
+    lathe(bm, mx, mz, [(0, ly - 0.08), (0.06, ly - 0.09), (0.13, ly - 0.2), (0.13, ly - 0.3), (0.06, ly - 0.41), (0, ly - 0.42)], segs=12, m=m["CF_LanternWarm"])
+    for y_ in (ly - 0.085, ly - 0.415):
+        lathe(bm, mx, mz, [(0, y_ - 0.012), (0.065, y_ - 0.012), (0.065, y_ + 0.012), (0, y_ + 0.012)], segs=10, m=m["CF_Metal"])
+    make_object("Campfire_HammockLantern", bm, M, coll, origin=(mx, 0.0, mz))
+
+    # --- the bench swing: an A-frame at each end of the beam, the beam; and the bench on its ropes,
+    # a node of its own with its origin on the beam (the game turns it about the beam: swingMotion)
+    Sw = P["swing"]
+    x, z, beam, span = Sw["x"], Sw["z"], Sw["beam"], Sw["span"]
+    bm = bmesh.new()
+    for e in (-1, 1):
+        zz = z + e * span
+        for sx_ in (-1, 1):
+            cylinder(bm, W(x + sx_ * 0.5, -0.05, zz), W(x + sx_ * 0.03, beam + 0.06, zz), 0.05, 7, m=m["CF_Plank"], r_end=0.042)
+        cylinder(bm, W(x - 0.27, 0.95, zz), W(x + 0.27, 0.95, zz), 0.03, 6, m=m["CF_PlankDark"])
+    cylinder(bm, W(x, beam, z - span - 0.16), W(x, beam, z + span + 0.16), 0.055, 8, m=m["CF_PlankDark"], cap_m=m["CF_WoodCut"])
+    make_object("Campfire_SwingFrame", bm, M, coll, origin=(x, 0.0, z))
+    seat_top = cushions["swing"]["top"]
+    bm = bmesh.new()
+    for k in range(4):  # the seat's slats, front to back
+        x0 = x - 0.25 + k * 0.125
+        box(bm, x0 + 0.006, x0 + 0.119, seat_top - 0.04, seat_top, z - 0.64, z + 0.64, m=m["CF_Plank"])
+    for k in range(3):  # the back's slats, leaning back a little
+        y0 = seat_top + 0.1 + k * 0.15
+        xb = x - 0.26 - 0.03 * (k + 1)
+        box(bm, xb - 0.02, xb + 0.02, y0, y0 + 0.12, z - 0.64, z + 0.64, m=m["CF_Plank"])
+    for e in (-1, 1):
+        zz = z + e * 0.6
+        box(bm, x - 0.27, x + 0.25, seat_top - 0.07, seat_top - 0.04, zz - 0.03, zz + 0.03, m=m["CF_PlankDark"])  # the bearer under the slats
+        cylinder(bm, W(x - 0.27, seat_top - 0.05, zz), W(x - 0.38, seat_top + 0.56, zz), 0.022, 5, m=m["CF_PlankDark"])  # the back's upright
+        box(bm, x - 0.33, x + 0.2, seat_top + 0.2, seat_top + 0.235, zz - 0.035, zz + 0.035, m=m["CF_PlankDark"])  # the armrest
+        cylinder(bm, W(x + 0.18, seat_top - 0.04, zz), W(x + 0.18, seat_top + 0.2, zz), 0.02, 5, m=m["CF_PlankDark"])
+        cylinder(bm, W(x + 0.2, seat_top - 0.05, zz), W(x, beam, zz), 0.012, 5, m=m["CF_Rope"])
+        cylinder(bm, W(x - 0.37, seat_top + 0.5, zz), W(x, beam, zz), 0.012, 5, m=m["CF_Rope"])
+    make_object("Prop_Swing", bm, M, coll, origin=(x, beam, z))
+
+
 # ---------------------------------------------------------------------------------------------
 # one draw call a finish: every plain colour baked into the vertices, the still things fused
 
 # the nodes the game animates or shows and hides by name: they stay their own objects
-DYNAMIC = ("Fire_Flame", "Stew_", "Picnic_Skewer", "Picnic_Bbq", "Fauna_", "Prop_Canoe", "Forage_", "StringLight_")
+DYNAMIC = ("Fire_Flame", "Stew_", "Picnic_Skewer", "Picnic_Bbq", "Fauna_", "Prop_Canoe", "Prop_Swing", "Forage_", "StringLight_")
 # the materials that stay themselves: what glows (the game flickers them by name), and the stew
 # (the game tints it)
 KEEP = set(EMISSION) | {"CF_Stew"}
@@ -2606,7 +2915,7 @@ def slot_of(name, pines):
     """The finish a face painted `name` is drawn with."""
     if name in KEEP:
         return name
-    if name in ("CF_Pine", "CF_PineLight") or (pines and name in ("CF_BirchLeaf", "CF_BirchLeafLight")):
+    if name in ("CF_Pine", "CF_PineLight") or (pines and name in ("CF_BirchLeaf", "CF_BirchLeafLight", "CF_Willow", "CF_WillowLight")):
         return "CF_Pine"
     if pines:
         return "CF_PineBark"

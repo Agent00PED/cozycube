@@ -123,8 +123,8 @@
    "craft": "wood",
    "tier": 2,
    "where": "campfire",
-   "perMin": 38.4,
-   "perMinSold": 27.8
+   "perMin": 38.3,
+   "perMinSold": 27.7
   },
   {
    "craft": "wood",

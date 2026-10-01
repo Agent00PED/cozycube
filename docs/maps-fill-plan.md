@@ -2,7 +2,7 @@
 
 Status: **approved 2026-10-02** with the recommended answers (fill, places only and no coins, the
 brook built, both maps part by part, the beach on hold). Built so far: **part 1, mass** (patch
-0.7.45). What moved from the plan is at the foot of this document.
+0.7.45) and **part 2, the campfire's places** (patch 0.7.46). What moved from the plan is at the foot of this document.
 
 ## The problem, measured
 
@@ -172,6 +172,22 @@ Everything still in the model bakes into the finishes the maps already draw.
   ferns, kept for part 3's lookout and campsite.
 - **Income:** every line within 1% of the record (the campfire's T2 +0.3%, the woods' T3 +0.4% and
   T4 +1.0%).
+
+### Part 2, the campfire's places (patch 0.7.46)
+- **Fifteen seats** (the plan said thirteen): two hammocks, four places on two blankets, the Music
+  Glade's log (two) and three stumps, the swing's two, the River's End's rock and log.
+- **The Hammock Grove's pines stand in a row**, not a triangle, with bare trunks under their
+  boughs: in a triangle the pine nearest the camera hid whoever lay in the hammock behind it.
+- **The blankets lie on the slope** (up to 20 degrees) and whoever lies there is tilted to it, head
+  uphill. No level shelf was cut.
+- **The Music Glade** stands just east of the guitar case, in the gap between the fellable pine and
+  the birches as the camera sees them (the plan's spot was behind that pine's crown). No string of
+  paper lanterns there (a string is a draw call of its own); the hammocks have a paper lantern.
+- **The garden's beds are a row along the south fence**, and the fallen log that lay there is gone.
+  A bed in the open lawn stood on the woodcutter's walk between the east pines and the birches.
+- **No marshmallow at the glade:** its seats are log seats for the guitar's sake, and the
+  marshmallow now comes only to a log seat within the bonfire's reach.
+- **Draw calls:** +1 (the swing's bench). **Model:** 3.35 MB. **Income:** every line within 0.3%.
 
 ## Decisions (answered)
 

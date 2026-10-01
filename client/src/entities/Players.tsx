@@ -45,6 +45,10 @@ export interface CrowdFeed {
   mapId: MapId;
   /** Session ids sitting in the campfire's canoe (they rock with it). */
   rocking: ReadonlySet<string>;
+  /** Session ids on the campfire's bench swing, and how far each hangs under its beam (m). */
+  swinging: ReadonlyMap<string, number>;
+  /** Session ids lying on a slope (the stargazers' blankets), and how far each head is raised (rad). */
+  tilts: ReadonlyMap<string, number>;
 }
 
 /** Where an angler's bobber floats on the campfire's river: out from the dock spot they fish from
@@ -85,6 +89,8 @@ function avatarProps(player: PlayerState, feed: CrowdFeed) {
     bubble: feed.bubbles[player.sessionId] ?? null,
     vibe: feed.vibing.has(player.sessionId),
     rock: feed.rocking.has(player.sessionId),
+    swing: feed.swinging.get(player.sessionId) ?? 0,
+    lieTilt: feed.tilts.get(player.sessionId) ?? 0,
     awaiting: feed.awaiting.has(player.sessionId),
     snack: player.snack,
     actionProgress: player.actionProgress,

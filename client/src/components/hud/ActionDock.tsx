@@ -372,8 +372,10 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
 
       // the campfire: roast from beside the fire or a log bench round it; fish from a spot on the dock;
       // play the guitar sitting on a log
-      const onLog = Object.values(chairs).some((c) => c.occupiedBy === localSessionId && c.style === "log");
       const bonfire = Object.values(toggleables).find((p) => p.kind === "bonfire");
+      const myLog = Object.values(chairs).find((c) => c.occupiedBy === localSessionId && c.style === "log");
+      // (a log seat round the fire: the Music Glade's are log seats too, for the guitar, but out of its reach)
+      const onLog = !!myLog && (!bonfire || Math.hypot(myLog.x - bonfire.x, myLog.z - bonfire.z) <= BONFIRE_REACH);
       if (bonfire && action !== "grill" && (onLog || (!sitting && reach(bonfire) <= BONFIRE_REACH))) {
         const id = bonfire.propId;
         if (hearth.fuel <= 0) {
@@ -832,7 +834,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           found.push({ key: `forage:${id}`, type: "forage", label: berries ? "🫐 Forage" : "🍄 Forage", hint: berries ? "Pick the glowing night berries: +5 coins" : "Pick the spotted red mushrooms: +5 coins", run: () => interactBridge.current?.useProp(id) });
         }
       }
-      if (onLog) {
+      if (myLog) {
         const playing = action === "guitar";
         found.push({ key: `guitar:${playing}`, type: "guitar", label: playing ? "⏹ Stop Guitar" : "🎸 Play Guitar", run: () => onCampfire({ type: "GUITAR", playing: !playing }) });
       }
