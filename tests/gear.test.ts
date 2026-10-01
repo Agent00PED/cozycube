@@ -1,6 +1,7 @@
 // The accessories' rules (docs/economy-plan.md section 9, shared/gear.ts): `npm test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { makingsMissing, spendMakings } from "../shared/expedition";
 import { sanitizeFishingProfile, livewellCap, carrierCap } from "../shared/fishing";
 import {
@@ -44,6 +45,8 @@ import {
   ringName,
   swingHaste,
   wearRing,
+  wornBack,
+  wornBackOf,
   type GearId,
   type RingId,
 } from "../shared/gear";
@@ -267,4 +270,18 @@ test("Fortune moves the workbench's plain outcomes toward a Masterwork", () => {
   assert.ok(Math.abs(lucky.masterwork - plain.masterwork - Math.min(plain.normal, 0.1)) < 1e-9);
   assert.equal(lucky.breakChance, plain.breakChance);
   assert.ok(Math.abs(lucky.normal + lucky.masterwork + lucky.breakChance - 1) < 1e-9);
+});
+
+test("the back piece worn is what the avatar carries: from a profile, and from its synced JSON", () => {
+  const p = own(["ang_gloves", "for_frame"]);
+  assert.equal(wornBack(p), "for_frame");
+  assert.equal(wornBackOf(JSON.stringify(p)), "for_frame");
+  assert.equal(wornBack(own(["ang_gloves"])), "");
+  // (owned but off: nothing on the back; the rings' own list is never mistaken for the worn one)
+  const off = fresh({ gear: ["way_pack"], worn: [], rings: ["copper:opal"], ringsWorn: ["copper:opal"] });
+  assert.equal(wornBackOf(JSON.stringify(off)), "");
+  assert.equal(wornBackOf(""), "");
+  // (every back piece has its model: gear_back.glb's Back_<id>, built by scripts/blender/build_gear_back.py)
+  const built = readFileSync("scripts/blender/build_gear_back.py", "utf8");
+  for (const id of GEAR_IDS.filter((g) => GEAR[g].slot === "back")) assert.ok(built.includes(`"Back_${id}"`), `Back_${id} is built`);
 });

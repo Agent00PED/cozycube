@@ -1,4 +1,5 @@
 import { FOREST_FISHING, FOREST_LAYOUT } from "@shared/worlds/forest";
+import { wornBackOf } from "@shared/gear";
 import { CAVE_WATER_Y, floatY } from "@shared/worlds/caverns";
 import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
@@ -96,6 +97,8 @@ function avatarProps(player: PlayerState, feed: CrowdFeed) {
     // Velvet Championship Belt over the name while it is worn
     sessionId: player.sessionId,
     gloves: player.corner ? gloveLook(player.gloves, player.corner) : "",
+    // the gear's back piece worn (read off the synced camp profile)
+    back: wornBackOf(player.fishing),
     champion: beltUntilOf(player.boxing) > Date.now(),
     // the Glimmering Caverns: the world (the rope descent) and how heavily their pickaxe swings
     map: player.map,

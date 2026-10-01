@@ -248,8 +248,13 @@ band (the Glimmer-set: silver and three Glimmer Shards), one cut gem and a fee (
 is worth 2.5x, so its chance rises by a quarter of the band's strength (3% at most), and Masterworks
 are the workbench's (the forge's are won by hand).
 
-**Still to build:** the back pieces drawn on the avatar (part three). The
-gear's effect on income has not been run through the simulator yet: the two direct earners are the
+**Built, part three (phase 4c, 2026-10-02): the back pieces drawn on the avatar.** A small model
+of its own (gear_back.glb, 200 KB, built by scripts/blender/build_gear_back.py) holds the four: the
+Creel Pack, the Timber Frame, the Lamp Pack and the Explorer's Pack. Whoever wears one is seen
+carrying it by everyone; it comes off in the boxing ring and while lying down.
+
+**Still open in phase 4:** the gear's and the rings' effect on income has not been run through the
+simulator yet: the two direct earners are the
 Trader's Mitts (+5% of every sale at rank 5) and the Creel Pack (fish 20% heavier at rank 5).
 
 All 21 current pieces go (12 from the shops, 5 from the bench, 4 from the forge): each owner is
@@ -424,7 +429,7 @@ selling raw, and never by enough to be the only thing worth doing.
 | 1 | **Done.** Base prices and rod odds (wood, fish, ore, cave fish), section 5 | every step within 20% of its target, the three crafts within 20% of each other |
 | 2 | **Done** (T2-T5; T6-T7 wait for the beach). Tools and storage: prices, materials, the forge's recipes; shop stock by map; birch at the campfire | the ladder's hours match section 6 |
 | 3 | **Done.** Keepers' buying ceilings; the Expedition Licence | |
-| 4 | **Parts one and two done** (the pieces, ranks, sets, trials, the refund; the rings). Still: the back pieces drawn on the avatar | |
+| 4 | **Done** in three parts (the pieces, ranks, sets, trials and the refund; the rings; the back pieces drawn on the avatar). Open: the gear's income through the simulator | |
 | 5 | Crafted goods; the two map outfits | |
 
 Each phase ships on its own with its tests, a profile migration where it touches what players own

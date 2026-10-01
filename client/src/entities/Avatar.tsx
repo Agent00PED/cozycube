@@ -15,7 +15,7 @@ import { CasinoAura } from "./CasinoAura";
 import { capsuleTitle } from "@shared/casino";
 import { specialTitle } from "@shared/items";
 import { canoeBob, canoePitch, canoeRoll } from "../scene/canoeMotion";
-import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, GLOVES_URL, GLOVE_HAND, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
+import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, GEAR_BACK_GLOW, GEAR_BACK_PREFIX, GEAR_BACK_URL, GLOVES_URL, GLOVE_HAND, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
 import { BELT_TITLE, type FighterState } from "@shared/boxing";
 import { getBout, useFighterState } from "../systems/boutStore";
 import { combatNow, fightAnimOf } from "../systems/fightAnim";
@@ -122,6 +122,8 @@ export interface AvatarProps {
   sessionId?: string;
   /** The boxing gloves worn in the ring ("red", "tiger"), "" for none. */
   gloves?: string;
+  /** The gear's back piece worn (shared/gear.ts: its id), "" for none. */
+  back?: string;
   /** Wearing the Velvet Championship Belt: its gold badge over the name. */
   champion?: boolean;
   /** You (your own beats at work are played the moment they happen: systems/activityStore.ts). */
@@ -523,6 +525,8 @@ interface RigProps {
   /** The Velvet Ring: the gloves' look ("" none: red, blue or tiger), the fighter's state (null: not
    *  in the bout), and their session (the fight anims are kept by it). */
   gloves: string;
+  /** The gear's back piece worn ("" none), drawn on the back. */
+  back: string;
   fight: FighterState | null;
   sessionId: string;
   local: boolean;
@@ -530,7 +534,7 @@ interface RigProps {
   pickWeight: number;
 }
 
-function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, awaiting, snack, actionProgress, bobberAt, onHook, fed, rodAura, onCrownTop, gloves, fight, sessionId, local, map, pickWeight }: RigProps) {
+function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, awaiting, snack, actionProgress, bobberAt, onHook, fed, rodAura, onCrownTop, gloves, back, fight, sessionId, local, map, pickWeight }: RigProps) {
   const rig = useRig();
   useXray(rig.root, xray);
   const shirtGoal = useRef(new THREE.Color());
@@ -1075,6 +1079,14 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
       <primitive object={rig.root} />
       {/* the Velvet Ring: the gloves on the hands (their own little model, loaded apart: the
           avatar never waits on it), and stars over a fighter stunned or down */}
+      {/* the gear's back piece (its own little model too): not in the ring, not lying down */}
+      {back && !gloves && pose !== "lie" && (
+        <ModelBoundary what="gear_back.glb" fallback={null}>
+          <Suspense fallback={null}>
+            <AvatarBack rig={rig} piece={back} />
+          </Suspense>
+        </ModelBoundary>
+      )}
       {gloves && (
         <ModelBoundary what="boxing_gloves.glb" fallback={null}>
           <Suspense fallback={null}>
@@ -1285,6 +1297,37 @@ function shownMeshes(root: THREE.Object3D): THREE.Mesh[] {
   return out;
 }
 
+/** The gear's back piece on the back: a copy of its node from gear_back.glb (Back_<gear id>), hung on
+ *  the Torso where it was modelled (the trunk's breathing carries it); the Lamp Pack's flame lit. */
+function AvatarBack({ rig, piece }: { rig: Rig; piece: string }) {
+  const { scene } = useGLTF(GEAR_BACK_URL);
+  useEffect(() => {
+    const src = scene.getObjectByName(`${GEAR_BACK_PREFIX}${piece}`);
+    if (!src) return;
+    const pack = src.clone(true);
+    pack.position.set(0, 0, 0);
+    pack.rotation.set(0, 0, 0);
+    pack.scale.setScalar(1);
+    pack.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.raycast = noRaycast;
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        const mat = m as THREE.MeshStandardMaterial;
+        if (mat.name === GEAR_BACK_GLOW && mat.emissive) {
+          mat.emissive.set("#ffd98a");
+          mat.emissiveIntensity = 1.4;
+        }
+      }
+    });
+    rig.part.torso.add(pack);
+    return () => {
+      rig.part.torso.remove(pack);
+    };
+  }, [scene, rig, piece]);
+  return null;
+}
+
 /** The boxing gloves on the hands: each a copy of its glove from boxing_gloves.glb (Glove_<look>_L/R:
  *  red, blue or tiger), hung on the arm where the hand is (the arm's own motion carries it); the
  *  rear glove carries the M2's shimmer; and the ring's telegraphs (the guard's shield, the strike
@@ -1450,7 +1493,7 @@ const RING_GEO = new THREE.RingGeometry(0.62, 0.7, 40);
 
 /** A player: the model, dressed and posed, with the nametag and the overhead overlays. */
 export const Avatar = memo(
-  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false, title = "", aura = "", xray = false, sessionId = "", gloves = "", champion = false, local = false, map = "", pickWeight = 1 }, ref) {
+  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false, title = "", aura = "", xray = false, sessionId = "", gloves = "", back = "", champion = false, local = false, map = "", pickWeight = 1 }, ref) {
     const outfit = useMemo(() => parseLook(look) ?? defaultLook(userId || username, color), [look, userId, username, color]);
     // every avatar breathes and glances round on its own clock, so a crowd never moves in unison
     const seed = useMemo(() => (hashString(userId || username) % 1000) / 100, [userId, username]);
@@ -1516,7 +1559,7 @@ export const Avatar = memo(
 
         <ModelBoundary what="avatar.glb" fallback={<StandIn />}>
           <Suspense fallback={<StandIn />}>
-            <AvatarModel xray={xray} look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} fed={fed} rodAura={rodAura} onCrownTop={setCrownTop} gloves={gloves} fight={fight} sessionId={sessionId} local={local} map={map} pickWeight={pickWeight} />
+            <AvatarModel xray={xray} look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} fed={fed} rodAura={rodAura} onCrownTop={setCrownTop} gloves={gloves} back={back} fight={fight} sessionId={sessionId} local={local} map={map} pickWeight={pickWeight} />
           </Suspense>
         </ModelBoundary>
 
