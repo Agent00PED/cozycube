@@ -309,6 +309,11 @@ Round 11 (docs/caverns-roadmap.md section 15, patch 0.7.30):
 - **The lake's outflow stream removed** (the river's third segment and its ford): the east shore plain beach to the rim.
 - **The winch's top landing clear:** the boulder by the upper stand moved off, the slab beside it set back.
 
+The vein chase (docs/caverns-roadmap.md section 16, patch 0.7.31):
+- **A direct strike runs the fissure on along a vein** to a spot nearby on the side the close-up sees (`rollVeinStep`: 0.5-0.95 rad from the last), never somewhere at random; the vein is drawn over the rock from the old spot to the new (ProspectingView: a tube laid on the rock's surface, drawn in over 0.2 s, hot while the window is open, a bright bead running along it to the next spot; `caveWeak.from`, prospectStore's `from` / `movedAt`).
+- **The chase:** a direct strike on the next spot inside `CHASE_WINDOW_S` (2.4 s, `CHASE_SLACK_MS` of grace) is a link; each link in a row strikes `CHASE_STEP` (8%) harder, up to `CHASE_MAX` (5) links (`chaseBonus`, on top of a Perfect's); a blow off the spot, a skid or the window gone and it starts again (`Prospector.chase` / `chaseUntil`, `CaveStrike.chase`).
+- **The HUD:** a chip under the rock's meter, "Follow the vein!" then "Vein xN, +M% power", its bar draining with the window (`useChase`).
+
 ## Layout
 
 | Path | What lives there |

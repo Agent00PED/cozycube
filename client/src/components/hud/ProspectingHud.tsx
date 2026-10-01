@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { CAVERNS_CHANNELS, ORE_KINDS, STREAK_MAX, STREAK_STEP } from "@shared/caverns_mining";
+import { CAVERNS_CHANNELS, CHASE_STEP, CHASE_WINDOW_S, ORE_KINDS, STREAK_MAX, STREAK_STEP } from "@shared/caverns_mining";
 import { ORE_NODE_AT } from "@shared/worlds/caverns";
-import { useBlow, useCleanBreak, useProspect } from "../../systems/prospectStore";
+import { useBlow, useChase, useCleanBreak, useProspect } from "../../systems/prospectStore";
 import { ORE_ITEMS, type OreItemId } from "@shared/caverns_mining";
 import { isTouchUi } from "../../systems/inputMode";
 import { tipDue, tipMastered, tipSeen } from "./firstTips";
@@ -29,6 +29,15 @@ export function ProspectingHud({ send }: { send: (channel: string, packet?: unkn
   const pr = useProspect();
   const { blow, streak } = useBlow();
   const cleanAt = useCleanBreak();
+  const { chase, chaseAt } = useChase();
+  // (the chase's window drains on the chip; it lets go of itself when the window runs out)
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (performance.now() - chaseAt > CHASE_WINDOW_S * 1000) return;
+    const id = window.setTimeout(() => tick((n) => n + 1), Math.max(30, CHASE_WINDOW_S * 1000 - (performance.now() - chaseAt) + 20));
+    return () => window.clearTimeout(id);
+  }, [chaseAt]);
+  const chasing = performance.now() - chaseAt < CHASE_WINDOW_S * 1000;
   useEffect(() => {
     if (!pr) return;
     // (Escape, or a step away with the keys: back from the rock; docs/caverns-roadmap.md R10.5)
@@ -86,6 +95,12 @@ export function ProspectingHud({ send }: { send: (channel: string, packet?: unkn
             </div>
           </div>
         )}
+        {chasing && (
+          <div key={chaseAt} className="relative overflow-hidden rounded-full bg-sky-950/80 px-3 py-1 text-[12px] font-extrabold text-sky-100 outline outline-1 -outline-offset-1 outline-sky-300/30">
+            <div className="absolute inset-y-0 left-0 bg-sky-400/30" style={{ animation: `cozy-vein-drain ${CHASE_WINDOW_S}s linear forwards` }} />
+            <span className="relative">⚡ {chase > 0 ? `Vein ×${chase} · +${Math.round(CHASE_STEP * chase * 100)}% power` : "Follow the vein!"}</span>
+          </div>
+        )}
         {streak > 0 && (
           <div className="rounded-full bg-amber-950/80 px-3 py-1 text-[12px] font-extrabold text-amber-200 outline outline-1 -outline-offset-1 outline-amber-300/30">
             🔥 Perfect ×{streak} · +{bonus}% haul
@@ -112,7 +127,7 @@ export function ProspectingHud({ send }: { send: (channel: string, packet?: unkn
       )}
       {tip && (
         <div className="pointer-events-none fixed left-1/2 z-30 w-[min(92vw,420px)] -translate-x-1/2 rounded-2xl bg-stone-900/80 px-4 py-2 text-center text-[13px] font-semibold text-amber-100 outline outline-1 -outline-offset-1 outline-amber-200/25 backdrop-blur" style={{ bottom: "calc(max(12px, env(safe-area-inset-bottom)) + 84px)" }}>
-          {isTouchUi() ? "Tap" : "Click"} inside the glowing ring on the rock, just as the white ring closes on it: <b className="text-amber-300">Perfect!</b> Perfects in a row mine more; a gold ring is a lucky glint, and a Perfect to finish it is a clean break. Click away or walk to step back.
+          {isTouchUi() ? "Tap" : "Click"} inside the glowing ring on the rock, just as the white ring closes on it: <b className="text-amber-300">Perfect!</b> Each direct hit runs the crack on along a glowing vein: hit the next spot quickly to chain harder blows. Perfects in a row mine more; a gold ring is a lucky glint, and a Perfect to finish it is a clean break. Click away or walk to step back.
         </div>
       )}
       <button
@@ -127,6 +142,14 @@ export function ProspectingHud({ send }: { send: (channel: string, packet?: unkn
       </button>
     </>
   );
+}
+
+// (the chase chip's draining bar)
+if (typeof document !== "undefined" && !document.getElementById("cozy-vein-css")) {
+  const el = document.createElement("style");
+  el.id = "cozy-vein-css";
+  el.textContent = "@keyframes cozy-vein-drain { from { width: 100%; } to { width: 0%; } }";
+  document.head.appendChild(el);
 }
 
 const popStyle: CSSProperties = { fontFamily: "var(--font-cozy)", fontWeight: 900, letterSpacing: 1, textAlign: "center", WebkitTextStroke: "1px rgba(0,0,0,0.4)", textShadow: "0 3px 12px rgba(0,0,0,0.55)", animation: "cozy-ring-badge 1.3s ease-out forwards", whiteSpace: "nowrap" };

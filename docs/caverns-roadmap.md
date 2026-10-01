@@ -425,3 +425,15 @@ reached; click-to-move trips on every built map arrive, none stalled (`npm test`
 | The stream at the lake's south-east | the outflow reach and its ford removed, the shore plain (R11.3) |
 | A rock in the way at the winch's top | the boulder moved off, the slab set back (R11.4) |
 | The weak spot behind the rock | cause: the close-up stands up to 55 degrees to the miner's side, the spot was rolled on the miner's side; now on the side the close-up sees, and a click on the ring strikes the ring (R11.5) |
+
+## 16. The vein chase (2026-10-01)
+
+Prospecting's weak spot jumped somewhere at random after every direct hit: no flow from one blow to the
+next. Now the fissure runs on along a vein.
+
+| Part | Built |
+|---|---|
+| The rule | `rollVeinStep` (the next spot a step along the rock, on the side the close-up sees); `CHASE_WINDOW_S` 2.4, `CHASE_STEP` 0.08, `CHASE_MAX` 5, `chaseBonus`; the server counts links per miner and scales the blow |
+| The look | the vein laid over the rock from the old spot to the new, drawn in, hot while the window is open, a bead running to the next spot |
+| The HUD | the chase chip with its draining window; the first-time tip |
+| Tested | `npm test`: the step stays in view and near the last spot, the bonus caps; in-game on the Monolith: links 0 to 4, damage rising with each |

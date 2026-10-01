@@ -2,6 +2,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  CHASE_MAX,
+  CHASE_STEP,
+  chaseBonus,
+  rollVeinStep,
   CLEAN_BREAK_BONUS,
   GLINT_CHANCE,
   CHISEL_PULVERIZE,
@@ -184,4 +188,25 @@ test("the weak spot is rolled on the miner's side of the rock (docs/caverns-road
 test("prospecting's bonuses stay modest: a clean break and a lucky glint", () => {
   assert.ok(CLEAN_BREAK_BONUS > 1 && CLEAN_BREAK_BONUS <= 1.3);
   assert.ok(GLINT_CHANCE > 0.1 && GLINT_CHANCE <= 0.3);
+});
+
+test("the vein chase: the next spot a step along the rock on the side the close-up sees; links capped", () => {
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  const view = { x: 0.6, z: 0.8 };
+  let at: [number, number, number] = [0.6, 0.3, 0.74];
+  for (let i = 0; i < 300; i++) {
+    const next = rollVeinStep(at, rand, view);
+    const l = Math.hypot(next[0], next[1], next[2]);
+    assert.ok(Math.abs(l - 1) < 0.01, "a unit direction");
+    assert.ok(next[1] >= 0 && next[1] <= 0.7, "never under the rock nor on its crown");
+    assert.ok(next[0] * view.x + next[2] * view.z >= 0.6 * Math.hypot(next[0], next[2]), "on the side the close-up sees");
+    const pl = Math.hypot(at[0], at[1], at[2]);
+    const ang = Math.acos(Math.max(-1, Math.min(1, (next[0] * at[0] + next[1] * at[1] + next[2] * at[2]) / (l * pl))));
+    assert.ok(ang < 1.9, "a step along the rock, never across it");
+    at = next;
+  }
+  assert.equal(chaseBonus(0), 1);
+  assert.ok(Math.abs(chaseBonus(3) - (1 + 3 * CHASE_STEP)) < 1e-9);
+  assert.equal(chaseBonus(99), chaseBonus(CHASE_MAX));
 });

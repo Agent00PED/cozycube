@@ -669,8 +669,8 @@ export default function App() {
         } else if (type === "caveProspectEnd") {
           prospectStore.close();
         } else if (type === "caveWeak") {
-          const w = payload as { node: string; weak: [number, number, number]; glint?: boolean };
-          prospectStore.weak(w.node, w.weak, !!w.glint);
+          const w = payload as { node: string; weak: [number, number, number]; glint?: boolean; from?: [number, number, number] };
+          prospectStore.weak(w.node, w.weak, !!w.glint, w.from);
         } else if (type === "caveLoot") {
           const l = payload as CaveLoot;
           const what = (Object.entries(l.items) as [OreItemId, number][]).map(([id, n]) => `${ORE_ITEMS[id].emoji} ${n} ${ORE_ITEMS[id].name}`).join(" · ");
