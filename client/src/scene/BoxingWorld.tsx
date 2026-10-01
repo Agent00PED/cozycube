@@ -457,7 +457,8 @@ function RingLights() {
   return (
     <>
       <primitive object={target} />
-      <hemisphereLight args={["#ffdcb8", "#3a2418", 0.85]} />
+      {/* (a little more of the hall out of the dark: the floor and the far corners read on a phone) */}
+      <hemisphereLight args={["#ffdcb8", "#4a3020", 1.05]} />
       <spotLight ref={spot} color="#ffd58a" intensity={90} distance={16} angle={0.62} penumbra={0.55} decay={1.8} position={[RING.x, LAMP_Y - 0.05, RING.z]} castShadow={false} />
       <pointLight color="#ffc870" intensity={3.2} distance={6} decay={1.6} position={[R.neon.x, R.neon.y, -R.half + 0.9]} castShadow={false} />
       <pointLight color="#ffe0a0" intensity={1.6} distance={3.5} decay={2} position={[R.trophy.x, 1.8, -R.half + 1.2]} castShadow={false} />
