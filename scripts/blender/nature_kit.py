@@ -165,6 +165,26 @@ def worn(d):
     return 1 - t * t * (3 - 2 * t)
 
 
+def blot(x, z, cx, cz, r, vnoise, squash=None, lobes=1.0):
+    """How far (x, z) is outside a worn patch round (cx, cz), about `r` across (negative: on it),
+    to hand to `worn`. Never a disc: an oval at its own angle (each patch its own, from where it
+    lies), its outline in a few slow lobes, the whole pushed about by the ground's own noise. All
+    low frequencies: the outline is uneven, never ragged."""
+    h = math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453
+    h -= math.floor(h)
+    g = math.sin(cx * 39.346 + cz * 11.135) * 24634.6345
+    g -= math.floor(g)
+    th = h * math.pi
+    c, s = math.cos(th), math.sin(th)
+    dx, dz = x - cx, z - cz
+    k = (0.6 + 0.25 * g) if squash is None else squash
+    u, v = dx * c + dz * s, (-dx * s + dz * c) / k
+    a = math.atan2(v, u)
+    edge = 1 + lobes * (0.2 * math.sin(2 * a + h * 17.0) + 0.14 * math.sin(3 * a + g * 31.0) + 0.08 * math.sin(5 * a + h * 53.0))
+    push = 0.5 * (vnoise(x * 0.8 + cx, z * 0.8 + cz) - 0.5) + 0.22 * (vnoise(x * 1.9 - cz, z * 1.9 + cx) - 0.5)
+    return math.hypot(u, v) - 0.5 * r * edge + push * min(1.0, r / 1.2)
+
+
 def refine_near(bm, faces, wear, lo=0.04, hi=0.97):
     """Cuts the ground finer where the wear changes (a footpath's edges): every face among `faces`
     with a corner whose wear is between `lo` and `hi`, or whose corners differ, has its edges

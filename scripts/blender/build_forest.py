@@ -806,10 +806,11 @@ def dirt_field(L):
                 if d < best:
                     best = d
         w = K.worn(best + wob)
+        # (grass holding on in places: a worn patch is never evenly bare)
+        thin = 0.72 + 0.28 * smooth(0.3, 0.62, vnoise(x * 1.25 + 7.0, z * 1.25 - 3.0))
         for wx, wz, r, s in wear:
-            d = math.hypot(x - wx, z - wz)
-            if d < r * 1.5:
-                w = max(w, s * K.worn(d - r * 0.45 + wob))
+            if math.hypot(x - wx, z - wz) < r * 2.4:
+                w = max(w, s * thin * K.worn(K.blot(x, z, wx, wz, r * 1.25, vnoise)))
         return w
 
     return field

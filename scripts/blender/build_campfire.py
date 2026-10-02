@@ -834,7 +834,7 @@ def dirt_field(L):
         # following its line smoothly, the grass thinning into it over 0.6 m with no edge and no
         # raggedness: nature_kit `worn`. Only a slow, slight wander. The clearing is worn round the fire and its seats)
         wob = 0.1 * (vnoise(x * 0.45 + 31.0, z * 0.45 + 7.0) - 0.5)
-        best = math.hypot(x - c["x"], z - c["z"]) - c["r"] * 0.6
+        best = 9.0
         for (x0, x1, z0, z1), pts in lines:
             if x < x0 or x > x1 or z < z0 or z > z1:
                 continue
@@ -845,10 +845,13 @@ def dirt_field(L):
                 if d < best:
                     best = d
         w = K.worn(best + wob)
+        # (the fire's worn ground: an uneven round, a little longer one way)
+        w = max(w, (0.8 + 0.2 * smooth(0.3, 0.62, vnoise(x * 1.25 + 7.0, z * 1.25 - 3.0))) * K.worn(K.blot(x, z, c["x"], c["z"], c["r"] * 1.25, vnoise, squash=0.84, lobes=0.75)))
+        # (grass holding on in places: a worn patch is never evenly bare)
+        thin = 0.72 + 0.28 * smooth(0.3, 0.62, vnoise(x * 1.25 + 7.0, z * 1.25 - 3.0))
         for wx, wz, r, s in wear:
-            d = math.hypot(x - wx, z - wz)
-            if d < r * 1.5:
-                w = max(w, s * K.worn(d - r * 0.45 + wob))
+            if math.hypot(x - wx, z - wz) < r * 2.4:
+                w = max(w, s * thin * K.worn(K.blot(x, z, wx, wz, r * 1.25, vnoise)))
         return w
 
     return field
