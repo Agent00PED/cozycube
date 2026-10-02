@@ -1,28 +1,23 @@
 import { useContext, useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { FOREST_BIRDS, forestLand } from "@shared/worlds/forest";
-import { noRaycast } from "./kit";
+import { FOREST_BIRDS, FOREST_HIVES, FOREST_OWL, forestLand } from "@shared/worlds/forest";
 import { cameraFocus } from "./cameraFocus";
 import { CampDaylightContext } from "./campDay";
+import { instanced, template } from "./faunaKit";
+import { Butterflies } from "./Butterflies";
 
-// The Whispering Woods' little lives, by day: songbirds perched on the vista pines' lower boughs
-// (FOREST_BIRDS) that take off in a flurry when someone walks up (and come back a while later), and
-// butterflies drifting over the meadows. Both from forest.glb's templates (Fauna_Bird_Body, _WingL,
-// _WingR; Fauna_Butterfly_*: each wing's node origin is its shoulder), drawn instanced: one draw
-// per part for the whole flock, each one tinted its own colour. Gone by night (the fireflies take
-// over: ForestWorld).
-
-interface Template {
-  geometry: THREE.BufferGeometry;
-  material: THREE.Material;
-  /** The part's own placement in the template (a wing's shoulder). */
-  matrix: THREE.Matrix4;
-}
+// The Whispering Woods' little lives. By day: songbirds perched on the vista pines' lower boughs
+// (FOREST_BIRDS; the kingfisher on its branch over the brook is one of them, in its own blue) that
+// take off in a flurry when someone walks up (and come back a while later), butterflies drifting
+// over the meadows (Butterflies), and bees circling Bramble's hives. By night: the Old Growth's owl
+// on its bough, turning to watch whoever passes. All from forest.glb's templates (Fauna_Bird_Body,
+// _WingL, _WingR; Fauna_Butterfly_*; Fauna_Bee; Fauna_WoodsOwl), drawn instanced: one draw per part for
+// the whole flock, each one tinted its own colour.
 
 const BIRD_TINTS = ["#ffd0b8", "#c8dcff", "#fff0b0", "#e2ffd8", "#ffe0ec"];
-const FLY_TINTS = ["#ffe066", "#ff9ec4", "#9fd4ff", "#d4b0ff", "#ffb56b", "#b8f0a0"];
-/** The meadows the butterflies drift over (the Border, the Birch Grove, the Golden Glen, the Ridge). */
+/** The meadows the butterflies drift over (the Border, the Birch Grove, the Golden Glen, the Ridge;
+ *  Bramble's garden and the brook). */
 const MEADOWS: [number, number][] = [
   [-7.5, 14.2],
   [-10.2, 6.2],
@@ -34,47 +29,40 @@ const MEADOWS: [number, number][] = [
   [-11.2, 10.0],
   [6.0, -6.0],
   [8.6, 7.6],
+  [10.6, 11.2],
+  [7.6, -2.6],
 ];
 const SCATTER_R = 2.6;
 const FLY_S = 2.2;
-
-function template(scene: THREE.Object3D, name: string): Template | null {
-  const node = scene.getObjectByName(name) as THREE.Mesh | undefined;
-  if (!node) return null;
-  node.visible = false;
-  node.updateWorldMatrix(true, false);
-  const mesh = (node.isMesh ? node : (node.children.find((c) => (c as THREE.Mesh).isMesh) as THREE.Mesh | undefined)) ?? null;
-  if (!mesh) return null;
-  return { geometry: mesh.geometry, material: mesh.material as THREE.Material, matrix: node.matrixWorld.clone() };
-}
-
-function instanced(t: Template | null, count: number, tints: string[]) {
-  if (!t) return null;
-  const mesh = new THREE.InstancedMesh(t.geometry, t.material, count);
-  mesh.frustumCulled = false;
-  mesh.raycast = noRaycast;
-  const c = new THREE.Color();
-  for (let i = 0; i < count; i++) mesh.setColorAt(i, c.set(tints[i % tints.length]));
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  return { mesh, t };
-}
+/** Bees to a hive. */
+const BEES_PER_HIVE = 4;
 
 export function WoodsFauna({ scene }: { scene: THREE.Object3D }) {
   const daylight = useContext(CampDaylightContext) ?? 1;
   const parts = useMemo(() => {
-    const bird = ["Fauna_Bird_Body", "Fauna_Bird_WingL", "Fauna_Bird_WingR"].map((n) => instanced(template(scene, n), FOREST_BIRDS.length, BIRD_TINTS));
-    const fly = ["Fauna_Butterfly_Body", "Fauna_Butterfly_WingL", "Fauna_Butterfly_WingR"].map((n) => instanced(template(scene, n), MEADOWS.length, FLY_TINTS));
-    return { bird, fly };
+    const tints = FOREST_BIRDS.map((b, i) => b.tint ?? BIRD_TINTS[i % BIRD_TINTS.length]);
+    const bird = ["Fauna_Bird_Body", "Fauna_Bird_WingL", "Fauna_Bird_WingR"].map((n) => instanced(template(scene, n), FOREST_BIRDS.length, tints));
+    const bee = instanced(template(scene, "Fauna_Bee"), FOREST_HIVES.length * BEES_PER_HIVE, ["#ffffff"]);
+    const owl = instanced(template(scene, "Fauna_WoodsOwl"), 1, ["#ffffff"]);
+    return { bird, bee, owl };
   }, [scene]);
   useEffect(
     () => () => {
-      for (const p of [...parts.bird, ...parts.fly]) p?.mesh.dispose();
+      for (const p of [...parts.bird, parts.bee, parts.owl]) p?.mesh.dispose();
     },
     [parts]
   );
   // each bird's state: perched, off in a flurry (and away a while), or on its way back
   const birds = useMemo(() => FOREST_BIRDS.map((b) => ({ ...b, phase: "perched" as "perched" | "flying" | "away" | "back", at: -99, dir: { x: 0, z: 1 }, twitch: Math.random() * 4 })), []);
-  const flies = useMemo(() => MEADOWS.map(([x, z], i) => ({ x, z, p: i * 1.7 + Math.random(), a: 0.18 + Math.random() * 0.1, b: 0.23 + Math.random() * 0.1 })), []);
+  // each bee: its hive, and its own loop round the hive's mouth
+  const bees = useMemo(
+    () =>
+      FOREST_HIVES.flatMap((h) =>
+        Array.from({ length: BEES_PER_HIVE }, () => ({ x: h.x, z: h.z, y: forestLand(h.x, h.z) + 0.55, r: 0.28 + Math.random() * 0.45, w: 1.6 + Math.random() * 1.6, p: Math.random() * 6.28, lift: 0.15 + Math.random() * 0.4 }))
+      ),
+    []
+  );
+  const owlYaw = useMemo(() => ({ v: FOREST_OWL.yaw }), []);
 
   const m = useMemo(() => new THREE.Matrix4(), []);
   const w = useMemo(() => new THREE.Matrix4(), []);
@@ -85,10 +73,28 @@ export function WoodsFauna({ scene }: { scene: THREE.Object3D }) {
   const fwd = useMemo(() => new THREE.Vector3(0, 0, 1), []);
   const rot = useMemo(() => new THREE.Matrix4(), []);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
     const day = daylight > 0.3;
-    for (const p of [...parts.bird, ...parts.fly]) if (p) p.mesh.visible = day;
+    for (const p of [...parts.bird, parts.bee]) if (p) p.mesh.visible = day;
+    // --- the owl, by night: it turns to whoever is near, and bobs as it settles ---
+    if (parts.owl) {
+      const night = daylight < 0.25;
+      parts.owl.mesh.visible = night;
+      if (night) {
+        const dx = cameraFocus.x - FOREST_OWL.x;
+        const dz = cameraFocus.z - FOREST_OWL.z;
+        const want = Math.hypot(dx, dz) < 7 ? Math.atan2(dx, dz) : FOREST_OWL.yaw + 0.35 * Math.sin(t * 0.23);
+        let turn = want - owlYaw.v;
+        turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+        owlYaw.v += turn * Math.min(1, dt * 1.8);
+        q.setFromAxisAngle(up, owlYaw.v);
+        const s = 1.7 * (1 + 0.012 * Math.sin(t * 1.4));
+        m.compose(pos.set(FOREST_OWL.x, FOREST_OWL.y, FOREST_OWL.z), q, scl.set(s, s, s));
+        parts.owl.mesh.setMatrixAt(0, w.copy(m).multiply(parts.owl.t.matrix));
+        parts.owl.mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
     if (!day) return;
     // --- the birds ---
     birds.forEach((b, i) => {
@@ -129,26 +135,27 @@ export function WoodsFauna({ scene }: { scene: THREE.Object3D }) {
       if (parts.bird[2]) parts.bird[2].mesh.setMatrixAt(i, w.copy(m).multiply(parts.bird[2].t.matrix).multiply(rot.makeRotationAxis(fwd, -flap)));
     });
     for (const p of parts.bird) if (p) p.mesh.instanceMatrix.needsUpdate = true;
-    // --- the butterflies: a lazy loop over their meadow, flapping as they go ---
-    flies.forEach((f, i) => {
-      const x = f.x + Math.sin(t * f.a + f.p) * 1.9 + Math.sin(t * f.a * 2.3 + f.p) * 0.5;
-      const z = f.z + Math.cos(t * f.b + f.p * 1.3) * 1.5;
-      const y = forestLand(x, z) + 0.75 + 0.35 * Math.sin(t * 0.9 + f.p) + 0.08 * Math.sin(t * 7 + f.p);
-      const vx = Math.cos(t * f.a + f.p) * 1.9 * f.a;
-      const vz = -Math.sin(t * f.b + f.p * 1.3) * 1.5 * f.b;
-      q.setFromAxisAngle(up, Math.atan2(vx, vz));
-      m.compose(pos.set(x, y, z), q, scl.set(2.8, 2.8, 2.8));
-      const flap = 0.2 + Math.abs(Math.sin(t * 14 + f.p)) * 1.15;
-      parts.fly[0]?.mesh.setMatrixAt(i, w.copy(m).multiply(parts.fly[0].t.matrix));
-      if (parts.fly[1]) parts.fly[1].mesh.setMatrixAt(i, w.copy(m).multiply(parts.fly[1].t.matrix).multiply(rot.makeRotationAxis(fwd, flap)));
-      if (parts.fly[2]) parts.fly[2].mesh.setMatrixAt(i, w.copy(m).multiply(parts.fly[2].t.matrix).multiply(rot.makeRotationAxis(fwd, -flap)));
-    });
-    for (const p of parts.fly) if (p) p.mesh.instanceMatrix.needsUpdate = true;
+    // --- the bees: each a quick loop round its hive, in and out, up and down ---
+    if (parts.bee) {
+      const bee = parts.bee;
+      bees.forEach((b, i) => {
+        const a = t * b.w + b.p;
+        const r = b.r * (0.75 + 0.25 * Math.sin(t * 0.9 + b.p * 2));
+        const x = b.x + Math.cos(a) * r;
+        const z = b.z + 0.25 + Math.sin(a) * r * 0.7;
+        const y = b.y + b.lift * (0.6 + 0.4 * Math.sin(t * 1.7 + b.p)) + 0.03 * Math.sin(t * 19 + i);
+        q.setFromAxisAngle(up, -a);
+        m.compose(pos.set(x, y, z), q, scl.set(1.7, 1.7, 1.7));
+        bee.mesh.setMatrixAt(i, w.copy(m).multiply(bee.t.matrix));
+      });
+      bee.mesh.instanceMatrix.needsUpdate = true;
+    }
   });
 
   return (
     <>
-      {[...parts.bird, ...parts.fly].map((p, i) => (p ? <primitive key={i} object={p.mesh} /> : null))}
+      {[...parts.bird, parts.bee, parts.owl].map((p, i) => (p ? <primitive key={i} object={p.mesh} /> : null))}
+      <Butterflies scene={scene} spots={MEADOWS} landY={forestLand} />
     </>
   );
 }

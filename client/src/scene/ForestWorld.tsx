@@ -7,7 +7,7 @@ import { parseWorldEvent, type PlayerState } from "@shared/types";
 import { parseTrees } from "@shared/chop";
 import { isBlocked } from "@shared/collision";
 import { daylight } from "@shared/daynight";
-import { FINLEY, FOREST_ANIMALS, FOREST_GRID, FOREST_LAYOUT as L, FOREST_TREES, OLD_FLINT, forestLand, forestRiver } from "@shared/worlds/forest";
+import { FINLEY, FOREST_ANIMALS, FOREST_GRID, FOREST_LAYOUT as L, FOREST_SHAFTS, FOREST_TREES, OLD_FLINT, forestLand, forestRiver } from "@shared/worlds/forest";
 import { riverWater } from "./riverWater";
 import { FallsSpray, type SprayAt } from "./FallsSpray";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -21,6 +21,7 @@ import { CampDaylightContext } from "./campDay";
 import { OcclusionDriver, ditherOccluder } from "./occlusionDither";
 import { FellableTrees } from "./FellableTrees";
 import { WildCritters } from "./WildCritters";
+import { LightShafts } from "./LightShafts";
 import { SurgeRipples } from "./SurgeRipples";
 import { WoodsFauna } from "./WoodsFauna";
 
@@ -167,6 +168,8 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
       <ForestLights />
       <FallsSpray spots={SPRAY_AT} />
       <WildCritters mapId="whispering_woods" />
+      {/* the daylight through the Old Growth's canopy */}
+      <LightShafts shafts={FOREST_SHAFTS} landY={forestLand} />
       <Fireflies />
       <OcclusionDriver />
     </group>

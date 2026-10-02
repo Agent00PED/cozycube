@@ -202,6 +202,10 @@ PALETTE = {
     "CF_Lupine": "#8C6BC8",
     "CF_Driftwood": "#B7A68E",
     "CF_Cattail": "#6B4A30",
+    # the butterflies' templates (docs/maps-fill-plan.md part 5; pale where the game tints them)
+    "CF_FlyBody": "#2E2622",
+    "CF_FlyWing": "#FFF6E2",
+    "CF_FlyWingLow": "#F4E4C8",
     # the gallery's painted ducks and owls' eyes (the braided rug they were made for is gone: the
     # firepit is river stones, raw logs and boulders now)
     "CF_RugRust": "#C8704A",
@@ -2419,6 +2423,7 @@ def build(root):
     build_living(L, coll)
     build_dressing(L, coll)
     build_places(L, cushions, coll)
+    build_butterfly(coll)
     for ob in coll.all_objects:
         if ob.modifiers:
             bake_modifiers(ob)
@@ -2644,6 +2649,24 @@ def build_dressing(L, coll):
         f.normal_update()
     make_object("Campfire_Dressing", bm, M, coll, recalc=True)
 
+
+
+def build_butterfly(coll):
+    """Fauna_CampFly_*: the templates the game draws its butterflies from (their own names: the studio's
+    master file holds the woods' Fauna_Butterfly_* too, and Blender would rename a second set), instanced (the woods'
+    own shape: build_forest.py): a slim dark body and two broad pale wings, each wing's node origin
+    its hinge. At the world's origin, hidden by the game."""
+    bm = bmesh.new()
+    blob(bm, 0.0, 0.0, 0.0, 0.01, 0.01, 0.04, m=0, cuts=2)
+    cylinder(bm, W(0.004, 0.005, 0.035), W(0.02, 0.02, 0.06), 0.002, 4, m=0)
+    cylinder(bm, W(-0.004, 0.005, 0.035), W(-0.02, 0.02, 0.06), 0.002, 4, m=0)
+    make_object("Fauna_CampFly_Body", bm, ["CF_FlyBody"], coll, origin=(0.0, 0.0, 0.0), lift=None)
+    for sx, name in ((1, "Fauna_CampFly_WingL"), (-1, "Fauna_CampFly_WingR")):
+        bm = bmesh.new()
+        blob(bm, sx * 0.04, 0.0, 0.012, 0.035, 0.004, 0.03, m=0, cuts=2)
+        blob(bm, sx * 0.03, 0.0, -0.022, 0.024, 0.004, 0.02, m=1, cuts=2)
+        blob(bm, sx * 0.05, 0.001, 0.018, 0.008, 0.004, 0.008, m=2, cuts=1)
+        make_object(name, bm, ["CF_FlyWing", "CF_FlyWingLow", "CF_FlyBody"], coll, origin=(sx * 0.008, 0.0, 0.0), lift=None)
 
 
 def build_places(L, cushions, coll):
