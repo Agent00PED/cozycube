@@ -108,6 +108,17 @@ added to make the maps "natural" were clutter of their own.
 - **No waterfalls:** the fall and rock step at each river's head and the sheet over each island's
   edge are gone. Each river is a stream that comes in over the north edge and leaves over the south.
 
+## Round five: fewer things (patch 0.7.54)
+
+- **The campfire's south side** had a gallery, a swing, three garden beds, a scarecrow, a picnic table
+  and the fence's lights within a few metres. The beds, the scarecrow and the watering can are gone;
+  so are the drying rack by the hammocks, the last stump, the lantern post north of the fire and four
+  shrubs.
+- **The woods** had seven lantern posts along their trails: now four (two on the first stretch from
+  the archway, one at each keeper). The fish signs at the fishing spots are gone.
+- The two trail posts stay because the simulator's woodcutter walks round them: without them the
+  woods' T4 and T5 earn 2% and 1.4% less. Income is exactly as on record.
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.

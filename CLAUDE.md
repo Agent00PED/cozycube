@@ -327,6 +327,12 @@ The camp's daylight and the ground's relief (docs/maps-nature-pass.md round thre
 - **The painted shade lies the way that key throws it** (nature_kit `Shade.cast`'s `throw`: to the east-north-east of what casts it; the key stands at (-14, 24, 10) in WorldScene). Move the key and the shade's throw moves with it.
 - **Low hummocks on the open lawns** (the campfire's `terrain.mounds` entries `hummock`, the woods' `terrain.steps` entry `hummocks`: 0.2 m high, 1.5 to 1.9 m skirts), clear of everything built (`check-layout`'s level checks hold them off the firepit, the dock, the stalls).
 
+Fewer things (docs/maps-nature-pass.md round five, patch 0.7.54): both camp maps thinned again.
+- **The campfire:** the Swing Garden's three beds, its scarecrow and watering can, and the Hammock Grove's drying rack are gone (the layout's `places.beds`, `scarecrow`, `dryingRack`, their colliders and builder code); so are the last dressing stump, the lantern post north of the fire (one stays, on the knoll's trail) and four of the eleven shrubs. The swing, the picnic table, the gallery, the hammocks, the blankets, the glade and the River's End stay.
+- **The woods:** four lantern posts, not seven (`dressing.lanternPosts`: the two on the first stretch of the trail from the archway, one at Bramble's, one at Finley's); the little fish signs at the fishing spots are gone (the counter's hanging sign stays).
+- **Income is as on record.** The two trail posts stay because their colliders steer the woodcutter's walks: without them the woods' T4 and T5 fall 2% and 1.4%. Take one out only with `ONLY=wood npm run economy-sim` open.
+- Where the text below still speaks of beds, a scarecrow, a drying rack or seven posts, this block is the truth.
+
 Streams, not falls (patch 0.7.53; the owner's call after seeing the maps): on both camp maps the river is a stream that flows in over the island's north edge and out over its south.
 - **No waterfall anywhere:** no fall at a river's head (the layouts' `cascade`, its rock step and colliders, `build_falls`, the plunge pool's stones are gone), no sheet over the island's edge, no spray (`FallsSpray.tsx` is deleted). `river.points` now begin beyond the north edge; the builders' `build_water` lays the sheet from edge to edge.
 - **The woods' brook is gone** with its spring, stepping stones and log bridge (`brook`, `forestBrook`, `brookCut`, `build_brook`, its checks). The kingfisher's dead branch stands on the river's bank by Finley's pool (`life.kingfisher`).
