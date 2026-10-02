@@ -1379,17 +1379,24 @@ TONES = ({"needle": 1, "needle_light": 2}, {"needle": 5, "needle_light": 6}, {"n
 def build_vista(L, coll):
     rng = random.Random(21)
     bm = bmesh.new()
+    # Only the trees a bird keeps stand in the model (the songbirds' pines on the rim, the owl's in
+    # the Old Growth): every other one is felled, so the game draws it from trees.glb at its node
+    # (shared/worlds/forest.ts FOREST_WILD_TREES: the same looks, sizes and greens as here). Those
+    # are still grown here, into a mesh thrown away, so everything after them stands where it did.
+    gone = bmesh.new()
     birds = {(b[0], b[1]) for b in L["birds"]}
     for i, (x, z, s) in enumerate(L["vista"]):
         # (a songbird's pine is a pine: its perch is measured on that shape; one in four of the rest a spruce)
-        pine(bm, x, z, s * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 4 == 2 and (x, z) not in birds else "pine", **TONES[(i * 2 + 1) % 3])
-    # the Old Growth's great pines (the dressing's: not felled, half as tall again as the rim's)
+        pine(bm if (x, z) in birds else gone, x, z, s * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 4 == 2 and (x, z) not in birds else "pine", **TONES[(i * 2 + 1) % 3])
+    # the great trees between the groves and in the Old Growth (half as tall again as the rim's)
     owl = tuple(L.get("life", {}).get("owl", {}).get("tree", ()))
     for i, t in enumerate(L["dressing"]["greatTrees"]):
+        into = bm if (t["x"], t["z"]) == owl else gone
         if t["kind"] == "spruce":
-            pine(bm, t["x"], t["z"], t["s"] * 1.55, rng, light=False, deep=3, kind="spruce", **TONES[i % 3])
+            pine(into, t["x"], t["z"], t["s"] * 1.55, rng, light=False, deep=3, kind="spruce", **TONES[i % 3])
         elif t["kind"] == "pine":
-            pine(bm, t["x"], t["z"], t["s"] * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 3 == 2 and (t["x"], t["z"]) != owl else "pine", **TONES[(i + 1) % 3])
+            pine(into, t["x"], t["z"], t["s"] * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 3 == 2 and (t["x"], t["z"]) != owl else "pine", **TONES[(i + 1) % 3])
+    gone.free()
     # the understory: saplings at the feet of the rim's pines and in the Old Growth (walked through),
     # and the dead standing trees the layout places
     K = nature()
@@ -1426,7 +1433,10 @@ def build_vista(L, coll):
         before = set(bm.faces)
         cone_tree(bm, t["s"] * 1.45, rng, ((0.95, 0.8, 1.0), (0.8, 1.4, 0.95), (0.64, 1.95, 0.9), (0.46, 2.45, 0.85), (0.28, 2.9, 0.8)), 0, 1, 2, trunk_r=0.22, trunk_h=1.0)
         xform_since(bm, before, Matrix.Translation(W(t["x"], 0.0, t["z"])))
-    make_object("Forest_VistaCedars", bm, ["FW_CedarBark", "FW_CedarNeedle", "FW_CedarNeedleLight"], coll, lift="parts")
+    if any(t["kind"] == "cedar" for t in L["dressing"]["greatTrees"]):
+        make_object("Forest_VistaCedars", bm, ["FW_CedarBark", "FW_CedarNeedle", "FW_CedarNeedleLight"], coll, lift="parts")
+    else:
+        bm.free()
     # the birches that are not felled (the North Ridge's stand, the rise's few)
     bm = bmesh.new()
     for x, z, sz in L["dressing"]["birches"]:
@@ -2077,9 +2087,20 @@ def elder_tree(bm, s, rng):
         blob(bm, math.cos(a) * rr, (1.5 + 3.6 * ((k * 5) % 7) / 6) * s, math.sin(a) * rr, 0.065 * s, 0.065 * s, 0.065 * s, m=3, cuts=1)
 
 
+# the grown conifers' one finish (their colours in the mesh's corners: one draw call a look, and the
+# game tints each tree's needles its own green; "Needle" in its name: the game sways it)
+CONIFER_LOOK = "FW_PineNeedleLook"
+
+
 def build_trees(coll):
-    """Tree_<kind>_<stage>: every kind's stump, sprout, sapling and mature looks."""
+    """Tree_<kind>_<stage>: every kind's stump, sprout, sapling and mature looks; and
+    Tree_spruce_mature, the slimmer conifer some of the wild Soft Pines grow as."""
     out = []
+    bm = bmesh.new()
+    nature().conifer(bm, 0.0, 0.0, 1.0, random.Random(91), 0, (2, 2, 3), kind="spruce", lean=0.04)
+    ob = make_object("Tree_spruce_mature", bm, ["FW_PineBark", "FW_WoodCut", "FW_PineNeedle", "FW_PineNeedleLight"], coll)
+    bake_colors(ob, one=CONIFER_LOOK)
+    out.append(ob.name)
     for kind in TREE_KINDS:
         for stage in STAGES:
             rng = random.Random(TREE_KINDS.index(kind) * 10 + STAGES.index(stage))
@@ -2128,6 +2149,8 @@ def build_trees(coll):
                 else:
                     elder_tree(bm, 0.3 if stage == "sapling" else 1.0, rng)
             ob = make_object(f"Tree_{kind}_{stage}", bm, mats, coll)
+            if kind == "soft_pine" and stage == "mature":
+                bake_colors(ob, one=CONIFER_LOOK)
             out.append(ob.name)
     return out
 

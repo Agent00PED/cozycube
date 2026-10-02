@@ -4,7 +4,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { MapId, PlayerState } from "@shared/types";
 import { COLOSSAL, TITAN, TREES, isColossalKind, type TreeKind, type TreeStage, type TreeSync } from "@shared/chop";
-import { FELL_TREES, fellReach, type FellTree } from "@shared/worlds/trees";
+import { FELL_TREES, drawnSize, fellReach, type FellTree } from "@shared/worlds/trees";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
@@ -22,6 +22,10 @@ import { treeTarget } from "./treeTarget";
 // the action dock names it): a click, a tap or E fells it. One coming down swings over, away from
 // whoever felled it, bounces and sinks away, the stump already under it. A Titan glows amber, motes
 // of it drifting up round its trunk.
+//
+// The wild trees (the ones that stand everywhere else: FellTree `look`, `size`, `tone`) are felled the
+// same way. Grown, each is its own look (a pine, or the slimmer spruce) at the size the layout gave
+// it and in one of the conifers' three greens (the needles tinted, the bark left as it is).
 
 export const TREES_URL = modelUrl("trees.glb");
 
@@ -51,6 +55,37 @@ function swayFoliage(m: THREE.Material) {
   m.needsUpdate = true;
 }
 
+/** The conifers' three greens, as tints over the pine's own (linear: the look's needles are painted
+ *  in the first): the pine's, a blue, an olive (build_forest.py's FW_PineNeedle, -Blue, -Olive). */
+const TONE_TINTS = (() => {
+  const base = new THREE.Color("#3B7150");
+  return ["#3B7150", "#33685F", "#4C7A42"].map((hex) => {
+    const c = new THREE.Color(hex);
+    return new THREE.Color(c.r / base.r, c.g / base.g, c.b / base.b);
+  });
+})();
+/** The grown conifers' finish (their colours are in the mesh): each tree's own green tints its
+ *  needles, never its bark (the faces painted redder than green). */
+const TINTED = /NeedleLook/;
+function tintNeedles(m: THREE.Material) {
+  if (m.userData.tinting) return;
+  m.userData.tinting = true;
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (shader, renderer) => {
+    prev?.call(m, shader, renderer);
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <color_vertex>",
+      `#include <color_vertex>
+      #if defined( USE_INSTANCING_COLOR ) && defined( USE_COLOR )
+        if (color.r > color.g) vColor.rgb = color.rgb;
+      #endif`
+    );
+  };
+  const key = m.customProgramCacheKey?.bind(m);
+  m.customProgramCacheKey = () => `${key ? key() : ""}|needleTint`;
+  m.needsUpdate = true;
+}
+
 /** A tree's yaw at its node: fixed per node, so every client plants it the same way round. */
 export function treeYaw(id: string): number {
   let h = 0;
@@ -75,6 +110,8 @@ ditherOccluder(OUTLINE_MAT, 0);
 interface Falling {
   id: string;
   kind: TreeKind;
+  /** A wild tree's own look. */
+  look?: string;
   scale: number;
   at: number;
   x: number;
@@ -130,7 +167,13 @@ function kindOf(t: FellTree, sync: TreeSync | undefined): TreeKind {
  *  the maple, the great Elderwood: build_forest.py's mature sizes) are drawn that much smaller. */
 const COLOSSAL_LOOK: Partial<Record<TreeKind, number>> = { cedar: 1.2 / 1.4, maple: 1.15 / 1.4, elderwood: 0.6 };
 function sizeOf(t: FellTree, sync: TreeSync | undefined): number {
-  return t.titan ? TITAN.scale * (COLOSSAL_LOOK[kindOf(t, sync)] ?? 1) : Math.max(0.5, Math.min(2.5, sync?.scale ?? 1));
+  return t.titan ? TITAN.scale * (COLOSSAL_LOOK[kindOf(t, sync)] ?? 1) : drawnSize(t, Math.max(0.5, Math.min(2.5, sync?.scale ?? 1)));
+}
+/** The look a tree is drawn in (a template's key): its kind's at its stage; a wild tree grown, its own. */
+const LOOKS = ["spruce"] as const;
+function lookOf(t: FellTree, sync: TreeSync | undefined): string {
+  const stage = sync?.stage ?? "mature";
+  return `${stage === "mature" && t.look === "spruce" ? "spruce" : kindOf(t, sync)}:${stage}`;
 }
 
 const STAND_IN_TRUNK = matte("#5a3e2b", 0.85);
@@ -170,10 +213,11 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
       mesh.raycast = noRaycast;
       const m = mesh.material as THREE.MeshStandardMaterial;
       if (SWAYERS.test(m.name)) swayFoliage(m);
+      if (TINTED.test(m.name)) tintNeedles(m);
       ditherOccluder(m);
     });
     scene.updateMatrixWorld(true);
-    for (const kind of Object.keys(TREES) as TreeKind[]) {
+    for (const kind of [...(Object.keys(TREES) as TreeKind[]), ...LOOKS]) {
       for (const stage of STAGES) {
         const node = scene.getObjectByName(`Tree_${kind}_${stage}`);
         if (!node) continue;
@@ -194,12 +238,14 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
   const instanced = useMemo(() => {
     const out: { key: string; mesh: THREE.InstancedMesh; part: TemplatePart }[] = [];
     templates.forEach((parts, key) => {
-      const kind = key.split(":")[0] as TreeKind;
-      // (a Colossal clearing may show any kind's look)
-      const most = nodes.filter((t) => t.kind === kind || t.titan).length;
+      const kind = key.split(":")[0];
+      // (a Colossal clearing may show any kind's look; a wild tree's own look is one of its kind's)
+      const most = nodes.filter((t) => t.kind === kind || t.titan || t.look === kind).length;
       if (!most) return;
       for (const part of parts) {
         const mesh = new THREE.InstancedMesh(part.geometry, part.material, most);
+        // (the grown conifers: each instance its own green)
+        if (TINTED.test(part.material.name)) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(most * 3).fill(1), 3);
         mesh.count = 0;
         mesh.frustumCulled = false;
         mesh.raycast = noRaycast;
@@ -214,7 +260,7 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
   useEffect(() => {
     const byKey = new Map<string, FellTree[]>();
     for (const t of standing(mapId, trees)) {
-      const key = `${kindOf(t, trees[t.id])}:${trees[t.id]?.stage ?? "mature"}`;
+      const key = lookOf(t, trees[t.id]);
       byKey.set(key, [...(byKey.get(key) ?? []), t]);
     }
     const m = new THREE.Matrix4();
@@ -230,9 +276,11 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
         q.setFromAxisAngle(up, treeYaw(t.id));
         m.compose(pos.set(t.x, t.y, t.z), q, stump ? scl.set(s, 1, s) : scl.set(s, s, s)).multiply(part.matrix);
         mesh.setMatrixAt(i, m);
+        if (mesh.instanceColor) mesh.setColorAt(i, TONE_TINTS[(t.tone ?? 0) % TONE_TINTS.length]);
       });
       mesh.count = list.length;
       mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
   }, [instanced, trees, mapId]);
 
@@ -251,8 +299,8 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
         dx /= d;
         dz /= d;
         const kind = (payload.kind as TreeKind) || kindOf(node, liveTrees.current[node.id]);
-        const scale = node.titan ? TITAN.scale * (COLOSSAL_LOOK[kind] ?? 1) : Number(payload.scale) || sizeOf(node, liveTrees.current[node.id]);
-        setFalling((f) => [...f.filter((x) => performance.now() / 1000 - x.at < FALL_S + SINK_S), { id: node.id, kind, scale, at: performance.now() / 1000, x: node.x, y: node.y, z: node.z, dx, dz }]);
+        const scale = node.titan ? TITAN.scale * (COLOSSAL_LOOK[kind] ?? 1) : Number(payload.scale) ? drawnSize(node, Number(payload.scale)) : sizeOf(node, liveTrees.current[node.id]);
+        setFalling((f) => [...f.filter((x) => performance.now() / 1000 - x.at < FALL_S + SINK_S), { id: node.id, kind, look: node.look === "spruce" ? "spruce" : undefined, scale, at: performance.now() / 1000, x: node.x, y: node.y, z: node.z, dx, dz }]);
         if (Math.hypot(node.x - cameraFocus.x, node.z - cameraFocus.z) < 14) {
           playSfx("woodSnap");
           window.setTimeout(() => playSfx("thunk"), FALL_S * 1000 - 120);
@@ -295,9 +343,9 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
         <primitive key={`${key}:${i}:${part.geometry.uuid}`} object={mesh} />
       ))}
       {falling.map((f) => (
-        <FallingTree key={`${f.id}:${f.at}`} fall={f} parts={templates.get(`${f.kind}:mature`) ?? []} />
+        <FallingTree key={`${f.id}:${f.at}`} fall={f} parts={templates.get(`${f.look ?? f.kind}:mature`) ?? []} />
       ))}
-      {outlineTree && <TreeOutline tree={outlineTree} scale={sizeOf(outlineTree, trees[outlineTree.id])} parts={templates.get(`${kindOf(outlineTree, trees[outlineTree.id])}:mature`) ?? []} />}
+      {outlineTree && <TreeOutline tree={outlineTree} scale={sizeOf(outlineTree, trees[outlineTree.id])} parts={templates.get(lookOf(outlineTree, trees[outlineTree.id])) ?? []} />}
       {titans.map((t) => {
         const kind = kindOf(t, trees[t.id]);
         return <TitanGlow key={`${t.id}:${kind}`} x={t.x} y={t.y} z={t.z} color={isColossalKind(kind) ? COLOSSAL[kind].fx : "#ffb347"} />;

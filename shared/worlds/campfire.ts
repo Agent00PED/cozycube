@@ -3,6 +3,7 @@ import { CUSHIONS, napPose } from "../seats";
 import type { SeatStyle } from "../types";
 import type { PropSpec, SeatSpec } from "./lounge";
 import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
+import { openApproach } from "./approach";
 
 // The Starlight Campfire (docs/campfire-design.md): a floating island of forest soil and moss, 28 m
 // across, on gentle ground: the Hearth in the middle (the bonfire in its horseshoe of log benches, on
@@ -12,8 +13,9 @@ import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 // east side (a fall off a rock step into a plunge pool, a pond at the boardwalk dock with its three
 // fishing spots, Barnaby's stall, the canoe, and out over the island's south edge), the South Meadow
 // (the slingshot gallery, the picnic table, the birch grove), eight Soft Pines between them that you
-// fell (they grow back), pines along the back edges and a rustic fence along the front. Authored
-// ONCE, here:
+// fell (they grow back), pines along the back edges and a rustic fence along the front. Every other
+// pine and spruce is felled too (CAMP_WILD_TREES, patch 0.7.57), but the ones that hold something up
+// (the hammocks', the light strings', the owl's) and the one across the river. Authored ONCE, here:
 //
 //   CAMPFIRE_LAYOUT   where everything is (plain JSON between the markers: scripts/blender/
 //                     build_campfire.py reads the very same text to build campfire.glb, so the
@@ -92,14 +94,14 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": -12.8, "z": -12.9, "s": 1.3 },
     { "x": -8.4, "z": -13.1, "s": 1.1 },
     { "x": -5.4, "z": -13.0, "s": 0.95 },
-    { "x": 3.4, "z": -13.2, "s": 0.95 },
+    { "x": 3.4, "z": -13.2, "s": 0.95, "keep": true },
     { "x": 8.6, "z": -13.1, "s": 0.9 },
-    { "x": 12.6, "z": -12.8, "s": 1.0 },
+    { "x": 12.6, "z": -12.8, "s": 1.0, "keep": true },
     { "x": -12.9, "z": -9.6, "s": 1.15, "yaw": 1.7 },
     { "x": -13.0, "z": -6.8, "s": 1.2, "yaw": 0.4 },
-    { "x": -11.2, "z": -5.6, "s": 1.1, "yaw": 2.9 },
-    { "x": -13.0, "z": -4.4, "s": 0.85, "yaw": 2.2 },
-    { "x": -12.6, "z": -1.0, "s": 1.05, "yaw": 3.3 },
+    { "x": -11.2, "z": -5.6, "s": 1.1, "yaw": 2.9, "keep": true },
+    { "x": -13.0, "z": -4.4, "s": 0.85, "yaw": 2.2, "keep": true },
+    { "x": -12.6, "z": -1.0, "s": 1.05, "yaw": 3.3, "keep": true },
     { "x": -13.2, "z": 1.6, "s": 0.8, "yaw": 5.0 },
     { "x": -12.9, "z": 3.4, "s": 1.25, "yaw": 1.1 },
     { "x": -13.1, "z": 8.2, "s": 1.0, "yaw": 4.1 },
@@ -415,6 +417,39 @@ const campTree = (id: string, kind: "soft_pine" | "birch", t: { x: number; z: nu
 };
 /** (And the stand of Silver Birches on the south-west lawn: what the campfire's T2 axe is for.) */
 export const CAMP_TREES = [...L.fellTrees.map((t, i) => campTree(`camp_pine_${i + 1}`, "soft_pine", t)), ...L.fellBirches.map((t, i) => campTree(`camp_birch_${i + 1}`, "birch", t))];
+
+/** A pine's trunk as you walk round it (`trees`: each its own size). */
+const pineTrunk = (s: number) => 0.42 * Math.max(0.8, s);
+/** Open ground for a feller to stand on: clear of every trunk, rock and shrub, the tipi, the stalls'
+ *  row, the river and the island's rim (the layout's own things: `check-layout` walks to each). */
+function campOpen(x: number, z: number): boolean {
+  const body = 0.34;
+  if (Math.max(Math.abs(x), Math.abs(z)) > L.half - 0.95) return false;
+  const span = riverSpan(z);
+  if (span && x > span.x0 - 0.5) return false;
+  const clear = (p: { x: number; z: number }, r: number) => Math.hypot(x - p.x, z - p.z) > r + body;
+  if (!L.trees.every((t) => clear(t, pineTrunk(t.s)))) return false;
+  if (![...L.fellTrees, ...(L.fellBirches as readonly { x: number; z: number }[])].every((t) => clear(t, 0.36))) return false;
+  if (!L.rocks.every((r) => clear(r, 0.45 * r.s))) return false;
+  if (!L.dressing.shrubs.every(([sx, sz, s]) => clear({ x: sx, z: sz }, 0.34 * s))) return false;
+  if (!L.dressing.snags.every(([sx, sz]) => clear({ x: sx, z: sz }, 0.2))) return false;
+  if (!L.dressing.crates.every((c) => clear(c, 0.6)) || !L.dressing.lanternPosts.every((c) => clear(c, 0.1)) || !L.dressing.fallen.every((c) => clear(c, c.len / 2 + 0.1))) return false;
+  if (!clear(L.tent, L.tent.r) || !clear(L.woodpile, 1.1) || !clear(L.buster, 1.0) || !clear(L.telescope, 0.3) || !clear(L.stringPole, 0.1)) return false;
+  if (!clear(L.places.glade, L.places.glade.r + 0.35) || !clear(L.guitarCase, 0.5)) return false;
+  return true;
+}
+/** The camp's other trees, felled too (all but the ones that hold something up: the hammocks'
+ *  pines, the pines a string of lights is tied to, the owl's; and the one across the river, which no
+ *  one reaches: the layout's `bare` and `keep`): each a Soft Pine in the look the
+ *  layout stands it in (`look`: a pine or the slimmer spruce; `size`: its own against the look's;
+ *  `tone`: which of the three greens), felled from the nearest open ground on the fire's side. */
+export const CAMP_WILD_TREES = L.trees.flatMap((raw, i) => {
+  const t = raw as { x: number; z: number; s: number; kind?: string; bare?: number; keep?: boolean };
+  if (t.bare || t.keep) return [];
+  const look = (t.kind ?? (i % 4 === 2 ? "spruce" : "pine")) as "pine" | "spruce";
+  const at = openApproach(t, pineTrunk(t.s) + 0.63, L.fire, campOpen);
+  return [{ id: `camp_wild_${i + 1}`, kind: "soft_pine" as const, x: t.x, z: t.z, approachX: at.x, approachZ: at.z, look, size: Math.round((look === "pine" ? t.s / 1.05 : t.s) * 1000) / 1000, tone: (i * 2 + 1) % 3 }];
+});
 
 /** Close enough to the telescope's eyepiece to look through it. */
 export const STARGAZE_REACH = 1.4;
@@ -768,7 +803,7 @@ export const CAMP_PROPS: PropSpec[] = [
   // the brass telescope on the knoll's top, the Overlook: look up and catch shooting stars
   { propId: "telescope", x: L.telescope.x, z: L.telescope.z, kind: "telescope", color: "#d9a441", defaultOn: true, approachX: TELESCOPE_FRONT.x, approachZ: TELESCOPE_FRONT.z },
   // the Soft Pines round the clearing: fell them (E, a click or a tap), they grow back
-  ...CAMP_TREES.map((t): PropSpec => ({ propId: `tree_${t.id}`, x: t.x, z: t.z, kind: "tree", color: "#4f7a3a", defaultOn: true, approachX: t.approachX, approachZ: t.approachZ })),
+  ...[...CAMP_TREES, ...CAMP_WILD_TREES].map((t): PropSpec => ({ propId: `tree_${t.id}`, x: t.x, z: t.z, kind: "tree", color: "#4f7a3a", defaultOn: true, approachX: t.approachX, approachZ: t.approachZ })),
   // mushrooms and berries under the pines; `on` while there is something to pick
   ...FORAGE_SPOTS.map((f): PropSpec => ({ propId: f.propId, x: f.x, z: f.z, kind: "foraging", color: f.kind === "berries" ? "#8f7bff" : "#d9483b", defaultOn: true, approachX: f.approachX, approachZ: f.approachZ })),
   // the raccoon by the camper van: toss it a treat
@@ -862,7 +897,7 @@ export const CAMP_OBSTACLES: AABB[] = [
   // the woodpile
   { minX: L.woodpile.x - 0.6, maxX: L.woodpile.x + 1.0, minZ: L.woodpile.z - 0.5, maxZ: L.woodpile.z + 0.6 },
   // the pines' trunks (the Soft Pines you fell too: a stump is in the way as well) and the boulders
-  ...L.trees.map((t) => around(t, 0.42 * Math.max(0.8, t.s))),
+  ...L.trees.map((t) => around(t, pineTrunk(t.s))),
   ...CAMP_TREES.map((t) => around(t, 0.36)),
   ...L.rocks.map((r) => around(r, 0.45 * r.s)),
   // the picnic table, its benches and the cooler at its end; the telescope's tripod

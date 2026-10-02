@@ -1370,8 +1370,15 @@ def build_trees(L, coll):
     rng = random.Random(21)
     bm = bmesh.new()
     # (each at its own size, and turned its own way where the layout says: the west edge's stagger)
+    # Only the trees that hold something up stand in the model (the hammocks' pines, `bare`; the
+    # ones a string of lights is tied to, the owl's and the one across the river, `keep`): every
+    # other one is felled, so the game draws it from trees.glb at its node (shared/worlds/campfire.ts
+    # CAMP_WILD_TREES: the same looks, sizes and greens as here). Those are still grown here, into
+    # a mesh thrown away, so everything after them stands where it did.
+    gone = bmesh.new()
     for i, t in enumerate(L["trees"]):
-        pine(bm, t["x"], t["z"], t["s"], rng, light=i % 3 == 1, yaw=t.get("yaw"), bare=t.get("bare", 0.0), kind=t.get("kind", "spruce" if i % 4 == 2 and not t.get("bare") else "pine"), tone=0 if t.get("bare") else i * 2 + 1)
+        pine(bm if t.get("bare") or t.get("keep") else gone, t["x"], t["z"], t["s"], rng, light=i % 3 == 1, yaw=t.get("yaw"), bare=t.get("bare", 0.0), kind=t.get("kind", "spruce" if i % 4 == 2 and not t.get("bare") else "pine"), tone=0 if t.get("bare") else i * 2 + 1)
+    gone.free()
     # the understory: saplings in ones and twos at the feet of the grown pines and along the rims
     # (walked through: a sapling is a child's height), and the dead trees the layout stands
     K = nature()

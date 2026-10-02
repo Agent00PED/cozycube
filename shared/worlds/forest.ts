@@ -2,6 +2,7 @@ import { TREES, type TreeKind } from "../chop";
 import type { AABB } from "../collision";
 import type { PropSpec } from "./lounge";
 import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
+import { openApproach } from "./approach";
 
 // The Whispering Woods (the map "whispering_woods", docs/woods-design.md): a 34 x 34 hillside wood
 // behind the Starlight Campfire's fence: the ground rises from the river along the east (-0.2 m) to
@@ -18,7 +19,10 @@ import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 //
 // The wood is full (patch 0.7.55): a grove of each kind, its trees 2.7 to 4 m apart (no tight clumps,
 // no rows), the middle wooded too, the great tree at the top of the hill over them all; what is not
-// a grove is filled with things that are not felled (the dressing's small pines, shrubs, boulders).
+// a grove is filled with the dressing's pines and spruces, shrubs and boulders. Every tree is felled
+// (patch 0.7.57): the groves' (`trees`), and the wild ones (FOREST_WILD_TREES: the rim's pines and
+// the great trees between the groves and in the Old Growth, Soft Pines all), but the six a bird
+// keeps (the songbirds' pines on the rim, the owl's).
 //
 //   The Border          the way in from the archway: meadow and four Soft Pines (T1), and the trail
 //                       east along the south to Bramble's. No trail is drawn (`formerPaths` keeps
@@ -36,7 +40,7 @@ import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 //   The Hidden Hollow   the Mine Ledge in the north-west corner: the adit, screened from the camera
 //                       by three spruces; no trail leads to it, and the way in is round their
 //                       north end
-//   The Old Growth      the north-east: tall pines and ancient cedars (never felled)
+//   The Old Growth      the north-east: tall pines and spruces (Soft Pines, half as tall again)
 //
 // Round them: a meandering river (in off the north edge, out off the east, its banks strewn with
 // pebbles and rocks; four fishing spots on its bank, two of them a log and a rock to sit on: the wild
@@ -44,8 +48,8 @@ import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 // river (the woods' angler: fish, rods, livewells, bait), Bramble the Bear's trading post in the
 // south-east (the woods' forester: logs and by-products, axes, carriers), its cabin flush against
 // the eastern tree line and an open clearing before his counter, his advanced workbench right beside
-// it, birds on the vista pines' lower boughs, and twenty-five vista pines along the back and side
-// edges (not for felling). Behind the Golden Glen's Autumn Maples, set into a mossy outcrop on the
+// it, birds on the vista pines' lower boughs, and twenty-four vista pines along the back and side
+// edges. Behind the Golden Glen's Autumn Maples, set into a mossy outcrop on the
 // western cliff and half hidden by ferns and vines, an old mine adit: the way down to the Glimmering
 // Caverns, kept by Old Flint the Badger (his lantern helmet, his leather apron): meeting him hands
 // you the Rusted Pickaxe, and the adit is open to you for good. The layout below is plain JSON between the markers, read as-is by
@@ -102,6 +106,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "id": "maple_1", "kind": "maple", "x": -12.4, "z": -1.4 },
     { "id": "maple_2", "kind": "maple", "x": -8.8, "z": -3.8 },
     { "id": "maple_3", "kind": "maple", "x": -11.6, "z": -6.8 },
+    { "id": "maple_4", "kind": "maple", "x": -9.1, "z": -10.0 },
     { "id": "elder_1", "kind": "elderwood", "x": -2.2, "z": -9.2 },
     { "id": "birch_9", "kind": "birch", "x": -7.4, "z": 2.8 },
     { "id": "birch_10", "kind": "birch", "x": -5.8, "z": 1.4 },
@@ -124,19 +129,18 @@ export const FOREST_LAYOUT = /* layout:begin */ {
       [-6.0, -8.2, 0.6], [5.6, -2.4, 0.7], [-2.0, 8.8, 0.5], [-8.6, -11.6, 0.7]
     ],
     "greatTrees": [
-      { "x": 5.0, "z": -11.8, "s": 1.3, "kind": "cedar" },
+      { "x": 5.0, "z": -11.8, "s": 1.3, "kind": "pine" },
       { "x": 7.6, "z": -12.2, "s": 1.3, "kind": "pine" },
       { "x": 3.4, "z": -13.2, "s": 1.3, "kind": "pine" },
       { "x": 9.9, "z": -14.8, "s": 1.25, "kind": "pine" },
-      { "x": 6.2, "z": -14.5, "s": 1.3, "kind": "cedar" },
+      { "x": 6.2, "z": -14.5, "s": 1.3, "kind": "pine" },
       { "x": 10.7, "z": -12.9, "s": 1.2, "kind": "pine" },
       { "x": 2.4, "z": -14.6, "s": 1.1, "kind": "pine" },
-      { "x": 8.6, "z": -13.2, "s": 1.25, "kind": "cedar" },
+      { "x": 8.6, "z": -13.2, "s": 1.25, "kind": "pine" },
       { "x": 10.2, "z": -11.0, "s": 1.0, "kind": "pine" },
       { "x": -13.8, "z": -10.9, "s": 1.35, "kind": "spruce" },
       { "x": -14.6, "z": -9.7, "s": 1.3, "kind": "spruce" },
       { "x": -12.4, "z": -9.2, "s": 1.2, "kind": "spruce" },
-      { "x": -9.2, "z": -9.8, "s": 1.0, "kind": "pine" },
       { "x": -6.8, "z": -12.9, "s": 1.15, "kind": "spruce" },
       { "x": -0.6, "z": 9.6, "s": 0.7, "kind": "pine" },
       { "x": -14.6, "z": 14.4, "s": 0.75, "kind": "pine" },
@@ -425,6 +429,64 @@ export function titanApproach(p: Pt): Pt {
   return { x: p.x - ((p.x - L.core.x) / d) * 1.7, z: p.z - ((p.z - L.core.z) / d) * 1.7 };
 }
 
+/** The shrine's standing stones: a ring round the elderwood with a gap (SHRINE_GAP) toward the
+ *  middle of the wood, where the way in is (the builder lays them out the same way). */
+export const SHRINE_GAP = 0.26 * Math.PI;
+export const SHRINE_STONES: Pt[] = (() => {
+  const open = Math.atan2(L.core.z - L.shrine.z, L.core.x - L.shrine.x);
+  const n = L.shrine.stones;
+  return Array.from({ length: n }, (_, k) => {
+    const a = open + SHRINE_GAP / 2 + (k / (n - 1)) * (2 * Math.PI - SHRINE_GAP);
+    return { x: L.shrine.x + Math.cos(a) * L.shrine.r, z: L.shrine.z + Math.sin(a) * L.shrine.r };
+  });
+})();
+
+/** Open ground for a feller to stand on: clear of every trunk, boulder, shrub and standing stone,
+ *  the river, the cabin and the island's rim (the layout's own things: `check-layout` walks to each). */
+function woodsOpen(x: number, z: number): boolean {
+  const body = 0.34;
+  if (Math.max(Math.abs(x), Math.abs(z)) > L.half - 0.95) return false;
+  const r = forestRiverAt(x, z);
+  if (r.d < r.w + 0.45) return false;
+  const clear = (px: number, pz: number, rad: number) => Math.hypot(x - px, z - pz) > rad + body;
+  if (!L.trees.every((t) => clear(t.x, t.z, trunkOf(t.kind)))) return false;
+  if (!L.vista.every(([vx, vz, s]) => clear(vx, vz, 0.45 * s)) || !L.dressing.greatTrees.every((t) => clear(t.x, t.z, 0.42 * t.s))) return false;
+  if (!L.dressing.boulders.every(([bx, bz, s]) => clear(bx, bz, 0.45 * s)) || !L.dressing.shrubs.every(([bx, bz, s]) => clear(bx, bz, 0.34 * s))) return false;
+  if (!L.dressing.snags.every(([bx, bz]) => clear(bx, bz, 0.2)) || !L.dressing.lanternPosts.every(([bx, bz]) => clear(bx, bz, 0.1)) || !L.dressing.stumps.every(([bx, bz]) => clear(bx, bz, 0.24))) return false;
+  if (!L.dressing.fallen.every((f) => clear(f.x, f.z, f.len / 2 + 0.1)) || !SHRINE_STONES.every((p) => clear(p.x, p.z, 0.28)) || !L.titanSpots.every(([tx, tz]) => clear(tx, tz, TITAN_TRUNK))) return false;
+  if (!clear(PL.camp.leanTo.x, PL.camp.leanTo.z, 0.8) || !clear(LOOKOUT.x, LOOKOUT.z, 0.8) || !clear(L.flint.x, L.flint.z, 0.5)) return false;
+  const o = L.adit.outcrop;
+  if (x > o.x0 - 0.4 && x < o.x1 + 0.4 && z > o.z0 - 0.4 && z < o.z1 + 0.4) return false;
+  return !(Math.abs(x - L.cabin.x) < L.cabin.w / 2 + 0.4 && Math.abs(z - L.cabin.z) < L.cabin.d / 2 + 0.4);
+}
+/** The wood's other trees, felled too (all but the ones a bird keeps: the songbirds' pines on the
+ *  rim, the owl's in the Old Growth): the rim's pines and the great trees that stand between the
+ *  groves, each in the look the layout stands it in (`look`: a pine or the slimmer spruce; `size`:
+ *  its own against the look's; `tone`: which of the three greens). A pine or a spruce is a Soft
+ *  Pine, an ancient cedar a Highland Cedar; each is felled from the nearest open ground on the
+ *  wood's side of it. */
+export const FOREST_WILD_TREES = (() => {
+  const birds = new Set(L.birds.map(([x, z]) => `${x},${z}`));
+  const owl = `${L.life.owl.tree[0]},${L.life.owl.tree[1]}`;
+  const round = (v: number) => Math.round(v * 1000) / 1000;
+  const conifer = (id: string, x: number, z: number, s: number, trunk: number, look: "pine" | "spruce", tone: number) => {
+    const at = openApproach({ x, z }, trunk + 0.63, L.core, woodsOpen);
+    const big = s * 1.55;
+    return { id, kind: "soft_pine" as TreeKind, x, z, approachX: at.x, approachZ: at.z, look: look as "pine" | "spruce" | undefined, size: round(look === "pine" ? big / 1.05 : big), tone: tone as number | undefined };
+  };
+  return [
+    ...L.vista.flatMap(([x, z, s], i) => (birds.has(`${x},${z}`) ? [] : [conifer(`rim_${i + 1}`, x, z, s, 0.45 * s, i % 4 === 2 ? "spruce" : "pine", (i * 2 + 1) % 3)])),
+    ...L.dressing.greatTrees.flatMap((t, i) => {
+      if (`${t.x},${t.z}` === owl) return [];
+      if (t.kind === "cedar") {
+        const at = openApproach(t, 0.42 * t.s + 0.63, L.core, woodsOpen);
+        return [{ id: `wild_${i + 1}`, kind: "cedar" as TreeKind, x: t.x, z: t.z, approachX: at.x, approachZ: at.z, look: undefined, size: round((t.s * 1.45) / 1.4), tone: undefined }];
+      }
+      return [t.kind === "spruce" ? conifer(`wild_${i + 1}`, t.x, t.z, t.s, 0.42 * t.s, "spruce", i % 3) : conifer(`wild_${i + 1}`, t.x, t.z, t.s, 0.42 * t.s, i % 3 === 2 ? "spruce" : "pine", (i + 1) % 3)];
+    }),
+  ];
+})();
+
 /** Bramble the Bear behind his counter, and where you stand to trade with him. */
 export const BRAMBLE = L.bramble;
 export const BRAMBLE_FRONT: Pt = { x: L.counter.x, z: L.counter.z + L.counter.w / 2 + 0.7 };
@@ -490,7 +552,7 @@ export const ANIMAL_REACH = 1.8;
 
 export const FOREST_PROPS: PropSpec[] = [
   { propId: "woods_exit", x: L.archway.x, z: L.archway.z, kind: "archway", color: "#8a6a3f", defaultOn: true, approachX: WOODS_ARCHWAY_FRONT.x, approachZ: WOODS_ARCHWAY_FRONT.z },
-  ...FOREST_TREES.map((t): PropSpec => ({ propId: `tree_${t.id}`, x: t.x, z: t.z, kind: "tree", color: "#4f7a3a", defaultOn: true, approachX: t.approachX, approachZ: t.approachZ })),
+  ...[...FOREST_TREES, ...FOREST_WILD_TREES].map((t): PropSpec => ({ propId: `tree_${t.id}`, x: t.x, z: t.z, kind: "tree", color: "#4f7a3a", defaultOn: true, approachX: t.approachX, approachZ: t.approachZ })),
   ...FOREST_FISHING.map((f): PropSpec => ({ propId: f.propId, x: f.stand.x + 0.25, z: f.stand.z, kind: "fishing", color: "#7fb7d6", defaultOn: true, approachX: f.approach.x, approachZ: f.approach.z })),
   { propId: "bramble", x: L.bramble.x, z: L.bramble.z, kind: "ranger", color: "#7a4e2d", defaultOn: true, approachX: BRAMBLE_FRONT.x, approachZ: BRAMBLE_FRONT.z },
   { propId: "workbench_adv", x: L.workbench.x, z: L.workbench.z, kind: "workbench", color: "#c98b4f", defaultOn: true, approachX: FOREST_WORKBENCH_FRONT.x, approachZ: FOREST_WORKBENCH_FRONT.z },
@@ -504,18 +566,6 @@ export const FOREST_PROPS: PropSpec[] = [
     return { propId: `tree_titan_${i + 1}`, x: p.x, z: p.z, kind: "tree", color: "#e8a93a", defaultOn: false, approachX: a.x, approachZ: a.z };
   }),
 ];
-
-/** The shrine's standing stones: a ring round the elderwood with a gap (SHRINE_GAP) toward the
- *  middle of the wood, where the way in is (the builder lays them out the same way). */
-export const SHRINE_GAP = 0.26 * Math.PI;
-export const SHRINE_STONES: Pt[] = (() => {
-  const open = Math.atan2(L.core.z - L.shrine.z, L.core.x - L.shrine.x);
-  const n = L.shrine.stones;
-  return Array.from({ length: n }, (_, k) => {
-    const a = open + SHRINE_GAP / 2 + (k / (n - 1)) * (2 * Math.PI - SHRINE_GAP);
-    return { x: L.shrine.x + Math.cos(a) * L.shrine.r, z: L.shrine.z + Math.sin(a) * L.shrine.r };
-  });
-})();
 
 // (round things are discs: shared/collision.ts `disc`)
 const around = (p: Pt, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r, r });
