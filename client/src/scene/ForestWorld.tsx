@@ -7,7 +7,7 @@ import { parseWorldEvent, type PlayerState } from "@shared/types";
 import { parseTrees } from "@shared/chop";
 import { isBlocked } from "@shared/collision";
 import { daylight } from "@shared/daynight";
-import { FINLEY, FOREST_ANIMALS, FOREST_GRID, FOREST_LAYOUT as L, FOREST_SHAFTS, FOREST_TREES, OLD_FLINT, forestLand, forestRiver } from "@shared/worlds/forest";
+import { FINLEY, FOREST_ANIMALS, FOREST_FROGS, FOREST_GRID, FOREST_LAYOUT as L, FOREST_SHAFTS, FOREST_TREES, OLD_FLINT, forestLand, forestRiver } from "@shared/worlds/forest";
 import { riverWater } from "./riverWater";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
@@ -22,9 +22,10 @@ import { FellableTrees } from "./FellableTrees";
 import { WildCritters } from "./WildCritters";
 import { LightShafts } from "./LightShafts";
 import { SurgeRipples } from "./SurgeRipples";
-import { WoodsFauna } from "./WoodsFauna";
+import { WoodsFauna, woodsTreesDown } from "./WoodsFauna";
 import { Butterflies } from "./Butterflies";
-import { ChimneySmoke, CloudClock, FallingLeaves, Flyover, LanternMoths, RiseRings, RiverMist, cloudShadows, type LeafTree } from "./campLife";
+import { CampXray } from "./CampXray";
+import { ChimneySmoke, CloudClock, FallingLeaves, Flyover, Frogs, LanternMoths, RiseRings, RiverMist, cloudShadows, type LeafTree } from "./campLife";
 
 // The Whispering Woods (map "whispering_woods"), behind the campfire's archway. The island is one
 // Blender model, forest.glb (scripts/blender/build_forest.py, laid out from shared/worlds/forest.ts):
@@ -88,6 +89,9 @@ const WATER_Y = L.river.water;
 const CLOUDED = /^FW_(Meadow|Clay|ClayDouble)$/;
 /** Dragonflies over the river (the butterflies' own templates, blue and quick and low). */
 const DRAGON_TINTS = ["#5fd3ff", "#7af0d0", "#4f9bff", "#a8e8ff"];
+/** What can stand between you and the camera in the model (CampXray): its still things and the trees
+ *  that are not felled. */
+const XRAY_MESHES = ["Forest_Static", "Forest_Pines"];
 /** Foliage that sways in the wind. */
 const SWAYERS = /^FW_VistaNeedle/;
 
@@ -140,6 +144,10 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
     e.stopPropagation();
     onFloorClick(e.point.x, e.point.z);
   };
+  // (the birds' and the owl's trees: away while theirs is down)
+  useEffect(() => {
+    woodsTreesDown.ids = new Set(Object.entries(treeState).filter(([, t]) => t.stage !== "mature").map(([id]) => id));
+  }, [treeState]);
   // the leafy trees standing now (a stump drops no leaves): which of them, not their sizes
   const leafy = FOREST_TREES.filter((t) => (t.kind === "maple" || t.kind === "birch") && (treeState[t.id]?.stage ?? "mature") === "mature")
     .map((t) => t.id)
@@ -162,6 +170,11 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
       <ModelBoundary what="forest.glb" fallback={<StandIn />}>
         <Suspense fallback={<StandIn />}>
           <ForestModel subscribeMessages={subscribeMessages} />
+        </Suspense>
+      </ModelBoundary>
+      <ModelBoundary what="forest.glb" fallback={null}>
+        <Suspense fallback={null}>
+          <CampXray url={FOREST_URL} mapId="whispering_woods" prefixes={XRAY_MESHES} trees={treeState} />
         </Suspense>
       </ModelBoundary>
       <FellableTrees mapId="whispering_woods" trees={treeState} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onUseProp={onUseProp} />
@@ -258,6 +271,7 @@ function ForestModel({ subscribeMessages }: { subscribeMessages: (listener: Room
       <WoodsFauna scene={scene} />
       <Butterflies scene={scene} spots={DRAGON_SPOTS} landY={dragonY} tints={DRAGON_TINTS} size={1.9} pace={2.3} lift={0.42} />
       <Flyover scene={scene} half={L.half} />
+      <Frogs scene={scene} name="Fauna_WoodsFrog" spots={FOREST_FROGS} waterY={WATER_Y} />
     </>
   );
 }

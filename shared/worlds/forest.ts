@@ -21,8 +21,8 @@ import { openApproach } from "./approach";
 // no rows), the middle wooded too, the great tree at the top of the hill over them all; what is not
 // a grove is filled with the dressing's pines and spruces, shrubs and boulders. Every tree is felled
 // (patch 0.7.57): the groves' (`trees`), and the wild ones (FOREST_WILD_TREES: the rim's pines and
-// the great trees between the groves and in the Old Growth, Soft Pines all), but the six a bird
-// keeps (the songbirds' pines on the rim, the owl's).
+// the great trees between the groves and in the Old Growth, Soft Pines all; a bird flies off while
+// its pine is down).
 //
 //   The Border          the way in from the archway: meadow and four Soft Pines (T1), and the trail
 //                       east along the south to Bramble's. No trail is drawn (`formerPaths` keeps
@@ -187,6 +187,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   "life": {
     "owl": { "tree": [7.6, -12.2] },
     "kingfisher": { "x": 10.55, "z": 1.3, "y": 0.72 },
+    "frogs": [[12.82, -13.4], [14.03, -8.98], [12.7, -4.1], [11.73, 0.11], [13.8, 6.22], [12.75, 8.97], [12.65, 14.28]],
     "shafts": [[5.9, -9.4, 0.8], [7.8, -10.1, 0.75], [4.0, -8.9, 0.7], [6.7, -7.4, 0.8], [9.7, -9.7, 0.7], [3.0, -11.2, 0.65]]
   },
   "fishing": [
@@ -459,8 +460,8 @@ function woodsOpen(x: number, z: number): boolean {
   if (x > o.x0 - 0.4 && x < o.x1 + 0.4 && z > o.z0 - 0.4 && z < o.z1 + 0.4) return false;
   return !(Math.abs(x - L.cabin.x) < L.cabin.w / 2 + 0.4 && Math.abs(z - L.cabin.z) < L.cabin.d / 2 + 0.4);
 }
-/** The wood's other trees, felled too (all but the ones a bird keeps: the songbirds' pines on the
- *  rim, the owl's in the Old Growth): the rim's pines and the great trees that stand between the
+/** The wood's other trees, felled too (a bird's among them: it flies off while its tree is down;
+ *  `fixed`: such a tree is always its layout's size, so the perch stays on its bough): the rim's pines and the great trees that stand between the
  *  groves, each in the look the layout stands it in (`look`: a pine or the slimmer spruce; `size`:
  *  its own against the look's; `tone`: which of the three greens). A pine or a spruce is a Soft
  *  Pine, an ancient cedar a Highland Cedar; each is felled from the nearest open ground on the
@@ -472,17 +473,21 @@ export const FOREST_WILD_TREES = (() => {
   const conifer = (id: string, x: number, z: number, s: number, trunk: number, look: "pine" | "spruce", tone: number) => {
     const at = openApproach({ x, z }, trunk + 0.63, L.core, woodsOpen);
     const big = s * 1.55;
-    return { id, kind: "soft_pine" as TreeKind, x, z, approachX: at.x, approachZ: at.z, look: look as "pine" | "spruce" | undefined, size: round(look === "pine" ? big / 1.05 : big), tone: tone as number | undefined };
+    return { id, kind: "soft_pine" as TreeKind, x, z, approachX: at.x, approachZ: at.z, look: look as "pine" | "spruce" | undefined, size: round(look === "pine" ? big / 1.05 : big), tone: tone as number | undefined, fixed: false };
   };
+  // (a bird's tree is a pine, and always its layout's size: the perch is measured on that shape)
   return [
-    ...L.vista.flatMap(([x, z, s], i) => (birds.has(`${x},${z}`) ? [] : [conifer(`rim_${i + 1}`, x, z, s, 0.45 * s, i % 4 === 2 ? "spruce" : "pine", (i * 2 + 1) % 3)])),
-    ...L.dressing.greatTrees.flatMap((t, i) => {
-      if (`${t.x},${t.z}` === owl) return [];
+    ...L.vista.map(([x, z, s], i) => {
+      const bird = birds.has(`${x},${z}`);
+      return { ...conifer(`rim_${i + 1}`, x, z, s, 0.45 * s, i % 4 === 2 && !bird ? "spruce" : "pine", (i * 2 + 1) % 3), fixed: bird };
+    }),
+    ...L.dressing.greatTrees.map((t, i) => {
       if (t.kind === "cedar") {
         const at = openApproach(t, 0.42 * t.s + 0.63, L.core, woodsOpen);
-        return [{ id: `wild_${i + 1}`, kind: "cedar" as TreeKind, x: t.x, z: t.z, approachX: at.x, approachZ: at.z, look: undefined, size: round((t.s * 1.45) / 1.4), tone: undefined }];
+        return { id: `wild_${i + 1}`, kind: "cedar" as TreeKind, x: t.x, z: t.z, approachX: at.x, approachZ: at.z, look: undefined, size: round((t.s * 1.45) / 1.4), tone: undefined, fixed: false };
       }
-      return [t.kind === "spruce" ? conifer(`wild_${i + 1}`, t.x, t.z, t.s, 0.42 * t.s, "spruce", i % 3) : conifer(`wild_${i + 1}`, t.x, t.z, t.s, 0.42 * t.s, i % 3 === 2 ? "spruce" : "pine", (i + 1) % 3)];
+      const owls = `${t.x},${t.z}` === owl;
+      return t.kind === "spruce" ? conifer(`wild_${i + 1}`, t.x, t.z, t.s, 0.42 * t.s, "spruce", i % 3) : { ...conifer(`wild_${i + 1}`, t.x, t.z, t.s, 0.42 * t.s, i % 3 === 2 && !owls ? "spruce" : "pine", (i + 1) % 3), fixed: owls };
     }),
   ];
 })();
@@ -505,15 +510,17 @@ export const FINLEY_REACH = 1.9;
  *  the way the bird faces. They fly off when someone comes near, and back later; by day only. */
 /** (`tint`: a songbird of its own colour, as linear RGB: brighter than white where it must lift the
  *  template's brown.) */
-export const FOREST_BIRDS: { id: number; x: number; z: number; y: number; yaw: number; tint?: [number, number, number] }[] = [
+/** (`tree`: the pine it perches on, a tree you fell: the bird is away while it is down.) */
+export const FOREST_BIRDS: { id: number; x: number; z: number; y: number; yaw: number; tint?: [number, number, number]; tree?: string }[] = [
   ...L.birds.map(([px, pz], i) => {
-    const pine = L.vista.find(([x, z]) => x === px && z === pz) ?? [px, pz, 1];
+    const at = L.vista.findIndex(([x, z]) => x === px && z === pz);
+    const pine = L.vista[at] ?? [px, pz, 1];
     const S = pine[2] * 1.55;
     const d = Math.hypot(px, pz) || 1;
     // (on the lowest boughs, a little in from their tips: nature_kit.py's pine)
     const r = 0.8 * S;
     // (its height over the ground its pine stands on)
-    return { id: i, x: px - (px / d) * r, z: pz - (pz / d) * r, y: forestLand(px, pz) + 0.76 * S, yaw: Math.atan2(-px, -pz) };
+    return { id: i, x: px - (px / d) * r, z: pz - (pz / d) * r, y: forestLand(px, pz) + 0.76 * S, yaw: Math.atan2(-px, -pz), tree: at >= 0 ? `rim_${at + 1}` : undefined };
   }),
   // the kingfisher: on a dead branch over the river's pool, watching the water (it scatters as they do)
   { id: L.birds.length, x: L.life.kingfisher.x, z: L.life.kingfisher.z, y: forestLand(L.life.kingfisher.x, L.life.kingfisher.z) + L.life.kingfisher.y, yaw: 1.4, tint: [0.5, 2.4, 4.2] },
@@ -521,10 +528,13 @@ export const FOREST_BIRDS: { id: number; x: number; z: number; y: number; yaw: n
 /** The Old Growth's owl, by night: on a great pine's lowest bough, on the camera's side of it. */
 export const FOREST_OWL = (() => {
   const [tx, tz] = L.life.owl.tree;
-  const S = (L.dressing.greatTrees.find((t) => t.x === tx && t.z === tz)?.s ?? 1) * 1.55;
+  const at = L.dressing.greatTrees.findIndex((t) => t.x === tx && t.z === tz);
+  const S = (L.dressing.greatTrees[at]?.s ?? 1) * 1.55;
   const r = 0.8 * S * Math.SQRT1_2;
-  return { x: tx + r, z: tz + r, y: forestLand(tx, tz) + 0.76 * S, yaw: Math.PI / 4 };
+  return { x: tx + r, z: tz + r, y: forestLand(tx, tz) + 0.76 * S, yaw: Math.PI / 4, tree: at >= 0 ? `wild_${at + 1}` : undefined };
 })();
+/** The frogs on the river's lily pads ([x, z]: the builder floats a pad under each). */
+export const FOREST_FROGS = L.life.frogs.map(([x, z]): [number, number] => [x, z]);
 /** Bramble's hives (the bees circle them by day), and where the daylight falls through the Old
  *  Growth's canopy ([x, z, radius]). */
 export const FOREST_HIVES = L.places.hives.map(([x, z]) => ({ x, z }));

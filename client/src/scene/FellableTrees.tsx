@@ -247,6 +247,7 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
         // (the grown conifers: each instance its own green)
         if (TINTED.test(part.material.name)) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(most * 3).fill(1), 3);
         mesh.count = 0;
+        mesh.visible = false;
         mesh.frustumCulled = false;
         mesh.raycast = noRaycast;
         out.push({ key, mesh, part });
@@ -279,6 +280,8 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
         if (mesh.instanceColor) mesh.setColorAt(i, TONE_TINTS[(t.tone ?? 0) % TONE_TINTS.length]);
       });
       mesh.count = list.length;
+      // (a look no tree wears now is not handed to the renderer at all)
+      mesh.visible = list.length > 0;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }

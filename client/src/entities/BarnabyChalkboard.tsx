@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useGLTF } from "@react-three/drei";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import * as THREE from "three";
 import { BUSTER_BOARD, CAMPFIRE_LAYOUT as L, campLand } from "@shared/worlds/campfire";
 import { FISH, FISH_IDS, type FishId } from "@shared/fishing";
@@ -156,6 +157,42 @@ function MarketBoard({ at, keepModelled = false, paint }: { at: { x: number; z: 
   );
 }
 
+/** The easel's frame as ONE mesh: its parts (a material a colour in the model: three draw calls)
+ *  joined, each part's colour written into its corners. Left as it is if they cannot be joined. */
+function fuseFrame(board: THREE.Object3D, face: THREE.Mesh | undefined) {
+  board.updateMatrixWorld(true);
+  const inv = board.matrixWorld.clone().invert();
+  const parts: THREE.Mesh[] = [];
+  board.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const m = mesh.material as THREE.MeshStandardMaterial;
+    if (mesh.isMesh && mesh !== face && !Array.isArray(mesh.material) && m.isMeshStandardMaterial && !m.map && !m.transparent) parts.push(mesh);
+  });
+  if (parts.length < 2) return;
+  const geos = parts.map((mesh) => {
+    const src = mesh.geometry;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", src.attributes.position.clone());
+    if (src.attributes.normal) g.setAttribute("normal", src.attributes.normal.clone());
+    if (src.index) g.setIndex(src.index.clone());
+    g.applyMatrix4(inv.clone().multiply(mesh.matrixWorld));
+    const c = (mesh.material as THREE.MeshStandardMaterial).color;
+    const col = new Float32Array(g.attributes.position.count * 3);
+    for (let i = 0; i < col.length; i += 3) col.set([c.r, c.g, c.b], i);
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    return g;
+  });
+  const merged = geos.every((g) => !!g.index === !!geos[0].index && !!g.attributes.normal === !!geos[0].attributes.normal) ? mergeGeometries(geos) : null;
+  geos.forEach((g) => g.dispose());
+  if (!merged) return;
+  const frame = new THREE.Mesh(merged, FRAME_MAT);
+  frame.name = "Chalkboard_Frame_Fused";
+  frame.raycast = noRaycast;
+  board.add(frame);
+  for (const p of parts) p.visible = false;
+}
+const FRAME_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
+
 function Board({ keepModelled, paint }: { keepModelled: boolean; paint: (ctx: CanvasRenderingContext2D, market: MarketState, now: number) => void }) {
   const { scene } = useGLTF(BARNABY_URL);
   const raw = useMarketRaw();
@@ -198,6 +235,7 @@ function Board({ keepModelled, paint }: { keepModelled: boolean; paint: (ctx: Ca
     copy.traverse((o) => (o.raycast = noRaycast));
     const face = copy.getObjectByName("Chalkboard_Face") as THREE.Mesh | undefined;
     if (face?.isMesh) face.material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.92, metalness: 0, side: THREE.DoubleSide });
+    fuseFrame(copy, face);
     return copy;
   }, [scene, texture, keepModelled]);
   useEffect(() => {

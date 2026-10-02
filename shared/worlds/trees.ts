@@ -29,17 +29,19 @@ export interface FellTree {
   size?: number;
   /** Which of the conifers' three greens a wild tree wears (0 the pine's own, 1 blue, 2 olive). */
   tone?: number;
+  /** A wild tree always drawn at its own size (a bird perches on it: the bough stays put). */
+  fixed?: boolean;
 }
 
 /** The size a tree is drawn at: the room's roll (0.85-1.35x) for a grove's tree, and for a wild one
  *  its own size, a little more or less by that roll (half as much: the layout sized it to its place). */
-export const drawnSize = (t: FellTree, rolled: number) => (t.size ? t.size * (1 + (rolled - 1.1) * 0.5) : rolled);
+export const drawnSize = (t: FellTree, rolled: number) => (t.size ? (t.fixed ? t.size : t.size * (1 + (rolled - 1.1) * 0.5)) : rolled);
 
 export const FELL_TREES: FellTree[] = [
   ...CAMP_TREES.map((t) => ({ id: t.id, map: "campfire_night" as MapId, kind: t.kind as TreeKind, x: t.x, z: t.z, y: Math.round(campLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false })),
   ...CAMP_WILD_TREES.map((t) => ({ id: t.id, map: "campfire_night" as MapId, kind: t.kind as TreeKind, x: t.x, z: t.z, y: Math.round(campLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false, look: t.look, size: t.size, tone: t.tone })),
   ...FOREST_TREES.map((t) => ({ id: t.id, map: "whispering_woods" as MapId, kind: t.kind, x: t.x, z: t.z, y: Math.round(forestLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false })),
-  ...FOREST_WILD_TREES.map((t) => ({ id: t.id, map: "whispering_woods" as MapId, kind: t.kind, x: t.x, z: t.z, y: Math.round(forestLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false, look: t.look, size: t.size, tone: t.tone })),
+  ...FOREST_WILD_TREES.map((t) => ({ id: t.id, map: "whispering_woods" as MapId, kind: t.kind, x: t.x, z: t.z, y: Math.round(forestLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false, look: t.look, size: t.size, tone: t.tone, fixed: t.fixed })),
   ...TITAN_SPOTS.map((p, i) => {
     const a = titanApproach(p);
     return { id: `titan_${i + 1}`, map: "whispering_woods" as MapId, kind: TITAN.kind, x: p.x, z: p.z, y: Math.round(forestLand(p.x, p.z) * 1000) / 1000, approachX: a.x, approachZ: a.z, titan: true };

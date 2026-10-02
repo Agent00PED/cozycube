@@ -190,6 +190,19 @@ The owner asked for every tree on both maps to be fellable, and for another mapl
 - **The Old Growth's three cedars became pines.** As cedars to fell they raised the income of the
   Tempered axe and up by a tenth.
 
+## Round nine: the follow-ups (patch 0.7.58)
+
+- **The last trees.** Nothing is tied to a tree any more: the strings of lights hang from posts and
+  the archway, the campfire's owl sits on a dead tree, and a songbird flies off while its pine is
+  down. Only the hammocks' three pines stay (and one nobody can reach across the river).
+- **Draw calls.** The player's see-through silhouette was a second draw of the whole avatar, every
+  frame; it is now drawn only while something hides the player. The campfire went from 130 calls
+  to 98, the woods from 119 to 91.
+- **Income.** The Autumn Maple grows back in 440 s, not 320: four maples now give what three did,
+  and the two best axes are back within about a tenth of their targets.
+- **Buster's stall** says a better axe is for the woods.
+- **Frogs** on the lily pads of both rivers.
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.
