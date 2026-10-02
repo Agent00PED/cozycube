@@ -89,7 +89,7 @@ import { WORLDS } from "../shared/worlds/index";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVE_WINCH, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, WINCH_REACH, WINCH_RIDE_S, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, HEARTH_SEATS, PHOTO_SPOT, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope, RAFT, raftAt, streamCast, STREAM_REACHES, cavernsSurface, SURFACE, STEEPEST_STEP } from "../shared/worlds/caverns";
 import { readFileSync, existsSync } from "node:fs";
 import { CAVERNS_TERRAIN_PATH, cavernsTerrainText } from "./caverns-terrain";
-import { BRAMBLE_FRONT, FINLEY_FRONT, FOREST_ADIT_FRONT, FOREST_FISHING, FOREST_LAYOUT, FOREST_TREES, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_ARRIVAL, WOODS_FROM_CAVERNS, BROOK_BRIDGE, brookCut, forestBrook, forestBrookAt, forestFloorY, forestLand, forestRiverAt } from "../shared/worlds/forest";
+import { BRAMBLE_FRONT, FINLEY_FRONT, FOREST_ADIT_FRONT, FOREST_FISHING, FOREST_LAYOUT, FOREST_TREES, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_ARRIVAL, WOODS_FROM_CAVERNS, forestFloorY, forestLand } from "../shared/worlds/forest";
 import { FOREST_TERRAIN_PATH, forestTerrainText } from "./forest-terrain";
 import { BAG_BOXER, REF_APRON, REF_HOME, RING_CROWD, TRAINEE, CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, JIMMY, JIMMY_FRONT, JIMMY_REACH, NEUTRAL_CORNERS, RING, RING_BENCH_FRONT, RING_CORNERS, RING_FANS, RING_SEATS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
 
@@ -649,29 +649,6 @@ for (const mapId of MAP_IDS) {
   for (const f of FOREST_FISHING) {
     checks++;
     if (forestFloorY(f.stand.x, f.stand.z) < forestLand(f.stand.x, f.stand.z) - 0.05) fail(`${W}: the fishing spot ${f.propId} stands in the river's channel ${fmt(f.stand)}`);
-  }
-  // the brook: it only ever runs downhill, from its spring to the river; nothing solid stands in its
-  // bed (it is waded anywhere); the river trail crosses it on the bridge's uncut ground
-  {
-    const line = forestBrook(8);
-    let rise = 0;
-    for (let i = 0; i + 1 < line.length; i++) rise = Math.max(rise, forestLand(line[i + 1][0], line[i + 1][1]) - forestLand(line[i][0], line[i][1]));
-    checks++;
-    if (rise > 0.01) fail(`${W}: the brook runs uphill by ${rise.toFixed(3)} m somewhere along it`);
-    const end = line[line.length - 1];
-    const r = forestRiverAt(end[0], end[1]);
-    checks++;
-    if (r.d > r.w) fail(`${W}: the brook ends ${fmt({ x: end[0], z: end[1] })} short of the river`);
-    for (const [x, z, w] of line) {
-      const rv = forestRiverAt(x, z);
-      if (rv.d < rv.w + 0.6) continue; // (the river's own banks are closed)
-      checks++;
-      if (isBlocked(x, z, W, w)) fail(`${W}: something solid stands in the brook's bed at ${fmt({ x, z })}`);
-    }
-    checks++;
-    if (brookCut(BROOK_BRIDGE.x, BROOK_BRIDGE.z) > 0.001) fail(`${W}: the ground under the brook's bridge is cut`);
-    checks++;
-    if (forestBrookAt(BROOK_BRIDGE.x, BROOK_BRIDGE.z).d > 0.3) fail(`${W}: the brook's bridge is not over the brook`);
   }
   // the walks: the keepers from the arrival, and the angler's from the first spot to Finley
   const walkS = (from: Point, to: Point) => {

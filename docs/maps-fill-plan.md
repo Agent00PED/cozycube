@@ -218,6 +218,8 @@ Everything still in the model bakes into the finishes the maps already draw.
 - **Draw calls:** none more (its water is in the river's sheet). **Model:** 3.8 MB. **Income:**
   unchanged to the decimal.
 
+**Removed in patch 0.7.53** (the owner's call): the brook, its spring, stones and bridge.
+
 ### Part 5, life and light (patch 0.7.49)
 - **Campfire:** butterflies over the Swing Garden and the meadows by day, a drift of fireflies over
   the Stargazers' Slope by night, three more wild critters.

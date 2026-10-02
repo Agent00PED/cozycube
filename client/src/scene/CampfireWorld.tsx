@@ -12,7 +12,6 @@ import { FellableTrees } from "./FellableTrees";
 import { WildCritters } from "./WildCritters";
 import { Butterflies } from "./Butterflies";
 import { SurgeRipples } from "./SurgeRipples";
-import { FallsSpray, type SprayAt } from "./FallsSpray";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
@@ -229,7 +228,6 @@ export function CampfireWorld({ onFloorClick, players, localSessionId, toggleabl
       <Smoke />
       <BulbGlows />
       <FoamRings />
-      <FallsSpray spots={SPRAY_AT} />
       <DuckTargets onDuck={onDuck} />
       <WildCritters mapId="campfire_night" />
       <Fireflies />
@@ -757,20 +755,10 @@ const FOAM_MAT = new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: fal
 const foamColor = new THREE.Color();
 
 /** Foam rings on the river: spreading out from each of the dock's pilings, and after each duck. */
-/** Where water lands: the foot of the fall into the plunge pool, and the foot of the sheet over the
- *  island's south edge. */
-const SPRAY_AT: SprayAt[] = (() => {
-  const span = riverSpan(L.half - 0.1) ?? { x0: 10, x1: 12 };
-  return [
-    { x: L.cascade.x, y: L.river.water, z: RIVER_Z.from + 0.45, w: 0.3, out: { x: 0, z: 1 } },
-    { x: (span.x0 + span.x1) / 2, y: -1.2, z: L.half + 0.2, w: (span.x1 - span.x0) / 2 - 0.1, out: { x: 0, z: 1 } },
-  ];
-})();
-
 function FoamRings() {
   const PER = 2;
-  // the dock's pilings, the cascade's foot, then the ducks
-  const still = [...DOCK_PILINGS, { x: L.cascade.x, z: L.cascade.z + 0.62 }];
+  // the dock's pilings, then the ducks
+  const still = [...DOCK_PILINGS];
   const sources = still.length + DUCK_PATHS.length;
   const mesh = useRef<THREE.InstancedMesh>(null);
   useFrame(({ clock }) => {

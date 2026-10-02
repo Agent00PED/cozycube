@@ -297,52 +297,6 @@ def river_dist(L, x, z):
     return best
 
 
-BROOK_FRAMES = {}
-
-
-def brook_frame(L, per=8):
-    """Each sample of the brook (forest.ts `forestBrook`: the same spline): its centre (x, z), its
-    bed's half-width, its tangent (tx, tz) and left normal."""
-    if per not in BROOK_FRAMES:
-        Pn = L["brook"]["points"]
-        at = lambda k: Pn[max(0, min(len(Pn) - 1, k))]
-        S = []
-        for i in range(len(Pn) - 1):
-            for k in range(per):
-                S.append(tuple(catmull(at(i - 1)[d], at(i)[d], at(i + 1)[d], at(i + 2)[d], k / per) for d in range(3)))
-        S.append(tuple(Pn[-1]))
-        out = []
-        for i, (x, z, w) in enumerate(S):
-            ax, az = S[max(0, i - 1)][:2]
-            bx, bz = S[min(len(S) - 1, i + 1)][:2]
-            tx, tz = bx - ax, bz - az
-            d = math.hypot(tx, tz) or 1
-            out.append((x, z, w, tx / d, tz / d, -tz / d, tx / d))
-        BROOK_FRAMES[per] = out
-    return BROOK_FRAMES[per]
-
-
-def brook_dist(L, x, z):
-    """How far (x, z) is from the brook's centre line, and its bed's half-width there."""
-    if "brook" not in L:
-        return (1e9, 0.0)
-    F = brook_frame(L, 8)
-    best = (1e9, 0.0)
-    for (ax, az, aw, *_), (bx, bz, bw, *_) in zip(F, F[1:]):
-        dx, dz = bx - ax, bz - az
-        t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
-        d = math.hypot(x - (ax + dx * t), z - (az + dz * t))
-        if d < best[0]:
-            best = (d, aw + (bw - aw) * t)
-    return best
-
-
-def brook_open(L, x, z):
-    """0 under the brook's log bridge (the ground is not cut there), 1 away from it."""
-    b = L["brook"]["bridge"]
-    return smooth(b["half"], b["half"] + 0.3, math.hypot(x - b["x"], z - b["z"]))
-
-
 def in_rounded(x, z, a, r):
     """Inside the rounded square |x|, |z| <= a with corners of radius r."""
     ax, az = abs(x), abs(z)
@@ -900,13 +854,6 @@ def ground_color(L, x, z, dirt, tones):
     if inside > 0:
         col = mixc(col, stone, smooth(0.0, 0.16, inside))
         col = mixc(col, bed, smooth(0.2, L["terrain"]["bank"] + 0.15, inside))
-    # the brook: damp earth up its banks, wet pebbles down its bed (none under its bridge)
-    bd, bw = brook_dist(L, x, z)
-    if bd < bw + 0.5:
-        op = brook_open(L, x, z)
-        col = mixc(col, bank, 0.6 * op * smooth(bw + 0.5, bw + 0.12, bd))
-        pebble = [c * (0.62 + 0.3 * n3) for c in lin(PALETTE["FW_Pebble"])]
-        col = mixc(col, pebble, op * smooth(bw + 0.14, bw - 0.06, bd))
     return col
 
 
@@ -998,54 +945,6 @@ def build_ground(L, coll):
     make_object("Forest_Underside", bm, ["FW_SoilDeep"], coll)
 
 
-def build_rim(L, coll):
-    """Rock shouldering out of the island's sides: ledges and outcrops in groups round its rim (wide
-    on the faces the camera sees, the south and the east), each a few big blocks half in the soil
-    with smaller ones tumbled under them, moss and grass over their tops; none where the river
-    leaves, at the archway or at the adit. They break the square of the island's outline; nobody
-    walks them."""
-    half = L["half"]
-    rng = random.Random(78)
-    M = ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Grass", "FW_MossDeep", "FW_Soil"]
-    bm = bmesh.new()
-    mouth = L["river"]["points"][-2][0]
-    perim = 8 * half
-    u = rng.uniform(0.0, 3.0)
-    while u < perim:
-        side, t = int(u // (2 * half)), (u % (2 * half)) - half
-        # (side 0 the south edge, 1 the east, 2 the north, 3 the west)
-        ex, ez, ox, oz = ((t, half, 0, 1), (half, -t, 1, 0), (-t, -half, 0, -1), (-half, t, -1, 0))[side]
-        seen = side in (0, 1)
-        u += rng.uniform(2.4, 6.0) if seen else rng.uniform(4.5, 9.0)
-        if abs(t) > half - 1.4:
-            continue
-        if side == 0 and (abs(ex - mouth) < 2.6 or abs(ex - L["archway"]["x"]) < 2.4):
-            continue
-        if side == 2 and abs(ex - L["cascade"]["x"]) < 3.0:
-            continue
-        if side == 3 and L["adit"]["outcrop"]["z0"] - 1.5 < ez < L["adit"]["outcrop"]["z1"] + 1.5:
-            continue
-        top = land_y(max(-half + 0.3, min(half - 0.3, ex)), max(-half + 0.3, min(half - 0.3, ez)))
-        big = rng.uniform(0.9, 1.6) * (1.0 if seen else 0.8)
-        n = rng.randint(2, 4)
-        for q in range(n):
-            a_ = (q - (n - 1) / 2) * rng.uniform(0.9, 1.4) * big
-            px, pz = ex + (-oz) * a_ + ox * rng.uniform(0.1, 0.5) * big, ez + ox * a_ + oz * rng.uniform(0.1, 0.5) * big
-            sz = big * rng.uniform(0.6, 1.0) * (1.0 if q else 1.15)
-            drop = rng.uniform(0.25, 0.75) * sz
-            blob(bm, px, top - drop, pz, 0.85 * sz, 0.62 * sz, 0.8 * sz, m=q % 2, cuts=2, n=3.2, noise=0.14, rng=rng)
-            if rng.random() < 0.7:
-                blob(bm, px - ox * 0.1, top - drop + 0.6 * sz, pz - oz * 0.1, 0.62 * sz, 0.07, 0.58 * sz, m=2 if rng.random() < 0.5 else 3, cuts=2, noise=0.2, rng=rng)
-            for _ in range(rng.randint(1, 3)):
-                s2 = sz * rng.uniform(0.3, 0.55)
-                blob(bm, px + ox * rng.uniform(0.2, 0.7) * sz + (-oz) * rng.uniform(-0.6, 0.6) * sz, top - drop - rng.uniform(0.5, 1.3) * sz, pz + oz * rng.uniform(0.2, 0.7) * sz + ox * rng.uniform(-0.6, 0.6) * sz, s2, s2 * 0.8, s2, m=(q + 1) % 2, cuts=1, n=3.0, noise=0.16, rng=rng)
-        for _ in range(rng.randint(1, 3)):
-            a_ = rng.uniform(-1.6, 1.6) * big
-            px, pz = ex + (-oz) * a_ + ox * 0.05, ez + ox * a_ + oz * 0.05
-            blob(bm, px, top - 0.08, pz, 0.3, 0.16, 0.3, m=4 if rng.random() < 0.5 else 3, cuts=2, noise=0.25, rng=rng)
-    make_object("Forest_Rim", bm, M, coll)
-
-
 def build_water(L, coll):
     """The river's surface, one sheet along its spline: across it a row of vertices at every sample,
     each carrying in its colour what the game's water shader reads (red: how far from the nearer
@@ -1073,76 +972,16 @@ def build_water(L, coll):
     cols = 8
     rows = []
     last = None
-    # the round head: a few rows behind the first sample, closing to a point's width
-    x0, z0, w0, tx0, tz0, nx0, nz0 = F[0]
-    for k in range(6, 0, -1):
-        back = w0 * math.sin(math.pi / 2 * k / 6)
-        ww = max(0.04, w0 * math.cos(math.pi / 2 * k / 6) - 0.02)
-        cx, cz = x0 - tx0 * back, z0 - tz0 * back
-        rows.append([vert(cx + nx0 * ww * (c / cols * 2 - 1), water, cz + nz0 * ww * (c / cols * 2 - 1), min(min(c, cols - c) / cols * 2 * ww, w0 - back)) for c in range(cols + 1)])
+    # (it comes in over the island's north edge and leaves over its south: no head, no falls)
     for x, z, w, tx, tz, nx, nz in F:
         if rim_inside(x, z, half) < 0.05:
-            break
+            if rows:
+                break
+            continue
         ww = w - 0.02
         rows.append([vert(x + nx * ww * (c / cols * 2 - 1), water, z + nz * ww * (c / cols * 2 - 1), min(c, cols - c) / cols * 2 * ww) for c in range(cols + 1)])
         last = (x, z, w, tx, tz, nx, nz)
     strip(rows)
-    # the sheet over the island's edge: the last row carried out along the flow and down the side
-    if last is not None:
-        x, z, w, tx, tz, nx, nz = last
-        curtain = [rows[-1]]
-        for out, y, down in ((0.35, water - 0.02, 0.05), (0.5, water - 0.5, 0.45), (0.56, -1.25, 1.0)):
-            curtain.append([vert(v.co.x + tx * out, y, -v.co.y + tz * out, 1.5, 1.0, down) for v in rows[-1]])
-        strip(curtain)
-    # the fall at its head: off the rock step's lip, out in an arc, into the pool
-    cs = L["cascade"]
-    base = land_y(cs["x"], cs["z"])
-    top = cs["top"] + base
-    dx, dz = x0 - cs["x"], z0 - cs["z"]
-    dist = math.hypot(dx, dz) or 1.0
-    ux, uz = dx / dist, dz / dist
-    lip, foot = 0.34, dist - w0 + 0.45
-    rows = []
-    for k in range(10):
-        u = k / 9
-        s = lip + (foot - lip) * (u ** 0.8)
-        y = top + (water + 0.012 - top) * (u ** 1.9)
-        w = 0.24 + 0.1 * u
-        rows.append([vert(cs["x"] + ux * s - uz * w * (c / 3 * 2 - 1), y, cs["z"] + uz * s + ux * w * (c / 3 * 2 - 1), 1.5, 1.0, u) for c in range(4)])
-    strip(rows)
-    # the brook (a hand's depth over its bed, wherever the bed goes: each vertex a little over the
-    # ground under it); white where it tumbles down the steep of the hill; broken under its bridge
-    if "brook" in L:
-        B = brook_frame(L, 16)
-        rows = []
-        run = 0.0
-        prev = None
-        # its spring: a round head behind the first sample
-        x0, z0, w0, tx0, tz0, nx0, nz0 = B[0]
-        for k in range(4, 0, -1):
-            back = (w0 + 0.05) * math.sin(math.pi / 2 * k / 4)
-            ww = max(0.03, (w0 + 0.05) * math.cos(math.pi / 2 * k / 4))
-            cx, cz = x0 - tx0 * back, z0 - tz0 * back
-            rows.append([vert(cx + nx0 * ww * (c / 4 * 2 - 1), ground_y(cx + nx0 * ww * (c / 4 * 2 - 1), cz + nz0 * ww * (c / 4 * 2 - 1)) + 0.05, cz + nz0 * ww * (c / 4 * 2 - 1), 0.5 - 0.32 * abs(c / 2 - 1)) for c in range(5)])
-        for x, z, w, tx, tz, nx, nz in B:
-            if prev is not None:
-                seg = math.hypot(x - prev[0], z - prev[1])
-                run += seg
-                steep = (land_y(prev[0], prev[1]) - land_y(x, z)) / (seg or 1)
-            else:
-                steep = 0.0
-            prev = (x, z)
-            if brook_open(L, x, z) < 0.75:
-                strip(rows)
-                rows = []
-                continue
-            rd, rw = river_dist(L, x, z)
-            ww = w + 0.06
-            fall = max(0.0, min(0.55, (steep - 0.26) / 0.3))
-            rows.append([vert(x + nx * ww * (c / 4 * 2 - 1), max(ground_y(x + nx * ww * (c / 4 * 2 - 1), z + nz * ww * (c / 4 * 2 - 1)) + 0.05, water - 0.03), z + nz * ww * (c / 4 * 2 - 1), 0.5 - 0.32 * abs(c / 2 - 1), fall, (run * 0.9) % 1.0) for c in range(5)])
-            if rd < rw - 0.35:
-                break
-        strip(rows)
     for f in bm.faces:
         f.normal_update()
         if f.normal.z < -1e-4:
@@ -1174,35 +1013,6 @@ def build_floors(L, coll):
             cx, cz = sh["x"] + math.cos(a) * rr, sh["z"] + math.sin(a) * rr
             slab(bm, wobbly_circle(cx, cz, 0.24, 8, 0.15, rng), -0.02, 0.014, 0)
     make_object("Forest_Floors", bm, ["FW_StoneDark"], coll, lift="parts")
-
-
-def build_falls(L, coll):
-    """The fall's rock step at the river's head: two big boulders shoulder to shoulder, a flat slab
-    across them that the water runs off, a lip stone under it, smaller ones stepping down either side,
-    moss on their tops; stones round the pool's rim."""
-    rng = random.Random(64)
-    bm = bmesh.new()
-    cs = L["cascade"]
-    cx, cz, top = cs["x"], cs["z"], cs["top"]
-    x0, z0, w0 = L["river"]["points"][0]
-    d = math.hypot(x0 - cx, z0 - cz) or 1.0
-    ux, uz = (x0 - cx) / d, (z0 - cz) / d  # toward the pool
-    px, pz = -uz, ux
-    for side, y, fwd, hx, hy, hz, m_ in (
-        (-0.62, 0.45, -0.2, 0.8, 0.68, 0.68, 0),
-        (0.6, 0.42, -0.15, 0.74, 0.62, 0.64, 1),
-        (0.0, top - 0.2, -0.08, 0.66, 0.24, 0.54, 0),
-        (0.02, 0.7, 0.3, 0.42, 0.34, 0.3, 1),
-        (-1.22, 0.16, 0.5, 0.46, 0.3, 0.4, 1),
-        (1.18, 0.14, 0.55, 0.44, 0.28, 0.38, 0),
-        (-0.35, 0.2, -0.85, 0.6, 0.4, 0.5, 1),
-        (0.55, 0.18, -0.8, 0.5, 0.36, 0.45, 0),
-    ):
-        x, z = cx + px * side + ux * fwd, cz + pz * side + uz * fwd
-        blob(bm, x, y, z, hx, hy, hz, m=m_, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
-        if hy > 0.3 and abs(side) > 0.3:
-            blob(bm, x, y + hy * 0.82, z, hx * 0.6, 0.06, hz * 0.6, m=2, cuts=2, noise=0.2, rng=rng)
-    make_object("Forest_Falls", bm, ["FW_Stone", "FW_StoneDark", "FW_Moss"], coll, lift="parts")
 
 
 def clear_spot(L, x, z, r):
@@ -1246,12 +1056,7 @@ def clear_spot(L, x, z, r):
     ad = L["adit"]
     if x < ad["outcrop"]["x1"] + 2.6 and ad["outcrop"]["z0"] - 0.6 < z < ad["outcrop"]["z1"] + 0.6:
         return False
-    if math.hypot(x - L["cascade"]["x"], z - L["cascade"]["z"]) < 2.2 + r:
-        return False
     if any(math.hypot(x - px, z - pz) < pr + r for px, pz, pr in places_solid(L)):
-        return False
-    bd, bw = brook_dist(L, x, z)
-    if bd < bw + 0.45 + r:
         return False
     return True
 
@@ -1922,6 +1727,11 @@ def build_places(L, cushions, coll):
             lx = x0 + 0.2 + (k + 0.5 * (row % 2)) * (T["w"] - 0.4) / 6.5
             r = 0.105 + 0.012 * ((k * 3 + row) % 3)
             cylinder(bm, W(lx, 0.11 + row * 0.2, z0 + 0.12), W(lx, 0.11 + row * 0.2, z1 - 0.12), r, 8, m=m["FW_Log"] if (k + row) % 3 else m["FW_Bark"], cap_m=m["FW_WoodCut"])
+    # the kingfisher's perch: a dead branch stuck in the river's bank, leaning out over the pool
+    pc = L.get("life", {}).get("kingfisher")
+    if pc:
+        cylinder(bm, W(pc["x"] - 0.24, -0.1, pc["z"] + 0.12), W(pc["x"], pc["y"] - 0.01, pc["z"]), 0.035, 6, m=m["FW_Bark"], r_end=0.018)
+        cylinder(bm, W(pc["x"] - 0.11, pc["y"] * 0.55, pc["z"] + 0.05), W(pc["x"] - 0.3, pc["y"] * 0.9, pc["z"] - 0.2), 0.016, 5, m=m["FW_Bark"], r_end=0.008)
     make_object("Forest_Garden", bm, M, coll, lift="parts")
 
     # the rope swing's plank on its two ropes: its origin on the branch it hangs from
@@ -1934,82 +1744,6 @@ def build_places(L, cushions, coll):
     for v in bm.verts:
         v.co.z += land
     make_object("Prop_RopeSwing", bm, M, coll, origin=(Rs["x"], Rs["branch"] + land, Rs["z"]))
-
-
-def build_brook(L, coll):
-    """What stands in and along the brook (its bed is the ground's own, its water the river's sheet):
-    mossy rocks round the spring, stepping stones, the log bridge where the river trail crosses
-    (flush with the banks: the ground under it is not cut), stones and reeds along its banks, a rock
-    step where it tumbles. All of it walked through but the bridge's logs (walked over)."""
-    if "brook" not in L:
-        return
-    Bk = L["brook"]
-    rng = random.Random(8086)
-    M = ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Pebble", "FW_Bark", "FW_WoodCut", "FW_Tuft", "FW_MossDeep", "FW_Fern"]
-    m = {name: i for i, name in enumerate(M)}
-    bm = bmesh.new()
-    F = brook_frame(L, 8)
-
-    def rock(x, z, s, mat, moss=False):
-        y = ground_y(x, z)
-        blob(bm, x, y + 0.07 * s, z, 0.2 * s, 0.13 * s, 0.17 * s, m=mat, cuts=2, noise=0.12, rng=rng, flat_bottom=y - 0.08)
-        if moss:
-            blob(bm, x, y + 0.19 * s, z, 0.14 * s, 0.035, 0.12 * s, m=m["FW_Moss"], cuts=2, noise=0.2, rng=rng)
-
-    # the spring: rocks round its head (uphill), the water welling out between them
-    x0, z0, w0, tx0, tz0, nx0, nz0 = F[0]
-    for k in range(6):
-        ang = math.radians(-100 + 40 * k)
-        rx = x0 - tx0 * 0.2 + (math.cos(ang) * tx0 - math.sin(ang) * nx0) * -(w0 + 0.22)
-        rz = z0 - tz0 * 0.2 + (math.cos(ang) * tz0 - math.sin(ang) * nz0) * -(w0 + 0.22)
-        rock(rx, rz, rng.uniform(1.0, 1.5), m["FW_Stone"] if k % 2 else m["FW_StoneDark"], moss=k % 2 == 0)
-    # the stepping stones: three flat stones across the bed at each place
-    for sx, sz in Bk["stones"]:
-        d, w = brook_dist(L, sx, sz)
-        near = min(F, key=lambda f: math.hypot(f[0] - sx, f[1] - sz))
-        nx, nz = near[5], near[6]
-        for k in (-1, 0, 1):
-            px, pz = near[0] + nx * k * 0.34 + near[3] * 0.06 * k, near[1] + nz * k * 0.34 + near[4] * 0.06 * k
-            y = ground_y(px, pz)
-            blob(bm, px, y + 0.07, pz, 0.17, 0.06, 0.15, m=m["FW_Stone"] if k else m["FW_StoneDark"], cuts=2, n=3.0, noise=0.06, rng=rng, flat_bottom=y - 0.04)
-    # the log bridge: three logs side by side across the brook, along the trail's way over it
-    br = Bk["bridge"]
-    near = min(F, key=lambda f: math.hypot(f[0] - br["x"], f[1] - br["z"]))
-    tx, tz, nx, nz = near[3], near[4], near[5], near[6]
-    y = land_y(br["x"], br["z"])
-    for k in (-1, 0, 1):
-        cx, cz = br["x"] + tx * k * 0.27, br["z"] + tz * k * 0.27
-        ln = 0.85 + 0.06 * k
-        cylinder(bm, W(cx - nx * ln, y - 0.045, cz - nz * ln), W(cx + nx * ln, y - 0.045, cz + nz * ln), 0.14, 9, m=m["FW_Bark"], cap_m=m["FW_WoodCut"], wobble=0.05, rng=rng)
-    for side in (-1, 1):
-        rock(br["x"] + nx * side * 0.95 + tx * 0.5, br["z"] + nz * side * 0.95 + tz * 0.5, 0.9, m["FW_StoneDark"], moss=True)
-    # along its banks: stones, mossy ones among them, and reeds; a rock either side where it tumbles
-    for i, (x, z, w, tx, tz, nx, nz) in enumerate(F[2:-3]):
-        if brook_open(L, x, z) < 1.0 or any(math.hypot(x - sx, z - sz) < 0.6 for sx, sz in Bk["stones"]):
-            continue
-        for side in (-1, 1):
-            if rng.random() < 0.5:
-                off = w + rng.uniform(0.18, 0.34)
-                rock(x + nx * side * off, z + nz * side * off, rng.uniform(0.45, 0.85), m["FW_Stone"] if (i + side) % 3 else m["FW_StoneDark"], moss=rng.random() < 0.4)
-            elif rng.random() < 0.5:
-                off = w + rng.uniform(0.3, 0.5)
-                rx, rz = x + nx * side * off, z + nz * side * off
-                gy = ground_y(rx, rz)
-                for q in range(4):
-                    a = rng.random() * 6.28
-                    cylinder(bm, W(rx + math.cos(a) * 0.05, gy - 0.02, rz + math.sin(a) * 0.05), W(rx + math.cos(a) * 0.12, gy + rng.uniform(0.28, 0.5), rz + math.sin(a) * 0.12), 0.014, 3, m=m["FW_Tuft"], r_end=0.003)
-        if i % 3 == 0:
-            for _ in range(2):
-                px, pz = x + nx * rng.uniform(-w, w) * 0.8, z + nz * rng.uniform(-w, w) * 0.8
-                gy = ground_y(px, pz)
-                blob(bm, px, gy + 0.012, pz, rng.uniform(0.04, 0.07), 0.03, rng.uniform(0.035, 0.06), m=m["FW_Pebble"], cuts=1, flat_bottom=gy - 0.02)
-    # the kingfisher's perch: a dead branch stuck in the bank, leaning out over the water
-    pc = Bk.get("perch")
-    if pc:
-        gy = land_y(pc["x"], pc["z"])
-        cylinder(bm, W(pc["x"] - 0.22, gy - 0.1, pc["z"] + 0.2), W(pc["x"], gy + pc["y"] - 0.01, pc["z"]), 0.035, 6, m=m["FW_Bark"], r_end=0.018)
-        cylinder(bm, W(pc["x"] - 0.1, gy + pc["y"] * 0.55, pc["z"] + 0.09), W(pc["x"] - 0.34, gy + pc["y"] * 0.9, pc["z"] - 0.05), 0.016, 5, m=m["FW_Bark"], r_end=0.008)
-    make_object("Forest_Brook", bm, M, coll)
 
 
 def build_adit(L, bm, rng):
@@ -2449,17 +2183,14 @@ def build(root):
     global SHADE
     SHADE = make_shade(L)
     build_ground(L, coll)
-    build_rim(L, coll)
     build_water(L, coll)
     build_floors(L, coll)
-    build_falls(L, coll)
     build_dressing(L, coll)
     build_deco(L, coll)
     build_rocks(L, coll)
     build_vista(L, coll)
     build_structures(L, cushions, coll)
     build_places(L, cushions, coll)
-    build_brook(L, coll)
     build_animals(L, coll)
     build_fauna(coll)
     build_life(coll)
@@ -2535,27 +2266,6 @@ def build_dressing(L, coll):
     for x, z in D["stumps"]:
         lathe(bm, x, z, [(0, 0.0), (0.3, 0.0), (0.22, 0.08), (0.2, 0.3), (0, 0.3)], segs=10, m=m["FW_Bark"], jitter=0.08, rng=rng)
         lathe(bm, x, z, [(0, 0.3), (0.19, 0.3), (0, 0.312)], segs=10, m=m["FW_WoodCut"])
-    # log steps where the trails climb: every 0.9 m along the trails to the shrine, the Glen and the ledge
-    for idx in (1, 3, 5, 7):
-        pts = path_polyline(L["paths"][idx], 0.9)
-        for (ax, az, aw), (bx, bz, _) in list(zip(pts, pts[1:]))[1:-1]:
-            if abs(land_y(bx, bz) - land_y(ax, az)) < 0.05:
-                continue
-            d = math.hypot(bx - ax, bz - az) or 1.0
-            nx, nz = -(bz - az) / d, (bx - ax) / d
-            w = aw / 2 + 0.16
-            cylinder(bm, W(ax - nx * w, 0.012, az - nz * w), W(ax + nx * w, 0.012, az + nz * w), 0.06, 8, m=m["FW_Bark"], cap_m=m["FW_WoodCut"], wobble=0.05, rng=rng)
-    # stones round the pool at the river's head (clear of the fall), in the water: not lifted
-    x0, z0, w0 = L["river"]["points"][0]
-    cs = L["cascade"]
-    back = math.atan2(cs["z"] - z0, cs["x"] - x0)
-    for k in range(9):
-        a = back + math.pi * (-0.42 + 0.84 * k / 8)
-        x, z = x0 + (w0 - 0.1) * math.cos(a), z0 + (w0 - 0.1) * math.sin(a)
-        if math.hypot(x - cs["x"], z - cs["z"]) < 1.0 or abs(k - 4) < 1:
-            continue
-        s = rng.uniform(0.7, 1.15)
-        blob(bm, x, water + 0.05, z, 0.24 * s, 0.17 * s, 0.2 * s, m=k % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
     # the far bank (no one walks it): bushes, boulders, ferns and flowers down its length
     F = river_frame(L, 4)
     for k, (x, z, w, tx, tz, nx, nz) in enumerate(F):

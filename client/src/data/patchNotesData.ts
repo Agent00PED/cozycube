@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.52",
+    range: "v0.7.0–v0.7.53",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1854,6 +1854,21 @@ export const PATCH_ERAS: PatchEra[] = [
             "🌗 The shade on the ground now falls the way the sun throws it.",
             "⛰️ Low hummocks on the open lawns of both maps.",
           ],
+        },
+      },
+      {
+        version: "0.7.53",
+        date: "2026-10-02",
+        title: "Quiet Streams",
+        summary: "The rivers at the campfire and in the woods are simple flowing streams now, and both maps are a little plainer and calmer.",
+        changes: {
+          visuals: [
+            "🌊 Each river flows in at one edge of its island and out at the other. The waterfalls at their heads and over the islands' edges are gone.",
+            "💧 The small brook in the Whispering Woods is gone, with its spring, stepping stones and log bridge.",
+            "🪨 The rock ledges round the islands' edges are gone.",
+            "🪵 No more logs lying across the trails.",
+          ],
+          economy: ["⚖️ Nothing you earn changes."],
         },
       },
     ],
