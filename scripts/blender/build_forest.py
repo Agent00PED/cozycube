@@ -778,7 +778,8 @@ def dirt_field(L):
     for path in L["paths"]:
         pts = path_polyline(path, 0.12)
         pad = max(p[2] for p in pts) / 2 + 1.3
-        lines.append(((min(p[0] for p in pts) - pad, max(p[0] for p in pts) + pad, min(p[1] for p in pts) - pad, max(p[1] for p in pts) + pad), pts))
+        # (a path's own strength, `s`, and the length over which it fades in from its start, `fade`)
+        lines.append(((min(p[0] for p in pts) - pad, max(p[0] for p in pts) + pad, min(p[1] for p in pts) - pad, max(p[1] for p in pts) + pad), pts, path.get("s", 1.0), path.get("fade", 0.0)))
     wear = [
         # (none: a worn spot on its own, at a keeper's or the shrine's gate, read as a stain: the
         # wood's floor is unbroken. A spot is (x, z, radius, strength).)
@@ -791,17 +792,21 @@ def dirt_field(L):
         # following its line smoothly, the grass thinning into it over 0.6 m with no edge and no
         # raggedness: nature_kit `worn`. Only a slow, slight wander.)
         wob = 0.1 * (vnoise(x * 0.45 + 31.0, z * 0.45 + 7.0) - 0.5)
-        best = 9.0
-        for (x0, x1, z0, z1), pts in lines:
+        w = 0.0
+        for (x0, x1, z0, z1), pts, strength, fade in lines:
             if x < x0 or x > x1 or z < z0 or z > z1:
                 continue
+            best, at = 9.0, 0.0
+            run = 0.0
             for (ax, az, aw), (bx, bz, bw) in zip(pts, pts[1:]):
                 dx, dz = bx - ax, bz - az
+                seg = math.hypot(dx, dz)
                 t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
                 d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - 0.27 * (aw + (bw - aw) * t)
                 if d < best:
-                    best = d
-        w = K.worn(best + wob)
+                    best, at = d, run + seg * t
+                run += seg
+            w = max(w, strength * (smooth(0.0, fade, at) if fade else 1.0) * K.worn(best + wob))
         # (grass holding on in places: a worn patch is never evenly bare)
         thin = 0.72 + 0.28 * smooth(0.3, 0.62, vnoise(x * 1.25 + 7.0, z * 1.25 - 3.0))
         for wx, wz, r, s in wear:

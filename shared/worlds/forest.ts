@@ -21,9 +21,9 @@ import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 // a grove is filled with things that are not felled (the dressing's small pines, shrubs, boulders).
 //
 //   The Border          the way in from the archway: meadow and four Soft Pines (T1), and the trail
-//                       east along the south to Bramble's. No trail is drawn (`paths` is empty;
-//                       `formerPaths` keeps the courses last drawn, read by nothing): the ground
-//                       is worn only where people stand
+//                       east along the south to Bramble's. No trail is drawn (`formerPaths` keeps
+//                       the courses last drawn, read by nothing) but one faint way in to Bramble's
+//                       counter (`paths`: a few metres, fading in from nothing: `s`, `fade`)
 //   The Birch Grove     the west, eleven Silver Birches (T2) and the rabbits
 //   The Heart Glade     the middle: the trails' crossroads and a small clearing where a Colossal
 //                       can rise
@@ -196,7 +196,9 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     [-16.4, -7.9, 0.8], [-16.2, -4.6, 1.15], [-15.7, -3.2, 0.75], [-16.3, 0.3, 1.25], [-16.4, 2.2, 0.85], [-16.2, 6.6, 1.05], [-15.8, 8.0, 0.8], [-16.4, 11.9, 1.2],
     [-16.1, -15.0, 1.1], [5.8, -13.6, 1.0], [-14.4, -7.4, 1.0]
   ],
-  "paths": [],
+  "paths": [
+    { "s": 0.8, "fade": 3.2, "points": [[1.4, 14.5, 0.7], [3.2, 14.45, 0.85], [4.8, 14.2, 0.95], [6.4, 13.9, 1.05], [7.85, 13.65, 1.5]] }
+  ],
   "formerPaths": [
     { "points": [[-11.0, 15.8, 1.3], [-9.4, 13.9, 1.3], [-6.6, 12.5, 1.3], [-3.6, 12.1, 1.3], [-0.2, 12.5, 1.3], [3.0, 13.3, 1.3], [5.6, 13.85, 1.3], [7.85, 14.0, 1.3]] },
     { "points": [[-3.6, 12.1, 1.15], [-3.9, 8.2, 1.15], [-3.5, 5.0, 1.15], [-3.2, 1.8, 1.15], [-3.0, -1.2, 1.15], [-2.6, -3.4, 1.15], [-2.4, -5.3, 1.15]] },
