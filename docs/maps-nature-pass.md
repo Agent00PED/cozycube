@@ -176,6 +176,20 @@ mostly below the trees:
   the birches and the willow; fish rise; mist lies on the rivers at dawn and dusk; moths come to the
   lanterns; Bramble's chimney smokes; dragonflies keep to the water; birds cross overhead.
 
+## Round eight: every tree is felled (patch 0.7.57)
+
+The owner asked for every tree on both maps to be fellable, and for another maple or two in the woods.
+
+- **Sixty-three more trees to fell:** seventeen at the campfire and forty-six in the woods, all the
+  pines and spruces that had stood only for their looks. Each is a Soft Pine and looks as it did
+  (its own size, shape and green); felled, it leaves a stump and grows back like any other.
+- **Thirteen stay standing:** the trees that hold something up (the hammocks, the strings of lights,
+  the lights' peg), the six a bird lives in, and the one across the campfire's river.
+- **One more Autumn Maple**, north of the Golden Glen. A second did not fit: the fourth already puts
+  the two best axes 18 to 19% over their income targets, and the limit is 20%.
+- **The Old Growth's three cedars became pines.** As cedars to fell they raised the income of the
+  Tempered axe and up by a tenth.
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.

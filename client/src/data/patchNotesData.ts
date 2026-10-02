@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.56",
+    range: "v0.7.0–v0.7.57",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1922,6 +1922,21 @@ export const PATCH_ERAS: PatchEra[] = [
             "🦋 Moths come to the lanterns at night, Bramble's chimney smokes, and birds cross over the woods.",
           ],
           economy: ["⚖️ Nothing you earn changes."],
+        },
+      },
+      {
+        version: "0.7.57",
+        date: "2026-10-02",
+        title: "Every Tree Falls",
+        summary: "Every pine and spruce at the campfire and in the Whispering Woods can be felled now, and a fourth Autumn Maple grows up the hill.",
+        changes: {
+          features: [
+            "🪓 The trees that only stood for their looks are yours to fell: 17 more at the campfire and 46 more in the woods, the rim's pines and the Old Growth's giants among them.",
+            "🌲 Each is a Soft Pine: any axe fells it, it leaves a stump, and it grows back in about half a minute.",
+            "🍁 A fourth Autumn Maple stands north of the Golden Glen.",
+            "🦉 A few trees stay standing: the ones that hold a hammock or a string of lights, and the ones a bird lives in.",
+          ],
+          economy: ["⚖️ More pines close together means a little more a minute with a starter axe (about 33 coins at the campfire). The fourth maple raises what the two best axes earn by about 8%."],
         },
       },
     ],

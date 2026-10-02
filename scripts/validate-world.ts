@@ -83,13 +83,13 @@ import { VAULT_SLOTS, VIP_ARRIVAL, VIP_BACCARAT, VIP_BACCARAT_PAD, VIP_BLACKJACK
 import { findPath } from "../shared/pathfinding";
 import type { AABB } from "../shared/collision";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../shared/worlds/lounge";
-import { BARNABY_BOARD, BARNABY_FRONT, BUSTER_FRONT, CAMPFIRE_LAYOUT, CAMP_ARCHWAY_FRONT, CAMP_TREES, FISHING_SPOTS, GALLERY_FRONT, SPLITBLOCK_FRONT, TELESCOPE_FRONT, WORKBENCH_FRONT, campGroundY, campLand } from "../shared/worlds/campfire";
+import { BARNABY_BOARD, BARNABY_FRONT, BUSTER_FRONT, CAMPFIRE_LAYOUT, CAMP_ARCHWAY_FRONT, CAMP_TREES, CAMP_WILD_TREES, FISHING_SPOTS, GALLERY_FRONT, SPLITBLOCK_FRONT, TELESCOPE_FRONT, WORKBENCH_FRONT, campGroundY, campLand } from "../shared/worlds/campfire";
 import { CAMPFIRE_TERRAIN_PATH, campfireTerrainText } from "./campfire-terrain";
 import { WORLDS } from "../shared/worlds/index";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAST_DEPTH, CAVE_ADIT_FRONT, CAVE_ARRIVAL, CAVE_LAKE, CAVE_TRAILS, CAVE_WATER_Y, CAVE_WINCH, CAVERNS_CAMERA, CAVERNS_LAYOUT, CAVERNS_MASK, DOLINE, WINCH_REACH, WINCH_RIDE_S, FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, MASK_CELL, MASK_N, ORE_NODES, OVERLOOK, SHORE_REACH, STEEPEST_WALK, THERMAL_REACH, THERMAL_SEATS, TRAIL_STEEPEST, HEARTH_SEATS, PHOTO_SPOT, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, cavernsFloorY, cavernsWalkable, inLakeWater, lakeFactor, nearestWater, onBeach, oreReach, shoreCast, trailSlope, RAFT, raftAt, streamCast, STREAM_REACHES, cavernsSurface, SURFACE, STEEPEST_STEP } from "../shared/worlds/caverns";
 import { readFileSync, existsSync } from "node:fs";
 import { CAVERNS_TERRAIN_PATH, cavernsTerrainText } from "./caverns-terrain";
-import { BRAMBLE_FRONT, FINLEY_FRONT, FOREST_ADIT_FRONT, FOREST_FISHING, FOREST_LAYOUT, FOREST_TREES, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_ARRIVAL, WOODS_FROM_CAVERNS, forestFloorY, forestLand } from "../shared/worlds/forest";
+import { BRAMBLE_FRONT, FINLEY_FRONT, FOREST_ADIT_FRONT, FOREST_FISHING, FOREST_LAYOUT, FOREST_TREES, FOREST_WILD_TREES, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_ARRIVAL, WOODS_FROM_CAVERNS, forestFloorY, forestLand } from "../shared/worlds/forest";
 import { FOREST_TERRAIN_PATH, forestTerrainText } from "./forest-terrain";
 import { BAG_BOXER, REF_APRON, REF_HOME, RING_CROWD, TRAINEE, CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, JIMMY, JIMMY_FRONT, JIMMY_REACH, NEUTRAL_CORNERS, RING, RING_BENCH_FRONT, RING_CORNERS, RING_FANS, RING_SEATS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
 
@@ -568,8 +568,10 @@ for (const mapId of MAP_IDS) {
   level("the firepit", CL.fire, CL.firepit.r + 0.6, 0.001);
   level("the dock's landing", { x: CL.dock.x0, z: (CL.dock.z0 + CL.dock.z1) / 2 }, 1.2, 0.001);
   // the drawn ground and the land agree wherever anyone stands (only the river's channel differs)
-  for (const t of CAMP_TREES) {
+  for (const t of [...CAMP_TREES, ...CAMP_WILD_TREES]) {
     checks++;
+    // (a wild tree is felled from wherever is open beside it: still within an axe's reach)
+    if (Math.hypot(t.approachX - t.x, t.approachZ - t.z) > 1.9) fail(`${F}: ${t.id} is felled from ${Math.hypot(t.approachX - t.x, t.approachZ - t.z).toFixed(2)} m off`);
     if (Math.abs(campGroundY(t.approachX, t.approachZ) - campLand(t.approachX, t.approachZ)) > 0.05) fail(`${F}: ${t.id} is felled from the river's bank ${fmt({ x: t.approachX, z: t.approachZ })}`);
   }
   // the walks from the hearth: nowhere more than ten seconds off at the game's 3 m/s
@@ -642,8 +644,9 @@ for (const mapId of MAP_IDS) {
     if (!(tiers[k + 1] > tiers[k])) fail(`${W}: tier ${k + 2}'s trees (${tiers[k + 1].toFixed(2)} m) stand no higher than the tier before (${tiers[k].toFixed(2)} m)`);
   }
   // every tree is felled from the land (never the river's bank), every angler stands dry
-  for (const t of FOREST_TREES) {
+  for (const t of [...FOREST_TREES, ...FOREST_WILD_TREES]) {
     checks++;
+    if (Math.hypot(t.approachX - t.x, t.approachZ - t.z) > 1.9) fail(`${W}: ${t.id} is felled from ${Math.hypot(t.approachX - t.x, t.approachZ - t.z).toFixed(2)} m off`);
     if (Math.abs(forestFloorY(t.approachX, t.approachZ) - forestLand(t.approachX, t.approachZ)) > 0.05) fail(`${W}: ${t.id} is felled from the river's bank ${fmt({ x: t.approachX, z: t.approachZ })}`);
   }
   for (const f of FOREST_FISHING) {
