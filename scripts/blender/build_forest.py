@@ -96,6 +96,7 @@ PALETTE = {
     "FW_GlenFloor": "#C98B3A",
     "FW_ShrineFloor": "#3F6B4A",
     "FW_Dirt": "#8B6B4C",
+    "FW_Trail": "#9A7F58",
     "FW_Bank": "#4C5A36",
     "FW_Pebble": "#A39C90",
     "FW_Tuft": "#5E8A48",
@@ -789,11 +790,10 @@ def dirt_field(L):
     K = nature()
 
     def field(x, z):
-        # (a trail is a footpath: a bare tread three quarters of its width, wider and narrower as it
-        # goes, an edge that wanders and feathers out over a hand's breadth, grass biting into it
-        # here and there, and a shoulder of trampled grass beside it: nature_kit `worn`)
-        wob = 0.2 * (vnoise(x * 0.7 + 31.0, z * 0.7 + 7.0) - 0.5) + 0.12 * (vnoise(x * 2.4 + 11.0, z * 2.4 - 4.0) - 0.5)
-        girth = 0.82 + 0.36 * vnoise(x * 0.35 + 5.0, z * 0.35 - 2.0)
+        # (a trail is where feet pass every day: an even tread a little over half the trail's width,
+        # following its line smoothly, the grass thinning into it over 0.6 m with no edge and no
+        # raggedness: nature_kit `worn`. Only a slow, slight wander.)
+        wob = 0.1 * (vnoise(x * 0.45 + 31.0, z * 0.45 + 7.0) - 0.5)
         best = 9.0
         for (x0, x1, z0, z1), pts in lines:
             if x < x0 or x > x1 or z < z0 or z > z1:
@@ -801,18 +801,14 @@ def dirt_field(L):
             for (ax, az, aw), (bx, bz, bw) in zip(pts, pts[1:]):
                 dx, dz = bx - ax, bz - az
                 t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
-                d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - 0.36 * (aw + (bw - aw) * t) * girth
+                d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - 0.27 * (aw + (bw - aw) * t)
                 if d < best:
                     best = d
-        best += wob
-        # (tufts biting into the tread's edges)
-        if -0.22 < best < 0.3:
-            best += 0.2 * smooth(0.62, 0.8, vnoise(x * 1.9 + 7.0, z * 1.9 - 3.0))
-        w = K.worn(best)
+        w = K.worn(best + wob)
         for wx, wz, r, s in wear:
             d = math.hypot(x - wx, z - wz)
-            if d < r * 1.3:
-                w = max(w, s * K.worn(d - r * 0.5 + wob))
+            if d < r * 1.5:
+                w = max(w, s * K.worn(d - r * 0.45 + wob))
         return w
 
     return field
@@ -845,8 +841,9 @@ def ground_color(L, x, z, dirt, tones):
     w = dirt(x, z)
     if w > 0:
         # (trampled grass, yellowed, where the wear begins; bare earth where it is complete)
-        col = mixc(col, lin(PALETTE["FW_GrassDry"]), 0.45 * smooth(0.0, 0.4, w))
-        col = mixc(col, [c * (0.88 + 0.14 * n2) * (0.96 + 0.08 * n3) for c in earth], smooth(0.42, 0.9, w) * 0.92)
+        # (one gradient: grass, thinning and yellowing, into dry trodden earth; no threshold in it)
+        col = mixc(col, lin(PALETTE["FW_GrassDry"]), 0.5 * math.sin(math.pi * w) ** 2 + 0.25 * w)
+        col = mixc(col, [c * (0.95 + 0.08 * n2) for c in lin(PALETTE["FW_Trail"])], 0.86 * w ** 1.3)
     if SHADE is not None:
         dark, litter = SHADE.at(x, z)
         if "needles" in litter:

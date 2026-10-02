@@ -157,10 +157,12 @@ class Shade:
 
 
 def worn(d):
-    """How worn the ground is `d` metres outside a footpath's bare tread (negative: on it), 0..1:
-    bare earth on the tread, a feathered edge a hand's breadth wide (never a ruled line, never a
-    smear), then a shoulder of trampled grass fading out over half a metre."""
-    return 0.6 * max(0.0, min(1.0, 1 - d / 0.3)) + 0.4 * max(0.0, min(1.0, 1 - (d - 0.3) / 0.55))
+    """How worn the ground is `d` metres outside a footpath's tread (negative: on it), 0..1: one
+    smooth ease from bare earth just inside the tread's edge to untouched grass 0.6 m beyond it. No
+    line, no step, no noise: the grass thins toward the middle the way it does where feet pass
+    every day."""
+    t = max(0.0, min(1.0, (d + 0.14) / 0.74))
+    return 1 - t * t * (3 - 2 * t)
 
 
 def refine_near(bm, faces, wear, lo=0.04, hi=0.97):
