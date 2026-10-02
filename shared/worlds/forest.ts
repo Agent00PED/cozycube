@@ -52,7 +52,8 @@ export const FOREST_LAYOUT = /* layout:begin */ {
       {"id": "lower", "top": 1.1, "lobes": [{"x": -5, "z": -12, "flat": 13.5, "skirt": 6}]},
       {"id": "upper", "top": 1.0, "lobes": [{"x": -3, "z": -11.5, "flat": 9.3, "skirt": 5.2}, {"x": -12, "z": -12.5, "flat": 7.2, "skirt": 5.2}]},
       {"id": "glen", "top": 0.7, "lobes": [{"x": -12.5, "z": -12.5, "flat": 4.6, "skirt": 2.6}]},
-      {"id": "crown", "top": 0.4, "lobes": [{"x": 1.4, "z": -6.0, "flat": 2.4, "skirt": 3.6}]}
+      {"id": "crown", "top": 0.4, "lobes": [{"x": 1.4, "z": -6.0, "flat": 2.4, "skirt": 3.6}]},
+      {"id": "hummocks", "top": 0.22, "lobes": [{"x": -3.2, "z": 9.9, "flat": 0.4, "skirt": 1.8}, {"x": 3.5, "z": 10.3, "flat": 0.4, "skirt": 1.7}, {"x": -13.6, "z": 7.8, "flat": 0.3, "skirt": 1.6}, {"x": 5.8, "z": 3.8, "flat": 0.3, "skirt": 1.6}, {"x": -7.4, "z": 13.4, "flat": 0.3, "skirt": 1.5}, {"x": 9.4, "z": -0.2, "flat": 0.3, "skirt": 1.4}]}
     ]
   },
   "zones": [

@@ -47,7 +47,12 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
       { "id": "knoll", "x": -10.4, "z": -10.2, "top": 1.7, "flat": 1.7, "skirt": 6.0 },
       { "id": "shoulder", "x": -9.2, "z": -2.6, "top": 0.8, "flat": 2.5, "skirt": 3.6 },
       { "id": "swell", "x": -10.8, "z": 6.4, "top": 0.4, "flat": 0.8, "skirt": 3.6 },
-      { "id": "swell", "x": 6.0, "z": 11.6, "top": 0.3, "flat": 0.6, "skirt": 3.0 }
+      { "id": "swell", "x": 6.0, "z": 11.6, "top": 0.3, "flat": 0.6, "skirt": 3.0 },
+      { "id": "hummock", "x": 4.3, "z": 3.6, "top": 0.22, "flat": 0.4, "skirt": 1.7 },
+      { "id": "hummock", "x": 4.7, "z": -2.7, "top": 0.2, "flat": 0.3, "skirt": 1.6 },
+      { "id": "hummock", "x": 2.5, "z": 7.5, "top": 0.2, "flat": 0.4, "skirt": 1.7 },
+      { "id": "hummock", "x": -2.5, "z": 6.1, "top": 0.18, "flat": 0.3, "skirt": 1.5 },
+      { "id": "hummock", "x": -6.4, "z": 7.0, "top": 0.2, "flat": 0.3, "skirt": 1.6 }
     ],
     "terrace": { "x0": -4.2, "x1": 8.4, "z1": -9.4, "top": 0.45, "skirt": 2.4 }
   },

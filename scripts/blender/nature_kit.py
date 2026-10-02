@@ -125,7 +125,8 @@ def _smooth(e0, e1, v):
 class Shade:
     """What lies on the ground under things, read by a builder's ground paint. `cast` a crown's
     shade or a thing's contact shadow; `at` the darkness (0 to about 0.6) and the litter (0 to 1) at
-    a point. The light is high in the north-west, so a shade lies a little to the south-east."""
+    a point. The game's key light stands high in the west-south-west (WorldScene: (-14, 24, 10)), so a
+    shade lies a little to the east-north-east of what casts it."""
 
     CELL = 2.5
 
@@ -133,11 +134,11 @@ class Shade:
         self.cells = {}
 
     def cast(self, x, z, r, dark, litter=0.0, kind="needles", throw=0.22):
-        ox, oz = x + r * throw, z + r * throw
+        ox, oz = x + r * throw * 1.2, z - r * throw * 0.85
         item = (ox, oz, x, z, r, dark, litter, kind)
         c = self.CELL
         for i in range(int(math.floor((x - r) / c)), int(math.floor((ox + r) / c)) + 1):
-            for k in range(int(math.floor((z - r) / c)), int(math.floor((oz + r) / c)) + 1):
+            for k in range(int(math.floor((oz - r) / c)), int(math.floor((z + r) / c)) + 1):
                 self.cells.setdefault((i, k), []).append(item)
 
     def at(self, x, z):

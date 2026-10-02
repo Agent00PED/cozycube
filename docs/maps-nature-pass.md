@@ -87,10 +87,19 @@ of it denser or emptier than another. Now it has three parts.
 - **Removed:** two barrels, two lantern posts, a stump, the cairn, the smoker.
 - **The trails** are one worn line again: the first pass traded ruled roads for blotches.
 
+## Round three: daylight and relief (patch 0.7.52)
+
+- **The day's light had no direction.** The fill was 0.78 and the key 0.62, so a face in the light
+  and a face out of it were nearly the same. Now the fill is 0.56 in a cool sky tint and the key 0.98
+  in a warm one: trees, boulders and roofs have a lit side and a shaded side. Night is unchanged.
+- **The painted shade was thrown the wrong way** (to the south-east; the key light stands in the
+  west-south-west). It now lies to the east-north-east of what casts it, as the key would throw it.
+- **Relief:** five low hummocks on the campfire's lawns and six in the woods' flats (0.2 m high),
+  kept clear of everything built. With the stronger key they catch the light.
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.
-- **Ground relief:** the lawns are still smooth; a few hummocks and hollows would help more than
-  any further paint.
+- **Bolder relief:** the hummocks are gentle; banks and exposed rock on the lawns would do more.
 - **The fellable birches and maples** are still one model each, turned and sized per tree.
 - **An organic coastline:** the islands' walkable outline is still a rounded square under the rock.

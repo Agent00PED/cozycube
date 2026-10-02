@@ -322,6 +322,11 @@ The campfire's shape (docs/maps-nature-pass.md round two, patch 0.7.51): a wood,
 - **Fewer things:** the two barrels, two of the four lantern posts, a stump, the cairn and the smoker are gone (the builder builds the last two only if the layout has them); three shrubs moved from the meadow to the wood's edge.
 - **The trails are one worn line** again (less wander, no blotches), their margin yellowed.
 
+The camp's daylight and the ground's relief (docs/maps-nature-pass.md round three, patch 0.7.52):
+- **The day's key is strong and warm, its fill low and cool** (campDay.tsx `CAMP_DAY`: ambient 0.56 in a sky tint, the key 0.98 in a warm one; it was 0.78 and 0.62): lit and shaded faces differ, so trees, rocks and roofs have a form. The night look is as it was.
+- **The painted shade lies the way that key throws it** (nature_kit `Shade.cast`'s `throw`: to the east-north-east of what casts it; the key stands at (-14, 24, 10) in WorldScene). Move the key and the shade's throw moves with it.
+- **Low hummocks on the open lawns** (the campfire's `terrain.mounds` entries `hummock`, the woods' `terrain.steps` entry `hummocks`: 0.2 m high, 1.5 to 1.9 m skirts), clear of everything built (`check-layout`'s level checks hold them off the firepit, the dock, the stalls).
+
 The Whispering Woods rebuilt (docs/woods-design.md, patch 0.7.44):
 - **34 m across, a hillside** (shared/worlds/forest.ts `terrain.steps`: wide steps added one on another, each one or more round lobes at one height: the lower hill 1.1 m, the upper 1.0, the Glen's shelf 0.7, the shrine's crown 0.4; `forestLand`, `forestHeight` with the river's channel, `FOREST_GRID`, `forestFloorY`: `walkY` in the woods): from the river along the east up to the Mine Ledge in the north-west at 2.8 m. Nothing over 24 degrees, all of it walked, no walk mask.
 - **The groves stand as they did**, the whole constellation moved to the south and west of the bigger island (`core`: the middle of the wood, which every tree is felled toward), the Golden Glen's maples and the shrine a step up the hill: the pines at the arrival on the flat, the birches up the first slope, the maples at 2.1 m, the Elderwood on its crown at 2.5 m, the adit cut into the cliff on the ledge above with Old Flint. Bramble's Post (the cabin, the counter, the advanced workbench) in the south, the same walk from the groves as before.
