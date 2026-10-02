@@ -144,6 +144,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     "barrels": [{ "x": 0.45, "z": -11.0 }, { "x": 7.9, "z": -1.6 }],
     "fallen": [{ "x": -11.7, "z": 11.3, "yaw": 2.0, "len": 1.6 }],
     "stumps": [{ "x": -3.4, "z": 5.0 }, { "x": 6.4, "z": 10.2 }],
+    "snags": [[-13.35, -11.3, 2.7], [-13.4, 12.3, 2.2]],
     "birches": [[-7.9, -10.2, 0.8], [-6.4, -7.6, 0.75], [-3.0, 10.6, 0.7], [-1.0, 13.0, 0.7], [8.4, 10.4, 0.7]],
     "shrubs": [[-7.55, -9.35, 0.8], [-4.7, -12.5, 0.7], [-8.6, 0.2, 0.8], [-12.0, 4.9, 0.7], [-2.6, 13.0, 0.7], [0.2, 13.1, 0.75], [7.6, 12.4, 0.8], [4.2, 10.4, 0.7], [4.4, -3.0, 0.75], [8.6, -3.2, 0.7], [3.8, -6.4, 0.7]],
     "meadows": [[6.2, -5.6, 2.6], [-6.0, -10.2, 2.4], [-9.8, 1.8, 2.6], [-1.2, 10.4, 2.6], [6.2, 11.4, 2.4]]
@@ -899,6 +900,8 @@ export const CAMP_OBSTACLES: AABB[] = [
   ...L.dressing.stumps.map((p) => around(p, 0.24)),
   // the birches that are not felled, and the waist-high shrubs
   ...L.dressing.birches.map(([x, z, s]) => around({ x, z }, 0.3 * s)),
+  // the dead standing trees at the rims
+  ...L.dressing.snags.map(([x, z]) => around({ x, z }, 0.2)),
   ...L.dressing.shrubs.map(([x, z, s]) => around({ x, z }, 0.34 * s)),
   // the pole the lights are strung from, the signpost
   around(L.stringPole, 0.1),

@@ -1,0 +1,79 @@
+# The campfire and the woods: the nature pass
+
+Status: **built** (patch 0.7.50), on top of the fill plan (docs/maps-fill-plan.md). The brief: the
+two maps "still feel odd, not natural"; analyse them, change whatever it takes.
+
+## What was wrong (seen from the play camera)
+
+| # | What the eye caught | Why it reads as artificial |
+|---|---|---|
+| 1 | **Nothing cast a shadow.** The renderer draws none (`shadows={false}`), and nothing was painted in their place. | Trees, stalls, rocks and players sat on the grass like pieces on a board: no contact, no depth. |
+| 2 | **Every conifer was the same stack of three smooth cones**, the same dark green, with no trunk showing. | Real trees differ in girth, lean, height and tone; a row of identical shapes is a pattern, and the eye finds patterns at once. |
+| 3 | **The fire's clearing was one flat brown disc** with trails as wide as roads leading out of it. | Bare ground is worn by feet: it is narrow, ragged, patchy, and yellows the grass at its margin before it goes bare. |
+| 4 | **The grass was one green** with a faint mottle. | Open lawns bleach in the sun; the ground under conifers is brown with needles; shade is darker and cooler. |
+| 5 | **The islands were thin square slabs** with ruled edges. | A straight edge 28 m long is the strongest man-made line on the screen. |
+| 6 | **Stones along the river stood at even spacing** on both banks, all one size. | A necklace. Stones gather where the current drops them and leave clear bank between. |
+| 7 | **The woods' rim pines stood in a row** 2.7 m apart, all nearly one size. | A hedge, not a forest's edge. |
+| 8 | **The brook was a straight pale ribbon.** | Water finds its way round things; it does not run ruled. |
+| 9 | **No understory, nothing dead.** | A wood has saplings at the feet of its trees and standing dead trunks among the living. |
+
+## What the references say
+
+- Cluster boldly and leave other ground bare; never scatter evenly. Saplings and shrubs belong at
+  the feet of bigger plants, which also hides where trunks meet the ground. Dead trees and fallen
+  logs are a large part of any real forest. Forest floors carry ferns and litter, not lawn.
+  ([Art Tips for Building Forests, Eastshade Studios](https://www.eastshade.com/art-tips-for-building-forests/))
+- Water curves round obstacles; paths follow the land and blur at their edges where they are little
+  used; straight lines read as built.
+  ([The Level Design Book: Landscape](https://book.leveldesignbook.com/process/blockout/massing/landscape))
+
+## What was done
+
+All of it is in the two Blender builders and one shared module, `scripts/blender/nature_kit.py`.
+No collider on any walk moved, so income is unchanged to the decimal on both maps.
+
+1. **Shade and contact shadows, painted into the ground** (`nature_kit.Shade`, each builder's
+   `make_shade`, read by `ground_color`): a soft dark pool under every crown, thrown a little to the
+   south-east (the light stands in the north-west), and a tight shadow at the foot of everything
+   that stands (the tipi, the van, the stalls, the cabin, rocks, shrubs, posts, logs, benches).
+   Shade is cooler as well as darker. The fellable trees get it too: a felled tree leaves a stump
+   in a dim, littered patch, which is what a felled tree leaves.
+2. **A soft shadow under every player** on these two maps (Avatar's `FOOT_SHADOW`, standing only).
+3. **Litter:** brown needles under the conifers, pale leaves under the birches, blended in by the
+   same shade field.
+4. **A new conifer** (`nature_kit.conifer`): a tapered trunk that shows, four or five tiers of
+   boughs with ragged drooping tips, faceted, each tree its own girth, height, lean and turn, the
+   low boughs darker than the top. Three kinds: pine, the slimmer spruce (one in four of the
+   standing trees), cedar. The trees you fell use the same shapes (trees.glb), so the two no longer
+   look like different species. Needles are a step lighter and warmer than before.
+5. **Understory:** saplings in ones and twos at the feet of the standing pines (walked through),
+   and dead standing trees (`snag`) at the rims (two at the campfire, four in the woods).
+6. **Birches made lopsided**, so no two turns of one look alike.
+7. **Worn ground, not roads:** the clearing is worn round the fire and its seats (three quarters of
+   its old radius, ragged), the trails are 60% as wide, their edges wander at three scales, tufts
+   hold on in their middles, and the grass yellows where the wear begins.
+8. **Drifts of dry grass** over the open lawns.
+9. **Rock at the rim** (`build_rim`): ledges and outcrops in groups shoulder out of the islands'
+   sides with blocks tumbled under them and moss on top, wider on the two faces the camera sees.
+   The square outline is gone; where anyone walks is exactly as it was.
+10. **The river's stones in groups** of every size with clear bank between.
+11. **The woods' rim pines** re-placed off the line, in sizes from 0.75 to 1.3, with gaps.
+12. **The brook** narrower and winding between its banks; it still only runs downhill.
+
+## What it costs
+
+| | Campfire | Woods |
+|---|---|---|
+| Draw calls (one player, whole map) | about 118 (unchanged) | about 110 (unchanged) |
+| Model, packed | 3.4 to 3.9 MB | 3.8 to 4.6 MB |
+| Income | unchanged | unchanged |
+
+The size is the faceted conifers (a flat-shaded face keeps its own three vertices).
+
+## Not done, and worth doing next
+
+- **The lit clearing by night:** the bonfire's light could flicker over the painted shade.
+- **Ground relief:** the lawns are still smooth; a few hummocks and hollows would help more than
+  any further paint.
+- **The fellable birches and maples** are still one model each, turned and sized per tree.
+- **An organic coastline:** the islands' walkable outline is still a rounded square under the rock.

@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.49",
+    range: "v0.7.0–v0.7.50",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1808,6 +1808,24 @@ export const PATCH_ERAS: PatchEra[] = [
             "🌤️ Shafts of daylight fall through the Old Growth's canopy over the camp and the trail.",
             "🐇 More rabbits and squirrels in the new cover on both maps.",
           ],
+        },
+      },
+      {
+        version: "0.7.50",
+        date: "2026-10-02",
+        title: "A More Natural Wild",
+        summary: "The campfire and the woods look less like a model and more like a place: shade under the trees, new firs and spruces, worn footpaths, and rock at the islands' edges.",
+        changes: {
+          visuals: [
+            "🌲 New conifers: a trunk you can see, ragged drooping boughs, and no two alike in height, girth or lean. Some are slim spruces. The trees you fell match them.",
+            "🌗 Shade at last: a soft dark pool under every tree, a shadow at the foot of every stall, tent and rock, and one under your own feet.",
+            "🍂 Brown needles under the pines and pale leaves under the birches.",
+            "👣 Footpaths, not roads: the trails are narrower and ragged, grass holds on in their middles, and the fire's clearing is worn only where people sit.",
+            "🪨 Rock ledges shoulder out of the islands' sides, so their edges are no longer ruled lines.",
+            "🌱 Saplings at the feet of the big trees and a few dead trunks at the rims.",
+            "💧 The river's stones lie in groups now, and the brook winds between its banks.",
+          ],
+          economy: ["⚖️ Nothing moved that you walk round, so nothing you earn changes."],
         },
       },
     ],

@@ -90,6 +90,18 @@ from mathutils import Matrix, Vector
 
 COLLECTION = "Campfire"
 
+
+def nature():
+    """scripts/blender/nature_kit.py (the conifers, the shade under things, the clumps), loaded
+    afresh on every run (the Live Bridge's Blender keeps modules between runs)."""
+    import importlib
+    import sys
+    here = os.path.join(repo_root(), "scripts", "blender")
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import nature_kit
+    return importlib.reload(nature_kit)
+
 PALETTE = {
     "CF_Grass": "#5B7A4E",
     "CF_GrassDark": "#4A6642",
@@ -103,8 +115,13 @@ PALETTE = {
     "CF_StoneDark": "#6D6A66",
     "CF_Bark": "#5E4230",
     "CF_WoodCut": "#D2A774",
-    "CF_Pine": "#2E5A46",
-    "CF_PineLight": "#3B6E53",
+    "CF_Pine": "#3B7150",
+    "CF_PineLight": "#528E5E",
+    "CF_PineDeep": "#2E5C45",
+    "CF_Snag": "#8C8478",
+    "CF_Needles": "#6B5B3E",
+    "CF_LeafLitter": "#9C8A48",
+    "CF_GrassDry": "#8A9455",
     "CF_Canvas": "#EADFC8",
     "CF_CanvasStripe": "#C8704A",
     "CF_Pole": "#8A6440",
@@ -717,6 +734,66 @@ def bake_modifiers(ob):
 # the parts
 
 
+SHADE = None  # what lies under things (set by build, read by the ground's paint)
+
+
+def make_shade(L):
+    """The pool of shade under every crown and the contact shadow at the foot of what stands (the
+    game draws no shadows), and the litter the trees drop: brown needles under the pines, pale
+    leaves under the birches."""
+    S = nature().Shade()
+    D = L["dressing"]
+    for i, t in enumerate(L["trees"]):
+        bare = t.get("bare", 0.0)
+        S.cast(t["x"], t["z"], 1.25 * t["s"], 0.36 if bare else 0.46, 0.85, "needles")
+    for t in L["fellTrees"]:
+        S.cast(t["x"], t["z"], 1.3, 0.34, 0.8, "needles")
+    for t in L["fellBirches"]:
+        S.cast(t["x"], t["z"], 1.1, 0.24, 0.55, "leaves")
+    for x, z, sz in D["birches"]:
+        S.cast(x, z, 1.05 * sz, 0.3, 0.5, "leaves")
+    P = L.get("places")
+    if P:
+        w = P["riverEnd"]["willow"]
+        S.cast(w["x"], w["z"], 1.6 * w["s"], 0.34, 0.3, "leaves")
+        for h in P["hammocks"]:
+            S.cast((h["a"][0] + h["b"][0]) / 2, (h["a"][1] + h["b"][1]) / 2, 0.85, 0.26, throw=0.1)
+        for px, pz, pr in places_solid(L):
+            S.cast(px, pz, pr * 0.8, 0.2, throw=0.12)
+    # what stands: a contact shadow hugging its foot
+    for x, z, sz in D["shrubs"]:
+        S.cast(x, z, 0.62 * sz, 0.34, throw=0.12)
+    for r in L["rocks"]:
+        S.cast(r["x"], r["z"], 0.62 * r["s"], 0.34, throw=0.12)
+    for u in L.get("undergrowth", []):
+        if u["kind"] in ("mossy", "berries"):
+            S.cast(u["x"], u["z"], 0.5, 0.3, throw=0.12)
+    for p in D["lanternPosts"] + D["barrels"] + D["stumps"]:
+        S.cast(p["x"], p["z"], 0.42, 0.32, throw=0.15)
+    for p in D["crates"]:
+        S.cast(p["x"], p["z"], 0.7, 0.36, throw=0.15)
+    for f in D["fallen"]:
+        for u in (-0.35, 0.0, 0.35):
+            S.cast(f["x"] + math.sin(f["yaw"]) * f["len"] * u, f["z"] + math.cos(f["yaw"]) * f["len"] * u, 0.42, 0.3, throw=0.15)
+    for x, z, h in D.get("snags", []):
+        S.cast(x, z, 0.5, 0.3, throw=0.2)
+    S.cast(L["tent"]["x"], L["tent"]["z"], L["tent"]["r"] * 1.35, 0.4, throw=0.14)
+    v = L["van"]
+    for u in (-0.8, 0.0, 0.8):
+        S.cast(v["x"] + u, v["z"], 1.15, 0.38, throw=0.16)
+    for key, r, dark in (("buster", 1.25, 0.34), ("barnaby", 1.2, 0.34), ("workbench", 1.0, 0.34), ("woodpile", 0.9, 0.34), ("splitblock", 0.5, 0.3), ("picnic", 1.25, 0.32),
+                         ("telescope", 0.5, 0.26), ("signpost", 0.35, 0.26), ("campChair", 0.5, 0.28), ("stringPole", 0.3, 0.26), ("guitarCase", 0.55, 0.26), ("busterBoard", 0.5, 0.3), ("barnabyBoard", 0.0, 0.0)):
+        if key in L and r > 0 and "x" in L[key]:
+            S.cast(L[key]["x"], L[key]["z"], r, dark, throw=0.14)
+    g = L["gallery"]
+    for u in (-1.2, 0.0, 1.2):
+        S.cast(g["x"] + u, (g["z"] + g["back"]) / 2, 1.5, 0.32, throw=0.1)
+    for p in firepit_pieces(L):
+        for _, (sx, sz) in p["seats"]:
+            S.cast(sx, sz, 0.55, 0.3, throw=0.12)
+    return S
+
+
 def dirt_field(L):
     """How bare the ground is at (x, z), 0..1: the clearing, the trails out of it (each along its
     spline, as wide as it says) and the worn spots where people stand (the stalls, the bench, the
@@ -751,23 +828,26 @@ def dirt_field(L):
     ]
 
     def field(x, z):
-        wob = 0.2 * (vnoise(x * 1.7 + 11.0, z * 1.7 - 4.0) - 0.5) + 0.08 * (vnoise(x * 5.1, z * 5.1) - 0.5)
-        best = math.hypot(x - c["x"], z - c["z"]) - c["r"]
+        # (ragged at three scales: a trail is where feet go, never a ruled band; the clearing is
+        # worn round the fire and its seats, the grass coming back toward its rim)
+        wob = 0.75 * (vnoise(x * 0.55 + 31.0, z * 0.55 + 7.0) - 0.5) + 0.34 * (vnoise(x * 1.7 + 11.0, z * 1.7 - 4.0) - 0.5) + 0.12 * (vnoise(x * 5.1, z * 5.1) - 0.5)
+        best = math.hypot(x - c["x"], z - c["z"]) - c["r"] * 0.74
         for (x0, x1, z0, z1), pts in lines:
             if x < x0 or x > x1 or z < z0 or z > z1:
                 continue
             for (ax, az, aw), (bx, bz, bw) in zip(pts, pts[1:]):
                 dx, dz = bx - ax, bz - az
                 t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
-                d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - (aw + (bw - aw) * t) / 2
+                d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - (aw + (bw - aw) * t) * 0.3
                 if d < best:
                     best = d
-        w = smooth(0.2, -0.16, best + wob)
+        w = smooth(0.32, -0.22, best + wob)
         for wx, wz, r, s in wear:
             d = math.hypot(x - wx, z - wz)
             if d < r + 0.3:
-                w = max(w, s * smooth(r, r * 0.35, d + wob))
-        return w
+                w = max(w, s * smooth(r * 0.85, r * 0.3, d + wob * 0.6))
+        # (and patchy: tufts hold on in the middle of a trail)
+        return w * (0.72 + 0.28 * smooth(0.25, 0.6, vnoise(x * 2.3 - 3.0, z * 2.3 + 8.0)))
 
     return field
 
@@ -790,10 +870,24 @@ def ground_color(L, x, z, h, dirt, tones):
     col = mixc(grass, dark, 0.6 * smooth(0.42, 0.78, n1))
     col = mixc(col, light, 0.7 * smooth(0.5, 0.85, n2))
     col = mixc(col, light, 0.3 * smooth(0.6, 1.7, h))
+    # (drifts of dry, sun-bleached grass on the open lawns; lusher and darker toward the water)
+    n4 = vnoise(x * 0.21 - 9.0, z * 0.21 + 4.0)
+    col = mixc(col, lin(PALETTE["CF_GrassDry"]), 0.5 * smooth(0.55, 0.85, n4))
     col = [c * (0.955 + 0.09 * n3) for c in col]
     w = dirt(x, z)
     if w > 0:
-        col = mixc(col, [c * (0.9 + 0.18 * n2) for c in earth], w)
+        # (trampled grass, yellowed, where the wear begins; bare earth where it is complete)
+        col = mixc(col, lin(PALETTE["CF_GrassDry"]), 0.55 * smooth(0.0, 0.35, w))
+        col = mixc(col, [c * (0.82 + 0.2 * n2) for c in earth], smooth(0.3, 0.95, w) * 0.9)
+    if SHADE is not None:
+        dark, litter = SHADE.at(x, z)
+        if "needles" in litter:
+            col = mixc(col, [c * (0.85 + 0.3 * n3) for c in lin(PALETTE["CF_Needles"])], 0.8 * litter["needles"] * (0.7 + 0.3 * n2))
+        if "leaves" in litter:
+            col = mixc(col, lin(PALETTE["CF_LeafLitter"]), 0.4 * litter["leaves"] * (0.5 + 0.5 * n3))
+        if dark > 0:
+            # (a shade is darker and cooler than the lit ground beside it)
+            col = [col[0] * (1 - dark), col[1] * (1 - dark * 0.9), col[2] * (1 - dark * 0.72)]
     span = river_span(L, z)
     if span is not None:
         inside = min(x - span[0], span[1] - x)
@@ -891,6 +985,53 @@ def build_ground(L, coll):
     bm.faces.new(list(reversed(rings[0])))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     make_object("Campfire_Underside", bm, ["CF_SoilDeep"], coll, smooth_all=True, lift=None)
+
+
+def build_rim(L, coll):
+    """Rock shouldering out of the island's sides: ledges and outcrops in groups round its rim (wide
+    on the faces the camera sees, the south and the east), each a few big blocks half in the soil
+    with smaller ones tumbled under them, moss and grass over their tops; none where the river
+    leaves. They break the square of the island's outline; nobody walks them."""
+    half = L["half"]
+    rng = random.Random(77)
+    M = ["CF_Stone", "CF_StoneDark", "CF_Lichen", "CF_Grass", "CF_GrassDark", "CF_Soil"]
+    bm = bmesh.new()
+    mouth = river_span(L, half - 0.2)
+    perim = 8 * half
+    u = rng.uniform(0.0, 3.0)
+    while u < perim:
+        side, t = int(u // (2 * half)), (u % (2 * half)) - half
+        # (side 0 the south edge, 1 the east, 2 the north, 3 the west)
+        ex, ez, ox, oz = ((t, half, 0, 1), (half, -t, 1, 0), (-t, -half, 0, -1), (-half, t, -1, 0))[side]
+        seen = side in (0, 1)
+        u += rng.uniform(2.2, 5.5) if seen else rng.uniform(4.0, 8.0)
+        if abs(t) > half - 1.4:
+            continue
+        if mouth and side == 0 and mouth[0] - 1.6 < ex < mouth[1] + 1.6:
+            continue
+        if side == 2 and abs(ex - L["cascade"]["x"]) < 2.5:
+            continue
+        top = land_y(max(-half + 0.3, min(half - 0.3, ex)), max(-half + 0.3, min(half - 0.3, ez)))
+        big = rng.uniform(0.8, 1.5) * (1.0 if seen else 0.8)
+        n = rng.randint(2, 4)
+        for q in range(n):
+            a = (q - (n - 1) / 2) * rng.uniform(0.9, 1.4) * big
+            px, pz = ex + (-oz) * a + ox * rng.uniform(0.1, 0.5) * big, ez + ox * a + oz * rng.uniform(0.1, 0.5) * big
+            sz = big * rng.uniform(0.6, 1.0) * (1.0 if q else 1.15)
+            drop = rng.uniform(0.25, 0.75) * sz
+            blob(bm, px, top - drop, pz, 0.85 * sz, 0.62 * sz, 0.8 * sz, m=q % 2, cuts=2, n=3.2, noise=0.14, rng=rng)
+            if rng.random() < 0.7:
+                blob(bm, px - ox * 0.1, top - drop + 0.6 * sz, pz - oz * 0.1, 0.62 * sz, 0.07, 0.58 * sz, m=2 if rng.random() < 0.5 else 3, cuts=2, noise=0.2, rng=rng)
+            # tumbled blocks under it, down the island's side
+            for _ in range(rng.randint(1, 3)):
+                s2 = sz * rng.uniform(0.3, 0.55)
+                blob(bm, px + ox * rng.uniform(0.2, 0.7) * sz + (-oz) * rng.uniform(-0.6, 0.6) * sz, top - drop - rng.uniform(0.5, 1.3) * sz, pz + oz * rng.uniform(0.2, 0.7) * sz + ox * rng.uniform(-0.6, 0.6) * sz, s2, s2 * 0.8, s2, m=(q + 1) % 2, cuts=1, n=3.0, noise=0.16, rng=rng)
+        # roots and a grass tussock hanging over the edge beside it
+        for _ in range(rng.randint(1, 3)):
+            a = rng.uniform(-1.6, 1.6) * big
+            px, pz = ex + (-oz) * a + ox * 0.05, ez + ox * a + oz * 0.05
+            blob(bm, px, top - 0.08, pz, 0.3, 0.16, 0.3, m=4 if rng.random() < 0.5 else 3, cuts=2, noise=0.25, rng=rng)
+    make_object("Campfire_Rim", bm, M, coll, lift=None)
 
 
 def build_water(L, coll):
@@ -1196,16 +1337,12 @@ def build_tent(L, cushions, coll):
     thick.thickness = 0.025
 
 
-def pine(bm, x, z, s, rng, light, yaw=None, bare=0.0):
+def pine(bm, x, z, s, rng, light, yaw=None, bare=0.0, kind="pine"):
     """`bare`: that much more bare trunk under the boughs (the hammocks' pines: a hammock is slung
     under them, and whoever lies in it is seen)."""
-    lathe(bm, x, z, [(0, 0.0), (0.16 * s, 0.0), (0.14 * s, 0.75 * s + bare), (0, 0.8 * s + bare)], segs=9, m=0, jitter=0.1, rng=rng)
-    yaw = rng.random() * 3 if yaw is None else yaw
-    tiers = ((1.05, 0.55, 1.15), (0.82, 1.25, 1.0), (0.58, 1.9, 0.95))
-    for k, (rad, base, tall) in enumerate(tiers):
-        R, y0, H = rad * s, base * s + bare, tall * s
-        prof = [(0, y0), (R * 0.95, y0 + 0.02 * s), (R, y0 + 0.1 * s), (R * 0.72, y0 + 0.28 * H), (R * 0.4, y0 + 0.6 * H), (0, y0 + H)]
-        lathe(bm, x, z, prof, segs=11, m=2 if (k == 2) == light else 1, yaw=yaw + k, jitter=0.06, rng=rng)
+    # (materials: 0 the bark, 1 and 2 the needles, 9 the deep needles of the low boughs; `kind`:
+    # a pine, or the slimmer spruce)
+    nature().conifer(bm, x, z, s, rng, 0, (1, 2, 2) if light else (9, 1, 2), kind=kind, bare=bare, yaw=yaw)
 
 
 def birch(bm, x, z, s, rng, m0):
@@ -1224,8 +1361,11 @@ def birch(bm, x, z, s, rng, m0):
     for k in range(2):
         a = k * math.pi + 0.6 + rng.random()
         cylinder(bm, W(x, h * 0.55, z), W(x + math.cos(a) * 0.45 * s, h * 0.8, z + math.sin(a) * 0.45 * s), 0.035 * s, 6, m=m0, r_end=0.02 * s)
-    for k, (dx, y, dz, r) in enumerate(((0.0, h * 0.95, 0.0, 0.75), (0.45, h * 0.8, 0.2, 0.55), (-0.4, h * 0.82, -0.15, 0.55), (0.1, h * 0.72, -0.45, 0.5), (-0.15, h * 0.7, 0.45, 0.5), (0.0, h * 1.12, 0.05, 0.5))):
-        blob(bm, x + dx * s, y, z + dz * s, r * s, r * 0.85 * s, r * s, m=m0 + 2 + (k % 2), cuts=3, noise=0.12, rng=rng)
+    # (a lopsided crown, each tree turned its own way: no two alike)
+    ta = rng.random() * 6.283
+    ca, sa = math.cos(ta), math.sin(ta)
+    for k, (dx, y, dz, r) in enumerate(((0.12, h * 0.97, 0.05, 0.7), (0.55, h * 0.78, 0.25, 0.5), (-0.45, h * 0.86, -0.1, 0.58), (0.05, h * 0.7, -0.5, 0.42), (-0.3, h * 0.64, 0.45, 0.4), (0.1, h * 1.15, 0.0, 0.42), (0.78, h * 0.58, -0.2, 0.3))):
+        blob(bm, x + (dx * ca - dz * sa) * s, y, z + (dx * sa + dz * ca) * s, r * s * rng.uniform(0.9, 1.1), r * 0.85 * s, r * s * rng.uniform(0.9, 1.1), m=m0 + 2 + (k % 2), cuts=3, noise=0.16, rng=rng)
 
 
 def willow(bm, x, z, s, rng, m_bark, m_leaf):
@@ -1253,14 +1393,30 @@ def build_trees(L, coll):
     bm = bmesh.new()
     # (each at its own size, and turned its own way where the layout says: the west edge's stagger)
     for i, t in enumerate(L["trees"]):
-        pine(bm, t["x"], t["z"], t["s"], rng, light=i % 2 == 1, yaw=t.get("yaw"), bare=t.get("bare", 0.0))
+        pine(bm, t["x"], t["z"], t["s"], rng, light=i % 3 == 1, yaw=t.get("yaw"), bare=t.get("bare", 0.0), kind=t.get("kind", "spruce" if i % 4 == 2 and not t.get("bare") else "pine"))
+    # the understory: saplings in ones and twos at the feet of the grown pines and along the rims
+    # (walked through: a sapling is a child's height), and the dead trees the layout stands
+    K = nature()
+    half = L["half"]
+    for i, t in enumerate(L["trees"]):
+        if t.get("bare") or i % 3 == 0:
+            continue
+        for q in range(1 + (i % 2)):
+            a = rng.random() * 6.283
+            d = (0.75 + 0.5 * rng.random()) * t["s"]
+            x, z = t["x"] + math.cos(a) * d, t["z"] + math.sin(a) * d
+            if rim_inside(x, z, half) < 0.5 or in_river(L, x, z, 0.4) or near_path(L, x, z, 0.5) or near_prop(L, x, z, 1.0):
+                continue
+            K.conifer(bm, x, z, rng.uniform(0.28, 0.5), rng, 0, (1, 2), kind="sapling")
+    for x, z, h in L["dressing"].get("snags", []):
+        K.snag(bm, x, z, h, rng, 10)
     # the birches that are not felled (the dressing's): with the pines, so they sway and thin as they do
     for x, z, sz in L["dressing"]["birches"]:
         birch(bm, x, z, sz, rng, 3)
     if L.get("places"):
         w = L["places"]["riverEnd"]["willow"]
         willow(bm, w["x"], w["z"], w["s"], random.Random(77), 0, 7)
-    make_object("Campfire_Trees", bm, ["CF_Bark", "CF_Pine", "CF_PineLight", "CF_BirchBark", "CF_BirchMark", "CF_BirchLeaf", "CF_BirchLeafLight", "CF_Willow", "CF_WillowLight"], coll)
+    make_object("Campfire_Trees", bm, ["CF_Bark", "CF_Pine", "CF_PineLight", "CF_BirchBark", "CF_BirchMark", "CF_BirchLeaf", "CF_BirchLeafLight", "CF_Willow", "CF_WillowLight", "CF_PineDeep", "CF_Snag"], coll)
     # the bare branch the owl perches on, out through its pine's lowest boughs (its own object,
     # standing on the ground under the owl: the two never part on a slope)
     o = L["owl"]
@@ -1394,14 +1550,20 @@ def river_mossy(L):
     water = L["river"]["water"]
     d = L["dock"]
     spots = [(f["stand"]["x"], f["stand"]["z"]) for f in L["fishing"]] + [(f["bobber"]["x"], f["bobber"]["z"]) for f in L["fishing"]]
-    for k, z in enumerate(along_river(L, 1.55, 0.9)):
+    rr = random.Random(606)
+    zs = []
+    for z in along_river(L, 0.7, 0.9):
+        # (groups of stones where the noise is high, clear water between them)
+        if vnoise(z * 0.42 + 3.0, 17.0) > 0.52:
+            zs.append(z + rr.uniform(-0.25, 0.25))
+    for k, z in enumerate(zs):
         span = river_span(L, z)
         if span is None:
             continue
-        x = span[0] + 0.14 if k % 2 == 0 else span[1] - 0.14
+        x = span[0] + rr.uniform(0.02, 0.3) if rr.random() < 0.5 else span[1] - rr.uniform(0.02, 0.3)
         if near_path(L, x, z, 0.5) or any(math.hypot(x - sx, z - sz) < 1.2 for sx, sz in spots) or (d["z0"] - 0.6 <= z <= d["z1"] + 0.6 and x < d["x1"] + 0.6):
             continue
-        out.append((x, water, z, 0.75 + 0.3 * ((k * 37) % 5) / 4))
+        out.append((x, water, z, rr.choice((0.45, 0.6, 0.75, 0.75, 1.0, 1.25))))
     return out
 
 
@@ -2401,7 +2563,10 @@ def build(root):
     cushions = read_cushions(root)
     coll = bpy.data.collections.new(COLLECTION)
     bpy.context.scene.collection.children.link(coll)
+    global SHADE
+    SHADE = make_shade(L)
     build_ground(L, coll)
+    build_rim(L, coll)
     build_water(L, coll)
     build_bonfire(L, coll)
     build_logs(L, cushions, coll)
@@ -2938,7 +3103,7 @@ def slot_of(name, pines):
     """The finish a face painted `name` is drawn with."""
     if name in KEEP:
         return name
-    if name in ("CF_Pine", "CF_PineLight") or (pines and name in ("CF_BirchLeaf", "CF_BirchLeafLight", "CF_Willow", "CF_WillowLight")):
+    if name in ("CF_Pine", "CF_PineLight", "CF_PineDeep") or (pines and name in ("CF_BirchLeaf", "CF_BirchLeafLight", "CF_Willow", "CF_WillowLight")):
         return "CF_Pine"
     if pines:
         return "CF_PineBark"

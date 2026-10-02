@@ -106,12 +106,12 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   },
   "cascade": { "x": 13.4, "z": -14.9, "top": 1.4 },
   "brook": {
-    "points": [[5.0, -5.0, 0.42], [5.9, -4.5, 0.26], [6.7, -4.0, 0.26], [7.5, -3.4, 0.28], [8.3, -2.8, 0.28], [9.2, -2.2, 0.3], [10.0, -1.7, 0.3], [10.8, -1.15, 0.32], [11.6, -0.7, 0.34]],
+    "points": [[5.0, -5.0, 0.36], [5.75, -4.3, 0.18], [6.7, -4.2, 0.2], [7.25, -3.25, 0.18], [8.35, -3.0, 0.22], [8.95, -2.05, 0.2], [9.95, -1.85, 0.22], [10.7, -1.1, 0.24], [11.6, -0.7, 0.28]],
     "depth": 0.12,
     "bank": 0.45,
     "bridge": { "x": 10.42, "z": -1.42, "half": 0.3 },
     "perch": { "x": 9.55, "z": -1.3, "y": 0.72 },
-    "stones": [[7.1, -3.7], [9.0, -2.33]]
+    "stones": [[7.0, -3.7], [9.45, -1.95]]
   },
   "dressing": {
     "boulders": [
@@ -143,7 +143,8 @@ export const FOREST_LAYOUT = /* layout:begin */ {
       { "x": -13.6, "z": 6.4, "yaw": 0.2, "len": 1.8 },
       { "x": 3.6, "z": -11.4, "yaw": 2.3, "len": 1.7 }
     ],
-    "stumps": [[10.4, -5.2], [-12.6, -1.6], [10.4, 9.6]]
+    "stumps": [[10.4, -5.2], [-12.6, -1.6], [10.4, 9.6]],
+    "snags": [[-15.9, -9.0, 3.4], [15.9, -3.2, 2.8], [-16.1, 13.6, 2.6], [1.5, -16.2, 3.6]]
   },
   "places": {
     "lookout": { "x": 8.9, "z": -8.7, "face": [0.9, -0.44] },
@@ -182,9 +183,9 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "id": "rabbits", "kind": "rabbits", "x": -4.6, "z": 10.4 }
   ],
   "vista": [
-    [-15.8, -16.2, 1.2], [-13.2, -16.2, 1.0], [-10.6, -16.2, 1.15], [-8.0, -16.2, 0.95], [-5.4, -16.2, 1.1], [-2.8, -16.2, 1.0], [-0.2, -16.2, 1.2],
-    [2.6, -16.2, 0.95], [5.4, -16.2, 1.1], [8.2, -16.2, 1.0], [10.9, -16.3, 1.1], [-16.2, 15.2, 0.95],
-    [-16.2, -7.4, 0.95], [-16.2, -4.6, 1.15], [-16.2, -1.8, 1.0], [-16.2, 1.0, 1.1], [-16.2, 3.8, 0.95], [-16.2, 6.6, 1.05], [-16.2, 9.4, 1.0], [-16.2, 12.4, 0.9],
+    [-15.9, -16.3, 1.3], [-13.2, -16.2, 1.0], [-11.4, -15.7, 0.75], [-9.8, -16.4, 1.2], [-6.9, -16.3, 0.85], [-5.6, -15.8, 1.25], [-2.6, -16.4, 0.9], [-0.9, -16.1, 1.3],
+    [2.6, -16.2, 0.95], [4.4, -16.4, 1.25], [8.4, -16.3, 0.8], [10.9, -16.3, 1.1], [-16.2, 15.2, 0.95],
+    [-16.4, -7.9, 0.8], [-16.2, -4.6, 1.15], [-15.7, -3.2, 0.75], [-16.3, 0.3, 1.25], [-16.4, 2.2, 0.85], [-16.2, 6.6, 1.05], [-15.8, 8.0, 0.8], [-16.4, 11.9, 1.2],
     [-16.1, -15.0, 1.1], [5.8, -13.6, 1.0], [-2.2, -14.0, 1.05], [-14.4, -7.4, 1.0], [-13.8, -3.2, 1.0]
   ],
   "paths": [
@@ -463,9 +464,10 @@ export const FOREST_BIRDS: { id: number; x: number; z: number; y: number; yaw: n
     const pine = L.vista.find(([x, z]) => x === px && z === pz) ?? [px, pz, 1];
     const S = pine[2] * 1.55;
     const d = Math.hypot(px, pz) || 1;
-    const r = 0.9 * 1.05 * S;
+    // (on the lowest boughs, a little in from their tips: nature_kit.py's pine)
+    const r = 0.8 * S;
     // (its height over the ground its pine stands on)
-    return { id: i, x: px - (px / d) * r, z: pz - (pz / d) * r, y: forestLand(px, pz) + 0.729 * S, yaw: Math.atan2(-px, -pz) };
+    return { id: i, x: px - (px / d) * r, z: pz - (pz / d) * r, y: forestLand(px, pz) + 0.76 * S, yaw: Math.atan2(-px, -pz) };
   }),
   // the kingfisher: on a dead branch over the brook, watching the water (it scatters as they do)
   { id: L.birds.length, x: L.brook.perch.x, z: L.brook.perch.z, y: forestLand(L.brook.perch.x, L.brook.perch.z) + L.brook.perch.y, yaw: 2.4, tint: [0.5, 2.4, 4.2] },
@@ -474,8 +476,8 @@ export const FOREST_BIRDS: { id: number; x: number; z: number; y: number; yaw: n
 export const FOREST_OWL = (() => {
   const [tx, tz] = L.life.owl.tree;
   const S = (L.dressing.greatTrees.find((t) => t.x === tx && t.z === tz)?.s ?? 1) * 1.55;
-  const r = 0.9 * 1.05 * S * Math.SQRT1_2;
-  return { x: tx + r, z: tz + r, y: forestLand(tx, tz) + 0.729 * S, yaw: Math.PI / 4 };
+  const r = 0.8 * S * Math.SQRT1_2;
+  return { x: tx + r, z: tz + r, y: forestLand(tx, tz) + 0.76 * S, yaw: Math.PI / 4 };
 })();
 /** Bramble's hives (the bees circle them by day), and where the daylight falls through the Old
  *  Growth's canopy ([x, z, radius]). */
@@ -569,6 +571,8 @@ export const FOREST_OBSTACLES: AABB[] = [
     return Array.from({ length: n + 1 }, (_, k) => around({ x: f.x + Math.sin(f.yaw) * (k / n - 0.5) * (f.len - 0.3), z: f.z + Math.cos(f.yaw) * (k / n - 0.5) * (f.len - 0.3) }, 0.2));
   }),
   ...L.dressing.stumps.map(([x, z]) => around({ x, z }, 0.24)),
+  // the dead standing trees at the rims
+  ...L.dressing.snags.map(([x, z]) => around({ x, z }, 0.2)),
   // the trees that are not felled (the Old Growth's great pines and cedars, the North Ridge's birches)
   // and the waist-high shrubs
   ...L.dressing.greatTrees.map((t) => around(t, 0.42 * t.s)),
