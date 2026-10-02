@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.45",
+    range: "v0.7.0–v0.7.46",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1739,6 +1739,24 @@ export const PATCH_ERAS: PatchEra[] = [
             "🏕️ At the campfire: three pines in the meadow by the river, birches on the knoll and along the south fence, juniper bushes, and clover meadows full of wildflowers.",
           ],
           economy: ["⚖️ The new trees are not for felling, and nothing you earn changes."],
+        },
+      },
+      {
+        version: "0.7.46",
+        date: "2026-10-02",
+        title: "Places to Stop",
+        summary: "Five new places at the Starlight Campfire to sit, lie back and play music together: hammocks, stargazing blankets, a music glade, a bench swing and a seat by the river's end.",
+        changes: {
+          features: [
+            "🌴 The Hammock Grove: two hammocks slung between the pines in the meadow by the river. Lie in one and doze.",
+            "🌌 The Stargazers' Slope: two picnic blankets on the hillside below the telescope, room for two on each. Lie back, head uphill.",
+            "🎸 The Music Glade: a log and three stumps round a stone ring beside the guitar case. Sit down and play, and everyone near sways along.",
+            "🌅 The Swing Garden: a bench swing for two that never quite stops swaying, with flower beds and a scarecrow by the south fence.",
+            "🌊 The River's End: a flat rock and a driftwood log on the bank where the river leaves the island, under a willow.",
+          ],
+          visuals: ["🐟 Barnaby's fish-drying rack and smoker on the bank, lupines and cattails along the water, a paper lantern in the pines."],
+          economy: ["⚖️ None of it earns coins. They are places to be, not things to grind."],
+          fixes: ["🍡 A marshmallow on a stick now comes to hand only on the seats round the bonfire."],
         },
       },
     ],

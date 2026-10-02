@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { riverWater } from "./riverWater";
 import type { PlayerState, ToggleableSyncState } from "@shared/types";
 import { canoeBob, canoePitch, canoeRoll } from "./canoeMotion";
+import { swingAngle } from "./swingMotion";
 import { CAMPFIRE_LAYOUT as L, CRITTER_NOTICE, DUCK_PATHS, LIGHT_STRINGS, stringBulbs, FENCE_SWAGS, type Vec3, campLand } from "@shared/worlds/campfire";
 
 // The campfire's living parts, driven every frame from the nodes campfire.glb names for them
@@ -116,6 +117,8 @@ export function bindCampfireLife(scene: THREE.Object3D): CampfireLife {
   const owl = { root: node("Fauna_Owl"), head: node("Fauna_Owl_Head"), lids: node("Fauna_Owl_Lids"), yaw: 0, blinkAt: 2, rest: Math.PI / 4 };
   const canoe = node("Prop_Canoe");
   const canoeY = canoe?.position.y ?? L.river.water;
+  // the Swing Garden's bench, hung from its beam (the node's origin): it turns about the beam
+  const swing = node("Prop_Swing");
   const yields = L.forage.map((_, i) => ({ id: `forage_0${i + 1}`, node: node(`Forage_0${i + 1}_Yield`) }));
   const strings = LIGHT_STRINGS.map((s) => ({ node: node(s.id), axis: new THREE.Vector3(...s.b).sub(new THREE.Vector3(...s.a)).normalize() }));
   const fence = node("StringLight_Fence");
@@ -216,6 +219,8 @@ export function bindCampfireLife(scene: THREE.Object3D): CampfireLife {
         canoe.position.y = canoeY + canoeBob(t);
         canoe.rotation.set(canoeRoll(t, struggling), 0, canoePitch(t, struggling));
       }
+
+      if (swing) swing.rotation.set(0, 0, swingAngle(t));
 
       // the pickings, there while there is something to pick
       for (const y of yields) if (y.node) y.node.visible = toggleables[y.id]?.on ?? true;

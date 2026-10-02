@@ -15,6 +15,7 @@ import { CasinoAura } from "./CasinoAura";
 import { capsuleTitle } from "@shared/casino";
 import { specialTitle } from "@shared/items";
 import { canoeBob, canoePitch, canoeRoll } from "../scene/canoeMotion";
+import { swingAngle } from "../scene/swingMotion";
 import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, GEAR_BACK_GLOW, GEAR_BACK_PREFIX, GEAR_BACK_URL, GLOVES_URL, GLOVE_HAND, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
 import { BELT_TITLE, type FighterState } from "@shared/boxing";
 import { getBout, useFighterState } from "../systems/boutStore";
@@ -98,6 +99,11 @@ export interface AvatarProps {
   vibe?: boolean;
   /** Sitting in the campfire's canoe: rocking with the boat on the water. */
   rock?: boolean;
+  /** Sitting on the campfire's bench swing: how far the avatar's origin hangs under its beam (m),
+   *  swaying with it; 0 anywhere else. */
+  swing?: number;
+  /** Lying on a slope (the stargazers' blankets): how far the head is raised (rad). */
+  lieTilt?: number;
   /** Seated at the board while the opponent thinks: the head tilts, waiting. */
   awaiting?: boolean;
   /** On the skewer while holding "skewer" (shared/types encodeSnack). */
@@ -513,6 +519,8 @@ interface RigProps {
   seed: number;
   vibe: boolean;
   rock: boolean;
+  swing: number;
+  lieTilt: number;
   awaiting: boolean;
   snack: string;
   actionProgress: number;
@@ -534,7 +542,7 @@ interface RigProps {
   pickWeight: number;
 }
 
-function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, awaiting, snack, actionProgress, bobberAt, onHook, fed, rodAura, onCrownTop, gloves, back, fight, sessionId, local, map, pickWeight }: RigProps) {
+function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gesture, status, seed, vibe, rock, swing, lieTilt, awaiting, snack, actionProgress, bobberAt, onHook, fed, rodAura, onCrownTop, gloves, back, fight, sessionId, local, map, pickWeight }: RigProps) {
   const rig = useRig();
   useXray(rig.root, xray);
   const shirtGoal = useRef(new THREE.Color());
@@ -919,7 +927,7 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
     body.position.z = L(body.position.z, rest.body.pos.z + (bp ? bp.shift : 0), 0.6);
     const reeling = action === "reel" && !!bobberAt;
     const fishLean = casting >= 0 ? THREE.MathUtils.lerp(-0.12, 0.16, casting) : flinch > 0 ? -0.1 * flinch : 0;
-    body.rotation.x = L(body.rotation.x, bp ? bp.lean + trem * 0.5 : lying ? LIE_ROLL : reeling ? REEL_LEAN + Math.sin(t * 9) * 0.05 + Math.sin(t * 23) * 0.02 : onRope ? -0.1 : walking ? 0.06 * speed : dizzy ? Math.sin(t * 4.5) * 0.12 : g === "water" ? WATER_LEAN : fishLean || reach * REACH_LEAN, bp ? 0.55 : reeling ? 0.3 : casting >= 0 || flinch > 0 ? 0.35 : k);
+    body.rotation.x = L(body.rotation.x, bp ? bp.lean + trem * 0.5 : lying ? LIE_ROLL + (pose === "lie" ? lieTilt : 0) : reeling ? REEL_LEAN + Math.sin(t * 9) * 0.05 + Math.sin(t * 23) * 0.02 : onRope ? -0.1 : walking ? 0.06 * speed : dizzy ? Math.sin(t * 4.5) * 0.12 : g === "water" ? WATER_LEAN : fishLean || reach * REACH_LEAN, bp ? 0.55 : reeling ? 0.3 : casting >= 0 || flinch > 0 ? 0.35 : k);
     // the radio's groove: eased in while vibing on a cushion, riding on top of the pose
     const gr = groove.current;
     gr.amount = L(gr.amount, (vibe || guitarOn) && pose === "sit" && !asleep ? 1 : 0, 0.05);
@@ -929,8 +937,11 @@ function AvatarModel({ xray, look, pose, speedRef, holding, drink, action, gestu
     // sitter with it, harder while fighting a fish from it; the sitter faces +z, across the boat,
     // so the boat's roll about x is the root's pitch here and its pitch about z the root's roll
     const struggling = action === "reel";
-    part.root.position.y = rest.root.pos.y + (rock ? canoeBob(t) : 0);
-    part.root.rotation.x = rock ? canoeRoll(t, struggling) : 0;
+    // (the bench swing: the sitter hangs under the beam with it, forward and back, tipped to the ropes)
+    const sway = swing > 0 && pose === "sit" ? swingAngle(t) : 0;
+    part.root.position.y = rest.root.pos.y + (rock ? canoeBob(t) : swing * (1 - Math.cos(sway)));
+    part.root.position.z = rest.root.pos.z + swing * Math.sin(sway);
+    part.root.rotation.x = rock ? canoeRoll(t, struggling) : -sway;
     part.root.rotation.z = rock ? canoePitch(t, struggling) : 0;
     const fishTwist = casting >= 0 ? THREE.MathUtils.lerp(-0.38, 0.14, casting) : reeling ? -0.12 + Math.sin(t * 4.5) * 0.06 : 0;
     body.rotation.y = L(body.rotation.y, bp ? bp.twist : g === "dance" ? Math.sin(gAge * 3.5) * 0.6 : fishTwist, bp ? 0.7 : casting >= 0 ? 0.35 : 0.2);
@@ -1493,7 +1504,7 @@ const RING_GEO = new THREE.RingGeometry(0.62, 0.7, 40);
 
 /** A player: the model, dressed and posed, with the nametag and the overhead overlays. */
 export const Avatar = memo(
-  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false, title = "", aura = "", xray = false, sessionId = "", gloves = "", back = "", champion = false, local = false, map = "", pickWeight = 1 }, ref) {
+  forwardRef<THREE.Group, AvatarProps>(function Avatar({ userId, look, color, username, pose, speedRef, holding = "", drink = "", action = "", speaking = false, emotes = [], gesture = null, status = "", bubble = null, vibe = false, rock = false, swing = 0, lieTilt = 0, awaiting = false, snack = "", actionProgress = 0, bobberAt = null, onHook, fed = false, rodAura = false, title = "", aura = "", xray = false, sessionId = "", gloves = "", back = "", champion = false, local = false, map = "", pickWeight = 1 }, ref) {
     const outfit = useMemo(() => parseLook(look) ?? defaultLook(userId || username, color), [look, userId, username, color]);
     // every avatar breathes and glances round on its own clock, so a crowd never moves in unison
     const seed = useMemo(() => (hashString(userId || username) % 1000) / 100, [userId, username]);
@@ -1559,7 +1570,7 @@ export const Avatar = memo(
 
         <ModelBoundary what="avatar.glb" fallback={<StandIn />}>
           <Suspense fallback={<StandIn />}>
-            <AvatarModel xray={xray} look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} fed={fed} rodAura={rodAura} onCrownTop={setCrownTop} gloves={gloves} back={back} fight={fight} sessionId={sessionId} local={local} map={map} pickWeight={pickWeight} />
+            <AvatarModel xray={xray} look={outfit} pose={pose} speedRef={speedRef} holding={holding} drink={drink} action={action} gesture={gesture} status={status} seed={seed} vibe={vibe} rock={rock} swing={swing} lieTilt={lieTilt} awaiting={awaiting} snack={snack} actionProgress={actionProgress} bobberAt={bobberAt} onHook={onHook} fed={fed} rodAura={rodAura} onCrownTop={setCrownTop} gloves={gloves} back={back} fight={fight} sessionId={sessionId} local={local} map={map} pickWeight={pickWeight} />
           </Suspense>
         </ModelBoundary>
 

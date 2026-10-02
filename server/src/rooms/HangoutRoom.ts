@@ -4904,10 +4904,13 @@ export class HangoutRoom extends Room<HangoutState> {
     this.clients.find((c) => c.sessionId === sessionId)?.send(type, payload);
   }
 
-  /** A seat you roast from as you sit: a log bench round the fire (everyone's marshmallow now). */
+  /** A seat you roast from as you sit: a log bench round the fire (everyone's marshmallow now).
+   *  (The Music Glade's log seats are too far from it: the guitar is played there, nothing roasted.) */
   private roastSeat(sessionId: string, chair: ChairState): boolean {
     void sessionId;
-    return chair.style === "log" && (chair.map === "campfire_night" || (chair.map === "glimmering_caverns" && HEARTH_SEAT_IDS.has(chair.propId)));
+    if (chair.style !== "log") return false;
+    if (chair.map === "campfire_night") return Math.hypot(chair.x - CAMPFIRE_LAYOUT.fire.x, chair.z - CAMPFIRE_LAYOUT.fire.z) <= BONFIRE_REACH;
+    return chair.map === "glimmering_caverns" && HEARTH_SEAT_IDS.has(chair.propId);
   }
 
   private handleRoast(sessionId: string) {

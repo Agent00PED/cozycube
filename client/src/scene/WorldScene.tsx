@@ -7,7 +7,8 @@ import { GESTURE_SECONDS, MAP_HALF, isCampMap, isCasinoMap, isWalkUpProp, usable
 import { isBlocked, walkY } from "@shared/collision";
 import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
-import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, dockSeatOf } from "@shared/worlds/campfire";
+import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, SWING, dockSeatOf, isBlanketSeat } from "@shared/worlds/campfire";
+import { AVATAR_HEAD_Y } from "@shared/seats";
 import { FELL_TREES, FELL_TREE_AT } from "@shared/worlds/trees";
 import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireWorld } from "./CampfireWorld";
@@ -606,7 +607,31 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   const canoeSitter = chairs.seat_canoe?.occupiedBy ?? "";
   const canoeBow = chairs.seat_canoe_bow?.occupiedBy ?? "";
   const rocking = useMemo<ReadonlySet<string>>(() => new Set([canoeSitter, canoeBow].filter(Boolean)), [canoeSitter, canoeBow]);
-  const feed = useMemo<CrowdFeed>(() => ({ speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId, rocking }), [speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId, rocking]);
+  // whoever sits on its bench swing sways with it (hanging under the beam by the height they sit at)
+  const swingKey = SWING.seats.map((s) => chairs[s.propId]?.occupiedBy ?? "").join(",");
+  const swinging = useMemo<ReadonlyMap<string, number>>(() => {
+    const out = new Map<string, number>();
+    for (const s of SWING.seats) {
+      const c = chairs[s.propId];
+      if (c?.occupiedBy) out.set(c.occupiedBy, SWING.beam + walkY(c.map, SWING.x, SWING.z) - c.sitY);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swingKey]);
+  // and whoever lies on a stargazers' blanket lies to the slope under it, head uphill
+  const blanketKey = Object.values(chairs).map((c) => (isBlanketSeat(c.propId) ? c.occupiedBy : "")).join(",");
+  const tilts = useMemo<ReadonlyMap<string, number>>(() => {
+    const out = new Map<string, number>();
+    for (const c of Object.values(chairs)) {
+      if (!c.occupiedBy || !isBlanketSeat(c.propId)) continue;
+      const hx = c.x - Math.sin(c.rotationY) * AVATAR_HEAD_Y;
+      const hz = c.z - Math.cos(c.rotationY) * AVATAR_HEAD_Y;
+      out.set(c.occupiedBy, Math.atan2(walkY(c.map, hx, hz) - walkY(c.map, c.x, c.z), AVATAR_HEAD_Y));
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blanketKey]);
+  const feed = useMemo<CrowdFeed>(() => ({ speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId, rocking, swinging, tilts }), [speakingUserIds, emotes, gestures, bubbles, vibing, awaiting, mapId, rocking, swinging, tilts]);
 
   // the campfire and the woods keep their own 24-minute day (shared/daynight.ts), whatever the
   // room's clock says; the lounge keeps the room's hour and weather
@@ -642,7 +667,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         // a seat you lie in (the hammock, the tent) is placed by where your feet go: its pad sits
         // over the middle of you instead (the head end is local -z)
         chair.style === "blanket" ? (
-          <SeatPad key={chair.propId} x={chair.x - Math.sin(chair.rotationY) * 0.45} z={chair.z - Math.cos(chair.rotationY) * 0.45} wide onUse={() => sit(chair.propId)} />
+          <SeatPad key={chair.propId} x={chair.x - Math.sin(chair.rotationY) * 0.45} z={chair.z - Math.cos(chair.rotationY) * 0.45} y={walkY(mapId, chair.x - Math.sin(chair.rotationY) * 0.45, chair.z - Math.cos(chair.rotationY) * 0.45)} wide onUse={() => sit(chair.propId)} />
         ) : (
           <SeatPad key={chair.propId} x={chair.x} z={chair.z} y={walkY(mapId, chair.x, chair.z)} wide={!chair.propId.startsWith("stool")} onUse={() => sit(chair.propId)} />
         )
