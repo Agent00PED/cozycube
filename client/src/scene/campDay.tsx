@@ -43,7 +43,9 @@ const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 /** The camp's night look (a touch cooler and brighter than the lounge's, for the moonlit clay) and
  *  its day look (a warm forest noon), eased by the daylight. */
 const CAMP_NIGHT: HourLook = { sky: "#141d33", ambientColor: "#c4c0e6", ambient: 0.52, sun: 0.2, sunColor: "#9fb4e8", lampBoost: 2.2 };
-const CAMP_DAY: HourLook = { sky: "#9fd0ea", ambientColor: "#fff3e0", ambient: 0.78, sun: 0.62, sunColor: "#fff1d6", lampBoost: 0.55 };
+// (the day's key is strong and warm, its fill low and sky-cool: lit faces and shaded faces differ, so
+// a tree, a rock and a roof have a form; the ground's painted shade lies the way this key throws it)
+const CAMP_DAY: HourLook = { sky: "#9fd0ea", ambientColor: "#e4ecfa", ambient: 0.56, sun: 0.98, sunColor: "#ffe8c2", lampBoost: 0.55 };
 export function campLook(d: number): HourLook {
   return {
     sky: mixColor(CAMP_NIGHT.sky, CAMP_DAY.sky, d),

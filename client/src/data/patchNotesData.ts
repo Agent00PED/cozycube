@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.51",
+    range: "v0.7.0–v0.7.52",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1841,6 +1841,19 @@ export const PATCH_ERAS: PatchEra[] = [
             "🧹 A little tidier: a few barrels, lantern posts and odds and ends are gone.",
           ],
           economy: ["⚖️ The pines were placed so that felling them earns what it did."],
+        },
+      },
+      {
+        version: "0.7.52",
+        date: "2026-10-02",
+        title: "Sunlight",
+        summary: "Daylight at the campfire and in the woods now comes from somewhere: a warm sun on one side of everything and cool shade on the other.",
+        changes: {
+          visuals: [
+            "☀️ A stronger, warmer sun and a cooler shade by day, so trees, rocks and roofs have a lit side and a dark side. Night is as it was.",
+            "🌗 The shade on the ground now falls the way the sun throws it.",
+            "⛰️ Low hummocks on the open lawns of both maps.",
+          ],
         },
       },
     ],
