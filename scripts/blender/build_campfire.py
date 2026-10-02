@@ -109,7 +109,7 @@ PALETTE = {
     "CF_Soil": "#3A2D25",
     "CF_SoilDeep": "#2A211C",
     "CF_Dirt": "#8B6B4C",
-    "CF_Trail": "#9A7F58",
+    "CF_Trail": "#7A6245",
     "CF_PondBed": "#2E4A52",
     "CF_Water": "#4A89A6",
     "CF_Stone": "#8E8C88",
@@ -815,16 +815,8 @@ def dirt_field(L):
 
     dock = L["dock"]
     wear = [
-        front("buster", 0.9, 1.0, 0.8),
-        front("workbench", 0.8, 0.9, 0.75),
-        front("barnaby", 0.9, 1.0, 0.75),
-        front("splitblock", 0.6, 0.9, 0.75),
-        front("telescope", 0.5, 0.9, 0.7),
-        front("tent", 1.9, 1.0, 0.8),
-        (L["archway"]["x"], L["archway"]["z"] + 0.6, 1.2, 0.85),
-        (L["gallery"]["x"], L["gallery"]["z"] - 0.75, 1.2, 0.7),
-        (L["picnic"]["x"] - 0.4, L["picnic"]["z"] - 1.0, 1.0, 0.7),
-        (dock["x0"] - 0.2, (dock["z0"] + dock["z1"]) / 2, 1.2, 0.85),
+        # (none: a worn spot on its own, at a stall or the dock, read as a stain. Only the fire's
+        # ground is worn. A spot is (x, z, radius, strength).)
     ]
 
     K = nature()
@@ -846,7 +838,9 @@ def dirt_field(L):
                     best = d
         w = K.worn(best + wob)
         # (the fire's worn ground: an uneven round, a little longer one way)
-        w = max(w, (0.8 + 0.2 * smooth(0.3, 0.62, vnoise(x * 1.25 + 7.0, z * 1.25 - 3.0))) * K.worn(K.blot(x, z, c["x"], c["z"], c["r"] * 1.25, vnoise, squash=0.84, lobes=0.75)))
+        # (wide enough that the log seats lie on it, nearly round, and fading out over more than
+        # a metre: trodden ground round a fire has no outline)
+        w = max(w, (0.8 + 0.2 * smooth(0.3, 0.62, vnoise(x * 1.25 + 7.0, z * 1.25 - 3.0))) * K.worn(0.6 * K.blot(x, z, c["x"], c["z"], c["r"] * 1.42, vnoise, squash=0.93, lobes=0.4)))
         # (grass holding on in places: a worn patch is never evenly bare)
         thin = 0.72 + 0.28 * smooth(0.3, 0.62, vnoise(x * 1.25 + 7.0, z * 1.25 - 3.0))
         for wx, wz, r, s in wear:
@@ -895,8 +889,12 @@ def ground_color(L, x, z, h, dirt, tones):
     if w > 0:
         # (trampled grass, yellowed, where the wear begins; bare earth where it is complete)
         # (one gradient: grass, thinning and yellowing, into dry trodden earth; no threshold in it)
-        col = mixc(col, lin(PALETTE["CF_GrassDry"]), 0.5 * math.sin(math.pi * w) ** 2 + 0.25 * w)
-        col = mixc(col, [c * (0.95 + 0.08 * n2) for c in lin(PALETTE["CF_Trail"])], 0.86 * w ** 1.3)
+        col = mixc(col, lin(PALETTE["CF_GrassDry"]), 0.22 * math.sin(math.pi * w) ** 2)
+        col = mixc(col, [c * (0.93 + 0.12 * n2) * (0.97 + 0.06 * n3) for c in lin(PALETTE["CF_Trail"])], 0.84 * w ** 1.2)
+        # (ash and char in the soil close round the fire's stones)
+        df = math.hypot(x - L["fire"]["x"], z - L["fire"]["z"])
+        if df < 1.9:
+            col = [c * (1 - 0.3 * smooth(1.9, 0.8, df)) for c in col]
     if SHADE is not None:
         dark, litter = SHADE.at(x, z)
         if "needles" in litter:

@@ -96,7 +96,7 @@ PALETTE = {
     "FW_GlenFloor": "#C98B3A",
     "FW_ShrineFloor": "#3F6B4A",
     "FW_Dirt": "#8B6B4C",
-    "FW_Trail": "#9A7F58",
+    "FW_Trail": "#7A6245",
     "FW_Bank": "#4C5A36",
     "FW_Pebble": "#A39C90",
     "FW_Tuft": "#5E8A48",
@@ -780,13 +780,9 @@ def dirt_field(L):
         pad = max(p[2] for p in pts) / 2 + 1.3
         lines.append(((min(p[0] for p in pts) - pad, max(p[0] for p in pts) + pad, min(p[1] for p in pts) - pad, max(p[1] for p in pts) + pad), pts))
     wear = [
-        (L["counter"]["x"], L["counter"]["z"] + 0.9, 1.9, 0.85),
-        (L["workbench"]["x"], L["workbench"]["z"] + 0.9, 1.3, 0.75),
-        (L["arrival"]["x"], L["arrival"]["z"] + 0.4, 1.7, 0.8),
-        (L["finley"]["x"] - 1.1, L["finley"]["z"], 1.2, 0.7),
-        (L["adit"]["x"] + 1.5, L["adit"]["z"], 1.0, 0.5),
-        (L["shrine"]["x"] + 0.05, L["shrine"]["z"] + L["shrine"]["r"] + 0.5, 1.1, 0.7),
-    ] + [(f["stand"]["x"] - 0.3, f["stand"]["z"], 0.8, 0.6) for f in L["fishing"]]
+        # (none: a worn spot on its own, at a keeper's or the shrine's gate, read as a stain: the
+        # wood's floor is unbroken. A spot is (x, z, radius, strength).)
+    ]
 
     K = nature()
 
@@ -844,8 +840,8 @@ def ground_color(L, x, z, dirt, tones):
     if w > 0:
         # (trampled grass, yellowed, where the wear begins; bare earth where it is complete)
         # (one gradient: grass, thinning and yellowing, into dry trodden earth; no threshold in it)
-        col = mixc(col, lin(PALETTE["FW_GrassDry"]), 0.5 * math.sin(math.pi * w) ** 2 + 0.25 * w)
-        col = mixc(col, [c * (0.95 + 0.08 * n2) for c in lin(PALETTE["FW_Trail"])], 0.86 * w ** 1.3)
+        col = mixc(col, lin(PALETTE["FW_GrassDry"]), 0.22 * math.sin(math.pi * w) ** 2)
+        col = mixc(col, [c * (0.93 + 0.12 * n2) * (0.97 + 0.06 * n3) for c in lin(PALETTE["FW_Trail"])], 0.84 * w ** 1.2)
     if SHADE is not None:
         dark, litter = SHADE.at(x, z)
         if "needles" in litter:

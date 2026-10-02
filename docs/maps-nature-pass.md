@@ -157,6 +157,10 @@ The owner's list after seeing round five, and what was done.
   worn circle round its fire and a soft worn patch where people stand (the stalls, the dock, the
   tipi); the woods keep only the arrival, the keepers, the fishing spots and the shrine's gate.
 
+- **And no worn spots either.** The patches left at the stalls, the dock and the shrine's gate read
+  as stains. They are gone; only the ground round the campfire's fire is worn, wide and dark and
+  fading out over more than a metre, with the log seats lying on it.
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.
