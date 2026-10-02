@@ -123,11 +123,16 @@ added to make the maps "natural" were clutter of their own.
 
 The owner's list after seeing round five, and what was done.
 
-- **Trails, twice.** They were a band of earth with a ruled rim. The first answer faded the wear out
-  over a metre and a half, and at the game's zoom that read as a dirty lawn, not a path. The second
-  is a footpath: a bare tread, an edge that wanders and feathers out over a hand's breadth with
-  tufts biting into it, and a shoulder of trampled grass. The ground mesh is cut finer along the
-  edges so the feather is smooth. Both maps.
+- **Trails, three times.** They were a band of earth with a ruled rim. The first answer faded the
+  wear out over a metre and a half: a smear. The second was a bare tread with a ragged, feathered
+  edge: still a line, and untidy. The owner's words settled it: "like a path people walk back and
+  forth on all the time", its edge smooth into the grass beside it, and its course not random.
+  So: an even tread, ONE smooth ease into the grass over three quarters of a metre, a lighter dry
+  earth close to the grass in value, no noise in the shape at all. And the courses were redrawn so
+  every trail leaves another trail and arrives at a place people use: at the campfire a lane along
+  Traders' Row was added and the stray worn patches removed; in the woods two dead-end spurs became
+  one loop through the birches and the maples to the shrine's gate, and the trail to Finley now
+  starts on the spine. Both maps.
 - **The campfire:** the stone steps on the north trail are gone; the two picnic blankets and their
   basket are gone; every birch is gone (four fellable, five ornamental). The campfire is the Soft
   Pine's map: T1 to fell, everything else to look at.
@@ -146,6 +151,15 @@ The owner's list after seeing round five, and what was done.
 - **Two things seen on the way:** each river ended in a dark notch at the island's edge (now a clean
   cut face of water), and the maples' crowns were seven big blocks (now sixteen small clumps, gold
   on top, orange in the middle, a red bough low down).
+
+- **And then no trails at all.** After the third version the owner asked whether a wood should have
+  drawn trails in the first place. It should not: both maps now paint none. The campfire keeps the
+  worn circle round its fire and a soft worn patch where people stand (the stalls, the dock, the
+  tipi); the woods keep only the arrival, the keepers, the fishing spots and the shrine's gate.
+
+- **And no worn spots either.** The patches left at the stalls, the dock and the shrine's gate read
+  as stains. They are gone; only the ground round the campfire's fire is worn, wide and dark and
+  fading out over more than a metre, with the log seats lying on it.
 
 ## Not done, and worth doing next
 
