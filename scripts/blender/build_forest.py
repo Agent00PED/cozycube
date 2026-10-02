@@ -37,7 +37,7 @@ night-and-day friendly palette. Nodes:
                         hanging sign, the advanced workbench right beside the counter (worked from
                         the trail side),
                         the river's fishing spots (a flat stone out over the water, a raw log and a
-                        boulder to sit on, each with a little fish sign)
+                        boulder to sit on)
     Forest_Water        the river's water surface along the spline, spilling over the island's edge
                         at both ends (the game runs it through a flowing shader), and the white
                         foam round the rocks, along the banks and at the spills (FW_Foam)
@@ -1479,7 +1479,7 @@ def build_structures(L, cushions, coll):
         blob(bm, wb["x"] + rng.uniform(-0.4, 0.5), wt + 0.01, wb["z"] + rng.uniform(-0.25, 0.25), 0.03, 0.008, 0.02, m=2, cuts=1)
     # --- the river's fishing spots, each facing the water: a flat stone out over it to stand on, a
     # raw fallen log or a smooth boulder to sit on (their tops the log and boulder cushions', the
-    # game's seats), and a little fish sign on a stake behind ---
+    # game's seats) ---
     for f in L["fishing"]:
         sx, sz = f["stand"]["x"], f["stand"]["z"]
         fx, fz = f.get("face", (f["bobber"]["x"] - sx, f["bobber"]["z"] - sz))
@@ -1500,10 +1500,6 @@ def build_structures(L, cushions, coll):
             blob(bm, sx, top / 2 - 0.02, sz, 0.4, top / 2 + 0.02, 0.34, m=8, cuts=4, n=2.6, noise=0.05, rng=rng, flat_bottom=-0.05)
         else:
             slab(bm, wobbly_circle(sx + fx * 0.55, sz + fz * 0.55, 0.42, 10, 0.1, rng), -0.3, 0.035, 8)
-        px, pz = sx - fx * 0.55 + ax_ * 0.45, sz - fz * 0.55 + az_ * 0.45
-        cylinder(bm, W(px, 0.0, pz), W(px, 0.75, pz), 0.03, 6, m=0)
-        box(bm, px - 0.16, px + 0.16, 0.6, 0.78, pz - 0.02, pz + 0.02, m=3)
-        blob(bm, px, 0.69, pz + 0.025, 0.09, 0.035, 0.006, m=11, cuts=2)
     build_adit(L, bm, rng)
     make_object("Forest_Structures", bm, ["FW_Bark", "FW_Log", "FW_WoodCut", "FW_Plank", "FW_PlankDark", "FW_Roof", "FW_Window", "FW_Iron", "FW_Stone", "FW_Rope", "FW_Honey", "FW_Cloth", "FW_Red", "FW_PineNeedle", "FW_Moss", "FW_LeafPile"], coll, lift="parts")
 

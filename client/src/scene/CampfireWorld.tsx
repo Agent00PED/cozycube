@@ -108,8 +108,8 @@ const CLICK_GROUND = (() => {
 })();
 /** A height over the ground at (x, z). */
 const over = (x: number, y: number, z: number): [number, number, number] => [x, campLand(x, z) + y, z];
-/** Where the butterflies drift by day: the Swing Garden's beds (two of them) and each clover meadow. */
-const BUTTERFLY_SPOTS: [number, number][] = [[L.places.beds[0].x, L.places.beds[0].z - 0.8], [L.places.swing.x - 0.6, L.places.swing.z + 0.4], ...L.dressing.meadows.map(([x, z]): [number, number] => [x, z])];
+/** Where the butterflies drift by day: by the swing and over each clover meadow. */
+const BUTTERFLY_SPOTS: [number, number][] = [[L.places.swing.x - 0.6, L.places.swing.z + 0.4], ...L.dressing.meadows.map(([x, z]): [number, number] => [x, z])];
 
 /** How much of the night's magic shows at each hour (fireflies, stars). */
 const NIGHTNESS: Record<TimeOfDay, number> = { night: 1, sunset: 0.6, sunrise: 0.25, day: 0 };

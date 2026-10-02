@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.53",
+    range: "v0.7.0–v0.7.54",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1867,6 +1867,20 @@ export const PATCH_ERAS: PatchEra[] = [
             "💧 The small brook in the Whispering Woods is gone, with its spring, stepping stones and log bridge.",
             "🪨 The rock ledges round the islands' edges are gone.",
             "🪵 No more logs lying across the trails.",
+          ],
+          economy: ["⚖️ Nothing you earn changes."],
+        },
+      },
+      {
+        version: "0.7.54",
+        date: "2026-10-02",
+        title: "Room to Breathe",
+        summary: "A tidy-up at the campfire and in the woods: fewer props standing about, more open ground.",
+        changes: {
+          visuals: [
+            "🧹 The campfire's south lawn is clearer: the garden beds, the scarecrow and a few shrubs are gone. The swing and the picnic table stay.",
+            "🎣 The drying rack by the hammocks is gone, with a lantern post and a stump.",
+            "🏮 The Whispering Woods keep four lantern posts instead of seven, and the little fish signs at the fishing spots are gone.",
           ],
           economy: ["⚖️ Nothing you earn changes."],
         },

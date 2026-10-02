@@ -1450,11 +1450,10 @@ def places_solid(L):
     out = []
     for h in P["hammocks"]:
         out.append(((h["a"][0] + h["b"][0]) / 2, (h["a"][1] + h["b"][1]) / 2, 1.0))
-    out += [(P["dryingRack"]["x"], P["dryingRack"]["z"], 0.9)] + [(P[k]["x"], P[k]["z"], 0.45) for k in ("smoker", "cairn") if k in P]
+    out += [(P[k]["x"], P[k]["z"], 0.45) for k in ("cairn",) if k in P]
     out += [(b["x"], b["z"], 1.25) for b in P["blankets"]]
     out.append((P["glade"]["x"], P["glade"]["z"], P["glade"]["r"] + 0.45))
     out.append((P["swing"]["x"], P["swing"]["z"], P["swing"]["span"] + 0.35))
-    out += [(b["x"], b["z"], max(b["w"], b["d"]) / 2 + 0.2) for b in P["beds"]]
     E = P["riverEnd"]
     out += [(E["rock"]["x"], E["rock"]["z"], 0.6), (E["log"]["x"], E["log"]["z"], 0.85), (E["willow"]["x"], E["willow"]["z"], 0.5)]
     return out
@@ -2764,11 +2763,10 @@ def build_butterfly(coll):
 def build_places(L, cushions, coll):
     """The places to stop on the open ground (docs/maps-fill-plan.md part 2; the layout's `places`,
     their seats and colliders in campfire.ts): the Hammock Grove (two hammocks between the meadow's
-    pines, a paper lantern on a line, Barnaby's drying rack and smoker), the Stargazers' Slope (two
-    picnic blankets laid to the slope, a basket, a thermos, a cairn), the Music Glade (a log and
+    pines, a paper lantern on a line), the Stargazers' Slope (two
+    picnic blankets laid to the slope, a basket, a thermos), the Music Glade (a log and
     three stumps round a cold stone ring), the Swing Garden (the bench swing: its frame still, its
-    bench the node `Prop_Swing`, hung from the beam the game turns it about; three beds in wattle,
-    a scarecrow, a watering can) and the River's End (a flat rock, a driftwood log, cattails)."""
+    bench the node `Prop_Swing`, hung from the beam the game turns it about) and the River's End (a flat rock, a driftwood log, cattails)."""
     P = L.get("places")
     if not P:
         return
@@ -2783,40 +2781,14 @@ def build_places(L, cushions, coll):
         lathe(bm, x, z, [(0, y0 + h - 0.012), (0.045, y0 + h - 0.004), (0.032, y0 + h + 0.03), (0, y0 + h + 0.04)], segs=6, m=m[tone], yaw=rng.random())
 
     bm = bmesh.new()
-    # --- the Hammock Grove's rack: two forked posts, two poles, split fish hung to dry; the smoker
-    R = P["dryingRack"]
-    for sz in (-1, 1):
-        z = R["z"] + sz * (R["len"] / 2 - 0.08)
-        cylinder(bm, W(R["x"] - 0.16, -0.05, z), W(R["x"], 1.32, z), 0.035, 6, m=m["CF_Bark"], r_end=0.025)
-        cylinder(bm, W(R["x"] + 0.16, -0.05, z), W(R["x"], 1.32, z), 0.035, 6, m=m["CF_Bark"], r_end=0.025)
-    for y in (1.28, 0.92):
-        w = 0.0 if y > 1.0 else 0.045
-        cylinder(bm, W(R["x"] + w, y, R["z"] - R["len"] / 2 - 0.1), W(R["x"] + w, y, R["z"] + R["len"] / 2 + 0.1), 0.022, 6, m=m["CF_PlankDark"])
-    for k in range(5):
-        z = R["z"] - R["len"] / 2 + 0.25 + k * (R["len"] - 0.5) / 4
-        cylinder(bm, W(R["x"], 1.27, z), W(R["x"], 1.2, z), 0.005, 3, m=m["CF_Rope"])
-        blob(bm, R["x"], 1.07, z, 0.022, 0.13, 0.06, m=m["CF_MallardBody"], cuts=2)
-        f = bm.faces.new((bm.verts.new(W(R["x"], 0.95, z)), bm.verts.new(W(R["x"], 0.87, z - 0.05)), bm.verts.new(W(R["x"], 0.87, z + 0.05))))
-        f.material_index = m["CF_MallardBody"]
-        f2 = bm.faces.new((bm.verts.new(W(R["x"], 0.95, z)), bm.verts.new(W(R["x"], 0.87, z + 0.05)), bm.verts.new(W(R["x"], 0.87, z - 0.05))))
-        f2.material_index = m["CF_MallardBody"]
-    if "smoker" in P:
-        S = P["smoker"]
-        lathe(bm, S["x"], S["z"], [(0, 0.0), (0.24, 0.0), (0.27, 0.3), (0.26, 0.62), (0.22, 0.8), (0, 0.8)], segs=14, m=m["CF_Barrel"])
-        for y in (0.16, 0.6):
-            lathe(bm, S["x"], S["z"], [(0.25, y - 0.02), (0.282, y - 0.02), (0.282, y + 0.02), (0.25, y + 0.02)], segs=14, m=m["CF_Metal"])
-        lathe(bm, S["x"], S["z"], [(0, 0.8), (0.25, 0.8), (0.07, 0.98), (0, 0.98)], segs=12, m=m["CF_Metal"])
-        cylinder(bm, W(S["x"], 0.95, S["z"]), W(S["x"], 1.28, S["z"]), 0.045, 8, m=m["CF_Metal"])
-        box(bm, S["x"] + 0.2, S["x"] + 0.285, 0.1, 0.34, S["z"] - 0.09, S["z"] + 0.09, m=m["CF_Metal"])
-    # lupines along the bank beside them
+    # --- the Hammock Grove: lupines along the bank beside it
+    R = {"z": P["hammockLantern"]["z"] + 0.8}
     for k in range(9):
         z = R["z"] - 2.4 + k * 0.62 + rng.uniform(-0.15, 0.15)
         span = river_span(L, z)
         if not span:
             continue
         x = span[0] - rng.uniform(0.3, 0.55)
-        if any(math.hypot(x - px, z - pz) < pr for px, pz, pr in ((R["x"], R["z"], 0.8),)):
-            continue
         for q in range(3):
             lx, lz = x + rng.uniform(-0.14, 0.14), z + rng.uniform(-0.14, 0.14)
             h = rng.uniform(0.32, 0.55)
@@ -2862,53 +2834,6 @@ def build_places(L, cushions, coll):
         blob(bm, G["x"] + math.cos(b_) * 0.32, 0.04, G["z"] + math.sin(b_) * 0.32, rng.uniform(0.08, 0.11), 0.07, rng.uniform(0.07, 0.1), m=m["CF_Stone"] if k % 2 else m["CF_StoneDark"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.05)
     for k in range(2):
         cylinder(bm, W(G["x"] - 0.14, 0.05, G["z"] - 0.1 + k * 0.16), W(G["x"] + 0.15, 0.07, G["z"] + 0.04 - k * 0.12), 0.035, 6, m=m["CF_StoneDark"], cap_m=m["CF_Ash"])
-    # --- the Swing Garden's beds: turned soil in a wattle border, rows of flowers and greens
-    tones = ("CF_Petal", "CF_PetalYellow", "CF_PetalWhite", "CF_PetalBlue", "CF_Lupine")
-    for i, b in enumerate(P["beds"]):
-        x0, x1, z0, z1 = b["x"] - b["w"] / 2, b["x"] + b["w"] / 2, b["z"] - b["d"] / 2, b["z"] + b["d"] / 2
-        slab(bm, rounded_rect(x0 + 0.04, x1 - 0.04, z0 + 0.04, z1 - 0.04, 0.08, 3), -0.05, 0.07, m=m["CF_Soil"])
-        posts = []
-        nx, nz = max(2, round(b["w"] / 0.26)), max(2, round(b["d"] / 0.26))
-        posts += [(x0 + (x1 - x0) * k / nx, z0) for k in range(nx)] + [(x1, z0 + (z1 - z0) * k / nz) for k in range(nz)]
-        posts += [(x1 - (x1 - x0) * k / nx, z1) for k in range(nx)] + [(x0, z1 - (z1 - z0) * k / nz) for k in range(nz)]
-        for k, (px, pz) in enumerate(posts):
-            cylinder(bm, W(px, -0.04, pz), W(px, 0.2, pz), 0.017, 5, m=m["CF_Fence"])
-            qx, qz = posts[(k + 1) % len(posts)]
-            for y_, w_ in ((0.07, 0.012), (0.14, 0.011)):
-                wob = 0.012 if (k + (y_ > 0.1)) % 2 else -0.012
-                ox, oz = (0.0, wob) if abs(qx - px) > abs(qz - pz) else (wob, 0.0)
-                cylinder(bm, W(px + ox, y_, pz + oz), W(qx + ox, y_, qz + oz), w_, 4, m=m["CF_Barrel"])
-        rows = 3
-        for r_ in range(rows):
-            z = z0 + 0.16 + (z1 - z0 - 0.32) * r_ / (rows - 1)
-            cols = int(b["w"] / 0.2)
-            for c_ in range(cols):
-                x = x0 + 0.14 + (x1 - x0 - 0.28) * c_ / max(1, cols - 1)
-                if math.hypot(x - P["scarecrow"]["x"], z - P["scarecrow"]["z"]) < 0.14:
-                    continue
-                if (r_ + i) % 3 == 1:
-                    blob(bm, x, 0.12, z, 0.085, 0.07, 0.085, m=m["CF_BushLeaf"], cuts=2, noise=0.15, rng=rng)
-                else:
-                    stem_flower(bm, x + rng.uniform(-0.03, 0.03), z + rng.uniform(-0.03, 0.03), rng.uniform(0.16, 0.3), tones[(r_ + c_ + i) % len(tones)], 0.06)
-    # the scarecrow in its bed: a post and a crossbar, a gingham shirt, a straw head under an old hat
-    K = P["scarecrow"]
-    cylinder(bm, W(K["x"], 0.0, K["z"]), W(K["x"], 1.42, K["z"]), 0.035, 6, m=m["CF_PlankDark"])
-    cylinder(bm, W(K["x"], 1.08, K["z"] - 0.5), W(K["x"], 1.08, K["z"] + 0.5), 0.028, 6, m=m["CF_PlankDark"])
-    box(bm, K["x"] - 0.07, K["x"] + 0.07, 0.66, 1.14, K["z"] - 0.2, K["z"] + 0.2, m=m["CF_Checker"])
-    for sz in (-1, 1):
-        box(bm, K["x"] - 0.05, K["x"] + 0.05, 1.02, 1.14, K["z"] + sz * 0.2, K["z"] + sz * 0.44, m=m["CF_Checker"])
-        for q in range(3):
-            cylinder(bm, W(K["x"], 1.08, K["z"] + sz * 0.44), W(K["x"] + (q - 1) * 0.04, 1.02, K["z"] + sz * 0.56), 0.008, 3, m=m["CF_Straw"])
-    blob(bm, K["x"], 1.3, K["z"], 0.13, 0.14, 0.13, m=m["CF_Straw"], cuts=3)
-    lathe(bm, K["x"], K["z"], [(0, 1.38), (0.25, 1.38), (0.25, 1.4), (0.12, 1.42), (0.09, 1.56), (0, 1.58)], segs=12, m=m["CF_Barrel"])
-    # a watering can at the first bed's corner
-    b0 = P["beds"][0]
-    wx, wz = b0["x"] + b0["w"] / 2 + 0.2, b0["z"] + b0["d"] / 2 + 0.05
-    lathe(bm, wx, wz, [(0, 0.0), (0.085, 0.0), (0.075, 0.2), (0, 0.2)], segs=10, m=m["CF_Steel"])
-    cylinder(bm, W(wx + 0.07, 0.07, wz), W(wx + 0.22, 0.2, wz), 0.014, 5, m=m["CF_Steel"])
-    cylinder(bm, W(wx + 0.22, 0.2, wz), W(wx + 0.25, 0.22, wz), 0.03, 6, m=m["CF_Steel"])
-    cylinder(bm, W(wx - 0.07, 0.17, wz), W(wx - 0.13, 0.1, wz), 0.01, 4, m=m["CF_Steel"])
-    cylinder(bm, W(wx - 0.13, 0.1, wz), W(wx - 0.075, 0.04, wz), 0.01, 4, m=m["CF_Steel"])
     # --- the River's End: the flat rock (the boulder cushion's top), the driftwood log (the log's), cattails
     E = P["riverEnd"]
     b_top = cushions["boulder"]["top"]
