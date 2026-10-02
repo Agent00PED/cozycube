@@ -785,6 +785,7 @@ def dirt_field(L):
         (L["arrival"]["x"], L["arrival"]["z"] + 0.4, 1.7, 0.8),
         (L["finley"]["x"] - 1.1, L["finley"]["z"], 1.2, 0.7),
         (L["adit"]["x"] + 1.5, L["adit"]["z"], 1.0, 0.5),
+        (L["shrine"]["x"] + 0.05, L["shrine"]["z"] + L["shrine"]["r"] + 0.5, 1.1, 0.7),
     ] + [(f["stand"]["x"] - 0.3, f["stand"]["z"], 0.8, 0.6) for f in L["fishing"]]
 
     K = nature()

@@ -152,6 +152,11 @@ The owner's list after seeing round five, and what was done.
   cut face of water), and the maples' crowns were seven big blocks (now sixteen small clumps, gold
   on top, orange in the middle, a red bough low down).
 
+- **And then no trails at all.** After the third version the owner asked whether a wood should have
+  drawn trails in the first place. It should not: both maps now paint none. The campfire keeps the
+  worn circle round its fire and a soft worn patch where people stand (the stalls, the dock, the
+  tipi); the woods keep only the arrival, the keepers, the fishing spots and the shrine's gate.
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.
