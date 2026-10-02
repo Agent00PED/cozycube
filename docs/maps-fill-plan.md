@@ -2,8 +2,8 @@
 
 Status: **approved 2026-10-02** with the recommended answers (fill, places only and no coins, the
 brook built, both maps part by part, the beach on hold). Built so far: **part 1, mass** (patch
-0.7.45), **part 2, the campfire's places** (patch 0.7.46) and **part 3, the woods' places** (patch
-0.7.47). What moved from the plan is at the foot of this document.
+0.7.45), **part 2, the campfire's places** (patch 0.7.46), **part 3, the woods' places** (patch 0.7.47)
+and **part 4, the brook** (patch 0.7.48). What moved from the plan is at the foot of this document.
 
 ## The problem, measured
 
@@ -205,6 +205,18 @@ Everything still in the model bakes into the finishes the maps already draw.
   Bramble at his counter.
 - **No beehive's bees, no kingfisher, no owl yet:** part 5.
 - **Draw calls:** +1 (the rope swing). **Model:** 3.7 MB. **Income:** unchanged to the decimal.
+
+### Part 4, the brook (patch 0.7.48)
+- **It follows the hill's own fall line.** The plan drew it from the Old Growth south to the pool,
+  but on this hillside water runs south-east; a brook laid across the slope would have had one bank
+  a foot higher than the other. So its spring is just south of the Old Growth's camp at (5.0, -5.0)
+  and it runs 9 m south-east, falling 2.3 m, into the river just above the pool.
+- **The log bridge is where the river trail crosses** (the one trail it meets), flush with the
+  banks; the two sets of stepping stones are along its middle.
+- **Two alders** (the birches' shape) stand along it; the willows and the kingfisher are part 5's.
+- **Two great pines moved** (one off its bed, one whose crown hid the spring).
+- **Draw calls:** none more (its water is in the river's sheet). **Model:** 3.8 MB. **Income:**
+  unchanged to the decimal.
 
 ## Decisions (answered)
 

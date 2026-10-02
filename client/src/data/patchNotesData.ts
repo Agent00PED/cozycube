@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.47",
+    range: "v0.7.0–v0.7.48",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1777,6 +1777,20 @@ export const PATCH_ERAS: PatchEra[] = [
             "🎣 Finley's rod rack and drying nets, and Bramble's seasoned timber stacked under a roof on the south verge.",
           ],
           economy: ["⚖️ None of it earns coins, and nothing you earn changes."],
+        },
+      },
+      {
+        version: "0.7.48",
+        date: "2026-10-02",
+        title: "The Brook",
+        summary: "A brook now runs through the Whispering Woods, from a spring by the Old Growth's camp down the hillside to the river.",
+        changes: {
+          features: [
+            "💧 The brook: a spring among mossy rocks, a stream tumbling down the hill in white water, and a calm run into the river above Finley's pool.",
+            "🪵 Wade it anywhere (it is a hand deep and never slows you), hop its stepping stones, or cross the log bridge on the river trail.",
+          ],
+          visuals: ["🌿 Wet pebbles down its bed, reeds and mossy stones along its banks, two alders beside it."],
+          economy: ["⚖️ It is not fished, and nothing you earn changes."],
         },
       },
     ],
