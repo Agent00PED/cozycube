@@ -143,6 +143,10 @@ The owner's list after seeing round five, and what was done.
   the camera (seven was a wall). You find it by walking round behind them, or by Old Flint's lantern through the
   trunks at night.
 
+- **Two things seen on the way:** each river ended in a dark notch at the island's edge (now a clean
+  cut face of water), and the maples' crowns were seven big blocks (now sixteen small clumps, gold
+  on top, orange in the middle, a red bough low down).
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.

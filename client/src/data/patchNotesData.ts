@@ -1897,6 +1897,7 @@ export const PATCH_ERAS: PatchEra[] = [
             "📏 Trees are sized by rank: Soft Pines smallest, then birches, cedars and broad maples.",
             "🕳️ The old mine is a secret now. No trail leads to it and a few spruces hide it. Look for a lantern's glow behind the maples.",
             "👣 Trails at the campfire and in the woods are worn footpaths now: a clear tread with soft, uneven edges and grass growing into them.",
+            "🍁 The Autumn Maples have fuller, softer crowns, and the rivers end cleanly at the islands' edges.",
             "🧹 Gone: the row of standing stones on the woods' north ridge, the stone slabs on the campfire's north trail, and the picnic blankets on the knoll.",
           ],
           economy: [

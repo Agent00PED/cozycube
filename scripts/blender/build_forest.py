@@ -997,6 +997,10 @@ def build_water(L, coll):
         ww = w - 0.02
         rows.append([vert(x + nx * ww * (c / cols * 2 - 1), water, z + nz * ww * (c / cols * 2 - 1), min(c, cols - c) / cols * 2 * ww) for c in range(cols + 1)])
         last = (x, z, w, tx, tz, nx, nz)
+    # (where the river meets the island's edge the diorama is cut: the water's end is a still face
+    # down to its bed, never an open notch)
+    cap = lambda row: [vert(v.co.x, water - 0.85, -v.co.y, data[v][0] * 1.5) for v in row]
+    rows = [cap(rows[0])] + rows + [cap(rows[-1])]
     strip(rows)
     for f in bm.faces:
         f.normal_update()
@@ -1898,10 +1902,23 @@ def maple_tree(bm, s, rng):
     for k in range(3):  # buttress roots
         a = k * 2.1 + 1.2
         cylinder(bm, W(math.cos(a) * 0.1 * s, 0.25 * s, math.sin(a) * 0.1 * s), W(math.cos(a) * 0.45 * s, -0.03, math.sin(a) * 0.45 * s), 0.09 * s, 7, m=0, r_end=0.03 * s)
-    # a broad round crown in autumn gold, orange and red
-    clumps = [(0.0, 2.35, 0.0, 1.0), (0.85, 2.0, 0.3, 0.72), (-0.8, 2.05, -0.2, 0.75), (0.2, 1.95, -0.85, 0.68), (-0.25, 1.95, 0.85, 0.7), (0.45, 2.75, -0.2, 0.62), (-0.4, 2.7, 0.35, 0.6)]
-    for k, (x, y, z, r) in enumerate(clumps):
-        blob(bm, x * s, y * s, z * s, r * s, r * 0.8 * s, r * s, m=1 + (k % 3), cuts=3, noise=0.14, rng=rng)
+    # a broad crown in many small clumps, coloured by where each hangs: orange with a red bough
+    # here and there low down, orange and gold through its middle, gold where the sun catches the
+    # top (1 orange, 2 gold, 3 red)
+    clumps = [(0.0, 2.2, 0.0, 0.82, 1)]
+    for k in range(6):  # the low skirt
+        a = k * 1.047 + 0.3
+        clumps.append((math.cos(a) * 1.02, 1.82 + 0.1 * (k % 2), math.sin(a) * 1.02, 0.5 + 0.07 * (k % 3), 3 if k % 3 == 0 else 1))
+    for k in range(5):  # the middle
+        a = k * 1.257 + 0.9
+        clumps.append((math.cos(a) * 0.68, 2.36 + 0.08 * (k % 2), math.sin(a) * 0.68, 0.56, 1 if k % 2 else 2))
+    for k in range(4):  # the top
+        a = k * 1.571 + 0.2
+        clumps.append((math.cos(a) * 0.36, 2.86 + 0.07 * (k % 2), math.sin(a) * 0.36, 0.44, 2))
+    clumps.append((0.05, 3.2, -0.05, 0.36, 2))
+    for x, y, z, r, tone in clumps:
+        j = lambda: rng.uniform(-0.07, 0.07)
+        blob(bm, (x + j()) * s, (y + j()) * s, (z + j()) * s, r * s, r * 0.78 * s, r * s, m=tone, cuts=2, noise=0.16, rng=rng)
 
 
 def elder_tree(bm, s, rng):

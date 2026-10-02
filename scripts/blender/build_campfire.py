@@ -1057,6 +1057,10 @@ def build_water(L, coll):
         x0, x1 = span[0] + 0.02, span[1] - 0.02
         w = x1 - x0
         rows.append([vert(x0 + w * c / cols, water, z, min(c, cols - c) / cols * w) for c in range(cols + 1)])
+    # (where the river meets the island's edge the diorama is cut: the water's end is a still face
+    # down to its bed, never an open notch)
+    cap = lambda row: [vert(v.co.x, water - 0.8, -v.co.y, data[v][0] * 1.5) for v in row]
+    rows = [cap(rows[0])] + rows + [cap(rows[-1])]
     strip(rows)
     for f in bm.faces:
         f.normal_update()
