@@ -830,7 +830,7 @@ def dirt_field(L):
     def field(x, z):
         # (ragged at three scales: a trail is where feet go, never a ruled band; the clearing is
         # worn round the fire and its seats, the grass coming back toward its rim)
-        wob = 0.75 * (vnoise(x * 0.55 + 31.0, z * 0.55 + 7.0) - 0.5) + 0.34 * (vnoise(x * 1.7 + 11.0, z * 1.7 - 4.0) - 0.5) + 0.12 * (vnoise(x * 5.1, z * 5.1) - 0.5)
+        wob = 0.42 * (vnoise(x * 0.55 + 31.0, z * 0.55 + 7.0) - 0.5) + 0.26 * (vnoise(x * 1.7 + 11.0, z * 1.7 - 4.0) - 0.5) + 0.1 * (vnoise(x * 5.1, z * 5.1) - 0.5)
         best = math.hypot(x - c["x"], z - c["z"]) - c["r"] * 0.74
         for (x0, x1, z0, z1), pts in lines:
             if x < x0 or x > x1 or z < z0 or z > z1:
@@ -846,10 +846,19 @@ def dirt_field(L):
             d = math.hypot(x - wx, z - wz)
             if d < r + 0.3:
                 w = max(w, s * smooth(r * 0.85, r * 0.3, d + wob * 0.6))
-        # (and patchy: tufts hold on in the middle of a trail)
-        return w * (0.72 + 0.28 * smooth(0.25, 0.6, vnoise(x * 2.3 - 3.0, z * 2.3 + 8.0)))
+        # (one worn line, a little uneven: never blotches)
+        return w * (0.9 + 0.1 * smooth(0.25, 0.6, vnoise(x * 2.3 - 3.0, z * 2.3 + 8.0)))
 
     return field
+
+
+def wood_at(L, x, z):
+    """How deep in the wood (x, z) is, 0..1: the layout's `dressing.wood` discs, their edges wandering."""
+    w = 0.0
+    wob = 0.9 * (vnoise(x * 0.8 + 2.0, z * 0.8 - 6.0) - 0.5)
+    for wx, wz, wr in L["dressing"].get("wood", []):
+        w = max(w, smooth(wr, wr * 0.45, math.hypot(x - wx, z - wz) + wob))
+    return w
 
 
 def ground_color(L, x, z, h, dirt, tones):
@@ -870,15 +879,18 @@ def ground_color(L, x, z, h, dirt, tones):
     col = mixc(grass, dark, 0.6 * smooth(0.42, 0.78, n1))
     col = mixc(col, light, 0.7 * smooth(0.5, 0.85, n2))
     col = mixc(col, light, 0.3 * smooth(0.6, 1.7, h))
-    # (drifts of dry, sun-bleached grass on the open lawns; lusher and darker toward the water)
+    # (the wood's floor: darker, mossier, needles between the trees; the open lawns bleach in the sun)
+    wood = wood_at(L, x, z)
     n4 = vnoise(x * 0.21 - 9.0, z * 0.21 + 4.0)
-    col = mixc(col, lin(PALETTE["CF_GrassDry"]), 0.5 * smooth(0.55, 0.85, n4))
+    col = mixc(col, lin(PALETTE["CF_GrassDry"]), 0.5 * smooth(0.55, 0.85, n4) * (1 - wood))
+    if wood > 0:
+        col = mixc(col, mixc(dark, lin(PALETTE["CF_Needles"]), 0.3 + 0.3 * n2), 0.62 * wood)
     col = [c * (0.955 + 0.09 * n3) for c in col]
     w = dirt(x, z)
     if w > 0:
         # (trampled grass, yellowed, where the wear begins; bare earth where it is complete)
         col = mixc(col, lin(PALETTE["CF_GrassDry"]), 0.55 * smooth(0.0, 0.35, w))
-        col = mixc(col, [c * (0.82 + 0.2 * n2) for c in earth], smooth(0.3, 0.95, w) * 0.9)
+        col = mixc(col, [c * (0.86 + 0.14 * n2) for c in earth], smooth(0.22, 0.8, w) * 0.92)
     if SHADE is not None:
         dark, litter = SHADE.at(x, z)
         if "needles" in litter:
@@ -1408,6 +1420,15 @@ def build_trees(L, coll):
             if rim_inside(x, z, half) < 0.5 or in_river(L, x, z, 0.4) or near_path(L, x, z, 0.5) or near_prop(L, x, z, 1.0):
                 continue
             K.conifer(bm, x, z, rng.uniform(0.28, 0.5), rng, 0, (1, 2), kind="sapling")
+    for wx, wz, wr in L["dressing"].get("wood", []):
+        for _ in range(int(wr * 1.6)):
+            a, d = rng.random() * 6.283, wr * math.sqrt(rng.random())
+            x, z = wx + math.cos(a) * d, wz + math.sin(a) * d
+            if rim_inside(x, z, half) < 0.6 or in_river(L, x, z, 0.4) or near_path(L, x, z, 0.6) or near_prop(L, x, z, 1.1) or math.hypot(x - L["fire"]["x"], z - L["fire"]["z"]) < 4.6:
+                continue
+            if any(math.hypot(x - t["x"], z - t["z"]) < 1.5 for t in L["fellTrees"] + L["fellBirches"]):
+                continue  # (clear of where a feller stands)
+            K.conifer(bm, x, z, rng.uniform(0.26, 0.48), rng, 0, (1, 2), kind="sapling")
     for x, z, h in L["dressing"].get("snags", []):
         K.snag(bm, x, z, h, rng, 10)
     # the birches that are not felled (the dressing's): with the pines, so they sway and thin as they do
@@ -1514,7 +1535,7 @@ def places_solid(L):
     out = []
     for h in P["hammocks"]:
         out.append(((h["a"][0] + h["b"][0]) / 2, (h["a"][1] + h["b"][1]) / 2, 1.0))
-    out += [(P["dryingRack"]["x"], P["dryingRack"]["z"], 0.9), (P["smoker"]["x"], P["smoker"]["z"], 0.45), (P["cairn"]["x"], P["cairn"]["z"], 0.4)]
+    out += [(P["dryingRack"]["x"], P["dryingRack"]["z"], 0.9)] + [(P[k]["x"], P[k]["z"], 0.45) for k in ("smoker", "cairn") if k in P]
     out += [(b["x"], b["z"], 1.25) for b in P["blankets"]]
     out.append((P["glade"]["x"], P["glade"]["z"], P["glade"]["r"] + 0.45))
     out.append((P["swing"]["x"], P["swing"]["z"], P["swing"]["span"] + 0.35))
@@ -2761,6 +2782,14 @@ def build_dressing(L, coll):
                     flower(x + rng.uniform(-0.3, 0.3), z + rng.uniform(-0.4, 0.4), rng.choice(("CF_PetalYellow", "CF_PetalWhite", "CF_Petal")))
         z += rng.uniform(1.0, 1.5)
         k += 1
+    # --- the wood's floor: ferns in drifts between its trees (walked through)
+    for wx, wz, wr in D.get("wood", []):
+        for _ in range(int(wr * wr * 2.6)):
+            a, d = rng.random() * 6.283, wr * math.sqrt(rng.random())
+            x, z = wx + math.cos(a) * d, wz + math.sin(a) * d
+            if vnoise(x * 0.9 + 4.0, z * 0.9) < 0.45 or not open_moss(x, z) or math.hypot(x - c["x"], z - c["z"]) < c["r"] * 0.85:
+                continue
+            curved_fern(bm, x, z, rng.uniform(0.8, 1.35), rng, m["CF_GrassDark"])
     # --- the waist-high shrubs: junipers and leafy bushes, three lumps each, a few with berries
     for k, (x, z, sz) in enumerate(D["shrubs"]):
         leaf = m["CF_Juniper"] if k % 2 else m["CF_BushLeaf"]
@@ -2873,13 +2902,14 @@ def build_places(L, cushions, coll):
         f.material_index = m["CF_MallardBody"]
         f2 = bm.faces.new((bm.verts.new(W(R["x"], 0.95, z)), bm.verts.new(W(R["x"], 0.87, z + 0.05)), bm.verts.new(W(R["x"], 0.87, z - 0.05))))
         f2.material_index = m["CF_MallardBody"]
-    S = P["smoker"]
-    lathe(bm, S["x"], S["z"], [(0, 0.0), (0.24, 0.0), (0.27, 0.3), (0.26, 0.62), (0.22, 0.8), (0, 0.8)], segs=14, m=m["CF_Barrel"])
-    for y in (0.16, 0.6):
-        lathe(bm, S["x"], S["z"], [(0.25, y - 0.02), (0.282, y - 0.02), (0.282, y + 0.02), (0.25, y + 0.02)], segs=14, m=m["CF_Metal"])
-    lathe(bm, S["x"], S["z"], [(0, 0.8), (0.25, 0.8), (0.07, 0.98), (0, 0.98)], segs=12, m=m["CF_Metal"])
-    cylinder(bm, W(S["x"], 0.95, S["z"]), W(S["x"], 1.28, S["z"]), 0.045, 8, m=m["CF_Metal"])
-    box(bm, S["x"] + 0.2, S["x"] + 0.285, 0.1, 0.34, S["z"] - 0.09, S["z"] + 0.09, m=m["CF_Metal"])
+    if "smoker" in P:
+        S = P["smoker"]
+        lathe(bm, S["x"], S["z"], [(0, 0.0), (0.24, 0.0), (0.27, 0.3), (0.26, 0.62), (0.22, 0.8), (0, 0.8)], segs=14, m=m["CF_Barrel"])
+        for y in (0.16, 0.6):
+            lathe(bm, S["x"], S["z"], [(0.25, y - 0.02), (0.282, y - 0.02), (0.282, y + 0.02), (0.25, y + 0.02)], segs=14, m=m["CF_Metal"])
+        lathe(bm, S["x"], S["z"], [(0, 0.8), (0.25, 0.8), (0.07, 0.98), (0, 0.98)], segs=12, m=m["CF_Metal"])
+        cylinder(bm, W(S["x"], 0.95, S["z"]), W(S["x"], 1.28, S["z"]), 0.045, 8, m=m["CF_Metal"])
+        box(bm, S["x"] + 0.2, S["x"] + 0.285, 0.1, 0.34, S["z"] - 0.09, S["z"] + 0.09, m=m["CF_Metal"])
     # lupines along the bank beside them
     for k in range(9):
         z = R["z"] - 2.4 + k * 0.62 + rng.uniform(-0.15, 0.15)
@@ -2887,7 +2917,7 @@ def build_places(L, cushions, coll):
         if not span:
             continue
         x = span[0] - rng.uniform(0.3, 0.55)
-        if any(math.hypot(x - px, z - pz) < pr for px, pz, pr in ((R["x"], R["z"], 0.8), (S["x"], S["z"], 0.45))):
+        if any(math.hypot(x - px, z - pz) < pr for px, pz, pr in ((R["x"], R["z"], 0.8),)):
             continue
         for q in range(3):
             lx, lz = x + rng.uniform(-0.14, 0.14), z + rng.uniform(-0.14, 0.14)
@@ -2908,11 +2938,12 @@ def build_places(L, cushions, coll):
             cylinder(bm, W(px, 0.0, pz), W(px, 0.24, pz), 0.05, 10, m=m["CF_Cooler"])
             cylinder(bm, W(px, 0.24, pz), W(px, 0.3, pz), 0.04, 10, m=m["CF_VanCream"])
             lathe(bm, px + 0.2 * ux, pz + 0.2 * uz, [(0, 0.0), (0.045, 0.0), (0.05, 0.08), (0, 0.08)], segs=8, m=m["CF_VanCream"])
-    C = P["cairn"]
-    y = 0.0
-    for k, (r, h) in enumerate(((0.26, 0.15), (0.2, 0.13), (0.15, 0.11), (0.1, 0.1), (0.065, 0.08))):
-        blob(bm, C["x"] + rng.uniform(-0.03, 0.03), y + h / 2, C["z"] + rng.uniform(-0.03, 0.03), r, h / 2 + 0.01, r * 0.9, m=m["CF_Stone"] if k % 2 else m["CF_StoneDark"], cuts=2, noise=0.1, rng=rng)
-        y += h * 0.86
+    if "cairn" in P:
+        C = P["cairn"]
+        y = 0.0
+        for k, (r, h) in enumerate(((0.26, 0.15), (0.2, 0.13), (0.15, 0.11), (0.1, 0.1), (0.065, 0.08))):
+            blob(bm, C["x"] + rng.uniform(-0.03, 0.03), y + h / 2, C["z"] + rng.uniform(-0.03, 0.03), r, h / 2 + 0.01, r * 0.9, m=m["CF_Stone"] if k % 2 else m["CF_StoneDark"], cuts=2, noise=0.1, rng=rng)
+            y += h * 0.86
     # --- the Music Glade: the log (its top the log cushion's), three stumps (the stump cushion's), a cold stone ring
     G = P["glade"]
     log_top, stump_top = cushions["log"]["top"], cushions["stump"]["top"]

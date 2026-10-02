@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.50",
+    range: "v0.7.0–v0.7.51",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1826,6 +1826,21 @@ export const PATCH_ERAS: PatchEra[] = [
             "💧 The river's stones lie in groups now, and the brook winds between its banks.",
           ],
           economy: ["⚖️ Nothing moved that you walk round, so nothing you earn changes."],
+        },
+      },
+      {
+        version: "0.7.51",
+        date: "2026-10-02",
+        title: "A Wood and a Meadow",
+        summary: "The Starlight Campfire has a shape now: a wood on its west side, an open meadow down to the river, and the fire between them.",
+        changes: {
+          visuals: [
+            "🌲 The pines you fell have gathered into a wood west and north-west of the fire, with ferns, saplings and a dark needle floor under them. Two stay by the willow at the river's end.",
+            "🌼 East of the fire the ground is open meadow all the way to the dock.",
+            "👣 The trails are single worn footpaths again.",
+            "🧹 A little tidier: a few barrels, lantern posts and odds and ends are gone.",
+          ],
+          economy: ["⚖️ The pines were placed so that felling them earns what it did."],
         },
       },
     ],

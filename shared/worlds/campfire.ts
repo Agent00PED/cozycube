@@ -107,8 +107,8 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": -4.6, "z": 2.6 },
     { "x": -4.7, "z": -0.35 },
     { "x": -3.0, "z": -4.6 },
-    { "x": 2.8, "z": -3.6 },
-    { "x": 3.2, "z": 4.2 },
+    { "x": -6.5, "z": -6.2 },
+    { "x": -2.4, "z": -8.0 },
     { "x": 4.6, "z": 5.6 },
     { "x": 5.0, "z": 8.4 },
     { "x": -7.6, "z": 4.4 }
@@ -139,15 +139,16 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": -7.3, "z": -11.5, "s": 0.55 }
   ],
   "dressing": {
-    "lanternPosts": [{ "x": -0.1, "z": -7.2 }, { "x": 2.0, "z": -7.5 }, { "x": -6.6, "z": -3.8 }, { "x": -11.4, "z": -10.6 }],
+    "lanternPosts": [{ "x": 2.0, "z": -7.5 }, { "x": -11.4, "z": -10.6 }],
     "crates": [{ "x": -2.1, "z": -12.1, "yaw": 0.3 }],
-    "barrels": [{ "x": 0.45, "z": -11.0 }, { "x": 7.9, "z": -1.6 }],
+    "barrels": [],
     "fallen": [{ "x": -11.7, "z": 11.3, "yaw": 2.0, "len": 1.6 }],
-    "stumps": [{ "x": -3.4, "z": 5.0 }, { "x": 6.4, "z": 10.2 }],
+    "stumps": [{ "x": 6.4, "z": 10.2 }],
     "snags": [[-13.35, -11.3, 2.7], [-13.4, 12.3, 2.2]],
     "birches": [[-7.9, -10.2, 0.8], [-6.4, -7.6, 0.75], [-3.0, 10.6, 0.7], [-1.0, 13.0, 0.7], [8.4, 10.4, 0.7]],
-    "shrubs": [[-7.55, -9.35, 0.8], [-4.7, -12.5, 0.7], [-8.6, 0.2, 0.8], [-12.0, 4.9, 0.7], [-2.6, 13.0, 0.7], [0.2, 13.1, 0.75], [7.6, 12.4, 0.8], [4.2, 10.4, 0.7], [4.4, -3.0, 0.75], [8.6, -3.2, 0.7], [3.8, -6.4, 0.7]],
-    "meadows": [[6.2, -5.6, 2.6], [-6.0, -10.2, 2.4], [-9.8, 1.8, 2.6], [-1.2, 10.4, 2.6], [6.2, 11.4, 2.4]]
+    "shrubs": [[-7.55, -9.35, 0.8], [-4.7, -12.5, 0.7], [-8.6, 0.2, 0.8], [-12.0, 4.9, 0.7], [-2.6, 13.0, 0.7], [0.2, 13.1, 0.75], [7.6, 12.4, 0.8], [4.2, 10.4, 0.7], [-7.0, -5.9, 0.75], [8.6, -3.2, 0.7], [-2.3, -5.9, 0.7]],
+    "meadows": [[6.2, -5.6, 2.6], [-6.0, -10.2, 2.4], [4.6, 5.0, 3.0], [-1.2, 10.4, 2.6], [6.2, 11.4, 2.4]],
+    "wood": [[-4.6, -5.4, 2.8], [-5.8, 2.2, 3.2], [-10.2, 5.2, 3.6], [-11.6, -2.4, 3.0], [-9.0, 8.4, 2.6]]
   },
   "places": {
     "hammocks": [
@@ -156,12 +157,10 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     ],
     "hammockLantern": { "x": 6.7, "z": -6.4, "tip": [7.12, -5.98], "y": 1.6 },
     "dryingRack": { "x": 8.9, "z": -5.6, "len": 1.4 },
-    "smoker": { "x": 8.95, "z": -4.3 },
     "blankets": [
       { "x": -6.2, "z": -10.95, "up": [-0.985, 0.175], "tone": "red" },
       { "x": -6.25, "z": -9.15, "up": [-0.97, -0.245], "tone": "blue" }
     ],
-    "cairn": { "x": -9.1, "z": -7.3 },
     "glade": { "x": -10.8, "z": 4.4, "r": 1.2, "log": { "angle": 20, "len": 1.4 }, "stumps": [-85, 100, 175] },
     "swing": { "x": -0.9, "z": 9.8, "beam": 2.05, "span": 1.0, "seat": 0.33 },
     "beds": [
@@ -921,11 +920,9 @@ export const CAMP_OBSTACLES: AABB[] = [
   around(BARNABY_BOARD, 0.32),
   around(BUSTER_BOARD, 0.32),
   // --- the places (all inside the open areas, off the walks between trees and stalls) ---
-  // the hammocks (you lie in one: its seat is within, as the tipi's is), the drying rack, the smoker
+  // the hammocks (you lie in one: its seat is within, as the tipi's is), the drying rack
   ...HAMMOCKS.flatMap((h) => [-0.5, 0, 0.5].map((t) => around({ x: h.mid.x + h.along.x * t, z: h.mid.z + h.along.z * t }, 0.28))),
   { minX: PL.dryingRack.x - 0.22, maxX: PL.dryingRack.x + 0.22, minZ: PL.dryingRack.z - PL.dryingRack.len / 2, maxZ: PL.dryingRack.z + PL.dryingRack.len / 2 },
-  around(PL.smoker, 0.3),
-  around(PL.cairn, 0.25),
   // the glade's log and stumps
   ...[-0.5, 0, 0.5].map((t) => around({ x: GLADE.log.at.x + GLADE.log.along.x * t, z: GLADE.log.at.z + GLADE.log.along.z * t }, 0.2)),
   ...GLADE.stumps.map((s) => around(s, 0.22)),
