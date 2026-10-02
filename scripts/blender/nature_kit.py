@@ -156,6 +156,72 @@ class Shade:
         return min(0.62, 1 - light), litter
 
 
+BUSHES = {
+    # each lump: across, up, along, half-width, half-height (all times the bush's size)
+    "round": ((0.0, 0.34, 0.0, 0.44, 0.4), (0.3, 0.25, 0.14, 0.32, 0.29), (-0.26, 0.23, 0.18, 0.29, 0.26)),
+    "tall": ((0.0, 0.4, 0.0, 0.36, 0.42), (0.22, 0.3, 0.12, 0.3, 0.32), (-0.2, 0.33, 0.14, 0.28, 0.35), (0.02, 0.8, -0.04, 0.27, 0.3), (-0.13, 0.62, -0.17, 0.22, 0.25)),
+    "spread": ((0.0, 0.13, 0.0, 0.5, 0.16), (0.42, 0.1, 0.18, 0.36, 0.13), (-0.38, 0.11, 0.22, 0.34, 0.14), (0.1, 0.1, -0.4, 0.32, 0.13)),
+}
+
+
+def bush(bm, blob, x, z, s, rng, kind, m_leaf, m_leaf2=None, dots=None):
+    """A bush at the game point (x, z), `s` its size: `kind` "round" (a waist-high mound), "tall" (a
+    head-high leafy shrub) or "spread" (a low mat, walked over). Turned its own way, its lumps in
+    one green or two. `dots`: (nub, material, count, size) for berries or blossom on it. `blob` is
+    the builder's own."""
+    a0 = rng.random() * 6.283
+    c, sn = math.cos(a0), math.sin(a0)
+    lumps = BUSHES[kind]
+    for i, (dx, y, dz, r, h) in enumerate(lumps):
+        rx, rz = dx * c - dz * sn, dx * sn + dz * c
+        j = rng.uniform(0.9, 1.1)
+        blob(bm, x + rx * s, y * s, z + rz * s, r * s * j, h * s * j, r * 0.94 * s * j, m=m_leaf2 if (m_leaf2 is not None and i % 2) else m_leaf, cuts=2 if (kind == "spread" or r <= 0.3) else 3, noise=0.11, rng=rng, flat_bottom=-0.05)
+    if dots:
+        nub, mat, count, size = dots
+        top = max(l[1] + l[4] for l in lumps)
+        for _ in range(count):
+            a = rng.random() * 6.283
+            rr = rng.uniform(0.2, 0.42) * s
+            nub(x + math.cos(a) * rr, rng.uniform(0.35, 0.92) * top * s, z + math.sin(a) * rr, size, size * 1.5, mat)
+
+
+def grass_clump(bm, x, z, rng, m, h=0.4, blades=7, spread=0.09):
+    """A clump of tall grass: blades leaning out from one root, each bent once (its material is
+    double-sided)."""
+    for _ in range(blades):
+        a = rng.random() * 6.283
+        bh = h * rng.uniform(0.55, 1.0)
+        d = spread * rng.random()
+        bx, bz = x + math.cos(a) * d, z + math.sin(a) * d
+        lean = rng.uniform(0.1, 0.36) * bh
+        sx, sz = -math.sin(a) * 0.02, math.cos(a) * 0.02
+        mx, mz = bx + math.cos(a) * lean * 0.35, bz + math.sin(a) * lean * 0.35
+        vs = [bm.verts.new(W(bx - sx, -0.02, bz - sz)), bm.verts.new(W(bx + sx, -0.02, bz + sz)),
+              bm.verts.new(W(mx + sx * 0.7, bh * 0.55, mz + sz * 0.7)), bm.verts.new(W(mx - sx * 0.7, bh * 0.55, mz - sz * 0.7)),
+              bm.verts.new(W(bx + math.cos(a) * lean, bh, bz + math.sin(a) * lean))]
+        for face in ((0, 1, 2, 3), (3, 2, 4)):
+            bm.faces.new([vs[i] for i in face]).material_index = m
+
+
+def reeds(bm, x, z, rng, m_stalk, m_head, y0=0.0, n=3):
+    """A stand of cattails at the water's edge: thin stalks (two crossed blades each) with a brown
+    head near the top (both materials double-sided)."""
+    for _ in range(n):
+        rx, rz = x + rng.uniform(-0.12, 0.12), z + rng.uniform(-0.12, 0.12)
+        h = rng.uniform(0.55, 0.95)
+        a = rng.random() * 6.283
+        lx, lz = rng.uniform(-0.05, 0.05), rng.uniform(-0.05, 0.05)
+        for q in (0.0, 1.571):
+            sx, sz = math.cos(a + q) * 0.012, math.sin(a + q) * 0.012
+            vs = [bm.verts.new(W(rx - sx, y0 - 0.2, rz - sz)), bm.verts.new(W(rx + sx, y0 - 0.2, rz + sz)), bm.verts.new(W(rx + lx + sx * 0.6, y0 + h, rz + lz + sz * 0.6)), bm.verts.new(W(rx + lx - sx * 0.6, y0 + h, rz + lz - sz * 0.6))]
+            bm.faces.new(vs).material_index = m_stalk
+            hx, hz = math.cos(a + q) * 0.03, math.sin(a + q) * 0.03
+            u0, u1 = (h - 0.22) / h, (h - 0.05) / h
+            hv = [bm.verts.new(W(rx + lx * u0 - hx, y0 + h - 0.22, rz + lz * u0 - hz)), bm.verts.new(W(rx + lx * u0 + hx, y0 + h - 0.22, rz + lz * u0 + hz)),
+                  bm.verts.new(W(rx + lx * u1 + hx, y0 + h - 0.05, rz + lz * u1 + hz)), bm.verts.new(W(rx + lx * u1 - hx, y0 + h - 0.05, rz + lz * u1 - hz))]
+            bm.faces.new(hv).material_index = m_head
+
+
 def worn(d):
     """How worn the ground is `d` metres outside a footpath's tread (negative: on it), 0..1: one
     smooth ease from bare earth just inside the tread's edge to untouched grass 0.6 m beyond it. No

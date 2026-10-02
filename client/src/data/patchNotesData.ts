@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.55",
+    range: "v0.7.0–v0.7.56",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1904,6 +1904,24 @@ export const PATCH_ERAS: PatchEra[] = [
             "🌲 The campfire no longer has birches. Its trees to fell are the eight Soft Pines; Silver Birches and better grow in the Whispering Woods.",
             "⚖️ Woods income is within a few percent of what it was at every axe tier.",
           ],
+        },
+      },
+      {
+        version: "0.7.56",
+        date: "2026-10-02",
+        title: "Growing Wild",
+        summary: "The campfire and the woods are greener and more alive: thicker undergrowth, more trees, and small things moving everywhere.",
+        changes: {
+          visuals: [
+            "🌿 The Whispering Woods' floor is covered now: grass, tall grass, flower drifts, bracken and cattails along the river.",
+            "🌳 More trees on both maps, in three shades of green, with young conifers growing between them.",
+            "🪴 Bushes come in several shapes and colours, some with berries or blossom.",
+            "☁️ Soft cloud shadows drift over the ground by day.",
+            "🍂 Leaves fall under the maples, the birches and the willow.",
+            "🐟 Fish rise in the rivers, dragonflies keep to the water, and mist lies on it at dawn and dusk.",
+            "🦋 Moths come to the lanterns at night, Bramble's chimney smokes, and birds cross over the woods.",
+          ],
+          economy: ["⚖️ Nothing you earn changes."],
         },
       },
     ],

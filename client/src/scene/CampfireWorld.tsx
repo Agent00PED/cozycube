@@ -11,6 +11,7 @@ import { parseTrees } from "@shared/chop";
 import { FellableTrees } from "./FellableTrees";
 import { WildCritters } from "./WildCritters";
 import { Butterflies } from "./Butterflies";
+import { CloudClock, FallingLeaves, LanternMoths, RiseRings, RiverMist, cloudShadows, type LeafTree } from "./campLife";
 import { SurgeRipples } from "./SurgeRipples";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
@@ -108,6 +109,27 @@ const CLICK_GROUND = (() => {
 })();
 /** A height over the ground at (x, z). */
 const over = (x: number, y: number, z: number): [number, number, number] => [x, campLand(x, z) + y, z];
+/** The river down its length (inside the island): where a fish may rise, where the mist lies, where
+ *  the dragonflies keep. */
+const RIVER_LINE = Array.from({ length: 24 }, (_, i): [number, number, number] | null => {
+  const z = Math.max(RIVER_Z.from, -L.half + 0.8) + ((Math.min(RIVER_Z.to, L.half - 0.8) - Math.max(RIVER_Z.from, -L.half + 0.8)) * (i + 0.5)) / 24;
+  const span = riverSpan(z);
+  return span ? [(span.x0 + span.x1) / 2, z, (span.x1 - span.x0) / 2] : null;
+}).filter((p): p is [number, number, number] => !!p);
+const RIVER_SPOTS = RIVER_LINE.map(([x, z]): [number, number] => [x, z]);
+const MIST_SPOTS = RIVER_LINE.filter((_, i) => i % 2 === 0);
+const DRAGON_SPOTS = RIVER_LINE.filter((_, i) => i % 5 === 2).map(([x, z]): [number, number] => [x, z]);
+const DRAGON_TINTS = ["#5fd3ff", "#7af0d0", "#4f9bff", "#a8e8ff"];
+const dragonY = () => L.river.water;
+/** The lanterns the moths come to: the dock's two, the lantern posts', the hammocks' paper one. */
+const CAMP_LAMPS = [
+  ...L.lanterns.map((p) => ({ x: p.x, y: walkY("campfire_night", p.x - 0.3, p.z) + 1.15, z: p.z })),
+  ...L.dressing.lanternPosts.map((p) => ({ x: p.x + 0.24, y: campLand(p.x, p.z) + 1.22, z: p.z + 0.24 })),
+  { x: L.places.hammockLantern.tip[0], y: campLand(L.places.hammockLantern.tip[0], L.places.hammockLantern.tip[1]) + L.places.hammockLantern.y - 0.2, z: L.places.hammockLantern.tip[1] },
+];
+/** The willow at the River's End sheds a leaf now and then. */
+const WILLOW = L.places.riverEnd.willow;
+const LEAF_TREES: LeafTree[] = [{ x: WILLOW.x, z: WILLOW.z, y: campLand(WILLOW.x, WILLOW.z), r: 1.4 * WILLOW.s, top: 2.5 * WILLOW.s, tints: ["#b9c96a", "#9db85a", "#d2cf7a"] }];
 /** Where the butterflies drift by day: by the swing and over each clover meadow. */
 const BUTTERFLY_SPOTS: [number, number][] = [[L.places.swing.x - 0.6, L.places.swing.z + 0.4], ...L.dressing.meadows.map(([x, z]): [number, number] => [x, z])];
 
@@ -231,6 +253,13 @@ export function CampfireWorld({ onFloorClick, players, localSessionId, toggleabl
       <DuckTargets onDuck={onDuck} />
       <WildCritters mapId="campfire_night" />
       <Fireflies />
+      {/* the small motions: clouds' shadows, the willow's leaves, a fish rising, mist on the river,
+          moths at the lanterns */}
+      <CloudClock />
+      <FallingLeaves trees={LEAF_TREES} />
+      <RiseRings spots={RIVER_SPOTS} waterY={L.river.water} />
+      <RiverMist spots={MIST_SPOTS} waterY={L.river.water} />
+      <LanternMoths lamps={CAMP_LAMPS} />
       <Stars />
       <OcclusionDriver />
     </group>
@@ -260,6 +289,8 @@ function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh || Array.isArray(mesh.material)) return;
       if (/^CF_(Pine|PineBark)$/.test(mesh.material.name)) ditherOccluder(mesh.material);
+      // (the clouds' shadows drift over the ground and everything of clay standing on it)
+      if (/^CF_(Ground|Clay|ClayDouble)$/.test(mesh.material.name)) cloudShadows(mesh.material);
     });
     return bound;
   }, [scene]);
@@ -336,6 +367,8 @@ function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
       <primitive object={scene} />
       {/* butterflies over the Swing Garden and the clover meadows, by day */}
       <Butterflies scene={scene} prefix="Fauna_CampFly" spots={BUTTERFLY_SPOTS} landY={campLand} />
+      {/* dragonflies over the river: the same templates, blue and quick and low */}
+      <Butterflies scene={scene} prefix="Fauna_CampFly" spots={DRAGON_SPOTS} landY={dragonY} tints={DRAGON_TINTS} size={1.9} pace={2.3} lift={0.42} />
       {/* a snack nearby: the raccoon's hearts */}
       {begging && (
         <Html position={life.critterAt} center style={{ pointerEvents: "none" }} zIndexRange={[20, 0]}>
