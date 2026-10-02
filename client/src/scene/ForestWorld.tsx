@@ -23,6 +23,8 @@ import { WildCritters } from "./WildCritters";
 import { LightShafts } from "./LightShafts";
 import { SurgeRipples } from "./SurgeRipples";
 import { WoodsFauna } from "./WoodsFauna";
+import { Butterflies } from "./Butterflies";
+import { ChimneySmoke, CloudClock, FallingLeaves, Flyover, LanternMoths, RiseRings, RiverMist, cloudShadows, type LeafTree } from "./campLife";
 
 // The Whispering Woods (map "whispering_woods"), behind the campfire's archway. The island is one
 // Blender model, forest.glb (scripts/blender/build_forest.py, laid out from shared/worlds/forest.ts):
@@ -82,6 +84,10 @@ const over = (x: number, y: number, z: number): [number, number, number] => [x, 
 const OCCLUDERS = /^FW_Vista(Needle|Bark)/;
 /** The river's water: its height (the surge's ripples float on it). */
 const WATER_Y = L.river.water;
+/** What the clouds' shadows drift over: the ground and everything of clay standing on it. */
+const CLOUDED = /^FW_(Meadow|Clay|ClayDouble)$/;
+/** Dragonflies over the river (the butterflies' own templates, blue and quick and low). */
+const DRAGON_TINTS = ["#5fd3ff", "#7af0d0", "#4f9bff", "#a8e8ff"];
 /** Foliage that sways in the wind. */
 const SWAYERS = /^FW_VistaNeedle/;
 
@@ -134,6 +140,18 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
     e.stopPropagation();
     onFloorClick(e.point.x, e.point.z);
   };
+  // the leafy trees standing now (a stump drops no leaves): which of them, not their sizes
+  const leafy = FOREST_TREES.filter((t) => (t.kind === "maple" || t.kind === "birch") && (treeState[t.id]?.stage ?? "mature") === "mature")
+    .map((t) => t.id)
+    .join(",");
+  const leafTrees = useMemo(
+    () =>
+      FOREST_TREES.filter((t) => leafy.split(",").includes(t.id)).map((t): LeafTree => {
+        const maple = t.kind === "maple";
+        return { x: t.x, z: t.z, y: forestLand(t.x, t.z), r: maple ? 2.0 : 1.2, top: maple ? 4.2 : 3.5, tints: maple ? ["#e0782e", "#f2b33d", "#c8452f"] : ["#cdd46c", "#aac45c", "#e0d27a"] };
+      }),
+    [leafy]
+  );
   useFrame((_, dt) => {
     FOREST_TIME.value += dt;
     FOREST_NIGHT.value = 1 - daylight(Date.now());
@@ -157,6 +175,14 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
       <LightShafts shafts={FOREST_SHAFTS} landY={forestLand} />
       <Fireflies />
       <ElderMotes />
+      {/* the small motions: clouds' shadows, leaves coming down, a fish rising, mist on the river,
+          moths at the lanterns, smoke off Bramble's chimney */}
+      <CloudClock />
+      <FallingLeaves trees={leafTrees} />
+      <RiseRings spots={RISE_SPOTS} waterY={WATER_Y} />
+      <RiverMist spots={MIST_SPOTS} waterY={WATER_Y} />
+      <LanternMoths lamps={WOODS_LAMPS} />
+      <ChimneySmoke at={CHIMNEY} />
       <OcclusionDriver />
     </group>
   );
@@ -222,6 +248,7 @@ function ForestModel({ subscribeMessages }: { subscribeMessages: (listener: Room
       }
       if (SWAYERS.test(m.name)) swayFoliage(m);
       if (OCCLUDERS.test(m.name)) ditherOccluder(m);
+      if (CLOUDED.test(m.name)) cloudShadows(m);
     });
   }, [scene]);
   return (
@@ -229,6 +256,8 @@ function ForestModel({ subscribeMessages }: { subscribeMessages: (listener: Room
       <primitive object={scene} />
       <Animals scene={scene} subscribeMessages={subscribeMessages} />
       <WoodsFauna scene={scene} />
+      <Butterflies scene={scene} spots={DRAGON_SPOTS} landY={dragonY} tints={DRAGON_TINTS} size={1.9} pace={2.3} lift={0.42} />
+      <Flyover scene={scene} half={L.half} />
     </>
   );
 }
@@ -439,6 +468,14 @@ const FIREFLY_MAT = new THREE.MeshBasicMaterial({ color: "#d6ff7a", toneMapped: 
 const FIREFLY_COUNT = 54;
 /** The river's course (inside the island), for the fireflies along its banks. */
 const RIVER_BANKS = forestRiver(6).filter(([x, z]) => Math.abs(x) < L.half - 0.7 && Math.abs(z) < L.half - 0.7);
+/** Where a fish may rise, where the mist lies and where the dragonflies keep (all along the river). */
+const RISE_SPOTS = RIVER_BANKS.map(([x, z]): [number, number] => [x, z]);
+const MIST_SPOTS = RIVER_BANKS.filter((_, i) => i % 3 === 0).map(([x, z, w]): [number, number, number] => [x, z, w]);
+const DRAGON_SPOTS = RIVER_BANKS.filter((_, i) => i % 12 === 5).map(([x, z]): [number, number] => [x, z]);
+const dragonY = () => WATER_Y;
+/** The lantern posts' lanterns (on a bracket off each post) and the top of Bramble's chimney. */
+const WOODS_LAMPS = L.dressing.lanternPosts.map(([x, z]) => ({ x: x + 0.24, y: forestLand(x, z) + 1.22, z: z + 0.24 }));
+const CHIMNEY: [number, number, number] = [L.cabin.x - L.cabin.w / 2 - 0.3, forestLand(L.cabin.x - L.cabin.w / 2 - 0.3, L.cabin.z - 0.1) + 3.85, L.cabin.z - 0.1];
 /** Fireflies drifting over the glen, the shrine and the birches, blinking: by night only. */
 function Fireflies() {
   const d = useContext(CampDaylightContext) ?? 0;

@@ -161,6 +161,21 @@ The owner's list after seeing round five, and what was done.
   as stains. They are gone; only the ground round the campfire's fire is worn, wide and dark and
   fading out over more than a metre, with the log seats lying on it.
 
+## Round seven: more nature, more life (patch 0.7.56)
+
+With the trails gone the owner found both maps short of trees and of nature. What was missing was
+mostly below the trees:
+
+- **The woods' ground was a lawn.** It now carries more than twice the undergrowth: grass tufts
+  everywhere, tall grass in clumps, drifts of one flower, bracken, cattails along the river.
+- **One shrub, copied.** A shrub is now one of five looks, and low mats, mossy stones and fallen
+  branches lie between.
+- **No middle storey.** Young conifers stand through the woods.
+- **More trees:** twelve in the woods' gaps and seven narrow spruces at the campfire, in three greens.
+- **Nothing moved but animals.** Cloud shadows drift over the ground; leaves fall under the maples,
+  the birches and the willow; fish rise; mist lies on the rivers at dawn and dusk; moths come to the
+  lanterns; Bramble's chimney smokes; dragonflies keep to the water; birds cross overhead.
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.

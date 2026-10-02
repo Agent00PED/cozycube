@@ -100,6 +100,16 @@ PALETTE = {
     "FW_Bank": "#4C5A36",
     "FW_Pebble": "#A39C90",
     "FW_Tuft": "#5E8A48",
+    "FW_TallGrass": "#6F9C4C",
+    "FW_Reed": "#7C8E48",
+    "FW_Cattail": "#5A3B22",
+    "FW_BushLight": "#6FA052",
+    "FW_BushDark": "#2F5E3A",
+    "FW_Blossom": "#F3E6EE",
+    "FW_PineNeedleBlue": "#33685F",
+    "FW_PineNeedleBlueLight": "#4A8473",
+    "FW_PineNeedleOlive": "#4C7A42",
+    "FW_PineNeedleOliveLight": "#688F50",
     "FW_Fern": "#3F7446",
     "FW_Petal": "#F2B8C6",
     "FW_PetalYellow": "#F4D35E",
@@ -168,7 +178,7 @@ PALETTE = {
 }
 ROUGHNESS = {"FW_Water": 0.25, "FW_Iron": 0.6, "FW_Window": 0.5, "FW_Honey": 0.45, "FW_Eye": 0.35}
 EMISSION = {"FW_Window": 2.4, "FW_Rune": 1.8, "FW_ElderLeafGlow": 1.6, "FW_Wisp": 3.0}
-DOUBLE_SIDED = {"FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_Foam", "FW_Cloth", "FW_Canvas", "FW_Net"}
+DOUBLE_SIDED = {"FW_TallGrass", "FW_Reed", "FW_Cattail", "FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_Foam", "FW_Cloth", "FW_Canvas", "FW_Net"}
 
 LAYER_MEADOW = 0.004
 LAYER_FLOOR = 0.008
@@ -840,7 +850,12 @@ def ground_color(L, x, z, dirt, tones):
     # (drifts of dry, sun-bleached grass on the open meadows)
     n4 = vnoise(x * 0.21 - 9.0, z * 0.21 + 4.0)
     col = mixc(col, lin(PALETTE["FW_GrassDry"]), 0.42 * smooth(0.55, 0.85, n4))
-    col = [c * (0.86 + 0.2 * n1) * (0.95 + 0.1 * n2) * (0.965 + 0.07 * n3) for c in col]
+    # (and drifts of lusher, darker growth and of mossy olive: a wood's floor is never one green)
+    n5 = vnoise(x * 0.17 + 11.0, z * 0.17 - 7.0)
+    n6 = vnoise(x * 0.14 - 3.0, z * 0.2 + 5.0)
+    col = mixc(col, lin("#3F7A3C"), 0.42 * smooth(0.52, 0.82, n5))
+    col = mixc(col, lin("#77904A"), 0.3 * smooth(0.6, 0.88, n6))
+    col = [c * (0.8 + 0.32 * n1) * (0.93 + 0.14 * n2) * (0.96 + 0.08 * n3) for c in col]
     w = dirt(x, z)
     if w > 0:
         # (trampled grass, yellowed, where the wear begins; bare earth where it is complete)
@@ -1106,21 +1121,21 @@ def build_deco(L, coll):
     def fern(x, z, s=1.0):
         # fronds arching up out of the crown and drooping to their tips, each folded along its
         # midrib and tapering at both ends (the fern's material is double-sided)
-        for k in range(7):
-            a = 2 * math.pi * k / 7 + rng.random() * 0.6
+        for k in range(6):
+            a = 2 * math.pi * k / 6 + rng.random() * 0.6
             length = (0.34 + 0.12 * rng.random()) * s
             height = (0.2 + 0.07 * rng.random()) * s
             dx, dz = math.cos(a), math.sin(a)
             px, pz = -dz, dx
             pts = []
-            for i in range(7):
-                u = i / 6
+            for i in range(5):
+                u = i / 4
                 y = height * (1.7 * u - 1.25 * u * u) + 0.01
                 w = 0.062 * s * math.sin(math.pi * min(1.0, u * 1.04)) ** 0.6 + 0.004
                 pts.append((x + dx * length * u, y, z + dz * length * u, w))
             # (the midrib and edges on shared, smooth vertices)
             rows = [(bm.verts.new(W(fx, fy, fz)), bm.verts.new(W(fx + px * w, fy - w * 0.35, fz + pz * w)), bm.verts.new(W(fx - px * w, fy - w * 0.35, fz - pz * w))) for fx, fy, fz, w in pts]
-            for i in range(6):
+            for i in range(4):
                 (m0, l0, r0), (m1, l1, r1) = rows[i], rows[i + 1]
                 for quad in ((m0, l0, l1, m1), (m0, m1, r1, r0)):
                     f = bm.faces.new(quad)
@@ -1140,7 +1155,17 @@ def build_deco(L, coll):
     placed = 0
     tries = 0
     reach = L["half"] - 1.0
-    while placed < 520 and tries < 16000:
+    K = nature()
+
+    def bloom(x, z, tone):
+        # (a drift's flower: a blade of a stem and a small head)
+        h = 0.13 + 0.1 * rng.random()
+        a = rng.random() * 6.283
+        sx, sz = math.cos(a) * 0.012, math.sin(a) * 0.012
+        bm.faces.new((bm.verts.new(W(x - sx, 0.0, z - sz)), bm.verts.new(W(x + sx, 0.0, z + sz)), bm.verts.new(W(x, h, z)))).material_index = 9
+        blob(bm, x, h + 0.01, z, 0.04, 0.022, 0.04, m=tone, cuts=1)
+
+    while placed < 1150 and tries < 40000:
         tries += 1
         x, z = rng.uniform(-reach, reach), rng.uniform(-reach, reach)
         if not clear_spot(L, x, z, 0.12):
@@ -1151,9 +1176,11 @@ def build_deco(L, coll):
             # a pile of fallen leaves: a few flat lumps in orange and gold
             for k in range(3):
                 blob(bm, x + rng.uniform(-0.15, 0.15), 0.03, z + rng.uniform(-0.15, 0.15), 0.16, 0.035, 0.13, m=7 if k % 2 else 8, cuts=2, noise=0.2, rng=rng)
-        elif zn in ("birch", "shrine", "northridge") and roll < 0.45 or zn == "oldgrowth" and roll < 0.75:
+        elif zn in ("birch", "shrine") and roll < 0.2 or zn == "oldgrowth" and roll < 0.36:
             fern(x, z, 0.85)
-        elif roll < 0.72:
+        elif roll < 0.16 and zn in ("glade", "border", "post", "cedar", ""):
+            K.grass_clump(bm, x, z, rng, 9, h=rng.uniform(0.3, 0.5), blades=rng.randint(5, 8))
+        elif roll < 0.87:
             # a grass tuft: three thin blades
             for k in range(4):
                 a = rng.random() * 6.28
@@ -1162,11 +1189,11 @@ def build_deco(L, coll):
                 side = Vector((math.sin(a), math.cos(a), 0)) * 0.025
                 vs = [bm.verts.new(base - side), bm.verts.new(base + side), bm.verts.new(W(x + math.cos(a) * 0.1, h, z + math.sin(a) * 0.1))]
                 bm.faces.new(vs).material_index = 0
-        elif roll < 0.9:
+        elif roll < 0.94:
             # a wildflower: a stem and a head of petals
             col = rng.choice((2, 3, 4))
             cylinder(bm, W(x, 0.0, z), W(x, 0.16, z), 0.008, 5, m=0)
-            blob(bm, x, 0.17, z, 0.045, 0.02, 0.045, m=col, cuts=2)
+            blob(bm, x, 0.17, z, 0.045, 0.02, 0.045, m=col, cuts=1)
             blob(bm, x, 0.18, z, 0.015, 0.012, 0.015, m=3 if col != 3 else 6, cuts=1)
         else:
             # a red-capped mushroom (or two)
@@ -1177,6 +1204,43 @@ def build_deco(L, coll):
                 lathe(bm, mx, mz, [(0, 0.0), (0.06 * s, 0.0), (0.05 * s, 0.03 * s), (0, 0.045 * s)], segs=8, m=5, y0=0.075 * s)
         placed += 1
 
+    # drifts of one flower, a dozen together, where the ground is open
+    drifts = 0
+    tries = 0
+    while drifts < 16 and tries < 3000:
+        tries += 1
+        x, z = rng.uniform(-reach, reach), rng.uniform(-reach, reach)
+        if not clear_spot(L, x, z, 0.9) or zone_of(L, x, z) in ("oldgrowth", "ledge", "shrine"):
+            continue
+        tone = rng.choice((2, 3, 4))
+        for _ in range(rng.randint(9, 14)):
+            a, rr = rng.random() * 6.283, 0.95 * math.sqrt(rng.random())
+            bloom(x + math.cos(a) * rr, z + math.sin(a) * rr, tone)
+        drifts += 1
+    # bracken: big ferns in threes, the wood's middle storey
+    clumps = 0
+    tries = 0
+    while clumps < 18 and tries < 4000:
+        tries += 1
+        x, z = rng.uniform(-reach, reach), rng.uniform(-reach, reach)
+        if not clear_spot(L, x, z, 0.5):
+            continue
+        for q in range(3):
+            a = q * 2.1 + rng.random()
+            fern(x + math.cos(a) * 0.3, z + math.sin(a) * 0.3, rng.uniform(1.25, 1.7))
+        clumps += 1
+    # cattails standing in the shallows along both banks (clear of where an angler stands)
+    water = L["river"]["water"]
+    for i, (x, z, w, tx, tz, nx, nz) in enumerate(river_frame(L, 5)):
+        for side in (1, -1):
+            if vnoise(x * 0.6 + side * 13.0, z * 0.6 - 4.0) < 0.5:
+                continue
+            px, pz = x + nx * side * (w - 0.14), z + nz * side * (w - 0.14)
+            if max(abs(px), abs(pz)) > L["half"] - 0.9 or any(math.hypot(px - s_["stand"]["x"], pz - s_["stand"]["z"]) < 1.5 for s_ in L["fishing"]):
+                continue
+            if math.hypot(px - L["finley"]["x"], pz - L["finley"]["z"]) < 2.2 or any(math.hypot(px - jx, pz - jz) < 1.6 for jx, jz, _ in places_solid(L)):
+                continue
+            K.reeds(bm, px, pz, rng, 10, 11, y0=water, n=rng.randint(2, 4))
     # ferns at the fellable trees' feet (clear of paths, water and the approach you fell from)
     for t in L["trees"]:
         for k in range(2):
@@ -1225,7 +1289,7 @@ def build_deco(L, coll):
                 a = rng.random() * 6.28
                 blob(bm, bx + math.cos(a) * 0.22, 0.16 + rng.uniform(-0.04, 0.1), bz + math.sin(a) * 0.2, 0.028, 0.028, 0.028, m=5, cuts=1)
         bushes += 1
-    make_object("Forest_Deco", bm, ["FW_Tuft", "FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_MushCap", "FW_MushStem", "FW_LeafPile", "FW_MapleLeafGold"], coll, lift="parts")
+    make_object("Forest_Deco", bm, ["FW_Tuft", "FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_MushCap", "FW_MushStem", "FW_LeafPile", "FW_MapleLeafGold", "FW_TallGrass", "FW_Reed", "FW_Cattail"], coll, lift="parts")
 
 
 def shrine_stones(L):
@@ -1308,20 +1372,24 @@ def pine(bm, x, z, s, rng, light, bark=0, needle=1, needle_light=2, deep=None, k
     nature().conifer(bm, x, z, s, rng, bark, (needle, needle_light, needle_light) if light else (low, needle, needle_light), kind=kind)
 
 
+# the conifers' three greens (Forest_Vista's material indices: the needles and their lighter tips)
+TONES = ({"needle": 1, "needle_light": 2}, {"needle": 5, "needle_light": 6}, {"needle": 7, "needle_light": 8})
+
+
 def build_vista(L, coll):
     rng = random.Random(21)
     bm = bmesh.new()
     birds = {(b[0], b[1]) for b in L["birds"]}
     for i, (x, z, s) in enumerate(L["vista"]):
         # (a songbird's pine is a pine: its perch is measured on that shape; one in four of the rest a spruce)
-        pine(bm, x, z, s * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 4 == 2 and (x, z) not in birds else "pine")
+        pine(bm, x, z, s * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 4 == 2 and (x, z) not in birds else "pine", **TONES[(i * 2 + 1) % 3])
     # the Old Growth's great pines (the dressing's: not felled, half as tall again as the rim's)
     owl = tuple(L.get("life", {}).get("owl", {}).get("tree", ()))
     for i, t in enumerate(L["dressing"]["greatTrees"]):
         if t["kind"] == "spruce":
-            pine(bm, t["x"], t["z"], t["s"] * 1.55, rng, light=False, deep=3, kind="spruce")
+            pine(bm, t["x"], t["z"], t["s"] * 1.55, rng, light=False, deep=3, kind="spruce", **TONES[i % 3])
         elif t["kind"] == "pine":
-            pine(bm, t["x"], t["z"], t["s"] * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 3 == 2 and (t["x"], t["z"]) != owl else "pine")
+            pine(bm, t["x"], t["z"], t["s"] * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 3 == 2 and (t["x"], t["z"]) != owl else "pine", **TONES[(i + 1) % 3])
     # the understory: saplings at the feet of the rim's pines and in the Old Growth (walked through),
     # and the dead standing trees the layout places
     K = nature()
@@ -1337,7 +1405,19 @@ def build_vista(L, coll):
             K.conifer(bm, px, pz, rng.uniform(0.3, 0.55), rng, 0, (1, 2), kind="sapling")
     for x, z, h in L["dressing"].get("snags", []):
         K.snag(bm, x, z, h, rng, 4)
-    make_object("Forest_Vista", bm, ["FW_PineBark", "FW_PineNeedle", "FW_PineNeedleLight", "FW_PineNeedleDeep", "FW_Snag"], coll, lift="parts")
+    # young conifers through the whole wood, knee to chest high (walked through)
+    n = 0
+    tries = 0
+    reach = L["half"] - 1.0
+    while n < 38 and tries < 4000:
+        tries += 1
+        px, pz = rng.uniform(-reach, reach), rng.uniform(-reach, reach)
+        if not clear_spot(L, px, pz, 0.45):
+            continue
+        tone = TONES[n % 3]
+        K.conifer(bm, px, pz, rng.uniform(0.28, 0.62), rng, 0, (tone["needle"], tone["needle_light"]), kind="sapling")
+        n += 1
+    make_object("Forest_Vista", bm, ["FW_PineBark", "FW_PineNeedle", "FW_PineNeedleLight", "FW_PineNeedleDeep", "FW_Snag", "FW_PineNeedleBlue", "FW_PineNeedleBlueLight", "FW_PineNeedleOlive", "FW_PineNeedleOliveLight"], coll, lift="parts")
     # its ancient cedars: five tiers, a red trunk as thick as a barrel
     bm = bmesh.new()
     for t in L["dressing"]["greatTrees"]:
@@ -2271,7 +2351,7 @@ def build_dressing(L, coll):
     rng = random.Random(707)
     half = L["half"]
     D = L["dressing"]
-    M = ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Bark", "FW_WoodCut", "FW_PlankDark", "FW_Iron", "FW_Window", "FW_Fern", "FW_MushCap", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_Tuft"]
+    M = ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Bark", "FW_WoodCut", "FW_PlankDark", "FW_Iron", "FW_Window", "FW_Fern", "FW_MushCap", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_Tuft", "FW_BushLight", "FW_BushDark", "FW_Blossom"]
     m = {name: i for i, name in enumerate(M)}
     bm = bmesh.new()
     water = L["river"]["water"]
@@ -2297,14 +2377,52 @@ def build_dressing(L, coll):
         blob(bm, x, 0.16 * s, z, 0.5 * s, 0.4 * s, 0.44 * s, m=k % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
         blob(bm, x + 0.42 * s, 0.06, z + 0.3 * s, 0.24 * s, 0.17 * s, 0.2 * s, m=(k + 1) % 2, cuts=3, noise=0.1, rng=rng, flat_bottom=-0.2)
         blob(bm, x - 0.02, 0.5 * s, z, 0.32 * s, 0.07 * s, 0.28 * s, m=m["FW_Moss"], cuts=2, noise=0.2, rng=rng)
-    # the waist-high shrubs: three lumps each, a few with berries
+    # the shrubs you walk round, no two alike: dark mounds, light leafy ones head high, a berry
+    # bush, one in blossom (nature_kit `bush`)
+    K = nature()
+    looks = (("round", "FW_BushDark", "FW_Fern", None), ("tall", "FW_BushLight", "FW_Fern", None), ("round", "FW_Fern", "FW_Moss", ("FW_MushCap", 7, 0.03)),
+             ("tall", "FW_Fern", "FW_BushDark", None), ("round", "FW_BushLight", "FW_Moss", ("FW_Blossom", 9, 0.04)))
     for k, (x, z, sz) in enumerate(D["shrubs"]):
-        for dx, dz, f in ((0.0, 0.0, 1.0), (0.3, 0.14, 0.72), (-0.26, 0.18, 0.66)):
-            blob(bm, x + dx * sz, 0.34 * sz * f, z + dz * sz, 0.44 * sz * f, 0.4 * sz * f, 0.42 * sz * f, m=m["FW_Fern"] if k % 2 else m["FW_Moss"], cuts=3, noise=0.1, rng=rng, flat_bottom=-0.05)
-        if k % 3 == 0:
-            for _ in range(6):
-                a = rng.random() * 6.28
-                nub(x + math.cos(a) * 0.38 * sz, 0.3 * sz + rng.uniform(-0.05, 0.2) * sz, z + math.sin(a) * 0.36 * sz, 0.03, 0.05, m["FW_MushCap"])
+        kind, a, b, dots = looks[(k * 3 + int(abs(x) * 7)) % len(looks)]
+        K.bush(bm, blob, x, z, sz * (1.0 if kind == "round" else 0.9), rng, kind, m[a], m[b], dots and (nub, m[dots[0]], dots[1], dots[2]))
+    # the low growth you walk over, placed by rule: mats of ground cover, mossy stones in twos and
+    # threes, a fallen branch here and there
+    reach = L["half"] - 1.2
+    n = 0
+    tries = 0
+    while n < 30 and tries < 4000:
+        tries += 1
+        x, z = rng.uniform(-reach, reach), rng.uniform(-reach, reach)
+        if not clear_spot(L, x, z, 0.55):
+            continue
+        K.bush(bm, blob, x, z, rng.uniform(0.5, 0.75), rng, "spread", m["FW_BushDark"] if n % 2 else m["FW_Fern"], m["FW_BushLight"] if n % 3 == 0 else None, (nub, m["FW_Blossom"], 5, 0.03) if n % 4 == 0 else None)
+        n += 1
+    n = 0
+    tries = 0
+    while n < 24 and tries < 4000:
+        tries += 1
+        x, z = rng.uniform(-reach, reach), rng.uniform(-reach, reach)
+        if not clear_spot(L, x, z, 0.35):
+            continue
+        for q in range(rng.randint(2, 3)):
+            sx, sz_ = x + rng.uniform(-0.28, 0.28), z + rng.uniform(-0.28, 0.28)
+            r = rng.uniform(0.09, 0.17)
+            blob(bm, sx, r * 0.5, sz_, r * 1.2, r * 0.75, r, m=m["FW_Stone"] if q % 2 else m["FW_StoneDark"], cuts=2, noise=0.14, rng=rng, flat_bottom=-0.05)
+            if q == 0:
+                blob(bm, sx, r * 1.1, sz_, r * 0.85, r * 0.2, r * 0.75, m=m["FW_Moss"], cuts=2, noise=0.2, rng=rng)
+        n += 1
+    n = 0
+    tries = 0
+    while n < 9 and tries < 2000:
+        tries += 1
+        x, z = rng.uniform(-reach, reach), rng.uniform(-reach, reach)
+        if not clear_spot(L, x, z, 0.8):
+            continue
+        a, ln = rng.random() * 3.1416, rng.uniform(0.9, 1.5)
+        dx, dz = math.cos(a) * ln / 2, math.sin(a) * ln / 2
+        cylinder(bm, W(x - dx, 0.045, z - dz), W(x + dx, 0.05, z + dz), 0.05, 6, m=m["FW_Bark"], r_end=0.028)
+        cylinder(bm, W(x + dx * 0.2, 0.05, z + dz * 0.2), W(x + dx * 0.2 - dz * 0.5, 0.2, z + dz * 0.2 + dx * 0.5), 0.022, 5, m=m["FW_Bark"], r_end=0.01)
+        n += 1
     # the lantern posts: an iron lantern on a bracket, its glass glowing
     for x, z in D["lanternPosts"]:
         cylinder(bm, W(x, -0.05, z), W(x, 1.5, z), 0.05, 8, m=m["FW_PlankDark"])

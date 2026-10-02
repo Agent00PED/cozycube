@@ -117,7 +117,7 @@
    "tier": 1,
    "where": "woods",
    "perMin": 20,
-   "perMinSold": 14.1
+   "perMinSold": 14
   },
   {
    "craft": "wood",
@@ -130,8 +130,8 @@
    "craft": "wood",
    "tier": 2,
    "where": "woods",
-   "perMin": 51.6,
-   "perMinSold": 38.2
+   "perMin": 51.4,
+   "perMinSold": 38.1
   },
   {
    "craft": "wood",
@@ -144,8 +144,8 @@
    "craft": "wood",
    "tier": 3,
    "where": "woods",
-   "perMin": 72,
-   "perMinSold": 54.7
+   "perMin": 70.6,
+   "perMinSold": 53.9
   },
   {
    "craft": "wood",
@@ -158,7 +158,7 @@
    "craft": "wood",
    "tier": 4,
    "where": "woods",
-   "perMin": 98.2,
+   "perMin": 98.1,
    "perMinSold": 76.4
   },
   {
@@ -172,8 +172,8 @@
    "craft": "wood",
    "tier": 5,
    "where": "woods",
-   "perMin": 128,
-   "perMinSold": 106.6
+   "perMin": 125.9,
+   "perMinSold": 104.7
   },
   {
    "craft": "ore",
