@@ -16,6 +16,23 @@ import { capsuleTitle } from "@shared/casino";
 import { specialTitle } from "@shared/items";
 import { canoeBob, canoePitch, canoeRoll } from "../scene/canoeMotion";
 import { swingAngle } from "../scene/swingMotion";
+import { isCampMap } from "@shared/types";
+
+// the soft shadow under a walker's feet: a disc fading to nothing at its rim (one shared material)
+const FOOT_SHADOW_GEO = (() => {
+  const g = new THREE.CircleGeometry(0.34, 20);
+  g.rotateX(-Math.PI / 2);
+  return g;
+})();
+const FOOT_SHADOW_MAT = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  polygonOffset: true,
+  polygonOffsetFactor: -2,
+  polygonOffsetUnits: -2,
+  vertexShader: "varying vec2 vAt; void main() { vAt = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+  fragmentShader: "varying vec2 vAt; void main() { float r = length(vAt) / 0.34; gl_FragColor = vec4(0.03, 0.06, 0.05, 0.55 * (1.0 - smoothstep(0.2, 1.0, r))); }",
+});
 import { AVATAR_MATERIALS, AVATAR_NODES, AVATAR_URL, AVATAR_VARIANT_PREFIX, CROWN_HATS, DEFAULT_HAIR, GEAR_BACK_GLOW, GEAR_BACK_PREFIX, GEAR_BACK_URL, GLOVES_URL, GLOVE_HAND, HAIR_PROP_SUFFIX, MUG_TOPPING_PREFIX, OUTFIT_PARTS, SKEWER_PIECE_PREFIX, coversEars, hairUnderHat } from "./rig";
 import { BELT_TITLE, type FighterState } from "@shared/boxing";
 import { getBout, useFighterState } from "../systems/boutStore";
@@ -1565,6 +1582,8 @@ export const Avatar = memo(
 
     return (
       <group ref={ref}>
+        {/* a soft shadow at the feet where the world's ground is painted with shade (the camp maps): without it a walker floats */}
+        {isCampMap(map) && pose === "stand" && <mesh geometry={FOOT_SHADOW_GEO} material={FOOT_SHADOW_MAT} position={[0, 0.03, 0]} raycast={noRaycast} renderOrder={1} />}
         <mesh ref={ringA} geometry={RING_GEO} material={ringMat} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} visible={false} raycast={noRaycast} />
         <mesh ref={ringB} geometry={RING_GEO} material={ringMat} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.031, 0]} visible={false} raycast={noRaycast} />
 
