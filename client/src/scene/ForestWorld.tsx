@@ -9,7 +9,6 @@ import { isBlocked } from "@shared/collision";
 import { daylight } from "@shared/daynight";
 import { FINLEY, FOREST_ANIMALS, FOREST_GRID, FOREST_LAYOUT as L, FOREST_SHAFTS, FOREST_TREES, OLD_FLINT, forestLand, forestRiver } from "@shared/worlds/forest";
 import { riverWater } from "./riverWater";
-import { FallsSpray, type SprayAt } from "./FallsSpray";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -75,19 +74,6 @@ const CLICK_GROUND = (() => {
   g.setIndex(index);
   g.computeBoundingSphere();
   return g;
-})();
-/** Where water lands: the foot of the fall into the pool at the river's head, and the foot of the
- *  sheet over the island's edge where the river leaves. */
-const SPRAY_AT: SprayAt[] = (() => {
-  const [x0, z0, w0] = L.river.points[0];
-  const d = Math.hypot(x0 - L.cascade.x, z0 - L.cascade.z) || 1;
-  const out = { x: (x0 - L.cascade.x) / d, z: (z0 - L.cascade.z) / d };
-  const line = forestRiver(10);
-  const last = [...line].reverse().find(([x, z]) => Math.abs(x) < L.half - 0.1 && Math.abs(z) < L.half - 0.1) ?? line[line.length - 1];
-  return [
-    { x: L.cascade.x + out.x * (d - w0 + 0.5), y: L.river.water, z: L.cascade.z + out.z * (d - w0 + 0.5), w: 0.3, out },
-    { x: last[0], y: -1.2, z: L.half + 0.3, w: last[2] - 0.1, out: { x: 0, z: 1 } },
-  ];
 })();
 /** A height over the ground at (x, z). */
 const over = (x: number, y: number, z: number): [number, number, number] => [x, forestLand(x, z) + y, z];
@@ -166,7 +152,6 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
       <CampNpc url={FINLEY_URL} what="finley.glb" prefix="Finley" at={FINLEY} y={forestLand(FINLEY.x, FINLEY.z)} waveEvent="finleyWave" standIn={<FinleyStandIn />} subscribeMessages={subscribeMessages} talk={FINLEY_TALK} />
       <CampNpc url={OLD_FLINT_URL} what="old_flint.glb" prefix="OldFlint" at={OLD_FLINT} y={forestLand(OLD_FLINT.x, OLD_FLINT.z)} waveEvent="flintWave" standIn={<FlintStandIn />} subscribeMessages={subscribeMessages} talk={FLINT_TALK} />
       <ForestLights />
-      <FallsSpray spots={SPRAY_AT} />
       <WildCritters mapId="whispering_woods" />
       {/* the daylight through the Old Growth's canopy */}
       <LightShafts shafts={FOREST_SHAFTS} landY={forestLand} />

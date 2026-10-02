@@ -999,53 +999,6 @@ def build_ground(L, coll):
     make_object("Campfire_Underside", bm, ["CF_SoilDeep"], coll, smooth_all=True, lift=None)
 
 
-def build_rim(L, coll):
-    """Rock shouldering out of the island's sides: ledges and outcrops in groups round its rim (wide
-    on the faces the camera sees, the south and the east), each a few big blocks half in the soil
-    with smaller ones tumbled under them, moss and grass over their tops; none where the river
-    leaves. They break the square of the island's outline; nobody walks them."""
-    half = L["half"]
-    rng = random.Random(77)
-    M = ["CF_Stone", "CF_StoneDark", "CF_Lichen", "CF_Grass", "CF_GrassDark", "CF_Soil"]
-    bm = bmesh.new()
-    mouth = river_span(L, half - 0.2)
-    perim = 8 * half
-    u = rng.uniform(0.0, 3.0)
-    while u < perim:
-        side, t = int(u // (2 * half)), (u % (2 * half)) - half
-        # (side 0 the south edge, 1 the east, 2 the north, 3 the west)
-        ex, ez, ox, oz = ((t, half, 0, 1), (half, -t, 1, 0), (-t, -half, 0, -1), (-half, t, -1, 0))[side]
-        seen = side in (0, 1)
-        u += rng.uniform(2.2, 5.5) if seen else rng.uniform(4.0, 8.0)
-        if abs(t) > half - 1.4:
-            continue
-        if mouth and side == 0 and mouth[0] - 1.6 < ex < mouth[1] + 1.6:
-            continue
-        if side == 2 and abs(ex - L["cascade"]["x"]) < 2.5:
-            continue
-        top = land_y(max(-half + 0.3, min(half - 0.3, ex)), max(-half + 0.3, min(half - 0.3, ez)))
-        big = rng.uniform(0.8, 1.5) * (1.0 if seen else 0.8)
-        n = rng.randint(2, 4)
-        for q in range(n):
-            a = (q - (n - 1) / 2) * rng.uniform(0.9, 1.4) * big
-            px, pz = ex + (-oz) * a + ox * rng.uniform(0.1, 0.5) * big, ez + ox * a + oz * rng.uniform(0.1, 0.5) * big
-            sz = big * rng.uniform(0.6, 1.0) * (1.0 if q else 1.15)
-            drop = rng.uniform(0.25, 0.75) * sz
-            blob(bm, px, top - drop, pz, 0.85 * sz, 0.62 * sz, 0.8 * sz, m=q % 2, cuts=2, n=3.2, noise=0.14, rng=rng)
-            if rng.random() < 0.7:
-                blob(bm, px - ox * 0.1, top - drop + 0.6 * sz, pz - oz * 0.1, 0.62 * sz, 0.07, 0.58 * sz, m=2 if rng.random() < 0.5 else 3, cuts=2, noise=0.2, rng=rng)
-            # tumbled blocks under it, down the island's side
-            for _ in range(rng.randint(1, 3)):
-                s2 = sz * rng.uniform(0.3, 0.55)
-                blob(bm, px + ox * rng.uniform(0.2, 0.7) * sz + (-oz) * rng.uniform(-0.6, 0.6) * sz, top - drop - rng.uniform(0.5, 1.3) * sz, pz + oz * rng.uniform(0.2, 0.7) * sz + ox * rng.uniform(-0.6, 0.6) * sz, s2, s2 * 0.8, s2, m=(q + 1) % 2, cuts=1, n=3.0, noise=0.16, rng=rng)
-        # roots and a grass tussock hanging over the edge beside it
-        for _ in range(rng.randint(1, 3)):
-            a = rng.uniform(-1.6, 1.6) * big
-            px, pz = ex + (-oz) * a + ox * 0.05, ez + ox * a + oz * 0.05
-            blob(bm, px, top - 0.08, pz, 0.3, 0.16, 0.3, m=4 if rng.random() < 0.5 else 3, cuts=2, noise=0.25, rng=rng)
-    make_object("Campfire_Rim", bm, M, coll, lift=None)
-
-
 def build_water(L, coll):
     """The river's surface, one sheet: across it a row of vertices every quarter metre down its
     length, each carrying in its colour what the game's water shader reads (red: how far from the
@@ -1072,8 +1025,9 @@ def build_water(L, coll):
 
     z0, z1 = river_z(L)
     end = min(z1 - 0.01, half - 0.05)
-    zs = [P0 for P0 in (p["points"][0][0] - p["points"][0][2] * math.cos(math.pi / 2 * k / 12) for k in range(13))]
-    z = p["points"][0][0] + 0.25
+    # (it comes in over the island's north edge and leaves over its south: no head, no falls)
+    zs = [-half + 0.05]
+    z = -half + 0.25
     while z < end:
         zs.append(z)
         z += 0.25
@@ -1087,28 +1041,7 @@ def build_water(L, coll):
             continue
         x0, x1 = span[0] + 0.02, span[1] - 0.02
         w = x1 - x0
-        cap = z - z0  # the round head: its far side is a shore too
-        rows.append([vert(x0 + w * c / cols, water, z, min(min(c, cols - c) / cols * w, cap)) for c in range(cols + 1)])
-    strip(rows)
-    # the sheet over the island's edge: the last row carried out and down the side
-    if z1 > half:
-        last = rows[-1]
-        curtain = [last]
-        for dz, y, down in ((0.07, water - 0.05, 0.08), (0.12, water - 0.5, 0.45), (0.14, -1.25, 1.0)):
-            curtain.append([vert(v.co.x, y, half + dz, 1.5, 1.0, down) for v in last])
-        strip(curtain)
-    # the fall at its head: off the rock step's lip, out in an arc, into the plunge pool
-    cs = L["cascade"]
-    base = land_y(cs["x"], cs["z"])
-    lip_z, top = cs["z"] + 0.34, cs["top"] + base
-    foot_z = z0 + 0.4
-    rows = []
-    for k in range(10):
-        u = k / 9
-        z = lip_z + (foot_z - lip_z) * (u ** 0.8)
-        y = top + (water + 0.012 - top) * (u ** 1.9)
-        w = 0.24 + 0.1 * u
-        rows.append([vert(cs["x"] + w * (c / 3 * 2 - 1), y, z, 1.5, 1.0, u) for c in range(4)])
+        rows.append([vert(x0 + w * c / cols, water, z, min(c, cols - c) / cols * w) for c in range(cols + 1)])
     strip(rows)
     for f in bm.faces:
         f.normal_update()
@@ -1462,24 +1395,6 @@ def build_trees(L, coll):
 def build_rocks(L, coll):
     rng = random.Random(33)
     bm = bmesh.new()
-    # the fall's rock step at the river's head: two big boulders shoulder to shoulder, a flat slab
-    # across them that the water runs off, a lip stone under it, and smaller ones stepping down to
-    # the plunge pool on either side and behind
-    cs = L["cascade"]
-    cx, cz, top = cs["x"], cs["z"], cs["top"]
-    for dx, y, dz, hx, hy, hz, m_ in (
-        (-0.62, 0.42, -0.2, 0.78, 0.62, 0.66, 0),
-        (0.6, 0.38, -0.15, 0.72, 0.56, 0.62, 1),
-        (0.0, top - 0.2, -0.08, 0.64, 0.24, 0.52, 0),
-        (0.02, 0.6, 0.3, 0.42, 0.3, 0.3, 1),
-        (-1.22, 0.16, 0.5, 0.46, 0.3, 0.4, 1),
-        (1.18, 0.14, 0.55, 0.44, 0.28, 0.38, 0),
-        (-0.35, 0.2, -0.85, 0.6, 0.4, 0.5, 1),
-        (0.55, 0.18, -0.8, 0.5, 0.36, 0.45, 0),
-        (-1.5, 0.08, -0.2, 0.3, 0.2, 0.28, 0),
-        (1.55, 0.08, -0.1, 0.28, 0.18, 0.26, 1),
-    ):
-        blob(bm, cx + dx, y, cz + dz, hx, hy, hz, m=m_, cuts=4, noise=0.1, rng=rng, flat_bottom=-0.3)
     for i, r in enumerate(L["rocks"]):
         s = r["s"]
         blob(bm, r["x"], 0.12 * s, r["z"], 0.5 * s, 0.36 * s, 0.42 * s, m=i % 2, cuts=4, noise=0.1, rng=rng, flat_bottom=-0.3)
@@ -1556,7 +1471,7 @@ def along_river(L, every, start=0.6):
     z0, z1 = river_z(L)
     z1 = min(z1, L["half"] - 0.9)
     out = []
-    z = z0 + start
+    z = max(z0 + start, -L["half"] + 0.9)
     while z < z1 - 0.5:
         out.append(z)
         z += every
@@ -2587,7 +2502,6 @@ def build(root):
     global SHADE
     SHADE = make_shade(L)
     build_ground(L, coll)
-    build_rim(L, coll)
     build_water(L, coll)
     build_bonfire(L, coll)
     build_logs(L, cushions, coll)
@@ -2708,13 +2622,7 @@ def build_dressing(L, coll):
                 if math.hypot(x - c["x"], z - c["z"]) > c["r"] + 0.3 and not in_river(L, x, z, 0.3) and not near_prop(L, x, z, 0.8):
                     w = rng.uniform(0.05, 0.1)
                     nub(x, -0.01, z, w, 0.05, m["CF_Stone"] if k % 2 else m["CF_StoneDark"])
-    # --- log steps up the knoll's trail (half-buried, a boot's height), stone steps up to the terrace
-    knoll = path_polyline(L["paths"][5], 0.8)
-    for (ax, az, aw), (bx, bz, _) in list(zip(knoll, knoll[1:]))[1:-1]:
-        d = math.hypot(bx - ax, bz - az) or 1.0
-        nx, nz = -(bz - az) / d, (bx - ax) / d
-        w = aw / 2 + 0.16
-        cylinder(bm, W(ax - nx * w, 0.012, az - nz * w), W(ax + nx * w, 0.012, az + nz * w), 0.06, 8, m=m["CF_Bark"], cap_m=m["CF_WoodCut"], wobble=0.05, rng=rng)
+    # --- stone steps up to the terrace (nothing lies across the trails)
     north = path_polyline(L["paths"][3], 0.5)
     for ax, az, aw in [p for p in north if -9.5 < p[1] < -7.0][::1]:
         blob(bm, ax + rng.uniform(-0.08, 0.08), 0.0, az, aw / 2 - 0.05, 0.035, 0.17, m=m["CF_Stone"] if rng.random() < 0.5 else m["CF_StoneDark"], cuts=3, noise=0.05, rng=rng, flat_bottom=-0.2)
@@ -2731,16 +2639,6 @@ def build_dressing(L, coll):
     # --- the river: stones round the plunge pool's rim, at its mouth on the island's edge, and
     # stepping stones across the pond below the dock (in the water: none of these is lifted)
     water = L["river"]["water"]
-    P0 = L["river"]["points"][0]
-    for k in range(9):
-        a = math.pi * (0.08 + 0.84 * k / 8) + math.pi  # round the pool's north side, clear of the fall
-        x, z = P0[1] + (P0[2] - 0.1) * math.cos(a), P0[0] + (P0[2] - 0.1) * math.sin(a)
-        if abs(x - L["cascade"]["x"]) < 0.55:
-            continue
-        s = rng.uniform(0.7, 1.15)
-        blob(bm, x, water + 0.05, z, 0.24 * s, 0.17 * s, 0.2 * s, m=m["CF_Stone"] if k % 2 else m["CF_StoneDark"], cuts=3, noise=0.1, rng=rng, flat_bottom=-0.3)
-        if k % 3 == 0:
-            blob(bm, x, water + 0.05 + 0.15 * s, z, 0.17 * s, 0.045, 0.14 * s, m=m["CF_Lichen"], cuts=2, noise=0.12, rng=rng)
     for z in (half - 0.45, half - 1.2):
         span = river_span(L, z)
         for side, s in ((0, 0.95), (1, 0.8)):
@@ -2754,7 +2652,7 @@ def build_dressing(L, coll):
         x = span[0] + (span[1] - span[0]) * u
         blob(bm, x, water + 0.012, zs + 0.25 * math.sin(k * 1.7), 0.2 + 0.05 * (k % 2), 0.05, 0.17, m=m["CF_Stone"] if k % 2 else m["CF_StoneDark"], cuts=3, noise=0.07, rng=rng, flat_bottom=-0.25)
     # --- the far bank (no one walks it): bushes with berries, boulders, ferns and flowers down its length
-    z = river_z(L)[0] + 2.0
+    z = max(river_z(L)[0] + 2.0, -half + 1.2)
     k = 0
     while z < half - 1.0:
         span = river_span(L, z)

@@ -75,7 +75,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "buster": { "x": -0.5, "z": -10.1, "yaw": 0.25 },
   "picnicPlates": [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]],
   "river": {
-    "points": [[-10.4, 10.6, 1.5], [-8.0, 10.9, 1.1], [-5.5, 11.1, 1.25], [-3.0, 10.8, 1.5], [-0.5, 10.4, 1.9], [2.0, 10.3, 2.3], [4.5, 10.7, 2.1], [7.0, 11.2, 1.6], [9.5, 11.3, 1.25], [12.0, 11.1, 1.1], [14.6, 10.9, 1.0]],
+    "points": [[-15.0, 10.9, 1.05], [-12.6, 10.75, 1.15], [-10.4, 10.6, 1.3], [-8.0, 10.9, 1.1], [-5.5, 11.1, 1.25], [-3.0, 10.8, 1.5], [-0.5, 10.4, 1.9], [2.0, 10.3, 2.3], [4.5, 10.7, 2.1], [7.0, 11.2, 1.6], [9.5, 11.3, 1.25], [12.0, 11.1, 1.1], [14.6, 10.9, 1.0]],
     "depth": 0.5,
     "water": -0.18
   },
@@ -233,7 +233,6 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "points": [[3.9, 0.6, 2.0], [5.2, 1.2, 1.4], [6.4, 1.8, 1.3], [7.5, 2.0, 1.6]] },
     { "points": [[-7.3, -3.4, 1.0], [-7.4, -5.2, 0.9], [-8.0, -7.0, 0.9], [-9.0, -8.6, 0.9], [-9.8, -9.5, 1.2]] }
   ],
-  "cascade": { "x": 10.6, "z": -12.6, "top": 1.15 },
   "undergrowth": [
     { "kind": "stones", "x": -10.9, "z": 0.2 },
     { "kind": "stones", "x": -7.4, "z": 2.4 },
@@ -888,10 +887,6 @@ export const CAMP_OBSTACLES: AABB[] = [
   around({ x: L.archway.x - L.archway.w / 2 - 0.1, z: L.archway.z }, 0.18),
   around({ x: L.archway.x + L.archway.w / 2 + 0.1, z: L.archway.z }, 0.18),
   around(L.splitblock, 0.33),
-  // the fall's rock step at the river's head, and the stones flanking it
-  around(L.cascade, 1.0),
-  around({ x: L.cascade.x - 1.2, z: L.cascade.z + 0.5 }, 0.45),
-  around({ x: L.cascade.x + 1.2, z: L.cascade.z + 0.5 }, 0.45),
   // the dressing you walk round: lantern posts, Buster's crates, the barrels, fallen logs (small
   // boxes along each), stumps
   ...L.dressing.lanternPosts.map((p) => around(p, 0.1)),

@@ -100,19 +100,10 @@ export const FOREST_LAYOUT = /* layout:begin */ {
 
   "shrine": { "x": 1.4, "z": -6.0, "r": 1.9, "stones": 7 },
   "river": {
-    "points": [[13.4, -12.6, 1.3], [13.7, -9.6, 0.9], [13.4, -6.5, 1.0], [13.2, -3.5, 1.15], [12.6, -0.5, 1.3], [12.2, 2.5, 1.9], [12.6, 5.0, 2.2], [13.2, 7.5, 1.7], [13.6, 10.5, 1.2], [13.2, 13.5, 1.1], [12.8, 16.0, 1.0], [12.6, 18.6, 1.0]],
+    "points": [[13.1, -18.0, 1.0], [13.3, -15.2, 1.1], [13.4, -12.6, 1.2], [13.7, -9.6, 0.9], [13.4, -6.5, 1.0], [13.2, -3.5, 1.15], [12.6, -0.5, 1.3], [12.2, 2.5, 1.9], [12.6, 5.0, 2.2], [13.2, 7.5, 1.7], [13.6, 10.5, 1.2], [13.2, 13.5, 1.1], [12.8, 16.0, 1.0], [12.6, 18.6, 1.0]],
     "water": -0.2,
     "depth": 0.55,
     "rocks": [[13.2, -10.9, 0.45], [13.9, -8.0, 0.4], [13.6, -5.0, 0.5], [12.5, -1.6, 0.45], [13.9, 1.2, 0.4], [14.3, 8.6, 0.45], [12.7, 12.0, 0.4]]
-  },
-  "cascade": { "x": 13.4, "z": -14.9, "top": 1.4 },
-  "brook": {
-    "points": [[5.0, -5.0, 0.36], [5.75, -4.3, 0.18], [6.7, -4.2, 0.2], [7.25, -3.25, 0.18], [8.35, -3.0, 0.22], [8.95, -2.05, 0.2], [9.95, -1.85, 0.22], [10.7, -1.1, 0.24], [11.6, -0.7, 0.28]],
-    "depth": 0.12,
-    "bank": 0.45,
-    "bridge": { "x": 10.42, "z": -1.42, "half": 0.3 },
-    "perch": { "x": 9.55, "z": -1.3, "y": 0.72 },
-    "stones": [[7.0, -3.7], [9.45, -1.95]]
   },
   "dressing": {
     "boulders": [
@@ -164,6 +155,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   },
   "life": {
     "owl": { "tree": [7.6, -12.2] },
+    "kingfisher": { "x": 10.55, "z": 1.3, "y": 0.72 },
     "shafts": [[5.9, -9.4, 0.8], [7.8, -10.1, 0.75], [4.0, -8.9, 0.7], [6.7, -7.4, 0.8], [9.7, -9.7, 0.7], [3.0, -11.2, 0.65]]
   },
   "fishing": [
@@ -263,11 +255,6 @@ function splineOf(P: readonly (readonly number[])[], per: number): [number, numb
 }
 /** The river's centre line sampled `per` times a span: [x, z, halfWidth] each. */
 export const forestRiver = (per = 6) => splineOf(L.river.points, per);
-/** The brook's (docs/maps-fill-plan.md part 4): from its spring south of the Old Growth's camp down
- *  the hillside's own fall line, across the rise, into the river above the pool. The same spline as
- *  the river's (the builder has it too); its half-width is its bed's. */
-export const forestBrook = (per = 8) => splineOf(L.brook.points, per);
-
 // --- the ground (shared/terrain.ts) ----------------------------------------------------------------
 //
 // A hillside, all of it walked: wide steps added one on another (the lower and the upper hill, the
@@ -292,36 +279,6 @@ export function forestRiverAt(x: number, z: number): { d: number; w: number } {
   return { d: best, w };
 }
 
-/** How far (x, z) is from a sampled line, and the line's half-width there. */
-function lineAt(line: readonly [number, number, number][], x: number, z: number): { d: number; w: number } {
-  let best = Infinity;
-  let w = 0;
-  for (let i = 0; i + 1 < line.length; i++) {
-    const [ax, az, aw] = line[i];
-    const [bx, bz, bw] = line[i + 1];
-    const dx = bx - ax;
-    const dz = bz - az;
-    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
-    const d = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
-    if (d < best) (best = d), (w = aw + (bw - aw) * t);
-  }
-  return { d: best, w };
-}
-const BROOK_LINE = forestBrook(8);
-/** How far (x, z) is from the brook's centre line, and its bed's half-width there. */
-export const forestBrookAt = (x: number, z: number) => lineAt(BROOK_LINE, x, z);
-/** The log bridge where the river trail crosses the brook: the ground under it is not cut (the
- *  water runs on beneath the logs), so the trail crosses dry. */
-export const BROOK_BRIDGE = L.brook.bridge;
-/** How deep the brook's bed is cut at (x, z): a hand's depth across its bed, easing out up its
- *  banks; nothing under the bridge. It is waded anywhere (no collider, no slowing). */
-export function brookCut(x: number, z: number): number {
-  const b = forestBrookAt(x, z);
-  if (b.d >= b.w + L.brook.bank) return 0;
-  const open = smoothstep(BROOK_BRIDGE.half, BROOK_BRIDGE.half + 0.3, Math.hypot(x - BROOK_BRIDGE.x, z - BROOK_BRIDGE.z));
-  return L.brook.depth * (1 - smoothstep(b.w, b.w + L.brook.bank, b.d)) * open;
-}
-
 /** The ground's height at (x, z), the river's channel not cut in: where things stand. */
 export function forestLand(x: number, z: number): number {
   let h = 0;
@@ -337,11 +294,10 @@ export function forestLand(x: number, z: number): number {
 /** The ground as drawn: forestLand with the river's channel cut down to its bed between its banks. */
 export function forestHeight(x: number, z: number): number {
   const land = forestLand(x, z);
-  const brook = land - brookCut(x, z);
   const r = forestRiverAt(x, z);
   const inside = r.w - r.d;
-  if (inside <= 0) return brook;
-  return Math.min(brook, land + (-L.river.depth - land) * smoothstep(0, L.terrain.bank, inside));
+  if (inside <= 0) return land;
+  return land + (-L.river.depth - land) * smoothstep(0, L.terrain.bank, inside);
 }
 
 /** The ground's grid: the builder models the ground from it, feet and clicks read its triangles. */
@@ -470,8 +426,8 @@ export const FOREST_BIRDS: { id: number; x: number; z: number; y: number; yaw: n
     // (its height over the ground its pine stands on)
     return { id: i, x: px - (px / d) * r, z: pz - (pz / d) * r, y: forestLand(px, pz) + 0.76 * S, yaw: Math.atan2(-px, -pz) };
   }),
-  // the kingfisher: on a dead branch over the brook, watching the water (it scatters as they do)
-  { id: L.birds.length, x: L.brook.perch.x, z: L.brook.perch.z, y: forestLand(L.brook.perch.x, L.brook.perch.z) + L.brook.perch.y, yaw: 2.4, tint: [0.5, 2.4, 4.2] },
+  // the kingfisher: on a dead branch over the river's pool, watching the water (it scatters as they do)
+  { id: L.birds.length, x: L.life.kingfisher.x, z: L.life.kingfisher.z, y: forestLand(L.life.kingfisher.x, L.life.kingfisher.z) + L.life.kingfisher.y, yaw: 1.4, tint: [0.5, 2.4, 4.2] },
 ];
 /** The Old Growth's owl, by night: on a great pine's lowest bough, on the camera's side of it. */
 export const FOREST_OWL = (() => {
@@ -559,10 +515,6 @@ export const FOREST_OBSTACLES: AABB[] = [
   ...SHRINE_STONES.map((p) => around(p, 0.22)),
   // the deer and the rabbits
   ...L.animals.map((a) => around(a, 0.35)),
-  // the fall's rock step at the river's head
-  around(L.cascade, 1.0),
-  around({ x: L.cascade.x - 1.2, z: L.cascade.z + 0.5 }, 0.45),
-  around({ x: L.cascade.x + 1.2, z: L.cascade.z + 0.5 }, 0.45),
   // the dressing you walk round: boulders on the hillside, lantern posts along the trails, fallen
   // logs (small boxes along each), stumps
   ...L.dressing.boulders.map(([x, z, s]) => around({ x, z }, 0.45 * s)),

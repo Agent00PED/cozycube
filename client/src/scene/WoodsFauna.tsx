@@ -8,7 +8,7 @@ import { instanced, template } from "./faunaKit";
 import { Butterflies } from "./Butterflies";
 
 // The Whispering Woods' little lives. By day: songbirds perched on the vista pines' lower boughs
-// (FOREST_BIRDS; the kingfisher on its branch over the brook is one of them, in its own blue) that
+// (FOREST_BIRDS; the kingfisher on its branch over the river's pool is one of them, in its own blue) that
 // take off in a flurry when someone walks up (and come back a while later), butterflies drifting
 // over the meadows (Butterflies), and bees circling Bramble's hives. By night: the Old Growth's owl
 // on its bough, turning to watch whoever passes. All from forest.glb's templates (Fauna_Bird_Body,
@@ -17,7 +17,7 @@ import { Butterflies } from "./Butterflies";
 
 const BIRD_TINTS = ["#ffd0b8", "#c8dcff", "#fff0b0", "#e2ffd8", "#ffe0ec"];
 /** The meadows the butterflies drift over (the Border, the Birch Grove, the Golden Glen, the Ridge;
- *  Bramble's garden and the brook). */
+ *  Bramble's garden and the rise). */
 const MEADOWS: [number, number][] = [
   [-7.5, 14.2],
   [-10.2, 6.2],

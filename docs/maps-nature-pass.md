@@ -97,6 +97,17 @@ of it denser or emptier than another. Now it has three parts.
 - **Relief:** five low hummocks on the campfire's lawns and six in the woods' flats (0.2 m high),
   kept clear of everything built. With the stronger key they catch the light.
 
+## Round four: streams, not falls (patch 0.7.53)
+
+The owner's call after seeing the maps, and a correction to this document: several of the things
+added to make the maps "natural" were clutter of their own.
+
+- **The rock ledges round the rims are gone.** The islands' sides are plain again.
+- **Nothing lies across a trail:** the log steps are gone from both maps.
+- **The woods' brook is gone**, with its spring, its stepping stones and its bridge.
+- **No waterfalls:** the fall and rock step at each river's head and the sheet over each island's
+  edge are gone. Each river is a stream that comes in over the north edge and leaves over the south.
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.
