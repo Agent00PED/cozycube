@@ -156,6 +156,7 @@ export function ForestWorld({ onFloorClick, players, localSessionId, trees, worl
       {/* the daylight through the Old Growth's canopy */}
       <LightShafts shafts={FOREST_SHAFTS} landY={forestLand} />
       <Fireflies />
+      <ElderMotes />
       <OcclusionDriver />
     </group>
   );
@@ -377,18 +378,60 @@ function ForestLights() {
   const lantern = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    if (glow.current) glow.current.intensity = (0.6 + 1.6 * night) * (0.9 + 0.1 * Math.sin(t * 1.3));
+    if (glow.current) glow.current.intensity = (1.0 + 3.4 * night) * (0.9 + 0.1 * Math.sin(t * 0.9));
     if (lantern.current) lantern.current.intensity = (0.5 + 1.5 * night) * (0.88 + 0.08 * Math.sin(t * 7.3) + 0.04 * Math.sin(t * 17.9));
   });
   return (
     <>
       <pointLight color="#ffb865" intensity={0.3 + 1.7 * night} distance={6} decay={1.6} position={over(L.cabin.x, 1.4, L.cabin.z + L.cabin.d / 2 + 0.9)} castShadow={false} />
       <pointLight ref={lantern} color="#ffb347" distance={4.2} decay={1.8} position={over(OLD_FLINT.x + Math.sin(OLD_FLINT.yaw) * 0.35, 1.45, OLD_FLINT.z + Math.cos(OLD_FLINT.yaw) * 0.35)} castShadow={false} />
-      {elder && <pointLight ref={glow} color="#8ff0d8" distance={7} decay={1.5} position={over(elder.x, 2.6, elder.z)} castShadow={false} />}
+      {elder && <pointLight ref={glow} color="#8ff0d8" distance={13} decay={1.4} position={over(elder.x + 1.6, 3.4, elder.z + 1.6)} castShadow={false} />}
       {night > 0.02 && <directionalLight color="#a9bcec" intensity={0.5 * night} position={[-10, 20, -14]} castShadow={false} />}
       {night > 0.02 && <hemisphereLight args={["#7a90d0", "#22322a", 0.44 * night]} />}
     </>
   );
+}
+
+const MOTE_GEO = new THREE.SphereGeometry(0.05, 6, 4);
+const MOTE_MAT = new THREE.MeshBasicMaterial({ color: "#b6fff0", toneMapped: false, transparent: true, opacity: 0.9, depthWrite: false });
+const MOTE_COUNT = 46;
+/** The Elderwood's spirit lights: motes rising in a slow spiral round the great tree, through its
+ *  vines and up into its crown, day and night (brighter after dark). One instanced draw. */
+function ElderMotes() {
+  const d = useContext(CampDaylightContext) ?? 0;
+  const elder = FOREST_TREES.find((t) => t.kind === "elderwood");
+  const mesh = useMemo(() => {
+    const m = new THREE.InstancedMesh(MOTE_GEO, MOTE_MAT, MOTE_COUNT);
+    m.frustumCulled = false;
+    m.raycast = noRaycast;
+    return m;
+  }, []);
+  const seeds = useMemo(() => Array.from({ length: MOTE_COUNT }, (_, i) => ({ a: Math.random() * 6.283, r: 1.4 + Math.random() * 3.4, rise: 0.12 + Math.random() * 0.2, turn: (0.08 + Math.random() * 0.16) * (i % 2 ? 1 : -1), p: Math.random(), s: 0.6 + Math.random() * 0.9 })), []);
+  useEffect(
+    () => () => {
+      mesh.dispose();
+    },
+    [mesh]
+  );
+  const m = useMemo(() => new THREE.Matrix4(), []);
+  const base = elder ? forestLand(elder.x, elder.z) : 0;
+  useFrame(({ clock }) => {
+    if (!elder) return;
+    const t = clock.elapsedTime;
+    const night = 1 - d;
+    seeds.forEach((s, i) => {
+      // (each rises from the roots to the crown, fading in and out at the ends)
+      const u = (s.p + t * s.rise * 0.12) % 1;
+      const a = s.a + t * s.turn;
+      const r = s.r * (0.75 + 0.25 * Math.sin(u * Math.PI));
+      const fade = Math.sin(u * Math.PI) * (0.55 + 0.45 * Math.sin(t * 1.7 + i));
+      const sc = Math.max(0, fade) * s.s * (0.55 + 0.75 * night);
+      m.makeScale(sc, sc, sc).setPosition(elder.x + Math.cos(a) * r, base + 0.3 + u * 6.4, elder.z + Math.sin(a) * r);
+      mesh.setMatrixAt(i, m);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+  return elder ? <primitive object={mesh} /> : null;
 }
 
 const FIREFLY_GEO = new THREE.SphereGeometry(0.035, 6, 4);
@@ -415,7 +458,7 @@ function Fireflies() {
           return { x: rx + side * (rw + 0.2 + Math.random() * 0.5), z: rz + (Math.random() - 0.5) * 0.6, y: 0.25 + Math.random() * 0.8, p: Math.random() * 10, s: 0.25 + Math.random() * 0.35 };
         }
         // (over the Golden Glen and the birch grove, each over the ground where it drifts)
-        const zone = i % 3 === 0 ? { x: -8, z: -6, r: 4.5 } : { x: -9, z: 6, r: 5 };
+        const zone = i % 3 === 0 ? { x: -9.6, z: -3.4, r: 3.8 } : { x: -10, z: 5.4, r: 4.6 };
         const x = zone.x + (Math.random() - 0.5) * zone.r * 2;
         const z = zone.z + (Math.random() - 0.5) * zone.r * 2;
         return { x, z, y: forestLand(x, z) + 0.5 + Math.random() * 1.6, p: Math.random() * 10, s: 0.3 + Math.random() * 0.5 };

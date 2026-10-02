@@ -126,8 +126,11 @@ function standing(mapId: MapId, trees: Record<string, TreeSync>): FellTree[] {
 function kindOf(t: FellTree, sync: TreeSync | undefined): TreeKind {
   return t.titan ? (sync?.kind ?? t.kind) : t.kind;
 }
+/** A Colossal stands as tall as it always did: the kinds whose own look has since grown (the cedar,
+ *  the maple, the great Elderwood: build_forest.py's mature sizes) are drawn that much smaller. */
+const COLOSSAL_LOOK: Partial<Record<TreeKind, number>> = { cedar: 1.2 / 1.4, maple: 1.15 / 1.4, elderwood: 0.6 };
 function sizeOf(t: FellTree, sync: TreeSync | undefined): number {
-  return t.titan ? TITAN.scale : Math.max(0.5, Math.min(2.5, sync?.scale ?? 1));
+  return t.titan ? TITAN.scale * (COLOSSAL_LOOK[kindOf(t, sync)] ?? 1) : Math.max(0.5, Math.min(2.5, sync?.scale ?? 1));
 }
 
 const STAND_IN_TRUNK = matte("#5a3e2b", 0.85);
@@ -247,8 +250,8 @@ function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }
         const d = Math.hypot(dx, dz) || 1;
         dx /= d;
         dz /= d;
-        const scale = Number(payload.scale) || sizeOf(node, liveTrees.current[node.id]);
         const kind = (payload.kind as TreeKind) || kindOf(node, liveTrees.current[node.id]);
+        const scale = node.titan ? TITAN.scale * (COLOSSAL_LOOK[kind] ?? 1) : Number(payload.scale) || sizeOf(node, liveTrees.current[node.id]);
         setFalling((f) => [...f.filter((x) => performance.now() / 1000 - x.at < FALL_S + SINK_S), { id: node.id, kind, scale, at: performance.now() / 1000, x: node.x, y: node.y, z: node.z, dx, dz }]);
         if (Math.hypot(node.x - cameraFocus.x, node.z - cameraFocus.z) < 14) {
           playSfx("woodSnap");

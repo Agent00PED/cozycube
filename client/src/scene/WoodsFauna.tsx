@@ -16,21 +16,21 @@ import { Butterflies } from "./Butterflies";
 // the whole flock, each one tinted its own colour.
 
 const BIRD_TINTS = ["#ffd0b8", "#c8dcff", "#fff0b0", "#e2ffd8", "#ffe0ec"];
-/** The meadows the butterflies drift over (the Border, the Birch Grove, the Golden Glen, the Ridge;
- *  Bramble's garden and the rise). */
+/** The meadows the butterflies drift over (the Border, the Birch Grove's glade, the Golden Glen, the
+ *  Heart Glade, the Ridge; Bramble's garden and the rise). */
 const MEADOWS: [number, number][] = [
   [-7.5, 14.2],
-  [-10.2, 6.2],
-  [-7.6, -5.2],
-  [0.4, 6.6],
-  [-8.2, 2.2],
+  [-10.2, 5.6],
+  [-9.4, -2.6],
+  [-0.8, 3.4],
+  [-1.6, 8.6],
   [2.6, 13.2],
-  [1.6, -3.4],
-  [-11.2, 10.0],
-  [6.0, -6.0],
+  [0.6, -1.6],
+  [-11.2, 11.0],
+  [6.6, -5.6],
   [8.6, 7.6],
   [10.6, 11.2],
-  [7.6, -2.6],
+  [7.6, -0.4],
 ];
 const SCATTER_R = 2.6;
 const FLY_S = 2.2;

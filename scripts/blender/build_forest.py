@@ -152,6 +152,7 @@ PALETTE = {
     "FW_MapleLeafRed": "#C8452F",
     "FW_ElderBark": "#4A3F4F",
     "FW_ElderLeaf": "#4FA69A",
+    "FW_ElderLeafDeep": "#2F7C7A",
     "FW_ElderLeafGlow": "#9FF2E0",
     "FW_Wisp": "#FFF1B8",
     # the animals
@@ -723,7 +724,7 @@ def zone_of(L, x, z):
 
 
 SHADE = None  # what lies under things (set by build, read by the ground's paint)
-CROWN = {"soft_pine": (1.25, 0.34, 0.8, "needles"), "cedar": (1.35, 0.36, 0.8, "needles"), "birch": (1.15, 0.24, 0.5, "leaves"), "maple": (1.6, 0.3, 0.0, "leaves"), "elderwood": (2.3, 0.36, 0.0, "leaves")}
+CROWN = {"soft_pine": (1.25, 0.34, 0.8, "needles"), "cedar": (1.5, 0.38, 0.8, "needles"), "birch": (1.15, 0.24, 0.5, "leaves"), "maple": (2.1, 0.32, 0.0, "leaves"), "elderwood": (4.3, 0.44, 0.0, "leaves")}
 
 
 def make_shade(L):
@@ -735,7 +736,7 @@ def make_shade(L):
     for x, z, sz in L["vista"]:
         S.cast(x, z, 1.9 * sz, 0.46, 0.85, "needles")
     for t in D["greatTrees"]:
-        S.cast(t["x"], t["z"], 1.95 * t["s"], 0.5, 0.9, "needles")
+        S.cast(t["x"], t["z"], (1.5 if t["kind"] == "spruce" else 1.95) * t["s"], 0.5, 0.9, "needles")
     for x, z, sz in D["birches"]:
         S.cast(x, z, 1.15 * sz, 0.3, 0.5, "leaves")
     for t in L["trees"]:
@@ -775,19 +776,24 @@ def dirt_field(L):
     lines = []
     for path in L["paths"]:
         pts = path_polyline(path, 0.12)
-        pad = max(p[2] for p in pts) / 2 + 0.6
+        pad = max(p[2] for p in pts) / 2 + 1.3
         lines.append(((min(p[0] for p in pts) - pad, max(p[0] for p in pts) + pad, min(p[1] for p in pts) - pad, max(p[1] for p in pts) + pad), pts))
     wear = [
         (L["counter"]["x"], L["counter"]["z"] + 0.9, 1.9, 0.85),
         (L["workbench"]["x"], L["workbench"]["z"] + 0.9, 1.3, 0.75),
         (L["arrival"]["x"], L["arrival"]["z"] + 0.4, 1.7, 0.8),
         (L["finley"]["x"] - 1.1, L["finley"]["z"], 1.2, 0.7),
-        (L["adit"]["x"] + 1.9, L["adit"]["z"], 1.6, 0.75),
+        (L["adit"]["x"] + 1.5, L["adit"]["z"], 1.0, 0.5),
     ] + [(f["stand"]["x"] - 0.3, f["stand"]["z"], 0.8, 0.6) for f in L["fishing"]]
 
+    K = nature()
+
     def field(x, z):
-        # (ragged at three scales: a trail is where feet go, never a ruled band)
-        wob = 0.6 * (vnoise(x * 0.55 + 31.0, z * 0.55 + 7.0) - 0.5) + 0.3 * (vnoise(x * 1.7 + 11.0, z * 1.7 - 4.0) - 0.5) + 0.12 * (vnoise(x * 5.1, z * 5.1) - 0.5)
+        # (a trail is a footpath: a bare tread three quarters of its width, wider and narrower as it
+        # goes, an edge that wanders and feathers out over a hand's breadth, grass biting into it
+        # here and there, and a shoulder of trampled grass beside it: nature_kit `worn`)
+        wob = 0.2 * (vnoise(x * 0.7 + 31.0, z * 0.7 + 7.0) - 0.5) + 0.12 * (vnoise(x * 2.4 + 11.0, z * 2.4 - 4.0) - 0.5)
+        girth = 0.82 + 0.36 * vnoise(x * 0.35 + 5.0, z * 0.35 - 2.0)
         best = 9.0
         for (x0, x1, z0, z1), pts in lines:
             if x < x0 or x > x1 or z < z0 or z > z1:
@@ -795,16 +801,19 @@ def dirt_field(L):
             for (ax, az, aw), (bx, bz, bw) in zip(pts, pts[1:]):
                 dx, dz = bx - ax, bz - az
                 t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
-                d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - (aw + (bw - aw) * t) * 0.3
+                d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - 0.36 * (aw + (bw - aw) * t) * girth
                 if d < best:
                     best = d
-        w = smooth(0.3, -0.2, best + wob)
+        best += wob
+        # (tufts biting into the tread's edges)
+        if -0.22 < best < 0.3:
+            best += 0.2 * smooth(0.62, 0.8, vnoise(x * 1.9 + 7.0, z * 1.9 - 3.0))
+        w = K.worn(best)
         for wx, wz, r, s in wear:
             d = math.hypot(x - wx, z - wz)
-            if d < r + 0.3:
-                w = max(w, s * smooth(r * 0.85, r * 0.3, d + wob * 0.6))
-        # (and patchy: tufts hold on in the middle of a trail)
-        return w * (0.72 + 0.28 * smooth(0.25, 0.6, vnoise(x * 2.3 - 3.0, z * 2.3 + 8.0)))
+            if d < r * 1.3:
+                w = max(w, s * K.worn(d - r * 0.5 + wob))
+        return w
 
     return field
 
@@ -836,8 +845,8 @@ def ground_color(L, x, z, dirt, tones):
     w = dirt(x, z)
     if w > 0:
         # (trampled grass, yellowed, where the wear begins; bare earth where it is complete)
-        col = mixc(col, lin(PALETTE["FW_GrassDry"]), 0.5 * smooth(0.0, 0.35, w))
-        col = mixc(col, [c * (0.82 + 0.2 * n2) for c in earth], smooth(0.3, 0.95, w) * 0.9)
+        col = mixc(col, lin(PALETTE["FW_GrassDry"]), 0.45 * smooth(0.0, 0.4, w))
+        col = mixc(col, [c * (0.88 + 0.14 * n2) * (0.96 + 0.08 * n3) for c in earth], smooth(0.42, 0.9, w) * 0.92)
     if SHADE is not None:
         dark, litter = SHADE.at(x, z)
         if "needles" in litter:
@@ -870,7 +879,7 @@ def build_ground(L, coll):
     soil, deep = lin(PALETTE["FW_Soil"]), lin(PALETTE["FW_SoilDeep"])
     bm = bmesh.new()
     col = bm.loops.layers.float_color.new("Col")
-    verts, vcol, rim_of = {}, {}, {}
+    verts, rim_of = {}, {}
 
     def vert(i, k):
         x, z = snap_rim(-half + i * step, -half + k * step, half)
@@ -880,8 +889,6 @@ def build_ground(L, coll):
             rim = rim_inside(x, z, half)
             y = ground_y(x, z) - 0.2 * smooth(0.4, 0.0, rim) ** 2
             v = verts[key] = bm.verts.new(W(x, y, z))
-            c = ground_color(L, x, z, dirt, tones)
-            vcol[v] = (*mixc(c, soil, 0.65 * smooth(0.32, 0.0, rim)), 1.0)
             rim_of[v] = rim
         return v
 
@@ -901,9 +908,18 @@ def build_ground(L, coll):
                     f.normal_flip()
                 f.smooth = True
                 top.append(f)
-    for f in top:
+    # (cut finer along the footpaths' edges, then painted: a vertex's colour from where it stands)
+    nature().refine_near(bm, [f for f in top if all(rim_of[v] > 0.5 for v in f.verts)], dirt)
+    vcol = {}
+    for f in bm.faces:
+        f.smooth = True
         for loop in f.loops:
-            loop[col] = vcol[loop.vert]
+            v = loop.vert
+            if v not in vcol:
+                x, z = v.co.x, -v.co.y
+                rim = rim_inside(x, z, half)
+                vcol[v] = (*mixc(ground_color(L, x, z, dirt, tones), soil, 0.65 * smooth(0.32, 0.0, rim)), 1.0)
+            loop[col] = vcol[v]
     # the sides: from the rim straight down to the rock beneath, in soil
     for e in [e for e in bm.edges if len(e.link_faces) == 1]:
         a, b = e.verts
@@ -981,6 +997,10 @@ def build_water(L, coll):
         ww = w - 0.02
         rows.append([vert(x + nx * ww * (c / cols * 2 - 1), water, z + nz * ww * (c / cols * 2 - 1), min(c, cols - c) / cols * 2 * ww) for c in range(cols + 1)])
         last = (x, z, w, tx, tz, nx, nz)
+    # (where the river meets the island's edge the diorama is cut: the water's end is a still face
+    # down to its bed, never an open notch)
+    cap = lambda row: [vert(v.co.x, water - 0.85, -v.co.y, data[v][0] * 1.5) for v in row]
+    rows = [cap(rows[0])] + rows + [cap(rows[-1])]
     strip(rows)
     for f in bm.faces:
         f.normal_update()
@@ -1005,13 +1025,15 @@ def build_floors(L, coll):
     rng = random.Random(5)
     bm = bmesh.new()
     sh = L["shrine"]
-    for k in range(18):
-        a = 2 * math.pi * k / 18 + 0.1
-        for ring, rr in enumerate((0.7, 1.25)):
-            if ring == 0 and k % 2:
+    # (a walk of flagstones just inside the ring, and a few among the great roots)
+    n = int(sh["r"] * 9)
+    for k in range(n):
+        a = 2 * math.pi * k / n + 0.1
+        for ring, rr in enumerate((sh["r"] - 0.62, sh["r"] - 1.2)):
+            if ring == 1 and k % 3:
                 continue
-            cx, cz = sh["x"] + math.cos(a) * rr, sh["z"] + math.sin(a) * rr
-            slab(bm, wobbly_circle(cx, cz, 0.24, 8, 0.15, rng), -0.02, 0.014, 0)
+            cx, cz = sh["x"] + math.cos(a + ring * 0.2) * rr + rng.uniform(-0.06, 0.06), sh["z"] + math.sin(a + ring * 0.2) * rr + rng.uniform(-0.06, 0.06)
+            slab(bm, wobbly_circle(cx, cz, rng.uniform(0.2, 0.3), 8, 0.15, rng), -0.02, 0.014, 0)
     make_object("Forest_Floors", bm, ["FW_StoneDark"], coll, lift="parts")
 
 
@@ -1067,10 +1089,10 @@ def places_solid(L):
     if not P:
         return []
     out = [(P["lookout"]["x"], P["lookout"]["z"], 1.1), (P["camp"]["x"], P["camp"]["z"], P["camp"]["r"] + 0.5), (P["camp"]["leanTo"]["x"], P["camp"]["leanTo"]["z"], 1.0),
-           (P["stoneBench"]["x"], P["stoneBench"]["z"], 1.0), ((P["jetty"]["x0"] + P["jetty"]["x1"]) / 2, P["jetty"]["z"], 1.1), (P["rodRack"]["x"], P["rodRack"]["z"], 0.6),
+           ((P["jetty"]["x0"] + P["jetty"]["x1"]) / 2, P["jetty"]["z"], 1.1), (P["rodRack"]["x"], P["rodRack"]["z"], 0.6),
            (P["nets"]["x"], P["nets"]["z"], 0.9), (P["patch"]["x"], P["patch"]["z"], 1.3), (P["wheelbarrow"]["x"], P["wheelbarrow"]["z"], 0.6),
            (P["ropeSwing"]["x"], P["ropeSwing"]["z"], 0.7), (P["ropeSwing"]["tree"][0], P["ropeSwing"]["tree"][1], 0.5), (P["timber"]["x"], P["timber"]["z"], 1.1)]
-    out += [(x, z, 0.5 * sz) for x, z, sz in P["stones"]] + [(x, z, 0.5) for x, z in P["hives"]]
+    out += [(x, z, 0.5) for x, z in P["hives"]]
     out += [(P["washing"][k][0], P["washing"][k][1], 0.3) for k in ("a", "b")]
     return out
 
@@ -1118,7 +1140,7 @@ def build_deco(L, coll):
     placed = 0
     tries = 0
     reach = L["half"] - 1.0
-    while placed < 300 and tries < 8000:
+    while placed < 520 and tries < 16000:
         tries += 1
         x, z = rng.uniform(-reach, reach), rng.uniform(-reach, reach)
         if not clear_spot(L, x, z, 0.12):
@@ -1265,12 +1287,18 @@ def build_rocks(L, coll):
         placed += 1
     # the shrine's standing stones: tall, mossy, a glowing rune on each one's inner face
     sh = L["shrine"]
-    for x, zz, a in shrine_stones(L):
-        h = 0.95 + 0.25 * rng.random()
-        blob(bm, x, h / 2 - 0.05, zz, 0.2, h / 2 + 0.05, 0.16, m=1, cuts=3, n=2.8, noise=0.06, rng=rng, flat_bottom=-0.1)
-        blob(bm, x, h - 0.02, zz, 0.18, 0.06, 0.15, m=2, cuts=2, noise=0.25, rng=rng)
+    stones = shrine_stones(L)
+    for k, (x, zz, a) in enumerate(stones):
+        # (the two at the way in stand tallest: a gate)
+        gate = k in (0, len(stones) - 1)
+        h = (1.9 if gate else 1.25) + 0.35 * rng.random()
+        wd = 0.27 if gate else 0.23
         ix, iz = -math.cos(a), -math.sin(a)  # toward the elderwood
-        blob(bm, x + ix * 0.15, h * 0.55, zz + iz * 0.15, 0.06, 0.1, 0.06, m=3, cuts=1, n=1.4)
+        blob(bm, x, h / 2 - 0.05, zz, wd, h / 2 + 0.05, wd * 0.8, m=1, cuts=3, n=2.8, noise=0.06, rng=rng, flat_bottom=-0.1)
+        blob(bm, x, h - 0.02, zz, wd * 0.9, 0.07, wd * 0.75, m=2, cuts=2, noise=0.25, rng=rng)
+        blob(bm, x - ix * 0.12, 0.08, zz - iz * 0.12, wd * 0.9, 0.1, wd * 0.8, m=2, cuts=2, noise=0.2, rng=rng, flat_bottom=-0.05)
+        for q, dy in enumerate((0.62, 0.47, 0.32)):
+            blob(bm, x + ix * wd * 0.72, h * dy, zz + iz * wd * 0.72, 0.05 if q != 1 else 0.035, 0.07, 0.05 if q != 1 else 0.035, m=3, cuts=1, n=1.4)
     make_object("Forest_Rocks", bm, ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Rune", "FW_Pebble"], coll, lift="parts")
 
 
@@ -1290,7 +1318,9 @@ def build_vista(L, coll):
     # the Old Growth's great pines (the dressing's: not felled, half as tall again as the rim's)
     owl = tuple(L.get("life", {}).get("owl", {}).get("tree", ()))
     for i, t in enumerate(L["dressing"]["greatTrees"]):
-        if t["kind"] == "pine":
+        if t["kind"] == "spruce":
+            pine(bm, t["x"], t["z"], t["s"] * 1.55, rng, light=False, deep=3, kind="spruce")
+        elif t["kind"] == "pine":
             pine(bm, t["x"], t["z"], t["s"] * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 3 == 2 and (t["x"], t["z"]) != owl else "pine")
     # the understory: saplings at the feet of the rim's pines and in the Old Growth (walked through),
     # and the dead standing trees the layout places
@@ -1323,7 +1353,10 @@ def build_vista(L, coll):
         before = set(bm.faces)
         birch_tree(bm, sz * 1.1, rng)
         xform_since(bm, before, Matrix.Translation(W(x, 0.0, z)) @ Matrix.Rotation(rng.random() * 6.28, 4, "Z"))
-    make_object("Forest_VistaBirches", bm, ["FW_BirchBark", "FW_BirchMark", "FW_BirchLeaf", "FW_BirchLeafLight"], coll, lift="parts")
+    if L["dressing"]["birches"]:
+        make_object("Forest_VistaBirches", bm, ["FW_BirchBark", "FW_BirchMark", "FW_BirchLeaf", "FW_BirchLeafLight"], coll, lift="parts")
+    else:
+        bm.free()
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1573,27 +1606,7 @@ def build_places(L, cushions, coll):
         cylinder(bm, W(x - ax * 0.5, log_top / 2, z - az * 0.5), W(x + ax * 0.5, log_top / 2, z + az * 0.5), log_top / 2, 11, m=m["FW_Bark"], cap_m=m["FW_WoodCut"], wobble=0.06, rng=rng)
         blob(bm, x + ax * 0.2, log_top - 0.01, z + az * 0.2, 0.16, 0.03, 0.11, m=m["FW_Moss"], cuts=2, noise=0.15, rng=rng)
 
-    # --- the Old Stones: five weathered standing stones along the ridge, a rune on each one's south
-    # face (it glows as the shrine's do), and a stone bench (its top the boulder cushion's)
-    for x, z, sz in P["stones"]:
-        h = (1.45 + 0.4 * rng.random()) * sz
-        lean = rng.uniform(-0.06, 0.06)
-        blob(bm, x + lean, h / 2 - 0.05, z, 0.27 * sz, h / 2 + 0.05, 0.2 * sz, m=m["FW_StoneDark"], cuts=3, n=2.8, noise=0.07, rng=rng, flat_bottom=-0.15)
-        blob(bm, x + lean, h - 0.02, z, 0.24 * sz, 0.07, 0.19 * sz, m=m["FW_Moss"], cuts=2, noise=0.25, rng=rng)
-        blob(bm, x + lean - 0.1 * sz, 0.1, z + 0.12, 0.2 * sz, 0.12, 0.16 * sz, m=m["FW_MossDeep"], cuts=2, noise=0.2, rng=rng, flat_bottom=-0.05)
-        for k, (dy, hw) in enumerate(((0.62, 0.075), (0.48, 0.05), (0.36, 0.075))):
-            blob(bm, x + lean + (0.02 if k == 1 else 0.0), h * dy, z + 0.19 * sz, hw, 0.035, 0.03, m=m["FW_Rune"], cuts=1, n=1.6)
-        blob(bm, x + lean, h * 0.49, z + 0.19 * sz, 0.022, h * 0.15, 0.03, m=m["FW_Rune"], cuts=1, n=1.6)
-    Sb = P["stoneBench"]
-    b_top = cushions["boulder"]["top"]
-    for sx in (-1, 1):
-        blob(bm, Sb["x"] + sx * 0.5, (b_top - 0.1) / 2, Sb["z"], 0.16, (b_top - 0.1) / 2 + 0.03, 0.2, m=m["FW_StoneDark"], cuts=2, n=3.5, noise=0.05, rng=rng, flat_bottom=-0.08)
     make_object("Forest_Places", bm, M, coll, lift="parts")
-    bm = bmesh.new()
-    blob(bm, 0.0, b_top - 0.06, 0.0, 0.78, 0.06, 0.25, m=m["FW_Stone"], cuts=3, n=4.0, noise=0.03, rng=rng)
-    blob(bm, 0.5, b_top + 0.0, -0.12, 0.2, 0.025, 0.1, m=m["FW_Moss"], cuts=2, noise=0.2, rng=rng)
-    stand(bm, Sb["x"], Sb["z"])
-    make_object("Forest_StoneBench", bm, M, coll)
 
     # --- Finley's corner: the jetty (its deck the dock cushion's top), the rod rack, the drying nets
     J = P["jetty"]
@@ -1889,46 +1902,99 @@ def maple_tree(bm, s, rng):
     for k in range(3):  # buttress roots
         a = k * 2.1 + 1.2
         cylinder(bm, W(math.cos(a) * 0.1 * s, 0.25 * s, math.sin(a) * 0.1 * s), W(math.cos(a) * 0.45 * s, -0.03, math.sin(a) * 0.45 * s), 0.09 * s, 7, m=0, r_end=0.03 * s)
-    # a broad round crown in autumn gold, orange and red
-    clumps = [(0.0, 2.35, 0.0, 1.0), (0.85, 2.0, 0.3, 0.72), (-0.8, 2.05, -0.2, 0.75), (0.2, 1.95, -0.85, 0.68), (-0.25, 1.95, 0.85, 0.7), (0.45, 2.75, -0.2, 0.62), (-0.4, 2.7, 0.35, 0.6)]
-    for k, (x, y, z, r) in enumerate(clumps):
-        blob(bm, x * s, y * s, z * s, r * s, r * 0.8 * s, r * s, m=1 + (k % 3), cuts=3, noise=0.14, rng=rng)
+    # a broad crown in many small clumps, coloured by where each hangs: orange with a red bough
+    # here and there low down, orange and gold through its middle, gold where the sun catches the
+    # top (1 orange, 2 gold, 3 red)
+    clumps = [(0.0, 2.2, 0.0, 0.82, 1)]
+    for k in range(6):  # the low skirt
+        a = k * 1.047 + 0.3
+        clumps.append((math.cos(a) * 1.02, 1.82 + 0.1 * (k % 2), math.sin(a) * 1.02, 0.5 + 0.07 * (k % 3), 3 if k % 3 == 0 else 1))
+    for k in range(5):  # the middle
+        a = k * 1.257 + 0.9
+        clumps.append((math.cos(a) * 0.68, 2.36 + 0.08 * (k % 2), math.sin(a) * 0.68, 0.56, 1 if k % 2 else 2))
+    for k in range(4):  # the top
+        a = k * 1.571 + 0.2
+        clumps.append((math.cos(a) * 0.36, 2.86 + 0.07 * (k % 2), math.sin(a) * 0.36, 0.44, 2))
+    clumps.append((0.05, 3.2, -0.05, 0.36, 2))
+    for x, y, z, r, tone in clumps:
+        j = lambda: rng.uniform(-0.07, 0.07)
+        blob(bm, (x + j()) * s, (y + j()) * s, (z + j()) * s, r * s, r * 0.78 * s, r * s, m=tone, cuts=2, noise=0.16, rng=rng)
 
 
 def elder_tree(bm, s, rng):
-    # a huge gnarled trunk twisting up, great roots, a vast teal crown with glowing leaves and wisps
-    h = 2.2 * s
-    segs = 8
-    prev = (0.0, 0.0, 0.0)
+    """The Whispering Elderwood, the one great tree of the wood (8 m at s = 1, twice a birch): a
+    huge twisted trunk on buttress roots that sprawl three paces out, runes glowing up it, great
+    limbs, a crown in three storeys (deep under, teal over), vines hanging from it with a light at
+    each tip, and wisps drifting round it.
+    Materials: 0 bark, 1 leaf, 2 glow, 3 wisp, 4 cut wood, 5 the deep leaf under the crown."""
+    h = 3.5 * s
+    segs = 9
+    prev = (0.0, -0.05, 0.0)
+    line = []
     for k in range(segs):
         t = (k + 1) / segs
-        x, z = 0.12 * s * math.sin(t * 5.0), 0.1 * s * math.cos(t * 4.0)
+        x, z = 0.2 * s * math.sin(t * 4.2), 0.17 * s * math.cos(t * 3.4) - 0.17 * s
         cur = (x, h * t, z)
-        r0 = (0.55 - 0.3 * (k / segs)) * s
-        r1 = (0.55 - 0.3 * t) * s
-        cylinder(bm, W(*prev), W(*cur), r0, 12, m=0, r_end=r1, wobble=0.12, rng=rng)
-        blob(bm, cur[0], cur[1], cur[2], r1, r1 * 0.6, r1, m=0, cuts=2, noise=0.1, rng=rng)
+        r0 = (0.98 - 0.48 * (k / segs) ** 0.8) * s
+        r1 = (0.98 - 0.48 * t ** 0.8) * s
+        cylinder(bm, W(*prev), W(*cur), r0, 14, m=0, r_end=r1, wobble=0.1, rng=rng)
+        blob(bm, cur[0], cur[1], cur[2], r1 * 1.02, r1 * 0.5, r1 * 1.02, m=0, cuts=2, noise=0.1, rng=rng)
+        line.append((cur, r1))
         prev = cur
+    # the buttress roots: each arches out of the trunk and runs away into the ground
+    for k in range(7):
+        a = k * 2 * math.pi / 7 + 0.2 + rng.uniform(-0.15, 0.15)
+        reach = rng.uniform(1.9, 2.5) * s
+        ca, sa = math.cos(a), math.sin(a)
+        cylinder(bm, W(ca * 0.5 * s, 1.15 * s, sa * 0.5 * s), W(ca * 1.2 * s, 0.34 * s, sa * 1.2 * s), 0.34 * s, 9, m=0, r_end=0.26 * s, wobble=0.08, rng=rng)
+        cylinder(bm, W(ca * 1.2 * s, 0.34 * s, sa * 1.2 * s), W(ca * reach, -0.04, sa * reach), 0.26 * s, 9, m=0, r_end=0.09 * s, wobble=0.08, rng=rng)
+        blob(bm, ca * 1.2 * s, 0.34 * s, sa * 1.2 * s, 0.27 * s, 0.22 * s, 0.27 * s, m=0, cuts=2, noise=0.1, rng=rng)
+    # runes up the trunk, in a slow spiral
+    for k in range(11):
+        u = 0.16 + 0.062 * k
+        (cx, cy, cz), r = line[min(segs - 1, int(u * segs))]
+        a = 0.9 + k * 0.62
+        blob(bm, cx + math.cos(a) * r * 0.97, h * u, cz + math.sin(a) * r * 0.97, 0.075 * s, 0.11 * s, 0.075 * s, m=2, cuts=1, n=1.5)
+    # the great limbs, from the fork out under the crown
+    top = prev
+    limbs = []
     for k in range(6):
-        a = k * math.pi / 3 + 0.2
-        cylinder(bm, W(math.cos(a) * 0.3 * s, 0.4 * s, math.sin(a) * 0.3 * s), W(math.cos(a) * 1.05 * s, 0.02, math.sin(a) * 1.05 * s), 0.26 * s, 8, m=0, r_end=0.13 * s)
-        blob(bm, math.cos(a) * 1.1 * s, 0.04, math.sin(a) * 1.1 * s, 0.16 * s, 0.1 * s, 0.16 * s, m=0, cuts=2, noise=0.1, rng=rng)
-    for k in range(4):
-        a = k * math.pi / 2 + 0.5
-        cylinder(bm, W(prev[0], h * 0.92, prev[2]), W(math.cos(a) * 1.1 * s, h * 1.3, math.sin(a) * 1.1 * s), 0.16 * s, 8, m=0, r_end=0.07 * s)
-    clumps = [(0.0, 3.4, 0.0, 1.5), (1.25, 2.95, 0.4, 1.05), (-1.2, 3.0, -0.3, 1.1), (0.3, 2.9, -1.25, 1.0), (-0.35, 2.95, 1.2, 1.0), (0.6, 4.0, 0.3, 0.9), (-0.55, 3.95, -0.4, 0.85)]
-    for k, (x, y, z, r) in enumerate(clumps):
+        a = k * 2 * math.pi / 6 + 0.5
+        out = (2.3 if k % 2 else 1.7) * s
+        end = (top[0] + math.cos(a) * out, h + (1.25 if k % 2 else 1.9) * s, top[2] + math.sin(a) * out)
+        cylinder(bm, W(*top), W(*end), 0.3 * s, 9, m=0, r_end=0.12 * s, wobble=0.06, rng=rng)
+        limbs.append(end)
+    # the crown, three storeys: a deep skirt of low boughs, the broad middle, the dome
+    low = [(math.cos(k * 1.05 + 0.3) * 3.15, 4.6 + 0.2 * (k % 2), math.sin(k * 1.05 + 0.3) * 3.15, 1.12) for k in range(6)]
+    mid = [(math.cos(k * 0.9) * 1.95, 5.55 + 0.25 * (k % 3), math.sin(k * 0.9) * 1.95, 1.6) for k in range(7)]
+    high = [(0.0, 6.8, 0.0, 1.95), (0.95, 6.45, 0.55, 1.25), (-0.9, 6.55, -0.4, 1.3), (0.1, 6.4, -1.05, 1.15), (-0.3, 6.35, 1.0, 1.15)]
+    for k, (x, y, z, r) in enumerate(low):
+        blob(bm, x * s, y * s, z * s, r * s, r * 0.7 * s, r * s, m=5, cuts=3, noise=0.14, rng=rng)
+    for k, (x, y, z, r) in enumerate(mid):
+        blob(bm, x * s, y * s, z * s, r * s, r * 0.74 * s, r * s, m=5 if k % 3 == 2 else 1, cuts=3, noise=0.13, rng=rng)
+    for k, (x, y, z, r) in enumerate(high):
         blob(bm, x * s, y * s, z * s, r * s, r * 0.78 * s, r * s, m=1, cuts=3, noise=0.13, rng=rng)
-    # glowing leaves peeking out of the crown, and wisps drifting round it
-    for k in range(16):
+    clumps = low + mid + high
+    # glowing leaves peeking out of the crown
+    for k in range(30):
         x, y, z, r = clumps[k % len(clumps)]
         a = rng.random() * 6.28
-        e = rng.uniform(-0.3, 0.5)
-        px, py, pz = x + math.cos(a) * r * 0.95, y + e * r * 0.7, z + math.sin(a) * r * 0.95
-        blob(bm, px * s, py * s, pz * s, 0.14 * s, 0.1 * s, 0.14 * s, m=2, cuts=1)
-    for k in range(7):
-        a = k * 0.9
-        blob(bm, math.cos(a) * 2.0 * s, (2.2 + 0.6 * math.sin(k * 1.7)) * s, math.sin(a) * 2.0 * s, 0.06 * s, 0.06 * s, 0.06 * s, m=3, cuts=1)
+        e = rng.uniform(-0.35, 0.5)
+        blob(bm, (x + math.cos(a) * r * 0.95) * s, (y + e * r * 0.7) * s, (z + math.sin(a) * r * 0.95) * s, 0.15 * s, 0.11 * s, 0.15 * s, m=2, cuts=1)
+    # vines hanging under the crown, a light at each one's tip
+    for k in range(16):
+        x, y, z, r = (low + mid)[k % 13]
+        a = rng.random() * 6.28
+        vx, vz = (x + math.cos(a) * r * 0.55) * s, (z + math.sin(a) * r * 0.55) * s
+        y0 = (y - r * 0.5) * s
+        ln = rng.uniform(0.7, 1.9) * s
+        cylinder(bm, W(vx, y0, vz), W(vx + rng.uniform(-0.06, 0.06) * s, y0 - ln, vz + rng.uniform(-0.06, 0.06) * s), 0.018 * s, 4, m=5)
+        blob(bm, vx, y0 - ln - 0.05 * s, vz, 0.06 * s, 0.085 * s, 0.06 * s, m=2, cuts=1)
+    # wisps drifting round it
+    for k in range(11):
+        a = k * 1.9
+        rr = (2.6 + 1.5 * ((k * 7) % 5) / 4) * s
+        blob(bm, math.cos(a) * rr, (1.5 + 3.6 * ((k * 5) % 7) / 6) * s, math.sin(a) * rr, 0.065 * s, 0.065 * s, 0.065 * s, m=3, cuts=1)
 
 
 def build_trees(coll):
@@ -1958,29 +2024,29 @@ def build_trees(coll):
             elif kind == "cedar":
                 mats = ["FW_CedarBark", "FW_WoodCut", "FW_CedarNeedle", "FW_CedarNeedleLight"]
                 if stage == "stump":
-                    stump(bm, 0.22, 0.3, rng)
+                    stump(bm, 0.25, 0.32, rng)
                 elif stage == "sprout":
                     sprout(bm, 0.26, 2, 0)
                 else:
-                    s = 0.45 if stage == "sapling" else 1.2
+                    s = 0.45 if stage == "sapling" else 1.4
                     cone_tree(bm, s, rng, ((0.95, 0.8, 1.0), (0.8, 1.4, 0.95), (0.64, 1.95, 0.9), (0.46, 2.45, 0.85), (0.28, 2.9, 0.8)), 0, 2, 3, trunk_r=0.2, trunk_h=1.0)
             elif kind == "maple":
                 mats = ["FW_MapleBark", "FW_MapleLeaf", "FW_MapleLeafGold", "FW_MapleLeafRed", "FW_WoodCut"]
                 if stage == "stump":
-                    stump(bm, 0.26, 0.3, rng, bark=0, cut=4)
+                    stump(bm, 0.31, 0.34, rng, bark=0, cut=4)
                 elif stage == "sprout":
                     sprout(bm, 0.24, 1, 0)
                 else:
-                    maple_tree(bm, 0.45 if stage == "sapling" else 1.15, rng)
+                    maple_tree(bm, 0.5 if stage == "sapling" else 1.4, rng)
             else:
-                mats = ["FW_ElderBark", "FW_ElderLeaf", "FW_ElderLeafGlow", "FW_Wisp", "FW_WoodCut"]
+                mats = ["FW_ElderBark", "FW_ElderLeaf", "FW_ElderLeafGlow", "FW_Wisp", "FW_WoodCut", "FW_ElderLeafDeep"]
                 if stage == "stump":
-                    stump(bm, 0.5, 0.42, rng, bark=0, cut=4, roots=6)
-                    blob(bm, 0.0, 0.47, 0.0, 0.07, 0.07, 0.07, m=2, cuts=1)  # a glowing shoot already
+                    stump(bm, 0.92, 0.6, rng, bark=0, cut=4, roots=7)
+                    blob(bm, 0.0, 0.68, 0.0, 0.1, 0.1, 0.1, m=2, cuts=1)  # a glowing shoot already
                 elif stage == "sprout":
-                    sprout(bm, 0.3, 2, 0)
+                    sprout(bm, 0.4, 2, 0)
                 else:
-                    elder_tree(bm, 0.45 if stage == "sapling" else 1.05, rng)
+                    elder_tree(bm, 0.3 if stage == "sapling" else 1.0, rng)
             ob = make_object(f"Tree_{kind}_{stage}", bm, mats, coll)
             out.append(ob.name)
     return out

@@ -801,7 +801,7 @@ def dirt_field(L):
     lines = []
     for path in L["paths"]:
         pts = path_polyline(path, 0.12)
-        pad = max(p[2] for p in pts) / 2 + 0.6
+        pad = max(p[2] for p in pts) / 2 + 1.3
         box_ = (min(p[0] for p in pts) - pad, max(p[0] for p in pts) + pad, min(p[1] for p in pts) - pad, max(p[1] for p in pts) + pad)
         lines.append((box_, pts))
     c = L["clearing"]
@@ -827,27 +827,35 @@ def dirt_field(L):
         (L["van"]["x"] + 0.3, L["van"]["z"] + L["van"]["w"] / 2 + 0.9, 1.6, 0.55),
     ]
 
+    K = nature()
+
     def field(x, z):
-        # (ragged at three scales: a trail is where feet go, never a ruled band; the clearing is
-        # worn round the fire and its seats, the grass coming back toward its rim)
-        wob = 0.42 * (vnoise(x * 0.55 + 31.0, z * 0.55 + 7.0) - 0.5) + 0.26 * (vnoise(x * 1.7 + 11.0, z * 1.7 - 4.0) - 0.5) + 0.1 * (vnoise(x * 5.1, z * 5.1) - 0.5)
-        best = math.hypot(x - c["x"], z - c["z"]) - c["r"] * 0.74
+        # (a trail is a footpath: a bare tread three quarters of its width, wider and narrower as it
+        # goes, an edge that wanders and feathers out over a hand's breadth, grass biting into it
+        # here and there, and a shoulder of trampled grass beside it: nature_kit `worn`. The
+        # clearing is worn round the fire and its seats)
+        wob = 0.2 * (vnoise(x * 0.7 + 31.0, z * 0.7 + 7.0) - 0.5) + 0.12 * (vnoise(x * 2.4 + 11.0, z * 2.4 - 4.0) - 0.5)
+        girth = 0.82 + 0.36 * vnoise(x * 0.35 + 5.0, z * 0.35 - 2.0)
+        best = math.hypot(x - c["x"], z - c["z"]) - c["r"] * 0.68 + wob
         for (x0, x1, z0, z1), pts in lines:
             if x < x0 or x > x1 or z < z0 or z > z1:
                 continue
             for (ax, az, aw), (bx, bz, bw) in zip(pts, pts[1:]):
                 dx, dz = bx - ax, bz - az
                 t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz or 1)))
-                d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - (aw + (bw - aw) * t) * 0.3
+                d = math.hypot(x - (ax + dx * t), z - (az + dz * t)) - 0.36 * (aw + (bw - aw) * t) * girth
                 if d < best:
                     best = d
-        w = smooth(0.32, -0.22, best + wob)
+        best += wob
+        # (tufts biting into the tread's edges)
+        if -0.22 < best < 0.3:
+            best += 0.2 * smooth(0.62, 0.8, vnoise(x * 1.9 + 7.0, z * 1.9 - 3.0))
+        w = K.worn(best)
         for wx, wz, r, s in wear:
             d = math.hypot(x - wx, z - wz)
-            if d < r + 0.3:
-                w = max(w, s * smooth(r * 0.85, r * 0.3, d + wob * 0.6))
-        # (one worn line, a little uneven: never blotches)
-        return w * (0.9 + 0.1 * smooth(0.25, 0.6, vnoise(x * 2.3 - 3.0, z * 2.3 + 8.0)))
+            if d < r * 1.3:
+                w = max(w, s * K.worn(d - r * 0.5 + wob))
+        return w
 
     return field
 
@@ -889,8 +897,8 @@ def ground_color(L, x, z, h, dirt, tones):
     w = dirt(x, z)
     if w > 0:
         # (trampled grass, yellowed, where the wear begins; bare earth where it is complete)
-        col = mixc(col, lin(PALETTE["CF_GrassDry"]), 0.55 * smooth(0.0, 0.35, w))
-        col = mixc(col, [c * (0.86 + 0.14 * n2) for c in earth], smooth(0.22, 0.8, w) * 0.92)
+        col = mixc(col, lin(PALETTE["CF_GrassDry"]), 0.45 * smooth(0.0, 0.4, w))
+        col = mixc(col, [c * (0.88 + 0.14 * n2) * (0.96 + 0.08 * n3) for c in earth], smooth(0.42, 0.9, w) * 0.92)
     if SHADE is not None:
         dark, litter = SHADE.at(x, z)
         if "needles" in litter:
@@ -924,7 +932,7 @@ def build_ground(L, coll):
     soil, deep = lin(PALETTE["CF_Soil"]), lin(PALETTE["CF_SoilDeep"])
     bm = bmesh.new()
     col = bm.loops.layers.float_color.new("Col")
-    verts, vcol, rim_of = {}, {}, {}
+    verts, rim_of = {}, {}
 
     def vert(i, k):
         x, z = snap_rim(-half + i * step, -half + k * step, half)
@@ -934,8 +942,6 @@ def build_ground(L, coll):
             rim = rim_inside(x, z, half)
             y = ground_y(x, z) - 0.2 * smooth(0.4, 0.0, rim) ** 2
             v = verts[key] = bm.verts.new(W(x, y, z))
-            c = ground_color(L, x, z, y, dirt, tones)
-            vcol[v] = (*mixc(c, soil, 0.65 * smooth(0.32, 0.0, rim)), 1.0)
             rim_of[v] = rim
         return v
 
@@ -955,9 +961,18 @@ def build_ground(L, coll):
                     f.normal_flip()
                 f.smooth = True
                 top.append(f)
-    for f in top:
+    # (cut finer along the footpaths' edges, then painted: a vertex's colour from where it stands)
+    nature().refine_near(bm, [f for f in top if all(rim_of[v] > 0.5 for v in f.verts)], dirt)
+    vcol = {}
+    for f in bm.faces:
+        f.smooth = True
         for loop in f.loops:
-            loop[col] = vcol[loop.vert]
+            v = loop.vert
+            if v not in vcol:
+                x, z = v.co.x, -v.co.y
+                rim = rim_inside(x, z, half)
+                vcol[v] = (*mixc(ground_color(L, x, z, v.co.z, dirt, tones), soil, 0.65 * smooth(0.32, 0.0, rim)), 1.0)
+            loop[col] = vcol[v]
     # the sides: from the rim straight down to the rock beneath, in soil (their own vertices: a hard
     # edge at the rim)
     for e in [e for e in bm.edges if len(e.link_faces) == 1]:
@@ -1042,6 +1057,10 @@ def build_water(L, coll):
         x0, x1 = span[0] + 0.02, span[1] - 0.02
         w = x1 - x0
         rows.append([vert(x0 + w * c / cols, water, z, min(c, cols - c) / cols * w) for c in range(cols + 1)])
+    # (where the river meets the island's edge the diorama is cut: the water's end is a still face
+    # down to its bed, never an open notch)
+    cap = lambda row: [vert(v.co.x, water - 0.8, -v.co.y, data[v][0] * 1.5) for v in row]
+    rows = [cap(rows[0])] + rows + [cap(rows[-1])]
     strip(rows)
     for f in bm.faces:
         f.normal_update()
@@ -2556,7 +2575,7 @@ def build_dressing(L, coll):
 
     def open_moss(x, z, pad=0.0):
         """Open grass at (x, z): on the island, off the dirt, out of the river, clear of what stands."""
-        if rim_inside(x, z, half) < 0.7 or in_river(L, x, z, 0.35 + pad) or dirt(x, z) > 0.12:
+        if rim_inside(x, z, half) < 0.7 or in_river(L, x, z, 0.35 + pad) or dirt(x, z) > 0.45:
             return False
         if near_prop(L, x, z, 1.0 + pad) or any(math.hypot(x - sx, z - sz) < sr + pad for sx, sz, sr in solid):
             return False
@@ -2621,10 +2640,6 @@ def build_dressing(L, coll):
                 if math.hypot(x - c["x"], z - c["z"]) > c["r"] + 0.3 and not in_river(L, x, z, 0.3) and not near_prop(L, x, z, 0.8):
                     w = rng.uniform(0.05, 0.1)
                     nub(x, -0.01, z, w, 0.05, m["CF_Stone"] if k % 2 else m["CF_StoneDark"])
-    # --- stone steps up to the terrace (nothing lies across the trails)
-    north = path_polyline(L["paths"][3], 0.5)
-    for ax, az, aw in [p for p in north if -9.5 < p[1] < -7.0][::1]:
-        blob(bm, ax + rng.uniform(-0.08, 0.08), 0.0, az, aw / 2 - 0.05, 0.035, 0.17, m=m["CF_Stone"] if rng.random() < 0.5 else m["CF_StoneDark"], cuts=3, noise=0.05, rng=rng, flat_bottom=-0.2)
     # --- golden leaves under the birches
     for b in L["fellBirches"]:
         for _ in range(14):
@@ -2869,7 +2884,10 @@ def build_places(L, cushions, coll):
         else:
             m_of = lambda r_, c_: m["CF_VanCream"] if c_ % 3 == 1 else m["CF_BlanketBlue"]
         sheet(bm, 8, 8, lambda u, v: W(bx + ux * (u - 0.5) * 1.7 + sx * (v - 0.5) * 1.45, top - 0.012 + 0.006 * math.sin(u * 9 + v * 7), bz + uz * (u - 0.5) * 1.7 + sz * (v - 0.5) * 1.45), m_of)
-    make_object("Campfire_Blankets", bm, M, coll, lift="vertex")
+    if P["blankets"]:
+        make_object("Campfire_Blankets", bm, M, coll, lift="vertex")
+    else:
+        bm.free()
 
     # --- the hammocks: striped canvas sagging between two pines, on ropes; the lowest of the sag is
     # the hammock cushion's top. And the paper lantern on its own line between the third pair
@@ -3058,6 +3076,8 @@ def summary(coll, L, cushions):
             marks[o.name] = [round(o.location.x, 3), round(o.location.z, 3), round(-o.location.y, 3)]
             continue
         ws = [o.matrix_world @ v.co for v in o.data.vertices]
+        if not ws:
+            continue
         lo = [min(w[k] for w in ws) for k in range(3)]
         hi = [max(w[k] for w in ws) for k in range(3)]
         # reported in the game's axes: x, y (up), z

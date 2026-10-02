@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.54",
+    range: "v0.7.0–v0.7.55",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1883,6 +1883,27 @@ export const PATCH_ERAS: PatchEra[] = [
             "🏮 The Whispering Woods keep four lantern posts instead of seven, and the little fish signs at the fishing spots are gone.",
           ],
           economy: ["⚖️ Nothing you earn changes."],
+        },
+      },
+      {
+        version: "0.7.55",
+        date: "2026-10-02",
+        title: "The Great Elderwood",
+        summary: "The Whispering Woods are laid out afresh round a giant Elderwood, the old mine is hidden away, and the trails on both camp maps are soft footpaths.",
+        changes: {
+          visuals: [
+            "🌳 The Whispering Elderwood is now a true giant: twice the height of a birch, on great roots, with glowing runes, hanging lights and spirit motes, inside a wider ring of standing stones.",
+            "🧭 The woods are laid out afresh and fuller: birches to the west, cedars through the middle, maples up the hill and the Elderwood at the top, with shrubs, small pines and undergrowth where the ground was bare.",
+            "📏 Trees are sized by rank: Soft Pines smallest, then birches, cedars and broad maples.",
+            "🕳️ The old mine is a secret now. No trail leads to it and a few spruces hide it. Look for a lantern's glow behind the maples.",
+            "👣 Trails at the campfire and in the woods are worn footpaths now: a clear tread with soft, uneven edges and grass growing into them.",
+            "🍁 The Autumn Maples have fuller, softer crowns, and the rivers end cleanly at the islands' edges.",
+            "🧹 Gone: the row of standing stones on the woods' north ridge, the stone slabs on the campfire's north trail, and the picnic blankets on the knoll.",
+          ],
+          economy: [
+            "🌲 The campfire no longer has birches. Its trees to fell are the eight Soft Pines; Silver Birches and better grow in the Whispering Woods.",
+            "⚖️ Woods income is within a few percent of what it was at every axe tier.",
+          ],
         },
       },
     ],

@@ -156,6 +156,37 @@ class Shade:
         return min(0.62, 1 - light), litter
 
 
+def worn(d):
+    """How worn the ground is `d` metres outside a footpath's bare tread (negative: on it), 0..1:
+    bare earth on the tread, a feathered edge a hand's breadth wide (never a ruled line, never a
+    smear), then a shoulder of trampled grass fading out over half a metre."""
+    return 0.6 * max(0.0, min(1.0, 1 - d / 0.3)) + 0.4 * max(0.0, min(1.0, 1 - (d - 0.3) / 0.55))
+
+
+def refine_near(bm, faces, wear, lo=0.04, hi=0.97):
+    """Cuts the ground finer where the wear changes (a footpath's edges): every face among `faces`
+    with a corner whose wear is between `lo` and `hi`, or whose corners differ, has its edges
+    halved (its neighbours are cut to match: no T-junctions). `wear`: (x, z) in game axes to 0..1.
+    A new vertex lies on the edge it halves, so the ground's shape is unchanged."""
+    import bmesh
+    cache = {}
+
+    def at(v):
+        key = (round(v.co.x, 4), round(v.co.y, 4))
+        if key not in cache:
+            cache[key] = wear(v.co.x, -v.co.y)
+        return cache[key]
+
+    edges = set()
+    for f in faces:
+        ws = [at(v) for v in f.verts]
+        if any(lo < w < hi for w in ws) or max(ws) - min(ws) > 0.2:
+            edges.update(f.edges)
+    if edges:
+        bmesh.ops.subdivide_edges(bm, edges=list(edges), cuts=1, use_grid_fill=True)
+    return len(edges)
+
+
 def clumps(rng, n, spots, spread=1.0, each=(2, 4)):
     """`n` places in clusters round a few of `spots` ((x, z) or (x, z, weight)): dense groups, bare
     ground between (never an even scatter). Yields (x, z, rank): rank 0 the group's first and largest."""
