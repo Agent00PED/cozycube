@@ -123,21 +123,24 @@ added to make the maps "natural" were clutter of their own.
 
 The owner's list after seeing round five, and what was done.
 
-- **Trails had an edge.** They were a band of earth with a half-metre rim. Now a trail is bare only
-  down its middle and its wear fades out over more than its own width, with grass growing in to the
-  worn part: a trace, not a road. Both maps.
+- **Trails, twice.** They were a band of earth with a ruled rim. The first answer faded the wear out
+  over a metre and a half, and at the game's zoom that read as a dirty lawn, not a path. The second
+  is a footpath: a bare tread, an edge that wanders and feathers out over a hand's breadth with
+  tufts biting into it, and a shoulder of trampled grass. The ground mesh is cut finer along the
+  edges so the feather is smooth. Both maps.
 - **The campfire:** the stone steps on the north trail are gone; the two picnic blankets and their
   basket are gone; every birch is gone (four fellable, five ornamental). The campfire is the Soft
   Pine's map: T1 to fell, everything else to look at.
-- **The woods were an even scatter.** Trees stood 3.5 to 4.5 m apart everywhere, the cedars filled
-  the middle, the Elderwood was the size of a birch and stood behind a pine. The new layout is a
-  wheel: an open glade in the middle, one grove of one kind on each side, each grove in clumps with
-  open ground between, and the Elderwood on its own mound at the top of the hill.
+- **The woods' layout, twice.** The Elderwood was the size of a birch and stood behind a pine. The
+  first answer (tight clumps round a big open glade) left the middle empty and the groves crowded.
+  The second keeps each grove where it is but spaces its trees 2.7 to 4 m apart, woods the middle,
+  and fills what was open with ornamental pines, shrubs, boulders and more undergrowth. The
+  Elderwood stands on its own mound at the top of the hill with a clear forecourt before it.
 - **Size says rank.** Soft Pine 3.0 m, birch 4.0, cedar 5.1, maple 4.7 and broad, the Elderwood 8.3 m
   with an 8.5 m crown: the tallest thing in the wood by a third. Ornamental trees are dark conifers
   only, so a leafy tree is always one you can fell.
-- **The cave is hidden.** No trail, no row of stones pointing at it; seven spruces between it and
-  the camera. You find it by walking round behind them, or by Old Flint's lantern through the
+- **The cave is hidden.** No trail, no row of stones pointing at it; three spruces between it and
+  the camera (seven was a wall). You find it by walking round behind them, or by Old Flint's lantern through the
   trunks at night.
 
 ## Not done, and worth doing next

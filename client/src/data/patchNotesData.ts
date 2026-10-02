@@ -1893,10 +1893,10 @@ export const PATCH_ERAS: PatchEra[] = [
         changes: {
           visuals: [
             "🌳 The Whispering Elderwood is now a true giant: twice the height of a birch, on great roots, with glowing runes, hanging lights and spirit motes, inside a wider ring of standing stones.",
-            "🧭 The woods have a new shape: an open glade in the middle where the trails meet, the birches to the west, the cedars to the east, the maples up the hill and the Elderwood at the top.",
+            "🧭 The woods are laid out afresh and fuller: birches to the west, cedars through the middle, maples up the hill and the Elderwood at the top, with shrubs, small pines and undergrowth where the ground was bare.",
             "📏 Trees are sized by rank: Soft Pines smallest, then birches, cedars and broad maples.",
-            "🕳️ The old mine is a secret now. No trail leads to it and a thicket of spruces hides it. Look for a lantern's glow behind the maples.",
-            "👣 Trails at the campfire and in the woods fade softly into the grass instead of ending at a hard edge.",
+            "🕳️ The old mine is a secret now. No trail leads to it and a few spruces hide it. Look for a lantern's glow behind the maples.",
+            "👣 Trails at the campfire and in the woods are worn footpaths now: a clear tread with soft, uneven edges and grass growing into them.",
             "🧹 Gone: the row of standing stones on the woods' north ridge, the stone slabs on the campfire's north trail, and the picnic blankets on the knoll.",
           ],
           economy: [

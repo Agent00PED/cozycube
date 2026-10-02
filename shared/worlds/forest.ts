@@ -16,24 +16,24 @@ import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 // (shared/daynight.ts) and, like every world, the one room: walking through the archway is a trip,
 // not a new connection.
 //
-// The wood is a wheel (patch 0.7.55): an open glade in the middle where the trails cross, a grove of
-// one kind on each side of it, the great tree at the top of the hill over them all.
+// The wood is full (patch 0.7.55): a grove of each kind, its trees 2.7 to 4 m apart (no tight clumps,
+// no rows), the middle wooded too, the great tree at the top of the hill over them all; what is not
+// a grove is filled with things that are not felled (the dressing's small pines, shrubs, boulders).
 //
 //   The Border          the way in from the archway: meadow and four Soft Pines (T1), and the trail
 //                       east along the south to Bramble's
-//   The Birch Grove     the west, eleven Silver Birches (T2) in four clumps round a glade of their
-//                       own, and the rabbits
-//   The Heart Glade     the middle: open grass, the trails' crossroads, the deer, and a clearing
-//                       where a Colossal can rise
-//   The Cedar Ridge     the east of the glade, seven Highland Cedars (T3), kept off the line of
-//                       sight from the camera to the shrine
+//   The Birch Grove     the west, eleven Silver Birches (T2) and the rabbits
+//   The Heart Glade     the middle: the trails' crossroads and a small clearing where a Colossal
+//                       can rise
+//   The Cedar Ridge     the middle and the east, seven Highland Cedars (T3), each far enough in
+//                       front of the shrine that it hides none of it
 //   The Golden Glen     the north-west, up the hill: three Autumn Maples (T4) in gold leaves
 //   The Elderwood Shrine the top of the hill, on a mound of its own: the one Whispering Elderwood
 //                       (T5), twice a birch's height, in a ring of nine standing stones whose gate
 //                       opens toward the glade. Nothing tall stands between it and the camera.
 //   The Hidden Hollow   the Mine Ledge in the north-west corner: the adit, screened from the camera
-//                       by a thicket of spruces; no trail leads to it, and the way in is round the
-//                       thicket's north end
+//                       by three spruces; no trail leads to it, and the way in is round their
+//                       north end
 //   The Old Growth      the north-east: tall pines and ancient cedars (never felled)
 //
 // Round them: a meandering river (in off the north edge, out off the east, its banks strewn with
@@ -68,13 +68,13 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   },
   "zones": [
     { "id": "border", "name": "The Border", "x": -6, "z": 14, "r": 6, "floor": "meadow" },
-    { "id": "birch", "name": "The Birch Grove", "x": -10, "z": 5.4, "r": 5.6, "floor": "birch" },
-    { "id": "glade", "name": "The Heart Glade", "x": -1.4, "z": 3.6, "r": 3.6, "floor": "meadow" },
-    { "id": "cedar", "name": "The Cedar Ridge", "x": 5.0, "z": 1.4, "r": 4.4, "floor": "ridge" },
+    { "id": "birch", "name": "The Birch Grove", "x": -9.8, "z": 5.0, "r": 6.0, "floor": "birch" },
+    { "id": "glade", "name": "The Heart Glade", "x": -1.0, "z": 2.4, "r": 2.8, "floor": "meadow" },
+    { "id": "cedar", "name": "The Cedar Ridge", "x": 4.8, "z": 2.4, "r": 5.0, "floor": "ridge" },
     { "id": "post", "name": "Bramble's Post", "x": 7, "z": 12.5, "r": 4, "floor": "meadow" },
     { "id": "glen", "name": "The Golden Glen", "x": -10.0, "z": -3.8, "r": 4.4, "floor": "glen" },
     { "id": "shrine", "name": "The Elderwood Shrine", "x": -2.2, "z": -9.2, "r": 5.4, "floor": "shrine" },
-    { "id": "ledge", "name": "The Hidden Hollow", "x": -13.6, "z": -10.6, "r": 3.8, "floor": "needles" },
+    { "id": "ledge", "name": "The Hidden Hollow", "x": -14.2, "z": -10.8, "r": 3.2, "floor": "needles" },
     { "id": "oldgrowth", "name": "The Old Growth", "x": 6.4, "z": -10.6, "r": 5.6, "floor": "needles" }
   ],
   "archway": { "x": -11.0, "z": 16.5, "w": 1.9, "h": 2.7 },
@@ -84,28 +84,28 @@ export const FOREST_LAYOUT = /* layout:begin */ {
     { "id": "border_2", "kind": "soft_pine", "x": -5.0, "z": 14.5 },
     { "id": "border_3", "kind": "soft_pine", "x": -1.8, "z": 13.1 },
     { "id": "border_4", "kind": "soft_pine", "x": -12.0, "z": 12.2 },
-    { "id": "birch_1", "kind": "birch", "x": -12.6, "z": 8.8 },
-    { "id": "birch_2", "kind": "birch", "x": -10.6, "z": 9.6 },
-    { "id": "birch_3", "kind": "birch", "x": -12.8, "z": 4.6 },
-    { "id": "birch_4", "kind": "birch", "x": -11.2, "z": 3.2 },
-    { "id": "birch_5", "kind": "birch", "x": -13.0, "z": 2.0 },
-    { "id": "birch_6", "kind": "birch", "x": -7.6, "z": 8.4 },
-    { "id": "birch_7", "kind": "birch", "x": -6.2, "z": 6.8 },
-    { "id": "birch_8", "kind": "birch", "x": -8.2, "z": 6.8 },
-    { "id": "cedar_1", "kind": "cedar", "x": 4.4, "z": 0.2 },
-    { "id": "cedar_2", "kind": "cedar", "x": 6.2, "z": -0.6 },
-    { "id": "cedar_3", "kind": "cedar", "x": 6.6, "z": 1.8 },
-    { "id": "cedar_4", "kind": "cedar", "x": 3.2, "z": 2.4 },
-    { "id": "cedar_5", "kind": "cedar", "x": 5.0, "z": 3.6 },
-    { "id": "maple_1", "kind": "maple", "x": -10.6, "z": -2.2 },
-    { "id": "maple_2", "kind": "maple", "x": -8.0, "z": -3.6 },
-    { "id": "maple_3", "kind": "maple", "x": -11.0, "z": -5.6 },
+    { "id": "birch_1", "kind": "birch", "x": -13.0, "z": 8.6 },
+    { "id": "birch_2", "kind": "birch", "x": -10.2, "z": 9.8 },
+    { "id": "birch_3", "kind": "birch", "x": -12.4, "z": 5.2 },
+    { "id": "birch_4", "kind": "birch", "x": -11.0, "z": 2.4 },
+    { "id": "birch_5", "kind": "birch", "x": -13.4, "z": 0.8 },
+    { "id": "birch_6", "kind": "birch", "x": -7.4, "z": 9.0 },
+    { "id": "birch_7", "kind": "birch", "x": -6.4, "z": 6.4 },
+    { "id": "birch_8", "kind": "birch", "x": -9.4, "z": 6.6 },
+    { "id": "cedar_1", "kind": "cedar", "x": 1.0, "z": 4.0 },
+    { "id": "cedar_2", "kind": "cedar", "x": 3.6, "z": 1.4 },
+    { "id": "cedar_3", "kind": "cedar", "x": 6.2, "z": 0.4 },
+    { "id": "cedar_4", "kind": "cedar", "x": 5.4, "z": 3.4 },
+    { "id": "cedar_5", "kind": "cedar", "x": 8.4, "z": -1.6 },
+    { "id": "maple_1", "kind": "maple", "x": -12.2, "z": -1.6 },
+    { "id": "maple_2", "kind": "maple", "x": -8.8, "z": -3.8 },
+    { "id": "maple_3", "kind": "maple", "x": -11.2, "z": -6.4 },
     { "id": "elder_1", "kind": "elderwood", "x": -2.2, "z": -9.2 },
-    { "id": "birch_9", "kind": "birch", "x": -8.2, "z": 2.2 },
-    { "id": "birch_10", "kind": "birch", "x": -6.6, "z": 1.0 },
-    { "id": "birch_11", "kind": "birch", "x": -8.6, "z": 0.4 },
-    { "id": "cedar_6", "kind": "cedar", "x": 1.6, "z": 8.2 },
-    { "id": "cedar_7", "kind": "cedar", "x": 3.4, "z": 9.0 }
+    { "id": "birch_9", "kind": "birch", "x": -8.0, "z": 3.0 },
+    { "id": "birch_10", "kind": "birch", "x": -5.8, "z": 1.4 },
+    { "id": "birch_11", "kind": "birch", "x": -9.4, "z": 0.0 },
+    { "id": "cedar_6", "kind": "cedar", "x": 1.6, "z": 8.0 },
+    { "id": "cedar_7", "kind": "cedar", "x": 4.2, "z": 8.8 }
   ],
 
   "shrine": { "x": -2.2, "z": -9.2, "r": 3.3, "stones": 9 },
@@ -118,7 +118,8 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   "dressing": {
     "boulders": [
       [6.4, -11.2, 0.9], [4.6, -13.6, 0.75], [10.6, -13.6, 0.8],
-      [-14.9, -8.4, 1.0], [-15.6, -14.6, 1.1], [-13.0, -14.6, 0.8], [-15.0, 3.4, 0.6], [-14.2, 11.4, 0.7], [9.6, 15.2, 0.6]
+      [-14.9, -8.4, 1.0], [-15.6, -14.6, 1.1], [-13.0, -14.6, 0.8], [-15.0, 3.4, 0.6], [-14.2, 11.4, 0.7], [9.6, 15.2, 0.6],
+      [-4.6, -5.6, 0.6], [5.6, -2.4, 0.7], [-2.0, 8.8, 0.5], [-8.6, -11.6, 0.7]
     ],
     "greatTrees": [
       { "x": 5.0, "z": -11.8, "s": 1.3, "kind": "cedar" },
@@ -130,22 +131,26 @@ export const FOREST_LAYOUT = /* layout:begin */ {
       { "x": 2.4, "z": -14.6, "s": 1.1, "kind": "pine" },
       { "x": 8.6, "z": -13.2, "s": 1.25, "kind": "cedar" },
       { "x": 10.2, "z": -11.0, "s": 1.0, "kind": "pine" },
-      { "x": -13.4, "z": -9.0, "s": 1.4, "kind": "spruce" },
-      { "x": -12.2, "z": -10.4, "s": 1.3, "kind": "spruce" },
-      { "x": -11.6, "z": -8.2, "s": 1.2, "kind": "spruce" },
-      { "x": -12.8, "z": -7.2, "s": 1.1, "kind": "spruce" },
-      { "x": -10.6, "z": -10.0, "s": 1.15, "kind": "spruce" },
-      { "x": -14.7, "z": -10.2, "s": 1.25, "kind": "spruce" },
-      { "x": -13.9, "z": -10.8, "s": 1.3, "kind": "spruce" }
+      { "x": -13.8, "z": -10.9, "s": 1.35, "kind": "spruce" },
+      { "x": -14.6, "z": -9.7, "s": 1.3, "kind": "spruce" },
+      { "x": -12.4, "z": -9.2, "s": 1.2, "kind": "spruce" },
+      { "x": -9.2, "z": -9.8, "s": 1.0, "kind": "pine" },
+      { "x": -6.8, "z": -12.9, "s": 1.15, "kind": "spruce" },
+      { "x": -0.6, "z": 9.6, "s": 0.7, "kind": "pine" },
+      { "x": -14.6, "z": 14.4, "s": 0.75, "kind": "pine" },
+      { "x": 8.4, "z": 3.4, "s": 0.65, "kind": "pine" }
     ],
     "birches": [],
-    "shrubs": [[10.6, 12.6, 0.8], [10.4, 14.9, 0.7], [8.4, 1.6, 0.7], [3.0, 16.3, 0.8], [1.4, 16.4, 0.7], [4.8, 16.4, 0.75], [-0.4, 16.3, 0.7], [6.2, 16.3, 0.7], [10.0, 9.4, 0.7]],
+    "shrubs": [[10.6, 12.6, 0.8], [10.4, 14.9, 0.7], [8.4, 1.6, 0.7], [3.0, 16.3, 0.8], [1.4, 16.4, 0.7], [4.8, 16.4, 0.75], [-0.4, 16.3, 0.7], [6.2, 16.3, 0.7], [10.0, 9.4, 0.7],
+      [0.6, -3.2, 0.7], [2.6, -4.4, 0.75], [4.6, -5.6, 0.7], [1.2, -0.6, 0.65], [-5.4, -3.2, 0.7], [-1.2, -1.6, 0.7], [2.8, 10.6, 0.7], [-6.0, 10.2, 0.7], [-10.2, 12.4, 0.7],
+      [6.6, -3.0, 0.7], [-8.4, -8.2, 0.75], [0.4, -13.6, 0.7], [-14.4, -1.6, 0.7], [-14.6, 8.8, 0.7]],
     "lanternPosts": [[-4.6, 9.6], [-4.4, 0.4], [9.2, 6.6], [6.6, 14.6]],
     "fallen": [
       { "x": -13.6, "z": 6.4, "yaw": 0.2, "len": 1.8 },
-      { "x": 3.6, "z": -11.4, "yaw": 2.3, "len": 1.7 }
+      { "x": 3.6, "z": -11.4, "yaw": 2.3, "len": 1.7 },
+      { "x": 1.8, "z": -2.6, "yaw": 0.9, "len": 1.6 }
     ],
-    "stumps": [[10.4, -5.2], [10.4, 9.6]],
+    "stumps": [[10.4, 9.6]],
     "snags": [[-15.9, -9.0, 3.4], [15.9, -3.2, 2.8], [-16.1, 13.6, 2.6], [1.5, -16.2, 3.6]]
   },
   "places": {
@@ -178,10 +183,10 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   "workbench": { "x": 5.45, "z": 12.75, "len": 1.6, "w": 0.72, "top": 0.9 },
   "finley": { "x": 10.0, "z": 5.3, "yaw": 1.75 },
   "birds": [[-16.2, 6.6], [-16.2, -4.6], [-13.2, -16.2], [2.6, -16.2], [5.8, -13.6]],
-  "titanSpots": [[-13.4, -3.6], [-0.6, 1.2], [8.2, -3.2]],
+  "titanSpots": [[-13.6, -4.0], [-0.6, 1.0], [8.8, -4.6]],
   "animals": [
-    { "id": "deer", "kind": "deer", "x": -0.6, "z": 4.6 },
-    { "id": "rabbits", "kind": "rabbits", "x": -10.2, "z": 6.4 }
+    { "id": "deer", "kind": "deer", "x": -0.8, "z": 6.6 },
+    { "id": "rabbits", "kind": "rabbits", "x": -10.6, "z": 4.2 }
   ],
   "vista": [
     [-15.9, -16.3, 1.3], [-13.2, -16.2, 1.0], [-11.4, -15.7, 0.75], [-9.8, -16.4, 1.2], [-6.9, -16.3, 0.85], [-5.6, -15.8, 1.25], [-2.6, -16.4, 0.9], [-0.9, -16.1, 1.3],
@@ -192,7 +197,7 @@ export const FOREST_LAYOUT = /* layout:begin */ {
   "paths": [
     { "points": [[-11.0, 15.8, 1.6], [-9.4, 13.9, 1.5], [-6.6, 12.4, 1.4], [-3.6, 12.0, 1.4], [-0.2, 12.5, 1.4], [3.0, 13.3, 1.3], [5.6, 13.85, 1.3], [7.85, 14.0, 1.5]] },
     { "points": [[-3.6, 12.0, 1.3], [-3.9, 8.2, 1.2], [-3.4, 5.0, 1.2], [-3.2, 1.8, 1.2], [-3.0, -1.2, 1.2], [-2.6, -3.4, 1.2], [-2.4, -5.3, 1.2]] },
-    { "points": [[-3.4, 5.0, 1.1], [-5.4, 4.8, 1.0], [-7.4, 4.5, 1.0], [-9.4, 5.0, 1.0]] },
+    { "points": [[-3.4, 5.0, 1.1], [-5.2, 4.6, 1.0], [-7.0, 4.7, 1.0], [-8.8, 4.8, 0.9]] },
     { "points": [[-3.0, -0.6, 1.0], [-4.8, -1.4, 1.0], [-6.6, -1.8, 1.0], [-8.4, -1.6, 0.9]] },
     { "points": [[-0.8, 6.2, 1.0], [2.2, 5.4, 1.0], [5.6, 5.2, 1.0], [8.4, 5.5, 1.2]] },
     { "points": [[8.6, 5.0, 0.9], [9.8, 1.6, 0.9], [10.7, -2.0, 0.9], [11.1, -6.0, 0.9], [11.2, -10.6, 0.9]] },
