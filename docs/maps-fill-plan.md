@@ -2,7 +2,8 @@
 
 Status: **approved 2026-10-02** with the recommended answers (fill, places only and no coins, the
 brook built, both maps part by part, the beach on hold). Built so far: **part 1, mass** (patch
-0.7.45) and **part 2, the campfire's places** (patch 0.7.46). What moved from the plan is at the foot of this document.
+0.7.45), **part 2, the campfire's places** (patch 0.7.46) and **part 3, the woods' places** (patch
+0.7.47). What moved from the plan is at the foot of this document.
 
 ## The problem, measured
 
@@ -188,6 +189,22 @@ Everything still in the model bakes into the finishes the maps already draw.
 - **No marshmallow at the glade:** its seats are log seats for the guitar's sake, and the
   marshmallow now comes only to a log seat within the bonfire's reach.
 - **Draw calls:** +1 (the swing's bench). **Model:** 3.35 MB. **Income:** every line within 0.3%.
+
+### Part 3, the woods' places (patch 0.7.47)
+- **Nine seats**, as planned: the lookout's two, the camp's two logs, the stone bench's two, the
+  jetty's two, the rope swing's one.
+- **The lookout stands mid-slope** at (8.9, -8.7), not on the rim above the river: from the top of
+  the slope the great trees stood between the bench and the falls.
+- **The camp lies south of the Old Growth's trail** on its gentle ground, the lean-to's open side to
+  the ring. The three shrubs and the fallen log part 1 put there made way; one great pine and one
+  from the rise moved off the camp's and the stones' sightlines, and two of the ridge's birches
+  went north of the stone row (the plan had them behind it).
+- **The jetty is short** (1.5 m) and is sat on, not walked: the river's banks are closed to feet,
+  and opening them would have meant a walkable deck in the terrain's rules.
+- **The rope swing's tree is low** and stands north of the swing: a tall tree by the bank hid
+  Bramble at his counter.
+- **No beehive's bees, no kingfisher, no owl yet:** part 5.
+- **Draw calls:** +1 (the rope swing). **Model:** 3.7 MB. **Income:** unchanged to the decimal.
 
 ## Decisions (answered)
 

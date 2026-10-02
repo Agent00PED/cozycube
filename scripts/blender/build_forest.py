@@ -111,6 +111,13 @@ PALETTE = {
     "FW_Cloth": "#E9DDC4",
     "FW_Red": "#C2463A",
     "FW_MossDeep": "#3E6B3E",
+    # the places (docs/maps-fill-plan.md part 3)
+    "FW_Canvas": "#D9CDB0",
+    "FW_Hive": "#E3C36B",
+    "FW_Leafy": "#5E9A4E",
+    "FW_Pumpkin": "#E08A2E",
+    "FW_Net": "#B9B39A",
+    "FW_Ash": "#4A4440",
     # the trees
     "FW_PineBark": "#5E4230",
     "FW_PineNeedle": "#2E5A46",
@@ -142,7 +149,7 @@ PALETTE = {
 }
 ROUGHNESS = {"FW_Water": 0.25, "FW_Iron": 0.6, "FW_Window": 0.5, "FW_Honey": 0.45, "FW_Eye": 0.35}
 EMISSION = {"FW_Window": 2.4, "FW_Rune": 1.8, "FW_ElderLeafGlow": 1.6, "FW_Wisp": 3.0}
-DOUBLE_SIDED = {"FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_Foam", "FW_Cloth"}
+DOUBLE_SIDED = {"FW_Fern", "FW_Petal", "FW_PetalYellow", "FW_PetalBlue", "FW_Foam", "FW_Cloth", "FW_Canvas", "FW_Net"}
 
 LAYER_MEADOW = 0.004
 LAYER_FLOOR = 0.008
@@ -181,7 +188,7 @@ def read_cushions(root):
     """The seats' cushions (shared/seats.ts): the fishing log's and boulder's tops are the game's."""
     src = open(os.path.join(root, "shared", "seats.ts"), encoding="utf-8").read()
     out = {}
-    for name in ("log", "boulder"):
+    for name in ("log", "boulder", "picnicBench", "dock", "swing"):
         m = re.search(rf"\b{name}: \{{ y: (-?[0-9.]+), h: ([0-9.]+) \}}", src)
         y, h = float(m.group(1)), float(m.group(2))
         out[name] = {"y": y, "h": h, "top": y + h / 2}
@@ -1028,7 +1035,23 @@ def clear_spot(L, x, z, r):
         return False
     if math.hypot(x - L["cascade"]["x"], z - L["cascade"]["z"]) < 2.2 + r:
         return False
+    if any(math.hypot(x - px, z - pz) < pr + r for px, pz, pr in places_solid(L)):
+        return False
     return True
+
+
+def places_solid(L):
+    """Where the places stand, as (x, z, radius): nothing grows through a bench, a bed or a tent."""
+    P = L.get("places")
+    if not P:
+        return []
+    out = [(P["lookout"]["x"], P["lookout"]["z"], 1.1), (P["camp"]["x"], P["camp"]["z"], P["camp"]["r"] + 0.5), (P["camp"]["leanTo"]["x"], P["camp"]["leanTo"]["z"], 1.0),
+           (P["stoneBench"]["x"], P["stoneBench"]["z"], 1.0), ((P["jetty"]["x0"] + P["jetty"]["x1"]) / 2, P["jetty"]["z"], 1.1), (P["rodRack"]["x"], P["rodRack"]["z"], 0.6),
+           (P["nets"]["x"], P["nets"]["z"], 0.9), (P["patch"]["x"], P["patch"]["z"], 1.3), (P["wheelbarrow"]["x"], P["wheelbarrow"]["z"], 0.6),
+           (P["ropeSwing"]["x"], P["ropeSwing"]["z"], 0.7), (P["ropeSwing"]["tree"][0], P["ropeSwing"]["tree"][1], 0.5), (P["timber"]["x"], P["timber"]["z"], 1.1)]
+    out += [(x, z, 0.5 * sz) for x, z, sz in P["stones"]] + [(x, z, 0.5) for x, z in P["hives"]]
+    out += [(P["washing"][k][0], P["washing"][k][1], 0.3) for k in ("a", "b")]
+    return out
 
 
 def build_deco(L, coll):
@@ -1449,6 +1472,239 @@ def build_structures(L, cushions, coll):
     make_object("Forest_Structures", bm, ["FW_Bark", "FW_Log", "FW_WoodCut", "FW_Plank", "FW_PlankDark", "FW_Roof", "FW_Window", "FW_Iron", "FW_Stone", "FW_Rope", "FW_Honey", "FW_Cloth", "FW_Red", "FW_PineNeedle", "FW_Moss", "FW_LeafPile"], coll, lift="parts")
 
 
+def stand(bm, x, z, yaw=0.0):
+    """Turns everything in `bm` (built round the origin, facing the game's +z) to the game heading
+    `yaw` and stands it, whole, on the land at (x, z)."""
+    bmesh.ops.transform(bm, matrix=Matrix.Translation(Vector((x, -z, lift_at(x, z)))) @ Matrix.Rotation(yaw, 4, "Z"), verts=bm.verts[:])
+
+
+def build_places(L, cushions, coll):
+    """The places to stop (docs/maps-fill-plan.md part 3; the layout's `places`, their seats and
+    colliders in forest.ts): the Ranger's Lookout's bench and the cold camp in the Old Growth, the
+    Old Stones along the North Ridge with their bench, Finley's jetty, rod rack and drying nets,
+    Bramble's garden (hives, a vegetable patch in wattle, a wheelbarrow, a washing line, the rope
+    swing's leaning tree: its plank on its ropes is the node `Prop_RopeSwing`, hung from the branch
+    the game turns it about) and the timber stack on the south verge."""
+    P = L.get("places")
+    if not P:
+        return
+    rng = random.Random(5150)
+    M = ["FW_Stone", "FW_StoneDark", "FW_Moss", "FW_Rune", "FW_Bark", "FW_Log", "FW_WoodCut", "FW_Plank", "FW_PlankDark", "FW_Roof", "FW_Iron", "FW_Rope", "FW_Honey", "FW_Cloth", "FW_Red",
+         "FW_MossDeep", "FW_Soil", "FW_Canvas", "FW_Hive", "FW_Leafy", "FW_Pumpkin", "FW_Net", "FW_Ash", "FW_Tuft", "FW_PetalYellow", "FW_Pebble"]
+    m = {name: i for i, name in enumerate(M)}
+    log_top = cushions["log"]["top"]
+
+    # --- the Ranger's Lookout: a plank bench with a back (its seat the picnicBench cushion's top)
+    Lk = P["lookout"]
+    top = cushions["picnicBench"]["top"]
+    bm = bmesh.new()
+    for k in range(3):
+        box(bm, -0.68, 0.68, top - 0.04, top, -0.2 + k * 0.135, -0.075 + k * 0.135, m=m["FW_Plank"])
+    for k in range(2):
+        box(bm, -0.68, 0.68, top + 0.16 + k * 0.17, top + 0.3 + k * 0.17, -0.27 - k * 0.03, -0.235 - k * 0.03, m=m["FW_Plank"])
+    for sx in (-1, 1):
+        box(bm, sx * 0.56 - 0.04, sx * 0.56 + 0.04, -0.3, top - 0.04, -0.2, 0.19, m=m["FW_PlankDark"])
+        cylinder(bm, W(sx * 0.56, top - 0.04, -0.2), W(sx * 0.56, top + 0.52, -0.3), 0.03, 6, m=m["FW_PlankDark"])
+    stand(bm, Lk["x"], Lk["z"], math.atan2(Lk["face"][0], Lk["face"][1]))
+    make_object("Forest_Lookout", bm, M, coll)
+
+    # --- the cold camp: a canvas lean-to (open toward the ring), a bedroll and a pack inside
+    C = P["camp"]
+    lt = C["leanTo"]
+    bm = bmesh.new()
+    for sx in (-1, 1):
+        cylinder(bm, W(sx * 0.5, -0.1, 0.42), W(sx * 0.5, 1.25, 0.42), 0.03, 6, m=m["FW_Bark"])
+        cylinder(bm, W(sx * 0.5, 1.22, 0.42), W(sx * 0.5, 0.0, -0.5), 0.022, 5, m=m["FW_Bark"])
+    cylinder(bm, W(-0.58, 1.24, 0.42), W(0.58, 1.24, 0.42), 0.028, 6, m=m["FW_Bark"])
+    sheet_pts = lambda u, v: W(-0.56 + 1.12 * v, 1.26 - 1.24 * u + 0.03 * math.sin(v * math.pi), 0.44 - 0.98 * u)
+    verts = [[bm.verts.new(sheet_pts(i / 5, j / 5)) for j in range(6)] for i in range(6)]
+    for i in range(5):
+        for j in range(5):
+            bm.faces.new((verts[i][j], verts[i + 1][j], verts[i + 1][j + 1], verts[i][j + 1])).material_index = m["FW_Canvas"]
+    cylinder(bm, W(-0.36, 0.08, -0.12), W(0.3, 0.08, -0.12), 0.09, 8, m=m["FW_Red"], cap_m=m["FW_Cloth"])
+    blob(bm, 0.3, 0.14, 0.18, 0.13, 0.15, 0.1, m=m["FW_PlankDark"], cuts=2, noise=0.06, rng=rng, flat_bottom=0.0)
+    stand(bm, lt["x"], lt["z"], math.atan2(C["x"] - lt["x"], C["z"] - lt["z"]))
+    make_object("Forest_CampLeanTo", bm, M, coll)
+
+    bm = bmesh.new()
+    # its cold ring of stones, and the two log seats facing it (their tops the log cushion's)
+    lathe(bm, C["x"], C["z"], [(0, 0.0), (0.26, 0.0), (0.2, 0.03), (0, 0.035)], segs=12, m=m["FW_Ash"])
+    for k in range(9):
+        a = 6.283 * k / 9 + rng.uniform(-0.1, 0.1)
+        blob(bm, C["x"] + math.cos(a) * 0.32, 0.04, C["z"] + math.sin(a) * 0.32, rng.uniform(0.08, 0.11), 0.07, rng.uniform(0.07, 0.1), m=m["FW_Stone"] if k % 2 else m["FW_StoneDark"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.05)
+    for k in range(2):
+        cylinder(bm, W(C["x"] - 0.14, 0.05, C["z"] - 0.1 + k * 0.16), W(C["x"] + 0.15, 0.07, C["z"] + 0.04 - k * 0.12), 0.035, 6, m=m["FW_StoneDark"], cap_m=m["FW_Ash"])
+    for deg in C["logs"]:
+        a = math.radians(deg)
+        x, z = C["x"] + math.cos(a) * C["r"], C["z"] + math.sin(a) * C["r"]
+        ax, az = -math.sin(a), math.cos(a)
+        cylinder(bm, W(x - ax * 0.5, log_top / 2, z - az * 0.5), W(x + ax * 0.5, log_top / 2, z + az * 0.5), log_top / 2, 11, m=m["FW_Bark"], cap_m=m["FW_WoodCut"], wobble=0.06, rng=rng)
+        blob(bm, x + ax * 0.2, log_top - 0.01, z + az * 0.2, 0.16, 0.03, 0.11, m=m["FW_Moss"], cuts=2, noise=0.15, rng=rng)
+
+    # --- the Old Stones: five weathered standing stones along the ridge, a rune on each one's south
+    # face (it glows as the shrine's do), and a stone bench (its top the boulder cushion's)
+    for x, z, sz in P["stones"]:
+        h = (1.45 + 0.4 * rng.random()) * sz
+        lean = rng.uniform(-0.06, 0.06)
+        blob(bm, x + lean, h / 2 - 0.05, z, 0.27 * sz, h / 2 + 0.05, 0.2 * sz, m=m["FW_StoneDark"], cuts=3, n=2.8, noise=0.07, rng=rng, flat_bottom=-0.15)
+        blob(bm, x + lean, h - 0.02, z, 0.24 * sz, 0.07, 0.19 * sz, m=m["FW_Moss"], cuts=2, noise=0.25, rng=rng)
+        blob(bm, x + lean - 0.1 * sz, 0.1, z + 0.12, 0.2 * sz, 0.12, 0.16 * sz, m=m["FW_MossDeep"], cuts=2, noise=0.2, rng=rng, flat_bottom=-0.05)
+        for k, (dy, hw) in enumerate(((0.62, 0.075), (0.48, 0.05), (0.36, 0.075))):
+            blob(bm, x + lean + (0.02 if k == 1 else 0.0), h * dy, z + 0.19 * sz, hw, 0.035, 0.03, m=m["FW_Rune"], cuts=1, n=1.6)
+        blob(bm, x + lean, h * 0.49, z + 0.19 * sz, 0.022, h * 0.15, 0.03, m=m["FW_Rune"], cuts=1, n=1.6)
+    Sb = P["stoneBench"]
+    b_top = cushions["boulder"]["top"]
+    for sx in (-1, 1):
+        blob(bm, Sb["x"] + sx * 0.5, (b_top - 0.1) / 2, Sb["z"], 0.16, (b_top - 0.1) / 2 + 0.03, 0.2, m=m["FW_StoneDark"], cuts=2, n=3.5, noise=0.05, rng=rng, flat_bottom=-0.08)
+    make_object("Forest_Places", bm, M, coll, lift="parts")
+    bm = bmesh.new()
+    blob(bm, 0.0, b_top - 0.06, 0.0, 0.78, 0.06, 0.25, m=m["FW_Stone"], cuts=3, n=4.0, noise=0.03, rng=rng)
+    blob(bm, 0.5, b_top + 0.0, -0.12, 0.2, 0.025, 0.1, m=m["FW_Moss"], cuts=2, noise=0.2, rng=rng)
+    stand(bm, Sb["x"], Sb["z"])
+    make_object("Forest_StoneBench", bm, M, coll)
+
+    # --- Finley's corner: the jetty (its deck the dock cushion's top), the rod rack, the drying nets
+    J = P["jetty"]
+    d_top = cushions["dock"]["top"]
+    water = L["river"]["water"]
+    bm = bmesh.new()
+    n = int((J["x1"] - J["x0"]) / 0.19)
+    for k in range(n):
+        x0 = J["x0"] + k * (J["x1"] - J["x0"]) / n
+        box(bm, x0 + 0.008, x0 + (J["x1"] - J["x0"]) / n - 0.008, d_top - 0.045, d_top, J["z"] - J["w"] / 2, J["z"] + J["w"] / 2, m=m["FW_Plank"] if k % 3 else m["FW_PlankDark"])
+    for sz in (-1, 1):
+        box(bm, J["x0"], J["x1"], d_top - 0.11, d_top - 0.045, J["z"] + sz * (J["w"] / 2 - 0.1) - 0.04, J["z"] + sz * (J["w"] / 2 - 0.1) + 0.04, m=m["FW_PlankDark"])
+        for px in (J["x1"] - 0.12, (J["x0"] + J["x1"]) / 2 + 0.1):
+            cylinder(bm, W(px, water - 0.6, J["z"] + sz * (J["w"] / 2 - 0.05)), W(px, d_top + (0.32 if px > J["x1"] - 0.3 and sz < 0 else 0.02), J["z"] + sz * (J["w"] / 2 - 0.05)), 0.055, 8, m=m["FW_Bark"], cap_m=m["FW_WoodCut"])
+    lathe(bm, J["x1"] - 0.12, J["z"] - J["w"] / 2 + 0.05, [(0.06, d_top + 0.12), (0.1, d_top + 0.12), (0.1, d_top + 0.2), (0.06, d_top + 0.2)], segs=10, m=m["FW_Rope"])
+    make_object("Forest_Jetty", bm, M, coll)
+
+    bm = bmesh.new()
+    Rk = P["rodRack"]
+    for sx in (-1, 1):
+        cylinder(bm, W(Rk["x"] + sx * 0.3, -0.05, Rk["z"]), W(Rk["x"] + sx * 0.3, 1.15, Rk["z"]), 0.03, 6, m=m["FW_PlankDark"])
+    for y in (0.45, 1.05):
+        cylinder(bm, W(Rk["x"] - 0.36, y, Rk["z"]), W(Rk["x"] + 0.36, y, Rk["z"]), 0.022, 5, m=m["FW_PlankDark"])
+    for k in range(3):
+        rx = Rk["x"] - 0.2 + k * 0.2
+        cylinder(bm, W(rx, 0.02, Rk["z"] + 0.2), W(rx + 0.03, 1.75, Rk["z"] - 0.06), 0.012, 4, m=m["FW_Log"], r_end=0.005)
+        cylinder(bm, W(rx, 0.3, Rk["z"] + 0.17), W(rx, 0.38, Rk["z"] + 0.15), 0.03, 6, m=m["FW_Iron"])
+    Nt = P["nets"]
+    hl = Nt["len"] / 2
+    for sz in (-1, 1):
+        cylinder(bm, W(Nt["x"], -0.05, Nt["z"] + sz * hl), W(Nt["x"], 1.4, Nt["z"] + sz * hl), 0.03, 6, m=m["FW_Bark"])
+    cylinder(bm, W(Nt["x"], 1.36, Nt["z"] - hl - 0.06), W(Nt["x"], 1.36, Nt["z"] + hl + 0.06), 0.02, 5, m=m["FW_Bark"])
+    verts = [[bm.verts.new(W(Nt["x"] + 0.05 * math.sin(i * 1.3 + j), 1.34 - 0.95 * i / 5 * (0.82 + 0.18 * math.cos(j * 1.7)), Nt["z"] - hl + 0.06 + (2 * hl - 0.12) * j / 6)) for j in range(7)] for i in range(6)]
+    for i in range(5):
+        for j in range(6):
+            if (i + j) % 2 == 0 or i < 2:
+                bm.faces.new((verts[i][j], verts[i + 1][j], verts[i + 1][j + 1], verts[i][j + 1])).material_index = m["FW_Net"]
+    floats = [(j, verts[5][j].co.x, verts[5][j].co.z - 0.02, -verts[5][j].co.y) for j in range(0, 7, 2)]
+    for j, fx, fy, fz in floats:
+        blob(bm, fx, fy, fz, 0.035, 0.035, 0.035, m=m["FW_Red"] if j % 4 else m["FW_Cloth"], cuts=1)
+
+    # --- Bramble's garden: three hives on a bench, the vegetable patch in wattle, the wheelbarrow,
+    # the washing line, the rope swing's leaning tree
+    hv = P["hives"]
+    box(bm, hv[0][0] - 0.3, hv[-1][0] + 0.3, 0.22, 0.27, hv[0][1] - 0.22, hv[0][1] + 0.26, m=m["FW_PlankDark"])
+    for hx in (hv[0][0] - 0.2, hv[-1][0] + 0.2):
+        box(bm, hx - 0.04, hx + 0.04, -0.1, 0.22, hv[0][1] - 0.18, hv[0][1] + 0.22, m=m["FW_PlankDark"])
+    for k, (x, z) in enumerate(hv):
+        tiers = 2 + (k % 2)
+        for t in range(tiers):
+            box(bm, x - 0.19, x + 0.19, 0.27 + t * 0.2, 0.455 + t * 0.2, z - 0.17, z + 0.17, m=m["FW_Hive"] if (t + k) % 2 else m["FW_Cloth"])
+        y = 0.27 + tiers * 0.2
+        slab(bm, [(x - 0.24, z - 0.22), (x + 0.24, z - 0.22), (x + 0.24, z + 0.22), (x - 0.24, z + 0.22)], y - 0.005, y + 0.05, m=m["FW_Roof"])
+        box(bm, x - 0.07, x + 0.07, 0.29, 0.31, z + 0.17, z + 0.2, m=m["FW_Iron"])
+    Pt = P["patch"]
+    x0, x1, z0, z1 = Pt["x"] - Pt["w"] / 2, Pt["x"] + Pt["w"] / 2, Pt["z"] - Pt["d"] / 2, Pt["z"] + Pt["d"] / 2
+    for r_ in range(4):
+        zr = z0 + 0.22 + r_ * (Pt["d"] - 0.44) / 3
+        slab(bm, rounded_rect(x0 + 0.12, x1 - 0.12, zr - 0.13, zr + 0.13, 0.1, 3), -0.05, 0.07, m=m["FW_Soil"])
+        for c_ in range(5):
+            x = x0 + 0.26 + c_ * (Pt["w"] - 0.52) / 4 + rng.uniform(-0.03, 0.03)
+            if r_ == 0:
+                blob(bm, x, 0.15, zr, 0.1, 0.09, 0.1, m=m["FW_Leafy"], cuts=2, noise=0.18, rng=rng)
+            elif r_ == 1:
+                for q in range(3):
+                    cylinder(bm, W(x, 0.05, zr), W(x + (q - 1) * 0.05, 0.24 + 0.04 * q, zr + (q - 1) * 0.03), 0.012, 3, m=m["FW_Tuft"], r_end=0.004)
+            elif r_ == 2 and c_ % 2 == 0:
+                blob(bm, x, 0.15, zr, 0.13, 0.1, 0.13, m=m["FW_Pumpkin"], cuts=2, n=2.0)
+                cylinder(bm, W(x, 0.23, zr), W(x + 0.02, 0.29, zr), 0.012, 4, m=m["FW_MossDeep"])
+            elif r_ == 3:
+                cylinder(bm, W(x, 0.05, zr), W(x, 0.55, zr), 0.01, 4, m=m["FW_PlankDark"])
+                blob(bm, x, 0.32, zr, 0.07, 0.16, 0.07, m=m["FW_Leafy"], cuts=2, noise=0.2, rng=rng)
+                blob(bm, x + 0.05, 0.3, zr + 0.04, 0.03, 0.03, 0.03, m=m["FW_Red"], cuts=1)
+    posts = []
+    nx, nz = round(Pt["w"] / 0.32), round(Pt["d"] / 0.32)
+    posts += [(x0 + (x1 - x0) * k / nx, z0) for k in range(nx)] + [(x1, z0 + (z1 - z0) * k / nz) for k in range(nz)]
+    posts += [(x1 - (x1 - x0) * k / nx, z1) for k in range(nx)] + [(x0, z1 - (z1 - z0) * k / nz) for k in range(nz)]
+    for k, (px, pz) in enumerate(posts):
+        cylinder(bm, W(px, -0.05, pz), W(px, 0.5, pz), 0.022, 5, m=m["FW_Bark"])
+        qx, qz = posts[(k + 1) % len(posts)]
+        for y_ in (0.14, 0.27, 0.4):
+            wob = 0.016 if (k + round(y_ * 10)) % 2 else -0.016
+            ox, oz = (0.0, wob) if abs(qx - px) > abs(qz - pz) else (wob, 0.0)
+            cylinder(bm, W(px + ox, y_, pz + oz), W(qx + ox, y_, qz + oz), 0.013, 4, m=m["FW_Log"])
+    Wb = P["wheelbarrow"]
+    slab(bm, [(Wb["x"] - 0.3, Wb["z"] - 0.2), (Wb["x"] + 0.3, Wb["z"] - 0.2), (Wb["x"] + 0.3, Wb["z"] + 0.2), (Wb["x"] - 0.3, Wb["z"] + 0.2)], 0.24, 0.44, m=m["FW_Red"])
+    blob(bm, Wb["x"], 0.44, Wb["z"], 0.25, 0.07, 0.16, m=m["FW_Soil"], cuts=2, noise=0.1, rng=rng)
+    cylinder(bm, W(Wb["x"] + 0.4, 0.14, Wb["z"] - 0.04), W(Wb["x"] + 0.4, 0.14, Wb["z"] + 0.04), 0.14, 10, m=m["FW_Iron"])
+    for sz in (-1, 1):
+        cylinder(bm, W(Wb["x"] + 0.4, 0.14, Wb["z"] + sz * 0.05), W(Wb["x"] - 0.62, 0.42, Wb["z"] + sz * 0.2), 0.018, 5, m=m["FW_PlankDark"])
+        cylinder(bm, W(Wb["x"] - 0.24, 0.26, Wb["z"] + sz * 0.17), W(Wb["x"] - 0.26, -0.02, Wb["z"] + sz * 0.17), 0.018, 5, m=m["FW_PlankDark"])
+    Ws = P["washing"]
+    (ax_, az_), (bx_, bz_) = Ws["a"], Ws["b"]
+    for px, pz in ((ax_, az_), (bx_, bz_)):
+        cylinder(bm, W(px, -0.05, pz), W(px, 1.7, pz), 0.035, 6, m=m["FW_PlankDark"])
+        cylinder(bm, W(px - 0.14, 1.62, pz), W(px + 0.14, 1.62, pz), 0.02, 5, m=m["FW_PlankDark"])
+    line = lambda u: (ax_ + (bx_ - ax_) * u, 1.62 - 0.14 * (1 - (2 * u - 1) ** 2), az_ + (bz_ - az_) * u)
+    for k in range(8):
+        cylinder(bm, W(*line(k / 8)), W(*line((k + 1) / 8)), 0.006, 4, m=m["FW_Rope"])
+    for u0, w_, drop, mat in ((0.12, 0.2, 0.5, "FW_Cloth"), (0.4, 0.14, 0.34, "FW_Red"), (0.62, 0.24, 0.55, "FW_Cloth")):
+        p0, p1 = line(u0), line(u0 + w_)
+        vs = [bm.verts.new(W(*p0)), bm.verts.new(W(*p1)), bm.verts.new(W(p1[0], p1[1] - drop, p1[2] + 0.03)), bm.verts.new(W(p0[0], p0[1] - drop, p0[2] + 0.03))]
+        bm.faces.new(vs).material_index = m[mat]
+    Rs = P["ropeSwing"]
+    tx, tz = Rs["tree"]
+    tip = (Rs["x"] + 0.12, Rs["branch"] + 0.02, Rs["z"] + 0.18)
+    mid = (tx + (tip[0] - tx) * 0.45, 1.7, tz + (tip[2] - tz) * 0.45)
+    cylinder(bm, W(tx, -0.1, tz), W(*mid), 0.19, 9, m=m["FW_Bark"], r_end=0.13, wobble=0.08, rng=rng)
+    cylinder(bm, W(*mid), W(tip[0] + 0.25, tip[1] + 0.45, tip[2] + 0.35), 0.13, 8, m=m["FW_Bark"], r_end=0.05)
+    cylinder(bm, W(*mid), W(mid[0] - 0.5, 2.7, mid[2] - 0.2), 0.08, 6, m=m["FW_Bark"], r_end=0.03)
+    for k, (dx, dy, dz, r) in enumerate(((0.3, 0.75, 0.4, 0.6), (-0.45, 1.15, -0.2, 0.55), (0.0, 1.2, 0.1, 0.6), (0.65, 0.55, 0.75, 0.42))):
+        blob(bm, mid[0] + dx, mid[1] + dy + 0.35, mid[2] + dz, r, r * 0.62, r, m=m["FW_Leafy"] if k % 2 else m["FW_MossDeep"], cuts=3, noise=0.14, rng=rng)
+
+    # --- the south verge: Bramble's seasoned timber stacked under a lean-to roof
+    T = P["timber"]
+    x0, x1, z0, z1 = T["x"] - T["w"] / 2, T["x"] + T["w"] / 2, T["z"] - T["d"] / 2, T["z"] + T["d"] / 2
+    for px in (x0 + 0.05, x1 - 0.05):
+        cylinder(bm, W(px, -0.05, z1 - 0.05), W(px, 1.5, z1 - 0.05), 0.04, 6, m=m["FW_PlankDark"])
+        cylinder(bm, W(px, -0.05, z0 + 0.05), W(px, 1.22, z0 + 0.05), 0.04, 6, m=m["FW_PlankDark"])
+    before = set(bm.faces)
+    slab(bm, [(x0 - 0.14, z0 - 0.14), (x1 + 0.14, z0 - 0.14), (x1 + 0.14, z1 + 0.14), (x0 - 0.14, z1 + 0.14)], 0.0, 0.05, m=m["FW_Roof"])
+    for v in {v for f in faces_since(bm, before) for v in f.verts}:
+        v.co.z += 1.21 + (-(v.co.y) - (z0 - 0.14)) / (z1 - z0 + 0.28) * 0.3
+    for row in range(4):
+        cnt = 7 - row % 2
+        for k in range(cnt):
+            lx = x0 + 0.2 + (k + 0.5 * (row % 2)) * (T["w"] - 0.4) / 6.5
+            r = 0.105 + 0.012 * ((k * 3 + row) % 3)
+            cylinder(bm, W(lx, 0.11 + row * 0.2, z0 + 0.12), W(lx, 0.11 + row * 0.2, z1 - 0.12), r, 8, m=m["FW_Log"] if (k + row) % 3 else m["FW_Bark"], cap_m=m["FW_WoodCut"])
+    make_object("Forest_Garden", bm, M, coll, lift="parts")
+
+    # the rope swing's plank on its two ropes: its origin on the branch it hangs from
+    land = lift_at(Rs["x"], Rs["z"])
+    s_top = cushions["swing"]["top"]
+    bm = bmesh.new()
+    box(bm, Rs["x"] - 0.11, Rs["x"] + 0.11, s_top - 0.035, s_top, Rs["z"] - 0.3, Rs["z"] + 0.3, m=m["FW_Plank"])
+    for sz in (-1, 1):
+        cylinder(bm, W(Rs["x"], s_top - 0.04, Rs["z"] + sz * 0.24), W(Rs["x"], Rs["branch"], Rs["z"] + sz * 0.1), 0.014, 5, m=m["FW_Rope"])
+    for v in bm.verts:
+        v.co.z += land
+    make_object("Prop_RopeSwing", bm, M, coll, origin=(Rs["x"], Rs["branch"] + land, Rs["z"]))
+
+
 def build_adit(L, bm, rng):
     """The old mine adit down to the Glimmering Caverns, behind the Autumn Maples on the western cliff:
     a mossy outcrop, a timber-framed portal onto the dark (facing into the wood, +x) recessed 1.5 m
@@ -1863,6 +2119,7 @@ def build(root):
     build_rocks(L, coll)
     build_vista(L, coll)
     build_structures(L, cushions, coll)
+    build_places(L, cushions, coll)
     build_animals(L, coll)
     build_fauna(coll)
     tcoll = bpy.data.collections.new(TREES_COLLECTION)
@@ -1990,7 +2247,7 @@ def build_dressing(L, coll):
 # one draw call a finish: every plain colour baked into the vertices, the still things fused
 
 # the nodes the game moves, shows or instances by name: they stay their own objects
-DYNAMIC = ("Animal_", "Fauna_")
+DYNAMIC = ("Animal_", "Fauna_", "Prop_")
 # the materials that stay themselves: what glows
 KEEP = set(EMISSION)
 # (the vista pines' needles and bark keep finishes of their own, FW_VistaNeedle and FW_VistaBark: the
@@ -2062,7 +2319,7 @@ def fuse(coll):
     for ob in list(coll.all_objects):
         if ob.type != "MESH" or ob.name in ("Forest_Ground", "Forest_Water"):
             continue
-        if ob.name.startswith("Animal_"):
+        if ob.name.startswith(("Animal_", "Prop_")):
             bake_colors(ob, one="FW_Clay")
         if ob.name.startswith(DYNAMIC) or ob.parent is not None:
             continue

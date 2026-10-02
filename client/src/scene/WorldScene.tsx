@@ -9,6 +9,7 @@ import { APPROACH_POINTS, mochiSpot } from "@shared/props";
 import { LOFT_FRAME, SEAT_REACH } from "@shared/worlds/lounge";
 import { CAMPFIRE_FRAME, CAMPFIRE_LAYOUT, GUITAR_LISTEN, SWING, dockSeatOf, isBlanketSeat } from "@shared/worlds/campfire";
 import { AVATAR_HEAD_Y } from "@shared/seats";
+import { ROPE_SWING, forestLand } from "@shared/worlds/forest";
 import { FELL_TREES, FELL_TREE_AT } from "@shared/worlds/trees";
 import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireWorld } from "./CampfireWorld";
@@ -607,14 +608,17 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   const canoeSitter = chairs.seat_canoe?.occupiedBy ?? "";
   const canoeBow = chairs.seat_canoe_bow?.occupiedBy ?? "";
   const rocking = useMemo<ReadonlySet<string>>(() => new Set([canoeSitter, canoeBow].filter(Boolean)), [canoeSitter, canoeBow]);
-  // whoever sits on its bench swing sways with it (hanging under the beam by the height they sit at)
-  const swingKey = SWING.seats.map((s) => chairs[s.propId]?.occupiedBy ?? "").join(",");
+  // whoever sits on its bench swing sways with it (hanging under the beam by the height they sit
+  // at), and on the woods' rope swing (under its branch)
+  const swingKey = [...SWING.seats.map((s) => s.propId), ROPE_SWING.propId].map((id) => chairs[id]?.occupiedBy ?? "").join(",");
   const swinging = useMemo<ReadonlyMap<string, number>>(() => {
     const out = new Map<string, number>();
     for (const s of SWING.seats) {
       const c = chairs[s.propId];
       if (c?.occupiedBy) out.set(c.occupiedBy, SWING.beam + walkY(c.map, SWING.x, SWING.z) - c.sitY);
     }
+    const rope = chairs[ROPE_SWING.propId];
+    if (rope?.occupiedBy) out.set(rope.occupiedBy, ROPE_SWING.branch + forestLand(ROPE_SWING.x, ROPE_SWING.z) - rope.sitY);
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [swingKey]);

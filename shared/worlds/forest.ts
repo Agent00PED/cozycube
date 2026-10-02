@@ -118,26 +118,40 @@ export const FOREST_LAYOUT = /* layout:begin */ {
       { "x": 9.9, "z": -14.8, "s": 1.25, "kind": "pine" },
       { "x": 6.2, "z": -14.5, "s": 1.5, "kind": "cedar" },
       { "x": 10.7, "z": -12.9, "s": 1.2, "kind": "pine" },
-      { "x": 9.3, "z": -6.6, "s": 1.0, "kind": "pine" },
+      { "x": 8.6, "z": -3.0, "s": 1.0, "kind": "pine" },
       { "x": 2.0, "z": -12.4, "s": 1.2, "kind": "pine" },
-      { "x": 0.8, "z": -10.2, "s": 1.1, "kind": "pine" },
+      { "x": 2.4, "z": -14.4, "s": 1.1, "kind": "pine" },
       { "x": 8.6, "z": -13.2, "s": 1.5, "kind": "cedar" },
       { "x": 10.2, "z": -11.0, "s": 1.0, "kind": "pine" },
       { "x": 5.6, "z": -3.2, "s": 1.1, "kind": "pine" },
       { "x": 6.0, "z": 1.4, "s": 0.9, "kind": "pine" }
     ],
     "birches": [
-      [-6.2, -13.6, 1.0], [-4.4, -14.6, 0.9], [-3.6, -12.6, 1.1], [-0.8, -13.2, 1.0], [0.8, -14.6, 0.9], [-1.2, -15.0, 0.85], [-5.8, -10.4, 0.95], [-2.4, -9.8, 1.0],
+      [-6.2, -13.6, 1.0], [-4.4, -14.6, 0.9], [-3.6, -12.6, 1.1], [-0.8, -13.2, 1.0], [0.8, -14.6, 0.9], [-1.2, -15.0, 0.85], [-7.4, -14.2, 0.95], [-8.8, -14.6, 1.0],
       [7.6, 2.6, 1.0], [9.4, -4.0, 0.9], [7.2, 0.4, 0.95]
     ],
-    "shrubs": [[10.6, 12.6, 0.8], [11.2, 14.6, 0.7], [8.4, 1.6, 0.7], [5.2, -5.4, 0.8], [3.0, 16.3, 0.8], [1.4, 16.4, 0.7], [4.8, 16.4, 0.75], [-0.4, 16.3, 0.7], [6.2, 16.3, 0.7], [10.0, 9.4, 0.7], [-3.2, -14.2, 0.7], [2.2, -8.8, 0.7], [6.4, -8.2, 0.8], [8.6, -8.4, 0.7], [4.6, -7.0, 0.75]],
+    "shrubs": [[10.6, 12.6, 0.8], [10.4, 14.9, 0.7], [8.4, 1.6, 0.7], [5.2, -5.4, 0.8], [3.0, 16.3, 0.8], [1.4, 16.4, 0.7], [4.8, 16.4, 0.75], [-0.4, 16.3, 0.7], [6.2, 16.3, 0.7], [10.0, 9.4, 0.7], [-3.2, -14.2, 0.7], [2.2, -8.8, 0.7]],
     "lanternPosts": [[-9.6, 14.6], [-4.6, 9.6], [-4.4, 0.4], [-9.6, -6.6], [-12.8, -9.8], [9.2, 6.6], [6.6, 14.6]],
     "fallen": [
-      { "x": 6.6, "z": -6.6, "yaw": 0.9, "len": 2.0 },
       { "x": -13.6, "z": 6.4, "yaw": 0.2, "len": 1.8 },
       { "x": 3.6, "z": -11.4, "yaw": 2.3, "len": 1.7 }
     ],
     "stumps": [[10.4, -5.2], [-12.6, -1.6], [10.4, 9.6]]
+  },
+  "places": {
+    "lookout": { "x": 8.9, "z": -8.7, "face": [0.9, -0.44] },
+    "camp": { "x": 5.8, "z": -8.0, "r": 1.1, "leanTo": { "x": 4.6, "z": -7.9 }, "logs": [0, 100] },
+    "stones": [[-8.2, -11.9, 1.0], [-6.0, -12.2, 0.9], [-2.8, -11.3, 1.1], [-0.6, -10.7, 0.95], [1.2, -11.5, 1.05]],
+    "stoneBench": { "x": -4.4, "z": -11.7 },
+    "jetty": { "x0": 10.0, "x1": 11.5, "z": 3.8, "w": 1.1 },
+    "rodRack": { "x": 9.9, "z": 6.7 },
+    "nets": { "x": 10.2, "z": 7.6, "len": 1.3 },
+    "hives": [[9.5, 8.2], [10.1, 8.3], [10.7, 8.2]],
+    "patch": { "x": 10.8, "z": 11.0, "w": 1.6, "d": 1.6 },
+    "wheelbarrow": { "x": 11.6, "z": 12.5 },
+    "washing": { "a": [9.8, 15.9], "b": [11.5, 15.7] },
+    "ropeSwing": { "tree": [11.5, 13.4], "x": 11.95, "z": 14.1, "branch": 2.5 },
+    "timber": { "x": 4.4, "z": 15.3, "w": 1.6, "d": 0.8 }
   },
   "fishing": [
     { "stand": { "x": 11.55, "z": -2.3 }, "bobber": { "x": 12.9, "z": -2.6 } },
@@ -309,6 +323,65 @@ export const FOREST_SEATS = FOREST_FISHING.filter((f) => f.seat).map((f) => ({
   approachX: f.approach.x,
   approachZ: f.approach.z,
 }));
+// --- the places to stop (docs/maps-fill-plan.md part 3; no coins in any) ---
+const PL = L.places;
+const unitOf = (x: number, z: number) => {
+  const d = Math.hypot(x, z) || 1;
+  return { x: x / d, z: z / d };
+};
+/** A seat at one of the woods' places: a cushion, a style, and where you step up from. */
+export interface ForestPlaceSeat {
+  propId: string;
+  x: number;
+  z: number;
+  rotationY: number;
+  cushion: "picnicBench" | "log" | "boulder" | "dock" | "swing";
+  style: "wood" | "log" | "dock";
+  approachX: number;
+  approachZ: number;
+}
+/** The Ranger's Lookout: a bench for two on the hillside above the river, looking out at the falls. */
+export const LOOKOUT = (() => {
+  const face = unitOf(PL.lookout.face[0], PL.lookout.face[1]);
+  return { x: PL.lookout.x, z: PL.lookout.z, face, side: { x: -face.z, z: face.x }, yaw: Math.atan2(face.x, face.z) };
+})();
+/** The cold camp in the Old Growth: a lean-to, a ring of stones, two log seats facing it (log
+ *  seats: the guitar is played from them). */
+export const WOODS_CAMP = {
+  ...PL.camp,
+  logs: PL.camp.logs.map((deg) => {
+    const a = (deg * Math.PI) / 180;
+    return { x: PL.camp.x + Math.cos(a) * PL.camp.r, z: PL.camp.z + Math.sin(a) * PL.camp.r, along: { x: -Math.sin(a), z: Math.cos(a) } };
+  }),
+};
+/** The Old Stones along the North Ridge (their runes glow as the shrine's do), and their bench. */
+export const OLD_STONES = PL.stones.map(([x, z, s]) => ({ x, z, s }));
+/** The rope swing by Bramble's garden: its plank hangs from a leaning tree's branch out over the
+ *  bank and sways toward the river (+x); `branch`: the branch's height over the ground there. */
+export const ROPE_SWING = { ...PL.ropeSwing, propId: "seat_woods_ropeswing" };
+export const FOREST_PLACE_SEATS: ForestPlaceSeat[] = [
+  ...([-1, 1] as const).map((s, k): ForestPlaceSeat => {
+    const x = LOOKOUT.x + LOOKOUT.side.x * s * 0.33;
+    const z = LOOKOUT.z + LOOKOUT.side.z * s * 0.33;
+    return { propId: `seat_woods_lookout_0${k + 1}`, x, z, rotationY: LOOKOUT.yaw, cushion: "picnicBench", style: "wood", approachX: x + LOOKOUT.face.x * 0.75, approachZ: z + LOOKOUT.face.z * 0.75 };
+  }),
+  ...WOODS_CAMP.logs.map((g, k): ForestPlaceSeat => {
+    const out = unitOf(g.x - WOODS_CAMP.x, g.z - WOODS_CAMP.z);
+    return { propId: `seat_woods_camp_0${k + 1}`, x: g.x, z: g.z, rotationY: Math.atan2(-out.x, -out.z), cushion: "log", style: "log", approachX: g.x - out.x * 0.62, approachZ: g.z - out.z * 0.62 };
+  }),
+  ...([-1, 1] as const).map((s, k): ForestPlaceSeat => ({ propId: `seat_woods_stonebench_0${k + 1}`, x: PL.stoneBench.x + s * 0.33, z: PL.stoneBench.z, rotationY: 0, cushion: "boulder", style: "wood", approachX: PL.stoneBench.x + s * 0.33, approachZ: PL.stoneBench.z + 0.75 })),
+  ...([-1, 1] as const).map((s, k): ForestPlaceSeat => ({ propId: `seat_woods_jetty_0${k + 1}`, x: PL.jetty.x1 - 0.12, z: PL.jetty.z + s * 0.3, rotationY: Math.PI / 2, cushion: "dock", style: "dock", approachX: PL.jetty.x0 - 0.1, approachZ: PL.jetty.z + s * 0.3 })),
+  { propId: ROPE_SWING.propId, x: ROPE_SWING.x, z: ROPE_SWING.z, rotationY: Math.PI / 2, cushion: "swing", style: "wood", approachX: ROPE_SWING.x - 0.75, approachZ: ROPE_SWING.z },
+];
+/** What the action dock offers for them. */
+export const FOREST_SEAT_LABELS: Record<string, string> = {
+  seat_woods_lookout_01: "🔭 Sit at the lookout",
+  seat_woods_lookout_02: "🔭 Sit at the lookout",
+  seat_woods_jetty_01: "🌊 Sit on the jetty",
+  seat_woods_jetty_02: "🌊 Sit on the jetty",
+  seat_woods_ropeswing: "🌳 Sit on the rope swing",
+};
+
 /** The woods' fishing spot a seat belongs to. */
 export const woodsSpotOfSeat = (seat: string) => (seat ? FOREST_FISHING.find((f) => f.seat === seat)?.propId : undefined);
 /** Where the Colossal Titan can sprout (a world event: one of these clearings). */
@@ -437,6 +510,24 @@ export const FOREST_OBSTACLES: AABB[] = [
   ...L.dressing.greatTrees.map((t) => around(t, 0.42 * t.s)),
   ...L.dressing.birches.map(([x, z, s]) => around({ x, z }, 0.3 * s)),
   ...L.dressing.shrubs.map(([x, z, s]) => around({ x, z }, 0.34 * s)),
+  // --- the places (off the walks between the groves, Bramble and Finley) ---
+  // the lookout's bench, the camp's lean-to and logs, the Old Stones and their bench
+  ...[-0.4, 0.4].map((t) => around({ x: LOOKOUT.x + LOOKOUT.side.x * t, z: LOOKOUT.z + LOOKOUT.side.z * t }, 0.3)),
+  { minX: PL.camp.leanTo.x - 0.5, maxX: PL.camp.leanTo.x + 0.5, minZ: PL.camp.leanTo.z - 0.55, maxZ: PL.camp.leanTo.z + 0.55 },
+  ...WOODS_CAMP.logs.flatMap((g) => [-0.3, 0.3].map((t) => around({ x: g.x + g.along.x * t, z: g.z + g.along.z * t }, 0.2))),
+  ...OLD_STONES.map((p) => around(p, 0.3 * p.s)),
+  ...[-0.4, 0.4].map((t) => around({ x: PL.stoneBench.x + t, z: PL.stoneBench.z }, 0.3)),
+  // Finley's rod rack and drying nets; Bramble's hives, vegetable patch, wheelbarrow, washing poles,
+  // the rope swing's leaning tree; the timber stack on the south verge
+  around(PL.rodRack, 0.3),
+  { minX: PL.nets.x - 0.15, maxX: PL.nets.x + 0.15, minZ: PL.nets.z - PL.nets.len / 2, maxZ: PL.nets.z + PL.nets.len / 2 },
+  ...PL.hives.map(([x, z]) => around({ x, z }, 0.28)),
+  { minX: PL.patch.x - PL.patch.w / 2, maxX: PL.patch.x + PL.patch.w / 2, minZ: PL.patch.z - PL.patch.d / 2, maxZ: PL.patch.z + PL.patch.d / 2 },
+  around(PL.wheelbarrow, 0.35),
+  around({ x: PL.washing.a[0], z: PL.washing.a[1] }, 0.1),
+  around({ x: PL.washing.b[0], z: PL.washing.b[1] }, 0.1),
+  around({ x: PL.ropeSwing.tree[0], z: PL.ropeSwing.tree[1] }, 0.3),
+  { minX: PL.timber.x - PL.timber.w / 2, maxX: PL.timber.x + PL.timber.w / 2, minZ: PL.timber.z - PL.timber.d / 2, maxZ: PL.timber.z + PL.timber.d / 2 },
   // the adit's mossy outcrop on the western cliff (its back, and the alcove's two wings either side of
   // the portal), and Old Flint on its south post
   { minX: L.adit.outcrop.x0, maxX: L.adit.outcrop.x1, minZ: L.adit.outcrop.z0, maxZ: L.adit.outcrop.z1 },
