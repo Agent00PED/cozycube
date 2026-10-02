@@ -94,7 +94,11 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": -12.6, "z": -1.0, "s": 1.05, "yaw": 3.3 },
     { "x": -13.2, "z": 1.6, "s": 0.8, "yaw": 5.0 },
     { "x": -12.9, "z": 3.4, "s": 1.25, "yaw": 1.1 },
-    { "x": -13.1, "z": 8.2, "s": 1.0, "yaw": 4.1 }
+    { "x": -13.1, "z": 8.2, "s": 1.0, "yaw": 4.1 },
+    { "x": 5.2, "z": -7.2, "s": 1.0, "yaw": 0.6 },
+    { "x": 7.6, "z": -6.4, "s": 0.9, "yaw": 2.4 },
+    { "x": 6.0, "z": -4.6, "s": 0.95, "yaw": 4.4 },
+    { "x": -9.6, "z": 4.8, "s": 0.85, "yaw": 1.9 }
   ],
   "fellTrees": [
     { "x": -4.6, "z": 2.6 },
@@ -139,7 +143,10 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
       { "x": -2.4, "z": 11.9, "yaw": 0.45, "len": 1.8 },
       { "x": -11.7, "z": 11.3, "yaw": 2.0, "len": 1.6 }
     ],
-    "stumps": [{ "x": -3.4, "z": 5.0 }, { "x": 6.4, "z": 10.2 }]
+    "stumps": [{ "x": -3.4, "z": 5.0 }, { "x": 6.4, "z": 10.2 }],
+    "birches": [[-7.9, -10.2, 0.8], [-6.4, -7.6, 0.75], [-3.0, 10.6, 0.7], [-1.0, 13.0, 0.7], [8.4, 10.4, 0.7]],
+    "shrubs": [[-7.0, -9.0, 0.8], [-5.2, -11.9, 0.7], [-8.6, 0.2, 0.8], [-12.0, 4.9, 0.7], [-2.6, 13.0, 0.7], [0.2, 13.1, 0.75], [7.6, 12.4, 0.8], [4.2, 10.4, 0.7], [4.4, -3.0, 0.75], [8.6, -3.2, 0.7], [3.8, -6.4, 0.7]],
+    "meadows": [[6.2, -5.6, 2.6], [-6.0, -10.2, 2.4], [-9.8, 1.8, 2.6], [-1.2, 10.4, 2.6], [6.2, 11.4, 2.4]]
   },
   "fence": { "at": 13.55, "xFrom": -13.3, "xTo": 9.3, "post": 1.25 },
   "picnic": { "x": 1.5, "z": 11.2 },
@@ -769,6 +776,9 @@ export const CAMP_OBSTACLES: AABB[] = [
     return Array.from({ length: n + 1 }, (_, k) => around({ x: f.x + Math.sin(f.yaw) * (k / n - 0.5) * (f.len - 0.3), z: f.z + Math.cos(f.yaw) * (k / n - 0.5) * (f.len - 0.3) }, 0.2));
   }),
   ...L.dressing.stumps.map((p) => around(p, 0.24)),
+  // the birches that are not felled, and the waist-high shrubs
+  ...L.dressing.birches.map(([x, z, s]) => around({ x, z }, 0.3 * s)),
+  ...L.dressing.shrubs.map(([x, z, s]) => around({ x, z }, 0.34 * s)),
   // the pole the lights are strung from, the signpost
   around(L.stringPole, 0.1),
   around(L.signpost, 0.12),

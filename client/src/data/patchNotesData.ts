@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.44",
+    range: "v0.7.0–v0.7.45",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1723,6 +1723,22 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           economy: ["⚖️ Nothing you earn changes: every grove is as close to the next, and to Bramble and Finley, as it was."],
           fixes: ["⚡ The woods are drawn with less work than before, so they run smoother."],
+        },
+      },
+      {
+        version: "0.7.45",
+        date: "2026-10-02",
+        title: "Old Growth",
+        summary: "The open lawns at the campfire and in the woods are growing in: an old forest in the woods' north-east, birches on the ridge, new trees and clover meadows round the camp.",
+        changes: {
+          features: [
+            "🌲 The Old Growth: fourteen great pines and ancient cedars now stand on the woods' north-east hillside, with a new trail through them from the Elderwood's shrine to the rock seat by the waterfall.",
+          ],
+          visuals: [
+            "🌳 A stand of birches on the woods' north ridge and more along the river, a hedge along the south edge, ferns and mushrooms under the old trees.",
+            "🏕️ At the campfire: three pines in the meadow by the river, birches on the knoll and along the south fence, juniper bushes, and clover meadows full of wildflowers.",
+          ],
+          economy: ["⚖️ The new trees are not for felling, and nothing you earn changes."],
         },
       },
     ],

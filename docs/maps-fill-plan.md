@@ -1,6 +1,8 @@
-# Filling the campfire and the woods: design (proposal)
+# Filling the campfire and the woods: design
 
-Status: **proposal, not approved**. Nothing in this document is built.
+Status: **approved 2026-10-02** with the recommended answers (fill, places only and no coins, the
+brook built, both maps part by part, the beach on hold). Built so far: **part 1, mass** (patch
+0.7.45). What moved from the plan is at the foot of this document.
 
 ## The problem, measured
 
@@ -155,7 +157,23 @@ Everything still in the model bakes into the finishes the maps already draw.
 5. **Life and light:** butterflies, bees, the kingfisher, the owl, the light shafts, more wild
    critters in the new cover.
 
-## Decisions needed
+## What was built, and what moved from this plan
+
+### Part 1, mass (patch 0.7.45)
+- **Campfire:** four pines and five birches (the plan said six and four), eleven shrubs, five
+  clover meadows with flower drifts. 116 draw calls as before; the model 3.2 MB.
+- **Woods:** fourteen great trees in the Old Growth (eleven pines, three cedars), one more pine
+  each on the rise and by the shrine's trail, eleven birches, fifteen shrubs, the Old Growth's
+  trail with log steps, a needle floor with ferns and mushrooms. About 100 draw calls; the model
+  3.5 MB.
+- **The Old Growth stands north of its trail.** Great trees to the south and east of the trail hid
+  whoever walked it (a tree 8 m tall hides 10 m of ground behind it from the play camera), and one
+  crowded the Elderwood's shrine. They moved north; the strip south of the trail is low shrubs and
+  ferns, kept for part 3's lookout and campsite.
+- **Income:** every line within 1% of the record (the campfire's T2 +0.3%, the woods' T3 +0.4% and
+  T4 +1.0%).
+
+## Decisions (answered)
 
 1. **The approach:** fill the open ground as above (recommended), or make both maps smaller again
    (less work, but it undoes the room the rebuilds made).
