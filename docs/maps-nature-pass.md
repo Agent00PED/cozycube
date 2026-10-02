@@ -70,6 +70,23 @@ No collider on any walk moved, so income is unchanged to the decimal on both map
 
 The size is the faceted conifers (a flat-shaded face keeps its own three vertices).
 
+## Round two: the campfire's shape (patch 0.7.51)
+
+The campfire was evenly full: eight pines in a ring round the fire, a prop every few metres, no part
+of it denser or emptier than another. Now it has three parts.
+
+- **The wood** on the west and north-west: six of the eight fellable pines in two stands, the
+  standing pines behind them, a dark needle-strewn floor, ferns in drifts and saplings between the
+  trunks. It is the backdrop the camera looks toward.
+- **The meadow** from the fire east to the dock and the river: open grass and flowers, nothing
+  standing but the Hammock Grove.
+- **The fire** between them, its clearing the one worn place.
+- Two pines stay by the willow at the River's End. With all eight in the wood a starter earned 6%
+  more (every tree was nearer Buster); the simulator picked the layout that holds income: T1 30.3
+  against 30.7, the other tiers within 0.5%.
+- **Removed:** two barrels, two lantern posts, a stump, the cairn, the smoker.
+- **The trails** are one worn line again: the first pass traded ruled roads for blotches.
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.
