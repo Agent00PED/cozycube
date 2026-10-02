@@ -118,12 +118,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": 5.0, "z": 8.4 },
     { "x": -7.6, "z": 4.4 }
   ],
-  "fellBirches": [
-    { "x": -10.0, "z": 7.6 },
-    { "x": -7.9, "z": 7.8 },
-    { "x": -9.8, "z": 9.3 },
-    { "x": -8.0, "z": 9.4 }
-  ],
+  "fellBirches": [],
   "rocks": [
     { "x": 8.2, "z": -4.4, "s": 0.7 },
     { "x": 7.9, "z": 5.6, "s": 0.8 },
@@ -150,7 +145,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     "fallen": [{ "x": -11.7, "z": 11.3, "yaw": 2.0, "len": 1.6 }],
     "stumps": [],
     "snags": [[-13.35, -11.3, 2.7], [-13.4, 12.3, 2.2]],
-    "birches": [[-7.9, -10.2, 0.8], [-6.4, -7.6, 0.75], [-3.0, 10.6, 0.7], [-1.0, 13.0, 0.7], [8.4, 10.4, 0.7]],
+    "birches": [],
     "shrubs": [[-7.55, -9.35, 0.8], [-4.7, -12.5, 0.7], [-8.6, 0.2, 0.8], [-12.0, 4.9, 0.7], [7.6, 12.4, 0.8], [-7.0, -5.9, 0.75], [-2.3, -5.9, 0.7]],
     "meadows": [[6.2, -5.6, 2.6], [-6.0, -10.2, 2.4], [4.6, 5.0, 3.0], [-1.2, 10.4, 2.6], [6.2, 11.4, 2.4]],
     "wood": [[-4.6, -5.4, 2.8], [-5.8, 2.2, 3.2], [-10.2, 5.2, 3.6], [-11.6, -2.4, 3.0], [-9.0, 8.4, 2.6]]
@@ -161,10 +156,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
       { "a": [6.7, -6.4], "b": [8.4, -7.9], "head": "a", "approach": [8.05, -6.59] }
     ],
     "hammockLantern": { "x": 6.7, "z": -6.4, "tip": [7.12, -5.98], "y": 1.6 },
-    "blankets": [
-      { "x": -6.2, "z": -10.95, "up": [-0.985, 0.175], "tone": "red" },
-      { "x": -6.25, "z": -9.15, "up": [-0.97, -0.245], "tone": "blue" }
-    ],
+    "blankets": [],
     "glade": { "x": -10.8, "z": 4.4, "r": 1.2, "log": { "angle": 20, "len": 1.4 }, "stumps": [-85, 100, 175] },
     "swing": { "x": -0.9, "z": 9.8, "beam": 2.05, "span": 1.0, "seat": 0.33 },
     "riverEnd": {
@@ -550,10 +542,10 @@ export const HAMMOCKS = PL.hammocks.map((h, i) => {
   return { propId: `seat_hammock_0${i + 1}`, a, b, mid: { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 }, along, head, approach: { x: h.approach[0], z: h.approach[1] } };
 });
 
-/** The Stargazers' Slope: two picnic blankets on the knoll's flank, two places each side by side,
- *  heads uphill (`up`). A place's soles are where its seat stands (the client tilts whoever lies
- *  there to the slope: `lieTilt`). */
-export const BLANKETS = PL.blankets.map((b, i) => {
+/** Picnic blankets laid to a slope, two places each side by side, heads uphill (`up`). A place's
+ *  soles are where its seat stands (the client tilts whoever lies there to the slope: `lieTilt`).
+ *  The layout has none since the Stargazers' Slope was cleared (patch 0.7.55). */
+export const BLANKETS = (PL.blankets as readonly { x: number; z: number; up: readonly number[]; tone: string }[]).map((b, i) => {
   const up = unit(b.up[0], b.up[1]);
   const side = { x: -up.z, z: up.x };
   const places = ([-1, 1] as const).map((s, k) => {
@@ -890,8 +882,8 @@ export const CAMP_OBSTACLES: AABB[] = [
     return Array.from({ length: n + 1 }, (_, k) => around({ x: f.x + Math.sin(f.yaw) * (k / n - 0.5) * (f.len - 0.3), z: f.z + Math.cos(f.yaw) * (k / n - 0.5) * (f.len - 0.3) }, 0.2));
   }),
   ...L.dressing.stumps.map((p) => around(p, 0.24)),
-  // the birches that are not felled, and the waist-high shrubs
-  ...L.dressing.birches.map(([x, z, s]) => around({ x, z }, 0.3 * s)),
+  // the birches that are not felled (none since patch 0.7.55), and the waist-high shrubs
+  ...(L.dressing.birches as readonly (readonly number[])[]).map(([x, z, s]) => around({ x, z }, 0.3 * s)),
   // the dead standing trees at the rims
   ...L.dressing.snags.map(([x, z]) => around({ x, z }, 0.2)),
   ...L.dressing.shrubs.map(([x, z, s]) => around({ x, z }, 0.34 * s)),

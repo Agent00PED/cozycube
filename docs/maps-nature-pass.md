@@ -119,6 +119,27 @@ added to make the maps "natural" were clutter of their own.
 - The two trail posts stay because the simulator's woodcutter walks round them: without them the
   woods' T4 and T5 earn 2% and 1.4% less. Income is exactly as on record.
 
+## Round six: traces, pines, a wheel (patch 0.7.55)
+
+The owner's list after seeing round five, and what was done.
+
+- **Trails had an edge.** They were a band of earth with a half-metre rim. Now a trail is bare only
+  down its middle and its wear fades out over more than its own width, with grass growing in to the
+  worn part: a trace, not a road. Both maps.
+- **The campfire:** the stone steps on the north trail are gone; the two picnic blankets and their
+  basket are gone; every birch is gone (four fellable, five ornamental). The campfire is the Soft
+  Pine's map: T1 to fell, everything else to look at.
+- **The woods were an even scatter.** Trees stood 3.5 to 4.5 m apart everywhere, the cedars filled
+  the middle, the Elderwood was the size of a birch and stood behind a pine. The new layout is a
+  wheel: an open glade in the middle, one grove of one kind on each side, each grove in clumps with
+  open ground between, and the Elderwood on its own mound at the top of the hill.
+- **Size says rank.** Soft Pine 3.0 m, birch 4.0, cedar 5.1, maple 4.7 and broad, the Elderwood 8.3 m
+  with an 8.5 m crown: the tallest thing in the wood by a third. Ornamental trees are dark conifers
+  only, so a leafy tree is always one you can fell.
+- **The cave is hidden.** No trail, no row of stones pointing at it; seven spruces between it and
+  the camera. You find it by walking round behind them, or by Old Flint's lantern through the
+  trunks at night.
+
 ## Not done, and worth doing next
 
 - **The lit clearing by night:** the bonfire's light could flicker over the painted shade.

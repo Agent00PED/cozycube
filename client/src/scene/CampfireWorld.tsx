@@ -524,7 +524,7 @@ function Fireflies() {
       // the grove west of the tipi, thick with them (catch some in a jar)
       ...around(L.fireflies.x - 1.3, L.fireflies.x + 1.3, L.fireflies.z - 1.3, L.fireflies.z + 1.3, 12),
       ...around(-12.5, -6.5, -12, 2, 9),
-      // the Stargazers' Slope: a thick drift of them over the blankets
+      // the knoll's flank: a thick drift of them
       ...around(-7.6, -4.8, -11.9, -8.2, 10),
       ...around(-4, 8, -12.5, -9.5, 7),
       ...around(-12, -6, 4, 11, 7),
