@@ -1241,6 +1241,9 @@ def build_deco(L, coll):
             if math.hypot(px - L["finley"]["x"], pz - L["finley"]["z"]) < 2.2 or any(math.hypot(px - jx, pz - jz) < 1.6 for jx, jz, _ in places_solid(L)):
                 continue
             K.reeds(bm, px, pz, rng, 10, 11, y0=water, n=rng.randint(2, 4))
+    # a lily pad under each of the frogs the game sets on the river
+    for k, (fx, fz) in enumerate(L.get("life", {}).get("frogs", [])):
+        K.lily_pad(bm, slab, fx, fz, 0.21, water, 1, turn=k * 1.7)
     # ferns at the fellable trees' feet (clear of paths, water and the approach you fell from)
     for t in L["trees"]:
         for k in range(2):
@@ -1379,19 +1382,19 @@ TONES = ({"needle": 1, "needle_light": 2}, {"needle": 5, "needle_light": 6}, {"n
 def build_vista(L, coll):
     rng = random.Random(21)
     bm = bmesh.new()
-    # Only the trees a bird keeps stand in the model (the songbirds' pines on the rim, the owl's in
-    # the Old Growth): every other one is felled, so the game draws it from trees.glb at its node
-    # (shared/worlds/forest.ts FOREST_WILD_TREES: the same looks, sizes and greens as here). Those
-    # are still grown here, into a mesh thrown away, so everything after them stands where it did.
+    # None of these trees stands in the model: every one is felled, so the game draws it from
+    # trees.glb at its node (shared/worlds/forest.ts FOREST_WILD_TREES: the same looks, sizes and
+    # greens as here). They are still grown here, into a mesh thrown away, so everything after them
+    # stands where it did.
     gone = bmesh.new()
     birds = {(b[0], b[1]) for b in L["birds"]}
     for i, (x, z, s) in enumerate(L["vista"]):
         # (a songbird's pine is a pine: its perch is measured on that shape; one in four of the rest a spruce)
-        pine(bm if (x, z) in birds else gone, x, z, s * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 4 == 2 and (x, z) not in birds else "pine", **TONES[(i * 2 + 1) % 3])
+        pine(gone, x, z, s * 1.55, rng, light=i % 3 == 1, deep=3, kind="spruce" if i % 4 == 2 and (x, z) not in birds else "pine", **TONES[(i * 2 + 1) % 3])
     # the great trees between the groves and in the Old Growth (half as tall again as the rim's)
     owl = tuple(L.get("life", {}).get("owl", {}).get("tree", ()))
     for i, t in enumerate(L["dressing"]["greatTrees"]):
-        into = bm if (t["x"], t["z"]) == owl else gone
+        into = gone
         if t["kind"] == "spruce":
             pine(into, t["x"], t["z"], t["s"] * 1.55, rng, light=False, deep=3, kind="spruce", **TONES[i % 3])
         elif t["kind"] == "pine":
@@ -2239,6 +2242,9 @@ def build_life(coll):
         (lambda bm: blob(bm, 0.022, 0.02, 0.0, 0.022, 0.003, 0.012, m=0, cuts=1), "#F4F8FF"),
         (lambda bm: blob(bm, -0.022, 0.02, 0.0, 0.022, 0.003, 0.012, m=0, cuts=1), "#F4F8FF"),
     ], coll)
+    # Fauna_WoodsFrog: the frogs on the river's lily pads (the campfire's is Fauna_CampFrog)
+    hexes = {"body": "#6AA63C", "dark": "#4C8530", "belly": "#D6E6A6", "eye": "#F4D35E", "pupil": "#1B1818"}
+    fauna_node("Fauna_WoodsFrog", [((lambda bm, build=build: build(bm, 0)), hexes[role]) for role, build in nature().frog(blob)], coll)
     fauna_node("Fauna_WoodsOwl", [
         (lambda bm: blob(bm, 0.0, 0.16, 0.0, 0.12, 0.16, 0.11, m=0, cuts=3), "#7A5A40"),
         (lambda bm: blob(bm, 0.0, 0.13, 0.05, 0.09, 0.11, 0.07, m=0, cuts=2), "#D9C09A"),

@@ -238,6 +238,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
       {tab === "tools" && (
         <div className="flex flex-col gap-1.5">
           <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Axes</b>
+          {/* (only Soft Pines grow at the campfire: a better axe earns nothing more here) */}
+          <p className="m-0 rounded-xl bg-white/5 px-2.5 py-1.5 text-[11px] leading-snug opacity-80">🌲 Every tree at the campfire is a Soft Pine, and any axe fells it. A better axe is for the Whispering Woods, through the archway: birch, cedar, maple and the Elderwood grow there.</p>
           {AXE_IDS.map((id) => {
             const axe = AXES[id];
             const owned = profile.axes.includes(id);

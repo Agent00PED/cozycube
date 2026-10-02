@@ -7,8 +7,8 @@ import * as THREE from "three";
 // silhouette is a second draw of every part of the avatar, so this saves as many draw calls as the
 // avatar has parts, and its triangles, whenever nothing hides you.
 //
-// A world registers its index (`xrayGate.index`) while it is up; without one (the other worlds) the
-// silhouette is drawn always, as before.
+// A world registers its index (`xrayGate.index`) while it is up (the caverns in CavernsWorld, the camp
+// maps in CampXray); without one (the other worlds) the silhouette is drawn always, as before.
 
 export class OcclusionIndex {
   private tris: Float32Array;
@@ -18,35 +18,46 @@ export class OcclusionIndex {
   private x0: number;
   private z0: number;
 
-  constructor(meshes: THREE.Mesh[], private readonly cell = 1.5) {
-    let n = 0;
+  /** `keep`: of a mesh's triangles, only those it says yes to (asked with the triangle's highest
+   *  corner: a world whose model carries its undergrowth leaves that out). */
+  constructor(meshes: THREE.Mesh[], private readonly cell = 1.5, keep?: (x: number, y: number, z: number) => boolean) {
+    let all = 0;
     for (const m of meshes) {
       const g = m.geometry;
-      n += (g.index ? g.index.count : g.attributes.position.count) / 3;
+      all += (g.index ? g.index.count : g.attributes.position.count) / 3;
     }
-    this.tris = new Float32Array(n * 9);
+    const tris = new Float32Array(all * 9);
     let x0 = Infinity;
     let z0 = Infinity;
     const v = new THREE.Vector3();
-    let k = 0;
+    let n = 0;
     for (const m of meshes) {
       m.updateWorldMatrix(true, false);
       const g = m.geometry;
       const pos = g.attributes.position as THREE.BufferAttribute;
       const idx = g.index;
       const count = idx ? idx.count : pos.count;
-      for (let i = 0; i < count; i++) {
-        v.fromBufferAttribute(pos, idx ? idx.getX(i) : i).applyMatrix4(m.matrixWorld);
-        this.tris[k * 3] = v.x;
-        this.tris[k * 3 + 1] = v.y;
-        this.tris[k * 3 + 2] = v.z;
-        x0 = Math.min(x0, v.x);
-        z0 = Math.min(z0, v.z);
-        k++;
+      for (let i = 0; i + 2 < count; i += 3) {
+        const o = n * 9;
+        let top = 0;
+        for (let c = 0; c < 3; c++) {
+          v.fromBufferAttribute(pos, idx ? idx.getX(i + c) : i + c).applyMatrix4(m.matrixWorld);
+          tris[o + c * 3] = v.x;
+          tris[o + c * 3 + 1] = v.y;
+          tris[o + c * 3 + 2] = v.z;
+          if (v.y > tris[o + top * 3 + 1]) top = c;
+        }
+        if (keep && !keep(tris[o + top * 3], tris[o + top * 3 + 1], tris[o + top * 3 + 2])) continue;
+        for (let c = 0; c < 3; c++) {
+          x0 = Math.min(x0, tris[o + c * 3]);
+          z0 = Math.min(z0, tris[o + c * 3 + 2]);
+        }
+        n++;
       }
     }
-    this.x0 = x0;
-    this.z0 = z0;
+    this.tris = n === all ? tris : tris.slice(0, n * 9);
+    this.x0 = Number.isFinite(x0) ? x0 : 0;
+    this.z0 = Number.isFinite(z0) ? z0 : 0;
     const t = this.tris;
     for (let i = 0; i < n; i++) {
       const o = i * 9;

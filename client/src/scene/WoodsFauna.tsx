@@ -37,6 +37,10 @@ const FLY_S = 2.2;
 /** Bees to a hive. */
 const BEES_PER_HIVE = 4;
 
+/** The woods' trees that are down now (felled, growing back), by node id: a bird whose pine is among
+ *  them is away, and the owl with its own. ForestWorld keeps it from the room's trees. */
+export const woodsTreesDown = { ids: new Set<string>() };
+
 export function WoodsFauna({ scene }: { scene: THREE.Object3D }) {
   const daylight = useContext(CampDaylightContext) ?? 1;
   const parts = useMemo(() => {
@@ -79,7 +83,7 @@ export function WoodsFauna({ scene }: { scene: THREE.Object3D }) {
     for (const p of [...parts.bird, parts.bee]) if (p) p.mesh.visible = day;
     // --- the owl, by night: it turns to whoever is near, and bobs as it settles ---
     if (parts.owl) {
-      const night = daylight < 0.25;
+      const night = daylight < 0.25 && !(FOREST_OWL.tree && woodsTreesDown.ids.has(FOREST_OWL.tree));
       parts.owl.mesh.visible = night;
       if (night) {
         const dx = cameraFocus.x - FOREST_OWL.x;
@@ -99,7 +103,9 @@ export function WoodsFauna({ scene }: { scene: THREE.Object3D }) {
     // --- the birds ---
     birds.forEach((b, i) => {
       const since = t - b.at;
-      if (b.phase === "perched" && Math.hypot(cameraFocus.x - b.x, cameraFocus.z - b.z) < SCATTER_R) {
+      // (its pine felled: off it goes, and it stays away until the tree is grown again)
+      const down = !!b.tree && woodsTreesDown.ids.has(b.tree);
+      if (b.phase === "perched" && (down || Math.hypot(cameraFocus.x - b.x, cameraFocus.z - b.z) < SCATTER_R)) {
         const dx = b.x - cameraFocus.x;
         const dz = b.z - cameraFocus.z;
         const d = Math.hypot(dx, dz) || 1;
@@ -109,7 +115,7 @@ export function WoodsFauna({ scene }: { scene: THREE.Object3D }) {
       } else if (b.phase === "flying" && since > FLY_S) {
         b.phase = "away";
         b.at = t;
-      } else if (b.phase === "away" && since > 18 + (i % 3) * 5 && Math.hypot(cameraFocus.x - b.x, cameraFocus.z - b.z) > SCATTER_R + 1.5) {
+      } else if (b.phase === "away" && !down && since > 18 + (i % 3) * 5 && Math.hypot(cameraFocus.x - b.x, cameraFocus.z - b.z) > SCATTER_R + 1.5) {
         b.phase = "back";
         b.at = t;
       } else if (b.phase === "back" && since > FLY_S) {

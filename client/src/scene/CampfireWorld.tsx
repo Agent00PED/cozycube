@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { PlayerState, TimeOfDay, ToggleableSyncState } from "@shared/types";
-import { CAMPFIRE_LAYOUT as L, CAMP_GRID, DOCK_PILINGS, DUCK_PATHS, RIVER_Z, campLand, riverSpan } from "@shared/worlds/campfire";
+import { CAMPFIRE_LAYOUT as L, CAMP_FROGS, CAMP_GRID, DOCK_PILINGS, DUCK_PATHS, RIVER_Z, campLand, riverSpan } from "@shared/worlds/campfire";
 import { walkY } from "@shared/collision";
 import { daylight } from "@shared/daynight";
 import { parseWorldEvent } from "@shared/types";
@@ -11,7 +11,8 @@ import { parseTrees } from "@shared/chop";
 import { FellableTrees } from "./FellableTrees";
 import { WildCritters } from "./WildCritters";
 import { Butterflies } from "./Butterflies";
-import { CloudClock, FallingLeaves, LanternMoths, RiseRings, RiverMist, cloudShadows, type LeafTree } from "./campLife";
+import { CampXray } from "./CampXray";
+import { CloudClock, FallingLeaves, Frogs, LanternMoths, RiseRings, RiverMist, cloudShadows, type LeafTree } from "./campLife";
 import { SurgeRipples } from "./SurgeRipples";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
@@ -109,6 +110,9 @@ const CLICK_GROUND = (() => {
 })();
 /** A height over the ground at (x, z). */
 const over = (x: number, y: number, z: number): [number, number, number] => [x, campLand(x, z) + y, z];
+/** What can stand between you and the camera in the model (CampXray): its still things and the trees
+ *  that are not felled. */
+const XRAY_MESHES = ["Campfire_Static", "Campfire_Pines"];
 /** The river down its length (inside the island): where a fish may rise, where the mist lies, where
  *  the dragonflies keep. */
 const RIVER_LINE = Array.from({ length: 24 }, (_, i): [number, number, number] | null => {
@@ -239,6 +243,11 @@ export function CampfireWorld({ onFloorClick, players, localSessionId, toggleabl
       <FireLight live={live} />
       <JarLights live={live} />
       <StewSteam live={live} />
+      <ModelBoundary what="campfire.glb" fallback={null}>
+        <Suspense fallback={null}>
+          <CampXray url={CAMPFIRE_URL} mapId="campfire_night" prefixes={XRAY_MESHES} trees={treeState} />
+        </Suspense>
+      </ModelBoundary>
       <FellableTrees mapId="campfire_night" trees={treeState} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onUseProp={onUseProp} />
       <SurgeRipples event={wonder} mapId="campfire_night" waterY={L.river.water} />
       <Barnaby subscribeMessages={subscribeMessages} />
@@ -367,6 +376,7 @@ function CampfireModel({ live }: { live: React.MutableRefObject<Live> }) {
       <primitive object={scene} />
       {/* butterflies over the Swing Garden and the clover meadows, by day */}
       <Butterflies scene={scene} prefix="Fauna_CampFly" spots={BUTTERFLY_SPOTS} landY={campLand} />
+      <Frogs scene={scene} name="Fauna_CampFrog" spots={CAMP_FROGS} waterY={L.river.water} />
       {/* dragonflies over the river: the same templates, blue and quick and low */}
       <Butterflies scene={scene} prefix="Fauna_CampFly" spots={DRAGON_SPOTS} landY={dragonY} tints={DRAGON_TINTS} size={1.9} pace={2.3} lift={0.42} />
       {/* a snack nearby: the raccoon's hearts */}

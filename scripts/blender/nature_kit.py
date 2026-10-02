@@ -222,6 +222,32 @@ def reeds(bm, x, z, rng, m_stalk, m_head, y0=0.0, n=3):
             bm.faces.new(hv).material_index = m_head
 
 
+def frog(blob):
+    """A frog sitting at the origin, facing +z: [(role, build(bm, material index))], the roles "body",
+    "dark" (its legs), "belly", "eye" and "pupil" (a builder paints each its own way). `blob`: the
+    builder's own."""
+    parts = [
+        ("body", (0.0, 0.036, 0.0, 0.05, 0.034, 0.066), 3),
+        ("belly", (0.0, 0.021, 0.014, 0.043, 0.02, 0.054), 2),
+        ("body", (0.0, 0.05, 0.052, 0.04, 0.028, 0.036), 2),
+    ]
+    for sx in (1, -1):
+        parts += [
+            ("dark", (sx * 0.052, 0.022, -0.03, 0.024, 0.022, 0.042), 2),
+            ("dark", (sx * 0.036, 0.012, 0.05, 0.012, 0.012, 0.02), 1),
+            ("eye", (sx * 0.024, 0.076, 0.058, 0.015, 0.015, 0.015), 2),
+            ("pupil", (sx * 0.027, 0.079, 0.069, 0.007, 0.008, 0.006), 1),
+        ]
+    return [(role, (lambda bm, m, a=a, c=c: blob(bm, *a, m=m, cuts=c))) for role, a, c in parts]
+
+
+def lily_pad(bm, slab, x, z, r, y, m, turn=0.0):
+    """A lily pad floating at (x, z): a round leaf with a notch cut to its middle. `slab`: the
+    builder's own."""
+    rim = [(x + r * math.cos(a), z + r * math.sin(a)) for a in (turn + 0.35 + (2 * math.pi - 0.7) * k / 14 for k in range(15))] + [(x, z)]
+    slab(bm, rim, y + 0.004, y + 0.02, m=m)
+
+
 def worn(d):
     """How worn the ground is `d` metres outside a footpath's tread (negative: on it), 0..1: one
     smooth ease from bare earth just inside the tread's edge to untouched grass 0.6 m beyond it. No

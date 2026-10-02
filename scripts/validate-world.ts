@@ -500,26 +500,22 @@ for (const mapId of MAP_IDS) {
   const anchored = ([x, y, z]: number[]): string | null => {
     const t = CL.tent;
     if (y <= t.h && Math.hypot(x - t.x, z - t.z) <= t.r * (1 - y / t.h) + 0.12) return "the tipi";
-    for (const tr of CL.trees) if (Math.hypot(x - tr.x, z - tr.z) <= boughs(tr.s, y)) return "a pine's boughs";
-    for (const pg of CL.pegs) if (Math.hypot(x - pg.tip[0], z - pg.tip[1]) <= 0.05 && Math.abs(y - pg.y) <= 0.05) return "a peg";
+    // (never a tree that is felled: only one that always stands may hold a string)
+    for (const tr of CL.trees as readonly { x: number; z: number; s: number; bare?: number; keep?: boolean }[]) if ((tr.bare || tr.keep) && Math.hypot(x - tr.x, z - tr.z) <= boughs(tr.s, y)) return "a pine's boughs";
     const sp = CL.stringPole;
-    if (Math.hypot(x - sp.x, z - sp.z) <= 0.2 && Math.abs(y - sp.h) <= 0.15) return "the light pole";
+    for (const post of [sp, ...CL.lightPosts]) if (Math.hypot(x - post.x, z - post.z) <= 0.2 && Math.abs(y - post.h) <= 0.15) return "a light post";
+    // (the archway's two posts, either side of its opening)
+    const ar = CL.archway;
+    for (const side of [-1, 1]) if (Math.hypot(x - (ar.x + side * (ar.w / 2 + 0.1)), z - ar.z) <= 0.15 && y <= ar.h) return "the archway";
     for (const px of [CL.van.x - 0.85, CL.van.x + 1.25]) if (Math.hypot(x - px, z - vanFront) <= 0.08 && y <= 1.6 && y >= 1.3) return "an awning pole";
     return null;
   };
   CL.strings.forEach((st, i) => {
     for (const end of [st.a, st.b]) {
       checks++;
-      if (!anchored(end)) fail(`campfire_night: string of lights ${i + 1}'s end ${JSON.stringify(end)} floats in the air: tie it to a pine, a peg, a pole or the tipi`);
+      if (!anchored(end)) fail(`campfire_night: string of lights ${i + 1}'s end ${JSON.stringify(end)} floats in the air: tie it to a post, the archway, an awning pole or the tipi`);
     }
   });
-  // (a peg's tip sticks out of its pine's boughs, where the wire can be seen tied to it)
-  for (const pg of CL.pegs) {
-    checks++;
-    const tree = CL.trees.find((tr) => Math.hypot(tr.x - pg.x, tr.z - pg.z) < 0.05);
-    if (!tree) fail(`campfire_night: the peg at ${fmt(pg)} is in no pine`);
-    else if (Math.hypot(pg.tip[0] - pg.x, pg.tip[1] - pg.z) <= boughs(tree.s, pg.y) / 0.94) fail(`campfire_night: the peg at ${fmt(pg)} is hidden in its pine's boughs`);
-  }
 }
 
 // --- the campfire's ground (docs/campfire-design.md): the builder's grid in step with the layout,

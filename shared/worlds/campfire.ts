@@ -14,8 +14,8 @@ import { openApproach } from "./approach";
 // fishing spots, Barnaby's stall, the canoe, and out over the island's south edge), the South Meadow
 // (the slingshot gallery, the picnic table, the birch grove), eight Soft Pines between them that you
 // fell (they grow back), pines along the back edges and a rustic fence along the front. Every other
-// pine and spruce is felled too (CAMP_WILD_TREES, patch 0.7.57), but the ones that hold something up
-// (the hammocks', the light strings', the owl's) and the one across the river. Authored ONCE, here:
+// pine and spruce is felled too (CAMP_WILD_TREES), but the hammocks' three and the one across the
+// river. Authored ONCE, here:
 //
 //   CAMPFIRE_LAYOUT   where everything is (plain JSON between the markers: scripts/blender/
 //                     build_campfire.py reads the very same text to build campfire.glb, so the
@@ -94,14 +94,14 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "x": -12.8, "z": -12.9, "s": 1.3 },
     { "x": -8.4, "z": -13.1, "s": 1.1 },
     { "x": -5.4, "z": -13.0, "s": 0.95 },
-    { "x": 3.4, "z": -13.2, "s": 0.95, "keep": true },
+    { "x": 3.4, "z": -13.2, "s": 0.95 },
     { "x": 8.6, "z": -13.1, "s": 0.9 },
     { "x": 12.6, "z": -12.8, "s": 1.0, "keep": true },
     { "x": -12.9, "z": -9.6, "s": 1.15, "yaw": 1.7 },
     { "x": -13.0, "z": -6.8, "s": 1.2, "yaw": 0.4 },
-    { "x": -11.2, "z": -5.6, "s": 1.1, "yaw": 2.9, "keep": true },
-    { "x": -13.0, "z": -4.4, "s": 0.85, "yaw": 2.2, "keep": true },
-    { "x": -12.6, "z": -1.0, "s": 1.05, "yaw": 3.3, "keep": true },
+    { "x": -11.2, "z": -5.6, "s": 1.1, "yaw": 2.9 },
+    { "x": -13.0, "z": -4.4, "s": 0.85, "yaw": 2.2 },
+    { "x": -12.6, "z": -1.0, "s": 1.05, "yaw": 3.3 },
     { "x": -13.2, "z": 1.6, "s": 0.8, "yaw": 5.0 },
     { "x": -12.9, "z": 3.4, "s": 1.25, "yaw": 1.1 },
     { "x": -13.1, "z": 8.2, "s": 1.0, "yaw": 4.1 },
@@ -153,7 +153,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     "barrels": [],
     "fallen": [{ "x": -11.7, "z": 11.3, "yaw": 2.0, "len": 1.6 }],
     "stumps": [],
-    "snags": [[-13.35, -11.3, 2.7], [-13.4, 12.3, 2.2]],
+    "snags": [[-13.35, -11.3, 2.7], [-13.4, 12.3, 2.2], [-13.3, -3.3, 2.4]],
     "birches": [],
     "shrubs": [[-7.55, -9.35, 0.8], [-4.7, -12.5, 0.7], [-8.6, 0.2, 0.8], [-12.0, 4.9, 0.7], [7.6, 12.4, 0.8], [-7.0, -5.9, 0.75], [-2.3, -5.9, 0.7]],
     "meadows": [[6.2, -5.6, 2.6], [-6.0, -10.2, 2.4], [4.6, 5.0, 3.0], [-1.2, 10.4, 2.6], [6.2, 11.4, 2.4]],
@@ -186,7 +186,7 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
   "critter": { "x": 5.5, "z": -9.7 },
   "canoe": { "x": 10.1, "z": 4.62, "len": 2.0 },
   "cleat": { "x": 9.05, "z": 3.8 },
-  "owl": { "x": -12.35, "y": 1.2, "z": -3.75, "tree": { "x": -13.0, "z": -4.4 } },
+  "owl": { "x": -12.75, "y": 1.25, "z": -2.85, "tree": { "x": -13.3, "z": -3.3 } },
   "ducks": [
     { "z": -5.6, "rx": 0.6, "rz": 1.3, "speed": 0.09 },
     { "z": 7.4, "rx": 0.5, "rz": 1.0, "speed": 0.12 }
@@ -198,12 +198,13 @@ export const CAMPFIRE_LAYOUT = /* layout:begin */ {
     { "kind": "berries", "x": -5.0, "z": -9.2 }
   ],
   "stringPole": { "x": -6.6, "z": -0.4, "h": 2.2 },
-  "pegs": [{ "x": 3.4, "z": -13.2, "y": 1.75, "tip": [3.55, -12.787] }],
+  "frogs": [[9.87, -10.4], [11.1, -8.2], [10.07, -2.4], [11.78, 9.8], [10.66, 12.0]],
+  "lightPosts": [{ "x": -10.5, "z": -4.55, "h": 2.0 }, { "x": -11.4, "z": -1.55, "h": 2.0 }],
   "strings": [
-    { "a": [-9.2, 2.65, -2.6], "b": [-10.92, 1.6, -5.2], "sag": 0.45 },
-    { "a": [-9.2, 2.65, -2.6], "b": [-12.2, 1.6, -1.2], "sag": 0.45 },
+    { "a": [-9.2, 2.65, -2.6], "b": [-10.5, 2.0, -4.55], "sag": 0.35 },
+    { "a": [-9.2, 2.65, -2.6], "b": [-11.4, 2.0, -1.55], "sag": 0.35 },
     { "a": [-9.2, 2.65, -2.6], "b": [-6.6, 2.15, -0.4], "sag": 0.4 },
-    { "a": [3.55, 1.745, -12.787], "b": [5.15, 1.55, -10.125], "sag": 0.35 },
+    { "a": [3.0, 2.0, -13.15], "b": [5.15, 1.55, -10.125], "sag": 0.35 },
     { "a": [5.15, 1.55, -10.125], "b": [7.25, 1.55, -10.125], "sag": 0.22 }
   ],
   "fenceLights": { "y": 0.78, "sag": 0.2, "every": 2 },
@@ -434,13 +435,14 @@ function campOpen(x: number, z: number): boolean {
   if (!L.dressing.shrubs.every(([sx, sz, s]) => clear({ x: sx, z: sz }, 0.34 * s))) return false;
   if (!L.dressing.snags.every(([sx, sz]) => clear({ x: sx, z: sz }, 0.2))) return false;
   if (!L.dressing.crates.every((c) => clear(c, 0.6)) || !L.dressing.lanternPosts.every((c) => clear(c, 0.1)) || !L.dressing.fallen.every((c) => clear(c, c.len / 2 + 0.1))) return false;
-  if (!clear(L.tent, L.tent.r) || !clear(L.woodpile, 1.1) || !clear(L.buster, 1.0) || !clear(L.telescope, 0.3) || !clear(L.stringPole, 0.1)) return false;
+  if (!clear(L.tent, L.tent.r) || !clear(L.woodpile, 1.1) || !clear(L.buster, 1.0) || !clear(L.telescope, 0.3) || !clear(L.stringPole, 0.1) || !L.lightPosts.every((p) => clear(p, 0.1))) return false;
   if (!clear(L.places.glade, L.places.glade.r + 0.35) || !clear(L.guitarCase, 0.5)) return false;
   return true;
 }
 /** The camp's other trees, felled too (all but the ones that hold something up: the hammocks'
- *  pines, the pines a string of lights is tied to, the owl's; and the one across the river, which no
- *  one reaches: the layout's `bare` and `keep`): each a Soft Pine in the look the
+ *  pines, `bare`; and the one across the river, which no one reaches, `keep`; nothing else is tied
+ *  to a tree: the strings of lights hang from posts, the tipi and the archway, the owl sits on a
+ *  dead tree): each a Soft Pine in the look the
  *  layout stands it in (`look`: a pine or the slimmer spruce; `size`: its own against the look's;
  *  `tone`: which of the three greens), felled from the nearest open ground on the fire's side. */
 export const CAMP_WILD_TREES = L.trees.flatMap((raw, i) => {
@@ -450,6 +452,9 @@ export const CAMP_WILD_TREES = L.trees.flatMap((raw, i) => {
   const at = openApproach(t, pineTrunk(t.s) + 0.63, L.fire, campOpen);
   return [{ id: `camp_wild_${i + 1}`, kind: "soft_pine" as const, x: t.x, z: t.z, approachX: at.x, approachZ: at.z, look, size: Math.round((look === "pine" ? t.s / 1.05 : t.s) * 1000) / 1000, tone: (i * 2 + 1) % 3 }];
 });
+
+/** The frogs on the river's lily pads ([x, z]: the builder floats a pad under each). */
+export const CAMP_FROGS = L.frogs.map(([x, z]): [number, number] => [x, z]);
 
 /** Close enough to the telescope's eyepiece to look through it. */
 export const STARGAZE_REACH = 1.4;
@@ -932,6 +937,7 @@ export const CAMP_OBSTACLES: AABB[] = [
   ...L.dressing.shrubs.map(([x, z, s]) => around({ x, z }, 0.34 * s)),
   // the pole the lights are strung from, the signpost
   around(L.stringPole, 0.1),
+  ...L.lightPosts.map((p) => around(p, 0.1)),
   around(L.signpost, 0.12),
   // the guitar case lying open in the grove, and the lantern on the grass beside it
   around(L.guitarCase, 0.5),

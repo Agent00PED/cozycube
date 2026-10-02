@@ -230,6 +230,9 @@ PALETTE = {
     "CF_Cattail": "#6B4A30",
     # the butterflies' templates (docs/maps-fill-plan.md part 5; pale where the game tints them)
     "CF_FlyBody": "#2E2622",
+    "CF_Frog": "#6AA63C",
+    "CF_FrogDark": "#4C8530",
+    "CF_FrogBelly": "#D6E6A6",
     "CF_FlyWing": "#FFF6E2",
     "CF_FlyWingLow": "#F4E4C8",
     # the gallery's painted ducks and owls' eyes (the braided rug they were made for is gone: the
@@ -786,6 +789,8 @@ def make_shade(L):
             S.cast(f["x"] + math.sin(f["yaw"]) * f["len"] * u, f["z"] + math.cos(f["yaw"]) * f["len"] * u, 0.42, 0.3, throw=0.15)
     for x, z, h in D.get("snags", []):
         S.cast(x, z, 0.5, 0.3, throw=0.2)
+    for post in L.get("lightPosts", []):
+        S.cast(post["x"], post["z"], 0.3, 0.26, throw=0.14)
     S.cast(L["tent"]["x"], L["tent"]["z"], L["tent"]["r"] * 1.35, 0.4, throw=0.14)
     v = L["van"]
     for u in (-0.8, 0.0, 0.8):
@@ -1370,8 +1375,8 @@ def build_trees(L, coll):
     rng = random.Random(21)
     bm = bmesh.new()
     # (each at its own size, and turned its own way where the layout says: the west edge's stagger)
-    # Only the trees that hold something up stand in the model (the hammocks' pines, `bare`; the
-    # ones a string of lights is tied to, the owl's and the one across the river, `keep`): every
+    # Only the trees that are never felled stand in the model (the hammocks' pines, `bare`; the
+    # one across the river, `keep`): every
     # other one is felled, so the game draws it from trees.glb at its node (shared/worlds/campfire.ts
     # CAMP_WILD_TREES: the same looks, sizes and greens as here). Those are still grown here, into
     # a mesh thrown away, so everything after them stands where it did.
@@ -1411,7 +1416,7 @@ def build_trees(L, coll):
         w = L["places"]["riverEnd"]["willow"]
         willow(bm, w["x"], w["z"], w["s"], random.Random(77), 0, 7)
     make_object("Campfire_Trees", bm, ["CF_Bark", "CF_Pine", "CF_PineLight", "CF_BirchBark", "CF_BirchMark", "CF_BirchLeaf", "CF_BirchLeafLight", "CF_Willow", "CF_WillowLight", "CF_PineDeep", "CF_Snag", "CF_PineBlue", "CF_PineBlueLight", "CF_PineOlive", "CF_PineOliveLight"], coll)
-    # the bare branch the owl perches on, out through its pine's lowest boughs (its own object,
+    # the bare branch the owl perches on, out of its dead tree (the layout's snag there; its own object,
     # standing on the ground under the owl: the two never part on a slope)
     o = L["owl"]
     bm = bmesh.new()
@@ -1646,6 +1651,9 @@ def build_deco(L, coll):
                 a = 2 * math.pi * q / 6 + a0
                 blob(bm, x + 0.05 * math.cos(a), water + 0.05, z + 0.05 * math.sin(a), 0.05, 0.03, 0.05, m=1, cuts=1, n=2.0)
             blob(bm, x, water + 0.075, z, 0.03, 0.025, 0.03, m=4, cuts=2, n=2.0)
+    # (and a pad under each of the frogs the game sets on the river)
+    for k, (fx, fz) in enumerate(L.get("frogs", [])):
+        nature().lily_pad(bm, slab, fx, fz, 0.21, water, 2, turn=k * 1.7)
     clumps = [(z, (k * 7 + k // 3) % 2) for k, z in enumerate(along_river(L, 1.25, 1.2))]
     for cz, side in clumps:
         span = river_span(L, cz)
@@ -1900,6 +1908,14 @@ def build_glamping(L, cushions, coll):
     for k in range(5):
         a = 2 * math.pi * k / 5
         blob(bm, sp["x"] + 0.14 * math.cos(a), 0.04, sp["z"] + 0.14 * math.sin(a), 0.07, 0.05, 0.06, m=m["CF_Metal"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.01)
+    # (and the plain posts the other strings end at: no string is tied to a tree, every tree is felled)
+    for post in L.get("lightPosts", []):
+        px, pz = post["x"], post["z"]
+        cylinder(bm, W(px, 0.0, pz), W(px + 0.02, post["h"] + 0.07, pz - 0.01), 0.045, 8, m=m["CF_Pole"], r_end=0.035)
+        cylinder(bm, W(px - 0.1, post["h"] - 0.04, pz), W(px + 0.1, post["h"] - 0.04, pz), 0.02, 6, m=m["CF_Pole"])
+        for k in range(3):
+            a = 2 * math.pi * k / 3 + px
+            blob(bm, px + 0.12 * math.cos(a), 0.035, pz + 0.12 * math.sin(a), 0.06, 0.045, 0.055, m=m["CF_Metal"], cuts=2, noise=0.1, rng=rng, flat_bottom=-0.01)
 
     # --- the grove: a guitar case lying open on the grass (plush lining, a few coins), and a warm
     # camping lantern on the ground beside it ---
@@ -2563,6 +2579,7 @@ def build(root):
     build_dressing(L, coll)
     build_places(L, cushions, coll)
     build_butterfly(coll)
+    build_frog(coll)
     for ob in coll.all_objects:
         if ob.modifiers:
             bake_modifiers(ob)
@@ -2793,6 +2810,17 @@ def build_dressing(L, coll):
         f.normal_update()
     make_object("Campfire_Dressing", bm, M, coll, recalc=True)
 
+
+
+def build_frog(coll):
+    """Fauna_CampFrog: the template the game draws its frogs from (its own name: the woods' is
+    Fauna_WoodsFrog in the same master file), instanced on the river's lily pads. Sitting at the
+    world's origin, facing +z; hidden by the game."""
+    bm = bmesh.new()
+    index = {"body": 0, "dark": 1, "belly": 2, "eye": 3, "pupil": 4}
+    for role, build in nature().frog(blob):
+        build(bm, index[role])
+    make_object("Fauna_CampFrog", bm, ["CF_Frog", "CF_FrogDark", "CF_FrogBelly", "CF_PetalYellow", "CF_FlyBody"], coll, origin=(0.0, 0.0, 0.0), lift=None)
 
 
 def build_butterfly(coll):

@@ -713,7 +713,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 7,
     name: "Fight Nights at the Velvet Ring",
-    range: "v0.7.0–v0.7.57",
+    range: "v0.7.0–v0.7.58",
     icon: "🥊",
     blurb: "A vintage boxing hall with a raised canvas, a social brawler judged by the server, ringside betting, and a joystick for every touch screen.",
     patches: [
@@ -1937,6 +1937,21 @@ export const PATCH_ERAS: PatchEra[] = [
             "🦉 A few trees stay standing: the ones that hold a hammock or a string of lights, and the ones a bird lives in.",
           ],
           economy: ["⚖️ More pines close together means a little more a minute with a starter axe (about 33 coins at the campfire). The fourth maple raises what the two best axes earn by about 8%."],
+        },
+      },
+      {
+        version: "0.7.58",
+        date: "2026-10-02",
+        title: "Frogs and Fine Tuning",
+        summary: "The last standing trees can be felled, frogs sit on the lily pads, and the camp maps run lighter.",
+        changes: {
+          features: [
+            "🪓 The trees that held the strings of lights and the birds' pines can be felled now. The lights hang from posts instead, and a bird flies off until its pine grows back.",
+            "🐸 Frogs sit on the lily pads of both rivers. Walk up to one and it jumps in.",
+            "🦉 The campfire's owl has moved to a dead tree by the tipi.",
+          ],
+          economy: ["🍁 Autumn Maples take a little longer to grow back (about 7 minutes), now that there are four of them.", "🪓 Buster's stall now says it plainly: a better axe is for the Whispering Woods."],
+          fixes: ["⚡ The campfire and the woods draw about a quarter less each frame, which helps phones."],
         },
       },
     ],

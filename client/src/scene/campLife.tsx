@@ -3,12 +3,13 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { instanced, template } from "./faunaKit";
 import { CampDaylightContext } from "./campDay";
+import { cameraFocus } from "./cameraFocus";
 import { noRaycast } from "./kit";
 
 // The camp maps' small motions (the campfire and the woods): cloud shadows drifting over the ground,
 // leaves coming down under the leafy trees, rings where a fish rises, mist on the river at dawn and
-// dusk, moths round the lanterns, smoke off a chimney, a flight of birds crossing overhead. All
-// client-side, nothing synced; one instanced draw each.
+// dusk, moths round the lanterns, smoke off a chimney, a flight of birds crossing overhead, frogs on
+// the lily pads. All client-side, nothing synced; one instanced draw each.
 
 // --- cloud shadows --------------------------------------------------------------------------------
 
@@ -361,4 +362,72 @@ export function Flyover({ scene, half, prefix = "Fauna_Bird" }: { scene: THREE.O
     for (const p of parts) if (p) p.mesh.instanceMatrix.needsUpdate = true;
   });
   return <>{parts.map((p, i) => (p ? <primitive key={i} object={p.mesh} /> : null))}</>;
+}
+
+// --- frogs on the lily pads -------------------------------------------------------------------------
+
+/** How near you come before a frog jumps in, how long its leap takes, and how long it keeps under. */
+const FROG_SHY = 2.3;
+const FROG_LEAP_S = 0.5;
+const FROG_UNDER_S = [9, 17] as const;
+const FROG_TINTS = ["#ffffff", "#eaf6cf", "#d7ecd9", "#f6f2c4"];
+
+/** Frogs sitting on the river's lily pads (the model's template `name`, one instanced draw): each
+ *  breathes, turns with a little hop now and then, leaps into the water when you come near and
+ *  climbs back out once you have gone. */
+export function Frogs({ scene, name, spots, waterY }: { scene: THREE.Object3D; name: string; spots: [number, number][]; waterY: number }) {
+  const part = useMemo(() => instanced(template(scene, name), spots.length, FROG_TINTS), [scene, name, spots]);
+  useEffect(
+    () => () => {
+      part?.mesh.dispose();
+    },
+    [part]
+  );
+  const frogs = useMemo(
+    () => spots.map(([x, z], i) => ({ x, z, yaw: (i * 2.4) % 6.283, turn: 0, phase: "sit" as "sit" | "leap" | "under" | "back", at: -99, hop: 3 + Math.random() * 8, wait: 0, dx: 0, dz: 1 })),
+    [spots]
+  );
+  const tmp = useMemo(() => ({ m: new THREE.Matrix4(), q: new THREE.Quaternion(), pos: new THREE.Vector3(), scl: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0) }), []);
+  useFrame(({ clock }) => {
+    if (!part) return;
+    const t = clock.elapsedTime;
+    const { m, q, pos, scl, up } = tmp;
+    frogs.forEach((f, i) => {
+      const near = Math.hypot(cameraFocus.x - f.x, cameraFocus.z - f.z);
+      const since = t - f.at;
+      if (f.phase === "sit" && near < FROG_SHY) {
+        // away from whoever came, out over the water
+        const d = near || 1;
+        Object.assign(f, { phase: "leap", at: t, dx: (f.x - cameraFocus.x) / d, dz: (f.z - cameraFocus.z) / d, wait: FROG_UNDER_S[0] + Math.random() * (FROG_UNDER_S[1] - FROG_UNDER_S[0]) });
+        f.yaw = Math.atan2(f.dx, f.dz);
+      } else if (f.phase === "leap" && since > FROG_LEAP_S) Object.assign(f, { phase: "under", at: t });
+      else if (f.phase === "under" && since > f.wait && near > FROG_SHY + 1.5) Object.assign(f, { phase: "back", at: t });
+      else if (f.phase === "back" && since > 0.4) Object.assign(f, { phase: "sit", at: t, hop: t + 4 + Math.random() * 9 });
+      else if (f.phase === "sit" && t > f.hop) Object.assign(f, { hop: t + 5 + Math.random() * 11, turn: t, yaw: f.yaw + (Math.random() - 0.5) * 2.4 });
+      let x = f.x;
+      let y = waterY + 0.022;
+      let z = f.z;
+      let s = 1.7;
+      let squash = 1 + 0.035 * Math.sin(t * 2.6 + i * 1.7);
+      if (f.phase === "leap") {
+        const u = Math.min(1, since / FROG_LEAP_S);
+        x += f.dx * 0.55 * u;
+        z += f.dz * 0.55 * u;
+        y += 0.3 * Math.sin(Math.PI * u) - 0.1 * u;
+        s *= 1 - 0.5 * u * u;
+        squash = 1.15;
+      } else if (f.phase === "under") s = 0.0001;
+      else if (f.phase === "back") s *= Math.min(1, since / 0.4);
+      else {
+        // (a little hop as it turns)
+        const h = (t - f.turn) / 0.3;
+        if (h > 0 && h < 1) y += 0.07 * Math.sin(Math.PI * h);
+      }
+      q.setFromAxisAngle(up, f.yaw);
+      m.compose(pos.set(x, y, z), q, scl.set(s, s * squash, s));
+      part.mesh.setMatrixAt(i, m.multiply(part.t.matrix));
+    });
+    part.mesh.instanceMatrix.needsUpdate = true;
+  });
+  return part ? <primitive object={part.mesh} /> : null;
 }

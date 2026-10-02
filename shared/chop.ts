@@ -100,7 +100,7 @@ export function takeLogs(p: WoodHold, kind: WoodKind, n: number): number {
 export type AxeId = "rusty" | "steel" | "tempered" | "golden" | "runic";
 export const AXES: Record<AxeId, { name: string; emoji: string; tier: number; price: number; zoneBonus: number; slow: number; blurb: string }> = {
   rusty: { name: "Basic Flint Axe", emoji: "🪓", tier: 1, price: 0, zoneBonus: 0, slow: 0, blurb: "T1: Soft Pine. It gets the job done. Mostly." },
-  steel: { name: "Iron Timber Axe", emoji: "⚒️", tier: 2, price: AXE_PRICES.iron, zoneBonus: 0.2, slow: 0, blurb: "T2: fells Silver Birch. A 20% wider sweet spot." },
+  steel: { name: "Iron Timber Axe", emoji: "⚒️", tier: 2, price: AXE_PRICES.iron, zoneBonus: 0.2, slow: 0, blurb: "T2: fells the woods' Silver Birch. A 20% wider sweet spot." },
   tempered: { name: "Tempered Steel Axe", emoji: "🔨", tier: 3, price: AXE_PRICES.tempered, zoneBonus: 0.2, slow: 0.1, blurb: "T3: fells Highland Cedar. A 20% wider sweet spot, the ring 10% slower." },
   golden: { name: "Golden Felling Axe", emoji: "🌟", tier: 4, price: AXE_PRICES.golden, zoneBonus: 0.25, slow: 0.15, blurb: "T4: fells Autumn Maple. A 25% wider sweet spot, the ring 15% slower." },
   runic: { name: "Runic Elderwood Axe", emoji: "🪄", tier: 5, price: AXE_PRICES.runic, zoneBonus: 0.3, slow: 0.2, blurb: "T5: fells the Whispering Elderwood. A 30% wider sweet spot, the ring 20% slower." },
@@ -180,7 +180,7 @@ export const TREES: Record<TreeKind, TreeInfo> = {
   soft_pine: { name: "Soft Pine", emoji: "🌲", tier: 1, wood: "pine", respawnS: 35, rounds: [1, 2], logChance: 1, byproduct: null, trunkCm: 32, sweet: notch(1), period: 1.6, motion: "loop", knots: 0, lore: "Quick to grow and quick to fall: the camp's everyday firewood, sticky with sap." },
   birch: { name: "Silver Birch", emoji: "🌳", tier: 2, wood: "birch", respawnS: 80, rounds: [2, 3], logChance: 0.8, byproduct: "bark", trunkCm: 28, sweet: notch(2), period: 1.65, motion: "loop", knots: 0, lore: "Its paper-white bark peels in curls: the best kindling in the woods." },
   cedar: { name: "Highland Cedar", emoji: "🌲", tier: 3, wood: "cedar", respawnS: 160, rounds: [2, 4], logChance: 0.7, byproduct: "amber", trunkCm: 46, sweet: notch(3), period: 1.8, motion: "pendulum", knots: 0, lore: "Fragrant red heartwood that keeps the moths away and the rain out." },
-  maple: { name: "Autumn Maple", emoji: "🍁", tier: 4, wood: "maple", respawnS: 320, rounds: [3, 4], logChance: 0.6, byproduct: "leafAmber", trunkCm: 55, sweet: notch(4), period: 2.0, motion: "accel", knots: 1, lore: "Forever golden: its leaves never quite fall, and its sap turns to amber." },
+  maple: { name: "Autumn Maple", emoji: "🍁", tier: 4, wood: "maple", respawnS: 440, rounds: [3, 4], logChance: 0.6, byproduct: "leafAmber", trunkCm: 55, sweet: notch(4), period: 2.0, motion: "accel", knots: 1, lore: "Forever golden: its leaves never quite fall, and its sap turns to amber." },
   elderwood: { name: "Whispering Elderwood", emoji: "🌌", tier: 5, wood: "elderwood", respawnS: 650, rounds: [3, 5], logChance: 0.5, byproduct: "shavings", trunkCm: 92, sweet: notch(5), period: 2.2, motion: "pulse", knots: 2, lore: "Older than the stones round it. They say it hums to itself on quiet nights." },
 };
 export function isTreeKind(v: unknown): v is TreeKind {
