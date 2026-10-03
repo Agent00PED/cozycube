@@ -2119,6 +2119,25 @@ export const PATCH_ERAS: PatchEra[] = [
           economy: ["⚖️ The grove and the reef earn what they did: about 249 and 248 coins a minute with the Tidewater axe and pickaxe."],
         },
       },
+      {
+        version: "0.8.8",
+        date: "2026-10-03",
+        title: "What Grows in the Dark",
+        summary: "The hidden place is a different cave now, and there is more to do there for those who have found it.",
+        changes: {
+          features: [
+            "🖤 Four Drowned Ironwoods stand on stilt roots under the light from the roof: a seventh tree tier, felled with the Deep Tide Axe. Ironwood logs, and Ironwood Bark when a round gives no log.",
+            "🐚 Pearl Rock in the cave's wall, four bosses of it: a seventh ore tier, mined with the Deep Tide Pickaxe. Mother-of-Pearl, and a Black Pearl once in a while.",
+            "🔱 The Deep Tide Axe (150,000 coins, 12 Sea Pearls, 2 Core Fragments, 2 Titan Heartwood, 8 Ancient Wood Shavings) and the Deep Tide Pickaxe (180,000 coins, 12 Sea Pearls, 3 Core Fragments, a Star Shard, 2 Prismatic Scales) are made at the shipwright's bench there.",
+            "📿 Pearl jewellery at the forge's Smithing tab: the Nacre Comb, the Mother-of-Pearl Necklace, the Black Pearl Brooch.",
+            "💍 A Pearl-set ring band at the forge (3 Silver Ingots, 3 Mother-of-Pearl, 2,000 coins): as strong as the Glimmer-set, by another road.",
+            "✨ The cave itself: stalactites and flowstone down its walls, moss and hanging vines under the opening in the roof, glowworms on the dark rock, a shaft of light with dust rising in it, stalagmites, lantern posts, the ribs of a boat the shipwright never finished.",
+            "🪼 Moon jellies glow in the lagoon; pale crabs keep the wet sand.",
+            "⛵ The captain's boat there is his own boat now, not a plain hull.",
+          ],
+          economy: ["⚖️ With the Deep Tide tools: ironwood about 290 coins a minute, pearl rock about 315 (a boat trip to Dune and a new ticket each time the load is sold)."],
+        },
+      },
     ],
   },
 ];

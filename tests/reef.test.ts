@@ -21,7 +21,7 @@ import { TARGETS, simulate, soldLadder } from "../scripts/economy-sim";
 test("the reef rock is the sixth ore tier: only a Tidewater pickaxe mines it whole, the Drill bites at 60%, the rest skid off", () => {
   const reef = ORE_KINDS.reef;
   assert.equal(reef.tier, 6);
-  assert.deepEqual(PICKAXES_BY_TIER.map((id) => PICKAXES[id].tier), [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(PICKAXES_BY_TIER.map((id) => PICKAXES[id].tier), [1, 2, 3, 4, 5, 6, 7]);
   assert.equal(oreRule(6, "reef"), "mine");
   assert.equal(oreRule(5, "reef"), "under");
   assert.equal(oreRule(4, "reef"), "deflect");
@@ -47,7 +47,7 @@ test("the reef rock is the sixth ore tier: only a Tidewater pickaxe mines it who
 
 test("six nodes in the headland: each a collider, mined from open sand within reach, walked to from the arrival, and found by its id like any node", () => {
   assert.equal(REEF_NODES.length, 6);
-  assert.equal(ALL_ORE_NODES.length, ORE_NODES.length + REEF_NODES.length);
+  assert.equal(ALL_ORE_NODES.filter((n) => n.map !== "hidden_cove").length, ORE_NODES.length + REEF_NODES.length);
   assert.ok(ORE_NODES.every((n) => n.map === "glimmering_caverns"), "the caverns' list is the caverns' alone");
   for (const n of REEF_NODES) {
     assert.equal(ORE_NODE_AT.get(n.id)?.map, "sunset_beach");

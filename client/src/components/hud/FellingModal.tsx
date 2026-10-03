@@ -46,6 +46,7 @@ const WOOD_LOOK: Record<TreeKind, { bark: string; barkDark: string; sap: string;
   maple: { bark: "#5e4633", barkDark: "#3e2e21", sap: "#f0d3a8", heart: "#c98f55", ring: "rgba(120,72,36,0.35)" },
   elderwood: { bark: "#3d4a45", barkDark: "#242d2a", sap: "#cfe6d8", heart: "#7fb9a4", ring: "rgba(40,90,80,0.4)" },
   palm: { bark: "#8a6f52", barkDark: "#5c4734", sap: "#f3e3c0", heart: "#dcc08a", ring: "rgba(130,96,56,0.35)" },
+  ironwood: { bark: "#2f3436", barkDark: "#1b1f21", sap: "#8a7f76", heart: "#4a3c36", ring: "rgba(20,16,14,0.45)" },
 };
 const CALLOUT: Record<FellVerdict, string> = { gold: "✨ Critical!", hit: "🪓 Thunk!", knot: "💥 Knot! Deflected", miss: "Missed…" };
 /** How the ring moves, under the round's count. */

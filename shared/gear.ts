@@ -144,7 +144,7 @@ export interface Loadout {
 
 // --- the rings: a band and a gem -------------------------------------------------------------------------
 
-export type RingBand = "copper" | "iron" | "silver" | "glimmer";
+export type RingBand = "copper" | "iron" | "silver" | "glimmer" | "pearl";
 export type RingGem = "amethyst" | "topaz" | "opal" | "star_shard";
 export type RingId = `${RingBand}:${RingGem}`;
 /** A band: its strength, and what forging it takes besides the gem (ingots, a fee). */
@@ -153,6 +153,8 @@ export const RING_BANDS: Record<RingBand, { name: string; strength: number; ore:
   iron: { name: "Iron", strength: 0.07, ore: { iron_ingot: 3 }, fee: 400 },
   silver: { name: "Silver", strength: 0.1, ore: { silver_ingot: 3 }, fee: 1000 },
   glimmer: { name: "Glimmer-set", strength: 0.13, ore: { silver_ingot: 3, glimmer_shard: 3 }, fee: 2000 },
+  // (a second way to the top band, by the Hidden Cove's nacre: the same strength, another look)
+  pearl: { name: "Pearl-set", strength: 0.13, ore: { silver_ingot: 3, nacre: 3 }, fee: 2000 },
 };
 /** A gem: what the ring does, at its band's strength, for whichever craft is in hand. */
 export const RING_GEMS: Record<RingGem, { name: string; emoji: string; power: string; does: (s: number) => string }> = {

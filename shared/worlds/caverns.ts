@@ -3,6 +3,7 @@ import type { PropSpec } from "./lounge";
 import { ORE_KINDS, type OreKind } from "../caverns_mining";
 import type { MapId } from "../types";
 import { REEF_NODES } from "./beach";
+import { COVE_NODES } from "./cove";
 
 // The Glimmering Caverns (the map "glimmering_caverns"): a 45 x 45 karst cavern after Hang Son Doong,
 // reached only through the old mine adit behind the Whispering Woods' Autumn Maples (Old Flint the
@@ -1052,7 +1053,7 @@ export const ORE_NODES: OreNode[] = L.nodes.map((n) => {
 });
 /** Every node there is to prospect: the caverns' (ORE_NODES) and Sunset Beach's fossil reef rock
  *  (shared/worlds/beach.ts REEF_NODES). ORE_NODE_AT finds either by id. */
-export const ALL_ORE_NODES: OreNode[] = [...ORE_NODES, ...REEF_NODES];
+export const ALL_ORE_NODES: OreNode[] = [...ORE_NODES, ...REEF_NODES, ...COVE_NODES];
 export const ORE_NODE_AT = new Map(ALL_ORE_NODES.map((n) => [n.id, n]));
 /** The prop id of a node, and the node of a prop id. */
 export const orePropId = (id: string) => `ore_${id}`;

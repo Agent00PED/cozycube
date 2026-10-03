@@ -4,6 +4,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { ORE_KINDS, parseOres, type CaveShatter, type CaveStrike, type OreKind } from "@shared/caverns_mining";
 import { REEF_NODES } from "@shared/worlds/beach";
+import { COVE_NODES } from "@shared/worlds/cove";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { BLOW } from "../entities/activityAnimations";
@@ -25,18 +26,24 @@ import { ProspectingView } from "./ProspectingView";
 export const REEF_URL = modelUrl("reef.glb");
 
 type Look = { rock: THREE.Mesh; rubble: THREE.Mesh | null };
+/** Which rock each map has: its nodes, its kind and its looks in reef.glb. */
+const ROCKS = {
+  sunset_beach: { nodes: REEF_NODES as readonly { id: string; x: number; y: number; z: number }[], kind: "reef" as OreKind, look: "Ore_reef" },
+  hidden_cove: { nodes: COVE_NODES as readonly { id: string; x: number; y: number; z: number }[], kind: "pearl" as OreKind, look: "Ore_pearl" },
+};
+export type RockMap = keyof typeof ROCKS;
 
-export function ReefRock({ ores, subscribeMessages, localSessionId, onStrike }: { ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; localSessionId: string | null; onStrike: (node: string, dir: [number, number, number], t: number) => void }) {
+export function ReefRock({ ores, subscribeMessages, localSessionId, onStrike, map = "sunset_beach" }: { map?: RockMap; ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; localSessionId: string | null; onStrike: (node: string, dir: [number, number, number], t: number) => void }) {
   return (
     <ModelBoundary what="reef.glb" fallback={null}>
       <Suspense fallback={null}>
-        <ReefModels ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onStrike={onStrike} />
+        <ReefModels map={map} ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onStrike={onStrike} />
       </Suspense>
     </ModelBoundary>
   );
 }
 
-function ReefModels({ ores, subscribeMessages, localSessionId, onStrike }: { ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; localSessionId: string | null; onStrike: (node: string, dir: [number, number, number], t: number) => void }) {
+function ReefModels({ ores, subscribeMessages, localSessionId, onStrike, map }: { map: RockMap; ores: string; subscribeMessages: (listener: RoomMessageListener) => () => void; localSessionId: string | null; onStrike: (node: string, dir: [number, number, number], t: number) => void }) {
   const { scene } = useGLTF(REEF_URL);
   const look = useMemo((): Look | null => {
     const find = (name: string) => {
@@ -46,10 +53,12 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike }: { ore
       });
       return out as THREE.Mesh | null;
     };
-    const rock = find("Ore_reef");
-    return rock ? { rock, rubble: find("Ore_reef_Rubble") } : null;
-  }, [scene]);
-  const templates = useMemo(() => (look ? ({ reef: { rock: look.rock, glow: null } } as Partial<Record<OreKind | "rubble", { rock: THREE.Mesh; glow: THREE.Mesh | null }>>) : {}), [look]);
+    const rock = find(ROCKS[map].look);
+    return rock ? { rock, rubble: find(`${ROCKS[map].look}_Rubble`) } : null;
+  }, [scene, map]);
+  const NODES = ROCKS[map].nodes;
+  const kind = ROCKS[map].kind;
+  const templates = useMemo(() => (look ? ({ [kind]: { rock: look.rock, glow: null } } as Partial<Record<OreKind | "rubble", { rock: THREE.Mesh; glow: THREE.Mesh | null }>>) : {}), [look, kind]);
   const sync = useMemo(() => parseOres(ores), [ores]);
   const shake = useRef(new Map<string, number>());
   const rocks = useRef(new Map<string, THREE.Mesh>());
@@ -61,7 +70,7 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike }: { ore
       subscribeMessages((type, payload) => {
         if (type === "caveStrike") {
           const st = payload as CaveStrike;
-          if (!REEF_NODES.some((n) => n.id === st.node)) return;
+          if (!NODES.some((n) => n.id === st.node)) return;
           shake.current.set(st.node, performance.now() + (st.verdict === "deflect" ? 120 : 200));
           const mine = st.sessionId === me.current;
           prospectStore.strike(st, mine);
@@ -72,18 +81,18 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike }: { ore
           playCaveSfx(st.verdict === "direct" ? "crack" : st.verdict === "near" ? "clink" : st.verdict === "deflect" ? "clang" : "clatter", mine ? 1 : 0.45);
         } else if (type === "caveShatter") {
           const sh = payload as CaveShatter;
-          if (!REEF_NODES.some((n) => n.id === sh.node)) return;
+          if (!NODES.some((n) => n.id === sh.node)) return;
           playCaveSfx("shatter", 1);
           if (sh.crew.includes(me.current ?? "")) prospectShake(0.14);
         }
       }),
-    [subscribeMessages]
+    [subscribeMessages, NODES]
   );
 
   // a struck rock shudders a moment
   useFrame(() => {
     const now = performance.now();
-    for (const n of REEF_NODES) {
+    for (const n of NODES) {
       const mesh = rocks.current.get(n.id);
       if (!mesh) continue;
       const until = shake.current.get(n.id) ?? 0;
@@ -94,10 +103,10 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike }: { ore
   });
 
   if (!look) return null;
-  const r = ORE_KINDS.reef.radius;
+  const r = ORE_KINDS[kind].radius;
   return (
     <group>
-      {REEF_NODES.map((n) => {
+      {NODES.map((n) => {
         const up = sync[n.id]?.up ?? true;
         const yaw = NODE_YAW.get(n.id) ?? 0;
         return up ? (

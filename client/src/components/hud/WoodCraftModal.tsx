@@ -41,7 +41,7 @@ const MODES: [CraftMode, string, string][] = [
 ];
 const TIER_TONE: Record<string, string> = { common: "text-white/70", uncommon: "text-emerald-200", rare: "text-sky-200", epic: "text-violet-200", legendary: "text-amber-200" };
 const SHORT: Partial<Record<WoodKind, string>> = { pine: "Pine", birch: "Birch", cedar: "Cedar", maple: "Maple", elderwood: "Elder", oak: "Oak", charcoal: "Charcoal" };
-const BY_SHORT: Record<ByproductId, string> = { bark: "Bark", amber: "Amber", leafAmber: "Leaf Amber", shavings: "Shavings", scales: "Scales", silverBark: "Silver Bark", heartwood: "Heartwood", fishBone: "Fish Bone", prismScale: "Prism Scale", stoneDust: "Stone Dust", pearl: "Pearl", husk: "Husk", coconut: "Coconut" };
+const BY_SHORT: Record<ByproductId, string> = { bark: "Bark", amber: "Amber", leafAmber: "Leaf Amber", shavings: "Shavings", scales: "Scales", silverBark: "Silver Bark", heartwood: "Heartwood", fishBone: "Fish Bone", prismScale: "Prism Scale", stoneDust: "Stone Dust", pearl: "Pearl", husk: "Husk", coconut: "Coconut", ironbark: "Ironbark" };
 /** Each tab's line under the recipes' names. */
 const TAB_TAG: Record<CraftFilter, string> = { tackles: "tackle · made once", consumables: "consumable", relics: "relic · wear it", furniture: "furniture" };
 const pct = (p: number) => `${Math.round(p * 100)}%`;

@@ -1002,7 +1002,7 @@ export default function App() {
         {/* the Velvet Ring: the scoreboard, a fighter's controls, the count, the result */}
         {currentMap === "boxing_ring" && localPlayer && localSessionId && !mapTransitioning && <BoxingHud me={localPlayer} localSessionId={localSessionId} players={players} send={boxingSend} subscribeMessages={subscribeMessages} />}
         {/* the Glimmering Caverns: prospecting's one control (the rock is the rest) */}
-        {(currentMap === "glimmering_caverns" || currentMap === "sunset_beach") && !mapTransitioning && <ProspectingHud send={cavernsSend} />}
+        {(currentMap === "glimmering_caverns" || currentMap === "sunset_beach" || currentMap === "hidden_cove") && !mapTransitioning && <ProspectingHud send={cavernsSend} />}
         {/* ...and the warm pools' breathing, while you soak */}
         {currentMap === "glimmering_caverns" && localPlayer && !mapTransitioning && <SoakHud player={localPlayer} send={cavernsSend} subscribeMessages={subscribeMessages} />}
         {/* ...the Cave Codex's watch, the living wonder's pill, the photo */}

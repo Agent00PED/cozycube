@@ -23,6 +23,7 @@ import { AXE_PRICES, BYPRODUCT_PRICES, CARRIER_CAPACITY, CREEL_CAPACITY, ORE_PRI
 import { OVERSUPPLY_AT, OVERSUPPLY_DROP, RECOVER_SOLD, SUPPLY_MAX } from "../shared/market";
 import { DUNE_FRONT, REEF_NODES, PIER_LENGTH, PIER_RETURN, onPierAt } from "../shared/worlds/beach";
 import { SEA_ARRIVAL } from "../shared/worlds/sea";
+import { COVE_ARRIVAL, COVE_NODES } from "../shared/worlds/cove";
 import { SEA_CAST_ROD } from "../shared/sea_fishing";
 import { TICKET_PRICE } from "../shared/voyage";
 import { FISH, RODS_BY_TIER, biteSeconds, fishValue, rollCatch, rollFish } from "../shared/fishing";
@@ -241,14 +242,15 @@ const perHour = (sold: Record<string, number>, t: number) => Object.fromEntries(
 
 // --- the woodcutter ------------------------------------------------------------------------------------
 
-export function woodcutter(axeTier: number, map: MapId, where: string, keeper: Pt, gear: Loadout = NO_GEAR): Line {
+export function woodcutter(axeTier: number, map: MapId, where: string, keeper: Pt, gear: Loadout = NO_GEAR, trip: { s: number; ticket: number } | null = null): Line {
+  let fares = trip ? trip.ticket : 0;
   const pace = gearPace(gear);
   const pays = sellBonus(gear);
   const hit = STEADY.wood.hit;
   const rand = seeded(axeTier * 131 + where.length);
   const axe = AXES[AXES_BY_TIER[axeTier - 1]];
   const trees = FELL_TREES.filter((tr) => tr.map === map && !tr.titan && TREES[tr.kind].tier <= axeTier).map((tr) => ({ ...tr, readyAt: 0, at: { x: tr.approachX, z: tr.approachZ } }));
-  const cap = CARRIER_CAPACITY[axeTier - 1] + carrierBonus(gear);
+  const cap = CARRIER_CAPACITY[Math.min(CARRIER_CAPACITY.length, axeTier) - 1] + carrierBonus(gear);
   const sold: Record<string, number> = {};
   if (!trees.length) return { craft: "wood", tier: axeTier, where, perMin: 0, perMinSold: 0, soldPerHour: {} };
   /** A tree's turns of the ring, and what it is worth, on average. */
@@ -319,7 +321,8 @@ export function woodcutter(axeTier: number, map: MapId, where: string, keeper: P
     }
     tree.readyAt = t + info.respawnS * (1 - quickRegrow(gear));
     if (logs >= cap) {
-      t += walkS(map, pos, keeper) / pace + STEADY.sellS;
+      t += (trip ? trip.s : walkS(map, pos, keeper)) / pace + STEADY.sellS;
+      if (trip) fares += trip.ticket;
       pos = keeper;
       coins += heldCoins;
       logs = 0;
@@ -327,14 +330,14 @@ export function woodcutter(axeTier: number, map: MapId, where: string, keeper: P
     }
   }
   coins += heldCoins;
-  return { craft: "wood", tier: axeTier, where, perMin: (coins / t) * 60, perMinSold: withMarket(value, sold, t, flat), soldPerHour: perHour(sold, t) };
+  return { craft: "wood", tier: axeTier, where, perMin: ((coins - fares) / t) * 60, perMinSold: withMarket(value, sold, t, flat - fares), soldPerHour: perHour(sold, t) };
 }
 
 // --- the miner -----------------------------------------------------------------------------------------
 
 const PICK_BY_TIER = (Object.keys(PICKAXES) as PickaxeId[]).sort((a, b) => PICKAXES[a].tier - PICKAXES[b].tier);
 
-export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolean; gear?: Loadout; beach?: boolean } = {}): Line {
+export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolean; gear?: Loadout; beach?: boolean; cove?: boolean } = {}): Line {
   const glints = opts.glints !== false;
   const chasing = opts.chase !== false;
   const gear = opts.gear ?? NO_GEAR;
@@ -350,9 +353,11 @@ export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolea
   const pickId = PICK_BY_TIER[pickTier - 1];
   const pick = PICKAXES[pickId];
   // (Sunset Beach's fossil reef rock: its six nodes, sold to Dune at his shack)
-  const map: MapId = opts.beach ? "sunset_beach" : "glimmering_caverns";
-  const keeper: Pt = opts.beach ? DUNE_FRONT : GUS_FRONT;
-  const nodes = (opts.beach ? REEF_NODES : ORE_NODES).filter((n) => !ORE_KINDS[n.kind].crew && oreRule(pick.tier, n.kind) !== "deflect").map((n) => ({ ...n, readyAt: 0, at: n.approach }));
+  // (the Hidden Cove's pearl rock: sold to Dune a boat trip away, on a new ticket each time)
+  const map: MapId = opts.cove ? "hidden_cove" : opts.beach ? "sunset_beach" : "glimmering_caverns";
+  const keeper: Pt = opts.cove ? COVE_ARRIVAL : opts.beach ? DUNE_FRONT : GUS_FRONT;
+  let fares = opts.cove ? TICKET_PRICE : 0;
+  const nodes = (opts.cove ? COVE_NODES : opts.beach ? REEF_NODES : ORE_NODES).filter((n) => !ORE_KINDS[n.kind].crew && oreRule(pick.tier, n.kind) !== "deflect").map((n) => ({ ...n, readyAt: 0, at: n.approach }));
   const slots = SATCHEL_TIERS[Math.min(SATCHEL_TIERS.length - 1, pickTier)].slots + satchelBonus(gear);
   const sold: Record<string, number> = {};
   const value: Record<string, number> = {};
@@ -445,13 +450,14 @@ export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolea
     const [lo, hi] = info.respawnS;
     node.readyAt = t + lo + rand() * (hi - lo);
     if (used() >= slots) {
-      t += walkS(map, pos, keeper) / pace + STEADY.sellS;
+      t += (opts.cove ? COVE_TRIP_S : walkS(map, pos, keeper)) / pace + STEADY.sellS;
+      if (opts.cove) fares += TICKET_PRICE;
       pos = keeper;
       sell();
     }
   }
   sell();
-  return { craft: "ore", tier: pickTier, where: opts.beach ? "beach" : "caverns", perMin: (coins / t) * 60, perMinSold: withMarket(value, sold, t), soldPerHour: perHour(sold, t) };
+  return { craft: "ore", tier: pickTier, where: opts.cove ? "cove" : opts.beach ? "beach" : "caverns", perMin: ((coins - fares) / t) * 60, perMinSold: withMarket(value, sold, t, -fares), soldPerHour: perHour(sold, t) };
 }
 
 const yieldMeans = new Map<string, number>();
@@ -478,6 +484,10 @@ export const AXE_TIERS = tiersOf(AXES_BY_TIER.length);
 export const PICKAXE_TIERS = tiersOf(PICKAXES_BY_TIER.length);
 const ALL_TIERS = tiersOf(Math.max(ROD_TIERS.length, AXE_TIERS.length, PICKAXE_TIERS.length));
 
+/** The cove's own tiers, and the trip from its sand to Dune and back (two sails each way). */
+const IRON_AXE = TREES.ironwood.tier;
+const PEARL_PICK = ORE_KINDS.pearl.tier;
+const COVE_TRIP_S = 2 * (walkS("sunset_beach", PIER_RETURN, DUNE_FRONT) + 24);
 /** The pickaxe made for the reef rock (the tier under it bites at 60%). */
 const REEF_PICK = ORE_KINDS.reef.tier;
 /** The axe that fells a Coconut Palm. */
@@ -485,16 +495,19 @@ const PALM_AXE = TREES.palm.tier;
 
 export function simulate(only = process.env.ONLY ?? ""): Line[] {
   const out: Line[] = [];
-  if (only) return only === "fish" ? ROD_TIERS.flatMap((t) => WATERS.filter((w) => t >= (w.sea?.minRod ?? 1)).map((w) => angler(t, w))) : only === "wood" ? AXE_TIERS.flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT), ...(t >= PALM_AXE ? [woodcutter(t, "sunset_beach", "beach", DUNE_FRONT)] : [])]) : [...PICKAXE_TIERS.map((t) => miner(t)), ...PICKAXE_TIERS.filter((t) => t >= REEF_PICK - 1).map((t) => miner(t, { beach: true }))];
+  if (only) return only === "fish" ? ROD_TIERS.flatMap((t) => WATERS.filter((w) => t >= (w.sea?.minRod ?? 1)).map((w) => angler(t, w))) : only === "wood" ? AXE_TIERS.flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT), ...(t >= PALM_AXE ? [woodcutter(t, "sunset_beach", "beach", DUNE_FRONT)] : []), ...(t >= IRON_AXE ? [woodcutter(t, "hidden_cove", "cove", COVE_ARRIVAL, NO_GEAR, { s: COVE_TRIP_S, ticket: TICKET_PRICE })] : [])]) : [...PICKAXE_TIERS.map((t) => miner(t)), ...PICKAXE_TIERS.filter((t) => t >= REEF_PICK - 1).map((t) => miner(t, { beach: true })), ...PICKAXE_TIERS.filter((t) => t >= PEARL_PICK - 1).map((t) => miner(t, { cove: true }))];
   for (const tier of ROD_TIERS) for (const w of WATERS) if (tier >= (w.sea?.minRod ?? 1)) out.push(angler(tier, w));
   for (const tier of AXE_TIERS) {
     out.push(woodcutter(tier, "campfire_night", "campfire", BUSTER_FRONT));
     out.push(woodcutter(tier, "whispering_woods", "woods", BRAMBLE_FRONT));
     // (Sunset Beach's Coconut Palms: a Tidewater axe or better; sold to Dune)
     if (tier >= PALM_AXE) out.push(woodcutter(tier, "sunset_beach", "beach", DUNE_FRONT));
+    // (the Hidden Cove's Drowned Ironwoods: a Deep Tide axe; sold to Dune a boat trip away)
+    if (tier >= IRON_AXE) out.push(woodcutter(tier, "hidden_cove", "cove", COVE_ARRIVAL, NO_GEAR, { s: COVE_TRIP_S, ticket: TICKET_PRICE }));
   }
   for (const tier of PICKAXE_TIERS) out.push(miner(tier));
   for (const tier of PICKAXE_TIERS) if (tier >= REEF_PICK - 1) out.push(miner(tier, { beach: true }));
+  for (const tier of PICKAXE_TIERS) if (tier >= PEARL_PICK - 1) out.push(miner(tier, { cove: true }));
   return out;
 }
 
