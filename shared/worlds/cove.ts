@@ -1,6 +1,7 @@
 import type { AABB } from "../collision";
 import type { PropSpec } from "./lounge";
 import { gridData, gridY, makeGrid } from "../terrain";
+import { openApproach } from "./approach";
 
 // The Hidden Cove (the map "hidden_cove", docs/beach-design.md section 5): a sea cave behind the rock
 // stacks, reached only on the captain's boat, and only once the torn sea chart is whole. Nothing on
@@ -32,8 +33,13 @@ export const COVE_LAYOUT = /* layout:begin */ {
   "bench": { "deg": -34, "d": 4.6 },
   "logs": [{ "deg": -8, "d": 3.2 }, { "deg": 44, "d": 3.4 }],
   "clams": [{ "deg": -46, "d": 0.5 }, { "deg": -22, "d": 0.2 }, { "deg": 6, "d": 0.4 }, { "deg": 48, "d": 0.25 }, { "deg": 70, "d": 0.6 }],
-  "crystals": [[-9.2, -1.5, 1.0], [-7.4, -6.6, 1.3], [-2.2, -9.6, 1.1], [3.4, -9.4, 0.9], [-9.6, 3.4, 0.8]],
-  "skylight": { "x": -3.4, "z": -3.6 }
+  "crystals": [[-9.6, -3.4, 1.0], [-7.4, -6.6, 1.3], [1.6, -10.0, 1.1], [5.2, -8.6, 0.9], [-8.9, 4.6, 0.8]],
+  "skylight": { "x": -3.4, "z": -3.6 },
+  "ironwoods": [[-16, 5.4, 1.05], [2, 6.2, 0.95], [20, 5.5, 1.1], [38, 4.4, 0.9]],
+  "pearlRock": [[-52, 3.4], [-27, 6.5], [11, 7.1], [53, 3.6]],
+  "stalagmites": [[-68, 2.9, 1.0], [-44, 5.0, 0.8], [-8, 6.6, 1.2], [28, 6.0, 0.9], [46, 4.9, 1.1], [64, 2.6, 0.8]],
+  "wreck": { "deg": -57, "d": 1.9 },
+  "lanterns": [[-27, 4.9], [16, 1.7], [57, 2.3]]
 } /* layout:end */;
 
 const L = COVE_LAYOUT;
@@ -135,6 +141,41 @@ export const COVE_OBSTACLES: AABB[] = [
   ...L.crystals.map(([x, z, s]) => around({ x, z }, 0.55 * s)),
 ];
 
+/** What stands for the look, and is walked round: stalagmites along the wall's foot, an old boat's
+ *  ribs in the sand, three lantern posts. */
+export const COVE_STALAGMITES = L.stalagmites.map(([deg, d, s]) => ({ ...coveAt(deg, d), s }));
+export const COVE_WRECK = { ...coveAt(L.wreck.deg, L.wreck.d), yaw: facing(coveAt(L.wreck.deg, L.wreck.d), LAGOON) + 0.9 };
+export const COVE_LANTERNS = L.lanterns.map(([deg, d]) => coveAt(deg, d));
+COVE_OBSTACLES.push(...COVE_STALAGMITES.map((p) => around(p, 0.3 * p.s)), around(COVE_WRECK, 0.8), ...COVE_LANTERNS.map((p) => around(p, 0.07)));
+
+// --- the cove's own gathering (T7): the Drowned Ironwoods and the pearl rock --------------------------
+const IRON_TRUNK = 0.34;
+export const PEARL_RADIUS = 0.6;
+const IRONWOODS = L.ironwoods.map(([deg, d, s]) => ({ ...coveAt(deg, d), s }));
+const PEARL_AT = L.pearlRock.map(([deg, d]) => coveAt(deg, d));
+COVE_OBSTACLES.push(...IRONWOODS.map((p) => around(p, IRON_TRUNK * p.s)), ...PEARL_AT.map((p) => around(p, PEARL_RADIUS * 0.6)));
+/** Open sand to stand on: clear of the water, the wall and everything that stands. */
+function coveOpen(x: number, z: number): boolean {
+  if (Math.hypot(x, z) > L.floor - 0.5 || coveBlocked(x, z)) return false;
+  return COVE_OBSTACLES.every((o) => Math.hypot(x - (o.minX + o.maxX) / 2, z - (o.minZ + o.maxZ) / 2) > (o.r ?? 0.5) + 0.34);
+}
+/** The four Drowned Ironwoods under the skylight (shared/worlds/trees.ts), each felled from the lagoon's side. */
+export const COVE_TREES = IRONWOODS.map((p, i) => {
+  const a = openApproach(p, IRON_TRUNK * p.s + 0.63, LAGOON, coveOpen);
+  return { id: `ironwood_${i + 1}`, kind: "ironwood" as const, x: p.x, z: p.z, approachX: a.x, approachZ: a.z, size: p.s };
+});
+/** The pearl rock set in the cave's wall: four nodes in the caverns' OreNode shape, on this map. */
+export const COVE_NODES = PEARL_AT.map((p, i) => {
+  const l = Math.hypot(LAGOON.x - p.x, LAGOON.z - p.z) || 1;
+  const face = { x: (LAGOON.x - p.x) / l, z: (LAGOON.z - p.z) / l };
+  const a = openApproach(p, PEARL_RADIUS + 0.75, LAGOON, coveOpen);
+  return { id: `pearl_${i + 1}`, kind: "pearl" as const, map: "hidden_cove" as const, x: p.x, z: p.z, y: round(coveLand(p.x, p.z)), face, approach: a, wall: false };
+});
+COVE_PROPS.push(
+  ...COVE_TREES.map((t): PropSpec => ({ propId: `tree_${t.id}`, x: t.x, z: t.z, kind: "tree", color: "#3b4a45", defaultOn: true, approachX: t.approachX, approachZ: t.approachZ })),
+  ...COVE_NODES.map((n): PropSpec => ({ propId: `ore_${n.id}`, x: n.x, z: n.z, kind: "ore", color: "#c8f6ff", defaultOn: true, approachX: n.approach.x, approachZ: n.approach.z }))
+);
+
 /** The grid, how far up the sand each of its corners is, and every thing's place, for the builder
  *  (scripts/blender/build_cove.py; `npm run beach-terrain` writes it). */
 export function coveTerrainData() {
@@ -155,6 +196,11 @@ export function coveTerrainData() {
       logs: COVE_LOGS.map((g2) => ({ x: g2.x, z: g2.z, yaw: g2.rotationY })),
       crystals: L.crystals,
       skylight: L.skylight,
+      ironwoods: IRONWOODS,
+      pearlRock: PEARL_AT,
+      stalagmites: COVE_STALAGMITES,
+      wreck: COVE_WRECK,
+      lanterns: COVE_LANTERNS,
     },
   };
 }

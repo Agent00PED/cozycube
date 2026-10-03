@@ -33,6 +33,11 @@ export type OreItemId =
   | "core_fragment"
   | "reef_stone"
   | "sea_glass"
+  | "nacre"
+  | "black_pearl"
+  | "nacre_comb"
+  | "pearl_necklace"
+  | "black_pearl_brooch"
   | "copper_ingot"
   | "iron_ingot"
   | "silver_ingot"
@@ -71,6 +76,11 @@ export const ORE_ITEMS: Record<OreItemId, OreItem> = {
   core_fragment: { name: "Ancient Core Fragment", emoji: "🔮", cat: "raw", price: ORE_PRICES.core_fragment, color: "#b36bff", blurb: "Off the Titan Monolith on the Great Lake's islet: humming, warm to the touch" },
   reef_stone: { name: "Fossil Reef Stone", emoji: "🪸", cat: "raw", price: ORE_PRICES.reef_stone, color: "#e8c9a8", blurb: "Off the fossil reef in Sunset Beach's headland: old coral and shell, set hard as marble" },
   sea_glass: { name: "Sea Glass", emoji: "🔷", cat: "gem", price: ORE_PRICES.sea_glass, color: "#7fe0d0", blurb: "A frosted green pebble out of the reef rock: the sea made it, and took its time" },
+  nacre: { name: "Mother-of-Pearl", emoji: "🐚", cat: "raw", price: ORE_PRICES.nacre, color: "#f1e9f6", blurb: "Off the pearl rock in the Hidden Cove's wall: old shell laid down in shining sheets" },
+  black_pearl: { name: "Black Pearl", emoji: "⚫", cat: "gem", price: ORE_PRICES.black_pearl, color: "#3b3a52", blurb: "Out of the pearl rock, once in a long while: dark, with a green fire in it" },
+  nacre_comb: { name: "Nacre Comb", emoji: "🪮", cat: "ware", price: ORE_PRICES.nacre_comb, color: "#f1e9f6", blurb: "4 Mother-of-Pearl on a Copper Ingot's spine, smithed at the forge" },
+  pearl_necklace: { name: "Mother-of-Pearl Necklace", emoji: "📿", cat: "ware", price: ORE_PRICES.pearl_necklace, color: "#f7f0fa", blurb: "4 Mother-of-Pearl strung on the silver of 2 ingots" },
+  black_pearl_brooch: { name: "Black Pearl Brooch", emoji: "🖤", cat: "ware", price: ORE_PRICES.black_pearl_brooch, color: "#3b3a52", blurb: "A Black Pearl in the silver of 2 ingots" },
   copper_ingot: { name: "Copper Ingot", emoji: "🟧", cat: "ingot", price: ORE_PRICES.copper_ingot, color: "#e0894a", blurb: "3 Raw Copper and 1 Coal, at the Thermal Bellows Forge" },
   iron_ingot: { name: "Iron Ingot", emoji: "⬛", cat: "ingot", price: ORE_PRICES.iron_ingot, color: "#6d7380", blurb: "3 Raw Iron and 2 Coal, at the Thermal Bellows Forge" },
   silver_ingot: { name: "Silver Ingot", emoji: "⬜", cat: "ingot", price: ORE_PRICES.silver_ingot, color: "#eef3fb", blurb: "2 Raw Silver and 2 Coal, at the Thermal Bellows Forge" },
@@ -106,13 +116,17 @@ export const ORE_CATEGORY_LABEL: Record<OreCategory, { emoji: string; name: stri
 /** The forge's wares (docs/economy-plan.md section 10): things smithed to sell, each from ingots and
  *  a little more, worth about a fifth over its makings at Gus's (a Masterwork ingot stands in for a
  *  plain one, at a loss: sell those as they are). Made at once, no game: the skill went into the ingots. */
-export type WareId = "copper_lantern" | "tool_head" | "silver_locket" | "opal_brooch" | "glimmer_lamp";
+export type WareId = "copper_lantern" | "tool_head" | "silver_locket" | "opal_brooch" | "glimmer_lamp" | "nacre_comb" | "pearl_necklace" | "black_pearl_brooch";
 export const FORGE_WARES: Record<WareId, Partial<Record<OreItemId, number>>> = {
   copper_lantern: { copper_ingot: 3, coal: 2 },
   tool_head: { iron_ingot: 2, coal: 1 },
   silver_locket: { silver_ingot: 2, amethyst: 1 },
   opal_brooch: { silver_ingot: 2, opal: 1 },
   glimmer_lamp: { silver_ingot: 2, glimmer_shard: 3, topaz: 1 },
+  // (pearl jewellery: the Hidden Cove's nacre)
+  nacre_comb: { nacre: 3, copper_ingot: 1 },
+  pearl_necklace: { nacre: 4, silver_ingot: 2 },
+  black_pearl_brooch: { black_pearl: 1, silver_ingot: 2 },
 };
 export const WARE_IDS = Object.keys(FORGE_WARES) as WareId[];
 export function isWareId(v: unknown): v is WareId {
@@ -123,7 +137,7 @@ export const itemsOf = (cat: OreCategory): OreItemId[] => ORE_ITEM_IDS.filter((i
 
 // --- the pickaxes: Old Flint's Rusted Pickaxe (T1), then Gus's ---------------------------------------
 
-export type PickaxeId = "rusted" | "copper" | "reinforced" | "glimmer" | "drill" | "tidewater";
+export type PickaxeId = "rusted" | "copper" | "reinforced" | "glimmer" | "drill" | "tidewater" | "deeptide";
 export interface Pickaxe {
   name: string;
   emoji: string;
@@ -157,6 +171,7 @@ export const PICKAXES: Record<PickaxeId, Pickaxe> = {
   glimmer: { name: "Glimmer Pickaxe", emoji: "💠", tier: 4, price: PICKAXE_PRICES.glimmer, damage: 54, swing: FAST_SWING_S, sweet: 0.3, hum: true, glint: 1.5, geodeFloor: 0.25, shatterDouble: false, noBedrock: false, blurb: "T4: mines every tier, the Titan Monolith too (one-shots T1-T3). Weak spots glint 50% brighter, +30% sweet spot radius." },
   drill: { name: "Deep Core Drill", emoji: "🌀", tier: 5, price: PICKAXE_PRICES.drill, damage: 70, swing: FAST_SWING_S, sweet: 0.6, hum: true, glint: 1.5, geodeFloor: 0.25, shatterDouble: true, noBedrock: true, blurb: "T5: one-shots T1-T4; 2x shatter yield on a perfect strike; +60% sweet spot radius; bedrock never deflects it." },
   tidewater: { name: "Tidewater Pickaxe", emoji: "🪸", tier: 6, price: PICKAXE_PRICES.tidewater, damage: 90, swing: FAST_SWING_S, sweet: 0.7, hum: true, glint: 1.5, geodeFloor: 0.25, shatterDouble: true, noBedrock: true, blurb: "T6: mines Sunset Beach's fossil reef rock (one-shots T1-T5, never the Monolith); 2x shatter yield on a perfect strike; +70% sweet spot radius; bedrock never deflects it." },
+  deeptide: { name: "Deep Tide Pickaxe", emoji: "🔱", tier: 7, price: PICKAXE_PRICES.deeptide, damage: 115, swing: FAST_SWING_S, sweet: 0.8, hum: true, glint: 1.5, geodeFloor: 0.25, shatterDouble: true, noBedrock: true, blurb: "T7: mines the Hidden Cove's pearl rock (one-shots T1-T6, never the Monolith); 2x shatter yield on a perfect strike; +80% sweet spot radius; bedrock never deflects it." },
 };
 export const PICKAXE_IDS = Object.keys(PICKAXES) as PickaxeId[];
 export const PICKAXES_BY_TIER: PickaxeId[] = [...PICKAXE_IDS].sort((a, b) => PICKAXES[a].tier - PICKAXES[b].tier);
@@ -166,7 +181,7 @@ export function isPickaxeId(v: unknown): v is PickaxeId {
 
 // --- the nodes' kinds: T1 up the terrace to the T5 Titan Monolith ------------------------------------
 
-export type OreKind = "coal" | "copper" | "iron" | "silver" | "glimmer" | "monolith" | "rockfall" | "reef";
+export type OreKind = "coal" | "copper" | "iron" | "silver" | "glimmer" | "monolith" | "rockfall" | "reef" | "pearl";
 export interface OreKindInfo {
   name: string;
   emoji: string;
@@ -197,6 +212,7 @@ export const ORE_KINDS: Record<OreKind, OreKindInfo> = {
   glimmer: { name: "Glimmerstone Cluster", emoji: "💠", tier: 4, hp: 440, respawnS: [600, 600], radius: 0.6, sweet: 0.15, geode: 0.3, zone: "the Glimmer Rift", glow: "#00f0ff" },
   rockfall: { name: "Rockfall Heap", emoji: "🪨", tier: 1, hp: 900, respawnS: [99999, 99999], radius: 1.0, sweet: 0.3, geode: 0.5, zone: "the Coal Breakdown", glow: "#ffcf7a", crew: true },
   reef: { name: "Fossil Reef Rock", emoji: "🪸", tier: 6, hp: 2000, respawnS: [60, 60], radius: 0.6, sweet: 0.14, geode: 0, zone: "Sunset Beach's headland", glow: "#ffd9a0" },
+  pearl: { name: "Pearl Rock", emoji: "🐚", tier: 7, hp: 2600, respawnS: [50, 50], radius: 0.6, sweet: 0.13, geode: 0, zone: "the Hidden Cove", glow: "#c8f6ff" },
   monolith: { name: "Titan Monolith", emoji: "🗿", tier: 5, hp: 2400, respawnS: [25 * 60, 30 * 60], radius: 1.1, sweet: 0.24, geode: 1, zone: "the Great Lake's islet", glow: "#b36bff" },
 };
 export const ORE_KIND_IDS = Object.keys(ORE_KINDS) as OreKind[];
@@ -446,6 +462,10 @@ export function rollYield(kind: OreKind, pick: PickaxeId, rand: () => number = M
     case "reef":
       add("reef_stone", 1 + (rand() < 0.35 ? 1 : 0));
       if (rand() < 0.2) add("sea_glass", 1);
+      return out;
+    case "pearl":
+      add("nacre", 1 + (rand() < 0.35 ? 1 : 0));
+      if (rand() < 0.12) add("black_pearl", 1);
       return out;
     case "monolith":
       add("core_fragment", 1);

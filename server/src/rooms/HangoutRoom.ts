@@ -2171,7 +2171,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const anywhere = packet.type === "GEAR" || packet.type === "USE_CONSUMABLE" || packet.type === "DRAWER_CRAFT" || (packet.type === "BARNABY" && (packet.op === "lockFish" || packet.op === "equipRod" || packet.op === "equipBait")) || (packet.type === "BUSTER" && packet.op === "equipAxe");
     const caveFishing = isShoreCastMap(player.map) && (packet.type === "REEL_DONE" || packet.type === "AFK" || packet.type === "BARNABY");
     // (Sunset Beach: its palms are felled as the camp maps' trees are, and Dune buys the wood)
-    const beachWood = player.map === "sunset_beach" && (packet.type === "CHOP_START" || packet.type === "CHOP_STOP" || packet.type === "CHOP_CANCEL" || packet.type === "BUSTER");
+    const beachWood = (player.map === "sunset_beach" && (packet.type === "CHOP_START" || packet.type === "CHOP_STOP" || packet.type === "CHOP_CANCEL" || packet.type === "BUSTER")) || (player.map === "hidden_cove" && (packet.type === "CHOP_START" || packet.type === "CHOP_STOP" || packet.type === "CHOP_CANCEL"));
     if (!isCampMap(player.map) && !anywhere && !caveFishing && !beachWood) return;
     switch (packet.type) {
       case "ROAST_START": {
@@ -2623,7 +2623,7 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     const axe = AXES[profile.axe];
     if (!node.titan && axe.tier < info.tier) {
-      const from = info.tier >= FORGED_TIER ? "it is forged at the caverns' forge" : info.tier > SHOP_TIER_CAP.campfire ? "Bramble at his cabin sells them" : "Buster at the campfire sells them";
+      const from = info.tier > FORGED_TIER + 1 ? "it is made where the ironwood grows" : info.tier > FORGED_TIER ? "it is made at Dune's shack on Sunset Beach" : info.tier >= FORGED_TIER ? "it is forged at the caverns' forge" : info.tier > SHOP_TIER_CAP.campfire ? "Bramble at his cabin sells them" : "Buster at the campfire sells them";
       client.send("campfireNotice", { message: `Your ${axe.name} (T${axe.tier}) can't bite into ${name}: it takes a T${info.tier} axe or better (${from})`, emoji: "🪓" });
       return;
     }

@@ -1497,7 +1497,7 @@ export interface ConstellationDone {
   capped: boolean;
 }
 /** A tree felled (its last round landed): these coins (by tier, before the day's cap). */
-export const FELL_COINS = [0, 3, 4, 5, 6, 8, 10] as const;
+export const FELL_COINS = [0, 3, 4, 5, 6, 8, 10, 12] as const;
 /** What a round that lands drops: a log (its wood, worth its tree's size squared) or the tier's
  *  by-product (resin, sawdust or a Firewood bundle), or nothing (the carrier full). */
 export interface FellDrop {

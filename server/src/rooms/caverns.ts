@@ -543,7 +543,7 @@ export class CavernsMine {
     }
     const pick = PICKAXES[kit.pickaxeId];
     const rule = oreRule(pick.tier, node.kind);
-    if (rule === "deflect") this.host.sendTo(sessionId, "campfireNotice", { message: `${info.name} is T${info.tier}: your ${pick.name} (T${pick.tier}) will skid right off it. A T${info.tier - 1} pickaxe or better bites (${info.tier > FORGED_TIER ? "the Tidewater Pickaxe is made at Dune's shack" : "Gus sells them"})`, emoji: "🪨" });
+    if (rule === "deflect") this.host.sendTo(sessionId, "campfireNotice", { message: `${info.name} is T${info.tier}: your ${pick.name} (T${pick.tier}) will skid right off it. A T${info.tier - 1} pickaxe or better bites (${info.tier > FORGED_TIER + 1 ? "the Tidewater Pickaxe is made at Dune's shack; a finer one where the pearl rock is" : info.tier > FORGED_TIER ? "the Tidewater Pickaxe is made at Dune's shack" : "Gus sells them"})`, emoji: "🪨" });
     const was = this.prospectors.get(sessionId);
     // (the weak spot on the side the miner stands, when no one else is at this rock: never round its back)
     const others = [...this.prospectors.entries()].some(([id, p]) => id !== sessionId && p.node === node.id);

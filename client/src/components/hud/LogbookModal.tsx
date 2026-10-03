@@ -15,7 +15,7 @@ const FRESHWATER = Object.keys(FISH) as FishId[];
 /** The Ocean page: the pier's fish and the Open Sea's. The Hidden Cove's own show only once one of them
  *  has been landed (nothing names the cove before it is found). */
 const oceanFish = (profile: FishingProfile) => FRESHWATER.filter((id) => FISH[id].water === "saltwater" && ((FISH[id] as { zone?: string }).zone !== "cove" || (profile.caught[id] ?? 0) > 0));
-const TREE_ICON: Record<TreeKind, string> = { soft_pine: "🌲", birch: "🌳", cedar: "🌲", maple: "🍁", elderwood: "🌌", palm: "🌴" };
+const TREE_ICON: Record<TreeKind, string> = { soft_pine: "🌲", birch: "🌳", cedar: "🌲", maple: "🍁", elderwood: "🌌", palm: "🌴", ironwood: "🖤" };
 type Page = "day" | "night" | "cave" | "ocean";
 /** The fish on a page: the river's by day or by night (whatever bites any time is the caverns'). */
 const onPage = (id: FishId, page: Page) => (page === "ocean" ? FISH[id].water === "saltwater" : page === "cave" ? FISH[id].water === "cavewater" : FISH[id].water === "freshwater" && FISH[id].time === page);

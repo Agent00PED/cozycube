@@ -61,7 +61,7 @@ PALETTE = {
     "BC_Seabed": "#B49C6E", "BC_SeabedDeep": "#3D6E78", "BC_Soil": "#A98E63", "BC_SoilDeep": "#7C6648",
     "BC_Wood": "#B88A5A", "BC_WoodDark": "#7A5536", "BC_WoodPale": "#D2AE7E", "BC_Drift": "#BDB2A0", "BC_DriftDark": "#9A8F7E",
     "BC_Bamboo": "#D8BA6E", "BC_BambooDark": "#B4934E", "BC_Thatch": "#CFAE62", "BC_ThatchDark": "#A98846", "BC_Rope": "#CDBB94",
-    "BC_Stone": "#9C958B", "BC_StoneDark": "#6F6A63", "BC_Reef": "#DCC8A8", "BC_ReefDark": "#B9A283", "BC_Rock": "#8E8679", "BC_RockDark": "#615C54", "BC_RockMoss": "#7C8A62",
+    "BC_Stone": "#9C958B", "BC_StoneDark": "#6F6A63", "BC_Pearl": "#E9E2F0", "BC_PearlDark": "#B5ABC4", "BC_NacrePink": "#F6D0E0", "BC_NacreTeal": "#BFEDE6", "BC_IronBark": "#2E3336", "BC_IronBarkLight": "#474E50", "BC_IronLeaf": "#2F5D55", "BC_IronLeafLight": "#4F8573", "BC_IronMoss": "#7C9C84", "BC_Reef": "#DCC8A8", "BC_ReefDark": "#B9A283", "BC_Rock": "#8E8679", "BC_RockDark": "#615C54", "BC_RockMoss": "#7C8A62",
     "BC_Char": "#2B2623", "BC_Ash": "#5A544E",
     "BC_PalmBark": "#8E6E4C", "BC_PalmBarkDark": "#6F5439", "BC_Frond": "#4E9A4A", "BC_FrondLight": "#7DBB55", "BC_FrondDeep": "#2F7240", "BC_Coconut": "#5B3F2A",
     "BC_GroveFloor": "#B7B27C", "BC_GroveLitter": "#9C8A5E", "BC_RockGround": "#B3A68C", "BC_Weed": "#5E6B3A", "BC_WeedDark": "#4A4A2E", "BC_Agave": "#8FB29A", "BC_AgaveTip": "#C9DDB8", "BC_Banana": "#58A04C", "BC_BananaLight": "#8CC864", "BC_Morning": "#B58BE0", "BC_Hibiscus": "#E8505A", "BC_Leaf": "#3F8A55", "BC_LeafLight": "#68AE5E", "BC_DuneGrass": "#B9C67C", "BC_DuneGrassDark": "#93A860", "BC_Blossom": "#F08FA6",
@@ -698,6 +698,79 @@ def look_finish(ob):
     use_col(me)
 
 
+def ironwood(bm, s, rng, crown=True):
+    """A Drowned Ironwood at the origin, `s` its size: a black trunk twisting up off stilt roots, a few
+    crooked boughs, dark sea-green leaves in clumps, moss hanging from them."""
+    H = 3.3 * s
+    # the stilt roots: arches from the trunk out to the sand
+    for q in range(6):
+        a = 2 * math.pi * q / 6 + rng.uniform(-0.3, 0.3)
+        r = rng.uniform(0.55, 0.85) * s
+        knee = W(math.cos(a) * r * 0.55, 0.42 * s, math.sin(a) * r * 0.55)
+        bar(bm, W(math.cos(a) * 0.1 * s, 0.75 * s, math.sin(a) * 0.1 * s), knee, 0.075 * s, m("BC_IronBark"), sides=6, r_end=0.06 * s)
+        bar(bm, knee, W(math.cos(a) * r, -0.05, math.sin(a) * r), 0.06 * s, m("BC_IronBark"), sides=6, r_end=0.04 * s)
+    # the trunk: three leaning lengths, thick and ridged
+    pts = [(0.0, 0.5 * s, 0.0)]
+    x = z = 0.0
+    for j in range(3):
+        a = rng.random() * 6.283
+        x += math.cos(a) * 0.16 * s
+        z += math.sin(a) * 0.16 * s
+        pts.append((x, (0.5 + (H - 0.5) * (j + 1) / 3) * s if False else 0.5 * s + (H - 0.5 * s) * (j + 1) / 3, z))
+    for j in range(3):
+        r0, r1 = (0.27 - 0.06 * j) * s, (0.21 - 0.06 * j) * s
+        bar(bm, W(*pts[j]), W(*pts[j + 1]), r0, m("BC_IronBark") if j % 2 == 0 else m("BC_IronBarkLight"), sides=8, r_end=r1)
+    if not crown:
+        return pts
+    top = pts[-1]
+    for q in range(5):
+        a = 2 * math.pi * q / 5 + rng.uniform(-0.35, 0.35)
+        r = rng.uniform(0.9, 1.5) * s
+        elbow = (top[0] + math.cos(a) * r * 0.5, top[1] + rng.uniform(0.1, 0.45) * s, top[2] + math.sin(a) * r * 0.5)
+        end = (top[0] + math.cos(a) * r, top[1] + rng.uniform(-0.1, 0.5) * s, top[2] + math.sin(a) * r)
+        bar(bm, W(*top), W(*elbow), 0.09 * s, m("BC_IronBark"), sides=6, r_end=0.065 * s)
+        bar(bm, W(*elbow), W(*end), 0.065 * s, m("BC_IronBarkLight"), sides=5, r_end=0.03 * s)
+        for k in range(2):
+            px = end[0] + rng.uniform(-0.25, 0.25) * s
+            pz = end[2] + rng.uniform(-0.25, 0.25) * s
+            blob(bm, px, end[1] + 0.12 * s + 0.16 * k * s, pz, rng.uniform(0.42, 0.6) * s, rng.uniform(0.22, 0.3) * s, rng.uniform(0.42, 0.6) * s, m=m("BC_IronLeaf") if (q + k) % 2 else m("BC_IronLeafLight"), cuts=2, noise=0.16, rng=rng)
+        # (a strand of moss hanging off the bough)
+        if q % 2 == 0:
+            mid = ((elbow[0] + end[0]) / 2, (elbow[1] + end[1]) / 2, (elbow[2] + end[2]) / 2)
+            bar(bm, W(*mid), W(mid[0], mid[1] - rng.uniform(0.5, 0.9) * s, mid[2]), 0.03 * s, m("BC_IronMoss"), sides=4, r_end=0.008)
+    blob(bm, top[0], top[1] + 0.35 * s, top[2], 0.62 * s, 0.34 * s, 0.62 * s, m=m("BC_IronLeaf"), cuts=2, noise=0.16, rng=rng)
+    return pts
+
+
+def ironwood_looks(coll, rng):
+    """`Tree_ironwood_<stage>`: a stump on its roots, a shoot, a young tree, the grown one. One finish,
+    `PT_IronLeaf` (its colours in the mesh; the game sways what is named Leaf, more the higher up)."""
+    made = []
+    for stage in ("stump", "sprout", "sapling", "mature"):
+        bm = bmesh.new()
+        if stage == "stump":
+            for q in range(6):
+                a = 2 * math.pi * q / 6 + 0.3
+                bar(bm, W(math.cos(a) * 0.1, 0.32, math.sin(a) * 0.1), W(math.cos(a) * 0.72, -0.05, math.sin(a) * 0.72), 0.07, m("BC_IronBark"), sides=6, r_end=0.04)
+            bar(bm, W(0.0, 0.0, 0.0), W(0.0, 0.5, 0.0), 0.3, m("BC_IronBark"), sides=9, r_end=0.26)
+            bar(bm, W(0.0, 0.5, 0.0), W(0.0, 0.52, 0.0), 0.26, m("BC_IronBarkLight"), sides=9, r_end=0.22)
+        elif stage == "sprout":
+            bar(bm, W(0.0, 0.0, 0.0), W(0.04, 0.4, 0.0), 0.035, m("BC_IronBark"), sides=5, r_end=0.02)
+            blob(bm, 0.04, 0.46, 0.0, 0.16, 0.1, 0.16, m=m("BC_IronLeafLight"), cuts=1, noise=0.15, rng=rng)
+        elif stage == "sapling":
+            ironwood(bm, 0.45, rng)
+        else:
+            ironwood(bm, 1.0, rng)
+        ob = make_object("Tree_ironwood_" + stage, bm, MATS, coll)
+        bake_colors(ob, one="BC_Clay")
+        own = vc_material("PT_IronLeaf")
+        for i in range(len(ob.data.materials)):
+            ob.data.materials[i] = own
+        use_col(ob.data)
+        made.append(ob)
+    return made
+
+
 def build_palm_looks(root):
     """palms.glb: `Tree_palm_<stage>` at the origin (the game's FellableTrees draws them instanced)."""
     old = bpy.data.collections.get(LOOKS)
@@ -722,6 +795,8 @@ def build_palm_looks(root):
         ob = make_object("Tree_palm_" + stage, bm, MATS, coll)
         look_finish(ob)
         made.append(ob)
+    # (the Hidden Cove's Drowned Ironwood rides in the same file: the game's fellable looks off the camp maps)
+    made += ironwood_looks(coll, rng)
     out = os.path.join(root, "client", "public", "models", "palms.glb")
     export(coll, out)
     info = {"glb": out, "bytes": os.path.getsize(out), "tris": sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in made), "drawCalls": sum(len(o.data.materials) for o in made)}
@@ -858,6 +933,16 @@ def build_life_looks(root):
         (lambda bm: blob(bm, 0.75, 0.95, 0.0, 0.85, 0.2, 0.34, m=0, cuts=2), "#34495A"),
         (lambda bm: blob(bm, -0.75, 0.95, 0.0, 0.85, 0.2, 0.34, m=0, cuts=2), "#34495A"),
     ], coll))
+    # a moon jelly for the cove's lagoon: a pale bell, a frill, four short arms
+    jelly = [
+        (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.16, 0.1, 0.16, m=0, cuts=2), "#DDF6FF"),
+        (lambda bm: blob(bm, 0.0, -0.03, 0.0, 0.17, 0.035, 0.17, m=0, cuts=1), "#BFE9F8"),
+        (lambda bm: blob(bm, 0.0, 0.02, 0.0, 0.07, 0.04, 0.07, m=0, cuts=1), "#F6C8E4"),
+    ]
+    for q in range(4):
+        ja = 2 * math.pi * q / 4 + 0.4
+        jelly.append((lambda bm, ja=ja: cylinder(bm, W(math.cos(ja) * 0.06, -0.04, math.sin(ja) * 0.06), W(math.cos(ja) * 0.09, -0.3, math.sin(ja) * 0.09), 0.018, 4, m=0), "#CFEFFA"))
+    made.append(fauna_node("Fauna_Jelly", jelly, coll))
     # a butterfly for the flowers (the woods' own shape, under this map's own name)
     made.append(fauna_node("Fauna_BeachFly_Body", [
         (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.01, 0.01, 0.04, m=0, cuts=2), "#2E2622"),
@@ -876,6 +961,31 @@ def build_life_looks(root):
     return info
 
 
+def pearl_rock(bm, rng):
+    """A boss of pearl rock out of the cave's wall: pale lilac stone, sheets of nacre standing out of
+    its face (game +z), a pearl or two caught in them."""
+    blob(bm, 0.0, 0.5, 0.0, 0.6, 0.58, 0.5, m=m("BC_Pearl"), cuts=3, noise=0.15, rng=rng, flat_bottom=-0.05)
+    blob(bm, -0.36, 0.2, -0.06, 0.34, 0.26, 0.32, m=m("BC_PearlDark"), cuts=2, noise=0.18, rng=rng, flat_bottom=-0.05)
+    blob(bm, 0.34, 0.18, 0.08, 0.32, 0.22, 0.3, m=m("BC_PearlDark"), cuts=2, noise=0.18, rng=rng, flat_bottom=-0.05)
+    for k in range(8):
+        a = rng.uniform(-1.15, 1.15)
+        h = rng.uniform(0.2, 0.9)
+        r = 0.5 * math.cos(a * 0.55) * (1.0 - 0.45 * abs(h - 0.5))
+        blob(bm, math.sin(a) * r, h, math.cos(a) * r * 0.86, rng.uniform(0.09, 0.15), rng.uniform(0.05, 0.09), 0.03, m=m("BC_NacrePink" if k % 2 else "BC_NacreTeal"), cuts=1)
+    for k in range(3):
+        a = rng.uniform(-0.9, 0.9)
+        blob(bm, math.sin(a) * 0.4, rng.uniform(0.3, 0.8), math.cos(a) * 0.42, 0.045, 0.045, 0.045, m=m("BC_White"), cuts=2)
+
+
+def pearl_rubble(bm, rng):
+    for k in range(6):
+        a = 2 * math.pi * k / 6 + rng.uniform(-0.4, 0.4)
+        r = rng.uniform(0.08, 0.36)
+        sz = rng.uniform(0.12, 0.22)
+        blob(bm, math.cos(a) * r, sz * 0.5, math.sin(a) * r, sz, sz * 0.7, sz, m=m("BC_Pearl" if k % 2 else "BC_PearlDark"), cuts=1, noise=0.25, rng=rng, flat_bottom=-0.03)
+    blob(bm, 0.05, 0.1, 0.12, 0.09, 0.04, 0.03, m=m("BC_NacrePink"), cuts=1)
+
+
 def build_reef_looks(root):
     """reef.glb: `Ore_reef` and `Ore_reef_Rubble` at the origin (client/src/scene/ReefRock.tsx)."""
     name = "ReefLooks"
@@ -888,7 +998,7 @@ def build_reef_looks(root):
     bpy.context.scene.collection.children.link(coll)
     rng = random.Random(53)
     made = []
-    for look, fn in (("Ore_reef", reef_rock), ("Ore_reef_Rubble", reef_rubble)):
+    for look, fn in (("Ore_reef", reef_rock), ("Ore_reef_Rubble", reef_rubble), ("Ore_pearl", pearl_rock), ("Ore_pearl_Rubble", pearl_rubble)):
         bm = bmesh.new()
         fn(bm, rng)
         ob = make_object(look, bm, MATS, coll)

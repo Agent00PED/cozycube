@@ -670,7 +670,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       ) : mapId === "sunset_beach" ? (
         <BeachWorld onFloorClick={onFloorClick} room={room} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} trees={trees} onUseProp={activate} ores={ores} onStrike={onStrike} />
       ) : mapId === "hidden_cove" ? (
-        <CoveWorld onFloorClick={onFloorClick} room={room} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} />
+        <CoveWorld onFloorClick={onFloorClick} room={room} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} trees={trees} ores={ores} onUseProp={activate} onStrike={onStrike} />
       ) : mapId === "open_sea" ? (
         <SeaWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} />
       ) : mapId === "boxing_ring" ? (

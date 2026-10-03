@@ -255,3 +255,92 @@ test("the cove's income: a Deep Tide rod earns its target there, more than anywh
   const minutes = TACKLE_PRICES.deepTideRod / at(6, "sea");
   assert.ok(Math.abs(minutes / 600 - 1) <= 0.2, `the Deep Tide rod: ${minutes.toFixed(0)} minutes`);
 });
+
+// --- the cove's own gathering (T7): the Drowned Ironwood and the pearl rock ----------------------------
+import { AXES as AXES7, TREES as TREES7, WOOD as WOOD7 } from "../shared/chop";
+import { FORGE_WARES as WARES7, ORE_ITEMS as ITEMS7, ORE_KINDS as KINDS7, PICKAXES as PICKS7, oreRule as rule7, rollYield as yield7 } from "../shared/caverns_mining";
+import { AXE_PRICES as AXE7, PICKAXE_PRICES as PICK7 } from "../shared/economy";
+import { RING_BANDS as BANDS7 } from "../shared/gear";
+import { COVE_NODES as NODES7, COVE_TREES as TREES_AT7 } from "../shared/worlds/cove";
+import { ORE_NODE_AT as NODE_AT7, oreReach as reach7 } from "../shared/worlds/caverns";
+import { FELL_TREES as FELL7, fellReach as fellReach7 } from "../shared/worlds/trees";
+import { TARGETS as TARGETS7 } from "../scripts/economy-sim";
+
+test("the seventh tier: the Drowned Ironwood and the pearl rock, each bitten only by its own Deep Tide tool", () => {
+  assert.equal(TREES7.ironwood.tier, 7);
+  assert.equal(AXES7.deeptide.tier, 7);
+  assert.ok(WOOD7.ironwood.sell > WOOD7.palm.sell);
+  assert.equal(KINDS7.pearl.tier, 7);
+  assert.equal(PICKS7.deeptide.tier, 7);
+  assert.equal(rule7(7, "pearl"), "mine");
+  assert.equal(rule7(6, "pearl"), "under");
+  assert.equal(rule7(5, "pearl"), "deflect");
+  assert.equal(rule7(7, "monolith"), "mine", "never the Monolith at a blow");
+  const seen = new Set<string>();
+  for (let i = 0; i < 400; i++) for (const id of Object.keys(yield7("pearl", "deeptide", Math.random, 0.5))) seen.add(id);
+  assert.deepEqual([...seen].sort(), ["black_pearl", "nacre"]);
+  // the Deep Tide axe and pickaxe are the cove bench's, at their listed prices
+  assert.equal(FORGED_TOOLS.deepAxe.place, "cove");
+  assert.equal(FORGED_TOOLS.deepPickaxe.place, "cove");
+  assert.equal(FORGED_TOOLS.deepAxe.coins, AXE7.deeptide);
+  assert.equal(FORGED_TOOLS.deepPickaxe.coins, PICK7.deeptide);
+  // pearl jewellery: each about a fifth over its makings; the Pearl-set band is the Glimmer-set's strength
+  for (const id of ["nacre_comb", "pearl_necklace", "black_pearl_brooch"] as const) {
+    const makings = Object.entries(WARES7[id]).reduce((sum, [k, n]) => sum + ITEMS7[k as keyof typeof ITEMS7].price * (n as number), 0);
+    const over = ITEMS7[id].price / makings - 1;
+    assert.ok(over >= 0.15 && over <= 0.3, `${id}: ${(over * 100).toFixed(0)}% over its makings`);
+  }
+  assert.equal(BANDS7.pearl.strength, BANDS7.glimmer.strength);
+});
+
+test("the cove's four ironwoods and four pearl rocks: on its floor, reached from the arrival, worked from open sand", () => {
+  assert.equal(TREES_AT7.length, 4);
+  assert.equal(NODES7.length, 4);
+  for (const t of FELL7.filter((f) => f.map === "hidden_cove")) {
+    assert.equal(t.kind, "ironwood");
+    assert.ok(isBlocked(t.x, t.z, "hidden_cove", 0.05) && !isBlocked(t.approachX, t.approachZ, "hidden_cove"), `${t.id}`);
+    assert.ok(Math.hypot(t.approachX - t.x, t.approachZ - t.z) <= fellReach7(t));
+    assert.ok(findPath("hidden_cove", COVE_ARRIVAL, { x: t.approachX, z: t.approachZ }), `${t.id} is walked to`);
+  }
+  for (const n of NODES7) {
+    const node = NODE_AT7.get(n.id)!;
+    assert.equal(node.map, "hidden_cove");
+    assert.ok(!isBlocked(n.approach.x, n.approach.z, "hidden_cove") && Math.hypot(n.approach.x - n.x, n.approach.z - n.z) <= reach7(node), `${n.id}`);
+    assert.ok(findPath("hidden_cove", COVE_ARRIVAL, n.approach), `${n.id} is walked to`);
+    assert.ok(MAP_TOGGLEABLES.hidden_cove.some((p) => p.propId === `ore_${n.id}` && p.kind === "ore"));
+  }
+});
+
+test("the Deep Tide axe and pickaxe are made at the cove's bench, of pearls and the rarest drops", () => {
+  const w = world(400_000);
+  w.player.map = "hidden_cove";
+  w.stand(COVE_BENCH_FRONT);
+  w.sea.handle("s", { op: "make", tool: "deepAxe" });
+  assert.ok(!forgedOwned(w.profile, "deepAxe"));
+  w.profile.satchelTier = 5;
+  w.profile.satchelSlots = 20;
+  satchelAdd(w.profile, "core_fragment", 5);
+  satchelAdd(w.profile, "star_shard", 1);
+  w.profile.byproducts = { pearl: 24, heartwood: 2, shavings: 8, prismScale: 2 };
+  w.sea.handle("s", { op: "make", tool: "deepAxe" });
+  assert.ok(forgedOwned(w.profile, "deepAxe"));
+  assert.equal(w.profile.axe, "deeptide");
+  w.sea.handle("s", { op: "make", tool: "deepPickaxe" });
+  assert.ok(forgedOwned(w.profile, "deepPickaxe"));
+  assert.equal(w.profile.pickaxeId, "deeptide");
+  assert.equal(w.player.coins, 400_000 - AXE7.deeptide - PICK7.deeptide);
+  assert.equal(w.profile.byproducts.pearl ?? 0, 0);
+});
+
+test("the cove's T7 income: ironwood and pearl rock each earn their target there, more than the same tool does anywhere else", () => {
+  const wood = simulate("wood");
+  const ore = simulate("ore");
+  const at = (lines: typeof wood, where: string) => lines.find((l) => l.tier === 7 && l.where === where)!.perMinSold;
+  const iron = at(wood, "cove");
+  const pearl = at(ore, "cove");
+  assert.ok(Math.abs(iron / TARGETS7.wood[6] - 1) <= 0.2, `a T7 axe in the cove: ${iron.toFixed(0)} a minute, target ${TARGETS7.wood[6]}`);
+  assert.ok(Math.abs(pearl / TARGETS7.ore[6] - 1) <= 0.2, `a T7 pickaxe in the cove: ${pearl.toFixed(0)} a minute, target ${TARGETS7.ore[6]}`);
+  for (const where of ["campfire", "woods", "beach"]) assert.ok(at(wood, where) < iron, `wood: ${where} under the cove`);
+  for (const where of ["caverns", "beach"]) assert.ok(at(ore, where) < pearl, `ore: ${where} under the cove`);
+  assert.ok(!wood.some((l) => l.where === "cove" && l.tier < 7), "no lesser axe fells an ironwood");
+});

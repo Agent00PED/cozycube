@@ -24,12 +24,12 @@ test("the Coconut Palm is the sixth tier: a narrower notch than the Elderwood's,
   assert.equal(p.tier, 6);
   assert.equal(p.wood, "palm");
   assert.equal(p.byproduct, "husk");
-  assert.ok(p.sweet < TREES.elderwood.sweet && NOTCH_DEG.length === 6);
+  assert.ok(p.sweet < TREES.elderwood.sweet && NOTCH_DEG.length === 7);
   assert.ok(WOOD.palm.sell > 0 && BYPRODUCTS.husk.price > 0 && BYPRODUCTS.coconut.price > 0);
   assert.ok(COCONUT_CHANCE > 0 && COCONUT_CHANCE < 0.5);
   assert.equal(woodRate("beach", "palm"), 1, "Dune pays in full");
   // the axes go one a tier, and only the Tidewater bites a palm
-  assert.deepEqual(AXES_BY_TIER.map((id) => AXES[id].tier), [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(AXES_BY_TIER.map((id) => AXES[id].tier), [1, 2, 3, 4, 5, 6, 7]);
   assert.equal(AXES.tidewater.tier, 6);
 });
 

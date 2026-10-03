@@ -131,7 +131,7 @@ export const TACKLE_PRICES = {
  *  to a tree's labour: the camp's Soft Pine 2, the old hardwood and golden charcoal, and the
  *  Whispering Woods' birch 3, cedar 6, maple 18 and elderwood 100 (docs/economy-plan.md section 5:
  *  each axe tier earns its step of the income ladder). */
-export const WOOD_PRICES = { pine: 2, oak: 3, charcoal: 6, birch: 3, cedar: 6, maple: 18, elderwood: 100, palm: 32 } as const;
+export const WOOD_PRICES = { pine: 2, oak: 3, charcoal: 6, birch: 3, cedar: 6, maple: 18, elderwood: 100, palm: 32, ironwood: 70 } as const;
 /** A Colossal Titan's heavy logs are worth this much together at an even market (whatever their
  *  number): a big day, not a fortune. (The Colossal Autumn Maple's; the other Colossal trees' are
  *  COLOSSAL_YIELD's.) */
@@ -147,7 +147,7 @@ export const CARVED_PRICE = 8;
 export const RESIN_BUY_PRICE = 10;
 /** The axes (the flint one, T1, is everyone's): T2 from Buster, T3 and T4 from Bramble, T5 forged at
  *  the caverns' forge with its makings (shared/expedition.ts). */
-export const AXE_PRICES = { iron: 500, tempered: 1600, golden: 4500, runic: 12500, tidewater: 38000 } as const;
+export const AXE_PRICES = { iron: 500, tempered: 1600, golden: 4500, runic: 12500, tidewater: 38000, deeptide: 150000 } as const;
 /** The wood carriers' prices, tier 1 (the Twine Wood Strap, everyone's) to tier 5, and what each
  *  holds (logs): sized for a 5-10 minute felling round, then a trip to the stall. A player already
  *  carrying more keeps it all (Overburdened: selling, splitting and carving work, only new wood waits
@@ -190,7 +190,7 @@ export const PRE_PHASE1 = {
  *  Heartwood off a Colossal Primordial Elderwood) and the river's (Fish Scales off any fish, a Fine
  *  Fish Bone off a rare or better, a Prismatic Scale off a legendary or a mythic): what Bramble and
  *  Buster pay for each, and how much of the bonfire a handful of Ancient Wood Shavings feeds (%). */
-export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1, silverBark: 15, heartwood: 150, fishBone: 30, prismScale: 180, stoneDust: 10, pearl: 60, husk: 8, coconut: 6 } as const;
+export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1, silverBark: 15, heartwood: 150, fishBone: 30, prismScale: 180, stoneDust: 10, pearl: 60, husk: 8, coconut: 6, ironbark: 20 } as const;
 export const SHAVINGS_FUEL = 15;
 /** Buster's forest permits: a Day Trip (one way in through the archway, used on entering) and the
  *  Ranger's Badge (the Whispering Woods for good). */
@@ -262,6 +262,9 @@ export const ORE_PRICES = {
   // (Sunset Beach's fossil reef rock: T6)
   reef_stone: 36,
   sea_glass: 72,
+  // (the Hidden Cove's pearl rock: T7)
+  nacre: 56,
+  black_pearl: 160,
   copper_ingot: 28,
   iron_ingot: 49,
   silver_ingot: 78,
@@ -281,10 +284,14 @@ export const ORE_PRICES = {
   silver_locket: 212,
   opal_brooch: 322,
   glimmer_lamp: 460,
+  // (pearl jewellery, smithed of the cove's nacre: the same fifth over its makings)
+  nacre_comb: 235,
+  pearl_necklace: 456,
+  black_pearl_brooch: 379,
 } as const;
 /** The pickaxes (the Rusted Pickaxe, T1, is Old Flint's gift): Gus sells T2 to T5, the Deep Core
  *  Drill the caverns' big sink. */
-export const PICKAXE_PRICES = { copper: 3000, reinforced: 7200, glimmer: 17500, drill: 31500, tidewater: 75000 } as const;
+export const PICKAXE_PRICES = { copper: 3000, reinforced: 7200, glimmer: 17500, drill: 31500, tidewater: 75000, deeptide: 180000 } as const;
 /** The Prospector's Satchel, tier 1 (the Canvas Ore Pouch) to tier 5 (the Titan Core Vault): coins,
  *  and materials from the other crafts (shared/satchel.ts SATCHEL_TIERS says which). */
 export const SATCHEL_PRICES = [0, 500, 1500, 3600, 8750, 15750, 37500] as const;
