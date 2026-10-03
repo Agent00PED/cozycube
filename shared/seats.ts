@@ -88,6 +88,8 @@ export const CUSHIONS = {
   boulder: { y: 0.2, h: 0.4 }, // the smooth sitting boulder by the fire -> 0.4
   picnicBlanket: { y: 0.03, h: 0.02 }, // a picnic blanket on the stargazers' slope -> 0.04
   swing: { y: 0.43, h: 0.04 }, // the bench swing's plank, hanging at rest -> 0.45
+  // --- Sunset Beach's (shared/worlds/beach.ts; scripts/blender/build_beach.py reads it) ---
+  lounger: { y: 0.3, h: 0.06 }, // a sun lounger's slats -> 0.33
   // --- the Velvet Casino's (shared/worlds/casino.ts; scripts/blender/build_casino.py reads them) ---
   barStool: { y: 0.45, h: 0.06 }, // the bar's and the blackjack tables' velvet stools -> 0.48
   pokerChair: { y: 0.35, h: 0.06 }, // the high-roller pit's tufted chairs round the poker table -> 0.38

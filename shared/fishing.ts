@@ -6,6 +6,7 @@
 // their player record (it survives room switches, reconnects and restarts); the client draws the
 // same tables in the reel, the creel and Barnaby's shop.
 
+import { emptyBarBook, sanitizeBarBook, type BarBook } from "./barshift";
 import { isCodexId } from "./caverns_codex";
 import type { SwimPattern } from "./types";
 import { BYPRODUCT_IDS, TREE_KINDS, WOOD_CARRIER_TIERS, WOOD_KINDS, carrierCapacity, isAxeId, type AxeId, type ByproductId, type TreeKind, type WoodKind } from "./chop";
@@ -388,6 +389,8 @@ export interface FishingProfile {
   /** The Expedition's weekly orders (shared/caverns_weekly.ts): the week, where you stood when it began,
    *  the orders met. */
   weekly: { week: string; base: Record<string, number>; done: string[] };
+  /** The Bar Book (shared/barshift.ts): what a bartender has made at the beach bar. */
+  bar: BarBook;
 }
 /** The Prospector's Ledger's marks: Perfect strikes, the best run of them, geodes cracked, Star Shards
  *  cut, Masterwork ingots forged, Motherlodes broken. */
@@ -403,8 +406,8 @@ export const LEDGER_KEYS: (keyof CaveLedger)[] = ["perfects", "bestStreak", "geo
 /** The consumables' buffs (shared/crafting.ts BUFFS): kept here by key (the workbench's, and the
  *  drawers' own: Feller's Pine Pitch, Phosphor Glow Bait, Miner's Stout). Using one again while it
  *  lasts starts its time afresh: the same buff never stacks. */
-export type BuffKey = "smore" | "wax" | "scent" | "sap" | "chum" | "pitch" | "glowbait" | "stout";
-export const BUFF_KEYS: BuffKey[] = ["smore", "wax", "scent", "sap", "chum", "pitch", "glowbait", "stout"];
+export type BuffKey = "smore" | "wax" | "scent" | "sap" | "chum" | "pitch" | "glowbait" | "stout" | "refreshed";
+export const BUFF_KEYS: BuffKey[] = ["smore", "wax", "scent", "sap", "chum", "pitch", "glowbait", "stout", "refreshed"];
 /** Whether a buff is on (at the server's clock, or near enough on the client's). */
 export const buffOn = (p: Pick<FishingProfile, "buffs">, key: BuffKey, now = Date.now()) => (p.buffs[key] ?? 0) > now;
 
@@ -487,7 +490,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem, bonus = 0
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] } };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] }, bar: emptyBarBook() };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -677,6 +680,7 @@ function readFishingProfile(raw: unknown): FishingProfile {
     }
   }
   if (Array.isArray(r.codex)) p.codex = Array.from(new Set(r.codex.filter(isCodexId)));
+  p.bar = sanitizeBarBook(r.bar);
   if (r.ledger && typeof r.ledger === "object") {
     for (const k of LEDGER_KEYS) {
       const n = Math.floor(Number((r.ledger as Record<string, unknown>)[k]));

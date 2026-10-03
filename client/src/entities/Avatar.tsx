@@ -1583,7 +1583,7 @@ export const Avatar = memo(
     return (
       <group ref={ref}>
         {/* a soft shadow at the feet where the world's ground is painted with shade (the camp maps): without it a walker floats */}
-        {isCampMap(map) && pose === "stand" && <mesh geometry={FOOT_SHADOW_GEO} material={FOOT_SHADOW_MAT} position={[0, 0.03, 0]} raycast={noRaycast} renderOrder={1} />}
+        {(isCampMap(map) || map === "sunset_beach") && pose === "stand" && <mesh geometry={FOOT_SHADOW_GEO} material={FOOT_SHADOW_MAT} position={[0, 0.03, 0]} raycast={noRaycast} renderOrder={1} />}
         <mesh ref={ringA} geometry={RING_GEO} material={ringMat} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} visible={false} raycast={noRaycast} />
         <mesh ref={ringB} geometry={RING_GEO} material={ringMat} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.031, 0]} visible={false} raycast={noRaycast} />
 

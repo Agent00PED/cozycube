@@ -127,8 +127,8 @@ Spark, Tidewater Tonic, and the Midnight Pearl (listed only after the cove is fo
 **What a shift pays.** Tips: 2 / 4 / 6 coins a drink by its stars from a regular, and whatever a
 player paid Mango's price (8 coins) when a player ordered: the bartender gets 6 of it. **At most 30
 tipped drinks an hour by account** (the slingshot's paid rounds' way), then drinks are made for the
-fun of it. That is about 15 coins a minute while it lasts: under a starter's 25, so the bar is never
-the best way to earn. Coconuts from felled palms can be given to Mango for a free order.
+fun of it. That is at most about 240 coins an hour, under a fifth of a starter's hour, so the bar is
+never the best way to earn (`npm test` holds it). Coconuts from felled palms can be given to Mango for a free order.
 
 **The Bar Book** (the bartender's ledger, in the camp profile): each drink's count and best grade, a
 streak of Perfects, and three gold titles (one a band; all eight Perfect: "Master Mixologist").
@@ -345,7 +345,13 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
    the tier lists read from the tools that exist (the simulator's `ROD_TIERS`, `AXE_TIERS`,
    `PICKAXE_TIERS`; `tierOdds` by its table's length); `WATER_ODDS` rows 6 and 7, and the targets
    and tool minutes for T6 and T7, in place for the tools to come. `npm test` pins the odds' shape.
-1. **The beach as a place, and the bar.** A picture of the layout to the owner first. Then the
+1. **The beach as a place, and the bar (done, patch 0.8.0).** Built as written, with these changes
+   made while building: the coast runs across the map's diagonal (so the sea is in front of the
+   camera) and the map is an island with the sea all round; the bar is a horseshoe open to the back
+   with a lean-to over its shelf (a full roof hid whoever stood under it from the camera); the
+   firepit is lit from dusk; tips are capped at 30 drinks an hour, about 240 coins, which bounds the
+   hour, not the minute; the palms are part of the model until part 3 (they are not yet fellable
+   nodes); the beach's own sounds wait for part 7. A picture of the layout to the owner first. Then the
    ground, the sea, wading and the depth rule, the bar with Mango and **A Shift at the Bar**, the
    firepit, the pier (walked, not yet fished), loungers, hammocks, the ball, the sky, the loading
    screen. The palms stand as fellable nodes that ask for a Tidewater axe. The world list opens it.

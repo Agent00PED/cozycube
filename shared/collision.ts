@@ -6,6 +6,7 @@ import { VIP_ARRIVAL, VIP_OBSTACLES, VIP_REGION } from "./worlds/casino_vip";
 import { FOREST_OBSTACLES, FOREST_SPAWNS, forestFloorY } from "./worlds/forest";
 import { RING_FLOOR_Y, RING_OBSTACLES, RING_SPAWNS, onRing } from "./worlds/boxing_ring";
 import { CAVERNS_OBSTACLES, CAVERNS_SPAWNS, cavernsBlocked, cavernsFloorY } from "./worlds/caverns";
+import { BEACH_OBSTACLES, BEACH_SPAWNS, beachBlocked, beachFloorY } from "./worlds/beach";
 
 // Where you can stand. The lounge, the campfire, the woods, the casino, the Velvet Ring and the
 // Glimmering Caverns are authored in shared/worlds/ (lounge.ts, campfire.ts, forest.ts, casino.ts,
@@ -24,10 +25,6 @@ export interface AABB {
 }
 /** A round thing's collider: a disc of `r` round `p`. */
 export const disc = (p: { x: number; z: number }, r: number): AABB => ({ minX: p.x - r, maxX: p.x + r, minZ: p.z - r, maxZ: p.z + r, r });
-
-/** Kept for shared/volleyball.ts (the beach is not built yet). */
-export const WORLD_LIMIT = 9.4;
-export const SHORELINE_Z = 4.8;
 
 /** The furthest from the centre an avatar's origin may be, on either axis (a square world). */
 export function worldLimit(mapId: MapId): number {
@@ -61,7 +58,7 @@ const open = () => [] as AABB[];
 export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   cozy_lounge: LOFT_OBSTACLES,
   campfire_night: CAMP_OBSTACLES,
-  sunset_beach: open(),
+  sunset_beach: BEACH_OBSTACLES,
   open_sea: open(),
   hidden_cove: open(),
   velvet_casino: CASINO_OBSTACLES,
@@ -78,7 +75,7 @@ const centre = () => [{ x: 0, z: 0 }];
 export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
   cozy_lounge: LOFT_SPAWNS,
   campfire_night: CAMP_SPAWNS,
-  sunset_beach: centre(),
+  sunset_beach: BEACH_SPAWNS,
   open_sea: centre(),
   hidden_cove: centre(),
   velvet_casino: CASINO_SPAWNS,
@@ -101,6 +98,8 @@ export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boo
   // with the feet's footprint, not the body's, so you walk right up to a bank's edge and through a
   // gap you can see: docs/caverns-roadmap.md R4.1)
   if (mapId === "glimmering_caverns" && cavernsBlocked(x, z, Math.min(radius, CAVE_FOOT))) return true;
+  // (the beach: deep water stops you, and the strip beside the pier where its deck is too high)
+  if (mapId === "sunset_beach" && beachBlocked(x, z)) return true;
   for (const b of MAP_OBSTACLES[mapId]) {
     if (!(x + radius > b.minX && x - radius < b.maxX && z + radius > b.minZ && z - radius < b.maxZ)) continue;
     if (b.r === undefined) return true;
@@ -188,6 +187,7 @@ export function walkY(mapId: MapId, x: number, z: number): number {
   if (mapId === "boxing_ring") return onRing(x, z) ? RING_FLOOR_Y : 0;
   if (mapId === "campfire_night") return campFloorY(x, z);
   if (mapId === "whispering_woods") return forestFloorY(x, z);
+  if (mapId === "sunset_beach") return beachFloorY(x, z);
   return 0;
 }
 

@@ -15,6 +15,8 @@ import { Reconciler } from "./reconcile";
 import { WELL_FED_SPEED } from "@shared/fishing";
 import { WARMTH_PACE } from "@shared/caverns_mining";
 import { gearPace, isGearId, wadesFreely, type Loadout } from "@shared/gear";
+import { REFRESHED_PACE } from "@shared/barshift";
+import { beachWading } from "@shared/worlds/beach";
 import { SMORE_PACE, TORCH_NIGHT_PACE } from "@shared/crafting";
 import { isCampDay } from "@shared/daynight";
 import { clampToRing } from "@shared/worlds/boxing_ring";
@@ -166,6 +168,15 @@ export function useLocalPlayerMovement(
       return 0;
     }
   }, [player.fishing]);
+  // (a drink from the beach bar, made well: shared/barshift.ts)
+  const refreshedUntilRef = useRef(0);
+  refreshedUntilRef.current = useMemo(() => {
+    try {
+      return Number((JSON.parse(player.fishing || "{}") as { buffs?: { refreshed?: number } }).buffs?.refreshed) || 0;
+    } catch {
+      return 0;
+    }
+  }, [player.fishing]);
   // in the Velvet Ring as a fighter: inside the ropes, squared up to the other fighter
   const inRingRef = useRef(false);
   inRingRef.current = !!player.corner && mapId === "boxing_ring";
@@ -289,8 +300,8 @@ export function useLocalPlayerMovement(
       const torch = torchRef.current && isCampMap(mapId) && !isCampDay(Date.now()) ? TORCH_NIGHT_PACE : 1;
       // (wading the lake's shallows, the causeway out to the islet among them: a little slower,
       // docs/caverns-roadmap.md R7.4)
-      const wading = mapId === "glimmering_caverns" && cavernsFloorY(pos.x, pos.z) < CAVE_WATER_Y - 0.03 && !gearRef.current.wades ? WADE_PACE : 1;
-      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * (smoreUntilRef.current > Date.now() ? SMORE_PACE : 1) * (warmUntilRef.current > Date.now() ? WARMTH_PACE : 1) * ringPace * wading * gearRef.current.pace;
+      const wading = ((mapId === "glimmering_caverns" && cavernsFloorY(pos.x, pos.z) < CAVE_WATER_Y - 0.03) || (mapId === "sunset_beach" && beachWading(pos.x, pos.z))) && !gearRef.current.wades ? WADE_PACE : 1;
+      const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * Math.max(smoreUntilRef.current > Date.now() ? SMORE_PACE : 1, refreshedUntilRef.current > Date.now() ? REFRESHED_PACE : 1) * (warmUntilRef.current > Date.now() ? WARMTH_PACE : 1) * ringPace * wading * gearRef.current.pace;
       if (steer) {
         dirX = steer.x;
         dirZ = steer.z;

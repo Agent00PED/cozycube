@@ -24,6 +24,7 @@ import type {
   ToggleableKind,
   ToggleableSyncState,
 } from "@shared/types";
+import { ballStore } from "../systems/ballStore";
 import { LOUNGE_FULL, MAP_SIGNATURE_TIME, isMapId, isWeather, loungeRoomKey } from "@shared/types";
 import { type BlackjackAction, type CasinoPacket, type RoulettePhase, type RouletteSyncState } from "@shared/casino";
 import type { BoxingPacket } from "@shared/boxing";
@@ -46,6 +47,11 @@ export type EmoteListener = (emote: EmoteBroadcast) => void;
 /** One-shot server messages other than emotes (gesture, slotSpin, rouletteResult, npcSay). */
 export type RoomMessageListener = (type: string, payload: any) => void;
 const RELAYED_MESSAGES = [
+  "barTicket",
+  "barResult",
+  "barShiftOver",
+  "barOrderIn",
+  "drinkServed",
   "gesture",
   "slotSpin",
   "rouletteResult",
@@ -69,7 +75,6 @@ const RELAYED_MESSAGES = [
   "splash",
   "wishResult",
   "matchaResult",
-  "blendResult",
   "boardState",
   "mochiResult",
   "dailyComplete",
@@ -359,7 +364,6 @@ interface UseColyseusRoomResult {
   splash: () => void;
   makeWish: () => void;
   matchaWhisk: (score: number) => void;
-  blendDrink: (recipe: string, ingredients: string[]) => void;
   setRecord: (track: number) => void;
   /** A packet for the board game table (BoardPacket); the server answers with "boardState". */
   boardSend: (packet: BoardPacket) => void;
@@ -770,6 +774,7 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
         const b = room.state.ball;
         if (!b) return;
         ballRef.current = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, receivedAt: performance.now() };
+        ballStore.current = ballRef.current;
       };
       if (room.state.ball) {
         room.state.ball.onChange(syncBall);
@@ -1013,7 +1018,6 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
     splash: () => send("splash"),
     makeWish: () => send("make_wish"),
     matchaWhisk: (score) => send("matcha_whisk", { score }),
-    blendDrink: (recipe, ingredients) => send("blend_drink", { recipe, ingredients }),
     setRecord: (track) => send("set_record", { track }),
     boardSend: (packet) => send("board", packet),
     kitchenSend: (packet) => send("kitchen", packet),

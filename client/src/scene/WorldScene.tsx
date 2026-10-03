@@ -14,6 +14,7 @@ import { FELL_TREES, FELL_TREE_AT } from "@shared/worlds/trees";
 import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireWorld } from "./CampfireWorld";
 import { ForestWorld, FOREST_URL } from "./ForestWorld";
+import { BeachWorld } from "./BeachWorld";
 import { CampDaylightContext, CampSky, campHour, campLook, useCampDaylight } from "./campDay";
 import { CASINO_URL, CasinoWorld } from "./CasinoWorld";
 import { CASINO_VIP_URL } from "./CasinoVipWorld";
@@ -639,7 +640,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
 
   // the campfire and the woods keep their own 24-minute day (shared/daynight.ts), whatever the
   // room's clock says; the lounge keeps the room's hour and weather
-  const camp = isCampMap(mapId);
+  // (the beach keeps the camp's day too)
+  const camp = isCampMap(mapId) || mapId === "sunset_beach";
   const daylight = useCampDaylight(camp);
   const hour: TimeOfDay = camp ? campHour(daylight) : timeOfDay;
   const sky: Weather = camp || casino ? "clear" : weather;
@@ -661,6 +663,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         <CasinoWorld onFloorClick={onFloorClick} room={room} subscribeMessages={subscribeMessages} up={up} />
       ) : mapId === "glimmering_caverns" ? (
         <CavernsWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} ores={ores} caveEvent={caveEvent} caveRaft={caveRaft} subscribeMessages={subscribeMessages} onStrike={onStrike} />
+      ) : mapId === "sunset_beach" ? (
+        <BeachWorld onFloorClick={onFloorClick} room={room} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} />
       ) : mapId === "boxing_ring" ? (
         <BoxingWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} localSessionId={localSessionId} />
       ) : (
@@ -697,6 +701,10 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={prop} size={[0.8, 1.3, 0.8]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "workbench" ? (
           <PropPad key={prop.propId} prop={prop} size={[1.2, 1.0, 1.2]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "bartender" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.8, 1.5, 0.8]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "barshift" ? (
+          <PropPad key={prop.propId} prop={{ ...prop, y: 1.0 }} size={[0.9, 0.35, 0.9]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "angler" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.8, 1.3, 0.8]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "critter" ? (

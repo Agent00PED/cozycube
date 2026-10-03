@@ -22,7 +22,7 @@ export interface WorldConfig {
 export const WORLDS: Record<WorldId, WorldConfig> = {
   lounge: { id: "lounge", mapId: "cozy_lounge", name: "Lounge", icon: "🛋️", tagline: "Fireplace, kitchen and Mochi", size: 12.8, built: true },
   campfire: { id: "campfire", mapId: "campfire_night", name: "Campfire", icon: "🔥", tagline: "Starlight, embers, and fishing", size: 28, built: true },
-  beach: { id: "beach", mapId: "sunset_beach", name: "Beach Bar", icon: "🏖️", tagline: "Sunset drinks and volleyball", size: 28, built: false },
+  beach: { id: "beach", mapId: "sunset_beach", name: "Sunset Beach", icon: "🏖️", tagline: "The beach bar, the pier and the sea", size: 36, built: true },
   onsen: { id: "onsen", mapId: "japanese_onsen", name: "Onsen", icon: "♨️", tagline: "Hot springs and cherry blossoms", size: 26, built: false },
   casino: { id: "casino", mapId: "velvet_casino", name: "Casino", icon: "🎰", tagline: "Roulette, cards and slots", size: 20, built: true },
   gym: { id: "gym", mapId: "boxing_ring", name: "The Velvet Ring", icon: "🥊", tagline: "Vintage canvas, high-stakes gloves and spectator cheers", size: 20, built: true },

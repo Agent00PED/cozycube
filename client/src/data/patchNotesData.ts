@@ -1,5 +1,5 @@
 // CozyCube's patch notes, as the in-game Patch Notes panel shows them (PatchNotesModal): the whole
-// history of the Activity in seven eras, from the first lounge to the living, weathered world, each
+// history of the Activity in eight eras, from the first lounge to the living, weathered world, each
 // patch's changes grouped under four badges. Newest last within an era; the panel opens on the
 // newest era. Plain data: adding a patch is adding an entry (and bumping the client's version).
 
@@ -1952,6 +1952,52 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
           economy: ["🍁 Autumn Maples take a little longer to grow back (about 7 minutes), now that there are four of them.", "🪓 Buster's stall now says it plainly: a better axe is for the Whispering Woods."],
           fixes: ["⚡ The campfire and the woods draw about a quarter less each frame, which helps phones."],
+        },
+      },
+    ],
+  },
+  {
+    era: 8,
+    name: "Sunset Beach",
+    range: "v0.7.59–v0.8.0",
+    icon: "🏖️",
+    blurb: "An island beach with a bar to tend, a pier out over the sea, and the catch odds told apart water by water.",
+    patches: [
+      {
+        version: "0.7.59",
+        date: "2026-10-03",
+        title: "Every Water Its Own Odds",
+        summary: "What bites now depends on the water as well as the rod: the deeper the map, the rarer its fine fish, and the more they are worth.",
+        changes: {
+          economy: [
+            "🎣 The same rod finds fewer fine fish the deeper the map lies. A top rod by hand: 24% rare at the campfire (nothing rarer swims there), 19% rare in the Whispering Woods with its legendaries, 14% rare in the caverns' cenote.",
+            "💎 The cenote's uncommon, rare, epic and legendary fish are worth more to make up for it (for example a Bioluminescent Axolotl 82 coins, up from 70). Nothing you hold lost any worth.",
+            "🌲 The woods' river no longer gives a hidden bonus to rare fish: its odds are simply its own now. Hand-reeled fishing there earns what it was meant to.",
+            "☕ AFK lines are unchanged.",
+          ],
+        },
+      },
+      {
+        version: "0.8.0",
+        date: "2026-10-03",
+        title: "Sunset Beach",
+        summary: "A new map on the world list: an island beach with Mango's bar, where you can order a drink or step behind the counter and mix them yourself.",
+        changes: {
+          features: [
+            "🏖️ Sunset Beach is open to everyone from the world list: sand rising from the sea to a dune, a thatched bar, a firepit, loungers, hammocks, a pier out over deep water, and palms all along the back.",
+            "🍹 Mango the toucan keeps the bar. Order a drink from a stool or the counter (8 coins): you hold it, wear its glow, and a well-made one leaves you Refreshed, +10% walking pace for 10 minutes.",
+            "🧉 A Shift at the Bar: walk round behind the counter and take the orders yourself. Remember the recipe and tap its ingredients in order, hold to pour and let go at the golden line, then tap as the ring lands on the shaker. Each drink is graded in stars.",
+            "🪙 A regular tips by the stars, up to 30 tipped drinks an hour; when another player orders, you make their drink and get most of its price. After that, drinks are for the fun of it.",
+            "📖 The Bar Book keeps each drink's count and best stars and your longest run of Perfects, with four gold titles to earn.",
+            "🌊 Wade into the shallows (a little slower, rings spreading round you); deep water stops you. Walk the pier out over it.",
+            "🏐 A beach ball on the flat sand in the middle: walk into it to send it up.",
+            "🔥 Sit on a driftwood log by the firepit, lie on a lounger or nap in a hammock between the palms.",
+          ],
+          visuals: [
+            "🌅 The sea is turquoise in the shallows and blue in the deep, with foam rolling in and lapping up the sand, gold on the water at dawn and dusk, and the bar's lights and the fire coming up at night.",
+            "🌴 Palms sway and thin out when they stand between you and the camera. The captain's boat rocks at the pier's head.",
+          ],
+          fixes: ["🧹 The old drink blender and an unused early version of fishing are gone from the game's code."],
         },
       },
     ],
