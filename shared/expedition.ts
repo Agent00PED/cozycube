@@ -25,6 +25,7 @@ export const FORGED_TIER = 5;
 /** Where a tool or a storage tier a counter doesn't stock comes from (null: this counter sells it). */
 export function soldElsewhere(tier: number, cap: number, woodsKeeper: string): string | null {
   // (T6, Tidewater: made at Dune's shack on Sunset Beach)
+  if (tier > FORGED_TIER + 1) return "🌊 Made far out at sea";
   if (tier > FORGED_TIER) return "🐢 Made at Dune's shack on Sunset Beach";
   if (tier >= FORGED_TIER) return "🔥 Forged at the caverns' forge";
   return tier > cap ? woodsKeeper : null;
@@ -33,15 +34,16 @@ export function soldElsewhere(tier: number, cap: number, woodsKeeper: string): s
 /** What a forged thing or a satchel tier takes besides coins. */
 export type Makings = SatchelTier["needs"];
 
-export type ForgedToolId = "rod" | "axe" | "pickaxe" | "livewell" | "carrier" | "tideRod" | "tideLivewell";
+export type ForgedToolId = "rod" | "axe" | "pickaxe" | "livewell" | "carrier" | "tideRod" | "tideLivewell" | "deepRod";
 export interface ForgedTool {
   name: string;
   emoji: string;
   blurb: string;
   coins: number;
   needs: Makings;
-  /** Where it is made: the caverns' forge (T5), or Dune's shack on Sunset Beach (T6: Tidewater). */
-  place: "forge" | "dune";
+  /** Where it is made: the caverns' forge (T5), Dune's shack on Sunset Beach (T6: Tidewater), or the
+   *  old shipwright's bench in the Hidden Cove (T7: Deep Tide). */
+  place: "forge" | "dune" | "cove";
 }
 const LIVEWELL = CREEL_TIERS[FORGED_TIER - 1];
 const CARRIER = WOOD_CARRIER_TIERS[FORGED_TIER - 1];
@@ -56,6 +58,8 @@ export const FORGED_TOOLS: Record<ForgedToolId, ForgedTool> = {
   // Amber from the woods' maples, Fine Fish Bones and scales from the water)
   tideRod: { name: RODS.tidewater.name, emoji: RODS.tidewater.emoji, blurb: RODS.tidewater.blurb, coins: RODS.tidewater.price, needs: { ore: { silver_ingot: 6 }, byproducts: { leafAmber: 6, fishBone: 6 } }, place: "dune" },
   tideLivewell: { name: TIDE_LIVEWELL.name, emoji: TIDE_LIVEWELL.icon, blurb: `A hold for a day at sea: ${TIDE_LIVEWELL.capacity} fish.`, coins: TIDE_LIVEWELL.price, needs: { ore: { iron_ingot: 6 }, byproducts: { scales: 20, amber: 6 } }, place: "dune" },
+  // T7, Deep Tide: made at the Hidden Cove's bench, from pearls and the crafts' rarest drops
+  deepRod: { name: RODS.deeptide.name, emoji: RODS.deeptide.emoji, blurb: RODS.deeptide.blurb, coins: RODS.deeptide.price, needs: { ore: { glimmer_shard: 6 }, byproducts: { pearl: 12, prismScale: 3, heartwood: 2 } }, place: "cove" },
 };
 export const FORGED_TOOL_IDS = Object.keys(FORGED_TOOLS) as ForgedToolId[];
 export function isForgedToolId(v: unknown): v is ForgedToolId {
@@ -69,6 +73,7 @@ export function forgedOwned(p: FishingProfile, id: ForgedToolId): boolean {
   if (id === "pickaxe") return p.pickaxes.includes("drill");
   if (id === "livewell") return p.creelTier >= FORGED_TIER;
   if (id === "tideRod") return p.rods.includes("tidewater");
+  if (id === "deepRod") return p.rods.includes("deeptide");
   if (id === "tideLivewell") return p.creelTier >= FORGED_TIER + 1;
   return p.carrierTier >= FORGED_TIER;
 }
@@ -96,6 +101,9 @@ export function grantForged(p: FishingProfile, id: ForgedToolId) {
   } else if (id === "tideRod") {
     if (!p.rods.includes("tidewater")) p.rods.push("tidewater");
     p.rod = "tidewater";
+  } else if (id === "deepRod") {
+    if (!p.rods.includes("deeptide")) p.rods.push("deeptide");
+    p.rod = "deeptide";
   } else if (id === "tideLivewell") {
     p.creelTier = FORGED_TIER + 1;
     p.slots = creelTier(p.creelTier).capacity;

@@ -130,7 +130,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
       {tab === "tools" && (
         <div className="flex flex-col gap-1.5">
           <b className="text-[11px] uppercase tracking-widest text-[#C9BDB5]/70">Rods</b>
-          {ROD_IDS.map((id) => {
+          {ROD_IDS.filter((id) => RODS[id].tier < 7 || profile.coveAccess || profile.rods.includes(id)).map((id) => {
             const rod = RODS[id];
             const owned = profile.rods.includes(id);
             const using = profile.rod === id;

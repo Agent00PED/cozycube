@@ -9,6 +9,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { beachTerrainData } from "../shared/worlds/beach";
 import { seaSceneData } from "../shared/worlds/sea";
+import { coveTerrainData } from "../shared/worlds/cove";
 
 export const BEACH_TERRAIN_PATH = join(__dirname, "blender", "data", "beach_terrain.json");
 
@@ -23,10 +24,17 @@ export function seaSceneText(): string {
   return JSON.stringify(seaSceneData()) + "\n";
 }
 
+/** The Hidden Cove's ground and every thing's place, for scripts/blender/build_cove.py. */
+export const COVE_TERRAIN_PATH = join(__dirname, "blender", "data", "cove_terrain.json");
+export function coveTerrainText(): string {
+  return JSON.stringify(coveTerrainData()) + "\n";
+}
+
 if (require.main === module) {
   mkdirSync(dirname(BEACH_TERRAIN_PATH), { recursive: true });
   writeFileSync(BEACH_TERRAIN_PATH, beachTerrainText());
   writeFileSync(SEA_SCENE_PATH, seaSceneText());
+  writeFileSync(COVE_TERRAIN_PATH, coveTerrainText());
   const t = beachTerrainData();
   console.log(`beach terrain: ${t.n + 1} x ${t.n + 1} heights every ${t.cell.toFixed(3)} m, ${Math.min(...t.ground).toFixed(2)} to ${Math.max(...t.ground).toFixed(2)} m -> ${BEACH_TERRAIN_PATH}`);
 }

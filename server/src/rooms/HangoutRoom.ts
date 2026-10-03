@@ -331,6 +331,7 @@ import { BeachSea } from "./beachSea";
 import { SEA_CHANNEL, isSeaMap, type SeaPacket } from "../../../shared/voyage";
 import { SEA_CAST_ROD } from "../../../shared/sea_fishing";
 import { seaCast } from "../../../shared/worlds/sea";
+import { coveCast } from "../../../shared/worlds/cove";
 import { BeachBar } from "./beachBar";
 import { BAR_CHANNEL, REFRESHED_PACE, type BarPacket } from "../../../shared/barshift";
 import { CavernsMine } from "./caverns";
@@ -536,7 +537,7 @@ const PASTEL_COLORS = [
 ];
 const AUTO_CYCLE_SECONDS = 45; // each hour of the day lasts this long when Auto Cycle is on
 const GESTURE_COOLDOWN_MS = 1200;
-const COIN_CAP = 99999;
+const COIN_CAP = 999_999;
 const ALLOWED_EMOTES = new Set<string>(EMOTES);
 
 export class HangoutRoom extends Room<HangoutState> {
@@ -856,6 +857,7 @@ export class HangoutRoom extends Room<HangoutState> {
         });
         return n;
       },
+      toCove: (type, payload) => this.toMap("hidden_cove", type, payload),
     });
     this.caverns = new CavernsMine({
       player: (sessionId) => this.state.players.get(sessionId),
@@ -3086,9 +3088,9 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     // (the caverns: the lake from its shore, or the stream from its bank; Sunset Beach: the sea, from
     // the pier or the waterline)
-    const float = beach ? beachCast(player.x, player.z, fx, fz) : player.map === "open_sea" ? seaCast(player.x, player.z, fx, fz) : player.map === "glimmering_caverns" ? (shoreCast(player.x, player.z, fx, fz) ?? streamCast(player.x, player.z, fx, fz)) : null;
+    const float = beach ? beachCast(player.x, player.z, fx, fz) : player.map === "open_sea" ? seaCast(player.x, player.z, fx, fz) : player.map === "hidden_cove" ? coveCast(player.x, player.z, fx, fz) : player.map === "glimmering_caverns" ? (shoreCast(player.x, player.z, fx, fz) ?? streamCast(player.x, player.z, fx, fz)) : null;
     if (!float) {
-      this.sendTo(sessionId, "campfireNotice", { message: atSea ? "Step up to the rail and face the water to cast" : beach ? "Face the sea from the pier's edge, or wade in a step, to cast" : "Step up to the water's edge and face the lake, or the stream, to cast", emoji: "🎣" });
+      this.sendTo(sessionId, "campfireNotice", { message: player.map === "hidden_cove" ? "Face the lagoon from the sand to cast" : atSea ? "Step up to the rail and face the water to cast" : beach ? "Face the sea from the pier's edge, or wade in a step, to cast" : "Step up to the water's edge and face the lake, or the stream, to cast", emoji: "🎣" });
       return;
     }
     if (this.creelIsFull(sessionId)) {
@@ -4349,6 +4351,8 @@ export class HangoutRoom extends Room<HangoutState> {
       // a chest the server rolled for this reel, held in the bar until it opened
       const treasure = reel.treasure && openedChest ? this.campfirePay(sessionId, player, "fish", TREASURE_COINS) : 0;
       this.landFish(sessionId, player, reel.fish, false, treasure);
+      // (out at sea, by hand: now and then a bottle comes up with the catch)
+      this.sea.bottle(sessionId);
     } else {
       this.deed(sessionId, { kind: "lost", boss: BOSS_TIERS.has(FISH[reel.fish.s].tier) });
       this.nearby(sessionId, "emote", { sessionId, emoji: "💨" });
@@ -4753,6 +4757,13 @@ export class HangoutRoom extends Room<HangoutState> {
       case "kitchen":
       case "radio":
         this.sendTo(sessionId, "openPanel", { kind, propId: prop.propId });
+        break;
+      // the Hidden Cove: the old shipwright's bench, and the giant clams
+      case "covebench":
+        this.sendTo(sessionId, "openPanel", { kind: "covebench", propId: prop.propId });
+        break;
+      case "clam":
+        this.sea.handle(sessionId, { op: "pry", clam: prop.propId.replace("cove_", "") });
         break;
       // Captain Brine: at the pier's head, and at the wheel out at sea
       case "captain":

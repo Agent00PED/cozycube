@@ -365,8 +365,15 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
    The map (the boat at anchor), Captain Brine at the pier and at the wheel, the ticket and its
    rules, the cast from the rails, the Tidewater rod and hold made at Dune's. The boat is 11 m and
    its seats are a port bench and a bow seat. The sea's wonders wait for the last part.
-4. **The Hidden Cove.** The chart's three bottles at sea, the secrecy rules, the cove map, the
-   clams and pearls, the Deep Tide rod at the cove's bench (the coin cap raised for it), the mythic.
+4. **The Hidden Cove (done, patch 0.8.3).** The chart's three bottles at sea (a pity counter:
+   certain by the 300th dry catch, about half an hour a piece), the secrecy rules, the cove map
+   (24 m, a crescent of sand round a lagoon), five clams and their pearls, the Deep Tide rod at the
+   cove's bench (the coin cap raised to 999,999 for it), the mythic. The salt water's T7 rows and the
+   cove's T5 to T7 were tuned on the simulator and are lower than the table in section 3 (a legendary
+   or a mythic there is worth so much that the first figures paid 750 a minute): as built, pier T7
+   47 / 30 / 19.5 / 3.5, sea T7 47 / 31 / 20.5 / 1.5, cove T5 56 / 32 / 12, T6 50 / 32 / 16.5 / 1.5,
+   T7 50 / 31 / 17.5 / 1.2 / 0.3 (common / uncommon / rare with the Epic kinds / legendary /
+   mythic). Incomes: T7 236 off the pier, 297 at sea, 338 in the cove; T6 302 in the cove.
 5. **Palms.** Felling, the Tidewater axe and carrier, coconuts to the bar; the simulator at 250.
 6. **Reef rock.** Prospecting brought to the beach, the Tidewater pickaxe and satchel.
 7. **Dressing and life.** Gulls, crabs, a turtle; the sea's wonders; the sounds (waves, gulls, the

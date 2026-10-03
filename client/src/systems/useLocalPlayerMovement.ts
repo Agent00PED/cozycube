@@ -17,6 +17,7 @@ import { WARMTH_PACE } from "@shared/caverns_mining";
 import { gearPace, isGearId, wadesFreely, type Loadout } from "@shared/gear";
 import { REFRESHED_PACE } from "@shared/barshift";
 import { beachWading } from "@shared/worlds/beach";
+import { coveWading } from "@shared/worlds/cove";
 import { SMORE_PACE, TORCH_NIGHT_PACE } from "@shared/crafting";
 import { isCampDay } from "@shared/daynight";
 import { clampToRing } from "@shared/worlds/boxing_ring";
@@ -300,7 +301,7 @@ export function useLocalPlayerMovement(
       const torch = torchRef.current && isCampMap(mapId) && !isCampDay(Date.now()) ? TORCH_NIGHT_PACE : 1;
       // (wading the lake's shallows, the causeway out to the islet among them: a little slower,
       // docs/caverns-roadmap.md R7.4)
-      const wading = ((mapId === "glimmering_caverns" && cavernsFloorY(pos.x, pos.z) < CAVE_WATER_Y - 0.03) || (mapId === "sunset_beach" && beachWading(pos.x, pos.z))) && !gearRef.current.wades ? WADE_PACE : 1;
+      const wading = ((mapId === "glimmering_caverns" && cavernsFloorY(pos.x, pos.z) < CAVE_WATER_Y - 0.03) || (mapId === "sunset_beach" && beachWading(pos.x, pos.z)) || (mapId === "hidden_cove" && coveWading(pos.x, pos.z))) && !gearRef.current.wades ? WADE_PACE : 1;
       const pace = MOVE_SPEED * (fedRef.current ? WELL_FED_SPEED : 1) * auraPaceRef.current * torch * Math.max(smoreUntilRef.current > Date.now() ? SMORE_PACE : 1, refreshedUntilRef.current > Date.now() ? REFRESHED_PACE : 1) * (warmUntilRef.current > Date.now() ? WARMTH_PACE : 1) * ringPace * wading * gearRef.current.pace;
       if (steer) {
         dirX = steer.x;

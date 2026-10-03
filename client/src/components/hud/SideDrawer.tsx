@@ -171,8 +171,8 @@ export function SideDrawer(props: SideDrawerProps) {
                       {isMe && <span className="font-normal opacity-60"> (you)</span>}
                     </span>
                     {/* the world they are in (everyone walks the server's worlds on their own) */}
-                    <span className={`w-5 text-center ${p.map === props.mapId ? "" : "opacity-60"}`} title={MAP_LABELS[p.map]?.name}>
-                      {MAP_LABELS[p.map]?.icon}
+                    <span className={`w-5 text-center ${p.map === props.mapId ? "" : "opacity-60"}`} title={MAP_LABELS[p.map === "hidden_cove" ? "open_sea" : p.map]?.name}>
+                      {MAP_LABELS[p.map === "hidden_cove" ? "open_sea" : p.map]?.icon}
                     </span>
                     <span className="w-5 text-center">{speaking ? "🔊" : statusIcon(p)}</span>
                     <span className={`w-14 text-right text-xs tabular-nums ${pingTone(p.ping)}`}>{p.ping > 0 ? `${p.ping} ms` : "—"}</span>
