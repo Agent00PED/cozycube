@@ -1,5 +1,6 @@
 import { parseTrees } from "@shared/chop";
 import { FellableTrees } from "./FellableTrees";
+import { ReefRock } from "./ReefRock";
 import { Suspense, useContext, useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
@@ -108,6 +109,9 @@ interface BeachWorldProps {
   /** The room's trees (the Coconut Palms: node id -> stage, size, damage), as JSON. */
   trees: string;
   onUseProp: (propId: string) => void;
+  /** The room's ore nodes (the reef rock's among them), and a strike at one. */
+  ores: string;
+  onStrike: (node: string, dir: [number, number, number], t: number) => void;
 }
 
 const MANGO_TALK: NpcTalk = {
@@ -119,7 +123,7 @@ const MANGO_TALK: NpcTalk = {
   },
 };
 
-export function BeachWorld({ onFloorClick, room, players, localSessionId, subscribeMessages, trees, onUseProp }: BeachWorldProps) {
+export function BeachWorld({ onFloorClick, room, players, localSessionId, subscribeMessages, trees, onUseProp, ores, onStrike }: BeachWorldProps) {
   const treeState = useMemo(() => parseTrees(trees), [trees]);
   const floorClick = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
@@ -145,6 +149,7 @@ export function BeachWorld({ onFloorClick, room, players, localSessionId, subscr
       <CampNpc url={DUNE_URL} what="dune.glb" prefix="Dune" at={DUNE} y={beachLand(DUNE.x, DUNE.z) + 0.14} waveEvent="duneWave" standIn={<DuneStandIn />} subscribeMessages={subscribeMessages} talk={DUNE_TALK} />
       <CampNpc url={BRINE_URL} what="brine.glb" prefix="Brine" at={BRINE} y={PIER.deck} waveEvent="brineWave" standIn={<BrineStandIn />} subscribeMessages={subscribeMessages} talk={PIER_BRINE_TALK} />
       <FellableTrees mapId="sunset_beach" trees={treeState} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onUseProp={onUseProp} />
+      <ReefRock ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onStrike={onStrike} />
       <BeachLights />
       <BeachFire />
       <Ball room={room} players={players} localSessionId={localSessionId} />

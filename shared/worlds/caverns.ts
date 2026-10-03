@@ -1,6 +1,8 @@
 import type { AABB } from "../collision";
 import type { PropSpec } from "./lounge";
 import { ORE_KINDS, type OreKind } from "../caverns_mining";
+import type { MapId } from "../types";
+import { REEF_NODES } from "./beach";
 
 // The Glimmering Caverns (the map "glimmering_caverns"): a 45 x 45 karst cavern after Hang Son Doong,
 // reached only through the old mine adit behind the Whispering Woods' Autumn Maples (Old Flint the
@@ -1036,6 +1038,8 @@ export interface OreNode {
   approach: Pt;
   /** Set in the cavern's shell (the north or west wall), not in a rock of its own. */
   wall: boolean;
+  /** The map it stands on (the caverns' own, or Sunset Beach's reef rock). */
+  map: MapId;
 }
 export const ORE_NODES: OreNode[] = L.nodes.map((n) => {
   const face = n.face ? { x: n.face[0], z: n.face[1] } : null;
@@ -1044,9 +1048,12 @@ export const ORE_NODES: OreNode[] = L.nodes.map((n) => {
   const out = face ?? { x: (-n.x / d) * 0.6 + 0.4, z: (-n.z / d) * 0.6 + 0.4 };
   const ol = Math.hypot(out.x, out.z) || 1;
   const wall = n.x <= L.walls.west + 1.3 || n.z <= L.walls.north + 1.3;
-  return { id: n.id, kind: n.kind as OreKind, x: n.x, z: n.z, y: cavernsFloorY(n.x, n.z), face, approach: { x: n.x + (out.x / ol) * r, z: n.z + (out.z / ol) * r }, wall };
+  return { id: n.id, kind: n.kind as OreKind, x: n.x, z: n.z, y: cavernsFloorY(n.x, n.z), face, approach: { x: n.x + (out.x / ol) * r, z: n.z + (out.z / ol) * r }, wall, map: "glimmering_caverns" };
 });
-export const ORE_NODE_AT = new Map(ORE_NODES.map((n) => [n.id, n]));
+/** Every node there is to prospect: the caverns' (ORE_NODES) and Sunset Beach's fossil reef rock
+ *  (shared/worlds/beach.ts REEF_NODES). ORE_NODE_AT finds either by id. */
+export const ALL_ORE_NODES: OreNode[] = [...ORE_NODES, ...REEF_NODES];
+export const ORE_NODE_AT = new Map(ALL_ORE_NODES.map((n) => [n.id, n]));
 /** The prop id of a node, and the node of a prop id. */
 export const orePropId = (id: string) => `ore_${id}`;
 export const oreNodeOf = (propId: string) => (propId.startsWith("ore_") ? ORE_NODE_AT.get(propId.slice(4)) : undefined);
@@ -1055,10 +1062,11 @@ export function oreReach(node: OreNode): number {
   return ORE_KINDS[node.kind].radius + 1.7;
 }
 /** The node within reach of (x, z), the nearest (null: none). */
-export function oreNodeNear(x: number, z: number): OreNode | null {
+export function oreNodeNear(x: number, z: number, map: MapId = "glimmering_caverns"): OreNode | null {
   let best: OreNode | null = null;
   let d = Infinity;
-  for (const n of ORE_NODES) {
+  for (const n of ALL_ORE_NODES) {
+    if (n.map !== map) continue;
     const e = Math.hypot(n.x - x, n.z - z);
     if (e <= oreReach(n) && e < d) {
       d = e;

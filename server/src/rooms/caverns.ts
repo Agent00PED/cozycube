@@ -2,7 +2,7 @@ import { isBlocked } from "../../../shared/collision";
 import { LICENCE, licenceProgress, licenceSlots } from "../../../shared/keepers";
 import { FORGED_TIER, FORGED_TOOLS, forgedBlocked, forgedOwned, grantForged, isForgedToolId, makingsMissing, spendMakings } from "../../../shared/expedition";
 import type { MapId } from "../../../shared/types";
-import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAVE_ARRIVAL, CAVE_WINCH, WINCH_REACH, WINCH_RETURN_S, WINCH_RIDE_S, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, ORE_NODES, ORE_NODE_AT, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, orePropId, type OreNode, CAPYBARA, CAVE_PEARLS, FIND_REACH, JOURNAL_PAGES, PHOTO_REACH, PHOTO_SPOT, cavernsZoneAt, HEARTH, HEARTH_SEAT_IDS, RAFT, RAFT_EMPTY_S, RAFT_REACH, RAFT_RIDE_S, type RaftSide, WINCH_DOWN_S, onCauseway, cavernsFloorY, CAVE_WATER_Y } from "../../../shared/worlds/caverns";
+import { ANVIL, ANVIL_FRONT, ANVIL_REACH, CAVE_ARRIVAL, CAVE_WINCH, WINCH_REACH, WINCH_RETURN_S, WINCH_RIDE_S, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, ALL_ORE_NODES, ORE_NODES, ORE_NODE_AT, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, orePropId, type OreNode, CAPYBARA, CAVE_PEARLS, FIND_REACH, JOURNAL_PAGES, PHOTO_REACH, PHOTO_SPOT, cavernsZoneAt, HEARTH, HEARTH_SEAT_IDS, RAFT, RAFT_EMPTY_S, RAFT_REACH, RAFT_RIDE_S, type RaftSide, WINCH_DOWN_S, onCauseway, cavernsFloorY, CAVE_WATER_Y } from "../../../shared/worlds/caverns";
 import { FOREST_ADIT_FRONT, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_FROM_CAVERNS } from "../../../shared/worlds/forest";
 import {
   CHISEL_CLOCK_SLACK_MS,
@@ -97,7 +97,8 @@ import { WEEKLY_BONUS, weekKey, weeklyGoals, weeklyProgress, weeklySnapshot } fr
 import { AWAKEN_S, MASTER_SWEET, MASTERY_EXTRA, MASTERY_ORE, MOTHERLODE_EVERY_S, MOTHERLODE_KINDS, MOTHERLODE_S, MOTHERLODE_YIELD, RANK_NAMES, masteryRank, masteryTitles } from "../../../shared/caverns_mastery";
 import { BLOOM_REGROW, BLOOM_YIELD, CAVE_EVENT_EVERY_MIN, CAVE_EVENT_INFO, CAVE_EVENT_S, CLOUD_LUCK, CODEX, CODEX_BY_ID, CODEX_SECTIONS, EXODUS_S, FAUNA_ZONE, FOSSILS, FOSSIL_CHANCE, ROCKFALL_S, caveEventOn, codexProgress, type CaveEvent, type CaveEventKind, codexTitles } from "../../../shared/caverns_codex";
 import { dayPhase, DAY_CYCLE_MS } from "../../../shared/daynight";
-import { nextSatchelTier, satchelAdd, satchelCount, satchelCountFor, satchelCounts, satchelHasRoom, satchelTake, satchelTakeFor, satchelTier, type SatchelTier } from "../../../shared/satchel";
+import { DUNE_FRONT, DUNE_REACH } from "../../../shared/worlds/beach";
+import { GUS_SATCHEL_TIER, nextSatchelTier, satchelAdd, satchelCount, satchelCountFor, satchelCounts, satchelHasRoom, satchelTake, satchelTakeFor, satchelTier, type SatchelTier } from "../../../shared/satchel";
 import { takeLogs, WOOD, BYPRODUCTS, type ByproductId, type WoodKind } from "../../../shared/chop";
 import { addMaterial, buffOn, materialCount, takeMaterial, type FishingProfile } from "../../../shared/fishing";
 import { RING_BANDS, RING_GEMS, bonusOreChance, isRingId, ringMakings, ringName, ringParts, wearRing, chaseWindowBonus, cleanBreakBonus, dustYield, geodeFind, glintBonus, lodestoneSweet, perfectWindow, satchelBonus, sellBonus, swingHaste, type Deed } from "../../../shared/gear";
@@ -281,7 +282,7 @@ export class CavernsMine {
 
   constructor(private readonly host: CavernsHost) {
     // (a crew node, the Rockfall's heap, lies waiting until its wonder raises it)
-    for (const n of ORE_NODES) this.nodes.set(n.id, { dmg: 0, up: !ORE_KINDS[n.kind].crew, respawnAt: ORE_KINDS[n.kind].crew ? Infinity : 0, weak: rollWeakSpot(n.face), glint: rollGlint(n.kind), contrib: new Map() });
+    for (const n of ALL_ORE_NODES) this.nodes.set(n.id, { dmg: 0, up: !ORE_KINDS[n.kind].crew, respawnAt: ORE_KINDS[n.kind].crew ? Infinity : 0, weak: rollWeakSpot(n.face), glint: rollGlint(n.kind), contrib: new Map() });
     this.sync();
   }
 
@@ -525,7 +526,7 @@ export class CavernsMine {
   /** Up to a node to mine it: it stands, it is in reach, the satchel has room. The rock is framed and
    *  its weak spot told (no dial, no gauge: the rock's own tells). */
   private startProspect(sessionId: string, player: CavePlayer, node: OreNode) {
-    if (player.map !== "glimmering_caverns" || player.sitting || (player.action !== "" && player.action !== "mine")) return;
+    if (player.map !== node.map || player.sitting || (player.action !== "" && player.action !== "mine")) return;
     if (Math.hypot(player.x - node.x, player.z - node.z) > oreReach(node) + 0.6) return;
     const s = this.nodes.get(node.id);
     const kit = this.host.profile(sessionId);
@@ -537,12 +538,12 @@ export class CavernsMine {
     }
     if (!satchelHasRoom(kit, this.strap(kit))) {
       const t = satchelTier(kit.satchelTier);
-      this.host.sendTo(sessionId, "campfireNotice", { message: `Your ${t.name} is full (${t.slots + this.strap(kit)} slots of 10): sell to Gus, smelt at the forge, or crack your geodes`, emoji: "⛏️" });
+      this.host.sendTo(sessionId, "campfireNotice", { message: `Your ${t.name} is full (${t.slots + this.strap(kit)} slots of 10): ${node.map === "sunset_beach" ? "Dune weighs ore at his shack" : "sell to Gus, smelt at the forge, or crack your geodes"}`, emoji: "⛏️" });
       return;
     }
     const pick = PICKAXES[kit.pickaxeId];
     const rule = oreRule(pick.tier, node.kind);
-    if (rule === "deflect") this.host.sendTo(sessionId, "campfireNotice", { message: `${info.name} is T${info.tier}: your ${pick.name} (T${pick.tier}) will skid right off it. A T${info.tier - 1} pickaxe or better bites (Gus sells them)`, emoji: "🪨" });
+    if (rule === "deflect") this.host.sendTo(sessionId, "campfireNotice", { message: `${info.name} is T${info.tier}: your ${pick.name} (T${pick.tier}) will skid right off it. A T${info.tier - 1} pickaxe or better bites (${info.tier > FORGED_TIER ? "the Tidewater Pickaxe is made at Dune's shack" : "Gus sells them"})`, emoji: "🪨" });
     const was = this.prospectors.get(sessionId);
     // (the weak spot on the side the miner stands, when no one else is at this rock: never round its back)
     const others = [...this.prospectors.entries()].some(([id, p]) => id !== sessionId && p.node === node.id);
@@ -595,7 +596,7 @@ export class CavernsMine {
     const player = this.host.player(sessionId);
     const pr = this.prospectors.get(sessionId);
     const kit = this.host.profile(sessionId);
-    if (!player || !pr || !kit || player.map !== "glimmering_caverns" || player.action !== "mine") return;
+    if (!player || !pr || !kit || player.map !== (ORE_NODE_AT.get(pr.node)?.map ?? "glimmering_caverns") || player.action !== "mine") return;
     if (!raw || typeof raw !== "object" || raw.node !== pr.node) return;
     const seq = Number(raw.seq);
     if (Number.isFinite(seq) && seq <= pr.seq) return;
@@ -643,7 +644,7 @@ export class CavernsMine {
     }
     if (j.verdict === "deflect") {
       pr.staggerUntil = now + DEFLECT_STAGGER_S * 1000;
-      this.host.toMap("glimmering_caverns", "caveStrike", { sessionId, node: node.id, verdict: "deflect", hit: dir, dmg: s.dmg / info.hp, streak: run.n } satisfies CaveStrike);
+      this.host.toMap(node.map, "caveStrike", { sessionId, node: node.id, verdict: "deflect", hit: dir, dmg: s.dmg / info.hp, streak: run.n } satisfies CaveStrike);
       return;
     }
     const damage = j.oneshot ? j.damage : Math.round(j.damage * (perfect ? PERFECT_DAMAGE : 1) * chaseBonus(pr.chase));
@@ -663,7 +664,7 @@ export class CavernsMine {
       s.weak = rollVeinStep(from, Math.random, pr.view ?? { x: player.x - node.x, z: player.z - node.z });
     }
     const frac = s.dmg / info.hp;
-    this.host.toMap("glimmering_caverns", "caveStrike", { sessionId, node: node.id, verdict: j.verdict, hit: dir, dmg: Math.round(frac * 1000) / 1000, ...(moved ? { moved: true } : {}), ...(perfect ? { perfect: true } : {}), streak: run.n, ...(bonus ? { bonus } : {}), chase: pr.chase } satisfies CaveStrike);
+    this.host.toMap(node.map, "caveStrike", { sessionId, node: node.id, verdict: j.verdict, hit: dir, dmg: Math.round(frac * 1000) / 1000, ...(moved ? { moved: true } : {}), ...(perfect ? { perfect: true } : {}), streak: run.n, ...(bonus ? { bonus } : {}), chase: pr.chase } satisfies CaveStrike);
     // the fissure ran on: everyone at this node is shown where the rock is weak now
     if (moved) this.prospectors.forEach((p, id) => p.node === node.id && this.host.sendTo(id, "caveWeak", { node: node.id, weak: s.weak, from, ...(s.glint ? { glint: true } : {}) }));
     this.prospectors.forEach((p, id) => {
@@ -699,7 +700,7 @@ export class CavernsMine {
     s.contrib = new Map();
     s.weak = rollWeakSpot(node.face);
     s.glint = false;
-    this.host.toMap("glimmering_caverns", "caveShatter", { node: node.id, kind: node.kind, crew } satisfies CaveShatter);
+    this.host.toMap(node.map, "caveShatter", { node: node.id, kind: node.kind, crew } satisfies CaveShatter);
     for (const id of crew) {
       const kit = this.host.profile(id);
       const who = this.host.player(id);
@@ -1174,7 +1175,9 @@ export class CavernsMine {
       kit.pickaxeId = packet.pickaxe;
       return this.reply(sessionId, true, `${PICKAXES[packet.pickaxe].emoji} ${PICKAXES[packet.pickaxe].name} in hand`);
     }
-    if (!this.atGus(player)) return this.reply(sessionId, false, "Come over to the outpost, friend!");
+    const atDune = player.map === "sunset_beach" && Math.hypot(player.x - DUNE_FRONT.x, player.z - DUNE_FRONT.z) <= DUNE_REACH + 0.6;
+    if (atDune && packet.op !== "sell" && packet.op !== "sellCat" && packet.op !== "sellDust") return this.reply(sessionId, false, "Dune weighs ore and buys it: pickaxes and satchels are Gus's, down in the caverns");
+    if (!atDune && !this.atGus(player)) return this.reply(sessionId, false, "Come over to the outpost, friend!");
     switch (packet.op) {
       case "sell": {
         if (!isOreItemId(packet.item)) return;
@@ -1203,6 +1206,7 @@ export class CavernsMine {
         const p = PICKAXES[packet.pickaxe];
         if (kit.pickaxes.includes(packet.pickaxe)) return this.reply(sessionId, false, `You've already got the ${p.name}`);
         if (p.price <= 0) return this.reply(sessionId, false, `The ${p.name} comes from Old Flint`);
+        if (p.tier > FORGED_TIER) return this.reply(sessionId, false, `The ${p.name} is made at Dune's shack on Sunset Beach`);
         if (p.tier >= FORGED_TIER) return this.reply(sessionId, false, `The ${p.name} is forged, not sold: take its makings to the forge beside my post`);
         if (player.coins < p.price) return this.reply(sessionId, false, `The ${p.name} is ${p.price.toLocaleString("en-US")} 🪙`);
         this.host.addCoins(sessionId, -p.price);
@@ -1214,6 +1218,7 @@ export class CavernsMine {
       case "upgradeSatchel": {
         const next = nextSatchelTier(kit.satchelTier);
         if (!next) return this.reply(sessionId, false, "That's the finest vault under the earth!");
+        if (next.tier > GUS_SATCHEL_TIER) return this.reply(sessionId, false, `The ${next.name} is made at Dune's shack on Sunset Beach`);
         if (player.coins < next.price) return this.reply(sessionId, false, `The ${next.name} is ${next.price.toLocaleString("en-US")} 🪙`);
         const missing = this.missingFor(kit, next.needs);
         if (missing.length) return this.reply(sessionId, false, `The ${next.name} takes ${missing.join(", ")} more`);
@@ -1292,7 +1297,7 @@ export class CavernsMine {
    *  letting go, the forges, the warm pools, the drip. */
   tick(dt: number, now: number, occupied: boolean) {
     let changed = false;
-    for (const node of ORE_NODES) {
+    for (const node of ALL_ORE_NODES) {
       const s = this.nodes.get(node.id)!;
       if (s.up || now < s.respawnAt || ORE_KINDS[node.kind].crew) continue;
       s.up = true;
@@ -1308,7 +1313,7 @@ export class CavernsMine {
     }
     for (const [id, p] of [...this.prospectors.entries()]) {
       const player = this.host.player(id);
-      if (!player || player.map !== "glimmering_caverns" || player.action !== "mine" || (p.lastStrikeAt && now - p.lastStrikeAt > PROSPECT_IDLE_S * 1000)) this.stopProspect(id);
+      if (!player || player.map !== (ORE_NODE_AT.get(p.node)?.map ?? "glimmering_caverns") || player.action !== "mine" || (p.lastStrikeAt && now - p.lastStrikeAt > PROSPECT_IDLE_S * 1000)) this.stopProspect(id);
     }
     this.forgeClock += dt;
     if (this.forgeClock >= 0.5) {
@@ -1633,6 +1638,6 @@ export class CavernsMine {
 
   /** Each node's prop and whether it stands (a broken one takes no click until it grows back). */
   propsUp(): [string, boolean][] {
-    return ORE_NODES.map((n) => [orePropId(n.id), this.nodes.get(n.id)?.up ?? false]);
+    return ALL_ORE_NODES.map((n) => [orePropId(n.id), this.nodes.get(n.id)?.up ?? false]);
   }
 }

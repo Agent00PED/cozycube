@@ -538,6 +538,22 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       // Sunset Beach: the bar (a drink from a stool or the counter's front; a shift from behind it),
       // and Dune at his shack by the pier
       if (mapId === "sunset_beach" && action === "" && !sitting) {
+        // the fossil reef rock in the headland's face: the nearest node in reach
+        let reef: { id: string; d: number } | null = null;
+        for (const p of Object.values(toggleables)) {
+          if (p.kind !== "ore" || !p.on) continue;
+          const n = oreNodeOf(p.propId);
+          if (!n || n.map !== mapId) continue;
+          const d = Math.hypot(n.x - cameraFocus.x, n.z - cameraFocus.z);
+          if (d <= oreReach(n) && (!reef || d < reef.d)) reef = { id: p.propId, d };
+        }
+        if (reef) {
+          const n = oreNodeOf(reef.id)!;
+          const k = ORE_KINDS[n.kind];
+          const { pickTier } = caveOf(player.fishing);
+          const id = reef.id;
+          found.push({ key: `mine:${id}:${pickTier}`, type: "mine", d: reef.d, label: `⛏️ Mine ${k.name} · T${k.tier}`, hint: k.tier - pickTier >= 2 ? `Too hard for your pickaxe: it would skid off. Needs a T${k.tier - 1} pickaxe or better (the Tidewater Pickaxe is made at Dune's shack)` : k.tier > pickTier ? "A tier above your pickaxe: it bites at 60%. Find the weak spot and strike there" : "Step up to the rock and find its weak spot, then strike as the ring closes", run: () => interactBridge.current?.useProp(id) });
+        }
         // the Coconut Palm in reach (FellableTrees outlines it)
         const palm = treeTarget.id ? FELL_TREE_AT.get(treeTarget.id) : undefined;
         if (palm && palm.map === mapId) {

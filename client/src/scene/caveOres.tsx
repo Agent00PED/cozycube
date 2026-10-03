@@ -313,7 +313,7 @@ export function OreNodes({ templates, ores, subscribeMessages, localSessionId, p
 }
 
 /** The rock chips' colour off each kind of node (its host rock's, dark against the dust). */
-const CHIP_COLOR: Record<OreKind, string> = { coal: "#2a2930", copper: "#6c6f6a", iron: "#403f4a", silver: "#4d5667", glimmer: "#2f3242", monolith: "#302e39", rockfall: "#4a4540" };
+const CHIP_COLOR: Record<OreKind, string> = { coal: "#2a2930", copper: "#6c6f6a", iron: "#403f4a", silver: "#4d5667", glimmer: "#2f3242", monolith: "#302e39", rockfall: "#4a4540", reef: "#b89a7c" };
 
 /** The cave's pools of little pieces (caveFx.ts), drawn and stepped here, let go with the cave. */
 export function CaveFxLayer() {

@@ -379,7 +379,11 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
    106 a minute, not the 45,000 first pencilled in) and the Timber Sled (85 logs, 19,000) made at
    Dune's, husks and coconuts, a coconut for a drink at Mango's, Dune buying timber. The simulator's
    T6 woodcutter: 242 a minute as sold.
-6. **Reef rock.** Prospecting brought to the beach, the Tidewater pickaxe and satchel.
+6. **Reef rock (done, patch 0.8.5).** Six nodes in the headland's seaward face, prospected with the
+   caverns' own rules, close-up and HUD (the nodes joined the registry with a map of their own; the
+   close-up camera needed nothing: it was never the caverns' alone). The Tidewater Pickaxe (75,000)
+   and Ore Crate (24 slots, 37,500) made at Dune's, who buys ore as well. Reef stone and sea glass;
+   the fossil for the codex is left out. T6 on the reef: 249 a minute as sold.
 7. **Dressing and life.** Gulls, crabs, a turtle; the sea's wonders; the sounds (waves, gulls, the
    bar's music at dusk); the outfit; the lobby's and the trip screens' art.
 

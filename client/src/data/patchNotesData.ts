@@ -2070,6 +2070,21 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.8.5",
+        date: "2026-10-03",
+        title: "The Fossil Reef",
+        summary: "Six blocks of old reef stand in Sunset Beach's headland: prospect them as you would a rock in the caverns, with a Tidewater pickaxe made at Dune's.",
+        changes: {
+          features: [
+            "🪸 Fossil Reef Rock (T6) in the headland at the north-east end of the beach: walk up, find the weak spot, strike as the ring closes. The same Perfects, vein chase and clean breaks as in the caverns. It gives Fossil Reef Stone, and Sea Glass now and then; it is back in a minute.",
+            "⛏️ The Tidewater Pickaxe (T6) is made at Dune's shack: 75,000 coins, 8 Silver Ingots, 4 Glimmer Shards, 6 Golden Leaf Amber and 6 Fine Fish Bones. It breaks the caverns' rocks at a blow (never the Titan Monolith). The Deep Core Drill bites the reef at 60%; anything less skids off.",
+            "📦 The Tidewater Ore Crate holds 24 slots: 37,500 coins, 6 Iron Ingots, 6 Amber Resin and 20 Fish Scales, after Gus's Titan Core Vault.",
+            "🐢 Dune weighs ore too: reef stone, ore, ingots, gems and wares, at the hour's prices. The ore scale is at the foot of his Trade tab.",
+          ],
+          economy: ["⚖️ A Tidewater pickaxe earns about 250 coins a minute on the reef; a Deep Core Drill does better down in the caverns."],
+        },
+      },
     ],
   },
 ];

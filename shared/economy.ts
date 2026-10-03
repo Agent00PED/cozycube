@@ -259,6 +259,9 @@ export const ORE_PRICES = {
   silver_ore: 30,
   glimmer_shard: 60,
   core_fragment: 250,
+  // (Sunset Beach's fossil reef rock: T6)
+  reef_stone: 36,
+  sea_glass: 72,
   copper_ingot: 28,
   iron_ingot: 49,
   silver_ingot: 78,
@@ -281,10 +284,10 @@ export const ORE_PRICES = {
 } as const;
 /** The pickaxes (the Rusted Pickaxe, T1, is Old Flint's gift): Gus sells T2 to T5, the Deep Core
  *  Drill the caverns' big sink. */
-export const PICKAXE_PRICES = { copper: 3000, reinforced: 7200, glimmer: 17500, drill: 31500 } as const;
+export const PICKAXE_PRICES = { copper: 3000, reinforced: 7200, glimmer: 17500, drill: 31500, tidewater: 75000 } as const;
 /** The Prospector's Satchel, tier 1 (the Canvas Ore Pouch) to tier 5 (the Titan Core Vault): coins,
  *  and materials from the other crafts (shared/satchel.ts SATCHEL_TIERS says which). */
-export const SATCHEL_PRICES = [0, 500, 1500, 3600, 8750, 15750] as const;
+export const SATCHEL_PRICES = [0, 500, 1500, 3600, 8750, 15750, 37500] as const;
 /** The satchels' prices before the tool ladder's rebuild (docs/economy-plan.md phase 2), which made
  *  them cheaper: the migration pays an owner the difference on every tier they bought
  *  (shared/migrate.ts v6). Never used for a sale. */

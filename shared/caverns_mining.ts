@@ -31,6 +31,8 @@ export type OreItemId =
   | "silver_ore"
   | "glimmer_shard"
   | "core_fragment"
+  | "reef_stone"
+  | "sea_glass"
   | "copper_ingot"
   | "iron_ingot"
   | "silver_ingot"
@@ -67,6 +69,8 @@ export const ORE_ITEMS: Record<OreItemId, OreItem> = {
   silver_ore: { name: "Raw Silver", emoji: "⚪", cat: "raw", price: ORE_PRICES.silver_ore, color: "#dfe6f2", blurb: "Off a silver seam on the Pearl Terraces" },
   glimmer_shard: { name: "Glimmer Shard", emoji: "💠", cat: "raw", price: ORE_PRICES.glimmer_shard, color: "#5ff2ff", blurb: "Off a Glimmerstone cluster in the Glimmer Rift" },
   core_fragment: { name: "Ancient Core Fragment", emoji: "🔮", cat: "raw", price: ORE_PRICES.core_fragment, color: "#b36bff", blurb: "Off the Titan Monolith on the Great Lake's islet: humming, warm to the touch" },
+  reef_stone: { name: "Fossil Reef Stone", emoji: "🪸", cat: "raw", price: ORE_PRICES.reef_stone, color: "#e8c9a8", blurb: "Off the fossil reef in Sunset Beach's headland: old coral and shell, set hard as marble" },
+  sea_glass: { name: "Sea Glass", emoji: "🔷", cat: "gem", price: ORE_PRICES.sea_glass, color: "#7fe0d0", blurb: "A frosted green pebble out of the reef rock: the sea made it, and took its time" },
   copper_ingot: { name: "Copper Ingot", emoji: "🟧", cat: "ingot", price: ORE_PRICES.copper_ingot, color: "#e0894a", blurb: "3 Raw Copper and 1 Coal, at the Thermal Bellows Forge" },
   iron_ingot: { name: "Iron Ingot", emoji: "⬛", cat: "ingot", price: ORE_PRICES.iron_ingot, color: "#6d7380", blurb: "3 Raw Iron and 2 Coal, at the Thermal Bellows Forge" },
   silver_ingot: { name: "Silver Ingot", emoji: "⬜", cat: "ingot", price: ORE_PRICES.silver_ingot, color: "#eef3fb", blurb: "2 Raw Silver and 2 Coal, at the Thermal Bellows Forge" },
@@ -119,7 +123,7 @@ export const itemsOf = (cat: OreCategory): OreItemId[] => ORE_ITEM_IDS.filter((i
 
 // --- the pickaxes: Old Flint's Rusted Pickaxe (T1), then Gus's ---------------------------------------
 
-export type PickaxeId = "rusted" | "copper" | "reinforced" | "glimmer" | "drill";
+export type PickaxeId = "rusted" | "copper" | "reinforced" | "glimmer" | "drill" | "tidewater";
 export interface Pickaxe {
   name: string;
   emoji: string;
@@ -152,6 +156,7 @@ export const PICKAXES: Record<PickaxeId, Pickaxe> = {
   reinforced: { name: "Reinforced Pickaxe", emoji: "⚒️", tier: 3, price: PICKAXE_PRICES.reinforced, damage: 42, swing: FAST_SWING_S, sweet: 0.15, hum: true, glint: 1, geodeFloor: 0.25, shatterDouble: false, noBedrock: false, blurb: "T3: mines T1-T4 (one-shots T1-T2). The weak spot hums as you near it; a 25% geode drop rate off iron." },
   glimmer: { name: "Glimmer Pickaxe", emoji: "💠", tier: 4, price: PICKAXE_PRICES.glimmer, damage: 54, swing: FAST_SWING_S, sweet: 0.3, hum: true, glint: 1.5, geodeFloor: 0.25, shatterDouble: false, noBedrock: false, blurb: "T4: mines every tier, the Titan Monolith too (one-shots T1-T3). Weak spots glint 50% brighter, +30% sweet spot radius." },
   drill: { name: "Deep Core Drill", emoji: "🌀", tier: 5, price: PICKAXE_PRICES.drill, damage: 70, swing: FAST_SWING_S, sweet: 0.6, hum: true, glint: 1.5, geodeFloor: 0.25, shatterDouble: true, noBedrock: true, blurb: "T5: one-shots T1-T4; 2x shatter yield on a perfect strike; +60% sweet spot radius; bedrock never deflects it." },
+  tidewater: { name: "Tidewater Pickaxe", emoji: "🪸", tier: 6, price: PICKAXE_PRICES.tidewater, damage: 90, swing: FAST_SWING_S, sweet: 0.7, hum: true, glint: 1.5, geodeFloor: 0.25, shatterDouble: true, noBedrock: true, blurb: "T6: mines Sunset Beach's fossil reef rock (one-shots T1-T5, never the Monolith); 2x shatter yield on a perfect strike; +70% sweet spot radius; bedrock never deflects it." },
 };
 export const PICKAXE_IDS = Object.keys(PICKAXES) as PickaxeId[];
 export const PICKAXES_BY_TIER: PickaxeId[] = [...PICKAXE_IDS].sort((a, b) => PICKAXES[a].tier - PICKAXES[b].tier);
@@ -161,7 +166,7 @@ export function isPickaxeId(v: unknown): v is PickaxeId {
 
 // --- the nodes' kinds: T1 up the terrace to the T5 Titan Monolith ------------------------------------
 
-export type OreKind = "coal" | "copper" | "iron" | "silver" | "glimmer" | "monolith" | "rockfall";
+export type OreKind = "coal" | "copper" | "iron" | "silver" | "glimmer" | "monolith" | "rockfall" | "reef";
 export interface OreKindInfo {
   name: string;
   emoji: string;
@@ -191,6 +196,7 @@ export const ORE_KINDS: Record<OreKind, OreKindInfo> = {
   silver: { name: "Silver Seam", emoji: "⚪", tier: 3, hp: 300, respawnS: [300, 300], radius: 0.55, sweet: 0.16, geode: 0, zone: "the Pearl Terraces", glow: "#8fe8ff" },
   glimmer: { name: "Glimmerstone Cluster", emoji: "💠", tier: 4, hp: 440, respawnS: [600, 600], radius: 0.6, sweet: 0.15, geode: 0.3, zone: "the Glimmer Rift", glow: "#00f0ff" },
   rockfall: { name: "Rockfall Heap", emoji: "🪨", tier: 1, hp: 900, respawnS: [99999, 99999], radius: 1.0, sweet: 0.3, geode: 0.5, zone: "the Coal Breakdown", glow: "#ffcf7a", crew: true },
+  reef: { name: "Fossil Reef Rock", emoji: "🪸", tier: 6, hp: 2000, respawnS: [60, 60], radius: 0.6, sweet: 0.14, geode: 0, zone: "Sunset Beach's headland", glow: "#ffd9a0" },
   monolith: { name: "Titan Monolith", emoji: "🗿", tier: 5, hp: 2400, respawnS: [25 * 60, 30 * 60], radius: 1.1, sweet: 0.24, geode: 1, zone: "the Great Lake's islet", glow: "#b36bff" },
 };
 export const ORE_KIND_IDS = Object.keys(ORE_KINDS) as OreKind[];
@@ -222,7 +228,9 @@ export function mohs(pickTier: number, oreTier: number): "oneshot" | "mine" | "u
 }
 /** The rule a pickaxe strikes a kind of node by (a crew node: always mined, by every pickaxe). */
 export function oreRule(pickTier: number, kind: OreKind): "oneshot" | "mine" | "under" | "deflect" {
-  return ORE_KINDS[kind].crew ? "mine" : mohs(pickTier, ORE_KINDS[kind].tier);
+  // (the Titan Monolith is never broken at a blow, whatever the pickaxe)
+  const rule = ORE_KINDS[kind].crew ? "mine" : mohs(pickTier, ORE_KINDS[kind].tier);
+  return kind === "monolith" && rule === "oneshot" ? "mine" : rule;
 }
 
 export type StrikeVerdict = "direct" | "near" | "bedrock" | "deflect";
@@ -435,6 +443,10 @@ export function rollYield(kind: OreKind, pick: PickaxeId, rand: () => number = M
     case "glimmer":
       add("glimmer_shard", 1 + (rand() < 0.2 ? 1 : 0));
       break;
+    case "reef":
+      add("reef_stone", 1 + (rand() < 0.35 ? 1 : 0));
+      if (rand() < 0.2) add("sea_glass", 1);
+      return out;
     case "monolith":
       add("core_fragment", 1);
       add("pristine_geode", 1);

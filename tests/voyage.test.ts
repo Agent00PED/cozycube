@@ -104,7 +104,7 @@ test("no ticket without the coins, nor from away down the pier", () => {
 
 test("the Tidewater tools are made at Dune's, from all three crafts, and nowhere else", () => {
   const tide = FORGED_TOOL_IDS.filter((id) => FORGED_TOOLS[id].place === "dune");
-  assert.deepEqual(tide, ["tideRod", "tideLivewell", "tideAxe", "tideCarrier"]);
+  assert.deepEqual(tide, ["tideRod", "tideLivewell", "tideAxe", "tideCarrier", "tidePickaxe", "tideSatchel"]);
   assert.equal(RODS.tidewater.tier, 6);
   assert.equal(FORGED_TOOLS.tideRod.coins, TACKLE_PRICES.tidewaterRod);
   assert.equal(FORGED_TOOLS.tideLivewell.coins, CREEL_PRICES[5]);
