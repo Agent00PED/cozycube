@@ -112,7 +112,7 @@ import { BYPRODUCTS, BYPRODUCT_IDS, FIREWOOD_FUEL, TREES, WOOD_KINDS, isByproduc
 import { FELL_TREES, FELL_TREE_AT, fellReach, fellTreeOf, type FellTree } from "../../../shared/worlds/trees";
 import { FULL_PRICE_AT, fishRate, woodRate } from "../../../shared/keepers";
 import { FORGED_TIER, SHOP_TIER_CAP, makingsMissing, spendMakings } from "../../../shared/expedition";
-import { ADVANCED_BENCH_MASTER, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, EAGLE_EYE_MS, EAGLE_EYE_ZONE, FIREWOOD_PER_COIN, firewoodCoins, GOLDEN_ACORN_COINS, MAX_DAY_PERMITS, PERMIT_PRICES, RAPIDS_LUCK, SLINGSHOT_PAID_ROUNDS_PER_HOUR, SLINGSHOT_PRIZES } from "../../../shared/economy";
+import { ADVANCED_BENCH_MASTER, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, EAGLE_EYE_MS, EAGLE_EYE_ZONE, FIREWOOD_PER_COIN, firewoodCoins, GOLDEN_ACORN_COINS, MAX_DAY_PERMITS, PERMIT_PRICES, SLINGSHOT_PAID_ROUNDS_PER_HOUR, SLINGSHOT_PRIZES } from "../../../shared/economy";
 import { SLING_ROUND_S, playSlingshot, slingPrize, validSlingShots } from "../../../shared/slingshot";
 import {
   ANIMAL_REACH,
@@ -3366,7 +3366,7 @@ export class HangoutRoom extends Room<HangoutState> {
   }
 
   /** What can bite for this angler now: the hour's light (the day's fish or the night's), the
-   *  rapids (their own legendaries and mythics, and a richer water), the rod's reach (nothing rarer
+   *  rapids (their own legendaries and mythics, and their own odds), the rod's reach (nothing rarer
    *  than its tier), the Cozy Aura at the campfire, and the bait. */
   private catchLuck(sessionId: string, player: Player, bait: BaitId | "" = ""): CatchLuck {
     const profile = this.records.get(sessionId)?.fishing;
@@ -3385,7 +3385,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const cloud = player.map === "glimmering_caverns" ? this.caverns.cloudLuck() : 0;
     // (a float out on the stream: nothing legendary swims up it)
     const shallow = player.map === "glimmering_caverns" && (player.floatX !== 0 || player.floatZ !== 0) && inStreamWater(player.floatX, player.floatZ);
-    return { rareLuck: aura + (rapids ? RAPIDS_LUCK : 0) + gearRareLuck(profile ?? NO_GEAR) + incense + chum + glow + spinner + cloud, bait, time: day ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier, ...(shallow ? { shallow } : {}) };
+    return { rareLuck: aura + gearRareLuck(profile ?? NO_GEAR) + incense + chum + glow + spinner + cloud, bait, time: day ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier, ...(shallow ? { shallow } : {}) };
   }
 
   private creelIsFull(sessionId: string): boolean {

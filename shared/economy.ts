@@ -54,13 +54,15 @@ export const FISH_PRICES = {
   moonveil_leviathan: 900,
 } as const;
 
-/** What bites, by the rod's tier (T1 to T5): the odds of each rarity. A hand-reeled line (the
- *  angler working the reel and the line's tension) reaches the rare end far more than an AFK one;
- *  an AFK line without bait brings in only commons, and an AFK line never lands a mythic (one that
- *  bites snaps the line). The bait, the rapids and the Cozy Aura tip a hand-reeled line's odds
- *  further toward the rare end; an AFK line's odds are exactly these. (The legendaries and mythics
- *  swim only in the Whispering Woods' rapids: elsewhere a roll that high lands the rarest fish that
- *  swims there.) */
+/** What bites: the odds of each rarity, by the water and the rod's tier (T1 to T5) together. The
+ *  same rod finds fewer fine fish the further in the water lies, because that water's fish are
+ *  worth more: the campfire's river is the kindest (and holds nothing above rare), the Whispering
+ *  Woods' rapids a step poorer (with the river's legendaries and mythics), the caverns' cenote
+ *  poorer again (its fish the dearest). A hand-reeled line reaches the rare end far more than an AFK
+ *  one; an AFK line without bait brings in only commons, and an AFK line never lands a mythic (one
+ *  that bites snaps the line). The bait, the Cozy Aura and the gear tip a hand-reeled line's odds
+ *  further toward the rare end; an AFK line's odds are exactly its table's. scripts/economy-sim.ts
+ *  holds each row to its income (docs/economy-plan.md section 4). */
 export interface TierOdds {
   common: number;
   uncommon: number;
@@ -68,13 +70,13 @@ export interface TierOdds {
   legendary: number;
   mythic: number;
 }
-export const ACTIVE_TIER_ODDS: readonly TierOdds[] = [
-  { common: 0.85, uncommon: 0.15, rare: 0, legendary: 0, mythic: 0 },
-  { common: 0.72, uncommon: 0.25, rare: 0.03, legendary: 0, mythic: 0 },
-  { common: 0.6, uncommon: 0.31, rare: 0.085, legendary: 0.005, mythic: 0 },
-  { common: 0.48, uncommon: 0.35, rare: 0.15, legendary: 0.018, mythic: 0.002 },
-  { common: 0.4, uncommon: 0.36, rare: 0.2, legendary: 0.035, mythic: 0.005 },
-];
+export type OddsWater = "campfire" | "woods" | "cenote";
+const odds = (common: number, uncommon: number, rare = 0, legendary = 0, mythic = 0): TierOdds => ({ common, uncommon, rare, legendary, mythic });
+export const WATER_ODDS: Record<OddsWater, readonly TierOdds[]> = {
+  campfire: [odds(0.85, 0.15), odds(0.72, 0.25, 0.03), odds(0.56, 0.33, 0.11), odds(0.46, 0.36, 0.18), odds(0.38, 0.38, 0.24)],
+  woods: [odds(0.88, 0.12), odds(0.76, 0.22, 0.02), odds(0.62, 0.295, 0.08, 0.005), odds(0.5, 0.34, 0.14, 0.018, 0.002), odds(0.42, 0.35, 0.19, 0.035, 0.005)],
+  cenote: [odds(0.9, 0.1), odds(0.79, 0.19, 0.02), odds(0.7, 0.255, 0.04, 0.005), odds(0.57, 0.31, 0.105, 0.013, 0.002), odds(0.5, 0.327, 0.14, 0.028, 0.005)],
+};
 export const AFK_BAITED_TIER_ODDS: readonly TierOdds[] = [
   { common: 0.94, uncommon: 0.06, rare: 0, legendary: 0, mythic: 0 },
   { common: 0.75, uncommon: 0.23, rare: 0.02, legendary: 0, mythic: 0 },
@@ -199,8 +201,6 @@ export const SLINGSHOT_PAID_ROUNDS_PER_HOUR = 6;
  *  felling ring's golden sweet band (a share of the trunk's radius). */
 export const EAGLE_EYE_MS = 10 * 60_000;
 export const EAGLE_EYE_ZONE = 0.04;
-/** The rapids' richer water: added to the rare luck of every cast there. */
-export const RAPIDS_LUCK = 0.35;
 /** Bramble's advanced workbench: a Masterwork's chance, raised by this share. */
 export const ADVANCED_BENCH_MASTER = 0.08;
 /** The accessories (shared/gear.ts): the woodcutter's at Buster's (T1-T3) and Bramble's (T1-T5),
@@ -282,14 +282,14 @@ export const PRE_PHASE2 = { satchel: [0, 500, 1800, 5500, 14000, 32000] } as con
 export const CAVE_FISH_PRICES = {
   cave_tetra: 8,
   slate_minnow: 9,
-  glassfin_loach: 30,
-  phosphor_guppy: 36,
-  glow_axolotl: 70,
-  opal_gudgeon: 86,
-  sporecat: 150,
-  needlefish: 185,
-  crystal_fin: 320,
-  voidfang: 390,
+  glassfin_loach: 41,
+  phosphor_guppy: 50,
+  glow_axolotl: 82,
+  opal_gudgeon: 100,
+  sporecat: 175,
+  needlefish: 215,
+  crystal_fin: 370,
+  voidfang: 450,
   elder_olm: 1250,
 } as const;
 /** Finnegan the Grotto Angler's advanced tackle: coins, and a barter of the caverns' and the river's

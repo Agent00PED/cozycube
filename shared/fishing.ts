@@ -15,7 +15,7 @@ import { MAX_RANK, RANK_ATTUNE, carrierBonus, fitRings, fitWorn, isGearId, isRin
 import { CAVE_FISH, isCaveTackleId, type CaveTackleId } from "./caverns_fishing";
 import { isPickaxeId, isIngotId, isOreItemId, isOreKind, FORGE_QUEUE_MAX, ORE_ITEMS, type IngotId, type OreItemId, type OreKind, type PickaxeId } from "./caverns_mining";
 import { sanitizeSatchel, type SatchelStack } from "./satchel";
-import { ACTIVE_TIER_ODDS, AFK_BAITED_TIER_ODDS, AFK_UNBAITED_TIER_ODDS, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MATERIAL_CAP, MAX_DAY_PERMITS, TACKLE_PRICES, type TierOdds } from "./economy";
+import { AFK_BAITED_TIER_ODDS, AFK_UNBAITED_TIER_ODDS, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MATERIAL_CAP, MAX_DAY_PERMITS, TACKLE_PRICES, WATER_ODDS, type OddsWater, type TierOdds } from "./economy";
 
 /** The waters: the camp's rivers, the beach's sea (registered), and the Glimmering Caverns' Grotto
  *  Pool (shared/caverns_fishing.ts). */
@@ -56,7 +56,7 @@ export interface FishSpecies {
 export const FISH = {
   // freshwater: the Starlight Campfire's river and the Whispering Woods' rapids, fifteen kinds by day
   // and fifteen by night. What rarity bites follows the rod's tier and the line (hand-reeled or AFK:
-  // shared/economy.ts ACTIVE_TIER_ODDS, AFK_BAITED_TIER_ODDS), split between a rarity's kinds by
+  // shared/economy.ts WATER_ODDS, AFK_BAITED_TIER_ODDS), split between a rarity's kinds by
   // their weights; the legendaries and mythics bite only in the rapids. `cm` is the usual span (the bell curve's middle 95%: a fish longer
   // than its top is King Size), `value` Barnaby's base price (shared/economy.ts FISH_PRICES).
   // by day
@@ -166,8 +166,8 @@ export function isRodId(v: unknown): v is RodId {
 }
 /** The rods in tier order. */
 export const RODS_BY_TIER: RodId[] = [...ROD_IDS].sort((a, b) => RODS[a].tier - RODS[b].tier);
-/** Whether a rod's odds reach a fish of this rarity at all (on a hand-reeled line). */
-export const rodLands = (rod: RodId, tier: FishTier) => (ACTIVE_TIER_ODDS[RODS[rod].tier - 1]?.[tier] ?? 0) > 0;
+/** Whether a rod's odds reach a fish of this rarity at all (on a hand-reeled line, in any water). */
+export const rodLands = (rod: RodId, tier: FishTier) => Object.values(WATER_ODDS).some((rows) => (rows[RODS[rod].tier - 1]?.[tier] ?? 0) > 0);
 
 /** A boss fish (a legendary or a mythic) on the reel: its green sweet spot smaller (a legendary's 35%
  *  smaller, a mythic's 40%: a share of the bar's full height), and its fake runs (a feint to one end,
@@ -722,7 +722,7 @@ export function stars(q: number): string {
 // --- rolling a catch ----------------------------------------------------------------------------
 
 export interface CatchLuck {
-  /** Extra weight on rare, legendary and mythic fish (0.15: +15%), from the Cozy Aura and the rapids. */
+  /** Extra weight on rare, legendary and mythic fish (0.15: +15%), from the Cozy Aura and the gear. */
   rareLuck?: number;
   bait?: BaitId | "";
   /** Only the commons. */
@@ -748,13 +748,17 @@ export interface CatchLuck {
 }
 
 export const FISH_TIERS: FishTier[] = ["common", "uncommon", "rare", "legendary", "mythic"];
-/** The odds of each rarity on a line: the rod's tier (1-5) on a hand-reeled line; on an AFK line,
- *  the baited odds by rod (or commons only, unbaited). A hand-reeled line's rare end is tipped by
- *  `rareMul` (the bait, the rapids, the Cozy Aura, the incense); an AFK line's odds are as given. */
-export function tierOdds(rodTier: number, afk: boolean, baited: boolean, rareMul = 1): TierOdds {
+/** Which odds a line fishes by (shared/economy.ts WATER_ODDS): the cenote underground, the woods'
+ *  rapids, else the campfire's river. */
+export const oddsWater = (water: Water, rapids: boolean): OddsWater => (water === "cavewater" ? "cenote" : rapids ? "woods" : "campfire");
+/** The odds of each rarity on a line: the water's row for the rod's tier (1-5) on a hand-reeled
+ *  line; on an AFK line, the baited odds by rod (or commons only, unbaited). A hand-reeled line's
+ *  rare end is tipped by `rareMul` (the bait, the Cozy Aura, the incense, the gear); an AFK line's
+ *  odds are as given. */
+export function tierOdds(rodTier: number, afk: boolean, baited: boolean, rareMul = 1, where: OddsWater = "campfire"): TierOdds {
   const t = Math.max(1, Math.min(5, Math.round(rodTier) || 1)) - 1;
   if (afk) return baited ? AFK_BAITED_TIER_ODDS[t] : AFK_UNBAITED_TIER_ODDS;
-  const base = ACTIVE_TIER_ODDS[t];
+  const base = WATER_ODDS[where][t];
   if (rareMul === 1) return base;
   const tipped = { ...base, rare: base.rare * rareMul, legendary: base.legendary * rareMul, mythic: base.mythic * rareMul };
   const sum = FISH_TIERS.reduce((a, k) => a + tipped[k], 0);
@@ -768,7 +772,7 @@ export function tierOdds(rodTier: number, afk: boolean, baited: boolean, rareMul
  *  escapes). */
 export function rollFish(water: Water, luck: CatchLuck = {}, rand: () => number = Math.random): FishId {
   const rareMul = (1 + (luck.rareLuck ?? 0)) * (luck.bait ? baitEffect(luck.bait, luck.time === "night").rareMul : 1);
-  const odds = luck.commonOnly ? AFK_UNBAITED_TIER_ODDS : tierOdds(luck.rodTier ?? 1, !!luck.afk, !!luck.bait, rareMul);
+  const odds = luck.commonOnly ? AFK_UNBAITED_TIER_ODDS : tierOdds(luck.rodTier ?? 1, !!luck.afk, !!luck.bait, rareMul, oddsWater(water, luck.rapids === true));
   // (a cast in the lucky drip: the commons' share goes to the rest; an uncommon at worst)
   const floor = luck.noCommon && odds.common > 0 ? { ...odds, common: 0, uncommon: Math.max(odds.uncommon, 0.0001) } : odds;
   const swims = (id: FishId) => (!luck.time || FISH[id].time === luck.time || FISH[id].time === "any") && (!(FISH[id] as FishSpecies).rapids || luck.rapids === true) && !(luck.noCommon && FISH[id].tier === "common") && !(luck.shallow && (FISH[id].tier === "legendary" || FISH[id].tier === "mythic"));

@@ -1,39 +1,25 @@
-# Sunset Beach: design (approved)
+# Sunset Beach: design (revision 2)
 
-Status: **approved by the owner on 2026-10-03.** Nothing in it is built yet. This document is the
-brief for whoever builds it: what the beach, the open sea and the hidden cove are, how a player gets
-from one to the next, and the order of work, each part its own PR. It replaces the proposal of
-2026-10-02 (the moving tide, the sandbar and the Trader's Wreck are dropped).
+Status: **revision 2, 2026-10-03.** The owner gave a free hand over the design ("the map, its size
+and everything else are yours to decide") and named what must be there:
 
-## The owner's wishes, and the decisions taken
+1. **a beach bar with a bartender minigame;**
+2. **a pier** where a player fishes, or **buys a ticket to fish out at sea;**
+3. **a secret cave;**
+4. the sea trip and the cave are **maps of their own** under the beach.
 
-The owner asked for: **a beach bar; a pier; fishing from the pier; a captain at the pier who sells a
-boat ticket to fish out at sea, a map of its own under the beach; and a cave that stays secret.**
-Every open question was settled the recommended way:
-
-| Question | Decision |
-|---|---|
-| How is the cave reached? | **By the captain's boat, once the player has found the way:** three torn pieces of a sea chart, reeled up in bottles at sea. Nobody mentions the cave before then: no sign, no menu item. |
-| The ticket | **One ticket, one trip; stay as long as you like.** The captain takes you back whenever you ask. |
-| Who may sail | **Anyone with a ticket** may ride along and look; **fishing at sea needs the T6 rod.** |
-| AFK fishing at sea | **Not allowed** out there (and not in the cove): the best fish need a hand on the reel. AFK stays allowed on the pier. |
-| Keepers | **One trader for everything the beach yields**, plus the bartender and the captain: three characters. |
-| Who may visit the beach | **Everyone**, from the world list, as a place to hang out; its gathering needs T6 tools. |
-| The tide | **No moving tide.** A calm sea with waves lapping at the shore (the most work in the old plan, and nothing needs it now). |
-| Size | **40 x 40 m**, about a third of it sea. |
-| The beach ball | **Kept** as the free kick-about it was (shared/volleyball.ts). |
-| Where to start | **Part 1 alone**, the place with no economy, and a picture shown to the owner before the full model is built. |
+Nothing is built yet. This document is the brief for whoever builds it. It replaces the plan approved
+earlier the same day; section "What changed from revision 1" lists every difference and why.
 
 ## The owner's taste (from the camp maps: follow it here)
 
 - **Plain and calm over decorated.** No set pieces unasked: no waterfalls, no springs, no bridges,
   no rock ledges round the island's rim, no steps or logs lying across where people walk.
-- **No drawn trails and no worn patches** on the ground (they read as a park or a stain). One worn
-  place round a fire is the exception the owner accepted at the campfire.
-- **No rows** (of stones, posts, trees): clusters and natural spacing.
+- **No drawn trails and no worn patches** on the ground. One worn place round a fire is the
+  exception the owner accepted at the campfire.
+- **No rows** (of stones, posts, trees, loungers): clusters and natural spacing.
 - **No empty areas, but nothing clumped.**
-- **Every tree can be felled.** A tree a player walks up to and cannot cut reads as a fault; only a
-  tree that holds something up (a hammock) may stand for good.
+- **Every tree can be felled.** Only a tree that holds something up (a hammock) may stand for good.
 - **Only fellable kinds look fellable.**
 - **Show a picture before building anything large**, judged from the game's own camera.
 - **Don't guess at a vague "fix it again"**: ask what is wrong.
@@ -42,145 +28,350 @@ Every open question was settled the recommended way:
 
 | Map (MapId) | How you get there | What it is for |
 |---|---|---|
-| **Sunset Beach** (`sunset_beach`, exists, unbuilt) | The world list, open to everyone | Hanging out (the bar, the sand, the ball), the pier's fishing, palms and reef rock (T6) |
-| **The Open Sea** (`open_sea`, new, hidden from the list) | A ticket from the captain at the pier's end | Deep-sea fishing from the captain's boat (T6, the sea's own fish) |
-| **The Hidden Cove** (`hidden_cove`, new, hidden from the list) | Only on the captain's boat, once the chart is whole | T7: the best fish and the cove's rock, pearls |
+| **Sunset Beach** (`sunset_beach`, exists, unbuilt) | The world list, open to everyone | The bar and its minigame, the sand, the ball, the pier's fishing, palms and reef rock |
+| **The Open Sea** (`open_sea`, new, hidden) | A ticket from the captain at the pier's end | Deep-sea fishing from the captain's boat |
+| **The Hidden Cove** (`hidden_cove`, new, hidden) | Only on the captain's boat, once the chart is whole | The end of the line: the best fish, pearls, the last tools |
 
-Both new maps go in `HIDDEN_MAPS` (shared/types.ts), like the woods and the caverns: never on the
-fast-travel grid. A trip between them is the game's usual trip (`travel`, a loading screen dressed as
-the destination: `WorldTransitionScreen` `THEMES`).
+Both new maps go in `HIDDEN_MAPS`. A trip between them is the game's usual trip (`travel`, a loading
+screen dressed as the destination).
 
-### 1. Sunset Beach
+## 1. Sunset Beach (36 x 36 m)
 
-The camera looks north-west from the south-east: **the sea lies low in front (south and east), the
-sand rises away from it, and the dune, the palms and the bar stand at the back (north and west).**
-One height function (shared/terrain.ts, as the campfire's and the woods'): the seabed from about
--1.2 m at the south-east edges up through the waterline (0 m) and the beach to the dune (+1.0 m) and
-a low headland in the north-east (+2.0 m). Nothing walked is steeper than 24 degrees.
+36 m, not 40: a hang-out map should be crossed in a breath. **Every place is within a 10 s walk of
+the bar** (`check-layout` holds it, as it holds the campfire's hearth).
 
-| Place | Where | What is there |
+The camera looks north-west from the south-east, so **the sea lies low in front (south and east), the
+sand rises away from it, and the dune, the bar and the palms stand at the back.** Nothing tall stands
+between a player and the camera.
+
+```
+            N
+   +--------------------------------------+
+   |  palms   palms      palms   HEADLAND |   +2.0 m  reef rock in its south face
+   |    BAR (dune, +1.0)    palms  ~~rock~|
+   |   stools  firepit                    |
+   | ARRIVAL      loungers    hammocks    |   the sand, +0.3 .. +0.8
+   |        BALL (flat sand)   loungers   |
+   |  trader's shack                      |
+   |  ====PIER=========>  captain, boat   |   waterline 0 m
+   |   shallows (waded)        shallows   |   -0.4
+   |        deep water (stops you)        |   -1.2
+   +--------------------------------------+
+            S   (camera: from the south-east)
+```
+
+One height function (shared/terrain.ts, as the camp maps'): the seabed from -1.2 m up through the
+waterline (0 m) and the sand to the dune (+1.0 m) and the headland (+2.0 m). Nothing walked is
+steeper than 24 degrees. **Deep water is shut by depth**, not by boxes: `isBlocked` refuses ground
+under -0.45 m on this map (a new rule; the camp maps have only boxes), and the shallows are waded
+(the caverns' `WADE_PACE`, `WadeRipples`).
+
+| Place | What is there |
+|---|---|
+| **The arrival** | West, on the sand just below the bar: the first thing seen is the bar, lit. |
+| **The Beach Bar** | On the dune: a round thatched bar, open on every side, eight stools, three places behind the counter for players on shift, the bartender. String lights on the bar's own posts. The social heart: see section 2. |
+| **The firepit** | Beside the bar, on the sand: a ring of stones, four driftwood log seats (the one worn place). Lit at dusk; a marshmallow in hand on a log, as at the campfire. No fuel to watch. |
+| **The sand** | Loungers and parasols in loose groups of two and three, two hammocks between three palms (the only palms never felled), towels. |
+| **The ball** | A flat stretch of sand in the middle, no net: the free kick-about (`shared/volleyball.ts`; its old flat court and `SHORELINE_Z` re-authored to this stretch, the ball kept on it). |
+| **The pier** | From the west shore out south-east into deep water, 14 m of planks on piles, walked at the deck's height. Fished from anywhere along its edge. |
+| **The trader's shack** | At the pier's landward foot: the one keeper. |
+| **The captain** | At the pier's end, his boat moored beside it. |
+| **The Palm Grove** | Along the back and the east, 3 to 4 m apart, no rows: about eighteen Coconut Palms. |
+| **The headland** | North-east: fossil reef rock in its south face (it faces the camera), six nodes. |
+
+The sea: one calm sheet, shallow turquoise to deep blue, waves lapping and foam along the shore
+(`riverWater.ts`'s data-in-vertex-colours way: metres from the shore). The camp's 24-minute day with
+the beach's own palette, **the golden hour stretched** (dusk eased over three minutes, not one): a
+pink dawn, a long amber sunset, a moonlit sea with a glitter path.
+
+### The characters (three, the staff's clay kit, one draw call each)
+
+| Who | Where | What they do |
 |---|---|---|
-| **The arrival** | west, on the sand below the dune | where a trip from the world list lands |
-| **The Beach Bar** | north-west, on the dune | a thatched bar with the bartender and the blender (`DRINK_RECIPES`: Sunset Punch, Blue Lagoon, Berry Fizz, each with its aura; `DRINK_REWARD`), stools round it, string lights lit at dusk (tied to the bar's own posts, never a tree). The social heart. |
-| **The sand** | the middle | loungers and parasols in loose groups, the beach ball (the room's `ball`, `tickBall`), towels; walk into the shallows and wade (the caverns' `WADE_PACE`, rings round the wader); deep water stops you |
-| **The pier** | south, out into the sea | plank pier on piles; fishing spots along it and at its end (the beach's reef fish, T6); AFK allowed here |
-| **The trader's fish shack** | at the pier's landward foot | the one keeper: buys everything the beach, the sea and the cove yield (fish, palm logs, reef stone, pearls), sells the T6 tools and storage, raises the gear's ranks 6 and 7 (a `ShopShell` counter like every other) |
-| **The captain** | at the pier's end, his boat moored beside it | sells the ticket to sea (`[ ⛵ Sail to the Open Sea ]`); the same character skippers the boat on the Open Sea |
-| **The Palm Grove** | north and east, behind the sand | Coconut Palms to fell (T6), spaced naturally, every one fellable |
-| **The headland** | north-east | reef rock in its face to mine (T6, the caverns' prospecting) |
+| **Mango**, a toucan bartender | behind the bar | serves a drink for coins when no player is on shift; hands out the order tickets; teaches the minigame |
+| **Dune**, an old sea turtle trader | the shack | buys everything the beach, the sea and the cove yield at full price; sells bait and the T6 storage; makes the Tidewater tools (section 5) |
+| **Captain Brine**, a walrus | the pier's end; at the wheel on the Open Sea and in the cove | the ticket, the trips, the chart |
 
-The sea: a calm, shallow-to-deep sheet with waves lapping at the sand and foam along the shore
-(`riverWater.ts`'s ideas), the sun low and golden at dusk; the camp's 24-minute day with the beach's
-own palette (a long golden sunset, a pink dawn, a moonlit sea with a glitter path by night).
+## 2. The bartender minigame: "A Shift at the Bar"
 
-### 2. The Open Sea (a map of its own under the beach)
+The blender that exists today is a recipe picked from a list for 6 coins. It is replaced.
 
-- **The map is the captain's boat:** a sturdy fishing boat, about 10 m long, anchored in open water,
-  the sea running to the horizon on every side, a few rock stacks far off.
-- **One boat per lounge:** everyone who buys a ticket is aboard together (it is a map like any other:
-  `PlayerState.map`).
-- **Fishing from the rails:** six to eight spots along both sides and the stern. Hand-reeled only
-  (no AFK), the T6 rod or better; the sea's own fish (bigger and rarer than the pier's, boss fights
-  more common: `BOSS_TIERS`).
-- **The captain at the wheel:** talk to him for `[ ⚓ Back to the pier ]` (any time, free), and, once
-  the player's chart is whole, `[ 🗺️ To the hidden cove ]`.
-- **The sea's living wonders** (the room's `worldEvent` pattern): a whale breaching, a pod of
-  dolphins, a boiling school of fish (the sea's King-Size Surge).
-- **The ticket:** one trip, as long as you like; its price set with the simulator so that sea fishing
-  net of the ticket lands on the T6 target. A player without a T6 rod may still buy one and ride
-  along (the dock says why the line won't cast).
+**Taking a shift.** Step behind the bar (`[ 🍹 Take a shift ]`, three places). An **order ticket**
+comes up: a player seated on a stool who asked for a drink first, else one of the bar's regulars
+(ordered by Mango). The drink is made **at the bar itself**, the camera closing on it and a sheet at
+the foot of the screen (`WorkSheet`, the forge's and the anvil's way), in three short stages, 15 to
+20 seconds in all:
 
-### 3. The Hidden Cove (the secret)
-
-- **How it is found (no one tells you):**
-  1. Fishing **by hand on the Open Sea**, a catch now and then comes up as **a bottle with a torn
-     piece of an old sea chart** in place of a fish (a toast and a small reveal; never on the pier).
-  2. There are **three pieces**, each found once per player (the camp profile keeps them: e.g.
-     `chart: number[]`); the chance is tuned so the chart takes a few hours of sea fishing.
-  3. With **all three**, talking to the captain at sea he recognises the chart ("I know that cove...")
-     and from then on every trip offers `[ 🗺️ To the hidden cove ]`, for good (e.g. `coveAccess`).
-  4. Nothing before that hints at a cove: no sign, no dock label, no codex entry visible, no menu
-     line. The pieces themselves may be shown in a drawer as "a torn sea chart (1/3)".
-- **The place:** a sea cave behind the rock stacks, the boat drifting in under its arch; inside, a
-  small beach of pale sand, a deep pool, the cave's rock glittering with salt and pearl.
-- **What is there (T7):** the deepest fish from the boat and the pool (the Abyssal Pearl Whale the
-  mythic: it already exists in shared/fishing.ts), pearl-bearing rock and salt crystal to mine,
-  giant clams pried open for pearls (the T7 jewellery gem), driftwood ironwood.
-- **Leaving:** the captain takes you back to the Open Sea or straight to the pier.
-- **Later, optionally:** an old diver on the beach who mentions "bottles that wash up from the sea",
-  as a hint, never as the way in.
-
-## Economy (fixed by docs/economy-plan.md section 3; prices set by the simulator)
-
-| | T6 Tidewater (the beach and the sea) | T7 Deep Tide (the cove) |
+| Stage | What you do | Judged |
 |---|---|---|
-| Income target, coins a minute | 250 | 300 |
-| Rod / axe | 34,000 | 100,000 |
-| Pickaxe | 75,000 | 180,000 |
-| Made of | coins and materials from all three crafts | rare drops (Titan Heartwood, Prismatic Scale, Core Fragment, Star Shard, pearls) and coins |
-| Opens | the pier's and the sea's fish, Coconut Palms, reef rock | the cove's fish, rock, clams and ironwood |
+| **Build** | The ticket shows the recipe for 2 s, then hides. Tap its three or four ingredients in order from the shelf of eight (mango, lime, coconut, mint, berry, pineapple, ice, soda). | right things, right order |
+| **Pour** | Hold to pour; the glass fills. Let go inside the band at the line (the band narrower for the finer drinks). | how near the line |
+| **Shake** | Tap on four beats as a ring closes onto the shaker (the forge's hammer ring, `HAMMER_WINDOW_S`'s way). | beats landed |
 
-- **The gathering:** Coconut Palms (T6 wood: logs, coconut husk as by-product, coconuts for the
-  blender); about twelve reef and surf fish (pier) and about eight deep-water fish (sea and cove);
-  reef rock (reef stone, sea glass, fossils); in the cove pearl rock, salt crystal, giant clams.
-- **The keeper pays full price** for everything from the beach, the sea and the cove.
-- **The gear's ranks 6 and 7** (25% and 30%) are raised at the trader's, from beach materials and
-  pearls. Run `npm run economy-sim -- --gear` for every new tier; `npm test` holds the budgets.
-- **The sea ticket** is a coin sink; the simulator's angler at sea pays it per trip.
+Graded in stars (`GradeStars`): **Perfect** (3), **Good** (2), **Sloppy** (1). The server deals the
+ticket and its seed and judges the log on its own clock, as it does the forge (`judgeForge`): never
+faster than the clock allows.
 
-## What already exists in the code
+**Eight drinks**, in three bands by how hard they are (the pour's band and the shake's tempo):
+Sunset Punch, Blue Lagoon, Berry Fizz (the three that exist), Coconut Cooler, Mint Breeze, Pineapple
+Spark, Tidewater Tonic, and the Midnight Pearl (listed only after the cove is found).
 
-- The world entry (shared/worlds/index.ts `beach`: "Beach Bar", 28 m, `built: false`),
-  `MAP_HALF.sunset_beach` 14 (make it 20), no seats, props or colliders (shared/collision.ts).
-- `isGatheringMap` already counts `sunset_beach` (and compares against an `"ocean"` that is no MapId:
-  replace it with `open_sea` and add `hidden_cove`).
-- The beach ball (shared/volleyball.ts, the room's `ball`, `tickBall` while anyone is on the beach)
-  and the blender (shared/types.ts `DRINK_RECIPES`, `DRINK_REWARD`; handled in HangoutRoom).
-- Saltwater fish in shared/fishing.ts (`water: "saltwater"`: Sand Sardine, Sunset Clownfish, Prism
-  Jellyfish, Abyssal Pearl Whale) and the Fish Collection's locked Ocean page.
+**What a drink does.**
+- It is **served**: set on the counter in front of the stool that ordered it; the drinker picks it
+  up, holds it, and wears its aura (the existing `aura`), for 10 minutes.
+- A Good or Perfect drink also gives **Refreshed**: +10% walking pace for 10 minutes (it does not
+  stack with the S'more's +15%; the stronger counts). One buff, and it earns nothing directly: the
+  gear's budget is untouched.
+- A Perfect drink is served with a garnish and a sparkle for everyone to see.
+
+**What a shift pays.** Tips: 2 / 4 / 6 coins a drink by its stars from a regular, and whatever a
+player paid Mango's price (8 coins) when a player ordered: the bartender gets 6 of it. **At most 30
+tipped drinks an hour by account** (the slingshot's paid rounds' way), then drinks are made for the
+fun of it. That is about 15 coins a minute while it lasts: under a starter's 25, so the bar is never
+the best way to earn. Coconuts from felled palms can be given to Mango for a free order.
+
+**The Bar Book** (the bartender's ledger, in the camp profile): each drink's count and best grade, a
+streak of Perfects, and three gold titles (one a band; all eight Perfect: "Master Mixologist").
+
+**With nobody on shift**, Mango serves: 8 coins a drink, a Good one, at once. The bar always works.
+
+## 3. The pier
+
+- **Fished from anywhere along its edge** (`shoreCast`'s way: within reach of the edge and facing
+  the water), by hand or AFK.
+- **Any rod fishes it; the rod decides what the salt water gives up** (the owner's call,
+  2026-10-03; it holds for all salt water, the rule checked by `rodLands`):
+
+  | Rod | Lands |
+  |---|---|
+  | T1 to T3 | Common |
+  | T4 | Common, Uncommon |
+  | T5 | Common, Uncommon, Rare |
+  | T6 Tidewater | and Epic, Legendary |
+  | T7 Deep Tide | and Mythic |
+
+  **The odds belong to the water and the rod together** (the owner's call, 2026-10-03): the same
+  rod finds fewer fine fish in richer water, because that water's fish are worth more. That is
+  built for the three fresh waters (shared/economy.ts `WATER_ODDS[water][rod tier]`: the campfire,
+  the woods, the cenote, each tuned to its income by the simulator). **Salt water adds rows of its
+  own**, starting here (percent; the simulator sets the final ones):
+
+  | Hand-reeled | Common | Uncommon | Rare | Epic | Legendary | Mythic |
+  |---|---|---|---|---|---|---|
+  | Campfire, T5 (built, for comparison) | 38 | 38 | 24 | | | |
+  | Woods, T5 (built) | 42 | 35 | 19 | | 3.5 | 0.5 |
+  | Cenote, T5 (built; Epic inside its Rare) | 50 | 32.7 | 14 | | 2.8 | 0.5 |
+  | Pier, T1 to T3 | 100 | | | | | |
+  | Pier, T4 | 80 | 20 | | | | |
+  | Pier, T5 | 65 | 27 | 8 | | | |
+  | Pier, T6 | 50 | 30 | 12 | 5 | 3 | |
+  | Pier, T7 | 42 | 30 | 14 | 8 | 5 | 1 |
+  | Open Sea, T5 | 55 | 32 | 13 | | | |
+  | Open Sea, T6 | 42 | 32 | 15 | 7 | 4 | |
+  | Open Sea, T7 | 35 | 30 | 16 | 10 | 7.5 | 1.5 |
+  | Hidden Cove, T5 | 50 | 34 | 16 | | | |
+  | Hidden Cove, T6 | 36 | 32 | 17 | 9 | 6 | |
+  | Hidden Cove, T7 | 28 | 30 | 18 | 12 | 9 | 3 |
+
+  **The Tidewater and Deep Tide rods on the fresh waters** (rows 6 and 7 of `WATER_ODDS`, added in
+  part 0 with the longer ladder; `tierOdds` clamps a rod to T5 until then). Starting figures, each
+  a clear step over T5 and still far under what the same rod earns in salt water:
+
+  | Hand-reeled | Common | Uncommon | Rare | Legendary | Mythic | About, a minute |
+  |---|---|---|---|---|---|---|
+  | Campfire, T6 | 32 | 40 | 28 | | | 68 |
+  | Campfire, T7 | 28 | 40 | 32 | | | 73 |
+  | Woods, T6 | 36 | 35 | 23 | 5 | 1 | 125 |
+  | Woods, T7 | 31 | 34 | 26 | 7.5 | 1.5 | 150 |
+  | Cenote, T6 | 45 | 33 | 17 | 4 | 1 | 215 |
+  | Cenote, T7 | 41 | 33 | 19.5 | 5.5 | 1 | 240 |
+
+  (The incomes are worked by hand from the T5 lines; the simulator sets them in part 0. The rule
+  they must keep: a T6 rod earns less in any fresh water than at sea, 250, and a T7 rod less than in
+  the cove, 300.)
+
+  Each water further out is a little kinder than the last on the same rod, so the trip is worth
+  its ticket. Epic is the cenote's display grade on the rarest of the rare fish (`gradeOf`); in
+  salt water those kinds are gated with the legendaries. AFK rows (the pier only) follow the same
+  shape, a step poorer, never a mythic.
+- The prices are set so that **a rod of T1 to T5 earns about what it earns at its own best water**
+  (not less, so the pier is worth a visit; not more, so the river and the cenote keep their place),
+  and the simulator's rule "a better tool never earns less at its best spot" still holds. So a new
+  player fishes beside a veteran, and every rod up brings something new to the hook.
+- With the Tidewater rod the pier earns **about three quarters of the Open Sea**; an AFK line a
+  quarter of the hand-reeled figure, as everywhere.
+- Twelve reef and surf fish (six by day, six by night; the four saltwater fish that exist are
+  re-priced with them: their values are from before the rebalance).
+
+## 4. The Open Sea (`open_sea`)
+
+- **The map is the captain's boat:** a sturdy wooden fishing boat, 12 m long, anchored. **Its deck
+  never moves** (seats, colliders and casts stay simple); the swell, the horizon and a few far rock
+  stacks move round it. The cheapest map in the game to draw: one model, one sea.
+- **One boat per lounge;** everyone with a ticket is aboard together.
+- **Fished from anywhere along the rails** (not fixed spots: a lounge holds fifteen). Hand-reeled
+  only, **the Expedition rod (T5) or better**; eight deep-water fish, bosses more common. The salt
+  water's ladder holds here as on the pier: a T5 rod lands nothing above Rare, T6 the Epic and
+  Legendary, T7 the Mythic. A T5 rod at sea, net of the ticket, earns about what it does at the
+  cenote (its best water today): the trip is for the new fish and the chart, and T6 is the step up.
+  The chart's bottles come up for any rod that may cast here, so a T5 angler can find the cove.
+- **Riders are welcome:** benches along the cabin, a bow seat, the wonders to watch. Without the
+  rod, the dock says why the line won't cast.
+- **The wonders** (the room's `worldEvent` pattern, the sea's own): a whale breaching, a pod of
+  dolphins alongside, and a boiling school of fish (the sea's King-Size Surge).
+- **Captain Brine at the wheel:** `[ ⚓ Back to the pier ]` any time, free.
+
+**The ticket: 150 coins** (a starting figure; the simulator sets it, with a 40-minute trip assumed).
+- Spent as you step aboard. **You are "at sea" until you stand on the pier again** (the camp profile
+  keeps it): a dropped connection, a soft restart or a change of lounge puts you back on the boat,
+  not on the pier with a ticket gone.
+- Leaving by the world list ends the trip.
+- The social drawer and the world list's head counts show the Open Sea **and the cove** alike as
+  "At sea".
+
+## 5. The Hidden Cove (`hidden_cove`)
+
+**How it is found (no one tells you).**
+1. Fishing by hand on the Open Sea, a catch now and then comes up as **a bottle with a torn piece of
+   a sea chart** (a toast and a small reveal). Never on the pier, never on an AFK line.
+2. Three pieces, each once per player (`chart` in the camp profile). **The chance climbs with every
+   catch that brings none** and a piece is certain by the sixtieth: about an hour a piece for a
+   steady hand, never ten for an unlucky one.
+3. With all three, the captain at sea recognises the chart, and every trip from then on offers
+   `[ 🗺️ To the hidden cove ]`, for good (`coveAccess`).
+
+**Keeping it secret** (each of these would have named it):
+- the social drawer and head counts say "At sea";
+- Dune lists pearls, salt and ironwood on his Trade tab **only for a player with `coveAccess`**;
+- the Deep Tide tools are made **in the cove**, so their recipes are seen only there;
+- the Fish Collection's Ocean page shows the cove's fish as "???" until one is landed;
+- nothing is shouted to the room from the cove; the patch notes say only "something waits at sea".
+
+**The place** (24 x 24 m): a sea cave behind the rock stacks, the boat lying in under its arch on
+still, glowing water; a crescent of pale sand, a deep pool, a skylight. Lit as the caverns are
+(their lights and height mist).
+
+**What is there.**
+- **Giant clams**, pried open at the dock with no tool tier at all (the geode chisel's game, a
+  blade in place of the mallet): **pearls.** This is how the last tier begins.
+- **The shipwright's bench**, left in the cave: the Deep Tide tools are made here.
+- The deepest fish, from the boat and the pool (the Abyssal Pearl Whale, made the mythic it was
+  meant to be: it is `legendary` in the code today); pearl rock and salt crystal; ironwood driftwood
+  along the sand, growing back as the tide brings more.
+- Hand-reeled only. The captain takes you back to the sea or straight to the pier.
+
+## 6. Economy
+
+**The ladder stays convergent** (docs/economy-plan.md section 4): every craft earns about **250** a
+minute at Tidewater and **300** at Deep Tide. For a miner that is the ore ladder's usual step
+(210 to 250). For an angler or a woodcutter it is a leap (95 to 250), so their tools are priced by
+what they truly earn before it, not by 95:
+
+| Starting prices | Rod | Axe | Pickaxe | Made |
+|---|---|---|---|---|
+| **T6 Tidewater** (360 minutes of the step before) | 58,000 | 45,000 | 75,000 | at Dune's shack: coins and makings from all three crafts as they exist today (ingots, Golden Leaf Amber, Fine Fish Bones) |
+| **T7 Deep Tide** (600 / 720 minutes) | 150,000 | 150,000 | 180,000 | at the cove's bench: coins, pearls and the rare drops (Titan Heartwood, Prismatic Scale, Core Fragment, Star Shard) |
+
+(Revision 1 had 34,000 and 100,000 for the rod and the axe: a T6 rod would have paid for itself in
+under four hours where a T6 pickaxe takes thirty.) Storage at half its tool, as always. Both tiers
+are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as T5 is.
+
+- **What each tier opens:** T5 casting on the Open Sea (up to Rare); T6 the salt water's epic and
+  legendary fish, the palms, the reef rock; T7 the mythic fish, the cove's pearl rock and ironwood.
+- **The gathering:** Coconut Palms (T6: logs, coconut husk the by-product, a coconut now and then
+  for the bar); reef rock (reef stone, sea glass, a fossil for the codex); pearls, salt crystal,
+  ironwood.
+- **Dune pays full price** for everything from the three maps.
+- **The gear stays at rank 5.** Ranks 6 and 7 are dropped: a rank-5 set already sits at the tested
+  cap (25% against `GEAR_BUDGET`'s 26%), so a stronger rank would break the budget every tier is
+  balanced on. The beach's rewards are its tiers, its titles and what follows:
+  - **pearl jewellery** to make and sell at the cove's bench (the forge's wares' way, about a fifth
+    over its makings);
+  - **a Pearl-set ring band** at the forge, at the Glimmer band's own 13% (a look and a second
+    source, not more power);
+  - **the map's own outfit** at Dune's (the Beachcomber's Shirt & Shorts, a look with no stats, as
+    Bramble's and Gus's).
+- **The sea ticket** is a small coin sink; the simulator's angler at sea pays it every 40 minutes.
+- Every palm, node and collider is placed **with the simulator open** (`ONLY=wood` / `ONLY=ore`
+  `npm run economy-sim -- --gear`): on the camp maps a tree moved a metre moved a tier's income.
+
+## 7. What already exists in the code, and what is in the way
+
+- The world entry (shared/worlds/index.ts `beach`, 28 m, `built: false`), `MAP_HALF.sunset_beach` 14
+  (make it 18), no seats, props or colliders.
+- `isGatheringMap` counts `sunset_beach` and an `"ocean"` that is no MapId: replace it with
+  `open_sea` and `hidden_cove`; teach `isFishingMap` the three.
+- **An old fishing path** (HangoutRoom `MAP_WATER`, `FishingWater = "ocean" | "river"`, the "old
+  boot") beside Fishing 2.0's `Water`: retire it before the pier fishes.
+- The blender (shared/types.ts `DRINK_RECIPES`, `DRINK_REWARD` 6, `handleBlend`: a recipe picked, a
+  cooldown, coins): replaced by section 2. `BlenderModal` goes.
+- The ball (shared/volleyball.ts): **flat-ground physics with a fixed court and net**. Keep it on a
+  flat stretch; drop the net.
+- Saltwater fish in shared/fishing.ts (four, at old prices; the Pearl Whale `legendary`) and the
+  Fish Collection's locked Ocean page.
+- **The ladder is five tiers long everywhere:** `TARGETS`, `TOOL_MINUTES`, `STRENGTH`, the
+  simulator's `[1, 2, 3, 4, 5]`, the odds and window tables indexed by rod tier.
+- **Prospecting, wading and the close-up camera are the caverns' own** (`prospectCamera`,
+  `cavernCam`, the walk mask): the reef rock needs them on an isometric map. Not yet measured.
 - From the camp maps: shared/terrain.ts, the builders' heightfield ground, `lift` and `fuse`,
-  scripts/blender/nature_kit.py (painted shade, conifer shapes, bushes, grass clumps, frogs, lily
-  pads), `FellableTrees` with wild trees (`look`, `size`, `tone`), `CampXray` (the x-ray silhouette
-  only while hidden), `campLife.tsx` (cloud shadows, rise rings, mist, moths), `riverWater.ts`.
-- From the caverns: wading, shore fishing from a waterline (`shoreCast`), prospecting, the codex, a
-  map's own loading screen.
+  nature_kit (painted shade), `FellableTrees`, `CampXray`, `campLife.tsx`, `riverWater.ts`.
+- From the caverns: `shoreCast`, `WorkSheet`, the forge's judged log, the chisel's game, the codex,
+  the lights and height mist.
 
-## How to build (the project's own way)
+## 8. How to build (the project's own way)
 
 - **Blender only through the Live Bridge on port 8192** (the window with `models/master_world.blend`;
   check with `curl http://127.0.0.1:8192/`). Never the MCP Blender tools on port 9876: they reach
-  the owner's other project. A builder runs in its own namespace with `REPO_ROOT` and `REPORT_PATH`
-  and writes a report (see scripts/blender/live_bridge.py and how build_forest.py is run).
-- A new builder `scripts/blender/build_beach.py` on nature_kit (and later `build_sea.py`,
-  `build_cove.py`, or one builder for the three); characters on the staff's clay kit
-  (`build_cavern_folk.py`'s way); the studio's grid gets a free slot (Beach at x = 270).
-- A new template name must be new across the whole master file (`Fauna_Beach*`), or Blender
-  renames it and the game never finds it.
-- `npm run pack-models` after the builder; the model under 3 MB packed; **at most 110 draw calls**
-  with one player and the whole map in view (measure in the browser harness).
-- Layout as plain JSON between markers in `shared/worlds/beach.ts` (read as-is by the builder), its
-  terrain grid written by an `npm run beach-terrain` script, and `check-layout` taught the beach
-  (walkability, reachable approaches, level ground under what is built).
-- Before each commit: `cd client && npx tsc --noEmit -p .`, `cd server && npx tsc --noEmit -p .`,
-  `npm run check-layout`, `npm test`, `npm run build`. Stage with `git add -A -- . ':!.claude'`,
-  scan the staged diff for secrets. Commit, push and open a PR as each part is done; **merge only
+  the owner's other project. A builder runs in its own namespace with `REPO_ROOT` and `REPORT_PATH`.
+- Builders `build_beach.py` (on nature_kit), `build_sea.py`, `build_cove.py` (on the caverns' kit),
+  `build_beach_folk.py` (the staff's clay kit). The studio's grid: Beach at x = 270.
+- A new template name must be new across the whole master file (`Fauna_Beach*`).
+- `npm run pack-models` after a builder; each model under 3 MB packed; **at most 110 draw calls** on
+  the beach with one player and the whole map in view, 60 on the sea.
+- Layout as plain JSON between markers in `shared/worlds/beach.ts`, `sea.ts`, `cove.ts`; the terrain
+  grid by `npm run beach-terrain`; `check-layout` taught each (walkability, approaches, level ground
+  under what is built, the 10 s walks, a cast onto open water from the pier and the rails).
+- Before each commit: both `tsc` runs, `npm run check-layout`, `npm test`, `npm run build`. Stage
+  with `git add -A -- . ':!.claude'`, scan the staged diff. A PR as each part is done; **merge only
   when the owner says so.** All communication in English.
-- Look at every part in the game (the browser harness: memory note "Browser test harness"), by day
-  and by night, before reporting it done; say plainly what was not checked.
+- Look at every part in the game (the browser harness), by day and by night, before reporting it
+  done; say plainly what was not checked.
 
-## Order of work (each its own PR, shown to the owner before the next)
+## 9. Order of work (each its own PR, shown to the owner before the next)
 
-1. **The beach as a place.** The layout and ground, the sea and its shore, wading, the bar with the
-   bartender and the drinks, the pier (fishing spots not yet live), loungers and parasols, the beach
-   ball, the sky and light, a loading screen. No economy. The world list opens it (`built: true`).
-   A rough picture of the layout to the owner first.
-2. **Pier fishing and the trader.** The beach's reef fish (with the four that exist), the pier's
-   spots, the trader's shack and counter, the T6 rod and livewell, the Ocean page.
-3. **The Open Sea.** The new map, the boat, the captain on both maps, the ticket, hand-reeled sea
-   fishing, the sea's fish, the trip both ways, the sea's wonders.
-4. **Palms and reef rock.** Coconut Palms (fellable, T6), the headland's reef rock (prospecting),
-   the T6 axe, pickaxe and storage; the simulator tuned to 250 for every craft; the gear's rank 6.
-5. **The Hidden Cove.** The chart's three bottles at sea, the captain's new line, the cove map and
-   its T7 resources, the T7 tools, pearls and jewellery, the gear's rank 7; the simulator at 300.
-6. **Dressing and life.** Gulls, crabs, a turtle, dolphins; the beach's sounds (waves, gulls, the
-   bar's music at dusk); the patch notes; the lobby's and the trip screen's art.
+0. **The ground cleared.** No change a player sees: the ladder made N tiers long (the tables, the
+   simulator, the tests), the old fishing path retired, `open_sea` and `hidden_cove` registered.
+1. **The beach as a place, and the bar.** A picture of the layout to the owner first. Then the
+   ground, the sea, wading and the depth rule, the bar with Mango and **A Shift at the Bar**, the
+   firepit, the pier (walked, not yet fished), loungers, hammocks, the ball, the sky, the loading
+   screen. The palms stand as fellable nodes that ask for a Tidewater axe. The world list opens it.
+2. **Pier fishing and Dune.** The twelve fish, the pier's casting, the shack and its counter, the
+   Tidewater rod and livewell, the Ocean page.
+3. **Palms.** Felling, the Tidewater axe and carrier, coconuts to the bar; the simulator at 250.
+4. **The Open Sea.** The map, the boat, Captain Brine on both, the ticket and its rules, the eight
+   fish, the wonders.
+5. **Reef rock.** Prospecting brought to the beach, the Tidewater pickaxe and satchel.
+6. **The Hidden Cove.** The chart, the secrecy rules, the map, the clams, the bench, the Deep Tide
+   tools, pearls, jewellery and the ring band; the simulator at 300.
+7. **Dressing and life.** Gulls, crabs, a turtle; the sounds (waves, gulls, the bar's music at
+   dusk); the outfit; the patch notes; the lobby's and the trip screens' art.
+
+## What changed from revision 1, and why
+
+| Revision 1 | Now | Why |
+|---|---|---|
+| 40 x 40 m | 36 x 36 m, every place within 10 s of the bar | a hang-out map, not a hike |
+| The existing blender | A Shift at the Bar: build, pour, shake; drinks served to players; tips capped | the owner asked for a bartender minigame; the blender is a list |
+| The pier needs T6 | Any rod fishes it: T1-T3 common, T4 uncommon, T5 rare, T6 epic and legendary, T7 mythic, the odds climbing with the rod | the beach was empty for everyone below T6 (the owner's ladder) |
+| Fixed fishing spots on the pier and the boat | Cast from anywhere along the edge or the rail | fifteen players, six spots |
+| Ticket rules unstated | "At sea" until you stand on the pier again | a dropped connection must not eat a ticket |
+| The chart by plain chance | The chance climbs; a piece certain by the sixtieth catch | no ten-hour bad luck |
+| The cove secret in name only | Five secrecy rules | the social drawer, the trader and the recipes would have named it |
+| T7 needs pearls, pearls need T7 | Clams need no tool tier | the tier could not be started |
+| T6 rod and axe 34,000, T7 100,000 | 58,000 / 45,000 and 150,000 | priced by the rule every other tool follows |
+| T6 "sold" by the trader and also "made" | Made at Dune's (T6) and at the cove's bench (T7) | one answer, and T7 stays secret |
+| Gear ranks 6 and 7 at 25% and 30% | Dropped; jewellery, a ring band, an outfit | they break the tested gear budget |
+| Palms unfellable until part 4 | Fellable nodes from part 1, the axe in part 3 | a tree that cannot be cut reads as a fault |
+| A rocking boat implied | The deck still, the sea moving | seats and casts stay simple |
+| Six parts | Part 0 and seven parts | the five-tier ladder and the old fishing path are work of their own |
+| A diver's hint, later | Dropped | nothing hints |
