@@ -22,6 +22,11 @@ function fadersFor(map: MapId, raining: boolean): [Fader, string][] {
       return [["jazz", "🎷 Casino Jazz"], ["crowd", "🥂 Casino Crowd"]];
     case "boxing_ring":
       return [["crowd", "📣 Ringside Crowd"]];
+    case "sunset_beach":
+    case "open_sea":
+      return [["river", "🌊 Sea & Waves"], ["forest", "🕊️ Gulls"]];
+    case "hidden_cove":
+      return [["river", "🌊 Sea & Lagoon"], ["forest", "💧 Drips"]];
     case "glimmering_caverns":
       return [["cavern", "🪨 Cavern Air & Footsteps"], ["water", "🌊 Water"], ["crystal", "💎 Crystal Resonance"], ["steam", "♨️ Thermal Steam"], ["music", "🎵 Cave Music"]];
     default:
@@ -30,6 +35,9 @@ function fadersFor(map: MapId, raining: boolean): [Fader, string][] {
 }
 /** What each world's faders are, in a line under them. */
 const FADER_NOTE: Partial<Record<MapId, string>> = {
+  sunset_beach: "The surf running up the sand and drawing back, and gulls by day. These two faders are the campfire's River and Forest.",
+  open_sea: "The swell against the hull, the boat's timbers, a gull now and then by day.",
+  hidden_cove: "The sea heard through the rock, the lagoon lapping, drips off the roof.",
   cozy_lounge: "The lounge's folk-jazz trio (it rests while the radio plays), and the rain on its windows when it rains. The radio has its own volume in its panel.",
   campfire_night: "The campfire's soundscape, channel by channel (the crackle fades out if the bonfire goes out). After dusk a guitar picks out a quiet phrase now and then.",
   whispering_woods: "The woods: birdsong by day and crickets by night, the meandering river, the wind in the canopy.",

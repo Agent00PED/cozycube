@@ -15,6 +15,7 @@ import { MAP_TOGGLEABLES } from "../shared/props";
 import { GUS_SATCHEL_TIER, SATCHEL_TIERS, satchelAdd } from "../shared/satchel";
 import { BEACH_ARRIVAL, BEACH_TREES, DUNE_FRONT, REEF_NODES } from "../shared/worlds/beach";
 import { ALL_ORE_NODES, ORE_NODES, ORE_NODE_AT, oreNodeNear, oreNodeOf, oreReach } from "../shared/worlds/caverns";
+import { OUTFITS } from "../shared/types";
 import { TARGETS, simulate, soldLadder } from "../scripts/economy-sim";
 
 test("the reef rock is the sixth ore tier: only a Tidewater pickaxe mines it whole, the Drill bites at 60%, the rest skid off", () => {
@@ -133,4 +134,11 @@ test("the reef's income: a Tidewater pickaxe earns its target there and more tha
   // the pickaxe costs about 360 minutes of a Drill's play
   const minutes = PICKAXE_PRICES.tidewater / soldLadder(lines).ore[4];
   assert.ok(Math.abs(minutes / 360 - 1) <= 0.15, `the Tidewater Pickaxe: ${minutes.toFixed(0)} minutes of a T5 pickaxe's play`);
+});
+
+test("Dune's own outfit: the Beachcomber's, a summer look sold only at his shack", () => {
+  const o = OUTFITS.outfit_beachcomber;
+  assert.equal(o.keeper, "dune");
+  assert.equal(o.archetype, "summer");
+  assert.ok(o.price > 0 && Object.values(OUTFITS).filter((x) => x.keeper === "dune").length === 1);
 });

@@ -736,6 +736,56 @@ def reef_rubble(bm, rng):
     blob(bm, 0.05, 0.1, 0.12, 0.07, 0.05, 0.03, m=m("BC_Shell"), cuts=1)
 
 
+def build_life_looks(root):
+    """beach_life.glb: the little lives the game draws instanced (client/src/scene/BeachLife.tsx), each
+    at the origin facing +z: `Fauna_Gull_Body` / `_WingL` / `_WingR` (a gull on the wing, each wing's
+    origin its shoulder) and `Fauna_SandCrab`. Names no other world's model has."""
+    name = "BeachLifeLooks"
+    old = bpy.data.collections.get(name)
+    for o in list(old.all_objects) if old else []:
+        bpy.data.objects.remove(o, do_unlink=True)
+    if old:
+        bpy.data.collections.remove(old)
+    coll = bpy.data.collections.new(name)
+    bpy.context.scene.collection.children.link(coll)
+    made = []
+    # the gull: 0.42 m long, white, a grey back, black wingtips, a yellow bill
+    made.append(fauna_node("Fauna_Gull_Body", [
+        (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.075, 0.065, 0.19, m=0, cuts=3), "#F4F4F0"),
+        (lambda bm: blob(bm, 0.0, 0.028, -0.03, 0.06, 0.03, 0.13, m=0, cuts=2), "#B9C0C6"),
+        (lambda bm: blob(bm, 0.0, 0.03, 0.19, 0.05, 0.048, 0.055, m=0, cuts=2), "#F7F7F3"),
+        (lambda bm: blob(bm, 0.0, 0.02, 0.255, 0.012, 0.012, 0.035, m=0, cuts=1), "#E8B33C"),
+        (lambda bm: blob(bm, 0.03, 0.045, 0.215, 0.008, 0.008, 0.006, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, -0.03, 0.045, 0.215, 0.008, 0.008, 0.006, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, 0.0, 0.0, -0.22, 0.05, 0.012, 0.07, m=0, cuts=1), "#F0F0EC"),
+    ], coll))
+    for sx, nm in ((1, "Fauna_Gull_WingL"), (-1, "Fauna_Gull_WingR")):
+        made.append(fauna_node(nm, [
+            (lambda bm, sx=sx: blob(bm, sx * 0.2, 0.03, 0.0, 0.17, 0.012, 0.085, m=0, cuts=2), "#C3CAD0"),
+            (lambda bm, sx=sx: blob(bm, sx * 0.43, 0.03, -0.03, 0.13, 0.01, 0.06, m=0, cuts=2), "#AEB6BD"),
+            (lambda bm, sx=sx: blob(bm, sx * 0.57, 0.03, -0.06, 0.05, 0.008, 0.035, m=0, cuts=1), "#26262A"),
+        ], coll, pivot=(sx * 0.06, 0.03, 0.0)))
+    # the crab: 0.16 m across, a flat coral shell, two claws held up, six legs, eyes on stalks
+    parts = [
+        (lambda bm: blob(bm, 0.0, 0.045, 0.0, 0.08, 0.035, 0.06, m=0, cuts=2), "#E0704A"),
+        (lambda bm: blob(bm, 0.0, 0.062, -0.01, 0.055, 0.02, 0.04, m=0, cuts=1), "#EE8A60"),
+        (lambda bm: blob(bm, 0.03, 0.09, 0.05, 0.01, 0.014, 0.01, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, -0.03, 0.09, 0.05, 0.01, 0.014, 0.01, m=0, cuts=1), "#1B1818"),
+    ]
+    for sx in (1, -1):
+        parts.append((lambda bm, sx=sx: blob(bm, sx * 0.1, 0.07, 0.06, 0.035, 0.028, 0.03, m=0, cuts=1), "#F0906A"))
+        for k in range(3):
+            parts.append((lambda bm, sx=sx, k=k: cylinder(bm, W(sx * 0.07, 0.04, 0.02 - k * 0.035), W(sx * 0.13, 0.0, 0.03 - k * 0.045), 0.009, 4, m=0), "#C85E3E"))
+    made.append(fauna_node("Fauna_SandCrab", parts, coll))
+    out = os.path.join(root, "client", "public", "models", "beach_life.glb")
+    export(coll, out)
+    info = {"glb": out, "bytes": os.path.getsize(out), "tris": sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in made)}
+    for o in made:
+        bpy.data.objects.remove(o, do_unlink=True)
+    bpy.data.collections.remove(coll)
+    return info
+
+
 def build_reef_looks(root):
     """reef.glb: `Ore_reef` and `Ore_reef_Rubble` at the origin (client/src/scene/ReefRock.tsx)."""
     name = "ReefLooks"
@@ -1169,6 +1219,8 @@ def main():
         result["palms"]["meshopt"] = _pack.meshopt_pack(root, result["palms"]["glb"])
         result["reef"] = build_reef_looks(root)
         result["reef"]["meshopt"] = _pack.meshopt_pack(root, result["reef"]["glb"])
+        # (the life's templates stay unpacked: tiny, and drawn instanced from their own geometry)
+        result["life"] = build_life_looks(root)
         result["studio"] = studio(root, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}

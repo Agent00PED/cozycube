@@ -107,7 +107,7 @@ const QUICK_PALETTE: Record<Tab, Palette> = { outfits: PALETTES.shirt, hats: PAL
 
 const TIER_ORDER: Record<string, number> = { starter: 0, common: 1, rare: 2, prestige: 3, gacha: 4, pioneer: 5 };
 /** A map's own outfit: where it is sold. */
-const KEEPER_AT = "🧭 Sold by its keeper: Bramble in the woods, Gus in the caverns";
+const KEEPER_AT = "🧭 Sold by its keeper: Bramble in the woods, Gus in the caverns, Dune on the beach";
 const tierKey = (item: WardrobeItem) => (item.pioneer ? "pioneer" : item.gachaOnly ? "gacha" : item.tier ?? "starter");
 const byTier = <T extends string>(ids: readonly T[], item: (id: T) => WardrobeItem) => [...ids].sort((a, b) => TIER_ORDER[tierKey(item(a))] - TIER_ORDER[tierKey(item(b))] || item(a).price - item(b).price);
 

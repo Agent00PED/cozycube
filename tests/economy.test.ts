@@ -98,13 +98,13 @@ test("the workbench's new goods: a little over their makings; the fine ones only
 
 test("the maps' own outfits: a keeper each, fabrics off the palettes, parts the avatar has", () => {
   const rig = readFile5("client/src/entities/rig.ts", "utf8");
-  for (const [id, keeper] of [["outfit_forester", "bramble"], ["outfit_miner", "gus"]] as const) {
+  for (const [id, keeper] of [["outfit_forester", "bramble"], ["outfit_miner", "gus"], ["outfit_beachcomber", "dune"]] as const) {
     assert.equal(OUTFITS5[id].keeper, keeper);
     assert.ok(OUTFITS5[id].price > 0);
     assert.ok(SHIRTS5.includes(FABRICS5[id].shirt) && PANTS5.includes(FABRICS5[id].pants), `${id}'s fabrics are palette colours`);
     assert.ok(new RegExp(`${id}: \{ top: "[a-z]+", bottom: "[a-z]+" \}`).test(rig), `${id} has its parts in rig.ts`);
   }
-  assert.equal(Object.values(OUTFITS5).filter((o) => o.keeper).length, 2);
+  assert.equal(Object.values(OUTFITS5).filter((o) => o.keeper).length, 3);
 });
 
 // --- the odds by water (shared/economy.ts WATER_ODDS) ---------------------------------------------------

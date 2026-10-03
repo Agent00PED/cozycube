@@ -116,6 +116,8 @@ export const OUTFIT_PARTS: Record<OutfitId, { top: string; bottom: string }> = {
   // (the maps' own: Bramble's woodsman, Gus's prospector)
   outfit_forester: { top: "flannel", bottom: "workpants" },
   outfit_miner: { top: "chambray", bottom: "overalls" },
+  // (Dune's beachcomber: a shirt over board shorts and sandals)
+  outfit_beachcomber: { top: "chambray", bottom: "board" },
   // summer: an open collar, short sleeves, knee-length shorts, deck shoes or sandals
   outfit_hawaiian: { top: "hawaiian", bottom: "khakis" },
   outfit_swim_set: { top: "swim", bottom: "board" },

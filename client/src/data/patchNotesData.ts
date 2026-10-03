@@ -2085,6 +2085,22 @@ export const PATCH_ERAS: PatchEra[] = [
           economy: ["⚖️ A Tidewater pickaxe earns about 250 coins a minute on the reef; a Deep Core Drill does better down in the caverns."],
         },
       },
+      {
+        version: "0.8.6",
+        date: "2026-10-03",
+        title: "Salt Air",
+        summary: "The beach, the boat and the cove have a sound of their own now, and a little life on the sand.",
+        changes: {
+          features: [
+            "🌊 Sunset Beach has its surf: the hush of the swell, a wave breaking on the sand every few seconds and drawing back, gulls calling by day.",
+            "⛵ Out on the Open Sea the swell slaps the hull and the boat's timbers creak. In the hidden place, the sea is a low hush through the rock, with drips off the roof.",
+            "🎚️ Settings shows two faders on these maps: Sea & Waves, and Gulls (they are the campfire's River and Forest faders).",
+            "🕊️ Three gulls wheel over the shore by day: a few wingbeats, then a long glide.",
+            "🦀 Seven crabs keep the wet sand along the waterline. They scuttle sideways, stop, and hurry off if you come close.",
+            "🐚 Dune sells the Beachcomber's Shirt & Shorts (5,600 coins, under his Tidewater tab): a teal shirt over cream board shorts and sandals. A look, no stats.",
+          ],
+        },
+      },
     ],
   },
 ];
