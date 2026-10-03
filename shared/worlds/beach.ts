@@ -19,8 +19,10 @@ import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 //                       place); a marshmallow on a stick as you sit
 //   The sand            loungers and parasols in loose groups, two hammocks between three palms
 //   The ball            a flat stretch of sand in the middle, no net (shared/volleyball.ts)
-//   The pier            from the west shore out to deep water, walked at the deck's height; the
-//                       trader's shack at its foot, the captain's boat moored at its head
+//   The pier            from the west shore out to deep water, walked at the deck's height and
+//                       fished from anywhere along it (beachCast: the float lands ahead of you,
+//                       on open water); Dune the sea turtle's shack at its foot (he buys every
+//                       fish), the captain's boat moored at its head
 //   The Palm Grove      along the back and the east, 3 to 4 m apart, no rows
 //   The headland        north-east: a rise with rock in its seaward face
 //
@@ -284,9 +286,11 @@ export const BEACH_SEAT_LABELS: Record<string, string> = {
 
 // --- the shack, the boat, the trees, the rocks -----------------------------------------------------
 
+const SHACK_C = at(L.shack.d, L.shack.v);
+
 /** The trader's shack at the pier's landward foot (its door faces the sea), its four corners. */
 export const SHACK = (() => {
-  const c = at(L.shack.d, L.shack.v);
+  const c = SHACK_C;
   return { ...c, w: L.shack.w, dp: L.shack.dp, yaw: SEA_YAW, corners: ([[-1, -1], [1, -1], [1, 1], [-1, 1]] as const).map(([a, b]) => step(c, (b * L.shack.dp) / 2, (a * L.shack.w) / 2)) };
 })();
 /** The captain's boat, moored beside the pier's head (out of reach: deep water). */
@@ -299,7 +303,49 @@ export const DRIFTWOOD = L.driftwood.map((w) => ({ ...at(w.d, w.v), yaw: w.yaw, 
 export const BEACH_ARRIVAL = at(L.arrival.d, L.arrival.v);
 export const BEACH_SPAWNS: Pt[] = [BEACH_ARRIVAL, step(BEACH_ARRIVAL, 0.6, 0.9), step(BEACH_ARRIVAL, -0.5, -0.9), step(BEACH_ARRIVAL, 0.9, -0.5)];
 
+
+// --- fishing: a cast from where you stand ----------------------------------------------------------
+
+/** How far out the float lands (m), and how deep the water must be there. */
+export const BEACH_CAST = 1.9;
+export const BEACH_CAST_DEPTH = 0.3;
+/** Open water for a float at (x, z): the sea, deep enough, and not under the pier's deck. */
+/** Under the captain's boat, moored at the pier's head (no float lands on its deck). */
+const underBoat = (x: number, z: number) => {
+  const dx = x - BOAT.x;
+  const dz = z - BOAT.z;
+  return Math.abs(dx * SEAWARD.x + dz * SEAWARD.z) < 4.7 && Math.abs(dx * ALONG.x + dz * ALONG.z) < 1.9;
+};
+const floats = (x: number, z: number) => Math.max(Math.abs(x), Math.abs(z)) < L.half - 0.3 && beachGroundY(x, z) < SEA_Y - BEACH_CAST_DEPTH && pierInside(x, z) < -0.15 && !underBoat(x, z);
+/** A cast from (x, z) facing (fx, fz): where the float lands, straight ahead or a little to either
+ *  side (never behind or beside the angler), or null where there is no water for it. From the pier's
+ *  edge or its head, or from the waterline (wade in a step and the surf is in reach). */
+export function beachCast(x: number, z: number, fx: number, fz: number): Pt | null {
+  const fl = Math.hypot(fx, fz);
+  if (fl < 1e-6) return null;
+  const f = { x: fx / fl, z: fz / fl };
+  for (const turn of [0, 0.35, -0.35, 0.7, -0.7]) {
+    const c = Math.cos(turn);
+    const s = Math.sin(turn);
+    const d = { x: f.x * c - f.z * s, z: f.x * s + f.z * c };
+    for (const reach of [BEACH_CAST, BEACH_CAST + 0.6, BEACH_CAST - 0.5]) {
+      const p = { x: x + d.x * reach, z: z + d.z * reach };
+      if (floats(p.x, p.z)) return { x: round(p.x), z: round(p.z) };
+    }
+  }
+  return null;
+}
+
+// --- the trader ------------------------------------------------------------------------------------
+
+/** Dune the old sea turtle, at his shack's counter window (it faces the sea), and where you stand
+ *  to trade with him. */
+export const DUNE = { ...step(SHACK_C, L.shack.dp / 2 - 0.3, 0), yaw: SEA_YAW };
+export const DUNE_FRONT: Pt = step(SHACK_C, L.shack.dp / 2 + 1.0, 0);
+export const DUNE_REACH = 2.0;
+
 export const BEACH_PROPS: PropSpec[] = [
+  { propId: "dune", x: DUNE.x, z: DUNE.z, kind: "angler", color: "#7fa86b", defaultOn: true, approachX: DUNE_FRONT.x, approachZ: DUNE_FRONT.z },
   // (Mango: his pad stands over the bar's middle, a step in front of him, in reach from the counter's front)
   { propId: "mango", x: BAR.x, z: BAR.z, kind: "bartender", color: "#f2a53a", defaultOn: true, approachX: MANGO_FRONT.x, approachZ: MANGO_FRONT.z },
   ...BAR.stations.map((s): PropSpec => ({ propId: s.propId, x: s.work.x, z: s.work.z, kind: "barshift", color: "#e8c27a", defaultOn: true, approachX: s.x, approachZ: s.z })),
@@ -361,6 +407,7 @@ export function beachTerrainData() {
       court: BALL_COURT,
       pier: { deck: PIER.deck, half: PIER.half, headHalf: PIER.headHalf, length: round(PIER_LENGTH), headLen: L.pier.head.len, start: corner(0, 0), end: corner(PIER_LENGTH, 0) },
       shack: SHACK,
+      dune: DUNE,
       boat: BOAT,
       loungers: LOUNGERS.map((l) => ({ x: l.x, z: l.z, yaw: l.yaw })),
       parasols: PARASOLS,

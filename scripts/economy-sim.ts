@@ -21,6 +21,7 @@ import type { MapId } from "../shared/types";
 import { AXES, AXES_BY_TIER, TREES, rollTreeScale, woodPrice, logMultiplier } from "../shared/chop";
 import { AXE_PRICES, BYPRODUCT_PRICES, CARRIER_CAPACITY, CREEL_CAPACITY, ORE_PRICES, PICKAXE_PRICES, TACKLE_PRICES } from "../shared/economy";
 import { OVERSUPPLY_AT, OVERSUPPLY_DROP, RECOVER_SOLD, SUPPLY_MAX } from "../shared/market";
+import { DUNE_FRONT, PIER_LENGTH, onPierAt } from "../shared/worlds/beach";
 import { FISH, RODS_BY_TIER, biteSeconds, fishValue, rollCatch, rollFish } from "../shared/fishing";
 import { fishRate, woodRate, type Counter } from "../shared/keepers";
 import { CHASE_MAX, CLEAN_BREAK_BONUS, GLINT_CHANCE, ORE_KINDS, PERFECT_DAMAGE, PICKAXES, PICKAXES_BY_TIER, chaseBonus, oreRule, rollYield, streakBonus, type OreItemId, type OreKind, type PickaxeId } from "../shared/caverns_mining";
@@ -160,7 +161,7 @@ function withMarket(value: Record<string, number>, count: Record<string, number>
 }
 
 /** The counter a map's keeper stands at. */
-const counterOf = (map: MapId): Counter => (map === "campfire_night" ? "campfire" : map === "whispering_woods" ? "woods" : "caverns");
+const counterOf = (map: MapId): Counter => (map === "campfire_night" ? "campfire" : map === "whispering_woods" ? "woods" : map === "sunset_beach" ? "beach" : "caverns");
 
 // --- the angler ----------------------------------------------------------------------------------------
 
@@ -168,6 +169,8 @@ const WATERS = [
   { where: "campfire river", water: "freshwater" as const, rapids: false, map: "campfire_night" as MapId, spot: FISHING_SPOTS[0].stand, keeper: BARNABY_FRONT },
   { where: "woods river", water: "freshwater" as const, rapids: true, map: "whispering_woods" as MapId, spot: FOREST_FISHING[0].stand, keeper: FINLEY_FRONT },
   { where: "cenote", water: "cavewater" as const, rapids: false, map: "glimmering_caverns" as MapId, spot: { x: FINNEGAN_FRONT.x + 3, z: FINNEGAN_FRONT.z }, keeper: FINNEGAN_FRONT },
+  // (Sunset Beach's pier: any rod fishes it, the rod deciding the rarest fish it lands; Dune at its foot)
+  { where: "pier", water: "saltwater" as const, rapids: false, map: "sunset_beach" as MapId, spot: onPierAt(PIER_LENGTH - 2.2, 0.6), keeper: DUNE_FRONT },
 ];
 
 export function angler(rodTier: number, w: (typeof WATERS)[number], gear: Loadout = NO_GEAR): Line {

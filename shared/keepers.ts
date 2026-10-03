@@ -5,6 +5,7 @@
 //   the campfire (Barnaby, Buster)   full for common and uncommon fish, Soft Pine and Silver Birch
 //   the woods (Finley, Bramble)      full for fish up to legendary, and every wood
 //   the caverns (Finnegan, Gus)      full for everything
+//   the beach (Dune)                 full for everything
 //
 // Sell All at a counter passes by what it would pay less for (as it passes a locked fish): a finer
 // catch is sold there one by one, on purpose, or carried to a keeper who pays in full.
@@ -14,13 +15,13 @@
 import type { WoodKind } from "./chop";
 import { FISH, type CreelFish, type FishId, type FishTier, type FishingProfile } from "./fishing";
 
-export type Counter = "campfire" | "woods" | "caverns";
+export type Counter = "campfire" | "woods" | "caverns" | "beach";
 /** What a keeper pays for a good past their ceiling: this share of the hour's price. */
 export const CEILING_RATE = 0.6;
 
 const FISH_RANK: Record<FishTier, number> = { common: 0, uncommon: 1, rare: 2, legendary: 3, mythic: 4 };
 /** The finest fish each counter pays in full for. */
-export const FISH_CEILING: Record<Counter, FishTier> = { campfire: "uncommon", woods: "legendary", caverns: "mythic" };
+export const FISH_CEILING: Record<Counter, FishTier> = { campfire: "uncommon", woods: "legendary", caverns: "mythic", beach: "mythic" };
 /** The woods the campfire's stall pays in full for (the woods' and the caverns' keepers: every wood). */
 export const CAMPFIRE_WOODS: readonly WoodKind[] = ["pine", "oak", "charcoal", "birch"];
 
@@ -33,8 +34,8 @@ export function woodRate(counter: Counter, wood: WoodKind): number {
 }
 /** Who pays in full for what a counter can't afford. */
 export const FULL_PRICE_AT = {
-  fish: { campfire: "Finley, on the woods' river", woods: "Finnegan, by the caverns' lake", caverns: "" },
-  wood: { campfire: "Bramble, in the woods", woods: "", caverns: "" },
+  fish: { campfire: "Finley, on the woods' river", woods: "Finnegan, by the caverns' lake", caverns: "", beach: "" },
+  wood: { campfire: "Bramble, in the woods", woods: "", caverns: "", beach: "" },
 } as const satisfies Record<string, Record<Counter, string>>;
 
 // --- the Expedition Licence ----------------------------------------------------------------------------

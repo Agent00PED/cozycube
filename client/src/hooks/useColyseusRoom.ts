@@ -47,6 +47,7 @@ export type EmoteListener = (emote: EmoteBroadcast) => void;
 /** One-shot server messages other than emotes (gesture, slotSpin, rouletteResult, npcSay). */
 export type RoomMessageListener = (type: string, payload: any) => void;
 const RELAYED_MESSAGES = [
+  "duneWave",
   "barTicket",
   "barResult",
   "barShiftOver",

@@ -355,8 +355,12 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
    ground, the sea, wading and the depth rule, the bar with Mango and **A Shift at the Bar**, the
    firepit, the pier (walked, not yet fished), loungers, hammocks, the ball, the sky, the loading
    screen. The palms stand as fellable nodes that ask for a Tidewater axe. The world list opens it.
-2. **Pier fishing and Dune.** The twelve fish, the pier's casting, the shack and its counter, the
-   Tidewater rod and livewell, the Ocean page.
+2. **Pier fishing and Dune (done, patch 0.8.1).** Sixteen pier fish (and the sea's eight and the
+   cove's three defined with them, with their models), the cast from the pier or the waterline, Dune
+   at an open-fronted shack, the Ocean page. Changed while building: the mythic bites only in the
+   cove (the pier's and the sea's T7 rows hold none); the Tidewater rod and livewell move to part 4,
+   with the Open Sea, the water their income is measured on; the pier's T1 to T5 incomes came out
+   at 26 / 27 / 27 / 59 / 96 a minute.
 3. **Palms.** Felling, the Tidewater axe and carrier, coconuts to the bar; the simulator at 250.
 4. **The Open Sea.** The map, the boat, Captain Brine on both, the ticket and its rules, the eight
    fish, the wonders.

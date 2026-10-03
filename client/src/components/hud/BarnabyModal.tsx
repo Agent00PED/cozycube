@@ -29,7 +29,7 @@ interface Props {
   /** Who keeps this shop: Barnaby at the campfire (the T2 rod and livewell, the angler's gear up to T3), Finley the
    *  River Otter on the woods' river, or Finnegan the Grotto Angler by the cenote (both every tier;
    *  Finnegan's advanced tackle bartered too). All buy fish and sell bait and livewells. */
-  keeper?: "barnaby" | "finley" | "finnegan";
+  keeper?: "barnaby" | "finley" | "finnegan" | "dune";
 }
 
 // Barnaby the Angler's stall by the dock (and Finley's boulder on the woods' river), on the shops'
@@ -53,6 +53,8 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
   // (Finnegan keeps every tier, as Finley does)
   const finley = keeper !== "barnaby";
   const finnegan = keeper === "finnegan";
+  // (Dune, at his shack on Sunset Beach: stocked as Finley is, and he pays in full for every fish)
+  const dune = keeper === "dune";
   const [tab, setTab] = useState<ShopTab>("trade");
   const [notice, setNotice] = useState<ShopNotice | null>(null);
   useEffect(
@@ -70,7 +72,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
   const aura = hasCozyAura(fuel) ? 1 + COZY_AURA_LUCK : 1;
   const hour = parseMarket(market);
   // (what this counter can afford: past its ceiling it pays CEILING_RATE, and Sell All passes those by)
-  const counter: Counter = finnegan ? "caverns" : finley ? "woods" : "campfire";
+  const counter: Counter = dune ? "beach" : finnegan ? "caverns" : finley ? "woods" : "campfire";
   // (the Wayfarer's whole set: every keeper pays in full)
   const rate = (s: FishId) => (noCeiling(profile) ? 1 : fishRate(counter, s));
   const worth = (x: (typeof profile.creel)[number], mult: number) => Math.max(1, Math.round(fishValue(x, mult) * aura * rate(x.s)));
@@ -84,12 +86,12 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
   // (what this counter doesn't stock: T3 and T4 are the woods', T5 is forged in the caverns)
   const away = (tier: number) => soldElsewhere(tier, finley ? SHOP_TIER_CAP.woods : SHOP_TIER_CAP.campfire, "🦦 At Finley's boulder on the woods' river");
   const bonus = livewellBonus(profile);
-  const who = finnegan ? "Finnegan" : finley ? "Finley" : "Barnaby";
+  const who = dune ? "Dune" : finnegan ? "Finnegan" : finley ? "Finley" : "Barnaby";
 
   return (
     <ShopShell
-      title={finnegan ? "Finnegan's Grotto Tackle" : finley ? "Finley's River Tackle" : "Barnaby's Bait & Tackle"}
-      icon={finnegan ? "🦎" : finley ? "🎣" : "🦦"}
+      title={dune ? "Dune's Fish Shack" : finnegan ? "Finnegan's Grotto Tackle" : finley ? "Finley's River Tackle" : "Barnaby's Bait & Tackle"}
+      icon={dune ? "🐢" : finnegan ? "🦎" : finley ? "🎣" : "🦦"}
       notice={notice}
       tabs={finnegan ? FINNEGAN_TABS : TABS}
       tab={tab}
@@ -112,7 +114,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
             </p>
           )}
           {profile.creel.length === 0 ? (
-            <p className="m-0 py-6 text-center text-sm opacity-70">{finnegan ? "Your livewell is empty. Cast into the lake from anywhere on its shore!" : "Your livewell is empty. Cast a line from the dock, the canoe, or the woods' river bank!"}</p>
+            <p className="m-0 py-6 text-center text-sm opacity-70">{dune ? "Your livewell is empty. Cast into the sea from the pier, or wade in a step from the sand!" : finnegan ? "Your livewell is empty. Cast into the lake from anywhere on its shore!" : "Your livewell is empty. Cast a line from the dock, the canoe, or the woods' river bank!"}</p>
           ) : (
             profile.creel.map((f, i) => <FishCard key={i} fish={f} price={price(f)} mult={marketMultiplier(fishGood(f.s), hour)} onToggleLock={() => send(lockPacket(f, i))} onSell={() => shop({ type: "BARNABY", op: "sell", slot: i })} />)
           )}
