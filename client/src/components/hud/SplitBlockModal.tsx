@@ -28,6 +28,7 @@ const LOG_LOOK: Record<WoodKind, { bark: string; dark: string; face: string; rin
   cedar: { bark: "#5a3322", dark: "#3b2016", face: "#e8b58a", ring: "#b35a3a" },
   maple: { bark: "#5e4633", dark: "#3e2e21", face: "#f0d3a8", ring: "#c98f55" },
   elderwood: { bark: "#3d4a45", dark: "#242d2a", face: "#cfe6d8", ring: "#7fb9a4" },
+  palm: { bark: "#8a6f52", dark: "#5c4734", face: "#f3e3c0", ring: "#dcc08a" },
 };
 const CALLOUT: Record<SplitVerdict, string> = { gold: "💥 CLEAN SPLIT!", hit: "🪓 Split!", miss: "Glancing blow…" };
 

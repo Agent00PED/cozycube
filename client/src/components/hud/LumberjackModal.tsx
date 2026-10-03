@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { AXES, AXE_IDS, BYPRODUCTS, BYPRODUCT_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
+import { AXES, AXE_IDS, BYPRODUCTS, BYPRODUCT_IDS, SELL_ALL_BYPRODUCTS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
 import { FIREWOOD_PER_COIN, firewoodCoins, MAX_DAY_PERMITS, PERMIT_PRICES } from "@shared/economy";
 import { CRAFTS, RESIN_PRICE, craftSalePrice, craftStacks } from "@shared/crafting";
 import { craftGood, marketDirection, parseMarket, priceRun, woodGood } from "@shared/market";
@@ -104,8 +104,8 @@ export function LumberjackModal({ profile, coins, market, send, subscribeMessage
   const logs = fullKinds.reduce((n, k) => n + (profile.wood[k] ?? 0), 0);
   const logsWorth = fullKinds.reduce((sum, k) => sum + woodRun(k, profile.wood[k]), 0);
   const tooFine = WOOD_KINDS.reduce((n, k) => n + (fullKinds.includes(k) ? 0 : (profile.wood[k] ?? 0)), 0);
-  const byCount = BYPRODUCT_IDS.reduce((n, k) => n + (profile.byproducts[k] ?? 0), 0);
-  const byWorth = BYPRODUCT_IDS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
+  const byCount = SELL_ALL_BYPRODUCTS.reduce((n, k) => n + (profile.byproducts[k] ?? 0), 0);
+  const byWorth = SELL_ALL_BYPRODUCTS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
   // the stash's pieces to sell (its consumables are for using), a row a stack
   // (a piece from the old bench is traded in instead, at its full price: LegacyTradeIn)
   const forSale = profile.crafts.filter((c) => CRAFTS[c.c].price > 0 && !CRAFTS[c.c].legacy);

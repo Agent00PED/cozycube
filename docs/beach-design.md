@@ -374,7 +374,11 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
    47 / 30 / 19.5 / 3.5, sea T7 47 / 31 / 20.5 / 1.5, cove T5 56 / 32 / 12, T6 50 / 32 / 16.5 / 1.5,
    T7 50 / 31 / 17.5 / 1.2 / 0.3 (common / uncommon / rare with the Epic kinds / legendary /
    mythic). Incomes: T7 236 off the pier, 297 at sea, 338 in the cove; T6 302 in the cove.
-5. **Palms.** Felling, the Tidewater axe and carrier, coconuts to the bar; the simulator at 250.
+5. **Palms (done, patch 0.8.4).** The Coconut Palm as a sixth tree tier (nineteen fellable, the
+   hammocks' three left standing), the Tidewater Axe (38,000: 360 minutes of what a T5 axe truly earns,
+   106 a minute, not the 45,000 first pencilled in) and the Timber Sled (85 logs, 19,000) made at
+   Dune's, husks and coconuts, a coconut for a drink at Mango's, Dune buying timber. The simulator's
+   T6 woodcutter: 242 a minute as sold.
 6. **Reef rock.** Prospecting brought to the beach, the Tidewater pickaxe and satchel.
 7. **Dressing and life.** Gulls, crabs, a turtle; the sea's wonders; the sounds (waves, gulls, the
    bar's music at dusk); the outfit; the lobby's and the trip screens' art.

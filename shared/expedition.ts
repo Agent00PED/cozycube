@@ -34,7 +34,7 @@ export function soldElsewhere(tier: number, cap: number, woodsKeeper: string): s
 /** What a forged thing or a satchel tier takes besides coins. */
 export type Makings = SatchelTier["needs"];
 
-export type ForgedToolId = "rod" | "axe" | "pickaxe" | "livewell" | "carrier" | "tideRod" | "tideLivewell" | "deepRod";
+export type ForgedToolId = "rod" | "axe" | "pickaxe" | "livewell" | "carrier" | "tideRod" | "tideLivewell" | "deepRod" | "tideAxe" | "tideCarrier";
 export interface ForgedTool {
   name: string;
   emoji: string;
@@ -59,6 +59,8 @@ export const FORGED_TOOLS: Record<ForgedToolId, ForgedTool> = {
   tideRod: { name: RODS.tidewater.name, emoji: RODS.tidewater.emoji, blurb: RODS.tidewater.blurb, coins: RODS.tidewater.price, needs: { ore: { silver_ingot: 6 }, byproducts: { leafAmber: 6, fishBone: 6 } }, place: "dune" },
   tideLivewell: { name: TIDE_LIVEWELL.name, emoji: TIDE_LIVEWELL.icon, blurb: `A hold for a day at sea: ${TIDE_LIVEWELL.capacity} fish.`, coins: TIDE_LIVEWELL.price, needs: { ore: { iron_ingot: 6 }, byproducts: { scales: 20, amber: 6 } }, place: "dune" },
   // T7, Deep Tide: made at the Hidden Cove's bench, from pearls and the crafts' rarest drops
+  tideAxe: { name: AXES.tidewater.name, emoji: AXES.tidewater.emoji, blurb: AXES.tidewater.blurb, coins: AXES.tidewater.price, needs: { ore: { iron_ingot: 8 }, byproducts: { shavings: 6, fishBone: 4 } }, place: "dune" },
+  tideCarrier: { name: WOOD_CARRIER_TIERS[FORGED_TIER].name, emoji: WOOD_CARRIER_TIERS[FORGED_TIER].icon, blurb: `Hauls a grove's worth: ${WOOD_CARRIER_TIERS[FORGED_TIER].capacity} logs.`, coins: WOOD_CARRIER_TIERS[FORGED_TIER].price, needs: { ore: { iron_ingot: 6 }, byproducts: { amber: 10, scales: 20 } }, place: "dune" },
   deepRod: { name: RODS.deeptide.name, emoji: RODS.deeptide.emoji, blurb: RODS.deeptide.blurb, coins: RODS.deeptide.price, needs: { ore: { glimmer_shard: 6 }, byproducts: { pearl: 12, prismScale: 3, heartwood: 2 } }, place: "cove" },
 };
 export const FORGED_TOOL_IDS = Object.keys(FORGED_TOOLS) as ForgedToolId[];
@@ -75,6 +77,8 @@ export function forgedOwned(p: FishingProfile, id: ForgedToolId): boolean {
   if (id === "tideRod") return p.rods.includes("tidewater");
   if (id === "deepRod") return p.rods.includes("deeptide");
   if (id === "tideLivewell") return p.creelTier >= FORGED_TIER + 1;
+  if (id === "tideAxe") return p.axes.includes("tidewater");
+  if (id === "tideCarrier") return p.carrierTier >= FORGED_TIER + 1;
   return p.carrierTier >= FORGED_TIER;
 }
 /** What must come first, in words (the storage tiers go in turn), or null. */
@@ -82,6 +86,7 @@ export function forgedBlocked(p: FishingProfile, id: ForgedToolId): string | nul
   if (id === "livewell" && p.creelTier < FORGED_TIER - 1) return `the ${CREEL_TIERS[FORGED_TIER - 2].name} first (Finley's or Finnegan's)`;
   if (id === "tideLivewell" && p.creelTier < FORGED_TIER) return `the ${CREEL_TIERS[FORGED_TIER - 1].name} first (forged in the caverns)`;
   if (id === "carrier" && p.carrierTier < FORGED_TIER - 1) return `the ${WOOD_CARRIER_TIERS[FORGED_TIER - 2].name} first (Bramble's)`;
+  if (id === "tideCarrier" && p.carrierTier < FORGED_TIER) return `the ${WOOD_CARRIER_TIERS[FORGED_TIER - 1].name} first (forged in the caverns)`;
   return null;
 }
 /** A forged thing given to a profile (and put in hand, or in use). */
@@ -107,6 +112,11 @@ export function grantForged(p: FishingProfile, id: ForgedToolId) {
   } else if (id === "tideLivewell") {
     p.creelTier = FORGED_TIER + 1;
     p.slots = creelTier(p.creelTier).capacity;
+  } else if (id === "tideAxe") {
+    if (!p.axes.includes("tidewater")) p.axes.push("tidewater");
+    p.axe = "tidewater";
+  } else if (id === "tideCarrier") {
+    p.carrierTier = FORGED_TIER + 1;
   } else {
     p.carrierTier = FORGED_TIER;
   }

@@ -549,12 +549,12 @@ def build_hammocks(coll, cushions):
 # --- the palms, the shrubs, the rocks ----------------------------------------------------------------
 
 
-def palm(bm, x, z, s, rng, lean=None, lift_layer=None):
+def palm(bm, x, z, s, rng, lean=None, lift_layer=None, ground=None, nuts=3):
     """A coconut palm at (x, z), `s` its size: a ringed trunk curving up its own way, a crown of
     arched fronds, a few coconuts. Built at the land's height; each vertex remembers that height
     (`lift`) so the game sways it by how far up the tree it is."""
     before = set(bm.verts)
-    y0 = land_y(x, z)
+    y0 = land_y(x, z) if ground is None else ground
     H = 4.3 * s * rng.uniform(0.9, 1.1)
     a = rng.random() * 6.283
     k = (rng.uniform(0.25, 0.75) if lean is None else lean) * s
@@ -593,7 +593,7 @@ def palm(bm, x, z, s, rng, lean=None, lift_layer=None):
         for j in range(n):
             bm.faces.new((spine[j], spine[j + 1], edges_l[j + 1], edges_l[j])).material_index = mat
             bm.faces.new((spine[j + 1], spine[j], edges_r[j], edges_r[j + 1])).material_index = mat
-    for q in range(3):
+    for q in range(nuts):
         ca = a + 2.1 * q
         blob(bm, tx + 0.16 * s * math.cos(ca), ty - 0.16 * s, tz + 0.16 * s * math.sin(ca), 0.1 * s, 0.11 * s, 0.1 * s, m=m("BC_Coconut"), cuts=1)
     if lift_layer is not None:
@@ -607,9 +607,100 @@ def build_palms(coll, rng):
     layer = bm.verts.layers.float.new("lift")
     for p in SCENE["hammockPalms"]:
         palm(bm, p["x"], p["z"], 1.0, rng, lean=0.12, lift_layer=layer)
-    for p in SCENE["palms"]:
-        palm(bm, p["x"], p["z"], p["s"], rng, lift_layer=layer)
     make_object("Beach_PalmsRaw", bm, MATS, coll)
+    # (the grove's palms are felled: the game draws them from palms.glb. They are still grown here,
+    # into a mesh thrown away, so the random stream and all that is built after stays as it was)
+    spare = bmesh.new()
+    for p in SCENE["palms"]:
+        palm(spare, p["x"], p["z"], p["s"], rng)
+    spare.free()
+
+
+# --- the Coconut Palm's four looks, for the game's fellable trees (palms.glb) ---------------------------
+LOOKS = "PalmLooks"
+
+
+def palm_stump(bm, rng):
+    """What a felling leaves: a foot of ringed trunk, cut flat, pale wood on top."""
+    sides, r0, r1, h = 10, 0.27, 0.2, 0.42
+    low = [bm.verts.new(W(r0 * math.cos(2 * math.pi * q / sides), 0.0, r0 * math.sin(2 * math.pi * q / sides))) for q in range(sides)]
+    mid = [bm.verts.new(W(r1 * 1.06 * math.cos(2 * math.pi * q / sides), h * 0.5, r1 * 1.06 * math.sin(2 * math.pi * q / sides))) for q in range(sides)]
+    top = [bm.verts.new(W(r1 * math.cos(2 * math.pi * q / sides), h, r1 * math.sin(2 * math.pi * q / sides))) for q in range(sides)]
+    for a, b, mat in ((low, mid, "BC_PalmBarkDark"), (mid, top, "BC_PalmBark")):
+        for q in range(sides):
+            bm.faces.new((a[q], a[(q + 1) % sides], b[(q + 1) % sides], b[q])).material_index = m(mat)
+    bm.faces.new(top[::-1]).material_index = m("BC_Coconut")
+
+
+def palm_shoot(bm, s, rng, fronds=4):
+    """A shoot out of the sand: a few young fronds from one point (the sprout; bigger, the sapling's
+    crown before it has a trunk to speak of)."""
+    for q in range(fronds):
+        fa = 2 * math.pi * q / fronds + rng.uniform(-0.3, 0.3)
+        R = 0.75 * s * rng.uniform(0.85, 1.1)
+        mat = m(("BC_Frond", "BC_FrondLight", "BC_FrondDeep")[q % 3])
+        n = 4
+        spine, left, right = [], [], []
+        for j in range(n + 1):
+            t = j / n
+            out = R * t * 0.75
+            yy = s * (1.25 * t - 0.75 * t * t)
+            w = 0.16 * s * math.sin(math.pi * min(1.0, t * 0.92 + 0.08)) ** 0.8
+            cx, cz = math.cos(fa) * out, math.sin(fa) * out
+            sx, sz = -math.sin(fa) * w, math.cos(fa) * w
+            spine.append(bm.verts.new(W(cx, yy, cz)))
+            left.append(bm.verts.new(W(cx + sx, yy - 0.05 * s * math.sin(math.pi * t), cz + sz)))
+            right.append(bm.verts.new(W(cx - sx, yy - 0.05 * s * math.sin(math.pi * t), cz - sz)))
+        for j in range(n):
+            bm.faces.new((spine[j], spine[j + 1], left[j + 1], left[j])).material_index = mat
+            bm.faces.new((spine[j + 1], spine[j], right[j], right[j + 1])).material_index = mat
+
+
+def look_finish(ob):
+    """A look's colours into its vertices, on two finishes of its own: PT_PalmLeaf (the fronds: the
+    game sways what is named Leaf) and PT_PalmBark."""
+    bake_colors(ob)
+    me = ob.data
+    for i, mt in enumerate(list(me.materials)):
+        leaf = mt.name == "BC_Palm"
+        own = vc_material("PT_PalmLeaf" if leaf else "PT_PalmBark")
+        own.use_backface_culling = not leaf
+        me.materials[i] = own
+    use_col(me)
+
+
+def build_palm_looks(root):
+    """palms.glb: `Tree_palm_<stage>` at the origin (the game's FellableTrees draws them instanced)."""
+    old = bpy.data.collections.get(LOOKS)
+    for o in list(old.all_objects) if old else []:
+        bpy.data.objects.remove(o, do_unlink=True)
+    if old:
+        bpy.data.collections.remove(old)
+    coll = bpy.data.collections.new(LOOKS)
+    bpy.context.scene.collection.children.link(coll)
+    rng = random.Random(97)
+    made = []
+    for stage in ("stump", "sprout", "sapling", "mature"):
+        bm = bmesh.new()
+        if stage == "stump":
+            palm_stump(bm, rng)
+        elif stage == "sprout":
+            palm_shoot(bm, 0.6, rng)
+        elif stage == "sapling":
+            palm(bm, 0.0, 0.0, 0.5, rng, lean=0.2, ground=0.0, nuts=0)
+        else:
+            palm(bm, 0.0, 0.0, 1.0, rng, lean=0.42, ground=0.0)
+        ob = make_object("Tree_palm_" + stage, bm, MATS, coll)
+        look_finish(ob)
+        made.append(ob)
+    out = os.path.join(root, "client", "public", "models", "palms.glb")
+    export(coll, out)
+    info = {"glb": out, "bytes": os.path.getsize(out), "tris": sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in made), "drawCalls": sum(len(o.data.materials) for o in made)}
+    # (the looks are the game's alone: they leave the studio file as they came)
+    for o in made:
+        bpy.data.objects.remove(o, do_unlink=True)
+    bpy.data.collections.remove(coll)
+    return info
 
 
 def build_nature(coll, rng):
@@ -1010,6 +1101,8 @@ def main():
             sys.path.insert(0, here)
         import meshopt_pack as _pack
         result["meshopt"] = importlib.reload(_pack).meshopt_pack(root, out)
+        result["palms"] = build_palm_looks(root)
+        result["palms"]["meshopt"] = _pack.meshopt_pack(root, result["palms"]["glb"])
         result["studio"] = studio(root, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}

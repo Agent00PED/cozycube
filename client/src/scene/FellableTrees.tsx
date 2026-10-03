@@ -28,6 +28,9 @@ import { treeTarget } from "./treeTarget";
 // it and in one of the conifers' three greens (the needles tinted, the bark left as it is).
 
 export const TREES_URL = modelUrl("trees.glb");
+/** Sunset Beach's Coconut Palms (scripts/blender/build_beach.py `build_palm_looks`): `Tree_palm_<stage>`. */
+export const PALMS_URL = modelUrl("palms.glb");
+const looksUrl = (mapId: MapId) => (mapId === "sunset_beach" ? PALMS_URL : TREES_URL);
 
 const TREE_TIME = { value: 0 };
 const STAGES: TreeStage[] = ["stump", "sprout", "sapling", "mature"];
@@ -147,7 +150,7 @@ export function FellableTrees(props: FellableTreesProps) {
     TREE_TIME.value += dt;
   });
   return (
-    <ModelBoundary what="trees.glb" fallback={<StandIns {...props} />}>
+    <ModelBoundary what={props.mapId === "sunset_beach" ? "palms.glb" : "trees.glb"} fallback={<StandIns {...props} />}>
       <Suspense fallback={<StandIns {...props} />}>
         <TreeModels {...props} />
       </Suspense>
@@ -198,7 +201,7 @@ function StandIns({ mapId, trees }: FellableTreesProps) {
 }
 
 function TreeModels({ mapId, trees, players, localSessionId, subscribeMessages }: FellableTreesProps) {
-  const { scene } = useGLTF(TREES_URL);
+  const { scene } = useGLTF(looksUrl(mapId));
   const livePlayers = useRef(players);
   livePlayers.current = players;
   const liveTrees = useRef(trees);

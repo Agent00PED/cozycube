@@ -476,13 +476,18 @@ export const AXE_TIERS = tiersOf(AXES_BY_TIER.length);
 export const PICKAXE_TIERS = tiersOf(PICKAXES_BY_TIER.length);
 const ALL_TIERS = tiersOf(Math.max(ROD_TIERS.length, AXE_TIERS.length, PICKAXE_TIERS.length));
 
+/** The axe that fells a Coconut Palm. */
+const PALM_AXE = TREES.palm.tier;
+
 export function simulate(only = process.env.ONLY ?? ""): Line[] {
   const out: Line[] = [];
-  if (only) return only === "fish" ? ROD_TIERS.flatMap((t) => WATERS.filter((w) => t >= (w.sea?.minRod ?? 1)).map((w) => angler(t, w))) : only === "wood" ? AXE_TIERS.flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT)]) : PICKAXE_TIERS.map((t) => miner(t));
+  if (only) return only === "fish" ? ROD_TIERS.flatMap((t) => WATERS.filter((w) => t >= (w.sea?.minRod ?? 1)).map((w) => angler(t, w))) : only === "wood" ? AXE_TIERS.flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT), ...(t >= PALM_AXE ? [woodcutter(t, "sunset_beach", "beach", DUNE_FRONT)] : [])]) : PICKAXE_TIERS.map((t) => miner(t));
   for (const tier of ROD_TIERS) for (const w of WATERS) if (tier >= (w.sea?.minRod ?? 1)) out.push(angler(tier, w));
   for (const tier of AXE_TIERS) {
     out.push(woodcutter(tier, "campfire_night", "campfire", BUSTER_FRONT));
     out.push(woodcutter(tier, "whispering_woods", "woods", BRAMBLE_FRONT));
+    // (Sunset Beach's Coconut Palms: a Tidewater axe or better; sold to Dune)
+    if (tier >= PALM_AXE) out.push(woodcutter(tier, "sunset_beach", "beach", DUNE_FRONT));
   }
   for (const tier of PICKAXE_TIERS) out.push(miner(tier));
   return out;

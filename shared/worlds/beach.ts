@@ -1,3 +1,4 @@
+import { openApproach } from "./approach";
 import type { AABB } from "../collision";
 import type { PropSpec } from "./lounge";
 import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
@@ -398,6 +399,28 @@ export const BEACH_OBSTACLES: AABB[] = [
   ...ROCKS.map((p) => around(p, 0.48 * p.s)),
   ...DRIFTWOOD.flatMap((w) => along({ x: w.x - Math.sin(w.yaw) * (w.len / 2 - 0.15), z: w.z - Math.cos(w.yaw) * (w.len / 2 - 0.15) }, { x: w.x + Math.sin(w.yaw) * (w.len / 2 - 0.15), z: w.z + Math.cos(w.yaw) * (w.len / 2 - 0.15) }, 0.17)),
 ];
+
+// --- the Coconut Palms you fell (shared/worlds/trees.ts; the hammocks' three are never felled) ---------
+/** A palm's trunk as a collider, at its size. */
+export const palmTrunk = (s: number) => 0.24 * s;
+/** Open sand for a feller to stand on: clear of the water, the map's rim and everything that stands. */
+function beachOpen(x: number, z: number): boolean {
+  const body = 0.34;
+  if (Math.max(Math.abs(x), Math.abs(z)) > L.half - 0.9 || beachBlocked(x, z)) return false;
+  return BEACH_OBSTACLES.every((o) => {
+    const cx = (o.minX + o.maxX) / 2;
+    const cz = (o.minZ + o.maxZ) / 2;
+    return Math.hypot(x - cx, z - cz) > (o.r ?? Math.max(o.maxX - o.minX, o.maxZ - o.minZ) / 2) + body;
+  });
+}
+/** Every palm of the grove, felled from the seaward side (or the nearest open turn off it): ids
+ *  `palm_<n>` by the layout's order (a palm added in the middle renames the ones after it, which only
+ *  resets their saved stage). */
+export const BEACH_TREES = PALMS.map((p, i) => {
+  const a = openApproach(p, palmTrunk(p.s) + 0.63, { x: p.x + SEAWARD.x * 6, z: p.z + SEAWARD.z * 6 }, beachOpen);
+  return { id: `palm_${i + 1}`, kind: "palm" as const, x: p.x, z: p.z, approachX: a.x, approachZ: a.z, size: p.s };
+});
+BEACH_PROPS.push(...BEACH_TREES.map((t): PropSpec => ({ propId: `tree_${t.id}`, x: t.x, z: t.z, kind: "tree", color: "#4f9a5a", defaultOn: true, approachX: t.approachX, approachZ: t.approachZ })));
 
 /** Everything the builder needs, resolved to the game's (x, z): the grid, how far inland each of its
  *  corners is (the water's shader reads it), and every thing's place. */

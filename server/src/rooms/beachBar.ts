@@ -101,7 +101,7 @@ export class BeachBar {
     if (msg.op === "shift") this.shift(sessionId, String(msg.station ?? ""));
     else if (msg.op === "finish") this.finish(sessionId, msg.log);
     else if (msg.op === "leave") this.endShift(sessionId, false);
-    else if (msg.op === "order") this.order(sessionId, msg.drink);
+    else if (msg.op === "order") this.order(sessionId, msg.drink, msg.coconut === true);
   }
 
   /** Whether they have found the Hidden Cove (the secret drink is theirs to order and to make). */
@@ -211,8 +211,10 @@ export class BeachBar {
     if (tell) this.host.sendTo(sessionId, "barShiftOver", {});
   }
 
-  /** A drink asked for at the counter: from a stool, or standing at the bar's front. */
-  private order(sessionId: string, drinkId: string) {
+  /** A drink asked for at the counter: from a stool, or standing at the bar's front. Paid in coins, or
+   *  with a coconut off the palms (`coconut`: Mango makes that one himself, at once: no bartender's
+   *  share is paid out of a coconut). */
+  private order(sessionId: string, drinkId: string, coconut = false) {
     const player = this.host.player(sessionId);
     if (!player || player.map !== "sunset_beach" || !isDrinkId(drinkId) || player.corner) return;
     if (!menuOf(this.cove(sessionId)).includes(drinkId)) return;
@@ -221,6 +223,18 @@ export class BeachBar {
     if (this.shifts.has(sessionId)) return;
     if (this.orders.some((o) => o.by === sessionId)) {
       this.host.sendTo(sessionId, "campfireNotice", { message: "Your drink's on its way", emoji: "🍹" });
+      return;
+    }
+    if (coconut) {
+      const profile = this.host.profile(sessionId);
+      if (!profile || (profile.byproducts.coconut ?? 0) < 1) {
+        this.host.sendTo(sessionId, "campfireNotice", { message: "No coconut to pay with: the palms up the beach drop them", emoji: "🥥" });
+        return;
+      }
+      profile.byproducts.coconut = (profile.byproducts.coconut ?? 0) - 1;
+      if (profile.byproducts.coconut <= 0) delete profile.byproducts.coconut;
+      this.host.saveProfile(sessionId);
+      this.serve(sessionId, player.username, drinkId, MANGO_GRADE, "");
       return;
     }
     if (player.coins < DRINK_PRICE) {

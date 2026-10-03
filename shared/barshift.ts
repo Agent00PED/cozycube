@@ -210,7 +210,7 @@ export type BarPacket =
   | { op: "shift"; station: string }
   | { op: "finish"; log: DrinkLog }
   | { op: "leave" }
-  | { op: "order"; drink: string };
+  | { op: "order"; drink: string; coconut?: boolean };
 /** A ticket dealt to a bartender. */
 export interface BarTicket {
   drink: DrinkId;

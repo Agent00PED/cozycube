@@ -35,6 +35,7 @@ const SHAPES: Record<TreeKind | "spruce", Shape> = {
   birch: { cone: false, r: 1.25, y0: 1.6, top: 4.3 },
   maple: { cone: false, r: 2.3, y0: 1.9, top: 5.1 },
   elderwood: { cone: false, r: 4.4, y0: 2.6, top: 8.7 },
+  palm: { cone: false, r: 1.6, y0: 3.2, top: 5.2 },
 };
 
 export function CampXray({ url, mapId, prefixes, trees }: { /** The world's model (the one the world itself loads: shared). */ url: string; mapId: MapId; /** The model's still meshes, by the start of their (or their parent's) name. */ prefixes: string[]; trees: Record<string, TreeSync> }) {

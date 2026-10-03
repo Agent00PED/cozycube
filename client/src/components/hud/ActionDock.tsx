@@ -537,6 +537,14 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       }
       // Sunset Beach: the bar (a drink from a stool or the counter's front; a shift from behind it),
       // and Dune at his shack by the pier
+      if (mapId === "sunset_beach" && action === "" && !sitting) {
+        // the Coconut Palm in reach (FellableTrees outlines it)
+        const palm = treeTarget.id ? FELL_TREE_AT.get(treeTarget.id) : undefined;
+        if (palm && palm.map === mapId) {
+          const info = TREES[palm.kind];
+          found.push({ key: `fell:${palm.id}`, type: "chop", d: Math.hypot(palm.x - cameraFocus.x, palm.z - cameraFocus.z), label: `🪓 Fell ${info.name} · T${info.tier}`, hint: `Land ${info.rounds[0]}-${info.rounds[1]} rounds on the ring and it comes down (${WOOD[info.wood].name}s, a husk or a coconut now and then). Needs the Tidewater Axe, made at Dune's shack`, run: () => interactBridge.current?.useProp(`tree_${palm.id}`) });
+        }
+      }
       if (mapId === "sunset_beach" && action === "") {
         const px = cameraFocus.x;
         const pz = cameraFocus.z;
