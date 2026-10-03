@@ -15,7 +15,7 @@
 import { AXES, BYPRODUCTS, takeLogs, WOOD, WOOD_CARRIER_TIERS, type ByproductId, type WoodKind } from "./chop";
 import { ORE_ITEMS, PICKAXES, type OreItemId } from "./caverns_mining";
 import { CREEL_TIERS, RODS, creelTier, materialCount, takeMaterial, type FishingProfile } from "./fishing";
-import { satchelCountFor, satchelTakeFor, type SatchelTier } from "./satchel";
+import { SATCHEL_TIERS, satchelCountFor, satchelTakeFor, type SatchelTier } from "./satchel";
 
 /** The highest tool and storage tier each map's counters sell for coins alone: the campfire's stalls
  *  (Barnaby, Buster) T2, the woods' and the caverns' keepers (Bramble, Finley, Finnegan, Gus) T4. */
@@ -34,7 +34,7 @@ export function soldElsewhere(tier: number, cap: number, woodsKeeper: string): s
 /** What a forged thing or a satchel tier takes besides coins. */
 export type Makings = SatchelTier["needs"];
 
-export type ForgedToolId = "rod" | "axe" | "pickaxe" | "livewell" | "carrier" | "tideRod" | "tideLivewell" | "deepRod" | "tideAxe" | "tideCarrier";
+export type ForgedToolId = "rod" | "axe" | "pickaxe" | "livewell" | "carrier" | "tideRod" | "tideLivewell" | "deepRod" | "tideAxe" | "tideCarrier" | "tidePickaxe" | "tideSatchel";
 export interface ForgedTool {
   name: string;
   emoji: string;
@@ -61,6 +61,8 @@ export const FORGED_TOOLS: Record<ForgedToolId, ForgedTool> = {
   // T7, Deep Tide: made at the Hidden Cove's bench, from pearls and the crafts' rarest drops
   tideAxe: { name: AXES.tidewater.name, emoji: AXES.tidewater.emoji, blurb: AXES.tidewater.blurb, coins: AXES.tidewater.price, needs: { ore: { iron_ingot: 8 }, byproducts: { shavings: 6, fishBone: 4 } }, place: "dune" },
   tideCarrier: { name: WOOD_CARRIER_TIERS[FORGED_TIER].name, emoji: WOOD_CARRIER_TIERS[FORGED_TIER].icon, blurb: `Hauls a grove's worth: ${WOOD_CARRIER_TIERS[FORGED_TIER].capacity} logs.`, coins: WOOD_CARRIER_TIERS[FORGED_TIER].price, needs: { ore: { iron_ingot: 6 }, byproducts: { amber: 10, scales: 20 } }, place: "dune" },
+  tidePickaxe: { name: PICKAXES.tidewater.name, emoji: PICKAXES.tidewater.emoji, blurb: PICKAXES.tidewater.blurb, coins: PICKAXES.tidewater.price, needs: { ore: { silver_ingot: 8, glimmer_shard: 4 }, byproducts: { leafAmber: 6, fishBone: 6 } }, place: "dune" },
+  tideSatchel: { name: SATCHEL_TIERS[6].name, emoji: SATCHEL_TIERS[6].icon, blurb: `Room for a day on the reef: ${SATCHEL_TIERS[6].slots} slots.`, coins: SATCHEL_TIERS[6].price, needs: { ore: { iron_ingot: 6 }, byproducts: { amber: 6, scales: 20 } }, place: "dune" },
   deepRod: { name: RODS.deeptide.name, emoji: RODS.deeptide.emoji, blurb: RODS.deeptide.blurb, coins: RODS.deeptide.price, needs: { ore: { glimmer_shard: 6 }, byproducts: { pearl: 12, prismScale: 3, heartwood: 2 } }, place: "cove" },
 };
 export const FORGED_TOOL_IDS = Object.keys(FORGED_TOOLS) as ForgedToolId[];
@@ -78,6 +80,8 @@ export function forgedOwned(p: FishingProfile, id: ForgedToolId): boolean {
   if (id === "deepRod") return p.rods.includes("deeptide");
   if (id === "tideLivewell") return p.creelTier >= FORGED_TIER + 1;
   if (id === "tideAxe") return p.axes.includes("tidewater");
+  if (id === "tidePickaxe") return p.pickaxes.includes("tidewater");
+  if (id === "tideSatchel") return p.satchelTier >= 6;
   if (id === "tideCarrier") return p.carrierTier >= FORGED_TIER + 1;
   return p.carrierTier >= FORGED_TIER;
 }
@@ -86,6 +90,7 @@ export function forgedBlocked(p: FishingProfile, id: ForgedToolId): string | nul
   if (id === "livewell" && p.creelTier < FORGED_TIER - 1) return `the ${CREEL_TIERS[FORGED_TIER - 2].name} first (Finley's or Finnegan's)`;
   if (id === "tideLivewell" && p.creelTier < FORGED_TIER) return `the ${CREEL_TIERS[FORGED_TIER - 1].name} first (forged in the caverns)`;
   if (id === "carrier" && p.carrierTier < FORGED_TIER - 1) return `the ${WOOD_CARRIER_TIERS[FORGED_TIER - 2].name} first (Bramble's)`;
+  if (id === "tideSatchel" && p.satchelTier < 5) return `the ${SATCHEL_TIERS[5].name} first (Gus's)`;
   if (id === "tideCarrier" && p.carrierTier < FORGED_TIER) return `the ${WOOD_CARRIER_TIERS[FORGED_TIER - 1].name} first (forged in the caverns)`;
   return null;
 }
@@ -115,6 +120,12 @@ export function grantForged(p: FishingProfile, id: ForgedToolId) {
   } else if (id === "tideAxe") {
     if (!p.axes.includes("tidewater")) p.axes.push("tidewater");
     p.axe = "tidewater";
+  } else if (id === "tidePickaxe") {
+    if (!p.pickaxes.includes("tidewater")) p.pickaxes.push("tidewater");
+    p.pickaxeId = "tidewater";
+  } else if (id === "tideSatchel") {
+    p.satchelTier = 6;
+    p.satchelSlots = SATCHEL_TIERS[6].slots;
   } else if (id === "tideCarrier") {
     p.carrierTier = FORGED_TIER + 1;
   } else {

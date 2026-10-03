@@ -1002,7 +1002,7 @@ export default function App() {
         {/* the Velvet Ring: the scoreboard, a fighter's controls, the count, the result */}
         {currentMap === "boxing_ring" && localPlayer && localSessionId && !mapTransitioning && <BoxingHud me={localPlayer} localSessionId={localSessionId} players={players} send={boxingSend} subscribeMessages={subscribeMessages} />}
         {/* the Glimmering Caverns: prospecting's one control (the rock is the rest) */}
-        {currentMap === "glimmering_caverns" && !mapTransitioning && <ProspectingHud send={cavernsSend} />}
+        {(currentMap === "glimmering_caverns" || currentMap === "sunset_beach") && !mapTransitioning && <ProspectingHud send={cavernsSend} />}
         {/* ...and the warm pools' breathing, while you soak */}
         {currentMap === "glimmering_caverns" && localPlayer && !mapTransitioning && <SoakHud player={localPlayer} send={cavernsSend} subscribeMessages={subscribeMessages} />}
         {/* ...the Cave Codex's watch, the living wonder's pill, the photo */}
@@ -1163,6 +1163,7 @@ export default function App() {
         {panel?.kind === "caveMap" && localPlayer && <CaveMapModal ores={ores} players={players} localSessionId={localSessionId} onClose={closePanel} />}
         {panel?.kind === "codex" && localPlayer && <CaveCodexModal found={angler.profile.codex} initial={panel.propId} title={localPlayer.title} onWear={(id) => casinoSend({ type: "EQUIP_TITLE", id })} onClose={closePanel} />}
         {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} campfireSend={campfireSend} onClose={closePanel} />}
+        {panel?.kind === "duneore" && localPlayer && <GusShopModal keeper="dune" profile={angler.profile} coins={localPlayer.coins} owned={localPlayer.owned} onBuyOutfit={() => {}} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
         {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} owned={localPlayer.owned} onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
         {panel?.kind === "covebench" && localPlayer && <CoveBenchModal profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "captain" && localPlayer && <CaptainModal mapId={currentMap} profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} onClose={closePanel} />}
@@ -1235,7 +1236,7 @@ export default function App() {
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
         {panel?.kind === "finley" && localPlayer && <BarnabyModal keeper="finley" profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
         {panel?.kind === "finnegan" && localPlayer && <BarnabyModal keeper="finnegan" profile={angler.profile} coins={localPlayer.coins} fuel={0} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
-        {panel?.kind === "dune" && localPlayer && <BarnabyModal keeper="dune" onTimber={() => setPanel({ kind: "dunewood", propId: "dune" })} sea={cavernsSend} profile={angler.profile} coins={localPlayer.coins} fuel={0} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
+        {panel?.kind === "dune" && localPlayer && <BarnabyModal keeper="dune" onTimber={() => setPanel({ kind: "dunewood", propId: "dune" })} onOre={() => setPanel({ kind: "duneore", propId: "dune" })} sea={cavernsSend} profile={angler.profile} coins={localPlayer.coins} fuel={0} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
         {panel?.kind === "ringside" && localPlayer && localSessionId && <RingsideModal localSessionId={localSessionId} coins={localPlayer.coins} send={boxingSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}

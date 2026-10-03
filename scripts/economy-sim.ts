@@ -21,7 +21,7 @@ import type { MapId } from "../shared/types";
 import { AXES, AXES_BY_TIER, TREES, rollTreeScale, woodPrice, logMultiplier } from "../shared/chop";
 import { AXE_PRICES, BYPRODUCT_PRICES, CARRIER_CAPACITY, CREEL_CAPACITY, ORE_PRICES, PICKAXE_PRICES, TACKLE_PRICES } from "../shared/economy";
 import { OVERSUPPLY_AT, OVERSUPPLY_DROP, RECOVER_SOLD, SUPPLY_MAX } from "../shared/market";
-import { DUNE_FRONT, PIER_LENGTH, PIER_RETURN, onPierAt } from "../shared/worlds/beach";
+import { DUNE_FRONT, REEF_NODES, PIER_LENGTH, PIER_RETURN, onPierAt } from "../shared/worlds/beach";
 import { SEA_ARRIVAL } from "../shared/worlds/sea";
 import { SEA_CAST_ROD } from "../shared/sea_fishing";
 import { TICKET_PRICE } from "../shared/voyage";
@@ -334,7 +334,7 @@ export function woodcutter(axeTier: number, map: MapId, where: string, keeper: P
 
 const PICK_BY_TIER = (Object.keys(PICKAXES) as PickaxeId[]).sort((a, b) => PICKAXES[a].tier - PICKAXES[b].tier);
 
-export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolean; gear?: Loadout } = {}): Line {
+export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolean; gear?: Loadout; beach?: boolean } = {}): Line {
   const glints = opts.glints !== false;
   const chasing = opts.chase !== false;
   const gear = opts.gear ?? NO_GEAR;
@@ -349,8 +349,10 @@ export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolea
   const rand = seeded(pickTier * 211);
   const pickId = PICK_BY_TIER[pickTier - 1];
   const pick = PICKAXES[pickId];
-  const map: MapId = "glimmering_caverns";
-  const nodes = ORE_NODES.filter((n) => !ORE_KINDS[n.kind].crew && oreRule(pick.tier, n.kind) !== "deflect").map((n) => ({ ...n, readyAt: 0, at: n.approach }));
+  // (Sunset Beach's fossil reef rock: its six nodes, sold to Dune at his shack)
+  const map: MapId = opts.beach ? "sunset_beach" : "glimmering_caverns";
+  const keeper: Pt = opts.beach ? DUNE_FRONT : GUS_FRONT;
+  const nodes = (opts.beach ? REEF_NODES : ORE_NODES).filter((n) => !ORE_KINDS[n.kind].crew && oreRule(pick.tier, n.kind) !== "deflect").map((n) => ({ ...n, readyAt: 0, at: n.approach }));
   const slots = SATCHEL_TIERS[Math.min(SATCHEL_TIERS.length - 1, pickTier)].slots + satchelBonus(gear);
   const sold: Record<string, number> = {};
   const value: Record<string, number> = {};
@@ -368,7 +370,7 @@ export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolea
   };
   let t = 0;
   let coins = 0;
-  let pos: Pt = GUS_FRONT;
+  let pos: Pt = keeper;
   let streak = 0;
   const end = HOURS * 3600;
   const sell = () => {
@@ -443,13 +445,13 @@ export function miner(pickTier: number, opts: { glints?: boolean; chase?: boolea
     const [lo, hi] = info.respawnS;
     node.readyAt = t + lo + rand() * (hi - lo);
     if (used() >= slots) {
-      t += walkS(map, pos, GUS_FRONT) / pace + STEADY.sellS;
-      pos = GUS_FRONT;
+      t += walkS(map, pos, keeper) / pace + STEADY.sellS;
+      pos = keeper;
       sell();
     }
   }
   sell();
-  return { craft: "ore", tier: pickTier, where: "caverns", perMin: (coins / t) * 60, perMinSold: withMarket(value, sold, t), soldPerHour: perHour(sold, t) };
+  return { craft: "ore", tier: pickTier, where: opts.beach ? "beach" : "caverns", perMin: (coins / t) * 60, perMinSold: withMarket(value, sold, t), soldPerHour: perHour(sold, t) };
 }
 
 const yieldMeans = new Map<string, number>();
@@ -476,12 +478,14 @@ export const AXE_TIERS = tiersOf(AXES_BY_TIER.length);
 export const PICKAXE_TIERS = tiersOf(PICKAXES_BY_TIER.length);
 const ALL_TIERS = tiersOf(Math.max(ROD_TIERS.length, AXE_TIERS.length, PICKAXE_TIERS.length));
 
+/** The pickaxe made for the reef rock (the tier under it bites at 60%). */
+const REEF_PICK = ORE_KINDS.reef.tier;
 /** The axe that fells a Coconut Palm. */
 const PALM_AXE = TREES.palm.tier;
 
 export function simulate(only = process.env.ONLY ?? ""): Line[] {
   const out: Line[] = [];
-  if (only) return only === "fish" ? ROD_TIERS.flatMap((t) => WATERS.filter((w) => t >= (w.sea?.minRod ?? 1)).map((w) => angler(t, w))) : only === "wood" ? AXE_TIERS.flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT), ...(t >= PALM_AXE ? [woodcutter(t, "sunset_beach", "beach", DUNE_FRONT)] : [])]) : PICKAXE_TIERS.map((t) => miner(t));
+  if (only) return only === "fish" ? ROD_TIERS.flatMap((t) => WATERS.filter((w) => t >= (w.sea?.minRod ?? 1)).map((w) => angler(t, w))) : only === "wood" ? AXE_TIERS.flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT), ...(t >= PALM_AXE ? [woodcutter(t, "sunset_beach", "beach", DUNE_FRONT)] : [])]) : [...PICKAXE_TIERS.map((t) => miner(t)), ...PICKAXE_TIERS.filter((t) => t >= REEF_PICK - 1).map((t) => miner(t, { beach: true }))];
   for (const tier of ROD_TIERS) for (const w of WATERS) if (tier >= (w.sea?.minRod ?? 1)) out.push(angler(tier, w));
   for (const tier of AXE_TIERS) {
     out.push(woodcutter(tier, "campfire_night", "campfire", BUSTER_FRONT));
@@ -490,6 +494,7 @@ export function simulate(only = process.env.ONLY ?? ""): Line[] {
     if (tier >= PALM_AXE) out.push(woodcutter(tier, "sunset_beach", "beach", DUNE_FRONT));
   }
   for (const tier of PICKAXE_TIERS) out.push(miner(tier));
+  for (const tier of PICKAXE_TIERS) if (tier >= REEF_PICK - 1) out.push(miner(tier, { beach: true }));
   return out;
 }
 

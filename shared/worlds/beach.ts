@@ -72,6 +72,7 @@ export const BEACH_LAYOUT = /* layout:begin */ {
     [8.8, 14.7, 1.08], [15.8, -6.4, 1.07], [10.9, 3.4, 0.98], [17.3, 0.0, 1.03], [15.7, -3.7, 0.90], [25.2, -0.6, 1.05], [11.6, -10.3, 0.96],
     [23.6, 2.5, 1.07], [8.3, 17.9, 0.91], [9.0, 6.1, 1.06], [8.7, -7.0, 1.06], [19.1, 6.6, 1.06]
   ],
+  "reef": [[3.6, 15.4], [4.4, 16.8], [3.5, 18.2], [4.5, 19.4], [3.6, 20.6], [4.6, 21.8]],
   "shrubs": [
     [23.1, -0.5, 0.65], [19.5, 1.8, 0.78], [18.5, -1.0, 0.66], [7.1, -17.5, 0.83], [13.0, -9.1, 0.68], [22.1, 3.8, 0.68], [7.2, 16.5, 0.70],
     [17.2, 5.2, 0.74], [19.1, -3.5, 0.68], [12.6, 3.5, 0.79], [15.6, 0.8, 0.77]
@@ -370,6 +371,8 @@ const along = (a: Pt, b: Pt, r: number): AABB[] => {
   const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / (r * 1.4)));
   return Array.from({ length: n + 1 }, (_, k) => around({ x: a.x + ((b.x - a.x) * k) / n, z: a.z + ((b.z - a.z) * k) / n }, r));
 };
+/** A reef node's rock (shared/caverns_mining.ts ORE_KINDS.reef.radius: kept here so the layout stands alone). */
+export const REEF_RADIUS = 0.6;
 export const BEACH_OBSTACLES: AABB[] = [
   // the bar: its counter (an arc of discs), the back shelf, the two light posts at the counter's ends
   ...Array.from({ length: Math.floor((2 * L.bar.arc) / 14) + 1 }, (_, k) => around(barAt(L.bar.counter, -L.bar.arc + k * 14), 0.3)),
@@ -397,6 +400,8 @@ export const BEACH_OBSTACLES: AABB[] = [
   ...PALMS.map((p) => around(p, 0.24 * p.s)),
   ...SHRUBS.map((p) => around(p, 0.34 * p.s)),
   ...ROCKS.map((p) => around(p, 0.48 * p.s)),
+  // the fossil reef rock's six nodes
+  ...L.reef.map(([d, v]) => around(at(d, v), REEF_RADIUS * 0.6)),
   ...DRIFTWOOD.flatMap((w) => along({ x: w.x - Math.sin(w.yaw) * (w.len / 2 - 0.15), z: w.z - Math.cos(w.yaw) * (w.len / 2 - 0.15) }, { x: w.x + Math.sin(w.yaw) * (w.len / 2 - 0.15), z: w.z + Math.cos(w.yaw) * (w.len / 2 - 0.15) }, 0.17)),
 ];
 
@@ -421,6 +426,16 @@ export const BEACH_TREES = PALMS.map((p, i) => {
   return { id: `palm_${i + 1}`, kind: "palm" as const, x: p.x, z: p.z, approachX: a.x, approachZ: a.z, size: p.s };
 });
 BEACH_PROPS.push(...BEACH_TREES.map((t): PropSpec => ({ propId: `tree_${t.id}`, x: t.x, z: t.z, kind: "tree", color: "#4f9a5a", defaultOn: true, approachX: t.approachX, approachZ: t.approachZ })));
+
+// --- the fossil reef rock in the headland's seaward face (prospected as the caverns' nodes are) ------
+/** A reef node: the caverns' OreNode shape, on this map (shared/worlds/caverns.ts spreads them into
+ *  its registry, `ORE_NODE_AT`, so the prospecting works here as it does down there). */
+export const REEF_NODES = L.reef.map(([d, v], i) => {
+  const p = at(d, v);
+  const a = openApproach(p, REEF_RADIUS + 0.75, { x: p.x + SEAWARD.x * 6, z: p.z + SEAWARD.z * 6 }, beachOpen);
+  return { id: `reef_${i + 1}`, kind: "reef" as const, map: "sunset_beach" as const, x: p.x, z: p.z, y: round(beachLand(p.x, p.z)), face: { x: SEAWARD.x, z: SEAWARD.z }, approach: a, wall: false };
+});
+BEACH_PROPS.push(...REEF_NODES.map((n): PropSpec => ({ propId: `ore_${n.id}`, x: n.x, z: n.z, kind: "ore", color: "#ffd9a0", defaultOn: true, approachX: n.approach.x, approachZ: n.approach.z })));
 
 /** Everything the builder needs, resolved to the game's (x, z): the grid, how far inland each of its
  *  corners is (the water's shader reads it), and every thing's place. */
@@ -452,6 +467,7 @@ export function beachTerrainData() {
       palms: PALMS,
       shrubs: SHRUBS,
       rocks: ROCKS,
+      reef: REEF_NODES.map((n) => ({ x: n.x, z: n.z })),
       driftwood: DRIFTWOOD,
     },
   };

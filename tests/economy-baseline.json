@@ -363,6 +363,27 @@
    "where": "caverns",
    "perMin": 271.4,
    "perMinSold": 196.2
+  },
+  {
+   "craft": "ore",
+   "tier": 6,
+   "where": "caverns",
+   "perMin": 265.1,
+   "perMinSold": 192.2
+  },
+  {
+   "craft": "ore",
+   "tier": 5,
+   "where": "beach",
+   "perMin": 191.1,
+   "perMinSold": 135.4
+  },
+  {
+   "craft": "ore",
+   "tier": 6,
+   "where": "beach",
+   "perMin": 353.9,
+   "perMinSold": 249.3
   }
  ]
 }

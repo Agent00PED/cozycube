@@ -61,7 +61,7 @@ PALETTE = {
     "BC_Seabed": "#B49C6E", "BC_SeabedDeep": "#3D6E78", "BC_Soil": "#A98E63", "BC_SoilDeep": "#7C6648",
     "BC_Wood": "#B88A5A", "BC_WoodDark": "#7A5536", "BC_WoodPale": "#D2AE7E", "BC_Drift": "#BDB2A0", "BC_DriftDark": "#9A8F7E",
     "BC_Bamboo": "#D8BA6E", "BC_BambooDark": "#B4934E", "BC_Thatch": "#CFAE62", "BC_ThatchDark": "#A98846", "BC_Rope": "#CDBB94",
-    "BC_Stone": "#9C958B", "BC_StoneDark": "#6F6A63", "BC_Rock": "#8E8679", "BC_RockDark": "#615C54", "BC_RockMoss": "#7C8A62",
+    "BC_Stone": "#9C958B", "BC_StoneDark": "#6F6A63", "BC_Reef": "#DCC8A8", "BC_ReefDark": "#B9A283", "BC_Rock": "#8E8679", "BC_RockDark": "#615C54", "BC_RockMoss": "#7C8A62",
     "BC_Char": "#2B2623", "BC_Ash": "#5A544E",
     "BC_PalmBark": "#8E6E4C", "BC_PalmBarkDark": "#6F5439", "BC_Frond": "#4E9A4A", "BC_FrondLight": "#7DBB55", "BC_FrondDeep": "#2F7240", "BC_Coconut": "#5B3F2A",
     "BC_Leaf": "#3F8A55", "BC_LeafLight": "#68AE5E", "BC_DuneGrass": "#B9C67C", "BC_DuneGrassDark": "#93A860", "BC_Blossom": "#F08FA6",
@@ -158,6 +158,9 @@ def shade_pools():
         pools.append((p["x"] + 0.15, p["z"] - 0.05, 0.6 * p["s"], 0.22))
     for p in S["rocks"]:
         pools.append((p["x"] + 0.2, p["z"] - 0.08, 0.75 * p["s"], 0.24))
+    # (the fossil reef rock's nodes: the game draws them, their shade is the ground's)
+    for p in S.get("reef", []):
+        pools.append((p["x"] + 0.2, p["z"] - 0.08, 0.85, 0.24))
     for p in S["parasols"]:
         pools.append((p["x"] + 0.7, p["z"] - 0.3, 1.3, 0.2))
     b = S["bar"]
@@ -703,6 +706,67 @@ def build_palm_looks(root):
     return info
 
 
+# --- the fossil reef rock's two looks, for the game's prospecting (reef.glb) ----------------------------
+def reef_rock(bm, rng):
+    """A block of old reef, set hard: a rounded pale rock, shells and coral heads standing out of its
+    seaward face (game +z: the game turns each node to the sea), a darker foot."""
+    blob(bm, 0.0, 0.5, 0.0, 0.6, 0.56, 0.5, m=m("BC_Reef"), cuts=3, noise=0.16, rng=rng, flat_bottom=-0.05)
+    blob(bm, -0.34, 0.2, -0.08, 0.36, 0.26, 0.34, m=m("BC_ReefDark"), cuts=2, noise=0.18, rng=rng, flat_bottom=-0.05)
+    blob(bm, 0.36, 0.16, 0.1, 0.3, 0.2, 0.28, m=m("BC_ReefDark"), cuts=2, noise=0.18, rng=rng, flat_bottom=-0.05)
+    # shells in the face: pale fans pressed into the rock
+    for k in range(7):
+        a = rng.uniform(-1.1, 1.1)
+        h = rng.uniform(0.22, 0.86)
+        r = 0.5 * math.cos(a * 0.55) * (1.0 - 0.45 * abs(h - 0.5))
+        sz = rng.uniform(0.06, 0.11)
+        blob(bm, math.sin(a) * r, h, math.cos(a) * r * 0.86, sz, sz, 0.035, m=m("BC_Shell" if k % 3 else "BC_White"), cuts=1)
+    # coral heads on its shoulders
+    for k in range(4):
+        a = rng.uniform(-1.4, 1.4)
+        blob(bm, math.sin(a) * 0.34, 0.92 + rng.uniform(-0.06, 0.05), math.cos(a) * 0.22, 0.1, 0.09, 0.1, m=m("BC_Coral" if k % 2 else "BC_Star"), cuts=1, noise=0.2, rng=rng)
+
+
+def reef_rubble(bm, rng):
+    """What a break leaves until the rock grows back: a low heap of pale stones."""
+    for k in range(6):
+        a = 2 * math.pi * k / 6 + rng.uniform(-0.4, 0.4)
+        r = rng.uniform(0.08, 0.36)
+        sz = rng.uniform(0.12, 0.22)
+        blob(bm, math.cos(a) * r, sz * 0.5, math.sin(a) * r, sz, sz * 0.7, sz, m=m("BC_Reef" if k % 2 else "BC_ReefDark"), cuts=1, noise=0.25, rng=rng, flat_bottom=-0.03)
+    blob(bm, 0.05, 0.1, 0.12, 0.07, 0.05, 0.03, m=m("BC_Shell"), cuts=1)
+
+
+def build_reef_looks(root):
+    """reef.glb: `Ore_reef` and `Ore_reef_Rubble` at the origin (client/src/scene/ReefRock.tsx)."""
+    name = "ReefLooks"
+    old = bpy.data.collections.get(name)
+    for o in list(old.all_objects) if old else []:
+        bpy.data.objects.remove(o, do_unlink=True)
+    if old:
+        bpy.data.collections.remove(old)
+    coll = bpy.data.collections.new(name)
+    bpy.context.scene.collection.children.link(coll)
+    rng = random.Random(53)
+    made = []
+    for look, fn in (("Ore_reef", reef_rock), ("Ore_reef_Rubble", reef_rubble)):
+        bm = bmesh.new()
+        fn(bm, rng)
+        ob = make_object(look, bm, MATS, coll)
+        bake_colors(ob, one="BC_Clay")
+        own = vc_material("PT_ReefRock")
+        for i in range(len(ob.data.materials)):
+            ob.data.materials[i] = own
+        use_col(ob.data)
+        made.append(ob)
+    out = os.path.join(root, "client", "public", "models", "reef.glb")
+    export(coll, out)
+    info = {"glb": out, "bytes": os.path.getsize(out), "tris": sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in made)}
+    for o in made:
+        bpy.data.objects.remove(o, do_unlink=True)
+    bpy.data.collections.remove(coll)
+    return info
+
+
 def build_nature(coll, rng):
     S = SCENE
     bm = bmesh.new()
@@ -736,7 +800,7 @@ def clear_of_things(x, z, pad=0.0):
     near = lambda p, r: math.hypot(x - p["x"], z - p["z"]) < r + pad
     if near(S["bar"], 3.4) or near(S["firepit"], 2.6) or near(S["shack"], 2.6) or near(S["court"], S["court"]["r"] + 0.3) or near(S["arrival"], 1.6):
         return False
-    if any(near(p, 0.5) for p in S["palms"] + S["hammockPalms"] + S["shrubs"]) or any(near(p, 0.7) for p in S["rocks"]) or any(near(p, 1.3) for p in S["loungers"]):
+    if any(near(p, 0.5) for p in S["palms"] + S["hammockPalms"] + S["shrubs"]) or any(near(p, 0.7) for p in S["rocks"]) or any(near(p, 0.9) for p in S.get("reef", [])) or any(near(p, 1.3) for p in S["loungers"]):
         return False
     a, b = S["pier"]["start"], S["pier"]["end"]
     t = max(0.0, min(1.0, ((x - a["x"]) * (b["x"] - a["x"]) + (z - a["z"]) * (b["z"] - a["z"])) / ((b["x"] - a["x"]) ** 2 + (b["z"] - a["z"]) ** 2)))
@@ -1103,6 +1167,8 @@ def main():
         result["meshopt"] = importlib.reload(_pack).meshopt_pack(root, out)
         result["palms"] = build_palm_looks(root)
         result["palms"]["meshopt"] = _pack.meshopt_pack(root, result["palms"]["glb"])
+        result["reef"] = build_reef_looks(root)
+        result["reef"]["meshopt"] = _pack.meshopt_pack(root, result["reef"]["glb"])
         result["studio"] = studio(root, "finish", [coll])
     except Exception:
         result = {"ok": False, "error": traceback.format_exc()}

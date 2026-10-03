@@ -42,9 +42,12 @@ interface Props {
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onOpenCollection: () => void;
   onClose: () => void;
+  /** Dune's ore scale on Sunset Beach: the trade tab alone (pickaxes and satchels are Gus's). */
+  keeper?: "gus" | "dune";
 }
 
-export function GusShopModal({ profile, coins, owned, onBuyOutfit, market, send, campfireSend, subscribeMessages, onOpenCollection, onClose }: Props) {
+export function GusShopModal({ profile, coins, owned, onBuyOutfit, market, send, campfireSend, subscribeMessages, onOpenCollection, onClose, keeper = "gus" }: Props) {
+  const dune = keeper === "dune";
   const [tab, setTab] = useState<ShopTab>("trade");
   const [notice, setNotice] = useState<ShopNotice | null>(null);
   useEffect(
@@ -68,10 +71,10 @@ export function GusShopModal({ profile, coins, owned, onBuyOutfit, market, send,
   const next = nextSatchelTier(profile.satchelTier);
   return (
     <ShopShell
-      title="Gus's Workshop"
-      icon="⛏️"
+      title={dune ? "Dune's Ore Scale" : "Gus's Workshop"}
+      icon={dune ? "🐢" : "⛏️"}
       notice={notice}
-      tabs={TABS}
+      tabs={dune ? TABS.slice(0, 1) : TABS}
       tab={tab}
       onTab={setTab}
       onClose={onClose}

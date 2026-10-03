@@ -46,7 +46,11 @@ export const SATCHEL_TIERS: SatchelTier[] = [
   { tier: 3, name: "Hardened Prospector Pack", icon: "🧳", slots: 12, price: SATCHEL_PRICES[3], needs: { ore: { iron_ingot: 4 }, wood: { cedar: 4 } } },
   { tier: 4, name: "Glimmer Expedition Rig", icon: "💼", slots: 16, price: SATCHEL_PRICES[4], needs: { ore: { silver_ingot: 4, glimmer_shard: 2 } } },
   { tier: 5, name: "Titan Core Vault", icon: "🗄️", slots: 20, price: SATCHEL_PRICES[5], needs: { byproducts: { heartwood: 2 }, ore: { core_fragment: 2 } } },
+  // (made at Dune's shack on Sunset Beach, never sold by Gus: shared/expedition.ts `tideSatchel`)
+  { tier: 6, name: "Tidewater Ore Crate", icon: "📦", slots: 24, price: SATCHEL_PRICES[6], needs: {} },
 ];
+/** The last satchel Gus sells (the one above is made at Dune's). */
+export const GUS_SATCHEL_TIER = 5;
 export const SATCHEL_MAX_TIER = SATCHEL_TIERS.length - 1;
 /** A tier's satchel (clamped), and the next one up (null at the top). */
 export function satchelTier(tier: number): SatchelTier {

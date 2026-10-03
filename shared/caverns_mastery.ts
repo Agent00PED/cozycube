@@ -24,13 +24,14 @@ export const MASTERY_AT: Record<OreKind, readonly [number, number, number, numbe
   glimmer: [0, 5, 15, 40, 90],
   monolith: [0, 1, 4, 10, 25],
   rockfall: [0, 1, 3, 6, 12],
+  reef: [0, 8, 25, 70, 160],
 };
 /** The chance, a rank, of one more of a kind's own ore off a break (a Master's 20%). */
 export const MASTERY_EXTRA = 0.05;
 /** A Master's sweet spot on their kind: this much wider. */
 export const MASTER_SWEET = 0.1;
 /** The ore a kind's extra is. */
-export const MASTERY_ORE: Record<OreKind, OreItemId> = { coal: "coal", copper: "copper_ore", iron: "iron_ore", silver: "silver_ore", glimmer: "glimmer_shard", monolith: "core_fragment", rockfall: "coal" };
+export const MASTERY_ORE: Record<OreKind, OreItemId> = { coal: "coal", copper: "copper_ore", iron: "iron_ore", silver: "silver_ore", glimmer: "glimmer_shard", monolith: "core_fragment", rockfall: "coal", reef: "reef_stone" };
 /** The kinds with a Master's title (shared/items.ts SPECIAL_TITLES), and the Grandmaster's. */
 export const MASTERY_TITLES: Partial<Record<OreKind, string>> = { coal: "master_collier", copper: "copper_master", iron: "iron_master", silver: "silver_master", glimmer: "glimmer_master", monolith: "titan_breaker" };
 export const GRANDMASTER_TITLE = "grandmaster_prospector";
