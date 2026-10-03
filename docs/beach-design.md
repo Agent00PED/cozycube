@@ -361,14 +361,16 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
    cove (the pier's and the sea's T7 rows hold none); the Tidewater rod and livewell move to part 4,
    with the Open Sea, the water their income is measured on; the pier's T1 to T5 incomes came out
    at 26 / 27 / 27 / 59 / 96 a minute.
-3. **Palms.** Felling, the Tidewater axe and carrier, coconuts to the bar; the simulator at 250.
-4. **The Open Sea.** The map, the boat, Captain Brine on both, the ticket and its rules, the eight
-   fish, the wonders.
-5. **Reef rock.** Prospecting brought to the beach, the Tidewater pickaxe and satchel.
-6. **The Hidden Cove.** The chart, the secrecy rules, the map, the clams, the bench, the Deep Tide
-   tools, pearls, jewellery and the ring band; the simulator at 300.
-7. **Dressing and life.** Gulls, crabs, a turtle; the sounds (waves, gulls, the bar's music at
-   dusk); the outfit; the patch notes; the lobby's and the trip screens' art.
+3. **The Open Sea (done, patch 0.8.2).** Moved ahead of the palms: the owner's must-haves first.
+   The map (the boat at anchor), Captain Brine at the pier and at the wheel, the ticket and its
+   rules, the cast from the rails, the Tidewater rod and hold made at Dune's. The boat is 11 m and
+   its seats are a port bench and a bow seat. The sea's wonders wait for the last part.
+4. **The Hidden Cove.** The chart's three bottles at sea, the secrecy rules, the cove map, the
+   clams and pearls, the Deep Tide rod at the cove's bench (the coin cap raised for it), the mythic.
+5. **Palms.** Felling, the Tidewater axe and carrier, coconuts to the bar; the simulator at 250.
+6. **Reef rock.** Prospecting brought to the beach, the Tidewater pickaxe and satchel.
+7. **Dressing and life.** Gulls, crabs, a turtle; the sea's wonders; the sounds (waves, gulls, the
+   bar's music at dusk); the outfit; the lobby's and the trip screens' art.
 
 ## What changed from revision 1, and why
 

@@ -66,7 +66,7 @@ export function bobberFor(player: PlayerState, mapId: MapId) {
     if (!player.floatX && !player.floatZ) return null;
     return { x: player.floatX, y: floatY(player.floatX, player.floatZ), z: player.floatZ };
   }
-  if (mapId === "sunset_beach") {
+  if (mapId === "sunset_beach" || mapId === "open_sea") {
     // the sea: where their cast landed, on the water
     if (!player.floatX && !player.floatZ) return null;
     return { x: player.floatX, y: SEA_Y, z: player.floatZ };

@@ -21,7 +21,10 @@ import type { MapId } from "../shared/types";
 import { AXES, AXES_BY_TIER, TREES, rollTreeScale, woodPrice, logMultiplier } from "../shared/chop";
 import { AXE_PRICES, BYPRODUCT_PRICES, CARRIER_CAPACITY, CREEL_CAPACITY, ORE_PRICES, PICKAXE_PRICES, TACKLE_PRICES } from "../shared/economy";
 import { OVERSUPPLY_AT, OVERSUPPLY_DROP, RECOVER_SOLD, SUPPLY_MAX } from "../shared/market";
-import { DUNE_FRONT, PIER_LENGTH, onPierAt } from "../shared/worlds/beach";
+import { DUNE_FRONT, PIER_LENGTH, PIER_RETURN, onPierAt } from "../shared/worlds/beach";
+import { SEA_ARRIVAL } from "../shared/worlds/sea";
+import { SEA_CAST_ROD } from "../shared/sea_fishing";
+import { TICKET_PRICE } from "../shared/voyage";
 import { FISH, RODS_BY_TIER, biteSeconds, fishValue, rollCatch, rollFish } from "../shared/fishing";
 import { fishRate, woodRate, type Counter } from "../shared/keepers";
 import { CHASE_MAX, CLEAN_BREAK_BONUS, GLINT_CHANCE, ORE_KINDS, PERFECT_DAMAGE, PICKAXES, PICKAXES_BY_TIER, chaseBonus, oreRule, rollYield, streakBonus, type OreItemId, type OreKind, type PickaxeId } from "../shared/caverns_mining";
@@ -165,23 +168,39 @@ const counterOf = (map: MapId): Counter => (map === "campfire_night" ? "campfire
 
 // --- the angler ----------------------------------------------------------------------------------------
 
-const WATERS = [
+/** A water to fish: where the line is cast and where the catch is sold. `sea`: the Open Sea, reached by
+ *  the captain's boat (a ticket a trip, the sale a trip back to the pier and out again: `tripS`), with
+ *  an Expedition rod or better. */
+interface SimWater {
+  where: string;
+  water: "freshwater" | "cavewater" | "saltwater";
+  rapids: boolean;
+  map: MapId;
+  spot: Pt;
+  keeper: Pt;
+  sea?: { tripS: number; ticket: number; minRod: number };
+}
+const WATERS: SimWater[] = [
   { where: "campfire river", water: "freshwater" as const, rapids: false, map: "campfire_night" as MapId, spot: FISHING_SPOTS[0].stand, keeper: BARNABY_FRONT },
   { where: "woods river", water: "freshwater" as const, rapids: true, map: "whispering_woods" as MapId, spot: FOREST_FISHING[0].stand, keeper: FINLEY_FRONT },
   { where: "cenote", water: "cavewater" as const, rapids: false, map: "glimmering_caverns" as MapId, spot: { x: FINNEGAN_FRONT.x + 3, z: FINNEGAN_FRONT.z }, keeper: FINNEGAN_FRONT },
   // (Sunset Beach's pier: any rod fishes it, the rod deciding the rarest fish it lands; Dune at its foot)
   { where: "pier", water: "saltwater" as const, rapids: false, map: "sunset_beach" as MapId, spot: onPierAt(PIER_LENGTH - 2.2, 0.6), keeper: DUNE_FRONT },
+  // (the Open Sea: back to the pier with the captain, up the pier to Dune, and out again on a new ticket)
+  { where: "sea", water: "saltwater" as const, rapids: false, map: "open_sea" as MapId, spot: SEA_ARRIVAL, keeper: SEA_ARRIVAL, sea: { tripS: 2 * (walkS("sunset_beach", PIER_RETURN, DUNE_FRONT) + 12), ticket: TICKET_PRICE, minRod: SEA_CAST_ROD } },
 ];
 
-export function angler(rodTier: number, w: (typeof WATERS)[number], gear: Loadout = NO_GEAR): Line {
+export function angler(rodTier: number, w: SimWater, gear: Loadout = NO_GEAR): Line {
   const rand = seeded(rodTier * 97 + w.where.length);
   const cap = CREEL_CAPACITY[rodTier - 1] + livewellBonus(gear);
-  const trip = (2 * walkS(w.map, w.spot, w.keeper)) / gearPace(gear) + STEADY.sellS;
+  const trip = (w.sea ? w.sea.tripS : 2 * walkS(w.map, w.spot, w.keeper)) / gearPace(gear) + STEADY.sellS;
+  const where = w.where === "sea" ? ("sea" as const) : undefined;
   const pays = sellBonus(gear);
   let t = 0;
   let coins = 0;
   let held = 0;
   let heldCoins = 0;
+  let ticketCoins = w.sea ? w.sea.ticket : 0;
   const sold: Record<string, number> = {};
   const count: Record<string, number> = {};
   const value: Record<string, number> = {};
@@ -190,7 +209,7 @@ export function angler(rodTier: number, w: (typeof WATERS)[number], gear: Loadou
   while (t < end) {
     // (the camp's day: twelve minutes of sun, twelve of stars)
     day = Math.floor(t / 720) % 2 === 0;
-    const id = rollFish(w.water, { rodTier, afk: false, time: w.water === "cavewater" ? undefined : day ? "day" : "night", rapids: w.rapids, rareLuck: gearRareLuck(gear) }, rand);
+    const id = rollFish(w.water, { rodTier, afk: false, time: w.water === "cavewater" ? undefined : day ? "day" : "night", rapids: w.rapids, rareLuck: gearRareLuck(gear), ...(where ? { where } : {}) }, rand);
     const sp = FISH[id] as { tier: string };
     const boss = sp.tier === "legendary" || sp.tier === "mythic";
     t += biteSeconds(id, { haste: biteHaste(gear) }, rand) + (boss ? STEADY.fish.bossReelS : STEADY.fish.reelS) + STEADY.fish.betweenS;
@@ -205,13 +224,15 @@ export function angler(rodTier: number, w: (typeof WATERS)[number], gear: Loadou
     value[id] = (value[id] ?? 0) + v;
     if (held >= cap) {
       t += trip;
+      // (a trip back to sell ends the ticket: the next one out is paid for)
+      if (w.sea) ticketCoins += w.sea.ticket;
       coins += heldCoins;
       held = 0;
       heldCoins = 0;
     }
   }
   coins += heldCoins;
-  return { craft: "fish", tier: rodTier, where: w.where, perMin: (coins / t) * 60, perMinSold: withMarket(value, count, t), soldPerHour: perHour(sold, t) };
+  return { craft: "fish", tier: rodTier, where: w.where, perMin: ((coins - ticketCoins) / t) * 60, perMinSold: withMarket(value, count, t, -ticketCoins), soldPerHour: perHour(sold, t) };
 }
 
 const perHour = (sold: Record<string, number>, t: number) => Object.fromEntries(Object.entries(sold).map(([k, n]) => [k, Math.round((n / t) * 3600)]));
@@ -455,8 +476,8 @@ const ALL_TIERS = tiersOf(Math.max(ROD_TIERS.length, AXE_TIERS.length, PICKAXE_T
 
 export function simulate(only = process.env.ONLY ?? ""): Line[] {
   const out: Line[] = [];
-  if (only) return only === "fish" ? ROD_TIERS.flatMap((t) => WATERS.map((w) => angler(t, w))) : only === "wood" ? AXE_TIERS.flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT)]) : PICKAXE_TIERS.map((t) => miner(t));
-  for (const tier of ROD_TIERS) for (const w of WATERS) out.push(angler(tier, w));
+  if (only) return only === "fish" ? ROD_TIERS.flatMap((t) => WATERS.filter((w) => t >= (w.sea?.minRod ?? 1)).map((w) => angler(t, w))) : only === "wood" ? AXE_TIERS.flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT)]) : PICKAXE_TIERS.map((t) => miner(t));
+  for (const tier of ROD_TIERS) for (const w of WATERS) if (tier >= (w.sea?.minRod ?? 1)) out.push(angler(tier, w));
   for (const tier of AXE_TIERS) {
     out.push(woodcutter(tier, "campfire_night", "campfire", BUSTER_FRONT));
     out.push(woodcutter(tier, "whispering_woods", "woods", BRAMBLE_FRONT));
@@ -570,12 +591,19 @@ export function ladder(lines: Line[]): Record<string, number[]> {
  *  once the room's market has answered the player's own selling (`perMinSold`). The river's rods and
  *  the axes climb it through the campfire and the woods; the pickaxes start above them, in the
  *  caverns; the cenote pays about CENOTE_OVER_RIVER times the river on the same rod. */
-export const TARGETS = { river: [25, 35, 50, 70, 95, 250, 300], wood: [25, 35, 50, 70, 95, 250, 300], ore: [100, 120, 145, 175, 210, 250, 300] };
+export const TARGETS = { river: [25, 35, 50, 70, 95], wood: [25, 35, 50, 70, 95, 250, 300], ore: [100, 120, 145, 175, 210, 250, 300] };
+/** The salt water (docs/beach-design.md section 6): a Tidewater rod (T6) earns 250 a minute at the Open
+ *  Sea, net of its tickets, and about three quarters of that off the pier; an Expedition rod (T5) at
+ *  sea earns about what it does at the cenote, its best water before. */
+export const SEA_TARGET = { tier: 6, sea: 250, pierShare: 0.75 };
+/** The fresh waters' ladder: five tiers (the rods beyond are made for the sea). */
+const FRESH_TIERS = [1, 2, 3, 4, 5];
 export const CENOTE_OVER_RIVER = 1.7;
 /** Each craft's best spot, tier by tier, as sold. */
 export function soldLadder(lines: Line[]): { river: number[]; cenote: number[]; wood: number[]; ore: number[] } {
-  const best = (f: (l: Line) => boolean) => ALL_TIERS.map((tier) => Math.max(0, ...lines.filter((l) => l.tier === tier && f(l)).map((l) => l.perMinSold)));
-  return { river: best((l) => l.craft === "fish" && l.where !== "cenote"), cenote: best((l) => l.craft === "fish" && l.where === "cenote"), wood: best((l) => l.craft === "wood"), ore: best((l) => l.craft === "ore") };
+  const best = (tiers: number[], f: (l: Line) => boolean) => tiers.map((tier) => Math.max(0, ...lines.filter((l) => l.tier === tier && f(l)).map((l) => l.perMinSold)));
+  const river = (l: Line) => l.craft === "fish" && (l.where === "campfire river" || l.where === "woods river");
+  return { river: best(FRESH_TIERS, river), cenote: best(FRESH_TIERS, (l) => l.craft === "fish" && l.where === "cenote"), wood: best(AXE_TIERS, (l) => l.craft === "wood"), ore: best(PICKAXE_TIERS, (l) => l.craft === "ore") };
 }
 
 /** What each tool costs today, tier 2 to 5. */

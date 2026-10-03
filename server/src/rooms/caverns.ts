@@ -890,7 +890,7 @@ export class CavernsMine {
   /** An Expedition (T5) tool or store forged (shared/expedition.ts: once each, the storage tiers in
    *  turn): its coins and its makings out of the satchel and the materials' store, and it is in hand. */
   private forgeTool(sessionId: string, kit: FishingProfile, coins: number, tool: unknown) {
-    if (!isForgedToolId(tool)) return;
+    if (!isForgedToolId(tool) || FORGED_TOOLS[tool].place !== "forge") return;
     const t = FORGED_TOOLS[tool];
     if (forgedOwned(kit, tool)) return this.reply(sessionId, false, `You have the ${t.name} already`);
     const first = forgedBlocked(kit, tool);

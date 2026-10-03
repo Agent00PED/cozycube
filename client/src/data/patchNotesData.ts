@@ -1959,7 +1959,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 8,
     name: "Sunset Beach",
-    range: "v0.7.59–v0.8.1",
+    range: "v0.7.59–v0.8.2",
     icon: "🏖️",
     blurb: "An island beach with a bar to tend, a pier out over the sea, and the catch odds told apart water by water.",
     patches: [
@@ -2013,6 +2013,22 @@ export const PATCH_ERAS: PatchEra[] = [
             "🐢 Dune the old sea turtle keeps the shack at the pier's foot: he buys every fish at full price and sells rods, livewells and bait.",
           ],
           economy: ["⚖️ The pier pays a rod about what its own best water does, never more: it is a place to fish together and to fill the Ocean page, not a shortcut."],
+        },
+      },
+      {
+        version: "0.8.2",
+        date: "2026-10-03",
+        title: "The Open Sea",
+        summary: "Captain Brine sells a ticket at the pier's head: sail out on his boat and fish the deep water, and make a Tidewater rod at Dune's for the fish that only the sea holds.",
+        changes: {
+          features: [
+            "⛵ Captain Brine the walrus waits at the head of Sunset Beach's pier. A ticket to the Open Sea is 150 coins: one trip, as long as you like, and he brings you back whenever you ask.",
+            "🚤 The Open Sea is his boat at anchor, the water out on every side. Everyone with a ticket is aboard together; there is a bench and a bow seat for whoever just rides along.",
+            "🎣 Cast from anywhere along the rails with an Expedition rod (T5) or better, by hand only. Eight deep-water fish swim there, among them the Ocean Sunfish and the Blue Marlin.",
+            "🌊 The Tidewater Rod (T6) and the Tidewater Hold (80 fish) are made at Dune's shack, under his new Tidewater tab: coins, and makings from all three crafts (Silver Ingots, Golden Leaf Amber, Fine Fish Bones). The rod lands the salt water's Epic and Legendary fish.",
+            "🎟️ A dropped connection does not cost you your ticket: the trip is yours until you ask the captain for the pier, or leave by the world list.",
+          ],
+          economy: ["⚖️ A Tidewater rod earns about 280 coins a minute at sea and about 205 off the pier; an Expedition rod at sea earns about what it does at the caverns' lake."],
         },
       },
     ],

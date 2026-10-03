@@ -54,6 +54,7 @@ PLACES = {
     "Avatar": ("Wardrobe", "world"),
     "Forest": ("Forest", "world"),
     "Beach": ("Beach", "world"),
+    "Sea": ("Beach", (0.0, -120.0)),
     "Mango": ("Beach", (-3.0, -22.0)),
     "Dune": ("Beach", (0.0, -22.0)),
     "Brine": ("Beach", (3.0, -22.0)),

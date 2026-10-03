@@ -161,6 +161,7 @@ export const RODS = {
   heron: { name: "Heron Fiberglass Rod", emoji: "🪶", tier: 3, price: TACKLE_PRICES.heronRod, barBonus: 0.2, tensionResist: 0.15, tensionWindow: 1.5, aura: false, blurb: "T3: up to legendary fish. +20% bar, the line holds 15% longer, a 1.5 s tension window." },
   starlight: { name: "Starlight Master Rod", emoji: "🌠", tier: 4, price: TACKLE_PRICES.masterRod, barBonus: 0.2, tensionResist: 0.35, tensionWindow: 1.8, aura: true, perk: { name: "Starlight Dampener", dart: 0.25, feints: 0, shields: 0, blurb: "a boss fish darts 25% slower" }, blurb: "T4: up to mythic fish. +20% bar, the line holds 35% longer, a 1.8 s tension window, a star aura, and the Starlight Dampener (a boss fish darts 25% slower)." },
   moonlight: { name: "Mythril Moonlight Rod", emoji: "🌙", tier: 5, price: TACKLE_PRICES.moonlightRod, barBonus: 0.3, tensionResist: 0.45, tensionWindow: 2.1, aura: true, perk: { name: "Abyssal Tether", dart: 0.35, feints: 0.4, shields: 1, blurb: "a boss fish darts 35% slower and fakes 40% less, and one snap a fight is forgiven" }, blurb: "T5: the best odds of the rare end. +30% bar, the line holds 45% longer, a 2.1 s tension window, a moonlit aura, and the Abyssal Tether (a boss fish darts 35% slower, fakes 40% less, and one snap a fight is forgiven)." },
+  tidewater: { name: "Tidewater Rod", emoji: "🌊", tier: 6, price: TACKLE_PRICES.tidewaterRod, barBonus: 0.35, tensionResist: 0.52, tensionWindow: 2.3, aura: true, perk: { name: "Tidal Anchor", dart: 0.4, feints: 0.5, shields: 1, blurb: "a boss fish darts 40% slower and fakes half as often, and one snap a fight is forgiven" }, blurb: "T6: lands the salt water's Epic and Legendary fish. +35% bar, the line holds 52% longer, a 2.3 s tension window, and the Tidal Anchor (a boss fish darts 40% slower, fakes half as often, and one snap a fight is forgiven)." },
 } as const satisfies Record<string, Rod>;
 export type RodId = keyof typeof RODS;
 export const ROD_IDS = Object.keys(RODS) as RodId[];
@@ -243,6 +244,7 @@ export const CREEL_TIERS: CreelTier[] = [
   { id: "creel_tier_3", name: "Canvas Livewell", capacity: CREEL_CAPACITY[2], price: CREEL_PRICES[2], icon: "🎒" },
   { id: "creel_tier_4", name: "Ice Cooler Livewell", capacity: CREEL_CAPACITY[3], price: CREEL_PRICES[3], icon: "🧊" },
   { id: "creel_tier_5", name: "Starlight Deep Livewell", capacity: CREEL_CAPACITY[4], price: CREEL_PRICES[4], icon: "✨" },
+  { id: "creel_tier_6", name: "Tidewater Hold", capacity: CREEL_CAPACITY[5], price: CREEL_PRICES[5], icon: "🌊" },
 ];
 /** A creel tier (1-based, clamped), and the next one up (null at the top). */
 export function creelTier(tier: number): CreelTier {
@@ -393,6 +395,8 @@ export interface FishingProfile {
   weekly: { week: string; base: Record<string, number>; done: string[] };
   /** The Bar Book (shared/barshift.ts): what a bartender has made at the beach bar. */
   bar: BarBook;
+  /** A ticket's trip to sea under way (shared/voyage.ts): until you stand on the pier again. */
+  seaTrip: boolean;
 }
 /** The Prospector's Ledger's marks: Perfect strikes, the best run of them, geodes cracked, Star Shards
  *  cut, Masterwork ingots forged, Motherlodes broken. */
@@ -492,7 +496,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem, bonus = 0
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] }, bar: emptyBarBook() };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] }, bar: emptyBarBook(), seaTrip: false };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -683,6 +687,7 @@ function readFishingProfile(raw: unknown): FishingProfile {
   }
   if (Array.isArray(r.codex)) p.codex = Array.from(new Set(r.codex.filter(isCodexId)));
   p.bar = sanitizeBarBook(r.bar);
+  p.seaTrip = r.seaTrip === true;
   if (r.ledger && typeof r.ledger === "object") {
     for (const k of LEDGER_KEYS) {
       const n = Math.floor(Number((r.ledger as Record<string, unknown>)[k]));

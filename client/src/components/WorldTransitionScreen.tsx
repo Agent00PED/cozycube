@@ -72,6 +72,7 @@ const THEMES: Partial<Record<MapId, Theme>> = {
   boxing_ring: { scene: "tw-ring", card: "tw-card-poster", heading: "text-[#F4E4C4]", rule: "via-[#E9D2A4]/70", particle: "dust", count: 22 },
   whispering_woods: { scene: "tw-woods", card: "tw-card-moss", heading: "text-[#E4F2C9]", rule: "via-[#A9D18E]/70", particle: "leaf", count: 16 },
   sunset_beach: { scene: "tw-beach", card: "tw-card-oak", heading: "text-[#FFE3B0]", rule: "via-[#FFB86B]/70", particle: "glint", count: 16 },
+  open_sea: { scene: "tw-beach", card: "tw-card-oak", heading: "text-[#FFE3B0]", rule: "via-[#FFB86B]/70", particle: "glint", count: 20 },
   glimmering_caverns: { scene: "tw-caverns", card: "tw-card-slate", heading: "text-[#C8F6FF]", rule: "via-[#5BE7FF]/70", particle: "mote", count: 30 },
 };
 const DUSK: Theme = { scene: "tw-dusk", card: "tw-card-oak", heading: "text-[#FFD9A0]", rule: "via-[#F5A623]/70", particle: "none", count: 0 };

@@ -82,7 +82,7 @@ export const WATER_ODDS: Record<OddsWater, readonly TierOdds[]> = {
   // mythic only in the cove, on a T7 rod. Each water further out is a little kinder on the same rod.
   // Only a T5 rod or better casts at sea or in the cove: their first four rows are never read.)
   pier: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.65, 0.27, 0.08), odds(0.5, 0.3, 0.17, 0.03), odds(0.43, 0.3, 0.22, 0.05)],
-  sea: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.55, 0.32, 0.13), odds(0.42, 0.32, 0.22, 0.04), odds(0.35, 0.3, 0.26, 0.09)],
+  sea: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.55, 0.32, 0.13), odds(0.5, 0.31, 0.17, 0.02), odds(0.4, 0.31, 0.24, 0.05)],
   cove: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.5, 0.34, 0.16), odds(0.36, 0.32, 0.26, 0.06), odds(0.28, 0.3, 0.3, 0.09, 0.03)],
   cenote: [odds(0.9, 0.1), odds(0.79, 0.19, 0.02), odds(0.7, 0.255, 0.04, 0.005), odds(0.57, 0.31, 0.105, 0.013, 0.002), odds(0.5, 0.327, 0.14, 0.028, 0.005), odds(0.45, 0.33, 0.17, 0.04, 0.01), odds(0.41, 0.33, 0.195, 0.055, 0.01)],
 };
@@ -97,11 +97,11 @@ export const AFK_UNBAITED_TIER_ODDS: TierOdds = { common: 1, uncommon: 0, rare: 
 
 /** The livewells' prices, tier 1 (the Wooden Pail, everyone's) to tier 5: the storage tiers' sinks
  *  (300, 950, 2,600, 6,500), the same as the wood carriers'. */
-export const CREEL_PRICES = [0, 250, 800, 2250, 6250] as const;
+export const CREEL_PRICES = [0, 250, 800, 2250, 6250, 29000] as const;
 /** What each livewell tier holds (fish): sized for a 5-10 minute outing at the water, then a trip to
  *  the angler's stall. A player already holding more keeps it all (Overburdened: selling and cooking
  *  work, only new catches wait for room). */
-export const CREEL_CAPACITY = [12, 20, 32, 45, 60] as const;
+export const CREEL_CAPACITY = [12, 20, 32, 45, 60, 80] as const;
 
 /** The tackle: bait by the pack (five kinds, from Barnaby or Finley); the rods (the tool ladder,
  *  docs/economy-plan.md section 6: a tier costs 20, 45, 90 and 180 minutes of the step before it,
@@ -118,6 +118,9 @@ export const TACKLE_PRICES = {
   heronRod: 1600,
   masterRod: 4500,
   moonlightRod: 12500,
+  // (T6 Tidewater, made at Dune's shack on Sunset Beach: 360 minutes of what an Expedition rod earns
+  // at its best water, the cenote, with makings from all three crafts; docs/beach-design.md section 6)
+  tidewaterRod: 58000,
 } as const;
 
 // --- the woodpile -----------------------------------------------------------------------------------
@@ -312,24 +315,24 @@ export const SEA_FISH_PRICES = {
   yellowtail_snapper: 36,
   blue_parrotfish: 105,
   coral_grouper: 118,
-  sailfin_dorado: 320,
-  golden_tarpon: 900,
+  sailfin_dorado: 280,
+  golden_tarpon: 800,
   moon_anchovy: 8,
   silver_pomfret: 9,
   lantern_squid: 34,
   spotted_moray: 38,
   prism_jellyfish: 105,
   moonlit_ray: 118,
-  abyss_lionfish: 320,
-  phantom_swordfish: 900,
+  abyss_lionfish: 280,
+  phantom_swordfish: 800,
   flying_fish: 12,
   bonito: 13,
   skipjack_tuna: 52,
   barracuda: 56,
   wahoo: 160,
   giant_trevally: 170,
-  sunfish_mola: 420,
-  blue_marlin: 1150,
+  sunfish_mola: 300,
+  blue_marlin: 900,
   glass_octopus: 480,
   abyssal_oarfish: 1400,
   pearl_whale: 2400,
