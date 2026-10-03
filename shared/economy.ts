@@ -62,7 +62,9 @@ export const FISH_PRICES = {
  *  one; an AFK line without bait brings in only commons, and an AFK line never lands a mythic (one
  *  that bites snaps the line). The bait, the Cozy Aura and the gear tip a hand-reeled line's odds
  *  further toward the rare end; an AFK line's odds are exactly its table's. scripts/economy-sim.ts
- *  holds each row to its income (docs/economy-plan.md section 4). */
+ *  holds each row to its income (docs/economy-plan.md section 4). Rows 6 and 7 are the beach's
+ *  Tidewater and Deep Tide rods (docs/beach-design.md): no such rod exists yet, so nothing reads
+ *  them, and the simulator sets them when the rods are made. */
 export interface TierOdds {
   common: number;
   uncommon: number;
@@ -73,9 +75,9 @@ export interface TierOdds {
 export type OddsWater = "campfire" | "woods" | "cenote";
 const odds = (common: number, uncommon: number, rare = 0, legendary = 0, mythic = 0): TierOdds => ({ common, uncommon, rare, legendary, mythic });
 export const WATER_ODDS: Record<OddsWater, readonly TierOdds[]> = {
-  campfire: [odds(0.85, 0.15), odds(0.72, 0.25, 0.03), odds(0.56, 0.33, 0.11), odds(0.46, 0.36, 0.18), odds(0.38, 0.38, 0.24)],
-  woods: [odds(0.88, 0.12), odds(0.76, 0.22, 0.02), odds(0.62, 0.295, 0.08, 0.005), odds(0.5, 0.34, 0.14, 0.018, 0.002), odds(0.42, 0.35, 0.19, 0.035, 0.005)],
-  cenote: [odds(0.9, 0.1), odds(0.79, 0.19, 0.02), odds(0.7, 0.255, 0.04, 0.005), odds(0.57, 0.31, 0.105, 0.013, 0.002), odds(0.5, 0.327, 0.14, 0.028, 0.005)],
+  campfire: [odds(0.85, 0.15), odds(0.72, 0.25, 0.03), odds(0.56, 0.33, 0.11), odds(0.46, 0.36, 0.18), odds(0.38, 0.38, 0.24), odds(0.32, 0.4, 0.28), odds(0.28, 0.4, 0.32)],
+  woods: [odds(0.88, 0.12), odds(0.76, 0.22, 0.02), odds(0.62, 0.295, 0.08, 0.005), odds(0.5, 0.34, 0.14, 0.018, 0.002), odds(0.42, 0.35, 0.19, 0.035, 0.005), odds(0.36, 0.35, 0.23, 0.05, 0.01), odds(0.31, 0.34, 0.26, 0.075, 0.015)],
+  cenote: [odds(0.9, 0.1), odds(0.79, 0.19, 0.02), odds(0.7, 0.255, 0.04, 0.005), odds(0.57, 0.31, 0.105, 0.013, 0.002), odds(0.5, 0.327, 0.14, 0.028, 0.005), odds(0.45, 0.33, 0.17, 0.04, 0.01), odds(0.41, 0.33, 0.195, 0.055, 0.01)],
 };
 export const AFK_BAITED_TIER_ODDS: readonly TierOdds[] = [
   { common: 0.94, uncommon: 0.06, rare: 0, legendary: 0, mythic: 0 },

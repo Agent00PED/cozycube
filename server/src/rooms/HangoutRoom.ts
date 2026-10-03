@@ -2,7 +2,7 @@ import { Room, Client, OnMessageException, type RoomException } from "colyseus";
 import { Schema, type, MapSchema } from "@colyseus/schema";
 import { MAP_OBSTACLES, MAP_SPAWN_POINTS, clampToRegion, isBlocked } from "../../../shared/collision";
 import { PersistenceQueue, getPlayerStore, newPlayerRecord, type PlayerRecord } from "../db/players";
-import { outfitPrice, progressDaily, rollDaily, rollFish, rollGacha, todayKey } from "./games";
+import { outfitPrice, progressDaily, rollDaily, rollGacha, todayKey } from "./games";
 import { AWAY_PREFIX, BoardTable, type BoardSnapshot } from "./boardgame";
 import { registerRoom, roomOpen, unregisterRoom } from "./lounges";
 import { getBoardStore } from "../db/boards";
@@ -154,14 +154,13 @@ import {
   type StewUpdate,
 } from "../../../shared/bonfire";
 import { emptyCampfireCoins } from "../db/players";
-import { MAP_CHAIRS, MAP_TOGGLEABLES, PROP_MAP, isFishingSeat, isWaterable, mochiSpot } from "../../../shared/props";
+import { MAP_CHAIRS, MAP_TOGGLEABLES, PROP_MAP, isWaterable, mochiSpot } from "../../../shared/props";
 import { WORLDS } from "../../../shared/worlds/index";
 import { BOUTIQUE, BOUTIQUE_REACH } from "../../../shared/worlds/lounge";
 import { craftGood, fishGood, parseMarket, priceRun, recordUse, woodGood, type MarketState } from "../../../shared/market";
 import { PIONEER_SET, pioneerEligible, pioneerUntil, specialTitle, type PioneerInfo } from "../../../shared/items";
 import { BALL_HOME, KICK_REACH, kickBall, stepBall } from "../../../shared/volleyball";
 import { defaultLook, OUTFIT_FABRICS, OUTFITS,
-  BITE_WINDOW_S,
   CAMPFIRE_DAILY_COINS,
   FORAGE_COINS,
   FORAGE_INFO,
@@ -234,8 +233,6 @@ import { defaultLook, OUTFIT_FABRICS, OUTFITS,
   TOAST_MAX,
   isTimeOfDay,
   isActivityStatus,
-  AFK_FISH_MIN_S,
-  AFK_FISH_MAX_S,
   SPARKLE_SPOTS,
   SPARKLE_RESPAWN_S,
   isWalkUpProp,
@@ -325,8 +322,6 @@ import { defaultLook, OUTFIT_FABRICS, OUTFITS,
   type SplitStrike,
   type SplitSwingPacket,
   type TreeFelled,
-  type FishOnLine,
-  type FishingWater,
   type MochiAction,
 } from "../../../shared/types";
 import { CASINO_EMOTES, auraPace, capsuleUnlock, netWorth, type BlackjackAction, type CashierRequest, type CasinoPacket } from "../../../shared/casino";
@@ -495,7 +490,6 @@ const CHAT_COOLDOWN_MS = 1200;
 const PERSIST_EVERY_S = 2.5;
 const LEADERBOARD_EVERY_S = 15;
 /** Which water each map's fishing seats hang over. */
-const MAP_WATER: Partial<Record<MapId, FishingWater>> = { sunset_beach: "ocean", campfire_night: "river" };
 
 interface Wallet {
   coins: number;
@@ -567,7 +561,6 @@ export class HangoutRoom extends Room<HangoutState> {
   private queue = new PersistenceQueue(getPlayerStore);
   private lastChatAt = new Map<string, number>();
   /** The fish on each reeling player's line, and when the tension game times out. */
-  private hooked = new Map<string, { fish: FishOnLine; until: number }>();
   /** The campfire: each roast in progress (its dial, timed here), when each skewer is eaten up,
    *  when each player last took one off the fire, and who is fishing the river from the dock. */
   private roasts = new Map<string, RoastStart & { food: RoastFood; startedAt: number }>();
@@ -1073,7 +1066,6 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("arcade_score", (client, msg: { score: number }) => this.handleArcadeScore(client.sessionId, Number(msg?.score)));
     // --- fishing: hook the bite, then settle the tension game ---
     this.onMessage("hook", (client) => this.handleHook(client.sessionId));
-    this.onMessage("catch_fish", (client, msg: { result: string; quality?: number }) => this.handleCatchFish(client.sessionId, msg?.result === "caught", Number(msg?.quality ?? 0)));
     // --- the Velvet Ring: punches, guards, slips, the count's taps, the bets, the gloves ---
     this.onMessage("boxing", (client, packet: BoxingPacket) => this.boxing.packet(client.sessionId, packet));
     // --- the Glimmering Caverns: each job its own channel (shared/caverns_mining.ts CAVERNS_CHANNELS) ---
@@ -1294,43 +1286,10 @@ export class HangoutRoom extends Room<HangoutState> {
     this.sendTo(sessionId, "arcadeResult", { coins });
   }
 
-  // --- fishing: the tension game ---------------------------------------------------------------
+  // --- fishing: the bite's tap (the reel is hookStarlight's) ------------------------------------
 
   private handleHook(sessionId: string) {
-    if (this.starlight.has(sessionId)) return this.hookStarlight(sessionId);
-    const player = this.state.players.get(sessionId);
-    if (!player || player.action !== "fish" || !this.biteUntil.has(sessionId)) return;
-    const water = MAP_WATER[player.map] ?? "ocean";
-    const fish = rollFish(water);
-    this.biteUntil.delete(sessionId);
-    this.hooked.set(sessionId, { fish, until: Date.now() + (REEL_SECONDS + 4) * 1000 });
-    player.action = "reel";
-    player.actionProgress = 0;
-    this.sendTo(sessionId, "fishOnLine", fish);
-  }
-
-  private handleCatchFish(sessionId: string, caught: boolean, quality: number) {
-    const player = this.state.players.get(sessionId);
-    const line = this.hooked.get(sessionId);
-    if (!player || !line || player.action !== "reel") return;
-    this.hooked.delete(sessionId);
-    if (caught) {
-      if (line.fish.item === "boot") {
-        this.nearby(sessionId, "emote", { sessionId, emoji: "👢" });
-      } else {
-        this.addItem(player, line.fish.item);
-        this.bumpStat(player, "fish_caught");
-        this.daily(sessionId, player, "catch_fish");
-        this.nearby(sessionId, "emote", { sessionId, emoji: ITEMS[line.fish.item].emoji });
-        // a clean reel-in (the bar never slipped) earns a little bonus
-        if (quality >= 0.9) this.addCoins(player, 3);
-      }
-    } else {
-      this.nearby(sessionId, "emote", { sessionId, emoji: "💨" });
-    }
-    player.action = "fish";
-    player.actionProgress = 0;
-    this.fishBiteAt.set(sessionId, Date.now() + randomBiteDelay());
+    if (this.starlight.has(sessionId)) this.hookStarlight(sessionId);
   }
 
   // --- onsen ---------------------------------------------------------------------------------
@@ -1951,10 +1910,8 @@ export class HangoutRoom extends Room<HangoutState> {
         this.bumpStat(player, "time_spent_mins", VIBE_EVERY_MIN);
         this.sendTo(sessionId, "vibe", { coins, party: here >= VIBE_PARTY_SIZE });
       }
-      // drink auras fade; a fish on the line gets away if nobody reels
+      // drink auras fade
       if (player.aura && now >= (this.auraUntil.get(sessionId) ?? 0)) player.aura = "";
-      const line = this.hooked.get(sessionId);
-      if (line && now >= line.until) this.handleCatchFish(sessionId, false, 0);
       // soaking in the onsen
       if (player.map === "japanese_onsen" && player.sitting) {
         let inWater = false;
@@ -2017,25 +1974,6 @@ export class HangoutRoom extends Room<HangoutState> {
             player.actionProgress = 0;
           }
         }
-      } else if (player.action === "afkfish") {
-        // Chill mode: no bites to watch for, a little haul now and then while you chat.
-        const at = this.fishBiteAt.get(sessionId) ?? now;
-        const total = this.afkTotal.get(sessionId) ?? AFK_FISH_MIN_S * 1000;
-        player.actionProgress = Math.max(0, Math.min(1, 1 - (at - now) / total));
-        if (now >= at) {
-          const roll = Math.random();
-          if (roll < 0.4) {
-            this.addCoins(player, 5 + Math.floor(Math.random() * 11));
-            this.nearby(sessionId, "emote", { sessionId, emoji: "🪙" });
-          } else {
-            const fish: ItemId = roll < 0.8 ? "sardine" : "clownfish";
-            this.addItem(player, fish);
-            this.bumpStat(player, "fish_caught");
-            this.nearby(sessionId, "emote", { sessionId, emoji: ITEMS[fish].emoji });
-          }
-          this.scheduleAfkCatch(sessionId, now);
-          player.actionProgress = 0;
-        }
       } else if (player.action === "roast") {
         player.toast = Math.min(TOAST_MAX, player.toast + dt / ROAST_SECONDS);
       } else if (player.action === "fish") {
@@ -2047,8 +1985,7 @@ export class HangoutRoom extends Room<HangoutState> {
             this.biteUntil.delete(sessionId);
             player.actionProgress = 0;
             this.nearby(sessionId, "emote", { sessionId, emoji: "💨" });
-            if (starlit) this.waitForBite(sessionId, player, false);
-            else this.fishBiteAt.set(sessionId, now + randomBiteDelay());
+            this.waitForBite(sessionId, player, false);
           }
         } else if (starlit && now < (this.fishBiteAt.get(sessionId) ?? 0)) {
           // the wait: ripples round the bobber build as the bite nears (tenths, 0..0.9; 1 is the bite)
@@ -2058,7 +1995,7 @@ export class HangoutRoom extends Room<HangoutState> {
         } else if (now >= (this.fishBiteAt.get(sessionId) ?? 0)) {
           // Bite! actionProgress = 1 tells every client the float has gone under. On the river the
           // window is STARLIGHT_BITE_S, plus half the angler's round trip (the tap has to get here)
-          this.biteUntil.set(sessionId, now + (starlit ? STARLIGHT_BITE_S * 1000 + Math.min(400, player.ping / 2 + 120) : BITE_WINDOW_S * 1000));
+          this.biteUntil.set(sessionId, now + STARLIGHT_BITE_S * 1000 + Math.min(400, player.ping / 2 + 120));
           player.actionProgress = 1;
         }
       }
@@ -2139,7 +2076,6 @@ export class HangoutRoom extends Room<HangoutState> {
     this.clearAction(player);
     this.fishBiteAt.delete(sessionId);
     this.biteUntil.delete(sessionId);
-    this.hooked.delete(sessionId);
     this.starlight.delete(sessionId);
     this.starReels.delete(sessionId);
     this.pendingFish.delete(sessionId);
@@ -4474,7 +4410,6 @@ export class HangoutRoom extends Room<HangoutState> {
     this.boxing.leave(sessionId, "travel");
     this.caverns.leave(sessionId);
     this.soakSeconds.delete(sessionId);
-    this.hooked.delete(sessionId);
     this.pendingFish.delete(sessionId);
     this.biteUntil.delete(sessionId);
     this.fishBiteAt.delete(sessionId);
@@ -4962,12 +4897,6 @@ export class HangoutRoom extends Room<HangoutState> {
     this.ballIdle = 0;
   }
 
-  private scheduleAfkCatch(sessionId: string, now: number) {
-    const total = (AFK_FISH_MIN_S + Math.random() * (AFK_FISH_MAX_S - AFK_FISH_MIN_S)) * 1000;
-    this.afkTotal.set(sessionId, total);
-    this.fishBiteAt.set(sessionId, now + total);
-  }
-
   /** A picked sparkle reappears somewhere else on the sand, never on top of another one. */
   private moveSparkle(prop: ToggleableState) {
     const taken = new Set<string>();
@@ -5054,19 +4983,6 @@ export class HangoutRoom extends Room<HangoutState> {
       this.waitForBite(sessionId, player, true);
       return;
     }
-    let onPier = false;
-    this.state.chairs.forEach((chair) => {
-      if (chair.occupiedBy === sessionId && isFishingSeat(chair.propId)) onPier = true;
-    });
-    if (!onPier) return;
-    player.actionProgress = 0;
-    if (afk) {
-      player.action = "afkfish";
-      this.scheduleAfkCatch(sessionId, Date.now());
-      return;
-    }
-    player.action = "fish";
-    this.fishBiteAt.set(sessionId, Date.now() + randomBiteDelay());
   }
 
   private handleEmote(sessionId: string, emoji: string) {
@@ -5250,7 +5166,6 @@ export class HangoutRoom extends Room<HangoutState> {
     this.pendingFish.delete(sessionId);
     this.lastNetAt.delete(sessionId);
     this.lastTreatAt.delete(sessionId);
-    this.hooked.delete(sessionId);
     // Bets on the wheel and an unfinished blackjack hand come back, in chips; a ticket on the bout,
     // in coins (and a fighter's bout is forfeit).
     this.casino.release(sessionId);
@@ -5495,9 +5410,3 @@ const ARRIVAL_GRACE_MS = 700;
 
 /** Sitting cross-legged on the ground: the avatar's height, derived from the ground "cushion". */
 const GROUND_SIT_Y = Math.round(seatAnchorY(CUSHIONS.ground) * 1000) / 1000;
-
-
-/** 5-12 seconds between bites: long enough to feel like fishing, short enough to stay fun. */
-function randomBiteDelay(): number {
-  return 5000 + Math.random() * 7000;
-}

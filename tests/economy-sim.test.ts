@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { CENOTE_OVER_RIVER, GEAR_BUDGET, gearTable, ladder, miner, pieceTable, simulate, soldLadder, soloMarket, TARGETS, TOOL_MINUTES, TOOL_PRICES } from "../scripts/economy-sim";
+import { CENOTE_OVER_RIVER, GEAR_BUDGET, PICKAXE_TIERS, ROD_TIERS, gearTable, ladder, miner, pieceTable, simulate, soldLadder, soloMarket, TARGETS, TOOL_MINUTES, TOOL_PRICES } from "../scripts/economy-sim";
 import { CARRIER_PRICES, CREEL_PRICES } from "../shared/economy";
 import { FORGED_TOOLS, FORGED_TOOL_IDS, forgedBlocked, forgedOwned, grantForged, makingsMissing, spendMakings } from "../shared/expedition";
 import { FISH, sanitizeFishingProfile } from "../shared/fishing";
@@ -35,7 +35,7 @@ test("a better rod or axe never earns less at the same spot", () => {
 
 test("a better pickaxe never earns less, Lucky Glints and all (one a rock: phase 1)", () => {
   for (const glints of [true, false]) {
-    const row = [1, 2, 3, 4, 5].map((t) => miner(t, { glints }).perMin);
+    const row = PICKAXE_TIERS.map((t) => miner(t, { glints }).perMin);
     for (let i = 1; i < row.length; i++) assert.ok(row[i] >= row[i - 1] * 0.97, `pickaxe T${i + 1} ${row[i].toFixed(0)} under T${i} ${row[i - 1].toFixed(0)}`);
   }
 });
@@ -78,7 +78,7 @@ test("the solo market: nothing off the first thirty, then down toward the floor"
   assert.equal(soloMarket(30), 1);
   assert.ok(soloMarket(60) < 1 && soloMarket(60) > 0.7);
   assert.ok(soloMarket(800) >= 0.7 && soloMarket(800) < 0.72);
-  assert.ok(Object.values(ladder(lines)).every((row) => row.length === 5));
+  assert.ok(Object.values(ladder(lines)).every((row) => row.length === ROD_TIERS.length));
 });
 
 test("a tool costs its minutes of the step before it, storage half its tool (docs/economy-plan.md section 6)", () => {

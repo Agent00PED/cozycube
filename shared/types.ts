@@ -218,17 +218,18 @@ export const SPARKLE_SPOTS: { x: number; z: number }[] = [
 ];
 export const SPARKLE_RESPAWN_S = 30;
 
-export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "casino_vip" | "boxing_ring" | "japanese_onsen" | "retro_arcade" | "gaming_cafe" | "whispering_woods" | "glimmering_caverns";
+export type MapId = "cozy_lounge" | "campfire_night" | "sunset_beach" | "velvet_casino" | "casino_vip" | "boxing_ring" | "japanese_onsen" | "retro_arcade" | "gaming_cafe" | "whispering_woods" | "glimmering_caverns" | "open_sea" | "hidden_cove";
 /**
  * Every world, in the fast-travel grid's order: two per row, a theme per row (cozy living,
  * vacation and spa, action and play, gaming and cyber); then the Velvet Penthouse (casino_vip), the
  * Whispering Woods and the Glimmering Caverns, never on the grid (HIDDEN_MAPS).
  */
-export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "japanese_onsen", "velvet_casino", "boxing_ring", "retro_arcade", "gaming_cafe", "casino_vip", "whispering_woods", "glimmering_caverns"];
+export const MAP_IDS: MapId[] = ["cozy_lounge", "campfire_night", "sunset_beach", "japanese_onsen", "velvet_casino", "boxing_ring", "retro_arcade", "gaming_cafe", "casino_vip", "whispering_woods", "glimmering_caverns", "open_sea", "hidden_cove"];
 /** Worlds reached only from another (never on the fast-travel grid): the Velvet Penthouse (Bruno's
  *  doors), the Whispering Woods (the campfire's branch archway, with a permit) and the Glimmering
- *  Caverns (the woods' old mine adit, once Old Flint has met you). */
-export const HIDDEN_MAPS: ReadonlySet<MapId> = new Set<MapId>(["casino_vip", "whispering_woods", "glimmering_caverns"]);
+ *  Caverns (the woods' old mine adit, once Old Flint has met you); and, registered for the beach
+ *  (docs/beach-design.md: neither is built), the Open Sea and the Hidden Cove (the captain's boat). */
+export const HIDDEN_MAPS: ReadonlySet<MapId> = new Set<MapId>(["casino_vip", "whispering_woods", "glimmering_caverns", "open_sea", "hidden_cove"]);
 /** The Glimmering Caverns (under the Whispering Woods). */
 export function isCavernsMap(map: string): boolean {
   return map === "glimmering_caverns";
@@ -238,15 +239,19 @@ export function isCavernsMap(map: string): boolean {
 export function isFishingMap(map: string): boolean {
   return isCampMap(map) || isCavernsMap(map);
 }
+/** Sunset Beach and the two maps under it: the Open Sea and the Hidden Cove (docs/beach-design.md). */
+export function isBeachMap(map: string): boolean {
+  return map === "sunset_beach" || map === "open_sea" || map === "hidden_cove";
+}
 /** The campfire and the woods behind it: one 24-minute day between them (shared/daynight.ts). */
 export function isCampMap(map: string): boolean {
   return map === "campfire_night" || map === "whispering_woods";
 }
 /** The worlds you gather in (the wood carrier's, the livewell's and the satchel's gauges show only
- *  there): the campfire and the woods behind it, the caverns under them, the beach (and an ocean, once
- *  there is one). */
+ *  there): the campfire and the woods behind it, the caverns under them, the beach and the two maps
+ *  under it. */
 export function isGatheringMap(map: string): boolean {
-  return isCampMap(map) || isCavernsMap(map) || map === "sunset_beach" || map === "ocean";
+  return isCampMap(map) || isCavernsMap(map) || isBeachMap(map);
 }
 /** The casino's two floors: the hall and the penthouse (the High Rollers board shows on both). */
 export function isCasinoMap(map: string): boolean {
@@ -542,31 +547,6 @@ export const ITEMS: Record<ItemId, { emoji: string; name: string; value: number;
 // --- fishing: the Stardew-style reel mini-game ---
 /** How long the tension game lasts before the fish wins by exhaustion. */
 export const REEL_SECONDS = 22;
-export type FishingWater = "ocean" | "river";
-/** What a line brings up, per water. "boot" is a dud. `speed` shapes the mini-game. */
-export const FISH_TABLES: Record<FishingWater, { item: ItemId | "boot"; weight: number; speed: number; size: number }[]> = {
-  ocean: [
-    { item: "sardine", weight: 40, speed: 0.7, size: 0.9 },
-    { item: "clownfish", weight: 22, speed: 1.0, size: 0.8 },
-    { item: "seabass", weight: 14, speed: 1.4, size: 1.1 },
-    { item: "starfish", weight: 10, speed: 0.4, size: 0.7 },
-    { item: "boot", weight: 8, speed: 0.3, size: 1.2 },
-    { item: "octopus", weight: 5, speed: 1.6, size: 1.3 },
-    { item: "goldray", weight: 1, speed: 2.0, size: 1.0 },
-  ],
-  river: [
-    { item: "trout", weight: 45, speed: 0.9, size: 0.9 },
-    { item: "crayfish", weight: 25, speed: 0.5, size: 0.7 },
-    { item: "salmon", weight: 18, speed: 1.5, size: 1.2 },
-    { item: "boot", weight: 12, speed: 0.3, size: 1.2 },
-  ],
-};
-export interface FishOnLine {
-  item: ItemId | "boot";
-  speed: number;
-  size: number;
-  water: FishingWater;
-}
 export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];
 
 export type Bag = Partial<Record<ItemId, number>>;
@@ -1203,7 +1183,7 @@ export function usableSeated(kind: ToggleableKind): boolean {
 
 // --- world sizes ---
 /** Half-width of each diorama slab. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 14, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, whispering_woods: 17, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12, glimmering_caverns: 22.5 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 14, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, whispering_woods: 17, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12, glimmering_caverns: 22.5, open_sea: 8, hidden_cove: 12 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
 export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 

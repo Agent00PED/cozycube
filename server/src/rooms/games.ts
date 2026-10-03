@@ -1,34 +1,17 @@
 import {
   DAILY_TASKS,
-  FISH_TABLES,
   GACHA_COST,
   OUTFITS,
   PREMIUM_HATS,
   hashString,
   type DailyChecklist,
   type DailyTaskId,
-  type FishOnLine,
-  type FishingWater,
   type GachaPrize,
   type OutfitId,
   type PremiumHat,
 } from "../../../shared/types";
 
 // Pure game logic the room calls into: no Colyseus, no schema, easy to test.
-
-// --- fishing ---------------------------------------------------------------------------------
-
-export function rollFish(water: FishingWater): FishOnLine {
-  const table = FISH_TABLES[water];
-  const total = table.reduce((sum, c) => sum + c.weight, 0);
-  let roll = Math.random() * total;
-  for (const c of table) {
-    roll -= c.weight;
-    if (roll <= 0) return { item: c.item, speed: c.speed, size: c.size, water };
-  }
-  const last = table[table.length - 1];
-  return { item: last.item, speed: last.speed, size: last.size, water };
-}
 
 // --- gachapon ---------------------------------------------------------------------------------
 
