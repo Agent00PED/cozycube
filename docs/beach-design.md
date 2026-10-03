@@ -384,8 +384,11 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
    close-up camera needed nothing: it was never the caverns' alone). The Tidewater Pickaxe (75,000)
    and Ore Crate (24 slots, 37,500) made at Dune's, who buys ore as well. Reef stone and sea glass;
    the fossil for the codex is left out. T6 on the reef: 249 a minute as sold.
-7. **Dressing and life.** Gulls, crabs, a turtle; the sea's wonders; the sounds (waves, gulls, the
-   bar's music at dusk); the outfit; the lobby's and the trip screens' art.
+7. **Dressing and life (done in part, patch 0.8.6).** The sea's sound on all three maps (surf and
+   breaking waves, gulls by day, the boat's creak, the cove's hush and drips), three gulls and seven
+   crabs on the beach, the Beachcomber's outfit at Dune's. **Not done:** the turtle, the sea's wonders,
+   the bar's music at dusk, the lobby's and the trip screens' art. Also still open from section 6: a
+   T7 axe and pickaxe with the cove's ironwood and pearl rock, pearl jewellery, a Pearl-set ring band.
 
 ## What changed from revision 1, and why
 

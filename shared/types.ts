@@ -817,7 +817,7 @@ export interface WardrobeItem {
   archetype?: OutfitArchetype;
   /** A map's own outfit: sold by that keeper at their counter (never at the boutique), and put on as
    *  it is bought. */
-  keeper?: "bramble" | "gus";
+  keeper?: "bramble" | "gus" | "dune";
 }
 
 // --- outfits: a whole look for the body, in one accent colour of your choosing ---
@@ -843,7 +843,8 @@ export type OutfitId =
   | "outfit_yukata_starry"
   | "outfit_pinstripe"
   | "outfit_forester"
-  | "outfit_miner";
+  | "outfit_miner"
+  | "outfit_beachcomber";
 export const OUTFITS: Record<OutfitId, WardrobeItem> = {
   outfit_starter_hoodie: { name: "Cozy Hoodie & Sweats", emoji: "🧥", price: 0, archetype: "streetwear" },
   outfit_starter_overalls: { name: "Classic Denim Overalls", emoji: "👖", price: 0, archetype: "workwear" },
@@ -869,6 +870,7 @@ export const OUTFITS: Record<OutfitId, WardrobeItem> = {
   // the maps' own: sold by their keepers, in the Whispering Woods and the Glimmering Caverns
   outfit_forester: { name: "Woodsman's Vest & Work Trousers", emoji: "🌲", price: 4800, tier: "rare", archetype: "workwear", keeper: "bramble" },
   outfit_miner: { name: "Prospector's Canvas Overalls", emoji: "⛏️", price: 5200, tier: "rare", archetype: "workwear", keeper: "gus" },
+  outfit_beachcomber: { name: "Beachcomber's Shirt & Shorts", emoji: "🐚", price: 5600, tier: "rare", archetype: "summer", keeper: "dune" },
   // never sold
   outfit_cyber: { name: "Retro Cyber Jumpsuit", emoji: "🕹️", price: 0, gachaOnly: true, archetype: "streetwear" },
   outfit_blueprint_overalls: { name: "Blueprint Overalls", emoji: "📐", price: 0, pioneer: true, archetype: "workwear" },
@@ -1004,6 +1006,7 @@ export const OUTFIT_FABRICS: Record<OutfitId, { shirt: string; pants: string }> 
   outfit_pinstripe: { shirt: "#2b3a6b", pants: "#2b3a6b" },
   outfit_forester: { shirt: "#8aa67e", pants: "#6b4f3a" },
   outfit_miner: { shirt: "#3a3a40", pants: "#a08a60" },
+  outfit_beachcomber: { shirt: "#2a9d8f", pants: "#f5ecd8" },
 };
 export const HATS: FreeAccessory[] = ACCESSORIES;
 export function isHat(v: unknown): v is Accessory {

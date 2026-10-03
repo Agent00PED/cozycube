@@ -1274,11 +1274,13 @@ export class HangoutRoom extends Room<HangoutState> {
     const keeper = OUTFITS[outfit].keeper;
     if (keeper) {
       const there =
-        keeper === "bramble"
+        keeper === "dune"
+          ? player.map === "sunset_beach" && Math.hypot(player.x - DUNE_FRONT.x, player.z - DUNE_FRONT.z) <= DUNE_REACH + 0.6
+          : keeper === "bramble"
           ? player.map === "whispering_woods" && Math.hypot(player.x - BRAMBLE_FRONT.x, player.z - BRAMBLE_FRONT.z) <= BRAMBLE_REACH + 0.4
           : player.map === "glimmering_caverns" && Math.min(Math.hypot(player.x - GUS_FRONT.x, player.z - GUS_FRONT.z), Math.hypot(player.x - GUS.x, player.z - GUS.z)) <= GUS_REACH + 1.2;
       if (!there) {
-        this.sendTo(sessionId, "campfireNotice", { message: keeper === "bramble" ? "That outfit is Bramble's: his cabin in the Whispering Woods" : "That outfit is Gus's: his post in the Glimmering Caverns", emoji: OUTFITS[outfit].emoji });
+        this.sendTo(sessionId, "campfireNotice", { message: keeper === "dune" ? "That outfit is Dune's: his shack on Sunset Beach" : keeper === "bramble" ? "That outfit is Bramble's: his cabin in the Whispering Woods" : "That outfit is Gus's: his post in the Glimmering Caverns", emoji: OUTFITS[outfit].emoji });
         return;
       }
     } else if (!this.atBoutique(sessionId, player)) return;

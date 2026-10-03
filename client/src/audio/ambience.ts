@@ -1,3 +1,4 @@
+import { SeaAmbience, type SeaPlace } from "./seaAmbience";
 import { useEffect, useRef } from "react";
 import type { MapId } from "@shared/types";
 import { AMBIENCE_CHANNELS, getSoundSettings, subscribeSoundSettings, type AmbienceChannel } from "./soundSettings";
@@ -493,6 +494,7 @@ let jazz: CasinoJazz | null = null;
 let crowd: CasinoCrowd | null = null;
 let ringCrowd: CasinoCrowd | null = null;
 let rain: RainAmbience | null = null;
+let sea: SeaAmbience | null = null;
 
 /** The Velvet Ring's crowd reacting (a hit, a knockdown, a knockout), when it is playing. */
 export function ringCrowdRoar(size: number) {
@@ -539,6 +541,10 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
     ringCrowd?.setActive(mapId === "boxing_ring");
     // the Glimmering Caverns: its reverb and drips, its crystals, its thermal terraces' steam
     setCavernsActive(mapId === "glimmering_caverns");
+    // the sea: Sunset Beach's surf and gulls, the Open Sea's swell, the Hidden Cove's hush and drips
+    const place: SeaPlace | null = mapId === "sunset_beach" ? "beach" : mapId === "open_sea" ? "sea" : mapId === "hidden_cove" ? "cove" : null;
+    if (place) sea ??= new SeaAmbience();
+    sea?.setPlace(place);
   }, [mapId]);
   useEffect(
     () =>
@@ -549,6 +555,7 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
         crowd?.refreshVolume();
         ringCrowd?.refreshVolume();
         rain?.refreshVolume();
+        sea?.refreshVolume();
         refreshCavernsVolume();
       }),
     []
@@ -561,6 +568,7 @@ export function useWorldAmbience(mapId: MapId | null, fuel = 60, radioPlaying = 
       crowd?.setActive(false);
       ringCrowd?.setActive(false);
       rain?.setActive(false, true);
+      sea?.setPlace(null);
       setCavernsActive(false);
     },
     []

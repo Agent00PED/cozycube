@@ -1,3 +1,5 @@
+import type { OutfitId } from "@shared/types";
+import { MapOutfitCard } from "./MapOutfitCard";
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
 import { BAITS, BAIT_IDS, CREEL_TIERS, RODS, ROD_IDS, TIER_LABEL, fishValue, livewellCap, nextCreelTier, type FishId, type FishingProfile } from "@shared/fishing";
@@ -36,6 +38,9 @@ interface Props {
   onTimber?: () => void;
   /** Dune's ore scale (GusShopModal's trade tab). */
   onOre?: () => void;
+  /** Dune's own outfit (the Beachcomber's): what the player owns, and buying it. */
+  owned?: string;
+  onBuyOutfit?: (outfit: OutfitId) => void;
   /** Dune's Tidewater tools are made on the boat's channel (shared/voyage.ts). */
   sea?: (channel: string, packet?: unknown) => void;
 }
@@ -58,7 +63,7 @@ const TABS: [ShopTab, string, string][] = [
 const FINNEGAN_TABS: [ShopTab, string, string][] = [...TABS, ["barter", "🦎", "Barter"]];
 const DUNE_TABS: [ShopTab, string, string][] = [...TABS, ["barter", "🌊", "Tidewater"]];
 
-export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose, keeper = "barnaby", sea, onTimber, onOre }: Props) {
+export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose, keeper = "barnaby", sea, onTimber, onOre, owned, onBuyOutfit }: Props) {
   // (Finnegan keeps every tier, as Finley does)
   const finley = keeper !== "barnaby";
   const finnegan = keeper === "finnegan";
@@ -243,6 +248,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
       {tab === "barter" && dune && (
         <div className="flex flex-col gap-1.5">
           <p className="m-0 text-center text-[12px] opacity-80">"A Tidewater rod isn't bought, it's made: slow, and from good things." Coins and makings from all three crafts. A Masterwork ingot stands in for a plain one.</p>
+          {onBuyOutfit && <MapOutfitCard outfit="outfit_beachcomber" owned={owned ?? ""} coins={coins} onBuy={onBuyOutfit} />}
           {FORGED_TOOL_IDS.filter((id) => FORGED_TOOLS[id].place === "dune").map((id) => {
             const t = FORGED_TOOLS[id];
             const owned = forgedOwned(profile, id);
