@@ -2,7 +2,7 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { ORE_KINDS, parseOres, type CaveShatter, type CaveStrike, type OreKind } from "@shared/caverns_mining";
+import { ORE_KINDS, oreCenterY, parseOres, type CaveShatter, type CaveStrike, type OreKind } from "@shared/caverns_mining";
 import { REEF_NODES } from "@shared/worlds/beach";
 import { COVE_NODES } from "@shared/worlds/cove";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -15,6 +15,8 @@ import { prospectStore } from "../systems/prospectStore";
 import { noRaycast } from "./kit";
 import { NODE_YAW } from "./caveNodes";
 import { prospectShake } from "./prospectCamera";
+import { caveFx } from "./caveFx";
+import { CaveFxLayer } from "./caveOres";
 import { ProspectingView } from "./ProspectingView";
 
 // Sunset Beach's fossil reef rock (shared/worlds/beach.ts REEF_NODES): six nodes in the headland's
@@ -64,6 +66,8 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike, map }: 
   const rocks = useRef(new Map<string, THREE.Mesh>());
   const me = useRef(localSessionId);
   me.current = localSessionId;
+  // (the caverns' own pools of sparks and dust: drawn here by CaveFxLayer)
+  const { fx, puffs } = useMemo(() => caveFx(), []);
 
   useEffect(
     () =>
@@ -72,6 +76,13 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike, map }: 
           const st = payload as CaveStrike;
           if (!NODES.some((n) => n.id === st.node)) return;
           shake.current.set(st.node, performance.now() + (st.verdict === "deflect" ? 120 : 200));
+          // sparks where the pick lands, a puff of the rock's dust
+          const hitNode = NODES.find((n) => n.id === st.node)!;
+          const out = new THREE.Vector3(...st.hit);
+          const at = new THREE.Vector3(hitNode.x, hitNode.y + oreCenterY(kind), hitNode.z).addScaledVector(out, ORE_KINDS[kind].radius * 0.95);
+          fx.sparks(at, out, st.verdict === "direct" ? ORE_KINDS[kind].glow : st.verdict === "near" ? "#ffb46b" : st.verdict === "deflect" ? "#cfe6ff" : "#9a948c", st.verdict === "direct" ? 12 : 6, st.verdict === "bedrock" ? 0.6 : 1);
+          if (st.verdict !== "deflect") puffs.burst(at, out, "#d8cdb8", st.verdict === "direct" ? 4 : 3, 0.4, 0.9, 0.42);
+          if (st.perfect) fx.sparks(at, out, "#fff4d6", 10, 1.3);
           const mine = st.sessionId === me.current;
           prospectStore.strike(st, mine);
           if (mine) {
@@ -83,10 +94,14 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike, map }: 
           const sh = payload as CaveShatter;
           if (!NODES.some((n) => n.id === sh.node)) return;
           playCaveSfx("shatter", 1);
+          const broke = NODES.find((n) => n.id === sh.node)!;
+          const mid = new THREE.Vector3(broke.x, broke.y + oreCenterY(kind), broke.z);
+          fx.shards(mid, ORE_KINDS[kind].radius, ORE_KINDS[kind].glow, 26);
+          puffs.burst(mid, new THREE.Vector3(0, 0.3, 0), "#d8cdb8", 8, ORE_KINDS[kind].radius * 1.8, 1.6, 0.5);
           if (sh.crew.includes(me.current ?? "")) prospectShake(0.14);
         }
       }),
-    [subscribeMessages, NODES]
+    [subscribeMessages, NODES, fx, puffs, kind]
   );
 
   // a struck rock shudders a moment
@@ -132,6 +147,7 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike, map }: 
         );
       })}
       <ProspectingView templates={templates} onStrike={onStrike} />
+      <CaveFxLayer />
     </group>
   );
 }
