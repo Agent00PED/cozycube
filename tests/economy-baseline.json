@@ -11,15 +11,15 @@
    "craft": "fish",
    "tier": 1,
    "where": "woods river",
-   "perMin": 25.2,
-   "perMinSold": 25.2
+   "perMin": 23.2,
+   "perMinSold": 23.2
   },
   {
    "craft": "fish",
    "tier": 1,
    "where": "cenote",
-   "perMin": 50.1,
-   "perMinSold": 41.8
+   "perMin": 51.1,
+   "perMinSold": 42.2
   },
   {
    "craft": "fish",
@@ -32,78 +32,78 @@
    "craft": "fish",
    "tier": 2,
    "where": "woods river",
-   "perMin": 35.7,
-   "perMinSold": 35.7
+   "perMin": 32.6,
+   "perMinSold": 32.6
   },
   {
    "craft": "fish",
    "tier": 2,
    "where": "cenote",
-   "perMin": 67.3,
-   "perMinSold": 60
+   "perMin": 69.9,
+   "perMinSold": 61.8
   },
   {
    "craft": "fish",
    "tier": 3,
    "where": "campfire river",
-   "perMin": 42.9,
-   "perMinSold": 42.9
+   "perMin": 46.9,
+   "perMinSold": 46.9
   },
   {
    "craft": "fish",
    "tier": 3,
    "where": "woods river",
-   "perMin": 52.3,
-   "perMinSold": 52.3
+   "perMin": 50.9,
+   "perMinSold": 50.9
   },
   {
    "craft": "fish",
    "tier": 3,
    "where": "cenote",
-   "perMin": 102.4,
-   "perMinSold": 90.6
+   "perMin": 99.7,
+   "perMinSold": 92.5
   },
   {
    "craft": "fish",
    "tier": 4,
    "where": "campfire river",
-   "perMin": 52.8,
-   "perMinSold": 52.8
+   "perMin": 55.6,
+   "perMinSold": 55.6
   },
   {
    "craft": "fish",
    "tier": 4,
    "where": "woods river",
-   "perMin": 77,
-   "perMinSold": 77
+   "perMin": 74.7,
+   "perMinSold": 74.7
   },
   {
    "craft": "fish",
    "tier": 4,
    "where": "cenote",
-   "perMin": 137.9,
-   "perMinSold": 126.7
+   "perMin": 146.6,
+   "perMinSold": 133
   },
   {
    "craft": "fish",
    "tier": 5,
    "where": "campfire river",
-   "perMin": 59,
-   "perMinSold": 59
+   "perMin": 61.8,
+   "perMinSold": 61.8
   },
   {
    "craft": "fish",
    "tier": 5,
    "where": "woods river",
-   "perMin": 100.6,
-   "perMinSold": 100.6
+   "perMin": 98.7,
+   "perMinSold": 98.7
   },
   {
    "craft": "fish",
    "tier": 5,
    "where": "cenote",
-   "perMin": 194,
-   "perMinSold": 177.5
+   "perMin": 192.1,
+   "perMinSold": 175.6
   },
   {
    "craft": "wood",
