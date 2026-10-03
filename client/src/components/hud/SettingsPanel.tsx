@@ -23,6 +23,7 @@ function fadersFor(map: MapId, raining: boolean): [Fader, string][] {
     case "boxing_ring":
       return [["crowd", "📣 Ringside Crowd"]];
     case "sunset_beach":
+      return [["river", "🌊 Sea & Waves"], ["forest", "🕊️ Gulls"], ["guitar", "🎶 Bar Ukulele"]];
     case "open_sea":
       return [["river", "🌊 Sea & Waves"], ["forest", "🕊️ Gulls"]];
     case "hidden_cove":
@@ -35,7 +36,7 @@ function fadersFor(map: MapId, raining: boolean): [Fader, string][] {
 }
 /** What each world's faders are, in a line under them. */
 const FADER_NOTE: Partial<Record<MapId, string>> = {
-  sunset_beach: "The surf running up the sand and drawing back, and gulls by day. These two faders are the campfire's River and Forest.",
+  sunset_beach: "The surf running up the sand and drawing back, gulls by day, and from dusk a ukulele at the bar. These faders are the campfire's River, Forest and Night Guitar.",
   open_sea: "The swell against the hull, the boat's timbers, a gull now and then by day.",
   hidden_cove: "The sea heard through the rock, the lagoon lapping, drips off the roof.",
   cozy_lounge: "The lounge's folk-jazz trio (it rests while the radio plays), and the rain on its windows when it rains. The radio has its own volume in its panel.",

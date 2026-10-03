@@ -64,7 +64,7 @@ PALETTE = {
     "BC_Stone": "#9C958B", "BC_StoneDark": "#6F6A63", "BC_Reef": "#DCC8A8", "BC_ReefDark": "#B9A283", "BC_Rock": "#8E8679", "BC_RockDark": "#615C54", "BC_RockMoss": "#7C8A62",
     "BC_Char": "#2B2623", "BC_Ash": "#5A544E",
     "BC_PalmBark": "#8E6E4C", "BC_PalmBarkDark": "#6F5439", "BC_Frond": "#4E9A4A", "BC_FrondLight": "#7DBB55", "BC_FrondDeep": "#2F7240", "BC_Coconut": "#5B3F2A",
-    "BC_Leaf": "#3F8A55", "BC_LeafLight": "#68AE5E", "BC_DuneGrass": "#B9C67C", "BC_DuneGrassDark": "#93A860", "BC_Blossom": "#F08FA6",
+    "BC_GroveFloor": "#B7B27C", "BC_GroveLitter": "#9C8A5E", "BC_RockGround": "#B3A68C", "BC_Weed": "#5E6B3A", "BC_WeedDark": "#4A4A2E", "BC_Agave": "#8FB29A", "BC_AgaveTip": "#C9DDB8", "BC_Banana": "#58A04C", "BC_BananaLight": "#8CC864", "BC_Morning": "#B58BE0", "BC_Hibiscus": "#E8505A", "BC_Leaf": "#3F8A55", "BC_LeafLight": "#68AE5E", "BC_DuneGrass": "#B9C67C", "BC_DuneGrassDark": "#93A860", "BC_Blossom": "#F08FA6",
     "BC_Canvas": "#F4EDE0", "BC_Red": "#D9534F", "BC_Teal": "#3AA6A0", "BC_Yellow": "#F2C14E", "BC_Coral": "#F08A6B", "BC_White": "#F7F3EA", "BC_Navy": "#2C4A6E", "BC_Pink": "#F2A7B5",
     "BC_Glass": "#BFE3E8", "BC_Bottle": "#5FA37A", "BC_BottleAmber": "#C7873A", "BC_Iron": "#4A4F55", "BC_Shell": "#F3D9C9", "BC_Star": "#F29A6B",
     "BC_Hull": "#F4EFE4", "BC_HullTrim": "#C94C3F", "BC_HullUnder": "#2F5D6B", "BC_Deck": "#C79A66",
@@ -72,7 +72,7 @@ PALETTE = {
 }
 ROUGHNESS = {"BC_Glass": 0.3, "BC_Bottle": 0.35, "BC_BottleAmber": 0.35, "BC_Iron": 0.6, "BC_Hull": 0.55, "BC_HullTrim": 0.55}
 EMISSION = {"BC_Bulb": 2.6, "BC_Ember": 2.2, "BC_Lamp": 2.4}
-DOUBLE_SIDED = {"BC_Frond", "BC_FrondLight", "BC_FrondDeep", "BC_DuneGrass", "BC_DuneGrassDark", "BC_Canvas", "BC_Red", "BC_Teal", "BC_Yellow", "BC_Pink", "BC_Thatch", "BC_ThatchDark", "BC_White", "BC_Coral"}
+DOUBLE_SIDED = {"BC_Banana", "BC_BananaLight", "BC_Agave", "BC_AgaveTip", "BC_Frond", "BC_FrondLight", "BC_FrondDeep", "BC_DuneGrass", "BC_DuneGrassDark", "BC_Canvas", "BC_Red", "BC_Teal", "BC_Yellow", "BC_Pink", "BC_Thatch", "BC_ThatchDark", "BC_White", "BC_Coral"}
 MATS = list(PALETTE)
 PALM_FINISH = {"BC_Frond": "BC_Palm", "BC_FrondLight": "BC_Palm", "BC_FrondDeep": "BC_Palm", "BC_Coconut": "BC_PalmBark", "BC_PalmBark": "BC_PalmBark", "BC_PalmBarkDark": "BC_PalmBark"}
 
@@ -171,7 +171,13 @@ def shade_pools():
     return pools
 
 
+GROVE_FLOOR = GROVE_LITTER = ROCK_GROUND = WRACK = None
+
+
 def ground_color(x, z, tones, pools):
+    global GROVE_FLOOR, GROVE_LITTER, ROCK_GROUND, WRACK
+    if GROVE_FLOOR is None:
+        GROVE_FLOOR, GROVE_LITTER, ROCK_GROUND, WRACK = (lin(PALETTE[k]) for k in ("BC_GroveFloor", "BC_GroveLitter", "BC_RockGround", "BC_WeedDark"))
     dry, pale, wet, ash, green, bed, deep = tones
     d = shore_at(x, z)
     y = ground_y(x, z)
@@ -184,6 +190,26 @@ def ground_color(x, z, tones, pools):
     c = mixc(dry, pale, smooth(0.75, 1.5, y) * 0.8)
     # sparse beach grass's ground behind the dunes
     c = mixc(c, green, 0.55 * smooth(11.0, 17.0, d) * smooth(0.35, 0.7, n1))
+    # the groves' floor: under the palms the sand goes over to leaf litter and thin grass, in one
+    # patch a grove (the nearer the trunks, the more), its edge ragged
+    g = 0.0
+    for p in SCENE["palms"] + SCENE["hammockPalms"]:
+        q = math.hypot(x - p["x"], z - p["z"])
+        if q < 3.4:
+            g += smooth(3.4, 0.6, q)
+    if g > 0:
+        g = min(1.0, g * 0.62) * (0.55 + 0.45 * n2)
+        c = mixc(c, mixc(GROVE_FLOOR, GROVE_LITTER, smooth(0.35, 0.75, n1)), 0.8 * g)
+    # the outcrops: stony ground round the rocks and the reef
+    r_near = min([math.hypot(x - p["x"], z - p["z"]) - 0.4 * p.get("s", 1.0) for p in SCENE["rocks"] + SCENE.get("reef", [])] or [9.0])
+    if r_near < 1.5 and d > -0.5:
+        c = mixc(c, ROCK_GROUND, 0.6 * smooth(1.5, 0.2, r_near) * (0.6 + 0.4 * n2))
+    # the high tide's line: a thin drift of weed and shell grit, wandering, broken
+    wl = 2.15 + 0.7 * (n1 - 0.5) + 0.25 * math.sin(x * 0.9 + z * 0.6)
+    c = mixc(c, WRACK, 0.34 * smooth(0.22, 0.0, abs(d - wl)) * smooth(0.3, 0.6, vnoise(x * 0.9 + 40.0, z * 0.9)))
+    # wind ripples over the dry sand, faint
+    if d > 3.0:
+        c = [v * (1.0 + 0.022 * math.sin((x * 0.83 - z * 0.56) * 5.2 + 2.2 * n1)) for v in c]
     # the wet band at the waterline, its edge wandering
     c = mixc(c, wet, smooth(1.5 + 0.5 * n1, 0.15, d))
     # the one worn place: ash-grey sand round the firepit
@@ -777,6 +803,70 @@ def build_life_looks(root):
         for k in range(3):
             parts.append((lambda bm, sx=sx, k=k: cylinder(bm, W(sx * 0.07, 0.04, 0.02 - k * 0.035), W(sx * 0.13, 0.0, 0.03 - k * 0.045), 0.009, 4, m=0), "#C85E3E"))
     made.append(fauna_node("Fauna_SandCrab", parts, coll))
+    # the sea turtle: 0.7 m, a domed olive shell, four flippers, a blunt head (swimming at the surface)
+    turtle = [
+        (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.26, 0.11, 0.34, m=0, cuts=3), "#5E7A4A"),
+        (lambda bm: blob(bm, 0.0, 0.06, -0.02, 0.19, 0.07, 0.25, m=0, cuts=2), "#7A9658"),
+        (lambda bm: blob(bm, 0.0, -0.03, 0.0, 0.22, 0.05, 0.3, m=0, cuts=2), "#D9CC9A"),
+        (lambda bm: blob(bm, 0.0, 0.02, 0.4, 0.085, 0.07, 0.11, m=0, cuts=2), "#8BA56A"),
+        (lambda bm: blob(bm, 0.05, 0.05, 0.47, 0.012, 0.012, 0.01, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, -0.05, 0.05, 0.47, 0.012, 0.012, 0.01, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, 0.0, -0.01, -0.38, 0.03, 0.02, 0.06, m=0, cuts=1), "#8BA56A"),
+    ]
+    for sx in (1, -1):
+        turtle.append((lambda bm, sx=sx: blob(bm, sx * 0.36, -0.01, 0.18, 0.2, 0.022, 0.085, m=0, cuts=2), "#8BA56A"))
+        turtle.append((lambda bm, sx=sx: blob(bm, sx * 0.24, -0.01, -0.3, 0.1, 0.02, 0.07, m=0, cuts=1), "#8BA56A"))
+    made.append(fauna_node("Fauna_SeaTurtle", turtle, coll))
+    # the sandpiper: 0.16 m, a pale belly, a brown back, a long dark bill, two thin legs
+    made.append(fauna_node("Fauna_Sandpiper", [
+        (lambda bm: blob(bm, 0.0, 0.1, 0.0, 0.04, 0.04, 0.07, m=0, cuts=2), "#F1ECE2"),
+        (lambda bm: blob(bm, 0.0, 0.118, -0.012, 0.036, 0.026, 0.066, m=0, cuts=2), "#A08466"),
+        (lambda bm: blob(bm, 0.0, 0.148, 0.06, 0.026, 0.026, 0.028, m=0, cuts=2), "#B39878"),
+        (lambda bm: cylinder(bm, W(0.0, 0.146, 0.08), W(0.0, 0.138, 0.14), 0.005, 4, m=0), "#2B2623"),
+        (lambda bm: blob(bm, 0.016, 0.155, 0.075, 0.005, 0.005, 0.004, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, -0.016, 0.155, 0.075, 0.005, 0.005, 0.004, m=0, cuts=1), "#1B1818"),
+        (lambda bm: cylinder(bm, W(0.014, 0.07, 0.0), W(0.014, 0.0, 0.006), 0.004, 4, m=0), "#3A332C"),
+        (lambda bm: cylinder(bm, W(-0.014, 0.07, 0.0), W(-0.014, 0.0, 0.006), 0.004, 4, m=0), "#3A332C"),
+    ], coll))
+    # a leaping fish: 0.3 m, silver with a blue back, a forked tail
+    made.append(fauna_node("Fauna_LeapFish", [
+        (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.035, 0.06, 0.14, m=0, cuts=2), "#DDE6EC"),
+        (lambda bm: blob(bm, 0.0, 0.03, -0.01, 0.028, 0.035, 0.12, m=0, cuts=2), "#4E86B8"),
+        (lambda bm: blob(bm, 0.0, 0.03, -0.17, 0.008, 0.05, 0.04, m=0, cuts=1), "#4E86B8"),
+        (lambda bm: blob(bm, 0.0, -0.03, -0.17, 0.008, 0.05, 0.04, m=0, cuts=1), "#B9C8D2"),
+    ], coll))
+    # a dolphin: 1.9 m, slate above and pale below, a dorsal fin, flukes, a beak
+    made.append(fauna_node("Fauna_Dolphin", [
+        (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.2, 0.22, 0.8, m=0, cuts=3), "#6E8494"),
+        (lambda bm: blob(bm, 0.0, -0.08, 0.05, 0.16, 0.14, 0.7, m=0, cuts=2), "#DCE4E8"),
+        (lambda bm: blob(bm, 0.0, 0.0, 0.84, 0.07, 0.06, 0.16, m=0, cuts=2), "#6E8494"),
+        (lambda bm: blob(bm, 0.0, 0.27, -0.05, 0.025, 0.14, 0.12, m=0, cuts=1), "#5A6E7C"),
+        (lambda bm: blob(bm, 0.0, 0.0, -0.88, 0.26, 0.025, 0.1, m=0, cuts=1), "#5A6E7C"),
+        (lambda bm: blob(bm, 0.2, -0.08, 0.3, 0.14, 0.02, 0.07, m=0, cuts=1), "#5A6E7C"),
+        (lambda bm: blob(bm, -0.2, -0.08, 0.3, 0.14, 0.02, 0.07, m=0, cuts=1), "#5A6E7C"),
+        (lambda bm: blob(bm, 0.1, 0.06, 0.62, 0.012, 0.012, 0.01, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, -0.1, 0.06, 0.62, 0.012, 0.012, 0.01, m=0, cuts=1), "#1B1818"),
+    ], coll))
+    # a whale's back as it rolls at the surface (9 m of it), and its flukes for the dive
+    made.append(fauna_node("Fauna_WhaleBack", [
+        (lambda bm: blob(bm, 0.0, -0.9, 0.0, 1.5, 1.4, 4.6, m=0, cuts=3), "#3F5566"),
+        (lambda bm: blob(bm, 0.0, 0.42, -1.6, 0.12, 0.22, 0.5, m=0, cuts=1), "#34495A"),
+        (lambda bm: blob(bm, 0.0, 0.1, 3.2, 0.5, 0.3, 1.0, m=0, cuts=2), "#4A6274"),
+    ], coll))
+    made.append(fauna_node("Fauna_WhaleFluke", [
+        (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.26, 0.9, 0.26, m=0, cuts=2), "#3F5566"),
+        (lambda bm: blob(bm, 0.75, 0.95, 0.0, 0.85, 0.2, 0.34, m=0, cuts=2), "#34495A"),
+        (lambda bm: blob(bm, -0.75, 0.95, 0.0, 0.85, 0.2, 0.34, m=0, cuts=2), "#34495A"),
+    ], coll))
+    # a butterfly for the flowers (the woods' own shape, under this map's own name)
+    made.append(fauna_node("Fauna_BeachFly_Body", [
+        (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.01, 0.01, 0.04, m=0, cuts=2), "#2E2622"),
+    ], coll))
+    for sx, nm in ((1, "Fauna_BeachFly_WingL"), (-1, "Fauna_BeachFly_WingR")):
+        made.append(fauna_node(nm, [
+            (lambda bm, sx=sx: blob(bm, sx * 0.04, 0.0, 0.012, 0.035, 0.004, 0.03, m=0, cuts=2), "#FFF6E2"),
+            (lambda bm, sx=sx: blob(bm, sx * 0.03, 0.0, -0.022, 0.024, 0.004, 0.02, m=0, cuts=2), "#F4E4C8"),
+        ], coll, pivot=(sx * 0.008, 0.0, 0.0)))
     out = os.path.join(root, "client", "public", "models", "beach_life.glb")
     export(coll, out)
     info = {"glb": out, "bytes": os.path.getsize(out), "tris": sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in made)}
@@ -817,19 +907,54 @@ def build_reef_looks(root):
     return info
 
 
+def leaf_fan(bm, x, y0, z, rng, n, mats, length, width, rise, droop, turn=None):
+    """A rosette of `n` long leaves from one point: each arches up `rise` and falls `droop` over its
+    `length`, `width` across at its broadest (a banana's broad paddles, an agave's stiff blades)."""
+    a0 = rng.random() * 6.283 if turn is None else turn
+    for q in range(n):
+        fa = a0 + 2 * math.pi * q / n + rng.uniform(-0.22, 0.22)
+        R = length * rng.uniform(0.82, 1.12)
+        up = rise * rng.uniform(0.8, 1.15)
+        mat = m(mats[q % len(mats)])
+        segs = 5
+        spine, left, right = [], [], []
+        for j in range(segs + 1):
+            t = j / segs
+            out = R * t
+            yy = y0 + up * t - droop * t * t
+            w = width * math.sin(math.pi * min(1.0, t * 0.9 + 0.1)) ** 0.7
+            cx, cz = x + math.cos(fa) * out, z + math.sin(fa) * out
+            sx, sz = -math.sin(fa) * w, math.cos(fa) * w
+            spine.append(bm.verts.new(W(cx, yy, cz)))
+            left.append(bm.verts.new(W(cx + sx, yy - 0.18 * w, cz + sz)))
+            right.append(bm.verts.new(W(cx - sx, yy - 0.18 * w, cz - sz)))
+        for j in range(segs):
+            bm.faces.new((spine[j], spine[j + 1], left[j + 1], left[j])).material_index = mat
+            bm.faces.new((spine[j + 1], spine[j], right[j], right[j + 1])).material_index = mat
+
+
 def build_nature(coll, rng):
     S = SCENE
     bm = bmesh.new()
-    for p in S["shrubs"]:
+    for i, p in enumerate(S["shrubs"]):
         y = land_y(p["x"], p["z"])
         s = p["s"]
+        # three kinds, in turn: a flowering hibiscus mound, a banana's broad leaves, an agave
+        if i % 3 == 1:
+            bar(bm, W(p["x"], y, p["z"]), W(p["x"], y + 0.55 * s, p["z"]), 0.07 * s, m("BC_BananaLight"), sides=6, r_end=0.05 * s)
+            leaf_fan(bm, p["x"], y + 0.5 * s, p["z"], rng, 6, ("BC_Banana", "BC_BananaLight", "BC_Banana"), 1.0 * s, 0.24 * s, 0.95 * s, 0.7 * s)
+            continue
+        if i % 3 == 2:
+            leaf_fan(bm, p["x"], y + 0.04, p["z"], rng, 9, ("BC_Agave", "BC_AgaveTip", "BC_Agave"), 0.62 * s, 0.085 * s, 0.6 * s, 0.14 * s)
+            leaf_fan(bm, p["x"], y + 0.06, p["z"], rng, 5, ("BC_AgaveTip", "BC_Agave"), 0.4 * s, 0.07 * s, 0.6 * s, 0.05 * s)
+            continue
         for k in range(5):
             a = 2 * math.pi * k / 5 + rng.uniform(-0.3, 0.3)
             rr = rng.uniform(0.1, 0.3) * s
             blob(bm, p["x"] + rr * math.cos(a), y + rng.uniform(0.22, 0.42) * s, p["z"] + rr * math.sin(a), 0.3 * s, 0.26 * s, 0.3 * s, m=m("BC_Leaf") if k % 2 else m("BC_LeafLight"), cuts=2, noise=0.14, rng=rng, flat_bottom=y - 0.04)
         for k in range(4):
             a = rng.random() * 6.283
-            blob(bm, p["x"] + 0.3 * s * math.cos(a), y + rng.uniform(0.3, 0.55) * s, p["z"] + 0.3 * s * math.sin(a), 0.045, 0.045, 0.045, m=m("BC_Blossom"), cuts=1)
+            blob(bm, p["x"] + 0.3 * s * math.cos(a), y + rng.uniform(0.3, 0.55) * s, p["z"] + 0.3 * s * math.sin(a), 0.055, 0.05, 0.055, m=m("BC_Hibiscus" if i % 2 else "BC_Blossom"), cuts=1)
     for p in S["rocks"]:
         y = land_y(p["x"], p["z"])
         s = p["s"]
@@ -841,6 +966,14 @@ def build_nature(coll, rng):
         fr = Frame(w["x"], w["z"], w["yaw"])
         bar(bm, fr.p(-w["len"] / 2, 0.11, 0.0), fr.p(w["len"] / 2, 0.09, 0.0), 0.11, m("BC_Drift"), sides=8, r_end=0.07)
         bar(bm, fr.p(0.1, 0.14, 0.0), fr.p(0.32, 0.36, 0.2), 0.035, m("BC_DriftDark"), sides=5, r_end=0.015)
+    # the tiki torches: a bamboo pole, a bound head, a bowl (the game lights the flame from dusk)
+    for p in S.get("torches", []):
+        y = land_y(p["x"], p["z"])
+        bar(bm, W(p["x"], y - 0.05, p["z"]), W(p["x"] + 0.03, y + 1.45, p["z"]), 0.035, m("BC_Bamboo"), sides=6, r_end=0.03)
+        for h in (0.5, 0.95):
+            bar(bm, W(p["x"], y + h, p["z"]), W(p["x"], y + h + 0.03, p["z"]), 0.042, m("BC_BambooDark"), sides=6)
+        bar(bm, W(p["x"] + 0.03, y + 1.4, p["z"]), W(p["x"] + 0.03, y + 1.62, p["z"]), 0.05, m("BC_Rope"), sides=7, r_end=0.085)
+        bar(bm, W(p["x"] + 0.03, y + 1.6, p["z"]), W(p["x"] + 0.03, y + 1.64, p["z"]), 0.07, m("BC_Char"), sides=7)
     make_object("Beach_Nature", bm, MATS, coll)
 
 
@@ -865,7 +998,7 @@ def build_deco(coll, rng):
     kit = nature()
     made = 0
     for _ in range(9000):
-        if made >= 300:
+        if made >= 420:
             break
         x, z = rng.uniform(-half + 0.8, half - 0.8), rng.uniform(-half + 0.8, half - 0.8)
         d = shore_at(x, z)
@@ -875,9 +1008,66 @@ def build_deco(coll, rng):
             continue
         kit.grass_clump(bm, x, z, rng, m("BC_DuneGrass") if rng.random() < 0.6 else m("BC_DuneGrassDark"), h=rng.uniform(0.3, 0.55), blades=rng.randint(5, 8), spread=0.1)
         made += 1
+    half_in = half - 1.0
+    # coconuts at the palms' feet, and a fallen frond here and there under a grove
+    for i, p in enumerate(SCENE["palms"]):
+        for _ in range(rng.randint(1, 3)):
+            a, r = rng.random() * 6.283, rng.uniform(0.45, 1.3)
+            x, z = p["x"] + math.cos(a) * r, p["z"] + math.sin(a) * r
+            if max(abs(x), abs(z)) < half_in and shore_at(x, z) > 1.0:
+                blob(bm, x, 0.07, z, 0.085, 0.075, 0.1, m=m("BC_Coconut"), cuts=1)
+        if i % 3 == 0:
+            a, r = rng.random() * 6.283, rng.uniform(1.0, 1.9)
+            x, z = p["x"] + math.cos(a) * r, p["z"] + math.sin(a) * r
+            if max(abs(x), abs(z)) < half_in and clear_of_things(x, z):
+                leaf_fan(bm, x, 0.03, z, rng, 1, ("BC_Banana",), 1.5, 0.3, 0.05, 0.02)
+    # mats of beach morning-glory over the open sand, in flower
+    mats = 0
+    for _ in range(3000):
+        if mats >= 16:
+            break
+        x, z = rng.uniform(-half_in, half_in), rng.uniform(-half_in, half_in)
+        d = shore_at(x, z)
+        if d < 5.5 or d > 15.0 or not clear_of_things(x, z, 0.4):
+            continue
+        kit.bush(bm, blob, x, z, rng.uniform(0.7, 1.1), rng, "spread", m("BC_Leaf"), m("BC_LeafLight"), dots=(lambda px, py, pz, r, h, mt: blob(bm, px, py, pz, r, h * 0.5, r, m=mt, cuts=1), m("BC_Morning"), rng.randint(3, 6), 0.04))
+        mats += 1
+    # little agaves and tufts among the outcrops' stones
+    for p in SCENE["rocks"]:
+        if shore_at(p["x"], p["z"]) < 2.5:
+            continue
+        a, r = rng.random() * 6.283, 0.75 * p["s"] + 0.25
+        x, z = p["x"] + math.cos(a) * r, p["z"] + math.sin(a) * r
+        if max(abs(x), abs(z)) < half_in and clear_of_things(x, z):
+            leaf_fan(bm, x, 0.02, z, rng, 7, ("BC_Agave", "BC_AgaveTip"), 0.3, 0.045, 0.3, 0.06)
+    # pebbles round the rocks and the reef
+    stones = 0
+    for _ in range(4000):
+        if stones >= 90:
+            break
+        p = rng.choice(SCENE["rocks"] + SCENE.get("reef", []))
+        a, r = rng.random() * 6.283, rng.uniform(0.6, 1.7)
+        x, z = p["x"] + math.cos(a) * r, p["z"] + math.sin(a) * r
+        if max(abs(x), abs(z)) > half_in or shore_at(x, z) < 0.2 or not clear_of_things(x, z, -0.25):
+            continue
+        sz = rng.uniform(0.04, 0.1)
+        blob(bm, x, sz * 0.5, z, sz, sz * 0.6, sz * rng.uniform(0.7, 1.2), m=m(rng.choice(["BC_Rock", "BC_RockDark", "BC_Stone", "BC_Reef"])), cuts=1, noise=0.2, rng=rng)
+        stones += 1
+    # the wrack: weed left along the high tide's line
+    weed = 0
+    for _ in range(6000):
+        if weed >= 110:
+            break
+        x, z = rng.uniform(-half_in, half_in), rng.uniform(-half_in, half_in)
+        d = shore_at(x, z)
+        wl = 2.15 + 0.7 * (vnoise(x * 0.35 + 11.0, z * 0.35 - 4.0) - 0.5) + 0.25 * math.sin(x * 0.9 + z * 0.6)
+        if abs(d - wl) > 0.3 or not clear_of_things(x, z, -0.4):
+            continue
+        blob(bm, x, 0.012, z, rng.uniform(0.05, 0.13), 0.014, rng.uniform(0.03, 0.07), m=m("BC_Weed" if rng.random() < 0.6 else "BC_WeedDark"), cuts=1)
+        weed += 1
     shells = 0
     for _ in range(4000):
-        if shells >= 70:
+        if shells >= 110:
             break
         x, z = rng.uniform(-half + 0.8, half - 0.8), rng.uniform(-half + 0.8, half - 0.8)
         d = shore_at(x, z)

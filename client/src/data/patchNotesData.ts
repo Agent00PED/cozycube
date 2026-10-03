@@ -2101,6 +2101,24 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.8.7",
+        date: "2026-10-03",
+        title: "The Beach, Regrown",
+        summary: "Sunset Beach laid out afresh: its palms in groves, the reef set into a rock outcrop, the sand alive with plants, birds and a turtle offshore.",
+        changes: {
+          features: [
+            "🌴 The Coconut Palms stand in groves now (west of the shack, behind the bar, at the island's back, behind the hammocks) with two lone palms leaning by the shore: twenty to fell, where there were nineteen in a scatter.",
+            "🪸 The Fossil Reef's six rocks are set into an outcrop on the headland, in two clusters among dark stone.",
+            "🌺 Hibiscus, banana plants and agaves at the groves' feet; mats of morning-glory in flower on the open sand; coconuts and a fallen frond under the palms; a line of weed where the high tide left it; pebbles round the rocks.",
+            "🔥 Six tiki torches (the bar, the firepit, the pier's foot), lit from dusk.",
+            "🐢 A sea turtle swims a slow round in the shallows off the east beach. Sandpipers work the water's edge by day and flutter off down the shore if you come close. A fish leaps now and then, and a pod of dolphins passes far out.",
+            "🦋 Butterflies over the hibiscus by day.",
+            "🎶 From dusk the bar plays: a ukulele, four chords, slow (Settings: Bar Ukulele). The breeze in the palms is in the Sea & Waves fader.",
+          ],
+          economy: ["⚖️ The grove and the reef earn what they did: about 249 and 248 coins a minute with the Tidewater axe and pickaxe."],
+        },
+      },
     ],
   },
 ];

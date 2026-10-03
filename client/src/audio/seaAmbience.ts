@@ -24,6 +24,8 @@ export class SeaAmbience {
   private master: GainNode | null = null;
   private water: GainNode | null = null;
   private life: GainNode | null = null;
+  private music: GainNode | null = null;
+  private musicAt = 0;
   private noise: AudioBuffer | null = null;
   private beds: AudioScheduledSourceNode[] = [];
   private timer = 0;
@@ -44,8 +46,10 @@ export class SeaAmbience {
     this.master.connect(masterOut(c));
     this.water = c.createGain();
     this.life = c.createGain();
+    this.music = c.createGain();
     this.water.connect(this.master);
     this.life.connect(this.master);
+    this.music.connect(this.master);
     this.refreshVolume();
     // four seconds of pink-ish noise (a running average tilts white noise down toward the lows)
     this.noise = c.createBuffer(1, c.sampleRate * 4, c.sampleRate);
@@ -100,6 +104,7 @@ export class SeaAmbience {
       this.bed("lowpass", 620, 0.5, place === "sea" ? 0.2 : 0.24, 0.085, 0.11); // the swell's hush, in and out
       this.bed("lowpass", 150, 0.6, 0.2, 0.05, 0.07); // its low body
       this.bed("bandpass", 3400, 0.7, 0.02, 0.11, 0.012); // the spray
+      if (place === "beach") this.bed("bandpass", 2100, 0.5, 0.012, 0.23, 0.01); // the breeze in the palms' fronds
     }
   }
 
@@ -196,6 +201,47 @@ export class SeaAmbience {
     o.onended = () => (o.disconnect(), g.disconnect(), pan.disconnect());
   }
 
+  /** The bar's ukulele after dusk: four chords strummed slow and soft, each string plucked a little
+   *  after the last (C, A minor, F, G7: the oldest beach tune there is), then quiet a while. */
+  private ukulele(now: number) {
+    const c = this.ctx!;
+    const chords = [
+      [392.0, 261.63, 329.63, 440.0],
+      [440.0, 261.63, 329.63, 440.0],
+      [440.0, 261.63, 349.23, 440.0],
+      [392.0, 293.66, 349.23, 493.88],
+    ];
+    const beat = 0.62;
+    const pan = c.createStereoPanner();
+    pan.pan.value = -0.25;
+    pan.connect(this.music!);
+    let k = 0;
+    for (let bar = 0; bar < 2; bar++)
+      for (const chord of chords) {
+        for (const down of [0, 1]) {
+          const t0 = now + k * beat + down * beat * 0.5;
+          const strings = down ? [...chord].reverse() : chord;
+          strings.forEach((f, i) => {
+            const t = t0 + i * 0.018;
+            const o = c.createOscillator();
+            o.type = "triangle";
+            o.frequency.value = f;
+            const g = c.createGain();
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime((down ? 0.022 : 0.034) * (0.85 + Math.random() * 0.3), t + 0.006);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+            o.connect(g).connect(pan);
+            o.start(t);
+            o.stop(t + 0.46);
+            o.onended = () => (o.disconnect(), g.disconnect());
+          });
+        }
+        k++;
+      }
+    window.setTimeout(() => pan.disconnect(), (k * beat + 1.5) * 1000);
+    return k * beat;
+  }
+
   /** The boat's timbers: a slow, low creak as she rides the swell. */
   private creak(now: number) {
     const c = this.ctx!;
@@ -244,6 +290,11 @@ export class SeaAmbience {
         if (isCampDay(Date.now())) this.gull(now + 0.05);
       }
     }
+    if (place === "beach" && now > this.musicAt) {
+      // (the bar plays from dusk to dawn)
+      this.musicAt = now + 20 + Math.random() * 14;
+      if (!isCampDay(Date.now())) this.musicAt += this.ukulele(now + 0.1);
+    }
     if (place === "sea" && now > this.creakAt) {
       this.creakAt = now + 5 + Math.random() * 9;
       this.creak(now + 0.05);
@@ -269,6 +320,7 @@ export class SeaAmbience {
       this.waveAt = now + 0.8;
       this.lifeAt = now + 3 + Math.random() * 5;
       this.creakAt = now + 4;
+      this.musicAt = now + 5;
       if (!this.timer) this.timer = window.setInterval(this.tick, 200);
     } else {
       g.linearRampToValueAtTime(0, now + WORLD_CROSSFADE_S);
@@ -278,9 +330,10 @@ export class SeaAmbience {
 
   refreshVolume() {
     const c = this.ctx;
-    if (!c || !this.water || !this.life) return;
+    if (!c || !this.water || !this.life || !this.music) return;
     const s = getSoundSettings();
     this.water.gain.setTargetAtTime(s.river * s.river * 1.1, c.currentTime, 0.1);
     this.life.gain.setTargetAtTime(s.forest * s.forest * 1.2, c.currentTime, 0.1);
+    this.music.gain.setTargetAtTime(s.guitar * s.guitar * 1.6, c.currentTime, 0.1);
   }
 }
