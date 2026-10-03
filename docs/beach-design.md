@@ -384,6 +384,12 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
    close-up camera needed nothing: it was never the caverns' alone). The Tidewater Pickaxe (75,000)
    and Ore Crate (24 slots, 37,500) made at Dune's, who buys ore as well. Reef stone and sea glass;
    the fossil for the codex is left out. T6 on the reef: 249 a minute as sold.
+8. **The second round (patches 0.8.7 to 0.8.10), at the owner's asking: everything laid out afresh,
+   fuller and more alive.** The beach regrown (palms in groves, the reef in an outcrop, plants, torches,
+   a turtle, sandpipers, dolphins, a ukulele at dusk); the cove remade and given the T7 gathering
+   (Drowned Ironwood and the Deep Tide Axe, Pearl Rock and the Deep Tide Pickaxe, pearl jewellery, a
+   Pearl-set ring); the Open Sea's living wonders (a whale, dolphins, a shoal) and its dressing; a
+   glowing night surf and fireflies. Still open: the lobby's art, T7 storage, a reef fossil of its own.
 7. **Dressing and life (done in part, patch 0.8.6).** The sea's sound on all three maps (surf and
    breaking waves, gulls by day, the boat's creak, the cove's hush and drips), three gulls and seven
    crabs on the beach, the Beachcomber's outfit at Dune's. **Not done:** the turtle, the sea's wonders,

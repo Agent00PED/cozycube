@@ -31,6 +31,9 @@ const TIPS = [
   "Barnaby's prices change on the hour: his chalkboard shows what's ▲ up and ▼ down.",
   "Sell more than 30 of one kind in an hour and its price starts to slide. What nobody sells climbs back up!",
   "A King Size catch earns a gold crown in your Field Guide 👑",
+  "Out on the captain's boat, watch for a whale, dolphins or a shoal: each helps your fishing while it stays.",
+  "Sandpipers work the beach's waterline by day. After dark the torches are lit and the bar plays.",
+  "A coconut off the palms buys any drink at Mango's bar.",
   "Chat reaches every world: say hi to friends at the campfire from the casino.",
   "Chloe's cheval mirror lets you try an outfit on before you buy it.",
   "Feed the bonfire above 70% for the Cozy Aura: rarer fish and warmer coins for everyone.",
@@ -72,8 +75,8 @@ const THEMES: Partial<Record<MapId, Theme>> = {
   boxing_ring: { scene: "tw-ring", card: "tw-card-poster", heading: "text-[#F4E4C4]", rule: "via-[#E9D2A4]/70", particle: "dust", count: 22 },
   whispering_woods: { scene: "tw-woods", card: "tw-card-moss", heading: "text-[#E4F2C9]", rule: "via-[#A9D18E]/70", particle: "leaf", count: 16 },
   sunset_beach: { scene: "tw-beach", card: "tw-card-oak", heading: "text-[#FFE3B0]", rule: "via-[#FFB86B]/70", particle: "glint", count: 16 },
-  open_sea: { scene: "tw-beach", card: "tw-card-oak", heading: "text-[#FFE3B0]", rule: "via-[#FFB86B]/70", particle: "glint", count: 20 },
-  hidden_cove: { scene: "tw-caverns", card: "tw-card-slate", heading: "text-[#C8F6FF]", rule: "via-[#5BE7FF]/70", particle: "mote", count: 24 },
+  open_sea: { scene: "tw-sea", card: "tw-card-oak", heading: "text-[#DFF3FF]", rule: "via-[#8FD8FF]/70", particle: "glint", count: 22 },
+  hidden_cove: { scene: "tw-cove", card: "tw-card-slate", heading: "text-[#C8F6FF]", rule: "via-[#7FF0E0]/70", particle: "mote", count: 26 },
   glimmering_caverns: { scene: "tw-caverns", card: "tw-card-slate", heading: "text-[#C8F6FF]", rule: "via-[#5BE7FF]/70", particle: "mote", count: 30 },
 };
 const DUSK: Theme = { scene: "tw-dusk", card: "tw-card-oak", heading: "text-[#FFD9A0]", rule: "via-[#F5A623]/70", particle: "none", count: 0 };
@@ -389,6 +392,36 @@ const THEME_CSS = `
   background: linear-gradient(165deg, #4b3726 0%, #33241a 100%);
   border: 3px solid #5f8a3e;
   box-shadow: 0 22px 60px rgba(0,0,0,0.6), inset 0 0 0 2px #3c5e27, inset 0 -8px 18px rgba(95, 138, 62, 0.35), 0 0 40px rgba(169, 209, 142, 0.18);
+}
+
+/* the Open Sea: deep water under a wide evening sky, the swell rolling by, a far light */
+.tw-sea {
+  background:
+    radial-gradient(3% 2.4% at 78% 47.5%, rgba(255, 226, 150, 0.95), rgba(255, 226, 150, 0) 100%),
+    radial-gradient(60% 40% at 50% 100%, rgba(20, 70, 110, 0.9), rgba(20, 70, 110, 0) 100%),
+    linear-gradient(#1b2145 0%, #3a3f78 22%, #7a6aa0 38%, #c98f8a 47%, #1f5f86 48.2%, #144566 68%, #0b2a44 100%);
+}
+.tw-sea .tw-layer {
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(200, 235, 255, 0) 0px, rgba(200, 235, 255, 0) 13px, rgba(200, 235, 255, 0.16) 14px, rgba(200, 235, 255, 0) 17px);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, #000 40%, transparent 52%);
+  mask-image: linear-gradient(0deg, #000 0%, #000 40%, transparent 52%);
+  animation: tw-mist 3.4s ease-in-out infinite alternate;
+}
+
+/* the Hidden Cove: dark rock round a glowing lagoon, a shaft of light from above */
+.tw-cove {
+  background:
+    linear-gradient(100deg, rgba(255, 244, 214, 0) 40%, rgba(255, 244, 214, 0.13) 46%, rgba(255, 244, 214, 0.13) 52%, rgba(255, 244, 214, 0) 58%),
+    radial-gradient(46% 30% at 50% 84%, rgba(90, 230, 215, 0.55), rgba(40, 140, 150, 0.25) 55%, rgba(0, 0, 0, 0) 100%),
+    radial-gradient(120% 90% at 50% 40%, #121a24 0%, #0a1018 60%, #05080d 100%);
+}
+.tw-cove .tw-layer {
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(160, 255, 240, 0) 0px, rgba(160, 255, 240, 0) 10px, rgba(160, 255, 240, 0.16) 11px, rgba(160, 255, 240, 0) 13px);
+  -webkit-mask-image: radial-gradient(40% 22% at 50% 86%, #000 0%, transparent 100%);
+  mask-image: radial-gradient(40% 22% at 50% 86%, #000 0%, transparent 100%);
+  animation: tw-mist 3s ease-in-out infinite alternate;
 }
 
 /* the Glimmering Caverns: wet slate, crystal motes */

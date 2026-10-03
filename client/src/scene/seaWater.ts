@@ -51,9 +51,15 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       float edge = 1.0 - smoothstep(0.08 + 0.2 * lap, 0.3 + 0.32 * lap + 0.12 * ragged, sea);
       float foam = clamp(max(edge, crest * (0.6 + 0.4 * ragged)), 0.0, 1.0);
       water = mix(water, mix(vec3(0.96, 0.99, 1.0), vec3(0.55, 0.68, 0.80), uNight), foam * 0.9);
-      diffuseColor.rgb = water;`
-    );
+      diffuseColor.rgb = water;
+      // (by night the breaking water glows a little of its own: sea sparkle in the surf)
+      seaGlow = foam * uNight * (0.55 + 0.45 * ragged);`
+    )
+      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+      totalEmissiveRadiance += vec3(0.12, 0.62, 0.66) * seaGlow * 0.55;`)
+      .replace("void main() {", `float seaGlow = 0.0;
+void main() {`);
   };
-  m.customProgramCacheKey = () => (calm ? "sea-water-2-calm" : "sea-water-2");
+  m.customProgramCacheKey = () => (calm ? "sea-water-3-calm" : "sea-water-3");
   m.needsUpdate = true;
 }

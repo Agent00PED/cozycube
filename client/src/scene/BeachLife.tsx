@@ -3,12 +3,13 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { daylight } from "@shared/daynight";
-import { BEACH_LAYOUT as L, PIER, SEA_Y, SHRUBS, at, beachBlocked, beachLand } from "@shared/worlds/beach";
+import { BEACH_LAYOUT as L, PALMS, PIER, SEA_Y, SHRUBS, at, beachBlocked, beachLand } from "@shared/worlds/beach";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { cameraFocus } from "./cameraFocus";
 import { Butterflies } from "./Butterflies";
 import { instanced, template } from "./faunaKit";
+import { MotePoints } from "./caveLight";
 
 // Sunset Beach's little lives, client-side and synced to no one (beach_life.glb, built by
 // scripts/blender/build_beach.py `build_life_looks`), one instanced draw a part:
@@ -22,6 +23,7 @@ import { instanced, template } from "./faunaKit";
 //   a leaping fish   now and then, out past the shallows
 //   the dolphins     a pod of three passing far out now and then, porpoising
 //   butterflies      over the flowering shrubs, by day
+//   fireflies        in the palm groves, by night
 
 export const BEACH_LIFE_URL = modelUrl("beach_life.glb");
 
@@ -38,6 +40,8 @@ const PIPER_SHY = 2.8;
 /** A pod's pass along the coast (s), and how far out it goes by. */
 const POD_PASS_S = 16;
 const POD_OUT = 14;
+const FIREFLIES = 36;
+const FIREFLY = new THREE.Color("#e9ff9a");
 
 export function BeachLife() {
   return (
@@ -113,6 +117,10 @@ function Life() {
   const flock = useMemo(() => ({ v: 8, birds: Array.from({ length: PIPERS }, (_, i): Piper => ({ ...at(0.9, 8 + i * 0.5), tx: 0, tz: 0, rest: 0.3 * i, yaw: 0, hop: 0 })) }), []);
   const leaps = useMemo(() => Array.from({ length: LEAPERS }, (_, i) => ({ at: -9, next: 6 + i * 9, x: 0, z: 0, yaw: 0 })), []);
   const pass = useMemo(() => ({ at: -99, next: 25, dir: 1 }), []);
+  // the fireflies: each keeps to one palm of the groves, drifting round its foot
+  const flies = useMemo(() => new MotePoints(FIREFLIES), []);
+  useEffect(() => () => flies.dispose(), [flies]);
+  const fireflies = useMemo(() => Array.from({ length: FIREFLIES }, (_, i) => ({ palm: PALMS[(i * 7) % PALMS.length], a: Math.random() * 6.283, r: 0.6 + Math.random() * 2.2, h: 0.5 + Math.random() * 1.9, p: Math.random() * 6.283, v: 0.5 + Math.random() * 0.8 })), []);
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), w: new THREE.Matrix4(), q: new THREE.Quaternion(), q2: new THREE.Quaternion(), pos: new THREE.Vector3(), scl: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), fwd: new THREE.Vector3(0, 0, 1), side: new THREE.Vector3(1, 0, 0), rot: new THREE.Matrix4() }), []);
 
   useFrame(({ clock }, rawDt) => {
@@ -268,6 +276,17 @@ function Life() {
       });
       leapers.mesh.instanceMatrix.needsUpdate = true;
     }
+    // --- the fireflies: after dark, blinking slowly as they drift
+    const dark = 1 - daylight(Date.now());
+    fireflies.forEach((f, i) => {
+      if (dark < 0.4) return flies.hide(i);
+      const a = f.a + t * 0.12 * f.v;
+      const x = f.palm.x + Math.cos(a) * f.r;
+      const z = f.palm.z + Math.sin(a * 0.8 + f.p) * f.r;
+      const blink = Math.max(0, Math.sin(t * f.v + f.p)) ** 3;
+      flies.set(i, x, beachLand(x, z) + f.h + 0.25 * Math.sin(t * 0.7 + f.p), z, 0.85 * blink * Math.min(1, (dark - 0.4) * 3), FIREFLY);
+    });
+    flies.commit();
     // --- the dolphins: a pod passing far out, each rising and falling in its own beat
     if (pod) {
       if (t > pass.next) Object.assign(pass, { at: t, next: t + 70 + Math.random() * 80, dir: Math.random() < 0.5 ? 1 : -1 });
@@ -293,6 +312,7 @@ function Life() {
     <>
       {all.map((p, i) => (p ? <primitive key={i} object={p.mesh} /> : null))}
       <Butterflies scene={scene} spots={FLOWER_SPOTS} landY={beachLand} prefix="Fauna_BeachFly" />
+      <primitive object={flies.points} />
     </>
   );
 }
