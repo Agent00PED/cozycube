@@ -24,6 +24,8 @@ export const SHOP_TIER_CAP = { campfire: 2, woods: 4 } as const;
 export const FORGED_TIER = 5;
 /** Where a tool or a storage tier a counter doesn't stock comes from (null: this counter sells it). */
 export function soldElsewhere(tier: number, cap: number, woodsKeeper: string): string | null {
+  // (T6, Tidewater: made at Dune's shack on Sunset Beach)
+  if (tier > FORGED_TIER) return "🐢 Made at Dune's shack on Sunset Beach";
   if (tier >= FORGED_TIER) return "🔥 Forged at the caverns' forge";
   return tier > cap ? woodsKeeper : null;
 }
@@ -31,22 +33,29 @@ export function soldElsewhere(tier: number, cap: number, woodsKeeper: string): s
 /** What a forged thing or a satchel tier takes besides coins. */
 export type Makings = SatchelTier["needs"];
 
-export type ForgedToolId = "rod" | "axe" | "pickaxe" | "livewell" | "carrier";
+export type ForgedToolId = "rod" | "axe" | "pickaxe" | "livewell" | "carrier" | "tideRod" | "tideLivewell";
 export interface ForgedTool {
   name: string;
   emoji: string;
   blurb: string;
   coins: number;
   needs: Makings;
+  /** Where it is made: the caverns' forge (T5), or Dune's shack on Sunset Beach (T6: Tidewater). */
+  place: "forge" | "dune";
 }
 const LIVEWELL = CREEL_TIERS[FORGED_TIER - 1];
 const CARRIER = WOOD_CARRIER_TIERS[FORGED_TIER - 1];
+const TIDE_LIVEWELL = CREEL_TIERS[FORGED_TIER];
 export const FORGED_TOOLS: Record<ForgedToolId, ForgedTool> = {
-  rod: { name: RODS.moonlight.name, emoji: RODS.moonlight.emoji, blurb: RODS.moonlight.blurb, coins: RODS.moonlight.price, needs: { ore: { iron_ingot: 6 }, byproducts: { fishBone: 4 } } },
-  axe: { name: AXES.runic.name, emoji: AXES.runic.emoji, blurb: AXES.runic.blurb, coins: AXES.runic.price, needs: { ore: { iron_ingot: 6 }, byproducts: { leafAmber: 6 } } },
-  pickaxe: { name: PICKAXES.drill.name, emoji: PICKAXES.drill.emoji, blurb: PICKAXES.drill.blurb, coins: PICKAXES.drill.price, needs: { ore: { silver_ingot: 6, glimmer_shard: 4 } } },
-  livewell: { name: LIVEWELL.name, emoji: LIVEWELL.icon, blurb: `The largest livewell: ${LIVEWELL.capacity} fish.`, coins: LIVEWELL.price, needs: { ore: { iron_ingot: 3 }, byproducts: { scales: 12 } } },
-  carrier: { name: CARRIER.name, emoji: CARRIER.icon, blurb: `The largest wood carrier: ${CARRIER.capacity} logs.`, coins: CARRIER.price, needs: { ore: { iron_ingot: 3 }, byproducts: { amber: 6 } } },
+  rod: { name: RODS.moonlight.name, emoji: RODS.moonlight.emoji, blurb: RODS.moonlight.blurb, coins: RODS.moonlight.price, needs: { ore: { iron_ingot: 6 }, byproducts: { fishBone: 4 } }, place: "forge" },
+  axe: { name: AXES.runic.name, emoji: AXES.runic.emoji, blurb: AXES.runic.blurb, coins: AXES.runic.price, needs: { ore: { iron_ingot: 6 }, byproducts: { leafAmber: 6 } }, place: "forge" },
+  pickaxe: { name: PICKAXES.drill.name, emoji: PICKAXES.drill.emoji, blurb: PICKAXES.drill.blurb, coins: PICKAXES.drill.price, needs: { ore: { silver_ingot: 6, glimmer_shard: 4 } }, place: "forge" },
+  livewell: { name: LIVEWELL.name, emoji: LIVEWELL.icon, blurb: `The largest livewell: ${LIVEWELL.capacity} fish.`, coins: LIVEWELL.price, needs: { ore: { iron_ingot: 3 }, byproducts: { scales: 12 } }, place: "forge" },
+  carrier: { name: CARRIER.name, emoji: CARRIER.icon, blurb: `The largest wood carrier: ${CARRIER.capacity} logs.`, coins: CARRIER.price, needs: { ore: { iron_ingot: 3 }, byproducts: { amber: 6 } }, place: "forge" },
+  // T6, Tidewater: made at Dune's shack, from all three crafts (ingots from the caverns, Golden Leaf
+  // Amber from the woods' maples, Fine Fish Bones and scales from the water)
+  tideRod: { name: RODS.tidewater.name, emoji: RODS.tidewater.emoji, blurb: RODS.tidewater.blurb, coins: RODS.tidewater.price, needs: { ore: { silver_ingot: 6 }, byproducts: { leafAmber: 6, fishBone: 6 } }, place: "dune" },
+  tideLivewell: { name: TIDE_LIVEWELL.name, emoji: TIDE_LIVEWELL.icon, blurb: `A hold for a day at sea: ${TIDE_LIVEWELL.capacity} fish.`, coins: TIDE_LIVEWELL.price, needs: { ore: { iron_ingot: 6 }, byproducts: { scales: 20, amber: 6 } }, place: "dune" },
 };
 export const FORGED_TOOL_IDS = Object.keys(FORGED_TOOLS) as ForgedToolId[];
 export function isForgedToolId(v: unknown): v is ForgedToolId {
@@ -59,11 +68,14 @@ export function forgedOwned(p: FishingProfile, id: ForgedToolId): boolean {
   if (id === "axe") return p.axes.includes("runic");
   if (id === "pickaxe") return p.pickaxes.includes("drill");
   if (id === "livewell") return p.creelTier >= FORGED_TIER;
+  if (id === "tideRod") return p.rods.includes("tidewater");
+  if (id === "tideLivewell") return p.creelTier >= FORGED_TIER + 1;
   return p.carrierTier >= FORGED_TIER;
 }
 /** What must come first, in words (the storage tiers go in turn), or null. */
 export function forgedBlocked(p: FishingProfile, id: ForgedToolId): string | null {
   if (id === "livewell" && p.creelTier < FORGED_TIER - 1) return `the ${CREEL_TIERS[FORGED_TIER - 2].name} first (Finley's or Finnegan's)`;
+  if (id === "tideLivewell" && p.creelTier < FORGED_TIER) return `the ${CREEL_TIERS[FORGED_TIER - 1].name} first (forged in the caverns)`;
   if (id === "carrier" && p.carrierTier < FORGED_TIER - 1) return `the ${WOOD_CARRIER_TIERS[FORGED_TIER - 2].name} first (Bramble's)`;
   return null;
 }
@@ -80,6 +92,12 @@ export function grantForged(p: FishingProfile, id: ForgedToolId) {
     p.pickaxeId = "drill";
   } else if (id === "livewell") {
     p.creelTier = FORGED_TIER;
+    p.slots = creelTier(p.creelTier).capacity;
+  } else if (id === "tideRod") {
+    if (!p.rods.includes("tidewater")) p.rods.push("tidewater");
+    p.rod = "tidewater";
+  } else if (id === "tideLivewell") {
+    p.creelTier = FORGED_TIER + 1;
     p.slots = creelTier(p.creelTier).capacity;
   } else {
     p.carrierTier = FORGED_TIER;

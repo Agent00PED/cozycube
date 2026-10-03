@@ -336,6 +336,16 @@ export function beachCast(x: number, z: number, fx: number, fz: number): Pt | nu
   return null;
 }
 
+// --- the captain -----------------------------------------------------------------------------------
+
+/** Captain Brine the walrus at the pier's head, beside his boat (he faces up the pier, toward whoever
+ *  comes); where you stand to talk to him, and where the boat sets you down when it brings you back. */
+const BRINE_AT = onPierAt(PIER_LENGTH - 0.85, PIER.headHalf - 0.75);
+export const BRINE_FRONT: Pt = onPierAt(PIER_LENGTH - 1.75, PIER.headHalf - 1.55);
+export const BRINE = { ...BRINE_AT, yaw: yawOf(BRINE_FRONT.x - BRINE_AT.x, BRINE_FRONT.z - BRINE_AT.z) };
+export const BRINE_REACH = 2.0;
+export const PIER_RETURN: Pt = onPierAt(PIER_LENGTH - 2.4, 0.2);
+
 // --- the trader ------------------------------------------------------------------------------------
 
 /** Dune the old sea turtle, at his shack's counter window (it faces the sea), and where you stand
@@ -345,6 +355,7 @@ export const DUNE_FRONT: Pt = step(SHACK_C, L.shack.dp / 2 + 1.0, 0);
 export const DUNE_REACH = 2.0;
 
 export const BEACH_PROPS: PropSpec[] = [
+  { propId: "brine", x: BRINE.x, z: BRINE.z, kind: "captain", color: "#27405f", defaultOn: true, approachX: BRINE_FRONT.x, approachZ: BRINE_FRONT.z },
   { propId: "dune", x: DUNE.x, z: DUNE.z, kind: "angler", color: "#7fa86b", defaultOn: true, approachX: DUNE_FRONT.x, approachZ: DUNE_FRONT.z },
   // (Mango: his pad stands over the bar's middle, a step in front of him, in reach from the counter's front)
   { propId: "mango", x: BAR.x, z: BAR.z, kind: "bartender", color: "#f2a53a", defaultOn: true, approachX: MANGO_FRONT.x, approachZ: MANGO_FRONT.z },
@@ -365,6 +376,8 @@ export const BEACH_OBSTACLES: AABB[] = [
   ...BAR.posts.map((p) => around(p, 0.12)),
   ...BAR.roofPosts.map((p) => around(p, 0.12)),
   around(MANGO, 0.3),
+  // Captain Brine at the pier's head
+  around(BRINE_AT, 0.36),
   // its stools (you sit on them: a stool's seat is within)
   ...BAR.stools.map((s) => around(s, 0.18)),
   // the firepit's stones and its logs

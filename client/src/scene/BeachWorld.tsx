@@ -6,7 +6,7 @@ import type { Room } from "colyseus.js";
 import type { PlayerState } from "@shared/types";
 import { daylight } from "@shared/daynight";
 import { BALL_RADIUS, KICK_REACH, kickBall, stepBall, type BallState } from "@shared/volleyball";
-import { BALL_COURT, BAR, BEACH_GRID, BEACH_LAYOUT as L, BOAT, DUNE, FIREPIT, MANGO, PIER, PIER_LENGTH, SEA_Y, WADE_DEPTH, beachLand, beachWading, onPierAt } from "@shared/worlds/beach";
+import { BALL_COURT, BAR, BEACH_GRID, BEACH_LAYOUT as L, BOAT, BRINE, DUNE, FIREPIT, MANGO, PIER, PIER_LENGTH, SEA_Y, WADE_DEPTH, beachLand, beachWading, onPierAt } from "@shared/worlds/beach";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -19,6 +19,7 @@ import { seaWater } from "./seaWater";
 import { liveMotion } from "../systems/liveMotion";
 import { ballStore } from "../systems/ballStore";
 import { WadeRipples } from "./caveLife";
+import { BRINE_URL, BrineStandIn } from "./SeaWorld";
 
 // Sunset Beach (map "sunset_beach", docs/beach-design.md). The island is one Blender model,
 // beach.glb (scripts/blender/build_beach.py, laid out from shared/worlds/beach.ts): this file loads
@@ -136,6 +137,7 @@ export function BeachWorld({ onFloorClick, room, players, localSessionId, subscr
       </ModelBoundary>
       <CampNpc url={MANGO_URL} what="mango.glb" prefix="Mango" at={MANGO} y={beachLand(MANGO.x, MANGO.z)} waveEvent="mangoWave" standIn={<MangoStandIn />} subscribeMessages={subscribeMessages} talk={MANGO_TALK} />
       <CampNpc url={DUNE_URL} what="dune.glb" prefix="Dune" at={DUNE} y={beachLand(DUNE.x, DUNE.z) + 0.14} waveEvent="duneWave" standIn={<DuneStandIn />} subscribeMessages={subscribeMessages} talk={DUNE_TALK} />
+      <CampNpc url={BRINE_URL} what="brine.glb" prefix="Brine" at={BRINE} y={PIER.deck} waveEvent="brineWave" standIn={<BrineStandIn />} subscribeMessages={subscribeMessages} talk={PIER_BRINE_TALK} />
       <BeachLights />
       <BeachFire />
       <Ball room={room} players={players} localSessionId={localSessionId} />
@@ -168,6 +170,14 @@ const DUNE_STAND_IN = matte("#7fa86b", 0.85);
 function DuneStandIn() {
   return <mesh geometry={GEO.box} material={DUNE_STAND_IN} position={[0, 0.55, 0]} scale={[0.6, 1.1, 0.5]} raycast={noRaycast} />;
 }
+const PIER_BRINE_TALK: NpcTalk = {
+  height: 1.7,
+  clicked: ["A ticket to sea? Best fishing there is", "She's moored right here. Step aboard when you're ready", "The big ones don't come near the pier"],
+  greet: {
+    inside: (x, z) => Math.hypot(x - BRINE.x, z - BRINE.z) < 3.2,
+    lines: ["Ahoy! Looking to go out?", "Fine weather for a trip to sea", "Captain Brine, at your service"],
+  },
+};
 const MANGO_STAND_IN = matte("#2b2b33", 0.85);
 function MangoStandIn() {
   return <mesh geometry={GEO.box} material={MANGO_STAND_IN} position={[0, 0.55, 0]} scale={[0.5, 1.1, 0.45]} raycast={noRaycast} />;

@@ -5,6 +5,8 @@ import { livewellBonus } from "@shared/gear";
 import { CAVE_TACKLES, CAVE_TACKLE_IDS } from "@shared/caverns_fishing";
 import { ORE_ITEMS, type OreItemId } from "@shared/caverns_mining";
 import { BYPRODUCTS, type ByproductId } from "@shared/chop";
+import { FORGED_TOOLS, FORGED_TOOL_IDS, forgedBlocked, forgedOwned, makingsList } from "@shared/expedition";
+import { SEA_CHANNEL } from "@shared/voyage";
 import { CEILING_RATE, FISH_CEILING, FULL_PRICE_AT, fishRate, type Counter } from "@shared/keepers";
 import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
 import { hasForesight, noCeiling } from "@shared/gear";
@@ -30,6 +32,8 @@ interface Props {
    *  River Otter on the woods' river, or Finnegan the Grotto Angler by the cenote (both every tier;
    *  Finnegan's advanced tackle bartered too). All buy fish and sell bait and livewells. */
   keeper?: "barnaby" | "finley" | "finnegan" | "dune";
+  /** Dune's Tidewater tools are made on the boat's channel (shared/voyage.ts). */
+  sea?: (channel: string, packet?: unknown) => void;
 }
 
 // Barnaby the Angler's stall by the dock (and Finley's boulder on the woods' river), on the shops'
@@ -48,8 +52,9 @@ const TABS: [ShopTab, string, string][] = [
   ["gear", "💍", "Gear"],
 ];
 const FINNEGAN_TABS: [ShopTab, string, string][] = [...TABS, ["barter", "🦎", "Barter"]];
+const DUNE_TABS: [ShopTab, string, string][] = [...TABS, ["barter", "🌊", "Tidewater"]];
 
-export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose, keeper = "barnaby" }: Props) {
+export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose, keeper = "barnaby", sea }: Props) {
   // (Finnegan keeps every tier, as Finley does)
   const finley = keeper !== "barnaby";
   const finnegan = keeper === "finnegan";
@@ -93,7 +98,7 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
       title={dune ? "Dune's Fish Shack" : finnegan ? "Finnegan's Grotto Tackle" : finley ? "Finley's River Tackle" : "Barnaby's Bait & Tackle"}
       icon={dune ? "🐢" : finnegan ? "🦎" : finley ? "🎣" : "🦦"}
       notice={notice}
-      tabs={finnegan ? FINNEGAN_TABS : TABS}
+      tabs={dune ? DUNE_TABS : finnegan ? FINNEGAN_TABS : TABS}
       tab={tab}
       onTab={setTab}
       onClose={onClose}
@@ -220,6 +225,42 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
       )}
 
       {tab === "gear" && <GearWorks profile={profile} coins={coins} send={send} families={["angler", "wayfarer"]} places={[finley ? "woods" : "campfire"]} />}
+
+      {tab === "barter" && dune && (
+        <div className="flex flex-col gap-1.5">
+          <p className="m-0 text-center text-[12px] opacity-80">"A Tidewater rod isn't bought, it's made: slow, and from good things." Coins and makings from all three crafts. A Masterwork ingot stands in for a plain one.</p>
+          {FORGED_TOOL_IDS.filter((id) => FORGED_TOOLS[id].place === "dune").map((id) => {
+            const t = FORGED_TOOLS[id];
+            const owned = forgedOwned(profile, id);
+            const first = forgedBlocked(profile, id);
+            const makings = makingsList(profile, t.needs);
+            const ready = !first && coins >= t.coins && makings.every((mk) => mk.have >= mk.need);
+            return (
+              <div key={id} className="flex items-center gap-2 rounded-2xl bg-white/10 px-2.5 py-2">
+                <span className="text-2xl">{t.emoji}</span>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+                  <b className="text-[13px] text-[#F7EBE1]">{t.name}</b>
+                  <span className="text-[11px] opacity-80">{t.blurb}</span>
+                  {!owned && (
+                    <span className="flex flex-wrap gap-1 text-[10.5px]">
+                      <span className={`rounded-full px-1.5 ${coins >= t.coins ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>{t.coins.toLocaleString("en-US")} 🪙</span>
+                      {makings.map((mk) => (
+                        <span key={mk.name} className={`rounded-full px-1.5 ${mk.have >= mk.need ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 opacity-80"}`}>
+                          {mk.need} {mk.name} <span className="opacity-70">({mk.have})</span>
+                        </span>
+                      ))}
+                      {first && <span className="rounded-full bg-rose-400/15 px-1.5 text-rose-200">Needs {first}</span>}
+                    </span>
+                  )}
+                </div>
+                <button type="button" className={`clay-btn min-h-11 shrink-0 px-3 text-xs ${owned ? "clay-btn-ghost" : "clay-btn-amber"}`} disabled={owned || !ready} onClick={() => sea?.(SEA_CHANNEL, { op: "make", tool: id })}>
+                  {owned ? "Made ✓" : "Make"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {tab === "barter" && finnegan && (
         <div className="flex flex-col gap-1.5">

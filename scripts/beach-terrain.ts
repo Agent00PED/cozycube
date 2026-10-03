@@ -8,6 +8,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { beachTerrainData } from "../shared/worlds/beach";
+import { seaSceneData } from "../shared/worlds/sea";
 
 export const BEACH_TERRAIN_PATH = join(__dirname, "blender", "data", "beach_terrain.json");
 
@@ -16,9 +17,16 @@ export function beachTerrainText(): string {
   return JSON.stringify(beachTerrainData()) + "\n";
 }
 
+/** The Open Sea's boat, for scripts/blender/build_sea.py: its deck's outline and what stands on it. */
+export const SEA_SCENE_PATH = join(__dirname, "blender", "data", "sea_scene.json");
+export function seaSceneText(): string {
+  return JSON.stringify(seaSceneData()) + "\n";
+}
+
 if (require.main === module) {
   mkdirSync(dirname(BEACH_TERRAIN_PATH), { recursive: true });
   writeFileSync(BEACH_TERRAIN_PATH, beachTerrainText());
+  writeFileSync(SEA_SCENE_PATH, seaSceneText());
   const t = beachTerrainData();
   console.log(`beach terrain: ${t.n + 1} x ${t.n + 1} heights every ${t.cell.toFixed(3)} m, ${Math.min(...t.ground).toFixed(2)} to ${Math.max(...t.ground).toFixed(2)} m -> ${BEACH_TERRAIN_PATH}`);
 }

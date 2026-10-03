@@ -675,7 +675,7 @@ function Expedition({ profile, coins, send }: { profile: FishingProfile; coins: 
   return (
     <div className="flex flex-col gap-1.5">
       <p className="m-0 text-center text-[12px] opacity-80">The finest tool of each craft and the largest stores are forged here, not sold: coins, ingots and your craft's own makings. A Masterwork ingot stands in for a plain one.</p>
-      {FORGED_TOOL_IDS.map((id: ForgedToolId) => {
+      {FORGED_TOOL_IDS.filter((id) => FORGED_TOOLS[id].place === "forge").map((id: ForgedToolId) => {
         const t = FORGED_TOOLS[id];
         const owned = forgedOwned(profile, id);
         const first = forgedBlocked(profile, id);

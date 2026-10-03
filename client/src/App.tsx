@@ -69,6 +69,7 @@ import { CoinPusherModal } from "./components/hud/CoinPusherModal";
 import { DRINKS, type Drink, type DrinkServed } from "@shared/barshift";
 import { PinballModal } from "./components/hud/PinballModal";
 import { BeachBarModal } from "./components/hud/BeachBarModal";
+import { CaptainModal } from "./components/hud/CaptainModal";
 import { BarShiftSheet } from "./components/hud/BarShiftSheet";
 import { PoolModal } from "./components/hud/PoolModal";
 import { PianoModal } from "./components/hud/PianoModal";
@@ -1153,6 +1154,7 @@ export default function App() {
         {panel?.kind === "codex" && localPlayer && <CaveCodexModal found={angler.profile.codex} initial={panel.propId} title={localPlayer.title} onWear={(id) => casinoSend({ type: "EQUIP_TITLE", id })} onClose={closePanel} />}
         {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} campfireSend={campfireSend} onClose={closePanel} />}
         {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} owned={localPlayer.owned} onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
+        {panel?.kind === "captain" && localPlayer && <CaptainModal mapId={currentMap} profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} onClose={closePanel} />}
         {panel?.kind === "bartender" && localPlayer && <BeachBarModal profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} onClose={closePanel} />}
         {panel?.kind === "barshift" && <BarShiftSheet key={panel.propId} station={panel.propId} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
@@ -1222,7 +1224,7 @@ export default function App() {
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
         {panel?.kind === "finley" && localPlayer && <BarnabyModal keeper="finley" profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
         {panel?.kind === "finnegan" && localPlayer && <BarnabyModal keeper="finnegan" profile={angler.profile} coins={localPlayer.coins} fuel={0} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
-        {panel?.kind === "dune" && localPlayer && <BarnabyModal keeper="dune" profile={angler.profile} coins={localPlayer.coins} fuel={0} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
+        {panel?.kind === "dune" && localPlayer && <BarnabyModal keeper="dune" sea={cavernsSend} profile={angler.profile} coins={localPlayer.coins} fuel={0} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
         {panel?.kind === "ringside" && localPlayer && localSessionId && <RingsideModal localSessionId={localSessionId} coins={localPlayer.coins} send={boxingSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}

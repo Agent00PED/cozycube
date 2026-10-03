@@ -327,6 +327,10 @@ import { CasinoFloor, RouletteSchema } from "./casino";
 import { BoutSchema, BoxingRing } from "./boxing";
 import { DUNE_FRONT, DUNE_REACH, beachCast } from "../../../shared/worlds/beach";
 import type { OddsWater } from "../../../shared/economy";
+import { BeachSea } from "./beachSea";
+import { SEA_CHANNEL, isSeaMap, type SeaPacket } from "../../../shared/voyage";
+import { SEA_CAST_ROD } from "../../../shared/sea_fishing";
+import { seaCast } from "../../../shared/worlds/sea";
 import { BeachBar } from "./beachBar";
 import { BAR_CHANNEL, REFRESHED_PACE, type BarPacket } from "../../../shared/barshift";
 import { CavernsMine } from "./caverns";
@@ -634,6 +638,8 @@ export class HangoutRoom extends Room<HangoutState> {
   private caverns!: CavernsMine;
   /** The beach bar: its shifts, orders and tips (rooms/beachBar.ts). */
   private bar!: BeachBar;
+  /** The captain's boat: the ticket, the trips, Dune's Tidewater tools (rooms/beachSea.ts). */
+  private sea!: BeachSea;
   /** When each player last poured a drink at the kitchenette. */
   private lastKitchenAt = new Map<string, number>();
   private boardSweepClock = 0;
@@ -825,6 +831,31 @@ export class HangoutRoom extends Room<HangoutState> {
         this.sendTo(sessionId, "campfireNotice", { message: "A new title: " + (specialTitle(title)?.name ?? title), emoji: "🏅" });
       },
       emote: (sessionId, emoji) => this.nearby(sessionId, "emote", { sessionId, emoji }),
+    });
+    this.sea = new BeachSea({
+      player: (sessionId) => this.state.players.get(sessionId),
+      profile: (sessionId) => this.records.get(sessionId)?.fishing,
+      saveProfile: (sessionId) => {
+        const player = this.state.players.get(sessionId);
+        if (player) this.saveFishing(sessionId, player);
+      },
+      sendTo: (sessionId, type, payload) => this.sendTo(sessionId, type, payload),
+      addCoins: (sessionId, amount) => {
+        const player = this.state.players.get(sessionId);
+        if (player) this.addCoins(player, amount);
+      },
+      travel: (sessionId, map, at) => {
+        const player = this.state.players.get(sessionId);
+        if (player) this.travel(sessionId, player, map, at);
+      },
+      emote: (sessionId, emoji) => this.nearby(sessionId, "emote", { sessionId, emoji }),
+      count: (map) => {
+        let n = 0;
+        this.state.players.forEach((p) => {
+          if (p.connected && p.map === map) n++;
+        });
+        return n;
+      },
     });
     this.caverns = new CavernsMine({
       player: (sessionId) => this.state.players.get(sessionId),
@@ -1125,6 +1156,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("matcha_whisk", (client, msg: { score: number }) => this.handleMatcha(client.sessionId, Number(msg?.score)));
     // --- beach bar ---
     this.onMessage(BAR_CHANNEL, (client, packet: BarPacket) => this.bar.handle(client.sessionId, packet));
+    this.onMessage(SEA_CHANNEL, (client, packet: SeaPacket) => this.sea.handle(client.sessionId, packet));
     // --- lounge ---
     this.onMessage("set_record", (client, msg: { track: number }) => this.handleSetRecord(client.sessionId, Number(msg?.track)));
     this.onMessage("board", (client, packet: BoardPacket) => this.handleBoardPacket(client, packet));
@@ -2406,6 +2438,11 @@ export class HangoutRoom extends Room<HangoutState> {
         return;
       }
       case "AFK": {
+        // (out at sea and in the cove the best fish need a hand on the reel: no AFK line)
+        if (isSeaMap(player.map)) {
+          if (packet.on) client.send("campfireNotice", { message: "No AFK line out here: the sea's fish need a hand on the reel", emoji: "🎣" });
+          return;
+        }
         let seatId = "";
         this.state.chairs.forEach((chair) => {
           if (chair.occupiedBy === sessionId) seatId = chair.propId;
@@ -3042,15 +3079,20 @@ export class HangoutRoom extends Room<HangoutState> {
     const fz = Number(packet?.fz);
     if (!Number.isFinite(fx) || !Number.isFinite(fz)) return;
     const beach = player.map === "sunset_beach";
+    const atSea = isSeaMap(player.map);
+    if (atSea && RODS[this.records.get(sessionId)?.fishing.rod ?? "bamboo"].tier < SEA_CAST_ROD) {
+      this.sendTo(sessionId, "campfireNotice", { message: "The open sea wants a stronger rod: an Expedition rod (T5) or better. Enjoy the ride!", emoji: "🎣" });
+      return;
+    }
     // (the caverns: the lake from its shore, or the stream from its bank; Sunset Beach: the sea, from
     // the pier or the waterline)
-    const float = beach ? beachCast(player.x, player.z, fx, fz) : player.map === "glimmering_caverns" ? (shoreCast(player.x, player.z, fx, fz) ?? streamCast(player.x, player.z, fx, fz)) : null;
+    const float = beach ? beachCast(player.x, player.z, fx, fz) : player.map === "open_sea" ? seaCast(player.x, player.z, fx, fz) : player.map === "glimmering_caverns" ? (shoreCast(player.x, player.z, fx, fz) ?? streamCast(player.x, player.z, fx, fz)) : null;
     if (!float) {
-      this.sendTo(sessionId, "campfireNotice", { message: beach ? "Face the sea from the pier's edge, or wade in a step, to cast" : "Step up to the water's edge and face the lake, or the stream, to cast", emoji: "🎣" });
+      this.sendTo(sessionId, "campfireNotice", { message: atSea ? "Step up to the rail and face the water to cast" : beach ? "Face the sea from the pier's edge, or wade in a step, to cast" : "Step up to the water's edge and face the lake, or the stream, to cast", emoji: "🎣" });
       return;
     }
     if (this.creelIsFull(sessionId)) {
-      this.sendTo(sessionId, "campfireNotice", { message: beach ? "Your livewell's full: sell some fish to Dune at his shack first" : "Your livewell's full: sell some fish to Finnegan (or Barnaby, or Finley) first", emoji: "🪣" });
+      this.sendTo(sessionId, "campfireNotice", { message: atSea ? "Your livewell's full: ask the captain for the pier, and sell to Dune" : beach ? "Your livewell's full: sell some fish to Dune at his shack first" : "Your livewell's full: sell some fish to Finnegan (or Barnaby, or Finley) first", emoji: "🪣" });
       return;
     }
     this.shoreAnglers.set(sessionId, { x: player.x, z: player.z, map: player.map as MapId });
@@ -4414,6 +4456,8 @@ export class HangoutRoom extends Room<HangoutState> {
     const player = this.state.players.get(sessionId);
     if (!player || !isMapId(mapId) || mapId === player.map || HIDDEN_MAPS.has(mapId)) return;
     if (!Object.values(WORLDS).some((w) => w.mapId === mapId && w.built)) return;
+    // (off the captain's boat by the world list: the ticket's trip is over)
+    if (isSeaMap(player.map)) this.sea.endTrip(sessionId);
     this.travel(sessionId, player, mapId);
   }
 
@@ -4709,6 +4753,11 @@ export class HangoutRoom extends Room<HangoutState> {
       case "kitchen":
       case "radio":
         this.sendTo(sessionId, "openPanel", { kind, propId: prop.propId });
+        break;
+      // Captain Brine: at the pier's head, and at the wheel out at sea
+      case "captain":
+        this.sendTo(sessionId, "openPanel", { kind: "captain", propId: prop.propId });
+        this.toMap(player.map as MapId, "brineWave", { sessionId });
         break;
       // the beach bar: Mango (the menu) and the three stations behind the counter (a shift)
       case "bartender":

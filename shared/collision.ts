@@ -7,6 +7,7 @@ import { FOREST_OBSTACLES, FOREST_SPAWNS, forestFloorY } from "./worlds/forest";
 import { RING_FLOOR_Y, RING_OBSTACLES, RING_SPAWNS, onRing } from "./worlds/boxing_ring";
 import { CAVERNS_OBSTACLES, CAVERNS_SPAWNS, cavernsBlocked, cavernsFloorY } from "./worlds/caverns";
 import { BEACH_OBSTACLES, BEACH_SPAWNS, beachBlocked, beachFloorY } from "./worlds/beach";
+import { SEA_OBSTACLES, SEA_SPAWNS, seaBlocked, seaFloorY } from "./worlds/sea";
 
 // Where you can stand. The lounge, the campfire, the woods, the casino, the Velvet Ring and the
 // Glimmering Caverns are authored in shared/worlds/ (lounge.ts, campfire.ts, forest.ts, casino.ts,
@@ -59,7 +60,7 @@ export const MAP_OBSTACLES: Record<MapId, AABB[]> = {
   cozy_lounge: LOFT_OBSTACLES,
   campfire_night: CAMP_OBSTACLES,
   sunset_beach: BEACH_OBSTACLES,
-  open_sea: open(),
+  open_sea: SEA_OBSTACLES,
   hidden_cove: open(),
   velvet_casino: CASINO_OBSTACLES,
   casino_vip: VIP_OBSTACLES,
@@ -76,7 +77,7 @@ export const MAP_SPAWN_POINTS: Record<MapId, { x: number; z: number }[]> = {
   cozy_lounge: LOFT_SPAWNS,
   campfire_night: CAMP_SPAWNS,
   sunset_beach: BEACH_SPAWNS,
-  open_sea: centre(),
+  open_sea: SEA_SPAWNS,
   hidden_cove: centre(),
   velvet_casino: CASINO_SPAWNS,
   casino_vip: [VIP_ARRIVAL],
@@ -100,6 +101,8 @@ export function isBlocked(x: number, z: number, mapId: MapId, radius = 0.3): boo
   if (mapId === "glimmering_caverns" && cavernsBlocked(x, z, Math.min(radius, CAVE_FOOT))) return true;
   // (the beach: deep water stops you, and the strip beside the pier where its deck is too high)
   if (mapId === "sunset_beach" && beachBlocked(x, z)) return true;
+  // (the Open Sea: the boat's deck is all there is to stand on)
+  if (mapId === "open_sea" && seaBlocked(x, z)) return true;
   for (const b of MAP_OBSTACLES[mapId]) {
     if (!(x + radius > b.minX && x - radius < b.maxX && z + radius > b.minZ && z - radius < b.maxZ)) continue;
     if (b.r === undefined) return true;
@@ -188,6 +191,7 @@ export function walkY(mapId: MapId, x: number, z: number): number {
   if (mapId === "campfire_night") return campFloorY(x, z);
   if (mapId === "whispering_woods") return forestFloorY(x, z);
   if (mapId === "sunset_beach") return beachFloorY(x, z);
+  if (mapId === "open_sea") return seaFloorY(x, z);
   return 0;
 }
 

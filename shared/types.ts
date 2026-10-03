@@ -377,6 +377,7 @@ export type ToggleableKind =
   | "radio"
   | "bartender"
   | "barshift"
+  | "captain"
   | "plant"
   | "bonfire"
   | "fishing"
@@ -1133,6 +1134,7 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "teahouse" ||
     kind === "blender" ||
     kind === "bartender" ||
+    kind === "captain" ||
     kind === "barshift" ||
     kind === "boardgame" ||
     kind === "jukebox" ||
@@ -1183,7 +1185,7 @@ export function usableSeated(kind: ToggleableKind): boolean {
 
 // --- world sizes ---
 /** Half-width of each diorama slab. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 14, sunset_beach: 18, velvet_casino: 10, casino_vip: 5, whispering_woods: 17, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12, glimmering_caverns: 22.5, open_sea: 8, hidden_cove: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 14, sunset_beach: 18, velvet_casino: 10, casino_vip: 5, whispering_woods: 17, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12, glimmering_caverns: 22.5, open_sea: 7, hidden_cove: 12 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
 export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 
