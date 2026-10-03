@@ -6,7 +6,7 @@ import type { Room } from "colyseus.js";
 import type { PlayerState } from "@shared/types";
 import { daylight } from "@shared/daynight";
 import { BALL_RADIUS, KICK_REACH, kickBall, stepBall, type BallState } from "@shared/volleyball";
-import { BALL_COURT, BAR, BEACH_GRID, BEACH_LAYOUT as L, BOAT, FIREPIT, MANGO, PIER, PIER_LENGTH, SEA_Y, WADE_DEPTH, beachLand, beachWading, onPierAt } from "@shared/worlds/beach";
+import { BALL_COURT, BAR, BEACH_GRID, BEACH_LAYOUT as L, BOAT, DUNE, FIREPIT, MANGO, PIER, PIER_LENGTH, SEA_Y, WADE_DEPTH, beachLand, beachWading, onPierAt } from "@shared/worlds/beach";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -36,6 +36,7 @@ import { WadeRipples } from "./caveLife";
 
 export const BEACH_URL = modelUrl("beach.glb");
 export const MANGO_URL = modelUrl("mango.glb");
+export const DUNE_URL = modelUrl("dune.glb");
 
 const BEACH_TIME = { value: 0 };
 const BEACH_NIGHT = { value: 0 };
@@ -134,6 +135,7 @@ export function BeachWorld({ onFloorClick, room, players, localSessionId, subscr
         </Suspense>
       </ModelBoundary>
       <CampNpc url={MANGO_URL} what="mango.glb" prefix="Mango" at={MANGO} y={beachLand(MANGO.x, MANGO.z)} waveEvent="mangoWave" standIn={<MangoStandIn />} subscribeMessages={subscribeMessages} talk={MANGO_TALK} />
+      <CampNpc url={DUNE_URL} what="dune.glb" prefix="Dune" at={DUNE} y={beachLand(DUNE.x, DUNE.z) + 0.14} waveEvent="duneWave" standIn={<DuneStandIn />} subscribeMessages={subscribeMessages} talk={DUNE_TALK} />
       <BeachLights />
       <BeachFire />
       <Ball room={room} players={players} localSessionId={localSessionId} />
@@ -153,6 +155,18 @@ function StandIn() {
       <mesh geometry={GEO.plane} material={STAND_IN_SAND} rotation={[-Math.PI / 2, Math.PI / 4, 0]} position={[-6, 0.3, -6]} scale={[L.half * 1.6, L.half * 1.6, 1]} raycast={noRaycast} />
     </group>
   );
+}
+const DUNE_TALK: NpcTalk = {
+  height: 1.5,
+  clicked: ["Slow and steady, that's how the fish come in", "I'll take every fish you bring, and pay you fair", "The big ones don't come near the pier. Not for a little rod", "Seventy years on this shore, and the sea still surprises me"],
+  greet: {
+    inside: (x, z) => Math.hypot(x - DUNE.x, z - DUNE.z) < 3.4,
+    lines: ["Fresh off the pier? Let's see the catch", "Welcome, welcome. Mind the nets", "A fine day for it. They're biting off the end of the pier"],
+  },
+};
+const DUNE_STAND_IN = matte("#7fa86b", 0.85);
+function DuneStandIn() {
+  return <mesh geometry={GEO.box} material={DUNE_STAND_IN} position={[0, 0.55, 0]} scale={[0.6, 1.1, 0.5]} raycast={noRaycast} />;
 }
 const MANGO_STAND_IN = matte("#2b2b33", 0.85);
 function MangoStandIn() {

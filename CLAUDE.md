@@ -222,6 +222,15 @@ restart mid-bout is a No Contest), Retro Arcade and the
 Gaming Cafe (registered, not built:
 each is a bare floor with no seats or props until its world is authored).
 
+Sunset Beach, part 2 (patch 0.8.1), the pier's fishing and Dune:
+- **The salt water's fish** (shared/sea_fishing.ts `SEA_FISH`, spread into `FISH`; prices `SEA_FISH_PRICES`): sixteen off the pier (eight by day, eight by night), eight at sea (`zone` "sea"), three in the cove (`zone` "cove", the Abyssal Pearl Whale the mythic). The sea's and the cove's are in the table and in fish.glb already; nothing reaches them until parts 4 and 6.
+- **The rod decides the rarest fish it lands** (the owner's ladder; `SEA_MIN_ROD`, clamped in `rollFish` for hand-reeled and AFK lines alike): T1 to T3 common, T4 uncommon, T5 rare, T6 the Epic kinds (a rare-rarity species with `grade` "epic" and `minRod` 6) and the legendaries, T7 the mythic, in the cove only. `WATER_ODDS` has `pier`, `sea` and `cove` rows; `CatchLuck.where` names the water (the room gives it for the beach's maps).
+- **A cast from where you stand** (`beachCast`: the float lands 1.9 m ahead on open water, deep enough, never under the deck or the moored boat): the caverns' shore-cast path made general (`isShoreCastMap`; the room's `castFromShore`, `shoreAnglers` with the map cast on, `bobberOf`, `waterOf`), on the same `caverns:cast` channel. `isFishingMap` counts the beach's maps.
+- **Dune** (dune.glb; `DUNE`, `DUNE_FRONT`): the shack rebuilt as an open-fronted stall with a high eave and no awning (either hid him from the camera). His counter is `BarnabyModal keeper="dune"`: stocked as Finley's, counter `beach` (shared/keepers.ts: full price for everything).
+- **The simulator** has the pier as a water (`where` "pier"): as sold 26 / 27 / 27 / 59 / 96 a minute for T1 to T5, each at or under the rod's own best water. The record is re-saved.
+- **The Fish Collection's Ocean page** is open; the cove's own fish are listed only once landed.
+- **Not played:** a hand-reeled catch on the beach (the bite and the reel are the rivers' own code); an AFK catch and its sale to Dune were.
+
 Sunset Beach (docs/beach-design.md, part 1, patch 0.8.0), the place and its bar:
 - **An island coast, 36 x 36 m** (shared/worlds/beach.ts): the layout is written in the coast's own frame (`d` metres inland of the waterline, `v` metres along it; `at(d, v)`, `shoreOf`, `coastU`), because the coast runs across the square's diagonal so that the sea lies in front of the camera and the bar, the dune and the palms at the back. One height function (`beachLand`: the sand eased out from the waterline, the seabed falling away, the dune, the headland, the ball's flat stretch), `BEACH_GRID`, `beachFloorY` (the pier's deck over the ground: `walkY`).
 - **Water:** the shallows are waded (`beachWading`: `WADE_PACE`, `WadeRipples`) and deep water stops you: `beachBlocked` (the ground under `WADE_DEPTH`, and the strip beside the pier where its deck is too high to step onto), read by collision.ts `isBlocked`. The first depth rule on a camp-style map.

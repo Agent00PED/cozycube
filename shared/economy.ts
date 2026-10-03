@@ -72,11 +72,18 @@ export interface TierOdds {
   legendary: number;
   mythic: number;
 }
-export type OddsWater = "campfire" | "woods" | "cenote";
+export type OddsWater = "campfire" | "woods" | "cenote" | "pier" | "sea" | "cove";
 const odds = (common: number, uncommon: number, rare = 0, legendary = 0, mythic = 0): TierOdds => ({ common, uncommon, rare, legendary, mythic });
 export const WATER_ODDS: Record<OddsWater, readonly TierOdds[]> = {
   campfire: [odds(0.85, 0.15), odds(0.72, 0.25, 0.03), odds(0.56, 0.33, 0.11), odds(0.46, 0.36, 0.18), odds(0.38, 0.38, 0.24), odds(0.32, 0.4, 0.28), odds(0.28, 0.4, 0.32)],
   woods: [odds(0.88, 0.12), odds(0.76, 0.22, 0.02), odds(0.62, 0.295, 0.08, 0.005), odds(0.5, 0.34, 0.14, 0.018, 0.002), odds(0.42, 0.35, 0.19, 0.035, 0.005), odds(0.36, 0.35, 0.23, 0.05, 0.01), odds(0.31, 0.34, 0.26, 0.075, 0.015)],
+  // (salt water, docs/beach-design.md: the rod decides the rarest fish it may land at all: T1 to T3 only
+  // common, T4 uncommon, T5 rare, T6 the Epic kinds (the rare column's rarest) and the legendaries; the
+  // mythic only in the cove, on a T7 rod. Each water further out is a little kinder on the same rod.
+  // Only a T5 rod or better casts at sea or in the cove: their first four rows are never read.)
+  pier: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.65, 0.27, 0.08), odds(0.5, 0.3, 0.17, 0.03), odds(0.43, 0.3, 0.22, 0.05)],
+  sea: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.55, 0.32, 0.13), odds(0.42, 0.32, 0.22, 0.04), odds(0.35, 0.3, 0.26, 0.09)],
+  cove: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.5, 0.34, 0.16), odds(0.36, 0.32, 0.26, 0.06), odds(0.28, 0.3, 0.3, 0.09, 0.03)],
   cenote: [odds(0.9, 0.1), odds(0.79, 0.19, 0.02), odds(0.7, 0.255, 0.04, 0.005), odds(0.57, 0.31, 0.105, 0.013, 0.002), odds(0.5, 0.327, 0.14, 0.028, 0.005), odds(0.45, 0.33, 0.17, 0.04, 0.01), odds(0.41, 0.33, 0.195, 0.055, 0.01)],
 };
 export const AFK_BAITED_TIER_ODDS: readonly TierOdds[] = [
@@ -293,6 +300,39 @@ export const CAVE_FISH_PRICES = {
   crystal_fin: 370,
   voidfang: 450,
   elder_olm: 1250,
+} as const;
+/** The salt water's fish (shared/sea_fishing.ts): the pier's sixteen, the Open Sea's eight, the Hidden
+ *  Cove's three. A rod below T6 lands nothing above rare here, so what the Epic kinds, the legendaries
+ *  and the mythic are worth moves only the Tidewater and Deep Tide rods' income. */
+export const SEA_FISH_PRICES = {
+  sand_sardine: 8,
+  striped_mullet: 8,
+  butterfly_fish: 9,
+  sunset_clownfish: 34,
+  yellowtail_snapper: 36,
+  blue_parrotfish: 105,
+  coral_grouper: 118,
+  sailfin_dorado: 320,
+  golden_tarpon: 900,
+  moon_anchovy: 8,
+  silver_pomfret: 9,
+  lantern_squid: 34,
+  spotted_moray: 38,
+  prism_jellyfish: 105,
+  moonlit_ray: 118,
+  abyss_lionfish: 320,
+  phantom_swordfish: 900,
+  flying_fish: 12,
+  bonito: 13,
+  skipjack_tuna: 52,
+  barracuda: 56,
+  wahoo: 160,
+  giant_trevally: 170,
+  sunfish_mola: 420,
+  blue_marlin: 1150,
+  glass_octopus: 480,
+  abyssal_oarfish: 1400,
+  pearl_whale: 2400,
 } as const;
 /** Finnegan the Grotto Angler's advanced tackle: coins, and a barter of the caverns' and the river's
  *  makings (shared/caverns_fishing.ts CAVE_TACKLES says which). */

@@ -137,3 +137,74 @@ test("the Bar Book: counts, best stars, the run of Perfects, the titles; kept in
   assert.deepEqual(sanitizeFishingProfile({}).bar, emptyBarBook());
   assert.deepEqual(sanitizeBarBook({ made: { nonsense: { n: 5, best: 9 } }, streak: -4, bestStreak: "x" }), emptyBarBook());
 });
+
+// --- the salt water (shared/sea_fishing.ts; docs/beach-design.md section 3) ---------------------------
+import { FISH as FISH7, gradeOf as gradeOf7, rollFish as rollFish7, type FishId as FishId7, type FishSpecies as Species7 } from "../shared/fishing";
+import { SEA_FISH_IDS, SEA_MIN_ROD, zoneOf } from "../shared/sea_fishing";
+import { fishRate as fishRate7 } from "../shared/keepers";
+import { BOAT, DUNE, DUNE_FRONT, beachCast } from "../shared/worlds/beach";
+
+/** What a rod lands in a salt water, over many casts: the grades seen. */
+function grades(where: "pier" | "sea" | "cove", rodTier: number, afk = false, time: "day" | "night" = "day") {
+  let seed = 12345 + rodTier * 31 + where.length;
+  const rand = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const seen = new Set<string>();
+  const ids = new Set<FishId7>();
+  for (let i = 0; i < 6000; i++) {
+    const id = rollFish7("saltwater", { rodTier, where, time, afk, bait: afk ? "stardrop" : "" }, rand);
+    seen.add(gradeOf7(id));
+    ids.add(id);
+  }
+  return { seen, ids };
+}
+
+test("the salt water's ladder: T1 to T3 common, T4 uncommon, T5 rare, T6 epic and legendary, the mythic only on T7 in the cove", () => {
+  for (const tier of [1, 2, 3]) assert.deepEqual([...grades("pier", tier).seen], ["common"], `a T${tier} rod at the pier`);
+  assert.deepEqual([...grades("pier", 4).seen].sort(), ["common", "uncommon"]);
+  assert.deepEqual([...grades("pier", 5).seen].sort(), ["common", "rare", "uncommon"]);
+  assert.deepEqual([...grades("pier", 6).seen].sort(), ["common", "epic", "legendary", "rare", "uncommon"]);
+  assert.ok(!grades("pier", 7).seen.has("mythic") && !grades("sea", 7).seen.has("mythic"), "no mythic off the pier or at sea");
+  assert.deepEqual([...grades("sea", 5).seen].sort(), ["common", "rare", "uncommon"]);
+  assert.ok(grades("cove", 7).seen.has("mythic") && !grades("cove", 6).seen.has("mythic"));
+  // an AFK line keeps the ladder too, whatever its bait (and never a mythic)
+  assert.deepEqual([...grades("pier", 3, true).seen], ["common"]);
+  assert.deepEqual([...grades("pier", 5, true).seen].sort(), ["common", "rare", "uncommon"]);
+  assert.ok(!grades("pier", 5, true).seen.has("epic"));
+});
+
+test("each salt-water fish swims in its own water, and by its own hour off the pier", () => {
+  const pierDay = grades("pier", 7, false, "day").ids;
+  const pierNight = grades("pier", 7, false, "night").ids;
+  const sea = grades("sea", 7).ids;
+  const cove = grades("cove", 7).ids;
+  for (const id of pierDay) assert.ok(zoneOf(id as (typeof SEA_FISH_IDS)[number]) === "pier" && FISH7[id].time === "day", `${id} off the pier by day`);
+  for (const id of pierNight) assert.ok(zoneOf(id as (typeof SEA_FISH_IDS)[number]) === "pier" && FISH7[id].time === "night", `${id} off the pier by night`);
+  for (const id of sea) assert.equal(zoneOf(id as (typeof SEA_FISH_IDS)[number]), "sea");
+  assert.ok([...cove].some((id) => zoneOf(id as (typeof SEA_FISH_IDS)[number]) === "cove") && [...cove].some((id) => zoneOf(id as (typeof SEA_FISH_IDS)[number]) === "sea"), "the cove holds its own and the sea's");
+  // every species is landed by some rod somewhere, and its grade is one a rod of its least tier lands
+  const all = new Set([...pierDay, ...pierNight, ...sea, ...cove]);
+  for (const id of SEA_FISH_IDS) {
+    assert.ok(all.has(id), `${id} bites somewhere`);
+    const sp = FISH7[id] as Species7;
+    assert.ok((sp.minRod ?? 1) <= SEA_MIN_ROD[gradeOf7(id)], `${id}: its least rod`);
+    assert.equal(fishRate7("beach", id), 1, "Dune pays in full for it");
+  }
+});
+
+test("a cast on Sunset Beach lands on open water: from the pier's edge, never onto the sand or under the deck", () => {
+  // facing out over the pier's south-west side: straight ahead, on deep water
+  const edge = onPierAt(PIER_LENGTH - 1.5, -PIER.headHalf + 0.3);
+  const out = beachCast(edge.x, edge.z, -0.7071, 0.7071);
+  assert.ok(out && beachGroundY(out.x, out.z) < -0.3);
+  // facing the captain's boat on the other side: the float never lands on its deck
+  const boatSide = onPierAt(PIER_LENGTH - 1.5, PIER.headHalf - 0.3);
+  const toBoat = beachCast(boatSide.x, boatSide.z, 0.7071, -0.7071);
+  assert.ok(!toBoat || Math.hypot(toBoat.x - BOAT.x, toBoat.z - BOAT.z) > 1.9, "not onto the boat");
+  const inland = at(9, 0);
+  assert.equal(beachCast(inland.x, inland.z, -0.7071, -0.7071), null, "no water in reach of the bar");
+  // Dune stands inside his shack; you stand in front of it
+  assert.ok(isBlocked(DUNE.x, DUNE.z, "sunset_beach", 0.05) && !isBlocked(DUNE_FRONT.x, DUNE_FRONT.z, "sunset_beach"));
+});

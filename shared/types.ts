@@ -237,7 +237,12 @@ export function isCavernsMap(map: string): boolean {
 /** The worlds with water to fish (the reel, the livewell, AFK): the camp's rivers and the caverns'
  *  cenote lake. */
 export function isFishingMap(map: string): boolean {
-  return isCampMap(map) || isCavernsMap(map);
+  return isCampMap(map) || isCavernsMap(map) || isBeachMap(map);
+}
+/** The worlds where a line is cast from where you stand, the way you face (no fishing spots): the
+ *  caverns' shores, Sunset Beach's pier and waterline, the boat's rails, the cove. */
+export function isShoreCastMap(map: string): boolean {
+  return isCavernsMap(map) || isBeachMap(map);
 }
 /** Sunset Beach and the two maps under it: the Open Sea and the Hidden Cove (docs/beach-design.md). */
 export function isBeachMap(map: string): boolean {

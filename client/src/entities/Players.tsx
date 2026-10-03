@@ -1,3 +1,4 @@
+import { SEA_Y } from "@shared/worlds/beach";
 import { FOREST_FISHING, FOREST_LAYOUT } from "@shared/worlds/forest";
 import { wornBackOf } from "@shared/gear";
 import { CAVE_WATER_Y, floatY } from "@shared/worlds/caverns";
@@ -64,6 +65,11 @@ export function bobberFor(player: PlayerState, mapId: MapId) {
     // the Cenote: where their cast from the shore landed (the server's `floatX` / `floatZ`)
     if (!player.floatX && !player.floatZ) return null;
     return { x: player.floatX, y: floatY(player.floatX, player.floatZ), z: player.floatZ };
+  }
+  if (mapId === "sunset_beach") {
+    // the sea: where their cast landed, on the water
+    if (!player.floatX && !player.floatZ) return null;
+    return { x: player.floatX, y: SEA_Y, z: player.floatZ };
   }
   if (mapId !== "campfire_night") return null;
   const { bobber } = nearestFishingSpot(player.x, player.z);

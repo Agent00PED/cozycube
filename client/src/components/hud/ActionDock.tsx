@@ -3,7 +3,7 @@ import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, R
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { COLOSSAL, FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, isColossalKind, type WoodKind } from "@shared/chop";
 import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ADIT_FRONT, FOREST_ANIMALS, FOREST_FISHING, FOREST_SEAT_LABELS, FOREST_WORKBENCH_FRONT, OLD_FLINT_FRONT, OLD_FLINT_REACH, woodsSpotOfSeat } from "@shared/worlds/forest";
-import { BAR, MANGO_FRONT, MANGO_REACH, SHIFT_REACH } from "@shared/worlds/beach";
+import { BAR, DUNE_FRONT, DUNE_REACH, MANGO_FRONT, MANGO_REACH, SHIFT_REACH, beachCast } from "@shared/worlds/beach";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, FINNEGAN, CAVE_ADIT_FRONT, CAVE_WINCH, WINCH_REACH, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, shoreCast, streamCast, PHOTO_SPOT, PHOTO_REACH, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, RAFT, RAFT_REACH } from "@shared/worlds/caverns";
 import { CAVERNS_CHANNELS, ORE_KINDS, PICKAXES, SOAK_S, isPickaxeId, parseOres } from "@shared/caverns_mining";
 import { DRIP_REACH, type CaveDrip } from "@shared/caverns_fishing";
@@ -510,10 +510,13 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
           }
         }
       }
-      // Sunset Beach: the bar (a drink from a stool or the counter's front; a shift from behind it)
+      // Sunset Beach: the bar (a drink from a stool or the counter's front; a shift from behind it),
+      // and Dune at his shack by the pier
       if (mapId === "sunset_beach" && action === "") {
         const px = cameraFocus.x;
         const pz = cameraFocus.z;
+        const toDune = Math.hypot(DUNE_FRONT.x - px, DUNE_FRONT.z - pz);
+        if (!sitting && toDune <= DUNE_REACH + 0.6) found.push({ key: "dune", type: "barnaby", d: toDune, label: "🐢 Talk to Dune", hint: "The beach's trader: he buys every fish at full price, and sells rods, livewells and bait", run: () => interactBridge.current?.useProp("dune") });
         const onStool = sitting && BAR.stools.some((s) => chairs[s.propId]?.occupiedBy === localSessionId);
         const toBar = Math.hypot(MANGO_FRONT.x - px, MANGO_FRONT.z - pz);
         if (onStool || (!sitting && toBar <= MANGO_REACH && Math.hypot(BAR.x - px, BAR.z - pz) > BAR.counter)) found.push({ key: "beachbar", type: "beachbar", d: onStool ? 0.5 : toBar, label: "🍹 Order a drink", hint: "Mango's menu: a drink in hand, its glow, and Refreshed if it is made well", run: () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "bartender", propId: "mango" } })) });
@@ -775,13 +778,15 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       const lakeFloat = mapId === "glimmering_caverns" && !sitting && action === "" ? shoreCast(cameraFocus.x, cameraFocus.z, faceX, faceZ) : null;
       // (or the stream, from its bank: the cave's small fish)
       const streamFloat = mapId === "glimmering_caverns" && !sitting && action === "" && !lakeFloat ? streamCast(cameraFocus.x, cameraFocus.z, faceX, faceZ) : null;
-      const shoreFloat = lakeFloat ?? streamFloat;
-      const onShore = mapId === "glimmering_caverns" && !sitting && (shoreFloat !== null || action === "fish" || action === "afkfish" || action === "rest" || action === "reel");
+      // (Sunset Beach: the sea from the pier's edge or the waterline, the way you face: beachCast)
+      const seaFloat = mapId === "sunset_beach" && !sitting && action === "" ? beachCast(cameraFocus.x, cameraFocus.z, faceX, faceZ) : null;
+      const shoreFloat = lakeFloat ?? streamFloat ?? seaFloat;
+      const onShore = (mapId === "glimmering_caverns" || mapId === "sunset_beach") && !sitting && (shoreFloat !== null || action === "fish" || action === "afkfish" || action === "rest" || action === "reel");
       const mySpot = mySeat ? (spotOfSeat(mySeat.propId) ?? woodsSpotOfSeat(mySeat.propId)) : onShore ? "shore" : woodsStand?.propId;
       const castShore = () => onCaverns(CAVERNS_CHANNELS.cast, { fx: faceX, fz: faceZ });
       const AFK_HINT = "Feet up, line in: a common every 44-58s, rarer fish longer (baited only; up to three minutes for a legendary; premium bait a quarter quicker). Never a King Size or a mythic: those take a hand on the reel";
       if (mySpot === "shore" && action === "") {
-        found.push({ key: `cast:shore:${streamFloat ? "stream" : "lake"}`, type: "fish", label: streamFloat ? "🎣 Cast into the Stream" : "🎣 Cast Line", hint: streamFloat ? "Cast into the stream from its bank: the cave's smaller fish, quick and calm (nothing legendary swims up water this shallow)" : "Cast into the Great Lake from the shore; tap when the bobber dips, then reel it in (the lucky drip: cast into its ripple for a wider sweet spot, and nothing common bites)", run: castShore });
+        found.push({ key: `cast:shore:${streamFloat ? "stream" : seaFloat ? "sea" : "lake"}`, type: "fish", label: streamFloat ? "🎣 Cast into the Stream" : "🎣 Cast Line", hint: seaFloat ? "Cast into the sea: the rod decides what it may land here (any rod the common fish, a T4 rod uncommon, a T5 rod rare)" : streamFloat ? "Cast into the stream from its bank: the cave's smaller fish, quick and calm (nothing legendary swims up water this shallow)" : "Cast into the Great Lake from the shore; tap when the bobber dips, then reel it in (the lucky drip: cast into its ripple for a wider sweet spot, and nothing common bites)", run: castShore });
         found.push({
           key: "afk:on",
           type: "afk",

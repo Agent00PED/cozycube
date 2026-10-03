@@ -746,43 +746,62 @@ def build_pier(coll, rng):
 
 
 def build_shack(coll, rng):
+    """The trader's shack: an open-fronted stall facing the sea. Three plank walls and a thatched
+    roof, a counter across the front with the trader standing behind it (the eave is kept high and
+    there is no awning: either would hide him from the camera)."""
     S = SCENE["shack"]
     fr = Frame(S["x"], S["z"], S["yaw"])
     w, dp = S["w"] / 2, S["dp"] / 2
+    wall = 2.3
     bm = bmesh.new()
-    # a raised plank floor, the walls, a counter window facing the sea
+    # a raised plank floor; the back wall and the two sides
     obox(bm, fr, -dp - 0.1, dp + 0.1, 0.0, 0.14, -w - 0.1, w + 0.1, m("BC_WoodDark"))
-    obox(bm, fr, -dp, dp, 0.14, 2.1, -w, w, m("BC_Wood"))
-    for k in range(12):
-        b = -w + 0.125 + k * (2 * w - 0.25) / 11
-        obox(bm, fr, dp, dp + 0.015, 0.14, 2.1, b - 0.012, b + 0.012, m("BC_WoodDark"))
-    obox(bm, fr, dp, dp + 0.03, 0.95, 1.75, -0.95, 0.95, m("BC_Char"))
-    obox(bm, fr, dp, dp + 0.42, 0.9, 0.96, -1.1, 1.1, m("BC_WoodPale"))
-    for b in (-1.0, 1.0):
-        bar(bm, fr.p(dp + 0.36, 0.0, b), fr.p(dp + 0.36, 0.9, b), 0.04, m("BC_WoodDark"), sides=6)
-    # the awning over it, striped
-    for k in range(6):
-        b0, b1 = -1.2 + k * 0.4, -0.8 + k * 0.4
-        oquad(bm, [fr.p(dp, 2.02, b0), fr.p(dp + 0.95, 1.72, b0), fr.p(dp + 0.95, 1.72, b1), fr.p(dp, 2.02, b1)], m("BC_Teal") if k % 2 else m("BC_White"))
-    for b in (-1.2, 1.2):
-        bar(bm, fr.p(dp + 0.9, 1.72, b), fr.p(dp + 0.36, 0.92, b * 0.84), 0.02, m("BC_WoodDark"), sides=5)
-    # the roof: two thatched slopes, the ridge along the coast
+    obox(bm, fr, -dp, -dp + 0.08, 0.14, wall, -w, w, m("BC_Wood"))
+    for b in (-w, w - 0.08):
+        obox(bm, fr, -dp, dp, 0.14, wall, b, b + 0.08, m("BC_Wood"))
+    for k in range(9):
+        a = -dp + 0.14 + k * (2 * dp - 0.28) / 8
+        for b in (-w - 0.012, w):
+            obox(bm, fr, a - 0.012, a + 0.012, 0.14, wall, b, b + 0.012, m("BC_WoodDark"))
+    # the front: two corner posts, the counter between them, a lintel with a striped valance
+    for b in (-w + 0.06, w - 0.06):
+        bar(bm, fr.p(dp - 0.06, 0.14, b), fr.p(dp - 0.06, wall, b), 0.07, m("BC_WoodDark"), sides=8)
+    obox(bm, fr, dp - 0.14, dp, 0.14, 0.92, -w + 0.1, w - 0.1, m("BC_Wood"))
+    obox(bm, fr, dp - 0.3, dp + 0.26, 0.92, 0.98, -w + 0.02, w - 0.02, m("BC_WoodPale"))
+    obox(bm, fr, dp - 0.1, dp, wall - 0.16, wall, -w, w, m("BC_WoodDark"))
+    for k in range(8):
+        b0 = -w + 0.1 + k * (2 * w - 0.2) / 8
+        obox(bm, fr, dp, dp + 0.012, wall - 0.4, wall - 0.14, b0, b0 + (2 * w - 0.2) / 8, m("BC_Teal") if k % 2 else m("BC_White"))
+    # inside: shelves on the back wall, a few crates and jars on them
+    for y in (1.0, 1.55):
+        obox(bm, fr, -dp + 0.08, -dp + 0.42, y, y + 0.04, -w + 0.2, w - 0.2, m("BC_WoodPale"))
+    for k, (y, mat) in enumerate(((1.04, "BC_Bottle"), (1.04, "BC_BottleAmber"), (1.59, "BC_Glass"), (1.59, "BC_Coral"), (1.04, "BC_Teal"), (1.59, "BC_Yellow"))):
+        p = fr.p(-dp + 0.25, y, -w + 0.5 + k * 0.42)
+        lathe(bm, p.x, -p.y, [(0.0, 0.0), (0.07, 0.0), (0.07, 0.16), (0.04, 0.2), (0.0, 0.2)], segs=8, m=m(mat), y0=p.z)
+    # on the counter: a pair of scales, a fish on ice
+    obox(bm, fr, dp - 0.22, dp + 0.14, 0.98, 1.02, w - 0.9, w - 0.35, m("BC_Glass"))
+    p = fr.p(dp - 0.04, 1.06, w - 0.62)
+    blob(bm, p.x, p.z, -p.y, 0.16, 0.035, 0.06, m=m("BC_Coral"), cuts=2)
+    p = fr.p(dp - 0.02, 0.98, -w + 0.55)
+    lathe(bm, p.x, -p.y, [(0.0, 0.0), (0.12, 0.0), (0.03, 0.03), (0.03, 0.2), (0.14, 0.22), (0.0, 0.22)], segs=10, m=m("BC_Iron"), y0=p.z)
+    # the roof: two thatched slopes, the ridge along the coast, the eaves high over the counter
+    eave, ridge, over = wall - 0.04, wall + 0.95, 0.38
     for side in (-1, 1):
-        oquad(bm, [fr.p(0.0, 3.0, -w - 0.35), fr.p(side * (dp + 0.45), 2.0, -w - 0.35), fr.p(side * (dp + 0.45), 2.0, w + 0.35), fr.p(0.0, 3.0, w + 0.35)][:: side], m("BC_Thatch"), thick=0.12, under=m("BC_ThatchDark"))
+        oquad(bm, [fr.p(0.0, ridge, -w - 0.35), fr.p(side * (dp + over), eave, -w - 0.35), fr.p(side * (dp + over), eave, w + 0.35), fr.p(0.0, ridge, w + 0.35)][::side], m("BC_Thatch"), thick=0.12, under=m("BC_ThatchDark"))
     for b in (-w, w):
-        bm.faces.new([bm.verts.new(fr.p(-dp, 2.1, b)), bm.verts.new(fr.p(dp, 2.1, b)), bm.verts.new(fr.p(0.0, 2.92, b))]).material_index = m("BC_WoodDark")
-    bar(bm, fr.p(0.0, 3.02, -w - 0.4), fr.p(0.0, 3.02, w + 0.4), 0.06, m("BC_BambooDark"), sides=6)
-    # a door in the east wall, a hanging sign, buoys, a crate of fish, a barrel
-    obox(bm, fr, -0.35, 0.35, 0.14, 1.8, w, w + 0.03, m("BC_WoodDark"))
-    obox(bm, fr, dp + 0.02, dp + 0.06, 2.12, 2.5, -0.7, 0.7, m("BC_WoodPale"))
-    obox(bm, fr, dp + 0.06, dp + 0.07, 2.2, 2.42, -0.5, 0.5, m("BC_Navy"))
+        bm.faces.new([bm.verts.new(fr.p(-dp, wall, b)), bm.verts.new(fr.p(dp, wall, b)), bm.verts.new(fr.p(0.0, ridge - 0.08, b))]).material_index = m("BC_WoodDark")
+    bar(bm, fr.p(0.0, ridge + 0.02, -w - 0.4), fr.p(0.0, ridge + 0.02, w + 0.4), 0.06, m("BC_BambooDark"), sides=6)
+    # a sign on a post beside it, buoys on the corner post, a crate of ice and a barrel out front
+    sp = fr.p(dp + 0.5, 0.0, -w - 0.55)
+    bar(bm, sp, sp + Vector((0, 0, 1.7)), 0.04, m("BC_WoodDark"), sides=6)
+    obox(bm, fr, dp + 0.46, dp + 0.54, 1.25, 1.7, -w - 1.0, -w - 0.1, m("BC_WoodPale"))
+    obox(bm, fr, dp + 0.54, dp + 0.55, 1.33, 1.62, -w - 0.9, -w - 0.2, m("BC_Navy"))
     for k, mat in enumerate(("BC_Red", "BC_White", "BC_Yellow")):
-        p = fr.p(dp + 0.1, 1.5 - 0.22 * k, -w + 0.2)
+        p = fr.p(dp + 0.06, 1.75 - 0.22 * k, w + 0.02)
         blob(bm, p.x, p.z, -p.y, 0.1, 0.1, 0.1, m=m(mat), cuts=2)
-    bar(bm, fr.p(dp + 0.1, 1.9, -w + 0.2), fr.p(dp + 0.1, 0.95, -w + 0.2), 0.012, m("BC_Rope"), sides=4)
-    obox(bm, fr, dp + 0.55, dp + 1.05, 0.0, 0.3, 1.25, 1.85, m("BC_WoodPale"))
-    obox(bm, fr, dp + 0.6, dp + 1.0, 0.3, 0.33, 1.3, 1.8, m("BC_Glass"))
-    p = fr.p(dp + 0.6, 0.0, -1.75)
+    obox(bm, fr, dp + 0.5, dp + 1.0, 0.0, 0.3, w + 0.15, w + 0.75, m("BC_WoodPale"))
+    obox(bm, fr, dp + 0.55, dp + 0.95, 0.3, 0.33, w + 0.2, w + 0.7, m("BC_Glass"))
+    p = fr.p(-dp + 0.3, 0.0, -w - 0.5)
     lathe(bm, p.x, -p.y, [(0.0, 0.0), (0.22, 0.0), (0.26, 0.3), (0.22, 0.6), (0.0, 0.6)], segs=12, m=m("BC_Wood"), y0=p.z)
     make_object("Beach_Shack", bm, MATS, coll)
 

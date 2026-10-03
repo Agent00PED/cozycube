@@ -1959,7 +1959,7 @@ export const PATCH_ERAS: PatchEra[] = [
   {
     era: 8,
     name: "Sunset Beach",
-    range: "v0.7.59–v0.8.0",
+    range: "v0.7.59–v0.8.1",
     icon: "🏖️",
     blurb: "An island beach with a bar to tend, a pier out over the sea, and the catch odds told apart water by water.",
     patches: [
@@ -1998,6 +1998,21 @@ export const PATCH_ERAS: PatchEra[] = [
             "🌴 Palms sway and thin out when they stand between you and the camera. The captain's boat rocks at the pier's head.",
           ],
           fixes: ["🧹 The old drink blender and an unused early version of fishing are gone from the game's code."],
+        },
+      },
+      {
+        version: "0.8.1",
+        date: "2026-10-03",
+        title: "Lines Off the Pier",
+        summary: "Fish the sea from Sunset Beach's pier or its waterline, with any rod, and sell the catch to Dune the sea turtle at his shack.",
+        changes: {
+          features: [
+            "🎣 Cast into the sea from anywhere on the pier, or wade in a step from the sand: face the water and Cast Line, by hand or Auto AFK.",
+            "🐠 Sixteen reef and surf fish off the pier, eight by day and eight by night, on a new Ocean page in the Fish Collection.",
+            "🪜 In salt water the rod decides the rarest fish it may land: any rod the common fish, a T4 rod the uncommon, a T5 rod the rare. The Epic and Legendary fish wait for a finer rod still.",
+            "🐢 Dune the old sea turtle keeps the shack at the pier's foot: he buys every fish at full price and sells rods, livewells and bait.",
+          ],
+          economy: ["⚖️ The pier pays a rod about what its own best water does, never more: it is a place to fish together and to fill the Ocean page, not a shortcut."],
         },
       },
     ],

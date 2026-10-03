@@ -58,7 +58,7 @@ def species_ids(root):
     """Every species id: the river's and the sea's (shared/fishing.ts), the Grotto Pool's
     (shared/caverns_fishing.ts)."""
     ids = []
-    for f in ("fishing.ts", "caverns_fishing.ts"):
+    for f in ("fishing.ts", "caverns_fishing.ts", "sea_fishing.ts"):
         src = open(os.path.join(root, "shared", f), encoding="utf-8").read()
         ids += re.findall(r"^  ([a-z_]+): \{ name: \"[^\"]+\", emoji: \"[^\"]+\", water: ", src, re.M)
     return ids
@@ -104,7 +104,35 @@ LOOKS = {
     "sand_sardine": dict(body="swim", h=0.13, back="#3E6A8A", flank="#C8D8E0", belly="#F4F8FA", fin="#A8B8C4", marks=[("spots", "#2A4A6A", 0.3)]),
     "sunset_clownfish": dict(body="deep", h=0.22, back="#F07A2A", flank="#F7942E", belly="#F7B45A", fin="#E86A1A", marks=[("bands", "#FFFFFF", 3)], tail="round"),
     "prism_jellyfish": dict(body="jelly", h=0.3, back="#C8A8F0", flank="#E8C8F8", belly="#F8E8FF", fin="#A8E0F8", marks=[("glow", "#FFFFFF")]),
-    "pearl_whale": dict(body="whale", h=0.22, back="#4A5A7A", flank="#8A9AB8", belly="#F0F2F4", fin="#5A6A8A", marks=[("spots", "#F8F4E8", 0.3)]),
+    "pearl_whale": dict(body="whale", h=0.22, back="#4A5A7A", flank="#8A9AB8", belly="#F0F2F4", fin="#5A6A8A", marks=[("spots", "#F8F4E8", 0.3), ("glow", "#F8F4E8")]),
+    # the salt water (shared/sea_fishing.ts): the pier's reef and surf fish, by day
+    "striped_mullet": dict(body="swim", h=0.15, back="#5A6E7A", flank="#C4CED4", belly="#F2F4F2", fin="#8E9AA4", marks=[("line", "#4A5A66"), ("scales", "#A8B4BC")]),
+    "butterfly_fish": dict(body="deep", h=0.3, back="#F2D048", flank="#F7E27A", belly="#FFF6D0", fin="#F2B030", marks=[("bands", "#2A2A32", 2), ("gill", "#2A2A32")], tail="round"),
+    "yellowtail_snapper": dict(body="swim", h=0.19, back="#C86A7A", flank="#F0B8B8", belly="#F8ECE6", fin="#F2D048", marks=[("line", "#F2D048")], dorsal="spiny"),
+    "blue_parrotfish": dict(body="deep", h=0.24, back="#2A8AC8", flank="#4FC0D8", belly="#A8E8E0", fin="#F28AA8", marks=[("scales", "#2A6AA8"), ("gill", "#F2C848")], tail="round"),
+    "coral_grouper": dict(body="swim", h=0.24, back="#C8482A", flank="#E8703A", belly="#F8C8A0", fin="#B03A22", marks=[("spots", "#6FC8F0", 0.55)], dorsal="spiny", big_eye=True),
+    "sailfin_dorado": dict(body="swim", h=0.2, back="#1E8A7A", flank="#F2D048", belly="#F8F2C0", fin="#2A6AC8", marks=[("spots", "#2A6AC8", 0.3), ("glow", "#F8F0A0")], dorsal="sail"),
+    "golden_tarpon": dict(body="arowana", h=0.18, back="#B8902A", flank="#F2D46A", belly="#FBF0C0", fin="#D8A838", marks=[("scales", "#C8A038"), ("glow", "#FFE8A0")], big_eye=True),
+    # by night
+    "moon_anchovy": dict(body="swim", h=0.11, back="#3E5A8A", flank="#C8D8F0", belly="#F4F8FF", fin="#A8B8D8", marks=[("line", "#E8F0FF"), ("glow", "#DDE8FF")]),
+    "silver_pomfret": dict(body="deep", h=0.3, back="#8A96A4", flank="#D8E0E8", belly="#F8FAFC", fin="#A8B4C0", marks=[("scales", "#B8C4D0")]),
+    "lantern_squid": dict(body="jelly", h=0.2, back="#E86A8A", flank="#F4A0B0", belly="#FCE0E4", fin="#F7D46A", marks=[("glow", "#FFE8A0")]),
+    "spotted_moray": dict(body="eel", h=0.1, back="#6A5A2A", flank="#B89A48", belly="#E8D8A8", fin="#8A7438", marks=[("spots", "#2A2416", 0.7)]),
+    "moonlit_ray": dict(body="flat", h=0.1, back="#3A4A7A", flank="#6A7AB8", belly="#E8ECF8", fin="#5A6AA8", marks=[("spots", "#DDE8FF", 0.4), ("glow", "#DDE8FF")]),
+    "abyss_lionfish": dict(body="deep", h=0.24, back="#7A1E2A", flank="#C84A4A", belly="#F4D8C8", fin="#E87A5A", marks=[("bands", "#F8ECE0", 5), ("glow", "#FFB8A0")], dorsal="spiny"),
+    "phantom_swordfish": dict(body="paddle", h=0.13, back="#2A2E5A", flank="#6A72B8", belly="#D8DCF4", fin="#4A4E9A", marks=[("line", "#B8C0FF"), ("glow", "#C8D0FF")], dorsal="sail"),
+    # the Open Sea
+    "flying_fish": dict(body="swim", h=0.13, back="#2A5A9A", flank="#A8C8E8", belly="#F4F8FC", fin="#8FB8E8", marks=[("line", "#D8E8F8")], dorsal="sail"),
+    "bonito": dict(body="swim", h=0.19, back="#2E4A7A", flank="#B8C8D8", belly="#F2F4F6", fin="#5A6E8E", marks=[("bars", "#22365A", 6)]),
+    "skipjack_tuna": dict(body="swim", h=0.22, back="#22306A", flank="#8A9EC8", belly="#EEF0F4", fin="#3A4A8A", marks=[("line", "#22306A"), ("parr", "#22306A")]),
+    "barracuda": dict(body="gar", h=0.08, back="#4A5E6E", flank="#C0CCD4", belly="#F2F4F4", fin="#6E7E8A", marks=[("bars", "#3A4A58", 9)], big_eye=True),
+    "wahoo": dict(body="long", h=0.12, back="#1E3A7A", flank="#7AA0D8", belly="#EEF2F8", fin="#2E4A8A", marks=[("bars", "#16306A", 12)]),
+    "giant_trevally": dict(body="deep", h=0.26, back="#4A545E", flank="#A8B2BC", belly="#ECEEF0", fin="#3A444E", marks=[("spots", "#2A3038", 0.25)], dorsal="spiny"),
+    "sunfish_mola": dict(body="deep", h=0.36, back="#6A7480", flank="#B0BAC4", belly="#EEF0F2", fin="#8A949E", marks=[("mottle", "#D8E0E8", 0.5), ("glow", "#E8F0F8")], dorsal="sail", tail="round"),
+    "blue_marlin": dict(body="paddle", h=0.15, back="#16327A", flank="#5A8AD8", belly="#E8EEF8", fin="#22469A", marks=[("bars", "#8FB8F0", 10), ("glow", "#A8C8FF")], dorsal="sail"),
+    # the Hidden Cove's own
+    "glass_octopus": dict(body="jelly", h=0.26, back="#A8E8F0", flank="#D8F6F8", belly="#F4FEFF", fin="#C8A8F0", marks=[("glow", "#E0FBFF")]),
+    "abyssal_oarfish": dict(body="serpent", h=0.07, back="#B8C0D0", flank="#E4E8F0", belly="#FFFFFF", fin="#E8485A", marks=[("glow", "#FFD0D8"), ("spots", "#8A94A8", 0.3)]),
     # the Glimmering Caverns' Grotto Pool: pale, glassy and glowing
     # the Cenote's eleven: every one's fins glow (FI_Glow: the game's reveal lights them from their own
     # vertex colours)

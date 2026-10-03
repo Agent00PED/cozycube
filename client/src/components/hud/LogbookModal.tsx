@@ -5,20 +5,26 @@ import { Modal } from "./Modal";
 
 // The Logbook, opened from the resource drawers: the Fish Collection (from the livewell: the
 // freshwater fish by day and by night, the Glimmering Caverns' cenote on a page of its own, a
-// dark silhouette until you catch one, a gold crown on a King Size record, and the Ocean's page
-// locked until the beach opens) or the Timber Collection (from the
+// dark silhouette until you catch one, a gold crown on a King Size record, and the Ocean's page:
+// Sunset Beach's pier and the Open Sea) or the Timber Collection (from the
 // wood carrier: every tree kind's lore, the widest trunk you have felled, how many, the most one of
 // its logs ever sold for, and what else it gives).
 
-const FRESHWATER = (Object.keys(FISH) as FishId[]).filter((id) => FISH[id].water === "freshwater" || FISH[id].water === "cavewater");
+// (every fish in the book: the rivers', the cenote's, and the salt water's)
+const FRESHWATER = Object.keys(FISH) as FishId[];
+/** The Ocean page: the pier's fish and the Open Sea's. The Hidden Cove's own show only once one of them
+ *  has been landed (nothing names the cove before it is found). */
+const oceanFish = (profile: FishingProfile) => FRESHWATER.filter((id) => FISH[id].water === "saltwater" && ((FISH[id] as { zone?: string }).zone !== "cove" || (profile.caught[id] ?? 0) > 0));
 const TREE_ICON: Record<TreeKind, string> = { soft_pine: "🌲", birch: "🌳", cedar: "🌲", maple: "🍁", elderwood: "🌌" };
 type Page = "day" | "night" | "cave" | "ocean";
 /** The fish on a page: the river's by day or by night (whatever bites any time is the caverns'). */
-const onPage = (id: FishId, page: Page) => (page === "cave" ? FISH[id].water === "cavewater" : FISH[id].water === "freshwater" && FISH[id].time === page);
+const onPage = (id: FishId, page: Page) => (page === "ocean" ? FISH[id].water === "saltwater" : page === "cave" ? FISH[id].water === "cavewater" : FISH[id].water === "freshwater" && FISH[id].time === page);
 
 export function LogbookModal({ mode, profile, onClose }: { mode: "fish" | "timber"; profile: FishingProfile; onClose: () => void }) {
   const [page, setPage] = useState<Page>("day");
   if (mode === "timber") return <TimberCollection profile={profile} onClose={onClose} />;
+  // (the count leaves the cove's own out until they are found)
+  const known = FRESHWATER.filter((id) => (FISH[id] as { zone?: string }).zone !== "cove" || (profile.caught[id] ?? 0) > 0);
   const caughtKinds = FRESHWATER.filter((id) => (profile.caught[id] ?? 0) > 0).length;
   const crowns = FRESHWATER.filter((id) => (profile.records[id] ?? 0) > 0 && isKingSize({ s: id, cm: profile.records[id]! })).length;
   return (
@@ -30,20 +36,19 @@ export function LogbookModal({ mode, profile, onClose }: { mode: "fish" | "timbe
               ["day", "☀️ Day"],
               ["night", "🌙 Night"],
               ["cave", "💎 Caverns"],
-              ["ocean", "🌊 Ocean 🔒"],
+              ["ocean", "🌊 Ocean"],
             ] as const
           ).map(([id, label]) => (
-            <button key={id} type="button" onClick={() => setPage(id)} className={`min-h-8 rounded-full px-2.5 py-1 font-bold ${page === id ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10"} ${id === "ocean" ? "opacity-70" : ""}`}>
+            <button key={id} type="button" onClick={() => setPage(id)} className={`min-h-8 rounded-full px-2.5 py-1 font-bold ${page === id ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10"}`}>
               {label}
             </button>
           ))}
           <b className="ml-auto text-[#F7EBE1]">
-            {caughtKinds}/{FRESHWATER.length} found · 👑 {crowns}
+            {caughtKinds}/{known.length} found · 👑 {crowns}
           </b>
         </div>
-        {page !== "ocean" ? (
           <div className="grid max-h-[52vh] grid-cols-3 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-5">
-            {FRESHWATER.filter((id) => onPage(id, page)).map((id) => {
+            {(page === "ocean" ? oceanFish(profile) : FRESHWATER.filter((id) => onPage(id, page))).map((id) => {
               const sp = FISH[id];
               const n = profile.caught[id] ?? 0;
               const longest = profile.records[id] ?? 0;
@@ -72,15 +77,6 @@ export function LogbookModal({ mode, profile, onClose }: { mode: "fish" | "timbe
               );
             })}
           </div>
-        ) : (
-          <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-white/5 px-4 py-8 text-center">
-            <span className="text-4xl" aria-hidden>
-              🔒🌊
-            </span>
-            <b className="text-sm text-[#F7EBE1]">The Ocean's page is locked</b>
-            <span className="text-xs opacity-75">Saltwater fish come with the Sunset Beach Bar. Until then, the river and the woods have plenty to catch!</span>
-          </div>
-        )}
       </div>
     </Modal>
   );

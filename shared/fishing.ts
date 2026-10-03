@@ -6,6 +6,7 @@
 // their player record (it survives room switches, reconnects and restarts); the client draws the
 // same tables in the reel, the creel and Barnaby's shop.
 
+import { SEA_FISH, SEA_MIN_ROD, swimsIn, type SeaZone } from "./sea_fishing";
 import { emptyBarBook, sanitizeBarBook, type BarBook } from "./barshift";
 import { isCodexId } from "./caverns_codex";
 import type { SwimPattern } from "./types";
@@ -52,6 +53,10 @@ export interface FishSpecies {
   /** Shown as a grade of its own (the Cenote's Epic pair: the rare rarity's rarest, drawn and priced
    *  apart, fought like a rare one). */
   grade?: "epic";
+  /** Salt water (shared/sea_fishing.ts): where it swims (the pier's, where it names none), and the
+   *  least rod that lands it (the Epic kinds: a Tidewater rod). */
+  zone?: "pier" | "sea" | "cove";
+  minRod?: number;
 }
 
 export const FISH = {
@@ -92,13 +97,10 @@ export const FISH = {
   abyssal_koi: { name: "Abyssal Koi", emoji: "🎏", water: "freshwater", tier: "legendary", weight: 1, bite: [9, 14], cm: [55, 90], value: FISH_PRICES.abyssal_koi, speed: 1.45, size: 1.0, pattern: "koi", barScale: 0.7, time: "night", rapids: true, mass: 15 },
   starlight_eel: { name: "Starlight Eel", emoji: "🐍", water: "freshwater", tier: "legendary", weight: 1, bite: [9, 14], cm: [80, 150], value: FISH_PRICES.starlight_eel, speed: 1.4, size: 0.95, pattern: "sine", barScale: 0.72, time: "night", rapids: true, mass: 3 },
   moonveil_leviathan: { name: "Moonveil Leviathan", emoji: "🐋", water: "freshwater", tier: "mythic", weight: 0.5, bite: [11, 16], cm: [150, 260], value: FISH_PRICES.moonveil_leviathan, speed: 1.6, size: 1.0, pattern: "plunge", barScale: 0.62, time: "night", rapids: true, mass: 10 },
-  // saltwater: the Sunset Beach Bar's pier (registered for when it opens its waters)
-  sand_sardine: { name: "Sand Sardine", emoji: "🐟", water: "saltwater", tier: "common", weight: 42, bite: [3, 5], cm: [8, 18], value: 2, speed: 0.55, size: 0.5, pattern: "sine", barScale: 1, time: "day", mass: 8 },
-  sunset_clownfish: { name: "Sunset Clownfish", emoji: "🐠", water: "saltwater", tier: "uncommon", weight: 30, bite: [4, 7], cm: [7, 14], value: 6, speed: 0.85, size: 0.6, pattern: "erratic", barScale: 1, time: "day", mass: 15 },
-  prism_jellyfish: { name: "Prism Jellyfish", emoji: "🪼", water: "saltwater", tier: "rare", weight: 18, bite: [6, 10], cm: [15, 40], value: 14, speed: 0.75, size: 0.85, pattern: "sine", barScale: 0.9, time: "night", mass: 4 },
-  pearl_whale: { name: "Abyssal Pearl Whale", emoji: "🐳", water: "saltwater", tier: "legendary", weight: 4, bite: [9, 14], cm: [120, 260], value: 120, speed: 1.35, size: 1.0, pattern: "plunge", barScale: 0.7, time: "night", mass: 10 },
   // cavewater: the Glimmering Caverns' cenote lake, eleven kinds biting at any hour (shared/caverns_fishing.ts)
   ...CAVE_FISH,
+  // saltwater: Sunset Beach's pier, the Open Sea and the Hidden Cove (shared/sea_fishing.ts)
+  ...SEA_FISH,
 } as const satisfies Record<string, FishSpecies>;
 export type FishId = keyof typeof FISH;
 export const FISH_IDS = Object.keys(FISH) as FishId[];
@@ -749,6 +751,9 @@ export interface CatchLuck {
   /** A line in the caverns' stream (shared/worlds/caverns.ts streamCast): too shallow for anything
    *  legendary or mythic. */
   shallow?: boolean;
+  /** The water whose odds the line fishes by, where the room names it (the salt water's three:
+   *  "pier", "sea", "cove"); else worked out from the water and the rapids (oddsWater). */
+  where?: OddsWater;
 }
 
 export const FISH_TIERS: FishTier[] = ["common", "uncommon", "rare", "legendary", "mythic"];
@@ -777,10 +782,18 @@ export function tierOdds(rodTier: number, afk: boolean, baited: boolean, rareMul
  *  escapes). */
 export function rollFish(water: Water, luck: CatchLuck = {}, rand: () => number = Math.random): FishId {
   const rareMul = (1 + (luck.rareLuck ?? 0)) * (luck.bait ? baitEffect(luck.bait, luck.time === "night").rareMul : 1);
-  const odds = luck.commonOnly ? AFK_UNBAITED_TIER_ODDS : tierOdds(luck.rodTier ?? 1, !!luck.afk, !!luck.bait, rareMul, oddsWater(water, luck.rapids === true));
+  const where: OddsWater = luck.where ?? (water === "saltwater" ? "pier" : oddsWater(water, luck.rapids === true));
+  const odds = luck.commonOnly ? AFK_UNBAITED_TIER_ODDS : tierOdds(luck.rodTier ?? 1, !!luck.afk, !!luck.bait, rareMul, where);
   // (a cast in the lucky drip: the commons' share goes to the rest; an uncommon at worst)
-  const floor = luck.noCommon && odds.common > 0 ? { ...odds, common: 0, uncommon: Math.max(odds.uncommon, 0.0001) } : odds;
-  const swims = (id: FishId) => (!luck.time || FISH[id].time === luck.time || FISH[id].time === "any") && (!(FISH[id] as FishSpecies).rapids || luck.rapids === true) && !(luck.noCommon && FISH[id].tier === "common") && !(luck.shallow && (FISH[id].tier === "legendary" || FISH[id].tier === "mythic"));
+  const drip = luck.noCommon && odds.common > 0 ? { ...odds, common: 0, uncommon: Math.max(odds.uncommon, 0.0001) } : odds;
+  // (salt water: nothing rarer than the rod may land, on a hand-reeled line or an AFK one; its share
+  // goes to what the rod does land)
+  const rod = luck.rodTier ?? 1;
+  const floor = water === "saltwater" ? { common: drip.common, uncommon: rod >= SEA_MIN_ROD.uncommon ? drip.uncommon : 0, rare: rod >= SEA_MIN_ROD.rare ? drip.rare : 0, legendary: rod >= SEA_MIN_ROD.legendary ? drip.legendary : 0, mythic: rod >= SEA_MIN_ROD.mythic ? drip.mythic : 0 } : drip;
+  // (salt water: only the fish of where the line is, and only what the rod may land)
+  const zone: SeaZone = where === "sea" || where === "cove" ? where : "pier";
+  const salt = (sp: FishSpecies) => sp.water !== "saltwater" || (swimsIn(sp.zone ?? "pier", zone) && (luck.rodTier ?? 1) >= (sp.minRod ?? 1));
+  const swims = (id: FishId) => salt(FISH[id] as FishSpecies) && (!luck.time || FISH[id].time === luck.time || FISH[id].time === "any") && (!(FISH[id] as FishSpecies).rapids || luck.rapids === true) && !(luck.noCommon && FISH[id].tier === "common") && !(luck.shallow && (FISH[id].tier === "legendary" || FISH[id].tier === "mythic"));
   // (only the rarities that swim here: the rest of the odds shared out among them in proportion)
   const here = FISH_TIERS.filter((k) => floor[k] > 0 && fishOf(water).some((id) => FISH[id].tier === k && swims(id)));
   const total = here.reduce((a, k) => a + floor[k], 0);

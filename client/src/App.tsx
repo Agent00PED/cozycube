@@ -1222,6 +1222,7 @@ export default function App() {
         {panel?.kind === "barnaby" && localPlayer && <BarnabyModal profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
         {panel?.kind === "finley" && localPlayer && <BarnabyModal keeper="finley" profile={angler.profile} coins={localPlayer.coins} fuel={hearth.fuel} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
         {panel?.kind === "finnegan" && localPlayer && <BarnabyModal keeper="finnegan" profile={angler.profile} coins={localPlayer.coins} fuel={0} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
+        {panel?.kind === "dune" && localPlayer && <BarnabyModal keeper="dune" profile={angler.profile} coins={localPlayer.coins} fuel={0} market={market} send={campfireSend} subscribeMessages={subscribeMessages} onOpenFieldGuide={() => setFieldGuideOpen(true)} onClose={closePanel} />}
 
         {panel?.kind === "mochi" && <MochiPlayroomModal result={mochiResult} onPlay={mochiPlay} onClose={closePanel} />}
         {panel?.kind === "ringside" && localPlayer && localSessionId && <RingsideModal localSessionId={localSessionId} coins={localPlayer.coins} send={boxingSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
