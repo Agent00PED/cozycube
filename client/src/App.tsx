@@ -71,6 +71,9 @@ import { PinballModal } from "./components/hud/PinballModal";
 import { BeachBarModal } from "./components/hud/BeachBarModal";
 import { CaptainModal } from "./components/hud/CaptainModal";
 import { CoveBenchModal } from "./components/hud/CoveBenchModal";
+import { SeaEventPill } from "./components/hud/SeaEventPill";
+import { seaEventStore } from "./systems/seaEventStore";
+import { SEA_EVENT_INFO, type SeaEvent } from "@shared/voyage";
 import { BarShiftSheet } from "./components/hud/BarShiftSheet";
 import { PoolModal } from "./components/hud/PoolModal";
 import { PianoModal } from "./components/hud/PianoModal";
@@ -579,6 +582,11 @@ export default function App() {
         } else if (type === "openPanel") {
           const p = payload as { kind: string; propId: string };
           openPanel(p.kind, p.propId);
+        } else if (type === "seaEvent") {
+          // the Open Sea's living wonder: beside the boat for everyone aboard (null: it has gone)
+          const ev = (payload ?? null) as SeaEvent | null;
+          seaEventStore.set(ev);
+          if (ev) pushToast(SEA_EVENT_INFO[ev.kind].toast, { emoji: SEA_EVENT_INFO[ev.kind].emoji, tone: "win" });
         } else if (type === "chartPiece") {
           // a bottle on the line, out at sea: a torn piece of an old chart
           const c = payload as { piece: number; of: number };
@@ -1003,6 +1011,7 @@ export default function App() {
         {currentMap === "boxing_ring" && localPlayer && localSessionId && !mapTransitioning && <BoxingHud me={localPlayer} localSessionId={localSessionId} players={players} send={boxingSend} subscribeMessages={subscribeMessages} />}
         {/* the Glimmering Caverns: prospecting's one control (the rock is the rest) */}
         {(currentMap === "glimmering_caverns" || currentMap === "sunset_beach" || currentMap === "hidden_cove") && !mapTransitioning && <ProspectingHud send={cavernsSend} />}
+        {currentMap === "open_sea" && !mapTransitioning && <SeaEventPill />}
         {/* ...and the warm pools' breathing, while you soak */}
         {currentMap === "glimmering_caverns" && localPlayer && !mapTransitioning && <SoakHud player={localPlayer} send={cavernsSend} subscribeMessages={subscribeMessages} />}
         {/* ...the Cave Codex's watch, the living wonder's pill, the photo */}

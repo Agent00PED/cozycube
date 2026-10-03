@@ -4,6 +4,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { daylight } from "@shared/daynight";
 import { DECK_Y, SEA_CAPTAIN, SEA_LAYOUT as L, halfBeam, onDeck } from "@shared/worlds/sea";
+import { SeaLife } from "./SeaLife";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -82,6 +83,7 @@ export function SeaWorld({ onFloorClick, subscribeMessages }: { onFloorClick: (x
       </ModelBoundary>
       <CampNpc url={BRINE_URL} what="brine.glb" prefix="Brine" at={SEA_CAPTAIN} y={DECK_Y} waveEvent="brineWave" standIn={<BrineStandIn />} subscribeMessages={subscribeMessages} talk={BRINE_TALK} />
       <SeaLights />
+      <SeaLife />
     </group>
   );
 }

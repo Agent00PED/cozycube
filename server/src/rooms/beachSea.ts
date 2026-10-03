@@ -4,7 +4,7 @@
 import { FORGED_TOOLS, forgedBlocked, forgedOwned, grantForged, isForgedToolId, makingsMissing, spendMakings } from "../../../shared/expedition";
 import type { FishingProfile } from "../../../shared/fishing";
 import type { MapId } from "../../../shared/types";
-import { CHART_PIECES, CLAM_DOUBLE, CLAM_PEARLS, CLAM_SHUT_MS, TICKET_PRICE, chartChance, isSeaMap, type ChartPiece, type ClamSync, type SeaPacket } from "../../../shared/voyage";
+import { CHART_PIECES, CLAM_DOUBLE, CLAM_PEARLS, CLAM_SHUT_MS, TICKET_PRICE, chartChance, isSeaMap, type ChartPiece, type ClamSync, type SeaPacket, DOLPHIN_HASTE, SEA_EVENT_EVERY_MIN, SEA_EVENT_KINDS, SEA_EVENT_S, SHOAL_LUCK, WHALE_KING, seaEventOn, type SeaEvent, type SeaEventKind } from "../../../shared/voyage";
 import { MATERIAL_CAP } from "../../../shared/economy";
 import { CLAM_REACH, COVE_BENCH_FRONT, COVE_BENCH_REACH, COVE_CAPTAIN_FRONT, COVE_CLAMS, COVE_SPAWNS } from "../../../shared/worlds/cove";
 import { BRINE_FRONT, BRINE_REACH, DUNE_FRONT, DUNE_REACH, PIER_RETURN } from "../../../shared/worlds/beach";
@@ -31,13 +31,52 @@ export interface SeaHost {
   count(map: MapId): number;
   /** To everyone in the Hidden Cove. */
   toCove(type: string, payload: unknown): void;
+  /** To everyone out on the Open Sea. */
+  toSea?(type: string, payload: unknown): void;
 }
 
 export class BeachSea {
   /** When each of the cove's clams opens again (ms): the room's, never saved. */
   private clams = new Map<string, number>();
 
+  /** The living wonder beside the boat (null: none), and when the next may come. */
+  private event: SeaEvent | null = null;
+  private nextEventAt = 0;
+  private lastKind: SeaEventKind | null = null;
+
   constructor(private host: SeaHost) {}
+
+  /** Every tick: a wonder ends when its time is up; another comes a while later, while anyone is out
+   *  on the Open Sea (never the same twice running). */
+  tick(now: number) {
+    if (this.event && now >= this.event.until) {
+      this.event = null;
+      this.host.toSea?.("seaEvent", null);
+    }
+    if (this.host.count("open_sea") <= 0) {
+      this.nextEventAt = 0;
+      return;
+    }
+    const gap = () => (SEA_EVENT_EVERY_MIN[0] + Math.random() * (SEA_EVENT_EVERY_MIN[1] - SEA_EVENT_EVERY_MIN[0])) * 60_000;
+    // (the first of a trip comes sooner: a few minutes in)
+    if (!this.nextEventAt) this.nextEventAt = now + gap() * 0.4;
+    if (this.event || now < this.nextEventAt) return;
+    const kinds = SEA_EVENT_KINDS.filter((k) => k !== this.lastKind);
+    this.startEvent(kinds[Math.floor(Math.random() * kinds.length)], now);
+    this.nextEventAt = now + SEA_EVENT_S * 1000 + gap();
+  }
+
+  startEvent(kind: SeaEventKind, now = Date.now()) {
+    this.event = { kind, at: now, until: now + SEA_EVENT_S * 1000 };
+    this.lastKind = kind;
+    this.host.toSea?.("seaEvent", this.event);
+  }
+
+  /** What the wonder beside the boat does for an angler on the Open Sea, now. */
+  luck(now = Date.now()): { rare: number; king: number; haste: number } {
+    const ev = seaEventOn(this.event, now) ? this.event : null;
+    return { rare: ev?.kind === "shoal" ? SHOAL_LUCK : 0, king: ev?.kind === "whale" ? WHALE_KING : 0, haste: ev?.kind === "dolphins" ? DOLPHIN_HASTE : 1 };
+  }
 
   private say(sessionId: string, message: string, emoji = "⛵") {
     this.host.sendTo(sessionId, "campfireNotice", { message, emoji });
@@ -67,6 +106,7 @@ export class BeachSea {
       this.host.saveProfile(sessionId);
     }
     this.host.travel(sessionId, "open_sea", SEA_SPAWNS[this.host.count("open_sea") % SEA_SPAWNS.length]);
+    if (seaEventOn(this.event)) this.host.sendTo(sessionId, "seaEvent", this.event);
   }
 
   /** Back to the pier: the trip is over. */
@@ -103,6 +143,7 @@ export class BeachSea {
     if (player.map !== "hidden_cove" || player.sitting) return;
     if (Math.hypot(player.x - COVE_CAPTAIN_FRONT.x, player.z - COVE_CAPTAIN_FRONT.z) > CAPTAIN_REACH + 1.2) return;
     this.host.travel(sessionId, "open_sea", SEA_SPAWNS[this.host.count("open_sea") % SEA_SPAWNS.length]);
+    if (seaEventOn(this.event)) this.host.sendTo(sessionId, "seaEvent", this.event);
   }
 
   /** A fish landed by hand on the Open Sea: now and then a bottle comes up with it, a torn piece of

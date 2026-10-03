@@ -2138,6 +2138,24 @@ export const PATCH_ERAS: PatchEra[] = [
           economy: ["⚖️ With the Deep Tide tools: ironwood about 290 coins a minute, pearl rock about 315 (a boat trip to Dune and a new ticket each time the load is sold)."],
         },
       },
+      {
+        version: "0.8.9",
+        date: "2026-10-03",
+        title: "Wonders of the Open Sea",
+        summary: "Out on the captain's boat, now and then something comes up beside you, for everyone aboard.",
+        changes: {
+          features: [
+            "🐋 A Whale Alongside: for three minutes a whale rolls at the surface off the starboard rail, and sounds with its flukes up as it leaves. While it stays, a fish you reel in by hand is far likelier King Size.",
+            "🐬 Dolphins Round the Boat: a pod circles the boat for three minutes and drives the fish in. Bites come a quarter sooner.",
+            "✨ A Shoal Under the Keel: the water flashes silver all round the hull for three minutes. Rare fish are far likelier.",
+            "⏱️ One comes every nine to fifteen minutes while anyone is at sea, the first a few minutes into a trip, never the same twice running. A pill under the header names it and counts it down.",
+            "🗼 More to see from the deck: nine rock stacks in their own shapes with gulls at rest on them, a lighthouse on the greatest, two buoys, kelp on the water; two gulls keep the boat company by day and a fish leaps now and then.",
+            "🚤 On the boat: a string of bulbs from the masthead to the bow, crab pots and a barrel, a bait bucket, a net over the rail, a life ring.",
+            "💥 Sparks and dust fly off a strike on the beach's reef rock and the pearl rock, and shards when it breaks.",
+            "🦴 The caverns' fossils turn up in reef and pearl rock rubble too, for anyone still missing one in the Cave Codex.",
+          ],
+        },
+      },
     ],
   },
 ];

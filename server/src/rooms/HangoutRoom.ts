@@ -858,6 +858,7 @@ export class HangoutRoom extends Room<HangoutState> {
         return n;
       },
       toCove: (type, payload) => this.toMap("hidden_cove", type, payload),
+      toSea: (type, payload) => this.toMap("open_sea", type, payload),
     });
     this.caverns = new CavernsMine({
       player: (sessionId) => this.state.players.get(sessionId),
@@ -1175,6 +1176,9 @@ export class HangoutRoom extends Room<HangoutState> {
         if (kind === "cloud" || kind === "bloom" || kind === "rockfall") this.caverns.startEvent(kind);
         // (the endgame's: a Motherlode due now, the Monolith surfacing awake now)
         else if (kind === "motherlode" || kind === "awaken") this.caverns.devEndgame(kind);
+      });
+      this.onMessage("devSeaEvent", (_client, kind: unknown) => {
+        if (kind === "whale" || kind === "dolphins" || kind === "shoal") this.sea.startEvent(kind);
       });
       this.onMessage("devWorldEvent", (_client, kind: unknown) => {
         this.endWonder(false);
@@ -2063,6 +2067,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.caverns.tick(dt, now, this.occupied("glimmering_caverns"));
     // the beach bar's shifts and orders
     if (this.occupied("sunset_beach")) this.bar.tick(now);
+    this.sea.tick(now);
     // the Velvet Ring's bout (its clocks run whoever is watching: a fighter away holds it)
     this.boxing.tick(dt);
     // the hour rolls over: the camp's market opens fresh
@@ -3296,7 +3301,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const drip = pending?.drip ? DRIP_ZONE : 1;
     this.pendingFish.delete(sessionId);
     const worn = this.records.get(sessionId)?.fishing ?? NO_GEAR;
-    const fish = rollCatch(species, { rareLuck: this.catchLuck(sessionId, player).rareLuck, king: this.surgeKing(sessionId, player) + kingBonus(worn), goldStar: goldStarBonus(worn), heft: heftBonus(worn) });
+    const fish = rollCatch(species, { rareLuck: this.catchLuck(sessionId, player).rareLuck, king: this.surgeKing(sessionId, player) + kingBonus(worn) + (player.map === "open_sea" ? this.sea.luck().king : 0), goldStar: goldStarBonus(worn), heft: heftBonus(worn) });
     const treasure = Math.random() < TREASURE_CHANCE[FISH[species].tier];
     this.starReels.set(sessionId, { fish, startedAt: Date.now(), treasure });
     player.action = "reel";
@@ -3356,7 +3361,7 @@ export class HangoutRoom extends Room<HangoutState> {
     if (drip) this.sendTo(sessionId, "campfireNotice", { message: "Right in the drip's ripple! Nothing common bites, and the reel's green is bigger", emoji: "💧" });
     const species = rollRiverFish(this.waterOf(player.map), { ...this.catchLuck(sessionId, player, bait), ...(drip ? { noCommon: true } : {}) });
     const day = isCampDay(Date.now());
-    let total = biteSeconds(species, { fed: player.fed > 0, bait, night: !day, haste: this.biteHasteOf(profile, day, player.map === "glimmering_caverns") }) * 1000;
+    let total = biteSeconds(species, { fed: player.fed > 0, bait, night: !day, haste: this.biteHasteOf(profile, day, player.map === "glimmering_caverns") * (player.map === "open_sea" ? this.sea.luck().haste : 1) }) * 1000;
     // (a Herbal Scent Pouch on the line: a common bites within five seconds)
     if (profile && buffOn(profile, "scent") && FISH[species].tier === "common") total = Math.min(total, (1.5 + Math.random() * (SCENT_BITE_S - 1.5)) * 1000);
     const now = Date.now();
@@ -3389,7 +3394,8 @@ export class HangoutRoom extends Room<HangoutState> {
     const glow = profile && buffOn(profile, "glowbait") && (!day || player.map === "glimmering_caverns") ? GLOWBAIT_LUCK : 0;
     const spinner = profile?.caveTackles.includes("silver_spinner") ? SPINNER_LUCK : 0;
     // (a Cave Cloud rolling through the caverns: the cenote's rare fish bite more)
-    const cloud = player.map === "glimmering_caverns" ? this.caverns.cloudLuck() : 0;
+    // (a shoal passing under the boat, out on the Open Sea)
+    const cloud = player.map === "glimmering_caverns" ? this.caverns.cloudLuck() : player.map === "open_sea" ? this.sea.luck().rare : 0;
     // (a float out on the stream: nothing legendary swims up it)
     const shallow = player.map === "glimmering_caverns" && (player.floatX !== 0 || player.floatZ !== 0) && inStreamWater(player.floatX, player.floatZ);
     return { rareLuck: aura + gearRareLuck(profile ?? NO_GEAR) + incense + chum + glow + spinner + cloud, bait, time: day ? "day" : "night", rapids, rodTier: RODS[profile?.rod ?? "bamboo"].tier, ...(shallow ? { shallow } : {}), ...(isBeachMap(player.map) ? { where: (player.map === "open_sea" ? "sea" : player.map === "hidden_cove" ? "cove" : "pier") as OddsWater } : {}) };

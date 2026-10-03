@@ -148,3 +148,56 @@ test("the salt water's income: a Tidewater rod earns its target at sea, less off
   const minutes = TACKLE_PRICES.tidewaterRod / soldLadder(lines).cenote[4];
   assert.ok(Math.abs(minutes / 360 - 1) <= 0.15, `the Tidewater rod: ${minutes.toFixed(0)} minutes of an Expedition rod's play`);
 });
+
+// --- the Open Sea's living wonders (shared/voyage.ts SeaEvent, BeachSea.tick) ---------------------------
+import { DOLPHIN_HASTE as HASTE9, SEA_EVENT_EVERY_MIN as EVERY9, SEA_EVENT_KINDS as KINDS9, SEA_EVENT_S as LASTS9, SHOAL_LUCK as SHOAL9, WHALE_KING as WHALE9, seaEventOn as on9, type SeaEvent as Event9 } from "../shared/voyage";
+
+test("the sea's wonders: none while the sea is empty, one a while after someone sails, each with its own gift, gone when its time is up", () => {
+  const told: (Event9 | null)[] = [];
+  let aboard = 0;
+  const profile = sanitizeFishingProfile({});
+  const host: SeaHost = {
+    player: () => undefined,
+    profile: () => profile,
+    saveProfile: () => {},
+    sendTo: () => {},
+    addCoins: () => {},
+    travel: () => {},
+    emote: () => {},
+    count: (map) => (map === "open_sea" ? aboard : 0),
+    toCove: () => {},
+    toSea: (type, payload) => {
+      if (type === "seaEvent") told.push(payload as Event9 | null);
+    },
+  };
+  const sea = new BeachSea(host);
+  const t0 = 1_000_000;
+  // nobody out there: nothing comes, however long
+  for (let m = 0; m < 60; m++) sea.tick(t0 + m * 60_000);
+  assert.equal(told.length, 0);
+  assert.deepEqual(sea.luck(t0), { rare: 0, king: 0, haste: 1 });
+  // someone sails: the first comes within the longest gap, and lasts SEA_EVENT_S
+  aboard = 1;
+  let now = t0 + 61 * 60_000;
+  const start = now;
+  while (!told.length && now < start + EVERY9[1] * 60_000 + 1000) sea.tick((now += 5000));
+  assert.equal(told.length, 1, "a wonder came");
+  const ev = told[0]!;
+  assert.ok(KINDS9.includes(ev.kind) && ev.until - ev.at === LASTS9 * 1000 && on9(ev, ev.at + 1000));
+  const luck = sea.luck(ev.at + 1000);
+  if (ev.kind === "whale") assert.deepEqual(luck, { rare: 0, king: WHALE9, haste: 1 });
+  if (ev.kind === "dolphins") assert.deepEqual(luck, { rare: 0, king: 0, haste: HASTE9 });
+  if (ev.kind === "shoal") assert.deepEqual(luck, { rare: SHOAL9, king: 0, haste: 1 });
+  // its time up: told to everyone aboard that it has gone, and its gift with it
+  sea.tick(ev.until + 1);
+  assert.equal(told.at(-1), null);
+  assert.deepEqual(sea.luck(ev.until + 1), { rare: 0, king: 0, haste: 1 });
+  // the next is never the same one, and never sooner than the shortest gap
+  const gone = ev.until + 1;
+  now = gone;
+  while (told.length < 3 && now < gone + (EVERY9[1] + 1) * 60_000) sea.tick((now += 5000));
+  const next = told.at(-1)!;
+  assert.ok(next && next.kind !== ev.kind && next.at - ev.until >= EVERY9[0] * 60_000 - 5000);
+  // each gift is worth having and none is runaway
+  assert.ok(WHALE9 > 0 && WHALE9 <= 0.4 && HASTE9 < 1 && HASTE9 >= 0.6 && SHOAL9 > 0 && SHOAL9 <= 1);
+});

@@ -211,20 +211,63 @@ def build_boat(coll, rng):
         blob(bm, p.x, p.z, -p.y, 0.1, 0.2, 0.1, m=m("BC_Red"), cuts=2)
     # the anchor's chain off the bow
     bar(bm, fr.p(out[-1][0] - 0.1, rail, 0.0), fr.p(out[-1][0] + 0.5, -0.6, 0.0), 0.02, m("BC_Iron"), sides=5)
+    # a string of bulbs from the masthead down to the bow, crab pots and a barrel on the stern deck,
+    # a bucket and a net by the rail, a life ring on the wheelhouse
+    string_of_lights(bm, fr.p(M["a"], deck + 3.9, 0.0), fr.p(out[-1][0] - 0.3, rail + 0.5, 0.0), rng, sag=0.5, every=0.5)
+    for k_, b_ in enumerate((-0.45, 0.4)):
+        obox(bm, fr, -5.25, -4.75, deck, deck + 0.34, b_ - 0.26, b_ + 0.26, m("BC_Rope") if k_ else m("BC_BambooDark"))
+        obox(bm, fr, -5.2, -4.8, deck + 0.34, deck + 0.62, b_ - 0.22, b_ + 0.22, m("BC_BambooDark") if k_ else m("BC_Rope"))
+    bp_ = fr.p(-2.3, deck, 1.05)
+    lathe(bm, bp_.x, -bp_.y, [(0.0, 0.0), (0.2, 0.0), (0.24, 0.28), (0.2, 0.56), (0.0, 0.56)], segs=10, m=m("BC_Wood"), y0=bp_.z)
+    kp_ = fr.p(1.9, deck, 1.0)
+    lathe(bm, kp_.x, -kp_.y, [(0.0, 0.0), (0.12, 0.0), (0.15, 0.24), (0.13, 0.24), (0.1, 0.02), (0.0, 0.02)], segs=9, m=m("BC_Iron"), y0=kp_.z)
+    hb_ = half_at(-0.6)
+    oquad(bm, [fr.p(-1.2, rail + 0.02, -hb_ - 0.02), fr.p(0.0, rail + 0.02, -hb_ - 0.02), fr.p(0.1, deck + 0.1, -hb_ - 0.3), fr.p(-1.3, deck + 0.05, -hb_ - 0.28)], m("BC_Rope"))
+    ring_ = fr.p(S["wheelhouse"]["a1"] + 0.03, deck + 1.0, -0.55)
+    lathe(bm, ring_.x, -ring_.y, [(0.14, 0.0), (0.22, 0.0), (0.22, 0.07), (0.14, 0.07), (0.14, 0.0)], segs=10, m=m("BC_Red"), y0=ring_.z)
     make_object("Sea_Boat", bm, MATS, coll)
 
 
 def build_stacks(coll, rng):
     """A few rock stacks far off, the sea breaking white at their feet."""
     bm = bmesh.new()
-    for x, z, s in SEA["stacks"]:
-        blob(bm, x, 0.9 * s, z, 1.1 * s, 1.8 * s, 1.0 * s, m=m("BC_Rock"), cuts=3, noise=0.22, rng=rng, flat_bottom=-0.6)
+    for i, (x, z, s) in enumerate(SEA["stacks"]):
+        # (each its own shape: a tall spire, a broad block, a leaning tooth, in turn)
+        tall = (1.8, 2.5, 1.4)[i % 3]
+        wide = (1.1, 0.8, 1.35)[i % 3]
+        blob(bm, x, 0.5 * tall * s, z, wide * s, tall * s, wide * 0.9 * s, m=m("BC_Rock"), cuts=3, noise=0.24, rng=rng, flat_bottom=-0.6)
+        blob(bm, x - 0.5 * s, 0.3 * tall * s, z + 0.5 * s, wide * 0.7 * s, tall * 0.55 * s, wide * 0.7 * s, m=m("BC_RockDark"), cuts=3, noise=0.24, rng=rng, flat_bottom=-0.6)
+        # a pale band where the birds sit, a tuft of grass, a gull or two at rest
+        blob(bm, x, 1.42 * tall * s, z, wide * 0.5 * s, 0.12 * s, wide * 0.45 * s, m=m("BC_Stone"), cuts=1, noise=0.2, rng=rng)
+        if i % 2 == 0:
+            for q_ in range(rng.randint(1, 3)):
+                ga = rng.random() * 6.283
+                blob(bm, x + math.cos(ga) * 0.3 * s, 1.5 * tall * s + 0.06, z + math.sin(ga) * 0.3 * s, 0.07, 0.07, 0.12, m=m("BC_White"), cuts=1)
+        # the lighthouse on the first and greatest of them: a white tower banded red, a lamp, a cap
+        if i == 0:
+            ty = 1.48 * tall * s
+            lathe(bm, x, z, [(0.0, 0.0), (0.55, 0.0), (0.45, 1.3), (0.0, 1.3)], segs=10, m=m("BC_White"), y0=ty)
+            lathe(bm, x, z, [(0.455, 1.3), (0.46, 1.3), (0.4, 2.0), (0.395, 2.0)], segs=10, m=m("BC_Red"), y0=ty)
+            lathe(bm, x, z, [(0.0, 2.0), (0.4, 2.0), (0.34, 2.9), (0.0, 2.9)], segs=10, m=m("BC_White"), y0=ty)
+            lathe(bm, x, z, [(0.0, 2.9), (0.46, 2.9), (0.46, 2.98), (0.0, 2.98)], segs=10, m=m("BC_Iron"), y0=ty)
+            lathe(bm, x, z, [(0.0, 2.98), (0.24, 2.98), (0.24, 3.4), (0.0, 3.4)], segs=8, m=m("BC_Lamp"), y0=ty)
+            lathe(bm, x, z, [(0.0, 3.4), (0.36, 3.4), (0.0, 3.85)], segs=10, m=m("BC_Red"), y0=ty)
         blob(bm, x + 0.9 * s, 0.4 * s, z + 0.4 * s, 0.7 * s, 0.9 * s, 0.65 * s, m=m("BC_RockDark"), cuts=3, noise=0.22, rng=rng, flat_bottom=-0.6)
         blob(bm, x - 0.2 * s, 2.5 * s, z - 0.1 * s, 0.5 * s, 0.3 * s, 0.45 * s, m=m("BC_RockMoss"), cuts=2, noise=0.15, rng=rng)
         # (low rocks awash at its foot)
         for q in range(4):
             t = 1.6 * q + 0.4
             blob(bm, x + math.cos(t) * 1.5 * s, 0.05, z + math.sin(t) * 1.4 * s, 0.4 * s, 0.25 * s, 0.35 * s, m=m("BC_RockDark"), cuts=2, noise=0.2, rng=rng, flat_bottom=-0.5)
+    # two buoys riding the swell (a red cone on a float, a lamp at its head)
+    for x, z in SEA.get("buoys", []):
+        lathe(bm, x, z, [(0.0, -0.1), (0.3, -0.1), (0.34, 0.12), (0.2, 0.2), (0.0, 0.2)], segs=10, m=m("BC_White"), y0=0.0)
+        lathe(bm, x, z, [(0.0, 0.2), (0.2, 0.2), (0.06, 0.95), (0.0, 0.95)], segs=8, m=m("BC_Red"), y0=0.0)
+        blob(bm, x, 1.02, z, 0.06, 0.07, 0.06, m=m("BC_Lamp"), cuts=1)
+    # kelp lying on the surface in patches
+    for x, z, s in SEA.get("kelp", []):
+        for q_ in range(7):
+            ka, kr = rng.random() * 6.283, rng.uniform(0.0, 1.1) * s
+            blob(bm, x + math.cos(ka) * kr, 0.03, z + math.sin(ka) * kr, rng.uniform(0.2, 0.45) * s, 0.02, rng.uniform(0.08, 0.16) * s, m=m("BC_Weed" if q_ % 2 else "BC_WeedDark"), cuts=1)
     make_object("Sea_Stacks", bm, MATS, coll)
 
 

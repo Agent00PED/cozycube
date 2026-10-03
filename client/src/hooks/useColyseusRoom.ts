@@ -48,6 +48,7 @@ export type EmoteListener = (emote: EmoteBroadcast) => void;
 export type RoomMessageListener = (type: string, payload: any) => void;
 const RELAYED_MESSAGES = [
   "chartPiece",
+  "seaEvent",
   "coveClams",
   "clamPried",
   "brineWave",

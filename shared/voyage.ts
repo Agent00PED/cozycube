@@ -59,3 +59,29 @@ export const CLAM_DOUBLE = 0.25;
 export const CLAM_SHUT_MS = 8 * 60_000;
 /** Told to the room's cove: each clam's id to when it opens again (ms; 0 or past: ready). */
 export type ClamSync = Record<string, number>;
+
+// --- the Open Sea's living wonders: now and then something comes up beside the boat, for everyone
+// aboard (the room's, told to whoever is at sea; never saved) -----------------------------------------
+export type SeaEventKind = "whale" | "dolphins" | "shoal";
+export interface SeaEvent {
+  kind: SeaEventKind;
+  /** When it began and when it ends (ms). */
+  at: number;
+  until: number;
+}
+export const SEA_EVENT_KINDS: SeaEventKind[] = ["whale", "dolphins", "shoal"];
+/** How often one comes (minutes, while anyone is out there), and how long it stays (s). */
+export const SEA_EVENT_EVERY_MIN: readonly [number, number] = [9, 15];
+export const SEA_EVENT_S = 180;
+/** A whale beside the boat: a hand-reeled fish is King Size this much likelier. */
+export const WHALE_KING = 0.25;
+/** Dolphins round the boat drive the fish in: bites this much sooner (a share of the wait). */
+export const DOLPHIN_HASTE = 0.75;
+/** A shoal passing under the keel: rare fish this much likelier. */
+export const SHOAL_LUCK = 0.5;
+export const SEA_EVENT_INFO: Record<SeaEventKind, { name: string; emoji: string; toast: string; pill: string }> = {
+  whale: { name: "A Whale Alongside", emoji: "🐋", toast: "A whale rolls up beside the boat! While it stays, a fish you reel in by hand is far likelier King Size", pill: "King Size likelier" },
+  dolphins: { name: "Dolphins Round the Boat", emoji: "🐬", toast: "Dolphins! They are driving the fish toward the boat: bites come a quarter sooner", pill: "Bites sooner" },
+  shoal: { name: "A Shoal Under the Keel", emoji: "✨", toast: "The water flashes silver under the boat: a shoal. Rare fish are far likelier while it passes", pill: "Rare fish likelier" },
+};
+export const seaEventOn = (ev: SeaEvent | null | undefined, now = Date.now()): ev is SeaEvent => !!ev && now >= ev.at && now < ev.until;
