@@ -6,6 +6,7 @@ import { CASINO_PROPS, CASINO_SEATS } from "./worlds/casino";
 import { VIP_PROPS, VIP_SEATS } from "./worlds/casino_vip";
 import { FOREST_PLACE_SEATS, FOREST_PROPS, FOREST_SEATS, forestLand } from "./worlds/forest";
 import { RING_PROPS, RING_SEATS } from "./worlds/boxing_ring";
+import { BEACH_PROPS, BEACH_SEATS, beachLand } from "./worlds/beach";
 import { CAVERNS_PROPS, HEARTH_SEATS, THERMAL_SEATS, cavernsFloorY, thermalPoolY } from "./worlds/caverns";
 
 // The per-map tables of things you can sit on and things you can use, with the approach point of
@@ -131,7 +132,20 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
       sitY: round(cavernsFloorY(s.x, s.z) + seatAnchorY(CUSHIONS.log)),
     })),
   ],
-  sunset_beach: [],
+  // Sunset Beach: the bar's stools, the firepit's logs, and the loungers and hammocks you lie on
+  sunset_beach: BEACH_SEATS.map((s) => {
+    const lie = s.lie ? napPose(CUSHIONS[s.cushion], s.lie.head, s.lie.dir) : null;
+    return {
+      propId: s.propId,
+      x: lie ? round(lie.x) : s.x,
+      z: lie ? round(lie.z) : s.z,
+      rotationY: lie ? round(lie.rotationY) : s.rotationY,
+      style: s.style,
+      approachX: round(s.approachX),
+      approachZ: round(s.approachZ),
+      sitY: round(beachLand(s.x, s.z) + (lie ? lie.y : seatAnchorY(CUSHIONS[s.cushion]))),
+    };
+  }),
   open_sea: [],
   hidden_cove: [],
   japanese_onsen: [],
@@ -147,7 +161,7 @@ export const MAP_TOGGLEABLES: Record<MapId, ToggleableConfig[]> = {
   whispering_woods: FOREST_PROPS,
   boxing_ring: RING_PROPS,
   glimmering_caverns: CAVERNS_PROPS,
-  sunset_beach: [],
+  sunset_beach: BEACH_PROPS,
   open_sea: [],
   hidden_cove: [],
   japanese_onsen: [],

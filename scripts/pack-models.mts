@@ -18,7 +18,7 @@ const ROOT = resolve(import.meta.dirname, "..");
 // (every model big enough to matter: the worlds, the avatar, the crowds, the fish. A builder that makes
 // one of these anew leaves it unpacked unless it packs it itself, as the caverns' and the avatar's do:
 // run this after any other builder.)
-const DEFAULTS = ["caverns", "avatar", "casino", "campfire", "forest", "casino_vip", "boxing_ring", "fish", "ring_regulars", "patrons", "cat", "props", "trees", "chloe_maid"].map((n) => `client/public/models/${n}.glb`);
+const DEFAULTS = ["caverns", "avatar", "casino", "campfire", "forest", "casino_vip", "boxing_ring", "fish", "ring_regulars", "patrons", "cat", "props", "trees", "chloe_maid", "beach"].map((n) => `client/public/models/${n}.glb`);
 
 const COMPONENT_BYTES: Record<number, number> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
 const TYPE_COUNT: Record<string, number> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 };

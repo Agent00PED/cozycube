@@ -71,6 +71,7 @@ const THEMES: Partial<Record<MapId, Theme>> = {
   velvet_casino: { scene: "tw-casino", card: "tw-card-brass", heading: "text-[#F3D08A]", rule: "via-[#E8C27A]/70", particle: "glint", count: 18 },
   boxing_ring: { scene: "tw-ring", card: "tw-card-poster", heading: "text-[#F4E4C4]", rule: "via-[#E9D2A4]/70", particle: "dust", count: 22 },
   whispering_woods: { scene: "tw-woods", card: "tw-card-moss", heading: "text-[#E4F2C9]", rule: "via-[#A9D18E]/70", particle: "leaf", count: 16 },
+  sunset_beach: { scene: "tw-beach", card: "tw-card-oak", heading: "text-[#FFE3B0]", rule: "via-[#FFB86B]/70", particle: "glint", count: 16 },
   glimmering_caverns: { scene: "tw-caverns", card: "tw-card-slate", heading: "text-[#C8F6FF]", rule: "via-[#5BE7FF]/70", particle: "mote", count: 30 },
 };
 const DUSK: Theme = { scene: "tw-dusk", card: "tw-card-oak", heading: "text-[#FFD9A0]", rule: "via-[#F5A623]/70", particle: "none", count: 0 };
@@ -329,6 +330,22 @@ const THEME_CSS = `
   background: linear-gradient(170deg, #3a2716 0%, #24170c 100%);
   border: 2px solid #E9D2A4;
   box-shadow: 0 22px 60px rgba(40, 20, 5, 0.65), 0 0 60px rgba(255, 240, 200, 0.35), inset 0 0 0 4px #24170c, inset 0 0 0 5px rgba(233, 210, 164, 0.5);
+}
+
+/* Sunset Beach: a long amber sunset over the sea, the sun's glitter on the water */
+.tw-beach {
+  background:
+    radial-gradient(34% 26% at 50% 58%, rgba(255, 236, 170, 0.95), rgba(255, 190, 110, 0.5) 45%, rgba(255, 150, 90, 0) 75%),
+    linear-gradient(#35305f 0%, #8a4a78 26%, #e8795a 46%, #ffb86b 58%, #2e8a9c 58.4%, #1c5f7c 78%, #123f5c 100%);
+}
+.tw-beach .tw-layer {
+  inset: 0;
+  background:
+    linear-gradient(0deg, rgba(10, 30, 46, 0.75) 0%, rgba(10, 30, 46, 0) 30%),
+    repeating-linear-gradient(0deg, rgba(255, 226, 170, 0.0) 0px, rgba(255, 226, 170, 0.0) 9px, rgba(255, 226, 170, 0.22) 10px, rgba(255, 226, 170, 0.0) 12px);
+  -webkit-mask-image: radial-gradient(22% 40% at 50% 80%, #000 0%, transparent 100%);
+  mask-image: radial-gradient(22% 40% at 50% 80%, #000 0%, transparent 100%);
+  animation: tw-mist 3s ease-in-out infinite alternate;
 }
 
 /* the Whispering Woods: misty pine green, maple leaves drifting down */

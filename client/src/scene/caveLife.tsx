@@ -496,7 +496,20 @@ export function RaftRig({ scene, raft }: { scene: THREE.Object3D; raft: string }
  *  the lake's shallows, the causeway out to the islet among them; a slow one now and then round anyone
  *  standing in it. A small pool of rings, each its own fade. */
 const WADE_RINGS = 12;
-export function WadeRipples({ players, localSessionId }: { players: Record<string, PlayerState>; localSessionId: string | null }) {
+/** (`mapId`, `inWater`, `waterY`: the caverns' lake by default; Sunset Beach's shallows give their own.) */
+export function WadeRipples({
+  players,
+  localSessionId,
+  mapId = "glimmering_caverns",
+  inWater = (x, z) => cavernsFloorY(x, z) <= CAVE_WATER_Y - 0.03,
+  waterY = CAVE_WATER_Y,
+}: {
+  players: Record<string, PlayerState>;
+  localSessionId: string | null;
+  mapId?: string;
+  inWater?: (x: number, z: number) => boolean;
+  waterY?: number;
+}) {
   const rings = useMemo(
     () =>
       Array.from({ length: WADE_RINGS }, () => {
@@ -515,10 +528,10 @@ export function WadeRipples({ players, localSessionId }: { players: Record<strin
   useFrame(() => {
     const now = performance.now();
     for (const [id, p] of Object.entries(players)) {
-      if (p.map !== "glimmering_caverns") continue;
+      if (p.map !== mapId) continue;
       const x = id === localSessionId ? cameraFocus.x : p.x;
       const z = id === localSessionId ? cameraFocus.z : p.z;
-      if (cavernsFloorY(x, z) > CAVE_WATER_Y - 0.03) continue;
+      if (!inWater(x, z)) continue;
       const was = last.current.get(id);
       const moved = was ? Math.hypot(x - was.x, z - was.z) : 1;
       const gap = moved > 0.12 ? 330 : 1400;
@@ -535,7 +548,7 @@ export function WadeRipples({ players, localSessionId }: { players: Record<strin
       if (!r.mesh.visible) continue;
       const s = 0.9 + 3.2 * k;
       r.mesh.scale.set(s, s, 1);
-      r.mesh.position.set(r.x, CAVE_WATER_Y + 0.012, r.z);
+      r.mesh.position.set(r.x, waterY + 0.012, r.z);
       (r.mesh.material as THREE.MeshBasicMaterial).opacity = 0.45 * (1 - k) * (1 - k);
     }
   });

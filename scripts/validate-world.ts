@@ -91,6 +91,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { CAVERNS_TERRAIN_PATH, cavernsTerrainText } from "./caverns-terrain";
 import { BRAMBLE_FRONT, FINLEY_FRONT, FOREST_ADIT_FRONT, FOREST_FISHING, FOREST_LAYOUT, FOREST_TREES, FOREST_WILD_TREES, OLD_FLINT, OLD_FLINT_FRONT, OLD_FLINT_REACH, WOODS_ARRIVAL, WOODS_FROM_CAVERNS, forestFloorY, forestLand } from "../shared/worlds/forest";
 import { FOREST_TERRAIN_PATH, forestTerrainText } from "./forest-terrain";
+import { BEACH_TERRAIN_PATH, beachTerrainText } from "./beach-terrain";
+import { BALL_COURT, BAR, BEACH_ARRIVAL, BEACH_HAMMOCKS, FIREPIT, HAMMOCK_PALMS, LOUNGERS, MANGO, MANGO_FRONT, PALMS, PIER, PIER_LENGTH, SHACK, beachBlocked, beachLand, onPierAt, shoreD } from "../shared/worlds/beach";
 import { BAG_BOXER, REF_APRON, REF_HOME, RING_CROWD, TRAINEE, CHALKBOARD, CHALKBOARD_FRONT, CHALKBOARD_REACH, COACH_BRUNO, COACH_FRONT, COACH_REACH, CORNER_REACH, GYM_REACH, HEAVY_BAG, HEAVY_BAG_FRONT, JIMMY, JIMMY_FRONT, JIMMY_REACH, NEUTRAL_CORNERS, RING, RING_BENCH_FRONT, RING_CORNERS, RING_FANS, RING_SEATS, SPEED_BAG_FRONT, WEIGH_SCALE, WEIGH_SCALE_FRONT, outsideRopes, ringOutLanding } from "../shared/worlds/boxing_ring";
 
 const failures: string[] = [];
@@ -1108,6 +1110,87 @@ const ORE_NODE_AT_ID = (id: string): Point => ORE_NODES.find((n) => n.id === id)
 }
 
 // --- every built world has something in it ---
+// --- Sunset Beach (docs/beach-design.md) ---
+{
+  const B: MapId = "sunset_beach";
+  checks++;
+  if (!existsSync(BEACH_TERRAIN_PATH) || readFileSync(BEACH_TERRAIN_PATH, "utf8").replace(/\r\n/g, "\n") !== beachTerrainText()) fail(`${B}: scripts/blender/data/beach_terrain.json is stale: run npm run beach-terrain, then rebuild beach.glb`);
+  // nothing that is walked is steeper than 24 degrees (deep water is not walked)
+  const STEEPEST = 24;
+  let worst = 0;
+  let worstAt = { x: 0, z: 0 };
+  const lim = worldLimit(B);
+  for (let x = -lim; x <= lim; x += 0.25)
+    for (let z = -lim; z <= lim; z += 0.25) {
+      if (beachBlocked(x, z)) continue;
+      const rise = Math.max(Math.abs(beachLand(x + 0.25, z) - beachLand(x - 0.25, z)), Math.abs(beachLand(x, z + 0.25) - beachLand(x, z - 0.25)));
+      const deg = (Math.atan2(rise, 0.5) * 180) / Math.PI;
+      if (deg > worst) (worst = deg), (worstAt = { x, z });
+    }
+  checks++;
+  if (worst > STEEPEST) fail(`${B}: the ground is ${worst.toFixed(1)} degrees steep at ${fmt(worstAt)} (at most ${STEEPEST})`);
+  // the ball's stretch is flat
+  checks++;
+  for (let k = 0; k < 12; k++) {
+    const a = (k * Math.PI) / 6;
+    const h = beachLand(BALL_COURT.x + Math.cos(a) * BALL_COURT.r * 0.95, BALL_COURT.z + Math.sin(a) * BALL_COURT.r * 0.95);
+    if (Math.abs(h - BALL_COURT.y) > 0.03) fail(`${B}: the ball's stretch is not flat (${(h - BALL_COURT.y).toFixed(2)} m off at its rim)`);
+  }
+  // the walks, at the game's 3 m/s
+  const walkS = (from: Point, to: Point) => {
+    const path = findPath(B, from, to);
+    if (!path) return Infinity;
+    let d = 0;
+    let at = from;
+    for (const p of path) {
+      d += Math.hypot(p.x - at.x, p.z - at.z);
+      at = p;
+    }
+    return d / 3;
+  };
+  const places: [string, Point][] = [
+    ["the arrival", BEACH_ARRIVAL],
+    ["the firepit", FIREPIT.logs[0].approach],
+    ["the ball's stretch", BALL_COURT],
+    ["the pier's head", onPierAt(PIER_LENGTH - 1.0, 0)],
+    ["the hammocks", BEACH_HAMMOCKS[0].approach],
+    ...LOUNGERS.map((l, i): [string, Point] => [`lounger ${i + 1}`, l.approach]),
+    ...BAR.stations.map((st, i): [string, Point] => [`the bar's station ${i + 1}`, st]),
+  ];
+  // (every place within a 10 s walk of the bar's front: a hang-out map is crossed in a breath)
+  for (const [label, at] of places) {
+    checks++;
+    if (isBlocked(at.x, at.z, B)) {
+      fail(`${B}: ${label} at ${fmt(at)} is blocked`);
+      continue;
+    }
+    const t = walkS(MANGO_FRONT, at);
+    if (t > 10) fail(`${B}: ${label} is a ${Number.isFinite(t) ? t.toFixed(1) + " s" : "blocked"} walk from the bar (10 s at most)`);
+  }
+  // the pier: its deck is open from end to end, the water beside it is not; deep water stops you
+  for (let a = 0.6; a < PIER_LENGTH - 0.3; a += 0.8) {
+    checks++;
+    const p = onPierAt(a, 0);
+    if (isBlocked(p.x, p.z, B)) fail(`${B}: the pier's deck is blocked at ${fmt(p)}`);
+  }
+  checks++;
+  const off = onPierAt(PIER_LENGTH - 2.0, PIER.headHalf + 1.2);
+  if (!beachBlocked(off.x, off.z)) fail(`${B}: the deep water beside the pier's head at ${fmt(off)} can be walked`);
+  // the seats: every stool faces the counter, a lounger's and a hammock's sleeper lies on open sand
+  for (const st of BAR.stools) {
+    checks++;
+    const toBar = Math.atan2(BAR.x - st.x, BAR.z - st.z);
+    if (Math.abs(Math.atan2(Math.sin(toBar - st.rotationY), Math.cos(toBar - st.rotationY))) > 0.05) fail(`${B}: ${st.propId} does not face the counter`);
+  }
+  // Mango stands inside a collider; the shack and the palms are on dry land
+  checks++;
+  if (!isBlocked(MANGO.x, MANGO.z, B, 0.05)) fail(`${B}: Mango stands on open ground at ${fmt(MANGO)}`);
+  for (const p of [...PALMS, ...HAMMOCK_PALMS, SHACK]) {
+    checks++;
+    if (shoreD(p.x, p.z) < 2) fail(`${B}: something built at ${fmt(p)} stands in the water's reach`);
+  }
+}
+
 for (const w of Object.values(WORLDS).filter((w) => w.built)) {
   checks++;
   if (MAP_CHAIRS[w.mapId].length + MAP_TOGGLEABLES[w.mapId].length === 0) fail(`${w.mapId}: a built world with no seats and no props`);

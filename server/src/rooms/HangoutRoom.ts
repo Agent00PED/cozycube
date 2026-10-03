@@ -259,7 +259,6 @@ import { defaultLook, OUTFIT_FABRICS, OUTFITS,
   ARCADE_COINS_MAX,
   ARCADE_COINS_PER_POINT,
   ARCADE_SCORE_COOLDOWN_S,
-  AURA_SECONDS,
   BOARD_MIN_PLIES_FOR_PURSE,
   BOARD_WIN_COINS,
   DRINK_BASES,
@@ -278,9 +277,6 @@ import { defaultLook, OUTFIT_FABRICS, OUTFITS,
   CLAW_COST,
   CLAW_WIN_COINS,
   DAILY_REWARD,
-  DRINK_COOLDOWN_S,
-  DRINK_RECIPES,
-  DRINK_REWARD,
   FORTUNES,
   GACHA_COST,
   MATCHA_COOLDOWN_S,
@@ -327,6 +323,8 @@ import { defaultLook, OUTFIT_FABRICS, OUTFITS,
 import { CASINO_EMOTES, auraPace, capsuleUnlock, netWorth, type BlackjackAction, type CashierRequest, type CasinoPacket } from "../../../shared/casino";
 import { CasinoFloor, RouletteSchema } from "./casino";
 import { BoutSchema, BoxingRing } from "./boxing";
+import { BeachBar } from "./beachBar";
+import { BAR_CHANNEL, REFRESHED_PACE, type BarPacket } from "../../../shared/barshift";
 import { CavernsMine } from "./caverns";
 import { CAVERNS_CHANNELS, WARMTH_PACE, WARMTH_STAMINA, parseOres, type ForgePacket, type GeodePacket, type GusPacket, type OnsenPacket, type ProspectPacket, type SatchelPacket, type ShoreCastPacket, type StrikePacket, type CodexPacket } from "../../../shared/caverns_mining";
 import { FINNEGAN, FINNEGAN_FRONT, FINNEGAN_REACH, FORGE, FORGE_FRONT, FORGE_REACH, GUS, GUS_FRONT, GUS_REACH, THERMAL_SEAT_IDS, orePropId, shoreCast, HEARTH_SEAT_IDS, streamCast, inStreamWater } from "../../../shared/worlds/caverns";
@@ -620,7 +618,6 @@ export class HangoutRoom extends Room<HangoutState> {
   private soakSeconds = new Map<string, number>();
   private lastArcadeScoreAt = new Map<string, number>();
   private lastMatchaAt = new Map<string, number>();
-  private lastDrinkAt = new Map<string, number>();
   private lastMochiAt = new Map<string, number>();
   /** When each player's account was made (the Pioneer set's eligibility). */
   private createdAt = new Map<string, number>();
@@ -631,6 +628,8 @@ export class HangoutRoom extends Room<HangoutState> {
   private casino!: CasinoFloor;
   /** The Glimmering Caverns (server/src/rooms/caverns.ts): the nodes, the forge, the anvil, the onsen. */
   private caverns!: CavernsMine;
+  /** The beach bar: its shifts, orders and tips (rooms/beachBar.ts). */
+  private bar!: BeachBar;
   /** When each player last poured a drink at the kitchenette. */
   private lastKitchenAt = new Map<string, number>();
   private boardSweepClock = 0;
@@ -790,6 +789,39 @@ export class HangoutRoom extends Room<HangoutState> {
     this.loadAllProps();
     this.initTrees();
     this.state.market = JSON.stringify(parseMarket(""));
+    this.bar = new BeachBar({
+      player: (sessionId) => this.state.players.get(sessionId),
+      profile: (sessionId) => this.records.get(sessionId)?.fishing,
+      saveProfile: (sessionId) => {
+        const player = this.state.players.get(sessionId);
+        if (player) this.saveFishing(sessionId, player);
+      },
+      sendTo: (sessionId, type, payload) => this.sendTo(sessionId, type, payload),
+      toBeach: (type, payload) => this.toMap("sunset_beach", type, payload),
+      addCoins: (sessionId, amount) => {
+        const player = this.state.players.get(sessionId);
+        if (player) this.addCoins(player, amount);
+      },
+      seatOf: (sessionId) => this.seatIdOf(sessionId),
+      hand: (sessionId, aura, ms) => {
+        const player = this.state.players.get(sessionId);
+        if (!player) return;
+        player.aura = aura;
+        this.auraUntil.set(sessionId, Date.now() + ms);
+        player.holding = "coffee";
+        player.drink = "";
+      },
+      grantTitle: (sessionId, title) => {
+        const player = this.state.players.get(sessionId);
+        const unlock = capsuleUnlock({ kind: "title", id: title });
+        if (!player || this.owns(player, unlock)) return;
+        this.grant(player, unlock);
+        if (!player.title && specialTitle(title)) player.title = title;
+        this.persist(sessionId, player, true);
+        this.sendTo(sessionId, "campfireNotice", { message: "A new title: " + (specialTitle(title)?.name ?? title), emoji: "🏅" });
+      },
+      emote: (sessionId, emoji) => this.nearby(sessionId, "emote", { sessionId, emoji }),
+    });
     this.caverns = new CavernsMine({
       player: (sessionId) => this.state.players.get(sessionId),
       sessions: () => [...this.state.players.keys()],
@@ -1088,7 +1120,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.onMessage("make_wish", (client) => this.handleWish(client.sessionId));
     this.onMessage("matcha_whisk", (client, msg: { score: number }) => this.handleMatcha(client.sessionId, Number(msg?.score)));
     // --- beach bar ---
-    this.onMessage("blend_drink", (client, msg: { recipe: string; ingredients: string[] }) => this.handleBlend(client.sessionId, msg));
+    this.onMessage(BAR_CHANNEL, (client, packet: BarPacket) => this.bar.handle(client.sessionId, packet));
     // --- lounge ---
     this.onMessage("set_record", (client, msg: { track: number }) => this.handleSetRecord(client.sessionId, Number(msg?.track)));
     this.onMessage("board", (client, packet: BoardPacket) => this.handleBoardPacket(client, packet));
@@ -1336,28 +1368,6 @@ export class HangoutRoom extends Room<HangoutState> {
     player.drink = "";
     this.sendTo(sessionId, "matchaResult", { coins });
     this.nearby(sessionId, "emote", { sessionId, emoji: "🍵" });
-  }
-
-  // --- beach bar -----------------------------------------------------------------------------
-
-  private handleBlend(sessionId: string, msg: { recipe: string; ingredients: string[] }) {
-    const player = this.state.players.get(sessionId);
-    if (!player || player.map !== "sunset_beach") return;
-    const recipe = DRINK_RECIPES.find((r) => r.id === msg?.recipe);
-    if (!recipe || !Array.isArray(msg.ingredients)) return;
-    const now = Date.now();
-    if (now - (this.lastDrinkAt.get(sessionId) ?? 0) < DRINK_COOLDOWN_S * 1000) return;
-    const right = recipe.needs.every((n) => msg.ingredients.includes(n)) && msg.ingredients.length === recipe.needs.length;
-    this.lastDrinkAt.set(sessionId, now);
-    if (right) {
-      this.addCoins(player, DRINK_REWARD);
-      player.aura = recipe.aura;
-      this.auraUntil.set(sessionId, now + AURA_SECONDS * 1000);
-      player.holding = "coffee";
-      player.drink = "";
-      this.nearby(sessionId, "emote", { sessionId, emoji: recipe.emoji });
-    }
-    this.sendTo(sessionId, "blendResult", { right, coins: right ? DRINK_REWARD : 0 });
   }
 
   // --- lounge: the kitchenette, the radio and the plants -----------------------------------------
@@ -2011,6 +2021,8 @@ export class HangoutRoom extends Room<HangoutState> {
     // the caverns: the nodes growing back, the forges' queues (everyone's, wherever they are), the
     // onsen, the lucky drip (only while someone is down there)
     this.caverns.tick(dt, now, this.occupied("glimmering_caverns"));
+    // the beach bar's shifts and orders
+    if (this.occupied("sunset_beach")) this.bar.tick(now);
     // the Velvet Ring's bout (its clocks run whoever is watching: a fighter away holds it)
     this.boxing.tick(dt);
     // the hour rolls over: the camp's market opens fresh
@@ -4351,7 +4363,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // How far this player could honestly have walked since their last report.
     const now = Date.now();
     const kit = sessionId ? this.records.get(sessionId)?.fishing : undefined;
-    const pace = (player.fed > 0 ? WELL_FED_SPEED : 1) * auraPace(player.aura) * (kit ? torchPace(kit, player.map) * (buffOn(kit, "smore", now) ? SMORE_PACE : 1) * (kit.deepWarmthUntil > now ? WARMTH_PACE : 1) * gearPace(kit) : 1);
+    const pace = (player.fed > 0 ? WELL_FED_SPEED : 1) * auraPace(player.aura) * (kit ? torchPace(kit, player.map) * Math.max(buffOn(kit, "smore", now) ? SMORE_PACE : 1, buffOn(kit, "refreshed", now) ? REFRESHED_PACE : 1) * (kit.deepWarmthUntil > now ? WARMTH_PACE : 1) * gearPace(kit) : 1);
     let allowed = MAX_REPORT_STEP * pace;
     if (sessionId) {
       const last = this.lastReportAt.get(sessionId);
@@ -4409,6 +4421,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // out of the ring (mid-bout, a forfeit); off the caverns' node, anvil and onsen
     this.boxing.leave(sessionId, "travel");
     this.caverns.leave(sessionId);
+    this.bar.leave(sessionId);
     this.soakSeconds.delete(sessionId);
     this.pendingFish.delete(sessionId);
     this.biteUntil.delete(sessionId);
@@ -4684,9 +4697,13 @@ export class HangoutRoom extends Room<HangoutState> {
       case "claw":
       case "well":
       case "teahouse":
-      case "blender":
       case "kitchen":
       case "radio":
+        this.sendTo(sessionId, "openPanel", { kind, propId: prop.propId });
+        break;
+      // the beach bar: Mango (the menu) and the three stations behind the counter (a shift)
+      case "bartender":
+      case "barshift":
         this.sendTo(sessionId, "openPanel", { kind, propId: prop.propId });
         break;
       case "plant":
@@ -5211,6 +5228,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // the caverns: a node or the anvil let go; a soaker dropped from the onsen is lifted out at once
     // onto its seat's dry exit anchor (the seat is free for someone else within the 2 s rule)
     this.caverns.leave(sessionId);
+    this.bar.leave(sessionId);
     if (THERMAL_SEAT_IDS.has(this.seatIdOf(sessionId))) this.handleStandUp(sessionId);
     try {
       const back = await this.allowReconnection(client, RECONNECT_WINDOW_S);
@@ -5295,6 +5313,7 @@ export class HangoutRoom extends Room<HangoutState> {
     this.casino.transfer(oldId, sessionId);
     this.boxing.transfer(oldId, sessionId);
     this.caverns.transfer(oldId, sessionId);
+    this.bar.transfer(oldId, sessionId);
     this.removePlayer(oldId); // quietly: the chair and the seat have already moved on
     return seated;
   }

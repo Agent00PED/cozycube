@@ -122,7 +122,7 @@ function trips(map: MapId, n: number) {
   return stuck;
 }
 
-for (const map of ["glimmering_caverns", "campfire_night", "whispering_woods", "cozy_lounge", "velvet_casino", "casino_vip", "boxing_ring"] as MapId[]) {
+for (const map of ["glimmering_caverns", "campfire_night", "whispering_woods", "cozy_lounge", "velvet_casino", "casino_vip", "boxing_ring", "sunset_beach"] as MapId[]) {
   test(`click-to-move never stalls: ${map}`, () => {
     const stuck = trips(map, 80);
     assert.deepEqual(stuck, []);

@@ -75,6 +75,11 @@ export function pioneerUntil(wipeAt: number): number {
 /** Worn over the name like a capsule title (the same unlock id: title_<id>), drawn in glowing gold. */
 export const SPECIAL_TITLES: Record<string, { name: string }> = {
   beta_tester: { name: "[ 🛠️ BETA TESTER ]" },
+  // the Bar Book (shared/barshift.ts barTitles): every drink of a band made Perfect, and all of them
+  beach_bartender: { name: "[ 🍹 BEACH BARTENDER ]" },
+  cocktail_artist: { name: "[ 🍸 COCKTAIL ARTIST ]" },
+  tidewater_mixer: { name: "[ 🌊 TIDEWATER MIXER ]" },
+  master_mixologist: { name: "[ 🏆 MASTER MIXOLOGIST ]" },
   // the Cave Codex (shared/caverns_codex.ts CODEX_SECTIONS): a section filled, the whole of it
   cave_cartographer: { name: "[ 🗺️ CAVE CARTOGRAPHER ]" },
   cave_naturalist: { name: "[ 🦇 CAVE NATURALIST ]" },

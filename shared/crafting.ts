@@ -112,6 +112,8 @@ export const BUFFS: Record<BuffKey, { name: string; emoji: string; ms: number; b
   pitch: { name: "Feller's Pine Pitch", emoji: "🍯", ms: 10 * 60_000, blurb: "Every landed round 25% likelier to drop a log" },
   glowbait: { name: "Phosphor Glow Bait", emoji: "🪱", ms: 10 * 60_000, blurb: "Rare fish and better 30% likelier by night and underground" },
   stout: { name: "Miner's Stout", emoji: "🍺", ms: 10 * 60_000, blurb: "Your pickaxe strikes 25% harder" },
+  // (a drink from the beach bar, made well: shared/barshift.ts)
+  refreshed: { name: "Refreshed", emoji: "🍹", ms: 10 * 60_000, blurb: "+10% walking pace" },
 };
 /** Feller's Pine Pitch's lift to a round's log chance, and Phosphor Glow Bait's rare luck in the dark
  *  (Miner's Stout's harder strike: shared/caverns_mining.ts STOUT_DAMAGE). */

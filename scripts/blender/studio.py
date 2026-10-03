@@ -16,6 +16,7 @@ every time (exec, never import), so a long-lived Live Bridge session always runs
     Studio_Caverns    (212, 0)  the Glimmering Caverns (clear of the Velvet Ring's line of regulars);
                                 Gus the Mole in front of it (Old Flint, who
                                 keeps the way down, stands with the Forest's folk)
+    Studio_Beach      (270, 0)  Sunset Beach (and, in front of it, its folk and its two maps under it)
     Studio_Wardrobe   (0, 30)   the avatar in every outfit (client/src/entities/rig.ts
                                 OUTFIT_PARTS), 2 m apart along x: the built rig first (the starter
                                 hoodie), then a linked copy per outfit (its meshes shared)
@@ -35,7 +36,7 @@ import bpy
 from mathutils import Vector
 
 MASTER = os.path.join("models", "master_world.blend")
-WORLDS = {"Lounge": (0.0, 0.0), "Campfire": (40.0, 0.0), "Casino": (80.0, 0.0), "Forest": (120.0, 0.0), "Boxing": (160.0, 0.0), "Caverns": (212.0, 0.0), "Wardrobe": (0.0, 30.0)}
+WORLDS = {"Lounge": (0.0, 0.0), "Campfire": (40.0, 0.0), "Casino": (80.0, 0.0), "Forest": (120.0, 0.0), "Boxing": (160.0, 0.0), "Caverns": (212.0, 0.0), "Beach": (270.0, 0.0), "Wardrobe": (0.0, 30.0)}
 WARDROBE_STEP = 2.0
 # Where each builder's collections go: their world, and either "world" (the diorama's own origin on
 # the world's corner of the grid) or the point their bounding box is centred on, from the world's.
@@ -52,6 +53,10 @@ PLACES = {
     "Patrons": ("Casino", (0.0, -19.0)),
     "Avatar": ("Wardrobe", "world"),
     "Forest": ("Forest", "world"),
+    "Beach": ("Beach", "world"),
+    "Mango": ("Beach", (-3.0, -22.0)),
+    "Dune": ("Beach", (0.0, -22.0)),
+    "Brine": ("Beach", (3.0, -22.0)),
     "Bramble": ("Forest", (-4.0, -16.0)),
     "Fish": ("Forest", (5.0, -17.0)),
     "Critters": ("Forest", (-9.0, -16.0)),

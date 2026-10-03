@@ -3,6 +3,7 @@ import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, R
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { COLOSSAL, FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, isColossalKind, type WoodKind } from "@shared/chop";
 import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ADIT_FRONT, FOREST_ANIMALS, FOREST_FISHING, FOREST_SEAT_LABELS, FOREST_WORKBENCH_FRONT, OLD_FLINT_FRONT, OLD_FLINT_REACH, woodsSpotOfSeat } from "@shared/worlds/forest";
+import { BAR, MANGO_FRONT, MANGO_REACH, SHIFT_REACH } from "@shared/worlds/beach";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, FINNEGAN, CAVE_ADIT_FRONT, CAVE_WINCH, WINCH_REACH, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, shoreCast, streamCast, PHOTO_SPOT, PHOTO_REACH, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, RAFT, RAFT_REACH } from "@shared/worlds/caverns";
 import { CAVERNS_CHANNELS, ORE_KINDS, PICKAXES, SOAK_S, isPickaxeId, parseOres } from "@shared/caverns_mining";
 import { DRIP_REACH, type CaveDrip } from "@shared/caverns_fishing";
@@ -149,6 +150,8 @@ interface Action {
     | "gym"
     | "mine"
     | "soak"
+    | "beachbar"
+    | "shift"
     | "stand";
   label: string;
   /** A longer status line, shown as the button's tooltip. */
@@ -182,6 +185,8 @@ const E_PRIORITY: Partial<Record<Action["type"], number>> = {
   chalkboard: 2,
   gym: 2,
   soak: 2,
+  beachbar: 1,
+  shift: 2,
   split: 2,
   slingshot: 2,
   board: 2,
@@ -503,6 +508,19 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
             if (Math.hypot(a.x - px, a.z - pz) > ANIMAL_REACH + 0.3) continue;
             found.push({ key: `feed:${a.propId}`, type: "critter", label: a.kind === "deer" ? "🦌 Feed the Deer" : "🐇 Feed the Rabbits", hint: "A berry or a mushroom from your forage bag", run: () => interactBridge.current?.useProp(a.propId) });
           }
+        }
+      }
+      // Sunset Beach: the bar (a drink from a stool or the counter's front; a shift from behind it)
+      if (mapId === "sunset_beach" && action === "") {
+        const px = cameraFocus.x;
+        const pz = cameraFocus.z;
+        const onStool = sitting && BAR.stools.some((s) => chairs[s.propId]?.occupiedBy === localSessionId);
+        const toBar = Math.hypot(MANGO_FRONT.x - px, MANGO_FRONT.z - pz);
+        if (onStool || (!sitting && toBar <= MANGO_REACH && Math.hypot(BAR.x - px, BAR.z - pz) > BAR.counter)) found.push({ key: "beachbar", type: "beachbar", d: onStool ? 0.5 : toBar, label: "🍹 Order a drink", hint: "Mango's menu: a drink in hand, its glow, and Refreshed if it is made well", run: () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "bartender", propId: "mango" } })) });
+        if (!sitting) {
+          const station = BAR.stations.reduce((a, b) => (Math.hypot(b.x - px, b.z - pz) < Math.hypot(a.x - px, a.z - pz) ? b : a));
+          const d = Math.hypot(station.x - px, station.z - pz);
+          if (d <= SHIFT_REACH) found.push({ key: "barshift:" + station.propId, type: "shift", d, label: "🧉 Take a shift", hint: "Make the orders yourself: build, pour, shake. Tips by the stars", run: () => window.dispatchEvent(new CustomEvent("cozy-open-panel", { detail: { kind: "barshift", propId: station.propId } })) });
         }
       }
       // the Glimmering Caverns: the adit back up, Gus's workstation, Finnegan by the cenote, the forge,

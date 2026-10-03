@@ -37,7 +37,6 @@ import { ClawModal } from "./components/hud/ClawModal";
 import { RetroGameModal } from "./components/hud/RetroGameModal";
 import { WishModal } from "./components/hud/WishModal";
 import { MatchaModal } from "./components/hud/MatchaModal";
-import { BlenderModal } from "./components/hud/BlenderModal";
 import { JukeboxModal } from "./components/hud/JukeboxModal";
 import { BoardGameModal } from "./components/hud/BoardGameModal";
 import { KitchenModal } from "./components/hud/KitchenModal";
@@ -67,7 +66,10 @@ import { BigSixModal } from "./components/hud/BigSixModal";
 import { CrapsModal } from "./components/hud/CrapsModal";
 import { DerbyModal } from "./components/hud/DerbyModal";
 import { CoinPusherModal } from "./components/hud/CoinPusherModal";
+import { DRINKS, type Drink, type DrinkServed } from "@shared/barshift";
 import { PinballModal } from "./components/hud/PinballModal";
+import { BeachBarModal } from "./components/hud/BeachBarModal";
+import { BarShiftSheet } from "./components/hud/BarShiftSheet";
 import { PoolModal } from "./components/hud/PoolModal";
 import { PianoModal } from "./components/hud/PianoModal";
 import { FISH, RODS, TIER_COLOR, TIER_LABEL, fishKg, gradeOf, isKingSize, stars } from "@shared/fishing";
@@ -321,7 +323,6 @@ export default function App() {
     splash,
     makeWish,
     matchaWhisk,
-    blendDrink,
     setRecord,
     boardSend,
     kitchenSend,
@@ -398,7 +399,6 @@ export default function App() {
   const [arcadeResult, setArcadeResult] = useState<{ coins: number } | null>(null);
   const [wishResult, setWishResult] = useState<{ fortune: string; lucky: number } | null>(null);
   const [matchaResult, setMatchaResult] = useState<{ coins: number } | null>(null);
-  const [blendResult, setBlendResult] = useState<{ right: boolean; coins: number } | null>(null);
   const [boardView, setBoardView] = useState<BoardGameView | null>(null);
   const [mochiResult, setMochiResult] = useState<{ action: MochiAction; coins: number; cooldown: boolean } | null>(null);
   // the casino's tables open only when asked (the dock, or a click on the table): never by walking past
@@ -439,7 +439,6 @@ export default function App() {
     setArcadeResult(null);
     setWishResult(null);
     setMatchaResult(null);
-    setBlendResult(null);
     setMochiResult(null);
     // the casino's exit doors: the world drawer, to go home or anywhere else
     if (kind === "worlds") {
@@ -577,6 +576,13 @@ export default function App() {
         } else if (type === "openPanel") {
           const p = payload as { kind: string; propId: string };
           openPanel(p.kind, p.propId);
+        } else if (type === "drinkServed") {
+          // a drink set down in front of you at the beach bar
+          const d = payload as DrinkServed;
+          if (d.to && d.to === localIdRef.current) {
+            const drink = DRINKS[d.drink] as Drink;
+            pushToast(d.grade === "sloppy" ? `Your ${drink.name}: a bit of a mess, but it's a drink` : `Your ${drink.name}${d.grade === "perfect" ? ", made to perfection" : ""}: Refreshed for 10 minutes`, { emoji: drink.emoji });
+          }
         } else if (type === "fishEscaped") {
           setReelEscaped(true);
         } else if (type === "starlightReel") {
@@ -594,8 +600,6 @@ export default function App() {
           setWishResult(payload as { fortune: string; lucky: number });
         } else if (type === "matchaResult") {
           setMatchaResult(payload as { coins: number });
-        } else if (type === "blendResult") {
-          setBlendResult(payload as { right: boolean; coins: number });
         } else if (type === "boardState") {
           setBoardView(payload as BoardGameView);
         } else if (type === "fishCaught") {
@@ -1119,7 +1123,6 @@ export default function App() {
         {panel?.kind === "arcade" && <RetroGameModal result={arcadeResult} onScore={arcadeScore} onClose={closePanel} />}
         {panel?.kind === "well" && localPlayer && <WishModal coins={localPlayer.coins} result={wishResult} onWish={makeWish} onClose={closePanel} />}
         {panel?.kind === "teahouse" && <MatchaModal result={matchaResult} onWhisk={matchaWhisk} onClose={closePanel} />}
-        {panel?.kind === "blender" && <BlenderModal result={blendResult} onBlend={blendDrink} onClose={closePanel} />}
         {panel?.kind === "jukebox" && <JukeboxModal playing={record} onPick={(t) => (setRecord(t), setPanel(null))} onClose={closePanel} />}
         {panel?.kind === "boardgame" && localSessionId && <BoardGameModal view={boardView} localSessionId={localSessionId} send={boardSend} onClose={closePanel} />}
         {panel?.kind === "kitchen" && <KitchenModal send={kitchenSend} onClose={closePanel} />}
@@ -1150,6 +1153,8 @@ export default function App() {
         {panel?.kind === "codex" && localPlayer && <CaveCodexModal found={angler.profile.codex} initial={panel.propId} title={localPlayer.title} onWear={(id) => casinoSend({ type: "EQUIP_TITLE", id })} onClose={closePanel} />}
         {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} campfireSend={campfireSend} onClose={closePanel} />}
         {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} owned={localPlayer.owned} onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
+        {panel?.kind === "bartender" && localPlayer && <BeachBarModal profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} onClose={closePanel} />}
+        {panel?.kind === "barshift" && <BarShiftSheet key={panel.propId} station={panel.propId} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "forge" && localPlayer && <ForgeModal profile={angler.profile} coins={localPlayer.coins} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "anvil" && localPlayer && <GeodeModal profile={angler.profile} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "flint" && localPlayer && <FlintModal first={panel.propId === "old_flint:first"} offer={panel.propId === "old_flint:offer"} profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} onClose={closePanel} />}

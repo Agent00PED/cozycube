@@ -370,6 +370,8 @@ export type ToggleableKind =
   | "shishi"
   | "kitchen"
   | "radio"
+  | "bartender"
+  | "barshift"
   | "plant"
   | "bonfire"
   | "fishing"
@@ -585,15 +587,6 @@ export const MATCHA_REWARD_MAX = 8;
 export const MATCHA_COOLDOWN_S = 60;
 
 // --- beach bar: blended drinks ---
-export const DRINK_RECIPES: { id: string; name: string; emoji: string; aura: string; needs: string[] }[] = [
-  { id: "sunset", name: "Sunset Punch", emoji: "🍹", aura: "#ff9a5c", needs: ["mango", "lime", "ice"] },
-  { id: "lagoon", name: "Blue Lagoon", emoji: "🧊", aura: "#6fd3ff", needs: ["coconut", "ice", "mint"] },
-  { id: "berry", name: "Berry Fizz", emoji: "🫐", aura: "#c98fff", needs: ["berry", "lime", "mint"] },
-];
-export const DRINK_INGREDIENTS = ["mango", "lime", "ice", "coconut", "mint", "berry"] as const;
-export const DRINK_REWARD = 6;
-export const DRINK_COOLDOWN_S = 45;
-export const AURA_SECONDS = 90;
 
 // --- retro arcade: gachapon, claw and the cabinet high score ---
 export const GACHA_COST = 25;
@@ -1134,6 +1127,8 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "well" ||
     kind === "teahouse" ||
     kind === "blender" ||
+    kind === "bartender" ||
+    kind === "barshift" ||
     kind === "boardgame" ||
     kind === "jukebox" ||
     kind === "kitchen" ||
@@ -1178,12 +1173,12 @@ export function isCasinoProp(kind: string): kind is CasinoPropKind {
  *  Velvet Gazette from the Chesterfield, and a blackjack, poker or baccarat table from one of its
  *  seats. */
 export function usableSeated(kind: ToggleableKind): boolean {
-  return kind === "piano" || kind === "barmenu" || kind === "tipjar" || kind === "gazette" || kind === "blackjack" || kind === "poker" || kind === "baccarat";
+  return kind === "bartender" || kind === "piano" || kind === "barmenu" || kind === "tipjar" || kind === "gazette" || kind === "blackjack" || kind === "poker" || kind === "baccarat";
 }
 
 // --- world sizes ---
 /** Half-width of each diorama slab. */
-export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 14, sunset_beach: 14, velvet_casino: 10, casino_vip: 5, whispering_woods: 17, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12, glimmering_caverns: 22.5, open_sea: 8, hidden_cove: 12 };
+export const MAP_HALF: Record<MapId, number> = { cozy_lounge: 6.4, campfire_night: 14, sunset_beach: 18, velvet_casino: 10, casino_vip: 5, whispering_woods: 17, boxing_ring: 10, japanese_onsen: 13, retro_arcade: 12, gaming_cafe: 12, glimmering_caverns: 22.5, open_sea: 8, hidden_cove: 12 };
 /** The campfire's stargazing bluff: a knoll in the north-east corner of the valley. */
 export const BLUFF = { x: 9.8, z: -9.6, radius: 2.6, height: 0.55 };
 
