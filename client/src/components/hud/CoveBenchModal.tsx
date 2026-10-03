@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FORGED_TOOLS, FORGED_TOOL_IDS, forgedBlocked, forgedOwned, makingsList } from "@shared/expedition";
+import { FORGED_TOOLS, FORGED_TOOL_IDS, forgedBlocked, forgedOwned, makingsList, type ForgedToolId } from "@shared/expedition";
 import type { FishingProfile } from "@shared/fishing";
 import { SEA_CHANNEL } from "@shared/voyage";
 import type { RoomMessageListener } from "../../hooks/useColyseusRoom";
@@ -9,6 +9,9 @@ import { Modal } from "./Modal";
 // The old shipwright's bench in the Hidden Cove: the Deep Tide tools are made here (shared/expedition.ts,
 // place "cove"), from pearls pried out of the cove's clams and the three crafts' rarest drops. Its
 // recipes are seen nowhere else.
+
+// (the three tools, then what carries each one's haul)
+const COVE_ORDER: ForgedToolId[] = ["deepRod", "deepAxe", "deepPickaxe", "deepLivewell", "deepCarrier", "deepSatchel"];
 
 export function CoveBenchModal({ profile, coins, send, subscribeMessages, onClose }: { profile: FishingProfile; coins: number; send: (channel: string, packet?: unknown) => void; subscribeMessages: (listener: RoomMessageListener) => () => void; onClose: () => void }) {
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
@@ -29,7 +32,7 @@ export function CoveBenchModal({ profile, coins, send, subscribeMessages, onClos
       <p className="m-0 rounded-2xl bg-black/20 px-3 py-1.5 text-xs">
         🫧 Sea Pearls: <b className="text-[#F7EBE1]">{pearls}</b> <span className="opacity-70">(pry the giant clams open: they shut again for a while)</span>
       </p>
-      {FORGED_TOOL_IDS.filter((id) => FORGED_TOOLS[id].place === "cove").map((id) => {
+      {COVE_ORDER.filter((id) => FORGED_TOOL_IDS.includes(id) && FORGED_TOOLS[id].place === "cove").map((id) => {
         const t = FORGED_TOOLS[id];
         const owned = forgedOwned(profile, id);
         const first = forgedBlocked(profile, id);

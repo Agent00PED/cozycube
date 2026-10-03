@@ -91,7 +91,7 @@ test("the Tidewater Pickaxe and the Ore Crate are made at Dune's; the crate afte
   assert.equal(FORGED_TOOLS.tidePickaxe.coins, PICKAXE_PRICES.tidewater);
   assert.equal(FORGED_TOOLS.tideSatchel.coins, SATCHEL_PRICES[6]);
   assert.equal(SATCHEL_PRICES[6], PICKAXE_PRICES.tidewater / 2, "storage costs half its tool");
-  assert.equal(SATCHEL_TIERS.length, 7);
+  assert.equal(SATCHEL_TIERS.length, 8);
   assert.equal(GUS_SATCHEL_TIER, 5);
   assert.ok(SATCHEL_TIERS[6].slots > SATCHEL_TIERS[5].slots);
   const w = seaWorld(200_000);

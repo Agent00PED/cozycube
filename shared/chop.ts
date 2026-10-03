@@ -107,7 +107,7 @@ export const AXES: Record<AxeId, { name: string; emoji: string; tier: number; pr
   golden: { name: "Golden Felling Axe", emoji: "🌟", tier: 4, price: AXE_PRICES.golden, zoneBonus: 0.25, slow: 0.15, blurb: "T4: fells Autumn Maple. A 25% wider sweet spot, the ring 15% slower." },
   runic: { name: "Runic Elderwood Axe", emoji: "🪄", tier: 5, price: AXE_PRICES.runic, zoneBonus: 0.3, slow: 0.2, blurb: "T5: fells the Whispering Elderwood. A 30% wider sweet spot, the ring 20% slower." },
   tidewater: { name: "Tidewater Axe", emoji: "🌴", tier: 6, price: AXE_PRICES.tidewater, zoneBonus: 0.35, slow: 0.25, blurb: "T6: fells Sunset Beach's Coconut Palms. A 35% wider sweet spot, the ring 25% slower." },
-  deeptide: { name: "Deep Tide Axe", emoji: "🔱", tier: 7, price: AXE_PRICES.deeptide, zoneBonus: 0.4, slow: 0.3, blurb: "T7: fells the Drowned Ironwood. A 40% wider sweet spot, the ring 30% slower." },
+  deeptide: { name: "Deep Tide Axe", emoji: "🔱", tier: 7, price: AXE_PRICES.deeptide, zoneBonus: 0.45, slow: 0.25, blurb: "T7: fells the Drowned Ironwood. A 45% wider sweet spot, the ring 25% slower." },
 };
 export const AXE_IDS = Object.keys(AXES) as AxeId[];
 /** The axes in tier order. */
@@ -415,6 +415,7 @@ export const WOOD_CARRIER_TIERS: WoodCarrierTier[] = [
   { id: "carrier_tier_4", name: "Lumberjack Pack", capacity: CARRIER_CAPACITY[3], price: CARRIER_PRICES[3], icon: "📦" },
   { id: "carrier_tier_5", name: "Forester Heavy Frame", capacity: CARRIER_CAPACITY[4], price: CARRIER_PRICES[4], icon: "🧰" },
   { id: "carrier_tier_6", name: "Tidewater Timber Sled", capacity: CARRIER_CAPACITY[5], price: CARRIER_PRICES[5], icon: "🛷" },
+  { id: "carrier_tier_7", name: "Deep Tide Timber Barrow", capacity: CARRIER_CAPACITY[6], price: CARRIER_PRICES[6], icon: "🛞" },
 ];
 /** A Coconut Palm's landed round now and then shakes a coconut down as well (into the materials). */
 export const COCONUT_CHANCE = 0.15;

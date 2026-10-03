@@ -149,7 +149,7 @@ function Life() {
     seeds.forEach((sd, i) => {
       if (!shoal) return glints.hide(i);
       const a = sd.a + t * 0.12;
-      const flash = Math.max(0, Math.sin(t * sd.v + sd.p)) ** 6;
+      const flash = Math.max(0, Math.sin(t * sd.v + sd.p)) ** 3;
       glints.set(i, Math.cos(a) * sd.r, SEA_Y + 0.06, Math.sin(a) * sd.r, 0.9 * flash * ease, SILVER);
     });
     glints.commit();

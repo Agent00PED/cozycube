@@ -200,43 +200,43 @@
    "craft": "fish",
    "tier": 7,
    "where": "campfire river",
-   "perMin": 70.3,
-   "perMinSold": 70.3
+   "perMin": 70.1,
+   "perMinSold": 70.1
   },
   {
    "craft": "fish",
    "tier": 7,
    "where": "woods river",
-   "perMin": 152.8,
-   "perMinSold": 152.8
+   "perMin": 152.2,
+   "perMinSold": 152.2
   },
   {
    "craft": "fish",
    "tier": 7,
    "where": "cenote",
-   "perMin": 246.8,
-   "perMinSold": 234.9
+   "perMin": 246.4,
+   "perMinSold": 234.7
   },
   {
    "craft": "fish",
    "tier": 7,
    "where": "pier",
-   "perMin": 235.8,
-   "perMinSold": 235.8
+   "perMin": 234.1,
+   "perMinSold": 234.1
   },
   {
    "craft": "fish",
    "tier": 7,
    "where": "sea",
-   "perMin": 304.3,
-   "perMinSold": 297.4
+   "perMin": 292.7,
+   "perMinSold": 285.8
   },
   {
    "craft": "fish",
    "tier": 7,
    "where": "cove",
-   "perMin": 348.9,
-   "perMinSold": 337.5
+   "perMin": 337.3,
+   "perMinSold": 326.3
   },
   {
    "craft": "wood",
@@ -333,29 +333,29 @@
    "craft": "wood",
    "tier": 7,
    "where": "campfire",
-   "perMin": 32.1,
-   "perMinSold": 22.5
+   "perMin": 33.7,
+   "perMinSold": 23.6
   },
   {
    "craft": "wood",
    "tier": 7,
    "where": "woods",
-   "perMin": 119,
-   "perMinSold": 99.1
+   "perMin": 122.5,
+   "perMinSold": 102.5
   },
   {
    "craft": "wood",
    "tier": 7,
    "where": "beach",
-   "perMin": 313.2,
-   "perMinSold": 231.5
+   "perMin": 327,
+   "perMinSold": 241.7
   },
   {
    "craft": "wood",
    "tier": 7,
    "where": "cove",
-   "perMin": 384.5,
-   "perMinSold": 290.9
+   "perMin": 392.2,
+   "perMinSold": 297.1
   },
   {
    "craft": "ore",
@@ -403,8 +403,8 @@
    "craft": "ore",
    "tier": 7,
    "where": "caverns",
-   "perMin": 261,
-   "perMinSold": 189.2
+   "perMin": 268,
+   "perMinSold": 193.8
   },
   {
    "craft": "ore",
@@ -424,22 +424,22 @@
    "craft": "ore",
    "tier": 7,
    "where": "beach",
-   "perMin": 420.8,
-   "perMinSold": 296.2
+   "perMin": 419.6,
+   "perMinSold": 295.4
   },
   {
    "craft": "ore",
    "tier": 6,
    "where": "cove",
-   "perMin": 258.2,
-   "perMinSold": 196
+   "perMin": 258.3,
+   "perMinSold": 196.1
   },
   {
    "craft": "ore",
    "tier": 7,
    "where": "cove",
-   "perMin": 425.2,
-   "perMinSold": 317.4
+   "perMin": 426.5,
+   "perMinSold": 318.4
   }
  ]
 }

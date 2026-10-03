@@ -13,12 +13,13 @@ import { ASSET_VERSION } from "../assetVersion";
 // on the server: nobody's ids come back). Quick Join picks the friends' lounge, else the busiest
 // one with room, else the first. The tap that picks a lounge also wakes the page's sound (a phone
 // only lets audio start from a tap). Dressed in Dark Cozy (a warm oak card, vanilla cream and
-// oatmeal text, amber ember accents; Fredoka) over the Starlight Campfire at night, softly blurred
+// oatmeal text, amber ember accents; Fredoka) over the Starlight Campfire or Sunset Beach at night, softly blurred
 // (/images/lobby-campfire.jpg: the game's own renderer, captured). From Settings' "Switch lounge" it
 // opens over the game (`current`): the lounge you are in counts you and is marked Current, and you
 // only leave it once you pick another (or stay).
 
-const BACKDROP = `/images/lobby-campfire.jpg?v=${ASSET_VERSION}`;
+// (one of two, picked once as the page loads: the campfire, or Sunset Beach by night with its glowing surf)
+const BACKDROP = `/images/${Math.random() < 0.5 ? "lobby-campfire" : "lobby-beach"}.jpg?v=${ASSET_VERSION}`;
 
 const REFRESH_MS = 5000;
 

@@ -74,7 +74,7 @@ test("the Tidewater Axe and the Timber Sled are made at Dune's: coins and making
   assert.equal(FORGED_TOOLS.tideAxe.coins, AXE_PRICES.tidewater);
   assert.equal(FORGED_TOOLS.tideCarrier.coins, CARRIER_PRICES[5]);
   assert.equal(CARRIER_PRICES[5], AXE_PRICES.tidewater / 2, "storage costs half its tool");
-  assert.equal(WOOD_CARRIER_TIERS.length, 6);
+  assert.equal(WOOD_CARRIER_TIERS.length, 7);
   assert.ok(carrierCapacity(6) > carrierCapacity(5));
   for (const id of ["tideAxe", "tideCarrier"] as const) {
     const n = FORGED_TOOLS[id].needs;

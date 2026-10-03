@@ -97,11 +97,11 @@ export const AFK_UNBAITED_TIER_ODDS: TierOdds = { common: 1, uncommon: 0, rare: 
 
 /** The livewells' prices, tier 1 (the Wooden Pail, everyone's) to tier 5: the storage tiers' sinks
  *  (300, 950, 2,600, 6,500), the same as the wood carriers'. */
-export const CREEL_PRICES = [0, 250, 800, 2250, 6250, 29000] as const;
+export const CREEL_PRICES = [0, 250, 800, 2250, 6250, 29000, 75000] as const;
 /** What each livewell tier holds (fish): sized for a 5-10 minute outing at the water, then a trip to
  *  the angler's stall. A player already holding more keeps it all (Overburdened: selling and cooking
  *  work, only new catches wait for room). */
-export const CREEL_CAPACITY = [12, 20, 32, 45, 60, 80] as const;
+export const CREEL_CAPACITY = [12, 20, 32, 45, 60, 80, 100] as const;
 
 /** The tackle: bait by the pack (five kinds, from Barnaby or Finley); the rods (the tool ladder,
  *  docs/economy-plan.md section 6: a tier costs 20, 45, 90 and 180 minutes of the step before it,
@@ -152,8 +152,8 @@ export const AXE_PRICES = { iron: 500, tempered: 1600, golden: 4500, runic: 1250
  *  holds (logs): sized for a 5-10 minute felling round, then a trip to the stall. A player already
  *  carrying more keeps it all (Overburdened: selling, splitting and carving work, only new wood waits
  *  for room). */
-export const CARRIER_PRICES = [0, 250, 800, 2250, 6250, 19000] as const;
-export const CARRIER_CAPACITY = [15, 25, 40, 55, 70, 85] as const;
+export const CARRIER_PRICES = [0, 250, 800, 2250, 6250, 19000, 75000] as const;
+export const CARRIER_CAPACITY = [15, 25, 40, 55, 70, 85, 100] as const;
 /** The crafting materials' store, apart from every carrier, livewell and satchel: each material (Pine
  *  Resin, Sawdust, every by-product: Tree Bark, the ambers and shavings, Fish Scales, Fine Fish Bone,
  *  Fine Stone Dust...) up to this many of its own kind. More than that kept from before stays, and
@@ -294,7 +294,7 @@ export const ORE_PRICES = {
 export const PICKAXE_PRICES = { copper: 3000, reinforced: 7200, glimmer: 17500, drill: 31500, tidewater: 75000, deeptide: 180000 } as const;
 /** The Prospector's Satchel, tier 1 (the Canvas Ore Pouch) to tier 5 (the Titan Core Vault): coins,
  *  and materials from the other crafts (shared/satchel.ts SATCHEL_TIERS says which). */
-export const SATCHEL_PRICES = [0, 500, 1500, 3600, 8750, 15750, 37500] as const;
+export const SATCHEL_PRICES = [0, 500, 1500, 3600, 8750, 15750, 37500, 90000] as const;
 /** The satchels' prices before the tool ladder's rebuild (docs/economy-plan.md phase 2), which made
  *  them cheaper: the migration pays an owner the difference on every tier they bought
  *  (shared/migrate.ts v6). Never used for a sale. */

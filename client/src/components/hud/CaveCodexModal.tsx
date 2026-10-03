@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CODEX, CODEX_SECTIONS, CODEX_TITLE, codexProgress, codexTitles, type CodexSection } from "@shared/caverns_codex";
+import { CODEX, CODEX_COUNT, CODEX_SECTIONS, CODEX_TITLE, codexFound, codexProgress, codexTitles, type CodexSection } from "@shared/caverns_codex";
 import { specialTitle } from "@shared/items";
 import { Modal } from "./Modal";
 
@@ -23,7 +23,7 @@ export function CaveCodexModal({ found, initial, title, onWear, onClose }: { fou
   const entries = CODEX.filter((e) => e.section === tab);
   const section = CODEX_SECTIONS.find((s) => s.id === tab)!;
   const prog = codexProgress(found, tab);
-  const all = CODEX.filter((e) => found.includes(e.id)).length;
+  const all = codexFound(found);
   const earned = codexTitles(found);
   return (
     <Modal title="The Cave Codex" icon="📖" onClose={onClose} width={620}>
@@ -46,7 +46,7 @@ export function CaveCodexModal({ found, initial, title, onWear, onClose }: { fou
             {section.emoji} {prog.found} of {prog.all} {prog.found === prog.all ? "· complete ✨" : `· all of them: +${section.bonus} 🪙`}
           </span>
           <span className="tabular-nums">
-            📖 {all}/{CODEX.length}
+            📖 {all}/{CODEX_COUNT}
           </span>
         </div>
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2" style={{ maxHeight: "min(52vh, 440px)" }}>

@@ -1,5 +1,8 @@
 import * as THREE from "three";
 import { cavernsFloorY } from "@shared/worlds/caverns";
+
+/** The ground the chips fall on: the caverns' floor, unless a world sets its own (the beach, the cove). */
+export const fxFloor: { y: (x: number, z: number) => number } = { y: cavernsFloorY };
 import { noRaycast } from "./kit";
 
 // The Glimmering Caverns' little pieces (docs/caverns-roadmap.md phase 3), one pool of each for the
@@ -119,7 +122,7 @@ export class FxPool {
       if (p.kind === "spark") p.vel.multiplyScalar(1 - 1.5 * dt);
       p.pos.addScaledVector(p.vel, dt);
       // the floor where it falls: a bounce, losing most of its way
-      const floor = cavernsFloorY(p.pos.x, p.pos.z) + 0.015;
+      const floor = fxFloor.y(p.pos.x, p.pos.z) + 0.015;
       if (p.pos.y < floor) {
         p.pos.y = floor;
         if (p.vel.y < 0) p.vel.y = -p.vel.y * (p.kind === "spark" ? 0.25 : 0.35);
