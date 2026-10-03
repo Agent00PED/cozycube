@@ -10,7 +10,7 @@ import type { Room } from "colyseus.js";
 import type { PlayerState } from "@shared/types";
 import { daylight } from "@shared/daynight";
 import { BALL_RADIUS, KICK_REACH, kickBall, stepBall, type BallState } from "@shared/volleyball";
-import { BALL_COURT, BAR, BEACH_GRID, BEACH_LAYOUT as L, BOAT, BRINE, DUNE, FIREPIT, MANGO, PIER, PIER_LENGTH, SEA_Y, WADE_DEPTH, beachLand, beachWading, onPierAt } from "@shared/worlds/beach";
+import { BALL_COURT, BAR, BEACH_GRID, BEACH_LAYOUT as L, BOAT, BRINE, DUNE, FIREPIT, MANGO, PIER, PIER_LENGTH, SEA_Y, TORCHES, WADE_DEPTH, beachLand, beachWading, onPierAt } from "@shared/worlds/beach";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -248,6 +248,7 @@ function BeachLights() {
       <pointLight position={[BAR.x, beachLand(BAR.x, BAR.z) + 2.4, BAR.z]} color="#ffd9a0" intensity={dark * 3.2} distance={9} decay={1.6} />
       <pointLight ref={fire} position={[FIREPIT.x, beachLand(FIREPIT.x, FIREPIT.z) + 0.5, FIREPIT.z]} color="#ff9a4a" intensity={0} distance={7} decay={1.6} />
       <pointLight position={[head.x, PIER.deck + 1.8, head.z]} color="#ffe2a6" intensity={dark * 1.6} distance={6} decay={1.8} />
+      <pointLight position={[(TORCHES[4].x + TORCHES[5].x) / 2, beachLand(TORCHES[4].x, TORCHES[4].z) + 1.7, (TORCHES[4].z + TORCHES[5].z) / 2]} color="#ffb060" intensity={dark * 2.0} distance={6.5} decay={1.7} />
     </>
   );
 }
@@ -260,7 +261,7 @@ function BeachFire() {
   const d = useContext(CampDaylightContext) ?? 1;
   const lit = d < 0.55;
   const mesh = useMemo(() => {
-    const im = new THREE.InstancedMesh(FLAME_GEO, FLAME_MAT, FLAMES);
+    const im = new THREE.InstancedMesh(FLAME_GEO, FLAME_MAT, FLAMES + TORCHES.length);
     im.raycast = noRaycast;
     im.frustumCulled = false;
     return im;
@@ -284,6 +285,12 @@ function BeachFire() {
       m.makeScale(w, h, w).setPosition(FIREPIT.x + Math.cos(a) * r, y, FIREPIT.z + Math.sin(a) * r);
       mesh.setMatrixAt(i, m);
     }
+    // (the tiki torches: one small flame each, leaning with the breeze)
+    TORCHES.forEach((p, i) => {
+      const h = 0.26 * (0.8 + 0.2 * Math.sin(t * (7 + i) + i * 2.3) * Math.sin(t * 3.7 + i));
+      m.makeScale(0.16, h, 0.16).setPosition(p.x + 0.03 + 0.012 * Math.sin(t * 2.1 + i), beachLand(p.x, p.z) + 1.63, p.z);
+      mesh.setMatrixAt(FLAMES + i, m);
+    });
     mesh.instanceMatrix.needsUpdate = true;
   });
   return lit ? <primitive object={mesh} /> : null;
