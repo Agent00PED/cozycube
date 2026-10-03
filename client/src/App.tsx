@@ -70,6 +70,7 @@ import { DRINKS, type Drink, type DrinkServed } from "@shared/barshift";
 import { PinballModal } from "./components/hud/PinballModal";
 import { BeachBarModal } from "./components/hud/BeachBarModal";
 import { CaptainModal } from "./components/hud/CaptainModal";
+import { CoveBenchModal } from "./components/hud/CoveBenchModal";
 import { BarShiftSheet } from "./components/hud/BarShiftSheet";
 import { PoolModal } from "./components/hud/PoolModal";
 import { PianoModal } from "./components/hud/PianoModal";
@@ -568,7 +569,8 @@ export default function App() {
           // chat reaches every world: a line from someone elsewhere shows as a toast, with where
           const c = payload as { sessionId: string; text: string; map?: MapId; username?: string };
           if (c.sessionId !== localIdRef.current && c.map && c.map !== currentMapRef.current) {
-            const where = MAP_LABELS[c.map];
+            // (nobody is ever said to be in the Hidden Cove: they are at sea)
+            const where = MAP_LABELS[c.map === "hidden_cove" ? "open_sea" : c.map];
             pushToast(`${where?.icon ?? "💬"} ${c.username ?? allPlayersRef.current[c.sessionId]?.username ?? "Someone"}: ${c.text}`, { emoji: "💬", silent: true });
           }
         } else if (type === "welcome") {
@@ -577,6 +579,13 @@ export default function App() {
         } else if (type === "openPanel") {
           const p = payload as { kind: string; propId: string };
           openPanel(p.kind, p.propId);
+        } else if (type === "chartPiece") {
+          // a bottle on the line, out at sea: a torn piece of an old chart
+          const c = payload as { piece: number; of: number };
+          pushToast(c.piece >= c.of ? "A bottle on the line! The last piece: the chart is whole. Show it to the captain" : `A bottle on the line! Inside, a torn piece of an old sea chart (${c.piece}/${c.of})`, { emoji: "🍾", tone: "win" });
+        } else if (type === "clamPried") {
+          const c = payload as { pearls: number };
+          pushToast(c.pearls > 1 ? `Two pearls in one clam!` : "A pearl!", { emoji: "🫧" });
         } else if (type === "drinkServed") {
           // a drink set down in front of you at the beach bar
           const d = payload as DrinkServed;
@@ -1154,6 +1163,7 @@ export default function App() {
         {panel?.kind === "codex" && localPlayer && <CaveCodexModal found={angler.profile.codex} initial={panel.propId} title={localPlayer.title} onWear={(id) => casinoSend({ type: "EQUIP_TITLE", id })} onClose={closePanel} />}
         {panel?.kind === "satchel" && localPlayer && <OreSatchelDrawer profile={angler.profile} market={market} mapId={currentMap} send={cavernsSend} campfireSend={campfireSend} onClose={closePanel} />}
         {panel?.kind === "gus" && localPlayer && <GusShopModal profile={angler.profile} coins={localPlayer.coins} owned={localPlayer.owned} onBuyOutfit={(outfit: OutfitId) => buyOutfit(outfit)} market={market} send={cavernsSend} campfireSend={campfireSend} subscribeMessages={subscribeMessages} onOpenCollection={() => setLogbook("fish")} onClose={closePanel} />}
+        {panel?.kind === "covebench" && localPlayer && <CoveBenchModal profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}
         {panel?.kind === "captain" && localPlayer && <CaptainModal mapId={currentMap} profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} onClose={closePanel} />}
         {panel?.kind === "bartender" && localPlayer && <BeachBarModal profile={angler.profile} coins={localPlayer.coins} send={cavernsSend} onClose={closePanel} />}
         {panel?.kind === "barshift" && <BarShiftSheet key={panel.propId} station={panel.propId} send={cavernsSend} subscribeMessages={subscribeMessages} onClose={closePanel} />}

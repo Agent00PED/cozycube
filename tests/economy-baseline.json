@@ -149,6 +149,13 @@
   },
   {
    "craft": "fish",
+   "tier": 5,
+   "where": "cove",
+   "perMin": 156.7,
+   "perMinSold": 138.7
+  },
+  {
+   "craft": "fish",
    "tier": 6,
    "where": "campfire river",
    "perMin": 66.7,
@@ -181,6 +188,55 @@
    "where": "sea",
    "perMin": 289.1,
    "perMinSold": 282.3
+  },
+  {
+   "craft": "fish",
+   "tier": 6,
+   "where": "cove",
+   "perMin": 318.9,
+   "perMinSold": 302.2
+  },
+  {
+   "craft": "fish",
+   "tier": 7,
+   "where": "campfire river",
+   "perMin": 70.3,
+   "perMinSold": 70.3
+  },
+  {
+   "craft": "fish",
+   "tier": 7,
+   "where": "woods river",
+   "perMin": 152.8,
+   "perMinSold": 152.8
+  },
+  {
+   "craft": "fish",
+   "tier": 7,
+   "where": "cenote",
+   "perMin": 246.8,
+   "perMinSold": 234.9
+  },
+  {
+   "craft": "fish",
+   "tier": 7,
+   "where": "pier",
+   "perMin": 235.8,
+   "perMinSold": 235.8
+  },
+  {
+   "craft": "fish",
+   "tier": 7,
+   "where": "sea",
+   "perMin": 304.3,
+   "perMinSold": 297.4
+  },
+  {
+   "craft": "fish",
+   "tier": 7,
+   "where": "cove",
+   "perMin": 348.9,
+   "perMinSold": 337.5
   },
   {
    "craft": "wood",

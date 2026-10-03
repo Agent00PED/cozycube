@@ -35,6 +35,7 @@ function world(coins = 1000) {
     },
     emote: () => {},
     count: () => 0,
+    toCove: () => {},
   };
   return { sea: new BeachSea(host), player, profile, sent, trips };
 }

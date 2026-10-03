@@ -168,7 +168,7 @@ export const ACHIEVEMENTS: { stat: keyof PlayerStats; at: number; title: string;
 ];
 
 /** The most coins anyone can hold (Velvet Chips share the ceiling: shared/casino CHIP_CAP). */
-export const COIN_CAP = 99_999;
+export const COIN_CAP = 999_999;
 
 /** The house tops you up when you are broke: once per cooldown, only while your net worth (coins
  *  and Velvet Chips together, shared/casino netWorth) is under this. */
@@ -378,6 +378,8 @@ export type ToggleableKind =
   | "bartender"
   | "barshift"
   | "captain"
+  | "clam"
+  | "covebench"
   | "plant"
   | "bonfire"
   | "fishing"
@@ -1135,6 +1137,8 @@ export function isWalkUpProp(kind: ToggleableKind): boolean {
     kind === "blender" ||
     kind === "bartender" ||
     kind === "captain" ||
+    kind === "clam" ||
+    kind === "covebench" ||
     kind === "barshift" ||
     kind === "boardgame" ||
     kind === "jukebox" ||

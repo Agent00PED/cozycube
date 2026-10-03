@@ -2031,6 +2031,25 @@ export const PATCH_ERAS: PatchEra[] = [
           economy: ["⚖️ A Tidewater rod earns about 280 coins a minute at sea and about 205 off the pier; an Expedition rod at sea earns about what it does at the caverns' lake."],
         },
       },
+      {
+        version: "0.8.3",
+        date: "2026-10-03",
+        title: "Something in a Bottle",
+        summary: "Now and then a catch out at sea brings up a bottle with a torn piece of an old chart in it. Three pieces make it whole. Show it to the captain.",
+        changes: {
+          features: [
+            "🍾 Fishing by hand on the Open Sea, a bottle comes up on the line now and then: inside, a torn piece of a sea chart. The longer you go without one, the likelier the next catch brings it.",
+            "🗺️ With all three pieces, ask Captain Brine at the wheel. He knows the place, and from then on he takes you whenever you ask, on the same ticket.",
+            "🦪 Where he takes you, giant clams sit in the wet sand. Pry one open for a Sea Pearl or two; it shuts again for a while, for everyone.",
+            "🔱 An old shipwright's bench stands there too. The Deep Tide Rod (T7) is made at it and nowhere else: coins, Sea Pearls, and the rarest thing each craft gives up. It lands the one fish no other rod can.",
+            "🤫 Whoever is there is shown to everyone else as out at sea. It is yours to tell, or not.",
+          ],
+          economy: [
+            "⚖️ The T7 rod's odds were settled on every water: about 235 coins a minute off the pier, 300 at sea and 340 where the chart leads.",
+            "🪙 A purse now holds up to 999,999 coins (it was 99,999), so the last tools can be saved for.",
+          ],
+        },
+      },
     ],
   },
 ];

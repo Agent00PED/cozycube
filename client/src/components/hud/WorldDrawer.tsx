@@ -24,7 +24,7 @@ const ART: Record<MapId, { sky: string; ground: string; props: string[] }> = {
 
 /** How many are in a world: the casino's card counts its penthouse too. */
 function countFor(world: WorldConfig, counts: Partial<Record<MapId, number>>): number {
-  return (counts[world.mapId] ?? 0) + (world.mapId === "velvet_casino" ? (counts.casino_vip ?? 0) : 0) + (world.mapId === "campfire_night" ? (counts.whispering_woods ?? 0) + (counts.glimmering_caverns ?? 0) : 0);
+  return (counts[world.mapId] ?? 0) + (world.mapId === "velvet_casino" ? (counts.casino_vip ?? 0) : 0) + (world.mapId === "campfire_night" ? (counts.whispering_woods ?? 0) + (counts.glimmering_caverns ?? 0) : 0) + (world.mapId === "sunset_beach" ? (counts.open_sea ?? 0) + (counts.hidden_cove ?? 0) : 0);
 }
 
 export function WorldDrawer({ currentMap, counts, disabled, onSelect, onClose }: { currentMap: MapId; counts: Partial<Record<MapId, number>>; disabled: boolean; onSelect: (m: MapId) => void; onClose: () => void }) {

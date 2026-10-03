@@ -14,6 +14,7 @@ import { FELL_TREES, FELL_TREE_AT } from "@shared/worlds/trees";
 import { useGLTF } from "@react-three/drei";
 import { CAMPFIRE_URL, CampfireWorld } from "./CampfireWorld";
 import { ForestWorld, FOREST_URL } from "./ForestWorld";
+import { CoveWorld } from "./CoveWorld";
 import { SeaWorld } from "./SeaWorld";
 import { BeachWorld } from "./BeachWorld";
 import { CampDaylightContext, CampSky, campHour, campLook, useCampDaylight } from "./campDay";
@@ -644,13 +645,15 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
   // (the beach keeps the camp's day too)
   const camp = isCampMap(mapId) || mapId === "sunset_beach" || mapId === "open_sea";
   const daylight = useCampDaylight(camp);
-  const hour: TimeOfDay = camp ? campHour(daylight) : timeOfDay;
-  const sky: Weather = camp || casino ? "clear" : weather;
+  // (the Hidden Cove is a cave: always evening in there, lit by its own lights)
+  const cove = mapId === "hidden_cove";
+  const hour: TimeOfDay = camp ? campHour(daylight) : cove ? "night" : timeOfDay;
+  const sky: Weather = camp || casino || cove ? "clear" : weather;
   return (
     <TimeOfDayContext.Provider value={hour}>
       <CampDaylightContext.Provider value={camp ? daylight : null}>
       <WeatherContext.Provider value={sky}>
-      {mapId !== "glimmering_caverns" && <SceneLighting timeOfDay={hour} weather={sky} camp={camp ? daylight : null} indoor={casino} />}
+      {mapId !== "glimmering_caverns" && <SceneLighting timeOfDay={hour} weather={sky} camp={camp ? daylight : null} indoor={casino || cove} />}
       {mapId === "cozy_lounge" ? (
         <>
           <LoungeWorld onFloorClick={onFloorClick} />
@@ -666,6 +669,8 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
         <CavernsWorld onFloorClick={onFloorClick} players={players} localSessionId={localSessionId} ores={ores} caveEvent={caveEvent} caveRaft={caveRaft} subscribeMessages={subscribeMessages} onStrike={onStrike} />
       ) : mapId === "sunset_beach" ? (
         <BeachWorld onFloorClick={onFloorClick} room={room} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} />
+      ) : mapId === "hidden_cove" ? (
+        <CoveWorld onFloorClick={onFloorClick} room={room} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} />
       ) : mapId === "open_sea" ? (
         <SeaWorld onFloorClick={onFloorClick} subscribeMessages={subscribeMessages} />
       ) : mapId === "boxing_ring" ? (
@@ -704,6 +709,10 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
           <PropPad key={prop.propId} prop={prop} size={[0.8, 1.3, 0.8]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "workbench" ? (
           <PropPad key={prop.propId} prop={prop} size={[1.2, 1.0, 1.2]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "clam" ? (
+          <PropPad key={prop.propId} prop={prop} size={[0.9, 0.6, 0.9]} onUse={() => activate(prop.propId)} />
+        ) : prop.kind === "covebench" ? (
+          <PropPad key={prop.propId} prop={prop} size={[1.9, 1.1, 0.9]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "captain" ? (
           <PropPad key={prop.propId} prop={prop} size={[0.9, 1.7, 0.9]} onUse={() => activate(prop.propId)} />
         ) : prop.kind === "bartender" ? (

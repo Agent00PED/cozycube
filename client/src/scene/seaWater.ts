@@ -6,8 +6,9 @@ import * as THREE from "three";
  *  deepening to blue, lines of foam rolling in to the shore and lapping up the sand, a slow glitter
  *  on the open water. The sheet itself rises and falls a hand's height, so the waterline runs up
  *  the sand and back. `time` is the world's clock (seconds), `night` 0 by day to 1 by night, `dusk`
- *  1 at sunrise and sunset (the low sun's gold on the water). */
-export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number }, night: { value: number }, dusk: { value: number }) {
+ *  1 at sunrise and sunset (the low sun's gold on the water). `calm`: still water (the Hidden Cove's
+ *  lagoon): no waves rolling in, only the lapping edge. */
+export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number }, night: { value: number }, dusk: { value: number }, calm = false) {
   m.color.set("#ffffff");
   m.roughness = 0.2;
   m.onBeforeCompile = (shader) => {
@@ -43,7 +44,7 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       // waves rolling in: lines of foam that follow the coast, breaking as they reach the shallows
       float wob = sin(vSeaPos.x * 0.9 - vSeaPos.z * 0.7 + uTime * 0.2) * 0.9;
       float roll = sin(sea * 1.25 + uTime * 0.85 + wob);
-      float crest = smoothstep(0.86, 1.0, roll) * (1.0 - smoothstep(1.2, 6.5, sea)) * smoothstep(-0.2, 0.6, sea);
+      float crest = smoothstep(0.86, 1.0, roll) * (1.0 - smoothstep(1.2, 6.5, sea)) * smoothstep(-0.2, 0.6, sea) * ${calm ? "0.0" : "1.0"};
       // the lapping edge: foam at the waterline, in and out
       float lap = 0.5 + 0.5 * sin(uTime * 0.85 + vSeaPos.x * 0.8 - vSeaPos.z * 0.6);
       float ragged = 0.5 + 0.5 * sin(vSeaPos.x * 5.3 + vSeaPos.z * 4.1 + uTime * 0.5);
@@ -53,6 +54,6 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       diffuseColor.rgb = water;`
     );
   };
-  m.customProgramCacheKey = () => "sea-water-2";
+  m.customProgramCacheKey = () => (calm ? "sea-water-2-calm" : "sea-water-2");
   m.needsUpdate = true;
 }

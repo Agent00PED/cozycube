@@ -162,6 +162,7 @@ export const RODS = {
   starlight: { name: "Starlight Master Rod", emoji: "🌠", tier: 4, price: TACKLE_PRICES.masterRod, barBonus: 0.2, tensionResist: 0.35, tensionWindow: 1.8, aura: true, perk: { name: "Starlight Dampener", dart: 0.25, feints: 0, shields: 0, blurb: "a boss fish darts 25% slower" }, blurb: "T4: up to mythic fish. +20% bar, the line holds 35% longer, a 1.8 s tension window, a star aura, and the Starlight Dampener (a boss fish darts 25% slower)." },
   moonlight: { name: "Mythril Moonlight Rod", emoji: "🌙", tier: 5, price: TACKLE_PRICES.moonlightRod, barBonus: 0.3, tensionResist: 0.45, tensionWindow: 2.1, aura: true, perk: { name: "Abyssal Tether", dart: 0.35, feints: 0.4, shields: 1, blurb: "a boss fish darts 35% slower and fakes 40% less, and one snap a fight is forgiven" }, blurb: "T5: the best odds of the rare end. +30% bar, the line holds 45% longer, a 2.1 s tension window, a moonlit aura, and the Abyssal Tether (a boss fish darts 35% slower, fakes 40% less, and one snap a fight is forgiven)." },
   tidewater: { name: "Tidewater Rod", emoji: "🌊", tier: 6, price: TACKLE_PRICES.tidewaterRod, barBonus: 0.35, tensionResist: 0.52, tensionWindow: 2.3, aura: true, perk: { name: "Tidal Anchor", dart: 0.4, feints: 0.5, shields: 1, blurb: "a boss fish darts 40% slower and fakes half as often, and one snap a fight is forgiven" }, blurb: "T6: lands the salt water's Epic and Legendary fish. +35% bar, the line holds 52% longer, a 2.3 s tension window, and the Tidal Anchor (a boss fish darts 40% slower, fakes half as often, and one snap a fight is forgiven)." },
+  deeptide: { name: "Deep Tide Rod", emoji: "🔱", tier: 7, price: TACKLE_PRICES.deepTideRod, barBonus: 0.4, tensionResist: 0.58, tensionWindow: 2.5, aura: true, perk: { name: "Abyssal Keel", dart: 0.45, feints: 0.55, shields: 2, blurb: "a boss fish darts 45% slower and fakes less than half as often, and two snaps a fight are forgiven" }, blurb: "T7: lands the mythic of the deep. +40% bar, the line holds 58% longer, a 2.5 s tension window, and the Abyssal Keel (a boss fish darts 45% slower, fakes less than half as often, and two snaps a fight are forgiven)." },
 } as const satisfies Record<string, Rod>;
 export type RodId = keyof typeof RODS;
 export const ROD_IDS = Object.keys(RODS) as RodId[];
@@ -397,6 +398,11 @@ export interface FishingProfile {
   bar: BarBook;
   /** A ticket's trip to sea under way (shared/voyage.ts): until you stand on the pier again. */
   seaTrip: boolean;
+  /** The torn sea chart (shared/voyage.ts): pieces found, catches since the last one, and the way to
+   *  the Hidden Cove once the captain has seen it whole. */
+  chart: number;
+  chartDry: number;
+  coveAccess: boolean;
 }
 /** The Prospector's Ledger's marks: Perfect strikes, the best run of them, geodes cracked, Star Shards
  *  cut, Masterwork ingots forged, Motherlodes broken. */
@@ -496,7 +502,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem, bonus = 0
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] }, bar: emptyBarBook(), seaTrip: false };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] }, bar: emptyBarBook(), seaTrip: false, chart: 0, chartDry: 0, coveAccess: false };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -688,6 +694,9 @@ function readFishingProfile(raw: unknown): FishingProfile {
   if (Array.isArray(r.codex)) p.codex = Array.from(new Set(r.codex.filter(isCodexId)));
   p.bar = sanitizeBarBook(r.bar);
   p.seaTrip = r.seaTrip === true;
+  p.chart = Math.max(0, Math.min(3, Math.floor(Number(r.chart) || 0)));
+  p.chartDry = Math.max(0, Math.min(100000, Math.floor(Number(r.chartDry) || 0)));
+  p.coveAccess = r.coveAccess === true;
   if (r.ledger && typeof r.ledger === "object") {
     for (const k of LEDGER_KEYS) {
       const n = Math.floor(Number((r.ledger as Record<string, unknown>)[k]));

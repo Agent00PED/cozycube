@@ -188,13 +188,15 @@ const WATERS: SimWater[] = [
   { where: "pier", water: "saltwater" as const, rapids: false, map: "sunset_beach" as MapId, spot: onPierAt(PIER_LENGTH - 2.2, 0.6), keeper: DUNE_FRONT },
   // (the Open Sea: back to the pier with the captain, up the pier to Dune, and out again on a new ticket)
   { where: "sea", water: "saltwater" as const, rapids: false, map: "open_sea" as MapId, spot: SEA_ARRIVAL, keeper: SEA_ARRIVAL, sea: { tripS: 2 * (walkS("sunset_beach", PIER_RETURN, DUNE_FRONT) + 12), ticket: TICKET_PRICE, minRod: SEA_CAST_ROD } },
+  // (the Hidden Cove: the same trip, and the sail on from the sea to the cove and back each way)
+  { where: "cove", water: "saltwater" as const, rapids: false, map: "hidden_cove" as MapId, spot: SEA_ARRIVAL, keeper: SEA_ARRIVAL, sea: { tripS: 2 * (walkS("sunset_beach", PIER_RETURN, DUNE_FRONT) + 24), ticket: TICKET_PRICE, minRod: SEA_CAST_ROD } },
 ];
 
 export function angler(rodTier: number, w: SimWater, gear: Loadout = NO_GEAR): Line {
   const rand = seeded(rodTier * 97 + w.where.length);
   const cap = CREEL_CAPACITY[rodTier - 1] + livewellBonus(gear);
   const trip = (w.sea ? w.sea.tripS : 2 * walkS(w.map, w.spot, w.keeper)) / gearPace(gear) + STEADY.sellS;
-  const where = w.where === "sea" ? ("sea" as const) : undefined;
+  const where = w.where === "sea" ? ("sea" as const) : w.where === "cove" ? ("cove" as const) : undefined;
   const pays = sellBonus(gear);
   let t = 0;
   let coins = 0;
@@ -596,6 +598,9 @@ export const TARGETS = { river: [25, 35, 50, 70, 95], wood: [25, 35, 50, 70, 95,
  *  Sea, net of its tickets, and about three quarters of that off the pier; an Expedition rod (T5) at
  *  sea earns about what it does at the cenote, its best water before. */
 export const SEA_TARGET = { tier: 6, sea: 250, pierShare: 0.75 };
+/** The Hidden Cove: a Deep Tide rod (T7) earns 300 a minute there; a Tidewater rod (T6) a little more
+ *  than it does at sea (the secret is worth finding), never as much as the rod made for it. */
+export const COVE_TARGET = { tier: 7, cove: 300 };
 /** The fresh waters' ladder: five tiers (the rods beyond are made for the sea). */
 const FRESH_TIERS = [1, 2, 3, 4, 5];
 export const CENOTE_OVER_RIVER = 1.7;

@@ -252,7 +252,7 @@ export interface PropSpec {
   x: number;
   y?: number;
   z: number;
-  kind: "lamp" | "cat" | "boardgame" | "kitchen" | "radio" | "plant" | "bonfire" | "fishing" | "telescope" | "foraging" | "fireflies" | "critter" | "angler" | "lumberjack" | "workbench" | "boutique" | "archway" | "slingshot" | "splitblock" | "tree" | "ranger" | "animal" | "adit" | "miner" | "prospector" | "forge" | "anvil" | "ore" | "winch" | "bartender" | "barshift" | "captain" | RingPropKind | CasinoPropKind;
+  kind: "lamp" | "cat" | "boardgame" | "kitchen" | "radio" | "plant" | "bonfire" | "fishing" | "telescope" | "foraging" | "fireflies" | "critter" | "angler" | "lumberjack" | "workbench" | "boutique" | "archway" | "slingshot" | "splitblock" | "tree" | "ranger" | "animal" | "adit" | "miner" | "prospector" | "forge" | "anvil" | "ore" | "winch" | "bartender" | "barshift" | "captain" | "clam" | "covebench" | RingPropKind | CasinoPropKind;
   color: string;
   defaultOn: boolean;
   approachX?: number;

@@ -81,9 +81,9 @@ export const WATER_ODDS: Record<OddsWater, readonly TierOdds[]> = {
   // common, T4 uncommon, T5 rare, T6 the Epic kinds (the rare column's rarest) and the legendaries; the
   // mythic only in the cove, on a T7 rod. Each water further out is a little kinder on the same rod.
   // Only a T5 rod or better casts at sea or in the cove: their first four rows are never read.)
-  pier: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.65, 0.27, 0.08), odds(0.5, 0.3, 0.17, 0.03), odds(0.43, 0.3, 0.22, 0.05)],
-  sea: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.55, 0.32, 0.13), odds(0.5, 0.31, 0.17, 0.02), odds(0.4, 0.31, 0.24, 0.05)],
-  cove: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.5, 0.34, 0.16), odds(0.36, 0.32, 0.26, 0.06), odds(0.28, 0.3, 0.3, 0.09, 0.03)],
+  pier: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.65, 0.27, 0.08), odds(0.5, 0.3, 0.17, 0.03), odds(0.47, 0.3, 0.195, 0.035)],
+  sea: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.55, 0.32, 0.13), odds(0.5, 0.31, 0.17, 0.02), odds(0.47, 0.31, 0.205, 0.015)],
+  cove: [odds(1, 0), odds(1, 0), odds(1, 0), odds(0.8, 0.2), odds(0.56, 0.32, 0.12), odds(0.5, 0.32, 0.165, 0.015), odds(0.5, 0.31, 0.175, 0.012, 0.003)],
   cenote: [odds(0.9, 0.1), odds(0.79, 0.19, 0.02), odds(0.7, 0.255, 0.04, 0.005), odds(0.57, 0.31, 0.105, 0.013, 0.002), odds(0.5, 0.327, 0.14, 0.028, 0.005), odds(0.45, 0.33, 0.17, 0.04, 0.01), odds(0.41, 0.33, 0.195, 0.055, 0.01)],
 };
 export const AFK_BAITED_TIER_ODDS: readonly TierOdds[] = [
@@ -121,6 +121,8 @@ export const TACKLE_PRICES = {
   // (T6 Tidewater, made at Dune's shack on Sunset Beach: 360 minutes of what an Expedition rod earns
   // at its best water, the cenote, with makings from all three crafts; docs/beach-design.md section 6)
   tidewaterRod: 58000,
+  // (T7 Deep Tide, made at the Hidden Cove's bench: pearls and the three crafts' rarest drops)
+  deepTideRod: 150000,
 } as const;
 
 // --- the woodpile -----------------------------------------------------------------------------------
@@ -188,7 +190,7 @@ export const PRE_PHASE1 = {
  *  Heartwood off a Colossal Primordial Elderwood) and the river's (Fish Scales off any fish, a Fine
  *  Fish Bone off a rare or better, a Prismatic Scale off a legendary or a mythic): what Bramble and
  *  Buster pay for each, and how much of the bonfire a handful of Ancient Wood Shavings feeds (%). */
-export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1, silverBark: 15, heartwood: 150, fishBone: 30, prismScale: 180, stoneDust: 10 } as const;
+export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1, silverBark: 15, heartwood: 150, fishBone: 30, prismScale: 180, stoneDust: 10, pearl: 60 } as const;
 export const SHAVINGS_FUEL = 15;
 /** Buster's forest permits: a Day Trip (one way in through the archway, used on entering) and the
  *  Ranger's Badge (the Whispering Woods for good). */
