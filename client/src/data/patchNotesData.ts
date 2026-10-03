@@ -2156,6 +2156,19 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.8.10",
+        date: "2026-10-03",
+        title: "Night on the Water",
+        summary: "After dark the surf glows, and fireflies come out in the palm groves.",
+        changes: {
+          features: [
+            "🌊 By night every breaking wave on Sunset Beach and the Open Sea carries a little light of its own: a soft blue-green glow in the surf.",
+            "✨ Fireflies drift among the palms after dark.",
+            "🧭 The trip to the Open Sea and the way to the hidden place each have a screen of their own.",
+          ],
+        },
+      },
     ],
   },
 ];

@@ -222,6 +222,12 @@ restart mid-bout is a No Contest), Retro Arcade and the
 Gaming Cafe (registered, not built:
 each is a bare floor with no seats or props until its world is authored).
 
+The second round's last touches (patch 0.8.10):
+- **The surf glows by night** (scene/seaWater.ts: `seaGlow`, the foam's share times `uNight`, added to the emissive; cache key `sea-water-3`; never on the cove's calm water).
+- **Fireflies in the palm groves** after dark (BeachLife.tsx: a `MotePoints`, each keeping to one palm).
+- **Trip screens:** `tw-sea` (the Open Sea) and `tw-cove` (the Hidden Cove) in WorldTransitionScreen, beside `tw-beach`.
+- **Still open from the beach's plan:** new art for the lobby's backdrop (it is still the campfire by night), T7 storage (no Deep Tide livewell, carrier or satchel), a fossil of the reef's own in the codex, chips off a strike outside the caverns. The sound of the three maps has never been listened to.
+
 The second round's sea (patch 0.8.9), the Open Sea's living wonders and its looks:
 - **The wonders** (shared/voyage.ts `SeaEvent`: `whale`, `dolphins`, `shoal`; `SEA_EVENT_EVERY_MIN` 9-15, `SEA_EVENT_S` 180, `SEA_EVENT_INFO`): BeachSea `tick` (run every room tick) starts one while anyone is on `open_sea` (the first of a trip after 0.4 of a gap, never the same twice running), tells it to everyone at sea as `seaEvent` (null when it has gone; the host's `toSea`), and to whoever sails out while it lasts. Never saved, never in the room's schema. `luck()` is what it gives an angler on the Open Sea: the whale `WHALE_KING` 0.25 on a hand-reeled catch's King Size chance, the dolphins `DOLPHIN_HASTE` 0.75 on the bite's wait, the shoal `SHOAL_LUCK` 0.5 rare luck (the room adds them where it adds a surge's, a Cave Cloud's and the gear's). `devSeaEvent` (outside production) brings one on.
 - **The client**: systems/seaEventStore.ts (the event as last told, out of React state), `SeaEventPill` (under the header on the Open Sea), scene/SeaLife.tsx in SeaWorld (beach_life.glb's templates: two gulls and a leaping fish always; the whale's back along the starboard side with its flukes up in its last six seconds, four dolphins circling, silver glints round the hull). 66 draw calls with one player.
