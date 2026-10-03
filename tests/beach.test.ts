@@ -142,7 +142,7 @@ test("the Bar Book: counts, best stars, the run of Perfects, the titles; kept in
 import { FISH as FISH7, gradeOf as gradeOf7, rollFish as rollFish7, type FishId as FishId7, type FishSpecies as Species7 } from "../shared/fishing";
 import { SEA_FISH_IDS, SEA_MIN_ROD, zoneOf } from "../shared/sea_fishing";
 import { fishRate as fishRate7 } from "../shared/keepers";
-import { DUNE, DUNE_FRONT, beachCast } from "../shared/worlds/beach";
+import { BOAT, DUNE, DUNE_FRONT, beachCast } from "../shared/worlds/beach";
 
 /** What a rod lands in a salt water, over many casts: the grades seen. */
 function grades(where: "pier" | "sea" | "cove", rodTier: number, afk = false, time: "day" | "night" = "day") {
@@ -195,10 +195,14 @@ test("each salt-water fish swims in its own water, and by its own hour off the p
 });
 
 test("a cast on Sunset Beach lands on open water: from the pier's edge, never onto the sand or under the deck", () => {
-  const edge = onPierAt(PIER_LENGTH - 1.5, PIER.headHalf - 0.3);
-  // facing out over the side: straight ahead; facing back up the pier: no cast straight at the sand
-  const out = beachCast(edge.x, edge.z, 0.7071, -0.7071);
+  // facing out over the pier's south-west side: straight ahead, on deep water
+  const edge = onPierAt(PIER_LENGTH - 1.5, -PIER.headHalf + 0.3);
+  const out = beachCast(edge.x, edge.z, -0.7071, 0.7071);
   assert.ok(out && beachGroundY(out.x, out.z) < -0.3);
+  // facing the captain's boat on the other side: the float never lands on its deck
+  const boatSide = onPierAt(PIER_LENGTH - 1.5, PIER.headHalf - 0.3);
+  const toBoat = beachCast(boatSide.x, boatSide.z, 0.7071, -0.7071);
+  assert.ok(!toBoat || Math.hypot(toBoat.x - BOAT.x, toBoat.z - BOAT.z) > 1.9, "not onto the boat");
   const inland = at(9, 0);
   assert.equal(beachCast(inland.x, inland.z, -0.7071, -0.7071), null, "no water in reach of the bar");
   // Dune stands inside his shack; you stand in front of it
