@@ -15,7 +15,10 @@ import { prospectStore } from "../systems/prospectStore";
 import { noRaycast } from "./kit";
 import { NODE_YAW } from "./caveNodes";
 import { prospectShake } from "./prospectCamera";
-import { caveFx } from "./caveFx";
+import { cavernsFloorY } from "@shared/worlds/caverns";
+import { beachLand } from "@shared/worlds/beach";
+import { coveLand } from "@shared/worlds/cove";
+import { caveFx, fxFloor } from "./caveFx";
 import { CaveFxLayer } from "./caveOres";
 import { ProspectingView } from "./ProspectingView";
 
@@ -68,6 +71,13 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike, map }: 
   me.current = localSessionId;
   // (the caverns' own pools of sparks and dust: drawn here by CaveFxLayer)
   const { fx, puffs } = useMemo(() => caveFx(), []);
+  // (the chips bounce on this map's own ground while its rocks are drawn)
+  useEffect(() => {
+    fxFloor.y = map === "hidden_cove" ? coveLand : beachLand;
+    return () => {
+      fxFloor.y = cavernsFloorY;
+    };
+  }, [map]);
 
   useEffect(
     () =>
@@ -81,7 +91,10 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike, map }: 
           const out = new THREE.Vector3(...st.hit);
           const at = new THREE.Vector3(hitNode.x, hitNode.y + oreCenterY(kind), hitNode.z).addScaledVector(out, ORE_KINDS[kind].radius * 0.95);
           fx.sparks(at, out, st.verdict === "direct" ? ORE_KINDS[kind].glow : st.verdict === "near" ? "#ffb46b" : st.verdict === "deflect" ? "#cfe6ff" : "#9a948c", st.verdict === "direct" ? 12 : 6, st.verdict === "bedrock" ? 0.6 : 1);
-          if (st.verdict !== "deflect") puffs.burst(at, out, "#d8cdb8", st.verdict === "direct" ? 4 : 3, 0.4, 0.9, 0.42);
+          if (st.verdict !== "deflect") {
+            fx.chips(at, out, kind === "pearl" ? "#cfc6d8" : "#c9b394", st.verdict === "direct" ? 7 : st.verdict === "near" ? 5 : 3);
+            puffs.burst(at, out, "#d8cdb8", st.verdict === "direct" ? 4 : 3, 0.4, 0.9, 0.42);
+          }
           if (st.perfect) fx.sparks(at, out, "#fff4d6", 10, 1.3);
           const mine = st.sessionId === me.current;
           prospectStore.strike(st, mine);
@@ -97,6 +110,7 @@ function ReefModels({ ores, subscribeMessages, localSessionId, onStrike, map }: 
           const broke = NODES.find((n) => n.id === sh.node)!;
           const mid = new THREE.Vector3(broke.x, broke.y + oreCenterY(kind), broke.z);
           fx.shards(mid, ORE_KINDS[kind].radius, ORE_KINDS[kind].glow, 26);
+          fx.chips(mid, new THREE.Vector3(0, 0.4, 0), kind === "pearl" ? "#cfc6d8" : "#c9b394", 12);
           puffs.burst(mid, new THREE.Vector3(0, 0.3, 0), "#d8cdb8", 8, ORE_KINDS[kind].radius * 1.8, 1.6, 0.5);
           if (sh.crew.includes(me.current ?? "")) prospectShake(0.14);
         }

@@ -389,7 +389,8 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
    a turtle, sandpipers, dolphins, a ukulele at dusk); the cove remade and given the T7 gathering
    (Drowned Ironwood and the Deep Tide Axe, Pearl Rock and the Deep Tide Pickaxe, pearl jewellery, a
    Pearl-set ring); the Open Sea's living wonders (a whale, dolphins, a shoal) and its dressing; a
-   glowing night surf and fireflies. Still open: the lobby's art, T7 storage, a reef fossil of its own.
+   glowing night surf and fireflies. The loose ends (patch 0.8.11): T7 storage at the cove's bench, the
+   reef's own fossil, chips on the sand, a beach backdrop for the lobby. Nothing of the plan is open.
 7. **Dressing and life (done in part, patch 0.8.6).** The sea's sound on all three maps (surf and
    breaking waves, gulls by day, the boat's creak, the cove's hush and drips), three gulls and seven
    crabs on the beach, the Beachcomber's outfit at Dune's. **Not done:** the turtle, the sea's wonders,

@@ -81,6 +81,9 @@ export interface CodexEntry {
   /** A line or two of lore (a journal page's whole text). */
   lore: string;
   coins: number;
+  /** Found off the caverns' own ground (the beach's reef): shown in its section, never counted toward
+   *  completing it. */
+  extra?: boolean;
 }
 
 const zone = (id: string, name: string, emoji: string, lore: string): CodexEntry => ({ id: `zone_${id}`, section: "zones", name, emoji, lore, coins: 15 });
@@ -109,6 +112,7 @@ export const CODEX: CodexEntry[] = [
   { id: "fossil_ammonite", section: "finds", name: "Ammonite", emoji: "🌀", lore: "A coiled shell, its chambers filled in with glittering calcite.", coins: 40 },
   { id: "fossil_fern", section: "finds", name: "Fossil Fern Frond", emoji: "🌿", lore: "Pressed into the coal like a flower in a book: the forest the coal once was.", coins: 40 },
   { id: "fossil_tooth", section: "finds", name: "Cave Bear Tooth", emoji: "🦷", lore: "Enormous, and very old. Something slept down here long before the badgers came.", coins: 40 },
+  { id: "fossil_coral", section: "finds", name: "Brain Coral Fossil", emoji: "🪸", lore: "Out of the reef rock on Sunset Beach, or the pearl rock beyond it: a whole coral head turned to stone, every fold of it kept. Old Flint would give his lantern to see it.", coins: 60, extra: true },
   { id: "page_1", section: "journal", name: "Journal, page 1: The Collapse", emoji: "📜", lore: "Day one. The roof fell in here long before any of us: sunlight on a cave floor, and a forest grew up to meet it. Gus says the copper tastes of rain.", coins: 20 },
   { id: "page_2", section: "journal", name: "Journal, page 2: The Breakdown", emoji: "📜", lore: "The breakdown groans at night. Old slabs settling, Gus says. I say the mountain is still deciding where to lie down. Mind your head, and mind the coal seams.", coins: 20 },
   { id: "page_3", section: "journal", name: "Journal, page 3: The Bats", emoji: "📜", lore: "The bats know the way out. At dusk they pour from the west wall in a river of wings and up through the collapse. I followed them once, as far as a badger can.", coins: 20 },
@@ -124,15 +128,23 @@ export const CODEX: CodexEntry[] = [
 ];
 export const CODEX_BY_ID: ReadonlyMap<string, CodexEntry> = new Map(CODEX.map((e) => [e.id, e]));
 export const isCodexId = (v: unknown): v is string => typeof v === "string" && CODEX_BY_ID.has(v);
-export const FOSSILS = CODEX.filter((e) => e.id.startsWith("fossil_")).map((e) => e.id);
+export const FOSSILS = CODEX.filter((e) => e.id.startsWith("fossil_") && !e.extra).map((e) => e.id);
+/** The reef's own fossil (off reef or pearl rock only), and its chance on each such rock you help break. */
+export const REEF_FOSSIL = "fossil_coral";
+export const REEF_FOSSIL_CHANCE = 0.06;
 /** A fossil's chance on each node you help break (while you are missing one). */
 export const FOSSIL_CHANCE = 0.035;
 /** The fauna's homes: where you must be to meet each (a zone, or the capybara's pool within 6 m). */
 export const FAUNA_ZONE: Record<string, string> = { fauna_crab: "lake", fauna_swift: "jungle", fauna_bat: "mudflats", fauna_capybara: "terraces", fauna_glowworm: "rift" };
 
 /** Where a section stands in a codex: found and all. */
+/** How many entries the codex counts (the extras, found off the caverns' ground, are on top). */
+export const CODEX_COUNT = CODEX.filter((e) => !e.extra).length;
+/** How many of them a player has found. */
+export const codexFound = (found: readonly string[]) => CODEX.filter((e) => !e.extra && found.includes(e.id)).length;
+
 export function codexProgress(found: readonly string[], section: CodexSection): { found: number; all: number } {
-  const all = CODEX.filter((e) => e.section === section);
+  const all = CODEX.filter((e) => e.section === section && !e.extra);
   return { found: all.filter((e) => found.includes(e.id)).length, all: all.length };
 }
 

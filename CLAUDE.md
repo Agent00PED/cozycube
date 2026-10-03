@@ -222,11 +222,20 @@ restart mid-bout is a No Contest), Retro Arcade and the
 Gaming Cafe (registered, not built:
 each is a bare floor with no seats or props until its world is authored).
 
+The beach's loose ends (patch 0.8.11):
+- **T7 storage, made at the cove's bench** (shared/expedition.ts `deepLivewell`, `deepCarrier`, `deepSatchel`, place "cove"; half their tool: 75,000 / 75,000 / 90,000, pearls and makings; each after its Tidewater one): the Deep Tide Hold (`CREEL_TIERS[6]`, 100 fish), the Deep Tide Timber Barrow (`WOOD_CARRIER_TIERS[6]`, 100 logs), the Deep Tide Ore Chest (`SATCHEL_TIERS[7]`, 28 slots). `CoveBenchModal` lists the three tools, then the three stores (`COVE_ORDER`).
+- **The Deep Tide Axe** is `zoneBonus` 0.45, `slow` 0.25 (a slower ring costs the simulator's woodcutter time: at 0.3 it earned less than the Tidewater Axe on the palms).
+- **The reef's own fossil** (shared/caverns_codex.ts `fossil_coral`, `REEF_FOSSIL`, `REEF_FOSSIL_CHANCE` 0.06: from reef and pearl rock only): a codex entry marked `extra`, shown in its section and paid its coins, never counted (`codexProgress`, `CODEX_COUNT`, `codexFound`, `FOSSILS` all leave extras out) and never completing a section (caverns.ts `addCodex`), so no one's finished section or title moves.
+- **Chips outside the caverns:** caveFx's `fxFloor.y` is the ground the chips bounce on (the caverns' floor by default); ReefRock sets it to `beachLand` / `coveLand` while it is mounted and throws chips on every strike and break.
+- **The lobby's backdrop** is one of two, picked as the page loads: `/images/lobby-campfire.jpg` or `/images/lobby-beach.jpg` (Sunset Beach by night, from the game's renderer). The update screens keep the campfire.
+- **Tests:** tests/cove.test.ts covers the Deep Tide storage, the fossil's counting, and the pearl jewellery and Pearl-set ring through the forge's own handlers (`CavernsMine.prototype` with a stub host).
+- **Seen in the browser:** the dolphins and the shoal, both trip screens' classes, the fireflies, the three stores made through the bench's panel, chips at rest on the cove's sand, the beach at phone size (80 draw calls). **Never listened to:** the sound of the three maps (the test browser has no audio).
+
 The second round's last touches (patch 0.8.10):
 - **The surf glows by night** (scene/seaWater.ts: `seaGlow`, the foam's share times `uNight`, added to the emissive; cache key `sea-water-3`; never on the cove's calm water).
 - **Fireflies in the palm groves** after dark (BeachLife.tsx: a `MotePoints`, each keeping to one palm).
 - **Trip screens:** `tw-sea` (the Open Sea) and `tw-cove` (the Hidden Cove) in WorldTransitionScreen, beside `tw-beach`.
-- **Still open from the beach's plan:** new art for the lobby's backdrop (it is still the campfire by night), T7 storage (no Deep Tide livewell, carrier or satchel), a fossil of the reef's own in the codex, chips off a strike outside the caverns. The sound of the three maps has never been listened to.
+- **What this block left open** was done in patch 0.8.11 (above).
 
 The second round's sea (patch 0.8.9), the Open Sea's living wonders and its looks:
 - **The wonders** (shared/voyage.ts `SeaEvent`: `whale`, `dolphins`, `shoal`; `SEA_EVENT_EVERY_MIN` 9-15, `SEA_EVENT_S` 180, `SEA_EVENT_INFO`): BeachSea `tick` (run every room tick) starts one while anyone is on `open_sea` (the first of a trip after 0.4 of a gap, never the same twice running), tells it to everyone at sea as `seaEvent` (null when it has gone; the host's `toSea`), and to whoever sails out while it lasts. Never saved, never in the room's schema. `luck()` is what it gives an angler on the Open Sea: the whale `WHALE_KING` 0.25 on a hand-reeled catch's King Size chance, the dolphins `DOLPHIN_HASTE` 0.75 on the bite's wait, the shoal `SHOAL_LUCK` 0.5 rare luck (the room adds them where it adds a surge's, a Cave Cloud's and the gear's). `devSeaEvent` (outside production) brings one on.

@@ -246,6 +246,7 @@ export const CREEL_TIERS: CreelTier[] = [
   { id: "creel_tier_4", name: "Ice Cooler Livewell", capacity: CREEL_CAPACITY[3], price: CREEL_PRICES[3], icon: "🧊" },
   { id: "creel_tier_5", name: "Starlight Deep Livewell", capacity: CREEL_CAPACITY[4], price: CREEL_PRICES[4], icon: "✨" },
   { id: "creel_tier_6", name: "Tidewater Hold", capacity: CREEL_CAPACITY[5], price: CREEL_PRICES[5], icon: "🌊" },
+  { id: "creel_tier_7", name: "Deep Tide Hold", capacity: CREEL_CAPACITY[6], price: CREEL_PRICES[6], icon: "⚓" },
 ];
 /** A creel tier (1-based, clamped), and the next one up (null at the top). */
 export function creelTier(tier: number): CreelTier {

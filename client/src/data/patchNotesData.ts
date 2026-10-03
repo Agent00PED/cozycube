@@ -2169,6 +2169,22 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.8.11",
+        date: "2026-10-04",
+        title: "Deep Tide Storage",
+        summary: "The deepest hold, barrow and ore chest, and a fossil the reef has kept.",
+        changes: {
+          features: [
+            "🔱 Three more things at the far bench: the Deep Tide Hold (100 fish), the Deep Tide Timber Barrow (100 logs) and the Deep Tide Ore Chest (28 slots), each made after its Tidewater one.",
+            "🪸 A Brain Coral Fossil turns up now and then in reef rock and pearl rock rubble: a bonus page in the Cave Codex's finds.",
+            "🪨 Rock chips fly off every strike on the reef and the pearl rock and come to rest on the sand.",
+            "🏝️ The lounge picker now opens over the campfire or over Sunset Beach by night.",
+          ],
+          economy: ["🪓 The Deep Tide Axe: a 45% wider sweet spot and the ring 25% slower (it was 40% and 30%), so it is never slower than the Tidewater Axe on the palms."],
+          fixes: ["✨ A shoal under the keel flashes fuller.", "🪮 The Nacre Comb's note now gives its real makings (3 Mother-of-Pearl)."],
+        },
+      },
     ],
   },
 ];

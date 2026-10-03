@@ -95,7 +95,7 @@ import { DRIP_EVERY_S, DRIP_REACH, DRIP_S, GLOW_LURE_GRACE_S, type CaveDrip } fr
 import { HEARTH_EARSHOT, HEARTH_STORIES, HEARTH_STORY_S } from "../../../shared/caverns_codex";
 import { WEEKLY_BONUS, weekKey, weeklyGoals, weeklyProgress, weeklySnapshot } from "../../../shared/caverns_weekly";
 import { AWAKEN_S, MASTER_SWEET, MASTERY_EXTRA, MASTERY_ORE, MOTHERLODE_EVERY_S, MOTHERLODE_KINDS, MOTHERLODE_S, MOTHERLODE_YIELD, RANK_NAMES, masteryRank, masteryTitles } from "../../../shared/caverns_mastery";
-import { BLOOM_REGROW, BLOOM_YIELD, CAVE_EVENT_EVERY_MIN, CAVE_EVENT_INFO, CAVE_EVENT_S, CLOUD_LUCK, CODEX, CODEX_BY_ID, CODEX_SECTIONS, EXODUS_S, FAUNA_ZONE, FOSSILS, FOSSIL_CHANCE, ROCKFALL_S, caveEventOn, codexProgress, type CaveEvent, type CaveEventKind, codexTitles } from "../../../shared/caverns_codex";
+import { BLOOM_REGROW, BLOOM_YIELD, CAVE_EVENT_EVERY_MIN, CAVE_EVENT_INFO, CAVE_EVENT_S, CLOUD_LUCK, CODEX_COUNT, CODEX_BY_ID, codexFound, CODEX_SECTIONS, EXODUS_S, FAUNA_ZONE, FOSSILS, FOSSIL_CHANCE, REEF_FOSSIL, REEF_FOSSIL_CHANCE, ROCKFALL_S, caveEventOn, codexProgress, type CaveEvent, type CaveEventKind, codexTitles } from "../../../shared/caverns_codex";
 import { dayPhase, DAY_CYCLE_MS } from "../../../shared/daynight";
 import { DUNE_FRONT, DUNE_REACH } from "../../../shared/worlds/beach";
 import { GUS_SATCHEL_TIER, nextSatchelTier, satchelAdd, satchelCount, satchelCountFor, satchelCounts, satchelHasRoom, satchelTake, satchelTakeFor, satchelTier, type SatchelTier } from "../../../shared/satchel";
@@ -740,7 +740,9 @@ export class CavernsMine {
       }
       // now and then a fossil turns up in the rubble (one you haven't found)
       const missing = FOSSILS.filter((f) => !kit.codex.includes(f));
-      if (missing.length && Math.random() < FOSSIL_CHANCE) this.addCodex(id, missing[Math.floor(Math.random() * missing.length)]);
+      // (reef and pearl rock: their own fossil first, the Brain Coral)
+      if ((node.kind === "reef" || node.kind === "pearl") && !kit.codex.includes(REEF_FOSSIL) && Math.random() < REEF_FOSSIL_CHANCE) this.addCodex(id, REEF_FOSSIL);
+      else if (missing.length && Math.random() < FOSSIL_CHANCE) this.addCodex(id, missing[Math.floor(Math.random() * missing.length)]);
       this.weekly(id);
       this.host.saveProfile(id);
       this.host.sendTo(id, "caveLoot", { node: node.id, items, ...(dust > 0 ? { dust } : {}), lost, mult, perfect: double, ...(streak > 0 ? { streak } : {}), ...(lode ? { lode: true } : {}), ...(clean ? { clean: true } : {}) } satisfies CaveLoot);
@@ -1218,7 +1220,7 @@ export class CavernsMine {
       case "upgradeSatchel": {
         const next = nextSatchelTier(kit.satchelTier);
         if (!next) return this.reply(sessionId, false, "That's the finest vault under the earth!");
-        if (next.tier > GUS_SATCHEL_TIER) return this.reply(sessionId, false, `The ${next.name} is made at Dune's shack on Sunset Beach`);
+        if (next.tier > GUS_SATCHEL_TIER) return this.reply(sessionId, false, next.tier > GUS_SATCHEL_TIER + 1 ? `The ${next.name} is made far out at sea, where the pearl rock is` : `The ${next.name} is made at Dune's shack on Sunset Beach`);
         if (player.coins < next.price) return this.reply(sessionId, false, `The ${next.name} is ${next.price.toLocaleString("en-US")} 🪙`);
         const missing = this.missingFor(kit, next.needs);
         if (missing.length) return this.reply(sessionId, false, `The ${next.name} takes ${missing.join(", ")} more`);
@@ -1460,11 +1462,12 @@ export class CavernsMine {
     let coins = entry.coins;
     const section = CODEX_SECTIONS.find((s) => s.id === entry.section)!;
     const prog = codexProgress(kit.codex, entry.section);
-    const complete = prog.found === prog.all;
+    // (an extra, the reef's fossil, completes nothing: the section's bonus is never paid twice)
+    const complete = !entry.extra && prog.found === prog.all;
     if (complete) coins += section.bonus;
     this.host.addCoins(sessionId, coins);
     this.host.saveProfile(sessionId);
-    this.host.sendTo(sessionId, "caveCodex", { id, coins, complete: complete ? section.id : undefined, found: kit.codex.length, all: CODEX.length });
+    this.host.sendTo(sessionId, "caveCodex", { id, coins, complete: complete ? section.id : undefined, found: codexFound(kit.codex), all: CODEX_COUNT });
     if (complete) this.grantCodexTitles(sessionId);
   }
 

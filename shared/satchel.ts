@@ -48,6 +48,8 @@ export const SATCHEL_TIERS: SatchelTier[] = [
   { tier: 5, name: "Titan Core Vault", icon: "🗄️", slots: 20, price: SATCHEL_PRICES[5], needs: { byproducts: { heartwood: 2 }, ore: { core_fragment: 2 } } },
   // (made at Dune's shack on Sunset Beach, never sold by Gus: shared/expedition.ts `tideSatchel`)
   { tier: 6, name: "Tidewater Ore Crate", icon: "📦", slots: 24, price: SATCHEL_PRICES[6], needs: {} },
+  // (made at the Hidden Cove's bench: `deepSatchel`)
+  { tier: 7, name: "Deep Tide Ore Chest", icon: "🧰", slots: 28, price: SATCHEL_PRICES[7], needs: {} },
 ];
 /** The last satchel Gus sells (the one above is made at Dune's). */
 export const GUS_SATCHEL_TIER = 5;

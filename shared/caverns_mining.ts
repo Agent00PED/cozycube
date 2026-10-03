@@ -78,7 +78,7 @@ export const ORE_ITEMS: Record<OreItemId, OreItem> = {
   sea_glass: { name: "Sea Glass", emoji: "🔷", cat: "gem", price: ORE_PRICES.sea_glass, color: "#7fe0d0", blurb: "A frosted green pebble out of the reef rock: the sea made it, and took its time" },
   nacre: { name: "Mother-of-Pearl", emoji: "🐚", cat: "raw", price: ORE_PRICES.nacre, color: "#f1e9f6", blurb: "Off the pearl rock in the Hidden Cove's wall: old shell laid down in shining sheets" },
   black_pearl: { name: "Black Pearl", emoji: "⚫", cat: "gem", price: ORE_PRICES.black_pearl, color: "#3b3a52", blurb: "Out of the pearl rock, once in a long while: dark, with a green fire in it" },
-  nacre_comb: { name: "Nacre Comb", emoji: "🪮", cat: "ware", price: ORE_PRICES.nacre_comb, color: "#f1e9f6", blurb: "4 Mother-of-Pearl on a Copper Ingot's spine, smithed at the forge" },
+  nacre_comb: { name: "Nacre Comb", emoji: "🪮", cat: "ware", price: ORE_PRICES.nacre_comb, color: "#f1e9f6", blurb: "3 Mother-of-Pearl on a Copper Ingot's spine, smithed at the forge" },
   pearl_necklace: { name: "Mother-of-Pearl Necklace", emoji: "📿", cat: "ware", price: ORE_PRICES.pearl_necklace, color: "#f7f0fa", blurb: "4 Mother-of-Pearl strung on the silver of 2 ingots" },
   black_pearl_brooch: { name: "Black Pearl Brooch", emoji: "🖤", cat: "ware", price: ORE_PRICES.black_pearl_brooch, color: "#3b3a52", blurb: "A Black Pearl in the silver of 2 ingots" },
   copper_ingot: { name: "Copper Ingot", emoji: "🟧", cat: "ingot", price: ORE_PRICES.copper_ingot, color: "#e0894a", blurb: "3 Raw Copper and 1 Coal, at the Thermal Bellows Forge" },

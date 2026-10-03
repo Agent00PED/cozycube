@@ -1,6 +1,14 @@
 // The Hidden Cove (shared/worlds/cove.ts, shared/voyage.ts, server/src/rooms/beachSea.ts): the torn
 // chart, the way in, the clams, the Deep Tide rod, and what it earns: `npm test`.
 import { test } from "node:test";
+import { CavernsMine } from "../server/src/rooms/caverns";
+import { CODEX, CODEX_BY_ID, FOSSILS, REEF_FOSSIL, codexProgress } from "../shared/caverns_codex";
+import { FORGE_WARES, ORE_ITEMS, type OreItemId } from "../shared/caverns_mining";
+import { WOOD_CARRIER_TIERS } from "../shared/chop";
+import { RING_BANDS } from "../shared/gear";
+import { CREEL_TIERS } from "../shared/fishing";
+import { SATCHEL_MAX_TIER, SATCHEL_TIERS, satchelCount } from "../shared/satchel";
+import { forgedBlocked } from "../shared/expedition";
 import assert from "node:assert/strict";
 import { BeachSea, type SeaHost, type SeaPlayer } from "../server/src/rooms/beachSea";
 import { isBlocked, walkY } from "../shared/collision";
@@ -343,4 +351,101 @@ test("the cove's T7 income: ironwood and pearl rock each earn their target there
   for (const where of ["campfire", "woods", "beach"]) assert.ok(at(wood, where) < iron, `wood: ${where} under the cove`);
   for (const where of ["caverns", "beach"]) assert.ok(at(ore, where) < pearl, `ore: ${where} under the cove`);
   assert.ok(!wood.some((l) => l.where === "cove" && l.tier < 7), "no lesser axe fells an ironwood");
+});
+
+test("the Deep Tide storage: a hold, a barrow and an ore chest, each made at the cove's bench after its Tidewater one, at half its tool", () => {
+  assert.equal(CREEL_TIERS.length, 7);
+  assert.equal(WOOD_CARRIER_TIERS.length, 7);
+  assert.equal(SATCHEL_MAX_TIER, 7);
+  assert.equal(FORGED_TOOLS.deepLivewell.coins * 2, TACKLE_PRICES.deepTideRod);
+  assert.equal(FORGED_TOOLS.deepCarrier.coins * 2, AXE7.deeptide);
+  assert.equal(FORGED_TOOLS.deepSatchel.coins * 2, PICK7.deeptide);
+  for (const id of ["deepLivewell", "deepCarrier", "deepSatchel"] as const) assert.equal(FORGED_TOOLS[id].place, "cove");
+  // each holds more than the tier before it
+  assert.ok(CREEL_TIERS[6].capacity > CREEL_TIERS[5].capacity && WOOD_CARRIER_TIERS[6].capacity > WOOD_CARRIER_TIERS[5].capacity && SATCHEL_TIERS[7].slots > SATCHEL_TIERS[6].slots);
+  const w = world(400_000);
+  w.player.map = "hidden_cove";
+  w.stand(COVE_BENCH_FRONT);
+  w.profile.satchelTier = 5;
+  w.profile.satchelSlots = 20;
+  satchelAdd(w.profile, "iron_ingot", 12);
+  satchelAdd(w.profile, "silver_ingot", 4);
+  satchelAdd(w.profile, "nacre", 10);
+  w.profile.byproducts = { pearl: 24, scales: 30, ironbark: 10 };
+  // without the Tidewater tier first: no
+  for (const id of ["deepLivewell", "deepCarrier", "deepSatchel"] as const) {
+    assert.ok(forgedBlocked(w.profile, id));
+    w.sea.handle("s", { op: "make", tool: id });
+    assert.ok(!forgedOwned(w.profile, id));
+  }
+  assert.equal(w.player.coins, 400_000);
+  w.profile.creelTier = 6;
+  w.profile.carrierTier = 6;
+  w.profile.satchelTier = 6;
+  w.profile.satchelSlots = SATCHEL_TIERS[6].slots;
+  for (const id of ["deepLivewell", "deepCarrier", "deepSatchel"] as const) {
+    assert.equal(forgedBlocked(w.profile, id), null);
+    w.sea.handle("s", { op: "make", tool: id });
+    assert.ok(forgedOwned(w.profile, id), id);
+  }
+  assert.equal(w.profile.creelTier, 7);
+  assert.equal(w.profile.slots, CREEL_TIERS[6].capacity);
+  assert.equal(w.profile.carrierTier, 7);
+  assert.equal(w.profile.satchelTier, 7);
+  assert.equal(w.player.coins, 400_000 - FORGED_TOOLS.deepLivewell.coins - FORGED_TOOLS.deepCarrier.coins - FORGED_TOOLS.deepSatchel.coins);
+  assert.equal(w.profile.byproducts.pearl ?? 0, 0);
+  // and it is kept through a save and a read
+  const back = sanitizeFishingProfile(JSON.parse(JSON.stringify(w.profile)));
+  assert.equal(back.creelTier, 7);
+  assert.equal(back.carrierTier, 7);
+  assert.equal(back.satchelTier, 7);
+});
+
+test("the reef's own fossil: in the codex's finds, worth its coins, and never part of completing the section", () => {
+  const coral = CODEX_BY_ID.get(REEF_FOSSIL);
+  assert.ok(coral && coral.extra && coral.section === "finds");
+  assert.ok(!FOSSILS.includes(REEF_FOSSIL));
+  const finds = CODEX.filter((e) => e.section === "finds" && !e.extra).map((e) => e.id);
+  // whoever had the section whole still has it, with or without the coral
+  assert.equal(codexProgress(finds, "finds").found, codexProgress(finds, "finds").all);
+  assert.equal(codexProgress([...finds, REEF_FOSSIL], "finds").found, codexProgress(finds, "finds").all);
+  assert.equal(codexProgress([REEF_FOSSIL], "finds").found, 0);
+});
+
+test("pearl jewellery and the Pearl-set ring: the forge takes their makings out of the satchel, and each ware is worth 15% to 30% over them", () => {
+  const sent: any[] = [];
+  let coins = 5000;
+  const mine: any = Object.create(CavernsMine.prototype);
+  mine.host = { gesture: () => {}, emote: () => {}, sendTo: (_s: string, _t: string, p: any) => sent.push(p), addCoins: (_s: string, n: number) => (coins += n), saveProfile: () => {} };
+  const kit = sanitizeFishingProfile({});
+  kit.satchelTier = 7;
+  kit.satchelSlots = SATCHEL_TIERS[7].slots;
+  satchelAdd(kit, "nacre", 12);
+  satchelAdd(kit, "silver_ingot", 9);
+  satchelAdd(kit, "black_pearl", 1);
+  satchelAdd(kit, "copper_ingot", 1);
+  satchelAdd(kit, "amethyst", 1);
+  mine.forgeWare("s", kit, "pearl_necklace", 1);
+  mine.forgeWare("s", kit, "black_pearl_brooch", 1);
+  mine.forgeWare("s", kit, "nacre_comb", 1);
+  for (const id of ["pearl_necklace", "black_pearl_brooch", "nacre_comb"] as const) {
+    assert.equal(satchelCount(kit, id), 1, id);
+    const makings = Object.entries(FORGE_WARES[id]).reduce((a, [k, n]) => a + ORE_ITEMS[k as OreItemId].price * (n as number), 0);
+    const over = ORE_ITEMS[id].price / makings;
+    assert.ok(over >= 1.15 && over <= 1.3, `${id}: ${over.toFixed(2)}x its makings`);
+  }
+  assert.equal(satchelCount(kit, "black_pearl"), 0);
+  // a second brooch with no pearl left: nothing made
+  mine.forgeWare("s", kit, "black_pearl_brooch", 1);
+  assert.equal(satchelCount(kit, "black_pearl_brooch"), 1);
+  // the ring: the band's silver and nacre, a cut gem, the fee; once
+  const ring = "pearl:amethyst";
+  const nacre = satchelCount(kit, "nacre");
+  mine.forgeRing("s", kit, coins, ring);
+  assert.ok(kit.rings.includes(ring as any) && kit.ringsWorn.includes(ring as any));
+  assert.equal(coins, 5000 - RING_BANDS.pearl.fee);
+  assert.equal(satchelCount(kit, "nacre"), nacre - 3);
+  assert.equal(satchelCount(kit, "amethyst"), 0);
+  mine.forgeRing("s", kit, coins, ring);
+  assert.equal(coins, 5000 - RING_BANDS.pearl.fee);
 });
