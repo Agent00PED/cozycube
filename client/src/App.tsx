@@ -109,7 +109,6 @@ import {
   parseLook,
   parseStats,
   type BoardGameView,
-  type FishOnLine,
   type GachaPrize,
   type MochiAction,
   type HairStyle,
@@ -318,7 +317,6 @@ export default function App() {
     clawPlay,
     arcadeScore,
     hook,
-    catchFish,
     boxingSend,
     splash,
     makeWish,
@@ -384,8 +382,6 @@ export default function App() {
   // --- titan infinity panels: whichever prop you walked up to (openPanel), and its results ---
   const [panel, setPanel] = useState<{ kind: string; propId: string } | null>(null);
   const closePanel = useCallback(() => setPanel(null), []);
-  const [fishOnLine, setFishOnLine] = useState<FishOnLine | null>(null);
-  const closeFishing = useCallback(() => setFishOnLine(null), []);
   // the campfire's reel: a fish on the line at the dock
   const [starReel, setStarReel] = useState<StarlightReel | null>(null);
   const [reelReveal, setReelReveal] = useState<FishReveal | null>(null);
@@ -581,8 +577,6 @@ export default function App() {
         } else if (type === "openPanel") {
           const p = payload as { kind: string; propId: string };
           openPanel(p.kind, p.propId);
-        } else if (type === "fishOnLine") {
-          setFishOnLine(payload as FishOnLine);
         } else if (type === "fishEscaped") {
           setReelEscaped(true);
         } else if (type === "starlightReel") {
@@ -827,12 +821,10 @@ export default function App() {
     }
     // fast travel closes whatever was open in the old world
     setPanel(null);
-    setFishOnLine(null);
     setBoardView(null);
   }, [currentMap]);
   // the reel closes by itself if the server gave up on the line (timeout) or you stood up
   useEffect(() => {
-    if (me && me.action !== "reel") setFishOnLine(null);
     // the campfire's reel shows its result while the line goes back in ("fish"); only leaving the
     // dock (no action at all) closes it
     if (me && me.action === "") setStarReel(null);
@@ -1086,13 +1078,6 @@ export default function App() {
         )}
 
         {/* the world's own panels */}
-        {fishOnLine && (
-          <FishingModal
-            fish={{ emoji: fishOnLine.item === "boot" ? "🥾" : ITEMS[fishOnLine.item].emoji, name: fishOnLine.item === "boot" ? "old boot" : ITEMS[fishOnLine.item].name.toLowerCase(), speed: fishOnLine.speed, size: fishOnLine.size, hint: fishOnLine.water === "ocean" ? "Something from the sea" : "Something from the river" }}
-            onResult={catchFish}
-            onClose={closeFishing}
-          />
-        )}
         {starReel &&
           (() => {
             const rod = RODS[starReel.rod] ?? RODS.bamboo;

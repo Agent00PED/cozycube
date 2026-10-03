@@ -56,7 +56,6 @@ const RELAYED_MESSAGES = [
   "welcome",
   // titan infinity: per-world minigames, the boxing ring, the checklist and the vibe bonus
   "openPanel",
-  "fishOnLine",
   "gachaResult",
   "clawResult",
   "arcadeResult",
@@ -355,7 +354,6 @@ interface UseColyseusRoomResult {
   arcadeScore: (score: number) => void;
   /** Fishing: a bite was noticed; then the reel minigame's outcome. */
   hook: () => void;
-  catchFish: (result: "caught" | "lost", quality: number) => void;
   /** The Velvet Ring: a punch, the guard, a slip, a tap to get up, a bet, the gloves (BoxingPacket). */
   boxingSend: (packet: BoxingPacket) => void;
   splash: () => void;
@@ -1011,7 +1009,6 @@ export function useColyseusRoom(auth: DiscordAuthInfo | null, lounge: number | n
     clawPlay: (aim) => send("claw_play", { aim }),
     arcadeScore: (score) => send("arcade_score", { score }),
     hook: () => send("hook"),
-    catchFish: (result, quality) => send("catch_fish", { result, quality }),
     boxingSend: (packet) => send("boxing", packet),
     splash: () => send("splash"),
     makeWish: () => send("make_wish"),

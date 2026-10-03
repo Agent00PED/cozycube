@@ -17,6 +17,8 @@ export const MAP_LABELS: Record<MapId, { icon: string; name: string; tagline: st
   ...(Object.fromEntries(WORLD_IDS.map((id) => [WORLDS[id].mapId, { icon: WORLDS[id].icon, name: WORLDS[id].name, tagline: WORLDS[id].tagline }])) as Record<MapId, { icon: string; name: string; tagline: string }>),
   casino_vip: { icon: "🥂", name: "Velvet Penthouse", tagline: "High-limit poker, baccarat and the Golden Vault" },
   whispering_woods: { icon: "🌲", name: "Whispering Woods", tagline: "Felling, the winding river, and Bramble the Bear" },
+  open_sea: { icon: "⛵", name: "The Open Sea", tagline: "The captain's boat, out past the pier" },
+  hidden_cove: { icon: "🗺️", name: "The Hidden Cove", tagline: "A sea cave behind the rock stacks" },
   glimmering_caverns: { icon: "💎", name: "Glimmering Caverns", tagline: "After Hang Son Doong: a zone for every ore, the bellows forge, and the Great Lake's glowing fish" },
 };
 

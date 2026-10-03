@@ -752,13 +752,14 @@ export const FISH_TIERS: FishTier[] = ["common", "uncommon", "rare", "legendary"
  *  rapids, else the campfire's river. */
 export const oddsWater = (water: Water, rapids: boolean): OddsWater => (water === "cavewater" ? "cenote" : rapids ? "woods" : "campfire");
 /** The odds of each rarity on a line: the water's row for the rod's tier (1-5) on a hand-reeled
- *  line; on an AFK line, the baited odds by rod (or commons only, unbaited). A hand-reeled line's
+ *  line (a rod finer than the table's last row fishes by that row); on an AFK line, the baited
+ *  odds by rod (or commons only, unbaited). A hand-reeled line's
  *  rare end is tipped by `rareMul` (the bait, the Cozy Aura, the incense, the gear); an AFK line's
  *  odds are as given. */
 export function tierOdds(rodTier: number, afk: boolean, baited: boolean, rareMul = 1, where: OddsWater = "campfire"): TierOdds {
-  const t = Math.max(1, Math.min(5, Math.round(rodTier) || 1)) - 1;
-  if (afk) return baited ? AFK_BAITED_TIER_ODDS[t] : AFK_UNBAITED_TIER_ODDS;
-  const base = WATER_ODDS[where][t];
+  const row = <T,>(rows: readonly T[]) => rows[Math.max(1, Math.min(rows.length, Math.round(rodTier) || 1)) - 1];
+  if (afk) return baited ? row(AFK_BAITED_TIER_ODDS) : AFK_UNBAITED_TIER_ODDS;
+  const base = row(WATER_ODDS[where]);
   if (rareMul === 1) return base;
   const tipped = { ...base, rare: base.rare * rareMul, legendary: base.legendary * rareMul, mythic: base.mythic * rareMul };
   const sum = FISH_TIERS.reduce((a, k) => a + tipped[k], 0);

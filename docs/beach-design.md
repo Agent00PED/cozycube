@@ -173,8 +173,8 @@ streak of Perfects, and three gold titles (one a band; all eight Perfect: "Maste
   | Hidden Cove, T6 | 36 | 32 | 17 | 9 | 6 | |
   | Hidden Cove, T7 | 28 | 30 | 18 | 12 | 9 | 3 |
 
-  **The Tidewater and Deep Tide rods on the fresh waters** (rows 6 and 7 of `WATER_ODDS`, added in
-  part 0 with the longer ladder; `tierOdds` clamps a rod to T5 until then). Starting figures, each
+  **The Tidewater and Deep Tide rods on the fresh waters** (rows 6 and 7 of `WATER_ODDS`, in the
+  code since part 0; no such rod exists yet, so nothing reads them). Starting figures, each
   a clear step over T5 and still far under what the same rod earns in salt water:
 
   | Hand-reeled | Common | Uncommon | Rare | Legendary | Mythic | About, a minute |
@@ -186,7 +186,7 @@ streak of Perfects, and three gold titles (one a band; all eight Perfect: "Maste
   | Cenote, T6 | 45 | 33 | 17 | 4 | 1 | 215 |
   | Cenote, T7 | 41 | 33 | 19.5 | 5.5 | 1 | 240 |
 
-  (The incomes are worked by hand from the T5 lines; the simulator sets them in part 0. The rule
+  (The incomes are worked by hand from the T5 lines; the simulator sets them when the rods are made. The rule
   they must keep: a T6 rod earns less in any fresh water than at sea, 250, and a T7 rod less than in
   the cove, 300.)
 
@@ -339,8 +339,12 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
 
 ## 9. Order of work (each its own PR, shown to the owner before the next)
 
-0. **The ground cleared.** No change a player sees: the ladder made N tiers long (the tables, the
-   simulator, the tests), the old fishing path retired, `open_sea` and `hidden_cove` registered.
+0. **The ground cleared (done).** No change a player sees: `open_sea` and `hidden_cove` registered
+   (hidden, empty; `isBeachMap`); the old fishing path retired (the server's `MAP_WATER`, the old
+   boot, `FISH_TABLES`, the first reel's handlers and its panel in App.tsx: nothing could reach it);
+   the tier lists read from the tools that exist (the simulator's `ROD_TIERS`, `AXE_TIERS`,
+   `PICKAXE_TIERS`; `tierOdds` by its table's length); `WATER_ODDS` rows 6 and 7, and the targets
+   and tool minutes for T6 and T7, in place for the tools to come. `npm test` pins the odds' shape.
 1. **The beach as a place, and the bar.** A picture of the layout to the owner first. Then the
    ground, the sea, wading and the depth rule, the bar with Mango and **A Shift at the Bar**, the
    firepit, the pier (walked, not yet fished), loungers, hammocks, the ball, the sky, the loading

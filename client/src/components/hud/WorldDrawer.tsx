@@ -12,6 +12,8 @@ const ART: Record<MapId, { sky: string; ground: string; props: string[] }> = {
   whispering_woods: { sky: "from-emerald-950 to-teal-800", ground: "bg-green-900", props: ["🌲", "🪓", "🦌", "🍁"] },
   glimmering_caverns: { sky: "from-slate-950 to-violet-950", ground: "bg-stone-800", props: ["⛏️", "💎", "♨️", "🔥"] },
   sunset_beach: { sky: "from-orange-300 to-fuchsia-400", ground: "bg-yellow-200", props: ["🌴", "🍹", "🏄", "🐚"] },
+  open_sea: { sky: "from-sky-400 to-blue-700", ground: "bg-blue-800", props: ["⛵", "🎣", "🐋", "🌊"] },
+  hidden_cove: { sky: "from-slate-900 to-teal-800", ground: "bg-teal-900", props: ["🗺️", "🦪", "🐚", "✨"] },
   velvet_casino: { sky: "from-rose-950 to-red-900", ground: "bg-red-900", props: ["🎰", "🎡", "🃏", "🥂"] },
   casino_vip: { sky: "from-stone-950 to-amber-900", ground: "bg-stone-900", props: ["🥂", "🃏", "🎫", "🌃"] },
   boxing_ring: { sky: "from-indigo-950 to-rose-950", ground: "bg-[#6e1a2a]", props: ["🥊", "🔔", "🏆", "🎟️"] },

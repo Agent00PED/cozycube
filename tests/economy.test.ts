@@ -106,3 +106,34 @@ test("the maps' own outfits: a keeper each, fabrics off the palettes, parts the 
   }
   assert.equal(Object.values(OUTFITS5).filter((o) => o.keeper).length, 2);
 });
+
+// --- the odds by water (shared/economy.ts WATER_ODDS) ---------------------------------------------------
+import { WATER_ODDS as ODDS6 } from "../shared/economy";
+import { HIDDEN_MAPS as HIDDEN6, MAP_IDS as MAPS6, isGatheringMap as gathering6 } from "../shared/types";
+
+test("the odds by water: each row whole, a better rod never poorer, deeper water never kinder", () => {
+  const fine = (o: (typeof ODDS6)["campfire"][number]) => o.rare + o.legendary + o.mythic;
+  for (const [water, rows] of Object.entries(ODDS6)) {
+    assert.equal(rows.length, 7, `${water} has a row for every tier, T1 to T7`);
+    rows.forEach((o, i) => {
+      assert.ok(Math.abs(o.common + o.uncommon + o.rare + o.legendary + o.mythic - 1) < 1e-9, `${water} T${i + 1} adds up to 1`);
+      if (i > 0) {
+        assert.ok(o.common <= rows[i - 1].common, `${water} T${i + 1}: fewer commons than T${i}`);
+        assert.ok(fine(o) >= fine(rows[i - 1]), `${water} T${i + 1}: no fewer fine fish than T${i}`);
+      }
+    });
+  }
+  // (the same rod: the campfire the kindest, then the woods, then the cenote)
+  for (let i = 0; i < 7; i++) {
+    assert.ok(ODDS6.campfire[i].common <= ODDS6.woods[i].common && ODDS6.woods[i].common <= ODDS6.cenote[i].common, `T${i + 1}: commons grow with depth`);
+    assert.ok(ODDS6.campfire[i].rare >= ODDS6.woods[i].rare && ODDS6.woods[i].rare >= ODDS6.cenote[i].rare, `T${i + 1}: rare fish thin with depth`);
+    assert.equal(ODDS6.campfire[i].legendary + ODDS6.campfire[i].mythic, 0, "nothing above rare swims at the campfire");
+  }
+});
+
+test("the beach's two maps are registered, hidden from the world list, and gathered in", () => {
+  for (const id of ["open_sea", "hidden_cove"] as const) {
+    assert.ok(MAPS6.includes(id) && HIDDEN6.has(id) && gathering6(id));
+  }
+  assert.equal(gathering6("ocean"), false);
+});

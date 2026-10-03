@@ -21,9 +21,9 @@ import type { MapId } from "../shared/types";
 import { AXES, AXES_BY_TIER, TREES, rollTreeScale, woodPrice, logMultiplier } from "../shared/chop";
 import { AXE_PRICES, BYPRODUCT_PRICES, CARRIER_CAPACITY, CREEL_CAPACITY, ORE_PRICES, PICKAXE_PRICES, TACKLE_PRICES } from "../shared/economy";
 import { OVERSUPPLY_AT, OVERSUPPLY_DROP, RECOVER_SOLD, SUPPLY_MAX } from "../shared/market";
-import { FISH, biteSeconds, fishValue, rollCatch, rollFish } from "../shared/fishing";
+import { FISH, RODS_BY_TIER, biteSeconds, fishValue, rollCatch, rollFish } from "../shared/fishing";
 import { fishRate, woodRate, type Counter } from "../shared/keepers";
-import { CHASE_MAX, CLEAN_BREAK_BONUS, GLINT_CHANCE, ORE_KINDS, PERFECT_DAMAGE, PICKAXES, chaseBonus, oreRule, rollYield, streakBonus, type OreItemId, type OreKind, type PickaxeId } from "../shared/caverns_mining";
+import { CHASE_MAX, CLEAN_BREAK_BONUS, GLINT_CHANCE, ORE_KINDS, PERFECT_DAMAGE, PICKAXES, PICKAXES_BY_TIER, chaseBonus, oreRule, rollYield, streakBonus, type OreItemId, type OreKind, type PickaxeId } from "../shared/caverns_mining";
 import { MASTERY_ORE } from "../shared/caverns_mastery";
 import { SATCHEL_TIERS, stackOf } from "../shared/satchel";
 import {
@@ -442,15 +442,23 @@ function rollYieldMean(kind: OreKind, pick: PickaxeId): number {
 
 // --- the table -----------------------------------------------------------------------------------------
 
+/** The tool tiers that exist, each craft's own (T1 to T5 today; the beach adds T6 and T7:
+ *  docs/beach-design.md). Every loop over tiers reads these. */
+const tiersOf = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
+export const ROD_TIERS = tiersOf(RODS_BY_TIER.length);
+export const AXE_TIERS = tiersOf(AXES_BY_TIER.length);
+export const PICKAXE_TIERS = tiersOf(PICKAXES_BY_TIER.length);
+const ALL_TIERS = tiersOf(Math.max(ROD_TIERS.length, AXE_TIERS.length, PICKAXE_TIERS.length));
+
 export function simulate(only = process.env.ONLY ?? ""): Line[] {
   const out: Line[] = [];
-  if (only) return only === "fish" ? [1, 2, 3, 4, 5].flatMap((t) => WATERS.map((w) => angler(t, w))) : only === "wood" ? [1, 2, 3, 4, 5].flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT)]) : [1, 2, 3, 4, 5].map((t) => miner(t));
-  for (let tier = 1; tier <= 5; tier++) for (const w of WATERS) out.push(angler(tier, w));
-  for (let tier = 1; tier <= 5; tier++) {
+  if (only) return only === "fish" ? ROD_TIERS.flatMap((t) => WATERS.map((w) => angler(t, w))) : only === "wood" ? AXE_TIERS.flatMap((t) => [woodcutter(t, "campfire_night", "campfire", BUSTER_FRONT), woodcutter(t, "whispering_woods", "woods", BRAMBLE_FRONT)]) : PICKAXE_TIERS.map((t) => miner(t));
+  for (const tier of ROD_TIERS) for (const w of WATERS) out.push(angler(tier, w));
+  for (const tier of AXE_TIERS) {
     out.push(woodcutter(tier, "campfire_night", "campfire", BUSTER_FRONT));
     out.push(woodcutter(tier, "whispering_woods", "woods", BRAMBLE_FRONT));
   }
-  for (let tier = 1; tier <= 5; tier++) out.push(miner(tier));
+  for (const tier of PICKAXE_TIERS) out.push(miner(tier));
   return out;
 }
 
@@ -545,7 +553,7 @@ export function pieceTable(tier = 5): { id: GearId; craft: string; gain: number 
 /** The best spot's income for each craft's tier. */
 export function ladder(lines: Line[]): Record<string, number[]> {
   const best: Record<string, number[]> = { fish: [], riverFish: [], wood: [], ore: [] };
-  for (let tier = 1; tier <= 5; tier++) {
+  for (const tier of ALL_TIERS) {
     const of = (craft: string, f: (l: Line) => boolean = () => true) => Math.round(Math.max(0, ...lines.filter((l) => l.craft === craft && l.tier === tier && f(l)).map((l) => l.perMin)));
     best.fish.push(of("fish"));
     best.riverFish.push(of("fish", (l) => l.where !== "cenote"));
@@ -559,11 +567,11 @@ export function ladder(lines: Line[]): Record<string, number[]> {
  *  once the room's market has answered the player's own selling (`perMinSold`). The river's rods and
  *  the axes climb it through the campfire and the woods; the pickaxes start above them, in the
  *  caverns; the cenote pays about CENOTE_OVER_RIVER times the river on the same rod. */
-export const TARGETS = { river: [25, 35, 50, 70, 95], wood: [25, 35, 50, 70, 95], ore: [100, 120, 145, 175, 210] };
+export const TARGETS = { river: [25, 35, 50, 70, 95, 250, 300], wood: [25, 35, 50, 70, 95, 250, 300], ore: [100, 120, 145, 175, 210, 250, 300] };
 export const CENOTE_OVER_RIVER = 1.7;
 /** Each craft's best spot, tier by tier, as sold. */
 export function soldLadder(lines: Line[]): { river: number[]; cenote: number[]; wood: number[]; ore: number[] } {
-  const best = (f: (l: Line) => boolean) => [1, 2, 3, 4, 5].map((tier) => Math.max(0, ...lines.filter((l) => l.tier === tier && f(l)).map((l) => l.perMinSold)));
+  const best = (f: (l: Line) => boolean) => ALL_TIERS.map((tier) => Math.max(0, ...lines.filter((l) => l.tier === tier && f(l)).map((l) => l.perMinSold)));
   return { river: best((l) => l.craft === "fish" && l.where !== "cenote"), cenote: best((l) => l.craft === "fish" && l.where === "cenote"), wood: best((l) => l.craft === "wood"), ore: best((l) => l.craft === "ore") };
 }
 
@@ -576,7 +584,7 @@ export const TOOL_PRICES = {
 
 /** The minutes of play each tool is meant to cost, tier 2 to 5, at its craft's target income of the
  *  step before it (docs/economy-plan.md section 6). */
-export const TOOL_MINUTES = { rod: [20, 45, 90, 180], axe: [20, 45, 90, 180], pickaxe: [30, 60, 120, 180] };
+export const TOOL_MINUTES = { rod: [20, 45, 90, 180, 360, 600], axe: [20, 45, 90, 180, 360, 600], pickaxe: [30, 60, 120, 180, 360, 720] };
 
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/economy-sim.ts")) {
   const lines = simulate();
@@ -610,7 +618,7 @@ if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/economy-sim.ts")) {
   }
   console.log("\nMining, what the newest rules add (coins a minute, even market):");
   console.log(pad("pickaxe", 10), pad("as is", 8), pad("no glints", 11), "no glints, no chase");
-  for (let tier = 1; tier <= 5; tier++) console.log(pad("T" + tier, 10), pad(miner(tier).perMin.toFixed(0), 8), pad(miner(tier, { glints: false }).perMin.toFixed(0), 11), miner(tier, { glints: false, chase: false }).perMin.toFixed(0));
+  for (const tier of PICKAXE_TIERS) console.log(pad("T" + tier, 10), pad(miner(tier).perMin.toFixed(0), 8), pad(miner(tier, { glints: false }).perMin.toFixed(0), 11), miner(tier, { glints: false, chase: false }).perMin.toFixed(0));
   if (process.argv.includes("--write")) {
     writeFileSync("tests/economy-baseline.json", JSON.stringify({ lines: lines.map((l) => ({ craft: l.craft, tier: l.tier, where: l.where, perMin: Math.round(l.perMin * 10) / 10, perMinSold: Math.round(l.perMinSold * 10) / 10 })) }, null, 1) + "\n");
     console.log("\nwrote tests/economy-baseline.json");
