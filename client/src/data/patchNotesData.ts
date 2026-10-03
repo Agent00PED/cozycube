@@ -2050,6 +2050,26 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.8.4",
+        date: "2026-10-03",
+        title: "The Palm Grove",
+        summary: "Sunset Beach's Coconut Palms can be felled: a sixth tree tier, a Tidewater axe to fell it with, and a coconut now and then that Mango will mix you a drink for.",
+        changes: {
+          features: [
+            "🌴 Nineteen Coconut Palms along the back of Sunset Beach are felled on the ring like any tree (T6: three to five rounds, a narrow notch, two knots). They grow back in five minutes. The three palms the hammocks hang from are left alone.",
+            "🪓 The Tidewater Axe (T6) is made at Dune's shack, under his Tidewater tab: 38,000 coins, 8 Iron Ingots, 6 Ancient Wood Shavings and 4 Fine Fish Bones.",
+            "🛷 The Tidewater Timber Sled carries 85 logs: 19,000 coins, 6 Iron Ingots, 10 Amber Resin and 20 Fish Scales, after the forged Heavy Frame.",
+            "🟤 A round that drops no log drops a Coconut Husk. Now and then a coconut comes down with a log.",
+            "🥥 Mango takes a coconut for any drink on his menu: tap Pay with a coconut at the bar.",
+            "🐢 Dune buys timber now, every wood at full price: the timber scale is at the foot of his Trade tab.",
+          ],
+          economy: [
+            "⚖️ A Tidewater axe earns about 240 coins a minute in the palm grove.",
+            "🫧 A shop's Sell All Byproducts now leaves Sea Pearls and coconuts in your pouch (each still sells on its own).",
+          ],
+        },
+      },
     ],
   },
 ];

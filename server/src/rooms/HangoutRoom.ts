@@ -108,7 +108,7 @@ import {
   type Water,
 } from "../../../shared/fishing";
 import { isCampDay } from "../../../shared/daynight";
-import { BYPRODUCTS, BYPRODUCT_IDS, FIREWOOD_FUEL, TREES, WOOD_KINDS, isByproductId, regrowth, treeStage, type TreeStage, type WoodKind } from "../../../shared/chop";
+import { BYPRODUCTS, BYPRODUCT_IDS, COCONUT_CHANCE, SELL_ALL_BYPRODUCTS, FIREWOOD_FUEL, TREES, WOOD_KINDS, isByproductId, regrowth, treeStage, type TreeStage, type WoodKind } from "../../../shared/chop";
 import { FELL_TREES, FELL_TREE_AT, fellReach, fellTreeOf, type FellTree } from "../../../shared/worlds/trees";
 import { FULL_PRICE_AT, fishRate, woodRate } from "../../../shared/keepers";
 import { FORGED_TIER, SHOP_TIER_CAP, makingsMissing, spendMakings } from "../../../shared/expedition";
@@ -2168,7 +2168,9 @@ export class HangoutRoom extends Room<HangoutState> {
     // every map, as the drawers do; everything else happens at the camp
     const anywhere = packet.type === "GEAR" || packet.type === "USE_CONSUMABLE" || packet.type === "DRAWER_CRAFT" || (packet.type === "BARNABY" && (packet.op === "lockFish" || packet.op === "equipRod" || packet.op === "equipBait")) || (packet.type === "BUSTER" && packet.op === "equipAxe");
     const caveFishing = isShoreCastMap(player.map) && (packet.type === "REEL_DONE" || packet.type === "AFK" || packet.type === "BARNABY");
-    if (!isCampMap(player.map) && !anywhere && !caveFishing) return;
+    // (Sunset Beach: its palms are felled as the camp maps' trees are, and Dune buys the wood)
+    const beachWood = player.map === "sunset_beach" && (packet.type === "CHOP_START" || packet.type === "CHOP_STOP" || packet.type === "CHOP_CANCEL" || packet.type === "BUSTER");
+    if (!isCampMap(player.map) && !anywhere && !caveFishing && !beachWood) return;
     switch (packet.type) {
       case "ROAST_START": {
         // from beside the fire or from a log bench round it (a little slack for latency)
@@ -2773,6 +2775,11 @@ export class HangoutRoom extends Room<HangoutState> {
       const n = room > 1 && Math.random() < bonusLogChance(profile) ? 2 : 1;
       addLogs(profile, info.wood, n, mult);
       const drop: FellDrop = { kind: "log", name: WOOD[info.wood].name, emoji: WOOD[info.wood].emoji, wood: info.wood, mult: Math.round(mult * 100) / 100, count: n };
+      // a Coconut Palm: now and then a coconut shaken down with the log (Mango mixes a drink for one)
+      if (node.kind === "palm" && Math.random() < COCONUT_CHANCE) {
+        const nut = pouch("coconut");
+        if (nut.kind === "byproduct") drop.also = { name: nut.name, emoji: nut.emoji };
+      }
       // the Amber Resin Band (and the Amber Bark Bangle): the tree's by-product too, now and then
       if (info.byproduct && Math.random() < byproductBonus(profile)) {
         const extra = pouch(info.byproduct);
@@ -3918,7 +3925,10 @@ export class HangoutRoom extends Room<HangoutState> {
     // at Buster's stall, or at Bramble's counter in the woods (the woods' forester: wood and its
     // by-products, the axes and the carriers up to tier 4; no fish)
     const atBramble = player.map === "whispering_woods" && Math.hypot(player.x - BRAMBLE_FRONT.x, player.z - BRAMBLE_FRONT.z) <= BRAMBLE_REACH + 0.4;
-    const near = atBramble || (player.map === "campfire_night" && Math.min(Math.hypot(player.x - BUSTER_FRONT.x, player.z - BUSTER_FRONT.z), Math.hypot(player.x - B.x, player.z - B.z)) <= BUSTER_REACH + 0.4);
+    // (Dune, at his shack on Sunset Beach: he buys wood and its by-products in full, and sells none of the forester's tools)
+    const atDune = player.map === "sunset_beach" && Math.hypot(player.x - DUNE_FRONT.x, player.z - DUNE_FRONT.z) <= DUNE_REACH + 0.4;
+    const woodCounter = atDune ? ("beach" as const) : atBramble ? ("woods" as const) : ("campfire" as const);
+    const near = atBramble || atDune || (player.map === "campfire_night" && Math.min(Math.hypot(player.x - BUSTER_FRONT.x, player.z - BUSTER_FRONT.z), Math.hypot(player.x - B.x, player.z - B.z)) <= BUSTER_REACH + 0.4);
     const reply = (ok: boolean, message: string, coins = 0) => {
       const result: BarnabyResult = { ok, message, coins };
       this.sendTo(sessionId, "busterResult", result);
@@ -3937,7 +3947,7 @@ export class HangoutRoom extends Room<HangoutState> {
         const kind = packet.wood;
         const size = woodAverage(profile, kind);
         // (past what this counter can afford, CEILING_RATE of the hour's price: shared/keepers.ts)
-        const rate = noCeiling(profile) ? 1 : woodRate(atBramble ? "woods" : "campfire", kind);
+        const rate = noCeiling(profile) ? 1 : woodRate(woodCounter, kind);
         const run = priceRun(Array.from({ length: n }, () => kind), woodGood, (k, mult) => Math.max(1, Math.round(woodPrice(k, mult, size) * rate)), this.market());
         const earned = Math.round(run.total * sellBonus(profile));
         this.deed(sessionId, { kind: "sale", counter: atBramble ? 1 : 0, keeper: atBramble ? 3 : 1, masterwork: false });
@@ -3950,7 +3960,7 @@ export class HangoutRoom extends Room<HangoutState> {
       }
       case "sellAllWood": {
         if (!near) return tooFar();
-        const counter = atBramble ? "woods" : "campfire";
+        const counter = woodCounter;
         const full = WOOD_KINDS.filter((k) => noCeiling(profile) || woodRate(counter, k) === 1);
         const kept = WOOD_KINDS.reduce((n, k) => n + (full.includes(k) ? 0 : (profile.wood[k] ?? 0)), 0);
         const goods = full.flatMap((k) => Array.from({ length: profile.wood[k] ?? 0 }, () => k));
@@ -3991,8 +4001,9 @@ export class HangoutRoom extends Room<HangoutState> {
         if (!isAxeId(packet.axe)) return;
         const axe = AXES[packet.axe];
         if (profile.axes.includes(packet.axe)) return reply(false, `You've already got the ${axe.name}`);
-        if (!near) return tooFar();
+        if (!near || atDune) return tooFar();
         // Buster sells T2; Bramble, the woods' forester, T3 and T4; T5 is forged in the caverns
+        if (axe.tier > FORGED_TIER) return reply(false, `The ${axe.name} is made at Dune's shack on Sunset Beach`);
         if (axe.tier >= FORGED_TIER) return reply(false, `The ${axe.name} is forged at the Thermal Bellows Forge, down in the Glimmering Caverns`);
         if (axe.tier > (atBramble ? SHOP_TIER_CAP.woods : SHOP_TIER_CAP.campfire)) return reply(false, `The ${axe.name} comes from Bramble's cabin in the Whispering Woods`);
         if (player.coins < axe.price) return reply(false, `The ${axe.name} is ${axe.price} 🪙. Keep chopping!`);
@@ -4008,9 +4019,10 @@ export class HangoutRoom extends Room<HangoutState> {
         return reply(true, `${AXES[packet.axe].emoji} ${AXES[packet.axe].name} in hand`);
       }
       case "upgradeCarrier": {
-        if (!near) return tooFar();
+        if (!near || atDune) return tooFar();
         const next = nextCarrierTier(profile.carrierTier);
         if (!next) return reply(false, "That's the finest rig in the woods!");
+        if (profile.carrierTier + 1 > FORGED_TIER) return reply(false, `The ${next.name} is made at Dune's shack on Sunset Beach`);
         if (profile.carrierTier + 1 >= FORGED_TIER) return reply(false, `The ${next.name} is forged at the Thermal Bellows Forge, down in the Glimmering Caverns`);
         if (profile.carrierTier + 1 > (atBramble ? SHOP_TIER_CAP.woods : SHOP_TIER_CAP.campfire)) return reply(false, `The ${next.name} comes from Bramble's cabin in the Whispering Woods`);
         if (player.coins < next.price) return reply(false, `The ${next.name} is ${next.price} 🪙`);
@@ -4021,7 +4033,7 @@ export class HangoutRoom extends Room<HangoutState> {
       case "sellByproducts": {
         // the felling's by-products, at their flat prices (one kind, or every pouch)
         if (!near) return tooFar();
-        const kinds = packet.item === "all" ? BYPRODUCT_IDS : isByproductId(packet.item) ? [packet.item] : [];
+        const kinds = packet.item === "all" ? SELL_ALL_BYPRODUCTS : isByproductId(packet.item) ? [packet.item] : [];
         let n = 0;
         let earned = 0;
         for (const k of kinds) {

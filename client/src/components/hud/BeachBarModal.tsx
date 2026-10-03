@@ -13,8 +13,12 @@ export function BeachBarModal({ profile, coins, send, onClose }: { profile: Fish
   const menu = menuOf(cove);
   const book: BarBook = profile.bar;
   const titles = barTitles(book, cove);
+  // (a coconut off the palms pays for a drink: Mango makes that one himself)
+  const coconuts = profile.byproducts.coconut ?? 0;
+  const [nut, setNut] = useState(false);
+  const paying = nut && coconuts > 0;
   const order = (id: DrinkId) => {
-    send(BAR_CHANNEL, { op: "order", drink: id });
+    send(BAR_CHANNEL, paying ? { op: "order", drink: id, coconut: true } : { op: "order", drink: id });
     onClose();
   };
   return (
@@ -34,6 +38,11 @@ export function BeachBarModal({ profile, coins, send, onClose }: { profile: Fish
       {tab === "menu" ? (
         <>
           <p className="m-0 text-xs opacity-80">"What'll it be?" A drink is {DRINK_PRICE} 🪙: you hold it, wear its glow, and a well-made one leaves you Refreshed (+10% walking pace for 10 minutes).</p>
+          {coconuts > 0 && (
+            <button type="button" onClick={() => setNut((v) => !v)} className={`min-h-10 rounded-2xl px-3 text-xs font-bold ${paying ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10"}`}>
+              🥥 {paying ? "Paying with a coconut" : "Pay with a coconut"} <span className="font-normal opacity-80">(you carry {coconuts})</span>
+            </button>
+          )}
           <div className="flex flex-col gap-1.5">
             {menu.map((id) => {
               const d = DRINKS[id] as Drink;
@@ -50,8 +59,8 @@ export function BeachBarModal({ profile, coins, send, onClose }: { profile: Fish
                       {d.recipe.map((r) => INGREDIENT_INFO[r].emoji).join(" ")} · {d.blurb}
                     </div>
                   </div>
-                  <button type="button" disabled={coins < DRINK_PRICE} onClick={() => order(id)} className="min-h-10 w-[88px] shrink-0 rounded-xl bg-[#F5A623] text-sm font-bold text-[#2B201B] transition active:scale-95 disabled:opacity-40">
-                    {DRINK_PRICE} 🪙
+                  <button type="button" disabled={!paying && coins < DRINK_PRICE} onClick={() => order(id)} className="min-h-10 w-[88px] shrink-0 rounded-xl bg-[#F5A623] text-sm font-bold text-[#2B201B] transition active:scale-95 disabled:opacity-40">
+                    {paying ? "1 🥥" : `${DRINK_PRICE} 🪙`}
                   </button>
                 </div>
               );

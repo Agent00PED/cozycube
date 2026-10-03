@@ -31,8 +31,8 @@
 import { AXE_PRICES, BYPRODUCT_PRICES, CARRIER_CAPACITY, CARRIER_PRICES, COLOSSAL_YIELD, SHAVINGS_FUEL, WOOD_PRICES } from "./economy";
 
 // --- the wood: what a felled tree yields, kept (with the axe) in the camp profile ---
-export type WoodKind = "pine" | "oak" | "charcoal" | "birch" | "cedar" | "maple" | "elderwood";
-export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal", "birch", "cedar", "maple", "elderwood"];
+export type WoodKind = "pine" | "oak" | "charcoal" | "birch" | "cedar" | "maple" | "elderwood" | "palm";
+export const WOOD_KINDS: WoodKind[] = ["pine", "oak", "charcoal", "birch", "cedar", "maple", "elderwood", "palm"];
 /** Each kind: what Buster pays for one, how much it feeds the bonfire as it is, and the bundles of
  *  Firewood it splits into at the splitting block (FIREWOOD_FUEL each: splitting first burns longer). */
 export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number; fuel: number; firewood: number }> = {
@@ -43,6 +43,7 @@ export const WOOD: Record<WoodKind, { name: string; emoji: string; sell: number;
   cedar: { name: "Highland Cedar Log", emoji: "🟫", sell: WOOD_PRICES.cedar, fuel: 35, firewood: 5 },
   maple: { name: "Autumn Maple Log", emoji: "🍁", sell: WOOD_PRICES.maple, fuel: 40, firewood: 6 },
   elderwood: { name: "Whispering Elderwood", emoji: "🌌", sell: WOOD_PRICES.elderwood, fuel: 60, firewood: 9 },
+  palm: { name: "Coconut Palm Log", emoji: "🌴", sell: WOOD_PRICES.palm, fuel: 35, firewood: 5 },
 };
 /** A bundle of Firewood (split at the splitting block) on the bonfire. */
 export const FIREWOOD_FUEL = 10;
@@ -97,13 +98,14 @@ export function takeLogs(p: WoodHold, kind: WoodKind, n: number): number {
 
 // --- the axes, T1 to T5: an axe fells trees of its own tier and below; Buster sells T2 and T3,
 // Bramble in the Whispering Woods T4 and T5 ---
-export type AxeId = "rusty" | "steel" | "tempered" | "golden" | "runic";
+export type AxeId = "rusty" | "steel" | "tempered" | "golden" | "runic" | "tidewater";
 export const AXES: Record<AxeId, { name: string; emoji: string; tier: number; price: number; zoneBonus: number; slow: number; blurb: string }> = {
   rusty: { name: "Basic Flint Axe", emoji: "🪓", tier: 1, price: 0, zoneBonus: 0, slow: 0, blurb: "T1: Soft Pine. It gets the job done. Mostly." },
   steel: { name: "Iron Timber Axe", emoji: "⚒️", tier: 2, price: AXE_PRICES.iron, zoneBonus: 0.2, slow: 0, blurb: "T2: fells the woods' Silver Birch. A 20% wider sweet spot." },
   tempered: { name: "Tempered Steel Axe", emoji: "🔨", tier: 3, price: AXE_PRICES.tempered, zoneBonus: 0.2, slow: 0.1, blurb: "T3: fells Highland Cedar. A 20% wider sweet spot, the ring 10% slower." },
   golden: { name: "Golden Felling Axe", emoji: "🌟", tier: 4, price: AXE_PRICES.golden, zoneBonus: 0.25, slow: 0.15, blurb: "T4: fells Autumn Maple. A 25% wider sweet spot, the ring 15% slower." },
   runic: { name: "Runic Elderwood Axe", emoji: "🪄", tier: 5, price: AXE_PRICES.runic, zoneBonus: 0.3, slow: 0.2, blurb: "T5: fells the Whispering Elderwood. A 30% wider sweet spot, the ring 20% slower." },
+  tidewater: { name: "Tidewater Axe", emoji: "🌴", tier: 6, price: AXE_PRICES.tidewater, zoneBonus: 0.35, slow: 0.25, blurb: "T6: fells Sunset Beach's Coconut Palms. A 35% wider sweet spot, the ring 25% slower." },
 };
 export const AXE_IDS = Object.keys(AXES) as AxeId[];
 /** The axes in tier order. */
@@ -114,8 +116,8 @@ export function isAxeId(v: unknown): v is AxeId {
 
 // --- the trees, T1 to T5 (the campfire's Soft Pines round its clearing; the Whispering Woods' all
 // five), and the Colossal Titan a world event raises in the woods ---
-export type TreeKind = "soft_pine" | "birch" | "cedar" | "maple" | "elderwood";
-export const TREE_KINDS: TreeKind[] = ["soft_pine", "birch", "cedar", "maple", "elderwood"];
+export type TreeKind = "soft_pine" | "birch" | "cedar" | "maple" | "elderwood" | "palm";
+export const TREE_KINDS: TreeKind[] = ["soft_pine", "birch", "cedar", "maple", "elderwood", "palm"];
 export interface TreeInfo {
   name: string;
   emoji: string;
@@ -143,8 +145,8 @@ export interface TreeInfo {
  *  slowing at each end), an accelerating sweep (slow at the bark, quick at the heart), a pulsing one
  *  (surging and easing three times a sweep). */
 export type FellMotion = "loop" | "pendulum" | "accel" | "pulse";
-/** Each tier's notch, in degrees of the sweep: T1 60, T2 45, T3 30, T4 20, T5 14. */
-export const NOTCH_DEG = [60, 45, 30, 20, 14] as const;
+/** Each tier's notch, in degrees of the sweep: T1 60, T2 45, T3 30, T4 20, T5 14, T6 12. */
+export const NOTCH_DEG = [60, 45, 30, 20, 14, 12] as const;
 const notch = (tier: number) => NOTCH_DEG[tier - 1] / 360;
 /** The by-products, the crafting materials' store's (no carrier, livewell or satchel slots: up to
  *  MATERIAL_CAP, 99, of each kind): the felling's, one per tier from T2 (a round that lands but drops
@@ -152,8 +154,8 @@ const notch = (tier: number) => NOTCH_DEG[tier - 1] / 360;
  *  (Fish Scales off any landed fish, a Fine Fish Bone off a rare or better, a Prismatic Scale off a
  *  legendary or a mythic); and the caverns' Fine Stone Dust. Bramble and Buster buy them all (Gus the
  *  stone dust too). Ancient Wood Shavings also feed the bonfire. */
-export type ByproductId = "bark" | "amber" | "leafAmber" | "shavings" | "scales" | "silverBark" | "heartwood" | "fishBone" | "prismScale" | "stoneDust" | "pearl";
-export const BYPRODUCT_IDS: ByproductId[] = ["bark", "amber", "leafAmber", "shavings", "silverBark", "heartwood", "scales", "fishBone", "prismScale", "stoneDust", "pearl"];
+export type ByproductId = "bark" | "amber" | "leafAmber" | "shavings" | "scales" | "silverBark" | "heartwood" | "fishBone" | "prismScale" | "stoneDust" | "pearl" | "husk" | "coconut";
+export const BYPRODUCT_IDS: ByproductId[] = ["bark", "amber", "leafAmber", "shavings", "silverBark", "heartwood", "scales", "fishBone", "prismScale", "stoneDust", "pearl", "husk", "coconut"];
 export const BYPRODUCTS: Record<ByproductId, { name: string; emoji: string; price: number; fuel?: number; blurb: string }> = {
   bark: { name: "Birch Bark", emoji: "📜", price: BYPRODUCT_PRICES.bark, blurb: "Paper-white curls off a Silver Birch" },
   amber: { name: "Amber Resin", emoji: "🍯", price: BYPRODUCT_PRICES.amber, blurb: "Fragrant red sap from a Highland Cedar" },
@@ -165,15 +167,20 @@ export const BYPRODUCTS: Record<ByproductId, { name: string; emoji: string; pric
   fishBone: { name: "Fine Fish Bone", emoji: "🦴", price: BYPRODUCT_PRICES.fishBone, blurb: "A clean, strong bone off a rare fish or better" },
   prismScale: { name: "Prismatic Scale", emoji: "🌈", price: BYPRODUCT_PRICES.prismScale, blurb: "A rainbow scale off a legendary or a mythic fish" },
   pearl: { name: "Sea Pearl", emoji: "🫧", price: BYPRODUCT_PRICES.pearl, blurb: "From a giant clam, far out at sea" },
+  husk: { name: "Coconut Husk", emoji: "🟤", price: BYPRODUCT_PRICES.husk, blurb: "Coarse brown fibre off a Coconut Palm: rope, matting, kindling" },
+  coconut: { name: "Coconut", emoji: "🥥", price: BYPRODUCT_PRICES.coconut, blurb: "Shaken down from a Coconut Palm: Mango mixes you a drink for one" },
   stoneDust: { name: "Fine Stone Dust", emoji: "🌫️", price: BYPRODUCT_PRICES.stoneDust, blurb: "Silver's powdery by-product, and what a clumsy chisel leaves of a geode: masons and brewers pay for it" },
 };
 /** Which craft a by-product comes from (the drawer that shows it): the felling's and the Colossal
  *  trees', the river's and the Cenote's, the caverns'. */
-export const BYPRODUCT_CRAFT: Record<ByproductId, "wood" | "fish" | "ore"> = { bark: "wood", amber: "wood", leafAmber: "wood", shavings: "wood", silverBark: "wood", heartwood: "wood", scales: "fish", fishBone: "fish", prismScale: "fish", stoneDust: "ore", pearl: "fish" };
+export const BYPRODUCT_CRAFT: Record<ByproductId, "wood" | "fish" | "ore"> = { bark: "wood", amber: "wood", leafAmber: "wood", shavings: "wood", silverBark: "wood", heartwood: "wood", scales: "fish", fishBone: "fish", prismScale: "fish", stoneDust: "ore", pearl: "fish", husk: "wood", coconut: "wood" };
 /** The river's by-products off a landed fish, by its rarity: a Fine Fish Bone's chance (a rare 15%,
  *  a legendary always, a mythic always), and a Prismatic Scale's (a legendary 35%, a mythic always). */
 export const FISH_BONE_CHANCE = { common: 0, uncommon: 0, rare: 0.15, legendary: 1, mythic: 1 } as const;
 export const PRISM_SCALE_CHANCE = { common: 0, uncommon: 0, rare: 0, legendary: 0.35, mythic: 1 } as const;
+/** What a shop's Sell All takes: every by-product but the ones kept for something better (the cove's
+ *  pearls for its bench, coconuts for Mango's bar). Each still sells on its own. */
+export const SELL_ALL_BYPRODUCTS: ByproductId[] = BYPRODUCT_IDS.filter((k) => k !== "pearl" && k !== "coconut");
 export function isByproductId(v: unknown): v is ByproductId {
   return typeof v === "string" && (BYPRODUCT_IDS as string[]).includes(v);
 }
@@ -183,6 +190,7 @@ export const TREES: Record<TreeKind, TreeInfo> = {
   cedar: { name: "Highland Cedar", emoji: "🌲", tier: 3, wood: "cedar", respawnS: 160, rounds: [2, 4], logChance: 0.7, byproduct: "amber", trunkCm: 46, sweet: notch(3), period: 1.8, motion: "pendulum", knots: 0, lore: "Fragrant red heartwood that keeps the moths away and the rain out." },
   maple: { name: "Autumn Maple", emoji: "🍁", tier: 4, wood: "maple", respawnS: 440, rounds: [3, 4], logChance: 0.6, byproduct: "leafAmber", trunkCm: 55, sweet: notch(4), period: 2.0, motion: "accel", knots: 1, lore: "Forever golden: its leaves never quite fall, and its sap turns to amber." },
   elderwood: { name: "Whispering Elderwood", emoji: "🌌", tier: 5, wood: "elderwood", respawnS: 650, rounds: [3, 5], logChance: 0.5, byproduct: "shavings", trunkCm: 92, sweet: notch(5), period: 2.2, motion: "pulse", knots: 2, lore: "Older than the stones round it. They say it hums to itself on quiet nights." },
+  palm: { name: "Coconut Palm", emoji: "🌴", tier: 6, wood: "palm", respawnS: 300, rounds: [3, 5], logChance: 0.6, byproduct: "husk", trunkCm: 38, sweet: notch(6), period: 2.3, motion: "pulse", knots: 2, lore: "It leans to the sea wind and gives the same way it grows: slowly, and all at once." },
 };
 export function isTreeKind(v: unknown): v is TreeKind {
   return typeof v === "string" && (TREE_KINDS as string[]).includes(v);
@@ -402,7 +410,10 @@ export const WOOD_CARRIER_TIERS: WoodCarrierTier[] = [
   { id: "carrier_tier_3", name: "Reinforced Rig", capacity: CARRIER_CAPACITY[2], price: CARRIER_PRICES[2], icon: "🪵" },
   { id: "carrier_tier_4", name: "Lumberjack Pack", capacity: CARRIER_CAPACITY[3], price: CARRIER_PRICES[3], icon: "📦" },
   { id: "carrier_tier_5", name: "Forester Heavy Frame", capacity: CARRIER_CAPACITY[4], price: CARRIER_PRICES[4], icon: "🧰" },
+  { id: "carrier_tier_6", name: "Tidewater Timber Sled", capacity: CARRIER_CAPACITY[5], price: CARRIER_PRICES[5], icon: "🛷" },
 ];
+/** A Coconut Palm's landed round now and then shakes a coconut down as well (into the materials). */
+export const COCONUT_CHANCE = 0.15;
 /** A carrier tier (1-based, clamped), the next one up (null at the top), and a tier's capacity. */
 export function carrierTier(tier: number): WoodCarrierTier {
   return WOOD_CARRIER_TIERS[Math.max(1, Math.min(WOOD_CARRIER_TIERS.length, Math.round(tier) || 1)) - 1];

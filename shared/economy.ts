@@ -131,7 +131,7 @@ export const TACKLE_PRICES = {
  *  to a tree's labour: the camp's Soft Pine 2, the old hardwood and golden charcoal, and the
  *  Whispering Woods' birch 3, cedar 6, maple 18 and elderwood 100 (docs/economy-plan.md section 5:
  *  each axe tier earns its step of the income ladder). */
-export const WOOD_PRICES = { pine: 2, oak: 3, charcoal: 6, birch: 3, cedar: 6, maple: 18, elderwood: 100 } as const;
+export const WOOD_PRICES = { pine: 2, oak: 3, charcoal: 6, birch: 3, cedar: 6, maple: 18, elderwood: 100, palm: 32 } as const;
 /** A Colossal Titan's heavy logs are worth this much together at an even market (whatever their
  *  number): a big day, not a fortune. (The Colossal Autumn Maple's; the other Colossal trees' are
  *  COLOSSAL_YIELD's.) */
@@ -147,13 +147,13 @@ export const CARVED_PRICE = 8;
 export const RESIN_BUY_PRICE = 10;
 /** The axes (the flint one, T1, is everyone's): T2 from Buster, T3 and T4 from Bramble, T5 forged at
  *  the caverns' forge with its makings (shared/expedition.ts). */
-export const AXE_PRICES = { iron: 500, tempered: 1600, golden: 4500, runic: 12500 } as const;
+export const AXE_PRICES = { iron: 500, tempered: 1600, golden: 4500, runic: 12500, tidewater: 38000 } as const;
 /** The wood carriers' prices, tier 1 (the Twine Wood Strap, everyone's) to tier 5, and what each
  *  holds (logs): sized for a 5-10 minute felling round, then a trip to the stall. A player already
  *  carrying more keeps it all (Overburdened: selling, splitting and carving work, only new wood waits
  *  for room). */
-export const CARRIER_PRICES = [0, 250, 800, 2250, 6250] as const;
-export const CARRIER_CAPACITY = [15, 25, 40, 55, 70] as const;
+export const CARRIER_PRICES = [0, 250, 800, 2250, 6250, 19000] as const;
+export const CARRIER_CAPACITY = [15, 25, 40, 55, 70, 85] as const;
 /** The crafting materials' store, apart from every carrier, livewell and satchel: each material (Pine
  *  Resin, Sawdust, every by-product: Tree Bark, the ambers and shavings, Fish Scales, Fine Fish Bone,
  *  Fine Stone Dust...) up to this many of its own kind. More than that kept from before stays, and
@@ -190,7 +190,7 @@ export const PRE_PHASE1 = {
  *  Heartwood off a Colossal Primordial Elderwood) and the river's (Fish Scales off any fish, a Fine
  *  Fish Bone off a rare or better, a Prismatic Scale off a legendary or a mythic): what Bramble and
  *  Buster pay for each, and how much of the bonfire a handful of Ancient Wood Shavings feeds (%). */
-export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1, silverBark: 15, heartwood: 150, fishBone: 30, prismScale: 180, stoneDust: 10, pearl: 60 } as const;
+export const BYPRODUCT_PRICES = { bark: 2, amber: 5, leafAmber: 15, shavings: 35, scales: 1, silverBark: 15, heartwood: 150, fishBone: 30, prismScale: 180, stoneDust: 10, pearl: 60, husk: 8, coconut: 6 } as const;
 export const SHAVINGS_FUEL = 15;
 /** Buster's forest permits: a Day Trip (one way in through the archway, used on entering) and the
  *  Ranger's Badge (the Whispering Woods for good). */

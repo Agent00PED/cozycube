@@ -32,6 +32,8 @@ interface Props {
    *  River Otter on the woods' river, or Finnegan the Grotto Angler by the cenote (both every tier;
    *  Finnegan's advanced tackle bartered too). All buy fish and sell bait and livewells. */
   keeper?: "barnaby" | "finley" | "finnegan" | "dune";
+  /** Dune's timber scale (he buys wood too: BrambleModal's trade tab). */
+  onTimber?: () => void;
   /** Dune's Tidewater tools are made on the boat's channel (shared/voyage.ts). */
   sea?: (channel: string, packet?: unknown) => void;
 }
@@ -54,7 +56,7 @@ const TABS: [ShopTab, string, string][] = [
 const FINNEGAN_TABS: [ShopTab, string, string][] = [...TABS, ["barter", "🦎", "Barter"]];
 const DUNE_TABS: [ShopTab, string, string][] = [...TABS, ["barter", "🌊", "Tidewater"]];
 
-export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose, keeper = "barnaby", sea }: Props) {
+export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMessages, onOpenFieldGuide, onClose, keeper = "barnaby", sea , onTimber}: Props) {
   // (Finnegan keeps every tier, as Finley does)
   const finley = keeper !== "barnaby";
   const finnegan = keeper === "finnegan";
@@ -122,6 +124,11 @@ export function BarnabyModal({ profile, coins, fuel, market, send, subscribeMess
             <p className="m-0 py-6 text-center text-sm opacity-70">{dune ? "Your livewell is empty. Cast into the sea from the pier, or wade in a step from the sand!" : finnegan ? "Your livewell is empty. Cast into the lake from anywhere on its shore!" : "Your livewell is empty. Cast a line from the dock, the canoe, or the woods' river bank!"}</p>
           ) : (
             profile.creel.map((f, i) => <FishCard key={i} fish={f} price={price(f)} mult={marketMultiplier(fishGood(f.s), hour)} onToggleLock={() => send(lockPacket(f, i))} onSell={() => shop({ type: "BARNABY", op: "sell", slot: i })} />)
+          )}
+          {dune && onTimber && (
+            <button type="button" className="clay-btn clay-btn-ghost min-h-11 justify-center text-xs" onClick={onTimber}>
+              🪵 Logs, husks, coconuts? The timber scale
+            </button>
           )}
           {profile.creel.some((f) => f.l) && <p className="m-0 pt-1 text-center text-[11px] opacity-70">🔒 Locked fish stay in your livewell: Sell All passes them by.</p>}
         </div>

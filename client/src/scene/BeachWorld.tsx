@@ -1,3 +1,5 @@
+import { parseTrees } from "@shared/chop";
+import { FellableTrees } from "./FellableTrees";
 import { Suspense, useContext, useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
@@ -103,6 +105,9 @@ interface BeachWorldProps {
   players: Record<string, PlayerState>;
   localSessionId: string | null;
   subscribeMessages: (listener: RoomMessageListener) => () => void;
+  /** The room's trees (the Coconut Palms: node id -> stage, size, damage), as JSON. */
+  trees: string;
+  onUseProp: (propId: string) => void;
 }
 
 const MANGO_TALK: NpcTalk = {
@@ -114,7 +119,8 @@ const MANGO_TALK: NpcTalk = {
   },
 };
 
-export function BeachWorld({ onFloorClick, room, players, localSessionId, subscribeMessages }: BeachWorldProps) {
+export function BeachWorld({ onFloorClick, room, players, localSessionId, subscribeMessages, trees, onUseProp }: BeachWorldProps) {
+  const treeState = useMemo(() => parseTrees(trees), [trees]);
   const floorClick = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -138,6 +144,7 @@ export function BeachWorld({ onFloorClick, room, players, localSessionId, subscr
       <CampNpc url={MANGO_URL} what="mango.glb" prefix="Mango" at={MANGO} y={beachLand(MANGO.x, MANGO.z)} waveEvent="mangoWave" standIn={<MangoStandIn />} subscribeMessages={subscribeMessages} talk={MANGO_TALK} />
       <CampNpc url={DUNE_URL} what="dune.glb" prefix="Dune" at={DUNE} y={beachLand(DUNE.x, DUNE.z) + 0.14} waveEvent="duneWave" standIn={<DuneStandIn />} subscribeMessages={subscribeMessages} talk={DUNE_TALK} />
       <CampNpc url={BRINE_URL} what="brine.glb" prefix="Brine" at={BRINE} y={PIER.deck} waveEvent="brineWave" standIn={<BrineStandIn />} subscribeMessages={subscribeMessages} talk={PIER_BRINE_TALK} />
+      <FellableTrees mapId="sunset_beach" trees={treeState} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onUseProp={onUseProp} />
       <BeachLights />
       <BeachFire />
       <Ball room={room} players={players} localSessionId={localSessionId} />

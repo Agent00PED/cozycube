@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { BarnabyResult, CampfirePacket } from "@shared/types";
-import { AXES, AXES_BY_TIER, BYPRODUCTS, BYPRODUCT_IDS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
+import { AXES, AXES_BY_TIER, BYPRODUCTS, BYPRODUCT_IDS, SELL_ALL_BYPRODUCTS, WOOD, WOOD_CARRIER_TIERS, WOOD_KINDS, nextCarrierTier, woodAverage, woodPrice } from "@shared/chop";
 import { FIREWOOD_PER_COIN, firewoodCoins } from "@shared/economy";
 import { carrierCap, carrierLoad, type FishingProfile } from "@shared/fishing";
 import { SHOP_TIER_CAP, soldElsewhere } from "@shared/expedition";
@@ -39,9 +39,12 @@ interface Props {
   subscribeMessages: (listener: RoomMessageListener) => () => void;
   onOpenCollection: () => void;
   onClose: () => void;
+  /** Dune's timber scale on Sunset Beach: the trade tab alone (he sells none of the forester's things). */
+  keeper?: "bramble" | "dune";
 }
 
-export function BrambleModal({ profile, coins, owned, onBuyOutfit, market, send, subscribeMessages, onOpenCollection, onClose }: Props) {
+export function BrambleModal({ profile, coins, owned, onBuyOutfit, market, send, subscribeMessages, onOpenCollection, onClose, keeper = "bramble" }: Props) {
+  const dune = keeper === "dune";
   const [tab, setTab] = useState<ShopTab>("trade");
   const [notice, setNotice] = useState<ShopNotice | null>(null);
   useEffect(
@@ -59,18 +62,18 @@ export function BrambleModal({ profile, coins, owned, onBuyOutfit, market, send,
   const logRun = (k: (typeof WOOD_KINDS)[number], n: number) => priceRun(Array.from({ length: n }, () => k), woodGood, (x, mult) => woodPrice(x, mult, woodAverage(profile, x)), hour).total;
   const logs = WOOD_KINDS.reduce((n, k) => n + (profile.wood[k] ?? 0), 0);
   const logsWorth = WOOD_KINDS.reduce((sum, k) => sum + logRun(k, profile.wood[k] ?? 0), 0);
-  const byWorth = BYPRODUCT_IDS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
-  const byCount = BYPRODUCT_IDS.reduce((n, k) => n + (profile.byproducts[k] ?? 0), 0);
+  const byWorth = SELL_ALL_BYPRODUCTS.reduce((sum, k) => sum + (profile.byproducts[k] ?? 0) * BYPRODUCTS[k].price, 0);
+  const byCount = SELL_ALL_BYPRODUCTS.reduce((n, k) => n + (profile.byproducts[k] ?? 0), 0);
   const next = nextCarrierTier(profile.carrierTier);
   // (T5 is forged in the caverns, not sold)
   const away = (tier: number) => soldElsewhere(tier, SHOP_TIER_CAP.woods, "");
   const held = WOOD_KINDS.filter((k) => (profile.wood[k] ?? 0) > 0);
   return (
     <ShopShell
-      title="Bramble's Trading Post"
-      icon="🐻"
+      title={dune ? "Dune's Timber Scale" : "Bramble's Trading Post"}
+      icon={dune ? "🐢" : "🐻"}
       notice={notice}
-      tabs={TABS}
+      tabs={dune ? TABS.slice(0, 1) : TABS}
       tab={tab}
       onTab={setTab}
       onClose={onClose}
@@ -135,8 +138,8 @@ export function BrambleModal({ profile, coins, owned, onBuyOutfit, market, send,
             </div>
           )}
           <LegacyTradeIn profile={profile} send={send} />
-          {!held.length && !byCount && !profile.firewood && !hasLegacy(profile) && <p className="m-0 py-6 text-center text-sm opacity-70">Nothing to trade yet. Fell a tree or two, friend: I'll be here.</p>}
-          <p className="m-0 pt-1 text-center text-[11px] opacity-70">Logs go at the camp's market price this hour; every sale nudges the next one down a little. Fish? Finley's down by the river 🦦</p>
+          {!held.length && !byCount && !profile.firewood && !hasLegacy(profile) && <p className="m-0 py-6 text-center text-sm opacity-70">{dune ? "Nothing to weigh yet. The palms up the beach take a Tidewater axe." : "Nothing to trade yet. Fell a tree or two, friend: I'll be here."}</p>}
+          <p className="m-0 pt-1 text-center text-[11px] opacity-70">Logs go at the camp's market price this hour; every sale nudges the next one down a little. {dune ? "Dune pays in full for every wood." : "Fish? Finley's down by the river 🦦"}</p>
         </div>
       )}
 
