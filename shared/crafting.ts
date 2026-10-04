@@ -446,5 +446,8 @@ export function craftSalvage(id: CraftId): Partial<Record<WoodKind, number>> {
 
 /** Sawdust, from a broken carving: a handful on the bonfire is worth this much fuel. */
 export const SAWDUST_FUEL = 15;
+/** Any carve at the bench that doesn't break (a tackle, a consumable, a piece) shakes loose a pinch
+ *  of Sawdust this often; a broken one always gives one. */
+export const SAWDUST_CARVE_CHANCE = 0.3;
 /** Pine Resin, from a critical chop: Buster buys a spare one at this (shared/economy.ts). */
 export const RESIN_PRICE = RESIN_BUY_PRICE;

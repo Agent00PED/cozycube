@@ -28,6 +28,11 @@ export type SplitVerdict = "gold" | "hit" | "miss";
 export const SPLIT_GOLD_BATCH: readonly [number, number] = [3, 5];
 export const SPLIT_HIT_BATCH = 2;
 export const SPLIT_GOLD_BONUS = 1;
+/** Splitting throws up Sawdust now and then: per landed strike (a gold one likelier), and per log
+ *  in Bulk Process All. */
+export const SPLIT_SAWDUST_GOLD = 0.5;
+export const SPLIT_SAWDUST_HIT = 0.25;
+export const BULK_SAWDUST_PER_LOG = 0.05;
 /** The pause after a strike that lands before the next swing's marker sets off (s). */
 export const SPLIT_PAUSE_S = 0.5;
 /** A splitter who stops striking lets the block go after this long (s). */

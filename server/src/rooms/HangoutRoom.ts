@@ -9,7 +9,7 @@ import { getBoardStore } from "../db/boards";
 import { BOARD_SEAT_CHAIRS, GAMES, boardSeatOfChair } from "../../../shared/worlds/lounge";
 import { BUSTER_FRONT, BUSTER_REACH, BARNABY_FRONT, BARNABY_REACH, BONFIRE_REACH, CAMPFIRE_LAYOUT, CRITTER_REACH, DUCK_PATHS, FIREFLY_REACH, FISHING_REACH, FISHING_SPOTS, FORAGE_REACH, FORAGE_SPOTS, PICNIC_REACH, STARGAZE_REACH, WORKBENCH, WORKBENCH_FRONT, WORKBENCH_REACH, dockSeatOf, nearestFishingSpot, spotOfSeat } from "../../../shared/worlds/campfire";
 import { CUSHIONS, seatAnchorY } from "../../../shared/seats";
-import { ADHESIVES, BUFFS, CRAFTS, INCENSE_LUCK, SCENT_BITE_S, SMORE_PACE, WAX_GOLD, INCENSE_MS, RESIN_PRICE, SAWDUST_FUEL, TORCH_NIGHT_PACE, SAP_SLOW, CHUM_HASTE, CHUM_LUCK, FLOAT_HASTE, SINKER_ZONE, SILK_TENSION, PITCH_LOG, GLOWBAIT_LUCK, canCraft, craftOdds, craftSalePrice, craftSalvage, isAdhesive, isCraftId, isCraftMode, needsList, rollCraft, tradeInValue, type CraftId } from "../../../shared/crafting";
+import { ADHESIVES, BUFFS, CRAFTS, INCENSE_LUCK, SCENT_BITE_S, SMORE_PACE, WAX_GOLD, INCENSE_MS, RESIN_PRICE, SAWDUST_FUEL, SAWDUST_CARVE_CHANCE, TORCH_NIGHT_PACE, SAP_SLOW, CHUM_HASTE, CHUM_LUCK, FLOAT_HASTE, SINKER_ZONE, SILK_TENSION, PITCH_LOG, GLOWBAIT_LUCK, canCraft, craftOdds, craftSalePrice, craftSalvage, isAdhesive, isCraftId, isCraftMode, needsList, rollCraft, tradeInValue, type CraftId } from "../../../shared/crafting";
 import { refundMaterials } from "../../../shared/migrate";
 import {
   DRYAD_GROWTH,
@@ -129,7 +129,7 @@ import {
   woodsSpotOfSeat,
 } from "../../../shared/worlds/forest";
 import { CAMP_ARCHWAY_FRONT, CAMP_FROM_WOODS, GALLERY_FRONT, SPLITBLOCK_FRONT } from "../../../shared/worlds/campfire";
-import { BULK_MIN_LOGS, SPLIT_GOLD_BONUS, SPLIT_HIT_BATCH, SPLIT_IDLE_S, SPLIT_PAUSE_S, judgeSplit, rollGoldBatch, rollSplitSwing, type SplitSwing } from "../../../shared/splitting";
+import { BULK_MIN_LOGS, BULK_SAWDUST_PER_LOG, SPLIT_SAWDUST_GOLD, SPLIT_SAWDUST_HIT, SPLIT_GOLD_BONUS, SPLIT_HIT_BATCH, SPLIT_IDLE_S, SPLIT_PAUSE_S, judgeSplit, rollGoldBatch, rollSplitSwing, type SplitSwing } from "../../../shared/splitting";
 import {
   COZY_AURA_LUCK,
   FUEL_DECAY,
@@ -3695,6 +3695,7 @@ export class HangoutRoom extends Room<HangoutState> {
     let logs = 0;
     let bundles = 0;
     let bonus = 0;
+    let sawdust = 0;
     if (verdict !== "miss") {
       // the log on the block first, then whatever else the carrier holds
       let want = verdict === "gold" ? rollGoldBatch() : SPLIT_HIT_BATCH;
@@ -3708,12 +3709,14 @@ export class HangoutRoom extends Room<HangoutState> {
       }
       if (verdict === "gold") bonus = SPLIT_GOLD_BONUS;
       profile.firewood = Math.min(9999, profile.firewood + bundles + bonus);
+      // (a pinch of Sawdust flies off now and then; the store's 99 cap applies)
+      if (Math.random() < (verdict === "gold" ? SPLIT_SAWDUST_GOLD : SPLIT_SAWDUST_HIT)) sawdust = addMaterial(profile, "sawdust", 1);
       this.saveFishing(sessionId, player);
     }
     if (!player.sitting) this.playGesture(sessionId, "chop");
     const streak = verdict === "miss" ? 0 : split.streak + 1;
     const left = WOOD_KINDS.reduce((sum, k) => sum + (profile.wood[k] ?? 0), 0);
-    this.sendTo(sessionId, "splitStrike", { verdict, wood: first, logs, bundles, bonus, firewood: profile.firewood, left, streak } satisfies SplitStrike);
+    this.sendTo(sessionId, "splitStrike", { verdict, wood: first, logs, bundles, bonus, sawdust, firewood: profile.firewood, left, streak } satisfies SplitStrike);
     if (verdict === "gold") this.nearby(sessionId, "emote", { sessionId, emoji: "💥" });
     const next = this.splitKind(profile, split.wood);
     if (next) this.sendSplitSwing(sessionId, next, streak, verdict === "miss" ? 0.15 : SPLIT_PAUSE_S);
@@ -3746,10 +3749,12 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     if (!logs) return reply(false, "No logs in your carrier to split");
     profile.firewood = Math.min(9999, profile.firewood + bundles);
+    let sawdust = 0;
+    for (let i = 0; i < logs; i++) if (Math.random() < BULK_SAWDUST_PER_LOG) sawdust += addMaterial(profile, "sawdust", 1);
     this.saveFishing(sessionId, player);
     if (!player.sitting) this.playGesture(sessionId, "chop");
     this.nearby(sessionId, "emote", { sessionId, emoji: "🪵" });
-    reply(true, `${logs} log${logs > 1 ? "s" : ""} split into ${bundles} bundles of Firewood`);
+    reply(true, `${logs} log${logs > 1 ? "s" : ""} split into ${bundles} bundles of Firewood${sawdust ? ` + ${sawdust} Sawdust` : ""}`);
     this.persist(sessionId, player);
   }
 
@@ -3806,23 +3811,28 @@ export class HangoutRoom extends Room<HangoutState> {
       })
       .join(" + ");
     if (!canCraft(stock, packet.recipe)) return reply(false, `The ${craft.name} takes ${needs}`);
+    // any carve that holds together may shake loose a pinch of Sawdust (the store's 99 cap applies)
+    const dust = () => (Math.random() < SAWDUST_CARVE_CHANCE ? addMaterial(profile, "sawdust", 1) : 0);
+    const dustNote = (n: number) => (n ? " + 1 Sawdust" : "");
     // a consumable: into the stash (as many as it holds), always made right
     if (craft.use === "consumable") {
       if (!stashFits(profile.crafts, { c: packet.recipe, m: false }, stashBonus(profile))) return reply(false, `Your craft stash is full (${CRAFT_STASH_SLOTS} slots): use or sell something first`);
       this.spendCraft(profile, packet.recipe);
       profile.crafts.push({ c: packet.recipe, m: false });
+      const sawdust = dust();
       this.playGesture(sessionId, "chop");
       this.nearby(sessionId, "emote", { sessionId, emoji: craft.emoji });
-      return reply(true, `${craft.emoji} A ${craft.name}, into the stash: use it from the wood drawer's Crafts & Fuel tab`, { outcome: "normal", recipe: packet.recipe });
+      return reply(true, `${craft.emoji} A ${craft.name}, into the stash: use it from the wood drawer's Crafts & Fuel tab${dustNote(sawdust)}`, { outcome: "normal", recipe: packet.recipe, sawdust });
     }
     // a tackle: made once, yours for good (at work whenever you fish or fell), always right
     if (craft.use === "tool") {
       if (profile.tools.includes(packet.recipe)) return reply(false, `You've made your ${craft.name} already: it's yours for good`);
       this.spendCraft(profile, packet.recipe);
       profile.tools.push(packet.recipe);
+      const sawdust = dust();
       this.playGesture(sessionId, "chop");
       this.nearby(sessionId, "emote", { sessionId, emoji: craft.emoji });
-      return reply(true, `${craft.emoji} Your ${craft.name}! ${craft.description.replace(/^Tackle: /, "")}`, { outcome: "normal", recipe: packet.recipe });
+      return reply(true, `${craft.emoji} Your ${craft.name}! ${craft.description.replace(/^Tackle: /, "")}${dustNote(sawdust)}`, { outcome: "normal", recipe: packet.recipe, sawdust });
     }
     if (craft.use !== "sell") return reply(false, `The ${craft.name} isn't carved at the bench any more`);
     if (!stashFits(profile.crafts, { c: packet.recipe, m: false }, stashBonus(profile)) || !stashFits(profile.crafts, { c: packet.recipe, m: true }, stashBonus(profile))) return reply(false, `Your craft stash is full (${CRAFT_STASH_SLOTS} slots of ${CRAFT_SLOT_STACK}): sell or use something first`);
@@ -3846,9 +3856,10 @@ export class HangoutRoom extends Room<HangoutState> {
     }
     const m = outcome === "masterwork";
     profile.crafts.push({ c: packet.recipe, m });
+    const sawdust = dust();
     this.nearby(sessionId, "emote", { sessionId, emoji: m ? "✨" : craft.emoji });
-    const note = adhesive ? ` (${ADHESIVES[adhesive].emoji} ${ADHESIVES[adhesive].name})` : "";
-    reply(true, m ? `A Masterwork ${craft.name}!${note} ✨ Buster will pay ${craft.master} 🪙 for it` : `A fine ${craft.name} ${craft.emoji}${note}, worth ${craft.price} 🪙 at Buster's stall`, { outcome, recipe: packet.recipe, ...glue });
+    const note = (adhesive ? ` (${ADHESIVES[adhesive].emoji} ${ADHESIVES[adhesive].name})` : "") + dustNote(sawdust);
+    reply(true, m ? `A Masterwork ${craft.name}!${note} ✨ Buster will pay ${craft.master} 🪙 for it` : `A fine ${craft.name} ${craft.emoji}${note}, worth ${craft.price} 🪙 at Buster's stall`, { outcome, recipe: packet.recipe, sawdust, ...glue });
   }
 
   /** A drawer's own consumable made (anywhere the drawer opens): its makings out of the materials'

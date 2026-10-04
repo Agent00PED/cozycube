@@ -1600,6 +1600,8 @@ export interface SplitStrike {
   logs: number;
   bundles: number;
   bonus: number;
+  /** Sawdust the strike threw up (0 or 1). */
+  sawdust?: number;
   firewood: number;
   left: number;
   streak: number;
