@@ -146,7 +146,7 @@ export function SplitBlockModal({ profile, send, subscribeMessages, onClose }: {
               playSfx("bigSplit");
               playSfx("crit", 0.7);
             } else playSfx("chop");
-            setHaul({ key: performance.now(), text: `+${r.bundles} 🪵 from ${r.logs} log${r.logs > 1 ? "s" : ""}${r.bonus ? ` · +${r.bonus} bonus bundle` : ""}` });
+            setHaul({ key: performance.now(), text: `+${r.bundles} 🪵 from ${r.logs} log${r.logs > 1 ? "s" : ""}${r.bonus ? ` · +${r.bonus} bonus bundle` : ""}${r.sawdust ? " · +1 Sawdust" : ""}` });
           }
           if (r.left <= 0) {
             swingRef.current = null;
