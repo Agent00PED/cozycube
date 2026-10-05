@@ -2254,6 +2254,17 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.9.4",
+        date: "2026-10-05",
+        title: "Feet Up at Sea",
+        summary: "An AFK line can be left out from the captain's boat on the Open Sea.",
+        changes: {
+          features: [
+            "☕ Auto AFK works from the rails of the captain's boat on the Open Sea (an Expedition rod or better, as for any cast there). It lands what an AFK line lands anywhere: never a King Size or a mythic, and no chart pieces, which still take a hand on the reel. The hidden place stays hand-reeled.",
+          ],
+        },
+      },
     ],
   },
 ];

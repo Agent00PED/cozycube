@@ -851,8 +851,8 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       const AFK_HINT = "Feet up, line in: a common every 44-58s, rarer fish longer (baited only; up to three minutes for a legendary; premium bait a quarter quicker). Never a King Size or a mythic: those take a hand on the reel";
       if (mySpot === "shore" && action === "") {
         found.push({ key: `cast:shore:${streamFloat ? "stream" : seaFloat ? "sea" : "lake"}`, type: "fish", label: streamFloat ? "🎣 Cast into the Stream" : "🎣 Cast Line", hint: seaFloat ? "Cast into the sea: the rod decides what it may land here (any rod the common fish, a T4 rod uncommon, a T5 rod rare)" : streamFloat ? "Cast into the stream from its bank: the cave's smaller fish, quick and calm (nothing legendary swims up water this shallow)" : "Cast into the Great Lake from the shore; tap when the bobber dips, then reel it in (the lucky drip: cast into its ripple for a wider sweet spot, and nothing common bites)", run: castShore });
-        // (no AFK line out at sea: the best fish need a hand on the reel)
-        if (mapId !== "open_sea" && mapId !== "hidden_cove")
+        // (no AFK line in the Hidden Cove: its fish need a hand on the reel)
+        if (mapId !== "hidden_cove")
           found.push({
             key: "afk:on",
             type: "afk",
@@ -868,7 +868,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Manual Reel", hint: "Cast into the river; tap when the bobber dips, then reel it in (in a King-Size Surge, 4 in 10 are King Size)", run: () => interactBridge.current?.useProp(id) });
         found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
       }
-      if (mySpot && action === "fish" && mapId !== "open_sea" && mapId !== "hidden_cove") found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
+      if (mySpot && action === "fish" && mapId !== "hidden_cove") found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
       // the cenote's lucky drip rippling right by your float: cast into it (a bite with no commons)
       const lucky = drip.current;
       const myFloat = players[localSessionId];
