@@ -73,7 +73,7 @@ import { CaptainModal } from "./components/hud/CaptainModal";
 import { CoveBenchModal } from "./components/hud/CoveBenchModal";
 import { SeaEventPill } from "./components/hud/SeaEventPill";
 import { seaEventStore } from "./systems/seaEventStore";
-import { SEA_EVENT_INFO, type SeaEvent } from "@shared/voyage";
+import { SEA_EVENT_INFO, TIDE_FINDS, type SeaEvent, type TideLook } from "@shared/voyage";
 import { BarShiftSheet } from "./components/hud/BarShiftSheet";
 import { PoolModal } from "./components/hud/PoolModal";
 import { PianoModal } from "./components/hud/PianoModal";
@@ -591,6 +591,11 @@ export default function App() {
           // a bottle on the line, out at sea: a torn piece of an old chart
           const c = payload as { piece: number; of: number };
           pushToast(c.piece >= c.of ? "A bottle on the line! The last piece: the chart is whole. Show it to the captain" : `A bottle on the line! Inside, a torn piece of an old sea chart (${c.piece}/${c.of})`, { emoji: "🍾", tone: "win" });
+        } else if (type === "tideLook") {
+          // a look into a tide pool on the rocky point (shared/voyage.ts TIDE_FINDS)
+          const t = payload as TideLook;
+          const f = TIDE_FINDS.find((x) => x.id === t.id);
+          if (f) pushToast(t.isNew ? `${f.line} New in your Tide Pool Journal (${t.found}/${t.all})${t.coins ? `: +${t.coins} 🪙` : ""}${t.complete ? " The journal is complete!" : ""}` : f.line, { emoji: f.emoji, tone: t.isNew ? "win" : undefined });
         } else if (type === "clamPried") {
           const c = payload as { pearls: number };
           pushToast(c.pearls > 1 ? `Two pearls in one clam!` : "A pearl!", { emoji: "🫧" });

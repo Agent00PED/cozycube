@@ -222,6 +222,14 @@ restart mid-bout is a No Contest), Retro Arcade and the
 Gaming Cafe (registered, not built:
 each is a bare floor with no seats or props until its world is authored).
 
+The remake's third pass (patch 0.9.2; the owner: "decide yourself, improve what you like"):
+- **Tide pools are looked into** (shared/voyage.ts `TIDE_FINDS`: eight kinds by weight, `rollTideFind`, `TIDE_REACH`, `TIDE_REST_MS` 45 s a pool a player, `TIDE_JOURNAL_BONUS` 150; `SeaPacket` op `peek`; BeachSea `peek`; the camp profile's `tide`): a kind new to the journal pays its coins once (5 to 60), told by `tideLook` (a toast in App.tsx). The dock's `[ 🔍 Look in the tide pool ]` sends it through `onCaverns(SEA_CHANNEL, ...)` (the dock's one generic sender). No income: nothing is taken or sold. There is no page listing the journal yet (the toast gives the count).
+- **Dressing** (build_beach.py `build_dress`, all against the buildings or out of the way, no colliders): surfboards, a menu board, a coconut crate and a thatch fringe at the bar; a net, drying fish, crab pots and an anchor at the shack; lamp posts, rope and a life ring on the pier.
+- **The sea** (seaWater, cache key `sea-water-8`): the swell's glints are broad soft bands, gold at dusk; dusk's deep water is plum, not grey.
+- **A keeper's speech bubble wraps** (CampNpc: `max-content` up to 230 px).
+- **Decided, not changed:** the beach keeps the room's shared hour (one clock for the lounge, the beach and the sea).
+- **Seen working in the browser this pass:** a tide pool look end to end, two egrets in the creek, the almond bench, the Sea Pine's felling panel, the sunset.
+
 The remake's second pass (patch 0.9.1; the owner's asks after seeing it): where the block below says twenty palms or fifteen Sea Pines, this is the truth.
 - **Fewer trees:** thirteen palms (`TREES.palm.respawnS` 195, from 300: the same supply), nine Sea Pines, five mangroves, twelve shrubs.
 - **The boat's hull went missing** because its faces were wound inward and culled. `boat_hull` (build_beach.py) is a whole shell now (thirteen stations, a rubbing strake, bulwarks, a cap rail, a planked deck clear of the water), its faces worked out by `recalc_face_normals`, its finishes in `DOUBLE_SIDED`; `Prop_Boat` bakes to `BC_ClayDouble`. `boat_fittings` dresses it (the beach's and the cove's). build_sea.py's hull gets the same recalc, a strake, a stem post and a rudder.

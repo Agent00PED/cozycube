@@ -36,15 +36,17 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       // the low sun, at dawn and dusk: its own water, gold and rose in the shallows, going to violet
       // out deep (a tint over the half-night water was mud)
       vec3 duskWater = mix(vec3(1.0, 0.74, 0.50), vec3(0.78, 0.52, 0.52), smoothstep(0.2, 3.2, sea));
-      duskWater = mix(duskWater, vec3(0.24, 0.23, 0.42), smoothstep(2.6, 9.0, sea));
-      water = mix(water, duskWater, uDusk * (0.85 - 0.25 * smoothstep(3.0, 10.0, sea)));
+      duskWater = mix(duskWater, vec3(0.34, 0.30, 0.52), smoothstep(2.6, 9.0, sea));
+      water = mix(water, duskWater, uDusk * 0.88);
       // the swell: long soft bands running in toward the shore, a finer chop across them, and the
       // sun's glints where the two crests meet (lines of light, never spots)
       float sw1 = sin((vSeaPos.x + vSeaPos.z) * 0.42 + uTime * 0.5 + 1.3 * sin((vSeaPos.x - vSeaPos.z) * 0.16 + uTime * 0.11));
       float sw2 = sin((vSeaPos.x + vSeaPos.z) * 1.05 + (vSeaPos.x - vSeaPos.z) * 0.38 + uTime * 0.85 + 0.9 * sin((vSeaPos.x - vSeaPos.z) * 0.45 - uTime * 0.2));
       water *= 0.955 + 0.04 * sw1 + 0.022 * sw2;
-      float glint = smoothstep(0.72, 1.0, sw1) * smoothstep(0.55, 1.0, sw2) * (0.6 + 0.4 * sin((vSeaPos.x - vSeaPos.z) * 3.1 + uTime * 1.7));
-      water = mix(water, vec3(0.86, 0.97, 1.0), glint * 0.16 * (1.0 - 0.7 * uNight) * smoothstep(0.5, 3.0, sea));
+      // (the crests catch the light in broad soft bands; by the low sun they go gold)
+      float glint = smoothstep(0.45, 1.0, sw1) * (0.55 + 0.45 * sw2);
+      vec3 glintColor = mix(vec3(0.72, 0.92, 0.98), vec3(1.0, 0.72, 0.42), uDusk);
+      water = mix(water, glintColor, glint * (0.09 + 0.12 * uDusk) * (1.0 - 0.7 * uNight * (1.0 - uDusk)) * smoothstep(0.5, 3.0, sea));
       // waves rolling in: lines of foam that follow the coast, breaking as they reach the shallows
       float wob = sin(vSeaPos.x * 0.9 - vSeaPos.z * 0.7 + uTime * 0.2) * 0.9;
       float roll = sin(sea * 1.25 + uTime * 0.85 + wob);
@@ -67,6 +69,6 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       .replace("void main() {", `float seaGlow = 0.0;
 void main() {`);
   };
-  m.customProgramCacheKey = () => (calm ? "sea-water-7-calm" : "sea-water-7");
+  m.customProgramCacheKey = () => (calm ? "sea-water-8-calm" : "sea-water-8");
   m.needsUpdate = true;
 }

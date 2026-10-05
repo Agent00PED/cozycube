@@ -6,6 +6,8 @@ import type { FishingProfile } from "../../../shared/fishing";
 import type { MapId } from "../../../shared/types";
 import { CHART_PIECES, CLAM_DOUBLE, CLAM_PEARLS, CLAM_SHUT_MS, TICKET_PRICE, chartChance, isSeaMap, type ChartPiece, type ClamSync, type SeaPacket, DOLPHIN_HASTE, SEA_EVENT_EVERY_MIN, SEA_EVENT_KINDS, SEA_EVENT_S, SHOAL_LUCK, WHALE_KING, seaEventOn, type SeaEvent, type SeaEventKind } from "../../../shared/voyage";
 import { MATERIAL_CAP } from "../../../shared/economy";
+import { TIDE_POOLS } from "../../../shared/worlds/beach";
+import { TIDE_FINDS, TIDE_JOURNAL_BONUS, TIDE_REACH, TIDE_REST_MS, rollTideFind, type TideLook } from "../../../shared/voyage";
 import { CLAM_REACH, COVE_BENCH_FRONT, COVE_BENCH_REACH, COVE_CAPTAIN_FRONT, COVE_CLAMS, COVE_SPAWNS } from "../../../shared/worlds/cove";
 import { BRINE_FRONT, BRINE_REACH, DUNE_FRONT, DUNE_REACH, PIER_RETURN } from "../../../shared/worlds/beach";
 import { CAPTAIN_REACH, SEA_CAPTAIN_FRONT, SEA_SPAWNS } from "../../../shared/worlds/sea";
@@ -38,6 +40,8 @@ export interface SeaHost {
 export class BeachSea {
   /** When each of the cove's clams opens again (ms): the room's, never saved. */
   private clams = new Map<string, number>();
+  /** Each looker's tide pools, settling: `<session>:<pool>` to when it clears. */
+  private pools = new Map<string, number>();
 
   /** The living wonder beside the boat (null: none), and when the next may come. */
   private event: SeaEvent | null = null;
@@ -93,6 +97,7 @@ export class BeachSea {
     else if (msg.op === "cove") this.toCove(sessionId, player, profile);
     else if (msg.op === "tosea") this.toSea(sessionId, player);
     else if (msg.op === "pry") this.pry(sessionId, player, profile, msg.clam);
+    else if (msg.op === "peek") this.peek(sessionId, player, profile, msg.pool);
   }
 
   /** Aboard at the pier's head: the ticket bought (or the trip already paid for taken up again). */
@@ -171,6 +176,32 @@ export class BeachSea {
       if (at > now) out[c.id] = at;
     }
     return out;
+  }
+
+  /** A look into a tide pool on Sunset Beach's rocky point: whatever the tide left in it. A kind new to
+   *  the looker's journal pays its coins once (and the whole journal its bonus); a pool looked into
+   *  takes a while to settle before the same player finds anything more in it. */
+  private peek(sessionId: string, player: SeaPlayer, profile: FishingProfile, pool: unknown) {
+    const p = typeof pool === "number" ? TIDE_POOLS[pool] : undefined;
+    if (!p || player.map !== "sunset_beach" || player.sitting || player.action !== "") return;
+    if (Math.hypot(player.x - p.x, player.z - p.z) > p.r + TIDE_REACH + 0.6) return;
+    const now = Date.now();
+    const key = `${sessionId}:${pool}`;
+    if ((this.pools.get(key) ?? 0) > now) return this.say(sessionId, "The water is still cloudy from your last look: give it a minute to settle", "🫧");
+    this.pools.set(key, now + TIDE_REST_MS);
+    const find = rollTideFind();
+    const isNew = !profile.tide.includes(find.id);
+    let coins = 0;
+    if (isNew) {
+      profile.tide.push(find.id);
+      coins = find.coins;
+      if (profile.tide.length >= TIDE_FINDS.length) coins += TIDE_JOURNAL_BONUS;
+      this.host.addCoins(sessionId, coins);
+      this.host.saveProfile(sessionId);
+    }
+    this.host.emote(sessionId, find.emoji);
+    const look: TideLook = { id: find.id, isNew, coins, found: profile.tide.length, all: TIDE_FINDS.length, complete: isNew && profile.tide.length >= TIDE_FINDS.length };
+    this.host.sendTo(sessionId, "tideLook", look);
   }
 
   /** A giant clam pried open: a pearl or two, and it is shut again for a while (for everyone). */

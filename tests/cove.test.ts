@@ -1,6 +1,8 @@
 // The Hidden Cove (shared/worlds/cove.ts, shared/voyage.ts, server/src/rooms/beachSea.ts): the torn
 // chart, the way in, the clams, the Deep Tide rod, and what it earns: `npm test`.
 import { test } from "node:test";
+import { TIDE_FINDS, rollTideFind } from "../shared/voyage";
+import { BEACH_ARRIVAL, TIDE_POOLS } from "../shared/worlds/beach";
 import { CavernsMine } from "../server/src/rooms/caverns";
 import { CODEX, CODEX_BY_ID, FOSSILS, REEF_FOSSIL, codexProgress } from "../shared/caverns_codex";
 import { FORGE_WARES, ORE_ITEMS, type OreItemId } from "../shared/caverns_mining";
@@ -448,4 +450,41 @@ test("pearl jewellery and the Pearl-set ring: the forge takes their makings out 
   assert.equal(satchelCount(kit, "amethyst"), 0);
   mine.forgeRing("s", kit, coins, ring);
   assert.equal(coins, 5000 - RING_BANDS.pearl.fee);
+});
+
+test("the tide pools: a look finds what the tide left; a new kind is journalled and paid once; a pool settles before the next look", () => {
+  // every kind can turn up, the common ones most
+  const seen = new Map<string, number>();
+  for (let i = 0; i < 4000; i++) {
+    const f = rollTideFind((i + 0.5) / 4000);
+    seen.set(f.id, (seen.get(f.id) ?? 0) + 1);
+  }
+  assert.equal(seen.size, TIDE_FINDS.length);
+  assert.ok((seen.get("limpet") ?? 0) > (seen.get("octopus") ?? 0) * 8);
+  const w = world(100);
+  const pool = TIDE_POOLS[0];
+  // far from any pool: nothing
+  w.stand(BRINE_FRONT);
+  w.sea.handle("s", { op: "peek", pool: 0 });
+  assert.equal(w.profile.tide.length, 0);
+  // beside it, on the rock (not in deep water)
+  let at = { x: pool.x, z: pool.z };
+  for (let a = 0; a < 6.3; a += 0.3) {
+    const p = { x: pool.x + Math.cos(a) * (pool.r + 0.8), z: pool.z + Math.sin(a) * (pool.r + 0.8) };
+    if (!isBlocked(p.x, p.z, "sunset_beach")) at = p;
+  }
+  assert.ok(!isBlocked(at.x, at.z, "sunset_beach"), "a tide pool is stood beside");
+  assert.ok(findPath("sunset_beach", BEACH_ARRIVAL, at), "and walked to from the arrival");
+  w.stand(at);
+  w.sea.handle("s", { op: "peek", pool: 0 });
+  assert.equal(w.profile.tide.length, 1);
+  const first = TIDE_FINDS.find((f) => f.id === w.profile.tide[0])!;
+  assert.equal(w.player.coins, 100 + first.coins);
+  // at once again: the pool is settling
+  w.sea.handle("s", { op: "peek", pool: 0 });
+  assert.equal(w.profile.tide.length, 1);
+  assert.equal(w.player.coins, 100 + first.coins);
+  // and the journal is kept through a save and a read, with nothing strange in it
+  const back = sanitizeFishingProfile({ ...JSON.parse(JSON.stringify(w.profile)), tide: [first.id, first.id, "kraken"] });
+  assert.deepEqual(back.tide, [first.id]);
 });

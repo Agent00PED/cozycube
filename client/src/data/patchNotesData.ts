@@ -2225,6 +2225,22 @@ export const PATCH_ERAS: PatchEra[] = [
           economy: ["🥥 A felled Coconut Palm grows back in 195 seconds (it was 300): thirteen palms give what twenty gave."],
         },
       },
+      {
+        version: "0.9.2",
+        date: "2026-10-05",
+        title: "Tide Pools",
+        summary: "Look into the tide pools on the rocky point, and a beach that looks lived in.",
+        changes: {
+          features: [
+            "🔍 The tide pools on Sunset Beach's rocky point can be looked into: limpets, a starfish, an urchin, now and then a blenny, a sea slug or a little octopus. Each kind you see for the first time goes into your Tide Pool Journal and pays a few coins; all eight, a bonus.",
+          ],
+          visuals: [
+            "🏄 The bar has surfboards against its back, a chalked menu board and a crate of coconuts; Dune's shack has a net with its floats, fish drying on a line, crab pots and an anchor; the pier has lamp posts, rope on its piles and a life ring.",
+            "🌅 The sea at sunset is plum and gold out to the horizon, and its swell catches the light in soft bands.",
+          ],
+          fixes: ["💬 A keeper's long line wraps inside its speech bubble (the captain's ran off the screen)."],
+        },
+      },
     ],
   },
 ];

@@ -3,7 +3,8 @@ import { PLANT_WATER_COINS, isCasinoMap, msUntilNextDay, parseBag, parseSnack, R
 import { BARNABY_FRONT, BARNABY_REACH, BUSTER_FRONT, BUSTER_REACH, CAMPFIRE_LAYOUT, PICNIC_REACH, WORKBENCH_FRONT, WORKBENCH_REACH } from "@shared/worlds/campfire";
 import { COLOSSAL, FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, isColossalKind, type WoodKind } from "@shared/chop";
 import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ADIT_FRONT, FOREST_ANIMALS, FOREST_FISHING, FOREST_SEAT_LABELS, FOREST_WORKBENCH_FRONT, OLD_FLINT_FRONT, OLD_FLINT_REACH, woodsSpotOfSeat } from "@shared/worlds/forest";
-import { BAR, BRINE_FRONT, BRINE_REACH, DUNE_FRONT, DUNE_REACH, MANGO_FRONT, MANGO_REACH, SHIFT_REACH, beachCast } from "@shared/worlds/beach";
+import { SEA_CHANNEL, TIDE_REACH } from "@shared/voyage";
+import { BAR, BRINE_FRONT, BRINE_REACH, DUNE_FRONT, DUNE_REACH, MANGO_FRONT, MANGO_REACH, SHIFT_REACH, TIDE_POOLS, beachCast } from "@shared/worlds/beach";
 import { CAPTAIN_REACH, SEA_CAPTAIN_FRONT, seaCast } from "@shared/worlds/sea";
 import { CLAM_REACH, COVE_BENCH_FRONT, COVE_BENCH_REACH, COVE_CAPTAIN_FRONT, COVE_CLAMS, coveCast } from "@shared/worlds/cove";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, FINNEGAN, CAVE_ADIT_FRONT, CAVE_WINCH, WINCH_REACH, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, shoreCast, streamCast, PHOTO_SPOT, PHOTO_REACH, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, RAFT, RAFT_REACH } from "@shared/worlds/caverns";
@@ -564,6 +565,18 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       if (mapId === "sunset_beach" && action === "") {
         const px = cameraFocus.x;
         const pz = cameraFocus.z;
+        // the rocky point's tide pools: a look into the nearest in reach
+        if (!sitting) {
+          let pool: { i: number; d: number } | null = null;
+          TIDE_POOLS.forEach((p, i) => {
+            const d = Math.hypot(p.x - px, p.z - pz) - p.r;
+            if (d <= TIDE_REACH && (!pool || d < pool.d)) pool = { i, d };
+          });
+          if (pool) {
+            const i = (pool as { i: number; d: number }).i;
+            found.push({ key: `tide:${i}`, type: "forage", d: Math.max(0, (pool as { i: number; d: number }).d), label: "🔍 Look in the tide pool", hint: "Whatever the tide left behind: limpets, a starfish, now and then something rare", run: () => onCaverns(SEA_CHANNEL, { op: "peek", pool: i }) });
+          }
+        }
         const toBrine = Math.hypot(BRINE_FRONT.x - px, BRINE_FRONT.z - pz);
         if (!sitting && toBrine <= BRINE_REACH + 0.4) found.push({ key: "brine", type: "barnaby", d: toBrine, label: "⛵ Talk to the Captain", hint: "Captain Brine: a ticket to the Open Sea, where the big fish are", run: () => interactBridge.current?.useProp("brine") });
         const toDune = Math.hypot(DUNE_FRONT.x - px, DUNE_FRONT.z - pz);
