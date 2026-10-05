@@ -1,8 +1,7 @@
-import { Suspense, useContext, useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { daylight } from "@shared/daynight";
 import { DECK_Y, SEA_CAPTAIN, SEA_LAYOUT as L, halfBeam, onDeck } from "@shared/worlds/sea";
 import { SeaLife } from "./SeaLife";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -10,7 +9,7 @@ import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
-import { CampDaylightContext } from "./campDay";
+import { beachDay, stepBeachDay, useBeachDaylight } from "./beachDay";
 import { seaWater } from "./seaWater";
 
 // The Open Sea (map "open_sea", docs/beach-design.md section 4): the captain's boat at anchor, the
@@ -69,9 +68,9 @@ export function SeaWorld({ onFloorClick, subscribeMessages }: { onFloorClick: (x
   };
   useFrame((_, dt) => {
     SEA_TIME.value += dt;
-    const d = daylight(Date.now());
-    SEA_NIGHT.value = 1 - d;
-    SEA_DUSK.value = Math.max(0, 1 - Math.abs(d - 0.45) / 0.4);
+    stepBeachDay(dt);
+    SEA_NIGHT.value = 1 - beachDay.light;
+    SEA_DUSK.value = beachDay.dusk;
   });
   return (
     <group>
@@ -126,7 +125,7 @@ function SeaModel() {
 }
 
 function SeaLights() {
-  const d = useContext(CampDaylightContext) ?? 1;
+  const d = useBeachDaylight();
   const dark = 1 - d;
   const house = onDeck(L.wheelhouse.a1 + 0.1, 0);
   const mast = onDeck(L.mast.a, L.mast.b);

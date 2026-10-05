@@ -2,7 +2,7 @@ import { Suspense, useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { daylight } from "@shared/daynight";
+import { beachDay } from "./beachDay";
 import { BEACH_LAYOUT as L, PALMS, PIER, SEA_Y, SHRUBS, at, beachBlocked, beachLand } from "@shared/worlds/beach";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
@@ -127,7 +127,7 @@ function Life() {
     const t = clock.elapsedTime;
     const dt = Math.min(rawDt, 0.1);
     const { m, w, q, q2, pos, scl, up, fwd, side, rot } = tmp;
-    const day = daylight(Date.now()) > 0.35;
+    const day = beachDay.light > 0.35;
     // --- the gulls: by day
     for (const p of gulls) if (p) p.mesh.visible = day;
     if (day) {
@@ -277,7 +277,7 @@ function Life() {
       leapers.mesh.instanceMatrix.needsUpdate = true;
     }
     // --- the fireflies: after dark, blinking slowly as they drift
-    const dark = 1 - daylight(Date.now());
+    const dark = 1 - beachDay.light;
     fireflies.forEach((f, i) => {
       if (dark < 0.4) return flies.hide(i);
       const a = f.a + t * 0.12 * f.v;

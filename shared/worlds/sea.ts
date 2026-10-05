@@ -4,7 +4,7 @@ import type { PropSpec } from "./lounge";
 // The Open Sea (the map "open_sea", docs/beach-design.md section 4): a map of its own under Sunset
 // Beach, reached only with a ticket from Captain Brine at the pier's head. The map IS the captain's
 // boat: a sturdy wooden fishing boat, 11 m long, anchored in open water, the sea running out on every
-// side. Its deck never moves (seats, colliders and casts stay simple); the swell moves round it.
+// side: nothing else breaks the horizon (no rock, no buoy; the owner's call). Its deck never moves (seats, colliders and casts stay simple); the swell moves round it.
 //
 // The boat lies across the camera's view (its bow to the north-east), so its whole length shows.
 // Written in the boat's own frame: `a` metres toward the bow, `b` metres to starboard (the camera's
@@ -31,9 +31,9 @@ export const SEA_LAYOUT = /* layout:begin */ {
   "benches": [{ "a": 0.9, "b": -1.12 }, { "a": 1.7, "b": -1.12 }, { "a": 2.5, "b": -1.12 }],
   "bowSeat": { "a": 4.7, "b": 0.0 },
   "crates": [{ "a": -1.3, "b": -1.05 }, { "a": 3.4, "b": 0.75 }],
-  "stacks": [[-9.5, -9.5, 2.2], [-14, -2.5, 1.4], [-1.5, -14.5, 1.7], [12.5, -7.5, 1.1], [-18.5, -11, 1.8], [-7, -20, 1.3], [-20, 5, 1.0], [8, -17, 1.5], [-13.5, -15.5, 0.9]],
-  "buoys": [[-5.5, -7.0], [8.5, -3.0]],
-  "kelp": [[-7.5, -5.5, 1.2], [-11.5, -4.5, 0.9], [-3.5, -11.0, 1.1], [10.0, -5.5, 0.8], [-12.0, -9.0, 1.0]]
+  "stacks": [],
+  "buoys": [],
+  "kelp": []
 } /* layout:end */;
 
 const L = SEA_LAYOUT;

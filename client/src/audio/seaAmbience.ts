@@ -1,4 +1,4 @@
-import { isCampDay } from "@shared/daynight";
+import { beachDay, beachIsDay } from "../scene/beachDay";
 import { getSoundSettings } from "./soundSettings";
 import { WORLD_CROSSFADE_S } from "./sound";
 import { masterOut } from "./master";
@@ -287,13 +287,13 @@ export class SeaAmbience {
         this.drip(now + 0.05);
       } else {
         this.lifeAt = now + (place === "beach" ? 8 : 14) + Math.random() * 14;
-        if (isCampDay(Date.now())) this.gull(now + 0.05);
+        if (beachIsDay()) this.gull(now + 0.05);
       }
     }
     if (place === "beach" && now > this.musicAt) {
       // (the bar plays from dusk to dawn)
       this.musicAt = now + 20 + Math.random() * 14;
-      if (!isCampDay(Date.now())) this.musicAt += this.ukulele(now + 0.1);
+      if (beachDay.light < 0.55) this.musicAt += this.ukulele(now + 0.1);
     }
     if (place === "sea" && now > this.creakAt) {
       this.creakAt = now + 5 + Math.random() * 9;
