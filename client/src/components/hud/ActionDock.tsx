@@ -5,7 +5,7 @@ import { COLOSSAL, FIREWOOD_FUEL, TITAN, TREES, WOOD, WOOD_KINDS, isColossalKind
 import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH, FOREST_ADIT_FRONT, FOREST_ANIMALS, FOREST_FISHING, FOREST_SEAT_LABELS, FOREST_WORKBENCH_FRONT, OLD_FLINT_FRONT, OLD_FLINT_REACH, woodsSpotOfSeat } from "@shared/worlds/forest";
 import { SEA_CHANNEL, TIDE_REACH } from "@shared/voyage";
 import { BAR, BRINE_FRONT, BRINE_REACH, DUNE_FRONT, DUNE_REACH, MANGO_FRONT, MANGO_REACH, SHIFT_REACH, TIDE_POOLS, beachCast } from "@shared/worlds/beach";
-import { CAPTAIN_REACH, SEA_CAPTAIN_FRONT, seaCast } from "@shared/worlds/sea";
+import { CAPTAIN_REACH, SEA_CAPTAIN_FRONT, seaCast, seaSeatCast } from "@shared/worlds/sea";
 import { CLAM_REACH, COVE_BENCH_FRONT, COVE_BENCH_REACH, COVE_CAPTAIN_FRONT, COVE_CLAMS, coveCast } from "@shared/worlds/cove";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, FINNEGAN, CAVE_ADIT_FRONT, CAVE_WINCH, WINCH_REACH, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, shoreCast, streamCast, PHOTO_SPOT, PHOTO_REACH, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, RAFT, RAFT_REACH } from "@shared/worlds/caverns";
 import { CAVERNS_CHANNELS, ORE_KINDS, PICKAXES, SOAK_S, isPickaxeId, parseOres } from "@shared/caverns_mining";
@@ -846,7 +846,9 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       const seaFloat = mapId === "sunset_beach" && !sitting && action === "" ? beachCast(cameraFocus.x, cameraFocus.z, faceX, faceZ) : mapId === "open_sea" && !sitting && action === "" ? seaCast(cameraFocus.x, cameraFocus.z, faceX, faceZ) : mapId === "hidden_cove" && !sitting && action === "" ? coveCast(cameraFocus.x, cameraFocus.z, faceX, faceZ) : null;
       const shoreFloat = lakeFloat ?? streamFloat ?? seaFloat;
       const onShore = (mapId === "glimmering_caverns" || mapId === "sunset_beach" || mapId === "open_sea" || mapId === "hidden_cove") && !sitting && (shoreFloat !== null || action === "fish" || action === "afkfish" || action === "rest" || action === "reel");
-      const mySpot = mySeat ? (spotOfSeat(mySeat.propId) ?? woodsSpotOfSeat(mySeat.propId)) : onShore ? "shore" : woodsStand?.propId;
+      // (a seat aboard the captain's boat: an AFK line may be left out from it)
+      const boatSeat = mapId === "open_sea" && !!mySeat && seaSeatCast(mySeat.propId) !== null;
+      const mySpot = mySeat ? (spotOfSeat(mySeat.propId) ?? woodsSpotOfSeat(mySeat.propId) ?? (boatSeat && action !== "" ? "boat" : undefined)) : onShore ? "shore" : woodsStand?.propId;
       const castShore = () => onCaverns(CAVERNS_CHANNELS.cast, { fx: faceX, fz: faceZ });
       const AFK_HINT = "Feet up, line in: a common every 44-58s, rarer fish longer (baited only; up to three minutes for a legendary; premium bait a quarter quicker). Never a King Size or a mythic: those take a hand on the reel";
       if (mySpot === "shore" && action === "") {
@@ -868,6 +870,7 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
         found.push({ key: `cast:${id}`, type: "fish", label: "🎣 Manual Reel", hint: "Cast into the river; tap when the bobber dips, then reel it in (in a King-Size Surge, 4 in 10 are King Size)", run: () => interactBridge.current?.useProp(id) });
         found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
       }
+      if (boatSeat && action === "") found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: "Leave a line out from your seat: " + AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
       if (mySpot && action === "fish" && mapId !== "hidden_cove") found.push({ key: "afk:on", type: "afk", label: "☕ Auto AFK", hint: AFK_HINT, run: () => onCampfire({ type: "AFK", on: true }) });
       // the cenote's lucky drip rippling right by your float: cast into it (a bite with no commons)
       const lucky = drip.current;

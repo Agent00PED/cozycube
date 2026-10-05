@@ -2265,6 +2265,18 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.9.5",
+        date: "2026-10-05",
+        title: "A Seat and a Sale at Sea",
+        summary: "Fish AFK from a seat on the boat, and sell your catch to the captain without turning for the pier.",
+        changes: {
+          features: [
+            "🪑 Sit on the boat's bench or at the bow and leave an AFK line out from your seat: the float lands beyond the rail you face.",
+            "🐟 Captain Brine buys your unlocked catch at the wheel for 80% of Dune's price, so a full livewell no longer ends the trip. Dune still pays in full ashore.",
+          ],
+        },
+      },
     ],
   },
 ];

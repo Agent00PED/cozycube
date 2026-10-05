@@ -118,6 +118,18 @@ export const SEA_SEATS: SeaSeat[] = [
     return { propId: "seat_boat_bow", ...p, rotationY: BOW_YAW, approachX: ap.x, approachZ: ap.z };
   })(),
 ];
+/** A line left out from a seat aboard (an AFK line only): the float lands out beyond the rail the seat
+ *  faces, straight ahead of whoever sits there. */
+export function seaSeatCast(propId: string): Pt | null {
+  const seat = SEA_SEATS.find((s) => s.propId === propId);
+  if (!seat) return null;
+  const d = { x: Math.sin(seat.rotationY), z: Math.cos(seat.rotationY) };
+  for (let t = 0.3; t <= 7; t += 0.15) {
+    const p = { x: seat.x + d.x * t, z: seat.z + d.z * t };
+    if (deckInside(p.x, p.z) <= -SEA_CAST_OUT) return { x: round(p.x), z: round(p.z) };
+  }
+  return null;
+}
 export const SEA_SEAT_LABELS: Record<string, string> = Object.fromEntries(SEA_SEATS.map((s) => [s.propId, s.propId === "seat_boat_bow" ? "🌊 Sit at the bow" : "⛵ Sit on the bench"]));
 
 export const SEA_PROPS: PropSpec[] = [{ propId: "brine_sea", x: SEA_CAPTAIN.x, z: SEA_CAPTAIN.z, kind: "captain", color: "#27405f", defaultOn: true, approachX: SEA_CAPTAIN_FRONT.x, approachZ: SEA_CAPTAIN_FRONT.z }];

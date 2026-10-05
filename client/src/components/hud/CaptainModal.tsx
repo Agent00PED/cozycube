@@ -2,7 +2,7 @@ import type { FishingProfile } from "@shared/fishing";
 import { RODS } from "@shared/fishing";
 import { SEA_CAST_ROD } from "@shared/sea_fishing";
 import type { MapId } from "@shared/types";
-import { CHART_PIECES, SEA_CHANNEL, TICKET_PRICE } from "@shared/voyage";
+import { CAPTAIN_RATE, CHART_PIECES, SEA_CHANNEL, TICKET_PRICE } from "@shared/voyage";
 import { Modal } from "./Modal";
 
 // Captain Brine the walrus: at Sunset Beach's pier he sells the ticket to the Open Sea; at the wheel
@@ -17,6 +17,7 @@ export function CaptainModal({ mapId, profile, coins, send, onClose }: { mapId: 
   };
   const rod = RODS[profile.rod];
   const canCast = rod.tier >= SEA_CAST_ROD;
+  const unlocked = profile.creel.filter((f) => !f.l).length;
   const whole = profile.coveAccess || profile.chart >= CHART_PIECES;
   const big = "min-h-12 w-full rounded-2xl px-4 bg-[#F5A623] text-base font-bold text-[#2B201B] transition active:scale-95 disabled:opacity-40";
   const plain = "min-h-12 w-full rounded-2xl px-4 bg-white/10 text-base font-bold transition active:scale-95";
@@ -30,8 +31,8 @@ export function CaptainModal({ mapId, profile, coins, send, onClose }: { mapId: 
               🎣 Casting from the boat takes an <b className="text-[#F7EBE1]">Expedition rod (T5)</b> or better.{" "}
               {canCast ? <span className="text-emerald-200">Your {rod.name} will do.</span> : <span className="text-rose-200">Your {rod.name} won't reach: you can still ride along.</span>}
             </div>
-            <div>🖐️ By hand only out there: no AFK line.</div>
-            <div>🪣 When your livewell is full, ask me for the pier and sell to Dune.</div>
+            <div>☕ An AFK line is welcome, from the rail or from a seat aboard.</div>
+            <div>🪣 When your livewell is full I'll buy the catch at the wheel for {Math.round(CAPTAIN_RATE * 100)}% of Dune's price, or run you back to sell to him.</div>
           </div>
           <button type="button" disabled={!profile.seaTrip && coins < TICKET_PRICE} onClick={() => go("sail")} className={big}>
             {profile.seaTrip ? "⛵ Back aboard (your ticket's still good)" : `⛵ Sail to the Open Sea · ${TICKET_PRICE} 🪙`}
@@ -66,6 +67,17 @@ export function CaptainModal({ mapId, profile, coins, send, onClose }: { mapId: 
               🗺️ To the hidden cove
             </button>
           )}
+          <button
+            type="button"
+            disabled={!unlocked}
+            onClick={() => {
+              send("campfire", { type: "BARNABY", op: "sell", slot: "all" });
+              onClose();
+            }}
+            className={`${plain} disabled:opacity-40`}
+          >
+            🐟 Sell my catch to the captain ({unlocked} fish · {Math.round(CAPTAIN_RATE * 100)}% of Dune's price)
+          </button>
           <button type="button" onClick={() => go("home")} className={whole ? plain : big}>
             ⚓ Back to the pier
           </button>
