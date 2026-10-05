@@ -15,7 +15,7 @@ import { instanced, template } from "./faunaKit";
 //
 //   always        two gulls keeping the boat company by day, a fish leaping now and then, a school of
 //                 five going over one after another, flying fish skimming away low over the water, a
-//                 sea turtle coming up for air a way off
+//                 sea turtle coming up for air a way off, a manta ray gliding past under the hull
 //   the wonders   whatever the room says is beside the boat (shared/voyage.ts SeaEvent): a whale
 //                 rolling at the surface off the starboard side and sounding with its flukes up as it
 //                 leaves; a pod of dolphins circling the boat; a shoal flashing silver under the keel
@@ -46,10 +46,11 @@ function Life() {
   const leapers = useMemo(() => instanced(template(scene, "Fauna_LeapFish"), LEAPERS + SCHOOL + FLYERS, ["#ffffff", "#ffe9c2", "#dff3ff"]), [scene]);
   const pod = useMemo(() => instanced(template(scene, "Fauna_Dolphin"), POD, ["#ffffff"]), [scene]);
   const turtle = useMemo(() => instanced(template(scene, "Fauna_SeaTurtle"), 1, ["#ffffff"]), [scene]);
+  const manta = useMemo(() => instanced(template(scene, "Fauna_Manta"), 1, ["#ffffff"]), [scene]);
   const whale = useMemo(() => instanced(template(scene, "Fauna_WhaleBack"), 1, ["#ffffff"]), [scene]);
   const fluke = useMemo(() => instanced(template(scene, "Fauna_WhaleFluke"), 1, ["#ffffff"]), [scene]);
   const glints = useMemo(() => new MotePoints(GLINTS), []);
-  const all = useMemo(() => [...gulls, leapers, pod, whale, fluke, turtle], [gulls, leapers, pod, whale, fluke, turtle]);
+  const all = useMemo(() => [...gulls, leapers, pod, whale, fluke, turtle, manta], [gulls, leapers, pod, whale, fluke, turtle, manta]);
   useEffect(
     () => () => {
       for (const p of all) p?.mesh.dispose();
@@ -60,6 +61,7 @@ function Life() {
   const leaps = useMemo(() => Array.from({ length: LEAPERS }, (_, i) => ({ at: -9, next: 5 + i * 8, x: 0, z: 0, yaw: 0 })), []);
   const school = useMemo(() => ({ at: -99, next: 12, x: 0, z: 0, yaw: 0 }), []);
   const flight = useMemo(() => ({ at: -99, next: 20, x: 0, z: 0, yaw: 0 }), []);
+  const glide = useMemo(() => ({ at: -99, next: 40, x: 0, z: 0, yaw: 0 }), []);
   const swim = useMemo(() => ({ at: -99, next: 30, x: 0, z: 0, yaw: 0 }), []);
   const seeds = useMemo(() => Array.from({ length: GLINTS }, () => ({ a: Math.random() * 6.283, r: 1.5 + Math.random() * 5.5, p: Math.random() * 6.283, v: 1.5 + Math.random() * 3 })), []);
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), w: new THREE.Matrix4(), q: new THREE.Quaternion(), q2: new THREE.Quaternion(), pos: new THREE.Vector3(), scl: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), fwd: new THREE.Vector3(0, 0, 1), side: new THREE.Vector3(1, 0, 0), rot: new THREE.Matrix4() }), []);
@@ -161,6 +163,24 @@ function Life() {
         m.compose(pos.set(swim.x + Math.sin(swim.yaw) * u * 2.2, SEA_Y - 0.62 + 0.5 * rise + 0.04 * Math.sin(t * 1.3), swim.z + Math.cos(swim.yaw) * u * 2.2), q, scl.setScalar(1.25));
         turtle.mesh.setMatrixAt(0, w.copy(m).multiply(turtle.t.matrix));
         turtle.mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+    // --- a manta ray gliding by under the surface, right past the hull: a dark shape, its wings beating slowly
+    if (manta) {
+      if (t > glide.next) {
+        const a = Math.random() * 6.283;
+        Object.assign(glide, { at: t, next: t + 55 + Math.random() * 50, x: Math.cos(a) * 11, z: Math.sin(a) * 11, yaw: Math.atan2(-Math.cos(a), -Math.sin(a)) + (Math.random() - 0.5) * 0.5 });
+      }
+      const u = (t - glide.at) / 16;
+      manta.mesh.visible = u >= 0 && u <= 1;
+      if (manta.mesh.visible) {
+        const along = u * 22;
+        q.setFromAxisAngle(up, glide.yaw + 0.2 * Math.sin(u * 5));
+        q.multiply(q2.setFromAxisAngle(fwd, 0.1 * Math.sin(t * 1.4)));
+        // (it rides just under the sheet's swell: its back breaks through in places, the rest is the water's)
+        m.compose(pos.set(glide.x + Math.sin(glide.yaw) * along, SEA_Y - 0.035 + 0.02 * Math.sin(t * 1.4), glide.z + Math.cos(glide.yaw) * along), q, scl.set(1.5, 1, 1.5));
+        manta.mesh.setMatrixAt(0, w.copy(m).multiply(manta.t.matrix));
+        manta.mesh.instanceMatrix.needsUpdate = true;
       }
     }
     // --- the wonder beside the boat

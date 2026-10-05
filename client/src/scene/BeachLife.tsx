@@ -8,6 +8,7 @@ import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { cameraFocus } from "./cameraFocus";
 import { Butterflies } from "./Butterflies";
+import { StrandLife } from "./StrandLife";
 import { instanced, template } from "./faunaKit";
 import { MotePoints } from "./caveLight";
 
@@ -24,6 +25,7 @@ import { MotePoints } from "./caveLight";
 //   the dolphins     a pod of three passing far out now and then, porpoising
 //   butterflies      over the flowering shrubs, by day
 //   fireflies        in the palm groves, by night
+//   and the strand's own (StrandLife.tsx): egrets in the creek, fiddler crabs on its mud, hermit crabs
 
 export const BEACH_LIFE_URL = modelUrl("beach_life.glb");
 
@@ -314,6 +316,7 @@ function Life() {
       {all.map((p, i) => (p ? <primitive key={i} object={p.mesh} /> : null))}
       <Butterflies scene={scene} spots={FLOWER_SPOTS} landY={beachLand} prefix="Fauna_BeachFly" />
       <primitive object={flies.points} />
+      <StrandLife scene={scene} />
     </>
   );
 }

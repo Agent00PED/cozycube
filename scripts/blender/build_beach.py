@@ -1033,6 +1033,38 @@ def build_life_looks(root):
             (lambda bm, sx=sx: blob(bm, sx * 0.04, 0.0, 0.012, 0.035, 0.004, 0.03, m=0, cuts=2), "#FFF6E2"),
             (lambda bm, sx=sx: blob(bm, sx * 0.03, 0.0, -0.022, 0.024, 0.004, 0.02, m=0, cuts=2), "#F4E4C8"),
         ], coll, pivot=(sx * 0.008, 0.0, 0.0)))
+    # the egret: 0.62 m tall, white, a long S of a neck, a yellow dagger of a bill, black legs (standing)
+    made.append(fauna_node("Fauna_Egret", [
+        (lambda bm: blob(bm, 0.0, 0.34, -0.02, 0.07, 0.075, 0.13, m=0, cuts=3), "#FAFAF6"),
+        (lambda bm: blob(bm, 0.0, 0.31, -0.15, 0.04, 0.03, 0.07, m=0, cuts=2), "#F0F0EA"),
+        (lambda bm: cylinder(bm, W(0.0, 0.38, 0.07), W(0.0, 0.5, 0.03), 0.022, 5, m=0), "#FAFAF6"),
+        (lambda bm: cylinder(bm, W(0.0, 0.5, 0.03), W(0.0, 0.58, 0.09), 0.02, 5, m=0), "#FAFAF6"),
+        (lambda bm: blob(bm, 0.0, 0.6, 0.11, 0.028, 0.026, 0.04, m=0, cuts=2), "#FAFAF6"),
+        (lambda bm: cylinder(bm, W(0.0, 0.6, 0.14), W(0.0, 0.585, 0.24), 0.01, 4, m=0, r_end=0.002), "#E8B33C"),
+        (lambda bm: blob(bm, 0.022, 0.612, 0.125, 0.006, 0.006, 0.005, m=0, cuts=1), "#1B1818"),
+        (lambda bm: blob(bm, -0.022, 0.612, 0.125, 0.006, 0.006, 0.005, m=0, cuts=1), "#1B1818"),
+        (lambda bm: cylinder(bm, W(0.025, 0.29, 0.0), W(0.03, 0.0, 0.01), 0.007, 4, m=0), "#2A2A2A"),
+        (lambda bm: cylinder(bm, W(-0.025, 0.29, 0.0), W(-0.03, 0.0, -0.01), 0.007, 4, m=0), "#2A2A2A"),
+    ], coll))
+    # the hermit crab: 0.11 m, a spiral shell it carries, two small claws out in front
+    made.append(fauna_node("Fauna_HermitCrab", [
+        (lambda bm: blob(bm, 0.0, 0.045, -0.02, 0.045, 0.045, 0.05, m=0, cuts=2), "#E9D8B8"),
+        (lambda bm: blob(bm, 0.0, 0.075, -0.04, 0.028, 0.028, 0.03, m=0, cuts=2), "#D2B48A"),
+        (lambda bm: blob(bm, 0.0, 0.095, -0.05, 0.014, 0.014, 0.016, m=0, cuts=1), "#B9966A"),
+        (lambda bm: blob(bm, 0.0, 0.025, 0.04, 0.03, 0.02, 0.03, m=0, cuts=1), "#D9603C"),
+        (lambda bm: blob(bm, 0.03, 0.025, 0.07, 0.016, 0.012, 0.018, m=0, cuts=1), "#E87A52"),
+        (lambda bm: blob(bm, -0.03, 0.025, 0.07, 0.016, 0.012, 0.018, m=0, cuts=1), "#E87A52"),
+    ], coll))
+    # the manta: 2.2 m across, a dark diamond with long wings, two horns, a whip of a tail (seen from above, under the water)
+    manta = [
+        (lambda bm: blob(bm, 0.0, 0.0, 0.0, 0.42, 0.07, 0.55, m=0, cuts=3), "#1F3440"),
+        (lambda bm: cylinder(bm, W(0.0, 0.0, -0.5), W(0.0, 0.0, -1.5), 0.02, 4, m=0, r_end=0.004), "#182A34"),
+    ]
+    for sx in (1, -1):
+        manta.append((lambda bm, sx=sx: blob(bm, sx * 0.55, 0.0, 0.0, 0.4, 0.04, 0.34, m=0, cuts=2), "#24404E"))
+        manta.append((lambda bm, sx=sx: blob(bm, sx * 0.95, 0.0, -0.08, 0.22, 0.025, 0.16, m=0, cuts=2), "#2A4A5A"))
+        manta.append((lambda bm, sx=sx: blob(bm, sx * 0.13, 0.0, 0.56, 0.035, 0.03, 0.1, m=0, cuts=1), "#2A4A5A"))
+    made.append(fauna_node("Fauna_Manta", manta, coll))
     out = os.path.join(root, "client", "public", "models", "beach_life.glb")
     export(coll, out)
     info = {"glb": out, "bytes": os.path.getsize(out), "tris": sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in made)}
@@ -1741,11 +1773,23 @@ def bake_colors(ob, one=None):
     lift_of = [d.value for d in lifts.data] if palms else None
     world = ob.matrix_world
     slots, index, face_slot = [], {}, []
+    # (a little light and wear in the paint, since the game draws no shadows and no textures: faces
+    # that look up a touch sun-bleached, undersides cool and dark, a contact shade where a thing
+    # meets the sand, and a slow mottle over it all, so planks, thatch, canvas and stone are not flat)
+    wear = one is None and ob.name not in ("Beach_Ground", "Beach_Sea") and not ob.name.startswith("Tree_")
     for poly in me.polygons:
         name = names[min(poly.material_index, len(names) - 1)]
         s = one or slot_of(name)
         c = (1.0, 1.0, 1.0) if s in KEEP else lin(PALETTE[name])
+        up = (world.to_3x3() @ poly.normal).z if wear and s not in KEEP else 0.0
         for li in poly.loop_indices:
+            if wear and s not in KEEP:
+                p = world @ me.vertices[me.loops[li].vertex_index].co
+                over = p.z - (land_y(p.x, -p.y) if TERRAIN is not None else 0.0)
+                k = 1.0 + 0.09 * (vnoise(p.x * 2.6 + p.z * 1.7, -p.y * 2.6 + 3.0) - 0.5) + 0.05 * max(0.0, up) - 0.16 * max(0.0, -up)
+                k *= 1.0 - 0.14 * smooth(0.3, 0.0, over) * (1.0 if up < 0.6 else 0.0)
+                attr.data[li].color = (c[0] * k, c[1] * k, c[2] * (k + 0.03 * max(0.0, -up)), 1.0)
+                continue
             attr.data[li].color = (*c, 1.0)
             if uv is not None:
                 vi = me.loops[li].vertex_index
