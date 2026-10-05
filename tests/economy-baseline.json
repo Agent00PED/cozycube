@@ -326,8 +326,8 @@
    "craft": "wood",
    "tier": 6,
    "where": "beach",
-   "perMin": 335.7,
-   "perMinSold": 248.2
+   "perMin": 328.4,
+   "perMinSold": 242.8
   },
   {
    "craft": "wood",
@@ -347,8 +347,8 @@
    "craft": "wood",
    "tier": 7,
    "where": "beach",
-   "perMin": 326.1,
-   "perMinSold": 241
+   "perMin": 321.9,
+   "perMinSold": 238
   },
   {
    "craft": "wood",

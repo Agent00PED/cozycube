@@ -63,7 +63,7 @@ PALETTE = {
     "BC_Bamboo": "#D8BA6E", "BC_BambooDark": "#B4934E", "BC_Thatch": "#CFAE62", "BC_ThatchDark": "#A98846", "BC_Rope": "#CDBB94",
     "BC_Stone": "#9C958B", "BC_StoneDark": "#6F6A63", "BC_Pearl": "#E9E2F0", "BC_PearlDark": "#B5ABC4", "BC_NacrePink": "#F6D0E0", "BC_NacreTeal": "#BFEDE6", "BC_IronBark": "#2E3336", "BC_IronBarkLight": "#474E50", "BC_IronLeaf": "#2F5D55", "BC_IronLeafLight": "#4F8573", "BC_IronMoss": "#7C9C84", "BC_Reef": "#DCC8A8", "BC_ReefDark": "#B9A283", "BC_Rock": "#8E8679", "BC_RockDark": "#615C54", "BC_RockMoss": "#7C8A62",
     "BC_Char": "#2B2623", "BC_Ash": "#5A544E",
-    "BC_PalmBark": "#8E6E4C", "BC_PalmBarkDark": "#6F5439", "BC_Frond": "#4E9A4A", "BC_FrondLight": "#7DBB55", "BC_FrondDeep": "#2F7240", "BC_Coconut": "#5B3F2A",
+    "BC_PalmBark": "#8E6E4C", "BC_PalmBarkDark": "#6F5439", "BC_Frond": "#46883F", "BC_FrondLight": "#6BA84C", "BC_FrondDeep": "#2E6B3A", "BC_Coconut": "#5B3F2A",
     "BC_GroveFloor": "#B7B27C", "BC_GroveLitter": "#9C8A5E", "BC_RockGround": "#B3A68C", "BC_Weed": "#5E6B3A", "BC_WeedDark": "#4A4A2E", "BC_Agave": "#8FB29A", "BC_AgaveTip": "#C9DDB8", "BC_Banana": "#58A04C", "BC_BananaLight": "#8CC864", "BC_Morning": "#B58BE0", "BC_Hibiscus": "#E8505A", "BC_Leaf": "#3F8A55", "BC_LeafLight": "#68AE5E", "BC_DuneGrass": "#B9C67C", "BC_DuneGrassDark": "#93A860", "BC_Blossom": "#F08FA6",
     "BC_Canvas": "#F4EDE0", "BC_Red": "#D9534F", "BC_Teal": "#3AA6A0", "BC_Yellow": "#F2C14E", "BC_Coral": "#F08A6B", "BC_White": "#F7F3EA", "BC_Navy": "#2C4A6E", "BC_Pink": "#F2A7B5",
     "BC_Glass": "#BFE3E8", "BC_Bottle": "#5FA37A", "BC_BottleAmber": "#C7873A", "BC_Iron": "#4A4F55", "BC_Shell": "#F3D9C9", "BC_Star": "#F29A6B",
@@ -75,13 +75,14 @@ PALETTE = {
     "BC_Pandan": "#5FA554", "BC_PandanLight": "#98C96C", "BC_PandanRoot": "#B99D74", "BC_PandanFruit": "#E28C3C",
     "BC_Scaevola": "#7FBA7A", "BC_ScaevolaLight": "#ABD69C", "BC_HibiscusYellow": "#F3D452",
     "BC_Mangrove": "#2F6C4C", "BC_MangroveLight": "#51905C", "BC_MangroveRoot": "#7C6854", "BC_Mud": "#9A8E6E", "BC_MudDark": "#6F6852",
-    "BC_Barnacle": "#DAD3C3", "BC_PoolBed": "#7FA89A", "BC_Granite": "#A49C92", "BC_GraniteDark": "#77716A", "BC_GraniteWet": "#57534E",
+    "BC_FrondDry": "#B9A45E", "BC_FrondTip": "#86B85A", "BC_PalmBoot": "#A98C5C", "BC_NutGreen": "#8FA64A", "BC_Lichen": "#B9BE9A",
+    "BC_Barnacle": "#DAD3C3", "BC_PoolBed": "#7FA89A", "BC_Granite": "#A8A096", "BC_GraniteDark": "#8A847B", "BC_GraniteWet": "#6B665F",
 }
 ROUGHNESS = {"BC_Glass": 0.3, "BC_Bottle": 0.35, "BC_BottleAmber": 0.35, "BC_Iron": 0.6, "BC_Hull": 0.55, "BC_HullTrim": 0.55}
 EMISSION = {"BC_Bulb": 2.6, "BC_Ember": 2.2, "BC_Lamp": 2.4}
-DOUBLE_SIDED = {"BC_Pandan", "BC_PandanLight", "BC_AlmondLeaf", "BC_AlmondLight", "BC_AlmondRed", "BC_Banana", "BC_BananaLight", "BC_Agave", "BC_AgaveTip", "BC_Frond", "BC_FrondLight", "BC_FrondDeep", "BC_DuneGrass", "BC_DuneGrassDark", "BC_Canvas", "BC_Red", "BC_Teal", "BC_Yellow", "BC_Pink", "BC_Thatch", "BC_ThatchDark", "BC_White", "BC_Coral"}
+DOUBLE_SIDED = {"BC_Hull", "BC_HullTrim", "BC_HullUnder", "BC_Deck", "BC_Pandan", "BC_PandanLight", "BC_AlmondLeaf", "BC_AlmondLight", "BC_AlmondRed", "BC_Banana", "BC_BananaLight", "BC_Agave", "BC_AgaveTip", "BC_Frond", "BC_FrondLight", "BC_FrondDeep", "BC_DuneGrass", "BC_DuneGrassDark", "BC_Canvas", "BC_Red", "BC_Teal", "BC_Yellow", "BC_Pink", "BC_Thatch", "BC_ThatchDark", "BC_White", "BC_Coral"}
 MATS = list(PALETTE)
-PALM_FINISH = {"BC_PineNeedle": "BC_Palm", "BC_PineNeedleLight": "BC_Palm", "BC_PineNeedleDeep": "BC_Palm", "BC_PineBark": "BC_PalmBark", "BC_PineBarkDark": "BC_PalmBark", "BC_PineCone": "BC_PalmBark", "BC_Frond": "BC_Palm", "BC_FrondLight": "BC_Palm", "BC_FrondDeep": "BC_Palm", "BC_Coconut": "BC_PalmBark", "BC_PalmBark": "BC_PalmBark", "BC_PalmBarkDark": "BC_PalmBark"}
+PALM_FINISH = {"BC_FrondDry": "BC_Palm", "BC_FrondTip": "BC_Palm", "BC_PalmBoot": "BC_PalmBark", "BC_NutGreen": "BC_PalmBark", "BC_PineNeedle": "BC_Palm", "BC_PineNeedleLight": "BC_Palm", "BC_PineNeedleDeep": "BC_Palm", "BC_PineBark": "BC_PalmBark", "BC_PineBarkDark": "BC_PalmBark", "BC_PineCone": "BC_PalmBark", "BC_Frond": "BC_Palm", "BC_FrondLight": "BC_Palm", "BC_FrondDeep": "BC_Palm", "BC_Coconut": "BC_PalmBark", "BC_PalmBark": "BC_PalmBark", "BC_PalmBarkDark": "BC_PalmBark"}
 
 SCENE = None  # beach_terrain.json's `scene` (set by build)
 
@@ -658,20 +659,23 @@ def build_hammocks(coll, cushions):
 
 
 def palm(bm, x, z, s, rng, lean=None, lift_layer=None, ground=None, nuts=3):
-    """A coconut palm at (x, z), `s` its size: a ringed trunk curving up its own way, a crown of
-    arched fronds, a few coconuts. Built at the land's height; each vertex remembers that height
-    (`lift`) so the game sways it by how far up the tree it is."""
+    """A coconut palm at (x, z), `s` its size: a slim grey-brown trunk swollen at the foot and ringed
+    with old leaf scars, curving up its own way; a crown of feathered fronds (a midrib and two rows
+    of leaflets hanging from it), the young ones upright and bright, the old ones drooping, one or
+    two dead and straw-coloured under the crown; the leaf bases' boots, a cluster of nuts. Each
+    vertex remembers the ground's height (`lift`) so the game sways it by how far up the tree it is."""
     before = set(bm.verts)
     y0 = land_y(x, z) if ground is None else ground
-    H = 4.3 * s * rng.uniform(0.9, 1.1)
+    H = 4.6 * s * rng.uniform(0.9, 1.12)
     a = rng.random() * 6.283
-    k = (rng.uniform(0.25, 0.75) if lean is None else lean) * s
-    segs, sides = 11, 8
+    k = (rng.uniform(0.3, 0.9) if lean is None else lean) * s
+    segs, sides = 14, 8
     rings = []
     for j in range(segs + 1):
         t = j / segs
         cx, cz = x + math.cos(a) * k * t * t, z + math.sin(a) * k * t * t
-        r = (0.2 - 0.085 * t) * s * (1.06 if j % 2 else 0.97) + (0.06 * s if j == 0 else 0.0)
+        # (a swollen foot, a slim shaft, each leaf scar a slight step)
+        r = (0.15 - 0.045 * t + 0.11 * max(0.0, 1.0 - t * 7.0) ** 2) * s * (1.07 if j % 2 else 0.96)
         rings.append([bm.verts.new(W(cx + r * math.cos(2 * math.pi * q / sides), y0 + H * t, cz + r * math.sin(2 * math.pi * q / sides))) for q in range(sides)])
     for j, (r0, r1) in enumerate(zip(rings, rings[1:])):
         for q in range(sides):
@@ -679,31 +683,51 @@ def palm(bm, x, z, s, rng, lean=None, lift_layer=None, ground=None, nuts=3):
             f.material_index = m("BC_PalmBark") if j % 2 else m("BC_PalmBarkDark")
             f.smooth = True
     tx, tz, ty = x + math.cos(a) * k, z + math.sin(a) * k, y0 + H
-    # the crown: fronds arching out and drooping, each a ribbed blade
-    fronds = 9
+    # the crown's heart: the boots of the old leaf bases, the spear of the newest leaf
+    for q in range(6):
+        ba = 2 * math.pi * q / 6 + rng.uniform(-0.2, 0.2)
+        blob(bm, tx + 0.13 * s * math.cos(ba), ty - 0.06 * s, tz + 0.13 * s * math.sin(ba), 0.1 * s, 0.2 * s, 0.1 * s, m=m("BC_PalmBoot"), cuts=1)
+    bar(bm, W(tx, ty, tz), W(tx + 0.05 * s, ty + 1.15 * s, tz), 0.03 * s, m("BC_FrondTip"), sides=4, r_end=0.006)
+    fronds = 12
     for q in range(fronds):
-        fa = 2 * math.pi * q / fronds + rng.uniform(-0.25, 0.25)
-        R = 2.0 * s * rng.uniform(0.85, 1.12)
-        up = rng.uniform(0.5, 1.0)
-        mat = m(("BC_Frond", "BC_FrondLight", "BC_FrondDeep")[q % 3])
-        n = 6
-        spine, edges_l, edges_r = [], [], []
+        fa = 2 * math.pi * q / fronds * 1.0 + rng.uniform(-0.22, 0.22) + (0.26 if q % 2 else 0.0)
+        # (three tiers: the young stand up, the grown arch out, the old hang; the last two are dead)
+        tier = q % 3
+        dead = q >= fronds - 2
+        up = (1.25, 0.72, 0.18)[tier] * rng.uniform(0.85, 1.15) if not dead else -0.25
+        R = (1.7, 2.05, 1.9)[tier] * s * rng.uniform(0.88, 1.1) * (0.8 if dead else 1.0)
+        drop = (1.5, 2.0, 2.4)[tier] if not dead else 2.2
+        mats = ("BC_FrondDry", "BC_FrondDry") if dead else (("BC_FrondLight", "BC_FrondTip"), ("BC_Frond", "BC_FrondLight"), ("BC_FrondDeep", "BC_Frond"))[tier]
+        n = 9
+        rib = []
         for j in range(n + 1):
             t = j / n
-            out = R * t
-            yy = ty + s * (up * 1.1 * t - 1.9 * t * t)
-            w = 0.34 * s * math.sin(math.pi * min(1.0, t * 0.92 + 0.08)) ** 0.8
-            cx, cz = tx + math.cos(fa) * out, tz + math.sin(fa) * out
-            sx, sz = -math.sin(fa) * w, math.cos(fa) * w
-            spine.append(bm.verts.new(W(cx, yy, cz)))
-            edges_l.append(bm.verts.new(W(cx + sx, yy - 0.12 * s * math.sin(math.pi * t), cz + sz)))
-            edges_r.append(bm.verts.new(W(cx - sx, yy - 0.12 * s * math.sin(math.pi * t), cz - sz)))
+            rib.append((tx + math.cos(fa) * R * t, ty + s * (up * 1.1 * t - drop * t * t), tz + math.sin(fa) * R * t))
+        sx, sz = -math.sin(fa), math.cos(fa)
         for j in range(n):
-            bm.faces.new((spine[j], spine[j + 1], edges_l[j + 1], edges_l[j])).material_index = mat
-            bm.faces.new((spine[j + 1], spine[j], edges_r[j], edges_r[j + 1])).material_index = mat
-    for q in range(nuts):
-        ca = a + 2.1 * q
-        blob(bm, tx + 0.16 * s * math.cos(ca), ty - 0.16 * s, tz + 0.16 * s * math.sin(ca), 0.1 * s, 0.11 * s, 0.1 * s, m=m("BC_Coconut"), cuts=1)
+            (x0, yy0, z0), (x1, yy1, z1) = rib[j], rib[j + 1]
+            t = (j + 0.5) / n
+            # the midrib, and a leaflet each side: long in the middle of the frond, hanging from it
+            w = 0.016 * s * (1.2 - t)
+            bm.faces.new((bm.verts.new(W(x0 - sx * w, yy0, z0 - sz * w)), bm.verts.new(W(x1 - sx * w, yy1, z1 - sz * w)), bm.verts.new(W(x1 + sx * w, yy1, z1 + sz * w)), bm.verts.new(W(x0 + sx * w, yy0, z0 + sz * w)))).material_index = m("BC_PalmBoot" if not dead else "BC_FrondDry")
+            if j == 0:
+                continue
+            ln = 0.52 * s * math.sin(math.pi * min(1.0, t * 0.9 + 0.08)) ** 0.7 * rng.uniform(0.85, 1.1)
+            hang = (0.34 + 0.3 * t + (0.3 if tier == 2 or dead else 0.0)) * ln
+            gap = 0.12
+            for side in (1, -1):
+                ox, oz = sx * side * ln, sz * side * ln
+                ax, az = x0 + (x1 - x0) * gap, z0 + (z1 - z0) * gap
+                bx, bz = x0 + (x1 - x0) * (1 - gap), z0 + (z1 - z0) * (1 - gap)
+                ya, yb = yy0 + (yy1 - yy0) * gap, yy0 + (yy1 - yy0) * (1 - gap)
+                # (swept a little toward the tip, as a real leaflet lies)
+                fx, fz = (x1 - x0) * 0.9, (z1 - z0) * 0.9
+                f = bm.faces.new((bm.verts.new(W(ax, ya, az)), bm.verts.new(W(bx, yb, bz)), bm.verts.new(W(bx + ox * 0.8 + fx, yb - hang, bz + oz * 0.8 + fz)), bm.verts.new(W(ax + ox + fx, ya - hang, az + oz + fz))))
+                f.material_index = m(mats[(j + (side > 0)) % 2])
+    # the nuts: a cluster under the crown, the young ones green
+    for q in range(nuts + (1 if nuts else 0)):
+        ca = a + 1.6 * q
+        blob(bm, tx + 0.2 * s * math.cos(ca), ty - 0.26 * s - 0.05 * s * (q % 2), tz + 0.2 * s * math.sin(ca), 0.095 * s, 0.11 * s, 0.095 * s, m=m("BC_NutGreen" if q % 3 == 0 else "BC_Coconut"), cuts=1)
     if lift_layer is not None:
         for v in bm.verts:
             if v not in before:
@@ -890,22 +914,47 @@ def build_palm_looks(root):
 
 # --- the fossil reef rock's two looks, for the game's prospecting (reef.glb) ----------------------------
 def reef_rock(bm, rng):
-    """A block of old reef, set hard: a rounded pale rock, shells and coral heads standing out of its
-    seaward face (game +z: the game turns each node to the sea), a darker foot."""
-    blob(bm, 0.0, 0.5, 0.0, 0.6, 0.56, 0.5, m=m("BC_Reef"), cuts=3, noise=0.16, rng=rng, flat_bottom=-0.05)
-    blob(bm, -0.34, 0.2, -0.08, 0.36, 0.26, 0.34, m=m("BC_ReefDark"), cuts=2, noise=0.18, rng=rng, flat_bottom=-0.05)
-    blob(bm, 0.36, 0.16, 0.1, 0.3, 0.2, 0.28, m=m("BC_ReefDark"), cuts=2, noise=0.18, rng=rng, flat_bottom=-0.05)
-    # shells in the face: pale fans pressed into the rock
-    for k in range(7):
-        a = rng.uniform(-1.1, 1.1)
-        h = rng.uniform(0.22, 0.86)
-        r = 0.5 * math.cos(a * 0.55) * (1.0 - 0.45 * abs(h - 0.5))
-        sz = rng.uniform(0.06, 0.11)
-        blob(bm, math.sin(a) * r, h, math.cos(a) * r * 0.86, sz, sz, 0.035, m=m("BC_Shell" if k % 3 else "BC_White"), cuts=1)
-    # coral heads on its shoulders
+    """A block of old reef, set hard: three beds of pale limestone stacked a little askew, each
+    weathered back at its edges, a darker foot; in its seaward face (game +z: the game turns each
+    node to the sea) the fossils that give it its name: ribbed shells, a coiled ammonite, a fan of
+    coral, and living coral heads on its shoulders."""
+    for k, (y, rx, ry, rz, ox, oz, mat) in enumerate(((0.2, 0.66, 0.24, 0.56, 0.0, 0.0, "BC_ReefDark"), (0.52, 0.58, 0.22, 0.5, 0.05, -0.03, "BC_Reef"), (0.82, 0.46, 0.2, 0.42, -0.04, 0.02, "BC_Reef"))):
+        if k == 0:
+            blob(bm, ox, y, oz, rx, ry, rz, m=m(mat), cuts=4, noise=0.2, rng=rng, flat_bottom=-0.05)
+        else:
+            blob(bm, ox, y, oz, rx, ry, rz, m=m(mat), cuts=4, noise=0.2, rng=rng)
+            # (the bedding plane under each bed: a dark line of shadow)
+            blob(bm, ox, y - ry * 0.85, oz, rx * 0.93, 0.035, rz * 0.93, m=m("BC_ReefDark"), cuts=2, noise=0.1, rng=rng)
+    blob(bm, -0.42, 0.14, -0.1, 0.34, 0.2, 0.3, m=m("BC_ReefDark"), cuts=3, noise=0.22, rng=rng, flat_bottom=-0.05)
+    blob(bm, 0.44, 0.12, 0.12, 0.28, 0.17, 0.26, m=m("BC_Reef"), cuts=3, noise=0.22, rng=rng, flat_bottom=-0.05)
+    # ribbed shells pressed into the face
+    for k in range(6):
+        a = rng.uniform(-1.0, 1.0)
+        h = rng.uniform(0.2, 0.85)
+        r = 0.52 * math.cos(a * 0.55) * (1.0 - 0.4 * abs(h - 0.45))
+        sz = rng.uniform(0.06, 0.1)
+        cx, cz = math.sin(a) * r, math.cos(a) * r * 0.86
+        blob(bm, cx, h, cz, sz, sz, 0.03, m=m("BC_Shell" if k % 3 else "BC_White"), cuts=1)
+        for q in (-1, 0, 1):
+            bar(bm, W(cx + q * sz * 0.45, h - sz * 0.7, cz + 0.03), W(cx + q * sz * 0.2, h + sz * 0.7, cz + 0.03), 0.008, m("BC_ReefDark"), sides=3)
+    # an ammonite: a coil, big end outward
+    ax, ay, az = 0.12, 0.5, 0.5
+    prev = None
+    for q in range(11):
+        t = q / 10
+        ang = t * 4.4
+        rr = 0.03 + 0.13 * t
+        pt = W(ax + rr * math.cos(ang), ay + rr * math.sin(ang), az - 0.03 * (1 - t))
+        if prev is not None:
+            bar(bm, prev, pt, 0.012 + 0.026 * t, m("BC_Shell"), sides=5)
+        prev = pt
+    # a fan of old coral low on the face, living heads on the shoulders
+    for q in range(5):
+        fa = -0.6 + 0.3 * q
+        bar(bm, W(-0.3, 0.22, 0.44), W(-0.3 + 0.2 * math.sin(fa), 0.22 + 0.22 * math.cos(fa), 0.47), 0.012, m("BC_White"), sides=4, r_end=0.006)
     for k in range(4):
         a = rng.uniform(-1.4, 1.4)
-        blob(bm, math.sin(a) * 0.34, 0.92 + rng.uniform(-0.06, 0.05), math.cos(a) * 0.22, 0.1, 0.09, 0.1, m=m("BC_Coral" if k % 2 else "BC_Star"), cuts=1, noise=0.2, rng=rng)
+        blob(bm, math.sin(a) * 0.3, 1.0 + rng.uniform(-0.05, 0.04), math.cos(a) * 0.2, 0.09, 0.08, 0.09, m=m("BC_Coral" if k % 2 else "BC_Star"), cuts=2, noise=0.25, rng=rng)
 
 
 def reef_rubble(bm, rng):
@@ -1158,39 +1207,56 @@ def leaf_fan(bm, x, y0, z, rng, n, mats, length, width, rise, droop, turn=None):
 
 def sea_pine(bm, x, z, s, rng, ground=0.0, lift_layer=None):
     """A casuarina (the beach forest's "sea pine"): a tall, slim, slightly leaning trunk in fissured
-    grey-brown bark and an open, irregular crown of drooping, feathery branchlets (each a long soft
-    tuft hanging from a short branch), thin enough to see the sky through."""
+    grey-brown bark, bare for its first third, then thin branches reaching up and out, each hung
+    with long weeping sprays of jointed green twigs (they pass for needles): an open, feathery
+    crown the sky shows through, narrow at the top."""
     before = set(bm.verts)
-    H = 5.6 * s * rng.uniform(0.92, 1.08)
+    H = 5.8 * s * rng.uniform(0.92, 1.08)
     a = rng.random() * 6.283
     k = rng.uniform(0.15, 0.5) * s
-    segs, sides = 9, 7
+    segs, sides = 10, 7
     rings = []
     for j in range(segs + 1):
         t = j / segs
         cx, cz = x + math.cos(a) * k * t * t, z + math.sin(a) * k * t * t
-        r = (0.19 - 0.15 * t) * s + (0.07 * s if j == 0 else 0.0)
-        rings.append([bm.verts.new(W(cx + r * math.cos(2 * math.pi * q / sides), ground + H * t, cz + r * math.sin(2 * math.pi * q / sides))) for q in range(sides)])
+        r = (0.17 - 0.14 * t + 0.08 * max(0.0, 1.0 - t * 8.0) ** 2) * s
+        rings.append([bm.verts.new(W(cx + r * math.cos(2 * math.pi * q / sides + 0.3 * j), ground + H * t, cz + r * math.sin(2 * math.pi * q / sides + 0.3 * j))) for q in range(sides)])
     for j, (r0, r1) in enumerate(zip(rings, rings[1:])):
         for q in range(sides):
             f = bm.faces.new((r0[q], r0[(q + 1) % sides], r1[(q + 1) % sides], r1[q]))
-            f.material_index = m("BC_PineBark") if (j + q) % 3 else m("BC_PineBarkDark")
+            # (long fissures up the bark: strips of dark between plates of grey-brown)
+            f.material_index = m("BC_PineBarkDark") if q % 3 == 0 else m("BC_PineBark")
     tones = ("BC_PineNeedle", "BC_PineNeedleLight", "BC_PineNeedleDeep")
-    tufts = 14
-    for q in range(tufts):
-        t = 0.34 + 0.62 * (q + rng.uniform(-0.3, 0.3)) / tufts
+
+    def spray(px, py, pz, ln, wd, lean_a, mat):
+        """A weeping spray: three narrow blades from one point, hanging, fanned a little."""
+        for q3 in range(3):
+            fa = lean_a + q3 * 2.09 + rng.uniform(-0.3, 0.3)
+            ox, oz = math.cos(fa) * wd, math.sin(fa) * wd
+            dx, dz = math.cos(lean_a) * ln * 0.28, math.sin(lean_a) * ln * 0.28
+            top0, top1 = bm.verts.new(W(px - ox * 0.5, py, pz - oz * 0.5)), bm.verts.new(W(px + ox * 0.5, py, pz + oz * 0.5))
+            mid0, mid1 = bm.verts.new(W(px - ox + dx * 0.6, py - ln * 0.55, pz - oz + dz * 0.6)), bm.verts.new(W(px + ox + dx * 0.6, py - ln * 0.55, pz + oz + dz * 0.6))
+            tip = bm.verts.new(W(px + dx, py - ln, pz + dz))
+            bm.faces.new((top0, top1, mid1, mid0)).material_index = m(mat)
+            bm.faces.new((mid0, mid1, tip)).material_index = m(mat)
+
+    branches = 17
+    for q in range(branches):
+        t = 0.3 + 0.66 * (q + rng.uniform(-0.25, 0.25)) / branches
         fa = q * 2.4 + rng.uniform(-0.4, 0.4)
         cx, cz = x + math.cos(a) * k * t * t, z + math.sin(a) * k * t * t
-        reach = (1.25 - 0.85 * t) * s * rng.uniform(0.8, 1.15)
+        reach = (1.5 - 1.15 * t) * s * rng.uniform(0.8, 1.15)
         by = ground + H * t
-        ex, ez, ey = cx + math.cos(fa) * reach, cz + math.sin(fa) * reach, by + 0.25 * s * rng.uniform(0.2, 1.0)
-        bar(bm, W(cx, by, cx * 0 + cz), W(ex, ey, ez), 0.035 * s, m("BC_PineBarkDark"), sides=4, r_end=0.012 * s)
-        # the hanging tuft at the branch's end, and a smaller one half way along it
-        w = (0.4 - 0.16 * t) * s
-        blob(bm, ex, ey - 0.36 * s, ez, w, 0.78 * s * rng.uniform(0.85, 1.15), w, m=m(tones[q % 3]), cuts=2, noise=0.2, rng=rng)
-        blob(bm, (cx + ex) / 2, (by + ey) / 2 - 0.22 * s, (cz + ez) / 2, w * 0.7, 0.52 * s, w * 0.7, m=m(tones[(q + 1) % 3]), cuts=2, noise=0.2, rng=rng)
+        ex, ez, ey = cx + math.cos(fa) * reach, cz + math.sin(fa) * reach, by + reach * rng.uniform(0.25, 0.5)
+        bar(bm, W(cx, by, cz), W(ex, ey, ez), 0.028 * s * (1.3 - t), m("BC_PineBarkDark"), sides=4, r_end=0.008 * s)
+        # sprays along the branch, longest at its end
+        for j, u in enumerate((0.45, 0.72, 1.0)):
+            px, pz, py = cx + (ex - cx) * u, cz + (ez - cz) * u, by + (ey - by) * u
+            spray(px, py + 0.04 * s, pz, (0.55 + 0.45 * u) * s * (1.15 - 0.5 * t) * rng.uniform(0.85, 1.15), 0.12 * s, fa, tones[(q + j) % 3])
     tx, tz = x + math.cos(a) * k, z + math.sin(a) * k
-    blob(bm, tx, ground + H + 0.1 * s, tz, 0.26 * s, 0.6 * s, 0.26 * s, m=m("BC_PineNeedleLight"), cuts=2, noise=0.18, rng=rng)
+    for q in range(3):
+        spray(tx, ground + H + 0.25 * s, tz, 0.7 * s, 0.1 * s, q * 2.1, tones[q % 3])
+    bar(bm, W(tx, ground + H, tz), W(tx, ground + H + 0.3 * s, tz), 0.02 * s, m("BC_PineBarkDark"), sides=4, r_end=0.005)
     if lift_layer is not None:
         for v in bm.verts:
             if v not in before:
@@ -1365,21 +1431,34 @@ def build_nature(coll, rng):
         for k in range(5):
             a = rng.random() * 6.283
             blob(bm, p["x"] + 0.32 * s * math.cos(a), y + rng.uniform(0.3, 0.52) * s, p["z"] + 0.32 * s * math.sin(a), 0.05, 0.045, 0.05, m=m("BC_White" if pale else "BC_HibiscusYellow"), cuts=1)
-    for p in S["rocks"]:
+    for i, p in enumerate(S["rocks"]):
         y = land_y(p["x"], p["z"])
         s = p["s"]
         wet = shore_at(p["x"], p["z"]) < 1.2
-        # granite boulders: a rounded mass with a smaller one against it, darker and barnacled where
-        # the sea reaches them, lichen-pale on top where it does not
-        blob(bm, p["x"], y + 0.34 * s, p["z"], 0.6 * s, 0.56 * s, 0.54 * s, m=m("BC_GraniteDark" if wet else "BC_Granite"), cuts=3, noise=0.18, rng=rng, flat_bottom=y - 0.3)
-        blob(bm, p["x"] + 0.34 * s, y + 0.14 * s, p["z"] + 0.28 * s, 0.34 * s, 0.28 * s, 0.32 * s, m=m("BC_GraniteWet" if wet else "BC_GraniteDark"), cuts=2, noise=0.2, rng=rng, flat_bottom=y - 0.3)
-        blob(bm, p["x"] - 0.36 * s, y + 0.1 * s, p["z"] - 0.2 * s, 0.26 * s, 0.2 * s, 0.24 * s, m=m("BC_GraniteDark"), cuts=2, noise=0.2, rng=rng, flat_bottom=y - 0.3)
+        # a granite boulder: a rounded mass split by a joint into two blocks that lean apart, a slab
+        # broken off at its foot, cobbles round it; dark and barnacled where the sea reaches it,
+        # lichen-pale on top where it does not (the strata and the weathering are in the paint)
+        turn = rng.random() * 6.283
+        cx_, cz_ = math.cos(turn), math.sin(turn)
+        main = "BC_GraniteDark" if wet else "BC_Granite"
+        blob(bm, p["x"] - 0.14 * s * cx_, y + 0.36 * s, p["z"] - 0.14 * s * cz_, 0.5 * s, 0.6 * s, 0.56 * s, m=m(main), cuts=4, noise=0.2, rng=rng, flat_bottom=y - 0.3)
+        blob(bm, p["x"] + 0.34 * s * cx_, y + 0.26 * s, p["z"] + 0.34 * s * cz_, 0.4 * s, 0.46 * s, 0.5 * s, m=m(main), cuts=4, noise=0.22, rng=rng, flat_bottom=y - 0.3)
+        # (the joint between them: a dark seam)
+        blob(bm, p["x"] + 0.1 * s * cx_, y + 0.2 * s, p["z"] + 0.1 * s * cz_, 0.07 * s, 0.4 * s, 0.42 * s, m=m("BC_GraniteWet"), cuts=2, noise=0.1, rng=rng, flat_bottom=y - 0.3)
+        blob(bm, p["x"] - 0.5 * s * cz_, y + 0.09 * s, p["z"] + 0.5 * s * cx_, 0.36 * s, 0.14 * s, 0.26 * s, m=m("BC_GraniteDark"), cuts=3, noise=0.24, rng=rng, flat_bottom=y - 0.3)
+        for q in range(4):
+            qa = turn + 1.3 * q + rng.uniform(-0.3, 0.3)
+            qr = rng.uniform(0.7, 1.0) * s
+            sz = rng.uniform(0.08, 0.17) * s
+            blob(bm, p["x"] + qr * math.cos(qa), y + sz * 0.4, p["z"] + qr * math.sin(qa), sz, sz * 0.7, sz * rng.uniform(0.8, 1.3), m=m(("BC_GraniteDark", "BC_Granite", "BC_Stone")[q % 3]), cuts=2, noise=0.25, rng=rng)
         if wet:
-            for q in range(5):
-                a = rng.random() * 6.283
-                blob(bm, p["x"] + 0.56 * s * math.cos(a), y + 0.1 * s, p["z"] + 0.5 * s * math.sin(a), 0.07 * s, 0.05 * s, 0.07 * s, m=m("BC_Barnacle"), cuts=1)
+            for q in range(7):
+                qa = rng.random() * 6.283
+                blob(bm, p["x"] + 0.58 * s * math.cos(qa), y + rng.uniform(0.05, 0.2) * s, p["z"] + 0.56 * s * math.sin(qa), 0.05 * s, 0.035 * s, 0.05 * s, m=m("BC_Barnacle"), cuts=1)
+            blob(bm, p["x"], y + 0.04, p["z"], 0.75 * s, 0.05, 0.7 * s, m=m("BC_WeedDark"), cuts=2, noise=0.3, rng=rng)
         else:
-            blob(bm, p["x"] - 0.1 * s, y + 0.74 * s, p["z"] - 0.08 * s, 0.3 * s, 0.12 * s, 0.28 * s, m=m("BC_RockMoss"), cuts=2, noise=0.1, rng=rng)
+            blob(bm, p["x"] - 0.16 * s * cx_, y + 0.9 * s, p["z"] - 0.16 * s * cz_, 0.3 * s, 0.07 * s, 0.32 * s, m=m("BC_Lichen"), cuts=2, noise=0.2, rng=rng)
+            blob(bm, p["x"] + 0.3 * s * cx_, y + 0.66 * s, p["z"] + 0.3 * s * cz_, 0.2 * s, 0.06 * s, 0.24 * s, m=m("BC_RockMoss"), cuts=2, noise=0.2, rng=rng)
     for w in S["driftwood"]:
         fr = Frame(w["x"], w["z"], w["yaw"])
         bar(bm, fr.p(-w["len"] / 2, 0.11, 0.0), fr.p(w["len"] / 2, 0.09, 0.0), 0.11, m("BC_Drift"), sides=8, r_end=0.07)
@@ -1679,71 +1758,151 @@ def build_shack(coll, rng):
 
 
 def boat_hull(bm, fr, L, beam, mats):
-    """A fishing boat's hull in a frame (a: toward the bow): lofted sections from stern to bow, a
-    deck inside the gunwale. `mats`: (hull, trim, under, deck)."""
+    """A wooden fishing boat's hull in a frame (a: toward the bow): lofted sections from a flat
+    transom to a raked stem, full amidships, the sheer rising to the bow; a rubbing strake along the
+    sheer, bulwarks with a cap rail, and a planked deck well above the water that closes the hull
+    (nothing of the sea shows inside it). `mats`: (hull, trim, under, deck). Its faces are worked
+    out to face outward, and its finishes are drawn from both sides: a hull must never go missing."""
     hull, trim, under, deck = mats
-    stations = 9
-    rows = []
-    for k in range(stations):
-        t = k / (stations - 1)
+    made = []
+    stations = 13
+
+    def at_t(t):
         a = -L / 2 + L * t
-        # (full amidships, a transom at the stern, a rising, narrowing bow)
-        bw = beam / 2 * (0.72 + 0.28 * math.sin(math.pi * min(1.0, t * 1.5) / 2)) * (1.0 if t < 0.62 else math.cos((t - 0.62) / 0.38 * math.pi / 2) ** 0.7 + 0.02)
-        sheer = 0.72 + 0.5 * max(0.0, t - 0.55) ** 2 * 4
-        keel = -0.5 + 0.38 * max(0.0, t - 0.7) / 0.3
-        section = [(0.0, keel), (bw * 0.55, keel + 0.12), (bw * 0.95, 0.05), (bw, 0.42), (bw * 1.02, sheer - 0.1), (bw * 1.02, sheer)]
-        rows.append([fr.p(a, y, b) for b, y in [(-q, y) for q, y in reversed(section[1:])] + section])
+        full = math.sin(math.pi * min(1.0, 0.22 + t * 1.25) / 2)
+        taper = 1.0 if t < 0.6 else max(0.035, math.cos((t - 0.6) / 0.4 * math.pi / 2) ** 0.8)
+        bw = beam / 2 * (0.8 + 0.2 * full) * taper
+        sheer = 0.86 + 0.62 * max(0.0, t - 0.5) ** 2 * 4 + 0.1 * max(0.0, 0.25 - t) * 4
+        keel = -0.55 + 0.5 * max(0.0, t - 0.72) / 0.28
+        return a, bw, sheer, keel
+
+    rows, tops = [], []
+    for kk in range(stations):
+        a, bw, sheer, keel = at_t(kk / (stations - 1))
+        half = [(0.0, keel), (bw * 0.5, keel + 0.1), (bw * 0.9, -0.02), (bw * 1.0, 0.36), (bw * 1.05, sheer - 0.16), (bw * 1.07, sheer - 0.14), (bw * 1.07, sheer - 0.04), (bw * 1.04, sheer)]
+        rows.append([fr.p(a, y, b) for b, y in [(-q, y) for q, y in reversed(half[1:])] + half])
+        tops.append((a, bw, sheer))
     vr = [[bm.verts.new(p) for p in row] for row in rows]
     n = len(vr[0])
     for r0, r1 in zip(vr, vr[1:]):
         for c in range(n - 1):
             f = bm.faces.new((r0[c], r1[c], r1[c + 1], r0[c + 1]))
             edge = min(c, n - 2 - c)
-            f.material_index = trim if edge == 0 else (hull if edge <= 2 else under)
-            f.smooth = edge > 0
-    bm.faces.new(vr[0]).material_index = hull
-    # the deck, a little under the gunwale
-    for r0, r1, k in zip(rows, rows[1:], range(stations)):
-        t0, t1 = k / (stations - 1), (k + 1) / (stations - 1)
-        y0 = 0.5 + 0.5 * max(0.0, t0 - 0.55) ** 2 * 4
-        y1 = 0.5 + 0.5 * max(0.0, t1 - 0.55) ** 2 * 4
-        a0, a1 = -L / 2 + L * t0, -L / 2 + L * t1
-        w0 = (r0[-1] - r0[0]).length / 2 / 1.02 - 0.04
-        w1 = (r1[-1] - r1[0]).length / 2 / 1.02 - 0.04
-        bm.faces.new([bm.verts.new(fr.p(a0, y0, -w0)), bm.verts.new(fr.p(a0, y0, w0)), bm.verts.new(fr.p(a1, y1, w1)), bm.verts.new(fr.p(a1, y1, -w1))]).material_index = deck
+            f.material_index = trim if edge in (0, 2) else (hull if edge <= 3 else under)
+            f.smooth = edge > 2
+            made.append(f)
+    made.append(bm.faces.new(vr[0]))
+    made[-1].material_index = hull
+    # the bulwarks' inner faces, the cap rail, the deck's planks (each cut to the hull there)
+    wood = m("BC_WoodDark")
+    for (a0, w0, s0), (a1, w1, s1), kk in zip(tops, tops[1:], range(stations)):
+        d0, d1 = s0 - 0.3, s1 - 0.3
+        for side in (1, -1):
+            i0, i1 = side * w0 * 0.97, side * w1 * 0.97
+            o0, o1 = side * w0 * 1.04, side * w1 * 1.04
+            f = bm.faces.new([bm.verts.new(fr.p(a0, d0, i0)), bm.verts.new(fr.p(a1, d1, i1)), bm.verts.new(fr.p(a1, s1, i1)), bm.verts.new(fr.p(a0, s0, i0))])
+            f.material_index = hull
+            f = bm.faces.new([bm.verts.new(fr.p(a0, s0 + 0.03, i0 * 0.98)), bm.verts.new(fr.p(a1, s1 + 0.03, i1 * 0.98)), bm.verts.new(fr.p(a1, s1 + 0.03, o1 * 1.02)), bm.verts.new(fr.p(a0, s0 + 0.03, o0 * 1.02))])
+            f.material_index = wood
+        # (planks fore and aft: three strakes a side, alternating)
+        cuts = (-1.0, -0.66, -0.33, 0.0, 0.33, 0.66, 1.0)
+        for c0, c1, q in zip(cuts, cuts[1:], range(6)):
+            f = bm.faces.new([bm.verts.new(fr.p(a0, d0, c0 * w0 * 0.97)), bm.verts.new(fr.p(a0, d0, c1 * w0 * 0.97)), bm.verts.new(fr.p(a1, d1, c1 * w1 * 0.97)), bm.verts.new(fr.p(a1, d1, c0 * w1 * 0.97))])
+            f.material_index = deck if q % 2 else m("BC_WoodPale")
+    # the stem post up the bow, the keel along the bottom, a rudder under the transom
+    a_b, w_b, s_b, k_b = at_t(1.0)
+    bar(bm, fr.p(a_b - 0.05, k_b, 0.0), fr.p(a_b + 0.12, s_b + 0.22, 0.0), 0.07, wood, sides=5, r_end=0.05)
+    a_s, w_s, s_s, k_s = at_t(0.0)
+    bar(bm, fr.p(a_s, k_s - 0.04, 0.0), fr.p(a_b - 0.3, -0.5, 0.0), 0.05, under, sides=4)
+    obox(bm, fr, a_s - 0.3, a_s, -0.75, 0.2, -0.03, 0.03, wood)
+    bmesh.ops.recalc_face_normals(bm, faces=made)
+    return lambda t: (at_t(t)[0], at_t(t)[1], at_t(t)[2] - 0.3, at_t(t)[2])
+
+
+def boat_fittings(bm, fr, deck_at, rng, pier_side=-1):
+    """What a working boat carries, set on the hull `boat_hull` made (`deck_at(t)`: where along it,
+    its half-beam, the deck's height and the rail's): a wheelhouse aft with glass on three sides and
+    an overhanging roof, a mast and a boom with its stays, a lantern, a string of bulbs, crates, a
+    fish box, a net drum, coils, rod holders, fenders over the side it lies along."""
+    a1, w1, d1, s1 = deck_at(0.3)
+    hw = w1 * 0.62
+    h0, h1 = a1 - 1.0, a1 + 0.85
+    obox(bm, fr, h0, h1, d1 - 0.02, d1 + 1.7, -hw, hw, m("BC_Hull"))
+    obox(bm, fr, h0 - 0.02, h1 + 0.02, d1 + 0.0, d1 + 0.5, -hw - 0.012, hw + 0.012, m("BC_HullTrim"))
+    obox(bm, fr, h1, h1 + 0.025, d1 + 0.85, d1 + 1.42, -hw + 0.12, hw - 0.12, m("BC_Glass"))
+    for b in (-hw - 0.025, hw):
+        obox(bm, fr, h0 + 0.25, h1 - 0.2, d1 + 0.85, d1 + 1.42, b, b + 0.025, m("BC_Glass"))
+    obox(bm, fr, h0, h0 + 0.025, d1, d1 + 1.5, -0.28, 0.28, m("BC_WoodDark"))
+    obox(bm, fr, h0 - 0.2, h1 + 0.4, d1 + 1.7, d1 + 1.79, -hw - 0.2, hw + 0.2, m("BC_HullTrim"))
+    obox(bm, fr, h0 - 0.1, h1 + 0.3, d1 + 1.79, d1 + 1.83, -hw - 0.1, hw + 0.1, m("BC_White"))
+    # on the roof: a lantern, a horn, a life ring lashed down
+    lp = fr.p(h1 - 0.1, d1 + 1.98, 0.0)
+    blob(bm, lp.x, lp.z, -lp.y, 0.09, 0.12, 0.09, m=m("BC_Lamp"), cuts=1)
+    rp = fr.p(h0 + 0.5, d1 + 1.83, 0.0)
+    lathe(bm, rp.x, -rp.y, [(0.16, 0.0), (0.27, 0.0), (0.27, 0.08), (0.16, 0.08), (0.16, 0.0)], segs=12, m=m("BC_Red"), y0=rp.z)
+    # the mast forward of the house, its boom, the stays to bow and stern
+    am, wm, dm, sm = deck_at(0.52)
+    top = fr.p(am, dm + 4.0, 0.0)
+    bar(bm, fr.p(am, dm, 0.0), top, 0.065, m("BC_WoodDark"), sides=8, r_end=0.035)
+    bar(bm, fr.p(am, dm + 1.4, 0.0), fr.p(am + 2.0, dm + 2.0, 0.0), 0.035, m("BC_WoodDark"), sides=6)
+    ab, wb, db, sb = deck_at(0.97)
+    as_, ws, ds, ss = deck_at(0.02)
+    bar(bm, top, fr.p(ab, sb + 0.15, 0.0), 0.012, m("BC_Rope"), sides=4)
+    bar(bm, top, fr.p(as_ + 0.1, ss, 0.0), 0.012, m("BC_Rope"), sides=4)
+    blob(bm, top.x, top.z + 0.08, -top.y, 0.06, 0.08, 0.06, m=m("BC_Lamp"), cuts=1)
+    bm.faces.new([bm.verts.new(fr.p(am, dm + 3.9, 0.0)), bm.verts.new(fr.p(am - 0.55, dm + 3.76, 0.0)), bm.verts.new(fr.p(am, dm + 3.62, 0.0))]).material_index = m("BC_Red")
+    string_of_lights(bm, fr.p(am, dm + 3.5, 0.0), fr.p(ab - 0.2, sb + 0.3, 0.0), rng, sag=0.4, every=0.5)
+    # the fore deck: a fish box with the catch in it, a crate, a coil of rope, an anchor at the bow
+    af, wf, df, sf = deck_at(0.68)
+    obox(bm, fr, af - 0.35, af + 0.35, df, df + 0.3, -0.42, 0.1, m("BC_Wood"))
+    obox(bm, fr, af - 0.3, af + 0.3, df + 0.3, df + 0.33, -0.37, 0.05, m("BC_Glass"))
+    for q in range(4):
+        fp = fr.p(af - 0.2 + 0.13 * q, df + 0.35, -0.16 + 0.05 * (q % 2))
+        blob(bm, fp.x, fp.z, -fp.y, 0.05, 0.03, 0.12, m=m("BC_White") if q % 2 else m("BC_Teal"), cuts=1)
+    obox(bm, fr, af + 0.5, af + 0.95, df, df + 0.36, 0.1, 0.55, m("BC_WoodPale"))
+    cp = fr.p(af + 1.5, df + 0.01, -0.1)
+    lathe(bm, cp.x, -cp.y, [(0.0, 0.0), (0.22, 0.0), (0.22, 0.08), (0.1, 0.08), (0.1, 0.0), (0.0, 0.0)], segs=12, m=m("BC_Rope"), y0=cp.z)
+    bar(bm, fr.p(ab - 0.5, sb + 0.02, 0.0), fr.p(ab - 0.1, sb + 0.32, 0.0), 0.03, m("BC_Iron"), sides=5)
+    bar(bm, fr.p(ab - 0.18, sb + 0.26, -0.2), fr.p(ab - 0.18, sb + 0.26, 0.2), 0.025, m("BC_Iron"), sides=5)
+    # the after deck: a net drum on its stand, a heap of net, two rod holders at the stern
+    an, wn, dn, sn = deck_at(0.1)
+    for b in (-0.4, 0.4):
+        obox(bm, fr, an - 0.05, an + 0.05, dn, dn + 0.55, b - 0.03, b + 0.03, m("BC_Iron"))
+    bar(bm, fr.p(an, dn + 0.5, -0.42), fr.p(an, dn + 0.5, 0.42), 0.19, m("BC_Rope"), sides=10)
+    np_ = fr.p(an + 0.55, dn + 0.08, 0.25)
+    blob(bm, np_.x, np_.z, -np_.y, 0.34, 0.12, 0.3, m=m("BC_Teal"), cuts=2, noise=0.3, rng=rng)
+    for b in (-0.8, 0.8):
+        bar(bm, fr.p(as_ + 0.25, ss, b * ws), fr.p(as_ - 0.15, ss + 0.95, b * ws * 1.15), 0.02, m("BC_WoodDark"), sides=5)
+    # fenders over the side she lies along, a tyre on the other quarter
+    for t in (0.2, 0.45, 0.7):
+        af_, wf_, df_, sf_ = deck_at(t)
+        p = fr.p(af_, sf_ - 0.42, pier_side * (wf_ * 1.07 + 0.1))
+        bar(bm, fr.p(af_, sf_ + 0.02, pier_side * wf_ * 1.05), p, 0.01, m("BC_Rope"), sides=4)
+        blob(bm, p.x, p.z - 0.12, -p.y, 0.11, 0.2, 0.11, m=m("BC_Red") if t != 0.45 else m("BC_White"), cuts=2)
 
 
 def build_boat(coll, rng):
     B = SCENE["boat"]
-    # (moored bow to the sea, as the pier points)
-    fr = Frame(B["x"], B["z"], B["yaw"], y=-0.08)
+    # (moored bow to the sea, as the pier points; she rides with her deck well clear of the water)
+    fr = Frame(B["x"], B["z"], B["yaw"], y=-0.06)
     bm = bmesh.new()
-    boat_hull(bm, fr, 8.4, 2.8, (m("BC_Hull"), m("BC_HullTrim"), m("BC_HullUnder"), m("BC_Deck")))
-    # the wheelhouse aft of midships, its windows, its roof
-    obox(bm, fr, -2.3, -0.5, 0.5, 2.0, -0.85, 0.85, m("BC_Hull"))
-    obox(bm, fr, -0.5, -0.47, 1.25, 1.8, -0.7, 0.7, m("BC_Glass"))
-    for b in (-0.86, 0.83):
-        obox(bm, fr, -2.0, -0.8, 1.25, 1.8, b, b + 0.03, m("BC_Glass"))
-    obox(bm, fr, -2.45, -0.3, 2.0, 2.08, -1.0, 1.0, m("BC_HullTrim"))
-    bar(bm, fr.p(-1.4, 2.08, 0.0), fr.p(-1.4, 4.1, 0.0), 0.05, m("BC_WoodDark"), sides=6)
-    bar(bm, fr.p(-1.4, 3.2, 0.0), fr.p(1.2, 2.5, 0.0), 0.035, m("BC_WoodDark"), sides=5)
-    lp = fr.p(-1.4, 4.2, 0.0)
-    blob(bm, lp.x, lp.z, -lp.y, 0.08, 0.1, 0.08, m=m("BC_Lamp"), cuts=1)
-    # on deck: a crate, a coil of rope, two rod holders at the stern, fenders over the pier's side
-    obox(bm, fr, 1.2, 1.8, 0.56, 0.9, -0.4, 0.2, m("BC_Wood"))
-    cp = fr.p(2.4, 0.66, 0.3)
-    lathe(bm, cp.x, -cp.y, [(0.0, 0.0), (0.22, 0.0), (0.22, 0.08), (0.1, 0.08), (0.1, 0.0), (0.0, 0.0)], segs=12, m=m("BC_Rope"), y0=cp.z)
-    for b in (-0.9, 0.9):
-        bar(bm, fr.p(-3.7, 0.6, b), fr.p(-4.0, 1.5, b * 1.1), 0.02, m("BC_WoodDark"), sides=5)
-    for a in (-2.0, 0.6, 2.4):
-        p = fr.p(a, 0.36, -1.46)
-        blob(bm, p.x, p.z, -p.y, 0.11, 0.2, 0.11, m=m("BC_Red"), cuts=2)
+    deck_at = boat_hull(bm, fr, 8.6, 2.9, (m("BC_Hull"), m("BC_HullTrim"), m("BC_HullUnder"), m("BC_Deck")))
+    boat_fittings(bm, fr, deck_at, rng)
     make_object("Prop_Boat", bm, MATS, coll, origin=(B["x"], 0.0, B["z"]))
 
 
 # --- one draw call a finish --------------------------------------------------------------------------
 
 KEEP = set(EMISSION)
+# what a finish is made of (bake_colors paints it accordingly)
+STUFF = {}
+for _n in PALETTE:
+    if any(k in _n for k in ("Granite", "Rock", "Reef", "Stone", "Wall", "Pearl", "Flow", "Lichen")) and "Ground" not in _n and "Glow" not in _n:
+        STUFF[_n] = "rock"
+    elif any(k in _n for k in ("Frond", "Leaf", "Grass", "Needle", "Pandan", "Scaevola", "Mangrove", "Banana", "Agave", "Almond", "Weed", "Moss", "Vine")) and "Bark" not in _n and "Root" not in _n:
+        STUFF[_n] = "leaf"
+    elif any(k in _n for k in ("Bark", "Root", "Drift")):
+        STUFF[_n] = "bark"
 
 
 def slot_of(name):
@@ -1777,7 +1936,9 @@ def bake_colors(ob, one=None):
     # that look up a touch sun-bleached, undersides cool and dark, a contact shade where a thing
     # meets the sand, and a slow mottle over it all, so planks, thatch, canvas and stone are not flat)
     rot = world.to_3x3()
-    wear = one is None and ob.name not in ("Beach_Ground", "Beach_Sea") and not ob.name.startswith("Tree_")
+    # (a tree's look stands at the origin: its own height is its height over the ground)
+    look = ob.name.startswith("Tree_") or ob.name.startswith("Ore_")
+    wear = one is None and ob.name not in ("Beach_Ground", "Beach_Sea")
     # (read once, before any colour is written: a write makes Blender work the normals out afresh)
     vpos = [world @ v.co for v in me.vertices] if wear else []
     vup = [(rot @ v.normal).z for v in me.vertices] if wear else []
@@ -1790,9 +1951,20 @@ def bake_colors(ob, one=None):
                 # (by the vertex, never by the face: faces of one colour go on sharing their corners)
                 vi = me.loops[li].vertex_index
                 p, up = vpos[vi], vup[vi]
-                over = p.z - (land_y(p.x, -p.y) if TERRAIN is not None else 0.0)
+                over = p.z - (land_y(p.x, -p.y) if TERRAIN is not None and not look else 0.0)
                 k = 1.0 + 0.09 * (vnoise(p.x * 2.6 + p.z * 1.7, -p.y * 2.6 + 3.0) - 0.5) + 0.05 * max(0.0, up) - 0.16 * max(0.0, -up)
                 k *= 1.0 - 0.14 * smooth(0.3, 0.0, over) * (1.0 if up < 0.6 else 0.0)
+                kind = STUFF.get(name)
+                if kind == "rock":
+                    # stone: beds a hand thick, each a little lighter or darker; a grain; sun-bleached
+                    # above, damp and dark toward the ground
+                    k *= 1.0 + 0.1 * math.sin(p.z * 17.0 + 3.0 * vnoise(p.x * 1.1, -p.y * 1.1)) + 0.14 * (vnoise(p.x * 7.0 + 5.0, -p.y * 7.0 + p.z * 6.0) - 0.5)
+                    k *= 0.92 + 0.16 * smooth(0.0, 0.7, over) + 0.08 * max(0.0, up)
+                elif kind == "leaf":
+                    # leaves and blades: dark and dense at the foot, light toward the tips, no two alike
+                    k *= 0.8 + 0.2 * smooth(0.0, 0.55, over) + 0.16 * (vnoise(p.x * 6.0 + 2.0, -p.y * 6.0) - 0.5)
+                elif kind == "bark":
+                    k *= 0.84 + 0.2 * smooth(0.0, 2.5, over) + 0.12 * (vnoise(p.x * 9.0, p.z * 3.0 - p.y * 9.0) - 0.5)
                 # (in steps: a few distinct values pack small, free-running floats do not)
                 k = round(k * 24) / 24
                 attr.data[li].color = (round(c[0] * k * 255) / 255, round(c[1] * k * 255) / 255, round(c[2] * (k + 0.03 * max(0.0, -up)) * 255) / 255, 1.0)
@@ -1828,7 +2000,7 @@ def fuse(coll):
         if ob.type != "MESH" or ob.name in ("Beach_Ground", "Beach_Sea"):
             continue
         if ob.name.startswith("Prop_"):
-            bake_colors(ob, one="BC_Clay")
+            bake_colors(ob, one="BC_ClayDouble" if ob.name == "Prop_Boat" else "BC_Clay")
             continue
         bake_colors(ob)
         if ob.name == "Beach_PalmsRaw":

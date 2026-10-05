@@ -60,14 +60,30 @@ def build_water(coll):
     little finer near the boat so the swell bends."""
     bm = bmesh.new()
     col = bm.loops.layers.float_color.new("Col")
-    n, half = 28, SEA_OUT
+    n, half = 60, SEA_OUT
+    S = SEA
+    out = S["outline"]
+    bx, bz = math.sin(S["bowYaw"]), math.cos(S["bowYaw"])
+    sx, sz = S["starboard"]["x"], S["starboard"]["z"]
+
+    def hull_out(x, z):
+        """Metres outside the hull's waterline (negative: under her)."""
+        a, b = x * bx + z * bz, abs(x * sx + z * sz)
+        if a < out[0][0]:
+            return math.hypot(out[0][0] - a, max(0.0, b - out[0][1] - 0.16))
+        if a > out[-1][0]:
+            return math.hypot(a - out[-1][0], max(0.0, b - out[-1][1]))
+        for (pa, pb), (qa, qb) in zip(out, out[1:]):
+            if pa <= a <= qa:
+                return b - (pb + (qb - pb) * (a - pa) / (qa - pa)) - 0.16
+        return 9.0
     verts = {}
     for k in range(n + 1):
         for i in range(n + 1):
             # (finer in the middle: the grid's lines bunch toward the boat)
             u, v = i / n * 2 - 1, k / n * 2 - 1
-            x = half * (abs(u) ** 1.8) * (1 if u >= 0 else -1)
-            z = half * (abs(v) ** 1.8) * (1 if v >= 0 else -1)
+            x = half * (abs(u) ** 2.6) * (1 if u >= 0 else -1)
+            z = half * (abs(v) ** 2.6) * (1 if v >= 0 else -1)
             verts[(i, k)] = bm.verts.new(W(x, 0.0, z))
     for k in range(n):
         for i in range(n):
@@ -78,7 +94,12 @@ def build_water(coll):
         if f.normal.z < 0:
             f.normal_flip()
         for loop in f.loops:
-            loop[col] = (1.0, 0.0, 0.0, 1.0)
+            # (red: how far out from the hull, as the shader reads a shore: the sea laps white along
+            # the boat's waterline and is a shade paler for a stride round her, then deep)
+            x, z = loop.vert.co.x, -loop.vert.co.y
+            ho = hull_out(x, z)
+            # (a hand's width of foam at her side, deep water again within a stride: never a pale shoal)
+            loop[col] = (max(0.0, min(1.0, (1.0 + 10.0 * max(0.0, ho) ** 0.8) / 12.0)) if ho < 1.4 else 1.0, 0.0, 0.0, 1.0)
     me = bpy.data.meshes.new("Sea_WaterMesh")
     bm.to_mesh(me)
     bm.free()
@@ -120,6 +141,16 @@ def build_boat(coll, rng):
             f.material_index = m(bands[k])
             f.smooth = k > 0
     bm.faces.new(list(reversed(vr[-1]))).material_index = m("BC_HullUnder")
+    # (the hull's faces worked out to face outward; its finishes are drawn from both sides besides)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    # a rubbing strake along the sheer, the stem post up the bow, the rudder under the stern
+    strake_o = [bm.verts.new(p) for p in ring(1.0, deck + 0.02, 0.2)]
+    strake_i = [bm.verts.new(p) for p in ring(1.0, deck - 0.1, 0.2)]
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((strake_o[i], strake_o[j], strake_i[j], strake_i[i])).material_index = m("BC_HullTrim")
+    bar(bm, fr.p(out[-1][0] + 0.1, -0.7, 0.0), fr.p(out[-1][0] + 0.32, rail + 0.3, 0.0), 0.08, m("BC_WoodDark"), sides=5, r_end=0.05)
+    obox(bm, fr, out[0][0] - 0.35, out[0][0] - 0.05, -0.9, 0.25, -0.035, 0.035, m("BC_WoodDark"))
     # the bulwarks' inner faces and their cap rail
     inner_top = [bm.verts.new(p) for p in ring(1.0, rail, 0.02)]
     inner_bot = [bm.verts.new(p) for p in ring(1.0, deck, 0.02)]
@@ -225,6 +256,26 @@ def build_boat(coll, rng):
     oquad(bm, [fr.p(-1.2, rail + 0.02, -hb_ - 0.02), fr.p(0.0, rail + 0.02, -hb_ - 0.02), fr.p(0.1, deck + 0.1, -hb_ - 0.3), fr.p(-1.3, deck + 0.05, -hb_ - 0.28)], m("BC_Rope"))
     ring_ = fr.p(S["wheelhouse"]["a1"] + 0.03, deck + 1.0, -0.55)
     lathe(bm, ring_.x, -ring_.y, [(0.14, 0.0), (0.22, 0.0), (0.22, 0.07), (0.14, 0.07), (0.14, 0.0)], segs=10, m=m("BC_Red"), y0=ring_.z)
+    # the fore deck's fish box (the catch on ice under glass), a net drum by the stern rail, cleats,
+    # a radio whip and a horn on the wheelhouse's roof, tyres over the port side
+    obox(bm, fr, 2.75, 3.45, deck, deck + 0.3, -0.25, 0.3, m("BC_Wood"))
+    obox(bm, fr, 2.8, 3.4, deck + 0.3, deck + 0.33, -0.2, 0.25, m("BC_Glass"))
+    for q_ in range(4):
+        fp_ = fr.p(2.9 + 0.13 * q_, deck + 0.35, 0.0 + 0.06 * (q_ % 2))
+        blob(bm, fp_.x, fp_.z, -fp_.y, 0.05, 0.03, 0.12, m=m("BC_White") if q_ % 2 else m("BC_Teal"), cuts=1)
+    for b_ in (-0.35, 0.35):
+        obox(bm, fr, -3.75, -3.65, deck, deck + 0.5, b_ - 0.03, b_ + 0.03, m("BC_Iron"))
+    bar(bm, fr.p(-3.7, deck + 0.46, -0.38), fr.p(-3.7, deck + 0.46, 0.38), 0.17, m("BC_Rope"), sides=10)
+    for a_c in (-2.4, 1.2, 4.0):
+        for side_ in (-1, 1):
+            cp_ = fr.p(a_c, rail + 0.06, side_ * (half_at(a_c) + 0.08))
+            blob(bm, cp_.x, cp_.z, -cp_.y, 0.07, 0.03, 0.03, m=m("BC_Iron"), cuts=1)
+    bar(bm, fr.p(h0 + 0.3, deck + 1.95, 0.4), fr.p(h0 + 0.2, deck + 3.3, 0.45), 0.012, m("BC_Iron"), sides=4, r_end=0.004)
+    hp_ = fr.p(h1 - 0.2, deck + 2.02, -0.45)
+    blob(bm, hp_.x, hp_.z, -hp_.y, 0.07, 0.07, 0.14, m=m("BC_Yellow"), cuts=1)
+    for a_t in (-1.8, 1.0):
+        tp_ = fr.p(a_t, deck - 0.18, -(half_at(a_t) + 0.22))
+        lathe(bm, tp_.x, -tp_.y, [(0.1, -0.06), (0.2, -0.06), (0.2, 0.06), (0.1, 0.06), (0.1, -0.06)], segs=10, m=m("BC_Char"), y0=tp_.z)
     make_object("Sea_Boat", bm, MATS, coll)
 
 

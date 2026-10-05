@@ -4,7 +4,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { beachDay } from "./beachDay";
 import { SEA_EVENT_S } from "@shared/voyage";
-import { onDeck } from "@shared/worlds/sea";
+import { DECK_Y, SEA_LAYOUT, onDeck } from "@shared/worlds/sea";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { seaEventStore } from "../systems/seaEventStore";
 import { BEACH_LIFE_URL } from "./BeachLife";
@@ -15,7 +15,8 @@ import { instanced, template } from "./faunaKit";
 //
 //   always        two gulls keeping the boat company by day, a fish leaping now and then, a school of
 //                 five going over one after another, flying fish skimming away low over the water, a
-//                 sea turtle coming up for air a way off, a manta ray gliding past under the hull
+//                 sea turtle coming up for air a way off, a manta ray gliding past under the hull,
+//                 two gulls resting on the wheelhouse's roof
 //   the wonders   whatever the room says is beside the boat (shared/voyage.ts SeaEvent): a whale
 //                 rolling at the surface off the starboard side and sounding with its flukes up as it
 //                 leaves; a pod of dolphins circling the boat; a shoal flashing silver under the keel
@@ -25,6 +26,8 @@ const LEAPERS = 2;
 /** A school leaping one after another, and the flying fish that skim off together. */
 const SCHOOL = 5;
 const FLYERS = 3;
+/** Gulls at rest on the wheelhouse's roof (they lift off when a wonder comes, and at night they are gone). */
+const ROOST = 2;
 const POD = 4;
 const GLINTS = 60;
 const SEA_Y = 0;
@@ -46,11 +49,12 @@ function Life() {
   const leapers = useMemo(() => instanced(template(scene, "Fauna_LeapFish"), LEAPERS + SCHOOL + FLYERS, ["#ffffff", "#ffe9c2", "#dff3ff"]), [scene]);
   const pod = useMemo(() => instanced(template(scene, "Fauna_Dolphin"), POD, ["#ffffff"]), [scene]);
   const turtle = useMemo(() => instanced(template(scene, "Fauna_SeaTurtle"), 1, ["#ffffff"]), [scene]);
+  const roost = useMemo(() => instanced(template(scene, "Fauna_Gull_Body"), ROOST, ["#ffffff"]), [scene]);
   const manta = useMemo(() => instanced(template(scene, "Fauna_Manta"), 1, ["#ffffff"]), [scene]);
   const whale = useMemo(() => instanced(template(scene, "Fauna_WhaleBack"), 1, ["#ffffff"]), [scene]);
   const fluke = useMemo(() => instanced(template(scene, "Fauna_WhaleFluke"), 1, ["#ffffff"]), [scene]);
   const glints = useMemo(() => new MotePoints(GLINTS), []);
-  const all = useMemo(() => [...gulls, leapers, pod, whale, fluke, turtle, manta], [gulls, leapers, pod, whale, fluke, turtle, manta]);
+  const all = useMemo(() => [...gulls, leapers, pod, whale, fluke, turtle, manta, roost], [gulls, leapers, pod, whale, fluke, turtle, manta, roost]);
   useEffect(
     () => () => {
       for (const p of all) p?.mesh.dispose();
@@ -163,6 +167,20 @@ function Life() {
         m.compose(pos.set(swim.x + Math.sin(swim.yaw) * u * 2.2, SEA_Y - 0.62 + 0.5 * rise + 0.04 * Math.sin(t * 1.3), swim.z + Math.cos(swim.yaw) * u * 2.2), q, scl.setScalar(1.25));
         turtle.mesh.setMatrixAt(0, w.copy(m).multiply(turtle.t.matrix));
         turtle.mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+    // --- two gulls at rest on the wheelhouse's roof, by day: a shuffle, a look about
+    if (roost) {
+      roost.mesh.visible = day;
+      if (day) {
+        const H = SEA_LAYOUT.wheelhouse;
+        for (let i = 0; i < ROOST; i++) {
+          const p = onDeck(H.a0 + 0.45 + i * 0.75, (i ? 0.35 : -0.3) + 0.03 * Math.sin(t * 0.4 + i));
+          q.setFromAxisAngle(up, 0.8 + i * 1.9 + 0.5 * Math.sin(t * 0.23 + i * 3));
+          m.compose(pos.set(p.x, DECK_Y + 2.02 + 0.006 * Math.sin(t * 2 + i), p.z), q, scl.setScalar(1.7));
+          roost.mesh.setMatrixAt(i, w.copy(m).multiply(roost.t.matrix));
+        }
+        roost.mesh.instanceMatrix.needsUpdate = true;
       }
     }
     // --- a manta ray gliding by under the surface, right past the hull: a dark shape, its wings beating slowly

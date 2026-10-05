@@ -2207,6 +2207,24 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.9.1",
+        date: "2026-10-05",
+        title: "A Whole Boat, Fewer Trees",
+        summary: "The captain's boat has its hull back, and the beach's trees are fewer and finer.",
+        changes: {
+          fixes: [
+            "⛵ The captain's boat was missing its hull at the pier and in the hidden place. It is built again: a whole wooden hull with a planked deck clear of the water, a wheelhouse, a mast, a net drum and a fish box.",
+          ],
+          visuals: [
+            "🌴 Fewer trees on Sunset Beach, with room between them: thirteen coconut palms and nine Sea Pines.",
+            "🌿 The palms have feathered fronds now (a midrib and hanging leaflets, a dead frond or two under the crown); the Sea Pines hang with weeping sprays; the boulders are jointed and bedded granite, barnacled where the sea reaches them; the fossil reef rock shows its shells and an ammonite.",
+            "🎨 Leaves are darker at the foot and lighter at the tips, bark darkens toward the ground, and stone carries its beds and grain.",
+            "🌊 At sea the water laps white along the boat's hull, and two gulls rest on the wheelhouse roof.",
+          ],
+          economy: ["🥥 A felled Coconut Palm grows back in 195 seconds (it was 300): thirteen palms give what twenty gave."],
+        },
+      },
     ],
   },
 ];
