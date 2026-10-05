@@ -222,6 +222,11 @@ restart mid-bout is a No Contest), Retro Arcade and the
 Gaming Cafe (registered, not built:
 each is a bare floor with no seats or props until its world is authored).
 
+A seat and a sale at sea (patch 0.9.5):
+- **An AFK line from a seat aboard** (shared/worlds/sea.ts `seaSeatCast(propId)`: the float out beyond the rail the seat faces): HangoutRoom's `AFK` takes a seated player on `open_sea` as a shore angler (`shoreAnglers`, `floatX` / `floatZ`; the rod and livewell checks of a cast); standing up clears the action and the next tick drops the float. The dock's `[ ☕ Auto AFK ]` on a boat seat (ActionDock `boatSeat`).
+- **The captain buys the catch** (shared/voyage.ts `CAPTAIN_RATE` 0.8; `handleBarnaby` `atCaptain`: op `sell` with slot `all` only, every unlocked fish at 0.8 of the beach counter's price on the room's market, answered by a `campfireNotice`; CaptainModal's button sends the `campfire` packet). Dune stays the better sale for a hand-reeler (a load's fifth is more than a ticket and the trip).
+- **Seen in the browser:** a seated AFK catch from the bench and its sale at the wheel.
+
 An AFK line at sea (patch 0.9.4; the owner's ask): HangoutRoom's `AFK` refuses only `hidden_cove` now, and the dock offers `[ ☕ Auto AFK ]` on `open_sea` (ActionDock). Where older blocks say the Open Sea is fished by hand only, this is the truth. The chart's bottles still come only off a hand-reeled catch (BeachSea `bottle`). Measured (40,000 rolls): an AFK line with Stardust Pellets earns about 122 a minute at sea on a T6 rod before bait and ticket (95 off the pier), against 282 by hand. The cove's unlock was already for good (`coveAccess`).
 
 The remake's fourth pass (patch 0.9.3):

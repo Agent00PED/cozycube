@@ -328,9 +328,9 @@ import { BoutSchema, BoxingRing } from "./boxing";
 import { BEACH_FIRE_SEAT_IDS, DUNE_FRONT, DUNE_REACH, beachCast } from "../../../shared/worlds/beach";
 import type { OddsWater } from "../../../shared/economy";
 import { BeachSea } from "./beachSea";
-import { SEA_CHANNEL, isSeaMap, type SeaPacket } from "../../../shared/voyage";
+import { CAPTAIN_RATE, SEA_CHANNEL, isSeaMap, type SeaPacket } from "../../../shared/voyage";
 import { SEA_CAST_ROD } from "../../../shared/sea_fishing";
-import { seaCast } from "../../../shared/worlds/sea";
+import { CAPTAIN_REACH, SEA_CAPTAIN_FRONT, seaCast, seaSeatCast } from "../../../shared/worlds/sea";
 import { coveCast } from "../../../shared/worlds/cove";
 import { BeachBar } from "./beachBar";
 import { BAR_CHANNEL, REFRESHED_PACE, type BarPacket } from "../../../shared/barshift";
@@ -2462,7 +2462,23 @@ export class HangoutRoom extends Room<HangoutState> {
         // log or rock)
         // (the caverns: standing on the cenote's shore, where they cast from)
         const woodsSpot = player.map === "whispering_woods" ? (woodsSpotOfSeat(seatId) ?? (!player.sitting ? this.woodsSpotAt(player) : undefined)) : undefined;
-        const caveShore = isShoreCastMap(player.map) && !player.sitting && this.shoreAnglers.has(sessionId);
+        // (the Open Sea: an AFK line may also be left out from a seat aboard, the float beyond the rail it faces)
+        const seaSeat = player.map === "open_sea" && player.sitting ? seaSeatCast(seatId) : null;
+        if (seaSeat && packet.on && !this.shoreAnglers.has(sessionId)) {
+          if (player.action !== "") return;
+          if (RODS[this.records.get(sessionId)?.fishing.rod ?? "bamboo"].tier < SEA_CAST_ROD) {
+            client.send("campfireNotice", { message: "The open sea wants a stronger rod: an Expedition rod (T5) or better. Enjoy the ride!", emoji: "🎣" });
+            return;
+          }
+          if (this.creelIsFull(sessionId)) {
+            client.send("campfireNotice", { message: "Your livewell's full: sell some fish to the captain, or to Dune back at the pier", emoji: "🪣" });
+            return;
+          }
+          this.shoreAnglers.set(sessionId, { x: player.x, z: player.z, map: "open_sea" });
+          player.floatX = seaSeat.x;
+          player.floatZ = seaSeat.z;
+        }
+        const caveShore = isShoreCastMap(player.map) && (!player.sitting || !!seaSeat) && this.shoreAnglers.has(sessionId);
         if (!spotOfSeat(seatId) && !woodsSpot && !caveShore) return;
         if (woodsSpot) {
           // one angler to a spot on the bank
@@ -3108,7 +3124,7 @@ export class HangoutRoom extends Room<HangoutState> {
       return;
     }
     if (this.creelIsFull(sessionId)) {
-      this.sendTo(sessionId, "campfireNotice", { message: atSea ? "Your livewell's full: ask the captain for the pier, and sell to Dune" : beach ? "Your livewell's full: sell some fish to Dune at his shack first" : "Your livewell's full: sell some fish to Finnegan (or Barnaby, or Finley) first", emoji: "🪣" });
+      this.sendTo(sessionId, "campfireNotice", { message: atSea ? "Your livewell's full: sell the catch to the captain at the wheel, or ask him for the pier and sell to Dune" : beach ? "Your livewell's full: sell some fish to Dune at his shack first" : "Your livewell's full: sell some fish to Finnegan (or Barnaby, or Finley) first", emoji: "🪣" });
       return;
     }
     this.shoreAnglers.set(sessionId, { x: player.x, z: player.z, map: player.map as MapId });
@@ -4259,18 +4275,28 @@ export class HangoutRoom extends Room<HangoutState> {
       if (ok) this.saveFishing(sessionId, player);
     };
     const tooFar = () => reply(false, "Come on over to the stall, friend!");
+    // (Captain Brine at his wheel on the Open Sea buys the catch too, for CAPTAIN_RATE of Dune's price,
+    // and nothing else: his answer goes out as a notice, he has no counter)
+    const atCaptain = player.map === "open_sea" && Math.hypot(player.x - SEA_CAPTAIN_FRONT.x, player.z - SEA_CAPTAIN_FRONT.z) <= CAPTAIN_REACH + 1.2;
     switch (packet.op) {
       case "sell": {
-        if (!near) return tooFar();
+        if (!near && !atCaptain) return tooFar();
         // (a locked fish never goes: Sell All passes it by, and alone it is refused)
         const one = Math.floor(Number(packet.slot));
         if (packet.slot !== "all" && profile.creel[one]?.l) return reply(false, `That ${FISH[profile.creel[one].s].name} is locked: unlock it to sell`);
         // (past what this counter can afford, CEILING_RATE of the hour's price, and Sell All passes it
         // by like a locked fish: shared/keepers.ts)
         const counter = atDune ? "beach" : atFinnegan ? "caverns" : atFinley ? "woods" : "campfire";
-        const rateOf = (f: CreelFish) => (noCeiling(profile) ? 1 : fishRate(counter, f.s));
-        const kept = packet.slot === "all" ? profile.creel.filter((f) => !f.l && rateOf(f) < 1).length : 0;
-        const picked = packet.slot === "all" ? profile.creel.map((f, k) => (f.l || rateOf(f) < 1 ? -1 : k)).filter((k) => k >= 0) : [one].filter((k) => !!profile.creel[k]);
+        const rateOf = (f: CreelFish) => (atCaptain ? CAPTAIN_RATE : noCeiling(profile) ? 1 : fishRate(counter, f.s));
+        const kept = packet.slot === "all" && !atCaptain ? profile.creel.filter((f) => !f.l && rateOf(f) < 1).length : 0;
+        const picked = packet.slot === "all" ? profile.creel.map((f, k) => (f.l || (!atCaptain && rateOf(f) < 1) ? -1 : k)).filter((k) => k >= 0) : [one].filter((k) => !!profile.creel[k]);
+        if (atCaptain) {
+          if (packet.slot !== "all") return;
+          if (!picked.length) {
+            this.sendTo(sessionId, "campfireNotice", { message: profile.creel.length ? "Every fish in there is locked: nothing for the captain to take" : "Your livewell's empty: nothing for the captain to take", emoji: "🪣" });
+            return;
+          }
+        }
         if (!picked.length)
           return reply(false, kept ? `Those ${kept} are too fine for my purse: sell them one by one for what I can pay, or take them to ${FULL_PRICE_AT.fish[counter]}` : profile.creel.length ? "Every fish in there is locked: nothing to sell!" : "Your creel's empty! The river's right there 🎣");
         // a roaring fire puts Barnaby in a generous mood (the Cozy Aura: +15%)
@@ -4289,6 +4315,11 @@ export class HangoutRoom extends Room<HangoutState> {
         profile.creel = profile.creel.filter((_, k) => !picked.includes(k));
         this.addCoins(player, earned);
         this.nearby(sessionId, "emote", { sessionId, emoji: earned >= 100 ? "💰" : "🪙" });
+        if (atCaptain) {
+          this.saveFishing(sessionId, player);
+          this.sendTo(sessionId, "campfireNotice", { message: `"${picked.length} fish for the hold. Here's ${earned.toLocaleString("en-US")} 🪙, less my share."`, emoji: "⛵" });
+          return;
+        }
         const more = kept ? ` (your ${kept} finer fish stay with you: ${FULL_PRICE_AT.fish[counter]} pays in full)` : "";
         if (picked.length === 1 && rateOf(first) < 1) return reply(true, `A ${FISH[first.s].name}! Finer than my purse, friend: ${earned} 🪙 is what I can do (${FULL_PRICE_AT.fish[counter]} pays in full)`, earned);
         return reply(true, picked.length > 1 ? `${picked.length} fine fish! Here's ${earned} 🪙${more}` : `A lovely ${FISH[first.s].name}! Here's ${earned} 🪙${more}`, earned);

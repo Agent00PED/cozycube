@@ -10,6 +10,9 @@
 //                or better (shared/sea_fishing.ts SEA_CAST_ROD), and there is no AFK line out there
 
 export const TICKET_PRICE = 150;
+/** What Captain Brine pays for a catch sold to him at the wheel, out at sea: this share of what Dune
+ *  would pay ashore (he takes it in for you: the price of not turning for the pier). */
+export const CAPTAIN_RATE = 0.8;
 export const SEA_CHANNEL = "beach:sea";
 export type SeaPacket =
   /** At the pier's head: aboard, for the Open Sea. */
