@@ -13,7 +13,7 @@ import type { PropSpec } from "./lounge";
 //   the deck        flat, at DECK_Y over the water, inside the bulwarks: walked from stern to bow
 //   the wheelhouse  aft; Captain Brine at the wheel in front of it (the way back to the pier)
 //   the rails       fished from anywhere along them (seaCast: the float lands out on the water
-//                   beyond the rail you face), by hand only, with an Expedition rod (T5) or better
+//                   beyond the rail you face), by hand or on an AFK line, with an Expedition rod (T5) or better
 //   the bench       along the port side, and a seat at the bow, for whoever rides along
 
 type Pt = { x: number; z: number };

@@ -2449,9 +2449,9 @@ export class HangoutRoom extends Room<HangoutState> {
         return;
       }
       case "AFK": {
-        // (out at sea and in the cove the best fish need a hand on the reel: no AFK line)
-        if (isSeaMap(player.map)) {
-          if (packet.on) client.send("campfireNotice", { message: "No AFK line out here: the sea's fish need a hand on the reel", emoji: "🎣" });
+        // (in the Hidden Cove the fish need a hand on the reel: no AFK line; on the Open Sea's deck one may be left out)
+        if (player.map === "hidden_cove") {
+          if (packet.on) client.send("campfireNotice", { message: "No AFK line in here: the cove's fish need a hand on the reel", emoji: "🎣" });
           return;
         }
         let seatId = "";
