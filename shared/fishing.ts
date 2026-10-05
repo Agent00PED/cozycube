@@ -406,6 +406,8 @@ export interface FishingProfile {
   chartDry: number;
   /** The Tide Pool Journal: the kinds seen in Sunset Beach's tide pools (shared/voyage.ts TIDE_FINDS ids). */
   tide: string[];
+  /** The Beach Journal: shells combed, shore and sea life seen (shared/beach_journal.ts ids). */
+  beach: string[];
   coveAccess: boolean;
 }
 /** The Prospector's Ledger's marks: Perfect strikes, the best run of them, geodes cracked, Star Shards
@@ -506,7 +508,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem, bonus = 0
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] }, bar: emptyBarBook(), seaTrip: false, chart: 0, chartDry: 0, coveAccess: false, tide: [] };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] }, bar: emptyBarBook(), seaTrip: false, chart: 0, chartDry: 0, coveAccess: false, tide: [], beach: [] };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -700,6 +702,7 @@ function readFishingProfile(raw: unknown): FishingProfile {
   p.seaTrip = r.seaTrip === true;
   p.chart = Math.max(0, Math.min(3, Math.floor(Number(r.chart) || 0)));
   p.chartDry = Math.max(0, Math.min(100000, Math.floor(Number(r.chartDry) || 0)));
+  if (Array.isArray(r.beach)) p.beach = Array.from(new Set(r.beach.filter((t): t is string => typeof t === "string" && /^(shell|shore|sea)_[a-z]+$/.test(t)))).slice(0, 64);
   if (Array.isArray(r.tide)) p.tide = Array.from(new Set(r.tide.filter((t): t is string => typeof t === "string" && TIDE_FIND_IDS.has(t))));
   p.coveAccess = r.coveAccess === true;
   if (r.ledger && typeof r.ledger === "object") {

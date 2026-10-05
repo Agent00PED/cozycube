@@ -3,7 +3,8 @@
 // and the Tidewater tools made at Dune's shack (shared/expedition.ts, place "dune").
 import { FORGED_TOOLS, forgedBlocked, forgedOwned, grantForged, isForgedToolId, makingsMissing, spendMakings } from "../../../shared/expedition";
 import type { FishingProfile } from "../../../shared/fishing";
-import type { MapId } from "../../../shared/types";
+import type { MapId, TimeOfDay } from "../../../shared/types";
+import { COMB_REACH, JOURNAL_BY_ID, JOURNAL_SECTIONS, combBucket, combSpots, isJournalId, rollShell, sectionOf, sightingHolds, type JournalFind } from "../../../shared/beach_journal";
 import { CHART_PIECES, CLAM_DOUBLE, CLAM_PEARLS, CLAM_SHUT_MS, TICKET_PRICE, chartChance, isSeaMap, type ChartPiece, type ClamSync, type SeaPacket, DOLPHIN_HASTE, SEA_EVENT_EVERY_MIN, SEA_EVENT_KINDS, SEA_EVENT_S, SHOAL_LUCK, WHALE_KING, seaEventOn, type SeaEvent, type SeaEventKind } from "../../../shared/voyage";
 import { MATERIAL_CAP } from "../../../shared/economy";
 import { TIDE_POOLS } from "../../../shared/worlds/beach";
@@ -35,6 +36,8 @@ export interface SeaHost {
   toCove(type: string, payload: unknown): void;
   /** To everyone out on the Open Sea. */
   toSea?(type: string, payload: unknown): void;
+  /** The room's hour (the beach and the sea follow it). */
+  hour?(): TimeOfDay;
 }
 
 export class BeachSea {
@@ -42,6 +45,9 @@ export class BeachSea {
   private clams = new Map<string, number>();
   /** Each looker's tide pools, settling: `<session>:<pool>` to when it clears. */
   private pools = new Map<string, number>();
+  /** Beachcombing: the finds each player has picked up this stretch (`<session>:<bucket>:<spot>`). */
+  private combed = new Set<string>();
+  private combedBucket = -1;
 
   /** The living wonder beside the boat (null: none), and when the next may come. */
   private event: SeaEvent | null = null;
@@ -98,6 +104,57 @@ export class BeachSea {
     else if (msg.op === "tosea") this.toSea(sessionId, player);
     else if (msg.op === "pry") this.pry(sessionId, player, profile, msg.clam);
     else if (msg.op === "peek") this.peek(sessionId, player, profile, msg.pool);
+    else if (msg.op === "comb") this.comb(sessionId, player, profile, msg.spot);
+    else if (msg.op === "sight") this.sight(sessionId, player, profile, msg.id);
+  }
+
+  /** Something for the Beach Journal: a kind new to it is written in and pays its coins once (and its
+   *  section's bonus when that completes it). The finder is told either way. */
+  private note(sessionId: string, profile: FishingProfile, id: string, extra: Partial<JournalFind> = {}) {
+    const entry = JOURNAL_BY_ID[id];
+    if (!entry) return;
+    const isNew = !profile.beach.includes(id);
+    let coins = 0;
+    let section: JournalFind["section"] = "";
+    if (isNew) {
+      profile.beach.push(id);
+      coins = entry.coins;
+      if (sectionOf(entry.section).every((e) => profile.beach.includes(e.id))) {
+        section = entry.section;
+        coins += JOURNAL_SECTIONS.find((s) => s.id === entry.section)?.bonus ?? 0;
+      }
+      this.host.addCoins(sessionId, coins);
+      this.host.saveProfile(sessionId);
+    }
+    const find: JournalFind = { id, isNew, coins, section, ...extra };
+    this.host.sendTo(sessionId, "beachFind", find);
+  }
+
+  /** Beachcombing: one of this stretch's finds picked up off the wet sand (each once a player). */
+  private comb(sessionId: string, player: SeaPlayer, profile: FishingProfile, spot: unknown) {
+    if (player.map !== "sunset_beach" || player.sitting || player.action !== "" || typeof spot !== "number") return;
+    const bucket = combBucket(Date.now());
+    const p = combSpots(bucket)[spot];
+    if (!p || Math.hypot(player.x - p.x, player.z - p.z) > COMB_REACH + 0.8) return;
+    if (bucket !== this.combedBucket) {
+      this.combed.clear();
+      this.combedBucket = bucket;
+    }
+    const key = `${sessionId}:${bucket}:${spot}`;
+    if (this.combed.has(key)) return;
+    this.combed.add(key);
+    const shell = rollShell();
+    this.host.emote(sessionId, shell.emoji);
+    this.note(sessionId, profile, shell.id, { spot, bucket });
+  }
+
+  /** A creature a client says its player has seen: believed only from where it could be true. */
+  private sight(sessionId: string, player: SeaPlayer, profile: FishingProfile, id: unknown) {
+    if (!isJournalId(id) || profile.beach.includes(id) || JOURNAL_BY_ID[id].section === "shells") return;
+    const hour = this.host.hour?.() ?? "day";
+    const atSea = player.map === "open_sea" && seaEventOn(this.event);
+    const ok = id === "sea_whale" ? atSea && this.event?.kind === "whale" : id === "sea_dolphin" && player.map === "open_sea" ? atSea && this.event?.kind === "dolphins" : sightingHolds(id, player.map, player.x, player.z, hour, Date.now());
+    if (ok) this.note(sessionId, profile, id);
   }
 
   /** Aboard at the pier's head: the ticket bought (or the trip already paid for taken up again). */

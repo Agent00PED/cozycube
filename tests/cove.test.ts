@@ -488,3 +488,69 @@ test("the tide pools: a look finds what the tide left; a new kind is journalled 
   const back = sanitizeFishingProfile({ ...JSON.parse(JSON.stringify(w.profile)), tide: [first.id, first.id, "kraken"] });
   assert.deepEqual(back.tide, [first.id]);
 });
+
+// --- the Beach Journal (shared/beach_journal.ts) ----------------------------------------------------------------
+import { BEACH_JOURNAL, COMB_SPOTS, HATCH_NEST, HATCH_S, HATCH_SEA, JOURNAL_SECTIONS, combBucket, combSpots, hatchClock, rollShell, sectionOf, sightingHolds } from "../shared/beach_journal";
+import { CREEK } from "../shared/worlds/beach";
+
+test("beachcombing: every stretch's finds lie on dry open sand that is walked to, a find is picked up once, a new kind pays once", () => {
+  for (let b = 0; b < 40; b++) {
+    const spots = combSpots(1000 + b * 7);
+    assert.equal(spots.length, COMB_SPOTS, `stretch ${b} has its finds`);
+    for (const p of spots) assert.ok(!isBlocked(p.x, p.z, "sunset_beach"), "a find lies on open ground");
+  }
+  for (const p of combSpots(combBucket(Date.now()))) assert.ok(findPath("sunset_beach", BEACH_ARRIVAL, p), "a find is walked to from the arrival");
+  // the shells by their weights: every one turns up, the cockle far more than the conch
+  const seen = new Map<string, number>();
+  for (let i = 0; i < 4000; i++) {
+    const s = rollShell((i + 0.5) / 4000);
+    seen.set(s.id, (seen.get(s.id) ?? 0) + 1);
+  }
+  assert.equal(seen.size, sectionOf("shells").length);
+  assert.ok((seen.get("shell_cockle") ?? 0) > (seen.get("shell_conch") ?? 0) * 8);
+  const w = world(100);
+  const spot = combSpots(combBucket(Date.now()))[0];
+  w.stand(BRINE_FRONT);
+  w.sea.handle("s", { op: "comb", spot: 0 });
+  assert.equal(w.profile.beach.length, 0, "from away down the pier, nothing");
+  w.stand(spot);
+  w.sea.handle("s", { op: "comb", spot: 0 });
+  assert.equal(w.profile.beach.length, 1);
+  const first = BEACH_JOURNAL.find((e) => e.id === w.profile.beach[0])!;
+  assert.equal(first.section, "shells");
+  assert.equal(w.player.coins, 100 + first.coins);
+  w.sea.handle("s", { op: "comb", spot: 0 });
+  assert.equal(w.player.coins, 100 + first.coins, "the same find is not picked up twice");
+  const back = sanitizeFishingProfile({ ...JSON.parse(JSON.stringify(w.profile)), beach: [first.id, first.id, "kraken", 7] });
+  assert.deepEqual(back.beach, [first.id]);
+});
+
+test("the journal's sightings: believed only where and when they could be true, each paid once, a section's bonus as it completes", () => {
+  const now = Date.now();
+  assert.ok(sightingHolds("shore_egret", "sunset_beach", CREEK.pool.x, CREEK.pool.z, "day", now));
+  assert.ok(!sightingHolds("shore_egret", "sunset_beach", CREEK.pool.x + 30, CREEK.pool.z, "day", now));
+  assert.ok(!sightingHolds("shore_gull", "sunset_beach", 0, 0, "night", now) && sightingHolds("shore_firefly", "sunset_beach", 0, 0, "night", now));
+  assert.ok(sightingHolds("sea_manta", "open_sea", 0, 0, "day", now) && !sightingHolds("sea_manta", "sunset_beach", 0, 0, "day", now));
+  assert.ok(sightingHolds("sea_jelly", "hidden_cove", 0, 0, "day", now) && !sightingHolds("sea_whale", "open_sea", 0, 0, "day", now), "the whale is the room's to give");
+  // the hatchlings: only by night, only in the run's window, only near the nest
+  const inRun = Math.floor(now / 600_000) * 600_000 + 20_000;
+  assert.ok(hatchClock(inRun, "night") >= 0 && hatchClock(inRun, "day") < 0 && hatchClock(inRun + (HATCH_S + 5) * 1000, "night") < 0);
+  assert.ok(sightingHolds("shore_hatchling", "sunset_beach", HATCH_NEST.x, HATCH_NEST.z, "night", inRun) && !sightingHolds("shore_hatchling", "sunset_beach", HATCH_NEST.x, HATCH_NEST.z, "night", inRun + 300_000));
+  assert.ok(!isBlocked(HATCH_NEST.x, HATCH_NEST.z, "sunset_beach"), "the nest is on open sand");
+  for (let u = 0; u <= 0.85; u += 0.05) assert.ok(!isBlocked(HATCH_NEST.x + (HATCH_SEA.x - HATCH_NEST.x) * u, HATCH_NEST.z + (HATCH_SEA.z - HATCH_NEST.z) * u, "sunset_beach"), "the run down to the water is clear");
+  // through the room's own handler: a gull by day (the stub's hour), a second telling pays nothing
+  const w = world(0);
+  w.sea.handle("s", { op: "sight", id: "shore_gull" });
+  w.sea.handle("s", { op: "sight", id: "shore_gull" });
+  w.sea.handle("s", { op: "sight", id: "sea_jelly" });
+  w.sea.handle("s", { op: "sight", id: "shell_conch" });
+  assert.deepEqual(w.profile.beach, ["shore_gull"]);
+  assert.equal(w.player.coins, 5);
+  // a section's last entry pays its bonus with it
+  const shore = sectionOf("shore");
+  w.profile.beach = shore.filter((e) => e.id !== "shore_crab").map((e) => e.id);
+  w.player.coins = 0;
+  w.sea.handle("s", { op: "sight", id: "shore_crab" });
+  assert.equal(w.player.coins, 10 + JOURNAL_SECTIONS.find((s) => s.id === "shore")!.bonus);
+  assert.equal(w.sent.at(-1)?.[1].section, "shore");
+});

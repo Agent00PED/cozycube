@@ -2,6 +2,7 @@ import { parseTrees } from "@shared/chop";
 import { FellableTrees } from "./FellableTrees";
 import { ReefRock } from "./ReefRock";
 import { BeachLife } from "./BeachLife";
+import { BeachFinds } from "./BeachFinds";
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
@@ -156,6 +157,7 @@ export function BeachWorld({ onFloorClick, room, players, localSessionId, subscr
       <FellableTrees mapId="sunset_beach" trees={treeState} players={players} localSessionId={localSessionId} subscribeMessages={subscribeMessages} onUseProp={onUseProp} />
       <ReefRock ores={ores} subscribeMessages={subscribeMessages} localSessionId={localSessionId} onStrike={onStrike} />
       <BeachLife />
+      <BeachFinds />
       <BeachLights />
       <BeachFire />
       <Ball room={room} players={players} localSessionId={localSessionId} />

@@ -1,4 +1,5 @@
 import { TIDE_FINDS } from "@shared/voyage";
+import { BEACH_JOURNAL, JOURNAL_SECTIONS, sectionOf } from "@shared/beach_journal";
 import { useState } from "react";
 import { BYPRODUCTS, TREES, WOOD, type TreeKind } from "@shared/chop";
 import { FISH, TIER_COLOR, TIER_LABEL, gradeOf, isKingSize, type FishId, type FishingProfile } from "@shared/fishing";
@@ -17,7 +18,7 @@ const FRESHWATER = Object.keys(FISH) as FishId[];
  *  has been landed (nothing names the cove before it is found). */
 const oceanFish = (profile: FishingProfile) => FRESHWATER.filter((id) => FISH[id].water === "saltwater" && ((FISH[id] as { zone?: string }).zone !== "cove" || (profile.caught[id] ?? 0) > 0));
 const TREE_ICON: Record<TreeKind, string> = { soft_pine: "🌲", birch: "🌳", cedar: "🌲", maple: "🍁", elderwood: "🌌", palm: "🌴", ironwood: "🖤", sea_pine: "🌲" };
-type Page = "day" | "night" | "cave" | "ocean";
+type Page = "day" | "night" | "cave" | "ocean" | "beach";
 /** The fish on a page: the river's by day or by night (whatever bites any time is the caverns'). */
 const onPage = (id: FishId, page: Page) => (page === "ocean" ? FISH[id].water === "saltwater" : page === "cave" ? FISH[id].water === "cavewater" : FISH[id].water === "freshwater" && FISH[id].time === page);
 
@@ -38,6 +39,7 @@ export function LogbookModal({ mode, profile, onClose }: { mode: "fish" | "timbe
               ["night", "🌙 Night"],
               ["cave", "💎 Caverns"],
               ["ocean", "🌊 Ocean"],
+              ["beach", "📔 Beach Journal"],
             ] as const
           ).map(([id, label]) => (
             <button key={id} type="button" onClick={() => setPage(id)} className={`min-h-8 rounded-full px-2.5 py-1 font-bold ${page === id ? "bg-[#F5A623] text-[#2B201B]" : "bg-white/10"}`}>
@@ -45,11 +47,11 @@ export function LogbookModal({ mode, profile, onClose }: { mode: "fish" | "timbe
             </button>
           ))}
           <b className="ml-auto text-[#F7EBE1]">
-            {caughtKinds}/{known.length} found · 👑 {crowns}
+            {page === "beach" ? `${profile.beach.length + profile.tide.length}/${BEACH_JOURNAL.length + TIDE_FINDS.length} noted` : `${caughtKinds}/${known.length} found · 👑 ${crowns}`}
           </b>
         </div>
           <div className="grid max-h-[52vh] grid-cols-3 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-5">
-            {(page === "ocean" ? oceanFish(profile) : FRESHWATER.filter((id) => onPage(id, page))).map((id) => {
+            {(page === "beach" ? [] : page === "ocean" ? oceanFish(profile) : FRESHWATER.filter((id) => onPage(id, page))).map((id) => {
               const sp = FISH[id];
               const n = profile.caught[id] ?? 0;
               const longest = profile.records[id] ?? 0;
@@ -78,7 +80,39 @@ export function LogbookModal({ mode, profile, onClose }: { mode: "fish" | "timbe
               );
             })}
           </div>
-          {page === "ocean" && (
+          {page === "beach" &&
+            JOURNAL_SECTIONS.map((sec) => {
+              const list = sectionOf(sec.id);
+              const got = list.filter((e) => profile.beach.includes(e.id)).length;
+              return (
+                <div key={sec.id} className="mb-2 rounded-2xl bg-white/5 px-2.5 py-2">
+                  <div className="mb-1 flex items-center justify-between text-[11px]">
+                    <b className="text-[#F7EBE1]">
+                      {sec.emoji} {sec.name}
+                    </b>
+                    <span className="opacity-80">
+                      {got}/{list.length}
+                      {got >= list.length ? " · complete ✨" : ` · all of them: +${sec.bonus} 🪙`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                    {list.map((e) => {
+                      const seen = profile.beach.includes(e.id);
+                      return (
+                        <div key={e.id} className="flex flex-col items-center gap-0.5 rounded-xl bg-black/15 px-1.5 py-1.5 text-center" title={seen ? e.line : e.hint}>
+                          <span className="text-2xl" style={seen ? undefined : { filter: "brightness(0) opacity(0.45)" }}>
+                            {e.emoji}
+                          </span>
+                          <b className="w-full truncate text-[10px] text-[#F7EBE1]">{seen ? e.name : "???"}</b>
+                          <span className="text-[9px] leading-tight opacity-70">{seen ? e.line : e.hint}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          {(page === "ocean" || page === "beach") && (
             <div className="mt-2 rounded-2xl bg-white/5 px-2.5 py-2">
               <div className="mb-1 flex items-center justify-between text-[11px]">
                 <b className="text-[#F7EBE1]">🔍 Tide Pool Journal</b>

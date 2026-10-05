@@ -6,6 +6,8 @@ import { ANIMAL_REACH, BRAMBLE_FRONT, BRAMBLE_REACH, FINLEY_FRONT, FINLEY_REACH,
 import { SEA_CHANNEL, TIDE_REACH } from "@shared/voyage";
 import { BAR, BRINE_FRONT, BRINE_REACH, DUNE_FRONT, DUNE_REACH, MANGO_FRONT, MANGO_REACH, SHIFT_REACH, TIDE_POOLS, beachCast } from "@shared/worlds/beach";
 import { CAPTAIN_REACH, SEA_CAPTAIN_FRONT, seaCast, seaSeatCast } from "@shared/worlds/sea";
+import { COMB_REACH, combBucket, combSpots } from "@shared/beach_journal";
+import { beachJournal } from "../../systems/beachJournalStore";
 import { CLAM_REACH, COVE_BENCH_FRONT, COVE_BENCH_REACH, COVE_CAPTAIN_FRONT, COVE_CLAMS, coveCast } from "@shared/worlds/cove";
 import { ANVIL, ANVIL_FRONT, ANVIL_REACH, FINNEGAN, CAVE_ADIT_FRONT, CAVE_WINCH, WINCH_REACH, FORGE_FRONT, FORGE_REACH, FINNEGAN_FRONT, FINNEGAN_REACH, GUS_FRONT, GUS_REACH, THERMAL_REACH, THERMAL_SEATS, THERMAL_SEAT_IDS, oreNodeOf, oreReach, shoreCast, streamCast, PHOTO_SPOT, PHOTO_REACH, JOURNAL_PAGES, CAVE_PEARLS, FIND_REACH, RAFT, RAFT_REACH } from "@shared/worlds/caverns";
 import { CAVERNS_CHANNELS, ORE_KINDS, PICKAXES, SOAK_S, isPickaxeId, parseOres } from "@shared/caverns_mining";
@@ -565,6 +567,19 @@ export function ActionDock({ player, players, mapId, chairs, toggleables, localS
       if (mapId === "sunset_beach" && action === "") {
         const px = cameraFocus.x;
         const pz = cameraFocus.z;
+        // beachcombing: this stretch's finds along the wet sand, the nearest still lying there
+        if (!sitting) {
+          const bucket = combBucket(Date.now());
+          let best: { i: number; d: number } | null = null;
+          combSpots(bucket).forEach((p, i) => {
+            const d = Math.hypot(p.x - px, p.z - pz);
+            if (d <= COMB_REACH && !beachJournal.picked.has(`${bucket}:${i}`) && (!best || d < best.d)) best = { i, d };
+          });
+          if (best) {
+            const b = best as { i: number; d: number };
+            found.push({ key: `comb:${bucket}:${b.i}`, type: "forage", d: b.d, label: "🐚 Pick it up", hint: "Something the tide left on the sand: a shell for your Beach Journal", run: () => onCaverns(SEA_CHANNEL, { op: "comb", spot: b.i }) });
+          }
+        }
         // the rocky point's tide pools: a look into the nearest in reach
         if (!sitting) {
           let pool: { i: number; d: number } | null = null;

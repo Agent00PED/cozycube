@@ -52,6 +52,7 @@ const RELAYED_MESSAGES = [
   "coveClams",
   "clamPried",
   "tideLook",
+  "beachFind",
   "brineWave",
   "duneWave",
   "barTicket",

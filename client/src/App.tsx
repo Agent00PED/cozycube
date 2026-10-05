@@ -70,6 +70,9 @@ import { DRINKS, type Drink, type DrinkServed } from "@shared/barshift";
 import { PinballModal } from "./components/hud/PinballModal";
 import { BeachBarModal } from "./components/hud/BeachBarModal";
 import { CaptainModal } from "./components/hud/CaptainModal";
+import { JOURNAL_BY_ID, JOURNAL_SECTIONS, type JournalFind } from "@shared/beach_journal";
+import { beachJournal } from "./systems/beachJournalStore";
+import { SEA_CHANNEL } from "@shared/voyage";
 import { CoveBenchModal } from "./components/hud/CoveBenchModal";
 import { SeaEventPill } from "./components/hud/SeaEventPill";
 import { seaEventStore } from "./systems/seaEventStore";
@@ -591,6 +594,14 @@ export default function App() {
           // a bottle on the line, out at sea: a torn piece of an old chart
           const c = payload as { piece: number; of: number };
           pushToast(c.piece >= c.of ? "A bottle on the line! The last piece: the chart is whole. Show it to the captain" : `A bottle on the line! Inside, a torn piece of an old sea chart (${c.piece}/${c.of})`, { emoji: "🍾", tone: "win" });
+        } else if (type === "beachFind") {
+          // the Beach Journal (shared/beach_journal.ts): a shell combed, a creature seen
+          const f = payload as JournalFind;
+          const e = JOURNAL_BY_ID[f.id];
+          if (f.spot !== undefined && f.bucket !== undefined) beachJournal.picked.add(`${f.bucket}:${f.spot}`);
+          if (f.isNew) beachJournal.known.add(f.id);
+          const sec = f.section ? JOURNAL_SECTIONS.find((s) => s.id === f.section) : undefined;
+          if (e && (f.isNew || f.spot !== undefined)) pushToast(f.isNew ? `${e.name}. ${e.line} New in your Beach Journal${f.coins ? `: +${f.coins} 🪙` : ""}${sec ? ` · ${sec.name} complete!` : ""}` : `${e.name}. ${e.line}`, { emoji: e.emoji, tone: f.isNew ? "win" : undefined });
         } else if (type === "tideLook") {
           // a look into a tide pool on the rocky point (shared/voyage.ts TIDE_FINDS)
           const t = payload as TideLook;
@@ -880,6 +891,9 @@ export default function App() {
   const angler = useAnglerProfile(me?.userId ?? "", me?.fishing ?? "", me?.coins ?? 0);
   // (the Lamp Pack worn: the cave's glow round you, scene/caveGear.ts)
   lampBoost.value = lampGlow(angler.profile);
+  // (the Beach Journal's store: what is already in the book, and how a scene reports a sighting)
+  beachJournal.known = new Set(angler.profile.beach);
+  beachJournal.send = (packet) => cavernsSend(SEA_CHANNEL, packet);
   const playerCount = useMemo(() => Object.values(players).filter((p) => p.connected).length, [players]);
   // who is in each world (the fast-travel cards)
   const mapCounts = useMemo(() => {

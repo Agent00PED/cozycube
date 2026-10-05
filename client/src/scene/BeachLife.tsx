@@ -7,6 +7,7 @@ import { BEACH_LAYOUT as L, PALMS, PIER, SEA_Y, SHRUBS, at, beachBlocked, beachL
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { cameraFocus } from "./cameraFocus";
+import { sighted } from "../systems/beachJournalStore";
 import { Butterflies } from "./Butterflies";
 import { StrandLife } from "./StrandLife";
 import { instanced, template } from "./faunaKit";
@@ -253,7 +254,8 @@ function Life() {
       const ahead = at(-3.6 - 1.2 * Math.sin(a + 0.05), 9 + 6.5 * Math.cos(a + 0.05));
       q.setFromAxisAngle(up, Math.atan2(ahead.x - c.x, ahead.z - c.z));
       q.multiply(q2.setFromAxisAngle(fwd, 0.1 * Math.sin(t * 1.4)));
-      m.compose(pos.set(c.x, SEA_Y - 0.03 + 0.03 * Math.sin(t * 0.9), c.z), q, scl.setScalar(1.15));
+      m.compose(pos.set(c.x, SEA_Y + beachDay.tide - 0.03 + 0.03 * Math.sin(t * 0.9), c.z), q, scl.setScalar(1.15));
+      if (cameraFocus.hasTarget && Math.hypot(cameraFocus.x - c.x, cameraFocus.z - c.z) < 11) sighted("sea_turtle");
       turtle.mesh.setMatrixAt(0, w.copy(m).multiply(turtle.t.matrix));
       turtle.mesh.instanceMatrix.needsUpdate = true;
     }
@@ -292,7 +294,10 @@ function Life() {
     flies.commit();
     // --- the dolphins: a pod passing far out, each rising and falling in its own beat
     if (pod) {
-      if (t > pass.next) Object.assign(pass, { at: t, next: t + 70 + Math.random() * 80, dir: Math.random() < 0.5 ? 1 : -1 });
+      if (t > pass.next) {
+        Object.assign(pass, { at: t, next: t + 70 + Math.random() * 80, dir: Math.random() < 0.5 ? 1 : -1 });
+        sighted("sea_dolphin");
+      }
       const u = (t - pass.at) / POD_PASS_S;
       const on = u > 0 && u < 1;
       pod.mesh.visible = on;
