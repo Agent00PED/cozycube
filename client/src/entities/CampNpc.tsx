@@ -214,7 +214,7 @@ export function CampNpc(props: CampNpcProps) {
       {talk && clicked && <mesh geometry={GEO.box} material={PAD} position={[0, talk.height / 2, 0]} scale={[0.8, talk.height, 0.8]} onPointerDown={onPad} />}
       {talk && bubble && (
         <Html key={bubble.id} position={[0, talk.height + 0.22, 0]} center zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
-          <div className="cozy-chat-bubble" style={{ position: "relative" }}>
+          <div className="cozy-chat-bubble" style={{ position: "relative", width: "max-content", maxWidth: "min(230px, 58vw)", whiteSpace: "normal", textAlign: "center" }}>
             {bubble.text}
           </div>
         </Html>

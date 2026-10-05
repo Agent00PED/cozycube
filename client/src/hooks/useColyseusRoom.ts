@@ -51,6 +51,7 @@ const RELAYED_MESSAGES = [
   "seaEvent",
   "coveClams",
   "clamPried",
+  "tideLook",
   "brineWave",
   "duneWave",
   "barTicket",

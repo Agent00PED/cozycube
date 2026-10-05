@@ -1311,7 +1311,7 @@ def sea_almond(bm, x, z, s, rng):
             # (flat rafts of leaves along the branch: the tree reads as layers from the camera)
             for j, t in enumerate((0.45, 0.75, 1.0)):
                 lx, lz = x + math.cos(fa) * R * t, z + math.sin(fa) * R * t
-                red = rng.random() < 0.05
+                red = rng.random() < 0.02
                 mat = "BC_AlmondRed" if red else ("BC_AlmondLeaf", "BC_AlmondLight")[(q + j + tier) % 2]
                 w = (0.62 - 0.1 * tier) * s * (0.7 + 0.3 * t)
                 blob(bm, lx, by + 0.14 * s + 0.1 * s * t, lz, w, 0.13 * s, w, m=m(mat), cuts=2, noise=0.16, rng=rng)
@@ -1757,6 +1757,110 @@ def build_shack(coll, rng):
     make_object("Beach_Shack", bm, MATS, coll)
 
 
+def build_dress(coll, rng):
+    """What a working beach gathers round its three buildings (all of it stands against them, inside
+    their own colliders or out of anyone's way): at the bar a fringe of thatch along its lean-to, two
+    surfboards and a paddle against its back, a chalked menu board by a post, a crate of coconuts; at
+    the trader's shack a net with its floats over the side wall, a line of fish drying, crab pots and
+    an anchor; along the pier lamp posts, rope on the piles, a life ring, a bucket and a rod."""
+    S = SCENE
+    bm = bmesh.new()
+    # --- the bar (its frame: a toward the sea, b along the coast)
+    B = S["bar"]
+    fr = Frame(B["x"], B["z"], B["yaw"])
+    for q, (b, mat, lean) in enumerate(((-0.95, "BC_Coral", 0.2), (-0.25, "BC_Teal", 0.26), (0.5, "BC_Yellow", 0.22))):
+        # a surfboard on its tail, leant against the lean-to's back
+        foot, head = fr.p(-3.25, 0.02, b), fr.p(-3.25 + 2.1 * lean, 2.05, b + 0.05)
+        n = 7
+        prev = None
+        for j in range(n + 1):
+            t = j / n
+            wd = 0.26 * math.sin(math.pi * min(1.0, 0.12 + t * 0.9)) ** 0.6
+            c = foot.lerp(head, t)
+            row = (bm.verts.new(c + Vector((fr.rx * wd, -fr.rz * wd, 0.0))), bm.verts.new(c - Vector((fr.rx * wd, -fr.rz * wd, 0.0))))
+            if prev is not None:
+                bm.faces.new((prev[0], prev[1], row[1], row[0])).material_index = m(mat if j % 4 else "BC_White")
+            prev = row
+    bar(bm, fr.p(-3.2, 0.0, 1.15), fr.p(-2.75, 1.75, 1.2), 0.025, m("BC_WoodPale"), sides=5)
+    blob(bm, *_xyz(fr.p(-2.72, 1.95, 1.2)), 0.11, 0.22, 0.03, m=m("BC_WoodPale"), cuts=1)
+    # the menu board: an A-frame by the west post, chalked
+    for side in (-1, 1):
+        oquad(bm, [fr.p(-0.6 + 0.2 * side, 0.0, -2.95), fr.p(-0.6 + 0.2 * side, 0.0, -2.45), fr.p(-0.6 + 0.03 * side, 0.82, -2.45), fr.p(-0.6 + 0.03 * side, 0.82, -2.95)][::side], m("BC_WoodDark"), thick=0.0)
+        oquad(bm, [fr.p(-0.6 + 0.19 * side + 0.012 * side, 0.1, -2.9), fr.p(-0.6 + 0.19 * side + 0.012 * side, 0.1, -2.5), fr.p(-0.6 + 0.05 * side + 0.012 * side, 0.74, -2.5), fr.p(-0.6 + 0.05 * side + 0.012 * side, 0.74, -2.9)][::side], m("BC_Char"), thick=0.0)
+        for row in range(3):
+            y = 0.6 - 0.17 * row
+            x = -0.6 + (0.19 - 0.14 * (y - 0.1) / 0.64) * side + 0.02 * side
+            bar(bm, fr.p(x, y, -2.84), fr.p(x, y, -2.84 + 0.3 - 0.07 * row), 0.008, m("BC_White"), sides=3)
+    # a crate of coconuts by the east post
+    obox(bm, fr, -0.85, -0.4, 0.0, 0.3, 2.42, 2.92, m("BC_WoodPale"))
+    for q in range(5):
+        p = fr.p(-0.75 + 0.11 * q, 0.34 + 0.04 * (q % 2), 2.55 + 0.09 * (q % 3))
+        blob(bm, p.x, p.z, -p.y, 0.085, 0.08, 0.085, m=m("BC_Coconut" if q % 2 else "BC_NutGreen"), cuts=1)
+    # a fringe of thatch hanging under the lean-to's eave
+    for q in range(16):
+        b = -1.75 + 3.5 * q / 15
+        p0, p1 = fr.p(-2.2 + 0.0, 2.36, b), fr.p(-2.14, 2.02 + 0.08 * (q % 3), b + 0.03)
+        bar(bm, p0, p1, 0.06, m("BC_Thatch" if q % 2 else "BC_ThatchDark"), sides=4, r_end=0.02)
+    # --- the trader's shack (a toward the sea)
+    K = S["shack"]
+    fr = Frame(K["x"], K["z"], K["yaw"])
+    w, dp = K["w"] / 2, K["dp"] / 2
+    # a net over the east wall, its cork floats along the head rope
+    for q in range(6):
+        a0 = -dp + 0.2 + q * (2 * dp - 0.4) / 5
+        bar(bm, fr.p(a0, 2.0, w + 0.03), fr.p(a0 + 0.25, 0.5, w + 0.14), 0.008, m("BC_Rope"), sides=3)
+        bar(bm, fr.p(a0, 0.6 + 0.28 * (q % 2), w + 0.12), fr.p(a0 + 0.42, 2.0, w + 0.03), 0.008, m("BC_Rope"), sides=3)
+        p = fr.p(a0, 2.02, w + 0.05)
+        blob(bm, p.x, p.z, -p.y, 0.055, 0.055, 0.055, m=m("BC_Coral" if q % 2 else "BC_White"), cuts=1)
+    bar(bm, fr.p(-dp + 0.1, 2.02, w + 0.04), fr.p(dp - 0.1, 2.02, w + 0.04), 0.014, m("BC_Rope"), sides=4)
+    # fish drying on a line off the back corner
+    l0, l1 = fr.p(-dp - 0.1, 1.55, -w + 0.1), fr.p(-dp - 1.2, 1.5, -w - 0.5)
+    bar(bm, fr.p(-dp - 1.2, 0.0, -w - 0.5), fr.p(-dp - 1.2, 1.6, -w - 0.5), 0.035, m("BC_WoodDark"), sides=5)
+    bar(bm, l0, l1, 0.008, m("BC_Rope"), sides=3)
+    for q in range(5):
+        c = l0.lerp(l1, 0.14 + 0.18 * q)
+        blob(bm, c.x, c.z - 0.14, -c.y, 0.035, 0.12, 0.02, m=m("BC_Shell" if q % 2 else "BC_Coral"), cuts=1)
+    # crab pots stacked by the west wall, an anchor leant on them
+    for q, (a, y) in enumerate(((-0.2, 0.0), (0.35, 0.0), (0.08, 0.36))):
+        obox(bm, fr, a - 0.24, a + 0.24, y, y + 0.34, -w - 0.62, -w - 0.14, m("BC_BambooDark") if q % 2 else m("BC_Rope"))
+        obox(bm, fr, a - 0.26, a + 0.26, y + 0.34, y + 0.36, -w - 0.64, -w - 0.12, m("BC_WoodDark"))
+    bar(bm, fr.p(0.75, 0.0, -w - 0.3), fr.p(0.62, 0.95, -w - 0.12), 0.03, m("BC_Iron"), sides=5)
+    bar(bm, fr.p(0.55, 0.08, -w - 0.55), fr.p(0.95, 0.08, -w - 0.1), 0.03, m("BC_Iron"), sides=5)
+    # --- the pier (a out along it from the sand, b across it)
+    Pr = S["pier"]
+    st, en = Pr["start"], Pr["end"]
+    yaw = math.atan2(en["x"] - st["x"], en["z"] - st["z"])
+    fr = Frame(st["x"], st["z"], yaw, y=Pr["deck"])
+    Lp, hf = Pr["length"], Pr["half"]
+    for q, a in enumerate((2.6, Lp - Pr["headLen"] - 0.6)):
+        side = 1 if q % 2 else -1
+        # a lamp post at the deck's edge: a turned post, a bracket, a glass lamp
+        bar(bm, fr.p(a, 0.0, side * (hf - 0.08)), fr.p(a, 1.75, side * (hf - 0.08)), 0.04, m("BC_WoodDark"), sides=6)
+        bar(bm, fr.p(a, 1.7, side * (hf - 0.08)), fr.p(a, 1.78, side * (hf - 0.34)), 0.018, m("BC_Iron"), sides=4)
+        p = fr.p(a, 1.6, side * (hf - 0.34))
+        blob(bm, p.x, p.z, -p.y, 0.07, 0.1, 0.07, m=m("BC_Lamp"), cuts=1)
+    for q, a in enumerate((1.2, 4.2, 7.0, 9.6)):
+        if a > Lp - 0.5:
+            continue
+        side = -1 if q % 2 else 1
+        # rope wound round a pile's head, a coil left on the deck beside it
+        p = fr.p(a, -0.05, side * (hf + 0.02))
+        lathe(bm, p.x, -p.y, [(0.09, 0.0), (0.13, 0.02), (0.13, 0.12), (0.09, 0.14)], segs=8, m=m("BC_Rope"), y0=p.z)
+        if q % 2 == 0:
+            cp = fr.p(a + 0.45, 0.0, side * (hf - 0.3))
+            lathe(bm, cp.x, -cp.y, [(0.0, 0.0), (0.17, 0.0), (0.17, 0.06), (0.07, 0.06), (0.07, 0.0), (0.0, 0.0)], segs=10, m=m("BC_Rope"), y0=cp.z)
+    # a life ring on a post at the pier's foot, a bucket and a rod left against the rail further out
+    bar(bm, fr.p(0.5, 0.0, hf - 0.08), fr.p(0.5, 1.3, hf - 0.08), 0.045, m("BC_WoodDark"), sides=6)
+    rp = fr.p(0.56, 0.72, hf - 0.08)
+    for q in range(10):
+        t0, t1 = 2 * math.pi * q / 10, 2 * math.pi * (q + 1) / 10
+        bar(bm, fr.p(0.56, 0.95 + 0.2 * math.sin(t0), hf - 0.08 + 0.2 * math.cos(t0)), fr.p(0.56, 0.95 + 0.2 * math.sin(t1), hf - 0.08 + 0.2 * math.cos(t1)), 0.042, m("BC_Red") if q % 2 else m("BC_White"), sides=5)
+    bp = fr.p(5.6, 0.0, -hf + 0.28)
+    lathe(bm, bp.x, -bp.y, [(0.0, 0.0), (0.11, 0.0), (0.14, 0.24), (0.12, 0.24), (0.09, 0.02), (0.0, 0.02)], segs=9, m=m("BC_Iron"), y0=bp.z)
+    bar(bm, fr.p(5.2, 0.0, -hf + 0.2), fr.p(5.0, 1.9, -hf - 0.35), 0.014, m("BC_WoodDark"), sides=4, r_end=0.005)
+    make_object("Beach_Dress", bm, MATS, coll)
+
+
 def boat_hull(bm, fr, L, beam, mats):
     """A wooden fishing boat's hull in a frame (a: toward the bow): lofted sections from a flat
     transom to a raked stem, full amidships, the sheer rising to the bow; a rubbing strake along the
@@ -2052,6 +2156,7 @@ def build(root):
     build_deco(coll, rng)
     build_pier(coll, rng)
     build_shack(coll, rng)
+    build_dress(coll, rng)
     build_boat(coll, rng)
     return coll
 

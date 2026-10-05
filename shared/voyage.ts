@@ -22,7 +22,9 @@ export type SeaPacket =
   /** At Dune's shack: a Tidewater tool made (shared/expedition.ts, place "dune"). */
   | { op: "make"; tool: string }
   /** In the cove: a giant clam pried open. */
-  | { op: "pry"; clam: string };
+  | { op: "pry"; clam: string }
+  /** On Sunset Beach's rocky point: a look into a tide pool (its index in TIDE_POOLS). */
+  | { op: "peek"; pool: number };
 /** The captain's answer to a request he can't grant (shown as a toast). */
 export interface SeaNotice {
   message: string;
@@ -52,6 +54,54 @@ export interface ChartPiece {
 }
 
 // --- the Hidden Cove's giant clams ---------------------------------------------------------------------
+
+// --- the tide pools (Sunset Beach's rocky point): a look into one finds whatever the tide left -----------
+/** What lives in a tide pool: the common ones turn up most looks, the octopus hardly ever. A kind seen
+ *  for the first time is written into the Tide Pool Journal (the camp profile's `tide`) and pays its
+ *  coins once; all of them, a bonus. Nothing is taken and nothing is sold: it is a thing to look at. */
+export interface TideFind {
+  id: string;
+  name: string;
+  emoji: string;
+  /** How often it turns up, against the others. */
+  weight: number;
+  /** Paid once, the first time it is seen. */
+  coins: number;
+  line: string;
+}
+export const TIDE_FINDS: TideFind[] = [
+  { id: "limpet", name: "Limpets", emoji: "🐚", weight: 30, coins: 5, line: "Limpets, clamped to the rock like little hats. They will not be moved." },
+  { id: "periwinkle", name: "Periwinkles", emoji: "🐌", weight: 26, coins: 5, line: "A slow parade of periwinkles grazing the green off the stone." },
+  { id: "anemone", name: "A Sea Anemone", emoji: "🌸", weight: 20, coins: 10, line: "An anemone, open like a flower. A touch and it folds itself away." },
+  { id: "starfish", name: "A Starfish", emoji: "⭐", weight: 16, coins: 10, line: "A starfish, one arm curled round a pebble, in no hurry at all." },
+  { id: "urchin", name: "A Sea Urchin", emoji: "🦔", weight: 12, coins: 15, line: "A sea urchin wedged in a crack, all spines. Look, do not touch." },
+  { id: "blenny", name: "A Rockpool Blenny", emoji: "🐟", weight: 9, coins: 20, line: "A blenny! It props itself up on its fins and looks right back at you." },
+  { id: "seaslug", name: "A Sea Slug", emoji: "🌈", weight: 5, coins: 30, line: "A sea slug, frilled and striped in colours no one would believe." },
+  { id: "octopus", name: "A Little Octopus", emoji: "🐙", weight: 2, coins: 60, line: "Two eyes under a ledge... a little octopus! It changes colour and is gone." },
+];
+export const TIDE_FIND_IDS = new Set(TIDE_FINDS.map((f) => f.id));
+/** The whole journal's bonus, how near a pool you stand, and how long a pool takes to settle after a look. */
+export const TIDE_JOURNAL_BONUS = 150;
+export const TIDE_REACH = 1.9;
+export const TIDE_REST_MS = 45_000;
+/** What a look finds (`rand` in [0, 1)). */
+export function rollTideFind(rand = Math.random()): TideFind {
+  let t = rand * TIDE_FINDS.reduce((a, f) => a + f.weight, 0);
+  for (const f of TIDE_FINDS) {
+    t -= f.weight;
+    if (t < 0) return f;
+  }
+  return TIDE_FINDS[0];
+}
+/** Told to whoever looked: what was there, whether it is new to their journal, what it paid. */
+export interface TideLook {
+  id: string;
+  isNew: boolean;
+  coins: number;
+  found: number;
+  all: number;
+  complete: boolean;
+}
 
 /** A clam pried open gives this many pearls (1, now and then 2), and is shut again this long. */
 export const CLAM_PEARLS: readonly [number, number] = [1, 2];
