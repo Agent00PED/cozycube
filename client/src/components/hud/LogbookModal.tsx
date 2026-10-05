@@ -1,3 +1,4 @@
+import { TIDE_FINDS } from "@shared/voyage";
 import { useState } from "react";
 import { BYPRODUCTS, TREES, WOOD, type TreeKind } from "@shared/chop";
 import { FISH, TIER_COLOR, TIER_LABEL, gradeOf, isKingSize, type FishId, type FishingProfile } from "@shared/fishing";
@@ -77,6 +78,29 @@ export function LogbookModal({ mode, profile, onClose }: { mode: "fish" | "timbe
               );
             })}
           </div>
+          {page === "ocean" && (
+            <div className="mt-2 rounded-2xl bg-white/5 px-2.5 py-2">
+              <div className="mb-1 flex items-center justify-between text-[11px]">
+                <b className="text-[#F7EBE1]">🔍 Tide Pool Journal</b>
+                <span className="opacity-80">
+                  {profile.tide.length}/{TIDE_FINDS.length} seen{profile.tide.length >= TIDE_FINDS.length ? " · complete ✨" : " · look into the pools on Sunset Beach's rocky point"}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-8">
+                {TIDE_FINDS.map((f) => {
+                  const seen = profile.tide.includes(f.id);
+                  return (
+                    <div key={f.id} className="flex flex-col items-center gap-0.5 rounded-xl bg-black/15 px-1 py-1.5 text-center" title={seen ? f.line : "Not seen yet"}>
+                      <span className="text-2xl" style={seen ? undefined : { filter: "brightness(0) opacity(0.45)" }}>
+                        {f.emoji}
+                      </span>
+                      <b className="w-full truncate text-[9px] text-[#F7EBE1]">{seen ? f.name : "???"}</b>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
       </div>
     </Modal>
   );

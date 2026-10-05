@@ -325,7 +325,7 @@ import { defaultLook, OUTFIT_FABRICS, OUTFITS,
 import { CASINO_EMOTES, auraPace, capsuleUnlock, netWorth, type BlackjackAction, type CashierRequest, type CasinoPacket } from "../../../shared/casino";
 import { CasinoFloor, RouletteSchema } from "./casino";
 import { BoutSchema, BoxingRing } from "./boxing";
-import { DUNE_FRONT, DUNE_REACH, beachCast } from "../../../shared/worlds/beach";
+import { BEACH_FIRE_SEAT_IDS, DUNE_FRONT, DUNE_REACH, beachCast } from "../../../shared/worlds/beach";
 import type { OddsWater } from "../../../shared/economy";
 import { BeachSea } from "./beachSea";
 import { SEA_CHANNEL, isSeaMap, type SeaPacket } from "../../../shared/voyage";
@@ -4975,6 +4975,8 @@ export class HangoutRoom extends Room<HangoutState> {
     void sessionId;
     if (chair.style !== "log") return false;
     if (chair.map === "campfire_night") return Math.hypot(chair.x - CAMPFIRE_LAYOUT.fire.x, chair.z - CAMPFIRE_LAYOUT.fire.z) <= BONFIRE_REACH;
+    // (Sunset Beach's firepit is lit from dusk: its driftwood logs roast then, and only then)
+    if (chair.map === "sunset_beach") return BEACH_FIRE_SEAT_IDS.has(chair.propId) && (this.state.timeOfDay === "sunset" || this.state.timeOfDay === "night");
     return chair.map === "glimmering_caverns" && HEARTH_SEAT_IDS.has(chair.propId);
   }
 

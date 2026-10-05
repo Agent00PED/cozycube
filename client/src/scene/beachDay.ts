@@ -12,10 +12,14 @@ import type { TimeOfDay } from "@shared/types";
 
 const LIGHT: Record<TimeOfDay, number> = { sunrise: 0.62, day: 1, sunset: 0.45, night: 0 };
 const DUSK: Record<TimeOfDay, number> = { sunrise: 0.6, day: 0, sunset: 1, night: 0 };
+/** The tide: how far the sea stands under its full height at each hour (m). Low at sunrise (a stride
+ *  more wet sand and the tide pools standing clear), full by sunset. Drawn only: the ground you may
+ *  walk and wade is the same at every hour (shared/worlds/beach.ts knows no tide). */
+const TIDE: Record<TimeOfDay, number> = { sunrise: -0.14, day: -0.07, sunset: 0, night: -0.03 };
 /** Seconds a whole turn from night to day takes. */
 const TURN_S = 2.4;
 
-export const beachDay = { light: 1, dusk: 0, hour: "day" as TimeOfDay };
+export const beachDay = { light: 1, dusk: 0, tide: TIDE.day, hour: "day" as TimeOfDay };
 
 /** The room's hour, as it changes. */
 export function setBeachHour(hour: TimeOfDay, snap = false) {
@@ -23,6 +27,7 @@ export function setBeachHour(hour: TimeOfDay, snap = false) {
   if (snap) {
     beachDay.light = LIGHT[hour];
     beachDay.dusk = DUSK[hour];
+    beachDay.tide = TIDE[hour];
   }
 }
 const toward = (v: number, to: number, step: number) => (Math.abs(to - v) <= step ? to : v + Math.sign(to - v) * step);
@@ -31,6 +36,8 @@ export function stepBeachDay(dt: number) {
   const step = Math.min(dt, 0.1) / TURN_S;
   beachDay.light = toward(beachDay.light, LIGHT[beachDay.hour], step);
   beachDay.dusk = toward(beachDay.dusk, DUSK[beachDay.hour], step);
+  // (the tide turns slowly: half a minute from low to full)
+  beachDay.tide = toward(beachDay.tide, TIDE[beachDay.hour], Math.min(dt, 0.1) * 0.005);
 }
 /** By day on the beach (the gulls, the day's fish): the server's rule is the same (not "night"). */
 export const beachIsDay = () => beachDay.hour !== "night";
