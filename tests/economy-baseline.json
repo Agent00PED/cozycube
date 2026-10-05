@@ -354,8 +354,8 @@
    "craft": "wood",
    "tier": 7,
    "where": "cove",
-   "perMin": 392.3,
-   "perMinSold": 297.2
+   "perMin": 391.2,
+   "perMinSold": 296.2
   },
   {
    "craft": "ore",
@@ -431,15 +431,15 @@
    "craft": "ore",
    "tier": 6,
    "where": "cove",
-   "perMin": 258.3,
-   "perMinSold": 196.1
+   "perMin": 258.6,
+   "perMinSold": 196.3
   },
   {
    "craft": "ore",
    "tier": 7,
    "where": "cove",
-   "perMin": 426.6,
-   "perMinSold": 318.5
+   "perMin": 417.4,
+   "perMinSold": 311.6
   }
  ]
 }

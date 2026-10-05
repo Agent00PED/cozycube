@@ -232,7 +232,7 @@ The beach remade (patch 0.9.0; the owner asked for the three beach maps laid out
 - **The Open Sea is one boat** (sea.ts: `stacks`, `buoys`, `kelp` empty; build_sea.py skips them): SeaLife adds a leaping school, flying fish, a surfacing turtle and a manta under the hull. seaWater's shimmer is swell bands (cache key `sea-water-4`).
 - **The Hidden Cove is 34 m** (cove.ts: `half` 17, `floor` 14.6, the lagoon 10.1 m): `MOON_POOL` (a second pool, in `coveShoreD`), `COVE_LEDGE` (a mound in `coveLand`) with `LEDGE_SEATS`, seven clams, five lanterns. build_cove.py: the wall's rocks by the floor's size, `cove_remake`. 81 draw calls.
 - **Income is as it was** (re-saved): palms 248 and reef 247 a minute at T6, ironwood 296 and pearl rock 312 at T7. The Sea Pines earn a T1's pine.
-- **Sizes:** beach.glb about 3.7 MB, cove.glb 1.4 MB packed. The beach draws about 95 calls.
+- **Sizes:** beach.glb 4.3 MB, cove.glb 1.4 MB packed. The beach draws about 95 calls (90 measured before the strand's three creature draws).
 - **Not done:** tide pools as a find-the-creatures activity, a turtle's nesting night, beachcombing; the beach's built things (bar, shack, pier, loungers) are the same models re-placed and re-lit, not re-modelled. Not listened to: any of the sound.
 
 The beach's loose ends (patch 0.8.11):

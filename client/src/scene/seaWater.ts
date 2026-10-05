@@ -33,8 +33,11 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       vec3 deep = mix(vec3(0.07, 0.36, 0.60), vec3(0.03, 0.08, 0.19), uNight);
       vec3 water = mix(shallow, mid, smoothstep(0.2, 3.2, sea));
       water = mix(water, deep, smoothstep(2.8, 10.0, sea));
-      // the low sun's gold, at dawn and dusk
-      water = mix(water, water * vec3(1.25, 0.95, 0.72) + vec3(0.10, 0.04, 0.0), 0.55 * uDusk);
+      // the low sun, at dawn and dusk: its own water, gold and rose in the shallows, going to violet
+      // out deep (a tint over the half-night water was mud)
+      vec3 duskWater = mix(vec3(1.0, 0.74, 0.50), vec3(0.78, 0.52, 0.52), smoothstep(0.2, 3.2, sea));
+      duskWater = mix(duskWater, vec3(0.24, 0.23, 0.42), smoothstep(2.6, 9.0, sea));
+      water = mix(water, duskWater, uDusk * (0.85 - 0.25 * smoothstep(3.0, 10.0, sea)));
       // the swell: long soft bands running in toward the shore, a finer chop across them, and the
       // sun's glints where the two crests meet (lines of light, never spots)
       float sw1 = sin((vSeaPos.x + vSeaPos.z) * 0.42 + uTime * 0.5 + 1.3 * sin((vSeaPos.x - vSeaPos.z) * 0.16 + uTime * 0.11));
@@ -64,6 +67,6 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       .replace("void main() {", `float seaGlow = 0.0;
 void main() {`);
   };
-  m.customProgramCacheKey = () => (calm ? "sea-water-4-calm" : "sea-water-4");
+  m.customProgramCacheKey = () => (calm ? "sea-water-7-calm" : "sea-water-7");
   m.needsUpdate = true;
 }
