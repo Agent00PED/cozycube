@@ -8,7 +8,7 @@ import { parseTrees } from "@shared/chop";
 import { FellableTrees } from "./FellableTrees";
 import { ReefRock } from "./ReefRock";
 import { SEA_CHANNEL, type ClamSync } from "@shared/voyage";
-import { COVE_CAPTAIN, COVE_CLAMS, COVE_GRID, COVE_LANTERNS, COVE_LAYOUT as L, COVE_WADE_DEPTH, COVE_WATER_Y, coveAt, coveBlocked, coveLand, coveWading } from "@shared/worlds/cove";
+import { COVE_CAPTAIN, COVE_CLAMS, COVE_GRID, COVE_LANTERNS, COVE_LAYOUT as L, COVE_WADE_DEPTH, COVE_WATER_Y, MOON_POOL, coveAt, coveBlocked, coveLand, coveWading } from "@shared/worlds/cove";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -185,7 +185,10 @@ function CoveLights() {
       {COVE_LANTERNS.map((p, i) => (
         <pointLight key={i} position={[p.x + 0.3, coveLand(p.x, p.z) + 1.5, p.z + 0.1]} color="#ffd9a0" intensity={2.6} distance={6.5} decay={1.6} />
       ))}
-      <pointLight position={[L.lagoon.x - 1.5, 1.2, L.lagoon.z - 1.5]} color="#5fe0d0" intensity={5} distance={13} decay={1.5} />
+      <pointLight position={[L.lagoon.x - 1.5, 1.2, L.lagoon.z - 1.5]} color="#5fe0d0" intensity={6} distance={18} decay={1.5} />
+      {/* the moon pool: a cool light out of its water, a pale one down through the roof over it */}
+      <pointLight position={[MOON_POOL.x, 0.5, MOON_POOL.z]} color="#8fe8ff" intensity={4.5} distance={8} decay={1.6} />
+      <pointLight position={[MOON_POOL.x, 5.5, MOON_POOL.z]} color="#dfeaff" intensity={5} distance={11} decay={1.5} />
     </>
   );
 }
@@ -194,6 +197,8 @@ function CoveLights() {
 const SHAFTS = [
   { x: L.skylight.x, z: L.skylight.z, r: 1.7 },
   { x: L.skylight.x + 1.6, z: L.skylight.z - 0.9, r: 0.8 },
+  // (the roof's second break, over the moon pool)
+  { x: MOON_POOL.x, z: MOON_POOL.z, r: 1.3 },
 ];
 const JELLIES = 6;
 const CAVE_CRABS = 4;

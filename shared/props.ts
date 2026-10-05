@@ -8,7 +8,7 @@ import { FOREST_PLACE_SEATS, FOREST_PROPS, FOREST_SEATS, forestLand } from "./wo
 import { RING_PROPS, RING_SEATS } from "./worlds/boxing_ring";
 import { BEACH_PROPS, BEACH_SEATS, beachLand } from "./worlds/beach";
 import { DECK_Y, SEA_PROPS, SEA_SEATS } from "./worlds/sea";
-import { COVE_LOGS, COVE_PROPS, coveLand } from "./worlds/cove";
+import { COVE_LOGS, COVE_PROPS, LEDGE_SEATS, coveLand } from "./worlds/cove";
 import { CAVERNS_PROPS, HEARTH_SEATS, THERMAL_SEATS, cavernsFloorY, thermalPoolY } from "./worlds/caverns";
 
 // The per-map tables of things you can sit on and things you can use, with the approach point of
@@ -151,7 +151,7 @@ export const MAP_CHAIRS: Record<MapId, ChairConfig[]> = {
   // the Open Sea: the benches aboard the captain's boat, on its deck
   open_sea: SEA_SEATS.map((s) => ({ propId: s.propId, x: s.x, z: s.z, rotationY: s.rotationY, style: "wood" as const, approachX: s.approachX, approachZ: s.approachZ, sitY: round(DECK_Y + seatAnchorY(CUSHIONS.picnicBench)) })),
   // the Hidden Cove: two driftwood logs on the sand, facing the lagoon
-  hidden_cove: COVE_LOGS.map((g) => ({ propId: g.propId, x: g.x, z: g.z, rotationY: g.rotationY, style: "log" as const, approachX: g.approach.x, approachZ: g.approach.z, sitY: round(coveLand(g.x, g.z) + seatAnchorY(CUSHIONS.log)) })),
+  hidden_cove: [...COVE_LOGS, ...LEDGE_SEATS].map((g) => ({ propId: g.propId, x: g.x, z: g.z, rotationY: g.rotationY, style: "log" as const, approachX: g.approach.x, approachZ: g.approach.z, sitY: round(coveLand(g.x, g.z) + seatAnchorY(CUSHIONS.log)) })),
   japanese_onsen: [],
   retro_arcade: [],
   gaming_cafe: [],

@@ -121,6 +121,16 @@ def cove_ground(coll):
                     q = math.hypot(x - t["x"], z - t["z"])
                     if q < 1.5:
                         c = mixc(c, grit, 0.5 * smooth(1.5, 0.4, q))
+                # the ledge: bare rock up its shelf, the moon pool's rim wet stone
+                lg = SCENE.get("ledge")
+                if lg:
+                    q = math.hypot(x - lg["x"], z - lg["z"])
+                    c = mixc(c, mixc(lin(PALETTE["CV_WallLight"]), wall, 0.35 * n2), 0.92 * smooth(lg["flat"] + lg["skirt"] * 0.85, lg["flat"] + lg["skirt"] * 0.35, q))
+                mp = SCENE.get("moonPool")
+                if mp:
+                    q = math.hypot(x - mp["x"], z - mp["z"]) - mp["r"]
+                    c = mixc(c, lin(PALETTE["CV_WallWet"]), 0.6 * smooth(1.3, 0.1, q))
+                    c = mixc(c, pale, 0.3 * smooth(4.0, 1.5, q))
                 # (the sand darkens into the wall's shade at the back of the cave)
                 c = mixc(c, wall, 0.75 * smooth(SCENE["floor"] - 1.6, SCENE["floor"] + 1.0, math.hypot(x, z)))
                 # soft shade at the foot of what stands
@@ -156,7 +166,8 @@ def cove_water(coll):
         return v
 
     made = {}
-    idx = list(range(0, n + 1, 2))
+    # (cell for cell: the moon pool is narrow)
+    idx = list(range(0, n + 1, 1))
 
     def gv(i, k):
         v = made.get((i, k))
@@ -200,7 +211,8 @@ def cove_wall(coll, rng):
     floor = SCENE["floor"]
     bm = bmesh.new()
     glow = bmesh.new()
-    n = 46
+    # (as many great rocks as it takes to stand shoulder to shoulder round the floor)
+    n = int(round(46 * floor / 10.4))
     for k in range(n):
         a = 2 * math.pi * k / n
         x, z = math.cos(a) * (floor + 1.5), math.sin(a) * (floor + 1.5)
@@ -208,7 +220,7 @@ def cove_wall(coll, rng):
             continue
         s = rng.uniform(0.9, 1.25)
         y = land_y(x, z)
-        h = rng.uniform(4.2, 6.4)
+        h = rng.uniform(4.8, 7.4)
         blob(bm, x, y + h * 0.42, z, 1.55 * s, h * 0.6, 1.5 * s, m=m("CV_Wall"), cuts=3, noise=0.26, rng=rng, flat_bottom=y - 0.4)
         blob(bm, x * 1.12, y + h * 0.75, z * 1.12, 1.9 * s, h * 0.55, 1.8 * s, m=m("CV_WallDark"), cuts=3, noise=0.24, rng=rng, flat_bottom=y - 0.4)
         # (wet rock at its foot, a stalactite or two off its brow)
@@ -400,6 +412,60 @@ def cove_things(coll, cushions, rng):
     make_object("Cove_Deco", deco, MATS, coll, lift="parts")
 
 
+def cove_remake(coll, rng):
+    """The remake's own: the moon pool's rim of stones and its glowing bed, the ledge's rock steps,
+    its stone bench and the rocks at its back."""
+    bm = bmesh.new()
+    glow = bmesh.new()
+    mp = SCENE["moonPool"]
+    for q in range(13):
+        a = 2 * math.pi * q / 13 + rng.uniform(-0.15, 0.15)
+        r = mp["r"] + rng.uniform(0.1, 0.45)
+        x, z = mp["x"] + math.cos(a) * r, mp["z"] + math.sin(a) * r
+        sz = rng.uniform(0.16, 0.36)
+        blob(bm, x, land_y(x, z) + sz * 0.3, z, sz, sz * 0.6, sz * rng.uniform(0.7, 1.1), m=m(("CV_WallWet", "CV_Wall", "CV_WallLight")[q % 3]), cuts=2, noise=0.22, rng=rng)
+    # pearls of light on its bed (the roof's glowworms answered from below)
+    for q in range(7):
+        a, r = rng.random() * 6.283, rng.uniform(0.2, mp["r"] * 0.75)
+        x, z = mp["x"] + math.cos(a) * r, mp["z"] + math.sin(a) * r
+        blob(glow, x, ground_y(x, z) + 0.05, z, 0.06, 0.05, 0.06, m=m("CV_PearlGlow"), cuts=1)
+    lg = SCENE["ledge"]
+    y = land_y(lg["x"], lg["z"])
+    # the shelf's back: rocks stood behind the bench, away from the lagoon
+    lx, lz = SCENE["lagoon"]["x"] - lg["x"], SCENE["lagoon"]["z"] - lg["z"]
+    ll = math.hypot(lx, lz) or 1.0
+    ox, oz = -lx / ll, -lz / ll
+    for q, (off, s) in enumerate(((-1.6, 1.0), (-0.5, 1.3), (0.7, 1.1), (1.7, 0.9))):
+        x, z = lg["x"] + ox * 1.5 - oz * off, lg["z"] + oz * 1.5 + ox * off
+        blob(bm, x, land_y(x, z) + 0.7 * s, z, 0.85 * s, 1.1 * s, 0.8 * s, m=m("CV_Wall") if q % 2 else m("CV_WallDark"), cuts=3, noise=0.24, rng=rng, flat_bottom=land_y(x, z) - 0.3)
+    # the bench: a slab on two stones, facing the lagoon
+    for seat in SCENE["ledgeSeats"]:
+        blob(bm, seat["x"] - ox * 0.0, land_y(seat["x"], seat["z"]) + 0.2, seat["z"], 0.3, 0.2, 0.26, m=m("CV_WallDark"), cuts=2, noise=0.15, rng=rng, flat_bottom=land_y(seat["x"], seat["z"]) - 0.1)
+    sa, sb = SCENE["ledgeSeats"][0], SCENE["ledgeSeats"][1]
+    top = max(land_y(sa["x"], sa["z"]), land_y(sb["x"], sb["z"])) + 0.42
+    dx, dz = sb["x"] - sa["x"], sb["z"] - sa["z"]
+    dl = math.hypot(dx, dz) or 1.0
+    ex, ez = dx / dl * 0.45, dz / dl * 0.45
+    px, pz = -dz / dl * 0.28, dx / dl * 0.28
+    pts = [W(sa["x"] - ex - px, top, sa["z"] - ez - pz), W(sb["x"] + ex - px, top, sb["z"] + ez - pz), W(sb["x"] + ex + px, top, sb["z"] + ez + pz), W(sa["x"] - ex + px, top, sa["z"] - ez + pz)]
+    f = bm.faces.new([bm.verts.new(p) for p in pts])
+    f.normal_update()
+    if f.normal.z < 0:
+        f.normal_flip()
+    f.material_index = m("CV_WallLight")
+    low = [bm.verts.new((p.x, p.y, p.z - 0.09)) for p in pts]
+    hi = list(f.verts)
+    for i in range(4):
+        side = bm.faces.new((hi[i], hi[(i + 1) % 4], low[(i + 1) % 4], low[i]))
+        side.material_index = m("CV_Wall")
+    # a few glowworm threads' lights under the roof's second break, over the pool
+    for q in range(9):
+        a, r = rng.random() * 6.283, rng.uniform(0.3, 2.6)
+        blob(glow, mp["x"] + math.cos(a) * r, 5.2 + rng.uniform(0.0, 1.6), mp["z"] + math.sin(a) * r, 0.05, 0.09, 0.05, m=m("CV_PearlGlow"), cuts=1)
+    make_object("Cove_Remake", bm, MATS, coll)
+    make_object("Cove_RemakeGlow", glow, MATS, coll)
+
+
 def fuse_cove(coll):
     statics = []
     for ob in list(coll.all_objects):
@@ -434,6 +500,7 @@ def build(root):
     cove_water(coll)
     cove_wall(coll, rng)
     cove_things(coll, cushions, rng)
+    cove_remake(coll, rng)
     return coll
 
 

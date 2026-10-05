@@ -1776,19 +1776,26 @@ def bake_colors(ob, one=None):
     # (a little light and wear in the paint, since the game draws no shadows and no textures: faces
     # that look up a touch sun-bleached, undersides cool and dark, a contact shade where a thing
     # meets the sand, and a slow mottle over it all, so planks, thatch, canvas and stone are not flat)
+    rot = world.to_3x3()
     wear = one is None and ob.name not in ("Beach_Ground", "Beach_Sea") and not ob.name.startswith("Tree_")
+    # (read once, before any colour is written: a write makes Blender work the normals out afresh)
+    vpos = [world @ v.co for v in me.vertices] if wear else []
+    vup = [(rot @ v.normal).z for v in me.vertices] if wear else []
     for poly in me.polygons:
         name = names[min(poly.material_index, len(names) - 1)]
         s = one or slot_of(name)
         c = (1.0, 1.0, 1.0) if s in KEEP else lin(PALETTE[name])
-        up = (world.to_3x3() @ poly.normal).z if wear and s not in KEEP else 0.0
         for li in poly.loop_indices:
             if wear and s not in KEEP:
-                p = world @ me.vertices[me.loops[li].vertex_index].co
+                # (by the vertex, never by the face: faces of one colour go on sharing their corners)
+                vi = me.loops[li].vertex_index
+                p, up = vpos[vi], vup[vi]
                 over = p.z - (land_y(p.x, -p.y) if TERRAIN is not None else 0.0)
                 k = 1.0 + 0.09 * (vnoise(p.x * 2.6 + p.z * 1.7, -p.y * 2.6 + 3.0) - 0.5) + 0.05 * max(0.0, up) - 0.16 * max(0.0, -up)
                 k *= 1.0 - 0.14 * smooth(0.3, 0.0, over) * (1.0 if up < 0.6 else 0.0)
-                attr.data[li].color = (c[0] * k, c[1] * k, c[2] * (k + 0.03 * max(0.0, -up)), 1.0)
+                # (in steps: a few distinct values pack small, free-running floats do not)
+                k = round(k * 24) / 24
+                attr.data[li].color = (round(c[0] * k * 255) / 255, round(c[1] * k * 255) / 255, round(c[2] * (k + 0.03 * max(0.0, -up)) * 255) / 255, 1.0)
                 continue
             attr.data[li].color = (*c, 1.0)
             if uv is not None:

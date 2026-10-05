@@ -1,11 +1,14 @@
 import type { AABB } from "../collision";
 import type { PropSpec } from "./lounge";
-import { gridData, gridY, makeGrid } from "../terrain";
+import { gridData, gridY, makeGrid, moundAt, smoothstep } from "../terrain";
 import { openApproach } from "./approach";
 
 // The Hidden Cove (the map "hidden_cove", docs/beach-design.md section 5): a sea cave behind the rock
 // stacks, reached only on the captain's boat, and only once the torn sea chart is whole. Nothing on
 // any other map names it.
+//
+// (The remake, 2026-10: the cave is two fifths wider, 34 m across; a moon pool at its back under a
+// second break in the roof, a rock ledge with a bench up its north-east side, seven clams.)
 //
 // The cave opens to the south-east (the camera's side, so nothing stands in front of the player): a
 // round lagoon of still water there, the boat lying in it; a crescent of pale sand round its back;
@@ -22,24 +25,26 @@ const round = (v: number) => Math.round(v * 1000) / 1000;
 const S = Math.SQRT1_2;
 
 export const COVE_LAYOUT = /* layout:begin */ {
-  "half": 12,
-  "floor": 10.4,
-  "lagoon": { "x": 3.0, "z": 3.0, "r": 7.2 },
+  "half": 17,
+  "floor": 14.6,
+  "lagoon": { "x": 4.2, "z": 4.2, "r": 10.1 },
   "terrain": { "step": 0.4, "sand": { "top": 0.75, "run": 7 }, "bed": { "depth": 1.4, "run": 6 } },
   "wadeDepth": 0.42,
+  "moonPool": { "deg": -44, "d": 5.0, "r": 1.9 },
+  "ledge": { "deg": 40, "d": 6.4, "top": 1.0, "flat": 1.6, "skirt": 4.2, "seats": [-28, 28] },
   "arrival": { "deg": 0, "d": 1.9 },
-  "captain": { "deg": 24, "d": 1.3 },
-  "boat": { "deg": 24, "d": -3.3 },
-  "bench": { "deg": -34, "d": 4.6 },
-  "logs": [{ "deg": -8, "d": 3.2 }, { "deg": 44, "d": 3.4 }],
-  "clams": [{ "deg": -46, "d": 0.5 }, { "deg": -22, "d": 0.2 }, { "deg": 6, "d": 0.4 }, { "deg": 48, "d": 0.25 }, { "deg": 70, "d": 0.6 }],
-  "crystals": [[-9.6, -3.4, 1.0], [-7.4, -6.6, 1.3], [1.6, -10.0, 1.1], [5.2, -8.6, 0.9], [-8.9, 4.6, 0.8]],
-  "skylight": { "x": -3.4, "z": -3.6 },
-  "ironwoods": [[-16, 5.4, 1.05], [2, 6.2, 0.95], [20, 5.5, 1.1], [38, 4.4, 0.9]],
-  "pearlRock": [[-52, 3.4], [-27, 6.5], [11, 7.1], [53, 3.6]],
-  "stalagmites": [[-68, 2.9, 1.0], [-44, 5.0, 0.8], [-8, 6.6, 1.2], [28, 6.0, 0.9], [46, 4.9, 1.1], [64, 2.6, 0.8]],
-  "wreck": { "deg": -57, "d": 1.9 },
-  "lanterns": [[-27, 4.9], [16, 1.7], [57, 2.3]]
+  "captain": { "deg": 19, "d": 1.3 },
+  "boat": { "deg": 19, "d": -3.3 },
+  "bench": { "deg": -21, "d": 6.8 },
+  "logs": [{ "deg": -7, "d": 3.6 }, { "deg": 34, "d": 3.8 }],
+  "clams": [{ "deg": -40, "d": 0.5 }, { "deg": -20, "d": 0.2 }, { "deg": 5, "d": 0.4 }, { "deg": 38, "d": 0.25 }, { "deg": 58, "d": 0.6 }, { "deg": -45, "d": 2.2 }, { "deg": -33, "d": 5.4 }],
+  "crystals": [[-13.4, -4.8, 1.0], [-10.4, -9.2, 1.3], [2.2, -14.0, 1.1], [7.3, -12.0, 0.9], [-12.5, 6.4, 0.8]],
+  "skylight": { "x": -4.8, "z": -5.0 },
+  "ironwoods": [[-13, 7.2, 1.05], [2, 8.4, 0.95], [16, 7.4, 1.1], [29, 5.6, 0.9]],
+  "pearlRock": [[-30, 2.8], [-12, 9.8], [9, 10.6], [52, 4.2]],
+  "stalagmites": [[-72, 3.6, 1.0], [-36, 8.4, 0.8], [-6, 10.4, 1.2], [20, 10.4, 0.9], [50, 6.6, 1.1], [66, 3.2, 0.8], [-80, 6.0, 0.9], [12, 11.2, 0.7]],
+  "wreck": { "deg": -47, "d": 1.9 },
+  "lanterns": [[-30, 7.6], [28, 2.4], [52, 3.0], [-60, 2.6], [30, 8.6]]
 } /* layout:end */;
 
 const L = COVE_LAYOUT;
@@ -56,15 +61,21 @@ export function coveAt(deg: number, d: number): Pt {
   const r = L.lagoon.r + d;
   return { x: round(L.lagoon.x + u.x * r), z: round(L.lagoon.z + u.z * r) };
 }
-/** How far up the sand (x, z) is from the lagoon's waterline (negative: on the water). */
-export const coveShoreD = (x: number, z: number): number => Math.hypot(x - L.lagoon.x, z - L.lagoon.z) - L.lagoon.r;
+/** The moon pool: a second, small pool of still water at the back of the cave, under its own break in the roof. */
+export const MOON_POOL = { ...coveAt(L.moonPool.deg, L.moonPool.d), r: L.moonPool.r };
+/** The ledge: a shelf of rock up the back of the cave, walked up from the sand; a bench on it looks out over the lagoon. */
+const LEDGE_AT = coveAt(L.ledge.deg, L.ledge.d);
+export const COVE_LEDGE = { ...LEDGE_AT, top: L.ledge.top, flat: L.ledge.flat, skirt: L.ledge.skirt };
+/** How far up the sand (x, z) is from the nearer waterline, the lagoon's or the moon pool's (negative: on the water). */
+export const coveShoreD = (x: number, z: number): number => Math.min(Math.hypot(x - L.lagoon.x, z - L.lagoon.z) - L.lagoon.r, Math.hypot(x - MOON_POOL.x, z - MOON_POOL.z) - MOON_POOL.r);
 
 const T = L.terrain;
 const easeOut = (t: number) => 1 - (1 - Math.min(1, t)) ** 2;
 /** The ground: the sand eased up from the waterline, the lagoon's bed falling away. */
 export function coveLand(x: number, z: number): number {
   const d = coveShoreD(x, z);
-  return d >= 0 ? T.sand.top * easeOut(d / T.sand.run) : -T.bed.depth * easeOut(-d / T.bed.run);
+  const h = d >= 0 ? T.sand.top * easeOut(d / T.sand.run) : -T.bed.depth * easeOut(-d / T.bed.run);
+  return d > 1 ? h + smoothstep(1, 3.5, d) * moundAt(COVE_LEDGE, x, z) : h;
 }
 export const COVE_GRID = makeGrid(L.half, T.step, coveLand, coveLand);
 export const coveFloorY = (x: number, z: number): number => gridY(COVE_GRID, COVE_GRID.ground, x, z);
@@ -105,6 +116,15 @@ export const COVE_LOGS = L.logs.map((g, i) => {
   return { propId: `seat_cove_log_0${i + 1}`, ...p, rotationY: facing(p, LAGOON), approach: coveAt(g.deg, g.d - 0.7) };
 });
 
+/** The stone bench on the ledge: two places, facing the lagoon. */
+export const LEDGE_SEATS = L.ledge.seats.map((deg, i) => {
+  const out = facing(LEDGE_AT, LAGOON);
+  const side = { x: Math.cos(out), z: -Math.sin(out) };
+  const k = (i === 0 ? -1 : 1) * 0.42;
+  const p = { x: round(LEDGE_AT.x + side.x * k + Math.sin(out) * 0.2), z: round(LEDGE_AT.z + side.z * k + Math.cos(out) * 0.2) };
+  return { propId: `seat_cove_ledge_0${i + 1}`, ...p, rotationY: out, approach: { x: round(p.x + Math.sin(out) * 0.75), z: round(p.z + Math.cos(out) * 0.75) }, deg };
+});
+
 /** How far out the float lands, and how deep the water must be there. */
 export const COVE_CAST = 1.9;
 const underBoat = (x: number, z: number) => Math.hypot(x - COVE_BOAT.x, z - COVE_BOAT.z) < 4.4 && Math.abs((x - COVE_BOAT.x) * Math.cos(COVE_BOAT.yaw) - (z - COVE_BOAT.z) * Math.sin(COVE_BOAT.yaw)) < 1.8;
@@ -138,6 +158,7 @@ export const COVE_OBSTACLES: AABB[] = [
   around(COVE_BENCH, 0.62),
   ...COVE_CLAMS.map((c) => around(c, 0.42)),
   ...COVE_LOGS.map((g) => around(g, 0.24)),
+  ...LEDGE_SEATS.map((g) => around(g, 0.22)),
   ...L.crystals.map(([x, z, s]) => around({ x, z }, 0.55 * s)),
 ];
 
@@ -194,6 +215,9 @@ export function coveTerrainData() {
       bench: COVE_BENCH,
       clams: COVE_CLAMS.map((c) => ({ x: c.x, z: c.z, yaw: c.yaw })),
       logs: COVE_LOGS.map((g2) => ({ x: g2.x, z: g2.z, yaw: g2.rotationY })),
+      moonPool: MOON_POOL,
+      ledge: COVE_LEDGE,
+      ledgeSeats: LEDGE_SEATS.map((g2) => ({ x: g2.x, z: g2.z, yaw: g2.rotationY })),
       crystals: L.crystals,
       skylight: L.skylight,
       ironwoods: IRONWOODS,

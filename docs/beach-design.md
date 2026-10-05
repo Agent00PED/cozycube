@@ -391,6 +391,12 @@ are **made, never sold** (`FORGED_TOOLS`, `makingsMissing` / `spendMakings`), as
    Pearl-set ring); the Open Sea's living wonders (a whale, dolphins, a shoal) and its dressing; a
    glowing night surf and fireflies. The loose ends (patch 0.8.11): T7 storage at the cove's bench, the
    reef's own fossil, chips on the sand, a beach backdrop for the lobby. Nothing of the plan is open.
+9. **The remake (patch 0.9.0), at the owner's asking.** The beach an island zoned as a real strand
+   (beach forest of casuarina and sea almond, pandanus scrub, palms, berm, foreshore; a rocky point
+   with tide pools, a tidal creek with mangroves); the room's hour on the beach and at sea; the Open
+   Sea one boat on open water; the cove two fifths wider with a moon pool and a ledge. Sources for
+   the zonation: the pioneer zone of creepers and Spinifex, a bushy zone of Scaevola and Pandanus,
+   then beach forest of Casuarina, Terminalia catappa, Barringtonia and Hibiscus tiliaceus.
 7. **Dressing and life (done in part, patch 0.8.6).** The sea's sound on all three maps (surf and
    breaking waves, gulls by day, the boat's creak, the cove's hush and drips), three gulls and seven
    crabs on the beach, the Beachcomber's outfit at Dune's. **Not done:** the turtle, the sea's wonders,
