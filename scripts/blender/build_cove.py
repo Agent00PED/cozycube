@@ -294,22 +294,8 @@ def cove_things(coll, cushions, rng):
     # the captain's boat, bow to the sand
     B = S["boat"]
     fr = Frame(B["x"], B["z"], B["yaw"], y=-0.08)
-    boat_hull(bm, fr, 8.4, 2.8, (m("BC_Hull"), m("BC_HullTrim"), m("BC_HullUnder"), m("BC_Deck")))
-    obox(bm, fr, -2.3, -0.5, 0.5, 2.0, -0.85, 0.85, m("BC_Hull"))
-    obox(bm, fr, -0.5, -0.47, 1.25, 1.8, -0.7, 0.7, m("BC_Glass"))
-    for b in (-0.86, 0.83):
-        obox(bm, fr, -2.0, -0.8, 1.25, 1.8, b, b + 0.03, m("BC_Glass"))
-    obox(bm, fr, -2.45, -0.3, 2.0, 2.08, -1.0, 1.0, m("BC_HullTrim"))
-    bar(bm, fr.p(-1.4, 2.08, 0.0), fr.p(-1.4, 4.1, 0.0), 0.05, m("BC_WoodDark"), sides=6)
-    bar(bm, fr.p(-1.4, 3.2, 0.0), fr.p(1.2, 2.5, 0.0), 0.035, m("BC_WoodDark"), sides=5)
-    lp = fr.p(-1.4, 4.2, 0.0)
-    blob(bm, lp.x, lp.z, -lp.y, 0.08, 0.1, 0.08, m=m("BC_Lamp"), cuts=1)
-    obox(bm, fr, 1.2, 1.8, 0.56, 0.9, -0.4, 0.2, m("BC_Wood"))
-    cp = fr.p(2.4, 0.66, 0.3)
-    lathe(bm, cp.x, -cp.y, [(0.0, 0.0), (0.22, 0.0), (0.22, 0.08), (0.1, 0.08), (0.1, 0.0), (0.0, 0.0)], segs=12, m=m("BC_Rope"), y0=cp.z)
-    for a_ in (-2.0, 0.6, 2.4):
-        fp = fr.p(a_, 0.36, -1.46)
-        blob(bm, fp.x, fp.z, -fp.y, 0.11, 0.2, 0.11, m=m("BC_Red"), cuts=2)
+    deck_at = boat_hull(bm, fr, 8.6, 2.9, (m("BC_Hull"), m("BC_HullTrim"), m("BC_HullUnder"), m("BC_Deck")))
+    boat_fittings(bm, fr, deck_at, rng)
     # stalagmites along the wall's foot: each a wet cone with a smaller one against it
     for st in S.get("stalagmites", []):
         y = land_y(st["x"], st["z"])
