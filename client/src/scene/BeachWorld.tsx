@@ -9,7 +9,7 @@ import * as THREE from "three";
 import type { Room } from "colyseus.js";
 import type { PlayerState } from "@shared/types";
 import { BALL_RADIUS, KICK_REACH, kickBall, stepBall, type BallState } from "@shared/volleyball";
-import { BALL_COURT, BAR, BEACH_GRID, BEACH_LAYOUT as L, BOAT, BRINE, DUNE, FIREPIT, MANGO, PIER, PIER_LENGTH, SEA_Y, TORCHES, WADE_DEPTH, beachLand, beachWading, onPierAt } from "@shared/worlds/beach";
+import { BALL_COURT, BAR, BEACH_GRID, beachGroundY, BEACH_LAYOUT as L, BOAT, BRINE, DUNE, FIREPIT, MANGO, PIER, PIER_LENGTH, SEA_Y, TORCHES, WADE_DEPTH, beachLand, beachWading, onPierAt } from "@shared/worlds/beach";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
@@ -45,6 +45,7 @@ export const DUNE_URL = modelUrl("dune.glb");
 const BEACH_TIME = { value: 0 };
 const BEACH_NIGHT = { value: 0 };
 const BEACH_DUSK = { value: 0 };
+const BEACH_TIDE = { value: 0 };
 const CLICK_MAT = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 /** The ground a click is tested against: the game's own grid (never below where you can wade), and
  *  the pier's deck over it. Never drawn. */
@@ -123,6 +124,9 @@ const MANGO_TALK: NpcTalk = {
   },
 };
 
+/** Wading as it is drawn: in the sea as the tide stands now (the sand the ebb has bared is dry). */
+const wadingNow = (x: number, z: number): boolean => beachWading(x, z) && beachGroundY(x, z) < SEA_Y + beachDay.tide - 0.04;
+
 export function BeachWorld({ onFloorClick, room, players, localSessionId, subscribeMessages, trees, onUseProp, ores, onStrike }: BeachWorldProps) {
   const treeState = useMemo(() => parseTrees(trees), [trees]);
   const floorClick = (e: ThreeEvent<PointerEvent>) => {
@@ -136,6 +140,7 @@ export function BeachWorld({ onFloorClick, room, players, localSessionId, subscr
     stepBeachDay(dt);
     BEACH_NIGHT.value = 1 - beachDay.light;
     BEACH_DUSK.value = beachDay.dusk;
+    BEACH_TIDE.value = beachDay.tide;
   });
   return (
     <group>
@@ -154,7 +159,7 @@ export function BeachWorld({ onFloorClick, room, players, localSessionId, subscr
       <BeachLights />
       <BeachFire />
       <Ball room={room} players={players} localSessionId={localSessionId} />
-      <WadeRipples players={players} localSessionId={localSessionId} mapId="sunset_beach" inWater={beachWading} waterY={SEA_Y} />
+      <WadeRipples players={players} localSessionId={localSessionId} mapId="sunset_beach" inWater={wadingNow} waterY={SEA_Y} />
       <CloudClock />
       <OcclusionDriver />
     </group>
@@ -211,7 +216,7 @@ function BeachModel() {
         if (m.emissive && m.emissive.getHex() !== 0) m.toneMapped = false;
         if (m.name === "BC_Sea" && !m.userData.flowing) {
           m.userData.flowing = true;
-          seaWater(m, BEACH_TIME, BEACH_NIGHT, BEACH_DUSK);
+          seaWater(m, BEACH_TIME, BEACH_NIGHT, BEACH_DUSK, false, BEACH_TIDE);
         }
         if (m.name === "BC_Palm") swayFronds(m);
         if (OCCLUDERS.test(m.name)) ditherOccluder(m);
@@ -224,9 +229,10 @@ function BeachModel() {
   }, [scene]);
   // the boat on the swell: a slow roll and pitch, a hand's height up and down
   useFrame(() => {
+    // (the boat rides the tide: the sea's own sheet is lowered in its shader, scene/seaWater.ts)
     if (!boat) return;
     const t = BEACH_TIME.value;
-    boat.position.y = SEA_Y + 0.05 * Math.sin(t * 0.7 + BOAT.x * 0.21 + BOAT.z * 0.17);
+    boat.position.y = SEA_Y + beachDay.tide + 0.05 * Math.sin(t * 0.7 + BOAT.x * 0.21 + BOAT.z * 0.17);
     boat.rotation.x = 0.02 * Math.sin(t * 0.8 + 1.1);
     boat.rotation.z = 0.03 * Math.sin(t * 0.6);
   });

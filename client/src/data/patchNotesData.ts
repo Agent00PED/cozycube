@@ -2241,6 +2241,19 @@ export const PATCH_ERAS: PatchEra[] = [
           fixes: ["💬 A keeper's long line wraps inside its speech bubble (the captain's ran off the screen)."],
         },
       },
+      {
+        version: "0.9.3",
+        date: "2026-10-05",
+        title: "The Tide",
+        summary: "The sea on Sunset Beach rises and falls with the hour, and the firepit roasts after dark.",
+        changes: {
+          features: [
+            "🌊 Sunset Beach has a tide: the sea stands lowest at sunrise, baring a stride more wet sand, and comes back in full by sunset. The moored boat rides it; the creek and the tide pools keep their water.",
+            "🍡 Sit on a driftwood log by the beach's firepit once it is lit (sunset and night) and a marshmallow goes on a stick in your hands, as at the campfire.",
+            "📖 The Fish Collection's Ocean page lists your Tide Pool Journal: all eight finds, the ones you have yet to see as shadows.",
+          ],
+        },
+      },
     ],
   },
 ];

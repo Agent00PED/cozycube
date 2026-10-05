@@ -7,27 +7,32 @@ import * as THREE from "three";
  *  on the open water. The sheet itself rises and falls a hand's height, so the waterline runs up
  *  the sand and back. `time` is the world's clock (seconds), `night` 0 by day to 1 by night, `dusk`
  *  1 at sunrise and sunset (the low sun's gold on the water). `calm`: still water (the Hidden Cove's
- *  lagoon): no waves rolling in, only the lapping edge. */
-export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number }, night: { value: number }, dusk: { value: number }, calm = false) {
+ *  lagoon): no waves rolling in, only the lapping edge. `tide`: how far the sheet stands under its
+ *  built height (metres, 0 or less): the waterline's foam and colours move out with it down the
+ *  foreshore's slope (about 1 in 6). */
+export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number }, night: { value: number }, dusk: { value: number }, calm = false, tide: { value: number } = { value: 0 }) {
   m.color.set("#ffffff");
   m.roughness = 0.2;
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = time;
     shader.uniforms.uNight = night;
     shader.uniforms.uDusk = dusk;
+    shader.uniforms.uTide = tide;
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vSeaPos;\nuniform float uTime;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vSeaPos;\nuniform float uTime;\nuniform float uTide;")
       .replace(
         "#include <begin_vertex>",
         `#include <begin_vertex>
         // the swell: the whole sheet breathes, a little more out at sea
         transformed.y += 0.035 * sin(uTime * 0.7 + position.x * 0.21 + position.z * 0.17) + 0.02 * sin(uTime * 1.1 - position.x * 0.13 + position.z * 0.29);
+        // the tide: the open sea stands lower at some hours; the creek and the tide pools (green) keep their level
+        transformed.y += uTide * (1.0 - color.g);
         vSeaPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`
       );
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vSeaPos;\nuniform float uTime;\nuniform float uNight;\nuniform float uDusk;").replace(
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vSeaPos;\nuniform float uTime;\nuniform float uNight;\nuniform float uDusk;\nuniform float uTide;").replace(
       "#include <color_fragment>",
       `// (the vertex colours are data, not paint: metres out from the waterline)
-      float sea = vColor.r * 12.0 - 0.8;
+      float sea = vColor.r * 12.0 - 0.8 + uTide * 5.8 * (1.0 - vColor.g);
       vec3 shallow = mix(vec3(0.50, 0.86, 0.80), vec3(0.10, 0.26, 0.34), uNight);
       vec3 mid = mix(vec3(0.16, 0.64, 0.74), vec3(0.05, 0.16, 0.28), uNight);
       vec3 deep = mix(vec3(0.07, 0.36, 0.60), vec3(0.03, 0.08, 0.19), uNight);
@@ -69,6 +74,6 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       .replace("void main() {", `float seaGlow = 0.0;
 void main() {`);
   };
-  m.customProgramCacheKey = () => (calm ? "sea-water-8-calm" : "sea-water-8");
+  m.customProgramCacheKey = () => (calm ? "sea-water-10-calm" : "sea-water-10");
   m.needsUpdate = true;
 }
