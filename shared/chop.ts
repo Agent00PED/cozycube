@@ -118,8 +118,8 @@ export function isAxeId(v: unknown): v is AxeId {
 
 // --- the trees, T1 to T5 (the campfire's Soft Pines round its clearing; the Whispering Woods' all
 // five), and the Colossal Titan a world event raises in the woods ---
-export type TreeKind = "soft_pine" | "birch" | "cedar" | "maple" | "elderwood" | "palm" | "ironwood";
-export const TREE_KINDS: TreeKind[] = ["soft_pine", "birch", "cedar", "maple", "elderwood", "palm", "ironwood"];
+export type TreeKind = "soft_pine" | "birch" | "cedar" | "maple" | "elderwood" | "palm" | "ironwood" | "sea_pine";
+export const TREE_KINDS: TreeKind[] = ["soft_pine", "birch", "cedar", "maple", "elderwood", "palm", "ironwood", "sea_pine"];
 export interface TreeInfo {
   name: string;
   emoji: string;
@@ -188,6 +188,8 @@ export function isByproductId(v: unknown): v is ByproductId {
   return typeof v === "string" && (BYPRODUCT_IDS as string[]).includes(v);
 }
 export const TREES: Record<TreeKind, TreeInfo> = {
+  // (the beach forest's casuarina: a first-tier tree like the Soft Pine, its wood sold as pine)
+  sea_pine: { name: "Sea Pine", emoji: "🌲", tier: 1, wood: "pine", respawnS: 45, rounds: [1, 2], logChance: 1, byproduct: null, trunkCm: 36, sweet: notch(1), period: 1.6, motion: "loop", knots: 0, lore: "Casuarina: not a pine at all, though its drooping green twigs pass for needles. It holds the sand behind every tropical beach and sighs in the sea wind." },
   soft_pine: { name: "Soft Pine", emoji: "🌲", tier: 1, wood: "pine", respawnS: 35, rounds: [1, 2], logChance: 1, byproduct: null, trunkCm: 32, sweet: notch(1), period: 1.6, motion: "loop", knots: 0, lore: "Quick to grow and quick to fall: the camp's everyday firewood, sticky with sap." },
   birch: { name: "Silver Birch", emoji: "🌳", tier: 2, wood: "birch", respawnS: 80, rounds: [2, 3], logChance: 0.8, byproduct: "bark", trunkCm: 28, sweet: notch(2), period: 1.65, motion: "loop", knots: 0, lore: "Its paper-white bark peels in curls: the best kindling in the woods." },
   cedar: { name: "Highland Cedar", emoji: "🌲", tier: 3, wood: "cedar", respawnS: 160, rounds: [2, 4], logChance: 0.7, byproduct: "amber", trunkCm: 46, sweet: notch(3), period: 1.8, motion: "pendulum", knots: 0, lore: "Fragrant red heartwood that keeps the moths away and the rain out." },

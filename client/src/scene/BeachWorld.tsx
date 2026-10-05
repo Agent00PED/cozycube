@@ -2,13 +2,12 @@ import { parseTrees } from "@shared/chop";
 import { FellableTrees } from "./FellableTrees";
 import { ReefRock } from "./ReefRock";
 import { BeachLife } from "./BeachLife";
-import { Suspense, useContext, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { Room } from "colyseus.js";
 import type { PlayerState } from "@shared/types";
-import { daylight } from "@shared/daynight";
 import { BALL_RADIUS, KICK_REACH, kickBall, stepBall, type BallState } from "@shared/volleyball";
 import { BALL_COURT, BAR, BEACH_GRID, BEACH_LAYOUT as L, BOAT, BRINE, DUNE, FIREPIT, MANGO, PIER, PIER_LENGTH, SEA_Y, TORCHES, WADE_DEPTH, beachLand, beachWading, onPierAt } from "@shared/worlds/beach";
 import type { RoomMessageListener } from "../hooks/useColyseusRoom";
@@ -16,7 +15,7 @@ import { ModelBoundary } from "../entities/ModelBoundary";
 import { CampNpc, type NpcTalk } from "../entities/CampNpc";
 import { modelUrl } from "../assetVersion";
 import { GEO, matte, noRaycast } from "./kit";
-import { CampDaylightContext } from "./campDay";
+import { beachDay, stepBeachDay, useBeachDaylight } from "./beachDay";
 import { OcclusionDriver, ditherOccluder } from "./occlusionDither";
 import { CloudClock, cloudShadows } from "./campLife";
 import { seaWater } from "./seaWater";
@@ -133,10 +132,10 @@ export function BeachWorld({ onFloorClick, room, players, localSessionId, subscr
   };
   useFrame((_, dt) => {
     BEACH_TIME.value += dt;
-    const d = daylight(Date.now());
-    BEACH_NIGHT.value = 1 - d;
-    // (the low sun: strongest halfway between night and day)
-    BEACH_DUSK.value = Math.max(0, 1 - Math.abs(d - 0.45) / 0.4);
+    // (the room's hour, eased: scene/beachDay.ts)
+    stepBeachDay(dt);
+    BEACH_NIGHT.value = 1 - beachDay.light;
+    BEACH_DUSK.value = beachDay.dusk;
   });
   return (
     <group>
@@ -236,7 +235,7 @@ function BeachModel() {
 
 /** The bar's lights and the firepit's glow, coming up as the sun goes down. */
 function BeachLights() {
-  const d = useContext(CampDaylightContext) ?? 1;
+  const d = useBeachDaylight();
   const dark = 1 - d;
   const fire = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
@@ -258,7 +257,7 @@ const FLAME_MAT = new THREE.MeshBasicMaterial({ color: "#ffa23a", transparent: t
 const FLAMES = 5;
 /** The firepit's flames: lit from dusk to dawn. */
 function BeachFire() {
-  const d = useContext(CampDaylightContext) ?? 1;
+  const d = useBeachDaylight();
   const lit = d < 0.55;
   const mesh = useMemo(() => {
     const im = new THREE.InstancedMesh(FLAME_GEO, FLAME_MAT, FLAMES + TORCHES.length);

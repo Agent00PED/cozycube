@@ -41,6 +41,7 @@ type Phase = "starting" | "swing" | "judging" | "felled" | "refused";
 /** Each kind's cross-section: bark, sapwood, heartwood, the growth rings' ink. */
 const WOOD_LOOK: Record<TreeKind, { bark: string; barkDark: string; sap: string; heart: string; ring: string }> = {
   soft_pine: { bark: "#6b4a2f", barkDark: "#4a321f", sap: "#f1d9a4", heart: "#d9aa62", ring: "rgba(120,78,38,0.35)" },
+  sea_pine: { bark: "#7a6a58", barkDark: "#54473a", sap: "#ecd2a8", heart: "#c98f5a", ring: "rgba(110,70,40,0.35)" },
   birch: { bark: "#ece6da", barkDark: "#2b2622", sap: "#f5ead2", heart: "#e2c79a", ring: "rgba(140,110,70,0.3)" },
   cedar: { bark: "#5a3322", barkDark: "#3b2016", sap: "#e8b58a", heart: "#b35a3a", ring: "rgba(110,45,25,0.4)" },
   maple: { bark: "#5e4633", barkDark: "#3e2e21", sap: "#f0d3a8", heart: "#c98f55", ring: "rgba(120,72,36,0.35)" },

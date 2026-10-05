@@ -229,7 +229,10 @@ def build_boat(coll, rng):
 
 
 def build_stacks(coll, rng):
-    """A few rock stacks far off, the sea breaking white at their feet."""
+    """A few rock stacks far off, the sea breaking white at their feet (none since the remake: the
+    boat is alone on open water)."""
+    if not (SEA.get("stacks") or SEA.get("buoys") or SEA.get("kelp")):
+        return
     bm = bmesh.new()
     for i, (x, z, s) in enumerate(SEA["stacks"]):
         # (each its own shape: a tall spire, a broad block, a leaning tooth, in turn)

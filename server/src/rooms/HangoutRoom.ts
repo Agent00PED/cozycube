@@ -3360,7 +3360,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const drip = consumeBait && player.map === "glimmering_caverns" && this.shoreAnglers.has(sessionId) && this.caverns.dripOn(player.floatX, player.floatZ, Date.now(), lure);
     if (drip) this.sendTo(sessionId, "campfireNotice", { message: "Right in the drip's ripple! Nothing common bites, and the reel's green is bigger", emoji: "💧" });
     const species = rollRiverFish(this.waterOf(player.map), { ...this.catchLuck(sessionId, player, bait), ...(drip ? { noCommon: true } : {}) });
-    const day = isCampDay(Date.now());
+    const day = this.dayAt(player.map);
     let total = biteSeconds(species, { fed: player.fed > 0, bait, night: !day, haste: this.biteHasteOf(profile, day, player.map === "glimmering_caverns") * (player.map === "open_sea" ? this.sea.luck().haste : 1) }) * 1000;
     // (a Herbal Scent Pouch on the line: a common bites within five seconds)
     if (profile && buffOn(profile, "scent") && FISH[species].tier === "common") total = Math.min(total, (1.5 + Math.random() * (SCENT_BITE_S - 1.5)) * 1000);
@@ -3368,6 +3368,12 @@ export class HangoutRoom extends Room<HangoutState> {
     this.pendingFish.set(sessionId, { species, castAt: now, total, ...(drip ? { drip: true } : {}) });
     this.fishBiteAt.set(sessionId, now + total);
     player.actionProgress = 0;
+  }
+
+  /** Day or night where an angler stands: the camp's own 24-minute day, but on Sunset Beach and the
+   *  Open Sea the room's hour (the header's time menu: every hour but "night" is day). */
+  private dayAt(map: string): boolean {
+    return map === "sunset_beach" || map === "open_sea" ? this.state.timeOfDay !== "night" : isCampDay(Date.now());
   }
 
   /** How much sooner this angler's bites come: the Sunburst River Band by day, the Whittled Otter
@@ -3384,7 +3390,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const profile = this.records.get(sessionId)?.fishing;
     const rapids = player.map === "whispering_woods";
     const aura = player.map === "campfire_night" && hasCozyAura(this.state.fuel) ? COZY_AURA_LUCK : 0;
-    const day = isCampDay(Date.now());
+    const day = this.dayAt(player.map);
     // (the Moonlit Abyssal Ring: by night, the rare and nocturnal fish a quarter likelier; the
     // incense burning at the bonfire: for everyone in the room)
     const incense = this.state.incenseUntil > Date.now() ? INCENSE_LUCK : 0;
@@ -3456,7 +3462,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const profile = this.records.get(sessionId)?.fishing;
     const bait = profile && profile.bait && (profile.baits[profile.bait] ?? 0) > 0 ? profile.bait : "";
     const species = rollRiverFish(player ? this.waterOf(player.map) : "freshwater", player ? { ...this.catchLuck(sessionId, player, bait), afk: true } : { afk: true });
-    const day = isCampDay(now);
+    const day = player ? this.dayAt(player.map) : isCampDay(now);
     const total = afkSeconds(species, Math.random, bait, this.biteHasteOf(profile, day, player?.map === "glimmering_caverns")) * (bait ? baitEffect(bait, !day).biteMul : 1) * 1000;
     this.pendingFish.set(sessionId, { species, castAt: now, total });
     this.afkTotal.set(sessionId, total);

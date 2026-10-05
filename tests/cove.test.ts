@@ -82,7 +82,7 @@ test("a cast from the lagoon's edge lands on its water; with your back to it, or
   for (let deg = 0; deg < 360; deg += 10) {
     // (walk in from the wall toward the lagoon until the ground gives out: the water's edge on this bearing)
     const mid = COVE_LAYOUT.lagoon;
-    for (let d = 10; d > 0; d -= 0.25) {
+    for (let d = COVE_LAYOUT.lagoon.r + 1.0; d > 0; d -= 0.25) {
       const p = { x: mid.x + Math.cos((deg * Math.PI) / 180) * d, z: mid.z + Math.sin((deg * Math.PI) / 180) * d };
       if (isBlocked(p.x, p.z, "hidden_cove") || coveWading(p.x, p.z)) continue;
       const out = coveCast(p.x, p.z, mid.x - p.x, mid.z - p.z);

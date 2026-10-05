@@ -1,7 +1,7 @@
 import type { MapId } from "../types";
 import { TITAN, type TreeKind } from "../chop";
 import { CAMP_TREES, CAMP_WILD_TREES, campLand } from "./campfire";
-import { BEACH_TREES, beachLand } from "./beach";
+import { BEACH_PINES, BEACH_TREES, beachLand } from "./beach";
 import { COVE_TREES, coveLand } from "./cove";
 import { FOREST_TREES, FOREST_WILD_TREES, TITAN_SPOTS, TREE_REACH, forestLand, titanApproach } from "./forest";
 
@@ -45,7 +45,7 @@ export const FELL_TREES: FellTree[] = [
   ...FOREST_TREES.map((t) => ({ id: t.id, map: "whispering_woods" as MapId, kind: t.kind, x: t.x, z: t.z, y: Math.round(forestLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false })),
   ...FOREST_WILD_TREES.map((t) => ({ id: t.id, map: "whispering_woods" as MapId, kind: t.kind, x: t.x, z: t.z, y: Math.round(forestLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false, look: t.look, size: t.size, tone: t.tone, fixed: t.fixed })),
   // (Sunset Beach's Coconut Palms: each drawn at the size the layout gave it, a little more or less)
-  ...BEACH_TREES.map((t) => ({ id: t.id, map: "sunset_beach" as MapId, kind: t.kind as TreeKind, x: t.x, z: t.z, y: Math.round(beachLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false, size: t.size })),
+  ...[...BEACH_TREES, ...BEACH_PINES].map((t) => ({ id: t.id, map: "sunset_beach" as MapId, kind: t.kind as TreeKind, x: t.x, z: t.z, y: Math.round(beachLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false, size: t.size })),
   // (the Hidden Cove's Drowned Ironwoods)
   ...COVE_TREES.map((t) => ({ id: t.id, map: "hidden_cove" as MapId, kind: t.kind as TreeKind, x: t.x, z: t.z, y: Math.round(coveLand(t.x, t.z) * 1000) / 1000, approachX: t.approachX, approachZ: t.approachZ, titan: false, size: t.size })),
   ...TITAN_SPOTS.map((p, i) => {

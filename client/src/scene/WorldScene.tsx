@@ -18,6 +18,7 @@ import { CoveWorld } from "./CoveWorld";
 import { SeaWorld } from "./SeaWorld";
 import { BeachWorld } from "./BeachWorld";
 import { CampDaylightContext, CampSky, campHour, campLook, useCampDaylight } from "./campDay";
+import { BeachLightContext, useBeachLight } from "./beachDay";
 import { CASINO_URL, CasinoWorld } from "./CasinoWorld";
 import { CASINO_VIP_URL } from "./CasinoVipWorld";
 import { preloadCasinoStaff } from "../entities/CasinoStaff";
@@ -642,16 +643,19 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
 
   // the campfire and the woods keep their own 24-minute day (shared/daynight.ts), whatever the
   // room's clock says; the lounge keeps the room's hour and weather
-  // (the beach keeps the camp's day too)
-  const camp = isCampMap(mapId) || mapId === "sunset_beach" || mapId === "open_sea";
+  // (the beach and the Open Sea follow the room's hour, as the lounge does: scene/beachDay.ts)
+  const camp = isCampMap(mapId);
+  const beach = mapId === "sunset_beach" || mapId === "open_sea";
   const daylight = useCampDaylight(camp);
+  const beachLight = useBeachLight(beach, timeOfDay);
   // (the Hidden Cove is a cave: always evening in there, lit by its own lights)
   const cove = mapId === "hidden_cove";
   const hour: TimeOfDay = camp ? campHour(daylight) : cove ? "night" : timeOfDay;
-  const sky: Weather = camp || casino || cove ? "clear" : weather;
+  const sky: Weather = camp || casino || cove || beach ? "clear" : weather;
   return (
     <TimeOfDayContext.Provider value={hour}>
       <CampDaylightContext.Provider value={camp ? daylight : null}>
+      <BeachLightContext.Provider value={beach ? beachLight : null}>
       <WeatherContext.Provider value={sky}>
       {mapId !== "glimmering_caverns" && <SceneLighting timeOfDay={hour} weather={sky} camp={camp ? daylight : null} indoor={casino || cove} />}
       {mapId === "cozy_lounge" ? (
@@ -803,6 +807,7 @@ export function WorldScene({ room, players, chairs, toggleables, localSessionId,
       <OtherPlayers players={players} localSessionId={localSessionId} feed={feed} />
       <ClickMarker mapId={mapId} targetRef={targetRef} rippleRef={rippleRef} />
       </WeatherContext.Provider>
+      </BeachLightContext.Provider>
       </CampDaylightContext.Provider>
     </TimeOfDayContext.Provider>
   );

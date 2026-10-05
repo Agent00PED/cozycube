@@ -30,6 +30,7 @@ const UNDERGROWTH = 0.7;
 type Shape = { cone: true; r: number; y0: number; top: number } | { cone: false; r: number; y0: number; top: number };
 const SHAPES: Record<TreeKind | "spruce", Shape> = {
   soft_pine: { cone: true, r: 1.1, y0: 0.6, top: 3.2 },
+  sea_pine: { cone: true, r: 1.2, y0: 1.2, top: 5.0 },
   spruce: { cone: true, r: 0.8, y0: 0.5, top: 3.4 },
   cedar: { cone: true, r: 1.4, y0: 0.9, top: 5.3 },
   birch: { cone: false, r: 1.25, y0: 1.6, top: 4.3 },

@@ -1,6 +1,6 @@
 import { WORLDS, WORLD_IDS } from "@shared/worlds";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, isCampMap, isCasinoMap, isCavernsMap, isGatheringMap, type MapId, type TimeOfDay, type Weather } from "@shared/types";
+import { ACTIVITY_STATUSES, ACTIVITY_STATUS_IDS, ALLOWANCE_BELOW, TIMES_OF_DAY, isActivityStatus, isBeachMap, isCampMap, isCasinoMap, isCavernsMap, isGatheringMap, type MapId, type TimeOfDay, type Weather } from "@shared/types";
 import { satchelCap, slotsUsed } from "@shared/satchel";
 import { satchelBonus } from "@shared/gear";
 import { isCampDay, minutesToTurn } from "@shared/daynight";
@@ -121,7 +121,7 @@ export function Header(p: HeaderProps) {
   const starlit = camp || underground || isCasinoMap(p.currentMap);
   const time = camp ? { icon: campClock.day ? "☀️" : "🌙", name: `${campClock.day ? "Day" : "Night"} · ${campClock.left}m` } : underground ? { icon: "🪨", name: "Underground" } : starlit ? { icon: "🌙", name: "Late night" } : timeLabel(p.timeOfDay);
   // rain over the lounge shows on the hour's pill
-  if (!starlit && p.weather === "rain") time.icon = "🌧️";
+  if (!starlit && p.weather === "rain" && !isBeachMap(p.currentMap)) time.icon = "🌧️";
   const st = isActivityStatus(p.status) ? ACTIVITY_STATUSES[p.status] : null;
   const map = MAP_LABELS[p.currentMap];
   // the camera: locked on you (follow), or free to pan with a right- or middle-drag

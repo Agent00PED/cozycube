@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { instanced, template } from "./faunaKit";
 import { CampDaylightContext } from "./campDay";
+import { BeachLightContext } from "./beachDay";
 
 // Butterflies drifting over a world's meadows by day, from its model's templates
 // (`prefix`_Body, _WingL, _WingR): three instanced draws for all of them. Each keeps to its
@@ -11,7 +12,8 @@ import { CampDaylightContext } from "./campDay";
 const FLY_TINTS = ["#ffe066", "#ff9ec4", "#9fd4ff", "#d4b0ff", "#ffb56b", "#b8f0a0"];
 
 export function Butterflies({ scene, spots, landY, prefix = "Fauna_Butterfly", tints = FLY_TINTS, size = 2.8, pace = 1, lift = 0.75 }: { /** Their colours, how big they are drawn, how quick they fly and how high over `landY` (dragonflies over the water: blue, small, quick, low). */ tints?: string[]; size?: number; pace?: number; lift?: number; scene: THREE.Object3D; /** The templates' name in this world's model (`<prefix>_Body`, `_WingL`, `_WingR`). */ prefix?: string; /** Each one's meadow (x, z). */ spots: readonly (readonly [number, number])[]; /** The ground's height. */ landY: (x: number, z: number) => number }) {
-  const daylight = useContext(CampDaylightContext) ?? 1;
+  const beach = useContext(BeachLightContext);
+  const daylight = useContext(CampDaylightContext) ?? beach ?? 1;
   const parts = useMemo(() => ["Body", "WingL", "WingR"].map((n) => instanced(template(scene, `${prefix}_${n}`), spots.length, tints)), [scene, spots, prefix, tints]);
   useEffect(
     () => () => {

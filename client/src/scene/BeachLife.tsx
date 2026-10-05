@@ -2,12 +2,13 @@ import { Suspense, useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { daylight } from "@shared/daynight";
+import { beachDay } from "./beachDay";
 import { BEACH_LAYOUT as L, PALMS, PIER, SEA_Y, SHRUBS, at, beachBlocked, beachLand } from "@shared/worlds/beach";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { modelUrl } from "../assetVersion";
 import { cameraFocus } from "./cameraFocus";
 import { Butterflies } from "./Butterflies";
+import { StrandLife } from "./StrandLife";
 import { instanced, template } from "./faunaKit";
 import { MotePoints } from "./caveLight";
 
@@ -24,6 +25,7 @@ import { MotePoints } from "./caveLight";
 //   the dolphins     a pod of three passing far out now and then, porpoising
 //   butterflies      over the flowering shrubs, by day
 //   fireflies        in the palm groves, by night
+//   and the strand's own (StrandLife.tsx): egrets in the creek, fiddler crabs on its mud, hermit crabs
 
 export const BEACH_LIFE_URL = modelUrl("beach_life.glb");
 
@@ -75,7 +77,7 @@ interface Piper {
 }
 
 /** The flowering shrubs the butterflies keep to (every third shrub is a hibiscus: build_beach.py). */
-const FLOWER_SPOTS = SHRUBS.filter((_, i) => i % 3 === 0).map((p): [number, number] => [p.x, p.z]);
+const FLOWER_SPOTS = SHRUBS.filter((p) => p.kind !== "pandanus").map((p): [number, number] => [p.x, p.z]);
 
 function Life() {
   const { scene } = useGLTF(BEACH_LIFE_URL);
@@ -104,9 +106,10 @@ function Life() {
   // the crabs' stretches of wet sand (clear of the pier's piles)
   const herd = useMemo((): Crab[] => {
     const out: Crab[] = [];
-    const span = L.half * 2 - 10;
+    // (the open foreshore, between the creek's mouth and the rocky point)
+    const span = 24;
     for (let i = 0; i < CRABS; i++) {
-      let home = -span / 2 + (span * (i + 0.5)) / CRABS;
+      let home = -span / 2 + 1 + (span * (i + 0.5)) / CRABS;
       if (Math.abs(home - PIER.v) < 2.2) home += home < PIER.v ? -2.4 : 2.4;
       const p = at(0.7 + (i % 3) * 0.35, home);
       out.push({ x: p.x, z: p.z, home, tx: p.x, tz: p.z, rest: 1 + i * 0.7, yaw: i });
@@ -127,7 +130,7 @@ function Life() {
     const t = clock.elapsedTime;
     const dt = Math.min(rawDt, 0.1);
     const { m, w, q, q2, pos, scl, up, fwd, side, rot } = tmp;
-    const day = daylight(Date.now()) > 0.35;
+    const day = beachDay.light > 0.35;
     // --- the gulls: by day
     for (const p of gulls) if (p) p.mesh.visible = day;
     if (day) {
@@ -277,7 +280,7 @@ function Life() {
       leapers.mesh.instanceMatrix.needsUpdate = true;
     }
     // --- the fireflies: after dark, blinking slowly as they drift
-    const dark = 1 - daylight(Date.now());
+    const dark = 1 - beachDay.light;
     fireflies.forEach((f, i) => {
       if (dark < 0.4) return flies.hide(i);
       const a = f.a + t * 0.12 * f.v;
@@ -313,6 +316,7 @@ function Life() {
       {all.map((p, i) => (p ? <primitive key={i} object={p.mesh} /> : null))}
       <Butterflies scene={scene} spots={FLOWER_SPOTS} landY={beachLand} prefix="Fauna_BeachFly" />
       <primitive object={flies.points} />
+      <StrandLife scene={scene} />
     </>
   );
 }

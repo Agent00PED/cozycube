@@ -36,8 +36,18 @@ test("the Coconut Palm is the sixth tier: a narrower notch than the Elderwood's,
 test("the grove: every palm but the hammocks' three is felled, from open sand within reach, walked to from the arrival", () => {
   assert.equal(BEACH_TREES.length, PALMS.length);
   assert.ok(BEACH_TREES.length >= 15);
-  const nodes = FELL_TREES.filter((t) => t.map === "sunset_beach");
+  const all = FELL_TREES.filter((t) => t.map === "sunset_beach");
+  const nodes = all.filter((t) => t.kind === "palm");
   assert.equal(nodes.length, BEACH_TREES.length);
+  // (the beach forest behind: Sea Pines, first-tier trees any axe fells)
+  const pines = all.filter((t) => t.kind === "sea_pine");
+  assert.equal(pines.length + nodes.length, all.length);
+  assert.ok(pines.length >= 12);
+  for (const t of pines) {
+    assert.ok(!isBlocked(t.approachX, t.approachZ, "sunset_beach"), `${t.id} is felled from open ground`);
+    assert.ok(Math.hypot(t.approachX - t.x, t.approachZ - t.z) <= fellReach(t), `${t.id}'s spot is in reach`);
+    assert.ok(findPath("sunset_beach", BEACH_ARRIVAL, { x: t.approachX, z: t.approachZ }), `${t.id} is walked to`);
+  }
   for (const t of nodes) {
     assert.equal(t.kind, "palm");
     assert.ok(isBlocked(t.x, t.z, "sunset_beach", 0.05), `${t.id}'s trunk is a collider`);

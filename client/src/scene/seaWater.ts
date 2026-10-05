@@ -33,14 +33,18 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       vec3 deep = mix(vec3(0.07, 0.36, 0.60), vec3(0.03, 0.08, 0.19), uNight);
       vec3 water = mix(shallow, mid, smoothstep(0.2, 3.2, sea));
       water = mix(water, deep, smoothstep(2.8, 10.0, sea));
-      // the low sun's gold, at dawn and dusk
-      water = mix(water, water * vec3(1.25, 0.95, 0.72) + vec3(0.10, 0.04, 0.0), 0.55 * uDusk);
-      // a slow, soft shimmer on the open water (broad, never streaks)
-      float g1 = sin(vSeaPos.x * 0.9 + vSeaPos.z * 0.6 - uTime * 0.5 + sin(vSeaPos.x * 0.35 - vSeaPos.z * 0.5 + uTime * 0.2) * 1.4);
-      float g2 = sin(vSeaPos.x * 0.7 - vSeaPos.z * 1.1 + uTime * 0.35);
-      water *= 0.96 + 0.05 * g1 * g2;
-      float glint = smoothstep(0.55, 1.0, g1 * g2);
-      water = mix(water, vec3(0.80, 0.95, 1.0), glint * 0.1 * (1.0 - 0.6 * uNight) * smoothstep(0.5, 3.0, sea));
+      // the low sun, at dawn and dusk: its own water, gold and rose in the shallows, going to violet
+      // out deep (a tint over the half-night water was mud)
+      vec3 duskWater = mix(vec3(1.0, 0.74, 0.50), vec3(0.78, 0.52, 0.52), smoothstep(0.2, 3.2, sea));
+      duskWater = mix(duskWater, vec3(0.24, 0.23, 0.42), smoothstep(2.6, 9.0, sea));
+      water = mix(water, duskWater, uDusk * (0.85 - 0.25 * smoothstep(3.0, 10.0, sea)));
+      // the swell: long soft bands running in toward the shore, a finer chop across them, and the
+      // sun's glints where the two crests meet (lines of light, never spots)
+      float sw1 = sin((vSeaPos.x + vSeaPos.z) * 0.42 + uTime * 0.5 + 1.3 * sin((vSeaPos.x - vSeaPos.z) * 0.16 + uTime * 0.11));
+      float sw2 = sin((vSeaPos.x + vSeaPos.z) * 1.05 + (vSeaPos.x - vSeaPos.z) * 0.38 + uTime * 0.85 + 0.9 * sin((vSeaPos.x - vSeaPos.z) * 0.45 - uTime * 0.2));
+      water *= 0.955 + 0.04 * sw1 + 0.022 * sw2;
+      float glint = smoothstep(0.72, 1.0, sw1) * smoothstep(0.55, 1.0, sw2) * (0.6 + 0.4 * sin((vSeaPos.x - vSeaPos.z) * 3.1 + uTime * 1.7));
+      water = mix(water, vec3(0.86, 0.97, 1.0), glint * 0.16 * (1.0 - 0.7 * uNight) * smoothstep(0.5, 3.0, sea));
       // waves rolling in: lines of foam that follow the coast, breaking as they reach the shallows
       float wob = sin(vSeaPos.x * 0.9 - vSeaPos.z * 0.7 + uTime * 0.2) * 0.9;
       float roll = sin(sea * 1.25 + uTime * 0.85 + wob);
@@ -49,7 +53,10 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       float lap = 0.5 + 0.5 * sin(uTime * 0.85 + vSeaPos.x * 0.8 - vSeaPos.z * 0.6);
       float ragged = 0.5 + 0.5 * sin(vSeaPos.x * 5.3 + vSeaPos.z * 4.1 + uTime * 0.5);
       float edge = 1.0 - smoothstep(0.08 + 0.2 * lap, 0.3 + 0.32 * lap + 0.12 * ragged, sea);
-      float foam = clamp(max(edge, crest * (0.6 + 0.4 * ragged)), 0.0, 1.0);
+      // (still water, the creek's and the tide pools' (green in the mesh): no surf, a brackish green-brown)
+      float still = vColor.g;
+      water = mix(water, mix(vec3(0.34, 0.46, 0.36), vec3(0.06, 0.14, 0.15), uNight) * (0.94 + 0.06 * sw2), still * 0.78);
+      float foam = clamp(max(edge, crest * (0.6 + 0.4 * ragged)), 0.0, 1.0) * (1.0 - still);
       water = mix(water, mix(vec3(0.96, 0.99, 1.0), vec3(0.55, 0.68, 0.80), uNight), foam * 0.9);
       diffuseColor.rgb = water;
       // (by night the breaking water glows a little of its own: sea sparkle in the surf)
@@ -60,6 +67,6 @@ export function seaWater(m: THREE.MeshStandardMaterial, time: { value: number },
       .replace("void main() {", `float seaGlow = 0.0;
 void main() {`);
   };
-  m.customProgramCacheKey = () => (calm ? "sea-water-3-calm" : "sea-water-3");
+  m.customProgramCacheKey = () => (calm ? "sea-water-7-calm" : "sea-water-7");
   m.needsUpdate = true;
 }

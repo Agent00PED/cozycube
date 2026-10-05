@@ -2185,6 +2185,28 @@ export const PATCH_ERAS: PatchEra[] = [
           fixes: ["✨ A shoal under the keel flashes fuller.", "🪮 The Nacre Comb's note now gives its real makings (3 Mother-of-Pearl)."],
         },
       },
+      {
+        version: "0.9.0",
+        date: "2026-10-05",
+        title: "The Strand",
+        summary: "Sunset Beach remade as a whole island shore, a bigger hidden cave, and one boat alone on the open sea.",
+        changes: {
+          features: [
+            "🏝️ Sunset Beach is a new island: a wide bay across the view, laid out the way a real tropical shore grows, from a beach forest at the back down to the wet sand.",
+            "🌲 A beach forest of Sea Pines (casuarina) stands behind the palms: a new tree any axe fells, with its own page in the Timber Collection. Two great sea almonds shade the bar and a bench.",
+            "🌿 Pandanus on stilt roots, sea lettuce and sea hibiscus along the scrub line; spinifex and morning glory on the open sand.",
+            "🦀 A tidal creek winds in at the west end, mangroves along it: wade through it. Egrets stalk its shallows, fiddler crabs wave at their burrows on the mud, hermit crabs wander the dry sand.",
+            "🪨 A rocky point at the east end with tide pools at sea level; the fossil reef rock is there now.",
+            "🕒 The time menu works on the beach and at sea: sunrise, day, sunset, night and Auto Cycle, as in the lounge. The day's and the night's fish follow it.",
+            "⛵ The Open Sea is open: every rock, the lighthouse and the buoys are gone. One boat, and the sea's own life: a school of fish leaping one after another, flying fish, a sea turtle up for air, a manta ray gliding under the hull.",
+            "🕳️ The hidden place is two fifths wider, with a moon pool under a second break in the roof, a rock ledge with a bench over the water, and seven clams.",
+          ],
+          visuals: [
+            "🎨 Everything built on the three maps carries a little light and wear in its paint: sun-bleached tops, cool undersides, a soft shade where it meets the sand.",
+            "🌊 The sea's shimmer is long swell bands running in to shore; the creek and the tide pools hold still, green water.",
+          ],
+        },
+      },
     ],
   },
 ];
