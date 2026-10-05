@@ -75,7 +75,7 @@ interface Piper {
 }
 
 /** The flowering shrubs the butterflies keep to (every third shrub is a hibiscus: build_beach.py). */
-const FLOWER_SPOTS = SHRUBS.filter((_, i) => i % 3 === 0).map((p): [number, number] => [p.x, p.z]);
+const FLOWER_SPOTS = SHRUBS.filter((p) => p.kind !== "pandanus").map((p): [number, number] => [p.x, p.z]);
 
 function Life() {
   const { scene } = useGLTF(BEACH_LIFE_URL);
@@ -104,9 +104,10 @@ function Life() {
   // the crabs' stretches of wet sand (clear of the pier's piles)
   const herd = useMemo((): Crab[] => {
     const out: Crab[] = [];
-    const span = L.half * 2 - 10;
+    // (the open foreshore, between the creek's mouth and the rocky point)
+    const span = 24;
     for (let i = 0; i < CRABS; i++) {
-      let home = -span / 2 + (span * (i + 0.5)) / CRABS;
+      let home = -span / 2 + 1 + (span * (i + 0.5)) / CRABS;
       if (Math.abs(home - PIER.v) < 2.2) home += home < PIER.v ? -2.4 : 2.4;
       const p = at(0.7 + (i % 3) * 0.35, home);
       out.push({ x: p.x, z: p.z, home, tx: p.x, tz: p.z, rest: 1 + i * 0.7, yaw: i });
