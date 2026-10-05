@@ -2277,6 +2277,21 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.9.6",
+        date: "2026-10-05",
+        title: "The Beach Journal",
+        summary: "Shells to comb for, wildlife to note, and turtle hatchlings some nights.",
+        changes: {
+          features: [
+            "📔 The Beach Journal, a new page in the Fish Collection: twenty-two things to find across the beach, the open sea and beyond, each paying a few coins the first time and each section a bonus when it is complete.",
+            "🐚 Beachcombing: a handful of shells wash up along the wet sand of Sunset Beach, a new handful every eight minutes. Walk up to one and pick it up: a cockle most often, a Queen Conch hardly ever.",
+            "🦀 Shore and sea life go into the journal as you come near them at their hour: the egrets in the creek, the fiddler crabs by the mangroves, the fireflies after dark, the manta and the flying fish from the boat, the whale when it comes.",
+            "🐢 Some nights a nest in the open sand below the bar hatches, and a dozen little turtles run for the sea.",
+          ],
+          fixes: ["🪁 The manta ray at sea was a black lump passing under the boat. It is a slate-blue ray gliding past the hull now."],
+        },
+      },
     ],
   },
 ];

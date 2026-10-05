@@ -27,7 +27,11 @@ export type SeaPacket =
   /** In the cove: a giant clam pried open. */
   | { op: "pry"; clam: string }
   /** On Sunset Beach's rocky point: a look into a tide pool (its index in TIDE_POOLS). */
-  | { op: "peek"; pool: number };
+  | { op: "peek"; pool: number }
+  /** Beachcombing on Sunset Beach: one of this stretch's finds picked up (shared/beach_journal.ts). */
+  | { op: "comb"; spot: number }
+  /** A creature seen, for the Beach Journal (checked against where the player stands). */
+  | { op: "sight"; id: string };
 /** The captain's answer to a request he can't grant (shown as a toast). */
 export interface SeaNotice {
   message: string;

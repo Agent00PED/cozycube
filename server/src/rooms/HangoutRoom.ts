@@ -850,6 +850,7 @@ export class HangoutRoom extends Room<HangoutState> {
         if (player) this.travel(sessionId, player, map, at);
       },
       emote: (sessionId, emoji) => this.nearby(sessionId, "emote", { sessionId, emoji }),
+      hour: () => this.state.timeOfDay,
       count: (map) => {
         let n = 0;
         this.state.players.forEach((p) => {

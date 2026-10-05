@@ -21,6 +21,7 @@ import { BEACH_LIFE_URL } from "./BeachLife";
 import { instanced, template } from "./faunaKit";
 import { LightShafts } from "./LightShafts";
 import { MotePoints } from "./caveLight";
+import { sighted } from "../systems/beachJournalStore";
 import { cameraFocus } from "./cameraFocus";
 
 // The Hidden Cove (map "hidden_cove", docs/beach-design.md section 5): a sea cave, reached only on the
@@ -221,6 +222,9 @@ function CoveLife() {
   }, [scene]);
   const crabs = useMemo(() => instanced(template(scene, "Fauna_SandCrab"), CAVE_CRABS, ["#cfe3ff", "#e8dcff"]), [scene]);
   const motes = useMemo(() => new MotePoints(MOTES), []);
+  useEffect(() => {
+    if (jelly) sighted("sea_jelly");
+  }, [jelly]);
   useEffect(
     () => () => {
       jelly?.mesh.dispose();

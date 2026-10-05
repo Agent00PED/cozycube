@@ -8,6 +8,7 @@ import { DECK_Y, SEA_LAYOUT, onDeck } from "@shared/worlds/sea";
 import { ModelBoundary } from "../entities/ModelBoundary";
 import { seaEventStore } from "../systems/seaEventStore";
 import { BEACH_LIFE_URL } from "./BeachLife";
+import { sighted } from "../systems/beachJournalStore";
 import { MotePoints } from "./caveLight";
 import { instanced, template } from "./faunaKit";
 
@@ -50,7 +51,7 @@ function Life() {
   const pod = useMemo(() => instanced(template(scene, "Fauna_Dolphin"), POD, ["#ffffff"]), [scene]);
   const turtle = useMemo(() => instanced(template(scene, "Fauna_SeaTurtle"), 1, ["#ffffff"]), [scene]);
   const roost = useMemo(() => instanced(template(scene, "Fauna_Gull_Body"), ROOST, ["#ffffff"]), [scene]);
-  const manta = useMemo(() => instanced(template(scene, "Fauna_Manta"), 1, ["#ffffff"]), [scene]);
+  const manta = useMemo(() => instanced(template(scene, "Fauna_Manta"), 1, [[2.6, 3.6, 4.6]]), [scene]);
   const whale = useMemo(() => instanced(template(scene, "Fauna_WhaleBack"), 1, ["#ffffff"]), [scene]);
   const fluke = useMemo(() => instanced(template(scene, "Fauna_WhaleFluke"), 1, ["#ffffff"]), [scene]);
   const glints = useMemo(() => new MotePoints(GLINTS), []);
@@ -132,6 +133,7 @@ function Life() {
       }
       // flying fish: out of the water by the hull and away, low and flat, a long glide
       if (t > flight.next) {
+        sighted("sea_flyingfish");
         const a = Math.random() * 6.283;
         Object.assign(flight, { at: t, next: t + 18 + Math.random() * 22, x: Math.cos(a) * 3.2, z: Math.sin(a) * 3.2, yaw: Math.atan2(Math.cos(a), Math.sin(a)) + (Math.random() - 0.5) * 0.8 });
       }
@@ -187,16 +189,20 @@ function Life() {
     if (manta) {
       if (t > glide.next) {
         const a = Math.random() * 6.283;
-        Object.assign(glide, { at: t, next: t + 55 + Math.random() * 50, x: Math.cos(a) * 11, z: Math.sin(a) * 11, yaw: Math.atan2(-Math.cos(a), -Math.sin(a)) + (Math.random() - 0.5) * 0.5 });
+        // (past the hull, never through it: a boat's length off to one side)
+        const side = (Math.random() < 0.5 ? -1 : 1) * (6.4 + Math.random() * 1.5);
+        Object.assign(glide, { at: t, next: t + 55 + Math.random() * 50, x: Math.cos(a) * 11 - Math.sin(a) * side, z: Math.sin(a) * 11 + Math.cos(a) * side, yaw: Math.atan2(-Math.cos(a), -Math.sin(a)) });
       }
       const u = (t - glide.at) / 16;
       manta.mesh.visible = u >= 0 && u <= 1;
       if (manta.mesh.visible) {
+        if (u > 0.3) sighted("sea_manta");
         const along = u * 22;
         q.setFromAxisAngle(up, glide.yaw + 0.2 * Math.sin(u * 5));
         q.multiply(q2.setFromAxisAngle(fwd, 0.1 * Math.sin(t * 1.4)));
-        // (it rides just under the sheet's swell: its back breaks through in places, the rest is the water's)
-        m.compose(pos.set(glide.x + Math.sin(glide.yaw) * along, SEA_Y - 0.035 + 0.02 * Math.sin(t * 1.4), glide.z + Math.cos(glide.yaw) * along), q, scl.set(1.5, 1, 1.5));
+        // (it rides at the surface, whole, in a slate blue: the sea's sheet is opaque, and a shape half under it
+        // showed as a black lump)
+        m.compose(pos.set(glide.x + Math.sin(glide.yaw) * along, SEA_Y + 0.05 + 0.015 * Math.sin(t * 1.4), glide.z + Math.cos(glide.yaw) * along), q, scl.set(1.5, 1, 1.5));
         manta.mesh.setMatrixAt(0, w.copy(m).multiply(manta.t.matrix));
         manta.mesh.instanceMatrix.needsUpdate = true;
       }
@@ -205,6 +211,8 @@ function Life() {
     const ev = seaEventStore.get();
     const now = Date.now();
     const on = ev && now >= ev.at && now < ev.until ? ev : null;
+    if (on?.kind === "whale") sighted("sea_whale");
+    else if (on?.kind === "dolphins") sighted("sea_dolphin");
     // (0 as it comes, 1 as it goes: eased in and out over its first and last seconds)
     const u = on ? (now - on.at) / (SEA_EVENT_S * 1000) : 0;
     const ease = on ? Math.min(1, u * SEA_EVENT_S * 0.25, (1 - u) * SEA_EVENT_S * 0.25) : 0;
