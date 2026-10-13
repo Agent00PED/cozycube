@@ -2292,6 +2292,19 @@ export const PATCH_ERAS: PatchEra[] = [
           fixes: ["🪁 The manta ray at sea was a black lump passing under the boat. It is a slate-blue ray gliding past the hull now."],
         },
       },
+      {
+        version: "0.9.7",
+        date: "2026-10-14",
+        title: "The Newcomer's Guide",
+        summary: "A first hour with a thread to follow: twelve small goals, one at a time.",
+        changes: {
+          features: [
+            "🧭 The Newcomer's Guide, in the top-left corner: one goal at a time with how to do it, from your first fish and your first felled pine to the Whispering Woods and Old Flint's mine. Tap its arrow to fold it down to a chip.",
+            "🪙 Each goal pays a few coins the first time, and the whole chain a small bonus. Anything you do early is remembered for its step.",
+            "🎓 Already an old hand? The guide walks itself past everything you have long since done the next time you come in, pays you for it, and is gone once the chain is complete.",
+          ],
+        },
+      },
     ],
   },
 ];

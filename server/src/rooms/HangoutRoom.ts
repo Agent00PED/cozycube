@@ -64,6 +64,7 @@ import {
   type GearPlace,
   type GearRun,
 } from "../../../shared/gear";
+import { GUIDE_MAPS, advanceGuide, guideFinished, noteGuideFlag, type GuideFlag, type GuideNews } from "../../../shared/guide";
 import { AXES, woodPrice, nextCarrierTier, WOOD, isAxeId, isWoodKind, addLogs, takeLogs, woodAverage, logMultiplier, rollFellSwing, judgeFell, rollTreeScale, rollTreeRounds, trunkCm, FELL_CRIT_CHANCE, FELL_CRIT_COINS, FELL_ROUND_PAUSE_S, KNOT_RECOVER_S, TITAN, COLOSSAL, colossalLogMult, isColossalKind, rollColossal, splitShares, LEVER_SHARE, FISH_BONE_CHANCE, PRISM_SCALE_CHANCE, type ColossalKind, type FellSwing, type FellVerdict, type TreeKind } from "../../../shared/chop";
 import {
   BAITS,
@@ -3549,8 +3550,28 @@ export class HangoutRoom extends Room<HangoutState> {
   private saveFishing(sessionId: string, player: Player) {
     const record = this.records.get(sessionId);
     if (!record) return;
+    this.guideWalk(sessionId, player, record.fishing);
     player.fishing = JSON.stringify(record.fishing);
     this.persist(sessionId, player);
+  }
+
+  /** The Newcomer's Guide (shared/guide.ts): the chain walked on past every step now met, each paid
+   *  and told. Run wherever the camp profile is saved, so a step falls the moment its deed is kept. */
+  private guideWalk(sessionId: string, player: Player, profile: FishingProfile, catchUp = false) {
+    if (guideFinished(profile.guide)) return;
+    const news = advanceGuide(profile);
+    if (!news.steps.length) return;
+    this.addCoins(player, news.coins);
+    const told: GuideNews = { ...news, catchUp };
+    this.sendTo(sessionId, "guideStep", told);
+  }
+
+  /** Something the guide watches for has happened (a world walked into, a seat by a fire, ...). */
+  private guideFlag(sessionId: string, flag: GuideFlag) {
+    const player = this.state.players.get(sessionId);
+    const profile = this.records.get(sessionId)?.fishing;
+    if (!player || !profile || !noteGuideFlag(profile.guide, flag)) return;
+    this.saveFishing(sessionId, player);
   }
 
   /** Eating at the campfire: Well-Fed for WELL_FED_S (a bouncier, quicker step; quicker bites). */
@@ -4158,6 +4179,7 @@ export class HangoutRoom extends Room<HangoutState> {
       this.sendTo(sessionId, "campfireNotice", { message: trialWords(key), emoji: "🏅" });
       this.nearby(sessionId, "emote", { sessionId, emoji: "🏅" });
     }
+    if (deed.kind === "sale" && deed.counter === 1) this.guideFlag(sessionId, "soldWoods");
   }
 
   /** Where the player stands, for the gear's work (shared/gear.ts GearPlace): each place in reach and
@@ -4587,6 +4609,7 @@ export class HangoutRoom extends Room<HangoutState> {
       this.caverns.grantMasteryTitles(sessionId);
       this.caverns.weekly(sessionId);
     }
+    if (GUIDE_MAPS.has(mapId)) this.guideFlag(sessionId, `at:${mapId}`);
   }
 
   /** A spawn point on `map`, the one fewest people stand near. */
@@ -4715,6 +4738,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // the flames as you sit down on a log bench (the Roast & Grill minigame is everyone's)
     // (and the overlook's hearth down in the caverns, a fire that never goes out)
     if (this.roastSeat(sessionId, chair) && player.action === "" && !player.holding && (player.map !== "campfire_night" || this.state.fuel > 0)) this.handleRoast(sessionId);
+    if (chair.style === "log" && chair.map === "campfire_night" && this.roastSeat(sessionId, chair)) this.guideFlag(sessionId, "sat");
   }
 
   private handleUseProp(sessionId: string, propId: string) {
@@ -4741,6 +4765,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // anvil, the ore nodes, the winch lift
     if (kind === "adit" || kind === "miner" || kind === "prospector" || kind === "forge" || kind === "anvil" || kind === "ore" || kind === "winch") {
       this.caverns.useProp(sessionId, prop);
+      if (kind === "miner") this.guideFlag(sessionId, "flint");
       return;
     }
     // the Velvet Ring's corners, chalkboard, Coach Bruno and the gym's fixtures
@@ -5228,6 +5253,22 @@ export class HangoutRoom extends Room<HangoutState> {
       player.fishing = JSON.stringify(record.fishing);
       this.addCoins(player, owed);
       this.persist(client.sessionId, player);
+    }
+    // the Newcomer's Guide: an account older than the guide is walked past every step it has long
+    // since met, once, a moment after it comes in
+    if (!guideFinished(record.fishing.guide)) {
+      const sid = client.sessionId;
+      this.clock.setTimeout(() => {
+        const p = this.state.players.get(sid);
+        const r = this.records.get(sid);
+        if (!p || !r) return;
+        const before = r.fishing.guide.done.length;
+        this.guideWalk(sid, p, r.fishing, true);
+        if (r.fishing.guide.done.length !== before) {
+          p.fishing = JSON.stringify(r.fishing);
+          this.persist(sid, p);
+        }
+      }, 4000);
     }
     // The catch bucket is a session thing (the traders buy it); it survives a reconnect only.
     const wallet = this.wallets.get(player.userId);

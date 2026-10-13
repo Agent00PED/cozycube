@@ -48,6 +48,7 @@ import { FellingModal } from "./components/hud/FellingModal";
 import { WonderBadge } from "./components/hud/WonderBadge";
 import { lampBoost } from "./scene/caveGear";
 import { BuffRow } from "./components/hud/BuffRow";
+import { GuideCard } from "./components/hud/GuideCard";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
 import { FORAGE_INFO, ITEMS, TREASURE_COINS, guildRoomKey, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
@@ -71,6 +72,7 @@ import { PinballModal } from "./components/hud/PinballModal";
 import { BeachBarModal } from "./components/hud/BeachBarModal";
 import { CaptainModal } from "./components/hud/CaptainModal";
 import { JOURNAL_BY_ID, JOURNAL_SECTIONS, type JournalFind } from "@shared/beach_journal";
+import { GUIDE, GUIDE_BY_ID, type GuideNews } from "@shared/guide";
 import { beachJournal } from "./systems/beachJournalStore";
 import { SEA_CHANNEL } from "@shared/voyage";
 import { CoveBenchModal } from "./components/hud/CoveBenchModal";
@@ -594,6 +596,13 @@ export default function App() {
           // a bottle on the line, out at sea: a torn piece of an old chart
           const c = payload as { piece: number; of: number };
           pushToast(c.piece >= c.of ? "A bottle on the line! The last piece: the chart is whole. Show it to the captain" : `A bottle on the line! Inside, a torn piece of an old sea chart (${c.piece}/${c.of})`, { emoji: "🍾", tone: "win" });
+        } else if (type === "guideStep") {
+          // the Newcomer's Guide (shared/guide.ts): a step met, or several at once on an older account
+          const g = payload as GuideNews;
+          const first = GUIDE_BY_ID[g.steps[0]];
+          const next = GUIDE[GUIDE.findIndex((s) => s.id === g.steps[g.steps.length - 1]) + 1];
+          const tail = g.finished ? " That is the whole guide: the rest is yours to find." : next ? ` Next: ${next.title}.` : "";
+          if (first) pushToast(g.steps.length > 1 ? `Newcomer's Guide: ${g.steps.length} steps you had already done, +${g.coins} 🪙.${tail}` : `${first.title}: done, +${g.coins} 🪙.${tail}`, { emoji: g.finished ? "🎓" : "🧭", tone: "win" });
         } else if (type === "beachFind") {
           // the Beach Journal (shared/beach_journal.ts): a shell combed, a creature seen
           const f = payload as JournalFind;
@@ -996,6 +1005,7 @@ export default function App() {
         <div className={ringTakeover ? "cozy-hud-away" : "cozy-hud-back"}>
           <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} gear={angler.profile} />
           {localPlayer && <BuffRow profile={angler.profile} />}
+          {localPlayer && !mapTransitioning && <GuideCard profile={angler.profile} />}
         </div>
         <Toasts />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />
