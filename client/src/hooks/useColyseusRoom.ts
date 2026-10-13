@@ -86,7 +86,7 @@ const RELAYED_MESSAGES = [
   "matchaResult",
   "boardState",
   "mochiResult",
-  "dailyComplete",
+  "dailyOrder",
   "vibe",
   // the lounge's plants: the splash for everyone, and "already watered" for the one who tried
   "plantWatered",

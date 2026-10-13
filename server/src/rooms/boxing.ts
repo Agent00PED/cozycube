@@ -1485,6 +1485,8 @@ export class BoxingRing {
       method = "nocontest";
       counted = false;
     }
+    // (a spar won against Jimmy: no record, no purse, but it counts for the day's order)
+    if (spar && w && !w.bot && !this.conceded) this.host.tally(w.sessionId, false);
     const paid = settleBets(this.bets, counted ? winner : null);
     const payouts: BoutResult["payouts"] = [];
     for (const [who, amount] of paid) {

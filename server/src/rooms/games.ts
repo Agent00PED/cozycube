@@ -1,9 +1,11 @@
 import {
+  DAILY_SLOTS,
   DAILY_TASKS,
   GACHA_COST,
   OUTFITS,
   PREMIUM_HATS,
   hashString,
+  type DailyAccess,
   type DailyChecklist,
   type DailyTaskId,
   type GachaPrize,
@@ -40,32 +42,28 @@ export function todayKey(now = new Date()): string {
   return now.toISOString().slice(0, 10);
 }
 
-/** Three tasks for the day, the same three for a player however often they reconnect. */
-export function rollDaily(userId: string, date = todayKey()): DailyChecklist {
+/** The day's three orders, one from each board: the same for everyone with the same access. */
+export function rollDaily(access: readonly DailyAccess[] = [], date = todayKey()): DailyChecklist {
   const ids = Object.keys(DAILY_TASKS) as DailyTaskId[];
-  const seed = hashString(`${userId}:${date}`);
-  const picked: DailyTaskId[] = [];
-  let s = seed;
-  while (picked.length < 3) {
+  let s = hashString(`orders:${date}`);
+  const tasks = DAILY_SLOTS.map((slot) => {
+    const pool = ids.filter((id) => DAILY_TASKS[id].slot === slot && (!DAILY_TASKS[id].needs || access.includes(DAILY_TASKS[id].needs!)));
     s = (s * 1664525 + 1013904223) >>> 0;
-    const id = ids[s % ids.length];
-    if (!picked.includes(id)) picked.push(id);
-  }
-  return { date, tasks: picked.map((id) => ({ id, progress: 0 })), claimed: false };
+    return { id: pool[(s >>> 8) % pool.length], progress: 0 };
+  });
+  return { date, tasks, claimed: false };
 }
 
-/** Advances a task; returns true when this call completed the whole list. */
-export function progressDaily(list: DailyChecklist, id: DailyTaskId, by = 1): boolean {
+/** Advances an order: whether this call met it, and whether that made the day's three. */
+export function progressDaily(list: DailyChecklist, id: DailyTaskId, by = 1): { met: boolean; all: boolean } {
   const task = list.tasks.find((t) => t.id === id);
-  if (!task) return false;
+  if (!task) return { met: false, all: false };
   const goal = DAILY_TASKS[id].goal;
-  if (task.progress >= goal) return false;
+  if (task.progress >= goal) return { met: false, all: false };
   task.progress = Math.min(goal, task.progress + by);
-  const done = list.tasks.every((t) => t.progress >= DAILY_TASKS[t.id].goal);
-  if (done && !list.claimed) {
-    list.claimed = true;
-    return true;
-  }
-  return false;
+  if (task.progress < goal) return { met: false, all: false };
+  const all = !list.claimed && list.tasks.every((t) => t.progress >= DAILY_TASKS[t.id].goal);
+  if (all) list.claimed = true;
+  return { met: true, all };
 }
 
