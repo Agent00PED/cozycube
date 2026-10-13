@@ -18,6 +18,7 @@ import { MAX_RANK, RANK_ATTUNE, carrierBonus, fitRings, fitWorn, isGearId, isRin
 import { CAVE_FISH, isCaveTackleId, type CaveTackleId } from "./caverns_fishing";
 import { isPickaxeId, isIngotId, isOreItemId, isOreKind, FORGE_QUEUE_MAX, ORE_ITEMS, type IngotId, type OreItemId, type OreKind, type PickaxeId } from "./caverns_mining";
 import { sanitizeSatchel, type SatchelStack } from "./satchel";
+import { emptyGuide, sanitizeGuide, type GuideState } from "./guide";
 import { AFK_BAITED_TIER_ODDS, AFK_UNBAITED_TIER_ODDS, CRAFT_SLOT_STACK, CRAFT_STASH_SLOTS, CREEL_CAPACITY, CREEL_PRICES, FISH_PRICES, MATERIAL_CAP, MAX_DAY_PERMITS, TACKLE_PRICES, WATER_ODDS, type OddsWater, type TierOdds } from "./economy";
 
 /** The waters: the camp's rivers, the beach's sea (registered), and the Glimmering Caverns' Grotto
@@ -409,6 +410,8 @@ export interface FishingProfile {
   /** The Beach Journal: shells combed, shore and sea life seen (shared/beach_journal.ts ids). */
   beach: string[];
   coveAccess: boolean;
+  /** The Newcomer's Guide (shared/guide.ts): the first hour's steps met, and the flags seen on the way. */
+  guide: GuideState;
 }
 /** The Prospector's Ledger's marks: Perfect strikes, the best run of them, geodes cracked, Star Shards
  *  cut, Masterwork ingots forged, Motherlodes broken. */
@@ -508,7 +511,7 @@ export function stashFits(items: readonly CraftItem[], add: CraftItem, bonus = 0
 }
 export function emptyFishingProfile(): FishingProfile {
   const wood = Object.fromEntries(WOOD_KINDS.map((k) => [k, 0])) as Record<WoodKind, number>;
-  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] }, bar: emptyBarBook(), seaTrip: false, chart: 0, chartDry: 0, coveAccess: false, tide: [], beach: [] };
+  return { v: PROFILE_VERSION, creel: [], creelTier: 1, slots: CREEL_TIERS[0].capacity, rod: "bamboo", rods: ["bamboo"], baits: {}, bait: "", records: {}, best: {}, caught: {}, fedUntil: 0, wood, woodValue: {}, axe: "rusty", axes: ["rusty"], carrierTier: 1, crafts: [], tools: [], caveTackles: [], roastingStick: false, packFrame: false, tackleBox: false, mail: [], owed: 0, gear: [], worn: [], gearRank: {}, rings: [], ringsWorn: [], attune: {}, trials: [], deeds: {}, resin: 0, sawdust: 0, byproducts: {}, firewood: 0, dayPermits: 0, ranger: false, eagleUntil: 0, felled: {}, slingBest: 0, trunkRecord: {}, bestLog: {}, lastFelledT4At: 0, lastFelledT5At: 0, lastFelledTitanAt: 0, felledIn: {}, buffs: {}, satchelTier: 0, satchelSlots: 2, satchelContents: [], pickaxeId: "rusted", pickaxes: ["rusted"], caveAccess: false, deepWarmthUntil: 0, forgeQueue: [], forgeAt: 0, forgeTray: {}, mined: {}, codex: [], ledger: { perfects: 0, bestStreak: 0, geodes: 0, stars: 0, masterworks: 0, lodes: 0 }, weekly: { week: "", base: {}, done: [] }, bar: emptyBarBook(), seaTrip: false, chart: 0, chartDry: 0, coveAccess: false, tide: [], beach: [], guide: emptyGuide() };
 }
 /** How much split wood the profile holds, all kinds together. */
 export function woodCount(p: Pick<FishingProfile, "wood">): number {
@@ -705,6 +708,7 @@ function readFishingProfile(raw: unknown): FishingProfile {
   if (Array.isArray(r.beach)) p.beach = Array.from(new Set(r.beach.filter((t): t is string => typeof t === "string" && /^(shell|shore|sea)_[a-z]+$/.test(t)))).slice(0, 64);
   if (Array.isArray(r.tide)) p.tide = Array.from(new Set(r.tide.filter((t): t is string => typeof t === "string" && TIDE_FIND_IDS.has(t))));
   p.coveAccess = r.coveAccess === true;
+  p.guide = sanitizeGuide(r.guide);
   if (r.ledger && typeof r.ledger === "object") {
     for (const k of LEDGER_KEYS) {
       const n = Math.floor(Number((r.ledger as Record<string, unknown>)[k]));
