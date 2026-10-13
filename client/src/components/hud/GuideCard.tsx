@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { FishingProfile } from "@shared/fishing";
 import { GUIDE_BONUS, guideProgress, guideStep } from "@shared/guide";
 
-// The Newcomer's Guide (shared/guide.ts), in the top-left corner under the buffs' row: the one step in
+// The Newcomer's Guide (shared/guide.ts), first in the top-left column under the buffs' row (App.tsx): the one step in
 // hand as a small chip (its number and title), opened by a tap into a card with how to do it and what
 // it pays. Folded or open is the viewer's own choice, kept in this browser; a new step opens the card
 // once so its hint is seen. Gone for good once the chain is done.
@@ -35,7 +35,7 @@ export function GuideCard({ profile }: { profile: FishingProfile }) {
   const open = folded !== step.id;
   const last = at.done === at.all - 1;
   return (
-    <div className="pointer-events-none fixed z-[33] w-[min(280px,calc(100vw-24px))]" style={{ top: "calc(max(8px, env(safe-area-inset-top)) + 86px)", left: "max(10px, env(safe-area-inset-left))" }}>
+    <>
       {open ? (
         <section className="clay-pop pointer-events-auto rounded-2xl border border-[#f5c46b]/50 bg-[#231B18]/92 p-2.5 text-[#F7EBE1] shadow-lg" aria-label="Newcomer's Guide">
           <header className="flex items-center gap-1.5">
@@ -58,7 +58,7 @@ export function GuideCard({ profile }: { profile: FishingProfile }) {
           </div>
         </section>
       ) : (
-        <button type="button" className="clay-pop pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full border border-[#f5c46b]/50 bg-[#231B18]/88 py-1 pl-2 pr-2.5 text-[11px] font-bold text-[#F7EBE1] shadow" onClick={() => setFolded("")} aria-label={`Newcomer's Guide, step ${at.done + 1} of ${at.all}: ${step.title}. Open`}>
+        <button type="button" className="clay-pop pointer-events-auto flex max-w-full items-center self-start gap-1.5 rounded-full border border-[#f5c46b]/50 bg-[#231B18]/88 py-1 pl-2 pr-2.5 text-[11px] font-bold text-[#F7EBE1] shadow" onClick={() => setFolded("")} aria-label={`Newcomer's Guide, step ${at.done + 1} of ${at.all}: ${step.title}. Open`}>
           <span aria-hidden>🧭</span>
           <span className="tabular-nums text-[#f5c46b]">
             {at.done + 1}/{at.all}
@@ -66,6 +66,6 @@ export function GuideCard({ profile }: { profile: FishingProfile }) {
           <span className="truncate">{step.title}</span>
         </button>
       )}
-    </div>
+    </>
   );
 }

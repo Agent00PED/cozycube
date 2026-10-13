@@ -187,8 +187,8 @@ export function SideDrawer(props: SideDrawerProps) {
         {me && daily && (
           <section className="shrink-0 rounded-3xl border border-amber-200/20 bg-amber-300/10 p-3">
             <h3 className="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-widest opacity-70">
-              <span>Daily cozy checklist</span>
-              <span>{daily.claimed ? "✅ claimed" : `${DAILY_REWARD} 🪙`}</span>
+              <span>Daily orders</span>
+              <span>{daily.claimed ? "✅ all done" : `up to ${DAILY_REWARD} 🪙`}</span>
             </h3>
             <ul className="flex flex-col gap-1.5">
               {daily.tasks.map((t) => {
@@ -204,7 +204,7 @@ export function SideDrawer(props: SideDrawerProps) {
                 );
               })}
             </ul>
-            <p className="mt-2 text-[11px] opacity-60">Finish all three and the coins land by themselves. A fresh list every day.</p>
+            <p className="mt-2 text-[11px] opacity-60">Each order pays as you meet it, and all three a bonus. Fresh orders every day.</p>
           </section>
         )}
 

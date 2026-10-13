@@ -110,21 +110,80 @@ export interface PlayerStats {
 }
 export const DEFAULT_STATS: PlayerStats = { roulette_wins: 0, blackjack_wins: 0, slots_spins: 0, fish_caught: 0, marshmallows_roasted: 0, boxing_knockouts: 0, gacha_pulls: 0, mochi_pets: 0, time_spent_mins: 0 };
 
-// --- the daily cozy checklist ---
-export type DailyTaskId = "pet_mochi" | "catch_fish" | "win_boxing" | "soak_onsen" | "roast_marshmallow" | "spin_slots" | "pull_gacha" | "splash_water" | "brew_coffee" | "make_wish";
-export const DAILY_TASKS: Record<DailyTaskId, { label: string; emoji: string; goal: number }> = {
-  pet_mochi: { label: "Play with Mochi", emoji: "🐱", goal: 1 },
-  catch_fish: { label: "Catch 2 fish", emoji: "🎣", goal: 2 },
-  win_boxing: { label: "Win a boxing bout", emoji: "🥊", goal: 1 },
-  soak_onsen: { label: "Soak in a warm pool for 30 s", emoji: "♨️", goal: 1 },
-  roast_marshmallow: { label: "Toast a marshmallow", emoji: "🍢", goal: 1 },
-  spin_slots: { label: "Spin the slots 3 times", emoji: "🎰", goal: 3 },
-  pull_gacha: { label: "Turn the gachapon", emoji: "🔮", goal: 1 },
-  splash_water: { label: "Splash someone in a warm pool", emoji: "💦", goal: 1 },
-  brew_coffee: { label: "Pull an espresso", emoji: "☕", goal: 1 },
-  make_wish: { label: "Make a wish at the well", emoji: "🪙", goal: 1 },
+// --- the daily orders ---
+// Three small orders a day, one from each board (DAILY_SLOTS): something at home (the lounge and the
+// campfire), something out in the open worlds (the casino, the ring, the beach), and something of the
+// crafts, drawn from what the player can reach (DailyAccess). Each pays as it is met and the three
+// together a bonus. The day's draw is the same for everyone with the same access (server/src/rooms/
+// games.ts rollDaily), so a call's players can do them together.
+export type DailySlot = "home" | "town" | "craft";
+export type DailyAccess = "woods" | "cave";
+export type DailyTaskId =
+  | "pet_mochi"
+  | "brew_coffee"
+  | "roast_marshmallow"
+  | "catch_fish"
+  | "fell_tree"
+  | "sell"
+  | "slingshot"
+  | "split"
+  | "spin_slots"
+  | "pull_gacha"
+  | "bar_drink"
+  | "beachcomb"
+  | "tide_pool"
+  | "win_boxing"
+  | "fine_fish"
+  | "fell_many"
+  | "sell_many"
+  | "fell_fine"
+  | "woods_sale"
+  | "break_ore"
+  | "soak_onsen";
+export interface DailyTask {
+  label: string;
+  emoji: string;
+  goal: number;
+  slot: DailySlot;
+  /** Only drawn for a player who can get there. */
+  needs?: DailyAccess;
+}
+export const DAILY_TASKS: Record<DailyTaskId, DailyTask> = {
+  pet_mochi: { label: "Play with Mochi in the lounge", emoji: "🐱", goal: 1, slot: "home" },
+  brew_coffee: { label: "Pull an espresso in the lounge", emoji: "☕", goal: 1, slot: "home" },
+  roast_marshmallow: { label: "Toast a marshmallow by a fire", emoji: "🍢", goal: 1, slot: "home" },
+  catch_fish: { label: "Land 3 fish", emoji: "🎣", goal: 3, slot: "home" },
+  fell_tree: { label: "Fell 3 trees", emoji: "🪓", goal: 3, slot: "home" },
+  sell: { label: "Make a sale at any keeper", emoji: "🪙", goal: 1, slot: "home" },
+  slingshot: { label: "Play a round at the Slingshot Gallery", emoji: "🎯", goal: 1, slot: "home" },
+  split: { label: "Split 3 logs at the splitting block", emoji: "🪵", goal: 3, slot: "home" },
+  spin_slots: { label: "Spin the casino's slots 3 times", emoji: "🎰", goal: 3, slot: "town" },
+  pull_gacha: { label: "Turn the casino's capsule machine", emoji: "🔮", goal: 1, slot: "town" },
+  bar_drink: { label: "Order or serve a drink at Mango's bar", emoji: "🍹", goal: 1, slot: "town" },
+  beachcomb: { label: "Pick up 2 shells on Sunset Beach", emoji: "🐚", goal: 2, slot: "town" },
+  tide_pool: { label: "Look into a tide pool on the beach's rocky point", emoji: "🔍", goal: 1, slot: "town" },
+  win_boxing: { label: "Win a bout in the Velvet Ring (Jimmy counts)", emoji: "🥊", goal: 1, slot: "town" },
+  fine_fish: { label: "Land an uncommon fish or better, by hand", emoji: "🐟", goal: 1, slot: "craft" },
+  fell_many: { label: "Fell 8 trees", emoji: "🌲", goal: 8, slot: "craft" },
+  sell_many: { label: "Make 3 sales", emoji: "💰", goal: 3, slot: "craft" },
+  fell_fine: { label: "Fell 3 trees finer than pine", emoji: "🌳", goal: 3, slot: "craft", needs: "woods" },
+  woods_sale: { label: "Sell to Bramble or Finley in the woods", emoji: "🐻", goal: 1, slot: "craft", needs: "woods" },
+  break_ore: { label: "Break 6 ore nodes", emoji: "⛏️", goal: 6, slot: "craft", needs: "cave" },
+  soak_onsen: { label: "Soak in the caverns' warm pools for 30 s", emoji: "♨️", goal: 1, slot: "craft", needs: "cave" },
 };
-export const DAILY_REWARD = 30;
+export const DAILY_SLOTS: readonly DailySlot[] = ["home", "town", "craft"];
+/** What an order pays as it is met, by its board, and the three together on top. */
+export const DAILY_COINS: Record<DailySlot, number> = { home: 30, town: 50, craft: 80 };
+export const DAILY_BONUS = 90;
+/** The day's whole worth. */
+export const DAILY_REWARD = DAILY_COINS.home + DAILY_COINS.town + DAILY_COINS.craft + DAILY_BONUS;
+export const isDailyTaskId = (id: unknown): id is DailyTaskId => typeof id === "string" && Object.prototype.hasOwnProperty.call(DAILY_TASKS, id);
+/** The `dailyOrder` message: an order just met, what it paid, and whether that made the three. */
+export interface DailyNews {
+  id: DailyTaskId;
+  coins: number;
+  all: boolean;
+}
 export interface DailyChecklist {
   /** YYYY-MM-DD (UTC) the list was rolled for. */
   date: string;
@@ -134,7 +193,8 @@ export interface DailyChecklist {
 export function parseDaily(raw: string | null | undefined): DailyChecklist | null {
   try {
     const v = raw ? JSON.parse(raw) : null;
-    return v && typeof v === "object" && Array.isArray(v.tasks) ? (v as DailyChecklist) : null;
+    // (a list from before the orders, or of another build's tasks: none, and the server rolls anew)
+    return v && typeof v === "object" && Array.isArray(v.tasks) && v.tasks.every((t: { id?: unknown }) => isDailyTaskId(t?.id)) ? (v as DailyChecklist) : null;
   } catch {
     return null;
   }

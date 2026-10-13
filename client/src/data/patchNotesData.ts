@@ -2305,6 +2305,23 @@ export const PATCH_ERAS: PatchEra[] = [
           ],
         },
       },
+      {
+        version: "0.9.8",
+        date: "2026-10-14",
+        title: "Daily Orders",
+        summary: "Three small orders a day across the whole world, each paid as you meet it.",
+        changes: {
+          features: [
+            "📋 Daily orders, in the top-left corner under the guide: three a day, one close to home (the lounge and the campfire), one out in the open worlds (the casino, the ring, the beach) and one of the crafts. Tap the chip to see them.",
+            "🤝 Everyone gets the same home and town orders each day, so a call can do them together. The craft order only ever asks for places you can already reach.",
+            "🌅 A fresh draw every day at midnight UTC, even if you are still in the lounge when it turns.",
+          ],
+          economy: [
+            "🪙 Each order pays as it is met (30, 50 and 80 coins) and all three a 90-coin bonus: 250 a day. The old daily checklist paid 30 for all three, and only at the end.",
+            "🥊 A spar won against Jimmy now counts for the ring's order. The old checklist's wishing-well and splash tasks are retired.",
+          ],
+        },
+      },
     ],
   },
 ];

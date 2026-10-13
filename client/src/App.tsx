@@ -49,6 +49,7 @@ import { WonderBadge } from "./components/hud/WonderBadge";
 import { lampBoost } from "./scene/caveGear";
 import { BuffRow } from "./components/hud/BuffRow";
 import { GuideCard } from "./components/hud/GuideCard";
+import { DailyCard } from "./components/hud/DailyCard";
 import { useWorldAmbience } from "./audio/ambience";
 import { playSfx } from "./audio/sfx";
 import { FORAGE_INFO, ITEMS, TREASURE_COINS, guildRoomKey, type FishCaught, type ForageResult, type RoastResult, type StarlightReel } from "@shared/types";
@@ -73,6 +74,7 @@ import { BeachBarModal } from "./components/hud/BeachBarModal";
 import { CaptainModal } from "./components/hud/CaptainModal";
 import { JOURNAL_BY_ID, JOURNAL_SECTIONS, type JournalFind } from "@shared/beach_journal";
 import { GUIDE, GUIDE_BY_ID, type GuideNews } from "@shared/guide";
+import { DAILY_TASKS, type DailyNews } from "@shared/types";
 import { beachJournal } from "./systems/beachJournalStore";
 import { SEA_CHANNEL } from "@shared/voyage";
 import { CoveBenchModal } from "./components/hud/CoveBenchModal";
@@ -761,8 +763,11 @@ export default function App() {
             if (r.method === "nocontest") pushToast("No Contest: no record, no purse, but the ring is still yours", { emoji: "🤚" });
             else pushToast(r.purse > 0 ? `You win by ${r.method === "decision" ? "decision" : "knockout"}! +${r.purse} coins purse${r.stays ? ": you hold the ring" : ""}` : `You win! (no purse left this hour)${r.stays ? " You hold the ring" : ""}`, { emoji: "🏆", tone: "win" });
           }
-        } else if (type === "dailyComplete") {
-          pushToast(`Daily checklist done! +${(payload as { coins: number }).coins} coins`, { emoji: "📋", tone: "win" });
+        } else if (type === "dailyOrder") {
+          // one of the day's three orders met (shared/types.ts DAILY_TASKS)
+          const d = payload as DailyNews;
+          const task = DAILY_TASKS[d.id];
+          if (task) pushToast(d.all ? `Daily order done: ${task.label}. That is all three: +${d.coins} 🪙 with the bonus!` : `Daily order done: ${task.label}. +${d.coins} 🪙`, { emoji: d.all ? "🎀" : "📋", tone: "win" });
         } else if (type === "vibe") {
           const v = payload as { coins: number; party: boolean };
           pushToast(v.party ? `Party vibes: +${v.coins} coins for hanging out together` : `Cozy vibes: +${v.coins} coins for hanging out`, { emoji: v.party ? "🎉" : "🕯️", tone: "coin" });
@@ -1005,7 +1010,13 @@ export default function App() {
         <div className={ringTakeover ? "cozy-hud-away" : "cozy-hud-back"}>
           <WonderBadge worldEvent={worldEvent} incenseUntil={incenseUntil} currentMap={currentMap} gear={angler.profile} />
           {localPlayer && <BuffRow profile={angler.profile} />}
-          {localPlayer && !mapTransitioning && <GuideCard profile={angler.profile} />}
+          {/* the top-left column under the buffs: the Newcomer's Guide, then the day's orders */}
+          {localPlayer && !mapTransitioning && (
+            <div className="pointer-events-none fixed z-[33] flex w-[min(280px,calc(100vw-24px))] flex-col gap-1.5" style={{ top: "calc(max(8px, env(safe-area-inset-top)) + 86px)", left: "max(10px, env(safe-area-inset-left))" }}>
+              <GuideCard profile={angler.profile} />
+              <DailyCard daily={localPlayer.daily} />
+            </div>
+          )}
         </div>
         <Toasts />
         <ReconnectingPill active={reconnecting} place={MAP_LABELS[currentMap]?.name ?? "the lounge"} onRetry={retryNow} />

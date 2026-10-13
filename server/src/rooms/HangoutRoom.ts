@@ -277,7 +277,9 @@ import { defaultLook, OUTFIT_FABRICS, OUTFITS,
   type RadioPacket,
   CLAW_COST,
   CLAW_WIN_COINS,
-  DAILY_REWARD,
+  DAILY_BONUS,
+  DAILY_COINS,
+  DAILY_TASKS,
   FORTUNES,
   GACHA_COST,
   MATCHA_COOLDOWN_S,
@@ -314,6 +316,9 @@ import { defaultLook, OUTFIT_FABRICS, OUTFITS,
   isOutfitId,
   isRingProp,
   toStoredLook,
+  parseDaily,
+  type DailyAccess,
+  type DailyNews,
   type DailyTaskId,
   type SlingshotResult,
   type SlingshotStarted,
@@ -809,7 +814,16 @@ export class HangoutRoom extends Room<HangoutState> {
         if (player) this.saveFishing(sessionId, player);
       },
       sendTo: (sessionId, type, payload) => this.sendTo(sessionId, type, payload),
-      toBeach: (type, payload) => this.toMap("sunset_beach", type, payload),
+      toBeach: (type, payload) => {
+        this.toMap("sunset_beach", type, payload);
+        // (a drink set down: the day's order for whoever made it and whoever it is for)
+        if (type !== "drinkServed") return;
+        const d = payload as { by?: string; to?: string };
+        for (const id of new Set([d.by, d.to])) {
+          const p = id ? this.state.players.get(id) : undefined;
+          if (id && p) this.daily(id, p, "bar_drink");
+        }
+      },
       addCoins: (sessionId, amount) => {
         const player = this.state.players.get(sessionId);
         if (player) this.addCoins(player, amount);
@@ -841,7 +855,13 @@ export class HangoutRoom extends Room<HangoutState> {
         const player = this.state.players.get(sessionId);
         if (player) this.saveFishing(sessionId, player);
       },
-      sendTo: (sessionId, type, payload) => this.sendTo(sessionId, type, payload),
+      sendTo: (sessionId, type, payload) => {
+        this.sendTo(sessionId, type, payload);
+        // (a shell picked up, a tide pool looked into: the day's orders)
+        const player = this.state.players.get(sessionId);
+        if (player && type === "beachFind" && (payload as { spot?: number }).spot !== undefined) this.daily(sessionId, player, "beachcomb");
+        else if (player && type === "tideLook") this.daily(sessionId, player, "tide_pool");
+      },
       addCoins: (sessionId, amount) => {
         const player = this.state.players.get(sessionId);
         if (player) this.addCoins(player, amount);
@@ -1196,6 +1216,8 @@ export class HangoutRoom extends Room<HangoutState> {
       const player = this.state.players.get(client.sessionId);
       if (player && typeof msg?.rtt === "number" && Number.isFinite(msg.rtt)) player.ping = Math.max(0, Math.min(9999, Math.round(msg.rtt)));
       client.send("pong", { t: msg?.t ?? 0 });
+      // (past midnight UTC with yesterday's orders still up: the new day's, drawn now)
+      if (player && !player.daily.includes(`"${todayKey()}"`)) player.daily = JSON.stringify(rollDaily(this.dailyAccess(client.sessionId)));
     });
 
     // last: the board game this channel had going when the server stopped, back on its table
@@ -1236,22 +1258,31 @@ export class HangoutRoom extends Room<HangoutState> {
     player.stats = JSON.stringify(stats);
   }
 
-  /** Advances one of today's checklist tasks for a player; the finished list pays out at once. */
+  /** What a player can reach, for the day's craft order (shared/types.ts DailyAccess): the woods once
+   *  they have walked in (the guide's step, a permit in the pocket, the badge), the caverns with the
+   *  licence. */
+  private dailyAccess(sessionId: string): DailyAccess[] {
+    const p = this.records.get(sessionId)?.fishing;
+    if (!p) return [];
+    const woods = p.ranger || p.caveAccess || p.dayPermits > 0 || p.guide.done.includes("woods");
+    return [...(woods ? (["woods"] as const) : []), ...(p.caveAccess ? (["cave"] as const) : [])];
+  }
+
+  /** Advances one of today's orders for a player (a task not on their list counts for nothing): an
+   *  order met pays at once, and the day's three a bonus on top. */
   private daily(sessionId: string, player: Player, task: DailyTaskId, by = 1) {
-    let list: ReturnType<typeof rollDaily> | null = null;
-    try {
-      list = player.daily ? JSON.parse(player.daily) : null;
-    } catch {
-      list = null;
-    }
-    if (!list || list.date !== todayKey()) list = rollDaily(player.userId);
-    const completed = progressDaily(list, task, by);
-    player.daily = JSON.stringify(list);
-    if (completed) {
-      this.addCoins(player, DAILY_REWARD);
-      this.sendTo(sessionId, "dailyComplete", { coins: DAILY_REWARD });
-      this.nearby(sessionId, "emote", { sessionId, emoji: "🎀" });
-    }
+    let list = parseDaily(player.daily);
+    const fresh = !list || list.date !== todayKey();
+    if (!list || fresh) list = rollDaily(this.dailyAccess(sessionId));
+    const { met, all } = progressDaily(list, task, by);
+    const text = JSON.stringify(list);
+    if (text !== player.daily) player.daily = text;
+    if (!met) return;
+    const coins = DAILY_COINS[DAILY_TASKS[task].slot] + (all ? DAILY_BONUS : 0);
+    this.addCoins(player, coins);
+    const news: DailyNews = { id: task, coins, all };
+    this.sendTo(sessionId, "dailyOrder", news);
+    if (all) this.nearby(sessionId, "emote", { sessionId, emoji: "🎀" });
   }
 
   private owns(player: Player, id: string): boolean {
@@ -1386,7 +1417,7 @@ export class HangoutRoom extends Room<HangoutState> {
     });
     this.nearby(sessionId, "splash", { sessionId, x: player.x, z: player.z });
     this.nearby(sessionId, "emote", { sessionId, emoji: "💦" });
-    if (splashedSomeone) this.daily(sessionId, player, "splash_water");
+
   }
 
   private handleWish(sessionId: string) {
@@ -1397,7 +1428,7 @@ export class HangoutRoom extends Room<HangoutState> {
     // once in a while the well gives back more than it took
     const lucky = Math.random() < 0.15 ? 5 + Math.floor(Math.random() * 10) : 0;
     if (lucky) this.addCoins(player, lucky);
-    this.daily(sessionId, player, "make_wish");
+
     this.sendTo(sessionId, "wishResult", { fortune, lucky });
     this.nearby(sessionId, "emote", { sessionId, emoji: "🪙" });
   }
@@ -3670,6 +3701,7 @@ export class HangoutRoom extends Room<HangoutState> {
     const eagle = !!tier?.eagle;
     if (eagle) profile.eagleUntil = Date.now() + EAGLE_EYE_MS;
     profile.slingBest = Math.max(profile.slingBest, run.score);
+    this.daily(sessionId, player, "slingshot");
     this.saveFishing(sessionId, player);
     this.persist(sessionId, player);
     const result: SlingshotResult = { ok: true, score: run.score, hits: run.hits.length, acorns: run.acorns, streak: run.streak, prize, acornCoins, coins, capped: prize + acornCoins > coins, eagle, paid: round.paid, best: profile.slingBest };
@@ -4180,6 +4212,21 @@ export class HangoutRoom extends Room<HangoutState> {
       this.nearby(sessionId, "emote", { sessionId, emoji: "🏅" });
     }
     if (deed.kind === "sale" && deed.counter === 1) this.guideFlag(sessionId, "soldWoods");
+    // the day's orders that count deeds (the rest are counted where they happen)
+    const player = this.state.players.get(sessionId);
+    if (!player) return;
+    if (deed.kind === "catch" && deed.tier !== "common") this.daily(sessionId, player, "fine_fish");
+    else if (deed.kind === "felled") {
+      this.daily(sessionId, player, "fell_tree");
+      this.daily(sessionId, player, "fell_many");
+      if (TREES[deed.treeKind].tier > 1) this.daily(sessionId, player, "fell_fine");
+    } else if (deed.kind === "split") this.daily(sessionId, player, "split");
+    else if (deed.kind === "broke") this.daily(sessionId, player, "break_ore");
+    else if (deed.kind === "sale") {
+      this.daily(sessionId, player, "sell");
+      this.daily(sessionId, player, "sell_many");
+      if (deed.counter === 1) this.daily(sessionId, player, "woods_sale");
+    }
   }
 
   /** Where the player stands, for the gear's work (shared/gear.ts GearPlace): each place in reach and
@@ -5230,7 +5277,9 @@ export class HangoutRoom extends Room<HangoutState> {
       player.look = encodeLook(look);
       player.color = look.outfitColor;
     }
-    const daily = record.daily && record.daily.date === todayKey() ? record.daily : rollDaily(player.userId);
+    const kept = parseDaily(record.daily ? JSON.stringify(record.daily) : "");
+    this.records.set(client.sessionId, record);
+    const daily = kept && kept.date === todayKey() ? kept : rollDaily(this.dailyAccess(client.sessionId));
     record.daily = daily;
     player.daily = JSON.stringify(daily);
     player.fishing = JSON.stringify(record.fishing);
